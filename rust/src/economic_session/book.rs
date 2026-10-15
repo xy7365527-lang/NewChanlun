@@ -89,7 +89,7 @@ pub(crate) fn decode(raw: &str, pointer: &str, rules: Rules) -> Result<(Value, V
         .clone();
     required(&event, "event")?;
     required(&event, "allocation_id")?;
-    let netted = rules == Rules::Tb03cV1 && super::tb03c_allocation::is_netted(&event);
+    let netted = rules == Rules::Tb03cV1 && super::tb03c_allocation::is_projected(&event);
     if !netted {
         required(&event, "family_id")?;
         target(&event)?;

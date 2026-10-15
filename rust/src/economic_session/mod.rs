@@ -11,7 +11,9 @@ mod service;
 mod store;
 mod tb03c_allocation;
 mod tb03c_book;
+mod tb03c_corrections;
 mod tb03c_e;
+mod tb03c_per_leg;
 mod voice;
 pub use service::cli;
 

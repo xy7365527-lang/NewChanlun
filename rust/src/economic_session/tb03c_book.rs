@@ -408,9 +408,20 @@ fn income(book: &mut Value, d: &Value) -> Result<(), String> {
 }
 
 fn components(book: &mut Value, comps: &[Value], record: &Value) -> Result<(), String> {
+    component_effects(book, comps, record, false)
+}
+
+// 反冲方向仅由已验证的 E 派生分配提供，原 raw 分量不能自行启用。
+fn component_effects(
+    book: &mut Value,
+    comps: &[Value],
+    record: &Value,
+    reversal: bool,
+) -> Result<(), String> {
     for c in comps {
         let k = kind(c);
         let amount = nonnegative(required(c, "canonical_amount")?, "canonical_amount")?;
+        let amount = if reversal { -amount } else { amount };
         match k {
             "principal_contribution" => {
                 let batch = required(c, "batch_id")?;
@@ -556,8 +567,8 @@ pub(super) fn apply(
         required(record, "json_pointer")?,
         Rules::Tb03cV1,
     )?;
-    if super::tb03c_allocation::is_netted(&event) {
-        return apply_netted(image, record, &doc, &event, seq, ns);
+    if super::tb03c_allocation::is_projected(&event) {
+        return apply_projected(image, record, &doc, &event, seq, ns);
     }
     if event.get("valuation_observation").is_some() {
         return Err("SchemaUnsupported：估值观察只记 E，不进 B 成本账（C05.4）".into());
@@ -658,7 +669,7 @@ pub(super) fn apply(
 }
 
 /// 净额分配是 E 证明的派生量，不重新包装成带原始见证的逐重成交。
-fn apply_netted(
+fn apply_projected(
     image: &Value,
     record: &Value,
     doc: &Value,
@@ -672,8 +683,12 @@ fn apply_netted(
     let id = super::tb03c_allocation::application_id(record)?;
     let domain = super::tb03c_allocation::application_domain(record)?;
     let old = &image["book"];
+    let per_leg = event.get("per_leg_report").is_some();
     // 同一冻结投影的前序报告须先在本 B 应用，包括零份额报告。
-    if let Some(prior) = record["e_resolution_proof"]["image"]["fill_allocations"].as_array() {
+    if let Some(prior) = record["e_resolution_proof"]["image"]["fill_allocations"]
+        .as_array()
+        .filter(|_| !per_leg)
+    {
         for row in prior
             .iter()
             .take_while(|r| r["fact_key"] != record["fact_key"])
@@ -687,8 +702,11 @@ fn apply_netted(
             }
         }
     }
+    super::tb03c_corrections::predecessor(event, array(image, "recorded")?)?;
     let mut next = image.clone();
-    let unmatched = if old.is_null() {
+    let unmatched = if per_leg {
+        Some("per_leg_attribution_missing")
+    } else if old.is_null() {
         Some("opening_missing_undeclared")
     } else if old["family_id"] != allocation["family_id"] {
         Some("family_mismatch")
@@ -712,12 +730,21 @@ fn apply_netted(
         let mut book = old.clone();
         let n = Numbers::of(old)?;
         let before = Some((json!(n.status()?), n.cost_remaining()?));
-        let units = nonnegative(required(allocation, "units")?, "allocated units")?;
-        book["actual_quantity"] = json!(add(integer(old, "actual_quantity")?, units)?.to_string());
+        let units = integer(allocation, "units")?;
+        let quantity = add(integer(old, "actual_quantity")?, units)?;
+        if quantity < 0 {
+            return Err("InvalidDomain：冲销后数量不得为负".into());
+        }
+        book["actual_quantity"] = json!(quantity.to_string());
         // 显式原件已证明 Pi/A/W 均为零；仍调用同一收益账主干验证恒等式。
         income(&mut book, &event["netted_fill"]["income_changes"])?;
         let mut comps = Vec::new();
-        if units > 0 {
+        let correction = super::tb03c_corrections::is_correction(event);
+        if correction {
+            let kind = required(allocation, "component")?;
+            let amount = &allocation[kind];
+            comps.push(json!({"kind":kind,"canonical_amount":amount,"derivation":{"kind":"E_resolved_netted_correction","allocation_id":id,"manifest_hash":event["netted_fill"]["manifest_hash"],"original_fact_key":allocation["original_fact_key"],"reversal":allocation["reversal"],"resolve_cut":record["e_resolution_proof"]["receipt"]["cut"]}}));
+        } else if units > 0 {
             for kind in ["acquisition_cash", "commission"] {
                 comps.push(json!({"kind":kind,"canonical_amount":allocation[kind],"derivation":{"kind":"E_resolved_netted_allocation","allocation_id":id,"manifest_hash":event["netted_fill"]["manifest_hash"],"resolve_cut":record["e_resolution_proof"]["receipt"]["cut"]}}));
             }
@@ -726,12 +753,45 @@ fn apply_netted(
         {
             return Err("IdentityConflict：零份额不得携带分配现金/费用".into());
         }
-        components(&mut book, &comps, record)?;
+        component_effects(
+            &mut book,
+            &comps,
+            record,
+            correction && allocation["reversal"] == true,
+        )?;
         derive(&mut book, before, seq, ns, event, record)?;
         next["book"] = book;
     }
     push(&mut next, "recorded", record.clone());
-    let a = json!({"fact_key":record["fact_key"],"fact_hash":record["fact_hash"],"allocation_id":id,"target_domain":domain,"status":if unmatched.is_some(){"Unmatched"}else{"Applied"},"commit_seq":seq.to_string(),"commit_ns":ns});
+    let mut a = json!({"fact_key":record["fact_key"],"fact_hash":record["fact_hash"],"allocation_id":id,"target_domain":domain,"status":if unmatched.is_some(){"Unmatched"}else{"Applied"},"commit_seq":seq.to_string(),"commit_ns":ns});
+    if per_leg || super::tb03c_corrections::is_correction(event) {
+        let row = array(&record["e_resolution_proof"]["image"], "fill_allocations")?
+            .iter()
+            .find(|r| r["fact_key"] == record["fact_key"])
+            .ok_or("StorageUnavailable：缺政策证明")?;
+        for key in [
+            "manifest_hash",
+            "fill_allocation_policy_id",
+            "policy_revision",
+        ] {
+            a[key] = row[key].clone();
+        }
+        if let Some(reason) = unmatched {
+            let item = next["unmatched"]
+                .as_array_mut()
+                .unwrap()
+                .last_mut()
+                .unwrap();
+            item["reason_code"] = json!(reason);
+            for key in [
+                "manifest_hash",
+                "fill_allocation_policy_id",
+                "policy_revision",
+            ] {
+                item[key] = row[key].clone();
+            }
+        }
+    }
     push(&mut next, "applied", a.clone());
     push(
         &mut next,

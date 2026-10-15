@@ -1,4 +1,4 @@
-//! #1406 C4a / ADR 0032：冻结净额清单 → E 持久分配证明 → B 逐重消费。
+//! #1406 C4a/C4b / ADR 0032：冻结投影清单 → E 持久分配证明 → B 逐重消费。
 //! 原件、派生分配和提交证明各自保存；金额与数量只调用 C1 同一配额函数。
 use super::book::{array, hash, integer};
 use super::store::Config;
@@ -6,14 +6,22 @@ use crate::session_protocol::{nonnegative, positive, required};
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
 
-pub(super) fn is_netted(event: &Value) -> bool {
-    event.get("netted_fill").is_some()
+pub(super) fn is_projected(event: &Value) -> bool {
+    event.get("netted_fill").is_some() || event.get("per_leg_report").is_some()
+}
+pub(super) fn report(event: &Value) -> &Value {
+    event.get("netted_fill").unwrap_or(&event["per_leg_report"])
 }
 pub(super) fn target_domain(event: &Value) -> Result<String, String> {
-    if is_netted(event) {
+    if is_projected(event) {
         Ok(format!(
-            "E:netted:{}",
-            required(&event["netted_fill"], "manifest_hash")?
+            "E:{}:{}",
+            if event.get("per_leg_report").is_some() {
+                "per_leg"
+            } else {
+                "netted"
+            },
+            required(report(event), "manifest_hash")?
         ))
     } else {
         Ok(format!("B:{}", super::book::target(event)?))
@@ -43,8 +51,10 @@ pub(super) fn validate_config(config: &Value) -> Result<(), String> {
     }
     if let Some(policy) = config.get("fill_allocation_policy") {
         super::voice::exact(policy, &["fill_allocation_policy_id", "policy_revision"])?;
-        if policy["fill_allocation_policy_id"] != super::allocation::FILL_ALLOCATION_POLICY_ID {
-            return Err("SchemaUnsupported：外效分配政策仅接受 /2".into());
+        if policy["fill_allocation_policy_id"] != super::allocation::FILL_ALLOCATION_POLICY_ID
+            && policy["fill_allocation_policy_id"] != super::tb03c_per_leg::POLICY
+        {
+            return Err("SchemaUnsupported：净额政策仅 /2；per_leg 仅来源归属 /1".into());
         }
         required(policy, "policy_revision")?;
     }
@@ -60,8 +70,15 @@ pub(super) fn validate_config(config: &Value) -> Result<(), String> {
                 "manifest_hash",
             ],
         )?;
-        if manifest["projection_kind"] != "netted" {
-            return Err("SchemaUnsupported：C4a 清单仅实现净额；per_leg 归 C4b".into());
+        let expected_policy = match required(manifest, "projection_kind")? {
+            "netted" => super::allocation::FILL_ALLOCATION_POLICY_ID,
+            "per_leg" => super::tb03c_per_leg::POLICY,
+            _ => return Err("SchemaUnsupported：未知冻结投影类型".into()),
+        };
+        if let Some(p) = config.get("fill_allocation_policy") {
+            if p["fill_allocation_policy_id"] != expected_policy {
+                return Err("IdentityConflict：冻结投影类型与外效政策不符".into());
+            }
         }
         let mut body = manifest.clone();
         body.as_object_mut().unwrap().remove("manifest_hash");
@@ -107,7 +124,7 @@ pub(super) fn validate_config(config: &Value) -> Result<(), String> {
     Ok(())
 }
 fn manifest<'a>(config: &'a Config, event: &Value) -> Result<&'a Value, String> {
-    let key = required(&event["netted_fill"], "manifest_hash")?;
+    let key = required(report(event), "manifest_hash")?;
     array(&config.manifest, "fill_manifests")?
         .iter()
         .find(|m| m["manifest_hash"] == key)
@@ -117,9 +134,17 @@ pub(super) fn has_policy(config: &Config) -> bool {
     config.manifest.get("fill_allocation_policy").is_some()
 }
 pub(super) fn check_capture(config: &Config, event: &Value) -> Result<(), String> {
-    if is_netted(event) {
+    if is_projected(event) {
         let m = manifest(config, event)?;
-        if event["netted_fill"]["symbol"] != m["symbol"] {
+        let projection = if event.get("per_leg_report").is_some() {
+            "per_leg"
+        } else {
+            "netted"
+        };
+        if m["projection_kind"] != projection {
+            return Err("IdentityConflict：原件类型与冻结投影不符，不得回落".into());
+        }
+        if report(event)["symbol"] != m["symbol"] {
             return Err("IdentityConflict：净额原件标的与冻结投影不符".into());
         }
     }
@@ -131,50 +156,59 @@ pub(super) fn decode(
     pointer: &str,
     check_ref: &dyn Fn(&str, &str, &Value) -> Result<(), String>,
 ) -> Result<(), String> {
-    super::voice::exact(
-        event,
-        &[
-            "event",
-            "allocation_id",
-            "source",
-            "stable_point",
-            "netted_fill",
-        ],
-    )?;
+    if event.get("per_leg_report").is_some() {
+        return super::tb03c_per_leg::decode(event, pointer, check_ref);
+    }
+    let correction = super::tb03c_corrections::is_correction(event);
+    let mut event_fields = vec![
+        "event",
+        "allocation_id",
+        "source",
+        "stable_point",
+        "netted_fill",
+    ];
+    if correction {
+        event_fields.push("depends_on");
+    }
+    super::voice::exact(event, &event_fields)?;
     let fill = &event["netted_fill"];
-    super::voice::exact(
-        fill,
-        &[
-            "manifest_hash",
-            "symbol",
-            "report_kind",
-            "reported_quantity",
-            "from",
-            "to",
-            "unit_price",
-            "commission",
-            "cash_kind",
-            "income_changes",
-            "source_ref",
-        ],
-    )?;
-    required(fill, "manifest_hash")?;
-    required(fill, "symbol")?;
-    let from = nonnegative(required(fill, "from")?, "from")?;
-    let to = positive(required(fill, "to")?, "to")?;
-    if from >= to {
-        return Err("InvalidDomain：C4a 只接受正向非零成交区间".into());
-    }
-    let reported = positive(required(fill, "reported_quantity")?, "reported_quantity")?;
-    match required(fill, "report_kind")? {
-        "incremental" if reported == to - from => (),
-        "cumulative" if reported == to => (),
-        _ => return Err("IdentityConflict：逐笔/累计回报与累计区间不符".into()),
-    }
-    nonnegative(required(fill, "unit_price")?, "unit_price")?;
-    nonnegative(required(fill, "commission")?, "commission")?;
-    if fill["cash_kind"] != "acquisition_cash" {
-        return Err("SchemaUnsupported：C4a 净额原件仅支持具名多头购入现金".into());
+    if correction {
+        super::tb03c_corrections::decode(event, pointer, check_ref)?;
+    } else {
+        super::voice::exact(
+            fill,
+            &[
+                "manifest_hash",
+                "symbol",
+                "report_kind",
+                "reported_quantity",
+                "from",
+                "to",
+                "unit_price",
+                "commission",
+                "cash_kind",
+                "income_changes",
+                "source_ref",
+            ],
+        )?;
+        required(fill, "manifest_hash")?;
+        required(fill, "symbol")?;
+        let from = nonnegative(required(fill, "from")?, "from")?;
+        let to = positive(required(fill, "to")?, "to")?;
+        if from >= to {
+            return Err("InvalidDomain：C4a 只接受正向非零成交区间".into());
+        }
+        let reported = positive(required(fill, "reported_quantity")?, "reported_quantity")?;
+        match required(fill, "report_kind")? {
+            "incremental" if reported == to - from => (),
+            "cumulative" if reported == to => (),
+            _ => return Err("IdentityConflict：逐笔/累计回报与累计区间不符".into()),
+        }
+        nonnegative(required(fill, "unit_price")?, "unit_price")?;
+        nonnegative(required(fill, "commission")?, "commission")?;
+        if fill["cash_kind"] != "acquisition_cash" {
+            return Err("SchemaUnsupported：C4a 净额原件仅支持具名多头购入现金".into());
+        }
     }
     super::voice::exact(&fill["income_changes"], &["Pi", "A", "W"])?;
     for k in ["Pi", "A", "W"] {
@@ -200,7 +234,7 @@ pub(super) fn decode(
     )
 }
 
-fn fees(total: i64, delta: &[i64], ranks: &[usize]) -> Result<Vec<i64>, String> {
+pub(super) fn fees(total: i64, delta: &[i64], ranks: &[usize]) -> Result<Vec<i64>, String> {
     let mut result = vec![0; delta.len()];
     if total == 0 {
         return Ok(result);
@@ -232,7 +266,7 @@ pub(super) fn resolve(
     evidence_id: &str,
 ) -> Result<(), String> {
     let event = &fact["event"];
-    if !is_netted(event) {
+    if !is_projected(event) {
         return Ok(());
     }
     if !has_policy(config) {
@@ -240,9 +274,11 @@ pub(super) fn resolve(
     }
     check_capture(config, event)?;
     let m = manifest(config, event)?;
+    if m["projection_kind"] == "per_leg" {
+        return super::tb03c_per_leg::resolve(config, next, fact, m, evidence_id);
+    }
     let fill = &event["netted_fill"];
-    let from = integer(fill, "from")?;
-    let to = integer(fill, "to")?;
+    let correction = super::tb03c_corrections::is_correction(event);
     let prior = next.get("fill_allocations").and_then(Value::as_array);
     let last = prior.and_then(|rows| {
         rows.iter()
@@ -250,6 +286,16 @@ pub(super) fn resolve(
             .find(|r| r["manifest_hash"] == m["manifest_hash"])
     });
     let frontier = last.map(|r| integer(r, "to")).transpose()?.unwrap_or(0);
+    let from = if correction {
+        frontier
+    } else {
+        integer(fill, "from")?
+    };
+    let to = if correction {
+        frontier
+    } else {
+        integer(fill, "to")?
+    };
     if from != frontier {
         return Err("MissingDependency：净额累计前沿缺口、倒退或重复冲突".into());
     }
@@ -268,13 +314,29 @@ pub(super) fn resolve(
                 .ok_or_else(|| "IdentityConflict：参与重不在并列顺序".to_owned())
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let delta = super::allocation::increments(from, to, &weights, &ranks)?;
-    let fee = fees(integer(fill, "commission")?, &delta, &ranks)?;
+    let effects = if correction {
+        Some(super::tb03c_corrections::resolve(
+            event, next, frontier, &weights, &ranks,
+        )?)
+    } else {
+        None
+    };
+    let delta = match &effects {
+        Some(e) => e.units.clone(),
+        None => super::allocation::increments(from, to, &weights, &ranks)?,
+    };
+    let fee = match &effects {
+        Some(e) => e.fees.clone(),
+        None => fees(integer(fill, "commission")?, &delta, &ranks)?,
+    };
     let mut allocations = Vec::new();
     for (i, p) in participants.iter().enumerate() {
-        let cash = delta[i]
-            .checked_mul(integer(fill, "unit_price")?)
-            .ok_or("InvalidDomain：成交现金溢出")?;
+        let cash = match &effects {
+            Some(e) => e.cash[i],
+            None => delta[i]
+                .checked_mul(integer(fill, "unit_price")?)
+                .ok_or("InvalidDomain：成交现金溢出")?,
+        };
         let id = format!(
             "netted:{}",
             hash(&json!([
@@ -286,10 +348,33 @@ pub(super) fn resolve(
         );
         allocations.push(json!({"allocation_id":id,"chong_id":p["chong_id"],"command_id":p["command_id"],"family_id":p["family_id"],"revision":p["revision"],"units":delta[i].to_string(),"acquisition_cash":cash.to_string(),"commission":fee[i].to_string()}));
     }
+    if let Some(e) = &effects {
+        for a in &mut allocations {
+            a["component"] = json!(e.component);
+            a["reversal"] = json!(e.reverse);
+            a["original_fact_key"] = e.original_fact_key.clone();
+            if e.component == "fee_only" {
+                let amount = a.as_object_mut().unwrap().remove("commission").unwrap();
+                a["fee_only"] = amount;
+            }
+        }
+    }
     if next.get("fill_allocations").is_none() {
         next["fill_allocations"] = json!([]);
     }
     next["fill_allocations"].as_array_mut().unwrap().push(json!({"fact_key":fact["fact_key"],"fact_hash":fact["fact_hash"],"manifest_hash":m["manifest_hash"],"symbol":m["symbol"],"fill_allocation_policy_id":config.manifest["fill_allocation_policy"]["fill_allocation_policy_id"],"policy_revision":config.manifest["fill_allocation_policy"]["policy_revision"],"from":fill["from"],"to":fill["to"],"evidence_id":evidence_id,"allocations":allocations}));
+    if let Some(e) = effects {
+        let row = next["fill_allocations"]
+            .as_array_mut()
+            .unwrap()
+            .last_mut()
+            .unwrap();
+        row["from"] = json!(e.from.to_string());
+        row["to"] = json!(e.to.to_string());
+        row["report_kind"] = fill["report_kind"].clone();
+        row["component"] = json!(e.component);
+        row["original_fact_key"] = e.original_fact_key;
+    }
     Ok(())
 }
 
@@ -299,7 +384,7 @@ pub(super) fn attach_resolution(
     config: &Config,
     record: &mut Value,
 ) -> Result<(), String> {
-    if !is_netted(&record["event"]) {
+    if !is_projected(&record["event"]) {
         return Ok(());
     }
     let image = super::store::latest(c)?.3;
@@ -357,7 +442,7 @@ pub(super) fn attach_resolution(
 }
 
 pub(super) fn verify_resolution(record: &Value, config: &Config) -> Result<(), String> {
-    if !is_netted(&record["event"]) {
+    if !is_projected(&record["event"]) {
         if record.get("resolved_allocation").is_some() || record.get("e_resolution_proof").is_some()
         {
             return Err("StorageUnavailable：单重原件不得夹带净额派生证明".into());

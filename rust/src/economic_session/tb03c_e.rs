@@ -33,8 +33,9 @@ pub(super) fn dependency_key(event: &Value) -> Result<Option<String>, String> {
 /// #1406 H1：费用必须绑定原 fill 的来源身份和原 allocation，不能让任意 Applied 原件充当前件。
 /// 只读 E 已接纳或 B 已应用的原件；字段来自带来源索引的费用分量，不采请求中的派生归属。
 pub(super) fn check_fill_predecessor(event: &Value, records: &[Value]) -> Result<(), String> {
-    if super::tb03c_allocation::is_netted(event) {
-        return Ok(()); // 净额成交无独立费用前件；其累计前沿由 Resolve 分配核。
+    if super::tb03c_allocation::is_projected(event) {
+        super::tb03c_corrections::predecessor(event, records)?;
+        return Ok(()); // 原成交与更正均由同一具名前件核；累计分配在 Resolve 核。
     }
     for component in super::book::array(event, "known_cost_components")? {
         if component["kind"] != "fee_only" || component["cause"] != "fill" {
@@ -85,7 +86,7 @@ pub(super) fn pending_entry(
     let recorded = previous["recorded"]
         .as_array()
         .ok_or("StorageUnavailable：recorded 形状")?;
-    let netted = super::tb03c_allocation::is_netted(event);
+    let netted = super::tb03c_allocation::is_projected(event);
     let reason = if netted && !super::tb03c_allocation::has_policy(config) {
         json!({"kind":"AwaitingPolicy","slot":"fill_allocation_policy"})
     } else {
@@ -162,7 +163,7 @@ pub(super) fn resolve_image(
         // #1406 H2：风险 Pending 可被 Reserve 按完整责任覆盖清除；净额待办独立由
         // 已 Recorded 且未分配定义，不能因清风险永久丢失。非净额仍须原 Pending。
         let reconstructed;
-        let p = if super::tb03c_allocation::is_netted(&fact["event"]) {
+        let p = if super::tb03c_allocation::is_projected(&fact["event"]) {
             if previous
                 .get("fill_allocations")
                 .map(|v| v.as_array().ok_or("StorageUnavailable：分配记录形状"))

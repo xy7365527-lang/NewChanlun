@@ -104,7 +104,7 @@ fn record_from_payload(config: &Config, e: &Value) -> Result<Value, String> {
     {
         return Err("InvalidDomain：来源未获准：原件来源不等于获准连接来源".into());
     }
-    let netted = super::tb03c_allocation::is_netted(&event);
+    let netted = super::tb03c_allocation::is_projected(&event);
     super::tb03c_allocation::check_capture(config, &event)?;
     let domain = super::tb03c_allocation::target_domain(&event)?;
     let id = if netted { "" } else { target(&event)? };

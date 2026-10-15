@@ -13,19 +13,29 @@ struct Session {
     configs: Vec<store::Config>,
     dbs: Vec<rusqlite::Connection>,
     next: usize,
+    epochs: Vec<i64>,
 }
 fn manifest(space: &Space, policy: bool) -> Value {
     let mut plan = serde_json::Map::new();
     for i in 0..256 {
         let t = 1000 + 10 * i;
-        plan.insert(format!("m-{i}"),json!({"received_ns":t.to_string(),"first_known_ns":(t+1).to_string(),"commit_ns":(t+2).to_string()}));
+        // 每个 owner 的 epoch 使用独立时间段；恢复后新提交仍通过真实单调时钟门。
+        let times = |offset: i64| {
+            (0..16)
+                .map(|r| (r * 1_000_000 + t + offset).to_string())
+                .collect::<Vec<_>>()
+        };
+        plan.insert(
+            format!("m-{i}"),
+            json!({"received_ns":times(0),"first_known_ns":times(1),"commit_ns":times(2)}),
+        );
     }
-    let chongs = (0..3).map(|i|json!({"chong_id":format!("chong-N{}",i+1),"symbol":"TEST-N","operation_level":(i+1).to_string(),"fixed_q":["1","3","3"][i],"db":space.0.join(format!("b{i}.db")),"socket":space.0.join(format!("b{i}.sock"))})).collect::<Vec<_>>();
+    let chongs = (0..3).map(|i|json!({"chong_id":format!("chong-N{}",i+1),"symbol":"TEST-N","operation_level":(i+1).to_string(),"fixed_q":(["1","3","3"][i]),"db":space.0.join(format!("b{i}.db")),"socket":space.0.join(format!("b{i}.sock"))})).collect::<Vec<_>>();
     let mut m = json!({"schema_revision":"economic-manifest/1","session_id":"tb1406-c4a","session_generation":"1","book_revision":"tb03c-book/1",
         "e":{"db":space.0.join("e.db"),"socket":space.0.join("e.sock")},"chongs":chongs,"fill_manifests":[serde_json::from_str::<Value>(MANIFEST).unwrap()],
         "authorized_sources":[{"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","producer_id":"tb1406-c4a","producer_epoch":"1","operations":["CaptureExternal","ResolveEvidence","ApplyAllocation","ReadView","QueryFact","QueryAllocation"]}],
         "resources":{"max_frame_bytes":"1048576","read_timeout_ms":"1000","write_timeout_ms":"1000","response_timeout_ms":"2000","queue_capacity":"2","max_connections":"2"},
-        "clock":{"kind":"TestOnly","plan":{"init_ns":"1","recover_ns":["90000","90001"],"messages":plan}}});
+        "clock":{"kind":"TestOnly","plan":{"init_ns":"1","recover_ns":((1..=16).map(|r| (r * 1_000_000).to_string()).collect::<Vec<_>>()),"messages":plan}}});
     if policy {
         m["fill_allocation_policy"] = json!({"fill_allocation_policy_id":super::allocation::FILL_ALLOCATION_POLICY_ID,"policy_revision":"we7-frozen-1"});
     }
@@ -33,9 +43,14 @@ fn manifest(space: &Space, policy: bool) -> Value {
 }
 impl Session {
     fn new(tag: &str, policy: bool) -> Self {
+        Self::custom(tag, policy, |_| {})
+    }
+    fn custom(tag: &str, policy: bool, modify: impl FnOnce(&mut Value)) -> Self {
         let space = Space::new(tag);
         let path = space.0.join("manifest.json");
-        std::fs::write(&path, canonical_json(&manifest(&space, policy))).unwrap();
+        let mut m = manifest(&space, policy);
+        modify(&mut m);
+        std::fs::write(&path, canonical_json(&m)).unwrap();
         let mut configs = vec![store::Config::load(&path, &space.0.join("e.db"), None).unwrap()];
         for i in 0..3 {
             configs.push(
@@ -47,10 +62,12 @@ impl Session {
                 .unwrap(),
             );
         }
+        let mut epochs = Vec::new();
         let dbs = configs
             .iter()
             .map(|c| {
-                store::init(c).unwrap();
+                let receipt = store::init(c).unwrap();
+                epochs.push(book::integer(&receipt, "writer_epoch").unwrap());
                 store::open(&c.db, false).unwrap().0
             })
             .collect();
@@ -59,6 +76,7 @@ impl Session {
             configs,
             dbs,
             next: 0,
+            epochs,
         }
     }
     fn send(&mut self, owner: usize, payload: Value) -> Value {
@@ -68,8 +86,8 @@ impl Session {
         service::handle(
             &mut self.dbs[owner],
             &self.configs[owner],
-            1,
-            1,
+            self.epochs[owner],
+            self.epochs[0],
             &json!({}),
             &e,
         )["payload"]
@@ -413,3 +431,5 @@ fn netted_symbols_are_bound_at_freeze_capture_and_apply_with_no_partial_success(
             .starts_with("IdentityConflict")
     );
 }
+
+include!("tb03c_c4b_tests.rs");
