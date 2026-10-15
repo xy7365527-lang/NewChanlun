@@ -1,0 +1,202 @@
+⚠ [2/156] Replayed Formal.CenterTrichotomy
+warning: Formal/CenterTrichotomy.lean:110:50: This simp argument is unused:
+  h
+
+Hint: Omit it from the simp argument list.
+  simp [h2,̵ ̵h̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ℹ [22/156] Replayed Origin.CenterConstruct
+info: Origin/CenterConstruct.lean:657:0: {"five_settled_break":[{"break_index":4,"break_up":true,"count":4,"dd":10,"end":3,"gg":20,"settled":true,"start":0,"zd":12,"zg":15}],"four_extend":[{"break_index":-1,"break_up":true,"count":4,"dd":10,"end":3,"gg":20,"settled":false,"start":0,"zd":12,"zg":15}],"meta":{"epistemic_level":"L0","note":"reference v1 中枢语义 bit-exact Lean machine-checked; 非 L2 经验断言","source":"formal/Origin/CenterConstruct.lean #eval refZhongshusFromComponents (machine-exported)"},"three_unsettled":[{"break_index":-1,"break_up":true,"count":3,"dd":10,"end":2,"gg":20,"settled":false,"start":0,"zd":12,"zg":15}],"v0_v1_interval":{"fixture":"s0=[10,20],s1=[12,15],s2=[11,18]","v0_zd":11,"v0_zg":18,"v1_zd":12,"v1_zg":15}}
+✔ [26/158] Built Claim9_CenterPosition (1.9s)
+✔ [27/158] Built Origin.BehaviorQuotient (1.9s)
+✔ [28/158] Built Formal.ConstitutiveLadder (2.0s)
+✔ [29/158] Built Formal.EvalSoundness (2.1s)
+✔ [30/158] Built Dynamics (2.0s)
+✔ [31/158] Built Origin.VoiceTree (2.0s)
+✔ [32/158] Built Origin.SegmentConstruction (2.0s)
+✔ [34/158] Built Origin.WellFoundedRank (1.0s)
+✔ [36/158] Built Accounting.Ledger (2.1s)
+✔ [37/158] Built Strict.Classification (2.2s)
+✔ [38/158] Built Origin.ForceInterface (2.1s)
+ℹ [39/158] Built Origin.Turn (2.1s)
+info: Origin/Turn.lean:145:0: false
+info: Origin/Turn.lean:157:0: true
+✔ [40/158] Built Origin.CanonicalQuotientTower (2.1s)
+✔ [41/158] Built Origin.LeverageCapital (2.1s)
+ℹ [42/158] Replayed Origin.CertificateChainParity
+info: Origin/CertificateChainParity.lean:92:0: {"confirmed_vectors":{"nested":[true,true],"xiaozhuanda":[false,true]},"turn_classes":{"nested":"nested_confirmed","xiaozhuanda":"xiaozhuanda_candidate","exec":"exec_evidence_only","orphan":"defer_orphan"},"strict":{"closed_adjacent":true,"closed_skip":false,"open_adjacent":false}}
+✔ [43/158] Built Origin.CenterAutoAssign (2.2s)
+✔ [44/158] Built Origin.TrendSixState (2.2s)
+✔ [45/158] Built Origin.OperationRole18 (2.2s)
+✔ [46/158] Built Formal.BSPLabels (2.3s)
+✔ [47/158] Built Formal.DivergenceNesting (2.3s)
+✔ [48/158] Built Accounting.Forest (2.4s)
+✔ [49/158] Built Origin.BspConstruction (2.4s)
+✔ [50/158] Built Claim5_ConstitutiveLadder (2.6s)
+✔ [51/158] Built Origin.TotalWealth (2.6s)
+✔ [52/158] Built CompleteClassification (2.5s)
+✔ [53/158] Built Origin.SeparateStrategyTarget (732ms)
+✔ [54/158] Built Origin.SeparateLedger (708ms)
+✔ [55/158] Built Origin.SecondSellClosedLoop (875ms)
+✔ [56/158] Built Origin.CompleteStateEvent (2.8s)
+✔ [57/158] Built Origin.FineCoarseClassification (2.8s)
+✔ [58/158] Built Origin.SyntaxElement (890ms)
+✔ [59/158] Built Origin.ClassificationGuardrail (912ms)
+✔ [60/158] Built Origin.NetValueImpossibility (926ms)
+✔ [61/158] Built Origin.FiniteTraceQuotient (925ms)
+✔ [62/158] Built Origin.CenterComplete (3.1s)
+✔ [63/158] Built Origin.ConcreteBehaviorQuotient (1000ms)
+ℹ [64/158] Built Origin.PromQual (1.0s)
+info: Origin/PromQual.lean:548:0: 'NewChanlun.Origin.PromQual.promote_wellFormed' depends on axioms: [propext, Quot.sound]
+info: Origin/PromQual.lean:549:0: 'NewChanlun.Origin.PromQual.promote_function_unique' depends on axioms: [propext, Quot.sound]
+info: Origin/PromQual.lean:550:0: 'NewChanlun.Origin.PromQual.derivation_not_unique' depends on axioms: [propext, Quot.sound]
+info: Origin/PromQual.lean:551:0: 'NewChanlun.Origin.PromQual.promote_shift_commute' depends on axioms: [propext, Quot.sound]
+info: Origin/PromQual.lean:552:0: 'NewChanlun.Origin.PromQual.prom_total_and_single_valued' depends on axioms: [propext, Quot.sound]
+info: Origin/PromQual.lean:553:0: 'NewChanlun.Origin.PromQual.witness_qual' depends on axioms: [propext, Quot.sound]
+info: Origin/PromQual.lean:554:0: 'NewChanlun.Origin.PromQual.witness_qual_needs_overlap' depends on axioms: [propext, Quot.sound]
+✔ [65/158] Built Origin.SegmentFeatureComplete (1.0s)
+✔ [66/158] Built Strict.Decomp (1.1s)
+✔ [67/158] Built Origin.ForceConformance (985ms)
+✔ [68/158] Built Origin.VoiceEat (1.1s)
+✔ [69/158] Built Accounting.Earning (860ms)
+✔ [70/158] Built Origin.VoiceThreeLevel (1.1s)
+✔ [71/158] Built Origin.ForceVelocity (1.0s)
+✔ [72/158] Built Accounting.Solvency (1.1s)
+✔ [73/158] Built Origin.RootSelDisambig (1.2s)
+✔ [74/158] Built Origin.CausalEndpointImpossibility (793ms)
+ℹ [75/158] Built Origin.CertGatedExit (1.5s)
+info: Origin/CertGatedExit.lean:747:0: 'NewChanlun.Origin.CertGatedExit.index_first_wins' depends on axioms: [propext]
+info: Origin/CertGatedExit.lean:748:0: 'NewChanlun.Origin.CertGatedExit.index_no_level_zero' depends on axioms: [propext]
+info: Origin/CertGatedExit.lean:749:0: 'NewChanlun.Origin.CertGatedExit.index_stats_accounting' depends on axioms: [propext, Quot.sound]
+info: Origin/CertGatedExit.lean:750:0: 'NewChanlun.Origin.CertGatedExit.ident_binding_bar_invariant' does not depend on any axioms
+info: Origin/CertGatedExit.lean:751:0: 'NewChanlun.Origin.CertGatedExit.window_binding_not_bar_invariant' does not depend on any axioms
+info: Origin/CertGatedExit.lean:752:0: 'NewChanlun.Origin.CertGatedExit.window_binding_admits_without_identity' does not depend on any axioms
+info: Origin/CertGatedExit.lean:753:0: 'NewChanlun.Origin.CertGatedExit.gate_bar_invariant' depends on axioms: [propext]
+info: Origin/CertGatedExit.lean:754:0: 'NewChanlun.Origin.CertGatedExit.gate_window_variant_bar_dependent' depends on axioms: [propext]
+info: Origin/CertGatedExit.lean:755:0: 'NewChanlun.Origin.CertGatedExit.exit_gate_typed_only' depends on axioms: [propext]
+info: Origin/CertGatedExit.lean:756:0: 'NewChanlun.Origin.CertGatedExit.exit_gate_nochain_reject' depends on axioms: [propext]
+info: Origin/CertGatedExit.lean:757:0: 'NewChanlun.Origin.CertGatedExit.exit_gate_reject_reject' depends on axioms: [propext]
+info: Origin/CertGatedExit.lean:758:0: 'NewChanlun.Origin.CertGatedExit.exit_gate_flat_reject' depends on axioms: [propext]
+info: Origin/CertGatedExit.lean:759:0: 'NewChanlun.Origin.CertGatedExit.exit_gate_v0_irrelevant' depends on axioms: [propext]
+info: Origin/CertGatedExit.lean:760:0: 'NewChanlun.Origin.CertGatedExit.exit_gate_pass_all_closed' depends on axioms: [propext, Quot.sound]
+info: Origin/CertGatedExit.lean:761:0: 'NewChanlun.Origin.CertGatedExit.chain_causal_monotone' depends on axioms: [propext, Quot.sound]
+info: Origin/CertGatedExit.lean:762:0: 'NewChanlun.Origin.CertGatedExit.exit_gate_causal_monotone' depends on axioms: [propext, Quot.sound]
+info: Origin/CertGatedExit.lean:763:0: 'NewChanlun.Origin.CertGatedExit.levelStatus_closed_iff' depends on axioms: [propext]
+info: Origin/CertGatedExit.lean:764:0: 'NewChanlun.Origin.CertGatedExit.entry_gate_not_typed_only' does not depend on any axioms
+info: Origin/CertGatedExit.lean:765:0: 'NewChanlun.Origin.CertGatedExit.exit_rejects_where_entry_admits' depends on axioms: [propext]
+info: Origin/CertGatedExit.lean:766:0: 'NewChanlun.Origin.CertGatedExit.entry_gate_typed_only_iff_no_fallback' depends on axioms: [propext]
+info: Origin/CertGatedExit.lean:767:0: 'NewChanlun.Origin.CertGatedExit.gates_agree_when_chain_decisive' depends on axioms: [propext]
+✔ [76/158] Built Strict.ClassificationFamily (728ms)
+✔ [77/158] Built Strict.RiskProj (897ms)
+✔ [78/158] Built Origin.ConstraintSystem (1.1s)
+✔ [79/158] Built Origin.CovariantCapital (1.2s)
+✔ [80/158] Built Strict.Trend (714ms)
+✔ [81/158] Built Strict.Nest (992ms)
+✔ [82/158] Built Origin.LedgerReconciliation (1.2s)
+✔ [83/158] Built Strict.Recursive (846ms)
+✔ [84/158] Built Strict.OpenTail (867ms)
+✔ [85/158] Built Strict.Center (958ms)
+✔ [86/158] Built Strict.Parse (1.1s)
+✔ [87/158] Built Strict.Fugue (1.1s)
+✔ [88/158] Built Origin.CandidateSet (786ms)
+✔ [89/158] Built Payoff (752ms)
+✔ [90/158] Built Strict.BSP (827ms)
+✔ [91/158] Built Formal.RStarNonSpecial (768ms)
+✔ [92/158] Built Claim6_OperationalSemantics (799ms)
+✔ [94/158] Built Accounting (384ms)
+✔ [95/158] Built Origin.BspEventBridge (634ms)
+✔ [96/158] Built Origin.GlobalProductClassification (673ms)
+✔ [97/158] Built Origin.Pipeline (768ms)
+✔ [98/158] Built Origin.SubVoiceOpenClose (511ms)
+✔ [99/158] Built Origin.AncestorClosure (699ms)
+✔ [100/158] Built Origin.SeparateEat (591ms)
+✔ [101/158] Built Origin.MutexElement (633ms)
+ℹ [102/158] Built Origin.NestLifecycleBook (2.2s)
+info: Origin/NestLifecycleBook.lean:1060:0: 'NewChanlun.Origin.NestLifecycleBook.advance_legal' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Origin/NestLifecycleBook.lean:1061:0: 'NewChanlun.Origin.NestLifecycleBook.retrograde_no_change' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Origin/NestLifecycleBook.lean:1062:0: 'NewChanlun.Origin.NestLifecycleBook.confirmed_absorbing' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Origin/NestLifecycleBook.lean:1063:0: 'NewChanlun.Origin.NestLifecycleBook.invalidated_absorbing' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Origin/NestLifecycleBook.lean:1064:0: 'NewChanlun.Origin.NestLifecycleBook.confirmed_invalidated_side_empty' depends on axioms: [propext]
+info: Origin/NestLifecycleBook.lean:1065:0: 'NewChanlun.Origin.NestLifecycleBook.clock_discipline' does not depend on any axioms
+info: Origin/NestLifecycleBook.lean:1066:0: 'NewChanlun.Origin.NestLifecycleBook.first_provable_write_once' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+info: Origin/NestLifecycleBook.lean:1067:0: 'NewChanlun.Origin.NestLifecycleBook.new_first_provable_at_current' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+info: Origin/NestLifecycleBook.lean:1068:0: 'NewChanlun.Origin.NestLifecycleBook.force_reason_first_complement' depends on axioms: [propext, Quot.sound]
+info: Origin/NestLifecycleBook.lean:1069:0: 'NewChanlun.Origin.NestLifecycleBook.toClosed_some_iff_confirmed' depends on axioms: [propext, Quot.sound]
+info: Origin/NestLifecycleBook.lean:1070:0: 'NewChanlun.Origin.NestLifecycleBook.history_append_only' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Origin/NestLifecycleBook.lean:1071:0: 'NewChanlun.Origin.NestLifecycleBook.newly_invalidated_archived' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+info: Origin/NestLifecycleBook.lean:1072:0: 'NewChanlun.Origin.NestLifecycleBook.invalidated_has_payload' depends on axioms: [propext]
+info: Origin/NestLifecycleBook.lean:1073:0: 'NewChanlun.Origin.NestLifecycleBook.force_overtake_evidence_in_payload' does not depend on any axioms
+info: Origin/NestLifecycleBook.lean:1074:0: 'NewChanlun.Origin.NestLifecycleBook.never_constituted_evidence_in_payload' does not depend on any axioms
+info: Origin/NestLifecycleBook.lean:1075:0: 'NewChanlun.Origin.NestLifecycleBook.identity_vanished_has_no_force_evidence' does not depend on any axioms
+✔ [103/158] Built Formal.OperationalSemantics (944ms)
+✔ [104/158] Built Signal (1.0s)
+✔ [105/158] Built Origin.TraceProjection (651ms)
+✔ [106/158] Built Origin.LexArgmin (624ms)
+✔ [107/158] Built Strict.LevelState (1.4s)
+✔ [108/158] Built Origin.SegmentAutoConstruct (785ms)
+✔ [109/158] Built Origin.IntervalNestCertificate (711ms)
+✔ [110/158] Built Origin.AncestorLifespan (316ms)
+✔ [111/158] Built Spiral (490ms)
+✔ [112/158] Built Origin.LiftContext (796ms)
+✔ [113/158] Built Formal (383ms)
+✔ [115/158] Built Strict.Causal (438ms)
+✔ [116/158] Built Strict.Op (478ms)
+✔ [117/158] Built Origin.OperationRole (448ms)
+✔ [118/158] Built OriginAdapters.StrictPipeline (379ms)
+✔ [120/158] Built Origin.DecisionSufficiency (452ms)
+✔ [121/158] Built Origin.SeparateStrategyWellDefined (440ms)
+✔ [122/158] Built Origin.VoiceCoverTheorem (420ms)
+✔ [123/158] Built Operational (789ms)
+✔ [125/158] Built Origin.RThetaInterp (645ms)
+✔ [126/158] Built Origin.MutexExhaustive (321ms)
+✔ [127/158] Built Strict.StrategyFamily (384ms)
+✔ [128/158] Built Strict.CThetaWiring (400ms)
+✔ [129/158] Built ChanlunInstantiation (419ms)
+✔ [130/158] Built Origin.CoverFeasibleTarget (402ms)
+✔ [131/158] Built Strict.Chain (301ms)
+✔ [132/158] Built Origin.ActiveSet (357ms)
+✔ [133/158] Built Origin.RecursiveLevelSystem (252ms)
+✔ [134/158] Built Origin.SeparateCoverTheorem (258ms)
+✔ [135/158] Built Strict.HybridStep (326ms)
+✔ [136/158] Built Origin.SevenLinkStrategy (358ms)
+ℹ [137/158] Built Origin.ParentDirContainer (309ms)
+info: Origin/ParentDirContainer.lean:135:0: 'NewChanlun.Origin.ParentDirContainer.parentDirOfContainer_none_iff_germ' depends on axioms: [propext]
+info: Origin/ParentDirContainer.lean:136:0: 'NewChanlun.Origin.ParentDirContainer.classifyV_ambient_iff_germ' depends on axioms: [propext]
+info: Origin/ParentDirContainer.lean:137:0: 'NewChanlun.Origin.ParentDirContainer.classifyV_of_directional_container' depends on axioms: [propext]
+info: Origin/ParentDirContainer.lean:138:0: 'NewChanlun.Origin.ParentDirContainer.parentDirOfContainer_struct_only' does not depend on any axioms
+✔ [138/158] Built Origin.SeparateCoverRecursive (282ms)
+⚠ [139/158] Built Origin.SelfSimilarity (380ms)
+warning: Origin/SelfSimilarity.lean:414:5: Variable name `hθ` is not explicitly referenced.
+
+The binding can be removed (if unused) or named `_` (if used implicitly).
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+✔ [140/158] Built Origin.SeparateFinalTheorem (277ms)
+✔ [141/158] Built Origin.MutexRecursive (322ms)
+✔ [142/158] Built Strict.HybridAssembly (545ms)
+✔ [144/158] Built Origin.MutexFinalTheorem (276ms)
+✔ [145/158] Built Origin.EngineBridge (293ms)
+✔ [146/158] Built Origin.LedgerBridge (281ms)
+✔ [147/158] Built Origin.ScanAssemblyMirror (4.5s)
+✔ [148/158] Built Origin.HybridBridge (322ms)
+✔ [149/158] Built Origin.UnifiedScanMirrorBridge (6.2s)
+✔ [150/158] Built Origin.ScanAssemblyBridge (2.5s)
+✔ [151/158] Built Origin.ScanAssemblyNegative (380ms)
+✔ [152/158] Built Origin.UnifiedScanMirrorRunner (1.8s)
+✔ [153/158] Built HybridStateMachine (10s)
+✔ [154/158] Built CompleteClassificationLimits (237ms)
+✔ [156/158] Built Origin.DynamicCongruence (277ms)
+ℹ [157/158] Built Origin.MainTheorem (282ms)
+info: Origin/MainTheorem.lean:527:0: 'NewChanlun.Origin.MainTheorem.main_central_uniqueness' depends on axioms: [propext]
+info: Origin/MainTheorem.lean:528:0: 'NewChanlun.Origin.MainTheorem.main_sec16_L0_assumptions_discharged' depends on axioms: [propext, Quot.sound]
+info: Origin/MainTheorem.lean:529:0: 'NewChanlun.Origin.MainTheorem.sec16_assump1_recursion_wellfounded' does not depend on any axioms
+info: Origin/MainTheorem.lean:530:0: 'NewChanlun.Origin.MainTheorem.sec16_assump10_feasible_nonempty_conditional' depends on axioms: [propext]
+info: Origin/MainTheorem.lean:531:0: 'NewChanlun.Origin.MainTheorem.sec16_residue_classified' depends on axioms: [propext]
+Build completed successfully (158 jobs).
