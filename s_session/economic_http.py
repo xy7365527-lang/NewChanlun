@@ -56,6 +56,7 @@ def get(handler):
                             "max_reply_bytes": str(query.resources["max_reply_bytes"]),
                             "operation_timeout_ms": str(query.resources["operation_timeout_ms"]),
                             "scope": "TestOnlyRecordedEconomics", "configured": True,
+                            **({"book_revision": query.book_revision} if query.book_revision is not None else {}),
                             **({"finance_revision": query.finance_revision} if query.manifest.get("finance") else {})})
     return True
 

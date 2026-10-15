@@ -4,6 +4,7 @@ from collections import OrderedDict
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 import copy
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -61,6 +62,293 @@ def economic_revisions(manifest: Mapping[str, object]) -> tuple[str, str]:
     return protocol, finance_revision
 
 
+def book_revision(manifest):
+    """#1406：与 Rust book::rules 同义；null/缺省仍属旧书账。"""
+    revision = manifest.get("book_revision")
+    if revision is not None and (type(revision) is not str or revision != "tb03c-book/1"):
+        raise EconomicQueryError("未知书账版本")
+    return revision
+
+
+def _exact(value, fields, name):
+    if type(value) is not dict or set(value) != fields:
+        raise EconomicQueryError(name + " 字段不完整或多余")
+
+
+def _hash(value, name):
+    if type(value) is not str or re.fullmatch(r"[0-9a-f]{64}", value) is None:
+        raise EconomicQueryError(name + " 不是完整摘要")
+
+
+def _signed_integer(value, name):
+    if type(value) is not str or re.fullmatch(r"0|-?[1-9][0-9]*", value) is None:
+        raise EconomicQueryError(name + " 须为规范整数文本")
+    if not -(2**63) <= int(value) < 2**63:
+        raise EconomicQueryError(name + " 越出范围")
+
+
+def allocation_sources(manifest, revision):
+    """冻结来源身份，不实现份额或金额 reducer。无政策的清单仍可等待。"""
+    if "fill_manifests" not in manifest and "fill_allocation_policy" not in manifest:
+        return None, {}
+    if revision != "tb03c-book/1":
+        raise EconomicQueryError("外效分配来源须冻结 tb03c-book/1")
+    policy = manifest.get("fill_allocation_policy")
+    policies = {"netted": "frozen-manifest-proportional-cumulative/2",
+                "per_leg": "per-leg-source-attribution/1"}
+    if "fill_allocation_policy" in manifest:
+        _exact(policy, {"fill_allocation_policy_id", "policy_revision"}, "分配政策")
+        if policy["fill_allocation_policy_id"] not in policies.values():
+            raise EconomicQueryError("未知分配政策")
+        text(policy["policy_revision"], "policy_revision")
+    manifests = manifest.get("fill_manifests")
+    if type(manifests) is not list:
+        raise EconomicQueryError("fill_manifests 须为数组")
+    result = {}
+    for source in manifests:
+        _exact(source, {"projection_kind", "symbol", "participants", "tie_break_order", "manifest_hash"}, "投影清单")
+        kind = source["projection_kind"]
+        if type(kind) is not str or kind not in policies:
+            raise EconomicQueryError("未知投影类型")
+        if policy is not None and policy["fill_allocation_policy_id"] != policies[kind]:
+            raise EconomicQueryError("投影与分配政策混搭")
+        text(source["symbol"], "symbol")
+        _hash(source["manifest_hash"], "manifest_hash")
+        if (source["manifest_hash"] != digest({k: v for k, v in source.items() if k != "manifest_hash"})
+                or source["manifest_hash"] in result):
+            raise EconomicQueryError("投影清单摘要不同或重复")
+        if type(source["participants"]) is not list or not source["participants"]:
+            raise EconomicQueryError("投影参与重缺失")
+        ids = []
+        for participant in source["participants"]:
+            _exact(participant, {"chong_id", "command_id", "family_id", "revision", "requested_q"}, "参与重")
+            for field in ("chong_id", "command_id", "family_id", "revision"):
+                text(participant[field], field)
+            integer(participant["requested_q"], "requested_q", positive=True)
+            matches = [r for r in manifest.get("chongs", []) if type(r) is dict
+                       and r.get("chong_id") == participant["chong_id"]]
+            if len(matches) != 1 or matches[0].get("symbol") != source["symbol"]:
+                raise EconomicQueryError("投影参与重与冻结路由不同")
+            ids.append(participant["chong_id"])
+        if len(set(ids)) != len(ids) or source["tie_break_order"] != sorted(ids):
+            raise EconomicQueryError("投影参与重重复或并列顺序不同")
+        result[source["manifest_hash"]] = copy.deepcopy(source)
+    return copy.deepcopy(policy), result
+
+
+_SOURCE_ID = ("source_namespace", "source_epoch", "external_fact_id")
+
+
+def _source_key(source):
+    if type(source) is not dict:
+        raise EconomicQueryError("事实来源身份缺失")
+    return digest([text(source.get(k), k) for k in _SOURCE_ID])
+
+
+def _original_event(record):
+    """book::fact_key + service::record_from_payload 的只读身份核验。"""
+    raw = text(record.get("raw_utf8"), "raw_utf8")
+    raw_hash = record.get("raw_sha256")
+    _hash(raw_hash, "raw_sha256")
+    pointer = text(record.get("json_pointer"), "json_pointer")
+    if not pointer.startswith("/events/"):
+        raise EconomicQueryError("事实指针须定位 events 原件")
+    try:
+        raw_bytes = raw.encode("utf-8")
+        if hashlib.sha256(raw_bytes).hexdigest() != raw_hash:
+            raise EconomicQueryError("原件字节与 raw_sha256 不同")
+        document = decode_frame(raw_bytes)
+        # serde_json 的整数域；经济原件不接受浮点或任意精度 JSON 数字。
+        pending = [document]
+        while pending:
+            value = pending.pop()
+            if type(value) is dict:
+                pending.extend(value.values())
+            elif type(value) is list:
+                pending.extend(value)
+            elif type(value) is int and not -(2**63) <= value < 2**64:
+                raise EconomicQueryError("原件 JSON 整数越出生产域")
+        if (document.get("format") != "neutral TestOnly economic raw originals; not production transport wire"
+                or type(document.get("units")) is not dict):
+            raise EconomicQueryError("原件 profile/单位缺失")
+        selected = document
+        for token in pointer[1:].split("/"):
+            token = token.replace("~1", "/").replace("~0", "~")
+            if type(selected) is dict and token in selected:
+                selected = selected[token]
+            elif (type(selected) is list and re.fullmatch(r"0|[1-9][0-9]*", token)
+                  and int(token) < len(selected)):
+                selected = selected[int(token)]
+            else:
+                raise EconomicQueryError("事实指针不可解析")
+        event = record.get("event")
+        if type(selected) is not dict or canonical(selected) != canonical(event):
+            raise EconomicQueryError("事实事件与原件指针不同")
+        text(event.get("allocation_id"), "allocation_id")
+        if record.get("fact_key") != _source_key(event.get("source")):
+            raise EconomicQueryError("事实身份与原来源三元组不同")
+        content_hash = digest({"raw_sha256": raw_hash, "json_pointer": pointer,
+                               "event": event, "units": document["units"]})
+        if record.get("fact_hash") != content_hash:
+            raise EconomicQueryError("事实内容摘要与原件/指针/事件/单位不同")
+        return event
+    except (ValueError, UnicodeError, TypeError, OverflowError) as exc:
+        raise EconomicQueryError("事实原件绑定无效：" + str(exc)) from exc
+
+
+def _correction_predecessor(row, event, rows, verified_event):
+    """只对应具名前件和政策引用；不重放累计前沿或计算逆份额。"""
+    report = event["netted_fill"]
+    reference, dependency = report.get("fill_ref"), event.get("depends_on")
+    _exact(reference, set(_SOURCE_ID) | {"allocation_id", "manifest_hash",
+           "fill_allocation_policy_id", "policy_revision"}, "更正 fill_ref")
+    _exact(dependency, set(_SOURCE_ID) | {"source_ref"}, "更正 depends_on")
+    for key in reference:
+        text(reference[key], key)
+    text(dependency["source_ref"], "depends_on.source_ref")
+    key = _source_key(dependency)
+    if (key != _source_key(reference) or key != row["original_fact_key"]
+            or key == row["fact_key"]):
+        raise EconomicQueryError("更正具名前件与原件依赖不同")
+    original = verified_event(key)
+    fill = original.get("netted_fill")
+    if (type(fill) is not dict or fill.get("report_kind") not in ("incremental", "cumulative")
+            or integer(fill.get("from"), "原 fill.from") >= integer(fill.get("to"), "原 fill.to")):
+        raise EconomicQueryError("更正前件不是普通非零净额 fill")
+    if (any(reference[k] != original["source"][k] for k in _SOURCE_ID)
+            or reference["allocation_id"] != original.get("allocation_id")
+            or reference["manifest_hash"] != fill.get("manifest_hash")
+            or report["symbol"] != fill.get("symbol")):
+        raise EconomicQueryError("更正原 allocation/清单/标的不同")
+    original_rows = [r for r in rows if type(r) is dict and r.get("fact_key") == key]
+    if len(original_rows) != 1:
+        raise EconomicQueryError("更正缺唯一原 fill 分配")
+    original_row = original_rows[0]
+    for field in ("manifest_hash", "fill_allocation_policy_id", "policy_revision"):
+        if reference[field] != original_row.get(field) or reference[field] != row[field]:
+            raise EconomicQueryError("更正政策引用与具名原分配不同")
+
+
+def verify_fill_allocations(image, policy, sources):
+    """只核原图像的字段、类型与具名来源；返回时不改写、补齐或重算。"""
+    if policy is None:
+        raise EconomicQueryError("分配图像缺冻结政策")
+    rows = image["fill_allocations"]
+    if type(rows) is not list:
+        raise EconomicQueryError("fill_allocations 须为数组")
+    verified = {}
+
+    def verified_event(key):
+        if key not in verified:
+            records = [r for r in image["recorded"]
+                       if type(r) is dict and r.get("fact_key") == key]
+            if len(records) != 1:
+                raise EconomicQueryError("分配缺唯一具名事实")
+            verified[key] = (_original_event(records[0]), records[0]["fact_hash"])
+        return verified[key][0]
+
+    seen = set()
+    for row in rows:
+        if type(row) is not dict:
+            raise EconomicQueryError("分配记录须为对象")
+        common = {"fact_key", "fact_hash", "manifest_hash", "symbol", "fill_allocation_policy_id",
+                  "policy_revision", "evidence_id", "allocations"}
+        per_leg = row.get("projection_kind") == "per_leg"
+        correction = "report_kind" in row
+        extra = {"projection_kind"} if per_leg else {"from", "to"}
+        if correction:
+            extra |= {"report_kind", "component", "original_fact_key"}
+        _exact(row, common | extra, "分配记录")
+        for field in ("fact_key", "fact_hash", "manifest_hash"):
+            _hash(row[field], field)
+        text(row["evidence_id"], "evidence_id")
+        source = sources.get(row["manifest_hash"])
+        if (source is None or source["symbol"] != row["symbol"]
+                or source["projection_kind"] != ("per_leg" if per_leg else "netted")
+                or any(row[k] != policy[k] for k in policy)):
+            raise EconomicQueryError("分配记录与冻结清单/政策不同")
+        if row["fact_key"] in seen:
+            raise EconomicQueryError("分配事实重复")
+        seen.add(row["fact_key"])
+        event = verified_event(row["fact_key"])
+        if verified[row["fact_key"]][1] != row["fact_hash"]:
+            raise EconomicQueryError("分配事实内容身份不同")
+        report = event.get("per_leg_report" if per_leg else "netted_fill") if type(event) is dict else None
+        if (type(report) is not dict or report.get("manifest_hash") != row["manifest_hash"]
+                or report.get("symbol") != row["symbol"]):
+            raise EconomicQueryError("分配记录与原事实投影来源不同")
+        evidence = [h for h in image["history"] if type(h) is dict and h.get("kind") == "ResolveEvidence"
+                    and h.get("evidence_id") == row["evidence_id"]]
+        if (len(evidence) != 1 or type(evidence[0].get("covered")) is not list
+                or row["fact_key"] not in evidence[0]["covered"]):
+            raise EconomicQueryError("分配缺具名 Resolve 原史")
+        if not per_leg:
+            integer(row["from"], "from")
+            integer(row["to"], "to")
+        if correction:
+            expected = {"fee_only": "fee_only", "bust": "acquisition_cash", "reverse_component": "commission"}
+            if (per_leg or type(row["report_kind"]) is not str
+                    or row["report_kind"] not in expected
+                    or expected[row["report_kind"]] != row["component"]
+                    or report.get("report_kind") != row["report_kind"]
+                    or (row["report_kind"] in ("bust", "reverse_component")
+                        and report.get("component") != row["component"])):
+                raise EconomicQueryError("更正类型与原事实不同")
+            _hash(row["original_fact_key"], "original_fact_key")
+            _correction_predecessor(row, event, rows, verified_event)
+        elif not per_leg and report.get("report_kind") not in ("incremental", "cumulative"):
+            raise EconomicQueryError("普通分配原事实类型不同")
+        if not per_leg:
+            kind = report["report_kind"]
+            if kind in ("incremental", "cumulative", "bust"):
+                if row["from"] != report.get("from") or row["to"] != report.get("to"):
+                    raise EconomicQueryError("分配区间与原报告不同")
+                forward = int(row["to"]) > int(row["from"])
+                if (kind == "bust" and int(row["to"]) >= int(row["from"])) or (kind != "bust" and not forward):
+                    raise EconomicQueryError("分配区间方向与变体不同")
+            elif row["from"] != row["to"]:
+                raise EconomicQueryError("零数量更正改变了区间")
+        allocations = row["allocations"]
+        if type(allocations) is not list or len(allocations) != len(source["participants"]):
+            raise EconomicQueryError("分配参与重不完整")
+        for allocation, participant in zip(allocations, source["participants"]):
+            identity = {"allocation_id", "chong_id", "command_id", "family_id", "revision"}
+            amounts = {"units", "acquisition_cash", "commission"}
+            fields = identity | amounts
+            if per_leg:
+                fields = identity | {"unmatched_reason", "manifest_hash", "fill_allocation_policy_id", "policy_revision"}
+            elif correction:
+                fields |= {"component", "reversal", "original_fact_key"}
+                if row["component"] == "fee_only":
+                    fields = (fields - {"commission"}) | {"fee_only"}
+            _exact(allocation, fields, "逐重分配")
+            if any(allocation[k] != participant[k] for k in identity - {"allocation_id"}):
+                raise EconomicQueryError("逐重分配身份不同")
+            prefix = "per-leg:" if per_leg else "netted:"
+            expected_id = prefix + digest([row["fact_key"], event.get("allocation_id"), row["manifest_hash"], participant])
+            if allocation["allocation_id"] != expected_id:
+                raise EconomicQueryError("逐重分配原身份摘要不同")
+            if per_leg:
+                if (allocation["unmatched_reason"] != "per_leg_attribution_missing"
+                        or allocation["manifest_hash"] != row["manifest_hash"]
+                        or any(allocation[k] != policy[k] for k in policy)):
+                    raise EconomicQueryError("逐腿未匹配来源不同")
+            else:
+                _signed_integer(allocation["units"], "units")
+                units = int(allocation["units"])
+                if ((kind in ("incremental", "cumulative") and units < 0)
+                        or (kind == "bust" and units > 0)
+                        or (kind in ("fee_only", "reverse_component") and units != 0)):
+                    raise EconomicQueryError("分配 units 符号域与变体不同")
+                for field in fields & {"acquisition_cash", "commission", "fee_only"}:
+                    integer(allocation[field], field)
+                if correction and (allocation["component"] != row["component"]
+                                   or allocation["original_fact_key"] != row["original_fact_key"]
+                                   or type(allocation["reversal"]) is not bool
+                                   or allocation["reversal"] != (row["report_kind"] != "fee_only")):
+                    raise EconomicQueryError("更正分配来源不同")
+
+
 class EconomicQuery:
     """一个 Q 配置固定可信 owner；固定向量缓存只留完整已核图像。"""
 
@@ -77,6 +365,8 @@ class EconomicQuery:
         if digest(manifest) != config.get("manifest_hash"):
             raise EconomicQueryError("manifest 与已配置摘要不同")
         self.protocol_revision, self.finance_revision = economic_revisions(manifest)
+        self.book_revision = book_revision(manifest)
+        self.fill_policy, self.fill_sources = allocation_sources(manifest, self.book_revision)
         self.manifest = manifest
         self.manifest_hash = config["manifest_hash"]
         self.session = text(manifest.get("session_id"), "session_id")
@@ -195,12 +485,20 @@ class EconomicQuery:
         if cut is not None and response["cut"] != cut:
             raise EconomicQueryError("owner 回看切面与请求不同")
         image = response.get("image")
+        fields = {"book", "recorded", "pending", "applied", "unmatched", "history"}
+        fields |= {"finance"} if self.manifest.get("finance") else set()
+        allowed = [fields]
+        if self.book_revision == "tb03c-book/1" and domain == "E":
+            allowed.append(fields | {"fill_allocations"})
         if (type(image) is not dict
-                or set(image) != ({"book", "recorded", "pending", "applied", "unmatched", "history"}
-                                  | ({"finance"} if self.manifest.get("finance") else set()))
+                or set(image) not in allowed
                 or any(type(image[k]) is not list for k in set(image) - {"book", "finance"})
                 or (image["book"] is not None and type(image["book"]) is not dict)):
             raise EconomicQueryError("经济图像字段不完整或类型错误")
+        if image["book"] is not None and image["book"].get("book_revision") != self.book_revision:
+            raise EconomicQueryError("图像书账版本与冻结域不同")
+        if "fill_allocations" in image:
+            verify_fill_allocations(image, self.fill_policy, self.fill_sources)
         if "finance" in image:
             finance = image["finance"]
             fields = {"schema_revision", "rights", "decisions", "slots", "responsibilities"}
