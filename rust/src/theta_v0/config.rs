@@ -54,6 +54,11 @@ pub struct ParseConfig {
     /// ★`[设计选择,默认值]`（second_kind.rs 模块头声明）：Python 的 `MAX_SECOND_SEQ_SCAN=50`
     /// 是 O(n²) 性能妥协，**非缠论可导**。本字段 default 0（无限）——L2 实测（OKLO 2000 笔）
     /// 窗口扩到 ∞ 输出不变，证 50 在目标数据域非约束性（单数据集 L2，不裸剥常数）。
+    ///
+    /// #1344 / #1420 根裁定：名分 = 调度预算，具名版本 `second-seq-scan-budget/1`
+    /// （`feature_seq::SECOND_SEQ_SCAN_BUDGET_POLICY`），**不是语义**。预算耗尽只产扫描覆盖
+    /// `INCOMPLETE_RESOURCE_BOUND`，不产否定，也不越过该候选去判后续终结；已判定的语义结果与窗口无关
+    /// （A-ST-048-01/02）。S 会话须在 profile 中以具名字段记录本值并随 rule_revision 绑定版本。
     pub second_seq_scan_window: u32,
 }
 

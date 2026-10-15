@@ -85,16 +85,16 @@ async function endpointCut(generation, rule, protocol = 's-session/2') {
   if (protocol === 's-session/3') record.batch_id = 'batch3-' + 'b'.repeat(64);
   const scope = {structure:'CompleteCut', economic:'not_started'};
   const profile_hash = 'a'.repeat(64);
-  const axes = rule.endsWith('segment-second/1') ? AXES : AXES.slice(0, 13);
+  const axes = [RULE_NEW_BI_1,RULE_NEW_BI_2,'s2-axis-quantifiers+new-bi/1+segment-second/2','s2-axis-quantifiers+new-bi/2+segment-second/2'].includes(rule) ? AXES : AXES.slice(0, 13);
   const evidence = {profile_id:PROFILE, profile_hash, rule_revision:rule, structure_cut:'cut-1', scope, batch_id:'batch-1',
     ...Object.fromEntries(['classified_objects','windows_total','merged_bars','effective_source_positions','withdrawals','replaces','insufficient_knowledge','domain_not_satisfied'].map(k=>[k,'0'])),
     axes:Object.fromEntries(axes.map(a => {
       const segment = ['CC-011','CC-012','CC-013','CC-014'].includes(a);
       return [a, {impl_status:'not_implemented', proof_status:'not_proved', run_status:'not_run', evidence:{
-        scope:segment?'TB-02-D':'TB-02-A', object_ids:[], waiting_reasons:[],
+        scope:segment?(rule.endsWith('segment-second/2')?'TB-02-W':'TB-02-D'):'TB-02-A', object_ids:[], waiting_reasons:[],
         ...(a==='CC-056'?{raw_revisions:[],withdrawals:[],replaces:[]}:{}),
-        ...(segment?{delivered_subobligations:['finite_complete_prefix_strict_second','independent_stroke_and_segment_break_facts'],
-          deferred_subobligations:['general_equal_identity','general_scan_continuation','global_G006_bridge']}:{}),
+        ...(segment?{delivered_subobligations:['finite_complete_prefix_strict_second','independent_stroke_and_segment_break_facts',...(rule.endsWith('segment-second/2')?['general_scan_continuation']:[])],
+          deferred_subobligations:['general_equal_identity',...(rule.endsWith('segment-second/2')?[]:['general_scan_continuation']),'global_G006_bridge']}:{}),
       }}];
     }))};
   const shared = {session_id:'contract', generation:'1', structure_cut:'cut-1', catalog_revision:API.TB02_CATALOG.catalog_revision,
@@ -168,4 +168,12 @@ test('异步图值保留根集合/区间合同与期限检查，原件不改写'
   }
   const graph=await graphPayload(pair(),()=>{throw Error('期限已过');});
   await assert.rejects(API.validateBiPayload('CC-008.new_bi_pair',graph),/期限已过/);
+});
+
+test('composed rule binds bi generation before accepting typed records', async () => {
+  for (const version of [1,2]) {
+    const rule = 's2-axis-quantifiers+new-bi/' + version + '+segment-second/2';
+    await API.Q3.validateState(...await endpointCut(version,rule));
+    await assert.rejects(API.Q3.validateState(...await endpointCut(3-version,rule)), {message:BI_RULE_MISMATCH});
+  }
 });

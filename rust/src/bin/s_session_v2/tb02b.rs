@@ -30,8 +30,11 @@ pub(super) fn contract_for_rule(rule: &str) -> Option<BiContract> {
     match rule {
         crate::LEGACY_V3_RULE_REVISION
         | "s2-axis-quantifiers+new-bi/1+segment-first/1"
-        | "s2-axis-quantifiers+new-bi/1+segment-second/1" => Some(LEGACY_CONTRACT),
-        crate::V3_RULE_REVISION | crate::RULE_REVISION => Some(CURRENT_CONTRACT),
+        | "s2-axis-quantifiers+new-bi/1+segment-second/1"
+        | "s2-axis-quantifiers+new-bi/1+segment-second/2" => Some(LEGACY_CONTRACT),
+        crate::V3_RULE_REVISION
+        | "s2-axis-quantifiers+new-bi/2+segment-second/1"
+        | crate::RULE_REVISION => Some(CURRENT_CONTRACT),
         _ => None,
     }
 }
@@ -373,6 +376,45 @@ mod version_contract_tests {
             contract_for_rule(crate::RULE_REVISION),
             Some(CURRENT_CONTRACT)
         );
+        for (rule, expected_schema, axis_count) in [
+            ("s2-axis-quantifiers+new-bi/1", "s-new-bi/1", 13),
+            ("s2-axis-quantifiers+new-bi/2", "s-new-bi/2", 13),
+            (
+                "s2-axis-quantifiers+new-bi/1+segment-second/1",
+                "s-new-bi/1",
+                17,
+            ),
+            (
+                "s2-axis-quantifiers+new-bi/1+segment-second/2",
+                "s-new-bi/1",
+                17,
+            ),
+            (
+                "s2-axis-quantifiers+new-bi/2+segment-second/1",
+                "s-new-bi/2",
+                17,
+            ),
+            (
+                "s2-axis-quantifiers+new-bi/2+segment-second/2",
+                "s-new-bi/2",
+                17,
+            ),
+        ] {
+            assert_eq!(contract_for_rule(rule).unwrap().schema, expected_schema);
+            assert_eq!(
+                tb02a_facts::CatalogAxisTable::for_rule_revision(rule)
+                    .unwrap()
+                    .axes()
+                    .len(),
+                axis_count
+            );
+        }
+        assert_eq!(
+            crate::RULE_REVISION,
+            "s2-axis-quantifiers+new-bi/2+segment-second/2"
+        );
+        assert_eq!(crate::V3_RULE_REVISION, "s2-axis-quantifiers+new-bi/2");
+        assert!(contract_for_rule("s2-axis-quantifiers+new-bi/2+segment-first/1").is_none());
         assert!(contract_for_rule("s2-axis-quantifiers+new-bi/unknown").is_none());
         assert_eq!(
             CURRENT_CONTRACT.policy,
