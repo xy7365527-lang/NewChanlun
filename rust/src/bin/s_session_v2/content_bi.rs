@@ -1303,8 +1303,10 @@ impl ContentBi {
                 ));
             }
             let start_root = first_extreme_root(&stroke.start)?;
-            let end_root = first_extreme_root(&stroke.end)?;
-            for (coord, row) in input.raw.range(start_root, end_root) {
+            // #1405 / #1343 Q2：成员覆盖完整终点极值区，事件代表仍取首根。
+            let member_end_root = last_extreme_root(&stroke.end)?;
+            let event_root = first_extreme_root(&stroke.end)?;
+            for (coord, row) in input.raw.range(start_root, member_end_root) {
                 let identity =
                     row.get("identity_key")
                         .and_then(JsonView::as_str)
@@ -1366,7 +1368,7 @@ impl ContentBi {
 
             // 就地变更事件：依赖面是**全账本**（与旧配方 `sources` 同一条）；`before`/`after`
             // 直接引用上一代与新写出的数据根。
-            let event_at = ledger.text(end_root, "ts")?.to_string();
+            let event_at = ledger.text(event_root, "ts")?.to_string();
             for change in &changes {
                 let slot = slot_of(&[generation_text.as_str(), entity.as_str(), *change]);
                 let before = match previous {
@@ -1817,6 +1819,21 @@ fn first_extreme_root(endpoint: &Endpoint) -> Result<i64, BiError> {
     endpoint
         .extreme_roots
         .first()
+        .map(|root| coord_i64(*root))
+        .transpose()?
+        .ok_or_else(|| BiError::Facts {
+            detail: format!(
+                "端点 {} 没有极值根，无法定位关系成员区间",
+                endpoint.group_anchor
+            ),
+        })
+}
+
+/// 终点极值根末项（成员闭区间的上界；与首根一样拒绝空集及坐标溢出）。
+fn last_extreme_root(endpoint: &Endpoint) -> Result<i64, BiError> {
+    endpoint
+        .extreme_roots
+        .last()
         .map(|root| coord_i64(*root))
         .transpose()?
         .ok_or_else(|| BiError::Facts {
@@ -2761,6 +2778,159 @@ mod tests {
             ));
         }
         assert!(saw_roots, "夹具必须实际产生多根极值端点");
+    }
+
+    #[test]
+    fn tb1405_member_bounds_reject_empty_or_unrepresentable_roots() {
+        let (bars, _, _) = ledger(&fixture_rows());
+        let mut endpoint = facts_of(&bars).endpoints[0].clone();
+        endpoint.extreme_roots.clear();
+        assert!(matches!(
+            first_extreme_root(&endpoint),
+            Err(BiError::Facts { .. })
+        ));
+        assert!(matches!(
+            last_extreme_root(&endpoint),
+            Err(BiError::Facts { .. })
+        ));
+        if let Some(overflow) = usize::try_from(i64::MAX)
+            .ok()
+            .and_then(|n| n.checked_add(1))
+        {
+            endpoint.extreme_roots = vec![overflow];
+            assert!(matches!(
+                first_extreme_root(&endpoint),
+                Err(BiError::Facts { .. })
+            ));
+            assert!(matches!(
+                last_extreme_root(&endpoint),
+                Err(BiError::Facts { .. })
+            ));
+        }
+    }
+
+    /// #1405 HIGH-MEMBER-ROOT-TAIL：已成笔的多根终点必须逐前缀保留全部成员。
+    #[test]
+    fn parity_tb1405_formed_multi_root_tail_members_every_prefix() {
+        use newchan_rust::theta_v0::types::quantize;
+
+        for (name, fixture, start, end, tail) in [
+            (
+                "syn3_multi_root_replace",
+                include_str!("../../../tests/fixtures/tb02v_same_price/syn3_multi_root_replace.json"),
+                3usize,
+                9usize,
+                10usize,
+            ),
+            (
+                "real_C_bars14_40_multi_root_second_gate",
+                include_str!("../../../tests/fixtures/tb02v_same_price/real_C_bars14_40_multi_root_second_gate.json"),
+                12,
+                21,
+                22,
+            ),
+        ] {
+            let fixture: Value = serde_json::from_str(fixture).unwrap();
+            let highs = fixture["highs"].as_array().unwrap();
+            let lows = fixture["lows"].as_array().unwrap();
+            assert_eq!(highs.len(), lows.len());
+            for stride in [1usize, 10] {
+                let label = format!("{name} stride={stride}");
+                // 与见证原入口 load_symbol 使用同一量化函数；real_C 的小数价不可截断。
+                let tick_size = ThetaConfig::default().tick.tick_size;
+                let rows: Vec<Row> = highs
+                    .iter()
+                    .zip(lows)
+                    .enumerate()
+                    .map(|(index, (high, low))| Row {
+                        coord: (index * stride) as i64,
+                        high: quantize(high.as_f64().unwrap(), tick_size),
+                        low: quantize(low.as_f64().unwrap(), tick_size),
+                        revision: 1,
+                        seq: index as i64,
+                    })
+                    .collect();
+                let mut harness = Harness::new();
+                let mut previous = None;
+                let mut saw_formed_multi_root = false;
+                let mut saw_multi_root_event = false;
+                for prefix in 3..=rows.len() {
+                    let label = format!("{label} prefix={prefix}");
+                    let (bars, raw, _) = ledger(&rows[..prefix]);
+                    let facts = facts_of(&bars);
+                    // 完整 v2/v3 对象、载荷、记录和关系逐字段对拍，不能只检查端点根集。
+                    let generation = run_generation(
+                        &mut harness,
+                        &rows[..prefix],
+                        previous.as_ref(),
+                        &label,
+                    );
+                    let relations: Vec<Value> =
+                        generation.relations.iter().map(render_value).collect();
+                    for stroke in &facts.strokes {
+                        let entity = format!("bi:1:{}", stroke.identity_anchor);
+                        let first = *stroke.start.extreme_roots.iter().min().unwrap() as i64;
+                        let last = *stroke.end.extreme_roots.iter().max().unwrap() as i64;
+                        let expected: Vec<String> = raw
+                            .range(first..=last)
+                            .map(|(_, row)| {
+                                format!(
+                                    "raw:{}@{}",
+                                    row["identity_key"].as_str().unwrap(),
+                                    row["revision"]
+                                )
+                            })
+                            .collect();
+                        let actual: Vec<String> = relations
+                            .iter()
+                            .filter(|relation| {
+                                relation["relation_type"] == "member_of"
+                                    && relation["object"] == entity
+                            })
+                            .map(|relation| relation["subject"].as_str().unwrap().to_string())
+                            .collect();
+                        assert_eq!(actual, expected, "{label} {entity} 完整成员闭区间");
+                        if stroke.end.extreme_roots.len() <= 1 {
+                            continue;
+                        }
+                        saw_formed_multi_root = true;
+                        assert_eq!(stroke.start.group_anchor, start * stride, "{label}");
+                        assert_eq!(stroke.end.group_anchor, end * stride, "{label}");
+                        assert_eq!(
+                            stroke.end.extreme_roots,
+                            vec![end * stride, tail * stride],
+                            "{label} 必须触达已审多根成笔见证"
+                        );
+                        assert!(
+                            actual.contains(&format!("raw:k-{}@1", tail * stride)),
+                            "{label} 必须包含 syn3 raw 10 / real_C raw 22（按 stride 映射）"
+                        );
+                        let event_root = *stroke.end.extreme_roots.iter().min().unwrap() as i64;
+                        for object in &generation.objects {
+                            if object_kind(object) != CHANGE_KIND {
+                                continue;
+                            }
+                            let payload: Value = serde_json::from_str(&render_built(
+                                &mut harness.store,
+                                &object.payload,
+                            ))
+                            .unwrap();
+                            if payload["data"]["entity_id"] == entity {
+                                saw_multi_root_event = true;
+                                assert_eq!(
+                                    payload["data"]["event_at"], raw[&event_root]["ts"],
+                                    "{label} event_at 必须继续取终点首根"
+                                );
+                                assert_ne!(raw[&event_root]["ts"], raw[&last]["ts"], "{label}");
+                            }
+                        }
+                    }
+                    previous = Some(generation);
+                }
+                assert!(saw_formed_multi_root, "{label} 必须实际产生多根成笔终点");
+                assert!(saw_multi_root_event, "{label} 必须实际检查多根终点变更事件");
+            }
+        }
     }
 
     /// 多前缀普通 append：覆盖同代确认沿用、端点延伸、稀疏坐标与七个 kind 齐备。
