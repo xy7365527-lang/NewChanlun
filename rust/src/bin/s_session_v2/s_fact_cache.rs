@@ -15,10 +15,36 @@
 //! 丢弃旧车道——不跨库、不跨规则、不跨档案复用。
 
 use super::*;
+use crate::v3::business_json as bj;
+use newchan_rust::s_content::capture_allocation::audit_json::JsonView;
+use newchan_rust::session_protocol::parse_canonical_i64;
 use newchan_rust::theta_v0::parser::inclusion::{InclusionGroupFact, IncrFactsState};
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
+
+/// #1488：沿用 generation 的同一 OHLC 取值配方；delta 资格口与旧 full 都调用此函数。
+pub(super) fn bar_of(event: JsonView<'_>) -> Result<Bar, String> {
+    let price = |key: &str| -> Result<i64, String> {
+        parse_canonical_i64(
+            bj::field(event, key)
+                .as_str()
+                .ok_or_else(|| format!("StorageUnavailable：OHLC价 `{key}` 缺失"))?,
+            key,
+        )
+    };
+    Ok(Bar {
+        source_index: usize::try_from(bj::coord(event)?)
+            .map_err(|_| "StorageUnavailable：源坐标不能无损转换为 source_index".to_string())?,
+        timestamp: parse_canonical_i64(bj::field(event, "ts").as_str().unwrap_or(""), "timestamp")?,
+        open: price("open")?,
+        high: price("high")?,
+        low: price("low")?,
+        close: price("close")?,
+        volume: 1.0,
+        untradable: false,
+    })
+}
 
 /// 输入指纹：稳定前缀判定只比「解析真正吃进去的 6 个字段」。
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -204,12 +230,147 @@ pub(super) struct DeltaLane {
     binding: Option<crate::v3::audit_owner::RawAdvanceBinding>,
     prefix: usize,
     poisoned: bool,
+    last_changes: Option<ParserChanges>,
+    previous_len: usize,
+    view_qualified: bool,
 }
 
 #[derive(Clone, Copy)]
 pub(super) struct DeltaRawRow {
     pub ordinal: usize,
     pub bar: Bar,
+}
+
+/// #1488 A2：只借同一车道成功推进后的真实生效账；不保存跨事务 JsonView。
+/// 构造口在 DeltaLane 内，消费者不能自行填写 dirty rank 或替换 parser。
+#[derive(Clone, Copy)]
+pub(super) struct EffectiveRawView<'a> {
+    rows: &'a [DeltaRawRow],
+    state: &'a IncrFactsState,
+    bound: &'a crate::v3::audit_owner::BoundRawAdvance<'a>,
+    changes: ParserChanges,
+    previous_len: usize,
+}
+
+impl<'a> EffectiveRawView<'a> {
+    pub(super) fn ensure_current(self) -> Result<(), String> {
+        self.bound.ensure_current()
+    }
+    pub(super) fn bound(self) -> &'a crate::v3::audit_owner::BoundRawAdvance<'a> {
+        self.bound
+    }
+    pub(super) fn state(self) -> &'a IncrFactsState {
+        self.state
+    }
+    pub(super) fn len(self) -> usize {
+        self.rows.len()
+    }
+    pub(super) fn previous_len(self) -> usize {
+        self.previous_len
+    }
+    pub(super) fn dirty_from(self) -> usize {
+        self.changes
+            .effective_dirty_from
+            .unwrap_or(self.rows.len())
+            .min(self.rows.len())
+    }
+    pub(super) fn bars(self) -> RawBars<'a> {
+        RawBars::Delta(self.rows)
+    }
+    pub(super) fn rank(self, coord: i64) -> Result<usize, usize> {
+        self.rows
+            .binary_search_by_key(&coord, |row| row.bar.source_index as i64)
+    }
+    pub(super) fn get(
+        self,
+        coord: i64,
+    ) -> Option<newchan_rust::s_content::capture_allocation::audit_json::JsonView<'a>> {
+        self.rank(coord)
+            .ok()
+            .and_then(|rank| self.bound.raw().get(self.rows[rank].ordinal))
+    }
+    pub(super) fn rows_from(self, rank: usize) -> EffectiveRawRows<'a> {
+        EffectiveRawRows {
+            rows: self.rows[rank..].iter(),
+            raw: self.bound.raw(),
+        }
+    }
+    pub(super) fn range(self, start: i64, end: i64) -> EffectiveRawRows<'a> {
+        let lo = self
+            .rows
+            .partition_point(|row| (row.bar.source_index as i64) < start);
+        let hi = self
+            .rows
+            .partition_point(|row| (row.bar.source_index as i64) <= end)
+            .max(lo);
+        EffectiveRawRows {
+            rows: self.rows[lo..hi].iter(),
+            raw: self.bound.raw(),
+        }
+    }
+}
+
+pub(super) struct EffectiveRawRows<'a> {
+    rows: std::slice::Iter<'a, DeltaRawRow>,
+    raw: crate::v3::business_json::RawEventsView<'a>,
+}
+impl<'a> Iterator for EffectiveRawRows<'a> {
+    type Item = (
+        i64,
+        newchan_rust::s_content::capture_allocation::audit_json::JsonView<'a>,
+    );
+    fn next(&mut self) -> Option<Self::Item> {
+        self.rows.next().map(|row| {
+            (
+                row.bar.source_index as i64,
+                self.raw
+                    .get(row.ordinal)
+                    .expect("DeltaLane 只保存已解析且绑定当前前缀的 ordinal"),
+            )
+        })
+    }
+}
+
+/// slice 与同账 Delta rows 共用 CC007 的访问语义，不复制全 raw bars。
+#[derive(Clone, Copy)]
+pub(super) enum RawBars<'a> {
+    Slice(&'a [Bar]),
+    Delta(&'a [DeltaRawRow]),
+}
+impl<'a> RawBars<'a> {
+    pub(super) fn len(self) -> usize {
+        match self {
+            Self::Slice(v) => v.len(),
+            Self::Delta(v) => v.len(),
+        }
+    }
+    pub(super) fn get(self, rank: usize) -> Option<&'a Bar> {
+        match self {
+            Self::Slice(v) => v.get(rank),
+            Self::Delta(v) => v.get(rank).map(|r| &r.bar),
+        }
+    }
+    pub(super) fn range(self, range: std::ops::Range<usize>) -> Self {
+        match self {
+            Self::Slice(v) => Self::Slice(&v[range]),
+            Self::Delta(v) => Self::Delta(&v[range]),
+        }
+    }
+    pub(super) fn iter(self) -> impl Iterator<Item = &'a Bar> {
+        (0..self.len()).map(move |i| self.get(i).expect("范围内"))
+    }
+    pub(super) fn partition_point(self, mut predicate: impl FnMut(&Bar) -> bool) -> usize {
+        let (mut left, mut right) = (0, self.len());
+        while left < right {
+            let mid = left + (right - left) / 2;
+            if predicate(self.get(mid).expect("范围内")) {
+                left = mid + 1;
+            } else {
+                right = mid;
+            }
+        }
+        left
+    }
 }
 
 /// 同核变化，不能单独充任 raw/事务权限；所有 rank 均指真实坐标升序生效账。
@@ -242,6 +403,9 @@ impl DeltaLane {
             binding: None,
             prefix: 0,
             poisoned: false,
+            last_changes: None,
+            previous_len: 0,
+            view_qualified: false,
         })
     }
 
@@ -253,6 +417,47 @@ impl DeltaLane {
         &self.rows
     }
 
+    pub(super) fn effective_view<'a>(
+        &'a self,
+        bound: &'a crate::v3::audit_owner::BoundRawAdvance<'_>,
+    ) -> Result<EffectiveRawView<'a>, String> {
+        bound.ensure_current()?;
+        if self.poisoned
+            || !self.view_qualified
+            || self.binding != Some(bound.current_binding())
+            || self.prefix != bound.current_prefix()
+        {
+            bound.invalidate_after_consumer_failure();
+            return Err("GenError：effective view 不属于当前成功推进的车道".into());
+        }
+        Ok(EffectiveRawView {
+            rows: &self.rows,
+            state: &self.state,
+            bound,
+            changes: self
+                .last_changes
+                .ok_or_else(|| "GenError：effective view 缺推进记录".to_string())?,
+            previous_len: self.previous_len,
+        })
+    }
+
+    /// 可签借用视图的唯一推进口：bar 只从当前 bound 的真实原行按原配方解析。
+    /// 通用 parse 回调口仍供 A1 测试/内部工作描述使用，但不能取得 prepared 资格。
+    pub(super) fn advance_owner_bound(
+        &mut self,
+        bound: &crate::v3::audit_owner::BoundRawAdvance<'_>,
+    ) -> Result<ParserChanges, String> {
+        let raw = bound.raw();
+        let changes = self.advance_bound(bound, |ordinal| {
+            let event = raw
+                .get(ordinal)
+                .ok_or_else(|| "GenError：新 winner 原账缺失".to_string())?;
+            bar_of(event)
+        })?;
+        self.view_qualified = true;
+        Ok(changes)
+    }
+
     /// parse 只收到 owner 提供的最终新 winner；旧 bars 直接借本车道，不重新解码/建 fps。
     /// 任一错误丢弃 pending 车道的资格，调用者必须丢弃整个实例，不能失败后转旧 advance。
     pub(super) fn advance_bound(
@@ -260,6 +465,7 @@ impl DeltaLane {
         bound: &crate::v3::audit_owner::BoundRawAdvance<'_>,
         mut parse: impl FnMut(usize) -> Result<Bar, String>,
     ) -> Result<ParserChanges, String> {
+        self.view_qualified = false;
         let result = self.advance_bound_inner(bound, &mut parse);
         if result.is_err() {
             bound.invalidate_after_consumer_failure();
@@ -449,6 +655,8 @@ impl DeltaLane {
         changes.new_groups = self.state.group_count();
         self.prefix = bound.current_prefix();
         self.binding = Some(bound.current_binding());
+        self.previous_len = old_len;
+        self.last_changes = Some(changes);
         Ok(changes)
     }
 }
@@ -501,6 +709,98 @@ mod delta_tests {
             });
         }
         (events, bars)
+    }
+
+    #[test]
+    fn delta_effective_view_rank_range_and_parser_are_same_bound_without_projection() {
+        let (events, bars) = fixture();
+        let owner = RawAdvanceFixture::new();
+        let mut index = RawPrefixIndex::new((&events).into());
+        let mut lane = DeltaLane::new(None).unwrap();
+        let edits = index.advance(3).unwrap();
+        let bound = owner
+            .bind((&events[..3]).into(), 0, &edits.winner_edits)
+            .unwrap();
+        lane.advance_owner_bound(&bound).unwrap();
+        let view = lane.effective_view(&bound).unwrap();
+        assert!(std::ptr::eq(view.state(), lane.state()));
+        assert_eq!(view.previous_len(), 0);
+        assert_eq!(view.dirty_from(), 0);
+        assert_eq!(
+            view.rows_from(1).map(|(c, _)| c).collect::<Vec<_>>(),
+            vec![7, 12]
+        );
+        assert_eq!(
+            view.range(3, 11).map(|(c, _)| c).collect::<Vec<_>>(),
+            vec![7]
+        );
+        assert!(view.range(20, 5).next().is_none());
+        assert_eq!(view.get(7).unwrap().get("seq").unwrap().as_i64(), Some(2));
+        assert!(view.get(8).is_none());
+        assert_eq!(
+            view.bars().range(1..3).iter().copied().collect::<Vec<_>>(),
+            bars[1..3]
+        );
+        owner.invalidate();
+        assert!(view.ensure_current().is_err());
+    }
+
+    #[test]
+    fn delta_effective_view_rejects_self_reported_parse_even_with_valid_raw_binding() {
+        let (events, mut bars) = fixture();
+        let owner = RawAdvanceFixture::new();
+        let mut index = RawPrefixIndex::new((&events).into());
+        let edits = index.advance(3).unwrap();
+        let bound = owner
+            .bind((&events[..3]).into(), 0, &edits.winner_edits)
+            .unwrap();
+        bars[1].high += 50; // 坐标相同仍不能把调用者的 OHLC 自报签成 prepared 资格。
+        let mut lane = DeltaLane::new(None).unwrap();
+        lane.advance_bound(&bound, |i| Ok(bars[i])).unwrap();
+        assert!(lane.effective_view(&bound).is_err());
+        assert!(bound.ensure_current().is_err());
+    }
+
+    #[test]
+    fn delta_prepared_rejects_equal_but_foreign_parser_and_untracked_source_epoch() {
+        let (events, bars) = fixture();
+        let owner = RawAdvanceFixture::new();
+        let mut index = RawPrefixIndex::new((&events).into());
+        let mut lane = DeltaLane::new(None).unwrap();
+        let edits = index.advance(3).unwrap();
+        let bound = owner
+            .bind((&events[..3]).into(), 0, &edits.winner_edits)
+            .unwrap();
+        lane.advance_owner_bound(&bound).unwrap();
+        let view = lane.effective_view(&bound).unwrap();
+        let mut producer = content_producer::Cc004Producer::new(tb02a::PROFILE, "r");
+        let mut store = newchan_rust::s_content::MemoryNodes::new();
+        let prepared = producer
+            .prepare_raw_history_delta(&mut store, view)
+            .unwrap();
+        producer
+            .parser_fractal_sources(&prepared, lane.state())
+            .unwrap();
+        let mut other = IncrFactsState::empty();
+        for bar in &bars[..3] {
+            other.append(*bar);
+        }
+        assert_eq!(other.materialize_facts(), lane.state().materialize_facts());
+        assert!(producer.parser_fractal_sources(&prepared, &other).is_err());
+        let foreign = content_producer::Cc004Producer::new(tb02a::PROFILE, "r");
+        assert!(foreign
+            .parser_fractal_sources(&prepared, lane.state())
+            .is_err());
+        let spec = content_producer::RawRefSpec::from_event((&events[3]).into()).unwrap();
+        producer.bind_source(&mut store, 7, spec).unwrap();
+        assert!(producer
+            .parser_fractal_sources(&prepared, lane.state())
+            .is_err());
+        assert!(producer.check_effective_view(view).is_err());
+        owner.invalidate();
+        assert!(producer
+            .parser_fractal_sources(&prepared, lane.state())
+            .is_err());
     }
 
     #[test]

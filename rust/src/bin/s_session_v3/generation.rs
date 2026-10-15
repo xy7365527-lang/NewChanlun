@@ -105,6 +105,20 @@ pub(super) struct GenerationInput<'a> {
     pub prior: PriorState<'a>,
 }
 
+/// #1488：raw/effective 不可由调用者另给；仅含当前元数据与已核 prior。
+pub(super) struct BoundGenerationInput<'a> {
+    pub generation: i64,
+    pub structure_cut: &'a str,
+    pub input_frontier: i64,
+    pub profile_id: &'a str,
+    pub profile_hash: &'a str,
+    pub rule_revision: &'a str,
+    pub catalog_revision: &'a str,
+    pub scope: &'a Value,
+    pub semantic_commit_ns: Option<&'a str>,
+    pub prior: PriorState<'a>,
+}
+
 /// 一条已构造对象：身份 + 生成态记录 + 可复用的构造结果。
 ///
 /// 顺序（生成态 `objects` 数组）＝旧 sealed 批次：CC-006 形态（窗序）→ 已按
@@ -426,12 +440,7 @@ impl GenerationRuntime {
         }
         let raw = bound.raw();
         let lane = self.delta_lane.as_mut().expect("刚建立");
-        let changes = lane.advance_bound(bound, |ordinal| {
-            let event = raw
-                .get(ordinal)
-                .ok_or_else(|| "GenError：新 winner 原账缺失".to_string())?;
-            bar_of(event)
-        })?;
+        let changes = lane.advance_owner_bound(bound)?;
         let budget = raw.budget();
         let mut appended = sc::CodecVec::new_with_allocation(budget);
         let append_ordinals = bound.append_ordinals();
@@ -533,7 +542,7 @@ impl GenerationRuntime {
         input: &GenerationInput<'b>,
         budget: Option<&sc::capture_allocation::OwnedBudget>,
     ) -> Result<Generated<'b>, String> {
-        self.generate_impl(store, input, budget, None)
+        self.generate_impl(store, input, budget, None, None)
     }
 
     /// 仅受控 NativeReadLease 分支可提供 token；外部调用方不能用 bool 开启资格。
@@ -543,7 +552,53 @@ impl GenerationRuntime {
         input: &GenerationInput<'b>,
         native: &super::prepared::NativeGeneration,
     ) -> Result<Generated<'b>, String> {
-        self.generate_impl(store, input, None, Some(native))
+        self.generate_impl(store, input, None, Some(native), None)
+    }
+
+    /// 完整生成消费同一 owner raw 资格；结果仍不是 C 的完整集合 seal 或提交回执。
+    pub(super) fn generate_bound<'b>(
+        &mut self,
+        store: &mut dyn NodeStore,
+        bound: &super::audit_owner::BoundRawAdvance<'b>,
+        input: BoundGenerationInput<'b>,
+    ) -> Result<Generated<'b>, String> {
+        let result = (|| {
+            bound.ensure_current()?;
+            if bound.raw().budget().is_some() {
+                return Err("prototype_audit_allocation_incomplete：完整 delta producer/bi/output 尚非 Owned；禁止 Plain fallback".into());
+            }
+            let raw_delta = self.advance_raw_bound_inner(store, bound)?;
+            // 借用独立持有的车道，生成期间不能推进 parser。只有成功才归还运行态。
+            let lane = self
+                .delta_lane
+                .take()
+                .ok_or_else(|| "GenError：delta 车道缺失".to_string())?;
+            let view = lane.effective_view(bound)?;
+            let full_input = GenerationInput {
+                all_events: bound.raw(),
+                effective: RawEventsView::plain(&[]),
+                generation: input.generation,
+                structure_cut: input.structure_cut,
+                input_frontier: input.input_frontier,
+                profile_id: input.profile_id,
+                profile_hash: input.profile_hash,
+                rule_revision: input.rule_revision,
+                catalog_revision: input.catalog_revision,
+                scope: input.scope,
+                semantic_commit_ns: input.semantic_commit_ns,
+                prior: input.prior,
+            };
+            let generated =
+                self.generate_impl(store, &full_input, None, None, Some((view, raw_delta)))?;
+            bound.ensure_current()?;
+            self.delta_lane = Some(lane);
+            Ok(generated)
+        })();
+        if result.is_err() {
+            bound.invalidate_after_consumer_failure();
+            self.discard_runtime_state();
+        }
+        result
     }
 
     fn generate_impl<'b>(
@@ -552,6 +607,7 @@ impl GenerationRuntime {
         input: &GenerationInput<'b>,
         budget: Option<&sc::capture_allocation::OwnedBudget>,
         native: Option<&super::prepared::NativeGeneration>,
+        delta: Option<(s_fact_cache::EffectiveRawView<'_>, RawGenerationDelta)>,
     ) -> Result<Generated<'b>, String> {
         if self.delta_lane.is_some() {
             return Err("GenError：delta 车道不能切回完整 generate 重判，须显式丢弃".into());
@@ -578,41 +634,61 @@ impl GenerationRuntime {
         let mut raw_bars: Vec<Bar> = Vec::with_capacity(input.effective.len());
         let mut effective_nodes: Vec<NodeDigest> = Vec::with_capacity(input.effective.len());
         let mut coord_nodes: BTreeMap<i64, NodeDigest> = BTreeMap::new();
-        for event in input.effective {
-            let coord = bj::coord(event)?;
-            if raw_by_coord.insert(coord, event).is_some() {
-                return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖见证".to_string());
+        let mut all_nodes: Vec<NodeDigest> = Vec::new();
+        let delta_view = delta.as_ref().map(|(view, _)| *view);
+        if delta_view.is_none() {
+            for event in input.effective {
+                let coord = bj::coord(event)?;
+                if raw_by_coord.insert(coord, event).is_some() {
+                    return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖见证".to_string());
+                }
+                raw_bars.push(bar_of(event)?);
+                let node = event_node(&mut self.event_nodes, store, event)?;
+                coord_nodes.insert(coord, node);
+                effective_nodes.push(node);
             }
-            raw_bars.push(bar_of(event)?);
-            let node = event_node(&mut self.event_nodes, store, event)?;
-            coord_nodes.insert(coord, node);
-            effective_nodes.push(node);
+            all_nodes = Vec::with_capacity(input.all_events.len());
+            for event in input.all_events {
+                all_nodes.push(event_node(&mut self.event_nodes, store, event)?);
+            }
+            for (coord, event) in &raw_by_coord {
+                self.producer
+                    .bind_source(store, *coord, raw_ref_spec(*event)?)
+                    .map_err(producer_error)?;
+            }
         }
-        let mut all_nodes: Vec<NodeDigest> = Vec::with_capacity(input.all_events.len());
-        for event in input.all_events {
-            all_nodes.push(event_node(&mut self.event_nodes, store, event)?);
-        }
-        for (coord, event) in &raw_by_coord {
-            self.producer
-                .bind_source(store, *coord, raw_ref_spec(*event)?)
-                .map_err(producer_error)?;
-        }
-
-        // ── 同核解析：与旧入口同款「本代取用车道、用完归还线程槽位」──
-        let mut lane_guard = s_fact_cache::LaneGuard::take(&self.lane_key);
-        let lane = lane_guard.lane(&self.lane_key);
-        lane.advance(&raw_bars);
-        let state: &IncrFactsState = lane.state();
+        let raw_ledger = match delta_view {
+            Some(view) => BiLedgerView::Delta(view),
+            None => BiLedgerView::Views(&raw_by_coord),
+        };
+        // full oracle 与 delta 共用下方生成核，只有原账/parser 取得方式不同。
+        let mut lane_guard = if delta_view.is_none() {
+            Some(s_fact_cache::LaneGuard::take(&self.lane_key))
+        } else {
+            None
+        };
+        let state: &IncrFactsState = match delta_view {
+            Some(view) => view.state(),
+            None => {
+                let lane = lane_guard
+                    .as_mut()
+                    .expect("完整入口车道")
+                    .lane(&self.lane_key);
+                lane.advance(&raw_bars);
+                lane.state()
+            }
+        };
         let (layer, evidence) = parser::parse_layer_with_group_evidence(state, &config);
         let merged_rc = layer.merged_bars.clone();
         let merged: &[Bar] = merged_rc.as_ref();
-        let prepared = self
-            .producer
-            .prepare_raw_history(&raw_bars)
-            .map_err(producer_error)?;
+        let prepared = match delta_view {
+            Some(view) => self.producer.prepare_raw_history_delta(store, view),
+            None => self.producer.prepare_raw_history(&raw_bars),
+        }
+        .map_err(producer_error)?;
 
         // 只活在本次 generate 调用里，任何 Err/rollback 都不进入跨请求运行缓存。
-        let mut fractal_sources = if native.is_some() {
+        let mut fractal_sources = if native.is_some() || delta_view.is_some() {
             Some(
                 self.producer
                     .parser_fractal_sources(&prepared, state)
@@ -653,7 +729,7 @@ impl GenerationRuntime {
                     let (wits, rels) = shape_witnesses(
                         store,
                         &mut self.event_nodes,
-                        &raw_by_coord,
+                        raw_ledger,
                         &coord_nodes,
                         &views,
                         start,
@@ -898,7 +974,7 @@ impl GenerationRuntime {
                 store,
                 &BiBuildInputView {
                     facts: &evidence.stroke_facts,
-                    raw: BiLedgerView::Views(&raw_by_coord),
+                    raw: raw_ledger,
                     all_events: JsonView::BorrowedArray(&input.all_events)
                         .as_array()
                         .unwrap(),
@@ -934,12 +1010,19 @@ impl GenerationRuntime {
         let mut objects: Vec<ProducedObject> = shape_objects;
         objects.extend(typed);
         let deduped = dedupe_observations(store, &observations)?;
-        let raw_events_array = self
-            .raw_events_seq
-            .sync(store, &all_nodes, "raw_events", budget)?;
-        let effective_array =
-            self.effective_events_seq
-                .sync(store, &effective_nodes, "effective_events", budget)?;
+        let (raw_events_array, effective_array) = match delta {
+            Some((_, roots)) => (roots.raw_events, roots.effective_events),
+            None => (
+                self.raw_events_seq
+                    .sync(store, &all_nodes, "raw_events", budget)?,
+                self.effective_events_seq.sync(
+                    store,
+                    &effective_nodes,
+                    "effective_events",
+                    budget,
+                )?,
+            ),
+        };
         let object_nodes: Vec<NodeDigest> = objects
             .iter()
             .map(|object| object.generated.digest)
@@ -1475,7 +1558,7 @@ fn parse_small_json(text: &str, what: &'static str) -> Result<Value, String> {
 fn shape_witnesses(
     store: &mut dyn NodeStore,
     event_nodes: &mut BTreeMap<(i64, i64), NodeDigest>,
-    raw_by_coord: &BTreeMap<i64, JsonView<'_>>,
+    raw_by_coord: BiLedgerView<'_>,
     coord_nodes: &BTreeMap<i64, NodeDigest>,
     views: &[GroupEvidenceView<'_>; 3],
     start: usize,
@@ -1488,12 +1571,12 @@ fn shape_witnesses(
         let mut bar_nodes: Vec<NodeDigest> = Vec::with_capacity(view.members.len());
         for coord in view.members {
             let coord = *coord as i64;
-            let event = raw_by_coord.get(&coord).ok_or_else(|| {
+            let event = raw_by_coord.get(coord).ok_or_else(|| {
                 format!("StorageUnavailable：见证成员坐标 {coord} 不在本次生效账内")
             })?;
             match coord_nodes.get(&coord) {
                 Some(node) => bar_nodes.push(*node),
-                None => bar_nodes.push(event_node(event_nodes, store, *event)?),
+                None => bar_nodes.push(event_node(event_nodes, store, event)?),
             }
         }
         let bar_array = sc::write_value(
@@ -1657,49 +1740,12 @@ fn event_node(
 
 /// 生效账事件 → `Bar`（与旧生成段同一取法：OHLC 档案取 open/high/low/close）。
 fn bar_of(event: JsonView<'_>) -> Result<Bar, String> {
-    let price = |key: &str| -> Result<i64, String> {
-        parse_canonical_i64(
-            bj::field(event, key)
-                .as_str()
-                .ok_or_else(|| format!("StorageUnavailable：OHLC价 `{key}` 缺失"))?,
-            key,
-        )
-    };
-    Ok(Bar {
-        source_index: usize::try_from(bj::coord(event)?)
-            .map_err(|_| "StorageUnavailable：源坐标不能无损转换为 source_index".to_string())?,
-        timestamp: parse_canonical_i64(bj::field(event, "ts").as_str().unwrap_or(""), "timestamp")?,
-        open: price("open")?,
-        high: price("high")?,
-        low: price("low")?,
-        close: price("close")?,
-        volume: 1.0,
-        untradable: false,
-    })
+    s_fact_cache::bar_of(event)
 }
 
 /// 生效账事件 → producer 的八字段源引用登记（字段只从原行取，不另判）。
 fn raw_ref_spec(event: JsonView<'_>) -> Result<RawRefSpec, String> {
-    let text = |key: &str| -> Result<String, String> {
-        bj::field(event, key)
-            .as_str()
-            .map(str::to_string)
-            .ok_or_else(|| format!("StorageUnavailable：raw.{key} 不是字符串"))
-    };
-    Ok(RawRefSpec {
-        identity_key: text("identity_key")?,
-        payload_hash: text("payload_hash")?,
-        receipt_id: text("receipt_id")?,
-        event_id: text("event_id")?,
-        input_revision: text("input_revision")?,
-        revision: bj::field(event, "revision")
-            .as_i64()
-            .ok_or("StorageUnavailable：raw.revision 不是 i64")?,
-        seq: bj::field(event, "seq")
-            .as_i64()
-            .ok_or("StorageUnavailable：raw.seq 不是 i64")?,
-        source_coord: text("source_coord")?,
-    })
+    RawRefSpec::from_event(event)
 }
 
 fn group_views(state: &IncrFactsState, start: usize) -> Result<[GroupEvidenceView<'_>; 3], String> {
@@ -1830,6 +1876,525 @@ mod tests {
             "event_id": format!("event-{identity}"),
         }))
         .collect()
+    }
+
+    fn delta_bound_input<'a>(
+        scope: &'a Value,
+        cut: &'a str,
+        gen: i64,
+        frontier: i64,
+        prior: PriorState<'a>,
+    ) -> BoundGenerationInput<'a> {
+        BoundGenerationInput {
+            generation: gen,
+            structure_cut: cut,
+            input_frontier: frontier,
+            profile_id: crate::tb02a::PROFILE,
+            profile_hash: "profile-hash",
+            rule_revision: "r",
+            catalog_revision: "catalog",
+            scope,
+            semantic_commit_ns: Some("123456789"),
+            prior,
+        }
+    }
+
+    fn clone_prior(generated: &Generated<'_>) -> (Vec<Built>, Option<Built>) {
+        let (bis, version) = prior_roots(generated);
+        (bis.into_iter().cloned().collect(), version.cloned())
+    }
+
+    fn bound_full_generation_parity(events: &[Value], cuts: &[usize]) -> (usize, usize) {
+        use super::super::audit_owner::RawAdvanceFixture;
+        let fixture = RawAdvanceFixture::new();
+        let mut index = bj::RawPrefixIndex::new(events.into());
+        let mut delta = GenerationRuntime::new("A2 delta".into(), crate::tb02a::PROFILE, "r");
+        let mut full = GenerationRuntime::new(
+            "A2 full independent raw/parser".into(),
+            crate::tb02a::PROFILE,
+            "r",
+        );
+        let mut ds = MemoryNodes::new();
+        let mut fs = MemoryNodes::new();
+        let scope = json!({"instrument":"A2", "exchange":"fixture"});
+        let (mut dp, mut fp) = (
+            (Vec::<Built>::new(), None::<Built>),
+            (Vec::<Built>::new(), None::<Built>),
+        );
+        let mut previous = 0;
+        let mut witness_total = 0;
+        let mut bi_total = 0;
+        for (turn, &prefix) in cuts.iter().enumerate() {
+            let gen = turn as i64 + 1;
+            let cut = format!("cut-{gen}");
+            let changes = index.advance(prefix).unwrap();
+            let raw = RawEventsView::plain(events).prefix(prefix).unwrap();
+            let bound = fixture.bind(raw, previous, &changes.winner_edits).unwrap();
+            let effective = bj::effective(raw, None).unwrap();
+            let mut actual = delta
+                .generate_bound(
+                    &mut ds,
+                    &bound,
+                    delta_bound_input(
+                        &scope,
+                        &cut,
+                        gen,
+                        prefix as i64,
+                        PriorState {
+                            bi_records: dp.0.iter().collect(),
+                            version_record: dp.1.as_ref(),
+                        },
+                    ),
+                )
+                .unwrap();
+            let mut expected = full
+                .generate(
+                    &mut fs,
+                    &GenerationInput {
+                        all_events: raw,
+                        effective: effective.raw_view(),
+                        generation: gen,
+                        structure_cut: &cut,
+                        input_frontier: prefix as i64,
+                        profile_id: crate::tb02a::PROFILE,
+                        profile_hash: "profile-hash",
+                        rule_revision: "r",
+                        catalog_revision: "catalog",
+                        scope: &scope,
+                        semantic_commit_ns: Some("123456789"),
+                        prior: PriorState {
+                            bi_records: fp.0.iter().collect(),
+                            version_record: fp.1.as_ref(),
+                        },
+                    },
+                )
+                .unwrap();
+            // 六数组摘要与完整规范字节分别对拍；对象序和当前包装随全部数组一并核。
+            let roots = |g: &Generated<'_>| {
+                [
+                    g.roots.raw_events.clone(),
+                    g.roots.effective_events.clone(),
+                    g.roots.objects.clone(),
+                    g.roots.witnesses.clone(),
+                    g.roots.relations.clone(),
+                    g.roots.observations.clone(),
+                ]
+            };
+            assert_eq!(roots(&actual), roots(&expected), "A2 第 {gen} 代六根");
+            assert_eq!(actual.state_without_axes, expected.state_without_axes);
+            assert_eq!(
+                actual
+                    .objects
+                    .iter()
+                    .map(|o| (o.kind(), o.fact_key(), o.object_id()))
+                    .collect::<Vec<_>>(),
+                expected
+                    .objects
+                    .iter()
+                    .map(|o| (o.kind(), o.fact_key(), o.object_id()))
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(
+                actual
+                    .witnesses
+                    .iter()
+                    .map(|w| (&w.witness_id, &w.object_id, w.slot, &w.built))
+                    .collect::<Vec<_>>(),
+                expected
+                    .witnesses
+                    .iter()
+                    .map(|w| (&w.witness_id, &w.object_id, w.slot, &w.built))
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(actual.relations, expected.relations);
+            assert_eq!(actual.observations, expected.observations);
+            actual
+                .finish_axes(&mut ds, previous as i64, &[], &[])
+                .unwrap();
+            expected
+                .finish_axes(&mut fs, previous as i64, &[], &[])
+                .unwrap();
+            assert_eq!(actual.generated_state, expected.generated_state);
+            assert_eq!(actual.catalog_axes, expected.catalog_axes);
+            let (a_text, value) = state_value(&mut ds, &actual);
+            let (e_text, _) = state_value(&mut fs, &expected);
+            assert_eq!(a_text, e_text, "A2 第 {gen} 代完整规范字节");
+            assert_eq!(value["generation"], gen);
+            assert_eq!(value["structure_cut"], cut);
+            assert_eq!(value["raw_events"].as_array().unwrap().len(), prefix);
+            actual.verify_new_closure(&mut ds).unwrap();
+            expected.verify_new_closure(&mut fs).unwrap();
+            witness_total += actual.witnesses.len();
+            bi_total += actual
+                .objects
+                .iter()
+                .filter(|o| o.kind() == "CC-010.bi")
+                .count();
+            for event in raw {
+                let coord = bj::coord(event).unwrap();
+                let is_current = effective.iter().any(|e| bj::coord(e).unwrap() == coord);
+                assert_eq!(
+                    delta.producer.source_root(coord).is_some(),
+                    is_current,
+                    "移走坐标必须撤来源登记：{coord}"
+                );
+            }
+            let next_dp = clone_prior(&actual);
+            let next_fp = clone_prior(&expected);
+            drop(actual);
+            drop(expected);
+            dp = next_dp;
+            fp = next_fp;
+            previous = prefix;
+        }
+        (witness_total, bi_total)
+    }
+
+    #[test]
+    fn delta_full_six_roots_revision_swap_insertion_and_metadata_match_full() {
+        let events = delta_raw_fixture();
+        let (witnesses, _) =
+            bound_full_generation_parity(&events, &[0, 1, 2, 4, 5, 6, 8, 8, 9, 11]);
+        assert!(witnesses > 0, "完整对拍必须实际产三槽见证");
+    }
+
+    fn delta_long_fixture() -> Vec<Value> {
+        tb02b_oracle_rows().into_iter().enumerate().map(|(i, (id, coord, open, high, low, close))| json!({
+            "identity_key": id, "event_id": id, "source_coord": coord.to_string(), "ts": coord.to_string(),
+            "open": open.to_string(), "high": high.to_string(), "low": low.to_string(), "close": close.to_string(),
+            "revision": 1, "seq": i + 1, "input_revision": "1", "payload_hash": format!("hash-{i}"),
+            "receipt_id": format!("receipt-{i}"),
+        })).collect()
+    }
+
+    #[test]
+    fn delta_full_bi_prior_tail_revision_and_reactivated_windows_match_full() {
+        let mut events = delta_long_fixture();
+        assert!(events.len() >= 14);
+        events.truncate(14);
+        let mut revised = events[2].clone();
+        revised["revision"] = json!(2);
+        revised["input_revision"] = json!("2");
+        revised["seq"] = json!(15);
+        revised["high"] = json!("13");
+        revised["low"] = json!("9");
+        revised["open"] = json!("11");
+        revised["close"] = json!("11");
+        revised["payload_hash"] = json!("revision-2");
+        revised["receipt_id"] = json!("receipt-15");
+        events.push(revised);
+        let mut restored = events[2].clone();
+        restored["revision"] = json!(3);
+        restored["input_revision"] = json!("3");
+        restored["seq"] = json!(16);
+        restored["payload_hash"] = json!("restored-3");
+        restored["receipt_id"] = json!("receipt-16");
+        events.push(restored);
+        let mut moved = events[13].clone();
+        moved["revision"] = json!(2);
+        moved["input_revision"] = json!("2");
+        moved["seq"] = json!(17);
+        moved["source_coord"] = json!("1000");
+        moved["ts"] = json!("1000");
+        moved["payload_hash"] = json!("tail-moved");
+        moved["receipt_id"] = json!("receipt-17");
+        events.push(moved);
+        let (witnesses, bis) =
+            bound_full_generation_parity(&events, &[1, 2, 8, 14, 15, 16, 17, 17]);
+        assert!(witnesses > 0 && bis > 0, "实际包含三槽见证及跨代 bi prior");
+    }
+
+    #[test]
+    fn delta_full_direction_correction_competing_extremes_and_coordinate_removal_match_full() {
+        let mut events: Vec<Value> = [(10,10,5),(11,15,8),(37,15,6),(900,12,6),(9001,9,4),(12345,9,3)]
+            .into_iter().enumerate().map(|(i,(coord,high,low))| json!({
+                "identity_key": format!("id-{i}"), "event_id": format!("event-{i}"),
+                "source_coord": coord.to_string(), "ts": coord.to_string(), "revision":1,
+                "seq":i+1, "input_revision":"1", "payload_hash":format!("hash-{i}"),
+                "receipt_id":format!("receipt-{i}"), "open":low.to_string(), "close":high.to_string(),
+                "high":high.to_string(), "low":low.to_string(),
+            })).collect();
+        let mut first = events[0].clone();
+        first["revision"] = json!(2);
+        first["input_revision"] = json!("2");
+        first["seq"] = json!(7);
+        first["high"] = json!("20");
+        first["low"] = json!("10");
+        first["open"] = json!("10");
+        first["close"] = json!("20");
+        first["payload_hash"] = json!("direction-corrected");
+        first["receipt_id"] = json!("receipt-7");
+        events.push(first);
+        let mut moved = events[5].clone();
+        moved["revision"] = json!(2);
+        moved["input_revision"] = json!("2");
+        moved["seq"] = json!(8);
+        moved["source_coord"] = json!("20000");
+        moved["ts"] = json!("20000");
+        moved["payload_hash"] = json!("moved");
+        moved["receipt_id"] = json!("receipt-8");
+        events.push(moved);
+        bound_full_generation_parity(&events, &[1, 2, 3, 4, 5, 6, 7, 8]);
+    }
+
+    #[test]
+    fn delta_full_cold_matches_independent_sealed_v2_oracle() {
+        use super::super::audit_owner::RawAdvanceFixture;
+        let oracle_db = OracleDb::new();
+        oracle_db.accept(&tb02b_oracle_rows()[..14]);
+        let previous_frontier = oracle_db.advance();
+        let mut oracle = oracle_db.read();
+        restrict_oracle_to_tb02ab(&mut oracle, previous_frontier, &[], &[]);
+        let mut index = bj::RawPrefixIndex::new((&oracle.all_events).into());
+        let edits = index.advance(oracle.all_events.len()).unwrap();
+        let fixture = RawAdvanceFixture::new();
+        let bound = fixture
+            .bind((&oracle.all_events).into(), 0, &edits.winner_edits)
+            .unwrap();
+        let mut store = MemoryNodes::new();
+        let mut runtime = GenerationRuntime::new(
+            "A2 sealed oracle".into(),
+            crate::tb02a::PROFILE,
+            oracle.batch["rule_revision"].as_str().unwrap(),
+        );
+        let cut = format!("cut-{}", oracle.generation);
+        let mut generated = runtime
+            .generate_bound(
+                &mut store,
+                &bound,
+                BoundGenerationInput {
+                    generation: oracle.generation,
+                    structure_cut: &cut,
+                    input_frontier: oracle.batch["input_frontier"].as_i64().unwrap(),
+                    profile_id: oracle.batch["profile_id"].as_str().unwrap(),
+                    profile_hash: oracle.batch["profile_hash"].as_str().unwrap(),
+                    rule_revision: oracle.batch["rule_revision"].as_str().unwrap(),
+                    catalog_revision: oracle.batch["catalog_revision"].as_str().unwrap(),
+                    scope: &oracle.batch["scope"],
+                    semantic_commit_ns: None,
+                    prior: PriorState {
+                        bi_records: vec![],
+                        version_record: None,
+                    },
+                },
+            )
+            .unwrap();
+        generated
+            .finish_axes(&mut store, previous_frontier, &[], &[])
+            .unwrap();
+        let (mine, _) =
+            assert_state_matches_oracle("A2 独立封存 oracle", &mut store, &generated, &oracle, &[]);
+        assert_non_vacuous_evidence("A2 独立封存 oracle", &mine);
+    }
+
+    #[test]
+    fn delta_full_foreign_expired_and_consumer_failure_revoke_without_fallback() {
+        use super::super::audit_owner::RawAdvanceFixture;
+        let events = delta_raw_fixture();
+        let raw = RawEventsView::plain(&events).prefix(4).unwrap();
+        let mut index = bj::RawPrefixIndex::new(raw);
+        let edits = index.advance(4).unwrap();
+        let fixture = RawAdvanceFixture::new();
+        let bound = fixture.bind(raw, 0, &edits.winner_edits).unwrap();
+        let mut runtime = GenerationRuntime::new("A2 failure".into(), crate::tb02a::PROFILE, "r");
+        let mut store = MemoryNodes::new();
+        let scope = json!({});
+        runtime
+            .generate_bound(
+                &mut store,
+                &bound,
+                delta_bound_input(
+                    &scope,
+                    "cut-1",
+                    1,
+                    4,
+                    PriorState {
+                        bi_records: vec![],
+                        version_record: None,
+                    },
+                ),
+            )
+            .unwrap();
+        let foreign = RawAdvanceFixture::new();
+        let wrong = foreign.bind(raw, 0, &edits.winner_edits).unwrap();
+        assert!(runtime
+            .generate_bound(
+                &mut store,
+                &wrong,
+                delta_bound_input(
+                    &scope,
+                    "cut-2",
+                    2,
+                    4,
+                    PriorState {
+                        bi_records: vec![],
+                        version_record: None
+                    }
+                )
+            )
+            .is_err());
+        assert!(wrong.ensure_current().is_err());
+        assert!(runtime.delta_lane.is_none() && runtime.raw_events_seq.seq.is_none());
+        fixture.invalidate();
+        assert!(runtime
+            .generate_bound(
+                &mut store,
+                &bound,
+                delta_bound_input(
+                    &scope,
+                    "cut-3",
+                    3,
+                    4,
+                    PriorState {
+                        bi_records: vec![],
+                        version_record: None
+                    }
+                )
+            )
+            .is_err());
+        // 错规则在 raw 推进之后被完整生成核拒绝，不能留下已推进 raw 或回退旧 generate。
+        let fresh = RawAdvanceFixture::new();
+        let next = fresh.bind(raw, 0, &edits.winner_edits).unwrap();
+        let mut input = delta_bound_input(
+            &scope,
+            "cut-4",
+            4,
+            4,
+            PriorState {
+                bi_records: vec![],
+                version_record: None,
+            },
+        );
+        input.rule_revision = "foreign-rule";
+        assert!(runtime.generate_bound(&mut store, &next, input).is_err());
+        assert!(next.ensure_current().is_err());
+        assert!(
+            runtime.delta_lane.is_none()
+                && runtime.raw_events_seq.seq.is_none()
+                && runtime.objects_seq.seq.is_none()
+        );
+        assert_eq!(runtime.producer.source_root(2), None);
+    }
+
+    #[test]
+    fn delta_full_node_write_failures_revoke_pending_generation_and_all_six_memos() {
+        use super::super::audit_owner::RawAdvanceFixture;
+        let events = delta_raw_fixture();
+        let raw = RawEventsView::plain(&events).prefix(4).unwrap();
+        let mut index = bj::RawPrefixIndex::new(raw);
+        let edits = index.advance(4).unwrap();
+        let scope = json!({});
+        let owner = RawAdvanceFixture::new();
+        let bound = owner.bind(raw, 0, &edits.winner_edits).unwrap();
+        let mut counted = SequenceTestStore::default();
+        let mut successful =
+            GenerationRuntime::new("A2 write count".into(), crate::tb02a::PROFILE, "r");
+        successful
+            .generate_bound(
+                &mut counted,
+                &bound,
+                delta_bound_input(
+                    &scope,
+                    "cut-1",
+                    1,
+                    4,
+                    PriorState {
+                        bi_records: vec![],
+                        version_record: None,
+                    },
+                ),
+            )
+            .unwrap();
+        let total = counted.writes.len();
+        assert!(total > 3);
+        for fail_at in [0, total / 2, total - 1] {
+            let owner = RawAdvanceFixture::new();
+            let bound = owner.bind(raw, 0, &edits.winner_edits).unwrap();
+            let mut store = SequenceTestStore {
+                writes_left: Some(fail_at),
+                ..Default::default()
+            };
+            let mut runtime =
+                GenerationRuntime::new("A2 write refusal".into(), crate::tb02a::PROFILE, "r");
+            assert!(runtime
+                .generate_bound(
+                    &mut store,
+                    &bound,
+                    delta_bound_input(
+                        &scope,
+                        "cut-1",
+                        1,
+                        4,
+                        PriorState {
+                            bi_records: vec![],
+                            version_record: None
+                        }
+                    )
+                )
+                .is_err());
+            assert_eq!(store.failures, 1);
+            assert!(bound.ensure_current().is_err());
+            assert!(runtime.delta_lane.is_none());
+            assert!([
+                &runtime.raw_events_seq,
+                &runtime.effective_events_seq,
+                &runtime.objects_seq,
+                &runtime.witnesses_seq,
+                &runtime.relations_seq,
+                &runtime.observations_seq
+            ]
+            .iter()
+            .all(|memo| memo.seq.is_none() && !memo.bound));
+            assert_eq!(runtime.producer.source_root(2), None);
+        }
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn delta_full_owned_is_explicitly_rejected_and_lease_revoked() {
+        use super::super::audit_owner::RawAdvanceFixture;
+        let events = delta_raw_fixture();
+        let budget = sc::capture_allocation::OwnedBudget::new(1 << 20);
+        let originals = bj::RawEvents::Owned(
+            sc::capture_allocation::audit_json::OwnedJson::from_view(
+                (&Value::Array(events[..4].to_vec())).into(),
+                &budget,
+            )
+            .unwrap(),
+        );
+        let mut index = bj::RawPrefixIndex::new(RawEventsView::plain(&events));
+        let edits = index.advance(4).unwrap();
+        let fixture = RawAdvanceFixture::new();
+        let bound = fixture
+            .bind(originals.view(), 0, &edits.winner_edits)
+            .unwrap();
+        let mut runtime =
+            GenerationRuntime::new("A2 Owned rejection".into(), crate::tb02a::PROFILE, "r");
+        let mut store = SequenceTestStore::default();
+        let scope = json!({});
+        let error = runtime
+            .generate_bound(
+                &mut store,
+                &bound,
+                delta_bound_input(
+                    &scope,
+                    "cut-1",
+                    1,
+                    4,
+                    PriorState {
+                        bi_records: vec![],
+                        version_record: None,
+                    },
+                ),
+            )
+            .err()
+            .unwrap();
+        assert!(error.contains("prototype_audit_allocation_incomplete"));
+        assert!(bound.ensure_current().is_err());
+        assert!(store.writes.is_empty() && runtime.delta_lane.is_none());
+        drop(bound);
+        drop(originals);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
 
     fn delta_raw_four_paths(budget: Option<&sc::capture_allocation::OwnedBudget>) {

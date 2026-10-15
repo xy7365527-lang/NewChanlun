@@ -118,6 +118,31 @@ pub(super) struct RawRefSpec {
 }
 
 impl RawRefSpec {
+    pub(super) fn from_event(
+        event: newchan_rust::s_content::capture_allocation::audit_json::JsonView<'_>,
+    ) -> Result<RawRefSpec, String> {
+        let text = |key: &str| -> Result<String, String> {
+            crate::v3::business_json::field(event, key)
+                .as_str()
+                .map(str::to_string)
+                .ok_or_else(|| format!("StorageUnavailable：raw.{key} 不是字符串"))
+        };
+        Ok(RawRefSpec {
+            identity_key: text("identity_key")?,
+            payload_hash: text("payload_hash")?,
+            receipt_id: text("receipt_id")?,
+            event_id: text("event_id")?,
+            input_revision: text("input_revision")?,
+            revision: crate::v3::business_json::field(event, "revision")
+                .as_i64()
+                .ok_or("StorageUnavailable：raw.revision 不是 i64")?,
+            seq: crate::v3::business_json::field(event, "seq")
+                .as_i64()
+                .ok_or("StorageUnavailable：raw.seq 不是 i64")?,
+            source_coord: text("source_coord")?,
+        })
+    }
+
     /// 有界小对象（八字段全文本），不是巨大载荷。
     fn to_value(&self) -> CValue {
         CValue::Object(vec![
@@ -259,7 +284,8 @@ pub(super) struct PreparedRawHistory<'a> {
     owner: Rc<()>,
     epoch: u64,
     snapshot: Rc<()>,
-    raw: &'a [Bar],
+    raw: super::s_fact_cache::RawBars<'a>,
+    delta: Option<super::s_fact_cache::EffectiveRawView<'a>>,
 }
 
 /// 同一次 parser / prepare 的生成 memo；不是节点存在、审计或发布证明。
@@ -593,6 +619,8 @@ pub(super) struct Cc004Producer {
     prepared_snapshot: Rc<()>,
     /// 上次准备的实际坐标和精确内容键；全 producer 仅一份，不按窗口重复存储。
     prepared_raw_keys: Vec<(usize, String)>,
+    delta_binding: Option<crate::v3::audit_owner::RawAdvanceBinding>,
+    delta_epoch: Option<u64>,
 }
 
 #[cfg(test)]
@@ -671,6 +699,8 @@ impl Cc004Producer {
             raw_token: Rc::new(()),
             prepared_snapshot: Rc::new(()),
             prepared_raw_keys: Vec::new(),
+            delta_binding: None,
+            delta_epoch: None,
         }
     }
 
@@ -1350,6 +1380,12 @@ impl Cc004Producer {
         &mut self,
         raw_bars: &'a [Bar],
     ) -> Result<PreparedRawHistory<'a>, ProducerError> {
+        if self.delta_binding.is_some() {
+            return Err(ProducerError::Type {
+                what: "raw 账本准备态",
+                detail: "delta producer 不得切回无资格 prepare".into(),
+            });
+        }
         for pair in raw_bars.windows(2) {
             if pair[0].source_index >= pair[1].source_index {
                 return Err(ProducerError::Type {
@@ -1405,8 +1441,137 @@ impl Cc004Producer {
             owner: Rc::clone(&self.raw_token),
             epoch: self.source_epoch,
             snapshot: Rc::clone(&self.prepared_snapshot),
-            raw: raw_bars,
+            raw: super::s_fact_cache::RawBars::Slice(raw_bars),
+            delta: None,
         })
+    }
+
+    /// #1488：来源更新与 prepare 是同一次 bound 消费；无调用者自报 dirty/prefix 入口。
+    pub(super) fn prepare_raw_history_delta<'a>(
+        &mut self,
+        store: &mut dyn NodeStore,
+        view: super::s_fact_cache::EffectiveRawView<'a>,
+    ) -> Result<PreparedRawHistory<'a>, ProducerError> {
+        let result = self.prepare_raw_history_delta_inner(store, view);
+        if result.is_err() {
+            view.bound().invalidate_after_consumer_failure();
+            self.discard_runtime_state();
+        }
+        result
+    }
+
+    fn prepare_raw_history_delta_inner<'a>(
+        &mut self,
+        store: &mut dyn NodeStore,
+        view: super::s_fact_cache::EffectiveRawView<'a>,
+    ) -> Result<PreparedRawHistory<'a>, ProducerError> {
+        let invalid = |detail: String| ProducerError::Type {
+            what: "delta raw 准备态",
+            detail,
+        };
+        view.ensure_current().map_err(invalid)?;
+        let bound = view.bound();
+        let matches = match self.delta_binding {
+            Some(old) => {
+                old == bound.previous_binding() && self.delta_epoch == Some(self.source_epoch)
+            }
+            None => {
+                bound.previous_binding().is_initial()
+                    && self.sources.is_empty()
+                    && self.prepared_raw_keys.is_empty()
+            }
+        };
+        if !matches || self.prepared_raw_keys.len() != view.previous_len() {
+            return Err(invalid(
+                "producer 前代 binding/epoch/长度不符；须丢弃".into(),
+            ));
+        }
+        // 先撤所有移走坐标，才能正确消费同 cut 坐标互换；原位修订仍走 bind_source 同核。
+        for edit in bound.winner_edits() {
+            if let Some(old) = edit.old {
+                if edit.new.is_none_or(|new| new.coord != old.coord) {
+                    if self.sources.remove(&old.coord).is_none()
+                        || self.shape_sources.remove(&old.coord).is_none()
+                    {
+                        return Err(invalid("旧 winner 来源登记缺失".into()));
+                    }
+                    self.ref_arrays.invalidate(old.coord);
+                    self.shape_ref_arrays.invalidate(old.coord);
+                    self.source_epoch += 1;
+                    self.unprepared_floor = Some(
+                        self.unprepared_floor
+                            .map_or(old.coord, |f| f.min(old.coord)),
+                    );
+                }
+            }
+        }
+        for edit in bound.winner_edits() {
+            if let Some(new) = edit.new {
+                let raw = bound
+                    .raw()
+                    .get(new.ordinal)
+                    .ok_or_else(|| invalid("新 winner 原账缺失".into()))?;
+                self.bind_source(
+                    store,
+                    new.coord,
+                    RawRefSpec::from_event(raw).map_err(invalid)?,
+                )?;
+            }
+        }
+        let first = view.dirty_from();
+        if first > self.prepared_raw_keys.len() {
+            return Err(invalid("prepared 后缀越过旧账".into()));
+        }
+        let mut keys = Vec::with_capacity(view.len() - first);
+        for bar in view.bars().range(first..view.len()).iter() {
+            let coord = bar.source_index as i64;
+            let (spec, _) = self
+                .sources
+                .get(&coord)
+                .ok_or(ProducerError::MissingSource(coord))?;
+            keys.push((
+                bar.source_index,
+                fractal_unit_key(coord, spec.revision, &spec.input_revision, bar)?,
+            ));
+        }
+        if let Some(floor) = self.unprepared_floor {
+            for history in self.fractal_histories.values_mut() {
+                history.floor = Some(history.floor.map_or(floor, |old| old.min(floor)));
+            }
+        }
+        self.prepared_raw_keys.truncate(first);
+        self.prepared_raw_keys.extend(keys);
+        self.unprepared_floor = None;
+        self.delta_binding = Some(bound.current_binding());
+        self.delta_epoch = Some(self.source_epoch);
+        self.prepared_snapshot = Rc::new(());
+        Ok(PreparedRawHistory {
+            owner: Rc::clone(&self.raw_token),
+            epoch: self.source_epoch,
+            snapshot: Rc::clone(&self.prepared_snapshot),
+            raw: view.bars(),
+            delta: Some(view),
+        })
+    }
+
+    pub(super) fn check_effective_view(
+        &self,
+        view: super::s_fact_cache::EffectiveRawView<'_>,
+    ) -> Result<(), ProducerError> {
+        view.ensure_current()
+            .map_err(|detail| ProducerError::Type {
+                what: "delta raw 准备态",
+                detail,
+            })?;
+        if self.delta_binding != Some(view.bound().current_binding())
+            || self.delta_epoch != Some(self.source_epoch)
+        {
+            return Err(ProducerError::Type {
+                what: "delta raw 准备态",
+                detail: "当前来源绑定或 epoch 不符".into(),
+            });
+        }
+        Ok(())
     }
 
     /// 逐窗口便利口（测试/单窗调用）：内部 prepare 后立即构造。
@@ -1447,6 +1612,9 @@ impl Cc004Producer {
     }
 
     fn check_prepared(&self, prepared: &PreparedRawHistory<'_>) -> Result<(), ProducerError> {
+        if let Some(view) = prepared.delta {
+            self.check_effective_view(view)?;
+        }
         if !Rc::ptr_eq(&prepared.owner, &self.raw_token) {
             return Err(ProducerError::Type {
                 what: "raw 账本准备态",
@@ -1483,7 +1651,11 @@ impl Cc004Producer {
         state
             .shared_group(0)
             .map_err(|error| ProducerError::Degraded(error.reason))?;
-        if !state.raw_iter().eq(prepared.raw.iter()) {
+        let same_parser = match prepared.delta {
+            Some(view) => std::ptr::eq(state, view.state()),
+            None => state.raw_iter().eq(prepared.raw.iter()),
+        };
+        if !same_parser {
             return Err(ProducerError::Type {
                 what: "parser raw 账本",
                 detail: "同次 parser 与 prepared raw 必须逐元素相同".to_string(),
@@ -1632,10 +1804,12 @@ impl Cc004Producer {
             Some(history) if history.tail_start == tail_start && history.count <= tail_len => {
                 let count = history.count;
                 let keep = history.floor.map_or(count, |floor| {
-                    raw_bars[tail_start..tail_start + count].partition_point(|bar| {
-                        // prepare 已核每个实际坐标可表达为 i64，借用期内 raw 不变。
-                        (bar.source_index as i64) < floor
-                    })
+                    raw_bars
+                        .range(tail_start..tail_start + count)
+                        .partition_point(|bar| {
+                            // prepare 已核每个实际坐标可表达为 i64，借用期内 raw 不变。
+                            (bar.source_index as i64) < floor
+                        })
                 });
                 let mut sequence = history.sequence;
                 let mut union_tail = history.union_tail;
@@ -1643,7 +1817,8 @@ impl Cc004Producer {
                     (sequence, _) = sc::sequence_split(&mut *store, &sequence, keep as u64)?;
                     self.history_invalidated += count - keep;
                     // 只在实际修订时重建保留的坐标尾；普通追加保留共享链。
-                    let mut kept: Vec<usize> = raw_bars[tail_start..tail_start + keep]
+                    let mut kept: Vec<usize> = raw_bars
+                        .range(tail_start..tail_start + keep)
                         .iter()
                         .map(|bar| bar.source_index)
                         .collect();
@@ -1662,7 +1837,11 @@ impl Cc004Producer {
             None => (SequenceRef::empty(), 0, CoordsRef::empty()),
         };
         let appended_from = covered;
-        for (offset, bar) in raw_bars[tail_start + appended_from..].iter().enumerate() {
+        for (offset, bar) in raw_bars
+            .range(tail_start + appended_from..raw_bars.len())
+            .iter()
+            .enumerate()
+        {
             let relations = fractal_relations(bar, &reference_meta);
             let relations = {
                 #[cfg(test)]
@@ -2494,6 +2673,8 @@ impl Cc004Producer {
         self.source_epoch += 1;
         self.unprepared_floor = None;
         self.prepared_raw_keys.clear();
+        self.delta_binding = None;
+        self.delta_epoch = None;
         self.prepared_snapshot = Rc::new(());
         self.clear_memos();
     }
@@ -2808,11 +2989,15 @@ pub(super) fn group_window_sources(views: &[GroupEvidenceView<'_>; 3]) -> Coords
 }
 
 /// 原始账里按坐标取 bar（升序表二分；找不到即拒绝，不近似回落）。
-fn raw_bar_at(raw_bars: &[Bar], coord: usize) -> Result<&Bar, ProducerError> {
-    let index = raw_bars
-        .binary_search_by_key(&coord, |bar| bar.source_index)
-        .map_err(|_| ProducerError::MissingSource(coord as i64))?;
-    Ok(&raw_bars[index])
+fn raw_bar_at<'a>(
+    raw_bars: super::s_fact_cache::RawBars<'a>,
+    coord: usize,
+) -> Result<&'a Bar, ProducerError> {
+    let index = raw_bars.partition_point(|bar| bar.source_index < coord);
+    raw_bars
+        .get(index)
+        .filter(|bar| bar.source_index == coord)
+        .ok_or(ProducerError::MissingSource(coord as i64))
 }
 
 /// CC-007 比较单元的精确内容键（与全量配方 `unit_content_key` 同字段同型）。

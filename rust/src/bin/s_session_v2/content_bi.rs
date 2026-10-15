@@ -179,6 +179,7 @@ fn event_coord(event: JsonView<'_>) -> Result<i64, BiError> {
 pub(super) enum BiLedgerView<'a> {
     Plain(&'a BTreeMap<i64, Value>),
     Views(&'a BTreeMap<i64, JsonView<'a>>),
+    Delta(super::s_fact_cache::EffectiveRawView<'a>),
 }
 
 impl<'a> BiLedgerView<'a> {
@@ -186,13 +187,15 @@ impl<'a> BiLedgerView<'a> {
         match self {
             Self::Plain(rows) => rows.len(),
             Self::Views(rows) => rows.len(),
+            Self::Delta(rows) => rows.len(),
         }
     }
 
-    fn get(self, coord: i64) -> Option<JsonView<'a>> {
+    pub(super) fn get(self, coord: i64) -> Option<JsonView<'a>> {
         match self {
             Self::Plain(rows) => rows.get(&coord).map(JsonView::from),
             Self::Views(rows) => rows.get(&coord).copied(),
+            Self::Delta(rows) => rows.get(coord),
         }
     }
 
@@ -200,6 +203,7 @@ impl<'a> BiLedgerView<'a> {
         match self {
             Self::Plain(rows) => BiRows::Plain(rows.iter()),
             Self::Views(rows) => BiRows::Views(rows.iter()),
+            Self::Delta(rows) => BiRows::Delta(rows.rows_from(0)),
         }
     }
 
@@ -207,11 +211,13 @@ impl<'a> BiLedgerView<'a> {
         match self {
             Self::Plain(rows) => BiRows::PlainRange(rows.range(start..=end)),
             Self::Views(rows) => BiRows::ViewsRange(rows.range(start..=end)),
+            Self::Delta(rows) => BiRows::Delta(rows.range(start, end)),
         }
     }
 }
 
 enum BiRows<'a> {
+    Delta(super::s_fact_cache::EffectiveRawRows<'a>),
     Plain(std::collections::btree_map::Iter<'a, i64, Value>),
     Views(std::collections::btree_map::Iter<'a, i64, JsonView<'a>>),
     PlainRange(std::collections::btree_map::Range<'a, i64, Value>),
@@ -223,6 +229,7 @@ impl<'a> Iterator for BiRows<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
+            Self::Delta(rows) => rows.next(),
             Self::Plain(rows) => rows.next().map(|(coord, row)| (*coord, row.into())),
             Self::Views(rows) => rows.next().map(|(coord, row)| (*coord, *row)),
             Self::PlainRange(rows) => rows.next().map(|(coord, row)| (*coord, row.into())),
@@ -313,6 +320,7 @@ struct RawCoords {
     refs_leaves: Vec<NodeDigest>,
     text: SequenceRef,
     refs: SequenceRef,
+    delta_binding: Option<crate::v3::audit_owner::RawAdvanceBinding>,
 }
 
 impl RawCoords {
@@ -322,6 +330,7 @@ impl RawCoords {
             refs_leaves: Vec::new(),
             text: SequenceRef::empty(),
             refs: SequenceRef::empty(),
+            delta_binding: None,
         }
     }
 
@@ -337,6 +346,14 @@ impl RawCoords {
         producer: &mut Cc004Producer,
         ledger: &Ledger<'_>,
     ) -> Result<(), BiError> {
+        if let BiLedgerView::Delta(view) = ledger.rows {
+            return self.sync_delta(store, producer, view);
+        }
+        if self.delta_binding.is_some() {
+            return Err(BiError::Facts {
+                detail: "delta RawCoords 不得切回无资格全扫".into(),
+            });
+        }
         let common = self.coords.len().min(ledger.rows.len());
         let mut first = common;
         for (index, (&mine, (theirs, _))) in self.coords.iter().zip(ledger.rows.iter()).enumerate()
@@ -380,6 +397,81 @@ impl RawCoords {
         self.refs_leaves.extend(tail_refs);
         self.text = text;
         self.refs = refs;
+        Ok(())
+    }
+
+    /// 实际旧根/计数由本实例持有，dirty 只能来自同一 owner 推进后的车道。
+    fn sync_delta(
+        &mut self,
+        store: &mut dyn NodeStore,
+        producer: &mut Cc004Producer,
+        view: super::s_fact_cache::EffectiveRawView<'_>,
+    ) -> Result<(), BiError> {
+        producer.check_effective_view(view)?;
+        let valid_binding = match self.delta_binding {
+            Some(previous) => previous == view.bound().previous_binding(),
+            None => view.bound().previous_binding().is_initial() && self.coords.is_empty(),
+        };
+        if view.bound().raw().budget().is_some() {
+            return Err(BiError::Facts {
+                detail: "prototype_audit_allocation_incomplete：RawCoords delta 尚非 Owned".into(),
+            });
+        }
+        if !valid_binding
+            || self.coords.len() != view.previous_len()
+            || self.refs_leaves.len() != self.coords.len()
+            || self.text.count() != self.coords.len() as u64
+            || self.refs.count() != self.coords.len() as u64
+        {
+            return Err(BiError::Facts {
+                detail: "RawCoords 前代 binding/计数/根资格不一致".into(),
+            });
+        }
+        let first = view.dirty_from();
+        if first > self.coords.len() {
+            return Err(BiError::Facts {
+                detail: "RawCoords dirty 后缀越过旧账".into(),
+            });
+        }
+        if first == self.coords.len() && first == view.len() {
+            self.delta_binding = Some(view.bound().current_binding());
+            return Ok(());
+        }
+        let mut tail = Vec::with_capacity(view.len() - first);
+        let mut tail_refs = Vec::with_capacity(view.len() - first);
+        let mut tail_text = sc::CodecVec::new_with_allocation(view.bound().raw().budget());
+        tail_text.try_reserve_exact(view.len() - first)?;
+        for (coord, _) in view.rows_from(first) {
+            let leaf = producer.coord_text_leaf(&mut *store, coord)?;
+            let source = producer
+                .source_root(coord)
+                .ok_or(ProducerError::MissingSource(coord))?;
+            tail_text.try_push(leaf)?;
+            tail.push(coord);
+            tail_refs.push(source);
+        }
+        // 一次构造最终后缀，不逐 leaf 落作废中间根；只保存本次真实受影响的尾部叶。
+        let text = sc::sequence_rebuild_suffix_with_allocation(
+            &mut *store,
+            &self.text,
+            first as u64,
+            &tail_text,
+            view.bound().raw().budget(),
+        )?;
+        let refs = sc::sequence_rebuild_suffix_with_allocation(
+            &mut *store,
+            &self.refs,
+            first as u64,
+            &tail_refs,
+            view.bound().raw().budget(),
+        )?;
+        self.coords.truncate(first);
+        self.coords.extend(tail);
+        self.refs_leaves.truncate(first);
+        self.refs_leaves.extend(tail_refs);
+        self.text = text;
+        self.refs = refs;
+        self.delta_binding = Some(view.bound().current_binding());
         Ok(())
     }
 
@@ -1064,6 +1156,22 @@ impl ContentBi {
 
     /// 无复制借用适配。门序、判据、身份及生命周期与 normal 入口共用此核。
     pub(super) fn build_borrowed(
+        &mut self,
+        producer: &mut Cc004Producer,
+        store: &mut dyn NodeStore,
+        input: &BiBuildInputView<'_>,
+    ) -> Result<BiBuild, BiError> {
+        let result = self.build_borrowed_inner(producer, store, input);
+        if result.is_err() {
+            if let BiLedgerView::Delta(view) = input.raw {
+                view.bound().invalidate_after_consumer_failure();
+                self.discard_runtime_state(producer);
+            }
+        }
+        result
+    }
+
+    fn build_borrowed_inner(
         &mut self,
         producer: &mut Cc004Producer,
         store: &mut dyn NodeStore,
