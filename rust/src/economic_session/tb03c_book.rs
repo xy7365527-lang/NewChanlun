@@ -19,13 +19,14 @@ use crate::theta_v0::strategy::ledger::{ledger_step_components, LedgerEvent};
 use serde_json::{json, Value};
 
 /// 旧白名单（acquisition_cash / commission）之外，本版新增的成本分量类型。
-pub(super) const COMPONENT_KINDS: [&str; 6] = [
+pub(super) const COMPONENT_KINDS: [&str; 7] = [
     "disposal_cash",
     "fee_only",
     "dividend_cash",
     "withholding_tax",
     "principal_contribution",
     "recover_capital",
+    "growth_capitalization",
 ];
 const TOTALS: [&str; 6] = [
     "acquisition_cash",
@@ -36,19 +37,21 @@ const TOTALS: [&str; 6] = [
     "withholding_tax",
 ];
 /// 零数量变化合法的分量（ADR 0031 裁定二：费用独立件；本金、退本金、分红为非成交类原件）。
-const DU0_KINDS: [&str; 5] = [
+const DU0_KINDS: [&str; 6] = [
     "fee_only",
     "principal_contribution",
     "recover_capital",
     "dividend_cash",
     "withholding_tax",
+    "growth_capitalization",
 ];
 /// 只能出现在零数量变化原件里的分量。
-const DU0_ONLY: [&str; 4] = [
+const DU0_ONLY: [&str; 5] = [
     "fee_only",
     "recover_capital",
     "dividend_cash",
     "withholding_tax",
+    "growth_capitalization",
 ];
 const OPENING_KINDS: [&str; 3] = ["acquisition_cash", "commission", "principal_contribution"];
 /// 根裁定 OQ-5：最小 TestOnly 空头书账只记费用、保证金批与具名实现利润。
@@ -82,6 +85,28 @@ pub(super) fn decode_extensions(
     )?;
     super::tb03c_e::check_depends_on(event, pointer, check_ref)?;
     let comps = array(event, "known_cost_components")?;
+    if let Some(rebase) = event.get("q_rebase") {
+        super::voice::exact(rebase, &["new_q", "policy_ref", "source_ref"])?;
+        positive(required(rebase, "new_q")?, "q_rebase.new_q")?;
+        required(rebase, "policy_ref")?;
+        check_ref(
+            required(rebase, "source_ref")?,
+            &format!("{pointer}/q_rebase"),
+            rebase,
+        )?;
+        if event.get("observed_existing_book").is_some()
+            || event.get("corporate_action").is_some()
+            || event.get("valuation_observation").is_some()
+            || !comps.is_empty()
+            || ["units", "Pi", "A", "W"]
+                .iter()
+                .any(|k| event["deltas"][k] != "0")
+        {
+            return Err(
+                "SchemaUnsupported：q_rebase 只承载独立数量重基请求，不夹带金额/成交".into(),
+            );
+        }
+    }
     if event.get("observed_existing_book").is_some() {
         match event["book_identity"]["side"].as_str() {
             Some("long") | Some("short") => (),
@@ -166,6 +191,27 @@ pub(super) fn decode_extensions(
                     return Err("IdentityConflict：代扣税与同件分红扣税额不符".into());
                 }
             }
+            "growth_capitalization" => {
+                if comps.len() != 1
+                    || event["deltas"]["units"] != "0"
+                    || event["deltas"]["Pi"] != "0"
+                    || event["deltas"]["W"] != "0"
+                    || integer(c, "canonical_amount")? != integer(&event["deltas"], "A")?
+                {
+                    return Err(
+                        "IdentityConflict：增长资本化必须是独立已完成 A 分量，金额与原见证相同"
+                            .into(),
+                    );
+                }
+                required(c, "authorization_ref")?;
+                if !array(event, "component_witnesses")?
+                    .iter()
+                    .any(|w| w["kind"] == "completed_profit_capitalization")
+                {
+                    return Err("MissingDependency：增长资本化缺已完成原件见证".into());
+                }
+                // completed_profit_capitalization 的来源和金额由 book::decode 的共同见证核验证。
+            }
             "principal_contribution" => {
                 required(c, "batch_id")?;
                 required(c, "authorization_ref")?;
@@ -212,8 +258,9 @@ pub(super) fn decode_extensions(
 /// 数量变化与分量类别的配对（ADR 0031 裁定二）。
 pub(super) fn check_quantity_class(event: &Value, du: i64) -> Result<(), String> {
     let comps = array(event, "known_cost_components")?;
-    let special =
-        event.get("corporate_action").is_some() || event.get("valuation_observation").is_some();
+    let special = event.get("corporate_action").is_some()
+        || event.get("valuation_observation").is_some()
+        || event.get("q_rebase").is_some();
     if du == 0 {
         if !special && (comps.is_empty() || comps.iter().any(|c| !DU0_KINDS.contains(&kind(c)))) {
             return Err(
@@ -423,6 +470,8 @@ fn component_effects(
         let amount = nonnegative(required(c, "canonical_amount")?, "canonical_amount")?;
         let amount = if reversal { -amount } else { amount };
         match k {
+            // #1406 C5：A 只由 income() 入账一次；资本化不改变本金或成本 K。
+            "growth_capitalization" => (),
             "principal_contribution" => {
                 let batch = required(c, "batch_id")?;
                 let batches = book["principal"]["batches"].as_array_mut().unwrap();
@@ -573,6 +622,9 @@ pub(super) fn apply(
     if event.get("valuation_observation").is_some() {
         return Err("SchemaUnsupported：估值观察只记 E，不进 B 成本账（C05.4）".into());
     }
+    if event.get("q_rebase").is_some() {
+        return Err("AwaitingPolicy：capacity；C(ℓ) 未签署，fixed_q 不变".into());
+    }
     // #1406 C4 / ADR 0032 五：E 已解析并不代表本 B 已应用前件。费用/更正沿因果原件等待，
     // 不把声明了依赖的缺开局永久记为 Unmatched，也不以迟到件触发新 Voice。
     if let Some(dependency) = super::tb03c_e::dependency_key(&event)? {
@@ -627,6 +679,11 @@ pub(super) fn apply(
                 "SchemaUnsupported：最小空头书账只收佣金、费用独立件与保证金批（根裁定 OQ-5）"
                     .into(),
             );
+        }
+        if comps.iter().any(|c| kind(c) == "growth_capitalization")
+            && Numbers::of(&book)?.status()? != "Eligible"
+        {
+            return Err("Rejected：增长资本化前件 growth_eligible 不成立".into());
         }
         let before = if opening {
             None

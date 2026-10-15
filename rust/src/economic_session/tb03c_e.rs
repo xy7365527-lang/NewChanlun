@@ -87,7 +87,9 @@ pub(super) fn pending_entry(
         .as_array()
         .ok_or("StorageUnavailable：recorded 形状")?;
     let netted = super::tb03c_allocation::is_projected(event);
-    let reason = if netted && !super::tb03c_allocation::has_policy(config) {
+    let reason = if event.get("q_rebase").is_some() {
+        json!({"kind":"AwaitingPolicy","slot":"capacity"})
+    } else if netted && !super::tb03c_allocation::has_policy(config) {
         json!({"kind":"AwaitingPolicy","slot":"fill_allocation_policy"})
     } else {
         match dependency_key(event)? {
@@ -185,6 +187,9 @@ pub(super) fn resolve_image(
                 .find(|p| p["fact_key"] == k.as_str())
                 .ok_or("MissingDependency：证据覆盖的非净额事实无现存 Pending")?
         };
+        if p["reason"]["kind"] == "AwaitingPolicy" && p["reason"]["slot"] == "capacity" {
+            return Err("AwaitingPolicy：capacity；Resolve 证据不能替代用户签署的容量".into());
+        }
         super::finance::covered_pending(previous, covered, p)?;
         // C06.2/C06.3：FIN 域只认 E 已持久的完整责任界。请求自报的摘要只能绑定事实，不能替代保责。
         if let Some(finance) = previous.get("finance") {
@@ -323,6 +328,9 @@ pub(super) fn audit_receipt(
 /// B 应用前在 E 的同一只读快照里读该事实的 Pending：显式等待挡 B。
 pub(super) fn check_wait(e_tx: &rusqlite::Connection, key: &str) -> Result<(), String> {
     if let Some(p) = super::store::row(e_tx, "pending", key)? {
+        if p["reason"]["kind"] == "AwaitingPolicy" && p["reason"]["slot"] == "capacity" {
+            return Err("AwaitingPolicy：capacity；B 不应用、不建收据，fixed_q 不变".into());
+        }
         match p["reason"]["kind"].as_str() {
             Some(kind @ ("AwaitingDependency" | "AwaitingPolicy")) => {
                 return Err(format!(

@@ -27,3 +27,6 @@ mod tb03c_e_tests;
 mod voice_tests;
 
 mod financial_content;
+
+#[cfg(test)]
+mod tb03c_c5_tests;
