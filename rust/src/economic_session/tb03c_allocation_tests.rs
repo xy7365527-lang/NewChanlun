@@ -20,7 +20,7 @@ fn manifest(space: &Space, policy: bool) -> Value {
         let t = 1000 + 10 * i;
         plan.insert(format!("m-{i}"),json!({"received_ns":t.to_string(),"first_known_ns":(t+1).to_string(),"commit_ns":(t+2).to_string()}));
     }
-    let chongs = (0..3).map(|i|json!({"chong_id":format!("chong-N{}",i+1),"symbol":"TEST-N","operation_level":(i+1).to_string(),"fixed_q":["1","3","3"][i],"db":space.0.join(format!("b{i}.db")),"socket":space.0.join(format!("b{i}.sock"))})).collect::<Vec<_>>();
+    let chongs = (0..3).map(|i|json!({"chong_id":format!("chong-N{}",i+1),"symbol":"TEST-N","operation_level":(i+1).to_string(),"fixed_q":(["1","3","3"][i]),"db":space.0.join(format!("b{i}.db")),"socket":space.0.join(format!("b{i}.sock"))})).collect::<Vec<_>>();
     let mut m = json!({"schema_revision":"economic-manifest/1","session_id":"tb1406-c4a","session_generation":"1","book_revision":"tb03c-book/1",
         "e":{"db":space.0.join("e.db"),"socket":space.0.join("e.sock")},"chongs":chongs,"fill_manifests":[serde_json::from_str::<Value>(MANIFEST).unwrap()],
         "authorized_sources":[{"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","producer_id":"tb1406-c4a","producer_epoch":"1","operations":["CaptureExternal","ResolveEvidence","ApplyAllocation","ReadView","QueryFact","QueryAllocation"]}],
