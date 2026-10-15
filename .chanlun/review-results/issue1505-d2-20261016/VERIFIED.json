@@ -1,0 +1,773 @@
+{
+  "verdict": "PASS_D2_COMPONENT_ONLY_CONFIRMED",
+  "run": 38773444490,
+  "findings": {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0
+  },
+  "archive": {
+    "artifact_id": 11992078505,
+    "zip_sha256": "6161c4eb94e4fb82eb11f5769cd56e4a95f40472513decaad873c10ad62a88a3",
+    "zip_members_verified": 443,
+    "file_manifest_items_verified": 437,
+    "archive_raw_items_verified": 405,
+    "files_seal_sha256": "cdb780e0ecef80cdcce46b4fd20fc1927cba4dcd12b7838766576dbe60674b8e"
+  },
+  "identity": {
+    "head": "b9d3ecde1838e0db3eb67bfd01d364d624ec8619",
+    "tree": "daa492de47e80c261f173e9543542a6ac582536b",
+    "source": "e1d7e0b6bffb78f757e59cdfe3e35f3618e6790a",
+    "source_tree": "44d075dbd7eb99fbe388ee082acbca6beb9219cb",
+    "runner_sha256": "0ef124bd379fe6dcc14284f43ace57e90ce4c4051c301bc027dd7e676c17bf15",
+    "workflow_sha256": "53e05ad8392d1593ab9f3212ef5db3ffd32addc59d06fc74d2c90888d852650e",
+    "binary_sha256": "5f77d47d9c5a1c9c72975208b5d9b7439e3293d9a5667a84e416bc14588aa4f6",
+    "run_attempt": 1,
+    "job": 116554914228
+  },
+  "supervisor": {
+    "stages": {
+      "identity": {
+        "exit": 0,
+        "elapsed_seconds": 0.7201530000000105,
+        "pid": 1774,
+        "group_reaped": true
+      },
+      "build": {
+        "exit": 0,
+        "elapsed_seconds": 53.647401000000016,
+        "pid": 1789,
+        "group_reaped": true
+      },
+      "verify-build": {
+        "exit": 0,
+        "elapsed_seconds": 0.6597260000000063,
+        "pid": 3218,
+        "group_reaped": true
+      },
+      "suite": {
+        "exit": 0,
+        "elapsed_seconds": 13.009330000000006,
+        "pid": 3225,
+        "group_reaped": true
+      },
+      "verify-suite": {
+        "exit": 0,
+        "elapsed_seconds": 0.5275990000000093,
+        "pid": 3473,
+        "group_reaped": true
+      },
+      "preserve": {
+        "exit": 0,
+        "elapsed_seconds": 0.14983100000000604,
+        "pid": 3483,
+        "group_reaped": true
+      },
+      "archive": {
+        "exit": 0,
+        "elapsed_seconds": 1.9073429999999973,
+        "pid": 3486,
+        "group_reaped": true
+      },
+      "cleanup": {
+        "exit": 0,
+        "elapsed_seconds": 0.1806139999999914,
+        "pid": 3504,
+        "group_reaped": true
+      },
+      "inventory": {
+        "exit": 0,
+        "elapsed_seconds": 0.30906300000000897,
+        "pid": 3506,
+        "group_reaped": true
+      }
+    },
+    "elapsed_seconds": 71.200462,
+    "post_suite_binary_rehash": "PASS_REMOTE_VERIFY_SUITE_GATE",
+    "binary_rehash_basis": "已审 runner 的 verify_suite 先重哈希 BINARY.path 并比较 BINARY.sha256，随后重核源码身份；本轮阶段退出 0 且生成有效 SUITE-VERIFIED。二进制未上传，不声称本机重算。",
+    "scratch_removed": true,
+    "unreaped_groups": [],
+    "supervisor_SIGTERM_SIGINT": "NOT_RUN"
+  },
+  "positives": [
+    {
+      "name": "current-clean",
+      "rows": 48,
+      "full_data_virtual_bytes_equal": true,
+      "source_unchanged": true
+    },
+    {
+      "name": "current-cold",
+      "rows": 48,
+      "full_data_virtual_bytes_equal": true,
+      "source_unchanged": true
+    },
+    {
+      "name": "current-hot",
+      "rows": 48,
+      "full_data_virtual_bytes_equal": true,
+      "source_unchanged": true
+    },
+    {
+      "name": "old-clean",
+      "rows": 48,
+      "full_data_virtual_bytes_equal": true,
+      "source_unchanged": true
+    },
+    {
+      "name": "old-cold",
+      "rows": 48,
+      "full_data_virtual_bytes_equal": true,
+      "source_unchanged": true
+    },
+    {
+      "name": "old-hot",
+      "rows": 48,
+      "full_data_virtual_bytes_equal": true,
+      "source_unchanged": true
+    },
+    {
+      "name": "unknown-clean",
+      "rows": 48,
+      "full_data_virtual_bytes_equal": true,
+      "source_unchanged": true
+    },
+    {
+      "name": "unknown-cold",
+      "rows": 48,
+      "full_data_virtual_bytes_equal": true,
+      "source_unchanged": true
+    },
+    {
+      "name": "unknown-hot",
+      "rows": 48,
+      "full_data_virtual_bytes_equal": true,
+      "source_unchanged": true
+    },
+    {
+      "name": "original-longer",
+      "rows": 48,
+      "full_data_virtual_bytes_equal": true,
+      "source_unchanged": true
+    },
+    {
+      "name": "empty-journal",
+      "rows": 48,
+      "full_data_virtual_bytes_equal": true,
+      "source_unchanged": true
+    },
+    {
+      "name": "post-reader-kill",
+      "rows": 48,
+      "full_data_virtual_bytes_equal": true,
+      "source_unchanged": true
+    }
+  ],
+  "negatives": [
+    {
+      "name": "callbacks",
+      "status": "PASS_ACTUAL_REMOTE",
+      "expected_ok": true
+    },
+    {
+      "name": "sql-denials",
+      "status": "PASS_ACTUAL_REMOTE",
+      "expected_ok": true
+    },
+    {
+      "name": "read-io",
+      "status": "PASS_ACTUAL_REMOTE",
+      "expected_ok": false
+    },
+    {
+      "name": "read-short",
+      "status": "PASS_ACTUAL_REMOTE",
+      "expected_ok": false
+    },
+    {
+      "name": "read-panic",
+      "status": "PASS_ACTUAL_REMOTE",
+      "expected_ok": false
+    },
+    {
+      "name": "late-exclusive",
+      "status": "PASS_ACTUAL_REMOTE",
+      "expected_ok": false
+    },
+    {
+      "name": "late-exclusive-clean",
+      "status": "PASS_ACTUAL_REMOTE",
+      "expected_ok": false
+    },
+    {
+      "name": "close-error",
+      "status": "PASS_ACTUAL_REMOTE",
+      "expected_ok": false
+    },
+    {
+      "name": "allocator-failure",
+      "status": "PASS_ACTUAL_REMOTE",
+      "expected_ok": true
+    },
+    {
+      "name": "arena-oom",
+      "status": "PASS_ACTUAL_REMOTE",
+      "expected_ok": false
+    },
+    {
+      "name": "path-swap",
+      "status": "PASS_ACTUAL_REMOTE",
+      "expected_ok": true
+    }
+  ],
+  "boundaries": {
+    "super_journal_preconnection_rejections": 4,
+    "super_journal_boundary_comparisons": 6,
+    "tail_boundaries": 2,
+    "boundary_cases_are_not_positive_hot_proof": true
+  },
+  "processes": {
+    "process_receipts_verified": 61,
+    "process_receipts": [
+      {
+        "path": "current-clean-oracle-process.process.json",
+        "pid": 3235,
+        "exit_code": 0
+      },
+      {
+        "path": "current-clean-reader-process.process.json",
+        "pid": 3242,
+        "exit_code": 0
+      },
+      {
+        "path": "current-clean-writer.process.json",
+        "pid": 3226,
+        "exit_code": 0
+      },
+      {
+        "path": "current-cold-oracle-process.process.json",
+        "pid": 3254,
+        "exit_code": 0
+      },
+      {
+        "path": "current-cold-reader-process.process.json",
+        "pid": 3255,
+        "exit_code": 0
+      },
+      {
+        "path": "current-cold-writer.process.json",
+        "pid": 3248,
+        "exit_code": 0
+      },
+      {
+        "path": "current-hot-oracle-process.process.json",
+        "pid": 3284,
+        "exit_code": 0
+      },
+      {
+        "path": "current-hot-reader-process.process.json",
+        "pid": 3291,
+        "exit_code": 0
+      },
+      {
+        "path": "empty-journal-oracle-process.process.json",
+        "pid": 3342,
+        "exit_code": 0
+      },
+      {
+        "path": "empty-journal-reader-process.process.json",
+        "pid": 3343,
+        "exit_code": 0
+      },
+      {
+        "path": "fault-allocator-failure-reader.process.json",
+        "pid": 3464,
+        "exit_code": 0
+      },
+      {
+        "path": "fault-arena-oom-reader.process.json",
+        "pid": 3465,
+        "exit_code": 0
+      },
+      {
+        "path": "fault-callbacks-reader.process.json",
+        "pid": 3448,
+        "exit_code": 0
+      },
+      {
+        "path": "fault-close-error-reader.process.json",
+        "pid": 3461,
+        "exit_code": 0
+      },
+      {
+        "path": "fault-late-exclusive-clean-reader.process.json",
+        "pid": 3460,
+        "exit_code": 0
+      },
+      {
+        "path": "fault-late-exclusive-reader.process.json",
+        "pid": 3459,
+        "exit_code": 0
+      },
+      {
+        "path": "fault-path-swap-reader.process.json",
+        "pid": 3466,
+        "exit_code": 0
+      },
+      {
+        "path": "fault-read-io-reader.process.json",
+        "pid": 3452,
+        "exit_code": 0
+      },
+      {
+        "path": "fault-read-panic-reader.process.json",
+        "pid": 3458,
+        "exit_code": 0
+      },
+      {
+        "path": "fault-read-short-reader.process.json",
+        "pid": 3455,
+        "exit_code": 0
+      },
+      {
+        "path": "fault-sql-denials-reader.process.json",
+        "pid": 3449,
+        "exit_code": 0
+      },
+      {
+        "path": "old-clean-oracle-process.process.json",
+        "pid": 3315,
+        "exit_code": 0
+      },
+      {
+        "path": "old-clean-reader-process.process.json",
+        "pid": 3318,
+        "exit_code": 0
+      },
+      {
+        "path": "old-clean-writer.process.json",
+        "pid": 3309,
+        "exit_code": 0
+      },
+      {
+        "path": "old-cold-oracle-process.process.json",
+        "pid": 3320,
+        "exit_code": 0
+      },
+      {
+        "path": "old-cold-reader-process.process.json",
+        "pid": 3321,
+        "exit_code": 0
+      },
+      {
+        "path": "old-cold-writer.process.json",
+        "pid": 3319,
+        "exit_code": 0
+      },
+      {
+        "path": "old-hot-oracle-process.process.json",
+        "pid": 3325,
+        "exit_code": 0
+      },
+      {
+        "path": "old-hot-reader-process.process.json",
+        "pid": 3326,
+        "exit_code": 0
+      },
+      {
+        "path": "original-longer-oracle-process.process.json",
+        "pid": 3340,
+        "exit_code": 0
+      },
+      {
+        "path": "original-longer-reader-process.process.json",
+        "pid": 3341,
+        "exit_code": 0
+      },
+      {
+        "path": "post-reader-kill-oracle-process.process.json",
+        "pid": 3471,
+        "exit_code": 0
+      },
+      {
+        "path": "post-reader-kill-reader-process.process.json",
+        "pid": 3472,
+        "exit_code": 0
+      },
+      {
+        "path": "super-absolute-reader.process.json",
+        "pid": 3350,
+        "exit_code": 0
+      },
+      {
+        "path": "super-bad-checksum-boundary-oracle-process.process.json",
+        "pid": 3362,
+        "exit_code": 0
+      },
+      {
+        "path": "super-bad-checksum-boundary-reader-process.process.json",
+        "pid": 3363,
+        "exit_code": 0
+      },
+      {
+        "path": "super-bad-magic-boundary-oracle-process.process.json",
+        "pid": 3446,
+        "exit_code": 0
+      },
+      {
+        "path": "super-bad-magic-boundary-reader-process.process.json",
+        "pid": 3447,
+        "exit_code": 0
+      },
+      {
+        "path": "super-embedded-nul-reader.process.json",
+        "pid": 3354,
+        "exit_code": 0
+      },
+      {
+        "path": "super-empty-boundary-oracle-process.process.json",
+        "pid": 3358,
+        "exit_code": 0
+      },
+      {
+        "path": "super-empty-boundary-reader-process.process.json",
+        "pid": 3359,
+        "exit_code": 0
+      },
+      {
+        "path": "super-length-512-reader.process.json",
+        "pid": 3355,
+        "exit_code": 0
+      },
+      {
+        "path": "super-length-513-boundary-oracle-process.process.json",
+        "pid": 3356,
+        "exit_code": 0
+      },
+      {
+        "path": "super-length-513-boundary-reader-process.process.json",
+        "pid": 3357,
+        "exit_code": 0
+      },
+      {
+        "path": "super-length-beyond-file-boundary-oracle-process.process.json",
+        "pid": 3444,
+        "exit_code": 0
+      },
+      {
+        "path": "super-length-beyond-file-boundary-reader-process.process.json",
+        "pid": 3445,
+        "exit_code": 0
+      },
+      {
+        "path": "super-relative-reader.process.json",
+        "pid": 3352,
+        "exit_code": 0
+      },
+      {
+        "path": "super-zero-first-name-boundary-oracle-process.process.json",
+        "pid": 3387,
+        "exit_code": 0
+      },
+      {
+        "path": "super-zero-first-name-boundary-reader-process.process.json",
+        "pid": 3400,
+        "exit_code": 0
+      },
+      {
+        "path": "tail-bad-last-byte-oracle-process.process.json",
+        "pid": 3348,
+        "exit_code": 0
+      },
+      {
+        "path": "tail-bad-last-byte-reader-process.process.json",
+        "pid": 3349,
+        "exit_code": 0
+      },
+      {
+        "path": "tail-truncate-seven-oracle-process.process.json",
+        "pid": 3346,
+        "exit_code": 0
+      },
+      {
+        "path": "tail-truncate-seven-reader-process.process.json",
+        "pid": 3347,
+        "exit_code": 0
+      },
+      {
+        "path": "unknown-clean-oracle-process.process.json",
+        "pid": 3328,
+        "exit_code": 0
+      },
+      {
+        "path": "unknown-clean-reader-process.process.json",
+        "pid": 3329,
+        "exit_code": 0
+      },
+      {
+        "path": "unknown-clean-writer.process.json",
+        "pid": 3327,
+        "exit_code": 0
+      },
+      {
+        "path": "unknown-cold-oracle-process.process.json",
+        "pid": 3333,
+        "exit_code": 0
+      },
+      {
+        "path": "unknown-cold-reader-process.process.json",
+        "pid": 3334,
+        "exit_code": 0
+      },
+      {
+        "path": "unknown-cold-writer.process.json",
+        "pid": 3330,
+        "exit_code": 0
+      },
+      {
+        "path": "unknown-hot-oracle-process.process.json",
+        "pid": 3336,
+        "exit_code": 0
+      },
+      {
+        "path": "unknown-hot-reader-process.process.json",
+        "pid": 3337,
+        "exit_code": 0
+      }
+    ],
+    "kills": [
+      {
+        "name": "current-hot",
+        "pid": 3266,
+        "pgid": 3225,
+        "signal_sent": 9,
+        "wait_signal": 9,
+        "reaped": true
+      },
+      {
+        "name": "old-hot",
+        "pid": 3322,
+        "pgid": 3225,
+        "signal_sent": 9,
+        "wait_signal": 9,
+        "reaped": true
+      },
+      {
+        "name": "unknown-hot",
+        "pid": 3335,
+        "pgid": 3225,
+        "signal_sent": 9,
+        "wait_signal": 9,
+        "reaped": true
+      },
+      {
+        "name": "reader",
+        "pid": 3467,
+        "pgid": 3225,
+        "signal_sent": 9,
+        "wait_signal": 9,
+        "reaped": true
+      }
+    ],
+    "reader_kill_overlay_write_calls": 392
+  },
+  "resources": [
+    {
+      "file": "current-clean-reader.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "current-cold-reader.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "current-hot-reader.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "empty-journal-reader.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "fault-allocator-failure.json",
+      "xsize_peak_bytes": 118224,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "fault-arena-oom.json",
+      "xsize_peak_bytes": 96,
+      "owned_peak_bytes": 0
+    },
+    {
+      "file": "fault-callbacks.json",
+      "xsize_peak_bytes": 96,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "fault-close-error.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "fault-late-exclusive-clean.json",
+      "xsize_peak_bytes": 62704,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "fault-late-exclusive.json",
+      "xsize_peak_bytes": 61168,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "fault-path-swap.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "fault-read-io.json",
+      "xsize_peak_bytes": 61168,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "fault-read-panic.json",
+      "xsize_peak_bytes": 61168,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "fault-read-short.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "fault-sql-denials.json",
+      "xsize_peak_bytes": 717840,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "old-clean-reader.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "old-cold-reader.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "old-hot-reader.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "original-longer-reader.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "post-reader-kill-reader.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "super-absolute.json",
+      "xsize_peak_bytes": 96,
+      "owned_peak_bytes": 0
+    },
+    {
+      "file": "super-bad-checksum-boundary-reader.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "super-bad-magic-boundary-reader.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "super-embedded-nul.json",
+      "xsize_peak_bytes": 96,
+      "owned_peak_bytes": 0
+    },
+    {
+      "file": "super-empty-boundary-reader.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "super-length-512.json",
+      "xsize_peak_bytes": 96,
+      "owned_peak_bytes": 0
+    },
+    {
+      "file": "super-length-513-boundary-reader.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "super-length-beyond-file-boundary-reader.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "super-relative.json",
+      "xsize_peak_bytes": 96,
+      "owned_peak_bytes": 0
+    },
+    {
+      "file": "super-zero-first-name-boundary-reader.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "tail-bad-last-byte-reader.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "tail-truncate-seven-reader.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "unknown-clean-reader.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "unknown-cold-reader.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    },
+    {
+      "file": "unknown-hot-reader.json",
+      "xsize_peak_bytes": 717776,
+      "owned_peak_bytes": 13631488
+    }
+  ],
+  "resource_release_reports_verified": 35,
+  "byte_and_parameters": {
+    "all_10_byte_operation_hashes_independently_reproduced": true,
+    "parameter_rejections": 24,
+    "unknown_field_rejected": true,
+    "original_longer_is_declared_mutation": true
+  },
+  "production_v4": "BLOCK_NOT_MERGEABLE",
+  "whole_graph": "NOT_COMPLETE",
+  "outstanding": [
+    "formal producer/R4/CLI",
+    "complete S store baseline",
+    "source RW final-open continuity",
+    "synchronous IO hard deadline",
+    "49GB history",
+    "64GiB/store",
+    "148GiB dual-run prerequisite",
+    "whole graph acceptance"
+  ],
+  "local_rust_sqlite_signals_browser_external_volume": "NOT_RUN",
+  "prior_run_data_used_as_new_evidence": false
+}

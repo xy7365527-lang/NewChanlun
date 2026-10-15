@@ -1,0 +1,49 @@
+{
+  "ticket": 1505,
+  "at": "2026-10-15T17:19:18.524228+00:00",
+  "classification": "working-draft-bound-to-open-ticket",
+  "source_manifest_sha256": "e149074624a64a3c2feb7b5640db113c88860171bea55522d38a9f44d983197c",
+  "files": [
+    {
+      "path": "REVIEW.md",
+      "source_name": "REVIEW.md",
+      "bytes": 7342,
+      "sha256": "52cc9bf02d91823f1fb9ee91132690aeb0175b4d492a408e3a4b529487ddbbf6"
+    },
+    {
+      "path": "RESULT.json",
+      "source_name": "RESULT.json",
+      "bytes": 2547,
+      "sha256": "4ca51f6ab3d66e5b17ae6e0f1cc5de8f0dd63bf2f8fde7202adfa9c526809f1d"
+    },
+    {
+      "path": "ROOT-ACCEPTANCE.json",
+      "source_name": "ROOT-ACCEPTANCE.json",
+      "bytes": 735,
+      "sha256": "61c91d2b04b1a1b777367d736ab7bca59be5a3b848d6b1c8477ceffd9365efd5"
+    },
+    {
+      "path": "GIT-IDENTITY.json",
+      "source_name": "GIT-IDENTITY.json",
+      "bytes": 534,
+      "sha256": "37861533797f7441757c601d2a7247d9958bb2f0b1c53419ee2d8398c43a24a5"
+    },
+    {
+      "path": "VERIFIED.json",
+      "source_name": "VERIFIED.json",
+      "bytes": 19282,
+      "sha256": "a35788f6cb8819bfa87a35456d200c48f7d1db4eab14de3a7c06dc3034b91538"
+    },
+    {
+      "path": "REMOTE-EVIDENCE-MANIFEST.json",
+      "source_name": "MANIFEST.json",
+      "bytes": 92879,
+      "sha256": "e149074624a64a3c2feb7b5640db113c88860171bea55522d38a9f44d983197c"
+    },
+    {
+      "path": "README.md",
+      "bytes": 3128,
+      "sha256": "17d16cf83a98ebc80224f3d3a89994419af30fca218b24ea792454bc50fcde16"
+    }
+  ]
+}
