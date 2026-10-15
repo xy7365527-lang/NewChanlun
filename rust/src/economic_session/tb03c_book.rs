@@ -80,6 +80,7 @@ pub(super) fn decode_extensions(
         &format!("{pointer}/stable_point"),
         sp,
     )?;
+    super::tb03c_e::check_depends_on(event, pointer, check_ref)?;
     let comps = array(event, "known_cost_components")?;
     if event.get("observed_existing_book").is_some() {
         match event["book_identity"]["side"].as_str() {
@@ -101,6 +102,49 @@ pub(super) fn decode_extensions(
                     return Err(
                         "InvalidDomain：费用因果只有 fill/command/period（ADR 0032 裁定五）".into(),
                     );
+                }
+                if c["cause"] == "fill" {
+                    // #1406 H1：fee_only 是独立费用件；同件成交佣金使用 commission。
+                    if integer(&event["deltas"], "units")? != 0 {
+                        return Err("SchemaUnsupported：fee_only 不得混在数量变动原件".into());
+                    }
+                    let fill = c
+                        .get("fill_ref")
+                        .filter(|v| v.is_object())
+                        .ok_or("MissingDependency：fill 费用缺具名原分配绑定")?;
+                    super::voice::exact(
+                        fill,
+                        &[
+                            "source_namespace",
+                            "source_epoch",
+                            "external_fact_id",
+                            "allocation_id",
+                            "family_id",
+                            "chong_id",
+                        ],
+                    )?;
+                    for field in [
+                        "source_namespace",
+                        "source_epoch",
+                        "external_fact_id",
+                        "allocation_id",
+                        "family_id",
+                        "chong_id",
+                    ] {
+                        required(fill, field)?;
+                    }
+                    let dependency = event
+                        .get("depends_on")
+                        .filter(|v| v.is_object())
+                        .ok_or("MissingDependency：fill 费用必须声明具名 fill 前件")?;
+                    if ["source_namespace", "source_epoch", "external_fact_id"]
+                        .iter()
+                        .any(|key| fill[key] != dependency[key])
+                        || fill["family_id"] != event["family_id"]
+                        || fill["chong_id"] != target(event)?
+                    {
+                        return Err("IdentityConflict：费用前件与具名 fill/原 family/重不符".into());
+                    }
                 }
             }
             "dividend_cash" => {
@@ -515,6 +559,17 @@ pub(super) fn apply(
     if event.get("valuation_observation").is_some() {
         return Err("SchemaUnsupported：估值观察只记 E，不进 B 成本账（C05.4）".into());
     }
+    // #1406 C4 / ADR 0032 五：E 已解析并不代表本 B 已应用前件。费用/更正沿因果原件等待，
+    // 不把声明了依赖的缺开局永久记为 Unmatched，也不以迟到件触发新 Voice。
+    if let Some(dependency) = super::tb03c_e::dependency_key(&event)? {
+        if !array(image, "applied")?
+            .iter()
+            .any(|a| a["fact_key"] == dependency && a["status"] == "Applied")
+        {
+            return Err("AwaitingDependency：本重尚未持久应用声明前件".into());
+        }
+    }
+    super::tb03c_e::check_fill_predecessor(&event, array(image, "recorded")?)?;
     let mut next = image.clone();
     let opening = event.get("observed_existing_book").is_some();
     let old = &image["book"];

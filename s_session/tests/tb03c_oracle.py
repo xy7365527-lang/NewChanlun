@@ -141,10 +141,58 @@ class Book:
                 "unit_cost": unit, "stable_point": self.sp}
 
 
+def fact_identity(event):
+    source = event["source"]
+    return tuple(source[k] for k in ("source_namespace", "source_epoch", "external_fact_id"))
+
+
+def dependency_identity(event):
+    dependency = event.get("depends_on")
+    if dependency is None:
+        return None
+    return tuple(dependency[k] for k in ("source_namespace", "source_epoch", "external_fact_id"))
+
+
+def fill_bindings(event):
+    """独立原件规则：fill 费用显式指名原分配，依赖指针不能自行换成别的事实。"""
+    references = []
+    for component in event.get("known_cost_components", []):
+        if component["kind"] != "fee_only" or component.get("cause") != "fill":
+            continue
+        if num(event.get("deltas", {}).get("units", "0")) != 0:
+            raise Typed("SchemaUnsupported")
+        reference = component.get("fill_ref")
+        dependency = dependency_identity(event)
+        if reference is None or dependency is None:
+            raise Typed("MissingDependency")
+        fields = {"source_namespace", "source_epoch", "external_fact_id", "allocation_id", "family_id", "chong_id"}
+        if set(reference) != fields or any(not isinstance(reference[k], str) or not reference[k] for k in fields):
+            raise Typed("SchemaUnsupported")
+        identity = tuple(reference[k] for k in ("source_namespace", "source_epoch", "external_fact_id"))
+        if identity != dependency or reference["family_id"] != event["family_id"] or reference["chong_id"] != event.get("chong_id"):
+            raise Typed("IdentityConflict")
+        references.append(reference)
+    return references
+
+
+def verify_fill_predecessors(event, records):
+    for reference in fill_bindings(event):
+        identity = tuple(reference[k] for k in ("source_namespace", "source_epoch", "external_fact_id"))
+        predecessor = records.get(identity)
+        if predecessor is None:
+            raise Typed("AwaitingDependency")
+        if ("observed_existing_book" in predecessor or "corporate_action" in predecessor
+                or "valuation_observation" in predecessor or num(predecessor["deltas"]["units"]) == 0):
+            raise Typed("IdentityConflict")
+        if any(reference[k] != predecessor[k] for k in ("allocation_id", "family_id", "chong_id")):
+            raise Typed("IdentityConflict")
+
+
 def apply(book, doc, pointer):
     """返回 (新 book, outcome)；失败抛 Typed 且调用方保留旧 book。"""
     no_float(doc)
     event = doc["events"][int(pointer.rsplit("/", 1)[1])]
+    fill_bindings(event)
     sp = event["stable_point"]["seq"]
     num(sp)
     if "valuation_observation" in event:
@@ -224,6 +272,113 @@ def apply(book, doc, pointer):
     return b, "Applied"
 
 
+def run_e_case(fixtures, case):
+    """E 的 Recorded/Resolved 与每个 B 的 Applied 分开记；重复终态只返回原结果。"""
+    facts, pending, resolved_evidence, books = {}, {}, {}, {}
+    applied, allocations, mismatches, count = {}, {}, [], 0
+    for step in case["steps"]:
+        count += 1
+        doc = json.loads((fixtures / step["raw"]).read_bytes()) if "raw" in step else None
+        got = {}
+        if step["op"] == "capture":
+            ev = doc["events"][int(step["pointer"].rsplit("/", 1)[1])]
+            key = fact_identity(ev)
+            try:
+                fill_bindings(ev)
+                target = ev.get("chong_id") or ev["book_identity"]["chong_id"]
+                dep = dependency_identity(ev)
+                reason = "AwaitingDependency" if dep is not None and dep not in facts else "Unresolved"
+                candidate = {"event": ev, "doc": doc, "token": "t-" + key[2],
+                             "cursor": num(ev["source"]["source_cursor"]), "dep": dep}
+                if key in facts and facts[key] != candidate:
+                    raise Typed("IdentityConflict")
+                scope = "B:" + target if target in case["routed"] else "account:*"
+                if key not in facts:
+                    facts[key] = candidate
+                    pending[key] = {"token": candidate["token"], "reason": reason, "scope": scope}
+                got = {"outcome": "Recorded", "pending_reason": reason, "scope": scope}
+            except Typed as error:
+                got = {"outcome": error.kind}
+        elif step["op"] == "resolve":
+            doc = json.loads((fixtures / "raw" / (case["chong_id"] + ".json")).read_bytes())
+            items = []
+            for covered in step["covered"]:
+                ev = doc["events"][int(covered["pointer"].rsplit("/", 1)[1])]
+                items.append((fact_identity(ev), covered["token"], covered["fact_hash"]))
+            signature = json.dumps([items, step["frontier_cursor"]])
+            try:
+                if step["evidence_id"] in resolved_evidence:
+                    if resolved_evidence[step["evidence_id"]] != signature:
+                        raise Typed("IdentityConflict")
+                else:
+                    keys = {key for key, _, _ in items}
+                    for key, token, fact_hash in items:
+                        entry = pending.get(key)
+                        if entry is None or entry["token"] != (token or facts[key]["token"]):
+                            raise Typed("MissingDependency")
+                        if fact_hash != "recorded":
+                            raise Typed("IdentityConflict")
+                        if entry["scope"] == "account:*":
+                            raise Typed("MissingDependency")
+                        if entry["reason"] == "AwaitingPolicy":
+                            raise Typed("AwaitingPolicy")
+                        verify_fill_predecessors(facts[key]["event"], {k: f["event"] for k, f in facts.items()})
+                        if step["frontier_cursor"] < facts[key]["cursor"]:
+                            raise Typed("MissingDependency")
+                        if entry["reason"] == "AwaitingDependency":
+                            dep = facts[key]["dep"]
+                            if dep not in facts or (dep in pending and dep not in keys):
+                                raise Typed("AwaitingDependency")
+                    for key in keys:
+                        del pending[key]
+                    resolved_evidence[step["evidence_id"]] = signature
+                got = {"outcome": "Resolved"}
+            except Typed as error:
+                got = {"outcome": error.kind}
+            got["pending_after"] = sorted(p["token"] for p in pending.values() if p["scope"] == "B:" + case["chong_id"])
+        else:
+            ev = doc["events"][int(step["pointer"].rsplit("/", 1)[1])]
+            key, chong, allocation = fact_identity(ev), case["chong_id"], ev["allocation_id"]
+            local = applied.setdefault(chong, {})
+            local_allocations = allocations.setdefault(chong, {})
+            try:
+                if allocation in local_allocations:
+                    old = local_allocations[allocation]
+                    if old["key"] != key or old["doc"] != doc:
+                        raise Typed("IdentityConflict")
+                    outcome = old["outcome"]
+                else:
+                    if key in local:
+                        raise Typed("IdentityConflict")
+                    if key not in facts:
+                        raise Typed("MissingDependency")
+                    if facts[key]["doc"] != doc:
+                        raise Typed("IdentityConflict")
+                    entry = pending.get(key)
+                    if entry is not None and entry["reason"] in ("AwaitingDependency", "AwaitingPolicy"):
+                        raise Typed(entry["reason"])
+                    fill_bindings(ev)
+                    dependency = dependency_identity(ev)
+                    if dependency is not None and (dependency not in local or local[dependency]["outcome"] != "Applied"):
+                        raise Typed("AwaitingDependency")
+                    verify_fill_predecessors(ev, {k: value["event"] for k, value in local.items() if value["outcome"] == "Applied"})
+                    books[chong], outcome = apply(books.get(chong), doc, step["pointer"])
+                    receipt = {"key": key, "doc": doc, "event": ev, "allocation_id": allocation, "outcome": outcome}
+                    local[key] = receipt
+                    local_allocations[allocation] = receipt
+                got = {"outcome": outcome}
+            except Typed as error:
+                got = {"outcome": error.kind}
+            if "K" in step and books.get(chong) is not None:
+                view = books[chong].view()
+                got.update({"K": view["K"], "q": view["q"]})
+        want = {k: step[k] for k in got if k in step}
+        want["outcome"] = step["outcome"]
+        if got != want:
+            mismatches.append({"case": case["name"], "step": step, "got": got})
+    return count, mismatches
+
+
 def project(view, want):
     return {k: view.get(k) for k in want}
 
@@ -252,6 +407,10 @@ def run(fixtures):
             got = [dict(e) for e in book.events] if book is not None else []
             if got != case["phase_events"]:
                 mismatches.append({"case": case["chong_id"], "label": "phase_events", "want": case["phase_events"], "got": got})
+    for case in hand.get("e_cases", []):
+        n, bad = run_e_case(fixtures, case)
+        count += n
+        mismatches += bad
     for case in hand["apportion_cases"]:
         seq = [apportion(f, case["weights"], case["tie_rank"]) for f in range(case["total"] + 1)]
         if seq != case["sequence"]:

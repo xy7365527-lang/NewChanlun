@@ -201,6 +201,7 @@ impl Config {
                 let op = op.as_str().ok_or("InvalidDomain：操作权限须文本")?;
                 if ![
                     "CaptureExternal",
+                    "ResolveEvidence",
                     "ApplyAllocation",
                     "ReadView",
                     "Watch",
@@ -948,6 +949,12 @@ pub(crate) fn audit_with_deadline(
             if image != super::finance::empty(config)? {
                 return Err("StorageUnavailable：域损坏：创世图像非空".into());
             }
+        } else if image["history"].as_array().and_then(|a| a.last())
+            .is_some_and(|e| e["kind"] == "ResolveEvidence") {
+            let event = image["history"].as_array().unwrap().last().unwrap();
+            if image != super::tb03c_e::replay(c, config, &previous_image, event, seq, &ns)? {
+                return Err("StorageUnavailable：Resolve 重放不等于完整提交图像".into());
+            }
         } else if image["history"]
             .as_array()
             .and_then(|a| a.last())
@@ -1002,7 +1009,7 @@ pub(crate) fn audit_with_deadline(
             let expected = if config.domain == "E" {
                 let mut x = previous_image.clone();
                 x["recorded"].as_array_mut().unwrap().push(record.clone());
-                let p = json!({"fact_key":record["fact_key"],"token":record["token"],"target_domain":record["target_domain"],"status":"Pending","reason":"No Resolve/Reduce evidence in TB-03-A","first_known_ns":record["first_known_ns"],"recorded_seq":seq.to_string()});
+                let p = super::tb03c_e::pending_entry(config, &previous_image, record, seq)?;
                 x["pending"].as_array_mut().unwrap().push(p);
                 x["history"].as_array_mut().unwrap().push(json!({"kind":"CaptureExternal","fact_key":record["fact_key"],"commit_seq":seq.to_string(),"commit_ns":ns}));
                 x
@@ -1047,6 +1054,10 @@ pub(crate) fn audit_with_deadline(
         return Err("StorageUnavailable：域损坏：永久回执数不等于业务提交数".into());
     }
     for r in receipt_rows {
+        if r["kind"] == "Resolved" {
+            super::tb03c_e::audit_receipt(c, config, &previous_image, &r)?;
+            continue;
+        }
         if r.get("receipt_key").is_some() {
             super::finance::audit_receipt(c, config, &r)?;
             continue;
@@ -1153,7 +1164,9 @@ pub(crate) fn audit_with_deadline(
         for r in rs {
             let (k, s) = r.map_err(err)?;
             let v = strict_json(s.as_bytes())?;
-            let expected_key = if table == "receipts" && v.get("receipt_key").is_some() {
+            let expected_key = if table == "receipts" && v["kind"] == "Resolved" {
+                super::tb03c_e::receipt_key(required(&v,"evidence_id")?)
+            } else if table == "receipts" && v.get("receipt_key").is_some() {
                 required(&v, "receipt_key")?.to_owned()
             } else if table == "receipts" && v["kind"] == "VoiceBound" {
                 super::voice::receipt_key(required(&v, "binding_id")?)
@@ -1206,7 +1219,16 @@ pub(crate) fn audit_with_deadline(
         }
         let receipt = row(c, "receipts", &rk)?.ok_or("StorageUnavailable：域损坏：消息缺原回执")?;
         let payload = &request["payload"];
-        if receipt.get("receipt_key").is_some() {
+        if receipt["kind"] == "Resolved" {
+            let event = super::tb03c_e::event_for(&previous_image, required(&receipt,"evidence_id")?)?;
+            if config.domain != "E" || payload["op"] != "ResolveEvidence"
+                || rk != super::tb03c_e::receipt_key(required(payload,"evidence_id")?)
+                || super::tb03c_e::evidence_body(payload) != event["evidence"]
+                || payload["frontier"]["source_namespace"] != request["source_namespace"]
+                || payload["frontier"]["source_epoch"] != request["source_epoch"] {
+                return Err("StorageUnavailable：Resolve 消息与原证据/来源不一致".into());
+            }
+        } else if receipt.get("receipt_key").is_some() {
             super::finance::audit_message(c, config, &request, &receipt)?;
         } else if config.domain == "E" {
             let f = row(c, "facts", &rk)?.ok_or("StorageUnavailable：域损坏：E消息缺原件")?;

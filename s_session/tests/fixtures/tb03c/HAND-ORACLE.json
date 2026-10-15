@@ -733,7 +733,260 @@
    ]
   }
  ],
+ "e_cases": [
+  {
+   "chong_id": "chong-R1",
+   "name": "WE-5 Pending→Resolve 与 fee-before-fill（根裁定 OQ-3：E 侧等待挡 B，普通风险 Pending 不挡）",
+   "routed": [
+    "chong-R1"
+   ],
+   "steps": [
+    {
+     "op": "capture",
+     "outcome": "Recorded",
+     "pending_reason": "Unresolved",
+     "pointer": "/events/0",
+     "raw": "raw/chong-R1.json",
+     "scope": "B:chong-R1"
+    },
+    {
+     "op": "capture",
+     "outcome": "Recorded",
+     "pending_reason": "Unresolved",
+     "pointer": "/events/1",
+     "raw": "raw/chong-R1.json",
+     "scope": "B:chong-R1"
+    },
+    {
+     "op": "capture",
+     "outcome": "Recorded",
+     "pending_reason": "Unresolved",
+     "pointer": "/events/2",
+     "raw": "raw/chong-R1.json",
+     "scope": "B:chong-R1"
+    },
+    {
+     "op": "capture",
+     "outcome": "Recorded",
+     "pending_reason": "AwaitingDependency",
+     "pointer": "/events/3",
+     "raw": "raw/chong-R1.json",
+     "scope": "B:chong-R1"
+    },
+    {
+     "covered": [
+      {
+       "fact_hash": "recorded",
+       "pointer": "/events/0",
+       "token": null
+      },
+      {
+       "fact_hash": "recorded",
+       "pointer": "/events/1",
+       "token": null
+      }
+     ],
+     "evidence_id": "r1",
+     "frontier_cursor": 2,
+     "op": "resolve",
+     "outcome": "Resolved",
+     "pending_after": [
+      "t-R-fee",
+      "t-R-sell"
+     ]
+    },
+    {
+     "covered": [
+      {
+       "fact_hash": "wrong",
+       "pointer": "/events/2",
+       "token": null
+      }
+     ],
+     "evidence_id": "r2",
+     "frontier_cursor": 3,
+     "op": "resolve",
+     "outcome": "IdentityConflict",
+     "pending_after": [
+      "t-R-fee",
+      "t-R-sell"
+     ]
+    },
+    {
+     "covered": [
+      {
+       "fact_hash": "recorded",
+       "pointer": "/events/2",
+       "token": null
+      }
+     ],
+     "evidence_id": "r3",
+     "frontier_cursor": 2,
+     "op": "resolve",
+     "outcome": "MissingDependency",
+     "pending_after": [
+      "t-R-fee",
+      "t-R-sell"
+     ]
+    },
+    {
+     "covered": [
+      {
+       "fact_hash": "recorded",
+       "pointer": "/events/3",
+       "token": null
+      }
+     ],
+     "evidence_id": "r4",
+     "frontier_cursor": 4,
+     "op": "resolve",
+     "outcome": "AwaitingDependency",
+     "pending_after": [
+      "t-R-fee",
+      "t-R-sell"
+     ]
+    },
+    {
+     "covered": [
+      {
+       "fact_hash": "recorded",
+       "pointer": "/events/2",
+       "token": "t-R-buy"
+      }
+     ],
+     "evidence_id": "r5",
+     "frontier_cursor": 3,
+     "op": "resolve",
+     "outcome": "MissingDependency",
+     "pending_after": [
+      "t-R-fee",
+      "t-R-sell"
+     ]
+    },
+    {
+     "K": 200,
+     "op": "apply",
+     "outcome": "Applied",
+     "pointer": "/events/0",
+     "q": 2,
+     "raw": "raw/chong-R1.json"
+    },
+    {
+     "K": 311,
+     "op": "apply",
+     "outcome": "Applied",
+     "pointer": "/events/1",
+     "q": 3,
+     "raw": "raw/chong-R1.json"
+    },
+    {
+     "K": 182,
+     "op": "apply",
+     "outcome": "Applied",
+     "pointer": "/events/2",
+     "q": 2,
+     "raw": "raw/chong-R1.json"
+    },
+    {
+     "op": "apply",
+     "outcome": "AwaitingDependency",
+     "pointer": "/events/3",
+     "raw": "raw/chong-R1.json"
+    },
+    {
+     "op": "capture",
+     "outcome": "Recorded",
+     "pending_reason": "Unresolved",
+     "pointer": "/events/4",
+     "raw": "raw/chong-R1.json",
+     "scope": "B:chong-R1"
+    },
+    {
+     "covered": [
+      {
+       "fact_hash": "recorded",
+       "pointer": "/events/2",
+       "token": null
+      },
+      {
+       "fact_hash": "recorded",
+       "pointer": "/events/3",
+       "token": null
+      },
+      {
+       "fact_hash": "recorded",
+       "pointer": "/events/4",
+       "token": null
+      }
+     ],
+     "evidence_id": "r6",
+     "frontier_cursor": 5,
+     "op": "resolve",
+     "outcome": "Resolved",
+     "pending_after": []
+    },
+    {
+     "K": 302,
+     "op": "apply",
+     "outcome": "Applied",
+     "pointer": "/events/4",
+     "q": 3,
+     "raw": "raw/chong-R1.json"
+    },
+    {
+     "K": 305,
+     "op": "apply",
+     "outcome": "Applied",
+     "pointer": "/events/3",
+     "q": 3,
+     "raw": "raw/chong-R1.json"
+    },
+    {
+     "covered": [
+      {
+       "fact_hash": "recorded",
+       "pointer": "/events/0",
+       "token": null
+      },
+      {
+       "fact_hash": "recorded",
+       "pointer": "/events/1",
+       "token": null
+      }
+     ],
+     "evidence_id": "r1",
+     "frontier_cursor": 2,
+     "op": "resolve",
+     "outcome": "Resolved",
+     "pending_after": [],
+     "replay": true
+    },
+    {
+     "covered": [
+      {
+       "fact_hash": "recorded",
+       "pointer": "/events/0",
+       "token": null
+      }
+     ],
+     "evidence_id": "r1",
+     "frontier_cursor": 2,
+     "op": "resolve",
+     "outcome": "IdentityConflict",
+     "pending_after": []
+    },
+    {
+     "op": "capture",
+     "outcome": "Recorded",
+     "pending_reason": "Unresolved",
+     "pointer": "/events/0",
+     "raw": "raw/chong-U1.json",
+     "scope": "account:*"
+    }
+   ]
+  }
+ ],
  "projection": "book 字段只列需核的子集；K 为 null 表示空头无成本基；cost_remaining 为整数或 NotEvaluable；错误 outcome 取 typed 前缀",
- "provenance": "手算；数字来源 #1406 备料 r2 PREP-R2.md §4.3（工作例 WE-1/2/2b/4/6/8）与 §4.3 WE-7 配额法表；空头去掉卖出现金分量（根裁定 OQ-5）。",
+ "provenance": "手算；数字来源 #1406 备料 r2 PREP-R2.md §4.3（工作例 WE-1/2/2b/4/6/8）与 §4.3 WE-7 配额法表；空头去掉卖出现金分量（根裁定 OQ-5）。；e_cases 为 WE-5 改写：Resolve 复用 #1394 covered_pending 判据（token 不对应 ⟹ MissingDependency，内容不同 ⟹ IdentityConflict）。",
  "schema_revision": "tb03c-hand-oracle/1"
 }

@@ -40,7 +40,7 @@ class Doc:
         return name
 
     def event(self, ext, cursor, stable_point, *, opening_units=None, du=None, pi=0, a=0, w=0,
-              comps=(), realized=None, corporate_action=None, valuation=None):
+              comps=(), realized=None, corporate_action=None, valuation=None, depends_on=None):
         i = len(self.events)
         p = f"/events/{i}"
         e = {"event": "tb03c-" + ext, "allocation_id": "alloc-" + ext, "family_id": self.family,
@@ -90,6 +90,9 @@ class Doc:
             kind, num, den = corporate_action
             e["corporate_action"] = {"kind": kind, "num": str(num), "den": str(den),
                                      "source_ref": self._ref(f"{ext}:ca", f"{p}/corporate_action")}
+        if depends_on is not None:
+            e["depends_on"] = {"source_namespace": NAMESPACE, "source_epoch": EPOCH, "external_fact_id": depends_on,
+                               "source_ref": self._ref(f"{ext}:dep", f"{p}/depends_on")}
         if valuation is not None:
             before, after = valuation
             e["valuation_observation"] = {"reference_price_before": str(before), "reference_price_after": str(after),
@@ -168,6 +171,21 @@ def documents():
     d = Doc("chong-D1", "fam-D1", "TEST-D1", 1, 10, "long")
     d.event("D1-float", 1, 607, du=1, comps=[("acquisition_cash", 100.5)])
     docs["raw/chong-D1-float.json"] = d
+    # WE-5：Pending→Resolve 与 fee-before-fill（E 侧 AwaitingDependency）
+    d = Doc("chong-R1", "fam-R1", "TEST-R1", 1, 3, "long")
+    d.event("R-open", 1, 400, opening_units=2, comps=[("acquisition_cash", 200)])
+    d.event("R-buy", 2, 401, du=1, comps=[("acquisition_cash", 110), ("commission", 1)])
+    d.event("R-sell", 3, 402, du=-1, pi=19, comps=[("disposal_cash", 130), ("commission", 1)], realized=(20, 1))
+    d.event("R-fee", 4, 403, du=0, comps=[("fee_only", 3, {"fee_type": "exchange", "cause": "fill",
+            "fill_ref": {"source_namespace": NAMESPACE, "source_epoch": EPOCH,
+                         "external_fact_id": "R-late", "allocation_id": "alloc-R-late",
+                         "family_id": "fam-R1", "chong_id": "chong-R1"}})], depends_on="R-late")
+    d.event("R-late", 5, 404, du=1, comps=[("acquisition_cash", 120)])
+    docs["raw/chong-R1.json"] = d
+    # C06.4：目标重不在 manifest 的原件，E 照记并封账户范围
+    d = Doc("chong-U1", "fam-U1", "TEST-U1", 1, 1, "long")
+    d.event("U1-open", 6, 410, opening_units=1, comps=[("acquisition_cash", 10)])
+    docs["raw/chong-U1.json"] = d
     return {name: canonical(doc.document()) for name, doc in docs.items()}
 
 

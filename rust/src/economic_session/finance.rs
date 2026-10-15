@@ -431,7 +431,11 @@ fn bound(p: &Value) -> Result<i64, String> {
 }
 /// C06.3/C06.5：核 Pending 是否由固定 E 保守完整界（covered_facts）覆盖，并对应 E 实存原事实与 token。
 /// 只认 E 已独立保存的界与原件，不读坏 B、不用缓存余额、不伪造 Applied。
-fn covered_pending(previous: &Value, coverage: &[Value], pending: &Value) -> Result<(), String> {
+pub(super) fn covered_pending(
+    previous: &Value,
+    coverage: &[Value],
+    pending: &Value,
+) -> Result<(), String> {
     let covered = coverage
         .iter()
         .find(|x| x["fact_key"] == pending["fact_key"] && x["token"] == pending["token"])
@@ -443,6 +447,30 @@ fn covered_pending(previous: &Value, coverage: &[Value], pending: &Value) -> Res
     )?;
     if fact["fact_hash"] != covered["fact_hash"] {
         return Err("IdentityConflict：共同责任原件覆盖的事实内容不同".into());
+    }
+    // #1406 OQ-3：新书账域的显式等待不能由 Reserve 的风险覆盖旁路清掉。
+    // 旧域 Pending.reason 为字符串，保持原有判据。
+    if pending["scope"] == "account:*" {
+        return Err("MissingDependency：账户范围 Pending 尚缺归属与影响范围证明".into());
+    }
+    if pending["reason"].is_object() {
+        super::tb03c_e::check_fill_predecessor(&fact["event"], list(previous,"recorded")?)?;
+    }
+    match pending["reason"]["kind"].as_str() {
+        Some("AwaitingPolicy") => {
+            return Err("AwaitingPolicy：分配政策未配置，证据不能解除".into());
+        }
+        Some("AwaitingDependency") => {
+            let dependency = required(&pending["reason"],"on")?;
+            let original = list(previous,"recorded")?.iter().find(|f| f["fact_key"] == dependency)
+                .ok_or("AwaitingDependency：前件尚未 Recorded")?;
+            if let Some(p) = list(previous,"pending")?.iter().find(|p| p["fact_key"] == dependency) {
+                if !coverage.iter().any(|c| c["fact_key"] == dependency && c["token"] == p["token"] && c["fact_hash"] == original["fact_hash"]) {
+                    return Err("AwaitingDependency：前件尚未由同批证据覆盖".into());
+                }
+            }
+        }
+        _ => (),
     }
     Ok(())
 }

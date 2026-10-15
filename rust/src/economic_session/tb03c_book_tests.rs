@@ -179,13 +179,23 @@ fn locked_inputs() -> Vec<(String, String)> {
         .iter()
         .map(|d| ("legacy".to_owned(), canonical_json(d)))
         .collect();
-    for (name, raw) in TB03C_RAWS {
-        docs.push((name.to_string(), raw.to_string()));
+    // 锁测得时的输入集合（21e39fc614）；后加的夹具不进入本锁。
+    for name in [
+        "chong-L1",
+        "chong-E1",
+        "chong-S1",
+        "chong-S2",
+        "chong-W1",
+        "chong-W2",
+        "chong-D1",
+        "chong-D1-float",
+    ] {
+        docs.push((name.to_string(), raw_named(name).to_string()));
     }
     docs
 }
 
-pub(super) const TB03C_RAWS: [(&str, &str); 8] = [
+pub(super) const TB03C_RAWS: [(&str, &str); 10] = [
     (
         "chong-L1",
         include_str!("../../../s_session/tests/fixtures/tb03c/raw/chong-L1.json"),
@@ -215,6 +225,14 @@ pub(super) const TB03C_RAWS: [(&str, &str); 8] = [
         include_str!("../../../s_session/tests/fixtures/tb03c/raw/chong-D1.json"),
     ),
     (
+        "chong-R1",
+        include_str!("../../../s_session/tests/fixtures/tb03c/raw/chong-R1.json"),
+    ),
+    (
+        "chong-U1",
+        include_str!("../../../s_session/tests/fixtures/tb03c/raw/chong-U1.json"),
+    ),
+    (
         "chong-D1-float",
         include_str!("../../../s_session/tests/fixtures/tb03c/raw/chong-D1-float.json"),
     ),
@@ -241,7 +259,7 @@ fn legacy_book_rules_replay_byte_identical() {
 
 const HAND: &str = include_str!("../../../s_session/tests/fixtures/tb03c/HAND-ORACLE.json");
 
-fn raw_named(path: &str) -> &'static str {
+pub(super) fn raw_named(path: &str) -> &'static str {
     let name = path.trim_start_matches("raw/").trim_end_matches(".json");
     TB03C_RAWS
         .iter()
@@ -633,9 +651,9 @@ impl TestDoc {
 
 // ---------------------------------------------------------------- 持久域：版本冻结与重放（C2）
 
-struct Space(std::path::PathBuf);
+pub(super) struct Space(pub std::path::PathBuf);
 impl Space {
-    fn new(tag: &str) -> Self {
+    pub fn new(tag: &str) -> Self {
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let p = std::env::temp_dir().join(format!(
             "nc1406-{tag}-{}-{}",
