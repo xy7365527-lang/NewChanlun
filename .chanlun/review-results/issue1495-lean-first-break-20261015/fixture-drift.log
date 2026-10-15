@@ -1,0 +1,11 @@
+regen 临时目录：/private/tmp/goal1323-native-20261012/recovery-20261015/1495-lean-recovery/fixture_drift_g2j60zhw（保留不删，绝不写 rust/tests/fixtures/）
+[center] rust/tests/fixtures/theta_v0_center_parity.json  ←  Origin/CenterConstruct.lean
+  regen 0.5s → /private/tmp/goal1323-native-20261012/recovery-20261015/1495-lean-recovery/fixture_drift_g2j60zhw/theta_v0_center_parity.json
+  ✓ 无漂移：语义一致（0 字段差异）；字节级：一致
+[certificate_chain] rust/tests/fixtures/certificate_chain_parity.json  ←  Origin/CertificateChainParity.lean
+  regen 0.3s → /private/tmp/goal1323-native-20261012/recovery-20261015/1495-lean-recovery/fixture_drift_g2j60zhw/certificate_chain_parity.json
+  ✓ 无漂移：语义一致（0 字段差异）；字节级：一致
+[parity] rust/tests/fixtures/theta_v0_parity.json  ←  Origin/ParityFixtureExport.lean
+  regen 0.5s → /private/tmp/goal1323-native-20261012/recovery-20261015/1495-lean-recovery/fixture_drift_g2j60zhw/theta_v0_parity.json
+  ✓ 无漂移：语义一致（0 字段差异）；字节级：一致
+✓ fixture 漂移检查：全部无漂移（绿）

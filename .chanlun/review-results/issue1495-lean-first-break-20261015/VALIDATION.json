@@ -1,0 +1,64 @@
+{
+  "observed_at": "2026-10-15T04:31:17.257Z",
+  "source_commit": "9e1b22aa8b50de9097f4ce6d0247281707f8506c",
+  "local": {
+    "full_build": {
+      "command": "lake build",
+      "cwd": "formal",
+      "exit_code": 0,
+      "jobs": 158,
+      "log": "full-build.log"
+    },
+    "fixture": {
+      "command": "python3 scripts/check_fixture_drift.py",
+      "exit_code": 0,
+      "cases": [
+        "center",
+        "certificate_chain",
+        "parity"
+      ],
+      "field_differences": 0,
+      "byte_identical": true,
+      "log": "fixture-drift.log"
+    },
+    "tracked_lean_files": 152,
+    "new_executable_sorry_admit_axiom": 0
+  },
+  "remote": {
+    "event": "workflow_dispatch",
+    "run_id": 38681567438,
+    "url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/38681567438",
+    "head_sha": "9e1b22aa8b50de9097f4ce6d0247281707f8506c",
+    "overall_status_at_snapshot": "in_progress",
+    "overall_conclusion_at_snapshot": "",
+    "fixture_job": {
+      "id": 116247066853,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/38681567438/job/116247066853",
+      "conclusion": "success",
+      "steps": [
+        {
+          "completedAt": "2026-10-15T04:29:19Z",
+          "conclusion": "success",
+          "name": "Build formal (lake build)",
+          "number": 5,
+          "startedAt": "2026-10-15T04:28:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-15T04:29:21Z",
+          "conclusion": "success",
+          "name": "Fixture drift check (Lean → fixtures)",
+          "number": 6,
+          "startedAt": "2026-10-15T04:29:19Z",
+          "status": "completed"
+        }
+      ]
+    },
+    "log": "ci-exact-head-fixture.log"
+  },
+  "independent_review": {
+    "conclusion": "PASS_SCOPED_SEMANTIC_REVIEW",
+    "unresolved_required_fixes": 0,
+    "sha256": "d069047f006526aaaff828f221ff305edb13e86f05296ad2294dc505f310f3c2"
+  }
+}
