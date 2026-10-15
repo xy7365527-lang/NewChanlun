@@ -204,6 +204,41 @@ struct MaterialResources {
     outer_cap: Option<NativeReservation>,
 }
 impl Journal {
+    /// 只在失败出口观测；不增 Journal 字段、不改尺寸/预算，不清除首错或重试。
+    #[cfg(test)]
+    fn observe_failure(
+        &self,
+        stage: &'static str,
+        requested: Option<usize>,
+        resource: Option<sc::capture_allocation::scratch::ScratchFailure>,
+        autocommit: Option<bool>,
+        scope: Option<sc::capture_allocation::scratch::WorkSnapshot>,
+    ) {
+        use std::io::Write as _;
+        let line = json!({
+            "diagnostic":"NativeOwnerMaterialFailure",
+            "stage":stage,
+            "resource":resource.map(|e| format!("{e:?}")),
+            "requested_bytes":requested,
+            "operation":format!("{:?}", self.operation),
+            "owner_seal":self.set_seed.as_ref().map(|seed| json!({
+                "life":seed.seal.life,"transaction":seed.seal.transaction_id,
+                "write_sequence":seed.seal.write_sequence})),
+            "cap":self.cap,"bytes":self.bytes,"peak":self.peak,
+            "keys":self.keys.len(),"nodes":self.nodes.len(),
+            "material_epoch":self.material_epoch,
+            "flags":{"unexpected":self.unexpected,"overflow":self.overflow,
+                "resources":self.resources.is_some(),"set":self.set.is_some(),
+                "stages":!self.stages.is_empty(),"autocommit":autocommit},
+            "parent":self.resources.as_ref().map(|r| json!({
+                "live":r.budget.live(),"peak":r.budget.peak(),
+                "scratch":r.budget.scratch_observation(),
+                "native":r.budget.native_observation(),"outer_cap":r.outer_cap.is_some()})),
+            "scope":scope.map(|s| json!({"live":s.live,"peak":s.peak,"attempts":s.attempts})),
+        });
+        let _ = writeln!(std::io::stderr().lock(), "{line}");
+    }
+
     fn layout(keys: usize, node_capacity: usize) -> usize {
         sum([
             vec_bytes::<Key>(keys),
@@ -238,6 +273,8 @@ impl Journal {
                 Ok(capacity) => capacity,
                 Err(_) => {
                     self.overflow = true;
+                    #[cfg(test)]
+                    self.observe_failure("journal-hash-capacity", None, None, None, None);
                     return false;
                 }
             }
@@ -255,6 +292,8 @@ impl Journal {
         let coexist = sum([self.bytes, new_blocks]);
         if coexist > self.cap {
             self.overflow = true;
+            #[cfg(test)]
+            self.observe_failure("journal-coexist-cap", Some(new_blocks), None, None, None);
             return false;
         }
         self.peak = self.peak.max(coexist);
@@ -267,6 +306,8 @@ impl Journal {
             Ok(permit) => permit,
             Err(_) => {
                 self.overflow = true;
+                #[cfg(test)]
+                self.observe_failure("journal-parent-reserve", Some(new_blocks), None, None, None);
                 return false;
             }
         };
@@ -298,6 +339,16 @@ impl Journal {
             self.extra_bytes,
         ]);
         self.overflow |= !succeeded;
+        #[cfg(test)]
+        if !succeeded {
+            self.observe_failure(
+                "journal-container-allocation",
+                Some(new_blocks),
+                None,
+                None,
+                None,
+            );
+        }
         succeeded
     }
 }
@@ -1137,6 +1188,14 @@ pub(super) fn with_material_access<T>(
                 || !j.stages.is_empty()
                 || tx.is_autocommit()
             {
+                #[cfg(test)]
+                j.observe_failure(
+                    "material-entry-flags",
+                    None,
+                    None,
+                    Some(tx.is_autocommit()),
+                    None,
+                );
                 return Err(construction_state::stale("材料能力只能在本publish签发一次"));
             }
             let seal = j
@@ -1148,9 +1207,28 @@ pub(super) fn with_material_access<T>(
             let outer_cap = original_work
                 .map(|w| w.reserve_native(j.cap))
                 .transpose()
-                .map_err(invalid)?;
-            let budget = native::Budget::new(j.cap, j.bytes)
-                .map_err(|_| construction_state::stale("材料共享父账额度不足"))?;
+                .map_err(|error| {
+                    #[cfg(test)]
+                    j.observe_failure(
+                        "material-outer-cap",
+                        Some(j.cap),
+                        error.scratch_failure(),
+                        Some(tx.is_autocommit()),
+                        original_work.map(|w| w.snapshot()),
+                    );
+                    invalid(error)
+                })?;
+            let budget = native::Budget::new(j.cap, j.bytes).map_err(|_| {
+                #[cfg(test)]
+                j.observe_failure(
+                    "material-parent-create",
+                    Some(j.bytes),
+                    None,
+                    Some(tx.is_autocommit()),
+                    None,
+                );
+                construction_state::stale("材料共享父账额度不足")
+            })?;
             j.resources = Some(MaterialResources {
                 budget: budget.clone(),
                 outer_cap,
@@ -1171,7 +1249,20 @@ pub(super) fn with_material_access<T>(
             seal,
             initial_material_epoch,
         };
-        f(Some(&access))
+        let result = f(Some(&access));
+        #[cfg(test)]
+        if result.is_err() {
+            if let Ok(j) = journal.lock() {
+                j.observe_failure(
+                    "material-operation-return",
+                    None,
+                    None,
+                    Some(tx.is_autocommit()),
+                    Some(scope.snapshot()),
+                );
+            }
+        }
+        result
     };
     let result = match original_work {
         Some(scope) => run(scope),
@@ -1179,16 +1270,46 @@ pub(super) fn with_material_access<T>(
             Ok(work) => match work.run(run) {
                 Ok(value) => Ok(value),
                 Err(WorkError::Operation(error)) => Err(error),
-                Err(WorkError::Resource(_)) => {
+                Err(WorkError::Resource(_resource)) => {
+                    #[cfg(test)]
+                    if let Ok(j) = journal.lock() {
+                        j.observe_failure(
+                            "material-codec-resource-return",
+                            None,
+                            Some(_resource),
+                            Some(tx.is_autocommit()),
+                            None,
+                        );
+                    }
                     Err(construction_state::stale("材料共享codec额度/工作域失效"))
                 }
             },
-            Err(_) => Err(construction_state::stale("材料共享codec工作域额度不足")),
+            Err(_) => {
+                #[cfg(test)]
+                if let Ok(j) = journal.lock() {
+                    j.observe_failure(
+                        "material-codec-create",
+                        None,
+                        None,
+                        Some(tx.is_autocommit()),
+                        None,
+                    );
+                }
+                Err(construction_state::stale("材料共享codec工作域额度不足"))
+            }
         },
     };
     let result = result.and_then(|value| {
         let j = journal.lock().map_err(invalid)?;
         if j.unexpected || j.overflow || j.active_stage.is_some() || j.set.is_none() {
+            #[cfg(test)]
+            j.observe_failure(
+                "material-closure-flags",
+                None,
+                None,
+                Some(tx.is_autocommit()),
+                None,
+            );
             Err(construction_state::stale("材料闭包未完整闭合或吞下失败"))
         } else {
             Ok(value)

@@ -860,6 +860,43 @@ mod tests {
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn audit_owner_complete_accept_tail_begin_recover_retry_and_revision_qualification() {
+        fn context(d: &mut Driver) -> request_audit::RequestAuditContext {
+            let mut context = request_audit::RequestAuditContext::default();
+            if matches!(d.mode, s_allocation::Mode::CapturedNative) {
+                let total = d.audit_cache_source_bytes.unwrap();
+                let legacy = crate::cache::retained_bytes();
+                let keeper_cap = total.checked_sub(legacy).unwrap();
+                let mut keeper = d.conn.take_source_keeper().expect("成功链保留原来源池");
+                let old_pool = keeper.retained_source_bytes() + d.conn.complete_retained_bytes();
+                assert!(old_pool <= keeper_cap);
+                context
+                    .freeze_manifest_workspace_budget(total, legacy, old_pool)
+                    .unwrap();
+                keeper.set_retention_cap(keeper_cap);
+                context.attach_source_keeper(keeper);
+            }
+            context
+        }
+        fn same(n: &Driver, o: &Driver, prior: &Value, raw: u64, published: u64) -> Value {
+            let current = n.conn.complete_report();
+            assert!(n.conn.complete_retained_bytes() > 0);
+            assert_eq!(current["life"], prior["life"]);
+            assert!(
+                current["transaction"].as_u64().unwrap() > prior["transaction"].as_u64().unwrap()
+            );
+            assert!(
+                current["write_sequence"].as_u64().unwrap()
+                    > prior["write_sequence"].as_u64().unwrap()
+            );
+            assert_eq!(current["raw_checked"], raw);
+            assert_eq!(current["published_prefix"], published);
+            n.conn.assert_complete_matches_cold();
+            assert_eq!(
+                prepared::tests::runtime_root_tables(&n.conn, true),
+                prepared::tests::runtime_root_tables(&o.conn, true)
+            );
+            current
+        }
         let f = Fixture::new();
         let o = Fixture::new();
         let mut native = complete_driver(&f);
@@ -872,10 +909,11 @@ mod tests {
         let ready = envelope("ready-effects", json!({"op":"ready"}));
         native.handle(ready.clone()).unwrap();
         assert!(native.conn.complete_retained_bytes() > 0);
+        let mut prior = native.conn.complete_report();
         let second = Fixture::ingest(2);
         // 首 Commit12 → Accept20 → Begin21 → Recover23 → Begin24 → Commit25。
         for d in [&mut native, &mut ordinary] {
-            let mut context = request_audit::RequestAuditContext::default();
+            let mut context = context(d);
             let (admitted, ended) = d
                 .conn
                 .admit(
@@ -893,29 +931,42 @@ mod tests {
                 super::super::audit_owner::Admission::Advance { accepted: true, .. }
             ));
             d.conn.finish_source_keeper(context, ended);
-            assert_eq!(d.conn.complete_retained_bytes(), 0);
         }
         assert_eq!(
             native.handle(ready.clone()).unwrap(),
             ordinary.handle(ready.clone()).unwrap()
         );
-        native.conn.assert_complete_matches_cold();
-        assert_eq!(native.conn.complete_report()["raw_checked"], 2);
-        assert_eq!(native.conn.complete_report()["published_prefix"], 1);
+        prior = same(&native, &ordinary, &prior, 2, 1);
+        let mut ready_after_begin = Vec::new();
         for d in [&mut native, &mut ordinary] {
-            let mut context = request_audit::RequestAuditContext::default();
+            let mut context = context(d);
             let begun = d
                 .conn
                 .begin_advance(&second, &d.epoch, &d.clock, &d.mode, &mut context)
                 .unwrap();
             drop(begun);
-            assert_eq!(d.conn.complete_retained_bytes(), 0);
+            // Begin 已由 owner 正常提交；复用本请求预算和来源池完成真实 ready，
+            // 以该无写事务的 Ended 归还 keeper，不手造结果或丢池后重新授信。
+            let (reply, ended) = d
+                .conn
+                .admit(
+                    ready.clone(),
+                    &d.epoch,
+                    &d.clock,
+                    &d.profile_id,
+                    d.volume_unit.as_deref(),
+                    &d.mode,
+                    &mut context,
+                )
+                .unwrap();
+            let super::super::audit_owner::Admission::Reply(reply) = reply else {
+                panic!("ready必须返回原回执")
+            };
+            ready_after_begin.push(reply);
+            d.conn.finish_source_keeper(context, ended);
         }
-        assert_eq!(
-            native.handle(ready.clone()).unwrap(),
-            ordinary.handle(ready.clone()).unwrap()
-        );
-        native.conn.assert_complete_matches_cold();
+        assert_eq!(ready_after_begin[0], ready_after_begin[1]);
+        prior = same(&native, &ordinary, &prior, 2, 1);
         let nr = native
             .conn
             .recover("2", &native.clock, "recover-2")
@@ -932,23 +983,21 @@ mod tests {
             native.handle(ready.clone()).unwrap(),
             ordinary.handle(ready.clone()).unwrap()
         );
-        native.conn.assert_complete_matches_cold();
+        prior = same(&native, &ordinary, &prior, 2, 1);
+        let mut committed = Vec::new();
         for d in [&mut native, &mut ordinary] {
-            let mut context = request_audit::RequestAuditContext::default();
+            let mut context = context(d);
             let (reply, ended) = d.advance(&second, &mut context).unwrap();
             assert_eq!(reply["kind"], "Committed");
+            committed.push(reply);
             d.conn.finish_source_keeper(context, ended);
-            assert_eq!(
-                d.conn.complete_retained_bytes(),
-                0,
-                "写前结果不能借提交结束贴为写后资格"
-            );
         }
+        assert_eq!(committed[0], committed[1]);
         assert_eq!(
             native.handle(ready.clone()).unwrap(),
             ordinary.handle(ready.clone()).unwrap()
         );
-        native.conn.assert_complete_matches_cold();
+        prior = same(&native, &ordinary, &prior, 2, 2);
         let mut revision = Fixture::ingest(3);
         let raw = &mut revision["payload"]["raw_input"];
         *raw = second["payload"]["raw_input"].clone();
@@ -966,11 +1015,7 @@ mod tests {
             native.handle(ready.clone()).unwrap(),
             ordinary.handle(ready).unwrap()
         );
-        native.conn.assert_complete_matches_cold();
-        assert_eq!(
-            prepared::tests::runtime_root_tables(&native.conn, true),
-            prepared::tests::runtime_root_tables(&ordinary.conn, true)
-        );
+        same(&native, &ordinary, &prior, 3, 3);
         eprintln!(
             "{}",
             json!({"scenario":"owner-normal-accept-begin-recover-retry-revision","complete":native.conn.complete_report()})
@@ -1142,8 +1187,13 @@ mod tests {
     #[test]
     fn audit_owner_complete_normal_second_connection_and_new_life_are_cold() {
         let f = Fixture::new();
+        let o = Fixture::new();
         let mut native = complete_driver(&f);
-        native.handle(Fixture::ingest(1)).unwrap();
+        let mut ordinary = o.open("1").unwrap();
+        assert_eq!(
+            native.handle(Fixture::ingest(1)).unwrap(),
+            ordinary.handle(Fixture::ingest(1)).unwrap()
+        );
         let ready = envelope("ready-external", json!({"op":"ready"}));
         native.handle(ready.clone()).unwrap();
         let old_life = native.conn.complete_report()["life"].clone();
@@ -1171,25 +1221,43 @@ mod tests {
             .begin_advance(&next, "1", &f.clock, &mode, &mut context)
             .unwrap();
         let mut runtime = prepared::Runtime::with_mode(mode);
-        external
+        let (receipt, _) = external
             .publish(&mut runtime, &begun.token, &next, &mut context)
             .unwrap();
+        assert_eq!(receipt.message_receipt, ordinary.handle(next).unwrap());
         drop(begun);
         drop(external);
-        let (_, events, _) = state::traced(true, || native.handle(ready.clone()).unwrap());
-        assert!(!events.iter().any(|e| e["phase"] == "owner_complete_hit"));
+        let before = prepared::tests::runtime_root_tables(&native.conn, true);
+        let writes_before = native.conn.total_changes();
+        let (rejected, events, _) = state::traced(true, || native.handle(ready.clone()));
         assert_eq!(
-            events
-                .iter()
-                .filter(|e| e["phase"] == "history_template_closure")
-                .count(),
-            2
+            rejected.unwrap_err(),
+            "StaleWriter：construction资格失效：已有增量游标的材料域改变；禁止冷重签"
         );
-        native.conn.assert_complete_matches_cold();
+        assert_eq!(native.conn.total_changes(), writes_before);
+        assert_eq!(
+            prepared::tests::runtime_root_tables(&native.conn, true),
+            before
+        );
+        assert_eq!(
+            before,
+            prepared::tests::runtime_root_tables(&ordinary.conn, true)
+        );
+        assert_eq!(native.conn.complete_retained_bytes(), 0);
+        assert_eq!(native.conn.complete_report(), Value::Null);
+        assert!(native.conn.source_keeper_for_test().is_none());
+        assert!(!events.iter().any(|e| e["phase"] == "owner_complete_hit"));
+        assert!(!events
+            .iter()
+            .any(|e| e["phase"] == "history_template_closure"));
+        // 旧 owner 的来源资格已撤销；连同旧 Runtime 一起丢弃，不能在旧 life 冷重签。
         drop(native);
         let mut reopened = complete_driver(&f);
         assert_eq!(reopened.conn.complete_retained_bytes(), 0);
-        let (_, events, _) = state::traced(true, || reopened.handle(ready).unwrap());
+        assert!(reopened.runtime.visit_runtime_roots().unwrap().is_empty());
+        let expected = ordinary.handle(ready.clone()).unwrap();
+        let (actual, events, _) = state::traced(true, || reopened.handle(ready));
+        assert_eq!(actual.unwrap(), expected);
         assert_eq!(
             events
                 .iter()
@@ -1199,6 +1267,10 @@ mod tests {
         );
         assert_ne!(reopened.conn.complete_report()["life"], old_life);
         reopened.conn.assert_complete_matches_cold();
+        assert_eq!(
+            prepared::tests::runtime_root_tables(&reopened.conn, true),
+            prepared::tests::runtime_root_tables(&ordinary.conn, true)
+        );
     }
 
     #[cfg(feature = "s_capture_native_testonly")]

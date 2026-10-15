@@ -913,6 +913,8 @@ impl NativeSourceState {
                     bar: source_pending::raw_bar(s, event, None, None)?,
                 };
                 self.work.raw_hashes += 4;
+                #[cfg(test)]
+                super::super::state::trace_raw_hashes(true, 4);
                 self.raw.put(s, new.coord, source)?;
                 self.raw_ordinals.put(s, new.coord, new.ordinal)?;
             }
