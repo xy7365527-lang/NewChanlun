@@ -148,16 +148,16 @@ fn resolve_preserves_financial_responsibility_and_requires_its_persisted_coverag
     let request = resolve_request("retained", &first, "1");
     let mut image = s.e_image();
     image["finance"] = json!({"responsibilities":[]});
-    assert!(super::tb03c_e::resolve_image(&image, &request)
+    assert!(super::tb03c_e::resolve_image(&s.ec, &image, &request)
         .unwrap_err()
         .starts_with("MissingDependency"));
     image["finance"]["responsibilities"] =
         json!([{"amount":"900","source":{"covered_facts":request["covered"]}}]);
-    let (next, _) = super::tb03c_e::resolve_image(&image, &request).unwrap();
+    let (next, _) = super::tb03c_e::resolve_image(&s.ec, &image, &request).unwrap();
     assert_eq!(next["finance"], image["finance"]);
     assert!(next["pending"].as_array().unwrap().is_empty());
     image["pending"][0]["scope"] = json!("account:*");
-    assert!(super::tb03c_e::resolve_image(&image, &request)
+    assert!(super::tb03c_e::resolve_image(&s.ec, &image, &request)
         .unwrap_err()
         .starts_with("MissingDependency"));
 }

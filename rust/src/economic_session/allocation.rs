@@ -5,8 +5,7 @@
 //! 最大者加 1；并列先给冻结请求量较大者，再按 manifest 的 `tie_break_order`。
 //! 性质（资金要求）：ΣA = F、A_i 单调不减、⌊F·q_i/Q⌋ ≤ A_i ≤ ⌈F·q_i/Q⌉、A_i(Q) = q_i。
 //! 逐笔与累计、成交与 bust 反冲、佣金分摊全部只调本模块这一份函数（#799、#804）。
-// #1406 C4 接线前生产路径尚无调用者，只被本模块测试消费。
-#![cfg_attr(not(test), allow(dead_code))]
+// #1406 C4a：E Resolve 净额数量与佣金均调用本模块。
 
 /// 政策 id：只此一版；`/1`（最大余数法）从未持久落地，无旧库按 `/1` 恢复。
 pub(crate) const FILL_ALLOCATION_POLICY_ID: &str = "frozen-manifest-proportional-cumulative/2";

@@ -33,6 +33,9 @@ pub(super) fn dependency_key(event: &Value) -> Result<Option<String>, String> {
 /// #1406 H1：费用必须绑定原 fill 的来源身份和原 allocation，不能让任意 Applied 原件充当前件。
 /// 只读 E 已接纳或 B 已应用的原件；字段来自带来源索引的费用分量，不采请求中的派生归属。
 pub(super) fn check_fill_predecessor(event: &Value, records: &[Value]) -> Result<(), String> {
+    if super::tb03c_allocation::is_netted(event) {
+        return Ok(()); // 净额成交无独立费用前件；其累计前沿由 Resolve 分配核。
+    }
     for component in super::book::array(event, "known_cost_components")? {
         if component["kind"] != "fee_only" || component["cause"] != "fill" {
             continue;
@@ -82,13 +85,18 @@ pub(super) fn pending_entry(
     let recorded = previous["recorded"]
         .as_array()
         .ok_or("StorageUnavailable：recorded 形状")?;
-    let reason = match dependency_key(event)? {
-        Some(dep) if !recorded.iter().any(|f| f["fact_key"] == dep.as_str()) => {
-            json!({"kind":"AwaitingDependency","on":dep})
+    let netted = super::tb03c_allocation::is_netted(event);
+    let reason = if netted && !super::tb03c_allocation::has_policy(config) {
+        json!({"kind":"AwaitingPolicy","slot":"fill_allocation_policy"})
+    } else {
+        match dependency_key(event)? {
+            Some(dep) if !recorded.iter().any(|f| f["fact_key"] == dep.as_str()) => {
+                json!({"kind":"AwaitingDependency","on":dep})
+            }
+            _ => json!({"kind":"Unresolved"}),
         }
-        _ => json!({"kind":"Unresolved"}),
     };
-    let scope = if config.route(target(event)?).is_ok() {
+    let scope = if netted || config.route(target(event)?).is_ok() {
         record["target_domain"].clone()
     } else {
         json!("account:*")
@@ -107,6 +115,7 @@ pub(super) fn evidence_body(payload: &Value) -> Value {
 
 /// 纯函数：校验证据并返回移除被覆盖 Pending 后的图像与被覆盖的 fact_key（按证据顺序）。
 pub(super) fn resolve_image(
+    config: &Config,
     previous: &Value,
     payload: &Value,
 ) -> Result<(Value, Vec<String>), String> {
@@ -146,10 +155,35 @@ pub(super) fn resolve_image(
         .as_array()
         .ok_or("StorageUnavailable：recorded 形状")?;
     for k in &order {
-        let p = pending
+        let fact = recorded
             .iter()
-            .find(|p| p["fact_key"] == k.as_str())
-            .ok_or("MissingDependency：证据覆盖的事实无现存 Pending")?;
+            .find(|f| f["fact_key"] == k.as_str())
+            .ok_or("MissingDependency：Resolve 缺持久原事实")?;
+        // #1406 H2：风险 Pending 可被 Reserve 按完整责任覆盖清除；净额待办独立由
+        // 已 Recorded 且未分配定义，不能因清风险永久丢失。非净额仍须原 Pending。
+        let reconstructed;
+        let p = if super::tb03c_allocation::is_netted(&fact["event"]) {
+            if previous
+                .get("fill_allocations")
+                .map(|v| v.as_array().ok_or("StorageUnavailable：分配记录形状"))
+                .transpose()?
+                .is_some_and(|rows| rows.iter().any(|r| r["fact_key"] == k.as_str()))
+            {
+                return Err("IdentityConflict：净额事实已经持久分配".into());
+            }
+            reconstructed = pending_entry(
+                config,
+                previous,
+                fact,
+                crate::session_protocol::positive(required(fact, "recorded_seq")?, "recorded_seq")?,
+            )?;
+            &reconstructed
+        } else {
+            pending
+                .iter()
+                .find(|p| p["fact_key"] == k.as_str())
+                .ok_or("MissingDependency：证据覆盖的非净额事实无现存 Pending")?
+        };
         super::finance::covered_pending(previous, covered, p)?;
         // C06.2/C06.3：FIN 域只认 E 已持久的完整责任界。请求自报的摘要只能绑定事实，不能替代保责。
         if let Some(finance) = previous.get("finance") {
@@ -176,6 +210,18 @@ pub(super) fn resolve_image(
         }
     }
     let mut next = previous.clone();
+    for k in &order {
+        let fact = recorded
+            .iter()
+            .find(|f| f["fact_key"] == k.as_str())
+            .ok_or("StorageUnavailable：Pending 缺原件")?;
+        super::tb03c_allocation::resolve(
+            config,
+            &mut next,
+            fact,
+            required(payload, "evidence_id")?,
+        )?;
+    }
     next["pending"] = json!(pending
         .iter()
         .filter(|p| !p["fact_key"].as_str().is_some_and(|k| keys.contains(k)))
@@ -238,7 +284,7 @@ pub(super) fn replay(
     {
         return Err("StorageUnavailable：Resolve 原消息绑定改变".into());
     }
-    let (mut next, covered) = resolve_image(previous, payload)?;
+    let (mut next, covered) = resolve_image(config, previous, payload)?;
     let expected = resolve_history(&request, &covered, seq, ns);
     if event != &expected {
         return Err("StorageUnavailable：Resolve 事件与原消息/提交不符".into());

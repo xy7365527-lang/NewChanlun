@@ -89,8 +89,11 @@ pub(crate) fn decode(raw: &str, pointer: &str, rules: Rules) -> Result<(Value, V
         .clone();
     required(&event, "event")?;
     required(&event, "allocation_id")?;
-    required(&event, "family_id")?;
-    target(&event)?;
+    let netted = rules == Rules::Tb03cV1 && super::tb03c_allocation::is_netted(&event);
+    if !netted {
+        required(&event, "family_id")?;
+        target(&event)?;
+    }
     fact_key(&event)?;
     for k in ["source_cursor", "received_time", "claimed_origin"] {
         required(&event["source"], k)?;
@@ -167,6 +170,10 @@ pub(crate) fn decode(raw: &str, pointer: &str, rules: Rules) -> Result<(Value, V
         }
         Ok(())
     };
+    if netted {
+        super::tb03c_allocation::decode(&event, pointer, &check_ref)?;
+        return Ok((doc, event));
+    }
     let v1 = rules == Rules::Tb03cV1;
     if v1 {
         super::tb03c_book::decode_extensions(&event, pointer, &check_ref)?;

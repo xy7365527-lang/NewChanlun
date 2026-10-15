@@ -104,7 +104,10 @@ fn record_from_payload(config: &Config, e: &Value) -> Result<Value, String> {
     {
         return Err("InvalidDomain：来源未获准：原件来源不等于获准连接来源".into());
     }
-    let id = target(&event)?;
+    let netted = super::tb03c_allocation::is_netted(&event);
+    super::tb03c_allocation::check_capture(config, &event)?;
+    let domain = super::tb03c_allocation::target_domain(&event)?;
+    let id = if netted { "" } else { target(&event)? };
     // #1406 / C06.4：tb03c-book/1 域里目标重不在 manifest 的原件照记（Pending 封账户范围），旧域照旧拒收。
     let unrouted = json!({});
     let route = match config.route(id) {
@@ -131,7 +134,7 @@ fn record_from_payload(config: &Config, e: &Value) -> Result<Value, String> {
         &json!({"raw_sha256":raw_hash,"json_pointer":pointer,"event":event,"units":doc["units"]}),
     );
     Ok(
-        json!({"fact_key":fact_key(&event)?,"fact_hash":fact_hash,"raw_sha256":raw_hash,"raw_utf8":raw,"json_pointer":pointer,"event":event,"token":required(p,"token")?,"target_domain":format!("B:{id}"),"source_event_time":p["source_event_time"],"source_received_time":event["source"]["received_time"],"source_producer":{"producer_id":e["producer_id"],"producer_epoch":e["producer_epoch"]},"origin_message":{"source_namespace":e["source_namespace"],"source_epoch":e["source_epoch"],"message_id":e["message_id"],"payload_hash":e["payload_hash"]},"origin_request_hash":hash(e)}),
+        json!({"fact_key":fact_key(&event)?,"fact_hash":fact_hash,"raw_sha256":raw_hash,"raw_utf8":raw,"json_pointer":pointer,"event":event,"token":required(p,"token")?,"target_domain":domain,"source_event_time":p["source_event_time"],"source_received_time":event["source"]["received_time"],"source_producer":{"producer_id":e["producer_id"],"producer_epoch":e["producer_epoch"]},"origin_message":{"source_namespace":e["source_namespace"],"source_epoch":e["source_epoch"],"message_id":e["message_id"],"payload_hash":e["payload_hash"]},"origin_request_hash":hash(e)}),
     )
 }
 fn capture(
@@ -251,7 +254,7 @@ fn resolve_evidence(
         tx.commit().map_err(err)?;
         return Ok(r);
     }
-    let (mut next, covered) = tb03c_e::resolve_image(&image, p)?;
+    let (mut next, covered) = tb03c_e::resolve_image(config, &image, p)?;
     let seq = seq.checked_add(1).ok_or("InvalidDomain：commit seq溢出")?;
     let recovered_ns: String = tx
         .query_row(
@@ -323,12 +326,13 @@ fn authoritative_fact_inner(
         )
         .map_err(err)?;
     f["e_commit_proof"] = json!({"previous_root":previous_root,"commit_ns":commit_ns,"image":crate::session_protocol::strict_json(image.as_bytes())?});
+    super::tb03c_allocation::attach_resolution(&tx, config, &mut f)?;
     verify_e_copy(&f, config)?;
     if let Some((stage, job)) = import {
         check_operation_deadline(Some(&mut *job), deadline)?;
         job.charge_wire_bytes(u64::try_from(canonical_json(&f).len()).map_err(err)?)
             .map_err(|e| e.to_string())?;
-        let refs = super::content_store::image_refs(&f["e_commit_proof"]["image"])
+        let refs = super::content_store::image_refs(&json!({"recorded":[f.clone()],"history":[]}))
             .map_err(|e| e.to_string())?;
         super::content_store::import_peer_refs(&tx, &refs, stage, job)
             .map_err(|e| format!("MissingDependency：E 历史引用导入失败：{e}"))?;
@@ -430,8 +434,8 @@ fn apply_allocation_inner(
         authoritative_fact(config, key, e_epoch)?
     };
     if record["fact_hash"] != p["expected_fact_hash"]
-        || record["event"]["allocation_id"] != allocation
-        || record["target_domain"] != config.domain
+        || super::tb03c_allocation::application_id(&record)? != allocation
+        || super::tb03c_allocation::application_domain(&record)? != config.domain
     {
         return Err("IdentityConflict：实读E事实/金额/归属与请求不匹配".into());
     }
@@ -709,7 +713,7 @@ fn read(
             let receipt_key = if config.domain == "E" {
                 k
             } else {
-                required(&f["event"], "allocation_id")?
+                super::tb03c_allocation::application_id(&f)?
             };
             json!({"kind":"EconomicFact","domain_id":config.domain,"fact":f,"receipt":row(&tx,"receipts",receipt_key)?.ok_or("StorageUnavailable：域损坏：原事实缺回执")?})
         }

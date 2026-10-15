@@ -739,12 +739,21 @@ fn image_evidence(image: &serde_json::Value) -> Result<Vec<&serde_json::Value>, 
             .as_array()
             .ok_or_else(|| error("recorded is not array"))?
         {
-            if let Some(proof) = record.get("e_commit_proof") {
-                images.push(
-                    proof
-                        .get("image")
-                        .ok_or_else(|| error("E commit image missing"))?,
-                );
+            for key in ["e_commit_proof", "e_resolution_proof"] {
+                if let Some(proof) = record.get(key) {
+                    images.push(
+                        proof
+                            .get("image")
+                            .ok_or_else(|| error("E commit image missing"))?,
+                    );
+                    if key == "e_resolution_proof" {
+                        images.push(
+                            proof
+                                .get("previous_image")
+                                .ok_or_else(|| error("E resolution previous image missing"))?,
+                        );
+                    }
+                }
             }
         }
     }
@@ -1064,6 +1073,64 @@ mod batch_tests {
         assert_eq!(rows(&c, "content_staging"), 1, "他 token 的暂存仍在");
         assert_eq!(rows(&c, "content_nodes"), 1, "公开行不动");
         drop(c);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+    /// #1406 C4a：Resolve 两个历史图像中的真实内容节点都须在本 owner 闭包。
+    /// 此锁验证恢复所调用的闭包读取层；业务 FIN 证据语义由既有 verify_evidence 锁另核。
+    #[test]
+    fn resolution_proof_content_closure_reopens_locally_and_rejects_missing_node() {
+        use serde_json::json;
+        let (dir, c) = fresh("resolution-closure");
+        let mut nodes = s_content::MemoryNodes::new();
+        let mut refs = Vec::new();
+        for label in ["capture", "resolve", "resolve-previous"] {
+            refs.push(
+                s_content::write_value(
+                    &mut nodes,
+                    &s_content::Value::Object(vec![(
+                        "history".into(),
+                        s_content::Value::string(label.to_owned()),
+                    )]),
+                )
+                .unwrap()
+                .content_ref(),
+            );
+        }
+        for (digest, tag, body) in nodes.iter() {
+            c.execute(
+                "INSERT INTO content_nodes VALUES(?1,?2,?3)",
+                params![&digest[..], i64::from(tag), body],
+            )
+            .unwrap();
+        }
+        let peer_image = |reference: &ContentRef| json!({"recorded":[],"history":[{"record":{"structure_evidence":{"schema_revision":"s-financial-evidence/1","content_format":s_content::CONTENT_FORMAT,"kind":"FinancialBasisEvidence","session_id":"closure-fixture","session_generation":"1","writer_epoch":"1","pending_revision":false,"commit_ns":"1","basis_ref":reference.to_transport_json()}}}]});
+        let image = json!({"history":[],"recorded":[{"e_commit_proof":{"image":peer_image(&refs[0])},"e_resolution_proof":{"image":peer_image(&refs[1]),"previous_image":peer_image(&refs[2])}}]});
+        let observed = image_refs(&image).unwrap();
+        assert_eq!(observed.len(), 3);
+        for reference in &refs {
+            assert!(observed.contains(reference));
+        }
+        drop(c);
+        let reopened = Connection::open(dir.join("eb.sqlite")).unwrap();
+        s_content::verify_many(&mut PublishedSource { c: &reopened }, observed.clone()).unwrap();
+        let missing = refs[2].digest().unwrap();
+        assert_eq!(
+            reopened
+                .execute(
+                    "DELETE FROM content_nodes WHERE digest=?1",
+                    params![&missing[..]]
+                )
+                .unwrap(),
+            1
+        );
+        assert!(s_content::verify_many(&mut PublishedSource { c: &reopened }, observed).is_err());
+        let mut malformed = image.clone();
+        malformed["recorded"][0]["e_resolution_proof"]
+            .as_object_mut()
+            .unwrap()
+            .remove("previous_image");
+        assert!(image_refs(&malformed).is_err());
+        drop(reopened);
         std::fs::remove_dir_all(dir).unwrap();
     }
 }

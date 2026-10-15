@@ -1,4 +1,4 @@
-use super::book::{apply, decode, fact_key, hash, target};
+use super::book::{apply, decode, fact_key, hash};
 use crate::session_protocol::{
     canonical_json, nonnegative, positive, required, sha256_hex, strict_json,
 };
@@ -117,6 +117,7 @@ impl Config {
         }
         super::evidence::validate_config(&manifest)?;
         super::finance::validate_config(&manifest)?;
+        super::tb03c_allocation::validate_config(&manifest)?;
         let session = required(&manifest, "session_id")?.to_owned();
         let generation = required(&manifest, "session_generation")?.to_owned();
         positive(&generation, "session_generation")?;
@@ -1099,8 +1100,12 @@ pub(crate) fn audit_with_deadline(
             None
         } else {
             Some(
-                row(c, "applications", required(&f["event"], "allocation_id")?)?
-                    .ok_or("StorageUnavailable：域损坏：原件缺应用")?,
+                row(
+                    c,
+                    "applications",
+                    super::tb03c_allocation::application_id(&f)?,
+                )?
+                .ok_or("StorageUnavailable：域损坏：原件缺应用")?,
             )
         };
         // #1374 owner-review：序号从事实/应用取得，不能信回执自选一个存在的历史cut。
@@ -1133,7 +1138,7 @@ pub(crate) fn audit_with_deadline(
             {
                 return Err("StorageUnavailable：域损坏：B回执/应用/提交时间不一致".into());
             }
-            json!({"kind":a["status"],"domain_id":config.domain,"fact_key":f["fact_key"],"fact_hash":f["fact_hash"],"allocation_id":f["event"]["allocation_id"],"target_domain":config.domain,"received_ns":f["b_observation"]["received_ns"],"first_known_ns":f["b_observation"]["first_known_ns"],"commit_ns":ns,"e_first_known_ns":f["first_known_ns"],"cut":cut(config,seq,&actual_root)})
+            json!({"kind":a["status"],"domain_id":config.domain,"fact_key":f["fact_key"],"fact_hash":f["fact_hash"],"allocation_id":super::tb03c_allocation::application_id(&f)?,"target_domain":config.domain,"received_ns":f["b_observation"]["received_ns"],"first_known_ns":f["b_observation"]["first_known_ns"],"commit_ns":ns,"e_first_known_ns":f["first_known_ns"],"cut":cut(config,seq,&actual_root)})
         } else {
             if f["commit_ns"] != ns {
                 return Err("StorageUnavailable：域损坏：E回执/原件/提交时间不一致".into());
@@ -1311,7 +1316,7 @@ fn verify_original_message(c: &Connection, record: &Value, config: &Config) -> R
     let expected_key = if is_e {
         required(record, "fact_key")?
     } else {
-        required(&record["event"], "allocation_id")?
+        super::tb03c_allocation::application_id(record)?
     };
     if origin != &actual
         || origin["payload_hash"] != payload_hash
@@ -1358,6 +1363,8 @@ pub(crate) fn verify_e_copy(record: &Value, config: &Config) -> Result<(), Strin
         "e_session_id",
         "e_session_generation",
         "e_commit_proof",
+        "e_resolution_proof",
+        "resolved_allocation",
         "b_observation",
         "b_origin_message",
         "b_origin_request_hash",
@@ -1370,6 +1377,7 @@ pub(crate) fn verify_e_copy(record: &Value, config: &Config) -> Result<(), Strin
     if image["recorded"].as_array().and_then(|a| a.last()) != Some(&original) {
         return Err("StorageUnavailable：域损坏：E提交证明不含对应完整原件".into());
     }
+    super::tb03c_allocation::verify_resolution(record, config)?;
     Ok(())
 }
 
@@ -1383,7 +1391,7 @@ pub(crate) fn verify_record(r: &Value, rules: super::book::Rules) -> Result<(), 
             != hash(
                 &json!({"raw_sha256":r["raw_sha256"],"json_pointer":r["json_pointer"],"event":event,"units":doc["units"]}),
             )
-        || r["target_domain"] != format!("B:{}", target(&event)?)
+        || r["target_domain"] != super::tb03c_allocation::target_domain(&event)?
     {
         return Err("StorageUnavailable：域损坏：原始事实字节/身份/目标错误".into());
     }

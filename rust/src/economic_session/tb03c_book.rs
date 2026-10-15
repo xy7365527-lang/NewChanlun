@@ -556,6 +556,9 @@ pub(super) fn apply(
         required(record, "json_pointer")?,
         Rules::Tb03cV1,
     )?;
+    if super::tb03c_allocation::is_netted(&event) {
+        return apply_netted(image, record, &doc, &event, seq, ns);
+    }
     if event.get("valuation_observation").is_some() {
         return Err("SchemaUnsupported：估值观察只记 E，不进 B 成本账（C05.4）".into());
     }
@@ -650,6 +653,90 @@ pub(super) fn apply(
         &mut next,
         "history",
         json!({"kind":if unmatched.is_some(){"Unmatched"}else{"ApplyAllocation"},"application":a,"source":event["source"],"event":event,"commit_seq":seq.to_string(),"commit_ns":ns}),
+    );
+    Ok((next, unmatched.is_some()))
+}
+
+/// 净额分配是 E 证明的派生量，不重新包装成带原始见证的逐重成交。
+fn apply_netted(
+    image: &Value,
+    record: &Value,
+    doc: &Value,
+    event: &Value,
+    seq: i64,
+    ns: &str,
+) -> Result<(Value, bool), String> {
+    let allocation = record
+        .get("resolved_allocation")
+        .ok_or("AwaitingDependency：缺 E 逐重分配证明")?;
+    let id = super::tb03c_allocation::application_id(record)?;
+    let domain = super::tb03c_allocation::application_domain(record)?;
+    let old = &image["book"];
+    // 同一冻结投影的前序报告须先在本 B 应用，包括零份额报告。
+    if let Some(prior) = record["e_resolution_proof"]["image"]["fill_allocations"].as_array() {
+        for row in prior
+            .iter()
+            .take_while(|r| r["fact_key"] != record["fact_key"])
+            .filter(|r| r["manifest_hash"] == event["netted_fill"]["manifest_hash"])
+        {
+            if !array(image, "applied")?
+                .iter()
+                .any(|a| a["fact_key"] == row["fact_key"] && a["status"] == "Applied")
+            {
+                return Err("AwaitingDependency：本重尚未应用同一冻结投影前序分配".into());
+            }
+        }
+    }
+    let mut next = image.clone();
+    let unmatched = if old.is_null() {
+        Some("opening_missing_undeclared")
+    } else if old["family_id"] != allocation["family_id"] {
+        Some("family_mismatch")
+    } else {
+        None
+    };
+    if let Some(code) = unmatched {
+        push(
+            &mut next,
+            "unmatched",
+            json!({"fact_key":record["fact_key"],"allocation_id":id,"reason_code":code,"reason":code,"commit_seq":seq.to_string(),"commit_ns":ns}),
+        );
+    } else {
+        if old["side"] != "long"
+            || old["symbol"] != event["netted_fill"]["symbol"]
+            || old["chong_id"] != allocation["chong_id"]
+            || old["units"] != doc["units"]
+        {
+            return Err("IdentityConflict：净额购入分配与重的方向/身份/量纲不符".into());
+        }
+        let mut book = old.clone();
+        let n = Numbers::of(old)?;
+        let before = Some((json!(n.status()?), n.cost_remaining()?));
+        let units = nonnegative(required(allocation, "units")?, "allocated units")?;
+        book["actual_quantity"] = json!(add(integer(old, "actual_quantity")?, units)?.to_string());
+        // 显式原件已证明 Pi/A/W 均为零；仍调用同一收益账主干验证恒等式。
+        income(&mut book, &event["netted_fill"]["income_changes"])?;
+        let mut comps = Vec::new();
+        if units > 0 {
+            for kind in ["acquisition_cash", "commission"] {
+                comps.push(json!({"kind":kind,"canonical_amount":allocation[kind],"derivation":{"kind":"E_resolved_netted_allocation","allocation_id":id,"manifest_hash":event["netted_fill"]["manifest_hash"],"resolve_cut":record["e_resolution_proof"]["receipt"]["cut"]}}));
+            }
+        } else if integer(allocation, "acquisition_cash")? != 0
+            || integer(allocation, "commission")? != 0
+        {
+            return Err("IdentityConflict：零份额不得携带分配现金/费用".into());
+        }
+        components(&mut book, &comps, record)?;
+        derive(&mut book, before, seq, ns, event, record)?;
+        next["book"] = book;
+    }
+    push(&mut next, "recorded", record.clone());
+    let a = json!({"fact_key":record["fact_key"],"fact_hash":record["fact_hash"],"allocation_id":id,"target_domain":domain,"status":if unmatched.is_some(){"Unmatched"}else{"Applied"},"commit_seq":seq.to_string(),"commit_ns":ns});
+    push(&mut next, "applied", a.clone());
+    push(
+        &mut next,
+        "history",
+        json!({"kind":if unmatched.is_some(){"Unmatched"}else{"ApplyAllocation"},"application":a,"source":event["source"],"event":event,"resolved_allocation":allocation,"commit_seq":seq.to_string(),"commit_ns":ns}),
     );
     Ok((next, unmatched.is_some()))
 }

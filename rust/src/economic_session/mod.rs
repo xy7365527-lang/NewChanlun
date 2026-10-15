@@ -9,11 +9,14 @@ mod finance_transport;
 mod financial_reader_resources;
 mod service;
 mod store;
+mod tb03c_allocation;
 mod tb03c_book;
 mod tb03c_e;
 mod voice;
 pub use service::cli;
 
+#[cfg(test)]
+mod tb03c_allocation_tests;
 #[cfg(test)]
 mod tb03c_book_tests;
 #[cfg(test)]
