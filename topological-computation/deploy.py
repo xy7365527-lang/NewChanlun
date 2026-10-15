@@ -47,8 +47,8 @@ ENV_TEMPLATE = """\
 SEMANTIC_SCHOLAR_API=https://api.semanticscholar.org/graph/v1
 ARXIV_API=https://export.arxiv.org/api
 UNPAYWALL_EMAIL=hanjunyu2003@proton.me
-BRAVE_ANSWER_API_KEY=BSAbDBzvYe01jXosNzaI6NKfjntJ7eM
-BRAVE_SEARCH_API_KEY=BSAAhKhA_FC8ZlHbVVU8m6EFbbL_3Ck
+BRAVE_ANSWER_API_KEY=
+BRAVE_SEARCH_API_KEY=
 IPFS_API=http://localhost:5001
 """
 

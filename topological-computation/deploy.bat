@@ -56,8 +56,8 @@ if not exist "%ENV_FILE%" (
         echo SEMANTIC_SCHOLAR_API=https://api.semanticscholar.org/graph/v1
         echo ARXIV_API=https://export.arxiv.org/api
         echo UNPAYWALL_EMAIL=hanjunyu2003@proton.me
-        echo BRAVE_ANSWER_API_KEY=BSAbDBzvYe01jXosNzaI6NKfjntJ7eM
-        echo BRAVE_SEARCH_API_KEY=BSAAhKhA_FC8ZlHbVVU8m6EFbbL_3Ck
+        echo BRAVE_ANSWER_API_KEY=
+        echo BRAVE_SEARCH_API_KEY=
         echo IPFS_API=http://localhost:5001
     ) > "%ENV_FILE%"
     echo [OK] .env created
