@@ -62,7 +62,12 @@ pub(super) fn audit_generated_in_store(
                 .insert(
                     coord,
                     Source {
-                        wire: super::super::history::hash_json_in_store(s, wire.view(), deadline, budget)?,
+                        wire: super::super::history::hash_json_in_store(
+                            s,
+                            wire.view(),
+                            deadline,
+                            budget,
+                        )?,
                         numeric: super::super::history::hash_json_in_store(
                             s,
                             numeric.view(),

@@ -409,6 +409,123 @@ LOCKS = [
     }
 ]
 
+# #1488 B2 / C1 正控补锁：保留原38锁，另加7个首错锁和4个真实owner锁。
+LOCKS.extend([
+    {
+        "lane": "B",
+        "name": "v3::source_audit::source_delta::tests::first_occurrence_payload_identity_precedes_later_duplicate_id",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/source_delta.rs"
+    },
+    {
+        "lane": "B",
+        "name": "v3::source_audit::source_delta::tests::first_occurrence_group_index_conflict_does_not_mask_intervening_identity_error",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/source_delta.rs"
+    },
+    {
+        "lane": "B",
+        "name": "v3::source_audit::source_delta::tests::first_occurrence_witness_payload_precedes_later_duplicate_slot",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/source_delta.rs"
+    },
+    {
+        "lane": "B",
+        "name": "v3::source_audit::source_delta::tests::dirty_duplicate_object_rechecks_first_occurrence_before_later_fault",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/source_delta.rs"
+    },
+    {
+        "lane": "B",
+        "name": "v3::source_audit::source_delta::tests::dirty_duplicate_witness_rechecks_first_occurrence_before_later_fault",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/source_delta.rs"
+    },
+    {
+        "lane": "B",
+        "name": "v3::source_audit::source_delta::tests::legal_object_and_witness_reorder_reuses_contributions_across_cuts",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/source_delta.rs"
+    },
+    {
+        "lane": "B",
+        "name": "v3::source_audit::source_delta::tests::legal_group_metadata_replacement_preserves_prefix_groups_and_next_cut",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/source_delta.rs"
+    },
+    {
+        "lane": "C",
+        "name": "v3::audit_owner::construction_tests::owner_raw_formal_accept_probe_is_scoped_to_owner_and_thread",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner.rs"
+    },
+    {
+        "lane": "C",
+        "name": "v3::audit_owner::construction_tests::owner_raw_formal_accept_append_commits_before_nonempty_delta",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner.rs"
+    },
+    {
+        "lane": "C",
+        "name": "v3::audit_owner::construction_tests::owner_raw_formal_accept_revision_commits_before_nonempty_delta",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner.rs"
+    },
+    {
+        "lane": "C",
+        "name": "v3::audit_owner::construction_tests::owner_raw_nonempty_consumer_failure_stales_after_formal_accept_commit",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner.rs"
+    }
+])
+
 
 def required_locks(mode: str, target: str) -> list[dict]:
     """清单来自冻结源码包；不按测试输出反推预期，防止零测试假绿。"""

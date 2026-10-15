@@ -1290,11 +1290,11 @@ mod tests {
             fn read(&mut self, _: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
                 Err(sc::CodecError::new(sc::code::SOURCE, "此探针不读取原件"))
             }
+        }
+        impl CodecRead for BudgetRead {
             fn allocation_budget(&self) -> Option<OwnedBudget> {
                 Some(self.0.clone())
             }
-        }
-        impl CodecRead for BudgetRead {
             fn generic_source(&mut self) -> &mut dyn NodeSource {
                 self
             }
