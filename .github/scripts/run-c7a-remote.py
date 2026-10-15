@@ -22,12 +22,10 @@ import tomllib
 
 GIB = 1024 ** 3
 MIB = 1024 ** 2
-REVIEWED_SOURCE = "dde3b6b5a3de4492afeb850d99f3d728aecfcd63"
+# #1406 C5：仅精确已审来源。当前常量为候选占位，最终源审通过后由根重新绑定。
+REVIEWED_SOURCE = "b93eee571fb35da3c21a6bd435d5ccef1abbe9bb"
+REVIEWED_SOURCE_TREE = "4ceed897108a28ffbd3ded8bcae9ef7ccee9f683"
 ALLOWED_CI_DELTA = {".github/workflows/ci.yml", ".github/scripts/run-c7a-remote.py"}
-# #1394 B1：只接受 eb578149 的这三份 cfg(test) 尾差，不放宽其它源码门。
-APPROVED_TEST_PATHS = tuple("rust/src/bin/s_session_v3/" + name for name in
-                            ("capture.rs", "q_resources.rs", "q_watch.rs"))
-APPROVED_TEST_PATCH_SHA256 = "0c3e79be7d70f74aa9763c4fb55f78272507f9596d4ad42234fa458a1e380bc9"
 FROZEN = {
     "s_session/tests/tb03c_runtime.py": "aec5abfb1a68354ba5c439128924acc19be96588ba4a26378030d3bd75c4c93b",
     "s_session/tests/fixtures/tb03c_runtime/SEED.json": "5f5931dfba64cec634ca5e4bc8cdef2805aaebdb2bdbe3456ba4711cd4d2ed49",
@@ -57,23 +55,16 @@ def git(root: Path, *args: str) -> str:
 
 
 def source_identity(root: Path) -> dict[str, str]:
-    """绑定实际 HEAD；只允许 CI 尾差及逐字批准的三文件 TestOnly 补丁。"""
+    """绑定精确已审源 HEAD/tree；后续仅允许两个 CI 文件改变。"""
     head = git(root, "rev-parse", "HEAD")
     require(not git(root, "status", "--porcelain"), "需要干净 checkout")
     require(head == os.environ["GITHUB_SHA"], "checkout 与实际 workflow SHA 不同")
+    require(git(root, "rev-parse", REVIEWED_SOURCE + "^{tree}") == REVIEWED_SOURCE_TREE,
+            "已审源 tree 与冻结资格不同")
     subprocess.run(["git", "merge-base", "--is-ancestor", REVIEWED_SOURCE, head],
                    cwd=root, check=True, timeout=15)
     changed = set(git(root, "diff", "--name-only", REVIEWED_SOURCE, head).splitlines())
-    test_changes = changed - ALLOWED_CI_DELTA
-    if test_changes:
-        require(test_changes == set(APPROVED_TEST_PATHS), "相对已审候选存在未批准尾差")
-        patch = subprocess.check_output(
-            ["git", "diff", "--no-color", "--no-ext-diff", "--no-textconv", "--binary",
-             "--full-index", "--no-renames", "--unified=3", "--diff-algorithm=myers",
-             "--src-prefix=a/", "--dst-prefix=b/", REVIEWED_SOURCE, head, "--", *APPROVED_TEST_PATHS],
-            cwd=root, timeout=15)
-        require(hashlib.sha256(patch).hexdigest() == APPROVED_TEST_PATCH_SHA256,
-                "TestOnly 三文件差异不等于批准补丁")
+    require(changed <= ALLOWED_CI_DELTA, "相对已审 C5 来源存在未批准源码尾差")
     for name, expected in FROZEN.items():
         require(sha(root / name) == expected, "冻结字节改变：" + name)
     seed = json.loads((root / "s_session/tests/fixtures/tb03c_runtime/SEED.json").read_text())

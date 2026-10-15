@@ -310,7 +310,7 @@ jobs:
   # 仅本次专属分支显式 dispatch 时运行；失败不重试，不变更冻结输入或驱动原时限。
   c7a-runtime-1406:
     name: "#1406 C7a 六轨与 Resolve 恢复"
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/1406-c7a-20261015'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/1406-c5-ci-20261015'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -349,6 +349,469 @@ jobs:
           name: 1406-c7a-${{ github.sha }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/c7a-artifacts/
           if-no-files-found: error
+
+  # #1406 C5 v4：普通整库步之外单独执行固定 HFS ignored 锁；不扩大源码尾差白名单。
+  c5-hfs-1406:
+    name: "#1406 C5 固定 HFS checkpoint 与失败清理"
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/1406-c5-ci-20261015'
+    runs-on: macos-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    env:
+      CARGO_INCREMENTAL: "0"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache cargo registry + git only (#1406 C5 HFS)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-registry-v1-
+      - name: Compile, run exact HFS lock, detach and preserve raw image (#1406 C5)
+        timeout-minutes: 33
+        shell: bash
+        run: |
+          python3 -B - <<'PY'
+          """#1406 C5：仅 GitHub macOS runner 执行的固定 HFS 具名锁监督器。"""
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import plistlib
+          import re
+          import runpy
+          import shutil
+          import signal
+          import stat
+          import subprocess
+          import sys
+          import tempfile
+          import time
+
+          TEST = "economic_session::content_store::tb03c_c5_stage_tests::c5_h2_real_hfs_checkpoint_failure_keeps_committed_cleanup_list_and_reconciles"
+          MIB = 1024 * 1024
+          ACTIVE_SECONDS = 1500
+          CLEANUP_END_SECONDS = 1860
+          ARCHIVE_END_SECONDS = 1920
+          RECEIPT_END_SECONDS = 1950
+          GROUP_SECONDS = 15
+          # step 1980s / job 2100s：最终回执后分别另留 30s / 150s，不借给活跃工作。
+          ARCHIVE = r'''
+          import hashlib, json, pathlib, shutil, stat, sys
+          image, folder = map(pathlib.Path, sys.argv[1:3])
+          metadata = json.loads(sys.argv[3])
+          if not stat.S_ISREG(image.lstat().st_mode):
+              raise RuntimeError("image is not a regular file")
+          def sha(path):
+              with path.open("rb") as stream:
+                  return hashlib.file_digest(stream, "sha256").hexdigest()
+          folder.mkdir()
+          before = sha(image)
+          destination = folder / "carrier.dmg"
+          with image.open("rb") as source, destination.open("xb") as target:
+              shutil.copyfileobj(source, target, 1024 * 1024)
+          if sha(destination) != before or sha(image) != before:
+              raise RuntimeError("detached image bytes changed")
+          with (folder / "MANIFEST.json").open("x") as stream:
+              json.dump({**metadata, "sha256": before, "bytes": destination.stat().st_size}, stream)
+              stream.write("\n")
+          '''
+          INVENTORY = r'''
+          import hashlib, json, pathlib, sys
+          root, excluded = pathlib.Path(sys.argv[1]), sys.argv[2]
+          rows = []
+          for path in sorted(root.rglob("*")):
+              if path.is_file() and not path.name.startswith(excluded):
+                  with path.open("rb") as stream:
+                      sha = hashlib.file_digest(stream, "sha256").hexdigest()
+                  rows.append({"path": str(path.relative_to(root)), "sha256": sha, "bytes": path.stat().st_size})
+          with (root / "evidence/ARTIFACTS.json").open("x") as stream:
+              json.dump(rows, stream, ensure_ascii=False, indent=2)
+              stream.write("\n")
+          '''
+          # guardian 在实际命令结束后仍存活；主监督器从不 poll/reap 它，直到自有组清理完。
+          GUARD = r'''
+          import json, pathlib, signal, subprocess, sys
+          receipt = pathlib.Path(sys.argv[1])
+          result = {"exit_code": None, "error": None}
+          try:
+              result["exit_code"] = subprocess.run(sys.argv[2:], check=False).returncode
+          except BaseException as error:
+              result["error"] = repr(error)
+          temporary = receipt.with_suffix(".tmp")
+          with temporary.open("x") as stream:
+              json.dump(result, stream)
+          temporary.replace(receipt)
+          while True:
+              signal.pause()
+          '''
+
+
+          def require(ok, message):
+              if not ok:
+                  raise RuntimeError(message)
+
+
+          def save(path, value):
+              with path.open("x") as stream:
+                  json.dump(value, stream, ensure_ascii=False, indent=2)
+                  stream.write("\n")
+
+
+          def digest(path):
+              with path.open("rb") as stream:
+                  return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+          def budget_left(deadline, maximum, label):
+              value = deadline - time.monotonic()
+              require(value > 0, label + " 期限耗尽")
+              return min(maximum, value)
+
+
+          def members(group, deadline):
+              raw = subprocess.check_output(["ps", "-axo", "pid=,pgid=,stat=,rss="], text=True,
+                                            timeout=budget_left(deadline, 5, "进程清单"))
+              require(time.monotonic() < deadline, "进程清单在期限后返回")
+              result = []
+              for line in raw.splitlines():
+                  pid, pgid, state, rss = line.split()
+                  if int(pgid) == group:
+                      result.append({"pid": int(pid), "pgid": int(pgid), "state": state, "rss_kib": int(rss)})
+              return result
+
+
+          def cleanup_group(proc, completed, deadline):
+              report = {"complete": False, "events": [], "errors": [], "descendants_after_command": []}
+              try:
+                  before = members(proc.pid, deadline)
+                  if completed:
+                      report["descendants_after_command"] = [r for r in before if r["pid"] != proc.pid]
+                  for sig in (signal.SIGTERM, signal.SIGKILL):
+                      live = [r for r in members(proc.pid, deadline) if not r["state"].startswith("Z")]
+                      if not live:
+                          break
+                      report["events"].append({"signal": int(sig), "members": live})
+                      try:
+                          os.killpg(proc.pid, sig)
+                      except ProcessLookupError:
+                          pass
+                      until = min(time.monotonic() + 3, deadline)
+                      while time.monotonic() < until:
+                          if not any(not r["state"].startswith("Z") for r in members(proc.pid, deadline)):
+                              break
+                          time.sleep(budget_left(deadline, 0.05, "组清理"))
+                  remaining = members(proc.pid, deadline)
+                  require(not any(not r["state"].startswith("Z") for r in remaining), "自有进程组仍有活进程")
+                  # 非直属后代由 macOS launchd 回收；先核它们消失，再 reap 仍保留身份的 guardian。
+                  until = min(time.monotonic() + 3, deadline)
+                  while any(r["pid"] != proc.pid for r in remaining) and time.monotonic() < until:
+                      time.sleep(budget_left(deadline, 0.05, "组清理"))
+                      remaining = members(proc.pid, deadline)
+                  require(not any(r["pid"] != proc.pid for r in remaining), "自有后代尚未回收")
+                  report["guardian_exit"] = proc.wait(timeout=budget_left(deadline, 2, "guardian 回收"))
+                  report["guardian_reaped"] = True
+                  require(time.monotonic() < deadline, "组清理在期限后返回")
+                  report["complete"] = True
+              except BaseException as error:
+                  report["errors"].append(repr(error))
+                  # guardian 尚未 reap，PGID 身份仍由本次 Popen 保留。期限耗尽也仅终止自有组；
+                  # 不再启动 ps，也不以无界 wait 侵占归档余量；complete 保持 false。
+                  try:
+                      if not report.get("guardian_reaped", False) and proc.returncode is None:
+                          os.killpg(proc.pid, signal.SIGKILL)
+                          if time.monotonic() < deadline:
+                              report["guardian_exit"] = proc.wait(timeout=budget_left(deadline, 2, "失败回收"))
+                              report["guardian_reaped"] = True
+                  except BaseException as fallback_error:
+                      report["errors"].append(repr(fallback_error))
+              return report
+
+
+          class Runner:
+              def __init__(self, root, scratch, evidence):
+                  self.root, self.scratch, self.evidence = root, scratch, evidence
+                  self.sequence = 0
+                  self.cleanup_complete = True
+                  self.started = time.monotonic()
+                  self.deadline = self.started + ACTIVE_SECONDS
+                  self.phase_ends = {"active": self.deadline, "cleanup": self.started + CLEANUP_END_SECONDS,
+                                     "archive": self.started + ARCHIVE_END_SECONDS,
+                                     "receipt": self.started + RECEIPT_END_SECONDS}
+
+              def check_phase(self, phase):
+                  require(time.monotonic() < self.phase_ends[phase], phase + " 总期限耗尽")
+
+              def run(self, argv, label, seconds=60, env=None, cwd=None, cleanup=False, phase=None):
+                  self.sequence += 1
+                  prefix = self.evidence / f"{self.sequence:02d}-{label}"
+                  done = prefix.with_suffix(".command.json")  # 回执不随 scratch 删除。
+                  receipt = {"argv": argv, "cwd": str(cwd or self.root), "timeout_seconds": seconds,
+                             "exit_code": None, "failure": None, "cleanup": None, "status": "FAIL"}
+                  proc = None
+                  started = time.monotonic()
+                  phase = phase or ("cleanup" if cleanup else "active")
+                  phase_end = self.phase_ends[phase]
+                  # 清理/归档/封存不获新窗口；每条命令前给它自己的 guardian 留固定余量。
+                  command_end = phase_end if phase == "active" else phase_end - GROUP_SECONDS
+                  limit = min(started + seconds, command_end)
+                  receipt.update(phase=phase, deadline=limit, phase_deadline=phase_end, deadline_exceeded=False)
+                  with prefix.with_suffix(".stdout").open("xb") as out, prefix.with_suffix(".stderr").open("xb") as err:
+                      try:
+                          require(time.monotonic() < limit, "活跃监督总期限耗尽")
+                          proc = subprocess.Popen([sys.executable, "-B", "-c", GUARD, str(done), *argv],
+                                                  cwd=cwd or self.root, env=env, stdout=out, stderr=err,
+                                                  start_new_session=True)
+                          receipt["guardian_pid"] = receipt["process_group"] = proc.pid
+                          while not done.exists():
+                              require(time.monotonic() < limit, label + " 期限耗尽")
+                              current = members(proc.pid, limit)
+                              require(any(r["pid"] == proc.pid and not r["state"].startswith("Z") for r in current),
+                                      "guardian 意外退出且无命令回执")
+                              time.sleep(budget_left(limit, 0.25, label))
+                          command = json.loads(done.read_text())
+                          receipt["exit_code"] = command["exit_code"]
+                          receipt["command_error"] = command["error"]
+                          receipt["observed_at"] = time.monotonic()
+                          receipt["deadline_exceeded"] = receipt["observed_at"] >= limit
+                          require(command["error"] is None, "命令启动失败：" + str(command["error"]))
+                          require(command["exit_code"] == 0, label + " 非零退出")
+                          require(not receipt["deadline_exceeded"], label + " 成功回执到达时期限已耗尽")
+                      except BaseException as error:
+                          receipt["failure"] = repr(error)
+                      finally:
+                          if proc is not None:
+                              group_end = self.phase_ends["cleanup"] if phase == "active" else phase_end
+                              receipt["cleanup"] = cleanup_group(proc, done.exists(), min(time.monotonic() + GROUP_SECONDS, group_end))
+                              self.cleanup_complete &= receipt["cleanup"]["complete"]
+                  if time.monotonic() >= phase_end and receipt["failure"] is None:
+                      receipt["failure"] = phase + " 总期限耗尽"
+                  clean = receipt["cleanup"]
+                  if receipt["failure"] is None and clean and clean["complete"] and not clean["descendants_after_command"]:
+                      receipt["status"] = "PASS"
+                  receipt["elapsed_seconds"] = time.monotonic() - started
+                  receipt["logs"] = {suffix: {"sha256": digest(prefix.with_suffix(suffix)),
+                                               "bytes": prefix.with_suffix(suffix).stat().st_size}
+                                     for suffix in (".stdout", ".stderr")}
+                  # 日志摘要也不能让已过阶段期限的结果成为 PASS。
+                  if time.monotonic() >= phase_end:
+                      receipt["status"] = "FAIL"
+                      receipt["failure"] = receipt["failure"] or phase + " 回执封存时期限耗尽"
+                  save(prefix.with_suffix(".receipt.json"), receipt)
+                  require(receipt["status"] == "PASS", label + " 失败，详见 " + prefix.name + ".receipt.json")
+                  return prefix.with_suffix(".stdout").read_bytes()
+
+
+          def image_identity(info, image, mountpoint):
+              matches = [v for v in info.get("images", [])
+                         if Path(v.get("image-path", "")).resolve() == image]
+              require(len(matches) <= 1, "同一路径的镜像身份不唯一")
+              if not matches:
+                  return None
+              entities = matches[0].get("system-entities", [])
+              mounted = [v for v in entities if v.get("mount-point") == str(mountpoint)]
+              whole = [v["dev-entry"] for v in entities if re.fullmatch(r"/dev/disk[0-9]+", v.get("dev-entry", ""))]
+              require(len(mounted) == 1 and len(whole) == 1, "镜像路径/挂载点/整盘身份不唯一")
+              require(re.fullmatch(r"/dev/disk[0-9]+(?:s[0-9]+)+", mounted[0].get("dev-entry", ""))
+                      or mounted[0].get("dev-entry") == whole[0], "挂载设备形状不符")
+              require(re.fullmatch(re.escape(whole[0]) + r"(?:s[0-9]+)*", mounted[0]["dev-entry"]), "挂载设备不属于该整盘")
+              return {"image": str(image), "mountpoint": str(mountpoint), "device": whole[0],
+                      "mounted_device": mounted[0]["dev-entry"]}
+
+
+          def interrupt(signum, _frame):
+              raise RuntimeError(f"监督器收到中断 {signum}")
+
+
+          def main():
+              require(sys.platform == "darwin" and os.environ.get("GITHUB_ACTIONS") == "true", "仅允许 GitHub macOS runner")
+              root = Path(os.environ["GITHUB_WORKSPACE"]).resolve()
+              temp = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+              artifacts = temp / "c5-hfs-artifacts"
+              artifacts.mkdir(exist_ok=False)
+              evidence = artifacts / "evidence"
+              evidence.mkdir()
+              scratch = Path(tempfile.mkdtemp(prefix="c5-hfs-", dir=temp)).resolve()
+              mountpoint, image = scratch / "mount", scratch / "carrier.dmg"
+              run = Runner(root, scratch, evidence)
+              final = {"status": "FAIL", "failure": None, "cleanup_failure": None,
+                       "scratch": str(scratch), "artifacts": str(artifacts), "test": TEST,
+                       "attach_attempted": False, "detached": False, "image_archived": False,
+                       "scratch_removed": False, "source_identity": None}
+              attached = None
+              save(evidence / "INCOMPLETE.json", {"status": "INCOMPLETE_NOT_ACCEPTED", "started": run.started,
+                   "phase_deadlines": run.phase_ends, "final_receipt_required": True})
+              try:
+                  for sig in (signal.SIGINT, signal.SIGTERM):
+                      signal.signal(sig, interrupt)
+                  checked = runpy.run_path(str(root / ".github/scripts/run-c7a-remote.py"))
+                  identity = checked["source_identity"](root)
+                  final["source_identity"] = identity
+                  save(evidence / "configuration.json", {**identity, "test": TEST, "fixed_image_mib": 16,
+                       "build_timeout_seconds": 1200, "test_timeout_seconds": 180, "tool_timeout_seconds": 60,
+                       "active_window_seconds": ACTIVE_SECONDS, "cleanup_end_seconds": CLEANUP_END_SECONDS,
+                       "archive_end_seconds": ARCHIVE_END_SECONDS, "receipt_end_seconds": RECEIPT_END_SECONDS,
+                       "group_timeout_seconds": GROUP_SECONDS, "step_timeout_minutes": 33, "job_timeout_minutes": 35,
+                       "initial_free_bytes": shutil.disk_usage(temp).free,
+                       "reviewed_source": checked["REVIEWED_SOURCE"], "reviewed_tree": checked["REVIEWED_SOURCE_TREE"]})
+                  run.run(["rustc", "-vV"], "rustc")
+                  run.run(["cargo", "-V"], "cargo")
+                  run.run(["sw_vers"], "macos")
+                  env = dict(os.environ, CARGO_TARGET_DIR=str(scratch / "target"), CARGO_INCREMENTAL="0",
+                             PYO3_PYTHON=sys.executable, PYTHONDONTWRITEBYTECODE="1")
+                  raw = run.run(["cargo", "test", "--locked", "--features", "s_session", "--lib", "--jobs", "2",
+                                 "--no-run", "--message-format=json"], "build", 1200, env, root / "rust")
+                  built = []
+                  for line in raw.splitlines():
+                      record = json.loads(line)
+                      if (record.get("reason") == "compiler-artifact" and record.get("executable")
+                              and record.get("profile", {}).get("test")
+                              and record.get("target", {}).get("name") == "newchan_rust"
+                              and Path(record["target"]["src_path"]).resolve() == root / "rust/src/lib.rs"):
+                          built.append(Path(record["executable"]).resolve(strict=True))
+                  require(len(built) == 1, "必须唯一定位本库测试可执行文件")
+                  executable = built[0]
+                  require(executable.is_relative_to(scratch / "target") and executable.is_file(), "库测试产物越界")
+                  binary_sha = digest(executable)
+                  save(evidence / "test-binary.json", {"path": str(executable), "sha256": binary_sha})
+                  listing = run.run([str(executable), TEST, "--exact", "--ignored", "--list"], "exact-test-list", 60, env)
+                  lines = listing.decode().splitlines()
+                  require([v for v in lines if v.endswith(": test")] == [TEST + ": test"], "具名 ignored 入口不是唯一一条")
+                  require("1 test, 0 benchmarks" in lines, "测试发现数不是 1")
+                  require(checked["source_identity"](root) == identity, "编译/发现期间来源改变")
+                  require(not image.exists(), "拒绝覆盖镜像")
+                  mountpoint.mkdir()
+                  run.run(["hdiutil", "create", "-size", "16m", "-fs", "HFS+", "-format", "UDRW",
+                           "-volname", "c5-hfs", str(image)], "create-image")
+                  final["attach_attempted"] = True
+                  attach = run.run(["hdiutil", "attach", "-plist", "-nobrowse", "-noautoopen",
+                                    "-mountpoint", str(mountpoint), str(image)], "attach-image")
+                  plistlib.loads(attach)  # 保留原 plist 日志，实际身份另核 fresh info。
+                  info = plistlib.loads(run.run(["hdiutil", "info", "-plist"], "attached-info"))
+                  attached = image_identity(info, image, mountpoint)
+                  require(attached is not None, "找不到本次已挂载镜像")
+                  require(os.path.ismount(mountpoint), "专属挂载点未实际挂载")
+                  disk = plistlib.loads(run.run(["diskutil", "info", "-plist", str(mountpoint)], "carrier-info"))
+                  require(disk.get("MountPoint") == str(mountpoint) and disk.get("FilesystemType") == "hfs", "实际载体不是指定 HFS 挂载点")
+                  vfs = os.statvfs(mountpoint)
+                  capacity = vfs.f_blocks * vfs.f_frsize
+                  require(0 < capacity <= 16 * MIB, "实际载体超过原 staged/store 上限")
+                  save(evidence / "carrier.json", {**attached, "statvfs_capacity": capacity,
+                       "statvfs_available": vfs.f_bavail * vfs.f_frsize,
+                       "sqlite_source_id": "由原 Stage::new 的固定 source-id 断言验证，不以系统 sqlite 替代"})
+                  database = mountpoint / "eb.sqlite"
+                  require(not database.exists(), "目标测试库必须尚不存在")
+                  env["CLOSURE_CARRIER_DB"] = str(database)
+                  output = run.run([str(executable), TEST, "--exact", "--ignored", "--nocapture", "--test-threads=1"],
+                                   "hfs-test", 180, env)
+                  text = output.decode()
+                  require(re.search(r"(?m)^running 1 test$", text) is not None, "运行数不是 1")
+                  require(re.search(r"(?m)^test " + re.escape(TEST) + r" \.\.\. ok$", text) is not None, "具名锁未成功")
+                  require(re.search(r"(?m)^test result: ok\. 1 passed; 0 failed; 0 ignored; 0 measured; [0-9]+ filtered out;", text) is not None,
+                          "测试结果不是恰一通过且零忽略")
+                  require(digest(executable) == binary_sha, "运行期间二进制变化")
+                  require(checked["source_identity"](root) == identity, "运行期间来源变化")
+                  save(evidence / "test-result.json", {"test": TEST, "passed": 1, "failed": 0, "ignored": 0,
+                                                       "source": identity, "binary_sha256": binary_sha})
+                  run.check_phase("active")
+                  final["status"] = "PASS_C5_HFS"
+              except BaseException as error:
+                  final["failure"] = repr(error)
+                  final["status"] = "FAIL"
+              finally:
+                  for sig in (signal.SIGINT, signal.SIGTERM):
+                      signal.signal(sig, signal.SIG_IGN)
+                  try:
+                      require(run.cleanup_complete, "存在未回收的自有进程组，禁止误删 scratch")
+                      if final["attach_attempted"]:
+                          info = plistlib.loads(run.run(["hdiutil", "info", "-plist"], "cleanup-info", cleanup=True))
+                          current = image_identity(info, image, mountpoint)
+                          if current is not None:
+                              require(attached is None or current == attached, "镜像设备身份改变，禁止卸其它卷")
+                              try:
+                                  run.run(["hdiutil", "detach", current["device"]], "detach-image", cleanup=True)
+                              except BaseException as normal_error:
+                                  save(evidence / "normal-detach-failure.json", {"error": repr(normal_error)})
+                                  final["cleanup_failure"] = repr(normal_error)
+                                  final["status"] = "FAIL"  # force 仅回收，不能把原清理失败改签通过。
+                                  fresh = plistlib.loads(run.run(["hdiutil", "info", "-plist"], "force-check-info", cleanup=True))
+                                  remaining = image_identity(fresh, image, mountpoint)
+                                  require(remaining is None or remaining == current, "卸载失败后身份改变，禁止 force")
+                                  if remaining is not None:
+                                      run.run(["hdiutil", "detach", "-force", current["device"]], "force-detach-image", cleanup=True)
+                              final_info = plistlib.loads(run.run(["hdiutil", "info", "-plist"], "detached-info", cleanup=True))
+                              require(image_identity(final_info, image, mountpoint) is None, "镜像仍在挂载表中")
+                          require(not os.path.ismount(mountpoint), "专属挂载点仍然挂载，禁止复制/删除")
+                      final["detached"] = True
+                      run.check_phase("cleanup")
+                      if image.exists():
+                          metadata = {"source_identity": final["source_identity"], "detached_before_copy": True,
+                                      "test_status_before_cleanup": final["status"]}
+                          run.run([sys.executable, "-B", "-c", ARCHIVE, str(image), str(artifacts / "carrier-image"),
+                                   json.dumps(metadata)], "archive-image", phase="archive")
+                          final["image_archived"] = True
+                      require(scratch.parent == temp and scratch.name.startswith("c5-hfs-") and not scratch.is_symlink(), "scratch 所属越界")
+                      run.run([sys.executable, "-B", "-c", "import shutil,sys; shutil.rmtree(sys.argv[1])", str(scratch)],
+                              "remove-scratch", phase="archive")
+                      final["scratch_removed"] = True
+                      run.check_phase("archive")
+                  except BaseException as error:
+                      final["cleanup_failure"] = repr(error)
+                      final["status"] = "FAIL"
+                  try:
+                      # 清单不自摘要，也不摘要尚在写入的清单命令日志/回执；这些由最终 RESULT 绑定。
+                      inventory_prefix = f"{run.sequence + 1:02d}-artifact-inventory"
+                      run.run([sys.executable, "-B", "-c", INVENTORY, str(artifacts), inventory_prefix],
+                              "artifact-inventory", phase="receipt")
+                      final["inventory_sha256"] = digest(evidence / "ARTIFACTS.json")
+                      final["inventory_receipt_sha256"] = digest(evidence / (inventory_prefix + ".receipt.json"))
+                      run.check_phase("receipt")
+                  except BaseException as error:
+                      final["seal_failure"] = repr(error)
+                      final["status"] = "FAIL"
+                  final["elapsed_seconds"] = time.monotonic() - run.started
+                  final["phase_deadlines"] = run.phase_ends
+                  if time.monotonic() >= run.phase_ends["receipt"]:
+                      final["seal_failure"] = final.get("seal_failure") or "最终回执期限耗尽"
+                      final["status"] = "FAIL"
+                  # 最后 30s 是失败回执/退出余量，不能延长任何成功期限；缺最终回执即不可验收。
+                  save(evidence / "RESULT.json", final)
+                  if time.monotonic() >= run.phase_ends["receipt"]:
+                      final["status"] = "FAIL"
+                      save(evidence / "SEAL-FAILED.json", {"status": "FAIL", "reason": "最终回执写入越过期限"})
+              print(json.dumps(final, ensure_ascii=False))
+              return 0 if final["status"] == "PASS_C5_HFS" else 1
+
+
+          if __name__ == "__main__":
+              raise SystemExit(main())
+          PY
+      - name: Upload C5 HFS source, test and cleanup evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 1406-c5-hfs-evidence-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/c5-hfs-artifacts/evidence/
+          if-no-files-found: error
+      - name: Upload detached C5 HFS image and SHA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 1406-c5-hfs-image-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/c5-hfs-artifacts/carrier-image/
+          # 构建或挂载前失败可能没有可封存镜像；前步骤的失败仍使 job 红。
+          if-no-files-found: warn
 
   # #1394 根裁定 A：手动触发本 CI 时一并执行 macOS 作业（financial_session 的 macOS 读数与
   #   economic_session 等库测试），一次触发拿全套读数。push main 不经本作业，由 ci-macos.yml 自身的
