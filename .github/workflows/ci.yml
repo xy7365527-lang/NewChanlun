@@ -307,10 +307,10 @@ jobs:
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --lib --features backtest_bin --jobs 1
 
   # #1406 C7a：已审 WE-5 驱动的六轨真实 E/B 运行，独立于其它 Rust job。
-  # 仅显式 dispatch 时运行；失败不重试，不变更冻结输入或驱动原时限。
+  # 仅本次专属分支显式 dispatch 时运行；失败不重试，不变更冻结输入或驱动原时限。
   c7a-runtime-1406:
     name: "#1406 C7a 六轨与 Resolve 恢复"
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/1406-c7a-20261015'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
