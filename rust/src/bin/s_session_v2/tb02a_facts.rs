@@ -375,8 +375,8 @@ pub(super) fn catalog_axes(
         .map(|o| serde_json::from_str::<Value>(o["payload_json"].as_str().unwrap()).unwrap());
     for axis in [
         "CC-001", "CC-002", "CC-003", "CC-004", "CC-005", "CC-006", "CC-007", "CC-008", "CC-009",
-        "CC-010", "CC-011", "CC-012", "CC-013", "CC-014", "CC-016", "CC-017", "CC-022", "CC-054",
-        "CC-055", "CC-056",
+        "CC-010", "CC-011", "CC-012", "CC-013", "CC-014", "CC-016", "CC-017", "CC-018", "CC-020",
+        "CC-022", "CC-054", "CC-055", "CC-056",
     ] {
         let kind = match axis {
             "CC-001" | "CC-002" | "CC-003" | "CC-004" => "CC-004.inclusion_step",
@@ -392,6 +392,8 @@ pub(super) fn catalog_axes(
             "CC-013" | "CC-014" => "CC-013.segment",
             "CC-016" => "CC-016.",
             "CC-017" => "CC-017.center_roles",
+            "CC-018" => "CC-018.unit_core_position",
+            "CC-020" => "CC-020.center_pair",
             "CC-022" => "CC-022.unit_assignment",
             "CC-055" => "CC-055.",
             "CC-056" => "CC-056.",
@@ -457,6 +459,15 @@ pub(super) fn catalog_axes(
                 waiting.extend(p["data"]["waiting_reasons"].as_array().unwrap().clone());
             }
         }
+        if matches!(axis, "CC-018" | "CC-020") {
+            for o in objects
+                .iter()
+                .filter(|o| o["kind"] == "CC-056.pair_version")
+            {
+                let p: Value = serde_json::from_str(o["payload_json"].as_str().unwrap()).unwrap();
+                waiting.extend(p["data"]["waiting_reasons"].as_array().unwrap().clone());
+            }
+        }
         waiting.sort_by_key(canonical_json);
         waiting.dedup();
         let mut evidence = json!({"scope":"TB-02-A","object_ids":ids,"waiting_reasons":waiting});
@@ -476,6 +487,11 @@ pub(super) fn catalog_axes(
             evidence["scope"] = json!("TB-02-E");
             evidence["delivered_subobligations"] = json!(tb02e::DELIVERED_SUBOBLIGATIONS);
             evidence["deferred_subobligations"] = json!(tb02e::DEFERRED_SCOPE);
+        }
+        if matches!(axis, "CC-018" | "CC-020") {
+            evidence["scope"] = json!("TB-02-F");
+            evidence["delivered_subobligations"] = json!(tb02f::DELIVERED_SUBOBLIGATIONS);
+            evidence["deferred_subobligations"] = json!(tb02f::DEFERRED_SCOPE);
         }
         let mut run = if ids.is_empty() {
             if waiting.is_empty() {
@@ -508,7 +524,7 @@ pub(super) fn catalog_axes(
                 .unwrap());
             evidence["replaces"] = json!(replaces);
         }
-        axes.insert(axis.into(),json!({"impl_status":if matches!(axis,"CC-012"|"CC-013"|"CC-014"|"CC-016"|"CC-017"|"CC-022"){"not_implemented"}else{"implemented"},"proof_status":"not_proved","run_status":run,"evidence":evidence}));
+        axes.insert(axis.into(),json!({"impl_status":if matches!(axis,"CC-012"|"CC-013"|"CC-014"|"CC-016"|"CC-017"|"CC-018"|"CC-020"|"CC-022"){"not_implemented"}else{"implemented"},"proof_status":"not_proved","run_status":run,"evidence":evidence}));
     }
     Value::Object(axes)
 }

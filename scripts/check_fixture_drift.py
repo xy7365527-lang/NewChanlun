@@ -64,6 +64,10 @@ ROOT = Path(__file__).resolve().parent.parent
 FORMAL = ROOT / "formal"
 
 FIXTURES = {
+    "center_pair_1424": {
+        "exporter": "Origin/CenterPairFixtureExport.lean",
+        "fixture": "rust/tests/fixtures/center_pair_1424_lean.json",
+    },
     "parity": {
         "exporter": "Origin/ParityFixtureExport.lean",
         "fixture": "rust/tests/fixtures/theta_v0_parity.json",

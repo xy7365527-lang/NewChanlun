@@ -47,6 +47,8 @@ mod tb02b;
 mod tb02c;
 #[path = "s_session_v2/tb02e.rs"]
 mod tb02e;
+#[path = "s_session_v2/tb02f.rs"]
+mod tb02f;
 use std::path::{Path, PathBuf};
 
 #[cfg(test)]
@@ -62,7 +64,8 @@ use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde_json::{json, Value};
 
 /// CC-006 验收合同修订（SPEC-COVERAGE-INPUT.json `/classification_axes/5`）。
-const RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/1+segment-second/1+center-seed/1";
+const RULE_REVISION: &str =
+    "s2-axis-quantifiers+new-bi/1+segment-second/1+center-seed/1+center-pair/1";
 
 /// S 唯一结构写者的默认 writer_epoch（可经 `--writer-epoch` / `recover` 换代）。
 const DEFAULT_WRITER_EPOCH: &str = "1";
@@ -2390,20 +2393,33 @@ fn advance_core(
         // #1419 TB-02-E：同 cut 段对象经输入合同（schema v1 §1）核成塔 L0 同一单元列表后发布中枢事实；
         // 不符 ⟹ 本 cut 整体失败（根裁定 D-J 第 5 点），错误串即逐位不符收据。
         let units = tb02e::units_from_segments(&segments, &layer.segments)?;
-        let (centers, center_edges) = tb02e::build(
+        let active = read_active_objects(&conn)?;
+        let (centers, center_edges, center_build) = tb02e::build(
             &units,
             &raw_by_coord,
             &all_events,
-            &read_active_objects(&conn)?,
+            &active,
             gen,
             &structure_cut,
             frontier,
             v2::commit_time(&conn, context)?,
         )?;
+        // #1424 TB-02-F：同一次扫描派生相邻中枢五叶关系与延伸测试单元位置（不重扫，#804 L2）。
+        let (pairs, pair_edges) = tb02f::build(
+            &units,
+            &center_build,
+            &raw_by_coord,
+            &active,
+            gen,
+            &structure_cut,
+            frontier,
+        );
         objects.extend(segments);
         relations.extend(edges);
         objects.extend(centers);
         relations.extend(center_edges);
+        objects.extend(pairs);
+        relations.extend(pair_edges);
     }
 
     // 去重：同一 (kind, window, reason) 只发布一次。

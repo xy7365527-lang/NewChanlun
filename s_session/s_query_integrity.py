@@ -348,6 +348,7 @@ def _published_axes(rule_revision):
         "s2-axis-quantifiers+new-bi/1+segment-first/1": tb02.FIRST_SEGMENT_AXES,
         tb02.SEGMENT_SECOND_RULE: tb02.SEGMENT_SECOND_AXES,
         tb02.CENTER_RULE: tb02.CENTER_AXES,
+        tb02.PAIR_RULE: tb02.PAIR_AXES,
     }
     # 未识别规则保持原有的完整轴要求，不退到旧规则的较小集合。
     return known.get(rule_revision, tb02.AXES)
@@ -1096,6 +1097,7 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
         # 无论命中memo与否，独立索引生命周期和全raw前缀均来自本次完整typed捕获。
         for item in raw[prev_frontier+1:frontier+1]:
             effective_sources[item["source_coord"]] = {key: item[key] for key in tb02.REF_FIELDS}
+        previous_pair_records = [obj for obj in active.values() if obj["kind"] == tb02.PAIR_KINDS[1]]
         for obj in births[gen]:
             if obj["kind"] in tb02.KINDS:
                 by_source, source_bars = tb02.validate_sources(obj, effective_sources)
@@ -1123,6 +1125,9 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
             tb02.validate_axes(header["catalog_evidence"].get("axes"), set(active))
             tb02.validate_segment_links(list(active.values()), header["catalog_evidence"]["axes"])
             tb02.validate_center_links(list(active.values()), header["catalog_evidence"]["axes"])
+            tb02.validate_pair_rule(list(active.values()), meta["rule_revision"])
+            tb02.validate_pair_links(list(active.values()), header["catalog_evidence"]["axes"])
+            tb02.validate_pair_transition(previous_pair_records, list(active.values()), births[gen], generation=str(gen))
             revision_evidence = header["catalog_evidence"]["axes"]["CC-056"]["evidence"]
             revision_refs = [{key: item[key] for key in tb02.REF_FIELDS} for item in raw[prev_frontier+1:frontier+1] if int(item["revision"]) > 1]
             _same(revision_evidence["raw_revisions"], revision_refs, h, "CC056.raw_revisions")

@@ -82,14 +82,15 @@ def verify(database, case, node=None):
         # 整 cut 中枢门只看带 payload 的对象（CC-006 形态对象无 payload，不属中枢合同）。
         records = [{'kind': o['kind'], 'object_id': o['object_id'], 'payload': o['payload']} for o in snapshot['objects'] if 'payload' in o]
         rule = snapshot['catalog_evidence']['rule_revision']
-        require(rule == contract.CENTER_RULE, f'cut 规则 {rule}')
-        contract.validate_center_cut(records, rule, axes)
+        # #1424 起 S 写出 +center-pair/1；中枢族对象逐字不变，中枢门照旧判，对族另过对门（validate_pair_cut 内含中枢门）。
+        require(rule in (contract.CENTER_RULE, contract.PAIR_RULE), f'cut 规则 {rule}')
+        (contract.validate_pair_cut if rule == contract.PAIR_RULE else contract.validate_center_cut)(records, rule, axes)
         states.append({'state': state, 'records': records, 'axes': axes})
     if node:
         script = ("const fs=require('node:fs'),A=require(process.argv[1]);"
                   "for(const x of JSON.parse(fs.readFileSync(0,'utf8'))){const s=x.state;A.validateTB02Catalog(s.catalog);"
                   "A.validateTB02CutSources(s.snapshot);A.validateTB02Axes(s.snapshot.catalog_evidence.axes,s.snapshot.objects);"
-                  "A.validateCenterCut(x.records,s.snapshot.catalog_evidence.rule_revision,x.axes);}")
+                  "const r=s.snapshot.catalog_evidence.rule_revision;(r.endsWith('+center-pair/1')?A.validatePairCut:A.validateCenterCut)(x.records,r,x.axes);}")
         run = subprocess.run([str(node), '-e', script, str(ROOT / 'browser/tb01c-client.js')], input=json.dumps(states),
                              text=True, capture_output=True, timeout=120)
         require(run.returncode == 0, run.stderr)

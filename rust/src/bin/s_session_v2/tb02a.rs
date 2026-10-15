@@ -258,6 +258,7 @@ pub(super) fn project(o: &Value) -> Result<Value, String> {
     ) && !tb02b::KINDS.contains(&kind)
         && !tb02c::KINDS.contains(&kind)
         && !tb02e::KINDS.contains(&kind)
+        && !tb02f::KINDS.contains(&kind)
     {
         return Err("StorageUnavailable：未知结构事实kind".into());
     }

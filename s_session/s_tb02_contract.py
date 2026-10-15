@@ -25,6 +25,12 @@ CENTER_KINDS = ("CC-016.center_seed_attempt", "CC-016.center", "CC-017.center_ro
 KINDS += CENTER_KINDS
 AXES += ("CC-016", "CC-017", "CC-022")
 CENTER_AXES = AXES
+# #1424 TB-02-F：规则段 +center-pair/1 只追加对族与 CC-018/CC-020 两轴；s-center/1 对象在新规则 cut 照常读取。
+PAIR_RULE = CENTER_RULE + "+center-pair/1"
+PAIR_KINDS = ("CC-018.unit_core_position", "CC-020.center_pair", "CC-055.pair_relation", "CC-055.pair_change", "CC-056.pair_version")
+KINDS += PAIR_KINDS
+AXES += ("CC-018", "CC-020")
+PAIR_AXES = AXES
 
 FACT_COLUMNS = ("object_id", "object_revision", "kind", "batch_id", "fact_key", "payload_json", "input_refs_json", "source_coords_json", "first_known_generation", "first_known_cut", "published_generation", "withdrawn_generation", "withdrawal_reason", "superseded_by")
 FACT_FIELDS = ("object_id", "object_revision", "kind", "batch_id", "fact_key", "payload", "input_refs", "source_coords", "first_known_generation", "first_known_cut", "published_generation", "withdrawn_generation", "withdrawal_reason", "superseded_by", "lifecycle")
@@ -140,6 +146,8 @@ def _validate_payload_fields(kind, p):
         validate_segment_payload(kind, p)
     elif kind in CENTER_KINDS:
         validate_center_payload(kind, p)
+    elif kind in PAIR_KINDS:
+        validate_pair_payload(kind, p)
     elif kind in BI_KINDS:
         validate_bi_payload(kind, p)
     elif kind == KINDS[0]:
@@ -331,16 +339,20 @@ def _validate_fact(value, meta=None, raw=None, *, _identity_hash=None):
     if source_coords != [ref["source_coord"] for ref in references]:
         raise ValueError("事实源坐标与扁平输入引用不一一对应")
     p, kind = value["payload"], value["kind"]
-    slot = p["slot"] if kind in BI_KINDS + SEGMENT_KINDS + CENTER_KINDS else p["incoming"]["source_coord"] if kind == KINDS[0] else p["group_anchor"] if kind == KINDS[1] else p["window"] if kind == KINDS[2] else "TB-02-A"
+    if kind in (PAIR_KINDS[1], PAIR_KINDS[3]):
+        _validate_pair_publication(value, value["first_known_generation"])
+    slot = p["slot"] if kind in BI_KINDS + SEGMENT_KINDS + CENTER_KINDS + PAIR_KINDS else p["incoming"]["source_coord"] if kind == KINDS[0] else p["group_anchor"] if kind == KINDS[1] else p["window"] if kind == KINDS[2] else "TB-02-A"
     if value["fact_key"] != canonical([kind, slot]).decode():
         raise ValueError("fact_key 与真实语义槽不符")
     if meta is not None:
         if kind in SEGMENT_KINDS:
-            expected_schema = "s-segment/2" if meta["rule_revision"] in (SEGMENT_SECOND_RULE, CENTER_RULE) else "s-segment/1" if meta["rule_revision"] == "s2-axis-quantifiers+new-bi/1+segment-first/1" else None
+            expected_schema = "s-segment/2" if meta["rule_revision"] in (SEGMENT_SECOND_RULE, CENTER_RULE, PAIR_RULE) else "s-segment/1" if meta["rule_revision"] == "s2-axis-quantifiers+new-bi/1+segment-first/1" else None
             if p["schema_revision"] != expected_schema:
                 raise ValueError("段合同与cut规则版本不符")
-        if kind in CENTER_KINDS and meta["rule_revision"] != CENTER_RULE:
+        if kind in CENTER_KINDS and meta["rule_revision"] not in (CENTER_RULE, PAIR_RULE):
             raise _e("RULE_MIX", "s-center/1 对象出现在旧规则 cut")
+        if kind in PAIR_KINDS and meta["rule_revision"] != PAIR_RULE:
+            raise _f("RULE_MIX", "s-center-pair/1 对象出现在旧规则 cut")
         identity = {key: value[key] for key in ("kind", "fact_key", "payload", "input_refs")}
         identity.update(profile_id=meta["profile_id"], rule_revision=meta["rule_revision"])
         digest = (hashlib.sha256(canonical(identity)).hexdigest() if _identity_hash is None
@@ -385,7 +397,7 @@ def validate_sources(value, effective):
 
 
 def validate_axes(axes, object_ids=None):
-    keys(axes, CENTER_AXES if "CC-016" in axes else SEGMENT_SECOND_AXES if "CC-014" in axes else FIRST_SEGMENT_AXES if "CC-011" in axes else BI_AXES if "CC-008" in axes else LEGACY_AXES, "catalog.axes")
+    keys(axes, PAIR_AXES if "CC-018" in axes else CENTER_AXES if "CC-016" in axes else SEGMENT_SECOND_AXES if "CC-014" in axes else FIRST_SEGMENT_AXES if "CC-011" in axes else BI_AXES if "CC-008" in axes else LEGACY_AXES, "catalog.axes")
     for cid, value in axes.items():
         keys(value, ("impl_status", "proof_status", "run_status", "evidence"), cid)
         if value["impl_status"] not in ("implemented", "not_implemented") or value["proof_status"] != "not_proved" or value["run_status"] not in ("run", "waiting", "not_run"):
@@ -393,8 +405,14 @@ def validate_axes(axes, object_ids=None):
         evidence = value["evidence"]
         base = ("scope", "object_ids", "waiting_reasons", "raw_revisions", "withdrawals", "replaces") if cid == "CC-056" else ("scope", "object_ids", "waiting_reasons")
         center_scoped = evidence.get("scope") == "TB-02-E"
+        pair_scoped = evidence.get("scope") == "TB-02-F"
         scoped = evidence.get("scope") == "TB-02-D"
-        keys(evidence, base + (("delivered_subobligations", "deferred_subobligations") if scoped or center_scoped else ()), cid + ".evidence")
+        keys(evidence, base + (("delivered_subobligations", "deferred_subobligations") if scoped or center_scoped or pair_scoped else ()), cid + ".evidence")
+        if pair_scoped:
+            if evidence["delivered_subobligations"] != TB02F_DELIVERED or evidence["deferred_subobligations"] != TB02F_DEFERRED:
+                raise ValueError("中枢对子义务范围不符")
+            if value["impl_status"] != "not_implemented":
+                raise ValueError("有限交付冒称全轴完成")
         if center_scoped:
             if evidence["delivered_subobligations"] != TB02E_DELIVERED or evidence["deferred_subobligations"] != TB02E_DEFERRED:
                 raise ValueError("中枢子义务范围不符")
@@ -417,7 +435,7 @@ def validate_axes(axes, object_ids=None):
             actual_change = any(evidence[name] for name in ("raw_revisions", "withdrawals", "replaces"))
             if value["run_status"] != ("run" if actual_change else "not_run"):
                 raise ValueError("修订轴状态与实际修订/撤回/替代证据不一致")
-        if evidence["scope"] != ("TB-02-E" if cid in ("CC-016", "CC-017", "CC-022") else "TB-02-D" if "CC-014" in axes and cid in ("CC-011", "CC-012", "CC-013", "CC-014") else "TB-02-C" if cid in ("CC-011", "CC-012", "CC-013") else "TB-02-A"):
+        if evidence["scope"] != ("TB-02-F" if cid in ("CC-018", "CC-020") else "TB-02-E" if cid in ("CC-016", "CC-017", "CC-022") else "TB-02-D" if "CC-014" in axes and cid in ("CC-011", "CC-012", "CC-013", "CC-014") else "TB-02-C" if cid in ("CC-011", "CC-012", "CC-013") else "TB-02-A"):
             raise ValueError("逐轴证据范围不符")
         ids = strings(evidence["object_ids"], "axis.object_ids")
         if len(ids) != len(set(ids)) or (object_ids is not None and not set(ids) <= object_ids):
@@ -1183,7 +1201,7 @@ def _validate_roles(roles):
 
 def validate_center_rule(records, rule_revision):
     """规则修订与中枢族互斥：中枢对象只在中枢规则 cut 出现；跨版本混用拒绝。"""
-    center_rule = rule_revision == CENTER_RULE
+    center_rule = rule_revision in (CENTER_RULE, PAIR_RULE)
     for r in records:
         if r["kind"] in CENTER_KINDS or r["kind"].startswith(("CC-016.", "CC-017.", "CC-022.")):
             _need(center_rule, "RULE_MIX", "s-center/1 对象出现在旧规则 cut")
@@ -1324,6 +1342,9 @@ def validate_center_links(records, axes=None):
                 if v["value"] is None:
                     _need(upgrade, "ROLE_NULL", "非 ≥9 中枢的动态变量不得为 null")
                     continue
+                # #1424 C1：待升级窗口不能用真实 Zn 极值伪装成已获准的动态角色。
+                if role != "CORE":
+                    _need(not upgrade, "ROLE_NULL", "≥9 待升级中枢的动态变量必须为 null")
                 attr, pick = _ROLE_RULE[name]
                 values = [seg[m][attr] for m in allowed[name]]
                 want = pick(values)
@@ -1397,3 +1418,390 @@ def expand_center_corpus(corpus):
             seen.add(oid)
         records.extend(case["add"])
         yield case["name"], case["expected"], case["rule_revision"], records, case["axes"] if case["axes"] is not None else base["axes"]
+
+
+# ── #1424 TB-02-F 相邻中枢五叶关系（CC-020）与延伸测试单元位置（CC-018），schema `s-center-pair/1` ─────
+# 只验类型、身份、引用闭合与跨对象一致：五叶、16 格矩阵、证据与位置由本门按定义独立重算（不信写者），输入取同 cut
+# CC-017 角色（其值已由中枢门按 Zn 成员重算）。每个拒绝以 `TB02F_<CODE>:` 开头，tb01c-client.js 对同一语料给出
+# 同一原因码（test_tb02f_contract 逐条对拍）。根裁定 #1424 issuecomment-6160553615。
+PAIR_TUPLE = ("s-center-pair/1", "center-pair/1", "zn_outer_five_leaf_pending_ge9", "main")
+TB02F_DELIVERED = ["l0_unit_core_position_five_leaves", "l0_adjacent_pair_five_leaves_zn_outer_with_full_matrix", "expansion_relation_separate_from_realization"]
+TB02F_DEFERRED = ["upper_level_pairs_1429", "ge9_pairs_pending_1429", "upper_center_realization_1429", "trend_realization_1426", "first_retest_destruction_1434", "two_step_settlement_r5_1496"]
+PAIR_LEAVES = ("CORE_NOT_STRICTLY_SEPARATED", "UP_NEWBIRTH", "DOWN_NEWBIRTH", "UP_EXPANSION", "DOWN_EXPANSION")
+UNIT_POSITIONS = ("STRICT_BELOW", "LOW_TOUCH", "INTERIOR_CONTACT", "HIGH_TOUCH", "STRICT_ABOVE")
+TESTED_ROLES = ("EXTENSION_MEMBER", "BREAK_UNIT", "UPGRADE_PENDING_MEMBER")
+PAIR_ENDPOINTS = ("DD", "ZD", "ZG", "GG")
+PAIR_PENDING = "PENDING_UPGRADE_TB02H"
+PAIR_REALIZATION = {"upper_center": "NOT_CONSTRUCTED_DEFERRED_1429", "trend": "NOT_ASSERTED_DEFERRED_1426"}
+PAIR_DESTRUCTION = "NOT_EVALUATED_DEFERRED_1434"
+PAIR_CHANGES = ("formed", "leaf_revised", "pending_upgrade", "inputs_revised", "withdrawn")
+
+
+def _f(code, message):
+    return ValueError("TB02F_" + code + ": " + message)
+
+
+def _needf(ok, code, message):
+    if not ok:
+        raise _f(code, message)
+
+
+def _keys_f(value, expected, name):
+    _needf(type(value) is dict and set(value) == set(expected), "SHAPE", name + " 字段缺失/多余")
+
+
+def _int_f(value, name, minimum=None):
+    try:
+        return integer(value, name, minimum)
+    except ValueError as err:
+        raise _f("SHAPE", str(err)) from None
+
+
+def _text_f(value, name):
+    _needf(type(value) is str and value != "", "SHAPE", name + " 必须是非空文本")
+    return value
+
+
+def _known_f(k):
+    _keys_f(k, ("generation", "input_frontier", "receipt_id", "received_at", "semantic_commit_ns"), "known_at")
+    _int_f(k["generation"], "generation", 1)
+    _int_f(k["input_frontier"], "input_frontier", -1)
+    for name in ("receipt_id", "received_at"):
+        if k[name] is not None:
+            _text_f(k[name], name)
+    if k["semantic_commit_ns"] is not None:
+        _int_f(k["semantic_commit_ns"], "semantic_commit_ns", 0)
+
+
+def _anchor_f(prefix, value):
+    _needf(type(value) is str and re.fullmatch(prefix + r":[1-9][0-9]*:(?:0|[1-9][0-9]*)", value) is not None, "IDENTITY", "身份须为 " + prefix + ":<代>:<锚>")
+    return value[len(prefix) + 1:]
+
+
+def pair_leaves(a, b):
+    """SPEC #1340 CC-020 五叶逐叶独立求值（不走判定链）；a/b 为 {DD,ZD,ZG,GG} 整数。域内恰一。"""
+    sep = b["ZG"] < a["ZD"] or b["ZD"] > a["ZG"]
+    preds = (("CORE_NOT_STRICTLY_SEPARATED", not sep), ("UP_NEWBIRTH", b["DD"] > a["GG"]), ("DOWN_NEWBIRTH", b["GG"] < a["DD"]),
+             ("UP_EXPANSION", b["ZD"] > a["ZG"] and b["DD"] <= a["GG"]), ("DOWN_EXPANSION", b["ZG"] < a["ZD"] and b["GG"] >= a["DD"]))
+    return [leaf for leaf, holds in preds if holds]
+
+
+def unit_position(lo, hi, zd, zg):
+    """SPEC #1340 CC-018 五叶（ZD<ZG、lo≤hi）。"""
+    return "STRICT_BELOW" if hi < zd else "LOW_TOUCH" if hi == zd else "STRICT_ABOVE" if lo > zg else "HIGH_TOUCH" if lo == zg else "INTERIOR_CONTACT"
+
+
+def _cmp(x, y):
+    return "<" if x < y else "=" if x == y else ">"
+
+
+def _containment(alo, ahi, blo, bhi):
+    a_has_b, b_has_a = alo <= blo and bhi <= ahi, blo <= alo and ahi <= bhi
+    return "EQUAL" if a_has_b and b_has_a else "A_CONTAINS_B" if a_has_b else "B_CONTAINS_A" if b_has_a else "NONE"
+
+
+def _pair_side(v, name):
+    _keys_f(v, PAIR_ENDPOINTS, name)
+    zd, zg = _int_f(v["ZD"], name + ".ZD"), _int_f(v["ZG"], name + ".ZG")
+    _needf(zd < zg, "DOMAIN", name + " 核心须 ZD<ZG")
+    _needf((v["DD"] is None) == (v["GG"] is None), "SHAPE", name + " 外缘须同时有值或同时为 null")
+    if v["DD"] is None:
+        return {"ZD": zd, "ZG": zg, "DD": None, "GG": None}
+    side = {"ZD": zd, "ZG": zg, "DD": _int_f(v["DD"], name + ".DD"), "GG": _int_f(v["GG"], name + ".GG")}
+    _needf(side["DD"] <= zd and zg <= side["GG"], "DOMAIN", name + " 须 DD≤ZD<ZG≤GG")
+    return side
+
+
+def validate_pair_payload(kind, p):
+    """单对象门：外层元组、严格 keys、身份与对象内一致性（tb1424-schema.md §3）。叶、矩阵、证据、位置按定义重算。"""
+    _keys_f(p, ("schema_revision", "semantic_version", "policy_version", "view_role", "object_generation", "slot", "data"), "中枢对合同")
+    _needf((p["schema_revision"], p["semantic_version"], p["policy_version"], p["view_role"]) == PAIR_TUPLE, "VERSION", "中枢对规则/范围版本不符")
+    _int_f(p["object_generation"], "object_generation", 1)
+    d = p["data"]
+    if kind == PAIR_KINDS[0]:
+        _keys_f(d, ("entity_id", "center_id", "center_revision", "unit", "core", "position", "closed_overlap", "strict_leave", "leave_side", "construction_role", "destruction", "known_at"), kind)
+        ca = _anchor_f("center", d["center_id"])
+        u = d["unit"]
+        _keys_f(u, ("unit_id", "unit_object_id", "direction", "lo", "hi"), "position.unit")
+        ua = _anchor_f("segment", u["unit_id"])
+        _text_f(u["unit_object_id"], "unit_object_id")
+        _needf(u["direction"] in ("UP", "DOWN"), "SHAPE", "unit.direction 未声明")
+        lo, hi = _int_f(u["lo"], "unit.lo"), _int_f(u["hi"], "unit.hi")
+        _needf(lo < hi, "SHAPE", "单元区间须 lo<hi")
+        _needf(d["entity_id"] == "ucp:" + ca + ":" + ua, "IDENTITY", "位置身份未绑定中枢与单元")
+        _int_f(d["center_revision"], "center_revision", 1)
+        _keys_f(d["core"], ("ZD", "ZG"), "core")
+        zd, zg = _int_f(d["core"]["ZD"], "core.ZD"), _int_f(d["core"]["ZG"], "core.ZG")
+        _needf(zd < zg, "CORE", "冻结核心须 ZD<ZG")
+        pos = unit_position(lo, hi, zd, zg)
+        _needf(d["position"] in UNIT_POSITIONS and d["position"] == pos, "POSITION", "位置五叶与单元区间、冻结核心不符")
+        closed = pos in ("LOW_TOUCH", "INTERIOR_CONTACT", "HIGH_TOUCH")
+        side = "DOWN" if pos == "STRICT_BELOW" else "UP" if pos == "STRICT_ABOVE" else None
+        _needf(d["closed_overlap"] is closed and d["strict_leave"] is (not closed) and d["leave_side"] == side, "POSITION", "重叠/离开位与位置不符（离开侧只按区间位置判）")
+        _needf(d["construction_role"] in TESTED_ROLES, "SHAPE", "构造角色未声明")
+        _needf((d["construction_role"] == "BREAK_UNIT") == (not closed), "ROLE", "突破段恰为严格离开的测试单元")
+        _needf(d["destruction"] == PAIR_DESTRUCTION, "DESTRUCTION", "离开不是破坏：首回试与破坏归 #1434")
+        _known_f(d["known_at"])
+    elif kind == PAIR_KINDS[1]:
+        _keys_f(d, ("entity_id", "entity_revision", "a_center_id", "a_revision", "b_center_id", "b_revision", "connector_units", "status", "leaf", "direction", "provisional", "inputs", "matrix", "witnesses", "realization", "null_reason", "previous", "formed_known_at", "known_at"), kind)
+        aa, ba = _anchor_f("center", d["a_center_id"]), _anchor_f("center", d["b_center_id"])
+        _needf(d["entity_id"] == "pair:" + aa + ":" + ba, "IDENTITY", "中枢对身份未绑定两中枢")
+        revision = _int_f(d["entity_revision"], "entity_revision", 1)
+        _int_f(d["a_revision"], "a_revision", 1)
+        _int_f(d["b_revision"], "b_revision", 1)
+        connectors = d["connector_units"]
+        _needf(type(connectors) is list and len(connectors) >= 1, "CONNECTORS", "两中枢之间至少有突破段这一连接段")
+        for c in connectors:
+            _anchor_f("segment", c)
+        _needf(len(set(connectors)) == len(connectors), "CONNECTORS", "两中枢之间至少有突破段这一连接段")
+        _needf(type(d["provisional"]) is bool, "SHAPE", "provisional 错型")
+        _needf(d["realization"] == PAIR_REALIZATION, "REALIZATION", "关系成立不等于上级对象已构造/趋势已实现（不得以 level_lift 类布尔代替）")
+        _needf(d["status"] in ("EVALUATED", PAIR_PENDING), "SHAPE", "中枢对状态未声明")
+        _keys_f(d["inputs"], ("A", "B"), "inputs")
+        a, b = _pair_side(d["inputs"]["A"], "inputs.A"), _pair_side(d["inputs"]["B"], "inputs.B")
+        if d["status"] == "EVALUATED":
+            _needf(a["DD"] is not None and b["DD"] is not None and d["null_reason"] is None, "PENDING", "可判对须两端外缘齐全且无 null 原因")
+            leaves = pair_leaves(a, b)
+            _needf(len(leaves) == 1, "DOMAIN", "五叶不恰一（域前件被破坏）")
+            _needf(d["leaf"] == leaves[0], "LEAF", "叶与输入端点按定义重算不符")
+            want_dir = "UP" if leaves[0].startswith("UP_") else "DOWN" if leaves[0].startswith("DOWN_") else None
+            _needf(d["direction"] == want_dir, "DIRECTION", "新生/扩展方向与叶不符")
+            m = d["matrix"]
+            _keys_f(m, [f"B.{x}?A.{y}" for x in PAIR_ENDPOINTS for y in PAIR_ENDPOINTS], "matrix")
+            _needf(all(m[f"B.{x}?A.{y}"] == _cmp(b[x], a[y]) for x in PAIR_ENDPOINTS for y in PAIR_ENDPOINTS), "MATRIX", "端点矩阵与输入不符")
+            w = d["witnesses"]
+            _keys_f(w, ("core_tangent", "outer_touch", "outer_containment", "core_containment"), "witnesses")
+            _needf(type(w["core_tangent"]) is bool and type(w["outer_touch"]) is bool, "WITNESS", "相切/触及证据必须是布尔值")
+            want_w = {"core_tangent": b["ZD"] == a["ZG"] or b["ZG"] == a["ZD"], "outer_touch": b["DD"] == a["GG"] or b["GG"] == a["DD"],
+                      "outer_containment": _containment(a["DD"], a["GG"], b["DD"], b["GG"]), "core_containment": _containment(a["ZD"], a["ZG"], b["ZD"], b["ZG"])}
+            _needf(w == want_w, "WITNESS", "相切/触及/包含证据与输入不符")
+        else:
+            _needf(d["leaf"] is None and d["direction"] is None and d["matrix"] is None and d["witnesses"] is None and d["null_reason"] == PAIR_PENDING, "PENDING", "待定对的叶/方向/矩阵/证据须为 null 并带原因")
+            _needf(a["DD"] is None or b["DD"] is None, "PENDING", "待定对须至少一端外缘为 null（≥9 窗口）")
+        if revision == 1:
+            _needf(d["previous"] is None, "REVISION", "首修订无前值")
+        else:
+            prev = d["previous"]
+            _keys_f(prev, ("entity_revision", "status", "leaf"), "previous")
+            _needf(_int_f(prev["entity_revision"], "previous.entity_revision", 1) == revision - 1, "REVISION", "previous 须指上一修订")
+            _needf(prev["status"] in ("EVALUATED", PAIR_PENDING) and (prev["leaf"] is None or prev["leaf"] in PAIR_LEAVES), "SHAPE", "previous 状态/叶未声明")
+        _known_f(d["formed_known_at"])
+        _known_f(d["known_at"])
+    elif kind == PAIR_KINDS[2]:
+        _keys_f(d, ("source_id", "relation_kind", "target_id", "version", "witness_object_id"), kind)
+        for name in ("source_id", "target_id", "witness_object_id"):
+            _text_f(d[name], name)
+        _needf(d["relation_kind"] in ("pair_from", "pair_to", "position_of", "position_against"), "SHAPE", "未声明中枢对关系")
+        _int_f(d["version"], "version", 1)
+    elif kind == PAIR_KINDS[3]:
+        _keys_f(d, ("entity_id", "change", "before", "after", "known_at", "object_id"), kind)
+        _text_f(d["entity_id"], "entity_id")
+        _needf(d["change"] in PAIR_CHANGES, "SHAPE", "未声明中枢对变化")
+        withdrawn = d["change"] == "withdrawn"
+        _needf((d["after"] is None) == withdrawn and (d["object_id"] is None) == withdrawn and (d["before"] is None) == (d["change"] == "formed"), "SHAPE", "变化前后件与变化种类不符")
+        if d["object_id"] is not None:
+            _text_f(d["object_id"], "object_id")
+        _known_f(d["known_at"])
+        _validate_pair_change(d, p)
+    elif kind == PAIR_KINDS[4]:
+        _keys_f(d, ("input_frontier", "known_at", "pair_count", "pending_pairs", "waiting_reasons", "delivered_scope", "deferred_scope"), kind)
+        _int_f(d["input_frontier"], "input_frontier", -1)
+        _known_f(d["known_at"])
+        count, pending = _int_f(d["pair_count"], "pair_count", 0), _int_f(d["pending_pairs"], "pending_pairs", 0)
+        _needf(pending <= count and d["waiting_reasons"] == ([PAIR_PENDING] if pending else []), "VERSION_COUNT", "待定对计数与等待原因不符")
+        _needf(d["delivered_scope"] == "l0_adjacent_pair_five_leaf_zn_outer_and_unit_core_position" and d["deferred_scope"] == TB02F_DEFERRED, "SCOPE", "中枢对交付范围不符")
+    else:
+        raise _f("CANDIDATE_KIND", "未声明的中枢对 kind")
+    slot = ([d["source_id"], d["relation_kind"], d["target_id"]] if kind == PAIR_KINDS[2]
+            else [d["known_at"]["generation"], d["entity_id"], d["change"]] if kind == PAIR_KINDS[3]
+            else "TB-02-F" if kind == PAIR_KINDS[4] else d["entity_id"])
+    _needf(p["slot"] == slot, "SLOT", "中枢对语义槽身份不符")
+
+
+def _pair_fact(d):
+    return {k: v for k, v in d.items() if k not in ("entity_revision", "previous", "formed_known_at", "known_at")}
+
+
+def _validate_pair_change(d, p):
+    """#1424 H2：事件自带前后件的载荷、修订链、变化判序；真实前态另由逐代门绑定。"""
+    before, after = d["before"], d["after"]
+    for value in (before, after):
+        if value is not None:
+            _needf(type(value) is dict and value.get("entity_id") == d["entity_id"], "CHANGE", "变化前后件须属于同一中枢对")
+            validate_pair_payload(PAIR_KINDS[1], dict(p, slot=d["entity_id"], data=value))
+    if after is not None:
+        _needf(d["known_at"] == after["known_at"], "CHANGE", "变化获知时点须等于后件")
+    if before is None:
+        _needf(after["entity_revision"] == "1" and after["formed_known_at"] == after["known_at"], "CHANGE", "首次形成须为修订 1 且形成时点等于获知时点")
+    elif after is None:
+        _needf(int(d["known_at"]["generation"]) > int(before["known_at"]["generation"]), "CHANGE", "撤回获知代须晚于前件")
+    else:
+        previous = {k: before[k] for k in ("entity_revision", "status", "leaf")}
+        _needf(int(after["entity_revision"]) == int(before["entity_revision"]) + 1 and after["previous"] == previous, "CHANGE", "修订须递增一且 previous 绑定前件")
+        _needf(after["formed_known_at"] == before["formed_known_at"] and int(after["known_at"]["generation"]) > int(before["known_at"]["generation"]), "CHANGE", "修订须保持形成时点且获知代递增")
+        _needf(_pair_fact(before) != _pair_fact(after), "CHANGE", "事实未变不得发修订事件")
+        change = ("pending_upgrade" if before["status"] != after["status"] and after["status"] == PAIR_PENDING
+                  else "leaf_revised" if before["leaf"] != after["leaf"] else "inputs_revised")
+        _needf(d["change"] == change, "CHANGE", "变化种类不符合状态、叶、输入判序")
+
+
+def _validate_pair_publication(record, generation):
+    """#1424 H3：仅绑定对象实际首发代；稳定对象不与当前切面代比较。"""
+    _int_f(generation, "publication_generation", 1)
+    _needf(record["payload"]["data"]["known_at"]["generation"] == generation,
+           "PUBLICATION", "pair/change 获知代须等于实际发布代")
+
+
+def validate_pair_transition(previous_records, records, event_records=None, generation=None):
+    """#1424 H2：只在具有相邻前 cut 时核真实出生/修订/撤回；稳定 cut 不强索 formed。"""
+    def pairs(rs):
+        result = {}
+        for r in rs:
+            if r["kind"] == PAIR_KINDS[1]:
+                eid = r["payload"]["data"]["entity_id"]
+                _needf(eid not in result, "CHANGE", "相邻 cut 的中枢对身份不得重复")
+                result[eid] = r
+        return result
+    before, after = pairs(previous_records), pairs(records)
+    events = {}
+    for r in records if event_records is None else event_records:
+        if r["kind"] != PAIR_KINDS[3]:
+            continue
+        validate_pair_payload(r["kind"], r["payload"])
+        if "first_known_generation" in r:
+            _validate_pair_publication(r, r["first_known_generation"])
+        if generation is not None:
+            _validate_pair_publication(r, generation)
+        d = r["payload"]["data"]
+        _needf(d["entity_id"] not in events, "CHANGE", "同一中枢对本代只能有一个变化事件")
+        events[d["entity_id"]] = d
+    changed = {eid for eid in before.keys() | after.keys()
+               if before.get(eid, {}).get("object_id") != after.get(eid, {}).get("object_id")
+               or before.get(eid, {}).get("payload") != after.get(eid, {}).get("payload")}
+    _needf(set(events) == changed, "CHANGE", "本代变化事件须恰覆盖真实出生、修订和撤回")
+    for eid in changed:
+        old, new = before.get(eid), after.get(eid)
+        d = events[eid]
+        if new is not None:
+            if "first_known_generation" in new:
+                _validate_pair_publication(new, new["first_known_generation"])
+            if generation is not None:
+                _validate_pair_publication(new, generation)
+        _needf(d["before"] == (None if old is None else old["payload"]["data"]) and d["after"] == (None if new is None else new["payload"]["data"]), "CHANGE", "变化前后件须绑定相邻 cut 的真实中枢对")
+        _needf(d["object_id"] == (None if new is None else new["object_id"]), "CHANGE", "变化 object_id 须绑定实际后件对象")
+
+
+def validate_pair_rule(records, rule_revision):
+    """规则修订与中枢对族互斥：对族只在 +center-pair/1 cut 出现；该规则下与中枢版本对象同发恰一个对版本对象。"""
+    pair_rule = rule_revision == PAIR_RULE
+    for r in records:
+        if r["kind"] in PAIR_KINDS or r["kind"].startswith(("CC-018.", "CC-020.")):
+            _needf(pair_rule, "RULE_MIX", "s-center-pair/1 对象出现在旧规则 cut")
+            _needf(r["payload"].get("schema_revision") == "s-center-pair/1", "RULE_MIX", "中枢对 kind 混用旧 tuple")
+    if pair_rule and any(r["kind"] == CENTER_KINDS[6] for r in records):
+        _needf(sum(r["kind"] == PAIR_KINDS[4] for r in records) == 1, "VERSION_COUNT", "中枢对规则 cut 有中枢版本对象时须恰一个对版本对象")
+
+
+def validate_pair_links(records, axes=None):
+    """跨对象门：CC-018 测试单元集合与角色、CC-020 相邻性/计数/连接段/修订/输入/待定/暂定、关系边、变化、版本计数、目录轴绑定。"""
+    by_kind = {k: [r for r in records if r["kind"] == k] for k in PAIR_KINDS}
+    for r in records:
+        if r["kind"].startswith(("CC-018.", "CC-020.")) and r["kind"] not in PAIR_KINDS:
+            raise _f("CANDIDATE_KIND", "未声明的中枢对 kind")
+    if not any(by_kind.values()):
+        return
+    completed, _pending = _segment_units(records)
+    pos = {u[0]: i for i, u in enumerate(completed)}
+    seg = {u[0]: u for u in completed}
+    centers = sorted((r["payload"]["data"] for r in records if r["kind"] == "CC-016.center"), key=lambda c: pos.get(c["members"][0], -1))
+    roles = {r["payload"]["data"]["center_id"]: r["payload"]["data"]["roles"] for r in records if r["kind"] == "CC-017.center_roles"}
+    upgrade = {c["entity_id"]: c["status"] == "UPGRADE_PENDING_TB02H" for c in centers}
+
+    def role_value(cid, role, name):
+        v = roles[cid][role][name]["value"]
+        return None if v is None else int(v)
+
+    # CC-018：每个中枢的延伸测试单元 = seed 之后的成员 + 突破段，恰各一个位置对象。
+    want_tested = {}
+    for c in centers:
+        _needf(c["entity_id"] in roles, "CORE", "中枢缺同 cut 角色对象")
+        for m in c["members"][3:]:
+            want_tested[(c["entity_id"], m)] = "UPGRADE_PENDING_MEMBER" if upgrade[c["entity_id"]] else "EXTENSION_MEMBER"
+        if c["settled"]:
+            want_tested[(c["entity_id"], c["break_unit"])] = "BREAK_UNIT"
+    by_center = {c["entity_id"]: c for c in centers}
+    ucps = {}
+    for r in by_kind[PAIR_KINDS[0]]:
+        d = r["payload"]["data"]
+        key = (d["center_id"], d["unit"]["unit_id"])
+        _needf(key not in ucps, "UCP_COUNT", "同一测试单元重复发位置")
+        ucps[key] = d
+    _needf(set(ucps) == set(want_tested), "UCP_COUNT", "位置对象须恰覆盖每个中枢的延伸测试单元（seed 之后的成员 + 突破段）")
+    for (cid, uid_), d in ucps.items():
+        u, s = d["unit"], seg.get(uid_)
+        _needf(s is not None and (u["unit_object_id"], int(u["lo"]), int(u["hi"]), u["direction"]) == (s[1], s[2], s[3], s[4]), "UNIT_SOURCE", "位置单元与同 cut CC-013 不符")
+        _needf((int(d["core"]["ZD"]), int(d["core"]["ZG"])) == (role_value(cid, "CORE", "ZD"), role_value(cid, "CORE", "ZG")), "CORE", "位置所对核心与中枢角色不符")
+        _needf(d["construction_role"] == want_tested[(cid, uid_)], "ROLE", "构造角色与中枢成员/突破段不符")
+        _needf(int(d["center_revision"]) <= int(by_center[cid]["entity_revision"]), "REVISION", "位置的核心版本晚于中枢当前修订")
+    # CC-020：扫描相邻中枢恰各一对。
+    pairs = {}
+    for r in by_kind[PAIR_KINDS[1]]:
+        d = r["payload"]["data"]
+        key = (d["a_center_id"], d["b_center_id"])
+        _needf(key not in pairs, "PAIR_COUNT", "同一中枢对重复")
+        pairs[key] = d
+    adjacent = [(a["entity_id"], b["entity_id"]) for a, b in zip(centers, centers[1:])]
+    _needf(all(k in set(adjacent) for k in pairs), "ADJACENCY", "中枢对的两端不是扫描相邻中枢")
+    _needf(len(pairs) == len(adjacent), "PAIR_COUNT", "中枢数 n 时须恰 n−1 个对（缺对或多对）")
+    for a, b in zip(centers, centers[1:]):
+        d = pairs[(a["entity_id"], b["entity_id"])]
+        _needf((d["a_revision"], d["b_revision"]) == (a["entity_revision"], b["entity_revision"]), "REVISION", "对所引中枢修订号与中枢当前修订不符")
+        between = [u[0] for u in completed[pos[a["members"][-1]] + 1:pos[b["members"][0]]]]
+        _needf(d["connector_units"] == between, "CONNECTORS", "连接段须恰为两中枢之间的全部完成单元")
+        # #1424 C1：中枢跨对象门必须双向约束 upgrade/null（原来只有 null ⇒ upgrade，不能推出 pending iff）。
+        # 现由完整双向门、PAIR_INPUTS 与单对象 PENDING 门共同约束「一端 ≥9 ⟺ 对待定」。
+        for side, c in (("A", a), ("B", b)):
+            want = {name: role_value(c["entity_id"], role, name) for role, name in (("CORE", "ZD"), ("CORE", "ZG"), ("OUTER", "DD"), ("OUTER", "GG"))}
+            got = {k: None if v is None else int(v) for k, v in d["inputs"][side].items()}
+            _needf(got == want, "PAIR_INPUTS", "对的输入须等于同 cut 中枢角色（Zn 外缘，R26；不照抄塔的过渡态子中枢关系）")
+        _needf(d["provisional"] is (not b["settled"]), "PROVISIONAL", "后中枢未结算 ⟺ 关系暂定")
+    # 关系边：每对 pair_from/pair_to，每个位置 position_of/position_against，版本号对齐；不多不少。
+    source_objects = {r["payload"]["data"]["entity_id"]: r["object_id"] for r in by_kind[PAIR_KINDS[0]] + by_kind[PAIR_KINDS[1]]}
+    want_edges = set()
+    for d in pairs.values():
+        for kind_, target in (("pair_from", d["a_center_id"]), ("pair_to", d["b_center_id"])):
+            want_edges.add((d["entity_id"], kind_, target, d["entity_revision"], source_objects[d["entity_id"]]))
+    for d in ucps.values():
+        want_edges.add((d["entity_id"], "position_of", d["unit"]["unit_id"], d["center_revision"], source_objects[d["entity_id"]]))
+        want_edges.add((d["entity_id"], "position_against", d["center_id"], d["center_revision"], source_objects[d["entity_id"]]))
+    got_edges = [tuple(r["payload"]["data"][k] for k in ("source_id", "relation_kind", "target_id", "version", "witness_object_id")) for r in by_kind[PAIR_KINDS[2]]]
+    _needf(len(got_edges) == len(set(got_edges)) and set(got_edges) == want_edges, "EDGE", "中枢对/位置关系边缺失、多余或版本/见证对象不符")
+    current = {d["entity_id"]: d for d in pairs.values()}
+    for r in by_kind[PAIR_KINDS[3]]:
+        d = r["payload"]["data"]
+        if d["change"] == "withdrawn":
+            _needf(d["entity_id"] not in current, "CHANGE", "撤回的中枢对仍在当前态")
+        else:
+            _needf(current.get(d["entity_id"]) == d["after"], "CHANGE", "变化事件的后件须是当前中枢对")
+            _needf(d["object_id"] == source_objects[d["entity_id"]], "CHANGE", "变化 object_id 须绑定实际后件对象")
+    versions = by_kind[PAIR_KINDS[4]]
+    _needf(len(versions) == 1, "VERSION_COUNT", "每 cut 恰一个对版本对象")
+    v = versions[0]["payload"]["data"]
+    _needf(int(v["pair_count"]) == len(pairs) and int(v["pending_pairs"]) == sum(d["status"] == PAIR_PENDING for d in pairs.values()), "VERSION_COUNT", "版本对象的对计数与实际不符")
+    if axes is not None and "CC-018" in axes:
+        ids = lambda kind_: sorted(r["object_id"] for r in records if r["kind"] == kind_)
+        for axis, kind_ in (("CC-018", PAIR_KINDS[0]), ("CC-020", PAIR_KINDS[1])):
+            _needf(sorted(axes[axis]["evidence"]["object_ids"]) == ids(kind_), "AXIS_BINDING", axis + " 目录证据未绑定实际对象")
+
+
+def validate_pair_cut(records, rule_revision, axes=None):
+    """语料与离线核对用的整 cut 门：先中枢整 cut 门，再对族的 candidate → 单对象 → 规则 → 跨对象，顺序与 JS 端一致。"""
+    validate_center_cut(records, rule_revision, axes)
+    for r in records:
+        if r["kind"].startswith(("CC-018.", "CC-020.")) and r["kind"] not in PAIR_KINDS:
+            raise _f("CANDIDATE_KIND", "未声明的中枢对 kind")
+    for r in records:
+        if r["kind"] in PAIR_KINDS:
+            validate_pair_payload(r["kind"], r["payload"])
+    validate_pair_rule(records, rule_revision)
+    validate_pair_links(records, axes)

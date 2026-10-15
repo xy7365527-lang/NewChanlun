@@ -362,3 +362,46 @@ fn s1424_tower_pairs_same_judgment_and_ge9_not_copied() {
         PairLeaf::DownNewbirth
     );
 }
+
+/// #804：Lean 真求值导出五叶与三态，不能以 Python oracle 代替形式化对拍。
+#[test]
+fn s1424_lean_five_leaf_fixture_parity() {
+    let fixture: Value = serde_json::from_str(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/center_pair_1424_lean.json"
+    )))
+    .unwrap();
+    assert_eq!(fixture["schema"], "tb1424-lean-pair/1");
+    let cases = fixture["cases"].as_array().unwrap();
+    assert_eq!(cases.len(), 8);
+    for case in cases {
+        let center = |v: &Value| Center {
+            dd: v["DD"].as_i64().unwrap(),
+            zd: v["ZD"].as_i64().unwrap(),
+            zg: v["ZG"].as_i64().unwrap(),
+            gg: v["GG"].as_i64().unwrap(),
+            start_index: 0,
+            end_index: 0,
+        };
+        let a = center(&case["A"]);
+        let b = center(&case["B"]);
+        let facts = center_pair_facts(&a, &b);
+        assert_eq!(
+            facts.leaf.as_str(),
+            case["leaf"].as_str().unwrap(),
+            "{}",
+            case["name"]
+        );
+        let development = match facts.leaf {
+            PairLeaf::CoreNotStrictlySeparated => "extension",
+            PairLeaf::UpNewbirth | PairLeaf::DownNewbirth => "newBirth",
+            PairLeaf::UpExpansion | PairLeaf::DownExpansion => "expansion",
+        };
+        assert_eq!(
+            development,
+            case["development"].as_str().unwrap(),
+            "{}",
+            case["name"]
+        );
+    }
+}

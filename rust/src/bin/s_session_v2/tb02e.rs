@@ -66,6 +66,22 @@ pub(super) struct UnitInputs {
     pub(super) in_progress: Option<SegUnit>,
 }
 
+/// 本 cut 中枢扫描与身份（★#1424：供 `tb02f` 复用同一次扫描，不重扫，#804 L2）。
+pub(super) struct CenterBuild {
+    /// 完成单元（与塔 L0 同一列表）。
+    pub(super) units: Vec<UnitRange>,
+    pub(super) facts: CenterScanFacts,
+    pub(super) windows: Vec<CenterWindowFacts>,
+    /// 窗口序 → 中枢实体 id。
+    pub(super) center_ids: Vec<String>,
+    /// 窗口序 → 本 cut 中枢修订号。
+    pub(super) center_revisions: Vec<i64>,
+    /// 对象的 `object_generation`（事实基）。
+    pub(super) fact_generation: i64,
+    /// 本 cut 获知时点。
+    pub(super) known: Value,
+}
+
 fn payload_of(o: &Value) -> Value {
     serde_json::from_str(o["payload_json"].as_str().expect("对象携 payload_json"))
         .expect("payload_json 是 JSON")
@@ -303,11 +319,11 @@ fn add(
 }
 
 /// `segment:<g>:<anchor>` → `<g>:<anchor>`。
-fn anchor_of(unit_id: &str) -> &str {
+pub(super) fn anchor_of(unit_id: &str) -> &str {
     unit_id.strip_prefix("segment:").unwrap_or(unit_id)
 }
 
-fn unit_json(u: &SegUnit) -> Value {
+pub(super) fn unit_json(u: &SegUnit) -> Value {
     match &u.range {
         Some(r) => {
             json!({"unit_id":u.unit_id,"unit_object_id":u.object_id,"direction":dir_str(r.direction),
@@ -357,7 +373,7 @@ fn keep_known(prior: Option<&Value>, data: Value) -> Value {
     data
 }
 
-/// 中枢事实全集（输入合同之后的纯投影）。返回 (对象, 关系)。
+/// 中枢事实全集（输入合同之后的纯投影）。返回 (对象, 关系, 本 cut 扫描与身份)。
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build(
     inputs: &UnitInputs,
@@ -368,7 +384,7 @@ pub(super) fn build(
     cut: &str,
     frontier: i64,
     semantic_commit_ns: Option<String>,
-) -> Result<(Vec<Value>, Vec<Value>), String> {
+) -> Result<(Vec<Value>, Vec<Value>, CenterBuild), String> {
     let generation = tb02b::fact_basis(all_events);
     let units: Vec<UnitRange> = inputs
         .completed
@@ -751,7 +767,19 @@ pub(super) fn build(
             "waiting_reasons":waiting,"delivered_scope":DELIVERED_SCOPE,"deferred_scope":DEFERRED_SCOPE}),
         raw.keys().map(|k| *k as usize).collect(),
     );
-    Ok((b.objects, relations))
+    Ok((
+        b.objects,
+        relations,
+        CenterBuild {
+            units,
+            facts,
+            windows,
+            center_ids,
+            center_revisions,
+            fact_generation: generation,
+            known,
+        },
+    ))
 }
 
 /// 扫描游标的实体锚表示（schema v1 §3，根裁定 D-J 第 2 点）：位置 = `after_unit_id` 在完成单元序中的位置
@@ -1152,7 +1180,7 @@ mod tests {
     #[test]
     fn tb02e_empty_and_short_windows_use_window_start_anchor() {
         let (inputs, raw) = synthetic(&[10], false);
-        let (objects, _) = build(&inputs, &raw, &[], &[], 1, "cut-1", 0, None).unwrap();
+        let (objects, _, _) = build(&inputs, &raw, &[], &[], 1, "cut-1", 0, None).unwrap();
         assert_eq!(
             data_of_version(&objects)["scan_cursor"],
             json!({"state":"SEEKING_SEED","center_id":null,"seed_start_unit_id":null,"awaiting_unit_id":null,
