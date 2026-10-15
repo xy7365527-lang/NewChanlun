@@ -364,20 +364,44 @@ def _validate_fact(value, meta=None, raw=None, *, _identity_hash=None):
 def validate_sources(value, effective):
     """只核已有字段的原始来源与已封存对象引用，不计算包含、方向或分型。"""
     sources = set(value["source_coords"])
-    def walk(item, key=None):
-        if type(item) is dict:
+    p, kind = value["payload"], value["kind"]
+    # #1419 X1：同名 members 有原始组成员与中枢实体成员两种类型。
+    # 只认合同声明的精确路径；变化事件的完整中枢快照也须按中枢类型核验。
+    entity_members = set()
+    if kind == CENTER_KINDS[1]:
+        entity_members.add(("data", "members"))
+    elif kind == CENTER_KINDS[5]:
+        for name in ("before", "after"):
+            snapshot = p["data"][name]
+            if type(snapshot) is dict and "members" in snapshot:
+                _need(snapshot.get("entity_id") == p["data"]["entity_id"], "IDENTITY", "变化快照身份未绑定中枢")
+                validate_center_payload(CENTER_KINDS[1], {**p, "slot": snapshot["entity_id"], "data": snapshot})
+                entity_members.add(("data", name, "members"))
+
+    def walk(item, path=()):
+        key = path[-1] if path else None
+        if key == "members":
+            if path in entity_members:
+                for member in _id_list(item, "members"):
+                    _unit_anchor(member)
+            elif kind == KINDS[1] and path == ("members",):
+                if not set(coords(item, "members")) <= sources:
+                    raise ValueError("typed payload 使用未绑定的原始坐标")
+            else:
+                raise ValueError("typed payload members 不属于已声明的来源或实体路径")
+        elif type(item) is dict:
             for name, child in item.items():
-                walk(child, name)
+                walk(child, path + (name,))
         elif type(item) is list:
-            if key in ("members", "high_sources", "low_sources", "source_coords", "window"):
+            if key in ("high_sources", "low_sources", "source_coords", "window"):
                 if not set(item) <= sources:
                     raise ValueError("typed payload 使用未绑定的原始坐标")
             else:
-                for child in item:
-                    walk(child)
+                for index, child in enumerate(item):
+                    walk(child, path + (index,))
         elif key in ("source_coord", "group_anchor", "established_at") and item not in sources:
             raise ValueError("typed payload 使用未绑定的原始坐标")
-    walk(value["payload"])
+    walk(p)
     for ref in value["input_refs"]:
         if effective.get(ref["source_coord"]) != ref:
             raise ValueError("typed input_ref 不是该发布 cut 的有效源修订")
