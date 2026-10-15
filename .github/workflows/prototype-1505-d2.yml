@@ -1,0 +1,46 @@
+name: "#1505 D2 isolated prototype"
+
+on:
+  push:
+    branches: [proto/1505]
+
+permissions:
+  contents: read
+
+jobs:
+  d2-component:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/proto/1505'
+    runs-on: macos-latest
+    timeout-minutes: 25
+    env:
+      CARGO_INCREMENTAL: "0"
+      PYTHONDONTWRITEBYTECODE: "1"
+      EXPECTED_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-registry-v1-
+      - name: 精确 D2 构建、单次 suite、回收与封存
+        timeout-minutes: 20
+        run: python3 -B .github/scripts/run-1505-d2.py
+      - name: 保存 D2 原件和失败现场
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 1505-d2-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/1505-d2-artifacts/
+            ${{ runner.temp }}/1505-d2-*/evidence/
+          if-no-files-found: error
