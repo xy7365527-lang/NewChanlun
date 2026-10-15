@@ -2,6 +2,11 @@ name: CI
 
 on:
   workflow_dispatch:
+    inputs:
+      d1_expected_sha:
+        description: "#1504 已独审精确候选提交；仅 proto/1504 使用"
+        required: false
+        type: string
   push:
     branches: [main]
   pull_request:
@@ -405,3 +410,42 @@ jobs:
       - name: Fixture drift check (Lean → fixtures)
         # 红时脚本自身打出字段级 diff + 每个漂移 fixture 的再生（重落盘）命令
         run: python3 scripts/check_fixture_drift.py
+
+  d1-component:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/proto/1504'
+    permissions:
+      contents: read
+    runs-on: macos-latest
+    timeout-minutes: 25
+    env:
+      CARGO_INCREMENTAL: "0"
+      PYTHONDONTWRITEBYTECODE: "1"
+      EXPECTED_SHA: ${{ inputs.d1_expected_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-registry-v1-
+      - name: 精确源码构建、六案例、回收与封存
+        timeout-minutes: 20
+        run: python3 -B .github/scripts/run-1504-d1.py
+      - name: 保存原型证据与失败现场
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 1504-d1-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/1504-d1-artifacts/
+            ${{ runner.temp }}/1504-d1-*/evidence/
+          if-no-files-found: error
