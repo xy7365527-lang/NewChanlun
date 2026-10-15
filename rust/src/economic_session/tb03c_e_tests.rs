@@ -176,13 +176,16 @@ fn resolve_rejects_wrong_authority_and_audit_rejects_tampered_receipt() {
     assert_eq!(kind_of(&receipt), "Resolved", "{receipt}");
     store::audit(&s.e, &s.ec).unwrap();
     receipt["evidence_hash"] = json!("0".repeat(64));
-    store::put(
-        &s.e,
-        "receipts",
-        &super::tb03c_e::receipt_key("binding"),
-        &receipt,
-    )
-    .unwrap();
+    let changed =
+        s.e.execute(
+            "UPDATE receipts SET json=? WHERE k=?",
+            rusqlite::params![
+                canonical_json(&receipt),
+                super::tb03c_e::receipt_key("binding")
+            ],
+        )
+        .unwrap();
+    assert_eq!(changed, 1, "必须恰好篡改已有回执一行");
     assert!(store::audit(&s.e, &s.ec)
         .unwrap_err()
         .contains("Resolve 回执"));

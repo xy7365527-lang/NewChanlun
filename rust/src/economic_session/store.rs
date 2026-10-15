@@ -949,8 +949,11 @@ pub(crate) fn audit_with_deadline(
             if image != super::finance::empty(config)? {
                 return Err("StorageUnavailable：域损坏：创世图像非空".into());
             }
-        } else if image["history"].as_array().and_then(|a| a.last())
-            .is_some_and(|e| e["kind"] == "ResolveEvidence") {
+        } else if image["history"]
+            .as_array()
+            .and_then(|a| a.last())
+            .is_some_and(|e| e["kind"] == "ResolveEvidence")
+        {
             let event = image["history"].as_array().unwrap().last().unwrap();
             if image != super::tb03c_e::replay(c, config, &previous_image, event, seq, &ns)? {
                 return Err("StorageUnavailable：Resolve 重放不等于完整提交图像".into());
@@ -1165,7 +1168,7 @@ pub(crate) fn audit_with_deadline(
             let (k, s) = r.map_err(err)?;
             let v = strict_json(s.as_bytes())?;
             let expected_key = if table == "receipts" && v["kind"] == "Resolved" {
-                super::tb03c_e::receipt_key(required(&v,"evidence_id")?)
+                super::tb03c_e::receipt_key(required(&v, "evidence_id")?)
             } else if table == "receipts" && v.get("receipt_key").is_some() {
                 required(&v, "receipt_key")?.to_owned()
             } else if table == "receipts" && v["kind"] == "VoiceBound" {
@@ -1220,12 +1223,15 @@ pub(crate) fn audit_with_deadline(
         let receipt = row(c, "receipts", &rk)?.ok_or("StorageUnavailable：域损坏：消息缺原回执")?;
         let payload = &request["payload"];
         if receipt["kind"] == "Resolved" {
-            let event = super::tb03c_e::event_for(&previous_image, required(&receipt,"evidence_id")?)?;
-            if config.domain != "E" || payload["op"] != "ResolveEvidence"
-                || rk != super::tb03c_e::receipt_key(required(payload,"evidence_id")?)
+            let event =
+                super::tb03c_e::event_for(&previous_image, required(&receipt, "evidence_id")?)?;
+            if config.domain != "E"
+                || payload["op"] != "ResolveEvidence"
+                || rk != super::tb03c_e::receipt_key(required(payload, "evidence_id")?)
                 || super::tb03c_e::evidence_body(payload) != event["evidence"]
                 || payload["frontier"]["source_namespace"] != request["source_namespace"]
-                || payload["frontier"]["source_epoch"] != request["source_epoch"] {
+                || payload["frontier"]["source_epoch"] != request["source_epoch"]
+            {
                 return Err("StorageUnavailable：Resolve 消息与原证据/来源不一致".into());
             }
         } else if receipt.get("receipt_key").is_some() {

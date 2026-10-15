@@ -112,7 +112,10 @@ fn record_from_payload(config: &Config, e: &Value) -> Result<Value, String> {
         Err(_) if config.book_rules()? == super::book::Rules::Tb03cV1 => &unrouted,
         Err(e) => return Err(e),
     };
-    if let Some(b) = event.get("book_identity").filter(|_| !route.is_null() && route != &unrouted) {
+    if let Some(b) = event
+        .get("book_identity")
+        .filter(|_| !route.is_null() && route != &unrouted)
+    {
         if b["symbol"] != route["symbol"]
             || b["op_level"] != route["operation_level"]
             || b["fixed_q"] != route["fixed_q"]
@@ -166,7 +169,11 @@ fn capture(
     }
     check_operation_deadline(None, ingress_response_deadline)?;
     let token = required(&record, "token")?;
-    let token_table = if config.book_rules()? == super::book::Rules::Tb03cV1 { "facts" } else { "pending" };
+    let token_table = if config.book_rules()? == super::book::Rules::Tb03cV1 {
+        "facts"
+    } else {
+        "pending"
+    };
     if rows(&tx, token_table)?.iter().any(|r| r["token"] == token) {
         return Err("IdentityConflict：token已绑定另一原事实".into());
     }
@@ -210,48 +217,64 @@ fn capture(
     Ok(receipt)
 }
 
-fn resolve_evidence(c: &mut Connection, config: &Config, epoch: i64, e: &Value,
-    ingress_response_deadline: Option<std::time::Instant>) -> Result<Value, String> {
+fn resolve_evidence(
+    c: &mut Connection,
+    config: &Config,
+    epoch: i64,
+    e: &Value,
+    ingress_response_deadline: Option<std::time::Instant>,
+) -> Result<Value, String> {
     use super::tb03c_e;
     if config.book_rules()? != super::book::Rules::Tb03cV1 {
         return Err("SchemaUnsupported：旧书账域不支持 ResolveEvidence".into());
     }
     let p = &e["payload"];
-    let id = required(p,"evidence_id")?;
+    let id = required(p, "evidence_id")?;
     let key = tb03c_e::receipt_key(id);
     if p["frontier"]["source_namespace"] != e["source_namespace"]
-        || p["frontier"]["source_epoch"] != e["source_epoch"] {
+        || p["frontier"]["source_epoch"] != e["source_epoch"]
+    {
         return Err("InvalidDomain：证据前沿不属于获准连接来源".into());
     }
     let tx = immediate(c)?;
-    check_epoch(&tx,epoch)?;
-    audit(&tx,config)?;
-    if let Some(r) = previous_message(&tx,e)? { return Ok(r); }
-    let (seq,prev,last_ns,image) = latest(&tx)?;
-    if let Some(r) = row(&tx,"receipts",&key)? {
-        if tb03c_e::event_for(&image,id)?["evidence"] != tb03c_e::evidence_body(p) {
+    check_epoch(&tx, epoch)?;
+    audit(&tx, config)?;
+    if let Some(r) = previous_message(&tx, e)? {
+        return Ok(r);
+    }
+    let (seq, prev, last_ns, image) = latest(&tx)?;
+    if let Some(r) = row(&tx, "receipts", &key)? {
+        if tb03c_e::event_for(&image, id)?["evidence"] != tb03c_e::evidence_body(p) {
             return Err("IdentityConflict：Resolve evidence_id 已绑定其他内容".into());
         }
-        bind_message(&tx,e,&key)?;
+        bind_message(&tx, e, &key)?;
         tx.commit().map_err(err)?;
         return Ok(r);
     }
-    let (mut next,covered) = tb03c_e::resolve_image(&image,p)?;
+    let (mut next, covered) = tb03c_e::resolve_image(&image, p)?;
     let seq = seq.checked_add(1).ok_or("InvalidDomain：commit seq溢出")?;
-    let recovered_ns: String = tx.query_row("SELECT at_ns FROM epochs ORDER BY epoch DESC LIMIT 1",[],|r|r.get(0)).map_err(err)?;
-    let floor = nonnegative(&last_ns,"last commit")?.max(nonnegative(&recovered_ns,"epoch at_ns")?).to_string();
-    let (_,_,ns) = clocks(config,e,&floor,epoch)?;
-    let event = tb03c_e::resolve_history(e,&covered,seq,&ns);
+    let recovered_ns: String = tx
+        .query_row(
+            "SELECT at_ns FROM epochs ORDER BY epoch DESC LIMIT 1",
+            [],
+            |r| r.get(0),
+        )
+        .map_err(err)?;
+    let floor = nonnegative(&last_ns, "last commit")?
+        .max(nonnegative(&recovered_ns, "epoch at_ns")?)
+        .to_string();
+    let (_, _, ns) = clocks(config, e, &floor, epoch)?;
+    let event = tb03c_e::resolve_history(e, &covered, seq, &ns);
     next["history"].as_array_mut().unwrap().push(event.clone());
-    sync_pending(&tx,&next)?;
-    let cut = append(&tx,config,seq,&prev,&ns,&next)?;
-    let receipt = tb03c_e::resolve_receipt(config,&event,cut);
-    put(&tx,"receipts",&key,&receipt)?;
-    bind_message(&tx,e,&key)?;
-    config.pause(required(e,"message_id")?,"before_commit")?;
-    check_operation_deadline(None,ingress_response_deadline)?;
+    sync_pending(&tx, &next)?;
+    let cut = append(&tx, config, seq, &prev, &ns, &next)?;
+    let receipt = tb03c_e::resolve_receipt(config, &event, cut);
+    put(&tx, "receipts", &key, &receipt)?;
+    bind_message(&tx, e, &key)?;
+    config.pause(required(e, "message_id")?, "before_commit")?;
+    check_operation_deadline(None, ingress_response_deadline)?;
     tx.commit().map_err(err)?;
-    config.pause(required(e,"message_id")?,"after_commit")?;
+    config.pause(required(e, "message_id")?, "after_commit")?;
     Ok(receipt)
 }
 fn authoritative_fact(config: &Config, key: &str, expected_epoch: i64) -> Result<Value, String> {
@@ -281,7 +304,7 @@ fn authoritative_fact_inner(
         audit(&tx, &ec)?;
     }
     if config.book_rules()? == super::book::Rules::Tb03cV1 {
-        super::tb03c_e::check_wait(&tx,key)?;
+        super::tb03c_e::check_wait(&tx, key)?;
     }
     let mut f = row(&tx, "facts", key)?.ok_or("MissingDependency：固定E权威不存在该原事实")?;
     let r = row(&tx, "receipts", key)?.ok_or("StorageUnavailable：域损坏：固定E缺原回执")?;

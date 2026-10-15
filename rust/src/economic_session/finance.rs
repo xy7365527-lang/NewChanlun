@@ -454,18 +454,27 @@ pub(super) fn covered_pending(
         return Err("MissingDependency：账户范围 Pending 尚缺归属与影响范围证明".into());
     }
     if pending["reason"].is_object() {
-        super::tb03c_e::check_fill_predecessor(&fact["event"], list(previous,"recorded")?)?;
+        super::tb03c_e::check_fill_predecessor(&fact["event"], list(previous, "recorded")?)?;
     }
     match pending["reason"]["kind"].as_str() {
         Some("AwaitingPolicy") => {
             return Err("AwaitingPolicy：分配政策未配置，证据不能解除".into());
         }
         Some("AwaitingDependency") => {
-            let dependency = required(&pending["reason"],"on")?;
-            let original = list(previous,"recorded")?.iter().find(|f| f["fact_key"] == dependency)
+            let dependency = required(&pending["reason"], "on")?;
+            let original = list(previous, "recorded")?
+                .iter()
+                .find(|f| f["fact_key"] == dependency)
                 .ok_or("AwaitingDependency：前件尚未 Recorded")?;
-            if let Some(p) = list(previous,"pending")?.iter().find(|p| p["fact_key"] == dependency) {
-                if !coverage.iter().any(|c| c["fact_key"] == dependency && c["token"] == p["token"] && c["fact_hash"] == original["fact_hash"]) {
+            if let Some(p) = list(previous, "pending")?
+                .iter()
+                .find(|p| p["fact_key"] == dependency)
+            {
+                if !coverage.iter().any(|c| {
+                    c["fact_key"] == dependency
+                        && c["token"] == p["token"]
+                        && c["fact_hash"] == original["fact_hash"]
+                }) {
                     return Err("AwaitingDependency：前件尚未由同批证据覆盖".into());
                 }
             }
