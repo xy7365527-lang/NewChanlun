@@ -313,7 +313,8 @@ pub(super) struct DepsArrays {
 ///   故永不失效；
 /// - `refs`：叶 = 当前源版本的八字段引用值根；`refs_leaves` 是与 `coords` 对齐的**水位索引**。
 ///   `RawCoords::sync` 逐位与 `Cc004Producer::source_root` 比对，**实际变化**的最早位置起
-///   重建尾部（`sequence_split` 取前缀 + 逐叶 `sequence_append`），未变前缀的节点原样保留；
+///   重建尾部（`sequence_rebuild_suffix` 只构造保留前缀 + 逐叶 `sequence_append`），
+///   不构造被丢弃的旧右段，未变前缀的节点原样保留；
 /// - `coords` 是区间定位用的升序坐标索引（与调用方账本同量级），不是内容物化。
 struct RawCoords {
     coords: Vec<i64>,
@@ -375,8 +376,8 @@ impl RawCoords {
         if first == self.coords.len() && self.coords.len() == ledger.rows.len() {
             return Ok(());
         }
-        let (text_prefix, _) = sc::sequence_split(&mut *store, &self.text, first as u64)?;
-        let (refs_prefix, _) = sc::sequence_split(&mut *store, &self.refs, first as u64)?;
+        let text_prefix = sc::sequence_rebuild_suffix(&mut *store, &self.text, first as u64, &[])?;
+        let refs_prefix = sc::sequence_rebuild_suffix(&mut *store, &self.refs, first as u64, &[])?;
         let mut text = text_prefix;
         let mut refs = refs_prefix;
         let mut tail: Vec<i64> = Vec::new();

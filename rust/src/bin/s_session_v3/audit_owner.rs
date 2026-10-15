@@ -3495,6 +3495,7 @@ mod construction_tests {
         thread_local! {
             static AFTER_PREPARE_HITS: Cell<usize> = const { Cell::new(0) };
         }
+        let mut completed = Vec::new();
         for failure in ["consumer", "unknown-write", "commit"] {
             let f = fixture();
             let owner = AuditConnection::open(&f.db_path()).unwrap();
@@ -3586,12 +3587,26 @@ mod construction_tests {
                 3,
                 "Publish回滚保留已提交Accept原件"
             );
-            let active = owner.begin(TransactionBehavior::Immediate).unwrap();
-            assert!(
-                active.with_bound_raw_advance(&c, |_| Ok(())).is_err(),
-                "失败token不可重签"
-            );
+            if failure == "commit" {
+                assert!(owner.retired.get(), "COMMIT失败后owner必须退役");
+                assert_eq!(
+                    owner
+                        .begin(TransactionBehavior::Immediate)
+                        .err()
+                        .expect("退役owner必须拒绝新事务"),
+                    "S3DriverInvalid：连接已退役或存在未终结事务"
+                );
+            } else {
+                assert!(!owner.retired.get(), "{failure}回滚后owner不得退役");
+                let active = owner.begin(TransactionBehavior::Immediate).unwrap();
+                assert!(
+                    active.with_bound_raw_advance(&c, |_| Ok(())).is_err(),
+                    "失败token不可重签"
+                );
+            }
+            completed.push(failure);
         }
+        assert_eq!(completed, ["consumer", "unknown-write", "commit"]);
     }
 
     #[test]
