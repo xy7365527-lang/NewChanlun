@@ -243,6 +243,7 @@ pub(super) struct Plan {
     pub withdrawn: Built,
     pub upserts: Built,
 }
+#[cfg(test)]
 fn slot(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, kind: &str) -> Result<Slot, String> {
     if kind == SHAPE {
         Ok(Slot::Shape([
@@ -257,6 +258,7 @@ fn slot(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, kind: &str) -> Result
         })
     }
 }
+#[cfg(test)]
 fn immutable(
     s: &mut (impl CodecStore + ?Sized),
     r: &ContentRef,
@@ -341,10 +343,20 @@ fn candidate(
     let generated = o.generated().clone();
     s.verify_audit_fresh(&generated.content_ref(), sc::Mode::Public)
         .map_err(err)?;
-    candidate_verified(s, o, g)
+    #[cfg(test)]
+    if LEGACY_CANDIDATE_FIELDS.with(|v| v.get()) {
+        return candidate_verified_legacy_fields(s, o, g);
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    if s.allocation_budget().is_some() {
+        let root = generated.owned_ref();
+        return candidate_fixed_fields(s, o, root.view(), g);
+    }
+    candidate_fixed_fields(s, o, (&generated.content_ref()).into(), g)
 }
 // #1394：仅本模块完整Public核验成功的控制流调用，不导出skip开关或成功token。
-fn candidate_verified(
+#[cfg(test)]
+fn candidate_verified_legacy_fields(
     s: &mut (impl CodecStore + ?Sized),
     o: &ProducedObject,
     g: i64,
@@ -394,8 +406,201 @@ fn candidate_verified(
     })
 }
 
+/// #1488：完整 fresh Public 核验之后，一次绑定generated metadata；wire后exact重新读取。
+/// 结果引用只活到本 candidate 返回；internal 始终由 wire_template 独立读取。
+struct CandidateFixedFields(sc::path::FixedFields<'static>);
+impl CandidateFixedFields {
+    fn read_metadata(
+        s: &mut (impl CodecStore + ?Sized),
+        root: sc::RefView<'_>,
+        shape: bool,
+    ) -> Result<Self, String> {
+        const TYPED: &[&str] = &[
+            "first_known_generation",
+            "published_generation",
+            "first_known_cut",
+            "kind",
+            "object_revision",
+            "object_id",
+            "fact_key",
+        ];
+        const SHAPE: &[&str] = &[
+            "first_known_generation",
+            "published_generation",
+            "first_known_cut",
+            "kind",
+            "object_revision",
+            "object_id",
+            "window_start",
+            "window_mid",
+            "window_end",
+        ];
+        sc::path::lookup_object_metadata_fixed(
+            s.generic_source(),
+            root,
+            if shape { SHAPE } else { TYPED },
+        )
+        .map(Self)
+        .map_err(err)
+    }
+    fn read_exact(
+        s: &mut (impl CodecStore + ?Sized),
+        root: sc::RefView<'_>,
+        shape: bool,
+    ) -> Result<Self, String> {
+        sc::path::lookup_object_fields_fixed(
+            s.generic_source(),
+            root,
+            if shape {
+                &object_records::SHAPE_SEALED_FIELDS
+            } else {
+                &object_records::TYPED_SEALED_FIELDS
+            },
+        )
+        .map(Self)
+        .map_err(err)
+    }
+    fn get(&self, name: &str) -> Result<sc::RefView<'_>, String> {
+        self.0
+            .get_required(name)
+            .map(sc::RefOwner::view)
+            .map_err(err)
+    }
+    fn scalar(
+        &self,
+        s: &mut (impl CodecStore + ?Sized),
+        name: &str,
+    ) -> Result<bj::JsonOwner, String> {
+        let r = self.get(name)?;
+        if !matches!(r.kind(), Kind::Number | Kind::String | Kind::Null) {
+            return Err(err("预期有界标量"));
+        }
+        bj::render_json(s, r)
+    }
+    fn text(&self, s: &mut (impl CodecStore + ?Sized), name: &str) -> Result<TextValue, String> {
+        let value = self.scalar(s, name)?;
+        let view = value.view();
+        let text = view
+            .as_str()
+            .ok_or_else(|| err(format!("{name}不是文本")))?;
+        s.native_text(text)
+    }
+    fn integer(&self, s: &mut (impl CodecStore + ?Sized), name: &str) -> Result<i64, String> {
+        self.scalar(s, name)?
+            .view()
+            .as_i64()
+            .ok_or_else(|| err(format!("{name}不是i64")))
+    }
+    fn slot(&self, s: &mut (impl CodecStore + ?Sized), kind: &str) -> Result<Slot, String> {
+        if kind == SHAPE {
+            Ok(Slot::Shape([
+                self.integer(s, "window_start")?,
+                self.integer(s, "window_mid")?,
+                self.integer(s, "window_end")?,
+            ]))
+        } else {
+            Ok(Slot::Typed {
+                kind: s.native_text(kind)?,
+                fact_key: self.text(s, "fact_key")?,
+            })
+        }
+    }
+    fn immutable(&self, s: &mut (impl CodecStore + ?Sized), shape: bool) -> Result<Built, String> {
+        let names = if shape {
+            SHAPE_IMMUTABLE
+        } else {
+            TYPED_IMMUTABLE
+        };
+        let mut fields = [("", sc::ValueView::BatchSelf); 11];
+        for (i, name) in names.iter().enumerate() {
+            let child = self.get(name)?;
+            if child.kind() == Kind::Null {
+                return Err(err("不可变字段不得为空"));
+            }
+            fields[i] = (*name, sc::ValueView::Edge(child.digest().map_err(err)?));
+        }
+        s.write_value_view(sc::ValueView::Object(&fields[..names.len()]))
+            .map_err(err)
+    }
+}
+fn candidate_fixed_fields(
+    s: &mut (impl CodecStore + ?Sized),
+    o: &ProducedObject,
+    root: sc::RefView<'_>,
+    g: i64,
+) -> Result<Entry, String> {
+    // 只收metadata；缺字段按下列原消费顺序报错，exact仍留在wire之后。
+    let fields = CandidateFixedFields::read_metadata(s, root, o.kind() == SHAPE)?;
+    if fields.integer(s, "first_known_generation")? != g
+        || fields.integer(s, "published_generation")? != g
+        || fields.text(s, "first_known_cut")?.as_str() != format!("cut-{g}")
+    {
+        return Err(err("候选对象不属于本次生成代"));
+    }
+    let kind = fields.text(s, "kind")?;
+    let revision = fields.integer(s, "object_revision")?;
+    if fields.text(s, "object_id")?.as_str() != o.object_id() || kind.as_str() != o.kind() {
+        return Err(err("生成对象元数据不同"));
+    }
+    let slot = fields.slot(s, kind.as_str())?;
+    let internal = match o.borrowed() {
+        BorrowedObject::Typed(v) => v.record.clone(),
+        BorrowedObject::Shape(v) => v.record.clone(),
+        BorrowedObject::Fractal(v) => v.record.clone(),
+    };
+    let life = PublicationLife {
+        first_known_generation: g,
+        first_known_cut: format!("cut-{g}"),
+        published_generation: g,
+        withdrawn_generation: None,
+        withdrawal_reason: None,
+        superseded_by: None,
+        batch: BatchRef::CurrentBatch,
+    };
+    drop(fields); // 不把绑定结果带过任何wire写入。
+    let birth_wire = o
+        .wire_template(s.generic_store(), &life, g)
+        .map_err(err)?
+        .content_ref();
+    // 原件必须在wire写后重新exact读取，触发器改坏generated仍按旧顺序拒绝。
+    let fields = CandidateFixedFields::read_exact(s, root, slot.is_shape())?;
+    let immutable = fields.immutable(s, slot.is_shape())?;
+    Ok(Entry {
+        id: o.object_id().into(),
+        revision,
+        kind,
+        slot,
+        generated: o.generated().clone(),
+        internal,
+        immutable,
+        birth_wire: birth_wire.into(),
+        life: LifeOwner::from_normal(life),
+    })
+}
+
+#[cfg(test)]
+thread_local! { static LAST_CANDIDATE_FIELD_READS: std::cell::Cell<(u64, u64)> = const { std::cell::Cell::new((0, 0)) }; }
+#[cfg(test)]
+pub(super) fn candidate_field_reads_for_test() -> (u64, u64) {
+    LAST_CANDIDATE_FIELD_READS.with(|v| v.get())
+}
+#[cfg(test)]
+thread_local! { static LEGACY_CANDIDATE_FIELDS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+/// 只用于独立旧字段oracle；生产不含选择开关，也不会失败转旧实现。
+#[cfg(test)]
+pub(super) fn with_legacy_candidate_fields_for_test<T>(f: impl FnOnce() -> T) -> T {
+    struct Reset(bool);
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            LEGACY_CANDIDATE_FIELDS.with(|v| v.set(self.0));
+        }
+    }
+    let _reset = Reset(LEGACY_CANDIDATE_FIELDS.with(|v| v.replace(true)));
+    f()
+}
+
 /// #1394：仅Native联合Public核验成功后，一次绑定当前generated字段。
-/// 首读kind/字段结构的错误可提前拒绝；默认/Owned仍用candidate_verified。
+/// 首读kind/字段结构的错误可提前拒绝；本片保持Native实现与调用点不变。
 #[cfg(feature = "s_capture_native_testonly")]
 fn candidate_fields(
     s: &mut (impl CodecStore + ?Sized),
@@ -929,10 +1134,22 @@ pub(super) fn plan(
     if g < 1 {
         return Err(err("非法代号"));
     }
+    #[cfg(test)]
+    let observed_before = (
+        content_store::sql_reads_on_thread(),
+        sc::frame_calls_on_thread(),
+    );
     let new = objects
         .iter()
         .map(|o| candidate(s, o, g))
         .collect::<Result<Vec<_>, _>>()?;
+    #[cfg(test)]
+    LAST_CANDIDATE_FIELD_READS.with(|v| {
+        v.set((
+            content_store::sql_reads_on_thread() - observed_before.0,
+            sc::frame_calls_on_thread() - observed_before.1,
+        ))
+    });
     plan_from_candidates(s, new, old, g)
 }
 
@@ -2801,6 +3018,505 @@ mod tests {
     };
     use newchan_rust::s_content::NodeSink;
     use rusqlite::Connection;
+
+    struct FixedSql<'a, 'c> {
+        inner: content_store::TxStore<'a, 'c>,
+        budget: Option<OwnedBudget>,
+    }
+    impl NodeSource for FixedSql<'_, '_> {
+        fn read(&mut self, d: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+            self.inner.read(d)
+        }
+    }
+    impl NodeSink for FixedSql<'_, '_> {
+        fn put(&mut self, d: NodeDigest, t: u8, b: &[u8]) -> Result<(), sc::CodecError> {
+            self.inner.put(d, t, b)
+        }
+    }
+    impl CodecRead for FixedSql<'_, '_> {
+        fn generic_source(&mut self) -> &mut dyn NodeSource {
+            self
+        }
+        fn allocation_budget(&self) -> Option<OwnedBudget> {
+            self.budget.clone()
+        }
+    }
+    impl CodecStore for FixedSql<'_, '_> {
+        fn generic_store(&mut self) -> &mut dyn NodeStore {
+            self
+        }
+    }
+    fn fixed_candidate_late_trigger(budget: Option<OwnedBudget>) {
+        let (nodes, objects) = native_candidate_fixture();
+        let o = objects.iter().find(|o| o.kind() != SHAPE).unwrap();
+        let mut errors = Vec::new();
+        for oracle in [true, false] {
+            let mut conn = database();
+            let tx = conn.transaction().unwrap();
+            let mut store = FixedSql {
+                inner: content_store::TxStore::new(&tx).unwrap(),
+                budget: budget.clone(),
+            };
+            for (d, t, b) in nodes.iter().filter(|(_, t, _)| *t != sc::tag::BATCH_SELF) {
+                store.put(*d, t, b).unwrap();
+            }
+            let before = candidate_sql_material_for_test(&tx);
+            let generated_hex = o
+                .generated()
+                .digest
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect::<String>();
+            tx.execute_batch(&format!("CREATE TEMP TRIGGER fixed_fields_after_wire AFTER INSERT ON s_content_nodes WHEN NEW.tag=8 BEGIN UPDATE s_content_nodes SET body=x'00' WHERE digest=x'{generated_hex}'; END; SAVEPOINT fixed_fields_try;")).unwrap();
+            let result = if oracle {
+                with_legacy_candidate_fields_for_test(|| candidate(&mut store, o, 1))
+            } else {
+                candidate(&mut store, o, 1)
+            };
+            let error = result.unwrap_err();
+            assert!(error.contains(sc::code::NODE_DIGEST), "{error}");
+            assert_ne!(
+                candidate_sql_material_for_test(&tx),
+                before,
+                "必须真实wire写后触发，不是preflight拒绝"
+            );
+            tx.execute_batch("ROLLBACK TO fixed_fields_try; RELEASE fixed_fields_try; DROP TRIGGER fixed_fields_after_wire;").unwrap();
+            assert_eq!(candidate_sql_material_for_test(&tx), before);
+            errors.push(error);
+            candidate(&mut store, o, 1).unwrap();
+            drop(store);
+            tx.rollback().unwrap();
+        }
+        assert_eq!(
+            errors[0], errors[1],
+            "wire后生成原件损坏仍命中相同晚exact错误"
+        );
+        if let Some(b) = budget {
+            assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
+        }
+    }
+    #[test]
+    fn fixed_candidate_plain_wire_trigger_corrupts_generated_then_late_exact_refuses() {
+        fixed_candidate_late_trigger(None);
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn fixed_candidate_owned_wire_trigger_corrupts_generated_then_late_exact_refuses() {
+        fixed_candidate_late_trigger(Some(OwnedBudget::new(50 * 1024 * 1024)));
+    }
+
+    fn fixed_candidate_second_object_failure(budget: Option<OwnedBudget>) {
+        let (mut nodes, mut objects) = native_candidate_fixture();
+        assert!(objects.len() > 1);
+        let original = objects[1].generated().clone();
+        let changed = mutate_fixed_generated(
+            &mut nodes,
+            &original,
+            objects[1].kind() == SHAPE,
+            "generation",
+        );
+        objects[1].set_generated_for_test(changed);
+        let mut conn = database();
+        let tx = conn.transaction().unwrap();
+        let mut store = FixedSql {
+            inner: content_store::TxStore::new(&tx).unwrap(),
+            budget: budget.clone(),
+        };
+        for (d, t, b) in nodes.iter() {
+            store.put(*d, t, b).unwrap();
+        }
+        let before = candidate_sql_material_for_test(&tx);
+        tx.execute_batch("SAVEPOINT fixed_second").unwrap();
+        let error = plan(&mut store, &objects, &[], 1).err().unwrap();
+        assert!(error.contains("候选对象不属于本次生成代"), "{error}");
+        assert_ne!(
+            candidate_sql_material_for_test(&tx),
+            before,
+            "第一对象必须已写真实wire"
+        );
+        tx.execute_batch("ROLLBACK TO fixed_second; RELEASE fixed_second;")
+            .unwrap();
+        assert_eq!(candidate_sql_material_for_test(&tx), before);
+        assert_eq!(
+            tx.query_row("SELECT COUNT(*) FROM s_content_objects", [], |r| r
+                .get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        objects[1].set_generated_for_test(original);
+        let actual = plan(&mut store, &objects, &[], 1).unwrap();
+        let mut cold = CandidateProbe {
+            nodes,
+            budget: budget.clone(),
+            ..Default::default()
+        };
+        let expected =
+            with_legacy_candidate_fields_for_test(|| plan(&mut cold, &objects, &[], 1)).unwrap();
+        assert_eq!(
+            candidate_plan_signature(&actual),
+            candidate_plan_signature(&expected)
+        );
+        drop(actual);
+        drop(expected);
+        drop(store);
+        drop(cold);
+        tx.rollback().unwrap();
+        if let Some(b) = budget {
+            assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
+        }
+    }
+    #[test]
+    fn fixed_candidate_plain_second_object_failure_rolls_back_and_retries_full_plan() {
+        fixed_candidate_second_object_failure(None);
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn fixed_candidate_owned_second_object_failure_rolls_back_and_retries_full_plan() {
+        fixed_candidate_second_object_failure(Some(OwnedBudget::new(50 * 1024 * 1024)));
+    }
+
+    fn candidate_field_nodes(nodes: &sc::MemoryNodes) -> Vec<(NodeDigest, u8, Vec<u8>)> {
+        let mut rows = nodes
+            .iter()
+            .map(|(d, t, b)| (*d, t, b.to_vec()))
+            .collect::<Vec<_>>();
+        rows.sort();
+        rows
+    }
+    fn fixed_candidate_same_inputs(budget: Option<OwnedBudget>) {
+        let (nodes, objects) = native_candidate_fixture();
+        let mut seen = [false; 2];
+        for o in &objects {
+            let i = usize::from(o.kind() == SHAPE);
+            if seen[i] {
+                continue;
+            }
+            seen[i] = true;
+            let mut old = CandidateProbe {
+                nodes: nodes.clone(),
+                generated_root: Some(o.generated().digest),
+                budget: budget.clone(),
+                ..Default::default()
+            };
+            let mut new = CandidateProbe {
+                nodes: nodes.clone(),
+                generated_root: Some(o.generated().digest),
+                budget: budget.clone(),
+                ..Default::default()
+            };
+            let old_f = sc::frame_calls_on_thread();
+            let expected =
+                with_legacy_candidate_fields_for_test(|| candidate(&mut old, o, 1)).unwrap();
+            let old_f = sc::frame_calls_on_thread() - old_f;
+            let new_f = sc::frame_calls_on_thread();
+            let actual = candidate(&mut new, o, 1).unwrap();
+            let new_f = sc::frame_calls_on_thread() - new_f;
+            assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
+            assert_eq!(
+                candidate_field_nodes(&new.nodes),
+                candidate_field_nodes(&old.nodes)
+            );
+            assert_eq!(
+                old.generated_path_lookups,
+                if o.kind() == SHAPE { 9 } else { 7 }
+            );
+            assert_eq!(
+                new.generated_path_lookups, 0,
+                "改为metadata扫描和晚exact，不再独立逐字段下降"
+            );
+            assert_eq!(old.singles, 1);
+            assert_eq!(new.singles, 1, "each candidate仍完整fresh Public核验");
+            assert!(
+                new.reads < old.reads,
+                "{} physical NodeSource {} vs {}",
+                o.kind(),
+                new.reads,
+                old.reads
+            );
+            assert!(new_f < old_f, "{} F {new_f} vs {old_f}", o.kind());
+            eprintln!("fixed_fields kind={} old_NodeSource={} new_NodeSource={} old_F={old_f} new_F={new_f}", o.kind(), old.reads, new.reads);
+        }
+        assert_eq!(seen, [true, true], "必须真实非空typed与shape");
+        if let Some(b) = budget {
+            assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
+        }
+    }
+    #[test]
+    fn fixed_candidate_plain_same_entry_full_nodes_and_actual_reads_as_legacy() {
+        fixed_candidate_same_inputs(None);
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn fixed_candidate_owned_same_entry_full_nodes_actual_reads_and_release() {
+        fixed_candidate_same_inputs(Some(OwnedBudget::new(50 * 1024 * 1024)));
+    }
+
+    fn mutate_fixed_generated(
+        nodes: &mut sc::MemoryNodes,
+        original: &Built,
+        shape: bool,
+        fault: &str,
+    ) -> Built {
+        let names = if shape {
+            &object_records::SHAPE_SEALED_FIELDS[..]
+        } else {
+            &object_records::TYPED_SEALED_FIELDS[..]
+        };
+        let fields = sc::path::lookup_object_fields(nodes, &original.content_ref(), names).unwrap();
+        let mut edited = Vec::new();
+        for (name, child) in fields {
+            if fault == "missing" && name == "object_id" {
+                continue;
+            }
+            let changed = match (fault, name.as_str()) {
+                ("kind", "kind") => Some(V::String("foreign-kind".into())),
+                ("kind-type", "kind") => Some(V::Number(sc::NumberToken::parse("7").unwrap())),
+                ("id", "object_id") => Some(V::String("foreign-id".into())),
+                ("generation", "first_known_generation")
+                | ("multi-first-error", "first_known_generation") => {
+                    Some(V::Number(sc::NumberToken::parse("99").unwrap()))
+                }
+                ("published", "published_generation") => {
+                    Some(V::Number(sc::NumberToken::parse("99").unwrap()))
+                }
+                ("cut", "first_known_cut") => Some(V::String("cut-99".into())),
+                ("revision-type", "object_revision") => Some(V::String("bad".into())),
+                ("slot-type", "fact_key") => Some(V::Number(sc::NumberToken::parse("17").unwrap())),
+                ("slot-type", "window_start") => Some(V::String("bad".into())),
+                ("immutable-null", "payload_json") | ("immutable-null", "comparisons_json") => {
+                    Some(V::Null)
+                }
+                _ => None,
+            };
+            edited.push((
+                name,
+                changed.unwrap_or_else(|| V::Edge(child.digest().unwrap())),
+            ));
+        }
+        if matches!(fault, "extra" | "multi-first-error") {
+            edited.push(("extra_field".into(), V::Bool(true)));
+        }
+        let root = sc::write_value(nodes, &V::Object(edited)).unwrap();
+        sc::audit_verify_public(nodes, &root.content_ref()).unwrap();
+        root
+    }
+    fn fixed_candidate_bad_fields(budget: Option<OwnedBudget>) {
+        let faults = [
+            "missing",
+            "extra",
+            "kind",
+            "kind-type",
+            "id",
+            "generation",
+            "published",
+            "cut",
+            "revision-type",
+            "slot-type",
+            "immutable-null",
+        ];
+        for shape in [false, true] {
+            for fault in faults {
+                let (mut nodes, mut objects) = native_candidate_fixture();
+                let o = objects
+                    .iter_mut()
+                    .find(|o| (o.kind() == SHAPE) == shape)
+                    .unwrap();
+                let good = o.generated().clone();
+                let changed = mutate_fixed_generated(&mut nodes, &good, shape, fault);
+                o.set_generated_for_test(changed);
+                let mut old = CandidateProbe {
+                    nodes: nodes.clone(),
+                    budget: budget.clone(),
+                    ..Default::default()
+                };
+                let mut new = CandidateProbe {
+                    nodes,
+                    budget: budget.clone(),
+                    ..Default::default()
+                };
+                let old_error = with_legacy_candidate_fields_for_test(|| candidate(&mut old, o, 1))
+                    .unwrap_err();
+                let new_error = candidate(&mut new, o, 1).unwrap_err();
+                assert_eq!(old_error, new_error, "single fault shape={shape} {fault}");
+                assert_eq!(new.singles, 1);
+                if fault == "immutable-null" {
+                    assert!(new.puts > 0, "Null仍在wire之后拒绝");
+                }
+                o.set_generated_for_test(good);
+                candidate(&mut new, o, 1).unwrap();
+                assert_eq!(new.singles, 2, "错误后重试仍重新完整核验");
+            }
+        }
+        if let Some(b) = budget {
+            assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
+        }
+    }
+    #[test]
+    fn fixed_candidate_plain_reidentified_metadata_slot_schema_and_late_null_refuse() {
+        fixed_candidate_bad_fields(None);
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn fixed_candidate_owned_reidentified_metadata_slot_schema_and_late_null_refuse() {
+        fixed_candidate_bad_fields(Some(OwnedBudget::new(50 * 1024 * 1024)));
+    }
+    #[test]
+    fn fixed_candidate_multiple_fault_first_error_matches_legacy_before_wire() {
+        let (mut nodes, mut objects) = native_candidate_fixture();
+        let o = objects.iter_mut().find(|o| o.kind() != SHAPE).unwrap();
+        let changed = mutate_fixed_generated(&mut nodes, o.generated(), false, "multi-first-error");
+        o.set_generated_for_test(changed);
+        let mut old = CandidateProbe {
+            nodes: nodes.clone(),
+            ..Default::default()
+        };
+        let mut new = CandidateProbe {
+            nodes,
+            ..Default::default()
+        };
+        let old_error =
+            with_legacy_candidate_fields_for_test(|| candidate(&mut old, o, 1)).unwrap_err();
+        let new_error = candidate(&mut new, o, 1).unwrap_err();
+        assert!(old_error.contains("候选对象不属于本次生成代"));
+        assert_eq!(new_error, old_error);
+        assert_eq!((old.puts, new.puts), (0, 0));
+        eprintln!("fixed_fields multi_fault old={old_error:?} new={new_error:?}; original_first_error_preserved=true");
+    }
+
+    fn fixed_candidate_corrupt_content(budget: Option<OwnedBudget>) {
+        let (nodes, objects) = native_candidate_fixture();
+        let o = objects.iter().find(|o| o.kind() != SHAPE).unwrap();
+        let mut normal = nodes.clone();
+        let deep = field(&mut normal, &o.generated().content_ref(), "object_id")
+            .unwrap()
+            .digest()
+            .unwrap();
+        let internal = match o.borrowed() {
+            BorrowedObject::Typed(t) => t.record.digest,
+            BorrowedObject::Fractal(t) => t.record.digest,
+            _ => unreachable!(),
+        };
+        for (target, corrupt) in [
+            (deep, false),
+            (deep, true),
+            (o.generated().digest, true),
+            (internal, true),
+        ] {
+            let mut broken = sc::MemoryNodes::new();
+            for (d, t, body) in nodes.iter() {
+                if *d != target {
+                    broken.insert_unchecked(*d, t, body.to_vec());
+                } else if corrupt {
+                    broken.insert_unchecked(*d, t, vec![0]);
+                }
+            }
+            let mut store = CandidateProbe {
+                nodes: broken,
+                budget: budget.clone(),
+                ..Default::default()
+            };
+            let error = candidate(&mut store, o, 1).unwrap_err();
+            assert!(
+                error.contains(if corrupt {
+                    sc::code::NODE_DIGEST
+                } else {
+                    sc::code::NODE_MISSING
+                }),
+                "{error}"
+            );
+            assert_eq!(
+                store.puts, 0,
+                "完整generated或独立internal坏件必须在wire写入前拒绝"
+            );
+        }
+        if let Some(b) = budget {
+            assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
+        }
+    }
+    #[test]
+    fn fixed_candidate_plain_fresh_generated_deep_leaf_and_independent_internal_refuse() {
+        fixed_candidate_corrupt_content(None);
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn fixed_candidate_owned_fresh_generated_deep_leaf_and_independent_internal_refuse() {
+        fixed_candidate_corrupt_content(Some(OwnedBudget::new(50 * 1024 * 1024)));
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn fixed_candidate_owned_retained_text_and_clone_charge_original_not_foreign_ledger() {
+        let (nodes, objects) = native_candidate_fixture();
+        let o = objects.iter().find(|o| o.kind() != SHAPE).unwrap();
+        let original = OwnedBudget::new(50 * 1024 * 1024);
+        let foreign = OwnedBudget::new(50 * 1024 * 1024);
+        assert!(!original.same_ledger(&foreign));
+        let mut store = CandidateProbe {
+            nodes,
+            budget: Some(original.clone()),
+            ..Default::default()
+        };
+        let entry = candidate(&mut store, o, 1).unwrap();
+        assert!(matches!(&entry.kind, TextValue::Owned(_)));
+        if let Slot::Typed { kind, fact_key } = &entry.slot {
+            assert!(matches!(kind, TextValue::Owned(_)));
+            assert!(matches!(fact_key, TextValue::Owned(_)));
+        } else {
+            panic!("typed见证不可为空");
+        }
+        let retained = original.snapshot();
+        assert!(retained.live_requested_layout_bytes > 0);
+        assert!(retained.allocation_attempts > 0);
+        let copy = entry.try_clone().unwrap();
+        assert!(
+            original.snapshot().live_requested_layout_bytes > retained.live_requested_layout_bytes
+        );
+        assert_eq!(foreign.snapshot().allocation_attempts, 0);
+        drop(copy);
+        assert_eq!(
+            original.snapshot().live_requested_layout_bytes,
+            retained.live_requested_layout_bytes
+        );
+        drop(entry);
+        assert_eq!(original.snapshot().live_requested_layout_bytes, 0);
+        assert_eq!(
+            original.snapshot().allocated_layouts,
+            original.snapshot().released_layouts
+        );
+        eprintln!(
+            "fixed_fields original retained={retained:?} after_drop={:?} foreign={:?}",
+            original.snapshot(),
+            foreign.snapshot()
+        );
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn fixed_candidate_owned_scalar_refusal_releases_all_local_owners_without_fallback() {
+        let (nodes, objects) = native_candidate_fixture();
+        let o = objects.iter().find(|o| o.kind() != SHAPE).unwrap();
+        for limit in [0, 1, 32, 128, 512] {
+            let budget = OwnedBudget::new(limit);
+            let mut store = CandidateProbe {
+                nodes: nodes.clone(),
+                budget: Some(budget.clone()),
+                ..Default::default()
+            };
+            let result = candidate(&mut store, o, 1);
+            if limit == 0 {
+                assert!(
+                    result.is_err(),
+                    "零额度必须在真实Owned标量分配处拒绝，不得Plain回退"
+                );
+            }
+            if let Err(error) = &result {
+                assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
+            }
+            drop(result);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+            assert!(!budget.ledger_health().invariant_broken);
+        }
+    }
     #[cfg(all(
         feature = "s_allocation_json_testonly",
         feature = "s_capture_native_testonly"
@@ -3181,7 +3897,6 @@ mod tests {
             assert!(load_for_audit(&tx, &mut native, 1).is_err());
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
     fn candidate_plan_signature(p: &Plan) -> Value {
         json!({"generation":p.generation,"index":format!("{:?}",p.index),"births":format!("{:?}",p.births),
             "withdrawals":p.withdrawals,"replaces":p.replaces,
@@ -3201,12 +3916,11 @@ mod tests {
         .unwrap();
         let entries = objects
             .iter()
-            .map(|o| candidate_verified(s, o, g))
+            .map(|o| candidate_verified_legacy_fields(s, o, g))
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
         plan_from_candidates(s, entries, old, g).unwrap()
     }
-    #[cfg(feature = "s_capture_native_testonly")]
     fn candidate_sql_material_for_test(tx: &Transaction<'_>) -> Vec<(Vec<u8>, i64, Vec<u8>)> {
         tx.prepare("SELECT digest,tag,body FROM s_content_nodes ORDER BY digest")
             .unwrap()
@@ -3215,7 +3929,6 @@ mod tests {
             .collect::<Result<_, _>>()
             .unwrap()
     }
-    #[cfg(feature = "s_capture_native_testonly")]
     fn native_candidate_fixture() -> (sc::MemoryNodes, Vec<ProducedObject>) {
         let files = TestFiles::new();
         init_test_db(&files);
@@ -3254,10 +3967,11 @@ mod tests {
         let generated = runtime.generate(&mut nodes, &input).unwrap();
         (nodes, generated.objects)
     }
-    #[cfg(feature = "s_capture_native_testonly")]
     #[derive(Default)]
     struct CandidateProbe {
         nodes: sc::MemoryNodes,
+        generated_root: Option<NodeDigest>,
+        generated_path_lookups: usize,
         puts: usize,
         reads: usize,
         singles: usize,
@@ -3267,14 +3981,12 @@ mod tests {
         second_reference: Option<ContentRef>,
         future_put_restore: Option<(NodeDigest, u8, Vec<u8>)>,
     }
-    #[cfg(feature = "s_capture_native_testonly")]
     impl NodeSource for CandidateProbe {
         fn read(&mut self, d: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
             self.reads += 1;
             self.nodes.read(d)
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
     impl NodeSink for CandidateProbe {
         fn put(&mut self, d: NodeDigest, t: u8, b: &[u8]) -> Result<(), sc::CodecError> {
             self.puts += 1;
@@ -3284,8 +3996,17 @@ mod tests {
             self.nodes.put(d, t, b)
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
     impl CodecRead for CandidateProbe {
+        fn lookup_path(
+            &mut self,
+            r: &ContentRef,
+            path: &[PathStep],
+        ) -> Result<ContentRef, sc::CodecError> {
+            if r.digest().ok() == self.generated_root {
+                self.generated_path_lookups += 1;
+            }
+            sc::path::lookup_path(self, r, path)
+        }
         fn generic_source(&mut self) -> &mut dyn NodeSource {
             self
         }
@@ -3328,7 +4049,6 @@ mod tests {
             )
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
     impl CodecStore for CandidateProbe {
         fn generic_store(&mut self) -> &mut dyn NodeStore {
             self
@@ -3436,7 +4156,7 @@ mod tests {
             baseline
                 .verify_audit_fresh(&o.generated().content_ref(), sc::Mode::Public)
                 .unwrap();
-            let old = candidate_verified(&mut baseline, o, 1).unwrap();
+            let old = candidate_verified_legacy_fields(&mut baseline, o, 1).unwrap();
             let mut current =
                 candidate_fields_probe_for_test(nodes.clone(), o.generated().digest, None);
             current

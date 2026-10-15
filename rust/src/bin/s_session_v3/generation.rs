@@ -164,6 +164,11 @@ impl ProducedObject {
         &self.generated
     }
 
+    #[cfg(test)]
+    pub(super) fn set_generated_for_test(&mut self, generated: Built) {
+        self.generated = generated;
+    }
+
     /// 公开 wire 模板：`life` 由调用方的独立索引给出；本批新生对象写 0x08 占位。
     pub(super) fn wire_template(
         &self,

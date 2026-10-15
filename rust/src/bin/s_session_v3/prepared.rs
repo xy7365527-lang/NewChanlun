@@ -1126,7 +1126,6 @@ pub(crate) mod tests {
         std::fs::write(out.join("RUNTIME-ROOTS.json"),serde_json::to_vec_pretty(&json!({"testonly":true,"formal_driver_network_path":false,"large_frozen_105_runtime_reconstructed":false,"scope":"existing real S3 fixture accept/Begin/Runtime.commit; full audit and real generation/publication unchanged; ordinary exact comparison","stages":reports,"revision_withdrawals":withdrawn,"manual_cache_discard_or_GC":false,"root_exclusions":{"aux.raw_wires.key":"canonical JSON SHA memo fingerprint, not a content node root","bi.RawCoords.empty":"uninitialized empty sequence sentinel is omitted; after normal error cleanup visitor is empty","producer.fractal_histories.union_tail":"integer coordinate tree, no content digest","ArrayCache.tree":"Rc coordinate tree and address key, no content digest","producer.raw_tokens/prepared_raw_keys":"identity tokens and raw logical key strings, no content roots","aux.observation_ids.value":"observation identifier string, not a content pointer","generation.lane_key":"facts lane holds ordinary typed facts, no s-content roots"}})).unwrap()).unwrap();
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
     #[derive(Debug, PartialEq, Eq)]
     pub(crate) enum RuntimeRootCell {
         Null,
@@ -1135,7 +1134,6 @@ pub(crate) mod tests {
         Text(Vec<u8>),
         Blob(Vec<u8>),
     }
-    #[cfg(feature = "s_capture_native_testonly")]
     pub(crate) fn runtime_root_tables(
         conn: &Connection,
         include_nodes: bool,
@@ -1362,6 +1360,142 @@ pub(crate) mod tests {
             .unwrap();
         assert!(withdrawn > 0, "真实修订必须发生撤回");
         assert_eq!(count(&f.conn, "s_clock_events"), 12);
+    }
+
+    fn fixed_fields_four_real_commits(mode: s_allocation::Mode) {
+        let mut old = Fixture::new();
+        let mut new = Fixture::new();
+        old.runtime = Runtime::with_mode(mode.clone());
+        new.runtime = Runtime::with_mode(mode);
+        for (n, row, revision) in [
+            (1, ("a", 0, 6, 12, 3, 7), 1),
+            (2, ("b", 10, 8, 16, 6, 12), 1),
+            (3, ("c", 20, 8, 13, 4, 7), 1),
+            (4, ("b", 10, 8, 17, 6, 12), 2),
+        ] {
+            let (oe, ot) = old.accept_begin(n, row, revision);
+            let (ne, nt) = new.accept_begin(n, row, revision);
+            let expected =
+                object_index::with_legacy_candidate_fields_for_test(|| old.publish(&oe, &ot))
+                    .unwrap();
+            let before = object_index::candidate_field_reads_for_test();
+            let actual = new.publish(&ne, &nt).unwrap();
+            let after = object_index::candidate_field_reads_for_test();
+            assert_eq!(
+                canonical_json(&actual.message_receipt),
+                canonical_json(&expected.message_receipt)
+            );
+            assert_eq!(actual.snapshot, expected.snapshot);
+            assert_eq!(actual.delta, expected.delta);
+            assert_eq!(actual.batch_id, expected.batch_id);
+            assert_eq!(
+                runtime_root_tables(&new.conn, true),
+                runtime_root_tables(&old.conn, true),
+                "gen{n}全表/节点/四根逐字相同"
+            );
+            assert!(
+                after.0 < before.0,
+                "gen{n} actual candidate SQL {} vs {}",
+                after.0,
+                before.0
+            );
+            assert!(
+                after.1 < before.1,
+                "gen{n} actual candidate F {} vs {}",
+                after.1,
+                before.1
+            );
+            eprintln!(
+                "fixed_fields real gen={n} old_SQL={} new_SQL={} old_F={} new_F={}",
+                before.0, after.0, before.1, after.1
+            );
+        }
+        assert!(count(&new.conn, "s_content_objects") > 0);
+        assert!(
+            new.conn
+                .query_row(
+                    "SELECT count(*) FROM s_content_objects WHERE kind='CC-006.local_shape'",
+                    [],
+                    |r| r.get::<_, i64>(0)
+                )
+                .unwrap()
+                > 0
+        );
+        assert!(
+            new.conn
+                .query_row(
+                    "SELECT count(*) FROM s_content_objects WHERE kind!='CC-006.local_shape'",
+                    [],
+                    |r| r.get::<_, i64>(0)
+                )
+                .unwrap()
+                > 0
+        );
+        assert!(
+            new.conn
+                .query_row(
+                    "SELECT count(*) FROM s_content_objects WHERE withdrawn_generation=4",
+                    [],
+                    |r| r.get::<_, i64>(0)
+                )
+                .unwrap()
+                > 0
+        );
+    }
+    #[test]
+    fn fixed_fields_plain_four_real_commits_match_legacy_all_rows_nodes_receipts_and_roots() {
+        fixed_fields_four_real_commits(s_allocation::Mode::Ordinary);
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn fixed_fields_owned_four_real_commits_match_legacy_all_rows_nodes_receipts_and_roots() {
+        let budget = sc::capture_allocation::OwnedBudget::new(100 * 1024 * 1024);
+        fixed_fields_four_real_commits(s_allocation::Mode::Owned(q_allocation::Profile {
+            budget: budget.clone(),
+            overlay_slots: 32768,
+            overlay_bytes: 1_000_000,
+        }));
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        assert!(budget.snapshot().allocation_attempts > 0);
+        assert!(!budget.ledger_health().invariant_broken);
+        eprintln!("fixed_fields real Owned ledger={:?}", budget.snapshot());
+    }
+
+    fn fixed_fields_commit_rollback(mode: s_allocation::Mode) {
+        let mut f = Fixture::new();
+        f.runtime = Runtime::with_mode(mode);
+        let (e, t) = f.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
+        f.publish(&e, &t).unwrap();
+        let (e, t) = f.accept_begin(2, ("b", 10, 8, 16, 6, 12), 1);
+        let before = runtime_root_tables(&f.conn, true);
+        f.runtime.after_prepare = Some(|tx| {
+            tx.execute_batch("PRAGMA defer_foreign_keys=ON; INSERT INTO s_delivery_refs(generation) VALUES(999);").map_err(err)
+        });
+        assert!(f.publish(&e, &t).unwrap_err().contains("FOREIGN KEY"));
+        assert_eq!(
+            before,
+            runtime_root_tables(&f.conn, true),
+            "失败后全表含接受/Begin/clock和全部节点精确保留"
+        );
+        f.runtime.after_prepare = None;
+        f.publish(&e, &t).unwrap();
+        assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 2);
+    }
+    #[test]
+    fn fixed_fields_plain_real_second_commit_fk_failure_rolls_back_every_persistent_row() {
+        fixed_fields_commit_rollback(s_allocation::Mode::Ordinary);
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn fixed_fields_owned_real_second_commit_fk_failure_rolls_back_every_persistent_row() {
+        let budget = sc::capture_allocation::OwnedBudget::new(50 * 1024 * 1024);
+        fixed_fields_commit_rollback(s_allocation::Mode::Owned(q_allocation::Profile {
+            budget: budget.clone(),
+            overlay_slots: 32768,
+            overlay_bytes: 1_000_000,
+        }));
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        assert!(!budget.ledger_health().invariant_broken);
     }
     #[test]
     fn generic_business_store_keeps_legacy_owned_layout() {
