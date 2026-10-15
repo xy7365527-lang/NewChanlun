@@ -16,8 +16,8 @@ import tempfile
 import time
 
 # 已通过独立源码/unsafe/C ABI审查的原型；不代表已经实跑通过。
-REVIEWED_SOURCE = "ba41200fb36a5db719bc326e2f494eaeaa0ca6c9"
-REVIEWED_TREE = "0b410e6123f6a7944db2d39d38778605f91f4dd0"
+REVIEWED_SOURCE = "e1d7e0b6bffb78f757e59cdfe3e35f3618e6790a"
+REVIEWED_TREE = "44d075dbd7eb99fbe388ee082acbca6beb9219cb"
 CI_FILES = {".github/scripts/run-1505-d2.py", ".github/workflows/prototype-1505-d2.yml"}
 # 已按源作者 CI_CONTRACT 对齐；源码 SHA/tree 仍须由主控绑定并做尾差独审。
 CONTRACT_READY = True
@@ -26,7 +26,7 @@ CASES = [
     "unknown-clean", "unknown-cold", "unknown-hot", "original-longer", "empty-journal", "post-reader-kill",
 ]
 NEGATIVES = ["callbacks", "sql-denials", "read-io", "read-short", "read-panic",
-             "late-exclusive", "close-error", "allocator-failure", "arena-oom", "path-swap"]
+             "late-exclusive", "late-exclusive-clean", "close-error", "allocator-failure", "arena-oom", "path-swap"]
 SUPERS = ["absolute", "relative", "embedded-nul", "length-512", "length-513", "empty",
           "bad-checksum", "zero-first-name", "length-beyond-file", "bad-magic"]
 TAILS = ["truncate-seven", "bad-last-byte"]
@@ -488,6 +488,59 @@ def check_boundary(evidence: Path, prefix: str, row: dict, *, compare_bytes: boo
                 "边界双失败没有相同明确 SQLite 扩展码")
 
 
+def check_late_exclusive(value: dict, mode: str, proof: dict) -> None:
+    """从原 trace 重建两处不同拒绝的证明，不把任意 SQLite 错误算命中。"""
+    require(mode in {"late-exclusive", "late-exclusive-clean"}, "未知 exclusive 负控")
+    life = value["lifecycle"]
+    report = life["report"]
+    before = value["before_source"]
+    events = report["events"]
+    require(value["ok"] is False and all(value.get(key) is not True for key in
+            ("registration_or_harness_error", "connect_error", "close_error")), "未触达查询拒绝")
+    require(life["unregistered"] is True and life["source_fds_closed"] is True
+            and type(report["active_files"]) is int and report["active_files"] == 0
+            and report["source_unchanged"] is True and report["trace_overflow"] is False
+            and isinstance(before, dict) and "main.sqlite" in before
+            and before == value["after_source"] == value["whole_reader_source_before"]
+            == value["whole_reader_source_after"], "exclusive 负控来源/生命周期不符")
+    require(value["owned_allocation_ledger"]["actual_owned_layout_current_bytes"] == 0
+            and value["allocator"]["after_shutdown_xsize_bytes"] == 0, "exclusive 负控账未释放")
+    require(isinstance(events, list) and all(
+            event["exclusive_armed"] is False and event["op"] not in
+            {"exclusive-armed", "write-overlay", "truncate-overlay", "delete-virtual-journal"}
+            and all(type(event[key]) is int for key in ("kind", "a", "b", "rc"))
+            for event in events), "exclusive 负控提前 arm/改写或 trace 字段类型错误")
+    require(all(type(report["overlay"][key]) is int and report["overlay"][key] == 0
+            for key in ("write_calls", "truncate_calls", "delete_calls")), "exclusive 负控发生虚拟写入")
+    reads = [event for event in events if event["op"] == "read"]
+    denied = [event for event in events if event["op"] == "open-denied"]
+    require(type(value["extended_code"]) is int, "缺 SQLite 扩展码")
+    if mode == "late-exclusive":
+        require(set(before) == {"main.sqlite", "main.sqlite-journal"}
+                and type(before["main.sqlite-journal"]["len"]) is int
+                and before["main.sqlite-journal"]["len"] > 512, "hot 负控失去热 journal")
+        require(value["extended_code"] == 14 and bool(reads)
+                and all((e["kind"], e["a"], e["b"], e["rc"]) == (1, 0, 100, 0)
+                        for e in reads), "hot 未在非头读取之前拒绝")
+        require([(e["kind"], e["a"], e["b"], e["rc"]) for e in denied]
+                == [(0, 2049, 0, 14), (0, 2050, 0, 14)], "hot journal 打开拒绝顺序不符")
+        rejection = "HOT_JOURNAL_OPEN_CANTOPEN"
+    else:
+        require(set(before) == {"main.sqlite"} and value["extended_code"] == 266
+                and not denied and any(e["kind"] == 1 and e["rc"] == 266
+                and (e["a"], e["b"]) != (0, 100) for e in reads), "clean 非头读取拒绝未命中")
+        require(all((e["kind"], e["a"], e["b"]) == (1, 0, 100)
+                    for e in reads if e["rc"] == 0), "clean 放过非头读取")
+        rejection = "CLEAN_MAIN_READ_IOERR_READ"
+    rebuilt = {"mode": mode, "rejection": rejection, "extended_code": value["extended_code"],
+               "read_events": reads, "open_denied_events": denied, "source_before": before,
+               "source_after": value["after_source"], "no_arm": True, "no_overlay_mutation": True,
+               "source_unchanged": True, "active_files": 0, "unregistered": True,
+               "source_fds_closed": True, "all_expected": True}
+    require(json.dumps(proof, sort_keys=True) == json.dumps(rebuilt, sort_keys=True),
+            "exclusive 具名证明与原件不符")
+
+
 def verify_suite(evidence: Path, binary_receipt: Path, root: Path,
                  source_file: Path, receipt: Path) -> None:
     """仅在受监督 worker 中核原件和契约；不执行 SQLite，不把边界双失败记正控。"""
@@ -565,6 +618,8 @@ def verify_suite(evidence: Path, binary_receipt: Path, root: Path,
                     and value["lifecycle"]["report"]["sql_denials"] >= 7,
                     "SQL 拒绝负控未实抵达")
             check_reader(value, hot=True)
+        elif mode in {"late-exclusive", "late-exclusive-clean"}:
+            check_late_exclusive(value, mode, evidence_json(evidence, "fault-" + mode + "-case.json"))
         elif mode == "allocator-failure":
             probe = value["allocation_probe"]
             require(all(probe[key] is True for key in ("realloc_old_bytes_preserved", "actual_malloc_failed",
