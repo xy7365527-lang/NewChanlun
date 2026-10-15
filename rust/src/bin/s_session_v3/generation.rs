@@ -1017,7 +1017,7 @@ impl SequenceKeys {
     }
 }
 
-/// 跨代共享序列记忆：未变前缀不重写，真变化处 `sequence_split` + 尾部续接。
+/// 跨代共享序列记忆：未变前缀不重写，真变化处一次重建后缀（#1488）。
 #[derive(Default)]
 pub(super) struct SequenceMemo {
     keys: SequenceKeys,
@@ -1084,35 +1084,19 @@ impl SequenceMemo {
             .zip(elements.iter())
             .take_while(|(left, right)| left == right)
             .count();
-        let consistent = self
-            .seq
-            .as_ref()
-            .is_some_and(|seq| seq.count() == keys.len() as u64);
-        let seq = match (self.seq, consistent) {
-            (Some(seq), true) if common == keys.len() => {
-                let mut seq = seq;
-                for element in &elements[common..] {
-                    seq = sc::sequence_append_with_allocation(&mut *store, &seq, element, budget)
-                        .map_err(|error| format!("GenError：{what} 序列续接失败：{error}"))?;
-                }
-                seq
-            }
-            (Some(seq), true) if common > 0 => {
-                let (mut left, _right) =
-                    sc::sequence_split_with_allocation(&mut *store, &seq, common as u64, budget)
-                        .map_err(|error| format!("GenError：{what} 序列截断失败：{error}"))?;
-                for element in &elements[common..] {
-                    left = sc::sequence_append_with_allocation(&mut *store, &left, element, budget)
-                        .map_err(|error| format!("GenError：{what} 序列续接失败：{error}"))?;
-                }
-                left
-            }
-            _ => {
-                let root = sc::write_sequence(&mut *store, elements)
-                    .map_err(|error| format!("GenError：{what} 序列写入失败：{error}"))?;
-                SequenceRef::from_parts_unchecked(root, elements.len() as u64)
-            }
+        let previous = match self.seq {
+            Some(seq) if seq.count() == keys.len() as u64 => seq,
+            None if keys.is_empty() => SequenceRef::empty(),
+            _ => return Err(format!("GenError：{what} 序列缓存计数不一致，须discard")),
         };
+        let seq = sc::sequence_rebuild_suffix_with_allocation(
+            &mut *store,
+            &previous,
+            common as u64,
+            &elements[common..],
+            budget,
+        )
+        .map_err(|error| format!("GenError：{what} 序列后缀重建失败：{error}"))?;
         let built = array_from_sequence(&mut *store, &seq).map_err(producer_error)?;
         next_keys
             .as_mut()
@@ -1673,7 +1657,7 @@ mod tests {
     #[test]
     fn sequence_keys_owned_growth_counts_old_and_new_blocks_preserves_failure_and_drops_on_discard()
     {
-        // 95/96 只锁 keys allocator 组件；sync 的调用内 memo 另有真实分配。
+        // 95/96 只锁 keys allocator 组件；sync 的调用内右脊栈另有真实分配。
         let budget = sc::capture_allocation::OwnedBudget::new(95);
         let other = sc::capture_allocation::OwnedBudget::new(96);
         let first = [1; 32];
@@ -1717,14 +1701,14 @@ mod tests {
 
     #[cfg(feature = "s_allocation_json_testonly")]
     #[test]
-    fn sequence_sync_local_memo_uses_keys_ledger_and_propagates_refusal_until_discard() {
+    fn sequence_sync_rebuild_stack_uses_keys_ledger_and_propagates_refusal_until_discard() {
         let budget = sc::capture_allocation::OwnedBudget::new(96);
         let first = [1; 32];
         let second = [2; 32];
         let mut store = MemoryNodes::new();
         let root = sc::write_sequence(&mut store, &[first]).unwrap();
         let mut keys = SequenceKeys::owned(&budget).unwrap();
-        // 预留两项，隔离调用内 memo 拒绝，避免先卡在 keys 增长。
+        // 预留两项，隔离调用内右脊栈拒绝，避免先卡在 keys 增长。
         keys.reserve_owned(2).unwrap();
         keys.replace_reserved(&[first]).unwrap();
         let original = SequenceRef::from_parts_unchecked(root, 1);
@@ -1738,7 +1722,10 @@ mod tests {
             .unwrap_err();
         assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
         let probe = budget.allocation_request_probe();
-        assert!(probe.refused_kind.contains("SequenceRef"));
+        assert_eq!(
+            probe.refused_kind,
+            std::any::type_name::<(NodeDigest, u64)>()
+        );
         assert_eq!(probe.live_before_refusal, 64);
         assert!(probe.refused_bytes > 32);
         assert_eq!(memo.seq, Some(original));
@@ -1788,8 +1775,8 @@ mod tests {
             .unwrap()
             .digest;
         let short = sc::capture_allocation::OwnedBudget::new(31);
-        let budget = sc::capture_allocation::OwnedBudget::new(32);
-        let other = sc::capture_allocation::OwnedBudget::new(32);
+        let budget = sc::capture_allocation::OwnedBudget::new(1 << 20);
+        let other = sc::capture_allocation::OwnedBudget::new(1 << 20);
         let mut memo = SequenceMemo::default();
         assert!(memo
             .sync(&mut store, &[digest], "首次keys", Some(&short))
@@ -1830,6 +1817,221 @@ mod tests {
             .unwrap_err();
         assert!(error.contains("拒绝Plain兜底"));
         assert!(!memo.bound && memo.seq.is_none());
+    }
+
+    #[derive(Default)]
+    struct SequenceTestStore {
+        nodes: MemoryNodes,
+        writes: Vec<NodeDigest>,
+        reject_reads: bool,
+        writes_left: Option<usize>,
+        failures: usize,
+    }
+    impl sc::NodeSource for SequenceTestStore {
+        fn read(&mut self, digest: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+            if self.reject_reads {
+                self.failures += 1;
+                return Err(sc::CodecError::new(
+                    "test_sequence_read",
+                    "真实 memo 读故障",
+                ));
+            }
+            sc::NodeSource::read(&mut self.nodes, digest)
+        }
+    }
+    impl sc::NodeSink for SequenceTestStore {
+        fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
+            if let Some(left) = &mut self.writes_left {
+                if *left == 0 {
+                    self.failures += 1;
+                    return Err(sc::CodecError::new(
+                        "test_sequence_write",
+                        "真实 memo 写故障",
+                    ));
+                }
+                *left -= 1;
+            }
+            sc::NodeSink::put(&mut self.nodes, digest, tag, body)?;
+            self.writes.push(digest);
+            Ok(())
+        }
+    }
+
+    // 只沿数组与 M 树边遍历，叶值摘要仍按内容序列 API 的不透明值口径。
+    fn sequence_array_closure(
+        nodes: &MemoryNodes,
+        root: NodeDigest,
+    ) -> std::collections::HashSet<NodeDigest> {
+        let mut seen = std::collections::HashSet::new();
+        let mut todo = vec![root];
+        while let Some(digest) = todo.pop() {
+            if !seen.insert(digest) {
+                continue;
+            }
+            let (tag, body) = nodes.get(&digest).expect("结果闭包不能缺节点");
+            match tag {
+                sc::tag::ARRAY => todo.push(body[8..40].try_into().unwrap()),
+                sc::tag::SEQ_BRANCH => {
+                    todo.push(body[8..40].try_into().unwrap());
+                    todo.push(body[40..72].try_into().unwrap());
+                }
+                sc::tag::SEQ_LEAF | sc::tag::SEQ_EMPTY => {}
+                _ => panic!("数组序列闭包出现非序列节点"),
+            }
+        }
+        seen
+    }
+
+    fn sequence_memo_full_oracle_transitions(budget: Option<&sc::capture_allocation::OwnedBudget>) {
+        let base: Vec<NodeDigest> = (1..=31).map(|n| [n; 32]).collect();
+        let mut middle = base.clone();
+        middle[9..].fill([101; 32]);
+        let mut tail = middle.clone();
+        tail[28..].fill([102; 32]);
+        let all_new = vec![[201; 32]; 6];
+        // 首次空/非空、追加、原样、中段/近尾替换、截短、全替换、清空、清空后重建。
+        let stages = [
+            vec![],
+            base[..1].to_vec(),
+            base[..5].to_vec(),
+            base.clone(),
+            base.clone(),
+            middle,
+            tail.clone(),
+            tail[..17].to_vec(),
+            all_new,
+            vec![],
+            base[..8].to_vec(),
+        ];
+        let mut memo = SequenceMemo::default();
+        let mut store = SequenceTestStore::default();
+        for elements in stages {
+            let before: std::collections::HashSet<_> =
+                store.nodes.iter().map(|(d, _, _)| *d).collect();
+            let previous_keys = memo.keys.as_slice().to_vec();
+            let old_sequence = memo.seq;
+            let unchanged = memo.bound && previous_keys == elements;
+            store.writes.clear();
+            let got = memo
+                .sync(&mut store, &elements, "真实 memo 转换", budget)
+                .unwrap();
+            // 独立全量 writer 不经过 SequenceMemo/rebuild，锁住 layout/1 的旧编码。
+            let mut oracle = MemoryNodes::new();
+            let root = sc::write_sequence(&mut oracle, &elements).unwrap();
+            let expected_seq = SequenceRef::from_parts_unchecked(root, elements.len() as u64);
+            let expected = array_from_sequence(&mut oracle, &expected_seq).unwrap();
+            assert_eq!(got, expected);
+            assert_eq!(memo.seq, Some(expected_seq));
+            assert_eq!(memo.keys.as_slice(), elements.as_slice());
+            let closure = sequence_array_closure(&store.nodes, got.digest);
+            for digest in &store.writes {
+                assert!(closure.contains(digest), "本次写入不准留下作废中间根");
+            }
+            for (digest, _, _) in store.nodes.iter().filter(|(d, _, _)| !before.contains(*d)) {
+                assert!(closure.contains(digest), "新增节点须全部可达");
+            }
+            if unchanged {
+                assert_eq!(memo.seq, old_sequence);
+                assert!(store.nodes.iter().all(|(d, _, _)| before.contains(d)));
+            }
+            if let Some(budget) = budget {
+                assert!(memo.allocation_budget().unwrap().same_ledger(budget));
+                let capacity = match &memo.keys {
+                    SequenceKeys::Plain(keys) => keys.capacity(),
+                    #[cfg(feature = "s_allocation_json_testonly")]
+                    SequenceKeys::Owned(keys) => keys.capacity(),
+                };
+                assert_eq!(
+                    budget.snapshot().live_requested_layout_bytes,
+                    capacity * std::mem::size_of::<NodeDigest>()
+                );
+            }
+        }
+        memo.discard();
+        assert!(!memo.bound && memo.seq.is_none() && memo.keys.as_slice().is_empty());
+        if let Some(budget) = budget {
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+            assert!(!budget.ledger_health().invariant_broken);
+        }
+    }
+
+    #[test]
+    fn sequence_sync_plain_matches_full_oracle_and_writes_only_reachable() {
+        sequence_memo_full_oracle_transitions(None);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn sequence_sync_owned_matches_full_oracle_and_writes_only_reachable() {
+        let budget = sc::capture_allocation::OwnedBudget::new(1 << 20);
+        sequence_memo_full_oracle_transitions(Some(&budget));
+        assert!(budget.snapshot().allocated_layouts > 0);
+    }
+
+    fn sequence_memo_failure_preserves_state(budget: Option<&sc::capture_allocation::OwnedBudget>) {
+        let base: Vec<NodeDigest> = (1..=9).map(|n| [n; 32]).collect();
+        let mut changed = base.clone();
+        changed[3..].fill([200; 32]);
+        let mut memo = SequenceMemo::default();
+        let mut store = SequenceTestStore::default();
+        memo.sync(&mut store, &base, "故障前", budget).unwrap();
+        let seq = memo.seq;
+        let live = budget.map(|b| b.snapshot().live_requested_layout_bytes);
+        // 首读拒绝、已写一个叶后拒绝、最后数组节点拒绝三种实际边界。
+        let mut probe = SequenceTestStore::default();
+        let mut probe_memo = SequenceMemo::default();
+        probe_memo.sync(&mut probe, &base, "计写", None).unwrap();
+        probe.writes.clear();
+        probe_memo.sync(&mut probe, &changed, "计写", None).unwrap();
+        let before_array = probe.writes.len() - 1;
+        for (reject_reads, writes_left, error_code) in [
+            (true, None, "test_sequence_read"),
+            (false, Some(1), "test_sequence_write"),
+            (false, Some(before_array), "test_sequence_write"),
+        ] {
+            store.reject_reads = reject_reads;
+            store.writes_left = writes_left;
+            store.failures = 0;
+            let error = memo
+                .sync(&mut store, &changed, "故障代", budget)
+                .unwrap_err();
+            assert!(error.contains(error_code), "{error}");
+            assert_eq!(store.failures, 1, "第一次错误直接返回，不重试全量");
+            assert!(memo.bound);
+            assert_eq!(memo.seq, seq);
+            assert_eq!(memo.keys.as_slice(), base.as_slice());
+            assert_eq!(
+                budget.map(|b| b.snapshot().live_requested_layout_bytes),
+                live
+            );
+        }
+        store.reject_reads = false;
+        store.writes_left = None;
+        // 缓存损坏同样拒绝，不能全量重建掩盖旧状态失配。
+        memo.seq = Some(SequenceRef::from_parts_unchecked(seq.unwrap().root(), 1));
+        store.writes.clear();
+        assert!(memo
+            .sync(&mut store, &changed, "失配", budget)
+            .unwrap_err()
+            .contains("计数不一致"));
+        assert!(store.writes.is_empty());
+        assert_eq!(memo.keys.as_slice(), base.as_slice());
+        memo.discard();
+        if let Some(budget) = budget {
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        }
+    }
+
+    #[test]
+    fn sequence_sync_plain_errors_preserve_keys_and_root_without_full_fallback() {
+        sequence_memo_failure_preserves_state(None);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn sequence_sync_owned_errors_release_stack_and_preserve_keys_and_root() {
+        let budget = sc::capture_allocation::OwnedBudget::new(1 << 20);
+        sequence_memo_failure_preserves_state(Some(&budget));
     }
 
     /// #1394 整合 W-3：合并后 oracle 是 main 的 v2 写者，它在 TB-02-A/B 之外另发布 TB-02-C/D

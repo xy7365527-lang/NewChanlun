@@ -27,11 +27,13 @@
 //!   写 2^10。不同叶、不同共享结构的树没有覆盖，不能据此声称普遍界。
 //!   互递归本身可能产生高次多项式；单次调用内的 `Memo` 只做子问题去重（不是跨调用缓存，
 //!   也不是结果证明缓存），调用返回即丢。任何未证明的高次项都按「实测边界」记，不按定理记。
+//! - 批量后缀重建 `sequence_rebuild_suffix`：内部节点写入为 popcount(keep)+m−1 ≤ m·(bits+1)，另写 m 个叶节点；m=0 且 keep<count 时等价于 split，不适用此上界。
 //!
 //! **写放大（照实）**：concat/split 会写入若干**中间规范节点**（例如某段前缀/后缀的
 //! 规范根）。它们本身都是合法内容节点，但不一定被本次结果引用。已测构型：11 叶 concat
 //! 多出 1 个中间节点；2^51 共享构型见上「成本」段。其它形状未测，测试给的仪表上界是
 //! 8·bits²（不是最坏界证明）。清理归调用方的内容存储策略（§5.6.1 的 `max_store_bytes`）。
+//! 批量后缀重建只写结果树右脊上的节点，不产生逐元素 append 那样的作废中间根。
 
 #[cfg(feature = "s_allocation_json_testonly")]
 use super::capture_allocation::work::WorkMap;
@@ -319,6 +321,100 @@ pub fn sequence_append_with_allocation(
     store.put(leaf_digest, tag::SEQ_LEAF, leaf)?;
     let tail = SequenceRef::from_parts_unchecked(leaf_digest, 1);
     concat_core(store, seq, &tail, &mut memo)
+}
+
+/// 批量后缀重建：保留 `seq` 前 `keep` 个叶，其后接 `leaves`，一次构造结果树。
+/// 结果与「split 出前缀后逐个 sequence_append」逐位相同，但不写逐元素 append 的作废中间根。
+pub fn sequence_rebuild_suffix(
+    store: &mut dyn NodeStore,
+    seq: &SequenceRef,
+    keep: u64,
+    leaves: &[NodeDigest],
+) -> Result<SequenceRef, CodecError> {
+    sequence_rebuild_suffix_with_allocation(store, seq, keep, leaves, None)
+}
+
+/// 显式计量右脊栈的实际 allocator Layout，沿用原账本，返回或错误时释放。
+/// 节点 body 与 store 自身分配不由本入口计量；失败可能已有节点写入，事务由调用方回滚。
+pub fn sequence_rebuild_suffix_with_allocation(
+    store: &mut dyn NodeStore,
+    seq: &SequenceRef,
+    keep: u64,
+    leaves: &[NodeDigest],
+    budget: Option<&OwnedBudget>,
+) -> Result<SequenceRef, CodecError> {
+    #[cfg(not(feature = "s_allocation_json_testonly"))]
+    if budget.is_some() {
+        return Err(CodecError::static_detail(
+            super::capture_allocation::INCOMPLETE,
+            "sequence rebuild 缺 Owned 构建，拒绝 Plain 兜底",
+        ));
+    }
+    if keep > seq.count {
+        return Err(sequence_shape_error(format!(
+            "rebuild_suffix keep {keep} exceeds sequence count {}",
+            seq.count
+        )));
+    }
+    checked_input(store, seq)?;
+    if leaves.is_empty() && keep == seq.count {
+        return Ok(*seq);
+    }
+    let appended = u64::try_from(leaves.len())
+        .map_err(|_| length_overflow_error("rebuild_suffix leaf count overflow".to_string()))?;
+    let total = keep
+        .checked_add(appended)
+        .filter(|t| *t <= MAX_FRAME_LEN)
+        .ok_or_else(|| {
+            length_overflow_error(format!("rebuild_suffix total {keep}+{appended} overflow"))
+        })?;
+    if total == 0 {
+        return empty_node(store);
+    }
+    let mut stack = super::CodecVec::<(NodeDigest, u64)>::new_with_allocation(budget);
+    let mut rest = keep;
+    let mut node = (seq.root, seq.count);
+    while rest > 0 {
+        if node.1 == rest && rest.is_power_of_two() {
+            stack.try_push(node)?;
+            break;
+        }
+        match read_seq_node(store, &node.0, node.1)? {
+            SeqNode::Branch { k, left, right } => {
+                if k <= rest {
+                    stack.try_push((left, k))?;
+                    rest -= k;
+                    node = (right, node.1 - k);
+                } else {
+                    node = (left, k);
+                }
+            }
+            _ => {
+                return Err(sequence_shape_error(format!(
+                    "rebuild_suffix descent reached non-branch with {rest} leaves remaining"
+                )))
+            }
+        }
+    }
+    for leaf in leaves {
+        let leaf_digest = frame(tag::SEQ_LEAF, leaf);
+        store.put(leaf_digest, tag::SEQ_LEAF, leaf)?;
+        stack.try_push((leaf_digest, 1))?;
+        while stack.len() >= 2 && stack[stack.len() - 1].1 == stack[stack.len() - 2].1 {
+            let right = stack.pop().expect("len>=2");
+            let left = stack.pop().expect("len>=2");
+            let size = left.1 + right.1;
+            stack.try_push((branch_node(store, &left.0, &right.0, size)?, size))?;
+        }
+    }
+    let mut acc = stack
+        .pop()
+        .ok_or_else(|| sequence_shape_error("rebuild_suffix empty stack".to_string()))?;
+    while let Some(prev) = stack.pop() {
+        let size = prev.1 + acc.1;
+        acc = (branch_node(store, &prev.0, &acc.0, size)?, size);
+    }
+    Ok(SequenceRef::from_parts_unchecked(acc.0, total))
 }
 
 /// 单次调用内的子问题备忘：同一 `(摘要, 叶数[, 位置])` 只解一次。

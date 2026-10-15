@@ -57,8 +57,9 @@ pub mod job_wire;
 pub mod sequence;
 pub use sequence::{
     sequence_append, sequence_append_with_allocation, sequence_concat,
-    sequence_concat_with_allocation, sequence_split, sequence_split_with_allocation, NodeStore,
-    SequenceRef,
+    sequence_concat_with_allocation, sequence_rebuild_suffix,
+    sequence_rebuild_suffix_with_allocation, sequence_split, sequence_split_with_allocation,
+    NodeStore, SequenceRef,
 };
 
 /// §5.4/§5.6 的路径定位与本批占位（0x08）定点替换（#1394 采纳 C）。
