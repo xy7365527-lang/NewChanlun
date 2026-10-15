@@ -708,8 +708,10 @@
   const RULE_AXES = new Map([
     ["s2-axis-quantifiers", LEGACY_TB02_AXES],
     ["s2-axis-quantifiers+new-bi/1", BI_AXES],
+    ["s2-axis-quantifiers+new-bi/2", BI_AXES],
     ["s2-axis-quantifiers+new-bi/1+segment-first/1", FIRST_SEGMENT_AXES],
     ["s2-axis-quantifiers+new-bi/1+segment-second/1", TB02_AXES],
+    ["s2-axis-quantifiers+new-bi/2+segment-second/1", TB02_AXES],
   ]);
   async function axesValidate(axes, active = null) {
     axes = of(axes);
@@ -875,7 +877,7 @@
       // #1392/#1404：新笔/段 payload.slot 是逻辑身份；见证 slot 仍按整数核对。
       const logicalSlot =
         (await v.has("schema_revision")) &&
-        ["s-new-bi/1", "s-segment/1", "s-segment/2"].includes(
+        ["s-new-bi/1", "s-new-bi/2", "s-segment/1", "s-segment/2"].includes(
           await s(v, "schema_revision"),
         );
       for await (const e of v.entries()) {
@@ -1338,10 +1340,11 @@
         "Q3完整消费者只接受显式OHLC已批准profile",
       );
       // #1404/#1414：按 cut 规则修订选轴表（同 main validateTB02Candidate，先于逐轴校验）。
+      need(RULE_AXES.has(rule), "cut规则修订未声明");
       if (generation !== "0")
         await keys(
           await f(await f(snapshot, "catalog_evidence"), "axes"),
-          RULE_AXES.get(rule) || TB02_AXES,
+          RULE_AXES.get(rule),
           "cut规则目录轴",
         );
       await catalogValidate(catalog, snapshot);
@@ -1366,18 +1369,14 @@
         }
         const kind = await t(record, "kind");
         if (typed.TB02_KINDS.includes(kind)) {
+          const [biSchema, segmentSchema, domain] = Object.hasOwn(typed.RULE_CONTRACTS, rule) ? typed.RULE_CONTRACTS[rule] : [null, null, null];
+          const payload = await f(record, "payload");
           if (typed.SEGMENT_KINDS.includes(kind))
-            need(
-              await equal(
-                await f(await f(record, "payload"), "schema_revision"),
-                rule === "s2-axis-quantifiers+new-bi/1+segment-second/1"
-                  ? "s-segment/2"
-                  : rule === "s2-axis-quantifiers+new-bi/1+segment-first/1"
-                    ? "s-segment/1"
-                    : null,
-              ),
-              "段合同与cut规则版本不符",
-            );
+            need(await equal(await f(payload, "schema_revision"), segmentSchema), "段合同与cut规则版本不符");
+          if (typed.BI_KINDS.includes(kind))
+            need(await equal(await f(payload, "schema_revision"), biSchema), "新笔合同与cut规则版本不符");
+          if (kind === "CC-054.knowledge_state" && domain !== null)
+            need(await equal(await f(payload, "domain"), domain), "TB-02-A 知识域与cut规则版本不符");
           const p = {};
           for (const k of ["kind", "fact_key", "payload", "input_refs"])
             p[k] = await f(record, k);

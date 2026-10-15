@@ -41,3 +41,9 @@ raw1/raw2/raw3 的 high 为 `8,9,7`，low 为 `4,2,5`。中 high 独高而中 lo
 `revision_scenario` 将同身份 raw2 的完整 OHLC 从 `(3,9,2,8)` 改为 `(7,11,6,10)`，其余四根逐字段不变。旧组 `[1,2,3]` 被拆开；旧窗口锚 `[0,1,4]` 被撤回，新窗口锚为 `[0,1,2] [1,2,3] [2,3,4]`。实施须以真实对象版本表达撤回/替代；新查询完整匹配 after，固定旧 cut 仍完整匹配 before。账簿不预造正式对象 ID 或 cut ID。
 
 两新进程同输入重放及所改持久边界的恢复对拍属于待运行验收；本夹具没有宣称这些已经执行。对拍须保留完整对象字段、关系、证据集合和身份，不能拿本手算价格投影代替协议完整输出。强弱描述没有私设数值门，后续成笔、延续、反转与交易事件未由本例证成。G-001、G-002 及 TB-02 一般域仍各归原票；本夹具不是 #1373、#1346、TB-02 或父图关票凭证。
+
+## v2（#1405 落 #1343 同价裁定，2026-10-14）
+
+以上 v1 文字原样保留。`hand-oracle.json` 升 `tb02a-independent-hand-oracle-v2`：`wait_equal_high`／`wait_equal_low`／`wait_equal_both` 三例从 `waiting_cases` 移入 `root_set_cases`，v1 原对象逐字留在各例 `as_known_v1`（AsKnown，不回填）。其余 case 与 v1 逐字相同。
+
+依据 `.chanlun/definitions/bi.md` §7.1 Q2/Q4：组内多根同取极值时，端点的实际极值身份就是这组根（`candidate_high_raw_indices`／`candidate_low_raw_indices` 原样即为身份），不存在待选的唯一根，因此不是未定态。新期望：raw 2 的步骤是完成的 `merge`（方向 UP，数值即 `candidate_value_only`，根集按原样），步骤与组的知识请求理由为空、计算轴 COMPLETE、适用域轴 IN_DOMAIN；步骤/组载荷里的 `equal_extreme_identity` 只作证据标签保留；知识状态域为 `established_direction_with_extreme_root_sets`，`waiting_reasons` 与观察不再出现 `equal_extreme_identity`（三例只有两根合并 K，`fewer_than_three_merged_bars` 等其他缺口照旧）。v1 的 `must_not`「不得选择 first/last 根」在 v2 下照样成立——集合语义本就不选根。

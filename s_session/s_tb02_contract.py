@@ -17,6 +17,18 @@ KINDS += SEGMENT_KINDS
 AXES += ("CC-011", "CC-012", "CC-013")
 FIRST_SEGMENT_AXES = AXES
 AXES += ("CC-014",)
+# #1405：TB-02-A 知识域两代——旧值只在旧规则会话里 AsKnown 可读；#1343 后极值身份以根集合计。
+KNOWLEDGE_DOMAIN_V1 = "established_direction_without_extreme_identity_competition"
+KNOWLEDGE_DOMAIN_V2 = "established_direction_with_extreme_root_sets"
+# #1405：会话级 rule_revision 绑定（新笔合同, 段合同, TB-02-A 知识域）代际；旧规则会话只读（AsKnown）。
+RULE_CONTRACTS = {
+    "s2-axis-quantifiers": (None, None, KNOWLEDGE_DOMAIN_V1),
+    "s2-axis-quantifiers+new-bi/1": ("s-new-bi/1", None, KNOWLEDGE_DOMAIN_V1),
+    "s2-axis-quantifiers+new-bi/2": ("s-new-bi/2", None, KNOWLEDGE_DOMAIN_V2),
+    "s2-axis-quantifiers+new-bi/1+segment-first/1": ("s-new-bi/1", "s-segment/1", KNOWLEDGE_DOMAIN_V1),
+    "s2-axis-quantifiers+new-bi/1+segment-second/1": ("s-new-bi/1", "s-segment/2", KNOWLEDGE_DOMAIN_V1),
+    "s2-axis-quantifiers+new-bi/2+segment-second/1": ("s-new-bi/2", "s-segment/2", KNOWLEDGE_DOMAIN_V2),
+}
 
 FACT_COLUMNS = ("object_id", "object_revision", "kind", "batch_id", "fact_key", "payload_json", "input_refs_json", "source_coords_json", "first_known_generation", "first_known_cut", "published_generation", "withdrawn_generation", "withdrawal_reason", "superseded_by")
 FACT_FIELDS = ("object_id", "object_revision", "kind", "batch_id", "fact_key", "payload", "input_refs", "source_coords", "first_known_generation", "first_known_cut", "published_generation", "withdrawn_generation", "withdrawal_reason", "superseded_by", "lifecycle")
@@ -227,7 +239,7 @@ def _validate_payload_fields(kind, p):
             raise ValueError("knowledge scope 不符")
         integer(p["input_frontier"], "knowledge.input_frontier", -1)
         strings(p["waiting_reasons"], "knowledge.waiting_reasons")
-        if p["known_facts"] != ["raw_ohlc", "inclusion_trace", "group_provenance"] or p["domain"] != "established_direction_without_extreme_identity_competition":
+        if p["known_facts"] != ["raw_ohlc", "inclusion_trace", "group_provenance"] or p["domain"] not in (KNOWLEDGE_DOMAIN_V1, KNOWLEDGE_DOMAIN_V2):
             raise ValueError("knowledge 已知事实/限定域声明不符")
         request_ids = set()
         for request in array(p["requests"], "knowledge.requests"):
@@ -325,10 +337,15 @@ def _validate_fact(value, meta=None, raw=None, *, _identity_hash=None):
     if value["fact_key"] != canonical([kind, slot]).decode():
         raise ValueError("fact_key 与真实语义槽不符")
     if meta is not None:
-        if kind in SEGMENT_KINDS:
-            expected_schema = "s-segment/2" if meta["rule_revision"] == "s2-axis-quantifiers+new-bi/1+segment-second/1" else "s-segment/1" if meta["rule_revision"] == "s2-axis-quantifiers+new-bi/1+segment-first/1" else None
-            if p["schema_revision"] != expected_schema:
-                raise ValueError("段合同与cut规则版本不符")
+        if meta["rule_revision"] not in RULE_CONTRACTS:
+            raise ValueError("cut规则修订未声明")
+        bi_schema, segment_schema, domain = RULE_CONTRACTS[meta["rule_revision"]]
+        if kind in SEGMENT_KINDS and p["schema_revision"] != segment_schema:
+            raise ValueError("段合同与cut规则版本不符")
+        if kind in BI_KINDS and p["schema_revision"] != bi_schema:
+            raise ValueError("新笔合同与cut规则版本不符")
+        if kind == KINDS[3] and domain is not None and p["domain"] != domain:
+            raise ValueError("TB-02-A 知识域与cut规则版本不符")
         identity = {key: value[key] for key in ("kind", "fact_key", "payload", "input_refs")}
         identity.update(profile_id=meta["profile_id"], rule_revision=meta["rule_revision"])
         digest = (hashlib.sha256(canonical(identity)).hexdigest() if _identity_hash is None
@@ -795,16 +812,42 @@ def validate_segment_payload(kind, p):
         raise ValueError("段语义槽身份不符")
 
 
+# #1405（#1343）：新笔合同两代并存——`s-new-bi/1` 旧对象按 AsKnown 保留、不回填；
+# `s-new-bi/2` 端点带极值根集首末 raw 序位，同型只有 KEEP/REPLACE 并带同价证据，
+# `policy_version` 并列记录 raw 间隔门与同价策略。
+SAME_PRICE_POLICY = "same-price/keep-earlier+extreme-region/1"
+SAME_PRICE_KEEP_EVIDENCE = "same_kind_equal_price_keep_earlier"
+BI_VERSIONS = {
+    "s-new-bi/1": ("new-bi-dual-coordinate/1", "standard_raw_gap_3"),
+    "s-new-bi/2": ("new-bi-dual-coordinate/2", "standard_raw_gap_3;" + SAME_PRICE_POLICY),
+}
+# #1343 Q4：同价域已无任何未定态；v2 对象再出现这些等待原因即合同破坏。
+RETIRED_SAME_PRICE_WAITING = frozenset(("raw_extreme_identity_tie", "actual_extreme_mapping_missing",
+                                        "same_kind_endpoint_identity_tie", "earlier_endpoint_identity_unsettled"))
+
+
+def _bi_version(schema_revision):
+    semantic, policy = BI_VERSIONS[schema_revision]
+    return {"schema_revision": schema_revision, "semantic_version": semantic, "policy_version": policy}
+
+
 def validate_bi_payload(kind, p):
-    """#1392：仅验证 S 发布的完整形状和来源引用，不代算成笔。"""
+    """#1392/#1405：仅验证 S 发布的完整形状和来源引用，不代算成笔。"""
     keys(p, ("schema_revision", "semantic_version", "policy_version", "view_role", "object_generation", "slot", "data"), kind)
-    if (p["schema_revision"], p["semantic_version"], p["policy_version"], p["view_role"]) != ("s-new-bi/1", "new-bi-dual-coordinate/1", "standard_raw_gap_3", "main"):
+    if p["schema_revision"] not in BI_VERSIONS or (p["semantic_version"], p["policy_version"], p["view_role"]) != (*BI_VERSIONS[p["schema_revision"]], "main"):
         raise ValueError("新笔合同/规则/政策版本不符")
+    v2 = p["schema_revision"] == "s-new-bi/2"
     integer(p["object_generation"], "object_generation", 1)
     data = p["data"]
 
+    def waiting(value, name):
+        strings(value, name)
+        if v2 and RETIRED_SAME_PRICE_WAITING.intersection(value):
+            raise ValueError("同价域退役的等待态在 v2 对象复现")
+
     def endpoint(e):
-        keys(e, ("kind", "merged_index", "group_anchor", "price", "extreme_roots", "raw_position", "source_coords", "sealed_at", "waiting_reasons"), "endpoint")
+        positions = ("raw_first", "raw_last") if v2 else ("raw_position",)
+        keys(e, ("kind", "merged_index", "group_anchor", "price", "extreme_roots", *positions, "source_coords", "sealed_at", "waiting_reasons"), "endpoint")
         if e["kind"] not in ("TOP", "BOTTOM"):
             raise ValueError("端点类型未声明")
         for k in ("merged_index", "group_anchor"):
@@ -814,22 +857,30 @@ def validate_bi_payload(kind, p):
         coords(e["source_coords"], "source_coords")
         if not set(e["extreme_roots"]) <= set(e["source_coords"]):
             raise ValueError("实际根无原始来源")
-        for k in ("raw_position", "sealed_at"):
-            if e[k] is not None:
-                integer(e[k], k, 0)
-        strings(e["waiting_reasons"], "waiting_reasons")
+        if v2:
+            # 极值区：根集非空，首末序位覆盖全部根（单根时首末相同）。
+            first = integer(e["raw_first"], "raw_first", 0)
+            last = integer(e["raw_last"], "raw_last", first)
+            if not e["extreme_roots"] or last - first < len(e["extreme_roots"]) - 1:
+                raise ValueError("极值根集与首末 raw 序位不闭合")
+        elif e["raw_position"] is not None:
+            integer(e["raw_position"], "raw_position", 0)
+        if e["sealed_at"] is not None:
+            integer(e["sealed_at"], "sealed_at", 0)
+        waiting(e["waiting_reasons"], "waiting_reasons")
 
     def conditions(c):
         keys(c, ("merged_gap", "raw_between_actual_extrema", "top_price", "bottom_price", "vector", "failed_conditions", "waiting_reasons"), "conditions")
         integer(c["merged_gap"], "merged_gap", 0)
-        if c["raw_between_actual_extrema"] is not None:
+        if v2 or c["raw_between_actual_extrema"] is not None:
             integer(c["raw_between_actual_extrema"], "raw_between", 0)
         for k in ("top_price", "bottom_price"):
             integer(c[k], k)
-        if len(array(c["vector"], "vector")) != 3 or any(v is not None and type(v) is not bool for v in c["vector"]):
+        allowed = (bool,) if v2 else (bool, type(None))
+        if len(array(c["vector"], "vector")) != 3 or any(type(v) not in allowed for v in c["vector"]):
             raise ValueError("完整条件向量缺位/错型")
         strings(c["failed_conditions"], "failed_conditions")
-        strings(c["waiting_reasons"], "waiting_reasons")
+        waiting(c["waiting_reasons"], "waiting_reasons")
 
     def known(k):
         keys(k, ("generation", "input_frontier", "receipt_id", "received_at", "semantic_commit_ns"), "known_at")
@@ -843,7 +894,7 @@ def validate_bi_payload(kind, p):
     if kind == BI_KINDS[0]:
         endpoint(data)
     elif kind in BI_KINDS[1:3]:
-        keys(data, ("old", "new", "endpoint_kind_pair", "conditions", "comparison", "selection", "retained_anchors", "waiting_reasons"), kind)
+        keys(data, ("old", "new", "endpoint_kind_pair", "conditions", "comparison", "selection", "retained_anchors", *(("evidence",) if v2 else ()), "waiting_reasons"), kind)
         endpoint(data["old"])
         endpoint(data["new"])
         if data["endpoint_kind_pair"] != data["old"]["kind"] + "/" + data["new"]["kind"]:
@@ -852,12 +903,23 @@ def validate_bi_payload(kind, p):
             if data["old"]["kind"] == data["new"]["kind"]:
                 raise ValueError("异型请求的端点实际同型")
             conditions(data["conditions"])
-            if data["comparison"] is not None or data["selection"] is not None:
+            if data["comparison"] is not None or data["selection"] is not None or (v2 and data["evidence"] != []):
                 raise ValueError("异型域混入同型选择")
-        elif data["old"]["kind"] != data["new"]["kind"] or data["conditions"] is not None or data["comparison"] not in ("LT", "EQ", "GT") or data["selection"] not in ("KEEP", "REPLACE", "UNDETERMINED"):
+        elif data["old"]["kind"] != data["new"]["kind"] or data["conditions"] is not None or data["comparison"] not in ("LT", "EQ", "GT") or data["selection"] not in (("KEEP", "REPLACE") if v2 else ("KEEP", "REPLACE", "UNDETERMINED")):
             raise ValueError("同型域混入异型假位或选择缺失")
+        elif v2:
+            # 一个比较器三输出（#1343 Q1）：严格更强 ⟹ REPLACE；更弱或同价 ⟹ KEEP 在先者。
+            stronger = data["comparison"] == ("GT" if data["old"]["kind"] == "TOP" else "LT")
+            if data["selection"] != ("REPLACE" if stronger else "KEEP"):
+                raise ValueError("同型取舍与价格比较不闭合")
+            if data["retained_anchors"] != [data["new" if stronger else "old"]["group_anchor"]]:
+                raise ValueError("同型保留锚不符取舍")
+            if data["evidence"] != ([SAME_PRICE_KEEP_EVIDENCE] if data["comparison"] == "EQ" else []):
+                raise ValueError("同价保留在先者的证据缺失或混入")
         coords(data["retained_anchors"], "retained_anchors")
-        strings(data["waiting_reasons"], "waiting_reasons")
+        if v2:
+            strings(data["evidence"], "evidence")
+        waiting(data["waiting_reasons"], "waiting_reasons")
     elif kind == BI_KINDS[3]:
         keys(data, ("identity_anchor", "start", "end", "formation", "confirmation", "entity_id", "entity_revision", "state", "formed_known_at", "confirmed_known_at", "formed_evidence", "version_causes"), kind)
         integer(data["identity_anchor"], "identity_anchor", 0)
@@ -899,10 +961,12 @@ def validate_bi_payload(kind, p):
         strings(data["causes"], "causes")
         for k in ("before", "after"):
             if data[k] is not None:
-                validate_bi_payload(BI_KINDS[3], {**p, "object_generation": data[k]["entity_id"].split(":")[1], "data": data[k]})
+                # after 与本事件同版本；before 是先前已发布的对象，按其自身代际形状校验（AsKnown）。
+                version = p["schema_revision"] if k == "after" else ("s-new-bi/2" if "raw_first" in data[k]["start"] else "s-new-bi/1")
+                validate_bi_payload(BI_KINDS[3], {**p, **_bi_version(version), "object_generation": data[k]["entity_id"].split(":")[1], "data": data[k]})
     else:
         keys(data, ("input_frontier", "version_causes", "identity_basis", "classification_obligation", "waiting_reasons", "known_at"), kind)
         integer(data["input_frontier"], "input_frontier", -1)
         strings(data["version_causes"], "version_causes")
-        strings(data["waiting_reasons"], "waiting_reasons")
+        waiting(data["waiting_reasons"], "waiting_reasons")
         known(data["known_at"])

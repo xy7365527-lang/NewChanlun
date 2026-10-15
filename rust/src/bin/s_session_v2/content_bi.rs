@@ -77,8 +77,8 @@ const VERSION_KIND: &str = "CC-056.version";
 /// CC-056 的槽位常量（`TB-02-B` 版本对象）。
 const VERSION_SLOT: &str = "TB-02-B";
 /// 载荷头三常量（与旧配方逐字相同）。
-const PAYLOAD_SCHEMA: &str = "s-new-bi/1";
-const PAYLOAD_POLICY: &str = "standard_raw_gap_3";
+const PAYLOAD_SCHEMA: &str = tb02b::CURRENT_CONTRACT.schema;
+const PAYLOAD_POLICY: &str = tb02b::CURRENT_CONTRACT.policy;
 const PAYLOAD_VIEW_ROLE: &str = "main";
 /// 变更事件的固定原因轴（与旧配方同值 `stroke::RULE`）。
 const CHANGE_CAUSE: &str = RULE;
@@ -1662,8 +1662,12 @@ fn endpoint_value(endpoint: &Endpoint) -> CValue {
             usize_array(&endpoint.extreme_roots),
         ),
         (
-            "raw_position".to_string(),
-            optional_usize(endpoint.raw_position),
+            "raw_first".to_string(),
+            CValue::String(endpoint.raw_first.to_string()),
+        ),
+        (
+            "raw_last".to_string(),
+            CValue::String(endpoint.raw_last.to_string()),
         ),
         (
             "source_coords".to_string(),
@@ -1686,7 +1690,7 @@ fn conditions_value(conditions: &Conditions) -> CValue {
         ),
         (
             "raw_between_actual_extrema".to_string(),
-            optional_usize(conditions.raw_between_actual_extrema),
+            CValue::String(conditions.raw_between_actual_extrema.to_string()),
         ),
         (
             "top_price".to_string(),
@@ -1768,6 +1772,7 @@ fn pair_value(pair: &PairFact) -> CValue {
             "retained_anchors".to_string(),
             usize_array(&pair.retained_anchors),
         ),
+        ("evidence".to_string(), str_array(&pair.evidence)),
         (
             "waiting_reasons".to_string(),
             str_array(&pair.waiting_reasons),
@@ -2716,6 +2721,46 @@ mod tests {
         drop(event_owner);
         drop(raw_owner);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+
+    /// #1405：共享内容路径在同一 parser 事实上与 v2 投影对拍，多根极值坐标仍按 raw 序位。
+    #[test]
+    fn parity_tb1405_root_sets_and_equal_price_evidence() {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/tb02v_same_price/syn2_multi_root_group.json"
+        ))
+        .unwrap();
+        let highs = fixture["highs"].as_array().unwrap();
+        let lows = fixture["lows"].as_array().unwrap();
+        let rows: Vec<Row> = highs
+            .iter()
+            .zip(lows)
+            .enumerate()
+            .map(|(index, (high, low))| Row {
+                coord: index as i64 * 10,
+                high: high.as_f64().unwrap() as i64,
+                low: low.as_f64().unwrap() as i64,
+                revision: 1,
+                seq: index as i64,
+            })
+            .collect();
+        let mut harness = Harness::new();
+        let mut previous = None;
+        let mut saw_roots = false;
+        for prefix in 3..=rows.len() {
+            let (bars, _, _) = ledger(&rows[..prefix]);
+            saw_roots |= facts_of(&bars)
+                .endpoints
+                .iter()
+                .any(|endpoint| endpoint.extreme_roots.len() > 1);
+            previous = Some(run_generation(
+                &mut harness,
+                &rows[..prefix],
+                previous.as_ref(),
+                "#1405根集合",
+            ));
+        }
+        assert!(saw_roots, "夹具必须实际产生多根极值端点");
     }
 
     /// 多前缀普通 append：覆盖同代确认沿用、端点延伸、稀疏坐标与七个 kind 齐备。

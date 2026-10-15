@@ -1651,13 +1651,12 @@ fn audit_generated_in_store(
                 return Err(err("typed obj3身份与来源/载荷原件不符"));
             }
             if tb02b::KINDS.contains(&kind.as_str()) {
+                let contract = tb02b::contract_for_rule(rule)
+                    .ok_or_else(|| err("新笔来源审计规则修订未声明"))?;
                 for (k, want) in [
-                    ("schema_revision", "s-new-bi/1"),
-                    (
-                        "semantic_version",
-                        newchan_rust::theta_v0::parser::stroke::RULE,
-                    ),
-                    ("policy_version", "standard_raw_gap_3"),
+                    ("schema_revision", contract.schema),
+                    ("semantic_version", contract.semantic),
+                    ("policy_version", contract.policy),
                     ("view_role", "main"),
                 ] {
                     if text(s, &payload, k)? != want {
@@ -1675,6 +1674,13 @@ fn audit_generated_in_store(
                     )?
                 {
                     return Err(err("新笔payload槽位与fact_key不同"));
+                }
+            }
+            if kind == CC054_KNOWLEDGE_KIND {
+                let contract = tb02b::contract_for_rule(rule)
+                    .ok_or_else(|| err("知识域来源审计规则修订未声明"))?;
+                if text(s, &payload, "domain")? != contract.knowledge_domain {
+                    return Err(err("TB-02-A 知识域与cut规则版本不符"));
                 }
             }
             if kind == CC005_GROUP_KIND {
@@ -3588,6 +3594,65 @@ mod tests {
             &rule,
             "CC006 obj3与同cut组事实身份不符",
         );
+    }
+    #[test]
+    fn reidentified_legacy_bi_header_and_knowledge_domain_are_rejected_in_v2() {
+        for (kind, key, replacement, reason) in [
+            (
+                "CC-008.endpoint",
+                "schema_revision",
+                "s-new-bi/1",
+                "新笔载荷语义头不同",
+            ),
+            (
+                CC054_KNOWLEDGE_KIND,
+                "domain",
+                "established_direction_without_extreme_identity_competition",
+                "TB-02-A 知识域与cut规则版本不符",
+            ),
+        ] {
+            let (mut s, state, raw, rule) = fixture();
+            let objects_root = field(&mut s, &state, "objects").unwrap();
+            let objects = elements(&mut s, &objects_root).unwrap();
+            let index = objects
+                .iter()
+                .position(|object| text(&mut s, object, "kind").unwrap() == kind)
+                .unwrap();
+            let payload = field(&mut s, &objects[index], "payload_json").unwrap();
+            let payload =
+                sc::path::lookup_path_refview(&mut s, payload.view(), &[PathStep::JsonText])
+                    .unwrap();
+            let mut bytes = Vec::new();
+            sc::render_canonical(&mut s, &payload, &mut bytes).unwrap();
+            let mut value: Value = newchan_rust::session_protocol::strict_json(&bytes).unwrap();
+            value[key] = json!(replacement);
+            let changed_payload = sc::write_value(&mut s, &cv(&value).unwrap())
+                .unwrap()
+                .content_ref();
+            let refs = field(&mut s, &objects[index], "input_refs_json").unwrap();
+            let refs =
+                sc::path::lookup_path_refview(&mut s, refs.view(), &[PathStep::JsonText]).unwrap();
+            let fact_key = text(&mut s, &objects[index], "fact_key").unwrap();
+            let id = Cc004Producer::new(tb02a::PROFILE, &rule)
+                .typed_object_id(
+                    kind,
+                    &fact_key,
+                    &built(&changed_payload).unwrap(),
+                    &built(&refs).unwrap(),
+                )
+                .unwrap();
+            let payload_json = json_text_edge(&mut s, &changed_payload);
+            let changed = replace_field(
+                &mut s,
+                &objects[index],
+                TYPED,
+                "payload_json",
+                V::Edge(digest(&payload_json).unwrap()),
+            );
+            let changed = replace_field(&mut s, &changed, TYPED, "object_id", V::String(id));
+            let forged = replace_member(&mut s, &state, "objects", index, changed);
+            assert_rejected_in_both_modes(&mut s, &forged, &raw, &rule, reason);
+        }
     }
     #[test]
     fn real_ohlc_objects_and_witnesses_bind_to_sources_without_reclassification() {

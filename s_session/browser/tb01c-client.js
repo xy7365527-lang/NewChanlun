@@ -2600,7 +2600,7 @@ if (typeof module !== 'object' || !module.exports) {
   });
 });
 
-/* exact source q3-typed.js SHA256 1a6dfd02f40c92021aca5a9680ae60cfea72af8e1e35bdf49e678ba6332ae723 */
+/* exact source q3-typed.js SHA256 50d1daf20133320f67f2d8a9d749361a84ec5378bc454bc16486b28ae3098e7f */
 /* #1394：typed 与形态来源的同一判据；只把访问迁为完整异步 Value 遍历。 */
 (function (root, factory) {
   const api = factory(typeof module === "object" && module.exports ? require("./q3-values.js") : root.Q3Values);
@@ -2608,6 +2608,22 @@ if (typeof module !== 'object' || !module.exports) {
   else root.Q3Typed = api;
 })(globalThis, function (V) {
   "use strict";
+  // #1405：旧合同 AsKnown 保留，代际由会话规则绑定，不能混用。
+  const KNOWLEDGE_DOMAINS = ["established_direction_without_extreme_identity_competition", "established_direction_with_extreme_root_sets"];
+  const BI_VERSIONS = {
+    "s-new-bi/1": ["new-bi-dual-coordinate/1", "standard_raw_gap_3"],
+    "s-new-bi/2": ["new-bi-dual-coordinate/2", "standard_raw_gap_3;same-price/keep-earlier+extreme-region/1"],
+  };
+  const RULE_CONTRACTS = {
+    "s2-axis-quantifiers": [null, null, KNOWLEDGE_DOMAINS[0]],
+    "s2-axis-quantifiers+new-bi/1": ["s-new-bi/1", null, KNOWLEDGE_DOMAINS[0]],
+    "s2-axis-quantifiers+new-bi/1+segment-first/1": ["s-new-bi/1", "s-segment/1", KNOWLEDGE_DOMAINS[0]],
+    "s2-axis-quantifiers+new-bi/1+segment-second/1": ["s-new-bi/1", "s-segment/2", KNOWLEDGE_DOMAINS[0]],
+    "s2-axis-quantifiers+new-bi/2": ["s-new-bi/2", null, KNOWLEDGE_DOMAINS[1]],
+    "s2-axis-quantifiers+new-bi/2+segment-second/1": ["s-new-bi/2", "s-segment/2", KNOWLEDGE_DOMAINS[1]],
+  };
+  const SAME_PRICE_KEEP_EVIDENCE = "same_kind_equal_price_keep_earlier";
+  const RETIRED_SAME_PRICE_WAITING = ["raw_extreme_identity_tie", "actual_extreme_mapping_missing", "same_kind_endpoint_identity_tie", "earlier_endpoint_identity_unsettled"];
   const TB02_KINDS = ["CC-004.inclusion_step", "CC-005.inclusion_group", "CC-007.fractal_description", "CC-054.knowledge_state"];
   const BI_KINDS = ["CC-008.endpoint", "CC-008.new_bi_pair", "CC-009.same_kind", "CC-010.bi", "CC-055.relation", "CC-055.change_event", "CC-056.version"];
   TB02_KINDS.push(...BI_KINDS);
@@ -2751,7 +2767,7 @@ if (typeof module !== 'object' || !module.exports) {
       }
     } else {
       await keys(p, ["scope", "input_frontier", "known_facts", "waiting_reasons", "domain", "requests"], "知识状态");
-      need(await eqField(p, "scope", "TB-02-A") && await eqField(p, "domain", "established_direction_without_extreme_identity_competition") && await eqField(p, "known_facts", ["raw_ohlc", "inclusion_trace", "group_provenance"]), "知识域/已知事实不符");
+      need(await eqField(p, "scope", "TB-02-A") && KNOWLEDGE_DOMAINS.includes(await S(await field(p, "domain"))) && await eqField(p, "known_facts", ["raw_ohlc", "inclusion_trace", "group_provenance"]), "知识域/已知事实不符");
       await I(await field(p, "input_frontier"), false, true); await texts(await field(p, "waiting_reasons")); const requests = await array(await field(p, "requests"), "逐请求集合不完整"), ids = new Set();
       const enums = {input_quality:["SUFFICIENT", "INSUFFICIENT", "INCONSISTENT"], applicability:["IN_DOMAIN", "OUTSIDE_DOMAIN", "DOMAIN_PROOF_MISSING"], computation:["COMPLETE", "INCOMPLETE"], validity:["CURRENT", "SUPERSEDED", "WITHDRAWN"]};
       for await (const r of requests.items()) {
@@ -3010,21 +3026,33 @@ if (typeof module !== 'object' || !module.exports) {
   async function validateBiPayload(kind, p) {
     p = V.of(p);
     await keys(p, ["schema_revision", "semantic_version", "policy_version", "view_role", "object_generation", "slot", "data"], "新笔合同");
-    need(await eqField(p, "schema_revision", "s-new-bi/1") && await eqField(p, "semantic_version", "new-bi-dual-coordinate/1") && await eqField(p, "policy_version", "standard_raw_gap_3") && await eqField(p, "view_role", "main"), "新笔规则/政策版本不符");
+    const schema = await S(await field(p, "schema_revision"));
+    const version = Object.hasOwn(BI_VERSIONS, schema) ? BI_VERSIONS[schema] : null;
+    need(version !== null && await eqField(p, "semantic_version", version[0]) && await eqField(p, "policy_version", version[1]) && await eqField(p, "view_role", "main"), "新笔规则/政策版本不符");
+    const v2 = schema === "s-new-bi/2";
+    async function waiting(value) {
+      const reasons = await texts(value);
+      if (v2) for await (const reason of reasons.items())
+        need(!RETIRED_SAME_PRICE_WAITING.includes(await S(reason)), "同价域退役的等待态在 v2 对象复现");
+    }
     await I(await field(p, "object_generation"), true); const d = await field(p, "data");
     async function endpoint(e) {
-      await keys(e, ["kind", "merged_index", "group_anchor", "price", "extreme_roots", "raw_position", "source_coords", "sealed_at", "waiting_reasons"], "新笔端点");
+      await keys(e, ["kind", "merged_index", "group_anchor", "price", "extreme_roots", ...(v2 ? ["raw_first", "raw_last"] : ["raw_position"]), "source_coords", "sealed_at", "waiting_reasons"], "新笔端点");
       await enumValue(await field(e, "kind"), ["TOP", "BOTTOM"], "端点类型不符"); await I(await field(e, "merged_index")); await I(await field(e, "group_anchor")); await N(await field(e, "price"));
-      const roots = await coordinates(await field(e, "extreme_roots")), sources = await coordinateSet(await field(e, "source_coords")); await texts(await field(e, "waiting_reasons"));
+      const roots = await coordinates(await field(e, "extreme_roots")), sources = await coordinateSet(await field(e, "source_coords")); await waiting(await field(e, "waiting_reasons"));
       for await (const root of roots.items()) need(sources.has(await S(root)), "实际根缺原始来源");
-      for (const k of ["raw_position", "sealed_at"]) { const value = await field(e, k); if (!(isNull(value))) await I(value); }
+      if (v2) {
+        const first = await I(await field(e, "raw_first")), last = await I(await field(e, "raw_last")), count = await roots.length();
+        need(count > 0n && last >= first && last - first >= count - 1n, "极值根集与首末 raw 序位不闭合");
+      } else { const position = await field(e, "raw_position"); if (!isNull(position)) await I(position); }
+      const sealed = await field(e, "sealed_at"); if (!isNull(sealed)) await I(sealed);
     }
     async function conditions(c) {
       await keys(c, ["merged_gap", "raw_between_actual_extrema", "top_price", "bottom_price", "vector", "failed_conditions", "waiting_reasons"], "新笔完整条件");
-      await I(await field(c, "merged_gap")); const raw = await field(c, "raw_between_actual_extrema"); if (!(isNull(raw))) await I(raw); await N(await field(c, "top_price")); await N(await field(c, "bottom_price"));
+      await I(await field(c, "merged_gap")); const raw = await field(c, "raw_between_actual_extrema"); if (v2 || !isNull(raw)) await I(raw); await N(await field(c, "top_price")); await N(await field(c, "bottom_price"));
       const vector = await array(await field(c, "vector"), "条件向量缺位/错型"); need(await vector.length() === 3n, "条件向量缺位/错型");
-      for await (const value of vector.items()) need(["null", "bool"].includes(value.kind), "条件向量缺位/错型");
-      await texts(await field(c, "failed_conditions")); await texts(await field(c, "waiting_reasons"));
+      for await (const value of vector.items()) need(value.kind === "bool" || (!v2 && value.kind === "null"), "条件向量缺位/错型");
+      await texts(await field(c, "failed_conditions")); await waiting(await field(c, "waiting_reasons"));
     }
     async function known(k) {
       await keys(k, ["generation", "input_frontier", "receipt_id", "received_at", "semantic_commit_ns"], "新笔获知时点");
@@ -3032,15 +3060,22 @@ if (typeof module !== 'object' || !module.exports) {
     }
     if (kind === BI_KINDS[0]) await endpoint(d);
     else if ([BI_KINDS[1], BI_KINDS[2]].includes(kind)) {
-      await keys(d, ["old", "new", "endpoint_kind_pair", "conditions", "comparison", "selection", "retained_anchors", "waiting_reasons"], "端点对");
+      await keys(d, ["old", "new", "endpoint_kind_pair", "conditions", "comparison", "selection", "retained_anchors", ...(v2 ? ["evidence"] : []), "waiting_reasons"], "端点对");
       const old = await field(d, "old"), fresh = await field(d, "new"); await endpoint(old); await endpoint(fresh);
       const oldKind = await S(await field(old, "kind")), newKind = await S(await field(fresh, "kind")); need(await eqField(d, "endpoint_kind_pair", oldKind + "/" + newKind), "端点分域标签不符");
-      if (kind === BI_KINDS[1]) { need(oldKind !== newKind, "异型请求实际同型"); await conditions(await field(d, "conditions")); need(await eqField(d, "comparison", null) && await eqField(d, "selection", null), "异型域混入同型选择"); }
+      if (kind === BI_KINDS[1]) { need(oldKind !== newKind, "异型请求实际同型"); await conditions(await field(d, "conditions")); need(await eqField(d, "comparison", null) && await eqField(d, "selection", null) && (!v2 || await eqField(d, "evidence", [])), "异型域混入同型选择"); }
       else {
         need(oldKind === newKind && await eqField(d, "conditions", null), "同型域混入假条件或未声明取舍");
-        await enumValue(await field(d, "comparison"), ["LT", "EQ", "GT"], "同型域混入假条件或未声明取舍"); await enumValue(await field(d, "selection"), ["KEEP", "REPLACE", "UNDETERMINED"], "同型域混入假条件或未声明取舍");
+        const comparison = await enumValue(await field(d, "comparison"), ["LT", "EQ", "GT"], "同型域混入假条件或未声明取舍");
+        await enumValue(await field(d, "selection"), v2 ? ["KEEP", "REPLACE"] : ["KEEP", "REPLACE", "UNDETERMINED"], "同型域混入假条件或未声明取舍");
+        if (v2) {
+          const stronger = comparison === (oldKind === "TOP" ? "GT" : "LT");
+          need(await eqField(d, "selection", stronger ? "REPLACE" : "KEEP"), "同型取舍与价格比较不闭合");
+          need(await eqField(d, "retained_anchors", [await field(stronger ? fresh : old, "group_anchor")]), "同型保留锚不符取舍");
+          need(await eqField(d, "evidence", comparison === "EQ" ? [SAME_PRICE_KEEP_EVIDENCE] : []), "同价保留在先者的证据缺失或混入");
+        }
       }
-      await coordinates(await field(d, "retained_anchors")); await texts(await field(d, "waiting_reasons"));
+      await coordinates(await field(d, "retained_anchors")); if (v2) await texts(await field(d, "evidence")); await waiting(await field(d, "waiting_reasons"));
     } else if (kind === BI_KINDS[3]) {
       await keys(d, ["identity_anchor", "start", "end", "formation", "confirmation", "entity_id", "entity_revision", "state", "formed_known_at", "confirmed_known_at", "formed_evidence", "version_causes"], "新笔实体");
       await I(await field(d, "identity_anchor")); await I(await field(d, "entity_revision"), true); await T(await field(d, "entity_id")); await endpoint(await field(d, "start")); await endpoint(await field(d, "end"));
@@ -3062,13 +3097,15 @@ if (typeof module !== 'object' || !module.exports) {
       for (const k of ["before", "after"]) {
         const entity = await field(d, k); if (isNull(entity)) continue;
         const entityId = await S(await field(entity, "entity_id"));
-        const synthetic = {}; for (const header of ["schema_revision", "semantic_version", "policy_version", "view_role"]) synthetic[header] = await field(p, header);
+        // before 按其原件形状保留历史代际；after 必须与本事件同代。
+        const entitySchema = k === "after" ? schema : await (await field(entity, "start")).has("raw_first") ? "s-new-bi/2" : "s-new-bi/1";
+        const synthetic = {schema_revision:entitySchema, semantic_version:BI_VERSIONS[entitySchema][0], policy_version:BI_VERSIONS[entitySchema][1], view_role:await field(p, "view_role")};
         synthetic.slot = await field(entity, "entity_id"); synthetic.object_generation = entityId.split(":")[1]; synthetic.data = entity;
         await validateBiPayload(BI_KINDS[3], synthetic);
       }
     } else {
       await keys(d, ["input_frontier", "version_causes", "identity_basis", "classification_obligation", "waiting_reasons", "known_at"], "新笔版本");
-      await I(await field(d, "input_frontier"), false, true); await texts(await field(d, "version_causes")); await texts(await field(d, "waiting_reasons")); await known(await field(d, "known_at"));
+      await I(await field(d, "input_frontier"), false, true); await texts(await field(d, "version_causes")); await waiting(await field(d, "waiting_reasons")); await known(await field(d, "known_at"));
     }
     const generation = await field(p, "object_generation");
     const slot = kind === BI_KINDS[0] ? "fx:" + await S(generation) + ":" + await S(await field(d, "group_anchor")) :
@@ -3104,11 +3141,11 @@ if (typeof module !== 'object' || !module.exports) {
     need(await coords.length() === BigInt(all.size), "形态来源不是成员与构造/边界依据并集");
     for await (const coord of coords.items()) need(all.has(await S(coord)), "形态来源不是成员与构造/边界依据并集");
   }
-  return Object.freeze({validateTyped, validateBiPayload, validateSegmentPayload, validateTB02ShapeRefs, plain,
+  return Object.freeze({RULE_CONTRACTS, validateTyped, validateBiPayload, validateSegmentPayload, validateTB02ShapeRefs, plain,
     TB02_KINDS: Object.freeze(TB02_KINDS), BI_KINDS, SEGMENT_KINDS: Object.freeze(SEGMENT_KINDS)});
 });
 
-/* exact source q3-consumer.js SHA256 26318cc02a263a70d56883d9b526e8bf0e897bce574a3b873a418c92fedf9e98 */
+/* exact source q3-consumer.js SHA256 490e32bd677765d091383d1131d4d453f8ea859d9525c6573339a85ac06c213f */
 /* #1394：Q3完整消费者；只供既有tb01c页面调用，没有产品路由或默认资源。 */
 (function (root, factory) {
   const common = typeof module === "object" && module.exports;
@@ -3819,8 +3856,10 @@ if (typeof module !== 'object' || !module.exports) {
   const RULE_AXES = new Map([
     ["s2-axis-quantifiers", LEGACY_TB02_AXES],
     ["s2-axis-quantifiers+new-bi/1", BI_AXES],
+    ["s2-axis-quantifiers+new-bi/2", BI_AXES],
     ["s2-axis-quantifiers+new-bi/1+segment-first/1", FIRST_SEGMENT_AXES],
     ["s2-axis-quantifiers+new-bi/1+segment-second/1", TB02_AXES],
+    ["s2-axis-quantifiers+new-bi/2+segment-second/1", TB02_AXES],
   ]);
   async function axesValidate(axes, active = null) {
     axes = of(axes);
@@ -3986,7 +4025,7 @@ if (typeof module !== 'object' || !module.exports) {
       // #1392/#1404：新笔/段 payload.slot 是逻辑身份；见证 slot 仍按整数核对。
       const logicalSlot =
         (await v.has("schema_revision")) &&
-        ["s-new-bi/1", "s-segment/1", "s-segment/2"].includes(
+        ["s-new-bi/1", "s-new-bi/2", "s-segment/1", "s-segment/2"].includes(
           await s(v, "schema_revision"),
         );
       for await (const e of v.entries()) {
@@ -4449,10 +4488,11 @@ if (typeof module !== 'object' || !module.exports) {
         "Q3完整消费者只接受显式OHLC已批准profile",
       );
       // #1404/#1414：按 cut 规则修订选轴表（同 main validateTB02Candidate，先于逐轴校验）。
+      need(RULE_AXES.has(rule), "cut规则修订未声明");
       if (generation !== "0")
         await keys(
           await f(await f(snapshot, "catalog_evidence"), "axes"),
-          RULE_AXES.get(rule) || TB02_AXES,
+          RULE_AXES.get(rule),
           "cut规则目录轴",
         );
       await catalogValidate(catalog, snapshot);
@@ -4477,18 +4517,14 @@ if (typeof module !== 'object' || !module.exports) {
         }
         const kind = await t(record, "kind");
         if (typed.TB02_KINDS.includes(kind)) {
+          const [biSchema, segmentSchema, domain] = Object.hasOwn(typed.RULE_CONTRACTS, rule) ? typed.RULE_CONTRACTS[rule] : [null, null, null];
+          const payload = await f(record, "payload");
           if (typed.SEGMENT_KINDS.includes(kind))
-            need(
-              await equal(
-                await f(await f(record, "payload"), "schema_revision"),
-                rule === "s2-axis-quantifiers+new-bi/1+segment-second/1"
-                  ? "s-segment/2"
-                  : rule === "s2-axis-quantifiers+new-bi/1+segment-first/1"
-                    ? "s-segment/1"
-                    : null,
-              ),
-              "段合同与cut规则版本不符",
-            );
+            need(await equal(await f(payload, "schema_revision"), segmentSchema), "段合同与cut规则版本不符");
+          if (typed.BI_KINDS.includes(kind))
+            need(await equal(await f(payload, "schema_revision"), biSchema), "新笔合同与cut规则版本不符");
+          if (kind === "CC-054.knowledge_state" && domain !== null)
+            need(await equal(await f(payload, "domain"), domain), "TB-02-A 知识域与cut规则版本不符");
           const p = {};
           for (const k of ["kind", "fact_key", "payload", "input_refs"])
             p[k] = await f(record, k);
@@ -7437,6 +7473,7 @@ if (typeof module !== 'object' || !module.exports) {
   publicAPI.Q3 = Q3;
   // #1404/#1414：类型清单与段合同的唯一来源在 q3-typed；页面 typedKinds 直接引用同一冻结数组。
   publicAPI.TB02_KINDS = Q3.typed.TB02_KINDS;
+  publicAPI.validateBiPayload = Q3.typed.validateBiPayload;
   publicAPI.validateSegmentPayload = Q3.typed.validateSegmentPayload;
   publicAPI.validateTB02Catalog = Q3.validateTB02Catalog;
   publicAPI.validateTyped = Q3.typed.validateTyped;

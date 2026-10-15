@@ -1643,12 +1643,6 @@ mod tests {
             .collect()
     }
 
-    fn competing(facts: &Facts, start: usize) -> bool {
-        facts.groups[start..start + 3]
-            .iter()
-            .any(|group| group.high_sources.len() != 1 || group.low_sources.len() != 1)
-    }
-
     /// 旧生产内联配方的 CC-006 三组来源（`s_structure_session.rs` 原样：`merged_index` 与
     /// `raw_refs`/`dependency_refs` 的 `revision`/`seq` 全是数值，来自 `merged_raws[mi]`）。
     fn old_shape_refs(
@@ -1843,9 +1837,6 @@ mod tests {
         let mut shapes: Vec<Value> = Vec::new();
         let mut shape_windows: Vec<(usize, Cc006Object)> = Vec::new();
         for start in 0..facts.groups.len().saturating_sub(2) {
-            if competing(&facts, start) {
-                continue;
-            }
             let Some(shape) = fixture
                 .producer
                 .build_shape(&mut fixture.store, &fixture.state, start, GENERATION, CUT)
@@ -1909,9 +1900,6 @@ mod tests {
         let merged_raws = merged_raws(&facts);
         let mut classified = 0usize;
         for start in 0..facts.groups.len().saturating_sub(2) {
-            if competing(&facts, start) {
-                continue;
-            }
             let Some(object) = fixture
                 .producer
                 .build_shape(&mut fixture.store, &fixture.state, start, GENERATION, CUT)
