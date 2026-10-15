@@ -1,0 +1,16 @@
+{
+  "files": {
+    "CARRYING-COST-CASE.json": "ca6ca11977aeee1e31fa501ec60b8af4ee2ac0fb8156184203693322e8ee3d92",
+    "HAND-ORACLE.json": "d63bf6460678a80d0c1386d48727ec8f6ae7396bb8ea55b9ea5e2066ba9a9881",
+    "RUN-PLAN.json": "68ade66c51f6cee65b263e907bbbf1e87baf05f790344b929cf36d28d12a8cf0",
+    "SCHEMA.json": "4d63d68ae94e0ff64f98a3bbfb8069d6d6277d88a9d1cb0ada0e11c0acc48be9",
+    "TESTONLY-OBSERVATIONS.json": "2d8b8198a9fbcecdef4b7ef8e54929db231292085401bdaa76458b4deff804af",
+    "raw/chong-G1.json": "2a9676753dec2b0a3ca2160c8919f77a94f3024ca973cba4dc4540dfcffd2b12",
+    "raw/chong-G2.json": "89c07ecd1780cfc3f7661feba1dc71d286f15d8b638d485bd33d978276e2885e",
+    "raw/chong-G3.json": "9c7bfea28d055cbce187f2ca521e650b5fb37eed2efc479f6a0e965c33cd724b",
+    "raw/chong-W1.json": "d5cec26f9968cdf2d4fcdd42988a91a30c93d270bb106877625c9778c65a7ff5",
+    "raw/latch-counterexample.json": "b00bbb7c644b0a5d5ea15fb403ab0ea779d053f6c9e6d015aadcb1b4ad3c3dad"
+  },
+  "format": "tb03c-c5-frozen-testonly/1",
+  "production_policy_authorized": false
+}

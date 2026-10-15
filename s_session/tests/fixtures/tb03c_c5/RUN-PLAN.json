@@ -1,0 +1,96 @@
+{
+  "steps": [
+    {
+      "before": null,
+      "document": "chong-G1",
+      "id": "G1",
+      "index": 0
+    },
+    {
+      "before": "G1",
+      "document": "chong-G1",
+      "id": "G2",
+      "index": 1
+    },
+    {
+      "before": "G2",
+      "document": "chong-G1",
+      "id": "G3",
+      "index": 2
+    },
+    {
+      "before": "G3",
+      "document": "chong-G1",
+      "id": "G4",
+      "index": 3
+    },
+    {
+      "before": "G4",
+      "document": "chong-G1",
+      "id": "G5",
+      "index": 4
+    },
+    {
+      "before": "G5",
+      "document": "chong-G1",
+      "id": "G6",
+      "index": 5
+    },
+    {
+      "before": "G6",
+      "document": "chong-G1",
+      "id": "G7",
+      "index": 6
+    },
+    {
+      "before": "G7",
+      "document": "chong-G1",
+      "id": "T1-out",
+      "index": 7
+    },
+    {
+      "before": "T1-out",
+      "document": "chong-G1",
+      "id": "T2-out",
+      "index": 8
+    },
+    {
+      "before": "T2-out",
+      "document": "chong-G1",
+      "id": "Q12",
+      "index": 9
+    },
+    {
+      "before": null,
+      "document": "chong-G2",
+      "id": "T1-in",
+      "index": 0,
+      "source_observation": "T1"
+    },
+    {
+      "before": null,
+      "document": "chong-G3",
+      "id": "T2-in",
+      "index": 0,
+      "source_observation": "T2"
+    },
+    {
+      "before": null,
+      "document": "chong-W1",
+      "id": "W1",
+      "index": 0
+    },
+    {
+      "before": "T2-out",
+      "document": "latch-counterexample",
+      "id": "LATCH-sell",
+      "index": 0
+    },
+    {
+      "before": "LATCH-sell",
+      "document": "latch-counterexample",
+      "id": "LATCH-buy",
+      "index": 1
+    }
+  ]
+}

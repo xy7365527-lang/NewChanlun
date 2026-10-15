@@ -4,30 +4,49 @@ use super::{book, service, store};
 use crate::session_protocol::canonical_json;
 use serde_json::{json, Value};
 
-struct Session {
+pub(super) struct Session {
     _space: Space,
     configs: Vec<store::Config>,
     connections: Vec<rusqlite::Connection>,
     next: usize,
+    source_namespace: String,
+    source_epoch: String,
 }
 impl Session {
     fn new(tag: &str) -> Self {
+        Self::with_routes(
+            tag,
+            "unit",
+            "1",
+            &[
+                ("S", "TEST-R", "1", "10"),
+                ("T", "TEST-R", "2", "5"),
+                ("U", "TEST-R", "3", "3"),
+            ],
+        )
+    }
+    pub(super) fn with_routes(
+        tag: &str,
+        source_namespace: &str,
+        source_epoch: &str,
+        routes: &[(&str, &str, &str, &str)],
+    ) -> Self {
         let space = Space::new(tag);
         let mut clocks = serde_json::Map::new();
         for i in 0..128 {
             let t = 1000 + 10 * i;
             clocks.insert(format!("m-{i}"), json!({"received_ns":t.to_string(),"first_known_ns":(t+1).to_string(),"commit_ns":(t+2).to_string()}));
         }
-        let chongs: Vec<Value> = ["S", "T", "U"].into_iter().map(|id| json!({"chong_id":id,"symbol":"TEST-R","operation_level":match id {"S"=>"1","T"=>"2",_=>"3"},"fixed_q":match id {"S"=>"10","T"=>"5",_=>"3"},"db":space.0.join(format!("{id}.db")),"socket":space.0.join(format!("{id}.sock"))})).collect();
+        let chongs: Vec<Value> = routes.iter().map(|(id,symbol,level,q)| json!({"chong_id":id,"symbol":symbol,"operation_level":level,"fixed_q":q,"db":space.0.join(format!("{id}.db")),"socket":space.0.join(format!("{id}.sock"))})).collect();
         let manifest = json!({"schema_revision":"economic-manifest/1","session_id":"c5","session_generation":"1","book_revision":"tb03c-book/1",
             "e":{"db":space.0.join("e.db"),"socket":space.0.join("e.sock")},"chongs":chongs,
-            "authorized_sources":[{"source_namespace":"unit","source_epoch":"1","producer_id":"c5","producer_epoch":"1","operations":["CaptureExternal","ResolveEvidence","ApplyAllocation","ReadView"]}],
+            "authorized_sources":[{"source_namespace":source_namespace,"source_epoch":source_epoch,"producer_id":"c5","producer_epoch":"1","operations":["CaptureExternal","ResolveEvidence","ApplyAllocation","ReadView"]}],
             "resources":{"max_frame_bytes":"1048576","read_timeout_ms":"1000","write_timeout_ms":"1000","response_timeout_ms":"2000","queue_capacity":"2","max_connections":"2"},
             "clock":{"kind":"TestOnly","plan":{"init_ns":"1","recover_ns":["90000"],"messages":clocks}}});
         let path = space.0.join("manifest.json");
         std::fs::write(&path, canonical_json(&manifest)).unwrap();
-        let configs: Vec<_> = [None, Some("S"), Some("T"), Some("U")]
-            .into_iter()
+        let configs: Vec<_> = std::iter::once(None)
+            .chain(routes.iter().map(|(id, _, _, _)| Some(*id)))
             .map(|id| {
                 let db = space
                     .0
@@ -47,11 +66,13 @@ impl Session {
             configs,
             connections,
             next: 0,
+            source_namespace: source_namespace.to_owned(),
+            source_epoch: source_epoch.to_owned(),
         }
     }
-    fn send(&mut self, owner: usize, payload: Value) -> Value {
+    pub(super) fn send(&mut self, owner: usize, payload: Value) -> Value {
         let request = json!({"schema_revision":"economic-session/1","session_id":"c5","session_generation":"1","message_id":format!("m-{}",self.next),
-            "source_namespace":"unit","source_epoch":"1","producer_id":"c5","producer_epoch":"1","payload_hash":book::hash(&payload),"payload":payload,"causal_refs":[]});
+            "source_namespace":self.source_namespace,"source_epoch":self.source_epoch,"producer_id":"c5","producer_epoch":"1","payload_hash":book::hash(&payload),"payload":payload,"causal_refs":[]});
         self.next += 1;
         service::handle(
             &mut self.connections[owner],
@@ -64,18 +85,33 @@ impl Session {
             .clone()
     }
     fn capture(&mut self, doc: &Value, index: usize) -> Value {
-        self.send(0, json!({"op":"CaptureExternal","raw_utf8":canonical_json(doc),"json_pointer":format!("/events/{index}"),"token":format!("tok-{}",doc["events"][index]["allocation_id"].as_str().unwrap()),"source_event_time":doc["events"][index]["source"]["source_event_time"]}))
+        self.capture_raw(&canonical_json(doc), index)
     }
-    fn apply(&mut self, owner: usize, receipt: &Value) -> Value {
+    pub(super) fn capture_raw(&mut self, raw: &str, index: usize) -> Value {
+        let doc: Value = serde_json::from_str(raw).unwrap();
+        self.send(0, json!({"op":"CaptureExternal","raw_utf8":raw,"json_pointer":format!("/events/{index}"),"token":format!("tok-{}",doc["events"][index]["allocation_id"].as_str().unwrap()),"source_event_time":doc["events"][index]["source"]["source_event_time"]}))
+    }
+    pub(super) fn apply(&mut self, owner: usize, receipt: &Value) -> Value {
         self.send(owner, json!({"op":"ApplyAllocation","fact_key":receipt["fact_key"],"allocation_id":receipt["allocation_id"],"expected_fact_hash":receipt["fact_hash"]}))
     }
-    fn image(&self, owner: usize) -> Value {
+    pub(super) fn image(&self, owner: usize) -> Value {
         store::latest(&self.connections[owner]).unwrap().3
     }
-    fn audit(&self) {
+    pub(super) fn audit(&self) {
         for (c, config) in self.connections.iter().zip(&self.configs) {
             store::audit(c, config).unwrap();
         }
+    }
+    pub(super) fn has_receipt(&self, owner: usize, allocation_id: &str) -> bool {
+        store::row(&self.connections[owner], "receipts", allocation_id)
+            .unwrap()
+            .is_some()
+    }
+    pub(super) fn recover_all(&self) {
+        for config in &self.configs {
+            store::recover(config).unwrap();
+        }
+        self.audit();
     }
 }
 fn reference(doc: &mut Value, index: usize, field: &str, name: &str) {
