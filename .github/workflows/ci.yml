@@ -692,7 +692,7 @@ jobs:
                   require(checked["source_identity"](root) == identity, "编译/发现期间来源改变")
                   require(not image.exists(), "拒绝覆盖镜像")
                   mountpoint.mkdir()
-                  run.run(["hdiutil", "create", "-size", "16m", "-fs", "HFS+", "-format", "UDRW",
+                  run.run(["hdiutil", "create", "-size", "16m", "-fs", "HFS+", "-type", "UDIF",
                            "-volname", "c5-hfs", str(image)], "create-image")
                   final["attach_attempted"] = True
                   attach = run.run(["hdiutil", "attach", "-plist", "-nobrowse", "-noautoopen",
