@@ -3190,7 +3190,7 @@ if (typeof module !== 'object' || !module.exports) {
     TB02_KINDS: Object.freeze(TB02_KINDS), BI_KINDS, SEGMENT_KINDS: Object.freeze(SEGMENT_KINDS)});
 });
 
-/* exact source q3-consumer.js SHA256 417a38a7636f9bc26cdd8baf797e66f20c95da175d971d99b9c9cdc6224caa6c */
+/* exact source q3-consumer.js SHA256 ebc492f50d016d83bac7944f8f10bad061590ac613bff14ab355091b56a5588c */
 /* #1394：Q3完整消费者；只供既有tb01c页面调用，没有产品路由或默认资源。 */
 (function (root, factory) {
   const common = typeof module === "object" && module.exports;
@@ -4465,6 +4465,8 @@ if (typeof module !== 'object' || !module.exports) {
       const profile = await s(snapshot, "profile_id"),
         ph = await s(snapshot, "profile_hash"),
         rule = await s(snapshot, "rule_revision");
+      // 空会话也必须先声明已知规则，不能等首次发布才选择合同。
+      need(RULE_AXES.has(rule), "cut规则修订未声明");
       if (generation === "0") {
         need(profile && /^[0-9a-f]{64}$/.test(ph), "cut0无冻结profile");
       } else {
@@ -4549,7 +4551,6 @@ if (typeof module !== 'object' || !module.exports) {
       );
       // #1404/#1414：按 cut 规则修订选轴表（同 main validateTB02Candidate，先于逐轴校验）。
       if (generation !== "0") {
-        need(RULE_AXES.has(rule), "未声明的目录规则修订");
         await keys(
           await f(await f(snapshot, "catalog_evidence"), "axes"),
           RULE_AXES.get(rule),

@@ -1272,6 +1272,8 @@
       const profile = await s(snapshot, "profile_id"),
         ph = await s(snapshot, "profile_hash"),
         rule = await s(snapshot, "rule_revision");
+      // 空会话也必须先声明已知规则，不能等首次发布才选择合同。
+      need(RULE_AXES.has(rule), "cut规则修订未声明");
       if (generation === "0") {
         need(profile && /^[0-9a-f]{64}$/.test(ph), "cut0无冻结profile");
       } else {
@@ -1356,7 +1358,6 @@
       );
       // #1404/#1414：按 cut 规则修订选轴表（同 main validateTB02Candidate，先于逐轴校验）。
       if (generation !== "0") {
-        need(RULE_AXES.has(rule), "未声明的目录规则修订");
         await keys(
           await f(await f(snapshot, "catalog_evidence"), "axes"),
           RULE_AXES.get(rule),

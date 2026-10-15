@@ -124,14 +124,20 @@ test('段结果与 CC-056 范围/槽/续扫检查点反例', () => {
 
 // #1420：合同夹具补齐 Q3 公共 validateState 所需的同 cut 包；保留人工合同域，不当生产输入证据。
 const AXES = ['CC-001','CC-002','CC-003','CC-004','CC-005','CC-006','CC-007','CC-008','CC-009','CC-010','CC-011','CC-012','CC-013','CC-014','CC-054','CC-055','CC-056'];
+const KNOWN_RULES = ['s2-axis-quantifiers','s2-axis-quantifiers+new-bi/1',
+  's2-axis-quantifiers+new-bi/1+segment-first/1',RULE_V2,RULE_V3];
 function axisSet(rule, objects = []) {
   const continued = rule === RULE_V3;
-  return Object.fromEntries(AXES.map(cid => {
+  const legacy = AXES.filter(cid => !['CC-008','CC-009','CC-010','CC-011','CC-012','CC-013','CC-014','CC-055'].includes(cid));
+  const bi = AXES.filter(cid => !['CC-011','CC-012','CC-013','CC-014'].includes(cid));
+  const selected = rule === KNOWN_RULES[0] ? legacy : rule === KNOWN_RULES[1] ? bi : rule === KNOWN_RULES[2] ? AXES.filter(cid => cid !== 'CC-014') : AXES;
+  return Object.fromEntries(selected.map(cid => {
     const e = {scope:'TB-02-A',object_ids:[],waiting_reasons:[]};
     if (['CC-011','CC-012','CC-013','CC-014'].includes(cid)) {
       const kind = cid === 'CC-014' ? SEG : cid === 'CC-012' ? SEQ : cid === 'CC-013' ? SEG : 'CC-011.segment_seed';
       e.object_ids = objects.filter(o => o.kind === kind).map(o => o.object_id);
-      Object.assign(e, {scope:continued ? 'TB-02-W' : 'TB-02-D',
+      if (rule === KNOWN_RULES[2]) e.scope = 'TB-02-C';
+      else Object.assign(e, {scope:continued ? 'TB-02-W' : 'TB-02-D',
         delivered_subobligations:['finite_complete_prefix_strict_second','independent_stroke_and_segment_break_facts',...(continued ? ['general_scan_continuation'] : [])],
         deferred_subobligations:['general_equal_identity',...(continued ? [] : ['general_scan_continuation']),'global_G006_bridge']});
     }
@@ -139,6 +145,32 @@ function axisSet(rule, objects = []) {
     return [cid,{impl_status:'not_implemented',proof_status:'not_proved',run_status:e.object_ids.length ? 'run' : 'not_run',evidence:e}];
   }));
 }
+
+function ruleState(generation, rule) {
+  const state = fullState({objects:[],withdrawn_objects:[],raw_history:[]}, rule);
+  if (generation === '0') {
+    const initial = {generation:'0',structure_cut:'cut-0',index_frontier:'',input_frontier:'-1',
+      seq_range:{from:'0',to:'-1'},catalog_run_status:'not_run',catalog_evidence:{}};
+    Object.assign(state.snapshot, initial, {as_of_generation:'0'});
+    Object.assign(state.catalog, initial);
+    Object.assign(state.cut, {generation:'0',structure_cut:'cut-0',index_frontier:''});
+    for (const item of state.catalog.items) item.evidence = {};
+  }
+  return state;
+}
+
+test('公开Q3零/一代保留五个具名历史规则，已核状态换成未知规则也拒绝', async () => {
+  for (const protocol of ['s-session/2','s-session/3']) {
+    for (const generation of ['0','1']) {
+      for (const rule of KNOWN_RULES) await API.Q3.validateState(ruleState(generation,rule),protocol);
+      const state = ruleState(generation,KNOWN_RULES[0]);
+      await API.Q3.validateState(state,protocol);
+      state.snapshot.rule_revision = 'unknown-rule';
+      if (generation !== '0') state.snapshot.catalog_evidence.rule_revision = 'unknown-rule';
+      await assert.rejects(API.Q3.validateState(state,protocol),/cut规则修订未声明/);
+    }
+  }
+});
 function fullState(snapshot, rule) {
   const scope = {structure:'CompleteCut',economic:'not_started'}, axes = axisSet(rule,snapshot.objects);
   const common = {session_id:'contract-only',generation:'1',structure_cut:'cut-1',catalog_revision:API.TB02_CATALOG.catalog_revision,
@@ -221,5 +253,5 @@ test('目录scope、子义务和未知规则在Q3按具名修订拒绝混用', a
   }
   const sample = await cut(first('KILLED'),second('KILLED'),segment('KILLED_CASE_TWO'));
   const state = fullState(sample,RULE_V3);state.snapshot.rule_revision='unknown-rule';state.snapshot.catalog_evidence.rule_revision='unknown-rule';
-  await assert.rejects(API.Q3.validateState(state,'s-session/2'),/未声明的目录规则修订/);
+  await assert.rejects(API.Q3.validateState(state,'s-session/2'),/cut规则修订未声明/);
 });
