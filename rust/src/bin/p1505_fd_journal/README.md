@@ -42,6 +42,14 @@ writer/oracle/reader是内部子命令；父suite不初始化SQLite。writer真S
 
 套件成功仅写`PASS_D2_COMPONENT_ONLY`；所有原件和原始进程输出保留，套件不执行清理。完整机器接口见本票实施证据包的CI_CONTRACT.json/.md。真实宿主EINTR、监督器SIGTERM/SIGINT取消尚未覆盖；活statement关闭拒绝已在sql-denials中实现但NOT_RUN；不可用普通读或SIGKILL代替。
 
+## late-exclusive 两项负控
+
+首轮远端 run `38767596239` / SHA `2767648a1c738ea5bb320a5be98a2f4461b24b7b` 已编译成功，但套件在旧 late-exclusive 的错误断言处失败。原件显示 hot 源未 arm 时，SQLite 先以 journal flags 2049、2050 尝试打开，VFS 均以 CANTOPEN=14 拒绝，只有 main 的100字节头读取成功；没有发生 overlay 写。这证明安全门提前生效，不能要求同一 hot 案例继续走到 xRead IOERR_READ。
+
+保留原 `late-exclusive` 的 hot 源，精确核两次 journal open-denied、CANTOPEN及仅头读取；新增 `late-exclusive-clean` 使用无 journal 的 clean 源，同样 `connect(false)`，要求非头 main 读取确实以 IOERR_READ=266 失败，且没有 open-denied。两例都必须无 arm、无 overlay 写/截短/删除，源双快照一致，文件关闭后才注销。分别保留 `fault-late-exclusive-case.json` 与 `fault-late-exclusive-clean-case.json`，外层计数由12/10/10/2变为12/11/10/2，不删除原案例，不接受“任一错误即可”。
+
+首轮的11个正控、L01及前5个负控属于上述旧 SHA 的历史证据；随后4个负控和 reader SIGKILL/post-reader-kill尚未运行。本次修改后的源码仍须新 SHA 的完整独立运行，不能把旧、新结果拼成通过。
+
 ## 持续未完
 
 生产v4仍BLOCK_NOT_MERGEABLE。正式producer/R4/CLI/admission、完整S store baseline、源RW最后检查至open窗口、历史49GB规模、64GiB/store、148GiB双跑前置及完整资金/隔离/恢复/双跑和六项全图仍待验收；#1279不关闭，前端归#1460，K4排除。

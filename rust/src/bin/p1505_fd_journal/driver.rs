@@ -540,7 +540,7 @@ fn reader_inner(source: &Path, limits: &Limits, mode: &str) -> Result<Value> {
     } else {
         None
     };
-    let session = reg.connect(mode != "late-exclusive");
+    let session = reg.connect(!["late-exclusive", "late-exclusive-clean"].contains(&mode));
     let mut result = match session {
         Ok(mut session) => {
             match mode {
@@ -709,6 +709,126 @@ fn trace_check(value: &Value, require_write: bool) -> Result<()> {
         ensure(writes > 0, "no actual hot rollback writes")?;
     }
     Ok(())
+}
+fn late_exclusive_check(value: &Value, mode: &str) -> Result<Value> {
+    let life = &value["lifecycle"];
+    let report = &life["report"];
+    let events = report["events"]
+        .as_array()
+        .ok_or("late-exclusive trace missing")?;
+    let before = value["before_source"]
+        .as_object()
+        .ok_or("late-exclusive source snapshot missing")?;
+    ensure(
+        before.contains_key("main.sqlite"),
+        "late-exclusive main source missing",
+    )?;
+    ensure(
+        value["ok"] == false
+            && value["registration_or_harness_error"] != true
+            && value["connect_error"] != true
+            && value["close_error"] != true,
+        "late-exclusive did not reach query rejection",
+    )?;
+    ensure(
+        life["unregistered"] == true
+            && life["source_fds_closed"] == true
+            && report["active_files"] == 0
+            && report["source_unchanged"] == true
+            && report["trace_overflow"] == false
+            && value["before_source"] == value["after_source"]
+            && value["whole_reader_source_before"] == value["before_source"]
+            && value["whole_reader_source_after"] == value["after_source"],
+        "late-exclusive source or lifecycle changed",
+    )?;
+    ensure(
+        events
+            .iter()
+            .all(|e| e["op"] != "exclusive-armed" && e["exclusive_armed"] == false)
+            && !events.iter().any(|e| {
+                [
+                    "write-overlay",
+                    "truncate-overlay",
+                    "delete-virtual-journal",
+                ]
+                .contains(&e["op"].as_str().unwrap_or(""))
+            })
+            && report["overlay"]["write_calls"] == 0
+            && report["overlay"]["truncate_calls"] == 0
+            && report["overlay"]["delete_calls"] == 0,
+        "late-exclusive armed or mutated virtual files",
+    )?;
+    let reads: Vec<_> = events.iter().filter(|e| e["op"] == "read").collect();
+    let denied: Vec<_> = events.iter().filter(|e| e["op"] == "open-denied").collect();
+    let rejection = match mode {
+        "late-exclusive" => {
+            ensure(
+                before.len() == 2
+                    && before
+                        .get("main.sqlite-journal")
+                        .and_then(|j| j["len"].as_u64())
+                        .is_some_and(|len| len > 512),
+                "hot late-exclusive lost its journal fixture",
+            )?;
+            ensure(
+                value["extended_code"] == ffi::SQLITE_CANTOPEN
+                    && !reads.is_empty()
+                    && reads.iter().all(|e| {
+                        e["kind"] == MAIN
+                            && e["a"] == 0
+                            && e["b"] == 100
+                            && e["rc"] == ffi::SQLITE_OK
+                    }),
+                "hot late-exclusive was not rejected before non-header read",
+            )?;
+            let expected = [
+                ffi::SQLITE_OPEN_MAIN_JOURNAL | ffi::SQLITE_OPEN_READONLY,
+                ffi::SQLITE_OPEN_MAIN_JOURNAL | ffi::SQLITE_OPEN_READWRITE,
+            ];
+            ensure(
+                denied.len() == expected.len()
+                    && denied.iter().zip(expected).all(|(e, flags)| {
+                        e["a"] == flags
+                            && e["b"] == 0
+                            && e["kind"] == 0
+                            && e["rc"] == ffi::SQLITE_CANTOPEN
+                    }),
+                "hot late-exclusive journal open denial sequence differs",
+            )?;
+            "HOT_JOURNAL_OPEN_CANTOPEN"
+        }
+        "late-exclusive-clean" => {
+            ensure(
+                before.contains_key("main.sqlite") && before.len() == 1,
+                "clean late-exclusive unexpectedly contains a journal",
+            )?;
+            ensure(
+                value["extended_code"] == ffi::SQLITE_IOERR_READ
+                    && denied.is_empty()
+                    && reads.iter().any(|e| {
+                        e["kind"] == MAIN
+                            && e["rc"] == ffi::SQLITE_IOERR_READ
+                            && !(e["a"] == 0 && e["b"] == 100)
+                    }),
+                "clean late-exclusive non-header read rejection not reached",
+            )?;
+            ensure(
+                reads
+                    .iter()
+                    .filter(|e| e["rc"] == ffi::SQLITE_OK)
+                    .all(|e| e["kind"] == MAIN && e["a"] == 0 && e["b"] == 100),
+                "clean late-exclusive allowed a non-header read",
+            )?;
+            "CLEAN_MAIN_READ_IOERR_READ"
+        }
+        _ => return Err("unknown late-exclusive mode".into()),
+    };
+    Ok(
+        json!({"mode":mode,"rejection":rejection,"extended_code":value["extended_code"],
+        "read_events":reads,"open_denied_events":denied,"source_before":value["before_source"],
+        "source_after":value["after_source"],"no_arm":true,"no_overlay_mutation":true,
+        "source_unchanged":true,"active_files":0,"unregistered":true,"source_fds_closed":true,"all_expected":true}),
+    )
 }
 fn compare_case(
     root: &Path,
@@ -1236,13 +1356,19 @@ pub fn suite(output: &Path, config: &Path) -> Result<()> {
         "read-short",
         "read-panic",
         "late-exclusive",
+        "late-exclusive-clean",
         "close-error",
         "allocator-failure",
         "arena-oom",
         "path-swap",
     ] {
         let dir = output.join(format!("fault-{mode}-source"));
-        copy_source(&hot, &dir)?;
+        let source = if mode == "late-exclusive-clean" {
+            &clean
+        } else {
+            &hot
+        };
+        copy_source(source, &dir)?;
         let out = output.join(format!("fault-{mode}.json"));
         run(
             output,
@@ -1315,17 +1441,9 @@ pub fn suite(output: &Path, config: &Path) -> Result<()> {
                 "close fault not reached",
             )?;
         }
-        if mode == "late-exclusive" {
-            let events = r["lifecycle"]["report"]["events"]
-                .as_array()
-                .ok_or("late-exclusive trace missing")?;
-            ensure(
-                !events.iter().any(|e| e["op"] == "exclusive-armed")
-                    && events
-                        .iter()
-                        .any(|e| e["op"] == "read" && e["rc"] == ffi::SQLITE_IOERR_READ),
-                "late-exclusive seam not reached",
-            )?;
+        if ["late-exclusive", "late-exclusive-clean"].contains(&mode) {
+            let proof = late_exclusive_check(&r, mode)?;
+            save(&output.join(format!("fault-{mode}-case.json")), &proof)?;
         }
         if mode == "arena-oom" {
             ensure(
