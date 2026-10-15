@@ -4,7 +4,7 @@ use sc::capture_allocation::audit_json::JsonView;
 use std::time::Instant;
 
 const BAR: [&str; 5] = ["source_coord", "open", "high", "low", "close"];
-const STEP: [&str; 12] = [
+pub(super) const STEP: [&str; 12] = [
     "action",
     "incoming",
     "acc_before",
@@ -36,13 +36,103 @@ pub(super) fn raw_bar(
     )
 }
 
-struct Step<'a> {
+pub(super) struct Step<'a> {
     object: &'a Object,
     fields: SourceFields<'static>,
     key: bj::TextValue,
     reasons: RefValue,
     insufficient: bool,
     incomplete: bool,
+}
+
+/// 所有实现均借已核 Object；只抽出存储形状，不抽走任何业务判断。
+pub(super) trait StepView {
+    fn object(&self) -> &Object;
+    fn fields(&self) -> &SourceFields<'static>;
+    fn key(&self) -> &bj::TextValue;
+    fn reasons(&self) -> &RefValue;
+    fn insufficient(&self) -> bool;
+    fn incomplete(&self) -> bool;
+}
+impl StepView for Step<'_> {
+    fn object(&self) -> &Object {
+        self.object
+    }
+    fn fields(&self) -> &SourceFields<'static> {
+        &self.fields
+    }
+    fn key(&self) -> &bj::TextValue {
+        &self.key
+    }
+    fn reasons(&self) -> &RefValue {
+        &self.reasons
+    }
+    fn insufficient(&self) -> bool {
+        self.insufficient
+    }
+    fn incomplete(&self) -> bool {
+        self.incomplete
+    }
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) struct StepContribution {
+    pub(super) object: std::rc::Rc<Object>,
+    pub(super) fields: SourceFields<'static>,
+    pub(super) key: bj::TextValue,
+    pub(super) reasons: RefValue,
+    pub(super) insufficient: bool,
+    pub(super) incomplete: bool,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl StepContribution {
+    pub(super) fn bind(
+        s: &mut (impl SourceFieldStore + ?Sized),
+        object: std::rc::Rc<Object>,
+        raw: &(impl RawLookup + ?Sized),
+    ) -> Result<(i64, Self), String> {
+        let (coord, step) = step_record(s, &object, raw)?;
+        let Step {
+            object: _,
+            fields,
+            key,
+            reasons,
+            insufficient,
+            incomplete,
+        } = step;
+        Ok((
+            coord,
+            Self {
+                object,
+                fields,
+                key,
+                reasons,
+                insufficient,
+                incomplete,
+            },
+        ))
+    }
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl StepView for StepContribution {
+    fn object(&self) -> &Object {
+        &self.object
+    }
+    fn fields(&self) -> &SourceFields<'static> {
+        &self.fields
+    }
+    fn key(&self) -> &bj::TextValue {
+        &self.key
+    }
+    fn reasons(&self) -> &RefValue {
+        &self.reasons
+    }
+    fn insufficient(&self) -> bool {
+        self.insufficient
+    }
+    fn incomplete(&self) -> bool {
+        self.incomplete
+    }
 }
 
 fn payload(s: &mut (impl CodecRead + ?Sized), object: &Object) -> Result<RefValue, String> {
@@ -157,10 +247,10 @@ fn comparisons(
 }
 
 /// 单步骤当前原件核；完整前缀与请求全体性由调用方另核。
-fn step_record<'a>(
+pub(super) fn step_record<'a>(
     s: &mut (impl SourceFieldStore + ?Sized),
     object: &'a Object,
-    raw: &BusinessMap<i64, Source>,
+    raw: &(impl RawLookup + ?Sized),
 ) -> Result<(i64, Step<'a>), String> {
     let p = payload(s, object)?;
     exact(&p, Kind::Object, STEP.len() as u64)?;
@@ -211,7 +301,7 @@ fn step_record<'a>(
     ))
 }
 
-fn knowledge_record<'a>(
+pub(super) fn knowledge_record<'a>(
     s: &mut (impl SourceFieldStore + ?Sized),
     object: &'a Object,
     knowledge: &mut Option<(RefValue, &'a Object)>,
@@ -238,10 +328,32 @@ fn step_sequence_record(
     unsettled: &mut bool,
     pending: &mut sc::CodecVec<i64>,
 ) -> Result<(), String> {
-    if &*step.object.sources != prefix {
+    step_sequence_record_view(
+        s,
+        step,
+        coord,
+        ordinal,
+        &*step.object.sources == prefix,
+        seed,
+        unsettled,
+        pending,
+    )
+}
+
+pub(super) fn step_sequence_record_view(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    step: &(impl StepView + ?Sized),
+    coord: &i64,
+    ordinal: usize,
+    prefix_equal: bool,
+    seed: &mut Option<RefValue>,
+    unsettled: &mut bool,
+    pending: &mut sc::CodecVec<i64>,
+) -> Result<(), String> {
+    if !prefix_equal {
         return Err(err("CC004来源不是截至incoming的同cut完整前缀"));
     }
-    let fields = &step.fields;
+    let fields = step.fields();
     let action = fields.text(s, "action")?;
     if ordinal == 0 {
         if action != "seed"
@@ -278,7 +390,7 @@ fn step_sequence_record(
         {
             return Err(err("waiting首包含/后续未判定记录不同"));
         }
-        strings(s, &step.reasons, &[INITIAL])?;
+        strings(s, step.reasons(), &[INITIAL])?;
         for key in ["high_sources", "low_sources"] {
             let value = fields.get_admitted(s, key)?;
             strings(s, &value, &[])?;
@@ -296,7 +408,7 @@ fn step_sequence_record(
         {
             return Err(err("CC004未定后缀中断或步骤action不符"));
         }
-        for reason in elements(s, &step.reasons)? {
+        for reason in elements(s, step.reasons())? {
             if text_value(s, &reason, "waiting reason")? == INITIAL {
                 return Err(err("非waiting步骤携带初始未定原因"));
             }
@@ -305,10 +417,10 @@ fn step_sequence_record(
     Ok(())
 }
 
-fn unsettled_seed_group(
+pub(super) fn unsettled_seed_group(
     s: &mut (impl SourceFieldStore + ?Sized),
     coord: i64,
-    groups: &BusinessMap<i64, Group>,
+    groups: &(impl GroupLookup + ?Sized),
     seed: &Option<RefValue>,
 ) -> Result<(), String> {
     let group = groups.get(&0).ok_or_else(|| err("初始未定缺seed组"))?;
@@ -355,6 +467,44 @@ fn unsettled_seed_group(
     Ok(())
 }
 
+pub(super) trait StepLookup {
+    fn get_step(&self, coord: i64) -> Option<&dyn StepView>;
+    fn contains_subject(&self, id: &str) -> bool;
+}
+pub(super) trait RequestSlots {
+    fn insert_request(&mut self, s: &(impl CodecRead + ?Sized), key: &str) -> Result<bool, String>;
+    fn insert_bound(&mut self, s: &(impl CodecRead + ?Sized), coord: i64) -> Result<bool, String>;
+}
+struct FullStepLookup<'a, 'b, 'c> {
+    steps: &'a BusinessMap<i64, Step<'b>>,
+    subjects: &'a BusinessMap<&'c str, i64>,
+}
+impl StepLookup for FullStepLookup<'_, '_, '_> {
+    fn get_step(&self, coord: i64) -> Option<&dyn StepView> {
+        self.steps.get(&coord).map(|step| step as &dyn StepView)
+    }
+    fn contains_subject(&self, id: &str) -> bool {
+        self.subjects.contains_key(id)
+    }
+}
+struct FullRequestSlots<'a> {
+    requests: &'a mut BusinessMap<bj::TextValue, ()>,
+    bound: &'a mut BusinessMap<i64, ()>,
+}
+impl RequestSlots for FullRequestSlots<'_> {
+    fn insert_request(&mut self, s: &(impl CodecRead + ?Sized), key: &str) -> Result<bool, String> {
+        s.native_map_room(self.requests).map_err(err)?;
+        Ok(self
+            .requests
+            .insert(s.native_text(key)?, ())
+            .map_err(err)?
+            .is_some())
+    }
+    fn insert_bound(&mut self, s: &(impl CodecRead + ?Sized), coord: i64) -> Result<bool, String> {
+        s.native_map_room(self.bound).map_err(err)?;
+        Ok(self.bound.insert(coord, ()).map_err(err)?.is_some())
+    }
+}
 fn request_record(
     s: &mut (impl SourceFieldStore + ?Sized),
     request: &RefValue,
@@ -362,6 +512,23 @@ fn request_record(
     step_subjects: &BusinessMap<&str, i64>,
     requests: &mut BusinessMap<bj::TextValue, ()>,
     bound: &mut BusinessMap<i64, ()>,
+) -> Result<(), String> {
+    request_record_with_slots(
+        s,
+        request,
+        &FullStepLookup {
+            steps,
+            subjects: step_subjects,
+        },
+        &mut FullRequestSlots { requests, bound },
+    )
+}
+
+pub(super) fn request_record_with_slots(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    request: &RefValue,
+    steps: &impl StepLookup,
+    slots: &mut impl RequestSlots,
 ) -> Result<(), String> {
     exact(request, Kind::Object, 5)?;
     let fields = SourceFields::read_subset(
@@ -382,12 +549,7 @@ fn request_record(
     {
         return Err(err("知识请求键不是规范二元槽位"));
     }
-    s.native_map_room(requests).map_err(err)?;
-    if requests
-        .insert(s.native_text(key.as_str())?, ())
-        .map_err(err)?
-        .is_some()
-    {
+    if slots.insert_request(s, key.as_str())? {
         return Err(err("同cut知识请求重复"));
     }
     if view.index(0).and_then(|v| v.as_str()) != Some(CC004_STEP_KIND) {
@@ -396,7 +558,7 @@ fn request_record(
         if subject
             .view()
             .as_str()
-            .is_some_and(|id| step_subjects.contains_key(id))
+            .is_some_and(|id| steps.contains_subject(id))
         {
             return Err(err("CC004知识主体被绑定到其它请求槽位"));
         }
@@ -407,26 +569,25 @@ fn request_record(
             .and_then(|v| v.as_str())
             .ok_or_else(|| err("步骤请求槽位非坐标"))?,
     )?;
-    let step = steps.get(&coord).ok_or_else(|| err("多余CC004知识请求"))?;
-    if key != step.key
-        || fields.text(s, "subject_id")? != step.object.id
+    let step = steps
+        .get_step(coord)
+        .ok_or_else(|| err("多余CC004知识请求"))?;
+    if &key != step.key()
+        || fields.text(s, "subject_id")? != step.object().id
         || {
             let sources = fields.get_admitted(s, "source_coords")?;
-            &*coords(s, &sources)? != &*step.object.sources
+            &*coords(s, &sources)? != &*step.object().sources
         }
-        || {
-            s.native_map_room(bound).map_err(err)?;
-            bound.insert(coord, ()).map_err(err)?.is_some()
-        }
+        || { slots.insert_bound(s, coord)? }
     {
         return Err(err("CC004知识请求key/subject/来源不一致"));
     }
     let reasons = fields.get_admitted(s, "reasons")?;
-    if step.reasons.extent() == Some(0)
-        && step.fields.get_admitted(s, "direction_evidence")?.kind() == Kind::Null
+    if step.reasons().extent() == Some(0)
+        && step.fields().get_admitted(s, "direction_evidence")?.kind() == Kind::Null
     {
         strings(s, &reasons, &["direction_not_yet_established"])?;
-    } else if reasons != step.reasons {
+    } else if &reasons != step.reasons() {
         return Err(err("CC004知识请求未绑定完整reasons"));
     }
     let axes = fields.get_admitted(s, "axes")?;
@@ -439,7 +600,7 @@ fn request_record(
     for (name, want) in [
         (
             "input_quality",
-            if step.insufficient {
+            if step.insufficient() {
                 "INSUFFICIENT"
             } else {
                 "SUFFICIENT"
@@ -447,7 +608,7 @@ fn request_record(
         ),
         (
             "applicability",
-            if step.incomplete {
+            if step.incomplete() {
                 "DOMAIN_PROOF_MISSING"
             } else {
                 "IN_DOMAIN"
@@ -455,7 +616,7 @@ fn request_record(
         ),
         (
             "computation",
-            if step.incomplete {
+            if step.incomplete() {
                 "INCOMPLETE"
             } else {
                 "COMPLETE"
@@ -477,10 +638,16 @@ pub(super) fn audit<'a>(
     groups: &BusinessMap<i64, Group>,
     deadline: Option<Instant>,
 ) -> Result<sc::CodecVec<i64>, String> {
+    #[cfg(test)]
+    super::source_call_note(|n| {
+        n.full_pending_calls += 1;
+    });
     let allocation = source_allocation(s)?;
     let mut steps = bj::new_map(allocation.as_ref());
     let mut step_subjects = bj::new_map(allocation.as_ref());
     let mut knowledge = None;
+    #[cfg(test)]
+    super::source_call_note(|n| n.full_members_enumerations += 1);
     for object in objects {
         super::super::history::check_deadline(deadline)?;
         if object.kind == CC054_KNOWLEDGE_KIND {
@@ -500,6 +667,8 @@ pub(super) fn audit<'a>(
     if steps.len() != raw.len() {
         return Err(err("同cut CC004未一一覆盖生效原始账"));
     }
+    #[cfg(test)]
+    super::source_call_note(|n| n.full_members_enumerations += 1);
     let ordered = sorted_numeric_entries(s, raw)?;
     let mut prefix = bj::new_work(allocation.as_ref());
     let mut pending = bj::new_work(allocation.as_ref());
@@ -532,6 +701,8 @@ pub(super) fn audit<'a>(
     let mut requests = bj::new_map(allocation.as_ref());
     let mut bound = bj::new_map(allocation.as_ref());
     let request_array = field(s, &knowledge, "requests")?;
+    #[cfg(test)]
+    super::source_call_note(|n| n.full_members_enumerations += 1);
     for request in elements(s, &request_array)? {
         super::super::history::check_deadline(deadline)?;
         request_record(

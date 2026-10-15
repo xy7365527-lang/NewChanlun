@@ -616,6 +616,7 @@ impl Members {
         name: &str,
         previous: impl Iterator<Item = (NodeDigest, usize)>,
     ) -> Result<Self, String> {
+        super::source_call_note(|n| n.full_members_enumerations += 1);
         let allocation = source_allocation(s)?;
         let mut remaining = bj::new_map(allocation.as_ref());
         for (key, count) in previous {
@@ -659,6 +660,9 @@ impl FixtureCut {
         raw: RawEventsView<'_>,
         previous: &Contributions,
     ) -> Result<Self, String> {
+        super::source_call_note(|n| {
+            n.fixture_bind_calls += 1;
+        });
         previous.same_ledger(s)?;
         match (&previous.allocation, raw.budget()) {
             (None, None) => {}

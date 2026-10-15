@@ -74,7 +74,54 @@ pub(crate) struct BoundRawAdvance<'raw> {
     // 身份/版本在真实 main 快照建立后取值，不在 COMMIT 后重新采样。
     seal: SnapshotSeal,
 }
+/// 写前签发后按值离开 complete 借用；字段私有，不含 caller raw 或成功标记。
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) struct IssuedRawAdvance {
+    previous_prefix: usize,
+    current_prefix: usize,
+    previous: RawAdvanceBinding,
+    current: RawAdvanceBinding,
+    winner_edits: sc::CodecVec<RawWinnerEdit>,
+    lease_serial: u64,
+    seal: SnapshotSeal,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl IssuedRawAdvance {
+    pub(super) fn bind<'raw>(
+        self,
+        raw: RawEventsView<'raw>,
+        lease: &'raw Lease,
+    ) -> Result<BoundRawAdvance<'raw>, String> {
+        if raw.len() != self.current_prefix {
+            return Err(stale("写前签发材料与同一pending原件长度不符"));
+        }
+        let token = BoundRawAdvance {
+            raw,
+            previous_prefix: self.previous_prefix,
+            previous: self.previous,
+            current: self.current,
+            winner_edits: self.winner_edits,
+            lease,
+            lease_serial: self.lease_serial,
+            seal: self.seal,
+        };
+        token.ensure_current()?;
+        Ok(token)
+    }
+}
 impl<'raw> BoundRawAdvance<'raw> {
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn into_issued(self) -> IssuedRawAdvance {
+        IssuedRawAdvance {
+            previous_prefix: self.previous_prefix,
+            current_prefix: self.raw.len(),
+            previous: self.previous,
+            current: self.current,
+            winner_edits: self.winner_edits,
+            lease_serial: self.lease_serial,
+            seal: self.seal,
+        }
+    }
     pub(crate) fn raw(&self) -> RawEventsView<'raw> {
         self.raw
     }
@@ -122,15 +169,33 @@ pub(super) struct CommittedRawState {
     set: Option<super::construction_set::CommittedSet>,
     #[cfg(feature = "s_capture_native_testonly")]
     retained: usize,
+    #[cfg(feature = "s_capture_native_testonly")]
+    source: Option<super::super::source_audit::NativeSourceState>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    source_bytes: usize,
 }
 impl CommittedRawState {
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn source_work(&self) -> Option<super::super::source_audit::SourceWork> {
+        self.source.as_ref().map(|s| s.work)
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn source_counts(&self) -> Option<super::super::source_audit::Counts> {
+        self.source.as_ref().map(|s| s.counts_for_test())
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn binding(&self) -> RawAdvanceBinding {
+        self.binding
+    }
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn has_set(&self) -> bool {
         self.set.is_some()
     }
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn retained_bytes(&self) -> usize {
-        self.retained.saturating_add(std::mem::size_of::<Self>())
+        self.retained
+            .saturating_add(std::mem::size_of::<Self>())
+            .saturating_add(self.source_bytes)
     }
 }
 pub(super) struct PendingRawState {
@@ -140,10 +205,17 @@ pub(super) struct PendingRawState {
     #[cfg(feature = "s_capture_native_testonly")]
     set: Option<super::construction_set::CommittedSet>,
     #[cfg(feature = "s_capture_native_testonly")]
-    pending_set: Option<super::construction_set::PendingSet>,
-    #[cfg(feature = "s_capture_native_testonly")]
     retained: usize,
+    #[cfg(feature = "s_capture_native_testonly")]
+    source: Option<super::super::source_audit::NativeSourceState>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    source_bytes: usize,
+    #[cfg(feature = "s_capture_native_testonly")]
+    raw_token_bytes: usize,
     closed_total_changes: Option<u64>,
+    // 最后析构：来源/原始事实先释放，再归还PendingSet持有的原父账许可。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pending_set: Option<super::construction_set::PendingSet>,
 }
 impl PendingRawState {
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
@@ -154,6 +226,8 @@ impl PendingRawState {
     pub(super) fn retained_bytes(&self) -> usize {
         self.retained
             .saturating_add(std::mem::size_of::<Self>())
+            .saturating_add(self.source_bytes)
+            .saturating_add(self.raw_token_bytes)
             .saturating_add(self.pending_set.as_ref().map_or(0, |s| s.retained_bytes()))
     }
     /// 只有父 owner 从本快照已核原件调用；previous 必须 move，失败时不能还原作成功缓存。
@@ -177,6 +251,14 @@ impl PendingRawState {
         let retained = previous.as_ref().map_or(0, |p| p.retained);
         #[cfg(feature = "s_capture_native_testonly")]
         let set = previous.as_mut().and_then(|previous| previous.set.take());
+        #[cfg(feature = "s_capture_native_testonly")]
+        let source = previous
+            .as_mut()
+            .and_then(|previous| previous.source.take());
+        #[cfg(feature = "s_capture_native_testonly")]
+        let source_bytes = previous
+            .as_ref()
+            .map_or(0, |previous| previous.source_bytes);
         let (previous_binding, previous_prefix, mut index) = match previous {
             Some(previous) => {
                 if !previous.seal.same_snapshot(&seal) {
@@ -230,19 +312,107 @@ impl PendingRawState {
         };
         #[cfg(not(feature = "s_capture_native_testonly"))]
         let facts = index.into_facts();
+        #[cfg(feature = "s_capture_native_testonly")]
+        let raw_token_bytes = super::super::audit_retention::vec_bytes::<RawWinnerEdit>(
+            token.winner_edits.capacity(),
+        );
         let pending = Self {
             seal,
             binding: current,
             facts,
             #[cfg(feature = "s_capture_native_testonly")]
             retained,
+            #[cfg(feature = "s_capture_native_testonly")]
+            source,
+            #[cfg(feature = "s_capture_native_testonly")]
+            source_bytes,
             closed_total_changes: None,
+            #[cfg(feature = "s_capture_native_testonly")]
+            raw_token_bytes,
             #[cfg(feature = "s_capture_native_testonly")]
             set,
             #[cfg(feature = "s_capture_native_testonly")]
             pending_set: None,
         };
         Ok((pending, token))
+    }
+
+    /// Accept/Begin 只携带最后发布游标。资格由同一owner原件和后续真实effects闭合，
+    /// 此处不读新raw赢家、不推进binding，不为producer制造遗漏的一步。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn carry(
+        previous: Option<CommittedRawState>,
+        seal: SnapshotSeal,
+        raw_len: usize,
+        lease: &Lease,
+    ) -> Result<Self, String> {
+        if lease.stale.get() {
+            return Err(stale("Carry租约已撤销"));
+        }
+        let (binding, facts, set, retained, source, source_bytes) = if let Some(previous) = previous
+        {
+            if !previous.seal.same_snapshot(&seal) || raw_len < previous.facts.prefix_len() {
+                return Err(stale("Carry前沿/输入身份或实际快照不连续"));
+            }
+            (
+                previous.binding,
+                previous.facts,
+                previous.set,
+                previous.retained,
+                previous.source,
+                previous.source_bytes,
+            )
+        } else {
+            (
+                RawAdvanceBinding {
+                    domain: RawDomain {
+                        life: seal.life,
+                        epoch: lease.serial.get(),
+                    },
+                    step: 0,
+                },
+                RawPrefixFacts::default(),
+                None,
+                0,
+                None,
+                0,
+            )
+        };
+        Ok(Self {
+            seal,
+            binding,
+            facts,
+            set,
+            pending_set: None,
+            retained,
+            source,
+            source_bytes,
+            raw_token_bytes: 0,
+            closed_total_changes: None,
+        })
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn take_source(&mut self) -> Option<super::super::source_audit::NativeSourceState> {
+        // 保留原信用占帽，源状态在PublishPhase唯一局部槽暂存时不洗掉旧费用。
+        self.source.take()
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn install_source(
+        &mut self,
+        source: super::super::source_audit::NativeSourceState,
+    ) -> Result<usize, String> {
+        if self.source.is_some() {
+            return Err(stale("来源状态重复回交owner"));
+        }
+        let bytes = source.retained_bytes();
+        if bytes == usize::MAX {
+            return Err(stale("来源状态保留账溢出"));
+        }
+        let growth = bytes.saturating_sub(self.source_bytes);
+        self.source_bytes = bytes;
+        self.source = Some(source);
+        Ok(growth)
     }
 
     #[cfg(feature = "s_capture_native_testonly")]
@@ -296,6 +466,9 @@ impl PendingRawState {
         }
         #[cfg(feature = "s_capture_native_testonly")]
         if let Some(set) = &self.pending_set {
+            if set.requires_source() && self.source.is_none() {
+                return Err(stale("来源成功结果未回交同owner状态"));
+            }
             set.check_commit(seal, total_changes)?;
         }
         Ok(())
@@ -310,6 +483,10 @@ impl PendingRawState {
             set: self.pending_set.map(|set| set.committed()).or(self.set),
             #[cfg(feature = "s_capture_native_testonly")]
             retained: self.retained,
+            #[cfg(feature = "s_capture_native_testonly")]
+            source: self.source,
+            #[cfg(feature = "s_capture_native_testonly")]
+            source_bytes: self.source_bytes,
         }
     }
 }

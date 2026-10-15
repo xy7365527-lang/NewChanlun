@@ -21,9 +21,16 @@ use serde_json::{json, Value};
 #[cfg(test)]
 #[path = "source_audit_oracle.rs"]
 mod frozen_oracle;
+#[cfg(feature = "s_capture_native_testonly")]
+#[path = "source_contributions.rs"]
+mod source_contributions;
 #[cfg(test)]
 #[path = "source_delta.rs"]
 mod source_delta;
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) use source_contributions::{
+    audit_native_bound, NativeSourceState, NativeSourceVerdict, SourceWork,
+};
 #[path = "source_pending.rs"]
 mod source_pending;
 #[path = "source_prefix.rs"]
@@ -36,6 +43,32 @@ pub(super) fn reset_native_source_prefix_stats() {
 #[cfg(test)]
 pub(super) fn native_source_prefix_stats() -> Option<[u64; 4]> {
     source_prefix::stats()
+}
+#[cfg(test)]
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct SourceCallStats {
+    pub(crate) full_source_calls: usize,
+    pub(crate) full_pending_calls: usize,
+    pub(crate) fixture_bind_calls: usize,
+    pub(crate) full_members_enumerations: usize,
+}
+#[cfg(test)]
+thread_local! { static SOURCE_CALL_STATS: std::cell::Cell<SourceCallStats> = const { std::cell::Cell::new(SourceCallStats {full_source_calls:0,full_pending_calls:0,fixture_bind_calls:0,full_members_enumerations:0}) }; }
+#[cfg(test)]
+pub(crate) fn reset_source_call_stats() {
+    SOURCE_CALL_STATS.with(|v| v.set(SourceCallStats::default()));
+}
+#[cfg(test)]
+pub(crate) fn source_call_stats() -> SourceCallStats {
+    SOURCE_CALL_STATS.with(std::cell::Cell::get)
+}
+#[cfg(test)]
+fn source_call_note(update: impl FnOnce(&mut SourceCallStats)) {
+    SOURCE_CALL_STATS.with(|v| {
+        let mut n = v.get();
+        update(&mut n);
+        v.set(n);
+    });
 }
 fn err(e: impl std::fmt::Display) -> String {
     format!("SourceAuditInvalid：{e}")
@@ -794,10 +827,56 @@ pub(super) struct Counts {
     pub insufficient: usize,
     pub outside_domain: usize,
 }
+// 来源判据依赖精确查找而不依赖哈希布局。Native 的持久树不会在扩容时重排全历史。
+trait RawLookup {
+    fn get(&self, coord: &i64) -> Option<&Source>;
+    fn contains_key(&self, coord: &i64) -> bool {
+        self.get(coord).is_some()
+    }
+    fn full_source_map(&self) -> Option<&BusinessMap<i64, Source>> {
+        None
+    }
+}
+impl RawLookup for BusinessMap<i64, Source> {
+    fn get(&self, coord: &i64) -> Option<&Source> {
+        BusinessMap::get(self, coord)
+    }
+    fn full_source_map(&self) -> Option<&BusinessMap<i64, Source>> {
+        Some(self)
+    }
+}
+impl<T: RawLookup + ?Sized> RawLookup for &T {
+    fn get(&self, coord: &i64) -> Option<&Source> {
+        (**self).get(coord)
+    }
+    fn full_source_map(&self) -> Option<&BusinessMap<i64, Source>> {
+        (**self).full_source_map()
+    }
+}
+trait GroupLookup {
+    fn get(&self, index: &i64) -> Option<&Group>;
+    fn len(&self) -> usize;
+}
+impl GroupLookup for BusinessMap<i64, Group> {
+    fn get(&self, index: &i64) -> Option<&Group> {
+        BusinessMap::get(self, index)
+    }
+    fn len(&self) -> usize {
+        BusinessMap::len(self)
+    }
+}
+trait ShapeLookup {
+    fn get(&self, id: &str) -> Option<&Shape>;
+}
+impl ShapeLookup for BusinessMap<bj::TextValue, Shape> {
+    fn get(&self, id: &str) -> Option<&Shape> {
+        BusinessMap::get(self, id)
+    }
+}
 fn references(
     s: &mut (impl CodecRead + ?Sized),
     r: &RefValue,
-    raw: &BusinessMap<i64, Source>,
+    raw: &(impl RawLookup + ?Sized),
     numeric: bool,
     checked: &mut BusinessMap<(NodeDigest, bool), i64>,
 ) -> Result<sc::CodecVec<i64>, String> {
@@ -849,7 +928,7 @@ fn source_coords(
 fn source_references(
     s: &mut (impl CodecRead + ?Sized),
     r: &RefValue,
-    raw: &BusinessMap<i64, Source>,
+    raw: &(impl RawLookup + ?Sized),
     numeric: bool,
     checked: &mut BusinessMap<(NodeDigest, bool), i64>,
     memo: Option<&mut NativeSourceMemo<'_>>,
@@ -857,7 +936,16 @@ fn source_references(
     domain: ParseDomain,
 ) -> Result<SourceCoords, String> {
     match memo {
-        Some(memo) => memo.references(s, r, raw, numeric, checked, prefix, domain),
+        Some(memo) => memo.references(
+            s,
+            r,
+            raw.full_source_map()
+                .ok_or_else(|| err("完整来源memo不接增量树账"))?,
+            numeric,
+            checked,
+            prefix,
+            domain,
+        ),
         None => references(s, r, raw, numeric, checked).map(SourceCoords::Original),
     }
 }
@@ -1459,14 +1547,106 @@ pub(super) fn audit_generated_for_audit<'a>(
     )
 }
 
+// #1488 SFT-M1：故障对拍必须调用冻结旧核，不能借用重构后的同一实现。
+#[cfg(test)]
+pub(super) fn audit_generated_frozen_for_test<'a>(
+    s: &mut super::history::HashReader<'_>,
+    state: impl Into<sc::RefView<'a>>,
+    raw_prefix: impl Into<RawEventsView<'a>>,
+    profile: &str,
+    rule: &str,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+) -> Result<Counts, String> {
+    frozen_oracle::audit_generated_in_store(
+        &mut super::audit_store::StoreView::for_audit(s),
+        state.into(),
+        raw_prefix.into(),
+        profile,
+        rule,
+        deadline,
+        budget,
+        None,
+        None,
+        None,
+        None,
+    )
+}
+
 /// 单对象同判据核：身份唯一性仍在载荷读取之前；调用方提供当前 cut 的全局索引。
+// 同一局部判据只把“当前位置之前是否出现”交给容器；不改变读取/拒绝次序。
+trait ObjectSlots {
+    fn reserve_group(&mut self, _s: &(impl CodecRead + ?Sized)) -> Result<(), String> {
+        Ok(())
+    }
+    fn insert_id(&mut self, s: &(impl CodecRead + ?Sized), id: &str) -> Result<bool, String>;
+    fn insert_group(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        index: i64,
+        group: Group,
+    ) -> Result<bool, String>;
+}
+struct FullObjectSlots<'a> {
+    ids: &'a mut BusinessMap<bj::TextValue, ()>,
+    groups: &'a mut BusinessMap<i64, Group>,
+}
+impl ObjectSlots for FullObjectSlots<'_> {
+    fn reserve_group(&mut self, s: &(impl CodecRead + ?Sized)) -> Result<(), String> {
+        s.native_map_room(self.groups).map_err(err)
+    }
+    fn insert_id(&mut self, s: &(impl CodecRead + ?Sized), id: &str) -> Result<bool, String> {
+        s.native_map_room(self.ids).map_err(err)?;
+        Ok(self
+            .ids
+            .insert(s.native_text(id)?, ())
+            .map_err(err)?
+            .is_some())
+    }
+    fn insert_group(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        index: i64,
+        group: Group,
+    ) -> Result<bool, String> {
+        Ok(self.groups.insert(index, group).map_err(err)?.is_some())
+    }
+}
 fn audit_object_record(
     s: &mut (impl SourceFieldStore + ?Sized),
     record: &RefValue,
-    raw: &BusinessMap<i64, Source>,
+    raw: &(impl RawLookup + ?Sized),
     producer: &Cc004Producer,
     ids: &mut BusinessMap<bj::TextValue, ()>,
     groups: &mut BusinessMap<i64, Group>,
+    checked_refs: &mut BusinessMap<(NodeDigest, bool), i64>,
+    native_sources: Option<&mut NativeSourceMemo<'_>>,
+    raw_prefix_len: usize,
+    memo_fields: bool,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+) -> Result<Object, String> {
+    audit_object_record_with_slots(
+        s,
+        record,
+        raw,
+        producer,
+        &mut FullObjectSlots { ids, groups },
+        checked_refs,
+        native_sources,
+        raw_prefix_len,
+        memo_fields,
+        deadline,
+        budget,
+    )
+}
+
+fn audit_object_record_with_slots(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    record: &RefValue,
+    raw: &(impl RawLookup + ?Sized),
+    producer: &Cc004Producer,
+    slots: &mut impl ObjectSlots,
     checked_refs: &mut BusinessMap<(NodeDigest, bool), i64>,
     mut native_sources: Option<&mut NativeSourceMemo<'_>>,
     raw_prefix_len: usize,
@@ -1486,13 +1666,7 @@ fn audit_object_record(
     };
     let fields = SourceFields::read_subset(s, record.view(), names).map_err(err)?;
     let id = fields.text(s, "object_id").map_err(err)?;
-    s.native_map_room(ids).map_err(err)?;
-    if ids
-        .insert(s.native_text(id.as_str())?, ())
-        .map_err(err)?
-        .is_some()
-        || fields.integer(s, "object_revision").map_err(err)? != 1
-    {
+    if slots.insert_id(s, id.as_str())? || fields.integer(s, "object_revision").map_err(err)? != 1 {
         return Err(err("对象身份重复或修订不符"));
     }
     let refs = s
@@ -1649,20 +1823,17 @@ fn audit_object_record(
             if &*union != &*sources {
                 return Err(err("组来源不等于成员及方向/封口依据的并集"));
             }
-            s.native_map_room(groups).map_err(err)?;
-            if groups
-                .insert(
-                    index,
-                    Group {
-                        payload: s.native_ref_clone(&payload).map_err(err)?,
-                        members,
-                        sources: copy_source_coords(s, &sources)?,
-                        anchor,
-                    },
-                )
-                .map_err(err)?
-                .is_some()
-            {
+            slots.reserve_group(s)?;
+            if slots.insert_group(
+                s,
+                index,
+                Group {
+                    payload: s.native_ref_clone(&payload).map_err(err)?,
+                    members,
+                    sources: copy_source_coords(s, &sources)?,
+                    anchor,
+                },
+            )? {
                 return Err(err("同cut组合并序号重复"));
             }
         }
@@ -1680,8 +1851,8 @@ fn audit_object_record(
 fn audit_shape_record(
     s: &mut (impl SourceFieldStore + ?Sized),
     object: &Object,
-    raw: &BusinessMap<i64, Source>,
-    groups: &BusinessMap<i64, Group>,
+    raw: &(impl RawLookup + ?Sized),
+    groups: &(impl GroupLookup + ?Sized),
     producer: &Cc004Producer,
     checked_refs: &mut BusinessMap<(NodeDigest, bool), i64>,
     mut native_sources: Option<&mut NativeSourceMemo<'_>>,
@@ -1821,13 +1992,62 @@ fn audit_shape_record(
 }
 
 /// 单见证核，槽位重复在形态/组原件读取之前拒绝；三槽全体性仍由贡献层核验。
+trait WitnessSlots {
+    fn reserve(&mut self, s: &(impl CodecRead + ?Sized)) -> Result<(), String>;
+    fn insert_slot(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        id: &str,
+        slot: i64,
+    ) -> Result<bool, String>;
+}
+struct FullWitnessSlots<'a>(&'a mut BusinessMap<(bj::TextValue, i64), ()>);
+impl WitnessSlots for FullWitnessSlots<'_> {
+    fn reserve(&mut self, s: &(impl CodecRead + ?Sized)) -> Result<(), String> {
+        s.native_map_room(self.0).map_err(err)
+    }
+    fn insert_slot(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        id: &str,
+        slot: i64,
+    ) -> Result<bool, String> {
+        Ok(self
+            .0
+            .insert((s.native_text(id)?, slot), ())
+            .map_err(err)?
+            .is_some())
+    }
+}
 fn audit_witness_record(
     s: &mut (impl SourceFieldStore + ?Sized),
     witness: &RefValue,
-    raw: &BusinessMap<i64, Source>,
-    groups: &BusinessMap<i64, Group>,
-    shapes: &BusinessMap<bj::TextValue, Shape>,
+    raw: &(impl RawLookup + ?Sized),
+    groups: &(impl GroupLookup + ?Sized),
+    shapes: &(impl ShapeLookup + ?Sized),
     seen: &mut BusinessMap<(bj::TextValue, i64), ()>,
+    native_identity: Option<&mut NativeWitnessIdentityMemo<'_>>,
+    deadline: Option<std::time::Instant>,
+) -> Result<(bj::TextValue, i64), String> {
+    audit_witness_record_with_slots(
+        s,
+        witness,
+        raw,
+        groups,
+        shapes,
+        &mut FullWitnessSlots(seen),
+        native_identity,
+        deadline,
+    )
+}
+
+fn audit_witness_record_with_slots(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    witness: &RefValue,
+    raw: &(impl RawLookup + ?Sized),
+    groups: &(impl GroupLookup + ?Sized),
+    shapes: &(impl ShapeLookup + ?Sized),
+    slots: &mut impl WitnessSlots,
     mut native_identity: Option<&mut NativeWitnessIdentityMemo<'_>>,
     deadline: Option<std::time::Instant>,
 ) -> Result<(bj::TextValue, i64), String> {
@@ -1851,13 +2071,8 @@ fn audit_witness_record(
     let id = fields.text(s, "witness_id").map_err(err)?;
     let object_id = fields.text(s, "object_id").map_err(err)?;
     let slot = fields.integer(s, "slot").map_err(err)?;
-    s.native_map_room(seen).map_err(err)?;
-    if !(0..3).contains(&slot)
-        || seen
-            .insert((s.native_text(object_id.as_str())?, slot), ())
-            .map_err(err)?
-            .is_some()
-    {
+    slots.reserve(s)?;
+    if !(0..3).contains(&slot) || slots.insert_slot(s, object_id.as_str(), slot)? {
         return Err(err("见证槽位重复/越界"));
     }
     let shape = shapes
@@ -1928,6 +2143,10 @@ fn audit_generated_in_store(
     native_fields: Option<&mut NativeFieldMemo<'_>>,
     native_ledger: Option<&mut NativeRawLedger<'_>>,
 ) -> Result<Counts, String> {
+    #[cfg(test)]
+    source_call_note(|n| {
+        n.full_source_calls += 1;
+    });
     super::history::check_deadline(deadline)?;
     #[cfg(test)]
     super::state::trace_event("source_closure", None);
@@ -1998,6 +2217,8 @@ fn audit_generated_in_store(
     let mut objects = bj::new_work(allocation.as_ref());
     let mut ids = bj::new_map(allocation.as_ref());
     let mut groups = bj::new_map(allocation.as_ref());
+    #[cfg(test)]
+    source_call_note(|n| n.full_members_enumerations += 1);
     for record in elements_ref(s, object_array.view())? {
         super::history::check_deadline(deadline)?;
         let memo_fields = s.fields.is_some();
@@ -2022,6 +2243,8 @@ fn audit_generated_in_store(
     let pending = source_pending::audit(s, objects.iter(), raw, &groups, deadline)?;
     let mut partition = bj::new_map(allocation.as_ref());
     let ordered_groups = sorted_numeric_entries(s, &groups)?;
+    #[cfg(test)]
+    source_call_note(|n| n.full_members_enumerations += 1);
     for (expected, (index, group)) in ordered_groups.iter().enumerate() {
         super::history::check_deadline(deadline)?;
         if *index != expected as i64 {
@@ -2049,6 +2272,8 @@ fn audit_generated_in_store(
     let mut shapes = bj::new_map(allocation.as_ref());
     #[cfg(test)]
     super::state::trace_event("source_shapes", None);
+    #[cfg(test)]
+    source_call_note(|n| n.full_members_enumerations += 1);
     for object in objects.iter().filter(|o| o.kind == CC006_SHAPE_KIND) {
         super::history::check_deadline(deadline)?;
         let shape = audit_shape_record(
@@ -2072,6 +2297,8 @@ fn audit_generated_in_store(
     #[cfg(test)]
     super::state::trace_event("source_witnesses", None);
     let mut seen = bj::new_map(allocation.as_ref());
+    #[cfg(test)]
+    source_call_note(|n| n.full_members_enumerations += 1);
     for witness in elements(s, &witness_array)? {
         super::history::check_deadline(deadline)?;
         audit_witness_record(
@@ -2093,6 +2320,8 @@ fn audit_generated_in_store(
     super::state::trace_event("source_observations", None);
     let mut insufficient = 0;
     let mut outside_domain = 0;
+    #[cfg(test)]
+    source_call_note(|n| n.full_members_enumerations += 1);
     for item in elements(s, &observations)? {
         super::history::check_deadline(deadline)?;
         match text(s, &item, "kind")?.as_str() {

@@ -708,6 +708,26 @@ pub struct CodecFields {
     storage: FieldsStorage,
 }
 impl CodecFields {
+    /// #1488 Native 保留账：真实 String capacity 加 BTree 节点槽的保守上界。
+    /// 只读；每个来源贡献首次入账/替换时调用，不用于每代扫描旧缓存。
+    /// Owned 的内存由其原预算持有，返回 None，不能擦成 Native 账；溢出也返回 None。
+    #[doc(hidden)]
+    pub fn plain_retained_bytes(&self) -> Option<usize> {
+        let FieldsStorage::Plain(fields) = &self.storage else {
+            return None;
+        };
+        let slot = std::mem::size_of::<(String, super::super::ContentRef)>()
+            .checked_mul(11)?
+            .checked_add(16 * std::mem::size_of::<usize>())?;
+        fields
+            .iter()
+            .try_fold(fields.len().checked_mul(slot)?, |bytes, (key, value)| {
+                bytes
+                    .checked_add(key.capacity())?
+                    .checked_add(value.format.capacity())?
+                    .checked_add(value.root.capacity())
+            })
+    }
     pub fn from_plain(m: BTreeMap<String, super::super::ContentRef>) -> Self {
         Self {
             storage: FieldsStorage::Plain(m),

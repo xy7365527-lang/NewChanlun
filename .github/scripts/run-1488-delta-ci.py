@@ -857,6 +857,305 @@ LOCKS.extend([
     }
 ])
 
+
+# #1488 B2：冻结 codec 14 + M/I 5 + 来源组件 5 + 正式坏件 4，均仅 Native。
+# 另加既有 BSP 扫描门（三模式）；原80锁/166实例与执行器保持。
+# 连同 workflow 既有固定字段37实例：203 + 31 = 234；不代表全图验收。
+LOCKS.extend([
+    {
+        "lane": "B2-codec",
+        "name": "s_content::native_owner_codec_bridge_tests::b2_owner_codec_cross_scope_preserves_only_success_and_charges_current_parent",
+        "target": "lib",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/s_content.rs",
+        "input_evidence": "Native feature 下 codec/WorkScope 组件锁；不代表生产 Runtime 准入"
+    },
+    {
+        "lane": "B2-codec",
+        "name": "s_content::native_owner_codec_bridge_tests::b2_owner_codec_append_delta_skips_successful_sequence_subtrees",
+        "target": "lib",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/s_content.rs",
+        "input_evidence": "Native feature 下 codec/WorkScope 组件锁；不代表生产 Runtime 准入"
+    },
+    {
+        "lane": "B2-codec",
+        "name": "s_content::native_owner_codec_bridge_tests::b2_owner_codec_failed_partial_closure_never_becomes_reusable",
+        "target": "lib",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/s_content.rs",
+        "input_evidence": "Native feature 下 codec/WorkScope 组件锁；不代表生产 Runtime 准入"
+    },
+    {
+        "lane": "B2-codec",
+        "name": "s_content::native_owner_codec_bridge_tests::b2_owner_codec_same_digest_different_body_revokes_existing_success",
+        "target": "lib",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/s_content.rs",
+        "input_evidence": "Native feature 下 codec/WorkScope 组件锁；不代表生产 Runtime 准入"
+    },
+    {
+        "lane": "B2-codec",
+        "name": "s_content::native_owner_codec_bridge_tests::b2_owner_codec_mode_and_json_role_do_not_share_success",
+        "target": "lib",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/s_content.rs",
+        "input_evidence": "Native feature 下 codec/WorkScope 组件锁；不代表生产 Runtime 准入"
+    },
+    {
+        "lane": "B2-codec",
+        "name": "s_content::native_owner_codec_bridge_tests::b2_owner_codec_sequence_and_field_proofs_keep_json_role",
+        "target": "lib",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/s_content.rs",
+        "input_evidence": "Native feature 下 codec/WorkScope 组件锁；不代表生产 Runtime 准入"
+    },
+    {
+        "lane": "B2-codec",
+        "name": "s_content::native_owner_codec_bridge_tests::b2_owner_codec_full_verify_and_value_root_seed_do_not_mint_owner_proof",
+        "target": "lib",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/s_content.rs",
+        "input_evidence": "Native feature 下 codec/WorkScope 组件锁；不代表生产 Runtime 准入"
+    },
+    {
+        "lane": "B2-codec",
+        "name": "s_content::native_owner_codec_bridge_tests::b2_owner_codec_checks_headers_and_revision_even_on_warm_success",
+        "target": "lib",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/s_content.rs",
+        "input_evidence": "Native feature 下 codec/WorkScope 组件锁；不代表生产 Runtime 准入"
+    },
+    {
+        "lane": "B2-codec",
+        "name": "s_content::native_owner_codec_bridge_tests::b2_owner_codec_old_new_and_scratch_share_total_cap_before_growth",
+        "target": "lib",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/s_content.rs",
+        "input_evidence": "Native feature 下 codec/WorkScope 组件锁；不代表生产 Runtime 准入"
+    },
+    {
+        "lane": "B2-codec",
+        "name": "s_content::native_owner_codec_bridge_tests::b2_owner_codec_parent_invalidation_rejects_warm_hit_before_read",
+        "target": "lib",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/s_content.rs",
+        "input_evidence": "Native feature 下 codec/WorkScope 组件锁；不代表生产 Runtime 准入"
+    },
+    {
+        "lane": "B2-codec",
+        "name": "s_content::native_owner_codec_bridge_tests::b2_owner_codec_avl_fixed_delta_keeps_old_addresses_and_logarithmic_paths",
+        "target": "lib",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/s_content.rs",
+        "input_evidence": "Native feature 下 codec/WorkScope 组件锁；不代表生产 Runtime 准入"
+    },
+    {
+        "lane": "B2-codec",
+        "name": "s_content::native_owner_codec_bridge_tests::b2_owner_codec_avl_duplicate_and_one_byte_refusal_preserve_original_tree",
+        "target": "lib",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/s_content.rs",
+        "input_evidence": "Native feature 下 codec/WorkScope 组件锁；不代表生产 Runtime 准入"
+    },
+    {
+        "lane": "B2-codec",
+        "name": "s_content::native_owner_codec_bridge_tests::b2_owner_codec_successful_verify_then_partial_promotion_failure_revokes_all",
+        "target": "lib",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/s_content.rs",
+        "input_evidence": "Native feature 下 codec/WorkScope 组件锁；不代表生产 Runtime 准入"
+    },
+    {
+        "lane": "B2-codec",
+        "name": "s_content::native_owner_codec_bridge_tests::b2_owner_codec_avl_order_equality_matches_all_context_components",
+        "target": "lib",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/s_content.rs",
+        "input_evidence": "Native feature 下 codec/WorkScope 组件锁；不代表生产 Runtime 准入"
+    },
+    {
+        "lane": "B2-MI",
+        "name": "v3::audit_owner::construction_tests::b2_native_warm_cold_and_ordinary_match_all_rows_nodes_roots_receipts_and_counts",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner.rs",
+        "input_evidence": "Native 显式候选的真实 owner/事务/两轮流程锁；完整 Runtime 与 Owned 仍未验收"
+    },
+    {
+        "lane": "B2-MI",
+        "name": "v3::audit_owner::construction_tests::b2_native_two_nonempty_formal_rounds_match_full_oracle_at_every_commit",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner.rs",
+        "input_evidence": "Native 显式候选的真实 owner/事务/两轮流程锁；完整 Runtime 与 Owned 仍未验收"
+    },
+    {
+        "lane": "B2-MI",
+        "name": "v3::audit_owner::construction_tests::b2_native_formal_failure_rollback_and_commit_failure_revoke_all_state",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner.rs",
+        "input_evidence": "Native 显式候选的真实 owner/事务/两轮流程锁；完整 Runtime 与 Owned 仍未验收"
+    },
+    {
+        "lane": "B2-MI",
+        "name": "v3::audit_owner::construction_tests::b2_native_warm_missing_or_stale_originals_reject_before_full_source",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner.rs",
+        "input_evidence": "Native 显式候选的真实 owner/事务/两轮流程锁；完整 Runtime 与 Owned 仍未验收"
+    },
+    {
+        "lane": "B2-MI",
+        "name": "v3::audit_owner::construction_tests::b2_native_carry_budget_rejects_without_losing_committed_frontier",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner.rs",
+        "input_evidence": "Native 显式候选的真实 owner/事务/两轮流程锁；完整 Runtime 与 Owned 仍未验收"
+    },
+    {
+        "lane": "B2-source",
+        "name": "v3::source_audit::source_contributions::component_tests::b2_source_retained_tree_uses_actual_string_capacity_and_symmetric_release",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/source_contributions.rs",
+        "input_evidence": "Native feature 下 MemoryNodes 容器计费与首错组件锁；不代表真实事务验收"
+    },
+    {
+        "lane": "B2-source",
+        "name": "v3::source_audit::source_contributions::component_tests::b2_source_nested_reverse_index_charges_each_member_and_clears_empty_root",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/source_contributions.rs",
+        "input_evidence": "Native feature 下 MemoryNodes 容器计费与首错组件锁；不代表真实事务验收"
+    },
+    {
+        "lane": "B2-source",
+        "name": "v3::source_audit::source_contributions::component_tests::b2_source_duplicate_key_is_reported_at_second_current_occurrence",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/source_contributions.rs",
+        "input_evidence": "Native feature 下 MemoryNodes 容器计费与首错组件锁；不代表真实事务验收"
+    },
+    {
+        "lane": "B2-source",
+        "name": "v3::source_audit::source_contributions::source_order::tests::b2_order_avl_stable_handles_survive_prefix_middle_and_reverse_edits",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/source_order.rs",
+        "input_evidence": "Native feature 下 MemoryNodes 顺序树组件锁；不代表真实事务验收"
+    },
+    {
+        "lane": "B2-source",
+        "name": "v3::source_audit::source_contributions::source_order::tests::b2_order_rejects_wrong_original_and_stale_handle_before_reuse",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/source_order.rs",
+        "input_evidence": "Native feature 下 MemoryNodes 顺序树组件锁；不代表真实事务验收"
+    },
+    {
+        "lane": "B2-source-fault",
+        "name": "v3::audit_owner::construction_tests::b2_native_source_phase_errors_precede_later_bad_material",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner/b2_source_fault_tests.rs",
+        "input_evidence": "include! 注入 construction_tests 的真实来源坏件/首错/回滚锁；12场景并非94分支穷举"
+    },
+    {
+        "lane": "B2-source-fault",
+        "name": "v3::audit_owner::construction_tests::b2_native_source_global_dependencies_match_full_oracle_and_rollback",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner/b2_source_fault_tests.rs",
+        "input_evidence": "include! 注入 construction_tests 的真实来源坏件/首错/回滚锁；12场景并非94分支穷举"
+    },
+    {
+        "lane": "B2-source-fault",
+        "name": "v3::audit_owner::construction_tests::b2_native_source_future_duplicates_preserve_earlier_actual_fault",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner/b2_source_fault_tests.rs",
+        "input_evidence": "include! 注入 construction_tests 的真实来源坏件/首错/回滚锁；12场景并非94分支穷举"
+    },
+    {
+        "lane": "B2-source-fault",
+        "name": "v3::audit_owner::construction_tests::b2_native_source_unsettled_rechecks_added_nonzero_group_before_partition",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner/b2_source_fault_tests.rs",
+        "input_evidence": "include! 注入 construction_tests 的真实来源坏件/首错/回滚锁；12场景并非94分支穷举"
+    },
+    {
+        "lane": "B2-BSP",
+        "name": "theta_v0::classifier::bsp::tests::no_stray_bsp_binding_rewrites_outside_registry",
+        "target": "lib",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/theta_v0/classifier/bsp.rs",
+        "input_evidence": "既有 BSP 绑定扫描门；保留原扫描与 stray/stale 双断言，三模式逐名执行"
+    }
+])
+
 def required_locks(mode: str, target: str) -> list[dict]:
     """清单来自冻结源码包；不按测试输出反推预期，防止零测试假绿。"""
     return [lock for lock in LOCKS if mode in lock["modes"] and lock["target"] == target]

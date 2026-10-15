@@ -13,6 +13,13 @@ pub(super) struct Declaration {
     extent: Option<u64>,
 }
 impl Declaration {
+    pub(super) fn built(self) -> sc::Built {
+        sc::Built {
+            digest: self.digest,
+            kind: self.kind,
+            extent: self.extent,
+        }
+    }
     pub(super) fn read(reference: sc::RefView<'_>) -> Result<Self, String> {
         Ok(Self {
             digest: reference.digest().map_err(|e| stale(&e.to_string()))?,
@@ -20,7 +27,7 @@ impl Declaration {
             extent: reference.extent(),
         })
     }
-    fn reference(
+    pub(super) fn reference(
         &self,
         s: &(impl CodecRead + ?Sized),
     ) -> Result<super::super::audit_store::RefValue, String> {
@@ -33,20 +40,20 @@ impl Declaration {
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct Span {
-    pub(super) ordinal: u64,
-    pub(super) sequence: SequenceRef,
+pub(crate) struct Span {
+    pub(crate) ordinal: u64,
+    pub(crate) sequence: SequenceRef,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Edit {
+pub(crate) enum Edit {
     Retain { old: Span, current: Span },
     Remove { ordinal: u64, value: NodeDigest },
     Add { ordinal: u64, value: NodeDigest },
 }
-pub(super) struct SequenceDelta {
-    pub(super) old: Option<SequenceRef>,
-    pub(super) current: Option<SequenceRef>,
-    pub(super) edits: Vec<Edit>,
+pub(crate) struct SequenceDelta {
+    pub(crate) old: Option<SequenceRef>,
+    pub(crate) current: Option<SequenceRef>,
+    pub(crate) edits: Vec<Edit>,
 }
 impl SequenceDelta {
     fn retained_bytes(&self) -> usize {
@@ -257,10 +264,39 @@ pub(super) struct PendingSet {
     pub(super) arrays: [SequenceDelta; 3],
     pub(super) requests: Option<SequenceDelta>,
     knowledge: Option<Knowledge>,
+    source_check: Option<OwnerSourceCheck>,
     stages: Option<StageSeal>,
     closed: bool,
     // 字段最后析构：差异Vec先真实释放，再归还原work父账的C2 cap许可。
     parent_charge: Option<sc::capture_allocation::scratch::NativeReservation>,
+}
+/// 只由实际S成功结果构造；原完整投影核可复用其来源counts，不能跳过其它判据。
+pub(crate) struct OwnerSourceCheck {
+    root: Declaration,
+    raw_prefix: usize,
+    counts: super::super::source_audit::Counts,
+}
+#[cfg(test)]
+thread_local! {
+    static OWNER_SOURCE_REUSES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+#[cfg(test)]
+pub(super) fn take_owner_source_reuses() -> usize {
+    OWNER_SOURCE_REUSES.with(|count| count.replace(0))
+}
+impl OwnerSourceCheck {
+    pub(crate) fn counts_for(
+        &self,
+        root: sc::RefView<'_>,
+        raw_prefix: usize,
+    ) -> Result<super::super::source_audit::Counts, String> {
+        if Declaration::read(root)? != self.root || raw_prefix != self.raw_prefix {
+            return Err(stale("来源成功结果与实际持久cut/raw前沿不同"));
+        }
+        #[cfg(test)]
+        OWNER_SOURCE_REUSES.with(|count| count.set(count.get() + 1));
+        Ok(self.counts.clone())
+    }
 }
 struct StageSeal {
     material_epoch: u64,
@@ -269,6 +305,15 @@ struct StageSeal {
     total_changes: u64,
 }
 impl PendingSet {
+    pub(super) fn requires_source(&self) -> bool {
+        self.source_check.is_some()
+    }
+    pub(super) fn source_check(&self) -> Result<Option<&OwnerSourceCheck>, String> {
+        if self.source_check.is_some() && self.stages.is_none() {
+            return Err(stale("来源结果尚无完整实际stage封口"));
+        }
+        Ok(self.source_check.as_ref())
+    }
     pub(super) fn hold_parent_charge(
         &mut self,
         charge: Option<sc::capture_allocation::scratch::NativeReservation>,
@@ -478,10 +523,179 @@ pub(super) fn qualify(
         arrays,
         requests,
         knowledge,
+        source_check: None,
         stages: None,
         closed: false,
         parent_charge: None,
     })
+}
+
+/// 原材料资格建立后才构造；只在来源核走到相应阶段时读取该数组。
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum SourceArray {
+    Objects,
+    Witnesses,
+    Observations,
+}
+impl SourceArray {
+    fn index(self) -> usize {
+        match self {
+            Self::Objects => 0,
+            Self::Witnesses => 1,
+            Self::Observations => 2,
+        }
+    }
+    fn key(self) -> &'static str {
+        match self {
+            Self::Objects => "objects",
+            Self::Witnesses => "witnesses",
+            Self::Observations => "observations",
+        }
+    }
+}
+pub(super) struct LazySet {
+    seed: Seed,
+    current: Declaration,
+    arrays: [Option<SequenceDelta>; 3],
+    members: [Option<Declaration>; 3],
+    requests: Option<SequenceDelta>,
+    knowledge: Option<Knowledge>,
+}
+impl LazySet {
+    pub(super) fn new(
+        mut seed: Seed,
+        current: sc::RefView<'_>,
+        previous: Option<&super::super::source_audit::NativeSourceState>,
+    ) -> Result<Self, String> {
+        if previous.is_none() {
+            seed.bootstrap = true;
+        }
+        Ok(Self {
+            seed,
+            current: Declaration::read(current)?,
+            arrays: [None, None, None],
+            members: [None, None, None],
+            requests: None,
+            knowledge: None,
+        })
+    }
+    pub(super) fn delta<'a>(
+        &'a mut self,
+        s: &mut (impl CodecRead + ?Sized),
+        budget: &native::Budget,
+        which: SourceArray,
+    ) -> Result<&'a SequenceDelta, String> {
+        let i = which.index();
+        if self.arrays[i].is_none() {
+            let current = self.current.reference(s)?;
+            let (declaration, sequence) = array(s, current.view(), which.key())?;
+            // 没有前次来源贡献时必须冷建，不能跳过语义上尚未知的共享材料。
+            let old = if self.seed.bootstrap {
+                None
+            } else {
+                self.seed
+                    .previous
+                    .map(|prior| {
+                        let r = prior.reference(s)?;
+                        array(s, r.view(), which.key()).map(|(_, seq)| seq)
+                    })
+                    .transpose()?
+            };
+            self.members[i] = Some(declaration);
+            self.arrays[i] = Some(difference(s, budget, old, Some(sequence))?);
+        }
+        Ok(self.arrays[i].as_ref().unwrap())
+    }
+    pub(super) fn member(
+        &mut self,
+        s: &mut (impl CodecRead + ?Sized),
+        budget: &native::Budget,
+        which: SourceArray,
+        ordinal: u64,
+    ) -> Result<super::super::audit_store::RefValue, String> {
+        self.delta(s, budget, which)?;
+        let array = self.members[which.index()].unwrap().reference(s)?;
+        s.lookup_ref(array.view(), &[sc::path::PathStep::Index(ordinal)])
+            .map_err(|e| stale(&e.to_string()))
+    }
+    pub(super) fn request_delta<'a>(
+        &'a mut self,
+        s: &mut (impl CodecRead + ?Sized),
+        budget: &native::Budget,
+        ordinal: u64,
+    ) -> Result<&'a SequenceDelta, String> {
+        self.delta(s, budget, SourceArray::Objects)?;
+        if let Some(known) = self.knowledge {
+            if known.ordinal != ordinal {
+                return Err(stale("requests重复绑定不同CC054 ordinal"));
+            }
+        }
+        if self.requests.is_none() {
+            let objects = self.members[0].unwrap().reference(s)?;
+            let found = knowledge_at(s, objects.view(), ordinal)?
+                .ok_or_else(|| stale("requests ordinal不是当前CC054"))?;
+            let r = found.requests.reference(s)?;
+            let current = sc::path::array_sequence_refview(s.generic_source(), r.view())
+                .map_err(|e| stale(&e.to_string()))?;
+            let old = if self.seed.bootstrap {
+                None
+            } else {
+                self.seed
+                    .knowledge
+                    .map(|prior| {
+                        let r = prior.requests.reference(s)?;
+                        sc::path::array_sequence_refview(s.generic_source(), r.view())
+                            .map_err(|e| stale(&e.to_string()))
+                    })
+                    .transpose()?
+            };
+            self.requests = Some(difference(s, budget, old, Some(current))?);
+            self.knowledge = Some(found);
+        }
+        Ok(self.requests.as_ref().unwrap())
+    }
+    pub(super) fn request_member(
+        &mut self,
+        s: &mut (impl CodecRead + ?Sized),
+        budget: &native::Budget,
+        knowledge_ordinal: u64,
+        ordinal: u64,
+    ) -> Result<super::super::audit_store::RefValue, String> {
+        self.request_delta(s, budget, knowledge_ordinal)?;
+        let requests = self.knowledge.unwrap().requests.reference(s)?;
+        s.lookup_ref(requests.view(), &[sc::path::PathStep::Index(ordinal)])
+            .map_err(|e| stale(&e.to_string()))
+    }
+    pub(super) fn finish(
+        self,
+        material_epoch: u64,
+        counts: super::super::source_audit::Counts,
+        raw_prefix: usize,
+    ) -> Result<PendingSet, String> {
+        let [objects, witnesses, observations] = self.arrays;
+        Ok(PendingSet {
+            previous: self.seed.previous,
+            current: self.current,
+            raw: self.seed.raw,
+            seal: self.seed.seal,
+            material_epoch,
+            arrays: [
+                objects.ok_or_else(|| stale("来源核缺objects阶段"))?,
+                witnesses.ok_or_else(|| stale("来源核缺witnesses阶段"))?,
+                observations.ok_or_else(|| stale("来源核缺observations阶段"))?,
+            ],
+            requests: self.requests,
+            knowledge: self.knowledge,
+            source_check: Some(OwnerSourceCheck {
+                root: self.current,
+                raw_prefix,
+                counts,
+            }),
+            stages: None,
+            closed: false,
+            parent_charge: None,
+        })
+    }
 }
 
 #[cfg(test)]

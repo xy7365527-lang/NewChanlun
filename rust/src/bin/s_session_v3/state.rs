@@ -827,6 +827,8 @@ fn audit_core_fresh_inner(
             budget,
             #[cfg(feature = "s_capture_native_testonly")]
             source_cache.as_deref_mut(),
+            #[cfg(feature = "s_capture_native_testonly")]
+            None,
         )?;
         previous = cut.metadata.input_frontier;
     }
@@ -888,6 +890,9 @@ fn audit_one_cut_sources(
     #[cfg(feature = "s_capture_native_testonly")] mut source_cache: Option<
         &mut super::cross_request_source_cache::Trial<'_>,
     >,
+    #[cfg(feature = "s_capture_native_testonly")] owner_source: Option<
+        &super::audit_owner::OwnerSourceCheck,
+    >,
 ) -> Result<(), String> {
     #[cfg(test)]
     trace_event("generated_sources", Some(cut.metadata.generation));
@@ -895,9 +900,12 @@ fn audit_one_cut_sources(
     let prefix = raw.prefix(cut.metadata.input_frontier as usize + 1)?;
     // 5'. 真实源与生成对象配方逐代对拍；本层不重跑分类。
     #[cfg(feature = "s_capture_native_testonly")]
-    let cached_counts = source_cache
-        .as_deref_mut()
-        .and_then(|cache| cache.lookup(cut));
+    let cached_counts = match owner_source {
+        Some(source) => Some(source.counts_for(cut.roots.generated_state.view(), prefix.len())?),
+        None => source_cache
+            .as_deref_mut()
+            .and_then(|cache| cache.lookup(cut)),
+    };
     #[cfg(not(feature = "s_capture_native_testonly"))]
     let cached_counts: Option<source_audit::Counts> = None;
     let counts = if let Some(counts) = cached_counts {
@@ -2568,6 +2576,7 @@ impl AuditedState {
         bound: &super::audit_owner::BoundOriginals,
         work: &sc::capture_allocation::scratch::WorkScope,
         native: &super::audit_owner::native::Budget,
+        source_check: Option<&super::audit_owner::OwnerSourceCheck>,
     ) -> Result<(Self, super::audit_retention::RetainedDelta), super::audit_owner::native::Failure>
     {
         let mut retained = super::audit_retention::RetainedDelta::default();
@@ -2640,6 +2649,7 @@ impl AuditedState {
             None,
             None,
             None,
+            source_check,
         )?;
         let axes = field(&mut store, &cut.roots.generated_state, "catalog_axes")?;
         catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)?;

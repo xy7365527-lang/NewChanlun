@@ -43,7 +43,9 @@ pub(super) mod allocation_probe;
 #[path = "construction_set.rs"]
 mod construction_set;
 #[cfg(feature = "s_capture_native_testonly")]
-pub(crate) use effects::{MaterialAccess, StageKind};
+pub(crate) use construction_set::{Edit, OwnerSourceCheck, SequenceDelta, SourceArray};
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) use effects::{MaterialAccess, SourceCutBinding, SourceMaterial, StageKind};
 #[path = "construction_state.rs"]
 mod construction_state;
 pub(crate) use super::business_json::{RawWinner, RawWinnerEdit};
@@ -83,6 +85,12 @@ pub(super) struct PublishPhase<'a, 'db> {
     transaction: &'a mut Transaction<'db>,
     #[cfg(feature = "s_capture_native_testonly")]
     audited: Option<&'a state::AuditedState>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    raw: Option<BoundRawAdvance<'a>>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    capture: Option<&'a mut newchan_rust::s_content::AuditCapture>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    source: Option<&'a mut Option<source_audit::NativeSourceState>>,
 }
 impl PublishPhase<'_, '_> {
     pub(super) fn publish(
@@ -92,14 +100,19 @@ impl PublishPhase<'_, '_> {
         envelope: &Value,
         context: &mut request_audit::RequestAuditContext,
     ) -> Result<commit::CommitReceipt, String> {
-        runtime.publish_impl(
+        #[cfg(feature = "s_capture_native_testonly")]
+        return runtime.publish_impl_bound(
             self.transaction,
             token,
             envelope,
             Some(context),
-            #[cfg(feature = "s_capture_native_testonly")]
             self.audited,
-        )
+            self.raw.as_ref(),
+            self.capture,
+            self.source,
+        );
+        #[cfg(not(feature = "s_capture_native_testonly"))]
+        runtime.publish_impl(self.transaction, token, envelope, Some(context))
     }
 }
 
@@ -497,15 +510,72 @@ impl AuditConnection {
             let mut active = self.begin(TransactionBehavior::Immediate)?;
             // 固定 phase 覆盖 Runtime 内全部 node/stage/非节点/发布写；无裸 SQL 能力外借。
             active.bind_existing(Some(context))?;
+            #[cfg(feature = "s_capture_native_testonly")]
+            let issued = if active.complete.borrow().is_some() && context.source_cache_enabled() {
+                Some(active.with_bound_raw_advance(context, |token| Ok(token.into_issued()))?)
+            } else {
+                None
+            };
             active.before_fixed_write(FixedOperation::Publish, Some(context))?;
             #[cfg(feature = "s_capture_native_testonly")]
-            let pending = active.pending.borrow();
+            let has_raw = issued.is_some();
+            #[cfg(feature = "s_capture_native_testonly")]
+            let mut source = active
+                .construction
+                .borrow_mut()
+                .as_mut()
+                .and_then(|s| s.take_source());
+            #[cfg(feature = "s_capture_native_testonly")]
+            let mut pending = active.pending.borrow_mut();
+            #[cfg(feature = "s_capture_native_testonly")]
+            let (audited, capture) = match pending.as_mut() {
+                Some(candidate) => (Some(&candidate.audited), candidate.capture.as_mut()),
+                None => (None, None),
+            };
             let phase = PublishPhase {
                 transaction: active.transaction.as_mut().unwrap(),
                 #[cfg(feature = "s_capture_native_testonly")]
-                audited: pending.as_ref().map(|c| &c.audited),
+                audited,
+                #[cfg(feature = "s_capture_native_testonly")]
+                capture,
+                #[cfg(feature = "s_capture_native_testonly")]
+                source: if has_raw { Some(&mut source) } else { None },
+                #[cfg(feature = "s_capture_native_testonly")]
+                raw: issued
+                    .map(|issued| {
+                        let audited = audited.ok_or_else(|| {
+                            construction_state::stale("写前raw签发丢失同一pending原件")
+                        })?;
+                        issued.bind(audited.raw.view(), &self.construction_lease)
+                    })
+                    .transpose()?,
             };
             let receipt = runtime.publish_in_owner(phase, token, envelope, context)?;
+            #[cfg(feature = "s_capture_native_testonly")]
+            if has_raw {
+                let source = source
+                    .ok_or_else(|| construction_state::stale("正式来源核未回交pending状态"))?;
+                let growth = active
+                    .construction
+                    .borrow_mut()
+                    .as_mut()
+                    .ok_or_else(|| construction_state::stale("来源回交丢失raw owner"))?
+                    .install_source(source)?;
+                active.effect_limit.set(
+                    active
+                        .effect_limit
+                        .get()
+                        .checked_sub(growth)
+                        .ok_or_else(|| construction_state::stale("来源新增保留费超过工作帽"))?,
+                );
+            }
+            #[cfg(feature = "s_capture_native_testonly")]
+            if let Some(candidate) = pending.as_mut() {
+                candidate.refresh_capture_charge()?;
+                if candidate.charge.total >= active.effect_limit.get() {
+                    return Err(construction_state::stale("来源原件/证明保留账超过效果帽"));
+                }
+            }
             #[cfg(feature = "s_capture_native_testonly")]
             drop(pending);
             active.finish_fixed_write()?;
@@ -940,7 +1010,7 @@ impl AuditTxn<'_> {
     }
 
     /// #1488：唯一生产构造点仍封闭在 owner；调用者不能传 raw、prefix 或成功布尔量。
-    /// 此原型只授 raw 变化资格；集合完整性仍须独立 seal，根整合前不接正式 Runtime。
+    /// 这里只授 raw 变化资格；正式 Runtime 的集合/来源完整性仍须独立 seal。
     #[cfg(feature = "s_capture_native_testonly")]
     fn with_bound_raw_advance<R>(
         &self,
@@ -1038,6 +1108,16 @@ impl AuditTxn<'_> {
         context: &mut request_audit::RequestAuditContext,
     ) -> Result<(), String> {
         #[cfg(feature = "s_capture_native_testonly")]
+        if self.owner.construction.borrow().is_some()
+            && (!matches!(mode, s_allocation::Mode::CapturedNative)
+                || !context.source_cache_enabled())
+        {
+            self.owner.invalidate_construction();
+            return Err(construction_state::stale(
+                "已有增量游标不能切回独立完整审计模式",
+            ));
+        }
+        #[cfg(feature = "s_capture_native_testonly")]
         if matches!(mode, s_allocation::Mode::CapturedNative) && context.source_cache_enabled() {
             // 只对固定操作绑定完整候选；未知操作在执行前撤资格。
             // 后续原 inspect_ingest/lookup 仍逐字执行全部请求判据，错误绝不重判。
@@ -1064,8 +1144,22 @@ impl AuditTxn<'_> {
                     *self.complete.borrow_mut() = Some(candidate);
                     return Ok(());
                 }
-                // 外部提交或未知操作在核验前决定冷分派并真释放；不是校验错误后的回退。
+                // 已持有发布游标的owner不能在输入身份失效后冷重签；必须显式重建owner/runtime。
+                if self.owner.construction.borrow().is_some() {
+                    drop(candidate);
+                    self.owner.invalidate_construction();
+                    return Err(construction_state::stale(
+                        "已有增量游标的材料域改变；禁止冷重签",
+                    ));
+                }
+                // 尚未建立增量游标的独立冷入口保持既有完整审计。
                 drop(candidate);
+            }
+            if self.owner.construction.borrow().is_some() {
+                self.owner.invalidate_construction();
+                return Err(construction_state::stale(
+                    "已有增量游标丢失原件候选；禁止完整核回退",
+                ));
             }
             let audited = self.audit_required_in_parent(mode, context)?;
             let parent = context.cold_parent_budget();
@@ -1243,6 +1337,44 @@ struct CompleteCandidate {
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl CompleteCandidate {
+    fn refresh_capture_charge(&mut self) -> Result<(), String> {
+        use super::audit_retention::sum;
+        let capture = self
+            .capture
+            .as_ref()
+            .ok_or_else(|| invalid("缺Native owner原件"))?;
+        let r = capture
+            .native_retention_numbers_for_testonly()
+            .ok_or_else(|| invalid("缺Native原件费用"))?;
+        self.node_count = r.nodes;
+        self.charge.node_source_and_certificates = sum([
+            r.body_len,
+            r.nodes.saturating_mul(97),
+            8 + newchan_rust::s_content::CONTENT_FORMAT.len() + 4 + 2 * (1 + 1 + 8),
+            sum([r.public_roots, r.template_roots]).saturating_mul(32),
+        ]);
+        self.charge.node_capacity = sum([
+            r.body_capacity,
+            r.index_payload.saturating_mul(2),
+            r.index_capacity.saturating_mul(2).saturating_add(16),
+            sum([r.public_capacity, r.template_capacity])
+                .saturating_mul(66)
+                .saturating_add(32),
+            capture.owner_codec_retained_bytes_for_testonly(),
+        ]);
+        self.charge.total = sum([
+            self.charge.node_source_and_certificates,
+            self.charge.node_capacity,
+            self.charge.historical_and_raw_capacity,
+            self.charge.historical_binding_capacity,
+            self.charge.slot_result_capacity,
+            self.charge.source_pool_charge,
+            self.charge.current_sql_capacity,
+            self.charge.q_capacity,
+            self.charge.inline,
+        ]);
+        Ok(())
+    }
     fn capture(
         tx: &Transaction<'_>,
         seal: SnapshotSeal,
@@ -1618,6 +1750,7 @@ impl CompleteCandidate {
         tx: &Transaction<'_>,
         mut effects: effects::Effects,
         limit: usize,
+        source_check: Option<&OwnerSourceCheck>,
     ) -> Result<Option<Self>, String> {
         use super::audit_retention::sum;
         use effects::Table;
@@ -1774,7 +1907,17 @@ impl CompleteCandidate {
             let updated = work
                 .run(|scope| {
                     self.audited.append_owner_cut(
-                        tx, capture, g, batch, ns, &objects, &auxiliary, &bound, scope, &budget,
+                        tx,
+                        capture,
+                        g,
+                        batch,
+                        ns,
+                        &objects,
+                        &auxiliary,
+                        &bound,
+                        scope,
+                        &budget,
+                        source_check,
                     )
                 })
                 .map_err(native::Failure::from);
@@ -1846,6 +1989,7 @@ impl CompleteCandidate {
             self.charge.q_capacity,
             self.charge.inline,
         ]);
+        self.refresh_capture_charge()?;
         self.charge.effects_peak = self.charge.effects_peak.max(peak);
         self.charge.handoff_peak = self.charge.handoff_peak.max(sum([
             self.charge.entry_reserved_bytes,
@@ -1893,8 +2037,18 @@ impl AuditTxn<'_> {
     ) -> Result<bool, String> {
         #[cfg(feature = "s_capture_native_testonly")]
         {
+            let reject_warm = || {
+                if self.owner.construction.borrow().is_some() {
+                    self.owner.invalidate_construction();
+                    Err(construction_state::stale(
+                        "已有增量游标缺连续同域原件；禁止完整核回退",
+                    ))
+                } else {
+                    Ok(false)
+                }
+            };
             let Some(mut candidate) = self.owner.complete.borrow_mut().take() else {
-                return Ok(false);
+                return reject_warm();
             };
             let seal = SnapshotSeal {
                 life: self.owner.life,
@@ -1905,11 +2059,11 @@ impl AuditTxn<'_> {
                 domain: self.read_domain()?,
             };
             if !candidate.seal.same_snapshot(&seal) {
-                return Ok(false);
+                return reject_warm();
             }
             if let Some(context) = context {
                 if !context.source_cache_enabled() {
-                    return Ok(false);
+                    return reject_warm();
                 }
                 candidate.charge.entry_reserved_bytes = context.complete_entry_reserved_bytes();
             }
@@ -1944,7 +2098,7 @@ impl AuditTxn<'_> {
         context: Option<&request_audit::RequestAuditContext>,
     ) -> Result<(), String> {
         let result = self.before_fixed_write_inner(operation, context);
-        if result.is_err() && self.construction.borrow().is_some() {
+        if result.is_err() {
             self.owner.invalidate_construction();
         }
         result
@@ -1954,6 +2108,44 @@ impl AuditTxn<'_> {
         operation: FixedOperation,
         context: Option<&request_audit::RequestAuditContext>,
     ) -> Result<(), String> {
+        #[cfg(feature = "s_capture_native_testonly")]
+        if self.construction.borrow().is_none()
+            && self.owner.construction.borrow().is_some()
+            && self.complete.borrow().is_none()
+        {
+            return Err(construction_state::stale(
+                "已发布增量游标缺同快照原件；禁止完整路径回退",
+            ));
+        }
+        #[cfg(feature = "s_capture_native_testonly")]
+        if matches!(operation, FixedOperation::Accept | FixedOperation::Begin)
+            && self.construction.borrow().is_none()
+            && context.is_some_and(|c| c.source_cache_enabled())
+        {
+            let complete = self.complete.borrow();
+            if let Some(candidate) = complete.as_ref() {
+                let seal = self.construction_seal()?;
+                if candidate.seal != seal {
+                    return Err(construction_state::stale("Carry缺同快照完整原件"));
+                }
+                let previous = self.owner.construction.borrow_mut().take();
+                let pending = construction_state::PendingRawState::carry(
+                    previous,
+                    seal,
+                    candidate.audited.raw.len(),
+                    &self.owner.construction_lease,
+                )?;
+                let retained = candidate
+                    .charge
+                    .total
+                    .checked_add(pending.retained_bytes())
+                    .ok_or_else(|| construction_state::stale("Carry保留账溢出"))?;
+                if retained > context.unwrap().complete_workspace_limit() {
+                    return Err(construction_state::stale("Carry保留账超过完整工作帽"));
+                }
+                *self.construction.borrow_mut() = Some(pending);
+            }
+        }
         let strict = self.construction.borrow().is_some();
         if strict && self.owner.construction_lease.stale.get() {
             return Err(construction_state::stale("固定写前租约已撤销"));
@@ -2078,8 +2270,15 @@ impl AuditTxn<'_> {
                 .bytes
                 .checked_sub(set_bytes)
                 .ok_or_else(|| invalid("集合保留账不符"))?;
-            let Some(mut candidate) =
-                candidate.validate_effects(self.tx(), effects, validation_limit)?
+            let Some(mut candidate) = candidate.validate_effects(
+                self.tx(),
+                effects,
+                validation_limit,
+                set.as_ref()
+                    .map(|s| s.source_check())
+                    .transpose()?
+                    .flatten(),
+            )?
             else {
                 return missing();
             };
@@ -2126,6 +2325,18 @@ pub(crate) fn note_qualified_source_cut(
     root: newchan_rust::s_content::RefView<'_>,
 ) -> Result<(), String> {
     effects::note_source_cut(material, root)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn audit_native_source_cut(
+    material: &MaterialAccess<'_, '_, '_>,
+    capture: &mut newchan_rust::s_content::AuditCapture,
+    previous: Option<source_audit::NativeSourceState>,
+    root: newchan_rust::s_content::RefView<'_>,
+    raw: &BoundRawAdvance<'_>,
+    profile: &str,
+    rule: &str,
+) -> Result<(source_audit::Counts, source_audit::NativeSourceState), String> {
+    effects::audit_native_source(material, capture, previous, root, raw, profile, rule)
 }
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) fn with_construction_material<T>(
@@ -2553,6 +2764,8 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
 mod construction_tests {
     use super::*;
 
+    include!("audit_owner/b2_source_fault_tests.rs");
+
     #[derive(Clone, Debug)]
     struct RawObservation {
         previous: RawAdvanceBinding,
@@ -2875,6 +3088,607 @@ mod construction_tests {
         formal_accept_case(true, true);
     }
 
+    fn b2_envelope(n: i64) -> Value {
+        let identity = format!("b2-formal-{n}");
+        let row = if n % 2 == 0 {
+            (identity.as_str(), n * 10, 8, 16, 6, 12)
+        } else {
+            (identity.as_str(), n * 10, 8, 14, 4, 7)
+        };
+        let raw = crate::tests::located_ohlc_input(&[row]);
+        let payload = json!({"op":"ingest","target_session_id":"s-session-testonly-001",
+            "target_session_generation":"1","writer_epoch":"1","clock_event_id":format!("input-{n}"),"raw_input":raw});
+        json!({"schema_revision":"s-session/3","session_id":"s-session-testonly-001",
+            "session_generation":"1","source_namespace":"testonly.ohlc","source_epoch":"1",
+            "message_id":format!("message-{n}"),"producer_id":"real-content-test","producer_epoch":"1",
+            "payload_hash":sha256_hex(canonical_json(&payload).as_bytes()),"causal_refs":[],"payload":payload})
+    }
+    fn b2_accept_begin(
+        owner: &AuditConnection,
+        envelope: &Value,
+        context: &mut request_audit::RequestAuditContext,
+    ) -> String {
+        let clock = v2::stored_clock(&owner.connection).unwrap();
+        let before = owner
+            .construction
+            .borrow()
+            .as_ref()
+            .map(|s| (s.binding(), s.facts.prefix_len()));
+        let (admission, ended) = owner
+            .admit(
+                envelope.clone(),
+                "1",
+                &clock,
+                tb02a::PROFILE,
+                Some("1"),
+                &s_allocation::Mode::CapturedNative,
+                context,
+            )
+            .unwrap();
+        assert!(matches!(
+            admission,
+            Admission::Advance { accepted: true, .. }
+        ));
+        assert!(owner.connection.is_autocommit());
+        owner.continue_with(ended).unwrap();
+        owner.assert_complete_matches_cold();
+        let after_accept = {
+            let state = owner.construction.borrow();
+            let state = state.as_ref().expect("正式Accept实际effects已Carry");
+            let cursor = (state.binding(), state.facts.prefix_len());
+            if let Some(before) = before {
+                assert_eq!(cursor, before, "Accept不能推进发布游标");
+            } else {
+                assert!(cursor.0.is_initial());
+                assert_eq!(cursor.1, 0);
+            }
+            cursor
+        };
+        // 已AcceptedPending重试只返回既有原件，不重新Accept或推进Carry。
+        let (retry, ended) = owner
+            .admit(
+                envelope.clone(),
+                "1",
+                &clock,
+                tb02a::PROFILE,
+                Some("1"),
+                &s_allocation::Mode::CapturedNative,
+                context,
+            )
+            .unwrap();
+        assert!(matches!(
+            retry,
+            Admission::Advance {
+                accepted: false,
+                ..
+            }
+        ));
+        owner.continue_with(ended).unwrap();
+        {
+            let state = owner.construction.borrow();
+            let state = state.as_ref().unwrap();
+            assert_eq!((state.binding(), state.facts.prefix_len()), after_accept);
+        }
+        let begun = owner
+            .begin_advance(
+                envelope,
+                "1",
+                &clock,
+                &s_allocation::Mode::CapturedNative,
+                context,
+            )
+            .unwrap();
+        assert!(owner.connection.is_autocommit());
+        owner.assert_complete_matches_cold();
+        let state = owner.construction.borrow();
+        let state = state.as_ref().unwrap();
+        assert_eq!(
+            (state.binding(), state.facts.prefix_len()),
+            after_accept,
+            "Begin不能使A2或S漏过本次raw变化"
+        );
+        begun.token
+    }
+
+    fn b2_assert_counts_match_independent_full_source(owner: &AuditConnection) {
+        let actual = owner
+            .construction
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .source_counts()
+            .unwrap();
+        let active = owner.begin(TransactionBehavior::Deferred).unwrap();
+        let audited = state::audit(active.tx()).unwrap();
+        let cut = audited.cuts.last().unwrap();
+        let mut source = crate::content_store::TxStore::new(active.tx()).unwrap();
+        let mut reader = super::super::history::HashReader::new(&mut source);
+        let expected = source_audit::audit_generated_for_audit(
+            &mut reader,
+            cut.roots.generated_state.view(),
+            audited
+                .raw
+                .view()
+                .prefix(cut.metadata.input_frontier as usize + 1)
+                .unwrap(),
+            &cut.metadata.profile_id,
+            &cut.metadata.rule_revision,
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(actual, expected, "来源Counts六字段逐项对拍");
+        drop(reader);
+        drop(source);
+        drop(audited);
+        active.read_end().unwrap();
+    }
+
+    #[test]
+    fn b2_native_warm_cold_and_ordinary_match_all_rows_nodes_roots_receipts_and_counts() {
+        use super::super::prepared::tests::{
+            runtime_root_compare_reachable_bytes, runtime_root_tables, Fixture,
+        };
+        let scenarios = [
+            (
+                "shape-and-revision",
+                [
+                    ("a", 0, 6, 12, 3, 7, 1),
+                    ("b", 10, 8, 16, 6, 12, 1),
+                    ("c", 20, 8, 13, 4, 7, 1),
+                    ("b", 10, 8, 17, 6, 12, 2),
+                ],
+            ),
+            (
+                "waiting-direction",
+                [
+                    ("a", 0, 6, 12, 3, 7, 1),
+                    ("b", 10, 6, 12, 3, 7, 1),
+                    ("c", 20, 6, 12, 3, 7, 1),
+                    ("d", 30, 8, 17, 6, 12, 1),
+                ],
+            ),
+            (
+                "low-coordinate",
+                [
+                    ("a", 20, 6, 12, 3, 7, 1),
+                    ("b", 0, 6, 12, 3, 7, 1),
+                    ("c", 10, 6, 12, 3, 7, 1),
+                    ("d", 30, 8, 17, 6, 12, 1),
+                ],
+            ),
+            (
+                "same-price-revision",
+                [
+                    ("a", 0, 6, 12, 3, 7, 1),
+                    ("b", 10, 8, 16, 6, 12, 1),
+                    ("c", 20, 8, 13, 4, 7, 1),
+                    ("b", 10, 8, 16, 6, 12, 2),
+                ],
+            ),
+            (
+                "revision-resolves-waiting",
+                [
+                    ("a", 0, 6, 12, 3, 7, 1),
+                    ("b", 10, 6, 12, 3, 7, 1),
+                    ("c", 20, 8, 17, 6, 12, 1),
+                    ("a", 0, 4, 9, 1, 6, 2),
+                ],
+            ),
+        ];
+        let mut saw_shapes = false;
+        let mut saw_witnesses = false;
+        let mut saw_requests = false;
+        for (scenario, rows) in scenarios {
+            let warm = Fixture::new();
+            let cold = Fixture::new();
+            let mut ordinary = Fixture::new();
+            let owner = AuditConnection::open(&warm.db_path()).unwrap();
+            let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+            let mut c = context();
+            for (offset, (id, coord, open, high, low, close, revision)) in
+                rows.into_iter().enumerate()
+            {
+                let n = offset as i64 + 1;
+                let (envelope, plain_token) =
+                    ordinary.accept_begin(n, (id, coord, open, high, low, close), revision);
+                let token = b2_accept_begin(&owner, &envelope, &mut c);
+                source_audit::reset_source_call_stats();
+                construction_set::take_owner_source_reuses();
+                let (actual, ended) = owner
+                    .publish(&mut runtime, &token, &envelope, &mut c)
+                    .unwrap();
+                assert_eq!(
+                    source_audit::source_call_stats(),
+                    source_audit::SourceCallStats::default(),
+                    "{scenario} gen{n}真实warm入口不能完整重判"
+                );
+                assert_eq!(construction_set::take_owner_source_reuses(), 1);
+                owner.continue_with(ended).unwrap();
+                let work = owner
+                    .construction
+                    .borrow()
+                    .as_ref()
+                    .unwrap()
+                    .source_work()
+                    .unwrap();
+                saw_shapes |= work.shape_local > 0;
+                saw_witnesses |= work.witness_local > 0;
+                saw_requests |= work.request_local > 0;
+                // 每一轮使用全新cold owner和runtime，既有SQLite原件只走独立冷建。
+                let cold_owner = AuditConnection::open(&cold.db_path()).unwrap();
+                let mut cold_runtime =
+                    prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+                let mut cold_context = context();
+                let cold_token = b2_accept_begin(&cold_owner, &envelope, &mut cold_context);
+                let (cold_receipt, ended) = cold_owner
+                    .publish(&mut cold_runtime, &cold_token, &envelope, &mut cold_context)
+                    .unwrap();
+                cold_owner.continue_with(ended).unwrap();
+                let expected = ordinary.publish(&envelope, &plain_token).unwrap();
+                for receipt in [&cold_receipt, &expected] {
+                    assert_eq!(
+                        canonical_json(&actual.message_receipt),
+                        canonical_json(&receipt.message_receipt),
+                        "{scenario} gen{n}"
+                    );
+                    assert_eq!(actual.batch_id, receipt.batch_id);
+                    assert_eq!(actual.snapshot, receipt.snapshot);
+                    assert_eq!(actual.delta, receipt.delta);
+                    assert_eq!(actual.generation, receipt.generation);
+                }
+                let persisted = runtime_root_tables(&warm.conn, true);
+                assert_eq!(
+                    persisted,
+                    runtime_root_tables(&cold.conn, true),
+                    "{scenario} gen{n}warm/cold全表含原件逐字"
+                );
+                assert_eq!(
+                    persisted,
+                    runtime_root_tables(&ordinary.conn, true),
+                    "{scenario} gen{n}warm/ordinary全表含原件逐字"
+                );
+                runtime_root_compare_reachable_bytes(&warm.conn, &ordinary.conn);
+                owner.assert_complete_matches_cold();
+                cold_owner.assert_complete_matches_cold();
+                b2_assert_counts_match_independent_full_source(&owner);
+                b2_assert_counts_match_independent_full_source(&cold_owner);
+                // ready/receipt和已发布消息重试均只读，不能推进raw/source游标。
+                let before = {
+                    let state = owner.construction.borrow();
+                    let state = state.as_ref().unwrap();
+                    (
+                        state.binding(),
+                        state.facts.prefix_len(),
+                        state.source_counts(),
+                    )
+                };
+                let clock = v2::stored_clock(&owner.connection).unwrap();
+                let ready = json!({"session_id":"s-session-testonly-001","session_generation":"1","payload":{"op":"ready"}});
+                let lookup = json!({"session_id":"s-session-testonly-001","session_generation":"1","payload":{"op":"receipt","original_source_namespace":envelope["source_namespace"],"original_source_epoch":envelope["source_epoch"],"original_message_id":envelope["message_id"],"original_payload_hash":envelope["payload_hash"]}});
+                for request in [ready, lookup, envelope.clone()] {
+                    let (reply, ended) = owner
+                        .admit(
+                            request,
+                            "1",
+                            &clock,
+                            tb02a::PROFILE,
+                            Some("1"),
+                            &s_allocation::Mode::CapturedNative,
+                            &mut c,
+                        )
+                        .unwrap();
+                    assert!(matches!(reply, Admission::Reply(_)));
+                    owner.continue_with(ended).unwrap();
+                }
+                let after = {
+                    let state = owner.construction.borrow();
+                    let state = state.as_ref().unwrap();
+                    (
+                        state.binding(),
+                        state.facts.prefix_len(),
+                        state.source_counts(),
+                    )
+                };
+                assert_eq!(before, after);
+                assert_eq!(persisted, runtime_root_tables(&warm.conn, true));
+                eprintln!("B2_NATIVE_TRIPLE scenario={scenario} generation={n} work={work:?}");
+            }
+            if scenario == "shape-and-revision" {
+                let count = |sql| {
+                    warm.conn
+                        .query_row(sql, [], |r| r.get::<_, i64>(0))
+                        .unwrap()
+                };
+                assert!(
+                    count("SELECT count(*) FROM s_content_objects WHERE kind='CC-006.local_shape'")
+                        > 0
+                );
+                assert!(
+                    count(
+                        "SELECT count(*) FROM s_content_objects WHERE kind!='CC-006.local_shape'"
+                    ) > 0
+                );
+                assert!(
+                    count("SELECT count(*) FROM s_content_witnesses") >= 3,
+                    "三槽不能靠空集合通过"
+                );
+                assert!(
+                    count("SELECT count(*) FROM s_content_objects WHERE withdrawn_generation=4")
+                        > 0
+                );
+                assert!(
+                    count("SELECT count(*) FROM s_content_objects WHERE superseded_by IS NOT NULL")
+                        > 0
+                );
+            }
+        }
+        assert!(
+            saw_shapes && saw_witnesses && saw_requests,
+            "必须实际进入非空shape/三槽与CC054请求核"
+        );
+    }
+
+    #[test]
+    fn b2_native_two_nonempty_formal_rounds_match_full_oracle_at_every_commit() {
+        let f = fixture();
+        let owner = AuditConnection::open(&f.db_path()).unwrap();
+        let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        let mut c = context();
+        for n in 2..=3 {
+            let envelope = b2_envelope(n);
+            let token = b2_accept_begin(&owner, &envelope, &mut c);
+            source_audit::reset_source_call_stats();
+            construction_set::take_owner_source_reuses();
+            let (receipt, ended) = owner
+                .publish(&mut runtime, &token, &envelope, &mut c)
+                .unwrap();
+            assert_eq!(receipt.generation, n);
+            let calls = source_audit::source_call_stats();
+            assert_eq!(calls.full_source_calls, 0, "正式Publish不能重跑完整来源核");
+            assert_eq!(calls.full_pending_calls, 0);
+            assert_eq!(calls.fixture_bind_calls, 0);
+            assert_eq!(calls.full_members_enumerations, 0);
+            assert_eq!(
+                construction_set::take_owner_source_reuses(),
+                1,
+                "原完整投影核必须恰好消费一次真实来源结果"
+            );
+            owner.continue_with(ended).unwrap();
+            owner.assert_complete_matches_cold();
+            let state = owner.construction.borrow();
+            let state = state.as_ref().expect("只在实际COMMIT成功后晋升");
+            assert_eq!(state.facts.prefix_len(), n as usize);
+            let work = state.source_work().expect("真实Native来源核必须有跨轮状态");
+            assert_eq!(work.full_source_calls, 0);
+            assert_eq!(work.full_pending_calls, 0);
+            assert_eq!(work.full_members_enumerations, 0);
+            assert_eq!(work.raw_hashes, if n == 2 { 8 } else { 4 });
+            eprintln!("B2_NATIVE_FORMAL generation={n} source_work={work:?}");
+            let persisted: i64 = f
+                .conn
+                .query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0))
+                .unwrap();
+            assert_eq!(persisted, n, "另一连接可见实际提交raw");
+        }
+        drop(runtime);
+        drop(owner);
+        // 重启不复活缓存token；新owner从完整冷审计重建，再消费0→current。
+        let owner = AuditConnection::open(&f.db_path()).unwrap();
+        assert!(owner.construction.borrow().is_none());
+        let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        let mut c = context();
+        let envelope = b2_envelope(4);
+        let token = b2_accept_begin(&owner, &envelope, &mut c);
+        let (receipt, ended) = owner
+            .publish(&mut runtime, &token, &envelope, &mut c)
+            .unwrap();
+        assert_eq!(receipt.generation, 4);
+        owner.continue_with(ended).unwrap();
+        owner.assert_complete_matches_cold();
+    }
+
+    #[test]
+    fn b2_native_formal_failure_rollback_and_commit_failure_revoke_all_state() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+        thread_local! {
+            static AFTER_PREPARE_HITS: Cell<usize> = const { Cell::new(0) };
+        }
+        for failure in ["consumer", "unknown-write", "commit"] {
+            let f = fixture();
+            let owner = AuditConnection::open(&f.db_path()).unwrap();
+            let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+            let mut c = context();
+            let envelope = b2_envelope(2);
+            let token = b2_accept_begin(&owner, &envelope, &mut c);
+            let (_, ended) = owner
+                .publish(&mut runtime, &token, &envelope, &mut c)
+                .unwrap();
+            owner.continue_with(ended).unwrap();
+            assert!(owner
+                .construction
+                .borrow()
+                .as_ref()
+                .unwrap()
+                .source_work()
+                .is_some());
+            let envelope = b2_envelope(3);
+            let token = b2_accept_begin(&owner, &envelope, &mut c);
+            let persisted_before =
+                super::super::prepared::tests::runtime_root_tables(&f.conn, true);
+            AFTER_PREPARE_HITS.with(|hits| hits.set(0));
+            let commit_hits = Arc::new(AtomicUsize::new(0));
+            if failure == "consumer" {
+                runtime.set_after_prepare_for_request_test(Some(|_| {
+                    AFTER_PREPARE_HITS.with(|hits| hits.set(hits.get() + 1));
+                    Err("B2TestConsumerRejected".into())
+                }));
+            } else if failure == "unknown-write" {
+                runtime.set_after_prepare_for_request_test(Some(|tx| {
+                    AFTER_PREPARE_HITS.with(|hits| hits.set(hits.get() + 1));
+                    let before = tx.total_changes();
+                    let affected = tx.execute("UPDATE s_content_objects SET object_revision=object_revision WHERE rowid=(SELECT min(rowid) FROM s_content_objects)", []).map_err(invalid)?;
+                    assert_eq!(affected, 1, "必须实际改写一行，不能空表假通过");
+                    assert_eq!(tx.total_changes() - before, 1);
+                    Ok(())
+                }));
+            } else {
+                runtime.set_after_prepare_for_request_test(Some(|_| {
+                    AFTER_PREPARE_HITS.with(|hits| hits.set(hits.get() + 1));
+                    Ok(())
+                }));
+                let seen = commit_hits.clone();
+                owner
+                    .connection
+                    .commit_hook(Some(move || {
+                        seen.fetch_add(1, Ordering::SeqCst);
+                        true
+                    }))
+                    .unwrap();
+            }
+            let error = owner
+                .publish(&mut runtime, &token, &envelope, &mut c)
+                .err()
+                .expect("注入的故障必须拒绝Publish");
+            AFTER_PREPARE_HITS.with(|hits| {
+                assert_eq!(hits.get(), 1, "{failure}必须在真实来源核成功后到达注入点")
+            });
+            match failure {
+                "consumer" => assert_eq!(error, "B2TestConsumerRejected"),
+                "unknown-write" => assert_eq!(
+                    error,
+                    "StaleWriter：construction资格失效：业务SQL不属于stage"
+                ),
+                "commit" => {
+                    assert_eq!(commit_hits.load(Ordering::SeqCst), 1);
+                    assert!(error.starts_with("PublicationInvalid："), "{error}");
+                }
+                _ => unreachable!(),
+            }
+            owner.connection.commit_hook(None::<fn() -> bool>).unwrap();
+            assert!(owner.connection.is_autocommit());
+            assert!(owner.construction.borrow().is_none());
+            assert!(owner.complete.borrow().is_none());
+            assert!(owner.construction_lease.stale.get());
+            assert!(runtime.visit_runtime_roots().unwrap().is_empty());
+            assert_eq!(
+                persisted_before,
+                super::super::prepared::tests::runtime_root_tables(&f.conn, true),
+                "{failure}全部表和原件逐字回滚到本次Publish之前"
+            );
+            assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 2);
+            assert_eq!(
+                f.conn
+                    .query_row("SELECT COUNT(*) FROM raw_events", [], |r| r
+                        .get::<_, i64>(0))
+                    .unwrap(),
+                3,
+                "Publish回滚保留已提交Accept原件"
+            );
+            let active = owner.begin(TransactionBehavior::Immediate).unwrap();
+            assert!(
+                active.with_bound_raw_advance(&c, |_| Ok(())).is_err(),
+                "失败token不可重签"
+            );
+        }
+    }
+
+    #[test]
+    fn b2_native_warm_missing_or_stale_originals_reject_before_full_source() {
+        for failure in [
+            "admit-missing",
+            "admit-stale",
+            "bind-missing",
+            "bind-stale",
+            "mode-change",
+        ] {
+            let f = fixture();
+            let owner = AuditConnection::open(&f.db_path()).unwrap();
+            let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+            let mut c = context();
+            let envelope = b2_envelope(2);
+            let token = b2_accept_begin(&owner, &envelope, &mut c);
+            let (_, ended) = owner
+                .publish(&mut runtime, &token, &envelope, &mut c)
+                .unwrap();
+            owner.continue_with(ended).unwrap();
+            if failure.ends_with("missing") {
+                drop(owner.complete.borrow_mut().take());
+            } else if failure.ends_with("stale") {
+                owner
+                    .complete
+                    .borrow_mut()
+                    .as_mut()
+                    .unwrap()
+                    .seal
+                    .write_sequence += 1;
+            } else {
+                c = request_audit::RequestAuditContext::default();
+            }
+            source_audit::reset_source_call_stats();
+            let active = owner.begin(TransactionBehavior::Immediate).unwrap();
+            let error = if failure.starts_with("bind") {
+                active.bind_existing(Some(&c)).unwrap_err()
+            } else {
+                active
+                    .audit_admission(&b2_envelope(3), &s_allocation::Mode::CapturedNative, &mut c)
+                    .unwrap_err()
+            };
+            assert!(error.starts_with("StaleWriter："), "{failure}: {error}");
+            let calls = source_audit::source_call_stats();
+            assert_eq!(calls.full_source_calls, 0, "{failure}");
+            assert_eq!(calls.full_pending_calls, 0, "{failure}");
+            assert_eq!(calls.fixture_bind_calls, 0, "{failure}");
+            assert_eq!(calls.full_members_enumerations, 0, "{failure}");
+            assert!(owner.construction_lease.stale.get());
+            drop(active);
+            assert!(owner.construction.borrow().is_none());
+            assert!(owner.complete.borrow().is_none());
+            assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 2);
+        }
+    }
+
+    #[test]
+    fn b2_native_carry_budget_rejects_without_losing_committed_frontier() {
+        let f = fixture();
+        let owner = AuditConnection::open(&f.db_path()).unwrap();
+        let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        let mut c = context();
+        let envelope = b2_envelope(2);
+        let token = b2_accept_begin(&owner, &envelope, &mut c);
+        let (_, ended) = owner
+            .publish(&mut runtime, &token, &envelope, &mut c)
+            .unwrap();
+        owner.continue_with(ended).unwrap();
+        let mut small = request_audit::RequestAuditContext::with_source_keeper(
+            cross_request_source_cache::Keeper::new(1024),
+        );
+        small.freeze_manifest_workspace_budget(1024, 0, 0).unwrap();
+        let clock = v2::stored_clock(&owner.connection).unwrap();
+        assert!(owner
+            .admit(
+                b2_envelope(3),
+                "1",
+                &clock,
+                tb02a::PROFILE,
+                Some("1"),
+                &s_allocation::Mode::CapturedNative,
+                &mut small
+            )
+            .is_err());
+        assert!(owner.connection.is_autocommit());
+        assert!(owner.construction_lease.stale.get());
+        assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 2);
+        assert_eq!(
+            f.conn
+                .query_row("SELECT COUNT(*) FROM raw_events", [], |r| r
+                    .get::<_, i64>(0))
+                .unwrap(),
+            2
+        );
+    }
+
     fn context() -> request_audit::RequestAuditContext {
         let mut context = request_audit::RequestAuditContext::with_source_keeper(
             cross_request_source_cache::Keeper::new(536_870_912),
@@ -2933,6 +3747,9 @@ mod construction_tests {
         let phase = PublishPhase {
             transaction: active.transaction.as_mut().unwrap(),
             audited: pending.as_ref().map(|candidate| &candidate.audited),
+            raw: None,
+            capture: None,
+            source: None,
         };
         let receipt = runtime
             .publish_in_owner(phase, &token, &envelope, &mut context)
@@ -3116,12 +3933,20 @@ mod construction_tests {
         let outside = open_db(&f.db_path()).unwrap();
         outside.execute_batch("BEGIN IMMEDIATE; UPDATE s_protocol_meta SET next_attempt_ordinal=next_attempt_ordinal+1; UPDATE s_protocol_meta SET next_attempt_ordinal=next_attempt_ordinal-1; COMMIT;").unwrap();
         let next = owner.begin(TransactionBehavior::Immediate).unwrap();
-        next.audit_admission(
-            &json!({"payload":{"op":"ready"}}),
-            &s_allocation::Mode::CapturedNative,
-            &mut c,
-        )
-        .unwrap();
+        source_audit::reset_source_call_stats();
+        assert!(
+            next.audit_admission(
+                &json!({"payload":{"op":"ready"}}),
+                &s_allocation::Mode::CapturedNative,
+                &mut c,
+            )
+            .is_err(),
+            "外部COMMIT失效必须在完整冷核前拒绝"
+        );
+        assert_eq!(
+            source_audit::source_call_stats(),
+            source_audit::SourceCallStats::default()
+        );
         assert!(next.with_bound_raw_advance(&c, |_| Ok(())).is_err());
         assert!(owner.construction_lease.stale.get());
     }

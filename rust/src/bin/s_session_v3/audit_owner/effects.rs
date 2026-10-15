@@ -188,6 +188,7 @@ struct Journal {
     set_required: bool,
     set_seed: Option<construction_set::Seed>,
     set: Option<construction_set::PendingSet>,
+    source_binding: Option<SourceCutBinding>,
     stages: Vec<StageReceipt>,
     active_stage: Option<usize>,
     material_epoch: u64,
@@ -350,6 +351,7 @@ impl Recording {
             set_required: false,
             set_seed: None,
             set: None,
+            source_binding: None,
             stages: Vec::new(),
             active_stage: None,
             material_epoch: 0,
@@ -850,7 +852,10 @@ impl CodecRead for ActualRead<'_, '_> {
         self
     }
 }
-impl MaterialAccess<'_, '_, '_> {
+impl<'tx, 'work, 'db> MaterialAccess<'tx, 'work, 'db> {
+    pub(crate) fn work(&self) -> &'work WorkScope {
+        self.work
+    }
     fn check(&self, j: &Journal) -> Result<(), String> {
         let actual = current_journal(self.tx)?
             .ok_or_else(|| construction_state::stale("实际事务已无owner日志"))?;
@@ -858,7 +863,8 @@ impl MaterialAccess<'_, '_, '_> {
             .set_seed
             .as_ref()
             .map(|s| s.seal)
-            .or_else(|| j.set.as_ref().map(|s| s.seal));
+            .or_else(|| j.set.as_ref().map(|s| s.seal))
+            .or_else(|| j.source_binding.map(|s| s.seal));
         if !Arc::ptr_eq(&actual, &self.journal)
             || self.tx.is_autocommit()
             || j.unexpected
@@ -872,13 +878,239 @@ impl MaterialAccess<'_, '_, '_> {
         }
         Ok(())
     }
-    fn reader(&self) -> Result<ActualRead<'_, '_>, String> {
+    fn reader<'material>(&'material self) -> Result<ActualRead<'material, 'db>, String> {
         Ok(ActualRead {
             inner: crate::content_store::TxStore::new(self.tx)
                 .map_err(invalid)?
                 .with_work(Some(self.work)),
         })
     }
+}
+
+/// 数据可拷贝，构造不可外借；同时钉住实际材料与raw，不代表业务已核。
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SourceCutBinding {
+    seal: SnapshotSeal,
+    epoch: u64,
+    root: construction_set::Declaration,
+    raw: RawAdvanceBinding,
+}
+pub(crate) struct SourceMaterial<'material, 'tx, 'work, 'db> {
+    access: &'material MaterialAccess<'tx, 'work, 'db>,
+    reader: ActualRead<'material, 'db>,
+    binding: SourceCutBinding,
+    set: construction_set::LazySet,
+}
+impl SourceMaterial<'_, '_, '_, '_> {
+    fn check(&self) -> Result<(), String> {
+        let j = self.access.journal.lock().map_err(invalid)?;
+        self.access.check(&j)?;
+        if j.source_binding != Some(self.binding) || j.material_epoch != self.binding.epoch {
+            return Err(construction_state::stale("来源核执行中材料切面改变"));
+        }
+        Ok(())
+    }
+    pub(crate) fn root(&self) -> sc::Built {
+        self.binding.root.built()
+    }
+    pub(crate) fn binding(&self) -> SourceCutBinding {
+        self.binding
+    }
+    pub(crate) fn sequence_delta(
+        &mut self,
+        which: construction_set::SourceArray,
+    ) -> Result<&construction_set::SequenceDelta, String> {
+        self.check()?;
+        self.set.delta(&mut self.reader, self.access.budget, which)
+    }
+    pub(crate) fn request_delta(
+        &mut self,
+        ordinal: u64,
+    ) -> Result<&construction_set::SequenceDelta, String> {
+        self.check()?;
+        self.set
+            .request_delta(&mut self.reader, self.access.budget, ordinal)
+    }
+    pub(crate) fn array_member(
+        &mut self,
+        which: construction_set::SourceArray,
+        ordinal: u64,
+    ) -> Result<super::super::audit_store::RefValue, String> {
+        self.check()?;
+        self.set
+            .member(&mut self.reader, self.access.budget, which, ordinal)
+    }
+    pub(crate) fn request_member(
+        &mut self,
+        knowledge_ordinal: u64,
+        ordinal: u64,
+    ) -> Result<super::super::audit_store::RefValue, String> {
+        self.check()?;
+        self.set.request_member(
+            &mut self.reader,
+            self.access.budget,
+            knowledge_ordinal,
+            ordinal,
+        )
+    }
+}
+impl sc::NodeSource for SourceMaterial<'_, '_, '_, '_> {
+    fn codec_work(&self) -> Option<&WorkScope> {
+        Some(self.access.work)
+    }
+    fn read(&mut self, digest: &sc::NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+        self.check()
+            .map_err(|e| sc::CodecError::new(sc::code::SOURCE, e))?;
+        sc::NodeSource::read(&mut self.reader, digest)
+    }
+    fn checked_read_scoped(
+        &mut self,
+        digest: &sc::NodeDigest,
+    ) -> Result<Option<sc::job::ScopedFrame>, sc::CodecError> {
+        self.check()
+            .map_err(|e| sc::CodecError::new(sc::code::SOURCE, e))?;
+        sc::NodeSource::checked_read_scoped(&mut self.reader, digest)
+    }
+}
+impl CodecRead for SourceMaterial<'_, '_, '_, '_> {
+    fn generic_source(&mut self) -> &mut dyn sc::NodeSource {
+        self
+    }
+}
+impl sc::NodeSink for SourceMaterial<'_, '_, '_, '_> {
+    fn codec_sink_work(&self) -> Option<&WorkScope> {
+        Some(self.access.work)
+    }
+    fn put(&mut self, _: sc::NodeDigest, _: u8, _: &[u8]) -> Result<(), sc::CodecError> {
+        if let Ok(mut j) = self.access.journal.lock() {
+            j.unexpected = true;
+        }
+        Err(sc::CodecError::new(
+            sc::code::SOURCE,
+            "来源核材料只读，禁止写入被审原件",
+        ))
+    }
+}
+impl super::super::audit_store::CodecStore for SourceMaterial<'_, '_, '_, '_> {
+    fn generic_store(&mut self) -> &mut dyn sc::NodeStore {
+        self
+    }
+}
+
+/// 唯一来源桥：真实effects追加原件→Public材料闭包→S语义核→同binding封C2。
+pub(super) fn audit_native_source(
+    access: &MaterialAccess<'_, '_, '_>,
+    capture: &mut sc::AuditCapture,
+    previous: Option<super::super::source_audit::NativeSourceState>,
+    root: sc::RefView<'_>,
+    raw: &BoundRawAdvance<'_>,
+    profile: &str,
+    rule: &str,
+) -> Result<
+    (
+        super::super::source_audit::Counts,
+        super::super::source_audit::NativeSourceState,
+    ),
+    String,
+> {
+    let result = (|| {
+        raw.ensure_current()?;
+        let mut reader = access.reader()?;
+        let (seed, binding) = {
+            let mut j = access.journal.lock().map_err(invalid)?;
+            access.check(&j)?;
+            if j.set.is_some()
+                || j.source_binding.is_some()
+                || j.active_stage.is_some()
+                || !j.stages.is_empty()
+            {
+                return Err(construction_state::stale("来源材料不是stage前唯一切面"));
+            }
+            // nodes集合只来自当前实际tx的受控写口；每个tuple从真实事务重新读取。
+            for digest in &j.nodes {
+                let node = sc::NodeSource::read(&mut reader, digest).map_err(invalid)?;
+                let sc::NodeRead::Found { tag, body } = node else {
+                    return Err(construction_state::stale("实际effects新增原件缺失"));
+                };
+                if !capture
+                    .append_original_for_owner_testonly(
+                        *digest,
+                        tag,
+                        body,
+                        j.cap,
+                        Some(access.work),
+                    )
+                    .map_err(invalid)?
+                {
+                    return Err(construction_state::stale("原件追加预算未消费"));
+                }
+            }
+            capture
+                .verify_owner_refview_for_testonly(root, sc::Mode::Public, access.work)
+                .map_err(invalid)?;
+            let seed = j
+                .set_seed
+                .take()
+                .ok_or_else(|| construction_state::stale("来源核缺owner seed"))?;
+            if seed.raw != raw.current_binding() {
+                return Err(construction_state::stale("来源材料raw binding不同"));
+            }
+            let binding = SourceCutBinding {
+                seal: seed.seal,
+                epoch: j.material_epoch,
+                root: construction_set::Declaration::read(root)?,
+                raw: seed.raw,
+            };
+            j.source_binding = Some(binding);
+            (seed, binding)
+        };
+        let mut material = SourceMaterial {
+            access,
+            reader,
+            binding,
+            set: construction_set::LazySet::new(seed, root, previous.as_ref())?,
+        };
+        let verdict = super::super::source_audit::audit_native_bound(
+            previous,
+            &mut material,
+            raw,
+            profile,
+            rule,
+        )?;
+        material.check()?;
+        raw.ensure_current()?;
+        let (actual_binding, counts, source) = verdict.into_parts();
+        if actual_binding != binding {
+            return Err(construction_state::stale("来源核返回不同切面"));
+        }
+        let set = material
+            .set
+            .finish(binding.epoch, counts.clone(), raw.current_prefix())?;
+        let mut j = access.journal.lock().map_err(invalid)?;
+        access.check(&j)?;
+        if j.source_binding != Some(binding) || j.material_epoch != binding.epoch {
+            return Err(construction_state::stale("来源核封口前材料epoch改变"));
+        }
+        j.peak = j.peak.max(access.budget.peak());
+        j.extra_bytes = sum([j.extra_bytes, set.retained_bytes()]);
+        j.bytes = sum([
+            Journal::layout(j.keys.capacity(), j.nodes.capacity()),
+            j.extra_bytes,
+        ]);
+        if j.bytes > j.cap {
+            return Err(construction_state::stale("来源/集合保留账超过材料帽"));
+        }
+        j.set = Some(set);
+        j.source_binding = None;
+        Ok((counts, source))
+    })();
+    if result.is_err() {
+        if let Ok(mut j) = access.journal.lock() {
+            j.unexpected = true;
+        }
+        raw.invalidate_after_consumer_failure();
+    }
+    result
 }
 
 /// 只能由父owner转接prepare原有work。Some逐字借用，不创建替代scope；
@@ -1304,6 +1536,7 @@ fn native_journal_only_reserves_the_container_that_grows() {
         set_required: false,
         set_seed: None,
         set: None,
+        source_binding: None,
         stages: Vec::new(),
         active_stage: None,
         material_epoch: 0,

@@ -75,6 +75,8 @@ pub(super) struct Runtime {
     #[cfg(test)]
     after_prepare: Option<fn(&Transaction<'_>) -> Result<(), String>>,
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    before_native_source: Option<fn(&Transaction<'_>, &ContentRef) -> Result<ContentRef, String>>,
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
     stage_new_nodes: bool,
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     native_read_lease: bool,
@@ -102,6 +104,8 @@ impl Runtime {
             #[cfg(test)]
             after_prepare: None,
             #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            before_native_source: None,
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
             stage_new_nodes: false,
             #[cfg(all(test, feature = "s_capture_native_testonly"))]
             native_read_lease: true,
@@ -118,6 +122,16 @@ impl Runtime {
         hook: Option<fn(&Transaction<'_>) -> Result<(), String>>,
     ) {
         self.after_prepare = hook;
+    }
+
+    /// 只测试：在真实producer/object-plan/axes完成后，用实际TxStore写入坏件。
+    /// 不提供raw token、capture或成功标记，返回根仍必须通过正式材料与来源核。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn set_before_native_source_for_test(
+        &mut self,
+        hook: Option<fn(&Transaction<'_>, &ContentRef) -> Result<ContentRef, String>>,
+    ) {
+        self.before_native_source = hook;
     }
 
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
@@ -236,6 +250,30 @@ impl Runtime {
             None,
         )
     }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn publish_impl_bound(
+        &mut self,
+        tx: &mut Transaction<'_>,
+        token: &str,
+        envelope: &Value,
+        context: Option<&mut request_audit::RequestAuditContext>,
+        bound_audit: Option<&state::AuditedState>,
+        bound_raw: Option<&super::audit_owner::BoundRawAdvance<'_>>,
+        bound_capture: Option<&mut sc::AuditCapture>,
+        bound_source: Option<&mut Option<source_audit::NativeSourceState>>,
+    ) -> Result<commit::CommitReceipt, String> {
+        self.publish_impl_admitted_bound(
+            tx,
+            token,
+            envelope,
+            context,
+            bound_audit,
+            bound_raw,
+            bound_capture,
+            bound_source,
+            None,
+        )
+    }
     /// 调用者在 prepare 之前开启唯一父域，并保持到 Commit 返回；此入口本身不签发整堆资格。
     pub(super) fn publish_impl_admitted(
         &mut self,
@@ -244,6 +282,38 @@ impl Runtime {
         envelope: &Value,
         context: Option<&mut request_audit::RequestAuditContext>,
         #[cfg(feature = "s_capture_native_testonly")] bound_audit: Option<&state::AuditedState>,
+        work: Option<&WorkScope>,
+    ) -> Result<commit::CommitReceipt, String> {
+        self.publish_impl_admitted_bound(
+            tx,
+            token,
+            envelope,
+            context,
+            #[cfg(feature = "s_capture_native_testonly")]
+            bound_audit,
+            #[cfg(feature = "s_capture_native_testonly")]
+            None,
+            #[cfg(feature = "s_capture_native_testonly")]
+            None,
+            #[cfg(feature = "s_capture_native_testonly")]
+            None,
+            work,
+        )
+    }
+    fn publish_impl_admitted_bound(
+        &mut self,
+        tx: &mut Transaction<'_>,
+        token: &str,
+        envelope: &Value,
+        context: Option<&mut request_audit::RequestAuditContext>,
+        #[cfg(feature = "s_capture_native_testonly")] bound_audit: Option<&state::AuditedState>,
+        #[cfg(feature = "s_capture_native_testonly")] bound_raw: Option<
+            &super::audit_owner::BoundRawAdvance<'_>,
+        >,
+        #[cfg(feature = "s_capture_native_testonly")] bound_capture: Option<&mut sc::AuditCapture>,
+        #[cfg(feature = "s_capture_native_testonly")] bound_source: Option<
+            &mut Option<source_audit::NativeSourceState>,
+        >,
         work: Option<&WorkScope>,
     ) -> Result<commit::CommitReceipt, String> {
         if work.is_some() {
@@ -275,6 +345,12 @@ impl Runtime {
                 context,
                 #[cfg(feature = "s_capture_native_testonly")]
                 bound_audit,
+                #[cfg(feature = "s_capture_native_testonly")]
+                bound_raw,
+                #[cfg(feature = "s_capture_native_testonly")]
+                bound_capture,
+                #[cfg(feature = "s_capture_native_testonly")]
+                bound_source,
                 #[cfg(all(test, feature = "s_capture_native_testonly"))]
                 stage.as_ref(),
                 work,
@@ -336,6 +412,13 @@ impl Runtime {
         envelope: &Value,
         context: Option<&mut request_audit::RequestAuditContext>,
         #[cfg(feature = "s_capture_native_testonly")] bound_audit: Option<&state::AuditedState>,
+        #[cfg(feature = "s_capture_native_testonly")] bound_raw: Option<
+            &super::audit_owner::BoundRawAdvance<'_>,
+        >,
+        #[cfg(feature = "s_capture_native_testonly")] bound_capture: Option<&mut sc::AuditCapture>,
+        #[cfg(feature = "s_capture_native_testonly")] bound_source: Option<
+            &mut Option<source_audit::NativeSourceState>,
+        >,
         #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<
             &staged_nodes::StageOwner,
         >,
@@ -470,6 +553,125 @@ impl Runtime {
                 &metadata.rule_revision,
             ));
             self.binding = Some(binding);
+        }
+        #[cfg(feature = "s_capture_native_testonly")]
+        if let Some(raw) = bound_raw {
+            if !matches!(self.mode, s_allocation::Mode::CapturedNative) || audited.budget.is_some()
+            {
+                return Err(err("owner增量路径只接受Native原件"));
+            }
+            #[cfg(test)]
+            if stage.is_some() || !self.native_read_lease {
+                return Err(err("owner增量路径必须使用真实Native读取租约"));
+            }
+            let capture = bound_capture.ok_or_else(|| err("owner增量缺同pending原件capture"))?;
+            let source_slot = bound_source.ok_or_else(|| err("owner增量缺唯一来源状态槽"))?;
+            let (prior_bi, prior_version) = object_index::prior_records(&audited.objects)?;
+            drop(control);
+            // 第一次租约只覆盖生成、对象计划与axes；结束后才能借实际tx材料。
+            let (mut generated, objects, axes) = {
+                let mut store = BusinessTxStore {
+                    inner: content_store::NativeReadLease::new_admitted(tx, work).map_err(err)?,
+                    budget: None,
+                };
+                sc::write_value(&mut store, &scope_value).map_err(err)?;
+                let generator = self.generator.as_mut().ok_or_else(|| err("生成器未绑定"))?;
+                let mut generated = generator.generate_bound(
+                    &mut store,
+                    raw,
+                    generation::BoundGenerationInput {
+                        generation,
+                        structure_cut: &metadata.structure_cut,
+                        input_frontier: frontier,
+                        profile_id: &metadata.profile_id,
+                        profile_hash: &metadata.profile_hash,
+                        rule_revision: &metadata.rule_revision,
+                        catalog_revision: &metadata.catalog_revision,
+                        scope: &scope,
+                        semantic_commit_ns: Some(&metadata.semantic_commit_ns),
+                        prior: content_bi::PriorState {
+                            bi_records: prior_bi.iter().collect(),
+                            version_record: prior_version.as_ref(),
+                        },
+                    },
+                )?;
+                let objects = object_index::plan_native_union_for_testonly(
+                    &mut store,
+                    &generated.objects,
+                    &audited.objects,
+                    generation,
+                )?;
+                generated.finish_axes(
+                    &mut store,
+                    previous,
+                    &objects.withdrawals,
+                    &objects.replaces,
+                )?;
+                let axes = generated
+                    .catalog_axes
+                    .clone()
+                    .ok_or_else(|| err("目录轴完成后仍缺真实根"))?;
+                (generated, objects, axes)
+            };
+            #[cfg(test)]
+            if let Some(inject) = self.before_native_source {
+                generated.generated_state = inject(tx, &generated.generated_state)?;
+            }
+            let products = super::audit_owner::with_construction_material(tx, work, |material| {
+                let material = material.ok_or_else(|| err("owner增量缺实际材料能力"))?;
+                let (counts, source) = super::audit_owner::audit_native_source_cut(
+                    material,
+                    capture,
+                    source_slot.take(),
+                    (&generated.generated_state).into(),
+                    raw,
+                    &metadata.profile_id,
+                    &metadata.rule_revision,
+                )?;
+                let mut store = BusinessTxStore {
+                    inner: content_store::TxStore::new(tx)
+                        .map_err(err)?
+                        .with_work(Some(material.work())),
+                    budget: None,
+                };
+                let products = self.finish_node_products(
+                    &mut store,
+                    true,
+                    workspace_budget,
+                    generated,
+                    objects,
+                    axes,
+                    counts,
+                    audited,
+                    &metadata,
+                    previous,
+                    frontier,
+                    generation,
+                )?;
+                object_index::stage_in_material(
+                    tx,
+                    &mut store,
+                    &products.objects,
+                    &products.manifest.batch_id,
+                    Some(material),
+                )?;
+                aux_index::stage_in_material(
+                    tx,
+                    &mut store,
+                    &products.auxiliary,
+                    &products.manifest.batch_id,
+                    Some(material),
+                )?;
+                catalog_evidence::stage_current(tx, &mut store, &products.axes)?;
+                *source_slot = Some(source);
+                Ok(products)
+            })?;
+            return Ok(Prepared {
+                metadata,
+                roots: products.roots,
+                manifest: products.manifest,
+                workspace: products.workspace,
+            });
         }
         let effective = super::business_json::effective(audited.raw.view(), None)?;
         let (prior_bi, prior_version) = object_index::prior_records(&audited.objects)?;
@@ -691,6 +893,39 @@ impl Runtime {
             &metadata.profile_id,
             &metadata.rule_revision,
         )?;
+        self.finish_node_products(
+            store,
+            native.is_some(),
+            #[cfg(feature = "s_capture_native_testonly")]
+            workspace_budget,
+            generated,
+            objects,
+            axes,
+            counts,
+            audited,
+            metadata,
+            previous,
+            frontier,
+            generation,
+        )
+    }
+    fn finish_node_products<'raw, S: NodeStore>(
+        &mut self,
+        store: &mut BusinessTxStore<S>,
+        workspace_eligible: bool,
+        #[cfg(feature = "s_capture_native_testonly")] workspace_budget: Option<
+            request_audit::ManifestWorkspaceBudget,
+        >,
+        generated: generation::Generated<'raw>,
+        objects: object_index::Plan,
+        axes: sc::ContentRef,
+        counts: source_audit::Counts,
+        audited: &state::AuditedState,
+        metadata: &ManifestMetadata,
+        previous: i64,
+        frontier: i64,
+        generation: i64,
+    ) -> Result<NodeProducts<'raw>, String> {
         let auxiliary = self.auxiliary.plan(
             store,
             &audited.auxiliary,
@@ -718,7 +953,7 @@ impl Runtime {
             delta_template: delta,
         };
         #[cfg(feature = "s_capture_native_testonly")]
-        let (manifest, workspace) = if native.is_some() && workspace_budget.is_some() && {
+        let (manifest, workspace) = if workspace_eligible && workspace_budget.is_some() && {
             #[cfg(test)]
             {
                 self.manifest_workspace
