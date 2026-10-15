@@ -320,9 +320,22 @@ impl std::ops::DerefMut for RawPrefixIndex<'_> {
         &mut self.facts
     }
 }
+/// #1488：既有最终赢家算法的值结果，不授予原件或事务资格。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct RawWinner {
+    pub coord: i64,
+    pub ordinal: usize,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct RawWinnerEdit {
+    pub old: Option<RawWinner>,
+    pub new: Option<RawWinner>,
+}
 pub(super) struct RawPrefixChanges {
     pub removed: Vec<i64>,
     pub added: Vec<(i64, usize)>,
+    /// 按 identity 排序，每个 identity 只含最终赢家；消费时先撤全部 old 再加全部 new。
+    pub winner_edits: sc::CodecVec<RawWinnerEdit>,
     pub raw_visits: usize,
     pub coord_decodes: usize,
     pub rewound: bool,
@@ -447,6 +460,7 @@ impl<'raw> RawPrefixIndex<'raw> {
         let mut updates = RawPrefixChanges {
             removed: Vec::new(),
             added: Vec::new(),
+            winner_edits: new_work(self.raw.budget()),
             raw_visits: prefix - self.prefix,
             coord_decodes: 0,
             rewound,
@@ -493,6 +507,16 @@ impl<'raw> RawPrefixIndex<'raw> {
                     None
                 }
             };
+            admission
+                .native_codec_room(&mut updates.winner_edits, 1)
+                .map_err(|e| e.to_string())?;
+            updates
+                .winner_edits
+                .try_push(RawWinnerEdit {
+                    old: previous.map(|(_, ordinal, coord)| RawWinner { coord, ordinal }),
+                    new: Some(RawWinner { coord: c, ordinal }),
+                })
+                .map_err(|e| e.to_string())?;
             if let Some((_, _, old)) = previous {
                 #[cfg(feature = "s_capture_native_testonly")]
                 let len = self.ordered.len();

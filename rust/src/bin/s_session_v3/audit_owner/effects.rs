@@ -160,6 +160,13 @@ struct Key {
     rowid: i64,
     digest: [u8; 32],
 }
+/// #1488：覆盖收据只证明实际写效果均被解释，不证明业务集合变化完整。
+struct Coverage {
+    start: u64,
+    hook_events: u64,
+    node_inserts: u64,
+    exact: bool,
+}
 struct Journal {
     keys: Vec<Key>,
     nodes: std::collections::HashSet<[u8; 32]>,
@@ -169,6 +176,7 @@ struct Journal {
     cap: usize,
     bytes: usize,
     peak: usize,
+    coverage: Option<Coverage>,
 }
 impl Journal {
     fn layout(keys: usize, node_capacity: usize) -> usize {
@@ -243,11 +251,26 @@ impl Recording {
         tx: &Transaction<'_>,
         operation: Operation,
         cap: usize,
+        strict: bool,
     ) -> Result<Option<Self>, String> {
         let inline = std::mem::size_of::<Journal>() + 128;
         if cap < inline {
             return Ok(None);
         }
+        // 复用实际 TxStore 的 schema/FK/唯一键门；total_changes 单独不覆盖 REPLACE 隐式删除。
+        let coverage = if strict {
+            if !crate::content_store::owner_node_insert_gate(tx).map_err(invalid)? {
+                return Err(construction_state::stale("节点schema不支持精确effects覆盖"));
+            }
+            Some(Coverage {
+                start: tx.total_changes(),
+                hook_events: 0,
+                node_inserts: 0,
+                exact: true,
+            })
+        } else {
+            None
+        };
         let mut journal = Journal {
             keys: Vec::new(),
             nodes: Default::default(),
@@ -257,6 +280,7 @@ impl Recording {
             cap,
             bytes: inline,
             peak: inline,
+            coverage,
         };
         if !journal.reserve_one(false) {
             return Ok(None);
@@ -265,6 +289,12 @@ impl Recording {
         let hook = journal.clone();
         tx.update_hook(Some(move |action, db: &str, table: &str, rowid| {
             let mut j = hook.lock().expect("同步 owner 效果记录锁");
+            if let Some(c) = j.coverage.as_mut() {
+                match c.hook_events.checked_add(1) {
+                    Some(n) => c.hook_events = n,
+                    None => c.exact = false,
+                }
+            }
             let Some(table) = Table::parse(table) else {
                 j.unexpected = true;
                 return;
@@ -309,6 +339,18 @@ impl Recording {
         if journal.overflow {
             return Ok(None);
         }
+        let covered_total = if let Some(c) = journal.coverage.as_ref() {
+            let after = tx.total_changes();
+            let expected = c.hook_events.checked_add(c.node_inserts);
+            if !c.exact || after.checked_sub(c.start) != expected {
+                return Err(construction_state::stale(
+                    "actual writes与hook/node收据不一致",
+                ));
+            }
+            Some(after)
+        } else {
+            None
+        };
         journal
             .keys
             .sort_unstable_by_key(|k| (k.table, k.rowid, k.digest));
@@ -377,6 +419,7 @@ impl Recording {
             peak,
             // journal及读行头已真实Drop；旧载荷仍由原件账全额承接，不在这里重复计入。
             bytes: used - journal.bytes,
+            covered_total,
         }))
     }
 }
@@ -392,8 +435,12 @@ pub(super) struct Effects {
     pub(super) operation: Operation,
     pub(super) peak: usize,
     pub(super) bytes: usize,
+    covered_total: Option<u64>,
 }
 impl Effects {
+    pub(super) fn has_exact_coverage(&self, total_changes: u64) -> bool {
+        self.covered_total == Some(total_changes)
+    }
     pub(super) fn rows(&self, table: Table) -> impl Iterator<Item = &Change> {
         self.changes.iter().filter(move |c| c.table == table)
     }
@@ -547,7 +594,7 @@ pub(super) fn clear_node_journal(tx: &Transaction<'_>) {
     });
 }
 /// 仅固定 TxStore 在实际 INSERT 成功或逐 tuple Noop 校验成功后调用。
-pub(crate) fn note_node(tx: &Transaction<'_>, digest: [u8; 32]) {
+pub(crate) fn note_node(tx: &Transaction<'_>, digest: [u8; 32], before: u64, inserted: bool) {
     NODE_JOURNAL.with(|slot| {
         let slot = slot.borrow();
         let Some((db, journal)) = slot.as_ref() else {
@@ -557,6 +604,19 @@ pub(crate) fn note_node(tx: &Transaction<'_>, digest: [u8; 32]) {
             return;
         }
         let mut j = journal.lock().expect("同步 owner node 效果锁");
+        if let Some(c) = j.coverage.as_mut() {
+            let expected = u64::from(inserted);
+            if tx.total_changes().checked_sub(before) != Some(expected)
+                || (inserted && tx.changes() != 1)
+            {
+                c.exact = false;
+            }
+            // 按实际 INSERT 次数登记，不能按去重后的 digest 数计写入。
+            match c.node_inserts.checked_add(expected) {
+                Some(n) => c.node_inserts = n,
+                None => c.exact = false,
+            }
+        }
         if j.operation != Operation::Publish {
             j.unexpected = true;
             return;
@@ -589,6 +649,7 @@ fn native_journal_only_reserves_the_container_that_grows() {
         cap: usize::MAX,
         bytes: inline,
         peak: inline,
+        coverage: None,
     };
     assert!(j.reserve_one(true));
     let node_cap = j.nodes.capacity();
@@ -611,4 +672,96 @@ fn native_journal_only_reserves_the_container_that_grows() {
         Journal::layout(j.keys.capacity(), j.nodes.capacity())
     );
     assert!(j.bytes <= j.cap);
+}
+
+#[cfg(test)]
+mod construction_coverage_tests {
+    use super::*;
+    use newchan_rust::s_content::{self as sc, NodeSink};
+
+    fn database() -> Connection {
+        let mut db = Connection::open_in_memory().unwrap();
+        db.execute_batch("CREATE TABLE s_protocol_meta(singleton INTEGER PRIMARY KEY,protocol_revision TEXT NOT NULL); INSERT INTO s_protocol_meta VALUES(1,'s-session/3');").unwrap();
+        let tx = db.transaction().unwrap();
+        crate::content_store::init_schema(&tx).unwrap();
+        tx.commit().unwrap();
+        db
+    }
+    fn put(tx: &Transaction<'_>, byte: u8) {
+        let body = [byte];
+        crate::content_store::TxStore::new(tx)
+            .unwrap()
+            .put(
+                sc::frame(sc::tag::BYTES_CHUNK, &body),
+                sc::tag::BYTES_CHUNK,
+                &body,
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn owner_effects_node_insert_and_repeated_noop_use_actual_write_counts() {
+        let mut db = database();
+        let tx = db.transaction().unwrap();
+        let start = tx.total_changes();
+        let recording = Recording::start(&tx, Operation::Publish, 1 << 20, true)
+            .unwrap()
+            .unwrap();
+        put(&tx, 1);
+        put(&tx, 1);
+        put(&tx, 2);
+        assert_eq!(tx.total_changes() - start, 2);
+        let effects = recording.finish(&tx, &mut [], 1 << 20).unwrap().unwrap();
+        assert!(effects.has_exact_coverage(tx.total_changes()));
+        assert_eq!(effects.rows(Table::Node).count(), 2);
+        assert!(!effects.has_exact_coverage(tx.total_changes() + 1));
+    }
+
+    #[test]
+    fn owner_effects_unhooked_without_rowid_write_and_trigger_side_effect_reject() {
+        for trigger in [false, true] {
+            let mut db = database();
+            let tx = db.transaction().unwrap();
+            tx.execute_batch("CREATE TABLE side(k INTEGER PRIMARY KEY,v BLOB) WITHOUT ROWID")
+                .unwrap();
+            if trigger {
+                tx.execute_batch("CREATE TRIGGER side_effect AFTER INSERT ON s_content_nodes BEGIN INSERT INTO side VALUES(1,x'01'); END").unwrap();
+            }
+            let recording = Recording::start(&tx, Operation::Publish, 1 << 20, true)
+                .unwrap()
+                .unwrap();
+            put(&tx, 1);
+            if !trigger {
+                tx.execute("INSERT INTO side VALUES(1,x'01')", []).unwrap();
+            }
+            assert!(recording.finish(&tx, &mut [], 1 << 20).is_err());
+        }
+    }
+
+    #[test]
+    fn owner_effects_strict_schema_rejects_rowid_node_substitute() {
+        let mut db = database();
+        let tx = db.transaction().unwrap();
+        tx.execute_batch("DROP TABLE s_content_nodes; CREATE TABLE s_content_nodes(digest BLOB PRIMARY KEY,tag INTEGER NOT NULL,body BLOB NOT NULL)").unwrap();
+        assert!(Recording::start(&tx, Operation::Publish, 1 << 20, true).is_err());
+        // 未选择strict路径时仍保持既有可选记录语义。
+        let old = Recording::start(&tx, Operation::Publish, 1 << 20, false)
+            .unwrap()
+            .unwrap();
+        assert!(old.finish(&tx, &mut [], 1 << 20).unwrap().is_some());
+    }
+
+    #[test]
+    fn owner_effects_absent_budget_never_yields_coverage_receipt() {
+        let mut db = database();
+        let tx = db.transaction().unwrap();
+        assert!(Recording::start(&tx, Operation::Publish, 0, true)
+            .unwrap()
+            .is_none());
+        let recording = Recording::start(&tx, Operation::Publish, 1 << 20, true)
+            .unwrap()
+            .unwrap();
+        put(&tx, 1);
+        assert!(recording.finish(&tx, &mut [], 0).unwrap().is_none());
+    }
 }

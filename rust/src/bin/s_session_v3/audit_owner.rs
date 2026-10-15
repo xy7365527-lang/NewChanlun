@@ -39,6 +39,13 @@ mod q;
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(super) mod allocation_probe;
 
+#[path = "construction_state.rs"]
+mod construction_state;
+pub(crate) use super::business_json::{RawWinner, RawWinnerEdit};
+#[cfg(test)]
+pub(crate) use construction_state::RawAdvanceFixture;
+pub(crate) use construction_state::{BoundRawAdvance, RawAdvanceBinding, RawDomain};
+
 pub(crate) struct BoundOriginals {
     _private: (),
 }
@@ -51,6 +58,8 @@ pub(super) struct AuditConnection {
     retired: Cell<bool>,
     next_transaction: Cell<u64>,
     write_sequence: Cell<u64>,
+    construction_lease: construction_state::Lease,
+    construction: std::cell::RefCell<Option<construction_state::CommittedRawState>>,
     #[cfg(feature = "s_capture_native_testonly")]
     complete: std::cell::RefCell<Option<CompleteCandidate>>,
     #[cfg(feature = "s_capture_native_testonly")]
@@ -98,6 +107,7 @@ struct AuditTxn<'a> {
     transaction_id: u64,
     write_sequence: u64,
     dirty: Cell<bool>,
+    construction: std::cell::RefCell<Option<construction_state::PendingRawState>>,
     #[cfg(feature = "s_capture_native_testonly")]
     complete: std::cell::RefCell<Option<CompleteCandidate>>,
     #[cfg(feature = "s_capture_native_testonly")]
@@ -139,6 +149,8 @@ impl AuditConnection {
             retired: Cell::new(false),
             next_transaction: Cell::new(0),
             write_sequence: Cell::new(0),
+            construction_lease: Default::default(),
+            construction: Default::default(),
             #[cfg(feature = "s_capture_native_testonly")]
             complete: Default::default(),
             #[cfg(feature = "s_capture_native_testonly")]
@@ -146,7 +158,17 @@ impl AuditConnection {
         })
     }
 
+    fn invalidate_construction(&self) {
+        self.construction_lease.invalidate();
+        drop(self.construction.borrow_mut().take());
+    }
+
     fn clear_candidates(&self) {
+        self.invalidate_construction();
+        self.clear_optional_candidates();
+    }
+
+    fn clear_optional_candidates(&self) {
         #[cfg(feature = "s_capture_native_testonly")]
         {
             drop(self.source_keeper.borrow_mut().take());
@@ -179,6 +201,7 @@ impl AuditConnection {
             transaction_id,
             write_sequence: self.write_sequence.get(),
             dirty: Cell::new(false),
+            construction: Default::default(),
             #[cfg(feature = "s_capture_native_testonly")]
             complete: Default::default(),
             #[cfg(feature = "s_capture_native_testonly")]
@@ -512,6 +535,18 @@ impl AuditConnection {
         }
         // 完整候选由本 owner 的无写审计或固定 effects 核验签发；来源池独立移交。
         let cap = context.complete_retention_cap();
+        let raw_retained = self
+            .construction
+            .get_mut()
+            .as_ref()
+            .map_or(0, |c| c.retained_bytes());
+        let cap = match cap.checked_sub(raw_retained) {
+            Some(cap) => cap,
+            None => {
+                self.invalidate_construction();
+                0
+            }
+        };
         let mut complete = ended.complete;
         // 只有对应事务成功终结后封存的结果可接回。slot/fixture 没有签发能力。
         if let Some(candidate) = &complete {
@@ -631,6 +666,12 @@ impl AuditTxn<'_> {
                 return Err(invalid("完整候选不属于本次实际无写审计"));
             }
         }
+        if self.construction.borrow().is_some() {
+            self.owner.invalidate_construction();
+            return Err(construction_state::stale(
+                "构造 pending 不可通过只读回滚晋升",
+            ));
+        }
         self.owner.connection.flush_prepared_statement_cache();
         let result = self.transaction.take().unwrap().rollback().map_err(invalid);
         if result.is_err() || !self.owner.connection.is_autocommit() {
@@ -670,6 +711,22 @@ impl AuditTxn<'_> {
                 return Err(invalid("写后候选没有绑定本次已闭合事务"));
             }
         }
+        if self.construction.borrow().is_some() {
+            let checked = (|| {
+                if self.owner.construction_lease.stale.get() {
+                    return Err(construction_state::stale("提交前租约已撤销"));
+                }
+                self.construction
+                    .borrow()
+                    .as_ref()
+                    .unwrap()
+                    .check_commit(self.construction_seal()?, self.tx().total_changes())
+            })();
+            if let Err(error) = checked {
+                self.owner.invalidate_construction();
+                return Err(error);
+            }
+        }
         // 此处封存锁内读取的版本；不得在 commit 后刷新 data_version。
         let _sealed = (
             self.owner.life,
@@ -706,6 +763,14 @@ impl AuditTxn<'_> {
             return Err(invalid("提交返回后事务仍活动"));
         }
         result?;
+        if let Some(pending) = self.construction.borrow_mut().take() {
+            // SQLite 已确认 COMMIT，才 move 到下一事务候选；失败绝不复原旧 facts。
+            if let Err(error) = self.owner.construction_lease.close() {
+                self.owner.invalidate_construction();
+                return Err(error);
+            }
+            *self.owner.construction.borrow_mut() = Some(pending.committed());
+        }
         Ok(Ended {
             life: self.owner.life,
             #[cfg(feature = "s_capture_native_testonly")]
@@ -827,6 +892,12 @@ impl AuditConnection {
             .borrow()
             .as_ref()
             .map_or(0, |c| c.charge.total)
+            .saturating_add(
+                self.construction
+                    .borrow()
+                    .as_ref()
+                    .map_or(0, |c| c.retained_bytes()),
+            )
     }
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn complete_report(&self) -> Value {
@@ -843,9 +914,102 @@ impl AuditConnection {
     }
 }
 impl AuditTxn<'_> {
+    fn construction_seal(&self) -> Result<SnapshotSeal, String> {
+        Ok(SnapshotSeal {
+            life: self.owner.life,
+            transaction_id: self.transaction_id,
+            write_sequence: self.owner.write_sequence.get(),
+            data_version: self
+                .tx()
+                .query_row("PRAGMA main.data_version", [], |r| r.get(0))
+                .map_err(invalid)?,
+            schema_version: self
+                .tx()
+                .query_row("PRAGMA main.schema_version", [], |r| r.get(0))
+                .map_err(invalid)?,
+            domain: self.read_domain()?,
+        })
+    }
+
+    /// #1488：唯一生产构造点仍封闭在 owner；调用者不能传 raw、prefix 或成功布尔量。
+    /// 此原型只授 raw 变化资格；集合完整性仍须独立 seal，根整合前不接正式 Runtime。
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn with_bound_raw_advance<R>(
+        &self,
+        context: &request_audit::RequestAuditContext,
+        consume: impl for<'raw> FnOnce(BoundRawAdvance<'raw>) -> Result<R, String>,
+    ) -> Result<R, String> {
+        let result = (|| {
+            use super::audit_retention::sum;
+            if self.dirty.get() || self.construction.borrow().is_some() {
+                return Err(construction_state::stale("仅允许本事务首次写前签发一次"));
+            }
+            let seal = self.construction_seal()?;
+            if seal.data_version != self.data_version || seal.schema_version != self.schema_version
+            {
+                return Err(construction_state::stale("原始读快照已变"));
+            }
+            let complete = self.complete.borrow();
+            let candidate = complete
+                .as_ref()
+                .ok_or_else(|| construction_state::stale("缺当前同快照已核原件"))?;
+            if candidate.seal != seal {
+                return Err(construction_state::stale("完整原件不属于当前连接/快照"));
+            }
+            let previous = self.owner.construction.borrow_mut().take();
+            let retained = sum([
+                candidate.charge.total,
+                previous.as_ref().map_or(0, |s| s.retained_bytes()),
+                std::mem::size_of::<construction_state::PendingRawState>(),
+                std::mem::size_of::<BoundRawAdvance<'_>>(),
+            ]);
+            let budget = native::Budget::new(context.complete_workspace_limit(), retained)
+                .map_err(|_| construction_state::stale("raw增量工作额度不足"))?;
+            let work = budget
+                .codec_work()
+                .map_err(|_| construction_state::stale("raw增量分配许可不足"))?;
+            work.run(|scope| {
+                let bound = BoundOriginals { _private: () };
+                let (pending, token) = construction_state::PendingRawState::advance(
+                    previous,
+                    candidate.audited.raw.view(),
+                    seal,
+                    &bound,
+                    &self.owner.construction_lease,
+                    &super::audit_store::NativeAdmission(Some(scope)),
+                )?;
+                *self.construction.borrow_mut() = Some(pending);
+                let value = consume(token)?;
+                if self.owner.construction_lease.stale.get() {
+                    return Err(construction_state::stale("消费者已撤销raw租约"));
+                }
+                Ok(value)
+            })
+            .map_err(|error| match native::Failure::from(error) {
+                native::Failure::Invalid(e) => e,
+                native::Failure::BudgetExceeded => construction_state::stale("raw增量分配额度不足"),
+            })
+        })();
+        if result.is_err() {
+            self.owner.invalidate_construction();
+            drop(self.construction.borrow_mut().take());
+        }
+        result
+    }
+
     fn before_write(&self) -> Result<(), String> {
+        self.before_write_inner(false)
+    }
+
+    fn before_write_inner(&self, preserve_construction: bool) -> Result<(), String> {
         // 必须发生在任何固定 operation（含 Noop）的第一条写 SQL 之前。
-        self.owner.clear_candidates();
+        if !preserve_construction {
+            self.owner.invalidate_construction();
+            if self.construction.borrow_mut().take().is_some() {
+                return Err(construction_state::stale("增量期间出现未声明写口"));
+            }
+        }
+        self.owner.clear_optional_candidates();
         #[cfg(feature = "s_capture_native_testonly")]
         drop(self.complete.borrow_mut().take());
         let next = self
@@ -957,7 +1121,6 @@ impl AuditTxn<'_> {
         s_allocation::audit_in_request(self.tx(), mode, s_allocation::Phase::Handle, context)
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
     fn read_domain(&self) -> Result<[i64; 6], String> {
         // main 快照/version 已在 begin 中取得；TEMP 和连接设置不由 main version 覆盖。
         let temp: i64 = self
@@ -1019,7 +1182,7 @@ impl AuditTxn<'_> {
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct SnapshotSeal {
     life: u64,
     transaction_id: u64,
@@ -1028,7 +1191,6 @@ struct SnapshotSeal {
     schema_version: i64,
     domain: [i64; 6],
 }
-#[cfg(feature = "s_capture_native_testonly")]
 impl SnapshotSeal {
     fn same_snapshot(&self, next: &Self) -> bool {
         self.life != 0
@@ -1773,6 +1935,21 @@ impl AuditTxn<'_> {
         operation: FixedOperation,
         context: Option<&request_audit::RequestAuditContext>,
     ) -> Result<(), String> {
+        let result = self.before_fixed_write_inner(operation, context);
+        if result.is_err() && self.construction.borrow().is_some() {
+            self.owner.invalidate_construction();
+        }
+        result
+    }
+    fn before_fixed_write_inner(
+        &self,
+        operation: FixedOperation,
+        context: Option<&request_audit::RequestAuditContext>,
+    ) -> Result<(), String> {
+        let strict = self.construction.borrow().is_some();
+        if strict && self.owner.construction_lease.stale.get() {
+            return Err(construction_state::stale("固定写前租约已撤销"));
+        }
         #[cfg(feature = "s_capture_native_testonly")]
         {
             let candidate = self.complete.borrow_mut().take();
@@ -1780,34 +1957,70 @@ impl AuditTxn<'_> {
                 let limit = context
                     .map(|c| c.complete_workspace_limit())
                     .unwrap_or(candidate.limit.saturating_sub(candidate.charge.total));
+                let raw_bytes = self
+                    .construction
+                    .borrow()
+                    .as_ref()
+                    .map_or(0, |s| s.retained_bytes());
+                let limit = limit.checked_sub(raw_bytes).unwrap_or(0);
                 let op = match operation {
                     FixedOperation::Accept => effects::Operation::Accept,
                     FixedOperation::Begin => effects::Operation::Begin,
                     FixedOperation::Publish => effects::Operation::Publish,
                     FixedOperation::Recover => effects::Operation::Recover,
                 };
-                // journal 首块出现前释放旧 slot；完整旧候选仍占同一工作额度。
                 candidate.detach_slot()?;
                 if let Some(recording_cap) = limit.checked_sub(candidate.charge.total) {
-                    if let Some(recording) =
-                        effects::Recording::start(self.tx(), op, (limit / 8).min(recording_cap))?
-                    {
+                    if let Some(recording) = effects::Recording::start(
+                        self.tx(),
+                        op,
+                        (limit / 8).min(recording_cap),
+                        strict,
+                    )? {
                         self.effect_limit.set(limit);
                         *self.pending.borrow_mut() = Some(candidate);
                         *self.recording.borrow_mut() = Some(recording);
                     }
                 }
             }
+            if strict && self.recording.borrow().is_none() {
+                self.owner.invalidate_construction();
+                return Err(construction_state::stale(
+                    "固定写缺完整effects记录额度/原件",
+                ));
+            }
         }
         #[cfg(not(feature = "s_capture_native_testonly"))]
-        let _ = (operation, context);
-        self.before_write()
+        {
+            let _ = (operation, context);
+            if strict {
+                return Err(construction_state::stale("未启用真实Native effects能力"));
+            }
+        }
+        self.before_write_inner(strict)
     }
     fn finish_fixed_write(&self) -> Result<(), String> {
+        let result = self.finish_fixed_write_inner();
+        if result.is_err() && self.construction.borrow().is_some() {
+            self.owner.invalidate_construction();
+        }
+        result
+    }
+    fn finish_fixed_write_inner(&self) -> Result<(), String> {
         #[cfg(feature = "s_capture_native_testonly")]
         {
+            let strict = self.construction.borrow().is_some();
+            let missing = || {
+                if strict {
+                    Err(construction_state::stale(
+                        "effects未完整闭合；不得回落旧审计",
+                    ))
+                } else {
+                    Ok(())
+                }
+            };
             let Some(recording) = self.recording.borrow_mut().take() else {
-                return Ok(());
+                return missing();
             };
             let mut candidate = self
                 .pending
@@ -1821,20 +2034,37 @@ impl AuditTxn<'_> {
             let Some(effects) =
                 recording.finish(self.tx(), &mut candidate.originals, recording_cap)?
             else {
-                return Ok(());
+                return missing();
             };
-            if let Some(mut candidate) = candidate.validate_effects(self.tx(), effects, limit)? {
-                candidate.seal.write_sequence = self.owner.write_sequence.get();
-                *self.complete.borrow_mut() = Some(candidate);
+            let closed_changes = self.tx().total_changes();
+            if strict && !effects.has_exact_coverage(closed_changes) {
+                return Err(construction_state::stale("actual effects覆盖收据缺失"));
             }
+            let Some(mut candidate) = candidate.validate_effects(self.tx(), effects, limit)? else {
+                return missing();
+            };
+            candidate.seal.write_sequence = self.owner.write_sequence.get();
+            if strict {
+                self.construction
+                    .borrow_mut()
+                    .as_mut()
+                    .unwrap()
+                    .close_effects(self.construction_seal()?, closed_changes)?;
+            }
+            *self.complete.borrow_mut() = Some(candidate);
         }
         Ok(())
     }
 }
 
 #[cfg(feature = "s_capture_native_testonly")]
-pub(crate) fn note_persisted_node(tx: &Transaction<'_>, digest: [u8; 32]) {
-    effects::note_node(tx, digest);
+pub(crate) fn note_persisted_node(
+    tx: &Transaction<'_>,
+    digest: [u8; 32],
+    before: u64,
+    inserted: bool,
+) {
+    effects::note_node(tx, digest, before, inserted);
 }
 
 /// 正常行为锁的实际 SQL 返回行/字节观察器；不计估算的底层 Btree/page I/O。
@@ -2239,6 +2469,229 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                     })
                 );
             }
+        }
+    }
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+mod construction_tests {
+    use super::*;
+
+    fn context() -> request_audit::RequestAuditContext {
+        let mut context = request_audit::RequestAuditContext::with_source_keeper(
+            cross_request_source_cache::Keeper::new(536_870_912),
+        );
+        context
+            .freeze_manifest_workspace_budget(536_870_912, 0, 0)
+            .unwrap();
+        context
+    }
+    fn fixture() -> prepared::tests::Fixture {
+        let mut f = prepared::tests::Fixture::new();
+        let (e, t) = f.accept_begin(1, ("owner-raw", 0, 6, 12, 3, 7), 1);
+        f.publish(&e, &t).unwrap();
+        f
+    }
+    fn mint(
+        active: &AuditTxn<'_>,
+        context: &mut request_audit::RequestAuditContext,
+    ) -> RawAdvanceBinding {
+        active
+            .audit_admission(
+                &json!({"payload":{"op":"ready"}}),
+                &s_allocation::Mode::CapturedNative,
+                context,
+            )
+            .unwrap();
+        active
+            .with_bound_raw_advance(context, |token| {
+                token.ensure_current()?;
+                assert!(token.current_prefix() > 0, "正控必须消费非空真实原件");
+                Ok(token.current_binding())
+            })
+            .unwrap()
+    }
+    fn close_fixed(active: &AuditTxn<'_>, context: &request_audit::RequestAuditContext) {
+        active
+            .before_fixed_write(FixedOperation::Accept, Some(context))
+            .unwrap();
+        active.tx().execute("UPDATE s_protocol_meta SET next_attempt_ordinal=next_attempt_ordinal WHERE singleton=1", []).unwrap();
+        active.finish_fixed_write().unwrap();
+    }
+
+    #[test]
+    fn owner_raw_real_effects_only_promote_after_real_commit() {
+        let f = fixture();
+        let owner = AuditConnection::open(&f.db_path()).unwrap();
+        let mut c = context();
+        let active = owner.begin(TransactionBehavior::Immediate).unwrap();
+        let first = mint(&active, &mut c);
+        assert!(owner.construction.borrow().is_none());
+        close_fixed(&active, &c);
+        assert!(
+            owner.construction.borrow().is_none(),
+            "effects闭合仍非COMMIT"
+        );
+        let ended = active.commit().unwrap();
+        assert!(owner.construction.borrow().is_some());
+        owner.continue_with(ended).unwrap();
+        let next = owner.begin(TransactionBehavior::Immediate).unwrap();
+        next.audit_admission(
+            &json!({"payload":{"op":"ready"}}),
+            &s_allocation::Mode::CapturedNative,
+            &mut c,
+        )
+        .unwrap();
+        next.with_bound_raw_advance(&c, |token| {
+            assert_eq!(token.previous_binding(), first);
+            assert!(!token.previous_binding().is_initial());
+            assert!(token.append_ordinals().is_empty());
+            assert!(token.winner_edits().is_empty());
+            Ok(())
+        })
+        .unwrap();
+        drop(next);
+        assert!(owner.construction.borrow().is_none());
+        assert!(owner.construction_lease.stale.get());
+    }
+
+    #[test]
+    fn owner_raw_rollback_unknown_write_and_unclosed_commit_revoke() {
+        for failure in ["rollback", "unknown", "unclosed", "after-close"] {
+            let f = fixture();
+            let owner = AuditConnection::open(&f.db_path()).unwrap();
+            let mut c = context();
+            let active = owner.begin(TransactionBehavior::Immediate).unwrap();
+            mint(&active, &mut c);
+            match failure {
+                "rollback" => drop(active),
+                "unknown" => {
+                    assert!(active.before_write().is_err());
+                    drop(active);
+                }
+                "unclosed" => {
+                    assert!(active.commit().is_err());
+                }
+                "after-close" => {
+                    close_fixed(&active, &c);
+                    active
+                        .tx()
+                        .execute(
+                            "UPDATE s_protocol_meta SET next_attempt_ordinal=next_attempt_ordinal",
+                            [],
+                        )
+                        .unwrap();
+                    assert!(active.commit().is_err());
+                }
+                _ => unreachable!(),
+            }
+            assert!(owner.connection.is_autocommit(), "{failure}");
+            assert!(owner.construction.borrow().is_none(), "{failure}");
+            assert!(owner.construction_lease.stale.get(), "{failure}");
+            let reopened = AuditConnection::open(&f.db_path()).unwrap();
+            let active = reopened.begin(TransactionBehavior::Immediate).unwrap();
+            let mut c = context();
+            active
+                .audit_admission(
+                    &json!({"payload":{"op":"ready"}}),
+                    &s_allocation::Mode::CapturedNative,
+                    &mut c,
+                )
+                .unwrap();
+            active
+                .with_bound_raw_advance(&c, |token| {
+                    assert!(token.previous_binding().is_initial());
+                    Ok(())
+                })
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn owner_raw_commit_hook_failure_never_promotes() {
+        let f = fixture();
+        let owner = AuditConnection::open(&f.db_path()).unwrap();
+        let mut c = context();
+        let active = owner.begin(TransactionBehavior::Immediate).unwrap();
+        mint(&active, &mut c);
+        close_fixed(&active, &c);
+        active.tx().commit_hook(Some(|| true)).unwrap();
+        assert!(active.commit().is_err());
+        owner.connection.commit_hook(None::<fn() -> bool>).unwrap();
+        assert!(owner.connection.is_autocommit());
+        assert!(owner.construction.borrow().is_none());
+        assert!(owner.construction_lease.stale.get());
+    }
+
+    #[test]
+    fn owner_raw_external_commit_rejects_equal_length_material() {
+        let f = fixture();
+        let owner = AuditConnection::open(&f.db_path()).unwrap();
+        let mut c = context();
+        let active = owner.begin(TransactionBehavior::Immediate).unwrap();
+        mint(&active, &mut c);
+        close_fixed(&active, &c);
+        let ended = active.commit().unwrap();
+        owner.continue_with(ended).unwrap();
+        let outside = open_db(&f.db_path()).unwrap();
+        outside.execute_batch("BEGIN IMMEDIATE; UPDATE s_protocol_meta SET next_attempt_ordinal=next_attempt_ordinal+1; UPDATE s_protocol_meta SET next_attempt_ordinal=next_attempt_ordinal-1; COMMIT;").unwrap();
+        let next = owner.begin(TransactionBehavior::Immediate).unwrap();
+        next.audit_admission(
+            &json!({"payload":{"op":"ready"}}),
+            &s_allocation::Mode::CapturedNative,
+            &mut c,
+        )
+        .unwrap();
+        assert!(next.with_bound_raw_advance(&c, |_| Ok(())).is_err());
+        assert!(owner.construction_lease.stale.get());
+    }
+
+    #[test]
+    fn owner_raw_schema_read_domain_and_consumer_failure_revoke() {
+        for failure in ["schema", "domain", "consumer"] {
+            let f = fixture();
+            let owner = AuditConnection::open(&f.db_path()).unwrap();
+            let mut c = context();
+            let active = owner.begin(TransactionBehavior::Immediate).unwrap();
+            if failure == "consumer" {
+                active
+                    .audit_admission(
+                        &json!({"payload":{"op":"ready"}}),
+                        &s_allocation::Mode::CapturedNative,
+                        &mut c,
+                    )
+                    .unwrap();
+                assert!(active
+                    .with_bound_raw_advance(&c, |_| Err::<(), _>("consumer拒绝".into()))
+                    .is_err());
+            } else {
+                mint(&active, &mut c);
+                close_fixed(&active, &c);
+                if failure == "schema" {
+                    active
+                        .tx()
+                        .execute_batch("CREATE TABLE unexpected(x)")
+                        .unwrap();
+                } else {
+                    active
+                        .tx()
+                        .execute_batch("PRAGMA recursive_triggers=OFF")
+                        .unwrap();
+                    let actual: i64 = active
+                        .tx()
+                        .query_row("PRAGMA recursive_triggers", [], |r| r.get(0))
+                        .unwrap();
+                    if actual == active.construction.borrow().as_ref().unwrap().seal.domain[2] {
+                        active
+                            .tx()
+                            .execute_batch("PRAGMA recursive_triggers=ON")
+                            .unwrap();
+                    }
+                }
+                assert!(active.commit().is_err());
+            }
+            assert!(owner.construction.borrow().is_none());
+            assert!(owner.construction_lease.stale.get());
         }
     }
 }

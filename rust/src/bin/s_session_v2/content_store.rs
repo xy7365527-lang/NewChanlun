@@ -398,6 +398,12 @@ fn native_pragma_rows<T>(
     Ok(values)
 }
 
+/// #1488 owner effects 复用同一节点保持判据，不另造宽严两档。
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn owner_node_insert_gate(tx: &Transaction<'_>) -> Result<bool, CodecError> {
+    native_insert_can_preserve(tx)
+}
+
 #[cfg(feature = "s_capture_native_testonly")]
 fn native_insert_can_preserve(conn: &Connection) -> Result<bool, CodecError> {
     fn tables(
@@ -890,7 +896,11 @@ impl TxStore<'_, '_> {
         before_write: impl FnOnce(),
     ) -> Result<(), CodecError> {
         check_digest(&digest, tag, body)?;
+        #[cfg(feature = "s_capture_native_testonly")]
+        let before = self.tx.total_changes();
         let current = read_checked_node_scoped(self.tx, &digest, self.work)?;
+        #[cfg(feature = "s_capture_native_testonly")]
+        let inserted = current.is_none();
         match current {
             Some(frame) => {
                 if frame.tag() != tag || frame.body() != body {
@@ -916,7 +926,7 @@ impl TxStore<'_, '_> {
             }
         }
         #[cfg(feature = "s_capture_native_testonly")]
-        crate::v3::audit_owner::note_persisted_node(self.tx, digest);
+        crate::v3::audit_owner::note_persisted_node(self.tx, digest, before, inserted);
         Ok(())
     }
 }
