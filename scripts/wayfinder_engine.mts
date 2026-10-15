@@ -144,13 +144,37 @@ export function isPureDecisionMap(map: Pick<MapState, "body">): boolean {
 // ── spec 批准检测（纯函数） ────────────────────────────────────────────────────
 
 const APPROVAL_RE =
-  /批准|通过|照此执行|按此拆票|approve|approved|lgtm|ship\s*it|^ack$/i;
+  /批准|通过|照此执行|按此拆票|\bapprove\b|\bapproved\b|\blgtm\b|ship\s*it|^ack$/i;
 const REJECT_RE = /不批准|不通过|打回|驳回|重写|reject|deny|nack|暂不/i;
+
+/** 去掉 GitHub quote-reply 引用行，避免闸一提示语「批准后引擎自动拆实装票」被当成批准。 */
+function commentOwnText(body: string): string {
+  return body
+    .split("\n")
+    .filter((line) => !/^\s*>/.test(line))
+    .join("\n");
+}
+
+/**
+ * 剥掉「像批准词、实际是否定/延后/技术通过」的片段后再交给 APPROVAL_RE。
+ * 不放进 REJECT_RE：同一条「测试通过了。批准。」仍应算批准。
+ */
+function approvalSurface(body: string): string {
+  return commentOwnText(body)
+    .replace(/测试通过|编译通过|构建通过|评审通过|单测通过|CI\s*通过|ci\s*通过/g, "")
+    .replace(/稍后批准|再批准|等.{0,12}批准|尚未批准|还没批准|先不批/g, "")
+    .replace(/\bnot\s+(?:yet\s+)?approv\w*/gi, "")
+    .replace(/\bunapprov\w*/gi, "")
+    .replace(/\b(?:do(?:es)?n'?t|won'?t)\s+ship\s*it/gi, "")
+    .replace(/\bwaiting\s+for\s+approv\w*/gi, "")
+    .replace(/\bneeds?\s+(?:more\s+)?(?:review|approv\w*)/gi, "");
+}
 
 /**
  * spec 是否已被编排者 comment 批准（闸一）。
  * 只认 orchestrator 的评论；按时间序推进——驳回可推翻先前的批准，反之亦然。
- * 注意 REJECT 先判，避免「不通过」被「通过」子串误命中。
+ * 注意 REJECT 先判，避免「不通过」被「通过」子串误命中；APPROVAL 再在剥掉
+ * 延后/技术通过/引用行之后匹配，避免「测试通过 / not approved / 引用闸一提示」误放行。
  */
 export function isSpecApproved(spec: ChildIssue, orchestrator: string): boolean {
   const mine = spec.comments
@@ -158,8 +182,9 @@ export function isSpecApproved(spec: ChildIssue, orchestrator: string): boolean 
     .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
   let approved = false;
   for (const c of mine) {
-    if (REJECT_RE.test(c.body)) approved = false;
-    else if (APPROVAL_RE.test(c.body)) approved = true;
+    const own = commentOwnText(c.body);
+    if (REJECT_RE.test(own)) approved = false;
+    else if (APPROVAL_RE.test(approvalSurface(c.body))) approved = true;
   }
   return approved;
 }
