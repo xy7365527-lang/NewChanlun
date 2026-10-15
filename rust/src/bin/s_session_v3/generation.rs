@@ -564,6 +564,7 @@ impl GenerationRuntime {
     ) -> Result<Generated<'b>, String> {
         let result = (|| {
             bound.ensure_current()?;
+            self.check_generation_identity(input.profile_id, input.rule_revision)?;
             if bound.raw().budget().is_some() {
                 return Err("prototype_audit_allocation_incomplete：完整 delta producer/bi/output 尚非 Owned；禁止 Plain fallback".into());
             }
@@ -601,6 +602,27 @@ impl GenerationRuntime {
         result
     }
 
+    /// full/delta 共用原身份与档案前置判据；成功不分配，不触及 parser/store。
+    fn check_generation_identity(
+        &self,
+        profile_id: &str,
+        rule_revision: &str,
+    ) -> Result<(), String> {
+        if profile_id != self.profile_id || rule_revision != self.rule_revision {
+            return Err(format!(
+                "IdentityConflict：生成运行态的档案/规则修订（{}/{}）与本次输入（{}/{}）不一致",
+                self.profile_id, self.rule_revision, profile_id, rule_revision
+            ));
+        }
+        if profile_id != crate::tb02a::PROFILE {
+            return Err(format!(
+                "VersionUnsupported：S3 同核生成只接线 OHLC 档案 `{}`（CC-006 来源集合配方按档案分派，非 OHLC 支未接线；不静默降级）",
+                crate::tb02a::PROFILE
+            ));
+        }
+        Ok(())
+    }
+
     fn generate_impl<'b>(
         &mut self,
         store: &mut dyn NodeStore,
@@ -612,18 +634,7 @@ impl GenerationRuntime {
         if self.delta_lane.is_some() {
             return Err("GenError：delta 车道不能切回完整 generate 重判，须显式丢弃".into());
         }
-        if input.profile_id != self.profile_id || input.rule_revision != self.rule_revision {
-            return Err(format!(
-                "IdentityConflict：生成运行态的档案/规则修订（{}/{}）与本次输入（{}/{}）不一致",
-                self.profile_id, self.rule_revision, input.profile_id, input.rule_revision
-            ));
-        }
-        if input.profile_id != crate::tb02a::PROFILE {
-            return Err(format!(
-                "VersionUnsupported：S3 同核生成只接线 OHLC 档案 `{}`（CC-006 来源集合配方按档案分派，非 OHLC 支未接线；不静默降级）",
-                crate::tb02a::PROFILE
-            ));
-        }
+        self.check_generation_identity(input.profile_id, input.rule_revision)?;
         let gen = input.generation;
         let cut = input.structure_cut;
         let frontier = input.input_frontier;
@@ -2252,7 +2263,7 @@ mod tests {
                 )
             )
             .is_err());
-        // 错规则在 raw 推进之后被完整生成核拒绝，不能留下已推进 raw 或回退旧 generate。
+        // 错规则由共用身份前置核拒绝，不能留下 raw 推进或回退旧 generate。
         let fresh = RawAdvanceFixture::new();
         let next = fresh.bind(raw, 0, &edits.winner_edits).unwrap();
         let mut input = delta_bound_input(
@@ -2274,6 +2285,113 @@ mod tests {
                 && runtime.objects_seq.seq.is_none()
         );
         assert_eq!(runtime.producer.source_root(2), None);
+    }
+
+    #[test]
+    fn delta_full_identity_preflight_preserves_full_first_error_and_zero_write_attempts() {
+        use super::super::audit_owner::RawAdvanceFixture;
+        for (runtime_profile, input_profile, rule, prefix) in [
+            (
+                crate::tb02a::PROFILE,
+                crate::tb02a::PROFILE,
+                "wrong-rule",
+                "IdentityConflict",
+            ),
+            (
+                crate::tb02a::PROFILE,
+                "wrong-profile",
+                "r",
+                "IdentityConflict",
+            ),
+            (
+                "unsupported-profile",
+                "unsupported-profile",
+                "r",
+                "VersionUnsupported",
+            ),
+        ] {
+            for malformed_price in [false, true] {
+                let mut events = delta_raw_fixture();
+                events.truncate(4);
+                if malformed_price {
+                    events[0]["high"] = json!("not-a-price");
+                }
+                let raw = RawEventsView::plain(&events);
+                let mut index = bj::RawPrefixIndex::new(raw);
+                let edits = index.advance(events.len()).unwrap();
+                let fixture = RawAdvanceFixture::new();
+                let bound = fixture.bind(raw, 0, &edits.winner_edits).unwrap();
+                let scope = json!({});
+                let effective = bj::effective(raw, None).unwrap();
+                let mut full =
+                    GenerationRuntime::new("A2 identity full".into(), runtime_profile, "r");
+                let mut delta =
+                    GenerationRuntime::new("A2 identity delta".into(), runtime_profile, "r");
+                let mut full_store = SequenceTestStore {
+                    writes_left: Some(0),
+                    ..Default::default()
+                };
+                let mut delta_store = SequenceTestStore {
+                    writes_left: Some(0),
+                    ..Default::default()
+                };
+                let expected = full
+                    .generate(
+                        &mut full_store,
+                        &GenerationInput {
+                            all_events: raw,
+                            effective: effective.raw_view(),
+                            generation: 1,
+                            structure_cut: "cut-1",
+                            input_frontier: 4,
+                            profile_id: input_profile,
+                            profile_hash: "profile-hash",
+                            rule_revision: rule,
+                            catalog_revision: "catalog",
+                            scope: &scope,
+                            semantic_commit_ns: None,
+                            prior: PriorState {
+                                bi_records: vec![],
+                                version_record: None,
+                            },
+                        },
+                    )
+                    .err()
+                    .unwrap();
+                let actual = delta
+                    .generate_bound(
+                        &mut delta_store,
+                        &bound,
+                        BoundGenerationInput {
+                            generation: 1,
+                            structure_cut: "cut-1",
+                            input_frontier: 4,
+                            profile_id: input_profile,
+                            profile_hash: "profile-hash",
+                            rule_revision: rule,
+                            catalog_revision: "catalog",
+                            scope: &scope,
+                            semantic_commit_ns: None,
+                            prior: PriorState {
+                                bi_records: vec![],
+                                version_record: None,
+                            },
+                        },
+                    )
+                    .err()
+                    .unwrap();
+                assert_eq!(actual, expected, "身份首错不受坏价格或首写失败替代");
+                assert!(actual.starts_with(prefix));
+                assert!(full_store.writes.is_empty() && delta_store.writes.is_empty());
+                assert_eq!(
+                    full_store.failures + delta_store.failures,
+                    0,
+                    "连首写尝试都不能发生"
+                );
+                assert!(delta.delta_lane.is_none() && delta.raw_events_seq.seq.is_none());
+                assert!(bound.ensure_current().is_err());
+            }
+        }
     }
 
     #[test]

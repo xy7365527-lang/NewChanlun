@@ -233,6 +233,8 @@ pub(super) struct DeltaLane {
     last_changes: Option<ParserChanges>,
     previous_len: usize,
     view_qualified: bool,
+    /// 任意通用回调可能污染保留历史；只能通过新建车道清除，不能跨代重新签资格。
+    unqualified_history: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -406,6 +408,7 @@ impl DeltaLane {
             last_changes: None,
             previous_len: 0,
             view_qualified: false,
+            unqualified_history: false,
         })
     }
 
@@ -447,8 +450,15 @@ impl DeltaLane {
         &mut self,
         bound: &crate::v3::audit_owner::BoundRawAdvance<'_>,
     ) -> Result<ParserChanges, String> {
+        if self.unqualified_history {
+            bound.invalidate_after_consumer_failure();
+            self.view_qualified = false;
+            self.binding = None;
+            self.poisoned = true;
+            return Err("GenError：通用解析历史不可升格为 owner 原账资格，须新建车道".into());
+        }
         let raw = bound.raw();
-        let changes = self.advance_bound(bound, |ordinal| {
+        let changes = self.advance_bound_checked(bound, |ordinal| {
             let event = raw
                 .get(ordinal)
                 .ok_or_else(|| "GenError：新 winner 原账缺失".to_string())?;
@@ -459,8 +469,18 @@ impl DeltaLane {
     }
 
     /// parse 只收到 owner 提供的最终新 winner；旧 bars 直接借本车道，不重新解码/建 fps。
+    /// 调用即永久撤销此实例的 owner 资格；历史须通过新建车道从原件重新解析。
     /// 任一错误丢弃 pending 车道的资格，调用者必须丢弃整个实例，不能失败后转旧 advance。
     pub(super) fn advance_bound(
+        &mut self,
+        bound: &crate::v3::audit_owner::BoundRawAdvance<'_>,
+        parse: impl FnMut(usize) -> Result<Bar, String>,
+    ) -> Result<ParserChanges, String> {
+        self.unqualified_history = true;
+        self.advance_bound_checked(bound, parse)
+    }
+
+    fn advance_bound_checked(
         &mut self,
         bound: &crate::v3::audit_owner::BoundRawAdvance<'_>,
         mut parse: impl FnMut(usize) -> Result<Bar, String>,
@@ -759,6 +779,95 @@ mod delta_tests {
         lane.advance_bound(&bound, |i| Ok(bars[i])).unwrap();
         assert!(lane.effective_view(&bound).is_err());
         assert!(bound.ensure_current().is_err());
+    }
+
+    #[test]
+    fn delta_owner_rejects_generic_history_on_later_no_edit_generation_without_intermediate_view() {
+        let (events, mut bars) = fixture();
+        let owner = RawAdvanceFixture::new();
+        let mut index = RawPrefixIndex::new((&events).into());
+        let first = index.advance(1).unwrap();
+        let bound = owner
+            .bind((&events[..1]).into(), 0, &first.winner_edits)
+            .unwrap();
+        bars[0].high += 50;
+        let mut lane = DeltaLane::new(None).unwrap();
+        lane.advance_bound(&bound, |i| Ok(bars[i])).unwrap();
+        assert_eq!(lane.rows()[0].bar.high, bars[0].high);
+        // 故意不在通用推进后取 view：下一次合法 token 本身不能洗掉旧来源污染。
+        let unchanged = index.advance(1).unwrap();
+        assert!(unchanged.winner_edits.is_empty());
+        let next = owner
+            .bind((&events[..1]).into(), 1, &unchanged.winner_edits)
+            .unwrap();
+        assert!(next.ensure_current().is_ok());
+        let error = lane.advance_owner_bound(&next).unwrap_err();
+        assert!(error.contains("通用解析历史不可升格"));
+        assert!(next.ensure_current().is_err());
+        assert!(lane.effective_view(&next).is_err());
+        // 只有显式新建车道并重新从 initial 真原件解析才恢复；旧实例仍不可升格。
+        let fresh_owner = RawAdvanceFixture::new();
+        let fresh = fresh_owner
+            .bind((&events[..1]).into(), 0, &first.winner_edits)
+            .unwrap();
+        let mut rebuilt = DeltaLane::new(None).unwrap();
+        rebuilt.advance_owner_bound(&fresh).unwrap();
+        assert_eq!(
+            rebuilt
+                .effective_view(&fresh)
+                .unwrap()
+                .bars()
+                .get(0)
+                .unwrap()
+                .high,
+            10
+        );
+        assert!(lane.unqualified_history && lane.poisoned);
+    }
+
+    #[test]
+    fn delta_owner_rejects_intervening_generic_revision_before_other_winner_append() {
+        let (mut events, mut bars) = fixture();
+        events.truncate(4);
+        bars.truncate(4);
+        let appended = serde_json::json!({
+            "identity_key":"id-17", "source_coord":"17", "revision":1, "seq":5,
+            "ts":"17", "open":"12", "high":"16", "low":"12", "close":"16",
+            "input_revision":"1", "payload_hash":"hash-4", "receipt_id":"receipt-4", "event_id":"event-17",
+        });
+        bars.push(bar_of((&appended).into()).unwrap());
+        events.push(appended);
+        let owner = RawAdvanceFixture::new();
+        let mut index = RawPrefixIndex::new((&events).into());
+        let first = index.advance(3).unwrap();
+        let bound = owner
+            .bind((&events[..3]).into(), 0, &first.winner_edits)
+            .unwrap();
+        let mut lane = DeltaLane::new(None).unwrap();
+        lane.advance_owner_bound(&bound).unwrap();
+        assert!(lane.view_qualified);
+        let revision = index.advance(4).unwrap();
+        let revised = owner
+            .bind((&events[..4]).into(), 3, &revision.winner_edits)
+            .unwrap();
+        bars[3].high += 50; // 真实修订的 coord=7 被通用回调污染；第三代仅追加 coord=17。
+        lane.advance_bound(&revised, |i| Ok(bars[i])).unwrap();
+        assert_eq!(lane.rows()[1].bar.high, bars[3].high);
+        // 故意不消费中间 view，复现“合法 owner → 通用修订 → 合法追加”的跨代路径。
+        let appended = index.advance(5).unwrap();
+        assert_eq!(appended.winner_edits.len(), 1);
+        assert_eq!(appended.winner_edits[0].new.unwrap().coord, 17);
+        let next = owner
+            .bind((&events[..5]).into(), 4, &appended.winner_edits)
+            .unwrap();
+        assert!(next.ensure_current().is_ok());
+        assert!(lane
+            .advance_owner_bound(&next)
+            .unwrap_err()
+            .contains("通用解析历史不可升格"));
+        assert!(next.ensure_current().is_err());
+        assert!(lane.effective_view(&next).is_err());
+        assert_eq!(lane.rows().len(), 3, "拒绝发生在任何追加/parser 推进之前");
     }
 
     #[test]
