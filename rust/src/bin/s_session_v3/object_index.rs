@@ -2051,6 +2051,24 @@ pub(super) fn stage(
     p: &Plan,
     batch: &str,
 ) -> Result<(), String> {
+    stage_in_material(
+        tx,
+        s,
+        p,
+        batch,
+        #[cfg(feature = "s_capture_native_testonly")]
+        None,
+    )
+}
+pub(super) fn stage_in_material(
+    tx: &Transaction<'_>,
+    s: &mut (impl CodecStore + ?Sized),
+    p: &Plan,
+    batch: &str,
+    #[cfg(feature = "s_capture_native_testonly")] material: Option<
+        &super::audit_owner::MaterialAccess<'_, '_, '_>,
+    >,
+) -> Result<(), String> {
     for e in &p.births {
         if e.life.first_known_generation != p.generation || e.life.batch != BatchOwner::CurrentBatch
         {
@@ -2072,7 +2090,7 @@ pub(super) fn stage(
         };
         tx.execute("INSERT INTO s_content_objects VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?13,NULL,NULL,NULL)",params![e.id,e.revision,e.kind,fact,w.map(|v|v[0]),w.map(|v|v[1]),w.map(|v|v[2]),e.generated.digest.as_slice(),e.internal.digest.as_slice(),e.immutable.digest.as_slice(),wire.digest().map_err(err)?.as_slice(),batch,p.generation,format!("cut-{}",p.generation)]).map_err(err)?;
         #[cfg(feature = "s_capture_native_testonly")]
-        construction_stage.finish(tx, s)?;
+        construction_stage.finish(material)?;
     }
     for w in &p.withdrawals {
         #[cfg(feature = "s_capture_native_testonly")]
@@ -2085,7 +2103,7 @@ pub(super) fn stage(
             return Err(err("撤回身份缺失或已撤回"));
         }
         #[cfg(feature = "s_capture_native_testonly")]
-        construction_stage.finish(tx, s)?;
+        construction_stage.finish(material)?;
     }
     Ok(())
 }

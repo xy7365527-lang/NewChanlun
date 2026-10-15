@@ -547,13 +547,28 @@ impl Runtime {
                 budget: None,
             };
             // C2仅在generate_node_products的旧完整来源判据成功后记录材料cut。
-            super::audit_owner::note_qualified_source_cut(
-                tx,
-                &mut store,
-                (&roots.generated_state).into(),
-            )?;
-            object_index::stage(tx, &mut store, &objects, &manifest.batch_id)?;
-            aux_index::stage(tx, &mut store, &auxiliary, &manifest.batch_id)?;
+            super::audit_owner::with_construction_material(tx, work, |material| {
+                if let Some(material) = material {
+                    super::audit_owner::note_qualified_source_cut(
+                        material,
+                        (&roots.generated_state).into(),
+                    )?;
+                }
+                object_index::stage_in_material(
+                    tx,
+                    &mut store,
+                    &objects,
+                    &manifest.batch_id,
+                    material,
+                )?;
+                aux_index::stage_in_material(
+                    tx,
+                    &mut store,
+                    &auxiliary,
+                    &manifest.batch_id,
+                    material,
+                )
+            })?;
             catalog_evidence::stage_current(tx, &mut store, &axes)?;
             return Ok(Prepared {
                 metadata,
@@ -600,13 +615,27 @@ impl Runtime {
             frontier,
         )?;
         #[cfg(feature = "s_capture_native_testonly")]
-        super::audit_owner::note_qualified_source_cut(
-            tx,
-            &mut store,
-            (&roots.generated_state).into(),
-        )?;
-        object_index::stage(tx, &mut store, &objects, &manifest.batch_id)?;
-        aux_index::stage(tx, &mut store, &auxiliary, &manifest.batch_id)?;
+        super::audit_owner::with_construction_material(tx, work, |material| {
+            if let Some(material) = material {
+                super::audit_owner::note_qualified_source_cut(
+                    material,
+                    (&roots.generated_state).into(),
+                )?;
+            }
+            object_index::stage_in_material(
+                tx,
+                &mut store,
+                &objects,
+                &manifest.batch_id,
+                material,
+            )?;
+            aux_index::stage_in_material(tx, &mut store, &auxiliary, &manifest.batch_id, material)
+        })?;
+        #[cfg(not(feature = "s_capture_native_testonly"))]
+        {
+            object_index::stage(tx, &mut store, &objects, &manifest.batch_id)?;
+            aux_index::stage(tx, &mut store, &auxiliary, &manifest.batch_id)?;
+        }
         catalog_evidence::stage_current(tx, &mut store, &axes)?;
         Ok(Prepared {
             metadata,

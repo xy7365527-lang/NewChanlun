@@ -43,7 +43,7 @@ pub(super) mod allocation_probe;
 #[path = "construction_set.rs"]
 mod construction_set;
 #[cfg(feature = "s_capture_native_testonly")]
-pub(crate) use effects::StageKind;
+pub(crate) use effects::{MaterialAccess, StageKind};
 #[path = "construction_state.rs"]
 mod construction_state;
 pub(crate) use super::business_json::{RawWinner, RawWinnerEdit};
@@ -2122,11 +2122,18 @@ pub(crate) fn note_persisted_node(
 /// C2材料切面：只在原完整来源审计成功后调用，生成器不能传旧根或变化集。
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) fn note_qualified_source_cut(
-    tx: &Transaction<'_>,
-    source: &mut (impl super::audit_store::CodecRead + ?Sized),
+    material: &MaterialAccess<'_, '_, '_>,
     root: newchan_rust::s_content::RefView<'_>,
 ) -> Result<(), String> {
-    effects::note_source_cut(tx, source, root)
+    effects::note_source_cut(material, root)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn with_construction_material<T>(
+    tx: &Transaction<'_>,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+    f: impl FnOnce(Option<&MaterialAccess<'_, '_, '_>>) -> Result<T, String>,
+) -> Result<T, String> {
+    effects::with_material_access(tx, work, f)
 }
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) fn begin_construction_stage(

@@ -259,6 +259,8 @@ pub(super) struct PendingSet {
     knowledge: Option<Knowledge>,
     stages: Option<StageSeal>,
     closed: bool,
+    // 字段最后析构：差异Vec先真实释放，再归还原work父账的C2 cap许可。
+    parent_charge: Option<sc::capture_allocation::scratch::NativeReservation>,
 }
 struct StageSeal {
     material_epoch: u64,
@@ -267,6 +269,16 @@ struct StageSeal {
     total_changes: u64,
 }
 impl PendingSet {
+    pub(super) fn hold_parent_charge(
+        &mut self,
+        charge: Option<sc::capture_allocation::scratch::NativeReservation>,
+    ) -> Result<(), String> {
+        if self.parent_charge.is_some() {
+            return Err(stale("集合父账许可重复移交"));
+        }
+        self.parent_charge = charge;
+        Ok(())
+    }
     pub(super) fn retained_bytes(&self) -> usize {
         self.arrays
             .iter()
@@ -468,6 +480,7 @@ pub(super) fn qualify(
         knowledge,
         stages: None,
         closed: false,
+        parent_charge: None,
     })
 }
 

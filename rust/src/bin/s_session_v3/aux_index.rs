@@ -2305,6 +2305,24 @@ pub(super) fn stage(
     p: &Plan,
     batch: &str,
 ) -> Result<(), String> {
+    stage_in_material(
+        tx,
+        s,
+        p,
+        batch,
+        #[cfg(feature = "s_capture_native_testonly")]
+        None,
+    )
+}
+pub(super) fn stage_in_material(
+    tx: &Transaction<'_>,
+    s: &mut (impl CodecStore + ?Sized),
+    p: &Plan,
+    batch: &str,
+    #[cfg(feature = "s_capture_native_testonly")] material: Option<
+        &super::audit_owner::MaterialAccess<'_, '_, '_>,
+    >,
+) -> Result<(), String> {
     check_batch(batch)?;
     for w in &p.births.witnesses {
         if w.first != p.generation {
@@ -2329,7 +2347,7 @@ pub(super) fn stage(
         )
         .map_err(err)?;
         #[cfg(feature = "s_capture_native_testonly")]
-        construction_stage.finish(tx, s)?;
+        construction_stage.finish(material)?;
     }
     for r in &p.births.relations {
         if r.first != p.generation {
@@ -2353,7 +2371,7 @@ pub(super) fn stage(
         )
         .map_err(err)?;
         #[cfg(feature = "s_capture_native_testonly")]
-        construction_stage.finish(tx, s)?;
+        construction_stage.finish(material)?;
     }
     for o in &p.births.observations {
         if o.first != p.generation || o.batch.is_some() {
@@ -2383,7 +2401,7 @@ pub(super) fn stage(
         )
         .map_err(err)?;
         #[cfg(feature = "s_capture_native_testonly")]
-        construction_stage.finish(tx, s)?;
+        construction_stage.finish(material)?;
     }
     Ok(())
 }

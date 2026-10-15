@@ -1,11 +1,16 @@
 //! #1394 固定写口的实际 SQLite 效果。hook 只记录表/rowid；原件必须在锁内回读。
 //! 每次扩容先检查旧新容量共存账；预算不足撤销可选候选，不改变业务写入结果。
 use super::super::audit_retention::{sum, vec_bytes, Retained};
+use super::super::audit_store::CodecRead;
 use super::super::request_audit::{ExactRows, SqlCell};
 use super::*;
+use newchan_rust::s_content::{
+    self as sc,
+    capture_allocation::scratch::{NativeReservation, WorkError, WorkScope},
+};
 use std::sync::{Arc, Mutex};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(super) enum Table {
     Meta,
     Raw,
@@ -187,6 +192,15 @@ struct Journal {
     active_stage: Option<usize>,
     material_epoch: u64,
     extra_bytes: usize,
+    consumed: std::collections::HashSet<(Table, i64)>,
+    stage_rows_bytes: usize,
+    // 所有载荷字段在resources之前：错误Drop先析构载荷，再释放外层cap许可。
+    resources: Option<MaterialResources>,
+}
+struct MaterialResources {
+    budget: native::Budget,
+    // Some(work)对本片子域只占一次cap；不是另一次逐容器父账收费。
+    outer_cap: Option<NativeReservation>,
 }
 impl Journal {
     fn layout(keys: usize, node_capacity: usize) -> usize {
@@ -243,17 +257,47 @@ impl Journal {
             return false;
         }
         self.peak = self.peak.max(coexist);
-        if (grow_keys && self.keys.try_reserve_exact(keys - self.keys.len()).is_err())
-            || (grow_nodes && self.nodes.try_reserve(nodes - self.nodes.len()).is_err())
+        let permit = match self
+            .resources
+            .as_ref()
+            .map(|r| r.budget.reserve(new_blocks))
+            .transpose()
         {
-            self.overflow = true;
-            return false;
+            Ok(permit) => permit,
+            Err(_) => {
+                self.overflow = true;
+                return false;
+            }
+        };
+        let old_keys = self.keys.capacity();
+        let old_nodes = self.nodes.capacity();
+        let succeeded = (!grow_keys || self.keys.try_reserve_exact(keys - self.keys.len()).is_ok())
+            && (!grow_nodes || self.nodes.try_reserve(nodes - self.nodes.len()).is_ok());
+        if let Some(permit) = permit {
+            // 包括第二个容器分配失败的出口；首个实际新块不能提前返还许可。
+            let changed_keys = old_keys != self.keys.capacity();
+            let changed_nodes = old_nodes != self.nodes.capacity();
+            let block = |k, n| {
+                sum([
+                    if changed_keys { vec_bytes::<Key>(k) } else { 0 },
+                    if changed_nodes {
+                        super::super::audit_retention::hash_slots::<[u8; 32], ()>(n)
+                    } else {
+                        0
+                    },
+                ])
+            };
+            permit.commit(
+                block(old_keys, old_nodes),
+                block(self.keys.capacity(), self.nodes.capacity()),
+            );
         }
         self.bytes = sum([
             Self::layout(self.keys.capacity(), self.nodes.capacity()),
             self.extra_bytes,
         ]);
-        true
+        self.overflow |= !succeeded;
+        succeeded
     }
 }
 pub(super) struct Recording {
@@ -310,6 +354,9 @@ impl Recording {
             active_stage: None,
             material_epoch: 0,
             extra_bytes: 0,
+            consumed: Default::default(),
+            stage_rows_bytes: 0,
+            resources: None,
         };
         if !journal.reserve_one(false) {
             return Ok(None);
@@ -468,7 +515,11 @@ impl Recording {
                 }
             }
         }
-        let set = journal.set.take();
+        let mut set = journal.set.take();
+        if let Some(set) = &mut set {
+            let charge = journal.resources.as_mut().and_then(|r| r.outer_cap.take());
+            set.hold_parent_charge(charge)?;
+        }
         let set_bytes = set.as_ref().map_or(0, |set| set.retained_bytes());
         Ok(Some(Effects {
             changes,
@@ -761,36 +812,185 @@ fn current_journal(tx: &Transaction<'_>) -> Result<Option<Arc<Mutex<Journal>>>, 
     })
 }
 
-/// 只由 prepared 在完整旧来源审计成功后调用；旧根/raw/快照来自 owner 的私有 seed。
-pub(super) fn note_source_cut(
-    tx: &Transaction<'_>,
-    source: &mut (impl super::super::audit_store::CodecRead + ?Sized),
-    root: newchan_rust::s_content::RefView<'_>,
-) -> Result<(), String> {
-    let Some(journal) = current_journal(tx)? else {
-        return Ok(());
-    };
-    let mut j = journal.lock().map_err(invalid)?;
-    if !j.set_required {
-        return Ok(());
+/// 唯一实际事务材料读能力；既无通用来源参数，也没有自报来源身份接口。
+/// 构造只发生在父owner的有界闭包中；不能Clone，不能带scope离开闭包。
+pub(crate) struct MaterialAccess<'tx, 'work, 'db> {
+    tx: &'tx Transaction<'db>,
+    work: &'work WorkScope,
+    budget: &'work native::Budget,
+    journal: Arc<Mutex<Journal>>,
+    seal: SnapshotSeal,
+    initial_material_epoch: u64,
+}
+struct ActualRead<'a, 'db> {
+    inner: crate::content_store::TxStore<'a, 'db>,
+}
+impl sc::NodeSource for ActualRead<'_, '_> {
+    fn codec_work(&self) -> Option<&WorkScope> {
+        sc::NodeSource::codec_work(&self.inner)
     }
-    let result = (|| {
-        if j.overflow
+    fn read(&mut self, digest: &sc::NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+        sc::NodeSource::read(&mut self.inner, digest)
+    }
+    fn checked_read(
+        &mut self,
+        digest: &sc::NodeDigest,
+    ) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
+        sc::NodeSource::checked_read(&mut self.inner, digest)
+    }
+    fn checked_read_scoped(
+        &mut self,
+        digest: &sc::NodeDigest,
+    ) -> Result<Option<sc::job::ScopedFrame>, sc::CodecError> {
+        sc::NodeSource::checked_read_scoped(&mut self.inner, digest)
+    }
+}
+impl CodecRead for ActualRead<'_, '_> {
+    fn generic_source(&mut self) -> &mut dyn sc::NodeSource {
+        self
+    }
+}
+impl MaterialAccess<'_, '_, '_> {
+    fn check(&self, j: &Journal) -> Result<(), String> {
+        let actual = current_journal(self.tx)?
+            .ok_or_else(|| construction_state::stale("实际事务已无owner日志"))?;
+        let seal = j
+            .set_seed
+            .as_ref()
+            .map(|s| s.seal)
+            .or_else(|| j.set.as_ref().map(|s| s.seal));
+        if !Arc::ptr_eq(&actual, &self.journal)
+            || self.tx.is_autocommit()
             || j.unexpected
-            || j.set.is_some()
-            || j.active_stage.is_some()
-            || !j.stages.is_empty()
+            || j.overflow
+            || seal != Some(self.seal)
+            || j.material_epoch < self.initial_material_epoch
         {
+            return Err(construction_state::stale(
+                "实际材料能力的owner/事务/epoch已失效",
+            ));
+        }
+        Ok(())
+    }
+    fn reader(&self) -> Result<ActualRead<'_, '_>, String> {
+        Ok(ActualRead {
+            inner: crate::content_store::TxStore::new(self.tx)
+                .map_err(invalid)?
+                .with_work(Some(self.work)),
+        })
+    }
+}
+
+/// 只能由父owner转接prepare原有work。Some逐字借用，不创建替代scope；
+/// None只从同一journal cap建立一次共享父账，后续失败不能重建洗账。
+pub(super) fn with_material_access<T>(
+    tx: &Transaction<'_>,
+    original_work: Option<&WorkScope>,
+    f: impl FnOnce(Option<&MaterialAccess<'_, '_, '_>>) -> Result<T, String>,
+) -> Result<T, String> {
+    let Some(journal) = current_journal(tx)? else {
+        return f(None);
+    };
+    let (budget, seal, initial_material_epoch) = {
+        let mut j = journal.lock().map_err(invalid)?;
+        if !j.set_required {
+            drop(j);
+            return f(None);
+        }
+        let result = (|| {
+            if j.unexpected
+                || j.overflow
+                || j.resources.is_some()
+                || j.set.is_some()
+                || !j.stages.is_empty()
+                || tx.is_autocommit()
+            {
+                return Err(construction_state::stale("材料能力只能在本publish签发一次"));
+            }
+            let seal = j
+                .set_seed
+                .as_ref()
+                .ok_or_else(|| construction_state::stale("材料能力缺owner seed"))?
+                .seal;
+            // 先占外父账，再分配本片子账元数据；外cap不是提前释放的临时许可。
+            let outer_cap = original_work
+                .map(|w| w.reserve_native(j.cap))
+                .transpose()
+                .map_err(invalid)?;
+            let budget = native::Budget::new(j.cap, j.bytes)
+                .map_err(|_| construction_state::stale("材料共享父账额度不足"))?;
+            j.resources = Some(MaterialResources {
+                budget: budget.clone(),
+                outer_cap,
+            });
+            Ok((budget, seal, j.material_epoch))
+        })();
+        if result.is_err() {
+            j.unexpected = true;
+        }
+        result?
+    };
+    let run = |scope: &WorkScope| {
+        let access = MaterialAccess {
+            tx,
+            work: scope,
+            budget: &budget,
+            journal: journal.clone(),
+            seal,
+            initial_material_epoch,
+        };
+        f(Some(&access))
+    };
+    let result = match original_work {
+        Some(scope) => run(scope),
+        None => match budget.codec_work() {
+            Ok(work) => match work.run(run) {
+                Ok(value) => Ok(value),
+                Err(WorkError::Operation(error)) => Err(error),
+                Err(WorkError::Resource(_)) => {
+                    Err(construction_state::stale("材料共享codec额度/工作域失效"))
+                }
+            },
+            Err(_) => Err(construction_state::stale("材料共享codec工作域额度不足")),
+        },
+    };
+    let result = result.and_then(|value| {
+        let j = journal.lock().map_err(invalid)?;
+        if j.unexpected || j.overflow || j.active_stage.is_some() || j.set.is_none() {
+            Err(construction_state::stale("材料闭包未完整闭合或吞下失败"))
+        } else {
+            Ok(value)
+        }
+    });
+    if result.is_err() {
+        journal.lock().map_err(invalid)?.unexpected = true;
+    }
+    result
+}
+
+/// 完整旧来源审计成功后，从封闭能力的真实tx读取材料cut。
+pub(super) fn note_source_cut(
+    material: &MaterialAccess<'_, '_, '_>,
+    root: sc::RefView<'_>,
+) -> Result<(), String> {
+    let mut j = material.journal.lock().map_err(invalid)?;
+    let result = (|| {
+        material.check(&j)?;
+        if j.set.is_some() || j.active_stage.is_some() || !j.stages.is_empty() {
             return Err(construction_state::stale("集合cut不是首次stage前唯一切面"));
         }
+        let mut source = material.reader()?;
+        // 当前root参数本身不携带来源资格；在实际tx上核完整Public闭包后才允许共享跳过。
+        source
+            .verify_many_ref_fresh([root], sc::Mode::Public)
+            .map_err(invalid)?;
         let seed = j
             .set_seed
             .take()
             .ok_or_else(|| construction_state::stale("缺owner集合seed"))?;
-        let budget = native::Budget::new(j.cap, j.bytes)
-            .map_err(|_| construction_state::stale("集合cut额度不足"))?;
-        let set = construction_set::qualify(seed, source, root, j.material_epoch, &budget)?;
-        j.peak = j.peak.max(budget.peak());
+        let set =
+            construction_set::qualify(seed, &mut source, root, j.material_epoch, material.budget)?;
+        j.peak = j.peak.max(material.budget.peak());
         j.extra_bytes = sum([j.extra_bytes, set.retained_bytes()]);
         j.bytes = sum([
             Journal::layout(j.keys.capacity(), j.nodes.capacity()),
@@ -861,11 +1061,57 @@ pub(super) fn begin_stage(tx: &Transaction<'_>, kind: StageKind) -> Result<Stage
     guard.journal = Some(journal);
     Ok(guard)
 }
+// 实际ExactRows先析构再归还预算；成功只将被move的行费用留给Journal。
+struct StageOriginals<'a> {
+    value: Option<ExactRows>,
+    budget: &'a native::Budget,
+    bytes: usize,
+}
+impl Drop for StageOriginals<'_> {
+    fn drop(&mut self) {
+        drop(self.value.take());
+        self.budget.release(self.bytes);
+    }
+}
+impl StageOriginals<'_> {
+    fn row(&self) -> &[SqlCell] {
+        &self.value.as_ref().unwrap().rows[0]
+    }
+    fn into_row(mut self) -> Vec<SqlCell> {
+        let row = self.value.as_mut().unwrap().rows.pop().unwrap();
+        self.bytes -= row.heap_bytes();
+        row
+    }
+}
+fn consumed_bytes(capacity: usize) -> usize {
+    super::super::audit_retention::hash_slots::<(Table, i64), ()>(capacity)
+}
+fn reserve_consumed(j: &mut Journal, budget: &native::Budget) -> Result<(), String> {
+    if j.consumed.len() < j.consumed.capacity() {
+        return Ok(());
+    }
+    let next = j
+        .consumed
+        .capacity()
+        .checked_mul(2)
+        .ok_or_else(|| construction_state::stale("stage身份索引容量溢出"))?
+        .max(4);
+    let cap = native::hash_capacity(next)
+        .map_err(|_| construction_state::stale("stage身份索引容量溢出"))?;
+    let permit = budget
+        .reserve(consumed_bytes(cap))
+        .map_err(|_| construction_state::stale("stage身份索引额度不足"))?;
+    let old = consumed_bytes(j.consumed.capacity());
+    j.consumed
+        .try_reserve(next - j.consumed.len())
+        .map_err(|_| construction_state::stale("stage身份索引分配失败"))?;
+    permit.commit(old, consumed_bytes(j.consumed.capacity()));
+    Ok(())
+}
 impl StageGuard {
     pub(crate) fn finish(
         mut self,
-        tx: &Transaction<'_>,
-        source: &mut (impl super::super::audit_store::CodecRead + ?Sized),
+        material: Option<&MaterialAccess<'_, '_, '_>>,
     ) -> Result<(), String> {
         let Some(journal) = self.journal.as_ref().cloned() else {
             self.closed = true;
@@ -873,11 +1119,16 @@ impl StageGuard {
         };
         let mut j = journal.lock().map_err(invalid)?;
         let result = (|| {
+            let material =
+                material.ok_or_else(|| construction_state::stale("strict stage缺实际材料能力"))?;
+            if !Arc::ptr_eq(&journal, &material.journal) {
+                return Err(construction_state::stale("stage与材料能力不属同owner日志"));
+            }
+            material.check(&j)?;
+            let tx = material.tx;
             if self.connection != unsafe { tx.handle() } as usize
-                || tx.is_autocommit()
-                || j.unexpected
-                || j.overflow
                 || j.active_stage != Some(self.start)
+                || j.material_epoch < self.material_before
             {
                 return Err(construction_state::stale("stage失效或跨连接"));
             }
@@ -894,45 +1145,60 @@ impl StageGuard {
                 return Err(construction_state::stale("stage SQL并非唯一预期表/动作"));
             }
             let rowid = row.rowid;
-            let budget = native::Budget::new(j.cap, j.bytes)
-                .map_err(|_| construction_state::stale("stage收据额度不足"))?;
+            let identity = (self.kind.table(), rowid);
+            if j.consumed.contains(&identity) {
+                return Err(construction_state::stale("业务原件已被前一stage消费"));
+            }
+            let budget = material.budget;
             budget
                 .vec_grow(&mut j.stages, 1)
                 .map_err(|_| construction_state::stale("stage容器额度不足"))?;
+            reserve_consumed(&mut j, budget)?;
             let remaining = j
                 .cap
                 .checked_sub(budget.live())
                 .ok_or_else(|| construction_state::stale("stage原件额度不足"))?;
-            let (mut originals, peak) = ExactRows::read_optional_bounded_params(
+            // 先占完整可用上限；ExactRows内部按同一remaining限制每次新旧块共存。
+            let read_permit = budget
+                .reserve(remaining)
+                .map_err(|_| construction_state::stale("stage原件预留失败"))?;
+            let (originals, _) = ExactRows::read_optional_bounded_params(
                 tx,
                 self.kind.table().row_sql(),
                 [rowid],
                 remaining,
             )?
             .ok_or_else(|| construction_state::stale("stage原件读取额度不足"))?;
-            if originals.rows.len() != 1 {
+            let bytes = originals.heap_bytes();
+            read_permit.commit(0, bytes);
+            let originals = StageOriginals {
+                value: Some(originals),
+                budget,
+                bytes,
+            };
+            if originals.value.as_ref().unwrap().rows.len() != 1 {
                 return Err(construction_state::stale("stage当前行缺失/重复"));
             }
-            verify_storage(tx, self.kind.table(), &originals.rows[0])?;
-            // 在本stage结束前读取并核实际SQL根的当前完整原件；未来put不能补签。
+            verify_storage(tx, self.kind.table(), originals.row())?;
+            let mut source = material.reader()?;
+            // 只从保存的actual tx回读根闭包；外来memory或未来stage均无补签入口。
             for &column in self.kind.roots() {
-                let digest: [u8; 32] = match &originals.rows[0][column] {
+                let digest: [u8; 32] = match &originals.row()[column] {
                     SqlCell::Blob(value) => value.as_slice().try_into().map_err(invalid)?,
                     _ => return Err(construction_state::stale("stage根不是BLOB")),
                 };
-                let root = newchan_rust::s_content::FixedRoot::new(&digest);
+                let root = sc::FixedRoot::new(&digest);
                 let reference = source.content_ref_view(root.as_str()).map_err(invalid)?;
                 source
-                    .verify_many_ref_fresh(
-                        [reference.view()],
-                        newchan_rust::s_content::Mode::Public,
-                    )
+                    .verify_many_ref_fresh([reference.view()], sc::Mode::Public)
                     .map_err(invalid)?;
             }
-            j.peak = j.peak.max(sum([budget.live(), peak])).max(budget.peak());
-            let row = originals.rows.pop().unwrap();
+            j.peak = j.peak.max(budget.peak());
+            let row = originals.into_row();
+            j.stage_rows_bytes = sum([j.stage_rows_bytes, row.heap_bytes()]);
             let end = j.keys.len();
             let material_after = j.material_epoch;
+            j.consumed.insert(identity);
             j.stages.push(StageReceipt {
                 kind: self.kind,
                 start: self.start,
@@ -945,7 +1211,8 @@ impl StageGuard {
             j.extra_bytes = sum([
                 j.set.as_ref().map_or(0, |set| set.retained_bytes()),
                 vec_bytes::<StageReceipt>(j.stages.capacity()),
-                j.stages.iter().map(|s| s.row.heap_bytes()).sum::<usize>(),
+                j.stage_rows_bytes,
+                consumed_bytes(j.consumed.capacity()),
             ]);
             j.bytes = sum([
                 Journal::layout(j.keys.capacity(), j.nodes.capacity()),
@@ -972,8 +1239,8 @@ fn validate_stage_coverage(j: &Journal) -> Result<(), String> {
         .set
         .as_ref()
         .ok_or_else(|| construction_state::stale("publish缺完整材料cut"))?;
-    if j.active_stage.is_some() {
-        return Err(construction_state::stale("存在未闭合stage"));
+    if j.active_stage.is_some() || j.consumed.len() != j.stages.len() {
+        return Err(construction_state::stale("存在未闭合或重复消费stage"));
     }
     let mut cursor = 0usize;
     let mut previous_material = set.material_epoch;
@@ -1041,6 +1308,9 @@ fn native_journal_only_reserves_the_container_that_grows() {
         active_stage: None,
         material_epoch: 0,
         extra_bytes: 0,
+        consumed: Default::default(),
+        stage_rows_bytes: 0,
+        resources: None,
     };
     assert!(j.reserve_one(true));
     let node_cap = j.nodes.capacity();
@@ -1158,7 +1428,7 @@ mod construction_coverage_tests {
         put(&tx, 1);
         assert!(recording.finish(&tx, &mut [], 0).unwrap().is_none());
     }
-    fn set_recording(tx: &Transaction<'_>) -> Recording {
+    fn set_recording(tx: &Transaction<'_>) -> (Recording, sc::ContentRef) {
         let fixture = super::super::construction_state::RawAdvanceFixture::new();
         let events = [serde_json::json!({"identity_key":"raw","revision":1,"source_coord":"0"})];
         let token = fixture.bind((&events).into(), 0, &[]).unwrap();
@@ -1192,20 +1462,20 @@ mod construction_coverage_tests {
         )
         .unwrap()
         .content_ref();
-        // 私有材料fixture，不替代完整来源审计；真实Runtime正控在父owner测试。
-        note_source_cut(tx, &mut store, (&state).into()).unwrap();
-        recording
+        (recording, state)
     }
     #[test]
     fn owner_set_ordered_node_receipts_keep_repeated_noop_and_unreachable_nodes() {
         let mut db = database();
         let tx = db.transaction().unwrap();
-        let recording = set_recording(&tx);
-        let before = recording.journal.lock().unwrap().keys.len();
-        put(&tx, 45);
-        put(&tx, 45);
-        put(&tx, 46);
-        {
+        let (recording, state) = set_recording(&tx);
+        with_material_access(&tx, None, |material| {
+            let material = material.unwrap();
+            note_source_cut(material, (&state).into())?;
+            let before = recording.journal.lock().unwrap().keys.len();
+            put(&tx, 45);
+            put(&tx, 45);
+            put(&tx, 46);
             let j = recording.journal.lock().unwrap();
             let tail = &j.keys[before..];
             assert_eq!(tail.len(), 3, "不可因摘要相同丢Noop occurrence");
@@ -1213,8 +1483,9 @@ mod construction_coverage_tests {
             assert!(tail[0].node_write.unwrap().2);
             assert!(!tail[1].node_write.unwrap().2);
             assert!(tail[1].material_epoch > tail[0].material_epoch);
-        }
-        // 两个合法中间节点均不在state闭包；不得误报为多余业务成员。
+            Ok(())
+        })
+        .unwrap();
         let effects = recording.finish(&tx, &mut [], 16 << 20).unwrap().unwrap();
         assert!(effects.set.is_some());
         assert!(effects.has_exact_coverage(tx.total_changes()));
@@ -1224,25 +1495,33 @@ mod construction_coverage_tests {
         let mut db = database();
         let tx = db.transaction().unwrap();
         tx.execute_batch(crate::v3::aux_index::SCHEMA).unwrap();
-        let recording = set_recording(&tx);
+        let (recording, state) = set_recording(&tx);
         let mut memory = sc::MemoryNodes::default();
         let missing =
             sc::write_value(&mut memory, &sc::Value::String("only-in-next-stage".into())).unwrap();
+        sc::verify(&mut memory, &missing.content_ref()).unwrap();
         let (tag, body) = memory.get(&missing.digest).unwrap();
         let mut store = crate::content_store::TxStore::new(&tx).unwrap();
-        store.put(missing.digest, tag, body).unwrap(); // 只有根头，无当前闭包。
-        let stage = begin_stage(&tx, StageKind::Observation).unwrap();
-        tx.execute(
-            "INSERT INTO s_content_observations VALUES('ob','kind',NULL,'batch',?1,?1,1)",
-            [&missing.digest[..]],
-        )
-        .unwrap();
-        assert!(stage.finish(&tx, &mut store).is_err());
-        // 即使后续put补齐所有原件，失败stage已经撤销该事务的集合收据。
-        for (digest, tag, body) in memory.iter() {
-            store.put(*digest, tag, body).unwrap();
-        }
-        assert!(begin_stage(&tx, StageKind::Observation).is_err());
+        store.put(missing.digest, tag, body).unwrap();
+        let result = with_material_access(&tx, None, |material| {
+            let material = material.unwrap();
+            note_source_cut(material, (&state).into())?;
+            let stage = begin_stage(&tx, StageKind::Observation)?;
+            tx.execute(
+                "INSERT INTO s_content_observations VALUES('ob','kind',NULL,'batch',?1,?1,1)",
+                [&missing.digest[..]],
+            )
+            .unwrap();
+            // memory在同一时点完整，但正式finish没有可接memory/source的参数。
+            assert!(stage.finish(Some(material)).is_err());
+            for (digest, tag, body) in memory.iter() {
+                store.put(*digest, tag, body).unwrap();
+            }
+            assert!(begin_stage(&tx, StageKind::Observation).is_err());
+            Ok(()) // 外层仍须识别poison，不能吞掉失败后成功。
+        });
+        assert!(result.is_err());
+        assert!(with_material_access(&tx, None, |_| Ok(())).is_err());
         assert!(recording.finish(&tx, &mut [], 16 << 20).is_err());
     }
     #[test]
@@ -1251,30 +1530,236 @@ mod construction_coverage_tests {
             let mut db = database();
             let tx = db.transaction().unwrap();
             tx.execute_batch(crate::v3::aux_index::SCHEMA).unwrap();
-            let recording = set_recording(&tx);
-            match scenario {
-                "drop" => {
-                    drop(begin_stage(&tx, StageKind::Witness).unwrap());
+            let (recording, state) = set_recording(&tx);
+            let result = with_material_access(&tx, None, |material| {
+                let material = material.unwrap();
+                note_source_cut(material, (&state).into())?;
+                match scenario {
+                    "drop" => drop(begin_stage(&tx, StageKind::Witness).unwrap()),
+                    "foreign" => {
+                        let mut other = database();
+                        let other_tx = other.transaction().unwrap();
+                        assert!(begin_stage(&other_tx, StageKind::Witness).is_err());
+                        assert!(with_material_access(&other_tx, None, |_| Ok(())).is_err());
+                        drop(begin_stage(&tx, StageKind::Witness).unwrap());
+                    }
+                    "omitted" => {
+                        tx.execute("INSERT INTO s_content_relations VALUES('r','s','t','o',zeroblob(32),1)", []).unwrap();
+                    }
+                    _ => unreachable!(),
                 }
-                "foreign" => {
-                    let mut other = database();
-                    let other_tx = other.transaction().unwrap();
-                    assert!(begin_stage(&other_tx, StageKind::Witness).is_err());
-                    drop(begin_stage(&tx, StageKind::Witness).unwrap());
-                }
-                "omitted" => {
-                    tx.execute(
-                        "INSERT INTO s_content_relations VALUES('r','s','t','o',zeroblob(32),1)",
-                        [],
-                    )
-                    .unwrap();
-                }
-                _ => unreachable!(),
+                Ok(())
+            });
+            if scenario != "omitted" {
+                assert!(result.is_err());
+            } else {
+                result.unwrap();
             }
             assert!(
                 recording.finish(&tx, &mut [], 16 << 20).is_err(),
                 "{scenario}"
             );
         }
+    }
+    // 只验seal实际行单次消费；这些最小行不冒称已经通过对象业务全审。
+    fn withdrawal_fixture(tx: &Transaction<'_>) -> Vec<ExactRows> {
+        tx.execute_batch(crate::v3::object_index::SCHEMA).unwrap();
+        let mut store = crate::content_store::TxStore::new(tx).unwrap();
+        let root = sc::write_value(&mut store, &sc::Value::String("existing".into())).unwrap();
+        for id in ["first", "second"] {
+            tx.execute("INSERT INTO s_content_objects VALUES(?1,1,'kind','fact',NULL,NULL,NULL,?2,?2,?2,?2,'batch',1,'cut-1',1,NULL,NULL,NULL)", rusqlite::params![id, root.digest.as_slice()]).unwrap();
+        }
+        vec![
+            ExactRows::read_optional_bounded(tx, Table::Object.original_sql(), 1 << 20)
+                .unwrap()
+                .unwrap()
+                .0,
+        ]
+    }
+    fn withdraw(tx: &Transaction<'_>, id: &str) {
+        // 故意绕开正常stage的withdrawn IS NULL防线，直接测seal。
+        assert_eq!(tx.execute("UPDATE s_content_objects SET withdrawn_generation=2,withdrawal_reason='replaced',superseded_by='new-id' WHERE object_id=?1", [id]).unwrap(), 1);
+    }
+    #[test]
+    fn owner_set_duplicate_withdrawal_same_final_row_poisons_ordered_seal() {
+        let mut db = database();
+        let tx = db.transaction().unwrap();
+        let mut originals = withdrawal_fixture(&tx);
+        let (recording, state) = set_recording(&tx);
+        let result = with_material_access(&tx, None, |material| {
+            let material = material.unwrap();
+            note_source_cut(material, (&state).into())?;
+            let first = begin_stage(&tx, StageKind::ObjectWithdrawal)?;
+            withdraw(&tx, "first");
+            first.finish(Some(material))?;
+            let duplicate = begin_stage(&tx, StageKind::ObjectWithdrawal)?;
+            withdraw(&tx, "first");
+            assert!(duplicate.finish(Some(material)).is_err());
+            assert!(begin_stage(&tx, StageKind::ObjectWithdrawal).is_err());
+            Ok(())
+        });
+        assert!(result.is_err());
+        assert!(recording.finish(&tx, &mut originals, 16 << 20).is_err());
+    }
+    #[test]
+    fn owner_set_distinct_withdrawals_each_consume_one_actual_row() {
+        let mut db = database();
+        let tx = db.transaction().unwrap();
+        let mut originals = withdrawal_fixture(&tx);
+        let (recording, state) = set_recording(&tx);
+        with_material_access(&tx, None, |material| {
+            let material = material.unwrap();
+            note_source_cut(material, (&state).into())?;
+            for id in ["first", "second"] {
+                let stage = begin_stage(&tx, StageKind::ObjectWithdrawal)?;
+                withdraw(&tx, id);
+                stage.finish(Some(material))?;
+            }
+            let j = recording.journal.lock().unwrap();
+            assert_eq!(j.stages.len(), 2);
+            assert_eq!(j.consumed.len(), 2);
+            Ok(())
+        })
+        .unwrap();
+        let effects = recording
+            .finish(&tx, &mut originals, 16 << 20)
+            .unwrap()
+            .unwrap();
+        assert_eq!(effects.rows(Table::Object).count(), 2);
+        assert!(effects.has_exact_coverage(tx.total_changes()));
+    }
+    #[test]
+    fn owner_set_source_cut_rejects_foreign_only_closure_and_cannot_reissue() {
+        let mut db = database();
+        let tx = db.transaction().unwrap();
+        let (recording, _) = set_recording(&tx);
+        let mut memory = sc::MemoryNodes::default();
+        let foreign = sc::write_value(
+            &mut memory,
+            &sc::Value::Object(vec![
+                ("objects".into(), sc::Value::Array(vec![])),
+                (
+                    "witnesses".into(),
+                    sc::Value::Array(vec![sc::Value::String("foreign-only".into())]),
+                ),
+                ("observations".into(), sc::Value::Array(vec![])),
+            ]),
+        )
+        .unwrap();
+        sc::verify(&mut memory, &foreign.content_ref()).unwrap();
+        let (tag, body) = memory.get(&foreign.digest).unwrap();
+        let mut store = crate::content_store::TxStore::new(&tx).unwrap();
+        store.put(foreign.digest, tag, body).unwrap();
+        assert!(with_material_access(&tx, None, |m| note_source_cut(
+            m.unwrap(),
+            (&foreign.content_ref()).into()
+        ))
+        .is_err());
+        for (digest, tag, body) in memory.iter() {
+            store.put(*digest, tag, body).unwrap();
+        }
+        assert!(with_material_access(&tx, None, |_| Ok(())).is_err());
+        assert!(recording.finish(&tx, &mut [], 16 << 20).is_err());
+    }
+    #[test]
+    fn owner_set_none_scope_shares_journal_cap_and_failure_cannot_reset() {
+        let mut db = database();
+        let tx = db.transaction().unwrap();
+        let (recording, state) = set_recording(&tx);
+        let result = with_material_access(&tx, None, |m| {
+            let m = m.unwrap();
+            note_source_cut(m, (&state).into())?;
+            let cap = recording.journal.lock().unwrap().cap;
+            assert!(m.budget.live() >= recording.journal.lock().unwrap().bytes);
+            let occupied = m.budget.reserve(cap - m.budget.live()).unwrap();
+            let error = m.reader()?.content_ref_view(&state.root);
+            assert!(
+                error.is_err(),
+                "已有journal/容器占满同cap时codec不得再借另一份cap"
+            );
+            drop(occupied);
+            Ok(())
+        });
+        assert!(result.is_err());
+        assert!(with_material_access(&tx, None, |_| Ok(())).is_err());
+        assert!(recording.finish(&tx, &mut [], 16 << 20).is_err());
+    }
+    #[test]
+    fn owner_set_exact_work_cap_lives_through_effects_then_releases_only_its_charge() {
+        let mut db = database();
+        let tx = db.transaction().unwrap();
+        let (recording, state) = set_recording(&tx);
+        let cap = recording.journal.lock().unwrap().cap;
+        let parent = native::Budget::new(64 << 20, 0).unwrap();
+        let work = parent.codec_work().unwrap();
+        let effects = work
+            .run(|scope| {
+                with_material_access(&tx, Some(scope), |m| {
+                    let m = m.unwrap();
+                    assert!(std::ptr::eq(m.work, scope), "必须是原work同对象");
+                    note_source_cut(m, (&state).into())
+                })?;
+                assert!(
+                    parent.native_observation().0 >= cap,
+                    "离开材料闭包不能提前返还cap"
+                );
+                recording
+                    .finish(&tx, &mut [], 16 << 20)?
+                    .ok_or_else(|| "缺effects".to_string())
+            })
+            .unwrap();
+        let before = parent.live();
+        let native_before = parent.native_observation().0;
+        assert!(effects.set.is_some());
+        assert!(native_before > cap, "原codec retain仍在同一个父账中");
+        drop(effects);
+        assert_eq!(parent.live(), before - cap);
+        assert_eq!(parent.native_observation().0, native_before - cap);
+        assert!(
+            parent.native_observation().0 > 0,
+            "不得手工扣掉原codec保守retain"
+        );
+        drop(parent); // 剩余既有保守账随父账整个生命周期结束。
+    }
+    #[test]
+    fn owner_set_failed_source_drops_new_cap_without_erasing_existing_codec_retain() {
+        let mut db = database();
+        let tx = db.transaction().unwrap();
+        let (recording, state) = set_recording(&tx);
+        let cap = recording.journal.lock().unwrap().cap;
+        let parent = native::Budget::new(64 << 20, 0).unwrap();
+        let result = parent.codec_work().unwrap().run(|scope| {
+            with_material_access(&tx, Some(scope), |m| {
+                note_source_cut(m.unwrap(), (&state).into())?;
+                Err::<(), _>("TestOnlyAfterCutRejected".to_string())
+            })
+        });
+        assert!(result.is_err());
+        let before = parent.live();
+        let native_before = parent.native_observation().0;
+        assert!(recording.finish(&tx, &mut [], 16 << 20).is_err());
+        assert_eq!(parent.live(), before - cap, "错误Drop归还新增cap全部余额");
+        assert_eq!(parent.native_observation().0, native_before - cap);
+        assert!(
+            parent.native_observation().0 > 0,
+            "原codec retain仍由原父账持有"
+        );
+    }
+    #[test]
+    fn owner_set_actual_transaction_progress_cancellation_is_preserved() {
+        let mut db = database();
+        let tx = db.transaction().unwrap();
+        let (recording, state) = set_recording(&tx);
+        tx.progress_handler(1, Some(|| true));
+        assert!(
+            with_material_access(&tx, None, |m| note_source_cut(m.unwrap(), (&state).into()))
+                .is_err()
+        );
+        tx.progress_handler(0, None::<fn() -> bool>);
+        assert!(
+            with_material_access(&tx, None, |_| Ok(())).is_err(),
+            "取消后不能重建成功scope"
+        );
+        assert!(recording.finish(&tx, &mut [], 16 << 20).is_err());
     }
 }
