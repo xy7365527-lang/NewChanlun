@@ -6,6 +6,7 @@ use crate::economic_session::{store, tb03c_c5_read_tests::expire_after_sql_retur
 use crate::s_content::job::{DEADLINE, LIMIT_EXCEEDED};
 use std::cell::Cell;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 thread_local! { static EXPIRE_FLUSH: Cell<bool> = const { Cell::new(false) }; }
@@ -168,6 +169,37 @@ fn no_reservations(job: &Job) {
     assert_eq!(s.records, 0, "SQL 行不是六族/Delta 顶层记录");
 }
 
+/// 只观察真实连接上准备的内容 SELECT，不替换返回值或授权结果。
+/// 与 wire 的实际返回字节联合断言，区分源读取和目标复读；仅凭 wire 相等会
+/// 把“在第二次源读取就停止”误当作目标边界已覆盖。每轮调用前清掉 image 查询。
+struct SqlReads(Arc<Mutex<Vec<String>>>);
+impl SqlReads {
+    fn watch(c: &Connection) -> Self {
+        let reads = Arc::new(Mutex::new(Vec::new()));
+        let observed = reads.clone();
+        c.authorizer(Some(move |ctx: rusqlite::hooks::AuthContext<'_>| {
+            if let rusqlite::hooks::AuthAction::Read {
+                table_name,
+                column_name: "tag",
+            } = ctx.action
+            {
+                if matches!(table_name, "content_nodes" | "content_staging") {
+                    observed.lock().unwrap().push(table_name.to_owned());
+                }
+            }
+            rusqlite::hooks::Authorization::Allow
+        }))
+        .unwrap();
+        Self(reads)
+    }
+    fn clear(&self) {
+        self.0.lock().unwrap().clear();
+    }
+    fn assert_tables(&self, expected: &[&str]) {
+        assert_eq!(self.0.lock().unwrap().as_slice(), expected);
+    }
+}
+
 #[test]
 fn c5_h2_peer_flush_counts_published_staged_and_duplicate_target_returns() {
     let node = Node::scalar(s_content::Value::Null);
@@ -184,8 +216,12 @@ fn c5_h2_peer_flush_counts_published_staged_and_duplicate_target_returns() {
         }
         let before = image(&target.c);
         let (mut job, _) = job(&target.c, &target.path(), limits());
+        let source_reads = SqlReads::watch(&peer.c);
+        let target_reads = SqlReads::watch(&target.c);
         let mut stage = target.read_stage();
         for attempt in 1..=2 {
+            source_reads.clear();
+            target_reads.clear();
             import_peer_refs_with_deadline(
                 &peer.c,
                 std::slice::from_ref(&node.root),
@@ -195,9 +231,18 @@ fn c5_h2_peer_flush_counts_published_staged_and_duplicate_target_returns() {
             )
             .unwrap();
             let s = job.snapshot();
+            source_reads.assert_tables(&["content_nodes", "content_nodes"]);
+            target_reads.assert_tables(&[
+                "content_nodes",
+                "content_staging",
+                "content_nodes",
+                "content_staging",
+            ]);
+            // 根 header 与闭包各读源一次；两项 pending 各复读目标两表。
+            // 不存在的行没有返回载荷，已存在的同一行复读仍全额计费。
             assert_eq!(
                 s.wire_bytes,
-                attempt * (1 + tables.len() as u128) * node.payload()
+                attempt * 2 * (1 + tables.len() as u128) * node.payload()
             );
             assert_eq!(s.nodes, 1, "相同节点只计一次，复读 wire 全额再计");
             assert_eq!(s.stopped, None);
@@ -217,10 +262,15 @@ fn c5_h2_peer_flush_wire_limit_keeps_target_return_then_stops_before_next_read()
     seed(&target.c, "content_staging", &node);
     let before = image(&target.c);
     let mut caps = limits();
-    caps.max_total_wire_bytes = node.payload() as u64;
+    // 两次源返回恰好用完帽，第一次目标返回实记后超帽，下一目标表不得读取。
+    caps.max_total_wire_bytes = 2 * node.payload() as u64;
     let (mut job, _) = job(&target.c, &target.path(), caps);
+    let source_reads = SqlReads::watch(&peer.c);
+    let target_reads = SqlReads::watch(&target.c);
     let mut stage = target.read_stage();
-    for _ in 0..2 {
+    for attempt in 0..2 {
+        source_reads.clear();
+        target_reads.clear();
         let failure = import_peer_refs_with_deadline(
             &peer.c,
             std::slice::from_ref(&node.root),
@@ -230,7 +280,17 @@ fn c5_h2_peer_flush_wire_limit_keeps_target_return_then_stops_before_next_read()
         )
         .unwrap_err();
         assert!(failure.to_string().contains(LIMIT_EXCEEDED), "{failure}");
-        assert_eq!(job.snapshot().wire_bytes, 2 * node.payload());
+        source_reads.assert_tables(if attempt == 0 {
+            &["content_nodes", "content_nodes"]
+        } else {
+            &[]
+        });
+        target_reads.assert_tables(if attempt == 0 {
+            &["content_nodes"]
+        } else {
+            &[]
+        });
+        assert_eq!(job.snapshot().wire_bytes, 3 * node.payload());
         assert_eq!(job.snapshot().stopped, Some(LIMIT_EXCEEDED));
         assert_eq!(job.snapshot().nodes, 1);
         assert_eq!(image(stage.c), before);
@@ -258,8 +318,12 @@ fn c5_h2_peer_flush_bad_target_tag_or_digest_keeps_failed_bytes_on_same_job_retr
                 .unwrap();
             let before = image(&target.c);
             let (mut job, _) = job(&target.c, &target.path(), limits());
+            let source_reads = SqlReads::watch(&peer.c);
+            let target_reads = SqlReads::watch(&target.c);
             let mut stage = target.read_stage();
             for attempt in 1..=2 {
+                source_reads.clear();
+                target_reads.clear();
                 assert!(import_peer_refs_with_deadline(
                     &peer.c,
                     std::slice::from_ref(&node.root),
@@ -268,9 +332,15 @@ fn c5_h2_peer_flush_bad_target_tag_or_digest_keeps_failed_bytes_on_same_job_retr
                     None
                 )
                 .is_err());
+                source_reads.assert_tables(&["content_nodes", "content_nodes"]);
+                target_reads.assert_tables(if table == "content_nodes" {
+                    &["content_nodes"]
+                } else {
+                    &["content_nodes", "content_staging"]
+                });
                 assert_eq!(
                     job.snapshot().wire_bytes,
-                    attempt * (node.payload() + 8 + body.len() as u128)
+                    attempt * (2 * node.payload() + 8 + body.len() as u128)
                 );
                 assert_eq!(job.snapshot().nodes, 1);
                 assert_eq!(job.snapshot().stopped, None);
@@ -293,6 +363,8 @@ fn c5_h2_peer_final_flush_expiry_prevents_target_read_or_write_and_is_call_scope
         }
         let before = image(&target.c);
         let (mut job, _) = job(&target.c, &target.path(), limits());
+        let source_reads = SqlReads::watch(&peer.c);
+        let target_reads = SqlReads::watch(&target.c);
         let mut stage = target.read_stage();
         let _hook = ExpireFlush::arm();
         let failure = import_peer_refs_with_deadline(
@@ -305,9 +377,11 @@ fn c5_h2_peer_final_flush_expiry_prevents_target_read_or_write_and_is_call_scope
         .unwrap_err();
         assert!(failure.to_string().contains("最早绝对期限"), "{failure}");
         EXPIRE_FLUSH.with(|v| assert!(!v.get(), "必须经过最后 flush 的时钟触发点"));
+        source_reads.assert_tables(&["content_nodes", "content_nodes"]);
+        target_reads.assert_tables(&[]);
         assert_eq!(
             job.snapshot().wire_bytes,
-            node.payload(),
+            2 * node.payload(),
             "源读取完成，目标读取尚未开始"
         );
         assert_eq!(job.snapshot().nodes, 1);
@@ -319,6 +393,8 @@ fn c5_h2_peer_final_flush_expiry_prevents_target_read_or_write_and_is_call_scope
         assert_eq!(image(stage.c), before);
         no_reservations(&job);
         if present {
+            source_reads.clear();
+            target_reads.clear();
             import_peer_refs_with_deadline(
                 &peer.c,
                 std::slice::from_ref(&node.root),
@@ -327,7 +403,14 @@ fn c5_h2_peer_final_flush_expiry_prevents_target_read_or_write_and_is_call_scope
                 None,
             )
             .unwrap();
-            assert_eq!(job.snapshot().wire_bytes, 3 * node.payload());
+            source_reads.assert_tables(&["content_nodes", "content_nodes"]);
+            target_reads.assert_tables(&[
+                "content_nodes",
+                "content_staging",
+                "content_nodes",
+                "content_staging",
+            ]);
+            assert_eq!(job.snapshot().wire_bytes, 6 * node.payload());
             assert_eq!(image(stage.c), before, "复用 Stage 不保留旧调用期限");
             no_reservations(&job);
         }
@@ -346,9 +429,14 @@ fn c5_h2_peer_target_return_at_job_deadline_keeps_wire_and_blocks_next_read() {
     let mut caps = limits();
     caps.max_elapsed_ms = 1;
     let (mut job, clock) = job(&target.c, &target.path(), caps);
-    let _hook = expire_after_sql_returns(clock, 2);
+    let source_reads = SqlReads::watch(&peer.c);
+    let target_reads = SqlReads::watch(&target.c);
+    // 第三次返回才是第一次目标返回；前两次属于源 header/闭包。
+    let _hook = expire_after_sql_returns(clock, 3);
     let mut stage = target.read_stage();
-    for _ in 0..2 {
+    for attempt in 0..2 {
+        source_reads.clear();
+        target_reads.clear();
         let failure = import_peer_refs_with_deadline(
             &peer.c,
             std::slice::from_ref(&node.root),
@@ -358,7 +446,17 @@ fn c5_h2_peer_target_return_at_job_deadline_keeps_wire_and_blocks_next_read() {
         )
         .unwrap_err();
         assert!(failure.to_string().contains(DEADLINE), "{failure}");
-        assert_eq!(job.snapshot().wire_bytes, 2 * node.payload());
+        source_reads.assert_tables(if attempt == 0 {
+            &["content_nodes", "content_nodes"]
+        } else {
+            &[]
+        });
+        target_reads.assert_tables(if attempt == 0 {
+            &["content_nodes"]
+        } else {
+            &[]
+        });
+        assert_eq!(job.snapshot().wire_bytes, 3 * node.payload());
         assert_eq!(job.snapshot().stopped, Some(DEADLINE));
         assert_eq!(job.snapshot().nodes, 1);
         assert_eq!(image(stage.c), before);
