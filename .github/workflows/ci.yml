@@ -427,11 +427,226 @@ jobs:
             v3::generation::tests::oracle_incremental_second_generation_parity
           run_suite prepared --bin s_structure_session v3::prepared::tests::real_nonempty_commits_bind_history_and_revision_to_true_control_and_sources
           require_passed prepared v3::prepared::tests::real_nonempty_commits_bind_history_and_revision_to_true_control_and_sources
+      # #1488：固定 metadata 字段增量的 20 个新锁；Plain 适用 10 个，Owned 必须全部具名执行。
+      # 与既有序列步骤独立，即使旧锁失败仍收本片证据；任何一步失败仍保留 job 红态。
+      - name: Run fixed candidate, commit rollback and shared path locks (#1488)
+        if: ${{ !cancelled() }}
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD 'HEAD^{tree}'
+          sha256sum src/s_content/path.rs src/bin/s_session_v3/object_index.rs src/bin/s_session_v3/prepared.rs src/bin/s_session_v3/generation.rs
+          case "$FEATURES" in
+            s_session|s_session,s_allocation_json_testonly) ;;
+            *) echo "::error::Unexpected fixed-field feature set: $FEATURES"; exit 1 ;;
+          esac
+          run_logged() {
+            local phase=$1
+            shift
+            set +e
+            "$@" 2>&1 | tee "$RUNNER_TEMP/1488-$phase.log"
+            local statuses=("${PIPESTATUS[@]}")
+            set -e
+            echo "phase=$phase command_exit_code=${statuses[0]} tee_exit_code=${statuses[1]}"
+            printf 'phase=%s command_exit_code=%s tee_exit_code=%s\n' "$phase" "${statuses[0]}" "${statuses[1]}" >> "$RUNNER_TEMP/1488-exit-codes.log"
+            if (( statuses[0] != 0 )); then return "${statuses[0]}"; fi
+            return "${statuses[1]}"
+          }
+          run_suite() {
+            local suite=$1 filter=$2 binary
+            shift 2
+            run_logged "$suite-build" cargo test --offline --locked -j 6 --features "$FEATURES" --no-run --message-format=json "$@"
+            binary=$(python3 - "$RUNNER_TEMP/1488-$suite-build.log" <<'PY'
+          import json, os, pathlib, sys
+          artifacts = set()
+          for line in pathlib.Path(sys.argv[1]).read_text().splitlines():
+              try:
+                  item = json.loads(line)
+              except json.JSONDecodeError:
+                  continue
+              if (item.get("reason") == "compiler-artifact"
+                      and item.get("profile", {}).get("test")
+                      and item.get("executable")):
+                  artifacts.add(item["executable"])
+          if len(artifacts) != 1:
+              raise SystemExit(f"expected one test executable, got {sorted(artifacts)}")
+          binary = pathlib.Path(artifacts.pop()).resolve()
+          target = pathlib.Path(os.environ["CARGO_TARGET_DIR"]).resolve()
+          if not binary.is_relative_to(target) or not binary.is_file() or not os.access(binary, os.X_OK):
+              raise SystemExit("test executable is absent or outside this job target")
+          print(binary)
+          PY
+            )
+            sha256sum "$binary" > "$RUNNER_TEMP/1488-$suite-binary.log"
+            cat "$RUNNER_TEMP/1488-$suite-binary.log"
+            run_logged "$suite-list" "$binary" "$filter" --list --format pretty
+            run_logged "$suite" "$binary" "$filter" --format pretty --color never --show-output
+            sha256sum --check "$RUNNER_TEMP/1488-$suite-binary.log"
+          }
+          require_passed() {
+            local suite=$1 test_name
+            shift
+            for test_name in "$@"; do
+              grep -Fx "$test_name: test" "$RUNNER_TEMP/1488-$suite-list.log" || {
+                echo "::error::Missing listed test in $suite: $test_name"
+                return 1
+              }
+              grep -Fx "test $test_name ... ok" "$RUNNER_TEMP/1488-$suite.log" || {
+                echo "::error::Missing passed test in $suite: $test_name"
+                return 1
+              }
+            done
+          }
+          run_suite fixed-bin fixed_ --bin s_structure_session
+          require_passed fixed-bin \
+            v3::object_index::tests::fixed_candidate_plain_wire_trigger_corrupts_generated_then_late_exact_refuses \
+            v3::object_index::tests::fixed_candidate_plain_second_object_failure_rolls_back_and_retries_full_plan \
+            v3::object_index::tests::fixed_candidate_plain_same_entry_full_nodes_and_actual_reads_as_legacy \
+            v3::object_index::tests::fixed_candidate_plain_reidentified_metadata_slot_schema_and_late_null_refuse \
+            v3::object_index::tests::fixed_candidate_multiple_fault_first_error_matches_legacy_before_wire \
+            v3::object_index::tests::fixed_candidate_plain_fresh_generated_deep_leaf_and_independent_internal_refuse \
+            v3::prepared::tests::fixed_fields_plain_four_real_commits_match_legacy_all_rows_nodes_receipts_and_roots \
+            v3::prepared::tests::fixed_fields_plain_real_second_commit_fk_failure_rolls_back_every_persistent_row
+          if [[ "$FEATURES" == s_session,s_allocation_json_testonly ]]; then
+            require_passed fixed-bin \
+              v3::object_index::tests::fixed_candidate_owned_wire_trigger_corrupts_generated_then_late_exact_refuses \
+              v3::object_index::tests::fixed_candidate_owned_second_object_failure_rolls_back_and_retries_full_plan \
+              v3::object_index::tests::fixed_candidate_owned_same_entry_full_nodes_actual_reads_and_release \
+              v3::object_index::tests::fixed_candidate_owned_reidentified_metadata_slot_schema_and_late_null_refuse \
+              v3::object_index::tests::fixed_candidate_owned_fresh_generated_deep_leaf_and_independent_internal_refuse \
+              v3::object_index::tests::fixed_candidate_owned_retained_text_and_clone_charge_original_not_foreign_ledger \
+              v3::object_index::tests::fixed_candidate_owned_scalar_refusal_releases_all_local_owners_without_fallback \
+              v3::prepared::tests::fixed_fields_owned_four_real_commits_match_legacy_all_rows_nodes_receipts_and_roots \
+              v3::prepared::tests::fixed_fields_owned_real_second_commit_fk_failure_rolls_back_every_persistent_row
+          fi
+          run_suite fixed-path s_content::path::fixed_fields_tests --lib
+          require_passed fixed-path \
+            s_content::path::fixed_fields_tests::fixed_fields_exact_matches_existing_refs_and_rejects_before_read_above_bound \
+            s_content::path::fixed_fields_tests::fixed_metadata_missing_errors_follow_consumption_order_not_schema_scan
+          if [[ "$FEATURES" == s_session,s_allocation_json_testonly ]]; then
+            require_passed fixed-path s_content::path::fixed_fields_tests::fixed_fields_owner_full_capacity_has_zero_global_allocations_and_zero_ledger_delta
+          fi
       - name: Upload sequence lock logs (#1488)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: 1488-sequence-${{ matrix.mode }}
+          path: ${{ runner.temp }}/1488-*.log
+          if-no-files-found: error
+
+  # #1488：共享 path 遍历核的 Native 消费者独立回归，不依赖 rust-check 的整套 feature delta。
+  s-fields-native-1488:
+    name: "#1488 固定字段共享核 (Native)"
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+      FEATURES: s_session,s_capture_native_testonly
+    defaults:
+      run:
+        shell: bash
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Cache cargo registry + git only (#1488 Native)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-v1-
+      - name: Record source and Native toolchain identity (#1488)
+        run: |
+          git rev-parse HEAD 'HEAD^{tree}'
+          sha256sum src/s_content/path.rs src/bin/s_session_v3/object_index.rs src/bin/s_session_v3/prepared.rs src/bin/s_session_v3/generation.rs
+          rustc -vV
+          cargo -V
+          rustup show active-toolchain
+          echo "CARGO_TARGET_DIR=$RUNNER_TEMP/1488-native-target" >> "$GITHUB_ENV"
+          echo "features=$FEATURES target=$RUNNER_TEMP/1488-native-target"
+      - name: Fetch locked dependencies (network allowed, #1488 Native)
+        run: cargo fetch --locked
+      - name: Run Native candidate fields, union and shared path locks (#1488)
+        run: |
+          set -euo pipefail
+          run_logged() {
+            local phase=$1
+            shift
+            set +e
+            "$@" 2>&1 | tee "$RUNNER_TEMP/1488-$phase.log"
+            local statuses=("${PIPESTATUS[@]}")
+            set -e
+            echo "phase=$phase command_exit_code=${statuses[0]} tee_exit_code=${statuses[1]}"
+            printf 'phase=%s command_exit_code=%s tee_exit_code=%s\n' "$phase" "${statuses[0]}" "${statuses[1]}" >> "$RUNNER_TEMP/1488-exit-codes.log"
+            if (( statuses[0] != 0 )); then return "${statuses[0]}"; fi
+            return "${statuses[1]}"
+          }
+          run_suite() {
+            local suite=$1 filter=$2 binary
+            shift 2
+            run_logged "$suite-build" cargo test --offline --locked -j 6 --features "$FEATURES" --no-run --message-format=json "$@"
+            binary=$(python3 - "$RUNNER_TEMP/1488-$suite-build.log" <<'PY'
+          import json, os, pathlib, sys
+          artifacts = set()
+          for line in pathlib.Path(sys.argv[1]).read_text().splitlines():
+              try:
+                  item = json.loads(line)
+              except json.JSONDecodeError:
+                  continue
+              if (item.get("reason") == "compiler-artifact"
+                      and item.get("profile", {}).get("test")
+                      and item.get("executable")):
+                  artifacts.add(item["executable"])
+          if len(artifacts) != 1:
+              raise SystemExit(f"expected one test executable, got {sorted(artifacts)}")
+          binary = pathlib.Path(artifacts.pop()).resolve()
+          target = pathlib.Path(os.environ["CARGO_TARGET_DIR"]).resolve()
+          if not binary.is_relative_to(target) or not binary.is_file() or not os.access(binary, os.X_OK):
+              raise SystemExit("test executable is absent or outside this job target")
+          print(binary)
+          PY
+            )
+            sha256sum "$binary" > "$RUNNER_TEMP/1488-$suite-binary.log"
+            cat "$RUNNER_TEMP/1488-$suite-binary.log"
+            run_logged "$suite-list" "$binary" "$filter" --list --format pretty
+            run_logged "$suite" "$binary" "$filter" --format pretty --color never --show-output
+            sha256sum --check "$RUNNER_TEMP/1488-$suite-binary.log"
+          }
+          require_passed() {
+            local suite=$1 test_name
+            shift
+            for test_name in "$@"; do
+              grep -Fx "$test_name: test" "$RUNNER_TEMP/1488-$suite-list.log" || {
+                echo "::error::Missing listed test in $suite: $test_name"
+                return 1
+              }
+              grep -Fx "test $test_name ... ok" "$RUNNER_TEMP/1488-$suite.log" || {
+                echo "::error::Missing passed test in $suite: $test_name"
+                return 1
+              }
+            done
+          }
+          run_suite native-fields native_candidate_fields --bin s_structure_session
+          require_passed native-fields \
+            v3::object_index::tests::native_candidate_fields_component_exact_metadata_slot_and_late_null_gates \
+            v3::object_index::tests::native_candidate_fields_internal_record_json_edge_gate_and_real_wire_sql_failure
+          run_suite native-union native_candidate_union --bin s_structure_session
+          require_passed native-union \
+            v3::object_index::tests::native_candidate_union_second_root_errors_have_no_put_or_future_wire_repair_and_budget_refuses \
+            v3::object_index::tests::native_candidate_union_real_generations_match_plan_and_reduce_sql_reads \
+            v3::prepared::tests::native_candidate_union_four_real_commits_match_ordinary_roots_rows_and_revision
+          run_suite native-path s_content::path::fixed_fields_tests --lib
+          require_passed native-path \
+            s_content::path::fixed_fields_tests::fixed_fields_exact_matches_existing_refs_and_rejects_before_read_above_bound \
+            s_content::path::fixed_fields_tests::fixed_metadata_missing_errors_follow_consumption_order_not_schema_scan
+      - name: Upload Native fixed-field lock logs (#1488)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 1488-fields-Native
           path: ${{ runner.temp }}/1488-*.log
           if-no-files-found: error
 
