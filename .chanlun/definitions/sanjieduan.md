@@ -1,11 +1,11 @@
 # 三阶段与本金（Sanjieduan / Principal）
 
 > 正本：本文件是 三阶段与本金 的教义正本。
-> 最后裁定：[#1348](https://github.com/xy7365527-lang/NewChanlun/issues/1348)（2026-10-13）
+> 最后裁定：[#1348](https://github.com/xy7365527-lang/NewChanlun/issues/1348)（2026-10-13）；[#1406](https://github.com/xy7365527-lang/NewChanlun/issues/1406) OQ-2a 补裁（2026-10-14）
 > 受影响代码清单：本文件 §5（基线 main `465174240b`；FIN 线 `0d8a6017` 单独标注）；工作草稿副本 [`.chanlun/review-results/issue1323-grilling-20261013/1348-AFFECTED-CODE.md`](../review-results/issue1323-grilling-20261013/1348-AFFECTED-CODE.md)，票关后随归档出仓
 
 **状态**: 已裁定（#1348 第一至第三问的教义部分；数据形态、零分母与公司行动见 [ADR 0031](../../docs/adr/0031-principal-batches-phase-predicate-corporate-actions.md)）
-**最后更新**: 2026-10-13
+**最后更新**: 2026-10-15
 **原文依据**: 第 31、35、40、49 课（博文，`docs/chanlun/text/blog/`）
 
 **与既有生成态文件的关系**：[`fengkong.md`](fengkong.md)「概念3：成本归零策略」与 [`chanlun-trading-system.md`](chanlun-trading-system.md)「概念2：资金管理」描述的是同一组三阶段，二者仍为生成态操作说明。自 #1348 起，阶段如何判定、本金按什么口径计，以本文件为准；两处与本文件不一致时以本文件为准。
@@ -25,7 +25,11 @@
 
 三阶段（降成本 → 退本金 → 增股数）由该重当前的真实成本 K 与已退本金决定（§1 `031:24`、`035:32`）。费用、亏损等真实经济事件可以使 K 回到正数，此时该重重新处于「成本为0以前」，扩量资格随之失效。
 
-**与已交付单向 latch 的分工**（#1348 第三问，`[新缠论:选择]`）：`TStage`（Rust `rust/src/theta_v0/strategy/ledger.rs:94`；Lean `formal/Origin/TotalWealth.lean:140`、`:194`、`:208`）是 campaign 内的阶段**事件史**投影，只记「达标事件曾经发生」，AsKnown 不回填；**扩量资格**由唯一谓词 `growth_eligible` 按当前 (K, P, P_recovered) 计算，latch 不得作为它的输入。两者是「历史事实」与「当前准入」两个对象，不是同一判断的两档（#799 限定词①）。更正类事件（bust）引起的阶段重算按 SPEC C08.6 以 RecomputedWithRevision 独立命名。
+**与已交付单向 latch 的分工**（#1348 第三问，`[新缠论:选择]`）：`TStage`（Rust `rust/src/theta_v0/strategy/ledger.rs:94`；Lean `formal/Origin/TotalWealth.lean:140`、`:194`、`:208`）是 campaign 内的阶段**事件史**投影，只记「达标事件曾经发生」，AsKnown 不回填；**扩量资格**由唯一谓词 `growth_eligible` 按 ADR 0031 裁定三的分方向当前账本事实计算（多头为 K、P、P_recovered；空头为费后已实现利润、保证金批次与负债），latch 不得作为它的输入。两者是「历史事实」与「当前准入」两个对象，不是同一判断的两档（#799 限定词①）。更正类事件（bust）引起的阶段重算按 SPEC C08.6 以 RecomputedWithRevision 独立命名。
+
+**分方向的单向蕴含**（#1406 OQ-2a 补裁）：多头 `growth_eligible ⇒ latch = EarningShares`；空头 `growth_eligible ⇒ latch = CapitalRecovered`，空头 latch 不进入赚股第三相。依据为 ADR 0031 裁定一的空头回本判据、裁定三的分方向资格谓词与 SPEC C05.5。两条均非双向等价：回本后的亏损往返即使没有费用，也可令当前资格失效而阶段事件史保留；latch 仍不得作为资格输入。
+
+**证明与对拍义务归 #1406**：`TotalWealth.lean` 既有阶段单调性定理不等于上述资格蕴含已获证明。交付时须声明候选 Lean 模型的实际覆盖面；若只覆盖多头，空头条由 Rust 同输入同输出锁（#804）承担，不得声称空头资格关系已形式证明。
 
 ## §3 本金按来源分批，利润不是本金 `[旧缠论]`
 
@@ -63,7 +67,7 @@
 | Rust | `rust/src/economic_session/finance.rs:234-239` | FIN | 引用：`baseline.amount` 是 E 共同责任界，与本金 P 禁止互代，不改 |
 | Lean | `formal/Origin/TotalWealth.lean:97` | main | `TWState.notional_in` 登记为非本金批次名分；不改定义 |
 | Lean | `formal/Origin/TotalWealth.lean:140` | main | `advanceTo` 不改 |
-| Lean | `formal/Origin/TotalWealth.lean:194` | main | `stage_rank_monotone` 不改；新增对拍义务：无费用事件时 latch 与 growth_eligible 一致 |
+| Lean | `formal/Origin/TotalWealth.lean:194` | main | `stage_rank_monotone` 不改；#1406 OQ-2a 义务：多头 `growth_eligible ⇒ latch = EarningShares`，空头 `growth_eligible ⇒ latch = CapitalRecovered` 且无第三相；非双向等价，latch 不作资格输入；Lean 覆盖面与 Rust 同输入同输出锁见 §2 |
 | Lean | `formal/Origin/TotalWealth.lean:208` | main | EarningShares 不可回退（`earning_no_regress`）不改 |
 | Lean | `formal/Origin/LedgerReconciliation.lean:467` | main | `hAlloc` 前件不改；不从中推本金 |
 | Python | `s_session/economic_query.py:72` | main | 只透传 principal / capital_phase / unit_cost 的 typed 结构 |
@@ -73,4 +77,5 @@
 
 ## 更新日志
 
+- 2026-10-15：同步 #1406 OQ-2a（2026-10-14 补裁），资格与 latch 关系分方向写为单向蕴含，订正 §5 并明确 Lean/Rust 验证覆盖义务；无代码行为变更。
 - 2026-10-13：v1.0 新建（#1348 裁定落正本层）。
