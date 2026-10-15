@@ -377,6 +377,9 @@ impl AuditConnection {
                         clock.phase(event, "accept", -1)?;
                         clock.phase(event, "begin", 0)?;
                         clock.phase(event, "commit", 0)?;
+                        // #1488：仅测试选择已审 owner 原型；所有正式准入与实际 Accept/COMMIT 原样执行。
+                        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                        construction_tests::select_for_formal_accept(&active, context)?;
                         active.before_fixed_write(FixedOperation::Accept, Some(context))?;
                         let accepted = raw_input::accept_events(tx, &input, volume_unit)?;
                         control.accept(&view, &accepted)?;
@@ -2476,6 +2479,328 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 mod construction_tests {
     use super::*;
+
+    #[derive(Clone, Debug)]
+    struct RawObservation {
+        previous: RawAdvanceBinding,
+        current: RawAdvanceBinding,
+        previous_prefix: usize,
+        current_prefix: usize,
+        edits: Vec<RawWinnerEdit>,
+    }
+    impl RawObservation {
+        fn read(token: &BoundRawAdvance<'_>) -> Result<Self, String> {
+            token.ensure_current()?;
+            Ok(Self {
+                previous: token.previous_binding(),
+                current: token.current_binding(),
+                previous_prefix: token.previous_prefix(),
+                current_prefix: token.current_prefix(),
+                edits: token.winner_edits().to_vec(),
+            })
+        }
+    }
+    struct AcceptProbe {
+        life: u64,
+        observations: Vec<RawObservation>,
+    }
+    thread_local! {
+        static ACCEPT_PROBE: std::cell::RefCell<Option<AcceptProbe>> = const { std::cell::RefCell::new(None) };
+    }
+    struct AcceptProbeGuard;
+    impl AcceptProbeGuard {
+        fn start(owner: &AuditConnection) -> Self {
+            ACCEPT_PROBE.with(|slot| {
+                let mut slot = slot.borrow_mut();
+                assert!(slot.is_none(), "测试观察器不能嵌套");
+                *slot = Some(AcceptProbe {
+                    life: owner.life,
+                    observations: Vec::new(),
+                });
+            });
+            Self
+        }
+        fn only_observation(&self) -> RawObservation {
+            ACCEPT_PROBE.with(|slot| {
+                let slot = slot.borrow();
+                let observations = &slot.as_ref().unwrap().observations;
+                assert_eq!(observations.len(), 1, "正式Accept只签一次写前资格");
+                observations[0].clone()
+            })
+        }
+    }
+    impl Drop for AcceptProbeGuard {
+        fn drop(&mut self) {
+            ACCEPT_PROBE.with(|slot| {
+                slot.borrow_mut().take();
+            });
+        }
+    }
+    /// 只为本线程、指定owner启用；通过原有封闭入口签发，不允许测试提供raw或成功token。
+    pub(super) fn select_for_formal_accept(
+        active: &AuditTxn<'_>,
+        context: &request_audit::RequestAuditContext,
+    ) -> Result<(), String> {
+        let enabled = ACCEPT_PROBE.with(|slot| {
+            slot.borrow()
+                .as_ref()
+                .is_some_and(|probe| probe.life == active.owner.life)
+        });
+        if !enabled {
+            return Ok(());
+        }
+        let observation =
+            active.with_bound_raw_advance(context, |token| RawObservation::read(&token))?;
+        ACCEPT_PROBE.with(|slot| {
+            slot.borrow_mut()
+                .as_mut()
+                .unwrap()
+                .observations
+                .push(observation);
+        });
+        Ok(())
+    }
+
+    fn formal_input(revision: bool) -> Value {
+        use crate::tests::located_ohlc_input;
+        let mut raw = if revision {
+            located_ohlc_input(&[("owner-raw", 0, 6, 13, 3, 7)])
+        } else {
+            located_ohlc_input(&[("owner-next", 10, 8, 16, 6, 12)])
+        };
+        if revision {
+            raw["events"][0]["revision"] = json!("2");
+        }
+        let payload = json!({"op":"ingest","target_session_id":"s-session-testonly-001",
+            "target_session_generation":"1","writer_epoch":"1","clock_event_id":"input-2","raw_input":raw});
+        json!({"schema_revision":"s-session/3","session_id":"s-session-testonly-001",
+            "session_generation":"1","source_namespace":"testonly.ohlc","source_epoch":"1",
+            "message_id":"message-2","producer_id":"real-content-test","producer_epoch":"1",
+            "payload_hash":sha256_hex(canonical_json(&payload).as_bytes()),"causal_refs":[],"payload":payload})
+    }
+
+    fn formal_accept_case(revision: bool, reject_consumer: bool) {
+        let f = fixture();
+        let owner = AuditConnection::open(&f.db_path()).unwrap();
+        let probe = AcceptProbeGuard::start(&owner);
+        let mut c = context();
+        let clock = v2::stored_clock(&f.conn).unwrap();
+        let (admission, ended) = owner
+            .admit(
+                formal_input(revision),
+                "1",
+                &clock,
+                tb02a::PROFILE,
+                Some("1"),
+                &s_allocation::Mode::CapturedNative,
+                &mut c,
+            )
+            .unwrap();
+        assert!(
+            matches!(admission, Admission::Advance { accepted: true, .. }),
+            "必须实际接纳，不能用replay/已发布回执冒充新增raw"
+        );
+        assert!(owner.connection.is_autocommit(), "admit已完成真实COMMIT");
+        // 在另一连接读到新行，不能把本事务内可见当成已提交。
+        let rows: Vec<(String, i64, i64, String, Option<i64>)> = f.conn
+            .prepare("SELECT identity_key,revision,seq,source_coord,supersedes_revision FROM raw_events ORDER BY seq").unwrap()
+            .query_map([], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).unwrap()
+            .collect::<rusqlite::Result<_>>().unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!((rows[0].1, rows[0].2, rows[0].3.as_str()), (1, 0, "0"));
+        assert_eq!(rows[1].2, 1, "真实新raw尾ordinal");
+        if revision {
+            assert_eq!(rows[1].0, rows[0].0, "同一业务身份");
+            assert_eq!(
+                (rows[1].1, rows[1].3.as_str(), rows[1].4),
+                (2, "0", Some(1))
+            );
+        } else {
+            assert_ne!(rows[1].0, rows[0].0);
+            assert_eq!((rows[1].1, rows[1].3.as_str(), rows[1].4), (1, "10", None));
+        }
+        let status: String = f
+            .conn
+            .query_row(
+                "SELECT status FROM s_input_messages WHERE message_id='message-2'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(status, "AcceptedPending", "正式消息控制账一同提交");
+        let ohlc_rows: i64 = f
+            .conn
+            .query_row("SELECT COUNT(*) FROM raw_ohlc", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(ohlc_rows, 2, "正式OHLC原件一同提交");
+        let before_accept = probe.only_observation();
+        assert!(before_accept.previous.is_initial());
+        assert_eq!(
+            (before_accept.previous_prefix, before_accept.current_prefix),
+            (0, 1)
+        );
+        assert_eq!(before_accept.edits.len(), 1);
+        assert!(
+            owner.construction.borrow().is_some(),
+            "真实COMMIT后才持有旧前缀facts"
+        );
+        owner.continue_with(ended).unwrap();
+        let next = owner.begin(TransactionBehavior::Immediate).unwrap();
+        assert!(
+            next.bind_existing(Some(&c)).unwrap(),
+            "必须消费Accept后真实effects产生的CompleteCandidate，禁止重新手造原件"
+        );
+        let expected = RawWinnerEdit {
+            old: revision.then_some(RawWinner {
+                coord: 0,
+                ordinal: 0,
+            }),
+            new: Some(RawWinner {
+                coord: if revision { 0 } else { 10 },
+                ordinal: 1,
+            }),
+        };
+        let mut observed = None;
+        let result = next.with_bound_raw_advance(&c, |token| {
+            assert_eq!(token.previous_binding(), before_accept.current);
+            assert_ne!(token.current_binding(), token.previous_binding());
+            assert_eq!(
+                token.current_binding().domain(),
+                before_accept.current.domain()
+            );
+            assert!(!token.previous_binding().is_initial());
+            assert_eq!((token.previous_prefix(), token.current_prefix()), (1, 2));
+            assert_eq!(token.append_ordinals(), 1..2);
+            assert_eq!(
+                token.winner_edits(),
+                &[expected],
+                "下一事务必须得到非空真实赢家变化"
+            );
+            let raw = token.raw();
+            assert_eq!(
+                super::super::business_json::field(raw.get(1).unwrap(), "seq").as_i64(),
+                Some(1)
+            );
+            observed = Some(RawObservation::read(&token)?);
+            if reject_consumer {
+                Err("TestOnlyNonemptyConsumerRejected".into())
+            } else {
+                Ok(())
+            }
+        });
+        let observed = observed.expect("必须进入真实token消费者");
+        assert_eq!(observed.edits, vec![expected]);
+        if reject_consumer {
+            assert_eq!(result.unwrap_err(), "TestOnlyNonemptyConsumerRejected");
+            assert!(owner.construction_lease.stale.get());
+            assert!(
+                next.construction.borrow().is_none(),
+                "消费失败丢弃pending facts"
+            );
+            let called = Cell::new(false);
+            assert!(next
+                .with_bound_raw_advance(&c, |_| {
+                    called.set(true);
+                    Ok(())
+                })
+                .is_err());
+            assert!(!called.get(), "旧owner失效后不能重签相同非空delta");
+        } else {
+            result.unwrap();
+            assert!(!owner.construction_lease.stale.get());
+            assert!(next.construction.borrow().is_some());
+        }
+        drop(next);
+        assert!(owner.connection.is_autocommit());
+        assert!(
+            owner.construction_lease.stale.get(),
+            "未提交消费状态回滚后撤销"
+        );
+        assert!(owner.construction.borrow().is_none());
+        let persisted: i64 = f
+            .conn
+            .query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(persisted, 2, "消费者失败/回滚不能抹掉上次真实Accept提交");
+    }
+
+    #[test]
+    fn owner_raw_formal_accept_probe_is_scoped_to_owner_and_thread() {
+        let f = fixture();
+        let owner = AuditConnection::open(&f.db_path()).unwrap();
+        let foreign = AuditConnection::open(&f.db_path()).unwrap();
+        let probe = AcceptProbeGuard::start(&owner);
+        let c = context();
+        let foreign_tx = foreign.begin(TransactionBehavior::Deferred).unwrap();
+        // 无CompleteCandidate；若错误命中本线程另一owner，将进入issuer并立即报错。
+        select_for_formal_accept(&foreign_tx, &c).unwrap();
+        assert!(foreign_tx.construction.borrow().is_none());
+        assert!(!foreign.construction_lease.stale.get());
+        foreign_tx.read_end().unwrap();
+
+        let db = f.db_path();
+        let other = std::thread::spawn(move || {
+            ACCEPT_PROBE.with(|slot| assert!(slot.borrow().is_none(), "父线程注册不能泄漏"));
+            let other = AuditConnection::open(&db).unwrap();
+            let mut c = context();
+            let active = other.begin(TransactionBehavior::Deferred).unwrap();
+            select_for_formal_accept(&active, &c).unwrap();
+            assert!(
+                active.construction.borrow().is_none(),
+                "未启用的线程不能签发"
+            );
+            let own_probe = AcceptProbeGuard::start(&other);
+            active
+                .audit_admission(
+                    &json!({"payload":{"op":"ready"}}),
+                    &s_allocation::Mode::CapturedNative,
+                    &mut c,
+                )
+                .unwrap();
+            select_for_formal_accept(&active, &c).unwrap();
+            own_probe.only_observation()
+        })
+        .join()
+        .unwrap();
+        ACCEPT_PROBE.with(|slot| {
+            let slot = slot.borrow();
+            let parent = slot.as_ref().unwrap();
+            assert_eq!(parent.life, owner.life);
+            assert!(
+                parent.observations.is_empty(),
+                "并行线程不得写入父线程观察结果"
+            );
+        });
+        let mut c = context();
+        let active = owner.begin(TransactionBehavior::Deferred).unwrap();
+        active
+            .audit_admission(
+                &json!({"payload":{"op":"ready"}}),
+                &s_allocation::Mode::CapturedNative,
+                &mut c,
+            )
+            .unwrap();
+        select_for_formal_accept(&active, &c).unwrap();
+        let parent = probe.only_observation();
+        assert_ne!(parent.current.domain(), other.current.domain());
+        assert!(
+            !owner.construction_lease.stale.get(),
+            "另一线程回滚不得撤销本owner"
+        );
+    }
+
+    #[test]
+    fn owner_raw_formal_accept_append_commits_before_nonempty_delta() {
+        formal_accept_case(false, false);
+    }
+    #[test]
+    fn owner_raw_formal_accept_revision_commits_before_nonempty_delta() {
+        formal_accept_case(true, false);
+    }
+    #[test]
+    fn owner_raw_nonempty_consumer_failure_stales_after_formal_accept_commit() {
+        formal_accept_case(true, true);
+    }
 
     fn context() -> request_audit::RequestAuditContext {
         let mut context = request_audit::RequestAuditContext::with_source_keeper(
