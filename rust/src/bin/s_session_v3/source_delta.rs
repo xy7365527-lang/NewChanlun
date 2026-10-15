@@ -27,6 +27,8 @@ struct Work {
     witnesses: usize,
     observations: usize,
     // 显式计入残余全扫；不把局部字段读取下降冒充完整增量。
+    object_occurrences: usize,
+    witness_occurrences: usize,
     pending_objects: usize,
     partition_members: usize,
 }
@@ -297,7 +299,38 @@ impl Contributions {
         .map_err(err)?;
         let producer = Cc004Producer::new(tb02a::PROFILE, self.rule.as_str());
         let mut checked = bj::new_map(allocation.as_ref());
-        for (_, record) in recheck {
+        // #1488 B2：唯一性只看当前 occurrence 之前的成员。旧贡献可复用其局部
+        // 验证结果，但不能预填后方的 id/group，把先出现的新项提前判成重复。
+        // 此处仍逐项经过轻量贡献；在完整有序集合 seal 接入前不声称消除全扫。
+        self.ids = bj::new_map(allocation.as_ref());
+        let mut ordered_groups = bj::new_map(allocation.as_ref());
+        let mut recheck = recheck.into_iter().peekable();
+        for (ordinal, key) in cut.objects.order.iter().enumerate() {
+            self.work.object_occurrences += 1;
+            if recheck.peek().map(|(at, _)| *at) != Some(ordinal) {
+                let old = self
+                    .objects
+                    .get(key)
+                    .ok_or_else(|| err("当前根缺来源对象贡献"))?;
+                if put(s, &mut self.ids, s.native_text(old.value.id.as_str())?, ())?.is_some() {
+                    return Err(err("对象身份重复或修订不符"));
+                }
+                if let Some(index) = old.group {
+                    if ordered_groups.contains_key(&index) {
+                        return Err(err("同cut组合并序号重复"));
+                    }
+                    let group = self
+                        .groups
+                        .remove(&index)
+                        .ok_or_else(|| err("当前根缺组贡献"))?;
+                    put(s, &mut ordered_groups, index, group)?;
+                }
+                continue;
+            }
+            let (_, record) = recheck.next().expect("当前 occurrence 已匹配");
+            if digest(&record)? != *key {
+                return Err(err("来源对象重审位置不匹配"));
+            }
             let key = digest(&record)?;
             let value = audit_object_record(
                 s,
@@ -305,7 +338,7 @@ impl Contributions {
                 &self.raw,
                 &producer,
                 &mut self.ids,
-                &mut self.groups,
+                &mut ordered_groups,
                 &mut checked,
                 None,
                 cut.raw_prefix,
@@ -344,6 +377,10 @@ impl Contributions {
                 return Err(err("对象身份重复或修订不符"));
             }
         }
+        if recheck.next().is_some() || !self.groups.is_empty() {
+            return Err(err("来源对象重审/组贡献未完整消费"));
+        }
+        self.groups = ordered_groups;
         // 尚待独立 prefix/request 证据接线的全体性门保持原样；绝不只审变化步骤。
         let pending = source_pending::audit(
             s,
@@ -460,7 +497,31 @@ impl Contributions {
             push(s, &mut recheck, (ordinal, record))?;
         }
         recheck.sort_unstable_by_key(|(ordinal, _)| *ordinal);
-        for (_, record) in recheck {
+        self.seen = bj::new_map(allocation.as_ref());
+        let mut recheck = recheck.into_iter().peekable();
+        for (ordinal, key) in cut.witnesses.order.iter().enumerate() {
+            self.work.witness_occurrences += 1;
+            if recheck.peek().map(|(at, _)| *at) != Some(ordinal) {
+                let old = self
+                    .witnesses
+                    .get(key)
+                    .ok_or_else(|| err("当前根缺见证贡献"))?;
+                if put(
+                    s,
+                    &mut self.seen,
+                    (s.native_text(old.object_id.as_str())?, old.slot),
+                    (),
+                )?
+                .is_some()
+                {
+                    return Err(err("见证槽位重复/越界"));
+                }
+                continue;
+            }
+            let (_, record) = recheck.next().expect("当前 occurrence 已匹配");
+            if digest(&record)? != *key {
+                return Err(err("见证重审位置不匹配"));
+            }
             let key = digest(&record)?;
             let (object_id, slot) = audit_witness_record(
                 s,
@@ -499,6 +560,9 @@ impl Contributions {
                     slot,
                 },
             )?;
+        }
+        if recheck.next().is_some() {
+            return Err(err("见证重审未完整消费"));
         }
         // 每条seen只指向本cut形态、slot属于0..3、(id,slot)唯一，因此总数相等蕴含每个形态恰三槽。
         if self.seen.len() != self.shapes.len() * 3 {
@@ -565,7 +629,11 @@ impl Members {
         for (ordinal, record) in elements(s, &array)?.into_iter().enumerate() {
             let key = digest(&record)?;
             push(s, &mut order, key)?;
-            put(s, &mut positions, key, ordinal)?;
+            // retained occurrence 是第一个；后续同摘要成员属于 added。
+            // 若记录又受原账/形态失效影响，重审也必须落在第一次出现处。
+            if !positions.contains_key(&key) {
+                put(s, &mut positions, key, ordinal)?;
+            }
             match remaining.get_mut(&key) {
                 Some(count) if *count > 0 => *count -= 1,
                 _ => push(s, &mut added, (ordinal, record))?,
@@ -673,15 +741,29 @@ impl FixtureCut {
 
 #[cfg(test)]
 mod tests {
+    use super::super::super::object_records::TYPED_SEALED_FIELDS;
     use super::*;
+
+    const WITNESS_FIELDS: &[&str] = &[
+        "witness_id",
+        "object_id",
+        "slot",
+        "merged_source_index",
+        "merged_high",
+        "merged_low",
+        "merged_open",
+        "merged_close",
+        "raw_bars",
+    ];
     fn full(
         s: &mut sc::MemoryNodes,
         root: &ContentRef,
         raw: &[Value],
         rule: &str,
     ) -> Result<Counts, String> {
+        let mut reader = super::super::super::history::HashReader::metered(s, None, None, None);
         frozen_oracle::audit_generated_in_store(
-            &mut super::super::super::audit_store::StoreView::for_audit(s),
+            &mut super::super::super::audit_store::StoreView::for_audit(&mut reader),
             root.into(),
             raw.into(),
             tb02a::PROFILE,
@@ -749,6 +831,342 @@ mod tests {
             .iter()
             .map(|r| digest(r).unwrap())
             .collect()
+    }
+    fn first_group(s: &mut sc::MemoryNodes, root: &ContentRef) -> RefValue {
+        let array = field(s, root, "objects").unwrap();
+        elements(s, &array)
+            .unwrap()
+            .into_iter()
+            .find(|record| text(s, record, "kind").unwrap() == CC005_GROUP_KIND)
+            .unwrap()
+    }
+    fn changed_group_payload(
+        s: &mut sc::MemoryNodes,
+        group: &RefValue,
+        rule: &str,
+        reidentify: bool,
+    ) -> ContentRef {
+        let payload = field(s, group, "payload_json").unwrap();
+        let payload =
+            sc::path::lookup_path_refview(s, payload.view(), &[PathStep::JsonText]).unwrap();
+        let mut bytes = Vec::new();
+        sc::render_canonical(s, &payload, &mut bytes).unwrap();
+        let mut value: Value = newchan_rust::session_protocol::strict_json(&bytes).unwrap();
+        value["high"] = json!(if value["high"] == json!("999999") {
+            "999998"
+        } else {
+            "999999"
+        });
+        let payload = sc::write_value(s, &cv(&value).unwrap())
+            .unwrap()
+            .content_ref();
+        let body = digest(&payload).unwrap();
+        let edge = sc::frame(sc::tag::JSON_TEXT, &body);
+        s.put(edge, sc::tag::JSON_TEXT, &body).unwrap();
+        let changed = super::super::tests::replace_field(
+            s,
+            group,
+            &TYPED_SEALED_FIELDS,
+            "payload_json",
+            V::Edge(edge),
+        );
+        if !reidentify {
+            return changed;
+        }
+        let refs = field(s, group, "input_refs_json").unwrap();
+        let refs = s.lookup_ref(refs.view(), &[PathStep::JsonText]).unwrap();
+        let key = text(s, group, "fact_key").unwrap();
+        let id = Cc004Producer::new(tb02a::PROFILE, rule)
+            .typed_object_id(
+                CC005_GROUP_KIND,
+                &key,
+                &built(&payload).unwrap(),
+                &built(refs.view()).unwrap(),
+            )
+            .unwrap();
+        super::super::tests::replace_field(
+            s,
+            &changed,
+            &TYPED_SEALED_FIELDS,
+            "object_id",
+            V::String(id),
+        )
+    }
+    fn bad_unique_id(s: &mut sc::MemoryNodes, group: &RefValue) -> ContentRef {
+        let id = format!(
+            "{}-b2-invalid-identity",
+            text(s, group, "object_id").unwrap()
+        );
+        super::super::tests::replace_field(
+            s,
+            group,
+            &TYPED_SEALED_FIELDS,
+            "object_id",
+            V::String(id),
+        )
+    }
+    fn assert_first_error(
+        s: &mut sc::MemoryNodes,
+        original: &ContentRef,
+        next: &ContentRef,
+        raw: &[Value],
+        rule: &str,
+        reason: &str,
+    ) {
+        sc::verify(s, next).unwrap();
+        let expected = full(s, next, raw, rule).unwrap_err();
+        assert!(expected.contains(reason), "{expected}");
+        let current = start(s, original, raw, rule);
+        let cut = FixtureCut::bind(s, next.into(), raw.into(), &current).unwrap();
+        assert_eq!(current.advance(s, cut).err().unwrap(), expected);
+    }
+    #[test]
+    fn first_occurrence_payload_identity_precedes_later_duplicate_id() {
+        let (mut s, root, raw, rule) = super::super::tests::fixture();
+        let group = first_group(&mut s, &root);
+        let changed = changed_group_payload(&mut s, &group, &rule, false);
+        let original = members(&mut s, &root, "objects");
+        for at_front in [true, false] {
+            let mut items = original.clone();
+            let at = if at_front { 0 } else { items.len() };
+            items.insert(at, digest(&changed).unwrap());
+            let next = collection(&mut s, &root, "objects", items);
+            assert_first_error(
+                &mut s,
+                &root,
+                &next,
+                &raw,
+                &rule,
+                if at_front {
+                    "typed obj3身份与来源/载荷原件不符"
+                } else {
+                    "对象身份重复或修订不符"
+                },
+            );
+        }
+    }
+    #[test]
+    fn first_occurrence_group_index_conflict_does_not_mask_intervening_identity_error() {
+        let (mut s, root, raw, rule) = super::super::tests::fixture();
+        let group = first_group(&mut s, &root);
+        let changed = changed_group_payload(&mut s, &group, &rule, true);
+        let bad = bad_unique_id(&mut s, &group);
+        let original = members(&mut s, &root, "objects");
+        for intervening_bad in [true, false] {
+            let mut items = vec![digest(&changed).unwrap()];
+            if intervening_bad {
+                items.push(digest(&bad).unwrap());
+            }
+            items.extend(original.iter().copied());
+            let next = collection(&mut s, &root, "objects", items);
+            assert_first_error(
+                &mut s,
+                &root,
+                &next,
+                &raw,
+                &rule,
+                if intervening_bad {
+                    "typed obj3身份与来源/载荷原件不符"
+                } else {
+                    "同cut组合并序号重复"
+                },
+            );
+        }
+    }
+    #[test]
+    fn first_occurrence_witness_payload_precedes_later_duplicate_slot() {
+        let (mut s, root, raw, rule) = super::super::tests::fixture();
+        let array = field(&mut s, &root, "witnesses").unwrap();
+        let first = elements(&mut s, &array)
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
+        let current = text(&mut s, &first, "merged_high").unwrap();
+        let changed = super::super::tests::replace_field(
+            &mut s,
+            &first,
+            WITNESS_FIELDS,
+            "merged_high",
+            V::String(
+                if current == "999999" {
+                    "999998"
+                } else {
+                    "999999"
+                }
+                .into(),
+            ),
+        );
+        let original = members(&mut s, &root, "witnesses");
+        for at_front in [true, false] {
+            let mut items = original.clone();
+            let at = if at_front { 0 } else { items.len() };
+            items.insert(at, digest(&changed).unwrap());
+            let next = collection(&mut s, &root, "witnesses", items);
+            assert_first_error(
+                &mut s,
+                &root,
+                &next,
+                &raw,
+                &rule,
+                if at_front {
+                    "见证合并值不是同cut组事实"
+                } else {
+                    "见证槽位重复/越界"
+                },
+            );
+        }
+    }
+    #[test]
+    fn dirty_duplicate_object_rechecks_first_occurrence_before_later_fault() {
+        let (mut s, root, mut raw, rule) = super::super::tests::fixture();
+        let state = start(&mut s, &root, &raw, &rule);
+        let group = first_group(&mut s, &root);
+        let key = digest(&group).unwrap();
+        let coord = state.objects.get(&key).unwrap().value.sources[0];
+        let bad = bad_unique_id(&mut s, &group);
+        let bad = super::super::tests::replace_field(
+            &mut s,
+            &bad,
+            &TYPED_SEALED_FIELDS,
+            "object_revision",
+            V::Number(sc::NumberToken::parse("2").unwrap()),
+        );
+        let mut items = vec![key, digest(&bad).unwrap()];
+        items.extend(members(&mut s, &root, "objects"));
+        let next = collection(&mut s, &root, "objects", items);
+        let old = raw
+            .iter()
+            .find(|event| {
+                event["source_coord"]
+                    .as_str()
+                    .unwrap()
+                    .parse::<i64>()
+                    .unwrap()
+                    == coord
+            })
+            .unwrap();
+        let mut revision = old.clone();
+        revision["revision"] = json!(old["revision"].as_i64().unwrap() + 1);
+        revision["seq"] = json!(raw.len());
+        revision["event_id"] = json!("b2-first-occurrence-source-revision");
+        raw.push(revision);
+        sc::verify(&mut s, &next).unwrap();
+        let expected = full(&mut s, &next, &raw, &rule).unwrap_err();
+        assert!(
+            expected.contains("源引用不是本cut的真实完整八字段原件"),
+            "{expected}"
+        );
+        let cut = FixtureCut::bind(&mut s, (&next).into(), (&raw).into(), &state).unwrap();
+        assert_eq!(cut.objects.positions.get(&key), Some(&0));
+        assert_eq!(state.advance(&mut s, cut).err().unwrap(), expected);
+    }
+    #[test]
+    fn dirty_duplicate_witness_rechecks_first_occurrence_before_later_fault() {
+        let (mut s, root, mut raw, rule) = super::super::tests::fixture();
+        let state = start(&mut s, &root, &raw, &rule);
+        let array = field(&mut s, &root, "witnesses").unwrap();
+        let first = elements(&mut s, &array)
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
+        let key = digest(&first).unwrap();
+        let bars = field(&mut s, &first, "raw_bars").unwrap();
+        let bar = elements(&mut s, &bars).unwrap().into_iter().next().unwrap();
+        let coord = text(&mut s, &bar, "source_coord").unwrap();
+        let bad = super::super::tests::replace_field(
+            &mut s,
+            &first,
+            WITNESS_FIELDS,
+            "slot",
+            V::Number(sc::NumberToken::parse("3").unwrap()),
+        );
+        let mut items = vec![key, digest(&bad).unwrap()];
+        items.extend(members(&mut s, &root, "witnesses"));
+        let next = collection(&mut s, &root, "witnesses", items);
+        let event = raw
+            .iter_mut()
+            .find(|event| event["source_coord"].as_str() == Some(coord.as_str()))
+            .unwrap();
+        event["raw_text"] = json!(format!(
+            "{} b2-original-bytes-changed",
+            event["raw_text"].as_str().unwrap()
+        ));
+        sc::verify(&mut s, &next).unwrap();
+        let expected = full(&mut s, &next, &raw, &rule).unwrap_err();
+        assert!(
+            expected.contains("见证raw_bars不是同cut真实原始成员"),
+            "{expected}"
+        );
+        let cut = FixtureCut::bind(&mut s, (&next).into(), (&raw).into(), &state).unwrap();
+        assert_eq!(cut.witnesses.positions.get(&key), Some(&0));
+        assert_eq!(state.advance(&mut s, cut).err().unwrap(), expected);
+    }
+    #[test]
+    fn legal_object_and_witness_reorder_reuses_contributions_across_cuts() {
+        let (mut s, root, raw, rule) = super::super::tests::fixture();
+        let mut state = start(&mut s, &root, &raw, &rule);
+        let mut objects = members(&mut s, &root, "objects");
+        let mut witnesses = members(&mut s, &root, "witnesses");
+        assert!(!objects.is_empty() && !witnesses.is_empty());
+        objects.reverse();
+        witnesses.rotate_left(1);
+        let next = collection(&mut s, &root, "objects", objects);
+        let next = collection(&mut s, &next, "witnesses", witnesses);
+        for next in [&next, &root] {
+            let expected = full(&mut s, next, &raw, &rule).unwrap();
+            let cut = FixtureCut::bind(&mut s, next.into(), (&raw).into(), &state).unwrap();
+            let pending = state.advance(&mut s, cut).unwrap();
+            assert_eq!(pending.counts(), expected);
+            assert_eq!(
+                (
+                    pending.0.work.objects,
+                    pending.0.work.shapes,
+                    pending.0.work.witnesses
+                ),
+                (0, 0, 0)
+            );
+            assert_eq!(pending.0.work.object_occurrences, expected.objects);
+            assert_eq!(
+                pending.0.work.witness_occurrences,
+                pending.0.witnesses.len()
+            );
+            state = pending.next_fixture();
+        }
+    }
+    #[test]
+    fn legal_group_metadata_replacement_preserves_prefix_groups_and_next_cut() {
+        let (mut s, root, raw, rule) = super::super::tests::fixture();
+        let mut state = start(&mut s, &root, &raw, &rule);
+        let group = first_group(&mut s, &root);
+        let key = digest(&group).unwrap();
+        let generation = number(&mut s, &group, "published_generation").unwrap();
+        let changed = super::super::tests::replace_field(
+            &mut s,
+            &group,
+            &TYPED_SEALED_FIELDS,
+            "published_generation",
+            V::Number(sc::NumberToken::parse(&(generation + 1).to_string()).unwrap()),
+        );
+        let mut objects = members(&mut s, &root, "objects");
+        let at = objects.iter().position(|digest| *digest == key).unwrap();
+        objects[at] = digest(&changed).unwrap();
+        let next = collection(&mut s, &root, "objects", objects);
+        // 只证明来源审计接受非身份元数据变化，不授予全系统发布元数据资格。
+        let expected = full(&mut s, &next, &raw, &rule).unwrap();
+        for changed_cut in [true, false] {
+            let cut = FixtureCut::bind(&mut s, (&next).into(), (&raw).into(), &state).unwrap();
+            let pending = state.advance(&mut s, cut).unwrap();
+            assert_eq!(pending.counts(), expected);
+            assert_eq!(pending.0.work.objects, usize::from(changed_cut));
+            if changed_cut {
+                assert!(pending.0.work.shapes > 0 && pending.0.work.witnesses > 0);
+            } else {
+                assert_eq!((pending.0.work.shapes, pending.0.work.witnesses), (0, 0));
+            }
+            state = pending.next_fixture();
+        }
     }
     #[test]
     fn four_cuts_add_replace_remove_observations_keep_multiset_counts() {

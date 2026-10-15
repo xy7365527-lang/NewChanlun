@@ -3554,8 +3554,9 @@ mod tests {
     ) {
         sc::verify(s, state).unwrap();
         let none = audit_generated(s, state, raw, tb02a::PROFILE, rule).unwrap_err();
+        let mut original_reader = super::super::history::HashReader::metered(s, None, None, None);
         let original = frozen_oracle::audit_generated_in_store(
-            &mut super::super::audit_store::StoreView::for_audit(s),
+            &mut super::super::audit_store::StoreView::for_audit(&mut original_reader),
             state.into(),
             raw.into(),
             tb02a::PROFILE,
@@ -3568,6 +3569,7 @@ mod tests {
             None,
         )
         .unwrap_err();
+        drop(original_reader);
         assert_eq!(none, original, "#1488 旧独立 oracle 与局部核首错一致");
         let meter = Meter::default();
         let mut reader = super::super::history::HashReader::metered(s, None, None, Some(&meter));
