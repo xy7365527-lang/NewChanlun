@@ -141,8 +141,22 @@ fn pragma_i64(c: &Connection, name: &str) -> Result<i64, CodecError> {
 /// after a failed stage, including a killed process resumed by recover.
 /// This intentionally narrows the named 16 MiB HFS trial's usable DB pages.
 fn cleanup_room(c: &Connection, db: &Path, include_next_write: bool) -> Result<(), CodecError> {
-    let pages = u128::from(u64::try_from(pragma_i64(c, "max_page_count")?).map_err(io)?);
-    let size = u128::from(u64::try_from(pragma_i64(c, "page_size")?).map_err(io)?);
+    cleanup_room_metered(c, db, include_next_write, &mut ReadBudget::new(None, None))
+}
+fn cleanup_room_metered(
+    c: &Connection,
+    db: &Path,
+    include_next_write: bool,
+    budget: &mut ReadBudget<'_>,
+) -> Result<(), CodecError> {
+    let pages: i64 = budget
+        .one(c, "PRAGMA max_page_count", [], |r| r.get(0))
+        .map_err(io)?;
+    let size: i64 = budget
+        .one(c, "PRAGMA page_size", [], |r| r.get(0))
+        .map_err(io)?;
+    let pages = u128::from(u64::try_from(pages).map_err(io)?);
+    let size = u128::from(u64::try_from(size).map_err(io)?);
     let one = pages * (size + 24) + 65536;
     let needed = if include_next_write { 4 * one } else { 2 * one };
     #[cfg(target_os = "macos")]
@@ -192,8 +206,11 @@ fn format_guard_metered(c: &Connection, budget: &mut ReadBudget<'_>) -> Result<(
     Ok(())
 }
 fn checkpoint(c: &Connection) -> Result<(), CodecError> {
-    let (busy, _, _): (i64, i64, i64) = c
-        .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| {
+    checkpoint_metered(c, &mut ReadBudget::new(None, None))
+}
+fn checkpoint_metered(c: &Connection, budget: &mut ReadBudget<'_>) -> Result<(), CodecError> {
+    let (busy, _, _): (i64, i64, i64) = budget
+        .one(c, "PRAGMA wal_checkpoint(TRUNCATE)", [], |r| {
             Ok((r.get(0)?, r.get(1)?, r.get(2)?))
         })
         .map_err(io)?;
@@ -220,18 +237,43 @@ fn charged_checkpoint(
     ceiling: u64,
     staged: bool,
 ) -> Result<(), CodecError> {
+    charged_checkpoint_with_budget(
+        c,
+        db,
+        &mut ReadBudget::new(Some(job), None),
+        ceiling,
+        staged,
+    )
+}
+fn charged_checkpoint_with_budget(
+    c: &Connection,
+    db: &Path,
+    budget: &mut ReadBudget<'_>,
+    ceiling: u64,
+    staged: bool,
+) -> Result<(), CodecError> {
+    budget.before().map_err(io)?;
     let before = allocated(db)?;
     let worst = ceiling
         .checked_sub(before)
         .ok_or_else(|| error("allocation above checkpoint ceiling"))?;
+    let job = budget
+        .job
+        .as_deref_mut()
+        .ok_or_else(|| error("checkpoint Job missing"))?;
     let grant = if staged {
         job.reserve_staged(worst)?
     } else {
         job.reserve_store(worst)?
     };
-    let result = checkpoint(c);
+    let result = checkpoint_metered(c, budget);
     let after = allocated(db)?;
-    job.reconcile(&grant, after.saturating_sub(before))?;
+    // checkpoint may already allocate before read accounting reports expiry/limit.
+    budget
+        .job
+        .as_deref_mut()
+        .ok_or_else(|| error("checkpoint Job missing"))?
+        .reconcile(&grant, after.saturating_sub(before))?;
     result?;
     if after > ceiling {
         return Err(error("checkpoint exceeded fixed carrier capacity"));
@@ -401,13 +443,22 @@ impl NodeSource for Stage<'_> {
 }
 /// #1394 第三问选项 A：一块里尚未在本地（公开或暂存）的节点，按摘要升序、块内去重。
 /// 先逐个重算 F(tag, body)；同根不同字节（块内或与本地）一律拒绝，不写任何行。
+#[cfg(test)]
 fn batch_missing<'n>(
     c: &Connection,
     nodes: &'n [(NodeDigest, u8, Vec<u8>)],
 ) -> Result<Vec<&'n (NodeDigest, u8, Vec<u8>)>, CodecError> {
+    batch_missing_metered(c, nodes, &mut ReadBudget::new(None, None))
+}
+fn batch_missing_metered<'n>(
+    c: &Connection,
+    nodes: &'n [(NodeDigest, u8, Vec<u8>)],
+    budget: &mut ReadBudget<'_>,
+) -> Result<Vec<&'n (NodeDigest, u8, Vec<u8>)>, CodecError> {
     let mut chosen: std::collections::BTreeMap<NodeDigest, &'n (NodeDigest, u8, Vec<u8>)> =
         std::collections::BTreeMap::new();
     for node in nodes {
+        budget.before().map_err(io)?;
         let (digest, tag, body) = node;
         if s_content::frame(*tag, body) != *digest {
             return Err(error("node digest mismatch"));
@@ -418,7 +469,7 @@ fn batch_missing<'n>(
             }
             continue;
         }
-        match read_any(c, digest)? {
+        match read_any_metered(c, digest, budget)? {
             NodeRead::Found {
                 tag: old_tag,
                 body: old_body,
@@ -435,16 +486,27 @@ fn batch_missing<'n>(
     Ok(chosen.into_values().collect())
 }
 /// 一块 = 一个 SQLite 事务：调用方持有事务，失败即整块回滚（drop 未提交事务）。返回写入的摘要。
+#[cfg(test)]
 fn insert_staging_batch(
     tx: &Transaction<'_>,
     token: &str,
     nodes: &[&(NodeDigest, u8, Vec<u8>)],
 ) -> Result<Vec<NodeDigest>, CodecError> {
+    insert_staging_batch_metered(tx, token, nodes, &mut ReadBudget::new(None, None))
+}
+fn insert_staging_batch_metered(
+    tx: &Transaction<'_>,
+    token: &str,
+    nodes: &[&(NodeDigest, u8, Vec<u8>)],
+    budget: &mut ReadBudget<'_>,
+) -> Result<Vec<NodeDigest>, CodecError> {
+    budget.before().map_err(io)?;
     let mut insert = tx
         .prepare_cached("INSERT INTO content_staging(digest,tag,body,stage)VALUES(?1,?2,?3,?4)")
         .map_err(io)?;
     let mut inserted = Vec::with_capacity(nodes.len());
     for (digest, tag, body) in nodes.iter().copied() {
+        budget.before().map_err(io)?;
         insert
             .execute(params![&digest[..], i64::from(*tag), body, token])
             .map_err(io)?;
@@ -468,36 +530,44 @@ fn delete_staged_rows(
     }
     Ok(removed)
 }
-impl FinancialStage for Stage<'_> {
+impl Stage<'_> {
     /// 与 `put_budgeted` 同一组物理判据（cleanup_room、charged_checkpoint、整余量预留、写后对账、
     /// TRUNCATE checkpoint、载体上限），只把逐节点的三次持久动作合成每块一次：一次预留、一个事务、
     /// 一次 checkpoint。块内全部已在本地则不预留、不写。
     /// r2（独审 N1）：块事务一提交，本块实际插入的摘要立即追加到 `inserted`，然后才做 checkpoint、
     /// 对账、WAL 与载体上限这些可能失败的提交后步骤；只追加本块插入的行，块里已在本地的节点不追加。
-    fn put_batch_budgeted(
+    fn put_batch_inner(
         &mut self,
         job: &mut Job,
         nodes: &[(NodeDigest, u8, Vec<u8>)],
         inserted: &mut Vec<NodeDigest>,
+        deadline: Option<std::time::Instant>,
     ) -> Result<(), CodecError> {
-        job.pre_io_check()?;
-        let missing = batch_missing(self.c, nodes)?;
+        let mut budget = ReadBudget::new(Some(job), deadline);
+        budget.before().map_err(io)?;
+        let missing = batch_missing_metered(self.c, nodes, &mut budget)?;
         if missing.is_empty() {
-            return Ok(());
+            return budget.before().map_err(io);
         }
-        cleanup_room(self.c, &self.db, true)?;
-        charged_checkpoint(self.c, &self.db, job, self.ceiling, true)?;
-        cleanup_room(self.c, &self.db, true)?;
+        cleanup_room_metered(self.c, &self.db, true, &mut budget)?;
+        charged_checkpoint_with_budget(self.c, &self.db, &mut budget, self.ceiling, true)?;
+        cleanup_room_metered(self.c, &self.db, true, &mut budget)?;
         let before = allocated(&self.db)?;
         let worst = self
             .ceiling
             .checked_sub(before)
             .ok_or_else(|| error("physical allocation above ceiling"))?;
-        let reservation = job.reserve_staged(worst)?;
+        let reservation = budget
+            .job
+            .as_deref_mut()
+            .ok_or_else(|| error("stage Job missing"))?
+            .reserve_staged(worst)?;
         let token = self.token.clone();
         let written = (|| -> Result<Vec<NodeDigest>, CodecError> {
+            budget.before().map_err(io)?;
             let tx = self.c.transaction().map_err(io)?;
-            let rows = insert_staging_batch(&tx, &token, &missing)?;
+            let rows = insert_staging_batch_metered(&tx, &token, &missing, &mut budget)?;
+            budget.before().map_err(io)?;
             tx.commit().map_err(io)?;
             Ok(rows)
         })();
@@ -507,22 +577,132 @@ impl FinancialStage for Stage<'_> {
             Err(e) => {
                 // 未提交的块已随事务回滚；物理分配照实对账。
                 let after = allocated(&self.db)?;
-                job.reconcile(&reservation, after.saturating_sub(before))?;
+                budget
+                    .job
+                    .as_deref_mut()
+                    .ok_or_else(|| error("stage Job missing"))?
+                    .reconcile(&reservation, after.saturating_sub(before))?;
                 return Err(e);
             }
         }
-        let check = checkpoint(self.c);
+        let check = checkpoint_metered(self.c, &mut budget);
         let after = allocated(&self.db)?;
-        job.reconcile(&reservation, after.saturating_sub(before))?;
+        budget
+            .job
+            .as_deref_mut()
+            .ok_or_else(|| error("stage Job missing"))?
+            .reconcile(&reservation, after.saturating_sub(before))?;
         check?;
         wal_empty(&self.db)?;
-        cleanup_room(self.c, &self.db, false)?;
+        cleanup_room_metered(self.c, &self.db, false, &mut budget)?;
         if after > self.ceiling {
             return Err(error(
                 "actual SQLite allocation exceeded fixed carrier capacity",
             ));
         }
-        Ok(())
+        budget.before().map_err(io)
+    }
+    fn put_node_inner(
+        &mut self,
+        job: &mut Job,
+        digest: NodeDigest,
+        tag: u8,
+        body: &[u8],
+        deadline: Option<std::time::Instant>,
+    ) -> Result<(), CodecError> {
+        let mut budget = ReadBudget::new(Some(job), deadline);
+        budget.before().map_err(io)?;
+        if s_content::frame(tag, body) != digest {
+            return Err(error("node digest mismatch"));
+        }
+        if let NodeRead::Found {
+            tag: old_tag,
+            body: old_body,
+        } = read_any_metered(self.c, &digest, &mut budget)?
+        {
+            if old_tag != tag || old_body != body {
+                return Err(error("same digest conflict"));
+            }
+            return budget.before().map_err(io);
+        }
+        cleanup_room_metered(self.c, &self.db, true, &mut budget)?;
+        charged_checkpoint_with_budget(self.c, &self.db, &mut budget, self.ceiling, true)?;
+        cleanup_room_metered(self.c, &self.db, true, &mut budget)?;
+        let before = allocated(&self.db)?;
+        let worst = self
+            .ceiling
+            .checked_sub(before)
+            .ok_or_else(|| error("physical allocation above ceiling"))?;
+        let reservation = budget
+            .job
+            .as_deref_mut()
+            .ok_or_else(|| error("stage Job missing"))?
+            .reserve_staged(worst)?;
+        let inserted = budget.before().map_err(io).and_then(|()| {
+            self.c
+                .execute(
+                    "INSERT INTO content_staging(digest,tag,body,stage)VALUES(?1,?2,?3,?4)",
+                    params![&digest[..], i64::from(tag), body, &self.token],
+                )
+                .map_err(io)
+        });
+        if let Err(e) = inserted {
+            let after = allocated(&self.db)?;
+            budget
+                .job
+                .as_deref_mut()
+                .ok_or_else(|| error("stage Job missing"))?
+                .reconcile(&reservation, after.saturating_sub(before))?;
+            return Err(e);
+        }
+        // Checkpoint here makes the next write start from an empty WAL. The
+        // maximum physical pages were already reserved before the insertion.
+        // This second checkpoint was itself covered by the same reservation:
+        // before the write the WAL was empty and no second writer can enter
+        // the owner process lock. Its full peak is <= the global envelope.
+        let check = checkpoint_metered(self.c, &mut budget);
+        let after = allocated(&self.db)?;
+        budget
+            .job
+            .as_deref_mut()
+            .ok_or_else(|| error("stage Job missing"))?
+            .reconcile(&reservation, after.saturating_sub(before))?;
+        check?;
+        wal_empty(&self.db)?;
+        cleanup_room_metered(self.c, &self.db, false, &mut budget)?;
+        if after > self.ceiling {
+            return Err(error(
+                "actual SQLite allocation exceeded fixed carrier capacity",
+            ));
+        }
+        budget.before().map_err(io)
+    }
+}
+impl FinancialStage for Stage<'_> {
+    fn read_budgeted(
+        &mut self,
+        digest: &NodeDigest,
+        job: &mut Job,
+        deadline: Option<std::time::Instant>,
+    ) -> Result<NodeRead, CodecError> {
+        read_any_metered(self.c, digest, &mut ReadBudget::new(Some(job), deadline))
+    }
+    fn put_batch_budgeted(
+        &mut self,
+        job: &mut Job,
+        nodes: &[(NodeDigest, u8, Vec<u8>)],
+        inserted: &mut Vec<NodeDigest>,
+    ) -> Result<(), CodecError> {
+        self.put_batch_inner(job, nodes, inserted, None)
+    }
+    fn put_batch_budgeted_with_deadline(
+        &mut self,
+        job: &mut Job,
+        nodes: &[(NodeDigest, u8, Vec<u8>)],
+        inserted: &mut Vec<NodeDigest>,
+        deadline: Option<std::time::Instant>,
+    ) -> Result<(), CodecError> {
+        self.put_batch_inner(job, nodes, inserted, deadline)
     }
     /// 闭包尝试失败时的回滚：一个事务删去本尝试写下的暂存行，使暂存集合回到尝试前。删除只用
     /// 每次写后已核的 cleanup_room 余量，不经 Job（Job 可能已停止）；同 `discard_unpublished`。
@@ -546,55 +726,17 @@ impl FinancialStage for Stage<'_> {
         tag: u8,
         body: &[u8],
     ) -> Result<(), CodecError> {
-        job.pre_io_check()?;
-        if s_content::frame(tag, body) != digest {
-            return Err(error("node digest mismatch"));
-        }
-        if let NodeRead::Found {
-            tag: old_tag,
-            body: old_body,
-        } = read_any(self.c, &digest)?
-        {
-            if old_tag != tag || old_body != body {
-                return Err(error("same digest conflict"));
-            }
-            return Ok(());
-        }
-        cleanup_room(self.c, &self.db, true)?;
-        charged_checkpoint(self.c, &self.db, job, self.ceiling, true)?;
-        cleanup_room(self.c, &self.db, true)?;
-        let before = allocated(&self.db)?;
-        let worst = self
-            .ceiling
-            .checked_sub(before)
-            .ok_or_else(|| error("physical allocation above ceiling"))?;
-        let reservation = job.reserve_staged(worst)?;
-        let inserted = self.c.execute(
-            "INSERT INTO content_staging(digest,tag,body,stage)VALUES(?1,?2,?3,?4)",
-            params![&digest[..], i64::from(tag), body, &self.token],
-        );
-        if let Err(e) = inserted {
-            let after = allocated(&self.db)?;
-            job.reconcile(&reservation, after.saturating_sub(before))?;
-            return Err(io(e));
-        }
-        // Checkpoint here makes the next write start from an empty WAL. The
-        // maximum physical pages were already reserved before the insertion.
-        // This second checkpoint was itself covered by the same reservation:
-        // before the write the WAL was empty and no second writer can enter
-        // the owner process lock. Its full peak is <= the global envelope.
-        let check = checkpoint(self.c);
-        let after = allocated(&self.db)?;
-        job.reconcile(&reservation, after.saturating_sub(before))?;
-        check?;
-        wal_empty(&self.db)?;
-        cleanup_room(self.c, &self.db, false)?;
-        if after > self.ceiling {
-            return Err(error(
-                "actual SQLite allocation exceeded fixed carrier capacity",
-            ));
-        }
-        Ok(())
+        self.put_node_inner(job, digest, tag, body, None)
+    }
+    fn put_budgeted_with_deadline(
+        &mut self,
+        job: &mut Job,
+        digest: NodeDigest,
+        tag: u8,
+        body: &[u8],
+        deadline: Option<std::time::Instant>,
+    ) -> Result<(), CodecError> {
+        self.put_node_inner(job, digest, tag, body, deadline)
     }
 }
 struct Closure<'a> {
@@ -913,11 +1055,19 @@ pub(super) fn import_peer_refs_with_deadline(
             if self.pending.is_empty() {
                 return Ok(());
             }
+            #[cfg(test)]
+            {
+                self.deadline = tb03c_c5_stage_tests::before_peer_flush(self.deadline);
+            }
             let nodes = std::mem::take(&mut self.pending);
             // peer 导入失败由调用方 `discard_unpublished` 清掉本操作全部暂存，不用逐块回滚清单。
             let mut written = Vec::new();
-            self.stage
-                .put_batch_budgeted(self.job, &nodes, &mut written)
+            self.stage.put_batch_budgeted_with_deadline(
+                self.job,
+                &nodes,
+                &mut written,
+                self.deadline,
+            )
         }
     }
     impl NodeSource for Import<'_, '_> {
@@ -948,6 +1098,10 @@ pub(super) fn import_peer_refs_with_deadline(
     s_content::verify_many(&mut importer, refs.iter().cloned())?;
     importer.flush()
 }
+
+#[cfg(test)]
+#[path = "tb03c_c5_stage_tests.rs"]
+mod tb03c_c5_stage_tests;
 /// Reserve the entire remaining physical envelope before the final economic
 /// transaction; it covers the WAL append and eventual checkpoint growth.
 pub(super) fn reserve_final(

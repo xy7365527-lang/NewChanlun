@@ -28,11 +28,18 @@ impl Drop for SqlReturnDeadline {
 }
 /// /2 内容 SQL 读口锁复用同一个“已返回、计费前”时钟触发点；不替换读取或节点。
 pub(super) fn expire_on_next_sql_return(clock: Rc<Cell<Instant>>) -> SqlReturnDeadline {
+    expire_after_sql_returns(clock, 1)
+}
+pub(super) fn expire_after_sql_returns(
+    clock: Rc<Cell<Instant>>,
+    returns: usize,
+) -> SqlReturnDeadline {
+    assert!(returns > 0);
     HOOKS.with(|state| {
         *state.borrow_mut() = Hooks {
             active: true,
             clock: Some(clock),
-            expire_after: Some(1),
+            expire_after: Some(returns),
             ..Hooks::default()
         }
     });

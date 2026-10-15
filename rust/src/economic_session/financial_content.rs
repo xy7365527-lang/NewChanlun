@@ -189,6 +189,19 @@ fn map_ref(map: &BTreeMap<String, ContentRef>, key: &str) -> Result<ContentRef, 
 }
 
 pub(super) trait FinancialStage: NodeSource {
+    /// 当前操作借入的期限不存入可复用 Stage；内存测试载体默认只核期限。
+    /// SQLite Stage 覆写此口，在实际返回后登记载荷再校验。
+    fn read_budgeted(
+        &mut self,
+        digest: &NodeDigest,
+        job: &mut Job,
+        deadline: Option<Instant>,
+    ) -> Result<NodeRead, CodecError> {
+        stage_deadline(job, deadline)?;
+        let read = self.read(digest)?;
+        stage_deadline(job, deadline)?;
+        Ok(read)
+    }
     // Call only after the client has checked the node digest and job node usage.
     // The owner reserves and reconciles actual staged/store allocation here.
     fn put_budgeted(
@@ -198,6 +211,18 @@ pub(super) trait FinancialStage: NodeSource {
         tag: u8,
         body: &[u8],
     ) -> Result<(), CodecError>;
+    fn put_budgeted_with_deadline(
+        &mut self,
+        job: &mut Job,
+        digest: NodeDigest,
+        tag: u8,
+        body: &[u8],
+        deadline: Option<Instant>,
+    ) -> Result<(), CodecError> {
+        stage_deadline(job, deadline)?;
+        self.put_budgeted(job, digest, tag, body)?;
+        stage_deadline(job, deadline)
+    }
     /// #1394 第三问选项 A：一块节点一次预留、一个事务、一次 checkpoint；调用方已对每个节点经
     /// `Job::accept_node` 核 F 并计节点账，实现再核 F 与同根冲突。本块新写入的摘要（已在本地者跳过、
     /// 不追加）在块事务提交时即追加到调用方的回滚清单 `inserted`，先于 checkpoint、对账、载体上限等
@@ -210,8 +235,24 @@ pub(super) trait FinancialStage: NodeSource {
         nodes: &[(NodeDigest, u8, Vec<u8>)],
         inserted: &mut Vec<NodeDigest>,
     ) -> Result<(), CodecError>;
+    fn put_batch_budgeted_with_deadline(
+        &mut self,
+        job: &mut Job,
+        nodes: &[(NodeDigest, u8, Vec<u8>)],
+        inserted: &mut Vec<NodeDigest>,
+        deadline: Option<Instant>,
+    ) -> Result<(), CodecError> {
+        stage_deadline(job, deadline)?;
+        self.put_batch_budgeted(job, nodes, inserted)?;
+        stage_deadline(job, deadline)
+    }
     /// 闭包尝试失败时删去该尝试写下的暂存行（只限给定摘要与本 stage）；返回删除行数。
     fn discard_staged(&mut self, digests: &[NodeDigest]) -> Result<u64, CodecError>;
+}
+fn stage_deadline(job: &mut Job, deadline: Option<Instant>) -> Result<(), CodecError> {
+    super::store::ReadBudget::new(Some(job), deadline)
+        .before()
+        .map_err(|e| CodecError::new(sc::code::SINK, e))
 }
 
 #[derive(Clone, Debug)]
@@ -563,7 +604,7 @@ fn read_once(
     // 会话读法不单独暂存 proof：proof 节点都在 basis 根的闭包里，随闭包流到达并接受同一成员核验；
     // proof 本身已在上面的独立 MemoryNodes 上核完头部与选中对象。
     if pins.reading == Reading::ColdFragment {
-        import_proof(&proof, stage, job)?;
+        import_proof(&proof, stage, job, Some(deadline))?;
     }
     // One complete check on a cached root. Missing nodes trigger retrieval by the one
     // frozen reading and a new check; any rows visited by the failed attempt stay charged.
@@ -676,10 +717,11 @@ fn import_proof(
     nodes: &[ProofNode],
     stage: &mut dyn FinancialStage,
     job: &mut Job,
+    deadline: Option<Instant>,
 ) -> Result<(), String> {
     for node in nodes {
         let (digest, tag, body) = node_parts(node)?;
-        match stage.read(&digest).map_err(codec)? {
+        match stage.read_budgeted(&digest, job, deadline).map_err(codec)? {
             NodeRead::Found {
                 tag: old_tag,
                 body: old_body,
@@ -687,7 +729,9 @@ fn import_proof(
                 return Err("IdentityConflict：同根不同节点原件".into())
             }
             NodeRead::Found { .. } => (),
-            NodeRead::Missing => stage.put_budgeted(job, digest, tag, &body).map_err(codec)?,
+            NodeRead::Missing => stage
+                .put_budgeted_with_deadline(job, digest, tag, &body, deadline)
+                .map_err(codec)?,
         }
     }
     Ok(())
@@ -1174,7 +1218,7 @@ fn download_closure(
         }
         // 回滚清单交给批量写自己追加：块事务一提交即登记，提交后步骤失败也不漏（r2，独审 N1）。
         stage
-            .put_batch_budgeted(job, &batch, inserted)
+            .put_batch_budgeted_with_deadline(job, &batch, inserted, Some(deadline))
             .map_err(codec)?;
         if done {
             return Ok(received);
@@ -1290,7 +1334,7 @@ fn fetch_page(
     let request = json!({"schema_revision":"s-financial-content/1", "anchor":anchor,
         "path":path_json(path),"unit":unit.name(),"offset":offset.to_string(),"limit":limit.to_string()});
     let reply = pins.call("financial-content", &request, job, deadline)?;
-    accept_page_reply(
+    accept_page_reply_with_deadline(
         &reply,
         &pins.resources,
         root,
@@ -1302,6 +1346,7 @@ fn fetch_page(
         limit,
         job,
         stage,
+        Some(deadline),
     )
 }
 fn download(
@@ -2150,6 +2195,7 @@ mod tests {
     }
 }
 
+#[cfg(test)]
 fn accept_page_reply(
     reply: &Value,
     resources: &FinancialReaderResources,
@@ -2162,6 +2208,24 @@ fn accept_page_reply(
     limit: u64,
     job: &mut Job,
     stage: &mut dyn FinancialStage,
+) -> Result<Fragment, String> {
+    accept_page_reply_with_deadline(
+        reply, resources, root, anchor, path, expected, unit, offset, limit, job, stage, None,
+    )
+}
+fn accept_page_reply_with_deadline(
+    reply: &Value,
+    resources: &FinancialReaderResources,
+    root: &ContentRef,
+    anchor: &Value,
+    path: &[PathStep],
+    expected: Option<&ContentRef>,
+    unit: Unit,
+    offset: u64,
+    limit: u64,
+    job: &mut Job,
+    stage: &mut dyn FinancialStage,
+    deadline: Option<Instant>,
 ) -> Result<Fragment, String> {
     exact(reply, &PAGE)?;
     if reply["anchor"] != *anchor
@@ -2208,7 +2272,7 @@ fn accept_page_reply(
         financial_record_path,
     )
     .map_err(codec)?;
-    import_proof(&fragment.nodes, stage, job)?;
+    import_proof(&fragment.nodes, stage, job, deadline)?;
     Ok(fragment)
 }
 
