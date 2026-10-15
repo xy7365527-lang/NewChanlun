@@ -470,9 +470,63 @@ mod tests {
         },
         session_protocol::strict_json,
     };
-    use std::time::Instant;
+    use std::{
+        path::Path,
+        sync::{
+            atomic::{AtomicU64, Ordering},
+            Arc,
+        },
+        time::{Duration, Instant},
+    };
     fn job() -> Job {
         Job::new(JobLimits::from_canonical_json(&json!({"max_total_wire_bytes":"1048576","max_total_node_bytes":"16777216","max_total_nodes":"100000","max_total_records":"10000","max_total_requests":"100","max_elapsed_ms":"20000","max_staged_bytes":"1048576","max_store_bytes":"33554432"})).unwrap(),Existing{store_bytes:0,staged_bytes:0},Box::new(Instant::now)).unwrap()
+    }
+    // #1394 B1 TestOnly：跨页功能测试不测速度。捕获仍会把 job 的绝对 Instant 交给
+    // SQLite 的真实墙钟，因此同时沿用功能测试长期限；产品期限与正式性能门不变。
+    fn functional_job() -> (Job, Arc<AtomicU64>) {
+        let mut limits = job().snapshot().limits;
+        limits.max_elapsed_ms = q_resources::tests::FUNCTIONAL_TEST_ONLY_DEADLINE_MS;
+        let tick = Arc::new(AtomicU64::new(0));
+        let clock = tick.clone();
+        let base = Instant::now();
+        let job = Job::new(
+            limits,
+            Existing {
+                store_bytes: 0,
+                staged_bytes: 0,
+            },
+            Box::new(move || base + Duration::from_millis(clock.load(Ordering::SeqCst))),
+        )
+        .unwrap();
+        (job, tick)
+    }
+    #[test]
+    fn functional_job_clock_preserves_limits_and_rejects_capture_at_deadline() {
+        let original = job().snapshot().limits;
+        assert_eq!(original.max_elapsed_ms, 20_000);
+        let before = Instant::now();
+        let (mut job, tick) = functional_job();
+        let after = Instant::now();
+        let mut expected = original;
+        expected.max_elapsed_ms = q_resources::tests::FUNCTIONAL_TEST_ONLY_DEADLINE_MS;
+        assert_eq!(job.snapshot().limits, expected);
+        let deadline = job.first_read_deadline().unwrap();
+        let duration = Duration::from_millis(expected.max_elapsed_ms);
+        assert!((before + duration..=after + duration).contains(&deadline));
+        tick.store(expected.max_elapsed_ms - 1, Ordering::SeqCst);
+        job.charge_requests(1).unwrap();
+        assert_eq!(job.first_read_deadline().unwrap(), deadline);
+        tick.store(expected.max_elapsed_ms, Ordering::SeqCst);
+        let resources = q_resources::tests::functional_resources();
+        let error = capture_configured(
+            Path::new("/deliberately-absent-q3-source.sqlite"),
+            &resources,
+            &mut job,
+        )
+        .err()
+        .unwrap();
+        assert!(error.contains("job_deadline"), "{error}");
+        assert_eq!(job.snapshot().requests, 1);
     }
     fn publish(f: &mut Fixture, n: i64) {
         let id = format!("raw-{n}");
@@ -587,12 +641,13 @@ mod tests {
             1,
         );
         let mut incoming = first(&anchor, json!([{"field":"rows"}]), "items", 0, 1);
-        let mut job = job();
+        let (mut job, tick) = functional_job();
         let mut end = 0;
         let mut count = 0;
         let mut issued = String::new();
         let mut first_proof = None;
         loop {
+            tick.fetch_add(1, Ordering::SeqCst);
             let mut capture = capture_configured(&f.db_path(), &resources, &mut job).unwrap();
             let response = run(&mut capture, &resources, &incoming, &mut job).unwrap();
             let page = &response["payload"];
