@@ -666,11 +666,23 @@ impl Runtime {
                 *source_slot = Some(source);
                 Ok(products)
             })?;
+            let NodeProducts {
+                generated: _generated,
+                objects: _objects,
+                axes: _axes,
+                counts: _counts,
+                auxiliary: _auxiliary,
+                run: _run,
+                evidence: _evidence,
+                roots,
+                manifest,
+                workspace,
+            } = products;
             return Ok(Prepared {
                 metadata,
-                roots: products.roots,
-                manifest: products.manifest,
-                workspace: products.workspace,
+                roots,
+                manifest,
+                workspace,
             });
         }
         let effective = super::business_json::effective(audited.raw.view(), None)?;

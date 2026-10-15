@@ -115,7 +115,10 @@ impl<K: Ord + Retained, V: Retained> Map<K, V> {
         delta.tree_len::<K, V>(before, self.values.len());
         delta.release_bytes(old_bytes);
         delta.add_bytes(new_bytes);
-        self.bytes = delta.apply(self.bytes).map_err(err)?;
+        self.bytes = delta.apply(self.bytes).map_err(|failure| match failure {
+            super::super::audit_owner::native::Failure::BudgetExceeded => err("来源保留费溢出"),
+            super::super::audit_owner::native::Failure::Invalid(message) => err(message),
+        })?;
         Ok(old)
     }
     fn remove<Q: Ord + ?Sized>(&mut self, key: &Q) -> Result<Option<V>, String>
@@ -866,7 +869,7 @@ impl NativeSourceState {
             return Err(err("来源raw发布前沿不连续"));
         }
         let mut touched = Tree::default();
-        let mut old_presence = Map::default();
+        let mut old_presence: Map<i64, bool> = Map::default();
         for change in raw.winner_edits() {
             for w in [change.old, change.new].into_iter().flatten() {
                 touched.insert(s, w.coord)?;
