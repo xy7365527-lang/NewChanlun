@@ -1127,6 +1127,65 @@ enum SeqNode {
     },
 }
 
+/// 只读结构片段；它不是完整闭包或跨快照资格。形状、摘要及资源门复用路径核。
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SequenceFragment {
+    Empty,
+    Leaf(NodeDigest),
+    Branch {
+        left: super::SequenceRef,
+        right: super::SequenceRef,
+    },
+}
+
+/// 获取真实数组头中的规范序列声明，不枚举成员。
+#[doc(hidden)]
+pub fn array_sequence_refview(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+) -> Result<super::SequenceRef, CodecError> {
+    let mut source = CodecContext::Source(source);
+    let work = source.work_budget();
+    let result = (|| {
+        let node = navigate_view(&mut source, reference, &[], false)?;
+        if node.tag != tag::ARRAY {
+            return Err(step_kind_error("数组片段", "0x05 数组", node.tag));
+        }
+        Ok(super::SequenceRef::from_parts_unchecked(
+            digest_at(&node.body, 8),
+            framed_len(&node.body, "数组")?,
+        ))
+    })();
+    if let Some(work) = work {
+        work.observe(&result);
+    }
+    result
+}
+
+/// 只读一个 M 节点；调用方必须另有同材料完整闭包资格才能跳过未访问子树。
+#[doc(hidden)]
+pub fn sequence_fragment(
+    source: &mut dyn NodeSource,
+    reference: super::SequenceRef,
+) -> Result<SequenceFragment, CodecError> {
+    let mut source = CodecContext::Source(source);
+    let work = source.work_budget();
+    let result =
+        read_seq_node(&mut source, &reference.root(), reference.count()).map(|node| match node {
+            SeqNode::Empty => SequenceFragment::Empty,
+            SeqNode::Leaf(value) => SequenceFragment::Leaf(value),
+            SeqNode::Branch { k, left, right } => SequenceFragment::Branch {
+                left: super::SequenceRef::from_parts_unchecked(left, k),
+                right: super::SequenceRef::from_parts_unchecked(right, reference.count() - k),
+            },
+        });
+    if let Some(work) = work {
+        work.observe(&result);
+    }
+    result
+}
+
 /// 单节点核验：摘要↔(tag, body) 重算、tag/长度与期望叶数、分支声明 n 等于期望叶数。
 /// 只核这一个节点（同 `sequence.rs` 的触碰边界口径；更深子树不在本层核）。
 fn read_seq_node(

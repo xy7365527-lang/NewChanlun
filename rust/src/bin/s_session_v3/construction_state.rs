@@ -24,6 +24,9 @@ pub(crate) struct RawAdvanceBinding {
     step: u64,
 }
 impl RawAdvanceBinding {
+    pub(super) fn owner_life(self) -> u64 {
+        self.domain.life
+    }
     pub(crate) fn domain(self) -> RawDomain {
         self.domain
     }
@@ -116,9 +119,15 @@ pub(super) struct CommittedRawState {
     binding: RawAdvanceBinding,
     pub(super) facts: RawPrefixFacts,
     #[cfg(feature = "s_capture_native_testonly")]
+    set: Option<super::construction_set::CommittedSet>,
+    #[cfg(feature = "s_capture_native_testonly")]
     retained: usize,
 }
 impl CommittedRawState {
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn has_set(&self) -> bool {
+        self.set.is_some()
+    }
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn retained_bytes(&self) -> usize {
         self.retained.saturating_add(std::mem::size_of::<Self>())
@@ -129,17 +138,27 @@ pub(super) struct PendingRawState {
     binding: RawAdvanceBinding,
     pub(super) facts: RawPrefixFacts,
     #[cfg(feature = "s_capture_native_testonly")]
+    set: Option<super::construction_set::CommittedSet>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    pending_set: Option<super::construction_set::PendingSet>,
+    #[cfg(feature = "s_capture_native_testonly")]
     retained: usize,
     closed_total_changes: Option<u64>,
 }
 impl PendingRawState {
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn has_pending_set(&self) -> bool {
+        self.pending_set.is_some()
+    }
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn retained_bytes(&self) -> usize {
-        self.retained.saturating_add(std::mem::size_of::<Self>())
+        self.retained
+            .saturating_add(std::mem::size_of::<Self>())
+            .saturating_add(self.pending_set.as_ref().map_or(0, |s| s.retained_bytes()))
     }
     /// 只有父 owner 从本快照已核原件调用；previous 必须 move，失败时不能还原作成功缓存。
     pub(super) fn advance<'raw>(
-        previous: Option<CommittedRawState>,
+        mut previous: Option<CommittedRawState>,
         raw: RawEventsView<'raw>,
         seal: SnapshotSeal,
         bound: &super::BoundOriginals,
@@ -156,6 +175,8 @@ impl PendingRawState {
         }
         #[cfg(feature = "s_capture_native_testonly")]
         let retained = previous.as_ref().map_or(0, |p| p.retained);
+        #[cfg(feature = "s_capture_native_testonly")]
+        let set = previous.as_mut().and_then(|previous| previous.set.take());
         let (previous_binding, previous_prefix, mut index) = match previous {
             Some(previous) => {
                 if !previous.seal.same_snapshot(&seal) {
@@ -216,8 +237,33 @@ impl PendingRawState {
             #[cfg(feature = "s_capture_native_testonly")]
             retained,
             closed_total_changes: None,
+            #[cfg(feature = "s_capture_native_testonly")]
+            set,
+            #[cfg(feature = "s_capture_native_testonly")]
+            pending_set: None,
         };
         Ok((pending, token))
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn set_seed(
+        &mut self,
+        previous: Option<super::construction_set::Declaration>,
+    ) -> Result<super::construction_set::Seed, String> {
+        super::construction_set::Seed::new(self.binding, self.seal, previous, self.set.take())
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn close_set(
+        &mut self,
+        mut set: super::construction_set::PendingSet,
+        actual_root: sc::RefView<'_>,
+    ) -> Result<(), String> {
+        if self.pending_set.is_some() {
+            return Err(stale("重复闭合集合effects"));
+        }
+        set.close_against_persisted(actual_root, self.binding)?;
+        self.pending_set = Some(set);
+        Ok(())
     }
 
     /// 此方法仅对父 owner 开放；真实 effects 覆盖与业务判据闭合后调用，尚未晋升。
@@ -248,6 +294,10 @@ impl PendingRawState {
         if self.seal != seal || self.closed_total_changes != Some(total_changes) {
             return Err(stale("未闭合效果或闭合后再次写入"));
         }
+        #[cfg(feature = "s_capture_native_testonly")]
+        if let Some(set) = &self.pending_set {
+            set.check_commit(seal, total_changes)?;
+        }
         Ok(())
     }
     /// 仅在 SQLite COMMIT 返回成功且 owner 确认 autocommit 后 move。
@@ -256,6 +306,8 @@ impl PendingRawState {
             seal: self.seal,
             binding: self.binding,
             facts: self.facts,
+            #[cfg(feature = "s_capture_native_testonly")]
+            set: self.pending_set.map(|set| set.committed()).or(self.set),
             #[cfg(feature = "s_capture_native_testonly")]
             retained: self.retained,
         }

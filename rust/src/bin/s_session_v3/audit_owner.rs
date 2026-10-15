@@ -39,6 +39,11 @@ mod q;
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(super) mod allocation_probe;
 
+#[cfg(feature = "s_capture_native_testonly")]
+#[path = "construction_set.rs"]
+mod construction_set;
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) use effects::StageKind;
 #[path = "construction_state.rs"]
 mod construction_state;
 pub(crate) use super::business_json::{RawWinner, RawWinnerEdit};
@@ -1980,6 +1985,25 @@ impl AuditTxn<'_> {
                         (limit / 8).min(recording_cap),
                         strict,
                     )? {
+                        if strict && matches!(operation, FixedOperation::Publish) {
+                            let previous = candidate
+                                .audited
+                                .cuts
+                                .last()
+                                .map(|cut| {
+                                    construction_set::Declaration::read(
+                                        cut.roots.generated_state.view(),
+                                    )
+                                })
+                                .transpose()?;
+                            let seed = self
+                                .construction
+                                .borrow_mut()
+                                .as_mut()
+                                .unwrap()
+                                .set_seed(previous)?;
+                            recording.bind_set(seed)?;
+                        }
                         self.effect_limit.set(limit);
                         *self.pending.borrow_mut() = Some(candidate);
                         *self.recording.borrow_mut() = Some(recording);
@@ -2034,7 +2058,7 @@ impl AuditTxn<'_> {
             let recording_cap = limit
                 .checked_sub(candidate.charge.total)
                 .ok_or_else(|| invalid("效果日志与候选保留费超过工作额度"))?;
-            let Some(effects) =
+            let Some(mut effects) =
                 recording.finish(self.tx(), &mut candidate.originals, recording_cap)?
             else {
                 return missing();
@@ -2043,10 +2067,35 @@ impl AuditTxn<'_> {
             if strict && !effects.has_exact_coverage(closed_changes) {
                 return Err(construction_state::stale("actual effects覆盖收据缺失"));
             }
-            let Some(mut candidate) = candidate.validate_effects(self.tx(), effects, limit)? else {
+            let set = effects.set.take();
+            // 真实旧投影核仍负责 birth/revision/withdrawal/辅助合并的双向语义；
+            // C2 不按新叶数制造一条新的SQL判据。
+            let set_bytes = set.as_ref().map_or(0, |set| set.retained_bytes());
+            let Some(validation_limit) = limit.checked_sub(set_bytes) else {
+                return missing();
+            };
+            effects.bytes = effects
+                .bytes
+                .checked_sub(set_bytes)
+                .ok_or_else(|| invalid("集合保留账不符"))?;
+            let Some(mut candidate) =
+                candidate.validate_effects(self.tx(), effects, validation_limit)?
+            else {
                 return missing();
             };
             candidate.seal.write_sequence = self.owner.write_sequence.get();
+            if let Some(set) = set {
+                let current = candidate
+                    .audited
+                    .cuts
+                    .last()
+                    .ok_or_else(|| construction_state::stale("集合闭合缺实际已核发布根"))?;
+                self.construction
+                    .borrow_mut()
+                    .as_mut()
+                    .ok_or_else(|| construction_state::stale("集合effects丢失raw owner"))?
+                    .close_set(set, current.roots.generated_state.view())?;
+            }
             if strict {
                 self.construction
                     .borrow_mut()
@@ -2068,6 +2117,23 @@ pub(crate) fn note_persisted_node(
     inserted: bool,
 ) {
     effects::note_node(tx, digest, before, inserted);
+}
+
+/// C2材料切面：只在原完整来源审计成功后调用，生成器不能传旧根或变化集。
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn note_qualified_source_cut(
+    tx: &Transaction<'_>,
+    source: &mut (impl super::audit_store::CodecRead + ?Sized),
+    root: newchan_rust::s_content::RefView<'_>,
+) -> Result<(), String> {
+    effects::note_source_cut(tx, source, root)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn begin_construction_stage(
+    tx: &Transaction<'_>,
+    kind: StageKind,
+) -> Result<effects::StageGuard, String> {
+    effects::begin_stage(tx, kind)
 }
 
 /// 正常行为锁的实际 SQL 返回行/字节观察器；不计估算的底层 Btree/page I/O。
@@ -2844,6 +2910,88 @@ mod construction_tests {
         active.finish_fixed_write().unwrap();
     }
 
+    /// 实际Runtime生成/逐stage/owner全投影核验；只用测试选择器签发raw资格。
+    fn set_publish_case(fail_commit: bool, unscoped_update: bool) {
+        let mut f = fixture();
+        let (envelope, token) = f.accept_begin(2, ("set-next", 10, 8, 16, 6, 12), 1);
+        let owner = AuditConnection::open(&f.db_path()).unwrap();
+        let mut context = context();
+        let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        let mut active = owner.begin(TransactionBehavior::Immediate).unwrap();
+        mint(&active, &mut context);
+        active
+            .before_fixed_write(FixedOperation::Publish, Some(&context))
+            .unwrap();
+        let pending = active.pending.borrow();
+        let phase = PublishPhase {
+            transaction: active.transaction.as_mut().unwrap(),
+            audited: pending.as_ref().map(|candidate| &candidate.audited),
+        };
+        let receipt = runtime
+            .publish_in_owner(phase, &token, &envelope, &mut context)
+            .unwrap();
+        assert_eq!(receipt.generation, 2);
+        drop(pending);
+        if unscoped_update {
+            active.tx().execute("UPDATE s_content_objects SET object_revision=object_revision WHERE rowid=(SELECT min(rowid) FROM s_content_objects)", []).unwrap();
+            assert!(
+                active.finish_fixed_write().is_err(),
+                "stage之外的合法形状SQL也不能借最终行相等蒙混"
+            );
+            drop(active);
+            assert!(owner.construction.borrow().is_none());
+            assert!(owner.construction_lease.stale.get());
+            return;
+        }
+        active.finish_fixed_write().unwrap();
+        assert!(active
+            .construction
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .has_pending_set());
+        assert!(owner.construction.borrow().is_none(), "效果完成尚未提交");
+        if fail_commit {
+            active.tx().commit_hook(Some(|| true)).unwrap();
+        }
+        let committed = active.commit_publication();
+        if fail_commit {
+            assert!(committed.is_err());
+            owner.connection.commit_hook(None::<fn() -> bool>).unwrap();
+            assert!(owner.construction.borrow().is_none());
+            assert!(owner.construction_lease.stale.get());
+            assert_eq!(meta_i64(&owner.connection, "generation").unwrap(), 1);
+        } else {
+            let ended = committed.unwrap();
+            assert!(owner.construction.borrow().as_ref().unwrap().has_set());
+            owner.continue_with(ended).unwrap();
+            assert_eq!(meta_i64(&owner.connection, "generation").unwrap(), 2);
+            let next = owner.begin(TransactionBehavior::Immediate).unwrap();
+            assert!(next.bind_existing(Some(&context)).unwrap());
+            next.with_bound_raw_advance(&context, |raw| {
+                raw.ensure_current()?;
+                assert!(raw.append_ordinals().is_empty());
+                Ok(())
+            })
+            .unwrap();
+            // 丢弃未提交的下一事务须连上代集合资格一并撤销。
+            drop(next);
+            assert!(owner.construction.borrow().is_none());
+            assert!(owner.construction_lease.stale.get());
+        }
+    }
+    #[test]
+    fn owner_set_real_publish_stage_effects_commit_promotes() {
+        set_publish_case(false, false);
+    }
+    #[test]
+    fn owner_set_real_publish_commit_failure_revokes_everything() {
+        set_publish_case(true, false);
+    }
+    #[test]
+    fn owner_set_real_publish_unscoped_same_value_update_rejects() {
+        set_publish_case(false, true);
+    }
     #[test]
     fn owner_raw_real_effects_only_promote_after_real_commit() {
         let f = fixture();

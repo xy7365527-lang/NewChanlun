@@ -546,6 +546,12 @@ impl Runtime {
                     .with_work(work),
                 budget: None,
             };
+            // C2仅在generate_node_products的旧完整来源判据成功后记录材料cut。
+            super::audit_owner::note_qualified_source_cut(
+                tx,
+                &mut store,
+                (&roots.generated_state).into(),
+            )?;
             object_index::stage(tx, &mut store, &objects, &manifest.batch_id)?;
             aux_index::stage(tx, &mut store, &auxiliary, &manifest.batch_id)?;
             catalog_evidence::stage_current(tx, &mut store, &axes)?;
@@ -592,6 +598,12 @@ impl Runtime {
             previous,
             generation,
             frontier,
+        )?;
+        #[cfg(feature = "s_capture_native_testonly")]
+        super::audit_owner::note_qualified_source_cut(
+            tx,
+            &mut store,
+            (&roots.generated_state).into(),
         )?;
         object_index::stage(tx, &mut store, &objects, &manifest.batch_id)?;
         aux_index::stage(tx, &mut store, &auxiliary, &manifest.batch_id)?;

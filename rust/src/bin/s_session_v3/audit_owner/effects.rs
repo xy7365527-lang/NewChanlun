@@ -159,6 +159,9 @@ struct Key {
     table: Table,
     rowid: i64,
     digest: [u8; 32],
+    action: Option<rusqlite::hooks::Action>,
+    material_epoch: u64,
+    node_write: Option<(u64, u64, bool)>,
 }
 /// #1488：覆盖收据只证明实际写效果均被解释，不证明业务集合变化完整。
 struct Coverage {
@@ -177,6 +180,13 @@ struct Journal {
     bytes: usize,
     peak: usize,
     coverage: Option<Coverage>,
+    set_required: bool,
+    set_seed: Option<construction_set::Seed>,
+    set: Option<construction_set::PendingSet>,
+    stages: Vec<StageReceipt>,
+    active_stage: Option<usize>,
+    material_epoch: u64,
+    extra_bytes: usize,
 }
 impl Journal {
     fn layout(keys: usize, node_capacity: usize) -> usize {
@@ -239,7 +249,10 @@ impl Journal {
             self.overflow = true;
             return false;
         }
-        self.bytes = Self::layout(self.keys.capacity(), self.nodes.capacity());
+        self.bytes = sum([
+            Self::layout(self.keys.capacity(), self.nodes.capacity()),
+            self.extra_bytes,
+        ]);
         true
     }
 }
@@ -247,6 +260,15 @@ pub(super) struct Recording {
     journal: Arc<Mutex<Journal>>,
 }
 impl Recording {
+    pub(super) fn bind_set(&self, seed: construction_set::Seed) -> Result<(), String> {
+        let mut j = self.journal.lock().map_err(invalid)?;
+        if j.operation != Operation::Publish || j.set_required || !j.keys.is_empty() {
+            return Err(construction_state::stale("集合seed不是本次publish写前绑定"));
+        }
+        j.set_required = true;
+        j.set_seed = Some(seed);
+        Ok(())
+    }
     pub(super) fn start(
         tx: &Transaction<'_>,
         operation: Operation,
@@ -281,6 +303,13 @@ impl Recording {
             bytes: inline,
             peak: inline,
             coverage,
+            set_required: false,
+            set_seed: None,
+            set: None,
+            stages: Vec::new(),
+            active_stage: None,
+            material_epoch: 0,
+            extra_bytes: 0,
         };
         if !journal.reserve_one(false) {
             return Ok(None);
@@ -306,10 +335,14 @@ impl Recording {
             if !j.reserve_one(false) {
                 return;
             }
+            let material_epoch = j.material_epoch;
             j.keys.push(Key {
                 table,
                 rowid,
                 digest: [0; 32],
+                action: Some(action),
+                material_epoch,
+                node_write: None,
             });
         }))
         .map_err(invalid)?;
@@ -351,6 +384,15 @@ impl Recording {
         } else {
             None
         };
+        if journal.set_required {
+            validate_stage_coverage(&journal)?;
+            journal.set.as_mut().unwrap().close_stages(
+                journal.material_epoch,
+                journal.keys.len(),
+                journal.stages.len(),
+                covered_total.ok_or_else(|| construction_state::stale("集合缺完整实际写覆盖"))?,
+            )?;
+        }
         journal
             .keys
             .sort_unstable_by_key(|k| (k.table, k.rowid, k.digest));
@@ -413,12 +455,28 @@ impl Recording {
                 new,
             });
         }
+        if journal.set_required {
+            for stage in &journal.stages {
+                let actual = changes
+                    .iter()
+                    .find(|c| c.table == stage.kind.table() && c.rowid == stage.rowid)
+                    .and_then(|c| c.new.as_ref());
+                if actual != Some(&stage.row) {
+                    return Err(construction_state::stale(
+                        "stage即时原件与最终effects不一致",
+                    ));
+                }
+            }
+        }
+        let set = journal.set.take();
+        let set_bytes = set.as_ref().map_or(0, |set| set.retained_bytes());
         Ok(Some(Effects {
             changes,
+            set,
             operation: journal.operation,
             peak,
             // journal及读行头已真实Drop；旧载荷仍由原件账全额承接，不在这里重复计入。
-            bytes: used - journal.bytes,
+            bytes: sum([used - journal.bytes, set_bytes]),
             covered_total,
         }))
     }
@@ -431,6 +489,7 @@ pub(super) struct Change {
     pub(super) new: Option<Vec<SqlCell>>,
 }
 pub(super) struct Effects {
+    pub(super) set: Option<construction_set::PendingSet>,
     pub(super) changes: Vec<Change>,
     pub(super) operation: Operation,
     pub(super) peak: usize,
@@ -621,19 +680,344 @@ pub(crate) fn note_node(tx: &Transaction<'_>, digest: [u8; 32], before: u64, ins
             j.unexpected = true;
             return;
         }
-        if j.nodes.contains(&digest) {
+        let existed = j.nodes.contains(&digest);
+        if existed && !j.set_required {
             return;
         }
-        if !j.reserve_one(true) {
+        if j.set_required {
+            let Some(next) = j.material_epoch.checked_add(1) else {
+                j.unexpected = true;
+                return;
+            };
+            j.material_epoch = next;
+        }
+        if !j.reserve_one(!existed) {
             return;
         }
         j.nodes.insert(digest);
+        let material_epoch = j.material_epoch;
         j.keys.push(Key {
             table: Table::Node,
             rowid: 0,
             digest,
+            action: None,
+            material_epoch,
+            node_write: Some((before, tx.total_changes(), inserted)),
         });
     });
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum StageKind {
+    ObjectBirth,
+    ObjectWithdrawal,
+    Witness,
+    Relation,
+    Observation,
+}
+impl StageKind {
+    fn table(self) -> Table {
+        match self {
+            Self::ObjectBirth | Self::ObjectWithdrawal => Table::Object,
+            Self::Witness => Table::Witness,
+            Self::Relation => Table::Relation,
+            Self::Observation => Table::Observation,
+        }
+    }
+    fn action(self) -> rusqlite::hooks::Action {
+        if self == Self::ObjectWithdrawal {
+            rusqlite::hooks::Action::SQLITE_UPDATE
+        } else {
+            rusqlite::hooks::Action::SQLITE_INSERT
+        }
+    }
+    fn roots(self) -> &'static [usize] {
+        match self {
+            Self::ObjectBirth | Self::ObjectWithdrawal => &[8, 9, 10, 11],
+            Self::Witness | Self::Observation => &[5, 6],
+            Self::Relation => &[5],
+        }
+    }
+}
+struct StageReceipt {
+    kind: StageKind,
+    start: usize,
+    end: usize,
+    material_before: u64,
+    material_after: u64,
+    rowid: i64,
+    row: Vec<SqlCell>,
+}
+fn current_journal(tx: &Transaction<'_>) -> Result<Option<Arc<Mutex<Journal>>>, String> {
+    NODE_JOURNAL.with(|slot| {
+        let slot = slot.borrow();
+        match slot.as_ref() {
+            None => Ok(None),
+            Some((db, journal)) if *db == unsafe { tx.handle() } as usize => {
+                Ok(Some(journal.clone()))
+            }
+            Some(_) => Err(construction_state::stale("集合stage跨事务连接")),
+        }
+    })
+}
+
+/// 只由 prepared 在完整旧来源审计成功后调用；旧根/raw/快照来自 owner 的私有 seed。
+pub(super) fn note_source_cut(
+    tx: &Transaction<'_>,
+    source: &mut (impl super::super::audit_store::CodecRead + ?Sized),
+    root: newchan_rust::s_content::RefView<'_>,
+) -> Result<(), String> {
+    let Some(journal) = current_journal(tx)? else {
+        return Ok(());
+    };
+    let mut j = journal.lock().map_err(invalid)?;
+    if !j.set_required {
+        return Ok(());
+    }
+    let result = (|| {
+        if j.overflow
+            || j.unexpected
+            || j.set.is_some()
+            || j.active_stage.is_some()
+            || !j.stages.is_empty()
+        {
+            return Err(construction_state::stale("集合cut不是首次stage前唯一切面"));
+        }
+        let seed = j
+            .set_seed
+            .take()
+            .ok_or_else(|| construction_state::stale("缺owner集合seed"))?;
+        let budget = native::Budget::new(j.cap, j.bytes)
+            .map_err(|_| construction_state::stale("集合cut额度不足"))?;
+        let set = construction_set::qualify(seed, source, root, j.material_epoch, &budget)?;
+        j.peak = j.peak.max(budget.peak());
+        j.extra_bytes = sum([j.extra_bytes, set.retained_bytes()]);
+        j.bytes = sum([
+            Journal::layout(j.keys.capacity(), j.nodes.capacity()),
+            j.extra_bytes,
+        ]);
+        if j.bytes > j.cap {
+            return Err(construction_state::stale("集合cut保留账超过额度"));
+        }
+        j.set = Some(set);
+        Ok(())
+    })();
+    if result.is_err() {
+        j.unexpected = true;
+    }
+    result
+}
+
+/// Err/Drop 均毒化当前 actual-effects 流；不能忽略某个stage失败再继续发成功收据。
+pub(crate) struct StageGuard {
+    journal: Option<Arc<Mutex<Journal>>>,
+    connection: usize,
+    kind: StageKind,
+    start: usize,
+    material_before: u64,
+    closed: bool,
+}
+impl Drop for StageGuard {
+    fn drop(&mut self) {
+        if !self.closed {
+            if let Some(journal) = &self.journal {
+                if let Ok(mut j) = journal.lock() {
+                    j.unexpected = true;
+                }
+            }
+        }
+    }
+}
+pub(super) fn begin_stage(tx: &Transaction<'_>, kind: StageKind) -> Result<StageGuard, String> {
+    let mut guard = StageGuard {
+        journal: None,
+        connection: unsafe { tx.handle() } as usize,
+        kind,
+        start: 0,
+        material_before: 0,
+        closed: false,
+    };
+    let Some(journal) = current_journal(tx)? else {
+        return Ok(guard);
+    };
+    {
+        let mut j = journal.lock().map_err(invalid)?;
+        if !j.set_required {
+            return Ok(guard);
+        }
+        if j.overflow
+            || j.unexpected
+            || j.set.is_none()
+            || j.active_stage.is_some()
+            || j.stages.last().is_some_and(|stage| stage.kind > kind)
+        {
+            j.unexpected = true;
+            return Err(construction_state::stale("stage缺材料cut、重入或顺序倒退"));
+        }
+        guard.start = j.keys.len();
+        guard.material_before = j.material_epoch;
+        j.active_stage = Some(guard.start);
+    }
+    guard.journal = Some(journal);
+    Ok(guard)
+}
+impl StageGuard {
+    pub(crate) fn finish(
+        mut self,
+        tx: &Transaction<'_>,
+        source: &mut (impl super::super::audit_store::CodecRead + ?Sized),
+    ) -> Result<(), String> {
+        let Some(journal) = self.journal.as_ref().cloned() else {
+            self.closed = true;
+            return Ok(());
+        };
+        let mut j = journal.lock().map_err(invalid)?;
+        let result = (|| {
+            if self.connection != unsafe { tx.handle() } as usize
+                || tx.is_autocommit()
+                || j.unexpected
+                || j.overflow
+                || j.active_stage != Some(self.start)
+            {
+                return Err(construction_state::stale("stage失效或跨连接"));
+            }
+            let mut rows = j.keys[self.start..]
+                .iter()
+                .filter(|key| key.table != Table::Node);
+            let row = rows
+                .next()
+                .ok_or_else(|| construction_state::stale("stage缺实际SQL行"))?;
+            if rows.next().is_some()
+                || row.table != self.kind.table()
+                || row.action != Some(self.kind.action())
+            {
+                return Err(construction_state::stale("stage SQL并非唯一预期表/动作"));
+            }
+            let rowid = row.rowid;
+            let budget = native::Budget::new(j.cap, j.bytes)
+                .map_err(|_| construction_state::stale("stage收据额度不足"))?;
+            budget
+                .vec_grow(&mut j.stages, 1)
+                .map_err(|_| construction_state::stale("stage容器额度不足"))?;
+            let remaining = j
+                .cap
+                .checked_sub(budget.live())
+                .ok_or_else(|| construction_state::stale("stage原件额度不足"))?;
+            let (mut originals, peak) = ExactRows::read_optional_bounded_params(
+                tx,
+                self.kind.table().row_sql(),
+                [rowid],
+                remaining,
+            )?
+            .ok_or_else(|| construction_state::stale("stage原件读取额度不足"))?;
+            if originals.rows.len() != 1 {
+                return Err(construction_state::stale("stage当前行缺失/重复"));
+            }
+            verify_storage(tx, self.kind.table(), &originals.rows[0])?;
+            // 在本stage结束前读取并核实际SQL根的当前完整原件；未来put不能补签。
+            for &column in self.kind.roots() {
+                let digest: [u8; 32] = match &originals.rows[0][column] {
+                    SqlCell::Blob(value) => value.as_slice().try_into().map_err(invalid)?,
+                    _ => return Err(construction_state::stale("stage根不是BLOB")),
+                };
+                let root = newchan_rust::s_content::FixedRoot::new(&digest);
+                let reference = source.content_ref_view(root.as_str()).map_err(invalid)?;
+                source
+                    .verify_many_ref_fresh(
+                        [reference.view()],
+                        newchan_rust::s_content::Mode::Public,
+                    )
+                    .map_err(invalid)?;
+            }
+            j.peak = j.peak.max(sum([budget.live(), peak])).max(budget.peak());
+            let row = originals.rows.pop().unwrap();
+            let end = j.keys.len();
+            let material_after = j.material_epoch;
+            j.stages.push(StageReceipt {
+                kind: self.kind,
+                start: self.start,
+                end,
+                material_before: self.material_before,
+                material_after,
+                rowid,
+                row,
+            });
+            j.extra_bytes = sum([
+                j.set.as_ref().map_or(0, |set| set.retained_bytes()),
+                vec_bytes::<StageReceipt>(j.stages.capacity()),
+                j.stages.iter().map(|s| s.row.heap_bytes()).sum::<usize>(),
+            ]);
+            j.bytes = sum([
+                Journal::layout(j.keys.capacity(), j.nodes.capacity()),
+                j.extra_bytes,
+            ]);
+            if j.bytes > j.cap {
+                return Err(construction_state::stale("stage实际保留账超过额度"));
+            }
+            j.active_stage = None;
+            Ok(())
+        })();
+        if result.is_err() {
+            j.unexpected = true;
+        }
+        drop(j);
+        if result.is_ok() {
+            self.closed = true;
+        }
+        result
+    }
+}
+fn validate_stage_coverage(j: &Journal) -> Result<(), String> {
+    let set = j
+        .set
+        .as_ref()
+        .ok_or_else(|| construction_state::stale("publish缺完整材料cut"))?;
+    if j.active_stage.is_some() {
+        return Err(construction_state::stale("存在未闭合stage"));
+    }
+    let mut cursor = 0usize;
+    let mut previous_material = set.material_epoch;
+    let mut node_epoch = 0u64;
+    for (ordinal, key) in j.keys.iter().enumerate() {
+        if key.table == Table::Node {
+            let Some((before, after, inserted)) = key.node_write else {
+                return Err(construction_state::stale("node缺实际put收据"));
+            };
+            node_epoch = node_epoch
+                .checked_add(1)
+                .ok_or_else(|| construction_state::stale("node事件序耗尽"))?;
+            if key.material_epoch != node_epoch
+                || after.checked_sub(before) != Some(u64::from(inserted))
+            {
+                return Err(construction_state::stale("node多次事件序/实际写数不符"));
+            }
+            continue;
+        }
+        if matches!(
+            key.table,
+            Table::Object | Table::Witness | Table::Relation | Table::Observation
+        ) {
+            while cursor < j.stages.len() && ordinal >= j.stages[cursor].end {
+                cursor += 1;
+            }
+            let stage = j
+                .stages
+                .get(cursor)
+                .ok_or_else(|| construction_state::stale("业务SQL不属于stage"))?;
+            if ordinal < stage.start || key.table != stage.kind.table() || key.rowid != stage.rowid
+            {
+                return Err(construction_state::stale("stage遗漏或重复业务SQL"));
+            }
+        }
+    }
+    for stage in &j.stages {
+        if stage.material_before < previous_material || stage.material_after < stage.material_before
+        {
+            return Err(construction_state::stale("stage材料epoch倒退"));
+        }
+        previous_material = stage.material_after;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -650,6 +1034,13 @@ fn native_journal_only_reserves_the_container_that_grows() {
         bytes: inline,
         peak: inline,
         coverage: None,
+        set_required: false,
+        set_seed: None,
+        set: None,
+        stages: Vec::new(),
+        active_stage: None,
+        material_epoch: 0,
+        extra_bytes: 0,
     };
     assert!(j.reserve_one(true));
     let node_cap = j.nodes.capacity();
@@ -659,6 +1050,9 @@ fn native_journal_only_reserves_the_container_that_grows() {
             table: Table::Meta,
             rowid: rowid as i64,
             digest: [0; 32],
+            action: None,
+            material_epoch: 0,
+            node_write: None,
         });
     }
     let before = j.bytes;
@@ -763,5 +1157,124 @@ mod construction_coverage_tests {
             .unwrap();
         put(&tx, 1);
         assert!(recording.finish(&tx, &mut [], 0).unwrap().is_none());
+    }
+    fn set_recording(tx: &Transaction<'_>) -> Recording {
+        let fixture = super::super::construction_state::RawAdvanceFixture::new();
+        let events = [serde_json::json!({"identity_key":"raw","revision":1,"source_coord":"0"})];
+        let token = fixture.bind((&events).into(), 0, &[]).unwrap();
+        let raw = token.current_binding();
+        let seed = construction_set::Seed::new(
+            raw,
+            SnapshotSeal {
+                life: raw.owner_life(),
+                transaction_id: 1,
+                write_sequence: 0,
+                data_version: 1,
+                schema_version: 1,
+                domain: [0, 1, 1, 0, 0, 1],
+            },
+            None,
+            None,
+        )
+        .unwrap();
+        let recording = Recording::start(tx, Operation::Publish, 16 << 20, true)
+            .unwrap()
+            .unwrap();
+        recording.bind_set(seed).unwrap();
+        let mut store = crate::content_store::TxStore::new(tx).unwrap();
+        let state = sc::write_value(
+            &mut store,
+            &sc::Value::Object(vec![
+                ("objects".into(), sc::Value::Array(vec![])),
+                ("witnesses".into(), sc::Value::Array(vec![])),
+                ("observations".into(), sc::Value::Array(vec![])),
+            ]),
+        )
+        .unwrap()
+        .content_ref();
+        // 私有材料fixture，不替代完整来源审计；真实Runtime正控在父owner测试。
+        note_source_cut(tx, &mut store, (&state).into()).unwrap();
+        recording
+    }
+    #[test]
+    fn owner_set_ordered_node_receipts_keep_repeated_noop_and_unreachable_nodes() {
+        let mut db = database();
+        let tx = db.transaction().unwrap();
+        let recording = set_recording(&tx);
+        let before = recording.journal.lock().unwrap().keys.len();
+        put(&tx, 45);
+        put(&tx, 45);
+        put(&tx, 46);
+        {
+            let j = recording.journal.lock().unwrap();
+            let tail = &j.keys[before..];
+            assert_eq!(tail.len(), 3, "不可因摘要相同丢Noop occurrence");
+            assert_eq!(tail[0].digest, tail[1].digest);
+            assert!(tail[0].node_write.unwrap().2);
+            assert!(!tail[1].node_write.unwrap().2);
+            assert!(tail[1].material_epoch > tail[0].material_epoch);
+        }
+        // 两个合法中间节点均不在state闭包；不得误报为多余业务成员。
+        let effects = recording.finish(&tx, &mut [], 16 << 20).unwrap().unwrap();
+        assert!(effects.set.is_some());
+        assert!(effects.has_exact_coverage(tx.total_changes()));
+    }
+    #[test]
+    fn owner_set_future_stage_cannot_repair_missing_current_original() {
+        let mut db = database();
+        let tx = db.transaction().unwrap();
+        tx.execute_batch(crate::v3::aux_index::SCHEMA).unwrap();
+        let recording = set_recording(&tx);
+        let mut memory = sc::MemoryNodes::default();
+        let missing =
+            sc::write_value(&mut memory, &sc::Value::String("only-in-next-stage".into())).unwrap();
+        let (tag, body) = memory.get(&missing.digest).unwrap();
+        let mut store = crate::content_store::TxStore::new(&tx).unwrap();
+        store.put(missing.digest, tag, body).unwrap(); // 只有根头，无当前闭包。
+        let stage = begin_stage(&tx, StageKind::Observation).unwrap();
+        tx.execute(
+            "INSERT INTO s_content_observations VALUES('ob','kind',NULL,'batch',?1,?1,1)",
+            [&missing.digest[..]],
+        )
+        .unwrap();
+        assert!(stage.finish(&tx, &mut store).is_err());
+        // 即使后续put补齐所有原件，失败stage已经撤销该事务的集合收据。
+        for (digest, tag, body) in memory.iter() {
+            store.put(*digest, tag, body).unwrap();
+        }
+        assert!(begin_stage(&tx, StageKind::Observation).is_err());
+        assert!(recording.finish(&tx, &mut [], 16 << 20).is_err());
+    }
+    #[test]
+    fn owner_set_stage_drop_foreign_connection_and_omitted_business_row_reject() {
+        for scenario in ["drop", "foreign", "omitted"] {
+            let mut db = database();
+            let tx = db.transaction().unwrap();
+            tx.execute_batch(crate::v3::aux_index::SCHEMA).unwrap();
+            let recording = set_recording(&tx);
+            match scenario {
+                "drop" => {
+                    drop(begin_stage(&tx, StageKind::Witness).unwrap());
+                }
+                "foreign" => {
+                    let mut other = database();
+                    let other_tx = other.transaction().unwrap();
+                    assert!(begin_stage(&other_tx, StageKind::Witness).is_err());
+                    drop(begin_stage(&tx, StageKind::Witness).unwrap());
+                }
+                "omitted" => {
+                    tx.execute(
+                        "INSERT INTO s_content_relations VALUES('r','s','t','o',zeroblob(32),1)",
+                        [],
+                    )
+                    .unwrap();
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                recording.finish(&tx, &mut [], 16 << 20).is_err(),
+                "{scenario}"
+            );
+        }
     }
 }

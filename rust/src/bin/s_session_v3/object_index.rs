@@ -2056,6 +2056,11 @@ pub(super) fn stage(
         {
             return Err(err("新生上下文不符"));
         }
+        #[cfg(feature = "s_capture_native_testonly")]
+        let construction_stage = super::audit_owner::begin_construction_stage(
+            tx,
+            super::audit_owner::StageKind::ObjectBirth,
+        )?;
         let wire = s
             .replace_ref(e.birth_wire.view(), &[f("batch_id")], batch)
             .map_err(err)?;
@@ -2066,12 +2071,21 @@ pub(super) fn stage(
             Slot::Typed { fact_key, .. } => (Some(fact_key.as_str()), None),
         };
         tx.execute("INSERT INTO s_content_objects VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?13,NULL,NULL,NULL)",params![e.id,e.revision,e.kind,fact,w.map(|v|v[0]),w.map(|v|v[1]),w.map(|v|v[2]),e.generated.digest.as_slice(),e.internal.digest.as_slice(),e.immutable.digest.as_slice(),wire.digest().map_err(err)?.as_slice(),batch,p.generation,format!("cut-{}",p.generation)]).map_err(err)?;
+        #[cfg(feature = "s_capture_native_testonly")]
+        construction_stage.finish(tx, s)?;
     }
     for w in &p.withdrawals {
+        #[cfg(feature = "s_capture_native_testonly")]
+        let construction_stage = super::audit_owner::begin_construction_stage(
+            tx,
+            super::audit_owner::StageKind::ObjectWithdrawal,
+        )?;
         let changed=tx.execute("UPDATE s_content_objects SET withdrawn_generation=?1,withdrawal_reason=?2,superseded_by=?3 WHERE object_id=?4 AND withdrawn_generation IS NULL",params![p.generation,w["reason"].as_str(),w["superseded_by"].as_str(),w["object_id"].as_str()]).map_err(err)?;
         if changed != 1 {
             return Err(err("撤回身份缺失或已撤回"));
         }
+        #[cfg(feature = "s_capture_native_testonly")]
+        construction_stage.finish(tx, s)?;
     }
     Ok(())
 }

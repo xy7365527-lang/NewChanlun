@@ -2310,6 +2310,11 @@ pub(super) fn stage(
         if w.first != p.generation {
             return Err(err("见证出生代错绑"));
         }
+        #[cfg(feature = "s_capture_native_testonly")]
+        let construction_stage = super::audit_owner::begin_construction_stage(
+            tx,
+            super::audit_owner::StageKind::Witness,
+        )?;
         tx.execute(
             "INSERT INTO s_content_witnesses(witness_id,object_id,slot,generated_root,wire_root,published_generation,merged_index) VALUES(?1,?2,?3,?4,?5,?6,?7)",
             params![
@@ -2323,11 +2328,18 @@ pub(super) fn stage(
             ],
         )
         .map_err(err)?;
+        #[cfg(feature = "s_capture_native_testonly")]
+        construction_stage.finish(tx, s)?;
     }
     for r in &p.births.relations {
         if r.first != p.generation {
             return Err(err("关系出生代错绑"));
         }
+        #[cfg(feature = "s_capture_native_testonly")]
+        let construction_stage = super::audit_owner::begin_construction_stage(
+            tx,
+            super::audit_owner::StageKind::Relation,
+        )?;
         tx.execute(
             "INSERT INTO s_content_relations VALUES(?1,?2,?3,?4,?5,?6)",
             params![
@@ -2340,11 +2352,18 @@ pub(super) fn stage(
             ],
         )
         .map_err(err)?;
+        #[cfg(feature = "s_capture_native_testonly")]
+        construction_stage.finish(tx, s)?;
     }
     for o in &p.births.observations {
         if o.first != p.generation || o.batch.is_some() {
             return Err(err("观察出生代/模板错绑"));
         }
+        #[cfg(feature = "s_capture_native_testonly")]
+        let construction_stage = super::audit_owner::begin_construction_stage(
+            tx,
+            super::audit_owner::StageKind::Observation,
+        )?;
         let wire = s
             .replace_ref(o.wire.view(), &[f("batch_id")], batch)
             .map_err(err)?;
@@ -2363,6 +2382,8 @@ pub(super) fn stage(
             ],
         )
         .map_err(err)?;
+        #[cfg(feature = "s_capture_native_testonly")]
+        construction_stage.finish(tx, s)?;
     }
     Ok(())
 }
