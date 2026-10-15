@@ -3145,7 +3145,7 @@ if (typeof module !== 'object' || !module.exports) {
     TB02_KINDS: Object.freeze(TB02_KINDS), BI_KINDS, SEGMENT_KINDS: Object.freeze(SEGMENT_KINDS)});
 });
 
-/* exact source q3-consumer.js SHA256 490e32bd677765d091383d1131d4d453f8ea859d9525c6573339a85ac06c213f */
+/* exact source q3-consumer.js SHA256 41f7d4634fa7f074270dcc2d57d360e5feb943068148fe99ad4a9a5f6576dc45 */
 /* #1394：Q3完整消费者；只供既有tb01c页面调用，没有产品路由或默认资源。 */
 (function (root, factory) {
   const common = typeof module === "object" && module.exports;
@@ -4405,6 +4405,8 @@ if (typeof module !== 'object' || !module.exports) {
       const profile = await s(snapshot, "profile_id"),
         ph = await s(snapshot, "profile_hash"),
         rule = await s(snapshot, "rule_revision");
+      // 空会话也必须先声明已知规则，不能等首次发布才选择合同。
+      need(RULE_AXES.has(rule), "cut规则修订未声明");
       if (generation === "0") {
         need(profile && /^[0-9a-f]{64}$/.test(ph), "cut0无冻结profile");
       } else {
@@ -4488,7 +4490,6 @@ if (typeof module !== 'object' || !module.exports) {
         "Q3完整消费者只接受显式OHLC已批准profile",
       );
       // #1404/#1414：按 cut 规则修订选轴表（同 main validateTB02Candidate，先于逐轴校验）。
-      need(RULE_AXES.has(rule), "cut规则修订未声明");
       if (generation !== "0")
         await keys(
           await f(await f(snapshot, "catalog_evidence"), "axes"),

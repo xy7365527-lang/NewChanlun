@@ -58,6 +58,22 @@ function frozenCatalog() {
     implementation_status:'not_implemented', proof_status:'not_proved', run_status:'not_run', evidence:{}}));
   return {catalog_revision:API.TB02_CATALOG.catalog_revision, items, counts:{implemented:'0', not_implemented:String(items.length), run:'0', not_run:String(items.length)}};
 }
+test('公开Q3零代入口保留具名历史规则并拒绝未知规则', async () => {
+  function emptyState(rule) {
+    const common = {session_id:'empty-rule-contract',generation:'0',structure_cut:'cut-0',catalog_revision:API.TB02_CATALOG.catalog_revision,
+      index_frontier:'',scope:{structure:'CompleteCut',economic:'not_started'},input_frontier:'-1',seq_range:{from:'0',to:'-1'},catalog_run_status:'not_run',catalog_evidence:{}};
+    return {snapshot:{...common,profile_id:PROFILE,profile_hash:'a'.repeat(64),rule_revision:rule,history_mode:'AsKnown',as_of_generation:'0',
+      objects:[],withdrawn_objects:[],raw_history:[],witnesses:[],relations:[],observations:[]},
+      catalog:{...frozenCatalog(),...common},
+      cut:Object.fromEntries(['session_id','generation','structure_cut','catalog_revision','index_frontier'].map(k=>[k,common[k]]))};
+  }
+  for (const protocol of ['s-session/2','s-session/3']) {
+    for (const rule of ['s2-axis-quantifiers','s2-axis-quantifiers+new-bi/1','s2-axis-quantifiers+new-bi/2',
+      's2-axis-quantifiers+new-bi/1+segment-first/1',RULE_NEW_BI_1,RULE_NEW_BI_2])
+      await API.Q3.validateState(emptyState(rule),protocol);
+    await assert.rejects(API.Q3.validateState(emptyState('unknown-rule'),protocol),/cut规则修订未声明/);
+  }
+});
 // 单个完整 typed 端点对象的 cut；内容身份按该 cut 的会话规则闭合，使合同代际绑定成为唯一可能的拒因。
 async function endpointCut(generation, rule, protocol = 's-session/2') {
   const payload = {...(generation === 2 ? V2 : V1), view_role:'main', object_generation:'1', slot:'fx:1:5', data:generation === 2 ? top : asV1(top, '5')};
