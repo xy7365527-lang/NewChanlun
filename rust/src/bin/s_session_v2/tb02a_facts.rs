@@ -950,7 +950,7 @@ fn raw_bar(raw: &Value) -> Value {
 pub(super) enum CatalogAxisTable {
     /// `s2-axis-quantifiers+new-bi/1`：CC-001…010、CC-054、CC-055、CC-056（13 轴）。
     NewBi,
-    /// `s2-axis-quantifiers+new-bi/1+segment-second/1`：另加 CC-011…014（17 轴）。
+    /// `s2-axis-quantifiers+new-bi/1+segment-second/2`：另加 CC-011…014（17 轴），含 #1420 续扫。
     SegmentSecond,
 }
 
@@ -1067,16 +1067,14 @@ pub(super) fn catalog_axes<'a>(
         waiting.dedup();
         let mut evidence = json!({"scope":"TB-02-A","object_ids":ids,"waiting_reasons":waiting});
         if matches!(axis, "CC-011" | "CC-012" | "CC-013" | "CC-014") {
-            evidence["scope"] = json!("TB-02-D");
+            evidence["scope"] = json!("TB-02-W");
             evidence["delivered_subobligations"] = json!([
                 "finite_complete_prefix_strict_second",
-                "independent_stroke_and_segment_break_facts"
+                "independent_stroke_and_segment_break_facts",
+                "general_scan_continuation"
             ]);
-            evidence["deferred_subobligations"] = json!([
-                "general_equal_identity",
-                "general_scan_continuation",
-                "global_G006_bridge"
-            ]);
+            evidence["deferred_subobligations"] =
+                json!(["general_equal_identity", "global_G006_bridge"]);
         }
         let mut run = if ids.is_empty() {
             if waiting.is_empty() {
@@ -1123,6 +1121,40 @@ pub(super) fn catalog_axes<'a>(
 #[cfg(test)]
 mod units_cache_tests {
     use super::*;
+
+    #[test]
+    fn tb02w_catalog_scope_is_bound_to_exact_rule_without_completing_parent_axes() {
+        assert_eq!(
+            CatalogAxisTable::for_rule_revision(crate::RULE_REVISION),
+            Some(CatalogAxisTable::SegmentSecond)
+        );
+        assert_eq!(
+            CatalogAxisTable::for_rule_revision(crate::V3_RULE_REVISION),
+            Some(CatalogAxisTable::NewBi)
+        );
+        assert_eq!(CatalogAxisTable::for_rule_revision("unknown-rule"), None);
+        let raw = Vec::<Value>::new();
+        let axes = catalog_axes(CatalogAxisTable::SegmentSecond, &[], &raw, -1, &[], &[]);
+        assert_eq!(axes.as_object().unwrap().len(), 17);
+        for axis in ["CC-011", "CC-012", "CC-013", "CC-014"] {
+            let evidence = &axes[axis]["evidence"];
+            assert_eq!(evidence["scope"], "TB-02-W");
+            assert!(evidence["delivered_subobligations"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("general_scan_continuation")));
+            assert_eq!(
+                evidence["deferred_subobligations"],
+                json!(["general_equal_identity", "global_G006_bridge"])
+            );
+            if axis != "CC-011" {
+                assert_eq!(axes[axis]["impl_status"], "not_implemented");
+            }
+        }
+        let v3 = catalog_axes(CatalogAxisTable::NewBi, &[], &raw, -1, &[], &[]);
+        assert_eq!(v3.as_object().unwrap().len(), 13);
+        assert!(v3.get("CC-011").is_none());
+    }
 
     fn entry(key: &str) -> UnitEntry {
         UnitEntry {

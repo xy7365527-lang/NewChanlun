@@ -710,10 +710,25 @@
     ["s2-axis-quantifiers+new-bi/1", BI_AXES],
     ["s2-axis-quantifiers+new-bi/1+segment-first/1", FIRST_SEGMENT_AXES],
     ["s2-axis-quantifiers+new-bi/1+segment-second/1", TB02_AXES],
+    ["s2-axis-quantifiers+new-bi/1+segment-second/2", TB02_AXES],
   ]);
-  async function axesValidate(axes, active = null) {
+  // #1420：仅按具名 cut 修订选段合同，未知修订返回 null；不按校验失败降级。
+  function segmentSchemaForRule(rule) {
+    return rule === "s2-axis-quantifiers+new-bi/1+segment-second/2" ? "s-segment/3"
+      : rule === "s2-axis-quantifiers+new-bi/1+segment-second/1" ? "s-segment/2"
+      : rule === "s2-axis-quantifiers+new-bi/1+segment-first/1" ? "s-segment/1"
+      : null;
+  }
+  async function axesValidate(axes, active = null, ruleRevision = null) {
     axes = of(axes);
     const second = await axes.has("CC-014");
+    let secondScope = second ? await s(await f(await f(axes, "CC-011"), "evidence"), "scope") : null;
+    if (ruleRevision !== null) {
+      need(RULE_AXES.has(ruleRevision), "未声明的目录规则修订");
+      await keys(axes, RULE_AXES.get(ruleRevision), "cut规则目录轴");
+      secondScope = ruleRevision === "s2-axis-quantifiers+new-bi/1+segment-second/2" ? "TB-02-W" : "TB-02-D";
+    }
+    need(!second || ["TB-02-D", "TB-02-W"].includes(secondScope), "轴范围错误");
     await keys(
       axes,
       second
@@ -753,7 +768,7 @@
       const scoped =
         e.kind === "object" &&
         (await e.has("scope")) &&
-        (await equal(await f(e, "scope"), "TB-02-D"));
+        ["TB-02-D", "TB-02-W"].includes(await s(e, "scope"));
       await keys(
         e,
         [
@@ -774,14 +789,16 @@
         "目录轴证据",
       );
       if (scoped) {
+        const continued = await s(e, "scope") === "TB-02-W";
         need(
           (await equal(await f(e, "delivered_subobligations"), [
             "finite_complete_prefix_strict_second",
             "independent_stroke_and_segment_break_facts",
+            ...(continued ? ["general_scan_continuation"] : []),
           ])) &&
             (await equal(await f(e, "deferred_subobligations"), [
               "general_equal_identity",
-              "general_scan_continuation",
+              ...(continued ? [] : ["general_scan_continuation"]),
               "global_G006_bridge",
             ])),
           "第二种子义务范围不符",
@@ -795,7 +812,7 @@
       need(
         (await s(e, "scope")) ===
           (second && ["CC-011", "CC-012", "CC-013", "CC-014"].includes(cid)
-            ? "TB-02-D"
+            ? secondScope
             : ["CC-011", "CC-012", "CC-013"].includes(cid)
               ? "TB-02-C"
               : "TB-02-A"),
@@ -875,7 +892,7 @@
       // #1392/#1404：新笔/段 payload.slot 是逻辑身份；见证 slot 仍按整数核对。
       const logicalSlot =
         (await v.has("schema_revision")) &&
-        ["s-new-bi/1", "s-segment/1", "s-segment/2"].includes(
+        ["s-new-bi/1", "s-segment/1", "s-segment/2", "s-segment/3"].includes(
           await s(v, "schema_revision"),
         );
       for await (const e of v.entries()) {
@@ -1116,7 +1133,7 @@
           snapshot === null || generation === "0"
             ? null
             : await f(await f(snapshot, "catalog_evidence"), "axes");
-      if (axes) await axesValidate(axes, await f(snapshot, "objects"));
+      if (axes) await axesValidate(axes, await f(snapshot, "objects"), await s(snapshot, "rule_revision"));
       for await (const item of items.items()) {
         await keys(
           item,
@@ -1338,12 +1355,14 @@
         "Q3完整消费者只接受显式OHLC已批准profile",
       );
       // #1404/#1414：按 cut 规则修订选轴表（同 main validateTB02Candidate，先于逐轴校验）。
-      if (generation !== "0")
+      if (generation !== "0") {
+        need(RULE_AXES.has(rule), "未声明的目录规则修订");
         await keys(
           await f(await f(snapshot, "catalog_evidence"), "axes"),
-          RULE_AXES.get(rule) || TB02_AXES,
+          RULE_AXES.get(rule),
           "cut规则目录轴",
         );
+      }
       await catalogValidate(catalog, snapshot);
       const binding = await bindSources(snapshot, charge);
       await bindSegmentSequences(snapshot);
@@ -1370,11 +1389,7 @@
             need(
               await equal(
                 await f(await f(record, "payload"), "schema_revision"),
-                rule === "s2-axis-quantifiers+new-bi/1+segment-second/1"
-                  ? "s-segment/2"
-                  : rule === "s2-axis-quantifiers+new-bi/1+segment-first/1"
-                    ? "s-segment/1"
-                    : null,
+                segmentSchemaForRule(rule),
               ),
               "段合同与cut规则版本不符",
             );
@@ -1406,7 +1421,7 @@
       check();
       return binding;
     }
-    // #1414 TB-02-D：同 cut 活动集内 s-segment/2 段与其 FIRST/SECOND 序列对象互绑；判据逐字同 main
+    // #1414/#1420：同 cut 活动集内 s-segment/2、/3 段与其 FIRST/SECOND 序列对象互绑；判据同已审
     // validateTB02Candidate（payload 已由 typed 完整校验，此处在同一原件上做跨对象绑定）。
     async function bindSegmentSequences(snapshot) {
       const equalPlain = (a, b) => api.canonical(a) === api.canonical(b);
@@ -1416,19 +1431,20 @@
       for (const value of activeValues.values()) {
         if ((await s(value, "kind")) !== "CC-013.segment") continue;
         const r = await typed.plain(value);
-        if (r.payload.schema_revision !== "s-segment/2") continue;
+        if (!["s-segment/2", "s-segment/3"].includes(r.payload.schema_revision)) continue;
         const d = r.payload.data;
         need(d.second_sequence_id !== null || d.fact_vector.scan_complete, "未完成扫描缺SECOND资源证据");
         for (const [prefix, role] of [["sequence", "FIRST_SEQUENCE"], ["second_sequence", "SECOND_SEQUENCE"]]) {
           const oid = d[prefix + "_object_id"]; if (oid === null) continue;
           const qValue = activeValues.get(oid), q = qValue ? await typed.plain(qValue) : undefined;
-          need(q && q.kind === "CC-012.feature_sequence" && q.payload.schema_revision === "s-segment/2", "段引用缺同cut序列对象");
+          need(q && q.kind === "CC-012.feature_sequence" && q.payload.schema_revision === r.payload.schema_revision, "段引用缺同cut序列对象");
           const v = q.payload.data;
           need(v.entity_id === d[prefix + "_id"] && v.segment_id === d.entity_id && v.role === role, "段序列引用身份/角色不符");
           need(q.source_coords.every(c => r.source_coords.includes(c)), "段缺序列实际来源");
           if (role === "FIRST_SEQUENCE" && d.strict !== null) need(v.facts.checks.some(c => equalPlain(c.elements, d.strict.elements)), "strict未绑定FIRST检查");
           if (role === "SECOND_SEQUENCE") need(d.fact_vector.scan_complete !== (v.facts.resource_truncated && v.facts.matched === null), "段事实可知性未绑定SECOND扫描证据");
           if (role === "SECOND_SEQUENCE" && d.result === "CASE_TWO") need(v.second_sequence_status === "CONFIRMED" && equalPlain(d.fact_vector.termination_witness.second_match, v.facts.matched), "第二种终结证书未绑定同次SECOND命中");
+          if (role === "SECOND_SEQUENCE" && r.payload.schema_revision === "s-segment/3" && ["KILLED_CASE_TWO", "PENDING_CASE_TWO"].includes(d.result)) need(v.second_sequence_status === (d.result === "KILLED_CASE_TWO" ? "KILLED" : "PENDING"), "段结果未绑定SECOND终态");
         }
       }
     }
@@ -1622,7 +1638,7 @@
         "Delta遗漏/额外replaces",
       );
       const e = await f(inner, "catalog_evidence");
-      await axesValidate(await f(e, "axes"));
+      await axesValidate(await f(e, "axes"), null, await s(e, "rule_revision"));
       return inner;
     }
     async function comparePublication(delta, snapshot) {
@@ -2584,6 +2600,7 @@
         await axesValidate(
           await f(await f(inner, "catalog_evidence"), "axes"),
           families.objects,
+          await s(await f(inner, "catalog_evidence"), "rule_revision"),
         );
         return families;
       }
