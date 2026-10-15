@@ -527,6 +527,170 @@ LOCKS.extend([
 ])
 
 
+# #1488 A2：新具名锁追加；原49锁与全部运行/退出判定原样保留。
+# modes表示构建配置；公共锁使用Plain原件/fixture，不代表完整Owned或Native Runtime。
+LOCKS.extend([
+    {
+        "lane": "A2",
+        "name": "s_fact_cache::delta_tests::delta_effective_view_rank_range_and_parser_are_same_bound_without_projection",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v2/s_fact_cache.rs",
+        "input_evidence": "Plain input with RawAdvanceFixture; Native build is not Runtime evidence"
+    },
+    {
+        "lane": "A2",
+        "name": "s_fact_cache::delta_tests::delta_effective_view_rejects_self_reported_parse_even_with_valid_raw_binding",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v2/s_fact_cache.rs",
+        "input_evidence": "Plain input with RawAdvanceFixture; Native build is not Runtime evidence"
+    },
+    {
+        "lane": "A2",
+        "name": "s_fact_cache::delta_tests::delta_prepared_rejects_equal_but_foreign_parser_and_untracked_source_epoch",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v2/s_fact_cache.rs",
+        "input_evidence": "Plain input with RawAdvanceFixture; Native build is not Runtime evidence"
+    },
+    {
+        "lane": "A2",
+        "name": "v3::generation::tests::delta_full_six_roots_revision_swap_insertion_and_metadata_match_full",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/generation.rs",
+        "input_evidence": "Plain input with RawAdvanceFixture; Native build is not Runtime evidence"
+    },
+    {
+        "lane": "A2",
+        "name": "v3::generation::tests::delta_full_bi_prior_tail_revision_and_reactivated_windows_match_full",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/generation.rs",
+        "input_evidence": "Plain input with RawAdvanceFixture; Native build is not Runtime evidence"
+    },
+    {
+        "lane": "A2",
+        "name": "v3::generation::tests::delta_full_direction_correction_competing_extremes_and_coordinate_removal_match_full",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/generation.rs",
+        "input_evidence": "Plain input with RawAdvanceFixture; Native build is not Runtime evidence"
+    },
+    {
+        "lane": "A2",
+        "name": "v3::generation::tests::delta_full_cold_matches_independent_sealed_v2_oracle",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/generation.rs",
+        "input_evidence": "Plain input with RawAdvanceFixture; Native build is not Runtime evidence"
+    },
+    {
+        "lane": "A2",
+        "name": "v3::generation::tests::delta_full_foreign_expired_and_consumer_failure_revoke_without_fallback",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/generation.rs",
+        "input_evidence": "Plain input with RawAdvanceFixture; Native build is not Runtime evidence"
+    },
+    {
+        "lane": "A2",
+        "name": "v3::generation::tests::delta_full_node_write_failures_revoke_pending_generation_and_all_six_memos",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/generation.rs",
+        "input_evidence": "Plain input with RawAdvanceFixture; Native build is not Runtime evidence"
+    },
+    {
+        "lane": "A2",
+        "name": "v3::generation::tests::delta_full_owned_is_explicitly_rejected_and_lease_revoked",
+        "target": "bin",
+        "modes": [
+            "Owned"
+        ],
+        "file": "rust/src/bin/s_session_v3/generation.rs",
+        "input_evidence": "real Owned rejection only"
+    }
+])
+
+# #1488 A2 v2：跨代来源资格与身份首错返修锁，原59锁及执行器保持。
+LOCKS.extend([
+    {
+        "lane": "A2v2",
+        "name": "s_fact_cache::delta_tests::delta_owner_rejects_generic_history_on_later_no_edit_generation_without_intermediate_view",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v2/s_fact_cache.rs",
+        "input_evidence": "Plain originals and RawAdvanceFixture; cross-generation negative controls and first-error identity proof only"
+    },
+    {
+        "lane": "A2v2",
+        "name": "s_fact_cache::delta_tests::delta_owner_rejects_intervening_generic_revision_before_other_winner_append",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v2/s_fact_cache.rs",
+        "input_evidence": "Plain originals and RawAdvanceFixture; cross-generation negative controls and first-error identity proof only"
+    },
+    {
+        "lane": "A2v2",
+        "name": "v3::generation::tests::delta_full_identity_preflight_preserves_full_first_error_and_zero_write_attempts",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/generation.rs",
+        "input_evidence": "Plain originals and RawAdvanceFixture; cross-generation negative controls and first-error identity proof only"
+    }
+])
+
+
 def required_locks(mode: str, target: str) -> list[dict]:
     """清单来自冻结源码包；不按测试输出反推预期，防止零测试假绿。"""
     return [lock for lock in LOCKS if mode in lock["modes"] and lock["target"] == target]
