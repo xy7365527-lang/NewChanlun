@@ -1,0 +1,40 @@
+name: "#1504 supervisor cancellation probe"
+
+# 精确候选分支的一次 push 独立运行；无 workflow_dispatch 注册依赖。
+on:
+  push:
+    branches: [proto/1504-cancel-probe]
+
+permissions:
+  contents: read
+
+jobs:
+  d1-cancellation:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/proto/1504-cancel-probe'
+    permissions:
+      contents: read
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      EXPECTED_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 原监督器正常控制与真实 TERM、回收期间 INT 补验
+        timeout-minutes: 40
+        run: python3 -B .github/scripts/test-1504-d1-cancellation.py
+      - name: 保存补验回执、原件与失败现场
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 1504-cancel-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/1504-cancel-artifacts/
+            ${{ runner.temp }}/1504-d1-cancel-*/evidence/
+          if-no-files-found: error
