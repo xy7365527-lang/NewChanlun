@@ -31,3 +31,7 @@ python3 -B s_session/tests/tb03c_runtime.py --binaries /absolute/binaries --buil
 只有六轨、四次实际 Resolve SIGKILL 和所有检查全通过，才写 `RESULT.json: PASS_C7A`。无跳过开关。失败保留原始日志和 FAIL；只读数据库不是预期值来源。输出含启动命令/PID/回收码、完整请求响应、marker、恢复前后表、各步 oracle 与最终十表。
 
 继续开放：FIN/2 正式责任链、真实 S/γ、WE-1/2/7、RF-01 坏重隔离、C4b 未覆盖成功域、C5/C6 与完整 C7。C7a 不构成 #1406 关票依据。
+
+v2 独审修复：21 个写消息由 `write_message_schedule` 登记，含 r6 后的 `extra-local-fill-wait`。加载种子时逐 epoch 核完整集合、三阶段时刻及恢复/前序下界；所有写请求构造入口再核消息与操作对应。额外负控仍期待 `AwaitingDependency`，不改错误期望。
+
+init/recover 也以本次 Popen 句柄执行，超时后 finally kill/wait 回收；正常、非零退出、spawn 失败及超时都记录命令与结果分类。stdout/stderr 分别保存原始字节文件，收据带路径/hash/字节数；日志保存失败不会替代原始超时异常。13 组纯标准库契约含正常/超时 mock 及 21 写消息×全 epoch 的覆盖负控；它们不替代实际产品验收。

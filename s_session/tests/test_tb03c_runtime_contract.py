@@ -2,6 +2,7 @@
 import copy
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -41,8 +42,8 @@ class RuntimeContract(unittest.TestCase):
         plan = self.seed["manifest"]["clock"]["plan"]
         for epoch in range(4):
             floor = int(plan["init_ns"] if epoch == 0 else plan["recover_ns"][epoch - 1])
-            for index in range(20):
-                entry = plan["messages"][f"step-{index:03d}"]
+            for message, _ in runtime.write_message_schedule(self.case):
+                entry = plan["messages"][message]
                 received, first, commit = [int(entry[k][epoch]) for k in ("received_ns", "first_known_ns", "commit_ns")]
                 self.assertLess(floor, received)
                 self.assertLessEqual(received, first)
@@ -50,6 +51,27 @@ class RuntimeContract(unittest.TestCase):
                 floor = commit
             if epoch < 3:
                 self.assertLess(floor, int(plan["recover_ns"][epoch]))
+
+    def test_every_write_message_requires_all_epoch_clock_slots(self):
+        schedule = runtime.write_message_schedule(self.case)
+        self.assertEqual(len(schedule), 21)
+        self.assertEqual(schedule[15], ("extra-local-fill-wait", "ApplyAllocation"))
+        for message, _ in schedule:
+            with self.subTest(message=message):
+                self.changed_seed(lambda s, m=message: s["manifest"]["clock"]["plan"]["messages"].pop(m))
+        for epoch in range(4):
+            self.changed_seed(lambda s, e=epoch: s["manifest"]["clock"]["plan"]["messages"]["extra-local-fill-wait"]["received_ns"].__setitem__(e, "0"))
+        self.changed_seed(lambda s: s["manifest"]["clock"]["plan"]["messages"]["extra-local-fill-wait"]["commit_ns"].pop())
+        self.changed_seed(lambda s: s["manifest"]["clock"]["plan"]["messages"].update(extra=s["manifest"]["clock"]["plan"]["messages"]["step-000"]))
+
+    def test_any_unregistered_driver_write_is_rejected_before_delivery(self):
+        obj = runtime.Run.__new__(runtime.Run)
+        obj.case, obj.manifest = self.case, self.seed["manifest"]
+        for message, op in runtime.write_message_schedule(self.case):
+            self.assertEqual(obj.envelope({"op": op}, message)["message_id"], message)
+        for message, op in (("forgotten-write", "ApplyAllocation"), ("step-000", "ResolveEvidence")):
+            with self.assertRaises(ValueError):
+                obj.envelope({"op": op}, message)
 
     def test_we5_independent_all_fields_and_named_predecessor(self):
         expected = runtime.Expected()
@@ -180,6 +202,118 @@ class RuntimeContract(unittest.TestCase):
             for step in self.case["steps"]:
                 expected.advance(step)
             expected.check_book(self.typed_observation(expected))
+
+    def cli_object(self, path):
+        obj = runtime.Run.__new__(runtime.Run)
+        obj.seed = self.seed
+        obj.output, obj.number, obj.processes, obj.epochs = path, 0, {}, {}
+        obj.command = lambda domain, op: ["never-executed-product", op, domain]
+        records = []
+        obj.record = records.append
+        return obj, records
+
+    def test_cli_normal_success_and_nonzero_preserve_raw_output(self):
+        for op, kind in (("init", "Initialized"), ("recover", "Recovered")):
+            for code in (0, 7):
+                with self.subTest(op=op, code=code), tempfile.TemporaryDirectory(prefix="c7a-cli-mock-") as temp:
+                    obj, records = self.cli_object(Path(temp))
+                    stdout = runtime.canonical({"kind": kind, "domain_id": "E", "writer_epoch": "2"}) + b"\n"
+                    stderr = b"diagnostic\xff\n"
+                    class Fake:
+                        pid = 12345
+                        returncode = None
+                        def __init__(self, args, stdout, stderr):
+                            stdout.write(output_bytes)
+                            stderr.write(error_bytes)
+                        def wait(self, timeout):
+                            self.returncode = code
+                            return code
+                        def poll(self):
+                            return self.returncode
+                    output_bytes, error_bytes = stdout, stderr
+                    with patch.object(runtime.subprocess, "Popen", Fake):
+                        if code:
+                            with self.assertRaises(ValueError):
+                                obj.cli("E", op)
+                        else:
+                            self.assertEqual(obj.cli("E", op)["kind"], kind)
+                    receipt = records[-1]
+                    self.assertEqual(receipt["status"], "returned")
+                    self.assertEqual(receipt["exit_code"], code)
+                    self.assertEqual((Path(temp) / receipt["stdout"]["path"]).read_bytes(), stdout)
+                    self.assertEqual((Path(temp) / receipt["stderr"]["path"]).read_bytes(), stderr)
+                    self.assertEqual(obj.processes, {})
+
+    def test_cli_timeout_keeps_partial_bytes_and_kills_waits_exact_handle(self):
+        for op in ("init", "recover"):
+            with self.subTest(op=op), tempfile.TemporaryDirectory(prefix="c7a-timeout-mock-") as temp:
+                obj, records = self.cli_object(Path(temp))
+                calls = []
+                timeout = subprocess.TimeoutExpired(obj.command("E", op), 30)
+                class Fake:
+                    pid = 12345
+                    returncode = None
+                    def __init__(self, args, stdout, stderr):
+                        stdout.write(b"partial-out\x00\xff")
+                        stderr.write(b"partial-error\xfe")
+                    def wait(self, timeout):
+                        calls.append("wait")
+                        if self.returncode is None:
+                            raise original_timeout
+                        return self.returncode
+                    def poll(self):
+                        return self.returncode
+                    def kill(self):
+                        calls.append("kill")
+                        self.returncode = -9
+                original_timeout = timeout
+                with patch.object(runtime.subprocess, "Popen", Fake), self.assertRaises(subprocess.TimeoutExpired) as caught:
+                    obj.cli("E", op)
+                self.assertIs(caught.exception, timeout)
+                self.assertEqual(calls, ["wait", "kill", "wait"])
+                self.assertEqual(obj.processes, {})
+                receipt = records[-1]
+                self.assertEqual(receipt["status"], "timeout")
+                self.assertEqual(receipt["exit_code"], -9)
+                self.assertEqual(receipt["failure_type"], "TimeoutExpired")
+                self.assertEqual(receipt["timeout_seconds"], 30)
+                self.assertEqual((Path(temp) / receipt["stdout"]["path"]).read_bytes(), b"partial-out\x00\xff")
+                self.assertEqual((Path(temp) / receipt["stderr"]["path"]).read_bytes(), b"partial-error\xfe")
+
+    def test_cli_spawn_failure_is_recorded_and_evidence_failure_does_not_hide_timeout(self):
+        with tempfile.TemporaryDirectory(prefix="c7a-failed-cli-mock-") as temp:
+            obj, records = self.cli_object(Path(temp))
+            original = FileNotFoundError("mock absent binary")
+            with patch.object(runtime.subprocess, "Popen", side_effect=original), self.assertRaises(FileNotFoundError) as caught:
+                obj.cli("E", "init")
+            self.assertIs(caught.exception, original)
+            self.assertEqual(records[-1]["failure_type"], "FileNotFoundError")
+            self.assertEqual(records[-1]["stdout"]["bytes"], 0)
+            self.assertEqual(obj.processes, {})
+        with tempfile.TemporaryDirectory(prefix="c7a-record-failure-mock-") as temp:
+            obj, records = self.cli_object(Path(temp))
+            original = subprocess.TimeoutExpired(["never-executed"], 30)
+            class Fake:
+                pid = 12345
+                returncode = None
+                def wait(self, timeout):
+                    if self.returncode is None:
+                        raise original
+                    return self.returncode
+                def poll(self):
+                    return self.returncode
+                def kill(self):
+                    self.returncode = -9
+            def broken_record(entry):
+                records.append(entry)
+                if entry["event"] == "cli-result":
+                    raise OSError("mock evidence write failure")
+            obj.record = broken_record
+            with patch.object(runtime.subprocess, "Popen", return_value=Fake()), self.assertRaises(subprocess.TimeoutExpired) as caught:
+                obj.cli("E", "recover")
+            self.assertIs(caught.exception, original)
+            self.assertIsInstance(caught.exception.__cause__, OSError)
+            self.assertEqual(obj.processes, {})
 
 
 if __name__ == "__main__":

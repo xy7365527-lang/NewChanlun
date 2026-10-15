@@ -32,6 +32,35 @@ DOMAINS = ("E", "B:chong-R1")
 TABLES = ("meta", "epochs", "commits", "facts", "pending", "applications", "unmatched", "book", "messages", "receipts")
 BINDINGS = {"tb03c_oracle.py", "fixtures/tb03c/MANIFEST.json", "fixtures/tb03c/HAND-ORACLE.json",
             "fixtures/tb03c/raw/chong-R1.json", "fixtures/tb03c/raw/chong-U1.json"}
+WRITE_OPERATIONS = {"capture": "CaptureExternal", "resolve": "ResolveEvidence", "apply": "ApplyAllocation"}
+
+
+def write_message_schedule(case):
+    """唯一写消息目录；原身份重送复用同槽，额外负控也必须登记。"""
+    schedule = []
+    for index, step in enumerate(case["steps"]):
+        schedule.append((f"step-{index:03d}", WRITE_OPERATIONS[step["op"]]))
+        if index == 14:
+            schedule.append(("extra-local-fill-wait", "ApplyAllocation"))
+    return schedule
+
+
+def validate_write_clocks(seed, case):
+    plan = seed["manifest"]["clock"]["plan"]
+    schedule = write_message_schedule(case)
+    equal(set(plan["messages"]), {message for message, _ in schedule}, "写消息与时钟必须完整一一覆盖")
+    for epoch in range(len(plan["recover_ns"]) + 1):
+        floor = oracle.num(plan["init_ns"] if epoch == 0 else plan["recover_ns"][epoch - 1])
+        for message, _ in schedule:
+            slot = plan["messages"][message]
+            equal(set(slot), {"received_ns", "first_known_ns", "commit_ns"}, "时钟三阶段完整")
+            for values in slot.values():
+                require(type(values) is list and len(values) == len(plan["recover_ns"]) + 1, "所有真实 epoch 都须时钟槽")
+            received, first, commit = [oracle.num(slot[k][epoch]) for k in ("received_ns", "first_known_ns", "commit_ns")]
+            require(floor < received <= first <= commit, "写消息时钟须晚于恢复和此前提交 " + message)
+            floor = commit
+        if epoch < len(plan["recover_ns"]):
+            require(floor < oracle.num(plan["recover_ns"][epoch]), "恢复时刻须晚于该 epoch 全部消息")
 
 
 def require(condition, detail):
@@ -84,6 +113,7 @@ def load_inputs(seed_path=SEED):
     case = hand["e_cases"][seed["e_case_index"]]
     equal(case["chong_id"], "chong-R1", "具名重")
     equal(oracle.run_e_case(FIXTURES, case), (len(case["steps"]), []), "独立 E oracle 自检")
+    validate_write_clocks(seed, case)
     for field in ("startup_timeout_ms", "exchange_timeout_ms", "marker_timeout_ms", "process_timeout_ms"):
         require(type(seed[field]) is int and 0 < seed[field] <= 60000, "期限须具名且有界")
     return seed, case
@@ -310,10 +340,51 @@ class Run:
 
     def cli(self, domain, op):
         args = self.command(domain, op)
-        done = subprocess.run(args, capture_output=True, timeout=self.seed["process_timeout_ms"] / 1000)
-        self.record({"command": args, "exit_code": done.returncode, "stdout": done.stdout.decode(errors="replace"), "stderr": done.stderr.decode(errors="replace")})
-        require(done.returncode == 0, "正式 CLI 失败 " + domain + " " + op)
-        result = decode_frame(done.stdout)
+        require(domain not in self.processes, "CLI 启动前必须回收该 owner")
+        self.number += 1
+        prefix = str(self.number) + "-" + op
+        stdout_path, stderr_path = self.output / (prefix + ".stdout"), self.output / (prefix + ".stderr")
+        proc, failure, cleanup_failure = None, None, None
+        self.record({"event": "cli-start", "command": args, "stdout": stdout_path.name, "stderr": stderr_path.name})
+        with stdout_path.open("xb") as out, stderr_path.open("xb") as err:
+            try:
+                proc = subprocess.Popen(args, stdout=out, stderr=err)
+                self.processes[domain] = proc
+                proc.wait(timeout=self.seed["process_timeout_ms"] / 1000)
+            except BaseException as error:
+                failure = error
+            finally:
+                if proc is not None:
+                    try:
+                        if proc.poll() is None:
+                            proc.kill()
+                            proc.wait(timeout=self.seed["process_timeout_ms"] / 1000)
+                    except (OSError, subprocess.SubprocessError) as error:
+                        cleanup_failure = error
+                    if proc.poll() is not None:
+                        self.processes.pop(domain, None)
+        # 文件保留原始字节（包括非 UTF-8 与超时前部分输出），日志只存路径、hash 与状态。
+        try:
+            entry = {"event": "cli-result", "command": args, "pid": None if proc is None else proc.pid,
+                     "exit_code": None if proc is None else proc.returncode,
+                     "status": "timeout" if isinstance(failure, subprocess.TimeoutExpired) else "error" if failure else "returned",
+                     "timeout_seconds": failure.timeout if isinstance(failure, subprocess.TimeoutExpired) else None,
+                     "failure_type": None if failure is None else type(failure).__name__,
+                     "error": None if failure is None else str(failure),
+                     "cleanup_error": None if cleanup_failure is None else str(cleanup_failure),
+                     "stdout": {"path": stdout_path.name, "sha256": sha(stdout_path), "bytes": stdout_path.stat().st_size},
+                     "stderr": {"path": stderr_path.name, "sha256": sha(stderr_path), "bytes": stderr_path.stat().st_size}}
+            self.record(entry)
+        except Exception as record_error:
+            if failure is not None:
+                raise failure from record_error
+            raise
+        if failure is not None:
+            raise failure from cleanup_failure
+        if cleanup_failure is not None:
+            raise cleanup_failure
+        require(proc is not None and proc.returncode == 0, "正式 CLI 失败 " + domain + " " + op)
+        result = decode_frame(stdout_path.read_bytes())
         equal(result["domain_id"], domain, "CLI domain")
         equal(result["kind"], {"init": "Initialized", "recover": "Recovered"}[op], "CLI outcome")
         self.epochs[domain] = result["writer_epoch"]
@@ -365,6 +436,9 @@ class Run:
         return {"domain": domain, "pid": proc.pid, "exit_code": code}
 
     def envelope(self, payload, message):
+        if payload["op"] in WRITE_OPERATIONS.values():
+            equal(dict(write_message_schedule(self.case)).get(message), payload["op"], "所有写入口必须使用登记消息及对应时钟")
+            require(message in self.manifest["clock"]["plan"]["messages"], "写消息缺具名 TestOnly 时钟")
         return {"schema_revision": "economic-session/1", "session_id": self.manifest["session_id"],
                 "session_generation": self.manifest["session_generation"], **SOURCE, "message_id": message,
                 "payload_hash": digest(payload), "payload": payload, "causal_refs": []}
