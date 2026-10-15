@@ -114,7 +114,8 @@ class ParsePoolTests(unittest.TestCase):
             without=audit.verify(image,vars(server),memo={})
         self.assertEqual(proof,without)
         self.assertEqual(proof['capture_digest'],audit.capture_digest(image))
-        self.assertEqual((pools[0].seeded,pools[0].hits,pools[0].strict_calls),(4,14,4))
+        # #1497：batch 完整原串已匹配本次严格索引，无需再取三列解析池。
+        self.assertEqual((pools[0].seeded,pools[0].hits,pools[0].strict_calls),(4,2,4))
         self.assertEqual(pools[0]._mode,'closed');self.assertEqual(pools[0]._entries,{})
         for gen in (0,1,2,3,None):
             first=audit.project_state(proof,gen,vars(server)); expected=audit.canonical(first)

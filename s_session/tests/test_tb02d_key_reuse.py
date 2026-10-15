@@ -103,10 +103,11 @@ class KeyReuseTests(unittest.TestCase):
         return old,new
 
     def test_real_two_calls_validator_order_bytes_identity_complete_proof(self):
-        image=fixture();events=[];details=[];stage=[0];real_record=audit._record_set;real_validate=audit.tb02._validate_fact;delta_c=server._tb02_contract();delta_validate=delta_c.validate_fact
+        image=fixture();events=[];details=[];stage=[0];contexts=[];real_record=audit._record_set;real_validate=audit.tb02._validate_fact;delta_c=server._tb02_contract();delta_validate=delta_c.validate_fact
         real_sealed=audit._sealed_generation
         def sealed(*args,**kwargs):
             stage[0]=len(events);self.assertIsNotNone(kwargs.get('_active_keys'))
+            contexts.append(kwargs['_verified_facts'])
             return real_sealed(*args,**kwargs)
         def batch_validate(*args,**kwargs):
             result=real_validate(*args,**kwargs)
@@ -119,7 +120,10 @@ class KeyReuseTests(unittest.TestCase):
             if context is not None:
                 active,keys=context;hits=0
                 for rec in records:
-                    self.assertIn(('delta-full' if name=='upserts' else 'batch-full',rec['object_id']),available)
+                    # #1497：本次完整索引已证明的逐字相同事实不重复调用 validator。
+                    # 键复用仍须有完整材料证明或该代原 validator 成功证据。
+                    if ('delta-full' if name=='upserts' else 'batch-full',rec['object_id']) not in available:
+                        self.assertEqual(audit.canonical(rec), contexts[-1].keys[rec['object_id']])
                     if rec['object_id'] in active and rec==active[rec['object_id']]:
                         hits+=1;self.assertTrue(any(k is keys[rec['object_id']] for k in result))
                 details.append({'name':name,'records':len(records),'prior':len(active),'hits':hits})
@@ -129,12 +133,12 @@ class KeyReuseTests(unittest.TestCase):
             proof=audit.verify(image,vars(server),memo={})
         self.assertEqual(control.call_count,1);self.assertEqual(digest.call_count,1)
         self.assertEqual([(x['name'],x['records'],x['prior'],x['hits']) for x in details],[('upserts',2,0,0),('upserts/batch',2,0,0),('upserts',2,2,2),('upserts/batch',2,2,2),('upserts',0,2,0),('upserts/batch',0,2,0)])
-        self.assertEqual(sum(e[0]=='batch-full' for e in events),6);self.assertEqual(sum(e[0]=='delta-full' for e in events),4)
+        self.assertEqual(sum(e[0]=='batch-full' for e in events),2);self.assertEqual(sum(e[0]=='delta-full' for e in events),0)
         old,new=self.compare_proofs(image);self.assertEqual(proof,new)
         # Existing intern pool shares a stable key across both generations.
         for key in new['_audit_memo']['entries'][0]['sets']['upserts']:
             self.assertTrue(any(key is later for later in new['_audit_memo']['entries'][1]['sets']['upserts']))
-        EVIDENCE['complete']={'calls':details,'validators':{'batch':6,'delta':4},'proof_bytes':audit.object_bytes(new),'baseline_proof_bytes':baseline.object_bytes(old),'digest':new['capture_digest'],'protocol':new['protocol']}
+        EVIDENCE['complete']={'calls':details,'validators':{'batch':2,'delta':0},'proof_bytes':audit.object_bytes(new),'baseline_proof_bytes':baseline.object_bytes(old),'digest':new['capture_digest'],'protocol':new['protocol']}
 
     def test_delayed_birth_and_withdrawal_have_original_proof(self):
         image=delayed_birth_fixture();details=[];original=audit._record_set

@@ -545,7 +545,7 @@ def _canonical_int_field(d, key, path):
     return v
 
 
-def _validate_delta_shape(delta):
+def _validate_delta_shape(delta, *, _verified_upserts=()):
     """持久 Delta 逐字段形状 + 精确整数 wire 校验：任何坏持久值 → 503，不以成功 wire 传出。"""
     if not isinstance(delta, dict):
         raise ValueError("delta_json 顶层必须是对象")
@@ -574,6 +574,10 @@ def _validate_delta_shape(delta):
         _canonical_i64_str(_if_raw, "delta.input_frontier")
 
     for i, u in enumerate(delta.get("upserts", [])):
+        # #1497：仅完整 image 审计传入本次已核索引逐规范字节相同的序号；
+        # 外部 wire 不提供此参数。保留原列表位置及其余每项的原拒绝诊断。
+        if i in _verified_upserts:
+            continue
         p = "delta.upserts[%d]" % i
         if not isinstance(u, dict):
             raise ValueError("%s 必须是对象" % p)

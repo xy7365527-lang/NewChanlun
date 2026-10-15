@@ -307,6 +307,8 @@ jobs:
           python -VV
           python -B -c "import sys; sys.path.insert(0, '..'); import s_readonly_server as s; print('tb02d_parse_pool_layout_matches', s._query_integrity()._CanonicalParsePool._layout_matches())"
           python -B -m unittest -v test_tb02d_contract test_tb02d_discovery test_tb02d_validate_once test_tb02d_parse_pool test_tb02d_key_reuse
+          # #1497：冷完整校验降阶的接受/拒绝类别、逐 cut 投影与严格 JSON 对拍锁。
+          python -B -m unittest -v test_tb1497_cold_verify
           # #1419：TB-02-E 中枢合同（共享语料；Python 与 node 逐条对拍结论与原因码），只用标准库与 node。
           #   test_tb02e_real_units：schema v1.3 §1 真实 BTC 判别例（L0 单元区间 = 成员笔方向极值，Py 与 JS 同取）。
           python -B -m unittest -v test_tb02e_contract test_tb02e_real_units

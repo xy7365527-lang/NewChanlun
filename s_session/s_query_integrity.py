@@ -8,6 +8,7 @@ import hashlib
 import importlib.util
 from pathlib import Path
 import json
+import math
 import sqlite3
 import struct
 import sys
@@ -98,13 +99,33 @@ def _nonfinite(value):
 def parse_json(raw, expected=dict, *, require_canonical=False):
     if type(raw) not in (str, bytes):
         raise ValueError("持久 JSON 类型损坏")
-    result = json.loads(raw, object_pairs_hook=_pairs_unique, parse_constant=_nonfinite)
+    nonfinite_number = False
+
+    def read_float(value):
+        nonlocal nonfinite_number
+        result = float(value)
+        nonfinite_number |= not math.isfinite(result)
+        return result
+
+    result = json.loads(raw, object_pairs_hook=_pairs_unique, parse_constant=_nonfinite,
+                        parse_float=read_float)
     if type(result) not in (expected if type(expected) is tuple else (expected,)):
         raise ValueError("持久 JSON 形状损坏")
-    # 同时拒绝转义孤立代理码点；规范字节必须可表示为 UTF-8。
-    encoded = canonical(result)
-    if require_canonical and raw != encoded.decode("utf-8"):
-        raise ValueError("事实 JSON 列不是封存规范字节")
+    # 溢出标志只在完整语法与顶层形状检查之后生效，保留原拒绝顺序；
+    # 对复合损坏仍由原整树编码器选择第一个错误，不在浮点回调中抛错。
+    if nonfinite_number:
+        canonical(result)
+    if require_canonical:
+        if raw != canonical(result).decode("utf-8"):
+            raise ValueError("事实 JSON 列不是封存规范字节")
+    else:
+        # #1497：非规范原件只需证明树可编码，不必重编码整份累计历史。
+        # 已拒重复键/非有限数；原字符须可编码。只有转义代理码点
+        # 可能在解码后产生新的非法字符，出现时仍调用原 canonical 全核。
+        source = raw if type(raw) is str else raw.decode(json.detect_encoding(raw), "surrogatepass")
+        source.encode("utf-8")
+        if re.search(r"\\u[dD][89a-fA-F]", source):
+            canonical(result)
     return result
 
 
@@ -243,6 +264,64 @@ def _project_canonical_fact(row, meta, raw, *, _parse_pool=None):
 
     return tb02._project_fact(row, parse_json, meta=meta, raw=raw,
                               parse_canonical=parse_material, _identity_hash=hash_identity)
+
+
+class _VerifiedFacts:
+    """#1497：仅本次完整索引验证的材料证明；ID 只定位，完整内容才判等。
+
+    batch 的三列原串逐字/逐类型核对；公开 Delta 则核完整规范字节，避免
+    Python 的 True == 1。索引的 meta/raw 上下文在本次 verify 内固定。
+    不缓存未知材料、不跨 verify 存活，不把该表放进 proof 或 memo。
+    """
+    _MATERIAL = ("object_id", "object_revision", "kind", "fact_key",
+                 "payload_json", "input_refs_json", "source_coords_json")
+
+    def __init__(self):
+        self.rows = {}
+        self.values = {}
+        self.keys = {}
+
+    def seed(self, row, value, pool, h):
+        oid = row["object_id"]
+        active = dict(value, withdrawn_generation=None, withdrawal_reason=None,
+                      superseded_by=None, lifecycle="active")
+        self.rows[oid] = row
+        self.values[oid] = active
+        key = canonical(h["_legacy_payload_projection"](active))
+        self.keys[oid] = pool.setdefault(key, key)
+
+    def delta(self, delta):
+        """相同完整字节继承已核合同；其它记录原样走原 validator。"""
+        upserts = delta.get("upserts")
+        if type(upserts) is not list:
+            return frozenset()
+        checked = set()
+        for index, value in enumerate(upserts):
+            oid = value.get("object_id") if type(value) is dict else None
+            # 非字符串 ID（包括不可哈希值）留给原校验报告。
+            key = self.keys.get(oid) if type(oid) is str else None
+            if key is not None and canonical(value) == key:
+                checked.add(index)
+        return frozenset(checked)
+
+    def batch(self, obj, batch_id):
+        oid = obj.get("object_id")
+        row = self.rows.get(oid) if type(oid) is str else None
+        if row is None or any(type(obj.get(k)) is not type(row[k]) or obj[k] != row[k]
+                              for k in self._MATERIAL):
+            return None
+        # S 的累计 batch 重新写本代获知坐标；这些字段不属于内容身份，
+        # 仍逐代执行原 project_fact/validate_fact 的精确类型与坐标判据。
+        first, published = obj.get("first_known_generation"), obj.get("published_generation")
+        if type(first) is not int or type(published) is not int:
+            return None
+        if first < 1 or first != published or obj.get("first_known_cut") != f"cut-{first}":
+            return None
+        # 原 integer 还约束 i64 上界。
+        if first >= 2**63:
+            return None
+        return dict(self.values[oid], batch_id=batch_id, first_known_generation=str(first),
+                    published_generation=str(published), first_known_cut=obj["first_known_cut"])
 
 
 def _deadline(deadline):
@@ -603,14 +682,17 @@ def _same_keys(actual, expected, name):
         raise ValueError(name + " 与独立持久索引/封存内容不一致")
 
 
-def _sealed_generation(row, entry, gen, frontier, meta, binding, active, observations, raw, h, pool, *, _parse_pool=None, _active_keys=None):
+def _sealed_generation(row, entry, gen, frontier, meta, binding, active, observations, raw, h, pool, *, _parse_pool=None, _active_keys=None, _verified_facts=None):
     """验证当前代封存原件的内部关系；返回可逐字绑定源的规范集合，非当前库健康结论。"""
     seq_range, evidence, delta = (parse_json(row[k]) for k in ("seq_range_json", "catalog_evidence_json", "delta_json"))
     header = {k: row[k] for k in ("session_id", "catalog_revision", "base_cut", "next_cut", "index_frontier", "catalog_run_status")}
     header.update(generation=str(gen), input_frontier=str(frontier), seq_range=seq_range, catalog_evidence=evidence)
     if any(key not in delta or canonical(delta[key]) != canonical(value) for key, value in header.items()):
         raise ValueError("Delta 内层字段与外层全部列不一致")
-    h["_validate_delta_shape"](delta)
+    if _verified_facts is None:
+        h["_validate_delta_shape"](delta)
+    else:
+        h["_validate_delta_shape"](delta, _verified_upserts=_verified_facts.delta(delta))
     batch_id = row["index_frontier"]
     batch = parse_json(entry["canonical_bytes"])
     for key, value in dict(generation=gen, structure_cut=row["next_cut"], input_frontier=frontier,
@@ -653,7 +735,9 @@ def _sealed_generation(row, entry, gen, frontier, meta, binding, active, observa
                 raise ValueError("旧域批次包含新 typed 对象")
             internal = set(tb02.FACT_COLUMNS) - {"batch_id", "withdrawn_generation", "withdrawal_reason", "superseded_by"}
             tb02.keys(obj, internal, "batch.typed_object")
-            value = _project_canonical_fact(dict(obj, batch_id=batch_id, withdrawn_generation=None, withdrawal_reason=None, superseded_by=None), meta, raw, _parse_pool=_parse_pool)
+            value = None if _verified_facts is None else _verified_facts.batch(obj, batch_id)
+            if value is None:
+                value = _project_canonical_fact(dict(obj, batch_id=batch_id, withdrawn_generation=None, withdrawal_reason=None, superseded_by=None), meta, raw, _parse_pool=_parse_pool)
         else:
             values = (obj["object_id"], obj["object_revision"], obj["kind"], batch_id,
                       obj["branch"], obj["dir_ab"], obj["dir_bc"], obj["window_start"], obj["window_mid"], obj["window_end"],
@@ -996,6 +1080,7 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
     if len(set(raw_keys)) != len(raw_keys):
         raise ValueError("raw_history 含重复成员")
     births, deaths = defaultdict(list), defaultdict(list)
+    verified_facts = _VerifiedFacts()
     active, wires = {}, {"objects": [], "witnesses": [], "relations": [], "observations": []}
     object_ids = set()
     object_tables = ("objects", "structure_facts") if meta.get("profile_id") == tb02.PROFILE else ("objects",)
@@ -1017,6 +1102,8 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
                 if withdrawn is not None and withdrawn <= first:
                     raise ValueError("对象生命周期非法")
                 value = _project_canonical_fact(row, meta, raw, _parse_pool=_parse_pool) if table == "structure_facts" else h["_project_object_row"](tuple(row.values()))
+                if table == "structure_facts":
+                    verified_facts.seed(row, value, pool, h)
                 births[first].append(value)
                 if withdrawn is not None:
                     deaths[withdrawn].append(value)
@@ -1074,7 +1161,7 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
             reusable = False
             certificate = _sealed_generation(row, entry, gen, frontier, meta, binding, active,
                                              original_observations, raw, h, pool, _parse_pool=_parse_pool,
-                                             _active_keys=active_keys)
+                                             _active_keys=active_keys, _verified_facts=verified_facts)
             if memo is not None:
                 certificate["delta_columns"] = row_columns
                 certificate["batch_source"] = zlib.compress(entry["canonical_bytes"], 1)
@@ -1196,6 +1283,7 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
         if any(meta[key] != last[dkey] for key, dkey in (("index_frontier", "index_frontier"),
                ("structure_cut", "next_cut"), ("last_advance_frontier", "input_frontier"))):
             raise ValueError("meta 与末代 Delta 根元组不一致")
+    del verified_facts  # 控制链/摘要/proof计量前释放本次材料证明。
     _parse_pool.close()  # 控制链、摘要、proof计量之前释放全部额外源引用。
     protocol = _verify_control(tables, meta, raw, verified_deltas, decoded_batches, deadline)
     digest = capture_digest(image, verified_delta_entries=next_entries if memo is not None else None)
