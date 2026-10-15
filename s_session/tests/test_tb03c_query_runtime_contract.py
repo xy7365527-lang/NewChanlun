@@ -398,12 +398,15 @@ class StartupTests(unittest.TestCase):
                 if delay_target == "owner":
                     now[0] += 11
                 return {"kind": "EconomicView"}
-            def http(*args, deadline=None):
+            def http(*args, deadline=None, startup_ready=None):
                 deadlines.append(("Q", deadline))
                 if delay_target == "Q":
                     now[0] += 11
-                return {"manifest_hash": digest(case.manifest), "book_revision": "tb03c-book/1", "domains": ["E"],
+                ready = {"manifest_hash": digest(case.manifest), "book_revision": "tb03c-book/1", "domains": ["E"],
                         "session_id": case.manifest["session_id"], "session_generation": case.manifest["session_generation"], "producer_epoch": "1"}
+                case.sequence += 1
+                (case.output / f"{case.sequence:04d}.http-response.bin").write_bytes(canonical(ready))
+                return ready
             case.owner, case.http = owner, http
             fake = Mock()
             fake.__enter__ = Mock(return_value=fake)
@@ -462,6 +465,178 @@ class StartupTests(unittest.TestCase):
                 self.assertTrue(supervisor.events[0]["inherits_driver_group"])
             finally:
                 supervisor.log.close()
+
+
+class QStartupRetryTests(unittest.TestCase):
+    def run_case(self, attempts, *, parse_at=None, wrong_identity=False, empty_response=False,
+                 transport_saved_at=None, ordinary_path=None, case_end=300, work_end=600):
+        """真实 Case/http/wire 控制流，socket/进程/时钟均为替身。"""
+        with tempfile.TemporaryDirectory(prefix="c6-qr-") as temp:
+            now = [0.0]
+            budget = runtime.Budget(0, clock=lambda: now[0])
+            budget.case_end, budget.work_end = case_end, work_end
+            supervisor = SimpleNamespace(budget=budget, run=Mock(return_value=canonical(
+                {"kind": "Initialized", "domain_id": "E", "writer_epoch": "1"})), spawn=Mock(return_value=object()))
+            seed, _, _ = runtime.load_inputs()
+            manifest = copy.deepcopy(seed["manifest"])
+            manifest["chongs"] = []
+            case = runtime.Case("retry", Path(temp) / "case", supervisor, Path(temp), manifest)
+            case.owner = Mock(return_value={"kind": "EconomicView"})
+            case.sequence, case.port = 7, 19003
+            ready = {"manifest_hash": "wrong" if wrong_identity else digest(case.manifest),
+                     "book_revision": "tb03c-book/1", "domains": ["E"],
+                     "session_id": case.manifest["session_id"], "session_generation": case.manifest["session_generation"],
+                     "producer_epoch": "1"}
+            body = canonical(ready)
+            raw = b"" if empty_response else b"HTTP/1.0 200 OK\r\nContent-Length: " + str(len(body)).encode() + b"\r\n\r\n" + body
+            held = Mock()
+            held.__enter__ = Mock(return_value=held)
+            held.__exit__ = Mock(return_value=False)
+            held.getsockname.return_value = ("127.0.0.1", case.port)
+            connections = []
+            def connection(spec):
+                sock = Mock()
+                sock.__enter__ = Mock(return_value=sock)
+                sock.__exit__ = Mock(return_value=False)
+                error = spec.get("error", ConnectionRefusedError(runtime.errno.ECONNREFUSED, "PRIVATE-ERROR-TEXT"))
+                def stage(name):
+                    if spec.get("stage") == name:
+                        now[0] = spec.get("at", now[0])
+                        raise error
+                sock.connect.side_effect = lambda address: stage("connect")
+                sock.sendall.side_effect = lambda data: stage("send")
+                timeout_calls = [0]
+                def timeout(value):
+                    timeout_calls[0] += 1
+                    if timeout_calls[0] == 1:
+                        stage("connect_timeout")
+                sock.settimeout.side_effect = timeout
+                chunks = iter((raw, b""))
+                def receive(size):
+                    stage("recv")
+                    return next(chunks)
+                sock.recv.side_effect = receive
+                connections.append(sock)
+                return error if spec.get("stage") == "socket" else sock
+            sockets = [connection(spec) for spec in attempts]
+            if ordinary_path is None:
+                sockets.insert(0, held)
+            parse, save = runtime.parse_http, runtime.save
+            def parse_reply(data):
+                result = parse(data)
+                if parse_at is not None:
+                    now[0] = parse_at
+                return result
+            def save_evidence(path, value):
+                save(path, value)
+                if transport_saved_at is not None and path.name.endswith("-transport.json"):
+                    now[0] = transport_saved_at
+            error = None
+            with patch.object(runtime.socket, "socket", side_effect=sockets) as factory, \
+                 patch.object(Path, "is_socket", return_value=True), \
+                 patch.object(runtime.time, "sleep", side_effect=lambda duration: now.__setitem__(0, now[0] + duration)), \
+                 patch.object(runtime, "parse_http", side_effect=parse_reply), \
+                 patch.object(runtime, "save", side_effect=save_evidence):
+                try:
+                    if ordinary_path is None:
+                        case.start()
+                    else:
+                        case.http(ordinary_path, deadline=min(10, case_end, work_end))
+                except BaseException as caught:
+                    error = caught
+            files = {path.name: path.read_bytes() for path in case.output.iterdir() if path.is_file()}
+            records = [json.loads(data) for name, data in sorted(files.items()) if name.endswith("-transport.json")]
+            proof = json.loads(files["Q-STARTUP.json"]) if "Q-STARTUP.json" in files else None
+            return {"error": error, "files": files, "records": records, "proof": proof,
+                    "connections": connections, "socket_calls": factory.call_count, "raw": raw, "time": now[0]}
+
+    def test_connect_refusal_then_success_preserves_raws_and_one_deadline(self):
+        result = self.run_case([{"stage": "connect", "at": 1}, {}])
+        self.assertIsNone(result["error"])
+        first, second = result["records"]
+        refused, success = first["startup_ready_attempt"], second["startup_ready_attempt"]
+        self.assertEqual((refused["sequence"], success["sequence"]), (8, 9))
+        shared = ("schema_revision", "started_at", "deadline", "case_deadline", "work_deadline")
+        self.assertEqual({key: refused[key] for key in shared}, {key: success[key] for key in shared})
+        self.assertEqual((refused["phase"], refused["exception_class"], refused["exception_errno"]),
+                         ("connect", "ConnectionRefusedError", runtime.errno.ECONNREFUSED))
+        self.assertEqual((refused["connect_completed"], refused["send_entered"], first["response_bytes"]), (False, False, 0))
+        self.assertEqual(result["files"][first["response"]], b"")
+        self.assertEqual(first["response_sha256"], runtime.hashlib.sha256(b"").hexdigest())
+        self.assertTrue(result["files"][first["request"]].startswith(b"GET /api/economic/ready HTTP/1.0\r\n"))
+        result["connections"][0].sendall.assert_not_called()
+        self.assertEqual((success["phase"], success["exception_class"], success["exception_errno"],
+                          success["connect_completed"], success["send_entered"]), ("complete", None, None, True, True))
+        self.assertEqual(result["files"][second["response"]], result["raw"])
+        proof = result["proof"]
+        self.assertEqual({key: proof[key] for key in shared}, {key: success[key] for key in shared})
+        self.assertEqual((proof["first_sequence"], proof["success_sequence"]), (8, 9))
+        self.assertEqual(proof["success_response_sha256"], second["response_sha256"])
+        self.assertLessEqual(success["observed_at"], proof["validated_at"])
+        self.assertLess(proof["validated_at"], proof["deadline"])
+        self.assertNotIn(b"PRIVATE-ERROR-TEXT", b"".join(result["files"].values()))
+
+    def test_other_phase_or_non_refused_error_cannot_retry(self):
+        cases = [{"stage": stage} for stage in ("socket", "connect_timeout", "send", "recv")]
+        cases += [{"stage": "connect", "error": TimeoutError("PRIVATE-ERROR-TEXT")},
+                  {"stage": "connect", "error": ConnectionRefusedError()},
+                  {"stage": "connect", "error": ConnectionRefusedError(runtime.errno.ECONNRESET, "PRIVATE-ERROR-TEXT")}]
+        for spec in cases:
+            with self.subTest(spec=spec):
+                result = self.run_case([spec])
+                self.assertIsNotNone(result["error"])
+                self.assertNotIsInstance(result["error"], runtime.QStartupConnectRefused)
+                self.assertEqual(result["socket_calls"], 2)
+                self.assertIsNone(result["proof"])
+
+    def test_refusal_at_or_after_deadline_and_late_evidence_cannot_retry(self):
+        for at in (10, 11):
+            with self.subTest(at=at):
+                result = self.run_case([{"stage": "connect", "at": at}])
+                self.assertIsNotNone(result["error"])
+                self.assertEqual(result["socket_calls"], 2)
+                self.assertIsNone(result["proof"])
+                self.assertGreaterEqual(result["records"][0]["startup_ready_attempt"]["observed_at"], 10)
+        result = self.run_case([{"stage": "connect", "at": 9.9}], transport_saved_at=10)
+        self.assertIsInstance(result["error"], TimeoutError)
+        self.assertEqual(result["socket_calls"], 2)
+        self.assertIsNone(result["proof"])
+
+    def test_repeated_refusals_do_not_renew_startup_window(self):
+        result = self.run_case([{"stage": "connect", "at": 9}, {"stage": "connect", "at": 9.999}])
+        self.assertIsInstance(result["error"], TimeoutError)
+        self.assertEqual(result["socket_calls"], 3)
+        self.assertIsNone(result["proof"])
+        self.assertEqual([r["startup_ready_attempt"]["deadline"] for r in result["records"]], [10, 10])
+
+    def test_ready_must_parse_and_validate_before_original_deadline(self):
+        for kwargs in ({"parse_at": 10}, {"parse_at": 11}, {"wrong_identity": True}, {"empty_response": True}):
+            with self.subTest(kwargs=kwargs):
+                result = self.run_case([{}], **kwargs)
+                self.assertIsNotNone(result["error"])
+                self.assertIsNone(result["proof"])
+                self.assertEqual(result["socket_calls"], 2)
+
+    def test_ordinary_ready_or_business_requests_never_receive_retry_marker(self):
+        for path in ("/api/economic/ready", "/api/economic/snapshot"):
+            with self.subTest(path=path):
+                result = self.run_case([{"stage": "connect"}], ordinary_path=path)
+                self.assertIs(type(result["error"]), ConnectionRefusedError)
+                self.assertEqual(result["socket_calls"], 1)
+                self.assertNotIn("startup_ready_attempt", result["records"][0])
+                self.assertIsNone(result["proof"])
+        case = runtime.Case.__new__(runtime.Case)
+        for path, payload in (("/api/economic/snapshot", None), ("/api/economic/ready", {})):
+            with self.subTest(path=path, payload=payload), self.assertRaisesRegex(ValueError, "仅限显式零 body ready GET"):
+                case.http(path, payload, startup_ready={})
+
+    def test_case_and_work_deadlines_bound_the_shared_startup_deadline(self):
+        for case_end, work_end in ((.5, 600), (300, .5)):
+            with self.subTest(case_end=case_end, work_end=work_end):
+                result = self.run_case([{"stage": "connect", "at": .1}, {}], case_end=case_end, work_end=work_end)
+                self.assertIsNone(result["error"])
+                self.assertEqual(result["proof"]["deadline"], .5)
+                self.assertEqual([r["startup_ready_attempt"]["deadline"] for r in result["records"]], [.5, .5])
 
 
 class We7FakeCase:

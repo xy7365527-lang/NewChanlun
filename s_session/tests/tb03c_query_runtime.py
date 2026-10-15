@@ -7,6 +7,7 @@
 """
 import argparse
 import copy
+import errno
 import hashlib
 import importlib.util
 import json
@@ -77,6 +78,10 @@ def sha(path):
 def save(path, value):
     with Path(path).open("xb") as stream:
         stream.write(canonical(value) + b"\n")
+
+
+class QStartupConnectRefused(Exception):
+    """仅 wire 已封存的 Q ready 启动连接拒绝可触发重试。"""
 
 
 class Budget:
@@ -427,9 +432,25 @@ class Case:
                 "session_generation": self.manifest["session_generation"], **(QUERY_SOURCE if query else SOURCE),
                 "message_id": message, "payload_hash": digest(payload), "payload": payload, "causal_refs": []}
 
-    def wire(self, address, request, *, http=False, limit=FRAME_BYTES, deadline=None):
-        end = min(self.budget.clock() + EXCHANGE_SECONDS, self.budget.case_end, self.budget.work_end,
+    def wire(self, address, request, *, http=False, limit=FRAME_BYTES, deadline=None, startup_ready=None):
+        attempt_started_at = self.budget.clock()
+        end = min(attempt_started_at + EXCHANGE_SECONDS, self.budget.case_end, self.budget.work_end,
                   deadline if deadline is not None else self.budget.work_end)
+        startup = copy.deepcopy(startup_ready)
+        if startup is not None:
+            equal(set(startup), {"schema_revision", "started_at", "deadline", "case_deadline", "work_deadline"},
+                  "Q startup 原绝对期限字段")
+            equal(startup["schema_revision"], "c6a-q-startup/1", "Q startup 合同版本")
+            equal((startup["case_deadline"], startup["work_deadline"]),
+                  (self.budget.case_end, self.budget.work_end), "Q startup 原 case/work 期限")
+            equal(startup["deadline"], min(startup["started_at"] + STARTUP_SECONDS,
+                  startup["case_deadline"], startup["work_deadline"]), "Q startup 不得续租")
+            equal(deadline, startup["deadline"], "Q startup 每次共用原 deadline")
+            require(attempt_started_at >= startup["started_at"], "Q startup 尝试不可早于启动")
+            expected_request = (f"GET /api/economic/ready HTTP/1.0\r\nHost: 127.0.0.1:{self.port}\r\n"
+                                "Content-Type: application/json\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").encode()
+            require(http and address == ("127.0.0.1", self.port) and request == expected_request,
+                    "Q startup 重试仅限显式零 body ready GET")
         self.budget.until(end)
         self.sequence += 1
         label = f"{self.sequence:04d}"
@@ -438,32 +459,69 @@ class Case:
         require(len(request) <= FRAME_BYTES, "请求超帧")
         request_path.write_bytes(request)
         response = bytearray()
+        phase, connect_completed, send_entered, failure, connect_error = "prepare", False, False, None, None
         def remaining():
             return self.budget.until(end)
         try:
+            phase = "socket"
             with response_path.open("xb") as evidence, socket.socket(socket.AF_INET if http else socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+                phase = "connect_timeout"
                 connection.settimeout(remaining())
-                connection.connect(address)
+                phase = "connect"
+                try:
+                    connection.connect(address)
+                except BaseException as error:
+                    connect_error = error
+                    raise
+                connect_completed = True
+                phase = "send_timeout"
                 connection.settimeout(remaining())
+                phase, send_entered = "send", True
                 connection.sendall(request)
                 if not http:
+                    phase = "shutdown"
                     connection.shutdown(socket.SHUT_WR)
                 while True:
+                    phase = "recv_timeout"
                     connection.settimeout(remaining())
+                    phase = "recv"
                     part = connection.recv(min(65536, limit + 1 - len(response)))
                     if not part:
                         break
+                    phase = "response_evidence"
                     evidence.write(part)
                     evidence.flush()
                     response.extend(part)
                     require(len(response) <= limit, "响应超过具名字节界限")
+            phase = "deadline"
             remaining()
-            return bytes(response)
+            phase = "complete"
+        except BaseException as error:
+            failure = error
+            if phase == "connect" and error is not connect_error:
+                phase = "cleanup"
         finally:
             # 即使连接/解码/比较失败也保留完整已收到的原始字节。
-            save(self.output / (label + "-transport.json"), {"request": request_path.name, "response": response_path.name,
+            transport = {"request": request_path.name, "response": response_path.name,
                  "request_sha256": sha(request_path), "response_sha256": sha(response_path) if response_path.exists() else None,
-                 "response_bytes": len(response), "http": http, "address": address})
+                 "response_bytes": len(response), "http": http, "address": address}
+            if startup is not None:
+                transport["startup_ready_attempt"] = {**startup, "sequence": self.sequence,
+                    "attempt_started_at": attempt_started_at, "observed_at": self.budget.clock(),
+                    "phase": phase, "exception_class": type(failure).__name__ if failure is not None else None,
+                    "exception_errno": getattr(failure, "errno", None),
+                    "connect_completed": connect_completed, "send_entered": send_entered}
+            save(self.output / (label + "-transport.json"), transport)
+        if failure is not None:
+            if (startup is not None and failure is connect_error
+                    and type(failure) is ConnectionRefusedError and failure.errno == errno.ECONNREFUSED
+                    and phase == "connect" and not connect_completed and not send_entered and not response
+                    and transport["startup_ready_attempt"]["observed_at"] < end):
+                # 封存 I/O 若越过原 end，此处仍拒绝；start 不捕获普通连接/发送/接收异常。
+                self.budget.until(end)
+                raise QStartupConnectRefused() from None
+            raise failure
+        return bytes(response)
 
     def owner(self, domain, payload, message, *, deadline=None):
         request = self.envelope(payload, message, query=payload["op"] in ("ReadView", "Watch"))
@@ -479,7 +537,10 @@ class Case:
             self.budget.until(deadline)
         return result
 
-    def http(self, path, payload=None, *, deadline=None):
+    def http(self, path, payload=None, *, deadline=None, startup_ready=None):
+        if startup_ready is not None:
+            require(path == "/api/economic/ready" and payload is None,
+                    "Q startup 重试仅限显式零 body ready GET")
         if payload is None:
             body, request = b"", None
             method = "GET"
@@ -490,7 +551,7 @@ class Case:
         wire = (f"{method} {path} HTTP/1.0\r\nHost: 127.0.0.1:{self.port}\r\nContent-Type: application/json\r\n"
                 f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n").encode() + body
         response = parse_http(self.wire(("127.0.0.1", self.port), wire, http=True,
-                                        limit=FRAME_BYTES + 16384, deadline=deadline))
+                                        limit=FRAME_BYTES + 16384, deadline=deadline, startup_ready=startup_ready))
         result = response if request is None else validate_reply(request, response, producer="Q", producer_epoch="1")
         if deadline is not None:
             self.budget.until(deadline)
@@ -525,15 +586,19 @@ class Case:
                    "--browser", str(self.work / "UNUSED-BROWSER.html"), "--host", "127.0.0.1", "--port", str(self.port),
                    "--resource-config", str(HERE / "fixtures/tb01c/query-resources.json"), "--producer-epoch", "1",
                    "--economic-config", str(self.work / "query.json")]
-        end = min(self.budget.clock() + STARTUP_SECONDS, self.budget.case_end, self.budget.work_end)
+        started_at = self.budget.clock()
+        end = min(started_at + STARTUP_SECONDS, self.budget.case_end, self.budget.work_end)
+        startup = {"schema_revision": "c6a-q-startup/1", "started_at": started_at, "deadline": end,
+                   "case_deadline": self.budget.case_end, "work_deadline": self.budget.work_end}
+        first_sequence = self.sequence + 1
         self.processes.append(self.supervisor.spawn(command, self.name + "-q"))
         while True:
             self.budget.until(end)
             try:
-                ready = self.http("/api/economic/ready", deadline=end)
+                ready = self.http("/api/economic/ready", deadline=end, startup_ready=startup)
                 self.budget.until(end)
-            except ConnectionRefusedError:
-                time.sleep(min(.02, max(0, end - self.budget.clock())))
+            except QStartupConnectRefused:
+                time.sleep(min(.02, self.budget.until(end)))
                 continue
             equal(ready["manifest_hash"], digest(self.manifest), "公共 Q manifest 身份")
             equal(ready["book_revision"], "tb03c-book/1", "公共 Q 合同版本")
@@ -541,7 +606,13 @@ class Case:
             equal((ready["session_id"], ready["session_generation"], ready["producer_epoch"]),
                   (self.manifest["session_id"], self.manifest["session_generation"], "1"), "公共 Q 会话/epoch")
             require(not self.structural_db.exists(), "经济路由不得初始化结构数据库")
+            response_hash = sha(self.output / f"{self.sequence:04d}.http-response.bin")
             self.budget.until(end)
+            validated_at = self.budget.clock()
+            require(validated_at < end, "Q ready 解析/身份核验必须在原 startup deadline 内")
+            save(self.output / "Q-STARTUP.json", {**startup, "first_sequence": first_sequence,
+                 "success_sequence": self.sequence, "validated_at": validated_at,
+                 "success_response_sha256": response_hash})
             return
 
     def observe(self):
