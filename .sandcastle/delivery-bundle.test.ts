@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -60,6 +60,21 @@ function fixture(t: TestContext, docsOnly = false) {
   };
   return { repo, directory, git, write, commit, manifest, artifact, disclose };
 }
+
+test("预检不执行工蜂写入的 clean/process filter，干净树仍可请示", t => {
+  const f = fixture(t);
+  const mark = join(f.directory, "filter-ran");
+  const payload = `sh -c 'echo RAN > ${mark}; cat'`;
+  f.git("config", "filter.pwn.clean", payload);
+  f.git("config", "filter.pwn.process", payload);
+  f.git("config", "core.fsmonitor", `sh -c 'echo RAN > ${mark}; echo last 0'`);
+  mkdirSync(join(f.repo, ".git", "info"), { recursive: true });
+  writeFileSync(join(f.repo, ".git", "info", "attributes"), "* filter=pwn\n");
+  const result = preflightDelivery(f.repo, f.manifest);
+  assert.equal(result.status, "READY_FOR_APPROVAL", JSON.stringify(result));
+  assert.equal(existsSync(mark), false);
+  assert.equal(f.git("config", "--local", "filter.pwn.clean"), payload);
+});
 
 test("完整交付只得到可请示状态，预检不写 Git/工作树也不产生合入授权", t => {
   const f = fixture(t);
