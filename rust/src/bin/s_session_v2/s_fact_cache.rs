@@ -468,7 +468,7 @@ fn min_source(previous: Option<i64>, coord: i64) -> Option<i64> {
 mod delta_tests {
     use super::*;
     use crate::v3::audit_owner::{RawAdvanceFixture, RawWinner, RawWinnerEdit};
-    use crate::v3::business_json::{RawEventsView, RawPrefixIndex};
+    use crate::v3::business_json::{RawEventsView, RawPrefixFixture as RawPrefixIndex};
     use newchan_rust::theta_v0::parser::inclusion::process_inclusion_with_facts;
 
     fn fixture() -> (Vec<Value>, Vec<Bar>) {

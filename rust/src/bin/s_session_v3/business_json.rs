@@ -340,6 +340,33 @@ pub(super) struct RawPrefixChanges {
     pub coord_decodes: usize,
     pub rewound: bool,
 }
+
+/// #1488：跨模块测试复用真实前缀核，不扩大生产索引的可见范围。
+#[cfg(test)]
+pub(crate) struct RawPrefixFixture<'raw>(RawPrefixIndex<'raw>);
+#[cfg(test)]
+pub(crate) struct RawPrefixFixtureChanges {
+    pub winner_edits: sc::CodecVec<RawWinnerEdit>,
+}
+#[cfg(test)]
+impl<'raw> RawPrefixFixture<'raw> {
+    pub(crate) fn new(raw: RawEventsView<'raw>) -> Self {
+        Self(RawPrefixIndex::new(raw))
+    }
+
+    pub(crate) fn advance(&mut self, prefix: usize) -> Result<RawPrefixFixtureChanges, String> {
+        self.0
+            .advance(prefix)
+            .map(|changes| RawPrefixFixtureChanges {
+                winner_edits: changes.winner_edits,
+            })
+    }
+
+    pub(crate) fn ordered(&self) -> impl Iterator<Item = (i64, usize)> + '_ {
+        self.0.ordered()
+    }
+}
+
 impl<'raw> RawPrefixIndex<'raw> {
     pub(super) fn new(raw: RawEventsView<'raw>) -> Self {
         Self {
