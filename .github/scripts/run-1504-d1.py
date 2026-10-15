@@ -98,20 +98,75 @@ def group_exists(pgid: int) -> bool:
 
 
 def reap(proc: subprocess.Popen, deadline: float) -> bool:
-    """只回收本函数 start_new_session 建立的任务组；成功退出也不留后代。"""
-    for sig, grace in [(signal.SIGTERM, 2.0), (signal.SIGKILL, 8.0)]:
+    """仅在直系 child 尚未收割时保留组身份；wait/poll 后不再发组信号。"""
+    if proc.returncode is not None:
+        # success wait 已经释放 PID。旧编号只能只读观察，残留必须 FAIL。
+        return not group_exists(proc.pid) and time.monotonic() < deadline
+    identity_uncertain = False
+    for sig, grace in ((signal.SIGTERM, 2.0), (signal.SIGKILL, 8.0)):
+        if time.monotonic() >= deadline:
+            break
+        # 整段只有本线程持有 Popen，未 poll/wait 的 child PID 不会复用。
+        if (proc.returncode is not None or OWNED_GROUPS.get(proc.pid) is not proc
+                or signal.getsignal(signal.SIGCHLD) != signal.SIG_DFL):
+            identity_uncertain = True
+            break
         try:
+            if os.getpgid(proc.pid) != proc.pid:
+                identity_uncertain = True
+                break
             os.killpg(proc.pid, sig)
         except ProcessLookupError:
-            pass
+            identity_uncertain = True
+            break
+        if sig == signal.SIGKILL:
+            break  # 最后一个信号已发；此后才允许 wait 释放身份。
         end = min(deadline, time.monotonic() + grace)
         while time.monotonic() < end:
-            proc.poll()
             if not group_exists(proc.pid):
-                return True
-            time.sleep(0.1)
-    proc.poll()
-    return not group_exists(proc.pid)
+                break
+            time.sleep(min(0.1, max(0.0, end - time.monotonic())))
+        else:
+            continue
+        break  # TERM 后组已消失：直接 wait，不继续向历史编号补 KILL。
+    final_end = min(deadline, time.monotonic() + 8.0)
+    try:
+        proc.wait(timeout=max(0.0, final_end - time.monotonic()))
+    except subprocess.TimeoutExpired:
+        return False
+    # wait 之后不再发信号；只等自有后代退出/被系统收割。
+    while time.monotonic() < final_end:
+        if not group_exists(proc.pid):
+            return not identity_uncertain
+        time.sleep(min(0.1, max(0.0, final_end - time.monotonic())))
+    return False
+
+
+def recheck_owned_groups() -> list[dict]:
+    """终结时逐项非阻塞复核；不按历史 PGID 补杀，也不添加回收窗口。"""
+    rows = []
+    for pid, proc in list(OWNED_GROUPS.items()):
+        row = {"pid": pid, "leader_reaped": proc.returncode is not None, "group_absent": False}
+        try:
+            require(pid == proc.pid, "登记 PID 与 Popen 不符")
+            if proc.returncode is None:
+                try:
+                    proc.wait(timeout=0)
+                except subprocess.TimeoutExpired:
+                    pass
+            row["leader_reaped"] = proc.returncode is not None
+            row["group_absent"] = not group_exists(pid)
+            if row["leader_reaped"] and row["group_absent"]:
+                OWNED_GROUPS.pop(pid, None)
+        except Exception as exc:
+            row["error"] = str(exc)
+        rows.append(row)
+    return rows
+
+
+def record_owned_recheck(result: dict, phase: str) -> None:
+    if OWNED_GROUPS:
+        result.setdefault("owned_group_checks", []).append({"phase": phase, "groups": recheck_owned_groups()})
 
 
 def supervised(name: str, argv: list[str], cwd: Path, env: dict,
@@ -125,6 +180,7 @@ def supervised(name: str, argv: list[str], cwd: Path, env: dict,
         if allow_cancel:
             check_cancelled()
         require(time.monotonic() < deadline, name + " 启动前期限到达")
+        require(signal.getsignal(signal.SIGCHLD) == signal.SIG_DFL, "需要 wait 保留子进程身份")
         with (artifacts / (name + ".stdout")).open("xb") as out, (artifacts / (name + ".stderr")).open("xb") as err:
             # 信号只记录：Popen 返回与登记之间也不会跳过登记/回收。
             proc = subprocess.Popen(argv, cwd=cwd, env=env, stdout=out, stderr=err, start_new_session=True)
@@ -225,6 +281,7 @@ def finish_evidence(scratch: Path | None, temp: Path, root: Path, env: dict,
                     artifacts: Path, started: float, result: dict) -> None:
     if scratch is None:
         return
+    record_owned_recheck(result, "finish-entry")
     if OWNED_GROUPS:
         result.update(verdict="FAIL_D1_COMPONENT", scratch_removed=False,
                       cleanup_error="任务组尚未确认回收，保留原件与 scratch", unreaped_groups=sorted(OWNED_GROUPS))
@@ -243,6 +300,7 @@ def finish_evidence(scratch: Path | None, temp: Path, root: Path, env: dict,
                    min(started + 1140, time.monotonic() + 60), started + 1150, artifacts, allow_cancel=False)
     except Exception as exc:
         result.update(verdict="FAIL_D1_COMPONENT", preservation_or_archive_error=str(exc))
+    record_owned_recheck(result, "before-scratch-cleanup")
     if not preserved or OWNED_GROUPS:
         result.update(verdict="FAIL_D1_COMPONENT", scratch_removed=False,
                       cleanup_error="未确认原件已安全迁出或仍有任务组，保留 scratch")
@@ -258,6 +316,7 @@ def finish_evidence(scratch: Path | None, temp: Path, root: Path, env: dict,
 
 
 def publish_result(root: Path, env: dict, artifacts: Path, started: float, result: dict) -> int:
+    record_owned_recheck(result, "publish-entry")
     try:
         require(not OWNED_GROUPS, "任务组未回收，不能封最终清单")
         result["inventory_stage"] = supervised(
@@ -271,6 +330,7 @@ def publish_result(root: Path, env: dict, artifacts: Path, started: float, resul
         result.update(verdict="FAIL_D1_COMPONENT", inventory_error=str(exc))
     if CANCELLATION["count"]:
         result.update(verdict="FAIL_D1_COMPONENT", cancellation=dict(CANCELLATION))
+    record_owned_recheck(result, "publish-final")
     result["unreaped_groups"] = sorted(OWNED_GROUPS)
     result["elapsed_seconds"] = time.monotonic() - started
     if time.monotonic() >= started + 1170:

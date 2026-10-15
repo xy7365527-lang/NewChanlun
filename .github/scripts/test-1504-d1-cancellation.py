@@ -16,7 +16,7 @@ import tempfile
 import time
 
 BASE = "b9f38106a5c0cc6f320798cf146e3bc7a6677c1b"
-RUNNER_HASH = "7ef4cd339fb0eb5122d0b103a40e0d3aaadab787d8faf23ae346180d0167417d"
+RUNNER_HASH = "e4308e3355d396b5e00dd4a97338180fcc2e517823e36ba9baa82b4f33bcc7bd"
 PROBE = ".github/scripts/test-1504-d1-cancellation.py"
 RUNNER = ".github/scripts/run-1504-d1.py"
 BRANCH = "refs/heads/proto/1504-cancel-probe"
@@ -51,7 +51,7 @@ def identity(runner, root: Path) -> dict:
     require(not runner.git(root, "status", "--porcelain"), "需要干净 checkout")
     subprocess.run(["git", "merge-base", "--is-ancestor", BASE, head], cwd=root, check=True, timeout=15)
     require(set(runner.git(root, "diff", "--name-only", BASE, head).splitlines())
-            <= {PROBE, ".github/workflows/prototype-1504-cancel.yml"}, "存在范围外尾差")
+            <= {PROBE, RUNNER, ".github/workflows/prototype-1504-cancel.yml"}, "存在范围外尾差")
     return {"head": head, "tree": runner.git(root, "rev-parse", "HEAD^{tree}"),
             "base": BASE, "runner_sha256": RUNNER_HASH,
             "probe_sha256": runner.digest(root / PROBE),
