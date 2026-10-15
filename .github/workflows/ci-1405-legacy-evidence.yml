@@ -1,0 +1,71 @@
+name: TB1405 legacy v1 originals
+
+on:
+  push:
+    branches: [codex/1405-legacy-evidence-20261015]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  legacy-originals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_BUILD_JOBS: "1"
+      CARGO_TARGET_DIR: ${{ github.workspace }}/cargo-target
+      TB1405_LEGACY_OUTPUT: ${{ github.workspace }}/evidence/originals
+    steps:
+      - name: Checkout exact original producer and reader
+        uses: actions/checkout@v4
+        with:
+          ref: b46ba296993371cb56b2dff7ef878647dc0665ad
+          path: baseline
+          persist-credentials: false
+      - name: Checkout export adapter
+        uses: actions/checkout@v4
+        with:
+          path: adapter
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify source identities and unchanged production algorithms
+        id: provenance
+        run: python3 adapter/.github/scripts/tb1405-legacy-evidence.py provenance evidence baseline adapter
+      - name: Record toolchain and feature identity
+        if: ${{ !cancelled() && steps.provenance.outcome == 'success' }}
+        run: |
+          {
+            rustc -vV
+            cargo -V
+            rustup show active-toolchain
+            python3 --version
+            uname -a
+            printf 'features=s_session\nCARGO_INCREMENTAL=0\nCARGO_BUILD_JOBS=1\n'
+          } > evidence/toolchain.txt 2>&1
+          cp baseline/rust/Cargo.lock evidence/baseline-Cargo.lock
+          cp adapter/rust/Cargo.lock evidence/adapter-Cargo.lock
+      - name: Original b46 reader and unchanged historical trace lock
+        if: ${{ !cancelled() && steps.provenance.outcome == 'success' }}
+        run: python3 adapter/.github/scripts/tb1405-legacy-evidence.py test evidence baseline old-lock
+      - name: Export b46 source nodes and reimport original bytes
+        if: ${{ !cancelled() && steps.provenance.outcome == 'success' }}
+        run: python3 adapter/.github/scripts/tb1405-legacy-evidence.py test evidence adapter source
+      - name: Export real nonempty b46 persistent database
+        if: ${{ !cancelled() && steps.provenance.outcome == 'success' }}
+        run: python3 adapter/.github/scripts/tb1405-legacy-evidence.py test evidence adapter database
+      - name: Independently verify frames and immutable database
+        if: ${{ !cancelled() && steps.provenance.outcome == 'success' }}
+        run: python3 adapter/.github/scripts/tb1405-legacy-evidence.py verify evidence
+      - name: Hash evidence including failed command receipts
+        if: always()
+        run: python3 adapter/.github/scripts/tb1405-legacy-evidence.py finalize evidence
+      - name: Upload original bytes, logs and receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tb1405-legacy-v1-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30

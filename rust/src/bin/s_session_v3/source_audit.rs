@@ -2032,6 +2032,10 @@ fn audit_generated_in_store(
 
 #[cfg(test)]
 mod tests {
+    mod legacy_v1_export {
+        include!("legacy_v1_export_tests.rs");
+    }
+
     use super::super::generation::{GenerationInput, GenerationRuntime};
     use super::*;
     use crate::{
