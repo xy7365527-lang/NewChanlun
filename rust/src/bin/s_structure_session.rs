@@ -318,12 +318,17 @@ fn open_db(db: &Path) -> Result<Connection, String> {
         rusqlite::OpenFlags::default() | rusqlite::OpenFlags::SQLITE_OPEN_PRIVATE_CACHE,
     )
     .map_err(|e| format!("打开 SQLite 失败：{e}"))?;
+    configure_db_connection(&conn)?;
+    Ok(conn)
+}
+
+fn configure_db_connection(conn: &Connection) -> Result<(), String> {
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;")
         .map_err(|e| format!("设置 WAL/FULL 失败：{e}"))?;
     #[cfg(target_os = "macos")]
     conn.execute_batch("PRAGMA fullfsync=ON;")
         .map_err(|e| format!("设置 fullfsync 失败：{e}"))?;
-    Ok(conn)
+    Ok(())
 }
 
 fn db_meta(conn: &Connection) -> Result<BTreeMap<String, String>, String> {
@@ -5131,9 +5136,20 @@ fn recover_core(
     let _capture = cache::begin_capture(EVIDENCE_READ_BUDGET);
     let new_epoch_i =
         parse_writer_epoch(new_epoch, "--new-epoch").map_err(|e| format!("InvalidDomain：{e}"))?;
-    let mut conn = open_db(db)?;
+    // #1405/#1420：旧规则恢复在设置 WAL 之前拒绝；缺失的库也不得由恢复入口创建。
+    let mut conn = Connection::open_with_flags(
+        db,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE
+            | rusqlite::OpenFlags::SQLITE_OPEN_PRIVATE_CACHE,
+    )
+    .map_err(|e| format!("打开 SQLite 失败：{e}"))?;
     ensure_initialized(&conn)?;
     ensure_writable(&conn)?;
+    // 历史规则只读，包括换代恢复；不得清除它的未决 Begin。
+    if meta_get_opt(&conn, "rule_revision")?.as_deref() != Some(RULE_REVISION) {
+        return Err("VersionMismatch：历史规则会话只读，禁止恢复写者或清除未决 Begin".into());
+    }
+    configure_db_connection(&conn)?;
     record_connection_pragmas(&conn, "recover");
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
@@ -7808,6 +7824,118 @@ mod tests {
         drop(conn);
         cmd_recover(&files.db(), "2").unwrap();
         assert!(!financial_basis_pending(&open_db(&files.db()).unwrap()).unwrap());
+    }
+
+    /// #1405/#1420：人工元数据负控，不是旧 producer 导出的历史原件。
+    /// 空库 / 已接纳未发布 raw / 未决 Begin 均在版本门拒绝，所有表原值保持；当前规则正控可恢复。
+    #[test]
+    fn tb1405_composed_s2_recover_rejects_old_rules_before_any_persistent_change() {
+        fn stored_rows(conn: &Connection) -> Vec<(String, Vec<Vec<rusqlite::types::Value>>)> {
+            let tables = {
+                let mut stmt = conn
+                    .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+                    .unwrap();
+                let rows = stmt.query_map([], |r| r.get::<_, String>(0)).unwrap();
+                rows.collect::<Result<Vec<_>, _>>().unwrap()
+            };
+            tables
+                .into_iter()
+                .map(|table| {
+                    let quoted = table.replace('"', "\"\"");
+                    let mut stmt = conn
+                        .prepare(&format!("SELECT * FROM \"{quoted}\""))
+                        .unwrap();
+                    let columns = stmt.column_count();
+                    let mut rows = stmt
+                        .query_map([], |r| {
+                            (0..columns)
+                                .map(|n| r.get::<_, rusqlite::types::Value>(n))
+                                .collect::<rusqlite::Result<Vec<_>>>()
+                        })
+                        .unwrap()
+                        .collect::<Result<Vec<_>, _>>()
+                        .unwrap();
+                    rows.sort_by_cached_key(|row| format!("{row:?}"));
+                    (table, rows)
+                })
+                .collect()
+        }
+        for rule in [
+            "s2-axis-quantifiers",
+            "s2-axis-quantifiers+new-bi/1",
+            "s2-axis-quantifiers+new-bi/2",
+            "s2-axis-quantifiers+new-bi/1+segment-first/1",
+            "s2-axis-quantifiers+new-bi/1+segment-second/1",
+            "s2-axis-quantifiers+new-bi/2+segment-second/1",
+            "s2-axis-quantifiers+new-bi/1+segment-second/2",
+            "unknown-rule",
+            RULE_REVISION,
+        ] {
+            for pending in 0..3 {
+                let files = TestFiles::new();
+                init_test_db(&files);
+                if pending > 0 {
+                    accept(
+                        &files,
+                        &test_input(&[ev("e0", "1", "0", "10000")]),
+                        "recover-rule.json",
+                        DEFAULT_WRITER_EPOCH,
+                    );
+                }
+                let conn = open_db(&files.db()).unwrap();
+                if pending == 2 {
+                    meta_set(&conn, "advance_state", "begun:dead:1:0").unwrap();
+                    meta_set(&conn, "begin_token", "dead").unwrap();
+                }
+                // 未生成任何新笔/段对象；只构造版本门负控，不重标当前 producer 原件为历史合同。
+                meta_set(&conn, "rule_revision", rule).unwrap();
+                let before = stored_rows(&conn);
+                let result = recover_core(&files.db(), "2", None);
+                if rule == RULE_REVISION {
+                    let receipt = result.unwrap();
+                    assert_eq!(receipt["new_epoch"], "2");
+                    assert_eq!(
+                        meta_get_opt(&conn, "writer_epoch").unwrap().as_deref(),
+                        Some("2")
+                    );
+                    assert_eq!(
+                        meta_get_opt(&conn, "advance_state").unwrap().as_deref(),
+                        Some("idle")
+                    );
+                } else {
+                    assert!(
+                        result.unwrap_err().starts_with("VersionMismatch："),
+                        "{rule}/{pending}"
+                    );
+                    assert_eq!(stored_rows(&conn), before, "{rule}/{pending}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn tb1405_composed_s2_recover_rejects_old_rule_before_journal_mode_change() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let conn = Connection::open(files.db()).unwrap();
+        meta_set(&conn, "rule_revision", "s2-axis-quantifiers+new-bi/1").unwrap();
+        let mode: String = conn
+            .query_row("PRAGMA journal_mode=DELETE", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(mode, "delete");
+        let before = db_meta(&conn).unwrap();
+        drop(conn);
+
+        assert!(recover_core(&files.db(), "2", None)
+            .unwrap_err()
+            .starts_with("VersionMismatch："));
+
+        let conn = Connection::open(files.db()).unwrap();
+        let mode: String = conn
+            .query_row("PRAGMA journal_mode", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(mode, "delete");
+        assert_eq!(db_meta(&conn).unwrap(), before);
     }
 
     #[test]
