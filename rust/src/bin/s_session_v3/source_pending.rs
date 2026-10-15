@@ -19,6 +19,54 @@ const STEP: [&str; 12] = [
     "waiting_reasons",
 ];
 const INITIAL: &str = "initial_direction_unsettled";
+const EQUAL_EXTREME: &str = "equal_extreme_identity";
+
+/// #1405 / #1343：只有具名 /2 合同把同价极值标签作为证据；/1 仍按原等待原因核验。
+fn equal_is_evidence(rule: &str) -> Result<bool, String> {
+    let contract =
+        tb02b::contract_for_rule(rule).ok_or_else(|| err("步骤知识来源审计规则修订未声明"))?;
+    Ok(contract == tb02b::CURRENT_CONTRACT)
+}
+
+fn is_waiting_reason(reason: &str, equal_is_evidence: bool) -> bool {
+    !(equal_is_evidence && reason == EQUAL_EXTREME)
+}
+
+fn request_reasons(
+    s: &mut (impl CodecRead + ?Sized),
+    evidence: &RefValue,
+    request: &RefValue,
+    waiting_count: usize,
+    missing_direction: bool,
+    equal_is_evidence: bool,
+) -> Result<(), String> {
+    if waiting_count == 0 && missing_direction {
+        return strings(s, request, &["direction_not_yet_established"]);
+    }
+    if !equal_is_evidence {
+        // 历史 /1 保持完整原件相等；不能按新口径删掉旧请求的同价等待原因。
+        return if request == evidence {
+            Ok(())
+        } else {
+            Err(err("CC004知识请求未绑定完整reasons"))
+        };
+    }
+    if request.kind() != Kind::Array || request.extent() != Some(waiting_count as u64) {
+        return Err(err("CC004知识请求未绑定版本化等待reasons"));
+    }
+    let actual = elements(s, request)?;
+    let mut index = 0;
+    for item in elements(s, evidence)? {
+        let reason = text_value(s, &item, "waiting reason")?;
+        if is_waiting_reason(reason.as_str(), equal_is_evidence) {
+            if actual.get(index) != Some(&item) {
+                return Err(err("CC004知识请求未绑定版本化等待reasons"));
+            }
+            index += 1;
+        }
+    }
+    Ok(())
+}
 
 /// 与源修订摘要同时冻结五字段投影；借用原始账，Owned 不造 serde 值或普通容器。
 pub(super) fn raw_bar(
@@ -41,6 +89,7 @@ struct Step<'a> {
     fields: SourceFields<'static>,
     key: bj::TextValue,
     reasons: RefValue,
+    waiting_count: usize,
     insufficient: bool,
     incomplete: bool,
 }
@@ -161,8 +210,10 @@ pub(super) fn audit(
     objects: &[Object],
     raw: &BusinessMap<i64, Source>,
     groups: &BusinessMap<i64, Group>,
+    rule: &str,
     deadline: Option<Instant>,
 ) -> Result<sc::CodecVec<i64>, String> {
+    let equal_is_evidence = equal_is_evidence(rule)?;
     let allocation = source_allocation(s)?;
     let mut steps = bj::new_map(allocation.as_ref());
     let mut step_subjects = bj::new_map(allocation.as_ref());
@@ -204,8 +255,13 @@ pub(super) fn audit(
             let reasons = fields.get_admitted(s, "waiting_reasons")?;
             let reason_items = elements(s, &reasons)?;
             let mut insufficient = false;
+            let mut waiting_count = 0;
             for item in &reason_items {
                 let reason = text_value(s, item, "waiting reason")?;
+                if !is_waiting_reason(reason.as_str(), equal_is_evidence) {
+                    continue;
+                }
+                waiting_count += 1;
                 insufficient |= matches!(
                     reason.as_str(),
                     "fewer_than_three_merged_bars"
@@ -213,9 +269,9 @@ pub(super) fn audit(
                         | "direction_not_yet_established"
                 );
             }
-            let incomplete = !reason_items.is_empty()
+            let incomplete = waiting_count != 0
                 || fields.get_admitted(s, "direction_evidence")?.kind() == Kind::Null;
-            insufficient |= reason_items.is_empty()
+            insufficient |= waiting_count == 0
                 && fields.get_admitted(s, "direction_evidence")?.kind() == Kind::Null;
             drop(parsed);
             s.native_map_room(&mut step_subjects).map_err(err)?;
@@ -231,6 +287,7 @@ pub(super) fn audit(
                         fields,
                         key,
                         reasons,
+                        waiting_count,
                         insufficient,
                         incomplete,
                     },
@@ -434,13 +491,16 @@ pub(super) fn audit(
             return Err(err("CC004知识请求key/subject/来源不一致"));
         }
         let reasons = fields.get_admitted(s, "reasons")?;
-        if step.reasons.extent() == Some(0)
-            && step.fields.get_admitted(s, "direction_evidence")?.kind() == Kind::Null
-        {
-            strings(s, &reasons, &["direction_not_yet_established"])?;
-        } else if reasons != step.reasons {
-            return Err(err("CC004知识请求未绑定完整reasons"));
-        }
+        let missing_direction =
+            step.fields.get_admitted(s, "direction_evidence")?.kind() == Kind::Null;
+        request_reasons(
+            s,
+            &step.reasons,
+            &reasons,
+            step.waiting_count,
+            missing_direction,
+            equal_is_evidence,
+        )?;
         let axes = fields.get_admitted(s, "axes")?;
         exact(&axes, Kind::Object, 4)?;
         let axes = SourceFields::read_subset(
@@ -484,4 +544,72 @@ pub(super) fn audit(
         return Err(err("CC004缺一一绑定的知识请求"));
     }
     Ok(pending)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn reason_array(s: &mut sc::MemoryNodes, values: &[&str]) -> RefValue {
+        RefValue::Plain(
+            sc::write_value(
+                s,
+                &V::Array(values.iter().map(|v| V::String((*v).into())).collect()),
+            )
+            .unwrap()
+            .content_ref(),
+        )
+    }
+
+    #[test]
+    fn tb1405_request_reason_versions_keep_legacy_and_real_waits() {
+        // 独立片段按 b46 的原配方冻结；不冒充历史 /1 非空 cut 原件。
+        for (rule, expected_policy) in [
+            (crate::LEGACY_V3_RULE_REVISION, false),
+            ("s2-axis-quantifiers+new-bi/1+segment-first/1", false),
+            ("s2-axis-quantifiers+new-bi/1+segment-second/1", false),
+            (crate::V3_RULE_REVISION, true),
+            (crate::RULE_REVISION, true),
+        ] {
+            let policy = equal_is_evidence(rule).unwrap();
+            assert_eq!(policy, expected_policy, "具名版本不得全局过滤同价原因");
+            let mut s = sc::MemoryNodes::default();
+            let evidence = reason_array(&mut s, &[EQUAL_EXTREME]);
+            let empty = reason_array(&mut s, &[]);
+            let count = usize::from(is_waiting_reason(EQUAL_EXTREME, policy));
+            let (correct, wrong) = if policy {
+                (&empty, &evidence)
+            } else {
+                (&evidence, &empty)
+            };
+            request_reasons(&mut s, &evidence, correct, count, false, policy).unwrap();
+            assert!(request_reasons(&mut s, &evidence, wrong, count, false, policy).is_err());
+            strings(&mut s, &evidence, &[EQUAL_EXTREME]).unwrap();
+
+            // 初始未定和缺方向都仍是真等待，不能被同价证据过滤规则吞掉。
+            for reason in [
+                INITIAL,
+                "direction_not_yet_established",
+                "no_subsequent_bar",
+                "fewer_than_three_merged_bars",
+            ] {
+                assert!(is_waiting_reason(reason, policy));
+                let real_wait = reason_array(&mut s, &[reason]);
+                request_reasons(&mut s, &real_wait, &real_wait, 1, true, policy).unwrap();
+                assert!(request_reasons(&mut s, &real_wait, &empty, 1, true, policy).is_err());
+            }
+            let fallback = reason_array(&mut s, &["direction_not_yet_established"]);
+            request_reasons(&mut s, &empty, &fallback, 0, true, policy).unwrap();
+            assert!(request_reasons(&mut s, &empty, &empty, 0, true, policy).is_err());
+            if policy {
+                // 只剩证据标签且缺方向时仍要补真实等待；混合数组只去同价标签。
+                request_reasons(&mut s, &evidence, &fallback, 0, true, policy).unwrap();
+                let mixed = reason_array(&mut s, &[EQUAL_EXTREME, "no_subsequent_bar"]);
+                let wait = reason_array(&mut s, &["no_subsequent_bar"]);
+                request_reasons(&mut s, &mixed, &wait, 1, false, policy).unwrap();
+                assert!(request_reasons(&mut s, &mixed, &empty, 1, false, policy).is_err());
+            }
+        }
+        assert!(equal_is_evidence("unknown").is_err());
+    }
 }
