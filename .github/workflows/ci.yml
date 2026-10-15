@@ -306,6 +306,135 @@ jobs:
         # econ_oddeven_diagnosis）全在 lib 内；tests/ 与 bins 已由 default 步覆盖——零覆盖损失。
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --lib --features backtest_bin --jobs 1
 
+  # #1488：独立运行两种构建的序列与真实 memo 锁，不等待 rust-check 的完整回归。
+  # 依赖预取单列为联网步骤；后续 --offline 只约束测试阶段，不代表全程离线。
+  s-sequence-1488:
+    name: "#1488 序列与真实 memo (${{ matrix.mode }})"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: Plain
+            features: s_session
+          - mode: Owned
+            features: s_session,s_allocation_json_testonly
+    env:
+      CARGO_INCREMENTAL: "0"
+      FEATURES: ${{ matrix.features }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Cache cargo registry + git only (#1488)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-v1-
+      - name: Record source and toolchain identity (#1488)
+        run: |
+          git rev-parse HEAD 'HEAD^{tree}'
+          sha256sum src/s_content.rs src/s_content/sequence.rs tests/s_content_sequence.rs src/bin/s_session_v3/generation.rs
+          rustc -vV
+          cargo -V
+          rustup show active-toolchain
+          echo "CARGO_TARGET_DIR=$RUNNER_TEMP/1488-sequence-target" >> "$GITHUB_ENV"
+          echo "features=$FEATURES target=$RUNNER_TEMP/1488-sequence-target"
+      - name: Fetch locked dependencies (network allowed, #1488)
+        run: cargo fetch --locked
+      - name: Run sequence API, real memo, oracle and nonempty source locks (#1488)
+        run: |
+          set -euo pipefail
+          run_suite() {
+            local suite=$1
+            shift
+            set +e
+            cargo test --offline --locked -j 6 --features "$FEATURES" "$@" -- --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1488-$suite.log"
+            local statuses=("${PIPESTATUS[@]}")
+            set -e
+            echo "suite=$suite cargo_exit_code=${statuses[0]} tee_exit_code=${statuses[1]}"
+            if (( statuses[0] != 0 )); then return "${statuses[0]}"; fi
+            return "${statuses[1]}"
+          }
+          require_passed() {
+            local suite=$1 test_name
+            shift
+            for test_name in "$@"; do
+              grep -Fx "test $test_name ... ok" "$RUNNER_TEMP/1488-$suite.log" || {
+                echo "::error::Missing passed test in $suite: $test_name"
+                return 1
+              }
+            done
+          }
+          run_suite sequence --test s_content_sequence
+          require_passed sequence \
+            sequence_ops_match_approved_independent_vector \
+            sequence_ops_match_write_sequence_oracle_across_shapes \
+            sequence_empty_result_is_persisted_and_readable \
+            sequence_concat_empty_and_split_boundaries \
+            sequence_split_then_concat_restores_root \
+            sequence_ops_write_only_reachable_nodes \
+            sequence_split_at_canonical_boundary_writes_nothing \
+            sequence_rejects_wrong_nodes_and_lengths \
+            sequence_concat_rejects_length_overflow_on_repeated_subtree \
+            sequence_ops_stay_within_hard_bounds_on_repeated_subtree \
+            sequence_hard_bound_is_enforced_negative_control \
+            sequence_ops_read_and_write_scale_with_height \
+            sequence_rebuild_suffix_matches_elementwise_append_and_writes_only_reachable \
+            sequence_rebuild_suffix_rejects_keep_beyond_count
+          if [[ "$FEATURES" == s_session ]]; then
+            require_passed sequence \
+              sequence_allocation_entry_refuses_unsupported_owned_build_without_plain_fallback \
+              sequence_rebuild_suffix_allocation_entry_refuses_unsupported_owned_build_without_plain_fallback
+          else
+            require_passed sequence \
+              local_memo_allocation::owned_sequence_independent_vectors_cut_join_and_append_match_plain_bytes_and_trace \
+              local_memo_allocation::owned_sequence_compressed_noncanonical_cut_grow_and_source_errors_release_local_memo \
+              local_memo_allocation::owned_sequence_bad_nodes_preserve_first_error_and_read_order \
+              local_memo_allocation::owned_rebuild_suffix_matches_independent_vectors_plain_trace_and_reachable_nodes \
+              local_memo_allocation::owned_rebuild_suffix_matches_write_sequence_across_replacement_shapes \
+              local_memo_allocation::owned_rebuild_suffix_stack_grow_refusal_and_source_sink_errors_release_to_baseline \
+              local_memo_allocation::owned_rebuild_suffix_rejects_corrupt_deep_reused_subtrees_and_terminal
+          fi
+          run_suite memo --bin s_structure_session v3::generation::tests::sequence_
+          require_passed memo \
+            v3::generation::tests::sequence_sync_plain_matches_full_oracle_and_writes_only_reachable \
+            v3::generation::tests::sequence_sync_plain_errors_preserve_keys_and_root_without_full_fallback
+          if [[ "$FEATURES" == s_session ]]; then
+            require_passed memo v3::generation::tests::sequence_keys_some_without_owned_build_refuses_plain_fallback
+          else
+            require_passed memo \
+              v3::generation::tests::sequence_sync_owned_matches_full_oracle_and_writes_only_reachable \
+              v3::generation::tests::sequence_sync_owned_errors_release_stack_and_preserve_keys_and_root \
+              v3::generation::tests::sequence_sync_rebuild_stack_uses_keys_ledger_and_propagates_refusal_until_discard \
+              v3::generation::tests::sequence_keys_empty_sync_freezes_actual_mode_and_same_ledger_until_discard \
+              v3::generation::tests::sequence_keys_owned_growth_counts_old_and_new_blocks_preserves_failure_and_drops_on_discard \
+              v3::generation::tests::sequence_keys_first_reserve_or_node_failure_does_not_freeze_ledger_and_plain_discard_reuses_capacity
+          fi
+          run_suite oracle --bin s_structure_session v3::generation::tests::oracle_
+          require_passed oracle \
+            v3::generation::tests::oracle_prefix_parity_two_prefixes \
+            v3::generation::tests::oracle_historical_revision_parity \
+            v3::generation::tests::oracle_incremental_second_generation_parity
+          run_suite prepared --bin s_structure_session v3::prepared::tests::real_nonempty_commits_bind_history_and_revision_to_true_control_and_sources
+          require_passed prepared v3::prepared::tests::real_nonempty_commits_bind_history_and_revision_to_true_control_and_sources
+      - name: Upload sequence lock logs (#1488)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 1488-sequence-${{ matrix.mode }}
+          path: ${{ runner.temp }}/1488-*.log
+          if-no-files-found: error
+
   # #1394 根裁定 A：手动触发本 CI 时一并执行 macOS 作业（financial_session 的 macOS 读数与
   #   economic_session 等库测试），一次触发拿全套读数。push main 不经本作业，由 ci-macos.yml 自身的
   #   paths 过滤决定是否运行，控制 macOS 计费。
