@@ -23,8 +23,8 @@ import tomllib
 GIB = 1024 ** 3
 MIB = 1024 ** 2
 # #1406 C5：仅精确已审来源。当前常量为候选占位，最终源审通过后由根重新绑定。
-REVIEWED_SOURCE = "b93eee571fb35da3c21a6bd435d5ccef1abbe9bb"
-REVIEWED_SOURCE_TREE = "4ceed897108a28ffbd3ded8bcae9ef7ccee9f683"
+REVIEWED_SOURCE = "862f2adbd5e1f927c61d444c184b4b33a259d46d"
+REVIEWED_SOURCE_TREE = "6acbd22ecc858fd56e2311e82ac13b344e84a9d5"
 ALLOWED_CI_DELTA = {".github/workflows/ci.yml", ".github/scripts/run-c7a-remote.py"}
 FROZEN = {
     "s_session/tests/tb03c_runtime.py": "aec5abfb1a68354ba5c439128924acc19be96588ba4a26378030d3bd75c4c93b",
