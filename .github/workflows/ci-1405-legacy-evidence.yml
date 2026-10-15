@@ -15,7 +15,6 @@ jobs:
     env:
       CARGO_INCREMENTAL: "0"
       CARGO_BUILD_JOBS: "1"
-      CARGO_TARGET_DIR: ${{ github.workspace }}/cargo-target
       TB1405_LEGACY_OUTPUT: ${{ github.workspace }}/evidence/originals
     steps:
       - name: Checkout exact original producer and reader
@@ -33,6 +32,8 @@ jobs:
       - name: Verify source identities and unchanged production algorithms
         id: provenance
         run: python3 adapter/.github/scripts/tb1405-legacy-evidence.py provenance evidence baseline adapter
+      - name: Check test evidence gates without compiling Rust
+        run: python3 adapter/.github/scripts/tb1405-legacy-evidence.py self-test evidence/self-test
       - name: Record toolchain and feature identity
         if: ${{ !cancelled() && steps.provenance.outcome == 'success' }}
         run: |
