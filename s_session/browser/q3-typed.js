@@ -294,6 +294,7 @@
       keys(scan.budget, ["policy", "granted"], "扫描预算");
       need(scan.budget.policy === "second-seq-scan-budget/1", "扫描预算政策版本不符");
       if (scan.budget.granted !== null) integer(scan.budget.granted, true);
+      need(!incomplete || scan.budget.granted !== null, "资源截断缺有限扫描预算");
       const extreme = signed(f.candidate_extreme);
       if (f.breach_watermark !== null) signed(f.breach_watermark);
       const comparison = d.direction === "UP" ? ">" : d.direction === "DOWN" ? "<" : null;
@@ -306,6 +307,7 @@
       if (f.killed_by !== null) { kill(f.killed_by); need(f.breach_watermark === f.killed_by.price, "越界水位未绑定失效见证"); }
       const c = scan.cursor, start = foldCursor(c, element, kill, secondCheck);
       need(c.budget_granted === scan.budget.granted, "K1游标预算未绑定扫描预算");
+      need(c.budget_granted === null || BigInt(c.consumed_len) <= BigInt(c.budget_granted), "SECOND游标消费超过扫描预算");
       need(c.candidate.seg_dir === d.direction && start === BigInt(scan.from_stroke) && c.candidate.candidate_extreme === f.candidate_extreme, "K1候选身份未绑定SECOND扫描");
       need(c.input_stroke_count === scan.input_stroke_count && BigInt(c.consumed_len) <= (BigInt(c.input_stroke_count) > start ? BigInt(c.input_stroke_count) - start : 0n), "K1游标消费范围越界");
       need(c.semantic_state === null || c.semantic_state === semantic, "K1游标封存终态与扫描不同");

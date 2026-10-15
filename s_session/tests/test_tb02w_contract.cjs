@@ -108,6 +108,21 @@ test('终态、覆盖、失效见证与游标的关键反例', () => {
   rejects(SEQ, mutated(second('OPEN', false), d => { d.second_sequence_status = 'KILLED'; }));
 });
 
+test('SECOND预算消费不越额，资源截断必须有限，完整扫描仍准无限预算', () => {
+  const grant = value => d => { d.scan.budget.granted = d.scan.cursor.budget_granted = value; };
+  for (const terminal of Object.keys(TERMINALS)) {
+    API.validateSegmentPayload(SEQ, mutated(second(terminal), grant('2')));
+    rejects(SEQ, mutated(second(terminal), grant('1')), 'SECOND游标消费超过扫描预算');
+    if (terminal !== 'BUDGET') API.validateSegmentPayload(SEQ, mutated(second(terminal), grant(null)));
+  }
+  rejects(SEQ, mutated(second('BUDGET'), grant(null)), '资源截断缺有限扫描预算');
+  const provisional = mutated(second('CONFIRMED'), grant(null));
+  Object.assign(provisional.data.scan.cursor, {semantic_state: null, matched: null});
+  API.validateSegmentPayload(SEQ, provisional);
+  for (const value of ['-1', '0', '1.5', '01', 1, true, false]) rejects(SEQ, mutated(second('CONFIRMED'), grant(value)));
+  for (const value of ['-1', '1.5', '01', 2, true, false]) rejects(SEQ, mutated(second('OPEN'), d => { d.scan.cursor.consumed_len = value; }));
+});
+
 test('段结果与 CC-056 范围/槽/续扫检查点反例', () => {
   rejects(SEG, segment('KILLED_CASE_TWO', false), '冒称交付第二种终结');
   rejects(SEG, mutated(segment('KILLED_CASE_TWO'), d => { d.second_sequence_id = d.second_sequence_object_id = null; }), '第二种缺SECOND引用');
@@ -203,6 +218,27 @@ async function cut(firstPayload, secondPayload, segmentPayload, rule = RULE_V3) 
   const s = clone(segmentPayload); s.data.sequence_object_id = a.object_id; s.data.second_sequence_object_id = b.object_id;
   return {objects: [a, b, await typed(SEG, s, rule)], withdrawn_objects: [], raw_history: [], generation: '1'};
 }
+
+test('SECOND预算反例重算对象哈希及同cut引用后仍被公开Q3拒绝', async () => {
+  // 这套人工段对象采用 s-session/2 的 obj- 身份域；不冒充 S3 已发布段事实。
+  const protocol = 's-session/2';
+  for (const rule of [RULE_V3, RULE_COMBINED]) {
+    for (const [granted, message] of [['1', 'SECOND游标消费超过扫描预算'], [null, '资源截断缺有限扫描预算']]) {
+      const bad = second('BUDGET');
+      bad.data.scan.budget.granted = bad.data.scan.cursor.budget_granted = granted;
+      // cut 先重新计算 FIRST/SECOND 身份，再重绑段引用并重算段哈希；错误只在预算语义。
+      const snapshot = await cut(first('PENDING'), bad, segment('PENDING_BUDGET'), rule);
+      assert.equal(snapshot.objects[2].payload.data.second_sequence_object_id, snapshot.objects[1].object_id);
+      await assert.rejects(API.Q3.validateState(fullState(snapshot, rule), protocol), {message});
+    }
+    for (const [terminal, result] of [['CONFIRMED', 'CASE_TWO'], ['KILLED', 'KILLED_CASE_TWO'], ['OPEN', 'PENDING_CASE_TWO']]) {
+      const unlimited = second(terminal);
+      unlimited.data.scan.budget.granted = unlimited.data.scan.cursor.budget_granted = null;
+      const snapshot = await cut(first(TERMINALS[terminal][1]), unlimited, segment(result), rule);
+      await API.Q3.validateState(fullState(snapshot, rule), protocol);
+    }
+  }
+});
 
 test('同cut引用：KILLED_CASE_TWO 绑 KILLED、PENDING 绑 PENDING，v3 段不收 v2 序列，规则绑定 schema', async () => {
   const run = async (snapshot, rule = RULE_V3) => API.Q3.validateState(fullState(snapshot,rule),'s-session/2');

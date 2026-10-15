@@ -121,6 +121,18 @@ def records(first, second, segment):
             [("first-object", SEQ, first), ("second-object", SEQ, second), ("segment-object", SEG, segment)]]
 
 
+def contract_fact(kind, payload, rule):
+    """按当前载荷重新算对象身份；用于语义反例，避免旧哈希先截断验证。"""
+    meta = dict(profile_id="ohlc_integer_tb02a_v1", rule_revision=rule)
+    value = dict(object_revision="1", kind=kind, batch_id="batch", fact_key=c.canonical([kind, payload["slot"]]).decode(),
+                 payload=payload, input_refs=[], source_coords=[], first_known_generation="1", first_known_cut="cut-1",
+                 published_generation="1", withdrawn_generation=None, withdrawal_reason=None, superseded_by=None, lifecycle="active")
+    identity = {k: value[k] for k in ("kind", "fact_key", "payload", "input_refs")}
+    identity.update(profile_id=meta["profile_id"], rule_revision=rule)
+    value["object_id"] = "obj-" + hashlib.sha256(c.canonical(identity)).hexdigest()
+    return value, meta
+
+
 def mutated(p, change):
     p = copy.deepcopy(p)
     change(p["data"])
@@ -190,9 +202,30 @@ class TB02WContractTest(unittest.TestCase):
 
     def test_budget(self):
         self.reject(SEQ, mutated(second_v3("BUDGET"), lambda d: d["scan"]["budget"].update(policy="second-seq-scan-budget/2")), "扫描预算政策版本不符")
-        self.reject(SEQ, mutated(second_v3("BUDGET"), lambda d: (d["scan"]["budget"].update(granted="0"), d["scan"]["cursor"].update(granted="0"))))
+        self.reject(SEQ, mutated(second_v3("BUDGET"), lambda d: (d["scan"]["budget"].update(granted="0"), d["scan"]["cursor"].update(budget_granted="0"))))
         self.reject(SEQ, mutated(second_v3("BUDGET"), lambda d: d["scan"]["cursor"].update(budget_granted="3")), "K1游标预算未绑定扫描预算")
         self.reject(SEQ, mutated(second_v3("OPEN"), lambda d: d["scan"]["cursor"].update(budget_granted="64")), "K1游标预算未绑定扫描预算")
+
+    def test_second_budget_consumption_and_unlimited_coverage(self):
+        def grant(value):
+            return lambda d: (d["scan"]["budget"].update(granted=value), d["scan"]["cursor"].update(budget_granted=value))
+        for terminal in TERMINALS:
+            with self.subTest(terminal=terminal):
+                self.accept(SEQ, mutated(second_v3(terminal), grant("2")))
+                self.reject(SEQ, mutated(second_v3(terminal), grant("1")), "SECOND游标消费超过扫描预算")
+                if terminal != "BUDGET":
+                    self.accept(SEQ, mutated(second_v3(terminal), grant(None)))
+        self.reject(SEQ, mutated(second_v3("BUDGET"), grant(None)), "资源截断缺有限扫描预算")
+        # 末笔暂算可使完整结果已决而游标未封存；无限预算不改变这个域。
+        provisional = mutated(second_v3("CONFIRMED"), grant(None))
+        provisional["data"]["scan"]["cursor"].update(semantic_state=None, matched=None)
+        self.accept(SEQ, provisional)
+        for value in ("-1", "0", "1.5", "01", 1, True, False):
+            with self.subTest(granted=value):
+                self.reject(SEQ, mutated(second_v3("CONFIRMED"), grant(value)))
+        for value in ("-1", "1.5", "01", 2, True, False):
+            with self.subTest(consumed=value):
+                self.reject(SEQ, mutated(second_v3("OPEN"), lambda d: d["scan"]["cursor"].update(consumed_len=value)))
 
     def test_kill_witness(self):
         strict = "失效见证未严格越过候选极值"
@@ -328,27 +361,37 @@ class TB02WContractTest(unittest.TestCase):
         rejected(records(first_v3("CONFIRMED"), second_v3("CONFIRMED"), segment), "段引用缺同cut序列对象")
 
     def test_rule_schema_binding(self):
-        def fact(kind, payload, rule):
-            meta = dict(profile_id="ohlc_integer_tb02a_v1", rule_revision=rule)
-            value = dict(object_revision="1", kind=kind, batch_id="batch", fact_key=c.canonical([kind, payload["slot"]]).decode(),
-                         payload=payload, input_refs=[], source_coords=[], first_known_generation="1", first_known_cut="cut-1",
-                         published_generation="1", withdrawn_generation=None, withdrawal_reason=None, superseded_by=None, lifecycle="active")
-            identity = {k: value[k] for k in ("kind", "fact_key", "payload", "input_refs")}
-            identity.update(profile_id=meta["profile_id"], rule_revision=rule)
-            value["object_id"] = "obj-" + hashlib.sha256(c.canonical(identity)).hexdigest()
-            return value, meta
         for rule in (RULE_V3, RULE_COMBINED):
-            c.validate_fact(*fact(SEG, segment_v3("KILLED_CASE_TWO"), rule))
-            c.validate_fact(*fact(VER, version_v3(), rule))
+            c.validate_fact(*contract_fact(SEG, segment_v3("KILLED_CASE_TWO"), rule))
+            c.validate_fact(*contract_fact(VER, version_v3(), rule))
         for kind, payload, rule in [(SEG, segment_v3("KILLED_CASE_TWO"), RULE_V2), (SEG, samples()[1], RULE_V3), (SEG, samples()[1], RULE_COMBINED),
                                     (SEG, segment_v3("KILLED_CASE_TWO"), RULE_BI2_D)]:
             with self.assertRaises(ValueError) as caught:
-                c.validate_fact(*fact(kind, payload, rule))
+                c.validate_fact(*contract_fact(kind, payload, rule))
             self.assertEqual(str(caught.exception), "段合同与cut规则版本不符")
         spec = importlib.util.spec_from_file_location("tb02w_audit", ROOT / "s_query_integrity.py")
         audit = importlib.util.module_from_spec(spec); spec.loader.exec_module(audit)
         self.assertEqual(audit._published_axes(RULE_V3), c.AXES)
         self.assertIn("CC-014", audit._published_axes(RULE_V3))
+
+    def test_hashed_second_budget_rejects_with_closed_links(self):
+        for rule in (RULE_V3, RULE_COMBINED):
+            for granted, message in (("1", "SECOND游标消费超过扫描预算"), (None, "资源截断缺有限扫描预算")):
+                with self.subTest(rule=rule, granted=granted):
+                    bad = second_v3("BUDGET")
+                    bad["data"]["scan"]["budget"]["granted"] = granted
+                    bad["data"]["scan"]["cursor"]["budget_granted"] = granted
+                    first, meta = contract_fact(SEQ, first_v3("PENDING"), rule)
+                    second, _ = contract_fact(SEQ, bad, rule)
+                    payload = segment_v3("PENDING_BUDGET")
+                    payload["data"].update(sequence_object_id=first["object_id"], second_sequence_object_id=second["object_id"])
+                    segment, _ = contract_fact(SEG, payload, rule)
+                    c.validate_segment_links([first, second, segment])
+                    c.validate_fact(first, meta)
+                    c.validate_fact(segment, meta)
+                    with self.assertRaises(ValueError) as caught:
+                        c.validate_fact(second, meta)
+                    self.assertEqual(str(caught.exception), message)
 
 
 class ScanCatalogTests(unittest.TestCase):

@@ -641,6 +641,8 @@ def _second_terminal(d, element, indices, second_check):
         raise ValueError("扫描预算政策版本不符")
     if scan["budget"]["granted"] is not None:
         integer(scan["budget"]["granted"], "budget.granted", 1)
+    if incomplete and scan["budget"]["granted"] is None:
+        raise ValueError("资源截断缺有限扫描预算")
     extreme = integer(f["candidate_extreme"], "candidate_extreme")
     if f["breach_watermark"] is not None:
         integer(f["breach_watermark"], "breach_watermark")
@@ -663,6 +665,8 @@ def _second_terminal(d, element, indices, second_check):
     start = _fold_cursor(c, element, kill, second_check)
     if c["budget_granted"] != scan["budget"]["granted"]:
         raise ValueError("K1游标预算未绑定扫描预算")
+    if c["budget_granted"] is not None and int(c["consumed_len"]) > int(c["budget_granted"]):
+        raise ValueError("SECOND游标消费超过扫描预算")
     if c["candidate"]["seg_dir"] != d["direction"] or start != int(scan["from_stroke"]) or c["candidate"]["candidate_extreme"] != f["candidate_extreme"]:
         raise ValueError("K1候选身份未绑定SECOND扫描")
     if c["input_stroke_count"] != scan["input_stroke_count"] or int(c["consumed_len"]) > max(0, int(c["input_stroke_count"]) - start):
