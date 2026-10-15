@@ -9,6 +9,7 @@ mod finance_transport;
 mod financial_reader_resources;
 mod service;
 mod store;
+mod store_read;
 mod tb03c_allocation;
 mod tb03c_book;
 mod tb03c_corrections;
@@ -31,5 +32,7 @@ mod financial_content;
 
 #[cfg(test)]
 mod tb03c_c5_frozen_tests;
+#[cfg(test)]
+mod tb03c_c5_read_tests;
 #[cfg(test)]
 mod tb03c_c5_tests;

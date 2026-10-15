@@ -4,7 +4,7 @@
 //! are still measured with st_blocks for actual Job reconciliation. A node's
 //! framed bytes or SQLite's logical page count never stand in for disk use.
 use super::financial_content::FinancialStage;
-use super::store::SCHEMA_V2;
+use super::store::{ReadBudget, SCHEMA_V2};
 use crate::s_content::{
     self, code,
     job::{Existing, Job, JobLimits},
@@ -170,13 +170,17 @@ fn cleanup_room(c: &Connection, db: &Path, include_next_write: bool) -> Result<(
     }
 }
 fn format_guard(c: &Connection) -> Result<(), CodecError> {
-    let revision: String = c
-        .query_row("SELECT v FROM meta WHERE k='schema_revision'", [], |r| {
+    format_guard_metered(c, &mut ReadBudget::new(None, None))
+}
+fn format_guard_metered(c: &Connection, budget: &mut ReadBudget<'_>) -> Result<(), CodecError> {
+    let revision: String = budget
+        .one(c, "SELECT v FROM meta WHERE k='schema_revision'", [], |r| {
             r.get(0)
         })
         .map_err(io)?;
-    let format: String = c
-        .query_row(
+    let format: String = budget
+        .one(
+            c,
             "SELECT content_format FROM content_meta WHERE singleton=1",
             [],
             |r| r.get(0),
@@ -318,14 +322,23 @@ fn checked(digest: &NodeDigest, tag: i64, body: Vec<u8>) -> Result<NodeRead, Cod
     Ok(NodeRead::Found { tag, body })
 }
 fn read_table(c: &Connection, table: &str, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+    read_table_metered(c, table, digest, &mut ReadBudget::new(None, None))
+}
+pub(super) fn read_table_metered(
+    c: &Connection,
+    table: &str,
+    digest: &NodeDigest,
+    budget: &mut ReadBudget<'_>,
+) -> Result<NodeRead, CodecError> {
     let sql = match table {
         "content_nodes" => "SELECT tag,body FROM content_nodes WHERE digest=?1",
         "content_staging" => "SELECT tag,body FROM content_staging WHERE digest=?1",
         _ => return Err(error("unknown content table")),
     };
-    let row: Option<(i64, Vec<u8>)> = c
-        .query_row(sql, params![&digest[..]], |r| Ok((r.get(0)?, r.get(1)?)))
-        .optional()
+    // The actual SQL payload (i64 tag + BLOB body) is charged by the common
+    // row reader before tag conversion or digest checks, including failures.
+    let row: Option<(i64, Vec<u8>)> = budget
+        .optional(c, sql, params![&digest[..]], |r| Ok((r.get(0)?, r.get(1)?)))
         .map_err(io)?;
     match row {
         Some((tag, body)) => checked(digest, tag, body),
@@ -333,8 +346,15 @@ fn read_table(c: &Connection, table: &str, digest: &NodeDigest) -> Result<NodeRe
     }
 }
 fn read_any(c: &Connection, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
-    let a = read_table(c, "content_nodes", digest)?;
-    let b = read_table(c, "content_staging", digest)?;
+    read_any_metered(c, digest, &mut ReadBudget::new(None, None))
+}
+pub(super) fn read_any_metered(
+    c: &Connection,
+    digest: &NodeDigest,
+    budget: &mut ReadBudget<'_>,
+) -> Result<NodeRead, CodecError> {
+    let a = read_table_metered(c, "content_nodes", digest, budget)?;
+    let b = read_table_metered(c, "content_staging", digest, budget)?;
     if let (NodeRead::Found { tag: at, body: ab }, NodeRead::Found { tag: bt, body: bb }) = (&a, &b)
     {
         if at != bt || ab != bb {
@@ -777,7 +797,15 @@ pub(super) fn verify_image(
     structure: &serde_json::Value,
     job: &mut Job,
 ) -> Result<(), CodecError> {
-    format_guard(c)?;
+    verify_image_with_budget(c, image, structure, &mut ReadBudget::new(Some(job), None))
+}
+pub(super) fn verify_image_with_budget(
+    c: &Connection,
+    image: &serde_json::Value,
+    structure: &serde_json::Value,
+    budget: &mut ReadBudget<'_>,
+) -> Result<(), CodecError> {
+    format_guard_metered(c, budget)?;
     let evidence = image_evidence(image)?;
     let refs: Vec<ContentRef> = evidence
         .iter()
@@ -786,21 +814,50 @@ pub(super) fn verify_image(
     if refs.is_empty() {
         return Ok(());
     }
-    let mut source = Closure {
-        c,
-        seen: BTreeSet::new(),
-        published_only: true,
-    };
-    let mut metered = s_content::job::JobNodeSource::new(job, &mut source);
-    s_content::verify_many(&mut metered, refs)?;
+    struct AuditSource<'a, 'b> {
+        c: &'a Connection,
+        budget: &'a mut ReadBudget<'b>,
+    }
+    impl NodeSource for AuditSource<'_, '_> {
+        fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+            let node = read_table_metered(self.c, "content_nodes", digest, self.budget)?;
+            if let NodeRead::Found { tag, body } = &node {
+                self.budget
+                    .job
+                    .as_deref_mut()
+                    .ok_or_else(|| error("audit Job missing"))?
+                    .accept_node(digest, *tag, body)?;
+            }
+            Ok(node)
+        }
+    }
+    s_content::verify_many(
+        &mut AuditSource {
+            c,
+            budget: &mut *budget,
+        },
+        refs,
+    )?;
     // The codec proves anonymous reachable nodes. Each actual six-family row
     // visit is separately checked and charged by the financial validator.
     for item in evidence {
-        let mut local = PublishedSource { c };
-        super::financial_content::verify_evidence(structure, item, &mut local, job, None)
+        let deadline = budget.deadline;
+        let mut read = |digest: &NodeDigest, job: &mut Job| {
+            read_table_metered(
+                c,
+                "content_nodes",
+                digest,
+                &mut ReadBudget::new(Some(job), deadline),
+            )
+        };
+        let job = budget
+            .job
+            .as_deref_mut()
+            .ok_or_else(|| error("audit Job missing"))?;
+        super::financial_content::verify_evidence_with_read(structure, item, &mut read, job, None)
             .map_err(error)?;
     }
-    Ok(())
+    budget.before().map_err(error)
 }
 
 /// Immutable published-node source for recovery, replay and current evidence.
@@ -835,10 +892,20 @@ pub(super) fn import_peer_refs(
     stage: &mut Stage<'_>,
     job: &mut Job,
 ) -> Result<(), CodecError> {
+    import_peer_refs_with_deadline(peer, refs, stage, job, None)
+}
+pub(super) fn import_peer_refs_with_deadline(
+    peer: &Connection,
+    refs: &[ContentRef],
+    stage: &mut Stage<'_>,
+    job: &mut Job,
+    deadline: Option<std::time::Instant>,
+) -> Result<(), CodecError> {
     struct Import<'a, 'b> {
         peer: &'a Connection,
         stage: &'a mut Stage<'b>,
         job: &'a mut Job,
+        deadline: Option<std::time::Instant>,
         pending: Vec<(NodeDigest, u8, Vec<u8>)>,
     }
     impl Import<'_, '_> {
@@ -855,16 +922,13 @@ pub(super) fn import_peer_refs(
     }
     impl NodeSource for Import<'_, '_> {
         fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
-            self.job.pre_io_check()?;
-            let result = read_table(self.peer, "content_nodes", digest)?;
+            let result = read_table_metered(
+                self.peer,
+                "content_nodes",
+                digest,
+                &mut ReadBudget::new(Some(&mut *self.job), self.deadline),
+            )?;
             if let NodeRead::Found { tag, body } = &result {
-                let framed = u64::try_from(body.len())
-                    .map_err(io)?
-                    .checked_add(
-                        u64::try_from(s_content::DOMAIN_SEPARATOR.len()).map_err(io)? + 1 + 8,
-                    )
-                    .ok_or_else(|| error("peer frame overflow"))?;
-                self.job.charge_wire_bytes(framed)?;
                 self.job.accept_node(digest, *tag, body)?;
                 self.pending.push((*digest, *tag, body.clone()));
                 if self.pending.len() >= PEER_IMPORT_BATCH_NODES {
@@ -878,6 +942,7 @@ pub(super) fn import_peer_refs(
         peer,
         stage,
         job,
+        deadline,
         pending: Vec::new(),
     };
     s_content::verify_many(&mut importer, refs.iter().cloned())?;

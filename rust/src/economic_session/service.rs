@@ -35,19 +35,24 @@ fn message_key(e: &Value) -> String {
     ]))
 }
 pub(super) fn previous_message(c: &Connection, e: &Value) -> Result<Option<Value>, String> {
-    let r: Option<(String, String, String)> = c
-        .query_row(
-            "SELECT payload_hash,receipt_key,request_json FROM messages WHERE k=?",
-            [message_key(e)],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-        )
-        .optional()
-        .map_err(err)?;
+    previous_message_metered(c, e, &mut ReadBudget::new(None, None))
+}
+pub(super) fn previous_message_metered(
+    c: &Connection,
+    e: &Value,
+    budget: &mut ReadBudget<'_>,
+) -> Result<Option<Value>, String> {
+    let r: Option<(String, String, String)> = budget.optional(
+        c,
+        "SELECT payload_hash,receipt_key,request_json FROM messages WHERE k=?",
+        [message_key(e)],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+    )?;
     if let Some((h, k, original)) = r {
         if e["payload_hash"] != h || canonical_json(e) != original {
             return Err("IdentityConflict：原消息内容改变".into());
         }
-        return row(c, "receipts", &k)?
+        return metered_row(c, "receipts", &k, budget)?
             .map(Some)
             .ok_or_else(|| "StorageUnavailable：域损坏：消息缺回执".into());
     }
@@ -337,7 +342,7 @@ fn authoritative_fact_inner(
             .map_err(|e| e.to_string())?;
         let refs = super::content_store::image_refs(&json!({"recorded":[f.clone()],"history":[]}))
             .map_err(|e| e.to_string())?;
-        super::content_store::import_peer_refs(&tx, &refs, stage, job)
+        super::content_store::import_peer_refs_with_deadline(&tx, &refs, stage, job, deadline)
             .map_err(|e| format!("MissingDependency：E 历史引用导入失败：{e}"))?;
     }
     tx.commit().map_err(err)?;
@@ -500,6 +505,8 @@ fn apply_allocation_inner(
     record["b_origin_message"] = json!({"source_namespace":e["source_namespace"],"source_epoch":e["source_epoch"],"message_id":e["message_id"],"payload_hash":e["payload_hash"]});
     record["b_origin_request_hash"] = json!(hash(e));
     let (next, unmatched) = apply(&image, &record, seq, &ns, config.book_rules()?)?;
+    // H1：在内容发布或任何目标行写入之前核完整包装后的读合同。
+    super::store::readable_image(&next)?;
     if let Some(job) = import_job.as_mut() {
         let refs = super::content_store::image_refs(&next)
             .map_err(|e| format!("MissingDependency：ApplyAllocation 引用路径非法：{e}"))?;
@@ -571,7 +578,12 @@ fn bind_voice(
         let (_, _, _, image) = latest(&tx)?;
         if super::voice::find_binding(&image, binding)?.is_some() {
             let event = super::voice::event_for(&image, binding)?;
-            let original = super::voice::original_request(&tx, event, config)?;
+            let original = super::voice::original_request(
+                &tx,
+                event,
+                config,
+                &mut ReadBudget::new(None, ingress_response_deadline),
+            )?;
             if original["payload"] != *p {
                 return Err("IdentityConflict：Voice 原绑定内容改变".into());
             }

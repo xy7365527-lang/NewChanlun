@@ -268,6 +268,7 @@ pub(super) fn replay(
     event: &Value,
     seq: i64,
     ns: &str,
+    budget: &mut super::store::ReadBudget<'_>,
 ) -> Result<Value, String> {
     use crate::session_protocol::{strict_json, validate_envelope};
     if config.domain != "E" || config.book_rules()? != Rules::Tb03cV1 {
@@ -279,13 +280,12 @@ pub(super) fn replay(
         required(origin, "source_epoch")?,
         required(origin, "message_id")?
     ]));
-    let (raw, bound): (String, String) = c
-        .query_row(
-            "SELECT request_json,receipt_key FROM messages WHERE k=?",
-            [key],
-            |r| Ok((r.get(0)?, r.get(1)?)),
-        )
-        .map_err(super::store::err)?;
+    let (raw, bound): (String, String) = budget.one(
+        c,
+        "SELECT request_json,receipt_key FROM messages WHERE k=?",
+        [key],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
     let request = validate_envelope(strict_json(raw.as_bytes())?, config.revision()?)?;
     config.authorized(&request)?;
     let payload = &request["payload"];
@@ -309,17 +309,17 @@ pub(super) fn audit_receipt(
     config: &Config,
     image: &Value,
     receipt: &Value,
+    budget: &mut super::store::ReadBudget<'_>,
 ) -> Result<(), String> {
     use crate::session_protocol::{positive, strict_json};
     let event = event_for(image, required(receipt, "evidence_id")?)?;
     let seq = positive(required(event, "commit_seq")?, "Resolve commit seq")?;
-    let (root, ns, raw): (String, String, String) = c
-        .query_row(
-            "SELECT root,commit_ns,image FROM commits WHERE seq=?",
-            [seq],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-        )
-        .map_err(super::store::err)?;
+    let (root, ns, raw): (String, String, String) = budget.one(
+        c,
+        "SELECT root,commit_ns,image FROM commits WHERE seq=?",
+        [seq],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+    )?;
     let actual = strict_json(raw.as_bytes())?;
     if actual["history"].as_array().and_then(|a| a.last()) != Some(event)
         || event["commit_ns"] != ns

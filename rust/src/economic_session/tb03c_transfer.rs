@@ -3,7 +3,7 @@
 use super::book::{add, array, hash, integer, target, Rules};
 use super::store::{self, Config};
 use crate::s_content::job::Job;
-use crate::session_protocol::{canonical_json, nonnegative, positive, required, strict_json};
+use crate::session_protocol::{nonnegative, positive, required, strict_json};
 use serde_json::{json, Value};
 use std::path::PathBuf;
 
@@ -387,57 +387,63 @@ pub(super) fn attach_source_proof(
     if !is_in(&record["event"]) {
         return Ok(());
     }
-    if let Some((_, job)) = import.as_mut() {
+    #[cfg(test)]
+    let mut injected = if import.is_none() {
+        super::tb03c_c5_read_tests::take_job()
+    } else {
+        None
+    };
+    let shared_job = import.as_mut().map(|(_, job)| &mut **job);
+    #[cfg(test)]
+    let shared_job = shared_job.or_else(|| injected.as_mut().and_then(|g| g.job.as_mut()));
+    let mut budget = store::ReadBudget::new(shared_job, deadline);
+    budget.before()?;
+    if let Some(job) = budget.job.as_deref_mut() {
         job.charge_requests(1).map_err(|e| e.to_string())?;
     }
     let claim = &record["event"]["transfer"]["claim"];
     let source = source_config(config, claim)?;
-    let (mut c, _) = store::open(&source.db, true)?;
+    let (mut c, _) = store::open_metered(&source.db, true, &mut budget)?;
     let tx = c.transaction().map_err(store::err)?;
-    if let Some((_, job)) = import.as_mut() {
-        store::audit_with_deadline(&tx, &source, Some(&mut **job), deadline)?;
-    } else {
-        store::audit_with_deadline(&tx, &source, None, deadline)?;
-    }
-    let r = store::row(
+    store::audit_with_budget(&tx, &source, &mut budget)?;
+    let r = store::metered_row(
         &tx,
         "receipts",
         required(&claim["source_fact"], "allocation_id")?,
+        &mut budget,
     )?
     .ok_or("AwaitingDependency：源 B 的具名扣账尚未 Applied")?;
     if r["kind"] != "Applied" || r["fact_key"] != identity_key(&claim["source_fact"])? {
         return Err("AwaitingDependency：源 B 具名扣账不是 Applied".into());
     }
     let seq = positive(required(&r["cut"], "commit_seq")?, "source seq")?;
-    let read = |seq: i64| -> Result<(String, String, Value), String> {
-        let (prev, ns, raw): (String, String, String) = tx
-            .query_row(
-                "SELECT prev_root,commit_ns,image FROM commits WHERE seq=?",
-                [seq],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-            )
-            .map_err(store::err)?;
+    let mut read = |seq: i64| -> Result<(String, String, Value), String> {
+        let (prev, ns, raw): (String, String, String) = budget.one(
+            &tx,
+            "SELECT prev_root,commit_ns,image FROM commits WHERE seq=?",
+            [seq],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )?;
         Ok((prev, ns, strict_json(raw.as_bytes())?))
     };
     let (prev, ns, image) = read(seq)?;
     let (pprev, pns, pimage) = read(seq - 1)?;
     let proof = json!({"revision":"tb03c-source-debit-proof/1","domain_id":source.domain,"session_id":source.session,"session_generation":source.generation,"receipt":r,"previous_root":prev,"commit_ns":ns,"image":image,"previous_previous_root":pprev,"previous_commit_ns":pns,"previous_image":pimage});
     record["b_source_debit_proof"] = proof;
+    #[cfg(test)]
+    super::tb03c_c5_read_tests::proof_read(record);
     verify_source_proof(config, record)?;
+    budget.before()?;
+    drop(budget);
     if let Some((stage, job)) = import {
         store::check_operation_deadline(Some(&mut *job), deadline)?;
-        job.charge_wire_bytes(
-            u64::try_from(canonical_json(&record["b_source_debit_proof"]).len())
-                .map_err(store::err)?,
-        )
-        .map_err(|e| e.to_string())?;
         let mut refs = super::content_store::image_refs(&record["b_source_debit_proof"]["image"])
             .map_err(|e| e.to_string())?;
         refs.extend(
             super::content_store::image_refs(&record["b_source_debit_proof"]["previous_image"])
                 .map_err(|e| e.to_string())?,
         );
-        super::content_store::import_peer_refs(&tx, &refs, stage, job)
+        super::content_store::import_peer_refs_with_deadline(&tx, &refs, stage, job, deadline)
             .map_err(|e| format!("MissingDependency：源扣账本地闭包导入失败：{e}"))?;
     }
     store::check_operation_deadline(None, deadline)?;

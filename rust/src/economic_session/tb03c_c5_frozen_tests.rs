@@ -280,3 +280,70 @@ fn c5_frozen_capture_rejects_missing_sources_and_invalid_opening_metadata() {
     }
     s.audit();
 }
+
+const H1_RAW: &str =
+    include_str!("../../../s_session/tests/fixtures/tb03c_c5_depth/H1-source-depth-original.json");
+fn container_depth(v: &Value) -> usize {
+    match v {
+        Value::Object(m) => 1 + m.values().map(container_depth).max().unwrap_or(0),
+        Value::Array(a) => 1 + a.iter().map(container_depth).max().unwrap_or(0),
+        _ => 0,
+    }
+}
+#[test]
+fn c5_h1_real_handle_depth_inside_boundary_and_overflow_are_recoverable() {
+    assert_eq!(
+        sha256_hex(H1_RAW.as_bytes()),
+        "38d4e9756b09cec00d104c6d4658c9a013df2d46c41fa34af639840a9ab46027"
+    );
+    for note_depth in [114, 115, 116] {
+        let mut original: Value = serde_json::from_str(H1_RAW).unwrap();
+        let mut note = original["events"][7]["source_note"].clone();
+        for _ in note_depth..116 {
+            note = note.as_object().unwrap().values().next().unwrap().clone();
+        }
+        original["events"][7]["source_note"] = note;
+        // 越界例保留独审原字节；界内两例只剥 note 包装，不改经济字段。
+        let encoded = if note_depth == 116 {
+            H1_RAW.to_owned()
+        } else {
+            canonical_json(&original)
+        };
+        let mut s = session("c5-h1-depth");
+        for i in 0..8 {
+            apply_step(&mut s, 1, &encoded, i);
+        }
+        let incoming = captured(&mut s, raw("chong-G2"), 0);
+        let before = s.image(2);
+        let rows = s.row_counts(2);
+        let result = s.apply(2, &incoming);
+        if note_depth < 116 {
+            assert_eq!(result["kind"], "Applied", "depth {note_depth}: {result}");
+            assert_eq!(container_depth(&s.image(2)), note_depth + 12);
+            assert_eq!(s.apply(2, &incoming), result);
+        } else {
+            assert!(
+                result["error"]
+                    .as_str()
+                    .unwrap()
+                    .starts_with("SchemaUnsupported：完整持久图像超出统一可读安全域"),
+                "{result}"
+            );
+            assert_eq!(s.image(2), before);
+            assert_eq!(s.row_counts(2), rows);
+            // 同一健康目标仍能接后续合法已发生开局；失败源扣账不撤销、不退款。
+            let mut healthy: Value = serde_json::from_str(raw("chong-G1")).unwrap();
+            let event = &mut healthy["events"][0];
+            event["source"]["external_fact_id"] = json!("healthy-after-depth-rejection");
+            event["allocation_id"] = json!("alloc-healthy-after-depth-rejection");
+            event["book_identity"]["chong_id"] = json!("chong-G2");
+            event["book_identity"]["op_level"] = json!("2");
+            event["book_identity"]["fixed_q"] = json!("5");
+            event["observed_existing_book"]["units"] = json!("5");
+            apply_step(&mut s, 2, &canonical_json(&healthy), 0);
+        }
+        let target = s.image(2);
+        s.recover_all();
+        assert_eq!(s.image(2), target);
+    }
+}

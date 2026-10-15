@@ -13,7 +13,7 @@ pub(super) struct Session {
     source_epoch: String,
 }
 impl Session {
-    fn new(tag: &str) -> Self {
+    pub(super) fn new(tag: &str) -> Self {
         Self::with_routes(
             tag,
             "unit",
@@ -84,7 +84,7 @@ impl Session {
         )["payload"]
             .clone()
     }
-    fn capture(&mut self, doc: &Value, index: usize) -> Value {
+    pub(super) fn capture(&mut self, doc: &Value, index: usize) -> Value {
         self.capture_raw(&canonical_json(doc), index)
     }
     pub(super) fn capture_raw(&mut self, raw: &str, index: usize) -> Value {
@@ -112,6 +112,26 @@ impl Session {
             store::recover(config).unwrap();
         }
         self.audit();
+    }
+    pub(super) fn allocated(&self, owner: usize) -> u64 {
+        super::content_store::allocated(&self.configs[owner].db).unwrap()
+    }
+    pub(super) fn row_counts(&self, owner: usize) -> Vec<i64> {
+        [
+            "facts",
+            "book",
+            "applications",
+            "receipts",
+            "commits",
+            "messages",
+        ]
+        .into_iter()
+        .map(|table| {
+            self.connections[owner]
+                .query_row(&format!("SELECT count(*) FROM {table}"), [], |r| r.get(0))
+                .unwrap()
+        })
+        .collect()
     }
 }
 fn reference(doc: &mut Value, index: usize, field: &str, name: &str) {
@@ -257,7 +277,7 @@ fn transfer(doc: &mut Value, index: usize, claim: &Value, role: &str) {
         reference(doc, index, "transfer_opening", "transfer-opening");
     }
 }
-fn transfer_documents() -> (Value, Value, Value) {
+pub(super) fn transfer_documents() -> (Value, Value, Value) {
     let mut input = TestDoc::new("S", "fam-S", 10, "long");
     input.opening(
         10,
@@ -326,7 +346,7 @@ fn transfer_documents() -> (Value, Value, Value) {
     }
     (source, t, u)
 }
-fn apply_sources(s: &mut Session, source: &Value, count: usize) {
+pub(super) fn apply_sources(s: &mut Session, source: &Value, count: usize) {
     for i in 0..count {
         let captured = s.capture(source, i);
         assert_eq!(

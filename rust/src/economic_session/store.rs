@@ -501,6 +501,14 @@ fn filesystem(path: &Path) -> Result<String, String> {
     }
 }
 pub(crate) fn open(db: &Path, read_only: bool) -> Result<(Connection, Value), String> {
+    open_metered(db, read_only, &mut ReadBudget::new(None, None))
+}
+pub(super) fn open_metered(
+    db: &Path,
+    read_only: bool,
+    budget: &mut ReadBudget<'_>,
+) -> Result<(Connection, Value), String> {
+    budget.before()?;
     let fs = filesystem(db)?;
     let flags = if read_only {
         OpenFlags::SQLITE_OPEN_READ_ONLY
@@ -519,15 +527,9 @@ pub(crate) fn open(db: &Path, read_only: bool) -> Result<(Connection, Value), St
         c.execute_batch("PRAGMA query_only=ON; PRAGMA synchronous=FULL; PRAGMA fullfsync=ON;")
             .map_err(err)?;
     }
-    let mode: String = c
-        .query_row("PRAGMA journal_mode", [], |r| r.get(0))
-        .map_err(err)?;
-    let sync: i64 = c
-        .query_row("PRAGMA synchronous", [], |r| r.get(0))
-        .map_err(err)?;
-    let full: i64 = c
-        .query_row("PRAGMA fullfsync", [], |r| r.get(0))
-        .map_err(err)?;
+    let mode: String = budget.one(&c, "PRAGMA journal_mode", [], |r| r.get(0))?;
+    let sync: i64 = budget.one(&c, "PRAGMA synchronous", [], |r| r.get(0))?;
+    let full: i64 = budget.one(&c, "PRAGMA fullfsync", [], |r| r.get(0))?;
     if mode != "wal" || sync != 2 || cfg!(target_os = "macos") && full != 1 {
         return Err("StorageUnavailable：WAL/FULL/fullfsync前件失败".into());
     }
@@ -539,6 +541,44 @@ pub(crate) fn open(db: &Path, read_only: bool) -> Result<(Connection, Value), St
 pub(crate) fn meta(c: &Connection, k: &str) -> Result<String, String> {
     c.query_row("SELECT v FROM meta WHERE k=?", [k], |r| r.get(0))
         .map_err(err)
+}
+pub(crate) use super::store_read::ReadBudget;
+pub(crate) fn metered_row(
+    c: &Connection,
+    table: &str,
+    k: &str,
+    budget: &mut ReadBudget<'_>,
+) -> Result<Option<Value>, String> {
+    if !TABLES.contains(&table) {
+        return Err("InvalidDomain：未知表".into());
+    }
+    let raw: Option<String> = budget.optional(
+        c,
+        &format!("SELECT json FROM {table} WHERE k=?"),
+        [k],
+        |r| r.get(0),
+    )?;
+    raw.map(|s| strict_json(s.as_bytes())).transpose()
+}
+fn metered_rows(
+    c: &Connection,
+    table: &str,
+    budget: &mut ReadBudget<'_>,
+) -> Result<Vec<Value>, String> {
+    if !TABLES.contains(&table) {
+        return Err("InvalidDomain：未知表".into());
+    }
+    budget.before()?;
+    let mut statement = c
+        .prepare(&format!("SELECT json FROM {table} ORDER BY k"))
+        .map_err(err)?;
+    let mut cursor = statement.query([]).map_err(err)?;
+    let mut values = Vec::new();
+    while let Some(row) = budget.next(&mut cursor)? {
+        let raw: String = row.get(0).map_err(err)?;
+        values.push(strict_json(raw.as_bytes())?);
+    }
+    Ok(values)
 }
 pub(crate) fn set_meta(c: &Connection, k: &str, v: &str) -> Result<(), String> {
     c.execute(
@@ -632,13 +672,22 @@ pub(crate) fn append(
     ns: &str,
     image: &Value,
 ) -> Result<Value, String> {
+    let raw = readable_image(image)?;
     let h = root(config, seq, prev, ns, image);
     c.execute(
         "INSERT INTO commits(seq,prev_root,root,commit_ns,image)VALUES(?,?,?,?,?)",
-        params![seq, prev, h, ns, canonical_json(image)],
+        params![seq, prev, h, ns, raw],
     )
     .map_err(err)?;
     Ok(cut(config, seq, &h))
+}
+/// #1406 C5 H1：最终完整图像必须满足唯一读合同；不放宽解析深度。
+/// 这是有界安全接受域，不承诺任意深度来源都能嵌入新的跨 owner 证明。
+pub(super) fn readable_image(image: &Value) -> Result<String, String> {
+    let raw = canonical_json(image);
+    strict_json(raw.as_bytes())
+        .map_err(|e| format!("SchemaUnsupported：完整持久图像超出统一可读安全域：{e}"))?;
+    Ok(raw)
 }
 pub(crate) fn init(config: &Config) -> Result<Value, String> {
     if config.db.exists() {
@@ -757,15 +806,24 @@ pub(crate) fn audit_with_job(
 pub(crate) fn audit_with_deadline(
     c: &Connection,
     config: &Config,
-    mut shared_job: Option<&mut crate::s_content::job::Job>,
+    shared_job: Option<&mut crate::s_content::job::Job>,
     deadline: Option<std::time::Instant>,
+) -> Result<(), String> {
+    let mut budget = ReadBudget::new(shared_job, deadline);
+    audit_with_budget(c, config, &mut budget)
+}
+pub(super) fn audit_with_budget(
+    c: &Connection,
+    config: &Config,
+    budget: &mut ReadBudget<'_>,
 ) -> Result<(), String> {
     let revision = config.revision()?;
     if revision == SCHEMA_V2 {
         let resources = super::financial_reader_resources::FinancialReaderResources::from_json(
             &config.manifest["finance"]["structure"]["reader_resources"],
         )?;
-        let job = shared_job
+        let job = budget
+            .job
             .as_deref_mut()
             .ok_or("MissingDependency：新域审计缺共同 job")?;
         if job.snapshot().limits != resources.job_limits {
@@ -774,7 +832,7 @@ pub(crate) fn audit_with_deadline(
         job.begin_first_read()
             .map_err(|e| format!("Incomplete：审计起钟：{e}"))?;
     }
-    check_operation_deadline(shared_job.as_deref_mut(), deadline)?;
+    budget.before()?;
     let expected = Connection::open_in_memory().map_err(err)?;
     expected.execute_batch(SQL).map_err(err)?;
     if revision == SCHEMA_V2 {
@@ -791,20 +849,20 @@ pub(crate) fn audit_with_deadline(
             .map_err(err)?;
         r.collect::<Result<_, _>>().map_err(err)
     };
-    if schema_dump(c)? != schema_dump(&expected)? {
+    let actual_schema: Vec<(String, String, String)> = budget.all(
+        c,
+        "SELECT type,name,sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY type,name",
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+    )?;
+    if actual_schema != schema_dump(&expected)? {
         return Err("StorageUnavailable：域损坏：完整schema/索引发生变化".into());
     }
-    let integrity: String = c
-        .query_row("PRAGMA quick_check", [], |r| r.get(0))
-        .map_err(err)?;
+    let integrity: String = budget.one(c, "PRAGMA quick_check", [], |r| r.get(0))?;
     if integrity != "ok" {
         return Err(format!("StorageUnavailable：域损坏：SQLite {integrity}"));
     }
-    let names: Vec<String> = {
-        let mut q=c.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").map_err(err)?;
-        let r = q.query_map([], |r| r.get(0)).map_err(err)?;
-        r.collect::<Result<_, _>>().map_err(err)?
-    };
+    let names: Vec<String> = budget.all(c,"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name", [], |r| r.get(0))?;
     // 表集合按域版本登记：`/1` 恰好 10 表，`/2` 另加内容三表（§5.8 旧域不混写）。
     let mut want: Vec<String> = if revision == SCHEMA_V2 {
         TABLES
@@ -819,13 +877,12 @@ pub(crate) fn audit_with_deadline(
     if names != want {
         return Err("StorageUnavailable：域损坏：表集合变化".into());
     }
-    let extra: i64 = c
-        .query_row(
-            "SELECT count(*) FROM sqlite_master WHERE type IN ('trigger','view')",
-            [],
-            |r| r.get(0),
-        )
-        .map_err(err)?;
+    let extra: i64 = budget.one(
+        c,
+        "SELECT count(*) FROM sqlite_master WHERE type IN ('trigger','view')",
+        [],
+        |r| r.get(0),
+    )?;
     if extra != 0 {
         return Err("StorageUnavailable：域损坏：非预期触发器/视图".into());
     }
@@ -836,18 +893,17 @@ pub(crate) fn audit_with_deadline(
         ("session_generation", config.generation.as_str()),
         ("manifest_hash", config.manifest_hash.as_str()),
     ] {
-        if meta(c, k)? != v {
+        let actual: String = budget.one(c, "SELECT v FROM meta WHERE k=?", [k], |r| r.get(0))?;
+        if actual != v {
             return Err(format!("IdentityConflict：持久{k}未绑定当前配置"));
         }
     }
-    let voice_revision: Option<String> = c
-        .query_row(
-            "SELECT v FROM meta WHERE k='voice_binding_revision'",
-            [],
-            |r| r.get(0),
-        )
-        .optional()
-        .map_err(err)?;
+    let voice_revision: Option<String> = budget.optional(
+        c,
+        "SELECT v FROM meta WHERE k='voice_binding_revision'",
+        [],
+        |r| r.get(0),
+    )?;
     if voice_revision.as_deref()
         != if super::evidence::enabled(config) {
             Some("voice-binding/1")
@@ -859,12 +915,10 @@ pub(crate) fn audit_with_deadline(
             "IdentityConflict：Voice 存储版本未由 init 显式绑定；不得在 recover 暗迁移".into(),
         );
     }
-    let book_revision: Option<String> = c
-        .query_row("SELECT v FROM meta WHERE k='book_revision'", [], |r| {
+    let book_revision: Option<String> =
+        budget.optional(c, "SELECT v FROM meta WHERE k='book_revision'", [], |r| {
             r.get(0)
-        })
-        .optional()
-        .map_err(err)?;
+        })?;
     if book_revision.as_deref()
         != match config.book_rules()? {
             super::book::Rules::Tb03cV1 => Some(super::book::TB03C_BOOK_V1),
@@ -875,13 +929,12 @@ pub(crate) fn audit_with_deadline(
     }
     // 内容格式登记与 Voice 版本同一条纪律：只认 init 显式绑定，recover 不暗迁移。
     let content_format: Option<String> = if revision == SCHEMA_V2 {
-        c.query_row(
+        budget.optional(
+            c,
             "SELECT content_format FROM content_meta WHERE singleton=1",
             [],
             |r| r.get(0),
-        )
-        .optional()
-        .map_err(err)?
+        )?
     } else {
         None
     };
@@ -896,36 +949,35 @@ pub(crate) fn audit_with_deadline(
             "IdentityConflict：内容存储格式未由 init 显式绑定；不得在 recover 暗迁移".into(),
         );
     }
-    let epoch = positive(&meta(c, "writer_epoch")?, "writer_epoch")?;
-    let (count, max): (i64, i64) = c
-        .query_row("SELECT count(*),max(epoch) FROM epochs", [], |r| {
+    let epoch_raw: String =
+        budget.one(c, "SELECT v FROM meta WHERE k='writer_epoch'", [], |r| {
+            r.get(0)
+        })?;
+    let epoch = positive(&epoch_raw, "writer_epoch")?;
+    let (count, max): (i64, i64) =
+        budget.one(c, "SELECT count(*),max(epoch) FROM epochs", [], |r| {
             Ok((r.get(0)?, r.get(1)?))
-        })
-        .map_err(err)?;
+        })?;
     if count != epoch || max != epoch {
         return Err("StorageUnavailable：域损坏：epoch历史不连续".into());
     }
+    budget.before()?;
     let mut q = c
         .prepare("SELECT seq,prev_root,root,commit_ns,image FROM commits ORDER BY seq")
         .map_err(err)?;
-    let rs = q
-        .query_map([], |r| {
-            Ok((
-                r.get::<_, i64>(0)?,
-                r.get::<_, String>(1)?,
-                r.get::<_, String>(2)?,
-                r.get::<_, String>(3)?,
-                r.get::<_, String>(4)?,
-            ))
-        })
-        .map_err(err)?;
+    let mut rs = q.query([]).map_err(err)?;
     let mut previous = String::new();
     let mut previous_image = super::finance::empty(config)?;
     let mut last_ns = -1;
     let mut seen = 0i64;
-    for r in rs {
-        check_operation_deadline(shared_job.as_deref_mut(), deadline)?;
-        let (seq, prev, h, ns, raw) = r.map_err(err)?;
+    while let Some(r) = budget.next(&mut rs)? {
+        let (seq, prev, h, ns, raw): (i64, String, String, String, String) = (
+            r.get(0).map_err(err)?,
+            r.get(1).map_err(err)?,
+            r.get(2).map_err(err)?,
+            r.get(3).map_err(err)?,
+            r.get(4).map_err(err)?,
+        );
         let image = strict_json(raw.as_bytes())?;
         let n = nonnegative(&ns, "commit_ns")?;
         if seq != seen
@@ -936,13 +988,11 @@ pub(crate) fn audit_with_deadline(
             return Err("StorageUnavailable：域损坏：提交链/时间/根不一致".into());
         }
         if revision == SCHEMA_V2 {
-            super::content_store::verify_image(
+            super::content_store::verify_image_with_budget(
                 c,
                 &image,
                 &config.manifest["finance"]["structure"],
-                shared_job
-                    .as_deref_mut()
-                    .ok_or("MissingDependency：审计 job 缺失")?,
+                budget,
             )
             .map_err(|e| format!("StorageUnavailable：本地内容闭包审计失败：{e}"))?;
         }
@@ -956,7 +1006,8 @@ pub(crate) fn audit_with_deadline(
             .is_some_and(|e| e["kind"] == "ResolveEvidence")
         {
             let event = image["history"].as_array().unwrap().last().unwrap();
-            if image != super::tb03c_e::replay(c, config, &previous_image, event, seq, &ns)? {
+            if image != super::tb03c_e::replay(c, config, &previous_image, event, seq, &ns, budget)?
+            {
                 return Err("StorageUnavailable：Resolve 重放不等于完整提交图像".into());
             }
         } else if image["history"]
@@ -965,16 +1016,7 @@ pub(crate) fn audit_with_deadline(
             .is_some_and(super::finance::is_event)
         {
             let event = image["history"].as_array().unwrap().last().unwrap();
-            if image
-                != super::finance::replay(
-                    c,
-                    config,
-                    &previous_image,
-                    event,
-                    seq,
-                    &ns,
-                    shared_job.as_deref_mut(),
-                )?
+            if image != super::finance::replay(c, config, &previous_image, event, seq, &ns, budget)?
             {
                 return Err("StorageUnavailable：财务重放不等于完整提交图像".into());
             }
@@ -985,7 +1027,8 @@ pub(crate) fn audit_with_deadline(
             .unwrap_or(false)
         {
             let event = image["history"].as_array().unwrap().last().unwrap();
-            let expected = super::voice::replay(c, config, &previous_image, event, seq, &ns)?;
+            let expected =
+                super::voice::replay(c, config, &previous_image, event, seq, &ns, budget)?;
             if image != expected {
                 return Err("StorageUnavailable：Voice 重放不等于完整提交图像".into());
             }
@@ -1009,7 +1052,7 @@ pub(crate) fn audit_with_deadline(
                 }
                 verify_e_copy(record, config)?;
             }
-            verify_original_message(c, record, config)?;
+            verify_original_message(c, record, config, budget)?;
             let expected = if config.domain == "E" {
                 let mut x = previous_image.clone();
                 x["recorded"].as_array_mut().unwrap().push(record.clone());
@@ -1029,7 +1072,7 @@ pub(crate) fn audit_with_deadline(
         last_ns = n;
         seen += 1;
     }
-    check_operation_deadline(shared_job.as_deref_mut(), deadline)?;
+    budget.before()?;
     if seen == 0 {
         return Err("StorageUnavailable：域损坏：无创世提交".into());
     }
@@ -1039,7 +1082,7 @@ pub(crate) fn audit_with_deadline(
         ("applications", "applied"),
         ("unmatched", "unmatched"),
     ] {
-        if sorted(rows(c, table)?)
+        if sorted(metered_rows(c, table, budget)?)
             != sorted(
                 previous_image[key]
                     .as_array()
@@ -1050,20 +1093,20 @@ pub(crate) fn audit_with_deadline(
             return Err(format!("StorageUnavailable：域损坏：{table}不等于完整图像"));
         }
     }
-    if row(c, "book", "book")?.unwrap_or(Value::Null) != previous_image["book"] {
+    if metered_row(c, "book", "book", budget)?.unwrap_or(Value::Null) != previous_image["book"] {
         return Err("StorageUnavailable：域损坏：book物化不等于完整图像".into());
     }
-    let receipt_rows = rows(c, "receipts")?;
+    let receipt_rows = metered_rows(c, "receipts", budget)?;
     if receipt_rows.len() != (seen - 1) as usize {
         return Err("StorageUnavailable：域损坏：永久回执数不等于业务提交数".into());
     }
     for r in receipt_rows {
         if r["kind"] == "Resolved" {
-            super::tb03c_e::audit_receipt(c, config, &previous_image, &r)?;
+            super::tb03c_e::audit_receipt(c, config, &previous_image, &r, budget)?;
             continue;
         }
         if r.get("receipt_key").is_some() {
-            super::finance::audit_receipt(c, config, &r)?;
+            super::finance::audit_receipt(c, config, &r, budget)?;
             continue;
         }
         if r["kind"] == "VoiceBound" {
@@ -1073,13 +1116,12 @@ pub(crate) fn audit_with_deadline(
             let record = super::voice::find_binding(&previous_image, required(&r, "binding_id")?)?
                 .ok_or("StorageUnavailable：Voice 回执缺不可变对象")?;
             let seq = positive(required(&record, "commit_seq")?, "Voice actual commit seq")?;
-            let (actual_root, ns, raw): (String, String, String) = c
-                .query_row(
-                    "SELECT root,commit_ns,image FROM commits WHERE seq=?",
-                    [seq],
-                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-                )
-                .map_err(err)?;
+            let (actual_root, ns, raw): (String, String, String) = budget.one(
+                c,
+                "SELECT root,commit_ns,image FROM commits WHERE seq=?",
+                [seq],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )?;
             let image = strict_json(raw.as_bytes())?;
             let event = image["history"]
                 .as_array()
@@ -1094,16 +1136,17 @@ pub(crate) fn audit_with_deadline(
             }
             continue;
         }
-        let f = row(c, "facts", required(&r, "fact_key")?)?
+        let f = metered_row(c, "facts", required(&r, "fact_key")?, budget)?
             .ok_or("StorageUnavailable：域损坏：回执缺原件")?;
         let a = if config.domain == "E" {
             None
         } else {
             Some(
-                row(
+                metered_row(
                     c,
                     "applications",
                     super::tb03c_allocation::application_id(&f)?,
+                    budget,
                 )?
                 .ok_or("StorageUnavailable：域损坏：原件缺应用")?,
             )
@@ -1120,13 +1163,12 @@ pub(crate) fn audit_with_deadline(
             )?,
             "actual_commit_seq",
         )?;
-        let (actual_root, ns, raw): (String, String, String) = c
-            .query_row(
-                "SELECT root,commit_ns,image FROM commits WHERE seq=?",
-                [seq],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-            )
-            .map_err(err)?;
+        let (actual_root, ns, raw): (String, String, String) = budget.one(
+            c,
+            "SELECT root,commit_ns,image FROM commits WHERE seq=?",
+            [seq],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )?;
         let image = strict_json(raw.as_bytes())?;
         if image["recorded"].as_array().and_then(|a| a.last()) != Some(&f) {
             return Err("StorageUnavailable：域损坏：回执指向的实际提交不含对应原事实".into());
@@ -1163,14 +1205,13 @@ pub(crate) fn audit_with_deadline(
             },
         ),
     ] {
+        budget.before()?;
         let mut q = c
             .prepare(&format!("SELECT k,json FROM {table}"))
             .map_err(err)?;
-        let rs = q
-            .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
-            .map_err(err)?;
-        for r in rs {
-            let (k, s) = r.map_err(err)?;
+        let mut rs = q.query([]).map_err(err)?;
+        while let Some(r) = budget.next(&mut rs)? {
+            let (k, s): (String, String) = (r.get(0).map_err(err)?, r.get(1).map_err(err)?);
             let v = strict_json(s.as_bytes())?;
             let expected_key = if table == "receipts" && v["kind"] == "Resolved" {
                 super::tb03c_e::receipt_key(required(&v, "evidence_id")?)
@@ -1188,32 +1229,28 @@ pub(crate) fn audit_with_deadline(
             }
         }
     }
-    let wrong: i64 = c
-        .query_row(
-            "SELECT count(*) FROM applications WHERE fact_key != json_extract(json,'$.fact_key')",
-            [],
-            |r| r.get(0),
-        )
-        .map_err(err)?;
+    let wrong: i64 = budget.one(
+        c,
+        "SELECT count(*) FROM applications WHERE fact_key != json_extract(json,'$.fact_key')",
+        [],
+        |r| r.get(0),
+    )?;
     if wrong != 0 {
         return Err("StorageUnavailable：域损坏：应用事实唯一键与内容不同".into());
     }
+    budget.before()?;
     let mut mq = c
         .prepare("SELECT k,payload_hash,receipt_key,request_json FROM messages")
         .map_err(err)?;
-    let messages = mq
-        .query_map([], |r| {
-            Ok((
-                r.get::<_, String>(0)?,
-                r.get::<_, String>(1)?,
-                r.get::<_, String>(2)?,
-                r.get::<_, String>(3)?,
-            ))
-        })
-        .map_err(err)?;
+    let mut messages = mq.query([]).map_err(err)?;
     let mut covered = std::collections::BTreeSet::new();
-    for m in messages {
-        let (k, h, rk, s) = m.map_err(err)?;
+    while let Some(m) = budget.next(&mut messages)? {
+        let (k, h, rk, s): (String, String, String, String) = (
+            m.get(0).map_err(err)?,
+            m.get(1).map_err(err)?,
+            m.get(2).map_err(err)?,
+            m.get(3).map_err(err)?,
+        );
         let request =
             crate::session_protocol::validate_envelope(strict_json(s.as_bytes())?, revision)?;
         config.authorized(&request)?;
@@ -1225,7 +1262,8 @@ pub(crate) fn audit_with_deadline(
         {
             return Err("StorageUnavailable：域损坏：原消息身份/摘要不一致".into());
         }
-        let receipt = row(c, "receipts", &rk)?.ok_or("StorageUnavailable：域损坏：消息缺原回执")?;
+        let receipt = metered_row(c, "receipts", &rk, budget)?
+            .ok_or("StorageUnavailable：域损坏：消息缺原回执")?;
         let payload = &request["payload"];
         if receipt["kind"] == "Resolved" {
             let event =
@@ -1240,9 +1278,10 @@ pub(crate) fn audit_with_deadline(
                 return Err("StorageUnavailable：Resolve 消息与原证据/来源不一致".into());
             }
         } else if receipt.get("receipt_key").is_some() {
-            super::finance::audit_message(c, config, &request, &receipt)?;
+            super::finance::audit_message(c, config, &request, &receipt, budget)?;
         } else if config.domain == "E" {
-            let f = row(c, "facts", &rk)?.ok_or("StorageUnavailable：域损坏：E消息缺原件")?;
+            let f = metered_row(c, "facts", &rk, budget)?
+                .ok_or("StorageUnavailable：域损坏：E消息缺原件")?;
             if payload["op"] != "CaptureExternal"
                 || payload["raw_utf8"] != f["raw_utf8"]
                 || payload["json_pointer"] != f["json_pointer"]
@@ -1263,7 +1302,7 @@ pub(crate) fn audit_with_deadline(
                 return Err("StorageUnavailable：Voice 消息与永久结果类型/身份不符".into());
             }
             let event = super::voice::event_for(&previous_image, required(payload, "binding_id")?)?;
-            if super::voice::original_request(c, event, config)?["payload"] != *payload {
+            if super::voice::original_request(c, event, config, budget)?["payload"] != *payload {
                 return Err("StorageUnavailable：Voice 重送消息与原绑定内容不同".into());
             }
         } else if payload["op"] != "ApplyAllocation"
@@ -1278,7 +1317,7 @@ pub(crate) fn audit_with_deadline(
     if covered.len() != (seen - 1) as usize {
         return Err("StorageUnavailable：域损坏：回执缺原消息绑定".into());
     }
-    let orphan:i64=c.query_row("SELECT count(*) FROM messages m LEFT JOIN receipts r ON m.receipt_key=r.k WHERE r.k IS NULL",[],|r|r.get(0)).map_err(err)?;
+    let orphan:i64=budget.one(c,"SELECT count(*) FROM messages m LEFT JOIN receipts r ON m.receipt_key=r.k WHERE r.k IS NULL",[],|r|r.get(0))?;
     if orphan != 0 {
         return Err("StorageUnavailable：域损坏：消息缺永久回执".into());
     }
@@ -1289,7 +1328,12 @@ fn e_receipt(record: &Value, cut: Value) -> Value {
 }
 
 /// 本域已提交原事实的原消息不可被别名重送替换；双向消息→回执检查仍在 audit 中。
-fn verify_original_message(c: &Connection, record: &Value, config: &Config) -> Result<(), String> {
+fn verify_original_message(
+    c: &Connection,
+    record: &Value,
+    config: &Config,
+    budget: &mut ReadBudget<'_>,
+) -> Result<(), String> {
     let is_e = config.domain == "E";
     let origin = &record[if is_e {
         "origin_message"
@@ -1301,13 +1345,14 @@ fn verify_original_message(c: &Connection, record: &Value, config: &Config) -> R
         required(origin, "source_epoch")?,
         required(origin, "message_id")?
     ]));
-    let (payload_hash, receipt_key, raw): (String, String, String) = c
-        .query_row(
+    let (payload_hash, receipt_key, raw): (String, String, String) = budget
+        .optional(
+            c,
             "SELECT payload_hash,receipt_key,request_json FROM messages WHERE k=?",
             [key],
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-        )
-        .map_err(|_| "StorageUnavailable：域损坏：已提交事实的原消息绑定丢失".to_owned())?;
+        )?
+        .ok_or("StorageUnavailable：域损坏：已提交事实的原消息绑定丢失")?;
     // 信封版本与本域登记一致：`/1` 与 `/2` 各读自己的原消息，不互相解释。
     let revision = config.revision()?;
     let request =

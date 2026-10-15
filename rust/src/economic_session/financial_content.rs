@@ -769,13 +769,28 @@ fn check_selected(
     fields: &BTreeMap<String, ContentRef>,
     item: &SelectedObject,
 ) -> Result<(), String> {
+    check_selected_position(fields, item)?;
+    // Charge the selected top-level row before its position, ID or F23 is read.
+    // A later identity failure cannot erase this completed access.
+    job.charge_records(1).map_err(codec)?;
+    check_selected_after_charge(source, basis, snapshot, item)
+}
+fn check_selected_position(
+    fields: &BTreeMap<String, ContentRef>,
+    item: &SelectedObject,
+) -> Result<(), String> {
     let objects = map_ref(fields, "objects")?;
     if objects.kind != Kind::Array || item.snapshot_index >= objects.extent.unwrap_or(0) {
         return Err("IdentityConflict：selected snapshot 位置越界".into());
     }
-    // Charge the selected top-level row before its position, ID or F23 is read.
-    // A later identity failure cannot erase this completed access.
-    job.charge_records(1).map_err(codec)?;
+    Ok(())
+}
+fn check_selected_after_charge(
+    source: &mut dyn NodeSource,
+    basis: &ContentRef,
+    snapshot: &ContentRef,
+    item: &SelectedObject,
+) -> Result<(), String> {
     let path = [
         field("snapshot"),
         field("objects"),
@@ -802,14 +817,24 @@ fn check_selected(
 
 /// One source wrapper for the whole verification pass. Unique nodes stay deduplicated
 /// within the Job; logical record visits are charged separately at their access point.
+/// SQL adapter receives the same Job at each read, so returned bytes can be
+/// charged before decoding without a second mutable borrow or deferred tally.
+pub(super) type JobRead<'a> = dyn FnMut(&NodeDigest, &mut Job) -> Result<NodeRead, CodecError> + 'a;
+enum ReadSource<'a> {
+    Plain(&'a mut dyn NodeSource),
+    WithJob(&'a mut JobRead<'a>),
+}
 struct MeteredSource<'a> {
-    source: &'a mut dyn NodeSource,
+    source: ReadSource<'a>,
     job: &'a mut Job,
 }
 impl NodeSource for MeteredSource<'_> {
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
         self.job.pre_io_check()?;
-        let node = self.source.read(digest)?;
+        let node = match &mut self.source {
+            ReadSource::Plain(source) => source.read(digest)?,
+            ReadSource::WithJob(read) => read(digest, self.job)?,
+        };
         if let NodeRead::Found { tag, body } = &node {
             self.job.accept_node(digest, *tag, body)?;
         }
@@ -882,7 +907,7 @@ fn full_verify(
 ) -> Result<(), String> {
     let mut adapter = StoreSource(stage);
     let mut source = MeteredSource {
-        source: &mut adapter,
+        source: ReadSource::Plain(&mut adapter),
         job,
     };
     charge_scope_rows(&mut source, reference, steps)?;
@@ -895,11 +920,21 @@ fn verify_local(
     source: &mut dyn NodeSource,
     job: &mut Job,
 ) -> Result<VerifiedBasis, String> {
+    let mut metered = MeteredSource {
+        source: ReadSource::Plain(source),
+        job,
+    };
+    verify_local_metered(pins, evidence, &mut metered)
+}
+fn verify_local_metered(
+    pins: &SourcePins,
+    evidence: &Value,
+    metered: &mut MeteredSource<'_>,
+) -> Result<VerifiedBasis, String> {
     let root = from_ref(&evidence["basis_ref"])?;
-    let mut metered = MeteredSource { source, job };
-    charge_scope_rows(&mut metered, &root, &[])?;
-    sc::verify(&mut metered, &root).map_err(codec)?;
-    let (snapshot, _) = validate_headers(pins, evidence, &mut metered)?;
+    charge_scope_rows(metered, &root, &[])?;
+    sc::verify(metered, &root).map_err(codec)?;
+    let (snapshot, _) = validate_headers(pins, evidence, metered)?;
     metered.job.pre_io_check().map_err(codec)?;
     Ok(VerifiedBasis {
         evidence: evidence.clone(),
@@ -917,12 +952,45 @@ pub(super) fn verify_evidence(
     shared_job: &mut Job,
     s_ref: Option<&Value>,
 ) -> Result<VerifiedBasis, String> {
+    verify_evidence_metered(
+        structure,
+        evidence,
+        &mut MeteredSource {
+            source: ReadSource::Plain(source),
+            job: shared_job,
+        },
+        s_ref,
+    )
+}
+pub(super) fn verify_evidence_with_read<'a>(
+    structure: &Value,
+    evidence: &Value,
+    read: &'a mut JobRead<'a>,
+    shared_job: &'a mut Job,
+    s_ref: Option<&Value>,
+) -> Result<VerifiedBasis, String> {
+    verify_evidence_metered(
+        structure,
+        evidence,
+        &mut MeteredSource {
+            source: ReadSource::WithJob(read),
+            job: shared_job,
+        },
+        s_ref,
+    )
+}
+fn verify_evidence_metered(
+    structure: &Value,
+    evidence: &Value,
+    source: &mut MeteredSource<'_>,
+    s_ref: Option<&Value>,
+) -> Result<VerifiedBasis, String> {
     let pins = SourcePins::from_structure(structure)?;
-    if shared_job.snapshot().limits != pins.resources.job_limits {
+    if source.job.snapshot().limits != pins.resources.job_limits {
         return Err("IdentityConflict：shared Job 限额与冻结 reader_resources 不符".into());
     }
-    shared_job.begin_first_read().map_err(codec)?;
-    let mut verified = verify_local(&pins, evidence, source, shared_job)?;
+    source.job.begin_first_read().map_err(codec)?;
+    let mut verified = verify_local_metered(&pins, evidence, source)?;
     if let Some(reference) = s_ref {
         exact(reference, &OBJECT_REF)?;
         if reference["schema_revision"] != "s-object-ref/2" {
@@ -941,8 +1009,8 @@ pub(super) fn verify_evidence(
         let extent = objects.extent.ok_or_else(|| invalid("objects 缺长度"))?;
         let mut found = None;
         for index in 0..extent {
-            shared_job.pre_io_check().map_err(codec)?;
-            shared_job.charge_records(1).map_err(codec)?;
+            source.job.pre_io_check().map_err(codec)?;
+            source.job.charge_records(1).map_err(codec)?;
             let object = path::lookup_path(
                 source,
                 &root,
@@ -964,17 +1032,12 @@ pub(super) fn verify_evidence(
             }
         }
         let selected = found.ok_or_else(|| missing("s_ref 对象不在当前活动快照"))?;
-        check_selected(
-            source,
-            shared_job,
-            &root,
-            &verified.snapshot_ref,
-            &fields,
-            &selected,
-        )?;
+        check_selected_position(&fields, &selected)?;
+        source.job.charge_records(1).map_err(codec)?;
+        check_selected_after_charge(source, &root, &verified.snapshot_ref, &selected)?;
         verified.selected_objects.push(selected);
     }
-    shared_job.pre_io_check().map_err(codec)?;
+    source.job.pre_io_check().map_err(codec)?;
     Ok(verified)
 }
 
@@ -1452,6 +1515,9 @@ mod closure_tests;
 #[cfg(test)]
 #[path = "reading_tests.rs"]
 mod reading_tests;
+#[cfg(test)]
+#[path = "tb03c_c5_content_tests.rs"]
+mod tb03c_c5_content_tests;
 
 #[cfg(test)]
 mod tests {
