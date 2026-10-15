@@ -525,12 +525,18 @@ jobs:
           if [[ "$FEATURES" == s_session,s_allocation_json_testonly ]]; then
             require_passed fixed-path s_content::path::fixed_fields_tests::fixed_fields_owner_full_capacity_has_zero_global_allocations_and_zero_ledger_delta
           fi
+      # #1488 A/B/C：独立冻结包只组合验证，不注册生产 Runtime 增量入口。
+      - name: Compile and run exact A B C locks (#1488)
+        if: ${{ !cancelled() }}
+        run: python3 ../.github/scripts/run-1488-delta-ci.py --mode "${{ matrix.mode }}" --output "$RUNNER_TEMP/1488-abc-${{ matrix.mode }}"
       - name: Upload sequence lock logs (#1488)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: 1488-sequence-${{ matrix.mode }}
-          path: ${{ runner.temp }}/1488-*.log
+          path: |
+            ${{ runner.temp }}/1488-*.log
+            ${{ runner.temp }}/1488-abc-${{ matrix.mode }}/
           if-no-files-found: error
 
   # #1488：共享 path 遍历核的 Native 消费者独立回归，不依赖 rust-check 的整套 feature delta。
@@ -642,12 +648,17 @@ jobs:
           require_passed native-path \
             s_content::path::fixed_fields_tests::fixed_fields_exact_matches_existing_refs_and_rejects_before_read_above_bound \
             s_content::path::fixed_fields_tests::fixed_metadata_missing_errors_follow_consumption_order_not_schema_scan
+      - name: Compile and run exact Native A B C locks (#1488)
+        if: ${{ !cancelled() }}
+        run: python3 ../.github/scripts/run-1488-delta-ci.py --mode Native --output "$RUNNER_TEMP/1488-abc-Native"
       - name: Upload Native fixed-field lock logs (#1488)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: 1488-fields-Native
-          path: ${{ runner.temp }}/1488-*.log
+          path: |
+            ${{ runner.temp }}/1488-*.log
+            ${{ runner.temp }}/1488-abc-Native/
           if-no-files-found: error
 
   # #1394 根裁定 A：手动触发本 CI 时一并执行 macOS 作业（financial_session 的 macOS 读数与

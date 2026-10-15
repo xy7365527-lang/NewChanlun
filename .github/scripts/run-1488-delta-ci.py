@@ -1,0 +1,628 @@
+#!/usr/bin/env python3
+"""#1488：按 cargo JSON 原测试二进制逐名列举和执行 A/B/C 锁。"""
+
+from __future__ import annotations
+
+import argparse
+from collections import Counter
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import time
+
+FEATURES = {"Plain": "s_session", "Owned": "s_session,s_allocation_json_testonly", "Native": "s_session,s_capture_native_testonly"}
+# 源码包：A 878bd13a6b / B a24ce62cae / C df9898b928；共38条独立锁。
+LOCKS = [
+    {
+        "lane": "A",
+        "name": "v3::generation::tests::delta_raw_plain_append_revision_swap_and_roots_match_full_oracle",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/generation.rs"
+    },
+    {
+        "lane": "A",
+        "name": "v3::generation::tests::delta_raw_owned_append_revision_swap_and_roots_match_full_oracle",
+        "target": "bin",
+        "modes": [
+            "Owned"
+        ],
+        "file": "rust/src/bin/s_session_v3/generation.rs"
+    },
+    {
+        "lane": "A",
+        "name": "v3::generation::tests::delta_raw_expired_foreign_domain_and_rollback_cannot_reuse_pending_state",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/generation.rs"
+    },
+    {
+        "lane": "A",
+        "name": "v3::generation::tests::delta_raw_initial_write_failure_revokes_token_and_requires_new_owner_domain",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/generation.rs"
+    },
+    {
+        "lane": "A",
+        "name": "v3::generation::tests::delta_sequence_plain_rank_splice_matches_independent_full_writer",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/generation.rs"
+    },
+    {
+        "lane": "A",
+        "name": "v3::generation::tests::delta_sequence_owned_rank_splice_matches_independent_full_writer",
+        "target": "bin",
+        "modes": [
+            "Owned"
+        ],
+        "file": "rust/src/bin/s_session_v3/generation.rs"
+    },
+    {
+        "lane": "A",
+        "name": "v3::generation::tests::delta_sequence_plain_failures_do_not_advance_keys_or_root",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/generation.rs"
+    },
+    {
+        "lane": "A",
+        "name": "v3::generation::tests::delta_sequence_owned_failures_do_not_advance_keys_or_root",
+        "target": "bin",
+        "modes": [
+            "Owned"
+        ],
+        "file": "rust/src/bin/s_session_v3/generation.rs"
+    },
+    {
+        "lane": "A",
+        "name": "v3::generation::tests::delta_sequence_foreign_budget_and_allocation_failure_preserve_binding",
+        "target": "bin",
+        "modes": [
+            "Owned"
+        ],
+        "file": "rust/src/bin/s_session_v3/generation.rs"
+    },
+    {
+        "lane": "A",
+        "name": "s_fact_cache::delta_tests::delta_lane_reads_only_changed_winners_and_replays_only_numeric_suffix",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v2/s_fact_cache.rs"
+    },
+    {
+        "lane": "A",
+        "name": "s_fact_cache::delta_tests::delta_lane_same_ohlc_revision_invalidates_real_fact_cache",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v2/s_fact_cache.rs"
+    },
+    {
+        "lane": "A",
+        "name": "s_fact_cache::delta_tests::delta_lane_mismatched_old_ordinal_poison_has_no_complete_fallback",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v2/s_fact_cache.rs"
+    },
+    {
+        "lane": "A",
+        "name": "theta_v0::parser::inclusion::tests::delta_append_frontiers_match_full_kernel_and_preserve_untouched_prefixes",
+        "target": "lib",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/theta_v0/parser/inclusion.rs"
+    },
+    {
+        "lane": "A",
+        "name": "theta_v0::parser::inclusion::tests::delta_append_distinguishes_group_confirmation_merge_and_waiting",
+        "target": "lib",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/theta_v0/parser/inclusion.rs"
+    },
+    {
+        "lane": "A",
+        "name": "theta_v0::parser::inclusion::tests::delta_append_nonincreasing_coordinate_cannot_issue_shared_frontier",
+        "target": "lib",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/theta_v0/parser/inclusion.rs"
+    },
+    {
+        "lane": "A",
+        "name": "theta_v0::parser::inclusion::tests::delta_rewind_every_cut_restores_metadata_and_matches_full_kernel",
+        "target": "lib",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/theta_v0/parser/inclusion.rs"
+    },
+    {
+        "lane": "A",
+        "name": "theta_v0::parser::inclusion::tests::delta_rewind_revision_can_change_initial_direction_and_equal_extreme_sources",
+        "target": "lib",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/theta_v0/parser/inclusion.rs"
+    },
+    {
+        "lane": "A",
+        "name": "theta_v0::parser::inclusion::tests::delta_rewind_releases_removed_evidence_and_rejects_invalid_rank_atomically",
+        "target": "lib",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/theta_v0/parser/inclusion.rs"
+    },
+    {
+        "lane": "A",
+        "name": "theta_v0::parser::evidence::tests::delta_chunked_pop_preserves_shared_snapshots_at_block_boundaries",
+        "target": "lib",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/theta_v0/parser/evidence.rs"
+    },
+    {
+        "lane": "A",
+        "name": "theta_v0::parser::evidence::tests::delta_coords_remove_last_preserves_avl_and_old_snapshots",
+        "target": "lib",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/theta_v0/parser/evidence.rs"
+    },
+    {
+        "lane": "B",
+        "name": "v3::source_audit::source_delta::tests::nonempty_root_and_unchanged_cut_match_independent_oracle",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/source_delta.rs"
+    },
+    {
+        "lane": "B",
+        "name": "v3::source_audit::source_delta::tests::four_cuts_add_replace_remove_observations_keep_multiset_counts",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/source_delta.rs"
+    },
+    {
+        "lane": "B",
+        "name": "v3::source_audit::source_delta::tests::missing_and_duplicate_witness_slots_match_frozen_rejection",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/source_delta.rs"
+    },
+    {
+        "lane": "B",
+        "name": "v3::source_audit::source_delta::tests::duplicate_object_identity_matches_frozen_rejection",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/source_delta.rs"
+    },
+    {
+        "lane": "B",
+        "name": "v3::source_audit::source_delta::tests::source_revision_with_unchanged_prices_invalidates_old_facts",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/source_delta.rs"
+    },
+    {
+        "lane": "B",
+        "name": "v3::source_audit::source_delta::tests::mismatched_previous_root_does_not_produce_pending_state",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/source_delta.rs"
+    },
+    {
+        "lane": "B",
+        "name": "v3::source_audit::source_delta::tests::owned_contribution_containers_charge_same_ledger_and_reject_foreign_reader",
+        "target": "bin",
+        "modes": [
+            "Owned"
+        ],
+        "file": "rust/src/bin/s_session_v3/source_delta.rs"
+    },
+    {
+        "lane": "C",
+        "name": "v3::audit_owner::construction_tests::owner_raw_real_effects_only_promote_after_real_commit",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner.rs"
+    },
+    {
+        "lane": "C",
+        "name": "v3::audit_owner::construction_tests::owner_raw_rollback_unknown_write_and_unclosed_commit_revoke",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner.rs"
+    },
+    {
+        "lane": "C",
+        "name": "v3::audit_owner::construction_tests::owner_raw_commit_hook_failure_never_promotes",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner.rs"
+    },
+    {
+        "lane": "C",
+        "name": "v3::audit_owner::construction_tests::owner_raw_external_commit_rejects_equal_length_material",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner.rs"
+    },
+    {
+        "lane": "C",
+        "name": "v3::audit_owner::construction_tests::owner_raw_schema_read_domain_and_consumer_failure_revoke",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner.rs"
+    },
+    {
+        "lane": "C",
+        "name": "v3::audit_owner::effects::construction_coverage_tests::owner_effects_node_insert_and_repeated_noop_use_actual_write_counts",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner/effects.rs"
+    },
+    {
+        "lane": "C",
+        "name": "v3::audit_owner::effects::construction_coverage_tests::owner_effects_unhooked_without_rowid_write_and_trigger_side_effect_reject",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner/effects.rs"
+    },
+    {
+        "lane": "C",
+        "name": "v3::audit_owner::effects::construction_coverage_tests::owner_effects_strict_schema_rejects_rowid_node_substitute",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner/effects.rs"
+    },
+    {
+        "lane": "C",
+        "name": "v3::audit_owner::effects::construction_coverage_tests::owner_effects_absent_budget_never_yields_coverage_receipt",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner/effects.rs"
+    },
+    {
+        "lane": "C",
+        "name": "v3::audit_owner::construction_state::tests::owner_raw_fixture_domains_and_invalidation_are_not_prefix_lengths",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/construction_state.rs"
+    },
+    {
+        "lane": "C",
+        "name": "v3::audit_owner::construction_state::tests::owner_raw_edits_are_final_identity_winners_and_allow_coordinate_swap",
+        "target": "bin",
+        "modes": [
+            "Plain",
+            "Owned",
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/construction_state.rs"
+    }
+]
+
+
+def required_locks(mode: str, target: str) -> list[dict]:
+    """清单来自冻结源码包；不按测试输出反推预期，防止零测试假绿。"""
+    return [lock for lock in LOCKS if mode in lock["modes"] and lock["target"] == target]
+
+
+def sha256(path: Path) -> str:
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def checkout_identity(repo: Path) -> dict:
+    """实际构建源码必须属于该提交；运行前后都核验，禁止脏树冒充HEAD。"""
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+    tree = subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], cwd=repo, text=True).strip()
+    subprocess.check_call(["git", "diff", "--quiet", "HEAD", "--"], cwd=repo)
+    return {
+        "head": head,
+        "tree": tree,
+        "source_sha256": {name: sha256(repo / name) for name in sorted({x["file"] for x in LOCKS})},
+        "runner_sha256": sha256(repo / ".github/scripts/run-1488-delta-ci.py"),
+        "tracked_worktree_clean": True,
+    }
+
+
+def select_binary(log: str, rust: Path, target_dir: Path, target: str, mode: str) -> dict:
+    """只接受本次成功 cargo JSON 指出的唯一当前包测试二进制。"""
+    messages = []
+    for line in log.splitlines():
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            messages.append(value)
+    finished = [m.get("success") for m in messages if m.get("reason") == "build-finished"]
+    if finished != [True]:
+        raise ValueError(f"cargo 未唯一声明成功完成：{finished}")
+    artifacts = [m for m in messages if m.get("reason") == "compiler-artifact"
+                 and m.get("profile", {}).get("test") and m.get("executable")]
+    if len(artifacts) != 1:
+        raise ValueError(f"预期唯一测试 executable，实际 {len(artifacts)}")
+    artifact = artifacts[0]
+    meta = artifact.get("target", {})
+    expected_name = "newchan_rust" if target == "lib" else "s_structure_session"
+    expected_source = rust / ("src/lib.rs" if target == "lib" else "src/bin/s_structure_session.rs")
+    kinds = set(meta.get("kind", []))
+    correct_kind = bool(kinds & {"lib", "rlib", "cdylib"}) if target == "lib" else kinds == {"bin"}
+    if (meta.get("name") != expected_name or not correct_kind
+            or Path(meta.get("src_path", "")).resolve() != expected_source.resolve()
+            or Path(artifact.get("manifest_path", "")).resolve() != (rust / "Cargo.toml").resolve()):
+        raise ValueError("cargo executable 的 target/source/manifest 不属当前目标")
+    expected_features = set(FEATURES[mode].split(",")) | {"default"}
+    if set(artifact.get("features", [])) != expected_features:
+        raise ValueError(f"实际编译 features 不符：{artifact.get('features')}")
+    binary = Path(artifact["executable"]).resolve()
+    if not binary.is_relative_to(target_dir.resolve()) or not binary.is_file() or not os.access(binary, os.X_OK):
+        raise ValueError("测试 executable 不存在、不可执行或不属本 job target")
+    return {"path": str(binary), "sha256": sha256(binary),
+            "features": artifact["features"], "fresh": artifact.get("fresh"),
+            "target": meta, "manifest_path": artifact["manifest_path"]}
+
+
+def require_listed(log: str, names: list[str]) -> None:
+    listed = Counter(line.removesuffix(": test") for line in log.splitlines() if line.endswith(": test"))
+    missing = [name for name in names if listed[name] != 1]
+    if missing:
+        raise ValueError(f"当前二进制未逐名唯一列出必需测试：{missing}")
+
+
+def require_passed(log: str, name: str) -> None:
+    if log.splitlines().count(f"test {name} ... ok") != 1:
+        raise ValueError(f"测试未逐名唯一成功：{name}")
+    summaries = re.findall(
+        r"^test result: ok\. (\d+) passed; (\d+) failed; (\d+) ignored; (\d+) measured;.*$",
+        log, re.MULTILINE,
+    )
+    if summaries != [("1", "0", "0", "0")]:
+        raise ValueError(f"exact运行必须恰1 passed且无failed/ignored/measured：{summaries}")
+
+
+def same_binary(binary: dict) -> None:
+    if sha256(Path(binary["path"])) != binary["sha256"]:
+        raise ValueError("列举/执行之间测试二进制已改变")
+
+
+def run_logged(argv: list[str], cwd: Path, log_path: Path, receipts: list[dict]) -> int:
+    """保留原命令退出码；不通过shell，不能让tee或日志成功掩盖命令失败。"""
+    started = time.monotonic()
+    record = {"argv": argv, "cwd": str(cwd), "log": str(log_path), "exit_code": None}
+    receipts.append(record)
+    print(json.dumps({"command": argv, "log": str(log_path)}, ensure_ascii=False), flush=True)
+    with log_path.open("w", encoding="utf-8") as log:
+        try:
+            with subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                  text=True, encoding="utf-8", errors="replace") as child:
+                assert child.stdout is not None
+                for line in child.stdout:
+                    log.write(line)
+                    print(line, end="", flush=True)
+                code = child.wait()
+        except OSError as exc:
+            record["error"] = str(exc)
+            code = 127
+        finally:
+            record["elapsed_seconds"] = time.monotonic() - started
+    record["exit_code"] = code
+    record["log_sha256"] = sha256(log_path)
+    print(json.dumps({"exit_code": code, "log": str(log_path)}, ensure_ascii=False), flush=True)
+    return code
+
+
+def run_target(rust: Path, target_dir: Path, output: Path, target: str, mode: str,
+               report: dict) -> bool:
+    locks = required_locks(mode, target)
+    result = {"required": [lock["name"] for lock in locks], "commands": [],
+              "tests": [], "success": False}
+    report["targets"][target] = result
+    try:
+        args = ["--lib"] if target == "lib" else ["--bin", "s_structure_session"]
+        build_log = output / f"{target}-build.log"
+        command = ["cargo", "test", "--offline", "--locked", "-j", "6", "--features",
+                   FEATURES[mode], "--no-run", "--message-format=json", *args]
+        if run_logged(command, rust, build_log, result["commands"]) != 0:
+            raise ValueError("cargo编译失败；不得寻找或执行旧二进制")
+        binary = select_binary(build_log.read_text(), rust, target_dir, target, mode)
+        result["binary"] = binary
+        names = result["required"]
+        if not names:
+            raise ValueError("此目标预期锁为空，拒绝空运行")
+        same_binary(binary)
+        list_log = output / f"{target}-list.log"
+        if run_logged([binary["path"], "--list", "--format", "pretty"], rust, list_log,
+                      result["commands"]) != 0:
+            raise ValueError("测试二进制列举失败")
+        require_listed(list_log.read_text(), names)
+        same_binary(binary)
+        failures = []
+        for number, lock in enumerate(locks):
+            name = lock["name"]
+            test_result = {"name": name, "lane": lock["lane"], "success": False}
+            result["tests"].append(test_result)
+            same_binary(binary)
+            test_log = output / f"{target}-{number:02d}.log"
+            code = run_logged([binary["path"], name, "--exact", "--format", "pretty",
+                               "--color", "never", "--show-output"], rust, test_log, result["commands"])
+            test_result.update({"exit_code": code, "log": str(test_log)})
+            same_binary(binary)
+            try:
+                if code != 0:
+                    raise ValueError(f"测试命令退出码 {code}")
+                require_passed(test_log.read_text(), name)
+                test_result["success"] = True
+            except ValueError as exc:
+                test_result["error"] = str(exc)
+                failures.append(name)
+        same_binary(binary)
+        result["binary_hash_after_run"] = sha256(Path(binary["path"]))
+        if failures:
+            raise ValueError(f"具名锁失败：{failures}")
+        result["success"] = True
+    except (ValueError, OSError) as exc:
+        result["error"] = str(exc)
+        print(f"::error::{target}: {exc}", flush=True)
+    return result["success"]
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--mode", required=True, choices=FEATURES)
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--print-plan", action="store_true", help="只打印具名清单，不执行Rust")
+    args = parser.parse_args(argv)
+    plan = {"mode": args.mode, "features": FEATURES[args.mode],
+            "locks": [lock for lock in LOCKS if args.mode in lock["modes"]]}
+    if args.print_plan:
+        print(json.dumps(plan, ensure_ascii=False, indent=2))
+        return 0
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        parser.error("实际Rust执行仅限已授权GitHub CI；本机只允许--print-plan")
+    if args.output is None or not args.output.is_absolute():
+        parser.error("--output必须是runner上的绝对路径")
+    if os.environ.get("FEATURES") != FEATURES[args.mode]:
+        parser.error("FEATURES与所选模式不一致")
+    raw_target = os.environ.get("CARGO_TARGET_DIR")
+    if not raw_target or not Path(raw_target).is_absolute():
+        parser.error("CARGO_TARGET_DIR必须沿现job设置为绝对路径")
+    output = args.output.resolve()
+    output.mkdir(parents=True, exist_ok=True)
+    repo = Path(__file__).resolve().parents[2]
+    rust = repo / "rust"
+    report = {"schema": "1488-abc-named-locks/1", **plan, "targets": {}, "success": False}
+    try:
+        before = checkout_identity(repo)
+        report.update(before)
+        if report["head"] != os.environ.get("GITHUB_SHA"):
+            raise ValueError("当前HEAD与GitHub本次run SHA不符")
+        report["run_id"] = os.environ.get("GITHUB_RUN_ID")
+        report["run_attempt"] = os.environ.get("GITHUB_RUN_ATTEMPT")
+        report["target_dir"] = raw_target
+        # 保留现有-j6/工作目录/feature/预算/超时；两个目标顺序构建避免额外内存峰值。
+        passed = [run_target(rust, Path(raw_target), output, target, args.mode, report)
+                  for target in ("lib", "bin")]
+        report["checkout_after"] = checkout_identity(repo)
+        if report["checkout_after"] != before:
+            raise ValueError("构建/测试期间HEAD、tree或源码发生漂移")
+        report["success"] = all(passed)
+    except (ValueError, OSError, subprocess.CalledProcessError) as exc:
+        report["error"] = str(exc)
+        print(f"::error::{exc}", flush=True)
+    finally:
+        (output / "RESULT.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
+    return 0 if report["success"] else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
