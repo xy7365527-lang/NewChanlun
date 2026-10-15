@@ -691,6 +691,172 @@ LOCKS.extend([
 ])
 
 
+# #1488 C2 v2：追加18条Native具名锁；原62锁顺序与全部执行函数保持。
+LOCKS.extend([
+    {
+        "lane": "C2v2",
+        "name": "v3::audit_owner::construction_set::tests::owner_set_sequence_exhaustive_occurrences_and_order",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/construction_set.rs"
+    },
+    {
+        "lane": "C2v2",
+        "name": "v3::audit_owner::construction_set::tests::owner_set_append_skips_shared_prefix_and_preserves_duplicate_occurrence",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/construction_set.rs"
+    },
+    {
+        "lane": "C2v2",
+        "name": "v3::audit_owner::construction_set::tests::owner_set_full_material_diff_covers_witness_observation_and_nested_requests",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/construction_set.rs"
+    },
+    {
+        "lane": "C2v2",
+        "name": "v3::audit_owner::construction_set::tests::owner_set_wrong_root_owner_and_unclosed_domain_reject",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/construction_set.rs"
+    },
+    {
+        "lane": "C2v2",
+        "name": "v3::audit_owner::construction_set::tests::owner_set_diff_budget_failure_does_not_reissue_success",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/construction_set.rs"
+    },
+    {
+        "lane": "C2v2",
+        "name": "v3::audit_owner::construction_tests::owner_set_real_publish_stage_effects_commit_promotes",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner.rs"
+    },
+    {
+        "lane": "C2v2",
+        "name": "v3::audit_owner::construction_tests::owner_set_real_publish_commit_failure_revokes_everything",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner.rs"
+    },
+    {
+        "lane": "C2v2",
+        "name": "v3::audit_owner::construction_tests::owner_set_real_publish_unscoped_same_value_update_rejects",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner.rs"
+    },
+    {
+        "lane": "C2v2",
+        "name": "v3::audit_owner::effects::construction_coverage_tests::owner_set_ordered_node_receipts_keep_repeated_noop_and_unreachable_nodes",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner/effects.rs"
+    },
+    {
+        "lane": "C2v2",
+        "name": "v3::audit_owner::effects::construction_coverage_tests::owner_set_future_stage_cannot_repair_missing_current_original",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner/effects.rs"
+    },
+    {
+        "lane": "C2v2",
+        "name": "v3::audit_owner::effects::construction_coverage_tests::owner_set_stage_drop_foreign_connection_and_omitted_business_row_reject",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner/effects.rs"
+    },
+    {
+        "lane": "C2v2",
+        "name": "v3::audit_owner::effects::construction_coverage_tests::owner_set_duplicate_withdrawal_same_final_row_poisons_ordered_seal",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner/effects.rs"
+    },
+    {
+        "lane": "C2v2",
+        "name": "v3::audit_owner::effects::construction_coverage_tests::owner_set_distinct_withdrawals_each_consume_one_actual_row",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner/effects.rs"
+    },
+    {
+        "lane": "C2v2",
+        "name": "v3::audit_owner::effects::construction_coverage_tests::owner_set_source_cut_rejects_foreign_only_closure_and_cannot_reissue",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner/effects.rs"
+    },
+    {
+        "lane": "C2v2",
+        "name": "v3::audit_owner::effects::construction_coverage_tests::owner_set_none_scope_shares_journal_cap_and_failure_cannot_reset",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner/effects.rs"
+    },
+    {
+        "lane": "C2v2",
+        "name": "v3::audit_owner::effects::construction_coverage_tests::owner_set_exact_work_cap_lives_through_effects_then_releases_only_its_charge",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner/effects.rs"
+    },
+    {
+        "lane": "C2v2",
+        "name": "v3::audit_owner::effects::construction_coverage_tests::owner_set_failed_source_drops_new_cap_without_erasing_existing_codec_retain",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner/effects.rs"
+    },
+    {
+        "lane": "C2v2",
+        "name": "v3::audit_owner::effects::construction_coverage_tests::owner_set_actual_transaction_progress_cancellation_is_preserved",
+        "target": "bin",
+        "modes": [
+            "Native"
+        ],
+        "file": "rust/src/bin/s_session_v3/audit_owner/effects.rs"
+    }
+])
+
 def required_locks(mode: str, target: str) -> list[dict]:
     """清单来自冻结源码包；不按测试输出反推预期，防止零测试假绿。"""
     return [lock for lock in LOCKS if mode in lock["modes"] and lock["target"] == target]
