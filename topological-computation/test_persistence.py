@@ -6,6 +6,7 @@ Outputs results to tmp/persistence_test.txt.
 from __future__ import annotations
 
 import os
+import json
 import sys
 import tempfile
 import time
@@ -15,7 +16,28 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from engine import Graph, Vertex, Edge, EdgeType, VertexStatus, compute_beta_1
 from persistence import PersistentKFull
+import daemon as daemon_module
 from daemon import TopologicalDaemon
+
+
+class DummyCheckpoint:
+    def __init__(self, *args, **kwargs):
+        self.settlements = None
+
+    def load_state(self):
+        return None
+
+    def save_state(self, state):
+        pass
+
+    def close(self):
+        pass
+
+
+def _patch_daemon_recovery_dependencies(monkeypatch, bt_base: Path) -> None:
+    monkeypatch.setattr(daemon_module, "DAEMON_BT_BASE", bt_base)
+    monkeypatch.setattr(daemon_module, "TraversalCheckpoint", DummyCheckpoint)
+    monkeypatch.setattr(TopologicalDaemon, "_initialize_engine", lambda self: None)
 
 
 def build_small_complex() -> Graph:
@@ -199,6 +221,70 @@ def test_3_daemon_persist_flag(tmpdir: Path, report: list[str]) -> None:
     daemon2.close()
     report.append(f"PASS: daemon2 closed cleanly")
     report.append("")
+
+
+def test_daemon_prefers_snapshot_over_legacy_blocks(tmp_path, monkeypatch):
+    """snapshot 存在时必须优先恢复，不能被旧 blocks/ 目录架空。"""
+    bt_base = tmp_path / "block-topology"
+    blocks_dir = bt_base / "blocks"
+    blocks_dir.mkdir(parents=True)
+    legacy_block = {
+        "timestamp": "2024-01-01T00:00:00Z",
+        "content": {
+            "event_type": "vertex",
+            "vertex_id": "legacy_only",
+            "status": "active",
+            "content": "stale legacy vertex",
+            "created_at": 1,
+        },
+    }
+    (blocks_dir / "legacy.json").write_text(
+        json.dumps(legacy_block), encoding="utf-8",
+    )
+
+    jsonl_path = tmp_path / "state.jsonl"
+    snapshot_path = PersistentKFull.snapshot_path_for(jsonl_path)
+    snapshot_graph = Graph().add_vertex(
+        Vertex(id="snapshot_keep", status=VertexStatus.ACTIVE, content="fresh"),
+    )
+    PersistentKFull.dump_snapshot(snapshot_graph, snapshot_path)
+
+    _patch_daemon_recovery_dependencies(monkeypatch, bt_base)
+
+    daemon = TopologicalDaemon(graph=None, persist_path=jsonl_path)
+    try:
+        assert "snapshot_keep" in daemon.k_active.vertices
+        assert "legacy_only" not in daemon.k_active.vertices
+    finally:
+        daemon.close()
+
+
+def test_daemon_falls_back_to_jsonl_when_snapshot_is_corrupt(tmp_path, monkeypatch):
+    """损坏 snapshot 不能阻断启动；应继续尝试 JSONL 恢复。"""
+    bt_base = tmp_path / "block-topology"
+    (bt_base / "blocks").mkdir(parents=True)
+
+    jsonl_path = tmp_path / "state.jsonl"
+    jsonl_path.write_text(
+        json.dumps({
+            "type": "vertex",
+            "id": "jsonl_keep",
+            "status": "active",
+            "content": "jsonl fallback",
+            "created_at": 1,
+        }) + "\n",
+        encoding="utf-8",
+    )
+    snapshot_path = PersistentKFull.snapshot_path_for(jsonl_path)
+    snapshot_path.write_text("{broken snapshot json\n", encoding="utf-8")
+
+    _patch_daemon_recovery_dependencies(monkeypatch, bt_base)
+
+    daemon = TopologicalDaemon(graph=None, persist_path=jsonl_path)
+    try:
+        assert "jsonl_keep" in daemon.k_active.vertices
+    finally:
+        daemon.close()
 
 
 def main():

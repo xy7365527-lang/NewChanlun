@@ -107,6 +107,22 @@ class TestResampleOhlc:
         with pytest.raises(ValueError, match="不支持"):
             resample_ohlc(ohlcv_1m, "999xyz")
 
+    def test_rejects_upsampling_to_finer_tf(self):
+        dates = pd.date_range("2025-01-01", periods=3, freq="1D")
+        daily = pd.DataFrame(
+            {
+                "open": [100.0, 101.0, 102.0],
+                "high": [101.0, 102.0, 103.0],
+                "low": [99.0, 100.0, 101.0],
+                "close": [100.5, 101.5, 102.5],
+                "volume": [1000.0, 1100.0, 1200.0],
+            },
+            index=dates,
+        )
+
+        with pytest.raises(ValueError, match="不能重采样到更细周期"):
+            resample_ohlc(daily, "5m")
+
     def test_all_supported_tf(self, ohlcv_1m):
         """Verify each SUPPORTED_TF doesn't error on valid data."""
         for tf in SUPPORTED_TF:

@@ -14,9 +14,10 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
+import pandas as pd
 from fastapi.testclient import TestClient
 
-from newchan.gateway import app, _sessions, _orchestrators
+from newchan.gateway import app, _load_bars, _sessions, _orchestrators
 from newchan.types import Bar
 
 
@@ -92,6 +93,20 @@ class TestMultiTFSessionCreate:
         assert sid in _orchestrators
         assert sid in _sessions
 
+    def test_rejects_timeframe_mismatch_before_loading(self, client):
+        """timeframes[0] 必须与 tf 一致，避免 base TF 标签污染。"""
+        with patch("newchan.gateway._load_bars") as load_bars:
+            resp = client.post("/api/replay/start", json={
+                "symbol": "TEST",
+                "tf": "1m",
+                "timeframes": ["5m", "30m"],
+            })
+
+        assert resp.status_code == 400
+        assert load_bars.call_count == 0
+        assert _sessions == {}
+        assert _orchestrators == {}
+
     def test_single_tf_no_orchestrator(self, client, mock_load_bars):
         """timeframes 仅一个 TF → 不创建 TFOrchestrator。"""
         resp = client.post("/api/replay/start", json={
@@ -134,6 +149,21 @@ class TestMultiTFSessionCreate:
                 "tf": "5m",
             })
         assert resp.status_code == 404
+
+    def test_load_bars_propagates_resample_errors(self):
+        """非法目标周期不能静默回退到原始 interval 数据。"""
+        df = pd.DataFrame(
+            {
+                "open": [1.0, 2.0],
+                "high": [2.0, 3.0],
+                "low": [0.5, 1.5],
+                "close": [1.5, 2.5],
+            },
+            index=pd.date_range("2024-01-01", periods=2, freq="1min"),
+        )
+        with patch("newchan.cache.load_df", return_value=df):
+            with pytest.raises(ValueError, match="不支持"):
+                _load_bars("TEST", "1min", "3m")
 
 
 # =====================================================================
