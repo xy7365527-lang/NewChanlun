@@ -106,6 +106,9 @@ fn record_from_payload(config: &Config, e: &Value) -> Result<Value, String> {
     }
     let netted = super::tb03c_allocation::is_projected(&event);
     super::tb03c_allocation::check_capture(config, &event)?;
+    if config.book_rules()? == super::book::Rules::Tb03cV1 {
+        super::tb03c_transfer::check_capture(config, &event)?;
+    }
     let domain = super::tb03c_allocation::target_domain(&event)?;
     let id = if netted { "" } else { target(&event)? };
     // #1406 / C06.4：tb03c-book/1 域里目标重不在 manifest 的原件照记（Pending 封账户范围），旧域照旧拒收。
@@ -438,6 +441,33 @@ fn apply_allocation_inner(
         || super::tb03c_allocation::application_domain(&record)? != config.domain
     {
         return Err("IdentityConflict：实读E事实/金额/归属与请求不匹配".into());
+    }
+    // #1406 C5：固定源 B 只读证明仍在目标 B 写事务之外；不跨 owner 持写锁。
+    if config.book_rules()? == super::book::Rules::Tb03cV1
+        && super::tb03c_transfer::is_in(&record["event"])
+    {
+        if let Some(job) = import_job.as_mut() {
+            let token = format!(
+                "stg-{}",
+                hash(&json!([config.domain, epoch.to_string(), allocation]))
+            );
+            let mut stage =
+                super::content_store::Stage::new(c, &config.db, job.snapshot().limits, token)
+                    .map_err(|e| format!("Incomplete：源证明内容暂存不可用：{e}"))?;
+            super::tb03c_transfer::attach_source_proof(
+                config,
+                &mut record,
+                Some((&mut stage, job)),
+                deadline.or(ingress_response_deadline),
+            )?;
+        } else {
+            super::tb03c_transfer::attach_source_proof(
+                config,
+                &mut record,
+                None,
+                deadline.or(ingress_response_deadline),
+            )?;
+        }
     }
     let final_budget = if let Some(job) = import_job.as_mut() {
         Some(

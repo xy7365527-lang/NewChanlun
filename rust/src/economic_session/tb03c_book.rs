@@ -84,6 +84,7 @@ pub(super) fn decode_extensions(
         sp,
     )?;
     super::tb03c_e::check_depends_on(event, pointer, check_ref)?;
+    super::tb03c_transfer::decode(event, pointer, check_ref)?;
     let comps = array(event, "known_cost_components")?;
     if let Some(rebase) = event.get("q_rebase") {
         super::voice::exact(rebase, &["new_q", "policy_ref", "source_ref"])?;
@@ -260,7 +261,8 @@ pub(super) fn check_quantity_class(event: &Value, du: i64) -> Result<(), String>
     let comps = array(event, "known_cost_components")?;
     let special = event.get("corporate_action").is_some()
         || event.get("valuation_observation").is_some()
-        || event.get("q_rebase").is_some();
+        || event.get("q_rebase").is_some()
+        || super::tb03c_transfer::is_transfer(event);
     if du == 0 {
         if !special && (comps.is_empty() || comps.iter().any(|c| !DU0_KINDS.contains(&kind(c)))) {
             return Err(
@@ -268,7 +270,7 @@ pub(super) fn check_quantity_class(event: &Value, du: i64) -> Result<(), String>
                     .into(),
             );
         }
-    } else if special {
+    } else if special && !super::tb03c_transfer::is_transfer(event) {
         return Err("SchemaUnsupported：公司行动与估值原件的数量变化须为零".into());
     } else if comps.iter().any(|c| DU0_ONLY.contains(&kind(c))) {
         return Err("SchemaUnsupported：费用独立件、退本金与分红只能是零数量变化原件".into());
@@ -320,6 +322,17 @@ impl Numbers {
                 0,
             )?,
             add(n("disposal_cash")?, n("dividend_cash")?)?,
+        )?;
+        let transfer = |field: &str| -> Result<i64, String> {
+            if book.get(field).is_none() {
+                Ok(0)
+            } else {
+                integer(book, field)
+            }
+        };
+        let k = sub(
+            add(k, transfer("transfer_cost_in")?)?,
+            transfer("transfer_cost_out")?,
         )?;
         let principal = if book["principal"]["batches"]
             .as_array()
@@ -374,9 +387,26 @@ pub(crate) fn growth_eligible_of(book: &Value) -> Result<Value, String> {
 }
 
 fn open_book(doc: &Value, event: &Value, record: &Value) -> Result<Value, String> {
-    let o = &event["observed_existing_book"];
-    let id = &event["book_identity"];
-    let units = positive(required(o, "units")?, "opening_units")?;
+    let transfer = super::tb03c_transfer::is_in(event);
+    let transferred_income = json!({"Pi":"0","A":"0","W":"0"});
+    let o = if transfer {
+        &transferred_income
+    } else {
+        &event["observed_existing_book"]
+    };
+    let id = if transfer {
+        &event["transfer_opening"]
+    } else {
+        &event["book_identity"]
+    };
+    let units = if transfer {
+        nonnegative(
+            required(&event["transfer"]["claim"]["payload"], "units")?,
+            "transfer units",
+        )?
+    } else {
+        positive(required(o, "units")?, "opening_units")?
+    };
     Ok(json!({
         "book_revision": super::book::TB03C_BOOK_V1,
         "chong_id": target(event)?, "symbol": id["symbol"], "operation_level": id["op_level"],
@@ -637,8 +667,15 @@ pub(super) fn apply(
     }
     super::tb03c_e::check_fill_predecessor(&event, array(image, "recorded")?)?;
     let mut next = image.clone();
-    let opening = event.get("observed_existing_book").is_some();
+    let opening =
+        event.get("observed_existing_book").is_some() || super::tb03c_transfer::is_in(&event);
     let old = &image["book"];
+    if super::tb03c_transfer::is_in(&event) && record.get("b_source_debit_proof").is_none() {
+        return Err("AwaitingDependency：转移目标缺源 B 已持久扣账证明".into());
+    }
+    if event["transfer"]["role"] == "out" && old.is_null() {
+        return Err("AwaitingDependency：源 B 尚无开局和具名增长来源，不建收据".into());
+    }
     if opening && !old.is_null() {
         return Err("IdentityConflict：持久重已非空，不可更换开局".into());
     }
@@ -680,7 +717,8 @@ pub(super) fn apply(
                     .into(),
             );
         }
-        if comps.iter().any(|c| kind(c) == "growth_capitalization")
+        if (comps.iter().any(|c| kind(c) == "growth_capitalization")
+            || event.get("completed_growth").is_some())
             && Numbers::of(&book)?.status()? != "Eligible"
         {
             return Err("Rejected：增长资本化前件 growth_eligible 不成立".into());
@@ -707,6 +745,8 @@ pub(super) fn apply(
                 book["realized"]["gross"] = json!(gross.to_string());
             }
         }
+        super::tb03c_transfer::source_effect(image, &event, &mut book)?;
+        super::tb03c_transfer::target_effect(&event, record, &mut book)?;
         components(&mut book, comps, record)?;
         if opening && book["side"] == "short" && Numbers::of(&book)?.principal.is_none() {
             return Err("MissingDependency：空头开局须带保证金批 M0（ADR 0031 裁定一）".into());

@@ -86,9 +86,14 @@ pub(super) fn pending_entry(
     let recorded = previous["recorded"]
         .as_array()
         .ok_or("StorageUnavailable：recorded 形状")?;
+    super::tb03c_transfer::check_capture(config, event)?;
+    super::tb03c_transfer::check_claim(recorded, record)?;
+    let transfer_wait = super::tb03c_transfer::waiting_on(recorded, event)?;
     let netted = super::tb03c_allocation::is_projected(event);
     let reason = if event.get("q_rebase").is_some() {
         json!({"kind":"AwaitingPolicy","slot":"capacity"})
+    } else if let Some(on) = transfer_wait {
+        json!({"kind":"AwaitingDependency","on":on})
     } else if netted && !super::tb03c_allocation::has_policy(config) {
         json!({"kind":"AwaitingPolicy","slot":"fill_allocation_policy"})
     } else {

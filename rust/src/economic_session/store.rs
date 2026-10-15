@@ -1368,6 +1368,7 @@ pub(crate) fn verify_e_copy(record: &Value, config: &Config) -> Result<(), Strin
         "b_observation",
         "b_origin_message",
         "b_origin_request_hash",
+        "b_source_debit_proof",
     ] {
         original
             .as_object_mut()
@@ -1378,6 +1379,12 @@ pub(crate) fn verify_e_copy(record: &Value, config: &Config) -> Result<(), Strin
         return Err("StorageUnavailable：域损坏：E提交证明不含对应完整原件".into());
     }
     super::tb03c_allocation::verify_resolution(record, config)?;
+    // E 实读阶段尚未附加源证明；凡本地已提交的 B 原件必须完整自持。
+    if config.book_rules()? == super::book::Rules::Tb03cV1
+        && (record.get("b_observation").is_some() || record.get("b_source_debit_proof").is_some())
+    {
+        super::tb03c_transfer::verify_source_proof(config, record)?;
+    }
     Ok(())
 }
 

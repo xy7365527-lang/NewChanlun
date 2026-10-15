@@ -739,14 +739,18 @@ fn image_evidence(image: &serde_json::Value) -> Result<Vec<&serde_json::Value>, 
             .as_array()
             .ok_or_else(|| error("recorded is not array"))?
         {
-            for key in ["e_commit_proof", "e_resolution_proof"] {
+            for key in [
+                "e_commit_proof",
+                "e_resolution_proof",
+                "b_source_debit_proof",
+            ] {
                 if let Some(proof) = record.get(key) {
                     images.push(
                         proof
                             .get("image")
                             .ok_or_else(|| error("E commit image missing"))?,
                     );
-                    if key == "e_resolution_proof" {
+                    if key == "e_resolution_proof" || key == "b_source_debit_proof" {
                         images.push(
                             proof
                                 .get("previous_image")
@@ -1126,6 +1130,60 @@ mod batch_tests {
         assert!(s_content::verify_many(&mut PublishedSource { c: &reopened }, observed).is_err());
         let mut malformed = image.clone();
         malformed["recorded"][0]["e_resolution_proof"]
+            .as_object_mut()
+            .unwrap()
+            .remove("previous_image");
+        assert!(image_refs(&malformed).is_err());
+        drop(reopened);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+    /// #1406 C5：目标必须自持源扣账前后两份图像的真实闭包；缺任一份禁止恢复。
+    #[test]
+    fn transfer_source_proof_closure_reopens_and_rejects_missing_previous_node() {
+        use serde_json::json;
+        let (dir, c) = fresh("transfer-source-closure");
+        let mut nodes = s_content::MemoryNodes::new();
+        let refs: Vec<_> = ["source-applied", "source-before"]
+            .into_iter()
+            .map(|label| {
+                s_content::write_value(
+                    &mut nodes,
+                    &s_content::Value::Object(vec![(
+                        "history".into(),
+                        s_content::Value::string(label.to_owned()),
+                    )]),
+                )
+                .unwrap()
+                .content_ref()
+            })
+            .collect();
+        for (digest, tag, body) in nodes.iter() {
+            c.execute(
+                "INSERT INTO content_nodes VALUES(?1,?2,?3)",
+                params![&digest[..], i64::from(tag), body],
+            )
+            .unwrap();
+        }
+        let peer = |r: &ContentRef| json!({"recorded":[],"history":[{"record":{"structure_evidence":{"schema_revision":"s-financial-evidence/1","content_format":s_content::CONTENT_FORMAT,"kind":"FinancialBasisEvidence","session_id":"transfer-closure","session_generation":"1","writer_epoch":"1","pending_revision":false,"commit_ns":"1","basis_ref":r.to_transport_json()}}}]});
+        let image = json!({"history":[],"recorded":[{"b_source_debit_proof":{"image":peer(&refs[0]),"previous_image":peer(&refs[1])}}]});
+        let observed = image_refs(&image).unwrap();
+        assert_eq!(observed.len(), 2);
+        for r in &refs {
+            assert!(observed.contains(r));
+        }
+        drop(c);
+        let reopened = Connection::open(dir.join("eb.sqlite")).unwrap();
+        s_content::verify_many(&mut PublishedSource { c: &reopened }, observed.clone()).unwrap();
+        let missing = refs[1].digest().unwrap();
+        reopened
+            .execute(
+                "DELETE FROM content_nodes WHERE digest=?1",
+                params![&missing[..]],
+            )
+            .unwrap();
+        assert!(s_content::verify_many(&mut PublishedSource { c: &reopened }, observed).is_err());
+        let mut malformed = image;
+        malformed["recorded"][0]["b_source_debit_proof"]
             .as_object_mut()
             .unwrap()
             .remove("previous_image");

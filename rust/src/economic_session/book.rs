@@ -177,6 +177,7 @@ pub(crate) fn decode(raw: &str, pointer: &str, rules: Rules) -> Result<(Value, V
     let v1 = rules == Rules::Tb03cV1;
     if v1 {
         super::tb03c_book::decode_extensions(&event, pointer, &check_ref)?;
+        super::tb03c_transfer::check_units(&doc, &event)?;
     }
     for (index, c) in array(&event, "known_cost_components")?.iter().enumerate() {
         match required(c, "kind")? {
