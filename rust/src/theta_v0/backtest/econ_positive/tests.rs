@@ -76,6 +76,7 @@ fn xzd_seg(s: usize, e: usize) -> LeveledMove {
     use super::super::super::classifier::descend::RMove;
     use super::super::super::classifier::recursive_tower::ElementId;
     LeveledMove {
+        interval_cache: None,
         rmove: RMove::Segment {
             direction: super::super::super::types::Direction::Down,
             lo: 0,
@@ -96,6 +97,7 @@ fn xzd_seg_hi(s: usize, e: usize, hi: i64) -> LeveledMove {
     use super::super::super::classifier::descend::RMove;
     use super::super::super::classifier::recursive_tower::ElementId;
     LeveledMove {
+        interval_cache: None,
         rmove: RMove::Segment {
             direction: super::super::super::types::Direction::Up,
             lo: 0,
@@ -996,6 +998,7 @@ fn multilevel_nest_cert_two_level_rung_chain() {
     // helper：构造 L0 Segment LeveledMove
     let seg = |dir: Direction, lo: i64, hi: i64, s: usize, e: usize, ord: u64| -> LeveledMove {
         LeveledMove {
+            interval_cache: None,
             rmove: RMove::Segment {
                 direction: dir,
                 lo,
@@ -1027,6 +1030,7 @@ fn multilevel_nest_cert_two_level_rung_chain() {
     let lo = 30i64;
     let hi = 100i64;
     let parent = LeveledMove {
+        interval_cache: None,
         rmove: RMove::Compose {
             subs: Rc::new(sub_rmoves),
             // ★#883：D-3 取段的「界」——s3(lo=30) 破核心 zd=45 跨界、s1(end=9≤10) 命中
@@ -1162,6 +1166,7 @@ fn build_gate_certificate_structbreak_zero_bits_always_none() {
     use std::rc::Rc;
 
     let s = LeveledMove {
+        interval_cache: None,
         rmove: RMove::Segment {
             direction: super::super::super::types::Direction::Down,
             lo: 30,
@@ -1236,6 +1241,7 @@ fn cand_delta_type23_base_gate_level0_and_small_to_big() {
 
     // 递归底段（无 sub_moves）：lvl==0 免门 ⟹ true；lvl>=1 无锚 ⟹ 小转大 false。
     let s = LeveledMove {
+        interval_cache: None,
         rmove: RMove::Segment {
             direction: super::super::super::types::Direction::Down,
             lo: 30,
@@ -1320,6 +1326,7 @@ fn cand_delta_rung_dispatch() {
     use super::super::super::types::{Direction, Side};
     use std::rc::Rc;
     let seg = |dir, lo, hi, s, e, ord| LeveledMove {
+        interval_cache: None,
         rmove: RMove::Segment {
             direction: dir,
             lo,
@@ -1410,6 +1417,7 @@ fn multilevel_nest_cert_cand_false_propagates_zero() {
 
     let seg = |dir: Direction, lo: i64, hi: i64, s: usize, e: usize, ord: u64| -> LeveledMove {
         LeveledMove {
+            interval_cache: None,
             rmove: RMove::Segment {
                 direction: dir,
                 lo,
@@ -1437,6 +1445,7 @@ fn multilevel_nest_cert_cand_false_propagates_zero() {
     let lo = 30i64;
     let hi = 100i64;
     let parent = LeveledMove {
+        interval_cache: None,
         rmove: RMove::Compose {
             subs: Rc::new(sub_rmoves),
             centers: vec![Center {
@@ -1493,6 +1502,7 @@ fn multilevel_nest_cert_type2_bypasses_divergence_gate() {
 
     let seg = |dir: Direction, lo: i64, hi: i64, s: usize, e: usize, ord: u64| -> LeveledMove {
         LeveledMove {
+            interval_cache: None,
             rmove: RMove::Segment {
                 direction: dir,
                 lo,
@@ -1520,6 +1530,7 @@ fn multilevel_nest_cert_type2_bypasses_divergence_gate() {
     let lo = 30i64;
     let hi = 100i64;
     let parent = LeveledMove {
+        interval_cache: None,
         rmove: RMove::Compose {
             subs: Rc::new(sub_rmoves),
             centers: vec![Center {
@@ -1589,6 +1600,7 @@ fn multilevel_nest_cert_wrong_direction_returns_false() {
 
     let seg = |dir: Direction, lo: i64, hi: i64, s: usize, e: usize, ord: u64| -> LeveledMove {
         LeveledMove {
+            interval_cache: None,
             rmove: RMove::Segment {
                 direction: dir,
                 lo,
@@ -1617,6 +1629,7 @@ fn multilevel_nest_cert_wrong_direction_returns_false() {
     let lo = 30i64;
     let hi = 110i64;
     let parent = LeveledMove {
+        interval_cache: None,
         rmove: RMove::Compose {
             subs: Rc::new(sub_rmoves),
             centers: vec![Center {
@@ -1665,6 +1678,7 @@ use std::rc::Rc as Rc2;
 
 fn seg2(dir: Dir2, lo: i64, hi: i64, s: usize, e: usize, ord: u64) -> LM2 {
     LM2 {
+        interval_cache: None,
         rmove: RM2::Segment {
             direction: dir,
             lo,
@@ -1689,6 +1703,7 @@ fn compose2(subs: Vec<LM2>, center: Ct2, level: u32, ord: u64) -> LM2 {
     let end = subs.last().map(|m| m.end_index).unwrap_or(0);
     let sub_rmoves: Vec<RM2> = subs.iter().map(|m| m.rmove.clone()).collect();
     LM2 {
+        interval_cache: None,
         rmove: RM2::Compose {
             subs: Rc::new(sub_rmoves),
             centers: vec![center],
@@ -8162,6 +8177,7 @@ fn find_move_by_span_locates_containing_move() {
     use super::super::super::types::Direction;
     use std::rc::Rc;
     let seg = |s: usize, e: usize, ord: u64| LeveledMove {
+        interval_cache: None,
         rmove: RMove::Segment {
             direction: Direction::Up,
             lo: 0,
@@ -8203,6 +8219,7 @@ fn window_extreme_bar_tracks_delta_side_and_ties() {
     };
     let bars = vec![mk(0, 10, 20), mk(1, 5, 25), mk(2, 8, 30), mk(3, 7, 15)];
     let cur = LeveledMove {
+        interval_cache: None,
         rmove: RMove::Segment {
             direction: Direction::Down,
             lo: 5,
@@ -8229,6 +8246,7 @@ fn window_extreme_bar_tracks_delta_side_and_ties() {
     // 平局取最早：两 bar low 相等 ⟹ 更早者。
     let tie = vec![mk(0, 5, 30), mk(1, 5, 20)];
     let cur_tie = LeveledMove {
+        interval_cache: None,
         rmove: RMove::Segment {
             direction: Direction::Down,
             lo: 5,
@@ -8245,6 +8263,7 @@ fn window_extreme_bar_tracks_delta_side_and_ties() {
     assert_eq!(window_extreme_bar(&tie, &cur_tie, Side::Long), Some(0));
     // 越界（end_index 超出 bars）⟹ None。
     let cur_bad = LeveledMove {
+        interval_cache: None,
         rmove: RMove::Segment {
             direction: Direction::Down,
             lo: 5,
@@ -8269,6 +8288,7 @@ fn departure_unit_end_picks_last_trend_direction_submove() {
     use super::super::super::types::Direction;
     use std::rc::Rc;
     let seg = |dir: Direction, s: usize, e: usize, ord: u64| LeveledMove {
+        interval_cache: None,
         rmove: RMove::Segment {
             direction: dir,
             lo: 100,
@@ -8298,6 +8318,7 @@ fn departure_unit_end_picks_last_trend_direction_submove() {
     ];
     let sub_rmoves: Vec<RMove> = subs.iter().map(|m| m.rmove.clone()).collect();
     let cur = LeveledMove {
+        interval_cache: None,
         rmove: RMove::Compose {
             subs: Rc::new(sub_rmoves),
             centers: vec![center],
@@ -8325,6 +8346,7 @@ fn departure_unit_end_picks_last_trend_direction_submove() {
     let only_up = vec![seg(Direction::Up, 0, 2, 0), seg(Direction::Up, 2, 4, 1)];
     let up_rmoves: Vec<RMove> = only_up.iter().map(|m| m.rmove.clone()).collect();
     let cur_up = LeveledMove {
+        interval_cache: None,
         rmove: RMove::Compose {
             subs: Rc::new(up_rmoves),
             centers: vec![center],

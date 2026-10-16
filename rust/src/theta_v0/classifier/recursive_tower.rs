@@ -54,7 +54,10 @@
 use std::rc::Rc;
 
 use super::super::types::{Center, Direction, Stroke, Tick};
-use super::center::{classify_relation, CenterRelation, UnitRange};
+use super::center::{
+    classify_relation, seed_facts, unit_core_position, zn_extrema, CenterRelation, UnitRange,
+};
+use super::center_scan::{NoopSink, ScanSink, ScanWindow};
 use super::decompose::{center_own_dir_at, MoveBlock};
 use super::descend::RMove;
 
@@ -138,6 +141,14 @@ pub struct LeveledMove {
     /// ★codex Q4：确定性元素身份（跨 bar 稳定，spec §13 结构映射对象身份）。
     /// 全量/增量产同 ID——`compose_level`/`compose_level_resume` 注入 ordinal。
     pub id: ElementId,
+    /// ★#1419 根裁定 r2 第 1 条：**走势区间**缓存 `(lo, hi)` = 本走势全部子走势的价格极值
+    /// （Lean `Formal.RecursiveConstruction.Move.interval`，与递归 `rmove.lo()/hi()` 同值）。
+    ///
+    /// 走势区间不是中枢外缘：中枢 GG/DD 只聚合 Zn（`center::is_zn`），走势区间取全部子走势（含
+    /// 非 Zn 的末成员——其端点就是走势的实际极值）。生产构造（[`Self::from_unit`]、[`Self::compose`]）
+    /// 一次算出并写 `Some`，[`Self::envelope`] 据此 O(1)。`None` 只出现在测试手搓的字面量里，
+    /// `envelope()` 对它回退递归 `rmove.lo()/hi()`（同值，仅慢）。
+    pub(crate) interval_cache: Option<(Tick, Tick)>,
 }
 
 /// 在按 `end_index` 升序排列的走势序列中定位 `end_index == target` 的段（leftmost）。
@@ -196,6 +207,7 @@ impl LeveledMove {
             end_index: u.end_index,
             sub_moves: Rc::new(Vec::new()),
             id,
+            interval_cache: Some((u.lo, u.hi)),
         }
     }
 
@@ -248,6 +260,13 @@ impl LeveledMove {
             !run_centers.is_empty(),
             "#897：run 载荷恒非空（末位 = 本窗口真派生中枢）"
         );
+        // ★#1419 r2 第 1 条：走势区间 = 全部子走势区间的极值（读子走势缓存，O(k)）；空 subs 记 (0,0)，
+        // 与 `RMove::lo/hi` 的 `unwrap_or(0)` 及 Lean `Move.listInterval []` 同口径。
+        let interval = subs
+            .iter()
+            .map(LeveledMove::envelope)
+            .reduce(|(lo, hi), (l, h)| (lo.min(l), hi.max(h)))
+            .unwrap_or((0, 0));
         LeveledMove {
             rmove: RMove::Compose {
                 subs: Rc::new(sub_rmoves),
@@ -258,6 +277,7 @@ impl LeveledMove {
             end_index,
             sub_moves,
             id,
+            interval_cache: Some(interval),
         }
     }
 
@@ -285,35 +305,24 @@ impl LeveledMove {
         }
     }
 
-    /// 外缘 `(lo, hi)` 的 **O(1)** 取回（stage 09 O(n²) 真修，本域 #H1）。
+    /// 走势区间 `(lo, hi)` 的 **O(1)** 取回（stage 09 O(n²) 真修，本域 #H1）。
     ///
     /// `rmove.lo()/hi()`（descend.rs）对 `Compose` 变体**递归整棵子树**取 min/max——frontier 走势每 bar
     /// 重投影且其子树随窗口延伸增长 O(n) ⟹ project_to_units_resume 退化 O(n²)（400K profile 1238ms
-    /// 首热点）。但外缘在 `compose` 时已算入携带的 `Center`（`center.dd/gg`）：投影契约
-    /// （`project_to_units_resume` 头 + compose_level_resume line 463）保证 `units[i] = 投影(subs_moves[i])`
-    /// ⟹ `center.dd = min(窗口 units.lo) = min(subs.rmove.lo()) = rmove.lo()`，`center.gg = rmove.hi()`
-    /// **逐字段相等**（`detect_centers_windowed_resume` 延伸吸收 `c.dd=c.dd.min(u.lo)`/升级重切
-    /// `sub_units.map(|u| u.lo).min()` 两支均聚合同一窗口 units 外缘）。故读携带 center O(1) == 递归
-    /// 深扫 bit-exact。
+    /// 首热点）。本函数读构造时一次算好的 [`Self::interval_cache`]，值与递归深扫逐字段相等。
     ///
-    /// - `Segment`：外缘 = 线段自身 `[lo,hi]`（O(1) 字段读，`rmove.lo()/hi()` 对 Segment 本已 O(1)）。
-    /// - `Compose`：读本窗中枢 `centers.last()` 的 dd/gg（#897 后载荷 = 走势类型块中枢序列，
-    ///   本窗中枢在末位；旧「恒 vec![center]」已随 M-1 落地作废）；缺 center（不该发生）
-    ///   ⟹ 回退 `rmove.lo()/hi()`（值相同，仅慢，护 bit-exact）。
+    /// ★#1419 根裁定 r2 第 1 条：本函数返回**走势区间**（全部子走势极值），不是中枢外缘。旧实现读本窗
+    /// 中枢 `centers.last()` 的 dd/gg，依赖「中枢外缘 == 全部 subs 区间」；中枢外缘改为只聚合 Zn
+    /// （#1419 S2）后该恒等不再成立，故改读缓存。消费方（上级投影单元、`fold_direction`、
+    /// `new_extreme_in_direction`、scan wire 事实）因此都按走势实际极值取数。
     ///
-    /// mod.rs:1400 的 `debug_assert!(projected_units == 全量 project_to_units)`（走递归 `rmove.lo()/hi()`）
-    /// 是本优化的**逐 bar bit-exact 神谕**：test 编译逐 bar 比对 center 读值 vs 递归深扫，任何破裂即 panic。
+    /// pipeline.rs 的 `debug_assert!(projected_units == 全量 project_to_units)`（全量一侧走递归
+    /// `rmove.lo()/hi()`）是本缓存的**逐 bar bit-exact 神谕**：test 编译逐 bar 比对缓存读值 vs 递归深扫，
+    /// 任何破裂即 panic。
     #[inline]
     pub fn envelope(&self) -> (Tick, Tick) {
-        match &self.rmove {
-            RMove::Segment { lo, hi, .. } => (*lo, *hi),
-            // #897：centers 载荷现为走势类型块中枢序列——本窗中枢 = **末位**（last），
-            // 盘整块单中枢时与旧 first 语义逐位一致。
-            RMove::Compose { centers, .. } => match centers.last() {
-                Some(c) => (c.dd, c.gg),
-                None => (self.rmove.lo(), self.rmove.hi()),
-            },
-        }
+        self.interval_cache
+            .unwrap_or_else(|| (self.rmove.lo(), self.rmove.hi()))
     }
 }
 
@@ -325,8 +334,9 @@ impl LeveledMove {
 ///   `end_index := u_j.end_index`、`DD := min(DD,d_j)`、`GG := max(GG,g_j)`；**ZD/ZG 核心冻结**
 ///   （现行中枢约定：核心由 seed 三段全交定，口径 B，延伸只扩外缘不改核心）。u_j 留在同一中枢，
 ///   不开新同级别中枢（Q2 裁决：连续围绕同一区间震荡 = 一个延伸中枢，不拆成多个重叠碎片）。
-/// - **Step3 non-extension**：仅当 `d_j > ZG ∨ g_j < ZD` 停止延伸；扫描从 u_j（离开单元）继续，
-///   之后才可能 seed 新同级别中枢。
+/// - **Step3 non-extension**：仅当 `d_j > ZG ∨ g_j < ZD` 停止延伸，中枢结算；u_j 是突破段（连接段），
+///   不属于任何中枢，下一个同级别 seed 自 u_{j+1}（= last_member+2）起找（★#1419 R8，#812 Z-5，
+///   `zhongshu.md` §6.1；`028-第28课.md:770`【答疑·作者回复】「不构成任何中枢中的一段」）。
 ///
 /// 与旧「非重叠三段窗口、成立支 +3」的差异：旧版把围绕同一核心的持续震荡拆成多个外缘互相重叠的
 /// 同级别中枢（L0 全历史 94.4% 相邻重叠，#141 问题包 §3-b 坐实）；canonical 版把它们吸收进一个
@@ -448,7 +458,8 @@ pub fn compose_level(
 // ## 增量正确性（L0 纯结构证明）
 //
 // `detect_centers_windowed` 是**确定性左折叠**：游标 `i` 从 0 严格递增（seed 成立支消费
-// `[i..=window_end]`（三段 + 延伸段）、不成立支 +1），每步决策是纯函数——seed 判定读
+// `[i..=window_end]`（三段 + 延伸段），结算时再越过突破段 `window_end+1`（★#1419 R8：下一 seed 自
+// last_member+2）；不成立支 +1），每步决策是纯函数——seed 判定读
 // `units[i..=i+2]`，延伸判定读单个 `units[j]` vs seed 冻结核心 [ZD,ZG]（不依赖其它历史）。三条推论：
 //
 // 1. **路径确定性**：给定 `units[0..k]`，扫描到达位置 `k` 时的游标路径与已产出 centers 序列
@@ -494,10 +505,32 @@ pub fn compose_level(
 ///
 /// 条件满足时，从 `start_i` 续扫产出的 tail 与全量重扫到达 `start_i` 后继续的产出逐位相同
 /// （确定性左折叠：seed 判定读 `units[i..=i+2]`、延伸判定读单个 `units[j]` vs 冻结核心，均为纯函数）。
+///
+/// ★#1419 S4：本函数是 [`scan_center_facts`] 配 [`NoopSink`] 的投影（塔路径不算事实、不分配）。
 pub fn detect_centers_windowed_resume(
     units: &[UnitRange],
     build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center>,
     start_i: usize,
+) -> (
+    Vec<(Center, (usize, usize))>,
+    Vec<WinMeta>,
+    WindowScanCursor,
+) {
+    scan_center_facts(units, build, start_i, &mut NoopSink)
+}
+
+/// 共用中枢扫描内核（★#1419 S4，PLAN §2.1）：塔与 S 事实层取数的唯一一份扫描。
+///
+/// 行为与 [`detect_centers_windowed_resume`] 的文档完全相同；额外把每次 seed 评估（成立与否、
+/// [`super::center::SeedFacts`]）与每个成立窗口（seed 起点、退出点、是否 ≥9 升级）报给 `sink`。
+/// `S::WANTS_FACTS == false` 时不算 seed 事实（[`NoopSink`]，生产塔路径）。成立与否只由 `build` 判，
+/// `build` 本身是 `seed_facts` 的投影（`center_from_segments`/`center_from_window`），故报出的事实与判定
+/// 同源。
+pub fn scan_center_facts<S: ScanSink>(
+    units: &[UnitRange],
+    build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center>,
+    start_i: usize,
+    sink: &mut S,
 ) -> (
     Vec<(Center, (usize, usize))>,
     Vec<WinMeta>,
@@ -514,17 +547,25 @@ pub fn detect_centers_windowed_resume(
     // had_emitted_window 守卫）。
     let mut last_window: Option<(usize, usize)> = None;
     while i + 2 < units.len() {
-        match build(&units[i], &units[i + 1], &units[i + 2]) {
+        let formed = build(&units[i], &units[i + 1], &units[i + 2]);
+        if S::WANTS_FACTS {
+            let facts = seed_facts(&units[i], &units[i + 1], &units[i + 2]);
+            sink.seed(i, &facts, formed.is_some());
+        }
+        match formed {
             Some(seed) => {
                 // Step2 extension（中心定理一，PDF §5）：u_j 区间触及冻结核心 [ZD,ZG]（闭区间相交
-                // `d_j <= ZG ∧ g_j >= ZD`）⟹ 同一中枢延伸——end/DD/GG 吸收，核心不动。
-                // Step3 non-extension：`d_j > ZG ∨ g_j < ZD` ⟹ 停止延伸，扫描从 u_j 继续。
+                // `d_j <= ZG ∧ g_j >= ZD`）⟹ 同一中枢延伸——end 吸收，核心不动；DD/GG 只吸收 Zn
+                // 成员（★#1419 S2，`is_zn` 判与 seed 首单元同向，`020-第20课.md:52`「n遍历中枢中所有Zn」），
+                // 非 Zn 成员进中枢但不改外缘。延伸判据本身只读核心，与 Zn 无关。
+                // Step3 non-extension：`d_j > ZG ∨ g_j < ZD` ⟹ 停止延伸、中枢结算；u_j 为突破段，
+                // 下一 seed 自 u_{j+1} 起（★#1419 R8，见本循环末 `i` 的赋值）。
                 let mut c = seed;
                 let mut j = i + 3;
-                while j < units.len() && units[j].lo <= c.zg && units[j].hi >= c.zd {
+                // ★#1424：闭区间相交 ⟺ CC-018 位置中间三叶，判定只读唯一一份 `unit_core_position`。
+                while j < units.len() && unit_core_position(&units[j], c.zd, c.zg).closed_overlap()
+                {
                     c.end_index = units[j].end_index;
-                    c.dd = c.dd.min(units[j].lo);
-                    c.gg = c.gg.max(units[j].hi);
                     j += 1;
                 }
                 let n = j - i;
@@ -532,7 +573,11 @@ pub fn detect_centers_windowed_resume(
                 // 上界。j==len ⟹ 窗口开放无哨兵 ⟹ +∞（usize::MAX，永不进保留前缀，设计 §1.2.1）。
                 let read_end_src = units.get(j).map_or(usize::MAX, |u| u.start_index);
                 let emitted = if n < UPGRADE_TOTAL_SEGMENTS {
-                    // Q2 有效域（≤8 段）：一个延伸中枢，不拆碎片。
+                    // Q2 有效域（≤8 段）：一个延伸中枢，不拆碎片。外缘 = 全部成员中 Zn 的极值
+                    // （★#1419 S1/S2，唯一一份聚合 `zn_extrema`；seed 三单元已含在内）。
+                    let zn = zn_extrema(&units[i..j]);
+                    c.dd = zn.dd;
+                    c.gg = zn.gg;
                     out.push((c, (i, j - 1)));
                     metas.push(WinMeta {
                         win_start: i,
@@ -550,6 +595,9 @@ pub fn detect_centers_windowed_resume(
                     // 继承 seed 三段交（子中枢围绕同一核心），外缘/坐标由子窗段聚合。升级本身经塔
                     // 现有 compose 路径涌现：≥3 个围绕同核心的子中枢在上一级 detect 中 seed
                     // （center_from_window 几何判据保留最终裁决权——零跨级注入，B-III 已拒）。
+                    // ★#1419 过渡态（根裁定 D-I）：子窗 dd/gg 仍聚合子窗**全部**单元，与上方 <9 窗口的
+                    // Zn 外缘不同；退场条件 = #1429 落 R7/R22（≥9 升级语义重做）时子窗外缘一并改 Zn。
+                    // S 写者不发布 ≥9 窗口（D5），不会出现 S 与塔两种外缘并存。
                     let k = n / 3;
                     for t in 0..k {
                         let s = i + t * 3;
@@ -578,7 +626,19 @@ pub fn detect_centers_windowed_resume(
                     k
                 };
                 last_window = Some((i, emitted));
-                i = j;
+                sink.window(ScanWindow {
+                    seed_at: i,
+                    exit: j,
+                    upgraded: n >= UPGRADE_TOTAL_SEGMENTS,
+                    emitted,
+                });
+                // ★#1419 R8（#812 Z-5，`zhongshu.md` §6.1 C 口径）：结算（`j < len`，u_j 为突破段）后从
+                // last_member+2 = j+1 续扫——突破段是连接段，不属于任何中枢（`028-第28课.md:770`），
+                // 不得被下一中枢的 seed 复用（A-ST-016-01）。窗口开放（`j == len`：延伸吃到末尾、尚无
+                // 突破段、未结算）时停在 j：没有可跳过的段，尾部追加单元按 frontier 协议 pop 本窗重扫；
+                // 写 `j + 1` 会让 `consumed` 越界到 `len + 1`。Lean 对应 `refStep` 的 `endE + 2`
+                // （`formal/Origin/CenterConstruct.lean`）。
+                i = if j < units.len() { j + 1 } else { j };
             }
             None => {
                 i += 1;
@@ -743,8 +803,9 @@ pub fn project_to_units(moves: &[LeveledMove], blocks: &[MoveBlock]) -> Vec<Unit
             } else {
                 Some(&moves[idx - 1])
             };
-            // 全量投影是 mod.rs:1400 debug_assert 神谕的一侧——保留递归 `rmove.lo()/hi()`（非热路径，
-            // 每 bar 仅 test 编译调一次），作 envelope() O(1) 增量投影的独立 bit-exact 对照面。
+            // 全量投影是 pipeline.rs `projected_units` debug_assert 神谕的一侧——保留递归 `rmove.lo()/hi()`
+            // （非热路径，每 bar 仅 test 编译调一次），作 envelope() 缓存增量投影的独立 bit-exact 对照面。
+            // ★#1419 r2 第 1 条：上级单元区间 = 走势区间（全部子走势极值），不是中枢 Zn 外缘。
             UnitRange {
                 start_index: m.start_index,
                 end_index: m.end_index,
@@ -784,9 +845,9 @@ pub fn project_to_units_resume(
         } else {
             Some(&moves[idx - 1])
         };
-        // ★#H1 O(n²)→O(n) 真修：`envelope()` 读携带 center O(1)，替代 `rmove.lo()/hi()` 递归深扫整棵
-        // 子树（frontier 走势子树随窗口延伸 O(n)，每 bar 重投影 ⟹ O(n²)）。bit-exact 由 center.dd/gg
-        // == rmove.lo()/hi() 投影契约保证 + mod.rs:1400 逐 bar debug_assert 神谕守护（见 envelope() 文档）。
+        // ★#H1 O(n²)→O(n) 真修：`envelope()` 读构造时缓存的走势区间 O(1)，替代 `rmove.lo()/hi()` 递归
+        // 深扫整棵子树（frontier 走势子树随窗口延伸 O(n)，每 bar 重投影 ⟹ O(n²)）。bit-exact 由缓存 ==
+        // rmove.lo()/hi() 保证 + pipeline.rs 逐 bar debug_assert 神谕守护（见 envelope() 文档）。
         let (lo, hi) = m.envelope();
         cache.push(UnitRange {
             start_index: m.start_index,
@@ -2771,9 +2832,11 @@ mod tests {
     }
 
     #[test]
-    fn cp_scan_sidecar_survives_departure_unit_absorbed_by_next_center() {
-        // 第一个中枢 [0..2] 的 non-extension 单元 3 同时成为第二个中枢 [3..5] 的 seed 首单元。
-        // 最终 MoveBlock/upper 只会看到单元 3 已被后窗吸收；扫描侧车必须仍保存其对前 B 的离开归属。
+    fn cp_scan_sidecar_records_departure_unit_that_no_center_absorbs() {
+        // 第一个中枢 [0..2]（核心 [40,50]）的 non-extension 单元 3 是突破段（连接段）。★#1419 R8：
+        // 下一 seed 自 last_member+2 = 4 起，第二个中枢 = [4..6]，单元 3 不进任何中枢窗口（旧 B 口径下
+        // 它被后窗当 seed 首单元吸收，本测试原名 `..._absorbed_by_next_center` 锁的正是那种吸收）。
+        // 扫描侧车仍须保存单元 3 对前中枢的离开归属。
         let ranges = [
             (0, 50),
             (40, 200),
@@ -2781,6 +2844,7 @@ mod tests {
             (55, 150),
             (52, 180),
             (55, 160),
+            (60, 150),
         ];
         let units: Vec<UnitRange> = ranges
             .iter()
@@ -2805,8 +2869,15 @@ mod tests {
         assert_eq!(cp[0].departure_move_id, Some(eid(0, 3)));
         assert_eq!(cp[0].departure_interval, Some((12, 16)));
         assert!(
-            upper[1].sub_moves.iter().any(|m| m.id == eid(0, 3)),
-            "边界反例前提：离开单元已被后续中枢窗口吸收"
+            upper
+                .iter()
+                .all(|u| u.sub_moves.iter().all(|m| m.id != eid(0, 3))),
+            "R8：突破段（单元 3）不属于任何中枢窗口"
+        );
+        assert_eq!(
+            upper[1].sub_moves.first().map(|m| m.id),
+            Some(eid(0, 4)),
+            "R8：第二个中枢自 last_member+2 = 单元 4 起"
         );
     }
 
@@ -3039,16 +3110,20 @@ mod tests {
         use super::super::cand_predicate::rmove_dir;
         // wA=[8,16] core[12,15]；wB=[18,26] core[22,25]（B.dd=18>A.gg=16 ⟹ 上延续）；
         // wC=[26,30] core[28,29]（C.dd=26 不严格大于 B.gg=26、C.gg=30>B.dd ⟹ LevelExpansion 断链）。
+        // ★#1419 R8：组间各插一个连接段（c1=[16,18] 在 core_A 之上、c2=[26,27] 在 core_B 之上），
+        // 结算后被跳过、不进任何窗口；旧夹具让 wB/wC 首段兼任前组突破段，只在旧 B 口径下成立。
         let units = vec![
             unit(0, 4, up(), 8, 16),
             unit(4, 8, down(), 12, 16),
             unit(8, 12, up(), 12, 15),
-            unit(12, 16, up(), 18, 26),
-            unit(16, 20, down(), 22, 26),
-            unit(20, 24, up(), 22, 25),
-            unit(24, 28, up(), 26, 30),
-            unit(28, 32, down(), 28, 30),
-            unit(32, 36, up(), 28, 29),
+            unit(12, 16, up(), 16, 18),
+            unit(16, 20, up(), 18, 26),
+            unit(20, 24, down(), 22, 26),
+            unit(24, 28, up(), 22, 25),
+            unit(28, 32, up(), 26, 27),
+            unit(32, 36, up(), 26, 30),
+            unit(36, 40, down(), 28, 30),
+            unit(40, 44, up(), 28, 29),
         ];
         let moves: Vec<LeveledMove> = units
             .iter()
@@ -3169,19 +3244,24 @@ mod tests {
     /// 多级递归塔：L0 → L1 → L2，每级 descend 取回下级走势（级别严格递减）。
     #[test]
     fn multi_level_tower_descend_decreases_level() {
-        // 9 段 L0 三组「核心分离、外缘重叠」（task #142 延伸语义：全重叠 fixture 会被吸收为
+        // 11 段 L0（三组 + 两连接段）「核心分离、外缘重叠」（task #142 延伸语义：全重叠 fixture 会被吸收为
         // 1 个延伸中枢，多级塔须组间 non-extension 分离——首段 d>ZG 终止前组延伸；
-        // 三组外缘共同重叠 [152,180] 非空 ⟹ L2 几何中枢成立）。
+        // 三组外缘共同重叠 [152,180] 非空 ⟹ L2 几何中枢成立）。★#1419 R8：组间各插一个连接段
+        // （c1=[51,54] 在核心_1 之上、c2=[151,154] 在核心_2 之上），结算后被跳过、不进任何窗口。
+        // ★#1419 S2（Zn 外缘）：外缘只聚合与组首段同向（↑）的第 1、3 段，组宽极值放在 ↑ 段上；
+        // 旧夹具把宽极值放在中间 ↓ 段（非 Zn），Zn 口径下三组外缘 [0,50]/[55,160]/[155,300] 不再共同重叠。
         let ranges = [
-            (0, 50),
-            (40, 200),
-            (40, 50), // 组1 核心 [40,50]，外缘 [0,200]
-            (55, 150),
+            (0, 200),
+            (40, 50),
+            (40, 60), // 组1 核心 [40,50]，Zn 外缘 [0,200]
+            (51, 54), // c1：lo=51>50 non-ext，突破段（连接段）
             (52, 180),
-            (55, 160), // 组2 核心 [55,150]（首段 55>50 non-ext），外缘 [52,180]
-            (155, 300),
-            (152, 280),
-            (155, 290), // 组3 核心 [155,280]（首段 155>150 non-ext），外缘 [152,300]
+            (55, 150),
+            (55, 160),  // 组2 核心 [55,150]，Zn 外缘 [52,180]
+            (151, 154), // c2：lo=151>150 non-ext
+            (152, 300),
+            (155, 280),
+            (155, 290), // 组3 核心 [155,280]，Zn 外缘 [152,300]
         ];
         let units: Vec<UnitRange> = ranges
             .iter()
@@ -3316,15 +3396,27 @@ mod tests {
     #[should_panic(expected = "跨层错配")]
     fn project_to_units_rejects_cross_level_blocks() {
         // 三组各 3 段，组间抬升 100（组内交叠成中枢、组间不交叠 ⟹ 依次上移的 3 个中枢
-        // ⟹ decompose 给 Trend(Up) 块，方向非 None，错位读方向才可见）。
-        let units: Vec<UnitRange> = (0..9)
-            .map(|i| {
-                let base = (i / 3) as Tick * 100;
-                let off = (i % 3) as Tick;
-                let dir = if i % 2 == 0 { up() } else { down() };
-                unit(i * 4, i * 4 + 4, dir, base + 40 - off, base + 60 + off)
-            })
-            .collect();
+        // ⟹ decompose 给 Trend(Up) 块，方向非 None，错位读方向才可见）。★#1419 R8：组间各插一个
+        // 连接段 [base+65, base+70]（在前组核心 [base+40, base+60] 之上），结算后被跳过。
+        let mut units: Vec<UnitRange> = Vec::new();
+        let dir_at = |i: usize| if i % 2 == 0 { up() } else { down() };
+        for g in 0..3 {
+            let base = g as Tick * 100;
+            if g > 0 {
+                let i = units.len();
+                units.push(unit(i * 4, i * 4 + 4, dir_at(i), base - 35, base - 30));
+            }
+            for off in 0..3 {
+                let i = units.len();
+                units.push(unit(
+                    i * 4,
+                    i * 4 + 4,
+                    dir_at(i),
+                    base + 40 - off,
+                    base + 60 + off,
+                ));
+            }
+        }
         let moves: Vec<LeveledMove> = units
             .iter()
             .enumerate()
@@ -3334,7 +3426,7 @@ mod tests {
         assert_eq!(
             (centers.len(), upper.len()),
             (3, 3),
-            "9 段 → 3 中枢 → 3 条 L1 走势"
+            "11 段（三组 + 两个连接段）→ 3 中枢 → 3 条 L1 走势"
         );
         // blocks 索引的是 L1 中枢链（与 upper 1:1），不是 9 条 L0 走势。
         let blocks = super::super::decompose::decompose(&centers);
@@ -3344,7 +3436,7 @@ mod tests {
             "blocks 只覆盖中枢 0..2"
         );
 
-        // 错位读方向的显影：同一 blocks 在 L0 塔的 9 个下标上——1/2 拿到中枢链方向，3..9 全 None。
+        // 错位读方向的显影：同一 blocks 在 L0 塔的 11 个下标上——1/2 拿到中枢链方向，3..11 全 None。
         let cross: Vec<_> = (0..moves.len())
             .map(|i| center_own_dir_at(&blocks, i))
             .collect();

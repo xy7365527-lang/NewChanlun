@@ -15,6 +15,52 @@ pub(super) fn seg(dir: Direction, si: usize, ei: usize, sp: i64, ep: i64) -> Seg
     }
 }
 
+/// ★#1419 R8（#812 Z-5，续扫自 last_member+2）：「三组核心分离」L0 段夹具——组A/组B/组C 各三段，
+/// 组间各插一个连接段（结算后被跳过、不进任何中枢窗口）。旧 9 段夹具让组B/组C 首段兼任前组突破段，
+/// 只在旧 B 口径（从突破段本身续扫）下成立。组内三段与旧夹具逐段相同，故三组核心/外缘与 L1/L2 结构不变：
+/// - 组A up-down-up `[0,12]`：核心 [120,148]，外缘 [110,150]；
+/// - c1 `[12,16]` Down [116,118]：hi=118 < ZD_A=120 ⟹ non-extension，A 的突破段（连接段）；
+/// - 组B down-up-down `[16,28]`：核心 [85,114]，中枢外缘 [80,115]（Zn = ↓ 段，#1419 S2），
+///   走势区间 [80,125]（含非 Zn 的 ↑ 段高点 125，#1419 r2 第 1 条）；
+/// - c2 `[28,32]` Up [115,116]：lo=115 > ZG_B=114 ⟹ non-extension，B 的突破段；
+/// - 组C up-down-up `[32,44]`：核心 [115,147]，外缘 [112,148]。
+///
+/// 组A、组C 的 Zn 外缘与走势区间相同；L2 由三个 L1 **走势区间** [110,150]/[80,125]/[112,148] 交成，
+/// 核心 [112,125]。
+///
+/// 坐标较旧夹具：组B 整体 +4、组C 整体 +8。
+pub(super) fn three_group_segments() -> Vec<Segment> {
+    vec![
+        seg(Direction::Up, 0, 4, 110, 150),
+        seg(Direction::Down, 4, 8, 150, 120),
+        seg(Direction::Up, 8, 12, 120, 148),
+        seg(Direction::Down, 12, 16, 118, 116),
+        seg(Direction::Down, 16, 20, 115, 80),
+        seg(Direction::Up, 20, 24, 80, 125),
+        seg(Direction::Down, 24, 28, 114, 85),
+        seg(Direction::Up, 28, 32, 115, 116),
+        seg(Direction::Up, 32, 36, 115, 148),
+        seg(Direction::Down, 36, 40, 148, 112),
+        seg(Direction::Up, 40, 44, 112, 147),
+    ]
+}
+
+/// 与 [`three_group_segments`] 对齐的 closes：组A `[0,12)` 大幅 ±40；c1+组B `[12,28)` 小幅 ±5
+/// （L1[1] 面积小于 L1[0] ⟹ 背驰）；c2+组C `[28,48)` 更小 ±3。
+pub(super) fn three_group_closes() -> Vec<i64> {
+    let mut closes: Vec<i64> = Vec::new();
+    for i in 0..12 {
+        closes.push(100 + if i % 2 == 0 { 40 } else { -40 });
+    }
+    for i in 0..16 {
+        closes.push(100 + if i % 2 == 0 { 5 } else { -5 });
+    }
+    for i in 0..20 {
+        closes.push(100 + if i % 2 == 0 { 3 } else { -3 });
+    }
+    closes
+}
+
 /// 构造 merged_bars：source_index 连续 0..n，close = vals（MACD 背驰真算用）。
 pub(super) fn bars_from_closes(vals: &[i64]) -> Vec<super::super::super::types::Bar> {
     vals.iter()
@@ -384,9 +430,14 @@ pub(super) fn certificates_agree_ignoring_alive_candidate_universe_counts(
 ///
 /// 中枢2 与中枢3 的 `dd/gg` 不相交 ⟹ `classify_relation` 判 `DownContinuation` ⟹ 趋势门
 /// 对中枢3 开启，C 腿才进第一类候选域。段方向不要求严格交替（parser 允许同向相邻段）。
+///
+/// ★#1419 S2（Zn 外缘）：首点 1000→500。中枢1（↑↓↑ 形成，Zn = ↑ 段）的延伸成员 `1200→350` 是 ↓、
+/// 非 Zn，不再把 DD 拉到 350；首段起点压到 500 后 Zn 外缘 `[500,1200]` 仍与中枢2 `[390,600]` 重叠
+/// （扩展、非延续），保持「只有中枢2→中枢3 是下跌延续」的原设计。旧口径下外缘仍是 `[350,1200]`，
+/// 中枢1 核心 `[1000,1200]` 不变。
 pub(super) fn lifecycle_rich_layer() -> ParseLayer {
     let pts: [i64; 21] = [
-        1000, 1200, 1000, 1200, 350, 600, 400, 600, 390, 398, 260, 100, 250, 150, 250, 150, 250,
+        500, 1200, 1000, 1200, 350, 600, 400, 600, 390, 398, 260, 100, 250, 150, 250, 150, 250,
         140, 130, 138, 80,
     ];
     let segments: Vec<Segment> = pts

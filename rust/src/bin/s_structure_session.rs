@@ -77,6 +77,10 @@ mod tb02a_facts;
 mod tb02b;
 #[path = "s_session_v2/tb02c.rs"]
 mod tb02c;
+#[path = "s_session_v2/tb02e.rs"]
+mod tb02e;
+#[path = "s_session_v2/tb02f.rs"]
+mod tb02f;
 use std::path::{Path, PathBuf};
 
 #[cfg(test)]

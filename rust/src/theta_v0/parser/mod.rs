@@ -61,6 +61,7 @@ pub mod feature_seq;
 pub mod fractal;
 /// Θ_parse 流水线分步实现（聚焦小文件，coding-style <400 行/文件）。
 pub mod inclusion;
+pub mod second_fold;
 pub mod second_kind;
 pub mod segment;
 pub mod stroke;
@@ -165,7 +166,7 @@ pub fn parse_layer(bars: &[Bar], config: &ThetaConfig) -> ParseLayer {
 /// 增量血缘，不发出复用许可。
 ///
 /// ⚠`positions` 必须显式取自状态：`build_stroke_facts`（空 steps 版）的 `positions_of_steps`
-/// 会丢 raw 序位（结果为空映射），使 `raw_position`/raw 间隔判据失真，故本处只能走
+/// 会丢 raw 序位（结果为空映射），使 `raw_first`/`raw_last`（极值区 raw 间隔，#1343）失真，故本处只能走
 /// [`stroke::build_stroke_facts_with_positions`]。
 fn parse_layer_from_inclusion_state(
     state: &inclusion::IncrFactsState,
@@ -201,7 +202,7 @@ pub fn parse_layer_with_inclusion_facts(
     config: &ThetaConfig,
 ) -> (ParseLayer, inclusion::InclusionFacts) {
     let mut facts = inclusion::process_inclusion_with_facts(bars);
-    let layer = parse_layer_from_facts(&mut facts, &config.parse);
+    let layer = parse_layer_from_facts(&mut facts, &config.parse, &mut None);
     (layer, facts)
 }
 
@@ -218,9 +219,29 @@ pub fn parse_layer_with_group_evidence(
     state: &inclusion::IncrFactsState,
     config: &ThetaConfig,
 ) -> (ParseLayer, GroupParseEvidence) {
+    parse_layer_with_group_evidence_inner(state, config, &mut None)
+}
+
+/// #1420：共享包含证据路径保留同一段核，并接入跨 cut 的 K1 游标簿。
+pub fn parse_layer_with_group_evidence_store(
+    state: &inclusion::IncrFactsState,
+    config: &ThetaConfig,
+    store: second_fold::SecondFoldStore,
+) -> (ParseLayer, GroupParseEvidence, second_fold::SecondFoldStore) {
+    let mut slot = Some(store);
+    let (layer, facts) = parse_layer_with_group_evidence_inner(state, config, &mut slot);
+    (layer, facts, slot.expect("K1 段核保留游标簿"))
+}
+
+fn parse_layer_with_group_evidence_inner(
+    state: &inclusion::IncrFactsState,
+    config: &ThetaConfig,
+    store: &mut Option<second_fold::SecondFoldStore>,
+) -> (ParseLayer, GroupParseEvidence) {
     if state.degraded() {
         let raw: Vec<_> = state.raw_iter().copied().collect();
-        let (layer, facts) = parse_layer_with_inclusion_facts(&raw, config);
+        let mut facts = inclusion::process_inclusion_with_facts(&raw);
+        let layer = parse_layer_from_facts(&mut facts, &config.parse, store);
         return (
             layer,
             GroupParseEvidence {
@@ -242,6 +263,7 @@ pub fn parse_layer_with_group_evidence(
         state.merged_slice(),
         stroke_facts.production_strokes(),
         &config.parse,
+        store,
     );
     (
         layer,
@@ -251,6 +273,22 @@ pub fn parse_layer_with_group_evidence(
             segment_facts,
         },
     )
+}
+
+/// #1420：同 [`parse_layer_with_inclusion_facts`]，第二种候选经 S 层游标簿（K1，跨轮续扫与恢复）折叠。
+pub fn parse_layer_with_inclusion_facts_store(
+    bars: &[Bar],
+    config: &ThetaConfig,
+    store: second_fold::SecondFoldStore,
+) -> (
+    ParseLayer,
+    inclusion::InclusionFacts,
+    second_fold::SecondFoldStore,
+) {
+    let mut facts = inclusion::process_inclusion_with_facts(bars);
+    let mut slot = Some(store);
+    let layer = parse_layer_from_facts(&mut facts, &config.parse, &mut slot);
+    (layer, facts, slot.unwrap_or_default())
 }
 
 // #1392：包含状态、新笔扫描 checkpoint 和分型尾部缓存共同推进。
@@ -378,14 +416,22 @@ fn parse_layer_from_compact_facts(
 fn parse_layer_from_facts(
     facts: &mut inclusion::InclusionFacts,
     config: &super::config::ParseConfig,
+    store: &mut Option<second_fold::SecondFoldStore>,
 ) -> ParseLayer {
     let merged = &facts.merged;
     let fractals = fractal::detect_fractals(merged);
     let stroke_facts = stroke::build_stroke_facts(facts, config);
     let strokes = stroke_facts.production_strokes();
     facts.stroke_facts = Some(stroke_facts);
-    let (segments, pending_start, segment_facts) =
-        segment::divide_segments_with_facts(&strokes, config);
+    let (segments, pending_start, segment_facts) = match store.take() {
+        Some(s) => {
+            let (segments, pending, f, s) =
+                segment::divide_segments_with_facts_store(&strokes, config, s);
+            *store = Some(s);
+            (segments, pending, f)
+        }
+        None => segment::divide_segments_with_facts(&strokes, config),
+    };
     facts.segment_facts = Some(segment_facts);
     let tail = tail::build_tail(merged, &fractals, &strokes, &segments, pending_start);
     ParseLayer {
@@ -406,10 +452,18 @@ fn parse_layer_from_strokes(
     merged: &[Bar],
     strokes: Vec<Stroke>,
     config: &super::config::ParseConfig,
+    store: &mut Option<second_fold::SecondFoldStore>,
 ) -> (ParseLayer, segment::SegmentFacts) {
     let fractals = fractal::detect_fractals(merged);
-    let (segments, pending_start, segment_facts) =
-        segment::divide_segments_with_facts(&strokes, config);
+    let (segments, pending_start, segment_facts) = match store.take() {
+        Some(s) => {
+            let (segments, pending, facts, s) =
+                segment::divide_segments_with_facts_store(&strokes, config, s);
+            *store = Some(s);
+            (segments, pending, facts)
+        }
+        None => segment::divide_segments_with_facts(&strokes, config),
+    };
     let tail = tail::build_tail(merged, &fractals, &strokes, &segments, pending_start);
     let layer = ParseLayer {
         merged_bars: Rc::new(merged.to_vec()),
@@ -728,12 +782,8 @@ mod tests {
                     .any(|g| g.high_sources.len() > 1 || g.low_sources.len() > 1);
                 let stroke_facts = facts.stroke_facts.as_ref().expect("同次生产新笔");
                 for e in &stroke_facts.endpoints {
-                    if let (Some(position), Some(root)) =
-                        (e.raw_position, e.extreme_roots.first().copied())
-                    {
-                        // 非连续 source coords：极值根坐标 ≠ raw 序位（坐标相减必错）。
-                        saw_sparse_positions |= root != position;
-                    }
+                    // 非连续 source coords：极值根坐标 ≠ raw 序位（坐标相减必错）。
+                    saw_sparse_positions |= e.extreme_roots.first() != Some(&e.raw_first);
                 }
                 for bi in &stroke_facts.strokes {
                     if bi.confirmation.is_some() {
@@ -749,10 +799,13 @@ mod tests {
         assert!(saw_unsettled, "夹具未覆盖初始包含未定");
         assert!(saw_long_group, "夹具未覆盖长包含（组内 ≥8 根）");
         assert!(saw_sparse_positions, "夹具未覆盖非连续 source coords");
-        assert!(saw_tie, "夹具未覆盖同价极值 waiting");
+        assert!(saw_tie, "夹具未覆盖同价极值根集（#1343 极值区）");
         assert!(saw_confirmation_recompute, "夹具未覆盖形成后封口确认重算");
     }
 }
 
 #[cfg(test)]
 mod tb02d_tests;
+
+#[cfg(test)]
+mod tb02w_tests;
