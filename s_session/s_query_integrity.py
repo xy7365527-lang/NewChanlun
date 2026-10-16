@@ -399,11 +399,16 @@ def _published_axes(rule_revision):
     known = {
         "s2-axis-quantifiers": tb02.LEGACY_AXES,
         "s2-axis-quantifiers+new-bi/1": tb02.BI_AXES,
+        "s2-axis-quantifiers+new-bi/2": tb02.BI_AXES,
         "s2-axis-quantifiers+new-bi/1+segment-first/1": tb02.FIRST_SEGMENT_AXES,
         "s2-axis-quantifiers+new-bi/1+segment-second/1": tb02.AXES,
+        "s2-axis-quantifiers+new-bi/2+segment-second/1": tb02.AXES,
+        "s2-axis-quantifiers+new-bi/1+segment-second/2": tb02.AXES,
+        "s2-axis-quantifiers+new-bi/2+segment-second/2": tb02.AXES,
     }
-    # 未识别规则保持原有的完整轴要求，不退到旧规则的较小集合。
-    return known.get(rule_revision, tb02.AXES)
+    if rule_revision not in known:
+        raise ValueError("未声明的目录规则修订")
+    return known[rule_revision]
 
 
 def _validate_schema(rows, tables):
@@ -959,7 +964,7 @@ def _sealed_generation(row, entry, gen, frontier, meta, binding, active, observa
     ohlc = meta.get("profile_id") == tb02.PROFILE
     if ohlc:
         tb02.keys(batch.get("catalog_axes"), _published_axes(meta["rule_revision"]), "cut规则目录轴")
-        tb02.validate_axes(batch.get("catalog_axes"), {obj["object_id"] for obj in batch["objects"]})
+        tb02.validate_axes(batch.get("catalog_axes"), {obj["object_id"] for obj in batch["objects"]}, rule_revision=meta["rule_revision"])
         if canonical(evidence.get("axes")) != canonical(batch["catalog_axes"]):
             raise ValueError("每代目录九轴与原 batch 不一致")
     elif "catalog_axes" in batch or "axes" in evidence:
@@ -1289,6 +1294,9 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
         raise ValueError("meta.writer_epoch 与持久换代历史不闭合")
     if type(meta.get("rule_revision")) is not str or not meta["rule_revision"]:
         raise ValueError("meta.rule_revision 缺失")
+    if meta.get("profile_id") == tb02.PROFILE:
+        # 空会话也必须声明已知合同，不能等首个事实/Delta 才验证规则。
+        _published_axes(meta["rule_revision"])
     raw_rows = _raw_rows(tables, meta)
     _verify_raw(raw_rows, deadline)
     raw = [_raw_wire(row) for row in raw_rows]
@@ -1486,7 +1494,7 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
                 replaces.append({"old_object_id": obj["object_id"], "new_object_id": obj["superseded_by"]})
         if meta.get("profile_id") == tb02.PROFILE:
             tb02.keys(header["catalog_evidence"].get("axes"), _published_axes(meta["rule_revision"]), "cut规则目录轴")
-            tb02.validate_axes(header["catalog_evidence"].get("axes"), set(active))
+            tb02.validate_axes(header["catalog_evidence"].get("axes"), set(active), rule_revision=meta["rule_revision"])
             tb02.validate_segment_links(list(active.values()), header["catalog_evidence"]["axes"])
             revision_evidence = header["catalog_evidence"]["axes"]["CC-056"]["evidence"]
             revision_refs = [{key: item[key] for key in tb02.REF_FIELDS} for item in raw[prev_frontier+1:frontier+1] if int(item["revision"]) > 1]
@@ -1582,7 +1590,7 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
         last = verified_deltas[-1]
         if meta.get("profile_id") == tb02.PROFILE:
             axes = last["catalog_evidence"].get("axes")
-            tb02.validate_axes(axes)
+            tb02.validate_axes(axes, rule_revision=meta["rule_revision"])
             by_id = {item["catalog_id"]: item for item in catalog}
             for cid, axis in axes.items():
                 current = by_id.get(cid)

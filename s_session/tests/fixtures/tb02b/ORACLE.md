@@ -13,3 +13,12 @@
 没有声称两方向的全部八种条件向量可达。当前具名可达向量仅 011、101、111；顶底价无效需另给确实落在时间先后端点请求域中的原始见证，不能用手造 Fractal 冒充最高缝。
 
 - `raw_root_tie` 与镜像：中组 raw 1/2 向上合并，high=12 的原始根恰为 1/2 两根；其镜像的 low=-12 同样有两根。端点候选完整保留，不能求唯一 raw 间隔，也不输出笔。此条在本组首次运行前补入账簿。
+
+## rule_revision `new-bi-dual-coordinate/2`（#1405 落 #1343 裁定，2026-10-14）
+
+以上 v1 文字原样保留（不删不改）。#1343 裁定（`.chanlun/definitions/bi.md` §7.1，策略 `same-price/keep-earlier+extreme-region/1`）只改四个 case 的期望，`hand-oracle.json` 以 schema `tb02b-hand-oracle/2` 发布新期望，v1 原对象逐字留在各 case 的 `as_known_v1`（AsKnown，不回填）。其余十四个 case 无同价竞争，新旧规则逐位同值。
+
+- `tie_top` 与镜像：底根 1 → 顶根 5 已成笔（中心距 4、raw 中间 3、17 > 3）；底根 6 中心距 1 不成笔；顶根 7 与顶根 5 同为 17，同型同价保留在先者（`077:54`「相等的，都可以先保留」、`:58`「最先一个」）——`selection = KEEP`、`comparison = EQ`、`retained_anchors = [5]`，证据 `same_kind_equal_price_keep_earlier`；已成笔 [1,5] 不弹出，未确认。
+- `raw_root_tie` 与镜像：中组 raw 1/2 向上合并（12/10 包含 12/11 ⟹ 组 high 12、low 11），high=12 的极值根集为 {1,2}（raw 序位首 1、末 2）；底中心组 raw 6（low 1），右邻 raw 7 封住。中心距 5 − 1 = 4；raw 间隔按极值区 = 6 − 2 − 1 = 3（任取最早根得 4、最晚根得 3，极值区取对任意指定的最小值 3）；顶 12 > 底 1。向量 111，成笔 [1,6]。
+
+手算之外另由诊断 `port.py` + #1343 `ruling_replay.py` 逐 case 复算，十八个 case 中恰这四个与 v1 不同，与上述手算一致。

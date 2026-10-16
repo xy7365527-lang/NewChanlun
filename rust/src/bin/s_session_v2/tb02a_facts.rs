@@ -3,7 +3,12 @@
 //! #1394 2C：CC-007 的 24 比较单元按「精确分型参考价/源身份 × 后续 event 版本」缓存，
 //! 每条 bar 的 4×6 单元只求值一次；同分型追加后续 bar 为有序追加，修订只重算受影响单元
 //! 并按内容键核过，旧 cut 原件（已发布的不可变 Value）不动。
+//! #1405（#1343 Q2/Q4）：极值身份是根集合；同价标签只作证据，不作请求未定原因。
 use super::*;
+
+const EQUAL_EXTREME_IDENTITY: &str = "equal_extreme_identity";
+/// #1405：旧知识域只在旧规则会话里 AsKnown 可读。
+const KNOWLEDGE_DOMAIN: &str = tb02b::CURRENT_CONTRACT.knowledge_domain;
 use newchan_rust::theta_v0::parser::inclusion::{
     InclusionDirectionEvidence, InclusionFacts, InclusionGroupFact, InclusionStepFact,
 };
@@ -306,7 +311,12 @@ fn step_payload(step: &InclusionStepFact) -> Value {
 }
 
 fn step_extra_reasons(step: &InclusionStepFact) -> Vec<&'static str> {
-    let mut step_reasons = step.waiting_reasons.clone();
+    let mut step_reasons: Vec<_> = step
+        .waiting_reasons
+        .iter()
+        .copied()
+        .filter(|reason| *reason != EQUAL_EXTREME_IDENTITY)
+        .collect();
     if step.direction_evidence.is_none() && step_reasons.is_empty() {
         step_reasons.push("direction_not_yet_established");
     }
@@ -330,17 +340,18 @@ fn group_reasons(group: &InclusionGroupFact) -> Vec<&'static str> {
     if group.direction_evidence.is_none() {
         reasons.push("direction_not_yet_established");
     }
-    if group.high_sources.len() > 1 || group.low_sources.len() > 1 {
-        reasons.push("equal_extreme_identity");
-    }
     reasons
 }
 
 fn group_payload(index: usize, group: &InclusionGroupFact, reasons: &[&'static str]) -> Value {
+    let mut labels = reasons.to_vec();
+    if group.high_sources.len() > 1 || group.low_sources.len() > 1 {
+        labels.push(EQUAL_EXTREME_IDENTITY);
+    }
     json!({"group_index":index.to_string(),"group_anchor":group.bar.source_index.to_string(),"members":coords(&group.members),
         "open":group.bar.open.to_string(),"high":group.bar.high.to_string(),"low":group.bar.low.to_string(),"close":group.bar.close.to_string(),
         "high_sources":coords(&group.high_sources),"low_sources":coords(&group.low_sources),"confirmed":group.confirmed,"confirmation_evidence":direction(&group.confirmation_evidence),
-        "direction":group.direction_evidence.as_ref().map(|e|dir_str(e.direction)),"direction_evidence":direction(&group.direction_evidence),"waiting_reasons":reasons})
+        "direction":group.direction_evidence.as_ref().map(|e|dir_str(e.direction)),"direction_evidence":direction(&group.direction_evidence),"waiting_reasons":labels})
 }
 
 /// CC-007 组装的**唯一**实现（全量 oracle 与跨代增量共用，含 2C 比较单元缓存）。
@@ -478,6 +489,12 @@ pub(super) fn build_with_units(
     let mut requests = Vec::new();
     let mut all_reasons: Vec<&str> = Vec::new();
     for step in &trace.steps {
+        all_reasons.extend(
+            step.waiting_reasons
+                .iter()
+                .copied()
+                .filter(|reason| *reason != EQUAL_EXTREME_IDENTITY),
+        );
         let payload = step_payload(step);
         let slot = step_slot(step);
         let id = b.add(
@@ -492,7 +509,6 @@ pub(super) fn build_with_units(
             step_extra_reasons(step),
             step.source_coords.clone(),
         ));
-        all_reasons.extend(&step.waiting_reasons);
     }
     for (index, group) in trace.groups.iter().enumerate() {
         let reasons = group_reasons(group);
@@ -507,30 +523,6 @@ pub(super) fn build_with_units(
         );
         requests.push(request(slot, json!(id), reasons.clone(), sources));
         all_reasons.extend(reasons);
-    }
-    for window in trace.groups.windows(3) {
-        if window
-            .iter()
-            .any(|g| g.high_sources.len() != 1 || g.low_sources.len() != 1)
-        {
-            let anchors: Vec<usize> = window.iter().map(|g| g.bar.source_index).collect();
-            let mut sources = Vec::new();
-            for group in window {
-                sources.extend(&group.members);
-                if let Some(e) = &group.direction_evidence {
-                    sources.extend(&e.source_coords);
-                }
-                if let Some(e) = &group.confirmation_evidence {
-                    sources.extend(&e.source_coords);
-                }
-            }
-            requests.push(request(
-                json!(["CC-006.local_shape", coords(&anchors)]),
-                Value::Null,
-                vec!["equal_extreme_identity"],
-                sources,
-            ));
-        }
     }
     for shape in shapes {
         let window: Vec<usize> = ["window_start", "window_mid", "window_end"]
@@ -600,7 +592,7 @@ pub(super) fn build_with_units(
         "detail":{"tb02a":true,"source_coords":coords(&sources),"input_frontier":frontier.to_string(),"waiting_reasons":all_reasons}})).collect();
     b.add("CC-054.knowledge_state",json!(["CC-054.knowledge_state","TB-02-A"]),json!({"scope":"TB-02-A","input_frontier":frontier.to_string(),
         "known_facts":["raw_ohlc","inclusion_trace","group_provenance"],"waiting_reasons":all_reasons,
-        "domain":"established_direction_without_extreme_identity_competition","requests":requests}),sources);
+        "domain":KNOWLEDGE_DOMAIN,"requests":requests}),sources);
     b.objects.sort_by(|a, b| {
         (
             a["kind"].as_str(),
@@ -728,7 +720,14 @@ pub(super) fn build_incremental(
     // 1) CC-004 步骤：不可变事实——旧步直接复用完整原件。
     for index in 0..state.step_count() {
         let coord = state.step_coord(index).expect("步骤索引在域内");
-        all_reasons.extend(state.step_waiting_reasons(index).unwrap_or(&[]));
+        all_reasons.extend(
+            state
+                .step_waiting_reasons(index)
+                .unwrap_or(&[])
+                .iter()
+                .copied()
+                .filter(|reason| *reason != EQUAL_EXTREME_IDENTITY),
+        );
         let slot = json!(["CC-004.inclusion_step", coord.to_string()]);
         let key = canonical_json(&slot);
         if let Some(record) = cache.records.get(&key) {
@@ -766,13 +765,7 @@ pub(super) fn build_incremental(
     for (index, compact) in groups.iter().enumerate() {
         let version = state.group_version(index).unwrap_or(0);
         let anchor = compact.bar.source_index;
-        let mut reasons: Vec<&'static str> = Vec::new();
-        if compact.direction_evidence.is_none() {
-            reasons.push("direction_not_yet_established");
-        }
-        if compact.high_sources.len() > 1 || compact.low_sources.len() > 1 {
-            reasons.push("equal_extreme_identity");
-        }
+        let reasons = group_reasons(&group_facts[index]);
         all_reasons.extend(reasons.iter().copied());
         let slot = json!(["CC-005.inclusion_group", anchor.to_string()]);
         let key = canonical_json(&json!([
@@ -813,32 +806,7 @@ pub(super) fn build_incremental(
         b.objects.push(object);
         requests.push(request);
     }
-    // 3) 同角色极值竞争的三组窗口请求（与全量同序、同内容）。
-    for window in groups.windows(3) {
-        if window
-            .iter()
-            .any(|g| g.high_sources.len() != 1 || g.low_sources.len() != 1)
-        {
-            let anchors: Vec<usize> = window.iter().map(|g| g.bar.source_index).collect();
-            let mut sources = Vec::new();
-            for group in window {
-                let fact = &group_facts[anchor_index[&group.bar.source_index]];
-                sources.extend(&fact.members);
-                if let Some(e) = &fact.direction_evidence {
-                    sources.extend(&e.source_coords);
-                }
-                if let Some(e) = &fact.confirmation_evidence {
-                    sources.extend(&e.source_coords);
-                }
-            }
-            requests.push(request(
-                json!(["CC-006.local_shape", coords(&anchors)]),
-                Value::Null,
-                vec!["equal_extreme_identity"],
-                sources,
-            ));
-        }
-    }
+    // #1405：同价极值根集合不再产生 CC-006 未定请求。
     // 4) CC-006 形状 → CC-007（继续交给同一 `cc007_add`，2C 单元缓存跨代复用）。
     for shape in shapes {
         let window: Vec<usize> = ["window_start", "window_mid", "window_end"]
@@ -917,7 +885,7 @@ pub(super) fn build_incremental(
         json!(["CC-054.knowledge_state", "TB-02-A"]),
         json!({"scope":"TB-02-A","input_frontier":frontier.to_string(),
         "known_facts":["raw_ohlc","inclusion_trace","group_provenance"],"waiting_reasons":all_reasons,
-        "domain":"established_direction_without_extreme_identity_competition","requests":requests}),
+        "domain":KNOWLEDGE_DOMAIN,"requests":requests}),
         sources,
     );
     b.objects.push(knowledge);
@@ -948,17 +916,20 @@ fn raw_bar(raw: &Value) -> Value {
 /// 的兜底（#799）。退场条件同 `V3_RULE_REVISION`：v3 承载 TB-02-C/D 后只剩一张表。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum CatalogAxisTable {
-    /// `s2-axis-quantifiers+new-bi/1`：CC-001…010、CC-054、CC-055、CC-056（13 轴）。
+    /// `s2-axis-quantifiers+new-bi/2`：CC-001…010、CC-054、CC-055、CC-056（13 轴）。
     NewBi,
-    /// `s2-axis-quantifiers+new-bi/1+segment-second/1`：另加 CC-011…014（17 轴）。
+    /// `s2-axis-quantifiers+new-bi/2+segment-second/2`：另加 CC-011…014（17 轴），含 #1420 续扫。
     SegmentSecond,
 }
 
 impl CatalogAxisTable {
     pub(super) fn for_rule_revision(rule_revision: &str) -> Option<Self> {
         match rule_revision {
-            crate::V3_RULE_REVISION => Some(Self::NewBi),
-            crate::RULE_REVISION => Some(Self::SegmentSecond),
+            crate::LEGACY_V3_RULE_REVISION | crate::V3_RULE_REVISION => Some(Self::NewBi),
+            "s2-axis-quantifiers+new-bi/1+segment-second/1"
+            | "s2-axis-quantifiers+new-bi/1+segment-second/2"
+            | "s2-axis-quantifiers+new-bi/2+segment-second/1"
+            | crate::RULE_REVISION => Some(Self::SegmentSecond),
             _ => None,
         }
     }
@@ -1067,16 +1038,14 @@ pub(super) fn catalog_axes<'a>(
         waiting.dedup();
         let mut evidence = json!({"scope":"TB-02-A","object_ids":ids,"waiting_reasons":waiting});
         if matches!(axis, "CC-011" | "CC-012" | "CC-013" | "CC-014") {
-            evidence["scope"] = json!("TB-02-D");
+            evidence["scope"] = json!("TB-02-W");
             evidence["delivered_subobligations"] = json!([
                 "finite_complete_prefix_strict_second",
-                "independent_stroke_and_segment_break_facts"
+                "independent_stroke_and_segment_break_facts",
+                "general_scan_continuation"
             ]);
-            evidence["deferred_subobligations"] = json!([
-                "general_equal_identity",
-                "general_scan_continuation",
-                "global_G006_bridge"
-            ]);
+            evidence["deferred_subobligations"] =
+                json!(["general_equal_identity", "global_G006_bridge"]);
         }
         let mut run = if ids.is_empty() {
             if waiting.is_empty() {
@@ -1123,6 +1092,40 @@ pub(super) fn catalog_axes<'a>(
 #[cfg(test)]
 mod units_cache_tests {
     use super::*;
+
+    #[test]
+    fn tb02w_catalog_scope_is_bound_to_exact_rule_without_completing_parent_axes() {
+        assert_eq!(
+            CatalogAxisTable::for_rule_revision(crate::RULE_REVISION),
+            Some(CatalogAxisTable::SegmentSecond)
+        );
+        assert_eq!(
+            CatalogAxisTable::for_rule_revision(crate::V3_RULE_REVISION),
+            Some(CatalogAxisTable::NewBi)
+        );
+        assert_eq!(CatalogAxisTable::for_rule_revision("unknown-rule"), None);
+        let raw = Vec::<Value>::new();
+        let axes = catalog_axes(CatalogAxisTable::SegmentSecond, &[], &raw, -1, &[], &[]);
+        assert_eq!(axes.as_object().unwrap().len(), 17);
+        for axis in ["CC-011", "CC-012", "CC-013", "CC-014"] {
+            let evidence = &axes[axis]["evidence"];
+            assert_eq!(evidence["scope"], "TB-02-W");
+            assert!(evidence["delivered_subobligations"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("general_scan_continuation")));
+            assert_eq!(
+                evidence["deferred_subobligations"],
+                json!(["general_equal_identity", "global_G006_bridge"])
+            );
+            if axis != "CC-011" {
+                assert_eq!(axes[axis]["impl_status"], "not_implemented");
+            }
+        }
+        let v3 = catalog_axes(CatalogAxisTable::NewBi, &[], &raw, -1, &[], &[]);
+        assert_eq!(v3.as_object().unwrap().len(), 13);
+        assert!(v3.get("CC-011").is_none());
+    }
 
     fn entry(key: &str) -> UnitEntry {
         UnitEntry {

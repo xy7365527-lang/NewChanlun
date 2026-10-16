@@ -510,6 +510,7 @@ impl Runtime {
             catalog_revision: get("catalog_revision")?,
             scope: scope_root,
         };
+        super::require_current_writer_rule(&metadata.rule_revision)?;
         content_publication::verify_current_begin_admitted(tx, token, metadata.view(), work)?;
         if metadata.profile_id != tb02a::PROFILE {
             return Err(err("非OHLC档生成/来源接线仍未实现"));

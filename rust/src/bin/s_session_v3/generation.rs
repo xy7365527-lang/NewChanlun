@@ -45,11 +45,8 @@
 //!
 //! ## 需要的 producer 最小公开口（一行，root 裁定）
 //!
-//! CC-005 组的等待原因只有一份实现（`content_producer::group_reasons`，约第 2524 行）。
-//! 知识状态的 `waiting_reasons` 必须逐项等于旧配方，故本模块**调用**它而**不复写**判据：
-//! 需把该函数从 `fn` 提升为 `pub(super) fn`。竞争极值窗判定不需要新口——直接用
-//! `Cc004Producer::build_shape` 的 `Ok(None)`（其内部就是同一份
-//! `shape_window_has_competing_extremes`）。
+//! CC-005 请求的等待原因复用 `content_producer::group_reasons`。
+//! #1405：同价标签只作证据，极值身份为根集合，多根窗口照常发布。
 
 #![allow(dead_code)]
 
@@ -58,9 +55,9 @@ use super::business_json::{self as bj, RawEventsView};
 use super::object_records;
 use crate::content_bi::{BiBuildInputView, BiLedgerView, ContentBi, PriorState};
 use crate::content_producer::{
-    array_from_sequence, group_reasons, group_window_sources, raw_prefix_coords, Cc004Producer,
-    Cc006Object, Cc007Object, ParserFractalShape, ProducerError, RawRefSpec, TypedObject,
-    CC004_STEP_KIND, CC005_GROUP_KIND, CC006_SHAPE_KIND, CC007_FRACTAL_KIND, CC054_KNOWLEDGE_KIND,
+    array_from_sequence, group_reasons, raw_prefix_coords, Cc004Producer, Cc006Object, Cc007Object,
+    ParserFractalShape, ProducerError, RawRefSpec, TypedObject, CC004_STEP_KIND, CC005_GROUP_KIND,
+    CC006_SHAPE_KIND, CC007_FRACTAL_KIND, CC054_KNOWLEDGE_KIND,
 };
 use crate::s_fact_cache;
 use newchan_rust::s_content::path::PathStep;
@@ -709,13 +706,12 @@ impl GenerationRuntime {
             None
         };
 
-        // ── 形态窗：竞争极值判决取 producer 的同一条判据（build_shape 的 Ok(None)）──
+        // ── 形态窗：多根极值身份按 #1405 根集合语义发布──
         let wins = classify_local_shape_sliding(merged);
         let mut shape_objects: Vec<ProducedObject> = Vec::new();
         let mut witnesses: Vec<WitnessRecord> = Vec::new();
         let mut relations: Vec<Built> = Vec::new();
         let mut observations: Vec<(bool, Built)> = Vec::new();
-        let mut competing: Vec<usize> = Vec::new();
         // 逐形态的请求组（旧配方线序：形态请求 → 该形态的 CC-007 三条请求）。
         let mut shape_requests: Vec<(Built, Vec<Built>)> = Vec::new();
         let mut fractals: Vec<ProducedObject> = Vec::new();
@@ -733,7 +729,7 @@ impl GenerationRuntime {
                     .map(|shape| shape.map(ShapeBuild::Ordinary)),
             };
             match (shape, built_shape) {
-                (_, Ok(None)) => competing.push(start),
+                (_, Ok(None)) => return Err(format!("GenError：形态窗 {start} 缺同次三组证据")),
                 (_, Ok(Some(built_shape))) => {
                     let object = built_shape.object();
                     let views = group_views(state, start)?;
@@ -831,7 +827,7 @@ impl GenerationRuntime {
             }
         }
 
-        // ── 泛型事实：步骤 → 组 → 竞争窗待决请求 → 形态/分型请求 → 不足三根待决请求 ──
+        // ── 泛型事实：步骤 → 组 → 形态/分型请求 → 不足三根待决请求 ──
         let mut typed: Vec<ProducedObject> = Vec::new();
         let mut step_requests: Vec<Built> = Vec::new();
         let mut group_requests: Vec<Built> = Vec::new();
@@ -841,7 +837,12 @@ impl GenerationRuntime {
                 .shared_step(index)
                 .map_err(|error| format!("GenError：共享步骤证据不可用：{}", error.reason))?
                 .ok_or_else(|| format!("GenError：步骤 {index} 缺共享证据"))?;
-            all_reasons.extend_from_slice(view.waiting_reasons);
+            all_reasons.extend(
+                view.waiting_reasons
+                    .iter()
+                    .copied()
+                    .filter(|reason| *reason != "equal_extreme_identity"),
+            );
             let object = self
                 .producer
                 .build_step_object(store, &view, gen, cut)
@@ -887,28 +888,6 @@ impl GenerationRuntime {
         let mut requests: Vec<Built> = Vec::new();
         requests.extend(step_requests);
         requests.extend(group_requests);
-        for start in &competing {
-            let views = group_views(state, *start)?;
-            let key = CValue::Array(vec![
-                CValue::String(CC006_SHAPE_KIND.to_string()),
-                CValue::Array(
-                    [
-                        views[0].bar.source_index.to_string(),
-                        views[1].bar.source_index.to_string(),
-                        views[2].bar.source_index.to_string(),
-                    ]
-                    .into_iter()
-                    .map(CValue::String)
-                    .collect(),
-                ),
-            ]);
-            let sources = group_window_sources(&views);
-            requests.push(
-                self.producer
-                    .pending_request(store, key, &["equal_extreme_identity"], &sources)
-                    .map_err(producer_error)?,
-            );
-        }
         for (shape_request, fractal_requests) in &shape_requests {
             requests.push(shape_request.clone());
             requests.extend(fractal_requests.iter().cloned());

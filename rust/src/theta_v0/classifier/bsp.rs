@@ -669,7 +669,7 @@ mod tests {
             // 这是 parser 事实的只读描述，不查询 `BspPoint`/买卖位，不能改调 BSP 绑定 API。
             // #1394 整合行号漂移：FIN `cabb255633`（#1394 2C）把原 237/247/273 三处同一组锚查询
             // 收成一处（窗口三组一次取出交 `cc007_add`，三种用途不变），不新增豁免。
-            "bin/s_session_v2/tb02a_facts.rs:564",
+            "bin/s_session_v2/tb02a_facts.rs:560",
             // #1488 A2：raw_bar_at 在 RawBars 的原始 Bar 账中二分定位后核对精确坐标，
             // 供 CC-007 descriptive_labels.raw_ohlc 读取三组成员的原始 OHLC；不查询
             // BspPoint/买卖位，不能改调 BSP 绑定 API。只豁免此点，扫描与 stale 检查不变。
