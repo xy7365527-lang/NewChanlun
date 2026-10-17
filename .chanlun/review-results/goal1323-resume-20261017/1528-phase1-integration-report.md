@@ -13,7 +13,7 @@
 - `CARGO_TARGET_DIR=/Volumes/AgentStorage/cargo-target-1320b cargo check --features backtest_bin --bin replay_compare`：exit 0；仅有仓内既有 warning。
 - `rustfmt --check --edition 2021 rust/src/bin/replay_compare.rs`：exit 0。
 - `git diff --check`：exit 0。
-- `replay_compare ES 600`：exit 0；600 bars，0 orders，0 closed trades，所有已公开字段逐位相等。
+- `replay_compare ES 600`：exit 0；600 bars，0 orders，0 closed trades，本比较器所选九项按各自编码比较相等；不是完整 RunResult 或全部字段的逐位一致性证明。
 - `replay_compare ES 20000`：两个独立进程各 exit 0；两份完整 stdout 经 `cmp` 比较 exit 0；20,000 bars，0 orders，0 closed trades。原始输出为 `1528-es-20000-run1.txt` 与 `1528-es-20000-run2.txt`。
 
 ES 输入 `analysis/data_cache/es_1m_databento_10y.json` SHA-256 为 `19bcf944b1da8b6b22de7ccb7acfa6101ddf13db8069cd6a0d47d635aced4aa4`；测试二进制 SHA-256 为 `804ae6676d613b760aa922778e43cca1b4f6f651e97ee01415edc92a30444161`。
