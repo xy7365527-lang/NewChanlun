@@ -187,6 +187,12 @@ required-features = ["backtest_bin"]
 # #1317 M1 最终实验：生产引擎 7 期货回放 + 预注册 7/7 判据（theta_m1_dual——run_theta_v0_pi
 #   生产 runner 交易流上的双开百分位测量 + 双跑逐位自检 + 前后对照入档）。
 #   use theta_v0::backtest（cfg 门控）⟹ required-features。
+# #1528 Phase 1：生产链有限摘要双跑 CLI。
+[[bin]]
+name = "replay_compare"
+path = "src/bin/replay_compare.rs"
+required-features = ["backtest_bin"]
+
 [[bin]]
 name = "theta_m1_dual"
 path = "src/bin/theta_m1_dual.rs"
