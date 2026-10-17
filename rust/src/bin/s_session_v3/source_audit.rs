@@ -10,7 +10,7 @@ use crate::{
         self, Cc004Producer, ShapeIdentityView, CC004_STEP_KIND, CC005_GROUP_KIND,
         CC006_SHAPE_KIND, CC007_FRACTAL_KIND, CC054_KNOWLEDGE_KIND,
     },
-    read_effective_events, stored_source_coord, tb02a, tb02a_facts, tb02b,
+    read_effective_events, stored_source_coord, tb02a, tb02a_facts, tb02b, tb02c, tb02e, tb02f,
 };
 use newchan_rust::s_content::{
     self as sc,
@@ -35,6 +35,8 @@ pub(crate) use source_contributions::{
 mod source_pending;
 #[path = "source_prefix.rs"]
 mod source_prefix;
+#[path = "source_structure.rs"]
+mod source_structure;
 use source_prefix::{NativeSourceMemo, ParseDomain, SourceCoords};
 #[cfg(test)]
 pub(super) fn reset_native_source_prefix_stats() {
@@ -829,6 +831,7 @@ pub(super) struct Counts {
 }
 // 来源判据依赖精确查找而不依赖哈希布局。Native 的持久树不会在扩容时重排全历史。
 trait RawLookup {
+    fn len(&self) -> usize;
     fn get(&self, coord: &i64) -> Option<&Source>;
     fn contains_key(&self, coord: &i64) -> bool {
         self.get(coord).is_some()
@@ -838,6 +841,9 @@ trait RawLookup {
     }
 }
 impl RawLookup for BusinessMap<i64, Source> {
+    fn len(&self) -> usize {
+        BusinessMap::len(self)
+    }
     fn get(&self, coord: &i64) -> Option<&Source> {
         BusinessMap::get(self, coord)
     }
@@ -846,6 +852,9 @@ impl RawLookup for BusinessMap<i64, Source> {
     }
 }
 impl<T: RawLookup + ?Sized> RawLookup for &T {
+    fn len(&self) -> usize {
+        (**self).len()
+    }
     fn get(&self, coord: &i64) -> Option<&Source> {
         (**self).get(coord)
     }
@@ -1617,6 +1626,8 @@ fn audit_object_record(
     record: &RefValue,
     raw: &(impl RawLookup + ?Sized),
     producer: &Cc004Producer,
+    rule: &str,
+    current_generation: i64,
     ids: &mut BusinessMap<bj::TextValue, ()>,
     groups: &mut BusinessMap<i64, Group>,
     checked_refs: &mut BusinessMap<(NodeDigest, bool), i64>,
@@ -1631,6 +1642,8 @@ fn audit_object_record(
         record,
         raw,
         producer,
+        rule,
+        current_generation,
         &mut FullObjectSlots { ids, groups },
         checked_refs,
         native_sources,
@@ -1646,6 +1659,8 @@ fn audit_object_record_with_slots(
     record: &RefValue,
     raw: &(impl RawLookup + ?Sized),
     producer: &Cc004Producer,
+    rule: &str,
+    current_generation: i64,
     slots: &mut impl ObjectSlots,
     checked_refs: &mut BusinessMap<(NodeDigest, bool), i64>,
     mut native_sources: Option<&mut NativeSourceMemo<'_>>,
@@ -1705,6 +1720,10 @@ fn audit_object_record_with_slots(
         ]
         .contains(&kind.as_str())
             && !tb02b::KINDS.contains(&kind.as_str())
+            && !tb02c::KINDS.contains(&kind.as_str())
+            && !tb02e::KINDS.contains(&kind.as_str())
+            && !tb02f::KINDS.contains(&kind.as_str())
+            && !source_structure::is_kind(rule, kind.as_str())
         {
             return Err(err("未声明typed事实种类"));
         }
@@ -1762,8 +1781,8 @@ fn audit_object_record_with_slots(
             return Err(err("typed obj3身份与来源/载荷原件不符"));
         }
         if tb02b::KINDS.contains(&kind.as_str()) {
-            let contract = tb02b::contract_for_rule(rule)
-                .ok_or_else(|| err("新笔来源审计规则修订未声明"))?;
+            let contract =
+                tb02b::contract_for_rule(rule).ok_or_else(|| err("新笔来源审计规则修订未声明"))?;
             for (k, want) in [
                 ("schema_revision", contract.schema),
                 ("semantic_version", contract.semantic),
@@ -1786,6 +1805,17 @@ fn audit_object_record_with_slots(
             {
                 return Err(err("新笔payload槽位与fact_key不同"));
             }
+        }
+        if source_structure::is_kind(rule, kind.as_str()) {
+            source_structure::audit_payload(
+                s,
+                kind.as_str(),
+                &payload,
+                parsed.index(1).unwrap(),
+                &sources,
+                raw,
+                current_generation,
+            )?;
         }
         if kind == CC054_KNOWLEDGE_KIND {
             let contract = tb02b::contract_for_rule(rule)
@@ -2215,6 +2245,11 @@ fn audit_generated_in_store(
         }
         &ordinary_raw
     };
+    let current_generation = if rule == crate::V3_STRUCTURE_RULE_REVISION {
+        number(s, state, "generation")?
+    } else {
+        0
+    };
     let object_array = field_ref(s, state, "objects")?;
     #[cfg(test)]
     super::state::trace_event("source_objects", None);
@@ -2233,6 +2268,8 @@ fn audit_generated_in_store(
             &record,
             raw,
             &producer,
+            rule,
+            current_generation,
             &mut ids,
             &mut groups,
             &mut checked_refs,
@@ -2245,6 +2282,7 @@ fn audit_generated_in_store(
         s.native_codec_room(&mut objects, 1).map_err(err)?;
         objects.try_push(object).map_err(err)?;
     }
+    source_structure::audit_full(s, &objects, rule)?;
     // #1394 r3：先绑定已发布未定事实，再核组成员与 pending 的不交完备并集。
     let pending = source_pending::audit(s, objects.iter(), raw, &groups, rule, deadline)?;
     let mut partition = bj::new_map(allocation.as_ref());
@@ -2444,6 +2482,7 @@ mod tests {
             catalog_revision: &catalog,
             scope: &scope,
             semantic_commit_ns: None,
+            structure_prior: crate::v3::generation::StructurePriors::default(),
             prior: PriorState {
                 bi_records: vec![],
                 version_record: None,
@@ -2738,6 +2777,7 @@ mod tests {
                             catalog_revision: &catalog,
                             scope: &scope,
                             semantic_commit_ns: None,
+                            structure_prior: crate::v3::generation::StructurePriors::default(),
                             prior: PriorState {
                                 bi_records: vec![],
                                 version_record: None,
