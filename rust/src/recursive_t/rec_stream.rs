@@ -800,6 +800,7 @@ impl RecStream {
 }
 
 #[cfg(test)]
+#[cfg(not(feature = "recursive_t_deprecated"))]
 mod tests {
     use super::*;
 
@@ -1378,7 +1379,7 @@ mod tests {
     #[test]
     #[ignore = "rec≡flat BTC bit-exact（走势完成路径 clears>0），需 btc_1m_full.json"]
     fn rec_flat_btc_bit_exact() {
-        use crate::recursive_t::backtest_run::load_clean_ohlc;
+        // use crate::recursive_t::backtest_run::load_clean_ohlc;
         use crate::recursive_t::stream::TFugueStreamCore;
         use std::path::PathBuf;
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -1500,7 +1501,7 @@ mod tests {
     #[test]
     #[ignore = "盘整 no_leave 诊断，需 analysis/data_cache/btc_1m_full.json"]
     fn rec_btc_consol_no_leave() {
-        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        // use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -1556,7 +1557,7 @@ mod tests {
     #[test]
     #[ignore = "递归引擎全量回测，需 analysis/data_cache/*.json"]
     fn rec_btc() {
-        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        // use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -1859,7 +1860,7 @@ mod tests {
     #[ignore = "命题4 读法乙 L3 全量回测，需 analysis/data_cache/*.json"]
     fn prop4_nest_l3() {
         use super::super::rec_engine::EngineConfig;
-        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        // use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -2075,7 +2076,7 @@ mod tests {
     #[ignore = "命题4 读法乙 consume L3，需 analysis/data_cache/*.json"]
     fn prop4_consume_l3() {
         use super::super::rec_engine::EngineConfig;
-        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        // use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -2219,7 +2220,7 @@ mod tests {
     #[ignore = "命题4 读法乙递归 L3，需 analysis/data_cache/*.json"]
     fn prop4_reading_b_recursive_l3() {
         use super::super::rec_engine::EngineConfig;
-        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        // use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -2375,7 +2376,7 @@ mod tests {
     #[ignore = "task#84 子5 逐级配额 L3 否证，需 analysis/data_cache/*.json（8 标的 1m databento）"]
     fn prop4_intrinsic_quota_l3() {
         use super::super::rec_engine::EngineConfig;
-        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        // use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -2519,7 +2520,7 @@ mod tests {
     #[ignore = "任务57 读法B LegPair L3，需 analysis/data_cache/*.json"]
     fn prop4_reading_b_pair_l3() {
         use super::super::rec_engine::EngineConfig;
-        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        // use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -2638,7 +2639,7 @@ mod tests {
     #[ignore = "L_confirm 第四轴 L3 裁定，需 analysis/data_cache/*.json（8 标的 1m databento）"]
     fn lconfirm_4axis_l3() {
         use super::super::rec_engine::{ConfDepth, EngineConfig};
-        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        // use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -2747,7 +2748,7 @@ mod tests {
     #[ignore = "Face B L2（做空腿赚 #110），需 analysis/data_cache/*.json"]
     fn faceb_l2_validate() {
         use super::super::rec_engine::EngineConfig;
-        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        // use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -2876,7 +2877,7 @@ mod tests {
     #[ignore = "Face B L2 bear 窗（做空腿吃跌幅 #110），需 analysis/data_cache/*_databento_10y.json"]
     fn faceb_l2_bear_window() {
         use super::super::rec_engine::EngineConfig;
-        use crate::recursive_t::backtest_run::load_clean_ohlc_window;
+        // use crate::recursive_t::backtest_run::load_clean_ohlc_window;
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -2991,7 +2992,7 @@ mod tests {
     #[ignore = "Face A L2（做空腿赚 #113），需 analysis/data_cache/*.json"]
     fn facea_l2_validate() {
         use super::super::rec_engine::EngineConfig;
-        use crate::recursive_t::backtest_run::{load_clean_ohlc, load_clean_ohlc_window, SYMBOLS};
+        // use crate::recursive_t::backtest_run::{load_clean_ohlc, load_clean_ohlc_window, SYMBOLS};
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -3137,7 +3138,7 @@ mod tests {
     #[ignore = "任务 bear-validate 大额吃熊 L3，需 analysis/data_cache/*.json（dates 列窗切片）"]
     fn bear_validate_core_short_l3() {
         use super::super::rec_engine::EngineConfig;
-        use crate::recursive_t::backtest_run::load_clean_ohlc_window;
+        // use crate::recursive_t::backtest_run::load_clean_ohlc_window;
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -3275,7 +3276,7 @@ mod tests {
     #[test]
     #[ignore = "BTC 牛熊段归因诊断，需 btc_1m_full.json"]
     fn btc_bull_bear_segments() {
-        use crate::recursive_t::backtest_run::load_clean_ohlc;
+        // use crate::recursive_t::backtest_run::load_clean_ohlc;
         use std::path::PathBuf;
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()
@@ -3975,7 +3976,7 @@ mod tests {
     #[test]
     #[ignore = "2019后不入场追踪，需 btc_1m_full.json"]
     fn btc_no_reentry_trace() {
-        use crate::recursive_t::backtest_run::load_clean_ohlc;
+        // use crate::recursive_t::backtest_run::load_clean_ohlc;
         use std::path::PathBuf;
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()

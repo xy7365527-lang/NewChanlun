@@ -154,6 +154,7 @@ pub fn same_direction_step(prev: &Zhongshu, next: &Zhongshu) -> Option<super::ty
 }
 
 #[cfg(test)]
+#[cfg(not(feature = "recursive_t_deprecated"))]
 mod tests {
     use super::*;
     use crate::recursive_t::types::Direction;
