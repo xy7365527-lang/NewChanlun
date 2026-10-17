@@ -1,3 +1,7 @@
+#![deprecated(
+    note = "recursive_t is in retirement Phase 1; use theta_v0::classifier or fugue_v3 production paths",
+)]
+
 //! # 缠论统一递归算子 T
 //!
 //! 用一个泛型递归算子 T 识别全部级别的中枢、走势类型、买卖点。
