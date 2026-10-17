@@ -54,9 +54,9 @@
 // `ffi`（混合，PyRecStream 段落已单独标现役）/`prove_guards`/`stream`/`t_engine`/
 // `t_engine_run` = 现役（详见 `stream.rs` 头部）；
 // `center`/`divergence`/`operator`/`trend`/`types` = (a) standalone T 算子，现役（#761 已标）。
-pub mod backtest;
-#[cfg(test)]
-mod backtest_run;
+// pub mod backtest;  // 已退役（2026-10-17），备份至 analysis/deprecated/recursive_t_backtest_20261017/
+// #[cfg(test)]
+// mod backtest_run;  // 已退役（2026-10-17），备份至 analysis/deprecated/recursive_t_backtest_20261017/
 pub mod center;
 pub mod divergence;
 pub mod ffi;
