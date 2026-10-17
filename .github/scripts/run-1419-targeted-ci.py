@@ -16,7 +16,7 @@ import time
 
 REVIEWED_SOURCE = "187488552a6d4158be5bb44139dc2b36baaeccd4"
 REVIEWED_TREE = "d3f4f29864ecb4e423c59991ef3b9b9942c8c9ab"
-CONTRACT_READY = False  # 两 CI 文件独审、源码绑定和尾差复核后由主控显式开启。
+CONTRACT_READY = True  # 两 CI 文件独审、源码绑定和尾差复核后由主控显式开启。
 CI_FILES = {".github/scripts/run-1419-targeted-ci.py", ".github/workflows/ci.yml"}
 LEGACY_RUNNER = ".github/scripts/run-1488-delta-ci.py"
 LEGACY_SHA256 = "2c94e9e8354bd3fe369067210054db903df019cf9ce8c1345a6ec6d107b297dc"
