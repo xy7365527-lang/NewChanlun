@@ -8,7 +8,7 @@
 
 默认 CLI `replay_compare SYMBOL [MAX_BARS|YYYY-MM-DD]` 走 `run_theta_v0_pi`。旧 `MinimalEngine` 只在 `--engine minimal DATA_PATH P123_DUMP_PATH MAX_BARS` 显式诊断模式执行，不作为生产验收替代或严格判据的失败兜底。
 
-两次独立生产 runner 使用相同数据、配置、年化窗口与初始净值。对 `RunResult` 已公开字段完整逐位或逐字节比较，并为每项输出 SHA-256 收据；摘要相等本身不作为通过条件。输出明确标注未验逐 bar tape。
+两次独立生产 runner 使用相同数据、配置、年化窗口与初始净值。只比较九项选定结果：equity curve、daily returns、两类 trade PnL、交易记录的选定字段、订单数、R 分解、闭环终态及稀疏 turn-class rows。f64 序列与 R 分解逐位比较；闭环终态和稀疏分类旁路目前按 `Debug` 文本逐字节比较。每项输出 SHA-256 收据，但判等使用原始编码。`metrics`、`prices`、`fee_rate`、`theta_return_mtm`、`strict_nest_sidecar` 等公开字段并未纳入本阶段；更没有逐 bar 事件 tape。
 
 ## 终态缺口
 

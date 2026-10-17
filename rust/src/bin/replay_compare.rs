@@ -9,6 +9,7 @@ use newchan_rust::theta_v0::backtest::metrics::TradeRecord;
 use newchan_rust::theta_v0::backtest::replay_dump::initial_nav_for;
 use newchan_rust::theta_v0::backtest::runner::run_theta_v0_pi;
 use newchan_rust::theta_v0::config::ThetaConfig;
+use newchan_rust::theta_v0::strategy::risk::RDecomposition;
 use newchan_rust::trading::replay::{
     BarInput, ClassificationEngine, ClassificationOutput, LayerState, ReplayEngine,
 };
@@ -116,7 +117,7 @@ fn production(args: &[String]) -> Result<(), String> {
     let first = run_theta_v0_pi(&dataset, &config, years, initial_nav);
     let second = run_theta_v0_pi(&dataset, &config, years, initial_nav);
 
-    // 直接比较逐位编码；哈希只用于展示，绝不以哈希相等代替相等判定。
+    // 数值序列与 R 分解按位比较；其他选定结构按 Debug 字节比较。哈希只作收据。
     compare_f64("equity_curve", &first.equity_curve, &second.equity_curve)?;
     compare_f64("daily_returns", &first.daily_returns, &second.daily_returns)?;
     compare_f64("trade_pnls", &first.trade_pnls, &second.trade_pnls)?;
@@ -135,11 +136,7 @@ fn production(args: &[String]) -> Result<(), String> {
         &first.n_orders.to_string(),
         &second.n_orders.to_string(),
     )?;
-    compare_text(
-        "r_decomp",
-        &format!("{:?}", first.r_decomp),
-        &format!("{:?}", second.r_decomp),
-    )?;
+    compare_r_decomp(first.r_decomp.as_ref(), second.r_decomp.as_ref())?;
     compare_text(
         "closed_loop_final",
         &format!("{:?}", first.closed_loop_final),
@@ -160,13 +157,77 @@ fn production(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+fn r_decomp_fields(value: &RDecomposition) -> [(&'static str, u64); 8] {
+    [
+        ("price_pnl_gross", value.price_pnl_gross.to_bits()),
+        ("commission_slippage", value.commission_slippage.to_bits()),
+        ("funding", value.funding.to_bits()),
+        ("borrow", value.borrow.to_bits()),
+        ("liquidation_loss", value.liquidation_loss.to_bits()),
+        ("net_r", value.net_r.to_bits()),
+        ("ledger_delta", value.ledger_delta.to_bits()),
+        (
+            "conservation_residual",
+            value.conservation_residual.to_bits(),
+        ),
+    ]
+}
+
+fn encode_r_decomp(value: Option<&RDecomposition>) -> Vec<u8> {
+    let Some(value) = value else {
+        return vec![0];
+    };
+    let mut bytes = Vec::with_capacity(1 + 9 * 8);
+    bytes.push(1);
+    for (_, bits) in r_decomp_fields(value) {
+        bytes.extend_from_slice(&bits.to_le_bytes());
+    }
+    bytes.extend_from_slice(&value.tw_holding_cost_bridge.to_le_bytes());
+    bytes
+}
+
+fn compare_r_decomp(
+    first: Option<&RDecomposition>,
+    second: Option<&RDecomposition>,
+) -> Result<(), String> {
+    let first_bytes = encode_r_decomp(first);
+    let second_bytes = encode_r_decomp(second);
+    let equal = first_bytes == second_bytes;
+    println!(
+        "r_decomp_hash run1={} run2={} equal={equal}",
+        hash_bytes(&first_bytes),
+        hash_bytes(&second_bytes)
+    );
+    if equal {
+        return Ok(());
+    }
+    if let (Some(a), Some(b)) = (first, second) {
+        for ((name, a_bits), (_, b_bits)) in r_decomp_fields(a).into_iter().zip(r_decomp_fields(b))
+        {
+            if a_bits != b_bits {
+                return Err(format!(
+                    "双跑逐位不一致: r_decomp.{name}, bits1={a_bits:016x}, bits2={b_bits:016x}"
+                ));
+            }
+        }
+        if a.tw_holding_cost_bridge != b.tw_holding_cost_bridge {
+            return Err(format!(
+                "双跑逐位不一致: r_decomp.tw_holding_cost_bridge, value1={}, value2={}",
+                a.tw_holding_cost_bridge, b.tw_holding_cost_bridge
+            ));
+        }
+    }
+    Err("双跑逐位不一致: r_decomp 存在性不同".into())
+}
+
 fn compare_f64(name: &str, first: &[f64], second: &[f64]) -> Result<(), String> {
     let first_hash = hash_f64(first);
     let second_hash = hash_f64(second);
     let mismatch = first
         .iter()
         .zip(second)
-        .position(|(a, b)| a.to_bits() != b.to_bits());
+        .position(|(a, b)| a.to_bits() != b.to_bits())
+        .or_else(|| (first.len() != second.len()).then(|| first.len().min(second.len())));
     let equal = first.len() == second.len() && mismatch.is_none();
     println!("{name}_hash run1={first_hash} run2={second_hash} equal={equal}");
     if equal {
@@ -265,4 +326,71 @@ fn load_bars(path: &str, max: usize) -> Result<Vec<BarInput>, String> {
         return Err("数据文件为空".into());
     }
     Ok(bars)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn r_decomp() -> RDecomposition {
+        RDecomposition {
+            price_pnl_gross: 0.0,
+            commission_slippage: 0.0,
+            funding: 0.0,
+            borrow: 0.0,
+            liquidation_loss: 0.0,
+            net_r: 0.0,
+            ledger_delta: 0.0,
+            conservation_residual: 0.0,
+            tw_holding_cost_bridge: 0,
+        }
+    }
+
+    #[test]
+    fn r_decomp_rejects_distinct_nan_payloads() {
+        let mut first = r_decomp();
+        let mut second = r_decomp();
+        first.funding = f64::from_bits(0x7ff8_0000_0000_0001);
+        second.funding = f64::from_bits(0x7ff8_0000_0000_0002);
+        assert_eq!(format!("{first:?}"), format!("{second:?}"));
+        let error = compare_r_decomp(Some(&first), Some(&second)).unwrap_err();
+        assert!(error.contains("r_decomp.funding"), "{error}");
+    }
+
+    #[test]
+    fn r_decomp_rejects_signed_zero_and_named_field_change() {
+        let first = r_decomp();
+        let mut second = r_decomp();
+        second.net_r = -0.0;
+        let error = compare_r_decomp(Some(&first), Some(&second)).unwrap_err();
+        assert!(error.contains("r_decomp.net_r"), "{error}");
+        second.net_r = 0.0;
+        second.tw_holding_cost_bridge = 1;
+        let error = compare_r_decomp(Some(&first), Some(&second)).unwrap_err();
+        assert!(error.contains("r_decomp.tw_holding_cost_bridge"), "{error}");
+    }
+
+    #[test]
+    fn r_decomp_option_presence_is_compared() {
+        let first = r_decomp();
+        assert!(compare_r_decomp(None, None).is_ok());
+        assert!(compare_r_decomp(Some(&first), Some(&first)).is_ok());
+        assert!(compare_r_decomp(Some(&first), None)
+            .unwrap_err()
+            .contains("存在性"));
+    }
+
+    #[test]
+    fn float_series_reports_first_difference_and_prefix_boundary() {
+        assert!(compare_f64("series", &[1.0, 2.0], &[1.0, 2.0]).is_ok());
+        assert!(compare_f64("series", &[0.0], &[-0.0])
+            .unwrap_err()
+            .contains("index=Some(0)"));
+        assert!(compare_f64("series", &[1.0], &[1.0, 2.0])
+            .unwrap_err()
+            .contains("index=Some(1)"));
+        assert!(compare_f64("series", &[1.0, 2.0], &[1.0])
+            .unwrap_err()
+            .contains("index=Some(1)"));
+    }
 }
