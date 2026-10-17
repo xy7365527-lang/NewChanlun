@@ -83,6 +83,7 @@ pub mod positional_fusion;
 pub mod positioning_chain_fugue;
 pub mod recursive_nested_fugue;
 pub mod recursive_position;
+pub mod replay;
 pub mod runner;
 #[cfg(test)]
 mod sublevel_confirmation_ablation;
