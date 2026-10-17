@@ -2045,6 +2045,69 @@ pub(super) fn prior_records(index: &[Entry]) -> Result<(Vec<Built>, Option<Built
     }
     Ok((bi, version))
 }
+/// C/D/E/F prior 根只选已核独立索引里的活动条目，拒绝多份活动版本。
+pub(super) struct StructurePriorRecords {
+    segments: Vec<Built>,
+    segment_version: Option<Built>,
+    ef: Vec<Built>,
+}
+impl StructurePriorRecords {
+    pub(super) fn borrowed(&self) -> super::generation::StructurePriors<'_> {
+        super::generation::StructurePriors {
+            segment_records: &self.segments,
+            segment_version: self.segment_version.as_ref(),
+            ef_records: &self.ef,
+        }
+    }
+}
+pub(super) fn structure_prior_records(index: &[Entry]) -> Result<StructurePriorRecords, String> {
+    let mut prior = StructurePriorRecords {
+        segments: Vec::new(),
+        segment_version: None,
+        ef: Vec::new(),
+    };
+    let mut center_version = false;
+    let mut pair_version = false;
+    for entry in index
+        .iter()
+        .filter(|entry| entry.life.withdrawn_generation.is_none())
+    {
+        match entry.kind.as_str() {
+            "CC-013.segment" => prior.segments.push(entry.internal.clone()),
+            "CC-056.segment_version" => {
+                if prior
+                    .segment_version
+                    .replace(entry.internal.clone())
+                    .is_some()
+                {
+                    return Err(err("活动段版本对象不唯一"));
+                }
+            }
+            "CC-056.center_version" | "CC-056.pair_version" => {
+                let seen = if entry.kind == "CC-056.center_version" {
+                    &mut center_version
+                } else {
+                    &mut pair_version
+                };
+                if std::mem::replace(seen, true) {
+                    return Err(err("活动中枢/关系版本对象不唯一"));
+                }
+                prior.ef.push(entry.internal.clone());
+            }
+            "CC-016.center_seed_attempt"
+            | "CC-016.center"
+            | "CC-017.center_roles"
+            | "CC-022.unit_assignment"
+            | "CC-018.unit_core_position"
+            | "CC-020.center_pair" => {
+                prior.ef.push(entry.internal.clone());
+            }
+            _ => {}
+        }
+    }
+    Ok(prior)
+}
+
 pub(super) fn stage(
     tx: &Transaction<'_>,
     s: &mut (impl CodecStore + ?Sized),
@@ -3974,6 +4037,7 @@ mod tests {
         let catalog = get("catalog_revision");
         let scope = serde_json::from_str(&get("scope")).unwrap();
         let input = GenerationInput {
+            structure_prior: crate::v3::generation::StructurePriors::default(),
             all_events: (&raw).into(),
             effective: (&effective).into(),
             generation: 1,
@@ -5241,6 +5305,7 @@ mod tests {
                 &rule,
             );
             let input = GenerationInput {
+                structure_prior: crate::v3::generation::StructurePriors::default(),
                 all_events: (&raw).into(),
                 effective: (&effective).into(),
                 generation: g,
@@ -5267,6 +5332,7 @@ mod tests {
                     &rule,
                 );
                 let earlier_input = GenerationInput {
+                    structure_prior: crate::v3::generation::StructurePriors::default(),
                     all_events: (&previous_raw).into(),
                     effective: (&earlier_effective).into(),
                     generation: g,

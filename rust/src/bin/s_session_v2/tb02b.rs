@@ -33,6 +33,7 @@ pub(super) fn contract_for_rule(rule: &str) -> Option<BiContract> {
         | "s2-axis-quantifiers+new-bi/1+segment-second/1"
         | "s2-axis-quantifiers+new-bi/1+segment-second/2" => Some(LEGACY_CONTRACT),
         crate::V3_RULE_REVISION
+        | crate::V3_STRUCTURE_RULE_REVISION
         | "s2-axis-quantifiers+new-bi/2+segment-second/1"
         | crate::RULE_REVISION => Some(CURRENT_CONTRACT),
         _ => None,

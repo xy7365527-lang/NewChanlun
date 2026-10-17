@@ -57,6 +57,80 @@ const OBJECT_REVISION: i64 = 1;
 /// §5.3 的类型化对象身份帧：`F(0x20, V)`。
 const OBJECT_ID_TAG: u8 = 0x20;
 
+/// CC-054 显式分类请求四轴；调用者必须以具体请求的同次证据给出，不能从等待原因推断。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum RequestInputQuality {
+    Sufficient,
+    Insufficient,
+    Inconsistent,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum RequestApplicability {
+    InDomain,
+    OutsideDomain,
+    DomainProofMissing,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum RequestComputation {
+    Complete,
+    Incomplete,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum RequestValidity {
+    Current,
+    Superseded,
+    Withdrawn,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct RequestAxes {
+    pub input_quality: RequestInputQuality,
+    pub applicability: RequestApplicability,
+    pub computation: RequestComputation,
+    pub validity: RequestValidity,
+}
+impl RequestAxes {
+    fn value(self) -> CValue {
+        CValue::Object(
+            [
+                (
+                    "input_quality",
+                    match self.input_quality {
+                        RequestInputQuality::Sufficient => "SUFFICIENT",
+                        RequestInputQuality::Insufficient => "INSUFFICIENT",
+                        RequestInputQuality::Inconsistent => "INCONSISTENT",
+                    },
+                ),
+                (
+                    "applicability",
+                    match self.applicability {
+                        RequestApplicability::InDomain => "IN_DOMAIN",
+                        RequestApplicability::OutsideDomain => "OUTSIDE_DOMAIN",
+                        RequestApplicability::DomainProofMissing => "DOMAIN_PROOF_MISSING",
+                    },
+                ),
+                (
+                    "computation",
+                    match self.computation {
+                        RequestComputation::Complete => "COMPLETE",
+                        RequestComputation::Incomplete => "INCOMPLETE",
+                    },
+                ),
+                (
+                    "validity",
+                    match self.validity {
+                        RequestValidity::Current => "CURRENT",
+                        RequestValidity::Superseded => "SUPERSEDED",
+                        RequestValidity::Withdrawn => "WITHDRAWN",
+                    },
+                ),
+            ]
+            .into_iter()
+            .map(|(k, v)| (k.to_owned(), CValue::String(v.to_owned())))
+            .collect(),
+        )
+    }
+}
+
 /// 内容生产错误：缺源、共享态退化、类型不符与长度溢出一律显式拒绝。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum ProducerError {
@@ -1241,6 +1315,45 @@ impl Cc004Producer {
                 CValue::Edge(source_coords.digest),
             ),
         ]))
+    }
+
+    /// 已具名实际分类请求。保留精确五字段 wire；身份键由调用者绑定主体、子轴、观察路径及版本。
+    /// 此口不复用 A 的原因启发式，false 结果与未计算结果由显式四轴区分。
+    pub(super) fn explicit_request(
+        &mut self,
+        store: &mut dyn NodeStore,
+        key: CValue,
+        subject_id: &str,
+        axes: RequestAxes,
+        reasons: &[&str],
+        sources: &CoordsRef,
+    ) -> Result<Built, ProducerError> {
+        let coords = self.coords_array(store, sources)?;
+        // 请求键可复用调用方对象 slot 的内容边，必须在同一个节点读集中规范渲染。
+        // A 的旧 canonical_text 私有草稿表仅适用于不含外部边的自足值，不能用于此处。
+        let key_root = sc::write_value(store, &key)?;
+        let mut key_bytes = Vec::new();
+        sc::render_canonical(store, &key_root.content_ref(), &mut key_bytes)?;
+        let key_text = String::from_utf8(key_bytes).map_err(|error| ProducerError::Type {
+            what: "显式请求规范键",
+            detail: error.to_string(),
+        })?;
+        let request = CValue::Object(vec![
+            ("request_id".into(), CValue::String(key_text)),
+            ("subject_id".into(), CValue::String(subject_id.to_owned())),
+            ("axes".into(), axes.value()),
+            (
+                "reasons".into(),
+                CValue::Array(
+                    reasons
+                        .iter()
+                        .map(|r| CValue::String((*r).to_owned()))
+                        .collect(),
+                ),
+            ),
+            ("source_coords".into(), CValue::Edge(coords.digest)),
+        ]);
+        Ok(sc::write_value(store, &request)?)
     }
 
     /// 待决请求（主体为空）：键与原因由调用方按全量配方给出，本口不造默认值。

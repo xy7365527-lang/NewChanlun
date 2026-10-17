@@ -10,7 +10,7 @@ use crate::{
         self, Cc004Producer, ShapeIdentityView, CC004_STEP_KIND, CC005_GROUP_KIND,
         CC006_SHAPE_KIND, CC007_FRACTAL_KIND, CC054_KNOWLEDGE_KIND,
     },
-    read_effective_events, stored_source_coord, tb02a, tb02a_facts, tb02b, tb02c, tb02e, tb02f,
+    read_effective_events, stored_source_coord, tb02a, tb02a_facts, tb02b,
 };
 use newchan_rust::s_content::{
     self as sc,
@@ -1720,9 +1720,6 @@ fn audit_object_record_with_slots(
         ]
         .contains(&kind.as_str())
             && !tb02b::KINDS.contains(&kind.as_str())
-            && !tb02c::KINDS.contains(&kind.as_str())
-            && !tb02e::KINDS.contains(&kind.as_str())
-            && !tb02f::KINDS.contains(&kind.as_str())
             && !source_structure::is_kind(rule, kind.as_str())
         {
             return Err(err("未声明typed事实种类"));
@@ -2394,6 +2391,177 @@ mod tests {
         tests::{accept_ohlc, init_test_db, located_ohlc_input, tb02b_oracle_rows, TestFiles},
     };
     use sc::MemoryNodes;
+
+    // #1419：用共享工厂生成真实身份与记录，再走公共 full/native 共用的对象来源门。
+    // 这里只测规则修订准入；空原始账不抵扣正式非空结构输入验收。
+    fn audit_rule_kind_record(
+        nodes: &mut MemoryNodes,
+        rule: &str,
+        kind: &str,
+        slot: &Value,
+        payload: &Value,
+        memo_fields: bool,
+    ) -> Result<Object, String> {
+        let producer = Cc004Producer::new(tb02a::PROFILE, rule);
+        let empty = sc::write_value(nodes, &V::Array(vec![])).unwrap();
+        let object = producer
+            .build_object(
+                nodes,
+                kind,
+                canonical_json(&json!([kind, slot])),
+                cv(payload).unwrap(),
+                empty.clone(),
+                empty,
+                1,
+                "cut-1",
+            )
+            .unwrap();
+        let record = RefValue::Plain(object.record.content_ref());
+        // 工厂记录还含三个内部值边；来源核消费现有 TYPED 定义的十字段公开投影。
+        let mut public_fields = vec![];
+        for key in TYPED {
+            let value = field(nodes, &record, key).unwrap();
+            public_fields.push(((*key).to_string(), V::Edge(digest(&value).unwrap())));
+        }
+        let record = RefValue::Plain(
+            sc::write_value(nodes, &V::Object(public_fields))
+                .unwrap()
+                .content_ref(),
+        );
+        audit_object_record(
+            nodes,
+            &record,
+            &BusinessMap::<i64, Source>::plain(),
+            &producer,
+            rule,
+            1,
+            &mut BusinessMap::plain(),
+            &mut BusinessMap::plain(),
+            &mut BusinessMap::plain(),
+            None,
+            0,
+            memo_fields,
+            None,
+            None,
+        )
+    }
+
+    #[test]
+    fn structure_rule_rejects_new_kinds_under_legacy_rules() {
+        for rule in [crate::LEGACY_V3_RULE_REVISION, crate::V3_RULE_REVISION] {
+            for kind in crate::tb02c::KINDS
+                .iter()
+                .chain(crate::tb02e::KINDS)
+                .chain(crate::tb02f::KINDS)
+            {
+                for memo_fields in [false, true] {
+                    let mut nodes = MemoryNodes::default();
+                    let result = audit_rule_kind_record(
+                        &mut nodes,
+                        rule,
+                        kind,
+                        &json!("test-slot"),
+                        &json!({}),
+                        memo_fields,
+                    );
+                    assert_eq!(
+                        result.err(),
+                        Some(err("未声明typed事实种类")),
+                        "旧规则 {rule} 不得放行 {kind}，memo_fields={memo_fields}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn structure_rule_accepts_declared_versions_and_checks_payload() {
+        let rule = crate::V3_STRUCTURE_RULE_REVISION;
+        for memo_fields in [false, true] {
+            let mut nodes = MemoryNodes::default();
+            let mut objects = vec![];
+            for (kind, slot, schema, semantic, policy, delivered) in [
+                (
+                    "CC-056.segment_version",
+                    "TB-02-W",
+                    crate::tb02c::SCHEMA,
+                    newchan_rust::theta_v0::parser::segment::CONSTRUCTION_RULE,
+                    "seed_closed_strict_second",
+                    "seed_strict_first_and_second_terminal",
+                ),
+                (
+                    "CC-056.center_version",
+                    "TB-02-E",
+                    crate::tb02e::SCHEMA_REVISION,
+                    "center-seed/1",
+                    "strict_seed_zn_outer_c_resume",
+                    "l0_strict_seed_zn_roles_c_resume_assignment",
+                ),
+                (
+                    "CC-056.pair_version",
+                    "TB-02-F",
+                    crate::tb02f::SCHEMA_REVISION,
+                    "center-pair/1",
+                    "zn_outer_five_leaf_pending_ge9",
+                    "l0_adjacent_pair_five_leaf_zn_outer_and_unit_core_position",
+                ),
+            ] {
+                let mut payload = json!({
+                    "schema_revision": schema,
+                    "semantic_version": semantic,
+                    "policy_version": policy,
+                    "view_role": "main",
+                    "object_generation": "1",
+                    "slot": slot,
+                    "data": {
+                        "delivered_scope": delivered,
+                        "waiting_reasons": [],
+                        "deferred_scope": [],
+                        "input_frontier": "-1"
+                    }
+                });
+                objects.push(
+                    audit_rule_kind_record(
+                        &mut nodes,
+                        rule,
+                        kind,
+                        &json!(slot),
+                        &payload,
+                        memo_fields,
+                    )
+                    .unwrap(),
+                );
+                // 新规则放行kind后仍核其载荷；合法obj3身份不能替代此门。
+                payload["data"]["delivered_scope"] = json!("undeclared");
+                assert_eq!(
+                    audit_rule_kind_record(
+                        &mut nodes,
+                        rule,
+                        kind,
+                        &json!(slot),
+                        &payload,
+                        memo_fields,
+                    )
+                    .err(),
+                    Some(err("结构版本槽位/范围/全原始账来源不符"))
+                );
+            }
+            source_structure::audit_full(&mut nodes, &objects, rule).unwrap();
+            assert_eq!(
+                audit_rule_kind_record(
+                    &mut nodes,
+                    rule,
+                    "CC-056.future_version",
+                    &json!("unknown"),
+                    &json!({}),
+                    memo_fields,
+                )
+                .err(),
+                Some(err("未声明typed事实种类"))
+            );
+        }
+    }
+
     pub(super) const STATE: &[&str] = &[
         "generation",
         "structure_cut",

@@ -29,6 +29,8 @@
 //!
 //! ## 本域边界（照实）
 //!
+//! - **规则域**：历史 A/B 域保留原构造面；`V3_STRUCTURE_RULE_REVISION` 从同次 parser 事实与
+//!   已核 prior 接 C/D/E/F，恢复游标先于唯一一次 parser。目录跟实际规则域选择，未知域拒绝。
 //! - **只接线 OHLC 档案**（`tb02a::PROFILE`）。旧生成段对非 OHLC 档案另有一套 CC-006
 //!   `source_coords` 配方（三个锚坐标，而非三组来源链），producer 没有实现那一支；本模块
 //!   **显式拒绝**，不静默降级、不产出与旧配方不同的对象。
@@ -52,7 +54,7 @@
 
 use super::audit_store::CodecRead;
 use super::business_json::{self as bj, RawEventsView};
-use super::object_records;
+use super::{content_structure, object_records};
 use crate::content_bi::{BiBuildInputView, BiLedgerView, ContentBi, PriorState};
 use crate::content_producer::{
     array_from_sequence, group_reasons, raw_prefix_coords, Cc004Producer, Cc006Object, Cc007Object,
@@ -78,6 +80,14 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
+/// 同一已核活跃发布索引选择的 C/D/E/F 前代根；空值仅用于首代/旧 A/B 域。
+#[derive(Default)]
+pub(super) struct StructurePriors<'a> {
+    pub segment_records: &'a [Built],
+    pub segment_version: Option<&'a Built>,
+    pub ef_records: &'a [Built],
+}
+
 /// 生成输入：全部取调用方**同一读集**的真实值；本文不读库、不重排、不补默认。
 pub(super) struct GenerationInput<'a> {
     /// 全修订史（`read_raw_events` 的 seq 序，含历史修订）。
@@ -100,6 +110,7 @@ pub(super) struct GenerationInput<'a> {
     pub semantic_commit_ns: Option<&'a str>,
     /// 上一代发布态的**已核** CC-010.bi / CC-056.version 记录根（调用方独立索引给出）。
     pub prior: PriorState<'a>,
+    pub structure_prior: StructurePriors<'a>,
 }
 
 /// #1488：raw/effective 不可由调用者另给；仅含当前元数据与已核 prior。
@@ -114,12 +125,13 @@ pub(super) struct BoundGenerationInput<'a> {
     pub scope: &'a Value,
     pub semantic_commit_ns: Option<&'a str>,
     pub prior: PriorState<'a>,
+    pub structure_prior: StructurePriors<'a>,
 }
 
 /// 一条已构造对象：身份 + 生成态记录 + 可复用的构造结果。
 ///
 /// 顺序（生成态 `objects` 数组）＝旧 sealed 批次：CC-006 形态（窗序）→ 已按
-/// `(kind, fact_key, object_id)` 排序的泛型事实 → TB-02-B 对象（线序）。
+/// `(kind, fact_key, object_id)` 排序的泛型事实 → TB-02-B 对象（线序）→ 新结构域的 C/D/E/F。
 pub(super) struct ProducedObject {
     kind: String,
     fact_key: Option<String>,
@@ -307,11 +319,17 @@ impl<'a> Generated<'a> {
                 &self.requests,
             )?);
         }
-        // #1394 整合 W-3：v3 只发布 TB-02-A/B，目录轴表取它自己规则修订的那张（13 轴）。
-        // 不按输入的 `rule_revision` 选：身份配方里的修订是参数，目录覆盖面是 v3 写者的属性。
+        // 规则域与真实构造面一起选择；旧 A/B 域保留 13 轴，新结构域显式使用完整表。
+        let axis_table =
+            crate::tb02a_facts::CatalogAxisTable::for_rule_revision(&self.meta.rule_revision)
+                .ok_or_else(|| {
+                    format!(
+                        "VersionUnsupported：规则域 {} 没有已审目录轴表",
+                        self.meta.rule_revision
+                    )
+                })?;
         let axes_value = crate::tb02a_facts::catalog_axes(
-            crate::tb02a_facts::CatalogAxisTable::for_rule_revision(crate::V3_RULE_REVISION)
-                .expect("v3 写者的规则修订必有目录轴表"),
+            axis_table,
             &projection,
             self.all_events,
             previous_frontier,
@@ -585,6 +603,7 @@ impl GenerationRuntime {
                 scope: input.scope,
                 semantic_commit_ns: input.semantic_commit_ns,
                 prior: input.prior,
+                structure_prior: input.structure_prior,
             };
             let generated =
                 self.generate_impl(store, &full_input, None, None, Some((view, raw_delta)))?;
@@ -686,7 +705,23 @@ impl GenerationRuntime {
                 lane.state()
             }
         };
-        let (layer, evidence) = parser::parse_layer_with_group_evidence(state, &config);
+        let structure_enabled = input.rule_revision == crate::V3_STRUCTURE_RULE_REVISION;
+        let cd_prior = content_structure::StructurePrior {
+            segment_records: input.structure_prior.segment_records,
+            version_record: input.structure_prior.segment_version,
+        };
+        let (layer, evidence, second_store) = if structure_enabled {
+            // 恢复只读上一代已核发布根；随后仅调用一次共享 parser 并保留同次游标簿。
+            let mut fold = parser::second_fold::SecondFoldStore::new(crate::tb02c::round_budget());
+            content_structure::restore_second_cursors(store, &self.producer, &cd_prior, &mut fold)?;
+            let (layer, evidence, fold) =
+                parser::parse_layer_with_group_evidence_store(state, &config, fold);
+            (layer, evidence, Some(fold))
+        } else {
+            // 历史 A/B 域仍使用原输入路径，不将结构域失败切回这里。
+            let (layer, evidence) = parser::parse_layer_with_group_evidence(state, &config);
+            (layer, evidence, None)
+        };
         let merged_rc = layer.merged_bars.clone();
         let merged: &[Bar] = merged_rc.as_ref();
         let prepared = match delta_view {
@@ -926,35 +961,7 @@ impl GenerationRuntime {
                 ))
         });
 
-        // ── CC-054 知识状态（旧配方在泛型事实之后、TB-02-B 之前）──
-        let raw_coords = raw_prefix_coords(state).map_err(producer_error)?;
-        let knowledge = self
-            .producer
-            .build_knowledge_state(
-                store,
-                &raw_coords,
-                frontier,
-                &requests,
-                &all_reasons,
-                gen,
-                cut,
-            )
-            .map_err(producer_error)?;
-        for observation in &knowledge.observations {
-            observations.push((true, observation.clone()));
-        }
-        let generated = object_records::generated(
-            store,
-            object_records::BorrowedObject::Typed(&knowledge.object),
-        )
-        .map_err(record_error)?;
-        typed.push(ProducedObject {
-            kind: CC054_KNOWLEDGE_KIND.to_string(),
-            fact_key: Some(knowledge.object.fact_key.clone()),
-            object_id: knowledge.object.object_id.clone(),
-            generated,
-            body: ObjectBody::Typed(knowledge.object),
-        });
+        let knowledge_position = typed.len();
 
         // ── TB-02-B：七个 kind 的新笔证据（上一代记录由调用方给根）──
         let bi = self
@@ -995,6 +1002,109 @@ impl GenerationRuntime {
                     .map_err(|error| format!("GenError：关系值写入失败：{error}"))?,
             );
         }
+
+        if structure_enabled {
+            let known_value =
+                crate::content_bi::known_value(raw_ledger, gen, frontier, input.semantic_commit_ns)
+                    .map_err(|e| format!("GenError：结构 known_at 不可用：{e}"))?;
+            let known_at = sc::write_value(&mut *store, &known_value).map_err(codec_error)?;
+            let fact_generation = crate::content_bi::fact_generation(
+                JsonView::BorrowedArray(&input.all_events)
+                    .as_array()
+                    .unwrap(),
+            )
+            .map_err(|e| format!("GenError：结构事实代际不可用：{e}"))?;
+            let all_sources = raw_prefix_coords(state)
+                .map_err(producer_error)?
+                .materialize();
+            let context = content_structure::StructureContext {
+                fact_generation,
+                generation: gen,
+                cut,
+                frontier,
+                known_at: &known_at,
+                all_sources: &all_sources,
+            };
+            let structure_evidence = content_structure::StructureEvidence {
+                segments: &layer.segments,
+                segment_facts: &evidence.segment_facts,
+                stroke_facts: &evidence.stroke_facts,
+                second_store: second_store
+                    .as_ref()
+                    .ok_or_else(|| "GenError：结构域缺同次 parser store".to_string())?,
+            };
+            let cd = content_structure::build_cd(
+                &mut self.producer,
+                store,
+                &structure_evidence,
+                &cd_prior,
+                &context,
+            )?;
+            let ef = content_structure::build_ef(
+                &mut self.producer,
+                store,
+                &structure_evidence,
+                &cd.segments,
+                &content_structure::EfPrior {
+                    records: input.structure_prior.ef_records,
+                },
+                &context,
+            )?;
+            for output in [cd, ef] {
+                all_reasons.extend(output.waiting_reasons);
+                relations.extend(output.relations);
+                // 包含一对象多子轴的完整唯一集合；不再从 TypedObject.request 重复收集。
+                requests.extend(output.requests);
+                for object in output.objects {
+                    let kind = typed_kind(store, &object)?;
+                    let generated = object_records::generated(
+                        store,
+                        object_records::BorrowedObject::Typed(&object),
+                    )
+                    .map_err(record_error)?;
+                    typed.push(ProducedObject {
+                        kind,
+                        fact_key: Some(object.fact_key.clone()),
+                        object_id: object.object_id.clone(),
+                        generated,
+                        body: ObjectBody::Typed(object),
+                    });
+                }
+            }
+        }
+
+        // 所有本次请求/等待原因收齐后才生成知识态；对象序仍保留历史 CC-054 槽位。
+        let raw_coords = raw_prefix_coords(state).map_err(producer_error)?;
+        let knowledge = self
+            .producer
+            .build_knowledge_state(
+                store,
+                &raw_coords,
+                frontier,
+                &requests,
+                &all_reasons,
+                gen,
+                cut,
+            )
+            .map_err(producer_error)?;
+        for observation in &knowledge.observations {
+            observations.push((true, observation.clone()));
+        }
+        let generated = object_records::generated(
+            store,
+            object_records::BorrowedObject::Typed(&knowledge.object),
+        )
+        .map_err(record_error)?;
+        typed.insert(
+            knowledge_position,
+            ProducedObject {
+                kind: CC054_KNOWLEDGE_KIND.to_string(),
+                fact_key: Some(knowledge.object.fact_key.clone()),
+                object_id: knowledge.object.object_id.clone(),
+                generated,
+                body: ObjectBody::Typed(knowledge.object),
+            },
+        );
 
         // ── 生成态六条数组：跨代共享序列 + 旧配方等价去重 ──
         let mut objects: Vec<ProducedObject> = shape_objects;
@@ -1492,7 +1602,13 @@ fn catalog_projection_entry(
             "requests": request_items,
         })
         .to_string()
-    } else if object.kind() == "CC-056.version" {
+    } else if matches!(
+        object.kind(),
+        "CC-056.version"
+            | "CC-056.segment_version"
+            | "CC-056.center_version"
+            | "CC-056.pair_version"
+    ) {
         let payload = object.payload().ok_or_else(|| {
             format!(
                 "GenError：CC-056 对象 {} 缺 payload 值根",
@@ -1868,6 +1984,163 @@ mod tests {
         .collect()
     }
 
+    /// 新结构域的真实生成接线：双构造同根、全目录与原因闭合，恢复只认同域的已核根。
+    #[test]
+    fn structure_domain_wires_versions_knowledge_axes_and_rejects_foreign_prior() {
+        let rows = delta_raw_fixture();
+        let raw = RawEventsView::plain(&rows[..4]);
+        let effective = bj::effective(raw, None).unwrap();
+        let scope = json!({});
+        let input = GenerationInput {
+            all_events: raw,
+            effective: effective.raw_view(),
+            generation: 1,
+            structure_cut: "cut-1",
+            input_frontier: 4,
+            profile_id: crate::tb02a::PROFILE,
+            profile_hash: "structure-profile",
+            rule_revision: crate::V3_STRUCTURE_RULE_REVISION,
+            catalog_revision: "structure-catalog",
+            scope: &scope,
+            semantic_commit_ns: Some("123456789"),
+            prior: PriorState {
+                bi_records: vec![],
+                version_record: None,
+            },
+            structure_prior: StructurePriors::default(),
+        };
+        let mut nodes = MemoryNodes::new();
+        let mut first = GenerationRuntime::new(
+            "structure-wire-first".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_STRUCTURE_RULE_REVISION,
+        );
+        let mut generated = first.generate(&mut nodes, &input).unwrap();
+        generated.finish_axes(&mut nodes, -1, &[], &[]).unwrap();
+        generated.verify_new_closure(&mut nodes).unwrap();
+        let mut canonical = Vec::new();
+        render_canonical(&mut nodes, &generated.generated_state, &mut canonical).unwrap();
+        let state: Value = serde_json::from_slice(&canonical).unwrap();
+        assert_eq!(state["catalog_axes"].as_object().unwrap().len(), 22);
+        let objects = state["objects"].as_array().unwrap();
+        let knowledge: Value = serde_json::from_str(
+            objects
+                .iter()
+                .find(|o| o["kind"] == CC054_KNOWLEDGE_KIND)
+                .unwrap()["payload_json"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        for kind in [
+            "CC-056.segment_version",
+            "CC-056.center_version",
+            "CC-056.pair_version",
+        ] {
+            let matches: Vec<_> = objects.iter().filter(|o| o["kind"] == kind).collect();
+            assert_eq!(matches.len(), 1, "{kind} 应由本次事实实际构造");
+            let version: Value =
+                serde_json::from_str(matches[0]["payload_json"].as_str().unwrap()).unwrap();
+            for reason in version["data"]["waiting_reasons"].as_array().unwrap() {
+                assert!(
+                    knowledge["waiting_reasons"]
+                        .as_array()
+                        .unwrap()
+                        .contains(reason),
+                    "{kind} 原因未进入 CC-054：{reason}"
+                );
+            }
+        }
+        let mut other_nodes = MemoryNodes::new();
+        let mut other = GenerationRuntime::new(
+            "structure-wire-independent".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_STRUCTURE_RULE_REVISION,
+        );
+        let mut independent = other.generate(&mut other_nodes, &input).unwrap();
+        independent
+            .finish_axes(&mut other_nodes, -1, &[], &[])
+            .unwrap();
+        assert_eq!(generated.generated_state, independent.generated_state);
+
+        let mut segment_records = Vec::new();
+        let mut segment_version = None;
+        let mut ef_records = Vec::new();
+        for object in &generated.objects {
+            let ObjectBody::Typed(typed) = &object.body else {
+                continue;
+            };
+            match object.kind() {
+                "CC-013.segment" => segment_records.push(typed.record.clone()),
+                "CC-056.segment_version" => segment_version = Some(typed.record.clone()),
+                "CC-016.center_seed_attempt"
+                | "CC-016.center"
+                | "CC-017.center_roles"
+                | "CC-022.unit_assignment"
+                | "CC-018.unit_core_position"
+                | "CC-020.center_pair"
+                | "CC-056.center_version"
+                | "CC-056.pair_version" => ef_records.push(typed.record.clone()),
+                _ => {}
+            }
+        }
+        let (bi_records, bi_version) = clone_prior(&generated);
+        let next = GenerationInput {
+            generation: 2,
+            structure_cut: "cut-2",
+            prior: PriorState {
+                bi_records: bi_records.iter().collect(),
+                version_record: bi_version.as_ref(),
+            },
+            structure_prior: StructurePriors {
+                segment_records: &segment_records,
+                segment_version: segment_version.as_ref(),
+                ef_records: &ef_records,
+            },
+            ..input
+        };
+        let warm = first.generate(&mut nodes, &next).unwrap();
+        let mut cold = GenerationRuntime::new(
+            "structure-wire-restart-valid".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_STRUCTURE_RULE_REVISION,
+        );
+        let restarted = cold.generate(&mut nodes, &next).unwrap();
+        assert_eq!(
+            warm.generated_state, restarted.generated_state,
+            "重启与续跑必须使用同份已授权 prior"
+        );
+
+        // B 版本虽自身内容有效，也不能作为 C/D 的发布恢复许可。
+        let wrong = generated
+            .objects
+            .iter()
+            .find_map(|o| match &o.body {
+                ObjectBody::Typed(object) if o.kind() == "CC-056.version" => {
+                    Some(object.record.clone())
+                }
+                _ => None,
+            })
+            .unwrap();
+        let forged = GenerationInput {
+            structure_prior: StructurePriors {
+                segment_version: Some(&wrong),
+                ..Default::default()
+            },
+            ..next
+        };
+        let mut restart = GenerationRuntime::new(
+            "structure-wire-restart-reject".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_STRUCTURE_RULE_REVISION,
+        );
+        let error = match restart.generate(&mut nodes, &forged) {
+            Ok(_) => panic!("错误 prior 版本不得恢复或切旧核兜底"),
+            Err(error) => error,
+        };
+        assert!(error.contains("prior kind"), "{error}");
+    }
+
     fn delta_bound_input<'a>(
         scope: &'a Value,
         cut: &'a str,
@@ -1876,12 +2149,13 @@ mod tests {
         prior: PriorState<'a>,
     ) -> BoundGenerationInput<'a> {
         BoundGenerationInput {
+            structure_prior: StructurePriors::default(),
             generation: gen,
             structure_cut: cut,
             input_frontier: frontier,
             profile_id: crate::tb02a::PROFILE,
             profile_hash: "profile-hash",
-            rule_revision: "r",
+            rule_revision: crate::V3_RULE_REVISION,
             catalog_revision: "catalog",
             scope,
             semantic_commit_ns: Some("123456789"),
@@ -1898,11 +2172,15 @@ mod tests {
         use super::super::audit_owner::RawAdvanceFixture;
         let fixture = RawAdvanceFixture::new();
         let mut index = bj::RawPrefixIndex::new(events.into());
-        let mut delta = GenerationRuntime::new("A2 delta".into(), crate::tb02a::PROFILE, "r");
+        let mut delta = GenerationRuntime::new(
+            "A2 delta".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         let mut full = GenerationRuntime::new(
             "A2 full independent raw/parser".into(),
             crate::tb02a::PROFILE,
-            "r",
+            crate::V3_RULE_REVISION,
         );
         let mut ds = MemoryNodes::new();
         let mut fs = MemoryNodes::new();
@@ -1941,6 +2219,7 @@ mod tests {
                 .generate(
                     &mut fs,
                     &GenerationInput {
+                        structure_prior: StructurePriors::default(),
                         all_events: raw,
                         effective: effective.raw_view(),
                         generation: gen,
@@ -1948,7 +2227,7 @@ mod tests {
                         input_frontier: prefix as i64,
                         profile_id: crate::tb02a::PROFILE,
                         profile_hash: "profile-hash",
-                        rule_revision: "r",
+                        rule_revision: crate::V3_RULE_REVISION,
                         catalog_revision: "catalog",
                         scope: &scope,
                         semantic_commit_ns: Some("123456789"),
@@ -2153,6 +2432,7 @@ mod tests {
                 &mut store,
                 &bound,
                 BoundGenerationInput {
+                    structure_prior: StructurePriors::default(),
                     generation: oracle.generation,
                     structure_cut: &cut,
                     input_frontier: oracle.batch["input_frontier"].as_i64().unwrap(),
@@ -2186,7 +2466,11 @@ mod tests {
         let edits = index.advance(4).unwrap();
         let fixture = RawAdvanceFixture::new();
         let bound = fixture.bind(raw, 0, &edits.winner_edits).unwrap();
-        let mut runtime = GenerationRuntime::new("A2 failure".into(), crate::tb02a::PROFILE, "r");
+        let mut runtime = GenerationRuntime::new(
+            "A2 failure".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         let mut store = MemoryNodes::new();
         let scope = json!({});
         runtime
@@ -2279,13 +2563,13 @@ mod tests {
             (
                 crate::tb02a::PROFILE,
                 "wrong-profile",
-                "r",
+                crate::V3_RULE_REVISION,
                 "IdentityConflict",
             ),
             (
                 "unsupported-profile",
                 "unsupported-profile",
-                "r",
+                crate::V3_RULE_REVISION,
                 "VersionUnsupported",
             ),
         ] {
@@ -2302,10 +2586,16 @@ mod tests {
                 let bound = fixture.bind(raw, 0, &edits.winner_edits).unwrap();
                 let scope = json!({});
                 let effective = bj::effective(raw, None).unwrap();
-                let mut full =
-                    GenerationRuntime::new("A2 identity full".into(), runtime_profile, "r");
-                let mut delta =
-                    GenerationRuntime::new("A2 identity delta".into(), runtime_profile, "r");
+                let mut full = GenerationRuntime::new(
+                    "A2 identity full".into(),
+                    runtime_profile,
+                    crate::V3_RULE_REVISION,
+                );
+                let mut delta = GenerationRuntime::new(
+                    "A2 identity delta".into(),
+                    runtime_profile,
+                    crate::V3_RULE_REVISION,
+                );
                 let mut full_store = SequenceTestStore {
                     writes_left: Some(0),
                     ..Default::default()
@@ -2318,6 +2608,7 @@ mod tests {
                     .generate(
                         &mut full_store,
                         &GenerationInput {
+                            structure_prior: StructurePriors::default(),
                             all_events: raw,
                             effective: effective.raw_view(),
                             generation: 1,
@@ -2342,6 +2633,7 @@ mod tests {
                         &mut delta_store,
                         &bound,
                         BoundGenerationInput {
+                            structure_prior: StructurePriors::default(),
                             generation: 1,
                             structure_cut: "cut-1",
                             input_frontier: 4,
@@ -2384,8 +2676,11 @@ mod tests {
         let owner = RawAdvanceFixture::new();
         let bound = owner.bind(raw, 0, &edits.winner_edits).unwrap();
         let mut counted = SequenceTestStore::default();
-        let mut successful =
-            GenerationRuntime::new("A2 write count".into(), crate::tb02a::PROFILE, "r");
+        let mut successful = GenerationRuntime::new(
+            "A2 write count".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         successful
             .generate_bound(
                 &mut counted,
@@ -2411,8 +2706,11 @@ mod tests {
                 writes_left: Some(fail_at),
                 ..Default::default()
             };
-            let mut runtime =
-                GenerationRuntime::new("A2 write refusal".into(), crate::tb02a::PROFILE, "r");
+            let mut runtime = GenerationRuntime::new(
+                "A2 write refusal".into(),
+                crate::tb02a::PROFILE,
+                crate::V3_RULE_REVISION,
+            );
             assert!(runtime
                 .generate_bound(
                     &mut store,
@@ -2465,8 +2763,11 @@ mod tests {
         let bound = fixture
             .bind(originals.view(), 0, &edits.winner_edits)
             .unwrap();
-        let mut runtime =
-            GenerationRuntime::new("A2 Owned rejection".into(), crate::tb02a::PROFILE, "r");
+        let mut runtime = GenerationRuntime::new(
+            "A2 Owned rejection".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         let mut store = SequenceTestStore::default();
         let scope = json!({});
         let error = runtime
@@ -2514,8 +2815,11 @@ mod tests {
         // 这不声称 Owned RawPrefixIndex / owner 生产签发已经接通。
         let mut index = bj::RawPrefixIndex::new(RawEventsView::plain(&events));
         let fixture = RawAdvanceFixture::new();
-        let mut runtime =
-            GenerationRuntime::new("delta raw fixture".into(), crate::tb02a::PROFILE, "r");
+        let mut runtime = GenerationRuntime::new(
+            "delta raw fixture".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         let mut store = MemoryNodes::new();
         let mut previous = 0;
         for prefix in [0, 1, 2, 4, 5, 6, 8, 8, 9, 11] {
@@ -2605,8 +2909,11 @@ mod tests {
         let mut index = bj::RawPrefixIndex::new(RawEventsView::plain(&events));
         let first = index.advance(2).unwrap();
         let fixture = RawAdvanceFixture::new();
-        let mut runtime =
-            GenerationRuntime::new("delta invalidation".into(), crate::tb02a::PROFILE, "r");
+        let mut runtime = GenerationRuntime::new(
+            "delta invalidation".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         let mut store = MemoryNodes::new();
         let bound = fixture
             .bind(RawEventsView::plain(&events[..2]), 0, &first.winner_edits)
@@ -2658,8 +2965,11 @@ mod tests {
         let bound = owner
             .bind(RawEventsView::plain(&events[..2]), 0, &changes.winner_edits)
             .unwrap();
-        let mut runtime =
-            GenerationRuntime::new("delta failure".into(), crate::tb02a::PROFILE, "r");
+        let mut runtime = GenerationRuntime::new(
+            "delta failure".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         let mut store = SequenceTestStore::default();
         store.writes_left = Some(0);
         assert!(runtime
@@ -3350,12 +3660,19 @@ mod tests {
     /// - `catalog_axes` 在限制后的对象上用 v3 那张 13 轴表重算，withdrawals/replaces 由调用方
     ///   在限制后的对象与已存身份上跑同一生产 diff 得到（旧身份空间）。目录函数本就与生产共用
     ///   （见模块头），对拍的仍是「同一批输入」；不重算就等于拿 17 轴目录对 13 轴写者。
+    /// - 投影的规则标识显式映射到历史 V3 A/B 域；不改封存库或 raw 原件。
+    ///   生产目录现在由规则域选表，保留 V2 标识会错误地给 A/B 投影选择 17 轴。
     fn restrict_oracle_to_tb02ab(
         oracle: &mut OracleGeneration,
         previous_frontier: i64,
         withdrawals: &[Value],
         replaces: &[Value],
     ) {
+        assert_eq!(
+            oracle.batch["rule_revision"],
+            crate::RULE_REVISION,
+            "A/B oracle 投影只接受真实 V2 源域"
+        );
         let objects = oracle.batch["objects"].as_array().expect("oracle objects");
         let mut segment_edges = std::collections::BTreeSet::new();
         for object in objects {
@@ -3395,6 +3712,7 @@ mod tests {
         oracle.batch["objects"] = Value::Array(kept);
         oracle.batch["relations"] = Value::Array(relations);
         oracle.batch["catalog_axes"] = axes;
+        oracle.batch["rule_revision"] = json!(crate::V3_RULE_REVISION);
     }
 
     /// 一代 oracle：封存批次原件（完整生成态）+ 同一读集的真实两账。
@@ -3475,6 +3793,7 @@ mod tests {
         prior: PriorState<'b>,
     ) -> Generated<'b> {
         let input = GenerationInput {
+            structure_prior: StructurePriors::default(),
             all_events: (&oracle.all_events).into(),
             effective: (&oracle.effective).into(),
             generation: oracle.generation,
@@ -3594,8 +3913,9 @@ mod tests {
             .collect()
     }
 
-    /// 逐字段对拍：15 项标量/数组全部来自**封存批次原件**，只有旧 `obj-`/`wit-` 身份
-    /// 按顺序映射到本域真实新身份；最后再核映射后的规范字节逐字节相等。
+    /// 逐字段对拍：先按 restrict_oracle_to_tb02ab 明示投影 A/B 对象、目录与规则域，
+    /// 再把旧 `obj-`/`wit-` 身份按顺序映射到本域真实新身份；原始两账与业务载荷不变，
+    /// 最后核映射后的规范字节逐字节相等。
     fn assert_state_matches_oracle(
         label: &str,
         store: &mut MemoryNodes,

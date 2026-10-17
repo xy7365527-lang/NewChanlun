@@ -101,11 +101,13 @@ use serde_json::{json, Value};
 /// #1405：同价/极值区裁定采用 new-bi/2；旧规则会话 AsKnown，不混两代笔对象。
 const RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2+segment-second/2";
 
-/// #1405：v3 只发布 TB-02-A/B（13 轴），新写者显式迁至新笔 /2。
-/// 历史 /1 规则仅用于读取/验证，不由新 parser 续写或回填。
-/// v2 的 TB-02-C/D（17 轴）仍由 [`RULE_REVISION`] 独立声明；按修订精确选表。
+/// #1405：历史 v3 TB-02-A/B（13 轴）域，保留读取/验证身份，不自动迁移旧库。
 const V3_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2";
 const LEGACY_V3_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/1";
+/// #1419/#1424：共享事实直接构造的 A…F 写者域（22 轴）。
+/// 笔/段沿用已裁 /2，中枢及相邻关系沿用各自 /1；历史域不得用新对象回填。
+const V3_STRUCTURE_RULE_REVISION: &str =
+    "s2-axis-quantifiers+new-bi/2+segment-second/2+center-seed/1+center-pair/1";
 
 /// S 唯一结构写者的默认 writer_epoch（可经 `--writer-epoch` / `recover` 换代）。
 const DEFAULT_WRITER_EPOCH: &str = "1";

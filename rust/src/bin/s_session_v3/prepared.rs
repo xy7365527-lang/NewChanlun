@@ -568,6 +568,7 @@ impl Runtime {
             let capture = bound_capture.ok_or_else(|| err("owner增量缺同pending原件capture"))?;
             let source_slot = bound_source.ok_or_else(|| err("owner增量缺唯一来源状态槽"))?;
             let (prior_bi, prior_version) = object_index::prior_records(&audited.objects)?;
+            let structure_prior = object_index::structure_prior_records(&audited.objects)?;
             drop(control);
             // 第一次租约只覆盖生成、对象计划与axes；结束后才能借实际tx材料。
             let (mut generated, objects, axes) = {
@@ -581,6 +582,7 @@ impl Runtime {
                     &mut store,
                     raw,
                     generation::BoundGenerationInput {
+                        structure_prior: structure_prior.borrowed(),
                         generation,
                         structure_cut: &metadata.structure_cut,
                         input_frontier: frontier,
@@ -688,7 +690,9 @@ impl Runtime {
         }
         let effective = super::business_json::effective(audited.raw.view(), None)?;
         let (prior_bi, prior_version) = object_index::prior_records(&audited.objects)?;
+        let structure_prior = object_index::structure_prior_records(&audited.objects)?;
         let input = GenerationInput {
+            structure_prior: structure_prior.borrowed(),
             all_events: audited.raw.view(),
             effective: effective.raw_view(),
             generation,

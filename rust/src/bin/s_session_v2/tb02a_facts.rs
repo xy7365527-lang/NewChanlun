@@ -910,21 +910,23 @@ fn raw_bar(raw: &Value) -> Value {
 
 /// #1394 整合 W-3：目录轴表随规则修订走——每个写者按自己发布的对象集声明目录。
 ///
-/// v3（[`crate::V3_RULE_REVISION`]）只发布 TB-02-A/B，取 13 轴（与 FIN 线逐字同口径）；
-/// v2 写者（[`crate::RULE_REVISION`]）另发布 TB-02-C/D，取 17 轴（main #1392/#1404 口径）。
-/// 两张表各对应一个规则修订、由调用方按自己的修订选定，不存在「一张判不出再换另一张」
-/// 的兜底（#799）。退场条件同 `V3_RULE_REVISION`：v3 承载 TB-02-C/D 后只剩一张表。
+/// 历史 v3 A/B 保留 13 轴，v2 C/D 保留 17 轴，新 v3 A…F 域取 22 轴。
+/// 表按原始规则身份选择；旧库不会因新代码上线而增加对象或改变 AsKnown 目录。
+/// 这些表只声明覆盖范围，不参与判据分派或失败兜底（#799）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum CatalogAxisTable {
     /// `s2-axis-quantifiers+new-bi/2`：CC-001…010、CC-054、CC-055、CC-056（13 轴）。
     NewBi,
     /// `s2-axis-quantifiers+new-bi/2+segment-second/2`：另加 CC-011…014（17 轴），含 #1420 续扫。
     SegmentSecond,
+    /// #1419/#1424：再加 CC-016/017/018/020/022，保各片真实 delivered/deferred。
+    CenterPair,
 }
 
 impl CatalogAxisTable {
     pub(super) fn for_rule_revision(rule_revision: &str) -> Option<Self> {
         match rule_revision {
+            crate::V3_STRUCTURE_RULE_REVISION => Some(Self::CenterPair),
             crate::LEGACY_V3_RULE_REVISION | crate::V3_RULE_REVISION => Some(Self::NewBi),
             "s2-axis-quantifiers+new-bi/1+segment-second/1"
             | "s2-axis-quantifiers+new-bi/1+segment-second/2"
@@ -945,6 +947,11 @@ impl CatalogAxisTable {
                 "CC-001", "CC-002", "CC-003", "CC-004", "CC-005", "CC-006", "CC-007", "CC-008",
                 "CC-009", "CC-010", "CC-011", "CC-012", "CC-013", "CC-014", "CC-054", "CC-055",
                 "CC-056",
+            ],
+            Self::CenterPair => &[
+                "CC-001", "CC-002", "CC-003", "CC-004", "CC-005", "CC-006", "CC-007", "CC-008",
+                "CC-009", "CC-010", "CC-011", "CC-012", "CC-013", "CC-014", "CC-016", "CC-017",
+                "CC-018", "CC-020", "CC-022", "CC-054", "CC-055", "CC-056",
             ],
         }
     }
@@ -977,6 +984,11 @@ pub(super) fn catalog_axes<'a>(
             "CC-011" => "CC-011.",
             "CC-012" => "CC-012.feature_sequence",
             "CC-013" | "CC-014" => "CC-013.segment",
+            "CC-016" => "CC-016.",
+            "CC-017" => "CC-017.center_roles",
+            "CC-018" => "CC-018.unit_core_position",
+            "CC-020" => "CC-020.center_pair",
+            "CC-022" => "CC-022.unit_assignment",
             "CC-055" => "CC-055.",
             // 13 轴表只有 `CC-056.version`（FIN 口径）；17 轴表另收 `CC-056.segment_version`。
             "CC-056" if table == CatalogAxisTable::NewBi => "CC-056.version",
@@ -1013,7 +1025,16 @@ pub(super) fn catalog_axes<'a>(
                 for request in k["requests"].as_array().unwrap() {
                     let key: Value =
                         serde_json::from_str(request["request_id"].as_str().unwrap()).unwrap();
-                    if key[0] == kind || key[0][0] == kind {
+                    let matches_axis = if table == CatalogAxisTable::CenterPair
+                        && key[1][2] == "structure-classification/1"
+                    {
+                        // 同一 CC-013 对象可承载 CC-013/014 的不同请求；
+                        // 新结构请求以具名请求槽中的轴归属，不能按对象种类合并。
+                        key[1][0] == axis
+                    } else {
+                        key[0] == kind || key[0][0] == kind
+                    };
+                    if matches_axis {
                         waiting.extend(request["reasons"].as_array().unwrap().clone());
                     }
                 }
@@ -1034,6 +1055,17 @@ pub(super) fn catalog_axes<'a>(
                 waiting.extend(p["data"]["waiting_reasons"].as_array().unwrap().clone());
             }
         }
+        let structure_version = match axis {
+            "CC-016" | "CC-017" | "CC-022" => Some("CC-056.center_version"),
+            "CC-018" | "CC-020" => Some("CC-056.pair_version"),
+            _ => None,
+        };
+        if let Some(version_kind) = structure_version {
+            for o in objects.iter().filter(|o| o["kind"] == version_kind) {
+                let p: Value = serde_json::from_str(o["payload_json"].as_str().unwrap()).unwrap();
+                waiting.extend(p["data"]["waiting_reasons"].as_array().unwrap().clone());
+            }
+        }
         waiting.sort_by_key(canonical_json);
         waiting.dedup();
         let mut evidence = json!({"scope":"TB-02-A","object_ids":ids,"waiting_reasons":waiting});
@@ -1046,6 +1078,16 @@ pub(super) fn catalog_axes<'a>(
             ]);
             evidence["deferred_subobligations"] =
                 json!(["general_equal_identity", "global_G006_bridge"]);
+        }
+        if matches!(axis, "CC-016" | "CC-017" | "CC-022") {
+            evidence["scope"] = json!("TB-02-E");
+            evidence["delivered_subobligations"] = json!(tb02e::DELIVERED_SUBOBLIGATIONS);
+            evidence["deferred_subobligations"] = json!(tb02e::DEFERRED_SCOPE);
+        }
+        if matches!(axis, "CC-018" | "CC-020") {
+            evidence["scope"] = json!("TB-02-F");
+            evidence["delivered_subobligations"] = json!(tb02f::DELIVERED_SUBOBLIGATIONS);
+            evidence["deferred_subobligations"] = json!(tb02f::DEFERRED_SCOPE);
         }
         let mut run = if ids.is_empty() {
             if waiting.is_empty() {
@@ -1084,7 +1126,7 @@ pub(super) fn catalog_axes<'a>(
                 .unwrap());
             evidence["replaces"] = json!(replaces);
         }
-        axes.insert(axis.into(),json!({"impl_status":if matches!(axis,"CC-012"|"CC-013"|"CC-014"){"not_implemented"}else{"implemented"},"proof_status":"not_proved","run_status":run,"evidence":evidence}));
+        axes.insert(axis.into(),json!({"impl_status":if matches!(axis,"CC-012"|"CC-013"|"CC-014"|"CC-016"|"CC-017"|"CC-018"|"CC-020"|"CC-022"){"not_implemented"}else{"implemented"},"proof_status":"not_proved","run_status":run,"evidence":evidence}));
     }
     Value::Object(axes)
 }
@@ -1125,6 +1167,114 @@ mod units_cache_tests {
         let v3 = catalog_axes(CatalogAxisTable::NewBi, &[], &raw, -1, &[], &[]);
         assert_eq!(v3.as_object().unwrap().len(), 13);
         assert!(v3.get("CC-011").is_none());
+    }
+
+    #[test]
+    fn center_pair_catalog_preserves_old_domains_and_deferred_obligations() {
+        assert_eq!(
+            CatalogAxisTable::for_rule_revision(crate::V3_STRUCTURE_RULE_REVISION),
+            Some(CatalogAxisTable::CenterPair)
+        );
+        let raw = Vec::<Value>::new();
+        let objects = vec![
+            json!({"kind":"CC-016.center", "object_id":"center-real-reference"}),
+            json!({"kind":"CC-020.center_pair", "object_id":"pair-real-reference"}),
+            json!({"kind":"CC-056.pair_version", "object_id":"pair-version",
+                "payload_json":canonical_json(&json!({"data":{"waiting_reasons":["ge9_upgrade_1429"]}}))}),
+        ];
+        let axes = catalog_axes(CatalogAxisTable::CenterPair, &objects, &raw, -1, &[], &[]);
+        assert_eq!(axes.as_object().unwrap().len(), 22);
+        assert_eq!(
+            axes["CC-016"]["evidence"]["object_ids"],
+            json!(["center-real-reference"])
+        );
+        assert_eq!(
+            axes["CC-020"]["evidence"]["object_ids"],
+            json!(["pair-real-reference"])
+        );
+        assert_eq!(
+            axes["CC-020"]["evidence"]["waiting_reasons"],
+            json!(["ge9_upgrade_1429"])
+        );
+        for axis in ["CC-016", "CC-017", "CC-022"] {
+            assert_eq!(
+                axes[axis]["evidence"]["deferred_subobligations"],
+                json!(tb02e::DEFERRED_SCOPE)
+            );
+            assert_eq!(axes[axis]["impl_status"], "not_implemented");
+        }
+        for axis in ["CC-018", "CC-020"] {
+            assert_eq!(
+                axes[axis]["evidence"]["deferred_subobligations"],
+                json!(tb02f::DEFERRED_SCOPE)
+            );
+            assert_eq!(axes[axis]["impl_status"], "not_implemented");
+        }
+        for (table, count) in [
+            (CatalogAxisTable::NewBi, 13),
+            (CatalogAxisTable::SegmentSecond, 17),
+        ] {
+            let old = catalog_axes(table, &objects, &raw, -1, &[], &[]);
+            assert_eq!(old.as_object().unwrap().len(), count);
+            assert!(old.get("CC-020").is_none());
+        }
+    }
+
+    #[test]
+    fn structure_request_reasons_follow_named_axis_not_subject_kind() {
+        let requests: Vec<Value> = [
+            (
+                "CC-011.seed",
+                "CC-011",
+                "construction_conditions",
+                "construction_pending",
+            ),
+            (
+                "CC-013.segment",
+                "CC-013",
+                "semantic_termination_result",
+                "termination_pending",
+            ),
+            (
+                "CC-013.segment",
+                "CC-014",
+                "known_fact_vector",
+                "fact_pending",
+            ),
+            (
+                "CC-016.seed_attempt",
+                "CC-016",
+                "seed_condition_vector",
+                "seed_pending",
+            ),
+        ]
+        .into_iter()
+        .map(|(kind, axis, request_axis, reason)| {
+            json!({
+                "request_id": canonical_json(&json!([
+                    [kind, ["subject-slot"]],
+                    [axis, request_axis, "structure-classification/1", [], "obj3:test-subject"]
+                ])),
+                "reasons": [reason]
+            })
+        })
+        .collect();
+        let objects = vec![json!({
+            "kind": "CC-054.knowledge_state",
+            "object_id": "knowledge-routing-fixture",
+            "payload_json": canonical_json(&json!({"requests": requests, "waiting_reasons": []}))
+        })];
+        let raw = Vec::<Value>::new();
+        let axes = catalog_axes(CatalogAxisTable::CenterPair, &objects, &raw, -1, &[], &[]);
+        for (axis, reason) in [
+            ("CC-011", "construction_pending"),
+            ("CC-013", "termination_pending"),
+            ("CC-014", "fact_pending"),
+            ("CC-016", "seed_pending"),
+        ] {
+            assert_eq!(axes[axis]["evidence"]["waiting_reasons"], json!([reason]));
+        }
+        assert_eq!(axes["CC-012"]["evidence"]["waiting_reasons"], json!([]));
     }
 
     fn entry(key: &str) -> UnitEntry {

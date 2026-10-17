@@ -118,10 +118,10 @@ const V2_INIT_FLAGS: [&str; 7] = [
     "--delivery-retain-generations",
 ];
 
-/// #1405：历史 /1 仅供 Q/AsKnown 读取；新 writer 不自动续写或恢复旧规则库。
+/// #1419/#1424：旧 A/B 及 /1 域仅供原版本读取；新 writer 不自动续写旧规则库。
 fn require_current_writer_rule(rule: &str) -> Result<(), String> {
-    if rule != V3_RULE_REVISION {
-        return Err(format!("VersionUnsupported：S3写者要求规则 {V3_RULE_REVISION}，库中规则 {rule} 只可按原版本读取"));
+    if rule != V3_STRUCTURE_RULE_REVISION {
+        return Err(format!("VersionUnsupported：S3写者要求规则 {V3_STRUCTURE_RULE_REVISION}，库中规则 {rule} 只可按原版本读取"));
     }
     Ok(())
 }
@@ -449,8 +449,8 @@ pub(super) fn init_v3(
     meta_set(&tx, "platform", std::env::consts::OS)?;
     meta_set(&tx, "writer_epoch", DEFAULT_WRITER_EPOCH)?;
     meta_set(&tx, "advance_state", "idle")?;
-    // #1394 整合 W-2：v3 只发布 TB-02-A/B，写自己的规则修订（见 `V3_RULE_REVISION`）。
-    meta_set(&tx, "rule_revision", V3_RULE_REVISION)?;
+    // #1419/#1424：只为新库声明 A…F 域，不改旧库原始规则身份。
+    meta_set(&tx, "rule_revision", V3_STRUCTURE_RULE_REVISION)?;
     meta_set(
         &tx,
         "scope",
@@ -792,6 +792,18 @@ mod tests {
 
     const OHLC_PROFILE: &str = "profiles/ohlc_integer_tb02a_v1.json";
     const CATALOG: &str = "catalog/signed-catalog.json";
+
+    #[test]
+    fn structure_writer_does_not_rewrite_historical_rule_domains() {
+        assert!(require_current_writer_rule(V3_STRUCTURE_RULE_REVISION).is_ok());
+        for historical in [V3_RULE_REVISION, LEGACY_V3_RULE_REVISION, RULE_REVISION] {
+            assert!(require_current_writer_rule(historical)
+                .unwrap_err()
+                .starts_with("VersionUnsupported"));
+            assert!(tb02a_facts::CatalogAxisTable::for_rule_revision(historical).is_some());
+        }
+        assert!(tb02b::contract_for_rule(V3_STRUCTURE_RULE_REVISION).is_some());
+    }
 
     struct Temp(PathBuf);
 

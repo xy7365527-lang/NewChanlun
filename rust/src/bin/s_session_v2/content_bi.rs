@@ -137,7 +137,7 @@ fn coord_i64(coord: usize) -> Result<i64, BiError> {
 /// **历史插入**各计一次；普通尾部追加不计。每次**全扫** `all_events`。
 ///
 /// 这是生产实现；`tb02b::fact_basis` 只是冻结测试 oracle（旧模块不再进生产路径）。
-fn fact_generation(all_events: ArrayView<'_>) -> Result<i64, BiError> {
+pub(super) fn fact_generation(all_events: ArrayView<'_>) -> Result<i64, BiError> {
     let mut max_coord = i64::MIN;
     let mut generation: i64 = 1;
     for event in all_events.iter() {
@@ -1184,7 +1184,7 @@ impl ContentBi {
         let known = sc::write_value(
             &mut *store,
             &known_value(
-                &ledger,
+                input.raw,
                 input.generation,
                 input.frontier,
                 input.semantic_commit_ns.as_deref(),
@@ -1715,12 +1715,13 @@ fn slot_of(parts: &[&str]) -> Value {
 }
 
 /// 已知时间对象（`known_at`；有界标量小对象，同一代共用同一个根）。
-fn known_value(
-    ledger: &Ledger<'_>,
+pub(super) fn known_value(
+    raw: BiLedgerView<'_>,
     generation: i64,
     frontier: i64,
     semantic_commit_ns: Option<&str>,
 ) -> Result<CValue, BiError> {
+    let ledger = Ledger { rows: raw };
     let latest = ledger.latest();
     let receipt = latest
         .and_then(|row| row.get("receipt_id").and_then(JsonView::as_str))

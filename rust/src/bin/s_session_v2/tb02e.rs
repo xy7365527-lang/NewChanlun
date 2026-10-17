@@ -93,28 +93,128 @@ fn wire_int(v: &Value, name: &str) -> Result<i64, String> {
         .ok_or_else(|| format!("TB02E_INPUT_CONTRACT：CC-013 字段 {name} 不是十进制文本"))
 }
 
-/// 完成段成员笔的方向极值：`stroke_refs` 中下标属于 `construction.stroke_indices` 的笔，取全部笔端价的
-/// `[min, max]`（schema v1.3 §1）。成员笔缺 `stroke_refs` 条目 ⟹ 输入合同失败。
-fn member_stroke_extremes(d: &Value) -> Result<(i64, i64), String> {
-    let members = d["construction"]["stroke_indices"]
-        .as_array()
-        .ok_or("TB02E_INPUT_CONTRACT：CC-013 缺 construction.stroke_indices")?;
+/// CC-013 的成员笔价格事实；新内容投影直接从同次笔事实填入，不经过 JSON。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct SegmentStrokePrices {
+    pub(super) stroke_index: i64,
+    pub(super) start_price: i64,
+    pub(super) end_price: i64,
+}
+
+/// 完成段的原始合同事实。区间必须由成员笔重新归约，不能让适配器传入预先算出的 lo/hi。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct CompletedSegmentUnit {
+    pub(super) end_stroke: i64,
+    pub(super) start_price: i64,
+    pub(super) end_price: i64,
+    pub(super) member_stroke_indices: Vec<i64>,
+    pub(super) stroke_refs: Vec<SegmentStrokePrices>,
+}
+
+/// 同 cut 段事实适配行。身份和来源由实际生产者交付，本核不生成或重写它们。
+/// `completed=None` 表示进行中候选，仍参与排序和连续性检查。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct SegmentUnitRow {
+    pub(super) unit_id: String,
+    pub(super) object_id: String,
+    pub(super) start_stroke: i64,
+    pub(super) direction: String,
+    pub(super) sources: Vec<usize>,
+    pub(super) completed: Option<CompletedSegmentUnit>,
+}
+
+/// 完成段成员笔的方向极值（schema v1.3 §1）；忽略 observed_through 范围内的非成员笔。
+fn member_stroke_extremes(d: &CompletedSegmentUnit) -> Result<(i64, i64), String> {
     let mut extremes: Option<(i64, i64)> = None;
-    for m in members {
-        let r = d["stroke_refs"]
-            .as_array()
-            .and_then(|refs| refs.iter().find(|r| r["stroke_index"] == *m))
+    for m in &d.member_stroke_indices {
+        let r = d
+            .stroke_refs
+            .iter()
+            .find(|r| r.stroke_index == *m)
             .ok_or_else(|| {
                 format!("TB02E_INPUT_CONTRACT：成员笔 {m} 不在 CC-013 stroke_refs 中")
             })?;
-        let (s, e) = (
-            wire_int(&r["start_price"], "stroke_refs.start_price")?,
-            wire_int(&r["end_price"], "stroke_refs.end_price")?,
-        );
+        let (s, e) = (r.start_price, r.end_price);
         let (lo, hi) = extremes.unwrap_or((s.min(e), s.max(e)));
         extremes = Some((lo.min(s).min(e), hi.max(s).max(e)));
     }
     extremes.ok_or_else(|| "TB02E_INPUT_CONTRACT：完成段没有成员笔".to_string())
+}
+
+/// 旧 JSON 仅作字段适配；所有单元判据共用 typed 合同核。
+fn segment_rows_from_json(segment_objects: &[Value]) -> Result<Vec<SegmentUnitRow>, String> {
+    segment_objects
+        .iter()
+        .filter(|o| o["kind"] == "CC-013.segment")
+        .map(|o| {
+            let d = payload_of(o)["data"].clone();
+            let completed = if matches!(d["result"].as_str(), Some("CASE_ONE" | "CASE_TWO")) {
+                let start_price = wire_int(
+                    &d["stroke_refs"][0]["start_price"],
+                    "stroke_refs[0].start_price",
+                )?;
+                let end_price = wire_int(&d["geometric_end"]["price"], "geometric_end.price")?;
+                let end_stroke = wire_int(
+                    &d["geometric_end"]["stroke_index"],
+                    "geometric_end.stroke_index",
+                )?;
+                let members = d["construction"]["stroke_indices"]
+                    .as_array()
+                    .ok_or("TB02E_INPUT_CONTRACT：CC-013 缺 construction.stroke_indices")?;
+                let mut member_stroke_indices = Vec::with_capacity(members.len());
+                let mut stroke_refs = Vec::with_capacity(members.len());
+                for m in members {
+                    let stroke_index = wire_int(m, "construction.stroke_indices")?;
+                    member_stroke_indices.push(stroke_index);
+                    // 仍按原 wire 索引匹配，不能把非成员笔的价格当作成员极值。
+                    let r = d["stroke_refs"]
+                        .as_array()
+                        .and_then(|refs| refs.iter().find(|r| r["stroke_index"] == *m))
+                        .ok_or_else(|| {
+                            format!("TB02E_INPUT_CONTRACT：成员笔 {m} 不在 CC-013 stroke_refs 中")
+                        })?;
+                    stroke_refs.push(SegmentStrokePrices {
+                        stroke_index,
+                        start_price: wire_int(&r["start_price"], "stroke_refs.start_price")?,
+                        end_price: wire_int(&r["end_price"], "stroke_refs.end_price")?,
+                    });
+                }
+                Some(CompletedSegmentUnit {
+                    end_stroke,
+                    start_price,
+                    end_price,
+                    member_stroke_indices,
+                    stroke_refs,
+                })
+            } else {
+                None
+            };
+            let sources: Vec<String> =
+                serde_json::from_str(o["source_coords_json"].as_str().unwrap_or("[]"))
+                    .map_err(|e| format!("TB02E_INPUT_CONTRACT：CC-013 来源坐标不可读：{e}"))?;
+            Ok(SegmentUnitRow {
+                unit_id: d["entity_id"].as_str().unwrap_or_default().to_string(),
+                object_id: o["object_id"].as_str().unwrap_or_default().to_string(),
+                start_stroke: wire_int(
+                    &d["construction"]["start_stroke"],
+                    "construction.start_stroke",
+                )?,
+                direction: d["construction"]["direction"]
+                    .as_str()
+                    .unwrap_or("")
+                    .to_string(),
+                sources: sources.iter().filter_map(|s| s.parse().ok()).collect(),
+                completed,
+            })
+        })
+        .collect()
+}
+
+pub(super) fn units_from_segments(
+    segment_objects: &[Value],
+    layer_segments: &[Segment],
+) -> Result<UnitInputs, String> {
+    units_from_segment_rows(segment_rows_from_json(segment_objects)?, layer_segments)
 }
 
 /// 输入合同（schema v1.3 §1）：同 cut `CC-013.segment` 按起笔排序，除末个外都须完成且首尾相连；完成单元的
@@ -124,8 +224,8 @@ fn member_stroke_extremes(d: &Value) -> Result<(i64, i64), String> {
 /// 塔经 `make_segment` 取的是成员笔极值（`078:58`／`:60` 标准化；根裁定 `ROOT-RULING-1419-L3`，#804 同一判定只有一个
 /// 输入值）。也不取全部 `stroke_refs`：它延伸到 observed_through，会越过段端。任一不符 ⟹
 /// `Err(TB02E_INPUT_CONTRACT 收据)`，收据逐条列 `{check, position, expected, actual}`（根裁定 D-J 第 5 点）。
-pub(super) fn units_from_segments(
-    segment_objects: &[Value],
+pub(super) fn units_from_segment_rows(
+    segment_rows: Vec<SegmentUnitRow>,
     layer_segments: &[Segment],
 ) -> Result<UnitInputs, String> {
     struct Row {
@@ -141,47 +241,34 @@ pub(super) fn units_from_segments(
         sources: Vec<usize>,
     }
     let mut rows = vec![];
-    for o in segment_objects
-        .iter()
-        .filter(|o| o["kind"] == "CC-013.segment")
-    {
-        let d = payload_of(o)["data"].clone();
-        let completed = matches!(d["result"].as_str(), Some("CASE_ONE" | "CASE_TWO"));
-        let (lo, hi, end_stroke, price_direction) = if completed {
-            let a = wire_int(
-                &d["stroke_refs"][0]["start_price"],
-                "stroke_refs[0].start_price",
-            )?;
-            let b = wire_int(&d["geometric_end"]["price"], "geometric_end.price")?;
-            let end = wire_int(
-                &d["geometric_end"]["stroke_index"],
-                "geometric_end.stroke_index",
-            )?;
-            let (lo, hi) = member_stroke_extremes(&d)?;
-            (lo, hi, Some(end), if b > a { "UP" } else { "DOWN" })
-        } else {
-            (0, 0, None, "")
+    for r in segment_rows {
+        let (lo, hi, end_stroke, price_direction) = match &r.completed {
+            Some(c) => {
+                let (lo, hi) = member_stroke_extremes(c)?;
+                (
+                    lo,
+                    hi,
+                    Some(c.end_stroke),
+                    if c.end_price > c.start_price {
+                        "UP"
+                    } else {
+                        "DOWN"
+                    },
+                )
+            }
+            None => (0, 0, None, ""),
         };
-        let sources: Vec<String> =
-            serde_json::from_str(o["source_coords_json"].as_str().unwrap_or("[]"))
-                .map_err(|e| format!("TB02E_INPUT_CONTRACT：CC-013 来源坐标不可读：{e}"))?;
         rows.push(Row {
-            unit_id: d["entity_id"].as_str().unwrap_or_default().to_string(),
-            object_id: o["object_id"].as_str().unwrap_or_default().to_string(),
-            start_stroke: wire_int(
-                &d["construction"]["start_stroke"],
-                "construction.start_stroke",
-            )?,
+            unit_id: r.unit_id,
+            object_id: r.object_id,
+            start_stroke: r.start_stroke,
             end_stroke,
-            completed,
+            completed: r.completed.is_some(),
             lo,
             hi,
-            direction: d["construction"]["direction"]
-                .as_str()
-                .unwrap_or("")
-                .to_string(),
+            direction: r.direction,
             price_direction,
-            sources: sources.iter().filter_map(|s| s.parse().ok()).collect(),
+            sources: r.sources,
         });
     }
     rows.sort_by_key(|r| r.start_stroke);
@@ -1198,6 +1285,133 @@ mod tests {
         );
     }
 
+    /// typed 入口独立供给同次事实：非成员笔极值不得泄入，真实身份/来源与进行中单元保持不变。
+    fn typed_contract_rows() -> (Vec<SegmentUnitRow>, Vec<Segment>) {
+        let rows = vec![
+            SegmentUnitRow {
+                unit_id: "segment:7:12".into(),
+                object_id: "obj3-completed".into(),
+                start_stroke: 4,
+                direction: "UP".into(),
+                sources: vec![12, 19, 23],
+                completed: Some(CompletedSegmentUnit {
+                    end_stroke: 6,
+                    start_price: 3,
+                    end_price: 18,
+                    member_stroke_indices: vec![4, 5, 6],
+                    stroke_refs: vec![
+                        SegmentStrokePrices {
+                            stroke_index: 4,
+                            start_price: 3,
+                            end_price: 20,
+                        },
+                        SegmentStrokePrices {
+                            stroke_index: 5,
+                            start_price: 20,
+                            end_price: 0,
+                        },
+                        SegmentStrokePrices {
+                            stroke_index: 6,
+                            start_price: 0,
+                            end_price: 18,
+                        },
+                        SegmentStrokePrices {
+                            stroke_index: 7,
+                            start_price: 18,
+                            end_price: -500,
+                        },
+                    ],
+                }),
+            },
+            SegmentUnitRow {
+                unit_id: "segment:7:24".into(),
+                object_id: "obj3-progress".into(),
+                start_stroke: 7,
+                direction: "DOWN".into(),
+                sources: vec![24, 28],
+                completed: None,
+            },
+        ];
+        let segments = vec![Segment {
+            direction: Direction::Up,
+            start_index: 12,
+            end_index: 23,
+            start_price: 0,
+            end_price: 20,
+        }];
+        (rows, segments)
+    }
+
+    #[test]
+    fn tb02e_typed_units_preserve_member_extremes_identity_sources_and_progress() {
+        let (mut rows, segments) = typed_contract_rows();
+        rows.reverse(); // 与 JSON 入口同样按起笔恢复候选顺序。
+        let inputs = units_from_segment_rows(rows, &segments).unwrap();
+        assert_eq!(inputs.completed.len(), 1);
+        let completed = &inputs.completed[0];
+        assert_eq!(completed.unit_id, "segment:7:12");
+        assert_eq!(completed.object_id, "obj3-completed");
+        assert_eq!(completed.sources, vec![12, 19, 23]);
+        assert_eq!(
+            completed.range,
+            Some(UnitRange {
+                start_index: 12,
+                end_index: 23,
+                lo: 0,
+                hi: 20,
+                direction: Direction::Up
+            })
+        );
+        let developing = inputs.in_progress.unwrap();
+        assert_eq!(developing.unit_id, "segment:7:24");
+        assert_eq!(developing.object_id, "obj3-progress");
+        assert_eq!(developing.sources, vec![24, 28]);
+        assert_eq!(developing.range, None);
+    }
+
+    #[test]
+    fn tb02e_typed_units_reject_missing_members_and_preserve_contract_guards() {
+        let (rows, segments) = typed_contract_rows();
+        let mut missing = rows.clone();
+        missing[0].completed.as_mut().unwrap().stroke_refs.remove(1);
+        assert!(units_from_segment_rows(missing, &segments)
+            .unwrap_err()
+            .contains("成员笔 5"));
+        let mut empty = rows.clone();
+        empty[0]
+            .completed
+            .as_mut()
+            .unwrap()
+            .member_stroke_indices
+            .clear();
+        assert!(units_from_segment_rows(empty, &segments)
+            .unwrap_err()
+            .contains("没有成员笔"));
+        let mut direction = rows.clone();
+        direction[0].direction = "DOWN".into();
+        assert!(units_from_segment_rows(direction, &segments)
+            .unwrap_err()
+            .contains("direction"));
+        let mut contiguity = rows.clone();
+        contiguity[1].start_stroke = 8;
+        assert!(units_from_segment_rows(contiguity, &segments)
+            .unwrap_err()
+            .contains("contiguity"));
+        let mut interior = rows.clone();
+        interior[1].start_stroke = 0;
+        assert!(units_from_segment_rows(interior, &segments)
+            .unwrap_err()
+            .contains("interior_incomplete"));
+        let mut extrema = rows.clone();
+        extrema[0].completed.as_mut().unwrap().stroke_refs[1].start_price = 21;
+        assert!(units_from_segment_rows(extrema, &segments)
+            .unwrap_err()
+            .contains("hi"));
+        assert!(units_from_segment_rows(rows, &[])
+            .unwrap_err()
+            .contains("count"));
+    }
+
     /// 输入合同（D-J 第 5 点）：同次 parser 真实段对象在全部冻结 raw 前缀上都满足合同（非真空：有完成单元的前缀
     /// 计数 > 0）；注入塔侧区间不符 ⟹ Err，收据逐条列 check/position/expected/actual。
     #[test]
@@ -1225,10 +1439,13 @@ mod tests {
                             untradable: false,
                         })
                         .collect();
-                    let (layer, facts) =
-                        newchan_rust::theta_v0::parser::parse_layer_with_inclusion_facts(
+                    let (layer, facts, second_store) =
+                        newchan_rust::theta_v0::parser::parse_layer_with_inclusion_facts_store(
                             &bars,
                             &ThetaConfig::default(),
+                            newchan_rust::theta_v0::parser::second_fold::SecondFoldStore::new(
+                                tb02c::round_budget(),
+                            ),
                         );
                     let raw: BTreeMap<i64, Value> = (0..count as i64).map(|i| (i, json!({
                         "identity_key":format!("raw-{i}"),"payload_hash":"h","receipt_id":format!("receipt-{i}"),"event_id":format!("bar-{i}"),
@@ -1243,7 +1460,9 @@ mod tests {
                         &format!("cut-{count}"),
                         count as i64 - 1,
                         None,
-                    );
+                        &second_store,
+                    )
+                    .unwrap_or_else(|e| panic!("{name} 前缀 {count} 段构造失败：{e}"));
                     let inputs = units_from_segments(&segments, &layer.segments)
                         .unwrap_or_else(|e| panic!("{name} 前缀 {count}：{e}"));
                     if !inputs.completed.is_empty() {
