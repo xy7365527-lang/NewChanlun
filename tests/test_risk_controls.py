@@ -125,6 +125,34 @@ class TestNetPositionLimit:
         assert v.reason == "net_position_over_limit"
 
 
+class TestLeverageAndShortGuards:
+    def test_leverage_over_limit_rejected(self):
+        gate = RiskGate(RiskLimits(max_single_order_frac=1.0, max_leverage=0.5))
+        verdict = gate.check(_intent("BUY", 0.75, 100.0), now_ns=T0,
+                             equity=100.0, net_position_notional=0.0)
+        assert verdict.action is RiskVerdictAction.REJECT
+        assert verdict.reason == "leverage_over_limit"
+
+    def test_short_entry_rejected_when_disabled(self):
+        gate = RiskGate(RiskLimits(max_single_order_frac=1.0, allow_short=False))
+        verdict = gate.check(_intent("SELL", 0.5, 100.0), now_ns=T0,
+                             equity=100.0, net_position_notional=0.0)
+        assert verdict.action is RiskVerdictAction.REJECT
+        assert verdict.reason == "short_not_allowed"
+
+    def test_sell_can_reduce_existing_long_when_short_disabled(self):
+        gate = RiskGate(RiskLimits(max_single_order_frac=1.0, allow_short=False))
+        verdict = gate.check(_intent("SELL", 0.5, 100.0), now_ns=T0,
+                             equity=100.0, net_position_notional=50.0)
+        assert verdict.allowed
+
+    def test_sell_crossing_below_zero_rejected_when_short_disabled(self):
+        gate = RiskGate(RiskLimits(max_single_order_frac=1.0, allow_short=False))
+        verdict = gate.check(_intent("SELL", 0.75, 100.0), now_ns=T0,
+                             equity=100.0, net_position_notional=50.0)
+        assert verdict.reason == "short_not_allowed"
+
+
 class TestFrequencyCircuitBreaker:
     """频率熔断（#1283 Q3 ③）：滚动窗口内下单次数上限。"""
 
@@ -235,6 +263,8 @@ class TestFailSafe:
             RiskLimits(max_orders_per_window=0)
         with pytest.raises(ValueError):
             RiskLimits(rate_window_ns=0)
+        with pytest.raises(ValueError):
+            RiskLimits(max_leverage=0)
 
     def test_signed_notional_sign(self):
         assert _intent("BUY", 2.0, 100.0).signed_notional == pytest.approx(+200.0)

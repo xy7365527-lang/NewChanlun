@@ -59,6 +59,8 @@ class RiskLimits:
     max_net_position_frac: float = 1.0    # 净持仓名义 ≤ 1× 权益（占位，对齐 γ=1.0）
     max_orders_per_window: int = 10       # 频率熔断：窗口内下单次数上限（占位）
     rate_window_ns: int = 10 * NANOS_PER_SEC  # 频率窗口 10s（占位）
+    max_leverage: float | None = None  # 可选独立杠杆上限（名义/权益）
+    allow_short: bool = True  # 生产策略可显式禁止开空
 
     def __post_init__(self) -> None:
         if not (0.0 < self.max_single_order_frac <= 1.0):
@@ -75,6 +77,8 @@ class RiskLimits:
             )
         if self.rate_window_ns <= 0:
             raise ValueError(f"rate_window_ns 须 >0: {self.rate_window_ns}")
+        if self.max_leverage is not None and self.max_leverage <= 0:
+            raise ValueError(f"max_leverage 须 >0: {self.max_leverage}")
 
 
 @dataclass(frozen=True)
@@ -209,7 +213,11 @@ class RiskGate:
                 reason="frequency_circuit_breaker",
             )
 
-        # 2. 单笔上限
+        # 2. 禁止做空（独立于净敞口上限，便于审计拒绝原因）
+        if intent.side == "SELL" and not self._limits.allow_short and net_position_notional + intent.signed_notional < 0:
+            return RiskVerdict(False, RiskVerdictAction.REJECT, "short_not_allowed")
+
+        # 3. 单笔上限
         if equity <= 0:
             return RiskVerdict(
                 allowed=False,
@@ -226,7 +234,11 @@ class RiskGate:
                 reason="single_order_over_limit",
             )
 
-        # 3. 净持仓上限
+        # 4. 独立杠杆上限（若配置；按本单名义/权益）
+        if self._limits.max_leverage is not None and notional / equity > self._limits.max_leverage:
+            return RiskVerdict(False, RiskVerdictAction.REJECT, "leverage_over_limit")
+
+        # 5. 净持仓上限
         new_net = net_position_notional + intent.signed_notional
         net_limit = equity * self._limits.max_net_position_frac
         if abs(new_net) > net_limit:
