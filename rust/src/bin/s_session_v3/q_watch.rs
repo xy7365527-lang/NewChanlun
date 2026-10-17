@@ -199,8 +199,11 @@ pub(super) fn cursor_at(
     if matches!(current.wire, JsonOwner::Owned(_)) {
         return Err(err("旧cursor_at仅支持None投影"));
     }
+    if matches!(&current.wire, JsonOwner::Plain(value) if value.is_native_admitted()) {
+        return Err(err("旧cursor_at不可复制Native投影为无scope值"));
+    }
     match cursor_at_with_budget(current, cuts, generation, None)? {
-        JsonOwner::Plain(v) => Ok(v),
+        JsonOwner::Plain(v) => v.into_unscoped(),
         #[cfg(feature = "s_allocation_json_testonly")]
         JsonOwner::Owned(_) => Err(err("None cursor不能擦除Owned")),
     }
@@ -269,7 +272,7 @@ impl Source<'_, '_> {
                     } else {
                         let mut bytes = Vec::new();
                         sc::render_canonical(&mut source, &field, &mut bytes).map_err(err)?;
-                        JsonOwner::Plain(strict_json(&bytes)?)
+                        JsonOwner::Plain(strict_json(&bytes)?.into())
                     }
                 }
                 Self::Actual(g) => {

@@ -25,8 +25,7 @@ fn fields_bytes(fields: &SourceFields<'_>, _names: &[&str]) -> usize {
 fn coords_bytes(coords: &SourceCoords) -> usize {
     match coords {
         SourceCoords::Original(v) => v.capacity().saturating_mul(std::mem::size_of::<i64>()),
-        SourceCoords::Shared(v) => (2 * std::mem::size_of::<usize>())
-            .saturating_add(v.len().saturating_mul(std::mem::size_of::<i64>())),
+        SourceCoords::Shared(v) => v.allocation_bytes(),
     }
 }
 impl Retained for Shape {

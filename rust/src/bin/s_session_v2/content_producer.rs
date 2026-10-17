@@ -623,6 +623,20 @@ pub(super) struct Cc004Producer {
     delta_epoch: Option<u64>,
 }
 
+/// #1488 来源身份核只借用 producer 的只读方法；初始化载荷先销毁，再归还原许可。
+/// 此壳不提供可变入口，也不声称覆盖可变生产构造器随后建立的缓存。
+pub(super) struct SourceIdentityProducer {
+    inner: Cc004Producer,
+    _initial: Option<sc::capture_allocation::scratch::NativeReservation>,
+}
+
+impl std::ops::Deref for SourceIdentityProducer {
+    type Target = Cc004Producer;
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
 #[cfg(test)]
 /// 测试/测量面读数（不参与任何判据）。
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -650,6 +664,28 @@ pub(super) struct MemoCounts {
 }
 
 impl Cc004Producer {
+    pub(super) fn for_source_audit(
+        profile_id: &str,
+        rule_revision: &str,
+        work: Option<&sc::capture_allocation::scratch::WorkScope>,
+    ) -> Result<SourceIdentityProducer, CodecError> {
+        let bytes = profile_id
+            .len()
+            .checked_add(rule_revision.len())
+            .and_then(|n| n.checked_add(2 * std::mem::size_of::<[usize; 2]>()))
+            .ok_or_else(|| {
+                work.map_or_else(
+                    || CodecError::new(sc::capture_allocation::LIMIT, "Native容量溢出"),
+                    |w| w.reject(sc::capture_allocation::scratch::ScratchFailure::Budget),
+                )
+            })?;
+        let permit = work.map(|w| w.reserve_native(bytes)).transpose()?;
+        Ok(SourceIdentityProducer {
+            inner: Self::new(profile_id, rule_revision),
+            _initial: permit,
+        })
+    }
+
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn visit_runtime_roots(&self, f: &mut dyn FnMut(&'static str, NodeDigest)) {
         for (_, root) in self.sources.values() {

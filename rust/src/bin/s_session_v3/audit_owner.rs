@@ -45,13 +45,81 @@ mod construction_set;
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) use construction_set::{Edit, OwnerSourceCheck, SequenceDelta, SourceArray};
 #[cfg(feature = "s_capture_native_testonly")]
-pub(crate) use effects::{MaterialAccess, SourceCutBinding, SourceMaterial, StageKind};
+pub(crate) use effects::{
+    MaterialAccess, PublicationStageIdentity, SourceCutBinding, SourceMaterial, StageKind,
+};
 #[path = "construction_state.rs"]
 mod construction_state;
 pub(crate) use super::business_json::{RawWinner, RawWinnerEdit};
 #[cfg(test)]
 pub(crate) use construction_state::RawAdvanceFixture;
 pub(crate) use construction_state::{BoundRawAdvance, RawAdvanceBinding, RawDomain};
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+thread_local! {
+    static PUBLICATION_SCOPE_TRACE: std::cell::RefCell<Vec<(&'static str, usize)>> = const { std::cell::RefCell::new(Vec::new()) };
+    static PUBLICATION_TAIL_FAILURE: Cell<bool> = const { Cell::new(false) };
+}
+/// #1488：唯一 publication 父资源。绝不持有 journal 强引用。
+#[cfg(feature = "s_capture_native_testonly")]
+struct PublicationResources {
+    budget: native::Budget,
+    parent_limit: usize,
+    before: SnapshotSeal,
+    connection: usize,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) struct PublicationScope<'w> {
+    resources: &'w PublicationResources,
+    work: &'w newchan_rust::s_content::capture_allocation::scratch::WorkScope,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl<'w> PublicationScope<'w> {
+    pub(crate) fn work(
+        &self,
+    ) -> &'w newchan_rust::s_content::capture_allocation::scratch::WorkScope {
+        self.work
+    }
+    pub(crate) fn identity(&self) -> [u64; 3] {
+        let s = self.resources.before;
+        [s.life, s.transaction_id, s.write_sequence]
+    }
+    pub(crate) fn check_transaction(&self, tx: &Transaction<'_>) -> Result<(), String> {
+        if tx.is_autocommit() || self.resources.connection != unsafe { tx.handle() } as usize {
+            return Err(construction_state::stale("publication资源跨事务或已终结"));
+        }
+        Ok(())
+    }
+    #[cfg(test)]
+    pub(crate) fn stage_identity(
+        &self,
+        tx: &Transaction<'_>,
+    ) -> Result<PublicationStageIdentity, String> {
+        effects::publication_stage_identity(tx, self)
+    }
+    #[cfg(test)]
+    fn trace(&self, phase: &'static str) {
+        PUBLICATION_SCOPE_TRACE.with(|trace| {
+            trace
+                .borrow_mut()
+                .push((phase, self.work as *const _ as usize))
+        });
+    }
+    fn budget(&self) -> &native::Budget {
+        &self.resources.budget
+    }
+    fn remaining(&self) -> usize {
+        self.resources
+            .parent_limit
+            .saturating_sub(self.resources.budget.live())
+    }
+}
+#[cfg(feature = "s_capture_native_testonly")]
+struct ConstructionRun<T> {
+    value: T,
+    before: SnapshotSeal,
+    after: SnapshotSeal,
+}
 
 pub(crate) struct BoundOriginals {
     _private: (),
@@ -91,6 +159,8 @@ pub(super) struct PublishPhase<'a, 'db> {
     capture: Option<&'a mut newchan_rust::s_content::AuditCapture>,
     #[cfg(feature = "s_capture_native_testonly")]
     source: Option<&'a mut Option<source_audit::NativeSourceState>>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    publication: Option<&'a PublicationScope<'a>>,
 }
 impl PublishPhase<'_, '_> {
     pub(super) fn publish(
@@ -110,6 +180,7 @@ impl PublishPhase<'_, '_> {
             self.raw.as_ref(),
             self.capture,
             self.source,
+            self.publication,
         );
         #[cfg(not(feature = "s_capture_native_testonly"))]
         runtime.publish_impl(self.transaction, token, envelope, Some(context))
@@ -134,6 +205,8 @@ struct AuditTxn<'a> {
     recording: std::cell::RefCell<Option<effects::Recording>>,
     #[cfg(feature = "s_capture_native_testonly")]
     effect_limit: Cell<usize>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    publication_issued: Cell<bool>,
 }
 
 pub(super) enum Admission {
@@ -228,6 +301,8 @@ impl AuditConnection {
             recording: Default::default(),
             #[cfg(feature = "s_capture_native_testonly")]
             effect_limit: Cell::new(0),
+            #[cfg(feature = "s_capture_native_testonly")]
+            publication_issued: Cell::new(false),
         };
         // COUNT(*) 确实访问 main.meta Btree；SELECT 1/只读 PRAGMA 不能替代此步。
         let _: i64 = active
@@ -511,74 +586,68 @@ impl AuditConnection {
             // 固定 phase 覆盖 Runtime 内全部 node/stage/非节点/发布写；无裸 SQL 能力外借。
             active.bind_existing(Some(context))?;
             #[cfg(feature = "s_capture_native_testonly")]
-            let issued = if active.complete.borrow().is_some() && context.source_cache_enabled() {
-                Some(active.with_bound_raw_advance(context, |token| Ok(token.into_issued()))?)
+            let resources = if active.complete.borrow().is_some() && context.source_cache_enabled()
+            {
+                Some(active.issue_publication_resources(context)?)
             } else {
                 None
             };
-            active.before_fixed_write(FixedOperation::Publish, Some(context))?;
             #[cfg(feature = "s_capture_native_testonly")]
-            let has_raw = issued.is_some();
-            #[cfg(feature = "s_capture_native_testonly")]
-            let mut source = active
-                .construction
-                .borrow_mut()
-                .as_mut()
-                .and_then(|s| s.take_source());
-            #[cfg(feature = "s_capture_native_testonly")]
-            let mut pending = active.pending.borrow_mut();
-            #[cfg(feature = "s_capture_native_testonly")]
-            let (audited, capture) = match pending.as_mut() {
-                Some(candidate) => (Some(&candidate.audited), candidate.capture.as_mut()),
-                None => (None, None),
-            };
-            let phase = PublishPhase {
-                transaction: active.transaction.as_mut().unwrap(),
-                #[cfg(feature = "s_capture_native_testonly")]
-                audited,
-                #[cfg(feature = "s_capture_native_testonly")]
-                capture,
-                #[cfg(feature = "s_capture_native_testonly")]
-                source: if has_raw { Some(&mut source) } else { None },
-                #[cfg(feature = "s_capture_native_testonly")]
-                raw: issued
-                    .map(|issued| {
-                        let audited = audited.ok_or_else(|| {
-                            construction_state::stale("写前raw签发丢失同一pending原件")
-                        })?;
-                        issued.bind(audited.raw.view(), &self.construction_lease)
+            let (receipt, checked) = if let Some(resources) = resources {
+                let before = resources.before;
+                let work = resources
+                    .budget
+                    .codec_work()
+                    .map_err(|_| construction_state::stale("publication父工作域额度不足"))?;
+                let (receipt, after) = work
+                    .run(|work| {
+                        let parent = PublicationScope {
+                            resources: &resources,
+                            work,
+                        };
+                        let receipt = self.publish_body(
+                            &mut active,
+                            runtime,
+                            token,
+                            envelope,
+                            context,
+                            Some(&parent),
+                        )?;
+                        let after = active.construction_seal()?;
+                        active.check_publication_transition(before, after)?;
+                        #[cfg(test)]
+                        {
+                            parent.trace("tail");
+                            if PUBLICATION_TAIL_FAILURE.with(|flag| flag.replace(false)) {
+                                let _ = parent.work().reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger);
+                            }
+                        }
+                        Ok::<_, String>((receipt, after))
                     })
-                    .transpose()?,
+                    .map_err(|e| match native::Failure::from(e) {
+                        native::Failure::Invalid(e) => e,
+                        native::Failure::BudgetExceeded => {
+                            construction_state::stale("publication父工作域尾检失败")
+                        }
+                    })?;
+                let checked = ConstructionRun {
+                    value: (),
+                    before,
+                    after,
+                };
+                (receipt, Some(checked))
+            } else {
+                (
+                    self.publish_body(&mut active, runtime, token, envelope, context, None)?,
+                    None,
+                )
             };
-            let receipt = runtime.publish_in_owner(phase, token, envelope, context)?;
+            #[cfg(not(feature = "s_capture_native_testonly"))]
+            let receipt = self.publish_body(&mut active, runtime, token, envelope, context)?;
             #[cfg(feature = "s_capture_native_testonly")]
-            if has_raw {
-                let source = source
-                    .ok_or_else(|| construction_state::stale("正式来源核未回交pending状态"))?;
-                let growth = active
-                    .construction
-                    .borrow_mut()
-                    .as_mut()
-                    .ok_or_else(|| construction_state::stale("来源回交丢失raw owner"))?
-                    .install_source(source)?;
-                active.effect_limit.set(
-                    active
-                        .effect_limit
-                        .get()
-                        .checked_sub(growth)
-                        .ok_or_else(|| construction_state::stale("来源新增保留费超过工作帽"))?,
-                );
+            if let Some(checked) = checked {
+                active.check_publication_run(checked)?;
             }
-            #[cfg(feature = "s_capture_native_testonly")]
-            if let Some(candidate) = pending.as_mut() {
-                candidate.refresh_capture_charge()?;
-                if candidate.charge.total >= active.effect_limit.get() {
-                    return Err(construction_state::stale("来源原件/证明保留账超过效果帽"));
-                }
-            }
-            #[cfg(feature = "s_capture_native_testonly")]
-            drop(pending);
-            active.finish_fixed_write()?;
             let ended = active.commit_publication()?;
             Ok((receipt, ended))
         })();
@@ -587,6 +656,104 @@ impl AuditConnection {
             drop(context.take());
         }
         result
+    }
+
+    fn publish_body(
+        &self,
+        active: &mut AuditTxn<'_>,
+        runtime: &mut prepared::Runtime,
+        token: &str,
+        envelope: &Value,
+        context: &mut request_audit::RequestAuditContext,
+        #[cfg(feature = "s_capture_native_testonly")] parent: Option<&PublicationScope<'_>>,
+    ) -> Result<commit::CommitReceipt, String> {
+        #[cfg(feature = "s_capture_native_testonly")]
+        let issued = if active.complete.borrow().is_some() && context.source_cache_enabled() {
+            Some(
+                active.with_bound_raw_advance_in_publication(context, parent, |token| {
+                    Ok(token.into_issued())
+                })?,
+            )
+        } else {
+            None
+        };
+        active.before_fixed_write(FixedOperation::Publish, Some(context))?;
+        #[cfg(feature = "s_capture_native_testonly")]
+        if let Some(parent) = parent {
+            effects::attach_recording_resources(active.tx(), parent)?;
+        }
+        #[cfg(feature = "s_capture_native_testonly")]
+        let has_raw = issued.is_some();
+        #[cfg(feature = "s_capture_native_testonly")]
+        let mut source = active
+            .construction
+            .borrow_mut()
+            .as_mut()
+            .and_then(|s| s.take_source());
+        #[cfg(feature = "s_capture_native_testonly")]
+        let mut pending = active.pending.borrow_mut();
+        #[cfg(feature = "s_capture_native_testonly")]
+        let (audited, capture) = match pending.as_mut() {
+            Some(candidate) => (Some(&candidate.audited), candidate.capture.as_mut()),
+            None => (None, None),
+        };
+        let phase = PublishPhase {
+            #[cfg(feature = "s_capture_native_testonly")]
+            publication: parent,
+            transaction: active.transaction.as_mut().unwrap(),
+            #[cfg(feature = "s_capture_native_testonly")]
+            audited,
+            #[cfg(feature = "s_capture_native_testonly")]
+            capture,
+            #[cfg(feature = "s_capture_native_testonly")]
+            source: if has_raw { Some(&mut source) } else { None },
+            #[cfg(feature = "s_capture_native_testonly")]
+            raw: issued
+                .map(|issued| {
+                    let audited = audited.ok_or_else(|| {
+                        construction_state::stale("写前raw签发丢失同一pending原件")
+                    })?;
+                    issued.bind(audited.raw.view(), &self.construction_lease)
+                })
+                .transpose()?,
+        };
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        if let Some(parent) = parent {
+            parent.trace("runtime");
+        }
+        let receipt = runtime.publish_in_owner(phase, token, envelope, context)?;
+        #[cfg(feature = "s_capture_native_testonly")]
+        if has_raw {
+            let source =
+                source.ok_or_else(|| construction_state::stale("正式来源核未回交pending状态"))?;
+            let growth = active
+                .construction
+                .borrow_mut()
+                .as_mut()
+                .ok_or_else(|| construction_state::stale("来源回交丢失raw owner"))?
+                .install_source(source)?;
+            active.effect_limit.set(
+                active
+                    .effect_limit
+                    .get()
+                    .checked_sub(growth)
+                    .ok_or_else(|| construction_state::stale("来源新增保留费超过工作帽"))?,
+            );
+        }
+        #[cfg(feature = "s_capture_native_testonly")]
+        if let Some(candidate) = pending.as_mut() {
+            candidate.refresh_capture_charge()?;
+            if candidate.charge.total >= active.effect_limit.get() {
+                return Err(construction_state::stale("来源原件/证明保留账超过效果帽"));
+            }
+        }
+        #[cfg(feature = "s_capture_native_testonly")]
+        drop(pending);
+        #[cfg(feature = "s_capture_native_testonly")]
+        active.finish_fixed_write_in_publication(parent)?;
+        #[cfg(not(feature = "s_capture_native_testonly"))]
+        active.finish_fixed_write()?;
+        Ok(receipt)
     }
 
     #[cfg(feature = "s_capture_native_testonly")]
@@ -1009,6 +1176,108 @@ impl AuditTxn<'_> {
         })
     }
 
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn issue_publication_resources(
+        &self,
+        context: &request_audit::RequestAuditContext,
+    ) -> Result<PublicationResources, String> {
+        if self.publication_issued.replace(true) || self.dirty.get() {
+            return Err(construction_state::stale("publication资源只能写前签发一次"));
+        }
+        let before = self.construction_seal()?;
+        let complete = self.complete.borrow();
+        let candidate = complete
+            .as_ref()
+            .ok_or_else(|| construction_state::stale("publication缺完整父账"))?;
+        if candidate.seal != before || candidate.limit != context.complete_workspace_limit() {
+            return Err(construction_state::stale("publication父账或冻结额度域改变"));
+        }
+        Ok(PublicationResources {
+            budget: candidate.resources.clone(),
+            parent_limit: candidate.limit,
+            before,
+            connection: unsafe { self.tx().handle() } as usize,
+        })
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn check_publication_transition(
+        &self,
+        before: SnapshotSeal,
+        after: SnapshotSeal,
+    ) -> Result<(), String> {
+        if !self.publication_issued.get()
+            || before.life != after.life
+            || before.transaction_id != after.transaction_id
+            || before.data_version != after.data_version
+            || before.schema_version != after.schema_version
+            || before.domain != after.domain
+            || before.write_sequence.checked_add(1) != Some(after.write_sequence)
+            || after != self.construction_seal()?
+        {
+            return Err(construction_state::stale(
+                "publication尾检前后身份或写序不一致",
+            ));
+        }
+        Ok(())
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn check_publication_run(&self, checked: ConstructionRun<()>) -> Result<(), String> {
+        let ConstructionRun {
+            value: (),
+            before,
+            after,
+        } = checked;
+        self.check_publication_transition(before, after)
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn with_bound_raw_advance_in_publication<R>(
+        &self,
+        context: &request_audit::RequestAuditContext,
+        parent: Option<&PublicationScope<'_>>,
+        consume: impl for<'raw> FnOnce(BoundRawAdvance<'raw>) -> Result<R, String>,
+    ) -> Result<R, String> {
+        let Some(parent) = parent else {
+            return self.with_bound_raw_advance(context, consume);
+        };
+        let result = (|| {
+            parent.check_transaction(self.tx())?;
+            if self.dirty.get() || self.construction.borrow().is_some() {
+                return Err(construction_state::stale("仅允许本事务首次写前签发一次"));
+            }
+            let seal = self.construction_seal()?;
+            let complete = self.complete.borrow();
+            let candidate = complete
+                .as_ref()
+                .ok_or_else(|| construction_state::stale("缺当前同快照已核原件"))?;
+            if seal != parent.resources.before || candidate.seal != seal {
+                return Err(construction_state::stale("raw与publication父身份不一致"));
+            }
+            let previous = self.owner.construction.borrow_mut().take();
+            #[cfg(test)]
+            parent.trace("raw");
+            let bound = BoundOriginals { _private: () };
+            let (pending, token) = construction_state::PendingRawState::advance(
+                previous,
+                candidate.audited.raw.view(),
+                seal,
+                &bound,
+                &self.owner.construction_lease,
+                &super::audit_store::NativeAdmission(Some(parent.work())),
+            )?;
+            *self.construction.borrow_mut() = Some(pending);
+            let value = consume(token)?;
+            if self.owner.construction_lease.stale.get() {
+                return Err(construction_state::stale("消费者已撤销raw租约"));
+            }
+            Ok(value)
+        })();
+        if result.is_err() {
+            self.owner.invalidate_construction();
+            drop(self.construction.borrow_mut().take());
+        }
+        result
+    }
+
     /// #1488：唯一生产构造点仍封闭在 owner；调用者不能传 raw、prefix 或成功布尔量。
     /// 这里只授 raw 变化资格；正式 Runtime 的集合/来源完整性仍须独立 seal。
     #[cfg(feature = "s_capture_native_testonly")]
@@ -1334,6 +1603,8 @@ struct CompleteCandidate {
     // Q 全集：所有非节点表、schema/完整配置/clock/raw尾/控制关系，不是只有 H 的绑定。
     originals: Vec<request_audit::ExactRows>,
     charge: CompleteCharge,
+    // 最后析构：冷审计时的同一父账随所有真实载荷跨事务保留。
+    resources: native::Budget,
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl CompleteCandidate {
@@ -1612,6 +1883,7 @@ impl CompleteCandidate {
             audited,
             originals,
             charge,
+            resources: budget,
         }))
     }
 }
@@ -1751,29 +2023,42 @@ impl CompleteCandidate {
         mut effects: effects::Effects,
         limit: usize,
         source_check: Option<&OwnerSourceCheck>,
+        parent: Option<&PublicationScope<'_>>,
     ) -> Result<Option<Self>, String> {
         use super::audit_retention::sum;
         use effects::Table;
         self.detach_slot()?;
         let retained_at_entry = self.charge.total;
-        // Recording 已结束；它的峰值与候选保留物共存，不与后续审计峰值相加。
-        let Some(recording_peak) = retained_at_entry.checked_add(effects.peak) else {
-            return Ok(None);
+        // 共享父账的峰已含 candidate；journal 局部帽仍由 Recording 单独检查。
+        // Budget 允许准入恰等于 limit 的预留，不能把一次满额预留再判作越界。
+        let recording_peak = if effects.shared_parent {
+            let peak = self.resources.peak();
+            // limit 已扣除外层 raw/source/set；全父账峰必须和完整父帽比较，
+            // 否则会对已经计入同账的载荷再次扣费。
+            if peak > self.limit {
+                return Ok(None);
+            }
+            peak
+        } else {
+            let Some(peak) = retained_at_entry.checked_add(effects.peak) else {
+                return Ok(None);
+            };
+            if peak >= limit {
+                return Ok(None);
+            }
+            peak
         };
-        if recording_peak >= limit {
-            return Ok(None);
-        }
-        let budget = match native::Budget::new(limit, sum([self.charge.total, effects.bytes])) {
-            Ok(budget) => budget,
-            Err(_) => return Ok(None),
-        };
-        let node_work = match budget.codec_work() {
-            Ok(work) => work,
-            Err(native::Failure::BudgetExceeded) => return Ok(None),
-            Err(native::Failure::Invalid(e)) => return Err(e),
+        let budget = match parent {
+            Some(parent) => {
+                parent.check_transaction(tx)?;
+                #[cfg(test)]
+                parent.trace("validation");
+                parent.budget().clone()
+            }
+            None => self.resources.clone(),
         };
         let capture = self.capture.as_mut().unwrap();
-        let node_result = node_work.run(|scope| -> Result<(), String> {
+        let mut append_nodes = |scope: &newchan_rust::s_content::capture_allocation::scratch::WorkScope| -> Result<(), String> {
             for change in effects
                 .changes
                 .iter_mut()
@@ -1790,6 +2075,7 @@ impl CompleteCandidate {
                     _ => return Err(invalid("body 非 BLOB")),
                 };
                 let existed = capture.contains(&digest);
+                let body_capacity = body.capacity();
                 if !capture
                     .append_original_for_owner_testonly(digest, tag, body, usize::MAX, Some(scope))
                     .map_err(invalid)?
@@ -1798,11 +2084,21 @@ impl CompleteCandidate {
                 }
                 if !existed {
                     self.node_count += 1;
+                } else if effects.shared_parent {
+                    // 同摘要已有原件：append 已真实丢弃这次SQL读取副本。
+                    budget.release(body_capacity);
                 }
             }
             Ok(())
-        });
-        match node_result.map_err(native::Failure::from) {
+        };
+        let node_result = match parent {
+            Some(parent) => append_nodes(parent.work()).map_err(native::Failure::Invalid),
+            None => match budget.codec_work() {
+                Ok(work) => work.run(append_nodes).map_err(native::Failure::from),
+                Err(error) => Err(error),
+            },
+        };
+        match node_result {
             Ok(()) => {}
             Err(native::Failure::BudgetExceeded) => return Ok(None),
             Err(native::Failure::Invalid(e)) => return Err(e),
@@ -1898,14 +2194,9 @@ impl CompleteCandidate {
                 objects.len(),
                 auxiliary.each_ref().map(Vec::len)
             );
-            let work = match budget.codec_work() {
-                Ok(work) => work,
-                Err(native::Failure::BudgetExceeded) => return Ok(None),
-                Err(native::Failure::Invalid(e)) => return Err(e),
-            };
-            // 整个新 cut 是一次独占操作域；所有 String 桥首次 Err 立即短路，不重判。
-            let updated = work
-                .run(|scope| {
+            // publication 借同一父scope；其它既有固定写路径保留独立调用合同。
+            let mut append_cut =
+                |scope: &newchan_rust::s_content::capture_allocation::scratch::WorkScope| {
                     self.audited.append_owner_cut(
                         tx,
                         capture,
@@ -1919,8 +2210,14 @@ impl CompleteCandidate {
                         &budget,
                         source_check,
                     )
-                })
-                .map_err(native::Failure::from);
+                };
+            let updated = match parent {
+                Some(parent) => append_cut(parent.work()).map_err(native::Failure::from),
+                None => match budget.codec_work() {
+                    Ok(work) => work.run(append_cut).map_err(native::Failure::from),
+                    Err(error) => Err(error),
+                },
+            };
             #[cfg(test)]
             eprintln!(
                 "NATIVE_CODEC_WORK live_peak_meta={:?} native_upper_live_peak={:?} total_peak={}",
@@ -1933,6 +2230,15 @@ impl CompleteCandidate {
                 Err(native::Failure::BudgetExceeded) => return Ok(None),
                 Err(native::Failure::Invalid(e)) => return Err(e),
             };
+            // 这些行号只在本次 append_cut 借用；真实销毁后归还各 Vec 实际容量。
+            let row_ids_charge = super::audit_retention::vec_bytes::<i64>(objects.capacity())
+                + auxiliary
+                    .iter()
+                    .map(|rows| super::audit_retention::vec_bytes::<i64>(rows.capacity()))
+                    .sum::<usize>();
+            drop(objects);
+            drop(auxiliary);
+            budget.release(row_ids_charge);
             self.audited = audited;
             self.charge.historical_and_raw_capacity =
                 match retained.apply(self.charge.historical_and_raw_capacity) {
@@ -1999,6 +2305,7 @@ impl CompleteCandidate {
             return Ok(None);
         }
         self.charge.incremental_steps += 1;
+        self.resources = budget;
         #[cfg(test)]
         state::trace_owner_effects(
             effect_rows,
@@ -2177,6 +2484,7 @@ impl AuditTxn<'_> {
                         (limit / 8).min(recording_cap),
                         strict,
                     )? {
+                        recording.attach_parent(&candidate.resources, candidate.limit)?;
                         if strict && matches!(operation, FixedOperation::Publish) {
                             let previous = candidate
                                 .audited
@@ -2219,13 +2527,30 @@ impl AuditTxn<'_> {
         self.before_write_inner(strict)
     }
     fn finish_fixed_write(&self) -> Result<(), String> {
-        let result = self.finish_fixed_write_inner();
+        let result = self.finish_fixed_write_inner(
+            #[cfg(feature = "s_capture_native_testonly")]
+            None,
+        );
         if result.is_err() && self.construction.borrow().is_some() {
             self.owner.invalidate_construction();
         }
         result
     }
-    fn finish_fixed_write_inner(&self) -> Result<(), String> {
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn finish_fixed_write_in_publication(
+        &self,
+        parent: Option<&PublicationScope<'_>>,
+    ) -> Result<(), String> {
+        let result = self.finish_fixed_write_inner(parent);
+        if result.is_err() && self.construction.borrow().is_some() {
+            self.owner.invalidate_construction();
+        }
+        result
+    }
+    fn finish_fixed_write_inner(
+        &self,
+        #[cfg(feature = "s_capture_native_testonly")] parent: Option<&PublicationScope<'_>>,
+    ) -> Result<(), String> {
         #[cfg(feature = "s_capture_native_testonly")]
         {
             let strict = self.construction.borrow().is_some();
@@ -2278,6 +2603,7 @@ impl AuditTxn<'_> {
                     .map(|s| s.source_check())
                     .transpose()?
                     .flatten(),
+                parent,
             )?
             else {
                 return missing();
@@ -2345,6 +2671,21 @@ pub(crate) fn with_construction_material<T>(
     f: impl FnOnce(Option<&MaterialAccess<'_, '_, '_>>) -> Result<T, String>,
 ) -> Result<T, String> {
     effects::with_material_access(tx, work, f)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn with_construction_material_in_publication<T>(
+    tx: &Transaction<'_>,
+    parent: &PublicationScope<'_>,
+    #[cfg(test)] stage: Option<&crate::staged_nodes::StageOwner<'_>>,
+    f: impl FnOnce(Option<&MaterialAccess<'_, '_, '_>>) -> Result<T, String>,
+) -> Result<T, String> {
+    effects::with_material_in_publication(
+        tx,
+        parent,
+        #[cfg(test)]
+        stage,
+        f,
+    )
 }
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) fn begin_construction_stage(
@@ -3760,6 +4101,7 @@ mod construction_tests {
             .unwrap();
         let pending = active.pending.borrow();
         let phase = PublishPhase {
+            publication: None,
             transaction: active.transaction.as_mut().unwrap(),
             audited: pending.as_ref().map(|candidate| &candidate.audited),
             raw: None,
@@ -3819,6 +4161,72 @@ mod construction_tests {
             assert!(owner.construction_lease.stale.get());
         }
     }
+    #[test]
+    fn publication_single_parent_scope_reaches_raw_runtime_material_and_validation() {
+        publication_scope_case(false);
+    }
+    #[test]
+    fn publication_resource_tail_failure_prevents_actual_sql_commit() {
+        publication_scope_case(true);
+    }
+    fn publication_scope_case(fail_tail: bool) {
+        let mut f = fixture();
+        let (envelope, token) = f.accept_begin(2, ("scope-next", 10, 8, 16, 6, 12), 1);
+        let owner = AuditConnection::open(&f.db_path()).unwrap();
+        let mut context = context();
+        let cold = owner.begin(TransactionBehavior::Deferred).unwrap();
+        cold.audit_admission(
+            &json!({"payload":{"op":"ready"}}),
+            &s_allocation::Mode::CapturedNative,
+            &mut context,
+        )
+        .unwrap();
+        let ended = cold.read_end().unwrap();
+        owner.continue_with(ended).unwrap();
+        let commits = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let observed = commits.clone();
+        owner
+            .connection
+            .commit_hook(Some(move || {
+                observed.fetch_add(1, Ordering::SeqCst);
+                false
+            }))
+            .unwrap();
+        PUBLICATION_SCOPE_TRACE.with(|trace| trace.borrow_mut().clear());
+        PUBLICATION_TAIL_FAILURE.with(|flag| flag.set(fail_tail));
+        let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        let result = owner.publish(&mut runtime, &token, &envelope, &mut context);
+        assert!(
+            !PUBLICATION_TAIL_FAILURE.with(Cell::get),
+            "故障必须实际到达尾检，不能提前失败冒充负控"
+        );
+        let trace = PUBLICATION_SCOPE_TRACE.with(|trace| std::mem::take(&mut *trace.borrow_mut()));
+        for phase in ["raw", "runtime", "material", "validation", "tail"] {
+            assert_eq!(
+                trace.iter().filter(|(name, _)| *name == phase).count(),
+                1,
+                "{phase}: {trace:?}"
+            );
+        }
+        assert!(
+            trace.iter().all(|(_, scope)| *scope == trace[0].1),
+            "{trace:?}"
+        );
+        if fail_tail {
+            let error = result.err().expect("尾检必须失败");
+            assert!(error.contains("工作账损坏"), "{error}");
+            assert_eq!(commits.load(Ordering::SeqCst), 0);
+            assert_eq!(meta_i64(&owner.connection, "generation").unwrap(), 1);
+            assert!(owner.construction_lease.stale.get());
+        } else {
+            let (receipt, ended) = result.unwrap();
+            assert_eq!(receipt.generation, 2);
+            assert_eq!(commits.load(Ordering::SeqCst), 1);
+            owner.continue_with(ended).unwrap();
+        }
+        owner.connection.commit_hook(None::<fn() -> bool>).unwrap();
+    }
+
     #[test]
     fn owner_set_real_publish_stage_effects_commit_promotes() {
         set_publish_case(false, false);
@@ -4012,6 +4420,70 @@ mod construction_tests {
             }
             assert!(owner.construction.borrow().is_none());
             assert!(owner.construction_lease.stale.get());
+        }
+    }
+}
+
+// #1488 仅测试私有构造点；NOT_RUN，本机禁止 cargo/rustc。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+mod raw_native_move_ownership_tests {
+    use super::*;
+
+    #[test]
+    fn pending_and_bound_raw_moves_keep_original_permits_until_payload_drop() {
+        let raw = vec![
+            serde_json::json!({"identity_key":"a", "revision":1, "source_coord":"0"}),
+            serde_json::json!({"identity_key":"b", "revision":1, "source_coord":"1"}),
+        ];
+        let lease = construction_state::Lease::default();
+        let bound = BoundOriginals { _private: () };
+        let seal = SnapshotSeal {
+            life: 1,
+            transaction_id: 1,
+            write_sequence: 0,
+            data_version: 1,
+            schema_version: 1,
+            domain: [0; 6],
+        };
+        let budget = native::Budget::new(2 * 1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        for _ in 0..3 {
+            let (pending, token) = budget
+                .codec_work()
+                .unwrap()
+                .run(|scope| {
+                    construction_state::PendingRawState::advance(
+                        None,
+                        (&raw).into(),
+                        seal,
+                        &bound,
+                        &lease,
+                        &super::super::audit_store::NativeAdmission(Some(scope)),
+                    )
+                })
+                .unwrap();
+            token.ensure_current().unwrap();
+            assert_eq!(pending.facts.prefix_len(), 2);
+            assert_eq!(token.winner_edits().len(), 2);
+            let both = budget.live();
+            assert!(both > baseline);
+            // 禁区中的第二次 move：BoundRawAdvance -> IssuedRawAdvance -> bind。
+            let issued = token.into_issued();
+            assert_eq!(budget.live(), both);
+            let token = issued.bind((&raw).into(), &lease).unwrap();
+            assert_eq!(budget.live(), both);
+            drop(pending);
+            assert!(budget.live() < both);
+            assert!(
+                budget.live() > baseline,
+                "移动后的真实 winner_edits buffer 仍持费"
+            );
+            drop(token);
+            assert_eq!(
+                budget.live(),
+                baseline,
+                "pending 与 token 的真实 owner 全部析构才归零"
+            );
         }
     }
 }

@@ -5601,6 +5601,23 @@ fn content_ref_ctx(
     source: &mut CodecContext<'_, '_>,
     root: &str,
 ) -> Result<ContentRef, CodecError> {
+    let (reference, permit) = content_ref_reserved(source, root)?;
+    if let Some(permit) = permit {
+        permit.retain();
+    }
+    Ok(reference)
+}
+// 同一根解析/真实读取/头核验核；Native adapter 直接接原准入 token。
+fn content_ref_reserved(
+    source: &mut CodecContext<'_, '_>,
+    root: &str,
+) -> Result<
+    (
+        ContentRef,
+        Option<capture_allocation::scratch::NativeReservation>,
+    ),
+    CodecError,
+> {
     let digest = parse_root(root)?;
     let (kind, extent) = path::reference_header(source, &digest)?;
     let permit = source.reserve_native(CONTENT_FORMAT.len() + root.len())?;
@@ -5610,10 +5627,7 @@ fn content_ref_ctx(
         kind,
         extent,
     };
-    if let Some(permit) = permit {
-        permit.retain();
-    }
-    Ok(reference)
+    Ok((reference, permit))
 }
 
 /// 严格核验通用公开逻辑值：`ContentRef` 四字段逐项对真实节点，且全闭包通过。

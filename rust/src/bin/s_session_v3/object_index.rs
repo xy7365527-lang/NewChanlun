@@ -3,8 +3,10 @@
 //! 本层证明索引与这些原件互相绑定；原件是否由真实源按正确业务规则产生仍归来源审计。
 use super::audit_store::RefValue;
 // Re-export only the opaque type; its fields and constructor stay history-private.
+use super::audit_store::NativeTree;
 use super::business_json::{self as bj, TextValue};
 pub(crate) use super::history::NativeCutProjection;
+use super::native_shared::NativeArc;
 use super::object_records::{BatchOwner, BatchView, LifeOwner, LifeView};
 use super::{
     generation::ProducedObject,
@@ -18,6 +20,7 @@ use newchan_rust::s_content::{
 };
 use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::{params, Transaction};
+use sc::capture_allocation::native_owned::NativeValue;
 use sc::capture_allocation::{audit_json as aj, OwnedBudget};
 use serde_json::{json, Value};
 use std::collections::{BTreeSet, HashSet};
@@ -303,30 +306,28 @@ fn order_key(e: &Entry, dead: bool) -> OrderKey<&str> {
     }
 }
 impl OrderKey<&str> {
-    fn admit(self, store: &(impl CodecRead + ?Sized)) -> Result<(), String> {
-        if let Self::Typed(kind, fact, id, _) = self {
-            let bytes = kind
-                .len()
-                .checked_add(fact.len())
-                .and_then(|n| n.checked_add(id.len()))
-                .ok_or_else(|| err(store.native_overflow()))?;
-            store.native_admit(bytes).map_err(err)?;
-        }
-        Ok(())
-    }
-    fn owned(self) -> OrderKey<String> {
-        match self {
+    fn owned_admitted(
+        self,
+        store: &(impl CodecRead + ?Sized),
+    ) -> Result<OrderKey<NativeValue<String>>, String> {
+        Ok(match self {
             Self::Shape(n) => OrderKey::Shape(n),
-            Self::Typed(k, f, i, r) => OrderKey::Typed(k.into(), f.into(), i.into(), r),
-        }
+            Self::Typed(k, f, i, r) => OrderKey::Typed(
+                store.native_string(k).map_err(err)?,
+                store.native_string(f).map_err(err)?,
+                store.native_string(i).map_err(err)?,
+                r,
+            ),
+        })
     }
 }
-impl OrderKey<String> {
-    fn admit(&self, store: &(impl CodecRead + ?Sized)) -> Result<(), String> {
+impl OrderKey<NativeValue<String>> {
+    fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
         match self {
-            Self::Shape(_) => Ok(()),
-            Self::Typed(k, f, id, _) => {
-                OrderKey::Typed(k.as_str(), f.as_str(), id.as_str(), 0).admit(store)
+            Self::Shape(n) => Ok(Self::Shape(*n)),
+            Self::Typed(k, f, id, revision) => {
+                OrderKey::Typed(k.as_str(), f.as_str(), id.as_str(), *revision)
+                    .owned_admitted(store)
             }
         }
     }
@@ -663,6 +664,20 @@ fn candidate_fields(
         life: LifeOwner::from_normal(life),
     })
 }
+// #1488 PathStep 的公开接口需要 String；许可先于真实分配，局部路径先于许可析构。
+fn replace_batch_field(
+    s: &mut (impl CodecStore + ?Sized),
+    wire: sc::RefView<'_>,
+    batch: &str,
+) -> Result<RefValue, String> {
+    let _path_permit = s
+        .codec_work()
+        .map(|work| work.reserve_native("batch_id".len()))
+        .transpose()
+        .map_err(err)?;
+    let path = [f("batch_id")];
+    s.replace_ref(wire, &path, batch).map_err(err)
+}
 /// 返回本代模板：新生维持08，已有记录只借出生字段并改写小生命周期元数据。
 fn wire_at(s: &mut (impl CodecStore + ?Sized), e: &Entry, g: i64) -> Result<RefValue, String> {
     #[cfg(test)]
@@ -678,10 +693,7 @@ fn wire_at(s: &mut (impl CodecStore + ?Sized), e: &Entry, g: i64) -> Result<RefV
     let mut wire = built_ref(s, &built)?;
     if e.life.first_known_generation == g {
         if let BatchView::Existing(batch) = saved {
-            s.native_admit("batch_id".len()).map_err(err)?;
-            wire = s
-                .replace_ref(wire.view(), &[f("batch_id")], batch)
-                .map_err(err)?;
+            wire = replace_batch_field(s, wire.view(), batch)?;
         }
     }
     Ok(wire)
@@ -712,7 +724,7 @@ pub(super) struct HistoryObjects<'capture> {
 struct NativeProjection<'capture> {
     capture: &'capture sc::AuditCapture,
     // 序号由私有、不可变 entries 给定；同一对象只有 active / withdrawn 两个最终 wire。
-    wires: Vec<[Option<RefValue>; 2]>,
+    wires: sc::CodecVec<[Option<RefValue>; 2]>,
     // 只读事件表与 before-g 成员审计共享；through-g 游标与集合归本 owner。
     sweep: Option<ProjectionSweep>,
     #[cfg(feature = "s_capture_native_testonly")]
@@ -779,7 +791,7 @@ impl HistoryObjects<'_> {
             native.sweep = Some(ProjectionSweep::new_admitted(&self.entries, store)?);
         }
         let projection = native.sweep.as_ref().unwrap();
-        Ok(Some(HistorySweep::from_events(std::sync::Arc::clone(
+        Ok(Some(HistorySweep::from_events(NativeArc::clone(
             &projection.events,
         ))))
     }
@@ -855,33 +867,39 @@ impl HistoryObjects<'_> {
         let sweep = native.sweep.as_mut().unwrap();
         sweep.seek_admitted(g, s)?;
         // #1394：先为真实 Vec 容量取得许可，避免 collect 的最小扩容超出元素数上界。
-        let mut active = Vec::new();
-        s.native_vec_room(&mut active, sweep.active.len())
+        let mut active = sc::CodecVec::default();
+        s.native_codec_room(&mut active, sweep.active.len())
             .map_err(err)?;
-        active.extend(sweep.active.iter().map(|(_, i)| (*i, &self.entries[*i])));
-        let mut dead = Vec::new();
-        s.native_vec_room(&mut dead, sweep.withdrawn.len())
+        for (_, i) in sweep.active.keys() {
+            active.try_push((*i, &self.entries[*i])).map_err(err)?;
+        }
+        let mut dead = sc::CodecVec::default();
+        s.native_codec_room(&mut dead, sweep.withdrawn.len())
             .map_err(err)?;
-        dead.extend(sweep.withdrawn.iter().map(|(_, i)| (*i, &self.entries[*i])));
+        for (_, i) in sweep.withdrawn.keys() {
+            dead.try_push((*i, &self.entries[*i])).map_err(err)?;
+        }
         let born = sweep
             .events
             .births
             .get(&g)
-            .map(Vec::as_slice)
+            .map(|bucket| &bucket[..])
             .unwrap_or(&[]);
-        let mut births = Vec::new();
-        s.native_vec_room(&mut births, born.len()).map_err(err)?;
-        births.extend(born.iter().map(|i| (*i, &self.entries[*i])));
+        let mut births = sc::CodecVec::default();
+        s.native_codec_room(&mut births, born.len()).map_err(err)?;
+        for i in born {
+            births.try_push((*i, &self.entries[*i])).map_err(err)?;
+        }
         #[cfg(test)]
         {
             sweep.visits.output_entries += active.len() + dead.len() + births.len();
         }
         // 仅当前cut的新生对象在active/dead与upserts重复；旧对象复用既有两phase wire。
         // 派生Template不进入持久Public槽，pair表只保存本代出生项。
-        let mut pairs = std::collections::BTreeMap::<usize, (RefValue, RefValue)>::new();
-        let mut collect = |items: Vec<(usize, &Entry)>| -> Result<(Built, Built), String> {
-            let mut template = Vec::new();
-            let mut public = Vec::new();
+        let mut pairs = NativeTree::<usize, (RefValue, RefValue)>::default();
+        let mut collect = |items: sc::CodecVec<(usize, &Entry)>| -> Result<(Built, Built), String> {
+            let mut template = sc::CodecVec::default();
+            let mut public = sc::CodecVec::default();
             for (ordinal, e) in items {
                 if e.life.published_generation > g {
                     return Err(err("对象出生后发布代号被改写"));
@@ -913,23 +931,21 @@ impl HistoryObjects<'_> {
                         )
                         .map_err(err)?;
                         let template = built_ref(s, &b)?;
-                        s.native_admit("batch_id".len()).map_err(err)?;
-                        let public = s
-                            .replace_ref(template.view(), &[f("batch_id")], saved)
-                            .map_err(err)?;
+                        let public = replace_batch_field(s, template.view(), saved)?;
                         s.native_verify_original(native.capture, public.view(), sc::Mode::Public)
                             .map_err(err)?;
                         native.remember_wire(s, ordinal, phase, &public)?;
                         let pair = (template, public);
-                        s.native_tree_room::<usize, (RefValue, RefValue)>(pairs.len())
+                        pairs
+                            .insert_admitted(
+                                ordinal,
+                                (
+                                    s.native_ref_clone(&pair.0).map_err(err)?,
+                                    s.native_ref_clone(&pair.1).map_err(err)?,
+                                ),
+                                s,
+                            )
                             .map_err(err)?;
-                        pairs.insert(
-                            ordinal,
-                            (
-                                s.native_ref_clone(&pair.0).map_err(err)?,
-                                s.native_ref_clone(&pair.1).map_err(err)?,
-                            ),
-                        );
                         pair
                     }
                 } else {
@@ -940,10 +956,10 @@ impl HistoryObjects<'_> {
                     (s.native_ref_clone(&public).map_err(err)?, public)
                 };
                 let (a, b) = pair;
-                s.native_vec_room(&mut template, 1).map_err(err)?;
-                s.native_vec_room(&mut public, 1).map_err(err)?;
-                template.push(s.native_ref_clone(&a).map_err(err)?);
-                public.push(s.native_ref_clone(&b).map_err(err)?);
+                s.native_codec_room(&mut template, 1).map_err(err)?;
+                s.native_codec_room(&mut public, 1).map_err(err)?;
+                template.try_push(a).map_err(err)?;
+                public.try_push(b).map_err(err)?;
             }
             Ok((array(s, &template)?, array(s, &public)?))
         };
@@ -1024,23 +1040,24 @@ impl HistoryObjects<'_> {
                             g,
                         )
                         .map_err(err)?;
-                        let template = RefValue::Plain(b.content_ref());
+                        let template = s.native_built_ref(&b).map_err(err)?;
                         let public = s
                             .replace_ref(template.view(), &[f("batch_id")], saved)
                             .map_err(err)?;
                         s.native_verify_original(native.capture, public.view(), sc::Mode::Public)
                             .map_err(err)?;
-                        native.wires[ordinal][phase] = Some(public.clone());
+                        native.wires[ordinal][phase] =
+                            Some(s.native_ref_clone(&public).map_err(err)?);
                         (template, public)
                     } else {
                         let public = native.wire(s, e, ordinal, g)?;
-                        (public.clone(), public)
+                        (s.native_ref_clone(&public).map_err(err)?, public)
                     };
                     pairs.insert(ordinal, pair);
                 }
                 let (a, b) = pairs.get(&ordinal).unwrap();
-                template.push(a.clone());
-                public.push(b.clone());
+                template.push(s.native_ref_clone(a).map_err(err)?);
+                public.push(s.native_ref_clone(b).map_err(err)?);
             }
             Ok((array(s, &template)?, array(s, &public)?))
         };
@@ -1188,7 +1205,7 @@ fn plan_from_candidates(
 ) -> Result<Plan, String> {
     let mut ids = BTreeSet::new();
     for e in &new {
-        if !ids.insert(e.id.try_clone()?) {
+        if !ids.insert(e.id.try_clone_admitted(s.codec_work())?) {
             return Err(err("生成集重复对象身份"));
         }
     }
@@ -1218,10 +1235,11 @@ fn plan_from_candidates(
         })
         .map_err(err)?;
     }
-    let changes = object_diff::plan_budgeted(&keys, &old_keys, allocation.as_ref())?;
+    let changes =
+        object_diff::plan_admitted(&keys, &old_keys, allocation.as_ref(), s.codec_work())?;
     let mut index = Vec::new();
     for e in old {
-        index.push(e.try_clone()?);
+        index.push(e.try_clone_admitted(s)?);
     }
     let mut withdrawals = Vec::new();
     let mut replaces = Vec::new();
@@ -1241,7 +1259,7 @@ fn plan_from_candidates(
                 Some(
                     new[w.new_index.ok_or_else(|| err("替代缺新对象"))?]
                         .id
-                        .try_clone()?,
+                        .try_clone_admitted(s.codec_work())?,
                 ),
             ),
         };
@@ -1258,10 +1276,10 @@ fn plan_from_candidates(
     let births = changes
         .births
         .into_iter()
-        .map(|i| new[i].try_clone())
+        .map(|i| new[i].try_clone_admitted(s))
         .collect::<Result<Vec<_>, String>>()?;
     for e in &births {
-        index.push(e.try_clone()?);
+        index.push(e.try_clone_admitted(s)?);
     }
     let (active, withdrawn, upserts) = at_cut(s, &index, g)?;
     Ok(Plan {
@@ -1434,12 +1452,12 @@ fn bind_shape_refs(
     bind_shape_refs_view(s, generated.into(), wire.into(), &mut None)
 }
 
-type ShapeLeafDeclaration = (String, String, Kind, Option<u64>);
+type ShapeLeafDeclaration = (NativeValue<String>, NativeValue<String>, Kind, Option<u64>);
 /// #1394：只活在一次完整 Native load 中，保存来源叶八字段关系的成功结果。
 /// capture 从本次实际 HashReader 的正资格入口取得，不接受调用方预填 memo。
 struct ShapeLeafBindings<'capture> {
     capture: &'capture sc::AuditCapture,
-    successful: HashSet<[ShapeLeafDeclaration; 2]>,
+    successful: bj::BusinessMap<[ShapeLeafDeclaration; 2], ()>,
 }
 impl ShapeLeafBindings<'_> {
     fn bind(
@@ -1461,44 +1479,24 @@ impl ShapeLeafBindings<'_> {
                 .map_err(err)?;
             s.native_verify_original(self.capture, br, sc::Mode::Public)
                 .map_err(err)?;
-            let declaration = |r: sc::RefView<'_>| {
-                (
-                    r.format().to_owned(),
-                    r.root().to_owned(),
+            let declaration = |r: sc::RefView<'_>| -> Result<ShapeLeafDeclaration, String> {
+                Ok((
+                    s.native_string(r.format()).map_err(err)?,
+                    s.native_string(r.root()).map_err(err)?,
                     r.kind(),
                     r.extent(),
-                )
+                ))
             };
-            for r in [ar, br] {
-                s.native_admit(
-                    r.format()
-                        .len()
-                        .checked_add(r.root().len())
-                        .ok_or_else(|| err(s.native_overflow()))?,
-                )
-                .map_err(err)?;
-            }
-            let key = [declaration(ar), declaration(br)];
-            if !self.successful.contains(&key) {
+            let key = [declaration(ar)?, declaration(br)?];
+            if !self.successful.contains_key(&key) {
                 bind_shape_leaf(s, ar, br)?;
-                let bytes = s
-                    .native_hash_bytes::<[ShapeLeafDeclaration; 2], ()>(
-                        self.successful.len(),
-                        self.successful.capacity(),
-                    )
-                    .map_err(err)?;
-                s.native_admit(bytes).map_err(err)?;
-                if bytes > 0 {
-                    self.successful
-                        .try_reserve(1)
-                        .map_err(|_| err(s.native_overflow()))?;
-                }
-                self.successful.insert(key);
+                s.native_map_room(&mut self.successful).map_err(err)?;
+                self.successful.insert(key, ()).map_err(err)?;
             }
             Ok(())
         })();
         if result.is_err() {
-            self.successful.clear();
+            self.successful.retain(|_, _| false);
         }
         result
     }
@@ -1652,9 +1650,12 @@ pub(super) fn load_for_history<'capture>(
         capture.map(|_| &mut events),
     )?;
     let native = if let Some(capture) = capture {
-        let mut wires = Vec::new();
-        s.native_vec_room(&mut wires, entries.len()).map_err(err)?;
-        wires.resize_with(entries.len(), || [None, None]);
+        let mut wires = sc::CodecVec::default();
+        s.native_codec_room(&mut wires, entries.len())
+            .map_err(err)?;
+        for _ in 0..entries.len() {
+            wires.try_push([None, None]).map_err(err)?;
+        }
         Some(NativeProjection {
             capture,
             wires,
@@ -1674,22 +1675,9 @@ fn decode_persisted_entry(
     latest: i64,
     allocation: Option<&OwnedBudget>,
 ) -> Result<Entry, String> {
-    if s.codec_work().is_some() {
-        let mut bytes = 0usize;
-        for column in [0, 2, 3, 11, 13, 16, 17] {
-            let value = row.optional_text(column).map_err(err)?;
-            bytes = bytes
-                .checked_add(value.map_or(0, str::len))
-                .ok_or_else(|| err(s.native_overflow()))?;
-        }
-        // typed 槽位独立拥有 kind；先收费，再由原解码决定是否需要该副本。
-        bytes = bytes
-            .checked_add(row.text(2).map_err(err)?.len())
-            .ok_or_else(|| err(s.native_overflow()))?;
-        s.native_admit(bytes).map_err(err)?;
-    }
-    let kind = TextValue::from_sql(row, 2, allocation).map_err(err)?;
-    let fact_key = TextValue::optional_sql(row, 3, allocation).map_err(err)?;
+    let kind = TextValue::from_sql_admitted(row, 2, allocation, s.codec_work()).map_err(err)?;
+    let fact_key =
+        TextValue::optional_sql_admitted(row, 3, allocation, s.codec_work()).map_err(err)?;
     let coords = [
         row.optional_integer(4).map_err(err)?,
         row.optional_integer(5).map_err(err)?,
@@ -1709,12 +1697,12 @@ fn decode_persisted_entry(
             return Err(err("typed不得带形态窗口"));
         }
         Slot::Typed {
-            kind: kind.try_clone()?,
+            kind: kind.try_clone_admitted(s.codec_work())?,
             fact_key: fact_key.ok_or_else(|| err("缺typed槽位"))?,
         }
     };
     let e = Entry {
-        id: TextValue::from_sql(row, 0, allocation).map_err(err)?,
+        id: TextValue::from_sql_admitted(row, 0, allocation, s.codec_work()).map_err(err)?,
         revision: row.integer(1).map_err(err)?,
         kind,
         slot,
@@ -1723,13 +1711,23 @@ fn decode_persisted_entry(
         immutable: root_header_bytes(s, row.blob(9).map_err(err)?)?,
         birth_wire: root_ref_bytes(s, row.blob(10).map_err(err)?)?,
         life: LifeOwner {
-            batch: BatchOwner::Existing(TextValue::from_sql(row, 11, allocation).map_err(err)?),
+            batch: BatchOwner::Existing(
+                TextValue::from_sql_admitted(row, 11, allocation, s.codec_work()).map_err(err)?,
+            ),
             first_known_generation: row.integer(12).map_err(err)?,
-            first_known_cut: TextValue::from_sql(row, 13, allocation).map_err(err)?,
+            first_known_cut: TextValue::from_sql_admitted(row, 13, allocation, s.codec_work())
+                .map_err(err)?,
             published_generation: row.integer(14).map_err(err)?,
             withdrawn_generation: row.optional_integer(15).map_err(err)?,
-            withdrawal_reason: TextValue::optional_sql(row, 16, allocation).map_err(err)?,
-            superseded_by: TextValue::optional_sql(row, 17, allocation).map_err(err)?,
+            withdrawal_reason: TextValue::optional_sql_admitted(
+                row,
+                16,
+                allocation,
+                s.codec_work(),
+            )
+            .map_err(err)?,
+            superseded_by: TextValue::optional_sql_admitted(row, 17, allocation, s.codec_work())
+                .map_err(err)?,
         },
     };
     if e.life.first_known_generation > latest
@@ -1745,11 +1743,11 @@ fn load_in_store(
     s: &mut super::audit_store::StoreView<'_, '_>,
     latest: i64,
     capture: Option<&sc::AuditCapture>,
-    events: Option<&mut Option<std::sync::Arc<HistoryEvents>>>,
+    events: Option<&mut Option<NativeArc<HistoryEvents>>>,
 ) -> Result<sc::CodecVec<Entry>, String> {
     let mut leaf_bindings = capture.map(|capture| ShapeLeafBindings {
         capture,
-        successful: HashSet::new(),
+        successful: bj::new_map(None),
     });
     let mut stmt=CheckedStatement::prepare(tx,c"SELECT object_id,object_revision,kind,fact_key,window_start,window_mid,window_end,generated_root,internal_root,immutable_root,birth_wire_root,batch_id,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM s_content_objects ORDER BY rowid").map_err(err)?;
     let allocation = s.allocation_budget();
@@ -1766,9 +1764,8 @@ fn load_in_store(
         #[cfg(test)]
         LOAD_ID_VISITS.with(|n| n.set(n.get() + 1));
         s.native_map_room(&mut by_id).map_err(err)?;
-        s.native_admit(e.id.len()).map_err(err)?;
         if by_id
-            .insert(e.id.try_clone()?, ordinal)
+            .insert(e.id.try_clone_admitted(s.codec_work())?, ordinal)
             .map_err(err)?
             .is_some()
         {
@@ -1861,17 +1858,18 @@ pub(super) fn update_from_owner(
     _bound: &super::audit_owner::BoundOriginals,
     retained: &mut super::audit_retention::RetainedDelta,
 ) -> Result<(), String> {
-    let mut changed = Vec::new();
-    s.native_vec_room(&mut changed, rowids.len()).map_err(err)?;
+    let mut changed = sc::CodecVec::default();
+    s.native_codec_room(&mut changed, rowids.len())
+        .map_err(err)?;
     let mut leaf_bindings = s
         .native_projection_capture()
         .map(|capture| ShapeLeafBindings {
             capture,
-            successful: HashSet::new(),
+            successful: bj::new_map(None),
         });
     let mut store = super::audit_store::StoreView::for_audit(s);
-    let events = std::sync::Arc::get_mut(&mut sweep.events)
-        .ok_or_else(|| err("对象事件仍被旧 facade 借用"))?;
+    let events =
+        NativeArc::get_mut(&mut sweep.events).ok_or_else(|| err("对象事件仍被旧 facade 借用"))?;
     for rowid in rowids {
         let mut q = CheckedStatement::prepare(tx,c"SELECT object_id,object_revision,kind,fact_key,window_start,window_mid,window_end,generated_root,internal_root,immutable_root,birth_wire_root,batch_id,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM s_content_objects WHERE rowid=?1").map_err(err)?;
         q.bind_integer(1, *rowid).map_err(err)?;
@@ -1909,38 +1907,28 @@ pub(super) fn update_from_owner(
                 store.native_map_room(&mut events.by_id).map_err(err)?;
                 events.by_id.insert(id, i).map_err(err)?;
                 retained.hash_capacity::<TextValue, usize>(capacity, events.by_id.capacity());
-                order_key(&e, false).admit(&store)?;
-                let rank = order_key(&e, false).owned();
+                let rank = order_key(&e, false).owned_admitted(&store)?;
                 retained.add(&rank);
                 let capacity = events.ranks.capacity();
-                store.native_vec_room(&mut events.ranks, 1).map_err(err)?;
-                events.ranks.push(rank);
-                retained.vec_capacity::<OrderKey<String>>(capacity, events.ranks.capacity());
-                order_key(&e, true).admit(&store)?;
-                let rank = order_key(&e, true).owned();
+                store.native_codec_room(&mut events.ranks, 1).map_err(err)?;
+                events.ranks.try_push(rank).map_err(err)?;
+                retained.vec_capacity::<NativeRank>(capacity, events.ranks.capacity());
+                let rank = order_key(&e, true).owned_admitted(&store)?;
                 retained.add(&rank);
                 let capacity = events.withdrawn_ranks.capacity();
                 store
-                    .native_vec_room(&mut events.withdrawn_ranks, 1)
+                    .native_codec_room(&mut events.withdrawn_ranks, 1)
                     .map_err(err)?;
-                events.withdrawn_ranks.push(rank);
-                retained
-                    .vec_capacity::<OrderKey<String>>(capacity, events.withdrawn_ranks.capacity());
-                let len = events.births.len();
-                if !events.births.contains_key(&e.life.first_known_generation) {
-                    store
-                        .native_tree_room::<i64, Vec<usize>>(len)
-                        .map_err(err)?;
-                }
-                let bucket = events
-                    .births
-                    .entry(e.life.first_known_generation)
-                    .or_default();
+                events.withdrawn_ranks.try_push(rank).map_err(err)?;
+                retained.vec_capacity::<NativeRank>(capacity, events.withdrawn_ranks.capacity());
+                let tree_before = events.births.allocation_bytes();
+                let bucket =
+                    event_bucket(&mut events.births, e.life.first_known_generation, &store)?;
                 let capacity = bucket.capacity();
-                store.native_vec_room(bucket, 1).map_err(err)?;
-                bucket.push(i);
+                store.native_codec_room(bucket, 1).map_err(err)?;
+                bucket.try_push(i).map_err(err)?;
                 retained.vec_capacity::<usize>(capacity, bucket.capacity());
-                retained.tree_len::<i64, Vec<usize>>(len, events.births.len());
+                retained.add_bytes(events.births.allocation_bytes().saturating_sub(tree_before));
                 retained.add(&e);
                 let capacity = index.capacity();
                 store.native_codec_room(index, 1).map_err(err)?;
@@ -1950,25 +1938,21 @@ pub(super) fn update_from_owner(
             }
         };
         if let Some(death) = index[ordinal].life.withdrawn_generation {
-            let len = events.deaths.len();
-            if !events.deaths.contains_key(&death) {
-                store
-                    .native_tree_room::<i64, Vec<usize>>(len)
-                    .map_err(err)?;
-            }
-            let ids = events.deaths.entry(death).or_default();
+            let tree_before = events.deaths.allocation_bytes();
+            let ids = event_bucket(&mut events.deaths, death, &store)?;
             let capacity = ids.capacity();
             let at = ids.partition_point(|other| {
                 (&events.ranks[*other], *other) < (&events.ranks[ordinal], ordinal)
             });
             if ids.get(at) != Some(&ordinal) {
-                store.native_vec_room(ids, 1).map_err(err)?;
-                ids.insert(at, ordinal);
+                store.native_codec_room(ids, 1).map_err(err)?;
+                ids.try_push(ordinal).map_err(err)?;
+                ids[at..].rotate_right(1);
             }
             retained.vec_capacity::<usize>(capacity, ids.capacity());
-            retained.tree_len::<i64, Vec<usize>>(len, events.deaths.len());
+            retained.add_bytes(events.deaths.allocation_bytes().saturating_sub(tree_before));
         }
-        changed.push(ordinal);
+        changed.try_push(ordinal).map_err(err)?;
     }
     for ordinal in changed {
         validate_withdrawal_target(&index[ordinal], index, &events.by_id)?;
@@ -2001,7 +1985,7 @@ pub(super) fn restore_for_owner<'a>(
             },
         ),
         None => (
-            Vec::new(),
+            sc::CodecVec::default(),
             ProjectionSweep::from_events(sweep.events.clone()),
         ),
     };
@@ -2011,11 +1995,10 @@ pub(super) fn restore_for_owner<'a>(
         .len()
         .checked_sub(wires.len())
         .ok_or_else(|| err("owner wire 槽数超过对象数"))?;
-    s.native_vec_room(&mut wires, additional).map_err(err)?;
-    wires
-        .try_reserve_exact(additional)
-        .map_err(|_| super::audit_owner::native::Failure::BudgetExceeded)?;
-    wires.resize_with(entries.len(), || [None, None]);
+    s.native_codec_room(&mut wires, additional).map_err(err)?;
+    for _ in 0..additional {
+        wires.try_push([None, None]).map_err(err)?;
+    }
     retained.vec_capacity::<[Option<RefValue>; 2]>(capacity, wires.capacity());
     let native = Some(NativeProjection {
         capture,
@@ -2109,44 +2092,27 @@ pub(super) fn stage_in_material(
 }
 
 /// 两种存储共用字段投影；Owned数组直接复制借用字段，不经过普通JSON所有者。
-fn change_array(allocation: Option<&OwnedBudget>) -> Result<bj::JsonOwner, String> {
-    if let Some(allocation) = allocation {
-        #[cfg(feature = "s_allocation_json_testonly")]
-        {
-            return aj::OwnedJson::array(allocation)
-                .map(bj::JsonOwner::Owned)
-                .map_err(err);
-        }
-        #[cfg(not(feature = "s_allocation_json_testonly"))]
-        {
-            let _ = allocation;
-            return Err(err("owned变化JSON入口未启用"));
-        }
+fn change_array<'work>(
+    s: &'work (impl CodecRead + ?Sized),
+    allocation: Option<&OwnedBudget>,
+) -> Result<bj::ScopedJsonArray<'work>, String> {
+    match (s.codec_work(), allocation) {
+        (Some(_), Some(_)) => Err(err("Native变化JSON不能同时接Owned父账")),
+        (Some(work), None) => bj::ScopedJsonArray::native(work),
+        (None, Some(allocation)) => bj::ScopedJsonArray::owned(allocation),
+        (None, None) => Ok(bj::ScopedJsonArray::unscoped()),
     }
-    Ok(bj::JsonOwner::Plain(Value::Array(Vec::new())))
 }
 fn push_change(
-    s: &(impl CodecRead + ?Sized),
-    array: &mut bj::JsonOwner,
+    _s: &(impl CodecRead + ?Sized),
+    array: &mut bj::ScopedJsonArray<'_>,
     view: aj::JsonView<'_>,
 ) -> Result<(), String> {
-    match array {
-        bj::JsonOwner::Plain(Value::Array(rows)) => {
-            s.native_vec_room(rows, 1).map_err(err)?;
-            let bj::JsonOwner::Plain(value) = bj::json_from_view_admitted(s, view)? else {
-                return Err(err("Plain变化JSON不能接Owned所有者"));
-            };
-            rows.push(value);
-            Ok(())
-        }
-        bj::JsonOwner::Plain(_) => Err(err("变化JSON不是数组")),
-        #[cfg(feature = "s_allocation_json_testonly")]
-        bj::JsonOwner::Owned(rows) => rows.push(view).map_err(err),
-    }
+    array.push(view)
 }
 fn push_withdrawal(
     s: &(impl CodecRead + ?Sized),
-    array: &mut bj::JsonOwner,
+    array: &mut bj::ScopedJsonArray<'_>,
     e: &Entry,
     reason: &str,
     superseded_by: Option<&str>,
@@ -2179,7 +2145,7 @@ fn push_withdrawal(
 }
 fn push_replace(
     s: &(impl CodecRead + ?Sized),
-    array: &mut bj::JsonOwner,
+    array: &mut bj::ScopedJsonArray<'_>,
     old_id: &str,
     new_id: &str,
 ) -> Result<(), String> {
@@ -2194,7 +2160,10 @@ fn push_replace(
 pub(super) fn changes_at(index: &[Entry], g: i64) -> Result<(Vec<Value>, Vec<Value>), String> {
     let (withdrawals, replaces) = changes_at_budgeted(index, g, None)?;
     let plain = |owner| match owner {
-        bj::JsonOwner::Plain(Value::Array(rows)) => Ok(rows),
+        bj::JsonOwner::Plain(rows) if !rows.is_native_admitted() => rows
+            .as_array()
+            .map(|rows| rows.to_vec())
+            .ok_or_else(|| err("变化JSON不是普通数组")),
         _ => Err(err("变化JSON不是普通数组")),
     };
     Ok((plain(withdrawals)?, plain(replaces)?))
@@ -2230,8 +2199,8 @@ pub(super) fn changes_at_admitted(
     }
     // 同一主序加原始序号，保留stable排序的平局行为；unstable排序不另分配std工作集。
     dead.sort_unstable_by(|a, b| ordering(a.1, b.1, false).then(a.0.cmp(&b.0)));
-    let mut withdrawals = change_array(allocation)?;
-    let mut replaces = change_array(allocation)?;
+    let mut withdrawals = change_array(s, allocation)?;
+    let mut replaces = change_array(s, allocation)?;
     for (_, e) in dead {
         let reason = e
             .life
@@ -2249,15 +2218,15 @@ pub(super) fn changes_at_admitted(
             push_replace(s, &mut replaces, e.id.as_str(), id.as_str())?;
         }
     }
-    Ok((withdrawals, replaces))
+    Ok((withdrawals.finish(), replaces.finish()))
 }
 /// 当前已核Capture的只读事件表；两游标共享，普通/Owned入口不创建它。
 struct HistoryEvents {
     by_id: bj::BusinessMap<TextValue, usize>,
-    births: std::collections::BTreeMap<i64, Vec<usize>>,
-    deaths: std::collections::BTreeMap<i64, Vec<usize>>,
-    ranks: Vec<OrderKey<String>>,
-    withdrawn_ranks: Vec<OrderKey<String>>,
+    births: NativeTree<i64, sc::CodecVec<usize>>,
+    deaths: NativeTree<i64, sc::CodecVec<usize>>,
+    ranks: sc::CodecVec<NativeRank>,
+    withdrawn_ranks: sc::CodecVec<NativeRank>,
     #[cfg(test)]
     initial_entries: usize,
     #[cfg(test)]
@@ -2279,41 +2248,40 @@ impl HistoryEvents {
         let mut by_id = bj::new_map(None);
         for (i, e) in index.iter().enumerate() {
             store.native_map_room(&mut by_id).map_err(err)?;
-            store.native_admit(e.id.len()).map_err(err)?;
-            assert!(by_id.insert(e.id.try_clone()?, i).map_err(err)?.is_none());
+            assert!(by_id
+                .insert(e.id.try_clone_admitted(store.codec_work())?, i)
+                .map_err(err)?
+                .is_none());
         }
         Self::from_ids_admitted(index, by_id, store)
     }
     fn into_arc_admitted(
         self,
         store: &(impl CodecRead + ?Sized),
-    ) -> Result<std::sync::Arc<Self>, String> {
-        // 与 Retained 的 Arc 账一致：两个引用计数及实际内联事件头；子容器已逐次准入。
-        store
-            .native_admit(2 * std::mem::size_of::<usize>() + std::mem::size_of::<Self>())
-            .map_err(err)?;
-        Ok(std::sync::Arc::new(self))
+    ) -> Result<NativeArc<Self>, String> {
+        // 动态字段已分别持许可；这里只签共享块及lease元数据，clone不重复签费。
+        NativeArc::try_new_shallow(self, store.codec_work()).map_err(err)
     }
     fn from_ids_admitted(
         index: &[Entry],
         by_id: bj::BusinessMap<TextValue, usize>,
         store: &(impl CodecRead + ?Sized),
     ) -> Result<Self, String> {
-        let mut ranks = Vec::new();
-        let mut withdrawn_ranks = Vec::new();
+        let mut ranks = sc::CodecVec::default();
+        let mut withdrawn_ranks = sc::CodecVec::default();
         store
-            .native_vec_room(&mut ranks, index.len())
+            .native_codec_room(&mut ranks, index.len())
             .map_err(err)?;
         store
-            .native_vec_room(&mut withdrawn_ranks, index.len())
+            .native_codec_room(&mut withdrawn_ranks, index.len())
             .map_err(err)?;
         for e in index {
-            let rank = order_key(e, false);
-            rank.clone().admit(store)?;
-            ranks.push(rank.owned());
-            let rank = order_key(e, true);
-            rank.clone().admit(store)?;
-            withdrawn_ranks.push(rank.owned());
+            ranks
+                .try_push(order_key(e, false).owned_admitted(store)?)
+                .map_err(err)?;
+            withdrawn_ranks
+                .try_push(order_key(e, true).owned_admitted(store)?)
+                .map_err(err)?;
         }
         let mut out = Self {
             by_id,
@@ -2326,11 +2294,13 @@ impl HistoryEvents {
             #[cfg(test)]
             sort_passes: 0,
         };
-        let mut order = Vec::new();
+        let mut order = sc::CodecVec::default();
         store
-            .native_vec_room(&mut order, index.len())
+            .native_codec_room(&mut order, index.len())
             .map_err(err)?;
-        order.extend(0..index.len());
+        for i in 0..index.len() {
+            order.try_push(i).map_err(err)?;
+        }
         #[cfg(test)]
         {
             out.sort_passes += 1;
@@ -2342,26 +2312,16 @@ impl HistoryEvents {
                 out.initial_entries += 1;
             }
             let g = e.life.first_known_generation;
-            if !out.births.contains_key(&g) {
-                store
-                    .native_tree_room::<i64, Vec<usize>>(out.births.len())
-                    .map_err(err)?;
-            }
-            let bucket = out.births.entry(g).or_default();
-            store.native_vec_room(bucket, 1).map_err(err)?;
-            bucket.push(i);
+            let bucket = event_bucket(&mut out.births, g, store)?;
+            store.native_codec_room(bucket, 1).map_err(err)?;
+            bucket.try_push(i).map_err(err)?;
         }
         // 本代changes沿旧活动序，不能换成累计withdrawn的主序。
         for i in &order {
             if let Some(g) = index[*i].life.withdrawn_generation {
-                if !out.deaths.contains_key(&g) {
-                    store
-                        .native_tree_room::<i64, Vec<usize>>(out.deaths.len())
-                        .map_err(err)?;
-                }
-                let bucket = out.deaths.entry(g).or_default();
-                store.native_vec_room(bucket, 1).map_err(err)?;
-                bucket.push(*i);
+                let bucket = event_bucket(&mut out.deaths, g, store)?;
+                store.native_codec_room(bucket, 1).map_err(err)?;
+                bucket.try_push(*i).map_err(err)?;
             }
         }
         #[cfg(test)]
@@ -2372,10 +2332,73 @@ impl HistoryEvents {
         Ok(out)
     }
 }
+fn event_bucket<'a>(
+    table: &'a mut NativeTree<i64, sc::CodecVec<usize>>,
+    g: i64,
+    store: &(impl CodecRead + ?Sized),
+) -> Result<&'a mut sc::CodecVec<usize>, String> {
+    if !table.contains_key(&g) {
+        table
+            .insert_admitted(g, sc::CodecVec::default(), store)
+            .map_err(err)?;
+    }
+    Ok(table.get_mut(&g).expect("刚建立的事件桶"))
+}
+type NativeRank = OrderKey<NativeValue<String>>;
+type RankSet = NativeTree<(NativeRank, usize), ()>;
+fn insert_rank(
+    set: &mut RankSet,
+    rank: &NativeRank,
+    ordinal: usize,
+    store: &(impl CodecRead + ?Sized),
+    #[cfg(feature = "s_capture_native_testonly")]
+    retained: &mut super::audit_retention::RetainedDelta,
+) -> Result<(), String> {
+    let key = (rank.try_clone_admitted(store)?, ordinal);
+    #[cfg(feature = "s_capture_native_testonly")]
+    let (before, fresh) = (set.allocation_bytes(), !set.contains_key(&key));
+    #[cfg(feature = "s_capture_native_testonly")]
+    let bytes = {
+        use super::audit_retention::Retained;
+        key.heap_bytes()
+    };
+    set.insert_admitted(key, (), store).map_err(err)?;
+    #[cfg(feature = "s_capture_native_testonly")]
+    {
+        if fresh {
+            retained.add_bytes(bytes);
+        }
+        retained.add_bytes(set.allocation_bytes().saturating_sub(before));
+    }
+    Ok(())
+}
+fn remove_rank(
+    set: &mut RankSet,
+    rank: &NativeRank,
+    ordinal: usize,
+    store: &(impl CodecRead + ?Sized),
+    #[cfg(feature = "s_capture_native_testonly")]
+    retained: &mut super::audit_retention::RetainedDelta,
+) -> Result<(), String> {
+    let key = (rank.try_clone_admitted(store)?, ordinal);
+    #[cfg(feature = "s_capture_native_testonly")]
+    let before = set.allocation_bytes();
+    if let Some((old, ())) = set.remove_entry(&key) {
+        #[cfg(feature = "s_capture_native_testonly")]
+        retained.release(&old);
+        drop(old);
+        if set.is_empty() {
+            set.clear();
+        }
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    retained.release_bytes(before.saturating_sub(set.allocation_bytes()));
+    Ok(())
+}
 /// before-g游标保留原成员/变化审计入口和边界；不消费through-g状态。
 pub(super) struct HistorySweep {
-    events: std::sync::Arc<HistoryEvents>,
-    active: BTreeSet<(OrderKey<String>, usize)>,
+    events: NativeArc<HistoryEvents>,
+    active: RankSet,
     previous: i64,
     #[cfg(feature = "s_capture_native_testonly")]
     projection: Option<OwnerProjection>,
@@ -2393,31 +2416,51 @@ struct SweepVisits {
     active: std::cell::Cell<usize>,
 }
 impl HistorySweep {
+    // #1488 history::audit_one_published_cut 的失败直接传播到按值拥有全部游标的
+    // read_indexed_history_inner / append_owner_cut；失败游标必须随候选销毁，不得重试。
+    // 此函数不承诺可在预算拒绝后继续使用同一 &mut self。
     pub(super) fn advance_admitted(
         &mut self,
         g: i64,
         store: &(impl CodecRead + ?Sized),
     ) -> Result<(), String> {
-        if store.codec_work().is_some() && g > self.previous {
-            let mut maximum = self.active.len();
-            for (_, ids) in self.events.births.range(self.previous..g) {
-                for i in ids {
-                    self.events.ranks[*i].admit(store)?;
-                    store
-                        .native_tree_room::<(OrderKey<String>, usize), ()>(maximum)
-                        .map_err(err)?;
-                    maximum = maximum
-                        .checked_add(1)
-                        .ok_or_else(|| err(store.native_overflow()))?;
-                }
-            }
-            for (_, ids) in self.events.deaths.range(self.previous..g) {
-                for i in ids {
-                    self.events.ranks[*i].admit(store)?;
+        if g <= self.previous {
+            return Err(err("生命周期 sweep 代号不递增"));
+        }
+        for (_, ids) in self.events.births.range(self.previous..g) {
+            for i in ids {
+                insert_rank(
+                    &mut self.active,
+                    &self.events.ranks[*i],
+                    *i,
+                    store,
+                    #[cfg(feature = "s_capture_native_testonly")]
+                    &mut self.retained,
+                )?;
+                #[cfg(test)]
+                {
+                    self.visits.births += 1;
                 }
             }
         }
-        self.advance(g)
+        for (_, ids) in self.events.deaths.range(self.previous..g) {
+            for i in ids {
+                remove_rank(
+                    &mut self.active,
+                    &self.events.ranks[*i],
+                    *i,
+                    store,
+                    #[cfg(feature = "s_capture_native_testonly")]
+                    &mut self.retained,
+                )?;
+                #[cfg(test)]
+                {
+                    self.visits.deaths += 1;
+                }
+            }
+        }
+        self.previous = g;
+        Ok(())
     }
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn take_retained_delta(&mut self) -> super::audit_retention::RetainedDelta {
@@ -2435,7 +2478,7 @@ impl HistorySweep {
             HistoryEvents::new_admitted(index, store)?.into_arc_admitted(store)?,
         ))
     }
-    fn from_events(events: std::sync::Arc<HistoryEvents>) -> Self {
+    fn from_events(events: NativeArc<HistoryEvents>) -> Self {
         Self {
             #[cfg(test)]
             visits: SweepVisits {
@@ -2479,44 +2522,15 @@ impl HistorySweep {
         }
     }
     fn active_ordinals(&self) -> impl Iterator<Item = usize> + '_ {
-        self.active.iter().map(|(_, i)| {
+        self.active.keys().map(|(_, i)| {
             #[cfg(test)]
             self.visits.active.set(self.visits.active.get() + 1);
             *i
         })
     }
-    pub(super) fn advance(&mut self, g: i64) -> Result<(), String> {
-        if g <= self.previous {
-            return Err(err("生命周期 sweep 代号不递增"));
-        }
-        for (_, ids) in self.events.births.range(self.previous..g) {
-            for i in ids {
-                #[cfg(feature = "s_capture_native_testonly")]
-                self.retained
-                    .tree_insert(&mut self.active, (self.events.ranks[*i].clone(), *i));
-                #[cfg(not(feature = "s_capture_native_testonly"))]
-                self.active.insert((self.events.ranks[*i].clone(), *i));
-                #[cfg(test)]
-                {
-                    self.visits.births += 1;
-                }
-            }
-        }
-        for (_, ids) in self.events.deaths.range(self.previous..g) {
-            for i in ids {
-                #[cfg(feature = "s_capture_native_testonly")]
-                self.retained
-                    .tree_remove(&mut self.active, &(self.events.ranks[*i].clone(), *i));
-                #[cfg(not(feature = "s_capture_native_testonly"))]
-                self.active.remove(&(self.events.ranks[*i].clone(), *i));
-                #[cfg(test)]
-                {
-                    self.visits.deaths += 1;
-                }
-            }
-        }
-        self.previous = g;
-        Ok(())
+    #[cfg(test)]
+    fn advance(&mut self, g: i64) -> Result<(), String> {
+        self.advance_admitted(g, &super::audit_store::NativeAdmission(None))
     }
     pub(super) fn changes(
         &self,
@@ -2531,8 +2545,8 @@ impl HistorySweep {
         index: &[Entry],
         g: i64,
     ) -> Result<(bj::JsonOwner, bj::JsonOwner), String> {
-        let mut withdrawals = change_array(None)?;
-        let mut replaces = change_array(None)?;
+        let mut withdrawals = change_array(s, None)?;
+        let mut replaces = change_array(s, None)?;
         for i in self.events.deaths.get(&g).into_iter().flatten() {
             let e = &index[*i];
             let reason = e
@@ -2551,23 +2565,23 @@ impl HistorySweep {
                 push_replace(s, &mut replaces, e.id.as_str(), id.as_str())?;
             }
         }
-        Ok((withdrawals, replaces))
+        Ok((withdrawals.finish(), replaces.finish()))
     }
 }
 #[cfg(feature = "s_capture_native_testonly")]
 struct OwnerProjection {
-    wires: Vec<[Option<RefValue>; 2]>,
-    active: BTreeSet<(OrderKey<String>, usize)>,
-    withdrawn: BTreeSet<(OrderKey<String>, usize)>,
+    wires: sc::CodecVec<[Option<RefValue>; 2]>,
+    active: RankSet,
+    withdrawn: RankSet,
     previous_cut: Option<i64>,
     #[cfg(test)]
     visits: ProjectionVisits,
 }
 /// through-g双投影游标；任意合法cut可重复、跳跃、回退，不改准入判据。
 struct ProjectionSweep {
-    events: std::sync::Arc<HistoryEvents>,
-    active: BTreeSet<(OrderKey<String>, usize)>,
-    withdrawn: BTreeSet<(OrderKey<String>, usize)>,
+    events: NativeArc<HistoryEvents>,
+    active: RankSet,
+    withdrawn: RankSet,
     previous_cut: Option<i64>,
     #[cfg(feature = "s_capture_native_testonly")]
     retained: super::audit_retention::RetainedDelta,
@@ -2582,47 +2596,100 @@ struct ProjectionVisits {
     output_entries: usize,
 }
 impl ProjectionSweep {
+    // #1488 唯一生产调用经 native_dual_at_cut → history 私有单代核；
+    // 任一步失败由 cold/append 按值候选边界销毁本游标，只有完整成功才能重新封装。
     fn seek_admitted(&mut self, g: i64, store: &(impl CodecRead + ?Sized)) -> Result<(), String> {
         use std::ops::Bound::{Excluded, Included, Unbounded};
-        if store.codec_work().is_some() && self.previous_cut != Some(g) {
-            let (lower, upper) = match self.previous_cut {
-                Some(previous) if previous > g => (Excluded(g), Included(previous)),
-                previous => (previous.map_or(Unbounded, Excluded), Included(g)),
-            };
-            let mut active_max = self.active.len();
-            let mut withdrawn_max = self.withdrawn.len();
-            // 每个受影响 birth 至多插入 active；每个 death 至多移除一份 key 并插入另一集合。
-            // 反向 seek 同一上界覆盖实际反向操作，不遍历未受影响的旧事件。
-            for (_, ids) in self.events.births.range((lower, upper)) {
+        if self.previous_cut == Some(g) {
+            return Ok(());
+        }
+        if self.previous_cut.is_none_or(|previous| previous < g) {
+            let lower = self.previous_cut.map_or(Unbounded, Excluded);
+            for (_, ids) in self.events.births.range((lower, Included(g))) {
                 for i in ids {
-                    self.events.ranks[*i].admit(store)?;
-                    store
-                        .native_tree_room::<(OrderKey<String>, usize), ()>(active_max)
-                        .map_err(err)?;
-                    active_max = active_max
-                        .checked_add(1)
-                        .ok_or_else(|| err(store.native_overflow()))?;
+                    insert_rank(
+                        &mut self.active,
+                        &self.events.ranks[*i],
+                        *i,
+                        store,
+                        #[cfg(feature = "s_capture_native_testonly")]
+                        &mut self.retained,
+                    )?;
+                    #[cfg(test)]
+                    {
+                        self.visits.births += 1;
+                    }
                 }
             }
-            for (_, ids) in self.events.deaths.range((lower, upper)) {
+            for (_, ids) in self.events.deaths.range((lower, Included(g))) {
                 for i in ids {
-                    self.events.ranks[*i].admit(store)?;
-                    self.events.withdrawn_ranks[*i].admit(store)?;
-                    store
-                        .native_tree_room::<(OrderKey<String>, usize), ()>(
-                            active_max.max(withdrawn_max),
-                        )
-                        .map_err(err)?;
-                    active_max = active_max
-                        .checked_add(1)
-                        .ok_or_else(|| err(store.native_overflow()))?;
-                    withdrawn_max = withdrawn_max
-                        .checked_add(1)
-                        .ok_or_else(|| err(store.native_overflow()))?;
+                    remove_rank(
+                        &mut self.active,
+                        &self.events.ranks[*i],
+                        *i,
+                        store,
+                        #[cfg(feature = "s_capture_native_testonly")]
+                        &mut self.retained,
+                    )?;
+                    insert_rank(
+                        &mut self.withdrawn,
+                        &self.events.withdrawn_ranks[*i],
+                        *i,
+                        store,
+                        #[cfg(feature = "s_capture_native_testonly")]
+                        &mut self.retained,
+                    )?;
+                    #[cfg(test)]
+                    {
+                        self.visits.deaths += 1;
+                    }
+                }
+            }
+        } else {
+            let previous = self.previous_cut.unwrap();
+            // 反向仍先撤death再撤birth，保持原cut成员/排序语义。
+            for (_, ids) in self.events.deaths.range((Excluded(g), Included(previous))) {
+                for i in ids {
+                    remove_rank(
+                        &mut self.withdrawn,
+                        &self.events.withdrawn_ranks[*i],
+                        *i,
+                        store,
+                        #[cfg(feature = "s_capture_native_testonly")]
+                        &mut self.retained,
+                    )?;
+                    insert_rank(
+                        &mut self.active,
+                        &self.events.ranks[*i],
+                        *i,
+                        store,
+                        #[cfg(feature = "s_capture_native_testonly")]
+                        &mut self.retained,
+                    )?;
+                    #[cfg(test)]
+                    {
+                        self.visits.deaths += 1;
+                    }
+                }
+            }
+            for (_, ids) in self.events.births.range((Excluded(g), Included(previous))) {
+                for i in ids {
+                    remove_rank(
+                        &mut self.active,
+                        &self.events.ranks[*i],
+                        *i,
+                        store,
+                        #[cfg(feature = "s_capture_native_testonly")]
+                        &mut self.retained,
+                    )?;
+                    #[cfg(test)]
+                    {
+                        self.visits.births += 1;
+                    }
                 }
             }
         }
-        self.seek(g);
+        self.previous_cut = Some(g);
         Ok(())
     }
     #[cfg(test)]
@@ -2635,7 +2702,7 @@ impl ProjectionSweep {
             HistoryEvents::new_admitted(index, store)?.into_arc_admitted(store)?,
         ))
     }
-    fn from_events(events: std::sync::Arc<HistoryEvents>) -> Self {
+    fn from_events(events: NativeArc<HistoryEvents>) -> Self {
         Self {
             events,
             active: Default::default(),
@@ -2647,87 +2714,10 @@ impl ProjectionSweep {
             visits: ProjectionVisits::default(),
         }
     }
+    #[cfg(test)]
     fn seek(&mut self, g: i64) {
-        use std::ops::Bound::{Excluded, Included, Unbounded};
-        if self.previous_cut == Some(g) {
-            return;
-        }
-        if self.previous_cut.is_none_or(|previous| previous < g) {
-            let lower = self.previous_cut.map_or(Unbounded, Excluded);
-            for (_, ids) in self.events.births.range((lower, Included(g))) {
-                for i in ids {
-                    #[cfg(feature = "s_capture_native_testonly")]
-                    self.retained
-                        .tree_insert(&mut self.active, (self.events.ranks[*i].clone(), *i));
-                    #[cfg(not(feature = "s_capture_native_testonly"))]
-                    self.active.insert((self.events.ranks[*i].clone(), *i));
-                    #[cfg(test)]
-                    {
-                        self.visits.births += 1;
-                    }
-                }
-            }
-            for (_, ids) in self.events.deaths.range((lower, Included(g))) {
-                for i in ids {
-                    #[cfg(feature = "s_capture_native_testonly")]
-                    self.retained
-                        .tree_remove(&mut self.active, &(self.events.ranks[*i].clone(), *i));
-                    #[cfg(not(feature = "s_capture_native_testonly"))]
-                    self.active.remove(&(self.events.ranks[*i].clone(), *i));
-                    #[cfg(feature = "s_capture_native_testonly")]
-                    self.retained.tree_insert(
-                        &mut self.withdrawn,
-                        (self.events.withdrawn_ranks[*i].clone(), *i),
-                    );
-                    #[cfg(not(feature = "s_capture_native_testonly"))]
-                    self.withdrawn
-                        .insert((self.events.withdrawn_ranks[*i].clone(), *i));
-                    #[cfg(test)]
-                    {
-                        self.visits.deaths += 1;
-                    }
-                }
-            }
-        } else {
-            let previous = self.previous_cut.unwrap();
-            // 先撤销death再撤销birth；跨越整个已出生后撤回的生命周期时不残留active。
-            // 生产生命判据始终要求withdrawn_generation > first_known_generation。
-            for (_, ids) in self.events.deaths.range((Excluded(g), Included(previous))) {
-                for i in ids {
-                    #[cfg(feature = "s_capture_native_testonly")]
-                    self.retained.tree_remove(
-                        &mut self.withdrawn,
-                        &(self.events.withdrawn_ranks[*i].clone(), *i),
-                    );
-                    #[cfg(not(feature = "s_capture_native_testonly"))]
-                    self.withdrawn
-                        .remove(&(self.events.withdrawn_ranks[*i].clone(), *i));
-                    #[cfg(feature = "s_capture_native_testonly")]
-                    self.retained
-                        .tree_insert(&mut self.active, (self.events.ranks[*i].clone(), *i));
-                    #[cfg(not(feature = "s_capture_native_testonly"))]
-                    self.active.insert((self.events.ranks[*i].clone(), *i));
-                    #[cfg(test)]
-                    {
-                        self.visits.deaths += 1;
-                    }
-                }
-            }
-            for (_, ids) in self.events.births.range((Excluded(g), Included(previous))) {
-                for i in ids {
-                    #[cfg(feature = "s_capture_native_testonly")]
-                    self.retained
-                        .tree_remove(&mut self.active, &(self.events.ranks[*i].clone(), *i));
-                    #[cfg(not(feature = "s_capture_native_testonly"))]
-                    self.active.remove(&(self.events.ranks[*i].clone(), *i));
-                    #[cfg(test)]
-                    {
-                        self.visits.births += 1;
-                    }
-                }
-            }
-        }
-        self.previous_cut = Some(g);
+        self.seek_admitted(g, &super::audit_store::NativeAdmission(None))
+            .expect("无scope测试游标");
     }
 }
 /// 按该代真实候选序复用同一diff判据，再对拍独立生命周期；不假定候选槽位唯一。
@@ -2748,63 +2738,6 @@ pub(super) fn verify_generated_members_swept<'a>(
 ) -> Result<(), String> {
     verify_generated_members_swept_with_records(s, index, state, g, sweep, None)
 }
-/// #1394：唯一 object_diff 核未接 CodecRead，在调用点按实际输入域逐容器预留。
-/// 借用槽位/身份键不复制文本。每次容量增长的新块均预留，旧块保守持账至父域结束。
-fn admit_diff_work(
-    s: &(impl CodecRead + ?Sized),
-    new_len: usize,
-    active_len: usize,
-    old_len: Option<usize>,
-) -> Result<(), String> {
-    if s.codec_work().is_none() {
-        return Ok(());
-    }
-    fn vector<T>(s: &(impl CodecRead + ?Sized), count: usize) -> Result<(), String> {
-        // 本核三个 Vec 的元素大小均在 2..=1024，std 初始容量为 4，此后翻倍。
-        let mut capacity = 0usize;
-        while capacity < count {
-            capacity = if capacity == 0 {
-                4
-            } else {
-                capacity
-                    .checked_mul(2)
-                    .ok_or_else(|| err(s.native_overflow()))?
-            };
-            let bytes = capacity
-                .checked_mul(std::mem::size_of::<T>())
-                .ok_or_else(|| err(s.native_overflow()))?;
-            s.native_admit(bytes).map_err(err)?;
-        }
-        Ok(())
-    }
-    fn map<K, V>(s: &(impl CodecRead + ?Sized), count: usize) -> Result<(), String> {
-        let mut capacity = 0usize;
-        while capacity < count {
-            s.native_admit(
-                s.native_hash_bytes::<K, V>(capacity, capacity)
-                    .map_err(err)?,
-            )
-            .map_err(err)?;
-            // SwissTable 4/8 桶容量 3/7，其后 7/8 装载率，桶数翻倍。
-            capacity = match capacity {
-                0 => 3,
-                3 => 7,
-                n => n.checked_mul(2).ok_or_else(|| err(s.native_overflow()))?,
-            };
-        }
-        Ok(())
-    }
-    map::<&&Slot, usize>(s, new_len)?;
-    if let Some(old_len) = old_len {
-        map::<&str, usize>(s, old_len)?;
-        map::<&str, usize>(s, active_len)?;
-    }
-    vector::<usize>(s, new_len)?;
-    vector::<object_diff::Withdrawal>(s, active_len)?;
-    vector::<object_diff::Replace>(s, active_len)?;
-    Ok(())
-}
-
 pub(super) fn verify_generated_members_swept_with_records<'a>(
     s: &mut (impl CodecStore + ?Sized),
     index: &[Entry],
@@ -2916,17 +2849,8 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
         })
         .map_err(err)?;
     }
-    admit_diff_work(
-        s,
-        new.len(),
-        sweep.map_or_else(
-            || old.iter().filter(|e| e.active).count(),
-            |sweep| sweep.active.len(),
-        ),
-        sweep.is_none().then_some(old.len()),
-    )?;
     let changes = if let Some(sweep) = sweep {
-        object_diff::plan_indexed_budgeted(
+        object_diff::plan_indexed_admitted(
             &new,
             |i| object_diff::Existing {
                 key: object_diff::Key {
@@ -2952,9 +2876,10 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
                 })
             },
             None,
+            s.codec_work(),
         )?
     } else {
-        object_diff::plan_budgeted(&new, &old, allocation.as_ref())?
+        object_diff::plan_admitted(&new, &old, allocation.as_ref(), s.codec_work())?
     };
     let births_match = match sweep {
         Some(sweep) => changes
@@ -2984,7 +2909,7 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
         Some(sweep) => sweep.changes_admitted(s, index, g)?,
         None => changes_at_admitted(s, index, g, allocation.as_ref())?,
     };
-    let mut withdrawals = change_array(allocation.as_ref())?;
+    let mut withdrawals = change_array(s, allocation.as_ref())?;
     for w in changes.withdrawals {
         let e = if sweep.is_some() {
             &index[w.old_index]
@@ -3011,7 +2936,7 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
         };
         push_withdrawal(s, &mut withdrawals, e, reason, sup)?;
     }
-    let mut replaces = change_array(allocation.as_ref())?;
+    let mut replaces = change_array(s, allocation.as_ref())?;
     for r in changes.replaces {
         push_replace(
             s,
@@ -3024,6 +2949,8 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
             new[r.new_index].object_id.as_str(),
         )?;
     }
+    let withdrawals = withdrawals.finish();
+    let replaces = replaces.finish();
     if withdrawals.view() != expected_withdrawals.view()
         || replaces.view() != expected_replaces.view()
     {
@@ -3266,7 +3193,12 @@ mod tests {
                 old.reads
             );
             assert!(new_f < old_f, "{} F {new_f} vs {old_f}", o.kind());
-            eprintln!("fixed_fields kind={} old_NodeSource={} new_NodeSource={} old_F={old_f} new_F={new_f}", o.kind(), old.reads, new.reads);
+            eprintln!(
+                "fixed_fields kind={} old_NodeSource={} new_NodeSource={} old_F={old_f} new_F={new_f}",
+                o.kind(),
+                old.reads,
+                new.reads
+            );
         }
         assert_eq!(seen, [true, true], "必须真实非空typed与shape");
         if let Some(b) = budget {
@@ -3412,7 +3344,9 @@ mod tests {
         assert!(old_error.contains("候选对象不属于本次生成代"));
         assert_eq!(new_error, old_error);
         assert_eq!((old.puts, new.puts), (0, 0));
-        eprintln!("fixed_fields multi_fault old={old_error:?} new={new_error:?}; original_first_error_preserved=true");
+        eprintln!(
+            "fixed_fields multi_fault old={old_error:?} new={new_error:?}; original_first_error_preserved=true"
+        );
     }
 
     fn fixed_candidate_corrupt_content(budget: Option<OwnedBudget>) {
@@ -3734,7 +3668,9 @@ mod tests {
         owned_reader.enable_full_arrays_for_test();
         let (_, checks) = leaf_checks(|| load_for_audit(&tx, &mut owned_reader, 1).unwrap());
         assert_eq!(checks, pairs.len());
-        println!("Native shape leaf real load: checks ordinary={ordinary_checks} native={native_checks}; distinct birth entries share source leaves");
+        println!(
+            "Native shape leaf real load: checks ordinary={ordinary_checks} native={native_checks}; distinct birth entries share source leaves"
+        );
     }
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
@@ -3841,7 +3777,7 @@ mod tests {
         reader.enable_full_arrays_for_test();
         let mut bindings = ShapeLeafBindings {
             capture: &capture,
-            successful: HashSet::new(),
+            successful: bj::new_map(None),
         };
         bindings.bind(&mut reader, ar.into(), br.into()).unwrap();
         assert_eq!(bindings.successful.len(), 1);
@@ -3874,7 +3810,7 @@ mod tests {
         native.enable_full_arrays_for_test();
         let mut overlay_bindings = ShapeLeafBindings {
             capture: &overlay_capture,
-            successful: HashSet::new(),
+            successful: bj::new_map(None),
         };
         for _ in 0..2 {
             native.put(leaf, tag, body).unwrap();
@@ -4479,7 +4415,10 @@ mod tests {
             candidate_plan_signature(&expected)
         );
         assert!(native.reads < ordinary.reads, "真实source读取须减少");
-        println!("candidate two-root real source reads ordinary={} union={}; candidate puts ordinary={} union={}",ordinary.reads,native.reads,ordinary.puts,native.puts);
+        println!(
+            "candidate two-root real source reads ordinary={} union={}; candidate puts ordinary={} union={}",
+            ordinary.reads, native.reads, ordinary.puts, native.puts
+        );
         let mut mixed = CandidateProbe {
             nodes,
             budget: Some(OwnedBudget::new(1_000_000)),
@@ -4836,6 +4775,184 @@ mod tests {
     }
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
+    fn native_changes_use_current_scope_and_return_owned_json_permits() {
+        let (_, entries) = projection_fixture();
+        let expected = changes_at(&entries, 3).unwrap();
+        let budget = super::super::audit_owner::native::Budget::new(8 * 1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let (withdrawals, replaces) = budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let store = super::super::audit_store::NativeAdmission(Some(scope));
+                changes_at_admitted(&store, &entries, 3, None)
+            })
+            .unwrap();
+        assert!(matches!(&withdrawals, bj::JsonOwner::Plain(value) if value.is_native_admitted()));
+        assert!(matches!(&replaces, bj::JsonOwner::Plain(value) if value.is_native_admitted()));
+        assert_eq!(
+            withdrawals.view(),
+            aj::JsonView::Plain(&Value::Array(expected.0))
+        );
+        assert_eq!(
+            replaces.view(),
+            aj::JsonView::Plain(&Value::Array(expected.1))
+        );
+        assert!(budget.live() > baseline);
+        drop((withdrawals, replaces));
+        assert_eq!(budget.live(), baseline);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_event_owners_share_once_and_release_after_last_scope_owner() {
+        let (_, entries) = projection_fixture();
+        let budget = super::super::audit_owner::native::Budget::new(8 * 1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let (events, alias) = budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let store = super::super::audit_store::NativeAdmission(Some(scope));
+                let events =
+                    HistoryEvents::new_admitted(&entries, &store)?.into_arc_admitted(&store)?;
+                let before_clone = budget.live();
+                let alias = events.clone();
+                assert_eq!(
+                    budget.live(),
+                    before_clone,
+                    "共享事件clone不得重收载荷和控制块"
+                );
+                assert!(NativeArc::ptr_eq(&events, &alias));
+                Ok::<_, String>((events, alias))
+            })
+            .unwrap();
+        assert!(
+            budget.live() > baseline,
+            "离域共享对象仍持有动态字段及共享块许可"
+        );
+        let retained = budget.live();
+        drop(events);
+        assert_eq!(budget.live(), retained, "另一强owner仍持有事件载荷");
+        assert_eq!(alias.ranks.len(), entries.len());
+        drop(alias);
+        assert_eq!(budget.live(), baseline, "末个owner销毁才归还全部原许可");
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_event_cursors_admitted_cuts_match_scan_and_drop_to_baseline() {
+        use super::super::audit_retention::Retained;
+        let (_, entries) = projection_fixture();
+        let budget = super::super::audit_owner::native::Budget::new(8 * 1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        for _ in 0..3 {
+            let sweep = budget
+                .codec_work()
+                .unwrap()
+                .run(|scope| {
+                    let store = super::super::audit_store::NativeAdmission(Some(scope));
+                    let mut sweep = ProjectionSweep::new_admitted(&entries, &store)?;
+                    for g in [0, 1, 3, 3, 2, 0, 3] {
+                        let before = sweep.active.heap_bytes() + sweep.withdrawn.heap_bytes();
+                        sweep.seek_admitted(g, &store)?;
+                        let delta = std::mem::take(&mut sweep.retained);
+                        assert_eq!(
+                            delta.apply(before).unwrap(),
+                            sweep.active.heap_bytes() + sweep.withdrawn.heap_bytes()
+                        );
+                        for (dead, actual) in [(false, &sweep.active), (true, &sweep.withdrawn)] {
+                            let mut expected = entries
+                                .iter()
+                                .enumerate()
+                                .filter(|(_, e)| {
+                                    if dead {
+                                        e.life.withdrawn_generation.is_some_and(|d| d <= g)
+                                    } else {
+                                        e.life.first_known_generation <= g
+                                            && e.life.withdrawn_generation.is_none_or(|d| d > g)
+                                    }
+                                })
+                                .map(|(i, _)| i)
+                                .collect::<Vec<_>>();
+                            expected.sort_unstable_by(|a, b| {
+                                ordering(&entries[*a], &entries[*b], dead).then(a.cmp(b))
+                            });
+                            assert_eq!(
+                                actual.keys().map(|(_, i)| *i).collect::<Vec<_>>(),
+                                expected,
+                                "cut={g}, dead={dead}"
+                            );
+                        }
+                    }
+                    Ok::<_, String>(sweep)
+                })
+                .unwrap();
+            assert!(budget.live() > baseline);
+            drop(sweep);
+            assert_eq!(
+                budget.live(),
+                baseline,
+                "游标/共享事件/临时排序载荷不可累计retain"
+            );
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_event_failed_consuming_candidate_drops_cursor_and_all_permits() {
+        let (_, entries) = projection_fixture();
+        let limit = 8 * 1024 * 1024;
+        let budget = super::super::audit_owner::native::Budget::new(limit, 0).unwrap();
+        let baseline = budget.live();
+        let error = budget.codec_work().unwrap().run(|scope| {
+            let store = super::super::audit_store::NativeAdmission(Some(scope));
+            let mut candidate = ProjectionSweep::new_admitted(&entries, &store)?;
+            candidate.seek_admitted(1, &store)?;
+            let occupied = budget.reserve(limit - budget.live()).unwrap();
+            // 与 history 消费边界相同：候选按值进入，Err 不返回部分游标。
+            let consume = |mut candidate: ProjectionSweep| -> Result<ProjectionSweep, String> {
+                candidate.seek_admitted(3, &store)?;
+                Ok(candidate)
+            };
+            let result = consume(candidate);
+            assert!(result.is_err());
+            drop(occupied);
+            result.map(|_| ())
+        });
+        assert!(error.is_err());
+        assert_eq!(budget.live(), baseline);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_event_failed_wire_replacement_preserves_saved_owner() {
+        let (_, entries) = projection_fixture();
+        let wire = &entries[0].birth_wire;
+        let capture = sc::AuditCapture::new(sc::MemoryNodes::default());
+        let limit = 1 << 20;
+        let budget = super::super::audit_owner::native::Budget::new(limit, 0).unwrap();
+        let baseline = budget.live();
+        let result = budget.codec_work().unwrap().run(|scope| {
+            let store = super::super::audit_store::NativeAdmission(Some(scope));
+            let mut memo = projection_memo(&capture, 0);
+            store.native_codec_room(&mut memo.wires, 1).map_err(err)?;
+            memo.wires.try_push([None, None]).map_err(err)?;
+            memo.remember_wire(&store, 0, 0, wire)?;
+            let before = budget.live();
+            let occupied = budget.reserve(limit - before).unwrap();
+            let error = memo.remember_wire(&store, 0, 0, wire).unwrap_err();
+            assert_eq!(memo.wires[0][0].as_ref().unwrap().view(), wire.view());
+            drop(occupied);
+            assert_eq!(budget.live(), before, "失败复制必须销毁临时permit");
+            Err::<(), String>(error)
+        });
+        assert!(result.is_err());
+        assert_eq!(budget.live(), baseline);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
     fn cold_relation_index_sort_ties_keep_complete_projection_roots() {
         let (mut nodes, entries) = projection_fixture();
         assert_eq!(
@@ -4853,8 +4970,8 @@ mod tests {
                     .collect::<Vec<_>>();
                 array(&mut nodes, &refs).unwrap()
             };
-            let active = project(sweep.active.iter().map(|(_, i)| *i).collect());
-            let withdrawn = project(sweep.withdrawn.iter().map(|(_, i)| *i).collect());
+            let active = project(sweep.active.keys().map(|(_, i)| *i).collect());
+            let withdrawn = project(sweep.withdrawn.keys().map(|(_, i)| *i).collect());
             let births = project(
                 sweep
                     .events
@@ -4874,7 +4991,7 @@ mod tests {
     fn projection_memo(capture: &sc::AuditCapture, count: usize) -> NativeProjection<'_> {
         NativeProjection {
             capture,
-            wires: vec![[None, None]; count],
+            wires: sc::CodecVec::from_plain((0..count).map(|_| [None, None]).collect()),
             sweep: None,
             retained: Default::default(),
         }
@@ -5147,7 +5264,7 @@ mod tests {
             assert_eq!(
                 projection
                     .active
-                    .iter()
+                    .keys()
                     .map(|(_, i)| *i)
                     .collect::<Vec<_>>(),
                 active
@@ -5155,7 +5272,7 @@ mod tests {
             assert_eq!(
                 projection
                     .withdrawn
-                    .iter()
+                    .keys()
                     .map(|(_, i)| *i)
                     .collect::<Vec<_>>(),
                 withdrawn
@@ -5389,13 +5506,20 @@ mod tests {
                     old_union_material,
                     "旧union/新fields必须生成逐字相同SQL节点原件集合"
                 );
-                assert!(union_reads < old_union_reads, "generated一次字段绑定须减少实际SQL读取：gen{g} old_union={old_union_reads} fields={union_reads}");
-                println!("Native candidate fields gen{g}: actual_SQL_reads old_union={old_union_reads} fields={union_reads}; all_plan_roots_metadata_and_node_bytes_equal=1");
+                assert!(
+                    union_reads < old_union_reads,
+                    "generated一次字段绑定须减少实际SQL读取：gen{g} old_union={old_union_reads} fields={union_reads}"
+                );
+                println!(
+                    "Native candidate fields gen{g}: actual_SQL_reads old_union={old_union_reads} fields={union_reads}; all_plan_roots_metadata_and_node_bytes_equal=1"
+                );
                 assert!(
                     union_reads < ordinary_reads,
                     "实际SQL读数须减少：gen{g} ordinary={ordinary_reads} union={union_reads}"
                 );
-                println!("Native candidate union gen{g}: actual_SQL_reads ordinary={ordinary_reads} union={union_reads}; plan roots/metadata identical");
+                println!(
+                    "Native candidate union gen{g}: actual_SQL_reads ordinary={ordinary_reads} union={union_reads}; plan roots/metadata identical"
+                );
                 union
             } else {
                 p
@@ -5535,7 +5659,7 @@ mod tests {
                 let mut scan = load_for_history(&tx, &mut captured, g).unwrap();
                 let before = current.native_sweep().unwrap();
                 assert!(
-                    std::sync::Arc::ptr_eq(
+                    NativeArc::ptr_eq(
                         &before.events,
                         &current
                             .native
@@ -5682,28 +5806,43 @@ mod tests {
 }
 
 impl Slot {
-    fn try_clone(&self) -> Result<Self, String> {
+    fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
         Ok(match self {
             Self::Shape(v) => Self::Shape(*v),
             Self::Typed { kind, fact_key } => Self::Typed {
-                kind: kind.try_clone()?,
-                fact_key: fact_key.try_clone()?,
+                kind: kind.try_clone_admitted(store.codec_work())?,
+                fact_key: fact_key.try_clone_admitted(store.codec_work())?,
             },
         })
     }
 }
 impl Entry {
     pub fn try_clone(&self) -> Result<Self, String> {
+        self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
+    }
+    pub fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
+        let text = |v: &TextValue| v.try_clone_admitted(store.codec_work());
         Ok(Self {
-            id: self.id.try_clone()?,
+            id: text(&self.id)?,
             revision: self.revision,
-            kind: self.kind.try_clone()?,
-            slot: self.slot.try_clone()?,
+            kind: text(&self.kind)?,
+            slot: self.slot.try_clone_admitted(store)?,
             generated: self.generated.clone(),
             internal: self.internal.clone(),
             immutable: self.immutable.clone(),
-            birth_wire: self.birth_wire.clone(),
-            life: self.life.try_clone()?,
+            birth_wire: store.native_ref_clone(&self.birth_wire).map_err(err)?,
+            life: LifeOwner {
+                first_known_generation: self.life.first_known_generation,
+                first_known_cut: text(&self.life.first_known_cut)?,
+                published_generation: self.life.published_generation,
+                withdrawn_generation: self.life.withdrawn_generation,
+                withdrawal_reason: self.life.withdrawal_reason.as_ref().map(text).transpose()?,
+                superseded_by: self.life.superseded_by.as_ref().map(text).transpose()?,
+                batch: match &self.life.batch {
+                    BatchOwner::CurrentBatch => BatchOwner::CurrentBatch,
+                    BatchOwner::Existing(v) => BatchOwner::Existing(text(v)?),
+                },
+            },
         })
     }
 }
@@ -5865,7 +6004,7 @@ mod owner_retention {
             }
         }
     }
-    impl Retained for OrderKey<String> {
+    impl Retained for NativeRank {
         fn heap_bytes(&self) -> usize {
             match self {
                 Self::Shape(_) => 0,
@@ -5875,6 +6014,12 @@ mod owner_retention {
                     i.heap_bytes(),
                 ]),
             }
+        }
+    }
+    impl Retained for NativeArc<HistoryEvents> {
+        fn heap_bytes(&self) -> usize {
+            self.allocation_bytes()
+                .saturating_add(self.as_ref().heap_bytes())
         }
     }
     impl Retained for HistoryEvents {

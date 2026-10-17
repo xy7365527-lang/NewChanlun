@@ -936,7 +936,8 @@ fn audit_one_cut_sources(
     let allocation = super::audit_store::CodecRead::allocation_budget(store);
     let (withdrawals, replaces) = match &object_sweep {
         Some(sweep) => sweep.changes_admitted(store, objects, cut.metadata.generation)?,
-        None => object_index::changes_at_budgeted(
+        None => object_index::changes_at_admitted(
+            store,
             objects,
             cut.metadata.generation,
             allocation.as_ref(),
@@ -1231,7 +1232,7 @@ pub(super) mod borrowed_field_probe {
         ) -> Result<RefValue, CodecError> {
             assert_eq!(key, "borrowed😀");
             self.fields += 1;
-            Ok(RefValue::Plain(self.reference.clone()))
+            Ok(RefValue::from(self.reference.clone()))
         }
         fn generic_source(&mut self) -> &mut dyn NodeSource {
             panic!("borrowed字段入口不得擦除codec")
@@ -1573,9 +1574,9 @@ mod tests {
         }
         for object in &audited.objects {
             for root in [
-                super::audit_store::RefValue::Plain(object.generated.content_ref()),
-                super::audit_store::RefValue::Plain(object.internal.content_ref()),
-                super::audit_store::RefValue::Plain(object.immutable.content_ref()),
+                super::audit_store::RefValue::from(object.generated.content_ref()),
+                super::audit_store::RefValue::from(object.internal.content_ref()),
+                super::audit_store::RefValue::from(object.immutable.content_ref()),
                 object.birth_wire.clone(),
             ] {
                 sc::verify_refview(&mut persisted, root.view(), sc::Mode::Public).unwrap();

@@ -58,6 +58,7 @@ mod financial_reader;
 mod financial_session;
 mod generation;
 mod history;
+pub(crate) mod native_shared;
 pub(super) mod object_index;
 mod object_records;
 mod prepared;

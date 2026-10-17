@@ -3,10 +3,11 @@
 //! 观察 detail 与来源数组保留为边；仅单条原始事件沿既有投影转换。索引不替代来源业务审计。
 use super::business_json::{self as bj, RawEventsView};
 use super::generation::{Generated, SequenceMemo, WitnessRecord};
-use crate::v3::audit_store::{CodecRead, CodecStore, RefValue};
+use crate::v3::audit_store::{CodecRead, CodecStore, NativeTree, RefValue};
 use crate::{content_store, meta_get_opt};
 use aj::JsonView;
 use bj::TextValue;
+use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
 use newchan_rust::s_content::{
     self as sc, path::PathStep, Built, ContentRef, Kind, NodeDigest, NodeStore,
 };
@@ -269,13 +270,16 @@ pub(super) struct Witness {
 }
 impl Witness {
     fn try_clone(&self) -> Result<Self, String> {
+        self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
+    }
+    fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
         Ok(Self {
-            id: self.id.try_clone()?,
-            object_id: self.object_id.try_clone()?,
+            id: self.id.try_clone_admitted(store.codec_work())?,
+            object_id: self.object_id.try_clone_admitted(store.codec_work())?,
             slot: self.slot,
             merged_index: self.merged_index,
-            generated: self.generated.clone(),
-            wire: self.wire.clone(),
+            generated: store.native_ref_clone(&self.generated).map_err(err)?,
+            wire: store.native_ref_clone(&self.wire).map_err(err)?,
             first: self.first,
         })
     }
@@ -291,12 +295,15 @@ pub(super) struct Relation {
 }
 impl Relation {
     fn try_clone(&self) -> Result<Self, String> {
+        self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
+    }
+    fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
         Ok(Self {
-            id: self.id.try_clone()?,
-            subject: self.subject.try_clone()?,
-            relation_type: self.relation_type.try_clone()?,
-            object: self.object.try_clone()?,
-            generated: self.generated.clone(),
+            id: self.id.try_clone_admitted(store.codec_work())?,
+            subject: self.subject.try_clone_admitted(store.codec_work())?,
+            relation_type: self.relation_type.try_clone_admitted(store.codec_work())?,
+            object: self.object.try_clone_admitted(store.codec_work())?,
+            generated: store.native_ref_clone(&self.generated).map_err(err)?,
             first: self.first,
         })
     }
@@ -313,13 +320,20 @@ pub(super) struct Observation {
 }
 impl Observation {
     fn try_clone(&self) -> Result<Self, String> {
+        self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
+    }
+    fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
         Ok(Self {
-            id: self.id.try_clone()?,
-            kind: self.kind.try_clone()?,
+            id: self.id.try_clone_admitted(store.codec_work())?,
+            kind: self.kind.try_clone_admitted(store.codec_work())?,
             window_start: self.window_start,
-            generated: self.generated.clone(),
-            wire: self.wire.clone(),
-            batch: self.batch.as_ref().map(TextValue::try_clone).transpose()?,
+            generated: store.native_ref_clone(&self.generated).map_err(err)?,
+            wire: store.native_ref_clone(&self.wire).map_err(err)?,
+            batch: self
+                .batch
+                .as_ref()
+                .map(|v| v.try_clone_admitted(store.codec_work()))
+                .transpose()?,
             first: self.first,
         })
     }
@@ -344,6 +358,13 @@ impl Index {
         self.clone_in(self.budget.clone())
     }
     fn clone_in(&self, budget: Option<OwnedBudget>) -> Result<Self, String> {
+        self.clone_in_admitted(budget, &super::audit_store::NativeAdmission(None))
+    }
+    fn clone_in_admitted(
+        &self,
+        budget: Option<OwnedBudget>,
+        store: &(impl CodecRead + ?Sized),
+    ) -> Result<Self, String> {
         let retained = self.witnesses.capacity() != 0
             || self.relations.capacity() != 0
             || self.observations.capacity() != 0;
@@ -354,13 +375,28 @@ impl Index {
         }
         let mut out = Self::new(budget);
         for row in &self.witnesses {
-            out.witnesses.try_push(row.try_clone()?).map_err(err)?;
+            store
+                .native_codec_room(&mut out.witnesses, 1)
+                .map_err(err)?;
+            out.witnesses
+                .try_push(row.try_clone_admitted(store)?)
+                .map_err(err)?;
         }
         for row in &self.relations {
-            out.relations.try_push(row.try_clone()?).map_err(err)?;
+            store
+                .native_codec_room(&mut out.relations, 1)
+                .map_err(err)?;
+            out.relations
+                .try_push(row.try_clone_admitted(store)?)
+                .map_err(err)?;
         }
         for row in &self.observations {
-            out.observations.try_push(row.try_clone()?).map_err(err)?;
+            store
+                .native_codec_room(&mut out.observations, 1)
+                .map_err(err)?;
+            out.observations
+                .try_push(row.try_clone_admitted(store)?)
+                .map_err(err)?;
         }
         Ok(out)
     }
@@ -529,13 +565,14 @@ impl Runtime {
             &(w.built.digest, merged_index),
             s.allocation_budget().as_ref(),
         )? {
-            Some(r) => r.clone(),
+            Some(r) => s.native_ref_clone(r).map_err(err)?,
             None => {
                 verify_witness_id(s, &generated, &id, &object_id, slot, merged_index)?;
                 let r = self.witness_wire(s, &generated)?;
-                self.witness_wires.insert(
+                self.witness_wires.insert_admitted(
+                    s,
                     (w.built.digest, merged_index),
-                    r.clone(),
+                    s.native_ref_clone(&r).map_err(err)?,
                     s.allocation_budget().as_ref(),
                 )?;
                 r
@@ -619,12 +656,13 @@ impl Runtime {
             .observation_ids
             .get(&b.digest, s.allocation_budget().as_ref())?
         {
-            id.try_clone()?
+            id.try_clone_admitted(s.codec_work())?
         } else {
             let id = observation_id(s, &generated)?;
-            self.observation_ids.insert(
+            self.observation_ids.insert_admitted(
+                s,
                 b.digest,
-                id.try_clone()?,
+                id.try_clone_admitted(s.codec_work())?,
                 s.allocation_budget().as_ref(),
             )?;
             id
@@ -662,11 +700,13 @@ impl Runtime {
             return Err(err("代号/原始前沿非法"));
         }
         let owned_budget = s.allocation_budget();
-        let mut snapshot = old.clone_in(owned_budget.clone())?;
+        let mut snapshot = old.clone_in_admitted(owned_budget.clone(), s)?;
         let mut births = Index::new(owned_budget.clone());
         let mut ws = work_map(owned_budget.as_ref());
         for (i, row) in snapshot.witnesses.iter().enumerate() {
-            ws.insert(row.id.try_clone()?, i).map_err(err)?;
+            s.native_map_room(&mut ws).map_err(err)?;
+            ws.insert(row.id.try_clone_admitted(s.codec_work())?, i)
+                .map_err(err)?;
         }
         for w in &generated.witnesses {
             let object = generated
@@ -697,27 +737,42 @@ impl Runtime {
                     return Err(err("同见证身份换内容"));
                 }
             } else {
-                ws.insert(row.id.try_clone()?, snapshot.witnesses.len())
+                s.native_map_room(&mut ws).map_err(err)?;
+                ws.insert(
+                    row.id.try_clone_admitted(s.codec_work())?,
+                    snapshot.witnesses.len(),
+                )
+                .map_err(err)?;
+                s.native_codec_room(&mut snapshot.witnesses, 1)
                     .map_err(err)?;
-                snapshot.witnesses.try_push(row.try_clone()?).map_err(err)?;
+                snapshot
+                    .witnesses
+                    .try_push(row.try_clone_admitted(s)?)
+                    .map_err(err)?;
+                s.native_codec_room(&mut births.witnesses, 1).map_err(err)?;
                 births.witnesses.try_push(row).map_err(err)?;
             }
         }
         let mut rs = work_map(owned_budget.as_ref());
         for (i, row) in snapshot.relations.iter().enumerate() {
-            rs.insert(row.id.try_clone()?, i).map_err(err)?;
+            s.native_map_room(&mut rs).map_err(err)?;
+            rs.insert(row.id.try_clone_admitted(s.codec_work())?, i)
+                .map_err(err)?;
         }
         let mut candidates = bj::new_work(owned_budget.as_ref());
         for b in &generated.relations {
+            s.native_codec_room(&mut candidates, 1).map_err(err)?;
             candidates.try_push(built_ref(s, b)?).map_err(err)?;
         }
         for r in replaces {
+            s.native_codec_room(&mut candidates, 1).map_err(err)?;
             candidates
                 .try_push(replacement_relation(s, r)?)
                 .map_err(err)?;
         }
         for event in raw.prefix(frontier as usize + 1)? {
             if let Some(r) = supersedes_relation(s, event)? {
+                s.native_codec_room(&mut candidates, 1).map_err(err)?;
                 candidates.try_push(r).map_err(err)?;
             }
         }
@@ -728,15 +783,27 @@ impl Runtime {
                     return Err(err("同关系身份换内容"));
                 }
             } else {
-                rs.insert(row.id.try_clone()?, snapshot.relations.len())
+                s.native_map_room(&mut rs).map_err(err)?;
+                rs.insert(
+                    row.id.try_clone_admitted(s.codec_work())?,
+                    snapshot.relations.len(),
+                )
+                .map_err(err)?;
+                s.native_codec_room(&mut snapshot.relations, 1)
                     .map_err(err)?;
-                snapshot.relations.try_push(row.try_clone()?).map_err(err)?;
+                snapshot
+                    .relations
+                    .try_push(row.try_clone_admitted(s)?)
+                    .map_err(err)?;
+                s.native_codec_room(&mut births.relations, 1).map_err(err)?;
                 births.relations.try_push(row).map_err(err)?;
             }
         }
         let mut obs = work_map(owned_budget.as_ref());
         for (i, row) in snapshot.observations.iter().enumerate() {
-            obs.insert(row.id.try_clone()?, i).map_err(err)?;
+            s.native_map_room(&mut obs).map_err(err)?;
+            obs.insert(row.id.try_clone_admitted(s.codec_work())?, i)
+                .map_err(err)?;
         }
         for b in &generated.observations {
             let row = self.observation(s, b, g)?;
@@ -750,11 +817,19 @@ impl Runtime {
                     return Err(err("同观察身份的身份字段冲突"));
                 }
             } else {
-                obs.insert(row.id.try_clone()?, snapshot.observations.len())
+                s.native_map_room(&mut obs).map_err(err)?;
+                obs.insert(
+                    row.id.try_clone_admitted(s.codec_work())?,
+                    snapshot.observations.len(),
+                )
+                .map_err(err)?;
+                s.native_codec_room(&mut snapshot.observations, 1)
                     .map_err(err)?;
                 snapshot
                     .observations
-                    .try_push(row.try_clone()?)
+                    .try_push(row.try_clone_admitted(s)?)
+                    .map_err(err)?;
+                s.native_codec_room(&mut births.observations, 1)
                     .map_err(err)?;
                 births.observations.try_push(row).map_err(err)?;
             }
@@ -1162,21 +1237,21 @@ fn audit_count(slot: usize) {
     #[cfg(not(test))]
     let _ = slot;
 }
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 struct RelationRefKey {
-    format: String,
-    root: String,
+    format: NativeValue<String>,
+    root: NativeValue<String>,
     kind: Kind,
     extent: Option<u64>,
 }
 impl RelationRefKey {
-    fn new(r: &RefValue) -> Self {
-        Self {
-            format: r.view().format().into(),
-            root: r.view().root().into(),
+    fn new(r: &RefValue, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
+        Ok(Self {
+            format: store.native_string(r.view().format()).map_err(err)?,
+            root: store.native_string(r.view().root()).map_err(err)?,
             kind: r.kind(),
             extent: r.extent(),
-        }
+        })
     }
 }
 struct RelationCore {
@@ -1188,18 +1263,14 @@ struct RelationCore {
 }
 impl RelationCore {
     fn at(&self, g: i64, admission: &(impl CodecRead + ?Sized)) -> Result<Relation, String> {
-        for text in [&self.id, &self.subject, &self.relation_type, &self.object] {
-            admission.native_admit(text.len()).map_err(err)?;
-        }
-        admission
-            .native_admit(self.generated.view().root().len() + self.generated.view().format().len())
-            .map_err(err)?;
         Ok(Relation {
-            id: self.id.try_clone()?,
-            subject: self.subject.try_clone()?,
-            relation_type: self.relation_type.try_clone()?,
-            object: self.object.try_clone()?,
-            generated: self.generated.clone(),
+            id: self.id.try_clone_admitted(admission.codec_work())?,
+            subject: self.subject.try_clone_admitted(admission.codec_work())?,
+            relation_type: self
+                .relation_type
+                .try_clone_admitted(admission.codec_work())?,
+            object: self.object.try_clone_admitted(admission.codec_work())?,
+            generated: admission.native_ref_clone(&self.generated).map_err(err)?,
             first: g,
         })
     }
@@ -1211,14 +1282,14 @@ fn native_tables<T>(
     store: &(impl CodecRead + ?Sized),
 ) -> Result<
     (
-        std::collections::HashMap<String, usize>,
-        std::collections::BTreeMap<i64, Vec<usize>>,
+        bj::BusinessMap<NativeValue<String>, usize>,
+        NativeTree<i64, CodecVec<usize>>,
         Option<i64>,
     ),
     String,
 > {
-    let mut map = std::collections::HashMap::<String, usize>::new();
-    let mut born = std::collections::BTreeMap::<i64, Vec<usize>>::new();
+    let mut map = bj::new_map(None);
+    let mut born = NativeTree::<i64, CodecVec<usize>>::default();
     let mut duplicate = None;
     for (ordinal, row) in rows.iter().enumerate() {
         audit_count(0);
@@ -1226,35 +1297,36 @@ fn native_tables<T>(
         let name = id(row);
         let g = first(row);
         if !born.contains_key(&g) {
-            store
-                .native_tree_room::<i64, Vec<usize>>(born.len())
+            born.insert_admitted(g, bj::new_work(None), store)
                 .map_err(err)?;
         }
-        let bucket = born.entry(g).or_default();
-        store.native_vec_room(bucket, 1).map_err(err)?;
-        bucket.push(ordinal);
+        let bucket = born.get_mut(&g).expect("已插入出生桶");
+        store.native_codec_room(bucket, 1).map_err(err)?;
+        bucket.try_push(ordinal).map_err(err)?;
         if let Some(previous) = map.get(name).copied() {
             let from = g.max(first(&rows[previous]));
             duplicate = Some(duplicate.map_or(from, |old: i64| old.min(from)));
             if g < first(&rows[previous]) {
-                map.insert(store.native_string(name).map_err(err)?, ordinal);
+                map.insert(store.native_string(name).map_err(err)?, ordinal)
+                    .map_err(err)?;
             }
         } else {
-            store.native_std_map_room(&mut map).map_err(err)?;
-            map.insert(store.native_string(name).map_err(err)?, ordinal);
+            store.native_map_room(&mut map).map_err(err)?;
+            map.insert(store.native_string(name).map_err(err)?, ordinal)
+                .map_err(err)?;
         }
     }
     Ok((map, born, duplicate))
 }
 /// 完整身份表按原 SQL 行序保存稳定 ordinal；首次观察桶不借用索引行或身份文本。
 pub(super) struct NativeAuxFacts {
-    witnesses: std::collections::HashMap<String, usize>,
-    relations: std::collections::HashMap<String, usize>,
-    observations: std::collections::HashMap<String, usize>,
-    born: [std::collections::BTreeMap<i64, Vec<usize>>; 3],
+    witnesses: bj::BusinessMap<NativeValue<String>, usize>,
+    relations: bj::BusinessMap<NativeValue<String>, usize>,
+    observations: bj::BusinessMap<NativeValue<String>, usize>,
+    born: [NativeTree<i64, CodecVec<usize>>; 3],
     duplicates: [Option<i64>; 3],
     raw_scanned: usize,
-    raw_revisions: Vec<usize>,
+    raw_revisions: CodecVec<usize>,
 }
 /// 本事务 facade 绑定原件及索引；纯 codec memo 随 facade 终结，不移交为当前性资格。
 pub(super) struct NativeAuxAudit<'index, 'capture, 'raw> {
@@ -1264,8 +1336,8 @@ pub(super) struct NativeAuxAudit<'index, 'capture, 'raw> {
     facts: NativeAuxFacts,
     #[cfg(feature = "s_capture_native_testonly")]
     retained_raw_capacity: usize,
-    relation_memo: std::collections::HashMap<RelationRefKey, RelationCore>,
-    raw_memo: std::collections::HashMap<usize, Option<RefValue>>,
+    relation_memo: bj::BusinessMap<RelationRefKey, RelationCore>,
+    raw_memo: bj::BusinessMap<usize, Option<RefValue>>,
 }
 impl std::ops::Deref for NativeAuxAudit<'_, '_, '_> {
     type Target = NativeAuxFacts;
@@ -1333,12 +1405,12 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
                 born: [bw, br, bo],
                 duplicates: [dw, dr, do_],
                 raw_scanned: 0,
-                raw_revisions: Vec::new(),
+                raw_revisions: bj::new_work(None),
             },
             #[cfg(feature = "s_capture_native_testonly")]
             retained_raw_capacity: 0,
-            relation_memo: Default::default(),
-            raw_memo: Default::default(),
+            relation_memo: bj::new_map(None),
+            raw_memo: bj::new_map(None),
         }))
     }
     #[cfg(feature = "s_capture_native_testonly")]
@@ -1360,8 +1432,8 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
             raw,
             retained_raw_capacity: facts.raw_revisions.capacity(),
             facts,
-            relation_memo: Default::default(),
-            raw_memo: Default::default(),
+            relation_memo: bj::new_map(None),
+            raw_memo: bj::new_map(None),
         })
     }
     pub(super) fn audit(
@@ -1384,8 +1456,8 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
             verify_generated_members_in_view(s, index, state, replaces, raw, g, Some(self))
         })();
         if result.is_err() {
-            self.relation_memo.clear();
-            self.raw_memo.clear();
+            self.relation_memo.retain(|_, _| false);
+            self.raw_memo.retain(|_, _| false);
             self.raw_scanned = 0;
             self.raw_revisions.clear();
         }
@@ -1412,7 +1484,7 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
     fn birth_names(&self, role: usize, g: i64) -> impl ExactSizeIterator<Item = &str> {
         self.born[role]
             .get(&g)
-            .map(Vec::as_slice)
+            .map(|v| &v[..])
             .unwrap_or(&[])
             .iter()
             .map(move |ordinal| match role {
@@ -1433,9 +1505,7 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
         }
         s.native_verify_original(self.capture, candidate.view(), sc::Mode::Public)
             .map_err(err)?;
-        s.native_admit(candidate.view().root().len() + candidate.view().format().len())
-            .map_err(err)?;
-        let key = RelationRefKey::new(&candidate);
+        let key = RelationRefKey::new(&candidate, s)?;
         if let Some(core) = self.relation_memo.get(&key) {
             return core.at(g, s);
         }
@@ -1448,9 +1518,8 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
             generated: parsed.generated,
         };
         let result = core.at(g, s)?;
-        s.native_std_map_room(&mut self.relation_memo)
-            .map_err(err)?;
-        self.relation_memo.insert(key, core);
+        s.native_map_room(&mut self.relation_memo).map_err(err)?;
+        self.relation_memo.insert(key, core).map_err(err)?;
         Ok(result)
     }
     fn raw_relation(
@@ -1486,14 +1555,16 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
             }
         };
         if eligible {
-            s.native_std_map_room(&mut self.raw_memo).map_err(err)?;
-            self.raw_memo.insert(
-                ordinal,
-                value
-                    .as_ref()
-                    .map(|r| s.native_ref_clone(r).map_err(err))
-                    .transpose()?,
-            );
+            s.native_map_room(&mut self.raw_memo).map_err(err)?;
+            self.raw_memo
+                .insert(
+                    ordinal,
+                    value
+                        .as_ref()
+                        .map(|r| s.native_ref_clone(r).map_err(err))
+                        .transpose()?,
+                )
+                .map_err(err)?;
         }
         Ok(value)
     }
@@ -1512,9 +1583,9 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
                 .ok_or_else(|| err("raw ordinal越界"))?;
             if !bj::field(event, "supersedes_revision").is_null() {
                 admission
-                    .native_vec_room(&mut self.facts.raw_revisions, 1)
+                    .native_codec_room(&mut self.facts.raw_revisions, 1)
                     .map_err(err)?;
-                self.raw_revisions.push(ordinal);
+                self.raw_revisions.try_push(ordinal).map_err(err)?;
             }
         }
         self.raw_scanned = self.raw_scanned.max(prefix);
@@ -1685,7 +1756,10 @@ fn verify_generated_members_in_view(
             if let Some(r) = owner.raw_relation(s, ordinal)? {
                 s.native_codec_room(&mut relation_candidates, 1)
                     .map_err(err)?;
-                relation_candidates.try_push(r).map_err(err)?;
+                relation_s
+                    .native_codec_room(&mut candidates, 1)
+                    .map_err(err)?;
+                candidates.try_push(r).map_err(err)?;
             }
         }
     } else {
@@ -1694,7 +1768,10 @@ fn verify_generated_members_in_view(
             if let Some(r) = supersedes_relation(s, event)? {
                 s.native_codec_room(&mut relation_candidates, 1)
                     .map_err(err)?;
-                relation_candidates.try_push(r).map_err(err)?;
+                relation_s
+                    .native_codec_room(&mut candidates, 1)
+                    .map_err(err)?;
+                candidates.try_push(r).map_err(err)?;
             }
         }
     }
@@ -1906,8 +1983,11 @@ pub(super) fn update_from_owner(
             let (id, ordinal, first) = match role {
                 0 => {
                     let e = audit_persisted_witness(&mut row, s, latest, None, &mut rt)?;
-                    s.native_admit(e.id.len()).map_err(err)?;
-                    let out = (e.id.to_string(), index.witnesses.len(), e.first);
+                    let out = (
+                        s.native_string(e.id.as_str()).map_err(err)?,
+                        index.witnesses.len(),
+                        e.first,
+                    );
                     retained.add(&e);
                     let capacity = index.witnesses.capacity();
                     s.native_codec_room(&mut index.witnesses, 1).map_err(err)?;
@@ -1917,8 +1997,11 @@ pub(super) fn update_from_owner(
                 }
                 1 => {
                     let e = audit_persisted_relation(&mut row, s, latest, None)?;
-                    s.native_admit(e.id.len()).map_err(err)?;
-                    let out = (e.id.to_string(), index.relations.len(), e.first);
+                    let out = (
+                        s.native_string(e.id.as_str()).map_err(err)?,
+                        index.relations.len(),
+                        e.first,
+                    );
                     retained.add(&e);
                     let capacity = index.relations.capacity();
                     s.native_codec_room(&mut index.relations, 1).map_err(err)?;
@@ -1928,8 +2011,11 @@ pub(super) fn update_from_owner(
                 }
                 _ => {
                     let e = audit_persisted_observation(&mut row, s, latest, None)?;
-                    s.native_admit(e.id.len()).map_err(err)?;
-                    let out = (e.id.to_string(), index.observations.len(), e.first);
+                    let out = (
+                        s.native_string(e.id.as_str()).map_err(err)?,
+                        index.observations.len(),
+                        e.first,
+                    );
                     retained.add(&e);
                     let capacity = index.observations.capacity();
                     s.native_codec_room(&mut index.observations, 1)
@@ -1948,21 +2034,24 @@ pub(super) fn update_from_owner(
             };
             let capacity = map.capacity();
             retained.add(&id);
-            s.native_std_map_room(map).map_err(err)?;
-            if map.insert(id, ordinal).is_some() {
+            s.native_map_room(map).map_err(err)?;
+            if map.insert(id, ordinal).map_err(err)?.is_some() {
                 return Err(err("辅助索引重复身份"));
             }
-            retained.hash_capacity::<String, usize>(capacity, map.capacity());
-            let len = facts.born[role].len();
+            retained.hash_capacity::<NativeValue<String>, usize>(capacity, map.capacity());
+            let tree_bytes = facts.born[role].allocation_bytes();
             if !facts.born[role].contains_key(&first) {
-                s.native_tree_room::<i64, Vec<usize>>(len).map_err(err)?;
+                facts.born[role]
+                    .insert_admitted(first, bj::new_work(None), s)
+                    .map_err(err)?;
             }
-            let bucket = facts.born[role].entry(first).or_default();
+            let bucket = facts.born[role].get_mut(&first).expect("已插入出生桶");
             let capacity = bucket.capacity();
-            s.native_vec_room(bucket, 1).map_err(err)?;
-            bucket.push(ordinal);
+            s.native_codec_room(bucket, 1).map_err(err)?;
+            bucket.try_push(ordinal).map_err(err)?;
             retained.vec_capacity::<usize>(capacity, bucket.capacity());
-            retained.tree_len::<i64, Vec<usize>>(len, facts.born[role].len());
+            retained.release_bytes(tree_bytes);
+            retained.add_bytes(facts.born[role].allocation_bytes());
         }
     }
     Ok(())
@@ -1976,14 +2065,9 @@ fn audit_persisted_witness(
     allocation: Option<&OwnedBudget>,
     rt: &mut Runtime,
 ) -> Result<Witness, String> {
-    if s.codec_work().is_some() {
-        s.native_admit(row.text(0).map_err(err)?.len())
-            .map_err(err)?;
-        s.native_admit(row.text(1).map_err(err)?.len())
-            .map_err(err)?;
-    }
-    let id = TextValue::from_sql(row, 0, allocation).map_err(err)?;
-    let object_id = TextValue::from_sql(row, 1, allocation).map_err(err)?;
+    let id = TextValue::from_sql_admitted(row, 0, allocation, s.codec_work()).map_err(err)?;
+    let object_id =
+        TextValue::from_sql_admitted(row, 1, allocation, s.codec_work()).map_err(err)?;
     let slot: i64 = row.integer(2).map_err(err)?;
     let merged_index: i64 = row.integer(6).map_err(err)?;
     let generated = root(s, row.blob(3).map_err(err)?)?;
@@ -2041,18 +2125,10 @@ fn audit_persisted_observation(
     latest: i64,
     allocation: Option<&OwnedBudget>,
 ) -> Result<Observation, String> {
-    if s.codec_work().is_some() {
-        s.native_admit(row.text(0).map_err(err)?.len())
-            .map_err(err)?;
-        s.native_admit(row.text(1).map_err(err)?.len())
-            .map_err(err)?;
-        s.native_admit(row.text(3).map_err(err)?.len())
-            .map_err(err)?;
-    }
-    let id = TextValue::from_sql(row, 0, allocation).map_err(err)?;
-    let kind = TextValue::from_sql(row, 1, allocation).map_err(err)?;
+    let id = TextValue::from_sql_admitted(row, 0, allocation, s.codec_work()).map_err(err)?;
+    let kind = TextValue::from_sql_admitted(row, 1, allocation, s.codec_work()).map_err(err)?;
     let window_start: Option<i64> = row.optional_integer(2).map_err(err)?;
-    let batch = TextValue::from_sql(row, 3, allocation).map_err(err)?;
+    let batch = TextValue::from_sql_admitted(row, 3, allocation, s.codec_work()).map_err(err)?;
     check_batch(&batch)?;
     let generated = root(s, row.blob(4).map_err(err)?)?;
     let wire = root(s, row.blob(5).map_err(err)?)?;
@@ -2184,7 +2260,7 @@ fn cut_members_projected(
     let mut witnesses = bj::new_work(owned);
     let mut relations = bj::new_work(owned);
     let mut observations = bj::new_work(owned);
-    let mut template_observations = native.as_ref().map(|_| Vec::new());
+    let mut template_observations = native.as_ref().map(|_| bj::new_work(None));
     for row in w {
         if let Some(b) = budget {
             b.record().map_err(err)?;
@@ -2232,21 +2308,23 @@ fn cut_members_projected(
                     "window_end",
                 ];
                 let fields = s.lookup_fields_ref(row.wire.view(), NAMES).map_err(err)?;
-                let mut values = Vec::new();
-                s.native_vec_room(&mut values, NAMES.len()).map_err(err)?;
+                let mut values = bj::new_work(None);
+                s.native_codec_room(&mut values, NAMES.len()).map_err(err)?;
                 for name in NAMES {
                     let r = fields
                         .get_admitted(*s, name)
                         .map_err(err)?
                         .ok_or_else(|| err("观察wire缺字段"))?;
-                    values.push((
-                        *name,
-                        if *name == "batch_id" {
-                            VV::BatchSelf
-                        } else {
-                            VV::Edge(r.digest().map_err(err)?)
-                        },
-                    ));
+                    values
+                        .try_push((
+                            *name,
+                            if *name == "batch_id" {
+                                VV::BatchSelf
+                            } else {
+                                VV::Edge(r.digest().map_err(err)?)
+                            },
+                        ))
+                        .map_err(err)?;
                 }
                 s.write_template_view(VV::Object(&values))
                     .map_err(err)?
@@ -2254,9 +2332,13 @@ fn cut_members_projected(
             } else {
                 digest(&row.wire)?
             };
-            s.native_vec_room(template_observations.as_mut().unwrap(), 1)
+            s.native_codec_room(template_observations.as_mut().unwrap(), 1)
                 .map_err(err)?;
-            template_observations.as_mut().unwrap().push(template);
+            template_observations
+                .as_mut()
+                .unwrap()
+                .try_push(template)
+                .map_err(err)?;
         }
         if let Some((s, _)) = native.as_ref() {
             s.native_codec_room(&mut observations, 1).map_err(err)?;
@@ -2264,14 +2346,16 @@ fn cut_members_projected(
         observations.try_push(digest(&row.wire)?).map_err(err)?;
     }
     let template = if let Some(nodes) = template_observations {
-        let mut values = Vec::new();
+        let mut values = bj::new_work(None);
         native
             .as_ref()
             .unwrap()
             .0
-            .native_vec_room(&mut values, nodes.len())
+            .native_codec_room(&mut values, nodes.len())
             .map_err(err)?;
-        values.extend(nodes.iter().copied().map(VV::Edge));
+        for node in &nodes {
+            values.try_push(VV::Edge(*node)).map_err(err)?;
+        }
         Some(
             native
                 .as_mut()
@@ -2408,6 +2492,59 @@ pub(super) fn stage_in_material(
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_aux_tables_retain_owners_across_scope_and_release_on_drop() {
+        let rows = [("alpha", 3), ("beta", 1), ("alpha", 2)];
+        let budget = super::super::audit_owner::native::Budget::new(1 << 20, 0).unwrap();
+        let baseline = budget.live();
+        for _ in 0..3 {
+            let (ids, born, duplicate) = budget
+                .codec_work()
+                .unwrap()
+                .run(|scope| {
+                    let store = super::super::audit_store::NativeAdmission(Some(scope));
+                    native_tables(&rows, |r| r.0, |r| r.1, &store)
+                })
+                .unwrap();
+            assert_eq!(ids.get("alpha"), Some(&2));
+            assert_eq!(ids.get("beta"), Some(&1));
+            assert_eq!(duplicate, Some(3));
+            assert_eq!(&born.get(&2).unwrap()[..], &[2]);
+            assert!(budget.live() > baseline);
+            drop((ids, born));
+            assert_eq!(budget.live(), baseline);
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_aux_failed_table_construction_releases_partial_owners() {
+        let rows = [("alpha", 1), ("beta", 2)];
+        let limit = 1 << 20;
+        let budget = super::super::audit_owner::native::Budget::new(limit, 0).unwrap();
+        let baseline = budget.live();
+        let occupied = budget.reserve(limit - baseline).unwrap();
+        let before = budget.live();
+        let result = budget.codec_work().unwrap().run(|scope| {
+            let store = super::super::audit_store::NativeAdmission(Some(scope));
+            native_tables(&rows, |r| r.0, |r| r.1, &store)
+        });
+        assert!(result.is_err());
+        assert_eq!(budget.live(), before);
+        drop(occupied);
+        assert_eq!(budget.live(), baseline);
+    }
+
+    fn clone_ref(value: &RefValue) -> RefValue {
+        super::super::audit_store::NativeAdmission(None)
+            .native_ref_clone(value)
+            .unwrap()
+    }
+    fn clone_refs(values: &[RefValue]) -> Vec<RefValue> {
+        values.iter().map(clone_ref).collect()
+    }
+
     use super::super::generation::{GenerationInput, GenerationRuntime};
     use super::*;
     use crate::{
@@ -2543,7 +2680,7 @@ mod tests {
                 ("relations", VV::Edge(rel.digest)),
                 ("observations", VV::Edge(empty.digest)),
             ];
-            RefValue::Plain(
+            RefValue::from(
                 s.write_value_view(VV::Object(&fields))
                     .unwrap()
                     .content_ref(),
@@ -2563,16 +2700,16 @@ mod tests {
             .unwrap()
             .unwrap();
         let empty = state(&mut nodes, &[]);
-        let repeated = state(&mut nodes, &[r1.clone(), r1.clone()]);
-        let reordered = state(&mut nodes, &[r2.clone(), r1.clone()]);
+        let repeated = state(&mut nodes, &[clone_ref(&r1), clone_ref(&r1)]);
+        let reordered = state(&mut nodes, &[clone_ref(&r2), clone_ref(&r1)]);
         let mut index = Index::default();
         index
             .relations
-            .try_push(relation(&mut nodes, r1.clone(), 2).unwrap())
+            .try_push(relation(&mut nodes, clone_ref(&r1), 2).unwrap())
             .unwrap();
         index
             .relations
-            .try_push(relation(&mut nodes, r2.clone(), 2).unwrap())
+            .try_push(relation(&mut nodes, clone_ref(&r2), 2).unwrap())
             .unwrap();
         let capture = sc::AuditCapture::new(nodes);
         let mut reader =
@@ -2656,9 +2793,12 @@ mod tests {
             .is_err());
         // Ref declarations are not encoded by Edge; pass the malformed STATE declaration
         // directly into the actual owner entry instead of panicking in the builder.
-        let mut malformed_state = empty.clone();
-        if let RefValue::Plain(r) = &mut malformed_state {
-            r.format = "bad-format".into();
+        let mut malformed_state = clone_ref(&empty);
+        if let RefValue::Plain(r) = &malformed_state {
+            assert!(!r.is_native_admitted());
+            let mut value = r.as_ref().clone();
+            value.format = "bad-format".into();
+            malformed_state = value.into();
         }
         assert!(owner
             .audit(
@@ -2669,15 +2809,18 @@ mod tests {
                 1
             )
             .is_err());
-        let mut malformed_relation = r1.clone();
-        if let RefValue::Plain(r) = &mut malformed_relation {
-            r.extent = Some(4);
+        let mut malformed_relation = clone_ref(&r1);
+        if let RefValue::Plain(r) = &malformed_relation {
+            assert!(!r.is_native_admitted());
+            let mut value = r.as_ref().clone();
+            value.extent = Some(4);
+            malformed_relation = value.into();
         }
         assert!(owner.relation(&mut reader, malformed_relation, 2).is_err());
         drop(owner);
         let mut changed = index.try_clone().unwrap();
         changed.relations[0].first = 1;
-        changed.relations[0].generated = r2.clone();
+        changed.relations[0].generated = clone_ref(&r2);
         let mut owner =
             NativeAuxAudit::from_loaded(&reader, &changed, RawEventsView::plain(&[])).unwrap();
         assert!(owner
@@ -2766,7 +2909,7 @@ mod tests {
         .unwrap();
         overlay_index
             .relations
-            .try_push(relation(&mut reader, original_overlay.clone(), 1).unwrap())
+            .try_push(relation(&mut reader, clone_ref(&original_overlay), 1).unwrap())
             .unwrap();
         let mut overlay_owner =
             NativeAuxAudit::from_loaded(&reader, &overlay_index, RawEventsView::plain(&[]))
@@ -2964,7 +3107,7 @@ mod tests {
         for r in &expected.relations {
             constructed
                 .relations
-                .try_push(relation(&mut normal, r.generated.clone(), 1).unwrap())
+                .try_push(relation(&mut normal, clone_ref(&r.generated), 1).unwrap())
                 .unwrap();
         }
         for r in &expected.observations {
@@ -3009,7 +3152,7 @@ mod tests {
                 for r in &actual.relations {
                     constructed
                         .relations
-                        .try_push(relation(store, r.generated.clone(), 1).unwrap())
+                        .try_push(relation(store, clone_ref(&r.generated), 1).unwrap())
                         .unwrap();
                 }
                 for r in &actual.observations {
@@ -3409,7 +3552,7 @@ mod tests {
                                     .iter()
                                     .map(|r| VV::Edge(r.digest().unwrap()))
                                     .collect::<Vec<_>>();
-                                RefValue::Plain(
+                                RefValue::from(
                                     s.write_value_view(VV::Array(&v)).unwrap().content_ref(),
                                 )
                             } else {
@@ -3417,7 +3560,7 @@ mod tests {
                             };
                             roots.push((field_name, VV::Edge(r.digest().unwrap())));
                         }
-                        RefValue::Plain(
+                        RefValue::from(
                             s.write_value_view(VV::Object(&roots))
                                 .unwrap()
                                 .content_ref(),
@@ -3431,11 +3574,11 @@ mod tests {
                         assert!(!original.is_empty(), "real fixture {name}");
                         for (label, items) in [
                             ("duplicate", {
-                                let mut v = original.clone();
-                                v.push(v[0].clone());
+                                let mut v = clone_refs(&original);
+                                v.push(clone_ref(&v[0]));
                                 v
                             }),
-                            ("missing", original[1..].to_vec()),
+                            ("missing", clone_refs(&original[1..])),
                         ] {
                             let badstate = replacement_state(
                                 &mut reader,
@@ -3476,7 +3619,7 @@ mod tests {
                                 .unwrap()
                                 .into_iter()
                                 .collect::<Vec<_>>();
-                        let mut reverse = items.clone();
+                        let mut reverse = clone_refs(&items);
                         reverse.swap(0, 1);
                         let badstate = replacement_state(
                             &mut reader,
@@ -3589,7 +3732,7 @@ mod tests {
                     .iter()
                     .enumerate()
                     .find(|(i, row)| *i != first && row.first == g)
-                    .map(|(_, row)| row.generated.clone())
+                    .map(|(_, row)| clone_ref(&row.generated))
                     .unwrap();
                 let mut wrong = stored.try_clone().unwrap();
                 wrong.witnesses[first].generated = other;

@@ -166,6 +166,8 @@ enum VecStorage<T> {
 /// Opaque持有者；返回离开codec仍保留真实allocator，不能转成std Vec逃账。
 pub struct CodecVec<T> {
     storage: VecStorage<T>,
+    // Rust 按声明顺序析构：元素和 backing allocation 必须先于许可释放。
+    native_permit: Option<super::scratch::NativeReservation>,
 }
 pub(crate) type WorkVec<T> = CodecVec<T>;
 impl<T> Default for CodecVec<T> {
@@ -195,6 +197,60 @@ impl<T> CodecVec<T> {
     pub fn try_reserve(&mut self, additional: usize) -> Result<(), CodecError> {
         self.reserve(additional)
     }
+    /// 同一个 Plain buffer 的原许可随 owner 移动；不是 Owned Layout。
+    /// 已有非空裸 buffer 的费用来源不明，不能在这里重签掩盖旧 retain。
+    pub fn try_reserve_native(
+        &mut self,
+        work: &super::scratch::WorkScope,
+        additional: usize,
+    ) -> Result<(), CodecError> {
+        self.reserve_native_work(&work.budget(), additional)
+    }
+    pub(crate) fn reserve_native_work(
+        &mut self,
+        work: &WorkBudget,
+        additional: usize,
+    ) -> Result<(), CodecError> {
+        use super::scratch::ScratchFailure;
+        let VecStorage::Plain(values) = &mut self.storage else {
+            return Err(work.native_failure(ScratchFailure::Ledger));
+        };
+        if self.native_permit.is_none() && values.capacity() != 0 && std::mem::size_of::<T>() != 0 {
+            return Err(work.native_failure(ScratchFailure::Ledger));
+        }
+        let needed = values
+            .len()
+            .checked_add(additional)
+            .ok_or_else(|| work.native_failure(ScratchFailure::Budget))?;
+        if needed <= values.capacity() {
+            if self.native_permit.is_none() {
+                self.native_permit = work.reserve_native(0)?;
+            }
+            return Ok(());
+        }
+        let next = needed
+            .max(
+                values
+                    .capacity()
+                    .checked_mul(2)
+                    .ok_or_else(|| work.native_failure(ScratchFailure::Budget))?,
+            )
+            .max(4);
+        let bytes = next
+            .checked_mul(std::mem::size_of::<T>())
+            .ok_or_else(|| work.native_failure(ScratchFailure::Budget))?;
+        let permit = work.reserve_native(bytes)?;
+        // 独立新块使旧 allocation 与旧许可在完整新块准入/分配时都真实存活。
+        let mut replacement = Vec::new();
+        replacement
+            .try_reserve_exact(next)
+            .map_err(|_| work.native_failure(ScratchFailure::Allocation))?;
+        replacement.append(values);
+        let old = std::mem::replace(values, replacement);
+        drop(old);
+        self.native_permit = permit;
+        Ok(())
+    }
     pub fn remove(&mut self, index: usize) -> T {
         match &mut self.storage {
             VecStorage::Plain(v) => v.remove(index),
@@ -217,6 +273,7 @@ impl<T> CodecVec<T> {
     pub fn from_plain(v: Vec<T>) -> Self {
         Self {
             storage: VecStorage::Plain(v),
+            native_permit: None,
         }
     }
     pub(crate) fn new(b: Option<&OwnedBudget>) -> Self {
@@ -231,6 +288,7 @@ impl<T> CodecVec<T> {
                     std::any::type_name::<T>(),
                 ))),
             },
+            native_permit: None,
         }
     }
     pub(crate) fn with_capacity(n: usize, b: Option<&OwnedBudget>) -> Result<Self, CodecError> {
@@ -242,12 +300,26 @@ impl<T> CodecVec<T> {
         Ok(v)
     }
     pub(crate) fn reserve(&mut self, n: usize) -> Result<(), CodecError> {
+        if self.native_permit.is_some() {
+            return if n <= self.capacity().saturating_sub(self.len()) {
+                Ok(())
+            } else {
+                Err(allocation_error())
+            };
+        }
         match &mut self.storage {
             VecStorage::Plain(v) => v.try_reserve(n).map_err(|_| allocation_error()),
             VecStorage::Owned(v) => v.try_reserve(n).map_err(|_| v.allocator().budget.error()),
         }
     }
     pub(crate) fn reserve_exact(&mut self, n: usize) -> Result<(), CodecError> {
+        if self.native_permit.is_some() {
+            return if n <= self.capacity().saturating_sub(self.len()) {
+                Ok(())
+            } else {
+                Err(allocation_error())
+            };
+        }
         match &mut self.storage {
             VecStorage::Plain(v) => v.try_reserve_exact(n).map_err(|_| allocation_error()),
             VecStorage::Owned(v) => v
@@ -305,6 +377,9 @@ impl<T> CodecVec<T> {
     where
         T: Clone,
     {
+        if self.native_permit.is_some() {
+            return Err(allocation_error());
+        }
         match &self.storage {
             VecStorage::Plain(v) => Ok(Self::from_plain(v.clone())),
             VecStorage::Owned(v) => {
@@ -321,6 +396,9 @@ impl<T> CodecVec<T> {
         }
     }
     pub(crate) fn into_plain(self) -> Result<Vec<T>, CodecError> {
+        if self.native_permit.is_some() {
+            return Err(allocation_error());
+        }
         match self.storage {
             VecStorage::Plain(v) => Ok(v),
             VecStorage::Owned(_) => Err(CodecError::static_detail(
@@ -331,6 +409,24 @@ impl<T> CodecVec<T> {
     }
 }
 impl CodecVec<u8> {
+    /// #1488 原 Plain Vec allocation 和原许可一并转为 UTF-8 String；不复制或重签。
+    pub fn try_into_native_text(
+        self,
+    ) -> Result<super::native_owned::NativeValue<String>, CodecError> {
+        match self.storage {
+            VecStorage::Plain(bytes) => {
+                let text = String::from_utf8(bytes).map_err(|_| super::super::utf8_error())?;
+                Ok(super::native_owned::NativeValue::from_reserved(
+                    text,
+                    self.native_permit,
+                ))
+            }
+            VecStorage::Owned(_) => Err(CodecError::static_detail(
+                INCOMPLETE,
+                "owned codec字节不可擦除为Native文本",
+            )),
+        }
+    }
     /// 字节追加只复制u8，不开放可能深复制payload的泛型Clone入口。
     pub fn try_extend_bytes(&mut self, bytes: &[u8]) -> Result<(), CodecError> {
         self.extend_from_slice(bytes)
@@ -385,6 +481,7 @@ enum IterStorage<T> {
 }
 pub struct CodecVecIntoIter<T> {
     storage: IterStorage<T>,
+    _native_permit: Option<super::scratch::NativeReservation>,
 }
 impl<T> Iterator for CodecVecIntoIter<T> {
     type Item = T;
@@ -419,6 +516,7 @@ impl<T> IntoIterator for CodecVec<T> {
                 VecStorage::Plain(v) => IterStorage::Plain(v.into_iter()),
                 VecStorage::Owned(v) => IterStorage::Owned(v.into_iter()),
             },
+            _native_permit: self.native_permit,
         }
     }
 }

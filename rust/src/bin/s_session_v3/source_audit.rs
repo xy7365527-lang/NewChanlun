@@ -17,6 +17,7 @@ use newchan_rust::s_content::{
     path::{lookup_path, PathStep},
     Built, ContentRef, Kind, NodeDigest, NodeSink, NodeSource, NodeStore, Value as V,
 };
+use sc::capture_allocation::native_owned::{NativeRefFields, NativeValue};
 use serde_json::{json, Value};
 #[cfg(test)]
 #[path = "source_audit_oracle.rs"]
@@ -78,39 +79,57 @@ fn f(k: &str) -> PathStep {
     PathStep::Field(k.into())
 }
 // Only immutable Native originals may enter these maps; no cut/business verdict is retained.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 struct NativeFieldRefKey {
-    format: String,
-    root: String,
+    format: NativeValue<String>,
+    root: NativeValue<String>,
     kind: Kind,
     extent: Option<u64>,
     digest: NodeDigest,
 }
 impl NativeFieldRefKey {
-    fn new(r: sc::RefView<'_>) -> Result<Self, sc::CodecError> {
+    fn new(s: &(impl CodecRead + ?Sized), r: sc::RefView<'_>) -> Result<Self, sc::CodecError> {
         Ok(Self {
-            format: r.format().into(),
-            root: r.root().into(),
+            format: s.native_string(r.format())?,
+            root: s.native_string(r.root())?,
             kind: r.kind(),
             extent: r.extent(),
             digest: r.digest()?,
         })
     }
 }
-#[derive(Default)]
 struct NativeScalarFields {
-    values: std::collections::HashMap<NativeFieldRefKey, Value>,
+    values: BusinessMap<NativeFieldRefKey, bj::PlainJson>,
     decodes: u64,
     hits: u64,
+}
+impl Default for NativeScalarFields {
+    fn default() -> Self {
+        Self {
+            values: bj::new_map(None),
+            decodes: 0,
+            hits: 0,
+        }
+    }
+}
+// The requested sequence is an identity component, including duplicates and order.
+struct NativeFieldNames(sc::CodecVec<NativeValue<String>>);
+impl PartialEq for NativeFieldNames {
+    fn eq(&self, other: &Self) -> bool {
+        self.0[..] == other.0[..]
+    }
+}
+impl Eq for NativeFieldNames {}
+impl std::hash::Hash for NativeFieldNames {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::hash::Hash::hash(&self.0[..], state);
+    }
 }
 struct NativeFieldMemo<'capture> {
     work: Option<&'capture sc::capture_allocation::scratch::WorkScope>,
     capture: &'capture sc::AuditCapture,
     records: Option<super::history::NativeRecordFields<'capture>>,
-    fields: std::collections::HashMap<
-        (NativeFieldRefKey, Vec<String>),
-        std::collections::BTreeMap<String, ContentRef>,
-    >,
+    fields: BusinessMap<(NativeFieldRefKey, NativeFieldNames), NativeRefFields>,
     scalars: NativeScalarFields,
     field_decodes: u64,
     field_hits: u64,
@@ -121,7 +140,7 @@ impl<'capture> NativeFieldMemo<'capture> {
             capture,
             work: None,
             records: None,
-            fields: Default::default(),
+            fields: bj::new_map(None),
             scalars: Default::default(),
             field_decodes: 0,
             field_hits: 0,
@@ -146,8 +165,8 @@ impl<'capture> NativeFieldMemo<'capture> {
         if let Some(records) = &mut self.records {
             records.clear();
         }
-        self.fields.clear();
-        self.scalars.values.clear();
+        self.fields.retain(|_, _| false);
+        self.scalars.values.retain(|_, _| false);
     }
 }
 // Local adapter only; ordinary/Owned use the original scalar decoder.
@@ -168,7 +187,7 @@ impl<'names> SourceFields<'names> {
     ) -> Result<Self, String> {
         s.lookup_subset_ref(r, names).map(Self).map_err(err)
     }
-    fn get(&self, k: &str) -> Result<RefValue, String> {
+    fn get(&self, k: &str) -> Result<sc::RefView<'_>, String> {
         self.0.get(k).ok_or_else(|| err(format!("原件缺字段{k}")))
     }
     fn get_admitted(&self, s: &(impl CodecRead + ?Sized), k: &str) -> Result<RefValue, String> {
@@ -454,10 +473,7 @@ impl SourceFieldStore for ArrayAuditSource<'_, '_, '_, '_> {
                 .map_err(err)?
                 .unwrap_or(false);
         let key = if eligible {
-            self.source
-                .native_admit(r.format().len() + r.root().len())
-                .map_err(err)?;
-            Some(NativeFieldRefKey::new(r).map_err(err)?)
+            Some(NativeFieldRefKey::new(self.source, r).map_err(err)?)
         } else {
             None
         };
@@ -475,25 +491,26 @@ impl SourceFieldStore for ArrayAuditSource<'_, '_, '_, '_> {
             if let (Some(memo), bj::JsonOwner::Plain(parsed)) = (self.fields.as_mut(), &value) {
                 memo.scalars.decodes += 1;
                 self.source
-                    .native_std_map_room(&mut memo.scalars.values)
+                    .native_map_room(&mut memo.scalars.values)
                     .map_err(err)?;
                 memo.scalars
                     .values
-                    .insert(key, self.source.native_json_clone(parsed).map_err(err)?);
+                    .insert(key, self.source.native_json_clone(parsed).map_err(err)?)
+                    .map_err(err)?;
             }
         }
         Ok(value)
     }
 }
 impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
-    fn parse_rendered_plain(&self, bytes: &[u8]) -> Result<serde_json::Value, String> {
+    fn parse_rendered_plain(&self, bytes: &[u8]) -> Result<bj::PlainJson, String> {
         self.source.parse_rendered_plain(bytes)
     }
     fn content_ref_view(&mut self, r: &str) -> Result<RefValue, sc::CodecError> {
         if self.source.owned_codec_active() {
             self.owned_role(|s| s.content_ref_view(r))
         } else {
-            sc::content_ref_of(self, r).map(RefValue::Plain)
+            sc::path::content_ref_of_native(self, r).map(RefValue::Plain)
         }
     }
     fn lookup_ref(
@@ -504,7 +521,7 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
         if self.source.owned_codec_active() {
             self.owned_role(|s| s.lookup_ref(r, p))
         } else {
-            sc::path::lookup_path_refview(self, r, p).map(RefValue::Plain)
+            sc::path::lookup_path_native(self, r, p).map(RefValue::Plain)
         }
     }
     fn lookup_field_ref(
@@ -516,7 +533,7 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
             // 同 lookup_ref 的实际 full-array 角色；不得继承先造 String 的默认实现。
             self.owned_role(|s| s.lookup_field_ref(r, key))
         } else {
-            sc::path::lookup_path_view_refview(self, r, &super::audit_store::BorrowedFieldPath(key))
+            sc::path::lookup_path_view_native(self, r, &super::audit_store::BorrowedFieldPath(key))
                 .map(RefValue::Plain)
         }
     }
@@ -528,7 +545,7 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
         if self.source.owned_codec_active() {
             self.owned_role(|s| s.lookup_fields_ref(r, n))
         } else {
-            sc::path::lookup_fields_refview(self, r, n, false)
+            sc::path::lookup_fields_native(self, r, n, false)
                 .map(super::audit_store::RefFields::Plain)
         }
     }
@@ -558,53 +575,39 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
                 }
             }
             let key = if eligible {
-                let bytes = n.iter().try_fold(
-                    r.format()
-                        .len()
-                        .checked_add(r.root().len())
-                        .and_then(|v| v.checked_add(n.len() * std::mem::size_of::<String>()))
-                        .ok_or_else(|| self.native_overflow())?,
-                    |v, name| {
-                        v.checked_add(name.len())
-                            .ok_or_else(|| self.native_overflow())
-                    },
-                )?;
-                self.native_admit(bytes)?;
-                Some((
-                    NativeFieldRefKey::new(r)?,
-                    n.iter().map(|name| (*name).to_owned()).collect::<Vec<_>>(),
-                ))
+                let reference = NativeFieldRefKey::new(self, r)?;
+                let mut names = bj::new_work(None);
+                self.native_codec_room(&mut names, n.len())?;
+                for name in n {
+                    names.try_push(self.native_string(name)?)?;
+                }
+                Some((reference, NativeFieldNames(names)))
             } else {
                 None
             };
             if let Some(key) = &key {
                 if let Some(memo) = self.fields.as_mut() {
                     if let Some(fields) = memo.fields.get(key) {
-                        self.source
-                            .native_ref_fields_bytes(fields.iter().map(|(k, v)| (k.as_str(), v)))?;
-                        let fields = fields.clone();
+                        let fields = NativeRefFields::try_from_views(
+                            fields.iter().map(|(name, r)| (name, r.into())),
+                            self.source.codec_work(),
+                        )?;
                         memo.field_hits += 1;
-                        return Ok(super::audit_store::RefFields::Plain(
-                            sc::CodecFields::from_plain(fields),
-                        ));
+                        return Ok(super::audit_store::RefFields::Plain(fields));
                     }
                 }
             }
-            let fields = sc::path::lookup_fields_refview(self, r, n, true)?;
+            let fields = sc::path::lookup_fields_native(self, r, n, true)?;
             if let Some(key) = key {
-                // Keep the exact requested name sequence (including duplicates) in the key.
-                self.native_ref_fields_bytes(
-                    n.iter()
-                        .filter_map(|name| fields.get(name).map(|r| (*name, r))),
+                // Copy canonical unique fields; the separate key retains the original name sequence.
+                let originals = NativeRefFields::try_from_views(
+                    fields.iter().map(|(name, r)| (name, r.into())),
+                    self.source.codec_work(),
                 )?;
-                let originals = n
-                    .iter()
-                    .filter_map(|name| fields.get(name).cloned().map(|r| ((*name).to_owned(), r)))
-                    .collect();
                 if let Some(memo) = self.fields.as_mut() {
                     memo.field_decodes += 1;
-                    self.source.native_std_map_room(&mut memo.fields)?;
-                    memo.fields.insert(key, originals);
+                    self.source.native_map_room(&mut memo.fields)?;
+                    memo.fields.insert(key, originals)?;
                 }
             }
             Ok(super::audit_store::RefFields::Plain(fields))
@@ -617,7 +620,7 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
         if self.source.owned_codec_active() {
             self.owned_role(|s| s.lookup_array_ref(r))
         } else {
-            let plain = sc::path::lookup_array_items_refview(self, r)?;
+            let plain = sc::path::lookup_array_items_native(self, r)?;
             let mut out = bj::new_work(None);
             self.native_codec_room(&mut out, plain.len())?;
             for r in plain {
@@ -1058,7 +1061,7 @@ const TYPED_SOURCE_FIELDS: [&str; 7] = [
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct NativeWitnessIdentityKey {
     capture: usize,
-    object_id: String,
+    object_id: NativeValue<String>,
     slot: usize,
     mi: usize,
     digest: NodeDigest,
@@ -1067,7 +1070,7 @@ struct NativeWitnessIdentityKey {
 }
 struct NativeWitnessIdentityMemo<'capture> {
     capture: &'capture sc::AuditCapture,
-    entries: std::collections::HashMap<NativeWitnessIdentityKey, String>,
+    entries: BusinessMap<NativeWitnessIdentityKey, NativeValue<String>>,
     #[cfg(test)]
     stats: NativeWitnessIdentityStats,
 }
@@ -1100,27 +1103,28 @@ impl<'capture> NativeWitnessIdentityMemo<'capture> {
         NATIVE_WITNESS_IDENTITY_STATS.with(|s| s.set(Some(NativeWitnessIdentityStats::default())));
         Ok(Self {
             capture,
-            entries: Default::default(),
+            entries: bj::new_map(None),
             #[cfg(test)]
             stats: Default::default(),
         })
     }
     fn key(
         &self,
+        s: &(impl CodecRead + ?Sized),
         object_id: &str,
         slot: usize,
         mi: usize,
         bars: &Built,
-    ) -> NativeWitnessIdentityKey {
-        NativeWitnessIdentityKey {
+    ) -> Result<NativeWitnessIdentityKey, sc::CodecError> {
+        Ok(NativeWitnessIdentityKey {
             capture: std::ptr::from_ref(self.capture) as usize,
-            object_id: object_id.to_owned(),
+            object_id: s.native_string(object_id)?,
             slot,
             mi,
             digest: bars.digest,
             kind: bars.kind,
             extent: bars.extent,
-        }
+        })
     }
     #[cfg(test)]
     fn record_render_attempt(&mut self, object_id: &str) {
@@ -1143,8 +1147,8 @@ impl<'capture> NativeWitnessIdentityMemo<'capture> {
             // 派生 overlay 根不取得缓存资格，明确沿原函数计算。
             #[cfg(test)]
             self.record_render_attempt(object_id);
-            let want = super::generation::witness_identity(s, object_id, slot, mi, bars)?;
-            return if stored == want {
+            let want = super::generation::witness_identity_native(s, object_id, slot, mi, bars)?;
+            return if stored == want.as_str() {
                 Ok(())
             } else {
                 Err(err("见证ID不符"))
@@ -1154,15 +1158,14 @@ impl<'capture> NativeWitnessIdentityMemo<'capture> {
         let bars_ref = s.native_built_ref(bars).map_err(err)?;
         s.native_verify_original(self.capture, bars_ref.view(), sc::Mode::Public)
             .map_err(err)?;
-        s.native_admit(object_id.len()).map_err(err)?;
-        let key = self.key(object_id, slot, mi, bars);
+        let key = self.key(s, object_id, slot, mi, bars).map_err(err)?;
         if let Some(want) = self.entries.get(&key) {
             #[cfg(test)]
             {
                 self.stats.hits += 1;
                 NATIVE_WITNESS_IDENTITY_STATS.with(|s| s.set(Some(self.stats)));
             }
-            return if stored == want {
+            return if stored == want.as_str() {
                 Ok(())
             } else {
                 Err(err("见证ID不符"))
@@ -1170,13 +1173,13 @@ impl<'capture> NativeWitnessIdentityMemo<'capture> {
         }
         #[cfg(test)]
         self.record_render_attempt(object_id);
-        let want = super::generation::witness_identity(s, object_id, slot, mi, bars)?;
-        if stored != want {
+        let want = super::generation::witness_identity_native(s, object_id, slot, mi, bars)?;
+        if stored != want.as_str() {
             return Err(err("见证ID不符"));
         }
         // 首次纯函数成功和本次 stored ID 比较都通过之后，才保留输入声明及结果文本。
-        s.native_std_map_room(&mut self.entries).map_err(err)?;
-        self.entries.insert(key, want);
+        s.native_map_room(&mut self.entries).map_err(err)?;
+        self.entries.insert(key, want).map_err(err)?;
         Ok(())
     }
 }
@@ -1197,7 +1200,7 @@ pub(super) struct NativeRawLedgerStats {
 pub(super) struct NativeRawFacts {
     winners: bj::RawPrefixFacts,
     sources: BusinessMap<i64, Source>,
-    originals: std::collections::HashMap<usize, (i64, Source)>,
+    originals: BusinessMap<usize, (i64, Source)>,
 }
 impl NativeRawFacts {
     pub(super) fn prefix_len(&self) -> usize {
@@ -1211,7 +1214,7 @@ struct NativeRawLedger<'raw> {
     raw: RawEventsView<'raw>,
     winners: bj::RawPrefixIndex<'raw>,
     sources: BusinessMap<i64, Source>,
-    originals: std::collections::HashMap<usize, (i64, Source)>,
+    originals: BusinessMap<usize, (i64, Source)>,
     #[cfg(feature = "s_capture_native_testonly")]
     retained: super::audit_retention::RetainedDelta,
     #[cfg(test)]
@@ -1245,7 +1248,7 @@ impl<'raw> NativeRawLedger<'raw> {
             raw,
             winners: bj::RawPrefixIndex::new(raw),
             sources: bj::new_map(None),
-            originals: Default::default(),
+            originals: bj::new_map(None),
             #[cfg(feature = "s_capture_native_testonly")]
             retained: Default::default(),
             #[cfg(test)]
@@ -1274,7 +1277,7 @@ impl<'raw> NativeRawLedger<'raw> {
     }
     fn clear(&mut self) {
         self.reset_progress();
-        self.originals.clear();
+        self.originals.retain(|_, _| false);
     }
     fn advance(
         &mut self,
@@ -1334,8 +1337,10 @@ impl<'raw> NativeRawLedger<'raw> {
                 super::state::trace_raw_hashes(true, 4);
                 #[cfg(feature = "s_capture_native_testonly")]
                 let capacity = self.originals.capacity();
-                s.native_std_map_room(&mut self.originals).map_err(err)?;
-                self.originals.insert(ordinal, (coord, source));
+                s.native_map_room(&mut self.originals).map_err(err)?;
+                self.originals
+                    .insert(ordinal, (coord, source))
+                    .map_err(err)?;
                 #[cfg(feature = "s_capture_native_testonly")]
                 self.retained
                     .hash_capacity::<usize, (i64, Source)>(capacity, self.originals.capacity());
@@ -1475,7 +1480,7 @@ impl<'capture> NativeSourceAudit<'capture> {
             self.fields.clear();
             self.ledger.clear();
             self.source_memo.clear();
-            self.memo.entries.clear();
+            self.memo.entries.retain(|_, _| false);
         }
         result
     }
@@ -1863,9 +1868,8 @@ fn audit_shape_record(
     let allocation = source_allocation(s)?;
     exact(&object.refs, Kind::Array, 3)?;
     let mut indices = [0; 3];
-    let mut highs: [bj::TextValue; 3] =
-        std::array::from_fn(|_| bj::TextValue::Plain(String::new()));
-    let mut lows: [bj::TextValue; 3] = std::array::from_fn(|_| bj::TextValue::Plain(String::new()));
+    let mut highs: [bj::TextValue; 3] = std::array::from_fn(|_| bj::TextValue::from(String::new()));
+    let mut lows: [bj::TextValue; 3] = std::array::from_fn(|_| bj::TextValue::from(String::new()));
     let mut windows = std::array::from_fn::<_, 3, _>(|_| crate::content_manifest::Decimal::new(0));
     let mut source_union = bj::new_work(allocation.as_ref());
     for (slot, part) in elements(s, &object.refs)?.into_iter().enumerate() {
@@ -2115,14 +2119,14 @@ fn audit_witness_record_with_slots(
     match native_identity.as_deref_mut() {
         Some(memo) => memo.check_identity(s, &id, &object_id, slot as usize, mi as usize, &bars)?,
         None => {
-            let want = super::generation::witness_identity(
+            let want = super::generation::witness_identity_native(
                 s,
                 &object_id,
                 slot as usize,
                 mi as usize,
                 &bars,
             )?;
-            if id != want {
+            if id.as_str() != want.as_str() {
                 return Err(err("见证ID不符"));
             }
         }
@@ -2165,15 +2169,7 @@ fn audit_generated_in_store(
             "当前来源审计仅实现OHLC档；其他档仍待接线，拒绝按此口径放行",
         ));
     }
-    s.native_admit(
-        profile
-            .len()
-            .checked_add(rule.len())
-            .and_then(|n| n.checked_add(2 * std::mem::size_of::<[usize; 2]>()))
-            .ok_or_else(|| err(s.native_overflow()))?,
-    )
-    .map_err(err)?;
-    let producer = Cc004Producer::new(profile, rule);
+    let producer = Cc004Producer::for_source_audit(profile, rule, s.codec_work()).map_err(err)?;
     let allocation;
     let ordinary_effective;
     let mut ordinary_raw;
@@ -2558,6 +2554,90 @@ mod tests {
     }
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
+    fn native_raw_facts_keep_original_bucket_permits_across_scope_and_move() {
+        let raw = vec![
+            ledger_event("a", "7", 1, 1),
+            ledger_event("b", "9", 1, 2),
+            ledger_event("a", "7", 2, 3),
+        ];
+        let expected = original_sources(&raw, raw.len()).unwrap();
+        let budget = super::super::audit_owner::native::Budget::new(8 << 20, 0).unwrap();
+        let baseline = budget.live();
+        for _ in 0..3 {
+            let facts = budget
+                .codec_work()
+                .unwrap()
+                .run(|scope| {
+                    let mut admission = super::super::audit_store::NativeAdmission(Some(scope));
+                    let mut ledger = NativeRawLedger::new((&raw).into());
+                    for n in 1..=raw.len() {
+                        ledger.advance(&mut admission, n).unwrap();
+                    }
+                    let hashed = ledger.stats.source_hashes;
+                    ledger.advance(&mut admission, 1).unwrap();
+                    ledger.advance(&mut admission, raw.len()).unwrap();
+                    assert_eq!(ledger.stats.source_hashes, hashed, "回退重走仍复用同一原件");
+                    assert_eq!(source_entries(&ledger.sources), source_entries(&expected));
+                    assert_eq!(ledger.originals.len(), 3);
+                    let live = budget.live();
+                    let facts = ledger.into_facts();
+                    assert_eq!(budget.live(), live, "移动不退款、不重签");
+                    Ok::<_, sc::CodecError>(facts)
+                })
+                .unwrap();
+            assert!(budget.live() > baseline, "离开scope仍由事实账持有原桶许可");
+            assert_eq!(facts.hashed_rows(), 3);
+            assert_eq!(source_entries(&facts.sources), source_entries(&expected));
+            drop(facts);
+            assert_eq!(budget.live(), baseline, "所有真实事实拥有者销毁后归基线");
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn source_identity_producer_outlives_scope_without_freeing_initial_strings() {
+        let mut nodes = MemoryNodes::default();
+        let payload = sc::write_value(&mut nodes, &V::Null).unwrap();
+        let refs = sc::write_value(&mut nodes, &V::Array(vec![])).unwrap();
+        let ordinary = Cc004Producer::new(tb02a::PROFILE, crate::V3_RULE_REVISION);
+        let expected = ordinary
+            .typed_identity_scoped(CC004_STEP_KIND, "fact", &payload, &refs, None)
+            .unwrap();
+        let budget = super::super::audit_owner::native::Budget::new(1 << 20, 0).unwrap();
+        let baseline = budget.live();
+        for _ in 0..3 {
+            let producer = budget
+                .codec_work()
+                .unwrap()
+                .run(|scope| {
+                    let producer = Cc004Producer::for_source_audit(
+                        tb02a::PROFILE,
+                        crate::V3_RULE_REVISION,
+                        Some(scope),
+                    )?;
+                    assert_eq!(
+                        producer
+                            .typed_identity_scoped(
+                                CC004_STEP_KIND,
+                                "fact",
+                                &payload,
+                                &refs,
+                                Some(scope),
+                            )
+                            .unwrap(),
+                        expected
+                    );
+                    Ok::<_, sc::CodecError>(producer)
+                })
+                .unwrap();
+            assert!(budget.live() > baseline);
+            drop(producer);
+            assert_eq!(budget.live(), baseline);
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
     fn cold_source_normal_fixture_oracle() {
         let (mut nodes, state, raw, rule) = fixture();
         let expected = audit_generated(&mut nodes, &state, &raw, tb02a::PROFILE, &rule).unwrap();
@@ -2923,9 +3003,7 @@ mod tests {
             assert_eq!(fields.text(&mut source, "a").unwrap(), "original");
             assert_eq!(fields.text(&mut source, "a").unwrap(), "original");
             assert!(fields.get("b").is_err());
-            let scalar_root = built(fields.get("a").unwrap().view())
-                .unwrap()
-                .content_ref();
+            let scalar_root = built(fields.get("a").unwrap()).unwrap().content_ref();
             let mut forged_scalar = scalar_root.clone();
             forged_scalar.format = "bad-scalar-format".into();
             assert!(source.decoded_scalar((&forged_scalar).into()).is_err());
@@ -2955,8 +3033,8 @@ mod tests {
             assert_eq!(ordinary_duplicate.is_ok(), native_duplicate.is_ok());
             if let (Ok(ordinary), Ok(native)) = (ordinary_duplicate, native_duplicate) {
                 assert_eq!(
-                    built(ordinary.get("a").unwrap().view()).unwrap().digest,
-                    built(native.get("a").unwrap().view()).unwrap().digest
+                    built(ordinary.get("a").unwrap()).unwrap().digest,
+                    built(native.get("a").unwrap()).unwrap().digest
                 );
             }
             let mut bad = root.clone();
@@ -2994,6 +3072,172 @@ mod tests {
             .qualified((&root).into())
             .unwrap());
     }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_field_memo_scoped_hit_copies_clear_and_drop_keep_original_permits() {
+        let mut nodes = MemoryNodes::default();
+        let root = sc::write_value(
+            &mut nodes,
+            &cv(&json!({"a":"nonempty original", "b":17})).unwrap(),
+        )
+        .unwrap()
+        .content_ref();
+        let expected_a = field(&mut nodes, &root, "a").unwrap();
+        let capture = sc::AuditCapture::new(nodes);
+        let budget = super::super::audit_owner::native::Budget::new(8 << 20, 0).unwrap();
+        let baseline = budget.live();
+        for clear_first in [false, true] {
+            // 把原 map 移出，而非复制缓存或保留 WorkScope；临时 reader 与 scope
+            // 析构后测父账。若仍有 legacy retain 残费，最终回基线断言必须失败。
+            let (cached_fields, first, second) = budget
+                .codec_work()
+                .unwrap()
+                .run(|scope| {
+                    let mut memo = NativeFieldMemo::new(&capture);
+                    memo.work = Some(scope);
+                    let mut reader = super::super::history::HashReader::captured(&capture, None)
+                        .with_codec_work(scope, &budget);
+                    let (first, second) = {
+                        let mut store =
+                            super::super::audit_store::StoreView::for_audit(&mut reader);
+                        let mut source = ArrayAuditSource {
+                            source: &mut store,
+                            full_arrays: true,
+                            deadline: None,
+                            fields: Some(&mut memo),
+                        };
+                        drop(
+                            SourceFields::read_subset(&mut source, (&root).into(), &["a", "b"])
+                                .unwrap(),
+                        );
+                        let first =
+                            SourceFields::read_subset(&mut source, (&root).into(), &["a", "b"])
+                                .unwrap();
+                        let second =
+                            SourceFields::read_subset(&mut source, (&root).into(), &["a", "b"])
+                                .unwrap();
+                        (first, second)
+                    };
+                    assert_eq!(memo.field_decodes, 1);
+                    assert_eq!(memo.field_hits, 2);
+                    assert_eq!(memo.fields.len(), 1);
+                    assert_ne!(
+                        first.get("a").unwrap().root().as_ptr(),
+                        second.get("a").unwrap().root().as_ptr(),
+                        "命中副本各自拥有非空 ref 文本，不能共享或偷走 memo 的原件"
+                    );
+                    Ok::<_, sc::CodecError>((memo.fields, first, second))
+                })
+                .unwrap();
+            let mut memo = NativeFieldMemo::new(&capture);
+            memo.fields = cached_fields;
+            let capacity = memo.fields.capacity();
+            assert!(capacity > 0);
+            let all_live = budget.live();
+            assert!(all_live > baseline);
+            if clear_first {
+                memo.clear();
+                assert!(budget.live() < all_live, "clear 销毁实际键和值后退对应许可");
+            }
+            assert_eq!(first.get("a").unwrap().root(), expected_a.view().root());
+            assert_eq!(second.get("a").unwrap().root(), expected_a.view().root());
+            let before_first_drop = budget.live();
+            drop(first);
+            let after_first_drop = budget.live();
+            assert!(after_first_drop < before_first_drop, "第一个副本独立退费");
+            assert_eq!(second.get("a").unwrap().root(), expected_a.view().root());
+            let before_second_drop = budget.live();
+            drop(second);
+            let after_second_drop = budget.live();
+            assert_eq!(
+                before_first_drop - after_first_drop,
+                before_second_drop - after_second_drop,
+                "相同字段的两次 hit 各自持有完整、等额且独立的副本许可"
+            );
+            if !clear_first {
+                memo.clear();
+                assert!(budget.live() < after_second_drop);
+            }
+            assert!(memo.fields.is_empty());
+            assert_eq!(memo.fields.capacity(), capacity, "clear 保留真实桶容量");
+            let buckets_live = budget.live();
+            assert!(buckets_live > baseline, "空缓存的活桶仍收费");
+            memo.clear();
+            assert_eq!(budget.live(), buckets_live, "重复 clear 不重复退款");
+            drop(memo);
+            assert_eq!(budget.live(), baseline, "最终桶拥有者销毁才回基线");
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_witness_memo_scoped_hits_clear_and_drop_keep_original_permits() {
+        let mut nodes = MemoryNodes::default();
+        let bars = sc::write_value(
+            &mut nodes,
+            &cv(&json!([{ "source_coord":"7", "open":"10", "high":"12",
+                "low":"9", "close":"11", "identity_key":"bar-7" }]))
+            .unwrap(),
+        )
+        .unwrap();
+        let capture = sc::AuditCapture::new(nodes);
+        let mut ordinary = super::super::history::HashReader::captured(&capture, None);
+        let expected =
+            super::super::generation::witness_identity(&mut ordinary, "obj3-scoped", 2, 7, &bars)
+                .unwrap();
+        let budget = super::super::audit_owner::native::Budget::new(8 << 20, 0).unwrap();
+        let baseline = budget.live();
+        for _ in 0..2 {
+            let mut memo = NativeWitnessIdentityMemo::new(&capture).unwrap();
+            let check = |memo: &mut NativeWitnessIdentityMemo<'_>, stored: &str| {
+                budget.codec_work().unwrap().run(|scope| {
+                    let mut reader = super::super::history::HashReader::captured(&capture, None)
+                        .with_codec_work(scope, &budget);
+                    Ok::<_, sc::CodecError>(memo.check_identity(
+                        &mut reader,
+                        stored,
+                        "obj3-scoped",
+                        2,
+                        7,
+                        &bars,
+                    ))
+                })
+            };
+            assert!(check(&mut memo, "wrong-id").unwrap().is_err());
+            assert!(memo.entries.is_empty());
+            assert_eq!(budget.live(), baseline, "失败首次计算不能留下键或文本费用");
+            check(&mut memo, &expected).unwrap().unwrap();
+            let cached_live = budget.live();
+            assert!(cached_live > baseline, "离开 scope，非空身份缓存仍持原许可");
+            assert_eq!(memo.entries.len(), 1);
+            let rendered = memo.stats.render_calls;
+            for stored in [expected.as_str(), "wrong-id", expected.as_str()] {
+                assert_eq!(
+                    check(&mut memo, stored).unwrap().is_ok(),
+                    stored == expected
+                );
+                assert_eq!(
+                    budget.live(),
+                    cached_live,
+                    "命中临时 key 和验证工作均归还，不重复持费"
+                );
+                assert_eq!(memo.entries.len(), 1);
+            }
+            assert_eq!(memo.stats.hits, 3);
+            assert_eq!(memo.stats.render_calls, rendered, "命中不重算见证身份");
+            let capacity = memo.entries.capacity();
+            memo.entries.retain(|_, _| false);
+            assert!(memo.entries.is_empty());
+            assert_eq!(memo.entries.capacity(), capacity);
+            let buckets_live = budget.live();
+            assert!(buckets_live > baseline && buckets_live < cached_live);
+            memo.entries.retain(|_, _| false);
+            assert_eq!(budget.live(), buckets_live, "空桶不能再次退款");
+            drop(memo);
+            assert_eq!(budget.live(), baseline, "键、身份文本及桶全部销毁后回基线");
+        }
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn native_witness_identity_exact_inputs_and_success_only() {
@@ -3035,13 +3279,19 @@ mod tests {
                 .unwrap();
             assert_eq!(memo.stats.render_calls, before + 1);
         }
-        let key = memo.key("obj3-first", 0, 1, &bars);
+        let key = memo.key(&reader, "obj3-first", 0, 1, &bars).unwrap();
         let mut changed = bars.clone();
         changed.kind = Kind::Object;
-        assert_ne!(key, memo.key("obj3-first", 0, 1, &changed));
+        assert_ne!(
+            key,
+            memo.key(&reader, "obj3-first", 0, 1, &changed).unwrap()
+        );
         changed = bars.clone();
         changed.extent = Some(999);
-        assert_ne!(key, memo.key("obj3-first", 0, 1, &changed));
+        assert_ne!(
+            key,
+            memo.key(&reader, "obj3-first", 0, 1, &changed).unwrap()
+        );
         let count = memo.entries.len();
         assert!(memo
             .check_identity(&mut reader, "unused", "bad\"id", 0, 1, &bars)
@@ -3054,7 +3304,7 @@ mod tests {
         let another = sc::AuditCapture::new(MemoryNodes::default());
         let fresh = NativeWitnessIdentityMemo::new(&another).unwrap();
         assert!(fresh.entries.is_empty());
-        assert_ne!(key, fresh.key("obj3-first", 0, 1, &bars));
+        assert_ne!(key, fresh.key(&reader, "obj3-first", 0, 1, &bars).unwrap());
     }
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
@@ -3223,7 +3473,7 @@ mod tests {
         )
         .unwrap();
         assert!(!capture.contains(&overlay.digest));
-        let expected = super::super::generation::witness_identity(
+        let expected = super::super::generation::witness_identity_native(
             &mut context.reader,
             "obj3-overlay",
             0,
@@ -3290,7 +3540,7 @@ mod tests {
     ) -> ContentRef {
         let values = field(s, state, collection).unwrap();
         let mut elements = elements(s, &values).unwrap();
-        elements[index] = RefValue::Plain(record);
+        elements[index] = RefValue::from(record);
         replace_field(
             s,
             state,
@@ -3376,7 +3626,7 @@ mod tests {
             .iter()
             .map(|name| {
                 let r = if let Some(fields) = &fields {
-                    fields.get(name).map_err(err)?.clone()
+                    fields.get_admitted(s, name).map_err(err)?
                 } else {
                     field(s, root, name)?
                 };
@@ -3404,7 +3654,7 @@ mod tests {
                     extent: r.extent(),
                 };
                 let value = value.map(|v| match v {
-                    bj::JsonOwner::Plain(v) => v,
+                    bj::JsonOwner::Plain(v) => v.as_ref().clone(),
                     #[cfg(feature = "s_allocation_json_testonly")]
                     bj::JsonOwner::Owned(v) => serde_json::to_value(v.view())
                         .expect("test-only logical oracle serialization"),
@@ -3830,7 +4080,7 @@ mod tests {
         let mut parts = elements(&mut s, &refs).unwrap();
         let members = field(&mut s, &parts[0], "raw_refs").unwrap();
         // 真成员不是来源差集；不引入坏节点/缺节点，必须由差集判据拒绝。
-        parts[0] = RefValue::Plain(replace_field(
+        parts[0] = RefValue::from(replace_field(
             &mut s,
             &parts[0],
             &["merged_index", "raw_refs", "dependency_refs"],
@@ -3873,9 +4123,9 @@ mod tests {
                     return false;
                 }
                 let p = field(&mut s, r, "payload_json").unwrap();
-                RefValue::Plain(
+                RefValue::from(
                     sc::path::lookup_path_refview(&mut s, p.view(), &[PathStep::JsonText]).unwrap(),
-                ) == RefValue::Plain(payload.clone())
+                ) == RefValue::from(payload.clone())
             })
             .unwrap();
         let mut bytes = Vec::new();
@@ -4249,7 +4499,7 @@ mod closed_array_role_probe {
             deadline: None,
             fields: None,
         };
-        coords(&mut source, &RefValue::Plain(root.clone()))
+        coords(&mut source, &RefValue::from(root.clone()))
     }
 
     #[cfg(feature = "s_allocation_json_testonly")]

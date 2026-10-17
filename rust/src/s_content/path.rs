@@ -60,10 +60,7 @@ fn native_reference<R: RefOutput>(
 ) -> Result<R, CodecError> {
     let permit = source.reserve_native(R::NATIVE_HEAP)?;
     let reference = R::from_checked(kind, digest, extent);
-    if let Some(permit) = permit {
-        permit.retain();
-    }
-    Ok(reference)
+    Ok(reference.with_native_permit(permit))
 }
 
 /// 本模块的稳定拒绝码（与 §5.1–5.3 的 content codec 码互不冲突）。
@@ -318,7 +315,11 @@ fn lookup_array_output_inner<R: RefOutput>(
                 }
                 let kind = Kind::from_tag(t).ok_or_else(|| unsupported_value_tag_error(t))?;
                 let extent = header_extent(t, &body)?;
-                source.plain_vec_room(&mut result, 1)?;
+                if R::RETAINS_NATIVE {
+                    source.native_vec_room(&mut result, 1)?;
+                } else {
+                    source.plain_vec_room(&mut result, 1)?;
+                }
                 result.push(native_reference(source, kind, value, extent)?)?;
             }
         }
@@ -454,9 +455,44 @@ pub fn lookup_object_metadata_fixed<'names>(
 
 pub(super) trait FieldOutput<'names>: Sized {
     const DEFER_MISSING: bool = false;
+    const NATIVE_VECTOR_FIELDS: bool = false;
     type Reference: RefOutput;
     fn new(budget: Option<&super::capture_allocation::OwnedBudget>) -> Result<Self, CodecError>;
     fn append(&mut self, name: &'names str, reference: Self::Reference) -> Result<(), CodecError>;
+    fn append_reserved(
+        &mut self,
+        name: &'names str,
+        reference: Self::Reference,
+        permit: Option<super::capture_allocation::scratch::NativeReservation>,
+        _work: Option<&super::WorkBudget>,
+    ) -> Result<(), CodecError> {
+        self.append(name, reference)?;
+        if let Some(permit) = permit {
+            permit.retain();
+        }
+        Ok(())
+    }
+}
+impl<'names> FieldOutput<'names> for super::capture_allocation::native_owned::NativeRefFields {
+    const NATIVE_VECTOR_FIELDS: bool = true;
+    type Reference = super::capture_allocation::native_owned::NativeValue<ContentRef>;
+    fn new(_budget: Option<&super::capture_allocation::OwnedBudget>) -> Result<Self, CodecError> {
+        Ok(Self::default())
+    }
+    fn append(&mut self, name: &'names str, reference: Self::Reference) -> Result<(), CodecError> {
+        self.append_reserved(name, reference, None, None)
+    }
+    fn append_reserved(
+        &mut self,
+        name: &'names str,
+        reference: Self::Reference,
+        permit: Option<super::capture_allocation::scratch::NativeReservation>,
+        work: Option<&super::WorkBudget>,
+    ) -> Result<(), CodecError> {
+        super::capture_allocation::native_owned::NativeRefFields::append_reserved(
+            self, name, reference, permit, work,
+        )
+    }
 }
 impl<'names> FieldOutput<'names> for CodecFields {
     type Reference = ContentRef;
@@ -614,11 +650,17 @@ fn object_fields_output_inner<'names, O: FieldOutput<'names>>(
                             },
                         )
                     })?;
-                let permit = source.reserve_native(field_bytes)?;
-                result.append(expected, reference)?;
-                if let Some(permit) = permit {
-                    permit.retain();
-                }
+                let permit = source.reserve_native(if O::NATIVE_VECTOR_FIELDS {
+                    expected.len()
+                } else {
+                    field_bytes
+                })?;
+                result.append_reserved(
+                    expected,
+                    reference,
+                    permit,
+                    source.work_budget().as_ref(),
+                )?;
                 at += 1;
             }
         }
@@ -1989,4 +2031,62 @@ mod fixed_fields_tests {
         assert_eq!(foreign.snapshot().allocation_attempts, 0);
         eprintln!("fixed_fields owner actual_global_allocations={calls} ledger_before={before:?} ledger_after={after:?}");
     }
+}
+
+/// #1488 与旧 path/refview 共核；原 reserve token 直接随 Plain 引用返回。
+pub fn lookup_path_native(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+    path: &[PathStep],
+) -> Result<super::capture_allocation::native_owned::NativeValue<ContentRef>, CodecError> {
+    lookup_path_output(&mut CodecContext::Source(source), reference, path)
+}
+pub fn lookup_path_view_native(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+    path: &dyn PathView,
+) -> Result<super::capture_allocation::native_owned::NativeValue<ContentRef>, CodecError> {
+    lookup_path_view_output(&mut CodecContext::Source(source), reference, path, false)
+}
+pub fn lookup_optional_field_native(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+    name: &str,
+) -> Result<Option<super::capture_allocation::native_owned::NativeValue<ContentRef>>, CodecError> {
+    lookup_optional_field_output(&mut CodecContext::Source(source), reference, name)
+}
+pub fn lookup_array_items_native(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+) -> Result<
+    super::CodecVec<super::capture_allocation::native_owned::NativeValue<ContentRef>>,
+    CodecError,
+> {
+    lookup_array_output(&mut CodecContext::Source(source), reference)
+}
+pub fn replace_batch_placeholder_native(
+    store: &mut dyn NodeStore,
+    reference: RefView<'_>,
+    path: &[PathStep],
+    batch: &str,
+) -> Result<super::capture_allocation::native_owned::NativeValue<ContentRef>, CodecError> {
+    replace_output(&mut CodecContext::Store(store), reference, path, batch)
+}
+
+pub fn lookup_fields_native(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+    names: &[&str],
+    subset: bool,
+) -> Result<super::capture_allocation::native_owned::NativeRefFields, CodecError> {
+    object_fields_output(&mut CodecContext::Source(source), reference, names, !subset)
+}
+
+/// #1488 原 content_ref_ctx 共核；不经过擦除许可的旧 ContentRef 返回口。
+pub fn content_ref_of_native(
+    source: &mut dyn NodeSource,
+    root: &str,
+) -> Result<super::capture_allocation::native_owned::NativeValue<ContentRef>, CodecError> {
+    let (reference, permit) = super::content_ref_reserved(&mut CodecContext::Source(source), root)?;
+    Ok(super::capture_allocation::native_owned::NativeValue::from_reserved(reference, permit))
 }

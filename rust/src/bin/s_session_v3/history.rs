@@ -701,7 +701,7 @@ fn audit_one_published_cut<'capture>(
                 roots.view(),
             )
             .map_err(err)?;
-            (u.value, TextValue::Plain(u.batch_id))
+            (u.value, u.batch_id)
         }
     };
     if value.digest != manifest.digest().map_err(err)?
@@ -790,7 +790,9 @@ fn audit_one_published_cut<'capture>(
     }
     let (withdrawals, replaces) = match &object_sweep {
         Some(sweep) => sweep.changes_admitted(store, objects.entries(), generation)?,
-        None => object_index::changes_at_budgeted(objects.entries(), generation, allocation)?,
+        None => {
+            object_index::changes_at_admitted(store, objects.entries(), generation, allocation)?
+        }
     };
     let mut wire_withdrawals = bj::WithdrawalArray(bj::new_work(allocation));
     for v in withdrawals
@@ -2710,33 +2712,11 @@ impl NodeSink for HashReader<'_> {
 }
 
 impl CodecRead for HashReader<'_> {
-    fn parse_rendered_plain(&self, bytes: &[u8]) -> Result<serde_json::Value, String> {
-        #[cfg(feature = "s_capture_native_testonly")]
-        if let (Some(work), Some(native)) = (self.work, self.native_budget) {
-            use super::audit_owner::native::JsonShape;
-            use super::audit_retention::Retained;
-            let permit = native
-                .reserve(JsonShape::scan(bytes).parse_peak())
-                .map_err(|_| {
-                    work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget)
-                        .to_string()
-                })?;
-            let value = newchan_rust::session_protocol::strict_json(bytes)?;
-            // 业务输出仍 Plain。保守保留这笔载荷费到本次父账销毁；不计入 scratch。
-            permit.commit(0, value.heap_bytes());
-            return Ok(value);
-        }
-        #[cfg(feature = "s_capture_native_testonly")]
-        if let Some(work) = self.work {
-            // 已有native::Budget专用口在上面精确结算；scope-only冷口保守留解析峰。
-            let permit = work
-                .reserve_native(super::audit_owner::native::JsonShape::scan(bytes).parse_peak())
-                .map_err(err)?;
-            let value = newchan_rust::session_protocol::strict_json(bytes)?;
-            permit.retain();
-            return Ok(value);
-        }
-        newchan_rust::session_protocol::strict_json(bytes)
+    fn parse_rendered_plain(
+        &self,
+        bytes: &[u8],
+    ) -> Result<super::business_json::PlainJson, String> {
+        super::business_json::strict_plain_json_admitted(bytes, self.work)
     }
 
     fn lookup_array_ref(
@@ -2753,21 +2733,9 @@ impl CodecRead for HashReader<'_> {
             }
             Ok(out)
         } else {
-            let refs = sc::path::lookup_array_items_refview(self, r)?;
+            let refs = sc::path::lookup_array_items_native(self, r)?;
             let mut out = sc::CodecVec::from_plain(Vec::new());
-            if let Some(work) = self.work {
-                let bytes = refs
-                    .len()
-                    .checked_mul(std::mem::size_of::<RefValue>())
-                    .ok_or_else(|| {
-                        work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget)
-                    })?;
-                let permit = work.reserve_native(bytes)?;
-                out.try_reserve_exact(refs.len()).map_err(|_| {
-                    work.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
-                })?;
-                permit.retain();
-            }
+            self.native_codec_room(&mut out, refs.len())?;
             for r in refs {
                 out.try_push(super::audit_store::RefValue::Plain(r))?;
             }
@@ -2786,9 +2754,9 @@ impl CodecRead for HashReader<'_> {
             Some(o) => o
                 .content_ref_owned(r)
                 .map(super::audit_store::RefValue::Owned),
-            None => self
-                .content_ref_of(r)
-                .map(super::audit_store::RefValue::Plain),
+            None => {
+                sc::path::content_ref_of_native(self, r).map(super::audit_store::RefValue::Plain)
+            }
         }
     }
     fn lookup_ref(
@@ -2802,7 +2770,7 @@ impl CodecRead for HashReader<'_> {
                 .lookup_path_owned(r, p)
                 .map(super::audit_store::RefValue::Owned),
             None => {
-                sc::path::lookup_path_refview(self, r, p).map(super::audit_store::RefValue::Plain)
+                sc::path::lookup_path_native(self, r, p).map(super::audit_store::RefValue::Plain)
             }
         }
     }
@@ -2816,7 +2784,7 @@ impl CodecRead for HashReader<'_> {
             Some(o) => o
                 .lookup_path_view_owned(r, &BorrowedFieldPath(key))
                 .map(RefValue::Owned),
-            None => sc::path::lookup_path_view_refview(self, r, &BorrowedFieldPath(key))
+            None => sc::path::lookup_path_view_native(self, r, &BorrowedFieldPath(key))
                 .map(RefValue::Plain),
         }
     }
@@ -2830,7 +2798,7 @@ impl CodecRead for HashReader<'_> {
             Some(owner) => owner
                 .lookup_optional_field_owned(r, key)
                 .map(|value| value.map(RefValue::Owned)),
-            None => sc::path::lookup_optional_field_refview(self, r, key)
+            None => sc::path::lookup_optional_field_native(self, r, key)
                 .map(|value| value.map(RefValue::Plain)),
         }
     }
@@ -2844,7 +2812,7 @@ impl CodecRead for HashReader<'_> {
             Some(o) => o
                 .lookup_object_fields_owned(r, n)
                 .map(super::audit_store::RefFields::Owned),
-            None => sc::path::lookup_fields_refview(self, r, n, false)
+            None => sc::path::lookup_fields_native(self, r, n, false)
                 .map(super::audit_store::RefFields::Plain),
         }
     }
@@ -2858,7 +2826,7 @@ impl CodecRead for HashReader<'_> {
             Some(o) => o
                 .lookup_object_fields_subset_owned(r, n)
                 .map(super::audit_store::RefFields::Owned),
-            None => sc::path::lookup_fields_refview(self, r, n, true)
+            None => sc::path::lookup_fields_native(self, r, n, true)
                 .map(super::audit_store::RefFields::Plain),
         }
     }
@@ -5492,7 +5460,7 @@ mod tests {
             sc::ValueView::String(&batch),
         );
         let mut changed = born.clone();
-        changed[0] = RefValue::Plain(born_string);
+        changed[0] = RefValue::from(born_string);
         let changed_array = array(&mut sql, &changed);
         let mut case = original.clone();
         case.delta_template = replace(
@@ -5511,7 +5479,7 @@ mod tests {
             sc::ValueView::BatchSelf,
         );
         let mut changed = items.clone();
-        changed[old] = RefValue::Plain(old_placeholder);
+        changed[old] = RefValue::from(old_placeholder);
         let changed_array = array(&mut sql, &changed);
         let mut case = original.clone();
         case.publication_template = replace(
@@ -5548,7 +5516,7 @@ mod tests {
             sc::ValueView::BatchSelf,
         );
         let mut changed = born.clone();
-        changed[0] = RefValue::Plain(wrong);
+        changed[0] = RefValue::from(wrong);
         let changed_array = array(&mut sql, &changed);
         let mut case = original.clone();
         case.delta_template = replace(
@@ -6752,4 +6720,40 @@ pub(super) fn append_owner_cut(
         },
         retained,
     ))
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+mod native_reader_owner_tests {
+    use super::*;
+
+    #[test]
+    fn parsed_plain_owner_outlives_reader_and_scope_without_retaining_failed_parse() {
+        let budget = super::super::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let mut nodes = sc::MemoryNodes::new();
+        let parsed = budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let reader = HashReader::new(&mut nodes).with_codec_work(scope, &budget);
+                let before = budget.live();
+                assert!(reader.parse_rendered_plain(br#"{"a":1,"a":2}"#).is_err());
+                assert_eq!(budget.live(), before, "语法失败不得留下原解析许可");
+                let parsed = reader
+                    .parse_rendered_plain(br#"{"a":"payload","b":[1,2,3]}"#)
+                    .unwrap();
+                assert!(budget.live() > before);
+                drop(reader);
+                assert!(budget.live() > before, "解析结果仍拥有许可");
+                Ok::<_, sc::CodecError>(parsed)
+            })
+            .unwrap();
+        assert_eq!(
+            parsed.as_ref(),
+            &serde_json::json!({"a":"payload","b":[1,2,3]})
+        );
+        assert!(budget.live() > baseline);
+        drop(parsed);
+        assert_eq!(budget.live(), baseline);
+    }
 }

@@ -589,6 +589,8 @@ pub(super) struct NativeReadLease<'lease, 'conn> {
     material: SameMaterial,
     poisoned: bool,
     insert_can_preserve: bool,
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    stage: Option<&'lease super::staged_nodes::StageOwner<'lease>>,
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
@@ -619,7 +621,26 @@ impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
             material: Default::default(),
             poisoned: false,
             insert_can_preserve,
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            stage: None,
         })
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn new_admitted_staged(
+        tx: &'lease mut Transaction<'conn>,
+        work: &'lease WorkScope,
+        stage: &'lease super::staged_nodes::StageOwner<'lease>,
+    ) -> Result<Self, CodecError> {
+        stage.check_transaction(tx)?;
+        if !stage
+            .work()
+            .is_some_and(|stage_work| std::ptr::eq(stage_work, work))
+        {
+            return Err(storage_error("暂存租约必须继承同一已签发工作域"));
+        }
+        let mut lease = Self::new_admitted(tx, Some(work))?;
+        lease.stage = Some(stage);
+        Ok(lease)
     }
     fn clear(&mut self) {
         self.material = SameMaterial::default();
@@ -647,9 +668,17 @@ impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
     ) -> Result<Option<s_content::job::ScopedFrame>, CodecError> {
         self.check_live()?;
         let result = (|| {
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            if let Some(stage) = self.stage {
+                stage.check_transaction(self.tx)?;
+            }
             if let Some((frame, _)) = self.material.frames.get(digest) {
                 let (body, permit) = native_body_reserved(self.work, frame.body())?;
                 let frame = frame.checked_same_material(digest, frame.tag(), body)?;
+                #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                if let Some(stage) = self.stage {
+                    stage.check_original(digest, frame.tag(), frame.body())?;
+                }
                 return Ok(Some(s_content::job::ScopedFrame::new(frame, permit)));
             }
             match read_material_reserved(self.tx, digest, self.work)? {
@@ -662,14 +691,28 @@ impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
                         SAME_MATERIAL_ENTRIES,
                         self.work,
                     )?;
+                    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                    if let Some(stage) = self.stage {
+                        stage.check_original(digest, frame.tag(), frame.body())?;
+                    }
                     Ok(Some(s_content::job::ScopedFrame::new(frame, permit)))
                 }
-                None => Ok(None),
+                None => {
+                    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                    if let Some(stage) = self.stage {
+                        return stage.read_scoped(digest);
+                    }
+                    Ok(None)
+                }
             }
         })();
         if result.is_err() {
             self.clear();
             self.poisoned = true;
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            if let Some(stage) = self.stage {
+                stage.reject_after_error();
+            }
         }
         result
     }
@@ -708,6 +751,21 @@ impl NodeSink for NativeReadLease<'_, '_> {
     }
     fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError> {
         self.check_live()?;
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        if let Some(stage) = self.stage {
+            let result = (|| {
+                stage.check_transaction(self.tx)?;
+                TxStore::new_with_stage(self.tx, Some(stage))?
+                    .with_work(self.work)
+                    .put(digest, tag, body)
+            })();
+            if result.is_err() {
+                self.clear();
+                self.poisoned = true;
+            }
+            // SQL未变：SameMaterial只持真实SQL素材，绝不缓存overlay。
+            return result;
+        }
         // Private short reborrow avoids a self-referential &mut Transaction + TxStore pair.
         // Constructor already checked the format once, exactly as original TxStore::new does.
         let material = &mut self.material;
@@ -803,7 +861,7 @@ pub(super) struct TxStore<'a, 'conn> {
     tx: &'a Transaction<'conn>,
     work: Option<&'a WorkScope>,
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
-    stage: Option<&'a super::staged_nodes::StageOwner>,
+    stage: Option<&'a super::staged_nodes::StageOwner<'a>>,
 }
 
 impl<'a, 'conn> TxStore<'a, 'conn> {
@@ -823,7 +881,7 @@ impl<'a, 'conn> TxStore<'a, 'conn> {
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn new_with_stage(
         tx: &'a Transaction<'conn>,
-        stage: Option<&'a super::staged_nodes::StageOwner>,
+        stage: Option<&'a super::staged_nodes::StageOwner<'a>>,
     ) -> Result<Self, CodecError> {
         let mut store = Self::new(tx)?;
         if let Some(owner) = stage {
@@ -839,51 +897,48 @@ impl NodeSource for TxStore<'_, '_> {
         &mut self,
         d: &NodeDigest,
     ) -> Result<Option<s_content::job::ScopedFrame>, CodecError> {
+        let result = (|| {
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            if let Some(stage) = self.stage {
+                stage.check_transaction(self.tx)?;
+            }
+            let current = read_checked_node_scoped(self.tx, d, self.work)?;
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            if let Some(stage) = self.stage {
+                if let Some(frame) = &current {
+                    stage.check_original(d, frame.tag(), frame.body())?;
+                } else {
+                    return stage.read_scoped(d);
+                }
+            }
+            Ok(current)
+        })();
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
-        if self.stage.is_some() {
-            return self
-                .checked_read(d)
-                .map(|f| f.map(|f| s_content::job::ScopedFrame::new(f, None)));
+        if result.is_err() {
+            if let Some(stage) = self.stage {
+                stage.reject_after_error();
+            }
         }
-        read_checked_node_scoped(self.tx, d, self.work)
+        result
     }
     fn codec_work(&self) -> Option<&WorkScope> {
         self.work
     }
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
-        let current = match read_checked_node_admitted(self.tx, digest, self.work)? {
+        self.checked_read(digest).map(|frame| match frame {
             None => NodeRead::Missing,
             Some(frame) => {
                 let (tag, body) = frame.into_parts();
                 NodeRead::Found { tag, body }
             }
-        };
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
-        if matches!(current, NodeRead::Missing) {
-            if let Some(stage) = self.stage {
-                if let Some((tag, body)) = stage.read(digest) {
-                    check_digest(digest, tag, &body)?;
-                    return Ok(NodeRead::Found { tag, body });
-                }
-            }
-        }
-        Ok(current)
+        })
     }
-
     fn checked_read(
         &mut self,
         digest: &NodeDigest,
     ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
-        let current = read_checked_node_admitted(self.tx, digest, self.work)?;
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
-        if current.is_none() {
-            if let Some(stage) = self.stage {
-                if let Some((tag, body)) = stage.read(digest) {
-                    return s_content::job::CheckedFrame::checked(digest, tag, body).map(Some);
-                }
-            }
-        }
-        Ok(current)
+        self.checked_read_scoped(digest)
+            .map(|frame| frame.map(s_content::job::ScopedFrame::into_frame))
     }
 }
 
@@ -895,7 +950,28 @@ impl TxStore<'_, '_> {
         body: &[u8],
         before_write: impl FnOnce(),
     ) -> Result<(), CodecError> {
+        let result = self.put_before_write_inner(digest, tag, body, before_write);
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        if result.is_err() {
+            if let Some(stage) = self.stage {
+                stage.reject_after_error();
+            }
+        }
+        result
+    }
+    fn put_before_write_inner(
+        &mut self,
+        digest: NodeDigest,
+        tag: u8,
+        body: &[u8],
+        before_write: impl FnOnce(),
+    ) -> Result<(), CodecError> {
         check_digest(&digest, tag, body)?;
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        if let Some(stage) = self.stage {
+            stage.check_transaction(self.tx)?;
+            stage.check_original(&digest, tag, body)?;
+        }
         #[cfg(feature = "s_capture_native_testonly")]
         let before = self.tx.total_changes();
         let current = read_checked_node_scoped(self.tx, &digest, self.work)?;

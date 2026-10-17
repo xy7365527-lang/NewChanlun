@@ -7,6 +7,10 @@
 
 use crate::v3::audit_store::{CodecRead, CodecStore};
 use crate::v3::audit_store::{RefFields, RefValue};
+use crate::v3::business_json::TextValue;
+use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
+#[cfg(feature = "s_capture_native_testonly")]
+use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
 use newchan_rust::s_content::{
     self, Built, CodecError, ContentRef, Kind, NodeDigest, NodeStore, NumberToken, Value as V,
 };
@@ -146,6 +150,58 @@ pub(crate) struct RootsView<'a> {
     pub publication_template: s_content::RefView<'a>,
     pub delta_template: s_content::RefView<'a>,
 }
+/// 根拥有者仅借出字段；此trait不赋予核验、分配或发布资格。
+pub(crate) trait ManifestRootSource {
+    fn view(&self) -> RootsView<'_>;
+}
+impl ManifestRootSource for ManifestRoots {
+    fn view(&self) -> RootsView<'_> {
+        ManifestRoots::view(self)
+    }
+}
+#[cfg(feature = "s_capture_native_testonly")]
+struct NativeRoots {
+    generated_state: NativeValue<ContentRef>,
+    publication_template: NativeValue<ContentRef>,
+    delta_template: NativeValue<ContentRef>,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl NativeRoots {
+    fn from_view(roots: RootsView<'_>, work: Option<&WorkScope>) -> Result<Self, CodecError> {
+        Ok(Self {
+            generated_state: NativeValue::<ContentRef>::try_from_view(roots.generated_state, work)?,
+            publication_template: NativeValue::<ContentRef>::try_from_view(
+                roots.publication_template,
+                work,
+            )?,
+            delta_template: NativeValue::<ContentRef>::try_from_view(roots.delta_template, work)?,
+        })
+    }
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl ManifestRootSource for NativeRoots {
+    fn view(&self) -> RootsView<'_> {
+        RootsView {
+            generated_state: (&self.generated_state).into(),
+            publication_template: (&self.publication_template).into(),
+            delta_template: (&self.delta_template).into(),
+        }
+    }
+}
+#[cfg(feature = "s_capture_native_testonly")]
+fn same_reference(a: s_content::RefView<'_>, b: s_content::RefView<'_>) -> bool {
+    a.format() == b.format()
+        && a.root() == b.root()
+        && a.kind() == b.kind()
+        && a.extent() == b.extent()
+}
+#[cfg(feature = "s_capture_native_testonly")]
+fn same_roots(a: RootsView<'_>, b: RootsView<'_>) -> bool {
+    same_reference(a.generated_state, b.generated_state)
+        && same_reference(a.publication_template, b.publication_template)
+        && same_reference(a.delta_template, b.delta_template)
+}
+
 impl SourceCommit {
     pub(crate) fn view(&self) -> SourceCommitView<'_> {
         SourceCommitView {
@@ -394,9 +450,97 @@ impl RootsOwner {
     }
 }
 
+#[cfg(feature = "s_capture_native_testonly")]
+struct NativeMetadata {
+    session_id: NativeValue<String>,
+    session_generation: NativeValue<String>,
+    writer_epoch: NativeValue<String>,
+    base_cut: NativeValue<String>,
+    structure_cut: NativeValue<String>,
+    clock_plan_hash: NativeValue<String>,
+    semantic_commit_ns: NativeValue<String>,
+    profile_id: NativeValue<String>,
+    profile_hash: NativeValue<String>,
+    rule_revision: NativeValue<String>,
+    catalog_revision: NativeValue<String>,
+    source_namespace: NativeValue<String>,
+    source_epoch: NativeValue<String>,
+    message_id: NativeValue<String>,
+    payload_hash: NativeValue<String>,
+    producer_id: NativeValue<String>,
+    producer_epoch: NativeValue<String>,
+    clock_event_id: NativeValue<String>,
+    generation: i64,
+    input_frontier: i64,
+    attempt_index: i64,
+    scope: NativeValue<ContentRef>,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl NativeMetadata {
+    fn from_view(m: MetadataView<'_>, work: Option<&WorkScope>) -> Result<Self, CodecError> {
+        Ok(Self {
+            session_id: NativeValue::<String>::try_from_str(m.session_id, work)?,
+            session_generation: NativeValue::<String>::try_from_str(m.session_generation, work)?,
+            writer_epoch: NativeValue::<String>::try_from_str(m.writer_epoch, work)?,
+            base_cut: NativeValue::<String>::try_from_str(m.base_cut, work)?,
+            structure_cut: NativeValue::<String>::try_from_str(m.structure_cut, work)?,
+            clock_plan_hash: NativeValue::<String>::try_from_str(m.clock_plan_hash, work)?,
+            semantic_commit_ns: NativeValue::<String>::try_from_str(m.semantic_commit_ns, work)?,
+            profile_id: NativeValue::<String>::try_from_str(m.profile_id, work)?,
+            profile_hash: NativeValue::<String>::try_from_str(m.profile_hash, work)?,
+            rule_revision: NativeValue::<String>::try_from_str(m.rule_revision, work)?,
+            catalog_revision: NativeValue::<String>::try_from_str(m.catalog_revision, work)?,
+            source_namespace: NativeValue::<String>::try_from_str(
+                m.source_commit.source_namespace,
+                work,
+            )?,
+            source_epoch: NativeValue::<String>::try_from_str(m.source_commit.source_epoch, work)?,
+            message_id: NativeValue::<String>::try_from_str(m.source_commit.message_id, work)?,
+            payload_hash: NativeValue::<String>::try_from_str(m.source_commit.payload_hash, work)?,
+            producer_id: NativeValue::<String>::try_from_str(m.source_commit.producer_id, work)?,
+            producer_epoch: NativeValue::<String>::try_from_str(
+                m.source_commit.producer_epoch,
+                work,
+            )?,
+            clock_event_id: NativeValue::<String>::try_from_str(
+                m.source_commit.clock_event_id,
+                work,
+            )?,
+            generation: m.generation,
+            input_frontier: m.input_frontier,
+            attempt_index: m.source_commit.attempt_index,
+            scope: NativeValue::<ContentRef>::try_from_view(m.scope, work)?,
+        })
+    }
+    fn matches(&self, m: MetadataView<'_>) -> bool {
+        self.session_id.as_str() == m.session_id
+            && self.session_generation.as_str() == m.session_generation
+            && self.writer_epoch.as_str() == m.writer_epoch
+            && self.base_cut.as_str() == m.base_cut
+            && self.structure_cut.as_str() == m.structure_cut
+            && self.clock_plan_hash.as_str() == m.clock_plan_hash
+            && self.semantic_commit_ns.as_str() == m.semantic_commit_ns
+            && self.profile_id.as_str() == m.profile_id
+            && self.profile_hash.as_str() == m.profile_hash
+            && self.rule_revision.as_str() == m.rule_revision
+            && self.catalog_revision.as_str() == m.catalog_revision
+            && self.source_namespace.as_str() == m.source_commit.source_namespace
+            && self.source_epoch.as_str() == m.source_commit.source_epoch
+            && self.message_id.as_str() == m.source_commit.message_id
+            && self.payload_hash.as_str() == m.source_commit.payload_hash
+            && self.producer_id.as_str() == m.source_commit.producer_id
+            && self.producer_epoch.as_str() == m.source_commit.producer_epoch
+            && self.clock_event_id.as_str() == m.source_commit.clock_event_id
+            && self.generation == m.generation
+            && self.input_frontier == m.input_frontier
+            && self.attempt_index == m.source_commit.attempt_index
+            && same_reference((&self.scope).into(), m.scope)
+    }
+}
+
 pub(super) struct UnpublishedManifest {
     pub value: Built,
-    pub batch_id: String,
+    pub batch_id: TextValue,
 }
 
 // #1394 Native-only, transaction-local manifest workspace. The constructor below is the
@@ -479,14 +623,14 @@ fn diagnose_manifest_workspace(
 pub(crate) struct PreparedManifestWorkspace {
     revision: u32,
     format: &'static str,
-    metadata: ManifestMetadata,
-    roots: ManifestRoots,
+    metadata: NativeMetadata,
+    roots: NativeRoots,
     manifest_value: Built,
-    batch_id: String,
+    batch_id: TextValue,
     budget: crate::v3::ManifestWorkspaceBudget,
     source_cost: usize,
-    originals: std::collections::BTreeMap<NodeDigest, (u8, Vec<u8>)>,
-    puts: Vec<NodeDigest>,
+    originals: std::collections::BTreeMap<NodeDigest, (u8, s_content::CodecVec<u8>)>,
+    puts: s_content::CodecVec<NodeDigest>,
     // originals 先释放，树许可后归还；随 workspace move，不复制全池。
     tree_permit: Option<s_content::capture_allocation::scratch::NativeReservation>,
 }
@@ -499,7 +643,7 @@ impl PreparedManifestWorkspace {
         tx: &mut rusqlite::Transaction<'_>,
         token: &str,
         metadata: &ManifestMetadata,
-        roots: &ManifestRoots,
+        roots: &(impl ManifestRootSource + ?Sized),
         manifest: &UnpublishedManifest,
     ) -> Result<super::content_publication::ResolvedTemplates, String> {
         self.resolve_in_publication_admitted(tx, token, metadata, roots, manifest, None)
@@ -509,7 +653,7 @@ impl PreparedManifestWorkspace {
         tx: &mut rusqlite::Transaction<'_>,
         token: &str,
         metadata: &ManifestMetadata,
-        roots: &ManifestRoots,
+        roots: &(impl ManifestRootSource + ?Sized),
         manifest: &UnpublishedManifest,
         work: Option<&s_content::capture_allocation::scratch::WorkScope>,
     ) -> Result<super::content_publication::ResolvedTemplates, String> {
@@ -547,7 +691,7 @@ impl<'lease, 'conn> NativePublicationLease<'lease, 'conn> {
         self,
         workspace: PreparedManifestWorkspace,
         metadata: &ManifestMetadata,
-        roots: &ManifestRoots,
+        roots: &(impl ManifestRootSource + ?Sized),
         manifest: &UnpublishedManifest,
         previous_frontier: i64,
         work: Option<&s_content::capture_allocation::scratch::WorkScope>,
@@ -563,8 +707,8 @@ impl<'lease, 'conn> NativePublicationLease<'lease, 'conn> {
         let result = (|| {
             let context_equal = workspace.revision == MANIFEST_WORKSPACE_REVISION
                 && workspace.format == s_content::CONTENT_FORMAT
-                && workspace.metadata == *metadata
-                && workspace.roots == *roots
+                && workspace.metadata.matches(metadata.view())
+                && same_roots(workspace.roots.view(), roots.view())
                 && workspace.manifest_value == manifest.value
                 && workspace.batch_id == manifest.batch_id;
             // The private helper always reads *every* actual row with SQL + F and compares
@@ -652,7 +796,7 @@ impl<'lease, 'conn> NativePublicationLease<'lease, 'conn> {
 #[cfg(feature = "s_capture_native_testonly")]
 struct PublicationMaterialStore<'a, 'conn> {
     tx: &'a rusqlite::Transaction<'conn>,
-    originals: std::collections::BTreeMap<NodeDigest, (u8, Vec<u8>)>,
+    originals: std::collections::BTreeMap<NodeDigest, (u8, s_content::CodecVec<u8>)>,
     insert_can_preserve: bool,
     bind_after_replay: bool,
     poisoned: bool,
@@ -692,13 +836,13 @@ impl<'a, 'conn> PublicationMaterialStore<'a, 'conn> {
     }
     fn rebind_originals(
         &mut self,
-        originals: &std::collections::BTreeMap<NodeDigest, (u8, Vec<u8>)>,
+        originals: &std::collections::BTreeMap<NodeDigest, (u8, s_content::CodecVec<u8>)>,
     ) -> Result<bool, CodecError> {
         let mut equal = true;
         for (digest, (tag, body)) in originals {
             record_workspace_stats(|stats| stats.rebind_rows += 1);
             match s_content::NodeSource::checked_read_scoped(self, digest)? {
-                Some(frame) => equal &= frame.tag() == *tag && frame.body() == body.as_slice(),
+                Some(frame) => equal &= frame.tag() == *tag && frame.body() == &body[..],
                 None => equal = false,
             }
         }
@@ -841,7 +985,7 @@ fn diagnose_manifest_publication_reuse(
 #[cfg(feature = "s_capture_native_testonly")]
 fn workspace_certificate_source_cost(
     m: &ManifestMetadata,
-    roots: &ManifestRoots,
+    roots: &(impl ManifestRootSource + ?Sized),
     value: Option<&Built>,
     batch: Option<&str>,
 ) -> Option<usize> {
@@ -849,10 +993,10 @@ fn workspace_certificate_source_cost(
         *sum = sum.checked_add(8)?.checked_add(value.len())?;
         Some(())
     }
-    fn reference(sum: &mut usize, r: &ContentRef) -> Option<()> {
-        text(sum, &r.format)?;
-        text(sum, &r.root)?;
-        *sum = sum.checked_add(2 + if r.extent.is_some() { 8 } else { 0 })?;
+    fn reference(sum: &mut usize, r: s_content::RefView<'_>) -> Option<()> {
+        text(sum, r.format())?;
+        text(sum, r.root())?;
+        *sum = sum.checked_add(2 + if r.extent().is_some() { 8 } else { 0 })?;
         Some(())
     }
     // revision u32 + four fixed Mode/Flavor pairs + frozen budget's four u64 values
@@ -881,11 +1025,12 @@ fn workspace_certificate_source_cost(
     ] {
         text(&mut cost, value)?
     }
+    let roots = roots.view();
     for r in [
-        &m.scope,
-        &roots.generated_state,
-        &roots.publication_template,
-        &roots.delta_template,
+        (&m.scope).into(),
+        roots.generated_state,
+        roots.publication_template,
+        roots.delta_template,
     ] {
         reference(&mut cost, r)?;
     }
@@ -906,11 +1051,11 @@ struct ManifestRecordingStore<'a> {
     allowance: usize,
     certificate_cost: usize,
     source_cost: usize,
-    originals: Option<std::collections::BTreeMap<NodeDigest, (u8, Vec<u8>)>>,
+    originals: Option<std::collections::BTreeMap<NodeDigest, (u8, s_content::CodecVec<u8>)>>,
     retained_capacity: usize,
     accepted_entries: usize,
     accepted_body_len: usize,
-    puts: Vec<NodeDigest>,
+    puts: s_content::CodecVec<NodeDigest>,
     tree_permit: Option<s_content::capture_allocation::scratch::NativeReservation>,
 }
 #[cfg(feature = "s_capture_native_testonly")]
@@ -920,7 +1065,7 @@ impl ManifestRecordingStore<'_> {
             return Ok(());
         };
         if let Some((old_tag, old_body)) = originals.get(&digest) {
-            if *old_tag == tag && old_body.as_slice() == body {
+            if *old_tag == tag && &old_body[..] == body {
                 return Ok(());
             }
             self.originals = None;
@@ -942,11 +1087,14 @@ impl ManifestRecordingStore<'_> {
             .len()
             .checked_add(1)
             .ok_or_else(|| admission.native_overflow())?;
-        let tree_permit = super::content_store::native_tree_storage::<NodeDigest, (u8, Vec<u8>)>(
-            self.inner.codec_work(),
-            next_len,
-        )?;
-        let body = super::content_store::native_body_copy(self.inner.codec_work(), body)?;
+        let tree_permit = super::content_store::native_tree_storage::<
+            NodeDigest,
+            (u8, s_content::CodecVec<u8>),
+        >(self.inner.codec_work(), next_len)?;
+        let mut owned_body = s_content::CodecVec::default();
+        admission.native_codec_room(&mut owned_body, body.len())?;
+        owned_body.try_extend_bytes(body)?;
+        let body = owned_body;
         let totals = self
             .retained_capacity
             .checked_add(body.capacity())
@@ -1018,8 +1166,8 @@ impl s_content::NodeSink for ManifestRecordingStore<'_> {
                 .filter(|v| *v <= self.allowance)
             {
                 crate::v3::audit_store::NativeAdmission(self.inner.codec_work())
-                    .native_vec_room(&mut self.puts, 1)?;
-                self.puts.push(digest);
+                    .native_codec_room(&mut self.puts, 1)?;
+                self.puts.try_push(digest)?;
                 self.source_cost = next;
             } else {
                 self.originals = None;
@@ -1033,7 +1181,7 @@ impl s_content::NodeSink for ManifestRecordingStore<'_> {
 pub(crate) fn assemble_unpublished_with_workspace(
     store: &mut dyn NodeStore,
     metadata: &ManifestMetadata,
-    roots: &ManifestRoots,
+    roots: &(impl ManifestRootSource + ?Sized),
     budget: crate::v3::ManifestWorkspaceBudget,
 ) -> Result<(UnpublishedManifest, Option<PreparedManifestWorkspace>), CodecError> {
     let reserved_certificate = workspace_certificate_source_cost(metadata, roots, None, None)
@@ -1047,7 +1195,7 @@ pub(crate) fn assemble_unpublished_with_workspace(
         retained_capacity: 0,
         accepted_entries: 0,
         accepted_body_len: 0,
-        puts: Vec::new(),
+        puts: Default::default(),
         tree_permit: None,
     };
     let manifest = assemble_unpublished(&mut recording, metadata, roots)?;
@@ -1106,58 +1254,27 @@ pub(crate) fn assemble_unpublished_with_workspace(
             stats.recorded_body_capacity += recording.retained_capacity as u64;
         }
     });
-    if recording.originals.is_some() {
-        let admission = crate::v3::audit_store::NativeAdmission(recording.inner.codec_work());
-        let mut bytes = manifest.batch_id.len();
-        for text in [
-            &metadata.session_id,
-            &metadata.session_generation,
-            &metadata.writer_epoch,
-            &metadata.base_cut,
-            &metadata.structure_cut,
-            &metadata.clock_plan_hash,
-            &metadata.semantic_commit_ns,
-            &metadata.profile_id,
-            &metadata.profile_hash,
-            &metadata.rule_revision,
-            &metadata.catalog_revision,
-            &metadata.source_commit.source_namespace,
-            &metadata.source_commit.source_epoch,
-            &metadata.source_commit.message_id,
-            &metadata.source_commit.payload_hash,
-            &metadata.source_commit.producer_id,
-            &metadata.source_commit.producer_epoch,
-            &metadata.source_commit.clock_event_id,
-            &metadata.scope.format,
-            &metadata.scope.root,
-            &roots.generated_state.format,
-            &roots.generated_state.root,
-            &roots.publication_template.format,
-            &roots.publication_template.root,
-            &roots.delta_template.format,
-            &roots.delta_template.root,
-        ] {
-            bytes = bytes
-                .checked_add(text.len())
-                .ok_or_else(|| admission.native_overflow())?;
-        }
-        admission.native_admit(bytes)?;
-    }
-    let workspace = recording
-        .originals
-        .map(|originals| PreparedManifestWorkspace {
+    let workspace = if let Some(originals) = recording.originals {
+        let work = recording.inner.codec_work();
+        Some(PreparedManifestWorkspace {
             revision: MANIFEST_WORKSPACE_REVISION,
             format: s_content::CONTENT_FORMAT,
-            metadata: metadata.clone(),
-            roots: roots.clone(),
+            metadata: NativeMetadata::from_view(metadata.view(), work)?,
+            roots: NativeRoots::from_view(roots.view(), work)?,
             manifest_value: manifest.value.clone(),
-            batch_id: manifest.batch_id.clone(),
+            batch_id: TextValue::Plain(NativeValue::<String>::try_from_str(
+                &manifest.batch_id,
+                work,
+            )?),
             budget,
             source_cost: workspace_source_cost,
             originals,
             puts: recording.puts,
             tree_permit: recording.tree_permit,
-        });
+        })
+    } else {
+        None
+    };
     record_workspace_stats(|stats| {
         if workspace.is_some() {
             stats.issued += 1
@@ -1182,7 +1299,7 @@ pub(crate) fn assemble_unpublished_with_workspace(
 pub(super) fn assemble_unpublished(
     store: &mut dyn NodeStore,
     metadata: &ManifestMetadata,
-    roots: &ManifestRoots,
+    roots: &(impl ManifestRootSource + ?Sized),
 ) -> Result<UnpublishedManifest, CodecError> {
     assemble_unpublished_in_store(
         &mut crate::v3::audit_store::StoreView::generic(store),
@@ -1193,7 +1310,7 @@ pub(super) fn assemble_unpublished(
 pub(crate) fn assemble_unpublished_in_store(
     store: &mut crate::v3::audit_store::StoreView<'_, '_>,
     metadata: &ManifestMetadata,
-    roots: &ManifestRoots,
+    roots: &(impl ManifestRootSource + ?Sized),
 ) -> Result<UnpublishedManifest, CodecError> {
     assemble_unpublished_view_in_store(store, metadata.view(), roots.view())
 }
@@ -1206,7 +1323,7 @@ pub(crate) fn assemble_unpublished_view_in_store(
     let body = assemble_manifest_body(store, metadata, roots)?;
     Ok(UnpublishedManifest {
         value: body.value,
-        batch_id: store.native_string(batch_text(&body.identity).as_str())?,
+        batch_id: TextValue::Plain(store.native_string(batch_text(&body.identity).as_str())?),
     })
 }
 struct ManifestBody {
@@ -1601,6 +1718,152 @@ mod tests {
     use serde_json::{json, Value as J};
 
     #[cfg(feature = "s_capture_native_testonly")]
+    fn test_body(bytes: &[u8]) -> s_content::CodecVec<u8> {
+        let mut body = s_content::CodecVec::default();
+        body.try_extend_bytes(bytes).unwrap();
+        body
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_manifest_metadata_and_roots_outlive_scope_and_drop_independently() {
+        let (_, metadata, roots, _, _, _) = fixture();
+        let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        for _ in 0..3 {
+            let (owned_metadata, owned_roots) = budget
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    Ok::<_, CodecError>((
+                        NativeMetadata::from_view(metadata.view(), Some(work))?,
+                        NativeRoots::from_view(roots.view(), Some(work))?,
+                    ))
+                })
+                .unwrap();
+            assert!(owned_metadata.matches(metadata.view()));
+            assert!(same_roots(owned_roots.view(), roots.view()));
+            let both = budget.live();
+            assert!(both > baseline);
+            drop(owned_metadata);
+            assert!(budget.live() < both);
+            assert!(budget.live() > baseline, "三个根仍持自己的原许可");
+            assert!(same_roots(owned_roots.view(), roots.view()));
+            drop(owned_roots);
+            assert_eq!(budget.live(), baseline);
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_manifest_copy_failure_preserves_inputs_and_does_not_validate_early() {
+        let (_, metadata, mut roots, _, _, _) = fixture();
+        let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let before = roots.clone();
+        let failure = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let first = roots.generated_state.format.len() + roots.generated_state.root.len();
+                let _held = budget
+                    .reserve(1024 * 1024 - budget.live() - first - 1)
+                    .unwrap();
+                NativeRoots::from_view(roots.view(), Some(work)).map(|_| ())
+            })
+            .unwrap_err();
+        assert!(matches!(
+            failure,
+            s_content::capture_allocation::scratch::WorkError::Resource(_)
+        ));
+        assert_eq!(roots, before);
+        assert_eq!(budget.live(), baseline, "中途失败必须析构已复制的第一根");
+        let failure = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let _held = budget
+                    .reserve(1024 * 1024 - budget.live() - metadata.session_id.len() - 1)
+                    .unwrap();
+                NativeMetadata::from_view(metadata.view(), Some(work)).map(|_| ())
+            })
+            .unwrap_err();
+        assert!(matches!(
+            failure,
+            s_content::capture_allocation::scratch::WorkError::Resource(_)
+        ));
+        assert_eq!(metadata.session_id, "manifest-test");
+        assert_eq!(budget.live(), baseline);
+        roots.generated_state.root = "invalid-transport-root".into();
+        let copied = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| NativeRoots::from_view(roots.view(), Some(work)))
+            .unwrap();
+        assert!(
+            same_roots(copied.view(), roots.view()),
+            "复制阶段不新增digest验证"
+        );
+        assert!(copied.view().generated_state.digest().is_err());
+        drop(copied);
+        assert_eq!(budget.live(), baseline);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_manifest_recorded_body_and_puts_keep_original_permits_after_scope() {
+        use s_content::NodeSink;
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE s_protocol_meta(singleton INTEGER PRIMARY KEY,protocol_revision TEXT NOT NULL); INSERT INTO s_protocol_meta VALUES(1,'s-session/3');").unwrap();
+        let tx = conn.transaction().unwrap();
+        super::super::content_store::init_schema(&tx).unwrap();
+        let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let tag = s_content::tag::BYTES_CHUNK;
+        let digest = s_content::frame(tag, &[7, 8, 9]);
+        let (mut originals, puts, tree_permit) = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let mut inner =
+                    super::super::content_store::TxStore::new(&tx)?.with_work(Some(work));
+                let mut recording = ManifestRecordingStore {
+                    inner: &mut inner,
+                    allowance: 1024 * 1024,
+                    certificate_cost: 0,
+                    source_cost: 0,
+                    originals: Some(Default::default()),
+                    retained_capacity: 0,
+                    accepted_entries: 0,
+                    accepted_body_len: 0,
+                    puts: Default::default(),
+                    tree_permit: None,
+                };
+                recording.put(digest, tag, &[7, 8, 9])?;
+                Ok::<_, CodecError>((
+                    recording.originals.take().unwrap(),
+                    recording.puts,
+                    recording.tree_permit,
+                ))
+            })
+            .unwrap();
+        assert_eq!(&puts[..], &[digest]);
+        let held = budget.live();
+        assert!(held > baseline);
+        let (_, body) = originals.remove(&digest).unwrap();
+        drop(originals);
+        drop(tree_permit);
+        let remaining = budget.live();
+        assert!(remaining < held);
+        assert_eq!(&body[..], &[7, 8, 9]);
+        drop(puts);
+        assert!(budget.live() < remaining);
+        assert!(budget.live() > baseline, "移出原件的正文仍持原许可");
+        drop(body);
+        assert_eq!(budget.live(), baseline);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn native_publication_material_owner_normal_puts_keep_base_and_read_targets_cold() {
         use s_content::{NodeSink, NodeSource};
@@ -1618,8 +1881,10 @@ mod tests {
         drop(seed);
         let lease = NativePublicationLease::new(&mut tx).unwrap();
         let mut store = PublicationMaterialStore::new(&*lease.tx, lease.insert_can_preserve);
-        let originals =
-            std::collections::BTreeMap::from([(a, (tag, vec![7])), (b, (tag, vec![8]))]);
+        let originals = std::collections::BTreeMap::from([
+            (a, (tag, test_body(&[7]))),
+            (b, (tag, test_body(&[8]))),
+        ]);
         let sql = super::super::content_store::sql_reads_on_thread();
         let f = s_content::frame_calls_on_thread();
         assert!(store.rebind_originals(&originals).unwrap());
@@ -1969,7 +2234,7 @@ mod tests {
         assert_eq!(owned.0.value.digest, ordinary.value.digest);
         assert_eq!(owned.0.value.kind, ordinary.value.kind);
         assert_eq!(owned.0.value.extent, ordinary.value.extent);
-        assert_eq!(owned.0.batch_id.as_str(), ordinary.batch_id);
+        assert_eq!(owned.0.batch_id.as_str(), ordinary.batch_id.as_str());
         println!(
             "OWNED_MANIFEST_RECEIPT {}",
             serde_json::json!({"normal_f":normal_f,"owned_f":owned.1,"root":ordinary.value.root(),"batch":ordinary.batch_id,"meter":budget.snapshot(),"whole_audit_allocation_admitted":false})

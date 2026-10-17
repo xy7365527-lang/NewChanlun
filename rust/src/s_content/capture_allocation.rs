@@ -591,6 +591,8 @@ impl CaptureSlab {
 }
 
 #[doc(hidden)]
+pub mod native_owned;
+#[doc(hidden)]
 pub mod scratch;
 pub(crate) mod work;
 

@@ -33,15 +33,7 @@ pub(super) fn audit_generated_in_store(
             "当前来源审计仅实现OHLC档；其他档仍待接线，拒绝按此口径放行",
         ));
     }
-    s.native_admit(
-        profile
-            .len()
-            .checked_add(rule.len())
-            .and_then(|n| n.checked_add(2 * std::mem::size_of::<[usize; 2]>()))
-            .ok_or_else(|| err(s.native_overflow()))?,
-    )
-    .map_err(err)?;
-    let producer = Cc004Producer::new(profile, rule);
+    let producer = Cc004Producer::for_source_audit(profile, rule, s.codec_work()).map_err(err)?;
     let allocation;
     let ordinary_effective;
     let mut ordinary_raw;
@@ -332,9 +324,9 @@ pub(super) fn audit_generated_in_store(
         exact(&object.refs, Kind::Array, 3)?;
         let mut indices = [0; 3];
         let mut highs: [bj::TextValue; 3] =
-            std::array::from_fn(|_| bj::TextValue::Plain(String::new()));
+            std::array::from_fn(|_| bj::TextValue::from(String::new()));
         let mut lows: [bj::TextValue; 3] =
-            std::array::from_fn(|_| bj::TextValue::Plain(String::new()));
+            std::array::from_fn(|_| bj::TextValue::from(String::new()));
         let mut windows =
             std::array::from_fn::<_, 3, _>(|_| crate::content_manifest::Decimal::new(0));
         let mut source_union = bj::new_work(allocation.as_ref());
@@ -546,14 +538,14 @@ pub(super) fn audit_generated_in_store(
                 memo.check_identity(s, &id, &object_id, slot as usize, mi as usize, &bars)?
             }
             None => {
-                let want = super::super::generation::witness_identity(
+                let want = super::super::generation::witness_identity_native(
                     s,
                     &object_id,
                     slot as usize,
                     mi as usize,
                     &bars,
                 )?;
-                if id != want {
+                if id.as_str() != want.as_str() {
                     return Err(err("见证ID不符"));
                 }
             }

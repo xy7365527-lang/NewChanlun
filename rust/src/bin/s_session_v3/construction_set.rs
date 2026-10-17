@@ -269,6 +269,7 @@ pub(super) struct PendingSet {
     closed: bool,
     // 字段最后析构：差异Vec先真实释放，再归还原work父账的C2 cap许可。
     parent_charge: Option<sc::capture_allocation::scratch::NativeReservation>,
+    resource_hold: Option<super::native::Budget>,
 }
 /// 只由实际S成功结果构造；原完整投影核可复用其来源counts，不能跳过其它判据。
 pub(crate) struct OwnerSourceCheck {
@@ -322,6 +323,16 @@ impl PendingSet {
             return Err(stale("集合父账许可重复移交"));
         }
         self.parent_charge = charge;
+        Ok(())
+    }
+    pub(super) fn hold_resource_budget(
+        &mut self,
+        budget: super::native::Budget,
+    ) -> Result<(), String> {
+        if self.resource_hold.is_some() {
+            return Err(stale("集合资源父账重复移交"));
+        }
+        self.resource_hold = Some(budget);
         Ok(())
     }
     pub(super) fn retained_bytes(&self) -> usize {
@@ -527,6 +538,7 @@ pub(super) fn qualify(
         stages: None,
         closed: false,
         parent_charge: None,
+        resource_hold: None,
     })
 }
 
@@ -694,6 +706,7 @@ impl LazySet {
             stages: None,
             closed: false,
             parent_charge: None,
+            resource_hold: None,
         })
     }
 }

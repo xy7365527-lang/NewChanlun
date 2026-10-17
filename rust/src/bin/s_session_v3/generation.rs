@@ -1682,6 +1682,33 @@ pub(super) fn witness_identity(
     mi: usize,
     raw_bars: &Built,
 ) -> Result<String, String> {
+    let bytes = witness_identity_bytes(store, object_id, slot, mi, raw_bars)?;
+    // 旧裸 String 接口；Native 来源核改走下方携原许可的输出。
+    store.native_admit(bytes.len()).map_err(codec_error)?;
+    let mut result = String::with_capacity(bytes.len());
+    result.extend(bytes.into_iter().map(char::from));
+    Ok(result)
+}
+
+pub(super) fn witness_identity_native(
+    store: &mut (impl CodecRead + ?Sized),
+    object_id: &str,
+    slot: usize,
+    mi: usize,
+    raw_bars: &Built,
+) -> Result<sc::capture_allocation::native_owned::NativeValue<String>, String> {
+    let bytes = witness_identity_bytes(store, object_id, slot, mi, raw_bars)?;
+    let text = std::str::from_utf8(&bytes).expect("固定 ASCII witness 身份");
+    store.native_string(text).map_err(codec_error)
+}
+
+fn witness_identity_bytes(
+    store: &mut (impl CodecRead + ?Sized),
+    object_id: &str,
+    slot: usize,
+    mi: usize,
+    raw_bars: &Built,
+) -> Result<[u8; 20], String> {
     if object_id.contains('"') || object_id.contains('\\') {
         return Err(format!(
             "GenError：对象身份 `{object_id}` 含需转义字符，拒绝拼入规范输入"
@@ -1704,14 +1731,13 @@ pub(super) fn witness_identity(
             .map_err(|e| format!("GenError：见证输入失败：{e}"))?;
     }
     let digest = hasher.finalize();
-    // 输出固定为 wit- + 16 个十六进制字符；许可早于唯一的 String 分配。
-    store.native_admit(20).map_err(codec_error)?;
-    let mut result = String::with_capacity(20);
-    result.push_str("wit-");
+    // 两种输出所有权共用同一个配方；固定 ASCII 暂存不分配堆内存。
+    let mut result = [0u8; 20];
+    result[..4].copy_from_slice(b"wit-");
     const HEX: &[u8; 16] = b"0123456789abcdef";
-    for byte in &digest[..8] {
-        result.push(HEX[(byte >> 4) as usize] as char);
-        result.push(HEX[(byte & 15) as usize] as char);
+    for (i, byte) in digest[..8].iter().enumerate() {
+        result[4 + i * 2] = HEX[(byte >> 4) as usize];
+        result[5 + i * 2] = HEX[(byte & 15) as usize];
     }
     Ok(result)
 }

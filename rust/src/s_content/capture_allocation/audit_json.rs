@@ -2048,7 +2048,10 @@ impl Drop for ObjectMut<'_> {
 }
 
 /// 同账fallible业务映射，键/值的内部分配必须由其各自owner承担；本表不调用Clone。
-pub struct BusinessMap<K, V>(super::work::WorkMap<K, V>);
+pub struct BusinessMap<K, V>(
+    super::work::WorkMap<K, V>,
+    Option<super::scratch::NativeReservation>,
+);
 /// 两种allocator使用同一hashbrown迭代器，不装Box、不复制key/value。
 pub struct BusinessIter<'a, K, V>(hashbrown::hash_map::Iter<'a, K, V>);
 pub struct BusinessIterMut<'a, K, V>(hashbrown::hash_map::IterMut<'a, K, V>);
@@ -2078,6 +2081,13 @@ impl<K: Eq + std::hash::Hash, V> BusinessMap<K, V> {
     /// Native 调用者先按桶档取得独立许可；本桥只作 Plain 的 fallible 扩容。
     #[doc(hidden)]
     pub fn try_reserve_plain(&mut self, additional: usize) -> Result<(), CodecError> {
+        if self.1.is_some() {
+            return if additional <= self.capacity().saturating_sub(self.len()) {
+                Ok(())
+            } else {
+                Err(super::work::allocation_error())
+            };
+        }
         match &mut self.0 {
             super::work::WorkMap::Plain(map) => map
                 .try_reserve(additional)
@@ -2088,6 +2098,63 @@ impl<K: Eq + std::hash::Hash, V> BusinessMap<K, V> {
             )),
         }
     }
+    /// 原许可随实际 hashbrown buffer 持有；新旧块同时计费再移动条目。
+    pub fn try_reserve_native(
+        &mut self,
+        work: &super::scratch::WorkScope,
+        additional: usize,
+    ) -> Result<(), CodecError> {
+        use super::scratch::ScratchFailure;
+        let super::work::WorkMap::Plain(map) = &mut self.0 else {
+            return Err(work.reject(ScratchFailure::Ledger));
+        };
+        if self.1.is_none() && map.capacity() != 0 {
+            return Err(work.reject(ScratchFailure::Ledger));
+        }
+        let needed = map
+            .len()
+            .checked_add(additional)
+            .ok_or_else(|| work.reject(ScratchFailure::Budget))?;
+        if needed <= map.capacity() {
+            if self.1.is_none() {
+                self.1 = Some(work.reserve_native(0)?);
+            }
+            return Ok(());
+        }
+        let buckets = if needed <= 3 {
+            4
+        } else if needed <= 7 {
+            8
+        } else {
+            needed
+                .checked_mul(8)
+                .and_then(|n| n.checked_add(6))
+                .map(|n| n / 7)
+                .and_then(usize::checked_next_power_of_two)
+                .ok_or_else(|| work.reject(ScratchFailure::Budget))?
+        };
+        // 同原 native_hash_bytes 桶档上界：payload、控制字节、哨兵及对齐。
+        let bytes = buckets
+            .checked_add(16)
+            .and_then(|n| {
+                std::mem::size_of::<(K, V)>()
+                    .checked_add(1)
+                    .and_then(|size| n.checked_mul(size))
+            })
+            .ok_or_else(|| work.reject(ScratchFailure::Budget))?;
+        let permit = work.reserve_native(bytes)?;
+        let mut replacement = hashbrown::HashMap::with_hasher(RandomState::new());
+        replacement
+            .try_reserve(needed)
+            .map_err(|_| work.reject(ScratchFailure::Allocation))?;
+        for (key, value) in map.drain() {
+            replacement.insert(key, value);
+        }
+        let old = std::mem::replace(map, replacement);
+        drop(old);
+        self.1 = Some(permit);
+        Ok(())
+    }
     pub fn retain(&mut self, f: impl FnMut(&K, &mut V) -> bool) {
         self.0.retain(f)
     }
@@ -2095,11 +2162,11 @@ impl<K: Eq + std::hash::Hash, V> BusinessMap<K, V> {
         BusinessIterMut(self.0.iter_mut())
     }
     pub fn plain() -> Self {
-        Self(super::work::WorkMap::new(None))
+        Self(super::work::WorkMap::new(None), None)
     }
     #[cfg(feature = "s_allocation_json_testonly")]
     pub fn owned(b: &OwnedBudget) -> Self {
-        Self(super::work::WorkMap::new(Some(b)))
+        Self(super::work::WorkMap::new(Some(b)), None)
     }
     pub fn get<Q: std::hash::Hash + hashbrown::Equivalent<K> + ?Sized>(
         &self,
@@ -2126,6 +2193,9 @@ impl<K: Eq + std::hash::Hash, V> BusinessMap<K, V> {
         self.0.contains_key(key)
     }
     pub fn insert(&mut self, key: K, value: V) -> Result<Option<V>, CodecError> {
+        if self.1.is_some() && !self.0.contains_key(&key) && self.len() == self.capacity() {
+            return Err(super::work::allocation_error());
+        }
         self.0.insert(key, value)
     }
     pub fn iter(&self) -> BusinessIter<'_, K, V> {

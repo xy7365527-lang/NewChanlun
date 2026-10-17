@@ -424,6 +424,13 @@ impl ScopedFrame {
     pub fn digest(&self) -> &NodeDigest {
         self.frame.digest()
     }
+    /// 消费帧且保留从 checked_read_scoped 签发的原正文许可。
+    pub fn into_native(self) -> super::capture_allocation::native_owned::NativeValue<CheckedFrame> {
+        super::capture_allocation::native_owned::NativeValue::from_reserved(self.frame, self.permit)
+    }
+    pub fn usage(&self) -> &CheckedNodeUsage {
+        self.frame.usage()
+    }
     pub fn into_frame(self) -> CheckedFrame {
         // 旧 API 返回独立 Vec，无法随值析构；这一路保守持账到父账结束。
         if let Some(permit) = self.permit {

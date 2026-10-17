@@ -18,13 +18,16 @@ use crate::v3::audit_store::{CodecRead, CodecStore, NativeAdmission};
 use crate::v3::audit_store::{RefFields, RefValue};
 use crate::v3::business_json;
 use content_manifest::Decimal;
+#[cfg(test)]
+use content_manifest::ManifestRoots;
 use content_manifest::{
-    ManifestMetadata, ManifestRoots, MetadataView, RootsView, UnpublishedManifest,
+    ManifestMetadata, ManifestRootSource, MetadataView, RootsView, UnpublishedManifest,
 };
 use newchan_rust::s_content::{self as sc, path::PathStep, ContentRef, Kind, NodeDigest, NodeSink};
 use newchan_rust::session_protocol::{parse_canonical_i64, strict_json, validate_envelope};
 use newchan_rust::sqlite_checked::{CheckedRow, CheckedStatement};
 use rusqlite::{OptionalExtension, Transaction};
+use sc::capture_allocation::native_owned::NativeValue;
 use sc::capture_allocation::{audit_json::JsonView, scratch::WorkScope};
 #[cfg(test)]
 use sc::Value as V;
@@ -35,21 +38,21 @@ use std::rc::Rc;
 
 #[derive(Debug)]
 pub(super) struct ResolvedTemplates {
-    pub snapshot: ContentRef,
-    pub delta: ContentRef,
+    pub snapshot: NativeValue<ContentRef>,
+    pub delta: NativeValue<ContentRef>,
 }
 
 /// 同一占位许可核的构造结果，尚无Public闭包证明；不得用于发布或作为已核历史返回。
 pub(super) struct PendingTemplates {
-    pub snapshot: ContentRef,
-    pub delta: ContentRef,
+    pub snapshot: NativeValue<ContentRef>,
+    pub delta: NativeValue<ContentRef>,
 }
 
 pub(super) fn resolve_current_births(
     tx: &Transaction<'_>,
     begin_token: &str,
     metadata: &ManifestMetadata,
-    roots: &ManifestRoots,
+    roots: &(impl ManifestRootSource + ?Sized),
     manifest: &UnpublishedManifest,
 ) -> Result<ResolvedTemplates, String> {
     resolve_current_births_inner(
@@ -65,21 +68,38 @@ pub(super) fn resolve_current_births(
 }
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(super) fn resolve_current_births_staged(
-    tx: &Transaction<'_>,
+    tx: &mut Transaction<'_>,
     token: &str,
     m: &ManifestMetadata,
-    roots: &ManifestRoots,
+    roots: &(impl ManifestRootSource + ?Sized),
     manifest: &UnpublishedManifest,
-    stage: &staged_nodes::StageOwner,
+    stage: &staged_nodes::StageOwner<'_>,
+    workspace: Option<content_manifest::PreparedManifestWorkspace>,
+    work: Option<&WorkScope>,
 ) -> Result<ResolvedTemplates, String> {
-    resolve_current_births_inner(tx, token, m, roots, manifest, None, Some(stage))
+    stage.check_transaction(tx).map_err(err)?;
+    if let Some(workspace) = workspace {
+        // 冻结workspace只消费真实SQL。生成租约已经析构，再将本代模板闭包落库；
+        // 之后才允许workspace取得独占publication租约，不以overlay冒充素材。
+        let template_roots = [
+            manifest.value.digest,
+            roots.view().generated_state.digest().map_err(err)?,
+            roots.view().publication_template.digest().map_err(err)?,
+            roots.view().delta_template.digest().map_err(err)?,
+            m.scope.digest().map_err(err)?,
+        ];
+        stage.flush_cut(tx, staged_nodes::FlushCut::Final(&template_roots))?;
+        workspace.resolve_in_publication_admitted(tx, token, m, roots, manifest, work)
+    } else {
+        resolve_current_births_inner(tx, token, m, roots, manifest, work, Some(stage))
+    }
 }
 #[cfg(feature = "s_capture_native_testonly")]
 pub(super) fn resolve_current_births_with_workspace(
     tx: &mut Transaction<'_>,
     token: &str,
     m: &ManifestMetadata,
-    roots: &ManifestRoots,
+    roots: &(impl ManifestRootSource + ?Sized),
     manifest: &UnpublishedManifest,
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
 ) -> Result<ResolvedTemplates, String> {
@@ -90,7 +110,7 @@ pub(super) fn resolve_current_births_with_workspace_admitted(
     tx: &mut Transaction<'_>,
     token: &str,
     m: &ManifestMetadata,
-    roots: &ManifestRoots,
+    roots: &(impl ManifestRootSource + ?Sized),
     manifest: &UnpublishedManifest,
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
     work: Option<&WorkScope>,
@@ -128,7 +148,7 @@ fn resolve_current_births_inner(
     tx: &Transaction<'_>,
     begin_token: &str,
     metadata: &ManifestMetadata,
-    roots: &ManifestRoots,
+    roots: &(impl ManifestRootSource + ?Sized),
     manifest: &UnpublishedManifest,
     work: Option<&WorkScope>,
     #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<
@@ -173,7 +193,7 @@ pub(super) fn resolve_indexed_templates(
     tx: &Transaction<'_>,
     store: &mut (impl CodecStore + ?Sized),
     metadata: &ManifestMetadata,
-    roots: &ManifestRoots,
+    roots: &(impl ManifestRootSource + ?Sized),
     batch_id: &str,
     previous_frontier: i64,
 ) -> Result<ResolvedTemplates, String> {
@@ -196,7 +216,7 @@ pub(super) fn resolve_indexed_templates_pending(
     tx: &Transaction<'_>,
     store: &mut (impl CodecStore + ?Sized),
     metadata: &ManifestMetadata,
-    roots: &ManifestRoots,
+    roots: &(impl ManifestRootSource + ?Sized),
     batch_id: &str,
     previous_frontier: i64,
 ) -> Result<PendingTemplates, String> {
@@ -1725,7 +1745,7 @@ mod tests {
         let manifest = content_manifest::assemble_unpublished(&mut store, &m, &roots).unwrap();
         for (id, g, batch) in [
             ("obj3-old", 1, format!("batch3-{}", "d".repeat(64))),
-            ("obj3-new", 2, manifest.batch_id.clone()),
+            ("obj3-new", 2, manifest.batch_id.as_str().to_owned()),
         ] {
             let node = sc::write_value(&mut store, &V::Null).unwrap();
             tx.execute("INSERT INTO s_content_objects VALUES(?1,1,'CC-010.bi','key',NULL,NULL,NULL,?5,?5,?5,?5,?2,?3,?4,?3,NULL,NULL,NULL)",params![id,batch,g,format!("cut-{g}"),node.digest.as_slice()]).unwrap();
@@ -1733,7 +1753,7 @@ mod tests {
         if has_observations {
             for (id, g, batch) in [
                 ("ob-old", 1, format!("batch3-{}", "e".repeat(64))),
-                ("ob-new", 2, manifest.batch_id.clone()),
+                ("ob-new", 2, manifest.batch_id.as_str().to_owned()),
             ] {
                 // 本夹具只核出生许可，值根的原件语义在辅助索引测试单独核。
                 let root = sc::write_value(&mut store, &V::Null).unwrap();
@@ -2412,12 +2432,12 @@ mod tests {
         let tx = db.transaction().unwrap();
         let (mut m, roots, mut manifest) = fixtures(&tx);
         let token = meta(&tx, "begin_token").unwrap();
-        let actual = manifest.batch_id.clone();
-        manifest.batch_id = format!("batch3-{}", "f".repeat(64));
+        let actual = manifest.batch_id.as_str().to_owned();
+        manifest.batch_id = format!("batch3-{}", "f".repeat(64)).into();
         assert!(resolve_current_births(&tx, &token, &m, &roots, &manifest)
             .unwrap_err()
             .contains("IdentityConflict"));
-        manifest.batch_id = actual;
+        manifest.batch_id = actual.into();
         m.source_commit.producer_id = "wrong-producer".into();
         assert!(resolve_current_births(&tx, &token, &m, &roots, &manifest)
             .unwrap_err()

@@ -1,10 +1,11 @@
 //! #1394 业务原始账的入口存储选择与同一借用判据。Owned失败直接Err，不转回std。
-use super::audit_store::{CodecRead, NativeAdmission};
+use super::audit_store::{CodecRead, NativeAdmission, NativeTree};
 use super::*;
 use aj::{ArrayIter, ArrayView, JsonView};
 use newchan_rust::s_content as sc;
 use newchan_rust::sqlite_checked::{CheckedRow, CheckedStatement};
-use sc::capture_allocation::scratch::WorkScope;
+use sc::capture_allocation::native_owned::NativeValue;
+use sc::capture_allocation::scratch::{NativeReservation, WorkScope};
 use sc::capture_allocation::{audit_json as aj, OwnedBudget};
 use sha2::{Digest, Sha256};
 use std::time::Instant;
@@ -297,12 +298,21 @@ pub(super) struct RawPrefixIndex<'raw> {
     #[cfg(feature = "s_capture_native_testonly")]
     retained: super::audit_retention::RetainedDelta,
 }
-#[derive(Default)]
 pub(super) struct RawPrefixFacts {
     prefix: usize,
-    winners: std::collections::HashMap<String, (i64, usize, i64)>,
-    ordered: std::collections::BTreeMap<i64, usize>,
-    coordinates: std::collections::HashMap<usize, i64>,
+    winners: BusinessMap<NativeValue<String>, (i64, usize, i64)>,
+    ordered: NativeTree<i64, usize>,
+    coordinates: BusinessMap<usize, i64>,
+}
+impl Default for RawPrefixFacts {
+    fn default() -> Self {
+        Self {
+            prefix: 0,
+            winners: BusinessMap::plain(),
+            ordered: NativeTree::default(),
+            coordinates: BusinessMap::plain(),
+        }
+    }
 }
 impl RawPrefixFacts {
     pub(super) fn prefix_len(&self) -> usize {
@@ -332,8 +342,8 @@ pub(crate) struct RawWinnerEdit {
     pub new: Option<RawWinner>,
 }
 pub(super) struct RawPrefixChanges {
-    pub removed: Vec<i64>,
-    pub added: Vec<(i64, usize)>,
+    pub removed: sc::CodecVec<i64>,
+    pub added: sc::CodecVec<(i64, usize)>,
     /// 按 identity 排序，每个 identity 只含最终赢家；消费时先撤全部 old 再加全部 new。
     pub winner_edits: sc::CodecVec<RawWinnerEdit>,
     pub raw_visits: usize,
@@ -405,14 +415,14 @@ impl<'raw> RawPrefixIndex<'raw> {
     fn clear_winners(&mut self) {
         #[cfg(feature = "s_capture_native_testonly")]
         {
-            for key in self.facts.winners.keys() {
+            for (key, _) in self.facts.winners.iter() {
                 self.retained.release(key);
             }
             self.retained
                 .tree_len::<i64, usize>(self.facts.ordered.len(), 0);
         }
         // HashMap clear 保留桶；BTree clear 真实释放根。
-        self.facts.winners.clear();
+        self.facts.winners.retain(|_, _| false);
         self.facts.ordered.clear();
     }
 
@@ -434,7 +444,7 @@ impl<'raw> RawPrefixIndex<'raw> {
     pub(super) fn clear(&mut self) {
         self.prefix = 0;
         self.clear_winners();
-        self.coordinates.clear();
+        self.facts.coordinates.retain(|_, _| false);
     }
     pub(super) fn advance(&mut self, prefix: usize) -> Result<RawPrefixChanges, String> {
         self.advance_admitted(prefix, &super::audit_store::NativeAdmission(None))
@@ -466,7 +476,7 @@ impl<'raw> RawPrefixIndex<'raw> {
         }
         // 同一 cut 内先选最终赢家；不会因跨越的暂态修订提前拒绝。
         let raw = self.raw;
-        let mut changed = std::collections::BTreeMap::<&str, (i64, usize)>::new();
+        let mut changed = NativeTree::<&str, (i64, usize)>::default();
         for ordinal in self.prefix..prefix {
             let event = raw.get(ordinal).expect("已截前缀");
             let identity = field(event, "identity_key").as_str().unwrap_or("");
@@ -476,24 +486,21 @@ impl<'raw> RawPrefixIndex<'raw> {
                 .copied()
                 .or_else(|| self.winners.get(identity).map(|(r, i, _)| (*r, *i)));
             if previous.is_none_or(|(r, i)| effective_precedence(revision, ordinal, r, i).is_lt()) {
-                if !changed.contains_key(identity) {
-                    admission
-                        .native_tree_room::<&str, (i64, usize)>(changed.len())
-                        .map_err(|e| e.to_string())?;
-                }
-                changed.insert(identity, (revision, ordinal));
+                changed
+                    .insert_admitted(identity, (revision, ordinal), admission)
+                    .map_err(|e| e.to_string())?;
             }
         }
         let mut updates = RawPrefixChanges {
-            removed: Vec::new(),
-            added: Vec::new(),
+            removed: new_work(None),
+            added: new_work(None),
             winner_edits: new_work(self.raw.budget()),
             raw_visits: prefix - self.prefix,
             coord_decodes: 0,
             rewound,
         };
         // 与 effective 一样先按身份序验证最终坐标，随后按坐标输出。
-        for (&identity, &(revision, ordinal)) in &changed {
+        for (&identity, &(revision, ordinal)) in changed.iter() {
             let c = match self.coordinates.get(&ordinal) {
                 Some(c) => *c,
                 None => {
@@ -501,9 +508,11 @@ impl<'raw> RawPrefixIndex<'raw> {
                     #[cfg(feature = "s_capture_native_testonly")]
                     let capacity = self.coordinates.capacity();
                     admission
-                        .native_std_map_room(&mut self.facts.coordinates)
+                        .native_map_room(&mut self.facts.coordinates)
                         .map_err(|e| e.to_string())?;
-                    self.coordinates.insert(ordinal, c);
+                    self.coordinates
+                        .insert(ordinal, c)
+                        .map_err(|e| e.to_string())?;
                     #[cfg(feature = "s_capture_native_testonly")]
                     self.retained
                         .hash_capacity::<usize, i64>(capacity, self.facts.coordinates.capacity());
@@ -514,23 +523,24 @@ impl<'raw> RawPrefixIndex<'raw> {
             let previous = match self.winners.get_mut(identity) {
                 Some(winner) => Some(std::mem::replace(winner, (revision, ordinal, c))),
                 None => {
-                    admission
-                        .native_admit(identity.len())
+                    let key = NativeValue::<String>::try_from_str(identity, admission.codec_work())
                         .map_err(|e| e.to_string())?;
-                    let key = identity.to_owned();
                     #[cfg(feature = "s_capture_native_testonly")]
                     let capacity = self.winners.capacity();
                     #[cfg(feature = "s_capture_native_testonly")]
                     self.retained.add(&key);
                     admission
-                        .native_std_map_room(&mut self.facts.winners)
+                        .native_map_room(&mut self.facts.winners)
                         .map_err(|e| e.to_string())?;
-                    self.winners.insert(key, (revision, ordinal, c));
+                    self.winners
+                        .insert(key, (revision, ordinal, c))
+                        .map_err(|e| e.to_string())?;
                     #[cfg(feature = "s_capture_native_testonly")]
-                    self.retained.hash_capacity::<String, (i64, usize, i64)>(
-                        capacity,
-                        self.facts.winners.capacity(),
-                    );
+                    self.retained
+                        .hash_capacity::<NativeValue<String>, (i64, usize, i64)>(
+                            capacity,
+                            self.facts.winners.capacity(),
+                        );
                     None
                 }
             };
@@ -555,30 +565,42 @@ impl<'raw> RawPrefixIndex<'raw> {
                 self.retained
                     .tree_len::<i64, usize>(len, self.facts.ordered.len());
                 admission
-                    .native_vec_room(&mut updates.removed, 1)
+                    .native_codec_room(&mut updates.removed, 1)
                     .map_err(|e| e.to_string())?;
-                updates.removed.push(old);
+                updates.removed.try_push(old).map_err(|e| e.to_string())?;
             }
             admission
-                .native_vec_room(&mut updates.added, 1)
+                .native_codec_room(&mut updates.added, 1)
                 .map_err(|e| e.to_string())?;
-            updates.added.push((c, ordinal));
+            updates
+                .added
+                .try_push((c, ordinal))
+                .map_err(|e| e.to_string())?;
         }
         updates.added.sort_unstable_by_key(|(c, _)| *c);
         for &(c, ordinal) in &updates.added {
             #[cfg(feature = "s_capture_native_testonly")]
             let len = self.ordered.len();
-            if !self.ordered.contains_key(&c) {
-                admission
-                    .native_tree_room::<i64, usize>(self.ordered.len())
-                    .map_err(|e| e.to_string())?;
-            }
-            if self.ordered.insert(c, ordinal).is_some() {
+            #[cfg(feature = "s_capture_native_testonly")]
+            let permit_capacity = self.ordered.permit_capacity();
+            if self
+                .ordered
+                .insert_admitted(c, ordinal, admission)
+                .map_err(|e| e.to_string())?
+                .is_some()
+            {
                 return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖业务身份".into());
             }
             #[cfg(feature = "s_capture_native_testonly")]
-            self.retained
-                .tree_len::<i64, usize>(len, self.facts.ordered.len());
+            {
+                self.retained
+                    .tree_len::<i64, usize>(len, self.facts.ordered.len());
+                self.retained
+                    .vec_capacity::<sc::capture_allocation::scratch::NativeReservation>(
+                        permit_capacity,
+                        self.facts.ordered.permit_capacity(),
+                    );
+            }
         }
         self.prefix = prefix;
         Ok(updates)
@@ -1161,7 +1183,7 @@ impl<'a, const N: usize> From<&'a [Value; N]> for RawEventsView<'a> {
 
 /// 新业务返回文本的入口存储选择。Owned实际字节持续持账；Clone只开放fallible深复制。
 pub(crate) enum TextValue {
-    Plain(String),
+    Plain(NativeValue<String>),
     Owned(aj::TextOwner),
 }
 impl TextValue {
@@ -1229,8 +1251,10 @@ impl TextValue {
         if bytes.allocation_budget().is_some() {
             return Self::from_owned_bytes(bytes);
         }
-        let bytes = bytes.try_into_plain().map_err(|e| e.to_string())?;
-        String::from_utf8(bytes)
+        // 保留原 String::from_utf8 的诊断文本；借用验证不拆所有权、不复制。
+        std::str::from_utf8(&bytes).map_err(|e| e.to_string())?;
+        bytes
+            .try_into_native_text()
             .map(Self::Plain)
             .map_err(|e| e.to_string())
     }
@@ -1248,7 +1272,15 @@ impl TextValue {
     }
     pub fn try_clone(&self) -> Result<Self, String> {
         match self {
-            Self::Plain(s) => Self::from_str(s, None),
+            Self::Plain(s) => {
+                if s.is_native_admitted() {
+                    return Err(
+                        "prototype_audit_allocation_incomplete：Native文本复制需要当前WorkScope"
+                            .into(),
+                    );
+                }
+                Self::from_str(s, None)
+            }
             Self::Owned(s) => {
                 #[cfg(feature = "s_allocation_json_testonly")]
                 {
@@ -1288,7 +1320,7 @@ impl TextValue {
             sc::CodecError::new(sc::capture_allocation::LIMIT, "Native文本分配失败")
         })?;
         value.push_str(s);
-        Ok(Self::Plain(value))
+        Ok(Self::Plain(NativeValue::<String>::from_unscoped(value)))
     }
     pub fn from_sql(
         row: &mut CheckedRow<'_>,
@@ -1373,12 +1405,12 @@ impl std::hash::Hash for TextValue {
 }
 impl From<String> for TextValue {
     fn from(s: String) -> Self {
-        Self::Plain(s)
+        Self::Plain(NativeValue::<String>::from_unscoped(s))
     }
 }
 impl From<&str> for TextValue {
     fn from(s: &str) -> Self {
-        Self::Plain(s.to_owned())
+        Self::Plain(NativeValue::<String>::from_unscoped(s.to_owned()))
     }
 }
 
@@ -1409,8 +1441,107 @@ impl std::ops::Deref for SharedEnvelope {
         &self.0
     }
 }
+/// #1488 bin 的严格解析拥有者。解析准入发生在构造前；payload 先析构，许可随后。
+/// 与库 NativeValue<Value> 的只读复制用途相同，但这里须承接本 bin JsonShape/strict
+/// visitor 的原解析许可，不能先解析再复制补签。私有字段不开放 take 或 DerefMut。
+pub(crate) struct PlainJson {
+    value: Value,
+    permit: Option<NativeReservation>,
+    // 数组子树的原许可；CodecVec 自持 metadata buffer 许可。payload 必须先析构。
+    child_permits: sc::CodecVec<NativeReservation>,
+}
+impl PlainJson {
+    fn from_reserved(value: Value, permit: Option<NativeReservation>) -> Self {
+        Self {
+            value,
+            permit,
+            child_permits: sc::CodecVec::default(),
+        }
+    }
+    pub(crate) fn as_ref(&self) -> &Value {
+        &self.value
+    }
+    pub(crate) fn is_native_admitted(&self) -> bool {
+        self.permit.is_some()
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(crate) fn retained_heap_bytes(&self) -> usize {
+        use super::audit_retention::Retained;
+        self.value.heap_bytes().saturating_add(
+            self.child_permits
+                .capacity()
+                .saturating_mul(std::mem::size_of::<NativeReservation>()),
+        )
+    }
+    fn unscoped_mut(&mut self) -> Result<&mut Value, String> {
+        if self.permit.is_some() {
+            return Err(
+                "prototype_audit_allocation_incomplete：Native JSON修改需要当前WorkScope".into(),
+            );
+        }
+        Ok(&mut self.value)
+    }
+    pub(crate) fn into_unscoped(self) -> Result<Value, String> {
+        if self.permit.is_some() {
+            return Err(
+                "prototype_audit_allocation_incomplete：Native JSON不可拆出无许可载荷".into(),
+            );
+        }
+        Ok(self.value)
+    }
+    pub(crate) fn try_clone_from(
+        value: &Value,
+        work: Option<&WorkScope>,
+    ) -> Result<Self, sc::CodecError> {
+        fn bytes(value: &Value) -> Option<usize> {
+            match value {
+                Value::String(s) => Some(s.len()),
+                Value::Array(v) => v.iter().try_fold(
+                    v.len().checked_mul(std::mem::size_of::<Value>())?,
+                    |n, v| n.checked_add(bytes(v)?),
+                ),
+                Value::Object(m) => m.iter().try_fold(0usize, |n, (k, v)| {
+                    n.checked_add(
+                        11 * std::mem::size_of::<(String, Value)>()
+                            + 16 * std::mem::size_of::<usize>(),
+                    )?
+                    .checked_add(k.len())?
+                    .checked_add(bytes(v)?)
+                }),
+                _ => Some(0),
+            }
+        }
+        let admission = NativeAdmission(work);
+        let amount = bytes(value).ok_or_else(|| admission.native_overflow())?;
+        let permit = work.map(|w| w.reserve_native(amount)).transpose()?;
+        Ok(Self::from_reserved(value.clone(), permit))
+    }
+}
+impl From<Value> for PlainJson {
+    /// 仅无scope既有值的所有权转交，不复制、不授予已准入资格。
+    fn from(value: Value) -> Self {
+        Self::from_reserved(value, None)
+    }
+}
+impl std::ops::Deref for PlainJson {
+    type Target = Value;
+    fn deref(&self) -> &Value {
+        &self.value
+    }
+}
+impl std::fmt::Debug for PlainJson {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.value.fmt(f)
+    }
+}
+impl serde::Serialize for PlainJson {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.value.serialize(s)
+    }
+}
+
 pub(crate) enum JsonOwner {
-    Plain(Value),
+    Plain(PlainJson),
     #[cfg(feature = "s_allocation_json_testonly")]
     Owned(aj::OwnedJson),
 }
@@ -1427,7 +1558,7 @@ impl std::fmt::Debug for JsonOwner {
 impl JsonOwner {
     pub fn view(&self) -> JsonView<'_> {
         match self {
-            Self::Plain(v) => v.into(),
+            Self::Plain(v) => v.as_ref().into(),
             #[cfg(feature = "s_allocation_json_testonly")]
             Self::Owned(v) => v.view(),
         }
@@ -1440,7 +1571,7 @@ impl JsonOwner {
                 .map_err(|e| e.to_string());
         }
         let _ = allocation;
-        Ok(Self::Plain(Value::Object(serde_json::Map::new())))
+        Ok(Self::Plain(Value::Object(serde_json::Map::new()).into()))
     }
     pub(crate) fn array(allocation: Option<&OwnedBudget>) -> Result<Self, String> {
         #[cfg(feature = "s_allocation_json_testonly")]
@@ -1450,15 +1581,18 @@ impl JsonOwner {
                 .map_err(|e| e.to_string());
         }
         let _ = allocation;
-        Ok(Self::Plain(Value::Array(Vec::new())))
+        Ok(Self::Plain(Value::Array(Vec::new()).into()))
     }
     pub(crate) fn insert(&mut self, key: &str, value: JsonView<'_>) -> Result<(), String> {
         match self {
             Self::Plain(v) => {
-                v.as_object_mut().ok_or("JSON非对象")?.insert(
-                    key.into(),
-                    serde_json::to_value(value).map_err(|e| e.to_string())?,
-                );
+                v.unscoped_mut()?
+                    .as_object_mut()
+                    .ok_or("JSON非对象")?
+                    .insert(
+                        key.into(),
+                        serde_json::to_value(value).map_err(|e| e.to_string())?,
+                    );
                 Ok(())
             }
             #[cfg(feature = "s_allocation_json_testonly")]
@@ -1468,7 +1602,8 @@ impl JsonOwner {
     pub(crate) fn push(&mut self, value: JsonView<'_>) -> Result<(), String> {
         match self {
             Self::Plain(v) => {
-                v.as_array_mut()
+                v.unscoped_mut()?
+                    .as_array_mut()
                     .ok_or("JSON非数组")?
                     .push(serde_json::to_value(value).map_err(|e| e.to_string())?);
                 Ok(())
@@ -1478,6 +1613,140 @@ impl JsonOwner {
         }
     }
 }
+/// #1488 D1：固定一个 WorkScope 的数组构造器，只从借用 view 独立复制。
+/// 没有接入任意 PlainJson/裸 Value 的入口，也没有拆出无许可 payload 的出口。
+pub(crate) struct ScopedJsonArray<'work> {
+    owner: JsonOwner,
+    work: Option<&'work WorkScope>,
+}
+impl<'work> ScopedJsonArray<'work> {
+    /// 生产 Native 调用显式要求活动 scope；不接受 Option 形成缺省逃逸。
+    pub(crate) fn native(work: &'work WorkScope) -> Result<Self, String> {
+        Self::new(None, Some(work))
+    }
+    pub(crate) fn owned(allocation: &OwnedBudget) -> Result<Self, String> {
+        Self::new(Some(allocation), None)
+    }
+    /// 既有无 scope 兼容路径，不授予 Native 资格。
+    pub(crate) fn unscoped() -> Self {
+        Self {
+            owner: JsonOwner::Plain(Value::Array(Vec::new()).into()),
+            work: None,
+        }
+    }
+    pub(crate) fn new(
+        allocation: Option<&OwnedBudget>,
+        work: Option<&'work WorkScope>,
+    ) -> Result<Self, String> {
+        check_native_owner(allocation, work).map_err(|e| e.to_string())?;
+        let owner = if let Some(work) = work {
+            let permit = work.reserve_native(0).map_err(|e| e.to_string())?;
+            JsonOwner::Plain(PlainJson::from_reserved(
+                Value::Array(Vec::new()),
+                Some(permit),
+            ))
+        } else {
+            #[cfg(not(feature = "s_allocation_json_testonly"))]
+            if allocation.is_some() {
+                return Err("prototype_audit_allocation_incomplete：Owned JSON入口未启用".into());
+            }
+            JsonOwner::array(allocation)?
+        };
+        Ok(Self { owner, work })
+    }
+
+    pub(crate) fn push(&mut self, value: JsonView<'_>) -> Result<(), String> {
+        let Some(work) = self.work else {
+            return self.owner.push(value);
+        };
+        let JsonOwner::Plain(parent) = &mut self.owner else {
+            return Err(work
+                .reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)
+                .to_string());
+        };
+        let rows = parent.value.as_array().expect("ScopedJsonArray只构造数组");
+        let needed = rows
+            .len()
+            .checked_add(1)
+            .ok_or_else(|| NativeAdmission(Some(work)).native_overflow().to_string())?;
+        let grow = |capacity: usize| -> Result<usize, String> {
+            Ok(needed
+                .max(
+                    capacity
+                        .checked_mul(2)
+                        .ok_or_else(|| NativeAdmission(Some(work)).native_overflow().to_string())?,
+                )
+                .max(4))
+        };
+
+        // 三个准备件各自持费。任何失败都只销毁准备件，父载荷/容量/原许可不变。
+        // 新旧完整 buffer 同时持费；不能先给父 reserve 再遇 child 拒绝而留下增长。
+        let mut replacement = if needed > rows.capacity() {
+            let capacity = grow(rows.capacity())?;
+            let bytes = capacity
+                .checked_mul(std::mem::size_of::<Value>())
+                .ok_or_else(|| NativeAdmission(Some(work)).native_overflow().to_string())?;
+            let permit = work.reserve_native(bytes).map_err(|e| e.to_string())?;
+            let mut rows = Vec::new();
+            rows.try_reserve_exact(capacity).map_err(|_| {
+                work.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
+                    .to_string()
+            })?;
+            Some(PlainJson::from_reserved(Value::Array(rows), Some(permit)))
+        } else {
+            None
+        };
+        let mut metadata = if needed > parent.child_permits.capacity() {
+            let mut permits = sc::CodecVec::default();
+            permits
+                .try_reserve_native(work, grow(parent.child_permits.capacity())?)
+                .map_err(|e| e.to_string())?;
+            Some(permits)
+        } else {
+            None
+        };
+        let child = json_from_view_admitted(&NativeAdmission(Some(work)), value)?;
+        let JsonOwner::Plain(mut child) = child else {
+            return Err(work
+                .reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)
+                .to_string());
+        };
+        // 只有上面的固定 NativeAdmission 能产生该 child，未导入任何外来 owner。
+        debug_assert!(child.permit.is_some() && child.child_permits.is_empty());
+
+        // 至此所有可能失败的准入/分配已完成。以下只在预留空间内移动。
+        if let Some(mut replacement) = replacement.take() {
+            replacement
+                .value
+                .as_array_mut()
+                .unwrap()
+                .append(parent.value.as_array_mut().unwrap());
+            std::mem::swap(&mut parent.value, &mut replacement.value);
+            std::mem::swap(&mut parent.permit, &mut replacement.permit);
+            drop(replacement); // 旧空 buffer 先销毁，再退其原许可。
+        }
+        if let Some(mut replacement) = metadata.take() {
+            let old = std::mem::take(&mut parent.child_permits);
+            for permit in old {
+                replacement.try_push(permit).expect("已准入metadata容量");
+            }
+            parent.child_permits = replacement;
+        }
+        let permit = child.permit.take().expect("同scope复制持原许可");
+        let value = std::mem::replace(&mut child.value, Value::Null);
+        parent.value.as_array_mut().unwrap().push(value);
+        parent
+            .child_permits
+            .try_push(permit)
+            .expect("已准入metadata容量");
+        Ok(())
+    }
+
+    pub(crate) fn finish(self) -> JsonOwner {
+        self.owner
+    }
+}
+
 pub(crate) fn json_from_view(
     value: JsonView<'_>,
     allocation: Option<&OwnedBudget>,
@@ -1490,11 +1759,10 @@ pub(crate) fn json_from_view(
     }
     let _ = allocation;
     serde_json::to_value(value)
-        .map(JsonOwner::Plain)
+        .map(|v| JsonOwner::Plain(PlainJson::from(v)))
         .map_err(|e| e.to_string())
 }
-/// #1394：Plain 借用 JSON 的各容器在构造前取得父域许可；不改 Owned 所有权。
-/// Native 许可保守持有到候选父 Budget 结束；WorkScope 和临时物析构不提前减账。
+/// #1488：先计算与旧递归构造相同的结构上界，再构造；原许可随结果销毁。
 pub(crate) fn json_from_view_admitted(
     s: &(impl super::audit_store::CodecRead + ?Sized),
     value: JsonView<'_>,
@@ -1502,36 +1770,70 @@ pub(crate) fn json_from_view_admitted(
     if s.codec_work().is_none() {
         return json_from_view(value, s.allocation_budget().as_ref());
     }
-    fn plain(
-        s: &(impl super::audit_store::CodecRead + ?Sized),
-        value: JsonView<'_>,
-    ) -> Result<Value, String> {
+    fn bytes(value: JsonView<'_>) -> Option<usize> {
         if let Some(text) = value.as_str() {
-            s.native_admit(text.len()).map_err(|e| e.to_string())?;
+            return Some(text.len());
+        }
+        if let Some(array) = value.as_array() {
+            let buffer = if array.len() == 0 {
+                0
+            } else {
+                array.len().max(4)
+            };
+            return array
+                .iter()
+                .try_fold(buffer.checked_mul(std::mem::size_of::<Value>())?, |n, v| {
+                    n.checked_add(bytes(v)?)
+                });
+        }
+        if let Some(object) = value.as_object() {
+            let mut total = 0usize;
+            for (len, (key, child)) in object.iter().enumerate() {
+                let depth = usize::BITS as usize - len.leading_zeros() as usize + 2;
+                total = total
+                    .checked_add(
+                        (11 * std::mem::size_of::<(String, Value)>()
+                            + 16 * std::mem::size_of::<usize>())
+                        .checked_mul(depth)?,
+                    )?
+                    .checked_add(key.len())?
+                    .checked_add(bytes(child)?)?;
+            }
+            return Some(total);
+        }
+        Some(0)
+    }
+    fn plain(value: JsonView<'_>) -> Result<Value, String> {
+        if let Some(text) = value.as_str() {
             return Ok(Value::String(text.to_owned()));
         }
         if let Some(array) = value.as_array() {
             let mut rows = Vec::new();
-            s.native_vec_room(&mut rows, array.len())
-                .map_err(|e| e.to_string())?;
+            if array.len() != 0 {
+                rows.try_reserve_exact(array.len().max(4))
+                    .map_err(|_| "Native JSON数组分配失败")?;
+            }
             for child in array.iter() {
-                rows.push(plain(s, child)?);
+                rows.push(plain(child)?);
             }
             return Ok(Value::Array(rows));
         }
         if let Some(object) = value.as_object() {
             let mut fields = serde_json::Map::new();
             for (key, child) in object.iter() {
-                s.native_tree_room::<String, Value>(fields.len())
-                    .map_err(|e| e.to_string())?;
-                s.native_admit(key.len()).map_err(|e| e.to_string())?;
-                fields.insert(key.to_owned(), plain(s, child)?);
+                fields.insert(key.to_owned(), plain(child)?);
             }
             return Ok(Value::Object(fields));
         }
         serde_json::to_value(value).map_err(|e| e.to_string())
     }
-    plain(s, value).map(JsonOwner::Plain)
+    let amount = bytes(value).ok_or_else(|| s.native_overflow().to_string())?;
+    let permit = s
+        .codec_work()
+        .unwrap()
+        .reserve_native(amount)
+        .map_err(|e| e.to_string())?;
+    plain(value).map(|v| JsonOwner::Plain(PlainJson::from_reserved(v, Some(permit))))
 }
 
 /// 旧 wire 整数投影的共同核：只转换整数，浮点/空值/文本保持原值。
@@ -2015,13 +2317,13 @@ fn admit_json_parse(
     bytes: &[u8],
     owner: Option<&OwnedBudget>,
     work: Option<&WorkScope>,
-) -> Result<(), sc::CodecError> {
+) -> Result<Option<NativeReservation>, sc::CodecError> {
     check_native_owner(owner, work)?;
     if let Some(work) = work {
         #[cfg(feature = "s_capture_native_testonly")]
         {
             let peak = super::audit_owner::native::JsonShape::scan(bytes).parse_peak();
-            work.reserve_native(peak)?.retain();
+            return work.reserve_native(peak).map(Some);
         }
         #[cfg(not(feature = "s_capture_native_testonly"))]
         {
@@ -2032,22 +2334,42 @@ fn admit_json_parse(
             ));
         }
     }
-    Ok(())
+    Ok(None)
 }
 pub(crate) fn strict_json_owner_admitted(
     bytes: &[u8],
     owner: Option<&OwnedBudget>,
     work: Option<&WorkScope>,
 ) -> Result<JsonOwner, StrictOwnerError> {
-    admit_json_parse(bytes, owner, work).map_err(StrictOwnerError::Allocation)?;
-    strict_json_owner(bytes, owner)
+    let permit = admit_json_parse(bytes, owner, work).map_err(StrictOwnerError::Allocation)?;
+    let mut parsed = strict_json_owner(bytes, owner)?;
+    if let JsonOwner::Plain(value) = &mut parsed {
+        value.permit = permit;
+    }
+    Ok(parsed)
+}
+pub(crate) fn strict_plain_json_admitted(
+    bytes: &[u8],
+    work: Option<&WorkScope>,
+) -> Result<PlainJson, String> {
+    let parsed = strict_json_owner_admitted(bytes, None, work).map_err(|error| match error {
+        StrictOwnerError::Syntax(e) => format!("SchemaUnsupported：{e}"),
+        StrictOwnerError::Allocation(e) => e.to_string(),
+        #[cfg(feature = "s_allocation_json_testonly")]
+        StrictOwnerError::OwnedSyntax(e) => format!("SchemaUnsupported：{e}"),
+    })?;
+    match parsed {
+        JsonOwner::Plain(value) => Ok(value),
+        #[cfg(feature = "s_allocation_json_testonly")]
+        JsonOwner::Owned(_) => unreachable!("None owner parser always produces Plain"),
+    }
 }
 pub(crate) fn legacy_json_owner_admitted(
     bytes: &[u8],
     owner: Option<&OwnedBudget>,
     work: Option<&WorkScope>,
 ) -> Result<JsonOwner, String> {
-    admit_json_parse(bytes, owner, work).map_err(|e| e.to_string())?;
+    let permit = admit_json_parse(bytes, owner, work).map_err(|e| e.to_string())?;
     if let Some(owner) = owner {
         #[cfg(feature = "s_allocation_json_testonly")]
         return aj::OwnedJson::parse_legacy_shape(bytes, owner)
@@ -2060,7 +2382,7 @@ pub(crate) fn legacy_json_owner_admitted(
         }
     }
     serde_json::from_slice(bytes)
-        .map(JsonOwner::Plain)
+        .map(|v| JsonOwner::Plain(PlainJson::from_reserved(v, permit)))
         .map_err(|e| e.to_string())
 }
 pub(crate) fn strict_json_owner(
@@ -2097,20 +2419,25 @@ struct StrictOwnerSeed;
 impl StrictOwnerSeed {
     fn scalar<E: serde::de::Error>(self, value: JsonView<'_>) -> Result<JsonOwner, E> {
         serde_json::to_value(value)
-            .map(JsonOwner::Plain)
+            .map(|v| JsonOwner::Plain(PlainJson::from(v)))
             .map_err(E::custom)
     }
     fn container(self, object: bool) -> JsonOwner {
-        JsonOwner::Plain(if object {
+        JsonOwner::Plain(PlainJson::from(if object {
             Value::Object(serde_json::Map::new())
         } else {
             Value::Array(Vec::new())
-        })
+        }))
     }
     fn push<E: serde::de::Error>(self, parent: &mut JsonOwner, child: JsonOwner) -> Result<(), E> {
         match (parent, child) {
-            (JsonOwner::Plain(Value::Array(parent)), JsonOwner::Plain(child)) => {
-                parent.push(child);
+            (JsonOwner::Plain(parent), JsonOwner::Plain(child)) => {
+                parent
+                    .unscoped_mut()
+                    .map_err(E::custom)?
+                    .as_array_mut()
+                    .ok_or_else(|| E::custom("Q owner representation mismatch"))?
+                    .push(child.into_unscoped().map_err(E::custom)?);
                 Ok(())
             }
             _ => Err(E::custom("Q owner representation mismatch")),
@@ -2123,8 +2450,13 @@ impl StrictOwnerSeed {
         child: JsonOwner,
     ) -> Result<(), E> {
         match (parent, child) {
-            (JsonOwner::Plain(Value::Object(parent)), JsonOwner::Plain(child)) => {
-                parent.insert(key, child);
+            (JsonOwner::Plain(parent), JsonOwner::Plain(child)) => {
+                parent
+                    .unscoped_mut()
+                    .map_err(E::custom)?
+                    .as_object_mut()
+                    .ok_or_else(|| E::custom("Q owner representation mismatch"))?
+                    .insert(key, child.into_unscoped().map_err(E::custom)?);
                 Ok(())
             }
             _ => Err(E::custom("Q owner representation mismatch")),
@@ -2160,7 +2492,7 @@ impl<'de> serde::de::Visitor<'de> for StrictOwnerSeed {
         self.scalar(JsonView::String(value))
     }
     fn visit_string<E: serde::de::Error>(self, value: String) -> Result<JsonOwner, E> {
-        Ok(JsonOwner::Plain(Value::String(value)))
+        Ok(JsonOwner::Plain(Value::String(value).into()))
     }
     fn visit_unit<E: serde::de::Error>(self) -> Result<JsonOwner, E> {
         self.scalar(JsonView::Null)
@@ -2382,12 +2714,76 @@ mod owner_retention {
 mod native_consumer_tests {
     use super::*;
 
+    // #1488 源码锁：同父账下跨 scope 移动真实 facts/edits，NOT_RUN（本机禁 cargo）。
+    #[test]
+    fn raw_native_owners_move_out_of_scope_and_release_only_on_drop() {
+        let raw = vec![
+            serde_json::json!({"identity_key":"a", "revision":1, "source_coord":"0"}),
+            serde_json::json!({"identity_key":"b", "revision":1, "source_coord":"1"}),
+            serde_json::json!({"identity_key":"a", "revision":2, "source_coord":"2"}),
+        ];
+        let budget = super::super::audit_owner::native::Budget::new(2 * 1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        for _ in 0..3 {
+            let (facts, edits) = budget
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    let mut index = RawPrefixIndex::new((&raw).into());
+                    let changes = index.advance_admitted(3, &NativeAdmission(Some(work)))?;
+                    assert_eq!(index.ordered().collect::<Vec<_>>(), vec![(1, 1), (2, 2)]);
+                    let edits = changes.winner_edits;
+                    let mut delta = super::super::audit_retention::RetainedDelta::default();
+                    let facts = index.into_facts_retained(&mut delta);
+                    use super::super::audit_retention::Retained;
+                    assert_eq!(delta.apply(0).unwrap(), facts.heap_bytes());
+                    Ok::<_, String>((facts, edits))
+                })
+                .unwrap();
+            let held = budget.live();
+            assert!(held > baseline, "离开 scope 不得释放已移动载荷许可");
+            assert_eq!(edits.len(), 2);
+            drop(facts);
+            assert!(budget.live() < held);
+            assert!(budget.live() > baseline, "edits buffer 仍存活");
+            drop(edits);
+            assert_eq!(budget.live(), baseline, "每代真实 owner 销毁后归还原许可");
+        }
+    }
+
+    #[test]
+    fn raw_native_tree_reuses_high_water_and_retains_buffer_until_drop() {
+        let budget = super::super::audit_owner::native::Budget::new(2 * 1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let admission = NativeAdmission(Some(work));
+                let mut tree = NativeTree::<i64, usize>::default();
+                tree.insert_admitted(0, 0, &admission)?;
+                tree.insert_admitted(1, 1, &admission)?;
+                let held = budget.live();
+                for i in 2..20 {
+                    tree.remove(&(i - 2));
+                    tree.insert_admitted(i, i as usize, &admission)?;
+                    assert_eq!(budget.live(), held, "删除重插不累计历史节点许可");
+                }
+                tree.clear();
+                assert!(budget.live() < held);
+                Ok::<_, sc::CodecError>(())
+            })
+            .unwrap();
+        assert_eq!(budget.live(), baseline);
+    }
+
     #[test]
     fn admitted_sql_text_clone_and_json_parsers_match_plain() {
         let conn = Connection::open_in_memory().unwrap();
         let input = br#"{"escaped":"\u6c49\n\"quoted\"","rows":[null,true,-7,1.25,{"x":"text"}]}"#;
         let expected: Value = serde_json::from_slice(input).unwrap();
         let budget = super::super::audit_owner::native::Budget::new(2 * 1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
         budget
             .codec_work()
             .unwrap()
@@ -2415,13 +2811,13 @@ mod native_consumer_tests {
                 Ok::<_, String>(())
             })
             .unwrap();
-        assert!(budget.live() > 0);
+        assert_eq!(budget.live(), baseline);
         assert_eq!(budget.scratch_observation().0, 0);
         assert_eq!(budget.scratch_observation().2, 0);
     }
 
     #[test]
-    fn admitted_json_and_hash_match_normal_with_conservative_scope_charge() {
+    fn admitted_json_and_hash_match_normal_with_payload_raii() {
         let value = serde_json::json!({
             "撤回": [{"object_id": "obj3-正常", "superseded_by": null, "window_end": -7}],
             "escaped": "line\n\"quoted\"",
@@ -2446,19 +2842,266 @@ mod native_consumer_tests {
                     held > before + sc::capture_allocation::scratch::CodecWork::metadata_bytes()
                 );
                 drop(actual);
-                assert_eq!(budget.live(), held, "Plain析构不冒充候选父账提前减账");
+                assert!(budget.live() < held, "JSON真实载荷析构归还原许可");
                 Ok::<_, String>(())
             })
             .unwrap();
-        assert!(
-            budget.live() > before,
-            "WorkScope结束仍保守持账至候选父Budget结束"
-        );
+        assert_eq!(budget.live(), before, "JSON和scope都析构后父账回到原基线");
         assert_eq!(
             budget.scratch_observation().0,
             0,
             "真实scratch Layout已释放"
         );
         assert_eq!(budget.scratch_observation().2, 0, "真实scope元数据已释放");
+    }
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+mod plain_raii_tests {
+    use super::*;
+
+    #[test]
+    fn native_plain_values_keep_original_permits_past_scope_and_drop_independently() {
+        let budget = super::super::audit_owner::native::Budget::new(2 * 1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let input = br#"{"rows":["child","other"],"flag":true}"#;
+        for _ in 0..3 {
+            let (text, reference, json) = budget
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    let source = NativeAdmission(Some(work));
+                    let text = TextValue::from_str_admitted("persistent text", None, Some(work))?;
+                    let built = sc::Built {
+                        digest: [7; 32],
+                        kind: sc::Kind::Array,
+                        extent: Some(2),
+                    };
+                    let reference = source.native_built_ref(&built).map_err(|e| e.to_string())?;
+                    let json = strict_plain_json_admitted(input, Some(work))?;
+                    Ok::<_, String>((text, reference, json))
+                })
+                .unwrap();
+            let held = budget.live();
+            assert!(held > baseline);
+            assert_eq!(text.as_str(), "persistent text");
+            assert_eq!(reference.extent(), Some(2));
+            assert!(json.is_native_admitted());
+            assert!(text.try_clone().is_err(), "离域只读不能隐式免费深复制");
+            assert!(NativeAdmission(None).native_ref_clone(&reference).is_err());
+            let child = budget
+                .codec_work()
+                .unwrap()
+                .run(|work| NativeAdmission(Some(work)).native_json_clone(&json["rows"][0]))
+                .unwrap();
+            assert_eq!(child.as_str(), Some("child"));
+            assert!(budget.live() > held, "父与独立子值并存期间分别持费");
+            drop(json);
+            assert_eq!(child.as_str(), Some("child"));
+            let before_text_drop = budget.live();
+            drop(text);
+            assert!(budget.live() < before_text_drop);
+            let before_ref_drop = budget.live();
+            drop(reference);
+            assert!(budget.live() < before_ref_drop);
+            assert!(budget.live() > baseline, "子值仍存活，原父析构不能退其费");
+            drop(child);
+            assert_eq!(budget.live(), baseline);
+        }
+    }
+
+    #[test]
+    fn native_strict_parse_preserves_diagnostics_and_failed_parse_returns_permit() {
+        let budget = super::super::audit_owner::native::Budget::new(2 * 1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        for input in [
+            br#"{"duplicate":1,"duplicate":2}"#.as_slice(),
+            br#"{"broken":[1,]}"#.as_slice(),
+        ] {
+            let expected = newchan_rust::session_protocol::strict_json(input).unwrap_err();
+            let actual = budget
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    Ok::<_, String>(strict_plain_json_admitted(input, Some(work)).unwrap_err())
+                })
+                .unwrap();
+            assert_eq!(actual, expected);
+            assert_eq!(
+                budget.live(),
+                baseline,
+                "语法失败无载荷逃逸，原准入许可释放"
+            );
+        }
+    }
+
+    #[test]
+    fn native_json_cannot_be_mutated_or_detached_without_admission() {
+        let budget = super::super::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let mut json = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                strict_json_owner_admitted(b"[1,2]", None, Some(work)).map_err(|_| "parse failed")
+            })
+            .unwrap();
+        let held = budget.live();
+        assert!(json.push(JsonView::Null).is_err());
+        assert_eq!(json.view().as_array().unwrap().len(), 2);
+        assert_eq!(budget.live(), held);
+        let JsonOwner::Plain(json) = json else {
+            panic!("Native解析必须保留Plain名分")
+        };
+        assert!(json.into_unscoped().is_err());
+        assert_eq!(budget.live(), baseline);
+    }
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+mod scoped_json_array_tests {
+    use super::super::audit_retention::Retained;
+    use super::*;
+
+    #[test]
+    fn scoped_array_outlives_scope_retains_metadata_and_releases_at_last_owner_drop() {
+        let budget = super::super::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let initial = budget.live();
+        let input = serde_json::json!({"rows":["中文😀", 7, null], "flag":true});
+        let expected = serde_json::json!([input, input]);
+        for _ in 0..3 {
+            let owner = budget
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    let mut array = ScopedJsonArray::native(work)?;
+                    array.push((&input).into())?;
+                    array.push((&input).into())?;
+                    Ok::<_, String>(array.finish())
+                })
+                .unwrap();
+            assert_eq!(owner.view(), JsonView::Plain(&expected));
+            let JsonOwner::Plain(value) = &owner else {
+                panic!("Native必须保持Plain名分")
+            };
+            assert!(value.is_native_admitted());
+            assert!(
+                value.retained_heap_bytes() > value.as_ref().heap_bytes(),
+                "metadata不可漏账"
+            );
+            assert!(budget.live() > initial);
+            drop(owner);
+            assert_eq!(
+                budget.live(),
+                initial,
+                "跨scope后仍由实际owner析构归还，保留父自身metadata"
+            );
+        }
+    }
+
+    #[test]
+    fn scoped_array_growth_accounts_old_new_payload_and_metadata_together() {
+        let budget = super::super::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let initial = budget.live();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let baseline = budget.live();
+                let mut array = ScopedJsonArray::native(work)?;
+                for _ in 0..4 {
+                    array.push(JsonView::Null)?;
+                }
+                let before = budget.live();
+                let new_blocks =
+                    8 * (std::mem::size_of::<Value>() + std::mem::size_of::<NativeReservation>());
+                array.push(JsonView::Null)?;
+                assert!(
+                    budget.peak() >= before + new_blocks,
+                    "两个旧buffer保留到两个新块同时准入完成"
+                );
+                let JsonOwner::Plain(value) = &array.owner else {
+                    panic!("Native必须保持Plain名分")
+                };
+                assert_eq!(value.child_permits.capacity(), 8);
+                assert_eq!(value.as_array().unwrap().capacity(), 8);
+                assert_eq!(
+                    budget.live() - baseline,
+                    value.retained_heap_bytes(),
+                    "空值隔离验证metadata费用与Retained一致"
+                );
+                drop(array);
+                assert_eq!(budget.live(), baseline);
+                Ok::<_, String>(())
+            })
+            .unwrap();
+        assert_eq!(budget.live(), initial);
+    }
+
+    #[test]
+    fn scoped_array_each_preparation_refusal_preserves_parent_payload_capacity_and_live() {
+        let value_block = 8 * std::mem::size_of::<Value>();
+        let metadata_block = 8 * std::mem::size_of::<NativeReservation>();
+        let text = "late child allocation";
+        // 分别在payload buffer、metadata buffer、child许可准入差一字节处拒绝。
+        for available in [
+            value_block - 1,
+            value_block + metadata_block - 1,
+            value_block + metadata_block + text.len() - 1,
+        ] {
+            let limit = 1024 * 1024;
+            let budget = super::super::audit_owner::native::Budget::new(limit, 0).unwrap();
+            let initial = budget.live();
+            let result = budget.codec_work().unwrap().run(|work| {
+                let mut array = ScopedJsonArray::native(work)?;
+                for _ in 0..4 {
+                    array.push(JsonView::Null)?;
+                }
+                let held = budget.reserve(limit - budget.live() - available).unwrap();
+                let before = budget.live();
+                let error = array.push(JsonView::String(text)).unwrap_err();
+                let JsonOwner::Plain(value) = &array.owner else {
+                    panic!("Native必须保持Plain名分")
+                };
+                assert_eq!(value.as_ref(), &serde_json::json!([null, null, null, null]));
+                assert_eq!(value.as_array().unwrap().capacity(), 4);
+                assert_eq!(value.child_permits.capacity(), 4);
+                assert_eq!(budget.live(), before, "失败不得改变父账live");
+                drop(held);
+                Err::<(), String>(error)
+            });
+            assert!(result.is_err(), "首次资源拒绝必须传播出work.run");
+            assert_eq!(budget.live(), initial);
+        }
+    }
+
+    #[test]
+    fn scoped_array_refuses_dual_parent_and_finished_native_rejects_unscoped_mutation() {
+        let budget = super::super::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let initial = budget.live();
+        let allocation = OwnedBudget::new(1024 * 1024);
+        assert!(budget
+            .codec_work()
+            .unwrap()
+            .run(|work| { ScopedJsonArray::new(Some(&allocation), Some(work)).map(|_| ()) })
+            .is_err());
+        assert_eq!(budget.live(), initial);
+        let mut owner = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| Ok::<_, String>(ScopedJsonArray::native(work)?.finish()))
+            .unwrap();
+        let held = budget.live();
+        assert!(owner.push(JsonView::Null).is_err());
+        assert_eq!(owner.view().as_array().unwrap().len(), 0);
+        assert_eq!(budget.live(), held);
+        drop(owner);
+        assert_eq!(budget.live(), initial);
+        let mut plain = ScopedJsonArray::unscoped();
+        plain.push(JsonView::Null).unwrap();
+        assert_eq!(
+            plain.finish().view(),
+            JsonView::Plain(&serde_json::json!([null]))
+        );
     }
 }

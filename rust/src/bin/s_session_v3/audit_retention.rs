@@ -254,6 +254,11 @@ impl Retained for serde_json::Value {
         }
     }
 }
+impl Retained for super::business_json::PlainJson {
+    fn heap_bytes(&self) -> usize {
+        self.retained_heap_bytes()
+    }
+}
 impl Retained for super::business_json::TextValue {
     fn heap_bytes(&self) -> usize {
         self.capacity()
@@ -281,3 +286,22 @@ macro_rules! retained_struct {
     };
 }
 pub(crate) use retained_struct;
+
+// 统计载荷上界与 RAII 退账独立；这里绝不根据统计差释放 Native 许可。
+impl<T: Retained> Retained for sc::capture_allocation::native_owned::NativeValue<T> {
+    fn heap_bytes(&self) -> usize {
+        self.as_ref().heap_bytes()
+    }
+}
+impl<K: Ord + Retained, V: Retained> Retained for super::audit_store::NativeTree<K, V> {
+    fn heap_bytes(&self) -> usize {
+        sum(std::iter::once(tree_slots::<K, V>(self.len()))
+            .chain(std::iter::once(vec_bytes::<
+                sc::capture_allocation::scratch::NativeReservation,
+            >(self.permit_capacity())))
+            .chain(
+                self.iter()
+                    .map(|(k, v)| sum([k.heap_bytes(), v.heap_bytes()])),
+            ))
+    }
+}

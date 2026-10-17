@@ -3,13 +3,63 @@
 //! 写前那段完整旧状态核验不在此处：它在 `state::audit`（只读入口与提交口共用同一份判据）。
 //! 目前是内部接线，尚未接 CLI/服务、资源 job 或 Q/E/B，不代表完整 S3 验收。
 
+use super::audit_store::{CodecRead, CodecStore};
 use super::*;
-use content_manifest::{ManifestMetadata, ManifestRoots, SourceCommit, UnpublishedManifest};
+use content_manifest::{ManifestMetadata, SourceCommit, UnpublishedManifest};
 use generation::{GenerationInput, GenerationRuntime};
 use newchan_rust::s_content::{self as sc, ContentRef, NodeStore, Value as V};
 use newchan_rust::session_protocol::required;
 use rusqlite::Transaction;
 use sc::capture_allocation::scratch::WorkScope;
+
+#[cfg(feature = "s_capture_native_testonly")]
+fn publication_read_lease<'a, 'db>(
+    tx: &'a mut Transaction<'db>,
+    work: Option<&'a WorkScope>,
+    #[cfg(test)] stage: Option<&'a staged_nodes::StageOwner<'a>>,
+) -> Result<content_store::NativeReadLease<'a, 'db>, sc::CodecError> {
+    #[cfg(test)]
+    if let Some(stage) = stage {
+        let work =
+            work.ok_or_else(|| sc::CodecError::new(sc::code::SOURCE, "staged租约缺父工作域"))?;
+        return content_store::NativeReadLease::new_admitted_staged(tx, work, stage);
+    }
+    content_store::NativeReadLease::new_admitted(tx, work)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+fn publication_material<T>(
+    tx: &Transaction<'_>,
+    work: Option<&WorkScope>,
+    parent: Option<&super::audit_owner::PublicationScope<'_>>,
+    #[cfg(test)] stage: Option<&staged_nodes::StageOwner<'_>>,
+    f: impl FnOnce(Option<&super::audit_owner::MaterialAccess<'_, '_, '_>>) -> Result<T, String>,
+) -> Result<T, String> {
+    match parent {
+        Some(parent) => super::audit_owner::with_construction_material_in_publication(
+            tx,
+            parent,
+            #[cfg(test)]
+            stage,
+            f,
+        ),
+        None => super::audit_owner::with_construction_material(tx, work, f),
+    }
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+enum PublicationRuntimeRoots {
+    Plain(Vec<sc::NodeDigest>),
+    Admitted(sc::capture_allocation::scratch::ScratchVec<sc::NodeDigest>),
+}
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+impl PublicationRuntimeRoots {
+    fn as_slice(&self) -> &[sc::NodeDigest] {
+        match self {
+            Self::Plain(v) => v,
+            Self::Admitted(v) => v,
+        }
+    }
+}
 
 /// 私有构造字段：只有本模块成功获得 NativeReadLease 的分支可发此代生成资格。
 /// 不授予节点存在、checked frame、旧账或发布闭包证明。
@@ -261,6 +311,7 @@ impl Runtime {
         bound_raw: Option<&super::audit_owner::BoundRawAdvance<'_>>,
         bound_capture: Option<&mut sc::AuditCapture>,
         bound_source: Option<&mut Option<source_audit::NativeSourceState>>,
+        parent: Option<&super::audit_owner::PublicationScope<'_>>,
     ) -> Result<commit::CommitReceipt, String> {
         self.publish_impl_admitted_bound(
             tx,
@@ -271,7 +322,8 @@ impl Runtime {
             bound_raw,
             bound_capture,
             bound_source,
-            None,
+            parent.map(|p| p.work()),
+            parent,
         )
     }
     /// 调用者在 prepare 之前开启唯一父域，并保持到 Commit 返回；此入口本身不签发整堆资格。
@@ -298,6 +350,8 @@ impl Runtime {
             #[cfg(feature = "s_capture_native_testonly")]
             None,
             work,
+            #[cfg(feature = "s_capture_native_testonly")]
+            None,
         )
     }
     fn publish_impl_admitted_bound(
@@ -315,7 +369,14 @@ impl Runtime {
             &mut Option<source_audit::NativeSourceState>,
         >,
         work: Option<&WorkScope>,
+        #[cfg(feature = "s_capture_native_testonly")] parent: Option<
+            &super::audit_owner::PublicationScope<'_>,
+        >,
     ) -> Result<commit::CommitReceipt, String> {
+        #[cfg(feature = "s_capture_native_testonly")]
+        if let Some(parent) = parent {
+            parent.check_transaction(tx)?;
+        }
         if work.is_some() {
             #[cfg(feature = "s_capture_native_testonly")]
             if !matches!(self.mode, s_allocation::Mode::CapturedNative) {
@@ -325,7 +386,7 @@ impl Runtime {
             return Err("PublicationInvalid：Native工作域需要相应feature".into());
         }
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
-        if work.is_some() && self.stage_new_nodes {
+        if work.is_some() && self.stage_new_nodes && parent.is_none() {
             return Err("PublicationInvalid：staged发布工作域尚未接入，不能丢弃父scope".into());
         }
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
@@ -333,7 +394,10 @@ impl Runtime {
             if !matches!(self.mode, s_allocation::Mode::CapturedNative) {
                 return Err("TestOnly staging只允许Native".into());
             }
-            Some(staged_nodes::StageOwner::new(&tx))
+            Some(match parent {
+                Some(parent) => staged_nodes::StageOwner::new_admitted(tx, parent)?,
+                None => staged_nodes::StageOwner::new(tx),
+            })
         } else {
             None
         };
@@ -354,6 +418,8 @@ impl Runtime {
                 #[cfg(all(test, feature = "s_capture_native_testonly"))]
                 stage.as_ref(),
                 work,
+                #[cfg(feature = "s_capture_native_testonly")]
+                parent,
             )?;
             #[cfg(test)]
             if let Some(inject) = self.after_prepare {
@@ -361,11 +427,31 @@ impl Runtime {
             }
             #[cfg(all(test, feature = "s_capture_native_testonly"))]
             if let Some(stage) = &stage {
-                let roots = self
-                    .visit_runtime_roots()?
-                    .into_iter()
-                    .map(|(_, d)| d)
-                    .collect::<Vec<_>>();
+                let mut roots = match work {
+                    Some(work) => PublicationRuntimeRoots::Admitted(work.vector()),
+                    None => PublicationRuntimeRoots::Plain(Vec::new()),
+                };
+                let mut failed = None;
+                let mut visit = |_, digest| {
+                    if failed.is_some() {
+                        return;
+                    }
+                    match &mut roots {
+                        PublicationRuntimeRoots::Plain(v) => v.push(digest),
+                        PublicationRuntimeRoots::Admitted(v) => {
+                            if let Err(e) = v.try_push(digest) {
+                                failed = Some(e);
+                            }
+                        }
+                    }
+                };
+                if let Some(generator) = &self.generator {
+                    generator.visit_runtime_roots(&mut visit);
+                }
+                self.auxiliary.visit_runtime_roots(&mut visit)?;
+                if let Some(error) = failed {
+                    return Err(err(error));
+                }
                 return commit::publish_borrowed_staged(
                     tx,
                     token,
@@ -373,7 +459,9 @@ impl Runtime {
                     &prepared.roots,
                     &prepared.manifest,
                     stage,
-                    &roots,
+                    roots.as_slice(),
+                    prepared.workspace,
+                    work,
                 );
             }
             #[cfg(feature = "s_capture_native_testonly")]
@@ -423,6 +511,9 @@ impl Runtime {
             &staged_nodes::StageOwner,
         >,
         work: Option<&WorkScope>,
+        #[cfg(feature = "s_capture_native_testonly")] parent: Option<
+            &super::audit_owner::PublicationScope<'_>,
+        >,
     ) -> Result<Prepared, String> {
         #[cfg(feature = "s_capture_native_testonly")]
         let workspace_budget = context
@@ -561,7 +652,7 @@ impl Runtime {
                 return Err(err("owner增量路径只接受Native原件"));
             }
             #[cfg(test)]
-            if stage.is_some() || !self.native_read_lease {
+            if !self.native_read_lease || (stage.is_some() && parent.is_none()) {
                 return Err(err("owner增量路径必须使用真实Native读取租约"));
             }
             let capture = bound_capture.ok_or_else(|| err("owner增量缺同pending原件capture"))?;
@@ -571,7 +662,13 @@ impl Runtime {
             // 第一次租约只覆盖生成、对象计划与axes；结束后才能借实际tx材料。
             let (mut generated, objects, axes) = {
                 let mut store = BusinessTxStore {
-                    inner: content_store::NativeReadLease::new_admitted(tx, work).map_err(err)?,
+                    inner: publication_read_lease(
+                        tx,
+                        work,
+                        #[cfg(test)]
+                        stage,
+                    )
+                    .map_err(err)?,
                     budget: None,
                 };
                 sc::write_value(&mut store, &scope_value).map_err(err)?;
@@ -617,55 +714,74 @@ impl Runtime {
             if let Some(inject) = self.before_native_source {
                 generated.generated_state = inject(tx, &generated.generated_state)?;
             }
-            let products = super::audit_owner::with_construction_material(tx, work, |material| {
-                let material = material.ok_or_else(|| err("owner增量缺实际材料能力"))?;
-                let (counts, source) = super::audit_owner::audit_native_source_cut(
-                    material,
-                    capture,
-                    source_slot.take(),
-                    (&generated.generated_state).into(),
-                    raw,
-                    &metadata.profile_id,
-                    &metadata.rule_revision,
-                )?;
-                let mut store = BusinessTxStore {
-                    inner: content_store::TxStore::new(tx)
-                        .map_err(err)?
-                        .with_work(Some(material.work())),
-                    budget: None,
-                };
-                let products = self.finish_node_products(
-                    &mut store,
-                    true,
-                    workspace_budget,
-                    generated,
-                    objects,
-                    axes,
-                    counts,
-                    audited,
-                    &metadata,
-                    previous,
-                    frontier,
-                    generation,
-                )?;
-                object_index::stage_in_material(
+            #[cfg(test)]
+            if let Some(stage) = stage {
+                stage.flush_cut(
                     tx,
-                    &mut store,
-                    &products.objects,
-                    &products.manifest.batch_id,
-                    Some(material),
+                    staged_nodes::FlushCut::Source((&generated.generated_state).into()),
                 )?;
-                aux_index::stage_in_material(
-                    tx,
-                    &mut store,
-                    &products.auxiliary,
-                    &products.manifest.batch_id,
-                    Some(material),
-                )?;
-                catalog_evidence::stage_current(tx, &mut store, &products.axes)?;
-                *source_slot = Some(source);
-                Ok(products)
-            })?;
+            }
+            let products = publication_material(
+                tx,
+                work,
+                parent,
+                #[cfg(test)]
+                stage,
+                |material| {
+                    let material = material.ok_or_else(|| err("owner增量缺实际材料能力"))?;
+                    let (counts, source) = super::audit_owner::audit_native_source_cut(
+                        material,
+                        capture,
+                        source_slot.take(),
+                        (&generated.generated_state).into(),
+                        raw,
+                        &metadata.profile_id,
+                        &metadata.rule_revision,
+                    )?;
+                    let mut store = BusinessTxStore {
+                        #[cfg(test)]
+                        inner: content_store::TxStore::new_with_stage(tx, stage)
+                            .map_err(err)?
+                            .with_work(Some(material.work())),
+                        #[cfg(not(test))]
+                        inner: content_store::TxStore::new(tx)
+                            .map_err(err)?
+                            .with_work(Some(material.work())),
+                        budget: None,
+                    };
+                    let products = self.finish_node_products(
+                        &mut store,
+                        true,
+                        workspace_budget,
+                        generated,
+                        objects,
+                        axes,
+                        counts,
+                        audited,
+                        &metadata,
+                        previous,
+                        frontier,
+                        generation,
+                    )?;
+                    object_index::stage_in_material(
+                        tx,
+                        &mut store,
+                        &products.objects,
+                        &products.manifest.batch_id,
+                        Some(material),
+                    )?;
+                    aux_index::stage_in_material(
+                        tx,
+                        &mut store,
+                        &products.auxiliary,
+                        &products.manifest.batch_id,
+                        Some(material),
+                    )?;
+                    catalog_evidence::stage_current(tx, &mut store, &products.axes)?;
+                    *source_slot = Some(source);
+                    Ok(products)
+                },
+            )?;
             let NodeProducts {
                 generated: _generated,
                 objects: _objects,
@@ -708,7 +824,7 @@ impl Runtime {
         let use_lease = matches!(self.mode, s_allocation::Mode::CapturedNative) && {
             #[cfg(test)]
             {
-                stage.is_none() && self.native_read_lease
+                (stage.is_none() || parent.is_some()) && self.native_read_lease
             }
             #[cfg(not(test))]
             {
@@ -726,7 +842,13 @@ impl Runtime {
             drop(control);
             let products = {
                 let mut store = BusinessTxStore {
-                    inner: content_store::NativeReadLease::new_admitted(tx, work).map_err(err)?,
+                    inner: publication_read_lease(
+                        tx,
+                        work,
+                        #[cfg(test)]
+                        stage,
+                    )
+                    .map_err(err)?,
                     budget: None,
                 };
                 self.generate_node_products(
@@ -754,35 +876,54 @@ impl Runtime {
                 manifest,
                 workspace,
             } = products;
+            #[cfg(test)]
+            if let Some(stage) = stage {
+                stage.flush_cut(
+                    tx,
+                    staged_nodes::FlushCut::Source(roots.generated_state.view()),
+                )?;
+            }
             let mut store = BusinessTxStore {
+                #[cfg(test)]
+                inner: content_store::TxStore::new_with_stage(tx, stage)
+                    .map_err(err)?
+                    .with_work(work),
+                #[cfg(not(test))]
                 inner: content_store::TxStore::new(tx)
                     .map_err(err)?
                     .with_work(work),
                 budget: None,
             };
             // C2仅在generate_node_products的旧完整来源判据成功后记录材料cut。
-            super::audit_owner::with_construction_material(tx, work, |material| {
-                if let Some(material) = material {
-                    super::audit_owner::note_qualified_source_cut(
+            publication_material(
+                tx,
+                work,
+                parent,
+                #[cfg(test)]
+                stage,
+                |material| {
+                    if let Some(material) = material {
+                        super::audit_owner::note_qualified_source_cut(
+                            material,
+                            roots.generated_state.view(),
+                        )?;
+                    }
+                    object_index::stage_in_material(
+                        tx,
+                        &mut store,
+                        &objects,
+                        &manifest.batch_id,
                         material,
-                        (&roots.generated_state).into(),
                     )?;
-                }
-                object_index::stage_in_material(
-                    tx,
-                    &mut store,
-                    &objects,
-                    &manifest.batch_id,
-                    material,
-                )?;
-                aux_index::stage_in_material(
-                    tx,
-                    &mut store,
-                    &auxiliary,
-                    &manifest.batch_id,
-                    material,
-                )
-            })?;
+                    aux_index::stage_in_material(
+                        tx,
+                        &mut store,
+                        &auxiliary,
+                        &manifest.batch_id,
+                        material,
+                    )
+                },
+            )?;
             catalog_evidence::stage_current(tx, &mut store, &axes)?;
             return Ok(Prepared {
                 metadata,
@@ -829,22 +970,35 @@ impl Runtime {
             frontier,
         )?;
         #[cfg(feature = "s_capture_native_testonly")]
-        super::audit_owner::with_construction_material(tx, work, |material| {
-            if let Some(material) = material {
-                super::audit_owner::note_qualified_source_cut(
+        publication_material(
+            tx,
+            work,
+            parent,
+            #[cfg(test)]
+            stage,
+            |material| {
+                if let Some(material) = material {
+                    super::audit_owner::note_qualified_source_cut(
+                        material,
+                        roots.generated_state.view(),
+                    )?;
+                }
+                object_index::stage_in_material(
+                    tx,
+                    &mut store,
+                    &objects,
+                    &manifest.batch_id,
                     material,
-                    (&roots.generated_state).into(),
                 )?;
-            }
-            object_index::stage_in_material(
-                tx,
-                &mut store,
-                &objects,
-                &manifest.batch_id,
-                material,
-            )?;
-            aux_index::stage_in_material(tx, &mut store, &auxiliary, &manifest.batch_id, material)
-        })?;
+                aux_index::stage_in_material(
+                    tx,
+                    &mut store,
+                    &auxiliary,
+                    &manifest.batch_id,
+                    material,
+                )
+            },
+        )?;
         #[cfg(not(feature = "s_capture_native_testonly"))]
         {
             object_index::stage(tx, &mut store, &objects, &manifest.batch_id)?;
@@ -957,10 +1111,20 @@ impl Runtime {
             &objects.replaces,
         )?;
         let (snapshot, delta) = templates(
-            store, metadata, previous, &objects, &auxiliary, &run, &evidence,
+            store,
+            metadata,
+            previous,
+            &objects,
+            &auxiliary,
+            run.as_str(),
+            evidence.view(),
         )?;
-        let roots = ManifestRoots {
-            generated_state: generated.generated_state.clone(),
+        let roots = NativeManifestRoots {
+            generated_state: audit_store::RefValue::Plain(
+                store
+                    .native_plain_ref((&generated.generated_state).into())
+                    .map_err(err)?,
+            ),
             publication_template: snapshot,
             delta_template: delta,
         };
@@ -1015,17 +1179,33 @@ struct NodeProducts<'raw> {
     axes: sc::ContentRef,
     counts: source_audit::Counts,
     auxiliary: aux_index::Plan,
-    run: String,
-    evidence: sc::ContentRef,
-    roots: ManifestRoots,
+    run: business_json::TextValue,
+    evidence: audit_store::RefValue,
+    roots: NativeManifestRoots,
     manifest: UnpublishedManifest,
     #[cfg(feature = "s_capture_native_testonly")]
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
 }
 
+// #1488/#1507：三个根的原许可随实际 payload 存活；发布层只借 RootsView。
+struct NativeManifestRoots {
+    generated_state: audit_store::RefValue,
+    publication_template: audit_store::RefValue,
+    delta_template: audit_store::RefValue,
+}
+impl content_manifest::ManifestRootSource for NativeManifestRoots {
+    fn view(&self) -> content_manifest::RootsView<'_> {
+        content_manifest::RootsView {
+            generated_state: self.generated_state.view(),
+            publication_template: self.publication_template.view(),
+            delta_template: self.delta_template.view(),
+        }
+    }
+}
+
 struct Prepared {
     metadata: ManifestMetadata,
-    roots: ManifestRoots,
+    roots: NativeManifestRoots,
     manifest: UnpublishedManifest,
     #[cfg(feature = "s_capture_native_testonly")]
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
@@ -1057,63 +1237,78 @@ fn templates(
     o: &object_index::Plan,
     a: &aux_index::Plan,
     run: &str,
-    evidence: &ContentRef,
-) -> Result<(ContentRef, ContentRef), String> {
-    let text = |v: &str| V::String(v.into());
-    let range = cv(&json!({"from":(previous+1).to_string(),"to":m.input_frontier.to_string()}))?;
-    let common = vec![
-        ("session_id".into(), text(&m.session_id)),
-        ("generation".into(), text(&m.generation.to_string())),
-        ("catalog_revision".into(), text(&m.catalog_revision)),
-        ("index_frontier".into(), V::BatchSelf),
-        ("input_frontier".into(), text(&m.input_frontier.to_string())),
-        ("seq_range".into(), range),
-        ("catalog_run_status".into(), text(run)),
-        ("catalog_evidence".into(), edge(evidence)?),
+    evidence: sc::RefView<'_>,
+) -> Result<(audit_store::RefValue, audit_store::RefValue), String> {
+    // #1488/#1507：只借用元数据及已持有输出；固定字段与十进制缓冲都留在栈上。
+    // 模板根由 typed owner 保留许可，经 NativeManifestRoots 持有到发布返回。
+    use sc::ValueView::{BatchSelf, Edge, Json, Object, String as Text};
+    let generation = business_json::Decimal::new(m.generation);
+    let frontier = business_json::Decimal::new(m.input_frontier);
+    let start = business_json::Decimal::new(previous + 1);
+    let range = [("from", Text(start.text())), ("to", Text(frontier.text()))];
+    let common = [
+        ("session_id", Text(&m.session_id)),
+        ("generation", Text(generation.text())),
+        ("catalog_revision", Text(&m.catalog_revision)),
+        ("index_frontier", BatchSelf),
+        ("input_frontier", Text(frontier.text())),
+        ("seq_range", Object(&range)),
+        ("catalog_run_status", Text(run)),
+        ("catalog_evidence", Edge(evidence.digest().map_err(err)?)),
     ];
-    let mut snapshot = common.clone();
-    snapshot.extend([
-        ("structure_cut".into(), text(&m.structure_cut)),
-        ("scope".into(), edge(&m.scope)?),
-        ("profile_id".into(), text(&m.profile_id)),
-        ("profile_hash".into(), text(&m.profile_hash)),
-        ("history_mode".into(), text("RecomputedWithRevision")),
-        ("as_of_generation".into(), V::Null),
-        ("objects".into(), V::Edge(o.active.digest)),
-        ("withdrawn_objects".into(), V::Edge(o.withdrawn.digest)),
+    let mut snapshot = [("", BatchSelf); 20];
+    snapshot[..8].copy_from_slice(&common);
+    snapshot[8..].copy_from_slice(&[
+        ("structure_cut", Text(&m.structure_cut)),
+        ("scope", Edge(m.scope.digest().map_err(err)?)),
+        ("profile_id", Text(&m.profile_id)),
+        ("profile_hash", Text(&m.profile_hash)),
+        ("history_mode", Text("RecomputedWithRevision")),
+        (
+            "as_of_generation",
+            Json(sc::capture_allocation::audit_json::JsonView::Null),
+        ),
+        ("objects", Edge(o.active.digest)),
+        ("withdrawn_objects", Edge(o.withdrawn.digest)),
+        ("witnesses", Edge(a.snapshot_values.witnesses.digest)),
+        ("relations", Edge(a.snapshot_values.relations.digest)),
+        ("observations", Edge(a.snapshot_values.observations.digest)),
+        ("raw_history", Edge(a.snapshot_values.raw_history.digest)),
     ]);
-    let mut delta = common;
-    let withdrawals = o
-        .withdrawals
-        .iter()
-        .map(project_withdrawal_wire)
-        .collect::<Result<Vec<_>, _>>()?;
-    delta.extend([
-        ("base_cut".into(), text(&m.base_cut)),
-        ("next_cut".into(), text(&m.structure_cut)),
-        ("upserts".into(), V::Edge(o.upserts.digest)),
-        ("withdrawals".into(), cv(&json!(withdrawals))?),
-        ("replaces".into(), cv(&json!(o.replaces))?),
-    ]);
-    for (fields, values, raw_key) in [
-        (&mut snapshot, &a.snapshot_values, "raw_history"),
-        (&mut delta, &a.delta_values, "raw_history_added"),
-    ] {
-        fields.extend([
-            ("witnesses".into(), V::Edge(values.witnesses.digest)),
-            ("relations".into(), V::Edge(values.relations.digest)),
-            ("observations".into(), V::Edge(values.observations.digest)),
-            (raw_key.into(), V::Edge(values.raw_history.digest)),
-        ]);
+    let budget = s.allocation_budget();
+    let mut withdrawals = business_json::WithdrawalArray(business_json::new_work(budget.as_ref()));
+    s.native_codec_room(&mut withdrawals.0, o.withdrawals.len())
+        .map_err(err)?;
+    for withdrawal in &o.withdrawals {
+        withdrawals
+            .0
+            .try_push(business_json::WithdrawalWire::new(withdrawal.into())?)
+            .map_err(err)?;
     }
-    Ok((
-        sc::write_template(s, &V::Object(snapshot))
-            .map_err(err)?
-            .content_ref(),
-        sc::write_template(s, &V::Object(delta))
-            .map_err(err)?
-            .content_ref(),
-    ))
+    let replaces = business_json::ValuesArray(&o.replaces);
+    let mut delta = [("", BatchSelf); 17];
+    delta[..8].copy_from_slice(&common);
+    delta[8..].copy_from_slice(&[
+        ("base_cut", Text(&m.base_cut)),
+        ("next_cut", Text(&m.structure_cut)),
+        ("upserts", Edge(o.upserts.digest)),
+        ("withdrawals", Json(withdrawals.view())),
+        (
+            "replaces",
+            Json(sc::capture_allocation::audit_json::JsonView::BorrowedArray(
+                &replaces,
+            )),
+        ),
+        ("witnesses", Edge(a.delta_values.witnesses.digest)),
+        ("relations", Edge(a.delta_values.relations.digest)),
+        ("observations", Edge(a.delta_values.observations.digest)),
+        ("raw_history_added", Edge(a.delta_values.raw_history.digest)),
+    ]);
+    let snapshot = s.write_template_view(Object(&snapshot)).map_err(err)?;
+    let snapshot = s.native_built_ref(&snapshot).map_err(err)?;
+    let delta = s.write_template_view(Object(&delta)).map_err(err)?;
+    let delta = s.native_built_ref(&delta).map_err(err)?;
+    Ok((snapshot, delta))
 }
 
 #[cfg(test)]
@@ -1121,6 +1316,62 @@ pub(crate) mod tests {
     use super::*;
     use crate::tests::located_ohlc_input;
     use std::sync::atomic::{AtomicU64, Ordering};
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_manifest_roots_keep_three_permits_after_scope_until_owner_drop() {
+        use super::super::audit_store::NativeAdmission;
+        use content_manifest::ManifestRootSource;
+
+        let source = sc::Built {
+            digest: [0x31; 32],
+            kind: sc::Kind::Object,
+            extent: Some(14),
+        }
+        .content_ref();
+        let snapshot = sc::Built {
+            digest: [0x32; 32],
+            kind: sc::Kind::Object,
+            extent: Some(20),
+        };
+        let delta = sc::Built {
+            digest: [0x33; 32],
+            kind: sc::Kind::Object,
+            extent: Some(17),
+        };
+        let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let roots = budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let admission = NativeAdmission(Some(scope));
+                let generated_state =
+                    audit_store::RefValue::Plain(admission.native_plain_ref((&source).into())?);
+                let one_root_live = budget.live();
+                let publication_template = admission.native_built_ref(&snapshot)?;
+                assert!(budget.live() > one_root_live);
+                let two_roots_live = budget.live();
+                let delta_template = admission.native_built_ref(&delta)?;
+                assert!(budget.live() > two_roots_live);
+                Ok::<_, sc::CodecError>(NativeManifestRoots {
+                    generated_state,
+                    publication_template,
+                    delta_template,
+                })
+            })
+            .unwrap();
+        let view = roots.view();
+        assert_eq!(
+            view.generated_state.digest().unwrap(),
+            source.digest().unwrap()
+        );
+        assert_eq!(view.publication_template.digest().unwrap(), snapshot.digest);
+        assert_eq!(view.delta_template.digest().unwrap(), delta.digest);
+        assert!(budget.live() > baseline, "三个根跨域保留时仍持许可");
+        drop(roots);
+        assert_eq!(budget.live(), baseline);
+    }
 
     static NEXT: AtomicU64 = AtomicU64::new(0);
 

@@ -8,7 +8,7 @@ use newchan_rust::s_content::{
     self as sc,
     capture_allocation::scratch::{NativeReservation, WorkError, WorkScope},
 };
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(super) enum Table {
@@ -197,11 +197,16 @@ struct Journal {
     stage_rows_bytes: usize,
     // 所有载荷字段在resources之前：错误Drop先析构载荷，再释放外层cap许可。
     resources: Option<MaterialResources>,
+    material_issued: bool,
 }
 struct MaterialResources {
     budget: native::Budget,
     // Some(work)对本片子域只占一次cap；不是另一次逐容器父账收费。
     outer_cap: Option<NativeReservation>,
+    parent_limit: usize,
+    publication: Option<([u64; 3], usize)>,
+    journal_owned_bytes: usize,
+    shared_parent: bool,
 }
 impl Journal {
     /// 只在失败出口观测；不增 Journal 字段、不改尺寸/预算，不清除首错或重试。
@@ -329,10 +334,16 @@ impl Journal {
                     },
                 ])
             };
-            permit.commit(
-                block(old_keys, old_nodes),
-                block(self.keys.capacity(), self.nodes.capacity()),
-            );
+            let old = block(old_keys, old_nodes);
+            let actual = block(self.keys.capacity(), self.nodes.capacity());
+            permit.commit(old, actual);
+            if let Some(resources) = self.resources.as_mut().filter(|r| r.shared_parent) {
+                resources.journal_owned_bytes = resources
+                    .journal_owned_bytes
+                    .checked_sub(old)
+                    .and_then(|n| n.checked_add(actual))
+                    .expect("journal独立保留账");
+            }
         }
         self.bytes = sum([
             Self::layout(self.keys.capacity(), self.nodes.capacity()),
@@ -356,6 +367,30 @@ pub(super) struct Recording {
     journal: Arc<Mutex<Journal>>,
 }
 impl Recording {
+    pub(super) fn attach_parent(
+        &self,
+        budget: &native::Budget,
+        parent_limit: usize,
+    ) -> Result<(), String> {
+        let mut j = self.journal.lock().map_err(invalid)?;
+        if j.resources.is_some() || j.material_issued || j.unexpected || j.overflow {
+            j.unexpected = true;
+            return Err(construction_state::stale("固定写父账重复附接"));
+        }
+        let permit = budget
+            .reserve(j.bytes)
+            .map_err(|_| construction_state::stale("journal父账额度不足"))?;
+        permit.commit(0, j.bytes);
+        j.resources = Some(MaterialResources {
+            budget: budget.clone(),
+            outer_cap: None,
+            parent_limit,
+            publication: None,
+            journal_owned_bytes: j.bytes,
+            shared_parent: true,
+        });
+        Ok(())
+    }
     pub(super) fn bind_set(&self, seed: construction_set::Seed) -> Result<(), String> {
         let mut j = self.journal.lock().map_err(invalid)?;
         if j.operation != Operation::Publish || j.set_required || !j.keys.is_empty() {
@@ -410,6 +445,7 @@ impl Recording {
             consumed: Default::default(),
             stage_rows_bytes: 0,
             resources: None,
+            material_issued: false,
         };
         if !journal.reserve_one(false) {
             return Ok(None);
@@ -497,10 +533,27 @@ impl Recording {
             .keys
             .sort_unstable_by_key(|k| (k.table, k.rowid, k.digest));
         journal.keys.dedup_by_key(|k| (k.table, k.rowid, k.digest));
+        let parent = journal
+            .resources
+            .as_ref()
+            .filter(|r| r.shared_parent)
+            .map(|r| (r.budget.clone(), r.parent_limit));
         let mut changes = Vec::new();
-        let initial = sum([journal.bytes, vec_bytes::<Change>(journal.keys.len())]);
-        if initial >= cap || changes.try_reserve_exact(journal.keys.len()).is_err() {
+        let changes_bytes = vec_bytes::<Change>(journal.keys.len());
+        let initial = sum([journal.bytes, changes_bytes]);
+        if initial >= cap {
             return Ok(None);
+        }
+        let changes_permit = parent
+            .as_ref()
+            .map(|(budget, _)| budget.reserve(changes_bytes))
+            .transpose()
+            .map_err(|_| construction_state::stale("effects行容器父账额度不足"))?;
+        if changes.try_reserve_exact(journal.keys.len()).is_err() {
+            return Ok(None);
+        }
+        if let Some(permit) = changes_permit {
+            permit.commit(0, vec_bytes::<Change>(changes.capacity()));
         }
         let mut used = initial;
         let mut peak = used.max(journal.peak);
@@ -510,9 +563,17 @@ impl Recording {
                 lower = (key.table, 0);
             }
             let sql = key.table.row_sql();
-            let Some(remaining) = cap.checked_sub(used) else {
+            let Some(mut remaining) = cap.checked_sub(used) else {
                 return Ok(None);
             };
+            if let Some((budget, limit)) = &parent {
+                remaining = remaining.min(limit.saturating_sub(budget.live()));
+            }
+            let row_permit = parent
+                .as_ref()
+                .map(|(budget, _)| budget.reserve(remaining))
+                .transpose()
+                .map_err(|_| construction_state::stale("effects原件父账额度不足"))?;
             let loaded = if key.table == Table::Node {
                 ExactRows::read_optional_bounded_params(tx, sql, [&key.digest[..]], remaining)?
             } else {
@@ -521,6 +582,9 @@ impl Recording {
             let Some((mut rows, read_peak)) = loaded else {
                 return Ok(None);
             };
+            if let Some(permit) = row_permit {
+                permit.commit(0, rows.heap_bytes());
+            }
             peak = peak.max(sum([used, read_peak]));
             if rows.rows.len() > 1 {
                 return Err(invalid("rowid 效果非唯一"));
@@ -529,6 +593,11 @@ impl Recording {
                 verify_storage(tx, key.table, row)?;
             }
             let new = rows.rows.pop();
+            let row_header_bytes = rows.heap_bytes();
+            drop(rows);
+            if let Some((budget, _)) = &parent {
+                budget.release(row_header_bytes);
+            }
             let mut slot = None;
             let old = if key.table == Table::Node {
                 None
@@ -572,8 +641,18 @@ impl Recording {
         if let Some(set) = &mut set {
             let charge = journal.resources.as_mut().and_then(|r| r.outer_cap.take());
             set.hold_parent_charge(charge)?;
+            if let Some(resources) = journal.resources.as_ref().filter(|r| r.shared_parent) {
+                set.hold_resource_budget(resources.budget.clone())?;
+            }
         }
         let set_bytes = set.as_ref().map_or(0, |set| set.retained_bytes());
+        if let Some(resources) = journal.resources.as_ref().filter(|r| r.shared_parent) {
+            let owned = resources.journal_owned_bytes;
+            drop(journal.nodes);
+            drop(journal.stages);
+            drop(journal.consumed);
+            resources.budget.release(owned);
+        }
         Ok(Some(Effects {
             changes,
             set,
@@ -582,6 +661,7 @@ impl Recording {
             // journal及读行头已真实Drop；旧载荷仍由原件账全额承接，不在这里重复计入。
             bytes: sum([used - journal.bytes, set_bytes]),
             covered_total,
+            shared_parent: parent.is_some(),
         }))
     }
 }
@@ -599,6 +679,7 @@ pub(super) struct Effects {
     pub(super) peak: usize,
     pub(super) bytes: usize,
     covered_total: Option<u64>,
+    pub(super) shared_parent: bool,
 }
 impl Effects {
     pub(super) fn has_exact_coverage(&self, total_changes: u64) -> bool {
@@ -666,6 +747,16 @@ impl Effects {
                     n.checked_add(vec_bytes::<Vec<SqlCell>>(rows.capacity()) - old_capacity)
                 })
                 .ok_or_else(|| invalid("SQL原件增量归属账溢出/缺旧费用"))?;
+            if self.shared_parent {
+                drop(change.old.take());
+                budget.release(old_payload);
+            }
+        }
+        if self.shared_parent {
+            // 已move的新行和Node正文不在remaining内；只释放真实销毁的容器/余行。
+            let remaining = self.changes.heap_bytes();
+            drop(self.changes);
+            budget.release(remaining);
         }
         Ok(peak)
     }
@@ -874,6 +965,8 @@ pub(crate) struct MaterialAccess<'tx, 'work, 'db> {
     journal: Arc<Mutex<Journal>>,
     seal: SnapshotSeal,
     initial_material_epoch: u64,
+    #[cfg(test)]
+    stage: Option<&'work crate::staged_nodes::StageOwner<'work>>,
 }
 struct ActualRead<'a, 'db> {
     inner: crate::content_store::TxStore<'a, 'db>,
@@ -1142,7 +1235,13 @@ pub(super) fn audit_native_source(
         if j.source_binding != Some(binding) || j.material_epoch != binding.epoch {
             return Err(construction_state::stale("来源核封口前材料epoch改变"));
         }
-        j.peak = j.peak.max(access.budget.peak());
+        j.peak = j
+            .peak
+            .max(if j.resources.as_ref().is_some_and(|r| r.shared_parent) {
+                j.bytes
+            } else {
+                access.budget.peak()
+            });
         j.extra_bytes = sum([j.extra_bytes, set.retained_bytes()]);
         j.bytes = sum([
             Journal::layout(j.keys.capacity(), j.nodes.capacity()),
@@ -1160,6 +1259,151 @@ pub(super) fn audit_native_source(
             j.unexpected = true;
         }
         raw.invalidate_after_consumer_failure();
+    }
+    result
+}
+
+/// 暂存只持 Weak；finish 仍可证明没有外借强引用并 try_unwrap。
+pub(crate) struct PublicationStageIdentity {
+    journal: Weak<Mutex<Journal>>,
+    identity: [u64; 3],
+    scope: usize,
+    connection: usize,
+}
+impl PublicationStageIdentity {
+    pub(crate) fn check(&self, tx: &Transaction<'_>, work: &WorkScope) -> Result<(), String> {
+        let actual = current_journal(tx)?
+            .ok_or_else(|| construction_state::stale("publication journal已失效"))?;
+        let held = self
+            .journal
+            .upgrade()
+            .ok_or_else(|| construction_state::stale("publication journal已退役"))?;
+        if tx.is_autocommit()
+            || self.connection != unsafe { tx.handle() } as usize
+            || self.scope != work as *const WorkScope as usize
+            || !Arc::ptr_eq(&actual, &held)
+        {
+            return Err(construction_state::stale(
+                "publication暂存跨事务/父scope/journal",
+            ));
+        }
+        let j = actual.lock().map_err(invalid)?;
+        if j.unexpected
+            || j.overflow
+            || j.resources.as_ref().and_then(|r| r.publication) != Some((self.identity, self.scope))
+        {
+            return Err(construction_state::stale("publication暂存资源已失效"));
+        }
+        Ok(())
+    }
+}
+pub(super) fn attach_recording_resources(
+    tx: &Transaction<'_>,
+    parent: &PublicationScope<'_>,
+) -> Result<(), String> {
+    parent.check_transaction(tx)?;
+    let journal = current_journal(tx)?
+        .ok_or_else(|| construction_state::stale("publication缺真实journal"))?;
+    let mut j = journal.lock().map_err(invalid)?;
+    let result = (|| {
+        if j.resources
+            .as_ref()
+            .is_none_or(|r| !r.shared_parent || r.publication.is_some())
+            || j.material_issued
+            || j.unexpected
+            || j.overflow
+            || j.operation != Operation::Publish
+            || !j.set_required
+            || j.set_seed.as_ref().map(|s| s.seal) != Some(parent.resources.before)
+        {
+            return Err(construction_state::stale(
+                "publication资源附接重复或身份失效",
+            ));
+        }
+        let resources = j.resources.as_mut().unwrap();
+        resources.publication = Some((
+            parent.identity(),
+            parent.work() as *const WorkScope as usize,
+        ));
+        Ok(())
+    })();
+    if result.is_err() {
+        j.unexpected = true;
+    }
+    result
+}
+pub(super) fn publication_stage_identity(
+    tx: &Transaction<'_>,
+    parent: &PublicationScope<'_>,
+) -> Result<PublicationStageIdentity, String> {
+    parent.check_transaction(tx)?;
+    let journal =
+        current_journal(tx)?.ok_or_else(|| construction_state::stale("publication缺journal"))?;
+    let token = PublicationStageIdentity {
+        journal: Arc::downgrade(&journal),
+        identity: parent.identity(),
+        scope: parent.work() as *const WorkScope as usize,
+        connection: unsafe { tx.handle() } as usize,
+    };
+    drop(journal);
+    token.check(tx, parent.work())?;
+    Ok(token)
+}
+pub(super) fn with_material_in_publication<T>(
+    tx: &Transaction<'_>,
+    parent: &PublicationScope<'_>,
+    #[cfg(test)] stage: Option<&crate::staged_nodes::StageOwner<'_>>,
+    f: impl FnOnce(Option<&MaterialAccess<'_, '_, '_>>) -> Result<T, String>,
+) -> Result<T, String> {
+    #[cfg(test)]
+    parent.trace("material");
+    let identity = publication_stage_identity(tx, parent)?;
+    let journal = identity
+        .journal
+        .upgrade()
+        .ok_or_else(|| construction_state::stale("材料journal已退役"))?;
+    let (seal, epoch) = {
+        let mut j = journal.lock().map_err(invalid)?;
+        if j.material_issued
+            || j.set.is_some()
+            || j.source_binding.is_some()
+            || j.active_stage.is_some()
+            || !j.stages.is_empty()
+        {
+            j.unexpected = true;
+            return Err(construction_state::stale("材料能力只能在本publish签发一次"));
+        }
+        j.material_issued = true;
+        (
+            j.set_seed
+                .as_ref()
+                .ok_or_else(|| construction_state::stale("材料缺seed"))?
+                .seal,
+            j.material_epoch,
+        )
+    };
+    let access = MaterialAccess {
+        tx,
+        work: parent.work(),
+        budget: parent.budget(),
+        journal: journal.clone(),
+        seal,
+        initial_material_epoch: epoch,
+        #[cfg(test)]
+        stage,
+    };
+    let result = f(Some(&access));
+    drop(access);
+    let result = result.and_then(|value| {
+        let j = journal.lock().map_err(invalid)?;
+        if j.unexpected || j.overflow || j.active_stage.is_some() || j.set.is_none() {
+            Err(construction_state::stale("材料闭包未完整闭合或吞下失败"))
+        } else {
+            Ok(value)
+        }
+    });
+    if result.is_err() {
+        journal.lock().map_err(invalid)?.unexpected = true;
     }
     result
 }
@@ -1183,7 +1427,10 @@ pub(super) fn with_material_access<T>(
         let result = (|| {
             if j.unexpected
                 || j.overflow
-                || j.resources.is_some()
+                || j.resources
+                    .as_ref()
+                    .is_some_and(|r| !r.shared_parent || r.publication.is_some())
+                || j.material_issued
                 || j.set.is_some()
                 || !j.stages.is_empty()
                 || tx.is_autocommit()
@@ -1203,6 +1450,15 @@ pub(super) fn with_material_access<T>(
                 .as_ref()
                 .ok_or_else(|| construction_state::stale("材料能力缺owner seed"))?
                 .seal;
+            j.material_issued = true;
+            if let Some(resources) = &j.resources {
+                if original_work.is_some() {
+                    return Err(construction_state::stale(
+                        "共享父账必须经publication同scope能力传入",
+                    ));
+                }
+                return Ok((resources.budget.clone(), seal, j.material_epoch));
+            }
             // 先占外父账，再分配本片子账元数据；外cap不是提前释放的临时许可。
             let outer_cap = original_work
                 .map(|w| w.reserve_native(j.cap))
@@ -1232,6 +1488,10 @@ pub(super) fn with_material_access<T>(
             j.resources = Some(MaterialResources {
                 budget: budget.clone(),
                 outer_cap,
+                parent_limit: j.cap,
+                publication: None,
+                journal_owned_bytes: 0,
+                shared_parent: false,
             });
             Ok((budget, seal, j.material_epoch))
         })();
@@ -1248,6 +1508,8 @@ pub(super) fn with_material_access<T>(
             journal: journal.clone(),
             seal,
             initial_material_epoch,
+            #[cfg(test)]
+            stage: None,
         };
         let result = f(Some(&access));
         #[cfg(test)]
@@ -1343,7 +1605,13 @@ pub(super) fn note_source_cut(
             .ok_or_else(|| construction_state::stale("缺owner集合seed"))?;
         let set =
             construction_set::qualify(seed, &mut source, root, j.material_epoch, material.budget)?;
-        j.peak = j.peak.max(material.budget.peak());
+        j.peak = j
+            .peak
+            .max(if j.resources.as_ref().is_some_and(|r| r.shared_parent) {
+                j.bytes
+            } else {
+                material.budget.peak()
+            });
         j.extra_bytes = sum([j.extra_bytes, set.retained_bytes()]);
         j.bytes = sum([
             Journal::layout(j.keys.capacity(), j.nodes.capacity()),
@@ -1458,7 +1726,15 @@ fn reserve_consumed(j: &mut Journal, budget: &native::Budget) -> Result<(), Stri
     j.consumed
         .try_reserve(next - j.consumed.len())
         .map_err(|_| construction_state::stale("stage身份索引分配失败"))?;
-    permit.commit(old, consumed_bytes(j.consumed.capacity()));
+    let actual = consumed_bytes(j.consumed.capacity());
+    permit.commit(old, actual);
+    if let Some(resources) = j.resources.as_mut().filter(|r| r.shared_parent) {
+        resources.journal_owned_bytes = resources
+            .journal_owned_bytes
+            .checked_sub(old)
+            .and_then(|n| n.checked_add(actual))
+            .expect("stage身份账");
+    }
     Ok(())
 }
 impl StageGuard {
@@ -1470,6 +1746,57 @@ impl StageGuard {
             self.closed = true;
             return Ok(());
         };
+        #[cfg(test)]
+        if let Some(material) = material {
+            if let Some(stage) = material.stage {
+                let rowid = {
+                    let j = journal.lock().map_err(invalid)?;
+                    material.check(&j)?;
+                    let mut rows = j.keys[self.start..]
+                        .iter()
+                        .filter(|k| k.table != Table::Node);
+                    let row = rows
+                        .next()
+                        .ok_or_else(|| construction_state::stale("stage缺实际SQL行"))?;
+                    if rows.next().is_some()
+                        || row.table != self.kind.table()
+                        || row.action != Some(self.kind.action())
+                    {
+                        return Err(construction_state::stale("stage SQL并非唯一预期表/动作"));
+                    }
+                    row.rowid
+                };
+                // 固定四根栈数组；不在持 journal 锁时调用会回入 note_node 的 SQL put。
+                let columns = self.kind.roots();
+                let roots = material
+                    .tx
+                    .query_row(self.kind.table().row_sql(), [rowid], |row| {
+                        let mut roots = [[0u8; 32]; 4];
+                        for (index, &column) in columns.iter().enumerate() {
+                            let bytes = row.get_ref(column)?.as_blob().map_err(|e| {
+                                rusqlite::Error::FromSqlConversionFailure(
+                                    column,
+                                    rusqlite::types::Type::Blob,
+                                    Box::new(e),
+                                )
+                            })?;
+                            roots[index] = bytes.try_into().map_err(|_| {
+                                rusqlite::Error::InvalidColumnType(
+                                    column,
+                                    "stage root".into(),
+                                    rusqlite::types::Type::Blob,
+                                )
+                            })?;
+                        }
+                        Ok(roots)
+                    })
+                    .map_err(invalid)?;
+                stage.flush_cut(
+                    material.tx,
+                    crate::staged_nodes::FlushCut::Row(&roots[..columns.len()]),
+                )?;
+            }
+        }
         let mut j = journal.lock().map_err(invalid)?;
         let result = (|| {
             let material =
@@ -1503,14 +1830,32 @@ impl StageGuard {
                 return Err(construction_state::stale("业务原件已被前一stage消费"));
             }
             let budget = material.budget;
+            let old_stage_capacity = vec_bytes::<StageReceipt>(j.stages.capacity());
             budget
                 .vec_grow(&mut j.stages, 1)
                 .map_err(|_| construction_state::stale("stage容器额度不足"))?;
+            let stage_capacity = vec_bytes::<StageReceipt>(j.stages.capacity());
+            if let Some(resources) = j.resources.as_mut().filter(|r| r.shared_parent) {
+                resources.journal_owned_bytes += stage_capacity - old_stage_capacity;
+            }
             reserve_consumed(&mut j, budget)?;
-            let remaining = j
-                .cap
-                .checked_sub(budget.live())
-                .ok_or_else(|| construction_state::stale("stage原件额度不足"))?;
+            let remaining = if let Some(resources) =
+                j.resources.as_ref().filter(|r| r.shared_parent)
+            {
+                j.cap
+                    .checked_sub(j.bytes)
+                    .ok_or_else(|| construction_state::stale("stage局部原件额度不足"))?
+                    .min(
+                        resources
+                            .parent_limit
+                            .checked_sub(budget.live())
+                            .ok_or_else(|| construction_state::stale("stage父账原件额度不足"))?,
+                    )
+            } else {
+                j.cap
+                    .checked_sub(budget.live())
+                    .ok_or_else(|| construction_state::stale("stage原件额度不足"))?
+            };
             // 先占完整可用上限；ExactRows内部按同一remaining限制每次新旧块共存。
             let read_permit = budget
                 .reserve(remaining)
@@ -1546,9 +1891,18 @@ impl StageGuard {
                     .verify_many_ref_fresh([reference.view()], sc::Mode::Public)
                     .map_err(invalid)?;
             }
-            j.peak = j.peak.max(budget.peak());
+            j.peak = j
+                .peak
+                .max(if j.resources.as_ref().is_some_and(|r| r.shared_parent) {
+                    j.bytes
+                } else {
+                    budget.peak()
+                });
             let row = originals.into_row();
             j.stage_rows_bytes = sum([j.stage_rows_bytes, row.heap_bytes()]);
+            if let Some(resources) = j.resources.as_mut().filter(|r| r.shared_parent) {
+                resources.journal_owned_bytes += row.heap_bytes();
+            }
             let end = j.keys.len();
             let material_after = j.material_epoch;
             j.consumed.insert(identity);
@@ -1571,6 +1925,7 @@ impl StageGuard {
                 Journal::layout(j.keys.capacity(), j.nodes.capacity()),
                 j.extra_bytes,
             ]);
+            j.peak = j.peak.max(j.bytes);
             if j.bytes > j.cap {
                 return Err(construction_state::stale("stage实际保留账超过额度"));
             }
@@ -1665,6 +2020,7 @@ fn native_journal_only_reserves_the_container_that_grows() {
         consumed: Default::default(),
         stage_rows_bytes: 0,
         resources: None,
+        material_issued: false,
     };
     assert!(j.reserve_one(true));
     let node_cap = j.nodes.capacity();
@@ -1818,6 +2174,111 @@ mod construction_coverage_tests {
         .content_ref();
         (recording, state)
     }
+    #[test]
+    fn publication_weak_identity_does_not_block_finish_with_large_parent_retention() {
+        let mut db = database();
+        let tx = db.transaction().unwrap();
+        let (recording, state) = set_recording(&tx);
+        let before = recording
+            .journal
+            .lock()
+            .unwrap()
+            .set_seed
+            .as_ref()
+            .unwrap()
+            .seal;
+        recording.journal.lock().unwrap().cap = 64 << 10;
+        let budget = native::Budget::new(8 << 20, 5 << 20).unwrap();
+        recording.attach_parent(&budget, 8 << 20).unwrap();
+        let resources = PublicationResources {
+            budget: budget.clone(),
+            parent_limit: 8 << 20,
+            before,
+            connection: unsafe { tx.handle() } as usize,
+        };
+        let effects = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let parent = PublicationScope {
+                    resources: &resources,
+                    work,
+                };
+                attach_recording_resources(&tx, &parent)?;
+                let identity = parent.stage_identity(&tx)?;
+                with_material_in_publication(&tx, &parent, None, |material| {
+                    let material = material.unwrap();
+                    assert!(
+                        material.budget.live() > (64 << 10),
+                        "父账大于journal子帽仍须允许真实工作"
+                    );
+                    assert!(std::ptr::eq(material.work(), work));
+                    note_source_cut(material, (&state).into())
+                })?;
+                let effects = recording.finish(&tx, &mut [], 1 << 20)?.unwrap();
+                assert!(
+                    identity.check(&tx, work).is_err(),
+                    "旧Weak身份不得绑定已卸journal"
+                );
+                Ok::<_, String>(effects)
+            })
+            .unwrap();
+        assert!(effects.has_exact_coverage(tx.total_changes()));
+        assert!(effects.shared_parent);
+        assert!(
+            budget.live() > (4 << 20),
+            "旧候选超过父帽一半仍可正常finish"
+        );
+        assert!(budget.peak() <= (8 << 20));
+        assert!(effects.peak < (1 << 20), "局部峰不得混入大于5MiB的父峰");
+    }
+    #[test]
+    fn publication_resource_attachment_is_once_and_foreign_scope_rejects() {
+        let mut db = database();
+        let tx = db.transaction().unwrap();
+        let (recording, _) = set_recording(&tx);
+        let before = recording
+            .journal
+            .lock()
+            .unwrap()
+            .set_seed
+            .as_ref()
+            .unwrap()
+            .seal;
+        let budget = native::Budget::new(16 << 20, 0).unwrap();
+        recording.attach_parent(&budget, 16 << 20).unwrap();
+        let resources = PublicationResources {
+            budget: budget.clone(),
+            parent_limit: 16 << 20,
+            before,
+            connection: unsafe { tx.handle() } as usize,
+        };
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let parent = PublicationScope {
+                    resources: &resources,
+                    work,
+                };
+                attach_recording_resources(&tx, &parent)?;
+                let identity = parent.stage_identity(&tx)?;
+                budget
+                    .codec_work()
+                    .unwrap()
+                    .run(|other| {
+                        assert!(identity.check(&tx, other).is_err());
+                        Ok::<_, String>(())
+                    })
+                    .unwrap();
+                assert!(attach_recording_resources(&tx, &parent).is_err());
+                assert!(identity.check(&tx, work).is_err());
+                Ok::<_, String>(())
+            })
+            .unwrap();
+        assert!(recording.finish(&tx, &mut [], 1 << 20).is_err());
+    }
+
     #[test]
     fn owner_set_ordered_node_receipts_keep_repeated_noop_and_unreachable_nodes() {
         let mut db = database();

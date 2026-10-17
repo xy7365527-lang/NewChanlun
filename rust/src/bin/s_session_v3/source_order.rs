@@ -1,9 +1,9 @@
 //! #1488 B2：确定平衡的 occurrence AVL；只保存顺序，不保存材料/业务资格。
 //! 每个节点独立预付分配；没有整体 arena Vec 扩容、后缀改号或搬迁历史。
 use super::*;
+use crate::v3::audit_store::NativeTree;
+use crate::v3::native_shared::{NativeRc as Rc, NativeWeak as Weak};
 use std::cell::{Cell, RefCell};
-use std::collections::BTreeMap;
-use std::rc::{Rc, Weak};
 pub(super) type Handle = usize;
 type Link = Option<Rc<RefCell<Node>>>;
 struct Node {
@@ -18,7 +18,8 @@ struct Node {
 }
 #[derive(Default)]
 pub(super) struct Order {
-    nodes: BTreeMap<Handle, Rc<RefCell<Node>>>,
+    nodes: NativeTree<Handle, Rc<RefCell<Node>>>,
+    node_bytes: usize,
     root: Link,
     next: usize,
     pub(super) visits: Cell<usize>,
@@ -28,13 +29,10 @@ impl Order {
         Self::size(&self.root)
     }
     pub(super) fn retained_bytes(&self) -> usize {
-        // Rc 的真实固定分配布局 + BTree 槽保守上界；没有未计容量的外部 arena。
+        // 每个索引节点只计一次共享块；浅链接不重复计。仅统计，不据此退父账。
         self.nodes
-            .len()
-            .saturating_mul(std::mem::size_of::<RefCell<Node>>() + 2 * std::mem::size_of::<usize>())
-            .saturating_add(retention::tree_slots::<Handle, Rc<RefCell<Node>>>(
-                self.nodes.len(),
-            ))
+            .allocation_bytes()
+            .saturating_add(self.node_bytes)
     }
     fn size(at: &Link) -> usize {
         at.as_ref().map_or(0, |n| n.borrow().size)
@@ -245,30 +243,47 @@ impl Order {
             return Err(err("来源有序新增位置越界"));
         }
         let handle = self.next;
-        self.next = self
+        let next = self
             .next
             .checked_add(1)
             .ok_or_else(|| err("来源顺序序号溢出"))?;
-        s.native_tree_room::<Handle, Rc<RefCell<Node>>>(self.nodes.len())
+        // Node 的动态成员只含已准入共享句柄；新块先准入，失败不消耗 handle。
+        let node = Self::new_node(s, handle, value)?;
+        let node_bytes = self
+            .node_bytes
+            .checked_add(node.allocation_bytes())
+            .ok_or_else(|| err("来源顺序节点保留费溢出"))?;
+        // 树先完成全部可能失败的准入，再提交索引、序号和 AVL 变更。
+        self.nodes
+            .insert_admitted(handle, node.clone(), s)
             .map_err(err)?;
-        s.native_admit(std::mem::size_of::<RefCell<Node>>() + 2 * std::mem::size_of::<usize>())
-            .map_err(err)?;
-        let node = Rc::new(RefCell::new(Node {
-            handle,
-            value,
-            left: None,
-            right: None,
-            parent: Weak::new(),
-            size: 1,
-            height: 1,
-            live: true,
-        }));
-        self.nodes.insert(handle, node.clone());
+        self.next = next;
+        self.node_bytes = node_bytes;
         let root = self.root.take();
         let (a, b) = self.split(root, rank);
         let a = self.merge(a, Some(node));
         self.root = self.merge(a, b);
         Ok(handle)
+    }
+    fn new_node(
+        s: &(impl CodecRead + ?Sized),
+        handle: Handle,
+        value: NodeDigest,
+    ) -> Result<Rc<RefCell<Node>>, String> {
+        Rc::try_new_shallow(
+            RefCell::new(Node {
+                handle,
+                value,
+                left: None,
+                right: None,
+                parent: Weak::new(),
+                size: 1,
+                height: 1,
+                live: true,
+            }),
+            s.codec_work(),
+        )
+        .map_err(err)
     }
     pub(super) fn remove(
         &mut self,
@@ -303,7 +318,12 @@ impl Order {
         if self.nodes.get(&handle).is_none_or(|n| n.borrow().live) {
             return Err(err("来源顺序活句柄或已回收句柄不能回收"));
         }
-        self.nodes.remove(&handle);
+        let node = self.nodes.remove(&handle).expect("已核来源顺序回收句柄");
+        // 仅更新 O(1) 结构统计；node/外部 Link/Weak 各自决定真实许可何时释放。
+        self.node_bytes = self
+            .node_bytes
+            .checked_sub(node.allocation_bytes())
+            .expect("来源顺序节点保留费不下溢");
         if self.nodes.is_empty() {
             self.nodes.clear();
         }
@@ -314,6 +334,13 @@ impl Order {
 mod tests {
     use super::*;
     fn check(tree: &Order, expected: &[(Handle, NodeDigest)]) {
+        assert_eq!(
+            tree.node_bytes,
+            tree.nodes
+                .values()
+                .map(|node| node.allocation_bytes())
+                .sum::<usize>()
+        );
         fn walk(
             at: &Link,
             parent: Option<&Rc<RefCell<Node>>>,
@@ -395,5 +422,152 @@ mod tests {
         assert!(tree.value(handle).is_err());
         tree.reclaim(&s, handle).unwrap();
         assert!(tree.reclaim(&s, handle).is_err());
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_order_reclaimed_node_and_weak_tail_keep_original_parent_charge() {
+        let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let (weak, node_bytes) = budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let scope_baseline = budget.live();
+                let s = crate::v3::audit_store::NativeAdmission(Some(scope));
+                let mut tree = Order::default();
+                let handle = tree.insert(&s, 0, [1; 32]).unwrap();
+                let node = tree.nodes.get(&handle).unwrap().clone();
+                assert!(node.is_native_admitted());
+                let node_bytes = node.allocation_bytes();
+                let before_clone = budget.live();
+                let weak = Rc::downgrade(&node);
+                let other = weak.upgrade().unwrap();
+                assert!(Rc::ptr_eq(&other, &node));
+                assert_eq!(budget.live(), before_clone, "浅共享不重复准入");
+                drop(other);
+                tree.remove(&s, 0, [1; 32]).unwrap();
+                tree.reclaim(&s, handle).unwrap();
+                assert!(!node.borrow().live);
+                assert!(tree.nodes.is_empty());
+                assert_eq!(tree.retained_bytes(), tree.nodes.allocation_bytes());
+                drop(tree);
+                assert_eq!(budget.live(), scope_baseline + node_bytes);
+                drop(node);
+                assert!(weak.upgrade().is_none());
+                assert_eq!(budget.live(), scope_baseline + node_bytes, "弱尾保整块");
+                Ok::<_, String>((weak, node_bytes))
+            })
+            .unwrap();
+        assert_eq!(budget.live(), baseline + node_bytes, "原许可跨工作域保留");
+        drop(weak);
+        assert_eq!(budget.live(), baseline);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_order_admission_failure_preserves_avl_and_next_handle() {
+        const LIMIT: usize = 1024 * 1024;
+        for fail_at_tree in [false, true] {
+            let budget = crate::v3::audit_owner::native::Budget::new(LIMIT, 0).unwrap();
+            let baseline = budget.live();
+            let (mut tree, mut expected) = budget
+                .codec_work()
+                .unwrap()
+                .run(|scope| {
+                    let s = crate::v3::audit_store::NativeAdmission(Some(scope));
+                    let mut tree = Order::default();
+                    let mut expected = Vec::new();
+                    for i in 0..3u8 {
+                        let value = [i; 32];
+                        let handle = tree.insert(&s, expected.len(), value).unwrap();
+                        expected.push((handle, value));
+                    }
+                    Ok::<_, String>((tree, expected))
+                })
+                .unwrap();
+            let next = tree.next;
+            let root = tree.root.clone().unwrap();
+            let failed = budget.codec_work().unwrap().run(|scope| {
+                let s = crate::v3::audit_store::NativeAdmission(Some(scope));
+                let probe = Order::new_node(&s, next, [8; 32]).unwrap();
+                let node_bytes = probe.allocation_bytes();
+                drop(probe);
+                // 第一轮在共享块准入失败；第二轮仅够共享块，树新增槽准入失败。
+                let available = if fail_at_tree { node_bytes } else { 0 };
+                let guard = scope
+                    .reserve_native(LIMIT - budget.live() - available)
+                    .unwrap();
+                let failure = tree.insert(&s, 1, [8; 32]).unwrap_err();
+                assert_eq!(tree.next, next);
+                assert_eq!(tree.nodes.len(), expected.len());
+                assert!(Rc::ptr_eq(tree.root.as_ref().unwrap(), &root));
+                assert!(!tree.nodes.contains_key(&next));
+                check(&tree, &expected);
+                drop(guard);
+                // 资源失败粘在当前工作域；观测状态后立即返回，不在失败域重试。
+                Err::<(), _>(failure)
+            });
+            assert!(failed.is_err());
+            budget
+                .codec_work()
+                .unwrap()
+                .run(|scope| {
+                    let s = crate::v3::audit_store::NativeAdmission(Some(scope));
+                    let handle = tree.insert(&s, 1, [8; 32]).unwrap();
+                    assert_eq!(handle, next, "失败未消耗序号");
+                    expected.insert(1, (handle, [8; 32]));
+                    check(&tree, &expected);
+                    Ok::<_, String>(())
+                })
+                .unwrap();
+            drop(root);
+            drop(tree);
+            assert_eq!(budget.live(), baseline);
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_order_rotations_remove_reinsert_and_drop_release_all_nodes() {
+        let budget = crate::v3::audit_owner::native::Budget::new(4 * 1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let scope_baseline = budget.live();
+                let s = crate::v3::audit_store::NativeAdmission(Some(scope));
+                let mut tree = Order::default();
+                let mut expected = Vec::new();
+                for i in 0..64u8 {
+                    let rank = (usize::from(i) * 37) % (expected.len() + 1);
+                    let value = [i; 32];
+                    let handle = tree.insert(&s, rank, value).unwrap();
+                    expected.insert(rank, (handle, value));
+                    check(&tree, &expected);
+                }
+                for i in 0..64usize {
+                    let rank = (i * 71) % expected.len();
+                    let (old_handle, value) = expected.remove(rank);
+                    assert_eq!(tree.remove(&s, rank, value).unwrap(), old_handle);
+                    tree.reclaim(&s, old_handle).unwrap();
+                    let handle = tree.insert(&s, 0, value).unwrap();
+                    assert!(handle > old_handle);
+                    expected.insert(0, (handle, value));
+                    check(&tree, &expected);
+                }
+                for (handle, value) in expected.drain(..) {
+                    assert_eq!(tree.remove(&s, 0, value).unwrap(), handle);
+                    tree.reclaim(&s, handle).unwrap();
+                }
+                assert_eq!(tree.len(), 0);
+                assert_eq!(tree.retained_bytes(), tree.nodes.allocation_bytes());
+                drop(tree);
+                assert_eq!(budget.live(), scope_baseline);
+                Ok::<_, String>(())
+            })
+            .unwrap();
+        assert_eq!(budget.live(), baseline);
     }
 }

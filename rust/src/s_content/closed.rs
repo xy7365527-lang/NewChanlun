@@ -653,6 +653,16 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
         }
     }
 
+    pub(super) fn native_vec_room<T>(
+        &self,
+        result: &mut WorkVec<T>,
+        additional: usize,
+    ) -> Result<(), CodecError> {
+        match self.work_budget() {
+            Some(work @ WorkBudget::Scratch(_)) => result.reserve_native_work(&work, additional),
+            _ => result.try_reserve(additional),
+        }
+    }
     pub(super) fn plain_vec_room<T>(
         &self,
         result: &mut WorkVec<T>,
