@@ -397,6 +397,7 @@ impl Contributions {
                 .map(|key| &self.objects.get(key).expect("fixture成员完整性已核").value),
             &self.raw,
             &self.groups,
+            self.rule.as_str(),
             None,
         )?;
         self.work.pending_objects = cut.objects.order.len();

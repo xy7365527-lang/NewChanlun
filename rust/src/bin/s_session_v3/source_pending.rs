@@ -184,6 +184,9 @@ impl StepView for StepContribution {
     fn reasons(&self) -> &RefValue {
         &self.reasons
     }
+    fn waiting_count(&self) -> usize {
+        self.waiting_count
+    }
     fn insufficient(&self) -> bool {
         self.insufficient
     }
