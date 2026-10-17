@@ -134,6 +134,7 @@ jobs:
   #     "静默跳过"变成"可见地失败"，并让修复状态随复验同步更新。
   rust-check:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     env:
       CARGO_INCREMENTAL: "0"
     defaults:
