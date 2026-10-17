@@ -76,7 +76,8 @@ mod stroke;
 /// strategy 三子模块，所有 Θ 参数显式 config（Phase 6 扫描入口）。`pub` 导出避免
 /// 骨架阶段（未接入 PyO3）的 dead_code 误报。文档 docs/reference-theta-v0.md。
 pub mod theta_v0;
-mod trading;
+/// 交易层（包含 D4 回放引擎 + 对拍器，task #1518）。`pub` 导出以支持测试和 bin。
+pub mod trading;
 mod zhongshu;
 
 /// LAV 旁路排序器的证据封存层（S1 #1167）。默认 feature 不编译，仅 `lav_seal`
