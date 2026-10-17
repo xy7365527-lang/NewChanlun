@@ -3,6 +3,8 @@
 from collections import OrderedDict
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+import base64
 import copy
 import hashlib
 import json
@@ -352,7 +354,8 @@ def verify_fill_allocations(image, policy, sources):
 class EconomicQuery:
     """一个 Q 配置固定可信 owner；固定向量缓存只留完整已核图像。"""
 
-    def __init__(self, config_path):
+    def __init__(self, config_path, *, wire_evidence=None):
+        self.wire_evidence = wire_evidence
         path = Path(config_path).resolve()
         config = decode_frame(path.read_bytes())
         if config.get("schema_revision") != "economic-query/1":
@@ -378,11 +381,13 @@ class EconomicQuery:
             raise EconomicQueryError("Q 连接身份不在获准源内")
         matching = [entry for entry in manifest.get("authorized_sources", [])
                     if type(entry) is dict and {k: entry.get(k) for k in source_fields} == self.source]
-        read_ops = {"ReadView", "Watch", "QueryFact", "QueryAllocation", "QueryVoice", "QueryDecision", "QueryGrant"}
+        read_ops = {"ReadView", "Watch", "QueryFact", "QueryAllocation", "QueryVoice", "QueryDecision", "QueryGrant",
+                    "EconomicReadOpen", "EconomicReadPage", "EconomicReadClose"}
         if (len(matching) != 1 or type(matching[0].get("operations")) is not list
                 or any(type(op) is not str for op in matching[0]["operations"])
                 or not {"ReadView", "Watch"} <= set(matching[0]["operations"]) <= read_ops):
             raise EconomicQueryError("Q 身份须明确只有只读操作权限")
+        self.authorized_read_ops = frozenset(matching[0]["operations"])
         for key, value in self.source.items():
             text(value, key)
         integer(self.source["producer_epoch"], "producer_epoch", positive=True)
@@ -418,10 +423,234 @@ class EconomicQuery:
         self.lock = threading.Lock()
         self.cache = OrderedDict()
         self.cached_bytes = 0
+        self.transfers = {}
+        self.open_records = {}
+        self.metadata_bytes = 0
         self.budget = threading.local()
 
-    def _start(self):
-        self.budget.deadline = time.monotonic() + self.resources["operation_timeout_ms"] / 1000
+    def _start(self, deadline=None):
+        own_deadline = time.monotonic() + self.resources["operation_timeout_ms"] / 1000
+        self.budget.deadline = own_deadline if deadline is None else min(own_deadline, deadline)
+        self._remaining_ms()
+
+    def _drop_transfer_locked(self, transfer_id):
+        transfer = self.transfers.pop(transfer_id)
+        key = transfer["cache_key"]
+        record_key = transfer.get("record_key")
+        if record_key is not None:
+            record = self.open_records[record_key]
+            terminal = {k: record[k] for k in ("identity", "message_id", "payload_hash", "transfer_id")}
+            terminal["status"] = "closed"
+            self._set_record_locked(record_key, terminal)
+        if transfer["temporary"] and not any(t["cache_key"] == key for t in self.transfers.values()):
+            encoded = self.cache.pop(key, None)
+            if encoded is not None:
+                self.cached_bytes -= len(encoded)
+
+    def _expire_transfers_locked(self):
+        now = time.monotonic()
+        for transfer_id in list(self.transfers):
+            if now >= self.transfers[transfer_id]["deadline"]:
+                self._drop_transfer_locked(transfer_id)
+
+    def _cache_put_locked(self, key, encoded):
+        """Snapshot 与活跃 watch 共用唯一正文账，活跃传输不得被淘汰。"""
+        self._expire_transfers_locked()
+        if len(encoded) > self.resources["max_cached_bytes"]:
+            raise EconomicQueryError("QueryBudgetExceeded：完整经济文档超过聚合容量")
+        if key in self.cache:
+            if self.cache[key] != encoded:
+                raise EconomicQueryError("缓存身份对应不同正文")
+            self.cache.move_to_end(key)
+            return
+        self._admit_locked(len(encoded), 1)
+        self.cache[key] = encoded
+        self.cached_bytes += len(encoded)
+
+    def _admit_locked(self, extra_bytes, extra_items=0, protected=()):
+        """先算全部驱逐，再修改；正文与所有 Open 终态元数据同账。"""
+        pinned = {t["cache_key"] for t in self.transfers.values()} | set(protected)
+        byte_limit = min(4194304, self.resources["max_cached_bytes"])
+        item_limit = min(4, self.resources["max_snapshots"])
+        size = self.cached_bytes + self.metadata_bytes + extra_bytes
+        count = len(self.cache) + extra_items
+        victims = []
+        for key, encoded in self.cache.items():
+            if size <= byte_limit and count <= item_limit:
+                break
+            if key not in pinned:
+                victims.append(key)
+                size -= len(encoded)
+                count -= 1
+        if size > byte_limit or count > item_limit:
+            raise EconomicQueryError("QueryBudgetExceeded：正文或元数据达到共享缓存上限")
+        for key in victims:
+            self.cached_bytes -= len(self.cache.pop(key))
+
+    def _set_record_locked(self, key, record):
+        old = self.open_records.get(key)
+        delta = len(canonical(record)) - (len(canonical(old)) if old is not None else 0)
+        self._admit_locked(delta)
+        self.open_records[key] = record
+        self.metadata_bytes += delta
+
+    @staticmethod
+    def _read_error(code, detail, transfer_id=None):
+        return {"schema_revision": "economic-read-pages/1", "kind": "EconomicReadError",
+                "code": code, "detail": detail, "transfer_id": transfer_id}
+
+    def read(self, payload, request, *, deadline=None):
+        """#1406：已验证公共头后的只读页入口；错误仍保留合法页信封。"""
+        transfer_id = payload.get("transfer_id") if type(payload) is dict else None
+        if type(transfer_id) is not str or re.fullmatch(r"[0-9a-f]{32}", transfer_id) is None:
+            transfer_id = None
+        try:
+            return self._read(payload, request, deadline=deadline)
+        except (ValueError, KeyError, TypeError, UnicodeError, RecursionError, OSError) as exc:
+            detail = str(exc)
+            code = "QueryBudgetExceeded" if "QueryBudgetExceeded" in detail else "InvalidQuery"
+            return self._read_error(code, detail, transfer_id)
+
+    def _read(self, payload, request, *, deadline=None):
+        revision = "economic-read-pages/1"
+        if type(payload) is not dict or payload.get("schema_revision") != revision:
+            return self._read_error("SchemaUnsupported", "需要 economic-read-pages/1")
+        op = payload.get("op")
+        fields = {
+            "EconomicReadOpen": {"schema_revision", "op", "query", "requested_remaining_ms"},
+            "EconomicReadPage": {"schema_revision", "op", "transfer_id", "descriptor_sha256", "offset", "requested_remaining_ms"},
+            "EconomicReadClose": {"schema_revision", "op", "transfer_id", "descriptor_sha256"},
+        }
+        if op not in fields:
+            return self._read_error("SchemaUnsupported", "未知只读页操作")
+        _exact(payload, fields[op], "分页请求")
+        identity = {k: request[k] for k in ("session_id", "session_generation", "source_namespace",
+                                           "source_epoch", "producer_id", "producer_epoch")}
+        if op == "EconomicReadOpen":
+            remaining = integer(payload["requested_remaining_ms"], "requested_remaining_ms", positive=True)
+            if remaining > 30000:
+                raise EconomicQueryError("requested_remaining_ms 超过30000")
+            local_deadline = time.monotonic() + remaining / 1000
+            self._start(local_deadline if deadline is None else min(local_deadline, deadline))
+            logical_query = payload["query"]
+            if type(logical_query) is not dict or logical_query.get("op") not in ("snapshot", "watch"):
+                return self._read_error("SchemaUnsupported", "分页只支持原 snapshot/watch 选择")
+            # 请求键保存原文身份，终态不删除；不可让相同 Open 在关闭后复活。
+            record_key = tuple(identity.values()) + (request["message_id"],)
+            with self.lock:
+                self._expire_transfers_locked()
+                existing = self.open_records.get(record_key)
+                if existing is not None:
+                    if existing["payload_hash"] != request["payload_hash"]:
+                        return self._read_error("IdentityConflict", "同 Open 身份内容不同")
+                    if existing["status"] == "active":
+                        return existing["opened"]
+                    return self._read_error("SourceUnavailable" if existing["status"] == "opening" else "TransferExpired",
+                                            "原 Open 未完成或已经终止", existing["transfer_id"])
+                transfer_id = uuid.uuid4().hex
+                record = {"identity": identity, "message_id": request["message_id"],
+                          "payload_hash": request["payload_hash"], "transfer_id": transfer_id, "status": "opening"}
+                self._set_record_locked(record_key, record)
+            committed = False
+            try:
+                operation_deadline = self.budget.deadline
+                if logical_query["op"] == "snapshot":
+                    body = self.snapshot(logical_query, deadline=operation_deadline, paged=True, cache=False)
+                else:
+                    body = self.watch(logical_query, deadline=operation_deadline, paged=True)
+                self._remaining_ms()
+                if body.get("kind") == "Gap":
+                    return self._read_error("SnapshotExpired", "原 snapshot token 已失效", transfer_id)
+                expected_kind = "EconomicSnapshot" if logical_query["op"] == "snapshot" else "EconomicWatch"
+                if body.get("kind") != expected_kind or set(body.get("domains", {})) != set(self.nodes):
+                    return self._read_error("IntegrityError", "完整逻辑文档类型或域集合错误", transfer_id)
+                encoded = canonical(body)
+                if len(encoded) > min(4194304, self.resources["max_cached_bytes"]):
+                    raise EconomicQueryError("QueryBudgetExceeded：完整逻辑正文超过聚合帽")
+                fixed = {}
+                for domain, view in body["domains"].items():
+                    if view.get("status") == "Available":
+                        fixed[domain] = verify_cut(view.get("cut" if expected_kind == "EconomicSnapshot" else "next_cut"), domain)
+                    elif view.get("status") == "Unavailable":
+                        fixed[domain] = None
+                    else:
+                        return self._read_error("IntegrityError", "域可用状态非法", transfer_id)
+                descriptor = {
+                    "schema_revision": revision, "transfer_id": transfer_id,
+                    "session_id": self.session, "session_generation": self.generation,
+                    "manifest_hash": self.manifest_hash, "producer_id": "Q:" + self.session,
+                    "producer_epoch": self.query_epoch, "query_sha256": digest(logical_query),
+                    "document_kind": expected_kind, "fixed_cuts": fixed,
+                    "owner_epochs": dict(self.epochs), "document_bytes": str(len(encoded)),
+                    "document_sha256": hashlib.sha256(encoded).hexdigest(), "chunk_bytes": "262144",
+                    "page_count": str((len(encoded) + 262143) // 262144),
+                }
+                opened = {"schema_revision": revision, "kind": "EconomicReadOpened", "descriptor": descriptor,
+                          "descriptor_sha256": digest(descriptor)}
+                temporary = expected_kind == "EconomicWatch"
+                cache_key = "economic-watch-" + transfer_id if temporary else body["snapshot_token"]
+                active = {**record, "status": "active", "opened": opened, "cache_key": cache_key,
+                          "temporary": temporary, "deadline_ns": str(int(operation_deadline * 1000000000))}
+                with self.lock:
+                    self._expire_transfers_locked()
+                    self._remaining_ms()
+                    old_bytes = self.cache.get(cache_key)
+                    if old_bytes is not None and old_bytes != encoded:
+                        return self._read_error("IntegrityError", "正文缓存身份冲突", transfer_id)
+                    delta_meta = len(canonical(active)) - len(canonical(self.open_records[record_key]))
+                    self._admit_locked(delta_meta + (len(encoded) if old_bytes is None else 0),
+                                       int(old_bytes is None), protected=(cache_key,))
+                    if old_bytes is None:
+                        self.cache[cache_key] = encoded
+                        self.cached_bytes += len(encoded)
+                    self.cache.move_to_end(cache_key)
+                    self.open_records[record_key] = active
+                    self.metadata_bytes += delta_meta
+                    self.transfers[transfer_id] = {"record_key": record_key, "cache_key": cache_key,
+                                                   "temporary": temporary, "deadline": operation_deadline}
+                    committed = True
+                self._remaining_ms()
+                return opened
+            finally:
+                if not committed:
+                    with self.lock:
+                        failed = {**record, "status": "closed"}
+                        self._set_record_locked(record_key, failed)
+        transfer_id, descriptor_hash = payload["transfer_id"], payload["descriptor_sha256"]
+        if type(transfer_id) is not str or re.fullmatch(r"[0-9a-f]{32}", transfer_id) is None:
+            raise EconomicQueryError("transfer_id 格式错误")
+        if type(descriptor_hash) is not str or re.fullmatch(r"[0-9a-f]{64}", descriptor_hash) is None:
+            raise EconomicQueryError("descriptor_sha256 格式错误")
+        with self.lock:
+            self._expire_transfers_locked()
+            transfer = self.transfers.get(transfer_id)
+            closed = {"schema_revision": revision, "kind": "EconomicReadClosed", "transfer_id": transfer_id,
+                      "descriptor_sha256": descriptor_hash}
+            if transfer is None:
+                return closed if op == "EconomicReadClose" else self._read_error("TransferExpired", "读取传输已失效", transfer_id)
+            record = self.open_records[transfer["record_key"]]
+            if record["identity"] != identity or record["opened"]["descriptor_sha256"] != descriptor_hash:
+                return self._read_error("IdentityConflict", "读取传输来源或描述符不同", transfer_id)
+            if op == "EconomicReadClose":
+                self._drop_transfer_locked(transfer_id)
+                return closed
+            remaining = integer(payload["requested_remaining_ms"], "requested_remaining_ms", positive=True)
+            if remaining > 30000:
+                raise EconomicQueryError("requested_remaining_ms 超过30000")
+            page_deadline = min(transfer["deadline"], time.monotonic() + remaining / 1000)
+            self._start(page_deadline if deadline is None else min(page_deadline, deadline))
+            offset = integer(payload["offset"], "offset")
+            encoded = self.cache[transfer["cache_key"]]
+            if offset >= len(encoded) or offset % 262144:
+                raise EconomicQueryError("页 offset 必须是正文内固定步长边界")
+            chunk = encoded[offset:offset + 262144]
+            end = offset + len(chunk)
+            result = {"schema_revision": revision, "kind": "EconomicReadPage", "transfer_id": transfer_id,
+                      "descriptor_sha256": descriptor_hash, "offset": str(offset), "raw_byte_count": str(len(chunk)),
+                      "chunk_sha256": hashlib.sha256(chunk).hexdigest(), "data_base64": base64.b64encode(chunk).decode("ascii"),
+                      "next_offset": None if end == len(encoded) else str(end), "done": end == len(encoded)}
+            self._remaining_ms()
+            return result
 
     def _remaining_ms(self):
         deadline = getattr(self.budget, "deadline", None)
@@ -433,11 +662,37 @@ class EconomicQuery:
             raise EconomicQueryError("QueryBudgetExceeded：完整经济查询达到总期限")
         return min(left, self.resources["timeout_ms"])
 
+    @contextmanager
+    def capture(self, request, deadline):
+        scope = None if self.wire_evidence is None else self.wire_evidence.scope(request, deadline)
+        self.budget.wire_scope = scope
+        error = None
+        try:
+            yield
+        except BaseException as exc:
+            error = exc
+            raise
+        finally:
+            self.budget.wire_scope = None
+            if scope is not None:
+                try:
+                    scope.close(None if error is None else type(error).__name__)
+                    if time.monotonic() >= deadline:
+                        raise EconomicQueryError("原wire封存达到公共请求原期限")
+                except (OSError, ValueError) as evidence_error:
+                    if error is None:
+                        raise
+                    error.add_note("原wire封存也失败：" + str(evidence_error))
+
     def _parallel_domains(self, operation):
         deadline = self.budget.deadline
+        paged = getattr(self.budget, "paged", False)
+        wire_scope = getattr(self.budget, "wire_scope", None)
 
         def run(domain):
             self.budget.deadline = deadline
+            self.budget.paged = paged
+            self.budget.wire_scope = wire_scope
             try:
                 return operation(domain)
             except (ValueError, KeyError, TypeError, OSError, RecursionError) as exc:
@@ -456,9 +711,38 @@ class EconomicQuery:
         }
 
     def owner(self, domain, payload):
+        if getattr(self.budget, "paged", False) and payload.get("op") in ("ReadView", "Watch"):
+            from s_socket_client import read_economic_pages
+            required = {"EconomicReadOpen", "EconomicReadPage", "EconomicReadClose"}
+            if not required <= self.authorized_read_ops:
+                raise EconomicQueryError("Q 来源未明确获准分页只读操作")
+            def fetch(page_payload, remaining_ms):
+                request = self.request(page_payload)
+                wire = exchange(self.nodes[domain], request,
+                                timeout_ms=min(remaining_ms, self.resources["timeout_ms"]),
+                                max_frame_bytes=min(1048576, self.resources["max_frame_bytes"]),
+                                evidence=getattr(self.budget, "wire_scope", None),
+                                logical_deadline=self.budget.deadline)
+                if wire["transport"] != "Received":
+                    raise EconomicQueryError(wire["transport"] + ": " + wire.get("detail", ""))
+                return validate_reply(request, wire["response"], producer=domain,
+                                      producer_epoch=self.epochs[domain])
+            result = read_economic_pages(
+                payload, fetch, session_id=self.session, session_generation=self.generation,
+                producer_id=domain + ":" + self.session, producer_epoch=self.epochs[domain],
+                manifest_hash=self.manifest_hash, owner_epochs={domain: self.epochs[domain]},
+                deadline=self.budget.deadline,
+                max_frame_bytes=min(1048576, self.resources["max_frame_bytes"]),
+                max_document_bytes=min(4194304, self.resources["max_cached_bytes"]))
+            if result.get("domain_id") != domain:
+                raise EconomicQueryError("权威分页内容与获准连接不同")
+            self._remaining_ms()
+            return result
         request = self.request(payload)
         result = exchange(self.nodes[domain], request, timeout_ms=self._remaining_ms(),
-                          max_frame_bytes=self.resources["max_frame_bytes"])
+                          max_frame_bytes=self.resources["max_frame_bytes"],
+                          evidence=getattr(self.budget, "wire_scope", None),
+                                logical_deadline=self.budget.deadline)
         if result["transport"] != "Received":
             raise EconomicQueryError(result["transport"] + ": " + result.get("detail", ""))
         response = validate_reply(request, result["response"], producer=domain,
@@ -512,23 +796,21 @@ class EconomicQuery:
         return {"status": "Available", "cut": response["cut"], "commit_ns": commit_ns, "image": image,
                 "image_hash": response["image_hash"]}
 
-    def _store(self, body):
+    def _store(self, body, *, paged=False, cache=True):
         token = "economic-snapshot-" + digest(body)
-        encoded = canonical(body)
-        if len(encoded) > self.resources["max_reply_bytes"] or len(encoded) > self.resources["max_cached_bytes"]:
-            raise EconomicQueryError("QueryBudgetExceeded：完整经济切面超过事前容量")
-        with self.lock:
-            if token not in self.cache:
-                while self.cache and (len(self.cache) >= self.resources["max_snapshots"]
-                                      or self.cached_bytes + len(encoded) > self.resources["max_cached_bytes"]):
-                    _, old = self.cache.popitem(last=False)
-                    self.cached_bytes -= len(old)
-                self.cache[token] = encoded
-                self.cached_bytes += len(encoded)
-        return {**body, "snapshot_token": token}
+        result = {**body, "snapshot_token": token}
+        encoded = canonical(result)
+        if not paged and len(encoded) > self.resources["max_reply_bytes"]:
+            raise EconomicQueryError("QueryBudgetExceeded：旧版单帧经济切面超过容量")
+        self._remaining_ms()
+        if cache:
+            with self.lock:
+                self._cache_put_locked(token, encoded)
+        return result
 
-    def snapshot(self, payload):
-        self._start()
+    def snapshot(self, payload, *, deadline=None, paged=False, cache=True):
+        self._start(deadline)
+        self.budget.paged = paged
         if type(payload) is not dict or set(payload) != {"op", "cuts", "as_known_ns", "snapshot_token"}:
             raise EconomicQueryError("snapshot 参数不完整或多余")
         if payload["op"] != "snapshot":
@@ -538,11 +820,19 @@ class EconomicQuery:
             if type(token) is not str or cuts is not None or as_known is not None:
                 raise EconomicQueryError("固定 token 不能混入新 cut 或获知时刻")
             with self.lock:
+                self._expire_transfers_locked()
                 encoded = self.cache.get(token)
+                if encoded is not None:
+                    self.cache.move_to_end(token)
             if encoded is None:
+                self._remaining_ms()
                 return {"kind": "Gap", "reason": "SnapshotExpired", "requested_token": token,
                         "session_id": self.session, "session_generation": self.generation}
-            return {**json.loads(encoded), "snapshot_token": token}
+            result = decode_frame(encoded)
+            if not paged and len(encoded) > self.resources["max_reply_bytes"]:
+                raise EconomicQueryError("QueryBudgetExceeded：旧版单帧经济切面超过容量")
+            self._remaining_ms()
+            return result
         if cuts is not None and (type(cuts) is not dict or set(cuts) != set(self.nodes)):
             raise EconomicQueryError("回看须给完整域向量")
         if cuts is not None and as_known is not None:
@@ -560,11 +850,12 @@ class EconomicQuery:
             "mode": "AsKnown" if cuts is not None or as_known is not None else "Current",
             "as_known_ns": as_known, "domains": views,
             "completeness": "CompleteVector" if all(v["status"] == "Available" for v in views.values()) else "PartialVector",
-        })
+        }, paged=paged, cache=cache)
 
     def original(self, payload):
         """#1394：沿指定完整经济 cut 向量查原件，绝不用后来回执填旧 cut。"""
         self._start()
+        self.budget.paged = False
         if (type(payload) is not dict
                 or set(payload) != {"op", "kind", "domain_id", "object_id", "cuts"}
                 or payload["op"] != "original" or payload["kind"] not in ("decision", "grant")):
@@ -599,8 +890,9 @@ class EconomicQuery:
                 "session_generation": self.generation, "manifest_hash": self.manifest_hash,
                 "cuts": cuts, "domain_id": domain, "original": response}
 
-    def watch(self, payload):
-        self._start()
+    def watch(self, payload, *, deadline=None, paged=False):
+        self._start(deadline)
+        self.budget.paged = paged
         if type(payload) is not dict or set(payload) != {"op", "cuts"} or payload["op"] != "watch":
             raise EconomicQueryError("watch 参数不完整或多余")
         cuts = payload["cuts"]
@@ -639,6 +931,8 @@ class EconomicQuery:
         domains = self._parallel_domains(read_changes)
         result = {"kind": "EconomicWatch", "session_id": self.session,
                   "session_generation": self.generation, "manifest_hash": self.manifest_hash, "domains": domains}
-        if len(canonical(result)) > self.resources["max_reply_bytes"]:
+        limit = self.resources["max_cached_bytes" if paged else "max_reply_bytes"]
+        if len(canonical(result)) > limit:
             raise EconomicQueryError("QueryBudgetExceeded：完整经济变化超过事前容量")
+        self._remaining_ms()
         return result

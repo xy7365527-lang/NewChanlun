@@ -5,13 +5,618 @@ use crate::session_protocol::{
     canonical_json, nonnegative, positive, reply_envelope, required, sha256_hex, validate_envelope,
 };
 use crate::session_transport::{
-    process_lock, serve_unix, serve_unix_with_deadline, EnvelopeValidator, TransportBounds,
+    process_lock, serve_unix_with_deadline, EnvelopeValidator, TransportBounds,
 };
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+
+// #1406 C6a：分页是单独、显式授权的只读协议，不接管旧单帧读失败。
+const READ_PAGES: &str = "economic-read-pages/1";
+const READ_CHUNK: usize = 262_144;
+const READ_CACHE: usize = 4 * 1_048_576;
+const READ_FRAME: usize = 1_048_576;
+const READ_TRANSFERS: usize = 4;
+const READ_CHANGES: usize = 32;
+
+struct ReadTransfer {
+    open_key: String,
+    request_hash: String,
+    principal_hash: String,
+    descriptor: String,
+    descriptor_hash: String,
+    document: Option<Vec<u8>>,
+    cuts: Vec<StoredImage>,
+    deadline: std::time::Instant,
+}
+impl ReadTransfer {
+    fn release_document(&mut self) {
+        self.document = None;
+        self.descriptor = String::new();
+        self.cuts = Vec::new();
+    }
+    fn retained_bytes(&self, key: &String) -> usize {
+        // 原文和所有持有的身份/描述符同账；固定余量覆盖 map 节点等元数据。
+        // 这是保守缓存准入，并不冒称进程 RSS 计量。
+        std::mem::size_of::<Self>()
+            + 512
+            + key.capacity()
+            + self.open_key.capacity()
+            + self.request_hash.capacity()
+            + self.principal_hash.capacity()
+            + self.descriptor.capacity()
+            + self.descriptor_hash.capacity()
+            + self.document.as_ref().map_or(0, Vec::capacity)
+            + self.cuts.capacity() * std::mem::size_of::<StoredImage>()
+            + self
+                .cuts
+                .iter()
+                .map(|c| c.root.capacity() + c.previous_root.capacity() + c.commit_ns.capacity())
+                .sum::<usize>()
+    }
+}
+#[derive(Default)]
+struct ReadTransfers {
+    entries: BTreeMap<String, ReadTransfer>,
+}
+impl ReadTransfers {
+    fn expire(&mut self) {
+        let now = std::time::Instant::now();
+        for entry in self.entries.values_mut() {
+            if now >= entry.deadline {
+                entry.release_document();
+            }
+        }
+    }
+    fn retained_bytes(&self) -> usize {
+        self.entries.iter().map(|(k, v)| v.retained_bytes(k)).sum()
+    }
+}
+fn read_principal(e: &Value) -> String {
+    hash(&json!([
+        e["session_id"],
+        e["session_generation"],
+        e["source_namespace"],
+        e["source_epoch"],
+        e["producer_id"],
+        e["producer_epoch"]
+    ]))
+}
+fn read_deadline(p: &Value, ingress: std::time::Instant) -> Result<std::time::Instant, String> {
+    let ms = positive(
+        required(p, "requested_remaining_ms")?,
+        "requested_remaining_ms",
+    )?;
+    if ms > 30_000 {
+        return Err("InvalidDomain：分页剩余窗超过原30秒".into());
+    }
+    let deadline = std::time::Instant::now()
+        .checked_add(Duration::from_millis(ms as u64))
+        .ok_or("InvalidDomain：分页截止溢出")?
+        .min(ingress);
+    check_operation_deadline(None, Some(deadline))?;
+    Ok(deadline)
+}
+fn page_identity(p: &Value) -> Result<(&str, &str), String> {
+    let id = required(p, "transfer_id")?;
+    let digest = required(p, "descriptor_sha256")?;
+    let lower_hex = |s: &str, n| {
+        s.len() == n
+            && s.bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    };
+    if !lower_hex(id, 32) || !lower_hex(digest, 64) {
+        return Err("SchemaUnsupported：分页身份不是固定小写hex".into());
+    }
+    Ok((id, digest))
+}
+fn random_transfer_id() -> Result<String, String> {
+    use std::io::Read;
+    let mut bytes = [0u8; 16];
+    std::fs::File::open("/dev/urandom")
+        .map_err(err)?
+        .read_exact(&mut bytes)
+        .map_err(err)?;
+    Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
+}
+fn encoded_page(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for block in bytes.chunks(3) {
+        let a = block[0];
+        let b = block.get(1).copied().unwrap_or(0);
+        let c = block.get(2).copied().unwrap_or(0);
+        out.push(DIGITS[(a >> 2) as usize] as char);
+        out.push(DIGITS[(((a & 3) << 4) | (b >> 4)) as usize] as char);
+        out.push(if block.len() > 1 {
+            DIGITS[(((b & 15) << 2) | (c >> 6)) as usize] as char
+        } else {
+            '='
+        });
+        out.push(if block.len() > 2 {
+            DIGITS[(c & 63) as usize] as char
+        } else {
+            '='
+        });
+    }
+    out
+}
+fn append_read_bytes(out: &mut Vec<u8>, bytes: &[u8]) -> Result<(), String> {
+    let size = out
+        .len()
+        .checked_add(bytes.len())
+        .filter(|n| *n <= READ_CACHE)
+        .ok_or("QueryBudgetExceeded：完整读取逻辑文档超过4MiB")?;
+    out.try_reserve_exact(size - out.len()).map_err(err)?;
+    out.extend_from_slice(bytes);
+    Ok(())
+}
+/// fields 的 raw_field 是唯一直接嵌入的、已核 canonical JSON 字节；其余按原规范核编码。
+fn read_object(fields: &Value, raw_field: &str, raw: &[u8]) -> Result<Vec<u8>, String> {
+    let map = fields
+        .as_object()
+        .ok_or("SchemaUnsupported：分页逻辑对象")?;
+    let mut keys: Vec<_> = map.keys().collect();
+    keys.sort();
+    let mut out = Vec::new();
+    append_read_bytes(&mut out, b"{")?;
+    for (index, key) in keys.iter().enumerate() {
+        if index != 0 {
+            append_read_bytes(&mut out, b",")?;
+        }
+        append_read_bytes(&mut out, canonical_json(&json!(key)).as_bytes())?;
+        append_read_bytes(&mut out, b":")?;
+        if key.as_str() == raw_field {
+            append_read_bytes(&mut out, raw)?;
+        } else {
+            append_read_bytes(&mut out, canonical_json(&map[*key]).as_bytes())?;
+        }
+    }
+    append_read_bytes(&mut out, b"}")?;
+    Ok(out)
+}
+fn selected_image_meta(
+    c: &Connection,
+    config: &Config,
+    query: &Value,
+) -> Result<StoredImage, String> {
+    if !query["cut"].is_null() && !query["as_known_ns"].is_null() {
+        return Err("InvalidDomain：cut与AsKnown不能同时指定".into());
+    }
+    let selected = if !query["cut"].is_null() {
+        let wanted = &query["cut"];
+        exact(wanted, &["domain_id", "commit_seq", "root_hash"])?;
+        if wanted["domain_id"] != config.domain {
+            return Err("IdentityConflict：跨域cut".into());
+        }
+        nonnegative(required(wanted, "commit_seq")?, "commit_seq")?
+    } else if !query["as_known_ns"].is_null() {
+        let ns = nonnegative(required(query, "as_known_ns")?, "as_known_ns")?;
+        c.query_row(
+            "SELECT max(seq) FROM commits WHERE CAST(commit_ns AS INTEGER)<=?",
+            [ns],
+            |r| r.get::<_, Option<i64>>(0),
+        )
+        .map_err(err)?
+        .ok_or("MissingDependency：AsKnown早于域创世")?
+    } else {
+        c.query_row("SELECT max(seq) FROM commits", [], |r| {
+            r.get::<_, Option<i64>>(0)
+        })
+        .map_err(err)?
+        .ok_or("MissingDependency：域无创世cut")?
+    };
+    let image = stored_image(c, selected, READ_CACHE)?;
+    if !query["cut"].is_null() && query["cut"] != cut(config, image.seq, &image.root) {
+        return Err("IdentityConflict：cut根不匹配".into());
+    }
+    Ok(image)
+}
+fn fixed_image_bytes(
+    c: &Connection,
+    image: &StoredImage,
+    deadline: std::time::Instant,
+) -> Result<Vec<u8>, String> {
+    check_operation_deadline(None, Some(deadline))?;
+    let raw = stored_image_bytes(c, image, 0, image.bytes)?;
+    let parsed = crate::session_protocol::strict_json(&raw)
+        .map_err(|e| format!("StorageUnavailable：持久图像解析失败：{e}"))?;
+    if canonical_json(&parsed).as_bytes() != raw.as_slice() {
+        return Err("StorageUnavailable：持久图像不是原canonical字节".into());
+    }
+    check_operation_deadline(None, Some(deadline))?;
+    Ok(raw)
+}
+fn fixed_read_document(
+    c: &mut Connection,
+    config: &Config,
+    epoch: i64,
+    runtime: &Value,
+    query: &Value,
+    deadline: std::time::Instant,
+) -> Result<(Vec<u8>, Vec<StoredImage>, StoredImage, &'static str), String> {
+    let tx = c.transaction().map_err(err)?;
+    check_operation_deadline(None, Some(deadline))?;
+    check_epoch(&tx, epoch)?;
+    let operation = required(query, "op")?;
+    let mut cuts = Vec::new();
+    let mut changes = Vec::new();
+    let next = match operation {
+        "ReadView" => {
+            exact(query, &["op", "cut", "as_known_ns"])?;
+            let selected = selected_image_meta(&tx, config, query)?;
+            cuts.push(selected.clone());
+            selected
+        }
+        "Watch" => {
+            exact(query, &["op", "after_cut"])?;
+            let after = if query["after_cut"].is_null() {
+                -1
+            } else {
+                let selected = selected_image_meta(
+                    &tx,
+                    config,
+                    &json!({"cut":query["after_cut"],"as_known_ns":null}),
+                )?;
+                let seq = selected.seq;
+                cuts.push(selected);
+                seq
+            };
+            let next = selected_image_meta(&tx, config, &json!({"cut":null,"as_known_ns":null}))?;
+            let count: i64 = tx
+                .query_row(
+                    "SELECT count(*) FROM commits WHERE seq>? AND seq<=?",
+                    params![after, next.seq],
+                    |r| r.get(0),
+                )
+                .map_err(err)?;
+            if count < 0 || count > READ_CHANGES as i64 {
+                return Err("QueryBudgetExceeded：完整Watch超过32条".into());
+            }
+            let mut statement = tx
+                .prepare("SELECT seq FROM commits WHERE seq>? AND seq<=? ORDER BY seq")
+                .map_err(err)?;
+            let rows = statement
+                .query_map(params![after, next.seq], |r| r.get::<_, i64>(0))
+                .map_err(err)?;
+            let mut total = 0usize;
+            for row in rows {
+                let image = stored_image(&tx, row.map_err(err)?, READ_CACHE)?;
+                total = total
+                    .checked_add(image.bytes)
+                    .filter(|n| *n <= READ_CACHE)
+                    .ok_or("QueryBudgetExceeded：完整Watch图像超过4MiB")?;
+                changes.push(image.clone());
+                cuts.push(image);
+            }
+            if !cuts.iter().any(|image| image.seq == next.seq) {
+                cuts.push(next.clone());
+            }
+            next
+        }
+        _ => return Err("SchemaUnsupported：分页只接受ReadView/Watch".into()),
+    };
+    // 每次 open 沿原审计核一次；所有 SQL 的检查共享本读截止。续页不重跑历史。
+    let mut job = if config.revision()? == SCHEMA_V2 {
+        Some(new_content_job(&tx, config)?)
+    } else {
+        None
+    };
+    audit_with_deadline(&tx, config, job.as_mut(), Some(deadline))?;
+    let (document, kind) = if operation == "ReadView" {
+        let raw = fixed_image_bytes(&tx, &next, deadline)?;
+        let fields = json!({"kind":"EconomicView","domain_id":config.domain,"cut":cut(config,next.seq,&next.root),"image_hash":sha256_hex(&raw),"image":null,"commit_ns":next.commit_ns,"writer_epoch":epoch.to_string(),"runtime":runtime});
+        (read_object(&fields, "image", &raw)?, "EconomicView")
+    } else {
+        let mut array = Vec::new();
+        append_read_bytes(&mut array, b"[")?;
+        for (index, image) in changes.iter().enumerate() {
+            let raw = fixed_image_bytes(&tx, image, deadline)?;
+            let fields = json!({"cut":cut(config,image.seq,&image.root),"image_hash":sha256_hex(&raw),"image":null,"commit_ns":image.commit_ns});
+            let change = read_object(&fields, "image", &raw)?;
+            if index != 0 {
+                append_read_bytes(&mut array, b",")?;
+            }
+            append_read_bytes(&mut array, &change)?;
+        }
+        append_read_bytes(&mut array, b"]")?;
+        let fields = json!({"kind":"EconomicChanges","domain_id":config.domain,"cut":cut(config,next.seq,&next.root),"changes":null,"writer_epoch":epoch.to_string()});
+        (read_object(&fields, "changes", &array)?, "EconomicChanges")
+    };
+    check_operation_deadline(None, Some(deadline))?;
+    tx.commit().map_err(err)?;
+    Ok((document, cuts, next, kind))
+}
+
+fn checked_transfer_roots(
+    c: &mut Connection,
+    config: &Config,
+    epoch: i64,
+    entry: &ReadTransfer,
+) -> Result<(), String> {
+    check_operation_deadline(None, Some(entry.deadline))?;
+    let tx = c.transaction().map_err(err)?;
+    check_epoch(&tx, epoch)?;
+    for (name, expected) in [
+        ("domain_id", &config.domain),
+        ("session_id", &config.session),
+        ("session_generation", &config.generation),
+        ("manifest_hash", &config.manifest_hash),
+    ] {
+        if meta(&tx, name)? != *expected {
+            return Err("IdentityConflict：分页持久域身份改变".into());
+        }
+    }
+    for image in &entry.cuts {
+        if stored_image(&tx, image.seq, READ_CACHE)? != *image {
+            return Err("StorageUnavailable：分页固定cut身份改变".into());
+        }
+        check_operation_deadline(None, Some(entry.deadline))?;
+    }
+    tx.commit().map_err(err)?;
+    Ok(())
+}
+fn read_opened(entry: &ReadTransfer) -> Result<Value, String> {
+    if entry.document.is_none() {
+        return Err("SnapshotExpired：分页已关闭、失败或过期".into());
+    }
+    check_operation_deadline(None, Some(entry.deadline))?;
+    Ok(
+        json!({"schema_revision":READ_PAGES,"kind":"EconomicReadOpened","descriptor":crate::session_protocol::strict_json(entry.descriptor.as_bytes())?,"descriptor_sha256":entry.descriptor_hash}),
+    )
+}
+fn read_response(e: &Value, payload: Value, config: &Config, epoch: i64) -> Result<Value, String> {
+    let response = reply_envelope(
+        e,
+        payload,
+        config.revision()?,
+        &config.session,
+        &config.generation,
+        "economic-session/replies",
+        &config.producer,
+        &epoch.to_string(),
+    );
+    let configured = usize::try_from(positive(
+        required(&config.manifest["resources"], "max_frame_bytes")?,
+        "max_frame_bytes",
+    )?)
+    .map_err(err)?;
+    let frame = canonical_json(&response);
+    if frame
+        .len()
+        .checked_add(1)
+        .is_none_or(|bytes| bytes > configured.min(READ_FRAME))
+    {
+        return Err("QueryBudgetExceeded：完整分页信封加LF超过物理帧帽".into());
+    }
+    Ok(response)
+}
+fn paged_read(
+    c: &mut Connection,
+    config: &Config,
+    epoch: i64,
+    runtime: &Value,
+    e: &Value,
+    ingress: std::time::Instant,
+    state: &mut ReadTransfers,
+) -> Result<Value, String> {
+    config.authorized(e)?;
+    let p = &e["payload"];
+    if p["schema_revision"] != READ_PAGES {
+        return Err("SchemaUnsupported：只读分页版本".into());
+    }
+    state.expire();
+    match required(p, "op")? {
+        "EconomicReadOpen" => {
+            exact(
+                p,
+                &["schema_revision", "op", "query", "requested_remaining_ms"],
+            )?;
+            let deadline = read_deadline(p, ingress)?;
+            let principal = read_principal(e);
+            let open_key = hash(&json!([principal, e["message_id"]]));
+            let request_hash = hash(e);
+            let query = &p["query"];
+            // 分页权限不隐含扩大原逻辑查询权限。
+            let mut logical_request = e.clone();
+            logical_request["payload"] = query.clone();
+            config.authorized(&logical_request)?;
+            if let Some(entry) = state
+                .entries
+                .values_mut()
+                .find(|entry| entry.open_key == open_key)
+            {
+                if entry.request_hash != request_hash {
+                    return Err("IdentityConflict：分页open消息身份内容改变".into());
+                }
+                entry.deadline = entry.deadline.min(deadline);
+                checked_transfer_roots(c, config, epoch, entry)?;
+                return read_response(e, read_opened(entry)?, config, epoch);
+            }
+            if state
+                .entries
+                .values()
+                .filter(|entry| entry.document.is_some())
+                .count()
+                >= READ_TRANSFERS
+            {
+                return Err("QueryBudgetExceeded：活动分页逻辑项达到4项".into());
+            }
+            let id = random_transfer_id()?;
+            if state.entries.contains_key(&id) {
+                return Err("IdentityConflict：随机分页身份冲突".into());
+            }
+            let entry = ReadTransfer {
+                open_key,
+                request_hash,
+                principal_hash: principal,
+                descriptor: String::new(),
+                // 失败后的终态也持有摘要；准入时预留这64字节，避免失败清理后越帽。
+                descriptor_hash: "0".repeat(64),
+                document: None,
+                cuts: Vec::new(),
+                deadline,
+            };
+            if state
+                .retained_bytes()
+                .checked_add(entry.retained_bytes(&id))
+                .is_none_or(|n| n > READ_CACHE)
+            {
+                return Err("QueryBudgetExceeded：分页共享缓存元数据已满".into());
+            }
+            // 先签去重身份：任何审计/编码失败都不能用相同 open 消息重开时间窗。
+            state.entries.insert(id.clone(), entry);
+            let (document, cuts, next, kind) =
+                fixed_read_document(c, config, epoch, runtime, query, deadline)?;
+            let mut fixed_cuts = serde_json::Map::new();
+            fixed_cuts.insert(config.domain.clone(), cut(config, next.seq, &next.root));
+            let mut owner_epochs = serde_json::Map::new();
+            owner_epochs.insert(config.domain.clone(), json!(epoch.to_string()));
+            let descriptor = json!({"schema_revision":READ_PAGES,"transfer_id":id,
+                "session_id":config.session,"session_generation":config.generation,"manifest_hash":config.manifest_hash,
+                "producer_id":config.producer,"producer_epoch":epoch.to_string(),"query_sha256":hash(query),
+                "document_kind":kind,"fixed_cuts":fixed_cuts,"owner_epochs":owner_epochs,
+                "document_bytes":document.len().to_string(),"document_sha256":sha256_hex(&document),
+                "chunk_bytes":READ_CHUNK.to_string(),"page_count":document.len().div_ceil(READ_CHUNK).to_string()});
+            let descriptor_bytes = canonical_json(&descriptor);
+            let descriptor_hash = sha256_hex(descriptor_bytes.as_bytes());
+            let payload = json!({"schema_revision":READ_PAGES,"kind":"EconomicReadOpened","descriptor":descriptor,"descriptor_sha256":descriptor_hash});
+            let response = read_response(e, payload, config, epoch)?;
+            check_operation_deadline(None, Some(deadline))?;
+            let entry = state.entries.get_mut(&id).unwrap();
+            entry.descriptor = descriptor_bytes;
+            entry.descriptor_hash = descriptor_hash;
+            entry.document = Some(document);
+            entry.cuts = cuts;
+            if state.retained_bytes() > READ_CACHE {
+                state.entries.get_mut(&id).unwrap().release_document();
+                return Err("QueryBudgetExceeded：逻辑原文与分页共享元数据超过4MiB".into());
+            }
+            Ok(response)
+        }
+        "EconomicReadPage" => {
+            exact(
+                p,
+                &[
+                    "schema_revision",
+                    "op",
+                    "transfer_id",
+                    "descriptor_sha256",
+                    "offset",
+                    "requested_remaining_ms",
+                ],
+            )?;
+            let deadline = read_deadline(p, ingress)?;
+            let (id, descriptor_hash) = page_identity(p)?;
+            let entry = state
+                .entries
+                .get_mut(id)
+                .ok_or("SnapshotExpired：未知分页身份")?;
+            if entry.principal_hash != read_principal(e) || entry.descriptor_hash != descriptor_hash
+            {
+                return Err("IdentityConflict：分页来源或描述符不匹配".into());
+            }
+            entry.deadline = entry.deadline.min(deadline);
+            checked_transfer_roots(c, config, epoch, entry)?;
+            let document = entry
+                .document
+                .as_ref()
+                .ok_or("SnapshotExpired：分页已关闭或过期")?;
+            let offset =
+                usize::try_from(nonnegative(required(p, "offset")?, "offset")?).map_err(err)?;
+            if offset >= document.len() || offset % READ_CHUNK != 0 {
+                return Err("InvalidDomain：页offset不是固定步长边界".into());
+            }
+            let end = offset.saturating_add(READ_CHUNK).min(document.len());
+            let raw = &document[offset..end];
+            let done = end == document.len();
+            let payload = json!({"schema_revision":READ_PAGES,"kind":"EconomicReadPage","transfer_id":id,
+                "descriptor_sha256":descriptor_hash,"offset":offset.to_string(),"raw_byte_count":raw.len().to_string(),
+                "chunk_sha256":sha256_hex(raw),"data_base64":encoded_page(raw),
+                "next_offset":if done { Value::Null } else { json!(end.to_string()) },"done":done});
+            let response = read_response(e, payload, config, epoch)?;
+            check_operation_deadline(None, Some(entry.deadline))?;
+            Ok(response)
+        }
+        "EconomicReadClose" => {
+            exact(
+                p,
+                &["schema_revision", "op", "transfer_id", "descriptor_sha256"],
+            )?;
+            let (id, descriptor_hash) = page_identity(p)?;
+            if let Some(entry) = state.entries.get_mut(id) {
+                if entry.principal_hash != read_principal(e)
+                    || entry.descriptor_hash != descriptor_hash
+                {
+                    return Err("IdentityConflict：关闭来源或描述符不匹配".into());
+                }
+                entry.release_document();
+            }
+            read_response(
+                e,
+                json!({"schema_revision":READ_PAGES,"kind":"EconomicReadClosed","transfer_id":id,"descriptor_sha256":descriptor_hash}),
+                config,
+                epoch,
+            )
+        }
+        _ => Err("SchemaUnsupported：未知只读分页操作".into()),
+    }
+}
+fn handle_paged_read(
+    c: &mut Connection,
+    config: &Config,
+    epoch: i64,
+    runtime: &Value,
+    e: &Value,
+    deadline: std::time::Instant,
+    state: &mut ReadTransfers,
+) -> Value {
+    match paged_read(c, config, epoch, runtime, e, deadline, state) {
+        Ok(response) => response,
+        Err(error) => {
+            let code = if error.starts_with("SchemaUnsupported")
+                && (error.contains("只读分页版本")
+                    || error.contains("分页只接受")
+                    || error.contains("未知只读分页操作"))
+            {
+                "SchemaUnsupported"
+            } else if error.starts_with("IdentityConflict")
+                || error.starts_with("StaleWriter")
+                || error.contains("来源未获准")
+            {
+                "IdentityConflict"
+            } else if error.starts_with("MissingDependency") {
+                "MissingDependency"
+            } else if error.starts_with("SnapshotExpired")
+                || error.starts_with("Incomplete：经济操作最早绝对期限已过")
+            {
+                "TransferExpired"
+            } else if error.starts_with("QueryBudgetExceeded") || error.starts_with("Incomplete") {
+                "QueryBudgetExceeded"
+            } else if error.starts_with("StorageUnavailable")
+                && (error.contains("域损坏") || error.contains("图像") || error.contains("cut"))
+            {
+                "IntegrityError"
+            } else if error.starts_with("StorageUnavailable") {
+                "SourceUnavailable"
+            } else {
+                "InvalidQuery"
+            };
+            let transfer_id = page_identity(&e["payload"])
+                .ok()
+                .map(|(id, _)| json!(id))
+                .unwrap_or(Value::Null);
+            let payload = json!({"schema_revision":READ_PAGES,"kind":"EconomicReadError","code":code,"detail":error,"transfer_id":transfer_id});
+            read_response(e, payload, config, epoch).unwrap_or_else(|_| {
+                // 巨大公共身份使合法因果回复自身超帧时，不发送超帽成功或伪造身份。
+                // 与 transport 的无合法帧错误同形；接收端必须拒绝它。
+                json!({"kind":"Error","error":"QueryBudgetExceeded：分页错误信封也超过物理帧帽"})
+            })
+        }
+    }
+}
 
 /// `/1` 与 `/2` 的信封校验各一份，派发只按 `Config::revision()`；没有第三档、没有宽松兜底。
 fn validate_v1(v: Value) -> Result<Value, String> {
@@ -931,8 +1536,15 @@ pub fn cli(is_b: bool) -> Result<(), String> {
             } else {
                 validate_v1
             };
-            if config.revision()? == SCHEMA_V2 {
-                serve_unix_with_deadline(&config.socket, bounds, validator, |e, deadline| {
+            let mut reads = ReadTransfers::default();
+            let revision = config.revision()?;
+            serve_unix_with_deadline(&config.socket, bounds, validator, |e, deadline| {
+                if matches!(
+                    e["payload"]["op"].as_str(),
+                    Some("EconomicReadOpen" | "EconomicReadPage" | "EconomicReadClose")
+                ) {
+                    handle_paged_read(&mut c, &config, epoch, &runtime, e, deadline, &mut reads)
+                } else if revision == SCHEMA_V2 {
                     handle_with_deadline(
                         &mut c,
                         &config,
@@ -942,14 +1554,393 @@ pub fn cli(is_b: bool) -> Result<(), String> {
                         e,
                         Some(deadline),
                     )
-                })?;
-            } else {
-                serve_unix(&config.socket, bounds, validator, |e| {
+                } else {
+                    // /1 金融写入口保持原有语义；只读分页使用新 transport 截止。
                     handle(&mut c, &config, epoch, e_epoch, &runtime, e)
-                })?;
-            }
+                }
+            })?;
         }
         _ => return Err("InvalidDomain：未知子命令".into()),
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod read_page_tests {
+    use super::*;
+    use crate::economic_session::tb03c_book_tests::Space;
+    use std::time::Instant;
+
+    fn fixture(tag: &str) -> (Space, Config, Connection) {
+        let space = Space::new(tag);
+        let manifest = json!({"schema_revision":"economic-manifest/1","session_id":"pages","session_generation":"1","book_revision":"tb03c-book/1",
+            "e":{"db":space.0.join("e.db"),"socket":space.0.join("e.sock")},
+            "chongs":[{"chong_id":"one","symbol":"TEST","operation_level":"1","fixed_q":"10","db":space.0.join("b.db"),"socket":space.0.join("b.sock")}],
+            "authorized_sources":[{"source_namespace":"pages-test","source_epoch":"1","producer_id":"reader","producer_epoch":"1","operations":["ReadView","Watch","EconomicReadOpen","EconomicReadPage","EconomicReadClose"]}],
+            "resources":{"max_frame_bytes":"1048576","read_timeout_ms":"1000","write_timeout_ms":"1000","response_timeout_ms":"30000","queue_capacity":"2","max_connections":"2"},
+            "clock":{"kind":"TestOnly","plan":{"init_ns":"1","recover_ns":["90000"],"messages":{}}}});
+        let path = space.0.join("manifest.json");
+        std::fs::write(&path, canonical_json(&manifest)).unwrap();
+        let config = Config::load(&path, &space.0.join("e.db"), None).unwrap();
+        init(&config).unwrap();
+        let connection = open(&config.db, false).unwrap().0;
+        (space, config, connection)
+    }
+    fn request(payload: Value, id: &str) -> Value {
+        json!({"schema_revision":SCHEMA_V1,"session_id":"pages","session_generation":"1",
+            "source_namespace":"pages-test","source_epoch":"1","producer_id":"reader","producer_epoch":"1",
+            "message_id":id,"causal_refs":[],"payload_hash":hash(&payload),"payload":payload})
+    }
+    fn open_request(query: Value, id: &str) -> Value {
+        request(
+            json!({"schema_revision":READ_PAGES,"op":"EconomicReadOpen","query":query,"requested_remaining_ms":"30000"}),
+            id,
+        )
+    }
+    fn view_request(id: &str) -> Value {
+        open_request(json!({"op":"ReadView","cut":null,"as_known_ns":null}), id)
+    }
+    fn page_request(opened: &Value, offset: usize, id: &str) -> Value {
+        request(
+            json!({"schema_revision":READ_PAGES,"op":"EconomicReadPage","transfer_id":opened["descriptor"]["transfer_id"],"descriptor_sha256":opened["descriptor_sha256"],"offset":offset.to_string(),"requested_remaining_ms":"30000"}),
+            id,
+        )
+    }
+    fn close_request(opened: &Value) -> Value {
+        request(
+            json!({"schema_revision":READ_PAGES,"op":"EconomicReadClose","transfer_id":opened["descriptor"]["transfer_id"],"descriptor_sha256":opened["descriptor_sha256"]}),
+            "close",
+        )
+    }
+    fn send(
+        c: &mut Connection,
+        config: &Config,
+        runtime: &Value,
+        request: &Value,
+        state: &mut ReadTransfers,
+    ) -> Value {
+        handle_paged_read(
+            c,
+            config,
+            1,
+            runtime,
+            request,
+            Instant::now() + Duration::from_secs(30),
+            state,
+        )["payload"]
+            .clone()
+    }
+    fn decode_base64_for_test(encoded: &str) -> Vec<u8> {
+        // 独立的逐位解码，只用于断言编码输出；不参与生产组装。
+        let alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let mut bits = 0u32;
+        let mut held = 0;
+        let mut out = Vec::new();
+        for b in encoded.bytes().take_while(|b| *b != b'=') {
+            bits = (bits << 6) | alphabet.bytes().position(|c| c == b).unwrap() as u32;
+            held += 6;
+            if held >= 8 {
+                held -= 8;
+                out.push((bits >> held) as u8);
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn page_encoding_matches_independent_rfc4648_vectors() {
+        for (raw, encoded) in [
+            ("", ""),
+            ("f", "Zg=="),
+            ("fo", "Zm8="),
+            ("foo", "Zm9v"),
+            ("汉", "5rGJ"),
+            ("{\"ok\":true}", "eyJvayI6dHJ1ZX0="),
+        ] {
+            assert_eq!(encoded_page(raw.as_bytes()), encoded);
+            assert_eq!(decode_base64_for_test(encoded), raw.as_bytes());
+        }
+    }
+
+    #[test]
+    fn blob_reader_counts_and_slices_utf8_bytes_and_rechecks_cut_identity() {
+        let c = Connection::open_in_memory().unwrap();
+        c.execute_batch(
+            "CREATE TABLE commits(seq INTEGER,root TEXT,prev_root TEXT,commit_ns TEXT,image TEXT)",
+        )
+        .unwrap();
+        let raw = "{\"x\":\"汉😀\"}";
+        c.execute("INSERT INTO commits VALUES(0,'root','','1',?)", [raw])
+            .unwrap();
+        let image = stored_image(&c, 0, 100).unwrap();
+        assert_eq!(image.bytes, raw.len());
+        assert_eq!(
+            stored_image_bytes(&c, &image, 7, 2).unwrap(),
+            &raw.as_bytes()[7..9]
+        );
+        assert!(stored_image(&c, 0, raw.len() - 1).is_err());
+        assert!(stored_image_bytes(&c, &image, raw.len(), 1).is_err());
+        c.execute("UPDATE commits SET root='changed'", []).unwrap();
+        assert!(stored_image_bytes(&c, &image, 0, 1).is_err());
+    }
+
+    #[test]
+    fn open_view_and_watch_preserve_original_canonical_payload() {
+        let (_space, config, mut c) = fixture("c6a-page-original");
+        let runtime = json!({"diagnostic":"UTF-8/汉"});
+        let (seq, root, _, _) = latest(&c).unwrap();
+        for (i, query) in [
+            json!({"op":"ReadView","cut":null,"as_known_ns":null}),
+            json!({"op":"ReadView","cut":cut(&config,seq,&root),"as_known_ns":null}),
+            json!({"op":"ReadView","cut":null,"as_known_ns":"1"}),
+            json!({"op":"Watch","after_cut":null}),
+            json!({"op":"Watch","after_cut":cut(&config,seq,&root)}),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let expected = read(&mut c, &config, 1, &runtime, &query).unwrap();
+            let mut state = ReadTransfers::default();
+            let opened = send(
+                &mut c,
+                &config,
+                &runtime,
+                &open_request(query.clone(), &format!("open-{i}")),
+                &mut state,
+            );
+            assert_eq!(opened["kind"], "EconomicReadOpened", "{opened}");
+            let descriptor = &opened["descriptor"];
+            let id = descriptor["transfer_id"].as_str().unwrap();
+            let document = state.entries[id].document.as_ref().unwrap();
+            assert_eq!(document, canonical_json(&expected).as_bytes());
+            assert_eq!(descriptor["query_sha256"], hash(&query));
+            assert_eq!(descriptor["document_sha256"], sha256_hex(document));
+            assert_eq!(descriptor["fixed_cuts"]["E"], expected["cut"]);
+            assert_eq!(descriptor["owner_epochs"]["E"], "1");
+            assert!(state.retained_bytes() <= READ_CACHE);
+        }
+    }
+
+    #[test]
+    fn oversized_logical_view_crosses_utf8_pages_with_bounded_full_frames() {
+        let (_space, config, mut c) = fixture("c6a-page-large");
+        // 只扩大诊断字段，验证字节协议；不冒充完整金融41步正控。
+        let runtime = json!({"padding":"汉😀\\\"".repeat(150_000)});
+        let mut state = ReadTransfers::default();
+        let opened = send(
+            &mut c,
+            &config,
+            &runtime,
+            &view_request("large"),
+            &mut state,
+        );
+        assert_eq!(opened["kind"], "EconomicReadOpened", "{opened}");
+        let id = opened["descriptor"]["transfer_id"].as_str().unwrap();
+        let original = state.entries[id].document.as_ref().unwrap().clone();
+        assert!(original.len() > READ_FRAME);
+        let mut rebuilt = Vec::new();
+        for offset in (0..original.len()).step_by(READ_CHUNK) {
+            let req = page_request(&opened, offset, &format!("page-{offset}"));
+            let response = handle_paged_read(
+                &mut c,
+                &config,
+                1,
+                &runtime,
+                &req,
+                Instant::now() + Duration::from_secs(30),
+                &mut state,
+            );
+            assert!(canonical_json(&response).len() + 1 <= READ_FRAME);
+            let page = &response["payload"];
+            assert_eq!(page["kind"], "EconomicReadPage", "{page}");
+            let raw = decode_base64_for_test(page["data_base64"].as_str().unwrap());
+            assert_eq!(page["chunk_sha256"], sha256_hex(&raw));
+            assert_eq!(page["offset"], offset.to_string());
+            assert_eq!(page["raw_byte_count"], raw.len().to_string());
+            rebuilt.extend_from_slice(&raw);
+            assert_eq!(page["done"], rebuilt.len() == original.len());
+            assert_eq!(
+                page["next_offset"],
+                if rebuilt.len() == original.len() {
+                    Value::Null
+                } else {
+                    json!(rebuilt.len().to_string())
+                }
+            );
+        }
+        assert_eq!(rebuilt, original);
+        let decoded = crate::session_protocol::strict_json(&rebuilt).unwrap();
+        assert_eq!(decoded["runtime"], runtime);
+    }
+
+    #[test]
+    fn open_and_page_retransmission_do_not_renew_deadline() {
+        let (_space, config, mut c) = fixture("c6a-page-retry");
+        let mut state = ReadTransfers::default();
+        let req = view_request("same-open");
+        let opened = send(&mut c, &config, &json!({}), &req, &mut state);
+        let id = opened["descriptor"]["transfer_id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let deadline = state.entries[&id].deadline;
+        assert_eq!(send(&mut c, &config, &json!({}), &req, &mut state), opened);
+        assert_eq!(state.entries[&id].deadline, deadline);
+        let page = page_request(&opened, 0, "same-page");
+        let first = send(&mut c, &config, &json!({}), &page, &mut state);
+        assert_eq!(send(&mut c, &config, &json!({}), &page, &mut state), first);
+        assert_eq!(state.entries[&id].deadline, deadline);
+        let changed = open_request(json!({"op":"Watch","after_cut":null}), "same-open");
+        assert_eq!(
+            send(&mut c, &config, &json!({}), &changed, &mut state)["code"],
+            "IdentityConflict"
+        );
+        state.entries.get_mut(&id).unwrap().deadline = Instant::now();
+        assert_eq!(
+            send(&mut c, &config, &json!({}), &page, &mut state)["code"],
+            "TransferExpired"
+        );
+        assert_eq!(
+            send(&mut c, &config, &json!({}), &req, &mut state)["code"],
+            "TransferExpired"
+        );
+        assert!(state.entries[&id].document.is_none());
+        assert_eq!(state.entries.len(), 1);
+    }
+
+    #[test]
+    fn close_releases_document_keeps_tombstone_and_is_idempotent() {
+        let (_space, config, mut c) = fixture("c6a-page-close");
+        let mut state = ReadTransfers::default();
+        let req = view_request("close-open");
+        let opened = send(&mut c, &config, &json!({}), &req, &mut state);
+        let before = state.retained_bytes();
+        let close = close_request(&opened);
+        let closed = send(&mut c, &config, &json!({}), &close, &mut state);
+        assert_eq!(closed["kind"], "EconomicReadClosed");
+        assert!(state.retained_bytes() < before);
+        assert!(state.retained_bytes() > 0);
+        assert_eq!(
+            send(&mut c, &config, &json!({}), &close, &mut state),
+            closed
+        );
+        assert_eq!(
+            send(&mut c, &config, &json!({}), &req, &mut state)["code"],
+            "TransferExpired"
+        );
+    }
+
+    #[test]
+    fn malformed_offset_wrong_identity_epoch_and_changed_cut_fail_closed() {
+        let (_space, config, mut c) = fixture("c6a-page-negative");
+        let mut state = ReadTransfers::default();
+        let opened = send(
+            &mut c,
+            &config,
+            &json!({}),
+            &view_request("negative"),
+            &mut state,
+        );
+        let page = page_request(&opened, 1, "unaligned");
+        assert_eq!(
+            send(&mut c, &config, &json!({}), &page, &mut state)["code"],
+            "InvalidQuery"
+        );
+        let mut wrong = page_request(&opened, 0, "wrong-descriptor");
+        wrong["payload"]["descriptor_sha256"] = json!("f".repeat(64));
+        assert_eq!(
+            send(&mut c, &config, &json!({}), &wrong, &mut state)["code"],
+            "IdentityConflict"
+        );
+        let mut wrong = page_request(&opened, 0, "wrong-source");
+        wrong["source_epoch"] = json!("2");
+        assert_eq!(
+            send(&mut c, &config, &json!({}), &wrong, &mut state)["code"],
+            "IdentityConflict"
+        );
+        set_meta(&c, "writer_epoch", "2").unwrap();
+        let page = page_request(&opened, 0, "changed-epoch");
+        assert_eq!(
+            send(&mut c, &config, &json!({}), &page, &mut state)["code"],
+            "IdentityConflict"
+        );
+        set_meta(&c, "writer_epoch", "1").unwrap();
+        c.execute("UPDATE commits SET root='corrupt'", []).unwrap();
+        assert_eq!(
+            send(&mut c, &config, &json!({}), &page, &mut state)["code"],
+            "IntegrityError"
+        );
+    }
+
+    #[test]
+    fn cache_pins_and_tombstone_metadata_share_the_original_budget() {
+        let (_space, config, mut c) = fixture("c6a-page-cache");
+        let mut state = ReadTransfers::default();
+        let mut first = Value::Null;
+        for n in 0..READ_TRANSFERS {
+            let opened = send(
+                &mut c,
+                &config,
+                &json!({}),
+                &view_request(&format!("pin-{n}")),
+                &mut state,
+            );
+            assert_eq!(opened["kind"], "EconomicReadOpened", "{opened}");
+            if n == 0 {
+                first = opened;
+            }
+        }
+        assert_eq!(
+            send(
+                &mut c,
+                &config,
+                &json!({}),
+                &view_request("pin-fifth"),
+                &mut state
+            )["code"],
+            "QueryBudgetExceeded"
+        );
+        send(
+            &mut c,
+            &config,
+            &json!({}),
+            &close_request(&first),
+            &mut state,
+        );
+        assert_eq!(
+            send(
+                &mut c,
+                &config,
+                &json!({}),
+                &view_request("pin-new"),
+                &mut state
+            )["kind"],
+            "EconomicReadOpened"
+        );
+        assert_eq!(state.entries.len(), READ_TRANSFERS + 1);
+        assert!(state.retained_bytes() <= READ_CACHE);
+        let mut too_big = Vec::new();
+        assert!(append_read_bytes(&mut too_big, &vec![b'x'; READ_CACHE + 1]).is_err());
+        assert!(too_big.is_empty());
+    }
+
+    #[test]
+    fn page_acl_does_not_grant_unlisted_logical_watch() {
+        let (_space, mut config, mut c) = fixture("c6a-page-acl");
+        config.manifest["authorized_sources"][0]["operations"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|op| op != "Watch");
+        let mut state = ReadTransfers::default();
+        let error = send(
+            &mut c,
+            &config,
+            &json!({}),
+            &open_request(json!({"op":"Watch","after_cut":null}), "forbidden"),
+            &mut state,
+        );
+        assert_eq!(error["kind"], "EconomicReadError");
+        assert_eq!(error["code"], "IdentityConflict");
+        assert!(state.entries.is_empty());
+    }
 }

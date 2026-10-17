@@ -1,9 +1,11 @@
 """C6a 纯数据/替身进程合同：不启动产品、网络、SQLite 或发送真实信号。"""
 import copy
+import io
 import json
 from pathlib import Path
 import signal
 import subprocess
+import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -11,6 +13,126 @@ from unittest.mock import Mock, patch
 
 import tb03c_query_runtime as runtime
 from s_socket_client import canonical, digest
+
+
+class ClockSocket:
+    """外层应答纯替身；不打开真实socket。"""
+    family = runtime.socket.AF_UNIX
+    def __init__(self, now):
+        self.now,self.case_end,self.response=now,600.,None
+        self.closed,self.delay=False,0
+        self.mutate=None
+        self.requests=[]
+    def setblocking(self,value):self.blocking=value
+    def set_inheritable(self,value):self.inheritable=value
+    def getsockopt(self,*args):return runtime.socket.SOCK_SEQPACKET
+    def close(self):self.closed=True
+    def send(self,raw):
+        request=json.loads(raw);self.requests.append(request)
+        op=request["op"]
+        if op=="work":anchor={"t0":0.,"work_deadline":600.,"final_deadline":630.}
+        elif op.endswith("-case"):
+            self.case_end=min(600.,self.now[0]+300)
+            anchor={"started_at":self.now[0],"case_deadline":self.case_end,"work_deadline":600.}
+        else:
+            anchor={"started_at":self.now[0],"deadline":min(self.now[0]+10,self.case_end,600.),
+                    "case_deadline":self.case_end,"work_deadline":600.}
+        self.response={**request,"anchor":anchor}
+        if self.mutate:self.mutate(self.response)
+        return len(raw)
+    def recvmsg(self,*args):
+        self.now[0]+=self.delay
+        return json.dumps(self.response).encode(),[],0,None
+
+
+class ExternalClockTests(unittest.TestCase):
+    def setUp(self):
+        self.now=[20.]
+        self.sock=ClockSocket(self.now)
+        self.client=runtime.ExternalClock(self.sock,"a"*32,600.,clock=lambda:self.now[0])
+
+    def budget(self):
+        work=self.client.request("work")
+        return runtime.Budget(work["t0"],clock=lambda:self.now[0],anchors=self.client)
+
+    def test_complete_five_requests_keep_external_origin_and_close_fd(self):
+        budget=self.budget()
+        self.assertEqual((budget.work_end,budget.final_end),(600,630))
+        self.assertEqual(budget.remaining(600),580)
+        budget.begin_case("we5")
+        self.assertEqual(budget.case_end,320)
+        self.assertEqual(budget.q_start("we5")["deadline"],30)
+        self.now[0]=25
+        budget.begin_case("we7")
+        budget.q_start("we7")
+        self.assertEqual([r["op"] for r in self.sock.requests],list(runtime.ANCHOR_OPS))
+        self.assertTrue(self.sock.closed)
+        self.assertFalse(self.sock.inheritable)
+
+    def test_first_response_cannot_move_bootstrap_deadline(self):
+        self.sock.mutate=lambda r:r["anchor"].update(t0=20.,work_deadline=620.,final_deadline=650.)
+        with self.assertRaisesRegex(ValueError,"不得重基"):self.client.request("work")
+        self.assertTrue(self.sock.closed)
+
+    def test_q_response_delay_spends_signed_window(self):
+        budget=self.budget();budget.begin_case("we5")
+        self.sock.delay=11
+        with self.assertRaisesRegex(ValueError,"已过期"):budget.q_start("we5")
+        self.assertTrue(self.sock.closed)
+
+    def test_nine_second_response_leaves_one_second(self):
+        budget=self.budget();budget.begin_case("we5")
+        self.sock.delay=9
+        anchor=budget.q_start("we5")
+        self.assertEqual(budget.until(anchor["deadline"]),1)
+
+    def test_old_case_expired_prevents_request_for_new_case(self):
+        budget=self.budget();budget.begin_case("we5");budget.q_start("we5")
+        self.now[0]=320
+        with self.assertRaises(TimeoutError):budget.begin_case("we7")
+        self.assertEqual(len(self.sock.requests),3)
+
+    def test_cancellation_prevents_handshake_send(self):
+        budget=self.budget();budget.cancel=signal.SIGTERM
+        with self.assertRaises(InterruptedError):budget.begin_case("we5")
+        self.assertEqual(len(self.sock.requests),1)
+
+    def test_bootstrap_timeout_has_no_new_600_second_wait(self):
+        self.now[0]=600
+        with self.assertRaises(TimeoutError):self.client.request("work")
+        self.assertEqual(self.sock.requests,[])
+        self.assertTrue(self.sock.closed)
+
+    def test_protocol_eof_and_ancillary_reject_and_close_received_fd(self):
+        rights=runtime.array.array("i",[123456]).tobytes()
+        self.sock.recvmsg=lambda *args:(b"{}",[(runtime.socket.SOL_SOCKET,runtime.socket.SCM_RIGHTS,rights)],0,None)
+        with patch.object(runtime.os,"close") as close,self.assertRaises(ValueError):
+            self.client.request("work")
+        close.assert_called_once_with(123456)
+        self.assertTrue(self.sock.closed)
+
+    def test_decode_clock_packet_rejects_duplicate_and_nonfinite(self):
+        for raw in (b'{"a":1,"a":1}',b'{"a":NaN}',b'{"a":1e999}'):
+            with self.subTest(raw=raw),self.assertRaises(ValueError):runtime.decode_clock_packet(raw)
+        self.assertEqual(runtime.decode_clock_packet(b'{"a":10.125}'),{"a":10.125})
+
+    def test_boolean_sequence_is_not_integer_sequence(self):
+        self.sock.mutate=lambda r:r.update(seq=True)
+        with self.assertRaisesRegex(ValueError,"序号类型"):self.client.request("work")
+
+    def test_float_sequence_is_not_integer_sequence(self):
+        self.sock.mutate = lambda response: response.update(seq=1.0)
+        with self.assertRaisesRegex(ValueError, "序号类型"):
+            self.client.request("work")
+        self.assertTrue(self.sock.closed)
+
+    def test_cli_without_external_fd_stops_before_socket_or_product(self):
+        with (patch.object(sys,"argv",["driver","--binaries","unused","--build-evidence","unused","--output","unused"]),
+              patch.object(sys,"stderr",io.StringIO()),patch.object(runtime.socket,"socket") as socket,
+              patch.object(runtime.subprocess,"Popen") as popen,self.assertRaises(SystemExit) as caught):
+            runtime.main()
+        self.assertEqual(caught.exception.code,2)
+        socket.assert_not_called();popen.assert_not_called()
 
 
 class BudgetTests(unittest.TestCase):
@@ -382,16 +504,26 @@ class FinalSealTests(unittest.TestCase):
 
 
 class StartupTests(unittest.TestCase):
-    def run_start(self, delay_target=None):
+    def run_start(self, delay_target=None, *, external=False):
         with tempfile.TemporaryDirectory(prefix="c6a-startup-") as temp:
             now = [0.0]
             budget = runtime.Budget(0, clock=lambda: now[0])
+            if external:
+                anchors=runtime.ExternalClock(ClockSocket(now),"a"*32,600.,clock=lambda:now[0])
+                work=anchors.request("work")
+                budget=runtime.Budget(work["t0"],clock=lambda:now[0],anchors=anchors)
+                budget.begin_case("we5")
             supervisor = SimpleNamespace(budget=budget, run=Mock(return_value=canonical(
                 {"kind": "Initialized", "domain_id": "E", "writer_epoch": "1"})), spawn=Mock(return_value=object()))
             seed, _, _ = runtime.load_inputs()
             manifest = copy.deepcopy(seed["manifest"])
             manifest["chongs"] = []
-            case = runtime.Case("probe", Path(temp) / "case", supervisor, Path(temp), manifest)
+            case = runtime.Case("we5" if external else "probe", Path(temp) / "case", supervisor, Path(temp), manifest)
+            if delay_target == "q-spawn":
+                def delayed_spawn(command,label):
+                    if label.endswith("-q"):now[0]+=20
+                    return object()
+                supervisor.spawn.side_effect=delayed_spawn
             deadlines = []
             def owner(*args, deadline=None):
                 deadlines.append(("owner", deadline))
@@ -423,6 +555,12 @@ class StartupTests(unittest.TestCase):
         for target in ("owner", "Q"):
             with self.subTest(target=target), self.assertRaises(TimeoutError):
                 self.run_start(target)
+
+    def test_external_q_anchor_rejects_twenty_second_spawn_delay(self):
+        with self.assertRaises(TimeoutError):self.run_start("q-spawn",external=True)
+
+    def test_real_case_consumes_external_q_anchor(self):
+        self.run_start(external=True)
 
     def test_wire_uses_startup_deadline_for_connect_send_receive_and_return(self):
         for delay_at in ("connect", "send", "recv", None):

@@ -5,12 +5,16 @@
 不导入 SQLite/C7a runtime，不恢复、不注入故障、不启动 S 或浏览器。
 600 秒工作、630 秒清理/封口共用 t0；Python 检查不是不可中断 I/O 的硬期限。
 """
+from __future__ import annotations
+
 import argparse
+import array
 import copy
 import errno
 import hashlib
 import importlib.util
 import json
+import math
 import os
 from pathlib import Path
 import signal
@@ -19,12 +23,14 @@ import subprocess
 import sys
 import threading
 import time
+from types import FrameType
+from typing import Callable, Literal, TypedDict, cast, overload
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 REPO = ROOT.parent
 sys.path.insert(0, str(ROOT))
-from s_socket_client import canonical, decode_frame, digest, validate_reply
+from s_socket_client import canonical, decode_frame, digest, read_economic_pages, validate_reply
 import tb03c_oracle as we5_oracle
 
 BASE = "4d9b072e5b671fc1a84f7d75b3976471b93d2afb"
@@ -33,6 +39,8 @@ WORK_SECONDS, CASE_SECONDS, FINAL_SECONDS = 600, 300, 630
 STARTUP_SECONDS, EXCHANGE_SECONDS, PROCESS_SECONDS = 10, 30, 30
 TERM_SECONDS, KILL_SECONDS = 3, 3
 FRAME_BYTES = 1048576
+ANCHOR_SCHEMA, ANCHOR_BYTES = "c6a-clock/1", 1024
+ANCHOR_OPS: tuple[ClockOp, ...] = ("work", "we5-case", "we5-q", "we7-case", "we7-q")
 SOURCE = {"source_namespace": "testonly-tb1406", "source_epoch": "fixture-epoch-1",
           "producer_id": "tb1406-c7a", "producer_epoch": "1"}
 QUERY_SOURCE = {"source_namespace": "testonly-tb1406-query", "source_epoch": "fixture-epoch-1",
@@ -55,6 +63,40 @@ INPUT_NAMES = (
     "fixtures/tb03c_allocation/RAW.json", "fixtures/tb03c_allocation/FROZEN-MANIFEST.json",
     "fixtures/tb03c_allocation/HAND-ORACLE.json", "fixtures/tb03c_allocation/test_oracle.py",
 )
+
+
+ClockOp = Literal["work", "we5-case", "we5-q", "we7-case", "we7-q"]
+CaseName = Literal["we5", "we7"]
+
+
+class WorkAnchor(TypedDict):
+    t0: float
+    work_deadline: float
+    final_deadline: float
+
+
+class CaseAnchor(TypedDict):
+    started_at: float
+    case_deadline: float
+    work_deadline: float
+
+
+class QAnchor(CaseAnchor):
+    deadline: float
+
+
+ClockAnchor = WorkAnchor | CaseAnchor | QAnchor
+
+
+class ClockRequest(TypedDict):
+    schema: str
+    run_id: str
+    seq: int
+    op: ClockOp
+
+
+class ClockResponse(ClockRequest):
+    anchor: ClockAnchor
 
 
 def require(condition, detail):
@@ -84,16 +126,145 @@ class QStartupConnectRefused(Exception):
     """仅 wire 已封存的 Q ready 启动连接拒绝可触发重试。"""
 
 
+def monotonic_clock() -> float:
+    return time.clock_gettime(time.CLOCK_MONOTONIC)
+
+
+def decode_clock_packet(raw: bytes) -> object:
+    # 业务decode_frame禁止float；时钟协议单独允许有限单调读数，不改业务解码。
+    def unique(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        result = {}
+        for key, value in pairs:
+            require(key not in result, "外部时钟JSON重复键")
+            result[key] = value
+        return result
+    def number(value: str) -> float:
+        parsed = float(value)
+        require(math.isfinite(parsed), "外部时钟非有限值")
+        return parsed
+    return json.loads(raw, object_pairs_hook=unique, parse_float=number,
+                      parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)))
+
+
+class ExternalClock:
+    """仅C6a CLI使用；无本地时钟兜底，无重试续租。"""
+    def __init__(self, sock: socket.socket, run_id: str, bootstrap_end: float,
+                 clock: Callable[[], float] = monotonic_clock) -> None:
+        self.sock, self.run_id, self.bootstrap_end, self.clock = sock, run_id, bootstrap_end, clock
+        self.index, self.work_end, self.case_end = 0, bootstrap_end, bootstrap_end
+        self.closed = False
+        try:
+            require(type(bootstrap_end) in (int, float) and math.isfinite(bootstrap_end), "外部启动期限非法")
+            require(len(run_id) == 32 and all(c in "0123456789abcdef" for c in run_id), "外部时钟run_id非法")
+            self.sock.setblocking(False)
+            self.sock.set_inheritable(False)
+            require(self.sock.family == socket.AF_UNIX and self.sock.getsockopt(socket.SOL_SOCKET, socket.SO_TYPE) == socket.SOCK_SEQPACKET,
+                    "外部时钟必须为Unix seqpacket")
+        except BaseException:
+            self.close()
+            raise
+
+    def close(self) -> None:
+        if not self.closed:
+            self.closed = True
+            self.sock.close()
+
+    @overload
+    def request(self, op: Literal["work"], budget: Budget | None = None) -> WorkAnchor: ...
+
+    @overload
+    def request(self, op: Literal["we5-case", "we7-case"], budget: Budget | None = None) -> CaseAnchor: ...
+
+    @overload
+    def request(self, op: Literal["we5-q", "we7-q"], budget: Budget | None = None) -> QAnchor: ...
+
+    def request(self, op: ClockOp, budget: Budget | None = None) -> ClockAnchor:
+        require(not self.closed and self.index < len(ANCHOR_OPS) and op == ANCHOR_OPS[self.index], "外部时钟顺序/重复请求")
+        deadline = min(self.work_end, self.case_end)
+        def check() -> None:
+            if budget is not None:
+                budget.check()
+            if self.clock() >= deadline:
+                raise TimeoutError("外部时钟握手绝对期限已到")
+        request: ClockRequest = {"schema": ANCHOR_SCHEMA, "run_id": self.run_id, "seq": self.index + 1, "op": op}
+        raw = canonical(request)
+        try:
+            while True:
+                check()
+                try:
+                    count = self.sock.send(raw)
+                    require(count == len(raw), "外部时钟packet发送不完整")
+                    break
+                except BlockingIOError:
+                    time.sleep(min(.01, max(0, deadline - self.clock())))
+            while True:
+                check()
+                try:
+                    data, ancillary, flags, _ = self.sock.recvmsg(ANCHOR_BYTES, socket.CMSG_SPACE(16 * array.array("i").itemsize))
+                    for level, kind, payload in ancillary:
+                        if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:
+                            fds = array.array("i")
+                            fds.frombytes(payload[:len(payload) - len(payload) % fds.itemsize])
+                            for fd in fds:
+                                os.close(fd)
+                    require(data and not ancillary and not flags & (socket.MSG_TRUNC | socket.MSG_CTRUNC), "外部时钟断连/截断/附件")
+                    decoded = decode_clock_packet(data)
+                    break
+                except BlockingIOError:
+                    time.sleep(min(.01, max(0, deadline - self.clock())))
+            check()
+            if type(decoded) is not dict or set(decoded) != set(request) | {"anchor"}:
+                raise ValueError("外部时钟应答字段")
+            response = cast(dict[str, object], decoded)
+            equal({k: response[k] for k in request}, request, "外部时钟应答身份")
+            require(type(response["seq"]) is int, "外部时钟序号类型")
+            raw_anchor = response["anchor"]
+            if type(raw_anchor) is not dict or not all(type(v) in (int, float) and math.isfinite(v) for v in raw_anchor.values()):
+                raise ValueError("外部时钟值非法")
+            anchor = cast(dict[str, float], raw_anchor)
+            checked_anchor: ClockAnchor
+            if op == "work":
+                equal(set(anchor), {"t0", "work_deadline", "final_deadline"}, "work锚字段")
+                equal((anchor["t0"] + WORK_SECONDS, anchor["t0"] + FINAL_SECONDS),
+                      (anchor["work_deadline"], anchor["final_deadline"]), "原600/630秒")
+                equal(anchor["work_deadline"], self.bootstrap_end, "首次握手不得重基")
+                require(anchor["t0"] <= self.clock() < anchor["work_deadline"], "work锚越界")
+                checked_anchor = cast(WorkAnchor, anchor)
+            elif op.endswith("-case"):
+                equal(set(anchor), {"started_at", "case_deadline", "work_deadline"}, "case锚字段")
+                equal(anchor["work_deadline"], self.work_end, "case不得重开work")
+                equal(anchor["case_deadline"], min(self.work_end, anchor["started_at"] + CASE_SECONDS), "原300秒")
+                require(anchor["started_at"] <= self.clock() < anchor["case_deadline"], "case锚已过期")
+                self.case_end = anchor["case_deadline"]
+                checked_anchor = cast(CaseAnchor, anchor)
+            else:
+                equal(set(anchor), {"started_at", "deadline", "case_deadline", "work_deadline"}, "q锚字段")
+                equal((anchor["case_deadline"], anchor["work_deadline"]), (self.case_end, self.work_end), "q不得重开父期限")
+                equal(anchor["deadline"], min(anchor["started_at"] + STARTUP_SECONDS, self.case_end, self.work_end), "原10秒")
+                require(anchor["started_at"] <= self.clock() < anchor["deadline"], "q锚响应已过期")
+                checked_anchor = cast(QAnchor, anchor)
+            self.index += 1
+            if self.index == len(ANCHOR_OPS):
+                self.close()
+            return checked_anchor
+        except BaseException:
+            self.close()
+            raise
+
+
 class Budget:
-    def __init__(self, t0=None, clock=time.monotonic):
+    def __init__(self, t0: float | None = None, clock: Callable[[], float] = time.monotonic,
+                 anchors: ExternalClock | None = None) -> None:
         self.clock = clock
         self.t0 = clock() if t0 is None else t0
         self.work_end, self.final_end = self.t0 + WORK_SECONDS, self.t0 + FINAL_SECONDS
         self.case_end = self.work_end
-        self.cancel = None
-        self.sealed_output = None
+        self.cancel: int | None = None
+        self.sealed_output: Path | None = None
+        # 无anchors仅供纯替身/预算单测；正式main始终要求外层通道。
+        self.anchors = anchors
 
-    def receive_cancel(self, number, frame=None):
+    def receive_cancel(self, number: int, frame: FrameType | None = None) -> None:
         self.cancel = number
         if self.sealed_output is not None:
             # 成功文件只是候选。封口后独立写失败原件，绝不覆盖/重写 RESULT。
@@ -105,18 +276,34 @@ class Budget:
             finally:
                 raise SystemExit(1)
 
-    def until(self, end):
+    def until(self, end: float) -> float:
         self.check()
         left = min(end, self.case_end, self.work_end) - self.clock()
         if left <= 0:
             raise TimeoutError("绝对子期限已到；不得重开窗口")
         return left
 
-    def begin_case(self):
+    def begin_case(self, name: CaseName | None = None) -> None:
         self.check()
-        self.case_end = min(self.work_end, self.clock() + CASE_SECONDS)
+        if self.anchors is None:
+            self.case_end = min(self.work_end, self.clock() + CASE_SECONDS)
+        else:
+            if name not in ("we5", "we7"):
+                raise ValueError("外部时钟case名称非法")
+            anchor = self.anchors.request("we5-case" if name == "we5" else "we7-case", self)
+            self.case_end = anchor["case_deadline"]
 
-    def check(self, *, final=False):
+    def q_start(self, name: CaseName) -> QAnchor:
+        self.check()
+        if self.anchors is not None:
+            if name not in ("we5", "we7"):
+                raise ValueError("外部时钟q名称非法")
+            return self.anchors.request("we5-q" if name == "we5" else "we7-q", self)
+        started = self.clock()
+        return {"started_at": started, "deadline": min(started + STARTUP_SECONDS, self.case_end, self.work_end),
+                "case_deadline": self.case_end, "work_deadline": self.work_end}
+
+    def check(self, *, final: bool = False) -> float:
         if not final and self.cancel is not None:
             raise InterruptedError("收到取消：" + str(self.cancel))
         end = self.final_end if final else min(self.work_end, self.case_end)
@@ -125,7 +312,7 @@ class Budget:
             raise TimeoutError("固定总期限已到；不得重开窗口或晚到 PASS")
         return remaining
 
-    def remaining(self, maximum, *, final=False):
+    def remaining(self, maximum: float, *, final: bool = False) -> float:
         return min(maximum, self.check(final=final))
 
 
@@ -409,9 +596,10 @@ class Case:
         for index, node in enumerate(self.nodes.values()):
             node.update(db=str(self.work / f"{index}.db"), socket=str(self.work / f"{index}.sock"))
             require(len(node["socket"].encode()) < 100, "socket 路径须少于 100 字节")
-        self.manifest["authorized_sources"].append({**QUERY_SOURCE, "operations": ["ReadView", "Watch"]})
+        self.manifest["authorized_sources"].append({**QUERY_SOURCE, "operations": ["ReadView", "Watch",
+            "EconomicReadOpen", "EconomicReadPage", "EconomicReadClose"]})
         self.epochs, self.processes, self.requests = {}, [], {}
-        self.sequence, self.query_sequence, self.port = 0, 0, None
+        self.sequence, self.query_sequence, self.logical_sequence, self.port = 0, 0, 0, None
         save(self.work / "manifest.json", self.manifest)
 
     def args(self, domain, op):
@@ -524,15 +712,28 @@ class Case:
         return bytes(response)
 
     def owner(self, domain, payload, message, *, deadline=None):
-        request = self.envelope(payload, message, query=payload["op"] in ("ReadView", "Watch"))
+        if payload["op"] in ("ReadView", "Watch"):
+            return self.paged(payload, domain=domain, message=message, deadline=deadline)
+        return self.owner_frame(domain, payload, message, deadline=deadline)
+
+    def owner_frame(self, domain, payload, message, *, deadline=None, evidence=None):
+        request = self.envelope(payload, message, query=payload["op"] in
+                                ("EconomicReadOpen", "EconomicReadPage", "EconomicReadClose"))
         if message in self.requests:
             equal(self.requests[message], request, "精确消息重送")
         self.requests[message] = copy.deepcopy(request)
+        if evidence is not None:
+            self.page_envelope(evidence, "request", request)
         raw = self.wire(self.nodes[domain]["socket"], canonical(request) + b"\n", deadline=deadline)
         frame, separator, tail = raw.partition(b"\n")
         require(separator and not tail, "owner 单行原帧不完整或多帧")
-        result = validate_reply(request, decode_frame(frame), producer=domain, producer_epoch=self.epochs[domain])
-        equal(result.get("domain_id"), domain, "owner 域身份")
+        require(len(raw) <= FRAME_BYTES, "owner 响应含LF超帧")
+        response = decode_frame(frame)
+        if evidence is not None:
+            self.page_envelope(evidence, "response", response)
+        result = validate_reply(request, response, producer=domain, producer_epoch=self.epochs[domain])
+        if evidence is None:
+            equal(result.get("domain_id"), domain, "owner 域身份")
         if deadline is not None:
             self.budget.until(deadline)
         return result
@@ -541,6 +742,12 @@ class Case:
         if startup_ready is not None:
             require(path == "/api/economic/ready" and payload is None,
                     "Q startup 重试仅限显式零 body ready GET")
+        if payload is not None and payload.get("op") in ("snapshot", "watch"):
+            equal(path, "/api/economic/" + payload["op"], "逻辑公共读取路径")
+            return self.paged(payload, domain="Q", deadline=deadline)
+        return self.http_frame(path, payload, deadline=deadline, startup_ready=startup_ready)
+
+    def http_frame(self, path, payload=None, *, deadline=None, startup_ready=None, evidence=None):
         if payload is None:
             body, request = b"", None
             method = "GET"
@@ -548,14 +755,93 @@ class Case:
             self.query_sequence += 1
             request = self.envelope(payload, "public-" + str(self.query_sequence), query=True)
             body, method = canonical(request), "POST"
+            if evidence is not None:
+                self.page_envelope(evidence, "request", request)
         wire = (f"{method} {path} HTTP/1.0\r\nHost: 127.0.0.1:{self.port}\r\nContent-Type: application/json\r\n"
                 f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n").encode() + body
-        response = parse_http(self.wire(("127.0.0.1", self.port), wire, http=True,
-                                        limit=FRAME_BYTES + 16384, deadline=deadline, startup_ready=startup_ready))
+        raw = self.wire(("127.0.0.1", self.port), wire, http=True,
+                        limit=FRAME_BYTES + 16384, deadline=deadline, startup_ready=startup_ready)
+        require(len(raw.partition(b"\r\n\r\n")[2]) <= FRAME_BYTES, "HTTP 正文超帧")
+        response = parse_http(raw)
+        if evidence is not None:
+            self.page_envelope(evidence, "response", response)
         result = response if request is None else validate_reply(request, response, producer="Q", producer_epoch="1")
         if deadline is not None:
             self.budget.until(deadline)
         return result
+
+    @staticmethod
+    def page_envelope(evidence, side, envelope):
+        # 原信封仍在wire文件；此处提供索引，独立验收必须重新从原wire解析。
+        evidence[side + "_envelope_sha256"] = digest(envelope)
+        evidence[side + "_identity"] = {key: envelope.get(key) for key in (
+            "schema_revision", "session_id", "session_generation", "source_namespace", "source_epoch",
+            "producer_id", "producer_epoch", "message_id", "payload_hash", "causal_refs")}
+
+    def paged(self, query, *, domain, message=None, deadline=None):
+        started = self.budget.clock()
+        end = min(started + EXCHANGE_SECONDS, self.budget.case_end, self.budget.work_end,
+                  deadline if deadline is not None else self.budget.work_end)
+        self.logical_sequence += 1
+        logical_id = f"logical-{self.logical_sequence:04d}"
+        epochs = dict(self.epochs) if domain == "Q" else {domain: self.epochs[domain]}
+        epoch = "1" if domain == "Q" else self.epochs[domain]
+        proof = {"schema_revision": "c6a-logical-pages/1", "logical_id": logical_id,
+            "domain": domain, "logical_message": message, "selector": copy.deepcopy(query),
+            "query_sha256": digest(query), "session_id": self.manifest["session_id"],
+            "session_generation": self.manifest["session_generation"], "manifest_hash": digest(self.manifest),
+            "producer_id": domain + ":" + self.manifest["session_id"], "producer_epoch": epoch,
+            "owner_epochs": epochs, "started_at": started, "deadline": end,
+            "case_deadline": self.budget.case_end, "work_deadline": self.budget.work_end,
+            "physical": [], "status": "FAILED"}
+
+        def fetch(payload, remaining_ms):
+            self.budget.until(end)
+            record = {"index": len(proof["physical"]) + 1, "sequence": None, "op": payload["op"],
+                      "remaining_ms": remaining_ms, "started_at": self.budget.clock(), "deadline": end}
+            proof["physical"].append(record)
+            previous = self.sequence
+            try:
+                if domain == "Q":
+                    result = self.http_frame("/api/economic/read", payload, deadline=end, evidence=record)
+                else:
+                    result = self.owner_frame(domain, payload, logical_id + "-" + str(record["index"]),
+                                              deadline=end, evidence=record)
+                self.budget.until(end)
+                return result
+            except BaseException as error:
+                record["error_class"] = type(error).__name__
+                raise
+            finally:
+                record["observed_at"] = self.budget.clock()
+                if self.sequence != previous:
+                    equal(self.sequence, previous + 1, "每页必须恰一次physical输送")
+                    record["sequence"] = self.sequence
+                    record["transport"] = f"{self.sequence:04d}-transport.json"
+
+        try:
+            self.budget.until(end)
+            value = read_economic_pages(query, fetch, session_id=proof["session_id"],
+                session_generation=proof["session_generation"], producer_id=proof["producer_id"],
+                producer_epoch=epoch, manifest_hash=proof["manifest_hash"], owner_epochs=epochs,
+                deadline=end, clock=self.budget.clock, max_frame_bytes=FRAME_BYTES, max_document_bytes=4194304)
+            raw = canonical(value)
+            payload_path = self.output / (logical_id + "-payload.json")
+            with payload_path.open("xb") as stream:
+                stream.write(raw)
+            self.budget.until(end)
+            proof.update(status="COMPLETE", payload=payload_path.name, document_bytes=len(raw),
+                         document_sha256=hashlib.sha256(raw).hexdigest())
+            return value
+        except BaseException as error:
+            proof["error_class"] = type(error).__name__
+            raise
+        finally:
+            proof["observed_at"] = self.budget.clock()
+            save(self.output / (logical_id + "-pagination.json"), proof)
+            # 包括证据封存成本；不得保存成功后越过根期限仍交付。
+            if proof["status"] == "COMPLETE":
+                self.budget.until(end)
 
     def start(self):
         for domain in self.nodes:
@@ -585,11 +871,11 @@ class Case:
         command = [sys.executable, "-B", str(ROOT / "s_readonly_server.py"), "--db", str(self.structural_db),
                    "--browser", str(self.work / "UNUSED-BROWSER.html"), "--host", "127.0.0.1", "--port", str(self.port),
                    "--resource-config", str(HERE / "fixtures/tb01c/query-resources.json"), "--producer-epoch", "1",
-                   "--economic-config", str(self.work / "query.json")]
-        started_at = self.budget.clock()
-        end = min(started_at + STARTUP_SECONDS, self.budget.case_end, self.budget.work_end)
-        startup = {"schema_revision": "c6a-q-startup/1", "started_at": started_at, "deadline": end,
-                   "case_deadline": self.budget.case_end, "work_deadline": self.budget.work_end}
+                   "--economic-config", str(self.work / "query.json"),
+                   "--economic-wire-evidence", str(self.output / "q-owner-wire")]
+        anchor = self.budget.q_start(self.name)
+        end = anchor["deadline"]
+        startup = {"schema_revision": "c6a-q-startup/1", **anchor}
         first_sequence = self.sequence + 1
         self.processes.append(self.supervisor.spawn(command, self.name + "-q"))
         while True:
@@ -1004,16 +1290,26 @@ def finalize(output, budget, supervisor, results, primary, cleanup):
 
 
 def main():
-    t0 = time.monotonic()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binaries", required=True, type=Path)
     parser.add_argument("--build-evidence", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--anchor-fd", required=True, type=int)
+    parser.add_argument("--anchor-run-id", required=True)
+    parser.add_argument("--anchor-work-deadline", required=True, type=float)
     args = parser.parse_args()
-    output = args.output.resolve()
-    output.mkdir(parents=False, exist_ok=False)
-    budget = Budget(t0)
-    supervisor = Supervisor(output, budget)
+    require(args.anchor_fd > 2, "外部时钟FD非法")
+    anchors = ExternalClock(socket.socket(fileno=args.anchor_fd), args.anchor_run_id, args.anchor_work_deadline)
+    try:
+        work = anchors.request("work")
+        budget = Budget(work["t0"], clock=monotonic_clock, anchors=anchors)
+        budget.check()
+        output = args.output.resolve()
+        output.mkdir(parents=False, exist_ok=False)
+        supervisor = Supervisor(output, budget)
+    except BaseException:
+        anchors.close()
+        raise
     handlers = {}
     results, primary, cleanup = [], None, None
     try:
@@ -1037,7 +1333,7 @@ def main():
                  "startup": STARTUP_SECONDS, "exchange": EXCHANGE_SECONDS, "cli": PROCESS_SECONDS,
                  "term_grace": TERM_SECONDS, "kill_grace": KILL_SECONDS}, "hard_io_deadline": False})
         for name in ("we5", "we7"):
-            budget.begin_case()
+            budget.begin_case(name)
             manifest = seed["manifest"] if name == "we5" else we7_manifest(seed, oracle)
             case = Case(name, output / name, supervisor, args.binaries.resolve(), manifest)
             results.append(execute_we5(case, plan) if name == "we5" else execute_we7(case, oracle))
@@ -1047,6 +1343,7 @@ def main():
     except BaseException as error:
         primary = {"type": type(error).__name__, "detail": str(error)}
     finally:
+        anchors.close()
         try:
             supervisor.close()
         except BaseException as error:

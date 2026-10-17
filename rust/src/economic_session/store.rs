@@ -206,6 +206,9 @@ impl Config {
                     "ApplyAllocation",
                     "ReadView",
                     "Watch",
+                    "EconomicReadOpen",
+                    "EconomicReadPage",
+                    "EconomicReadClose",
                     "QueryFact",
                     "QueryAllocation",
                     "BindVoice",
@@ -663,6 +666,74 @@ pub(crate) fn latest(c: &Connection) -> Result<(i64, String, String, Value), Str
         )
         .map_err(err)?;
     Ok((seq, root, ns, strict_json(image.as_bytes())?))
+}
+/// #1406 C6a：只读页的持久身份；先读长度，再允许有界原字节读取。
+/// 不持有跨请求 SQLite 事务，不新增持久游标或修改经济事实。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct StoredImage {
+    pub seq: i64,
+    pub root: String,
+    pub previous_root: String,
+    pub commit_ns: String,
+    pub bytes: usize,
+}
+
+pub(super) fn stored_image(
+    c: &Connection,
+    seq: i64,
+    maximum: usize,
+) -> Result<StoredImage, String> {
+    // CAST 为 BLOB 很关键：SQLite TEXT 的 length/substr 是字符数，并非 UTF-8 字节数。
+    let row: Option<(String, String, String, i64)> = c
+        .query_row(
+            "SELECT root,prev_root,commit_ns,length(CAST(image AS BLOB)) FROM commits WHERE seq=?",
+            [seq],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        )
+        .optional()
+        .map_err(err)?;
+    let (root, previous_root, commit_ns, bytes) =
+        row.ok_or("MissingDependency：指定历史cut不存在")?;
+    let bytes = usize::try_from(bytes).map_err(err)?;
+    if bytes == 0 || bytes > maximum {
+        return Err("Incomplete：完整持久图像超出读取逻辑字节帽".into());
+    }
+    Ok(StoredImage {
+        seq,
+        root,
+        previous_root,
+        commit_ns,
+        bytes,
+    })
+}
+
+pub(super) fn stored_image_bytes(
+    c: &Connection,
+    image: &StoredImage,
+    offset: usize,
+    count: usize,
+) -> Result<Vec<u8>, String> {
+    let end = offset
+        .checked_add(count)
+        .filter(|end| count > 0 && *end <= image.bytes)
+        .ok_or("InvalidDomain：原图像页范围越界")?;
+    let start =
+        i64::try_from(offset.checked_add(1).ok_or("InvalidDomain：页offset溢出")?).map_err(err)?;
+    let count_sql = i64::try_from(end - offset).map_err(err)?;
+    let size_sql = i64::try_from(image.bytes).map_err(err)?;
+    let bytes: Option<Vec<u8>> = c
+        .query_row(
+            "SELECT substr(CAST(image AS BLOB),?,?) FROM commits WHERE seq=? AND root=? AND prev_root=? AND commit_ns=? AND length(CAST(image AS BLOB))=?",
+            params![start, count_sql, image.seq, image.root, image.previous_root, image.commit_ns, size_sql],
+            |r| r.get(0),
+        )
+        .optional()
+        .map_err(err)?;
+    let bytes = bytes.ok_or("IdentityConflict：固定cut原图像身份已改变")?;
+    if bytes.len() != count {
+        return Err("StorageUnavailable：原图像页截短".into());
+    }
+    Ok(bytes)
 }
 pub(crate) fn append(
     c: &Connection,
