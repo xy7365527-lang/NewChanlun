@@ -381,8 +381,9 @@ mod tests {
     #[ignore = "靶向验证(#322): 需 analysis/data_cache/*.json；BT_SYMBOLS 选标的"]
     fn 靶向_相切延伸口径逐级对照() {
         use crate::orchestrator::RecursiveOrchestrator;
-        use crate::recursive_t::backtest::build_a0_from_segments;
-        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        // 已退役 backtest/backtest_run，见 analysis/deprecated/...
+        // use crate::recursive_t::backtest::build_a0_from_segments;
+        // use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use crate::recursive_t::{iterate, types::PerfectionMode};
         use std::path::PathBuf;
 

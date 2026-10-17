@@ -21,8 +21,9 @@
 //!
 //! ## 认识论等级：**L3**（真实数据，可否证）。strat 偏乐观（确认滞后口径，见 stream.rs 模块头）。
 
-use super::backtest::BacktestMode;
-use super::backtest_run::{load_clean_ohlc, SYMBOLS};
+// 已退役 backtest/backtest_run，见 analysis/deprecated/...
+// use super::backtest::BacktestMode;
+// use super::backtest_run::{load_clean_ohlc, SYMBOLS};
 use super::stream::TFugueStreamCore;
 use super::t_engine::BASE_LADDER;
 use crate::fugue_v3::layer::FugueResult;

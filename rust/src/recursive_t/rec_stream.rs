@@ -3536,10 +3536,10 @@ mod tests {
     #[test]
     #[ignore = "1s prove 守卫尺度不变性 L3 交叉验证，需 analysis/data_cache 1s 文件 + CHANLUN_DATA_DIR"]
     fn scale_invariance_1s() {
-        use crate::recursive_t::backtest_run::{
-            load_clean_ohlc, load_clean_ohlc_window, load_clean_ohlc_window_ns,
-        };
-        use std::path::PathBuf;
+        // use crate::recursive_t::backtest_run::{
+        //     load_clean_ohlc, load_clean_ohlc_window, load_clean_ohlc_window_ns,
+        // };
+        // use std::path::PathBuf;
         // 数据目录：默认 `<repo>/analysis/data_cache`；worktree 隔离运行时大 JSON 被 gitignore
         // 不在 worktree 内，用 CHANLUN_DATA_DIR 指向主仓库 data_cache（绝对路径）。
         let data_dir = match std::env::var("CHANLUN_DATA_DIR") {
