@@ -1,4 +1,4 @@
-name: '#1419 三项精确候选验证'
+name: '#1419 三项精确候选验证 v2'
 on:
   workflow_dispatch:
 permissions:
