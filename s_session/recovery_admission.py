@@ -59,6 +59,17 @@ def _object(raw):
     return value
 
 
+def _owner_control_object(raw):
+    """#1527 H1：只解控制顶层；嵌套字段和数值类型留给写入口验证。"""
+    # tuple 保留对象键值对并区别 JSON 数组；只对顶层执行唯一键检查。
+    # 数字保留词元，避免转换溢出/整数位数限制提前裁掉合法 admission JSON。
+    value = json.loads(raw.decode("utf-8"), object_pairs_hook=tuple,
+                       parse_int=str, parse_float=str, parse_constant=_reject_number)
+    if type(value) is not tuple:
+        raise ValueError("非对象")
+    return _unique(value)
+
+
 def _identity(metadata):
     return {"device": metadata.st_dev, "inode": metadata.st_ino,
             "uid": metadata.st_uid, "mode": stat.S_IMODE(metadata.st_mode)}
@@ -150,12 +161,11 @@ class RecoveryAdmission:
             self.stage = "E1"
             self.first_read_at = time.monotonic()
             self._owner = self._read("owner", self.parent_fd, self.owner_name, {0o600, 0o644})
-            owner = _object(self._owner)
+            owner = _owner_control_object(self._owner)
             if set(owner) not in ({"db", "state_dir", "admission"}, {"db", "state_dir"}):
                 self._fail("AnchorInvalid")
             if owner["db"] != str(self.db) or owner["state_dir"] != str(self.state):
                 self._fail("Identity")
-            self._binding = owner.get("admission")
             self._owner_loaded = True
         except BaseException as exc:
             try:
@@ -176,6 +186,8 @@ class RecoveryAdmission:
             self._gate()
             self.require_owner()
             self.stage = "E1"
+            # 控制缓存不是写资格；严格重解固定原字节，不重读 pathname 或续钟。
+            self._binding = _object(self._owner).get("admission")
             if self._binding is None:
                 self._fail("AnchorInvalid")
             self._validate_binding(self._binding)
