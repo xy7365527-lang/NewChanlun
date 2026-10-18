@@ -10,6 +10,3 @@ mod operation;
 mod pipeline_geometry;
 mod rebase_txn;
 mod third_class_anchor;
-
-mod center_pair_1424;
-mod center_scan_1419;
