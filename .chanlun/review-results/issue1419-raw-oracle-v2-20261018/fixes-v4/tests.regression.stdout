@@ -1,0 +1,41 @@
+test_closure_validates_six_families_and_qcut (test_v2.V2Tests.test_closure_validates_six_families_and_qcut) ... ok
+test_closure_rejects_missing_node_tamper_extent_and_mixed_anchor (test_v2.V2Tests.test_closure_rejects_missing_node_tamper_extent_and_mixed_anchor) ... ok
+test_codec_large_bytes_numbers_and_json_text (test_v2.V2Tests.test_codec_large_bytes_numbers_and_json_text) ... ok
+test_domain_adapter_positive_and_zn_mutation_negative (test_v2.V2Tests.test_domain_adapter_positive_and_zn_mutation_negative) ... ok
+test_domain_withdrawal_rejects_stale_pair (test_v2.V2Tests.test_domain_withdrawal_rejects_stale_pair) ... ok
+test_driver_collects_fixed_pages_and_full_content (test_v2.V2Tests.test_driver_collects_fixed_pages_and_full_content) ... ERROR
+test_live_is_unconditionally_denied (test_v2.V2Tests.test_live_is_unconditionally_denied) ... ok
+
+======================================================================
+ERROR: test_driver_collects_fixed_pages_and_full_content (test_v2.V2Tests.test_driver_collects_fixed_pages_and_full_content)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/test_v2.py", line 207, in test_driver_collects_fixed_pages_and_full_content
+    _,_,v=collector.closed_snapshot(snapshot['fixed_cut'],2,**LIMITS)
+          ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/driver_v2.py", line 33, in closed_snapshot
+    result=self.content(anchor,path,unit,1 if unit=='value' else page_size)
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/fixed_cut_driver.py", line 232, in content
+    page = self.call("/api/v3/content", payload)
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/fixed_cut_driver.py", line 149, in call
+    self.work(reply)
+    ~~~~~~~~~^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/fixed_cut_driver.py", line 127, in work
+    else:budget.scan(value)
+         ~~~~~~~~~~~^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 149, in scan
+    self.charge(1+(len(item)+unit-1)//unit)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 121, in charge
+    require(count<=self.limit-self.used,
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            f'闭包逻辑工作量超限：used={self.used}, requested={count}, limit={self.limit}')
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/fixed_cut_driver.py", line 38, in require
+    raise ValueError(message)
+ValueError: 闭包逻辑工作量超限：used=1000000, requested=2, limit=1000000
+
+----------------------------------------------------------------------
+Ran 7 tests in 1.364s
+
+FAILED (errors=1)

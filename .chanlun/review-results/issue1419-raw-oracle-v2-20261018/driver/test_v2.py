@@ -60,7 +60,7 @@ def domain_records(ledger):
     # 仅旧 API 回归的自洽夹具，不属于独立 oracle 或独立评审。
     from domain_fields import wire,endpoint,formation,segment_facts
     result=[]
-    def add(kind,data):result.append({'kind':kind,'object_id':'oid:'+str(len(result)), 'payload_json':JSONText({'data':wire(data)})})
+    def add(kind,data):result.append({'kind':kind,'object_id':'oid:'+str(len(result)), 'payload':{'data':wire(data)}})
     strokes=ledger['low_level']['strokes'];fm={f['id']:f for f in ledger['low_level']['fractals']}
     for f in fm.values():add('CC-008.endpoint',endpoint(f))
     for b in strokes:
@@ -170,8 +170,8 @@ class V2Tests(unittest.TestCase):
     def test_domain_adapter_positive_and_zn_mutation_negative(self):
         objs=domain_records(LEDGER);s,p,_=fixture(objs)
         self.assertEqual(compare_domain(close_projection(s,[p],**LIMITS),LEDGER)['centers'],2)
-        roles=next(r for r in objs if r['kind']=='CC-017.center_roles' and r['payload_json'].value['data']['center_id']=='c6')
-        roles['payload_json'].value['data']['roles']['OUTER']['DD']['value']='2080'
+        roles=next(r for r in objs if r['kind']=='CC-017.center_roles' and r['payload']['data']['center_id']=='c6')
+        roles['payload']['data']['roles']['OUTER']['DD']['value']='2080'
         s,p,_=fixture(objs)
         with self.assertRaisesRegex(ValueError,'角色值'):compare_domain(close_projection(s,[p],**LIMITS),LEDGER)
 
@@ -186,8 +186,9 @@ class V2Tests(unittest.TestCase):
     def test_driver_collects_fixed_pages_and_full_content(self):
         snapshot,root_page,graph=fixture()
         identity={'session_id':'toy','session_generation':'1','source_namespace':'toy.query','source_epoch':'1','producer_id':'toy-driver','producer_epoch':'1'}
-        captured=[]
+        captured=[];sent_nodes=False;repeat_nodes=False
         def exchange(route,raw):
+            nonlocal sent_nodes
             req=json.loads(raw);p=req['payload'];captured.append((route,p))
             if route.endswith('snapshot'):
                 token=p.get('snapshot_token');offset=int(token['offset']) if token else 0;size=2;end=min(offset+size,6)
@@ -200,12 +201,25 @@ class V2Tests(unittest.TestCase):
                 offset=int(q['offset']);limit=int(q['limit']);unit=q['unit'];total=1 if unit=='value' else int(target['extent']);end=min(offset+limit,total)
                 items=graph.entries(target)[offset:end] if unit=='items' else graph.byte_value(target)[offset:end].hex() if unit=='bytes' else [target]
                 nt=None if end==total else signed({'token_schema':'s-content-token/1','anchor':q['anchor'],'path':path,'target_ref':target,'unit':unit,'offset':str(end),'limit':str(limit),'issued_capture_digest':'b'*64})
-                payload={**root_page,'path':path,'target_ref':target,'unit':unit,'offset':str(offset),'end':str(end),'total':str(total),'items':items,'done':end==total,'next_token':nt}
+                # 完整集合证明：节点可跨页分块传输；全图每页重复的原反例另测拒绝。
+                nodes=root_page['nodes'] if repeat_nodes or not sent_nodes else []
+                sent_nodes=True
+                payload={**root_page,'nodes':nodes,'path':path,'target_ref':target,'unit':unit,'offset':str(offset),'end':str(end),'total':str(total),'items':items,'done':end==total,'next_token':nt}
             return 200,{},reply(req,payload)
-        with tempfile.TemporaryDirectory() as tmp:
-            collector=CollectorV2(identity,Budget(16*1024*1024,10),exchange,Path(tmp)/'capture','1')
-            _,_,v=collector.closed_snapshot(snapshot['fixed_cut'],2,**LIMITS)
-            self.assertTrue(v['closure_verified']);self.assertGreater(len(captured),3)
+        for repeat_nodes in (True,False):
+            sent_nodes=False;captured.clear()
+            with tempfile.TemporaryDirectory() as tmp:
+                collector=CollectorV2(identity,Budget(16*1024*1024,10),exchange,Path(tmp)/'capture','1')
+                if repeat_nodes:
+                    # 旧fake每页带全图：现在收费完整，原100万帽下应明确拒绝，不加帽。
+                    with self.assertRaisesRegex(ValueError,'逻辑工作量'):
+                        collector.closed_snapshot(snapshot['fixed_cut'],2,**LIMITS)
+                    print('重复全图fake拒绝',dict(calls=len(captured),work=collector.work_budget.used,limit=LIMITS['max_work']))
+                else:
+                    _,_,v=collector.closed_snapshot(snapshot['fixed_cut'],2,**LIMITS)
+                    self.assertTrue(v['closure_verified']);self.assertGreater(len(captured),3)
+                    self.assertIs(v['graph'].budget,collector.work_budget)
+                    print('分块完整图fake通过',dict(calls=len(captured),work=v['graph'].work,limit=LIMITS['max_work']))
 
     def test_live_is_unconditionally_denied(self):
         with self.assertRaisesRegex(RuntimeError,'authorization=false'):reject_live()

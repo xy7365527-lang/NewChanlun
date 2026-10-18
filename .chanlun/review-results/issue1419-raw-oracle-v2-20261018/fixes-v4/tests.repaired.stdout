@@ -1,0 +1,50 @@
+test_f1_conflicting_internal_fields (__main__.Tests.test_f1_conflicting_internal_fields) ... ok
+test_f1_public_positive_and_geometry (__main__.Tests.test_f1_public_positive_and_geometry) ... FAIL
+test_f2_collector_before_projection (__main__.Tests.test_f2_collector_before_projection) ... ok
+test_f2_empty_and_split (__main__.Tests.test_f2_empty_and_split) ... ERROR
+test_f2_graph_duplicate_and_expired (__main__.Tests.test_f2_graph_duplicate_and_expired) ... ok
+test_f2_real_content_loop_is_cumulative (__main__.Tests.test_f2_real_content_loop_is_cumulative) ... ok
+test_f3_public_complete_set (__main__.Tests.test_f3_public_complete_set) ... ok
+test_f5_all_headers (__main__.Tests.test_f5_all_headers) ... ok
+test_f8_cut_frontier_conflict (__main__.Tests.test_f8_cut_frontier_conflict) ... ok
+test_f8_identity_and_cross_epoch (__main__.Tests.test_f8_identity_and_cross_epoch) ... ok
+
+======================================================================
+ERROR: test_f2_empty_and_split (__main__.Tests.test_f2_empty_and_split)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v4/test_v4.py", line 109, in test_f2_empty_and_split
+    cc.Graph([], max_nodes=1, max_bytes=1, max_work=1, work_budget=budget)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 175, in __init__
+    for n in self.budget.iter(nodes):
+             ~~~~~~~~~~~~~~~~^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 127, in iter
+    self.charge()
+    ~~~~~~~~~~~^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py", line 121, in charge
+    require(count<=self.limit-self.used,
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            f'闭包逻辑工作量超限：used={self.used}, requested={count}, limit={self.limit}')
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/fixed_cut_driver.py", line 38, in require
+    raise ValueError(message)
+ValueError: 闭包逻辑工作量超限：used=1, requested=1, limit=1
+
+======================================================================
+FAIL: test_f1_public_positive_and_geometry (__main__.Tests.test_f1_public_positive_and_geometry)
+----------------------------------------------------------------------
+ValueError: 段.geometric_end不符
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v4/test_v4.py", line 59, in test_f1_public_positive_and_geometry
+    with self.assertRaisesRegex(ValueError, key) as error:
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+AssertionError: "price" does not match "段.geometric_end不符"
+
+----------------------------------------------------------------------
+Ran 10 tests in 12.862s
+
+FAILED (failures=1, errors=1)

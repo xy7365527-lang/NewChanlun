@@ -21,6 +21,7 @@ TOKEN = set("token_schema session_id session_generation cut_generation scope his
 CONTENT_TOKEN = set("token_schema anchor path target_ref unit offset limit issued_capture_digest token_checksum".split())
 CONTENT_PAGE = set("target_ref unit offset end total items nodes done anchor path next_token validated_capture_digest ok".split())
 CURSOR = set("session_id session_generation catalog_revision scope after_generation base_cut index_frontier last_seq order_version".split())
+FIXED = set("session_id session_generation structure_cut cut_generation catalog_revision index_frontier profile_id profile_hash input_frontier seq_range catalog_run_status catalog_evidence scope rule_revision history_mode as_of_generation".split())
 DELTA = set("generation session_id catalog_revision base_cut next_cut seq_range index_frontier input_frontier catalog_run_status catalog_evidence delta".split())
 
 
@@ -69,7 +70,10 @@ def bind_named_submissions(submissions, accepted_cuts):
     for request,cut in zip(submissions,accepted_cuts):
         require(request['payload_hash']==sha(canonical(request['payload'])),'提交payload摘要不符')
         require(all(request[k]==cut[k] for k in ('session_id','session_generation')),'提交切面会话不符')
+        exact(cut,FIXED)
         generation=cut['cut_generation'];natural(generation)
+        natural(cut['index_frontier']);natural(cut['as_of_generation'])
+        require(cut['as_of_generation']==generation,'接纳切面as_of_generation不符')
         natural(cut['input_frontier']);natural(request['source_epoch'])
         key=(request['source_epoch'],request['message_id'])
         require(generation not in bindings and key not in seen,'重复提交/代际绑定')
@@ -78,6 +82,7 @@ def bind_named_submissions(submissions, accepted_cuts):
         require(isinstance(events,list) and events,'具名提交无接纳事件')
         bindings[generation]={k:request[k] for k in ('session_id','session_generation','message_id','source_epoch')}
         bindings[generation]['accepted_events']=str(len(events))
+        bindings[generation]['accepted_cut']=deepcopy(cut)
     return bindings
 
 
@@ -115,7 +120,14 @@ class Collector:
         self.output.mkdir(parents=True, exist_ok=False)
         self.sequence = 0
 
+    def work(self,value=None):
+        budget=getattr(self,'work_budget',None)
+        if budget is None:self.budget.check()
+        elif value is None:budget.charge()
+        else:budget.scan(value)
+
     def call(self, route, payload):
+        self.work(payload)
         self.budget.check()
         self.sequence += 1
         request = {**self.identity, "schema_revision": "s-session/3",
@@ -125,7 +137,9 @@ class Collector:
         prefix = self.output / f"{self.sequence:06d}"
         prefix.with_suffix(".request").write_bytes(raw_request)
         status, headers, raw_reply = self.exchange(route, raw_request)
-        # 先封原件，失败也保存。exchange自身须限读，不能把本地计量冒充网络分配硬帽。
+        # exchange自身须限读；返回后先预留原件处理费用，再写盘/hash/解析。
+        # 超工作帽的回复不继续处理；这不是网络分配或同步IO硬帽。
+        self.work(raw_reply)
         prefix.with_suffix(".reply").write_bytes(raw_reply)
         prefix.with_suffix(".meta.json").write_bytes(canonical({"route": route, "status": status,
             "headers": headers, "request_sha256": sha(raw_request), "reply_sha256": sha(raw_reply),
@@ -133,6 +147,7 @@ class Collector:
         self.budget.charge(len(raw_reply))
         require(status == 200, "非200回复；拒绝重试重置预算")
         reply = strict_load(raw_reply)
+        self.work(reply)
         exact(reply, HEADER)
         require(reply["schema_revision"] == "s-session/3", "协议混用")
         for key in ("session_id", "session_generation"):
@@ -150,6 +165,7 @@ class Collector:
         return reply["payload"]
 
     def snapshot(self, fixed, page_size):
+        self.work(fixed)
         require(type(page_size) is int and page_size > 0, "分页大小无效")
         require(fixed["history_mode"] in ("AsKnown", "RecomputedWithRevision"), "模式不符")
         # 固定 generation；不能用latest补缺页。
@@ -159,7 +175,9 @@ class Collector:
                    "page_size": str(page_size), "order_version": "s-record-order/2"}
         rows, seen, offset, invariant, issued, previous_family = [], set(), 0, None, None, -1
         while True:
+            self.work(payload)
             page = self.call("/api/v3/snapshot", payload)
+            self.work(page)
             exact(page, PAGE)
             require(page["fixed_cut"] == fixed, "混切面/模式/profile/rule/catalog")
             require(page["scope"] == fixed["scope"] and page["omissions"] == [], "切面范围被缩减")
@@ -174,6 +192,7 @@ class Collector:
             require(total == sum(natural(page["counts"][f]) for f in FAMILIES), "六族总数不符")
             require(len(page["rows"]) == min(page_size, total - offset), "页缺记录/越界")
             for row in page["rows"]:
+                self.work(row)
                 exact(row, {"family", "key", "record"})
                 require(row["family"] in FAMILIES, "未知记录族")
                 family = FAMILIES.index(row["family"])
@@ -204,12 +223,15 @@ class Collector:
             payload = {"op": "snapshot", "snapshot_token": deepcopy(token)}
 
     def content(self, anchor, path, unit, limit):
+        self.work(anchor);self.work(path)
         require(unit in ("items", "bytes", "value") and type(limit) is int and limit > 0, "内容单位/限额无效")
         payload = {"op": "content", "anchor": deepcopy(anchor), "path": deepcopy(path),
                    "unit": unit, "offset": "0", "limit": str(limit)}
         offset, target, total, issued, pages = 0, None, None, None, []
         while True:
+            self.work(payload)
             page = self.call("/api/v3/content", payload)
+            self.work(page)
             exact(page, CONTENT_PAGE)
             require(page["anchor"] == anchor and page["path"] == path and page["unit"] == unit, "内容混锚/路径/单位")
             require(natural(page["offset"]) == offset, "内容页重叠/跳页")
@@ -218,6 +240,7 @@ class Collector:
             end = natural(page["end"])
             require(end == min(offset + limit, total), "内容未穷尽声明范围")
             require(type(page["done"]) is bool and page["done"] == (end == total), "内容done不符")
+            self.work()
             pages.append(page)
             if page["done"]:
                 require(page["next_token"] is None, "内容终页携token")
@@ -235,7 +258,7 @@ class Collector:
     def watch(self, cursor, through_generation, client_id, max_batches=1, *, accepted_commits):
         """accepted_commits 按实际代际绑定具名提交及接纳事件数；不推测产品代际。
 
-        值含 session_id/session_generation/message_id/source_epoch/accepted_events。
+        值含请求身份、accepted_events 和未丢字段的正式 accepted_cut。
         跨 writer epoch 仍属于同会话 input_frontier；不得因 epoch 变化清零。
         """
         exact(cursor, CURSOR)
@@ -243,7 +266,7 @@ class Collector:
         after, results = natural(cursor["after_generation"]), []
         previous_frontier = natural(cursor['last_seq']) if cursor['last_seq'] is not None else -1
         require(isinstance(accepted_commits,dict),'缺具名提交接纳账簿')
-        seen_commits=set()
+        seen_commits=set();prior_cut=None
         require(through_generation > after and max_batches > 0, "watch范围无效")
         while after < through_generation:
             page = self.call("/api/v3/watch", {"op": "watch", "cursor": cursor,
@@ -259,8 +282,21 @@ class Collector:
                 require(frontier>=previous_frontier,'watch输入前沿回退')
                 binding=accepted_commits.get(delta['generation'])
                 require(isinstance(binding,dict),'缺具名提交代际绑定')
-                exact(binding,{'session_id','session_generation','message_id','source_epoch','accepted_events'})
+                exact(binding,{'session_id','session_generation','message_id','source_epoch','accepted_events','accepted_cut'})
                 require(all(binding[k]==cursor[k] for k in ('session_id','session_generation')),'具名提交会话绑定不符')
+                cut=binding['accepted_cut'];exact(cut,FIXED)
+                for name in ('session_id','session_generation','catalog_revision','scope'):
+                    require(cut[name]==cursor[name],'接纳切面身份不符:'+name)
+                for dk,ck in (('generation','cut_generation'),('next_cut','structure_cut'),
+                              ('index_frontier','index_frontier'),('input_frontier','input_frontier'),
+                              ('seq_range','seq_range'),('catalog_run_status','catalog_run_status'),
+                              ('catalog_evidence','catalog_evidence')):
+                    require(delta[dk]==cut[ck],'watch与接纳切面不符:'+ck)
+                require(cut['as_of_generation']==delta['generation'],'接纳切面as_of_generation不符')
+                if prior_cut is not None:
+                    for name in ('profile_id','profile_hash','rule_revision','history_mode'):
+                        require(cut[name]==prior_cut[name],'接纳切面身份变化:'+name)
+                prior_cut=cut
                 require(isinstance(binding['message_id'],str) and binding['message_id'],'提交名缺失')
                 natural(binding['source_epoch'])
                 count=natural(binding['accepted_events'])

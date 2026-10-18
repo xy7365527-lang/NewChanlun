@@ -1,0 +1,19 @@
+test_f1_conflicting_internal_fields (__main__.Tests.test_f1_conflicting_internal_fields) ... ok
+test_f1_public_positive_and_geometry (__main__.Tests.test_f1_public_positive_and_geometry) ... ok
+test_f2_collector_before_projection (__main__.Tests.test_f2_collector_before_projection) ... ok
+test_f2_collector_budget_survives_second_snapshot (__main__.Tests.test_f2_collector_budget_survives_second_snapshot) ... ok
+test_f2_decode_plain_records_same_budget (__main__.Tests.test_f2_decode_plain_records_same_budget) ... ok
+test_f2_empty_and_split (__main__.Tests.test_f2_empty_and_split) ... ok
+test_f2_graph_byte_work_before_hex_hash (__main__.Tests.test_f2_graph_byte_work_before_hex_hash) ... ok
+test_f2_graph_duplicate_and_expired (__main__.Tests.test_f2_graph_duplicate_and_expired) ... ok
+test_f2_real_content_loop_is_cumulative (__main__.Tests.test_f2_real_content_loop_is_cumulative) ... ok
+test_f3_public_complete_set (__main__.Tests.test_f3_public_complete_set) ... ok
+test_f5_all_headers (__main__.Tests.test_f5_all_headers) ... ok
+test_f8_cut_frontier_conflict (__main__.Tests.test_f8_cut_frontier_conflict) ... ok
+test_f8_frozen_named_messages (__main__.Tests.test_f8_frozen_named_messages) ... ok
+test_f8_identity_and_cross_epoch (__main__.Tests.test_f8_identity_and_cross_epoch) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 15.246s
+
+OK
