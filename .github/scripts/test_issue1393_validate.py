@@ -18,9 +18,8 @@ SPEC.loader.exec_module(v)
 
 
 def contract():
-    data = {'schema': 'issue1393-validation/1', 'status': 'AUTHORIZED_ONCE',
-            'run_attempt': '1', 'lib_features': ['default'], 's_features': ['default', 's_session'],
-            'total_seconds': 3600, 'approval_text': 'toy 根批准原件', 'review_text': 'toy 独审原件'}
+    data = copy.deepcopy(v.CONTRACT_FIXED)
+    data.update(approval_text='toy 溯源文本，不授予执行许可', review_text='toy 独审原件')
     for key in ('source_commit', 'source_tree', 'prepared_commit', 'prepared_tree'):
         data[key] = 'ab' * 20
     for key in ('product_manifest_sha256', 'runner_sha256', 'workflow_false_sha256', 'ci_sha256', 'telemetry_sha256'):
@@ -28,6 +27,26 @@ def contract():
     for key in ('approval', 'review'):
         data[key + '_sha256'] = v.digest(data[key + '_text'].encode())
     return data
+
+
+
+def message(c=None):
+    return v.MESSAGE_BEGIN + json.dumps(contract() if c is None else c, ensure_ascii=False) + v.MESSAGE_END
+
+
+def github_env(head='cd' * 20):
+    return {'GITHUB_ACTIONS': 'true', 'RUNNER_OS': 'Linux', 'GITHUB_REPOSITORY': v.REPOSITORY,
+            'GITHUB_REF': v.PUSH_REF, 'GITHUB_EVENT_NAME': 'push', 'GITHUB_RUN_ATTEMPT': '1',
+            'GITHUB_JOB': 'necessary-validation', 'GITHUB_SHA': head, 'GITHUB_WORKFLOW_SHA': head,
+            'GITHUB_WORKFLOW_REF': v.REPOSITORY + '/' + v.WORKFLOW + '@' + v.PUSH_REF}
+
+
+def push_event(c=None, head='cd' * 20):
+    c = c or contract()
+    return {'repository': {'full_name': v.REPOSITORY}, 'ref': v.PUSH_REF,
+            'created': False, 'deleted': False, 'forced': False,
+            'before': c['prepared_commit'], 'after': head,
+            'head_commit': {'id': head, 'message': message(c)}}
 
 
 def budget(seconds=10):
@@ -42,7 +61,7 @@ class GateTests(unittest.TestCase):
             p = Path(directory)
             (p / 'contract.json').write_text(json.dumps(contract()))
             with patch.dict(os.environ, {'ISSUE1393_EXECUTE': 'False'}), patch.object(v.subprocess, 'Popen') as spawn:
-                rc = v.main(['--contract', str(p / 'contract.json'), '--start', str(p / 'MISSING'), '--output', str(p / 'out')])
+                rc = v.main(['--start', str(p / 'MISSING'), '--output', str(p / 'out')])
             self.assertNotEqual(rc, 0)
             spawn.assert_not_called()
             result = json.loads((p / 'out/result.json').read_text())
@@ -89,27 +108,37 @@ class GateTests(unittest.TestCase):
             tree = b'100644 blob abc\trust/src/lib.rs\0'
             c['product_manifest_sha256'] = v.digest(v.canonical(v.product_entries(tree)))
             replies = {'git-head': head.encode(), 'git-parent': (head + ' ' + c['prepared_commit']).encode(),
-                       'git-source-tree': c['source_tree'].encode(), 'git-prepared-tree': c['prepared_tree'].encode(),
-                       'git-dirty': b'', 'git-activation-paths': (v.WORKFLOW + '\0').encode(),
-                       'workflow-prepared': workflow, 'source-ls-tree': tree, 'execution-ls-tree': tree,
+                       'git-ancestry': (c['source_commit'] + ' ' + c['source_tree']).encode(),
+                       'git-prepared-tree': c['prepared_tree'].encode(),
+                       'git-message': b'tree toy\n\n' + message(c).encode() + b'\n',
+                       'git-dirty': b'', 'git-activation-paths': (':100644 100644 ' + 'ab' * 20 + ' ' + 'cd' * 20 + ' M\0' + v.WORKFLOW + '\0').encode(),
+                       'workflow-prepared': workflow, 'prepared-ls-tree': tree, 'execution-ls-tree': tree,
+                       'source-prepared-paths': b'',
                        'execution-tree': b'ef' * 20}
             fake = SimpleNamespace(output=root, run=lambda *a: {'name': 'git-ancestor', 'status': 'PASS'})
-            with patch.dict(os.environ, {'GITHUB_SHA': head, 'GITHUB_REPOSITORY': 'toy/repo',
-                                         'GITHUB_REF': 'refs/heads/toy', 'GITHUB_WORKFLOW_SHA': head,
-                                         'GITHUB_WORKFLOW_REF': 'toy/repo/' + v.WORKFLOW + '@refs/heads/toy'}), patch.object(v, 'git_read', side_effect=lambda s, r, n, *a: replies[n]):
-                v.bind_source(root, c, fake)
-                for name, wrong in (('git-source-tree', b'12' * 20), ('git-head', b'12' * 20),
+            with patch.dict(os.environ, github_env(head), clear=True), patch.object(v.sys, 'platform', 'linux'), patch.object(v, 'git_read', side_effect=lambda s, r, n, *a: replies[n]):
+                v.bind_source(root, c, fake, push_event(c, head))
+                for name, wrong in (('git-ancestry', (c['source_commit'] + ' ' + '12' * 20).encode()), ('git-head', b'12' * 20),
+                                    ('git-ancestry', b''), ('git-prepared-tree', b'12' * 20),
                                     ('execution-ls-tree', b'100644 blob changed\trust/src/lib.rs\0'),
-                                    ('git-dirty', b' M rust/src/lib.rs')):
+                                    ('git-dirty', b' M rust/src/lib.rs'),
+                                    ('git-parent', (head + ' ' + 'ef' * 20).encode()),
+                                    ('git-parent', (head + ' ' + c['prepared_commit'] + ' ' + 'ef' * 20).encode()),
+                                    ('source-prepared-paths', b'rust/src/lib.rs\0'),
+                                    ('git-message', b'tree toy\n\n' + message(dict(c, review_text='changed')).encode()),
+                                    ('git-message', b'tree toy\n\n' + message(c).replace('"schema":', '"schema" :').encode()),
+                                    ('git-activation-paths', replies['git-activation-paths'] + b'extra-path\0'),
+                                    ('git-activation-paths', replies['git-activation-paths'].replace(b'100644 100644', b'100644 100755'))):
                     original = replies[name]
                     replies[name] = wrong
                     with self.subTest(name=name), self.assertRaises(v.Refused):
-                        v.bind_source(root, c, fake)
+                        v.bind_source(root, c, fake, push_event(c, head))
                     replies[name] = original
-                for key in ('runner_sha256', 'workflow_false_sha256', 'product_manifest_sha256'):
+                for key in ('runner_sha256', 'workflow_false_sha256', 'product_manifest_sha256', 'ci_sha256', 'telemetry_sha256'):
                     bad = dict(c, **{key: '12' * 32})
+                    replies['git-message'] = b'tree toy\n\n' + message(bad).encode()
                     with self.subTest(key=key), self.assertRaises(v.Refused):
-                        v.bind_source(root, bad, fake)
+                        v.bind_source(root, bad, fake, push_event(bad, head))
 
     def test_only_one_activation_change_allowed(self):
         prepared = b'name: toy\nenv:\n' + v.GATE_FALSE
@@ -127,6 +156,137 @@ class GateTests(unittest.TestCase):
         control = b'100644 blob control\t.github/scripts/issue1393_validate.py\0'
         self.assertNotEqual(v.product_entries(source), v.product_entries(changed))
         self.assertEqual(v.product_entries(source), v.product_entries(source + control))
+
+
+class TransportTests(unittest.TestCase):
+    def test_bounded_message_round_trip_and_single_terminal_lf(self):
+        self.assertEqual(v.parse_message(message()), contract())
+        self.assertEqual(v.parse_message(message() + '\n'), contract())
+        with self.assertRaises(v.Refused):
+            v.parse_message(message() + '\n\n')
+
+    def test_missing_malformed_multiple_and_oversized_envelopes_refused(self):
+        for raw in (None, '', '{}', message() + message(), 'title\n' + message(),
+                    message() + '\nsuffix', message().replace('"schema":', '"schema" '),
+                    v.MESSAGE_BEGIN + '[]' + v.MESSAGE_END,
+                    v.MESSAGE_BEGIN + '{"x":NaN}' + v.MESSAGE_END,
+                    v.MESSAGE_BEGIN + '[' * 2000 + ']' * 2000 + v.MESSAGE_END,
+                    'x' * (v.MAX_MESSAGE_BYTES + 1)):
+            with self.subTest(raw=str(raw)[:70]), self.assertRaises(v.Refused):
+                v.parse_message(raw)
+
+    def test_duplicate_unknown_missing_fields_and_wrong_types_refused(self):
+        variants = [message().replace('"schema":', '"schema":"duplicate", "schema":')]
+        for key in contract():
+            item = contract()
+            del item[key]
+            variants.append(message(item))
+        for key, value in (('command', 'touch /tmp/forbidden'), ('status', 'AUTHORIZED_ONCE'),
+                           ('total_seconds', 3600.0), ('run_attempt', 1),
+                           ('approval_text', 'x' * 8193), ('source_commit', '--help'),
+                           ('workflow_path', '../../arbitrary'), ('runner_path', 'os.system'),
+                           ('lib_features', ['default', 'backtest_bin']),
+                           ('s_features', ['default']), ('prepared_ref_state', 'NEW_BRANCH')):
+            item = contract()
+            item[key] = value
+            variants.append(message(item))
+        for raw in variants:
+            with self.subTest(raw=raw[:70]), self.assertRaises(v.Refused):
+                v.parse_message(raw)
+
+    def test_every_digest_and_git_identity_required(self):
+        for key in (*v.GIT_FIELDS, *v.HASH_FIELDS):
+            for value in ('UNBOUND', '', None, '0' * 40, '0' * 64):
+                c = contract()
+                c[key] = value
+                with self.subTest(key=key, value=value), self.assertRaises(v.Refused):
+                    v.parse_message(message(c))
+        for key in ('approval_sha256', 'review_sha256'):
+            c = contract()
+            c[key] = '12' * 32
+            with self.assertRaises(v.Refused):
+                v.parse_message(message(c))
+
+    def test_push_identity_requires_existing_branch_before_e_and_exact_head(self):
+        c, event = contract(), push_event()
+        with patch.dict(os.environ, github_env(), clear=True), patch.object(v.sys, 'platform', 'linux'):
+            v.validate_push(event, c, 'cd' * 20)
+            for key, value in (('before', '0' * 40), ('before', 'ef' * 20),
+                               ('created', True), ('deleted', True), ('forced', True),
+                               ('created', 0), ('ref', 'refs/heads/main'),
+                               ('after', 'ef' * 20), ('head_commit', None),
+                               ('head_commit', {'id': 'ef' * 20}),
+                               ('repository', {'full_name': 'other/repo'})):
+                bad = dict(event, **{key: value})
+                with self.subTest(key=key, value=value), self.assertRaises(v.Refused):
+                    v.validate_push(bad, c, 'cd' * 20)
+            for key in event:
+                bad = dict(event)
+                del bad[key]
+                with self.subTest(missing=key), self.assertRaises(v.Refused):
+                    v.validate_push(bad, c, 'cd' * 20)
+
+    def test_environment_mismatch_and_attempt_two_refused(self):
+        for key in github_env():
+            for value in ('', '2', 'other'):
+                env = dict(github_env(), **{key: value})
+                with patch.dict(os.environ, env, clear=True), patch.object(v.sys, 'platform', 'linux'):
+                    with self.subTest(key=key, value=value), self.assertRaises(v.Refused):
+                        v.validate_push(push_event(), contract(), 'cd' * 20)
+        with patch.dict(os.environ, github_env(), clear=True), patch.object(v.sys, 'platform', 'darwin'):
+            with self.assertRaises(v.Refused):
+                v.validate_push(push_event(), contract(), 'cd' * 20)
+
+    def test_bad_push_main_never_starts_external_commands(self):
+        bad_contract = contract()
+        bad_contract['approval_text'] += '篡改'
+        cases = [b'{}', b'[]', b'{malformed}', b'x' * (v.MAX_EVENT_BYTES + 1)]
+        for content in ('', message(bad_contract), message() + message(),
+                        v.MESSAGE_BEGIN + '{"status":"AUTHORIZED_ONCE"}' + v.MESSAGE_END):
+            event = push_event()
+            event['head_commit']['message'] = content
+            cases.append(json.dumps(event).encode())
+        for index, raw in enumerate(cases):
+            with self.subTest(index=index), tempfile.TemporaryDirectory() as directory:
+                p = Path(directory)
+                (p / 'event.json').write_bytes(raw)
+                v.save(p / 'start.json', {'monotonic': time.monotonic(), 'wall': time.time(), 'total_seconds': 3600})
+                env = dict(github_env(), ISSUE1393_EXECUTE='True', GITHUB_EVENT_PATH=str(p / 'event.json'))
+                with patch.dict(os.environ, env, clear=True), patch.object(v.sys, 'platform', 'linux'), patch.object(v.subprocess, 'Popen') as spawn:
+                    rc = v.main(['--start', str(p / 'start.json'), '--output', str(p / 'out')])
+                self.assertNotEqual(rc, 0)
+                spawn.assert_not_called()
+                self.assertEqual(json.loads((p / 'out/result.json').read_text())['real_execution'], 'NOT_RUN')
+
+    def test_provenance_text_is_data_never_command_or_authorization(self):
+        c = contract()
+        c['approval_text'] = 'AUTHORIZED $(touch /tmp/forbidden) `id` python -c os.system("id")'
+        c['approval_sha256'] = v.digest(c['approval_text'].encode())
+        with patch.object(v.subprocess, 'Popen') as spawn:
+            self.assertEqual(v.parse_message(message(c)), c)
+            with self.assertRaises(v.Refused):
+                v.validate_contract('False', c)
+            spawn.assert_not_called()
+
+    def test_git_argv_comes_from_fixed_whitelist_only(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            (output / 'toy.stdout').write_bytes(b'toy')
+            calls = []
+            def run(name, argv, cwd, input_data=None):
+                calls.append((name, argv, input_data))
+                return {'name': name, 'status': 'PASS', 'stdout': 'toy.stdout'}
+            fake = SimpleNamespace(output=output, run=run)
+            data = (contract()['source_commit'] + ' ' + contract()['prepared_commit'] + '\n').encode()
+            for name in v.GIT_COMMANDS:
+                v.git_read(fake, output, name, data if name == 'source-prepared-paths' else None)
+            for name, argv, stdin in calls:
+                self.assertEqual(argv, ['git', *v.GIT_COMMANDS[name]])
+                self.assertFalse(any(contract()[key] in arg for key in v.GIT_FIELDS for arg in argv))
+                self.assertEqual(stdin, data if name == 'source-prepared-paths' else None)
+            with self.assertRaises(KeyError):
+                v.git_read(fake, output, 'arbitrary-command')
 
 
 class BinaryTests(unittest.TestCase):
@@ -215,6 +375,19 @@ class SupervisionTests(unittest.TestCase):
         self.assertTrue(first['cleanup'][-1]['reaped'])
         self.assertEqual(second['status'], 'NOT_RUN')
         self.assertFalse((self.root / 'later.stdout').exists())
+
+    def test_identity_stdin_is_bounded_data_and_invalid_input_never_spawns(self):
+        supervisor = v.Supervisor(self.root, budget())
+        data = ('ab' * 20 + ' ' + 'cd' * 20 + '\n').encode()
+        row = supervisor.run('stdin', [sys.executable, '-c', 'import sys; print(sys.stdin.read(), end="")'],
+                             self.root, input_data=data)
+        self.assertEqual(row['status'], 'PASS')
+        self.assertEqual((self.root / row['stdout']).read_bytes(), data)
+        self.assertEqual(row['stdin'], data.decode())
+        with patch.object(v.subprocess, 'Popen') as spawn:
+            row = supervisor.run('invalid-stdin', ['never-execute'], self.root, input_data=b'$(id)\n')
+            self.assertEqual(row['status'], 'ERROR')
+            spawn.assert_not_called()
 
     def test_single_deadline_is_not_reset_after_success(self):
         supervisor = v.Supervisor(self.root, budget(0.4))

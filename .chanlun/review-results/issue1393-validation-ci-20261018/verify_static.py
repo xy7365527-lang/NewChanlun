@@ -18,7 +18,11 @@ with tempfile.TemporaryDirectory(prefix='issue1393-pycompile-') as directory:
         py_compile.compile(str(path), cfile=str(Path(directory) / f'{index}.pyc'), doraise=True)
         print('AST + py_compile PASS:', relative)
 workflow = yaml.load((ROOT / '.github/workflows/issue1393-validation.yml').read_text(), Loader=yaml.BaseLoader)
-assert set(workflow['on']) == {'workflow_dispatch'}
+assert workflow['on'] == {'push': {'branches': ['codex/1393-validate-once-20261018']}}
+assert workflow['permissions'] == {'contents': 'read'}
+assert workflow['concurrency']['cancel-in-progress'] == 'false'
+assert 'inputs.contract' not in (ROOT / '.github/workflows/issue1393-validation.yml').read_text()
+assert 'github.event.head_commit.message' not in (ROOT / '.github/workflows/issue1393-validation.yml').read_text()
 assert workflow['env']['ISSUE1393_EXECUTE'] == 'False'
 job = workflow['jobs']['necessary-validation']
 assert job['timeout-minutes'] == '60'
@@ -46,6 +50,39 @@ ci = yaml.load(current, Loader=yaml.BaseLoader)
 runs = [step.get('run') for step in ci['jobs']['fixture-drift']['steps']]
 assert runs.index('lake build') < runs.index('lake env lean Origin/RawInclusionInitialization.lean') < runs.index('python3 scripts/check_fixture_drift.py')
 print('ci.yml exact additive-only comparison PASS; original build/fixture preserved')
+transport_base = '41e8a326743eabb10c1b07df01ce956235c5ad3d'
+def git_bytes(*args, input=None):
+    return subprocess.run(['git', *args], cwd=ROOT, input=input, capture_output=True, check=True).stdout
+
+assert git_bytes('rev-parse', 'HEAD').decode().strip() == transport_base
+assert git_bytes('show', transport_base + ':.github/workflows/ci.yml') == (ROOT / '.github/workflows/ci.yml').read_bytes()
+old_ast = ast.parse(git_bytes('show', transport_base + ':' + CODE[0]))
+new_ast = ast.parse((ROOT / CODE[0]).read_text())
+preserved = {'Budget', 'execute_checks', 'telemetry_command', 'select_binary', 'verify_list',
+             'verify_exact', 'file_identity', 'planned_steps', 'package', 'verify_source_names'}
+for name in preserved:
+    old_node = next(n for n in old_ast.body if getattr(n, 'name', None) == name)
+    new_node = next(n for n in new_ast.body if getattr(n, 'name', None) == name)
+    assert ast.dump(old_node) == ast.dump(new_node), name
+print('fixed base + unchanged existing CI / build / exact / Lean / fixture / budget / package AST PASS')
+
+head, parent = git_bytes('rev-parse', 'HEAD').strip(), git_bytes('rev-parse', 'HEAD^').strip()
+assert git_bytes('rev-parse', 'HEAD^1^{tree}') == git_bytes('rev-parse', 'HEAD^^{tree}')
+stdin_args = ('diff-tree', '--stdin', '--no-commit-id', '--name-only', '--no-renames', '-r', '-z')
+assert git_bytes(*stdin_args, input=parent + b' ' + head + b'\n') == git_bytes('diff', '--name-only', '--no-renames', '-z', 'HEAD^', 'HEAD')
+assert git_bytes(*stdin_args, input=head + b' ' + head + b'\n') == b''
+print('read-only Git stdin identity protocol + parent tree syntax PASS; no Git mutation')
+
+report = '.chanlun/review-results/issue1393-validation-ci-20261018/'
+allowed = {*CODE, '.github/workflows/issue1393-validation.yml'}
+changed = git_bytes('diff', '--name-only', '-z', transport_base).decode().split('\0')
+untracked = git_bytes('ls-files', '--others', '--exclude-standard', '-z').decode().split('\0')
+assert all(not p or p in allowed or p.startswith(report) for p in changed + untracked)
+history = git_bytes('ls-tree', '-r', '--name-only', transport_base, '--', report).decode().splitlines()
+for name in history:
+    if name not in (report + 'CONTRACT-DRAFT.json', report + 'verify_static.py'):
+        assert git_bytes('show', transport_base + ':' + name) == (ROOT / name).read_bytes(), name
+print('write scope + product unchanged + previous 19-toy history byte preservation PASS')
 subprocess.run(['git', 'diff', '--check'], cwd=ROOT, check=True)
 for relative in CODE + ['.github/workflows/issue1393-validation.yml']:
     result = subprocess.run(['git', 'diff', '--no-index', '--check', '/dev/null', relative],

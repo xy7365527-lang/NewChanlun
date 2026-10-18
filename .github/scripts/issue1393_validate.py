@@ -25,6 +25,26 @@ REPORT = '.chanlun/review-results/issue1393-validation-ci-20261018/'
 GATE_FALSE = b"  ISSUE1393_EXECUTE: 'False'\n"
 GATE_TRUE = b"  ISSUE1393_EXECUTE: 'True'\n"
 TOTAL_SECONDS = 3600
+REPOSITORY = 'xy7365527-lang/NewChanlun'
+PUSH_REF = 'refs/heads/codex/1393-validate-once-20261018'
+MESSAGE_BEGIN = 'ISSUE1393-CONTRACT-BEGIN\n'
+MESSAGE_END = '\nISSUE1393-CONTRACT-END'
+MAX_MESSAGE_BYTES = 32768
+MAX_EVENT_BYTES = 1048576
+GIT_FIELDS = ('source_commit', 'source_tree', 'prepared_commit', 'prepared_tree')
+HASH_FIELDS = ('product_manifest_sha256', 'runner_sha256', 'workflow_false_sha256',
+               'ci_sha256', 'telemetry_sha256', 'approval_sha256', 'review_sha256')
+CONTRACT_FIXED = {
+    'schema': 'issue1393-validation/2', 'status': 'BOUND_FOR_ROOT_REVIEW',
+    'repository': REPOSITORY, 'ref': PUSH_REF, 'event': 'push',
+    'workflow_path': WORKFLOW, 'runner_path': RUNNER, 'job': 'necessary-validation',
+    'runner_os': 'Linux', 'runner_label': 'ubuntu-latest', 'run_attempt': '1',
+    'prepared_ref_state': 'E_PREPUBLISHED_FALSE_ON_SAME_REF',
+    'activation': 'WORKFLOW_FALSE_TO_TRUE_ONLY',
+    'authorization_boundary': 'ROOT_SEPARATE_REVIEW_AND_SINGLE_PUSH',
+    'lib_features': ['default'], 's_features': ['default', 's_session'],
+    'total_seconds': TOTAL_SECONDS,
+}
 # 回收、封包、upload 使用总窗口剩余时间，不给后续步骤续租。
 FINAL_RESERVE = 30
 LIB_PREFIX = 'theta_v0::parser::inclusion::'
@@ -87,27 +107,89 @@ def require(condition, message: str) -> None:
 
 
 def validate_contract(gate: str, contract: dict) -> None:
-    """在任何外部命令之前执行；空值/默认值绝不等于授权。"""
+    """只验证数据绑定；批准文本及 status 都不是授权能力。"""
     require(gate == 'True', 'False 门：真实命令 NOT_RUN')
-    require(contract.get('schema') == 'issue1393-validation/1', '未知合同')
-    require(contract.get('status') == 'AUTHORIZED_ONCE', '合同未准入')
-    for key in ('source_commit', 'source_tree', 'prepared_commit', 'prepared_tree'):
+    require(type(contract) is dict, '合同必须是 JSON 对象')
+    fields = set(CONTRACT_FIXED) | set(GIT_FIELDS) | set(HASH_FIELDS) | {'approval_text', 'review_text'}
+    require(set(contract) == fields, '合同字段缺失或未知')
+    for key, expected in CONTRACT_FIXED.items():
+        require(type(contract[key]) is type(expected) and contract[key] == expected, '合同固定值不符：' + key)
+    for key in GIT_FIELDS:
         value = contract.get(key)
         require(isinstance(value, str) and re.fullmatch(r'[0-9a-f]{40}', value)
                 and len(set(value)) > 1, '缺少固定 Git 身份：' + key)
-    for key in ('product_manifest_sha256', 'runner_sha256', 'workflow_false_sha256',
-                'ci_sha256', 'telemetry_sha256', 'approval_sha256', 'review_sha256'):
+    for key in HASH_FIELDS:
         value = contract.get(key)
         require(isinstance(value, str) and re.fullmatch(r'[0-9a-f]{64}', value)
                 and len(set(value)) > 1, '缺少固定摘要：' + key)
     for name in ('approval', 'review'):
         value = contract.get(name + '_text')
-        require(isinstance(value, str) and value.strip()
+        require(isinstance(value, str) and value.strip() and value != 'UNBOUND'
+                and len(value.encode()) <= 8192
                 and digest(value.encode()) == contract[name + '_sha256'], name + '原件不符')
-    require(contract.get('run_attempt') == '1', '不自动重跑：只允许 attempt 1')
-    require(contract.get('lib_features') == ['default']
-            and contract.get('s_features') == ['default', 's_session'], 'features 域不符')
-    require(contract.get('total_seconds') == TOTAL_SECONDS, '总边界不符')
+
+
+def strict_json(raw):
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            require(key not in result, 'JSON 重复字段')
+            result[key] = value
+        return result
+
+    def invalid_constant(_):
+        raise Refused('非有限 JSON 数值')
+
+    try:
+        return json.loads(raw, object_pairs_hook=pairs, parse_constant=invalid_constant)
+    except (ValueError, RecursionError) as exc:
+        raise Refused('畸形 JSON') from exc
+
+
+def parse_message(message):
+    require(type(message) is str and 0 < len(message.encode()) <= MAX_MESSAGE_BYTES, 'message 缺失或超界')
+    # Git 对象常有单个末尾 LF；只容忍这一表示差异，不 strip 其它空白。
+    body = message.removesuffix('\n')
+    require(body.count(MESSAGE_BEGIN) == 1 and body.count(MESSAGE_END) == 1
+            and body.startswith(MESSAGE_BEGIN) and body.endswith(MESSAGE_END), '缺少唯一完整封套')
+    contract = strict_json(body[len(MESSAGE_BEGIN):-len(MESSAGE_END)])
+    validate_contract('True', contract)
+    return contract
+
+
+def validate_push(event, contract, head):
+    """#1488 的专属 push/ref/SHA 判据；补 #1393 的 E 预发布和 attempt 约束。"""
+    require(os.environ.get('GITHUB_ACTIONS') == 'true' and sys.platform == 'linux'
+            and os.environ.get('RUNNER_OS') == 'Linux', '仅具名远端 Linux CI')
+    expected = {'GITHUB_REPOSITORY': REPOSITORY, 'GITHUB_REF': PUSH_REF,
+                'GITHUB_EVENT_NAME': 'push', 'GITHUB_RUN_ATTEMPT': '1',
+                'GITHUB_JOB': 'necessary-validation', 'GITHUB_SHA': head,
+                'GITHUB_WORKFLOW_SHA': head,
+                'GITHUB_WORKFLOW_REF': REPOSITORY + '/' + WORKFLOW + '@' + PUSH_REF}
+    require(all(os.environ.get(k) == value for k, value in expected.items()), 'GitHub 运行身份不符')
+    require(type(event) is dict and type(event.get('repository')) is dict
+            and event['repository'].get('full_name') == REPOSITORY and event.get('ref') == PUSH_REF,
+            'push 仓库或 ref 不符')
+    require(all(event.get(k) is False for k in ('created', 'deleted', 'forced')), '只允许既有分支普通 push')
+    require(event.get('before') == contract['prepared_commit'], 'push before 必须为同分支预发布的 E')
+    require(type(head) is str and re.fullmatch(r'[0-9a-f]{40}', head)
+            and head != contract['prepared_commit'] and len(set(head)) > 1, '执行 head 非法')
+    require(event.get('after') == head and type(event.get('head_commit')) is dict
+            and event['head_commit'].get('id') == head, 'push 执行 head 不符')
+
+
+def read_push_contract(output):
+    event_path = os.environ.get('GITHUB_EVENT_PATH')
+    require(event_path, '缺 GitHub 事件原件')
+    with open(event_path, 'rb') as stream:
+        raw = stream.read(MAX_EVENT_BYTES + 1)
+    require(len(raw) <= MAX_EVENT_BYTES, '事件原件超界')
+    (output / 'push-event.json').write_bytes(raw)
+    event = strict_json(raw)
+    require(type(event) is dict and type(event.get('head_commit')) is dict, '缺 push head_commit')
+    contract = parse_message(event['head_commit'].get('message'))
+    validate_push(event, contract, os.environ.get('GITHUB_SHA'))
+    return event, contract
 
 
 class Budget:
@@ -195,7 +277,7 @@ class Supervisor:
                        'returncode': process.returncode})
         return events, gone and process.returncode is not None
 
-    def run(self, name, argv, cwd, env=None):
+    def run(self, name, argv, cwd, env=None, input_data=None):
         if self.stopped or self.interrupted or self.budget.remaining(FINAL_RESERVE) <= 0:
             self.stopped = True
             return self.skip(name, '前步失败、信号或共享截止已到')
@@ -207,11 +289,20 @@ class Supervisor:
         save(self.output / 'steps.json', self.records)
         process = None
         try:
+            if input_data is not None:
+                # 唯一调用者发送 82 字节 SHA 对；先验证，再创建任何子进程。
+                require(type(input_data) is bytes
+                        and re.fullmatch(rb'[0-9a-f]{40} [0-9a-f]{40}\n', input_data), '非法 Git identity stdin')
+                row['stdin'] = input_data.decode('ascii')
             with (self.output / row['stdout']).open('xb') as out, (self.output / row['stderr']).open('xb') as err:
                 process = subprocess.Popen(row['argv'], cwd=cwd, env=env,
-                                           stdout=out, stderr=err, start_new_session=True)
+                                           stdout=out, stderr=err, start_new_session=True,
+                                           stdin=subprocess.PIPE if input_data is not None else subprocess.DEVNULL)
                 self.active = process
                 row['pid'] = process.pid
+                if input_data is not None:
+                    process.stdin.write(input_data)
+                    process.stdin.close()
                 while process.poll() is None:
                     if self.interrupted:
                         row['status'] = 'SIGNALLED'
@@ -247,8 +338,25 @@ def successful(row):
     require(row['status'] == 'PASS', row['name'] + ' 未通过：' + row['status'])
 
 
-def git_read(supervisor, root, name, *args):
-    row = supervisor.run(name, ['git', *args], root)
+GIT_COMMANDS = {
+    'git-head': ['rev-parse', 'HEAD'],
+    'git-parent': ['rev-list', '--parents', '-n', '1', 'HEAD'],
+    'git-message': ['cat-file', 'commit', 'HEAD'],
+    'git-ancestry': ['log', '--format=%H %T', 'HEAD^'],
+    'git-prepared-tree': ['rev-parse', 'HEAD^1^{tree}'],
+    'git-dirty': ['status', '--porcelain', '--untracked-files=all'],
+    'git-activation-paths': ['diff', '--raw', '--no-abbrev', '--no-renames', '-z', 'HEAD^', 'HEAD'],
+    'workflow-prepared': ['show', 'HEAD^:' + WORKFLOW],
+    'source-prepared-paths': ['diff-tree', '--stdin', '--no-commit-id', '--name-only', '--no-renames', '-r', '-z'],
+    'prepared-ls-tree': ['ls-tree', '-rz', 'HEAD^'],
+    'execution-ls-tree': ['ls-tree', '-rz', 'HEAD'],
+    'execution-tree': ['rev-parse', 'HEAD^{tree}'],
+}
+
+
+def git_read(supervisor, root, name, input_data=None):
+    # argv 只从固定白名单取；message 字段永不构造命令、模块、路径或 argv。
+    row = supervisor.run(name, ['git', *GIT_COMMANDS[name]], root, input_data=input_data)
     successful(row)
     return (supervisor.output / row['stdout']).read_bytes()
 
@@ -260,9 +368,13 @@ def product_entries(tree: bytes) -> list[str]:
         if not entry:
             continue
         _, path = entry.split('\t', 1)
-        if path not in (WORKFLOW, RUNNER, TEST_FILE, '.github/workflows/ci.yml') and not path.startswith(REPORT):
+        if is_product_path(path):
             entries.append(entry)
     return sorted(entries)
+
+
+def is_product_path(path):
+    return path not in (WORKFLOW, RUNNER, TEST_FILE, '.github/workflows/ci.yml') and not path.startswith(REPORT)
 
 
 def verify_activation(prepared: bytes, executed: bytes) -> None:
@@ -270,45 +382,55 @@ def verify_activation(prepared: bytes, executed: bytes) -> None:
     require(executed == prepared.replace(GATE_FALSE, GATE_TRUE, 1), '执行尾不止 False→True 一处变化')
 
 
-def bind_source(root, contract, supervisor):
+def bind_source(root, contract, supervisor, event):
     output = supervisor.output
-    head = git_read(supervisor, root, 'git-head', 'rev-parse', 'HEAD').decode().strip()
-    require(head == os.environ.get('GITHUB_SHA'), '执行 HEAD 与 GitHub SHA 不符')
-    expected_ref = os.environ.get('GITHUB_REPOSITORY', '') + '/' + WORKFLOW + '@' + os.environ.get('GITHUB_REF', '')
-    require(os.environ.get('GITHUB_WORKFLOW_REF') == expected_ref
-            and os.environ.get('GITHUB_WORKFLOW_SHA') == head, '实际调用 workflow 身份不符')
-    parents = git_read(supervisor, root, 'git-parent', 'rev-list', '--parents', '-n', '1', 'HEAD').decode().split()
+    head = git_read(supervisor, root, 'git-head').decode().strip()
+    validate_push(event, contract, head)
+    raw_commit = git_read(supervisor, root, 'git-message')
+    require(b'\n\n' in raw_commit, '缺实际 commit message')
+    message = raw_commit.split(b'\n\n', 1)[1].decode('utf-8')
+    require(message.removesuffix('\n') == event['head_commit']['message'].removesuffix('\n')
+            and parse_message(message) == contract, '事件 message 与实际 commit message 不符')
+    parents = git_read(supervisor, root, 'git-parent').decode().split()
     require(parents == [head, contract['prepared_commit']], '执行尾须为准备提交的单父直接子提交')
-    for prefix in ('source', 'prepared'):
-        tree = git_read(supervisor, root, 'git-' + prefix + '-tree', 'rev-parse', contract[prefix + '_commit'] + '^{tree}').decode().strip()
-        require(tree == contract[prefix + '_tree'], prefix + ' tree 不符')
-    successful(supervisor.run('git-ancestor', ['git', 'merge-base', '--is-ancestor',
-                                            contract['source_commit'], contract['prepared_commit']], root))
-    dirty = git_read(supervisor, root, 'git-dirty', 'status', '--porcelain', '--untracked-files=all')
+    ancestry = dict(line.split() for line in git_read(supervisor, root, 'git-ancestry').decode().splitlines())
+    require(ancestry.get(contract['source_commit']) == contract['source_tree'], 'source 非 E 祖先或 tree 不符')
+    require(git_read(supervisor, root, 'git-prepared-tree').decode().strip() == contract['prepared_tree'], 'prepared tree 不符')
+    dirty = git_read(supervisor, root, 'git-dirty')
     require(not dirty, '工作区非干净固定源')
-    changed = git_read(supervisor, root, 'git-activation-paths', 'diff', '--name-only', '-z',
-                       contract['prepared_commit'], head).decode().split('\0')
-    require(changed == [WORKFLOW, ''], '准入提交修改了非门文件')
-    prepared = git_read(supervisor, root, 'workflow-prepared', 'show', contract['prepared_commit'] + ':' + WORKFLOW)
+    changed = git_read(supervisor, root, 'git-activation-paths').decode().split('\0')
+    require(len(changed) == 3 and changed[1:] == [WORKFLOW, '']
+            and re.fullmatch(r':100644 100644 [0-9a-f]{40} [0-9a-f]{40} M', changed[0]),
+            '准入提交须仅修改 workflow 内容，禁止其它路径或 mode 变化')
+    prepared = git_read(supervisor, root, 'workflow-prepared')
     verify_activation(prepared, (root / WORKFLOW).read_bytes())
     require(digest(prepared) == contract['workflow_false_sha256'], 'workflow 摘要不符')
     for path, key in ((RUNNER, 'runner_sha256'), ('.github/workflows/ci.yml', 'ci_sha256'),
                       ('.github/scripts/run-cargo-with-telemetry.sh', 'telemetry_sha256')):
         require(digest((root / path).read_bytes()) == contract[key], path + ' 摘要不符')
-    source = git_read(supervisor, root, 'source-ls-tree', 'ls-tree', '-rz', contract['source_commit'])
-    current = git_read(supervisor, root, 'execution-ls-tree', 'ls-tree', '-rz', head)
-    require(product_entries(source) == product_entries(current), '产品 source 与执行尾产品对象不一致')
-    manifest = product_entries(source)
+    # S/E 已由祖先表与单父匹配验证。SHA 对只进入固定 diff-tree 的 stdin 数据协议。
+    delta = git_read(supervisor, root, 'source-prepared-paths',
+                     (contract['source_commit'] + ' ' + contract['prepared_commit'] + '\n').encode('ascii'))
+    require(not any(is_product_path(p) for p in delta.decode().split('\0') if p), 'source 到 E 产品对象变化')
+    prepared_tree = git_read(supervisor, root, 'prepared-ls-tree')
+    current = git_read(supervisor, root, 'execution-ls-tree')
+    require(product_entries(prepared_tree) == product_entries(current), 'E 与执行尾产品对象不一致')
+    manifest = product_entries(prepared_tree)
     require(digest(canonical(manifest)) == contract['product_manifest_sha256'], '产品清单摘要不符')
     save(output / 'product-manifest.json', manifest)
-    execution_tree = git_read(supervisor, root, 'execution-tree', 'rev-parse', 'HEAD^{tree}').decode().strip()
+    execution_tree = git_read(supervisor, root, 'execution-tree').decode().strip()
     save(output / 'binding.json', {'source_commit': contract['source_commit'], 'source_tree': contract['source_tree'],
                                  'prepared_commit': contract['prepared_commit'], 'prepared_tree': contract['prepared_tree'],
                                  'execution_commit': head, 'execution_tree': execution_tree,
                                  'workflow_executed_sha256': digest((root / WORKFLOW).read_bytes()),
                                  'runner_sha256': digest((root / RUNNER).read_bytes()),
+                                 'push_before': event['before'], 'push_after': event['after'],
+                                 'event_message_sha256': digest(event['head_commit']['message'].encode()),
+                                 'commit_message_sha256': digest(message.encode()),
+                                 'authorization': '消息及摘要仅作溯源；根须在运行外单独审核完整合同和唯一 push 动作',
                                  'github': {k: os.environ.get(k) for k in ('GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT',
-                                            'GITHUB_JOB', 'GITHUB_WORKFLOW_REF', 'GITHUB_WORKFLOW_SHA', 'GITHUB_REPOSITORY')}})
+                                            'GITHUB_JOB', 'GITHUB_WORKFLOW_REF', 'GITHUB_WORKFLOW_SHA', 'GITHUB_REPOSITORY',
+                                            'GITHUB_REF', 'GITHUB_SHA', 'GITHUB_EVENT_NAME', 'RUNNER_OS')}})
 
 
 def verify_source_names(root, cases):
@@ -486,7 +608,6 @@ def package(output: Path, budget: Budget):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--contract', type=Path, required=True)
     parser.add_argument('--start', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args(argv)
@@ -497,13 +618,9 @@ def main(argv=None):
     code = 1
     result = {'status': 'REFUSED', 'real_execution': 'NOT_RUN', 'package_receipt': 'PACKAGE.json'}
     try:
-        contract = json.loads(args.contract.read_text())
-        validate_contract(os.environ.get('ISSUE1393_EXECUTE', 'False'), contract)
-        require(os.environ.get('GITHUB_ACTIONS') == 'true' and sys.platform == 'linux', '仅具名远端 Linux CI')
-        require(os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch'
-                and os.environ.get('GITHUB_RUN_ATTEMPT') == contract['run_attempt'], '未知事件或重复执行')
-        require(os.environ.get('GITHUB_JOB') == 'necessary-validation', '非具名任务')
+        require(os.environ.get('ISSUE1393_EXECUTE', 'False') == 'True', 'False 门：真实命令 NOT_RUN')
         budget = Budget(json.loads(args.start.read_text()))
+        event, contract = read_push_contract(output)
         save(output / 'contract.json', contract)
         save(output / 'start.json', json.loads(args.start.read_text()))
         supervisor = Supervisor(output, budget)
@@ -511,7 +628,7 @@ def main(argv=None):
             signal.signal(sig, supervisor.handle_signal)
         root = Path(__file__).resolve().parents[2]
         require(not output.is_relative_to(root), '证据必须在 checkout 外，不能污染绑定')
-        bind_source(root, contract, supervisor)
+        bind_source(root, contract, supervisor, event)
         result['real_execution'] = 'STARTED'
         execute_checks(root, supervisor)
         require(not supervisor.interrupted, '封包前收到信号')

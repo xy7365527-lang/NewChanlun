@@ -1,16 +1,15 @@
 name: Issue 1393 necessary validation (prepared, not authorized)
 
 on:
-  workflow_dispatch:
-    inputs:
-      contract:
-        description: '根核准的完整绑定 JSON；默认草案拒绝执行'
-        required: true
-        type: string
-        default: '{"status":"PREPARED_NOT_AUTHORIZED"}'
+  push:
+    branches: [codex/1393-validate-once-20261018]
 
 permissions:
   contents: read
+
+concurrency:
+  group: issue1393-validation-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   # 唯一执行开关。根先固定 False 准备提交，再独立审核仅此一行的变化。
@@ -32,8 +31,6 @@ jobs:
       # 首个执行步骤记录单一窗口，包含 checkout/安装/所有验证/回收/上传。
       - name: Start the shared deadline
         if: env.ISSUE1393_EXECUTE == 'True'
-        env:
-          VALIDATION_CONTRACT: ${{ inputs.contract }}
         run: |
           python3 - <<'PY'
           import json, os, time
@@ -41,7 +38,6 @@ jobs:
           p = Path(os.environ['RUNNER_TEMP'])
           start = {'monotonic': time.monotonic(), 'wall': time.time(), 'total_seconds': 3600}
           (p / 'issue1393-start.json').write_text(json.dumps(start))
-          (p / 'issue1393-contract.json').write_text(os.environ['VALIDATION_CONTRACT'])
           PY
 
       - uses: actions/checkout@v4
@@ -56,7 +52,6 @@ jobs:
         if: env.ISSUE1393_EXECUTE == 'True'
         run: >-
           python3 .github/scripts/issue1393_validate.py
-          --contract "$RUNNER_TEMP/issue1393-contract.json"
           --start "$RUNNER_TEMP/issue1393-start.json"
           --output "$RUNNER_TEMP/issue1393-evidence"
 
@@ -104,7 +99,6 @@ jobs:
           # 不上传 target 编译目录；只上传原件与封包收据。
           path: |
             ${{ runner.temp }}/issue1393-start.json
-            ${{ runner.temp }}/issue1393-contract.json
             ${{ runner.temp }}/issue1393-evidence/*.json
             ${{ runner.temp }}/issue1393-evidence/*.stdout
             ${{ runner.temp }}/issue1393-evidence/*.stderr
