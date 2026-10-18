@@ -1,0 +1,26 @@
+[
+  {
+    "probe_index": 1,
+    "execution": "从正式JSON两层shlex解析后以python3 -B -c原代码运行；不通过shell执行",
+    "exit_code": 0,
+    "output": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/formal-probe-1-after.txt",
+    "bytes": 5265,
+    "sha256": "d41321f518430e6818c24e65259d47e229002fd351322484c4f6f1a091be6189"
+  },
+  {
+    "probe_index": 2,
+    "execution": "从正式JSON两层shlex解析后以python3 -B -c原代码运行；不通过shell执行",
+    "exit_code": 0,
+    "output": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/formal-probe-2-after.txt",
+    "bytes": 7319,
+    "sha256": "8c587cae6d183b57a0605bb520e01c20a4fa425a7abcf064d3ae1635a08fa9c3"
+  },
+  {
+    "probe_index": 3,
+    "execution": "从正式JSON两层shlex解析后以python3 -B -c原代码运行；不通过shell执行",
+    "exit_code": 0,
+    "output": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/formal-probe-3-after.txt",
+    "bytes": 2487,
+    "sha256": "8fc0702f4584959e361cc624142a610fbdcb94bb8dd97ead79b81df42cb12ca0"
+  }
+]

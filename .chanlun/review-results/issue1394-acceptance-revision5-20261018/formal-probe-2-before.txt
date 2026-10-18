@@ -1,0 +1,368 @@
+[
+  {
+    "version": "baseline",
+    "mode": "control",
+    "error": null,
+    "outputs": [
+      {
+        "kind": "ACK",
+        "stage": "E",
+        "at": 0.001,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": "ACK",
+        "stage": "B",
+        "at": 0.007,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": null,
+        "stage": null,
+        "at": 0.008,
+        "status": "CONTROL_REAPED",
+        "reason": "COMPLETE"
+      }
+    ],
+    "samples": [
+      0.001,
+      0.007
+    ],
+    "failures": []
+  },
+  {
+    "version": "baseline",
+    "mode": "second_stage_expired",
+    "error": "Rejected: ACK 采样后已停止/过期",
+    "outputs": [
+      {
+        "kind": "ACK",
+        "stage": "E",
+        "at": 0.001,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": null,
+        "stage": null,
+        "at": 0.052,
+        "status": "INCOMPLETE",
+        "reason": "ACK_FAILURE"
+      }
+    ],
+    "samples": [
+      0.001,
+      0.052
+    ],
+    "failures": [
+      "ACK_FAILURE",
+      "Rejected: ACK 采样后已停止/过期"
+    ]
+  },
+  {
+    "version": "baseline",
+    "mode": "heartbeat_expired",
+    "error": "Rejected: worker 心跳失联",
+    "outputs": [
+      {
+        "kind": "ACK",
+        "stage": "E",
+        "at": 0.001,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": null,
+        "stage": null,
+        "at": 1.101,
+        "status": "INCOMPLETE",
+        "reason": "Rejected: worker 心跳失联"
+      }
+    ],
+    "samples": [
+      0.001
+    ],
+    "failures": [
+      "Rejected: worker 心跳失联",
+      "Rejected: worker 心跳失联"
+    ]
+  },
+  {
+    "version": "baseline",
+    "mode": "work_expired",
+    "error": "Rejected: 工作截止耗尽",
+    "outputs": [
+      {
+        "kind": "ACK",
+        "stage": "E",
+        "at": 0.001,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": null,
+        "stage": null,
+        "at": 10.101,
+        "status": "INCOMPLETE",
+        "reason": "Rejected: 工作截止耗尽"
+      }
+    ],
+    "samples": [
+      0.001
+    ],
+    "failures": [
+      "Rejected: 工作截止耗尽",
+      "Rejected: 工作截止耗尽"
+    ]
+  },
+  {
+    "version": "baseline",
+    "mode": "sample_due_resource_overrun",
+    "error": "Rejected: 监督采样未知/超过冻结帽：rss_bytes",
+    "outputs": [
+      {
+        "kind": "ACK",
+        "stage": "E",
+        "at": 0.001,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": null,
+        "stage": null,
+        "at": 0.201,
+        "status": "INCOMPLETE",
+        "reason": "Rejected: 监督采样未知/超过冻结帽：rss_bytes"
+      }
+    ],
+    "samples": [
+      0.001
+    ],
+    "failures": [
+      "Rejected: 监督采样未知/超过冻结帽：rss_bytes",
+      "Rejected: 监督采样未知/超过冻结帽：rss_bytes"
+    ]
+  },
+  {
+    "version": "baseline",
+    "mode": "sample_due_stranger",
+    "error": "Rejected: 存在未登记后代；监督不完整",
+    "outputs": [
+      {
+        "kind": "ACK",
+        "stage": "E",
+        "at": 0.001,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": null,
+        "stage": null,
+        "at": 0.201,
+        "status": "INCOMPLETE",
+        "reason": "Rejected: 存在未登记后代；监督不完整"
+      }
+    ],
+    "samples": [
+      0.001
+    ],
+    "failures": [
+      "Rejected: 存在未登记后代；监督不完整",
+      "Rejected: 存在未登记后代；监督不完整"
+    ]
+  },
+  {
+    "version": "HEAD",
+    "mode": "control",
+    "error": null,
+    "outputs": [
+      {
+        "kind": "ACK",
+        "stage": "E",
+        "at": 0.003,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": "ACK",
+        "stage": "B",
+        "at": 0.008,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": null,
+        "stage": null,
+        "at": 0.008,
+        "status": "CONTROL_REAPED",
+        "reason": "COMPLETE"
+      }
+    ],
+    "samples": [
+      0.003
+    ],
+    "failures": []
+  },
+  {
+    "version": "HEAD",
+    "mode": "second_stage_expired",
+    "error": null,
+    "outputs": [
+      {
+        "kind": "ACK",
+        "stage": "E",
+        "at": 0.003,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": "ACK",
+        "stage": "B",
+        "at": 0.053,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": null,
+        "stage": null,
+        "at": 0.053,
+        "status": "CONTROL_REAPED",
+        "reason": "COMPLETE"
+      }
+    ],
+    "samples": [
+      0.003
+    ],
+    "failures": []
+  },
+  {
+    "version": "HEAD",
+    "mode": "heartbeat_expired",
+    "error": null,
+    "outputs": [
+      {
+        "kind": "ACK",
+        "stage": "E",
+        "at": 0.003,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": "ACK",
+        "stage": "B",
+        "at": 1.103,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": null,
+        "stage": null,
+        "at": 1.103,
+        "status": "CONTROL_REAPED",
+        "reason": "COMPLETE"
+      }
+    ],
+    "samples": [
+      0.003
+    ],
+    "failures": []
+  },
+  {
+    "version": "HEAD",
+    "mode": "work_expired",
+    "error": null,
+    "outputs": [
+      {
+        "kind": "ACK",
+        "stage": "E",
+        "at": 0.003,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": "ACK",
+        "stage": "B",
+        "at": 10.103,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": null,
+        "stage": null,
+        "at": 10.103,
+        "status": "CONTROL_REAPED",
+        "reason": "COMPLETE"
+      }
+    ],
+    "samples": [
+      0.003
+    ],
+    "failures": []
+  },
+  {
+    "version": "HEAD",
+    "mode": "sample_due_resource_overrun",
+    "error": null,
+    "outputs": [
+      {
+        "kind": "ACK",
+        "stage": "E",
+        "at": 0.003,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": "ACK",
+        "stage": "B",
+        "at": 0.203,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": null,
+        "stage": null,
+        "at": 0.203,
+        "status": "CONTROL_REAPED",
+        "reason": "COMPLETE"
+      }
+    ],
+    "samples": [
+      0.003
+    ],
+    "failures": []
+  },
+  {
+    "version": "HEAD",
+    "mode": "sample_due_stranger",
+    "error": null,
+    "outputs": [
+      {
+        "kind": "ACK",
+        "stage": "E",
+        "at": 0.003,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": "ACK",
+        "stage": "B",
+        "at": 0.203,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": null,
+        "stage": null,
+        "at": 0.203,
+        "status": "CONTROL_REAPED",
+        "reason": "COMPLETE"
+      }
+    ],
+    "samples": [
+      0.003
+    ],
+    "failures": []
+  }
+]

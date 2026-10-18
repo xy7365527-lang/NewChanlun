@@ -4,6 +4,7 @@ Probe 提供实际进程树/RSS/磁盘/日志观察；未知读数即停止。�
 硬界，不用聚合 toy 读数冒充产品隔离。操作系统实现及 Unix 服务仍待准入。
 """
 from dataclasses import dataclass, asdict
+from collections import deque
 import math
 import signal
 import time
@@ -229,37 +230,62 @@ def monitor(core, receive, emit):
             if message is None:
                 core.tick()
                 continue
-            batch_until = min(receive_deadline, core.clock() + core.limits.sample_interval)
-            pending_acks = []
             terminal = None
-            while message is not None:
+
+            def drain(message):
+                nonlocal terminal
+                batch_until = min(receive_deadline, core.clock() + core.limits.sample_interval)
+                pending_acks = []
+                while message is not None:
+                    require(core.clock() < receive_deadline, "接收超过原工作/心跳截止")
+                    kind = message["kind"]
+                    if kind == "ACK_REQUEST":
+                        core._register_ack(message["binding"])
+                        pending_acks.append(message["binding"])
+                    elif kind == "HEARTBEAT":
+                        core.heartbeat(Identity(**message["worker"]))
+                    elif kind == "REGISTER_DESCENDANT":
+                        require(Identity(**message["worker"]) == core.worker
+                                and message["contract_sha256"] == core.contract_sha,
+                                "后代登记 worker/合同错绑")
+                        core.live_identity(core.worker)
+                        require(message["parent"] in core.owners, "后代登记缺已握手父owner")
+                        require(core.clock() < core.limits.work_deadline, "后代登记过期")
+                        core.register(Identity(**message["identity"]), parent=message["parent"])
+                    elif kind in {"CANCEL", "COMPLETE"}:
+                        require(Identity(**message["worker"]) == core.worker, "取消者身份不同")
+                        terminal = kind
+                    else:
+                        require(False, "未知监督命令")
+                    if terminal is not None or core.clock() >= batch_until:
+                        break
+                    message = receive(0)
                 require(core.clock() < receive_deadline, "接收超过原工作/心跳截止")
-                kind = message["kind"]
-                if kind == "ACK_REQUEST":
-                    core._register_ack(message["binding"])
-                    pending_acks.append(message["binding"])
-                elif kind == "HEARTBEAT":
-                    core.heartbeat(Identity(**message["worker"]))
-                elif kind == "REGISTER_DESCENDANT":
-                    require(Identity(**message["worker"]) == core.worker
-                            and message["contract_sha256"] == core.contract_sha,
-                            "后代登记 worker/合同错绑")
-                    core.live_identity(core.worker)
-                    require(message["parent"] in core.owners, "后代登记缺已握手父owner")
-                    require(core.clock() < core.limits.work_deadline, "后代登记过期")
-                    core.register(Identity(**message["identity"]), parent=message["parent"])
-                elif kind in {"CANCEL", "COMPLETE"}:
-                    require(Identity(**message["worker"]) == core.worker, "取消者身份不同")
-                    terminal = kind
+                return core._sample_and_ack(pending_acks, deadline=receive_deadline)
+
+            replies = deque(drain(message))
+
+            def send_boundary():
+                require(not core.stopped and core.clock() < receive_deadline,
+                        "发送超过原工作/心跳截止或监督已停止")
+                if terminal is None and core.clock() - core.last_sample >= core.limits.sample_interval:
+                    # 发送期间也可能排入合法登记；沿用有限排队规则再采样。
+                    # 始终保留本轮最初的receive_deadline，心跳不能替发送续期。
+                    replies.extend(drain(receive(0)))
                 else:
-                    require(False, "未知监督命令")
-                if terminal is not None or core.clock() >= batch_until:
-                    break
-                message = receive(0)
-            require(core.clock() < receive_deadline, "接收超过原工作/心跳截止")
-            replies = core._sample_and_ack(pending_acks, deadline=receive_deadline)
-            for reply in replies:
+                    core.tick()
+                require(not core.stopped and core.clock() < receive_deadline
+                        and core.clock() < core.last_heartbeat + core.limits.heartbeat_timeout,
+                        "发送采样后超过原工作/心跳截止或监督已停止")
+
+            while replies:
+                send_boundary()
+                reply = replies.popleft()
+                require(core.clock() < core.stages[reply["binding"]["stage"]]["deadline"],
+                        "ACK 发送前阶段已过期")
                 emit(reply)
+                # 最后一条ACK也要核验；不能由COMPLETE/CANCEL跳过返回后的到期采样。
+                send_boundary()
             if terminal is not None:
                 reason = terminal
                 break

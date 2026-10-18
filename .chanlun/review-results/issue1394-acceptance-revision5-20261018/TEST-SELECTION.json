@@ -1,0 +1,210 @@
+{
+  "base_commit": "576a13470566a5ca4625eae3d4e89abcb950e346",
+  "enumerated_before_tests_utc": "2026-10-18T06:10:52.133658+00:00",
+  "methods": [
+    {
+      "id": "test_review01.Review01Tests.test_F5_monitor_first_ack_receive_race_fixed_probe",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_review01.Review01Tests.test_F5_monitor_descendant_race_and_malicious_binding",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_review01.Review01Tests.test_F5_bad_first_ack_not_adopted",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_review02.Review02Tests.test_R_F5_already_queued_ACK_and_descendant",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_review02.Review02Tests.test_R_F5_queued_forgery_unknown_and_expired_not_adopted",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_review03.Review03Tests.test_R_F5_heartbeat_then_first_ACK_formal_probe",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_review03.Review03Tests.test_R_F5_two_REGISTERs_formal_probe",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_review03.Review03Tests.test_R_F5_ACK_force_sample_waits_for_queued_descendants",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_review03.Review03Tests.test_R_F5_empty_queue_boundary_and_no_queue_legal",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_review03.Review03Tests.test_R_F5_stranger_at_empty_or_COMPLETE_boundary_rejected",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_review03.Review03Tests.test_R_F5_forged_queued_registration_never_acknowledged",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_review03.Review03Tests.test_R_F5_original_deadlines_not_extended_by_queue_or_heartbeat",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_review03.Review03Tests.test_R_F5_heartbeat_stream_has_fixed_sampling_boundary",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_review03.Review03Tests.test_R_F5_COMPLETE_before_registration_is_not_a_grace_period",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_review03.Review03Tests.test_R_F5_queued_ACK_still_requires_resource_sample",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_formal_second_stage_expires_between_sends",
+      "new": true,
+      "reason": "独审04发送前/返回后边界"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_formal_two_ACK_work_and_heartbeat_exhaustion",
+      "new": true,
+      "reason": "独审04发送前/返回后边界"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_single_ACK_COMPLETE_checks_returned_work_deadline",
+      "new": true,
+      "reason": "独审04发送前/返回后边界"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_single_ACK_CANCEL_checks_returned_work_deadline",
+      "new": true,
+      "reason": "独审04发送前/返回后边界"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_last_ACK_checks_returned_heartbeat",
+      "new": true,
+      "reason": "独审04发送前/返回后边界"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_formal_single_ACK_due_stranger_before_terminal",
+      "new": true,
+      "reason": "独审04发送前/返回后边界"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_two_ACK_last_return_due_RSS_over_cap",
+      "new": true,
+      "reason": "独审04发送前/返回后边界"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_first_return_due_RSS_stops_remaining_ACK",
+      "new": true,
+      "reason": "独审04发送前/返回后边界"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_exact_original_deadline_is_exhausted",
+      "new": true,
+      "reason": "独审04发送前/返回后边界"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_due_sample_can_exhaust_next_stage_before_send",
+      "new": true,
+      "reason": "独审04发送前/返回后边界"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_due_sample_can_exhaust_heartbeat_before_terminal",
+      "new": true,
+      "reason": "独审04发送前/返回后边界"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples",
+      "new": true,
+      "reason": "独审04发送前/返回后边界"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_send_due_sample_drains_queued_heartbeat_and_multiple_REGISTERs",
+      "new": true,
+      "reason": "独审04发送前/返回后边界"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_send_due_sample_drains_queued_ACK_internal_path",
+      "new": true,
+      "reason": "独审04发送前/返回后边界"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_send_queue_does_not_hide_stranger_or_extend_original_deadline",
+      "new": true,
+      "reason": "独审04发送前/返回后边界"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_send_queue_sampling_boundary_is_finite",
+      "new": true,
+      "reason": "独审04发送前/返回后边界"
+    },
+    {
+      "id": "test_supervisor.SupervisorTests.test_ack_registers_same_worker_caps_deadline_and_nonce_once",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_supervisor.SupervisorTests.test_null_or_missing_caps_and_script_change_refused",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_supervisor.SupervisorTests.test_script_change_after_registration_stops_at_next_sample",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_supervisor.SupervisorTests.test_registered_descendants_cancel_reaps_leaf_then_parent",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_supervisor.SupervisorTests.test_unregistered_descendant_is_not_adopted_or_signalled",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_supervisor.SupervisorTests.test_heartbeat_loss_deadline_and_resource_unknown_stop",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_supervisor.SupervisorTests.test_pid_reuse_does_not_signal_foreign_process",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_supervisor.SupervisorTests.test_term_timeout_escalation_and_no_restart",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    },
+    {
+      "id": "test_supervisor.SupervisorTests.test_continuous_monitor_samples_and_handles_transport_loss",
+      "new": false,
+      "reason": "受影响监督路径及原排队/身份/采样/回收防回归"
+    }
+  ],
+  "old_count": 24,
+  "new_count": 16,
+  "total": 40,
+  "excluded": "不运行N2/adapter/driver/scheduler及旧全套；不运行真实toy子进程或ps/socket"
+}

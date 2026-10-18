@@ -1,0 +1,177 @@
+{
+  "ticket": 1394,
+  "classification": "绑定1394的活期工作草稿",
+  "base_commit": "576a13470566a5ca4625eae3d4e89abcb950e346",
+  "execution_authorized": false,
+  "product_status": "NOT_RUN",
+  "author_checks": "40定向方法普通/-O通过；24旧+16新；29Python内存AST/compile通过；正式发送探针修前/修后对拍",
+  "independent_review": "新字节待管理者固定并独审；不替代独审04旧版BLOCK",
+  "preserved_product_capture": "两个Python及既有报告原字节保持，尚未独审",
+  "self_digest_omitted": true,
+  "future_commit_omitted": true,
+  "commit_created": false,
+  "files": [
+    {
+      "path": "s_session/tests/issue1394_acceptance/supervisor.py",
+      "bytes": 15794,
+      "sha256": "12c80ef107eeb5cf1623a86aaa9896a493eb6556e2ba01c7d24338d3625433c1",
+      "mode": "0o644"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review04.py",
+      "bytes": 11776,
+      "sha256": "34024c7e7621296d7a3644f120d1bf2518f4ea6366fbb821463ee5729f036b2f",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/BASELINE-PYTHON.json",
+      "bytes": 5358,
+      "sha256": "b2ba624af5a8651d1b9e47679b2a9e87e1679c348a1d91c7512e47152fb6014b",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/FIX-LEDGER.md",
+      "bytes": 3289,
+      "sha256": "ce4a6992d254adc979b18452ec22e6464b8be0bcd26702a07c0316d387ae783f",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/FORMAL-COMPARISON.json",
+      "bytes": 17464,
+      "sha256": "9599535fc69a9657ab3fb1f1e84181ffcd461fe9a119dcd372af18ab592ff23a",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/FORMAL-PROBES-AFTER.json",
+      "bytes": 1098,
+      "sha256": "efaf5877de0c16b1599a61ab8b2c19f02bd601b0dc598acc3d3fa5ca35fb6212",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/FORMAL-PROBES-BEFORE.json",
+      "bytes": 1101,
+      "sha256": "684580ca1a3181866b851f266834435fd268c7a2d62c1185d7a19a6b5933ee4b",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/NORMAL-RESULTS.json",
+      "bytes": 19017,
+      "sha256": "17d789f428b8c501402bf99dec79b5ae3fb765f19e950f78c751c663cef6437c",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/OPTIMIZED-RESULTS.json",
+      "bytes": 19033,
+      "sha256": "69baf0602df14c9724d877899ae92baf7fddf75897c146866bcac5a411569db4",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/RED-RESULTS.json",
+      "bytes": 14724,
+      "sha256": "faf5983dda7d586d4fe224393004b2230550264a126df45c51ef20a36dc5e524",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/REFERENCES.json",
+      "bytes": 1056,
+      "sha256": "64b77699758f70d03ebdbf73f206d3fde459824552be6792d2e0f14a9de9cb5f",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/REPORT.md",
+      "bytes": 7373,
+      "sha256": "2f45c14ff084937853dd10f75d8825add62843bf3656ad2025c20ffe3dafd64c",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/STATIC-CHECKS.json",
+      "bytes": 20377,
+      "sha256": "4abe792b8ce206adabcc42714ce57257255eec056e401b0637906e419c934e0f",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/TEST-RESULTS.json",
+      "bytes": 56878,
+      "sha256": "e949d4424ad94e80deba2ce93968d7790d889435901ee739957f2c9b5ad188ba",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/TEST-REUSE.json",
+      "bytes": 33057,
+      "sha256": "b476f0791fb92e9febde968da7c5630b85c9c2b26af4ea727ef3d063286437b6",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/TEST-SELECTION.json",
+      "bytes": 8348,
+      "sha256": "929c6453d1e7a2c7b82b01836883371b85867fb5ff0b42556497b28fa9c99e7e",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/formal-probe-1-after.txt",
+      "bytes": 5265,
+      "sha256": "d41321f518430e6818c24e65259d47e229002fd351322484c4f6f1a091be6189",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/formal-probe-1-before.txt",
+      "bytes": 5020,
+      "sha256": "b7d94630d47c9605d8c8882f6532a390ea39db2ad0529c47cd120bdf907f28dc",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/formal-probe-2-after.txt",
+      "bytes": 7319,
+      "sha256": "8c587cae6d183b57a0605bb520e01c20a4fa425a7abcf064d3ae1635a08fa9c3",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/formal-probe-2-before.txt",
+      "bytes": 7044,
+      "sha256": "eebc7edaa3f21d3c90de7139f02456d3177daeba885311dd667f41a6314fe95c",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/formal-probe-3-after.txt",
+      "bytes": 2487,
+      "sha256": "8fc0702f4584959e361cc624142a610fbdcb94bb8dd97ead79b81df42cb12ca0",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/formal-probe-3-before.txt",
+      "bytes": 2095,
+      "sha256": "dec139dab6256d188db715526cb6027ed8427567f822a1fc2dd04b587b8d8608",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/normal-targeted.txt",
+      "bytes": 5965,
+      "sha256": "1dfc297edab5184725aa5a64761063a24483adf39dd13f1eb1eec8b5f3d1a093",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/optimized-targeted.txt",
+      "bytes": 5965,
+      "sha256": "1dfc297edab5184725aa5a64761063a24483adf39dd13f1eb1eec8b5f3d1a093",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/red-targeted.txt",
+      "bytes": 45601,
+      "sha256": "05964a598e96c81a9bdeb0d77428cd8a6645fa8a2c8e95c79a7d5ef9995f28e4",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/references/REVIEW-04-INDEPENDENT-PROBES.json",
+      "bytes": 37709,
+      "sha256": "010624e5babf3c57944dc831fd0069f7029d291b117773228195014359cce143",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/references/REVIEW-04-INDEPENDENT.md",
+      "bytes": 4762,
+      "sha256": "7f2c2e00bd339578584fe3d933cb358cf436b375a6f8480f56c0f72bd240381c",
+      "mode": "0o644"
+    }
+  ]
+}

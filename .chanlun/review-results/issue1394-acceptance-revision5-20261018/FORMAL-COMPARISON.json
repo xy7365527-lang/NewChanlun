@@ -1,0 +1,733 @@
+{
+  "scope": "五条正式探针均已读；只重放1/2/3的有限内存发送探针，0/4静态及N2不重跑",
+  "index_base": 0,
+  "label_explanation": "原探针HEAD标签指import当前工作区；after是固定HEAD上的未提交差异，不是假定新commit",
+  "historical_baseline": "6cb6bbf33eb079f639abae2449ccc9b98d81a11c",
+  "formal_review_supervisor_matches_fixed_baseline": true,
+  "before_supervisor_sha256": "6840975995c90397b1aa9bba3bb6b091a422af65f094ad37c32b6d035a9642ee",
+  "after_supervisor_sha256": "12c80ef107eeb5cf1623a86aaa9896a493eb6556e2ba01c7d24338d3625433c1",
+  "extracted_code": [
+    {
+      "probe_index": 1,
+      "sha256": "3adcc6d20e43b4950e3f48b1fe9f7cc5c2543c574e0bbd114ed62fe17faf6e54"
+    },
+    {
+      "probe_index": 2,
+      "sha256": "a331d2bff59e1372e93b7f44fe706aa16e7a818cbc6bb41dbc5e0bc999bd673d"
+    },
+    {
+      "probe_index": 3,
+      "sha256": "9e77bcc6c7ab4f4f21723dabf3fa43d9a014c6520761bce2fbd9685128f72959"
+    }
+  ],
+  "rows": [
+    {
+      "probe_index": 1,
+      "version_label": "HEAD",
+      "case": "control",
+      "before_error": null,
+      "after_error": null,
+      "before_status": "CONTROL_REAPED",
+      "after_status": "CONTROL_REAPED",
+      "before_ACKs": [
+        {
+          "kind": "ACK",
+          "nonce": "n1",
+          "elapsed": 0.003,
+          "status": null,
+          "reason": null
+        },
+        {
+          "kind": "ACK",
+          "nonce": "n2",
+          "elapsed": 0.008,
+          "status": null,
+          "reason": null
+        }
+      ],
+      "after_ACKs": [
+        {
+          "kind": "ACK",
+          "nonce": "n1",
+          "elapsed": 0.003,
+          "status": null,
+          "reason": null
+        },
+        {
+          "kind": "ACK",
+          "nonce": "n2",
+          "elapsed": 0.008,
+          "status": null,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "probe_index": 1,
+      "version_label": "HEAD",
+      "case": "second_stage_expired",
+      "before_error": null,
+      "after_error": "Rejected: ACK 发送前阶段已过期",
+      "before_status": "CONTROL_REAPED",
+      "after_status": "INCOMPLETE",
+      "before_ACKs": [
+        {
+          "kind": "ACK",
+          "nonce": "n1",
+          "elapsed": 0.003,
+          "status": null,
+          "reason": null
+        },
+        {
+          "kind": "ACK",
+          "nonce": "n2",
+          "elapsed": 0.053,
+          "status": null,
+          "reason": null
+        }
+      ],
+      "after_ACKs": [
+        {
+          "kind": "ACK",
+          "nonce": "n1",
+          "elapsed": 0.003,
+          "status": null,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "probe_index": 1,
+      "version_label": "HEAD",
+      "case": "heartbeat_expired",
+      "before_error": null,
+      "after_error": "Rejected: 发送超过原工作/心跳截止或监督已停止",
+      "before_status": "CONTROL_REAPED",
+      "after_status": "INCOMPLETE",
+      "before_ACKs": [
+        {
+          "kind": "ACK",
+          "nonce": "n1",
+          "elapsed": 0.003,
+          "status": null,
+          "reason": null
+        },
+        {
+          "kind": "ACK",
+          "nonce": "n2",
+          "elapsed": 1.103,
+          "status": null,
+          "reason": null
+        }
+      ],
+      "after_ACKs": [
+        {
+          "kind": "ACK",
+          "nonce": "n1",
+          "elapsed": 0.003,
+          "status": null,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "probe_index": 1,
+      "version_label": "HEAD",
+      "case": "work_expired",
+      "before_error": null,
+      "after_error": "Rejected: 发送超过原工作/心跳截止或监督已停止",
+      "before_status": "CONTROL_REAPED",
+      "after_status": "INCOMPLETE",
+      "before_ACKs": [
+        {
+          "kind": "ACK",
+          "nonce": "n1",
+          "elapsed": 0.003,
+          "status": null,
+          "reason": null
+        },
+        {
+          "kind": "ACK",
+          "nonce": "n2",
+          "elapsed": 10.103,
+          "status": null,
+          "reason": null
+        }
+      ],
+      "after_ACKs": [
+        {
+          "kind": "ACK",
+          "nonce": "n1",
+          "elapsed": 0.003,
+          "status": null,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "probe_index": 1,
+      "version_label": "HEAD",
+      "case": "sample_due_resource_overrun",
+      "before_error": null,
+      "after_error": "Rejected: 监督采样未知/超过冻结帽：rss_bytes",
+      "before_status": "CONTROL_REAPED",
+      "after_status": "INCOMPLETE",
+      "before_ACKs": [
+        {
+          "kind": "ACK",
+          "nonce": "n1",
+          "elapsed": 0.003,
+          "status": null,
+          "reason": null
+        },
+        {
+          "kind": "ACK",
+          "nonce": "n2",
+          "elapsed": 0.203,
+          "status": null,
+          "reason": null
+        }
+      ],
+      "after_ACKs": [
+        {
+          "kind": "ACK",
+          "nonce": "n1",
+          "elapsed": 0.003,
+          "status": null,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "probe_index": 1,
+      "version_label": "HEAD",
+      "case": "sample_due_stranger",
+      "before_error": null,
+      "after_error": "Rejected: 存在未登记后代；监督不完整",
+      "before_status": "CONTROL_REAPED",
+      "after_status": "INCOMPLETE",
+      "before_ACKs": [
+        {
+          "kind": "ACK",
+          "nonce": "n1",
+          "elapsed": 0.003,
+          "status": null,
+          "reason": null
+        },
+        {
+          "kind": "ACK",
+          "nonce": "n2",
+          "elapsed": 0.203,
+          "status": null,
+          "reason": null
+        }
+      ],
+      "after_ACKs": [
+        {
+          "kind": "ACK",
+          "nonce": "n1",
+          "elapsed": 0.003,
+          "status": null,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "probe_index": 2,
+      "version_label": "baseline",
+      "case": "control",
+      "before_error": null,
+      "after_error": null,
+      "before_status": "CONTROL_REAPED",
+      "after_status": "CONTROL_REAPED",
+      "before_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.001,
+          "status": null,
+          "reason": null
+        },
+        {
+          "kind": "ACK",
+          "stage": "B",
+          "at": 0.007,
+          "status": null,
+          "reason": null
+        }
+      ],
+      "after_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.001,
+          "status": null,
+          "reason": null
+        },
+        {
+          "kind": "ACK",
+          "stage": "B",
+          "at": 0.007,
+          "status": null,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "probe_index": 2,
+      "version_label": "baseline",
+      "case": "second_stage_expired",
+      "before_error": "Rejected: ACK 采样后已停止/过期",
+      "after_error": "Rejected: ACK 采样后已停止/过期",
+      "before_status": "INCOMPLETE",
+      "after_status": "INCOMPLETE",
+      "before_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.001,
+          "status": null,
+          "reason": null
+        }
+      ],
+      "after_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.001,
+          "status": null,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "probe_index": 2,
+      "version_label": "baseline",
+      "case": "heartbeat_expired",
+      "before_error": "Rejected: worker 心跳失联",
+      "after_error": "Rejected: worker 心跳失联",
+      "before_status": "INCOMPLETE",
+      "after_status": "INCOMPLETE",
+      "before_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.001,
+          "status": null,
+          "reason": null
+        }
+      ],
+      "after_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.001,
+          "status": null,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "probe_index": 2,
+      "version_label": "baseline",
+      "case": "work_expired",
+      "before_error": "Rejected: 工作截止耗尽",
+      "after_error": "Rejected: 工作截止耗尽",
+      "before_status": "INCOMPLETE",
+      "after_status": "INCOMPLETE",
+      "before_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.001,
+          "status": null,
+          "reason": null
+        }
+      ],
+      "after_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.001,
+          "status": null,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "probe_index": 2,
+      "version_label": "baseline",
+      "case": "sample_due_resource_overrun",
+      "before_error": "Rejected: 监督采样未知/超过冻结帽：rss_bytes",
+      "after_error": "Rejected: 监督采样未知/超过冻结帽：rss_bytes",
+      "before_status": "INCOMPLETE",
+      "after_status": "INCOMPLETE",
+      "before_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.001,
+          "status": null,
+          "reason": null
+        }
+      ],
+      "after_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.001,
+          "status": null,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "probe_index": 2,
+      "version_label": "baseline",
+      "case": "sample_due_stranger",
+      "before_error": "Rejected: 存在未登记后代；监督不完整",
+      "after_error": "Rejected: 存在未登记后代；监督不完整",
+      "before_status": "INCOMPLETE",
+      "after_status": "INCOMPLETE",
+      "before_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.001,
+          "status": null,
+          "reason": null
+        }
+      ],
+      "after_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.001,
+          "status": null,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "probe_index": 2,
+      "version_label": "HEAD",
+      "case": "control",
+      "before_error": null,
+      "after_error": null,
+      "before_status": "CONTROL_REAPED",
+      "after_status": "CONTROL_REAPED",
+      "before_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.003,
+          "status": null,
+          "reason": null
+        },
+        {
+          "kind": "ACK",
+          "stage": "B",
+          "at": 0.008,
+          "status": null,
+          "reason": null
+        }
+      ],
+      "after_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.003,
+          "status": null,
+          "reason": null
+        },
+        {
+          "kind": "ACK",
+          "stage": "B",
+          "at": 0.008,
+          "status": null,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "probe_index": 2,
+      "version_label": "HEAD",
+      "case": "second_stage_expired",
+      "before_error": null,
+      "after_error": "Rejected: ACK 发送前阶段已过期",
+      "before_status": "CONTROL_REAPED",
+      "after_status": "INCOMPLETE",
+      "before_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.003,
+          "status": null,
+          "reason": null
+        },
+        {
+          "kind": "ACK",
+          "stage": "B",
+          "at": 0.053,
+          "status": null,
+          "reason": null
+        }
+      ],
+      "after_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.003,
+          "status": null,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "probe_index": 2,
+      "version_label": "HEAD",
+      "case": "heartbeat_expired",
+      "before_error": null,
+      "after_error": "Rejected: 发送超过原工作/心跳截止或监督已停止",
+      "before_status": "CONTROL_REAPED",
+      "after_status": "INCOMPLETE",
+      "before_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.003,
+          "status": null,
+          "reason": null
+        },
+        {
+          "kind": "ACK",
+          "stage": "B",
+          "at": 1.103,
+          "status": null,
+          "reason": null
+        }
+      ],
+      "after_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.003,
+          "status": null,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "probe_index": 2,
+      "version_label": "HEAD",
+      "case": "work_expired",
+      "before_error": null,
+      "after_error": "Rejected: 发送超过原工作/心跳截止或监督已停止",
+      "before_status": "CONTROL_REAPED",
+      "after_status": "INCOMPLETE",
+      "before_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.003,
+          "status": null,
+          "reason": null
+        },
+        {
+          "kind": "ACK",
+          "stage": "B",
+          "at": 10.103,
+          "status": null,
+          "reason": null
+        }
+      ],
+      "after_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.003,
+          "status": null,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "probe_index": 2,
+      "version_label": "HEAD",
+      "case": "sample_due_resource_overrun",
+      "before_error": null,
+      "after_error": "Rejected: 监督采样未知/超过冻结帽：rss_bytes",
+      "before_status": "CONTROL_REAPED",
+      "after_status": "INCOMPLETE",
+      "before_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.003,
+          "status": null,
+          "reason": null
+        },
+        {
+          "kind": "ACK",
+          "stage": "B",
+          "at": 0.203,
+          "status": null,
+          "reason": null
+        }
+      ],
+      "after_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.003,
+          "status": null,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "probe_index": 2,
+      "version_label": "HEAD",
+      "case": "sample_due_stranger",
+      "before_error": null,
+      "after_error": "Rejected: 存在未登记后代；监督不完整",
+      "before_status": "CONTROL_REAPED",
+      "after_status": "INCOMPLETE",
+      "before_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.003,
+          "status": null,
+          "reason": null
+        },
+        {
+          "kind": "ACK",
+          "stage": "B",
+          "at": 0.203,
+          "status": null,
+          "reason": null
+        }
+      ],
+      "after_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.003,
+          "status": null,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "probe_index": 3,
+      "version_label": "baseline",
+      "case": "work_expired",
+      "before_error": "Rejected: 工作截止耗尽",
+      "after_error": "Rejected: 工作截止耗尽",
+      "before_status": "INCOMPLETE",
+      "after_status": "INCOMPLETE",
+      "before_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.001,
+          "status": null,
+          "reason": null
+        }
+      ],
+      "after_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.001,
+          "status": null,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "probe_index": 3,
+      "version_label": "baseline",
+      "case": "sample_due_stranger",
+      "before_error": "Rejected: 存在未登记后代；监督不完整",
+      "after_error": "Rejected: 存在未登记后代；监督不完整",
+      "before_status": "INCOMPLETE",
+      "after_status": "INCOMPLETE",
+      "before_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.001,
+          "status": null,
+          "reason": null
+        }
+      ],
+      "after_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.001,
+          "status": null,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "probe_index": 3,
+      "version_label": "HEAD",
+      "case": "work_expired",
+      "before_error": null,
+      "after_error": "Rejected: 发送超过原工作/心跳截止或监督已停止",
+      "before_status": "CONTROL_REAPED",
+      "after_status": "INCOMPLETE",
+      "before_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.002,
+          "status": null,
+          "reason": null
+        }
+      ],
+      "after_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.002,
+          "status": null,
+          "reason": null
+        }
+      ]
+    },
+    {
+      "probe_index": 3,
+      "version_label": "HEAD",
+      "case": "sample_due_stranger",
+      "before_error": null,
+      "after_error": "Rejected: 存在未登记后代；监督不完整",
+      "before_status": "CONTROL_REAPED",
+      "after_status": "INCOMPLETE",
+      "before_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.002,
+          "status": null,
+          "reason": null
+        }
+      ],
+      "after_ACKs": [
+        {
+          "kind": "ACK",
+          "stage": "E",
+          "at": 0.002,
+          "status": null,
+          "reason": null
+        }
+      ]
+    }
+  ],
+  "execution_authorized": false,
+  "product_status": "NOT_RUN"
+}

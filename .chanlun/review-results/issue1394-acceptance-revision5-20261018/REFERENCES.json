@@ -1,0 +1,28 @@
+{
+  "formal_review04": [
+    {
+      "source": {
+        "path": "/Volumes/AgentStorage/issue1394-sandcastle-manager-20261018/REVIEW-04-INDEPENDENT.md",
+        "bytes": 4762,
+        "sha256": "7f2c2e00bd339578584fe3d933cb358cf436b375a6f8480f56c0f72bd240381c"
+      },
+      "copy": {
+        "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/references/REVIEW-04-INDEPENDENT.md",
+        "bytes": 4762,
+        "sha256": "7f2c2e00bd339578584fe3d933cb358cf436b375a6f8480f56c0f72bd240381c"
+      }
+    },
+    {
+      "source": {
+        "path": "/Volumes/AgentStorage/issue1394-sandcastle-manager-20261018/REVIEW-04-INDEPENDENT-PROBES.json",
+        "bytes": 37709,
+        "sha256": "010624e5babf3c57944dc831fd0069f7029d291b117773228195014359cce143"
+      },
+      "copy": {
+        "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/references/REVIEW-04-INDEPENDENT-PROBES.json",
+        "bytes": 37709,
+        "sha256": "010624e5babf3c57944dc831fd0069f7029d291b117773228195014359cce143"
+      }
+    }
+  ]
+}

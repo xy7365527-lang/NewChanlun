@@ -1,0 +1,108 @@
+[
+  {
+    "version": "baseline",
+    "mode": "work_expired",
+    "error": "Rejected: 工作截止耗尽",
+    "outputs": [
+      {
+        "kind": "ACK",
+        "stage": "E",
+        "at": 0.001,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": null,
+        "stage": null,
+        "at": 10.101,
+        "status": "INCOMPLETE",
+        "reason": "Rejected: 工作截止耗尽"
+      }
+    ],
+    "samples": [
+      0.001
+    ],
+    "failures": [
+      "Rejected: 工作截止耗尽",
+      "Rejected: 工作截止耗尽"
+    ]
+  },
+  {
+    "version": "baseline",
+    "mode": "sample_due_stranger",
+    "error": "Rejected: 存在未登记后代；监督不完整",
+    "outputs": [
+      {
+        "kind": "ACK",
+        "stage": "E",
+        "at": 0.001,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": null,
+        "stage": null,
+        "at": 0.201,
+        "status": "INCOMPLETE",
+        "reason": "Rejected: 存在未登记后代；监督不完整"
+      }
+    ],
+    "samples": [
+      0.001
+    ],
+    "failures": [
+      "Rejected: 存在未登记后代；监督不完整",
+      "Rejected: 存在未登记后代；监督不完整"
+    ]
+  },
+  {
+    "version": "HEAD",
+    "mode": "work_expired",
+    "error": null,
+    "outputs": [
+      {
+        "kind": "ACK",
+        "stage": "E",
+        "at": 0.002,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": null,
+        "stage": null,
+        "at": 10.102,
+        "status": "CONTROL_REAPED",
+        "reason": "COMPLETE"
+      }
+    ],
+    "samples": [
+      0.002
+    ],
+    "failures": []
+  },
+  {
+    "version": "HEAD",
+    "mode": "sample_due_stranger",
+    "error": null,
+    "outputs": [
+      {
+        "kind": "ACK",
+        "stage": "E",
+        "at": 0.002,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": null,
+        "stage": null,
+        "at": 0.202,
+        "status": "CONTROL_REAPED",
+        "reason": "COMPLETE"
+      }
+    ],
+    "samples": [
+      0.002
+    ],
+    "failures": []
+  }
+]

@@ -1,0 +1,237 @@
+[
+  {
+    "case": "control",
+    "emit_delay": 0.005,
+    "stage_deadline": 9.0,
+    "work_deadline": 10,
+    "original_heartbeat_deadline": 1,
+    "cleanup_deadline": 12,
+    "sample_interval": 0.125,
+    "error": null,
+    "receive_timeouts": [
+      0.125,
+      0,
+      0
+    ],
+    "outputs": [
+      {
+        "kind": "ACK",
+        "nonce": "n1",
+        "elapsed": 0.003,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": "ACK",
+        "nonce": "n2",
+        "elapsed": 0.008,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": null,
+        "nonce": null,
+        "elapsed": 0.008,
+        "status": "CONTROL_REAPED",
+        "reason": "COMPLETE"
+      }
+    ],
+    "sample_times": [
+      0.003
+    ],
+    "failures": [],
+    "foreign_signalled": false
+  },
+  {
+    "case": "second_stage_expired",
+    "emit_delay": 0.05,
+    "stage_deadline": 0.02,
+    "work_deadline": 10,
+    "original_heartbeat_deadline": 1,
+    "cleanup_deadline": 12,
+    "sample_interval": 0.125,
+    "error": "Rejected: ACK 发送前阶段已过期",
+    "receive_timeouts": [
+      0.125,
+      0,
+      0
+    ],
+    "outputs": [
+      {
+        "kind": "ACK",
+        "nonce": "n1",
+        "elapsed": 0.003,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": null,
+        "nonce": null,
+        "elapsed": 0.053,
+        "status": "INCOMPLETE",
+        "reason": "Rejected: ACK 发送前阶段已过期"
+      }
+    ],
+    "sample_times": [
+      0.003
+    ],
+    "failures": [
+      "Rejected: ACK 发送前阶段已过期"
+    ],
+    "foreign_signalled": false
+  },
+  {
+    "case": "heartbeat_expired",
+    "emit_delay": 1.1,
+    "stage_deadline": 9.0,
+    "work_deadline": 10,
+    "original_heartbeat_deadline": 1,
+    "cleanup_deadline": 12,
+    "sample_interval": 0.125,
+    "error": "Rejected: 发送超过原工作/心跳截止或监督已停止",
+    "receive_timeouts": [
+      0.125,
+      0,
+      0
+    ],
+    "outputs": [
+      {
+        "kind": "ACK",
+        "nonce": "n1",
+        "elapsed": 0.003,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": null,
+        "nonce": null,
+        "elapsed": 1.103,
+        "status": "INCOMPLETE",
+        "reason": "Rejected: 发送超过原工作/心跳截止或监督已停止"
+      }
+    ],
+    "sample_times": [
+      0.003
+    ],
+    "failures": [
+      "Rejected: 发送超过原工作/心跳截止或监督已停止"
+    ],
+    "foreign_signalled": false
+  },
+  {
+    "case": "work_expired",
+    "emit_delay": 10.1,
+    "stage_deadline": 9.0,
+    "work_deadline": 10,
+    "original_heartbeat_deadline": 1,
+    "cleanup_deadline": 12,
+    "sample_interval": 0.125,
+    "error": "Rejected: 发送超过原工作/心跳截止或监督已停止",
+    "receive_timeouts": [
+      0.125,
+      0,
+      0
+    ],
+    "outputs": [
+      {
+        "kind": "ACK",
+        "nonce": "n1",
+        "elapsed": 0.003,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": null,
+        "nonce": null,
+        "elapsed": 10.103,
+        "status": "INCOMPLETE",
+        "reason": "Rejected: 发送超过原工作/心跳截止或监督已停止"
+      }
+    ],
+    "sample_times": [
+      0.003
+    ],
+    "failures": [
+      "Rejected: 发送超过原工作/心跳截止或监督已停止"
+    ],
+    "foreign_signalled": false
+  },
+  {
+    "case": "sample_due_resource_overrun",
+    "emit_delay": 0.2,
+    "stage_deadline": 9.0,
+    "work_deadline": 10,
+    "original_heartbeat_deadline": 1,
+    "cleanup_deadline": 12,
+    "sample_interval": 0.125,
+    "error": "Rejected: 监督采样未知/超过冻结帽：rss_bytes",
+    "receive_timeouts": [
+      0.125,
+      0,
+      0
+    ],
+    "outputs": [
+      {
+        "kind": "ACK",
+        "nonce": "n1",
+        "elapsed": 0.003,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": null,
+        "nonce": null,
+        "elapsed": 0.203,
+        "status": "INCOMPLETE",
+        "reason": "Rejected: 监督采样未知/超过冻结帽：rss_bytes"
+      }
+    ],
+    "sample_times": [
+      0.003
+    ],
+    "failures": [
+      "Rejected: 监督采样未知/超过冻结帽：rss_bytes",
+      "Rejected: 监督采样未知/超过冻结帽：rss_bytes"
+    ],
+    "foreign_signalled": false
+  },
+  {
+    "case": "sample_due_stranger",
+    "emit_delay": 0.2,
+    "stage_deadline": 9.0,
+    "work_deadline": 10,
+    "original_heartbeat_deadline": 1,
+    "cleanup_deadline": 12,
+    "sample_interval": 0.125,
+    "error": "Rejected: 存在未登记后代；监督不完整",
+    "receive_timeouts": [
+      0.125,
+      0,
+      0
+    ],
+    "outputs": [
+      {
+        "kind": "ACK",
+        "nonce": "n1",
+        "elapsed": 0.003,
+        "status": null,
+        "reason": null
+      },
+      {
+        "kind": null,
+        "nonce": null,
+        "elapsed": 0.203,
+        "status": "INCOMPLETE",
+        "reason": "Rejected: 存在未登记后代；监督不完整"
+      }
+    ],
+    "sample_times": [
+      0.003
+    ],
+    "failures": [
+      "Rejected: 存在未登记后代；监督不完整",
+      "Rejected: 存在未登记后代；监督不完整"
+    ],
+    "foreign_signalled": false
+  }
+]

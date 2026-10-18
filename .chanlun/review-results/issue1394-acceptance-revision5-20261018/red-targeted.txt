@@ -1,0 +1,316 @@
+test_R_F5_formal_second_stage_expires_between_sends (test_review04.Review04Tests.test_R_F5_formal_second_stage_expires_between_sends) ... FAIL
+test_R_F5_formal_two_ACK_work_and_heartbeat_exhaustion (test_review04.Review04Tests.test_R_F5_formal_two_ACK_work_and_heartbeat_exhaustion) ... 
+  test_R_F5_formal_two_ACK_work_and_heartbeat_exhaustion (test_review04.Review04Tests.test_R_F5_formal_two_ACK_work_and_heartbeat_exhaustion) (delay=10.1) ... FAIL
+  test_R_F5_formal_two_ACK_work_and_heartbeat_exhaustion (test_review04.Review04Tests.test_R_F5_formal_two_ACK_work_and_heartbeat_exhaustion) (delay=1.1) ... FAIL
+test_R_F5_single_ACK_COMPLETE_checks_returned_work_deadline (test_review04.Review04Tests.test_R_F5_single_ACK_COMPLETE_checks_returned_work_deadline) ... FAIL
+test_R_F5_single_ACK_CANCEL_checks_returned_work_deadline (test_review04.Review04Tests.test_R_F5_single_ACK_CANCEL_checks_returned_work_deadline) ... FAIL
+test_R_F5_last_ACK_checks_returned_heartbeat (test_review04.Review04Tests.test_R_F5_last_ACK_checks_returned_heartbeat) ... 
+  test_R_F5_last_ACK_checks_returned_heartbeat (test_review04.Review04Tests.test_R_F5_last_ACK_checks_returned_heartbeat) (terminal='COMPLETE') ... FAIL
+  test_R_F5_last_ACK_checks_returned_heartbeat (test_review04.Review04Tests.test_R_F5_last_ACK_checks_returned_heartbeat) (terminal='CANCEL') ... FAIL
+test_R_F5_formal_single_ACK_due_stranger_before_terminal (test_review04.Review04Tests.test_R_F5_formal_single_ACK_due_stranger_before_terminal) ... 
+  test_R_F5_formal_single_ACK_due_stranger_before_terminal (test_review04.Review04Tests.test_R_F5_formal_single_ACK_due_stranger_before_terminal) (terminal='COMPLETE') ... FAIL
+  test_R_F5_formal_single_ACK_due_stranger_before_terminal (test_review04.Review04Tests.test_R_F5_formal_single_ACK_due_stranger_before_terminal) (terminal='CANCEL') ... FAIL
+test_R_F5_two_ACK_last_return_due_RSS_over_cap (test_review04.Review04Tests.test_R_F5_two_ACK_last_return_due_RSS_over_cap) ... 
+  test_R_F5_two_ACK_last_return_due_RSS_over_cap (test_review04.Review04Tests.test_R_F5_two_ACK_last_return_due_RSS_over_cap) (terminal='COMPLETE') ... FAIL
+  test_R_F5_two_ACK_last_return_due_RSS_over_cap (test_review04.Review04Tests.test_R_F5_two_ACK_last_return_due_RSS_over_cap) (terminal='CANCEL') ... FAIL
+test_R_F5_first_return_due_RSS_stops_remaining_ACK (test_review04.Review04Tests.test_R_F5_first_return_due_RSS_stops_remaining_ACK) ... FAIL
+test_R_F5_exact_original_deadline_is_exhausted (test_review04.Review04Tests.test_R_F5_exact_original_deadline_is_exhausted) ... 
+  test_R_F5_exact_original_deadline_is_exhausted (test_review04.Review04Tests.test_R_F5_exact_original_deadline_is_exhausted) (deadline='work') ... FAIL
+  test_R_F5_exact_original_deadline_is_exhausted (test_review04.Review04Tests.test_R_F5_exact_original_deadline_is_exhausted) (deadline='heartbeat') ... FAIL
+  test_R_F5_exact_original_deadline_is_exhausted (test_review04.Review04Tests.test_R_F5_exact_original_deadline_is_exhausted) (deadline='stage') ... FAIL
+test_R_F5_due_sample_can_exhaust_next_stage_before_send (test_review04.Review04Tests.test_R_F5_due_sample_can_exhaust_next_stage_before_send) ... FAIL
+test_R_F5_due_sample_can_exhaust_heartbeat_before_terminal (test_review04.Review04Tests.test_R_F5_due_sample_can_exhaust_heartbeat_before_terminal) ... FAIL
+test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples (test_review04.Review04Tests.test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples) ... 
+  test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples (test_review04.Review04Tests.test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples) (count=1, delay=0.125, terminal='COMPLETE') ... FAIL
+  test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples (test_review04.Review04Tests.test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples) (count=1, delay=0.125, terminal='CANCEL') ... FAIL
+  test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples (test_review04.Review04Tests.test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples) (count=1, delay=0.2, terminal='COMPLETE') ... FAIL
+  test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples (test_review04.Review04Tests.test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples) (count=1, delay=0.2, terminal='CANCEL') ... FAIL
+  test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples (test_review04.Review04Tests.test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples) (count=2, delay=0.125, terminal='COMPLETE') ... FAIL
+  test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples (test_review04.Review04Tests.test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples) (count=2, delay=0.125, terminal='CANCEL') ... FAIL
+  test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples (test_review04.Review04Tests.test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples) (count=2, delay=0.2, terminal='COMPLETE') ... FAIL
+  test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples (test_review04.Review04Tests.test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples) (count=2, delay=0.2, terminal='CANCEL') ... FAIL
+test_R_F5_send_due_sample_drains_queued_heartbeat_and_multiple_REGISTERs (test_review04.Review04Tests.test_R_F5_send_due_sample_drains_queued_heartbeat_and_multiple_REGISTERs) ... ok
+test_R_F5_send_due_sample_drains_queued_ACK_internal_path (test_review04.Review04Tests.test_R_F5_send_due_sample_drains_queued_ACK_internal_path) ... ok
+test_R_F5_send_queue_does_not_hide_stranger_or_extend_original_deadline (test_review04.Review04Tests.test_R_F5_send_queue_does_not_hide_stranger_or_extend_original_deadline) ... ok
+test_R_F5_send_queue_sampling_boundary_is_finite (test_review04.Review04Tests.test_R_F5_send_queue_sampling_boundary_is_finite) ... ok
+
+======================================================================
+FAIL: test_R_F5_formal_second_stage_expires_between_sends (test_review04.Review04Tests.test_R_F5_formal_second_stage_expires_between_sends)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 101, in test_R_F5_formal_second_stage_expires_between_sends
+    self.rejected(state, 'ACK', 1)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 80, in rejected
+    self.assertIsNotNone(state['error'], state['outputs'])
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : [(0.003000000011525117, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'E', 'stage': 'E', 'owner': {'pid': 101, 'start_identity': 'E', 'process_group': 101, 'domain_id': 'E', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72137.217816083}}), (0.0530000000144355, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'B', 'stage': 'B', 'owner': {'pid': 102, 'start_identity': 'B', 'process_group': 102, 'domain_id': 'B', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72128.237816083}}), (0.0530000000144355, {'reason': 'COMPLETE', 'owners': [{'identity': {'pid': 102, 'start': 'B', 'group': 102, 'parent': 100}, 'reaped': True, 'errors': []}, {'identity': {'pid': 101, 'start': 'E', 'group': 101, 'parent': 100}, 'reaped': True, 'errors': []}], 'failures': [], 'status': 'CONTROL_REAPED', 'product_status': 'NOT_RUN'})]
+
+======================================================================
+FAIL: test_R_F5_formal_two_ACK_work_and_heartbeat_exhaustion (test_review04.Review04Tests.test_R_F5_formal_two_ACK_work_and_heartbeat_exhaustion) (delay=10.1)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 108, in test_R_F5_formal_two_ACK_work_and_heartbeat_exhaustion
+    self.rejected(self.scenario(delay=delay), reason)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 80, in rejected
+    self.assertIsNotNone(state['error'], state['outputs'])
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : [(0.003000000011525117, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'E', 'stage': 'E', 'owner': {'pid': 101, 'start_identity': 'E', 'process_group': 101, 'domain_id': 'E', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72137.218382833}}), (10.103000000017346, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'B', 'stage': 'B', 'owner': {'pid': 102, 'start_identity': 'B', 'process_group': 102, 'domain_id': 'B', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72137.218382833}}), (10.103000000017346, {'reason': 'COMPLETE', 'owners': [{'identity': {'pid': 102, 'start': 'B', 'group': 102, 'parent': 100}, 'reaped': True, 'errors': []}, {'identity': {'pid': 101, 'start': 'E', 'group': 101, 'parent': 100}, 'reaped': True, 'errors': []}], 'failures': [], 'status': 'CONTROL_REAPED', 'product_status': 'NOT_RUN'})]
+
+======================================================================
+FAIL: test_R_F5_formal_two_ACK_work_and_heartbeat_exhaustion (test_review04.Review04Tests.test_R_F5_formal_two_ACK_work_and_heartbeat_exhaustion) (delay=1.1)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 108, in test_R_F5_formal_two_ACK_work_and_heartbeat_exhaustion
+    self.rejected(self.scenario(delay=delay), reason)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 80, in rejected
+    self.assertIsNotNone(state['error'], state['outputs'])
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : [(0.003000000011525117, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'E', 'stage': 'E', 'owner': {'pid': 101, 'start_identity': 'E', 'process_group': 101, 'domain_id': 'E', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72137.218742458}}), (1.1030000000173459, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'B', 'stage': 'B', 'owner': {'pid': 102, 'start_identity': 'B', 'process_group': 102, 'domain_id': 'B', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72137.218742458}}), (1.1030000000173459, {'reason': 'COMPLETE', 'owners': [{'identity': {'pid': 102, 'start': 'B', 'group': 102, 'parent': 100}, 'reaped': True, 'errors': []}, {'identity': {'pid': 101, 'start': 'E', 'group': 101, 'parent': 100}, 'reaped': True, 'errors': []}], 'failures': [], 'status': 'CONTROL_REAPED', 'product_status': 'NOT_RUN'})]
+
+======================================================================
+FAIL: test_R_F5_single_ACK_COMPLETE_checks_returned_work_deadline (test_review04.Review04Tests.test_R_F5_single_ACK_COMPLETE_checks_returned_work_deadline)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 111, in test_R_F5_single_ACK_COMPLETE_checks_returned_work_deadline
+    self.rejected(self.scenario(count=1, delay=10.1), '截止')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 80, in rejected
+    self.assertIsNotNone(state['error'], state['outputs'])
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : [(0.0020000000076834112, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'E', 'stage': 'E', 'owner': {'pid': 101, 'start_identity': 'E', 'process_group': 101, 'domain_id': 'E', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72137.219123166}}), (10.102000000013504, {'reason': 'COMPLETE', 'owners': [{'identity': {'pid': 101, 'start': 'E', 'group': 101, 'parent': 100}, 'reaped': True, 'errors': []}], 'failures': [], 'status': 'CONTROL_REAPED', 'product_status': 'NOT_RUN'})]
+
+======================================================================
+FAIL: test_R_F5_single_ACK_CANCEL_checks_returned_work_deadline (test_review04.Review04Tests.test_R_F5_single_ACK_CANCEL_checks_returned_work_deadline)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 114, in test_R_F5_single_ACK_CANCEL_checks_returned_work_deadline
+    self.rejected(self.scenario(count=1, delay=10.1, terminal='CANCEL'), '截止')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 80, in rejected
+    self.assertIsNotNone(state['error'], state['outputs'])
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : [(0.0020000000076834112, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'E', 'stage': 'E', 'owner': {'pid': 101, 'start_identity': 'E', 'process_group': 101, 'domain_id': 'E', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72137.220112875}}), (10.102000000013504, {'reason': 'CANCEL', 'owners': [{'identity': {'pid': 101, 'start': 'E', 'group': 101, 'parent': 100}, 'reaped': True, 'errors': []}], 'failures': [], 'status': 'CONTROL_REAPED', 'product_status': 'NOT_RUN'})]
+
+======================================================================
+FAIL: test_R_F5_last_ACK_checks_returned_heartbeat (test_review04.Review04Tests.test_R_F5_last_ACK_checks_returned_heartbeat) (terminal='COMPLETE')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 119, in test_R_F5_last_ACK_checks_returned_heartbeat
+    self.rejected(self.scenario(count=1, delay=1.1, terminal=terminal), '心跳')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 80, in rejected
+    self.assertIsNotNone(state['error'], state['outputs'])
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : [(0.0020000000076834112, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'E', 'stage': 'E', 'owner': {'pid': 101, 'start_identity': 'E', 'process_group': 101, 'domain_id': 'E', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72137.220451166}}), (1.1020000000135042, {'reason': 'COMPLETE', 'owners': [{'identity': {'pid': 101, 'start': 'E', 'group': 101, 'parent': 100}, 'reaped': True, 'errors': []}], 'failures': [], 'status': 'CONTROL_REAPED', 'product_status': 'NOT_RUN'})]
+
+======================================================================
+FAIL: test_R_F5_last_ACK_checks_returned_heartbeat (test_review04.Review04Tests.test_R_F5_last_ACK_checks_returned_heartbeat) (terminal='CANCEL')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 119, in test_R_F5_last_ACK_checks_returned_heartbeat
+    self.rejected(self.scenario(count=1, delay=1.1, terminal=terminal), '心跳')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 80, in rejected
+    self.assertIsNotNone(state['error'], state['outputs'])
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : [(0.0020000000076834112, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'E', 'stage': 'E', 'owner': {'pid': 101, 'start_identity': 'E', 'process_group': 101, 'domain_id': 'E', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72137.220766083}}), (1.1020000000135042, {'reason': 'CANCEL', 'owners': [{'identity': {'pid': 101, 'start': 'E', 'group': 101, 'parent': 100}, 'reaped': True, 'errors': []}], 'failures': [], 'status': 'CONTROL_REAPED', 'product_status': 'NOT_RUN'})]
+
+======================================================================
+FAIL: test_R_F5_formal_single_ACK_due_stranger_before_terminal (test_review04.Review04Tests.test_R_F5_formal_single_ACK_due_stranger_before_terminal) (terminal='COMPLETE')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 126, in test_R_F5_formal_single_ACK_due_stranger_before_terminal
+    self.rejected(state, '未登记后代')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 80, in rejected
+    self.assertIsNotNone(state['error'], state['outputs'])
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : [(0.0020000000076834112, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'E', 'stage': 'E', 'owner': {'pid': 101, 'start_identity': 'E', 'process_group': 101, 'domain_id': 'E', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72137.221091916}}), (0.20200000000477303, {'reason': 'COMPLETE', 'owners': [{'identity': {'pid': 101, 'start': 'E', 'group': 101, 'parent': 100}, 'reaped': True, 'errors': []}], 'failures': [], 'status': 'CONTROL_REAPED', 'product_status': 'NOT_RUN'})]
+
+======================================================================
+FAIL: test_R_F5_formal_single_ACK_due_stranger_before_terminal (test_review04.Review04Tests.test_R_F5_formal_single_ACK_due_stranger_before_terminal) (terminal='CANCEL')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 126, in test_R_F5_formal_single_ACK_due_stranger_before_terminal
+    self.rejected(state, '未登记后代')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 80, in rejected
+    self.assertIsNotNone(state['error'], state['outputs'])
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : [(0.0020000000076834112, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'E', 'stage': 'E', 'owner': {'pid': 101, 'start_identity': 'E', 'process_group': 101, 'domain_id': 'E', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72137.221597916}}), (0.20200000000477303, {'reason': 'CANCEL', 'owners': [{'identity': {'pid': 101, 'start': 'E', 'group': 101, 'parent': 100}, 'reaped': True, 'errors': []}], 'failures': [], 'status': 'CONTROL_REAPED', 'product_status': 'NOT_RUN'})]
+
+======================================================================
+FAIL: test_R_F5_two_ACK_last_return_due_RSS_over_cap (test_review04.Review04Tests.test_R_F5_two_ACK_last_return_due_RSS_over_cap) (terminal='COMPLETE')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 133, in test_R_F5_two_ACK_last_return_due_RSS_over_cap
+    self.rejected(state, 'rss_bytes', 2)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 80, in rejected
+    self.assertIsNotNone(state['error'], state['outputs'])
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : [(0.003000000011525117, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'E', 'stage': 'E', 'owner': {'pid': 101, 'start_identity': 'E', 'process_group': 101, 'domain_id': 'E', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72137.2219085}}), (0.003000000011525117, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'B', 'stage': 'B', 'owner': {'pid': 102, 'start_identity': 'B', 'process_group': 102, 'domain_id': 'B', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72137.2219085}}), (0.20300000000861473, {'reason': 'COMPLETE', 'owners': [{'identity': {'pid': 102, 'start': 'B', 'group': 102, 'parent': 100}, 'reaped': True, 'errors': []}, {'identity': {'pid': 101, 'start': 'E', 'group': 101, 'parent': 100}, 'reaped': True, 'errors': []}], 'failures': [], 'status': 'CONTROL_REAPED', 'product_status': 'NOT_RUN'})]
+
+======================================================================
+FAIL: test_R_F5_two_ACK_last_return_due_RSS_over_cap (test_review04.Review04Tests.test_R_F5_two_ACK_last_return_due_RSS_over_cap) (terminal='CANCEL')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 133, in test_R_F5_two_ACK_last_return_due_RSS_over_cap
+    self.rejected(state, 'rss_bytes', 2)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 80, in rejected
+    self.assertIsNotNone(state['error'], state['outputs'])
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : [(0.003000000011525117, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'E', 'stage': 'E', 'owner': {'pid': 101, 'start_identity': 'E', 'process_group': 101, 'domain_id': 'E', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72137.22220225}}), (0.003000000011525117, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'B', 'stage': 'B', 'owner': {'pid': 102, 'start_identity': 'B', 'process_group': 102, 'domain_id': 'B', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72137.22220225}}), (0.20300000000861473, {'reason': 'CANCEL', 'owners': [{'identity': {'pid': 102, 'start': 'B', 'group': 102, 'parent': 100}, 'reaped': True, 'errors': []}, {'identity': {'pid': 101, 'start': 'E', 'group': 101, 'parent': 100}, 'reaped': True, 'errors': []}], 'failures': [], 'status': 'CONTROL_REAPED', 'product_status': 'NOT_RUN'})]
+
+======================================================================
+FAIL: test_R_F5_first_return_due_RSS_stops_remaining_ACK (test_review04.Review04Tests.test_R_F5_first_return_due_RSS_stops_remaining_ACK)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 139, in test_R_F5_first_return_due_RSS_stops_remaining_ACK
+    self.rejected(state, 'rss_bytes')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 80, in rejected
+    self.assertIsNotNone(state['error'], state['outputs'])
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : [(0.003000000011525117, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'E', 'stage': 'E', 'owner': {'pid': 101, 'start_identity': 'E', 'process_group': 101, 'domain_id': 'E', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72137.2225065}}), (0.20300000000861473, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'B', 'stage': 'B', 'owner': {'pid': 102, 'start_identity': 'B', 'process_group': 102, 'domain_id': 'B', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72137.2225065}}), (0.20300000000861473, {'reason': 'COMPLETE', 'owners': [{'identity': {'pid': 102, 'start': 'B', 'group': 102, 'parent': 100}, 'reaped': True, 'errors': []}, {'identity': {'pid': 101, 'start': 'E', 'group': 101, 'parent': 100}, 'reaped': True, 'errors': []}], 'failures': [], 'status': 'CONTROL_REAPED', 'product_status': 'NOT_RUN'})]
+
+======================================================================
+FAIL: test_R_F5_exact_original_deadline_is_exhausted (test_review04.Review04Tests.test_R_F5_exact_original_deadline_is_exhausted) (deadline='work')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 149, in test_R_F5_exact_original_deadline_is_exhausted
+    self.rejected(state, 'ACK' if deadline == 'stage' else '截止' if deadline == 'work' else '心跳')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 80, in rejected
+    self.assertIsNotNone(state['error'], state['outputs'])
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : [(0.003000000011525117, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'E', 'stage': 'E', 'owner': {'pid': 101, 'start_identity': 'E', 'process_group': 101, 'domain_id': 'E', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72137.22280825}}), (10.0, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'B', 'stage': 'B', 'owner': {'pid': 102, 'start_identity': 'B', 'process_group': 102, 'domain_id': 'B', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72128.24280825}}), (10.0, {'reason': 'COMPLETE', 'owners': [{'identity': {'pid': 102, 'start': 'B', 'group': 102, 'parent': 100}, 'reaped': True, 'errors': []}, {'identity': {'pid': 101, 'start': 'E', 'group': 101, 'parent': 100}, 'reaped': True, 'errors': []}], 'failures': [], 'status': 'CONTROL_REAPED', 'product_status': 'NOT_RUN'})]
+
+======================================================================
+FAIL: test_R_F5_exact_original_deadline_is_exhausted (test_review04.Review04Tests.test_R_F5_exact_original_deadline_is_exhausted) (deadline='heartbeat')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 149, in test_R_F5_exact_original_deadline_is_exhausted
+    self.rejected(state, 'ACK' if deadline == 'stage' else '截止' if deadline == 'work' else '心跳')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 80, in rejected
+    self.assertIsNotNone(state['error'], state['outputs'])
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : [(0.003000000011525117, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'E', 'stage': 'E', 'owner': {'pid': 101, 'start_identity': 'E', 'process_group': 101, 'domain_id': 'E', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72137.223149583}}), (1.0, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'B', 'stage': 'B', 'owner': {'pid': 102, 'start_identity': 'B', 'process_group': 102, 'domain_id': 'B', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72128.24314958301}}), (1.0, {'reason': 'COMPLETE', 'owners': [{'identity': {'pid': 102, 'start': 'B', 'group': 102, 'parent': 100}, 'reaped': True, 'errors': []}, {'identity': {'pid': 101, 'start': 'E', 'group': 101, 'parent': 100}, 'reaped': True, 'errors': []}], 'failures': [], 'status': 'CONTROL_REAPED', 'product_status': 'NOT_RUN'})]
+
+======================================================================
+FAIL: test_R_F5_exact_original_deadline_is_exhausted (test_review04.Review04Tests.test_R_F5_exact_original_deadline_is_exhausted) (deadline='stage')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 149, in test_R_F5_exact_original_deadline_is_exhausted
+    self.rejected(state, 'ACK' if deadline == 'stage' else '截止' if deadline == 'work' else '心跳')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 80, in rejected
+    self.assertIsNotNone(state['error'], state['outputs'])
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : [(0.003000000011525117, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'E', 'stage': 'E', 'owner': {'pid': 101, 'start_identity': 'E', 'process_group': 101, 'domain_id': 'E', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72137.223482166}}), (0.020000000004074536, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'B', 'stage': 'B', 'owner': {'pid': 102, 'start_identity': 'B', 'process_group': 102, 'domain_id': 'B', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72128.243482166}}), (0.020000000004074536, {'reason': 'COMPLETE', 'owners': [{'identity': {'pid': 102, 'start': 'B', 'group': 102, 'parent': 100}, 'reaped': True, 'errors': []}, {'identity': {'pid': 101, 'start': 'E', 'group': 101, 'parent': 100}, 'reaped': True, 'errors': []}], 'failures': [], 'status': 'CONTROL_REAPED', 'product_status': 'NOT_RUN'})]
+
+======================================================================
+FAIL: test_R_F5_due_sample_can_exhaust_next_stage_before_send (test_review04.Review04Tests.test_R_F5_due_sample_can_exhaust_next_stage_before_send)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 155, in test_R_F5_due_sample_can_exhaust_next_stage_before_send
+    self.rejected(self.scenario(delay=.2, second_deadline=.3, sample_effect=sample), 'ACK')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 80, in rejected
+    self.assertIsNotNone(state['error'], state['outputs'])
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : [(0.003000000011525117, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'E', 'stage': 'E', 'owner': {'pid': 101, 'start_identity': 'E', 'process_group': 101, 'domain_id': 'E', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72137.22382925}}), (0.20300000000861473, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'B', 'stage': 'B', 'owner': {'pid': 102, 'start_identity': 'B', 'process_group': 102, 'domain_id': 'B', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72128.52382925}}), (0.20300000000861473, {'reason': 'COMPLETE', 'owners': [{'identity': {'pid': 102, 'start': 'B', 'group': 102, 'parent': 100}, 'reaped': True, 'errors': []}, {'identity': {'pid': 101, 'start': 'E', 'group': 101, 'parent': 100}, 'reaped': True, 'errors': []}], 'failures': [], 'status': 'CONTROL_REAPED', 'product_status': 'NOT_RUN'})]
+
+======================================================================
+FAIL: test_R_F5_due_sample_can_exhaust_heartbeat_before_terminal (test_review04.Review04Tests.test_R_F5_due_sample_can_exhaust_heartbeat_before_terminal)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 161, in test_R_F5_due_sample_can_exhaust_heartbeat_before_terminal
+    self.rejected(self.scenario(count=1, delay=.2, sample_effect=sample), '心跳')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 80, in rejected
+    self.assertIsNotNone(state['error'], state['outputs'])
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unexpectedly None : [(0.0020000000076834112, {'kind': 'ACK', 'binding': {'contract_sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'worker_pid': 100, 'worker_start_identity': 'worker', 'worker_process_group': 100, 'nonce': 'E', 'stage': 'E', 'owner': {'pid': 101, 'start_identity': 'E', 'process_group': 101, 'domain_id': 'E', 'writer_epoch': '1'}, 'resource_caps': {'scope': 'UNIT_TEST_ONLY'}, 'absolute_deadline_monotonic': 72137.224141208}}), (0.20200000000477303, {'reason': 'COMPLETE', 'owners': [{'identity': {'pid': 101, 'start': 'E', 'group': 101, 'parent': 100}, 'reaped': True, 'errors': []}], 'failures': [], 'status': 'CONTROL_REAPED', 'product_status': 'NOT_RUN'})]
+
+======================================================================
+FAIL: test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples (test_review04.Review04Tests.test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples) (count=1, delay=0.125, terminal='COMPLETE')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 170, in test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples
+    self.assertEqual(len(state['samples']), 1 if delay < .125 else 2)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2
+
+======================================================================
+FAIL: test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples (test_review04.Review04Tests.test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples) (count=1, delay=0.125, terminal='CANCEL')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 170, in test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples
+    self.assertEqual(len(state['samples']), 1 if delay < .125 else 2)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2
+
+======================================================================
+FAIL: test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples (test_review04.Review04Tests.test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples) (count=1, delay=0.2, terminal='COMPLETE')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 170, in test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples
+    self.assertEqual(len(state['samples']), 1 if delay < .125 else 2)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2
+
+======================================================================
+FAIL: test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples (test_review04.Review04Tests.test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples) (count=1, delay=0.2, terminal='CANCEL')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 170, in test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples
+    self.assertEqual(len(state['samples']), 1 if delay < .125 else 2)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2
+
+======================================================================
+FAIL: test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples (test_review04.Review04Tests.test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples) (count=2, delay=0.125, terminal='COMPLETE')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 170, in test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples
+    self.assertEqual(len(state['samples']), 1 if delay < .125 else 2)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2
+
+======================================================================
+FAIL: test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples (test_review04.Review04Tests.test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples) (count=2, delay=0.125, terminal='CANCEL')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 170, in test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples
+    self.assertEqual(len(state['samples']), 1 if delay < .125 else 2)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2
+
+======================================================================
+FAIL: test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples (test_review04.Review04Tests.test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples) (count=2, delay=0.2, terminal='COMPLETE')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 170, in test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples
+    self.assertEqual(len(state['samples']), 1 if delay < .125 else 2)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2
+
+======================================================================
+FAIL: test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples (test_review04.Review04Tests.test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples) (count=2, delay=0.2, terminal='CANCEL')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 170, in test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples
+    self.assertEqual(len(state['samples']), 1 if delay < .125 else 2)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2
+
+----------------------------------------------------------------------
+Ran 16 tests in 0.011s
+
+FAILED (failures=25)
