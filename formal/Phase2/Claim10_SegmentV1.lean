@@ -32,7 +32,8 @@
   `termination_case_dichotomy` = 对该 inductive 结构归纳（machine-checked，无第三种情况）。
 
   ── 隔离声明（任务卡：不碰 lakefile.toml / Formal.lean，integrator 统一 wire）──
-  本模块 **自包含**（不 import Formal.* / 不 import Phase2.Claim5）。与 claim5 第4级
+  本模块不 import Formal.* / Phase2.Claim5；#1419 v5 为复用具体笔折叠，显式导入
+  Origin.SegmentFeatureSeq（没有引入反向依赖）。与 claim5 第4级
   `Segment` 的对接点是命题层（非 import 层）：本模块第4级 v1 `Segment` 与 claim5 v0
   `Segment` 是 **同一线段概念的两个口径**（谱系 003），claim5 = v0 骨架，本模块 = v1 完整。
 
@@ -66,6 +67,8 @@
       包含"的要求（方向与原线段一致，包含=能量充足，须按包含来）。
     * 标准化处理（:58-60）：最高低点不在端点的线段可标准化为最高低点都在端点。
 -/
+
+import Origin.SegmentFeatureSeq
 
 namespace Formal.Phase2.SegmentV1
 
@@ -260,20 +263,22 @@ theorem secondKind_iff_gap (e1 e2 : Interval) :
   - `openAtPrefixEnd`：到已知前缀末端二者皆未发生（065:28 "被分析的K线已经走出来"），不是否定。
   同一笔内先做包含处理与分型检查、后做越界检查（#1344 第二问，`[新缠论:推论]`）。
 
-  ★有效域声明：本节只给终点的 **静态三分类** 与"只有 confirmed 终结"的判定。"哪一个先到"的
-  逐笔折叠与上文第二特征序列一样是动态过程，**不在** 本模块形式化范围（实现在
-  `rust/src/theta_v0/parser/second_fold.rs`；含失效的独立 oracle 与批处理/增量/恢复三路逐位
-  对拍是尚待执行的验收义务，本轮未运行）。上文 `classifyTermination` 返回 `secondKind` 的读法"待第二特征序列分型确认"
+  ★有效域声明：枚举及 terminates_iff_confirmed 本身仍只给 **静态三分类**。
+  #1419 v5 在 Origin.SegmentFeatureSeq.SecondFold 落了固定 Rust 控制流的具体计算投影，
+  下文显式映射其终态；局部步进/前缀定理不等于完整 Rust 游标精化或三路运行证据。
+  含失效的独立 oracle 与批处理/增量/恢复三路逐位对拍仍待执行。
+  上文 `classifyTermination` 返回 `secondKind` 的读法"待第二特征序列分型确认"
   据此读作"待三态终点"：失效先到的输入上它不会再被确认。
 
   #1419 具名缺口 D_SECOND_FOLD_REFINEMENT：545e 的 SecondFoldState::step 只把与旧段同向的笔
   加入第二序列，先 apply_inclusion（独立 dir_state），再查标准序列末三元素的顶或底分型，
   最后才用该笔合并前的 reach 严格越过冻结 P 判失效。因此同笔先确认；不能复用第一种情况
-  turnWindowState 的新极值优先序。动态精化还缺 Stroke/FeatureElement/成员下标/dir_state/
-  candidate_extreme 到本模块 Interval 的关系、apply_inclusion 的逐步保持与末三元素分型桥。
+  turnWindowState 的新极值优先序。v5 已具体映射 Stroke 端点、方向过滤、成员下标、dir_state、
+  冻结 P、原始水位、包含与末三元素分型，并有步进位置/合并成员/终态吸收/分批前缀定理。
   finish 在预算先耗尽时保 semantic_state=None，不能塞进 openAtPrefixEnd；K1 的 grant、
-  未封存末笔重算、一步撤销与输入修订拒绝亦未形式化。当前文件未固定这些 Rust 状态接口的 Lean
-  映射；本节不给空壳动态定理，静态三态也不证明资源边界或恢复等价（#1344 / #1420）。
+  未封存末笔重算、一步撤销与输入修订拒绝仍未形式化。接口已在固定 Rust 源中存在，不能以
+  “接口未定”豁免：仍缺机器整数/Vec 编码桥、steps/checks/FNV 全字段模拟关系及游标恢复
+  定理，逐项见 issue1419-lean-v5-20261018 报告（#1344 / #1420）。
 -/
 inductive SecondKindTerminal where
   | confirmed            -- 第二特征序列先成分型（067:38）
@@ -296,6 +301,72 @@ theorem second_kind_terminal_trichotomy (t : SecondKindTerminal) :
 theorem terminates_iff_confirmed (t : SecondKindTerminal) :
     t.terminatesSegment = true ↔ t = .confirmed := by
   cases t <;> simp [SecondKindTerminal.terminatesSegment]
+
+/-- #1419：Origin 原始笔到本模块既有 Dir/Interval/Stroke 的逐字段映射。 -/
+def rawDirection : NewChanlun.Origin.Direction → Dir
+  | .up => .up
+  | .down => .down
+
+def rawInterval (e : NewChanlun.Origin.FeatureElem) : Interval :=
+  ⟨e.low, e.high, e.valid⟩
+
+def rawStroke (s : NewChanlun.Origin.Stroke) : Stroke :=
+  ⟨rawDirection s.direction, rawInterval (NewChanlun.Origin.FeatureElem.ofStroke s)⟩
+
+theorem rawInterval_contains_iff (a b : NewChanlun.Origin.FeatureElem) :
+    (rawInterval a).contains (rawInterval b) ↔ NewChanlun.Origin.Contains a b := by
+  rfl
+
+/-- 第二特征序列是反向段的特征序列，即取旧段同向笔；桥接既有 featureElements。 -/
+theorem second_fold_input_projection (d : NewChanlun.Origin.Direction)
+    (strokes : List NewChanlun.Origin.Stroke) :
+    featureElements (rawDirection d).flip (strokes.map rawStroke) =
+      (NewChanlun.Origin.projectStrokes d strokes).map rawInterval := by
+  induction strokes with
+  | nil => simp [featureElements, NewChanlun.Origin.projectStrokes]
+  | cons s rest ih =>
+    cases d <;> cases hd : s.direction <;>
+      simp_all [featureElements, NewChanlun.Origin.projectStrokes, rawStroke,
+        rawDirection, Dir.flip]
+
+/-- #1419：复用 Origin 的具体折叠，不另设接受任意分型 oracle 的动态规格。 -/
+def secondFoldTerminal (r : NewChanlun.Origin.SecondFold.Result) : Option SecondKindTerminal :=
+  r.semantic.map (fun t => match t with
+    | .confirmed => .confirmed
+    | .killedByNewExtreme => .killedByNewExtreme
+    | .openAtPrefixEnd => .openAtPrefixEnd)
+
+def secondFoldPrefix (c : NewChanlun.Origin.SecondFold.Candidate)
+    (strokes : List NewChanlun.Origin.Stroke) (grant : Option Nat) : Option SecondKindTerminal :=
+  secondFoldTerminal (NewChanlun.Origin.SecondFold.evaluate c strokes grant)
+
+theorem second_fold_terminal_open_iff (r : NewChanlun.Origin.SecondFold.Result) :
+    secondFoldTerminal r = some .openAtPrefixEnd ↔ r.semantic = some .openAtPrefixEnd := by
+  cases h : r.semantic with
+  | none => simp [secondFoldTerminal, h]
+  | some t => cases t <;> simp [secondFoldTerminal, h]
+
+theorem second_fold_finish_open_iff (st : NewChanlun.Origin.SecondFold.State) (n budget : Nat) :
+    secondFoldTerminal (NewChanlun.Origin.SecondFold.finish st n budget) = some .openAtPrefixEnd ↔
+      st.decision = none ∧ n ≤ budget := by
+  rw [second_fold_terminal_open_iff]
+  exact NewChanlun.Origin.SecondFold.finish_open_iff st n budget
+
+theorem second_fold_finish_resource_empty (st : NewChanlun.Origin.SecondFold.State)
+    (n budget : Nat) (hs : st.decision = none) (hb : budget < n) :
+    secondFoldTerminal (NewChanlun.Origin.SecondFold.finish st n budget) = none := by
+  simp [secondFoldTerminal, NewChanlun.Origin.SecondFold.finish, hs, hb]
+
+/-- 完整原始输入的 OPEN 前件：b+1 后给定预算内的实际折叠未决，且已覆盖整个后缀。 -/
+theorem second_fold_prefix_open_iff (c : NewChanlun.Origin.SecondFold.Candidate)
+    (strokes : List NewChanlun.Origin.Stroke) (grant : Option Nat) :
+    let suffix := strokes.drop (c.bStroke + 1)
+    let budget := match grant with | none => suffix.length | some n => n
+    secondFoldPrefix c strokes grant = some .openAtPrefixEnd ↔
+      (NewChanlun.Origin.SecondFold.run c (NewChanlun.Origin.SecondFold.initial c)
+        (suffix.take budget)).decision = none ∧ suffix.length ≤ budget := by
+  dsimp only [secondFoldPrefix, NewChanlun.Origin.SecondFold.evaluate]
+  exact second_fold_finish_open_iff _ _ _
 
 /-! ## 第71课：包含关系作用域 + 第78课：第二种情况第二特征序列严格性
 

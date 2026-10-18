@@ -1,0 +1,112 @@
+{
+  "inputs": [
+    {
+      "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/LEAN-V4-TASK.md",
+      "bytes": 4614,
+      "sha256": "8d9f5457b698753fc9993f4e27389d26add2c81f5d1aad827bcb5b4f85706925"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/LEAN-V5-TASK.md",
+      "bytes": 3977,
+      "sha256": "17b7f2ac2d3e7f8e37e30c203d3112cd12cd5fabb167515f41f242c8eae50f0b"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/LEAN-V4-INDEPENDENT-REVIEW.json",
+      "bytes": 5698,
+      "sha256": "0f6707919cdd4af0032c7f3e674a4f0adfa8b80a493e0d41002d411b690365d7"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/issue1419-live.json",
+      "bytes": 24930,
+      "sha256": "b3ce84e3f3839082e99c3ef63d390818864cda42b90dedbdcaff39b8804a7f4a"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/INDEX.json",
+      "bytes": 13569,
+      "sha256": "e71b4056289fcf91b920ae9fe72060ba26b3c60eb4d76b39c3320fc3c13e8c45"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/XERJ-REFERENCE-ATTEMPT.json",
+      "bytes": 19664,
+      "sha256": "39ac6dd99a589973ec0bb1489426b9f0aa638300c8b9a04a708e0622353c6a1a"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/AGENTS.md",
+      "bytes": 24747,
+      "sha256": "cc4eaa6e2336578a1424f44f6e7dd00593db427bdd94d780b3cdc1f4e045b35f"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/CLAUDE.md",
+      "bytes": 1623,
+      "sha256": "7a78617f78b2e7a05f136cc934e9047954ac12492adbbe01cd3dd0a77f18cbdc"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/docs/agents/wayfinder-workflow.md",
+      "bytes": 39254,
+      "sha256": "2ff82f1ca6916b503c4b7f1c04fe624aeb60310d57729e05da1e3ebed65ec107"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/docs/agents/delivery-discipline.md",
+      "bytes": 11941,
+      "sha256": "efa40109c11f4d57f034fd3919c4cfc90894c93c54568fe92743f9a9a4d9be13"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/docs/agents/generation-constitution.md",
+      "bytes": 4593,
+      "sha256": "6871ddb943cbc523c2c5a228bb1046adf9e27072b7c1ba929c7d8c683e23021e"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/.chanlun/definitions/xianduan.md",
+      "bytes": 55730,
+      "sha256": "bb571365125251918dc89dc19fd5b3cbea788221e6ef93957cc3a918cf810143"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/formal/Origin/ChanlunElements.lean",
+      "bytes": 6035,
+      "sha256": "19c33e884e6949cdd56a51ff7c44dc086354994b7f54431f57bec4a0849fa201"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/formal/Origin/SourceAxioms.lean",
+      "bytes": 2773,
+      "sha256": "2154cb85c1ac80685e8d2091259818e3543ad76dfeeb08640df0ae236d39ff6f"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/formal/lean-toolchain",
+      "bytes": 25,
+      "sha256": "efac0b94923b2d8b6840cd35be9177ad0fc5ab2332f4f4311c98712cee92fdee"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/formal/lakefile.toml",
+      "bytes": 12464,
+      "sha256": "1482bb790f13ab896c9fb579fff78eb91440cfb6ae49bc72ac9657782aae5eca"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/scripts/check_fixture_drift.py",
+      "bytes": 10194,
+      "sha256": "d676e1760bfc140b27cb06f0e48bbb49b00930a2d8b3627be260137314a0feed"
+    },
+    {
+      "path": "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/src/lean/Init/Data/List/Basic.lean",
+      "bytes": 86850,
+      "sha256": "0774d161811a270679183d643457db96c402a984243f409b8065a0c1c1a81af7"
+    },
+    {
+      "path": "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/src/lean/Init/Data/Int/Order.lean",
+      "bytes": 60897,
+      "sha256": "3d43345a04b5e466bec8684bb08a8900b8435aea1822d503632bb41bd2b1a4e7"
+    }
+  ],
+  "xerj": {
+    "status": 200,
+    "hits": {
+      "value": 2,
+      "relation": "eq"
+    },
+    "indexes": [
+      "nc1419gate-docs",
+      "nc1419gate-docs"
+    ],
+    "lean_specific_result": false,
+    "refetched": false
+  }
+}

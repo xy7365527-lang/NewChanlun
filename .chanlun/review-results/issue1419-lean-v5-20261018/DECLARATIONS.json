@@ -1,0 +1,542 @@
+[
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.projectStrokes",
+    "line": 687
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.projectedTurnWindow",
+    "line": 694
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.rawCrossesP",
+    "line": 701
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.rawTurnObservation",
+    "line": 710
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.rawTurnWindowState",
+    "line": 715
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.RawTurnSafe",
+    "line": 724
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.rawTurnObservation_open_iff",
+    "line": 728
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.rawTurnWindowState_open_iff",
+    "line": 735
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.rawTurnObservation_reverse_not_confirmed",
+    "line": 744
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.rawTurnObservation_crosses_killed",
+    "line": 749
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.rawTurnWindowState_append_of_ne_open",
+    "line": 756
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.rawTurnWindowState_append_of_open",
+    "line": 767
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.rawTurnWindowState_open_then_kill",
+    "line": 777
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.rawTurnWindowState_eq_projection",
+    "line": 786
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.FirstKindRawConfirmsUp",
+    "line": 804
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.FirstKindRawConfirmsDown",
+    "line": 807
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.firstKindRawUp_iff_projected",
+    "line": 810
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.firstKindRawDown_iff_projected",
+    "line": 817
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.rawTurnWindowState_reverse_tail_counterexample",
+    "line": 826
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.rawTurnWindowState_reverse_tail_controls",
+    "line": 835
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.rawTurnWindowState_confirmed_prefix_control",
+    "line": 843
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "structure",
+    "name": "NewChanlun.Origin.SecondFold.Candidate",
+    "line": 862
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "structure",
+    "name": "NewChanlun.Origin.SecondFold.Element",
+    "line": 869
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.SecondFold.indexedProjection",
+    "line": 876
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "inductive",
+    "name": "NewChanlun.Origin.SecondFold.Decision",
+    "line": 883
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "structure",
+    "name": "NewChanlun.Origin.SecondFold.Kill",
+    "line": 888
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "structure",
+    "name": "NewChanlun.Origin.SecondFold.State",
+    "line": 894
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.SecondFold.initial",
+    "line": 908
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.SecondFold.effectiveUp",
+    "line": 913
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.SecondFold.includeElem",
+    "line": 916
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.SecondFold.tailFractal",
+    "line": 930
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.SecondFold.tailTriple",
+    "line": 935
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.SecondFold.reach",
+    "line": 939
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.SecondFold.breached",
+    "line": 944
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.SecondFold.updateWatermark",
+    "line": 952
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.SecondFold.consumeFeature",
+    "line": 960
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.SecondFold.consume",
+    "line": 974
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.SecondFold.step",
+    "line": 981
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.SecondFold.run",
+    "line": 984
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "inductive",
+    "name": "NewChanlun.Origin.SecondFold.Coverage",
+    "line": 988
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "structure",
+    "name": "NewChanlun.Origin.SecondFold.Result",
+    "line": 993
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.SecondFold.terminal",
+    "line": 999
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.SecondFold.finish",
+    "line": 1004
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.SecondFold.evaluate",
+    "line": 1012
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.ofStroke_rust_endpoints",
+    "line": 1018
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.includeElem_merge",
+    "line": 1026
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.includeElem_append",
+    "line": 1033
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.includeElem_merge_direction",
+    "line": 1038
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.effectiveUp_none",
+    "line": 1043
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.effectiveUp_down",
+    "line": 1044
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.tailFractal_iff",
+    "line": 1046
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.includeElem_merge_members",
+    "line": 1052
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.consumeFeature_confirmed_first",
+    "line": 1058
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.consumeFeature_killed",
+    "line": 1063
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.consumeFeature_open",
+    "line": 1070
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.consumeFeature_watermark",
+    "line": 1077
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.updateWatermark_up_bound",
+    "line": 1083
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.updateWatermark_down_bound",
+    "line": 1095
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.consumeFeature_position",
+    "line": 1107
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.consumeFeature_raw",
+    "line": 1114
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.step_position",
+    "line": 1119
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.step_reverse",
+    "line": 1128
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.step_decided",
+    "line": 1134
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.run_append",
+    "line": 1138
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.run_decided",
+    "line": 1144
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.run_terminal_prefix",
+    "line": 1151
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.run_none_initial",
+    "line": 1156
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.run_undecided_consumed",
+    "line": 1164
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.run_undecided_raw",
+    "line": 1178
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "def",
+    "name": "NewChanlun.Origin.SecondFold.watermarkOfRaw",
+    "line": 1205
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.step_watermark_of_raw",
+    "line": 1209
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.run_watermark_of_raw",
+    "line": 1222
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.run_initial_watermark",
+    "line": 1231
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.finish_resource_not_open",
+    "line": 1236
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.finish_open_iff",
+    "line": 1242
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.finish_decided_complete",
+    "line": 1249
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.same_stroke_confirmation_priority",
+    "line": 1256
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.merged_extreme_still_kills",
+    "line": 1264
+  },
+  {
+    "file": "formal/Origin/SegmentFeatureSeq.lean",
+    "kind": "theorem",
+    "name": "NewChanlun.Origin.SecondFold.budget_counts_reverse_stroke",
+    "line": 1274
+  },
+  {
+    "file": "formal/Phase2/Claim10_SegmentV1.lean",
+    "kind": "def",
+    "name": "Formal.Phase2.SegmentV1.rawDirection",
+    "line": 306
+  },
+  {
+    "file": "formal/Phase2/Claim10_SegmentV1.lean",
+    "kind": "def",
+    "name": "Formal.Phase2.SegmentV1.rawInterval",
+    "line": 310
+  },
+  {
+    "file": "formal/Phase2/Claim10_SegmentV1.lean",
+    "kind": "def",
+    "name": "Formal.Phase2.SegmentV1.rawStroke",
+    "line": 313
+  },
+  {
+    "file": "formal/Phase2/Claim10_SegmentV1.lean",
+    "kind": "theorem",
+    "name": "Formal.Phase2.SegmentV1.rawInterval_contains_iff",
+    "line": 316
+  },
+  {
+    "file": "formal/Phase2/Claim10_SegmentV1.lean",
+    "kind": "theorem",
+    "name": "Formal.Phase2.SegmentV1.second_fold_input_projection",
+    "line": 321
+  },
+  {
+    "file": "formal/Phase2/Claim10_SegmentV1.lean",
+    "kind": "def",
+    "name": "Formal.Phase2.SegmentV1.secondFoldTerminal",
+    "line": 333
+  },
+  {
+    "file": "formal/Phase2/Claim10_SegmentV1.lean",
+    "kind": "def",
+    "name": "Formal.Phase2.SegmentV1.secondFoldPrefix",
+    "line": 339
+  },
+  {
+    "file": "formal/Phase2/Claim10_SegmentV1.lean",
+    "kind": "theorem",
+    "name": "Formal.Phase2.SegmentV1.second_fold_terminal_open_iff",
+    "line": 343
+  },
+  {
+    "file": "formal/Phase2/Claim10_SegmentV1.lean",
+    "kind": "theorem",
+    "name": "Formal.Phase2.SegmentV1.second_fold_finish_open_iff",
+    "line": 349
+  },
+  {
+    "file": "formal/Phase2/Claim10_SegmentV1.lean",
+    "kind": "theorem",
+    "name": "Formal.Phase2.SegmentV1.second_fold_finish_resource_empty",
+    "line": 355
+  },
+  {
+    "file": "formal/Phase2/Claim10_SegmentV1.lean",
+    "kind": "theorem",
+    "name": "Formal.Phase2.SegmentV1.second_fold_prefix_open_iff",
+    "line": 361
+  }
+]

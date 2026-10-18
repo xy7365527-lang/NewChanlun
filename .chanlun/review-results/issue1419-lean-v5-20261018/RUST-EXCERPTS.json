@@ -1,0 +1,2326 @@
+[
+  {
+    "path": "rust/src/theta_v0/types.rs",
+    "sha256": "4370651d94e1be89d83d26c2d8ab00a7f7cd961693f071749afb10bf95f6bca0",
+    "ranges": [
+      {
+        "start": 15,
+        "end": 15,
+        "lines": [
+          {
+            "line": 15,
+            "text": "pub type Tick = i64;"
+          }
+        ]
+      },
+      {
+        "start": 92,
+        "end": 98,
+        "lines": [
+          {
+            "line": 92,
+            "text": "pub struct Stroke {"
+          },
+          {
+            "line": 93,
+            "text": "    pub direction: Direction,"
+          },
+          {
+            "line": 94,
+            "text": "    pub start_index: usize,"
+          },
+          {
+            "line": 95,
+            "text": "    pub end_index: usize,"
+          },
+          {
+            "line": 96,
+            "text": "    pub start_price: Tick,"
+          },
+          {
+            "line": 97,
+            "text": "    pub end_price: Tick,"
+          },
+          {
+            "line": 98,
+            "text": "}"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "path": "rust/src/theta_v0/parser/feature_seq.rs",
+    "sha256": "56a8e3d43abdbee7c79b627d70b6d222dfdb52cf5fbe7917fa8e91c5c3ec3aab",
+    "ranges": [
+      {
+        "start": 100,
+        "end": 114,
+        "lines": [
+          {
+            "line": 100,
+            "text": "pub struct FeatureElement {"
+          },
+          {
+            "line": 101,
+            "text": "    pub high: Tick,"
+          },
+          {
+            "line": 102,
+            "text": "    pub low: Tick,"
+          },
+          {
+            "line": 103,
+            "text": "    pub stroke_idx: usize,"
+          },
+          {
+            "line": 104,
+            "text": "    pub stroke_indices: Vec<usize>,"
+          },
+          {
+            "line": 105,
+            "text": "}"
+          },
+          {
+            "line": 106,
+            "text": "#[derive(Debug, Clone, PartialEq, Eq, Serialize)]"
+          },
+          {
+            "line": 107,
+            "text": "pub struct FeatureStep {"
+          },
+          {
+            "line": 108,
+            "text": "    pub incoming: FeatureElement,"
+          },
+          {
+            "line": 109,
+            "text": "    pub before: Option<FeatureElement>,"
+          },
+          {
+            "line": 110,
+            "text": "    pub after: FeatureElement,"
+          },
+          {
+            "line": 111,
+            "text": "    pub action: &'static str,"
+          },
+          {
+            "line": 112,
+            "text": "    pub merge_direction: Option<&'static str>,"
+          },
+          {
+            "line": 113,
+            "text": "    pub scope: &'static str,"
+          },
+          {
+            "line": 114,
+            "text": "}"
+          }
+        ]
+      },
+      {
+        "start": 136,
+        "end": 197,
+        "lines": [
+          {
+            "line": 136,
+            "text": "pub struct SecondCheck {"
+          },
+          {
+            "line": 137,
+            "text": "    pub elements: [FeatureElement; 3],"
+          },
+          {
+            "line": 138,
+            "text": "    pub top_fractal: bool,"
+          },
+          {
+            "line": 139,
+            "text": "    pub bottom_fractal: bool,"
+          },
+          {
+            "line": 140,
+            "text": "    pub through_stroke: usize,"
+          },
+          {
+            "line": 141,
+            "text": "}"
+          },
+          {
+            "line": 142,
+            "text": "/// #1344 / xianduan §5.1：第二种候选语义终点的规则版本（随 S `rule_revision` 绑定）。"
+          },
+          {
+            "line": 143,
+            "text": "pub const SECOND_CANDIDATE_RULE_REVISION: &str = \"second-candidate-terminal/1\";"
+          },
+          {
+            "line": 144,
+            "text": "/// #1420 根裁定：第二特征序列扫描预算的具名版本——调度参数，不是语义。"
+          },
+          {
+            "line": 145,
+            "text": "pub const SECOND_SEQ_SCAN_BUDGET_POLICY: &str = \"second-seq-scan-budget/1\";"
+          },
+          {
+            "line": 146,
+            "text": ""
+          },
+          {
+            "line": 147,
+            "text": "/// #1344 第一问：第二种候选 X（主序列分型极值 P）自 b 笔后逐笔推进的语义终点。"
+          },
+          {
+            "line": 148,
+            "text": "/// 只在扫描覆盖 `COMPLETE` 时成立；预算耗尽时语义状态为空（不是否定，A-ST-048-01）。"
+          },
+          {
+            "line": 149,
+            "text": "#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]"
+          },
+          {
+            "line": 150,
+            "text": "#[serde(rename_all = \"SCREAMING_SNAKE_CASE\")]"
+          },
+          {
+            "line": 151,
+            "text": "pub enum SecondTerminal {"
+          },
+          {
+            "line": 152,
+            "text": "    /// 第二特征序列先成分型（067:38）。"
+          },
+          {
+            "line": 153,
+            "text": "    Confirmed,"
+          },
+          {
+            "line": 154,
+            "text": "    /// 原方向价格先严格越过 P（078:52）；候选作废、不复活。"
+          },
+          {
+            "line": 155,
+            "text": "    KilledByNewExtreme,"
+          },
+          {
+            "line": 156,
+            "text": "    /// 到已知前缀末端二者皆未发生（065:28）；不是否定。"
+          },
+          {
+            "line": 157,
+            "text": "    OpenAtPrefixEnd,"
+          },
+          {
+            "line": 158,
+            "text": "}"
+          },
+          {
+            "line": 159,
+            "text": ""
+          },
+          {
+            "line": 160,
+            "text": "/// #1344 第四问 / SPEC CC-014：扫描覆盖，与语义状态正交。"
+          },
+          {
+            "line": 161,
+            "text": "#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]"
+          },
+          {
+            "line": 162,
+            "text": "#[serde(rename_all = \"SCREAMING_SNAKE_CASE\")]"
+          },
+          {
+            "line": 163,
+            "text": "pub enum ScanCoverage {"
+          },
+          {
+            "line": 164,
+            "text": "    Complete,"
+          },
+          {
+            "line": 165,
+            "text": "    IncompleteResourceBound,"
+          },
+          {
+            "line": 166,
+            "text": "}"
+          },
+          {
+            "line": 167,
+            "text": ""
+          },
+          {
+            "line": 168,
+            "text": "/// `KILLED_BY_NEW_EXTREME` 的见证：哪根同向笔以哪个原始极值严格越过 P。"
+          },
+          {
+            "line": 169,
+            "text": "#[derive(Debug, Clone, PartialEq, Eq, Serialize)]"
+          },
+          {
+            "line": 170,
+            "text": "pub struct SecondKill {"
+          },
+          {
+            "line": 171,
+            "text": "    pub stroke_idx: usize,"
+          },
+          {
+            "line": 172,
+            "text": "    pub price: Tick,"
+          },
+          {
+            "line": 173,
+            "text": "    pub candidate_extreme: Tick,"
+          },
+          {
+            "line": 174,
+            "text": "    pub comparison: &'static str,"
+          },
+          {
+            "line": 175,
+            "text": "}"
+          },
+          {
+            "line": 176,
+            "text": ""
+          },
+          {
+            "line": 177,
+            "text": "#[derive(Debug, Clone, PartialEq, Eq, Serialize)]"
+          },
+          {
+            "line": 178,
+            "text": "pub struct SecondSequenceFacts {"
+          },
+          {
+            "line": 179,
+            "text": "    pub raw_elements: Vec<FeatureElement>,"
+          },
+          {
+            "line": 180,
+            "text": "    pub standard: Vec<FeatureElement>,"
+          },
+          {
+            "line": 181,
+            "text": "    pub steps: Vec<FeatureStep>,"
+          },
+          {
+            "line": 182,
+            "text": "    pub checks: Vec<SecondCheck>,"
+          },
+          {
+            "line": 183,
+            "text": "    pub from_stroke: usize,"
+          },
+          {
+            "line": 184,
+            "text": "    pub through_stroke: usize,"
+          },
+          {
+            "line": 185,
+            "text": "    pub input_stroke_count: usize,"
+          },
+          {
+            "line": 186,
+            "text": "    /// 覆盖 = `INCOMPLETE_RESOURCE_BOUND` 的旧名（TB-02-D 线形保留）；失效时为 false。"
+          },
+          {
+            "line": 187,
+            "text": "    pub resource_truncated: bool,"
+          },
+          {
+            "line": 188,
+            "text": "    pub matched: Option<SecondCheck>,"
+          },
+          {
+            "line": 189,
+            "text": "    // #1420：以下语义字段随段合同 s-segment/3（rule_revision `…+segment-second/2`）进 S 线形；"
+          },
+          {
+            "line": 190,
+            "text": "    // s-segment/2 的 TB-02-D 已发布对象不回改（合同按 schema 分支校验）。"
+          },
+          {
+            "line": 191,
+            "text": "    /// 候选极值 P：主序列分型中心元素 b 的 high（向上段）/ low（向下段）。"
+          },
+          {
+            "line": 192,
+            "text": "    pub candidate_extreme: Tick,"
+          },
+          {
+            "line": 193,
+            "text": "    /// 越界水位：已消费同向笔原始极值的最远处（向上段取 max high，向下段取 min low）。"
+          },
+          {
+            "line": 194,
+            "text": "    pub breach_watermark: Option<Tick>,"
+          },
+          {
+            "line": 195,
+            "text": "    pub semantic_state: Option<SecondTerminal>,"
+          },
+          {
+            "line": 196,
+            "text": "    pub killed_by: Option<SecondKill>,"
+          },
+          {
+            "line": 197,
+            "text": "    pub coverage: ScanCoverage,"
+          }
+        ]
+      },
+      {
+        "start": 201,
+        "end": 207,
+        "lines": [
+          {
+            "line": 201,
+            "text": "pub(super) fn stroke_high_low(s: &Stroke) -> (Tick, Tick) {"
+          },
+          {
+            "line": 202,
+            "text": "    if s.start_price >= s.end_price {"
+          },
+          {
+            "line": 203,
+            "text": "        (s.start_price, s.end_price)"
+          },
+          {
+            "line": 204,
+            "text": "    } else {"
+          },
+          {
+            "line": 205,
+            "text": "        (s.end_price, s.start_price)"
+          },
+          {
+            "line": 206,
+            "text": "    }"
+          },
+          {
+            "line": 207,
+            "text": "}"
+          }
+        ]
+      },
+      {
+        "start": 289,
+        "end": 320,
+        "lines": [
+          {
+            "line": 289,
+            "text": "pub(super) fn apply_inclusion("
+          },
+          {
+            "line": 290,
+            "text": "    elements: &mut Vec<(Tick, Tick)>,"
+          },
+          {
+            "line": 291,
+            "text": "    h: Tick,"
+          },
+          {
+            "line": 292,
+            "text": "    l: Tick,"
+          },
+          {
+            "line": 293,
+            "text": "    dir_state: Option<Direction>,"
+          },
+          {
+            "line": 294,
+            "text": ") -> Option<Direction> {"
+          },
+          {
+            "line": 295,
+            "text": "    let (last_h, last_l) = *elements"
+          },
+          {
+            "line": 296,
+            "text": "        .last()"
+          },
+          {
+            "line": 297,
+            "text": "        .expect(\"apply_inclusion 调用前 elements 非空\");"
+          },
+          {
+            "line": 298,
+            "text": "    let left_inc = last_h >= h && last_l <= l;"
+          },
+          {
+            "line": 299,
+            "text": "    let right_inc = h >= last_h && l <= last_l;"
+          },
+          {
+            "line": 300,
+            "text": "    if left_inc || right_inc {"
+          },
+          {
+            "line": 301,
+            "text": "        let effective_up = dir_state != Some(Direction::Down);"
+          },
+          {
+            "line": 302,
+            "text": "        let last = elements.last_mut().unwrap();"
+          },
+          {
+            "line": 303,
+            "text": "        if effective_up {"
+          },
+          {
+            "line": 304,
+            "text": "            last.0 = last_h.max(h);"
+          },
+          {
+            "line": 305,
+            "text": "            last.1 = last_l.max(l);"
+          },
+          {
+            "line": 306,
+            "text": "        } else {"
+          },
+          {
+            "line": 307,
+            "text": "            last.0 = last_h.min(h);"
+          },
+          {
+            "line": 308,
+            "text": "            last.1 = last_l.min(l);"
+          },
+          {
+            "line": 309,
+            "text": "        }"
+          },
+          {
+            "line": 310,
+            "text": "        return dir_state;"
+          },
+          {
+            "line": 311,
+            "text": "    }"
+          },
+          {
+            "line": 312,
+            "text": "    let mut ds = dir_state;"
+          },
+          {
+            "line": 313,
+            "text": "    if h > last_h && l > last_l {"
+          },
+          {
+            "line": 314,
+            "text": "        ds = Some(Direction::Up);"
+          },
+          {
+            "line": 315,
+            "text": "    } else if h < last_h && l < last_l {"
+          },
+          {
+            "line": 316,
+            "text": "        ds = Some(Direction::Down);"
+          },
+          {
+            "line": 317,
+            "text": "    }"
+          },
+          {
+            "line": 318,
+            "text": "    elements.push((h, l));"
+          },
+          {
+            "line": 319,
+            "text": "    ds"
+          },
+          {
+            "line": 320,
+            "text": "}"
+          }
+        ]
+      },
+      {
+        "start": 544,
+        "end": 570,
+        "lines": [
+          {
+            "line": 544,
+            "text": "        let last = *self.std.last().unwrap();"
+          },
+          {
+            "line": 545,
+            "text": "        let (last_h, last_l) = (last.high, last.low);"
+          },
+          {
+            "line": 546,
+            "text": "        let left_inc = last_h >= high && last_l <= low;"
+          },
+          {
+            "line": 547,
+            "text": "        let right_inc = high >= last_h && low <= last_l;"
+          },
+          {
+            "line": 548,
+            "text": "        let has_inclusion = left_inc || right_inc;"
+          },
+          {
+            "line": 549,
+            "text": ""
+          },
+          {
+            "line": 550,
+            "text": "        if has_inclusion {"
+          },
+          {
+            "line": 551,
+            "text": "            // 假设转折点：先 push 试探，看是否触发分型（第71课:42）。"
+          },
+          {
+            "line": 552,
+            "text": "            self.std.push(FeatElem {"
+          },
+          {
+            "line": 553,
+            "text": "                high,"
+          },
+          {
+            "line": 554,
+            "text": "                low,"
+          },
+          {
+            "line": 555,
+            "text": "                stroke_idx,"
+          },
+          {
+            "line": 556,
+            "text": "            });"
+          },
+          {
+            "line": 557,
+            "text": "            if let Some(f) = &mut self.facts {"
+          },
+          {
+            "line": 558,
+            "text": "                f.standard.push(incoming.clone());"
+          },
+          {
+            "line": 559,
+            "text": "            }"
+          },
+          {
+            "line": 560,
+            "text": "            self.provisional = true;"
+          },
+          {
+            "line": 561,
+            "text": "            let turn = self.scan_trigger(strokes).is_some();"
+          },
+          {
+            "line": 562,
+            "text": "            self.provisional = false;"
+          },
+          {
+            "line": 563,
+            "text": "            if let Some(f) = &mut self.facts {"
+          },
+          {
+            "line": 564,
+            "text": "                f.standard.pop();"
+          },
+          {
+            "line": 565,
+            "text": "            }"
+          },
+          {
+            "line": 566,
+            "text": "            if turn {"
+          },
+          {
+            "line": 567,
+            "text": "                self.record_step(incoming, before, \"turn_boundary\", None, \"TURN_HYPOTHESIS\");"
+          },
+          {
+            "line": 568,
+            "text": "                return;"
+          },
+          {
+            "line": 569,
+            "text": "            }"
+          },
+          {
+            "line": 570,
+            "text": "            self.std.pop();"
+          }
+        ]
+      },
+      {
+        "start": 665,
+        "end": 675,
+        "lines": [
+          {
+            "line": 665,
+            "text": "            ]);"
+          },
+          {
+            "line": 666,
+            "text": "            let (a_h, a_l) = (window[0].high, window[0].low);"
+          },
+          {
+            "line": 667,
+            "text": "            let (b_h, b_l) = (window[1].high, window[1].low);"
+          },
+          {
+            "line": 668,
+            "text": "            let (c_h, c_l) = (window[2].high, window[2].low);"
+          },
+          {
+            "line": 669,
+            "text": "            let (is_fractal, mut has_gap) ="
+          },
+          {
+            "line": 670,
+            "text": "                is_fractal_and_gap(a_h, a_l, b_h, b_l, c_h, c_l, self.seg_dir);"
+          },
+          {
+            "line": 671,
+            "text": "            let raw_gap = has_gap;"
+          },
+          {
+            "line": 672,
+            "text": "            let gap_closed_by_c = (is_fractal && raw_gap).then(|| match self.seg_dir {"
+          },
+          {
+            "line": 673,
+            "text": "                Direction::Up => c_l <= a_h,"
+          },
+          {
+            "line": 674,
+            "text": "                Direction::Down => c_h >= a_l,"
+          },
+          {
+            "line": 675,
+            "text": "            });"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "path": "rust/src/theta_v0/parser/second_fold.rs",
+    "sha256": "c711ed788e224b38258fd9fe2c6dfc9bb26f65b2db99d7100e5bb020da82cea2",
+    "ranges": [
+      {
+        "start": 42,
+        "end": 48,
+        "lines": [
+          {
+            "line": 42,
+            "text": "pub struct SecondCandidateId {"
+          },
+          {
+            "line": 43,
+            "text": "    /// 原线段方向（第二特征序列取同向笔）。"
+          },
+          {
+            "line": 44,
+            "text": "    pub seg_dir: Direction,"
+          },
+          {
+            "line": 45,
+            "text": "    /// 主特征序列分型中心元素 b 的笔下标；第二序列自 `b_stroke + 1` 起。"
+          },
+          {
+            "line": 46,
+            "text": "    pub b_stroke: usize,"
+          },
+          {
+            "line": 47,
+            "text": "    /// P：b 的 high（向上段）/ low（向下段），冻结窗口优先。"
+          },
+          {
+            "line": 48,
+            "text": "    pub candidate_extreme: Tick,"
+          }
+        ]
+      },
+      {
+        "start": 62,
+        "end": 88,
+        "lines": [
+          {
+            "line": 62,
+            "text": "pub struct SecondFoldState {"
+          },
+          {
+            "line": 63,
+            "text": "    /// 已消费部分的事实。封存态的 `semantic_state` 只会是 `CONFIRMED` 或 `KILLED_BY_NEW_EXTREME`；"
+          },
+          {
+            "line": 64,
+            "text": "    /// `OPEN_AT_PREFIX_END` 与覆盖只在出具结果时按输入末端判定。"
+          },
+          {
+            "line": 65,
+            "text": "    pub facts: SecondSequenceFacts,"
+          },
+          {
+            "line": 66,
+            "text": "    /// 第二序列包含处理方向（独立作用域）。"
+          },
+          {
+            "line": 67,
+            "text": "    pub dir_state: Option<Direction>,"
+          },
+          {
+            "line": 68,
+            "text": "    /// 自 from 起已消费的笔数（含反向笔）。"
+          },
+          {
+            "line": 69,
+            "text": "    pub consumed_len: usize,"
+          },
+          {
+            "line": 70,
+            "text": "    /// 已消费笔的 FNV-1a 64 指纹（输入修订校验，非密码学）。"
+          },
+          {
+            "line": 71,
+            "text": "    pub consumed_digest: u64,"
+          },
+          {
+            "line": 72,
+            "text": "    elements: Vec<(Tick, Tick)>,"
+          },
+          {
+            "line": 73,
+            "text": "}"
+          },
+          {
+            "line": 74,
+            "text": ""
+          },
+          {
+            "line": 75,
+            "text": "/// 单步撤销记录：步进只在尾部追加或改写末元素，故只备份尾部（同 `stroke.rs` checkpoint）。"
+          },
+          {
+            "line": 76,
+            "text": "#[derive(Debug, Clone, PartialEq, Eq)]"
+          },
+          {
+            "line": 77,
+            "text": "struct FoldUndo {"
+          },
+          {
+            "line": 78,
+            "text": "    consumed_len: usize,"
+          },
+          {
+            "line": 79,
+            "text": "    consumed_digest: u64,"
+          },
+          {
+            "line": 80,
+            "text": "    through_stroke: usize,"
+          },
+          {
+            "line": 81,
+            "text": "    dir_state: Option<Direction>,"
+          },
+          {
+            "line": 82,
+            "text": "    breach_watermark: Option<Tick>,"
+          },
+          {
+            "line": 83,
+            "text": "    raw_len: usize,"
+          },
+          {
+            "line": 84,
+            "text": "    steps_len: usize,"
+          },
+          {
+            "line": 85,
+            "text": "    checks_len: usize,"
+          },
+          {
+            "line": 86,
+            "text": "    elements_len: usize,"
+          },
+          {
+            "line": 87,
+            "text": "    elements_last: Option<(Tick, Tick)>,"
+          },
+          {
+            "line": 88,
+            "text": "    standard_last: Option<FeatureElement>,"
+          }
+        ]
+      },
+      {
+        "start": 91,
+        "end": 108,
+        "lines": [
+          {
+            "line": 91,
+            "text": "fn digest_stroke(mut h: u64, s: &Stroke) -> u64 {"
+          },
+          {
+            "line": 92,
+            "text": "    let dir: u8 = match s.direction {"
+          },
+          {
+            "line": 93,
+            "text": "        Direction::Up => 1,"
+          },
+          {
+            "line": 94,
+            "text": "        Direction::Down => 2,"
+          },
+          {
+            "line": 95,
+            "text": "    };"
+          },
+          {
+            "line": 96,
+            "text": "    let mut eat = |bytes: &[u8]| {"
+          },
+          {
+            "line": 97,
+            "text": "        for b in bytes {"
+          },
+          {
+            "line": 98,
+            "text": "            h ^= u64::from(*b);"
+          },
+          {
+            "line": 99,
+            "text": "            h = h.wrapping_mul(FNV_PRIME);"
+          },
+          {
+            "line": 100,
+            "text": "        }"
+          },
+          {
+            "line": 101,
+            "text": "    };"
+          },
+          {
+            "line": 102,
+            "text": "    eat(&[dir]);"
+          },
+          {
+            "line": 103,
+            "text": "    eat(&(s.start_index as u64).to_le_bytes());"
+          },
+          {
+            "line": 104,
+            "text": "    eat(&(s.end_index as u64).to_le_bytes());"
+          },
+          {
+            "line": 105,
+            "text": "    eat(&s.start_price.to_le_bytes());"
+          },
+          {
+            "line": 106,
+            "text": "    eat(&s.end_price.to_le_bytes());"
+          },
+          {
+            "line": 107,
+            "text": "    h"
+          },
+          {
+            "line": 108,
+            "text": "}"
+          }
+        ]
+      },
+      {
+        "start": 111,
+        "end": 147,
+        "lines": [
+          {
+            "line": 111,
+            "text": "    fn new(c: &SecondCandidateId) -> Self {"
+          },
+          {
+            "line": 112,
+            "text": "        SecondFoldState {"
+          },
+          {
+            "line": 113,
+            "text": "            facts: SecondSequenceFacts {"
+          },
+          {
+            "line": 114,
+            "text": "                raw_elements: vec![],"
+          },
+          {
+            "line": 115,
+            "text": "                standard: vec![],"
+          },
+          {
+            "line": 116,
+            "text": "                steps: vec![],"
+          },
+          {
+            "line": 117,
+            "text": "                checks: vec![],"
+          },
+          {
+            "line": 118,
+            "text": "                from_stroke: c.b_stroke.saturating_add(1),"
+          },
+          {
+            "line": 119,
+            "text": "                through_stroke: c.b_stroke,"
+          },
+          {
+            "line": 120,
+            "text": "                input_stroke_count: 0,"
+          },
+          {
+            "line": 121,
+            "text": "                resource_truncated: false,"
+          },
+          {
+            "line": 122,
+            "text": "                matched: None,"
+          },
+          {
+            "line": 123,
+            "text": "                candidate_extreme: c.candidate_extreme,"
+          },
+          {
+            "line": 124,
+            "text": "                breach_watermark: None,"
+          },
+          {
+            "line": 125,
+            "text": "                semantic_state: None,"
+          },
+          {
+            "line": 126,
+            "text": "                killed_by: None,"
+          },
+          {
+            "line": 127,
+            "text": "                coverage: ScanCoverage::Complete,"
+          },
+          {
+            "line": 128,
+            "text": "            },"
+          },
+          {
+            "line": 129,
+            "text": "            dir_state: match c.seg_dir {"
+          },
+          {
+            "line": 130,
+            "text": "                Direction::Up => Some(Direction::Down),"
+          },
+          {
+            "line": 131,
+            "text": "                Direction::Down => None,"
+          },
+          {
+            "line": 132,
+            "text": "            },"
+          },
+          {
+            "line": 133,
+            "text": "            consumed_len: 0,"
+          },
+          {
+            "line": 134,
+            "text": "            consumed_digest: FNV_OFFSET,"
+          },
+          {
+            "line": 135,
+            "text": "            elements: vec![],"
+          },
+          {
+            "line": 136,
+            "text": "        }"
+          },
+          {
+            "line": 137,
+            "text": "    }"
+          },
+          {
+            "line": 138,
+            "text": ""
+          },
+          {
+            "line": 139,
+            "text": "    /// 已到语义终点（确认或失效）。"
+          },
+          {
+            "line": 140,
+            "text": "    pub fn decided(&self) -> bool {"
+          },
+          {
+            "line": 141,
+            "text": "        self.facts.semantic_state.is_some()"
+          },
+          {
+            "line": 142,
+            "text": "    }"
+          },
+          {
+            "line": 143,
+            "text": ""
+          },
+          {
+            "line": 144,
+            "text": "    /// 下一根待消费笔的下标。"
+          },
+          {
+            "line": 145,
+            "text": "    fn next_index(&self) -> usize {"
+          },
+          {
+            "line": 146,
+            "text": "        self.facts.from_stroke + self.consumed_len"
+          },
+          {
+            "line": 147,
+            "text": "    }"
+          }
+        ]
+      },
+      {
+        "start": 149,
+        "end": 186,
+        "lines": [
+          {
+            "line": 149,
+            "text": "    fn capture(&self) -> FoldUndo {"
+          },
+          {
+            "line": 150,
+            "text": "        FoldUndo {"
+          },
+          {
+            "line": 151,
+            "text": "            consumed_len: self.consumed_len,"
+          },
+          {
+            "line": 152,
+            "text": "            consumed_digest: self.consumed_digest,"
+          },
+          {
+            "line": 153,
+            "text": "            through_stroke: self.facts.through_stroke,"
+          },
+          {
+            "line": 154,
+            "text": "            dir_state: self.dir_state,"
+          },
+          {
+            "line": 155,
+            "text": "            breach_watermark: self.facts.breach_watermark,"
+          },
+          {
+            "line": 156,
+            "text": "            raw_len: self.facts.raw_elements.len(),"
+          },
+          {
+            "line": 157,
+            "text": "            steps_len: self.facts.steps.len(),"
+          },
+          {
+            "line": 158,
+            "text": "            checks_len: self.facts.checks.len(),"
+          },
+          {
+            "line": 159,
+            "text": "            elements_len: self.elements.len(),"
+          },
+          {
+            "line": 160,
+            "text": "            elements_last: self.elements.last().copied(),"
+          },
+          {
+            "line": 161,
+            "text": "            standard_last: self.facts.standard.last().cloned(),"
+          },
+          {
+            "line": 162,
+            "text": "        }"
+          },
+          {
+            "line": 163,
+            "text": "    }"
+          },
+          {
+            "line": 164,
+            "text": ""
+          },
+          {
+            "line": 165,
+            "text": "    /// 撤销一步。只对未决态步进，故终点三字段一律回到空。"
+          },
+          {
+            "line": 166,
+            "text": "    fn restore(&mut self, u: FoldUndo) {"
+          },
+          {
+            "line": 167,
+            "text": "        self.consumed_len = u.consumed_len;"
+          },
+          {
+            "line": 168,
+            "text": "        self.consumed_digest = u.consumed_digest;"
+          },
+          {
+            "line": 169,
+            "text": "        self.facts.through_stroke = u.through_stroke;"
+          },
+          {
+            "line": 170,
+            "text": "        self.dir_state = u.dir_state;"
+          },
+          {
+            "line": 171,
+            "text": "        self.facts.breach_watermark = u.breach_watermark;"
+          },
+          {
+            "line": 172,
+            "text": "        self.facts.raw_elements.truncate(u.raw_len);"
+          },
+          {
+            "line": 173,
+            "text": "        self.facts.steps.truncate(u.steps_len);"
+          },
+          {
+            "line": 174,
+            "text": "        self.facts.checks.truncate(u.checks_len);"
+          },
+          {
+            "line": 175,
+            "text": "        self.elements.truncate(u.elements_len);"
+          },
+          {
+            "line": 176,
+            "text": "        self.facts.standard.truncate(u.elements_len);"
+          },
+          {
+            "line": 177,
+            "text": "        if let (Some(e), Some(last)) = (u.elements_last, self.elements.last_mut()) {"
+          },
+          {
+            "line": 178,
+            "text": "            *last = e;"
+          },
+          {
+            "line": 179,
+            "text": "        }"
+          },
+          {
+            "line": 180,
+            "text": "        if let (Some(e), Some(last)) = (u.standard_last, self.facts.standard.last_mut()) {"
+          },
+          {
+            "line": 181,
+            "text": "            *last = e;"
+          },
+          {
+            "line": 182,
+            "text": "        }"
+          },
+          {
+            "line": 183,
+            "text": "        self.facts.matched = None;"
+          },
+          {
+            "line": 184,
+            "text": "        self.facts.semantic_state = None;"
+          },
+          {
+            "line": 185,
+            "text": "        self.facts.killed_by = None;"
+          },
+          {
+            "line": 186,
+            "text": "    }"
+          }
+        ]
+      },
+      {
+        "start": 189,
+        "end": 290,
+        "lines": [
+          {
+            "line": 189,
+            "text": "    fn step(&mut self, strokes: &[Stroke], c: &SecondCandidateId) {"
+          },
+          {
+            "line": 190,
+            "text": "        let i = self.next_index();"
+          },
+          {
+            "line": 191,
+            "text": "        let sk = &strokes[i];"
+          },
+          {
+            "line": 192,
+            "text": "        self.consumed_len += 1;"
+          },
+          {
+            "line": 193,
+            "text": "        self.consumed_digest = digest_stroke(self.consumed_digest, sk);"
+          },
+          {
+            "line": 194,
+            "text": "        let facts = &mut self.facts;"
+          },
+          {
+            "line": 195,
+            "text": "        facts.through_stroke = i;"
+          },
+          {
+            "line": 196,
+            "text": "        if sk.direction != c.seg_dir {"
+          },
+          {
+            "line": 197,
+            "text": "            return;"
+          },
+          {
+            "line": 198,
+            "text": "        }"
+          },
+          {
+            "line": 199,
+            "text": "        let (high, low) = stroke_high_low(sk);"
+          },
+          {
+            "line": 200,
+            "text": "        // #1344：越界看该笔原始极值（不是包含合并后的元素），水位只作记账。"
+          },
+          {
+            "line": 201,
+            "text": "        let reach = match c.seg_dir {"
+          },
+          {
+            "line": 202,
+            "text": "            Direction::Up => high,"
+          },
+          {
+            "line": 203,
+            "text": "            Direction::Down => low,"
+          },
+          {
+            "line": 204,
+            "text": "        };"
+          },
+          {
+            "line": 205,
+            "text": "        facts.breach_watermark = Some(match (facts.breach_watermark, c.seg_dir) {"
+          },
+          {
+            "line": 206,
+            "text": "            (None, _) => reach,"
+          },
+          {
+            "line": 207,
+            "text": "            (Some(w), Direction::Up) => w.max(reach),"
+          },
+          {
+            "line": 208,
+            "text": "            (Some(w), Direction::Down) => w.min(reach),"
+          },
+          {
+            "line": 209,
+            "text": "        });"
+          },
+          {
+            "line": 210,
+            "text": "        let incoming = FeatureElement {"
+          },
+          {
+            "line": 211,
+            "text": "            high,"
+          },
+          {
+            "line": 212,
+            "text": "            low,"
+          },
+          {
+            "line": 213,
+            "text": "            stroke_idx: i,"
+          },
+          {
+            "line": 214,
+            "text": "            stroke_indices: vec![i],"
+          },
+          {
+            "line": 215,
+            "text": "        };"
+          },
+          {
+            "line": 216,
+            "text": "        let before = facts.standard.last().cloned();"
+          },
+          {
+            "line": 217,
+            "text": "        facts.raw_elements.push(incoming.clone());"
+          },
+          {
+            "line": 218,
+            "text": "        let previous_len = self.elements.len();"
+          },
+          {
+            "line": 219,
+            "text": "        let merge_direction = if self.dir_state == Some(Direction::Down) {"
+          },
+          {
+            "line": 220,
+            "text": "            \"DOWN\""
+          },
+          {
+            "line": 221,
+            "text": "        } else {"
+          },
+          {
+            "line": 222,
+            "text": "            \"UP\""
+          },
+          {
+            "line": 223,
+            "text": "        };"
+          },
+          {
+            "line": 224,
+            "text": "        if self.elements.is_empty() {"
+          },
+          {
+            "line": 225,
+            "text": "            self.elements.push((high, low));"
+          },
+          {
+            "line": 226,
+            "text": "        } else {"
+          },
+          {
+            "line": 227,
+            "text": "            self.dir_state = apply_inclusion(&mut self.elements, high, low, self.dir_state);"
+          },
+          {
+            "line": 228,
+            "text": "        }"
+          },
+          {
+            "line": 229,
+            "text": "        let merge = previous_len == self.elements.len();"
+          },
+          {
+            "line": 230,
+            "text": "        let mut stroke_indices = if merge {"
+          },
+          {
+            "line": 231,
+            "text": "            facts.standard.pop().unwrap().stroke_indices"
+          },
+          {
+            "line": 232,
+            "text": "        } else {"
+          },
+          {
+            "line": 233,
+            "text": "            vec![]"
+          },
+          {
+            "line": 234,
+            "text": "        };"
+          },
+          {
+            "line": 235,
+            "text": "        stroke_indices.push(i);"
+          },
+          {
+            "line": 236,
+            "text": "        let (high, low) = *self.elements.last().unwrap();"
+          },
+          {
+            "line": 237,
+            "text": "        let after = FeatureElement {"
+          },
+          {
+            "line": 238,
+            "text": "            high,"
+          },
+          {
+            "line": 239,
+            "text": "            low,"
+          },
+          {
+            "line": 240,
+            "text": "            stroke_idx: i,"
+          },
+          {
+            "line": 241,
+            "text": "            stroke_indices,"
+          },
+          {
+            "line": 242,
+            "text": "        };"
+          },
+          {
+            "line": 243,
+            "text": "        facts.standard.push(after.clone());"
+          },
+          {
+            "line": 244,
+            "text": "        facts.steps.push(FeatureStep {"
+          },
+          {
+            "line": 245,
+            "text": "            incoming,"
+          },
+          {
+            "line": 246,
+            "text": "            before,"
+          },
+          {
+            "line": 247,
+            "text": "            after,"
+          },
+          {
+            "line": 248,
+            "text": "            action: if merge { \"merge\" } else { \"append\" },"
+          },
+          {
+            "line": 249,
+            "text": "            merge_direction: merge.then_some(merge_direction),"
+          },
+          {
+            "line": 250,
+            "text": "            scope: \"SECOND_SEQUENCE\","
+          },
+          {
+            "line": 251,
+            "text": "        });"
+          },
+          {
+            "line": 252,
+            "text": "        let n = facts.standard.len();"
+          },
+          {
+            "line": 253,
+            "text": "        if n >= 3 {"
+          },
+          {
+            "line": 254,
+            "text": "            let es = ["
+          },
+          {
+            "line": 255,
+            "text": "                facts.standard[n - 3].clone(),"
+          },
+          {
+            "line": 256,
+            "text": "                facts.standard[n - 2].clone(),"
+          },
+          {
+            "line": 257,
+            "text": "                facts.standard[n - 1].clone(),"
+          },
+          {
+            "line": 258,
+            "text": "            ];"
+          },
+          {
+            "line": 259,
+            "text": "            let check = SecondCheck {"
+          },
+          {
+            "line": 260,
+            "text": "                top_fractal: es[1].high > es[0].high && es[1].high > es[2].high,"
+          },
+          {
+            "line": 261,
+            "text": "                bottom_fractal: es[1].low < es[0].low && es[1].low < es[2].low,"
+          },
+          {
+            "line": 262,
+            "text": "                elements: es,"
+          },
+          {
+            "line": 263,
+            "text": "                through_stroke: i,"
+          },
+          {
+            "line": 264,
+            "text": "            };"
+          },
+          {
+            "line": 265,
+            "text": "            facts.checks.push(check.clone());"
+          },
+          {
+            "line": 266,
+            "text": "            if check.top_fractal || check.bottom_fractal {"
+          },
+          {
+            "line": 267,
+            "text": "                facts.matched = Some(check);"
+          },
+          {
+            "line": 268,
+            "text": "                facts.semantic_state = Some(SecondTerminal::Confirmed);"
+          },
+          {
+            "line": 269,
+            "text": "                return;"
+          },
+          {
+            "line": 270,
+            "text": "            }"
+          },
+          {
+            "line": 271,
+            "text": "        }"
+          },
+          {
+            "line": 272,
+            "text": "        // #1344 第二问：分型检查之后才看越界；被包含并入前一元素的笔不是独立第三元素，"
+          },
+          {
+            "line": 273,
+            "text": "        // 但它的新高/新低照样触发失效（078:52「直接新高或新低」）。"
+          },
+          {
+            "line": 274,
+            "text": "        let breached = match c.seg_dir {"
+          },
+          {
+            "line": 275,
+            "text": "            Direction::Up => reach > c.candidate_extreme,"
+          },
+          {
+            "line": 276,
+            "text": "            Direction::Down => reach < c.candidate_extreme,"
+          },
+          {
+            "line": 277,
+            "text": "        };"
+          },
+          {
+            "line": 278,
+            "text": "        if breached {"
+          },
+          {
+            "line": 279,
+            "text": "            facts.killed_by = Some(SecondKill {"
+          },
+          {
+            "line": 280,
+            "text": "                stroke_idx: i,"
+          },
+          {
+            "line": 281,
+            "text": "                price: reach,"
+          },
+          {
+            "line": 282,
+            "text": "                candidate_extreme: c.candidate_extreme,"
+          },
+          {
+            "line": 283,
+            "text": "                comparison: match c.seg_dir {"
+          },
+          {
+            "line": 284,
+            "text": "                    Direction::Up => \">\","
+          },
+          {
+            "line": 285,
+            "text": "                    Direction::Down => \"<\","
+          },
+          {
+            "line": 286,
+            "text": "                },"
+          },
+          {
+            "line": 287,
+            "text": "            });"
+          },
+          {
+            "line": 288,
+            "text": "            facts.semantic_state = Some(SecondTerminal::KilledByNewExtreme);"
+          },
+          {
+            "line": 289,
+            "text": "        }"
+          },
+          {
+            "line": 290,
+            "text": "    }"
+          }
+        ]
+      },
+      {
+        "start": 294,
+        "end": 332,
+        "lines": [
+          {
+            "line": 294,
+            "text": "fn budget_end(from: usize, granted: Option<usize>, n: usize) -> usize {"
+          },
+          {
+            "line": 295,
+            "text": "    match granted {"
+          },
+          {
+            "line": 296,
+            "text": "        None => n,"
+          },
+          {
+            "line": 297,
+            "text": "        Some(w) => from.saturating_add(w).min(n),"
+          },
+          {
+            "line": 298,
+            "text": "    }"
+          },
+          {
+            "line": 299,
+            "text": "}"
+          },
+          {
+            "line": 300,
+            "text": ""
+          },
+          {
+            "line": 301,
+            "text": "/// 按输入末端出具结果：未决时，预算先于输入末端耗尽 ⟹ 覆盖不完整、语义为空；否则 OPEN。"
+          },
+          {
+            "line": 302,
+            "text": "fn finish(mut facts: SecondSequenceFacts, n: usize, end: usize) -> SecondSequenceFacts {"
+          },
+          {
+            "line": 303,
+            "text": "    facts.input_stroke_count = n;"
+          },
+          {
+            "line": 304,
+            "text": "    if facts.semantic_state.is_none() {"
+          },
+          {
+            "line": 305,
+            "text": "        facts.resource_truncated = end < n;"
+          },
+          {
+            "line": 306,
+            "text": "        if facts.resource_truncated {"
+          },
+          {
+            "line": 307,
+            "text": "            facts.coverage = ScanCoverage::IncompleteResourceBound;"
+          },
+          {
+            "line": 308,
+            "text": "        } else {"
+          },
+          {
+            "line": 309,
+            "text": "            facts.semantic_state = Some(SecondTerminal::OpenAtPrefixEnd);"
+          },
+          {
+            "line": 310,
+            "text": "        }"
+          },
+          {
+            "line": 311,
+            "text": "    }"
+          },
+          {
+            "line": 312,
+            "text": "    facts"
+          },
+          {
+            "line": 313,
+            "text": "}"
+          },
+          {
+            "line": 314,
+            "text": ""
+          },
+          {
+            "line": 315,
+            "text": "/// 无中断折叠（批处理入口）：`scan_window` 0 = 无限。"
+          },
+          {
+            "line": 316,
+            "text": "pub(super) fn fold_uninterrupted("
+          },
+          {
+            "line": 317,
+            "text": "    strokes: &[Stroke],"
+          },
+          {
+            "line": 318,
+            "text": "    candidate: SecondCandidateId,"
+          },
+          {
+            "line": 319,
+            "text": "    scan_window: u32,"
+          },
+          {
+            "line": 320,
+            "text": ") -> SecondSequenceFacts {"
+          },
+          {
+            "line": 321,
+            "text": "    let mut state = SecondFoldState::new(&candidate);"
+          },
+          {
+            "line": 322,
+            "text": "    let n = strokes.len();"
+          },
+          {
+            "line": 323,
+            "text": "    let end = budget_end(state.facts.from_stroke, window_grant(scan_window), n);"
+          },
+          {
+            "line": 324,
+            "text": "    while !state.decided() && state.next_index() < end {"
+          },
+          {
+            "line": 325,
+            "text": "        state.step(strokes, &candidate);"
+          },
+          {
+            "line": 326,
+            "text": "    }"
+          },
+          {
+            "line": 327,
+            "text": "    finish(state.facts, n, end)"
+          },
+          {
+            "line": 328,
+            "text": "}"
+          },
+          {
+            "line": 329,
+            "text": ""
+          },
+          {
+            "line": 330,
+            "text": "fn window_grant(scan_window: u32) -> Option<usize> {"
+          },
+          {
+            "line": 331,
+            "text": "    (scan_window != 0).then_some(scan_window as usize)"
+          },
+          {
+            "line": 332,
+            "text": "}"
+          }
+        ]
+      },
+      {
+        "start": 366,
+        "end": 441,
+        "lines": [
+          {
+            "line": 366,
+            "text": "    pub fn grant(&mut self, extra: u32) {"
+          },
+          {
+            "line": 367,
+            "text": "        self.budget_granted = match (self.budget_granted, extra) {"
+          },
+          {
+            "line": 368,
+            "text": "            (_, 0) | (None, _) => None,"
+          },
+          {
+            "line": 369,
+            "text": "            (Some(g), e) => Some(g.saturating_add(e as usize)),"
+          },
+          {
+            "line": 370,
+            "text": "        };"
+          },
+          {
+            "line": 371,
+            "text": "    }"
+          },
+          {
+            "line": 372,
+            "text": ""
+          },
+          {
+            "line": 373,
+            "text": "    /// 校验已封存前缀；必要时回退一步。返回 false = 等价条件失效。"
+          },
+          {
+            "line": 374,
+            "text": "    fn reconcile(&mut self, strokes: &[Stroke]) -> bool {"
+          },
+          {
+            "line": 375,
+            "text": "        let len = self.state.consumed_len;"
+          },
+          {
+            "line": 376,
+            "text": "        if len == 0 {"
+          },
+          {
+            "line": 377,
+            "text": "            return true;"
+          },
+          {
+            "line": 378,
+            "text": "        }"
+          },
+          {
+            "line": 379,
+            "text": "        let from = self.state.facts.from_stroke;"
+          },
+          {
+            "line": 380,
+            "text": "        let n = strokes.len();"
+          },
+          {
+            "line": 381,
+            "text": "        if from > n {"
+          },
+          {
+            "line": 382,
+            "text": "            return false;"
+          },
+          {
+            "line": 383,
+            "text": "        }"
+          },
+          {
+            "line": 384,
+            "text": "        // 可封存上限：输入末笔之前（末笔从不封存）。"
+          },
+          {
+            "line": 385,
+            "text": "        let sealable = n.saturating_sub(1).saturating_sub(from);"
+          },
+          {
+            "line": 386,
+            "text": "        let available = n.saturating_sub(from);"
+          },
+          {
+            "line": 387,
+            "text": "        let mut h = FNV_OFFSET;"
+          },
+          {
+            "line": 388,
+            "text": "        let head = (len - 1).min(available);"
+          },
+          {
+            "line": 389,
+            "text": "        for sk in &strokes[from..from + head] {"
+          },
+          {
+            "line": 390,
+            "text": "            h = digest_stroke(h, sk);"
+          },
+          {
+            "line": 391,
+            "text": "        }"
+          },
+          {
+            "line": 392,
+            "text": "        let head_ok = head == len - 1;"
+          },
+          {
+            "line": 393,
+            "text": "        if head_ok"
+          },
+          {
+            "line": 394,
+            "text": "            && len <= sealable"
+          },
+          {
+            "line": 395,
+            "text": "            && digest_stroke(h, &strokes[from + len - 1]) == self.state.consumed_digest"
+          },
+          {
+            "line": 396,
+            "text": "        {"
+          },
+          {
+            "line": 397,
+            "text": "            return true;"
+          },
+          {
+            "line": 398,
+            "text": "        }"
+          },
+          {
+            "line": 399,
+            "text": "        // 末笔可回退一步：撤销最后一步，校验其前的已封存前缀。"
+          },
+          {
+            "line": 400,
+            "text": "        match self.undo.take() {"
+          },
+          {
+            "line": 401,
+            "text": "            Some(u) if head_ok && u.consumed_len <= sealable && h == u.consumed_digest => {"
+          },
+          {
+            "line": 402,
+            "text": "                self.state.restore(u);"
+          },
+          {
+            "line": 403,
+            "text": "                true"
+          },
+          {
+            "line": 404,
+            "text": "            }"
+          },
+          {
+            "line": 405,
+            "text": "            _ => false,"
+          },
+          {
+            "line": 406,
+            "text": "        }"
+          },
+          {
+            "line": 407,
+            "text": "    }"
+          },
+          {
+            "line": 408,
+            "text": ""
+          },
+          {
+            "line": 409,
+            "text": "    /// 在 `strokes` 上续左折叠并出具结果；结果与在同一输入上无中断折叠（同额预算）逐位相同。"
+          },
+          {
+            "line": 410,
+            "text": "    pub fn resume(&mut self, strokes: &[Stroke]) -> Result<SecondSequenceFacts, FoldResumeError> {"
+          },
+          {
+            "line": 411,
+            "text": "        if self.schema != SECOND_FOLD_CURSOR_SCHEMA"
+          },
+          {
+            "line": 412,
+            "text": "            || self.rule_revision != SECOND_CANDIDATE_RULE_REVISION"
+          },
+          {
+            "line": 413,
+            "text": "            || self.budget_policy != SECOND_SEQ_SCAN_BUDGET_POLICY"
+          },
+          {
+            "line": 414,
+            "text": "        {"
+          },
+          {
+            "line": 415,
+            "text": "            return Err(FoldResumeError::VersionMismatch);"
+          },
+          {
+            "line": 416,
+            "text": "        }"
+          },
+          {
+            "line": 417,
+            "text": "        if !self.reconcile(strokes) {"
+          },
+          {
+            "line": 418,
+            "text": "            return Err(FoldResumeError::InputChanged);"
+          },
+          {
+            "line": 419,
+            "text": "        }"
+          },
+          {
+            "line": 420,
+            "text": "        let n = strokes.len();"
+          },
+          {
+            "line": 421,
+            "text": "        let end = budget_end(self.state.facts.from_stroke, self.budget_granted, n);"
+          },
+          {
+            "line": 422,
+            "text": "        // 封存到输入末笔之前（预算先尽则止于预算）。"
+          },
+          {
+            "line": 423,
+            "text": "        let seal_end = end.min(n.saturating_sub(1));"
+          },
+          {
+            "line": 424,
+            "text": "        while !self.state.decided() && self.state.next_index() < seal_end {"
+          },
+          {
+            "line": 425,
+            "text": "            self.undo = Some(self.state.capture());"
+          },
+          {
+            "line": 426,
+            "text": "            self.state.step(strokes, &self.candidate);"
+          },
+          {
+            "line": 427,
+            "text": "        }"
+          },
+          {
+            "line": 428,
+            "text": "        // 末笔暂算：步进、出具、撤销，不入封存态。"
+          },
+          {
+            "line": 429,
+            "text": "        let facts = if !self.state.decided() && self.state.next_index() < end {"
+          },
+          {
+            "line": 430,
+            "text": "            let u = self.state.capture();"
+          },
+          {
+            "line": 431,
+            "text": "            self.state.step(strokes, &self.candidate);"
+          },
+          {
+            "line": 432,
+            "text": "            let out = self.state.facts.clone();"
+          },
+          {
+            "line": 433,
+            "text": "            self.state.restore(u);"
+          },
+          {
+            "line": 434,
+            "text": "            out"
+          },
+          {
+            "line": 435,
+            "text": "        } else {"
+          },
+          {
+            "line": 436,
+            "text": "            self.state.facts.clone()"
+          },
+          {
+            "line": 437,
+            "text": "        };"
+          },
+          {
+            "line": 438,
+            "text": "        self.input_stroke_count = n;"
+          },
+          {
+            "line": 439,
+            "text": "        Ok(finish(facts, n, end))"
+          },
+          {
+            "line": 440,
+            "text": "    }"
+          },
+          {
+            "line": 441,
+            "text": ""
+          }
+        ]
+      },
+      {
+        "start": 574,
+        "end": 618,
+        "lines": [
+          {
+            "line": 574,
+            "text": "    pub fn from_wire(wire: &serde_json::Value, strokes: &[Stroke]) -> Option<(Self, bool, bool)> {"
+          },
+          {
+            "line": 575,
+            "text": "        if wire[\"schema\"] != SECOND_FOLD_CURSOR_SCHEMA"
+          },
+          {
+            "line": 576,
+            "text": "            || wire[\"rule_revision\"] != SECOND_CANDIDATE_RULE_REVISION"
+          },
+          {
+            "line": 577,
+            "text": "            || wire[\"budget_policy\"] != SECOND_SEQ_SCAN_BUDGET_POLICY"
+          },
+          {
+            "line": 578,
+            "text": "        {"
+          },
+          {
+            "line": 579,
+            "text": "            return None;"
+          },
+          {
+            "line": 580,
+            "text": "        }"
+          },
+          {
+            "line": 581,
+            "text": "        let c = &wire[\"candidate\"];"
+          },
+          {
+            "line": 582,
+            "text": "        let seg_dir = match c[\"seg_dir\"].as_str()? {"
+          },
+          {
+            "line": 583,
+            "text": "            \"UP\" => Direction::Up,"
+          },
+          {
+            "line": 584,
+            "text": "            \"DOWN\" => Direction::Down,"
+          },
+          {
+            "line": 585,
+            "text": "            _ => return None,"
+          },
+          {
+            "line": 586,
+            "text": "        };"
+          },
+          {
+            "line": 587,
+            "text": "        let candidate = SecondCandidateId {"
+          },
+          {
+            "line": 588,
+            "text": "            seg_dir,"
+          },
+          {
+            "line": 589,
+            "text": "            b_stroke: usize::try_from(wire_int(&c[\"b_stroke\"])?).ok()?,"
+          },
+          {
+            "line": 590,
+            "text": "            candidate_extreme: wire_int(&c[\"candidate_extreme\"])?,"
+          },
+          {
+            "line": 591,
+            "text": "        };"
+          },
+          {
+            "line": 592,
+            "text": "        let budget_granted = match &wire[\"budget_granted\"] {"
+          },
+          {
+            "line": 593,
+            "text": "            serde_json::Value::Null => None,"
+          },
+          {
+            "line": 594,
+            "text": "            v => Some(usize::try_from(wire_int(v)?).ok()?),"
+          },
+          {
+            "line": 595,
+            "text": "        };"
+          },
+          {
+            "line": 596,
+            "text": "        let consumed = usize::try_from(wire_int(&wire[\"consumed_len\"])?).ok()?;"
+          },
+          {
+            "line": 597,
+            "text": "        let exhausted = wire[\"semantic_state\"].is_null() && budget_granted == Some(consumed);"
+          },
+          {
+            "line": 598,
+            "text": "        let mut cursor = SecondFoldCursor::new(candidate, 0);"
+          },
+          {
+            "line": 599,
+            "text": "        cursor.budget_granted = budget_granted;"
+          },
+          {
+            "line": 600,
+            "text": "        cursor.input_stroke_count = usize::try_from(wire_int(&wire[\"input_stroke_count\"])?).ok()?;"
+          },
+          {
+            "line": 601,
+            "text": "        let from = cursor.state.facts.from_stroke;"
+          },
+          {
+            "line": 602,
+            "text": "        if from + consumed > strokes.len() {"
+          },
+          {
+            "line": 603,
+            "text": "            return Some((cursor, false, exhausted));"
+          },
+          {
+            "line": 604,
+            "text": "        }"
+          },
+          {
+            "line": 605,
+            "text": "        let mut probe = cursor.clone();"
+          },
+          {
+            "line": 606,
+            "text": "        for k in 0..consumed {"
+          },
+          {
+            "line": 607,
+            "text": "            if probe.state.decided() {"
+          },
+          {
+            "line": 608,
+            "text": "                return Some((cursor, false, exhausted));"
+          },
+          {
+            "line": 609,
+            "text": "            }"
+          },
+          {
+            "line": 610,
+            "text": "            if k + 1 == consumed {"
+          },
+          {
+            "line": 611,
+            "text": "                probe.undo = Some(probe.state.capture());"
+          },
+          {
+            "line": 612,
+            "text": "            }"
+          },
+          {
+            "line": 613,
+            "text": "            probe.state.step(strokes, &candidate);"
+          },
+          {
+            "line": 614,
+            "text": "        }"
+          },
+          {
+            "line": 615,
+            "text": "        // #1419：核验直接消费借用 wire；不再生成 probe JSON 或复制输入 JSON。"
+          },
+          {
+            "line": 616,
+            "text": "        let verified = wire_match::matches(&probe.wire_view(), wire);"
+          },
+          {
+            "line": 617,
+            "text": "        Some((if verified { probe } else { cursor }, verified, exhausted))"
+          },
+          {
+            "line": 618,
+            "text": "    }"
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,101 @@
+[
+  {
+    "path": "docs/chanlun/text/blog/065-第65课.md",
+    "line": 28,
+    "exact_text": "上面包含关系的定义已经十分清楚，就是一些最精确的几何定义，只要按照定义来，没有任何图是不可以精确无误地、按统一的标准去找出所有的分型来。注意，这种定义是唯一的，有统一答案的，就算是本ID，如果弄错了，也就是错，没有任何含糊的地方，是可以在当下或任何时候明确无误地给出唯一答案的，这答案与时间无关，与人无关，是客观的，不可更改的，唯一的要求就是被分析的K线已经走出来。",
+    "source_sha256": "5eab5a88ab5433c1324a25da370c1fe4bb8e05a9069ce83883c8583df4a6d807",
+    "body_boundary": 56,
+    "before_boundary": true,
+    "leading_note": false,
+    "inline_note": false,
+    "source": "正本 blog；逐行原文保留，无删改引文"
+  },
+  {
+    "path": "docs/chanlun/text/blog/067-第67课.md",
+    "line": 38,
+    "exact_text": "特征序列的顶分型中，第一和第二元素间存在特征序列的缺口，如果从该分型最高点开始的向下一笔开始的序列的特征序列出现底分型，那么该线段在该顶分型的高点处结束，该高点是该线段的终点；特征序列的底分型中，第一和第二元素间存在特征序列的缺口，如果从该分型最低点开始的向上一笔开始的序列的特征序列出现顶分型，那么该线段在该底分型的低点处结束，该低点是该线段的终点；",
+    "source_sha256": "257521bf636734a6d71d724674aac093976e5f505c8ff156619fe7d3b1af459a",
+    "body_boundary": 62,
+    "before_boundary": true,
+    "leading_note": false,
+    "inline_note": false,
+    "source": "正本 blog；逐行原文保留，无删改引文"
+  },
+  {
+    "path": "docs/chanlun/text/blog/067-第67课.md",
+    "line": 46,
+    "exact_text": "强调，在第二种情况下，后一特征序列不一定封闭前一特征序列相应的缺口，而且，第二个序列中的分型，不分第一二种情况，只要有分型就可以。",
+    "source_sha256": "257521bf636734a6d71d724674aac093976e5f505c8ff156619fe7d3b1af459a",
+    "body_boundary": 62,
+    "before_boundary": true,
+    "leading_note": false,
+    "inline_note": false,
+    "source": "正本 blog；逐行原文保留，无删改引文"
+  },
+  {
+    "path": "docs/chanlun/text/blog/071-第71课.md",
+    "line": 30,
+    "exact_text": "从上面的分析就可以知道，从转折点开始，如果第一笔就破坏了前线段，进而该笔延伸出三笔来，其中第三笔破点第一笔的结束位置，那么，新的线段一定形成，前线段一定结束。",
+    "source_sha256": "6a980424b9e5ea417d7c482bfae30f96ee11c07b3c7011081e94a6d742a38d66",
+    "body_boundary": 46,
+    "before_boundary": true,
+    "leading_note": false,
+    "inline_note": false,
+    "source": "正本 blog；逐行原文保留，无删改引文"
+  },
+  {
+    "path": "docs/chanlun/text/blog/071-第71课.md",
+    "line": 32,
+    "exact_text": "这种情况还有更复杂一点的情况，就是第三笔完全在第一笔的范围内，这样，这三笔就分不出是向上还是向下，这样也就定义不了什么特征序列，为什么？因为特征序列是和走势相反的，而走势连方向都没有，那怎么知道哪个元素属于特征序列？这种情况，无非两种最后的结果：1、最终还是先破了第一笔的结束位置，这时候，新的线段显然成立，旧线段还是被破坏了；2、最终，先破第一笔的开始位置，这样，旧线段只被一笔破坏，接着就延续原来的方向，那么，显然旧线段依然延续，新线段没有出现。",
+    "source_sha256": "6a980424b9e5ea417d7c482bfae30f96ee11c07b3c7011081e94a6d742a38d66",
+    "body_boundary": 46,
+    "before_boundary": true,
+    "leading_note": false,
+    "inline_note": false,
+    "source": "正本 blog；逐行原文保留，无删改引文"
+  },
+  {
+    "path": "docs/chanlun/text/blog/071-第71课.md",
+    "line": 40,
+    "exact_text": "特征序列的分型中，第一元素就是以该假设转折点前线段的最后一个特征元素，第二个元素，就是从这转折点开始的第一笔，显然，这两者之间是同方向的，因此，如果这两者之间有缺口，那么就是第二种情况，否则就是第一种，然后根据定义来考察就可以。",
+    "source_sha256": "6a980424b9e5ea417d7c482bfae30f96ee11c07b3c7011081e94a6d742a38d66",
+    "body_boundary": 46,
+    "before_boundary": true,
+    "leading_note": false,
+    "inline_note": false,
+    "source": "正本 blog；逐行原文保留，无删改引文"
+  },
+  {
+    "path": "docs/chanlun/text/blog/071-第71课.md",
+    "line": 42,
+    "exact_text": "这里还要强调一下包含的问题，上面的分析知道，在这假设的转折点前后那两元素，是不存在包含关系的。因为，这两者已经被假设不是同一性质的东西，不一定是同一特征序列的；但假设的转折点后的顶分型的元素，是可以应用包含关系的。为什么？因此，这些元素间，肯定是同一性质的东西，或者就是原线段的延续，那么就同是原线段的特征序列中，或者就是新线段的非特征序列中，反正都是同一类的东西，同一类的东西，当然可以考察包含关系。",
+    "source_sha256": "6a980424b9e5ea417d7c482bfae30f96ee11c07b3c7011081e94a6d742a38d66",
+    "body_boundary": 46,
+    "before_boundary": true,
+    "leading_note": false,
+    "inline_note": false,
+    "source": "正本 blog；逐行原文保留，无删改引文"
+  },
+  {
+    "path": "docs/chanlun/text/blog/078-第78课.md",
+    "line": 52,
+    "exact_text": "从这个例子就知道，笔破坏与线段破坏的异同。对于线段破坏的第二种情况，例如线段B对线段A是第二种情况，而线段C没有形成第二特征序列的分型又直接新高或新低了，这时候，不能认为这是三个线段，线段A、B、C加起来只能算是一个线段。",
+    "source_sha256": "7575dfe108360af50ea9bc1309635044e775f92d3d22f12169f048bd02bb75c5",
+    "body_boundary": 64,
+    "before_boundary": true,
+    "leading_note": false,
+    "inline_note": false,
+    "source": "正本 blog；逐行原文保留，无删改引文"
+  },
+  {
+    "path": "docs/chanlun/text/blog/078-第78课.md",
+    "line": 54,
+    "exact_text": "另外，一定要注意，对于第二种情况的第二特征序列的分型判断，必须严格按照包含关系的处理来，这里不存在第一种情况中的假设分界点两边不能进行包含关系处理的要求。为什么？因为在第一种情况中，如果分界点两边出现特征序列的包含关系，那证明对原线段转折的力度特别大，那当然不能用包含关系破坏这种力度的呈现。而在第二种情况的第二特征序列中，其方向是和原线段一致，包含关系的出现，就意味着原线段的能量充足，而第二种情况，本来就意味着对原线段转折的能量不足，这样一来，当然就必须按照包含关系来。",
+    "source_sha256": "7575dfe108360af50ea9bc1309635044e775f92d3d22f12169f048bd02bb75c5",
+    "body_boundary": 64,
+    "before_boundary": true,
+    "leading_note": false,
+    "inline_note": false,
+    "source": "正本 blog；逐行原文保留，无删改引文"
+  }
+]

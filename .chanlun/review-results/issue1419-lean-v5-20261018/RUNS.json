@@ -1,0 +1,62 @@
+[
+  {
+    "argv": [
+      "python3",
+      ".chanlun/review-results/issue1419-lean-v5-20261018/MODELS.py"
+    ],
+    "script_sha256": "2b541b19a51a4ecd8bfb489ab43151372a4f986b2a59238ebf10014391a2346f",
+    "code": 0,
+    "stdout": "{\"status\": \"PASS_SCOPED_MATH\", \"counts\": {\"first_prefixes\": 2400, \"first_projection_preconditions\": 812, \"second_prefixes\": 1904, \"second_budget_cases\": 14230, \"second_chunk_splits\": 12326, \"boundary_observations\": 40}, \"named_cases\": 12}\n",
+    "stderr": "",
+    "elapsed_seconds": 0.32720375061035156,
+    "formal_sha256": {
+      "formal/Origin/SegmentFeatureSeq.lean": "27803abd862c07e11363a8fe9471c3a9a8ffdc9e873cc34bfbd3b4ae16526cab",
+      "formal/Phase2/Claim10_SegmentV1.lean": "a8973d2498253762b9cc072d39a0f0380b044509ae957db2a2a1437ea7707ffd"
+    }
+  },
+  {
+    "argv": [
+      "python3",
+      ".chanlun/review-results/issue1419-lean-v5-20261018/STATIC.py"
+    ],
+    "script_sha256": "1b13ab0a1767879caad6f8b443714c0c1a3940d7646dc5fd27ac47e35110b9e7",
+    "code": 0,
+    "stdout": "{\"status\": \"PASS_SCOPED_STATIC\", \"changed_formal\": 2, \"unchanged_formal\": 9, \"new_named_declarations\": 86, \"new_named_theorems\": 50, \"old_code_preserved\": true, \"dependency_cycle\": false, \"rust_545e_112e_same\": true, \"references\": 9, \"patch_sha256\": \"a902b0327dcdca16bfb694daa0584e7792910e906fa3f0970be33033c9e0d5bf\", \"lean\": \"NOT_RUN\", \"rust\": \"NOT_RUN\"}\n",
+    "stderr": "",
+    "elapsed_seconds": 1.4392387866973877,
+    "formal_sha256": {
+      "formal/Origin/SegmentFeatureSeq.lean": "27803abd862c07e11363a8fe9471c3a9a8ffdc9e873cc34bfbd3b4ae16526cab",
+      "formal/Phase2/Claim10_SegmentV1.lean": "a8973d2498253762b9cc072d39a0f0380b044509ae957db2a2a1437ea7707ffd"
+    }
+  },
+  {
+    "argv": [
+      "python3",
+      ".chanlun/review-results/issue1419-lean-v5-20261018/MODELS.py"
+    ],
+    "script_sha256": "edcd0f6c30538fd427a42ac05c8cd02661e8074afea300440ec98e8432fdde46",
+    "code": 0,
+    "stdout": "{\"status\": \"PASS_SCOPED_MATH\", \"counts\": {\"first_prefixes\": 2400, \"first_projection_preconditions\": 812, \"second_prefixes\": 1904, \"second_budget_cases\": 14230, \"second_chunk_splits\": 12326, \"boundary_observations\": 40}, \"named_cases\": 12}\n",
+    "stderr": "",
+    "elapsed_seconds": 0.32692694664001465,
+    "formal_sha256": {
+      "formal/Origin/SegmentFeatureSeq.lean": "453a935be4c96953cefb43349e4d5926a31f85872387f2df9bf63ab230913417",
+      "formal/Phase2/Claim10_SegmentV1.lean": "a8973d2498253762b9cc072d39a0f0380b044509ae957db2a2a1437ea7707ffd"
+    }
+  },
+  {
+    "argv": [
+      "python3",
+      ".chanlun/review-results/issue1419-lean-v5-20261018/STATIC.py"
+    ],
+    "script_sha256": "1b13ab0a1767879caad6f8b443714c0c1a3940d7646dc5fd27ac47e35110b9e7",
+    "code": 0,
+    "stdout": "{\"status\": \"PASS_SCOPED_STATIC\", \"changed_formal\": 2, \"unchanged_formal\": 9, \"new_named_declarations\": 90, \"new_named_theorems\": 53, \"old_code_preserved\": true, \"dependency_cycle\": false, \"rust_545e_112e_same\": true, \"references\": 9, \"patch_sha256\": \"a9725f0ac12b474ce64a57c565a1d331913342d7c37c958eff9a229f398ad1f6\", \"lean\": \"NOT_RUN\", \"rust\": \"NOT_RUN\"}\n",
+    "stderr": "",
+    "elapsed_seconds": 1.2288901805877686,
+    "formal_sha256": {
+      "formal/Origin/SegmentFeatureSeq.lean": "453a935be4c96953cefb43349e4d5926a31f85872387f2df9bf63ab230913417",
+      "formal/Phase2/Claim10_SegmentV1.lean": "a8973d2498253762b9cc072d39a0f0380b044509ae957db2a2a1437ea7707ffd"
+    }
+  }
+]

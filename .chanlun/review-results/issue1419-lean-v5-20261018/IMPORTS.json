@@ -1,0 +1,15 @@
+{
+  "modules": 153,
+  "acyclic": true,
+  "affected": [
+    "Origin.ParityFixtureExport",
+    "Origin.Pipeline",
+    "Origin.SegmentAutoConstruct",
+    "Origin.SegmentConstruction",
+    "Origin.SegmentFeatureComplete",
+    "Origin.SegmentFeatureSeq",
+    "Phase2.Claim10_SegmentV1"
+  ],
+  "new_import": "Phase2.Claim10_SegmentV1 -> Origin.SegmentFeatureSeq",
+  "typecheck": "NOT_RUN"
+}

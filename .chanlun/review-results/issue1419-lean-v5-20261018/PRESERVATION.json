@@ -1,0 +1,12 @@
+[
+  {
+    "path": "formal/Origin/SegmentFeatureSeq.lean",
+    "old_code_lines_preserved": true,
+    "forbidden_code_tokens": 0
+  },
+  {
+    "path": "formal/Phase2/Claim10_SegmentV1.lean",
+    "old_code_lines_preserved": true,
+    "forbidden_code_tokens": 0
+  }
+]

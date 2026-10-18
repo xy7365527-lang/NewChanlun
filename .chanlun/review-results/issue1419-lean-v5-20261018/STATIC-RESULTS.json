@@ -1,0 +1,14 @@
+{
+  "status": "PASS_SCOPED_STATIC",
+  "changed_formal": 2,
+  "unchanged_formal": 9,
+  "new_named_declarations": 90,
+  "new_named_theorems": 53,
+  "old_code_preserved": true,
+  "dependency_cycle": false,
+  "rust_545e_112e_same": true,
+  "references": 9,
+  "patch_sha256": "a9725f0ac12b474ce64a57c565a1d331913342d7c37c958eff9a229f398ad1f6",
+  "lean": "NOT_RUN",
+  "rust": "NOT_RUN"
+}

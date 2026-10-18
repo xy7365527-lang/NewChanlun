@@ -1,0 +1,97 @@
+[
+  {
+    "argv": [
+      "git",
+      "rev-parse",
+      "HEAD"
+    ],
+    "code": 0,
+    "stdout": "112e1c3ca49da3c5ff21d0b6fa6a8bcd3abcd7b1\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "rev-parse",
+      "HEAD^{tree}"
+    ],
+    "code": 0,
+    "stdout": "e19a4cfcea3db6964ab435c466372d879e30105d\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "branch",
+      "--show-current"
+    ],
+    "code": 0,
+    "stdout": "codex/1419-lean-v5-20261018\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "diff",
+      "--name-only",
+      "112e1c3ca49da3c5ff21d0b6fa6a8bcd3abcd7b1"
+    ],
+    "code": 0,
+    "stdout": "formal/Origin/SegmentFeatureSeq.lean\nformal/Phase2/Claim10_SegmentV1.lean\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "ls-files",
+      "--others",
+      "--exclude-standard"
+    ],
+    "code": 0,
+    "stdout": ".chanlun/review-results/issue1419-lean-v5-20261018/DECLARATIONS.json\n.chanlun/review-results/issue1419-lean-v5-20261018/DECLARATIONS.md\n.chanlun/review-results/issue1419-lean-v5-20261018/DELTA.patch\n.chanlun/review-results/issue1419-lean-v5-20261018/IMPORTS.json\n.chanlun/review-results/issue1419-lean-v5-20261018/INPUTS.json\n.chanlun/review-results/issue1419-lean-v5-20261018/MATRIX.md\n.chanlun/review-results/issue1419-lean-v5-20261018/MODEL-RESULTS.json\n.chanlun/review-results/issue1419-lean-v5-20261018/MODELS.py\n.chanlun/review-results/issue1419-lean-v5-20261018/PRESERVATION.json\n.chanlun/review-results/issue1419-lean-v5-20261018/REFERENCES.json\n.chanlun/review-results/issue1419-lean-v5-20261018/REPORT.md\n.chanlun/review-results/issue1419-lean-v5-20261018/REUSED-EVIDENCE.json\n.chanlun/review-results/issue1419-lean-v5-20261018/RUNS.json\n.chanlun/review-results/issue1419-lean-v5-20261018/RUST-EXCERPTS.json\n.chanlun/review-results/issue1419-lean-v5-20261018/RUST-IDENTITY.json\n.chanlun/review-results/issue1419-lean-v5-20261018/RUST-MAPPING.md\n.chanlun/review-results/issue1419-lean-v5-20261018/SOURCE-MANIFEST.json\n.chanlun/review-results/issue1419-lean-v5-20261018/STATIC-COMMANDS.json\n.chanlun/review-results/issue1419-lean-v5-20261018/STATIC-RESULTS.json\n.chanlun/review-results/issue1419-lean-v5-20261018/STATIC.py\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "diff",
+      "--stat",
+      "112e1c3ca49da3c5ff21d0b6fa6a8bcd3abcd7b1"
+    ],
+    "code": 0,
+    "stdout": " formal/Origin/SegmentFeatureSeq.lean | 621 ++++++++++++++++++++++++++++++++++-\n formal/Phase2/Claim10_SegmentV1.lean |  89 ++++-\n 2 files changed, 694 insertions(+), 16 deletions(-)\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "status",
+      "--short"
+    ],
+    "code": 0,
+    "stdout": " M formal/Origin/SegmentFeatureSeq.lean\n M formal/Phase2/Claim10_SegmentV1.lean\n?? .chanlun/review-results/issue1419-lean-v5-20261018/\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "--reverse",
+      "--check",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/.chanlun/review-results/issue1419-lean-v5-20261018/DELTA.patch"
+    ],
+    "code": 0,
+    "stdout": "",
+    "stderr": ""
+  }
+]

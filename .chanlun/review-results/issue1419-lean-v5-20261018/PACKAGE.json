@@ -1,0 +1,37 @@
+{
+  "ticket": 1419,
+  "artifact_class": "工作草稿",
+  "base": "112e1c3ca49da3c5ff21d0b6fa6a8bcd3abcd7b1",
+  "tree": "e19a4cfcea3db6964ab435c466372d879e30105d",
+  "branch": "codex/1419-lean-v5-20261018",
+  "worker_kind": "sandcastle_external_codex",
+  "native_subagent": false,
+  "patch": "DELTA.patch",
+  "patch_sha256": "a9725f0ac12b474ce64a57c565a1d331913342d7c37c958eff9a229f398ad1f6",
+  "changed_formal": [
+    "formal/Origin/SegmentFeatureSeq.lean",
+    "formal/Phase2/Claim10_SegmentV1.lean"
+  ],
+  "all_allowed_formal": [
+    "formal/Formal/DivergenceNesting.lean",
+    "formal/Formal/RecursiveConstruction.lean",
+    "formal/Origin/CenterConstruct.lean",
+    "formal/Origin/CenterConstruction.lean",
+    "formal/Origin/CenterPairFixtureExport.lean",
+    "formal/Origin/CenterStates.lean",
+    "formal/Origin/PromQual.lean",
+    "formal/Origin/ScanAssemblyMirror.lean",
+    "formal/Origin/SegmentFeatureSeq.lean",
+    "formal/Origin/UnifiedScanMirrorBridge.lean",
+    "formal/Phase2/Claim10_SegmentV1.lean"
+  ],
+  "new_named_declarations": 90,
+  "new_named_theorems": 53,
+  "hashes": "SHA256SUMS",
+  "hash_scope": "全部11份获准formal文件及本报告目录全部文件；仅SHA256SUMS自身不纳入",
+  "validation_scope": "源码静查与纯Python整数/列表模型；Lean/Rust/产品/同树链均NOT_RUN",
+  "proof_status": "证明体已落源码，未通过Lean实际类型检查；不声明完整Rust精化",
+  "residuals": "RUST-MAPPING.md列8项D_SECOND_FOLD_REFINEMENT，另保留第一种来源/Rust接线、E参考fixture与F导出/独立来源义务",
+  "unchanged": "其余9份formal、Rust、配置/依赖、旧报告、其他工作树不改",
+  "authorization": "没有commit/push/merge/claim/评论/切分支/改Git配置/新工蜂；后续动作没有在此获批"
+}

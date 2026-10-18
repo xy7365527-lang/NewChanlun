@@ -1,0 +1,129 @@
+{
+  "formal_unchanged": [
+    "formal/Formal/DivergenceNesting.lean",
+    "formal/Formal/RecursiveConstruction.lean",
+    "formal/Origin/CenterConstruct.lean",
+    "formal/Origin/CenterConstruction.lean",
+    "formal/Origin/CenterPairFixtureExport.lean",
+    "formal/Origin/CenterStates.lean",
+    "formal/Origin/PromQual.lean",
+    "formal/Origin/ScanAssemblyMirror.lean",
+    "formal/Origin/UnifiedScanMirrorBridge.lean"
+  ],
+  "old_reports_unchanged": [
+    {
+      "path": ".chanlun/review-results/issue1419-lean-v4-20261018/ADAPTATIONS.patch",
+      "sha256": "221c5a036216f9fa8eb8d785e5e0bfd956bd8a3dc5a3120036ff621c49e41f99",
+      "bytes": 14096
+    },
+    {
+      "path": ".chanlun/review-results/issue1419-lean-v4-20261018/CHECK-RESULTS.json",
+      "sha256": "362f62ebd5b27816ba2f204c615ee68b6fed3fb4993510efbd67ae61627df728",
+      "bytes": 300
+    },
+    {
+      "path": ".chanlun/review-results/issue1419-lean-v4-20261018/CHECK-RUN-1.json",
+      "sha256": "317a50568c1a759ea105a509a7b710867aa142f6f4a6803191212fee6e2f5c8b",
+      "bytes": 928
+    },
+    {
+      "path": ".chanlun/review-results/issue1419-lean-v4-20261018/CHECKS.py",
+      "sha256": "8f74e8d1e3b438d3eaeaba3abd1a0bfd92514d5d7cb86e2e61fca68da323bf48",
+      "bytes": 15992
+    },
+    {
+      "path": ".chanlun/review-results/issue1419-lean-v4-20261018/D-FIRST-COUNTEREXAMPLES.json",
+      "sha256": "aafbf8f681779a01956f1d4cf126b8e885cd47a7b382fac9ad2a8db916c5424a",
+      "bytes": 524
+    },
+    {
+      "path": ".chanlun/review-results/issue1419-lean-v4-20261018/DELTA.patch",
+      "sha256": "9229b8b6901e864a0ab9161139ece4f6377fbcde4f19555fbe7bc28fa1bc0474",
+      "bytes": 65070
+    },
+    {
+      "path": ".chanlun/review-results/issue1419-lean-v4-20261018/DEPENDENCIES.json",
+      "sha256": "277f616278efcf2240838a09609be4da2ca22a798ed146ea0ab718268c85b6c7",
+      "bytes": 2814
+    },
+    {
+      "path": ".chanlun/review-results/issue1419-lean-v4-20261018/E-FIXTURE-GAP.json",
+      "sha256": "6ca23e90cc0d79e47c5365e52926cac81a85121b982292685bad70dd221960aa",
+      "bytes": 430
+    },
+    {
+      "path": ".chanlun/review-results/issue1419-lean-v4-20261018/F-FIXTURE-STATIC.json",
+      "sha256": "69ca8db5aee3e11a38cea2200aa6226440e2a6e209cba79fc48f5ad0ba1b9cd5",
+      "bytes": 4393
+    },
+    {
+      "path": ".chanlun/review-results/issue1419-lean-v4-20261018/INPUTS.json",
+      "sha256": "a84eff3b8ef8eaf02ea0e3974c14a65f61f47b3897ff7841d0aadaf046bf41aa",
+      "bytes": 4665
+    },
+    {
+      "path": ".chanlun/review-results/issue1419-lean-v4-20261018/MATRIX.md",
+      "sha256": "29cdf02811bcb642be392b4905271ff7cc1677fa7a030e4574b2051071ae00f9",
+      "bytes": 3633
+    },
+    {
+      "path": ".chanlun/review-results/issue1419-lean-v4-20261018/MISSING-SOURCES.json",
+      "sha256": "9c1b81a5a45093aa08824c6d811fc13e7ce02ad8e26c6795fc542317498cd11c",
+      "bytes": 619
+    },
+    {
+      "path": ".chanlun/review-results/issue1419-lean-v4-20261018/PACKAGE-COMMANDS.json",
+      "sha256": "2b3f1dc50c2fd7eeebf46d276189fc8b3bde95b547b235232178bf772f5e5427",
+      "bytes": 3569
+    },
+    {
+      "path": ".chanlun/review-results/issue1419-lean-v4-20261018/PACKAGE.json",
+      "sha256": "8eee53e0850e13b3540af0baad216753737a0f2734c34a2ff69b369f0aaccf12",
+      "bytes": 1282
+    },
+    {
+      "path": ".chanlun/review-results/issue1419-lean-v4-20261018/PACKAGE.py",
+      "sha256": "3ccf3535e2fa89a0f735205fb26ce4cdc64612938e9656f8c9dc06def20bdaec",
+      "bytes": 4715
+    },
+    {
+      "path": ".chanlun/review-results/issue1419-lean-v4-20261018/REFERENCES.json",
+      "sha256": "3c82eec0c6eb0312ee9dc7915718fc9e2c4990cff8079619fdf945c42cd1984d",
+      "bytes": 10683
+    },
+    {
+      "path": ".chanlun/review-results/issue1419-lean-v4-20261018/REPORT.md",
+      "sha256": "236e2b6f5b47b996ef731579705328a5dc38e6b8addc10c860b82a672fcbf046",
+      "bytes": 12662
+    },
+    {
+      "path": ".chanlun/review-results/issue1419-lean-v4-20261018/SHA256SUMS",
+      "sha256": "a53a529106179664a6db1e070f5a8e4546ab23db4590eac7dcb377fc7f7eb12a",
+      "bytes": 3955
+    },
+    {
+      "path": ".chanlun/review-results/issue1419-lean-v4-20261018/SOURCE-APPLICATION.json",
+      "sha256": "2c67150af03705c532e7500eb3911be250d9b899ede575647a8eee8cc6504331",
+      "bytes": 5804
+    },
+    {
+      "path": ".chanlun/review-results/issue1419-lean-v4-20261018/SOURCE-INDEX.json",
+      "sha256": "e71b4056289fcf91b920ae9fe72060ba26b3c60eb4d76b39c3320fc3c13e8c45",
+      "bytes": 13569
+    },
+    {
+      "path": ".chanlun/review-results/issue1419-lean-v4-20261018/SOURCE-MANIFEST.json",
+      "sha256": "8946297db99b85fa68cb0d36b402216dacc1cb0e579d35d374fe2e8670ed7f86",
+      "bytes": 4108
+    },
+    {
+      "path": ".chanlun/review-results/issue1419-lean-v4-20261018/STATIC-COMMANDS.json",
+      "sha256": "469ec74d9f2e01ad8fe6764757487c5f430e55d639980d92512f52d41560a461",
+      "bytes": 1418
+    }
+  ],
+  "review_path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/LEAN-V4-INDEPENDENT-REVIEW.json",
+  "scope": "仅复用 C/E/F 未变源的静态证据；D 新差异另验。旧报告的完整前缀措辞由 v5 明确撤销。",
+  "rerun_C_E_F_models": false,
+  "qualification": "不继承旧 Lean/Rust/同树执行资格；这些仍 NOT_RUN"
+}

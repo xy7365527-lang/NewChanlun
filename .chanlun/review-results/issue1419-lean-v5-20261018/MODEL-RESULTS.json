@@ -1,0 +1,114 @@
+{
+  "status": "PASS_SCOPED_MATH",
+  "counts": {
+    "first_prefixes": 2400,
+    "first_projection_preconditions": 812,
+    "second_prefixes": 1904,
+    "second_budget_cases": 14230,
+    "second_chunk_splits": 12326,
+    "boundary_observations": 40
+  },
+  "cases": [
+    {
+      "name": "P2 反向尾笔：投影 OPEN、原始 KILLED",
+      "actual": [
+        "OPEN",
+        "KILLED"
+      ],
+      "expected": [
+        "OPEN",
+        "KILLED"
+      ]
+    },
+    {
+      "name": "反向尾笔相等 P 不破",
+      "actual": "OPEN",
+      "expected": "OPEN"
+    },
+    {
+      "name": "第一种同笔双越界优先 kill",
+      "actual": "KILLED",
+      "expected": "KILLED"
+    },
+    {
+      "name": "反向尾笔不能确认（非连续负控）",
+      "actual": "OPEN",
+      "expected": "OPEN"
+    },
+    {
+      "name": "原始先越 P 后候选确认不可复活",
+      "actual": "KILLED",
+      "expected": "KILLED"
+    },
+    {
+      "name": "第一种确认前缀不被新尾推翻",
+      "actual": "CONFIRMED",
+      "expected": "CONFIRMED"
+    },
+    {
+      "name": "第二种同笔分型和越界：确认优先",
+      "actual": "CONFIRMED",
+      "expected": "CONFIRMED"
+    },
+    {
+      "name": "包含掩盖 high 后仍用原始极值 kill",
+      "actual": [
+        "KILLED",
+        12,
+        8,
+        [
+          1,
+          3
+        ]
+      ],
+      "expected": [
+        "KILLED",
+        12,
+        8,
+        [
+          1,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "第二种相等 P 不破",
+      "actual": null,
+      "expected": null
+    },
+    {
+      "name": "末笔修订不是追加前缀：旧 OPEN 新 KILLED",
+      "actual": [
+        "OPEN",
+        "KILLED"
+      ],
+      "expected": [
+        "OPEN",
+        "KILLED"
+      ]
+    },
+    {
+      "name": "预算不足不等 OPEN",
+      "actual": [
+        null,
+        "INCOMPLETE_RESOURCE_BOUND"
+      ],
+      "expected": [
+        null,
+        "INCOMPLETE_RESOURCE_BOUND"
+      ]
+    },
+    {
+      "name": "反向笔占预算且完全覆盖后 OPEN",
+      "actual": [
+        "OPEN",
+        "COMPLETE"
+      ],
+      "expected": [
+        "OPEN",
+        "COMPLETE"
+      ]
+    }
+  ],
+  "limitation": "纯 Python 整数/列表模型；不是 Lean 求值、Rust 执行、完整精化或独立 oracle 恢复。"
+}
