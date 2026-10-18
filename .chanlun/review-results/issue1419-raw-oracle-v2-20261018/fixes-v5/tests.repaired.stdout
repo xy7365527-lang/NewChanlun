@@ -1,0 +1,9 @@
+test_f1_json_text_data_rehashed (test_v5.Tests.test_f1_json_text_data_rehashed) ... ok
+test_f2_large_header_rejected_before_serialization (test_v5.Tests.test_f2_large_header_rejected_before_serialization) ... ok
+test_f8_split_profile_drift (test_v5.Tests.test_f8_split_profile_drift) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.337s
+
+OK
+{"tests": 3, "failures": 0, "errors": 0}

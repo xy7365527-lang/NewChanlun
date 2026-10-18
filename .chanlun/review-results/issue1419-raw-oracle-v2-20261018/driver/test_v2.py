@@ -6,7 +6,7 @@ import tempfile
 import time
 import unittest
 from raw_oracle import derive,canonical,digest,public_semantics
-from content_closure import Encoder,Edge,JSONText,Graph,frame,root_bytes,close_projection
+from content_closure import Encoder,Edge,JSONText,Graph,frame,root_bytes,close_projection,WorkBudget
 from driver_v2 import CollectorV2,compare_domain,compare_named_runs,reject_live
 from fixed_cut_driver import Budget,FAMILIES
 from toy_supervisor import supervise
@@ -209,7 +209,9 @@ class V2Tests(unittest.TestCase):
         for repeat_nodes in (True,False):
             sent_nodes=False;captured.clear()
             with tempfile.TemporaryDirectory() as tmp:
-                collector=CollectorV2(identity,Budget(16*1024*1024,10),exchange,Path(tmp)/'capture','1')
+                # v5 调用合同：首次身份复制也纳入原同一个100万工作帽。
+                collector=CollectorV2(identity,Budget(16*1024*1024,10),exchange,Path(tmp)/'capture','1',
+                                      work_budget=WorkBudget(LIMITS['max_work']))
                 if repeat_nodes:
                     # 旧fake每页带全图：现在收费完整，原100万帽下应明确拒绝，不加帽。
                     with self.assertRaisesRegex(ValueError,'逻辑工作量'):

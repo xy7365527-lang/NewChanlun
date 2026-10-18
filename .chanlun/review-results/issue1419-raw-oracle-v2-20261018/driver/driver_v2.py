@@ -70,6 +70,28 @@ TESTED_KINDS={'CC-008.endpoint','CC-010.bi','CC-013.segment','CC-016.center_seed
               'CC-016.center','CC-017.center_roles','CC-022.unit_assignment','CC-020.center_pair'}
 
 
+def validate_public_payload(value, budget):
+    """固定 object_records.rs:38：公共 payload 任意深度都不是 0x07 获准位置。
+
+    必须在 plain 擦除类型之前遍历原值。每次 next、栈/迭代器分配均先收费；
+    不只检查参与几何比较的字段，也不因共享子树而跳过重复访问。
+    """
+    budget.charge()
+    stack = [budget.iter((value,))]
+    while stack:
+        budget.charge()
+        try:
+            item = next(stack[-1])
+        except StopIteration:
+            stack.pop()
+            continue
+        require(not isinstance(item, JSONText), '公共payload禁止JSONText/0x07')
+        if isinstance(item, (dict, list)):
+            budget.charge()
+            require(len(stack) < 128, '公共payload检查深度超限')
+            stack.append(budget.iter(item.values() if isinstance(item, dict) else item))
+
+
 def records(verified,family='objects'):
     # verified必须是close_projection的返回；重核已验证图，不能仅相信调用者布尔值。
     require(isinstance(verified.get('graph'),Graph),'缺实际闭包图')
@@ -81,15 +103,20 @@ def records(verified,family='objects'):
         if row['family']!=family:continue
         r=row['record']
         require(isinstance(r,dict) and isinstance(r.get('kind'),str),'对象kind缺失/非法')
+        if 'payload' in r:
+            validate_public_payload(r['payload'], graph.budget)
         if r['kind'] not in TESTED_KINDS:continue
         require('payload_json' not in r,'公共对象禁止内部字段payload_json：'+r['kind'])
         require('payload' in r and isinstance(r['payload'],dict),
                 '受测kind缺失/null/非法payload：'+r['kind'])
+        require(isinstance(r['payload'].get('data'),dict),'受测kind非法payload/data：'+r['kind'])
+        graph.budget.charge()
         selected.append(r)
     for r in selected:
         payload=r['payload']
         payload=plain(payload,graph)
         require(isinstance(payload,dict) and isinstance(payload.get('data'),dict),'受测kind非法payload/data：'+r['kind'])
+        graph.budget.charge()
         out.append((r,payload['data']))
     return out
 

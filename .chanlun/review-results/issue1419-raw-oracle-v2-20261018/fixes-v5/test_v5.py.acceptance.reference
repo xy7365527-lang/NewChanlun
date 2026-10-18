@@ -1,0 +1,423 @@
+"""#1419 v5：F1/F2/F8 内存回归；旧夹具只读，所有输出由新 runner 保存。"""
+import copy
+import inspect
+import json
+from pathlib import Path
+import sys
+import unittest
+from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path[:0] = [str(ROOT/'driver'), str(ROOT/'fixes-v4'), str(ROOT/'fixes-v3')]
+import content_closure as cc
+import driver_v2 as dv
+import fixed_cut_driver as fd
+import test_v4 as v4
+from test_v2 import fixture, reply, LEDGER
+
+OBS = []
+IDENTITY = dict(session_id='toy', session_generation='1', source_namespace='toy.query',
+                source_epoch='1', producer_id='toy-driver', producer_epoch='1')
+
+
+def collector(exchange=lambda *_: None, limit=1000000, check=lambda: None):
+    clock = fd.Budget(16*1024*1024, 10)
+    work = cc.WorkBudget(limit, check)
+    # 仅兼容固定 v4 的红测入口；v5 正测会断言正式构造必须接工作预算。
+    kw = {'work_budget': work} if 'work_budget' in inspect.signature(fd.Collector).parameters else {}
+    with patch.object(Path, 'mkdir'):
+        c = dv.CollectorV2(IDENTITY, clock, exchange, Path('/memory/trace'), '1', **kw)
+    if not kw:
+        c.work_budget = work
+    return c
+
+
+def watch_material(frontiers=('139', '204', '269'), counts=(1, 65, 65)):
+    fixed = fixture()[0]['fixed_cut']
+    cursor = {k:copy.deepcopy(fixed[k]) for k in
+              ('session_id', 'session_generation', 'catalog_revision', 'scope', 'index_frontier')}
+    cursor.update(after_generation='139', base_cut='toy-cut', last_seq='138', order_version='s-record-order/2')
+    current = copy.deepcopy(cursor)
+    pages, bindings = [], {}
+    for i, (frontier, count) in enumerate(zip(frontiers, counts), 140):
+        cut = dict(copy.deepcopy(fixed), cut_generation=str(i), structure_cut='cut-'+str(i),
+                   input_frontier=frontier, index_frontier=str(i), as_of_generation=str(i),
+                   seq_range={'from':'7', 'to':'7'})
+        delta = dict(generation=str(i), session_id='toy', catalog_revision=cut['catalog_revision'],
+                     base_cut=current['base_cut'], next_cut=cut['structure_cut'],
+                     **{k:copy.deepcopy(cut[k]) for k in ('index_frontier','input_frontier','seq_range',
+                                                          'catalog_run_status','catalog_evidence')}, delta={})
+        current.update(after_generation=str(i), base_cut=delta['next_cut'],
+                       index_frontier=str(i), last_seq=frontier)
+        bindings[str(i)] = dict(session_id='toy', session_generation='1', message_id='named-'+str(i),
+                                source_epoch='1' if i == 140 else '2', accepted_events=str(count), accepted_cut=cut)
+        pages.append(dict(deltas=[delta], next_cursor=copy.deepcopy(current), observed_head=str(i),
+                          delivery_frontier=str(i), has_more=False, gap=None,
+                          validated_capture_digest='b'*64, ok=True))
+    return fixed, cursor, pages, bindings
+
+
+def bind(c, fixed, cursor):
+    if hasattr(c, 'bind_watch'):
+        c.bind_watch(fixed, cursor)
+
+
+class Tests(unittest.TestCase):
+    def test_f1_all_kinds_original_types(self):
+        modes = ('payload', 'data', 'double', 'deep', 'list', 'outside_data')
+        for kind in sorted(dv.TESTED_KINDS):
+            for mode in modes:
+                with self.subTest(kind=kind, mode=mode):
+                    objects = v4.public_objects()
+                    row = next(r for r in objects if r['kind'] == kind)
+                    payload = row['payload']
+                    if mode == 'payload':
+                        row['payload'] = cc.JSONText(payload)
+                    elif mode == 'data':
+                        payload['data'] = cc.JSONText(payload['data'])
+                    elif mode == 'double':
+                        payload['data'] = cc.JSONText(cc.JSONText(payload['data']))
+                    elif mode == 'deep':
+                        payload['data']['unused'] = {'a':{'b':cc.JSONText({'x':'y'})}}
+                    elif mode == 'list':
+                        payload['data']['unused'] = [[], {'a':[cc.JSONText('y')]}]
+                    else:
+                        payload['metadata'] = {'a':[{'b':cc.JSONText(None)}]}
+                    verified = v4.closed(objects)
+                    with self.assertRaisesRegex(ValueError, 'payload') as error:
+                        dv.compare_domain(verified, LEDGER)
+                    OBS.append(dict(case='F1类型全集', kind=kind, mode=mode,
+                                    closure=verified['closure_verified'], rejected=str(error.exception)))
+        objects = v4.public_objects()
+        row = next(r for r in objects if r['kind'] == 'CC-013.segment')
+        row['payload']['data']['geometric_end'] = cc.JSONText(row['payload']['data']['geometric_end'])
+        verified = v4.closed(objects)
+        with self.assertRaisesRegex(ValueError, 'JSONText') as error:
+            dv.compare_domain(verified, LEDGER)
+        OBS.append(dict(case='F1原独审geometric_end', closure=True, rejected=str(error.exception)))
+
+    def test_f1_public_complete_set_and_lifecycle_limits(self):
+        objects = v4.public_objects()
+        for kind in sorted(dv.TESTED_KINDS):
+            extra = copy.deepcopy(next(r for r in objects if r['kind'] == kind))
+            extra['object_id'] += ':extra'
+            verified = v4.closed(objects+[extra])
+            with self.assertRaises(ValueError) as error:
+                dv.compare_domain(verified, LEDGER)
+            OBS.append(dict(case='F1合法额外对象', kind=kind, rejected=str(error.exception)))
+        for mode in ('internal_only','same_both','data_list','data_string','data_number','data_bool'):
+            bad = copy.deepcopy(objects)
+            row = next(r for r in bad if r['kind'] == 'CC-013.segment')
+            if mode == 'internal_only':
+                row['payload_json'] = row.pop('payload')
+            elif mode == 'same_both':
+                row['payload_json'] = copy.deepcopy(row['payload'])
+            else:
+                row['payload']['data'] = {'data_list':[], 'data_string':'{}', 'data_number':1, 'data_bool':True}[mode]
+            with self.assertRaisesRegex(ValueError, 'payload') as error:
+                dv.compare_domain(v4.closed(bad), LEDGER)
+            OBS.append(dict(case='F1保留类型门', mode=mode, rejected=str(error.exception)))
+        for obj in objects:
+            obj.update(known_at='伪造', entity_revision='伪造', first_known_generation='999')
+        result = dv.compare_domain(v4.closed(objects), LEDGER)
+        for name in ('known_at','AsKnown','entity_revision','raw_history','withdrawn_objects'):
+            self.assertEqual(result['unverified'][name], 'UNVERIFIED')
+        OBS.append(dict(case='F1生命周期未认证', result=result))
+
+    def test_f1_raw_type_check_uses_graph_budget(self):
+        verified = v4.closed(v4.public_objects())
+        budget = verified['graph'].budget
+        decoded = verified['graph'].decode(verified['projection_ref'])
+        for expired in (False, True):
+            if expired:
+                budget.check = lambda: (_ for _ in ()).throw(ValueError('总截止已到'))
+            else:
+                budget.charge(budget.limit-budget.used-20)
+            before = budget.used
+            with patch.object(verified['graph'], 'decode', return_value=decoded), \
+                 patch.object(dv, 'plain', side_effect=AssertionError('类型检查未准入不准plain')) as plain:
+                with self.assertRaisesRegex(ValueError, '工作量|截止') as error:
+                    dv.records(verified)
+            self.assertEqual(plain.call_count, 0)
+            self.assertIs(verified['graph'].budget, budget)
+            OBS.append(dict(case='F1类型检查预算', expired=expired, before=before, used=budget.used,
+                            plain_calls=plain.call_count, rejected=str(error.exception)))
+
+    def test_f1_json_text_data_rehashed(self):
+        objects = v4.public_objects()
+        row = next(r for r in objects if r['kind'] == 'CC-013.segment')
+        row['payload']['data'] = cc.JSONText(row['payload']['data'])
+        closed = v4.closed(objects)
+        self.assertTrue(closed['closure_verified'])
+        try:
+            result = dv.compare_domain(closed, LEDGER)
+        except ValueError as e:
+            OBS.append(dict(case='F1直接JSONText', closure=True, rejected=str(e)))
+            self.assertIn('JSONText', str(e))
+        else:
+            OBS.append(dict(case='F1直接JSONText', closure=True, accepted=result))
+            self.fail('非法公共JSONText被compare_domain放行')
+
+    def test_f2_large_header_rejected_before_serialization(self):
+        writes, serialized = [], []
+        header = {'x-toy':'x'*2000000}
+        def exchange(route, raw):
+            return 200, header, reply(json.loads(raw), {'ok':True})
+        original = fd.canonical
+        def canonical(value):
+            if isinstance(value, dict) and value.get('headers') is header:
+                serialized.append('headers')
+            return original(value)
+        c = collector(exchange, 300)
+        error = None
+        with patch.object(fd, 'canonical', side_effect=canonical), \
+             patch.object(Path, 'write_bytes', side_effect=lambda b: writes.append(len(b))):
+            try:
+                c.call('/toy', {})
+            except ValueError as e:
+                error = str(e)
+        OBS.append(dict(case='F2两百万header', error=error, work=c.work_budget.used,
+                        reply_bytes=c.budget.used, writes=writes, serialized=serialized))
+        self.assertIsNotNone(error, '大header未准入却序列化/写出')
+        self.assertIn('工作量', error)
+        self.assertEqual(serialized, [])
+        self.assertEqual(len(writes), 1)  # 只准保留已经准入的请求。
+
+    def test_f2_metadata_admission_shapes_deadline_and_cumulative(self):
+        shapes = {'empty':{}, 'small':{'x-toy':''}, 'value':{'x-toy':'x'*2000000},
+                  'key':{'x'*2000000:''}, 'nested':{'x-toy':[{'inner':'x'*2000000}]},
+                  'fragments':{'x-toy':['x'*1000]*2000}, 'integer':{'x-toy':1<<2000000}}
+        for name, headers in shapes.items():
+            for expired in (False, True):
+                clock = [False]
+                calls, writes = [], []
+                def check():
+                    calls.append(clock[0])
+                    if clock[0]:
+                        raise ValueError('总截止已到')
+                def exchange(route, raw):
+                    result = 200, headers, reply(json.loads(raw), {'ok':True})
+                    clock[0] = expired
+                    return result
+                c = collector(exchange, 300, check)
+                error = None
+                original = fd.canonical
+                def guarded(value):
+                    if isinstance(value, dict) and value.get('headers') is headers:
+                        self.assertIn(name, ('empty','small'))
+                        self.assertFalse(expired)
+                    return original(value)
+                with patch.object(Path, 'write_bytes', side_effect=lambda b:writes.append(len(b))), \
+                     patch.object(fd, 'canonical', side_effect=guarded):
+                    try:
+                        c.call('/toy', {})
+                    except ValueError as e:
+                        error = str(e)
+                ok = name in ('empty','small') and not expired
+                self.assertEqual(error is None, ok)
+                self.assertEqual(len(writes), 3 if ok else 1)
+                self.assertLessEqual(c.work_budget.used, 300)
+                if expired:
+                    self.assertIn('截止', error)
+                OBS.append(dict(case='F2外来元数据准入', shape=name, expired=expired, error=error,
+                                used=c.work_budget.used, writes=writes, deadline_calls=len(calls)))
+        c = collector(lambda route, raw:(200, {}, reply(json.loads(raw), {'ok':True})), 300)
+        with patch.object(Path, 'write_bytes'):
+            c.call('/toy', {})
+            budget, before = c.work_budget, c.work_budget.used
+            with self.assertRaisesRegex(ValueError, '工作量'):
+                c.call('/toy', {})
+        self.assertIs(c.work_budget, budget)
+        self.assertGreaterEqual(budget.used, before)
+        OBS.append(dict(case='F2跨调用累计', before=before, after=budget.used, limit=budget.limit))
+
+    def test_f2_equal_payload_fragmentation_never_cheaper(self):
+        costs = {}
+        for name, value in [('whole',{'x':'x'*4096}), ('list',{'x':['x'*1024]*4}),
+                            ('nested',{'x':[{'v':'x'*1024}]*4})]:
+            budget = cc.WorkBudget(300)
+            budget.scan(value)
+            costs[name] = budget.used
+        self.assertGreaterEqual(costs['list'], costs['whole'])
+        self.assertGreaterEqual(costs['nested'], costs['whole'])
+        OBS.append(dict(case='F2同4096字符分片不降费', costs=costs))
+        # 分次独立scan也不能成为免费分片入口。
+        budget = cc.WorkBudget(300)
+        for _ in range(4):
+            budget.scan({'x':'x'*1024})
+        self.assertGreaterEqual(budget.used, costs['whole'])
+
+    def test_f2_constructor_and_binding_preallocation(self):
+        identity = dict(IDENTITY, producer_id='x'*2000000)
+        budget = cc.WorkBudget(300)
+        with patch.object(fd, 'deepcopy', side_effect=AssertionError('不得先深复制')), \
+             patch.object(Path, 'mkdir') as mkdir:
+            with self.assertRaisesRegex(ValueError, '工作量'):
+                fd.Collector(identity, fd.Budget(10000,10), lambda *_:None, '/memory', '1', work_budget=budget)
+        self.assertEqual(mkdir.call_count, 0)
+        c = collector(limit=300)
+        with patch.object(fd, 'canonical', side_effect=AssertionError('不得先序列化')), \
+             patch.object(fd, 'deepcopy', side_effect=AssertionError('不得先深复制')):
+            with self.assertRaisesRegex(ValueError, '工作量'):
+                fd.bind_named_submissions([{'payload':{'huge':'x'*2000000}}], [{}], work_budget=c.work_budget)
+        OBS.append(dict(case='F2构造与具名绑定分配前拒绝', constructor_work=budget.used,
+                        binding_work=c.work_budget.used, mkdir_calls=mkdir.call_count))
+
+    def test_f8_split_profile_drift(self):
+        fixed, cursor, pages, bindings = watch_material()
+        bindings['141']['accepted_cut']['profile_id'] = 'alien'
+        bindings['142']['accepted_cut']['profile_id'] = 'third-profile'
+        c = collector()
+        bind(c, fixed, cursor)
+        accepted, error = [], None
+        for page in pages:
+            generation = int(page['deltas'][0]['generation'])
+            with patch.object(c, 'call', return_value=page):
+                try:
+                    result = c.watch(cursor, generation, 'client', accepted_commits=bindings)
+                except ValueError as e:
+                    error = str(e)
+                    break
+            cursor = result['next_cursor']
+            accepted.append(generation)
+        OBS.append(dict(case='F8分次profile漂移', accepted=accepted, error=error))
+        self.assertEqual(accepted, [140])
+        self.assertIn('身份', error)
+
+    def test_f8_first_binding_full_identity_and_split_equivalence(self):
+        mutations = dict(profile_id='alien', profile_hash='c'*64, rule_revision='alien',
+                         history_mode='RecomputedWithRevision', scope={}, catalog_revision='alien',
+                         session_id='alien', session_generation='2')
+        self.assertEqual(set(mutations), set(fd.WATCH_IDENTITY))
+        for name, value in mutations.items():
+            for start in (0, 1):
+                for split in (False, True):
+                    fixed, cursor, pages, bindings = watch_material()
+                    generation = str(140+start)
+                    bindings[generation]['accepted_cut'][name] = value
+                    c = collector()
+                    c.bind_watch(fixed, cursor)
+                    if split and start:
+                        with patch.object(c, 'call', return_value=pages[0]):
+                            cursor = c.watch(cursor, 140, 'client', accepted_commits=bindings)['next_cursor']
+                    before, used = copy.deepcopy(c._watch_state), c.work_budget.used
+                    with patch.object(c, 'call', side_effect=pages[start:] if split else pages):
+                        with self.assertRaisesRegex(ValueError, '身份') as error:
+                            c.watch(cursor, 142, 'client', accepted_commits=bindings)
+                    self.assertEqual(c._watch_state, before)
+                    self.assertGreater(c.work_budget.used, used)
+                    OBS.append(dict(case='F8完整固定身份', field=name, first=start==0, split=split,
+                                    error=str(error.exception), state_unchanged=True))
+        fixed, initial, pages, bindings = watch_material()
+        combined = collector(); combined.bind_watch(fixed, initial)
+        with patch.object(combined, 'call', side_effect=pages):
+            all_result = combined.watch(initial, 142, 'client', accepted_commits=bindings)
+        split = collector(); split.bind_watch(fixed, initial)
+        cursor, results = initial, []
+        for generation, page in zip((140,141,142), pages):
+            with patch.object(split, 'call', return_value=page):
+                result = split.watch(cursor, generation, 'client', accepted_commits=bindings)
+            cursor = result['next_cursor']; results.extend(result['deltas'])
+        self.assertEqual(all_result, dict(deltas=results,next_cursor=cursor,closure_verified=False))
+        self.assertEqual(combined._watch_state, split._watch_state)
+        self.assertEqual(cursor['last_seq'], '269')
+        OBS.append(dict(case='F8跨epoch合并分次一致', counts=[1,65,65], frontiers=['139','204','269'],
+                        seq_to='7', combined_work=combined.work_budget.used, split_work=split.work_budget.used))
+
+    def test_f8_no_reset_cursor_alias_or_failed_advance(self):
+        fixed, cursor, pages, bindings = watch_material()
+        c = collector()
+        with patch.object(c, 'call') as call:
+            with self.assertRaisesRegex(ValueError, '可信固定切面'):
+                c.watch(cursor, 140, 'client', accepted_commits=bindings)
+        self.assertEqual(call.call_count, 0)
+        c.bind_watch(fixed, cursor)
+        original = copy.deepcopy(c._watch_state)
+        fixed['profile_id'] = 'changed-after-binding'
+        fixed['scope']['structure'] = 'changed-after-binding'
+        self.assertEqual(c._watch_state, original)
+        # 后一页错游标：之前合法页也不能被失败调用部分提交。
+        bad_pages = copy.deepcopy(pages)
+        bad_pages[1]['next_cursor']['last_seq'] = '999'
+        with patch.object(c, 'call', side_effect=bad_pages):
+            with self.assertRaisesRegex(ValueError, '游标'):
+                c.watch(cursor, 142, 'client', accepted_commits=bindings)
+        self.assertEqual(c._watch_state, original)
+        used, budget = c.work_budget.used, c.work_budget
+        with self.assertRaisesRegex(ValueError, '禁止重置'):
+            c.bind_watch(fixed, cursor)
+        self.assertIs(c.work_budget, budget)
+        self.assertGreaterEqual(budget.used, used)
+        with patch.object(c, 'call', return_value=pages[0]):
+            result = c.watch(cursor, 140, 'client', accepted_commits=bindings)
+        state = copy.deepcopy(c._watch_state)
+        result['next_cursor']['scope']['structure'] = 'alien'
+        result['deltas'][0]['catalog_evidence']['kind'] = 'alien'
+        bindings['140']['accepted_cut']['profile_id'] = 'alien'
+        self.assertEqual(c._watch_state, state)
+        with patch.object(c, 'call') as call:
+            with self.assertRaisesRegex(ValueError, '游标'):
+                c.watch(cursor, 141, 'client', accepted_commits=bindings)
+        self.assertEqual(call.call_count, 0)
+        # 同一提交名不能在分次调用里重复接纳。
+        bindings['141']['source_epoch'] = '1'
+        bindings['141']['message_id'] = bindings['140']['message_id']
+        with patch.object(c, 'call', return_value=pages[1]):
+            with self.assertRaisesRegex(ValueError, '重复接纳'):
+                c.watch(state['cursor'], 141, 'client', accepted_commits=bindings)
+        self.assertEqual(c._watch_state, state)
+        OBS.append(dict(case='F8失败不推进与不重绑', state_unchanged=True, budget_same=True,
+                        used_before=used, used_after=budget.used))
+
+    def test_f8_trusted_cursor_all_fields_and_budget(self):
+        fixed, cursor, _, bindings = watch_material()
+        for key in fd.CURSOR:
+            c = collector()
+            bad = copy.deepcopy(cursor)
+            bad[key] = {} if key == 'scope' else 'alien'
+            with self.assertRaises(ValueError):
+                c.bind_watch(fixed, bad)
+            self.assertFalse(hasattr(c, '_watch_state'))
+        c = collector(); c.bind_watch(fixed, cursor)
+        state = copy.deepcopy(c._watch_state)
+        c.work_budget.charge(c.work_budget.limit-c.work_budget.used)
+        with patch.object(c, 'call') as call, patch.object(fd, 'deepcopy') as copying:
+            with self.assertRaisesRegex(ValueError, '工作量'):
+                c.watch(cursor, 140, 'client', accepted_commits=bindings)
+        self.assertEqual(c._watch_state, state)
+        self.assertEqual(call.call_count, 0)
+        self.assertEqual(copying.call_count, 0)
+        OBS.append(dict(case='F8耗尽预算不交换不复制', used=c.work_budget.used, limit=c.work_budget.limit))
+
+
+class RetainedV4(v4.Tests):
+    """明确 v5 身份的旧用例适配；不改 v4 源码或已封输出。"""
+    def watch_case(self, frontiers, counts, *, change_cut=None, change_delta=None):
+        fixed, cursor, pages, bindings = watch_material(frontiers, counts)
+        if change_cut:
+            change_cut([b['accepted_cut'] for b in bindings.values()])
+        deltas = [p['deltas'][0] for p in pages]
+        if change_delta:
+            change_delta(deltas)
+        c = collector(); c.bind_watch(fixed, cursor)
+        with patch.object(c, 'call', side_effect=pages):
+            result = c.watch(cursor, 139+len(pages), 'client', accepted_commits=bindings)
+        return result, bindings
+
+    def test_f8_frozen_named_messages(self):
+        requests = [json.loads(x) for x in (ROOT/'raw/messages.recovery-epoch2.jsonl').read_text().splitlines()][-3:]
+        fixed = fixture()[0]['fixed_cut']; cuts = []
+        for i, (r, f) in enumerate(zip(requests, (139,204,269)), 800):
+            cuts.append(dict(fixed, session_id=r['session_id'],session_generation=r['session_generation'],
+                             cut_generation=str(i),structure_cut='cut-'+str(i),as_of_generation=str(i),input_frontier=str(f)))
+        c = collector()
+        bindings = fd.bind_named_submissions(requests, cuts, work_budget=c.work_budget)
+        self.assertEqual([b['accepted_events'] for b in bindings.values()], ['1','65','65'])
+        before = copy.deepcopy(bindings); cuts[0]['input_frontier'] = '999'
+        self.assertEqual(bindings, before)
+        OBS.append(dict(case='F8冻结具名原请求v5预算适配', counts=[1,65,65], work=c.work_budget.used,
+                        copied_cut=True, product_binding='UNVERIFIED'))
+
+
+if __name__ == '__main__':
+    unittest.main(verbosity=2)

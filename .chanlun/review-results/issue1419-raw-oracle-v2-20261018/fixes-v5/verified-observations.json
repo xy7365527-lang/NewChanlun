@@ -1,0 +1,1445 @@
+{
+  "schema": "issue1419-v5-targeted-observations/1",
+  "tests": 26,
+  "failures": 0,
+  "errors": 0,
+  "observations": [
+    {
+      "case": "F1类型全集",
+      "kind": "CC-008.endpoint",
+      "mode": "payload",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-008.endpoint",
+      "mode": "data",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-008.endpoint",
+      "mode": "double",
+      "closure": false,
+      "rejected": "json_text内非普通JSON",
+      "boundary": "原闭包层"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-008.endpoint",
+      "mode": "deep",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-008.endpoint",
+      "mode": "list",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-008.endpoint",
+      "mode": "outside_data",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-010.bi",
+      "mode": "payload",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-010.bi",
+      "mode": "data",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-010.bi",
+      "mode": "double",
+      "closure": false,
+      "rejected": "json_text内非普通JSON",
+      "boundary": "原闭包层"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-010.bi",
+      "mode": "deep",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-010.bi",
+      "mode": "list",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-010.bi",
+      "mode": "outside_data",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-013.segment",
+      "mode": "payload",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-013.segment",
+      "mode": "data",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-013.segment",
+      "mode": "double",
+      "closure": false,
+      "rejected": "json_text内非普通JSON",
+      "boundary": "原闭包层"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-013.segment",
+      "mode": "deep",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-013.segment",
+      "mode": "list",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-013.segment",
+      "mode": "outside_data",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-016.center",
+      "mode": "payload",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-016.center",
+      "mode": "data",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-016.center",
+      "mode": "double",
+      "closure": false,
+      "rejected": "json_text内非普通JSON",
+      "boundary": "原闭包层"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-016.center",
+      "mode": "deep",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-016.center",
+      "mode": "list",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-016.center",
+      "mode": "outside_data",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-016.center_seed_attempt",
+      "mode": "payload",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-016.center_seed_attempt",
+      "mode": "data",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-016.center_seed_attempt",
+      "mode": "double",
+      "closure": false,
+      "rejected": "json_text内非普通JSON",
+      "boundary": "原闭包层"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-016.center_seed_attempt",
+      "mode": "deep",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-016.center_seed_attempt",
+      "mode": "list",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-016.center_seed_attempt",
+      "mode": "outside_data",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-017.center_roles",
+      "mode": "payload",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-017.center_roles",
+      "mode": "data",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-017.center_roles",
+      "mode": "double",
+      "closure": false,
+      "rejected": "json_text内非普通JSON",
+      "boundary": "原闭包层"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-017.center_roles",
+      "mode": "deep",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-017.center_roles",
+      "mode": "list",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-017.center_roles",
+      "mode": "outside_data",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-020.center_pair",
+      "mode": "payload",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-020.center_pair",
+      "mode": "data",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-020.center_pair",
+      "mode": "double",
+      "closure": false,
+      "rejected": "json_text内非普通JSON",
+      "boundary": "原闭包层"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-020.center_pair",
+      "mode": "deep",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-020.center_pair",
+      "mode": "list",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-020.center_pair",
+      "mode": "outside_data",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-022.unit_assignment",
+      "mode": "payload",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-022.unit_assignment",
+      "mode": "data",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-022.unit_assignment",
+      "mode": "double",
+      "closure": false,
+      "rejected": "json_text内非普通JSON",
+      "boundary": "原闭包层"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-022.unit_assignment",
+      "mode": "deep",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-022.unit_assignment",
+      "mode": "list",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1类型全集",
+      "kind": "CC-022.unit_assignment",
+      "mode": "outside_data",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1原独审geometric_end",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1直接JSONText",
+      "closure": true,
+      "rejected": "公共payload禁止JSONText/0x07"
+    },
+    {
+      "case": "F1合法额外对象",
+      "kind": "CC-008.endpoint",
+      "rejected": "低级端点数量不符"
+    },
+    {
+      "case": "F1合法额外对象",
+      "kind": "CC-010.bi",
+      "rejected": "低级笔数量不符"
+    },
+    {
+      "case": "F1合法额外对象",
+      "kind": "CC-013.segment",
+      "rejected": "完成/进行段总数不符"
+    },
+    {
+      "case": "F1合法额外对象",
+      "kind": "CC-016.center",
+      "rejected": "中枢/角色总数不符"
+    },
+    {
+      "case": "F1合法额外对象",
+      "kind": "CC-016.center_seed_attempt",
+      "rejected": "seed尝试总数不符"
+    },
+    {
+      "case": "F1合法额外对象",
+      "kind": "CC-017.center_roles",
+      "rejected": "中枢/角色总数不符"
+    },
+    {
+      "case": "F1合法额外对象",
+      "kind": "CC-020.center_pair",
+      "rejected": "相邻对完整性失败；撤回后不得残留旧对"
+    },
+    {
+      "case": "F1合法额外对象",
+      "kind": "CC-022.unit_assignment",
+      "rejected": "归属集合缺项"
+    },
+    {
+      "case": "F1保留类型门",
+      "mode": "internal_only",
+      "rejected": "公共对象禁止内部字段payload_json：CC-013.segment"
+    },
+    {
+      "case": "F1保留类型门",
+      "mode": "same_both",
+      "rejected": "公共对象禁止内部字段payload_json：CC-013.segment"
+    },
+    {
+      "case": "F1保留类型门",
+      "mode": "data_list",
+      "rejected": "受测kind非法payload/data：CC-013.segment"
+    },
+    {
+      "case": "F1保留类型门",
+      "mode": "data_string",
+      "rejected": "受测kind非法payload/data：CC-013.segment"
+    },
+    {
+      "case": "F1保留类型门",
+      "mode": "data_number",
+      "rejected": "受测kind非法payload/data：CC-013.segment"
+    },
+    {
+      "case": "F1保留类型门",
+      "mode": "data_bool",
+      "rejected": "受测kind非法payload/data：CC-013.segment"
+    },
+    {
+      "case": "F1生命周期未认证",
+      "result": {
+        "status": "SCOPED_STATIC_FIELDS_VERIFIED_LIFECYCLE_UNVERIFIED",
+        "segments": 10,
+        "centers": 2,
+        "pairs_compared": 1,
+        "product_run": "NOT_RUN",
+        "verified_subquantifiers": [
+          "有限域低级端点几何/笔formation及引用绑定",
+          "段端点/construction/strict/fact_vector/终结证书",
+          "seed五条件/核心/成员/Zn贡献/归属null及实体引用",
+          "相邻对连接成员及16格"
+        ],
+        "unverified": {
+          "first_visibility": "UNVERIFIED",
+          "known_at": "UNVERIFIED",
+          "AsKnown": "UNVERIFIED",
+          "entity_revision": "UNVERIFIED",
+          "raw_history": "UNVERIFIED",
+          "withdrawn_objects": "UNVERIFIED",
+          "lower_source_coords_and_sealing": "UNVERIFIED",
+          "lower_confirmation": "UNVERIFIED",
+          "feature_sequence_objects": "UNVERIFIED",
+          "full_catalog_axes": "UNVERIFIED",
+          "product_source_binding": "UNVERIFIED"
+        },
+        "logical_work_used": 388408,
+        "limitations": "只声明逐项静态子量词；真实前缀轨迹和生命周期输出未接入，禁止据此销项"
+      }
+    },
+    {
+      "case": "F1类型检查预算",
+      "expired": false,
+      "before": 999980,
+      "used": 1000000,
+      "plain_calls": 0,
+      "rejected": "闭包逻辑工作量超限：used=1000000, requested=1, limit=1000000"
+    },
+    {
+      "case": "F1类型检查预算",
+      "expired": true,
+      "before": 1000000,
+      "used": 1000000,
+      "plain_calls": 0,
+      "rejected": "总截止已到"
+    },
+    {
+      "case": "F1非受测kind公共payload同样禁0x07",
+      "negatives": 2,
+      "ordinary_positive": true
+    },
+    {
+      "case": "F2标量元数据",
+      "field": "page_size",
+      "rejected": "闭包逻辑工作量超限：used=197, requested=1955, limit=300"
+    },
+    {
+      "case": "F2标量元数据",
+      "field": "content_limit",
+      "rejected": "闭包逻辑工作量超限：used=63, requested=1955, limit=300"
+    },
+    {
+      "case": "F2标量元数据",
+      "field": "through_generation",
+      "rejected": "闭包逻辑工作量超限：used=999778, requested=1955, limit=1000000"
+    },
+    {
+      "case": "F2标量元数据",
+      "field": "max_batches",
+      "rejected": "闭包逻辑工作量超限：used=999783, requested=1955, limit=1000000"
+    },
+    {
+      "case": "F2标量元数据",
+      "field": "route",
+      "rejected": "闭包逻辑工作量超限：used=48, requested=1955, limit=300"
+    },
+    {
+      "case": "F2构造与具名绑定分配前拒绝",
+      "constructor_work": 34,
+      "binding_work": 60,
+      "mkdir_calls": 0
+    },
+    {
+      "case": "F2同4096字符分片不降费",
+      "costs": {
+        "whole": 14,
+        "list": 23,
+        "nested": 47
+      }
+    },
+    {
+      "case": "F2两百万header",
+      "error": "闭包逻辑工作量超限：used=109, requested=1955, limit=300",
+      "work": 109,
+      "reply_bytes": 0,
+      "writes": [
+        319
+      ],
+      "serialized": []
+    },
+    {
+      "case": "F2外来元数据准入",
+      "shape": "empty",
+      "expired": false,
+      "error": null,
+      "used": 214,
+      "writes": [
+        319,
+        550,
+        262
+      ],
+      "deadline_calls": 157
+    },
+    {
+      "case": "F2外来元数据准入",
+      "shape": "empty",
+      "expired": true,
+      "error": "总截止已到",
+      "used": 97,
+      "writes": [
+        319
+      ],
+      "deadline_calls": 72
+    },
+    {
+      "case": "F2外来元数据准入",
+      "shape": "small",
+      "expired": false,
+      "error": null,
+      "used": 219,
+      "writes": [
+        319,
+        550,
+        272
+      ],
+      "deadline_calls": 161
+    },
+    {
+      "case": "F2外来元数据准入",
+      "shape": "small",
+      "expired": true,
+      "error": "总截止已到",
+      "used": 97,
+      "writes": [
+        319
+      ],
+      "deadline_calls": 72
+    },
+    {
+      "case": "F2外来元数据准入",
+      "shape": "value",
+      "expired": false,
+      "error": "闭包逻辑工作量超限：used=109, requested=1955, limit=300",
+      "used": 109,
+      "writes": [
+        319
+      ],
+      "deadline_calls": 82
+    },
+    {
+      "case": "F2外来元数据准入",
+      "shape": "value",
+      "expired": true,
+      "error": "总截止已到",
+      "used": 97,
+      "writes": [
+        319
+      ],
+      "deadline_calls": 72
+    },
+    {
+      "case": "F2外来元数据准入",
+      "shape": "key",
+      "expired": false,
+      "error": "闭包逻辑工作量超限：used=106, requested=1955, limit=300",
+      "used": 106,
+      "writes": [
+        319
+      ],
+      "deadline_calls": 80
+    },
+    {
+      "case": "F2外来元数据准入",
+      "shape": "key",
+      "expired": true,
+      "error": "总截止已到",
+      "used": 97,
+      "writes": [
+        319
+      ],
+      "deadline_calls": 72
+    },
+    {
+      "case": "F2外来元数据准入",
+      "shape": "nested",
+      "expired": false,
+      "error": "闭包逻辑工作量超限：used=116, requested=1955, limit=300",
+      "used": 116,
+      "writes": [
+        319
+      ],
+      "deadline_calls": 88
+    },
+    {
+      "case": "F2外来元数据准入",
+      "shape": "nested",
+      "expired": true,
+      "error": "总截止已到",
+      "used": 97,
+      "writes": [
+        319
+      ],
+      "deadline_calls": 72
+    },
+    {
+      "case": "F2外来元数据准入",
+      "shape": "fragments",
+      "expired": false,
+      "error": "闭包逻辑工作量超限：used=300, requested=2, limit=300",
+      "used": 300,
+      "writes": [
+        319
+      ],
+      "deadline_calls": 210
+    },
+    {
+      "case": "F2外来元数据准入",
+      "shape": "fragments",
+      "expired": true,
+      "error": "总截止已到",
+      "used": 97,
+      "writes": [
+        319
+      ],
+      "deadline_calls": 72
+    },
+    {
+      "case": "F2外来元数据准入",
+      "shape": "integer",
+      "expired": false,
+      "error": "闭包逻辑工作量超限：used=109, requested=1955, limit=300",
+      "used": 109,
+      "writes": [
+        319
+      ],
+      "deadline_calls": 82
+    },
+    {
+      "case": "F2外来元数据准入",
+      "shape": "integer",
+      "expired": true,
+      "error": "总截止已到",
+      "used": 97,
+      "writes": [
+        319
+      ],
+      "deadline_calls": 72
+    },
+    {
+      "case": "F2跨调用累计",
+      "before": 214,
+      "after": 299,
+      "limit": 300
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "profile_id",
+      "first": true,
+      "split": false,
+      "error": "接纳切面身份变化:profile_id",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "profile_id",
+      "first": true,
+      "split": true,
+      "error": "接纳切面身份变化:profile_id",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "profile_id",
+      "first": false,
+      "split": false,
+      "error": "接纳切面身份变化:profile_id",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "profile_id",
+      "first": false,
+      "split": true,
+      "error": "接纳切面身份变化:profile_id",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "profile_hash",
+      "first": true,
+      "split": false,
+      "error": "接纳切面身份变化:profile_hash",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "profile_hash",
+      "first": true,
+      "split": true,
+      "error": "接纳切面身份变化:profile_hash",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "profile_hash",
+      "first": false,
+      "split": false,
+      "error": "接纳切面身份变化:profile_hash",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "profile_hash",
+      "first": false,
+      "split": true,
+      "error": "接纳切面身份变化:profile_hash",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "rule_revision",
+      "first": true,
+      "split": false,
+      "error": "接纳切面身份变化:rule_revision",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "rule_revision",
+      "first": true,
+      "split": true,
+      "error": "接纳切面身份变化:rule_revision",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "rule_revision",
+      "first": false,
+      "split": false,
+      "error": "接纳切面身份变化:rule_revision",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "rule_revision",
+      "first": false,
+      "split": true,
+      "error": "接纳切面身份变化:rule_revision",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "history_mode",
+      "first": true,
+      "split": false,
+      "error": "接纳切面身份变化:history_mode",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "history_mode",
+      "first": true,
+      "split": true,
+      "error": "接纳切面身份变化:history_mode",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "history_mode",
+      "first": false,
+      "split": false,
+      "error": "接纳切面身份变化:history_mode",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "history_mode",
+      "first": false,
+      "split": true,
+      "error": "接纳切面身份变化:history_mode",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "scope",
+      "first": true,
+      "split": false,
+      "error": "接纳切面身份变化:scope",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "scope",
+      "first": true,
+      "split": true,
+      "error": "接纳切面身份变化:scope",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "scope",
+      "first": false,
+      "split": false,
+      "error": "接纳切面身份变化:scope",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "scope",
+      "first": false,
+      "split": true,
+      "error": "接纳切面身份变化:scope",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "catalog_revision",
+      "first": true,
+      "split": false,
+      "error": "接纳切面身份变化:catalog_revision",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "catalog_revision",
+      "first": true,
+      "split": true,
+      "error": "接纳切面身份变化:catalog_revision",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "catalog_revision",
+      "first": false,
+      "split": false,
+      "error": "接纳切面身份变化:catalog_revision",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "catalog_revision",
+      "first": false,
+      "split": true,
+      "error": "接纳切面身份变化:catalog_revision",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "session_id",
+      "first": true,
+      "split": false,
+      "error": "接纳切面身份变化:session_id",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "session_id",
+      "first": true,
+      "split": true,
+      "error": "接纳切面身份变化:session_id",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "session_id",
+      "first": false,
+      "split": false,
+      "error": "接纳切面身份变化:session_id",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "session_id",
+      "first": false,
+      "split": true,
+      "error": "接纳切面身份变化:session_id",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "session_generation",
+      "first": true,
+      "split": false,
+      "error": "接纳切面身份变化:session_generation",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "session_generation",
+      "first": true,
+      "split": true,
+      "error": "接纳切面身份变化:session_generation",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "session_generation",
+      "first": false,
+      "split": false,
+      "error": "接纳切面身份变化:session_generation",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8完整固定身份",
+      "field": "session_generation",
+      "first": false,
+      "split": true,
+      "error": "接纳切面身份变化:session_generation",
+      "state_unchanged": true
+    },
+    {
+      "case": "F8跨epoch合并分次一致",
+      "counts": [
+        1,
+        65,
+        65
+      ],
+      "frontiers": [
+        "139",
+        "204",
+        "269"
+      ],
+      "seq_to": "7",
+      "combined_work": 1568,
+      "split_work": 3537
+    },
+    {
+      "case": "F8失败不推进与不重绑",
+      "state_unchanged": true,
+      "budget_same": true,
+      "used_before": 2004,
+      "used_after": 4831
+    },
+    {
+      "case": "F8分次profile漂移",
+      "accepted": [
+        140
+      ],
+      "error": "接纳切面身份变化:profile_id"
+    },
+    {
+      "case": "F8耗尽预算不交换不复制",
+      "used": 1000000,
+      "limit": 1000000
+    },
+    {
+      "case": "F8冻结具名原请求v5预算适配",
+      "counts": [
+        1,
+        65,
+        65
+      ],
+      "work": 9977,
+      "copied_cut": true,
+      "product_binding": "UNVERIFIED"
+    },
+    {
+      "case": "F1公共payload正控",
+      "result": {
+        "status": "SCOPED_STATIC_FIELDS_VERIFIED_LIFECYCLE_UNVERIFIED",
+        "segments": 10,
+        "centers": 2,
+        "pairs_compared": 1,
+        "product_run": "NOT_RUN",
+        "verified_subquantifiers": [
+          "有限域低级端点几何/笔formation及引用绑定",
+          "段端点/construction/strict/fact_vector/终结证书",
+          "seed五条件/核心/成员/Zn贡献/归属null及实体引用",
+          "相邻对连接成员及16格"
+        ],
+        "unverified": {
+          "first_visibility": "UNVERIFIED",
+          "known_at": "UNVERIFIED",
+          "AsKnown": "UNVERIFIED",
+          "entity_revision": "UNVERIFIED",
+          "raw_history": "UNVERIFIED",
+          "withdrawn_objects": "UNVERIFIED",
+          "lower_source_coords_and_sealing": "UNVERIFIED",
+          "lower_confirmation": "UNVERIFIED",
+          "feature_sequence_objects": "UNVERIFIED",
+          "full_catalog_axes": "UNVERIFIED",
+          "product_source_binding": "UNVERIFIED"
+        },
+        "logical_work_used": 385820,
+        "limitations": "只声明逐项静态子量词；真实前缀轨迹和生命周期输出未接入，禁止据此销项"
+      }
+    },
+    {
+      "case": "F1公共几何篡改:price",
+      "closure": true,
+      "rejection": "段.geometric_end不符"
+    },
+    {
+      "case": "F1公共几何篡改:group_anchor",
+      "closure": true,
+      "rejection": "段.geometric_end不符"
+    },
+    {
+      "case": "F1双字段冲突",
+      "public_bad": true,
+      "rejection": "公共对象禁止内部字段payload_json：CC-013.segment"
+    },
+    {
+      "case": "F1双字段冲突",
+      "public_bad": false,
+      "rejection": "公共对象禁止内部字段payload_json：CC-013.segment"
+    },
+    {
+      "case": "F3公共全集:CC-008.endpoint/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-008.endpoint"
+    },
+    {
+      "case": "F3公共全集:CC-008.endpoint/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-008.endpoint"
+    },
+    {
+      "case": "F3公共全集:CC-008.endpoint/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-008.endpoint"
+    },
+    {
+      "case": "F3公共全集:CC-008.endpoint/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-008.endpoint"
+    },
+    {
+      "case": "F3公共全集:CC-008.endpoint/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-008.endpoint"
+    },
+    {
+      "case": "F3公共全集:CC-010.bi/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-010.bi"
+    },
+    {
+      "case": "F3公共全集:CC-010.bi/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-010.bi"
+    },
+    {
+      "case": "F3公共全集:CC-010.bi/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-010.bi"
+    },
+    {
+      "case": "F3公共全集:CC-010.bi/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-010.bi"
+    },
+    {
+      "case": "F3公共全集:CC-010.bi/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-010.bi"
+    },
+    {
+      "case": "F3公共全集:CC-013.segment/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-013.segment"
+    },
+    {
+      "case": "F3公共全集:CC-013.segment/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-013.segment"
+    },
+    {
+      "case": "F3公共全集:CC-013.segment/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-013.segment"
+    },
+    {
+      "case": "F3公共全集:CC-013.segment/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-013.segment"
+    },
+    {
+      "case": "F3公共全集:CC-013.segment/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-013.segment"
+    },
+    {
+      "case": "F3公共全集:CC-016.center/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center"
+    },
+    {
+      "case": "F3公共全集:CC-016.center/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center"
+    },
+    {
+      "case": "F3公共全集:CC-016.center/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center"
+    },
+    {
+      "case": "F3公共全集:CC-016.center/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-016.center"
+    },
+    {
+      "case": "F3公共全集:CC-016.center/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-016.center"
+    },
+    {
+      "case": "F3公共全集:CC-016.center_seed_attempt/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center_seed_attempt"
+    },
+    {
+      "case": "F3公共全集:CC-016.center_seed_attempt/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center_seed_attempt"
+    },
+    {
+      "case": "F3公共全集:CC-016.center_seed_attempt/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-016.center_seed_attempt"
+    },
+    {
+      "case": "F3公共全集:CC-016.center_seed_attempt/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-016.center_seed_attempt"
+    },
+    {
+      "case": "F3公共全集:CC-016.center_seed_attempt/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-016.center_seed_attempt"
+    },
+    {
+      "case": "F3公共全集:CC-017.center_roles/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-017.center_roles"
+    },
+    {
+      "case": "F3公共全集:CC-017.center_roles/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-017.center_roles"
+    },
+    {
+      "case": "F3公共全集:CC-017.center_roles/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-017.center_roles"
+    },
+    {
+      "case": "F3公共全集:CC-017.center_roles/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-017.center_roles"
+    },
+    {
+      "case": "F3公共全集:CC-017.center_roles/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-017.center_roles"
+    },
+    {
+      "case": "F3公共全集:CC-020.center_pair/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-020.center_pair"
+    },
+    {
+      "case": "F3公共全集:CC-020.center_pair/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-020.center_pair"
+    },
+    {
+      "case": "F3公共全集:CC-020.center_pair/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-020.center_pair"
+    },
+    {
+      "case": "F3公共全集:CC-020.center_pair/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-020.center_pair"
+    },
+    {
+      "case": "F3公共全集:CC-020.center_pair/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-020.center_pair"
+    },
+    {
+      "case": "F3公共全集:CC-022.unit_assignment/missing",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-022.unit_assignment"
+    },
+    {
+      "case": "F3公共全集:CC-022.unit_assignment/null",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-022.unit_assignment"
+    },
+    {
+      "case": "F3公共全集:CC-022.unit_assignment/string",
+      "closure": true,
+      "rejection": "受测kind缺失/null/非法payload：CC-022.unit_assignment"
+    },
+    {
+      "case": "F3公共全集:CC-022.unit_assignment/data_null",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-022.unit_assignment"
+    },
+    {
+      "case": "F3公共全集:CC-022.unit_assignment/data_missing",
+      "closure": true,
+      "rejection": "受测kind非法payload/data：CC-022.unit_assignment"
+    },
+    {
+      "case": "F2decode到plain累计",
+      "build_work": 513,
+      "decode_work": 729,
+      "used": 1000,
+      "deadline_calls": 848,
+      "rejection": "闭包逻辑工作量超限：used=1000, requested=1, limit=1000"
+    },
+    {
+      "case": "F2records路径累计可提前拒绝",
+      "used": 1000,
+      "rejection": "闭包逻辑工作量超限：used=1000, requested=1, limit=1000"
+    },
+    {
+      "case": "F2Collector不重置不加帽",
+      "used": 10,
+      "limit": 10
+    },
+    {
+      "case": "F8同代140前沿999对139",
+      "rejection": "watch与接纳切面不符:input_frontier"
+    },
+    {
+      "case": "F8跨epoch正控",
+      "counts": [
+        1,
+        65,
+        65
+      ],
+      "frontiers": [
+        "139",
+        "204",
+        "269"
+      ],
+      "seq_to": "7"
+    },
+    {
+      "case": "F8切面身份:structure_cut",
+      "rejection": "watch与接纳切面不符:structure_cut"
+    },
+    {
+      "case": "F8切面身份:index_frontier",
+      "rejection": "watch与接纳切面不符:index_frontier"
+    },
+    {
+      "case": "F8切面身份:catalog_run_status",
+      "rejection": "watch与接纳切面不符:catalog_run_status"
+    },
+    {
+      "case": "F8切面身份:catalog_evidence",
+      "rejection": "watch与接纳切面不符:catalog_evidence"
+    },
+    {
+      "case": "F8切面身份:seq_range",
+      "rejection": "watch与接纳切面不符:seq_range"
+    },
+    {
+      "case": "F8切面身份:scope",
+      "rejection": "接纳切面身份变化:scope"
+    },
+    {
+      "case": "F8保留前沿门",
+      "frontier": "100",
+      "count": 1,
+      "rejection": "watch输入前沿回退"
+    },
+    {
+      "case": "F8保留前沿门",
+      "frontier": "-1",
+      "count": 1,
+      "rejection": "非规范非负整数"
+    },
+    {
+      "case": "F8保留前沿门",
+      "frontier": "0139",
+      "count": 1,
+      "rejection": "非规范非负整数"
+    },
+    {
+      "case": "F8保留前沿门",
+      "frontier": "139.0",
+      "count": 1,
+      "rejection": "非规范非负整数"
+    },
+    {
+      "case": "F8保留前沿门",
+      "frontier": 139,
+      "count": 1,
+      "rejection": "非规范非负整数"
+    },
+    {
+      "case": "F8保留前沿门",
+      "frontier": true,
+      "count": 1,
+      "rejection": "非规范非负整数"
+    },
+    {
+      "case": "F8保留前沿门",
+      "frontier": null,
+      "count": 1,
+      "rejection": "非规范非负整数"
+    },
+    {
+      "case": "F8保留前沿门",
+      "frontier": "140",
+      "count": 1,
+      "rejection": "watch前沿与具名提交接纳事件数不符"
+    },
+    {
+      "case": "F8保留前沿门",
+      "frontier": "139",
+      "count": 2,
+      "rejection": "watch前沿与具名提交接纳事件数不符"
+    }
+  ],
+  "retained_v4": [
+    "test_f1_public_positive_and_geometry",
+    "test_f1_conflicting_internal_fields",
+    "test_f3_public_complete_set",
+    "test_f2_decode_plain_records_same_budget",
+    "test_f2_collector_budget_survives_second_snapshot",
+    "test_f8_frozen_named_messages",
+    "test_f8_cut_frontier_conflict",
+    "test_f8_identity_and_cross_epoch"
+  ],
+  "retained_v2": [
+    "test_domain_adapter_positive_and_zn_mutation_negative",
+    "test_domain_withdrawal_rejects_stale_pair",
+    "test_driver_collects_fixed_pages_and_full_content",
+    "test_live_is_unconditionally_denied"
+  ],
+  "source_identity": {
+    "driver/assemble_evidence.py": {
+      "bytes": 16440,
+      "sha256": "b9cca7d3fbf1965da125925f8caaf7932718410232f72d303687ede6a31c74b4"
+    },
+    "driver/content_closure.py": {
+      "bytes": 16908,
+      "sha256": "e602b90a20e5028e2859a10404e244f0d413079cbf7a24d9b96de40fd8fc23d8"
+    },
+    "driver/driver_v2.py": {
+      "bytes": 19663,
+      "sha256": "28fdf641623ddc2f66f335e407c2a0dc61d3353afa8cdd1ae8f9294d35c0792f"
+    },
+    "driver/fixed_cut_driver.py": {
+      "bytes": 25601,
+      "sha256": "8873c5ee0fb57a6946f4b07abe2d6962b98aef3c50a8b4cccac7dc2907a2ecd0"
+    },
+    "driver/prepare_candidate.py": {
+      "bytes": 9867,
+      "sha256": "b251d99d366ebc7c68dd2fe8f2bdf5b0ff6b48009118d5e9c96c67f2aaebba00"
+    },
+    "driver/raw_oracle.py": {
+      "bytes": 14593,
+      "sha256": "4500a308a22bb763f273aa807def13405550993eef0e8196dca58d8aa09cb76e"
+    },
+    "driver/seal_bundle.py": {
+      "bytes": 3854,
+      "sha256": "c90b87e529b37a497aa3e86940f4ec8906b9c5a614e41b74f26ba21825cd2575"
+    },
+    "driver/test_v2.py": {
+      "bytes": 17572,
+      "sha256": "55946f115533faec5ebc2be6cc2be6c03867b7faabdead46a7f26683ce436028"
+    },
+    "driver/toy_supervisor.py": {
+      "bytes": 5543,
+      "sha256": "7f5a5e7fc90b4c33e551db1808b5ca1b4b29e81d8d5d1fe3347b2d3615ed5ff5"
+    },
+    "driver/verify_delivery.py": {
+      "bytes": 4363,
+      "sha256": "3402c467f96f3d4fda9d822aa97f1933e8bddfb1d33400428f32f4a6eeaa9e30"
+    },
+    "fixes-v5/run_checks.py": {
+      "bytes": 2757,
+      "sha256": "1efcf4ffef40bab9e3fa1ce791d0ff28eecdc548996488afe2f29a397872894c"
+    },
+    "fixes-v5/test_v5.py": {
+      "bytes": 26902,
+      "sha256": "21160d525e1eacee72f05f0aca0f966cee3d2c6b3272f0d2bed3939d9b229ed4"
+    },
+    "fixes-v4/test_v4.py": {
+      "bytes": 17182,
+      "sha256": "b820ea1a3b143bf38b7bc25800bb36b8eb589581574ce2458d00d2a46f9bd95a"
+    },
+    "fixes-v3/domain_fields.py": {
+      "bytes": 5414,
+      "sha256": "a7bc1295c8478926b3217433e4dc7b080b58022ce81e4a9aad2926f8e82a0591"
+    },
+    "fixes-v3/independent_fixture.py": {
+      "bytes": 7367,
+      "sha256": "49104b53631deeba220f3ff8cd586beed2b7d325bd6a7125e2bb367e709c243e"
+    }
+  },
+  "authorization": false,
+  "product_run": "NOT_RUN",
+  "qualification": "实施工蜂定向内存/fake，非独立评审"
+}
