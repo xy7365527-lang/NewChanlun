@@ -569,22 +569,26 @@ impl Recording {
             if let Some((budget, limit)) = &parent {
                 remaining = remaining.min(limit.saturating_sub(budget.live()));
             }
-            let row_permit = parent
-                .as_ref()
-                .map(|(budget, _)| budget.reserve(remaining))
-                .transpose()
-                .map_err(|_| construction_state::stale("effects原件父账额度不足"))?;
             let loaded = if key.table == Table::Node {
-                ExactRows::read_optional_bounded_params(tx, sql, [&key.digest[..]], remaining)?
+                ExactRows::read_optional_bounded_params_in_parent(
+                    tx,
+                    sql,
+                    [&key.digest[..]],
+                    remaining,
+                    parent.as_ref().map(|(budget, _)| budget),
+                )?
             } else {
-                ExactRows::read_optional_bounded_params(tx, sql, [key.rowid], remaining)?
+                ExactRows::read_optional_bounded_params_in_parent(
+                    tx,
+                    sql,
+                    [key.rowid],
+                    remaining,
+                    parent.as_ref().map(|(budget, _)| budget),
+                )?
             };
             let Some((mut rows, read_peak)) = loaded else {
                 return Ok(None);
             };
-            if let Some(permit) = row_permit {
-                permit.commit(0, rows.heap_bytes());
-            }
             peak = peak.max(sum([used, read_peak]));
             if rows.rows.len() > 1 {
                 return Err(invalid("rowid 效果非唯一"));
@@ -593,7 +597,7 @@ impl Recording {
                 verify_storage(tx, key.table, row)?;
             }
             let new = rows.rows.pop();
-            let row_header_bytes = rows.heap_bytes();
+            let row_header_bytes = rows.manual_heap_bytes();
             drop(rows);
             if let Some((budget, _)) = &parent {
                 budget.release(row_header_bytes);
@@ -669,8 +673,14 @@ pub(super) struct Change {
     pub(super) table: Table,
     pub(super) rowid: i64,
     slot: Option<usize>,
-    pub(super) old: Option<Vec<SqlCell>>,
-    pub(super) new: Option<Vec<SqlCell>>,
+    pub(super) old: Option<sc::CodecVec<SqlCell>>,
+    pub(super) new: Option<sc::CodecVec<SqlCell>>,
+}
+impl Retained for Change {
+    fn heap_bytes(&self) -> usize {
+        // table/rowid/slot无动态载荷，原有old/new真实容器各计一次。
+        sum([self.old.heap_bytes(), self.new.heap_bytes()])
+    }
 }
 pub(super) struct Effects {
     pub(super) set: Option<construction_set::PendingSet>,
@@ -712,49 +722,97 @@ impl Effects {
                 rows.partition_point(|r| integer(&r[0]).unwrap_or(i64::MIN) < change.rowid)
             };
             let old_payload = change.old.heap_bytes();
+            let old_manual = change.old.as_ref().map_or(0, manual_row_bytes);
             let new_payload = change.new.heap_bytes();
-            let old_capacity = vec_bytes::<Vec<SqlCell>>(rows.capacity());
-            match change.new.take() {
-                Some(row) if change.old.is_some() => {
-                    rows[index] = row;
+            let old_capacity = vec_bytes::<sc::CodecVec<SqlCell>>(rows.capacity());
+            let native_rows = rows.is_native_bound();
+            let mut mutate = |work: Option<&WorkScope>| -> Result<(), native::Failure> {
+                if let Some(work) = work {
+                    rows.try_reserve_native(work, 0)
+                        .map_err(|e| native::Failure::Invalid(e.to_string()))?;
                 }
-                Some(row) => {
-                    if rows.len() == rows.capacity() {
-                        let next = rows
-                            .capacity()
-                            .checked_mul(2)
-                            .ok_or(super::native::Failure::BudgetExceeded)?
-                            .max(4);
-                        let request = vec_bytes::<Vec<SqlCell>>(next)
-                            .checked_add(self.bytes)
-                            .ok_or(super::native::Failure::BudgetExceeded)?;
-                        peak = peak.max(request);
+                match change.new.take() {
+                    Some(row) if change.old.is_some() => {
+                        rows[index] = row;
                     }
-                    budget.vec_grow(rows, 1)?;
-                    rows.insert(index, row);
-                    shift.1 += 1;
+                    Some(row) => {
+                        if rows.len() == rows.capacity() {
+                            let next = rows
+                                .capacity()
+                                .checked_mul(2)
+                                .ok_or(native::Failure::BudgetExceeded)?
+                                .max(4);
+                            peak = peak.max(
+                                vec_bytes::<sc::CodecVec<SqlCell>>(next)
+                                    .checked_add(self.bytes)
+                                    .ok_or(native::Failure::BudgetExceeded)?,
+                            );
+                        }
+                        if let Some(work) = work {
+                            rows.try_insert_native(index, row, work)
+                                .map_err(|e| native::Failure::Invalid(e.to_string()))?;
+                        } else {
+                            let next = rows.capacity().saturating_mul(2).max(4);
+                            let permit = if rows.len() == rows.capacity() {
+                                Some(budget.reserve(vec_bytes::<sc::CodecVec<SqlCell>>(next))?)
+                            } else {
+                                None
+                            };
+                            rows.try_insert(index, row)
+                                .map_err(|e| native::Failure::Invalid(e.to_string()))?;
+                            if let Some(permit) = permit {
+                                permit.commit(
+                                    old_capacity,
+                                    vec_bytes::<sc::CodecVec<SqlCell>>(rows.capacity()),
+                                );
+                            }
+                        }
+                        shift.1 += 1;
+                    }
+                    None if change.old.is_some() => {
+                        rows.remove(index);
+                        shift.1 -= 1;
+                    }
+                    None => return Err(invalid("固定效果同时缺旧新原件").into()),
                 }
-                None if change.old.is_some() => {
-                    rows.remove(index);
-                    shift.1 -= 1;
-                }
-                None => return Err(invalid("固定效果同时缺旧新原件").into()),
+                Ok(())
+            };
+            if native_rows {
+                budget
+                    .codec_work()?
+                    .run(|scope| mutate(Some(scope)))
+                    .map_err(native::Failure::from)?;
+            } else {
+                mutate(None)?;
             }
             *original_charge = original_charge
                 .checked_sub(old_payload)
                 .and_then(|n| n.checked_add(new_payload))
                 .and_then(|n| {
-                    n.checked_add(vec_bytes::<Vec<SqlCell>>(rows.capacity()) - old_capacity)
+                    n.checked_add(
+                        vec_bytes::<sc::CodecVec<SqlCell>>(rows.capacity()) - old_capacity,
+                    )
                 })
                 .ok_or_else(|| invalid("SQL原件增量归属账溢出/缺旧费用"))?;
             if self.shared_parent {
                 drop(change.old.take());
-                budget.release(old_payload);
+                budget.release(old_manual);
             }
         }
         if self.shared_parent {
             // 已move的新行和Node正文不在remaining内；只释放真实销毁的容器/余行。
-            let remaining = self.changes.heap_bytes();
+            let remaining = sum([
+                vec_bytes::<Change>(self.changes.capacity()),
+                self.changes
+                    .iter()
+                    .map(|c| {
+                        sum([
+                            c.old.as_ref().map_or(0, manual_row_bytes),
+                            c.new.as_ref().map_or(0, manual_row_bytes),
+                        ])
+                    })
+                    .fold(0usize, usize::saturating_add),
+            ]);
             drop(self.changes);
             budget.release(remaining);
         }
@@ -810,7 +868,7 @@ fn verify_storage(tx: &Transaction<'_>, table: Table, row: &[SqlCell]) -> Result
             SqlCell::Null => (Type::Null, None),
             SqlCell::Integer(_) => (Type::Integer, None),
             SqlCell::Real(_) => (Type::Real, None),
-            SqlCell::Text(b) => (Type::Text, Some(b.as_slice())),
+            SqlCell::Text(b) => (Type::Text, Some(b.as_ref())),
             SqlCell::Blob(_) => (Type::Blob, None),
         };
         if !v2::valid_storage_cell(
@@ -941,7 +999,7 @@ struct StageReceipt {
     material_before: u64,
     material_after: u64,
     rowid: i64,
-    row: Vec<SqlCell>,
+    row: sc::CodecVec<SqlCell>,
 }
 fn current_journal(tx: &Transaction<'_>) -> Result<Option<Arc<Mutex<Journal>>>, String> {
     NODE_JOURNAL.with(|slot| {
@@ -1682,26 +1740,19 @@ pub(super) fn begin_stage(tx: &Transaction<'_>, kind: StageKind) -> Result<Stage
     guard.journal = Some(journal);
     Ok(guard)
 }
-// 实际ExactRows先析构再归还预算；成功只将被move的行费用留给Journal。
-struct StageOriginals<'a> {
+// Native行的许可跟随pop后的行移动，头部析构不退行的费用。
+fn manual_row_bytes(row: &sc::CodecVec<SqlCell>) -> usize {
+    super::super::request_audit::manual_cells_bytes(row)
+}
+struct StageOriginals {
     value: Option<ExactRows>,
-    budget: &'a native::Budget,
-    bytes: usize,
 }
-impl Drop for StageOriginals<'_> {
-    fn drop(&mut self) {
-        drop(self.value.take());
-        self.budget.release(self.bytes);
-    }
-}
-impl StageOriginals<'_> {
+impl StageOriginals {
     fn row(&self) -> &[SqlCell] {
         &self.value.as_ref().unwrap().rows[0]
     }
-    fn into_row(mut self) -> Vec<SqlCell> {
-        let row = self.value.as_mut().unwrap().rows.pop().unwrap();
-        self.bytes -= row.heap_bytes();
-        row
+    fn into_row(mut self) -> sc::CodecVec<SqlCell> {
+        self.value.as_mut().unwrap().rows.pop().unwrap()
     }
 }
 fn consumed_bytes(capacity: usize) -> usize {
@@ -1856,23 +1907,16 @@ impl StageGuard {
                     .checked_sub(budget.live())
                     .ok_or_else(|| construction_state::stale("stage原件额度不足"))?
             };
-            // 先占完整可用上限；ExactRows内部按同一remaining限制每次新旧块共存。
-            let read_permit = budget
-                .reserve(remaining)
-                .map_err(|_| construction_state::stale("stage原件预留失败"))?;
-            let (originals, _) = ExactRows::read_optional_bounded_params(
+            let (originals, _) = ExactRows::read_optional_bounded_params_in_parent(
                 tx,
                 self.kind.table().row_sql(),
                 [rowid],
                 remaining,
+                Some(budget),
             )?
             .ok_or_else(|| construction_state::stale("stage原件读取额度不足"))?;
-            let bytes = originals.heap_bytes();
-            read_permit.commit(0, bytes);
             let originals = StageOriginals {
                 value: Some(originals),
-                budget,
-                bytes,
             };
             if originals.value.as_ref().unwrap().rows.len() != 1 {
                 return Err(construction_state::stale("stage当前行缺失/重复"));
@@ -1882,7 +1926,7 @@ impl StageGuard {
             // 只从保存的actual tx回读根闭包；外来memory或未来stage均无补签入口。
             for &column in self.kind.roots() {
                 let digest: [u8; 32] = match &originals.row()[column] {
-                    SqlCell::Blob(value) => value.as_slice().try_into().map_err(invalid)?,
+                    SqlCell::Blob(value) => value.as_ref().try_into().map_err(invalid)?,
                     _ => return Err(construction_state::stale("stage根不是BLOB")),
                 };
                 let root = sc::FixedRoot::new(&digest);
@@ -1901,7 +1945,7 @@ impl StageGuard {
             let row = originals.into_row();
             j.stage_rows_bytes = sum([j.stage_rows_bytes, row.heap_bytes()]);
             if let Some(resources) = j.resources.as_mut().filter(|r| r.shared_parent) {
-                resources.journal_owned_bytes += row.heap_bytes();
+                resources.journal_owned_bytes += manual_row_bytes(&row);
             }
             let end = j.keys.len();
             let material_after = j.material_epoch;
@@ -2576,5 +2620,161 @@ mod construction_coverage_tests {
             "取消后不能重建成功scope"
         );
         assert!(recording.finish(&tx, &mut [], 16 << 20).is_err());
+    }
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+mod e_owner_move_tests {
+    use super::*;
+    #[test]
+    fn e_stage_into_row_keeps_charge_after_header_drop() {
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        let tx = conn.transaction().unwrap();
+        let budget = native::Budget::new(1024 * 1024, 0).unwrap();
+        let (rows, _) = ExactRows::read_optional_bounded_in_parent(
+            &tx,
+            "SELECT 1,X'010203','keep'",
+            65536,
+            Some(&budget),
+        )
+        .unwrap()
+        .unwrap();
+        let row = StageOriginals { value: Some(rows) }.into_row();
+        assert_eq!(budget.live(), row.heap_bytes());
+        assert_eq!(manual_row_bytes(&row), 0);
+        drop(row);
+        assert_eq!(budget.live(), 0);
+    }
+    #[test]
+    fn e_apply_native_insert_is_ordered_and_releases_only_manual_outer_charge() {
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE meta(key TEXT,value TEXT); INSERT INTO meta(rowid,key,value) VALUES(1,'one','a'),(3,'three','c');").unwrap();
+        let tx = conn.transaction().unwrap();
+        let budget = native::Budget::new(1024 * 1024, 0).unwrap();
+        let original = ExactRows::read_optional_bounded_in_parent(
+            &tx,
+            Table::Meta.original_sql(),
+            65536,
+            Some(&budget),
+        )
+        .unwrap()
+        .unwrap()
+        .0;
+        let row = StageOriginals {
+            value: Some(
+                ExactRows::read_optional_bounded_in_parent(
+                    &tx,
+                    "SELECT 2,'two','b'",
+                    65536,
+                    Some(&budget),
+                )
+                .unwrap()
+                .unwrap()
+                .0,
+            ),
+        }
+        .into_row();
+        let changes = vec![Change {
+            table: Table::Meta,
+            rowid: 2,
+            slot: None,
+            old: None,
+            new: Some(row),
+        }];
+        let bytes = vec_bytes::<Change>(changes.capacity());
+        budget.reserve(bytes).unwrap().commit(0, bytes);
+        let effects = Effects {
+            set: None,
+            changes,
+            operation: Operation::Publish,
+            peak: budget.peak(),
+            bytes,
+            covered_total: None,
+            shared_parent: true,
+        };
+        let mut originals = [original];
+        let mut original_charge = originals[0].heap_bytes();
+        effects
+            .apply(&mut originals, &budget, &mut original_charge)
+            .unwrap();
+        assert_eq!(
+            originals[0]
+                .rows
+                .iter()
+                .map(|r| integer(&r[0]).unwrap())
+                .collect::<Vec<_>>(),
+            vec![1, 2, 3]
+        );
+        assert_eq!(budget.live(), originals[0].heap_bytes());
+        assert_eq!(original_charge, originals[0].heap_bytes());
+        drop(originals);
+        assert_eq!(budget.live(), 0);
+    }
+    #[test]
+    fn e_apply_native_replace_and_delete_keep_remaining_rows_owned() {
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE meta(key TEXT,value TEXT); INSERT INTO meta(rowid,key,value) VALUES(1,'one','a'),(3,'three','c');").unwrap();
+        let tx = conn.transaction().unwrap();
+        let budget = native::Budget::new(1024 * 1024, 0).unwrap();
+        let mut originals = [ExactRows::read_optional_bounded_in_parent(
+            &tx,
+            Table::Meta.original_sql(),
+            65536,
+            Some(&budget),
+        )
+        .unwrap()
+        .unwrap()
+        .0];
+        let mut original_charge = originals[0].heap_bytes();
+        for (slot, rowid, replacement) in [(0, 1, true), (1, 3, false)] {
+            let old = std::mem::take(&mut originals[0].rows[slot]);
+            let new = if replacement {
+                Some(
+                    StageOriginals {
+                        value: Some(
+                            ExactRows::read_optional_bounded_in_parent(
+                                &tx,
+                                "SELECT 1,'updated','b'",
+                                65536,
+                                Some(&budget),
+                            )
+                            .unwrap()
+                            .unwrap()
+                            .0,
+                        ),
+                    }
+                    .into_row(),
+                )
+            } else {
+                None
+            };
+            let changes = vec![Change {
+                table: Table::Meta,
+                rowid,
+                slot: Some(slot),
+                old: Some(old),
+                new,
+            }];
+            let bytes = vec_bytes::<Change>(changes.capacity());
+            budget.reserve(bytes).unwrap().commit(0, bytes);
+            let effects = Effects {
+                set: None,
+                changes,
+                operation: Operation::Publish,
+                peak: budget.peak(),
+                bytes,
+                covered_total: None,
+                shared_parent: true,
+            };
+            effects
+                .apply(&mut originals, &budget, &mut original_charge)
+                .unwrap();
+            assert_eq!(budget.live(), originals[0].heap_bytes());
+            assert_eq!(original_charge, originals[0].heap_bytes());
+        }
+        assert_eq!(originals[0].rows.len(), 1);
+        assert_eq!(text(&originals[0].rows[0][1]).unwrap(), "updated");
+        drop(originals);
+        assert_eq!(budget.live(), 0);
     }
 }

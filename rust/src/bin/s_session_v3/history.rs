@@ -35,8 +35,8 @@ pub(super) use native_record_fields::{native_record_field_stats, reset_native_re
 pub(crate) struct NativeCutProjection<'scope, 'connection, 'capture> {
     capture: &'capture sc::AuditCapture,
     transaction: &'scope Transaction<'connection>,
-    batch: String,
-    binding: Vec<String>,
+    batch: bj::TextValue,
+    binding: sc::CodecVec<bj::TextValue>,
     arrays: [(sc::Built, sc::Built); 5],
     snapshot_members: [sc::CodecVec<NodeDigest>; 3],
     delta_members: [sc::CodecVec<NodeDigest>; 3],
@@ -59,12 +59,12 @@ fn native_cut_binding(
     m: content_manifest::MetadataView<'_>,
     r: content_manifest::RootsView<'_>,
     previous: i64,
-) -> Result<Vec<String>, String> {
+) -> Result<sc::CodecVec<bj::TextValue>, String> {
     let c = m.source_commit;
-    let mut out = Vec::new();
+    let mut out = sc::CodecVec::default();
     // 18 个原字段、4 个十进制字段、4 份 ref 的各4字段。
     store
-        .native_vec_room(&mut out, 18 + 4 + 4 * 4)
+        .native_codec_room(&mut out, 18 + 4 + 4 * 4)
         .map_err(err)?;
     for text in [
         m.session_id,
@@ -86,14 +86,15 @@ fn native_cut_binding(
         c.producer_epoch,
         c.clock_event_id,
     ] {
-        out.push(store.native_string(text).map_err(err)?);
+        out.try_push(store.native_text(text)?).map_err(err)?;
     }
     for value in [m.generation, m.input_frontier, c.attempt_index, previous] {
-        out.push(
+        out.try_push(
             store
-                .native_string(bj::Decimal::new(value).text())
+                .native_text(bj::Decimal::new(value).text())
                 .map_err(err)?,
-        );
+        )
+        .map_err(err)?;
     }
     for v in [
         m.scope,
@@ -102,13 +103,15 @@ fn native_cut_binding(
         r.delta_template,
     ] {
         for text in [v.format(), v.root(), v.kind().name()] {
-            out.push(store.native_string(text).map_err(err)?);
+            out.try_push(store.native_text(text)?).map_err(err)?;
         }
-        out.push(
+        out.try_push(
             store
                 .native_format(format_args!("{:?}", v.extent()))
+                .map(bj::TextValue::Plain)
                 .map_err(err)?,
-        );
+        )
+        .map_err(err)?;
     }
     Ok(out)
 }
@@ -124,7 +127,7 @@ impl NativeCutProjection<'_, '_, '_> {
     ) -> Result<(), String> {
         if !std::ptr::eq(self.transaction, tx)
             || self.batch != batch
-            || self.binding != native_cut_binding(s, m, r, previous)?
+            || self.binding[..] != native_cut_binding(s, m, r, previous)?[..]
             || !s
                 .native_projection_capture()
                 .is_some_and(|c| std::ptr::eq(c, self.capture))
@@ -170,7 +173,7 @@ fn native_cut_projection<'scope, 'connection, 'capture>(
     Ok(Some(NativeCutProjection {
         capture,
         transaction: tx,
-        batch: s.native_string(batch).map_err(err)?,
+        batch: s.native_text(batch)?,
         binding: native_cut_binding(s, m, roots, previous)?,
         arrays: [
             o[0].clone(),
@@ -1408,7 +1411,7 @@ fn history_decode(bytes: &[u8], allocation: Option<&OwnedBudget>) -> Result<Json
     if allocation.is_some() {
         return Err(err("owned历史JSON入口未启用"));
     }
-    strict_json(bytes).map(JsonOwner::Plain)
+    strict_json(bytes).map(|value| JsonOwner::Plain(value.into()))
 }
 fn history_canonical_equal(
     view: JsonView<'_>,
@@ -3039,7 +3042,7 @@ impl CodecStore for HashReader<'_> {
             Some(o) => o
                 .replace_batch_placeholder_owned(r, p, batch)
                 .map(super::audit_store::RefValue::Owned),
-            None => sc::path::replace_batch_placeholder_refview(self, r, p, batch)
+            None => sc::path::replace_batch_placeholder_native(self, r, p, batch)
                 .map(super::audit_store::RefValue::Plain),
         }
     }
@@ -4236,7 +4239,7 @@ mod tests {
                     (0..17)
                         .map(|i| {
                             lookup_path(&mut reader, &root, &[PathStep::Index(i)])
-                                .map(crate::v3::audit_store::RefValue::Plain)
+                                .map(crate::v3::audit_store::RefValue::from)
                                 .map_err(|e| format!("SourceAuditInvalid：{e}"))
                         })
                         .collect::<Result<Vec<_>, _>>()
@@ -5283,6 +5286,14 @@ mod tests {
     #[test]
     fn native_dual_actual_template_negative_matrix() {
         // Component-level valid-Merkle negatives, not service/e2e acceptance.
+        fn clone_ref(value: &RefValue) -> RefValue {
+            super::super::audit_store::NativeAdmission(None)
+                .native_ref_clone(value)
+                .unwrap()
+        }
+        fn clone_refs(values: &[RefValue]) -> Vec<RefValue> {
+            values.iter().map(clone_ref).collect()
+        }
         fn normal(r: sc::RefView<'_>) -> ContentRef {
             sc::Built {
                 digest: r.digest().unwrap(),
@@ -5459,7 +5470,7 @@ mod tests {
             "batch_id",
             sc::ValueView::String(&batch),
         );
-        let mut changed = born.clone();
+        let mut changed = clone_refs(&born);
         changed[0] = RefValue::from(born_string);
         let changed_array = array(&mut sql, &changed);
         let mut case = original.clone();
@@ -5478,7 +5489,7 @@ mod tests {
             "batch_id",
             sc::ValueView::BatchSelf,
         );
-        let mut changed = items.clone();
+        let mut changed = clone_refs(&items);
         changed[old] = RefValue::from(old_placeholder);
         let changed_array = array(&mut sql, &changed);
         let mut case = original.clone();
@@ -5515,7 +5526,7 @@ mod tests {
             wrong_position,
             sc::ValueView::BatchSelf,
         );
-        let mut changed = born.clone();
+        let mut changed = clone_refs(&born);
         changed[0] = RefValue::from(wrong);
         let changed_array = array(&mut sql, &changed);
         let mut case = original.clone();
@@ -5529,13 +5540,13 @@ mod tests {
         cases.push(("non-batch-position-placeholder", case));
         for (label, changed) in [
             ("duplicate-member", {
-                let mut v = items.clone();
-                v[1] = v[0].clone();
+                let mut v = clone_refs(&items);
+                v[1] = clone_ref(&v[0]);
                 v
             }),
-            ("missing-member", items[1..].to_vec()),
+            ("missing-member", clone_refs(&items[1..])),
             ("reordered-members", {
-                let mut v = items.clone();
+                let mut v = clone_refs(&items);
                 v.swap(0, 1);
                 v
             }),

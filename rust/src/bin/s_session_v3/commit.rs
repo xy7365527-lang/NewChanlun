@@ -582,7 +582,7 @@ pub(crate) mod tests {
             .unwrap();
         assert_eq!(
             ContentRef::from_transport_json(&strict_json(saved.as_bytes()).unwrap()).unwrap(),
-            result.delta
+            *result.delta
         );
     }
 

@@ -1894,7 +1894,16 @@ impl AuditConnection {
         let candidate = self.complete.borrow();
         let c = candidate.as_ref().unwrap();
         (
-            c.audited.raw.plain().unwrap().as_ptr() as usize,
+            match &c.audited.raw {
+                super::business_json::RawEvents::Plain(rows) => rows.as_ptr() as usize,
+                super::business_json::RawEvents::Native(rows) => {
+                    rows.as_array().unwrap().as_ptr() as usize
+                }
+                #[cfg(feature = "s_allocation_json_testonly")]
+                super::business_json::RawEvents::Owned(_) => {
+                    panic!("complete_pointers不接受Owned原始账")
+                }
+            },
             (&*c.audited as *const state::ImmutableHistoricalAudit) as usize,
             c.originals.as_ptr() as usize,
         )
@@ -2066,7 +2075,7 @@ impl CompleteCandidate {
             {
                 let row = change.new.as_mut().ok_or_else(|| invalid("缺新增节点"))?;
                 let digest = match &row[1] {
-                    request_audit::SqlCell::Blob(b) => b.as_slice().try_into().map_err(invalid)?,
+                    request_audit::SqlCell::Blob(b) => b.as_ref().try_into().map_err(invalid)?,
                     _ => return Err(invalid("digest 非 BLOB")),
                 };
                 let tag = u8::try_from(effects::integer(&row[2])?).map_err(invalid)?;
@@ -2075,18 +2084,14 @@ impl CompleteCandidate {
                     _ => return Err(invalid("body 非 BLOB")),
                 };
                 let existed = capture.contains(&digest);
-                let body_capacity = body.capacity();
                 if !capture
-                    .append_original_for_owner_testonly(digest, tag, body, usize::MAX, Some(scope))
+                    .append_original_codec_for_owner_testonly(digest, tag, body, usize::MAX, scope)
                     .map_err(invalid)?
                 {
                     return Err(invalid("Native 节点许可未被消费"));
                 }
                 if !existed {
                     self.node_count += 1;
-                } else if effects.shared_parent {
-                    // 同摘要已有原件：append 已真实丢弃这次SQL读取副本。
-                    budget.release(body_capacity);
                 }
             }
             Ok(())
@@ -2997,12 +3002,11 @@ fn r13_optional_sql_rows_share_parent_without_changing_cells() {
     )
     .unwrap()
     .unwrap();
-    assert_eq!(actual, expected);
+    assert_eq!(actual.0, expected.0);
     assert!(parent.live() > before);
     assert!(parent.peak() < 1024 * 1024);
-    let retained = parent.live();
     drop(actual);
-    assert_eq!(parent.live(), retained);
+    assert_eq!(parent.live(), before);
 }
 
 #[cfg(all(test, feature = "s_capture_native_testonly"))]

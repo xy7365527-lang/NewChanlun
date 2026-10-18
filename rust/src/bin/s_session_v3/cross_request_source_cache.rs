@@ -8,12 +8,13 @@ use super::{
 };
 use newchan_rust::s_content::{self as sc, capture_allocation::scratch::WorkScope};
 use rusqlite::Transaction;
+use sc::capture_allocation::native_owned::NativeValue;
 use serde::Serialize;
 
 #[derive(Debug, PartialEq, Eq)]
 struct Binding {
     frontier: i64,
-    rows: Vec<ExactRows>,
+    rows: sc::CodecVec<ExactRows>,
 }
 impl Binding {
     fn read(tx: &Transaction<'_>, frontier: i64) -> Result<Self, String> {
@@ -32,68 +33,73 @@ impl Binding {
             work,
         )?;
         // 已知动态控制字段只由本次完整control/history审计消费；未知字段不悄悄排除。
-        meta.rows.retain(|row| !matches!(row.get(1), Some(SqlCell::Text(key)) if [
-            b"generation".as_slice(), b"structure_cut", b"index_frontier", b"last_advance_frontier",
-            b"writer_epoch", b"begin_generation", b"begin_input_frontier", b"begin_token", b"advance_state",
-        ].contains(&key.as_slice())));
-        let mut rows = Vec::new();
+        for i in (0..meta.rows.len()).rev() {
+            if matches!(meta.rows[i].get(1), Some(SqlCell::Text(key)) if [
+                b"generation".as_slice(), b"structure_cut", b"index_frontier", b"last_advance_frontier",
+                b"writer_epoch", b"begin_generation", b"begin_input_frontier", b"begin_token", b"advance_state",
+            ].contains(&key.as_ref()))
+            {
+                meta.rows.remove(i);
+            }
+        }
+        let mut rows = sc::CodecVec::default();
         NativeAdmission(work)
-            .native_vec_room(&mut rows, 6)
+            .native_codec_room(&mut rows, 6)
             .map_err(|e| e.to_string())?;
-        rows.push(ExactRows::read_admitted(
-            tx,
-            c"SELECT rowid,* FROM sqlite_schema ORDER BY rowid",
-            &[],
-            &[],
+        super::request_audit::push_cell(
+            &mut rows,
+            ExactRows::read_admitted(
+                tx,
+                c"SELECT rowid,* FROM sqlite_schema ORDER BY rowid",
+                &[],
+                &[],
+                work,
+            )?,
             work,
-        )?);
-        rows.push(meta);
-        rows.push(ExactRows::read_admitted(
-            tx,
-            c"SELECT rowid,* FROM s_content_meta ORDER BY rowid",
-            &[],
-            &[],
+        )?;
+        super::request_audit::push_cell(&mut rows, meta, work)?;
+        super::request_audit::push_cell(
+            &mut rows,
+            ExactRows::read_admitted(
+                tx,
+                c"SELECT rowid,* FROM s_content_meta ORDER BY rowid",
+                &[],
+                &[],
+                work,
+            )?,
             work,
-        )?);
-        rows.push(ExactRows::read_admitted(tx, c"SELECT rowid,singleton,protocol_revision,session_generation,clock_plan_hash,clock_plan_json FROM s_protocol_meta ORDER BY rowid", &[], &[], work)?);
+        )?;
+        super::request_audit::push_cell(&mut rows, ExactRows::read_admitted(tx, c"SELECT rowid,singleton,protocol_revision,session_generation,clock_plan_hash,clock_plan_json FROM s_protocol_meta ORDER BY rowid", &[], &[], work)?, work)?;
         let frontier_scope = [SqlCellView::Integer(frontier)];
-        rows.push(ExactRows::read_admitted(
-            tx,
-            c"SELECT rowid,* FROM raw_events WHERE seq<=?1 ORDER BY seq,rowid",
-            &frontier_scope,
-            &frontier_scope,
+        super::request_audit::push_cell(
+            &mut rows,
+            ExactRows::read_admitted(
+                tx,
+                c"SELECT rowid,* FROM raw_events WHERE seq<=?1 ORDER BY seq,rowid",
+                &frontier_scope,
+                &frontier_scope,
+                work,
+            )?,
             work,
-        )?);
+        )?;
         // 保留独立OHLC负依赖；当前全账enrich/cardinality仍由原入口fresh核验。
-        rows.push(ExactRows::read_admitted(tx, c"SELECT o.rowid,o.* FROM raw_ohlc o WHERE NOT EXISTS(SELECT 1 FROM raw_events r WHERE r.identity_key=o.identity_key AND r.revision=o.revision AND r.seq>?1) ORDER BY o.rowid", &frontier_scope, &frontier_scope, work)?);
+        super::request_audit::push_cell(&mut rows, ExactRows::read_admitted(tx, c"SELECT o.rowid,o.* FROM raw_ohlc o WHERE NOT EXISTS(SELECT 1 FROM raw_events r WHERE r.identity_key=o.identity_key AND r.revision=o.revision AND r.seq>?1) ORDER BY o.rowid", &frontier_scope, &frontier_scope, work)?, work)?;
         Ok(Self { frontier, rows })
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 struct Key {
     generation: i64,
     frontier: i64,
-    state: sc::ContentRef,
-    profile: String,
-    rule: String,
+    state: NativeValue<sc::ContentRef>,
+    profile: NativeValue<String>,
+    rule: NativeValue<String>,
 }
 impl Key {
     #[cfg(test)]
     fn of(cut: &PublishedCut) -> Self {
-        let r = cut.roots.generated_state.view();
-        Self {
-            generation: cut.metadata.generation,
-            frontier: cut.metadata.input_frontier,
-            state: sc::ContentRef {
-                format: r.format().into(),
-                root: r.root().into(),
-                kind: r.kind(),
-                extent: r.extent(),
-            },
-            profile: cut.metadata.profile_id.as_str().into(),
-            rule: cut.metadata.rule_revision.as_str().into(),
-        }
+        Self::of_admitted(cut, None).unwrap()
     }
     fn of_admitted(cut: &PublishedCut, work: Option<&WorkScope>) -> Result<Self, String> {
         let admission = NativeAdmission(work);
@@ -119,8 +125,8 @@ impl Key {
             && self.state.root == state.root()
             && self.state.kind == state.kind()
             && self.state.extent == state.extent()
-            && self.profile == cut.metadata.profile_id.as_str()
-            && self.rule == cut.metadata.rule_revision.as_str()
+            && self.profile.as_str() == cut.metadata.profile_id.as_str()
+            && self.rule.as_str() == cut.metadata.rule_revision.as_str()
     }
 }
 struct Proof {
@@ -183,7 +189,7 @@ fn cells_cost(cells: &[SqlCell]) -> Result<usize, String> {
         .iter()
         .try_fold(8, |sum, cell| add(sum, cell_cost(cell)?))
 }
-fn cells_capacity(cells: &Vec<SqlCell>) -> Result<usize, String> {
+fn cells_capacity(cells: &sc::CodecVec<SqlCell>) -> Result<usize, String> {
     cells.iter().try_fold(
         mul(cells.capacity(), std::mem::size_of::<SqlCell>())?,
         |sum, cell| {
@@ -216,8 +222,8 @@ fn proof_source_bytes(proof: &Proof) -> Result<usize, String> {
     [
         &proof.key.state.format,
         &proof.key.state.root,
-        &proof.key.profile,
-        &proof.key.rule,
+        proof.key.profile.as_ref(),
+        proof.key.rule.as_ref(),
     ]
     .into_iter()
     .try_fold(
@@ -273,17 +279,19 @@ impl Pool {
             codec_root_source_bytes(0)?,
         )?;
         // history原严格升序；只反向尝试一次，接纳后仍恢复原binary_search代序。
-        let mut groups = Vec::new();
+        let mut groups = sc::CodecVec::default();
         admission
-            .native_vec_room(&mut groups, proofs.len())
+            .native_codec_room(&mut groups, proofs.len())
             .map_err(|e| e.to_string())?;
         for proof in proofs.iter().rev() {
-            groups.push((
-                admission
-                    .native_plain_ref((&proof.key.state).into())
-                    .map_err(|e| e.to_string())?,
-                proof_source_bytes(proof)?,
-            ));
+            groups
+                .try_push((
+                    admission
+                        .native_plain_ref(proof.key.state.as_ref().into())
+                        .map_err(|e| e.to_string())?,
+                    proof_source_bytes(proof)?,
+                ))
+                .map_err(|e| e.to_string())?;
         }
         let (originals, certificates, selection) = originals
             .into_counts_original_subset_admitted_for_testonly(groups, fixed, cap, work)
@@ -389,14 +397,20 @@ impl Pool {
             let mut bytes = add(row.sql.capacity(), cells_capacity(&row.scope)?)?;
             bytes = add(
                 bytes,
-                mul(row.columns.capacity(), std::mem::size_of::<String>())?,
+                mul(
+                    row.columns.capacity(),
+                    std::mem::size_of::<super::business_json::TextValue>(),
+                )?,
             )?;
             for column in &row.columns {
                 bytes = add(bytes, column.capacity())?;
             }
             bytes = add(
                 bytes,
-                mul(row.rows.capacity(), std::mem::size_of::<Vec<SqlCell>>())?,
+                mul(
+                    row.rows.capacity(),
+                    std::mem::size_of::<sc::CodecVec<SqlCell>>(),
+                )?,
             )?;
             for cells in &row.rows {
                 bytes = add(bytes, cells_capacity(cells)?)?;
@@ -408,8 +422,8 @@ impl Pool {
             let strings = [
                 &proof.key.state.format,
                 &proof.key.state.root,
-                &proof.key.profile,
-                &proof.key.rule,
+                proof.key.profile.as_ref(),
+                proof.key.rule.as_ref(),
             ];
             let mut bytes = 16 + 1 + 9 + 64 + 6 * std::mem::size_of::<usize>();
             for text in strings {
@@ -1285,7 +1299,7 @@ mod tests {
             };
             let fields = sc::path::lookup_fields_refview(
                 &mut recorder,
-                sc::RefView::from(&proof.key.state),
+                sc::RefView::from(proof.key.state.as_ref()),
                 &["objects", "witnesses", "observations"],
                 true,
             )
@@ -1471,16 +1485,24 @@ mod tests {
         for mutation in 0..8 {
             let (mut f, mut keeper) = seeded();
             let key = &mut keeper.pool.as_mut().unwrap().proofs[0].key;
+            let mut state = key.state.as_ref().clone(); // 测试坏原件，非Native生产复制入口。
             match mutation {
                 0 => key.generation += 1,
                 1 => key.frontier += 1,
-                2 => key.state.root.push('0'),
-                3 => key.state.format.push('0'),
-                4 => key.state.kind = sc::Kind::Array,
-                5 => key.state.extent = Some(999),
-                6 => key.profile.push('0'),
-                _ => key.rule.push('0'),
+                2 => state.root.push('0'),
+                3 => state.format.push('0'),
+                4 => state.kind = sc::Kind::Array,
+                5 => state.extent = Some(999),
+                6 => {
+                    key.profile =
+                        NativeValue::<String>::from_unscoped(format!("{}0", key.profile.as_str()))
+                }
+                _ => {
+                    key.rule =
+                        NativeValue::<String>::from_unscoped(format!("{}0", key.rule.as_str()))
+                }
             }
+            key.state = NativeValue::<sc::ContentRef>::from_unscoped(state);
             audit(&mut f, &mut keeper).unwrap();
             assert_eq!((keeper.cold, keeper.hits), (2, 0), "mutation={mutation}");
         }
@@ -1494,9 +1516,18 @@ mod tests {
             audit(&mut f, &mut keeper).unwrap();
             assert_eq!((keeper.cold, keeper.hits), (2, 0), "{sql}");
         }
-        assert_ne!(SqlCell::Text(b"1".to_vec()), SqlCell::Blob(b"1".to_vec()));
-        assert_ne!(SqlCell::Text(b"1".to_vec()), SqlCell::Integer(1));
-        assert_ne!(SqlCell::Null, SqlCell::Text(Vec::new()));
+        assert_ne!(
+            SqlCell::Text(newchan_rust::s_content::CodecVec::from_plain(b"1".to_vec())),
+            SqlCell::Blob(newchan_rust::s_content::CodecVec::from_plain(b"1".to_vec()))
+        );
+        assert_ne!(
+            SqlCell::Text(newchan_rust::s_content::CodecVec::from_plain(b"1".to_vec())),
+            SqlCell::Integer(1)
+        );
+        assert_ne!(
+            SqlCell::Null,
+            SqlCell::Text(newchan_rust::s_content::CodecVec::from_plain(Vec::new()))
+        );
     }
 
     #[test]

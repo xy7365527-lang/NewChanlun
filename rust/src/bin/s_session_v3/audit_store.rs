@@ -1147,10 +1147,10 @@ mod ref_value_tests {
         let mut fixture = sc::MemoryNodes::new();
         let object = sc::write_value(
             &mut fixture,
-            &sc::Value::Object(std::collections::BTreeMap::from([(
+            &sc::Value::Object(vec![(
                 "items".into(),
                 sc::Value::Array(vec![sc::Value::Null; 7]),
-            )])),
+            )]),
         )
         .unwrap()
         .content_ref();

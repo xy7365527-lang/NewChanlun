@@ -419,7 +419,7 @@ mod tests {
         Domain {
             fixture,
             clock_hash,
-            batch_id: receipt.batch_id,
+            batch_id: receipt.batch_id.as_str().to_owned(),
         }
     }
 

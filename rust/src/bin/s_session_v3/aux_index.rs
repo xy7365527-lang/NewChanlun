@@ -554,9 +554,9 @@ impl Runtime {
         let object_id = text(s, &generated, "object_id")?;
         let slot = integer(s, &generated, "slot")?;
         let id = text(s, &generated, "witness_id")?;
-        if object_id != w.object_id
+        if object_id.as_str() != w.object_id.as_str()
             || slot != w.slot as i64
-            || id != w.witness_id
+            || id.as_str() != w.witness_id.as_str()
             || !(0..3).contains(&slot)
         {
             return Err(err("见证生成记录与元数据不符"));
@@ -712,7 +712,7 @@ impl Runtime {
             let object = generated
                 .objects
                 .iter()
-                .find(|o| o.object_id() == w.object_id)
+                .find(|o| o.object_id() == w.object_id.as_str())
                 .ok_or_else(|| err("见证对象不在本代生成态"))?;
             let generated_object = built_ref(s, object.generated())?;
             let group = s
@@ -1756,10 +1756,7 @@ fn verify_generated_members_in_view(
             if let Some(r) = owner.raw_relation(s, ordinal)? {
                 s.native_codec_room(&mut relation_candidates, 1)
                     .map_err(err)?;
-                relation_s
-                    .native_codec_room(&mut candidates, 1)
-                    .map_err(err)?;
-                candidates.try_push(r).map_err(err)?;
+                relation_candidates.try_push(r).map_err(err)?;
             }
         }
     } else {
@@ -1768,10 +1765,7 @@ fn verify_generated_members_in_view(
             if let Some(r) = supersedes_relation(s, event)? {
                 s.native_codec_room(&mut relation_candidates, 1)
                     .map_err(err)?;
-                relation_s
-                    .native_codec_room(&mut candidates, 1)
-                    .map_err(err)?;
-                candidates.try_push(r).map_err(err)?;
+                relation_candidates.try_push(r).map_err(err)?;
             }
         }
     }
@@ -2635,10 +2629,33 @@ mod tests {
                     expected_rows
                 );
                 let aux = NativeAuxAudit::from_loaded_admitted(&reader, &index, raw)?.unwrap();
-                assert_eq!(aux.witnesses, expected_facts.witnesses);
-                assert_eq!(aux.relations, expected_facts.relations);
-                assert_eq!(aux.observations, expected_facts.observations);
-                assert_eq!(aux.born, expected_facts.born);
+                for (actual, expected) in [
+                    (&aux.witnesses, &expected_facts.witnesses),
+                    (&aux.relations, &expected_facts.relations),
+                    (&aux.observations, &expected_facts.observations),
+                ] {
+                    fn entries(
+                        map: &bj::BusinessMap<NativeValue<String>, usize>,
+                    ) -> std::collections::BTreeMap<&str, usize> {
+                        map.iter()
+                            .map(|(key, value)| (key.as_str(), *value))
+                            .collect()
+                    }
+                    assert_eq!(entries(actual), entries(expected));
+                }
+                for (actual, expected) in aux.born.iter().zip(&expected_facts.born) {
+                    assert_eq!(actual.len(), expected.len());
+                    assert_eq!(
+                        actual
+                            .iter()
+                            .map(|(generation, rows)| (*generation, &rows[..]))
+                            .collect::<Vec<_>>(),
+                        expected
+                            .iter()
+                            .map(|(generation, rows)| (*generation, &rows[..]))
+                            .collect::<Vec<_>>()
+                    );
+                }
                 assert_eq!(aux.duplicates, expected_facts.duplicates);
                 assert_eq!(aux.raw_scanned, expected_facts.raw_scanned);
                 assert_eq!(aux.raw_revisions, expected_facts.raw_revisions);
@@ -2993,8 +3010,8 @@ mod tests {
                     .witness(
                         &mut store,
                         &WitnessRecord {
-                            witness_id: id,
-                            object_id: object.to_owned(),
+                            witness_id: sc::capture_allocation::native_owned::NativeValue::<String>::from_unscoped(id),
+                            object_id: sc::capture_allocation::native_owned::NativeValue::<String>::from_unscoped(object.to_owned()),
                             slot: 0,
                             built: b,
                         },
@@ -3090,8 +3107,12 @@ mod tests {
         };
         let w = &expected.witnesses[0];
         let metadata = WitnessRecord {
-            witness_id: w.id.as_str().to_owned(),
-            object_id: w.object_id.as_str().to_owned(),
+            witness_id: sc::capture_allocation::native_owned::NativeValue::<String>::from_unscoped(
+                w.id.as_str().to_owned(),
+            ),
+            object_id: sc::capture_allocation::native_owned::NativeValue::<String>::from_unscoped(
+                w.object_id.as_str().to_owned(),
+            ),
             slot: w.slot as usize,
             built: b(&w.generated),
         };
@@ -3459,7 +3480,7 @@ mod tests {
                     .snapshot
                     .witnesses
                     .iter()
-                    .find(|r| r.id == w.witness_id)
+                    .find(|r| r.id.as_str() == w.witness_id.as_str())
                     .unwrap();
                 assert_eq!(render_plain(&mut s, &actual.wire).unwrap(), expected);
             }
@@ -3485,7 +3506,7 @@ mod tests {
             verify_generated_members(
                 &mut s,
                 &stored,
-                &generated.generated_state,
+                &*generated.generated_state,
                 &[],
                 &raw[..=frontier as usize],
                 g,
@@ -3503,7 +3524,7 @@ mod tests {
                 owner
                     .audit(
                         &mut reader,
-                        &generated.generated_state,
+                        &*generated.generated_state,
                         JsonView::BorrowedArray(&RawEventsView::plain(&[])),
                         frontier as usize + 1,
                         g,
@@ -3519,7 +3540,7 @@ mod tests {
                 owner
                     .audit(
                         &mut reader,
-                        &generated.generated_state,
+                        &*generated.generated_state,
                         JsonView::BorrowedArray(&RawEventsView::plain(&[])),
                         frontier as usize + 1,
                         g,
@@ -3567,10 +3588,11 @@ mod tests {
                         )
                     }
                     for name in ["witnesses", "observations"] {
-                        let original = state_members(&mut reader, &generated.generated_state, name)
-                            .unwrap()
-                            .into_iter()
-                            .collect::<Vec<_>>();
+                        let original =
+                            state_members(&mut reader, &*generated.generated_state, name)
+                                .unwrap()
+                                .into_iter()
+                                .collect::<Vec<_>>();
                         assert!(!original.is_empty(), "real fixture {name}");
                         for (label, items) in [
                             ("duplicate", {
@@ -3615,7 +3637,7 @@ mod tests {
                     }
                     if stored.witnesses.len() > 1 {
                         let items =
-                            state_members(&mut reader, &generated.generated_state, "witnesses")
+                            state_members(&mut reader, &*generated.generated_state, "witnesses")
                                 .unwrap()
                                 .into_iter()
                                 .collect::<Vec<_>>();
@@ -3646,7 +3668,7 @@ mod tests {
                     assert!(owner
                         .audit(
                             &mut reader,
-                            &generated.generated_state,
+                            &*generated.generated_state,
                             (&bad_replaces).into(),
                             raw.len(),
                             g
@@ -3661,7 +3683,7 @@ mod tests {
                     assert!(owner
                         .audit(
                             &mut reader,
-                            &generated.generated_state,
+                            &*generated.generated_state,
                             JsonView::BorrowedArray(&RawEventsView::plain(&[])),
                             raw.len(),
                             g
@@ -3677,7 +3699,7 @@ mod tests {
                     assert!(owner
                         .audit(
                             &mut reader,
-                            &generated.generated_state,
+                            &*generated.generated_state,
                             JsonView::BorrowedArray(&RawEventsView::plain(&[])),
                             raw.len(),
                             g
@@ -3702,7 +3724,7 @@ mod tests {
                 assert!(verify_generated_members(
                     &mut s,
                     &missing,
-                    &generated.generated_state,
+                    &*generated.generated_state,
                     &[],
                     &raw[..=frontier as usize],
                     g,
@@ -3720,7 +3742,7 @@ mod tests {
                 assert!(verify_generated_members(
                     &mut s,
                     &ghost,
-                    &generated.generated_state,
+                    &*generated.generated_state,
                     &[],
                     &raw[..=frontier as usize],
                     g,
@@ -3739,7 +3761,7 @@ mod tests {
                 assert!(verify_generated_members(
                     &mut s,
                     &wrong,
-                    &generated.generated_state,
+                    &*generated.generated_state,
                     &[],
                     &raw[..=frontier as usize],
                     g,

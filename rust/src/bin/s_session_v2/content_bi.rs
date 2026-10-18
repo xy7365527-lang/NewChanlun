@@ -44,6 +44,7 @@
 #![allow(dead_code)]
 
 use super::content_producer::{array_from_sequence, Cc004Producer, ProducerError, TypedObject};
+use super::v3::fixed_radix::{FixedRadix, Iter as RadixIter};
 use super::*;
 use newchan_rust::s_content::capture_allocation::audit_json::{ArrayView, JsonArray, JsonView};
 use newchan_rust::s_content::path::{lookup_path, PathStep};
@@ -179,6 +180,7 @@ fn event_coord(event: JsonView<'_>) -> Result<i64, BiError> {
 pub(super) enum BiLedgerView<'a> {
     Plain(&'a BTreeMap<i64, Value>),
     Views(&'a BTreeMap<i64, JsonView<'a>>),
+    RadixViews(&'a FixedRadix<i64, JsonView<'a>>),
     Delta(super::s_fact_cache::EffectiveRawView<'a>),
 }
 
@@ -187,6 +189,7 @@ impl<'a> BiLedgerView<'a> {
         match self {
             Self::Plain(rows) => rows.len(),
             Self::Views(rows) => rows.len(),
+            Self::RadixViews(rows) => rows.len(),
             Self::Delta(rows) => rows.len(),
         }
     }
@@ -195,6 +198,7 @@ impl<'a> BiLedgerView<'a> {
         match self {
             Self::Plain(rows) => rows.get(&coord).map(JsonView::from),
             Self::Views(rows) => rows.get(&coord).copied(),
+            Self::RadixViews(rows) => rows.get(&coord).copied(),
             Self::Delta(rows) => rows.get(coord),
         }
     }
@@ -203,6 +207,7 @@ impl<'a> BiLedgerView<'a> {
         match self {
             Self::Plain(rows) => BiRows::Plain(rows.iter()),
             Self::Views(rows) => BiRows::Views(rows.iter()),
+            Self::RadixViews(rows) => BiRows::Radix(rows.iter()),
             Self::Delta(rows) => BiRows::Delta(rows.rows_from(0)),
         }
     }
@@ -211,12 +216,14 @@ impl<'a> BiLedgerView<'a> {
         match self {
             Self::Plain(rows) => BiRows::PlainRange(rows.range(start..=end)),
             Self::Views(rows) => BiRows::ViewsRange(rows.range(start..=end)),
+            Self::RadixViews(rows) => BiRows::Radix(rows.range(start..=end)),
             Self::Delta(rows) => BiRows::Delta(rows.range(start, end)),
         }
     }
 }
 
 enum BiRows<'a> {
+    Radix(RadixIter<'a, i64, JsonView<'a>>),
     Delta(super::s_fact_cache::EffectiveRawRows<'a>),
     Plain(std::collections::btree_map::Iter<'a, i64, Value>),
     Views(std::collections::btree_map::Iter<'a, i64, JsonView<'a>>),
@@ -232,6 +239,7 @@ impl<'a> Iterator for BiRows<'a> {
             Self::Delta(rows) => rows.next(),
             Self::Plain(rows) => rows.next().map(|(coord, row)| (*coord, row.into())),
             Self::Views(rows) => rows.next().map(|(coord, row)| (*coord, *row)),
+            Self::Radix(rows) => rows.next().map(|(coord, row)| (*coord, *row)),
             Self::PlainRange(rows) => rows.next().map(|(coord, row)| (*coord, row.into())),
             Self::ViewsRange(rows) => rows.next().map(|(coord, row)| (*coord, *row)),
         }
@@ -2075,6 +2083,49 @@ fn coord_array(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn radix_ledger_borrowed_rows_match_plain_and_views_with_closed_ranges() {
+        let mut raw = BTreeMap::new();
+        for coord in [i64::MIN, -1, 0, 1, i64::MAX] {
+            raw.insert(
+                coord,
+                serde_json::json!({"source_coord":coord.to_string(),"seq":coord}),
+            );
+        }
+        let views: BTreeMap<i64, JsonView<'_>> = raw.iter().map(|(k, v)| (*k, v.into())).collect();
+        let mut radix = FixedRadix::new();
+        let admission = MemoryNodes::new();
+        for (coord, row) in &views {
+            radix.insert_admitted(*coord, *row, &admission).unwrap();
+        }
+        let layouts = [
+            BiLedgerView::Plain(&raw),
+            BiLedgerView::Views(&views),
+            BiLedgerView::RadixViews(&radix),
+        ];
+        let snapshot = |rows: BiRows<'_>| {
+            rows.map(|(coord, row)| (coord, serde_json::to_value(row).unwrap()))
+                .collect::<Vec<_>>()
+        };
+        let expected = snapshot(layouts[0].iter());
+        for layout in layouts {
+            assert_eq!(layout.len(), raw.len());
+            assert_eq!(snapshot(layout.iter()), expected);
+            for key in [i64::MIN, -1, 0, 1, i64::MAX] {
+                assert_eq!(
+                    serde_json::to_value(layout.get(key).unwrap()).unwrap(),
+                    raw[&key]
+                );
+                for end in [key, i64::MAX] {
+                    assert_eq!(
+                        snapshot(layout.range(key, end)),
+                        snapshot(layouts[0].range(key, end))
+                    );
+                }
+            }
+        }
+    }
+
     use super::content_producer::RawRefSpec;
     use super::*;
     use newchan_rust::s_content::{MemoryNodes, NodeRead, NodeSink, NodeSource};

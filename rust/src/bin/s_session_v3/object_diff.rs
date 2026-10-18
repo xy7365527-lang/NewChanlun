@@ -826,7 +826,7 @@ mod tests {
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn admitted_slice_and_indexed_share_order_and_failure_semantics() {
-        let budget = super::super::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
         let baseline = budget.live();
         for mask in 0..16usize {
             let old = (0..4)
@@ -887,7 +887,7 @@ mod tests {
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn admitted_changes_keep_permits_past_scope_and_release_on_drop() {
-        let budget = super::super::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
         let baseline = budget.live();
         let old = vec![
             stored("removed", "gone", "v", true),
@@ -924,7 +924,7 @@ mod tests {
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn admitted_diff_preserves_lazy_read_order_and_budget_failure_atomicity() {
-        let budget = super::super::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
         let baseline = budget.live();
         let (birth, birth_reads) = View::unreadable();
         let new_birth = vec![key("fresh", "slot", birth)];
@@ -986,7 +986,7 @@ mod tests {
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn admitted_diff_rejects_two_allocation_domains_before_growth() {
-        let budget = super::super::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
         let owned = OwnedBudget::new(1024 * 1024);
         let baseline = budget.live();
         budget
@@ -1013,7 +1013,7 @@ mod tests {
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn admitted_diff_partial_output_growth_failure_releases_all_buffers() {
-        let budget = super::super::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
         let baseline = budget.live();
         let old = (0..9)
             .map(|i| stored(&format!("old{i}"), "slot", "v", true))

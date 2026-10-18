@@ -6,7 +6,7 @@
 use super::audit_store::{CodecRead, NativeAdmission};
 use super::{audit_header::AuditSourceCommit, state::ImmutableHistoricalAudit};
 use newchan_rust::{
-    s_content::{capture_allocation::scratch::WorkScope, AuditCapture},
+    s_content::{capture_allocation::scratch::WorkScope, AuditCapture, CodecVec},
     sqlite_checked::CheckedStatement,
 };
 use rusqlite::{
@@ -240,8 +240,8 @@ pub(super) enum SqlCell {
     Null,
     Integer(i64),
     Real(u64),
-    Text(Vec<u8>),
-    Blob(Vec<u8>),
+    Text(CodecVec<u8>),
+    Blob(CodecVec<u8>),
 }
 /// 参数与依赖 scope 在准入前只借用，不提前创建 Vec/String owner。
 #[derive(Clone, Copy)]
@@ -252,6 +252,28 @@ pub(super) enum SqlCellView<'a> {
     Text(&'a [u8]),
     Blob(&'a [u8]),
 }
+/// 每次 Native 写入都经过共享活动域与同父许可门。
+pub(super) fn push_cell<T>(
+    values: &mut CodecVec<T>,
+    value: T,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    match work {
+        Some(work) => values.try_push_native(value, work),
+        None => values.try_push(value),
+    }
+    .map_err(storage)
+}
+fn reserve_cells<T>(
+    values: &mut CodecVec<T>,
+    n: usize,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    if let Some(work) = work {
+        values.try_reserve_native(work, n).map_err(storage)?;
+    }
+    Ok(())
+}
 impl SqlCellView<'_> {
     fn copy_admitted(self, store: &NativeAdmission<'_>) -> Result<SqlCell, String> {
         Ok(match self {
@@ -259,11 +281,12 @@ impl SqlCellView<'_> {
             Self::Integer(value) => SqlCell::Integer(value),
             Self::Real(bits) => SqlCell::Real(bits),
             Self::Text(value) | Self::Blob(value) => {
-                let mut bytes = Vec::new();
-                store
-                    .native_vec_room(&mut bytes, value.len())
-                    .map_err(|e| e.to_string())?;
-                bytes.extend_from_slice(value);
+                let mut bytes = CodecVec::default();
+                match store.0 {
+                    Some(work) => bytes.try_extend_bytes_native(value, work),
+                    None => bytes.try_extend_bytes(value),
+                }
+                .map_err(storage)?;
                 if matches!(self, Self::Text(_)) {
                     SqlCell::Text(bytes)
                 } else {
@@ -275,12 +298,66 @@ impl SqlCellView<'_> {
 }
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct ExactRows {
-    pub(super) sql: String,
-    pub(super) scope: Vec<SqlCell>,
-    pub(super) columns: Vec<String>,
-    pub(super) rows: Vec<Vec<SqlCell>>,
+    pub(super) sql: super::business_json::TextValue,
+    pub(super) scope: CodecVec<SqlCell>,
+    pub(super) columns: CodecVec<super::business_json::TextValue>,
+    pub(super) rows: CodecVec<CodecVec<SqlCell>>,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) fn manual_cells_bytes(row: &CodecVec<SqlCell>) -> usize {
+    use super::audit_retention::{sum, vec_bytes};
+    sum([
+        if row.is_native_bound() || row.allocation_budget().is_some() {
+            0
+        } else {
+            vec_bytes::<SqlCell>(row.capacity())
+        },
+        row.iter()
+            .map(|cell| match cell {
+                SqlCell::Text(bytes) | SqlCell::Blob(bytes)
+                    if !bytes.is_native_bound() && bytes.allocation_budget().is_none() =>
+                {
+                    bytes.capacity()
+                }
+                _ => 0,
+            })
+            .fold(0usize, usize::saturating_add),
+    ])
 }
 impl ExactRows {
+    /// 返回仍由调用方手工账持有的分配；Native 自持许可与 Owned allocator 不二次退款。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn manual_heap_bytes(&self) -> usize {
+        use super::audit_retention::{sum, vec_bytes};
+        let text_bytes = |text: &super::business_json::TextValue| match text {
+            super::business_json::TextValue::Plain(value) if !value.is_native_admitted() => {
+                value.capacity()
+            }
+            _ => 0,
+        };
+        sum([
+            text_bytes(&self.sql),
+            manual_cells_bytes(&self.scope),
+            if self.columns.is_native_bound() || self.columns.allocation_budget().is_some() {
+                0
+            } else {
+                vec_bytes::<super::business_json::TextValue>(self.columns.capacity())
+            },
+            self.columns
+                .iter()
+                .map(text_bytes)
+                .fold(0usize, usize::saturating_add),
+            if self.rows.is_native_bound() || self.rows.allocation_budget().is_some() {
+                0
+            } else {
+                vec_bytes::<CodecVec<SqlCell>>(self.rows.capacity())
+            },
+            self.rows
+                .iter()
+                .map(manual_cells_bytes)
+                .fold(0usize, usize::saturating_add),
+        ])
+    }
     /// 原 SQL、原顺序与完整 storage class 绑定；唯一 Native 父域在复制前准入。
     /// SQLite 自身转换先经 CheckedStatement/CheckedRow 的 NOMEM 门再开放借用。
     pub(super) fn read_admitted(
@@ -292,13 +369,13 @@ impl ExactRows {
     ) -> Result<Self, String> {
         let store = NativeAdmission(work);
         let sql_text = sql.to_str().map_err(storage)?;
-        let owned_sql = store.native_string(sql_text).map_err(|e| e.to_string())?;
-        let mut owned_scope = Vec::new();
+        let owned_sql = store.native_text(sql_text)?;
+        let mut owned_scope = CodecVec::default();
         store
-            .native_vec_room(&mut owned_scope, scope.len())
+            .native_codec_room(&mut owned_scope, scope.len())
             .map_err(|e| e.to_string())?;
         for cell in scope {
-            owned_scope.push(cell.copy_admitted(&store)?);
+            push_cell(&mut owned_scope, cell.copy_admitted(&store)?, work)?;
         }
         let mut stmt = CheckedStatement::prepare(tx, sql).map_err(storage)?;
         for (index, param) in params.iter().enumerate() {
@@ -318,22 +395,22 @@ impl ExactRows {
             .map_err(storage)?;
         }
         let count = stmt.column_count();
-        let mut columns = Vec::new();
+        let mut columns = CodecVec::default();
         store
-            .native_vec_room(&mut columns, count)
+            .native_codec_room(&mut columns, count)
             .map_err(|e| e.to_string())?;
         for column in 0..count {
             let name = stmt.column_name(column).map_err(storage)?;
-            columns.push(store.native_string(name).map_err(|e| e.to_string())?);
+            push_cell(&mut columns, store.native_text(name)?, work)?;
         }
-        let mut rows = Vec::new();
+        let mut rows = CodecVec::default();
         while let Some(mut row) = stmt.next().map_err(storage)? {
             store
-                .native_vec_room(&mut rows, 1)
+                .native_codec_room(&mut rows, 1)
                 .map_err(|e| e.to_string())?;
-            let mut cells = Vec::new();
+            let mut cells = CodecVec::default();
             store
-                .native_vec_room(&mut cells, count)
+                .native_codec_room(&mut cells, count)
                 .map_err(|e| e.to_string())?;
             for column in 0..count {
                 let cell = match row.column_type(column).map_err(storage)? {
@@ -343,9 +420,9 @@ impl ExactRows {
                     Type::Text => SqlCellView::Text(row.text_bytes(column).map_err(storage)?),
                     Type::Blob => SqlCellView::Blob(row.blob(column).map_err(storage)?),
                 };
-                cells.push(cell.copy_admitted(&store)?);
+                push_cell(&mut cells, cell.copy_admitted(&store)?, work)?;
             }
-            rows.push(cells);
+            push_cell(&mut rows, cells, work)?;
         }
         stmt.finalize().map_err(storage)?;
         Ok(Self {
@@ -362,10 +439,10 @@ impl ExactRows {
         scope: Vec<SqlCell>,
     ) -> Result<Self, String> {
         let mut stmt = tx.prepare(sql).map_err(storage)?;
-        let columns = stmt
+        let columns: Vec<_> = stmt
             .column_names()
             .iter()
-            .map(|name| (*name).to_owned())
+            .map(|name| (*name).into())
             .collect();
         let count = stmt.column_count();
         let mut cursor = stmt.query(params).map_err(storage)?;
@@ -377,19 +454,19 @@ impl ExactRows {
                     ValueRef::Null => SqlCell::Null,
                     ValueRef::Integer(v) => SqlCell::Integer(v),
                     ValueRef::Real(v) => SqlCell::Real(v.to_bits()),
-                    ValueRef::Text(v) => SqlCell::Text(v.to_vec()),
-                    ValueRef::Blob(v) => SqlCell::Blob(v.to_vec()),
+                    ValueRef::Text(v) => SqlCell::Text(CodecVec::from_plain(v.to_vec())),
+                    ValueRef::Blob(v) => SqlCell::Blob(CodecVec::from_plain(v.to_vec())),
                 });
             }
-            rows.push(cells);
+            rows.push(CodecVec::from_plain(cells));
         }
         drop(cursor);
         stmt.finalize().map_err(storage)?;
         Ok(Self {
-            sql: sql.to_owned(),
-            scope,
-            columns,
-            rows,
+            sql: sql.into(),
+            scope: CodecVec::from_plain(scope),
+            columns: CodecVec::from_plain(columns),
+            rows: CodecVec::from_plain(rows),
         })
     }
 }
@@ -402,7 +479,7 @@ fn storage(e: impl std::fmt::Display) -> String {
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct HistoricalDependencyBinding {
     frontier: i64,
-    material: Vec<ExactRows>,
+    material: CodecVec<ExactRows>,
 }
 impl HistoricalDependencyBinding {
     pub(super) fn read(
@@ -422,17 +499,21 @@ impl HistoricalDependencyBinding {
             .last()
             .map_or(-1, |cut| cut.metadata.input_frontier);
         let store = NativeAdmission(work);
-        let mut material = Vec::new();
+        let mut material = CodecVec::default();
         store
-            .native_vec_room(&mut material, 14)
+            .native_codec_room(&mut material, 14)
             .map_err(|e| e.to_string())?;
-        material.push(ExactRows::read_admitted(
-            tx,
-            c"SELECT rowid,* FROM sqlite_schema ORDER BY rowid",
-            &[],
-            &[],
+        push_cell(
+            &mut material,
+            ExactRows::read_admitted(
+                tx,
+                c"SELECT rowid,* FROM sqlite_schema ORDER BY rowid",
+                &[],
+                &[],
+                work,
+            )?,
             work,
-        )?);
+        )?;
         let mut meta = ExactRows::read_admitted(
             tx,
             c"SELECT rowid,* FROM meta ORDER BY rowid",
@@ -441,9 +522,14 @@ impl HistoricalDependencyBinding {
             work,
         )?;
         // 只隔离四个正常Begin字段；非TEXT键及任何未知键仍完整进入历史绑定。
-        meta.rows.retain(|row| !matches!(row.get(1), Some(SqlCell::Text(key))
-            if [b"begin_generation".as_slice(),b"begin_input_frontier",b"begin_token",b"advance_state"].contains(&key.as_slice())));
-        material.push(meta);
+        for i in (0..meta.rows.len()).rev() {
+            if matches!(meta.rows[i].get(1), Some(SqlCell::Text(key))
+                if [b"begin_generation".as_ref(),b"begin_input_frontier",b"begin_token",b"advance_state"].contains(&key.as_ref()))
+            {
+                meta.rows.remove(i);
+            }
+        }
+        push_cell(&mut material, meta, work)?;
         // 静态原SQL免去 format! 临时副本；字节和旧表循环完全一致。
         for sql in [
             c"SELECT rowid,* FROM s_content_meta ORDER BY rowid",
@@ -456,22 +542,30 @@ impl HistoricalDependencyBinding {
             c"SELECT rowid,* FROM writer_epoch_history ORDER BY rowid",
             c"SELECT rowid,* FROM catalog ORDER BY rowid",
         ] {
-            material.push(ExactRows::read_admitted(tx, sql, &[], &[], work)?);
+            push_cell(
+                &mut material,
+                ExactRows::read_admitted(tx, sql, &[], &[], work)?,
+                work,
+            )?;
         }
-        material.push(ExactRows::read_admitted(tx,
-            c"SELECT rowid,singleton,protocol_revision,session_generation,clock_plan_hash,clock_plan_json FROM s_protocol_meta ORDER BY rowid", &[], &[], work)?);
+        push_cell(&mut material, ExactRows::read_admitted(tx,
+            c"SELECT rowid,singleton,protocol_revision,session_generation,clock_plan_hash,clock_plan_json FROM s_protocol_meta ORDER BY rowid", &[], &[], work)?, work)?;
         let frontier_scope = [SqlCellView::Integer(frontier)];
-        material.push(ExactRows::read_admitted(
-            tx,
-            c"SELECT rowid,* FROM raw_events WHERE seq<=?1 ORDER BY seq,rowid",
-            &frontier_scope,
-            &frontier_scope,
+        push_cell(
+            &mut material,
+            ExactRows::read_admitted(
+                tx,
+                c"SELECT rowid,* FROM raw_events WHERE seq<=?1 ORDER BY seq,rowid",
+                &frontier_scope,
+                &frontier_scope,
+                work,
+            )?,
             work,
-        )?);
+        )?;
         // 独立OHLC全集负依赖；只排除已通过fresh全账/enrich的正常尾部对应行。
-        material.push(ExactRows::read_admitted(tx,
+        push_cell(&mut material, ExactRows::read_admitted(tx,
             c"SELECT o.rowid,o.* FROM raw_ohlc o WHERE NOT EXISTS(SELECT 1 FROM raw_events r WHERE r.identity_key=o.identity_key AND r.revision=o.revision AND r.seq>?1) ORDER BY o.rowid",
-            &frontier_scope, &frontier_scope, work)?);
+            &frontier_scope, &frontier_scope, work)?, work)?;
         for cut in &history.cuts {
             Self::read_source(tx, &cut.metadata.source_commit, &mut material, work)?;
         }
@@ -480,28 +574,28 @@ impl HistoricalDependencyBinding {
     fn read_source(
         tx: &Transaction<'_>,
         source: &AuditSourceCommit,
-        out: &mut Vec<ExactRows>,
+        out: &mut CodecVec<ExactRows>,
         work: Option<&WorkScope>,
     ) -> Result<(), String> {
         NativeAdmission(work)
-            .native_vec_room(out, 2)
+            .native_codec_room(out, 2)
             .map_err(|e| e.to_string())?;
         let source_scope = [
             SqlCellView::Text(source.source_namespace.as_bytes()),
             SqlCellView::Text(source.source_epoch.as_bytes()),
             SqlCellView::Text(source.message_id.as_bytes()),
         ];
-        out.push(ExactRows::read_admitted(tx,
+        push_cell(out, ExactRows::read_admitted(tx,
             c"SELECT canonical_envelope FROM s_input_messages WHERE source_namespace=?1 AND source_epoch=?2 AND message_id=?3 ORDER BY rowid",
-            &source_scope, &source_scope, work)?);
+            &source_scope, &source_scope, work)?, work)?;
         let clock_scope = [
             SqlCellView::Text(source.clock_event_id.as_bytes()),
             SqlCellView::Text(b"commit"),
             SqlCellView::Integer(source.attempt_index),
         ];
-        out.push(ExactRows::read_admitted(tx,
+        push_cell(out, ExactRows::read_admitted(tx,
             c"SELECT generation,semantic_ns FROM s_clock_events WHERE clock_event_id=?1 AND phase='commit' AND attempt_index=?2 ORDER BY rowid",
-            &[clock_scope[0], clock_scope[2]], &clock_scope, work)?);
+            &[clock_scope[0], clock_scope[2]], &clock_scope, work)?, work)?;
         Ok(())
     }
 }
@@ -541,16 +635,28 @@ mod tests {
             vec![
                 SqlCell::Integer(1),
                 SqlCell::Real(bits),
-                SqlCell::Text(b"scope\0text".to_vec()),
-                SqlCell::Blob(vec![0, 255, 128]),
+                SqlCell::Text(newchan_rust::s_content::CodecVec::from_plain(
+                    b"scope\0text".to_vec(),
+                )),
+                SqlCell::Blob(newchan_rust::s_content::CodecVec::from_plain(vec![
+                    0, 255, 128,
+                ])),
                 SqlCell::Null,
             ],
         )
         .unwrap();
         assert_eq!(expected.rows.len(), 17);
         assert_eq!(expected.rows[0][2], SqlCell::Real(bits));
-        assert_eq!(expected.rows[16][3], SqlCell::Text(vec![128, 255, 0]));
-        assert_eq!(expected.rows[15][4], SqlCell::Blob(vec![]));
+        assert_eq!(
+            expected.rows[16][3],
+            SqlCell::Text(newchan_rust::s_content::CodecVec::from_plain(vec![
+                128, 255, 0
+            ]))
+        );
+        assert_eq!(
+            expected.rows[15][4],
+            SqlCell::Blob(newchan_rust::s_content::CodecVec::from_plain(vec![]))
+        );
         let empty_sql = c"SELECT i AS integer_value,r AS real_value,t AS text_value,b AS blob_value,n AS null_value FROM exact_r11 WHERE 0 ORDER BY rowid";
         let empty = ExactRows::read(&tx, empty_sql.to_str().unwrap(), [], vec![]).unwrap();
         assert!(empty.rows.is_empty());
@@ -604,20 +710,21 @@ mod tests {
                 assert_eq!(got_scalar, scalar, "全部参数类型与负零REAL位模式均须相同");
                 assert!(budget.live() > scope_before);
                 drop((got, got_empty, got_scalar));
-                assert!(
-                    budget.live() > scope_before,
-                    "普通容器许可保守持到同父域结束"
+                assert_eq!(
+                    budget.live(),
+                    scope_before,
+                    "逐级owner析构后立即归还自身许可"
                 );
                 native_retained = budget.live() - scope_before;
                 Ok::<_, String>(())
             })
             .unwrap();
         assert!(budget.peak() > before);
-        assert!(native_retained > 0);
+        assert_eq!(native_retained, 0);
         assert_eq!(
             budget.live(),
             before + native_retained,
-            "Native保守费用随父Budget存活，codec工作域仅归还自身元数据"
+            "逐级owner与工作域元数据分别真实析构后归零"
         );
         assert_eq!(budget.scratch_observation().0, 0);
         assert_eq!(budget.scratch_observation().2, 0);
@@ -703,8 +810,8 @@ mod tests {
         assert!(subset);
         assert_eq!(fresh_count, count);
         for (digest, tag, body) in &baseline {
-            assert_eq!(capture.original(digest), Some((*tag, body.as_slice())));
-            assert_eq!(fresh.original(digest), Some((*tag, body.as_slice())));
+            assert_eq!(capture.original(digest), Some((*tag, body.as_ref())));
+            assert_eq!(fresh.original(digest), Some((*tag, body.as_ref())));
             if !body.is_empty() {
                 assert_ne!(
                     capture.original(digest).unwrap().1.as_ptr(),
@@ -870,28 +977,50 @@ mod tests {
                 }
             }
             assert_eq!((context.cold, context.hits), (2, 2));
+            // Isolate migrated R material from the legacy capture/scan retain paths.
+            // Context and all other request state drop before the returned owner.
+            std::mem::take(&mut context.slot.as_mut().unwrap().binding.material)
         };
         if admitted {
             let budget = Budget::new(64 * 1024 * 1024, 0).unwrap();
             let before = budget.live();
-            let mut native_retained = 0;
+            let mut legacy_retained = 0;
+            let mut material_refunded = 0;
             budget
                 .codec_work()
                 .unwrap()
                 .run(|work| {
                     let scope_before = budget.live();
-                    run(Some(work));
-                    assert!(budget.live() > scope_before);
-                    native_retained = budget.live() - scope_before;
+                    use super::super::audit_retention::Retained;
+                    let material = run(Some(work));
+                    let material_bytes = material.heap_bytes();
+                    assert!(
+                        material_bytes > 0,
+                        "fixture retains actual R material owners"
+                    );
+                    let before_material_drop = budget.live();
+                    drop(material);
+                    assert_eq!(
+                        before_material_drop - budget.live(),
+                        material_bytes,
+                        "only migrated R owners refund here; legacy capture/scan retain remains"
+                    );
+                    material_refunded = material_bytes;
+                    assert!(
+                        budget.live() > scope_before,
+                        "legacy retain is still explicitly present"
+                    );
+                    legacy_retained = budget.live() - scope_before;
                     Ok::<_, String>(())
                 })
                 .unwrap();
             assert!(budget.peak() > before);
-            assert!(native_retained > 0);
+            assert!(material_refunded > 0);
+            assert!(legacy_retained > 0);
             assert_eq!(
                 budget.live(),
-                before + native_retained,
-                "context已析构，Native保守费用仍随父Budget存活"
+                before + legacy_retained,
+                "R material已退款，未迁移capture/scan费用仍随父Budget存活"
             );
             assert_eq!(budget.scratch_observation().0, 0);
             assert_eq!(budget.scratch_observation().2, 0);
@@ -900,11 +1029,13 @@ mod tests {
                 serde_json::json!({
                     "limit_bytes":64*1024*1024,"peak_bytes":budget.peak(),
                     "phases":4,"cold":2,"hits":2,"complete_outputs_equal":true,
+                    "r_material_refunded_bytes":material_refunded,
+                    "legacy_retained_bytes":legacy_retained,
                     "whole_heap_qualified":false
                 })
             );
         } else {
-            run(None);
+            drop(run(None));
         }
     }
 
@@ -1645,7 +1776,7 @@ impl ExactRows {
     ) -> Result<Option<(Self, usize)>, String> {
         Self::read_optional_bounded_params_in_parent(tx, sql, params, cap, None)
     }
-    fn read_optional_bounded_params_in_parent(
+    pub(super) fn read_optional_bounded_params_in_parent(
         tx: &Transaction<'_>,
         sql: &str,
         params: impl Params,
@@ -1656,7 +1787,10 @@ impl ExactRows {
         let mut stmt = tx.prepare(sql).map_err(storage)?;
         let count = stmt.column_count();
         // column_names() 自身会分配 Vec；只借用逐列名称计算完整头部请求量。
-        let mut fixed = sum([sql.len(), vec_bytes::<String>(count)]);
+        let mut fixed = sum([
+            sql.len(),
+            vec_bytes::<super::business_json::TextValue>(count),
+        ]);
         for i in 0..count {
             fixed = fixed.saturating_add(stmt.column_name(i).map_err(storage)?.len());
         }
@@ -1664,13 +1798,9 @@ impl ExactRows {
             stmt.finalize().map_err(storage)?;
             return Ok(None);
         }
-        let header_permit = match parent.map(|b| b.reserve(fixed)).transpose() {
-            Ok(permit) => permit,
-            Err(_) => {
-                stmt.finalize().map_err(storage)?;
-                return Ok(None);
-            }
-        };
+        if let Some(parent) = parent {
+            return Self::read_optional_native_prepared(stmt, sql, params, count, cap, parent);
+        }
         let mut columns = Vec::new();
         let mut owned_sql = String::new();
         if columns.try_reserve_exact(count).is_err()
@@ -1688,21 +1818,18 @@ impl ExactRows {
                 return Ok(None);
             }
             owned.push_str(name);
-            columns.push(owned);
+            columns.push(owned.into());
         }
         let mut result = Self {
-            sql: owned_sql,
-            scope: vec![],
-            columns,
-            rows: vec![],
+            sql: owned_sql.into(),
+            scope: CodecVec::default(),
+            columns: CodecVec::from_plain(columns),
+            rows: CodecVec::default(),
         };
         let fixed = sum([result.sql.capacity(), result.columns.heap_bytes()]);
         if fixed > cap {
             stmt.finalize().map_err(storage)?;
             return Ok(None);
-        }
-        if let Some(permit) = header_permit {
-            permit.commit(0, fixed);
         }
         let mut payload = 0usize;
         let mut peak = fixed;
@@ -1728,9 +1855,9 @@ impl ExactRows {
                 fixed,
                 payload,
                 row_bytes,
-                vec_bytes::<Vec<SqlCell>>(new_capacity),
+                vec_bytes::<CodecVec<SqlCell>>(new_capacity),
                 if grows {
-                    vec_bytes::<Vec<SqlCell>>(old_capacity)
+                    vec_bytes::<CodecVec<SqlCell>>(old_capacity)
                 } else {
                     0
                 },
@@ -1740,20 +1867,6 @@ impl ExactRows {
                 fits = false;
                 break;
             }
-            let grow_permit = if grows {
-                match parent
-                    .map(|b| b.reserve(vec_bytes::<Vec<SqlCell>>(new_capacity)))
-                    .transpose()
-                {
-                    Ok(permit) => permit,
-                    Err(_) => {
-                        fits = false;
-                        break;
-                    }
-                }
-            } else {
-                None
-            };
             if grows
                 && result
                     .rows
@@ -1763,38 +1876,25 @@ impl ExactRows {
                 fits = false;
                 break;
             }
-            if let Some(permit) = grow_permit {
-                permit.commit(
-                    vec_bytes::<Vec<SqlCell>>(old_capacity),
-                    vec_bytes::<Vec<SqlCell>>(result.rows.capacity()),
-                );
-            }
-            let row_permit = match parent.map(|b| b.reserve(row_bytes)).transpose() {
-                Ok(permit) => permit,
-                Err(_) => {
-                    fits = false;
-                    break;
-                }
-            };
             let mut cells = Vec::with_capacity(count);
             for i in 0..count {
                 cells.push(match row.get_ref(i).map_err(storage)? {
                     ValueRef::Null => SqlCell::Null,
                     ValueRef::Integer(v) => SqlCell::Integer(v),
                     ValueRef::Real(v) => SqlCell::Real(v.to_bits()),
-                    ValueRef::Text(v) => SqlCell::Text(v.to_vec()),
-                    ValueRef::Blob(v) => SqlCell::Blob(v.to_vec()),
+                    ValueRef::Text(v) => SqlCell::Text(CodecVec::from_plain(v.to_vec())),
+                    ValueRef::Blob(v) => SqlCell::Blob(CodecVec::from_plain(v.to_vec())),
                 });
             }
-            if let Some(permit) = row_permit {
-                permit.commit(0, cells.heap_bytes());
-            }
             payload = payload.saturating_add(cells.heap_bytes());
-            result.rows.push(cells);
+            result
+                .rows
+                .try_push(CodecVec::from_plain(cells))
+                .map_err(storage)?;
             peak = peak.max(sum([
                 fixed,
                 payload,
-                vec_bytes::<Vec<SqlCell>>(result.rows.capacity()),
+                vec_bytes::<CodecVec<SqlCell>>(result.rows.capacity()),
             ]));
             if peak > cap {
                 fits = false;
@@ -1804,5 +1904,323 @@ impl ExactRows {
         drop(cursor);
         stmt.finalize().map_err(storage)?;
         Ok(fits.then_some((result, peak)))
+    }
+    /// prepare、列校验与fixed-cap检查均先于本域创建。
+    /// 资源错误先退出run，再在边界转为可选拒绝。
+    fn read_optional_native_prepared(
+        mut stmt: rusqlite::Statement<'_>,
+        sql: &str,
+        params: impl Params,
+        count: usize,
+        cap: usize,
+        parent: &super::audit_owner::native::Budget,
+    ) -> Result<Option<(Self, usize)>, String> {
+        use super::audit_retention::{sum, vec_bytes, Retained};
+        use newchan_rust::s_content::capture_allocation::scratch::{
+            CodecWork, ScratchFailure, WorkError,
+        };
+        let metadata = CodecWork::metadata_bytes();
+        if metadata > cap {
+            stmt.finalize().map_err(storage)?;
+            return Ok(None);
+        }
+        let work = match parent.codec_work() {
+            Ok(work) => work,
+            Err(_) => {
+                stmt.finalize().map_err(storage)?;
+                return Ok(None);
+            }
+        };
+        let attempted = work.run(|scope| -> Result<(Self, usize), String> {
+            let admission = NativeAdmission(Some(scope));
+            let mut columns = CodecVec::default();
+            let column_capacity = if count == 0 { 0 } else { count.max(4) };
+            let mut expected = sum([
+                metadata,
+                sql.len(),
+                vec_bytes::<super::business_json::TextValue>(column_capacity),
+            ]);
+            for i in 0..count {
+                expected = expected.saturating_add(stmt.column_name(i).map_err(storage)?.len());
+            }
+            if expected > cap {
+                return Err(scope.reject(ScratchFailure::Budget).to_string());
+            }
+            reserve_cells(&mut columns, count, Some(scope))?;
+            let owned_sql = admission.native_text(sql)?;
+            for i in 0..count {
+                let name = stmt.column_name(i).map_err(storage)?;
+                push_cell(&mut columns, admission.native_text(name)?, Some(scope))?;
+            }
+            let mut result = Self {
+                sql: owned_sql,
+                scope: CodecVec::default(),
+                columns,
+                rows: CodecVec::default(),
+            };
+            // 空容器也绑定；后续写入同样必须证明父身份。
+            reserve_cells(&mut result.scope, 0, Some(scope))?;
+            reserve_cells(&mut result.rows, 0, Some(scope))?;
+            let fixed = result.heap_bytes();
+            let mut payload = 0usize;
+            let mut peak = sum([metadata, fixed]);
+            if peak > cap {
+                return Err(scope.reject(ScratchFailure::Budget).to_string());
+            }
+            let mut cursor = stmt.query(params).map_err(storage)?;
+            while let Some(row) = cursor.next().map_err(storage)? {
+                let old_capacity = result.rows.capacity();
+                let grows = result.rows.len() == old_capacity;
+                let new_capacity = if grows {
+                    old_capacity.saturating_mul(2).max(4)
+                } else {
+                    0
+                };
+                let mut row_bytes = vec_bytes::<SqlCell>(if count == 0 { 0 } else { count.max(4) });
+                for i in 0..count {
+                    row_bytes =
+                        row_bytes.saturating_add(match row.get_ref(i).map_err(storage)? {
+                            ValueRef::Text(v) | ValueRef::Blob(v) => {
+                                if v.is_empty() {
+                                    0
+                                } else {
+                                    v.len().max(4)
+                                }
+                            }
+                            _ => 0,
+                        });
+                }
+                // 完整旧外层块与完整新外层块共存；payload只累计每行一次。
+                let next_peak = sum([
+                    metadata,
+                    fixed,
+                    payload,
+                    vec_bytes::<CodecVec<SqlCell>>(old_capacity),
+                    row_bytes,
+                    vec_bytes::<CodecVec<SqlCell>>(new_capacity),
+                ]);
+                peak = peak.max(next_peak);
+                if peak > cap {
+                    return Err(scope.reject(ScratchFailure::Budget).to_string());
+                }
+                let mut cells = CodecVec::default();
+                reserve_cells(&mut cells, count, Some(scope))?;
+                for i in 0..count {
+                    let cell = match row.get_ref(i).map_err(storage)? {
+                        ValueRef::Null => SqlCellView::Null,
+                        ValueRef::Integer(v) => SqlCellView::Integer(v),
+                        ValueRef::Real(v) => SqlCellView::Real(v.to_bits()),
+                        ValueRef::Text(v) => SqlCellView::Text(v),
+                        ValueRef::Blob(v) => SqlCellView::Blob(v),
+                    };
+                    push_cell(&mut cells, cell.copy_admitted(&admission)?, Some(scope))?;
+                }
+                payload = payload.saturating_add(cells.heap_bytes());
+                push_cell(&mut result.rows, cells, Some(scope))?;
+                peak = peak.max(sum([
+                    metadata,
+                    fixed,
+                    payload,
+                    vec_bytes::<CodecVec<SqlCell>>(result.rows.capacity()),
+                ]));
+                if peak > cap {
+                    return Err(scope.reject(ScratchFailure::Budget).to_string());
+                }
+            }
+            Ok((result, peak))
+        });
+        // cursor已在run内析构；finalize的SQL错误不能因可选资源拒绝而变成None。
+        let finalized = stmt.finalize().map_err(storage);
+        match attempted {
+            Err(WorkError::Operation(error)) => {
+                let _ = finalized;
+                Err(error)
+            }
+            Err(WorkError::Resource(_)) => {
+                finalized?;
+                Ok(None)
+            }
+            Ok(value) => {
+                finalized?;
+                Ok(Some(value))
+            }
+        }
+    }
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+mod r_owner_move_tests {
+    use super::super::audit_owner::native::Budget;
+    use super::super::audit_retention::Retained;
+    use super::*;
+
+    #[test]
+    fn r_sql_row_pop_and_blob_move_keep_exact_parent_charge() {
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        let tx = conn.transaction().unwrap();
+        let parent = Budget::new(1024 * 1024, 0).unwrap();
+        let mut row = parent
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let mut rows = ExactRows::read_admitted(
+                    &tx,
+                    c"SELECT CAST(X'80FF00' AS TEXT),X'010203',-0.0,NULL",
+                    &[],
+                    &[],
+                    Some(work),
+                )?;
+                let row = rows.rows.pop().unwrap();
+                drop(rows);
+                Ok::<_, String>(row)
+            })
+            .unwrap();
+        assert!(row.is_native_bound());
+        assert_eq!(parent.live(), row.heap_bytes());
+        assert_eq!(manual_cells_bytes(&row), 0);
+        let before = parent.live();
+        let pointer = match &row[1] {
+            SqlCell::Blob(body) => body.as_ptr(),
+            _ => panic!("SQL BLOB"),
+        };
+        let body = match std::mem::replace(&mut row[1], SqlCell::Null) {
+            SqlCell::Blob(body) => body,
+            _ => panic!("SQL BLOB"),
+        };
+        assert_eq!(parent.live(), before);
+        assert_eq!(body.as_ptr(), pointer);
+        let body_charge = body.capacity();
+        drop(row);
+        assert_eq!(parent.live(), body_charge);
+        assert_eq!(body.as_ref(), &[1, 2, 3]);
+        drop(body);
+        assert_eq!(parent.live(), 0);
+    }
+
+    #[test]
+    fn r_optional_bad_sql_precedes_scope_and_rejected_read_refunds() {
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        let tx = conn.transaction().unwrap();
+        let tight = Budget::new(1, 0).unwrap();
+        assert!(ExactRows::read_optional_bounded_in_parent(
+            &tx,
+            "SELECT no_such_column",
+            0,
+            Some(&tight)
+        )
+        .is_err());
+        assert_eq!(tight.live(), 0);
+        let parent = Budget::new(1024 * 1024, 0).unwrap();
+        assert!(ExactRows::read_optional_bounded_in_parent(
+            &tx,
+            "SELECT zeroblob(10000)",
+            2048,
+            Some(&parent)
+        )
+        .unwrap()
+        .is_none());
+        assert_eq!(parent.live(), 0);
+        let got = ExactRows::read_optional_bounded_in_parent(
+            &tx,
+            "SELECT X'',CAST(X'80FF' AS TEXT),-0.0,NULL",
+            65536,
+            Some(&parent),
+        )
+        .unwrap()
+        .unwrap();
+        let plain = ExactRows::read_optional_bounded(
+            &tx,
+            "SELECT X'',CAST(X'80FF' AS TEXT),-0.0,NULL",
+            65536,
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(got.0, plain.0);
+        assert!(got.1 <= 65536);
+        drop(got);
+        assert_eq!(parent.live(), 0);
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_outer_rows_columns_scope_are_excluded_from_manual_refund() {
+        use super::super::business_json::TextValue;
+        use newchan_rust::s_content::capture_allocation::OwnedBudget;
+        let owned = OwnedBudget::new(1 << 20);
+        let mut body = CodecVec::new_with_allocation(Some(&owned));
+        body.try_extend_bytes(b"owned payload").unwrap();
+        let mut row = CodecVec::new_with_allocation(Some(&owned));
+        row.try_push(SqlCell::Blob(body)).unwrap();
+        assert!(row.capacity() > 0);
+        assert_eq!(
+            manual_cells_bytes(&row),
+            0,
+            "Owned row and payload each refund through their allocator"
+        );
+        let mut rows = CodecVec::new_with_allocation(Some(&owned));
+        rows.try_push(row).unwrap();
+        let mut columns = CodecVec::new_with_allocation(Some(&owned));
+        columns
+            .try_push(TextValue::from_str("owned_column", Some(&owned)).unwrap())
+            .unwrap();
+        let mut scope = CodecVec::new_with_allocation(Some(&owned));
+        scope.try_push(SqlCell::Null).unwrap();
+        let exact = ExactRows {
+            sql: TextValue::from_str("owned SQL", Some(&owned)).unwrap(),
+            scope,
+            columns,
+            rows,
+        };
+        assert!(owned.snapshot().live_requested_layout_bytes > 0);
+        assert_eq!(
+            exact.manual_heap_bytes(),
+            0,
+            "all outer Owned blocks are outside manual account"
+        );
+        drop(exact);
+        assert_eq!(owned.snapshot().live_requested_layout_bytes, 0);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_outer_manual_boundary_still_counts_nested_plain_allocations() {
+        use super::super::audit_retention::{vec_bytes, Retained};
+        use super::super::business_json::TextValue;
+        use newchan_rust::s_content::capture_allocation::OwnedBudget;
+        let owned = OwnedBudget::new(1 << 20);
+        let plain_bytes = b"manual body".to_vec();
+        let plain_capacity = plain_bytes.capacity();
+        let mut owned_row = CodecVec::new_with_allocation(Some(&owned));
+        owned_row
+            .try_push(SqlCell::Blob(CodecVec::from_plain(plain_bytes)))
+            .unwrap();
+        assert_eq!(
+            manual_cells_bytes(&owned_row),
+            plain_capacity,
+            "exclude only Owned outer block, keep nested Plain responsibility"
+        );
+        drop(owned_row);
+        assert_eq!(owned.snapshot().live_requested_layout_bytes, 0);
+        let mut columns = CodecVec::new_with_allocation(Some(&owned));
+        let column = TextValue::from_str("plain column", None).unwrap();
+        let column_bytes = column.heap_bytes();
+        columns.try_push(column).unwrap();
+        let plain_row = CodecVec::from_plain(vec![SqlCell::Blob(CodecVec::from_plain(
+            b"nested manual".to_vec(),
+        ))]);
+        let expected_row_bytes = manual_cells_bytes(&plain_row);
+        assert!(expected_row_bytes >= vec_bytes::<SqlCell>(plain_row.capacity()));
+        let mut rows = CodecVec::new_with_allocation(Some(&owned));
+        rows.try_push(plain_row).unwrap();
+        let mut scope = CodecVec::new_with_allocation(Some(&owned));
+        scope.try_push(SqlCell::Null).unwrap();
+        let exact = ExactRows {
+            sql: TextValue::from_str("owned SQL", Some(&owned)).unwrap(),
+            scope,
+            columns,
+            rows,
+        };
+        assert_eq!(exact.manual_heap_bytes(), column_bytes + expected_row_bytes);
+        drop(exact);
+        assert_eq!(owned.snapshot().live_requested_layout_bytes, 0);
     }
 }

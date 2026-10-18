@@ -31,6 +31,16 @@ pub struct NativeReservation {
     bytes: usize,
 }
 impl NativeReservation {
+    /// 只核父账身份；有效操作域仍由本次reserve_native检查。
+    #[doc(hidden)]
+    pub fn belongs_to_parent(&self, work: &WorkScope) -> bool {
+        Arc::ptr_eq(&self.parent, &work.handle.core().parent)
+    }
+    /// 同级所有权容器只比较父身份，不授予当前操作域写资格。
+    #[doc(hidden)]
+    pub(super) fn same_parent(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.parent, &other.parent)
+    }
     pub fn retain(mut self) {
         self.bytes = 0;
     }

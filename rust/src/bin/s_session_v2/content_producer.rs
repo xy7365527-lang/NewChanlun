@@ -1366,32 +1366,14 @@ impl Cc004Producer {
         )?;
         let mut observations: Vec<Built> = Vec::with_capacity(waiting_reasons.len());
         for reason in &waiting_reasons {
-            let observation = CValue::Object(vec![
-                (
-                    "kind".to_string(),
-                    CValue::String("awaiting_scope".to_string()),
-                ),
-                ("reason".to_string(), CValue::String((*reason).to_string())),
-                ("window_start".to_string(), CValue::Null),
-                ("window_mid".to_string(), CValue::Null),
-                ("window_end".to_string(), CValue::Null),
-                (
-                    "detail".to_string(),
-                    CValue::Object(vec![
-                        ("tb02a".to_string(), CValue::Bool(true)),
-                        (
-                            "source_coords".to_string(),
-                            CValue::Edge(object.source_coords.digest),
-                        ),
-                        (
-                            "input_frontier".to_string(),
-                            CValue::String(frontier.to_string()),
-                        ),
-                        ("waiting_reasons".to_string(), reasons_value()),
-                    ]),
-                ),
-            ]);
-            observations.push(sc::write_value(&mut *store, &observation)?);
+            let reason_views = ReasonViews(&waiting_reasons);
+            observations.push(write_knowledge_observation(
+                store,
+                reason,
+                &frontier.to_string(),
+                object.source_coords.digest,
+                &reason_views,
+            )?);
         }
         Ok(Cc054Assembly {
             object,
@@ -3006,6 +2988,44 @@ pub(super) fn coords_ref_from_slice(coords: &[usize]) -> CoordsRef {
     out
 }
 
+/// 借用原因数组；不复制文本、不建立第二棵业务 JSON 树。
+struct ReasonViews<'a>(&'a [&'static str]);
+impl sc::capture_allocation::audit_json::JsonArray for ReasonViews<'_> {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+    fn get(&self, index: usize) -> Option<sc::capture_allocation::audit_json::JsonView<'_>> {
+        self.0
+            .get(index)
+            .map(|reason| sc::capture_allocation::audit_json::JsonView::String(reason))
+    }
+}
+fn write_knowledge_observation(
+    store: &mut dyn NodeStore,
+    reason: &str,
+    frontier: &str,
+    source_coords: NodeDigest,
+    reasons: &dyn sc::capture_allocation::audit_json::JsonArray,
+) -> Result<Built, ProducerError> {
+    use sc::capture_allocation::audit_json::JsonView as J;
+    use sc::ValueView as V;
+    let detail = [
+        ("tb02a", V::Json(J::Bool(true))),
+        ("source_coords", V::Edge(source_coords)),
+        ("input_frontier", V::String(frontier)),
+        ("waiting_reasons", V::Json(J::BorrowedArray(reasons))),
+    ];
+    let fields = [
+        ("kind", V::String("awaiting_scope")),
+        ("reason", V::String(reason)),
+        ("window_start", V::Json(J::Null)),
+        ("window_mid", V::Json(J::Null)),
+        ("window_end", V::Json(J::Null)),
+        ("detail", V::Object(&detail)),
+    ];
+    Ok(sc::write_value_view(store, V::Object(&fields))?)
+}
+
 /// 组对象的等待原因（与全量配方 `group_reasons` 同序同值）。
 pub(super) fn group_reasons(view: &GroupEvidenceView<'_>) -> Vec<&'static str> {
     let mut reasons = Vec::new();
@@ -3016,6 +3036,38 @@ pub(super) fn group_reasons(view: &GroupEvidenceView<'_>) -> Vec<&'static str> {
         reasons.push("equal_extreme_identity");
     }
     reasons
+}
+
+/// #1488 原原因序不变；新容器的实际容量由当前操作先准入。
+pub(super) fn group_reasons_admitted(
+    store: &dyn NodeStore,
+    view: &GroupEvidenceView<'_>,
+) -> Result<sc::CodecVec<&'static str>, ProducerError> {
+    let count = usize::from(view.direction_evidence.is_none())
+        + usize::from(view.high_sources.len() > 1 || view.low_sources.len() > 1);
+    let mut reasons = if let Some(work) = store.codec_work() {
+        // 当前 scope 活性独立核验；此处是空新容器，不借旧许可的同父判断。
+        let _active = work.reserve_native(0)?;
+        let mut values = sc::CodecVec::default();
+        values.try_reserve_native(work, count)?;
+        values
+    } else {
+        #[cfg(feature = "s_allocation_json_testonly")]
+        let budget = store.allocation_budget();
+        #[cfg(feature = "s_allocation_json_testonly")]
+        let mut values = sc::CodecVec::new_with_allocation(budget.as_ref());
+        #[cfg(not(feature = "s_allocation_json_testonly"))]
+        let mut values = sc::CodecVec::default();
+        values.try_reserve(count)?;
+        values
+    };
+    if view.direction_evidence.is_none() {
+        reasons.try_push("direction_not_yet_established")?;
+    }
+    if view.high_sources.len() > 1 || view.low_sources.len() > 1 {
+        reasons.try_push("equal_extreme_identity")?;
+    }
+    Ok(reasons)
 }
 
 /// 竞争窗口的待决请求来源：三组来源链的并集 = **右组来源链**（归纳嵌套前缀性，见
@@ -3237,6 +3289,77 @@ mod tests {
     use super::*;
     use newchan_rust::s_content::{render_canonical, verify, MemoryNodes, NodeRead, NodeSource};
     use sha2::{Digest, Sha256};
+
+    /// NOT_RUN：本机重型运行禁令；比对根及每次 put 的完整顺序/字节。
+    #[test]
+    fn knowledge_observation_view_matches_legacy_root_and_write_order() {
+        #[derive(Default)]
+        struct Trace {
+            nodes: MemoryNodes,
+            writes: Vec<(NodeDigest, u8, Vec<u8>)>,
+        }
+        impl NodeSink for Trace {
+            fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError> {
+                self.writes.push((digest, tag, body.to_vec()));
+                self.nodes.put(digest, tag, body)
+            }
+        }
+        impl NodeSource for Trace {
+            fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+                self.nodes.read(digest)
+            }
+        }
+        for reasons in [
+            &[][..],
+            &["direction_not_yet_established"][..],
+            &["equal_extreme_identity", "no_subsequent_bar"][..],
+        ] {
+            for frontier in ["0", "9001", "-1"] {
+                let mut old = Trace::default();
+                let mut new = Trace::default();
+                let old_coords = empty_array(&mut old).unwrap();
+                let new_coords = empty_array(&mut new).unwrap();
+                assert_eq!(old_coords.digest, new_coords.digest);
+                for reason in reasons {
+                    let legacy = CValue::Object(vec![
+                        ("kind".into(), CValue::String("awaiting_scope".into())),
+                        ("reason".into(), CValue::String((*reason).into())),
+                        ("window_start".into(), CValue::Null),
+                        ("window_mid".into(), CValue::Null),
+                        ("window_end".into(), CValue::Null),
+                        (
+                            "detail".into(),
+                            CValue::Object(vec![
+                                ("tb02a".into(), CValue::Bool(true)),
+                                ("source_coords".into(), CValue::Edge(old_coords.digest)),
+                                ("input_frontier".into(), CValue::String(frontier.into())),
+                                (
+                                    "waiting_reasons".into(),
+                                    CValue::Array(
+                                        reasons
+                                            .iter()
+                                            .map(|r| CValue::String((*r).into()))
+                                            .collect(),
+                                    ),
+                                ),
+                            ]),
+                        ),
+                    ]);
+                    let want = sc::write_value(&mut old, &legacy).unwrap();
+                    let got = write_knowledge_observation(
+                        &mut new,
+                        reason,
+                        frontier,
+                        new_coords.digest,
+                        &ReasonViews(reasons),
+                    )
+                    .unwrap();
+                    assert_eq!(got.digest, want.digest);
+                }
+                assert_eq!(new.writes, old.writes);
+            }
+        }
+    }
 
     const PROFILE: &str = "testonly_ohlc/1";
     const RULE: &str = "test-rule/1";

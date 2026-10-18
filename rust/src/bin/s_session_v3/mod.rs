@@ -56,6 +56,7 @@ mod financial_reader;
 // #1394 DESIGN-R6 c2 候选：长驻只读财务会话（待 §5.7 多请求一致性修订裁定）。
 #[cfg(unix)]
 mod financial_session;
+pub(crate) mod fixed_radix;
 mod generation;
 mod history;
 pub(crate) mod native_shared;

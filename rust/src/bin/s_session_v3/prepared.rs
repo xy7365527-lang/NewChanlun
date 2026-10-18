@@ -704,15 +704,27 @@ impl Runtime {
                     &objects.withdrawals,
                     &objects.replaces,
                 )?;
-                let axes = generated
-                    .catalog_axes
-                    .clone()
-                    .ok_or_else(|| err("目录轴完成后仍缺真实根"))?;
+                let axes = store
+                    .native_plain_ref(
+                        generated
+                            .catalog_axes
+                            .as_ref()
+                            .ok_or_else(|| err("目录轴完成后仍缺真实根"))?
+                            .into(),
+                    )
+                    .map_err(err)?;
                 (generated, objects, axes)
             };
             #[cfg(test)]
             if let Some(inject) = self.before_native_source {
-                generated.generated_state = inject(tx, &generated.generated_state)?;
+                // 测试注入返回旧 transport 值；重新在当前 work 准入后才替换生产 owner。
+                let injected = inject(tx, &generated.generated_state)?;
+                generated.generated_state = sc::capture_allocation::native_owned::NativeValue::<
+                    sc::ContentRef,
+                >::try_from_view(
+                    (&injected).into(), work
+                )
+                .map_err(err)?;
             }
             #[cfg(test)]
             if let Some(stage) = stage {
@@ -1048,10 +1060,15 @@ impl Runtime {
         #[cfg(not(feature = "s_capture_native_testonly"))]
         let objects = object_index::plan(store, &generated.objects, &audited.objects, generation)?;
         generated.finish_axes(store, previous, &objects.withdrawals, &objects.replaces)?;
-        let axes = generated
-            .catalog_axes
-            .clone()
-            .ok_or_else(|| err("目录轴完成后仍缺真实根"))?;
+        let axes = store
+            .native_plain_ref(
+                generated
+                    .catalog_axes
+                    .as_ref()
+                    .ok_or_else(|| err("目录轴完成后仍缺真实根"))?
+                    .into(),
+            )
+            .map_err(err)?;
         let counts = source_audit::audit_generated(
             store,
             &generated.generated_state,
@@ -1084,7 +1101,7 @@ impl Runtime {
         >,
         generated: generation::Generated<'raw>,
         objects: object_index::Plan,
-        axes: sc::ContentRef,
+        axes: sc::capture_allocation::native_owned::NativeValue<sc::ContentRef>,
         counts: source_audit::Counts,
         audited: &state::AuditedState,
         metadata: &ManifestMetadata,
@@ -1176,7 +1193,7 @@ impl Runtime {
 struct NodeProducts<'raw> {
     generated: generation::Generated<'raw>,
     objects: object_index::Plan,
-    axes: sc::ContentRef,
+    axes: sc::capture_allocation::native_owned::NativeValue<sc::ContentRef>,
     counts: source_audit::Counts,
     auxiliary: aux_index::Plan,
     run: business_json::TextValue,
@@ -1277,15 +1294,15 @@ fn templates(
     ]);
     let budget = s.allocation_budget();
     let mut withdrawals = business_json::WithdrawalArray(business_json::new_work(budget.as_ref()));
-    s.native_codec_room(&mut withdrawals.0, o.withdrawals.len())
+    s.native_codec_room(&mut withdrawals.0, o.withdrawals.array_len())
         .map_err(err)?;
-    for withdrawal in &o.withdrawals {
+    for withdrawal in business_json::RawEventsView::from(&o.withdrawals) {
         withdrawals
             .0
-            .try_push(business_json::WithdrawalWire::new(withdrawal.into())?)
+            .try_push(business_json::WithdrawalWire::new(withdrawal)?)
             .map_err(err)?;
     }
-    let replaces = business_json::ValuesArray(&o.replaces);
+    let replaces = business_json::RawEventsView::from(&o.replaces);
     let mut delta = [("", BatchSelf); 17];
     delta[..8].copy_from_slice(&common);
     delta[8..].copy_from_slice(&[
@@ -1870,10 +1887,17 @@ pub(crate) mod tests {
                 let audited = state::audit(&tx).unwrap();
                 assert_eq!(audited.raw.len(), n as usize);
                 assert_eq!(audited.cuts.len(), n as usize);
+                let snapshot = audited.cuts[0].snapshot.view();
+                let snapshot = (
+                    snapshot.format().to_owned(),
+                    snapshot.root().to_owned(),
+                    snapshot.kind(),
+                    snapshot.extent(),
+                );
                 if let Some(root) = &first_snapshot {
-                    assert_eq!(&audited.cuts[0].snapshot, root);
+                    assert_eq!(&snapshot, root);
                 } else {
-                    first_snapshot = Some(audited.cuts[0].snapshot.clone());
+                    first_snapshot = Some(snapshot);
                 }
                 assert!(!audited.objects.is_empty(), "真实提交后对象索引必须非空");
                 assert_eq!(
