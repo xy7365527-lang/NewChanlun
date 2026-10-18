@@ -1,0 +1,91 @@
+{
+  "started_at": "2026-10-18T02:35:36.387332+00:00",
+  "head_before": "dedf11f047b9c809c167b35e728e4a2ee8bf3494",
+  "status_before": " M formal/Origin/SegmentFeatureSeq.lean\n",
+  "backup_before": {
+    "HEAD.txt": "494c99787f8688bdbfc271cbe92c6ec23bdd1f0ca12fe46307970178e531650d",
+    "MANIFEST.json": "9664b6793af20893471227441014788c50f1e7bf5141ed0f656c63d1892adec7",
+    "base-SegmentFeatureSeq.lean": "4f727a53f24ee548abd340ab6894be5f976d21ef4bd1d12bde18f5e3973429dc",
+    "comment-comparison.json": "fb9b3f5a605f2216ac077621fd57cfbce6858451c75f6cab676f48b9ac480cf5",
+    "declaration-comparison.json": "a6b913b9298e8f87ebc33f57bb0232c7066d52668cbbc3b2e1e0d1db3d909b00",
+    "merged-SegmentFeatureSeq.lean": "a9978ce332cea564ab324114859a9d7a4baaea55c11bf924dd5e1af6b988ba01",
+    "original/SegmentFeatureSeq.lean": "2f87dd64dc52d7b4c7babb5a3cd3dd41cba28e22346560f718013edc05d8647f",
+    "restore-check/formal/Origin/SegmentFeatureSeq.lean": "2f87dd64dc52d7b4c7babb5a3cd3dd41cba28e22346560f718013edc05d8647f",
+    "status.txt": "13f038ef5470e330e819d4e0e84d3a9c3cc3f1e8d5e7c5c65fc16698e5b906a5",
+    "uncommitted.patch": "75520fbe1ec95a0a641f067de71366e5fb71ac31945e812e469a3b574a1db01b"
+  },
+  "sha_list_before": "4eb084a4645f32b0095b27dbe77e4bb3936a5f319e447e3717d96d4d11450054",
+  "open_hits": [],
+  "argument_hits": [],
+  "steps": [
+    {
+      "command": [
+        "git",
+        "-C",
+        "/Users/silencehan/Projects/NewChanlun",
+        "worktree",
+        "remove",
+        "--force",
+        "/Volumes/AgentStorage/sc-wt/1495"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-C",
+        "/Users/silencehan/Projects/NewChanlun",
+        "worktree",
+        "remove",
+        "--force",
+        "/private/tmp/goal1323-native-20261012/wt-1495-recovery"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-C",
+        "/Users/silencehan/Projects/NewChanlun",
+        "branch",
+        "-d",
+        "codex/1495-lean-segment-turn-20261014",
+        "codex/1495-lean-recovery-20261015"
+      ],
+      "exit": 0,
+      "stdout": "Deleted branch codex/1495-lean-segment-turn-20261014 (was dedf11f047).\nDeleted branch codex/1495-lean-recovery-20261015 (was 859886fdb7).\n",
+      "stderr": "warning: deleting branch 'codex/1495-lean-segment-turn-20261014' that has been merged to\n         'refs/remotes/origin/main', but not yet merged to HEAD\nwarning: deleting branch 'codex/1495-lean-recovery-20261015' that has been merged to\n         'refs/remotes/origin/codex/1495-lean-recovery-20261015', but not yet merged to HEAD\n"
+    }
+  ],
+  "finished_at": "2026-10-18T02:36:10.336656+00:00",
+  "removed_worktree_registrations": [
+    "/Volumes/AgentStorage/sc-wt/1495",
+    "/private/tmp/goal1323-native-20261012/wt-1495-recovery"
+  ],
+  "concurrent_added_registrations": [],
+  "branches_absence_exit_codes": {
+    "codex/1495-lean-segment-turn-20261014": 1,
+    "codex/1495-lean-recovery-20261015": 1
+  },
+  "backup_after": {
+    "HEAD.txt": "494c99787f8688bdbfc271cbe92c6ec23bdd1f0ca12fe46307970178e531650d",
+    "MANIFEST.json": "9664b6793af20893471227441014788c50f1e7bf5141ed0f656c63d1892adec7",
+    "base-SegmentFeatureSeq.lean": "4f727a53f24ee548abd340ab6894be5f976d21ef4bd1d12bde18f5e3973429dc",
+    "comment-comparison.json": "fb9b3f5a605f2216ac077621fd57cfbce6858451c75f6cab676f48b9ac480cf5",
+    "declaration-comparison.json": "a6b913b9298e8f87ebc33f57bb0232c7066d52668cbbc3b2e1e0d1db3d909b00",
+    "merged-SegmentFeatureSeq.lean": "a9978ce332cea564ab324114859a9d7a4baaea55c11bf924dd5e1af6b988ba01",
+    "original/SegmentFeatureSeq.lean": "2f87dd64dc52d7b4c7babb5a3cd3dd41cba28e22346560f718013edc05d8647f",
+    "restore-check/formal/Origin/SegmentFeatureSeq.lean": "2f87dd64dc52d7b4c7babb5a3cd3dd41cba28e22346560f718013edc05d8647f",
+    "status.txt": "13f038ef5470e330e819d4e0e84d3a9c3cc3f1e8d5e7c5c65fc16698e5b906a5",
+    "uncommitted.patch": "75520fbe1ec95a0a641f067de71366e5fb71ac31945e812e469a3b574a1db01b"
+  },
+  "backup_unchanged": true,
+  "sha_list_after": "4eb084a4645f32b0095b27dbe77e4bb3936a5f319e447e3717d96d4d11450054",
+  "recovery_commits_still_available": true,
+  "post_repo_head": "7e0820b5d4112340ec8c75a62110df9429f2ba00",
+  "origin_main_after": "0c397d20de4076dbb6f7caa62738fc04cf72322f"
+}
