@@ -453,6 +453,8 @@ class Scheduler:
                 if self.journal is not None:
                     self.journal.finish(step, receipt)
                 self._remaining(deadline)
+                if self.journal is not None:
+                    self.journal.accept(step, receipt)
                 receipts.append(receipt)
                 previous = receipt_sha
             self._remaining(min(self.plan.steps[-1].deadline, self.plan.work_deadline))

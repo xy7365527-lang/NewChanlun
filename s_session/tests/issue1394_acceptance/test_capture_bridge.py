@@ -23,6 +23,13 @@ def fixture():
     resource['session']['schema_revision']='s-financial-session-resources/3'
     resource['reader']['schema_revision']='s-financial-reader-resources/1'
     resource['reader']['job_limits']={k:'1000000' for k in d.JOB}
+    resource['object_ids']={'session':'toy-session-object','reader':'toy-reader-object','q':'toy-q-object'}
+    resource['jobs']={name:{'owner':resource['object_ids'][role],
+        'limits':resource['reader']['job_limits'] if role=='reader' else {k:'1000000' for k in d.JOB},
+        'started_at':time.monotonic(), 'deadline':b.deadline+8}
+        for role,name in [('reader','financial-job'),('q','q-job')]}
+    qbinding={'q':resource['object_ids']['q'],'job':'q-job'}
+    fbinding={'session':resource['object_ids']['session'],'reader':resource['object_ids']['reader'],'job':'financial-job'}
     source={'commit':'a'*40,'tree':'b'*40,'binary_sha256':'c'*64,'input_sha256':d.sha(input_raw),
             'artifact_manifest_sha256':'d'*64,'profile_hash':'e'*64,'rule_revision':'UNIT_TEST_ONLY_RULE','catalog_revision':'toy-catalog'}
     obj={'object_id':'source','object_revision':'1','kind':'UNIT_TEST_ONLY_SOURCE','fact_key':'source',
@@ -83,7 +90,7 @@ def fixture():
               'cut_projection_digest':qdigest,'validated_capture_digest':'f'*64,'ok':True}
         req=envelope(req,'req'+str(offset));reply=envelope(page,'reply-'+fp([req['source_namespace'],req['source_epoch'],req['message_id'],fp(page)]))
         reply['causal_refs']=[{k:req[k] for k in ('source_namespace','source_epoch','message_id','payload_hash')}]
-        captures.append(x.Capture('snapshot',d.canonical(req),d.canonical(reply)))
+        captures.append(x.Capture('snapshot',d.canonical(req),d.canonical(reply),qbinding))
     query={'schema_revision':'s-financial-query/1',**{k:anchor[k] for k in ('session_id','session_generation','writer_epoch')},
            'object_ids':[r['object_id'] for r in snapshot['objects']]}
     selected=[]
@@ -95,16 +102,16 @@ def fixture():
            **{k:anchor[k] for k in ('session_id','session_generation','writer_epoch','commit_ns')},
            'pending_revision':False,'basis_ref':basis_ref,'snapshot_ref':x.content_ref(snapshot,b),
            'selected_objects':selected,'proof_nodes':[]}
-    captures.append(x.Capture('financial-basis',d.canonical(query),d.canonical(reply)))
-    all_nodes=sorted(nodes.values(),key=lambda n:n.root);after=None
+    captures.append(x.Capture('financial-basis',d.canonical(query),d.canonical(reply)+b'\n',fbinding))
+    all_nodes=sorted(nodes.values(),key=lambda n:n.root);after=''
     for offset in range(0,len(all_nodes),30):
         chunk=all_nodes[offset:offset+30];end=offset+len(chunk)
         request={'schema_revision':'s-financial-closure/1','anchor':anchor,'path':[],'after':after,'max_reply_bytes':'65536'}
         reply={'anchor':anchor,'path':[],'after':after,'target_ref':basis_ref,'total':str(len(all_nodes)),
                'nodes':[{'root':n.root,'tag':f'{n.tag:02x}','body_hex':n.body.hex()} for n in chunk],
                'next':chunk[-1].root,'done':end==len(all_nodes),'ok':True}
-        captures.append(x.Capture('financial-closure',d.canonical(request),d.canonical(reply)));after=chunk[-1].root
-    contract={'schema_revision':'issue1394-captured-cut/1','execution_authorized':False,'source':source,'fixed_cut':fixed,
+        captures.append(x.Capture('financial-closure',d.canonical(request),d.canonical(reply)+b'\n',fbinding));after=chunk[-1].root
+    contract={'schema_revision':'issue1394-captured-cut/2','stage':'export','execution_authorized':False,'source':source,'fixed_cut':fixed,
               'resources':resource,
               'anchor':anchor,'full_scope':fixed['scope'],'page_size':'2','cut_projection_digest':qdigest,
               'captures':[cap.identity() for cap in captures]}
@@ -188,7 +195,7 @@ class CaptureBridgeTests(unittest.TestCase):
         if cap.route=='snapshot':
             reply['payload_hash']=fp(page);req=d.strict(cap.request)
             reply['message_id']='reply-'+fp([req['source_namespace'],req['source_epoch'],req['message_id'],fp(page)])
-        captures[i]=x.Capture(cap.route,cap.request,d.canonical(reply));contract['captures']=[c.identity() for c in captures]
+        captures[i]=x.Capture(cap.route,cap.request,d.canonical(reply),cap.binding);contract['captures']=[c.identity() for c in captures]
         return contract,captures,nodes,input_raw
 
     def test_repin_does_not_allow_mixed_cut_missing_page_or_fake_suffix(self):

@@ -60,13 +60,14 @@ class Review01Tests(unittest.TestCase):
     def committed(self):
         data,args,grants=financial_tests.FinancialTests().reserved_fixture()
         final=copy.deepcopy(args['histories']['B:beta'][-1]);final['seq']=2
+        final['commit_ns']='11'
         cut=f.strict(args['e_original_raw'])['receipts']['Reserve/slot']['cut']
         final['image']['finance']['decisions'][0].update(state='Committed',
             grant={'original':grants[2],'e_cut':copy.deepcopy(cut)},
             local_commit_receipt={'e_cut':copy.deepcopy(cut),'commit_ns':'11'})
         args['histories']['B:beta'].append(final)
         args['operations'].append({'domain':'B:beta','op':'CommitDecision','id':'b1',
-            'receipt_key':'commit/b1','outcome':'LocalCommitReceipt','seq':2,'ordinal':0})
+            'receipt_key':'commit/b1','outcome':'LocalCommitReceipt','seq':2,'ordinal':0,'commit_ns':'11'})
         return data,args,final['image']['finance']['decisions'][0]
 
     def audit(self,data,args):

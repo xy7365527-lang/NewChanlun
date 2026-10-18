@@ -1,0 +1,28 @@
+728: /// 的最长前缀，使规范回复 JSON 加末尾 LF 不超过请求的 `max_reply_bytes`；首节点即装不下则拒绝本次。
+729: pub(super) fn closure_with(
+730:     tx: &Transaction<'_>,
+731:     request: &Value,
+732:     audited: Option<&state::AuditedState>,
+733:     table: &mut Option<ClosureTable>,
+734:     bounds: ClosureBounds,
+735:     stats: &mut ClosureStats,
+736: ) -> Result<Value, String> {
+737:     exact(request, &CLOSURE_FIELDS)?;
+738:     if request["schema_revision"] != CLOSURE_SCHEMA {
+739:         return Err(invalid("SchemaUnsupported：财务闭包版本不符"));
+740:     }
+741:     let anchor = &request["anchor"];
+742:     exact(anchor, &ANCHOR_FIELDS)?;
+743:     let claimed = ContentRef::from_transport_json(&anchor["basis_ref"]).map_err(invalid)?;
+744:     let path = fragment::parse_path(&request["path"]).map_err(invalid)?;
+745:     let after = match request["after"].as_str() {
+746:         Some("") => None,
+747:         Some(root) => Some(sc::parse_root(root).map_err(invalid)?),
+748:         None => return Err(invalid("after须为文本")),
+749:     };
+750:     let budget = positive(
+751:         required(request, "max_reply_bytes").map_err(invalid)?,
+752:         "max_reply_bytes",
+753:     )
+754:     .map_err(invalid)?;
+755:     let budget = u64::try_from(budget).map_err(invalid)?;

@@ -80,6 +80,7 @@ with Journal(sys.argv[1],x['identity'],x['header'],100000,20) as journal:
         with self.assertRaises(Rejected):
             self.journal.finish(a, replace(receipt, predecessor_sha="b"*64))
         self.journal.finish(a, receipt)
+        self.journal.accept(a, receipt)
         with self.assertRaises(Rejected):
             self.journal.consume(b, self.plan.seed_sha)
         self.journal.consume(b, receipt.sha())

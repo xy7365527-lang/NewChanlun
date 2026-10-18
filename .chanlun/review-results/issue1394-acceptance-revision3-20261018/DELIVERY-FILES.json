@@ -1,0 +1,324 @@
+{
+  "issue": 1394,
+  "base_commit": "dfdeda34886d4a8f0a3bfa7bc8e3f3930aab28f0",
+  "execution_authorized": false,
+  "product_status": "NOT_RUN",
+  "status": "修复自检完成，待独审",
+  "current_diff_independent_review": "NOT_RUN",
+  "scope": "当前工具写集与revision3报告；历史原封包不改",
+  "self_excluded": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/DELIVERY-FILES.json",
+  "files": [
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/CONNECTION-CONTRACT.md",
+      "bytes": 21060,
+      "mode": "0o644",
+      "sha256": "a3cf14b1486e1aa34afbc193f5ace19186590dd664388108fb523a8ed6f5fb3f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/FIX-LEDGER.md",
+      "bytes": 9022,
+      "mode": "0o644",
+      "sha256": "fbdfacef0b18ef8eb422d7180ab73eb9be638f1ddf562729335a86c80d1c8f48"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/PRODUCER-DEPENDENCY-HANDOFF.md",
+      "bytes": 2441,
+      "mode": "0o644",
+      "sha256": "8dbd039c0d448ab92a05df22c6d5e63220652e06528dbb7868f6530a251afeb5"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/REPORT.md",
+      "bytes": 4789,
+      "mode": "0o644",
+      "sha256": "b110f6da8414b3d4c983c580e8c5580f8f6a0b3596f801fa8eeba5227d1ec434"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/SOURCE-CHECKS.json",
+      "bytes": 9862,
+      "mode": "0o644",
+      "sha256": "8f893305fdf83cb69786d10cb757545edb2742fcf5fe1bc6a98aa3233463dc69"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/SOURCE-ROLES.json",
+      "bytes": 5511,
+      "mode": "0o644",
+      "sha256": "20ce04340bac4185147d7435c1161f588fe6c551bbac0276311999f439cfc8d9"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/STATIC-CHECKS.json",
+      "bytes": 10210,
+      "mode": "0o644",
+      "sha256": "86c029714bd80cf5c687bf088a6a613dafd2551a5413953f2481c32a9c38ae04"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/TEST-RESULTS.json",
+      "bytes": 8365,
+      "mode": "0o644",
+      "sha256": "b6d2b22895d84c250e0f77d6f0f9184d92012e7437d0481cfa183a568f2da088"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/TEST-REUSE.json",
+      "bytes": 4432,
+      "mode": "0o644",
+      "sha256": "bf4c9612cf496c2e0e5c06c59234afb742f11b19f0f07ed9415fe477087ac069"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/normal-targeted.txt",
+      "bytes": 10225,
+      "mode": "0o644",
+      "sha256": "0beb52f4c45f9b3a200f997edde9ec6eb32fa81e63b6dfb2ab1d54f788b69687"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/optimized-targeted.txt",
+      "bytes": 10225,
+      "mode": "0o644",
+      "sha256": "98715544507a43749d4820890d32bd2e698a8caefe8fec1de3349524564a8069"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/C1-closure-cursor.txt",
+      "bytes": 1344,
+      "mode": "0o644",
+      "sha256": "050022b9f7be9d6622ec3525450703f086f9f45a0de655904e6829d055d3ce03"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/HISTORICAL-HOST-TEST-RESULTS.json",
+      "bytes": 2292,
+      "mode": "0o644",
+      "sha256": "ea216c86afd2704a7205440e5429174c3ca1cc216603a83ef6861b977faf1bf8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/HISTORICAL-HOST-normal-all.txt",
+      "bytes": 16911,
+      "mode": "0o644",
+      "sha256": "c81c8368190d06e10ec132b31d56a7b82854e929b4c54c087c1181fba952e429"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/HISTORICAL-HOST-optimized-all.txt",
+      "bytes": 16911,
+      "mode": "0o644",
+      "sha256": "10396d2ee7d1f25f933d856b30dc5e8e8e4ca3cc418559b601b3c26d86c5e337"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/INTEGRATION-SOURCE-CHECKS.json",
+      "bytes": 60534,
+      "mode": "0o644",
+      "sha256": "79d8069a47df399feeb52391581ec0c4cb187ded1cbd65df124a1101db5d7cd4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/INTEGRATION-XERJ-REFERENCES.json",
+      "bytes": 12425,
+      "mode": "0o644",
+      "sha256": "952d62db9148713e80ae1b5ffe7484c584d3bdc69775ba3a947ffe3333fa10ce"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/READONLY-BRIDGE-MAP-ea41.md",
+      "bytes": 16460,
+      "mode": "0o644",
+      "sha256": "1bafdb8fa7778a58d07e9401b0fd16ee394fff8236f37ea13e2d4d4f322923ba"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/REVIEW-01-INDEPENDENT-PROBES.json",
+      "bytes": 30398,
+      "mode": "0o644",
+      "sha256": "c51419e3a664968c0d384174e5337540033e2a8f8925ea6010b88fa3c4f72930"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/REVIEW-01-INDEPENDENT.md",
+      "bytes": 5682,
+      "mode": "0o644",
+      "sha256": "3c4ff1b9cf589eb0253a647a1a2baef41861d383437691c811895ad6c7be0fb0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/REVIEW-02-INDEPENDENT-PROBES.json",
+      "bytes": 25513,
+      "mode": "0o644",
+      "sha256": "51c16f90e41be4a66e3eb288b603c4cc14c29a5615858c8a2560b3a06d39642b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/REVIEW-02-INDEPENDENT.md",
+      "bytes": 7765,
+      "mode": "0o644",
+      "sha256": "8d90c9c037aeaea13d826cf57c77d62f7d6fb8e04010b64d5f2dbac062baf7f5"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/REVISION2-SOURCE-CHECKS.json",
+      "bytes": 10618,
+      "mode": "0o644",
+      "sha256": "d4852edc6972371ee94fb79796addd11621e30fedfaf019029a5010fb1f07c0d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/REVISION2-SOURCE-ROLES.json",
+      "bytes": 4770,
+      "mode": "0o644",
+      "sha256": "b09391897ca8b8006a86a5e815985671bd9b2547e6cac6437aaaeba508eefbeb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/SOURCE-ROUTE-NOTE.md",
+      "bytes": 838,
+      "mode": "0o644",
+      "sha256": "52164a9e07dbb0c26cd71f659fadb131fba362329a99f27128820bc5d6ea5396"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/README.md",
+      "bytes": 4537,
+      "mode": "0o644",
+      "sha256": "1106bacf0ba045dd9a903551f0afd5ff2396e4b5c0a932991c44580d17cafb10"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/captured_cut.py",
+      "bytes": 25711,
+      "mode": "0o644",
+      "sha256": "07327a159749a63c45a11046c0d6f1247fdfd7fe50e13831fc40e192d3226bc3"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/closure.py",
+      "bytes": 8290,
+      "mode": "0o644",
+      "sha256": "5459ab3d8dce283677efead39206c2fbba4593d965f913c5f5c7336a1258762d"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/control.py",
+      "bytes": 6301,
+      "mode": "0o644",
+      "sha256": "950595b87956e6d8923c816cac9739d7aff29c0582f5a2bfe8bfd9383ddb8057"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/driver.py",
+      "bytes": 44599,
+      "mode": "0o644",
+      "sha256": "1735bffa631b1d4789f363204fec97fd26ceccd1ca439cc340bcd00a8ebf05f7"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/evidence.py",
+      "bytes": 5318,
+      "mode": "0o644",
+      "sha256": "92af6d56aecde7ea051de178fea72135b6c5b35a430ec44940cd425db2a0ce10"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/financial_oracle.py",
+      "bytes": 17454,
+      "mode": "0o644",
+      "sha256": "edc5b5477e7b185582a2a65cbd31e07d7015c49a9e203c630a697646f4d3d854"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/fixtures/PREPARATION-CONTRACT.json",
+      "bytes": 20004,
+      "mode": "0o644",
+      "sha256": "ce719894bcb8aa60e956d723271250d57d892ddbb6c70dea64bd0cf4aaca8fa1"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/journal.py",
+      "bytes": 9663,
+      "mode": "0o644",
+      "sha256": "ff08d15e084216d1d6b8bb1efe8e3dcb74bfe281b20edb8262ad3e61c1211781"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/oracle.py",
+      "bytes": 3299,
+      "mode": "0o644",
+      "sha256": "16639a001aa73662b00209934513d808a0d0b3600023e2d3e2f35eb263e54eb7"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/run_checks.py",
+      "bytes": 1720,
+      "mode": "0o644",
+      "sha256": "94c180cd611cc7d2f1a99f94bb61fed6594d8aac8ea52470aefc7cbb91072bae"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/scheduler.py",
+      "bytes": 23479,
+      "mode": "0o644",
+      "sha256": "9c0d876f159e7b7cc33bfb55dae12ad67ff0b29cf7c56bf6e08d87032f8a6a16"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/supervisor.py",
+      "bytes": 12960,
+      "mode": "0o644",
+      "sha256": "a08fd26e979c38abbb360c369c547b1aa87484123859c29ff47a92af6ff11784"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_capture_bridge.py",
+      "bytes": 20988,
+      "mode": "0o644",
+      "sha256": "f0e68226c82f3a2d9c8a27b8714faab1a998ce4431a8168c3048d10686d8a128"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_closure.py",
+      "bytes": 5537,
+      "mode": "0o644",
+      "sha256": "d4f6772d82109c9cd05901cf667bf21d3b1740e11976036c86352eeb5a2d5710"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_control.py",
+      "bytes": 5375,
+      "mode": "0o644",
+      "sha256": "2c96cffc3b024f798d863b40bc345e386283c39f5e2da5853ab00b5fcdd01711"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver.py",
+      "bytes": 31184,
+      "mode": "0o644",
+      "sha256": "fd443df0c247934a8b2435d9e98169ed33f97baec6e17eca647ebab5d4b58176"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver_regressions.py",
+      "bytes": 6602,
+      "mode": "0o644",
+      "sha256": "621e990d5c7c6ed9dbe512efd30c7957696b346575439ddf5b5068bc95fc5b5d"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_evidence.py",
+      "bytes": 6289,
+      "mode": "0o644",
+      "sha256": "11cac54a757c437b660441f82a0d2b0e4843bcc22eb1106d30a2b8232933e52c"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_financial_oracle.py",
+      "bytes": 12185,
+      "mode": "0o644",
+      "sha256": "d643adef91a95a79b7c247af07c7a0259b9eac8f45e9951244af52ca8589c205"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_journal.py",
+      "bytes": 5205,
+      "mode": "0o644",
+      "sha256": "7f63cc0d2535d481b676818d88282729d40738568c84e761a7dd6c01c0876fde"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review01.py",
+      "bytes": 15165,
+      "mode": "0o644",
+      "sha256": "f5caecc55061352166cf22b6e08ed0c29ed83916c8f1e6e7d570bb1250c6c4e9"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review02.py",
+      "bytes": 20621,
+      "mode": "0o644",
+      "sha256": "94cbc050baa085104a7b67fcd580ef635afa952f10be63a23512b826f8e888e7"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler.py",
+      "bytes": 19433,
+      "mode": "0o644",
+      "sha256": "8abd24b983978336ac9c86cf4cb89548ab5e87eea38b2dc2bf97140ffd440b58"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler_integration.py",
+      "bytes": 1389,
+      "mode": "0o644",
+      "sha256": "98b0d9bb348d3b1190e3ae0d623dc2e0e5d4ff9a4763e319c00463bc618424b8"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_supervisor.py",
+      "bytes": 7889,
+      "mode": "0o644",
+      "sha256": "57899f3abedebdb5be90606b5d812c8f8d4c6604f579b9e208d9d242f885b651"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/voice_bridge.py",
+      "bytes": 11955,
+      "mode": "0o644",
+      "sha256": "36248173678a4167aaadb5a3840de11d3d4f477963f4926f070de6fb33b63dfc"
+    }
+  ]
+}

@@ -1,0 +1,193 @@
+{
+  "base_commit": "dfdeda34886d4a8f0a3bfa7bc8e3f3930aab28f0",
+  "execution_authorized": false,
+  "checks": [
+    {
+      "source": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/SOURCE-CHECKS.json",
+      "copy": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/REVISION2-SOURCE-CHECKS.json",
+      "bytes": 10618,
+      "sha256": "d4852edc6972371ee94fb79796addd11621e30fedfaf019029a5010fb1f07c0d"
+    },
+    {
+      "source": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/SOURCE-ROLES.json",
+      "copy": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/REVISION2-SOURCE-ROLES.json",
+      "bytes": 4770,
+      "sha256": "b09391897ca8b8006a86a5e815985671bd9b2547e6cac6437aaaeba508eefbeb"
+    },
+    {
+      "source": ".chanlun/review-results/issue1394-acceptance-integration-20261018/SOURCE-CHECKS.json",
+      "copy": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/INTEGRATION-SOURCE-CHECKS.json",
+      "bytes": 60534,
+      "sha256": "79d8069a47df399feeb52391581ec0c4cb187ded1cbd65df124a1101db5d7cd4"
+    },
+    {
+      "source": ".chanlun/review-results/issue1394-acceptance-integration-20261018/references/XERJ-REFERENCES.json",
+      "copy": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/INTEGRATION-XERJ-REFERENCES.json",
+      "bytes": 12425,
+      "sha256": "952d62db9148713e80ae1b5ffe7484c584d3bdc69775ba3a947ffe3333fa10ce"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-driver-p0-v2-20261018/MANIFEST.json",
+      "sha256": "21422ddca25cfce0b84999a621d34746da99086e2e2ededfee01ba2d925c51d9",
+      "expected_sha256": "21422ddca25cfce0b84999a621d34746da99086e2e2ededfee01ba2d925c51d9",
+      "match": true
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-driver-p0-v2-20261018/driver.py",
+      "sha256": "3b29bbbebb7df49bf28a58ff04597a2e93cb5d92f27f21eb79642b7421cea380",
+      "expected_sha256": "3b29bbbebb7df49bf28a58ff04597a2e93cb5d92f27f21eb79642b7421cea380",
+      "match": true
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-scheduler-v1-20261018/MANIFEST.json",
+      "sha256": "54677dc0523de874eea0a5ff51f2dd06f88b14b75e6d6c18943d53b1e2c3bc1e",
+      "expected_sha256": "54677dc0523de874eea0a5ff51f2dd06f88b14b75e6d6c18943d53b1e2c3bc1e",
+      "match": true
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-scheduler-v1-20261018/scheduler.py",
+      "sha256": "3fa2b0da18f900fd848ae9c78481eac02d602d3d3203009cb87995ff178e8866",
+      "expected_sha256": "3fa2b0da18f900fd848ae9c78481eac02d602d3d3203009cb87995ff178e8866",
+      "match": true
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/PREPARATION-CONTRACT.json",
+      "sha256": "ce719894bcb8aa60e956d723271250d57d892ddbb6c70dea64bd0cf4aaca8fa1",
+      "expected_sha256": "ce719894bcb8aa60e956d723271250d57d892ddbb6c70dea64bd0cf4aaca8fa1",
+      "match": true
+    },
+    {
+      "source": "/tmp/1394-driver-p0-v2-independent-review-20261018.md",
+      "sha256": "cfc7deb0a5a486185df19e026e70a8fd8dfeef41ce372f774a8186dc6605cabb",
+      "expected_sha256": "cfc7deb0a5a486185df19e026e70a8fd8dfeef41ce372f774a8186dc6605cabb",
+      "match": true
+    },
+    {
+      "source": "/tmp/r1394p0-uqhcupi9/independent-probes.json",
+      "sha256": "302aa36ae2c82d928a383ae9e70aa808904d38ae4cdadc4d216424fb0e9b9dde",
+      "expected_sha256": "302aa36ae2c82d928a383ae9e70aa808904d38ae4cdadc4d216424fb0e9b9dde",
+      "match": true
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/rust/src/bin/s_session_v3/writer_cli.rs",
+      "sha256": "e412dd79940562e44d93738ecf2333c6be899a1dc197fccbc2e8f4b4bbf65b3d",
+      "match": true,
+      "role": "b46协议只读快照；非未来执行源"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/rust/src/bin/s_session_v3/q_runtime.rs",
+      "sha256": "e316142febbbafe24791aa84e729d1d189443b67b2af015dfafc86cd836b9bdd",
+      "match": true,
+      "role": "b46协议只读快照；非未来执行源"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/rust/src/bin/s_session_v3/q_snapshot.rs",
+      "sha256": "6f6632673208897b21046989c8e896081468c293866a8db0fce13da2f5cdd1a9",
+      "match": true,
+      "role": "b46协议只读快照；非未来执行源"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/rust/src/bin/s_session_v3/q_wire.rs",
+      "sha256": "f4b2afc858001a5b8a62da73fced7d3283640b2834dd4995aaeef39a15ffb6f1",
+      "match": true,
+      "role": "b46协议只读快照；非未来执行源"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/rust/src/bin/s_session_v3/q_content.rs",
+      "sha256": "6012e58b647f3f826641c6cb5352ce62343ebdc6df8b7123c22ef9a69e4f19fb",
+      "match": true,
+      "role": "b46协议只读快照；非未来执行源"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/rust/src/bin/s_session_v3/q_resources.rs",
+      "sha256": "b072c225319b5e0b8847f2a5eb51d0fbf2e3e0d8287123f21e2e557d0a9f8de1",
+      "match": true,
+      "role": "b46协议只读快照；非未来执行源"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/rust/src/bin/s_session_v3/projection.rs",
+      "sha256": "58059cc9a54fd9f6c06cf8f29aacbee6e8bc13945eca2029716fe8bcb295d48c",
+      "match": true,
+      "role": "b46协议只读快照；非未来执行源"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/rust/src/bin/s_session_v3/financial_reader.rs",
+      "sha256": "0b7a010162341e1d72a978bd9aed8095bdbf6dc804fa7c46eae2f52a2fc328f2",
+      "match": true,
+      "role": "b46协议只读快照；非未来执行源"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/rust/src/bin/s_session_v3/financial_session.rs",
+      "sha256": "ded7f8c61a21910586d5cba9bfa81afc6378723055bd6b2f3ab0c77de1eaa0a0",
+      "match": true,
+      "role": "b46协议只读快照；非未来执行源"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/rust/src/economic_session/evidence.rs",
+      "sha256": "77cac6ff99a793d142c3f3701f29d4a24c722cbdcc4b2926bd54181661f0b0ad",
+      "match": true,
+      "role": "b46协议只读快照；非未来执行源"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/rust/src/economic_session/voice.rs",
+      "sha256": "47320079744485b8b6f2b229bb7441602e4a9b11a9a92eaeb9057f6fe543b218",
+      "match": true,
+      "role": "b46协议只读快照；非未来执行源"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/rust/src/economic_session/store.rs",
+      "sha256": "b7db658d28496374567eca0b6cba3b250669161f685363af037d688908bbfc16",
+      "match": true,
+      "role": "b46协议只读快照；非未来执行源"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/rust/src/economic_session/service.rs",
+      "sha256": "f5f685e6844544af8ee1b0bb50dc6c89122dc1fad23c9d50bb0279e5e2703413",
+      "match": true,
+      "role": "b46协议只读快照；非未来执行源"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/rust/src/economic_session/finance.rs",
+      "sha256": "fcef033b813822609e225e5208a8d6484b9dcfb52c1b90387af01433bf940d87",
+      "match": true,
+      "role": "b46协议只读快照；非未来执行源"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/rust/src/economic_session/financial_reader_resources.rs",
+      "sha256": "74c0dd50f6d69054b449c919c5ae15385248c034eafe96bc04e73ff61cb596b1",
+      "match": true,
+      "role": "b46协议只读快照；非未来执行源"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/rust/src/economic_session/finance_transport.rs",
+      "sha256": "9004fb38811742b93b1f65049f317f34b5e6ae15827dd31a2b291533e134f1da",
+      "match": true,
+      "role": "b46协议只读快照；非未来执行源"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/rust/src/bin/s_session_v2/content_manifest.rs",
+      "sha256": "75473618d47f4560c005e164da492b160bc6bb792ff8ef87c61ec591818857f1",
+      "match": true,
+      "role": "b46协议只读快照；非未来执行源"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/rust/src/session_protocol.rs",
+      "sha256": "1420f14c93d9f3bfa6df3834abf079676fb36a860a18c7bc4017f419b70fb15f",
+      "match": true,
+      "role": "b46协议只读快照；非未来执行源"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/rust/src/s_content.rs",
+      "sha256": "93a01abe39e0a94f4a0b787263398634411867baa9eb53abf5f7262fdad98669",
+      "match": true,
+      "role": "b46协议只读快照；非未来执行源"
+    },
+    {
+      "source": "99e819192bd6c91b1dd90e058a93c2a98d5aaaf3:rust/src/bin/s_session_v3/financial_reader.rs",
+      "sha256": "5522d86cb455ff3b683f92170127203968029d0e37937e0321eb44d3de001643",
+      "snippet": "references/C1-closure-cursor.txt",
+      "role": "固定C1已提交协议，只读取证，非执行源"
+    }
+  ],
+  "reuse": "复用已有XERJ与SOURCE-CHECKS，不安装/索引；未读取其他工位WIP"
+}

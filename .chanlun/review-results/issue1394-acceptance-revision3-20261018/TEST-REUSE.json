@@ -1,0 +1,93 @@
+{
+  "execution_authorized": false,
+  "product_status": "NOT_RUN",
+  "unchanged": [
+    {
+      "path": "s_session/tests/issue1394_acceptance/driver.py",
+      "sha256": "1735bffa631b1d4789f363204fec97fd26ceccd1ca439cc340bcd00a8ebf05f7",
+      "base_sha256": "1735bffa631b1d4789f363204fec97fd26ceccd1ca439cc340bcd00a8ebf05f7",
+      "same_bytes": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/control.py",
+      "sha256": "950595b87956e6d8923c816cac9739d7aff29c0582f5a2bfe8bfd9383ddb8057",
+      "base_sha256": "950595b87956e6d8923c816cac9739d7aff29c0582f5a2bfe8bfd9383ddb8057",
+      "same_bytes": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/closure.py",
+      "sha256": "5459ab3d8dce283677efead39206c2fbba4593d965f913c5f5c7336a1258762d",
+      "base_sha256": "5459ab3d8dce283677efead39206c2fbba4593d965f913c5f5c7336a1258762d",
+      "same_bytes": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/voice_bridge.py",
+      "sha256": "36248173678a4167aaadb5a3840de11d3d4f477963f4926f070de6fb33b63dfc",
+      "base_sha256": "36248173678a4167aaadb5a3840de11d3d4f477963f4926f070de6fb33b63dfc",
+      "same_bytes": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/evidence.py",
+      "sha256": "92af6d56aecde7ea051de178fea72135b6c5b35a430ec44940cd425db2a0ce10",
+      "base_sha256": "92af6d56aecde7ea051de178fea72135b6c5b35a430ec44940cd425db2a0ce10",
+      "same_bytes": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/oracle.py",
+      "sha256": "16639a001aa73662b00209934513d808a0d0b3600023e2d3e2f35eb263e54eb7",
+      "base_sha256": "16639a001aa73662b00209934513d808a0d0b3600023e2d3e2f35eb263e54eb7",
+      "same_bytes": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver.py",
+      "sha256": "fd443df0c247934a8b2435d9e98169ed33f97baec6e17eca647ebab5d4b58176",
+      "base_sha256": "fd443df0c247934a8b2435d9e98169ed33f97baec6e17eca647ebab5d4b58176",
+      "same_bytes": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver_regressions.py",
+      "sha256": "621e990d5c7c6ed9dbe512efd30c7957696b346575439ddf5b5068bc95fc5b5d",
+      "base_sha256": "621e990d5c7c6ed9dbe512efd30c7957696b346575439ddf5b5068bc95fc5b5d",
+      "same_bytes": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler.py",
+      "sha256": "8abd24b983978336ac9c86cf4cb89548ab5e87eea38b2dc2bf97140ffd440b58",
+      "base_sha256": "8abd24b983978336ac9c86cf4cb89548ab5e87eea38b2dc2bf97140ffd440b58",
+      "same_bytes": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_control.py",
+      "sha256": "2c96cffc3b024f798d863b40bc345e386283c39f5e2da5853ab00b5fcdd01711",
+      "base_sha256": "2c96cffc3b024f798d863b40bc345e386283c39f5e2da5853ab00b5fcdd01711",
+      "same_bytes": true
+    }
+  ],
+  "historical_host_references": [
+    {
+      "source": ".chanlun/review-results/issue1394-acceptance-integration-20261018/HOST-TEST-RESULTS.json",
+      "copy": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/HISTORICAL-HOST-TEST-RESULTS.json",
+      "sha256": "ea216c86afd2704a7205440e5429174c3ca1cc216603a83ef6861b977faf1bf8",
+      "role": "b8c5历史host证据；本轮未重跑，不能认证变化后的整包"
+    },
+    {
+      "source": ".chanlun/review-results/issue1394-acceptance-integration-20261018/HOST-normal-all.txt",
+      "copy": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/HISTORICAL-HOST-normal-all.txt",
+      "sha256": "c81c8368190d06e10ec132b31d56a7b82854e929b4c54c087c1181fba952e429",
+      "role": "b8c5历史host证据；本轮未重跑，不能认证变化后的整包"
+    },
+    {
+      "source": ".chanlun/review-results/issue1394-acceptance-integration-20261018/HOST-optimized-all.txt",
+      "copy": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/HISTORICAL-HOST-optimized-all.txt",
+      "sha256": "10396d2ee7d1f25f933d856b30dc5e8e8e4ca3cc418559b601b3c26d86c5e337",
+      "role": "b8c5历史host证据；本轮未重跑，不能认证变化后的整包"
+    }
+  ],
+  "not_reexecuted": [
+    "旧91方法集合",
+    "旧82方法复用集合",
+    "host123全套",
+    "OS ps/socket三项"
+  ],
+  "current_checks": "只以TEST-RESULTS.json中普通/-O各68项作为本轮动态检查；未运行部分不宣称本轮通过"
+}

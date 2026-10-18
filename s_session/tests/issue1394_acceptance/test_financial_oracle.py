@@ -173,14 +173,14 @@ class FinancialTests(unittest.TestCase):
 
     def test_reserved_commit_requires_original_liability_and_time_order(self):
         data,args,grants=self.reserved_fixture()
-        final=copy.deepcopy(args["histories"]["B:beta"][-1]);final["seq"]=2
+        final=copy.deepcopy(args["histories"]["B:beta"][-1]);final["seq"]=2;final["commit_ns"]="11"
         cut=f.strict(args["e_original_raw"])["receipts"]["Reserve/slot"]["cut"]
         decision=final["image"]["finance"]["decisions"][0]
         decision.update(state="Committed",grant={"original":grants[2],"e_cut":cut},
                         local_commit_receipt={"e_cut":cut,"commit_ns":"11"})
         args["histories"]["B:beta"].append(final)
         args["operations"].append({"domain":"B:beta","op":"CommitDecision","id":"b1","receipt_key":"commit/b1",
-                                   "outcome":"LocalCommitReceipt","seq":2,"ordinal":0})
+                                   "outcome":"LocalCommitReceipt","seq":2,"ordinal":0,"commit_ns":"11"})
         self.audit(data,args)
         decision["local_commit_receipt"]["commit_ns"]="9"
         with self.assertRaises(Rejected):self.audit(data,args)

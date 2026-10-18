@@ -19,9 +19,9 @@ TRANSPORT = set('max_frame_bytes read_timeout_ms write_timeout_ms response_timeo
 Q_LIMITS = set('max_frame_bytes max_pending_connections socket_read_timeout_ms socket_write_timeout_ms max_capture_bytes capture_deadline_ms verify_deadline_ms max_query_workers max_query_queue max_reply_bytes max_cached_images max_cache_bytes poll_interval_ms max_client_leases client_lease_ms max_client_pending_batches max_page_size max_watch_batches max_atomic_delta_node_bytes max_atomic_delta_nodes max_atomic_delta_records'.split())
 
 
-def resources(value, budget, closure_budget):
+def resources(value, budget, closure_budget, stage):
     """只核原冻结对象，不产生部署默认值或OS资源承诺。"""
-    d.exact(value,{'session','reader','q','s_writer','economic_domains','deadlines','legacy_reader'},'逐对象资源')
+    d.exact(value,{'session','reader','q','s_writer','economic_domains','deadlines','legacy_reader','object_ids','jobs'},'逐对象资源')
     d.validate_resources(value['session'],value['reader'])
     d.exact(value['q'],{'schema_revision','limits'},'Q资源外层')
     d.require(value['q']['schema_revision']=='s-query-resources/3','Q资源版本')
@@ -44,7 +44,29 @@ def resources(value, budget, closure_budget):
     d.require(deadlines['stages'] and all(type(n) in (int,float) and math.isfinite(n) and n>0
         for n in [deadlines['work'],deadlines['cleanup'],deadlines['seal'],*deadlines['stages'].values()]),'缺完整阶段/整次/回收封口截止')
     d.require(max(deadlines['stages'].values())<=deadlines['work']<deadlines['cleanup']<deadlines['seal'], '截止/预留顺序')
-    d.require(closure_budget.deadline<=budget.deadline<=min(deadlines['stages'].values()),'读取预算延长最早冻结截止')
+    d.require(stage in deadlines['stages'], '未绑定当前导出阶段')
+    ids=value['object_ids']
+    d.exact(ids,{'q','session','reader'},'资源对象身份')
+    d.require(all(isinstance(v,str) and v for v in ids.values()) and len(set(ids.values()))==3,
+              '资源对象身份缺失/混用')
+    jobs=value['jobs']
+    d.require(type(jobs) is dict and len(jobs)==2, '须冻结Q/reader各自Job；不隐式创建共同Job')
+    owners=[];ends=[deadlines['work'],deadlines['stages'][stage]]
+    for name,job in jobs.items():
+        d.require(isinstance(name,str) and name, 'Job身份缺失')
+        d.exact(job,{'owner','limits','started_at','deadline'},'具名Job')
+        d.exact(job['limits'],d.JOB,'Job八维')
+        for number in job['limits'].values():d.positive(number)
+        d.require(all(type(t) in (int,float) and math.isfinite(t) and t>0
+                      for t in (job['started_at'],job['deadline'])), 'Job时间缺失')
+        d.require(job['started_at'] < job['deadline'] <=
+                  job['started_at']+d.positive(job['limits']['max_elapsed_ms'])/1000,
+                  'Job截止延长原elapsed帽')
+        owners.append(job['owner']);ends.append(job['deadline'])
+        if job['owner']==ids['reader']:
+            d.require(job['limits']==value['reader']['job_limits'], 'reader Job帽错绑')
+    d.require(set(owners)=={ids['q'],ids['reader']}, 'Job所属对象不同/重复')
+    d.require(closure_budget.deadline<=budget.deadline<=min(ends),'读取预算延长当前阶段/whole/Job最早截止')
 
 
 def decimal(value):
@@ -63,9 +85,44 @@ class Capture:
     route: str
     request: bytes
     reply: bytes
+    binding: dict | None = None
 
     def identity(self):
-        return {'route': self.route, 'request_sha256': d.sha(self.request), 'reply_sha256': d.sha(self.reply)}
+        return {'route': self.route, 'request_sha256': d.sha(self.request), 'reply_sha256': d.sha(self.reply),
+                'binding': self.binding}
+
+
+def capture_job(capture, value):
+    """捕获显式归属；清单和实收对象的绑定也参与外部pin。"""
+    roles=('q',) if capture.route=='snapshot' else ('session','reader')
+    d.require(capture.route in {'snapshot','financial-basis','financial-closure'}, '未接线捕获route')
+    d.exact(capture.binding,set(roles)|{'job'},'捕获资源绑定')
+    d.require(all(capture.binding[r]==value['object_ids'][r] for r in roles), '捕获错绑资源对象')
+    name=capture.binding['job']
+    d.require(name in value['jobs'] and value['jobs'][name]['owner']==capture.binding[roles[-1]],
+              '捕获错绑Job')
+    return name
+
+
+def charge_capture(capture, value, used, session_counts):
+    """只计原件可观察的帧、请求和wire；不以此冒充DB capture/heap/store账。"""
+    name=capture_job(capture,value)
+    job=value['jobs'][name]['limits']
+    totals=used.setdefault(name,{'wire':0,'requests':0})
+    totals['wire']+=len(capture.request)+len(capture.reply);totals['requests']+=1
+    d.require(totals['wire']<=d.positive(job['max_total_wire_bytes'])
+              and totals['requests']<=d.positive(job['max_total_requests']), '捕获累计wire/请求超过所属Job帽')
+    roles=('q',) if capture.route=='snapshot' else ('session','reader')
+    for role in roles:
+        caps=value['q']['limits'] if role=='q' else value[role]
+        key='max_frame_bytes' if role=='q' else 'max_request_bytes'
+        d.require(len(capture.request)<=d.positive(caps[key])
+                  and len(capture.reply)<=d.positive(caps['max_reply_bytes']), '捕获帧超过冻结对象帽：'+role)
+    if capture.route!='snapshot':
+        ident=capture.binding['session']
+        session_counts[ident]=session_counts.get(ident,0)+1
+        d.require(session_counts[ident]<=d.positive(value['session']['max_requests']), '会话请求超过冻结帽')
+    return name
 
 
 @dataclass(frozen=True)
@@ -172,8 +229,8 @@ def export_captured(contract_raw, expected_sha, captures, source, budget, closur
     """source为独立持久节点读取器。只返回未认证事实；root pin不是执行准入。"""
     budget.charge((contract_raw,));d.require(d.sha(contract_raw)==expected_sha,'导出合同原字节pin不符')
     contract=d.strict(contract_raw)
-    d.require(contract['schema_revision']=='issue1394-captured-cut/1' and contract['execution_authorized'] is False,'导出不接受执行授权')
-    resources(contract['resources'],budget,closure_budget)
+    d.require(contract['schema_revision']=='issue1394-captured-cut/2' and contract['execution_authorized'] is False,'导出拒绝旧歧义合同/执行授权')
+    resources(contract['resources'],budget,closure_budget,contract['stage'])
     identity=contract['source']
     for key,size in (('commit',40),('tree',40),('binary_sha256',64),('input_sha256',64),('artifact_manifest_sha256',64)):
         d.require(isinstance(identity.get(key),str) and re.fullmatch('[0-9a-f]{'+str(size)+'}',identity[key]),'缺根冻结来源身份：'+key)
@@ -189,16 +246,10 @@ def export_captured(contract_raw, expected_sha, captures, source, budget, closur
               and fixed['as_of_generation']==fixed['cut_generation'],'只接受冻结AsKnown完整切面')
     d.require(closure_budget.deadline<=budget.deadline,'闭包不能延长最早截止')
     d.require([x.identity() for x in captures]==contract['captures'],'捕获请求/回复有序原件全集不同')
-    total=0;pages=[];closure_pages=[];basis_pair=None
-    for capture_index,capture in enumerate(captures):
-        budget.charge((capture.request,capture.reply));total+=len(capture.request)+len(capture.reply)
-        d.require(max(len(capture.request),len(capture.reply))<=64*MIB and total<=128*MIB,'捕获原件超过64/128MiB帽')
-        job=contract['resources']['reader']['job_limits']
-        d.require(total<=d.positive(job['max_total_wire_bytes'])
-                  and capture_index+1<=d.positive(job['max_total_requests']), '捕获累计wire/请求超过Job帽')
-        caps=contract['resources']['q']['limits'] if capture.route=='snapshot' else contract['resources']['reader']
-        request_cap=caps['max_frame_bytes'] if capture.route=='snapshot' else caps['max_request_bytes']
-        d.require(len(capture.request)<=d.positive(request_cap) and len(capture.reply)<=d.positive(caps['max_reply_bytes']), '捕获帧超过冻结对象帽')
+    pages=[];closure_pages=[];basis_pair=None;used={};session_counts={}
+    for capture in captures:
+        budget.charge((capture.request,capture.reply))
+        charge_capture(capture,contract['resources'],used,session_counts)
         if capture.route=='snapshot':pages.append(envelope(capture,fixed))
         elif capture.route=='financial-basis':
             d.require(basis_pair is None,'重复basis');basis_pair=(d.strict(capture.request),d.strict(capture.reply))
@@ -221,7 +272,8 @@ def export_captured(contract_raw, expected_sha, captures, source, budget, closur
         d.require(re.fullmatch('[0-9a-f]{64}',page['validated_capture_digest']) is not None,'capture摘要格式')
         d.require(decimal(page['offset'])==len(rows),'分页offset缺漏')
         total_rows=decimal(page['counts']['total']);size=decimal(contract['page_size'])
-        d.require(size>0 and len(page['rows'])==min(size,total_rows-len(rows)),'分页数量不符')
+        d.require(0<size<=d.positive(contract['resources']['q']['limits']['max_page_size'])
+                  and len(page['rows'])==min(size,total_rows-len(rows)),'分页数量/冻结Q页长不符')
         rows.extend(page['rows']);done=len(rows)==total_rows
         d.require(page['done'] is done,'完成标记提前/滞后')
         next_token=page['next_token']
@@ -233,7 +285,7 @@ def export_captured(contract_raw, expected_sha, captures, source, budget, closur
             expected['token_checksum']=fingerprint(expected)
         d.require(next_token==expected,'分页token字段/checksum/来源漂移')
     d.require(done,'缺末页')
-    nodes=[];after=None;finished=False;node_total=None
+    nodes=[];after='';finished=False;node_total=None
     for request,reply in closure_pages:
         budget.check();d.require(not finished,'闭包完成后多页')
         d.exact(request,{'schema_revision','anchor','path','after','max_reply_bytes'},'closure请求')
@@ -254,6 +306,8 @@ def export_captured(contract_raw, expected_sha, captures, source, budget, closur
         d.require(reply['next']==after and reply['done'] is finished,'闭包尾游标/完成标记错误')
     d.require(finished,'闭包漏页')
     closure_result=c.verify(anchor['basis_ref'],nodes,source,closure_budget)
+    jobs_by_owner={v['owner']:v['limits'] for v in contract['resources']['jobs'].values()}
+    job=jobs_by_owner[contract['resources']['object_ids']['reader']]
     d.require(len(nodes)<=d.positive(contract['resources']['session']['max_closure_nodes']), '闭包超过会话冻结节点帽')
     d.require(len(nodes)<=d.positive(job['max_total_nodes']) and
               sum(len(n.body)+len(c.DOMAIN)+9 for n in nodes)<=d.positive(job['max_total_node_bytes']),
@@ -280,7 +334,9 @@ def export_captured(contract_raw, expected_sha, captures, source, budget, closur
             expected_rows.append({'family':family,'key':key,'record':content_ref(record,budget)})
         d.require(metadata['counts'][family]==str(len(records)),'记录族数量不符')
     d.require(rows==expected_rows and set(metadata['counts'])==set(FAMILIES)|{'total'},'对象/来源/关系/见证/历史有序全集不同')
-    d.require(len(rows)<=d.positive(job['max_total_records']), '投影累计记录超过Job帽')
+    d.require(len(rows)<=d.positive(job['max_total_records']), '解码记录超过reader Job帽')
+    qjob=jobs_by_owner[contract['resources']['object_ids']['q']]
+    d.require(len(rows)<=d.positive(qjob['max_total_records']), '投影记录超过Q Job帽')
     qfixed=dict(fixed);qfixed['catalog_evidence']=Edge(fixed['catalog_evidence'])
     projection={'fixed_cut':qfixed,'catalog':Edge(metadata['catalog']),
                 'rows':[dict(row,record=Edge(row['record'])) for row in rows],
@@ -307,6 +363,9 @@ def export_captured(contract_raw, expected_sha, captures, source, budget, closur
         d.require(raw['root'] in by_root and c.Node(raw['root'],int(raw['tag'],16),bytes.fromhex(raw['body_hex']))==by_root[raw['root']], '财务proof不在原件闭包')
     result={'schema_revision':'issue1394-captured-facts/1','source':identity,'fixed_cut':fixed,'anchor':anchor,
             'resources':contract['resources'],
+            'stage':contract['stage'],'observed_job_usage':used,
+            'unmeasured_resources':['DB capture原件尺寸','Native retained/heap/RSS/staged/store/磁盘',
+                                    '服务启动/逐请求耗时、连接/队列/缓存、未捕获的历史请求'],
             'snapshot':snapshot,'captures':[x.identity() for x in captures],'closure':closure_result,
             'status':'UNAUTHENTICATED_FACTS','execution_authorized':False,'product_status':'NOT_RUN',
             'missing':['正式terminal全标签/完整K森林/独立γ语义认证','真实独评与根精确运行授权']}

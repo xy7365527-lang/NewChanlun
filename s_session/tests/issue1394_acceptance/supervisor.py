@@ -150,33 +150,43 @@ class SupervisorCore:
             return self.cleanup_result
         self.stopped = True
         rows = []
+        # 全owner共享一次TERM窗；先发信号再wait，某次阻塞不得跳过其他owner。
+        term_until = min(self.limits.cleanup_deadline - self.limits.kill_wait,
+                         self.clock() + self.limits.term_grace)
         for identity in reversed(tuple(self.owners.values())):
             row = {"identity": asdict(identity), "reaped": False, "errors": []}
+            rows.append(row)
             try:
                 if self.probe.alive(identity):
                     self.live_identity(identity)
-                    require(self.clock() < self.limits.cleanup_deadline, "回收截止耗尽")
                     self.probe.signal(identity, signal.SIGTERM)
-                    until = min(self.limits.cleanup_deadline - self.limits.kill_wait,
-                                self.clock() + self.limits.term_grace)
-                    row["reaped"] = self.probe.wait(identity, until)
-                    require(self.clock() < self.limits.cleanup_deadline, "wait 后回收截止耗尽")
-                    if not row["reaped"]:
-                        if self.probe.alive(identity):
-                            self.live_identity(identity)
-                            require(self.clock() < self.limits.cleanup_deadline, "KILL 截止耗尽")
-                            self.probe.signal(identity, signal.SIGKILL)
-                        row["reaped"] = self.probe.wait(identity, self.limits.cleanup_deadline)
-                        require(self.clock() < self.limits.cleanup_deadline, "wait 后回收截止耗尽")
-                    else:
-                        row["reaped"] = True
-                else:
-                    row["reaped"] = self.probe.wait(identity, self.limits.cleanup_deadline)
-                    require(self.clock() < self.limits.cleanup_deadline, "wait 后回收截止耗尽")
-                require(row["reaped"], "未取得 wait/reap 证明")
             except BaseException as error:
                 row["errors"].append(type(error).__name__ + ": " + str(error))
-            rows.append(row)
+        for row in rows:
+            identity = Identity(**row["identity"])
+            # Probe.wait遇到已过的绝对deadline必须只做非阻塞wait/poll。
+            # 即使先前wait越界，仍做具名身份核验、KILL及非阻塞reap；不重启宽限期。
+            try:
+                row["reaped"] = self.probe.wait(identity, term_until)
+                if self.clock() >= self.limits.cleanup_deadline:
+                    row["errors"].append("wait 后回收截止耗尽")
+            except BaseException as error:
+                row["errors"].append(type(error).__name__ + ": " + str(error))
+            if not row["reaped"]:
+                try:
+                    if self.probe.alive(identity):
+                        self.live_identity(identity)
+                        self.probe.signal(identity, signal.SIGKILL)
+                except BaseException as error:
+                    row["errors"].append(type(error).__name__ + ": " + str(error))
+                try:
+                    row["reaped"] = self.probe.wait(identity, self.limits.cleanup_deadline)
+                    if self.clock() >= self.limits.cleanup_deadline:
+                        row["errors"].append("wait 后回收截止耗尽")
+                except BaseException as error:
+                    row["errors"].append(type(error).__name__ + ": " + str(error))
+            if not row["reaped"]:
+                row["errors"].append("未取得 wait/reap 证明")
         if self.clock() >= self.limits.cleanup_deadline:
             self.failures.append("汇总时回收截止耗尽")
         self.cleanup_result = {"reason": reason, "owners": rows, "failures": self.failures[:],
@@ -194,7 +204,7 @@ def monitor(core, receive, emit):
     reason = "MONITOR_FAILED"
     try:
         while not core.stopped:
-            core.tick()
+            # 先接收排队的具名握手，完整性采样放在核验之后。
             timeout = min(core.limits.sample_interval,
                           core.limits.work_deadline - core.clock(),
                           core.last_heartbeat + core.limits.heartbeat_timeout - core.clock())
@@ -203,6 +213,9 @@ def monitor(core, receive, emit):
             if message is None:
                 core.tick()
                 continue
+            require(core.clock() < core.limits.work_deadline
+                    and core.clock() < core.last_heartbeat + core.limits.heartbeat_timeout,
+                    "接收超过原工作/心跳截止")
             kind = message["kind"]
             if kind == "ACK_REQUEST":
                 emit(core.ack(message["binding"]))

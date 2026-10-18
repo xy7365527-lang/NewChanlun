@@ -1,0 +1,129 @@
+{
+  "query": {
+    "query": {
+      "query_string": {
+        "query": "deterministic OR MemoryConsumer"
+      }
+    },
+    "size": 4
+  },
+  "response": {
+    "_xerj": {
+      "hints": [
+        {
+          "reason": "this response carried 9882 bytes of `_source` across 4 hit(s) — for code, that is usually whole files. To get only the matching function or class, add `\"fields\":[\"_passage\"]` and drop `_source`.",
+          "try": {
+            "request": "POST /nc1320ref-docs,nc1488d1ref-docs/_search",
+            "body": {
+              "query": {
+                "query_string": {
+                  "query": "deterministic OR MemoryConsumer"
+                }
+              },
+              "_source": [
+                "ax_path",
+                "title"
+              ],
+              "fields": [
+                "_passage"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "took": 2,
+    "timed_out": false,
+    "_shards": {
+      "total": 2,
+      "successful": 2,
+      "skipped": 0,
+      "failed": 0
+    },
+    "hits": {
+      "total": {
+        "value": 64,
+        "relation": "eq"
+      },
+      "max_score": 1.0,
+      "hits": [
+        {
+          "_index": "nc1320ref-docs",
+          "_id": "c73e335986c17f94de082bb590d9b0fb",
+          "_score": 1.0,
+          "_source": {
+            "ax_path": "models/fill.pyx",
+            "ax_paths": [
+              "models/fill.pyx"
+            ],
+            "ax_file": "axf2-971026cf99b42e8e8253c66298bbb7e4-710f",
+            "ax_locator": "b7454",
+            "ax_dataset": "docs",
+            "ax_run": "run-20261017T225949Z-1ec8-0000-g1",
+            "ax_format": "pyx",
+            "end_line": 265,
+            "text": "                if order.price <= best_bid:\n                    pass  # Aggressive: use best_bid for price improvement\n                elif order.price <= best_ask:\n                    bid_price = order.price  # Within spread: optimistic fill at order price\n                else:\n                    return None  # Passive: not matchable\n        bid_order = BookOrder(\n            side=OrderSide.BUY,\n            price=bid_price,\n            size=Quantity(UNLIMITED, instrument.size_precision),\n            order_id=1,\n        )\n        ask_order = BookOrder(\n            side=OrderSide.SELL,\n            price=ask_price,\n            size=Quantity(UNLIMITED, instrument.size_precision),\n            order_id=2,\n        )\n        book.add(bid_order, 0, 0)\n        book.add(ask_order, 0, 0)\n        return book\ncdef class OneTickSlippageFillModel(FillModel):\n    \"\"\"\n    Fill model that forces exactly one tick of slippage for all orders.\n    This model demonstrates how to create deterministic slippage by setting zero volume\n    at best prices and unlimited volume one tick away.\n    \"\"\"\n    cpdef OrderBook get_orderbook_for_fill_simulation(\n        self,\n        Instrument instrument,\n        Order order,\n        Price best_bid,\n        Price best_ask,\n    ):\n        \"\"\"\n        Return OrderBook with no volume at best prices, unlimited volume one tick away.\n        \"\"\"\n        cdef:\n            Price tick = instrument.price_increment\n            uint64_t UNLIMITED = 1_000_000",
+            "start_line": 218
+          }
+        },
+        {
+          "_index": "nc1320ref-docs",
+          "_id": "0a8c57d8672f069f96f0d665613b441a",
+          "_score": 1.0,
+          "_source": {
+            "ax_path": "engine.pyx",
+            "ax_paths": [
+              "engine.pyx"
+            ],
+            "ax_file": "axf2-1a210ea042cc52ac2b4c16a7c7beeca0-548ab",
+            "ax_locator": "b21360",
+            "ax_dataset": "docs",
+            "ax_run": "run-20261017T225949Z-1ec8-0000-g1",
+            "ax_format": "pyx",
+            "end_line": 598,
+            "text": "        modules : list[SimulationModule], optional\n            The simulation modules to load into the exchange.\n        fill_model : FillModel, optional\n            The fill model for the exchange.\n        fee_model : FeeModel, optional\n            The fee model for the venue.\n        latency_model : LatencyModel, optional\n            The latency model for the exchange.\n        book_type : BookType, default ``BookType.L1_MBP``\n            The default order book type.\n        routing : bool, default False\n            If multi-venue routing should be enabled for the execution client.\n        reject_stop_orders : bool, default True\n            If stop orders are rejected on submission if trigger price is in the market.\n        support_gtd_orders : bool, default True\n            If orders with GTD time in force will be supported by the venue.\n        support_contingent_orders : bool, default True\n            If contingent orders will be supported/respected by the venue.\n            If False, then it's expected the strategy will be managing any contingent orders.\n        oto_trigger_mode : OtoTriggerMode, default ``OtoTriggerMode.PARTIAL``\n            The OTO trigger mode for contingent orders:\n            - ``PARTIAL``: release child orders pro-rata to each partial fill (default).\n            - ``FULL``: release child orders only once the parent is fully filled.\n        use_position_ids : bool, default True\n            If venue position IDs will be generated on order fills.\n        use_random_ids : bool, default False\n            If venue order IDs and position IDs will be random UUID4's.\n            Trade IDs are always deterministic and not affected by this flag.\n        use_reduce_only : bool, default True\n            If the `reduce_only` execution instruction on orders will be honored.\n        use_message_queue : bool, default True\n            If an internal message queue should be used to process trading commands in sequence after\n            they have initially arrived. Setting this to False would be appropriate for real-time\n            sandbox environments, where we don't want to introduce additional latency of waiting for\n            the next data event before processing the trading command.\n        use_market_order_acks : bool, default False\n            If OrderAccepted events will be generated for market orders before filling.\n        bar_execution : bool, default True\n            If bars should be processed by the matching engine(s) (and move the market).\n        bar_adaptive_high_low_ordering : bool, default False",
+            "start_line": 559
+          }
+        },
+        {
+          "_index": "nc1320ref-docs",
+          "_id": "197d9329ed550a513047d5a3a6e8c58f",
+          "_score": 1.0,
+          "_source": {
+            "ax_path": "engine.pyx",
+            "ax_paths": [
+              "engine.pyx"
+            ],
+            "ax_file": "axf2-1a210ea042cc52ac2b4c16a7c7beeca0-548ab",
+            "ax_locator": "b150968",
+            "ax_dataset": "docs",
+            "ax_run": "run-20261017T225949Z-1ec8-0000-g1",
+            "ax_format": "pyx",
+            "end_line": 3987,
+            "text": "    logger : Logger\n        The logger for the matching engine.\n    bar_execution : bool, default True\n        If bars should be processed by the matching engine (and move the market).\n    trade_execution : bool, default True\n        If trades should be processed by the matching engine (and move the market).\n    liquidity_consumption : bool, default False\n        If liquidity consumption should be tracked per price level.\n    reject_stop_orders : bool, default True\n        If stop orders are rejected if already in the market on submitting.\n    support_gtd_orders : bool, default True\n        If orders with GTD time in force will be supported by the venue.\n    support_contingent_orders : bool, default True\n        If contingent orders will be supported/respected by the venue.\n        If False, then its expected the strategy will be managing any contingent orders.\n    use_position_ids : bool, default True\n        If venue position IDs will be generated on order fills.\n    use_random_ids : bool, default False\n        If venue order IDs and position IDs will be random UUID4's.\n        Trade IDs are always deterministic and not affected by this flag.\n    use_reduce_only : bool, default True\n        If the `reduce_only` execution instruction on orders will be honored.\n    bar_adaptive_high_low_ordering : bool, default False\n        Determines whether the processing order of bar prices is adaptive based on a heuristic.\n        This setting is only relevant when `bar_execution` is True.\n        If False, bar prices are always processed in the fixed order: Open, High, Low, Close.\n        If True, the processing order adapts with the heuristic:\n        - If High is closer to Open than Low then the processing order is Open, High, Low, Close.\n        - If Low is closer to Open than High then the processing order is Open, Low, High, Close.\n    settlement_prices : dict[InstrumentId, float], optional\n        Map of instrument ID to settlement price for expiring instruments.\n        For futures, positions close at this price instead of market.\n        For options, the option leg settles at this price.\n    \"\"\"\n    def __init__(\n        self,\n        Instrument instrument not None,\n        uint32_t raw_id,\n        FillModel fill_model not None,\n        FeeModel fee_model not None,",
+            "start_line": 3946
+          }
+        },
+        {
+          "_index": "nc1320ref-docs",
+          "_id": "0774a623707555cf701febb5bbdfe48d",
+          "_score": 1.0,
+          "_source": {
+            "ax_path": "engine.pyx",
+            "ax_paths": [
+              "engine.pyx"
+            ],
+            "ax_file": "axf2-1a210ea042cc52ac2b4c16a7c7beeca0-548ab",
+            "ax_locator": "b325536",
+            "ax_dataset": "docs",
+            "ax_run": "run-20261017T225949Z-1ec8-0000-g1",
+            "ax_format": "pyx",
+            "end_line": 8039,
+            "text": "            return None\n    cdef PositionId _generate_venue_position_id(self):\n        if not self._use_position_ids:\n            return None\n        self._position_count += 1\n        if self._use_random_ids:\n            return PositionId(str(uuid.uuid4()))\n        else:\n            return PositionId(f\"{self.venue.to_str()}-{self.raw_id}-{self._position_count:03d}\")\n    cdef VenueOrderId _generate_venue_order_id(self):\n        self._order_count += 1\n        if self._use_random_ids:\n            return VenueOrderId(str(uuid.uuid4()))\n        else:\n            return VenueOrderId(f\"{self.venue.to_str()}-{self.raw_id}-{self._order_count:03d}\")\n    cdef TradeId _generate_trade_id(self, uint64_t ts_init):\n        return TradeId(self._generate_trade_id_str(ts_init))\n    cdef str _generate_trade_id_str(self, uint64_t ts_init):\n        # Trade IDs are always deterministic; `_use_random_ids` only affects\n        # venue order IDs and position IDs. A bounded FNV-1a hash of\n        # `(venue, raw_id, ts_init)` keeps the ID under the 36-character\n        # `TradeId` cap for arbitrary-length venue names; `ts_init` protects\n        # against collisions after a reset rewinds `_execution_count`, and\n        # the trailing counter distinguishes multiple fills at the same ts.\n        # The counter bump lives here so every call site (open, high, low,\n        # close ticks in bar-driven matching as well as fill generation)\n        # advances it, matching the Rust `IdsGenerator::generate_trade_id`.\n        self._execution_count += 1\n        cdef uint64_t h = _fnv1a_trade_id_hash(self.venue.to_str(), self.raw_id, ts_init)\n        return f\"T-{h:016x}-{self._execution_count:03d}\"\n# -- EVENT HANDLING -------------------------------------------------------------------------------\n    cpdef void accept_order(self, Order order):\n        if order.is_closed_c():\n            return  # Temporary guard to prevent invalid processing\n        # Check if order already accepted (being added back into the matching engine)\n        if not order.status_c() == OrderStatus.ACCEPTED:\n            self._generate_order_accepted(order, venue_order_id=self._get_venue_order_id(order))\n            if (\n                order.order_type == OrderType.TRAILING_STOP_MARKET\n                or order.order_type == OrderType.TRAILING_STOP_LIMIT",
+            "start_line": 7990
+          }
+        }
+      ]
+    }
+  }
+}

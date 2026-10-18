@@ -1,0 +1,120 @@
+{
+  "schema_revision": "issue1394-integration-source-roles/3",
+  "issue": 1394,
+  "spec": 1340,
+  "parent_task": "01a12e01-45a1-7173-a3e8-d338d108fb93",
+  "manager": "/root/implement_1394_scheduler_v1",
+  "execution_authorized": false,
+  "product_status": {
+    "S": "NOT_RUN",
+    "E": "NOT_RUN",
+    "B": "NOT_RUN",
+    "Q": "NOT_RUN",
+    "Long": "NOT_RUN",
+    "full_history": "NOT_RUN",
+    "P11": "NOT_RUN",
+    "AC1": "NOT_RUN",
+    "AC2": "NOT_RUN",
+    "AC3": "NOT_RUN",
+    "AC4": "NOT_RUN",
+    "AC5": "NOT_RUN"
+  },
+  "tool_host": {
+    "checkout": "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018",
+    "branch": "codex/1394-acceptance-integration-20261018",
+    "base_commit": "dfdeda34886d4a8f0a3bfa7bc8e3f3930aab28f0",
+    "role": "本轮1394工具写集；历史宿主3315不是producer运行来源",
+    "review_baseline": "dfdeda34886d4a8f0a3bfa7bc8e3f3930aab28f0",
+    "original_host_base": "3315ed1d59ba31ffbad3f0b959702eaa92f4ddbd"
+  },
+  "original_driver_static_source": {
+    "commit": "b46ba296993371cb56b2dff7ef878647dc0665ad",
+    "tree": "f8733c328a7f1ab4b19725e0e97ec6dd9caf2bb1",
+    "status": "只读静态协议来源，不继承旧 PASS"
+  },
+  "imports": [
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-driver-p0-v2-20261018/MANIFEST.json",
+      "expected_sha256": "21422ddca25cfce0b84999a621d34746da99086e2e2ededfee01ba2d925c51d9",
+      "actual_sha256": "21422ddca25cfce0b84999a621d34746da99086e2e2ededfee01ba2d925c51d9",
+      "match": true
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-driver-p0-v2-20261018/driver.py",
+      "expected_sha256": "3b29bbbebb7df49bf28a58ff04597a2e93cb5d92f27f21eb79642b7421cea380",
+      "actual_sha256": "3b29bbbebb7df49bf28a58ff04597a2e93cb5d92f27f21eb79642b7421cea380",
+      "match": true
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-scheduler-v1-20261018/MANIFEST.json",
+      "expected_sha256": "54677dc0523de874eea0a5ff51f2dd06f88b14b75e6d6c18943d53b1e2c3bc1e",
+      "actual_sha256": "54677dc0523de874eea0a5ff51f2dd06f88b14b75e6d6c18943d53b1e2c3bc1e",
+      "match": true
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-scheduler-v1-20261018/scheduler.py",
+      "expected_sha256": "3fa2b0da18f900fd848ae9c78481eac02d602d3d3203009cb87995ff178e8866",
+      "actual_sha256": "3fa2b0da18f900fd848ae9c78481eac02d602d3d3203009cb87995ff178e8866",
+      "match": true
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/PREPARATION-CONTRACT.json",
+      "expected_sha256": "ce719894bcb8aa60e956d723271250d57d892ddbb6c70dea64bd0cf4aaca8fa1",
+      "actual_sha256": "ce719894bcb8aa60e956d723271250d57d892ddbb6c70dea64bd0cf4aaca8fa1",
+      "match": true
+    }
+  ],
+  "C1_producer_last_byte_patch": {
+    "commit": "99e819192bd6c91b1dd90e058a93c2a98d5aaaf3",
+    "tree": "955cf8fabda358b94619714198e52916ac0738ff",
+    "path": "/Volumes/AgentStorage/issue1394-closure-last-byte-20261018",
+    "role": "管理者提供的已静审窄修身份；未并入本工具、未编译、未运行、不是执行 source"
+  },
+  "inputs": {
+    "synthetic_9011": "TestOnly 长域输入，不能冒完整市场历史",
+    "old_1374_voice_50070": "不同域；不可拼接或改 hash 复用",
+    "formal_same_domain_S_terminal_gamma_K_bridge": "MISSING",
+    "same_domain_real_Voice": "MISSING",
+    "producer_ARTIFACTS": "MISSING",
+    "consumer_ARTIFACTS": "MISSING",
+    "fixed_cut_capture_exporter": "已实现离线捕获核验；仅toy验证，正式输出NOT_RUN",
+    "same_domain_candidate_assembler": "已实现未认证候选/缺项；正式terminal/K/γ映射与原件MISSING",
+    "exact_runtime_resources": "MISSING；代码检查形状和帽不构成根批准",
+    "exact_root_execution_admission": "MISSING"
+  },
+  "reviews": {
+    "review_01": "references/REVIEW-01-INDEPENDENT.md，对应b8c5，结论BLOCK",
+    "review_01_fixed_probes": "references/REVIEW-01-INDEPENDENT-PROBES.json，原字节未改",
+    "current_diff_independent_review": "NOT_RUN；本轮只有作者自检",
+    "review_02": "references/REVIEW-02-INDEPENDENT.md，对应dfdeda，结论BLOCK",
+    "review_02_fixed_probes": "references/REVIEW-02-INDEPENDENT-PROBES.json，原字节未改"
+  },
+  "scope": {
+    "frontend_owner": 1460,
+    "K4": "排除",
+    "keep_open": [
+      1394,
+      1361,
+      1340,
+      1323,
+      1279
+    ]
+  },
+  "root_unified_source": {
+    "status": "MISSING",
+    "execution_authorized": false,
+    "route": "1488 Native修复→1419审后C…F→根组合C1→根固定统一新SHA",
+    "given_by_manager": "Native修复5cb前缀与C1 99e81919共同基b46；Native78路径/C1两路径共改financial_reader.rs，组合必须重新语义审",
+    "not_independently_claimed": "5cb前缀不是完整pin；main3315与Native并非近邻；本工蜂未读其他工位WIP或合源"
+  },
+  "runtime_identity": "外部工蜂真实session_id由运行时事件登记，本文件不自称原生子代理注册",
+  "revision3": {
+    "fixed_tool_base": "dfdeda34886d4a8f0a3bfa7bc8e3f3930aab28f0",
+    "execution_authorized": false,
+    "product_status": "NOT_RUN",
+    "review_02": "references/REVIEW-02-INDEPENDENT.md；固定旧字节结论BLOCK",
+    "current_diff_independent_review": "NOT_RUN；管理者固定新字节后独审",
+    "captured_contract": "issue1394-captured-cut/2 候选；不是根正式签署输入",
+    "journal": "issue1394-control-journal/2；重开candidate隔离，不自动恢复"
+  }
+}

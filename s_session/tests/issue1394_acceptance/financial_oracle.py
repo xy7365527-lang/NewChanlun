@@ -67,6 +67,7 @@ def audit(finance_raw, finance_sha, *, session_id, session_generation,
         expected_seqs[owner] = [initial_sequences[owner]]
         require(rows[0]["seq"] == initial_sequences[owner], "原开局 seq 不同")
     decisions, grants, slot_states, closed = {}, {}, {}, set()
+    local_commits = {}
     liabilities, imported, seen_requests = {}, False, {}
     cap, baseline = amount(data["policy"]["cap"]), amount(data["baseline"]["amount"])
     observations = []
@@ -163,7 +164,11 @@ def audit(finance_raw, finance_sha, *, session_id, session_generation,
                     require(actual["local_commit_receipt"]["e_cut"] == actual["grant"]["e_cut"]
                             == e_cuts[int(grants[ident]["reserved_seq"])],
                             "本地提交 E cut 不符")
-                    require(amount(actual["local_commit_receipt"]["commit_ns"]) >= amount(grants[ident]["reserved_ns"]),
+                    commit_seq, commit_ns = local_commits[ident]
+                    require(indexed[owner][commit_seq].get("commit_ns") == commit_ns
+                            == actual["local_commit_receipt"].get("commit_ns"),
+                            "B原提交/冻结操作/本地回执时间不同")
+                    require(amount(commit_ns) >= amount(grants[ident]["reserved_ns"]),
                             "B Commit 早于 E 保留责任")
                 locked[plan["right_id"]] += bounds[ident]
                 count[plan["right_id"]] += 1
@@ -242,6 +247,7 @@ def audit(finance_raw, finance_sha, *, session_id, session_generation,
                 p = plans[ident]
                 require(ident in grants and (p["slot_id"], owner, p["applicant_epoch"], p["applicant_generation"]) not in closed,
                         "提交缺共同责任或申请代际已关闭")
+                local_commits[ident] = (seq, event["commit_ns"])
             decisions[ident]["state"] = "Committed" if op == "CommitDecision" else "AbortedBeforeCommit"
         else:
             require(owner == "E" and ident in slots and event["closed"], "关闭申请集合未冻结")
