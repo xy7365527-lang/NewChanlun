@@ -1,0 +1,51 @@
+{
+  "review": {
+    "status": "blocked",
+    "summary": "限定只读独审完成，发现2项阻断，不能给出 PASS_LIMITED_STATIC。23项 toy 通过，但反例确认最终封包可过期仍报成功，以及指定 source 基线未被强制固定。未修改源码或报告，结束工作区 clean。",
+    "findings": [
+      "[P2｜SPEC轴｜截止失效] .github/scripts/issue1393_validate.py:604–606 在最终 evidence.zip 读取和摘要计算前检查截止，随后直接写 PACKAGED；新入口 .github/scripts/issue1393_lock_prepare.py:411–412 复用该函数后仅检查信号。触发：最终 ZIP 摘要期间耗尽共享预算。纯 Python 反例使同一 Budget 剩余约 -1.006 秒，实际仍为 PACKAGED、result.status=PASS、main 返回0。预期应失败且非零退出。最小修复：最终摘要处理、收据写入及成功出口复查同一预算，过期保留原件并记录 FAILED；增加跨截止负控。run08 的已知缺口确实被本锁入口承接，其他工位修复不适用于当前固定 helper。",
+      "[P1｜SPEC轴｜固定源缺口] .github/scripts/issue1393_lock_prepare.py:104–106 直接复用通用绑定；helper .github/scripts/issue1393_validate.py:396–419 只核合同自报 S 的祖先关系、tree 和 S→E 差异，没有要求 S=8e50d40933c2a6a25f882481f3c46aa885ce6407。完整身份 toy 将 S=E=772b83d7ba23414cadc687e4e3d8bab5040553b4、tree 设置一致后仍通过。这样 S→E 可为空，无法机械证明 E 相对指定基线没有产品变化。预期固定本次 S/tree，再核完整写集。最小修复：在锁入口明确校验指定 source commit/tree，并加入 S=E、其他祖先及错误 tree 的拒绝测试。此发现不表示能绕过根对 push 的独立批准。"
+    ],
+    "validation": [
+      "固定源：HEAD=772b83d7ba23414cadc687e4e3d8bab5040553b4，tree=af6860cecf1b11e6f4a3d6c73cff01cce78da0f4；base=8e50d40933c2a6a25f882481f3c46aa885ce6407，tree=0a2e04a4ce22a6b8732ad3b55f57446ee3f066f0。完整 diff 为25个新增文件，均在授权写集；起止 tracked、untracked、暂存均 clean。",
+      "标准轴：已读 CLAUDE/AGENTS、Wayfinder、delivery/generation、CODING_STANDARDS、新增报告及三个入口和固定 helper，未发现额外标准硬违规。SPEC轴核对原始任务及已签 SPEC 相关条款；签署原稿 payload/spec/SPEC.md 摘要与批准记录一致。首次将阅读视图与签署摘要比较失败，已按归档索引纠正，不属于产品问题。",
+      "实际运行 python3 -B -m unittest discover -s .github/scripts -p test_issue1393_lock_prepare.py -v：23项通过，0.254秒。另以临时 toy 和内存替身复现两项发现；真实安装、解析和网络调用均未发生。",
+      "verify_static.py 前五组通过，随后在第106行因要求提交前 HEAD=8e50… 而失败；这是历史验证脚本与当前已提交快照不匹配。另行针对当前快照完成完整写集、摘要、AST、YAML、内嵌 Python、bash -n 和空白检查，未改写历史脚本或原件。",
+      "核实精确 push 分支 codex/1393-lock-once-20261018、默认 False 在 checkout/外部命令前拒绝；message 单封套上限32768字节、事件上限1MiB、批准/独审文本各8192字节。字段白名单、重复/未知/缺失/错类型/UNBOUND/错误摘要拒绝成立；消息不构造 argv、路径或模块。",
+      "除固定 S 缺口外，核实 before=E、既有分支普通 push、F 为 E 单父直接子提交、唯一 workflow False→True 内容变化及100644 mode，以及 repo/ref/job/attempt=1/SHA/WORKFLOW_SHA 绑定。批准与独审文本仅作溯源，不构成授权。",
+      "完整 Git 对象枚举确认 base 与当前不可变源清单8375项一致，规范清单 SHA256=e1059a227dc513426f1a201f02ad94b42c5dfad5d2299d96e88e6901c676785a；未以 sparse 可见文件代替全树。FILES.json 的23项摘要/长度和 FILES.sha256 全部匹配。",
+      "固定 helper SHA256=a98e7e6f54dacef35476f245a1f938df6cd0a952191fd7ea67938dd7185b1830，确认先验摘要再加载同一字节到私有实例；排除范围仅三个入口和本报告目录，未扩大到 ci.yml、旧验证入口或产品。",
+      "真实 manifest 保留 tempfile=\"3\"，旧 lock 确实缺 tempfile package 和根依赖边。独立枚举显式与自动目标得到85文件、2734136字节，与 SOURCE-PREFLIGHT 逐项一致；逐 blob、普通文件、链接/越界及摘要检查通过。运输充分性仅获静态支持，未声称 Cargo 已成功解析。",
+      "固定工具链版本、完整 rustc commit 和 cargo 版本与指定原件逐字一致。源码检查确认独占临时 HOME/CARGO_HOME/RUSTUP_HOME、环境白名单、代理复制及来源/摘要记录、官方 registry 配置检查；解析环境不继承 GitHub token、私有配置或缓存。唯一解析 argv 为固定版本 generate-lockfile，未发现 build/test/check/metadata/Lean/fixture/产品执行路径。",
+      "核实候选 lock、旧 lock、manifest、完整 diff、所有前后 package/source/checksum 和依赖边变化披露，以及失败保件、后续 NOT_RUN、单次解析和回收路径。共享900秒、90秒预留、job15分钟、jobs=1、2GiB起始门及10秒观测存在；最终封包截止例外见发现。上传预算从同一起点计算，首包与后续收据分开，上传成功不冒充解析或正式验证成功。",
+      "全部 NOT_RUN：本机 cargo/rustc/rustup、真实工具链安装、真实 generate-lockfile、网络/registry 获取、远端 checkout/CI/upload、Linux subreaper 实测、Rust编译/测试及正式 --locked 验证、Lean/fixture/产品/Long、E预发布和F单次push。未读取凭据，未操作tracker、提交、切分支、修改配置、push、merge或启动其他工蜂。",
+      "合同仍待绑定：指定 S/tree、最终 E/tree、完整产品清单及 runner/False workflow/ci/telemetry/helper/manifest/旧lock/旧验证workflow/工具链证据摘要、批准和独审原文及摘要。须由管理者返修后重新独审，再由根分别核准 E 预发布与 F 单次 push；本结果不授权后续执行。"
+    ]
+  },
+  "runtime": {
+    "run_id": "244bc3e8-85de-448d-aad7-842c618c74ff",
+    "external_session_id": "01a14d7b-64d4-7e52-94d1-0bab1abfbd66",
+    "status": "failed",
+    "process_exit": {
+      "code": 0,
+      "signal": null
+    },
+    "expected_head": "772b83d7ba23414cadc687e4e3d8bab5040553b4",
+    "checkout_before": {
+      "root": "/Volumes/AgentStorage/issue1393-lock-prepare-20261018",
+      "branch": "codex/1393-lock-prepare-20261018",
+      "head": "772b83d7ba23414cadc687e4e3d8bab5040553b4",
+      "status": ""
+    },
+    "checkout_after": {
+      "root": "/Volumes/AgentStorage/issue1393-lock-prepare-20261018",
+      "branch": "codex/1393-lock-prepare-20261018",
+      "head": "772b83d7ba23414cadc687e4e3d8bab5040553b4",
+      "status": ""
+    },
+    "model": "gpt-6-astra",
+    "effort": "xhigh",
+    "started_at": "2026-10-18T05:28:14.142Z",
+    "ended_at": "2026-10-18T05:33:46.117Z"
+  }
+}
