@@ -4,6 +4,7 @@
 import argparse
 import errno
 import fcntl
+from functools import wraps
 import hashlib
 import json
 import os
@@ -197,6 +198,38 @@ def process_identity(pid, command=None, *, deadline=None):
     return identity
 
 
+def admission_action(action):
+    """#1527 M2：在控制器边界保存失败当刻的脱敏 prelude，不创建或冒充 Rust Job。"""
+    @wraps(action)
+    def run(self, *args, **kwargs):
+        if self._action_error is not None:
+            raise self._action_error
+        self._action_stage, self._action_returncode = "admission", None
+        try:
+            self.admission.prepare()
+            return action(self, *args, **kwargs)
+        except (OSError, ValueError, TypeError, RecursionError, subprocess.SubprocessError) as exc:
+            if not hasattr(exc, "control_receipt"):
+                lease = self.admission
+                receipt = dict(action=action.__name__, stage=self._action_stage, action_stage=self._action_stage,
+                               admission_stage=lease.stage, wire_bytes=lease.wire_bytes,
+                               wire_scope="python_control_prelude",
+                               elapsed_ms=None if lease.first_read_at is None else
+                               max(0, (time.monotonic() - lease.first_read_at) * 1000))
+                if isinstance(exc, AdmissionError):
+                    receipt.update(stage=exc.stage, admission_stage=exc.stage,
+                                   wire_bytes=exc.wire_bytes, elapsed_ms=exc.elapsed_ms)
+                code = exc.returncode if isinstance(exc, subprocess.CalledProcessError) else self._action_returncode
+                if code is not None:
+                    receipt["returncode"] = code
+                exc.control_receipt = receipt
+            # fsync 的 AdmissionError 仍可在原已核对象上续发；动作失败保原首错。
+            if not isinstance(exc, AdmissionError):
+                self._action_error = exc
+            raise
+    return run
+
+
 class Controller:
     def __init__(self, config, state_dir):
         self.config = config
@@ -209,6 +242,8 @@ class Controller:
             raise ValueError("生命周期数据库必须为已解析的绝对路径")
         self.state_dir = state_dir.resolve()
         self.admission = None
+        self._action_error = None
+        self._action_returncode = None
         # #1527：S 的正常入口只消费既存锚。经济域沿用原独立生命周期。
         # 在首次控制读取前固定本次启动绝对期限，start/recover 不重新起钟。
         self.admission_deadline = time.monotonic() + positive(config["startup_timeout_ms"], "startup_timeout_ms") / 1000
@@ -258,6 +293,8 @@ class Controller:
         return self.state_dir / (service + ".process.json")
 
     def status(self, service, *, deadline=None):
+        if self.admission is not None:
+            self.admission.require_owner()
         if deadline is not None:
             remaining(deadline)
         path = self.record_path(service)
@@ -471,6 +508,7 @@ class Controller:
         )
         result = subprocess.run([python, "-c", probe],
                                 capture_output=True, check=True, timeout=remaining(deadline))
+        self._action_returncode = result.returncode
         remaining(deadline)
         library_dir, library_name, framework, framework_prefix = json.loads(result.stdout)
         # #1373：同一显式 Python 声明的两种安装布局，各自核真实文件。
@@ -571,6 +609,7 @@ class Controller:
             raise ValueError("健康回执返回时本次启动进程身份已失效")
         remaining(deadline)
 
+    @admission_action
     def start_s(self, writer_epoch):
         config = self.config
         deadline = self.admission_deadline
@@ -580,9 +619,12 @@ class Controller:
         if "admission_job_limits" in config:
             self.admission.crosscheck_limits(config["admission_job_limits"])
         self.admission.publish()
+        self._action_stage = "runtime_probe"
         environment = self.admission.child_environment(self.runtime_environment(deadline))
+        self._action_stage, self._action_returncode = "resources", None
         remaining(deadline)
         resource_identity = self.freeze_s_resources(deadline) if s3 else None
+        self._action_stage = "socket"
         cleanup = self.prepare_socket(deadline)
         initialization = None
         command = [config["binary"], "serve", "--db", config["db"], "--socket", config["socket"],
@@ -598,10 +640,12 @@ class Controller:
                 command += ["--" + option, config["s_resources"][field]]
         remaining(deadline)
         self.admission.revalidate()
+        self._action_stage = "start_process"
         if s3:
             self.start_process("s", command, environment, deadline=deadline, resource_identity=resource_identity)
         else:
             self.start_process("s", command, environment, deadline=deadline)
+        self._action_stage = "ready"
         return {**self.wait_ready("s", writer_epoch, deadline=deadline), "initialization": initialization,
                 "socket_cleanup": cleanup}
 
@@ -637,6 +681,8 @@ class Controller:
         return result.stdout.decode("ascii")
 
     def start_q(self, query_epoch):
+        if self.admission is not None:
+            self.admission.require_owner()
         config = self.config
         deadline = time.monotonic() + int(config["startup_timeout_ms"]) / 1000
         remaining(deadline)
@@ -692,16 +738,21 @@ class Controller:
             time.sleep(0.05)
         raise TimeoutError(service + " 尚未退出，不自动升级信号")
 
+    @admission_action
     def recover(self, new_epoch, clock_event_id):
         deadline = self.admission_deadline
+        self._action_stage = "recover_status"
         if self.status("s", deadline=deadline)["state"] != "stopped":
             raise ValueError("须有本控制器记录且已确认原 S 停止，才可恢复换代")
         positive(new_epoch, "new_epoch")
         config = self.config
+        self._action_stage = "admission"
         if "admission_job_limits" in config:
             self.admission.crosscheck_limits(config["admission_job_limits"])
         self.admission.publish()
+        self._action_stage = "runtime_probe"
         environment = self.admission.child_environment(self.runtime_environment(deadline))
+        self._action_stage, self._action_returncode = "recover_process", None
         command = [config["binary"], "recover", "--db", config["db"], "--new-epoch", new_epoch,
                    "--clock-plan", config["clock_plan"], "--clock-event-id", clock_event_id,
                    "--admission-job-limits", self.admission.limits_path]
@@ -710,6 +761,7 @@ class Controller:
         self.admission.revalidate()
         recovery = subprocess.run(command,
                                   capture_output=True, check=True, env=environment, timeout=remaining(deadline))
+        self._action_stage, self._action_returncode = "recover_reply", recovery.returncode
         try:
             reply = decode_frame(recovery.stdout)
         except (ValueError, UnicodeError, RecursionError):
@@ -755,9 +807,10 @@ def main():
             result = control.recover(args.new_epoch, args.clock_event_id)
         print(json.dumps({"ok": True, "result": result}, ensure_ascii=True, indent=2))
         return 0
-    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+    except (OSError, ValueError, TypeError, RecursionError, subprocess.SubprocessError) as exc:
         # 控制原文、重复键文本、子进程输出与 ambient env 不能进入 CLI 错误。
         error = {"ok": False, "error": "生命周期动作失败", "category": type(exc).__name__}
+        error.update(getattr(exc, "control_receipt", {}))
         if isinstance(exc, AdmissionError):
             error.update(code=exc.code, stage=exc.stage, wire_bytes=exc.wire_bytes,
                          elapsed_ms=exc.elapsed_ms)

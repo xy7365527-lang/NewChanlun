@@ -107,19 +107,37 @@ class RecoveryAdmission:
         self.deadline, self.job_deadline = deadline, None
         self._fds, self._files = [], {}
         self._named = None
+        self._named_path = None
         self._limits = None
         self._published = False
-        self._loaded = self._load_attempted = False
+        self._loaded = self._owner_loaded = False
         self._preparation_error = None
+        self._owner_error = None
+        # #1527 H1：共享构造只保存两项声明；写动作才解析，不能阻断控制动作。
+        self._environment = {key: environment.get(key) for key in (ENV_SHA, ENV_IDENTITY)}
         try:
             if not math.isfinite(deadline):
                 self._fail("Deadline")
             self._gate()
-            self._env = self._parse_env(environment)
             self.db = Path(db).resolve(strict=True)
             self.state = Path(state_dir)
             if not self.state.is_absolute() or self.state != self.state.resolve(strict=True):
                 self._fail("Identity")
+            if not owner_only:
+                self.prepare()
+        except BaseException as exc:
+            self.close()
+            self._reraise(exc)
+
+    def require_owner(self):
+        """只核控制权限；首读按实际动作发生，后续动作复核原 owner/DB。"""
+        if self._owner_error is not None:
+            raise self._owner_error
+        try:
+            if self._owner_loaded:
+                self._revalidate_owner()
+                return
+            self._gate()
             self.parent_fd = self._keep(_directory(self.db.parent))
             self.parent_identity = _identity(os.fstat(self.parent_fd))
             self.db_fd = self._keep(os.open(self.db.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
@@ -133,31 +151,34 @@ class RecoveryAdmission:
             self.first_read_at = time.monotonic()
             self._owner = self._read("owner", self.parent_fd, self.owner_name, {0o600, 0o644})
             owner = _object(self._owner)
-            if (set(owner) != {"db", "state_dir", "admission"}
-                    and not (owner_only and set(owner) == {"db", "state_dir"})):
+            if set(owner) not in ({"db", "state_dir", "admission"}, {"db", "state_dir"}):
                 self._fail("AnchorInvalid")
             if owner["db"] != str(self.db) or owner["state_dir"] != str(self.state):
                 self._fail("Identity")
             self._binding = owner.get("admission")
-            if self._binding is not None:
-                self._validate_binding(self._binding)
-            if not owner_only:
-                self._prepare()
+            self._owner_loaded = True
         except BaseException as exc:
-            self.close()
-            self._reraise(exc)
+            try:
+                self._reraise(exc)
+            except BaseException as error:
+                self._owner_error = error
+                raise
 
-    def _prepare(self):
+    def prepare(self):
         """仅写入口消费完整锚；status/stop 不因预算文件损坏而丧失控制能力。"""
+        if self._preparation_error is not None:
+            raise self._preparation_error
         if self._loaded:
             return
-        if self._load_attempted:
-            raise self._preparation_error
-        self._load_attempted = True
         try:
+            self.stage = "E0"
+            self._env = self._parse_env(self._environment)
             self._gate()
+            self.require_owner()
+            self.stage = "E1"
             if self._binding is None:
                 self._fail("AnchorInvalid")
+            self._validate_binding(self._binding)
             self.stage = "E2"
             self.state_fd = self._keep(_directory(self.state))
             self.state_identity = _identity(os.fstat(self.state_fd))
@@ -313,8 +334,7 @@ class RecoveryAdmission:
         finally:
             os.close(descriptor)
 
-    def _revalidate(self):
-        self._gate()
+    def _revalidate_owner(self):
         # 复查只取 metadata，绝不采纳替身或重新解析另一份 authority。
         parent = _directory(self.db.parent)
         try:
@@ -329,6 +349,10 @@ class RecoveryAdmission:
                 self._fail("Changed")
         finally:
             os.close(parent)
+
+    def _revalidate(self):
+        self._gate()
+        self._revalidate_owner()
         state_fd = _directory(self.state)
         try:
             if _identity(os.fstat(state_fd)) != self.state_identity:
@@ -362,6 +386,7 @@ class RecoveryAdmission:
 
     def revalidate(self):
         try:
+            self.prepare()
             self._revalidate()
         except BaseException as exc:
             self._reraise(exc)
@@ -374,9 +399,12 @@ class RecoveryAdmission:
     def crosscheck_limits(self, named):
         """兼容旧具名配置的交叉核；不能据此创建锚或改签预算。"""
         try:
-            self._prepare()
+            self.prepare()
             if type(named) is not str or not named or not Path(named).is_absolute():
                 self._fail("ResourcesInvalid")
+            if self._named_path is not None and self._named_path != named:
+                self._fail("Changed")
+            self._named_path = named
             self._revalidate()
             if named == self._binding["path"]:
                 # 已发布位置是当前锚指定的唯一目标；pending 续发仍绑定所持原 FD。
@@ -393,12 +421,18 @@ class RecoveryAdmission:
             self._named = path, parent
             self._revalidate()
         except BaseException as exc:
-            self._reraise(exc)
+            # #1527 M1：交叉核是同一准备态；包括读取失败在内的首错不可换对象重试。
+            try:
+                self._reraise(exc)
+            except BaseException as error:
+                if self._preparation_error is None:
+                    self._preparation_error = error
+                raise self._preparation_error
 
     def publish(self):
         """锚已存在：补足原对象持久化，按原 inode 续发布；失败不清理现场。"""
         try:
-            self._prepare()
+            self.prepare()
             self._revalidate()
             # 即使上次 rename 已发生，重试也不能略过持久化。
             for key in ("limits", "binding"):
@@ -429,6 +463,7 @@ class RecoveryAdmission:
 
     def child_environment(self, environment):
         try:
+            self.prepare()
             self._gate()
             self._crosscheck_env(self._parse_env(environment))
             result = dict(environment)

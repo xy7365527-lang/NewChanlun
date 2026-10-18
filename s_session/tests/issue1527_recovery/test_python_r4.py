@@ -7,6 +7,7 @@ import io
 import json
 import os
 from pathlib import Path
+import signal
 import sqlite3
 import stat
 import subprocess
@@ -517,8 +518,11 @@ class R4Tests(unittest.TestCase):
     def test_controller_missing_anchor_cannot_create_owner_or_start_init(self):
         f = self.fixture()
         f.owner_path.unlink()
-        with patch.object(control.subprocess, "run") as run, self.assertRaises(admission.AdmissionError):
-            control.Controller(f.config(), f.state)
+        with patch.object(control.subprocess, "run") as run, \
+             contextlib.closing(control.Controller(f.config(), f.state)) as controller:
+            for action in (lambda: controller.status("s"), lambda: controller.start_s("1")):
+                with self.assertRaises(admission.AdmissionError):
+                    action()
         run.assert_not_called()
         self.assertFalse(f.owner_path.exists())
         self.assert_source(f)
@@ -543,7 +547,10 @@ class R4Tests(unittest.TestCase):
         f.rewrite_binding()
         with patch.object(admission.time, "monotonic", side_effect=lambda: clock[0]):
             with contextlib.closing(control.Controller(f.config(), f.state)) as controller:
+                # #1527 H1：owner 首读在动作入口；从该次真实读取起，写准备不得续钟。
+                controller.status("s")
                 t0 = controller.admission.first_read_at
+                self.assertEqual(t0, 10.0)
                 clock[0] = 10.002
                 with self.assertRaises(admission.AdmissionError) as first:
                     controller.start_s("1")
@@ -670,6 +677,240 @@ class R4Tests(unittest.TestCase):
             self.assertFalse(parsed["ok"])
             if rc:
                 self.assertEqual(parsed["returncode"], rc)
+
+
+class RepairTests(unittest.TestCase):
+    """#1527 R4 独评返修锁；不发送真实信号，不启动正式服务。"""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="r4-repair-", dir="/private/tmp")
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        env = patch.dict(os.environ, {}, clear=True)
+        env.start()
+        self.addCleanup(env.stop)
+
+    def fixture(self, name, **kwargs):
+        root = self.root / name
+        root.mkdir()
+        return Fixture(root, **kwargs)
+
+    def test_control_actions_ignore_write_env_and_admission(self):
+        for owner_version, broken in ((2, "half"), (3, "half"), (3, "binding"), (3, "null")):
+            with self.subTest(owner=owner_version, broken=broken):
+                f = self.fixture(f"owner{owner_version}-{broken}")
+                if owner_version == 2:
+                    del f.owner["admission"]
+                if broken == "binding":
+                    f.binding["file_identity"]["mode"] = 0o644
+                if broken == "null":
+                    f.owner["admission"] = None
+                f.owner_path.write_bytes(encode(f.owner))
+                env = {admission.ENV_SHA: f.binding["sha256"]} if broken == "half" else {}
+                for service in ("s", "q"):
+                    record = dict(service=service, pid=12345, db=str(f.db), process_identity="repair-identity",
+                                  command=["repair-stub"], control_instance_id="repair-instance")
+                    (f.state / (service + ".process.json")).write_bytes(encode(record))
+                with patch.dict(os.environ, env, clear=True), \
+                     contextlib.closing(control.Controller(f.config("s-launcher/2"), f.state)) as c:
+                    for service in ("s", "q"):
+                        with patch.object(control, "process_identity", return_value="repair-identity"):
+                            self.assertEqual(c.status(service)["state"], "running")
+                        with patch.object(control, "process_identity", side_effect=["repair-identity", "repair-identity", None]), \
+                             patch.object(control.os, "kill") as kill:
+                            self.assertEqual(c.stop(service, signal.SIGTERM)["state"], "stopped")
+                            kill.assert_called_once_with(12345, signal.SIGTERM)
+                    t0, wire = c.admission.first_read_at, c.admission.wire_bytes
+                    with patch.object(c, "runtime_environment") as runtime, self.assertRaises(admission.AdmissionError) as caught:
+                        c.start_s("1")
+                    runtime.assert_not_called()
+                    self.assertEqual(c.admission.first_read_at, t0)
+                    self.assertEqual(c.admission.wire_bytes, wire)
+                    self.assertEqual(caught.exception.wire_bytes, wire)
+                    self.assertEqual(caught.exception.first_read_at, t0)
+                    if broken == "half":
+                        self.assertEqual(caught.exception.stage, "E0")
+                    with patch.object(c, "query_resource_revision", return_value="legacy/2"), \
+                         patch.object(c, "start_process") as start, patch.object(c, "wait_ready", return_value={"state": "ready"}):
+                        self.assertEqual(c.start_q("1")["state"], "ready")
+                        start.assert_called_once()
+
+    def test_deferred_first_read_keeps_original_startup_deadline(self):
+        f = self.fixture("deadline")
+        clock = [10.0]
+        with patch.object(control.time, "monotonic", side_effect=lambda: clock[0]), \
+             contextlib.closing(control.Controller(f.config(), f.state)) as c:
+            self.assertEqual(c.admission_deadline, 20.0)
+            self.assertIsNone(c.admission.first_read_at)
+            clock[0] = 20.0
+            with patch.object(admission.os, "read") as read, self.assertRaises(admission.AdmissionError) as caught:
+                c.start_s("1")
+            self.assertEqual(caught.exception.code, "Deadline")
+            self.assertEqual(c.admission_deadline, 20.0)
+            read.assert_not_called()
+
+    def test_fresh_write_half_env_is_e0_zero_reads_and_latched(self):
+        for version in (2, 3):
+            for action in ("start_s", "recover"):
+                f = self.fixture(f"{version}-{action}")
+                if version == 2:
+                    del f.owner["admission"]
+                    f.owner_path.write_bytes(encode(f.owner))
+                with patch.dict(os.environ, {admission.ENV_SHA: f.binding["sha256"]}, clear=True), \
+                     patch.object(admission.os, "read", wraps=admission.os.read) as read, \
+                     contextlib.closing(control.Controller(f.config(), f.state)) as c:
+                    args = ("1",) if action == "start_s" else ("2", "repair")
+                    with self.assertRaises(admission.AdmissionError) as first:
+                        getattr(c, action)(*args)
+                    self.assertEqual((first.exception.code, first.exception.stage, first.exception.wire_bytes),
+                                     ("ControlMismatch", "E0", 0))
+                    self.assertIsNone(first.exception.first_read_at)
+                    with patch.dict(os.environ, f.env(), clear=True), self.assertRaises(admission.AdmissionError) as retry:
+                        getattr(c, action)(*args)
+                    self.assertIs(retry.exception, first.exception)
+                    read.assert_not_called()
+
+    def test_control_authority_and_process_identity_still_required(self):
+        for bad in ("db", "state_dir", "process"):
+            f = self.fixture(bad)
+            if bad != "process":
+                f.owner[bad] = str(f.root / "other")
+                f.owner_path.write_bytes(encode(f.owner))
+            record = dict(service="q", pid=12345, db=str(f.db), process_identity="expected",
+                          command=["repair-stub"], control_instance_id="repair-instance")
+            (f.state / "q.process.json").write_bytes(encode(record))
+            with patch.dict(os.environ, {admission.ENV_SHA: "half"}, clear=True), \
+                 patch.object(control, "process_identity", return_value="reused"), patch.object(control.os, "kill") as kill:
+                with self.assertRaises(ValueError), contextlib.closing(control.Controller(f.config(), f.state)) as c:
+                    c.stop("q", signal.SIGTERM)
+                kill.assert_not_called()
+
+    def test_configured_errors_pin_first_failure_without_reopen(self):
+        for kind in ("permission", "mismatch", "read"):
+            f = self.fixture(kind, pending=True)
+            named = f.root / "configured.json"
+            named.write_bytes(b"{}" if kind == "mismatch" else f.raw)
+            named.chmod(0o666 if kind == "permission" else 0o600)
+            old_inode = named.stat().st_ino
+            real_read = admission.os.read
+            partial = []
+            def read(fd, size):
+                if kind == "read" and os.fstat(fd).st_ino == old_inode:
+                    if not partial:
+                        partial.append(True)
+                        return real_read(fd, 7)
+                    raise OSError(errno.EIO, "人工读取故障")
+                return real_read(fd, size)
+            with contextlib.closing(control.Controller({**f.config(), "admission_job_limits": str(named)}, f.state)) as c:
+                with patch.object(admission.os, "read", side_effect=read), self.assertRaises(admission.AdmissionError) as first:
+                    c.start_s("1")
+                t0, wire, fds = c.admission.first_read_at, c.admission.wire_bytes, list(c.admission._fds)
+                expected_wire = sum(p.stat().st_size for p in (f.owner_path, f.binding_path, f.path))
+                self.assertEqual(wire, expected_wire + {"permission": 0, "mismatch": 2, "read": 7}[kind])
+                named.rename(f.root / "saved.json")
+                named.write_bytes(f.raw)
+                named.chmod(0o600)
+                self.assertNotEqual(named.stat().st_ino, old_inode)
+                with patch.object(admission.os, "open", side_effect=AssertionError("失败后禁止重开")), \
+                     patch.object(c, "runtime_environment") as runtime:
+                    for retry_action in (lambda: c.start_s("1"), c.admission.publish,
+                                         lambda: c.admission.crosscheck_limits(f.binding["path"])):
+                        with self.assertRaises(admission.AdmissionError) as retry:
+                            retry_action()
+                        self.assertIs(retry.exception, first.exception)
+                    runtime.assert_not_called()
+                self.assertEqual((c.admission.first_read_at, c.admission.wire_bytes, c.admission._fds), (t0, wire, fds))
+                self.assertTrue(f.container.exists())
+                self.assertFalse((f.state / admission.PUBLISHED).exists())
+            for fd in fds:
+                with self.assertRaises(OSError):
+                    os.fstat(fd)
+
+    def test_valid_crosscheck_keeps_same_object_fsync_retry(self):
+        for parent in ("root", "state"):
+            f = self.fixture(parent, pending=True)
+            named = f.root / "configured.json"
+            named.write_bytes(f.raw)
+            named.chmod(0o600)
+            real_sync = admission.os.fsync
+            def sync(fd):
+                if (f.state / admission.PUBLISHED).exists() and _same_directory(fd, getattr(f, parent)):
+                    raise OSError(errno.EIO, "人工持续同步故障")
+                real_sync(fd)
+            with contextlib.closing(control.Controller({**f.config(), "admission_job_limits": str(named)}, f.state)) as c:
+                with patch.object(admission.os, "fsync", side_effect=sync):
+                    for _ in range(2):
+                        with self.assertRaises(admission.AdmissionError) as caught:
+                            c.start_s("1")
+                        self.assertEqual(caught.exception.code, "IO")
+                t0, wire, held = c.admission.first_read_at, c.admission.wire_bytes, c.admission._files["configured"]
+                with patch.object(c, "runtime_environment", return_value={}), patch.object(c, "prepare_socket"), \
+                     patch.object(c, "start_process") as start, patch.object(c, "wait_ready", return_value={"state": "ready"}):
+                    self.assertEqual(c.start_s("1")["state"], "ready")
+                    start.assert_called_once()
+                self.assertEqual((c.admission.first_read_at, c.admission.wire_bytes, c.admission._files["configured"]),
+                                 (t0, wire, held))
+
+    def test_non_admission_errors_keep_public_receipts_and_redaction(self):
+        for kind in ("probe", "probe_reply", "child", "reply"):
+            for action in (("start-s", "recover") if kind.startswith("probe") else ("recover",)):
+                f = self.fixture(kind + action)
+                marker = "repair-private-marker"
+                f.stub(output=marker, rc=7 if kind == "child" else 0)
+                config = f.root / "config.json"
+                config_value = f.config("s-launcher/2")
+                if kind.startswith("probe"):
+                    probe = f.root / "probe.py"
+                    probe.write_text("#!" + sys.executable + "\nimport sys\n"
+                                     "sys.stderr.write(" + repr(marker) + ")\nprint('null')\n"
+                                     f"sys.exit({9 if kind == 'probe' else 0})\n")
+                    probe.chmod(0o700)
+                    config_value["python"] = str(probe)
+                config.write_bytes(encode(config_value))
+                argv = ["control", action, "--config", str(config), "--state-dir", str(f.state)]
+                if action == "recover":
+                    argv += ["--new-epoch", "2", "--clock-event-id", "repair"]
+                output = io.StringIO()
+                runtime = (contextlib.nullcontext() if kind.startswith("probe") else
+                           patch.object(control.Controller, "runtime_environment", return_value={}))
+                observed = []
+                original_close = control.Controller.close
+                def close(c):
+                    observed.append((c.admission.wire_bytes, c.admission.first_read_at))
+                    original_close(c)
+                with patch.object(sys, "argv", argv), patch.object(control.Controller, "status", return_value={"state": "stopped"}), \
+                     runtime, \
+                     patch.object(control.Controller, "close", close), contextlib.redirect_stderr(output):
+                    self.assertEqual(control.main(), 1)
+                receipt = json.loads(output.getvalue())
+                stage = {"probe": "runtime_probe", "probe_reply": "runtime_probe",
+                         "child": "recover_process", "reply": "recover_reply"}[kind]
+                self.assertEqual(receipt["stage"], stage)
+                self.assertEqual(receipt["admission_stage"], "E4")
+                self.assertEqual(receipt["wire_bytes"], observed[0][0])
+                self.assertEqual(receipt["wire_bytes"], sum(p.stat().st_size for p in (f.owner_path, f.binding_path, f.path)))
+                self.assertEqual(receipt["wire_scope"], "python_control_prelude")
+                self.assertIsNotNone(observed[0][1])
+                self.assertGreaterEqual(receipt["elapsed_ms"], 0)
+                self.assertEqual(receipt["returncode"], {"probe": 9, "probe_reply": 0, "child": 7, "reply": 0}[kind])
+                self.assertNotIn(marker, output.getvalue())
+                self.assertNotIn("first_read_at", receipt)
+
+    def test_runtime_failure_retries_keep_first_receipt_and_t0(self):
+        f = self.fixture("retry")
+        error = ValueError("人工私有错误")
+        with contextlib.closing(control.Controller(f.config(), f.state)) as c:
+            with patch.object(c, "runtime_environment", side_effect=error) as runtime:
+                with self.assertRaises(ValueError) as first:
+                    c.start_s("1")
+                wire, t0 = c.admission.wire_bytes, c.admission.first_read_at
+                receipt = dict(first.exception.control_receipt)
+                with self.assertRaises(ValueError) as retry:
+                    c.start_s("1")
+                self.assertIs(first.exception, retry.exception)
+                self.assertEqual(retry.exception.control_receipt, receipt)
+                runtime.assert_called_once()
+                self.assertEqual((c.admission.wire_bytes, c.admission.first_read_at), (wire, t0))
 
 
 def _same_directory(fd, path):
