@@ -1,0 +1,31 @@
+--- a/rust/src/bin/s_session_v3/state.rs
++++ b/rust/src/bin/s_session_v3/state.rs
+@@ -515,11 +515,11 @@
+     {
+         let _ = (tx, deadline, max, job, profile);
+         Err("prototype_audit_allocation_incomplete：Q分配原型未启用".into())
+     }
+ }
+-fn audit_with_budget(
++pub(super) fn audit_with_budget(
+     tx: &Transaction<'_>,
+     deadline: Option<std::time::Instant>,
+     max_render_bytes: Option<u64>,
+     budget: Option<&dyn audit_budget::Budget>,
+ ) -> Result<AuditedState, String> {
+--- a/rust/src/bin/s_session_v3/audit_owner.rs
++++ b/rust/src/bin/s_session_v3/audit_owner.rs
+@@ -339,11 +339,12 @@
+         } else {
+             s_allocation::audit_startup(tx, mode)?;
+         }
+         verify_writer_epoch(tx, epoch)?;
+         let control = control::S3Control::attach(tx, clock)?;
+-        let (profile_value, profile_id, profile_hash) = load_profile(profile)?;
++        let (profile_value, profile_id, profile_hash) =
++            super::admission::load_startup_profile(profile)?;
+         if profile_id != tb02a::PROFILE {
+             return Err("VersionUnsupported：S3驱动尚未实现非OHLC生成，拒绝接纳".into());
+         }
+         if meta_get_opt(tx, "profile_hash")?.as_deref() != Some(profile_hash.as_str()) {
+             return Err("IdentityConflict：S3驱动profile与冻结档案不符".into());

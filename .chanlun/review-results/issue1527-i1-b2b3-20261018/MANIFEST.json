@@ -1,0 +1,197 @@
+{
+  "source": "3f79ce63cfddfacc49c4870bf4aeb436c82fa572",
+  "tree": "f7941291da81370bd31955eecff49887262c43be",
+  "status": "blocked",
+  "qualification": "BLOCK_NOT_MERGEABLE",
+  "parent_task": "01a12e01-45a1-7173-a3e8-d338d108fb93",
+  "manager": "/root/manage_1527_sandcastle",
+  "session_identity": "外部Sandcastle工蜂；真实session_id由运行时登记，未宣称原生子代理",
+  "handoff": {
+    "source": "813e1f92b3da7cf3780ab4886365d2fb2c6bf933",
+    "tree": "be64c9dd538e2fef0c59658cc80390a6c2d2048b",
+    "method": "本地无813e对象；固定5cb加冻结patch在临时树重建并核FILES SHA，仅两共享文件",
+    "qualification": "静态接口核验，不当作独评通过"
+  },
+  "write_set": [
+    ".chanlun/review-results/issue1527-i1-b2b3-20261018/B2B3.md",
+    ".chanlun/review-results/issue1527-i1-b2b3-20261018/CHECKS.json",
+    ".chanlun/review-results/issue1527-i1-b2b3-20261018/FINAL-STATIC-RESULT.json",
+    ".chanlun/review-results/issue1527-i1-b2b3-20261018/FINAL.patch",
+    ".chanlun/review-results/issue1527-i1-b2b3-20261018/INITIAL-SHARED.patch",
+    ".chanlun/review-results/issue1527-i1-b2b3-20261018/MANIFEST.json",
+    ".chanlun/review-results/issue1527-i1-b2b3-20261018/NARROW-SHARED.patch",
+    ".chanlun/review-results/issue1527-i1-b2b3-20261018/STATIC-RESULT.json",
+    ".chanlun/review-results/issue1527-i1-b2b3-20261018/seal.py",
+    ".chanlun/review-results/issue1527-i1-b2b3-20261018/validate.py",
+    "rust/src/bin/s_session_v2/mod.rs",
+    "rust/src/bin/s_session_v3/admission.rs",
+    "rust/src/bin/s_session_v3/admission_anchor.rs",
+    "rust/src/bin/s_session_v3/admission_private/fd_wal.rs",
+    "rust/src/bin/s_session_v3/admission_private/mod.rs",
+    "rust/src/bin/s_session_v3/audit_owner.rs",
+    "rust/src/bin/s_session_v3/state.rs",
+    "rust/src/bin/s_structure_session.rs",
+    "s_session/tests/issue1527_recovery/b2b3_terminal_tests.rs",
+    "s_session/tests/issue1527_recovery/provider_tests.rs"
+  ],
+  "files": [
+    {
+      "path": ".chanlun/review-results/issue1527-i1-b2b3-20261018/B2B3.md",
+      "bytes": 11239,
+      "sha256": "70c8788d8bfc3ed7dab12257450167260d4def81b4c3cfff32ecccf5d52cd2bf",
+      "role": "本轮独占工作草稿"
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-i1-b2b3-20261018/CHECKS.json",
+      "bytes": 21957,
+      "sha256": "9203a260e597b09df3de0b7cde925b023fc9ed39d4785d5921197bfa438c4255",
+      "role": "本轮独占工作草稿"
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-i1-b2b3-20261018/FINAL-STATIC-RESULT.json",
+      "bytes": 2090,
+      "sha256": "8f2cb1079654d4ec546886babb295cdbb9f5637ba7fc279b7a53ef876c2ac164",
+      "role": "本轮独占工作草稿"
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-i1-b2b3-20261018/FINAL.patch",
+      "bytes": 48185,
+      "sha256": "075e726c10d886e945c263a7a7b2a1d83d41f6df87535d738cc4a6144253171c",
+      "role": "本轮独占工作草稿"
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-i1-b2b3-20261018/INITIAL-SHARED.patch",
+      "bytes": 1351,
+      "sha256": "dca79b168e7806e0879e564bb3f69bb9ac0f590b289f0f1ce5435a3dd1b59fb5",
+      "role": "本轮独占工作草稿"
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-i1-b2b3-20261018/NARROW-SHARED.patch",
+      "bytes": 5156,
+      "sha256": "44e1461033b145f812e79c5741d0caad32021a4e9416f6eb16a216b18d6e54fb",
+      "role": "本轮独占工作草稿"
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-i1-b2b3-20261018/STATIC-RESULT.json",
+      "bytes": 2359,
+      "sha256": "a067f57d0f65da2ee574f7dcc602b5424c4cd3ad9f8bab714b9bb67302bcb1dd",
+      "role": "本轮独占工作草稿"
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-i1-b2b3-20261018/seal.py",
+      "bytes": 7697,
+      "sha256": "24f73374088c9f62cf49604ecbb3b49cfd043f2b407dd77961b1beca59ae29f2",
+      "role": "本轮独占工作草稿"
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-i1-b2b3-20261018/validate.py",
+      "bytes": 12232,
+      "sha256": "09566653dec11d75fc8b1d26cf290572ad923ba06eba4ec3b9748858fe8079e0",
+      "role": "本轮独占工作草稿"
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/mod.rs",
+      "bytes": 161159,
+      "sha256": "a27ecf49731dd4938696b57406aeb51e0d5f42fd066d917ba2ffc6976ebb13df",
+      "role": "本轮产品/测试增量"
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/admission.rs",
+      "bytes": 14551,
+      "sha256": "b8f9f4e38ad94831e005804a71f61eb8d90294094372dc694eca603e3d8a6a14",
+      "role": "本轮产品/测试增量"
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/admission_anchor.rs",
+      "bytes": 45319,
+      "sha256": "7a843631bdfb4ad28fbc97da30e1da2bfeace4c0434fcbd1f82592d3321195c7",
+      "role": "本轮产品/测试增量"
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/admission_private/fd_wal.rs",
+      "bytes": 34863,
+      "sha256": "4a5e210dc8c3cbb9ba2885202feed665e94a6ce8d63ce8e8d5e616371e5d6a71",
+      "role": "本轮产品/测试增量"
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/admission_private/mod.rs",
+      "bytes": 9896,
+      "sha256": "77365f849305df523a2e8ac725d9bdaca87ee2178b7dccc9acce38c9148f16b0",
+      "role": "本轮产品/测试增量"
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/audit_owner.rs",
+      "bytes": 183965,
+      "sha256": "565cba303bbd3e4eeacfe02b46fe357905d9c4739375e4aff39d3f832214b61c",
+      "role": "本轮产品/测试增量"
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/state.rs",
+      "bytes": 117614,
+      "sha256": "0d5fef5afbae66d1b9a84c77df73e3443f4e1c841b3290414291c38c272b93ed",
+      "role": "本轮产品/测试增量"
+    },
+    {
+      "path": "rust/src/bin/s_structure_session.rs",
+      "bytes": 481339,
+      "sha256": "fc9b7278cab67cf2ef644ed6a1a618c6360b4c814757c25d7fe4387f642ebb7b",
+      "role": "本轮产品/测试增量"
+    },
+    {
+      "path": "s_session/tests/issue1527_recovery/b2b3_terminal_tests.rs",
+      "bytes": 3890,
+      "sha256": "c9bb5c7fa6154d12c6100a81483595d9087cb7040d6b9ef588efd4dbad0d4b6f",
+      "role": "本轮产品/测试增量"
+    },
+    {
+      "path": "s_session/tests/issue1527_recovery/provider_tests.rs",
+      "bytes": 6624,
+      "sha256": "ed27f916eeb08167a57e05ebb9696b705ce45021e2c569387dafafdc0fa7c720",
+      "role": "本轮产品/测试增量"
+    }
+  ],
+  "inherited": [
+    {
+      "path": ".chanlun/review-results/issue1527-formal-i1-20261018/IMPLEMENTATION.md",
+      "sha256": "45f42314c4b5f2abfb92df41eb379a3597be6f1eebc5dd402570016ced9a0f37",
+      "本轮执行": "未重跑，保留原run04 blocked事实"
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-formal-i1-20261018/CHECKS.json",
+      "sha256": "7081283eee8d5f648e4ed2da638c1f29e73445455f7ee20ac8f9f8262c2e974b",
+      "本轮执行": "未重跑，保留原run04 blocked事实"
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-formal-i1-20261018/MANIFEST.json",
+      "sha256": "5e5fc02433ab2ecf3365ea9f80a7ae1a028de3b4b0eba825d46ec76178259732",
+      "本轮执行": "未重跑，保留原run04 blocked事实"
+    }
+  ],
+  "patches": {
+    "FINAL.patch": "固定3f79以来十个产品/测试文件的完整增量；不递归打包报告",
+    "NARROW-SHARED.patch": "根文件五函数、S2委托、state可见性、audit_owner startup；须与FINAL依赖一起合流",
+    "INITIAL-SHARED.patch": "修改前先生成并应用的两处共享接口patch"
+  },
+  "blockers": [
+    "B1：D2生产RAM额度合同未提供；不造schema/默认数值",
+    "B3旧域：旧证据图摘要及Snapshot/Delta缺与原Job匹配的计费入口；当前具名拒绝准入",
+    "Rust类型/借用/FFI与SQLite实际行为尚未验证；本轮禁止执行"
+  ],
+  "preserved_obligations": [
+    "I1最终验收",
+    "完整9011",
+    "49GB含WAL布局估算",
+    "64GiB/store",
+    "AgentStorage148GiB双跑前置",
+    "I2全资源及metadata/shared extent峰值",
+    "I3来源连续",
+    "I4硬IO",
+    "I5真实EINTR/取消",
+    "金融",
+    "隔离",
+    "独立双跑",
+    "全部六目标"
+  ],
+  "self_hash_rule": "self_sha256=去除此字段后的UTF8规范JSON(sort_keys,separators=逗号冒号,ensure_ascii=False)；自身不递归进入files",
+  "self_sha256": "9034f2ca909fb553c4a4a0186c75e49bad6cac5a700e6c3e42490295c201e7cd"
+}

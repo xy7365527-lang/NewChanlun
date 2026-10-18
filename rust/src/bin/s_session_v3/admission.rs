@@ -189,9 +189,11 @@ impl WriterScope {
     /// Ready 前结束启动外围账；之后服务请求沿既有请求账，不把启动期限冒作永久租约。
     pub(crate) fn finish_startup(&self) -> Result<(), String> {
         let mut state = self.inner.accounting.borrow_mut();
-        if let Some(mut account) = state.take() {
+        if let Some(account) = state.as_mut() {
             account.finish_output().map_err(|e| e.to_string())?;
         }
+        state.take();
+        super::admission_anchor::finish_terminal_startup();
         Ok(())
     }
     pub(crate) fn write_result(&self, value: &serde_json::Value) -> Result<(), String> {
@@ -275,6 +277,54 @@ pub(crate) fn require_current(db: &Path) -> Result<(), String> {
             .ok_or_else(|| "WriterScopeExpired".to_string())?
             .require(db),
     })
+}
+
+fn current_scope() -> Result<Option<WriterScope>, String> {
+    ACTIVE.with(|slot| {
+        slot.borrow()
+            .as_ref()
+            .map(|w| {
+                w.upgrade()
+                    .map(|inner| WriterScope { inner })
+                    .ok_or_else(|| "WriterScopeExpired".to_string())
+            })
+            .transpose()
+    })
+}
+
+pub(crate) fn read_current_text(path: &Path) -> Result<String, String> {
+    let scope = current_scope()?.ok_or("StartupScopeMissing")?;
+    let bytes = read_startup(&scope, path, None)?;
+    String::from_utf8(bytes).map_err(|_| "StartupInputUtf8Invalid".into())
+}
+
+// load_profile 也服务 init 与非准入调用；只有活动启动 scope 才采用其账。
+// 启动账已完成的长驻请求保留原行为，不延长或重建启动 Job。
+pub(crate) fn read_profile_text(path: &Path) -> Result<String, String> {
+    if let Some(scope) = current_scope()? {
+        if scope.inner.accounting.borrow().is_some() {
+            return String::from_utf8(read_startup(&scope, path, None)?)
+                .map_err(|_| "StartupProfileUtf8Invalid".into());
+        }
+    }
+    std::fs::read_to_string(path).map_err(|e| format!("读 profile 失败：{e}"))
+}
+
+pub(crate) fn load_startup_profile(
+    path: &Path,
+) -> Result<(serde_json::Value, String, String), String> {
+    let scope = current_scope()?.ok_or("StartupScopeMissing")?;
+    if scope.inner.accounting.borrow().is_none() {
+        return Err("StartupAccountingFinished".into());
+    }
+    // 使用根的唯一解析/业务规则；根读取调用上面的实际读钩子。
+    crate::load_profile(path)
+}
+
+pub(crate) fn write_current_result(value: &serde_json::Value) -> Result<(), String> {
+    let scope = current_scope()?.ok_or("StartupScopeMissing")?;
+    scope.write_result(value)?;
+    scope.finish_startup()
 }
 /// 已构造 Job 后的启动原件读；调用点明确传 scope，不以文件长度冒充实读。
 pub(crate) fn read_startup(

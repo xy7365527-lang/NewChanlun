@@ -1282,6 +1282,12 @@ impl ExpectedControl {
     }
 }
 
+/// #1527 私有只读连接复用根的完整 S2/legacy 审计，不另写判据。
+/// 原入口包含全部可达批次、Delta、控制史、独立索引和来源对拍。
+pub(crate) fn audit_private_startup(conn: &Connection) -> Result<(), String> {
+    verify_reachable_root(conn)
+}
+
 /// 新鲜检查所有全局控制行，再准备逐代控制头期望；返回不代表批次控制审计通过。
 /// 不能按generation过滤未来/同代损坏或信任自报摘要。
 pub(super) fn prepare_control(conn: &Connection) -> Result<ExpectedControl, String> {

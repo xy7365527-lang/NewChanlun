@@ -16,8 +16,31 @@ impl Fixture {
         std::fs::create_dir(&root).unwrap();
         let root = root.canonicalize().unwrap();
         let db = root.join("main.sqlite");
+        // #1527 B3：正控必须是完整合法 S3 库；任意 SQLite 表只够 quick_check，不能冒充业务正控。
+        let clock = root.join("clock.json");
+        std::fs::write(&clock, serde_json::to_vec(&serde_json::json!({
+            "schema_revision":"s-clock-plan/1","clock_plan_id":"admission-fixture",
+            "origin_utc":"2026-09-18T00:00:00Z","unit":"ns",
+            "events":{"input-1":{"accept_ns":"10","attempts":[{"begin_ns":"11","commit_ns":"12"}]}}
+        })).unwrap()).unwrap();
+        let base = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("s_session");
+        crate::v3::init_v3(
+            &db,
+            "admission-fixture",
+            &base.join("catalog/signed-catalog.json"),
+            &base.join("profiles/testonly_tick_1_1_ohlc.json"),
+            "1",
+            &clock,
+            4,
+        )
+        .unwrap();
         let connection = rusqlite::Connection::open(&db).unwrap();
-        connection.execute_batch("PRAGMA journal_mode=DELETE; CREATE TABLE fixture(value TEXT); INSERT INTO fixture VALUES('真实非空基线');").unwrap();
+        connection
+            .execute_batch("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE;")
+            .unwrap();
         connection.close().unwrap();
         Self { root, db }
     }
@@ -111,4 +134,55 @@ fn extra_sidecar_and_symlink_state_are_named_rejections() {
         .err()
         .unwrap()
         .contains("UnknownDatabaseSidecar"));
+}
+
+#[test]
+fn sqlite_integrity_success_cannot_hide_invalid_business_schema() {
+    let f = Fixture::new();
+    let conn = rusqlite::Connection::open(&f.db).unwrap();
+    conn.execute_batch("CREATE TABLE unexpected(value TEXT);")
+        .unwrap();
+    conn.close().unwrap();
+    let before = std::fs::read(&f.db).unwrap();
+    let error = WriterScope::admit(&f.db, f.prepared())
+        .err()
+        .expect("未知业务表必须拒绝");
+    assert!(
+        error.contains("unexpected"),
+        "必须由完整业务schema判据拒绝：{error}"
+    );
+    assert_eq!(std::fs::read(&f.db).unwrap(), before);
+}
+
+#[test]
+fn repeated_profile_reads_charge_actual_bytes_on_the_same_startup_job() {
+    let f = Fixture::new();
+    let scope = WriterScope::admit(&f.db, f.prepared()).unwrap();
+    let _guard = scope.enter().unwrap();
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("s_session/profiles/testonly_tick_1_1_ohlc.json");
+    let actual = std::fs::read(&path).unwrap().len() as u128;
+    let before = scope
+        .inner
+        .accounting
+        .borrow_mut()
+        .as_mut()
+        .unwrap()
+        .accounting()
+        .snapshot();
+    load_startup_profile(&path).unwrap();
+    load_startup_profile(&path).unwrap();
+    let after = scope
+        .inner
+        .accounting
+        .borrow_mut()
+        .as_mut()
+        .unwrap()
+        .accounting()
+        .snapshot();
+    assert_eq!(after.wire_bytes - before.wire_bytes, actual * 2);
+    assert_eq!(after.nodes, before.nodes);
+    assert_eq!(after.records, before.records);
 }

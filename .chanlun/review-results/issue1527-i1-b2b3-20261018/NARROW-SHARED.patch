@@ -1,0 +1,133 @@
+--- a/rust/src/bin/s_session_v2/mod.rs
++++ b/rust/src/bin/s_session_v2/mod.rs
+@@ -1278,10 +1278,16 @@
+         match self {
+             Self::Legacy => Ok(()),
+             Self::V2 { history } => history.finish(),
+         }
+     }
++}
++
++/// #1527 私有只读连接复用根的完整 S2/legacy 审计，不另写判据。
++/// 原入口包含全部可达批次、Delta、控制史、独立索引和来源对拍。
++pub(crate) fn audit_private_startup(conn: &Connection) -> Result<(), String> {
++    verify_reachable_root(conn)
+ }
+ 
+ /// 新鲜检查所有全局控制行，再准备逐代控制头期望；返回不代表批次控制审计通过。
+ /// 不能按generation过滤未来/同代损坏或信任自报摘要。
+ pub(super) fn prepare_control(conn: &Connection) -> Result<ExpectedControl, String> {
+--- a/rust/src/bin/s_session_v3/audit_owner.rs
++++ b/rust/src/bin/s_session_v3/audit_owner.rs
+@@ -339,11 +339,12 @@
+         } else {
+             s_allocation::audit_startup(tx, mode)?;
+         }
+         verify_writer_epoch(tx, epoch)?;
+         let control = control::S3Control::attach(tx, clock)?;
+-        let (profile_value, profile_id, profile_hash) = load_profile(profile)?;
++        let (profile_value, profile_id, profile_hash) =
++            super::admission::load_startup_profile(profile)?;
+         if profile_id != tb02a::PROFILE {
+             return Err("VersionUnsupported：S3驱动尚未实现非OHLC生成，拒绝接纳".into());
+         }
+         if meta_get_opt(tx, "profile_hash")?.as_deref() != Some(profile_hash.as_str()) {
+             return Err("IdentityConflict：S3驱动profile与冻结档案不符".into());
+--- a/rust/src/bin/s_session_v3/state.rs
++++ b/rust/src/bin/s_session_v3/state.rs
+@@ -515,11 +515,11 @@
+     {
+         let _ = (tx, deadline, max, job, profile);
+         Err("prototype_audit_allocation_incomplete：Q分配原型未启用".into())
+     }
+ }
+-fn audit_with_budget(
++pub(super) fn audit_with_budget(
+     tx: &Transaction<'_>,
+     deadline: Option<std::time::Instant>,
+     max_render_bytes: Option<u64>,
+     budget: Option<&dyn audit_budget::Budget>,
+ ) -> Result<AuditedState, String> {
+--- a/rust/src/bin/s_structure_session.rs
++++ b/rust/src/bin/s_structure_session.rs
+@@ -1932,11 +1932,11 @@
+ fn ensure_writable(conn: &Connection) -> Result<(), String> {
+     evidence_store::format(conn)?.writable()
+ }
+ 
+ fn load_profile(path: &Path) -> Result<(Value, String, String), String> {
+-    let text = std::fs::read_to_string(path).map_err(|e| format!("读 profile 失败：{e}"))?;
++    let text = v3::admission::read_profile_text(path)?;
+     let profile: Value =
+         serde_json::from_str(&text).map_err(|e| format!("profile JSON 解析失败：{e}"))?;
+     let profile_id = profile
+         .get("profile_id")
+         .and_then(Value::as_str)
+@@ -2170,16 +2170,13 @@
+     db: &Path,
+     input_path: &Path,
+     profile_path: &Path,
+     configured_epoch: &str,
+ ) -> Result<(), String> {
+-    let text = std::fs::read_to_string(input_path).map_err(|e| format!("读输入失败：{e}"))?;
+-    println!(
+-        "{}",
+-        accept_core(db, &text, profile_path, configured_epoch, None)?
+-    );
+-    Ok(())
++    let text = v3::admission::read_current_text(input_path)?;
++    let out = accept_core(db, &text, profile_path, configured_epoch, None)?;
++    v3::admission::write_current_result(&out)
+ }
+ 
+ fn accept_core(
+     db: &Path,
+     text: &str,
+@@ -3073,12 +3070,12 @@
+     tx.commit()
+         .map_err(|e| format!("批次持久 commit 失败：{e}"))
+ }
+ 
+ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
+-    println!("{}", advance_core(db, configured_epoch, None)?);
+-    Ok(())
++    let out = advance_core(db, configured_epoch, None)?;
++    v3::admission::write_current_result(&out)
+ }
+ 
+ fn advance_core(
+     db: &Path,
+     configured_epoch: &str,
+@@ -5275,12 +5272,12 @@
+ 
+ /// 正式 writer 换代 / 恢复：核当前持久状态，清未决 Begin（上一 writer 已退出，门保持关闭直到本
+ /// 命令合法恢复），并按 `--new-epoch` 提升 writer_epoch（与 generation 同序持久历史）。旧 epoch 进程
+ /// 此后重放被 StaleWriter 拒绝。这不是「手改 SQL」——是正式入口，历史写入 writer_epoch_history。
+ fn cmd_recover(db: &Path, new_epoch: &str) -> Result<(), String> {
+-    println!("{}", recover_core(db, new_epoch, None)?);
+-    Ok(())
++    let out = recover_core(db, new_epoch, None)?;
++    v3::admission::write_current_result(&out)
+ }
+ 
+ fn recover_core(
+     db: &Path,
+     new_epoch: &str,
+@@ -5478,12 +5475,16 @@
+         other => Err(format!("未知子命令 {other}\n{}", usage())),
+     }
+ }
+ 
+ fn main() {
++    let accounting = v3::admission_anchor::CommandAccounting::begin();
+     if let Err(e) = run() {
+-        eprintln!("{}", json!({"ok": false, "error": e}));
++        let receipt = accounting.report(&e, &mut std::io::stderr().lock());
++        // report 已等每次 write 返回并核原账；显式析构发生在 process::exit 之前。
++        drop(receipt);
++        drop(accounting);
+         std::process::exit(1);
+     }
+ }
+ 
+ #[cfg(test)]

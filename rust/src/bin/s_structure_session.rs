@@ -1934,7 +1934,7 @@ fn ensure_writable(conn: &Connection) -> Result<(), String> {
 }
 
 fn load_profile(path: &Path) -> Result<(Value, String, String), String> {
-    let text = std::fs::read_to_string(path).map_err(|e| format!("读 profile 失败：{e}"))?;
+    let text = v3::admission::read_profile_text(path)?;
     let profile: Value =
         serde_json::from_str(&text).map_err(|e| format!("profile JSON 解析失败：{e}"))?;
     let profile_id = profile
@@ -2172,12 +2172,9 @@ fn cmd_accept(
     profile_path: &Path,
     configured_epoch: &str,
 ) -> Result<(), String> {
-    let text = std::fs::read_to_string(input_path).map_err(|e| format!("读输入失败：{e}"))?;
-    println!(
-        "{}",
-        accept_core(db, &text, profile_path, configured_epoch, None)?
-    );
-    Ok(())
+    let text = v3::admission::read_current_text(input_path)?;
+    let out = accept_core(db, &text, profile_path, configured_epoch, None)?;
+    v3::admission::write_current_result(&out)
 }
 
 fn accept_core(
@@ -3075,8 +3072,8 @@ fn persist_batch_before_publish_inner(
 }
 
 fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
-    println!("{}", advance_core(db, configured_epoch, None)?);
-    Ok(())
+    let out = advance_core(db, configured_epoch, None)?;
+    v3::admission::write_current_result(&out)
 }
 
 fn advance_core(
@@ -5277,8 +5274,8 @@ fn cmd_watch(db: &Path, after_generation: i64) -> Result<(), String> {
 /// 命令合法恢复），并按 `--new-epoch` 提升 writer_epoch（与 generation 同序持久历史）。旧 epoch 进程
 /// 此后重放被 StaleWriter 拒绝。这不是「手改 SQL」——是正式入口，历史写入 writer_epoch_history。
 fn cmd_recover(db: &Path, new_epoch: &str) -> Result<(), String> {
-    println!("{}", recover_core(db, new_epoch, None)?);
-    Ok(())
+    let out = recover_core(db, new_epoch, None)?;
+    v3::admission::write_current_result(&out)
 }
 
 fn recover_core(
@@ -5480,8 +5477,12 @@ fn run() -> Result<(), String> {
 }
 
 fn main() {
+    let accounting = v3::admission_anchor::CommandAccounting::begin();
     if let Err(e) = run() {
-        eprintln!("{}", json!({"ok": false, "error": e}));
+        let receipt = accounting.report(&e, &mut std::io::stderr().lock());
+        // report 已等每次 write 返回并核原账；显式析构发生在 process::exit 之前。
+        drop(receipt);
+        drop(accounting);
         std::process::exit(1);
     }
 }

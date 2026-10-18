@@ -632,46 +632,207 @@ unsafe extern "C" fn current_time(_: *mut ffi::sqlite3_vfs, out: *mut f64) -> c_
     .unwrap_or(ffi::SQLITE_ERROR)
 }
 
+// #1527：只列原完整审计实际使用的只读动作；无 DDL/DML/ATTACH/SAVEPOINT/未知函数。
+fn audit_sql_allowed(
+    action: c_int,
+    a: Option<&[u8]>,
+    b: Option<&[u8]>,
+    db: Option<&[u8]>,
+    origin: Option<&[u8]>,
+    exclusive_armed: bool,
+) -> bool {
+    if origin.is_some() || !matches!(db, None | Some(b"main")) {
+        return false;
+    }
+    match action {
+        ffi::SQLITE_SELECT => true,
+        ffi::SQLITE_READ => db == Some(b"main") || a == Some(b"pragma_table_info"),
+        ffi::SQLITE_TRANSACTION => matches!(a, Some(b"BEGIN" | b"ROLLBACK")),
+        ffi::SQLITE_FUNCTION => matches!(
+            b,
+            Some(
+                b"count"
+                    | b"length"
+                    | b"hex"
+                    | b"typeof"
+                    | b"like"
+                    | b"coalesce"
+                    | b"max"
+                    | b"min"
+                    | b"sum"
+            )
+        ),
+        ffi::SQLITE_PRAGMA => match (a, b) {
+            (Some(b"locking_mode"), Some(value)) => {
+                !exclusive_armed && value.eq_ignore_ascii_case(b"exclusive")
+            }
+            (Some(b"locking_mode"), None) => true,
+            (Some(b"query_only"), Some(b"ON" | b"1")) => true,
+            (Some(b"temp_store"), Some(value)) => value.eq_ignore_ascii_case(b"memory"),
+            (Some(b"quick_check"), None) => true,
+            // table_info 的参数是表名，始终只读；pragma_table_info(?1) 原 schema 审计使用。
+            (Some(b"table_info"), Some(_)) => true,
+            _ => false,
+        },
+        _ => false,
+    }
+}
 unsafe extern "C" fn authorizer(
     data: *mut c_void,
     action: c_int,
     a: *const c_char,
     b: *const c_char,
-    _: *const c_char,
-    _: *const c_char,
+    db: *const c_char,
+    origin: *const c_char,
 ) -> c_int {
     let ctx = unsafe { &*data.cast::<Context>() };
-    // 不支持的动作一律 DENY；panic 返回 IOERR 并不是合法 authorizer 返回值，转 DENY。
     let rc = guarded(ctx, || {
-        let allowed = match action {
-            ffi::SQLITE_SELECT | ffi::SQLITE_READ => true,
-            ffi::SQLITE_FUNCTION => {
-                matches!(unsafe { bytes(b) }, Some(b"count" | b"length" | b"hex"))
-            }
-            ffi::SQLITE_PRAGMA => match (unsafe { bytes(a) }, unsafe { bytes(b) }) {
-                (Some(b"locking_mode"), Some(value)) => {
-                    !ctx.exclusive_armed.load(Ordering::SeqCst)
-                        && value.eq_ignore_ascii_case(b"exclusive")
-                }
-                (Some(b"locking_mode"), None) => true,
-                (Some(b"query_only"), Some(value)) => value == b"ON" || value == b"1",
-                (Some(b"temp_store"), Some(value)) => value.eq_ignore_ascii_case(b"memory"),
-                (Some(b"quick_check"), None) => true,
-                _ => false,
-            },
-            _ => false,
-        };
+        let allowed = audit_sql_allowed(
+            action,
+            unsafe { bytes(a) },
+            unsafe { bytes(b) },
+            unsafe { bytes(db) },
+            unsafe { bytes(origin) },
+            ctx.exclusive_armed.load(Ordering::SeqCst),
+        );
         if allowed {
             ffi::SQLITE_OK
         } else {
             ctx.sql_denials.fetch_add(1, Ordering::SeqCst);
-            ctx.record("sql-denied", 0, action.into(), 0, ffi::SQLITE_DENY)
+            ffi::SQLITE_DENY
         }
     });
     if rc == ffi::SQLITE_OK {
         rc
     } else {
         ffi::SQLITE_DENY
+    }
+}
+
+// SQLite 缓存命中没有 VFS read；逐 VM 指令仍核同一个原期限。
+// 不运行 SQL、不保留 RefCell 借用，重入或 panic 一律 interrupt。
+unsafe extern "C" fn progress(data: *mut c_void) -> c_int {
+    let ctx = unsafe { &*data.cast::<Context>() };
+    let rc = guarded(ctx, || {
+        if ctx.before_io() {
+            ffi::SQLITE_OK
+        } else {
+            ffi::SQLITE_INTERRUPT
+        }
+    });
+    c_int::from(rc != ffi::SQLITE_OK)
+}
+
+#[cfg(test)]
+mod authorization_tests {
+    use super::*;
+    // NOT_RUN：仅策略源码锁，真实 SQLite authorizer 事件序列仍需具名运行。
+    #[test]
+    fn full_audit_read_actions_do_not_enable_write_attach_temp_or_unknown_exits() {
+        for action in [
+            ffi::SQLITE_INSERT,
+            ffi::SQLITE_UPDATE,
+            ffi::SQLITE_DELETE,
+            ffi::SQLITE_ATTACH,
+            ffi::SQLITE_DETACH,
+            ffi::SQLITE_CREATE_TABLE,
+            ffi::SQLITE_CREATE_TEMP_TABLE,
+            ffi::SQLITE_SAVEPOINT,
+            -1,
+        ] {
+            assert!(!audit_sql_allowed(
+                action,
+                Some(b"meta"),
+                None,
+                Some(b"main"),
+                None,
+                true
+            ));
+        }
+        assert!(!audit_sql_allowed(
+            ffi::SQLITE_READ,
+            Some(b"meta"),
+            None,
+            Some(b"temp"),
+            None,
+            true
+        ));
+        assert!(!audit_sql_allowed(
+            ffi::SQLITE_FUNCTION,
+            None,
+            Some(b"load_extension"),
+            None,
+            None,
+            true
+        ));
+        assert!(!audit_sql_allowed(
+            ffi::SQLITE_PRAGMA,
+            Some(b"writable_schema"),
+            Some(b"1"),
+            None,
+            None,
+            true
+        ));
+        assert!(!audit_sql_allowed(
+            ffi::SQLITE_PRAGMA,
+            Some(b"query_only"),
+            Some(b"OFF"),
+            None,
+            None,
+            true
+        ));
+        assert!(!audit_sql_allowed(
+            ffi::SQLITE_READ,
+            Some(b"meta"),
+            None,
+            Some(b"main"),
+            Some(b"view"),
+            true
+        ));
+        for function in [
+            b"count".as_slice(),
+            b"coalesce",
+            b"sum",
+            b"max",
+            b"min",
+            b"length",
+            b"typeof",
+            b"like",
+            b"hex",
+        ] {
+            assert!(audit_sql_allowed(
+                ffi::SQLITE_FUNCTION,
+                None,
+                Some(function),
+                None,
+                None,
+                true
+            ));
+        }
+        assert!(audit_sql_allowed(
+            ffi::SQLITE_READ,
+            Some(b"pragma_table_info"),
+            Some(b"type"),
+            None,
+            None,
+            true
+        ));
+        assert!(audit_sql_allowed(
+            ffi::SQLITE_PRAGMA,
+            Some(b"table_info"),
+            Some(b"meta"),
+            Some(b"main"),
+            None,
+            true
+        ));
+        assert!(audit_sql_allowed(
+            ffi::SQLITE_TRANSACTION,
+            Some(b"ROLLBACK"),
+            None,
+            None,
+            None,
+            true
+        ));
     }
 }
 
@@ -846,6 +1007,15 @@ impl<'a> Registration<'a> {
         };
         if rc != ffi::SQLITE_OK {
             return Err(format!("authorizer rc={rc}").into());
+        }
+        // SAFETY：同 authorizer 的稳定 ctx，Session/connection 必须先于 Registration 析构。
+        unsafe {
+            ffi::sqlite3_progress_handler(
+                c.handle(),
+                1,
+                Some(progress),
+                (self.ctx() as *const Context).cast_mut().cast(),
+            );
         }
         if exclusive_before_read {
             let mode: String = c.query_row("PRAGMA locking_mode=EXCLUSIVE", [], |r| r.get(0))?;

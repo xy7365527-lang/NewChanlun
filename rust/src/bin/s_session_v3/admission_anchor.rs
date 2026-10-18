@@ -8,6 +8,7 @@
 use newchan_rust::s_content::job::JobLimits;
 use newchan_rust::session_protocol::{sha256_hex, strict_json};
 use serde_json::{Map, Value};
+use std::cell::{RefCell, RefMut};
 use std::ffi::{CString, OsStr, OsString};
 use std::fmt;
 use std::fs::{File, Metadata, OpenOptions};
@@ -16,6 +17,7 @@ use std::os::fd::{AsRawFd, FromRawFd};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Component, Path, PathBuf};
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -458,7 +460,7 @@ use newchan_rust::s_content::{
 /// #1527 M-01：原 Job 只属于此持有者；provider 只借用受限记账门面。
 /// 不向 provider 移交本持有者或其可变引用；finish 永远检查这里的原账。
 pub(crate) struct StartedAdmission {
-    job: newchan_rust::s_content::job::Job,
+    job: Rc<RefCell<admission_job::Job>>,
     lease: Arc<BudgetLease>,
     first_read_at: Instant,
 }
@@ -493,6 +495,143 @@ fn job_error_kind(error: &newchan_rust::s_content::CodecError) -> ErrorKind {
     }
 }
 
+// #1527 B2：仅根命令拥有终端收尾槽。它延长同一本 Job 的寿命，不给 provider
+// Job/Rc/可替换槽位。线程局部且不可 Send；启动成功后显式撤下，长驻请求不继承。
+#[derive(Debug)]
+pub(crate) struct PreludeObservation {
+    pub(crate) first_read_at: Option<Instant>,
+    pub(crate) wire_bytes: u64,
+    pub(crate) budget_trusted: bool,
+    pub(crate) stage: Stage,
+}
+#[derive(Default)]
+struct TerminalState {
+    prelude: Option<PreludeObservation>,
+    job: Option<Rc<RefCell<admission_job::Job>>>,
+    first_read_at: Option<Instant>,
+}
+thread_local! {
+    static TERMINAL: RefCell<Option<TerminalState>> = const { RefCell::new(None) };
+}
+pub(crate) struct CommandAccounting;
+#[derive(Debug)]
+pub(crate) struct TerminalReceipt {
+    pub(crate) prelude: Option<PreludeObservation>,
+    pub(crate) first_read_at: Option<Instant>,
+    pub(crate) job: Option<admission_job::JobSnapshot>,
+    pub(crate) actual_stderr_bytes: u128,
+    pub(crate) unaccepted_stderr_bytes: u128,
+    pub(crate) accounting_error: Option<String>,
+    pub(crate) write_error: Option<String>,
+}
+fn retain_terminal_job(job: &Rc<RefCell<admission_job::Job>>, first: Instant) {
+    TERMINAL.with(|slot| {
+        if let Some(state) = slot.borrow_mut().as_mut() {
+            // 一个命令只消费一次准备态，拒绝在已有账上续一份新账。
+            assert!(state.job.is_none(), "nested admission Job");
+            state.job = Some(Rc::clone(job));
+            state.first_read_at = Some(first);
+        }
+    });
+}
+pub(crate) fn finish_terminal_startup() {
+    TERMINAL.with(|slot| {
+        if let Some(state) = slot.borrow_mut().as_mut() {
+            *state = TerminalState::default();
+        }
+    });
+}
+impl CommandAccounting {
+    pub(crate) fn begin() -> Self {
+        TERMINAL.with(|slot| {
+            assert!(slot.borrow().is_none(), "nested command accounting");
+            *slot.borrow_mut() = Some(TerminalState::default());
+        });
+        Self
+    }
+    /// 最后错误 sink 是已停止 Job 的清理输出，不能用 pre_io_check 丢掉诊断。
+    /// 每次实际 write 返回 n 后调用原 charge；原 stopped 拒收量另记，不改首错/续期。
+    /// 返回收据不再次输出，避免按日志长度虚造自引用计数。
+    pub(crate) fn report(&self, error: &str, sink: &mut impl io::Write) -> TerminalReceipt {
+        let state = TERMINAL
+            .with(|slot| slot.borrow_mut().take())
+            .unwrap_or_default();
+        let mut receipt = TerminalReceipt {
+            first_read_at: state
+                .first_read_at
+                .or_else(|| state.prelude.as_ref().and_then(|p| p.first_read_at)),
+            prelude: state.prelude,
+            job: None,
+            actual_stderr_bytes: 0,
+            unaccepted_stderr_bytes: 0,
+            accounting_error: None,
+            write_error: None,
+        };
+        // 仅声明写之前已知的账状态，不把尚未发生的写量嵌回本条消息。
+        let before = state.job.as_ref().map(|j| j.borrow().snapshot());
+        let value = if before.is_none() && receipt.prelude.is_none() {
+            serde_json::json!({"ok":false,"error":error})
+        } else {
+            serde_json::json!({"ok":false,"error":error,
+            "admission_accounting": {
+                "job_present": before.is_some(),
+                "before_stderr": before.as_ref().map(|s| format!("{s:?}")),
+                "prelude": receipt.prelude.as_ref().map(|s| format!("{s:?}"))
+            }})
+        };
+        let mut payload = value.to_string().into_bytes();
+        payload.push(b'\n');
+        let mut offset = 0;
+        while offset < payload.len() {
+            match sink.write(&payload[offset..]) {
+                Ok(n) => {
+                    receipt.actual_stderr_bytes += n as u128;
+                    if let Some(job) = &state.job {
+                        let mut job = job.borrow_mut();
+                        let before = job.snapshot().wire_bytes;
+                        if let Err(e) = job.charge_wire_bytes(n as u64) {
+                            receipt
+                                .accounting_error
+                                .get_or_insert_with(|| e.to_string());
+                        }
+                        let accepted = job.snapshot().wire_bytes - before;
+                        receipt.unaccepted_stderr_bytes += (n as u128).saturating_sub(accepted);
+                    } else {
+                        receipt.unaccepted_stderr_bytes += n as u128;
+                    }
+                    if n == 0 {
+                        receipt.write_error = Some("TerminalWriteZero".into());
+                        break;
+                    }
+                    offset += n;
+                }
+                Err(e) => {
+                    // 包括 EINTR：保留之前成功 n，不重试、不报完整输出成功。
+                    receipt.write_error = Some(e.kind().to_string());
+                    break;
+                }
+            }
+        }
+        if let Some(job) = &state.job {
+            let mut job = job.borrow_mut();
+            if let Err(e) = job.finish_check() {
+                receipt
+                    .accounting_error
+                    .get_or_insert_with(|| e.to_string());
+            }
+            receipt.job = Some(job.snapshot());
+        }
+        receipt
+    }
+}
+impl Drop for CommandAccounting {
+    fn drop(&mut self) {
+        TERMINAL.with(|slot| {
+            slot.borrow_mut().take();
+        });
+    }
+}
+
 impl ConsumedAdmission {
     /// measured 必须是 provider 实测全域基线；禁止填零来抢先创建 Job。
     /// 即使构造失败，错误仍携带首读以来的控制 payload 量。失败不返回 self。
@@ -506,10 +645,14 @@ impl ConsumedAdmission {
             .prelude
             .first_read_at
             .ok_or_else(|| self.prelude.error(ErrorKind::Deadline, Stage::E7))?;
-        let mut job = Job::new_started(self.limits, measured, Box::new(Instant::now), first)
-            .map_err(|e| self.prelude.error(job_error_kind(&e), Stage::E7))?;
+        let job = Rc::new(RefCell::new(
+            Job::new_started(self.limits, measured, Box::new(Instant::now), first)
+                .map_err(|e| self.prelude.error(job_error_kind(&e), Stage::E7))?,
+        ));
+        retain_terminal_job(&job, first);
         // check 已先追认 deadline/wire；本次仅回灌一次实际值，没有新的 I/O。
-        job.charge_wire_bytes(self.prelude.wire_bytes)
+        job.borrow_mut()
+            .charge_wire_bytes(self.prelude.wire_bytes)
             .map_err(|e| self.prelude.error(job_error_kind(&e), Stage::E7))?;
         Ok(StartedAdmission {
             job,
@@ -521,11 +664,13 @@ impl ConsumedAdmission {
 
 impl StartedAdmission {
     pub(crate) fn accounting(&mut self) -> AdmissionAccounting<'_> {
-        AdmissionAccounting { job: &mut self.job }
+        AdmissionAccounting {
+            job: self.job.borrow_mut(),
+        }
     }
 
     fn error(&self, kind: ErrorKind) -> JobAdmissionError {
-        let snapshot = self.job.snapshot();
+        let snapshot = self.job.borrow().snapshot();
         JobAdmissionError {
             kind,
             stage: Stage::E8,
@@ -535,15 +680,15 @@ impl StartedAdmission {
         }
     }
 
-    pub(crate) fn seal(mut self) -> Result<FinishedAdmission, JobAdmissionError> {
+    pub(crate) fn seal(self) -> Result<FinishedAdmission, JobAdmissionError> {
         let paths = self.lease.revalidate_paths();
         self.job
+            .borrow()
             .check_deadline()
             .map_err(|e| self.error(job_error_kind(&e)))?;
         paths.map_err(|_| self.error(ErrorKind::Changed))?;
-        self.job
-            .finish_check()
-            .map_err(|e| self.error(job_error_kind(&e)))?;
+        let finished = self.job.borrow_mut().finish_check();
+        finished.map_err(|e| self.error(job_error_kind(&e)))?;
         Ok(FinishedAdmission {
             job: self.job,
             lease: self.lease,
@@ -551,23 +696,23 @@ impl StartedAdmission {
     }
 
     /// 私有准入/清理完成后一次性收尾；源侧身份仍须由 WriterScope 接着核验。
-    pub(crate) fn finish(mut self) -> Result<Arc<BudgetLease>, JobAdmissionError> {
+    pub(crate) fn finish(self) -> Result<Arc<BudgetLease>, JobAdmissionError> {
         let paths = self.lease.revalidate_paths();
         // 原 Job 的 stopped/期限语义照旧；这里不重排 charge_wire_bytes 的首错。
         self.job
+            .borrow()
             .check_deadline()
             .map_err(|e| self.error(job_error_kind(&e)))?;
         paths.map_err(|_| self.error(ErrorKind::Changed))?;
-        self.job
-            .finish_check()
-            .map_err(|e| self.error(job_error_kind(&e)))?;
+        let finished = self.job.borrow_mut().finish_check();
+        finished.map_err(|e| self.error(job_error_kind(&e)))?;
         Ok(self.lease)
     }
 }
 
 /// 私有恢复已收尾后的同一本账，仅用于启动外围 I/O，不能重新准入或换 Job。
 pub(crate) struct FinishedAdmission {
-    job: admission_job::Job,
+    job: Rc<RefCell<admission_job::Job>>,
     lease: Arc<BudgetLease>,
 }
 impl FinishedAdmission {
@@ -575,10 +720,12 @@ impl FinishedAdmission {
         &self.lease
     }
     pub(crate) fn accounting(&mut self) -> AdmissionAccounting<'_> {
-        AdmissionAccounting { job: &mut self.job }
+        AdmissionAccounting {
+            job: self.job.borrow_mut(),
+        }
     }
     pub(crate) fn finish_output(&mut self) -> Result<(), AccountingError> {
-        self.job.finish_check()
+        self.job.borrow_mut().finish_check()
     }
 }
 
@@ -586,10 +733,14 @@ impl FinishedAdmission {
 /// 即使 mem::replace 整个门面，也只换借用视图，不会搬走或清空父持有者的 Job。
 /// 丢弃门面不自动释放 Grant；未结预留仍由原账 finish_check 拒绝。
 pub(crate) struct AdmissionAccounting<'a> {
-    job: &'a mut admission_job::Job,
+    job: RefMut<'a, admission_job::Job>,
 }
 
 impl AdmissionAccounting<'_> {
+    pub(crate) fn begin_first_read(&mut self) -> Result<(), AccountingError> {
+        self.job.begin_first_read()
+    }
+
     pub(crate) fn check_deadline(&self) -> Result<(), AccountingError> {
         self.job.check_deadline()
     }
@@ -710,7 +861,23 @@ impl ControlPrelude {
         }
     }
 
+    fn observe(&self, stage: Stage) {
+        TERMINAL.with(|slot| {
+            if let Some(terminal) = slot.borrow_mut().as_mut() {
+                if terminal.job.is_none() {
+                    terminal.prelude = Some(PreludeObservation {
+                        first_read_at: self.first_read_at,
+                        wire_bytes: self.wire_bytes,
+                        budget_trusted: self.trusted.is_some(),
+                        stage,
+                    });
+                }
+            }
+        });
+    }
+
     fn error(&self, kind: ErrorKind, stage: Stage) -> AdmissionError {
+        self.observe(stage);
         AdmissionError {
             kind,
             stage,
@@ -725,6 +892,7 @@ impl ControlPrelude {
     }
 
     fn gate_at(&self, stage: Stage, now: Instant) -> Result<(), AdmissionError> {
+        self.observe(stage);
         if let Some(limits) = self.trusted {
             let start = self
                 .first_read_at
@@ -1126,6 +1294,9 @@ fn entry_exists(directory: &File, name: &str) -> io::Result<bool> {
 #[path = "../../../../s_session/tests/issue1527_recovery/anchor_tests.rs"]
 mod tests;
 
+#[cfg(test)]
+#[path = "../../../../s_session/tests/issue1527_recovery/b2b3_terminal_tests.rs"]
+mod b2b3_terminal_tests;
 #[cfg(test)]
 #[path = "../../../../s_session/tests/issue1527_recovery/test_support.rs"]
 mod test_support;
