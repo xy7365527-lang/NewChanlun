@@ -1,0 +1,37 @@
+{
+  "ticket": 1393,
+  "review_run": "e656020f-fc45-41b8-a51e-f23c32682d33",
+  "review_session": "01a14d3d-f69b-7281-a1b9-f4e9502218bd",
+  "reviewed_head": "c25f35f1dfe088affa07f18479f6736d069fc9a6",
+  "reviewed_tree": "630f5cab59260448a46cc93edae23b5fc11a7bf1",
+  "base": "3315ed1d59ba31ffbad3f0b959702eaa92f4ddbd",
+  "process_exit": {
+    "code": 0,
+    "signal": null
+  },
+  "ended_at": "2026-10-18T04:27:51.510Z",
+  "result": {
+    "status": "blocked",
+    "summary": "BLOCKED：已完成固定提交的标准轴与已签 SPEC 轴静态评审，发现 3 处需要修复的协议校验缺口。包含核未发现与 W 裁定冲突的静态问题，但不构成 Rust、Lean、正式会话或全票验收通过。",
+    "findings": [
+      "[P1｜标准轴／SPEC轴] s_session/s_tb02_contract.py:378 仅凭 endswith('+raw-initialization-w/1') 接纳 W 对象；s_session/s_query_integrity.py:352 与 s_session/browser/tb01c-client.js:572 对未知基规则继续使用完整轴 fallback。已用重新计算内容哈希的未定对象复现：unknown+raw-initialization-w/1、重复 W 后缀、双加号后缀均被 Python 校验放行；JS 同路径静态存在相同缺口。预期未知或畸形完整规则明确拒绝，实际仅验证了后缀。最小修复：先精确识别获准的完整规则组合，再选择 schema/目录轴；拒绝未知基规则、重复 token 和空 token。增加重新计算哈希后的正反例，不能让哈希失败代替规则准入测试。",
+      "[P1｜SPEC轴] s_session/s_tb02_contract.py:203 新增组的 initial_direction_evidence，但 validate_sources 在 :426 仍只提取 direction_evidence／confirmation_evidence 的 incoming，遗漏新增初始化证据的两根 raw。已复现：真实 raw0 的 high/close=4，将组内 initial_direction_evidence.previous_acc 的 high/close 改成3并重新计算合法对象哈希，validate_fact、validate_sources 及其返回原件的 OHLC 对照仍通过。预期首对原件与持久输入一致，实际允许组对象携带另一份初始化依据。最小修复：将新增证据两端纳入原件校验，并核对同 cut 初始化对象与各组引用的一致性；增加合法几何、合法哈希但来源不符的回归。",
+      "[P2｜SPEC轴] s_session/browser/tb01c-client.js:198、:201 接纳新增 initialization／undetermined_raw，:526 的来源校验只绑定 input_refs，没有绑定新增 payload 内的原件坐标和 OHLC。已用纯 Node toy 复现：raw_history.high=10，未定对象 payload.raw.high=11，其余字段仍为合法 OHLC，重新计算对象哈希后 validateTB02CutSources 和身份哈希检查均通过。预期拒绝与原始账不符的未定记录，实际可进入展示候选。最小修复：按对象引用的确切 raw 修订核新增 payload 原件及首对两端，检查坐标确在 input_refs 内；同时覆盖活动与撤回对象。现有 JS 测试只调用 validateTyped，需补来源与身份联合校验反例。"
+    ],
+    "validation": [
+      "源绑定：HEAD=c25f35f1dfe088affa07f18479f6736d069fc9a6，tree=630f5cab59260448a46cc93edae23b5fc11a7bf1；比较 base=3315ed1d59ba31ffbad3f0b959702eaa92f4ddbd，base tree=8e854b779f62e035a0e00caed9ee060257ff15c5。起止 git status 均干净。覆盖全部28文件差异：产品16文件、报告与必要原件12文件；没有修改 checkout、启动其他工蜂或执行外部写操作。",
+      "标准与权威：已读 CLAUDE、AGENTS、ask-matt、Wayfinder、delivery/generation、CODING_STANDARDS、#1393票面、#1342评论6149622771、baohan v1.6，以及已签 SPEC 的本片行为、接口、持久与覆盖条款。代码图工具不可用，采用定向文本检索。标准轴的严格失败不得宽松兜底要求未满足，见第一项发现。",
+      "包含实现静态覆盖：首个 raw 相邻严格对、空／单根无正式组、全包含及非链相邻包含长期未定、激活从 raw0 重折、后续实际 acc/incoming 更新方向均已检查。batch与增量共用 first_raw_direction／fold_step，完整facts与紧凑facts共用 IncrFactsState；未发现第二套宽松初始化判据。",
+      "恢复与映射静态覆盖：检查了单组DOWN的 final_direction 快照恢复、激活时清除新笔缓存、未定稠密字段为None、稀疏坐标与raw序位分离、按到达序保存极值根集合。全仓Rust符号检索未发现遗漏的 DenseBarAnnotation／InclusionResult 构造消费者；类型检查与编译仍为NOT_RUN。",
+      "历史链静态覆盖：逐raw未定对象保留 first_known／pending_since_cut；重新未定建立新发生身份；跨kind多对一 replaces 已接入 compute_diff、持久撤回、relations、delta和audit；read_facts按出生／撤回代投影旧AsKnown，raw_history继续保留全部修订。Python逐请求subject存在性检查仍在同cut活动集校验中。上述均为源码检查，真实持久执行未验证。",
+      "实际轻量检查：verify_static.py通过，确认 contains／merge／strict_dir／fold_step／fold_all 与base逐字相同，Python AST及Lean占位扫描通过；test_tb02u_contract.py的5项、test_tb02d_validate_once.py的9项均通过；verify_model.py仅运行手算oracle及穷举前缀／恢复／方向对偶两项，覆盖11工作例、4历史切面和1555小序列；git diff --check通过。另运行了发现项中的Python／Node内存反例。没有把这些结果当成Rust运行证据。",
+      "Oracle与测试范围：U01–U13来自裁定手算，具有空／单、UP／DOWN建立、延迟激活、方向切换、单组DOWN、同价根和修订往返成功域。Rust定向测试源码覆盖这些行为，但未执行。新增5项合同测试遗漏未知规则及重新计算哈希后的来源反例；旧9项回归不能补足这些缺口。",
+      "Lean：RawInclusionInitialization.lean含具名首对搜索、W分支与全raw折叠定义，6条定理及2个实例；未见sorry／admit／axiom。证明范围是初始化几何分支，不是Rust全字段、身份或持久协议等价。该文件未进入默认roots且无其他Lean导入：对已明确限定的静态源码交付，不单独要求本轮修改配置；在宣称常规构建持续核验或完整Lean交付前，必须接入实际验证入口。",
+      "fixture drift=NOT_RUN。新增formal文件仍触发CLAUDE要求，未改两份fixture不构成豁免。本轮未运行可能自动lake build的检查；后续退出码必须保留真实含义：0无漂移、1真实漂移、3缺lake、4构建失败、5导出失败。AST／无占位扫描不能替代该检查。",
+      "报告真实性：MANIFEST所列20文件哈希及9份只读证据哈希全部吻合；参考实体的命中数量、Nautilus流式状态用途与报告相符。REPORT的未暂存描述属于交付发生史，MANAGER-CHECKPOINT已说明随后固定版本。报告明确披露Rust／Lean／正式链未运行；但REPORT:117关于剩余仅为执行证据等事项的结论需修订，现另有本次发现的代码缺口。未重跑报告中的SQLite落盘／子进程toy重放及Rustfmt。",
+      "组合边界：本树仅在旧new-bi/1+segment-second/1后追加W，尚未组合#1419与#1488。建议在已固定的#1419／#1488组合接口上分块移植W：先parser状态与证据，再Native producer／资源owner的pending、首对、发生身份及替代链，最后公共schema／规则映射。不得整文件覆盖tb02a_facts或规则串；必须保留new-bi/2+segment-second/2+center-seed/1+center-pair/1。参考实体已显示CoordsRef、Cc004Producer／NodeStore及恢复接口，本patch没有完成这些接口接线。本结论不代表当前5cb或最终组合树已验。",
+      "逐AC未完项：AC1仍缺各未建／建立／修订叶的正式运行及原件证据；AC2仍缺Rust已定域逐字段对拍和一般初始化执行成功；AC3仍缺正式AcceptInput→Advance→公共查询／变化→真实浏览器核对，并须先修复上述校验缺口；AC4仅有独立oracle与部分模型证据，仍缺产品新进程重放、持久中断恢复及旧cut执行对拍。共享family／A／故事的跨片义务不销项。",
+      "本轮全部NOT_RUN：cargo／rustc、Rust编译与测试、产品二进制、正式S会话／API／浏览器、真实产品新进程重放与故障恢复、Long／全量历史、lake／Lean编译、fixture drift、CI、最终组合验收，以及资金／订单等外效。阻断依据是具体源码与toy反例，不是单纯缺少被本轮禁止的运行验证。"
+    ]
+  }
+}
