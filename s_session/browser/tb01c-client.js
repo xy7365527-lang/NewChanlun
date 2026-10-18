@@ -145,7 +145,19 @@
   const INITIALIZATION_POLICY = "raw-initialization-w/1";
   const INITIALIZATION_KINDS = ["CC-004.initialization", "CC-004.undetermined_raw"];
   TB02_KINDS.push(...INITIALIZATION_KINDS);
-  const baseRule = rule => rule.endsWith("+" + INITIALIZATION_POLICY) ? rule.slice(0, -(INITIALIZATION_POLICY.length + 1)) : rule;
+  // #1393：只接纳本 source 已签组合；不把 #1419/#1488 新规则当成旧 schema。
+  const RULE_AXES = new Map([
+    ["s2-axis-quantifiers", LEGACY_TB02_AXES],
+    ["s2-axis-quantifiers+new-bi/1", BI_AXES],
+    ["s2-axis-quantifiers+new-bi/1+segment-first/1", FIRST_SEGMENT_AXES],
+    ["s2-axis-quantifiers+new-bi/1+segment-second/1", TB02_AXES],
+  ]);
+  const W_BASE_RULE = "s2-axis-quantifiers+new-bi/1+segment-second/1";
+  function baseRule(rule) {
+    if (rule === W_BASE_RULE + "+" + INITIALIZATION_POLICY) return W_BASE_RULE;
+    need(RULE_AXES.has(rule), "未获准的完整规则组合");
+    return rule;
+  }
   function initializationPolicy(p) { need(p.initialization_policy_revision === INITIALIZATION_POLICY, "初始化政策版本未声明"); }
   function directionState(p) { need(["Undetermined", "Established"].includes(p.direction_state), "初始化方向状态未声明"); }
   // 由 signed-catalog.json 的全部公共静态列生成；对应漂移锁逐值重算，不是新分类语义。
@@ -515,7 +527,61 @@
   }
   const RAW_REF_KEYS = ["identity_key", "payload_hash", "receipt_id", "event_id", "input_revision", "revision", "seq", "source_coord"];
   const rawReference = raw => Object.fromEntries(RAW_REF_KEYS.map(k => [k, raw[k]]));
-  function validateTB02CutSources(snapshot) {
+  function validateTB02PayloadSources(record, rawById) {
+    const sources = new Set(record.source_coords), refs = new Map(record.input_refs.map(r => [r.source_coord, r]));
+    function walk(value, key = null) {
+      if (Array.isArray(value)) {
+        if (["members", "high_sources", "low_sources", "source_coords", "window"].includes(key))
+          need(value.every(c => sources.has(c)), "typed payload 使用未绑定的原始坐标");
+        else value.forEach(v => walk(v));
+      } else if (object(value)) {
+        for (const [name, child] of Object.entries(value)) walk(child, name);
+      } else if (["source_coord", "group_anchor", "established_at"].includes(key)) {
+        need(sources.has(value), "typed payload 使用未绑定的原始坐标");
+      }
+    }
+    walk(record.payload);
+    const p = record.payload, bars = [];
+    if (record.kind === "CC-004.undetermined_raw") bars.push(p.raw);
+    if (record.kind === "CC-004.initialization" && p.first_raw_pair !== null)
+      bars.push(p.first_raw_pair.previous_acc, p.first_raw_pair.incoming);
+    if (record.kind === TB02_KINDS[0]) {
+      bars.push(p.incoming);
+      if (p.direction_evidence !== null) bars.push(p.direction_evidence.incoming);
+    }
+    if (record.kind === TB02_KINDS[1]) {
+      for (const name of ["direction_evidence", "confirmation_evidence"])
+        if (p[name] !== null) bars.push(p[name].incoming);
+      if (Object.hasOwn(p, "initial_direction_evidence"))
+        bars.push(p.initial_direction_evidence.previous_acc, p.initial_direction_evidence.incoming);
+    }
+    if (record.kind === TB02_KINDS[2]) bars.push(...p.descriptive_labels.raw_ohlc, ...p.subsequent_development.bars.map(b => b.bar));
+    for (const bar of bars) {
+      const ref = refs.get(bar.source_coord);
+      need(ref, "typed payload 使用未绑定的原始坐标");
+      const raw = rawById.get(canonical([ref.identity_key, ref.revision]));
+      need(raw && ["source_coord", "open", "high", "low", "close"].every(k => bar[k] === raw[k]), "事实中原始 OHLC 值与真实源记录不符");
+    }
+  }
+  function validateTB02InitializationLinks(records) {
+    const initial = records.filter(r => r.kind === "CC-004.initialization");
+    need(initial.length === 1, "同 cut 缺少唯一初始化对象");
+    const p = initial[0].payload, initialRefs = new Map(initial[0].input_refs.map(r => [r.source_coord, r]));
+    for (const record of records) {
+      if (record.kind === TB02_KINDS[1]) {
+        need(p.direction_state === "Established" && equal(record.payload.initial_direction_evidence, p.first_raw_pair), "组初始化证据与同 cut 初始化对象不一致");
+        const refs = new Map(record.input_refs.map(r => [r.source_coord, r]));
+        for (const [coord, ref] of initialRefs) need(equal(refs.get(coord), ref), "组初始化引用与同 cut 原始修订不同");
+      } else if (record.kind === "CC-004.undetermined_raw") {
+        need(p.direction_state === "Undetermined", "已定初始化混入未定原件");
+        for (const ref of record.input_refs) need(equal(initialRefs.get(ref.source_coord), ref), "未定原件引用与同 cut 初始化不同");
+      } else if (record.kind === TB02_KINDS[3]) {
+        need(record.payload.direction_state === p.direction_state, "知识方向状态与同 cut 初始化不同");
+      }
+    }
+  }
+  function validateTB02CutSources(snapshot, ruleRevision = null) {
+    const rule = ruleRevision === null ? null : baseRule(ruleRevision);
     const records = [...snapshot.objects, ...snapshot.withdrawn_objects], rawById = new Map(), effective = new Map(), groups = new Map();
     for (const raw of snapshot.raw_history) {
       validateTB02Raw(raw); const key = canonical([raw.identity_key, raw.revision]);
@@ -531,9 +597,31 @@
         need(raw && equal(ref, rawReference(raw)), "对象八键来源未绑定完整原始历史");
         if (record.lifecycle === "active") need(equal(ref, rawReference(effective.get(ref.source_coord) || {})), "活动对象使用旧原始修订");
       }
+      if (TB02_KINDS.includes(record.kind)) validateTB02PayloadSources(record, rawById);
       if (record.kind === TB02_KINDS[1]) {
         const anchor = record.payload.group_anchor, versions = groups.get(anchor) || [];
         versions.push(record); groups.set(anchor, versions);
+      }
+    }
+    const wPolicy = ruleRevision === null ? records.some(r => INITIALIZATION_KINDS.includes(r.kind) || Object.hasOwn(r.payload || {}, "initialization_policy_revision")) : rule !== ruleRevision;
+    if (wPolicy && snapshot.generation !== "0") {
+      // 逐发生边界投影历史活动集，撤回组不能借当前初始化对象通过校验。
+      const relevant = records.filter(r => INITIALIZATION_KINDS.includes(r.kind) || [TB02_KINDS[1], TB02_KINDS[3]].includes(r.kind));
+      const events = new Map(), current = integer(snapshot.generation), active = new Map();
+      function event(cut) {
+        if (!events.has(cut)) events.set(cut, {born: [], died: []});
+        return events.get(cut);
+      }
+      event(1n); event(current);
+      for (const record of relevant) {
+        event(integer(record.first_known_generation)).born.push(record);
+        if (record.withdrawn_generation !== null) event(integer(record.withdrawn_generation)).died.push(record);
+      }
+      for (const cut of [...events.keys()].filter(g => g <= current).sort((a, b) => a < b ? -1 : a > b ? 1 : 0)) {
+        const changes = events.get(cut);
+        for (const record of changes.died) active.delete(record.object_id);
+        for (const record of changes.born) active.set(record.object_id, record);
+        validateTB02InitializationLinks([...active.values()]);
       }
     }
     const bound = new Map();
@@ -565,13 +653,12 @@
     return canonical(value);
   }
   async function validateTB02Candidate(state, fixed, check) {
+    const rule = baseRule(fixed.rule_revision);
     need(await sha256(validateTB02Catalog(state.catalog)) === TB02_CATALOG.public_static_sha256, "完整冻结目录静态列摘要不符"); check();
     if (fixed.cut_generation !== "0") {
-      const byRule = {"s2-axis-quantifiers": LEGACY_TB02_AXES, "s2-axis-quantifiers+new-bi/1": BI_AXES,
-        "s2-axis-quantifiers+new-bi/1+segment-first/1": FIRST_SEGMENT_AXES, "s2-axis-quantifiers+new-bi/1+segment-second/1": TB02_AXES};
-      keys(fixed.catalog_evidence.axes, byRule[baseRule(fixed.rule_revision)] || TB02_AXES, "cut规则目录轴");
+      keys(fixed.catalog_evidence.axes, RULE_AXES.get(rule), "cut规则目录轴");
     }
-    const bound = validateTB02CutSources(state.snapshot);
+    const bound = validateTB02CutSources(state.snapshot, fixed.rule_revision);
     const active = new Map(state.snapshot.objects.map(r => [r.object_id, r]));
     for (const r of active.values()) {
       if (r.kind !== "CC-013.segment" || r.payload.schema_revision !== "s-segment/2") continue;
@@ -590,25 +677,29 @@
       }
     }
     for (const record of [...state.snapshot.objects, ...state.snapshot.withdrawn_objects]) {
-      let digestValue;
-      if (TB02_KINDS.includes(record.kind)) {
-        const wPolicy = fixed.rule_revision.endsWith("+" + INITIALIZATION_POLICY);
-        if (INITIALIZATION_KINDS.includes(record.kind)) need(wPolicy, "旧规则cut混入W对象");
-        if ([TB02_KINDS[1], TB02_KINDS[3]].includes(record.kind)) need(wPolicy === Object.hasOwn(record.payload, "initialization_policy_revision"), "初始化字段与cut规则不符");
-        if (SEGMENT_KINDS.includes(record.kind)) need(record.payload.schema_revision === (baseRule(fixed.rule_revision) === "s2-axis-quantifiers+new-bi/1+segment-second/1" ? "s-segment/2" : baseRule(fixed.rule_revision) === "s2-axis-quantifiers+new-bi/1+segment-first/1" ? "s-segment/1" : null), "段合同与cut规则版本不符");
-        const identity = Object.fromEntries(["kind", "fact_key", "payload", "input_refs"].map(k => [k, record[k]]));
-        identity.profile_id = fixed.profile_id; identity.rule_revision = fixed.rule_revision;
-        digestValue = await sha256(identity);
-      } else {
-        const groupFacts = bound.get(record.object_id), identity = Object.fromEntries(["branch", "dir_ab", "dir_bc", "window_start", "window_mid", "window_end", "comparisons"].map(k => [k, record[k]]));
-        identity.merged_highs = groupFacts.map(g => g.high); identity.merged_lows = groupFacts.map(g => g.low);
-        identity.profile_id = fixed.profile_id; identity.rule_revision = fixed.rule_revision;
-        identity.input_refs = record.input_refs.map(g => ({merged_index:integer(g.merged_index),
-          ...Object.fromEntries(["raw_refs", "dependency_refs"].map(k => [k, g[k].map(r => ({...r, seq:integer(r.seq), revision:integer(r.revision, true)}))]))}));
-        digestValue = await sha256Text(canonicalShapeIdentity(identity));
-      }
-      need(record.object_id === "obj-" + digestValue, "对象内容身份 SHA 不符"); check();
+      await validateTB02Identity(record, fixed, bound); check();
     }
+  }
+  async function validateTB02Identity(record, fixed, bound = new Map()) {
+    const rule = baseRule(fixed.rule_revision);
+    let digestValue;
+    if (TB02_KINDS.includes(record.kind)) {
+      const wPolicy = fixed.rule_revision !== rule;
+      if (INITIALIZATION_KINDS.includes(record.kind)) need(wPolicy, "旧规则cut混入W对象");
+      if ([TB02_KINDS[1], TB02_KINDS[3]].includes(record.kind)) need(wPolicy === Object.hasOwn(record.payload, "initialization_policy_revision"), "初始化字段与cut规则不符");
+      if (SEGMENT_KINDS.includes(record.kind)) need(record.payload.schema_revision === (rule === "s2-axis-quantifiers+new-bi/1+segment-second/1" ? "s-segment/2" : rule === "s2-axis-quantifiers+new-bi/1+segment-first/1" ? "s-segment/1" : null), "段合同与cut规则版本不符");
+      const identity = Object.fromEntries(["kind", "fact_key", "payload", "input_refs"].map(k => [k, record[k]]));
+      identity.profile_id = fixed.profile_id; identity.rule_revision = fixed.rule_revision;
+      digestValue = await sha256(identity);
+    } else {
+      const groupFacts = bound.get(record.object_id), identity = Object.fromEntries(["branch", "dir_ab", "dir_bc", "window_start", "window_mid", "window_end", "comparisons"].map(k => [k, record[k]]));
+      identity.merged_highs = groupFacts.map(g => g.high); identity.merged_lows = groupFacts.map(g => g.low);
+      identity.profile_id = fixed.profile_id; identity.rule_revision = fixed.rule_revision;
+      identity.input_refs = record.input_refs.map(g => ({merged_index:integer(g.merged_index),
+        ...Object.fromEntries(["raw_refs", "dependency_refs"].map(k => [k, g[k].map(r => ({...r, seq:integer(r.seq), revision:integer(r.revision, true)}))]))}));
+      digestValue = await sha256Text(canonicalShapeIdentity(identity));
+    }
+    need(record.object_id === "obj-" + digestValue, "对象内容身份 SHA 不符");
   }
   function validateTB02Axes(axes, records = null) {
     keys(axes, Object.hasOwn(axes, "CC-014") ? TB02_AXES : Object.hasOwn(axes, "CC-011") ? FIRST_SEGMENT_AXES : Object.hasOwn(axes, "CC-008") ? BI_AXES : LEGACY_TB02_AXES, "逐 cut 类型目录");
@@ -959,5 +1050,5 @@
       return this.#commit(candidate, budget, {kind: "watch", batches: page.deltas.length, hasMore: page.has_more});
     }
   }
-  return Object.freeze({TB02_KINDS: Object.freeze(TB02_KINDS), validateSegmentPayload, Client, DEFAULTS, FAMILIES, ORDER, orderFor, parseDiscovery, readDiscovery, validateTyped, validateTB02ShapeRefs, validateTB02Axes, validateTB02Raw, validateTB02Catalog, validateTB02CutSources, TB02_CATALOG, canonical, parse, sha256, rowsOf, cursorOf});
+  return Object.freeze({TB02_KINDS: Object.freeze(TB02_KINDS), validateSegmentPayload, Client, DEFAULTS, FAMILIES, ORDER, orderFor, parseDiscovery, readDiscovery, validateTyped, validateTB02ShapeRefs, validateTB02Axes, validateTB02Raw, validateTB02Catalog, validateTB02CutSources, validateTB02Identity, TB02_CATALOG, canonical, parse, sha256, rowsOf, cursorOf});
 });

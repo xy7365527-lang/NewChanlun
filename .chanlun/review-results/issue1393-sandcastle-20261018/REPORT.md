@@ -1,5 +1,7 @@
 # #1393 Sandcastle run-02 静态实施交付
 
+2026-10-18 首独审返修补记：下文保留 run-02 的交付发生史。首独审已真实退出并发现三处合同代码缺口，详见 `INDEPENDENT-REVIEW-01.json`；本轮修复、定向检查与未完项见 `FIX-REPORT.md`、`FIX-VALIDATION.json`。`MANIFEST.json` 仍是上一刻快照，不重写其原件或哈希。当前尾部差异尚待新独立 Sandcastle 会话复审。
+
 本轮完成了授权范围内的 **W 初始化产品源码、观察/历史适配、独立 oracle 与定向测试源码**。结论限定为静态实施；**Rust 编译与测试、正式 S 会话/API/浏览器、新进程产品恢复、Lean 检验均 NOT_RUN，不能据此关 #1393、父 TB、SPEC 或整图**。管理者须对实际差异另起独立会话评审，再安排获准的执行验证。
 
 名分：绑定 open 票 #1393 的工作草稿。未暂存、未提交；报告及全部新增文件由管理者收包入 Git。本工蜂没有认领/评论/更改依赖、push、merge、切分支、修改配置、启动其他工蜂或读取凭据。没有把自己声称为父任务的原生子代理。
@@ -98,7 +100,7 @@ Nautilus 的实际代码在整个流建立一个 DataBackendSession，将所有 
 - 9 个本轮 Rust 文件的 `rustfmt --check --edition 2021 --config skip_children=true`：退出0。只证明格式/语法可解析，不是 Rust 类型检查、编译或测试通过。
 - `git diff --check` 退出0；HEAD/tree/工作区与暂存区只读核对。
 
-### 明确 NOT_RUN
+### run-02 原交付时明确 NOT_RUN
 
 cargo、rustc、全部 Rust 测试执行、产品二进制、真实会话/API/浏览器、Long/全量历史、真实资金或订单、lake/Lean 编译、fixture drift、CI、独立会话评审。fixture drift 会启动构建，按本轮禁令未执行。Lean 新文件未加入 `formal/lakefile.toml` 默认 roots（本轮禁止动配置）；其具名证明仍须定向编译，并由管理者安排默认验证接线，不能按静态无占位宣称证明已核。
 
@@ -114,4 +116,6 @@ cargo、rustc、全部 Rust 测试执行、产品二进制、真实会话/API/�
 5. **Lean**：已预装工具链时，定向 `cd formal && lake env lean Origin/RawInclusionInitialization.lean`，核6定理与2实例；其职责仅为初始化几何分支。未证明 Rust 全字段等价、RD-02或 S 持久协议。默认 roots 接线与 fixture drift 仍须由管理者在获准后处理；不自行重型构建。
 6. **资源/监督**：建议独占小输入，单构建任务 `--jobs 1`，记录 CPU/RSS/磁盘、超时、退出码与 stderr；预留6 GiB内存及独立临时目录，编译超过20分钟或超预算即保现场交管理者，不换判据、不加 ignore、不自动跑 Long。正式外效仍禁止；所有失败分清语义、类型/构建、环境及资源原因。
 
-不存在需新增缠论裁定才能继续的语义缺口。剩余为受本轮禁令限制的真实执行证据、独立评审、组合接口及正式封包；管理者负责后续，不以本报告替代批准或验收。
+首轮独审未发现 W 核心与已裁语义冲突，但确实发现三项代码缺口：未知/畸形完整规则被放行、组初始化首对未绑定原件和同 cut 初始化、JS 新增 payload 未绑定精确原始修订。该独审已真实结束，不能再将剩余事项仅记为执行证据。
+
+本轮已在 Python/JS 严格校验路径修复三项并补合法几何、重算内容身份的定向反例；自测结果见 `FIX-VALIDATION.json`。这些修复及尾部差异仍须由新的独立 Sandcastle 会话复审，尚不构成“缺口已独审关闭”。真实产品执行、Lean/fixture drift、#1419/#1488 组合接口与正式封包义务继续保留；管理者负责后续，不以本报告替代批准、证明或验收。

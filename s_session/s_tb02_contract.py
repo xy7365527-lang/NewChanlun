@@ -21,10 +21,24 @@ AXES += ("CC-014",)
 INITIALIZATION_POLICY = "raw-initialization-w/1"
 INITIALIZATION_KINDS = ("CC-004.initialization", "CC-004.undetermined_raw")
 KINDS += INITIALIZATION_KINDS
+# #1393：先识别完整获准组合；本 source 尚未组合 #1419/#1488 的 C…F 规则。
+RULE_BASES = {
+    rule: rule for rule in (
+        "s2-axis-quantifiers",
+        "s2-axis-quantifiers+new-bi/1",
+        "s2-axis-quantifiers+new-bi/1+segment-first/1",
+        "s2-axis-quantifiers+new-bi/1+segment-second/1",
+    )
+}
+RULE_BASES["s2-axis-quantifiers+new-bi/1+segment-second/1+" + INITIALIZATION_POLICY] = (
+    "s2-axis-quantifiers+new-bi/1+segment-second/1"
+)
 
 
 def base_rule(rule_revision):
-    return rule_revision.removesuffix("+" + INITIALIZATION_POLICY)
+    if type(rule_revision) is not str or rule_revision not in RULE_BASES:
+        raise ValueError("未获准的完整规则组合")
+    return RULE_BASES[rule_revision]
 
 
 def initialization_policy(payload):
@@ -327,6 +341,7 @@ def validate_fact(value, meta=None, raw=None):
 
 
 def _validate_fact(value, meta=None, raw=None, *, _identity_hash=None):
+    rule = base_rule(meta["rule_revision"]) if meta is not None else None
     keys(value, FACT_FIELDS, "typed object")
     wire_tree(value)
     for key in ("object_id", "batch_id", "fact_key", "first_known_cut"):
@@ -375,13 +390,13 @@ def _validate_fact(value, meta=None, raw=None, *, _identity_hash=None):
     if value["fact_key"] != canonical([kind, slot]).decode():
         raise ValueError("fact_key 与真实语义槽不符")
     if meta is not None:
-        w_policy = meta["rule_revision"].endswith("+" + INITIALIZATION_POLICY)
+        w_policy = meta["rule_revision"] != rule
         if kind in INITIALIZATION_KINDS and not w_policy:
             raise ValueError("旧规则 cut 混入 W 初始化对象")
         if kind in (KINDS[1], KINDS[3]) and w_policy != ("initialization_policy_revision" in p):
             raise ValueError("初始化字段与 cut 规则版本不符")
         if kind in SEGMENT_KINDS:
-            expected_schema = "s-segment/2" if base_rule(meta["rule_revision"]) == "s2-axis-quantifiers+new-bi/1+segment-second/1" else "s-segment/1" if base_rule(meta["rule_revision"]) == "s2-axis-quantifiers+new-bi/1+segment-first/1" else None
+            expected_schema = "s-segment/2" if rule == "s2-axis-quantifiers+new-bi/1+segment-second/1" else "s-segment/1" if rule == "s2-axis-quantifiers+new-bi/1+segment-first/1" else None
             if p["schema_revision"] != expected_schema:
                 raise ValueError("段合同与cut规则版本不符")
         identity = {key: value[key] for key in ("kind", "fact_key", "payload", "input_refs")}
@@ -392,7 +407,7 @@ def _validate_fact(value, meta=None, raw=None, *, _identity_hash=None):
             raise ValueError("typed object 内容身份 hash 不闭合")
 
 
-def validate_sources(value, effective):
+def validate_sources(value, effective, *, raw=None):
     """只核已有字段的原始来源与已封存对象引用，不计算包含、方向或分型。"""
     sources = set(value["source_coords"])
     def walk(item, key=None):
@@ -425,11 +440,50 @@ def validate_sources(value, effective):
             raw_bars.append(p["direction_evidence"]["incoming"])
     elif kind == KINDS[1]:
         raw_bars = [p[key]["incoming"] for key in ("direction_evidence", "confirmation_evidence") if p[key] is not None]
+        if "initial_direction_evidence" in p:
+            evidence = p["initial_direction_evidence"]
+            raw_bars.extend((evidence["previous_acc"], evidence["incoming"]))
     elif kind == KINDS[2]:
         raw_bars = p["descriptive_labels"]["raw_ohlc"] + [item["bar"] for item in p["subsequent_development"]["bars"]]
     else:
         raw_bars = []
+    if raw is not None:
+        for item in raw_bars:
+            ref = by_source[item["source_coord"]]
+            seq = int(ref["seq"])
+            if seq >= len(raw) or any(ref[key] != raw[seq][key] for key in REF_FIELDS):
+                raise ValueError("typed input_ref 与完整已接纳账不一致")
+            if any(item[key] != raw[seq][key] for key in ("open", "high", "low", "close")):
+                raise ValueError("事实中原始 OHLC 值与真实源记录不符")
     return by_source, raw_bars
+
+
+def validate_initialization_links(records, rule_revision):
+    """#1393：核同 cut 的初始化原件与引用一致性，不重算 W 几何。"""
+    if base_rule(rule_revision) == rule_revision:
+        return
+    initial = [r for r in records if r["kind"] == "CC-004.initialization"]
+    if len(initial) != 1:
+        raise ValueError("同 cut 缺少唯一初始化对象")
+    initial = initial[0]
+    p = initial["payload"]
+    initial_refs = {ref["source_coord"]: ref for ref in initial["input_refs"]}
+    for record in records:
+        kind, payload = record["kind"], record["payload"] if "payload" in record else None
+        if kind == KINDS[1]:
+            if (p["direction_state"] != "Established"
+                    or payload.get("initial_direction_evidence") != p["first_raw_pair"]):
+                raise ValueError("组初始化证据与同 cut 初始化对象不一致")
+            refs = {ref["source_coord"]: ref for ref in record["input_refs"]}
+            if any(refs.get(coord) != ref for coord, ref in initial_refs.items()):
+                raise ValueError("组初始化引用与同 cut 原始修订不同")
+        elif kind == "CC-004.undetermined_raw":
+            if p["direction_state"] != "Undetermined":
+                raise ValueError("已定初始化混入未定原件")
+            if any(initial_refs.get(ref["source_coord"]) != ref for ref in record["input_refs"]):
+                raise ValueError("未定原件引用与同 cut 初始化不同")
+        elif kind == KINDS[3] and payload["direction_state"] != p["direction_state"]:
+            raise ValueError("知识方向状态与同 cut 初始化不同")
 
 
 def validate_axes(axes, object_ids=None):
