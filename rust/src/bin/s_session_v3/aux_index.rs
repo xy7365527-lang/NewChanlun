@@ -554,9 +554,9 @@ impl Runtime {
         let object_id = text(s, &generated, "object_id")?;
         let slot = integer(s, &generated, "slot")?;
         let id = text(s, &generated, "witness_id")?;
-        if object_id != w.object_id
+        if object_id.as_str() != w.object_id.as_str()
             || slot != w.slot as i64
-            || id != w.witness_id
+            || id.as_str() != w.witness_id.as_str()
             || !(0..3).contains(&slot)
         {
             return Err(err("见证生成记录与元数据不符"));
@@ -712,7 +712,7 @@ impl Runtime {
             let object = generated
                 .objects
                 .iter()
-                .find(|o| o.object_id() == w.object_id)
+                .find(|o| o.object_id() == w.object_id.as_str())
                 .ok_or_else(|| err("见证对象不在本代生成态"))?;
             let generated_object = built_ref(s, object.generated())?;
             let group = s
@@ -1756,10 +1756,7 @@ fn verify_generated_members_in_view(
             if let Some(r) = owner.raw_relation(s, ordinal)? {
                 s.native_codec_room(&mut relation_candidates, 1)
                     .map_err(err)?;
-                relation_s
-                    .native_codec_room(&mut candidates, 1)
-                    .map_err(err)?;
-                candidates.try_push(r).map_err(err)?;
+                relation_candidates.try_push(r).map_err(err)?;
             }
         }
     } else {
@@ -1768,10 +1765,7 @@ fn verify_generated_members_in_view(
             if let Some(r) = supersedes_relation(s, event)? {
                 s.native_codec_room(&mut relation_candidates, 1)
                     .map_err(err)?;
-                relation_s
-                    .native_codec_room(&mut candidates, 1)
-                    .map_err(err)?;
-                candidates.try_push(r).map_err(err)?;
+                relation_candidates.try_push(r).map_err(err)?;
             }
         }
     }
@@ -2993,8 +2987,8 @@ mod tests {
                     .witness(
                         &mut store,
                         &WitnessRecord {
-                            witness_id: id,
-                            object_id: object.to_owned(),
+                            witness_id: sc::capture_allocation::native_owned::NativeValue::<String>::from_unscoped(id),
+                            object_id: sc::capture_allocation::native_owned::NativeValue::<String>::from_unscoped(object.to_owned()),
                             slot: 0,
                             built: b,
                         },
@@ -3090,8 +3084,12 @@ mod tests {
         };
         let w = &expected.witnesses[0];
         let metadata = WitnessRecord {
-            witness_id: w.id.as_str().to_owned(),
-            object_id: w.object_id.as_str().to_owned(),
+            witness_id: sc::capture_allocation::native_owned::NativeValue::<String>::from_unscoped(
+                w.id.as_str().to_owned(),
+            ),
+            object_id: sc::capture_allocation::native_owned::NativeValue::<String>::from_unscoped(
+                w.object_id.as_str().to_owned(),
+            ),
             slot: w.slot as usize,
             built: b(&w.generated),
         };
@@ -3459,7 +3457,7 @@ mod tests {
                     .snapshot
                     .witnesses
                     .iter()
-                    .find(|r| r.id == w.witness_id)
+                    .find(|r| r.id.as_str() == w.witness_id.as_str())
                     .unwrap();
                 assert_eq!(render_plain(&mut s, &actual.wire).unwrap(), expected);
             }

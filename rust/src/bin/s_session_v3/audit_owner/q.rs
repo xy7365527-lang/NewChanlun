@@ -14,6 +14,11 @@ fn invalid(e: impl std::fmt::Display) -> Failure {
 use newchan_rust::sqlite_checked::CheckedStatement;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+#[derive(Default)]
+struct RawCharges {
+    manual: usize,
+    native: usize,
+}
 pub(super) struct Facts {
     clock: v2::ClockPlan,
     sid: String,
@@ -134,9 +139,10 @@ impl Facts {
             .checked_add(budget.live())
             .ok_or(native::BudgetExceeded)?
             .checked_sub(before)
-            .and_then(|n| n.checked_sub(raw_added))
+            .and_then(|n| n.checked_sub(raw_added.manual))
+            .and_then(|n| n.checked_sub(raw_added.native))
             .ok_or_else(|| invalid("Q增量归属账不闭合"))?;
-        Ok(raw_added)
+        Ok(raw_added.manual)
     }
     pub(super) fn retained_bytes(&self) -> usize {
         self.retained
@@ -147,7 +153,7 @@ impl Facts {
         effects: &Effects,
         audited: &mut state::AuditedState,
         budget: &Budget,
-    ) -> Result<usize, Failure> {
+    ) -> Result<RawCharges, Failure> {
         let old_g = audited.cuts.last().map_or(0, |c| c.metadata.generation);
         let root_g = meta_number(tx, "generation")?;
         let publish = effects.operation == Operation::Publish;
@@ -391,14 +397,16 @@ impl Facts {
         effects: &Effects,
         audited: &mut state::AuditedState,
         budget: &Budget,
-    ) -> Result<usize, Failure> {
+    ) -> Result<RawCharges, Failure> {
         let pairs = effects.rows(Table::Ohlc).count();
         let _paired_permit = budget.reserve(tree_slots::<i64, ()>(pairs))?;
         let mut paired = BTreeSet::new();
-        let bj::RawEvents::Plain(raw) = &mut audited.raw else {
+        let raw = &mut audited.raw;
+        #[cfg(feature = "s_allocation_json_testonly")]
+        if matches!(raw, bj::RawEvents::Owned(_)) {
             return Err(invalid("增量 Q 不接受 Owned 原始账"));
-        };
-        let mut raw_added = 0usize;
+        }
+        let mut raw_added = RawCharges::default();
         for change in effects.rows(Table::Raw) {
             let r = new(change)?;
             let seq = integer(&r[6])?;
@@ -412,6 +420,50 @@ impl Facts {
             if !paired.insert(pair.rowid) {
                 return Err(invalid("raw/OHLC 配对重复"));
             }
+            if matches!(raw, bj::RawEvents::Native(_)) {
+                let added = budget
+                    .codec_work()?
+                    .run(|work| -> Result<usize, Failure> {
+                        let value = read_raw_event_at_admitted(tx, seq, Some(work))?;
+                        let view = value.view();
+                        let id = bj::text(view, "identity_key")?;
+                        let coord = bj::coord(view)?;
+                        let previous = self.raw_tails.get(id);
+                        bj::validate_raw_coordinate(
+                            id,
+                            coord,
+                            self.coordinates.get(&coord).map(String::as_str),
+                            previous.map(|(c, _)| *c),
+                        )?;
+                        bj::validate_raw_row_admitted(
+                            view,
+                            raw.len(),
+                            previous.map(|(_, r)| *r),
+                            Some(work),
+                        )?;
+                        self.put_raw(
+                            id,
+                            coord,
+                            bj::field(view, "revision").as_i64().unwrap(),
+                            budget,
+                        )?;
+                        let before = budget.live();
+                        raw.push_native(view, work)?;
+                        budget
+                            .live()
+                            .checked_sub(before)
+                            .ok_or_else(|| invalid("Native原始账追加费用倒退"))
+                    })
+                    .map_err(Failure::from)?;
+                raw_added.native = raw_added
+                    .native
+                    .checked_add(added)
+                    .ok_or(native::BudgetExceeded)?;
+                continue;
+            }
+            let bj::RawEvents::Plain(raw) = raw else {
+                return Err(invalid("原始账存储类型不支持增量追加"));
+            };
             // decode_raw_row 17字段 + enrich_raw_row 5字段；SQL逐列复制一次，JSON键各复制一次。
             let paired_row = new(pair)?;
             let cell_text = |v: &SqlCell| match v {
@@ -456,7 +508,7 @@ impl Facts {
                 tree_slots::<String, Value>(KEYS.len()),
             ]))?;
             let value = read_raw_event_at(tx, seq)?;
-            raw_added = raw_added.saturating_add(value.heap_bytes());
+            raw_added.manual = raw_added.manual.saturating_add(value.heap_bytes());
             raw_permit.commit(0, value.heap_bytes());
             let view = (&value).into();
             let id = bj::text(view, "identity_key")?;
@@ -482,7 +534,9 @@ impl Facts {
             )?;
             let old = vec_bytes::<Value>(raw.capacity());
             budget.vec_grow(raw, 1)?;
-            raw_added = raw_added.saturating_add(vec_bytes::<Value>(raw.capacity()) - old);
+            raw_added.manual = raw_added
+                .manual
+                .saturating_add(vec_bytes::<Value>(raw.capacity()) - old);
             raw.push(value);
         }
         if paired.len() != pairs {
@@ -887,4 +941,84 @@ fn pending_normal_last_remove_releases_root_before_charge() {
         "归还全部树槽费时，正常插入再移除的树根和载荷必须已真实释放"
     );
     assert_eq!(observed["allocated_bytes"], observed["released_bytes"]);
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[test]
+fn actual_nonempty_native_q_accept_preserves_full_raw_without_manual_double_charge() {
+    let mut fixture = prepared::tests::Fixture::new();
+    let (event, token) = fixture.accept_begin(1, ("q-native-first", 0, 6, 12, 3, 7), 1);
+    fixture.publish(&event, &token).unwrap();
+    let owner = AuditConnection::open(&fixture.db_path()).unwrap();
+    let mut context = request_audit::RequestAuditContext::with_source_keeper(
+        cross_request_source_cache::Keeper::new(536_870_912),
+    );
+    context
+        .freeze_manifest_workspace_budget(536_870_912, 0, 0)
+        .unwrap();
+    let cold = owner.begin(TransactionBehavior::Deferred).unwrap();
+    cold.audit_admission(
+        &json!({"payload":{"op":"ready"}}),
+        &s_allocation::Mode::CapturedNative,
+        &mut context,
+    )
+    .unwrap();
+    let ended = cold.read_end().unwrap();
+    owner.continue_with(ended).unwrap();
+    let (old_raw, old_historical) = {
+        let complete = owner.complete.borrow();
+        let c = complete.as_ref().unwrap();
+        assert!(matches!(&c.audited.raw, bj::RawEvents::Native(_)));
+        assert_eq!(c.audited.raw.len(), 1);
+        (
+            serde_json::to_value(&c.audited.raw).unwrap(),
+            c.charge.historical_and_raw_capacity,
+        )
+    };
+    let raw = crate::tests::located_ohlc_input(&[("q-native-next", 10, 8, 16, 6, 12)]);
+    let payload = json!({"op":"ingest","target_session_id":"s-session-testonly-001",
+        "target_session_generation":"1","writer_epoch":"1","clock_event_id":"input-2","raw_input":raw});
+    let envelope = json!({"schema_revision":"s-session/3","session_id":"s-session-testonly-001",
+        "session_generation":"1","source_namespace":"testonly.ohlc","source_epoch":"1",
+        "message_id":"message-2","producer_id":"real-content-test","producer_epoch":"1",
+        "payload_hash":sha256_hex(canonical_json(&payload).as_bytes()),"causal_refs":[],"payload":payload});
+    let clock = v2::stored_clock(&owner.connection).unwrap();
+    let (admission, ended) = owner
+        .admit(
+            envelope,
+            "1",
+            &clock,
+            tb02a::PROFILE,
+            Some("1"),
+            &s_allocation::Mode::CapturedNative,
+            &mut context,
+        )
+        .unwrap();
+    assert!(matches!(
+        admission,
+        Admission::Advance { accepted: true, .. }
+    ));
+    owner.continue_with(ended).unwrap();
+    owner.assert_complete_matches_cold();
+    let complete = owner.complete.borrow();
+    let c = complete.as_ref().unwrap();
+    let bj::RawEvents::Native(raw_owner) = &c.audited.raw else {
+        panic!("真实Accept不得降为无scope原始账");
+    };
+    let actual = serde_json::to_value(&c.audited.raw).unwrap();
+    assert_eq!(actual.as_array().unwrap().len(), 2);
+    assert_eq!(actual[0], old_raw[0], "旧版本完整内容逐字保留");
+    assert_eq!(actual[1]["seq"], 1);
+    assert_eq!(actual[1]["revision"], 1);
+    assert_eq!(actual[1]["schema_revision"], tb02a::RAW_SCHEMA);
+    assert_eq!(
+        actual[1],
+        read_raw_event_at(&owner.connection, 1).unwrap(),
+        "身份、版本、raw_text与OHLC完整字段由同核SQL原件比对"
+    );
+    assert_eq!(c.audited.raw.heap_bytes(), 0, "Native不再进入旧手工退款账");
+    assert_eq!(c.charge.historical_and_raw_capacity, old_historical);
+    assert!(raw_owner.retained_heap_bytes() > 0);
+    assert!(c.resources.live() >= raw_owner.retained_heap_bytes());
+    assert_eq!(c.charge.q_capacity, c.q.retained_bytes());
 }

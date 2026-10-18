@@ -1894,7 +1894,16 @@ impl AuditConnection {
         let candidate = self.complete.borrow();
         let c = candidate.as_ref().unwrap();
         (
-            c.audited.raw.plain().unwrap().as_ptr() as usize,
+            match &c.audited.raw {
+                super::business_json::RawEvents::Plain(rows) => rows.as_ptr() as usize,
+                super::business_json::RawEvents::Native(rows) => {
+                    rows.as_array().unwrap().as_ptr() as usize
+                }
+                #[cfg(feature = "s_allocation_json_testonly")]
+                super::business_json::RawEvents::Owned(_) => {
+                    panic!("complete_pointers不接受Owned原始账")
+                }
+            },
             (&*c.audited as *const state::ImmutableHistoricalAudit) as usize,
             c.originals.as_ptr() as usize,
         )

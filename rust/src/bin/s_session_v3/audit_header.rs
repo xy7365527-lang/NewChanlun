@@ -1,5 +1,8 @@
 //! #1394 实际审计返回头；normal DTO保持，返回存储不擦除owned文本/引用。
-use super::{audit_store::RefValue, business_json::TextValue};
+use super::{
+    audit_store::{CodecRead, NativeAdmission, RefValue},
+    business_json::TextValue,
+};
 use crate::content_manifest::{MetadataView, RootsView, SourceCommitView};
 
 pub(crate) struct AuditSourceCommit {
@@ -30,7 +33,6 @@ pub(crate) struct AuditMetadata {
     pub source_commit: AuditSourceCommit,
     pub scope: RefValue,
 }
-#[derive(Clone)]
 pub(crate) struct AuditRoots {
     pub generated_state: RefValue,
     pub publication_template: RefValue,
@@ -82,31 +84,65 @@ impl AuditRoots {
 }
 impl AuditMetadata {
     pub fn try_clone(&self) -> Result<Self, String> {
+        self.try_clone_admitted(&NativeAdmission(None))
+    }
+    pub fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
         Ok(Self {
-            session_id: self.session_id.try_clone()?,
-            session_generation: self.session_generation.try_clone()?,
-            writer_epoch: self.writer_epoch.try_clone()?,
-            base_cut: self.base_cut.try_clone()?,
-            structure_cut: self.structure_cut.try_clone()?,
-            clock_plan_hash: self.clock_plan_hash.try_clone()?,
-            semantic_commit_ns: self.semantic_commit_ns.try_clone()?,
-            profile_id: self.profile_id.try_clone()?,
-            profile_hash: self.profile_hash.try_clone()?,
-            rule_revision: self.rule_revision.try_clone()?,
-            catalog_revision: self.catalog_revision.try_clone()?,
+            session_id: self.session_id.try_clone_admitted(store.codec_work())?,
+            session_generation: self
+                .session_generation
+                .try_clone_admitted(store.codec_work())?,
+            writer_epoch: self.writer_epoch.try_clone_admitted(store.codec_work())?,
+            base_cut: self.base_cut.try_clone_admitted(store.codec_work())?,
+            structure_cut: self.structure_cut.try_clone_admitted(store.codec_work())?,
+            clock_plan_hash: self
+                .clock_plan_hash
+                .try_clone_admitted(store.codec_work())?,
+            semantic_commit_ns: self
+                .semantic_commit_ns
+                .try_clone_admitted(store.codec_work())?,
+            profile_id: self.profile_id.try_clone_admitted(store.codec_work())?,
+            profile_hash: self.profile_hash.try_clone_admitted(store.codec_work())?,
+            rule_revision: self.rule_revision.try_clone_admitted(store.codec_work())?,
+            catalog_revision: self
+                .catalog_revision
+                .try_clone_admitted(store.codec_work())?,
             generation: self.generation,
             input_frontier: self.input_frontier,
             source_commit: AuditSourceCommit {
-                source_namespace: self.source_commit.source_namespace.try_clone()?,
-                source_epoch: self.source_commit.source_epoch.try_clone()?,
-                message_id: self.source_commit.message_id.try_clone()?,
-                payload_hash: self.source_commit.payload_hash.try_clone()?,
-                producer_id: self.source_commit.producer_id.try_clone()?,
-                producer_epoch: self.source_commit.producer_epoch.try_clone()?,
-                clock_event_id: self.source_commit.clock_event_id.try_clone()?,
+                source_namespace: self
+                    .source_commit
+                    .source_namespace
+                    .try_clone_admitted(store.codec_work())?,
+                source_epoch: self
+                    .source_commit
+                    .source_epoch
+                    .try_clone_admitted(store.codec_work())?,
+                message_id: self
+                    .source_commit
+                    .message_id
+                    .try_clone_admitted(store.codec_work())?,
+                payload_hash: self
+                    .source_commit
+                    .payload_hash
+                    .try_clone_admitted(store.codec_work())?,
+                producer_id: self
+                    .source_commit
+                    .producer_id
+                    .try_clone_admitted(store.codec_work())?,
+                producer_epoch: self
+                    .source_commit
+                    .producer_epoch
+                    .try_clone_admitted(store.codec_work())?,
+                clock_event_id: self
+                    .source_commit
+                    .clock_event_id
+                    .try_clone_admitted(store.codec_work())?,
                 attempt_index: self.source_commit.attempt_index,
             },
-            scope: self.scope.clone(),
+            scope: store
+                .native_ref_clone(&self.scope)
+                .map_err(|e| e.to_string())?,
         })
     }
 }

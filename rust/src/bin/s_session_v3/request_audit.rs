@@ -275,9 +275,9 @@ impl SqlCellView<'_> {
 }
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct ExactRows {
-    pub(super) sql: String,
+    pub(super) sql: super::business_json::TextValue,
     pub(super) scope: Vec<SqlCell>,
-    pub(super) columns: Vec<String>,
+    pub(super) columns: Vec<super::business_json::TextValue>,
     pub(super) rows: Vec<Vec<SqlCell>>,
 }
 impl ExactRows {
@@ -292,7 +292,7 @@ impl ExactRows {
     ) -> Result<Self, String> {
         let store = NativeAdmission(work);
         let sql_text = sql.to_str().map_err(storage)?;
-        let owned_sql = store.native_string(sql_text).map_err(|e| e.to_string())?;
+        let owned_sql = store.native_text(sql_text)?;
         let mut owned_scope = Vec::new();
         store
             .native_vec_room(&mut owned_scope, scope.len())
@@ -324,7 +324,7 @@ impl ExactRows {
             .map_err(|e| e.to_string())?;
         for column in 0..count {
             let name = stmt.column_name(column).map_err(storage)?;
-            columns.push(store.native_string(name).map_err(|e| e.to_string())?);
+            columns.push(store.native_text(name)?);
         }
         let mut rows = Vec::new();
         while let Some(mut row) = stmt.next().map_err(storage)? {
@@ -365,7 +365,7 @@ impl ExactRows {
         let columns = stmt
             .column_names()
             .iter()
-            .map(|name| (*name).to_owned())
+            .map(|name| (*name).into())
             .collect();
         let count = stmt.column_count();
         let mut cursor = stmt.query(params).map_err(storage)?;
@@ -386,7 +386,7 @@ impl ExactRows {
         drop(cursor);
         stmt.finalize().map_err(storage)?;
         Ok(Self {
-            sql: sql.to_owned(),
+            sql: sql.into(),
             scope,
             columns,
             rows,
@@ -1656,7 +1656,10 @@ impl ExactRows {
         let mut stmt = tx.prepare(sql).map_err(storage)?;
         let count = stmt.column_count();
         // column_names() 自身会分配 Vec；只借用逐列名称计算完整头部请求量。
-        let mut fixed = sum([sql.len(), vec_bytes::<String>(count)]);
+        let mut fixed = sum([
+            sql.len(),
+            vec_bytes::<super::business_json::TextValue>(count),
+        ]);
         for i in 0..count {
             fixed = fixed.saturating_add(stmt.column_name(i).map_err(storage)?.len());
         }
@@ -1688,10 +1691,10 @@ impl ExactRows {
                 return Ok(None);
             }
             owned.push_str(name);
-            columns.push(owned);
+            columns.push(owned.into());
         }
         let mut result = Self {
-            sql: owned_sql,
+            sql: owned_sql.into(),
             scope: vec![],
             columns,
             rows: vec![],

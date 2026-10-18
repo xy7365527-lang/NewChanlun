@@ -374,7 +374,7 @@ fn decode(bytes: &[u8], allocation: Option<&OwnedBudget>) -> Result<JsonOwner, S
     if allocation.is_some() {
         return Err(err("owned Watch JSON未启用"));
     }
-    strict_json(bytes).map(JsonOwner::Plain)
+    strict_json(bytes).map(|value| JsonOwner::Plain(value.into()))
 }
 struct Candidate {
     wire: JsonOwner,

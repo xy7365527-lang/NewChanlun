@@ -8,6 +8,7 @@ use super::{
 };
 use newchan_rust::s_content::{self as sc, capture_allocation::scratch::WorkScope};
 use rusqlite::Transaction;
+use sc::capture_allocation::native_owned::NativeValue;
 use serde::Serialize;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -70,30 +71,18 @@ impl Binding {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 struct Key {
     generation: i64,
     frontier: i64,
-    state: sc::ContentRef,
-    profile: String,
-    rule: String,
+    state: NativeValue<sc::ContentRef>,
+    profile: NativeValue<String>,
+    rule: NativeValue<String>,
 }
 impl Key {
     #[cfg(test)]
     fn of(cut: &PublishedCut) -> Self {
-        let r = cut.roots.generated_state.view();
-        Self {
-            generation: cut.metadata.generation,
-            frontier: cut.metadata.input_frontier,
-            state: sc::ContentRef {
-                format: r.format().into(),
-                root: r.root().into(),
-                kind: r.kind(),
-                extent: r.extent(),
-            },
-            profile: cut.metadata.profile_id.as_str().into(),
-            rule: cut.metadata.rule_revision.as_str().into(),
-        }
+        Self::of_admitted(cut, None).unwrap()
     }
     fn of_admitted(cut: &PublishedCut, work: Option<&WorkScope>) -> Result<Self, String> {
         let admission = NativeAdmission(work);
@@ -119,8 +108,8 @@ impl Key {
             && self.state.root == state.root()
             && self.state.kind == state.kind()
             && self.state.extent == state.extent()
-            && self.profile == cut.metadata.profile_id.as_str()
-            && self.rule == cut.metadata.rule_revision.as_str()
+            && self.profile.as_str() == cut.metadata.profile_id.as_str()
+            && self.rule.as_str() == cut.metadata.rule_revision.as_str()
     }
 }
 struct Proof {
@@ -216,8 +205,8 @@ fn proof_source_bytes(proof: &Proof) -> Result<usize, String> {
     [
         &proof.key.state.format,
         &proof.key.state.root,
-        &proof.key.profile,
-        &proof.key.rule,
+        proof.key.profile.as_ref(),
+        proof.key.rule.as_ref(),
     ]
     .into_iter()
     .try_fold(
@@ -273,17 +262,19 @@ impl Pool {
             codec_root_source_bytes(0)?,
         )?;
         // history原严格升序；只反向尝试一次，接纳后仍恢复原binary_search代序。
-        let mut groups = Vec::new();
+        let mut groups = sc::CodecVec::default();
         admission
-            .native_vec_room(&mut groups, proofs.len())
+            .native_codec_room(&mut groups, proofs.len())
             .map_err(|e| e.to_string())?;
         for proof in proofs.iter().rev() {
-            groups.push((
-                admission
-                    .native_plain_ref((&proof.key.state).into())
-                    .map_err(|e| e.to_string())?,
-                proof_source_bytes(proof)?,
-            ));
+            groups
+                .try_push((
+                    admission
+                        .native_plain_ref(proof.key.state.as_ref().into())
+                        .map_err(|e| e.to_string())?,
+                    proof_source_bytes(proof)?,
+                ))
+                .map_err(|e| e.to_string())?;
         }
         let (originals, certificates, selection) = originals
             .into_counts_original_subset_admitted_for_testonly(groups, fixed, cap, work)
@@ -389,7 +380,10 @@ impl Pool {
             let mut bytes = add(row.sql.capacity(), cells_capacity(&row.scope)?)?;
             bytes = add(
                 bytes,
-                mul(row.columns.capacity(), std::mem::size_of::<String>())?,
+                mul(
+                    row.columns.capacity(),
+                    std::mem::size_of::<super::business_json::TextValue>(),
+                )?,
             )?;
             for column in &row.columns {
                 bytes = add(bytes, column.capacity())?;
@@ -408,8 +402,8 @@ impl Pool {
             let strings = [
                 &proof.key.state.format,
                 &proof.key.state.root,
-                &proof.key.profile,
-                &proof.key.rule,
+                proof.key.profile.as_ref(),
+                proof.key.rule.as_ref(),
             ];
             let mut bytes = 16 + 1 + 9 + 64 + 6 * std::mem::size_of::<usize>();
             for text in strings {
@@ -1285,7 +1279,7 @@ mod tests {
             };
             let fields = sc::path::lookup_fields_refview(
                 &mut recorder,
-                sc::RefView::from(&proof.key.state),
+                sc::RefView::from(proof.key.state.as_ref()),
                 &["objects", "witnesses", "observations"],
                 true,
             )
@@ -1471,16 +1465,24 @@ mod tests {
         for mutation in 0..8 {
             let (mut f, mut keeper) = seeded();
             let key = &mut keeper.pool.as_mut().unwrap().proofs[0].key;
+            let mut state = key.state.as_ref().clone(); // 测试坏原件，非Native生产复制入口。
             match mutation {
                 0 => key.generation += 1,
                 1 => key.frontier += 1,
-                2 => key.state.root.push('0'),
-                3 => key.state.format.push('0'),
-                4 => key.state.kind = sc::Kind::Array,
-                5 => key.state.extent = Some(999),
-                6 => key.profile.push('0'),
-                _ => key.rule.push('0'),
+                2 => state.root.push('0'),
+                3 => state.format.push('0'),
+                4 => state.kind = sc::Kind::Array,
+                5 => state.extent = Some(999),
+                6 => {
+                    key.profile =
+                        NativeValue::<String>::from_unscoped(format!("{}0", key.profile.as_str()))
+                }
+                _ => {
+                    key.rule =
+                        NativeValue::<String>::from_unscoped(format!("{}0", key.rule.as_str()))
+                }
             }
+            key.state = NativeValue::<sc::ContentRef>::from_unscoped(state);
             audit(&mut f, &mut keeper).unwrap();
             assert_eq!((keeper.cold, keeper.hits), (2, 0), "mutation={mutation}");
         }

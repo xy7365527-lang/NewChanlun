@@ -2517,10 +2517,10 @@ impl NativeOwnerCodecCertificates {
 /// 此证书只描述Counts依据；仅整组接纳的三个Value根可封存codec资格，不授予来源业务资格。
 #[cfg(feature = "s_capture_native_testonly")]
 pub struct NativeCountsSubsetCertificate {
-    state: ContentRef,
+    state: capture_allocation::native_owned::NativeValue<ContentRef>,
     codec_revision: u32,
     dependency_revision: u32,
-    roots: [ContentRef; 3],
+    roots: [capture_allocation::native_owned::NativeValue<ContentRef>; 3],
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl NativeCountsSubsetCertificate {
@@ -2544,7 +2544,7 @@ impl NativeCountsSubsetCertificate {
     pub fn matches_state(&self, state: &ContentRef) -> bool {
         self.codec_revision == NativeCodecRootCertificates::default().predicate_revision
             && self.dependency_revision == 1
-            && state == &self.state
+            && state == self.state.as_ref()
     }
 }
 /// 诊断计数不充当单组依赖列表；实际持有的闭包证书另逐字计费。
@@ -2814,7 +2814,14 @@ impl AuditCapture {
         CodecError,
     > {
         self.into_counts_original_subset_admitted_for_testonly(
-            groups,
+            groups.into_iter().map(|(state, bytes)| {
+                (
+                    capture_allocation::native_owned::NativeValue::<ContentRef>::from_unscoped(
+                        state,
+                    ),
+                    bytes,
+                )
+            }),
             fixed_source_bytes,
             cap,
             None,
@@ -2823,7 +2830,12 @@ impl AuditCapture {
     #[doc(hidden)]
     pub fn into_counts_original_subset_admitted_for_testonly(
         mut self,
-        groups: impl IntoIterator<Item = (ContentRef, usize)>,
+        groups: impl IntoIterator<
+            Item = (
+                capture_allocation::native_owned::NativeValue<ContentRef>,
+                usize,
+            ),
+        >,
         fixed_source_bytes: usize,
         cap: usize,
         work: Option<&capture_allocation::scratch::WorkScope>,
@@ -2862,27 +2874,27 @@ impl AuditCapture {
                     (material.order.len(), material.source_bytes)
                 };
                 let names = ["objects", "witnesses", "observations"];
-                let fields: CodecFields = path::object_fields_output(
-                    &mut verifier.source,
-                    RefView::from(&state),
-                    &names,
-                    false,
-                )?;
-                // 导航已给全部字段文本和BTree节点许可；移出三引用，无二次clone。
-                let mut fields = fields.into_plain()?;
-                let roots = [
-                    fields
-                        .remove("objects")
-                        .ok_or_else(|| CodecError::new(code::SOURCE, "Counts缺objects"))?,
-                    fields
-                        .remove("witnesses")
-                        .ok_or_else(|| CodecError::new(code::SOURCE, "Counts缺witnesses"))?,
-                    fields
-                        .remove("observations")
-                        .ok_or_else(|| CodecError::new(code::SOURCE, "Counts缺observations"))?,
-                ];
+                let fields: capture_allocation::native_owned::NativeRefFields =
+                    path::object_fields_output(
+                        &mut verifier.source,
+                        RefView::from(state.as_ref()),
+                        &names,
+                        false,
+                    )?;
+                // 字段拥有者先持原许可；证书另在当前域准入三根，fields随即释放。
+                let root = |name| {
+                    let value = fields
+                        .get(name)
+                        .ok_or_else(|| CodecError::new(code::SOURCE, format!("Counts缺{name}")))?;
+                    capture_allocation::native_owned::NativeValue::<ContentRef>::try_from_view(
+                        value.as_ref().into(),
+                        work,
+                    )
+                };
+                let roots = [root("objects")?, root("witnesses")?, root("observations")?];
+                drop(fields);
                 for root in &roots {
-                    verifier.verify_refview(RefView::from(root))?;
+                    verifier.verify_refview(RefView::from(root.as_ref()))?;
                 }
                 // 完整核验成功后才允许私有构造；未核半组不会得到可携带证书。
                 let certificate = NativeCountsSubsetCertificate {

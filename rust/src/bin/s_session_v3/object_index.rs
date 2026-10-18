@@ -238,10 +238,10 @@ pub(super) struct Entry {
 }
 pub(super) struct Plan {
     pub generation: i64,
-    pub index: Vec<Entry>,
-    pub births: Vec<Entry>,
-    pub withdrawals: Vec<Value>,
-    pub replaces: Vec<Value>,
+    pub index: sc::CodecVec<Entry>,
+    pub births: sc::CodecVec<Entry>,
+    pub withdrawals: bj::JsonOwner,
+    pub replaces: bj::JsonOwner,
     pub active: Built,
     pub withdrawn: Built,
     pub upserts: Built,
@@ -278,6 +278,7 @@ fn immutable(
     )?
     .immutable(s, is_shape)
 }
+#[cfg(test)]
 fn raw_withdrawal(e: &Entry, reason: &str, sup: Option<&str>) -> Value {
     match &e.slot {
         Slot::Shape(w) => {
@@ -285,6 +286,42 @@ fn raw_withdrawal(e: &Entry, reason: &str, sup: Option<&str>) -> Value {
         }
         Slot::Typed { fact_key, .. } => {
             json!({"object_id":e.id,"fact_key":fact_key,"reason":reason,"superseded_by":sup})
+        }
+    }
+}
+fn push_raw_withdrawal(
+    rows: &mut bj::ScopedJsonArray<'_>,
+    e: &Entry,
+    reason: &str,
+    sup: Option<&str>,
+) -> Result<(), String> {
+    use aj::JsonView as J;
+    let common = [
+        ("object_id", J::String(e.id.as_str())),
+        ("reason", J::String(reason)),
+        ("superseded_by", sup.map(J::String).unwrap_or(J::Null)),
+    ];
+    match &e.slot {
+        Slot::Shape(window) => {
+            let numbers = window.map(Value::from);
+            let fields = [
+                common[0],
+                common[1],
+                common[2],
+                ("window_start", J::Plain(&numbers[0])),
+                ("window_mid", J::Plain(&numbers[1])),
+                ("window_end", J::Plain(&numbers[2])),
+            ];
+            rows.push(J::object_fields(&fields).map_err(err)?)
+        }
+        Slot::Typed { fact_key, .. } => {
+            let fields = [
+                common[0],
+                common[1],
+                common[2],
+                ("fact_key", J::String(fact_key.as_str())),
+            ];
+            rows.push(J::object_fields(&fields).map_err(err)?)
         }
     }
 }
@@ -341,19 +378,17 @@ fn candidate(
     o: &ProducedObject,
     g: i64,
 ) -> Result<Entry, String> {
-    let generated = o.generated().clone();
-    s.verify_audit_fresh(&generated.content_ref(), sc::Mode::Public)
-        .map_err(err)?;
+    let root = s.native_built_ref(o.generated()).map_err(err)?;
+    match &root {
+        RefValue::Plain(reference) => s.verify_audit_fresh(reference, sc::Mode::Public),
+        RefValue::Owned(_) => s.verify_many_ref_fresh([root.view()], sc::Mode::Public),
+    }
+    .map_err(err)?;
     #[cfg(test)]
     if LEGACY_CANDIDATE_FIELDS.with(|v| v.get()) {
         return candidate_verified_legacy_fields(s, o, g);
     }
-    #[cfg(feature = "s_allocation_json_testonly")]
-    if s.allocation_budget().is_some() {
-        let root = generated.owned_ref();
-        return candidate_fixed_fields(s, o, root.view(), g);
-    }
-    candidate_fixed_fields(s, o, (&generated.content_ref()).into(), g)
+    candidate_fixed_fields(s, o, root.view(), g)
 }
 // #1394：仅本模块完整Public核验成功的控制流调用，不导出skip开关或成功token。
 #[cfg(test)]
@@ -534,7 +569,11 @@ fn candidate_fixed_fields(
     let fields = CandidateFixedFields::read_metadata(s, root, o.kind() == SHAPE)?;
     if fields.integer(s, "first_known_generation")? != g
         || fields.integer(s, "published_generation")? != g
-        || fields.text(s, "first_known_cut")?.as_str() != format!("cut-{g}")
+        || fields
+            .text(s, "first_known_cut")?
+            .as_str()
+            .strip_prefix("cut-")
+            != Some(super::business_json::Decimal::new(g).text())
     {
         return Err(err("候选对象不属于本次生成代"));
     }
@@ -549,33 +588,31 @@ fn candidate_fixed_fields(
         BorrowedObject::Shape(v) => v.record.clone(),
         BorrowedObject::Fractal(v) => v.record.clone(),
     };
-    let life = PublicationLife {
+    let life = LifeOwner {
         first_known_generation: g,
-        first_known_cut: format!("cut-{g}"),
+        first_known_cut: fields.text(s, "first_known_cut")?,
         published_generation: g,
         withdrawn_generation: None,
         withdrawal_reason: None,
         superseded_by: None,
-        batch: BatchRef::CurrentBatch,
+        batch: BatchOwner::CurrentBatch,
     };
     drop(fields); // 不把绑定结果带过任何wire写入。
-    let birth_wire = o
-        .wire_template(s.generic_store(), &life, g)
-        .map_err(err)?
-        .content_ref();
+    let birth_wire = o.wire_template_view(s, life.view(), g).map_err(err)?;
+    let birth_wire = s.native_built_ref(&birth_wire).map_err(err)?;
     // 原件必须在wire写后重新exact读取，触发器改坏generated仍按旧顺序拒绝。
     let fields = CandidateFixedFields::read_exact(s, root, slot.is_shape())?;
     let immutable = fields.immutable(s, slot.is_shape())?;
     Ok(Entry {
-        id: o.object_id().into(),
+        id: s.native_text(o.object_id())?,
         revision,
         kind,
         slot,
         generated: o.generated().clone(),
         internal,
         immutable,
-        birth_wire: birth_wire.into(),
-        life: LifeOwner::from_normal(life),
+        birth_wire,
+        life,
     })
 }
 
@@ -609,11 +646,12 @@ fn candidate_fields(
     g: i64,
 ) -> Result<Entry, String> {
     let generated = o.generated().clone();
-    let root = generated.content_ref();
-    let selected_kind = text(s, &root, "kind")?;
-    let fields = Fields::read(
+    let root = s.native_built_ref(&generated).map_err(err)?;
+    let selected = s.lookup_field_ref(root.view(), "kind").map_err(err)?;
+    let selected_kind = bj::read_text(s, selected.view())?;
+    let fields = OwnerFields::read(
         s,
-        &root,
+        root.view(),
         if selected_kind == SHAPE {
             &object_records::SHAPE_SEALED_FIELDS
         } else {
@@ -622,7 +660,8 @@ fn candidate_fields(
     )?;
     if fields.integer(s, "first_known_generation")? != g
         || fields.integer(s, "published_generation")? != g
-        || fields.text(s, "first_known_cut")? != format!("cut-{g}")
+        || fields.text(s, "first_known_cut")?.strip_prefix("cut-")
+            != Some(super::business_json::Decimal::new(g).text())
     {
         return Err(err("候选对象不属于本次生成代"));
     }
@@ -637,31 +676,29 @@ fn candidate_fields(
         BorrowedObject::Shape(v) => v.record.clone(),
         BorrowedObject::Fractal(v) => v.record.clone(),
     };
-    let life = PublicationLife {
+    let life = LifeOwner {
         first_known_generation: g,
-        first_known_cut: format!("cut-{g}"),
+        first_known_cut: fields.text(s, "first_known_cut")?,
         published_generation: g,
         withdrawn_generation: None,
         withdrawal_reason: None,
         superseded_by: None,
-        batch: BatchRef::CurrentBatch,
+        batch: BatchOwner::CurrentBatch,
     };
     // internal与generated是不同原件，仍由原wire_template读取并核内部JSON/value边。
-    let birth_wire = o
-        .wire_template(s.generic_store(), &life, g)
-        .map_err(err)?
-        .content_ref();
+    let birth_wire = o.wire_template_view(s, life.view(), g).map_err(err)?;
+    let birth_wire = s.native_built_ref(&birth_wire).map_err(err)?;
     let immutable = fields.immutable(s, slot.is_shape())?;
     Ok(Entry {
-        id: o.object_id().into(),
+        id: s.native_text(o.object_id())?,
         revision,
-        kind: kind.into(),
+        kind,
         slot,
         generated,
         internal,
         immutable,
-        birth_wire: birth_wire.into(),
-        life: LifeOwner::from_normal(life),
+        birth_wire,
+        life,
     })
 }
 // #1488 PathStep 的公开接口需要 String；许可先于真实分配，局部路径先于许可析构。
@@ -1068,6 +1105,7 @@ impl HistoryObjects<'_> {
 fn array(s: &mut (impl CodecStore + ?Sized), refs: &[RefValue]) -> Result<Built, String> {
     let allocation = s.allocation_budget();
     let mut views = bj::new_work(allocation.as_ref());
+    s.native_codec_room(&mut views, refs.len()).map_err(err)?;
     for r in refs {
         views
             .try_push(sc::ValueView::Edge(r.digest().map_err(err)?))
@@ -1106,6 +1144,7 @@ fn at_cut_projected(
     for (ordinal, e) in index.iter().enumerate().filter(|(_, e)| {
         e.life.first_known_generation <= g && e.life.withdrawn_generation.is_none_or(|d| d > g)
     }) {
+        s.native_codec_room(&mut active, 1).map_err(err)?;
         active.try_push((ordinal, e)).map_err(err)?;
     }
     for (ordinal, e) in index
@@ -1113,6 +1152,7 @@ fn at_cut_projected(
         .enumerate()
         .filter(|(_, e)| e.life.withdrawn_generation.is_some_and(|d| d <= g))
     {
+        s.native_codec_room(&mut dead, 1).map_err(err)?;
         dead.try_push((ordinal, e)).map_err(err)?;
     }
     active.sort_unstable_by(|a, b| ordering(a.1, b.1, false).then(a.0.cmp(&b.0)));
@@ -1123,10 +1163,12 @@ fn at_cut_projected(
         .enumerate()
         .filter(|(_, e)| e.life.first_known_generation == g)
     {
+        s.native_codec_room(&mut births, 1).map_err(err)?;
         births.try_push((ordinal, e)).map_err(err)?;
     }
     let mut collect = |items: sc::CodecVec<(usize, &Entry)>| -> Result<Built, String> {
         let mut refs = bj::new_work(allocation.as_ref());
+        s.native_codec_room(&mut refs, items.len()).map_err(err)?;
         for (ordinal, e) in items {
             if let Some(b) = budget {
                 b.record().map_err(err)?;
@@ -1156,10 +1198,12 @@ pub(super) fn plan(
         content_store::sql_reads_on_thread(),
         sc::frame_calls_on_thread(),
     );
-    let new = objects
-        .iter()
-        .map(|o| candidate(s, o, g))
-        .collect::<Result<Vec<_>, _>>()?;
+    let allocation = s.allocation_budget();
+    let mut new = bj::new_work(allocation.as_ref());
+    s.native_codec_room(&mut new, objects.len()).map_err(err)?;
+    for object in objects {
+        new.try_push(candidate(s, object, g)?).map_err(err)?;
+    }
     #[cfg(test)]
     LAST_CANDIDATE_FIELD_READS.with(|v| {
         v.set((
@@ -1191,28 +1235,40 @@ pub(super) fn plan_native_union_for_testonly(
         sc::Mode::Public,
     )
     .map_err(err)?;
-    let new = objects
-        .iter()
-        .map(|o| candidate_fields(s, o, g))
-        .collect::<Result<Vec<_>, _>>()?;
+    let mut new = bj::new_work(None);
+    s.native_codec_room(&mut new, objects.len()).map_err(err)?;
+    for object in objects {
+        new.try_push(candidate_fields(s, object, g)?).map_err(err)?;
+    }
     plan_from_candidates(s, new, old, g)
 }
 fn plan_from_candidates(
     s: &mut (impl CodecStore + ?Sized),
-    new: Vec<Entry>,
+    new: sc::CodecVec<Entry>,
     old: &[Entry],
     g: i64,
 ) -> Result<Plan, String> {
-    let mut ids = BTreeSet::new();
+    let mut ids = NativeTree::default();
     for e in &new {
-        if !ids.insert(e.id.try_clone_admitted(s.codec_work())?) {
+        if ids
+            .insert_admitted(e.id.try_clone_admitted(s.codec_work())?, (), s)
+            .map_err(err)?
+            .is_some()
+        {
             return Err(err("生成集重复对象身份"));
         }
     }
-    let mut order = (0..old.len()).collect::<Vec<_>>();
-    order.sort_by(|a, b| ordering(&old[*a], &old[*b], false));
     let allocation = s.allocation_budget();
+    let mut order = bj::new_work(allocation.as_ref());
+    s.native_codec_room(&mut order, old.len()).map_err(err)?;
+    for ordinal in 0..old.len() {
+        order.try_push(ordinal).map_err(err)?;
+    }
+    // 相同排序键以旧ordinal打破平局，与原stable排序逐位同序而无需额外scratch。
+    order.sort_unstable_by(|a, b| ordering(&old[*a], &old[*b], false).then(a.cmp(b)));
     let mut old_keys = bj::new_work(allocation.as_ref());
+    s.native_codec_room(&mut old_keys, order.len())
+        .map_err(err)?;
     for i in &order {
         let e = &old[*i];
         old_keys
@@ -1227,6 +1283,7 @@ fn plan_from_candidates(
             .map_err(err)?;
     }
     let mut keys = bj::new_work(allocation.as_ref());
+    s.native_codec_room(&mut keys, new.len()).map_err(err)?;
     for e in &new {
         keys.try_push(object_diff::Key {
             object_id: e.id.as_str(),
@@ -1237,12 +1294,13 @@ fn plan_from_candidates(
     }
     let changes =
         object_diff::plan_admitted(&keys, &old_keys, allocation.as_ref(), s.codec_work())?;
-    let mut index = Vec::new();
+    let mut index = bj::new_work(allocation.as_ref());
+    s.native_codec_room(&mut index, old.len()).map_err(err)?;
     for e in old {
-        index.push(e.try_clone_admitted(s)?);
+        index.try_push(e.try_clone_admitted(s)?).map_err(err)?;
     }
-    let mut withdrawals = Vec::new();
-    let mut replaces = Vec::new();
+    let mut withdrawals = change_array(s, allocation.as_ref())?;
+    let mut replaces = change_array(s, allocation.as_ref())?;
     for w in changes.withdrawals {
         let e = &mut index[order[w.old_index]];
         let (reason, sup) = match w.removal {
@@ -1263,24 +1321,43 @@ fn plan_from_candidates(
                 ),
             ),
         };
-        withdrawals.push(raw_withdrawal(e, reason, sup.as_deref()));
+        push_raw_withdrawal(&mut withdrawals, e, reason, sup.as_deref())?;
         e.life.withdrawn_generation = Some(g);
-        e.life.withdrawal_reason = Some(reason.into());
+        e.life.withdrawal_reason = Some(TextValue::from_str_admitted(
+            reason,
+            allocation.as_ref(),
+            s.codec_work(),
+        )?);
         e.life.superseded_by = sup;
     }
     for r in changes.replaces {
-        replaces.push(
-            json!({"new_object_id":new[r.new_index].id,"old_object_id":old[order[r.old_index]].id}),
-        );
+        let fields = [
+            (
+                "new_object_id",
+                aj::JsonView::String(new[r.new_index].id.as_str()),
+            ),
+            (
+                "old_object_id",
+                aj::JsonView::String(old[order[r.old_index]].id.as_str()),
+            ),
+        ];
+        replaces.push(aj::JsonView::object_fields(&fields).map_err(err)?)?;
     }
-    let births = changes
-        .births
-        .into_iter()
-        .map(|i| new[i].try_clone_admitted(s))
-        .collect::<Result<Vec<_>, String>>()?;
+    let mut births = bj::new_work(allocation.as_ref());
+    s.native_codec_room(&mut births, changes.births.len())
+        .map_err(err)?;
+    s.native_codec_room(&mut index, changes.births.len())
+        .map_err(err)?;
+    for ordinal in changes.births {
+        births
+            .try_push(new[ordinal].try_clone_admitted(s)?)
+            .map_err(err)?;
+    }
     for e in &births {
-        index.push(e.try_clone_admitted(s)?);
+        index.try_push(e.try_clone_admitted(s)?).map_err(err)?;
     }
+    let withdrawals = withdrawals.finish();
+    let replaces = replaces.finish();
     let (active, withdrawn, upserts) = at_cut(s, &index, g)?;
     Ok(Plan {
         generation: g,
@@ -2075,13 +2152,13 @@ pub(super) fn stage_in_material(
         #[cfg(feature = "s_capture_native_testonly")]
         construction_stage.finish(material)?;
     }
-    for w in &p.withdrawals {
+    for w in bj::RawEventsView::from(&p.withdrawals) {
         #[cfg(feature = "s_capture_native_testonly")]
         let construction_stage = super::audit_owner::begin_construction_stage(
             tx,
             super::audit_owner::StageKind::ObjectWithdrawal,
         )?;
-        let changed=tx.execute("UPDATE s_content_objects SET withdrawn_generation=?1,withdrawal_reason=?2,superseded_by=?3 WHERE object_id=?4 AND withdrawn_generation IS NULL",params![p.generation,w["reason"].as_str(),w["superseded_by"].as_str(),w["object_id"].as_str()]).map_err(err)?;
+        let changed=tx.execute("UPDATE s_content_objects SET withdrawn_generation=?1,withdrawal_reason=?2,superseded_by=?3 WHERE object_id=?4 AND withdrawn_generation IS NULL",params![p.generation,bj::field(w, "reason").as_str(),bj::field(w, "superseded_by").as_str(),bj::field(w, "object_id").as_str()]).map_err(err)?;
         if changed != 1 {
             return Err(err("撤回身份缺失或已撤回"));
         }
@@ -3882,11 +3959,13 @@ mod tests {
             sc::Mode::Public,
         )
         .unwrap();
-        let entries = objects
-            .iter()
-            .map(|o| candidate_verified_legacy_fields(s, o, g))
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
+        let mut entries = bj::new_work(None);
+        s.native_codec_room(&mut entries, objects.len()).unwrap();
+        for object in objects {
+            entries
+                .try_push(candidate_verified_legacy_fields(s, object, g).unwrap())
+                .unwrap();
+        }
         plan_from_candidates(s, entries, old, g).unwrap()
     }
     fn candidate_sql_material_for_test(tx: &Transaction<'_>) -> Vec<(Vec<u8>, i64, Vec<u8>)> {
@@ -3965,6 +4044,16 @@ mod tests {
         }
     }
     impl CodecRead for CandidateProbe {
+        fn verify_many_ref_fresh<'a>(
+            &mut self,
+            roots: impl IntoIterator<Item = sc::RefView<'a>>,
+            mode: sc::Mode,
+        ) -> Result<(), sc::CodecError> {
+            // 单候选 fresh 核验的新借视图入口；真实核验全部原件，不触联合核验注入器。
+            self.singles += 1;
+            sc::audit_verify_many_refview(self, roots, mode)
+        }
+
         fn lookup_path(
             &mut self,
             r: &ContentRef,
@@ -4059,6 +4148,35 @@ mod tests {
     }
     #[cfg(feature = "s_capture_native_testonly")]
     impl CodecRead for CandidateFieldsProbe {
+        fn lookup_field_ref(
+            &mut self,
+            r: sc::RefView<'_>,
+            key: &str,
+        ) -> Result<RefValue, sc::CodecError> {
+            let replacement = self.replacement.clone();
+            let current = if r.digest()? == self.generated_root {
+                replacement.as_ref().map(|v| v.into()).unwrap_or(r)
+            } else {
+                r
+            };
+            sc::path::lookup_path_native(self, current, &[f(key)]).map(RefValue::Plain)
+        }
+        fn lookup_fields_ref<'a>(
+            &mut self,
+            r: sc::RefView<'_>,
+            names: &[&'a str],
+        ) -> Result<super::super::audit_store::RefFields<'a>, sc::CodecError> {
+            self.field_reads += 1;
+            let replacement = self.replacement.clone();
+            let current = if r.digest()? == self.generated_root {
+                replacement.as_ref().map(|v| v.into()).unwrap_or(r)
+            } else {
+                r
+            };
+            sc::path::lookup_fields_native(self, current, names, false)
+                .map(super::super::audit_store::RefFields::Plain)
+        }
+
         fn generic_source(&mut self) -> &mut dyn NodeSource {
             self
         }
@@ -4773,6 +4891,168 @@ mod tests {
         }
         (nodes, entries)
     }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn plan_input_fixture(shape_replacement: bool) -> (sc::MemoryNodes, Vec<Entry>, Entry) {
+        let (nodes, entries) = projection_fixture();
+        let mut old = entries[..2]
+            .iter()
+            .map(|e| e.try_clone().unwrap())
+            .collect::<Vec<_>>();
+        for e in &mut old {
+            e.life.withdrawn_generation = None;
+            e.life.withdrawal_reason = None;
+            e.life.superseded_by = None;
+        }
+        let fresh = entries[if shape_replacement { 5 } else { 6 }]
+            .try_clone()
+            .unwrap();
+        (nodes, old, fresh)
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn admitted_plan_candidate(
+        store: &(impl CodecRead + ?Sized),
+        fresh: &Entry,
+    ) -> Result<sc::CodecVec<Entry>, String> {
+        let mut new = sc::CodecVec::default();
+        store.native_codec_room(&mut new, 1).map_err(err)?;
+        new.try_push(fresh.try_clone_admitted(store)?)
+            .map_err(err)?;
+        Ok(new)
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_plan_owners_outlive_scope_and_match_independent_change_rows() {
+        for shape_replacement in [false, true] {
+            let (mut expected_nodes, old, fresh) = plan_input_fixture(shape_replacement);
+            let old_snapshot = format!("{old:?}");
+            let mut expected_index = old
+                .iter()
+                .map(|e| e.try_clone().unwrap())
+                .collect::<Vec<_>>();
+            let mut expected_withdrawals = Vec::new();
+            let mut expected_replaces = Vec::new();
+            // 旧公开顺序为 shape 在前、typed 在后。这里直接按场景构建oracle，
+            // 不经新plan或其push_raw_withdrawal辅助函数。
+            for e in &mut expected_index {
+                let superseded = e.slot.is_shape() == shape_replacement;
+                let reason = if superseded {
+                    "superseded_by_revision"
+                } else if e.slot.is_shape() {
+                    "window_removed"
+                } else {
+                    "fact_removed"
+                };
+                let sup = superseded.then_some(fresh.id.as_str());
+                expected_withdrawals.push(raw_withdrawal(e, reason, sup));
+                if superseded {
+                    expected_replaces.push(json!({
+                        "old_object_id":e.id,
+                        "new_object_id":fresh.id
+                    }));
+                }
+                e.life.withdrawn_generation = Some(3);
+                e.life.withdrawal_reason = Some(reason.into());
+                e.life.superseded_by = sup.map(Into::into);
+            }
+            expected_index.push(fresh.try_clone().unwrap());
+            let expected_roots = at_cut(&mut expected_nodes, &expected_index, 3).unwrap();
+            let (nodes, _, _) = plan_input_fixture(shape_replacement);
+            let capture = sc::AuditCapture::new(nodes);
+            let budget =
+                super::super::audit_owner::native::Budget::new(8 * 1024 * 1024, 0).unwrap();
+            let baseline = budget.live();
+            let plan = budget
+                .codec_work()
+                .unwrap()
+                .run(|scope| {
+                    let mut reader =
+                        super::super::history::HashReader::captured_for_audit(&capture, None)
+                            .map_err(err)?
+                            .with_codec_work(scope, &budget);
+                    let new = admitted_plan_candidate(&reader, &fresh)?;
+                    plan_from_candidates(&mut reader, new, &old, 3)
+                })
+                .unwrap();
+            assert_eq!(
+                format!("{old:?}"),
+                old_snapshot,
+                "候选规划不得改写原历史输入"
+            );
+            assert_eq!(
+                plan.withdrawals.view(),
+                aj::JsonView::Plain(&Value::Array(expected_withdrawals))
+            );
+            assert_eq!(
+                plan.replaces.view(),
+                aj::JsonView::Plain(&Value::Array(expected_replaces))
+            );
+            assert_eq!(plan.active.digest, expected_roots.0.digest);
+            assert_eq!(plan.withdrawn.digest, expected_roots.1.digest);
+            assert_eq!(plan.upserts.digest, expected_roots.2.digest);
+            assert!(matches!(&plan.withdrawals, bj::JsonOwner::Plain(v) if v.is_native_admitted()));
+            assert!(matches!(&plan.replaces, bj::JsonOwner::Plain(v) if v.is_native_admitted()));
+            let retained = budget.live();
+            assert!(retained > baseline, "scope结束后各返回owner仍持费");
+            drop(plan.index);
+            assert!(budget.live() < retained, "index实体与容量许可随index释放");
+            let retained = budget.live();
+            drop(plan.births);
+            assert!(budget.live() < retained, "births实体与容量许可独立释放");
+            let retained = budget.live();
+            drop(plan.withdrawals);
+            assert!(budget.live() < retained, "撤回JSON owner独立释放");
+            drop(plan.replaces);
+            assert_eq!(budget.live(), baseline, "末个返回owner销毁后回到原基线");
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_plan_late_missing_wire_releases_partial_plan_without_mutating_input() {
+        let (_, old, fresh) = plan_input_fixture(true);
+        let old_snapshot = format!("{old:?}");
+        let fresh_snapshot = format!("{fresh:?}");
+        let capture = sc::AuditCapture::new(sc::MemoryNodes::new());
+        let budget = super::super::audit_owner::native::Budget::new(8 * 1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let result = budget.codec_work().unwrap().run(|scope| {
+            let mut reader = super::super::history::HashReader::captured_for_audit(&capture, None)
+                .map_err(err)?
+                .with_codec_work(scope, &budget);
+            let new = admitted_plan_candidate(&reader, &fresh)?;
+            // metadata、撤回JSON、births/index已产生后，真实wire读取才发现原库缺节点。
+            plan_from_candidates(&mut reader, new, &old, 3)
+        });
+        let message = result.err().expect("缺原wire不得产生Plan");
+        assert!(message.contains(sc::code::NODE_MISSING), "{message}");
+        assert_eq!(format!("{old:?}"), old_snapshot);
+        assert_eq!(format!("{fresh:?}"), fresh_snapshot);
+        assert_eq!(budget.live(), baseline, "失败局部的所有许可必须回收");
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_plan_capacity_refusal_preserves_input_and_budget() {
+        let (_, old, _) = plan_input_fixture(false);
+        let old_snapshot = format!("{old:?}");
+        let capture = sc::AuditCapture::new(sc::MemoryNodes::new());
+        let budget = super::super::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let result = budget.codec_work().unwrap().run(|scope| {
+            let mut reader = super::super::history::HashReader::captured_for_audit(&capture, None)
+                .map_err(err)?
+                .with_codec_work(scope, &budget);
+            let _held = budget.reserve(1024 * 1024 - budget.live() - 1).unwrap();
+            plan_from_candidates(&mut reader, sc::CodecVec::default(), &old, 3)
+        });
+        assert!(result.is_err(), "一字节预算不得准入历史ordinal工作集");
+        assert_eq!(format!("{old:?}"), old_snapshot);
+        assert_eq!(budget.live(), baseline);
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn native_changes_use_current_scope_and_return_owned_json_permits() {
@@ -5056,7 +5336,7 @@ mod tests {
                 v.as_array()
                     .unwrap()
                     .iter()
-                    .map(|row| row["object_id"].as_str().unwrap().to_owned())
+                    .map(|row| robj::field(w, "object_id").as_str().unwrap().to_owned())
                     .collect::<Vec<_>>()
             };
             if g == 1 {
@@ -5526,8 +5806,14 @@ mod tests {
             };
             #[cfg(not(feature = "s_capture_native_testonly"))]
             let _ = (native_union, ordinary_reads);
-            assert_eq!(p.withdrawals, oracle.1);
-            assert_eq!(p.replaces, oracle.2);
+            assert_eq!(
+                p.withdrawals.view(),
+                aj::JsonView::BorrowedArray(&bj::ValuesArray(&oracle.1))
+            );
+            assert_eq!(
+                p.replaces.view(),
+                aj::JsonView::BorrowedArray(&bj::ValuesArray(&oracle.2))
+            );
             assert_eq!(
                 p.births.iter().map(|e| e.id.as_str()).collect::<Vec<_>>(),
                 oracle
@@ -5537,7 +5823,7 @@ mod tests {
                     .collect::<Vec<_>>()
             );
             assert!(!p.births.is_empty());
-            total_deaths += p.withdrawals.len();
+            total_deaths += p.withdrawals.array_len();
             let batch = format!("batch3-{}", g.to_string().repeat(64));
             stage(&tx, &mut s, &p, &batch).unwrap();
             let stored = load(&tx, &mut s, g).unwrap();
@@ -5599,8 +5885,14 @@ mod tests {
                 first_cut = Some(roots);
             }
             let expected_changes = changes_at(&stored, g).unwrap();
-            assert_eq!(expected_changes.0, p.withdrawals);
-            assert_eq!(expected_changes.1, p.replaces);
+            assert_eq!(
+                aj::JsonView::BorrowedArray(&bj::ValuesArray(&expected_changes.0)),
+                p.withdrawals.view()
+            );
+            assert_eq!(
+                aj::JsonView::BorrowedArray(&bj::ValuesArray(&expected_changes.1)),
+                p.replaces.view()
+            );
             if include_legacy_negative_cases && g == 2 {
                 let common = old
                     .iter()

@@ -979,20 +979,125 @@ impl CatalogAxisTable {
     }
 }
 
-pub(super) fn catalog_axes<'a>(
+pub(super) fn catalog_axes<'a, 'objects, 'changes>(
     table: CatalogAxisTable,
-    objects: &[Value],
+    objects: impl Into<crate::v3::business_json::RawEventsView<'objects>>,
     raw: impl Into<crate::v3::business_json::RawEventsView<'a>>,
     previous_frontier: i64,
-    withdrawals: &[Value],
-    replaces: &[Value],
+    withdrawals: impl Into<crate::v3::business_json::RawEventsView<'changes>>,
+    replaces: impl Into<crate::v3::business_json::RawEventsView<'changes>>,
 ) -> Value {
+    let owner = catalog_axes_admitted(
+        &crate::v3::audit_store::NativeAdmission(None),
+        table,
+        objects,
+        raw,
+        previous_frontier,
+        withdrawals,
+        replaces,
+    )
+    .expect("旧目录无scope构造");
+    match owner {
+        crate::v3::business_json::JsonOwner::Plain(value) => value.into_unscoped().unwrap(),
+        #[cfg(feature = "s_allocation_json_testonly")]
+        crate::v3::business_json::JsonOwner::Owned(_) => unreachable!("无scope兼容入口"),
+    }
+}
+
+/// #1488：同一目录判据的持费入口。每个临时解析、行、证据及最终根先准入后构造；
+/// 失败仅销毁局部owner，不返回半根。旧无scope调用也走这一份判据。
+pub(super) fn catalog_axes_admitted<'a, 'objects, 'changes>(
+    store: &(impl crate::v3::audit_store::CodecRead + ?Sized),
+    table: CatalogAxisTable,
+    objects: impl Into<crate::v3::business_json::RawEventsView<'objects>>,
+    raw: impl Into<crate::v3::business_json::RawEventsView<'a>>,
+    previous_frontier: i64,
+    withdrawals: impl Into<crate::v3::business_json::RawEventsView<'changes>>,
+    replaces: impl Into<crate::v3::business_json::RawEventsView<'changes>>,
+) -> Result<crate::v3::business_json::JsonOwner, String> {
+    use crate::v3::business_json::{self as bj, field, JsonOwner};
+    use newchan_rust::s_content::{self as sc, CodecVec};
+    use sc::capture_allocation::audit_json::{JsonArray, JsonView};
+    struct Rows<'a>(&'a [JsonOwner]);
+    impl JsonArray for Rows<'_> {
+        fn len(&self) -> usize {
+            self.0.len()
+        }
+        fn get(&self, i: usize) -> Option<JsonView<'_>> {
+            self.0.get(i).map(JsonOwner::view)
+        }
+    }
+    fn push<T>(
+        s: &(impl crate::v3::audit_store::CodecRead + ?Sized),
+        rows: &mut CodecVec<T>,
+        v: T,
+    ) -> Result<(), String> {
+        if let Some(work) = s.codec_work() {
+            rows.try_reserve_native(work, 1)
+                .map_err(|e| e.to_string())?;
+        }
+        rows.try_push(v).map_err(|e| e.to_string())
+    }
+    struct Bytes<'a, S: crate::v3::audit_store::CodecRead + ?Sized> {
+        bytes: CodecVec<u8>,
+        store: &'a S,
+    }
+    impl<S: crate::v3::audit_store::CodecRead + ?Sized> std::io::Write for Bytes<'_, S> {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            if let Some(work) = self.store.codec_work() {
+                self.bytes
+                    .try_reserve_native(work, bytes.len())
+                    .map_err(std::io::Error::other)?;
+            }
+            self.bytes
+                .try_extend_bytes(bytes)
+                .map_err(std::io::Error::other)?;
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    fn bytes<S: crate::v3::audit_store::CodecRead + ?Sized>(
+        s: &S,
+        value: &impl serde::Serialize,
+    ) -> Result<CodecVec<u8>, String> {
+        let mut out = Bytes {
+            bytes: bj::new_work(s.allocation_budget().as_ref()),
+            store: s,
+        };
+        serde_json::to_writer(&mut out, value).map_err(|e| e.to_string())?;
+        Ok(out.bytes)
+    }
+    fn parse(
+        s: &(impl crate::v3::audit_store::CodecRead + ?Sized),
+        text: &str,
+    ) -> Result<JsonOwner, String> {
+        bj::legacy_json_owner_admitted(
+            text.as_bytes(),
+            s.allocation_budget().as_ref(),
+            s.codec_work(),
+        )
+    }
+    fn fields(
+        s: &(impl crate::v3::audit_store::CodecRead + ?Sized),
+        values: &[(&str, JsonView<'_>)],
+    ) -> Result<JsonOwner, String> {
+        bj::json_from_view_admitted(
+            s,
+            JsonView::object_fields(values).map_err(|e| e.to_string())?,
+        )
+    }
+    let objects = objects.into();
     let raw = raw.into();
-    let mut axes = serde_json::Map::new();
+    let withdrawals = withdrawals.into();
+    let replaces = replaces.into();
     let knowledge = objects
         .iter()
-        .find(|o| o["kind"] == "CC-054.knowledge_state")
-        .map(|o| serde_json::from_str::<Value>(o["payload_json"].as_str().unwrap()).unwrap());
+        .find(|o| field(*o, "kind").as_str() == Some("CC-054.knowledge_state"))
+        .map(|o| parse(store, field(o, "payload_json").as_str().unwrap()))
+        .transpose()?;
+    let mut axes = bj::new_work::<(&'static str, JsonOwner)>(store.allocation_budget().as_ref());
     for &axis in table.axes() {
         let kind = match axis {
             "CC-001" | "CC-002" | "CC-003" | "CC-004" => "CC-004.inclusion_step",
@@ -1007,79 +1112,147 @@ pub(super) fn catalog_axes<'a>(
             "CC-012" => "CC-012.feature_sequence",
             "CC-013" | "CC-014" => "CC-013.segment",
             "CC-055" => "CC-055.",
-            // 13 轴表只有 `CC-056.version`（FIN 口径）；17 轴表另收 `CC-056.segment_version`。
             "CC-056" if table == CatalogAxisTable::NewBi => "CC-056.version",
             "CC-056" => "CC-056.",
             _ => "",
         };
-        let ids: Vec<Value> = objects
-            .iter()
-            .filter(|o| {
-                o["kind"].as_str().is_some_and(|k| {
-                    if kind.ends_with('.') {
-                        k.starts_with(kind)
-                    } else {
-                        k == kind
-                    }
-                })
-            })
-            .filter(|o| {
-                if matches!(axis, "CC-001" | "CC-002" | "CC-003") {
-                    let p: Value =
-                        serde_json::from_str(o["payload_json"].as_str().unwrap()).unwrap();
-                    !p["comparisons"].as_array().unwrap().is_empty()
+        let mut ids = bj::new_work::<JsonOwner>(store.allocation_budget().as_ref());
+        for o in objects.iter().filter(|o| {
+            field(*o, "kind").as_str().is_some_and(|k| {
+                if kind.ends_with('.') {
+                    k.starts_with(kind)
                 } else {
-                    true
+                    k == kind
                 }
             })
-            .map(|o| o["object_id"].clone())
-            .collect();
-        let mut waiting: Vec<Value> = Vec::new();
+        }) {
+            if matches!(axis, "CC-001" | "CC-002" | "CC-003") {
+                let payload = parse(store, field(o, "payload_json").as_str().unwrap())?;
+                if field(payload.view(), "comparisons")
+                    .as_array()
+                    .unwrap()
+                    .is_empty()
+                {
+                    continue;
+                }
+            }
+            let id = bj::json_from_view_admitted(store, field(o, "object_id"))?;
+            push(store, &mut ids, id)?;
+        }
+        // 排序期间规范字节随原因原件共同持费；原地不稳定排序无隐藏scratch。
+        // 规范键相等即JSON相同，去重只借用首份原件。
+        let mut waiting =
+            bj::new_work::<(CodecVec<u8>, JsonOwner)>(store.allocation_budget().as_ref());
+        let mut add_reason = |reason: JsonView<'_>| -> Result<(), String> {
+            let key = bytes(store, &reason)?;
+            let owner = bj::json_from_view_admitted(store, reason)?;
+            push(store, &mut waiting, (key, owner))
+        };
         if let Some(k) = &knowledge {
             if axis == "CC-054" {
-                waiting = k["waiting_reasons"].as_array().unwrap().clone();
+                for r in field(k.view(), "waiting_reasons")
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                {
+                    add_reason(r)?;
+                }
             } else if !matches!(axis, "CC-001" | "CC-002" | "CC-003" | "CC-056") {
-                for request in k["requests"].as_array().unwrap() {
-                    let key: Value =
-                        serde_json::from_str(request["request_id"].as_str().unwrap()).unwrap();
-                    if key[0] == kind || key[0][0] == kind {
-                        waiting.extend(request["reasons"].as_array().unwrap().clone());
+                for request in field(k.view(), "requests").as_array().unwrap().iter() {
+                    let key = parse(store, field(request, "request_id").as_str().unwrap())?;
+                    let first = key
+                        .view()
+                        .as_array()
+                        .and_then(|a| a.get(0))
+                        .unwrap_or(JsonView::Null);
+                    if first.as_str() == Some(kind)
+                        || first
+                            .as_array()
+                            .and_then(|a| a.get(0))
+                            .and_then(|v| v.as_str())
+                            == Some(kind)
+                    {
+                        for r in field(request, "reasons").as_array().unwrap().iter() {
+                            add_reason(r)?;
+                        }
                     }
                 }
             }
         }
-        if matches!(axis, "CC-008" | "CC-009" | "CC-010" | "CC-055" | "CC-056") {
-            for o in objects.iter().filter(|o| o["kind"] == "CC-056.version") {
-                let p: Value = serde_json::from_str(o["payload_json"].as_str().unwrap()).unwrap();
-                waiting.extend(p["data"]["waiting_reasons"].as_array().unwrap().clone());
-            }
-        }
-        if matches!(axis, "CC-011" | "CC-012" | "CC-013" | "CC-014") {
+        let version = if matches!(axis, "CC-008" | "CC-009" | "CC-010" | "CC-055" | "CC-056") {
+            Some("CC-056.version")
+        } else if matches!(axis, "CC-011" | "CC-012" | "CC-013" | "CC-014") {
+            Some("CC-056.segment_version")
+        } else {
+            None
+        };
+        if let Some(version) = version {
             for o in objects
                 .iter()
-                .filter(|o| o["kind"] == "CC-056.segment_version")
+                .filter(|o| field(*o, "kind").as_str() == Some(version))
             {
-                let p: Value = serde_json::from_str(o["payload_json"].as_str().unwrap()).unwrap();
-                waiting.extend(p["data"]["waiting_reasons"].as_array().unwrap().clone());
+                let payload = parse(store, field(o, "payload_json").as_str().unwrap())?;
+                for r in field(field(payload.view(), "data"), "waiting_reasons")
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                {
+                    add_reason(r)?;
+                }
             }
         }
-        waiting.sort_by_key(canonical_json);
-        waiting.dedup();
-        let mut evidence = json!({"scope":"TB-02-A","object_ids":ids,"waiting_reasons":waiting});
-        if matches!(axis, "CC-011" | "CC-012" | "CC-013" | "CC-014") {
-            evidence["scope"] = json!("TB-02-D");
-            evidence["delivered_subobligations"] = json!([
-                "finite_complete_prefix_strict_second",
-                "independent_stroke_and_segment_break_facts"
-            ]);
-            evidence["deferred_subobligations"] = json!([
-                "general_equal_identity",
-                "general_scan_continuation",
-                "global_G006_bridge"
-            ]);
+        waiting.sort_unstable_by(|a, b| a.0.as_ref().cmp(b.0.as_ref()));
+        let mut unique = bj::new_work::<JsonView<'_>>(store.allocation_budget().as_ref());
+        for (i, (key, reason)) in waiting.iter().enumerate() {
+            if i == 0 || key.as_ref() != waiting[i - 1].0.as_ref() {
+                push(store, &mut unique, reason.view())?;
+            }
+        }
+        let ids_view = Rows(&ids);
+        let mut evidence_fields =
+            bj::new_work::<(&str, JsonView<'_>)>(store.allocation_budget().as_ref());
+        let segment = matches!(axis, "CC-011" | "CC-012" | "CC-013" | "CC-014");
+        push(
+            store,
+            &mut evidence_fields,
+            (
+                "scope",
+                JsonView::String(if segment { "TB-02-D" } else { "TB-02-A" }),
+            ),
+        )?;
+        push(
+            store,
+            &mut evidence_fields,
+            ("object_ids", JsonView::BorrowedArray(&ids_view)),
+        )?;
+        push(
+            store,
+            &mut evidence_fields,
+            ("waiting_reasons", JsonView::ArraySlice(&unique)),
+        )?;
+        let delivered = [
+            JsonView::String("finite_complete_prefix_strict_second"),
+            JsonView::String("independent_stroke_and_segment_break_facts"),
+        ];
+        let deferred = [
+            JsonView::String("general_equal_identity"),
+            JsonView::String("general_scan_continuation"),
+            JsonView::String("global_G006_bridge"),
+        ];
+        if segment {
+            push(
+                store,
+                &mut evidence_fields,
+                ("delivered_subobligations", JsonView::ArraySlice(&delivered)),
+            )?;
+            push(
+                store,
+                &mut evidence_fields,
+                ("deferred_subobligations", JsonView::ArraySlice(&deferred)),
+            )?;
         }
         let mut run = if ids.is_empty() {
-            if waiting.is_empty() {
+            if unique.is_empty() {
                 "not_run"
             } else {
                 "waiting"
@@ -1087,37 +1260,72 @@ pub(super) fn catalog_axes<'a>(
         } else {
             "run"
         };
+        let mut revisions = bj::new_work::<JsonOwner>(store.allocation_budget().as_ref());
+        let mut withdrawal_rows = bj::new_work::<JsonOwner>(store.allocation_budget().as_ref());
         if axis == "CC-056" {
-            let revisions = raw
-                .iter()
-                .filter(|r| {
-                    crate::v3::business_json::field(*r, "seq").as_i64().unwrap() > previous_frontier
-                        && crate::v3::business_json::field(*r, "revision")
-                            .as_i64()
-                            .unwrap()
-                            > 1
-                })
-                .map(|event| {
-                    crate::v3::business_json::RawReference::new(event, false)
-                        .expect("原始账已核整数revision/seq")
-                })
-                .collect::<Vec<_>>();
+            for event in raw.iter().filter(|r| {
+                field(*r, "seq").as_i64().unwrap() > previous_frontier
+                    && field(*r, "revision").as_i64().unwrap() > 1
+            }) {
+                let reference =
+                    bj::RawReference::new(event, false).expect("原始账已核整数revision/seq");
+                let owner = bj::json_from_view_admitted(store, reference.view())?;
+                push(store, &mut revisions, owner)?;
+            }
             run = if revisions.is_empty() && withdrawals.is_empty() && replaces.is_empty() {
                 "not_run"
             } else {
                 "run"
             };
-            evidence["raw_revisions"] = json!(revisions);
-            evidence["withdrawals"] = json!(withdrawals
-                .iter()
-                .map(project_withdrawal_wire)
-                .collect::<Result<Vec<_>, _>>()
-                .unwrap());
-            evidence["replaces"] = json!(replaces);
+            for value in withdrawals.iter() {
+                let wire = bj::WithdrawalWire::new(value)?;
+                let owner = bj::json_from_view_admitted(store, wire.view())?;
+                push(store, &mut withdrawal_rows, owner)?;
+            }
         }
-        axes.insert(axis.into(),json!({"impl_status":if matches!(axis,"CC-012"|"CC-013"|"CC-014"){"not_implemented"}else{"implemented"},"proof_status":"not_proved","run_status":run,"evidence":evidence}));
+        let revisions_view = Rows(&revisions);
+        let withdrawals_view = Rows(&withdrawal_rows);
+        if axis == "CC-056" {
+            push(
+                store,
+                &mut evidence_fields,
+                ("raw_revisions", JsonView::BorrowedArray(&revisions_view)),
+            )?;
+            push(
+                store,
+                &mut evidence_fields,
+                ("withdrawals", JsonView::BorrowedArray(&withdrawals_view)),
+            )?;
+            push(
+                store,
+                &mut evidence_fields,
+                ("replaces", JsonView::BorrowedArray(&replaces)),
+            )?;
+        }
+        let evidence = fields(store, &evidence_fields)?;
+        let row = fields(
+            store,
+            &[
+                (
+                    "impl_status",
+                    JsonView::String(if matches!(axis, "CC-012" | "CC-013" | "CC-014") {
+                        "not_implemented"
+                    } else {
+                        "implemented"
+                    }),
+                ),
+                ("proof_status", JsonView::String("not_proved")),
+                ("run_status", JsonView::String(run)),
+                ("evidence", evidence.view()),
+            ],
+        )?;
+        push(store, &mut axes, (axis, row))?;
     }
-    Value::Object(axes)
+    let mut root_fields = bj::new_work(store.allocation_budget().as_ref());
+    for (key, row) in axes.iter() {
+        push(store, &mut root_fields, (*key, row.view()))?;
+    }
+    fields(store, &root_fields)
 }
 
 #[cfg(test)]
@@ -1194,5 +1402,302 @@ mod units_cache_tests {
             "超限清空后重算必须给出逐字段相同的原件"
         );
         assert!(tiny.evictions() >= 1);
+    }
+}
+
+#[cfg(test)]
+fn catalog_axes_oracle<'a, 'objects, 'changes>(
+    table: CatalogAxisTable,
+    objects: impl Into<crate::v3::business_json::RawEventsView<'objects>>,
+    raw: impl Into<crate::v3::business_json::RawEventsView<'a>>,
+    previous_frontier: i64,
+    withdrawals: impl Into<crate::v3::business_json::RawEventsView<'changes>>,
+    replaces: impl Into<crate::v3::business_json::RawEventsView<'changes>>,
+) -> Value {
+    use crate::v3::business_json::field;
+    let objects = objects.into();
+    let raw = raw.into();
+    let withdrawals = withdrawals.into();
+    let replaces = replaces.into();
+    let mut axes = serde_json::Map::new();
+    let knowledge = objects
+        .iter()
+        .find(|o| field(*o, "kind").as_str() == Some("CC-054.knowledge_state"))
+        .map(|o| {
+            serde_json::from_str::<Value>(field(o, "payload_json").as_str().unwrap()).unwrap()
+        });
+    for &axis in table.axes() {
+        let kind = match axis {
+            "CC-001" | "CC-002" | "CC-003" | "CC-004" => "CC-004.inclusion_step",
+            "CC-005" => "CC-005.inclusion_group",
+            "CC-006" => "CC-006.local_shape",
+            "CC-007" => "CC-007.fractal_description",
+            "CC-054" => "CC-054.knowledge_state",
+            "CC-008" => "CC-008.",
+            "CC-009" => "CC-009.same_kind",
+            "CC-010" => "CC-010.bi",
+            "CC-011" => "CC-011.",
+            "CC-012" => "CC-012.feature_sequence",
+            "CC-013" | "CC-014" => "CC-013.segment",
+            "CC-055" => "CC-055.",
+            // 13 轴表只有 `CC-056.version`（FIN 口径）；17 轴表另收 `CC-056.segment_version`。
+            "CC-056" if table == CatalogAxisTable::NewBi => "CC-056.version",
+            "CC-056" => "CC-056.",
+            _ => "",
+        };
+        let ids: Vec<Value> = objects
+            .iter()
+            .filter(|o| {
+                field(*o, "kind").as_str().is_some_and(|k| {
+                    if kind.ends_with('.') {
+                        k.starts_with(kind)
+                    } else {
+                        k == kind
+                    }
+                })
+            })
+            .filter(|o| {
+                if matches!(axis, "CC-001" | "CC-002" | "CC-003") {
+                    let p: Value =
+                        serde_json::from_str(field(*o, "payload_json").as_str().unwrap()).unwrap();
+                    !p["comparisons"].as_array().unwrap().is_empty()
+                } else {
+                    true
+                }
+            })
+            .map(|o| serde_json::to_value(field(o, "object_id")).unwrap())
+            .collect();
+        let mut waiting: Vec<Value> = Vec::new();
+        if let Some(k) = &knowledge {
+            if axis == "CC-054" {
+                waiting = k["waiting_reasons"].as_array().unwrap().clone();
+            } else if !matches!(axis, "CC-001" | "CC-002" | "CC-003" | "CC-056") {
+                for request in k["requests"].as_array().unwrap() {
+                    let key: Value =
+                        serde_json::from_str(request["request_id"].as_str().unwrap()).unwrap();
+                    if key[0] == kind || key[0][0] == kind {
+                        waiting.extend(request["reasons"].as_array().unwrap().clone());
+                    }
+                }
+            }
+        }
+        if matches!(axis, "CC-008" | "CC-009" | "CC-010" | "CC-055" | "CC-056") {
+            for o in objects
+                .iter()
+                .filter(|o| field(*o, "kind").as_str() == Some("CC-056.version"))
+            {
+                let p: Value =
+                    serde_json::from_str(field(o, "payload_json").as_str().unwrap()).unwrap();
+                waiting.extend(p["data"]["waiting_reasons"].as_array().unwrap().clone());
+            }
+        }
+        if matches!(axis, "CC-011" | "CC-012" | "CC-013" | "CC-014") {
+            for o in objects
+                .iter()
+                .filter(|o| field(*o, "kind").as_str() == Some("CC-056.segment_version"))
+            {
+                let p: Value =
+                    serde_json::from_str(field(o, "payload_json").as_str().unwrap()).unwrap();
+                waiting.extend(p["data"]["waiting_reasons"].as_array().unwrap().clone());
+            }
+        }
+        waiting.sort_by_key(canonical_json);
+        waiting.dedup();
+        let mut evidence = json!({"scope":"TB-02-A","object_ids":ids,"waiting_reasons":waiting});
+        if matches!(axis, "CC-011" | "CC-012" | "CC-013" | "CC-014") {
+            evidence["scope"] = json!("TB-02-D");
+            evidence["delivered_subobligations"] = json!([
+                "finite_complete_prefix_strict_second",
+                "independent_stroke_and_segment_break_facts"
+            ]);
+            evidence["deferred_subobligations"] = json!([
+                "general_equal_identity",
+                "general_scan_continuation",
+                "global_G006_bridge"
+            ]);
+        }
+        let mut run = if ids.is_empty() {
+            if waiting.is_empty() {
+                "not_run"
+            } else {
+                "waiting"
+            }
+        } else {
+            "run"
+        };
+        if axis == "CC-056" {
+            let revisions = raw
+                .iter()
+                .filter(|r| {
+                    crate::v3::business_json::field(*r, "seq").as_i64().unwrap() > previous_frontier
+                        && crate::v3::business_json::field(*r, "revision")
+                            .as_i64()
+                            .unwrap()
+                            > 1
+                })
+                .map(|event| {
+                    crate::v3::business_json::RawReference::new(event, false)
+                        .expect("原始账已核整数revision/seq")
+                })
+                .collect::<Vec<_>>();
+            run = if revisions.is_empty() && withdrawals.is_empty() && replaces.is_empty() {
+                "not_run"
+            } else {
+                "run"
+            };
+            evidence["raw_revisions"] = json!(revisions);
+            evidence["withdrawals"] = json!(withdrawals
+                .iter()
+                .map(|value| {
+                    let wire = crate::v3::business_json::WithdrawalWire::new(value)?;
+                    serde_json::to_value(wire.view()).map_err(|e| e.to_string())
+                })
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap());
+            evidence["replaces"] = json!(
+                newchan_rust::s_content::capture_allocation::audit_json::JsonView::BorrowedArray(
+                    &replaces
+                )
+            );
+        }
+        axes.insert(axis.into(),json!({"impl_status":if matches!(axis,"CC-012"|"CC-013"|"CC-014"){"not_implemented"}else{"implemented"},"proof_status":"not_proved","run_status":run,"evidence":evidence}));
+    }
+    Value::Object(axes)
+}
+
+#[cfg(test)]
+mod catalog_axis_owner_tests {
+    use super::*;
+    use newchan_rust::s_content::capture_allocation::scratch::{
+        CodecWork, ScratchCharge, ScratchFailure, ScratchParent,
+    };
+    use std::sync::{Arc, Mutex};
+    struct Parent {
+        live: Mutex<usize>,
+        limit: usize,
+    }
+    impl ScratchParent for Parent {
+        fn reserve(&self, n: usize, _: ScratchCharge) -> Result<(), ScratchFailure> {
+            let mut live = self.live.lock().unwrap();
+            let next = live.checked_add(n).ok_or(ScratchFailure::Budget)?;
+            if next > self.limit {
+                return Err(ScratchFailure::Budget);
+            }
+            *live = next;
+            Ok(())
+        }
+        fn release(&self, n: usize, _: ScratchCharge) -> Result<(), ScratchFailure> {
+            let mut live = self.live.lock().unwrap();
+            *live = live.checked_sub(n).ok_or(ScratchFailure::Ledger)?;
+            Ok(())
+        }
+        fn health(&self) -> Result<(), ScratchFailure> {
+            Ok(())
+        }
+        fn invalidate(&self) {
+            panic!("测试父账不平")
+        }
+    }
+    fn objects() -> Vec<Value> {
+        [
+            ("CC-004.inclusion_step",json!({"comparisons":["LT"]})),
+            ("CC-005.inclusion_group",json!({})),
+            ("CC-006.local_shape",json!({})),
+            ("CC-007.fractal_description",json!({})),
+            ("CC-008.continuation",json!({})),
+            ("CC-009.same_kind",json!({})),
+            ("CC-010.bi",json!({})),
+            ("CC-011.stroke",json!({})),
+            ("CC-012.feature_sequence",json!({})),
+            ("CC-013.segment",json!({})),
+            ("CC-054.knowledge_state",json!({"waiting_reasons":[{"b":2,"a":1},"z","z"],"requests":[{"request_id":"[\"CC-005.inclusion_group\"]","reasons":["b","a","b"]}]})),
+            ("CC-055.revision",json!({})),
+            ("CC-056.version",json!({"data":{"waiting_reasons":["version-wait"]}})),
+            ("CC-056.segment_version",json!({"data":{"waiting_reasons":["segment-wait"]}})),
+        ].into_iter().enumerate().map(|(i,(kind,payload))|json!({"kind":kind,"object_id":format!("obj-{i}"),"payload_json":canonical_json(&payload)})).collect()
+    }
+    #[test]
+    fn catalog_owner_matches_frozen_oracle_for_full_and_empty_axis_tables() {
+        let objects = objects();
+        for table in [CatalogAxisTable::NewBi, CatalogAxisTable::SegmentSecond] {
+            for rows in [&objects[..], &[][..]] {
+                let expected = catalog_axes_oracle(table, rows, &[], 0, &[], &[]);
+                let actual = catalog_axes(table, rows, &[], 0, &[], &[]);
+                assert_eq!(actual, expected);
+                assert_eq!(actual.as_object().unwrap().len(), table.axes().len());
+            }
+        }
+    }
+    #[test]
+    fn revision_withdrawal_replacement_and_ohlc_paths_match_frozen_oracle() {
+        let objects = objects();
+        let raw = [
+            json!({"seq":2,"revision":2,"schema_revision":"ohlc","open":"1","high":"3","low":"0","close":"2","source_coord":"0"}),
+            json!({"seq":1,"revision":1,"price":"2","source_coord":"0"}),
+        ];
+        let changes = [
+            json!({"fact_key":"fact-a","kind":"CC-010.bi","object_id":"old"}),
+            json!({"window_start":1,"window_mid":2,"window_end":3,"kind":"CC-007.fractal_description","object_id":"shape"}),
+        ];
+        let replaces = [json!({"old":"old","new":"new"})];
+        for frontier in [0, 2] {
+            for table in [CatalogAxisTable::NewBi, CatalogAxisTable::SegmentSecond] {
+                let expected =
+                    catalog_axes_oracle(table, &objects, &raw, frontier, &changes, &replaces);
+                let actual = catalog_axes(table, &objects, &raw, frontier, &changes, &replaces);
+                assert_eq!(actual, expected);
+                assert_eq!(actual["CC-056"]["run_status"], "run");
+            }
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn catalog_root_outlives_scope_and_every_capacity_failure_releases_partial_axes() {
+        let rows = objects();
+        let expected = catalog_axes_oracle(CatalogAxisTable::NewBi, &rows, &[], 0, &[], &[]);
+        let mut saw_failure = false;
+        let mut saw_success = false;
+        for limit in [
+            256, 1024, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 1048576,
+        ] {
+            let parent = Arc::new(Parent {
+                live: Mutex::new(0),
+                limit,
+            });
+            let work = CodecWork::new(parent.clone(), limit);
+            if let Ok(work) = work {
+                let result = work.run(|scope| {
+                    catalog_axes_admitted(
+                        &crate::v3::audit_store::NativeAdmission(Some(scope)),
+                        CatalogAxisTable::NewBi,
+                        &rows,
+                        &[],
+                        0,
+                        &[],
+                        &[],
+                    )
+                });
+                match result {
+                    Ok(owner) => {
+                        saw_success = true;
+                        assert!(*parent.live.lock().unwrap() > 0, "scope退出后根须继续持费");
+                        assert_eq!(serde_json::to_value(owner.view()).unwrap(), expected);
+                        drop(owner);
+                    }
+                    Err(_) => {
+                        saw_failure = true;
+                    }
+                }
+            } else {
+                saw_failure = true;
+            }
+            assert_eq!(
+                *parent.live.lock().unwrap(),
+                0,
+                "失败不可遗留半根，成功drop后全退"
+            );
+        }
+        assert!(saw_failure && saw_success);
     }
 }
