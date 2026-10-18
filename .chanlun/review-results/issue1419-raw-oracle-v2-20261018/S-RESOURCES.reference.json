@@ -1,0 +1,12 @@
+{
+  "schema_revision": "s-structure-resources/1",
+  "s_resources": {
+    "max_frame_bytes": "1048576",
+    "read_timeout_ms": "2000",
+    "write_timeout_ms": "1000",
+    "queue_capacity": "32",
+    "max_connections": "48",
+    "response_timeout_ms": "10000",
+    "audit_cache_source_bytes": "268435456"
+  }
+}

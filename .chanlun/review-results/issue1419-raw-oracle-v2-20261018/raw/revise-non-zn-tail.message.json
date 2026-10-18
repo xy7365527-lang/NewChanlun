@@ -1,0 +1,42 @@
+{
+  "schema_revision": "s-session/3",
+  "session_id": "tb1419-controlled-raw-v2",
+  "session_generation": "1",
+  "source_namespace": "testonly.raw1419.definition.v2",
+  "source_epoch": "1",
+  "message_id": "revise-non-zn-tail",
+  "producer_id": "raw1419-oracle-v2",
+  "producer_epoch": "1",
+  "payload_hash": "eb7a08aa3a45fdee7b48494b17e487384d6c179e2972da63edc363006411f827",
+  "causal_refs": [],
+  "payload": {
+    "op": "ingest",
+    "target_session_id": "tb1419-controlled-raw-v2",
+    "target_session_generation": "1",
+    "writer_epoch": "1",
+    "clock_event_id": "revise-non-zn-tail",
+    "raw_input": {
+      "schema_revision": "s-ohlc/1",
+      "session_id": "tb1419-controlled-raw-v2",
+      "source_namespace": "testonly.raw1419.definition.v2",
+      "source_epoch": "1",
+      "instrument": "TESTONLY.DEFINITION.INTEGER",
+      "profile": "ohlc_integer_tb02a_v1",
+      "events": [
+        {
+          "event_id": "controlled-0121",
+          "seq": "121",
+          "revision": "2",
+          "timestamp": "946692060",
+          "received_at": "2000-01-01T00:23:10Z",
+          "raw_text": "{\"bar\":{\"close\":2116,\"high\":2120,\"low\":2112,\"open\":2116,\"ordinal\":121,\"volume\":1},\"domain\":\"TestOnly\"}",
+          "open": "2116",
+          "high": "2120",
+          "low": "2112",
+          "close": "2116",
+          "volume": "1"
+        }
+      ]
+    }
+  }
+}
