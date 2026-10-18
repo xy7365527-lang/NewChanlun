@@ -80,6 +80,18 @@ class OwnerClockTests(unittest.TestCase):
         self.assertEqual(len(owners['we5']) + len(owners['we7']), 6)
         broker.close()
 
+    def test_runner_entry_checks_digest_then_calls_embedded_verifier(self):
+        # Exercise the public runner wrapper without loading product evidence.
+        sentinel = {'status': 'ENTRY_REACHED'}
+        with patch.object(r, 'exec') as execute:
+            execute.side_effect = lambda source, namespace: namespace.update(verify_runtime=lambda *args: sentinel)
+            self.assertIs(r.verify_runtime('unused', {}, {}), sentinel)
+            execute.assert_called_once()
+        with patch.object(r, 'SEMANTICS_SHA256', '0' * 64), patch.object(r, 'exec') as execute:
+            with self.assertRaisesRegex(RuntimeError, 'embedded semantics bytes changed'):
+                r.verify_runtime('unused', {}, {})
+            execute.assert_not_called()
+
     def test_embedded_semantics_exact_and_limits_unchanged(self):
         expected = (Path(__file__).parent / 'semantics.py').read_text()
         self.assertEqual(r.SEMANTICS_SOURCE, expected)
