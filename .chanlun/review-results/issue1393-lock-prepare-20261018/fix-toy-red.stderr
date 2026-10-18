@@ -1,0 +1,603 @@
+test_bad_event_zero_commands_and_keeps_original (test_issue1393_lock_prepare.ContractTests.test_bad_event_zero_commands_and_keeps_original) ... ok
+test_draft_is_rejected (test_issue1393_lock_prepare.ContractTests.test_draft_is_rejected) ... ok
+test_every_contract_field_required_typed_and_bound (test_issue1393_lock_prepare.ContractTests.test_every_contract_field_required_typed_and_bound) ... ok
+test_false_zero_commands_and_no_event_read (test_issue1393_lock_prepare.ContractTests.test_false_zero_commands_and_no_event_read) ... ok
+test_fixed_module_hash_checked_before_execution (test_issue1393_lock_prepare.ContractTests.test_fixed_module_hash_checked_before_execution) ... ok
+test_message_never_becomes_path_or_argv (test_issue1393_lock_prepare.ContractTests.test_message_never_becomes_path_or_argv) ... ok
+test_push_identity_and_attempt (test_issue1393_lock_prepare.ContractTests.test_push_identity_and_attempt) ... ok
+test_strict_envelope_duplicates_and_limits (test_issue1393_lock_prepare.ContractTests.test_strict_envelope_duplicates_and_limits) ... ok
+test_wrong_hashes_and_provenance (test_issue1393_lock_prepare.ContractTests.test_wrong_hashes_and_provenance) ... ok
+test_complete_binding_and_mutations (test_issue1393_lock_prepare.IdentityTests.test_complete_binding_and_mutations) ... 
+  test_complete_binding_and_mutations (test_issue1393_lock_prepare.IdentityTests.test_complete_binding_and_mutations) (source='abababababababababababababababababababab', tree='abababababababababababababababababababab') ... FAIL
+  test_complete_binding_and_mutations (test_issue1393_lock_prepare.IdentityTests.test_complete_binding_and_mutations) (source='1212121212121212121212121212121212121212', tree='3434343434343434343434343434343434343434') ... FAIL
+  test_complete_binding_and_mutations (test_issue1393_lock_prepare.IdentityTests.test_complete_binding_and_mutations) (source='8e50d40933c2a6a25f882481f3c46aa885ce6407', tree='5656565656565656565656565656565656565656') ... FAIL
+test_complete_binding_and_mutations (test_issue1393_lock_prepare.IdentityTests.test_complete_binding_and_mutations) ... FAIL
+test_unique_gate (test_issue1393_lock_prepare.IdentityTests.test_unique_gate) ... ok
+test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) ... 
+  test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='zip-open') ... FAIL
+  test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='zip-read') ... FAIL
+  test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='zip-eof') ... FAIL
+  test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='zip-close') ... FAIL
+  test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='zip-update') ... FAIL
+  test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='zip-hexdigest') ... FAIL
+  test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='receipt-before') ... FAIL
+  test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='receipt-after') ... FAIL
+  test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='package-return') ... FAIL
+  test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='print-serialize') ... FAIL
+  test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='print-after') ... FAIL
+test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) ... 
+  test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='zip-open') ... ERROR
+  test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='zip-read') ... ERROR
+  test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='zip-eof') ... FAIL
+  test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='zip-close') ... ERROR
+  test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='zip-update') ... FAIL
+  test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='zip-hexdigest') ... ERROR
+  test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='receipt-before') ... FAIL
+  test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='receipt-after') ... FAIL
+  test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='package-return') ... ERROR
+  test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='print-serialize') ... FAIL
+  test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='print-after') ... FAIL
+test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) ... 
+  test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='zip-open') ... FAIL
+  test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='zip-read') ... FAIL
+  test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='zip-eof') ... FAIL
+  test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='zip-close') ... FAIL
+  test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='zip-update') ... FAIL
+  test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='zip-hexdigest') ... FAIL
+  test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='receipt-before') ... FAIL
+  test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='receipt-after') ... FAIL
+  test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='package-return') ... FAIL
+  test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='print-serialize') ... FAIL
+  test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='print-after') ... FAIL
+test_main_tail_within_window (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_within_window) ... FAIL
+test_clean_environment_drops_all_injected_settings (test_issue1393_lock_prepare.ResolutionTests.test_clean_environment_drops_all_injected_settings) ... ok
+test_deadline_stops_python_toy_and_reaps_group (test_issue1393_lock_prepare.ResolutionTests.test_deadline_stops_python_toy_and_reaps_group) ... ok
+test_expired_budget_starts_nothing (test_issue1393_lock_prepare.ResolutionTests.test_expired_budget_starts_nothing) ... ok
+test_failed_resolution_keeps_lock_manifest_diff_and_registry (test_issue1393_lock_prepare.ResolutionTests.test_failed_resolution_keeps_lock_manifest_diff_and_registry) ... ok
+test_fixed_toolchain_rejects_drift (test_issue1393_lock_prepare.ResolutionTests.test_fixed_toolchain_rejects_drift) ... ok
+test_full_package_and_edge_changes_are_disclosed (test_issue1393_lock_prepare.ResolutionTests.test_full_package_and_edge_changes_are_disclosed) ... ok
+test_generated_lock_requires_official_checksum_and_tempfile_edge (test_issue1393_lock_prepare.ResolutionTests.test_generated_lock_requires_official_checksum_and_tempfile_edge) ... ok
+test_invalid_lock_still_keeps_raw_and_registry (test_issue1393_lock_prepare.ResolutionTests.test_invalid_lock_still_keeps_raw_and_registry) ... ok
+test_main_resolves_once_in_temp_and_preserves_failure (test_issue1393_lock_prepare.ResolutionTests.test_main_resolves_once_in_temp_and_preserves_failure) ... ok
+test_shared_deadline_and_failure_no_rerun_preserves_output (test_issue1393_lock_prepare.ResolutionTests.test_shared_deadline_and_failure_no_rerun_preserves_output) ... ok
+test_source_blob_tamper_and_symlink (test_issue1393_lock_prepare.ResolutionTests.test_source_blob_tamper_and_symlink) ... ok
+test_target_selection_copies_actual_entries_only (test_issue1393_lock_prepare.ResolutionTests.test_target_selection_copies_actual_entries_only) ... ok
+
+======================================================================
+ERROR: test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='zip-open')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 604, in test_main_tail_sigterm
+    self.run_tail(stage, 'signal')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 579, in run_tail
+    self.assertEqual(result['received_signal'], m.signal.SIGTERM)
+                     ~~~~~~^^^^^^^^^^^^^^^^^^^
+KeyError: 'received_signal'
+
+======================================================================
+ERROR: test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='zip-read')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 604, in test_main_tail_sigterm
+    self.run_tail(stage, 'signal')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 579, in run_tail
+    self.assertEqual(result['received_signal'], m.signal.SIGTERM)
+                     ~~~~~~^^^^^^^^^^^^^^^^^^^
+KeyError: 'received_signal'
+
+======================================================================
+ERROR: test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='zip-close')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 604, in test_main_tail_sigterm
+    self.run_tail(stage, 'signal')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 579, in run_tail
+    self.assertEqual(result['received_signal'], m.signal.SIGTERM)
+                     ~~~~~~^^^^^^^^^^^^^^^^^^^
+KeyError: 'received_signal'
+
+======================================================================
+ERROR: test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='zip-hexdigest')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 604, in test_main_tail_sigterm
+    self.run_tail(stage, 'signal')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 579, in run_tail
+    self.assertEqual(result['received_signal'], m.signal.SIGTERM)
+                     ~~~~~~^^^^^^^^^^^^^^^^^^^
+KeyError: 'received_signal'
+
+======================================================================
+ERROR: test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='package-return')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 604, in test_main_tail_sigterm
+    self.run_tail(stage, 'signal')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 579, in run_tail
+    self.assertEqual(result['received_signal'], m.signal.SIGTERM)
+                     ~~~~~~^^^^^^^^^^^^^^^^^^^
+KeyError: 'received_signal'
+
+======================================================================
+FAIL: test_complete_binding_and_mutations (test_issue1393_lock_prepare.IdentityTests.test_complete_binding_and_mutations) (source='abababababababababababababababababababab', tree='abababababababababababababababababababab')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 226, in test_complete_binding_and_mutations
+    with self.assertRaises(v.Refused):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+AssertionError: Refused not raised
+
+======================================================================
+FAIL: test_complete_binding_and_mutations (test_issue1393_lock_prepare.IdentityTests.test_complete_binding_and_mutations) (source='1212121212121212121212121212121212121212', tree='3434343434343434343434343434343434343434')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 226, in test_complete_binding_and_mutations
+    with self.assertRaises(v.Refused):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+AssertionError: Refused not raised
+
+======================================================================
+FAIL: test_complete_binding_and_mutations (test_issue1393_lock_prepare.IdentityTests.test_complete_binding_and_mutations) (source='8e50d40933c2a6a25f882481f3c46aa885ce6407', tree='5656565656565656565656565656565656565656')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 226, in test_complete_binding_and_mutations
+    with self.assertRaises(v.Refused):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+AssertionError: Refused not raised
+
+======================================================================
+FAIL: test_complete_binding_and_mutations (test_issue1393_lock_prepare.IdentityTests.test_complete_binding_and_mutations)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 234, in test_complete_binding_and_mutations
+    read.assert_not_called()
+    ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py", line 947, in assert_not_called
+    raise AssertionError(msg)
+AssertionError: Expected 'git_read' to not have been called. Called 1 times.
+Calls: [call(namespace(output=PosixPath('/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/tmpdf1yu454')), PosixPath('/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/tmpdf1yu454'), 'git-head'),
+ call().decode(),
+ call().decode().strip(),
+ call().decode().strip().__eq__('cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd')].
+
+======================================================================
+FAIL: test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='zip-open')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 594, in test_main_tail_monotonic_deadline
+    self.run_tail(stage, 'monotonic')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 574, in run_tail
+    self.assertEqual(code, 1)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='zip-read')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 594, in test_main_tail_monotonic_deadline
+    self.run_tail(stage, 'monotonic')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 574, in run_tail
+    self.assertEqual(code, 1)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='zip-eof')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 594, in test_main_tail_monotonic_deadline
+    self.run_tail(stage, 'monotonic')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 573, in run_tail
+    self.assertEqual(fired, [stage])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['zip-eof']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'zip-eof'
+
+- []
++ ['zip-eof']
+
+======================================================================
+FAIL: test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='zip-close')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 594, in test_main_tail_monotonic_deadline
+    self.run_tail(stage, 'monotonic')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 574, in run_tail
+    self.assertEqual(code, 1)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='zip-update')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 594, in test_main_tail_monotonic_deadline
+    self.run_tail(stage, 'monotonic')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 573, in run_tail
+    self.assertEqual(fired, [stage])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['zip-update']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'zip-update'
+
+- []
++ ['zip-update']
+
+======================================================================
+FAIL: test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='zip-hexdigest')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 594, in test_main_tail_monotonic_deadline
+    self.run_tail(stage, 'monotonic')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 574, in run_tail
+    self.assertEqual(code, 1)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='receipt-before')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 594, in test_main_tail_monotonic_deadline
+    self.run_tail(stage, 'monotonic')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 573, in run_tail
+    self.assertEqual(fired, [stage])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['receipt-before']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'receipt-before'
+
+- []
++ ['receipt-before']
+
+======================================================================
+FAIL: test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='receipt-after')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 594, in test_main_tail_monotonic_deadline
+    self.run_tail(stage, 'monotonic')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 573, in run_tail
+    self.assertEqual(fired, [stage])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['receipt-after']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'receipt-after'
+
+- []
++ ['receipt-after']
+
+======================================================================
+FAIL: test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='package-return')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 594, in test_main_tail_monotonic_deadline
+    self.run_tail(stage, 'monotonic')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 574, in run_tail
+    self.assertEqual(code, 1)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='print-serialize')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 594, in test_main_tail_monotonic_deadline
+    self.run_tail(stage, 'monotonic')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 574, in run_tail
+    self.assertEqual(code, 1)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='print-after')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 594, in test_main_tail_monotonic_deadline
+    self.run_tail(stage, 'monotonic')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 574, in run_tail
+    self.assertEqual(code, 1)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='zip-eof')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 604, in test_main_tail_sigterm
+    self.run_tail(stage, 'signal')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 573, in run_tail
+    self.assertEqual(fired, [stage])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['zip-eof']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'zip-eof'
+
+- []
++ ['zip-eof']
+
+======================================================================
+FAIL: test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='zip-update')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 604, in test_main_tail_sigterm
+    self.run_tail(stage, 'signal')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 573, in run_tail
+    self.assertEqual(fired, [stage])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['zip-update']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'zip-update'
+
+- []
++ ['zip-update']
+
+======================================================================
+FAIL: test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='receipt-before')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 604, in test_main_tail_sigterm
+    self.run_tail(stage, 'signal')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 573, in run_tail
+    self.assertEqual(fired, [stage])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['receipt-before']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'receipt-before'
+
+- []
++ ['receipt-before']
+
+======================================================================
+FAIL: test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='receipt-after')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 604, in test_main_tail_sigterm
+    self.run_tail(stage, 'signal')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 573, in run_tail
+    self.assertEqual(fired, [stage])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['receipt-after']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'receipt-after'
+
+- []
++ ['receipt-after']
+
+======================================================================
+FAIL: test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='print-serialize')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 604, in test_main_tail_sigterm
+    self.run_tail(stage, 'signal')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 574, in run_tail
+    self.assertEqual(code, 1)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='print-after')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 604, in test_main_tail_sigterm
+    self.run_tail(stage, 'signal')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 574, in run_tail
+    self.assertEqual(code, 1)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='zip-open')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 599, in test_main_tail_wall_deadline
+    self.run_tail(stage, 'wall')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 574, in run_tail
+    self.assertEqual(code, 1)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='zip-read')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 599, in test_main_tail_wall_deadline
+    self.run_tail(stage, 'wall')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 574, in run_tail
+    self.assertEqual(code, 1)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='zip-eof')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 599, in test_main_tail_wall_deadline
+    self.run_tail(stage, 'wall')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 573, in run_tail
+    self.assertEqual(fired, [stage])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['zip-eof']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'zip-eof'
+
+- []
++ ['zip-eof']
+
+======================================================================
+FAIL: test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='zip-close')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 599, in test_main_tail_wall_deadline
+    self.run_tail(stage, 'wall')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 574, in run_tail
+    self.assertEqual(code, 1)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='zip-update')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 599, in test_main_tail_wall_deadline
+    self.run_tail(stage, 'wall')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 573, in run_tail
+    self.assertEqual(fired, [stage])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['zip-update']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'zip-update'
+
+- []
++ ['zip-update']
+
+======================================================================
+FAIL: test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='zip-hexdigest')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 599, in test_main_tail_wall_deadline
+    self.run_tail(stage, 'wall')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 574, in run_tail
+    self.assertEqual(code, 1)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='receipt-before')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 599, in test_main_tail_wall_deadline
+    self.run_tail(stage, 'wall')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 573, in run_tail
+    self.assertEqual(fired, [stage])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['receipt-before']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'receipt-before'
+
+- []
++ ['receipt-before']
+
+======================================================================
+FAIL: test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='receipt-after')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 599, in test_main_tail_wall_deadline
+    self.run_tail(stage, 'wall')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 573, in run_tail
+    self.assertEqual(fired, [stage])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['receipt-after']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'receipt-after'
+
+- []
++ ['receipt-after']
+
+======================================================================
+FAIL: test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='package-return')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 599, in test_main_tail_wall_deadline
+    self.run_tail(stage, 'wall')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 574, in run_tail
+    self.assertEqual(code, 1)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='print-serialize')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 599, in test_main_tail_wall_deadline
+    self.run_tail(stage, 'wall')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 574, in run_tail
+    self.assertEqual(code, 1)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='print-after')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 599, in test_main_tail_wall_deadline
+    self.run_tail(stage, 'wall')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 574, in run_tail
+    self.assertEqual(code, 1)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_main_tail_within_window (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_within_window)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 607, in test_main_tail_within_window
+    self.run_tail()
+    ~~~~~~~~~~~~~^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 589, in run_tail
+    self.assertTrue(all(0 < n <= 1024**2 for n in read_sizes))
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 27 tests in 0.497s
+
+FAILED (failures=33, errors=5)

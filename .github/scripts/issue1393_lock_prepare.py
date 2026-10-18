@@ -22,6 +22,8 @@ TEST_FILE = '.github/scripts/test_issue1393_lock_prepare.py'
 REPORT = '.chanlun/review-results/issue1393-lock-prepare-20261018/'
 HELPER = '.github/scripts/issue1393_validate.py'
 HELPER_SHA256 = 'a98e7e6f54dacef35476f245a1f938df6cd0a952191fd7ea67938dd7185b1830'
+SOURCE_COMMIT = '8e50d40933c2a6a25f882481f3c46aa885ce6407'
+SOURCE_TREE = '0a2e04a4ce22a6b8732ad3b55f57446ee3f066f0'
 TELEMETRY = '.github/scripts/run-cargo-with-telemetry.sh'
 TOOLCHAIN = '1.99.0-x86_64-unknown-linux-gnu'
 RUSTC_COMMIT = 'b940084d7eb6a299eb4bfeb8e34901bc051e7ac4'
@@ -30,6 +32,7 @@ CARGO_VERSION = 'cargo 1.99.0 (5f94df478 2026-08-27)'
 REGISTRY = 'registry+https://github.com/rust-lang/crates.io-index'
 TOTAL_SECONDS = 900
 FINAL_RESERVE = 90
+DIGEST_CHUNK_BYTES = 1024 * 1024
 REPOSITORY = 'xy7365527-lang/NewChanlun'
 PUSH_REF = 'refs/heads/codex/1393-lock-once-20261018'
 GATE_FALSE = b"  ISSUE1393_LOCK_EXECUTE: 'False'\n"
@@ -102,6 +105,10 @@ v.validate_push = validate_push
 
 
 def bind_source(root, contract, supervisor, event):
+    # 本具名解析合同固定 S；先拒绝伪换源，再由旧全树 identity 核实际 Git 对象。
+    require(contract['source_commit'] == SOURCE_COMMIT and contract['source_tree'] == SOURCE_TREE,
+            '锁解析 source 必须是固定 commit/tree')
+    require(contract['prepared_commit'] != SOURCE_COMMIT, '准备 E 不得等于 source S')
     # 原实现核完整 S/E/F、单父、message、唯一门、全部 Git 对象及固定 runner/CI/telemetry。
     v.bind_source(root, contract, supervisor, event)
     for path, key in ((HELPER, 'helper_sha256'), ('rust/Cargo.toml', 'manifest_sha256'),
@@ -338,6 +345,63 @@ def validate_generated_lock(raw):
 PLANNED = ('source-copy', 'install-toolchain', 'rust-version', 'cargo-version', 'generate-lockfile', 'preserve-resolution')
 
 
+def check_budget(budget, supervisor=None):
+    require(not supervisor or not supervisor.interrupted, '收到信号，禁止成功收尾')
+    require(budget.remaining() > 0, '共享截止已到')
+
+
+def file_digest(path, budget, supervisor=None):
+    """读取、更新和最终摘要前后核同一个 900 秒窗口；每块不超过 1 MiB。"""
+    check_budget(budget, supervisor)
+    value = hashlib.sha256()
+    with path.open('rb') as stream:
+        while True:
+            check_budget(budget, supervisor)
+            chunk = stream.read(DIGEST_CHUNK_BYTES)
+            check_budget(budget, supervisor)
+            if not chunk:
+                break
+            value.update(chunk)
+            check_budget(budget, supervisor)
+    check_budget(budget, supervisor)
+    result = value.hexdigest()
+    check_budget(budget, supervisor)
+    return result
+
+
+def package(output, budget, supervisor=None):
+    """仅覆盖固定 helper 私有实例的封包边界；失败保留原件，由 main 写失败散件。"""
+    check_budget(budget, supervisor)
+    files = {}
+    for path in sorted(output.iterdir()):
+        if path.is_file() and path.name not in ('FILES.json', 'evidence.zip', 'PACKAGE.json'):
+            files[path.name] = {'sha256': file_digest(path, budget, supervisor), 'bytes': path.stat().st_size}
+    require('result.json' in files and 'steps.json' in files, '封包缺结果或步骤原件')
+    check_budget(budget, supervisor)
+    save(output / 'FILES.json', files)
+    check_budget(budget, supervisor)
+    with v.zipfile.ZipFile(output / 'evidence.zip', 'x', compression=v.zipfile.ZIP_STORED) as archive:
+        for name in [*files, 'FILES.json']:
+            check_budget(budget, supervisor)
+            archive.write(output / name, name)
+            check_budget(budget, supervisor)
+    archive_hash = file_digest(output / 'evidence.zip', budget, supervisor)
+    check_budget(budget, supervisor)
+    save(output / 'PACKAGE.json', {'status': 'PACKAGED', 'sha256': archive_hash,
+                                 'upload': 'NOT_RECORDED_HERE: 以 GitHub upload-artifact 步骤结论为准'})
+    check_budget(budget, supervisor)
+
+
+v.package = package
+
+
+def failed_package(output, result, exc, supervisor):
+    result.update(status='FAILED', package_error=str(exc),
+                  received_signal=supervisor.interrupted if supervisor else None)
+    save(output / 'PACKAGE.json', {'status': 'FAILED', 'error': str(exc)})
+    save(output / 'result.json', result)
+
+
 def main():
     # False 在事件读取、临时目录、helper 子进程、checkout 之后入口处再次拒绝。
     if os.environ.get('ISSUE1393_LOCK_EXECUTE', 'False') != 'True':
@@ -408,13 +472,22 @@ def main():
         save(output / 'result.json', result)
         try:
             require(budget is not None, '没有有效预算')
-            v.package(output, budget)
-            require(not supervisor or not supervisor.interrupted, '封包过程中收到信号，封包内旧结果不可作成功依据')
+            v.package(output, budget, supervisor)
+            check_budget(budget, supervisor)
         except Exception as exc:
-            save(output / 'PACKAGE.json', {'status': 'FAILED', 'error': str(exc)})
-            result.update(status='FAILED', package_error=str(exc))
-            save(output / 'result.json', result)
+            failed_package(output, result, exc, supervisor)
             code = 1
+    try:
+        summary = json.dumps(result, ensure_ascii=False)
+        if budget is not None:
+            check_budget(budget, supervisor)
+        print(summary)
+        # 包括收据及输出耗时；最后成功出口仍须在原窗口内，ZIP 里的旧快照不能作准。
+        if budget is not None:
+            check_budget(budget, supervisor)
+    except Exception as exc:
+        failed_package(output, result, exc, supervisor)
+        code = 1
         print(json.dumps(result, ensure_ascii=False))
     return code
 

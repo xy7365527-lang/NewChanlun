@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """#1393 仅标准库/内存/临时 Python toy；不执行 Rust、网络或产品。"""
 import copy
+import contextlib
 import hashlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -23,6 +25,8 @@ v = m.v
 def contract():
     c = copy.deepcopy(m.FIXED)
     c.update({k: 'ab' * 20 for k in v.GIT_FIELDS})
+    c.update(source_commit='8e50d40933c2a6a25f882481f3c46aa885ce6407',
+             source_tree='0a2e04a4ce22a6b8732ad3b55f57446ee3f066f0')
     c.update({k: 'ab' * 32 for k in v.HASH_FIELDS})
     for key in ('approval', 'review'):
         c[key + '_text'] = 'toy 原件，仅溯源，不授予运行许可：' + key
@@ -67,9 +71,12 @@ class ContractTests(unittest.TestCase):
             read.assert_not_called()
 
     def test_draft_is_rejected(self):
-        draft = m.ROOT / (m.REPORT + 'CONTRACT-DRAFT.json')
-        with self.assertRaises(v.Refused):
-            v.validate_contract('True', json.loads(draft.read_text()))
+        for name in ('CONTRACT-DRAFT.json', 'FIX-CONTRACT-DRAFT.json'):
+            draft = json.loads((m.ROOT / (m.REPORT + name)).read_text())
+            with self.subTest(draft=name), self.assertRaises(v.Refused):
+                v.validate_contract('True', draft)
+            with self.assertRaises(v.Refused):
+                v.validate_contract('True', dict(draft, status='BOUND_FOR_ROOT_REVIEW'))
 
     def test_every_contract_field_required_typed_and_bound(self):
         c = contract()
@@ -194,7 +201,9 @@ class IdentityTests(unittest.TestCase):
                     with self.subTest(path=p), self.assertRaises(v.Refused):
                         m.bind_source(root, c, s, event(c))
                     (root / p).write_bytes(contents[p])
-                mutations = [('git-ancestry', b''), ('git-prepared-tree', b'12' * 20),
+                mutations = [('git-ancestry', b''),
+                             ('git-ancestry', (c['source_commit'] + ' ' + '56' * 20).encode()),
+                             ('git-prepared-tree', b'12' * 20),
                              ('git-parent', (head + ' ' + c['prepared_commit'] + ' ' + 'ef' * 20).encode()),
                              ('git-message', replies['git-message'] + b'\nextra'), ('git-dirty', b' M rust/Cargo.lock'),
                              ('execution-ls-tree', tree + b'100644 blob changed\trust/extra.rs\0')]
@@ -208,6 +217,26 @@ class IdentityTests(unittest.TestCase):
                     with self.subTest(key=key), self.assertRaises(v.Refused):
                         m.bind_source(root, c, s, event(c))
                     replies[key] = old
+
+                # 自报身份与 Git 回复一起伪换：旧通用绑定会接受，具名源必须先拒绝。
+                for source, source_tree in ((c['prepared_commit'], c['prepared_tree']),
+                                            ('12' * 20, '34' * 20),
+                                            (c['source_commit'], '56' * 20)):
+                    bad = dict(c, source_commit=source, source_tree=source_tree)
+                    forged = dict(replies, **{'git-ancestry': (source + ' ' + source_tree).encode(),
+                                              'git-message': b'tree toy\n\n' + message(bad).encode()})
+                    with self.subTest(source=source, tree=source_tree), \
+                            patch.object(v, 'git_read', side_effect=lambda _s, _r, n, *a: forged[n]) as read, \
+                            patch.object(subprocess, 'Popen') as popen:
+                        with self.assertRaises(v.Refused):
+                            m.bind_source(root, bad, s, event(bad))
+                        read.assert_not_called()
+                        popen.assert_not_called()
+
+                # E 可继续准备，但不能退成 S；正确声明仍要接受 Git 全树 identity 核验。
+                with self.assertRaises(v.Refused), patch.object(v, 'git_read') as read:
+                    m.bind_source(root, dict(c, prepared_commit=c['source_commit']), s, event(c))
+                read.assert_not_called()
 
     def test_unique_gate(self):
         false = b'env:\n' + m.GATE_FALSE
@@ -401,6 +430,206 @@ class ResolutionTests(unittest.TestCase):
                 m.preserve_resolution(p / 'work', p / 'out', budget())
             self.assertEqual((p / 'out/Cargo.lock').read_bytes(), b'invalid TOML!')
             self.assertTrue((p / 'out/registry.json').exists())
+
+
+class PackageTailTests(unittest.TestCase):
+    STAGES = ('zip-open', 'zip-read', 'zip-eof', 'zip-close', 'zip-update',
+              'zip-hexdigest', 'receipt-before', 'receipt-after', 'package-return',
+              'print-serialize', 'print-after')
+
+    def run_tail(self, stage=None, fault=None):
+        """真实 main/Budget/Supervisor/ZIP，替换外部执行；只在收尾边界推进时钟/发信号。"""
+        with tempfile.TemporaryDirectory() as d:
+            temp = Path(d).resolve()
+            clocks = {'monotonic': 1000.0, 'wall': 10000.0}
+            start = dict(clocks, total_seconds=900)
+            (temp / 'issue1393-lock-start.json').write_text(json.dumps(start))
+            original = b'toy generation raw\n'
+            raw = ('[[package]]\nname="newchan_rust"\nversion="0.1.0"\ndependencies=["tempfile"]\n'
+                   '[[package]]\nname="tempfile"\nversion="3.0.0"\nsource="' + m.REGISTRY
+                   + '"\nchecksum="' + 'ab' * 32 + '"\n').encode()
+            out = temp / 'issue1393-lock-evidence'
+            fired, final_digest, read_sizes, supervisors = [], [False], [], []
+            real_open, real_sha, real_save = Path.open, hashlib.sha256, m.save
+            real_package, real_supervisor, real_dumps = v.package, v.Supervisor, json.dumps
+
+            def trip(at):
+                if stage == at and not fired:
+                    fired.append(at)
+                    if fault == 'signal':
+                        m.signal.raise_signal(m.signal.SIGTERM)
+                    else:
+                        clocks[fault] += 901
+
+            class ZipReader(io.BytesIO):
+                def read(self, size=-1):
+                    read_sizes.append(size)
+                    value = super().read(size)
+                    trip('zip-read' if value else 'zip-eof')
+                    return value
+
+                def __exit__(self, *args):
+                    result = super().__exit__(*args)
+                    trip('zip-close')
+                    return result
+
+            def open_file(path, mode='r', *args, **kwargs):
+                if path == out / 'evidence.zip' and mode == 'rb':
+                    with real_open(path, mode, *args, **kwargs) as f:
+                        reader = ZipReader(f.read())
+                    final_digest[0] = True
+                    trip('zip-open')
+                    return reader
+                return real_open(path, mode, *args, **kwargs)
+
+            class Hash:
+                def __init__(self, *args, **kwargs):
+                    self.value = real_sha(*args, **kwargs)
+
+                def update(self, data):
+                    self.value.update(data)
+                    if final_digest[0]:
+                        trip('zip-update')
+
+                def hexdigest(self):
+                    value = self.value.hexdigest()
+                    if final_digest[0]:
+                        trip('zip-hexdigest')
+                        final_digest[0] = False
+                    return value
+
+            def save_receipt(path, value):
+                success = path.name == 'PACKAGE.json' and value.get('status') == 'PACKAGED'
+                if success:
+                    trip('receipt-before')
+                real_save(path, value)
+                if success:
+                    trip('receipt-after')
+
+            def finish_package(*args, **kwargs):
+                real_package(*args, **kwargs)
+                trip('package-return')
+
+            def serialize(value, *args, **kwargs):
+                text = real_dumps(value, *args, **kwargs)
+                if isinstance(value, dict) and value.get('resolution') == 'GENERATED_PENDING_ROOT_REVIEW' \
+                        and value.get('status') == 'PASS' and 'sort_keys' not in kwargs:
+                    trip('print-serialize')
+                return text
+
+            class Output(io.StringIO):
+                def write(self, text):
+                    count = super().write(text)
+                    if '"status": "PASS"' in text:
+                        trip('print-after')
+                    return count
+
+            def supervise(*args):
+                s = real_supervisor(*args)
+                supervisors.append(s)
+                return s
+
+            def copy_source(_root, work, output, b):
+                self.assertIs(b, supervisors[0].budget)
+                (work / 'rust').mkdir()
+                (work / 'rust/Cargo.lock').write_bytes(raw)
+                (output / 'Cargo.lock.old').write_bytes(raw)
+                (output / 'original.stdout').write_bytes(original)
+                return []
+
+            previous = {sig: m.signal.getsignal(sig) for sig in (m.signal.SIGTERM, m.signal.SIGINT)}
+            captured = Output()
+            try:
+                with contextlib.ExitStack() as stack:
+                    for cm in (
+                        patch.dict(os.environ, {'ISSUE1393_LOCK_EXECUTE': 'True', 'RUNNER_TEMP': str(temp)}, clear=True),
+                        patch.object(m.time, 'monotonic', side_effect=lambda: clocks['monotonic']),
+                        patch.object(m.time, 'time', side_effect=lambda: clocks['wall']),
+                        patch.object(m, 'bind_source'),
+                        patch.object(v, 'read_push_contract', return_value=(event(), contract())),
+                        patch.object(v, 'Supervisor', side_effect=supervise),
+                        patch.object(m, 'copy_resolution_source', side_effect=copy_source),
+                        patch.object(m, 'isolated_environment', return_value={}),
+                        patch.object(m, 'install_toolchain'), patch.object(v, 'telemetry_command', return_value=b''),
+                        patch.object(m.shutil, 'disk_usage', return_value=SimpleNamespace(free=3 * 1024**3)),
+                        patch.object(Path, 'open', open_file), patch.object(m.hashlib, 'sha256', Hash),
+                        patch.object(m, 'save', side_effect=save_receipt),
+                        patch.object(v, 'package', side_effect=finish_package),
+                        patch.object(m.json, 'dumps', side_effect=serialize),
+                        contextlib.redirect_stdout(captured),
+                    ):
+                        stack.enter_context(cm)
+                    spawn = stack.enter_context(patch.object(subprocess, 'Popen'))
+                    code = m.main()
+                    spawn.assert_not_called()
+            finally:
+                for sig, handler in previous.items():
+                    m.signal.signal(sig, handler)
+            result = json.loads((out / 'result.json').read_text())
+            receipt = json.loads((out / 'PACKAGE.json').read_text())
+            printed = json.loads(captured.getvalue().splitlines()[-1])
+            self.assertEqual(printed, result)
+            self.assertEqual((out / 'original.stdout').read_bytes(), original)
+            self.assertEqual((out / 'Cargo.lock').read_bytes(), raw)
+            self.assertTrue((out / 'evidence.zip').is_file())
+            self.assertIsInstance(supervisors[0].budget, v.Budget)
+            self.assertEqual((supervisors[0].budget.mono, supervisors[0].budget.wall), (1000.0, 10000.0))
+            if fault:
+                self.assertEqual(fired, [stage])
+                self.assertEqual(code, 1)
+                self.assertEqual(result['status'], 'FAILED')
+                self.assertEqual(receipt['status'], 'FAILED')
+                self.assertNotIn('sha256', receipt)
+                if fault == 'signal':
+                    self.assertEqual(result['received_signal'], m.signal.SIGTERM)
+                # ZIP 保留初始快照；散件和最后输出才是最终结果，不能回写包伪装成功。
+                with v.zipfile.ZipFile(out / 'evidence.zip') as archive:
+                    self.assertEqual(json.loads(archive.read('result.json'))['status'], 'PASS')
+            else:
+                self.assertEqual(code, 0)
+                self.assertEqual(result['status'], 'PASS')
+                self.assertEqual(receipt['status'], 'PACKAGED')
+                self.assertEqual(receipt['sha256'], real_sha((out / 'evidence.zip').read_bytes()).hexdigest())
+                self.assertTrue(read_sizes)
+            self.assertTrue(all(0 < n <= 1024**2 for n in read_sizes))
+
+    def test_main_tail_monotonic_deadline(self):
+        for stage in self.STAGES:
+            with self.subTest(stage=stage):
+                self.run_tail(stage, 'monotonic')
+
+    def test_main_tail_wall_deadline(self):
+        for stage in self.STAGES:
+            with self.subTest(stage=stage):
+                self.run_tail(stage, 'wall')
+
+    def test_main_tail_sigterm(self):
+        for stage in self.STAGES:
+            with self.subTest(stage=stage):
+                self.run_tail(stage, 'signal')
+
+    def test_main_tail_within_window(self):
+        self.run_tail()
+
+    def test_digest_streams_multiple_chunks_and_refuses_expired_before_io(self):
+        raw = b'x' * (2 * 1024**2 + 17)
+        sizes = []
+
+        class Reader(io.BytesIO):
+            def read(self, size=-1):
+                sizes.append(size)
+                return super().read(size)
+
+        b = budget()
+        with patch.object(Path, 'open', return_value=Reader(raw)), patch.object(subprocess, 'Popen') as spawn:
+            self.assertEqual(m.file_digest(Path('memory-only'), b), hashlib.sha256(raw).hexdigest())
+            spawn.assert_not_called()
+        self.assertEqual(sizes, [1024**2] * 4)
+        with patch.object(Path, 'open') as opened, patch.object(m.hashlib, 'sha256') as hashed:
+            with self.assertRaises(v.Refused):
+                m.file_digest(Path('memory-only'), budget(-m.FINAL_RESERVE - 1))
+            opened.assert_not_called()
+            hashed.assert_not_called()
 
 
 if __name__ == '__main__':

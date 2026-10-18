@@ -1,0 +1,272 @@
+{
+  "issue": 1393,
+  "status": "作者返修及定向验证完成；新独审待管理者安排",
+  "baseline": {
+    "commit": "a1a2aded058fc208217e8b701ec50f78b6b0aeeb",
+    "tree": "9ba120542f45048bfda948e2acfc9dec7258f230",
+    "branch": "codex/1393-lock-prepare-20261018"
+  },
+  "source": {
+    "commit": "8e50d40933c2a6a25f882481f3c46aa885ce6407",
+    "tree": "0a2e04a4ce22a6b8732ad3b55f57446ee3f066f0",
+    "immutable_entries": 8375,
+    "product_manifest_sha256": "e1059a227dc513426f1a201f02ad94b42c5dfad5d2299d96e88e6901c676785a"
+  },
+  "fixes": [
+    "本入口覆盖固定私有 helper 的 package，摘要按不超过1MiB分块并核同一900秒预算/信号；收据与print/return尾部复查，失败保件、非零、FAILED散件且无成功收据",
+    "本入口 bind_source 在原全树identity之前固定指定S/tree并拒绝E=S；拒绝其它祖先与错误tree，原完整写集判据保留"
+  ],
+  "tests": {
+    "command": "python3 -B -m unittest discover -s .github/scripts -p test_issue1393_lock_prepare.py -v",
+    "exit_code": 0,
+    "tests": 28,
+    "seconds": 0.535,
+    "baseline_tests_retained": 23,
+    "new_tests": 5,
+    "tail_negative_cases": 33,
+    "tail_positive_cases": 1,
+    "new_cases_popen_calls": 0,
+    "signal": "真实SIGTERM处理器；测试后恢复原处理器",
+    "memory_io": "2MiB+17字节，四次1MiB请求（含EOF），结果摘要逐字对拍",
+    "logs": [
+      "fix-toy-verified.stdout",
+      "fix-toy-verified.stderr"
+    ]
+  },
+  "static": {
+    "command": "python3 -B .chanlun/review-results/issue1393-lock-prepare-20261018/fix_verify_static.py",
+    "exit_code": 0,
+    "groups": 6,
+    "logs": [
+      "fix-static-verified.stdout",
+      "fix-static-verified.stderr"
+    ]
+  },
+  "failure_history": [
+    {
+      "logs": [
+        "fix-toy-red.stdout",
+        "fix-toy-red.stderr"
+      ],
+      "exit_code": 1,
+      "tests": 27,
+      "failures": 33,
+      "errors": 5,
+      "meaning": "修复前负控不满足；包括过期错误放行、缺信号记录、未分块"
+    },
+    {
+      "logs": [
+        "fix-toy-round01.stdout",
+        "fix-toy-round01.stderr"
+      ],
+      "exit_code": 0,
+      "tests": 27,
+      "meaning": "首轮修复后通过"
+    },
+    {
+      "logs": [
+        "fix-static-round01.stdout",
+        "fix-static-round01.stderr"
+      ],
+      "exit_code": 1,
+      "meaning": "本轮静态脚本误写历史文件数24，实际23；逐字比较已完成，订正新脚本计数后通过"
+    }
+  ],
+  "originals_preserved": {
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/CONTRACT-DRAFT.json": {
+      "sha256": "d73158568e343ced7810d57d21e90abdfe44258404c7b6650e1d4d29db14b287",
+      "bytes": 1670
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/FILES.json": {
+      "sha256": "b854fb935d56c97540888fe7ce2e107e70cbfe3ac6b7541418d9c6f3b04ea0f7",
+      "bytes": 4226
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/FILES.sha256": {
+      "sha256": "146eecc3af9e49838c20a609c521730701e1d937f9385d36328673e9e4611f64",
+      "bytes": 3172
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/INDEPENDENT-REVIEW-01.json": {
+      "sha256": "acdd366c8e0b83aa958e95546ca765aa7a43be59c4de110270a270673f6d37a3",
+      "bytes": 7062
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/REFERENCE-READ.json": {
+      "sha256": "8b40d434befb3600c955c6dd271304c8bfddfee27eb57c49de1b89f6caa818e8",
+      "bytes": 1617
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/REPORT.md": {
+      "sha256": "65b99f15a1fd112045032a338b9f22f91a56f8eeebb5fdb315fc4a521b4739a5",
+      "bytes": 12912
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/RUST-TOOLCHAIN-39091453686.txt": {
+      "sha256": "736b421f60c5b1726852e33b51ead31d694db8773ab782881b6125df410db3fa",
+      "bytes": 558
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/SOURCE-PREFLIGHT.json": {
+      "sha256": "63b43ed231bf8b25c05f7c6d56a3aaa87d0138c5c1730ada46eb767926ff2632",
+      "bytes": 14663
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/VALIDATION.json": {
+      "sha256": "2368a364fdf3b4b03eb2c7c779626ee7c456d7d693f5deb9028948348a8250c9",
+      "bytes": 5437
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/baseline-ls-tree.stdout": {
+      "sha256": "aaf988d048108aab4c194fcd442544a4a37ee74445251c722477529934fd7cd2",
+      "bytes": 944148
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/static-round01.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/static-round01.stdout": {
+      "sha256": "a26d63d9677c70aee4bada6c0885e25c47b9909be6f0b77e1859316c7be0f51c",
+      "bytes": 492
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/static-verified.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/static-verified.stdout": {
+      "sha256": "5a1a772794439534f30a84a171f5e6eedbc8c8b672f17a30e17814898571856a",
+      "bytes": 583
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/toy-final.stderr": {
+      "sha256": "95bcdf15eba54b9fc92603693d5b483ddb929b0afd820c750d16251cb8e3d7b4",
+      "bytes": 3298
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/toy-final.stdout": {
+      "sha256": "1c19c64fa3d526ced282d2e4fde69110012ad16a406fe52508cdeaa434ba0524",
+      "bytes": 707
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/toy-round01.stderr": {
+      "sha256": "81b28d52ec392669374071f80e13da093369333f141ead7fb43fa2d8e6ff1c04",
+      "bytes": 4165
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/toy-round01.stdout": {
+      "sha256": "1d7170e2144a2ff2eb1baad25255158aef2ff89d6e678a6ead8c5b84eca231ad",
+      "bytes": 276
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/toy-round02.stderr": {
+      "sha256": "b49d11116a7331ee0faac80fd7b0c2d3ffd6861cad630c7a0188f1467acaf62a",
+      "bytes": 2990
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/toy-round02.stdout": {
+      "sha256": "1d7170e2144a2ff2eb1baad25255158aef2ff89d6e678a6ead8c5b84eca231ad",
+      "bytes": 276
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/toy-verified.stderr": {
+      "sha256": "ce0a60907fe1aec7afd599bb654cb4ba4f0e1a3924b2fdedffb322938fe74cda",
+      "bytes": 3298
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/toy-verified.stdout": {
+      "sha256": "1c19c64fa3d526ced282d2e4fde69110012ad16a406fe52508cdeaa434ba0524",
+      "bytes": 707
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/verify_static.py": {
+      "sha256": "05238bb5c7b8a135f5cd74e79466f02ee21fc19f5cfae4180d1ca0d16be4c705",
+      "bytes": 6085
+    }
+  },
+  "independent_review": {
+    "status": "UNBOUND",
+    "prior_run": "244bc3e8-85de-448d-aad7-842c618c74ff",
+    "prior_process_exit": 0,
+    "prior_business_status": "blocked",
+    "next": "由管理者安排新工蜂审查真实尾差；作者自测不替代独审"
+  },
+  "contract": {
+    "file": "FIX-CONTRACT-DRAFT.json",
+    "status": "PREPARED_NOT_AUTHORIZED",
+    "unbound": [
+      "prepared_commit",
+      "prepared_tree",
+      "approval_text",
+      "review_text",
+      "approval_sha256",
+      "review_sha256"
+    ],
+    "rejection_verified": true
+  },
+  "scope": {
+    "tracked_modified": [
+      ".github/scripts/issue1393_lock_prepare.py",
+      ".github/scripts/test_issue1393_lock_prepare.py"
+    ],
+    "new_files": "仅本票锁报告目录",
+    "staged": [],
+    "workflow": "原字节且False",
+    "helper_sha256": "a98e7e6f54dacef35476f245a1f938df6cd0a952191fd7ea67938dd7185b1830",
+    "main_validation_reference": "只读git show 0d5af49549d5b3416360e694b09efdc70feb786c 的必要尾部函数；不借用其未完成独审结论"
+  },
+  "not_run": [
+    "本机cargo/rustc/rustup",
+    "真实工具链安装/解析/网络/远端/上传",
+    "Rust/Lean/fixture/产品/无关全量验证",
+    "Linux subreaper实测",
+    "新独审",
+    "E预发布/F单次push",
+    "暂存/commit/push/merge/dispatch/切分支/改Git配置/tracker操作/读取凭据/启动工蜂"
+  ],
+  "files": {
+    ".github/scripts/issue1393_lock_prepare.py": {
+      "bytes": 26225,
+      "sha256": "d92d4f4df75ac6e9d5624286f32a80ed40ddd3865dc231b1502bdcb7976a89fb"
+    },
+    ".github/scripts/test_issue1393_lock_prepare.py": {
+      "bytes": 35591,
+      "sha256": "bca9ee08d6a8e26ac39994ba6a6ee56d865f2d7a0558f537b4821e034fc9edc8"
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/FIX-CONTRACT-DRAFT.json": {
+      "bytes": 2306,
+      "sha256": "f906c925ad12ea2b65b3fb52943eaf5ce9fd927e3c85ec049b4db5ee687aaa09"
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/FIX-REPORT.md": {
+      "bytes": 6740,
+      "sha256": "5864547883e95d1565308c106a7fe040882d0e6251b357f5d9c8f3240f2bbde6"
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/fix-static-round01.stderr": {
+      "bytes": 296,
+      "sha256": "5eaf19b18e1969184edcaae142e722d1cf0f787e222dbffaacec775c98a90d48"
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/fix-static-round01.stdout": {
+      "bytes": 202,
+      "sha256": "4f44c6f113a7df5a8e4841c1028bf6b3071698a0cbb1e2052ad898f3be086ad0"
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/fix-static-verified.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/fix-static-verified.stdout": {
+      "bytes": 6387,
+      "sha256": "65ab444ac354df345425c769d2d88895838b3006f1f087bd40a501b4a7985e65"
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/fix-toy-red.stderr": {
+      "bytes": 39830,
+      "sha256": "259d1968cc889979c1d0aef947e094fb34edce77ace8767d8070483e96f08aa8"
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/fix-toy-red.stdout": {
+      "bytes": 707,
+      "sha256": "1c19c64fa3d526ced282d2e4fde69110012ad16a406fe52508cdeaa434ba0524"
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/fix-toy-round01.stderr": {
+      "bytes": 3744,
+      "sha256": "0b5cecf936f299e84b52b93cb8d1eecc266053f45f8ee3e56fc1dae688b3b689"
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/fix-toy-round01.stdout": {
+      "bytes": 707,
+      "sha256": "1c19c64fa3d526ced282d2e4fde69110012ad16a406fe52508cdeaa434ba0524"
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/fix-toy-verified.stderr": {
+      "bytes": 3930,
+      "sha256": "aa87ba4501582a9283bc9559ea04b444ecfa45baa3265b8c86b8bb7e27b0f66f"
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/fix-toy-verified.stdout": {
+      "bytes": 707,
+      "sha256": "1c19c64fa3d526ced282d2e4fde69110012ad16a406fe52508cdeaa434ba0524"
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/fix_verify_static.py": {
+      "bytes": 5758,
+      "sha256": "b5e7ad797b4305c07a63245448bce4c1b482168e3eddc91229fdd6ec3880e156"
+    }
+  },
+  "inventory_note": "本文件不自引用摘要；旧FILES及所有历史报告保持原字节，新增文件摘要仅在本记录登记。"
+}

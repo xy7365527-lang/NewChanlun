@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.chanlun/review-results/issue1393-lock-prepare-20261018/fix_verify_static.py", line 55, in <module>
+    assert len(preserved) == 24, len(preserved)
+           ^^^^^^^^^^^^^^^^^^^^
+AssertionError: 23

@@ -1,0 +1,2 @@
+PASS：固定 HEAD/tree/codex 分支；仅两个指定源码尾差和本票新报告；无暂存，空白通过
+PASS：Python AST；旧入口仅 bind_source/main 改动，新增四个局部收尾函数

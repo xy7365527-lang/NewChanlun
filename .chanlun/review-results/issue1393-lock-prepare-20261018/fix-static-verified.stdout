@@ -1,0 +1,122 @@
+PASS：固定 HEAD/tree/codex 分支；仅两个指定源码尾差和本票新报告；无暂存，空白通过
+PASS：Python AST；旧入口仅 bind_source/main 改动，新增四个局部收尾函数
+PASS：23 份既有报告/独审/失败史原字节保留
+PASS：workflow 原字节、False/精确 push/15 分钟；YAML/内嵌 Python AST/bash -n
+PASS：固定 helper/私有 package 覆盖/900秒/90秒预留/1MiB；固定 S 实际 tree 和全树写集
+PASS：新草案固定源/已知摘要准确；E/批准/独审仍 UNBOUND 且准确拒绝
+{
+  "preserved_originals": {
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/CONTRACT-DRAFT.json": {
+      "sha256": "d73158568e343ced7810d57d21e90abdfe44258404c7b6650e1d4d29db14b287",
+      "bytes": 1670
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/FILES.json": {
+      "sha256": "b854fb935d56c97540888fe7ce2e107e70cbfe3ac6b7541418d9c6f3b04ea0f7",
+      "bytes": 4226
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/FILES.sha256": {
+      "sha256": "146eecc3af9e49838c20a609c521730701e1d937f9385d36328673e9e4611f64",
+      "bytes": 3172
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/INDEPENDENT-REVIEW-01.json": {
+      "sha256": "acdd366c8e0b83aa958e95546ca765aa7a43be59c4de110270a270673f6d37a3",
+      "bytes": 7062
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/REFERENCE-READ.json": {
+      "sha256": "8b40d434befb3600c955c6dd271304c8bfddfee27eb57c49de1b89f6caa818e8",
+      "bytes": 1617
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/REPORT.md": {
+      "sha256": "65b99f15a1fd112045032a338b9f22f91a56f8eeebb5fdb315fc4a521b4739a5",
+      "bytes": 12912
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/RUST-TOOLCHAIN-39091453686.txt": {
+      "sha256": "736b421f60c5b1726852e33b51ead31d694db8773ab782881b6125df410db3fa",
+      "bytes": 558
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/SOURCE-PREFLIGHT.json": {
+      "sha256": "63b43ed231bf8b25c05f7c6d56a3aaa87d0138c5c1730ada46eb767926ff2632",
+      "bytes": 14663
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/VALIDATION.json": {
+      "sha256": "2368a364fdf3b4b03eb2c7c779626ee7c456d7d693f5deb9028948348a8250c9",
+      "bytes": 5437
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/baseline-ls-tree.stdout": {
+      "sha256": "aaf988d048108aab4c194fcd442544a4a37ee74445251c722477529934fd7cd2",
+      "bytes": 944148
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/static-round01.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/static-round01.stdout": {
+      "sha256": "a26d63d9677c70aee4bada6c0885e25c47b9909be6f0b77e1859316c7be0f51c",
+      "bytes": 492
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/static-verified.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/static-verified.stdout": {
+      "sha256": "5a1a772794439534f30a84a171f5e6eedbc8c8b672f17a30e17814898571856a",
+      "bytes": 583
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/toy-final.stderr": {
+      "sha256": "95bcdf15eba54b9fc92603693d5b483ddb929b0afd820c750d16251cb8e3d7b4",
+      "bytes": 3298
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/toy-final.stdout": {
+      "sha256": "1c19c64fa3d526ced282d2e4fde69110012ad16a406fe52508cdeaa434ba0524",
+      "bytes": 707
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/toy-round01.stderr": {
+      "sha256": "81b28d52ec392669374071f80e13da093369333f141ead7fb43fa2d8e6ff1c04",
+      "bytes": 4165
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/toy-round01.stdout": {
+      "sha256": "1d7170e2144a2ff2eb1baad25255158aef2ff89d6e678a6ead8c5b84eca231ad",
+      "bytes": 276
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/toy-round02.stderr": {
+      "sha256": "b49d11116a7331ee0faac80fd7b0c2d3ffd6861cad630c7a0188f1467acaf62a",
+      "bytes": 2990
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/toy-round02.stdout": {
+      "sha256": "1d7170e2144a2ff2eb1baad25255158aef2ff89d6e678a6ead8c5b84eca231ad",
+      "bytes": 276
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/toy-verified.stderr": {
+      "sha256": "ce0a60907fe1aec7afd599bb654cb4ba4f0e1a3924b2fdedffb322938fe74cda",
+      "bytes": 3298
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/toy-verified.stdout": {
+      "sha256": "1c19c64fa3d526ced282d2e4fde69110012ad16a406fe52508cdeaa434ba0524",
+      "bytes": 707
+    },
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/verify_static.py": {
+      "sha256": "05238bb5c7b8a135f5cd74e79466f02ee21fc19f5cfae4180d1ca0d16be4c705",
+      "bytes": 6085
+    }
+  },
+  "source_entries": 8375,
+  "product_manifest_sha256": "e1059a227dc513426f1a201f02ad94b42c5dfad5d2299d96e88e6901c676785a",
+  "tracked_delta": [
+    ".github/scripts/issue1393_lock_prepare.py",
+    ".github/scripts/test_issue1393_lock_prepare.py"
+  ],
+  "new_report_files": [
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/FIX-CONTRACT-DRAFT.json",
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/fix-static-round01.stderr",
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/fix-static-round01.stdout",
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/fix-static-verified.stderr",
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/fix-static-verified.stdout",
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/fix-toy-red.stderr",
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/fix-toy-red.stdout",
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/fix-toy-round01.stderr",
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/fix-toy-round01.stdout",
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/fix-toy-verified.stderr",
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/fix-toy-verified.stdout",
+    ".chanlun/review-results/issue1393-lock-prepare-20261018/fix_verify_static.py"
+  ]
+}
