@@ -1,0 +1,320 @@
+[
+  {
+    "file": "rust/src/bin/s_structure_session.rs",
+    "line": 319,
+    "text": "fn open_db(db: &Path) -> Result<Connection, String> {",
+    "file_sha256": "628347f6c682f1649f2d0d5f41fbe8fde5565064f31fd04d3f6e6322c6b47199"
+  },
+  {
+    "file": "rust/src/bin/s_structure_session.rs",
+    "line": 653,
+    "text": "fn load_profile_batch_bytes(",
+    "file_sha256": "628347f6c682f1649f2d0d5f41fbe8fde5565064f31fd04d3f6e6322c6b47199"
+  },
+  {
+    "file": "rust/src/bin/s_structure_session.rs",
+    "line": 1936,
+    "text": "fn load_profile(path: &Path) -> Result<(Value, String, String), String> {",
+    "file_sha256": "628347f6c682f1649f2d0d5f41fbe8fde5565064f31fd04d3f6e6322c6b47199"
+  },
+  {
+    "file": "rust/src/bin/s_structure_session.rs",
+    "line": 2169,
+    "text": "fn cmd_accept(",
+    "file_sha256": "628347f6c682f1649f2d0d5f41fbe8fde5565064f31fd04d3f6e6322c6b47199"
+  },
+  {
+    "file": "rust/src/bin/s_structure_session.rs",
+    "line": 3077,
+    "text": "fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {",
+    "file_sha256": "628347f6c682f1649f2d0d5f41fbe8fde5565064f31fd04d3f6e6322c6b47199"
+  },
+  {
+    "file": "rust/src/bin/s_structure_session.rs",
+    "line": 5279,
+    "text": "fn cmd_recover(db: &Path, new_epoch: &str) -> Result<(), String> {",
+    "file_sha256": "628347f6c682f1649f2d0d5f41fbe8fde5565064f31fd04d3f6e6322c6b47199"
+  },
+  {
+    "file": "rust/src/bin/s_structure_session.rs",
+    "line": 5395,
+    "text": "fn run() -> Result<(), String> {",
+    "file_sha256": "628347f6c682f1649f2d0d5f41fbe8fde5565064f31fd04d3f6e6322c6b47199"
+  },
+  {
+    "file": "rust/src/bin/s_structure_session.rs",
+    "line": 5410,
+    "text": "let _admission_open_guard = _writer_lock",
+    "file_sha256": "628347f6c682f1649f2d0d5f41fbe8fde5565064f31fd04d3f6e6322c6b47199"
+  },
+  {
+    "file": "rust/src/bin/s_structure_session.rs",
+    "line": 5482,
+    "text": "fn main() {",
+    "file_sha256": "628347f6c682f1649f2d0d5f41fbe8fde5565064f31fd04d3f6e6322c6b47199"
+  },
+  {
+    "file": "rust/src/bin/s_session_v2/mod.rs",
+    "line": 2469,
+    "text": "fn serve(",
+    "file_sha256": "f6c33210bbba7d438e1382801612aa3db35914a93dc725903c2340648bd5eac1"
+  },
+  {
+    "file": "rust/src/bin/s_session_v2/mod.rs",
+    "line": 2484,
+    "text": "let _open_guard = scope.enter()?;",
+    "file_sha256": "f6c33210bbba7d438e1382801612aa3db35914a93dc725903c2340648bd5eac1"
+  },
+  {
+    "file": "rust/src/bin/s_session_v2/mod.rs",
+    "line": 2543,
+    "text": "pub fn dispatch(args: &[String]) -> Result<bool, String> {",
+    "file_sha256": "f6c33210bbba7d438e1382801612aa3db35914a93dc725903c2340648bd5eac1"
+  },
+  {
+    "file": "rust/src/bin/s_session_v2/mod.rs",
+    "line": 2620,
+    "text": "let _open_guard = scope.enter()?;",
+    "file_sha256": "f6c33210bbba7d438e1382801612aa3db35914a93dc725903c2340648bd5eac1"
+  },
+  {
+    "file": "rust/src/bin/s_session_v2/mod.rs",
+    "line": 2643,
+    "text": "Self::Existing(scope) => scope.enter().map(Some),",
+    "file_sha256": "f6c33210bbba7d438e1382801612aa3db35914a93dc725903c2340648bd5eac1"
+  },
+  {
+    "file": "rust/src/bin/s_session_v2/mod.rs",
+    "line": 2654,
+    "text": "pub fn legacy_write_lock(args: &[String]) -> Result<Option<LegacyWriteGuard>, String> {",
+    "file_sha256": "f6c33210bbba7d438e1382801612aa3db35914a93dc725903c2340648bd5eac1"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/driver.rs",
+    "line": 96,
+    "text": "pub(super) fn open_for_serve(",
+    "file_sha256": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/driver.rs",
+    "line": 115,
+    "text": "pub(super) fn open_for_serve_with_allocation(",
+    "file_sha256": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/driver.rs",
+    "line": 135,
+    "text": "pub(super) fn open_for_serve_with_mode(",
+    "file_sha256": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/driver.rs",
+    "line": 152,
+    "text": "pub(super) fn open_for_serve_with_identity(",
+    "file_sha256": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/driver.rs",
+    "line": 216,
+    "text": "pub(super) fn open(",
+    "file_sha256": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/driver.rs",
+    "line": 227,
+    "text": "pub(super) fn open_with_request(",
+    "file_sha256": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/driver.rs",
+    "line": 239,
+    "text": "pub(super) fn open_with_request_and_allocation(",
+    "file_sha256": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/driver.rs",
+    "line": 261,
+    "text": "pub(super) fn open_with_request_and_mode(",
+    "file_sha256": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/driver.rs",
+    "line": 291,
+    "text": "let _open_guard = scope.enter()?;",
+    "file_sha256": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/driver.rs",
+    "line": 294,
+    "text": "let conn = super::audit_owner::AuditConnection::open(db)?;",
+    "file_sha256": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/driver.rs",
+    "line": 493,
+    "text": "pub(super) fn recover_scoped(",
+    "file_sha256": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/driver.rs",
+    "line": 505,
+    "text": "let _open_guard = scope.enter()?;",
+    "file_sha256": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/driver.rs",
+    "line": 508,
+    "text": "let conn = super::audit_owner::AuditConnection::open(db)?;",
+    "file_sha256": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/driver.rs",
+    "line": 513,
+    "text": "pub(super) fn recover(",
+    "file_sha256": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/writer_cli.rs",
+    "line": 195,
+    "text": "pub(super) fn run(args: &[String]) -> Result<Option<super::admission::CommandOutput>, String> {",
+    "file_sha256": "62df023972c1a0c3f575b33cead4f7bd700b99111eec6afa2805f929c359bd2b"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/writer_cli.rs",
+    "line": 399,
+    "text": "fn preflight_input(",
+    "file_sha256": "62df023972c1a0c3f575b33cead4f7bd700b99111eec6afa2805f929c359bd2b"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/writer_cli.rs",
+    "line": 406,
+    "text": "scope.require_admitted()?;",
+    "file_sha256": "62df023972c1a0c3f575b33cead4f7bd700b99111eec6afa2805f929c359bd2b"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/writer_cli.rs",
+    "line": 494,
+    "text": "fn serve(",
+    "file_sha256": "62df023972c1a0c3f575b33cead4f7bd700b99111eec6afa2805f929c359bd2b"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/writer_cli.rs",
+    "line": 606,
+    "text": "fn advance(",
+    "file_sha256": "62df023972c1a0c3f575b33cead4f7bd700b99111eec6afa2805f929c359bd2b"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/writer_cli.rs",
+    "line": 652,
+    "text": "fn recover(",
+    "file_sha256": "62df023972c1a0c3f575b33cead4f7bd700b99111eec6afa2805f929c359bd2b"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/audit_owner.rs",
+    "line": 323,
+    "text": "pub(super) fn startup(",
+    "file_sha256": "98fafe08d9b210112293ce263434fa97cf89a048cab2b21a34268a2dabf7927e"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/audit_owner.rs",
+    "line": 344,
+    "text": "let (profile_value, profile_id, profile_hash) = load_profile(profile)?;",
+    "file_sha256": "98fafe08d9b210112293ce263434fa97cf89a048cab2b21a34268a2dabf7927e"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/state.rs",
+    "line": 414,
+    "text": "pub(super) fn audit_with_access(",
+    "file_sha256": "579ae54009cab14a989dee156f83d829f1ab63e9457863905882b22d8c7e3e67"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/state.rs",
+    "line": 520,
+    "text": "fn audit_with_budget(",
+    "file_sha256": "579ae54009cab14a989dee156f83d829f1ab63e9457863905882b22d8c7e3e67"
+  },
+  {
+    "file": "rust/src/s_content/access.rs",
+    "line": 16,
+    "text": "fn owner_job(&mut self) -> Option<&mut Job>;",
+    "file_sha256": "50123038fbb3ebaf87ed8831a62be2435a697c6486247f392790074721ed6914"
+  },
+  {
+    "file": "rust/src/s_content/access.rs",
+    "line": 118,
+    "text": "fn owner_job(&mut self) -> Option<&mut Job> {",
+    "file_sha256": "50123038fbb3ebaf87ed8831a62be2435a697c6486247f392790074721ed6914"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/admission.rs",
+    "line": 68,
+    "text": "fn startup_gate(&self) -> Result<(), String> {",
+    "file_sha256": "f7b9b2688ad2901c96c67aa06ea163077b90a2a87cfeac2f9a71072e79668c13"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/admission.rs",
+    "line": 110,
+    "text": "pub(crate) fn admit(self, db: &Path) -> Result<WriterScope, String> {",
+    "file_sha256": "f7b9b2688ad2901c96c67aa06ea163077b90a2a87cfeac2f9a71072e79668c13"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/admission.rs",
+    "line": 121,
+    "text": "pub(crate) fn admit(db: &Path, prepared: PreparedAdmission) -> Result<Self, String> {",
+    "file_sha256": "f7b9b2688ad2901c96c67aa06ea163077b90a2a87cfeac2f9a71072e79668c13"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/admission.rs",
+    "line": 176,
+    "text": "pub(crate) fn enter(&self) -> Result<OpenGuard, String> {",
+    "file_sha256": "f7b9b2688ad2901c96c67aa06ea163077b90a2a87cfeac2f9a71072e79668c13"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/admission.rs",
+    "line": 270,
+    "text": "pub(crate) fn require_current(db: &Path) -> Result<(), String> {",
+    "file_sha256": "f7b9b2688ad2901c96c67aa06ea163077b90a2a87cfeac2f9a71072e79668c13"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/admission.rs",
+    "line": 280,
+    "text": "pub(crate) fn read_startup(",
+    "file_sha256": "f7b9b2688ad2901c96c67aa06ea163077b90a2a87cfeac2f9a71072e79668c13"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/admission_provider.rs",
+    "line": 116,
+    "text": "pub(super) fn measure(consumed: &ConsumedAdmission) -> Result<Self, String> {",
+    "file_sha256": "45306996a31c5f8f760a8d107b57894a1d2fa9d966fc15eaf9cdca880f45a18f"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/admission_provider.rs",
+    "line": 294,
+    "text": "pub(super) fn verify_before_open(&self) -> Result<(), String> {",
+    "file_sha256": "45306996a31c5f8f760a8d107b57894a1d2fa9d966fc15eaf9cdca880f45a18f"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/admission_provider.rs",
+    "line": 343,
+    "text": "pub(super) fn verify_runtime(&self) -> Result<(), String> {",
+    "file_sha256": "45306996a31c5f8f760a8d107b57894a1d2fa9d966fc15eaf9cdca880f45a18f"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/admission_private/mod.rs",
+    "line": 20,
+    "text": "pub(super) fn validate(",
+    "file_sha256": "1fc3d5c7933a5a2787c26d557fbc4e9a98bdaa2707c082166dad20d3c03e670a"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/admission_private/mod.rs",
+    "line": 26,
+    "text": "Medium::RollbackJournal => return Err(\"D2ProductionCapacityMissing：JobLimits8/SResources7没有已裁的overlay payload、metadata与SQLite heap额度映射；禁止采用D2-SMALL六参数默认\".into()),",
+    "file_sha256": "1fc3d5c7933a5a2787c26d557fbc4e9a98bdaa2707c082166dad20d3c03e670a"
+  },
+  {
+    "file": "rust/src/bin/s_session_v3/admission_private/mod.rs",
+    "line": 44,
+    "text": ".prepare(\"PRAGMA quick_check\")",
+    "file_sha256": "1fc3d5c7933a5a2787c26d557fbc4e9a98bdaa2707c082166dad20d3c03e670a"
+  }
+]

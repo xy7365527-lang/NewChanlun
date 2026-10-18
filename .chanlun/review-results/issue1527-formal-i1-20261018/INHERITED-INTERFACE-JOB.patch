@@ -1,0 +1,198 @@
+--- a/rust/src/s_content/job.rs
++++ b/rust/src/s_content/job.rs
+@@ -657,6 +657,27 @@
+         })
+     }
+ 
++    /// #1527 提案：沿用真实控制原件首读时刻；不制造基线、不改变旧 new 行为。
++    pub fn new_started(
++        limits: JobLimits,
++        existing: Existing,
++        clock: Box<dyn Clock>,
++        first_read_at: Instant,
++    ) -> Result<Job, CodecError> {
++        limits.validate()?;
++        let now = clock.now();
++        let deadline = first_read_at
++            .checked_add(Duration::from_millis(limits.max_elapsed_ms))
++            .ok_or_else(|| CodecError::new(DEADLINE, "首读绝对期限溢出"))?;
++        if now < first_read_at || now >= deadline {
++            return Err(CodecError::new(DEADLINE, "真实首读时刻无效或期限已到"));
++        }
++        let mut job = Self::new(limits, existing, clock)?;
++        job.started = Some(first_read_at);
++        job.check_deadline()?;
++        Ok(job)
++    }
++
+     /// 首次读取开始：**幂等**，重复调用不会续期（§5.6.1「不能逐片续期」）。
+     ///
+     /// adapter 在第一个字节真正开始流动时调用；`charge_*`／`accept_node` 与读包装也会代为开始。
+--- a/rust/src/bin/s_session_v3/admission_anchor.rs
++++ b/rust/src/bin/s_session_v3/admission_anchor.rs
+@@ -424,6 +424,165 @@
+ 
+     pub(crate) fn lease(&self) -> &BudgetLease {
+         &self.lease
++    }
++}
++
++use newchan_rust::s_content::{job as admission_job, CodecError as AccountingError, NodeDigest, NodeSource};
++
++/// #1527 M-01：原 Job 只属于此持有者；provider 只借用受限记账门面。
++/// 不向 provider 移交本持有者或其可变引用；finish 永远检查这里的原账。
++pub(crate) struct StartedAdmission {
++    job: newchan_rust::s_content::job::Job,
++    lease: Arc<BudgetLease>,
++    first_read_at: Instant,
++}
++
++#[derive(Debug)]
++pub(crate) struct JobAdmissionError {
++    pub(crate) kind: ErrorKind,
++    pub(crate) stage: Stage,
++    pub(crate) first_read_at: Instant,
++    pub(crate) wire_bytes: u128,
++    pub(crate) snapshot: admission_job::JobSnapshot,
++}
++
++impl fmt::Display for JobAdmissionError {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        write!(f, "R4准入Job拒绝：{:?}；阶段={:?}；实读字节={}",
++            self.kind, self.stage, self.wire_bytes)
++    }
++}
++
++impl std::error::Error for JobAdmissionError {}
++
++fn job_error_kind(error: &newchan_rust::s_content::CodecError) -> ErrorKind {
++    use newchan_rust::s_content::job::{DEADLINE, LIMIT_EXCEEDED};
++    match error.code() {
++        DEADLINE => ErrorKind::Deadline,
++        LIMIT_EXCEEDED => ErrorKind::Limit,
++        _ => ErrorKind::ResourcesInvalid,
++    }
++}
++
++impl ConsumedAdmission {
++    /// measured 必须是 provider 实测全域基线；禁止填零来抢先创建 Job。
++    /// 即使构造失败，错误仍携带首读以来的控制 payload 量。失败不返回 self。
++    pub(crate) fn into_job(
++        self,
++        measured: newchan_rust::s_content::job::Existing,
++    ) -> Result<StartedAdmission, AdmissionError> {
++        use newchan_rust::s_content::job::Job;
++        self.check(Stage::E7)?;
++        let first = self.prelude.first_read_at
++            .ok_or_else(|| self.prelude.error(ErrorKind::Deadline, Stage::E7))?;
++        let mut job = Job::new_started(self.limits, measured, Box::new(Instant::now), first)
++            .map_err(|e| self.prelude.error(job_error_kind(&e), Stage::E7))?;
++        // check 已先追认 deadline/wire；本次仅回灌一次实际值，没有新的 I/O。
++        job.charge_wire_bytes(self.prelude.wire_bytes)
++            .map_err(|e| self.prelude.error(job_error_kind(&e), Stage::E7))?;
++        Ok(StartedAdmission { job, lease: self.lease, first_read_at: first })
++    }
++}
++
++impl StartedAdmission {
++    pub(crate) fn accounting(&mut self) -> AdmissionAccounting<'_> {
++        AdmissionAccounting { job: &mut self.job }
++    }
++
++    fn error(&self, kind: ErrorKind) -> JobAdmissionError {
++        let snapshot = self.job.snapshot();
++        JobAdmissionError {
++            kind, stage: Stage::E8, first_read_at: self.first_read_at,
++            wire_bytes: snapshot.wire_bytes, snapshot,
++        }
++    }
++
++    /// 私有准入/清理完成后一次性收尾；源侧身份仍须由 WriterScope 接着核验。
++    pub(crate) fn finish(mut self) -> Result<Arc<BudgetLease>, JobAdmissionError> {
++        let paths = self.lease.revalidate_paths();
++        // 原 Job 的 stopped/期限语义照旧；这里不重排 charge_wire_bytes 的首错。
++        self.job.check_deadline().map_err(|e| self.error(job_error_kind(&e)))?;
++        paths.map_err(|_| self.error(ErrorKind::Changed))?;
++        self.job.finish_check().map_err(|e| self.error(job_error_kind(&e)))?;
++        Ok(self.lease)
++    }
++}
++
++/// #1527 M-01：私有借用字段；无构造器、取出 Job、Deref/AsMut、闭包或重置口。
++/// 即使 mem::replace 整个门面，也只换借用视图，不会搬走或清空父持有者的 Job。
++/// 丢弃门面不自动释放 Grant；未结预留仍由原账 finish_check 拒绝。
++pub(crate) struct AdmissionAccounting<'a> {
++    job: &'a mut admission_job::Job,
++}
++
++impl AdmissionAccounting<'_> {
++    pub(crate) fn check_deadline(&self) -> Result<(), AccountingError> {
++        self.job.check_deadline()
++    }
++
++    pub(crate) fn first_read_deadline(&mut self) -> Result<Instant, AccountingError> {
++        self.job.first_read_deadline()
++    }
++
++    pub(crate) fn pre_io_check(&mut self) -> Result<(), AccountingError> {
++        self.job.pre_io_check()
++    }
++
++    pub(crate) fn charge_wire_bytes(&mut self, actual_bytes: u64) -> Result<(), AccountingError> {
++        self.job.charge_wire_bytes(actual_bytes)
++    }
++
++    pub(crate) fn charge_records(&mut self, accesses: u64) -> Result<(), AccountingError> {
++        self.job.charge_records(accesses)
++    }
++
++    pub(crate) fn charge_requests(&mut self, attempts: u64) -> Result<(), AccountingError> {
++        self.job.charge_requests(attempts)
++    }
++
++    pub(crate) fn accept_node(&mut self, digest: &NodeDigest, tag: u8, body: &[u8]) -> Result<admission_job::NodeAcceptance, AccountingError> {
++        self.job.accept_node(digest, tag, body)
++    }
++
++    pub(crate) fn accept_frame(&mut self, digest: &NodeDigest, tag: u8, body: Vec<u8>) -> Result<admission_job::CheckedFrame, AccountingError> {
++        self.job.accept_frame(digest, tag, body)
++    }
++
++    pub(crate) fn accept_checked_usage(&mut self, usage: &admission_job::CheckedNodeUsage) -> Result<admission_job::NodeAcceptance, AccountingError> {
++        self.job.accept_checked_usage(usage)
++    }
++
++    pub(crate) fn reserve_staged(&mut self, requested: u64) -> Result<admission_job::Grant, AccountingError> {
++        self.job.reserve_staged(requested)
++    }
++
++    pub(crate) fn reserve_store(&mut self, requested: u64) -> Result<admission_job::Grant, AccountingError> {
++        self.job.reserve_store(requested)
++    }
++
++    pub(crate) fn reconcile(&mut self, grant: &admission_job::Grant, actual: u64) -> Result<(), AccountingError> {
++        self.job.reconcile(grant, actual)
++    }
++
++    pub(crate) fn release(&mut self, grant: &admission_job::Grant) -> Result<(), AccountingError> {
++        self.job.release(grant)
++    }
++
++    pub(crate) fn reclaim_staged(&mut self, actual_deleted: u64) -> Result<(), AccountingError> {
++        self.job.reclaim_staged(actual_deleted)
++    }
++
++    pub(crate) fn snapshot(&self) -> admission_job::JobSnapshot {
++        self.job.snapshot()
++    }
++
++    // JobNodeSource 的 job/inner 字段均私有，也不导出 Job 借用。
++    // 包装仍只做原节点计费；实际 wire/request 必须由 adapter 另外照实计入。
++    pub(crate) fn node_source<'b>(
++        &'b mut self,
++        inner: &'b mut dyn NodeSource,
++    ) -> admission_job::JobNodeSource<'b> {
++        admission_job::JobNodeSource::new(&mut *self.job, inner)
+     }
+ }
+ 

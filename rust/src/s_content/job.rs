@@ -657,6 +657,27 @@ impl Job {
         })
     }
 
+    /// #1527：沿用真实控制原件首读时刻；不制造基线、不改变旧 new 行为。
+    pub fn new_started(
+        limits: JobLimits,
+        existing: Existing,
+        clock: Box<dyn Clock>,
+        first_read_at: Instant,
+    ) -> Result<Job, CodecError> {
+        limits.validate()?;
+        let now = clock.now();
+        let deadline = first_read_at
+            .checked_add(Duration::from_millis(limits.max_elapsed_ms))
+            .ok_or_else(|| CodecError::new(DEADLINE, "首读绝对期限溢出"))?;
+        if now < first_read_at || now >= deadline {
+            return Err(CodecError::new(DEADLINE, "真实首读时刻无效或期限已到"));
+        }
+        let mut job = Self::new(limits, existing, clock)?;
+        job.started = Some(first_read_at);
+        job.check_deadline()?;
+        Ok(job)
+    }
+
     /// 首次读取开始：**幂等**，重复调用不会续期（§5.6.1「不能逐片续期」）。
     ///
     /// adapter 在第一个字节真正开始流动时调用；`charge_*`／`accept_node` 与读包装也会代为开始。

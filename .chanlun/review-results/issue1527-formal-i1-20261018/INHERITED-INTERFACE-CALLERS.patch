@@ -1,0 +1,455 @@
+--- a/rust/src/bin/s_session_v3/mod.rs
++++ b/rust/src/bin/s_session_v3/mod.rs
+@@ -35,6 +35,12 @@
+ use rusqlite::OpenFlags;
+ use std::collections::BTreeSet;
+ 
++// #1527 提案：admission 由根协调恢复/资源 provider，当前基线无此模块。
++// M-01：WriterScope::admit 独占 StartedAdmission，provider 仅收
++// &mut AdmissionAccounting<'_>；禁止导出 &mut Job 或用新 Job 替代原账。
++// 原账 finish 成功且源身份后置核验完成，才保存 lease 并设置 admitted。
++pub(crate) mod admission;
++pub(crate) mod admission_anchor;
+ mod audit_budget;
+ mod audit_header;
+ pub(super) mod audit_owner;
+--- a/rust/src/bin/s_session_v3/writer_cli.rs
++++ b/rust/src/bin/s_session_v3/writer_cli.rs
+@@ -31,7 +31,8 @@
+ /// 旧启动器对 Unix socket 路径的 100 字节上限（`s_service_control.py`），本入口沿用。
+ const SOCKET_PATH_BYTES: usize = 100;
+ 
+-const SERVE_FLAGS: [&str; 7] = [
++const SERVE_FLAGS: [&str; 8] = [
++    "--admission-job-limits",
+     "--protocol-revision",
+     "--db",
+     "--profile",
+@@ -40,7 +41,8 @@
+     "--socket",
+     "--resource-config",
+ ];
+-const ADVANCE_FLAGS: [&str; 7] = [
++const ADVANCE_FLAGS: [&str; 8] = [
++    "--admission-job-limits",
+     "--protocol-revision",
+     "--db",
+     "--profile",
+@@ -49,7 +51,8 @@
+     "--input",
+     "--max-input-bytes",
+ ];
+-const RECOVER_FLAGS: [&str; 5] = [
++const RECOVER_FLAGS: [&str; 6] = [
++    "--admission-job-limits",
+     "--protocol-revision",
+     "--db",
+     "--new-epoch",
+@@ -191,9 +194,27 @@
+ /// 命令分派：`Ok(Some(value))` 为要打印的命令结果，`Ok(None)` 为无结果（服务正常退出）。
+ pub(super) fn run(args: &[String]) -> Result<Option<Value>, String> {
+     match args.get(1).map(String::as_str).unwrap_or("") {
+-        "serve" => serve(ServeOptions::parse(args)?),
+-        "advance" => advance(AdvanceOptions::parse(args)?),
+-        "recover" => recover(RecoverOptions::parse(args)?),
++        "serve" => {
++            let options = ServeOptions::parse(args)?;
++            let admission = super::admission_anchor::from_args_for_db(
++                &options.db, args, super::admission_anchor::ControlEnv::capture(),
++            ).map_err(|error| error.to_string())?;
++            serve(options, admission)
++        },
++        "advance" => {
++            let options = AdvanceOptions::parse(args)?;
++            let admission = super::admission_anchor::from_args_for_db(
++                &options.db, args, super::admission_anchor::ControlEnv::capture(),
++            ).map_err(|error| error.to_string())?;
++            advance(options, admission)
++        },
++        "recover" => {
++            let options = RecoverOptions::parse(args)?;
++            let admission = super::admission_anchor::from_args_for_db(
++                &options.db, args, super::admission_anchor::ControlEnv::capture(),
++            ).map_err(|error| error.to_string())?;
++            recover(options, admission)
++        },
+         other => Err(format!(
+             "VersionUnsupported：S3 写入口只分派 serve/advance/recover，收到 `{other}`"
+         )),
+@@ -464,7 +485,7 @@
+ }
+ 
+ /// 全部参数/资源核验后，先持唯一写锁、完整审计/profile/clock/pending，再监听。
+-fn serve(options: ServeOptions) -> Result<Option<Value>, String> {
++fn serve(options: ServeOptions, admission: super::admission_anchor::PreparedAdmission) -> Result<Option<Value>, String> {
+     let mode = s_allocation::load_testonly_environment()?;
+     let resources = SResources::load(&options.resources)?;
+     let expected = match std::env::var("S_CONTROL_RESOURCE_SHA256") {
+@@ -489,7 +510,8 @@
+             clock,
+             resources.limit("audit_cache_source_bytes"),
+             mode,
+-        )?
++        admission,
++    )?
+     } else {
+         let driver = Driver::open_for_serve_with_mode(
+             &options.db,
+@@ -498,7 +520,8 @@
+             clock,
+             resources.limit("audit_cache_source_bytes"),
+             mode,
+-        )?;
++        admission,
++    )?;
+         let identity = driver.identity()?;
+         (driver, identity)
+     };
+@@ -510,6 +533,7 @@
+         clock,
+         resources.limit("audit_cache_source_bytes"),
+         mode,
++        admission,
+     )?;
+     #[cfg(not(feature = "s_capture_native_testonly"))]
+     let identity = driver.identity()?;
+@@ -562,7 +586,7 @@
+ 
+ /// 一次性推进：打开唯一 Driver（`open` 内部按库中原件 `resume_pending`，不重写原身份），
+ /// 打印真实持久摘要后退出；不监听、不常驻。
+-fn advance(options: AdvanceOptions) -> Result<Option<Value>, String> {
++fn advance(options: AdvanceOptions, admission: super::admission_anchor::PreparedAdmission) -> Result<Option<Value>, String> {
+     let mode = s_allocation::load_testonly_environment()?;
+     let clock = v2::ClockPlan::load(&options.clock)?;
+     checked_profile(&options.profile)?;
+@@ -581,6 +605,7 @@
+         clock,
+         input.as_ref(),
+         mode,
++        admission,
+     )?;
+     match input {
+         Some(envelope) => Ok(Some(driver.handle(envelope)?)),
+@@ -590,13 +615,14 @@
+ 
+ /// 监督器换代：清未完成 Begin 只经 `driver::recover`（完整状态有效 + epoch 严格上升）；
+ /// 不重写已接纳消息，不另造 Release，不碰 v1/v2 的 recover 路径。
+-fn recover(options: RecoverOptions) -> Result<Option<Value>, String> {
++fn recover(options: RecoverOptions, admission: super::admission_anchor::PreparedAdmission) -> Result<Option<Value>, String> {
+     let clock = v2::ClockPlan::load(&options.clock)?;
+     Ok(Some(driver::recover(
+         &options.db,
+         &options.new_epoch,
+         &clock,
+         &options.clock_event,
++        admission,
+     )?))
+ }
+ 
+--- a/rust/src/bin/s_session_v3/driver.rs
++++ b/rust/src/bin/s_session_v3/driver.rs
+@@ -4,7 +4,6 @@
+ 
+ use super::*;
+ use newchan_rust::session_protocol::{required, validate_envelope};
+-use std::fs::File;
+ 
+ /// CLI 预检与运行中 handler 共用的唯一 typed 请求判据。
+ pub(super) fn validate_request(envelope: Value) -> Result<Value, String> {
+@@ -88,7 +87,7 @@
+     /// #1394：Native私有诊断开关在首次事务前冻结。
+     #[cfg(feature = "s_capture_native_testonly")]
+     sqlite_pager_probe: bool,
+-    _lock: File,
++    _scope: super::admission::WriterScope,
+     #[cfg(test)]
+     stop_after: Option<&'static str>,
+ }
+@@ -100,6 +99,7 @@
+         epoch: &str,
+         clock: v2::ClockPlan,
+         audit_cache_source_bytes: usize,
++        admission: super::admission_anchor::PreparedAdmission,
+     ) -> Result<Self, String> {
+         Self::open_for_serve_with_allocation(
+             db,
+@@ -108,7 +108,8 @@
+             clock,
+             audit_cache_source_bytes,
+             None,
+-        )
++        admission,
++    )
+     }
+ 
+     pub(super) fn open_for_serve_with_allocation(
+@@ -118,6 +119,7 @@
+         clock: v2::ClockPlan,
+         audit_cache_source_bytes: usize,
+         allocation: Option<q_allocation::Profile>,
++        admission: super::admission_anchor::PreparedAdmission,
+     ) -> Result<Self, String> {
+         Self::open_for_serve_with_mode(
+             db,
+@@ -126,7 +128,8 @@
+             clock,
+             audit_cache_source_bytes,
+             allocation.into(),
+-        )
++        admission,
++    )
+     }
+ 
+     pub(super) fn open_for_serve_with_mode(
+@@ -136,9 +139,12 @@
+         clock: v2::ClockPlan,
+         audit_cache_source_bytes: usize,
+         mode: s_allocation::Mode,
++        admission: super::admission_anchor::PreparedAdmission,
+     ) -> Result<Self, String> {
+         state::check_audit_source_retention(audit_cache_source_bytes)?;
+-        let mut driver = Self::open_with_request_and_mode(db, profile, epoch, clock, None, mode)?;
++        let mut driver = Self::open_with_request_and_mode(db, profile, epoch, clock, None, mode,
++        admission,
++    )?;
+         driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
+         Ok(driver)
+     }
+@@ -151,6 +157,7 @@
+         clock: v2::ClockPlan,
+         audit_cache_source_bytes: usize,
+         mode: s_allocation::Mode,
++        admission: super::admission_anchor::PreparedAdmission,
+     ) -> Result<(Self, (String, String, String)), String> {
+         state::check_audit_source_retention(audit_cache_source_bytes)?;
+         if !matches!(mode, s_allocation::Mode::CapturedNative) {
+@@ -165,7 +172,8 @@
+             None,
+             mode,
+             Some(&mut context),
+-        )?;
++        admission,
++    )?;
+         driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
+         let identity = driver.identity_in_bootstrap(&mut context)?;
+         drop(context);
+@@ -199,8 +207,11 @@
+         profile: &Path,
+         epoch: &str,
+         clock: v2::ClockPlan,
++        admission: super::admission_anchor::PreparedAdmission,
+     ) -> Result<Self, String> {
+-        Self::open_with_request(db, profile, epoch, clock, None)
++        Self::open_with_request(db, profile, epoch, clock, None,
++        admission,
++    )
+     }
+ 
+     /// 输入请求在同一写者进程锁内、任何 pending 自动恢复之前再核一次。
+@@ -210,8 +221,11 @@
+         epoch: &str,
+         clock: v2::ClockPlan,
+         request: Option<&Value>,
++        admission: super::admission_anchor::PreparedAdmission,
+     ) -> Result<Self, String> {
+-        Self::open_with_request_and_allocation(db, profile, epoch, clock, request, None)
++        Self::open_with_request_and_allocation(db, profile, epoch, clock, request, None,
++        admission,
++    )
+     }
+ 
+     /// 在恢复 pending 之前冻结私有 TestOnly 档；启动身份审计仍走原入口。
+@@ -222,8 +236,11 @@
+         clock: v2::ClockPlan,
+         request: Option<&Value>,
+         allocation: Option<q_allocation::Profile>,
++        admission: super::admission_anchor::PreparedAdmission,
+     ) -> Result<Self, String> {
+-        Self::open_with_request_and_mode(db, profile, epoch, clock, request, allocation.into())
++        Self::open_with_request_and_mode(db, profile, epoch, clock, request, allocation.into(),
++        admission,
++    )
+     }
+ 
+     /// startup仅显式CapturedNative做同核全捕获；其它模式保持普通。在pending恢复前审计并冻结模式。
+@@ -235,8 +252,11 @@
+         clock: v2::ClockPlan,
+         request: Option<&Value>,
+         mode: s_allocation::Mode,
++        admission: super::admission_anchor::PreparedAdmission,
+     ) -> Result<Self, String> {
+-        Self::open_with_request_and_mode_context(db, profile, epoch, clock, request, mode, None)
++        Self::open_with_request_and_mode_context(db, profile, epoch, clock, request, mode, None,
++        admission,
++    )
+     }
+     // #1394：None保持原open；Some仅专有Native服务bootstrap调用，不保存context。
+     fn open_with_request_and_mode_context(
+@@ -247,13 +267,16 @@
+         request: Option<&Value>,
+         mode: s_allocation::Mode,
+         mut startup_context: Option<&mut request_audit::RequestAuditContext>,
++        admission: super::admission_anchor::PreparedAdmission,
+     ) -> Result<Self, String> {
+         mode.validate()?;
+         parse_writer_epoch(epoch, "configured writer_epoch")?;
+         if !db.is_file() {
+             return Err("StorageUnavailable：S3驱动只打开已初始化库".into());
+         }
+-        let lock = session_transport::process_lock(db, "S")?;
++        let scope = super::admission::WriterScope::admit(db, admission)?;
++        let db = scope.db_path();
++        scope.require_admitted()?;
+         let conn = super::audit_owner::AuditConnection::open(db)?;
+         #[cfg(feature = "s_capture_native_testonly")]
+         let sqlite_pager_probe = matches!(mode, s_allocation::Mode::CapturedNative)
+@@ -281,7 +304,7 @@
+             audit_cache_source_bytes: None,
+             #[cfg(feature = "s_capture_native_testonly")]
+             sqlite_pager_probe,
+-            _lock: lock,
++            _scope: scope,
+             #[cfg(test)]
+             stop_after: None,
+         };
+@@ -458,12 +481,15 @@
+     new_epoch: &str,
+     clock: &v2::ClockPlan,
+     clock_event: &str,
+-) -> Result<Value, String> {
++        admission: super::admission_anchor::PreparedAdmission,
++    ) -> Result<Value, String> {
+     parse_writer_epoch(new_epoch, "new writer_epoch")?;
+     if !db.is_file() {
+         return Err("StorageUnavailable：恢复需要已初始化库".into());
+     }
+-    let _lock = session_transport::process_lock(db, "S")?;
++    let scope = super::admission::WriterScope::admit(db, admission)?;
++    let db = scope.db_path();
++    scope.require_admitted()?;
+     let conn = super::audit_owner::AuditConnection::open(db)?;
+     conn.recover(new_epoch, clock, clock_event)
+ }
+--- a/rust/src/bin/s_session_v2/mod.rs
++++ b/rust/src/bin/s_session_v2/mod.rs
+@@ -2473,12 +2473,15 @@
+     epoch: &str,
+     clock_path: &Path,
+     bounds: Bounds,
+-) -> Result<(), String> {
++        admission: crate::v3::admission_anchor::PreparedAdmission,
++    ) -> Result<(), String> {
+     positive(epoch, "v2 writer_epoch")?;
+     cache::configure(bounds.cache_bytes);
+     // 监督器nonce仅用于把Ready绑定真实启动进程；绝不进入业务payload/hash/持久事实。
+     let control_instance_id = std::env::var("S_CONTROL_INSTANCE_ID").ok();
+-    let _lock = process_lock(db)?;
++    let scope = crate::v3::admission::WriterScope::admit(db, admission)?;
++    let db = scope.db_path();
++    scope.require_admitted()?;
+     let clock = ClockPlan::load(clock_path)?;
+     let conn = open_db(db)?;
+     let tx = conn.unchecked_transaction().map_err(err)?;
+@@ -2514,12 +2517,13 @@
+             clock: clock.clone(),
+         };
+         // 此身份已持久接纳：换代只取得新推进权，不能修改原payload中的旧writer_epoch。
++        scope.require_admitted()?;
+         advance_core(db, epoch, Some(&context))?;
+     }
+     serve_unix(socket, bounds.transport(), envelope, |e| {
+         response(
+             e,
+-            handle(db, profile, epoch, &clock, e),
++            scope.require_admitted().and_then(|()| handle(db, profile, epoch, &clock, e)),
+             &identity,
+             control_instance_id.as_deref(),
+         )
+@@ -2575,6 +2579,10 @@
+             queue: usize::try_from(positive_arg(args, "--queue-capacity")?).map_err(err)?,
+             connections: usize::try_from(positive_arg(args, "--max-connections")?).map_err(err)?,
+         };
++        let db = PathBuf::from(arg(args, "--db")?);
++        let admission = crate::v3::admission_anchor::from_args_for_db(
++            &db, args, crate::v3::admission_anchor::ControlEnv::capture(),
++        ).map_err(|error| error.to_string())?;
+         serve(
+             Path::new(&arg(args, "--db")?),
+             Path::new(&arg(args, "--socket")?),
+@@ -2582,6 +2590,7 @@
+             &arg(args, "--writer-epoch")?,
+             Path::new(&arg(args, "--clock-plan")?),
+             bounds,
++            admission,
+         )?;
+         return Ok(true);
+     }
+@@ -2591,10 +2600,14 @@
+             .any(|k| args.iter().any(|a| a == k))
+     {
+         let db = PathBuf::from(arg(args, "--db")?);
+-        let _lock = process_lock(&db)?;
++        let admission = crate::v3::admission_anchor::from_args_for_db(
++            &db, args, crate::v3::admission_anchor::ControlEnv::capture(),
++        ).map_err(|error| error.to_string())?;
++        let scope = crate::v3::admission::WriterScope::admit(&db, admission)?;
++        scope.require_admitted()?;
+         let clock = ClockPlan::load(Path::new(&arg(args, "--clock-plan")?))?;
+         let out = recover_core(
+-            &db,
++            scope.db_path(),
+             &arg(args, "--new-epoch")?,
+             Some((&clock, &arg(args, "--clock-event-id")?)),
+         )?;
+@@ -2604,13 +2617,33 @@
+     Ok(false)
+ }
+ 
+-pub fn legacy_write_lock(args: &[String]) -> Result<Option<File>, String> {
+-    if matches!(
+-        args.get(1).map(String::as_str),
+-        Some("init" | "reset" | "accept" | "advance" | "recover")
+-    ) {
++// init/reset 保留旧锁分支，本提案不授予新库准备、重置或既存无锚接管资格。
++pub enum LegacyWriteGuard {
++    Initialization(File),
++    Existing(crate::v3::admission::WriterScope),
++}
++impl LegacyWriteGuard {
++    pub fn require_admitted(&self) -> Result<(), String> {
++        match self {
++            Self::Initialization(_) => Ok(()),
++            Self::Existing(scope) => scope.require_admitted(),
++        }
++    }
++}
++
++pub fn legacy_write_lock(args: &[String]) -> Result<Option<LegacyWriteGuard>, String> {
++    let command = args.get(1).map(String::as_str);
++    if matches!(command, Some("accept" | "advance" | "recover")) {
+         let db = PathBuf::from(arg(args, "--db")?);
+-        return process_lock(&db).map(Some);
++        let prepared = crate::v3::admission_anchor::from_args_for_db(
++            &db, args, crate::v3::admission_anchor::ControlEnv::capture(),
++        ).map_err(|error| error.to_string())?;
++        return crate::v3::admission::WriterScope::admit(&db, prepared)
++            .map(|scope| Some(LegacyWriteGuard::Existing(scope)));
++    }
++    if matches!(command, Some("init" | "reset")) {
++        let db = PathBuf::from(arg(args, "--db")?);
++        return process_lock(&db).map(|file| Some(LegacyWriteGuard::Initialization(file)));
+     }
+     Ok(None)
+ }
+--- a/rust/src/bin/s_structure_session.rs
++++ b/rust/src/bin/s_structure_session.rs
+@@ -5403,6 +5403,9 @@
+         return Ok(());
+     }
+     let _writer_lock = v2::legacy_write_lock(&args)?;
++    if let Some(guard) = &_writer_lock {
++        guard.require_admitted()?;
++    }
+     let cmd = args[1].as_str();
+     let db = arg_value(&args, "--db").map(PathBuf::from);
+     let session = arg_value(&args, "--session").unwrap_or_else(|| "s-session-default".to_string());

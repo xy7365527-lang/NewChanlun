@@ -1,0 +1,752 @@
+{
+  "checks": [
+    {
+      "argv": [
+        "rustfmt",
+        "--edition",
+        "2021",
+        "--config",
+        "skip_children=true",
+        "rust/src/s_content/job.rs",
+        "rust/src/bin/s_structure_session.rs",
+        "rust/src/bin/s_session_v2/mod.rs",
+        "rust/src/bin/s_session_v3/mod.rs",
+        "rust/src/bin/s_session_v3/writer_cli.rs",
+        "rust/src/bin/s_session_v3/driver.rs",
+        "rust/src/bin/s_session_v3/admission.rs",
+        "rust/src/bin/s_session_v3/admission_anchor.rs",
+        "rust/src/bin/s_session_v3/admission_provider.rs",
+        "rust/src/bin/s_session_v3/admission_private/mod.rs",
+        "rust/src/bin/s_session_v3/admission_private/fd_wal.rs",
+        "s_session/tests/issue1527_recovery/anchor_tests.rs",
+        "s_session/tests/issue1527_recovery/test_support.rs"
+      ],
+      "rc": 0,
+      "input_sha256": {
+        "rust/src/s_content/job.rs": "01556329325d11752f2f2bb8b6fe684cf36fba0411cbe092cc9329a04dc3b9e2",
+        "rust/src/bin/s_structure_session.rs": "78f0842837a7ebbe4918a72a884d5fdc7adf77d462a6e96feff6b64cf6b341e7",
+        "rust/src/bin/s_session_v2/mod.rs": "2c1fc450b3491be82d8054a3a57757f61a7ff55f26d4bdc266828535ecd19337",
+        "rust/src/bin/s_session_v3/mod.rs": "50285588b984a4f1d7b2ba27de0eac740c4c57ed27454c9ee366a2fa7831bee4",
+        "rust/src/bin/s_session_v3/writer_cli.rs": "62d85e129d626deff3fb7033ffb036ac4023ddda1b9cd30c323cfe765b412b95",
+        "rust/src/bin/s_session_v3/driver.rs": "5ace5914cec990d755952d5c4ef4fd10ef74eb66db7a4d3aae569c17d2bc9015",
+        "rust/src/bin/s_session_v3/admission.rs": "69c7b00b781d63d8c3c063cdfd200686dbc1a50311b134933a41c2a9fd3f935e",
+        "rust/src/bin/s_session_v3/admission_anchor.rs": "6842c68d4159c3bb2283f4599a8fe544f703fabea8815e558a8d937858dd67b3",
+        "rust/src/bin/s_session_v3/admission_provider.rs": "36e29bc7b5311e253e0d4d13e70713872aa96b85783392567a3bb5563a2a8a9d",
+        "rust/src/bin/s_session_v3/admission_private/mod.rs": "c5916dced26bd33671000ee06d84b11789dd489ef459854ff164b75679e77076",
+        "rust/src/bin/s_session_v3/admission_private/fd_wal.rs": "dc8fe5aebcced06a182d22f518a5a583a8d846b2303fc71735faf9e107446153",
+        "s_session/tests/issue1527_recovery/anchor_tests.rs": "c15fe1c01c619414c86b12505e7f1578a28acc2986184ae597d80a22fc1f9b47",
+        "s_session/tests/issue1527_recovery/test_support.rs": "76014b816c69e054e6ecffee2e678ceb8a072ae39d6d0565fc04d87982fe6ca4"
+      },
+      "stdout": "",
+      "stderr": "",
+      "kind": "格式化与语法解析，不是类型检查"
+    },
+    {
+      "argv": [
+        "rustfmt",
+        "--edition",
+        "2021",
+        "--config",
+        "skip_children=true",
+        "rust/src/s_content/job.rs",
+        "rust/src/bin/s_structure_session.rs",
+        "rust/src/bin/s_session_v2/mod.rs",
+        "rust/src/bin/s_session_v3/mod.rs",
+        "rust/src/bin/s_session_v3/writer_cli.rs",
+        "rust/src/bin/s_session_v3/driver.rs",
+        "rust/src/bin/s_session_v3/admission.rs",
+        "rust/src/bin/s_session_v3/admission_anchor.rs",
+        "rust/src/bin/s_session_v3/admission_provider.rs",
+        "rust/src/bin/s_session_v3/admission_private/mod.rs",
+        "rust/src/bin/s_session_v3/admission_private/fd_wal.rs",
+        "s_session/tests/issue1527_recovery/anchor_tests.rs",
+        "s_session/tests/issue1527_recovery/test_support.rs",
+        "s_session/tests/issue1527_recovery/provider_tests.rs"
+      ],
+      "rc": 1,
+      "input_sha256": {
+        "rust/src/s_content/job.rs": "de9c6f46b4e8827962f0ef3e7b31bd1300b2e9b461c58e573cb7efa001939554",
+        "rust/src/bin/s_structure_session.rs": "628347f6c682f1649f2d0d5f41fbe8fde5565064f31fd04d3f6e6322c6b47199",
+        "rust/src/bin/s_session_v2/mod.rs": "f6c33210bbba7d438e1382801612aa3db35914a93dc725903c2340648bd5eac1",
+        "rust/src/bin/s_session_v3/mod.rs": "f301023bba9f1d6588f0021694b1ff9a0498f481e174889b20b0bd5a83936811",
+        "rust/src/bin/s_session_v3/writer_cli.rs": "39581561836035e967ed69840e7f1fd88ddc467604bbd4e839474fac518e6c22",
+        "rust/src/bin/s_session_v3/driver.rs": "31e438f6225feb8f614e210a5b360146bd20d13d2d11f7dc46644f4acd54f9a9",
+        "rust/src/bin/s_session_v3/admission.rs": "5ed949cbdb7a329977c152bdeed3caefd29edd42377e3e92ff76912bd4c57112",
+        "rust/src/bin/s_session_v3/admission_anchor.rs": "8da70cbf7bce3f7ef791ef9b8acb8e81f8d29d19ef3649714faeb25d40a7f791",
+        "rust/src/bin/s_session_v3/admission_provider.rs": "bed4246da89c98456f1de5b57a8c8993bbb41e88da1fa19c6aa88d04cc063b75",
+        "rust/src/bin/s_session_v3/admission_private/mod.rs": "1fc3d5c7933a5a2787c26d557fbc4e9a98bdaa2707c082166dad20d3c03e670a",
+        "rust/src/bin/s_session_v3/admission_private/fd_wal.rs": "83cfc453fdeaab5892274410650587736c09d62fc5c77eadea164c4d21ecda1f",
+        "s_session/tests/issue1527_recovery/anchor_tests.rs": "c15fe1c01c619414c86b12505e7f1578a28acc2986184ae597d80a22fc1f9b47",
+        "s_session/tests/issue1527_recovery/test_support.rs": "45209b8afaa1f57463c3f909249a3e933e93afe8b1602183ccd0e3f427ee913e",
+        "s_session/tests/issue1527_recovery/provider_tests.rs": "96e645f54abd54ab0ee862abf81f56383677fc6050ac4ac7fec320d5fe0131d6"
+      },
+      "stdout": "",
+      "stderr": "error: non-ASCII character in byte string literal\n  --> /Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs:41:31\n   |\n41 |     std::fs::write(&journal,b\"具名journal介质，不手写解释器\").unwrap();\n   |                               ^^ must be ASCII\n   |\nhelp: if you meant to use the UTF-8 encoding of '具', use \\xHH escapes\n   |\n41 -     std::fs::write(&journal,b\"具名journal介质，不手写解释器\").unwrap();\n41 +     std::fs::write(&journal,b\"\\xE5\\x85\\xB7名journal介质，不手写解释器\").unwrap();\n   |\n\nerror: non-ASCII character in byte string literal\n  --> /Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs:41:32\n   |\n41 |     std::fs::write(&journal,b\"具名journal介质，不手写解释器\").unwrap();\n   |                                 ^^ must be ASCII\n   |\nhelp: if you meant to use the UTF-8 encoding of '名', use \\xHH escapes\n   |\n41 -     std::fs::write(&journal,b\"具名journal介质，不手写解释器\").unwrap();\n41 +     std::fs::write(&journal,b\"具\\xE5\\x90\\x8Djournal介质，不手写解释器\").unwrap();\n   |\n\nerror: non-ASCII character in byte string literal\n  --> /Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs:41:40\n   |\n41 |     std::fs::write(&journal,b\"具名journal介质，不手写解释器\").unwrap();\n   |                                          ^^ must be ASCII\n   |\nhelp: if you meant to use the UTF-8 encoding of '介', use \\xHH escapes\n   |\n41 -     std::fs::write(&journal,b\"具名journal介质，不手写解释器\").unwrap();\n41 +     std::fs::write(&journal,b\"具名journal\\xE4\\xBB\\x8B质，不手写解释器\").unwrap();\n   |\n\nerror: non-ASCII character in byte string literal\n  --> /Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs:41:41\n   |\n41 |     std::fs::write(&journal,b\"具名journal介质，不手写解释器\").unwrap();\n   |                                            ^^ must be ASCII\n   |\nhelp: if you meant to use the UTF-8 encoding of '质', use \\xHH escapes\n   |\n41 -     std::fs::write(&journal,b\"具名journal介质，不手写解释器\").unwrap();\n41 +     std::fs::write(&journal,b\"具名journal介\\xE8\\xB4\\xA8，不手写解释器\").unwrap();\n   |\n\nerror: non-ASCII character in byte string literal\n  --> /Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs:41:42\n   |\n41 |     std::fs::write(&journal,b\"具名journal介质，不手写解释器\").unwrap();\n   |                                              ^^ must be ASCII\n   |\nhelp: if you meant to use the UTF-8 encoding of '，', use \\xHH escapes\n   |\n41 -     std::fs::write(&journal,b\"具名journal介质，不手写解释器\").unwrap();\n41 +     std::fs::write(&journal,b\"具名journal介质\\xEF\\xBC\\x8C不手写解释器\").unwrap();\n   |\n\nerror: non-ASCII character in byte string literal\n  --> /Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs:41:43\n   |\n41 |     std::fs::write(&journal,b\"具名journal介质，不手写解释器\").unwrap();\n   |                                                ^^ must be ASCII\n   |\nhelp: if you meant to use the UTF-8 encoding of '不', use \\xHH escapes\n   |\n41 -     std::fs::write(&journal,b\"具名journal介质，不手写解释器\").unwrap();\n41 +     std::fs::write(&journal,b\"具名journal介质，\\xE4\\xB8\\x8D手写解释器\").unwrap();\n   |\n\nerror: non-ASCII character in byte string literal\n  --> /Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs:41:44\n   |\n41 |     std::fs::write(&journal,b\"具名journal介质，不手写解释器\").unwrap();\n   |                                                  ^^ must be ASCII\n   |\nhelp: if you meant to use the UTF-8 encoding of '手', use \\xHH escapes\n   |\n41 -     std::fs::write(&journal,b\"具名journal介质，不手写解释器\").unwrap();\n41 +     std::fs::write(&journal,b\"具名journal介质，不\\xE6\\x89\\x8B写解释器\").unwrap();\n   |\n\nerror: non-ASCII character in byte string literal\n  --> /Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs:41:45\n   |\n41 |     std::fs::write(&journal,b\"具名journal介质，不手写解释器\").unwrap();\n   |                                                    ^^ must be ASCII\n   |\nhelp: if you meant to use the UTF-8 encoding of '写', use \\xHH escapes\n   |\n41 -     std::fs::write(&journal,b\"具名journal介质，不手写解释器\").unwrap();\n41 +     std::fs::write(&journal,b\"具名journal介质，不手\\xE5\\x86\\x99解释器\").unwrap();\n   |\n\nerror: non-ASCII character in byte string literal\n  --> /Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs:41:46\n   |\n41 |     std::fs::write(&journal,b\"具名journal介质，不手写解释器\").unwrap();\n   |                                                      ^^ must be ASCII\n   |\nhelp: if you meant to use the UTF-8 encoding of '解', use \\xHH escapes\n   |\n41 -     std::fs::write(&journal,b\"具名journal介质，不手写解释器\").unwrap();\n41 +     std::fs::write(&journal,b\"具名journal介质，不手写\\xE8\\xA7\\xA3释器\").unwrap();\n   |\n\nerror: non-ASCII character in byte string literal\n  --> /Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs:41:47\n   |\n41 |     std::fs::write(&journal,b\"具名journal介质，不手写解释器\").unwrap();\n   |                                                        ^^ must be ASCII\n   |\nhelp: if you meant to use the UTF-8 encoding of '释', use \\xHH escapes\n   |\n41 -     std::fs::write(&journal,b\"具名journal介质，不手写解释器\").unwrap();\n41 +     std::fs::write(&journal,b\"具名journal介质，不手写解\\xE9\\x87\\x8A器\").unwrap();\n   |\n\nerror: non-ASCII character in byte string literal\n  --> /Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs:41:48\n   |\n41 |     std::fs::write(&journal,b\"具名journal介质，不手写解释器\").unwrap();\n   |                                                          ^^ must be ASCII\n   |\nhelp: if you meant to use the UTF-8 encoding of '器', use \\xHH escapes\n   |\n41 -     std::fs::write(&journal,b\"具名journal介质，不手写解释器\").unwrap();\n41 +     std::fs::write(&journal,b\"具名journal介质，不手写解释\\xE5\\x99\\xA8\").unwrap();\n   |\n\nerror: non-ASCII character in byte string literal\n  --> /Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs:48:49\n   |\n48 |     let f=Fixture::new();std::fs::write(&f.db,b\"非SQLite数据库\").unwrap();let before=std::fs::read(&f.db).unwrap();\n   |                                                 ^^ must be ASCII\n   |\nhelp: if you meant to use the UTF-8 encoding of '非', use \\xHH escapes\n   |\n48 -     let f=Fixture::new();std::fs::write(&f.db,b\"非SQLite数据库\").unwrap();let before=std::fs::read(&f.db).unwrap();\n48 +     let f=Fixture::new();std::fs::write(&f.db,b\"\\xE9\\x9D\\x9ESQLite数据库\").unwrap();let before=std::fs::read(&f.db).unwrap();\n   |\n\nerror: non-ASCII character in byte string literal\n  --> /Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs:48:56\n   |\n48 |     let f=Fixture::new();std::fs::write(&f.db,b\"非SQLite数据库\").unwrap();let before=std::fs::read(&f.db).unwrap();\n   |                                                         ^^ must be ASCII\n   |\nhelp: if you meant to use the UTF-8 encoding of '数', use \\xHH escapes\n   |\n48 -     let f=Fixture::new();std::fs::write(&f.db,b\"非SQLite数据库\").unwrap();let before=std::fs::read(&f.db).unwrap();\n48 +     let f=Fixture::new();std::fs::write(&f.db,b\"非SQLite\\xE6\\x95\\xB0据库\").unwrap();let before=std::fs::read(&f.db).unwrap();\n   |\n\nerror: non-ASCII character in byte string literal\n  --> /Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs:48:57\n   |\n48 |     let f=Fixture::new();std::fs::write(&f.db,b\"非SQLite数据库\").unwrap();let before=std::fs::read(&f.db).unwrap();\n   |                                                           ^^ must be ASCII\n   |\nhelp: if you meant to use the UTF-8 encoding of '据', use \\xHH escapes\n   |\n48 -     let f=Fixture::new();std::fs::write(&f.db,b\"非SQLite数据库\").unwrap();let before=std::fs::read(&f.db).unwrap();\n48 +     let f=Fixture::new();std::fs::write(&f.db,b\"非SQLite数\\xE6\\x8D\\xAE库\").unwrap();let before=std::fs::read(&f.db).unwrap();\n   |\n\nerror: non-ASCII character in byte string literal\n  --> /Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs:48:58\n   |\n48 |     let f=Fixture::new();std::fs::write(&f.db,b\"非SQLite数据库\").unwrap();let before=std::fs::read(&f.db).unwrap();\n   |                                                             ^^ must be ASCII\n   |\nhelp: if you meant to use the UTF-8 encoding of '库', use \\xHH escapes\n   |\n48 -     let f=Fixture::new();std::fs::write(&f.db,b\"非SQLite数据库\").unwrap();let before=std::fs::read(&f.db).unwrap();\n48 +     let f=Fixture::new();std::fs::write(&f.db,b\"非SQLite数据\\xE5\\xBA\\x93\").unwrap();let before=std::fs::read(&f.db).unwrap();\n   |\n\n",
+      "kind": "最终格式化和语法解析"
+    },
+    {
+      "argv": [
+        "python3",
+        "-B",
+        ".chanlun/review-results/issue1527-formal-i1-20261018/static_checks.py"
+      ],
+      "rc": 0,
+      "input_sha256": {
+        "rust/src/s_content/job.rs": "de9c6f46b4e8827962f0ef3e7b31bd1300b2e9b461c58e573cb7efa001939554",
+        "rust/src/bin/s_structure_session.rs": "628347f6c682f1649f2d0d5f41fbe8fde5565064f31fd04d3f6e6322c6b47199",
+        "rust/src/bin/s_session_v2/mod.rs": "f6c33210bbba7d438e1382801612aa3db35914a93dc725903c2340648bd5eac1",
+        "rust/src/bin/s_session_v3/mod.rs": "f301023bba9f1d6588f0021694b1ff9a0498f481e174889b20b0bd5a83936811",
+        "rust/src/bin/s_session_v3/writer_cli.rs": "62df023972c1a0c3f575b33cead4f7bd700b99111eec6afa2805f929c359bd2b",
+        "rust/src/bin/s_session_v3/driver.rs": "91474428e1730e0111e929a46a616e9385d7709e09cb65ecde9380faa8b21049",
+        "rust/src/bin/s_session_v3/admission.rs": "c1f36aa78baae4843eab7fddd8c2f39d1e56e32b5a5d4d217bd73515c084ad20",
+        "rust/src/bin/s_session_v3/admission_anchor.rs": "3a0680d4a00784694737b65176874d2dbbdce8a59c89aad544223e3b32d671cd",
+        "rust/src/bin/s_session_v3/admission_provider.rs": "7ac6ed082344649ca7bc9c5d87a2ac68092802efe2e9d54b57ee9a7eb89a3163",
+        "rust/src/bin/s_session_v3/admission_private/mod.rs": "1fc3d5c7933a5a2787c26d557fbc4e9a98bdaa2707c082166dad20d3c03e670a",
+        "rust/src/bin/s_session_v3/admission_private/fd_wal.rs": "a5956fcdce9db4ffbf80d3bcdcea4a5b92c3e873136bb3b9bbc99974594e8382",
+        "s_session/tests/issue1527_recovery/anchor_tests.rs": "c15fe1c01c619414c86b12505e7f1578a28acc2986184ae597d80a22fc1f9b47",
+        "s_session/tests/issue1527_recovery/test_support.rs": "45209b8afaa1f57463c3f909249a3e933e93afe8b1602183ccd0e3f427ee913e",
+        "s_session/tests/issue1527_recovery/provider_tests.rs": "96e645f54abd54ab0ee862abf81f56383677fc6050ac4ac7fec320d5fe0131d6",
+        ".chanlun/review-results/issue1527-formal-i1-20261018/static_checks.py": "2a97f27701e9bcce298f494d922fd8e857f7e783aeac4bcb3fdd5856d31fc10b",
+        "../python-r4-worktree/s_session/recovery_admission.py": "36e79b726ca638dc24d6b23eb33119a4f866d89b3f1f274ba4a4d41e3526bd4d"
+      },
+      "stdout": "{\"限定静态检查\": \"通过\", \"Python合同输入SHA256\": \"36e79b726ca638dc24d6b23eb33119a4f866d89b3f1f274ba4a4d41e3526bd4d\", \"Rust类型与执行\": \"NOT_RUN\", \"SQLite执行\": \"NOT_RUN\", \"规则完整性与恢复验收\": \"OPEN\"}\n",
+      "stderr": "",
+      "kind": "限定静态检查与合同AST"
+    },
+    {
+      "argv": [
+        "python3",
+        "-B",
+        "s_session/tests/issue1527_recovery/i1_model_checks.py"
+      ],
+      "rc": 1,
+      "input_sha256": {
+        "s_session/tests/issue1527_recovery/i1_model_checks.py": "9dfcda98f12b908f56c1ad4964bff1fb2b2d2082454d8f1a210232583065c771"
+      },
+      "stdout": "",
+      "stderr": "test_actual_wire_still_precedes_deadline (__main__.Checks.test_actual_wire_still_precedes_deadline) ... ok\ntest_dual_lock_failfast_and_release (__main__.Checks.test_dual_lock_failfast_and_release) ... ok\ntest_known_media_do_not_fallback (__main__.Checks.test_known_media_do_not_fallback) ... ok\ntest_nonzero_physical_baseline_and_sidecar_included (__main__.Checks.test_nonzero_physical_baseline_and_sidecar_included) ... FAIL\ntest_pre_reservation_account_and_finish_not_swapped (__main__.Checks.test_pre_reservation_account_and_finish_not_swapped) ... ok\ntest_same_bytes_replacement_keeps_original_fd_and_fails_identity (__main__.Checks.test_same_bytes_replacement_keeps_original_fd_and_fails_identity) ... ok\n\n======================================================================\nFAIL: test_nonzero_physical_baseline_and_sidecar_included (__main__.Checks.test_nonzero_physical_baseline_and_sidecar_included)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/i1_model_checks.py\", line 58, in test_nonzero_physical_baseline_and_sidecar_included\n    self.assertLess(sparse.stat().st_blocks * 512, sparse.stat().st_size)\n    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 1052672 not less than 1048577\n\n----------------------------------------------------------------------\nRan 6 tests in 0.003s\n\nFAILED (failures=1)\n",
+      "kind": "纯模型和小临时文件"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "rc": 0,
+      "input_sha256": {
+        "rust/src/s_content/job.rs": "de9c6f46b4e8827962f0ef3e7b31bd1300b2e9b461c58e573cb7efa001939554",
+        "rust/src/bin/s_structure_session.rs": "628347f6c682f1649f2d0d5f41fbe8fde5565064f31fd04d3f6e6322c6b47199",
+        "rust/src/bin/s_session_v2/mod.rs": "f6c33210bbba7d438e1382801612aa3db35914a93dc725903c2340648bd5eac1",
+        "rust/src/bin/s_session_v3/mod.rs": "f301023bba9f1d6588f0021694b1ff9a0498f481e174889b20b0bd5a83936811",
+        "rust/src/bin/s_session_v3/writer_cli.rs": "62df023972c1a0c3f575b33cead4f7bd700b99111eec6afa2805f929c359bd2b",
+        "rust/src/bin/s_session_v3/driver.rs": "91474428e1730e0111e929a46a616e9385d7709e09cb65ecde9380faa8b21049",
+        "rust/src/bin/s_session_v3/admission.rs": "c1f36aa78baae4843eab7fddd8c2f39d1e56e32b5a5d4d217bd73515c084ad20",
+        "rust/src/bin/s_session_v3/admission_anchor.rs": "3a0680d4a00784694737b65176874d2dbbdce8a59c89aad544223e3b32d671cd",
+        "rust/src/bin/s_session_v3/admission_provider.rs": "7ac6ed082344649ca7bc9c5d87a2ac68092802efe2e9d54b57ee9a7eb89a3163",
+        "rust/src/bin/s_session_v3/admission_private/mod.rs": "1fc3d5c7933a5a2787c26d557fbc4e9a98bdaa2707c082166dad20d3c03e670a",
+        "rust/src/bin/s_session_v3/admission_private/fd_wal.rs": "a5956fcdce9db4ffbf80d3bcdcea4a5b92c3e873136bb3b9bbc99974594e8382",
+        "s_session/tests/issue1527_recovery/anchor_tests.rs": "c15fe1c01c619414c86b12505e7f1578a28acc2986184ae597d80a22fc1f9b47",
+        "s_session/tests/issue1527_recovery/test_support.rs": "45209b8afaa1f57463c3f909249a3e933e93afe8b1602183ccd0e3f427ee913e",
+        "s_session/tests/issue1527_recovery/provider_tests.rs": "96e645f54abd54ab0ee862abf81f56383677fc6050ac4ac7fec320d5fe0131d6"
+      },
+      "stdout": "",
+      "stderr": "",
+      "kind": "已跟踪差异空白检查"
+    },
+    {
+      "argv": [
+        "rustfmt",
+        "--edition",
+        "2021",
+        "--config",
+        "skip_children=true",
+        "rust/src/s_content/job.rs",
+        "rust/src/bin/s_structure_session.rs",
+        "rust/src/bin/s_session_v2/mod.rs",
+        "rust/src/bin/s_session_v3/mod.rs",
+        "rust/src/bin/s_session_v3/writer_cli.rs",
+        "rust/src/bin/s_session_v3/driver.rs",
+        "rust/src/bin/s_session_v3/admission.rs",
+        "rust/src/bin/s_session_v3/admission_anchor.rs",
+        "rust/src/bin/s_session_v3/admission_provider.rs",
+        "rust/src/bin/s_session_v3/admission_private/mod.rs",
+        "rust/src/bin/s_session_v3/admission_private/fd_wal.rs",
+        "s_session/tests/issue1527_recovery/anchor_tests.rs",
+        "s_session/tests/issue1527_recovery/test_support.rs",
+        "s_session/tests/issue1527_recovery/provider_tests.rs"
+      ],
+      "rc": 0,
+      "input_sha256": {
+        "rust/src/s_content/job.rs": "de9c6f46b4e8827962f0ef3e7b31bd1300b2e9b461c58e573cb7efa001939554",
+        "rust/src/bin/s_structure_session.rs": "628347f6c682f1649f2d0d5f41fbe8fde5565064f31fd04d3f6e6322c6b47199",
+        "rust/src/bin/s_session_v2/mod.rs": "f6c33210bbba7d438e1382801612aa3db35914a93dc725903c2340648bd5eac1",
+        "rust/src/bin/s_session_v3/mod.rs": "f301023bba9f1d6588f0021694b1ff9a0498f481e174889b20b0bd5a83936811",
+        "rust/src/bin/s_session_v3/writer_cli.rs": "62df023972c1a0c3f575b33cead4f7bd700b99111eec6afa2805f929c359bd2b",
+        "rust/src/bin/s_session_v3/driver.rs": "91474428e1730e0111e929a46a616e9385d7709e09cb65ecde9380faa8b21049",
+        "rust/src/bin/s_session_v3/admission.rs": "c1f36aa78baae4843eab7fddd8c2f39d1e56e32b5a5d4d217bd73515c084ad20",
+        "rust/src/bin/s_session_v3/admission_anchor.rs": "3a0680d4a00784694737b65176874d2dbbdce8a59c89aad544223e3b32d671cd",
+        "rust/src/bin/s_session_v3/admission_provider.rs": "7ac6ed082344649ca7bc9c5d87a2ac68092802efe2e9d54b57ee9a7eb89a3163",
+        "rust/src/bin/s_session_v3/admission_private/mod.rs": "1fc3d5c7933a5a2787c26d557fbc4e9a98bdaa2707c082166dad20d3c03e670a",
+        "rust/src/bin/s_session_v3/admission_private/fd_wal.rs": "a5956fcdce9db4ffbf80d3bcdcea4a5b92c3e873136bb3b9bbc99974594e8382",
+        "s_session/tests/issue1527_recovery/anchor_tests.rs": "c15fe1c01c619414c86b12505e7f1578a28acc2986184ae597d80a22fc1f9b47",
+        "s_session/tests/issue1527_recovery/test_support.rs": "45209b8afaa1f57463c3f909249a3e933e93afe8b1602183ccd0e3f427ee913e",
+        "s_session/tests/issue1527_recovery/provider_tests.rs": "9bec06cb2d0b1845be905aa26aa7314fee4770a83b16713f7c17a2b482edd79b"
+      },
+      "stdout": "",
+      "stderr": "",
+      "kind": "修正后格式化与语法解析"
+    },
+    {
+      "argv": [
+        "python3",
+        "-B",
+        "s_session/tests/issue1527_recovery/i1_model_checks.py"
+      ],
+      "rc": 0,
+      "input_sha256": {
+        "s_session/tests/issue1527_recovery/i1_model_checks.py": "62231d1d7bb3236c4fff4582a7e981fe82d2d7a499c901cf4ec6e65ea1a845c3"
+      },
+      "stdout": "",
+      "stderr": "test_actual_wire_still_precedes_deadline (__main__.Checks.test_actual_wire_still_precedes_deadline) ... ok\ntest_dual_lock_failfast_and_release (__main__.Checks.test_dual_lock_failfast_and_release) ... ok\ntest_known_media_do_not_fallback (__main__.Checks.test_known_media_do_not_fallback) ... ok\ntest_nonzero_physical_baseline_and_sidecar_included (__main__.Checks.test_nonzero_physical_baseline_and_sidecar_included) ... ok\ntest_pre_reservation_account_and_finish_not_swapped (__main__.Checks.test_pre_reservation_account_and_finish_not_swapped) ... ok\ntest_same_bytes_replacement_keeps_original_fd_and_fails_identity (__main__.Checks.test_same_bytes_replacement_keeps_original_fd_and_fails_identity) ... ok\n\n----------------------------------------------------------------------\nRan 6 tests in 0.003s\n\nOK\n",
+      "kind": "修正后纯模型和小临时文件"
+    },
+    {
+      "argv": [
+        "python3",
+        "-B",
+        ".chanlun/review-results/issue1527-formal-i1-20261018/static_checks.py"
+      ],
+      "rc": 0,
+      "input_sha256": {
+        "rust/src/s_content/job.rs": "de9c6f46b4e8827962f0ef3e7b31bd1300b2e9b461c58e573cb7efa001939554",
+        "rust/src/bin/s_structure_session.rs": "628347f6c682f1649f2d0d5f41fbe8fde5565064f31fd04d3f6e6322c6b47199",
+        "rust/src/bin/s_session_v2/mod.rs": "f6c33210bbba7d438e1382801612aa3db35914a93dc725903c2340648bd5eac1",
+        "rust/src/bin/s_session_v3/mod.rs": "f301023bba9f1d6588f0021694b1ff9a0498f481e174889b20b0bd5a83936811",
+        "rust/src/bin/s_session_v3/writer_cli.rs": "62df023972c1a0c3f575b33cead4f7bd700b99111eec6afa2805f929c359bd2b",
+        "rust/src/bin/s_session_v3/driver.rs": "91474428e1730e0111e929a46a616e9385d7709e09cb65ecde9380faa8b21049",
+        "rust/src/bin/s_session_v3/admission.rs": "c1f36aa78baae4843eab7fddd8c2f39d1e56e32b5a5d4d217bd73515c084ad20",
+        "rust/src/bin/s_session_v3/admission_anchor.rs": "3a0680d4a00784694737b65176874d2dbbdce8a59c89aad544223e3b32d671cd",
+        "rust/src/bin/s_session_v3/admission_provider.rs": "7ac6ed082344649ca7bc9c5d87a2ac68092802efe2e9d54b57ee9a7eb89a3163",
+        "rust/src/bin/s_session_v3/admission_private/mod.rs": "1fc3d5c7933a5a2787c26d557fbc4e9a98bdaa2707c082166dad20d3c03e670a",
+        "rust/src/bin/s_session_v3/admission_private/fd_wal.rs": "a5956fcdce9db4ffbf80d3bcdcea4a5b92c3e873136bb3b9bbc99974594e8382",
+        "s_session/tests/issue1527_recovery/anchor_tests.rs": "c15fe1c01c619414c86b12505e7f1578a28acc2986184ae597d80a22fc1f9b47",
+        "s_session/tests/issue1527_recovery/test_support.rs": "45209b8afaa1f57463c3f909249a3e933e93afe8b1602183ccd0e3f427ee913e",
+        "s_session/tests/issue1527_recovery/provider_tests.rs": "36513b7fd6db2aab3a3e591e4d2e9b04b1db95740c760bdabd55af03b8bab082",
+        ".chanlun/review-results/issue1527-formal-i1-20261018/static_checks.py": "2a97f27701e9bcce298f494d922fd8e857f7e783aeac4bcb3fdd5856d31fc10b",
+        "../python-r4-worktree/s_session/recovery_admission.py": "36e79b726ca638dc24d6b23eb33119a4f866d89b3f1f274ba4a4d41e3526bd4d"
+      },
+      "stdout": "{\"限定静态检查\": \"通过\", \"Python合同输入SHA256\": \"36e79b726ca638dc24d6b23eb33119a4f866d89b3f1f274ba4a4d41e3526bd4d\", \"Rust类型与执行\": \"NOT_RUN\", \"SQLite执行\": \"NOT_RUN\", \"规则完整性与恢复验收\": \"OPEN\"}\n",
+      "stderr": "",
+      "kind": "最终限定静态检查与合同AST"
+    },
+    {
+      "argv": [
+        "rustfmt",
+        "--edition",
+        "2021",
+        "--config",
+        "skip_children=true",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v2/mod.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_anchor.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_private/fd_wal.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_private/mod.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_provider.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/driver.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/mod.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/writer_cli.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_structure_session.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/s_content/job.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/anchor_tests.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/test_support.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "input_sha256": {
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v2/mod.rs": "f6c33210bbba7d438e1382801612aa3db35914a93dc725903c2340648bd5eac1",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission.rs": "d77d73dde107c3d669a081266d3ab33df776a27bb266d755537dbbcf7cdf9e9e",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_anchor.rs": "3a0680d4a00784694737b65176874d2dbbdce8a59c89aad544223e3b32d671cd",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_private/fd_wal.rs": "a5956fcdce9db4ffbf80d3bcdcea4a5b92c3e873136bb3b9bbc99974594e8382",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_private/mod.rs": "1fc3d5c7933a5a2787c26d557fbc4e9a98bdaa2707c082166dad20d3c03e670a",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_provider.rs": "45306996a31c5f8f760a8d107b57894a1d2fa9d966fc15eaf9cdca880f45a18f",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/driver.rs": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/mod.rs": "f301023bba9f1d6588f0021694b1ff9a0498f481e174889b20b0bd5a83936811",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/writer_cli.rs": "62df023972c1a0c3f575b33cead4f7bd700b99111eec6afa2805f929c359bd2b",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_structure_session.rs": "628347f6c682f1649f2d0d5f41fbe8fde5565064f31fd04d3f6e6322c6b47199",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/s_content/job.rs": "de9c6f46b4e8827962f0ef3e7b31bd1300b2e9b461c58e573cb7efa001939554",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/anchor_tests.rs": "c15fe1c01c619414c86b12505e7f1578a28acc2986184ae597d80a22fc1f9b47",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/i1_model_checks.py": "62231d1d7bb3236c4fff4582a7e981fe82d2d7a499c901cf4ec6e65ea1a845c3",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/model_checks.py": "2f58e238d2ee170eb4cbe3508c06473d88daa07ad7a5fa2e0130ed4784727730",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs": "36513b7fd6db2aab3a3e591e4d2e9b04b1db95740c760bdabd55af03b8bab082",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/test_support.rs": "45209b8afaa1f57463c3f909249a3e933e93afe8b1602183ccd0e3f427ee913e"
+      },
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "",
+      "kind": "封包检查；不是Rust执行"
+    },
+    {
+      "argv": [
+        "rustfmt",
+        "--edition",
+        "2021",
+        "--config",
+        "skip_children=true",
+        "--check",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v2/mod.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_anchor.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_private/fd_wal.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_private/mod.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_provider.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/driver.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/mod.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/writer_cli.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_structure_session.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/s_content/job.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/anchor_tests.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/test_support.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "input_sha256": {
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v2/mod.rs": "f6c33210bbba7d438e1382801612aa3db35914a93dc725903c2340648bd5eac1",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission.rs": "f7b9b2688ad2901c96c67aa06ea163077b90a2a87cfeac2f9a71072e79668c13",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_anchor.rs": "3a0680d4a00784694737b65176874d2dbbdce8a59c89aad544223e3b32d671cd",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_private/fd_wal.rs": "a5956fcdce9db4ffbf80d3bcdcea4a5b92c3e873136bb3b9bbc99974594e8382",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_private/mod.rs": "1fc3d5c7933a5a2787c26d557fbc4e9a98bdaa2707c082166dad20d3c03e670a",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_provider.rs": "45306996a31c5f8f760a8d107b57894a1d2fa9d966fc15eaf9cdca880f45a18f",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/driver.rs": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/mod.rs": "f301023bba9f1d6588f0021694b1ff9a0498f481e174889b20b0bd5a83936811",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/writer_cli.rs": "62df023972c1a0c3f575b33cead4f7bd700b99111eec6afa2805f929c359bd2b",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_structure_session.rs": "628347f6c682f1649f2d0d5f41fbe8fde5565064f31fd04d3f6e6322c6b47199",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/s_content/job.rs": "de9c6f46b4e8827962f0ef3e7b31bd1300b2e9b461c58e573cb7efa001939554",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/anchor_tests.rs": "c15fe1c01c619414c86b12505e7f1578a28acc2986184ae597d80a22fc1f9b47",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/i1_model_checks.py": "62231d1d7bb3236c4fff4582a7e981fe82d2d7a499c901cf4ec6e65ea1a845c3",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/model_checks.py": "2f58e238d2ee170eb4cbe3508c06473d88daa07ad7a5fa2e0130ed4784727730",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs": "36513b7fd6db2aab3a3e591e4d2e9b04b1db95740c760bdabd55af03b8bab082",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/test_support.rs": "45209b8afaa1f57463c3f909249a3e933e93afe8b1602183ccd0e3f427ee913e"
+      },
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "",
+      "kind": "封包检查；不是Rust执行"
+    },
+    {
+      "argv": [
+        "python3",
+        "-B",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/.chanlun/review-results/issue1527-formal-i1-20261018/static_checks.py"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "input_sha256": {
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v2/mod.rs": "f6c33210bbba7d438e1382801612aa3db35914a93dc725903c2340648bd5eac1",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission.rs": "f7b9b2688ad2901c96c67aa06ea163077b90a2a87cfeac2f9a71072e79668c13",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_anchor.rs": "3a0680d4a00784694737b65176874d2dbbdce8a59c89aad544223e3b32d671cd",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_private/fd_wal.rs": "a5956fcdce9db4ffbf80d3bcdcea4a5b92c3e873136bb3b9bbc99974594e8382",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_private/mod.rs": "1fc3d5c7933a5a2787c26d557fbc4e9a98bdaa2707c082166dad20d3c03e670a",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_provider.rs": "45306996a31c5f8f760a8d107b57894a1d2fa9d966fc15eaf9cdca880f45a18f",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/driver.rs": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/mod.rs": "f301023bba9f1d6588f0021694b1ff9a0498f481e174889b20b0bd5a83936811",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/writer_cli.rs": "62df023972c1a0c3f575b33cead4f7bd700b99111eec6afa2805f929c359bd2b",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_structure_session.rs": "628347f6c682f1649f2d0d5f41fbe8fde5565064f31fd04d3f6e6322c6b47199",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/s_content/job.rs": "de9c6f46b4e8827962f0ef3e7b31bd1300b2e9b461c58e573cb7efa001939554",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/anchor_tests.rs": "c15fe1c01c619414c86b12505e7f1578a28acc2986184ae597d80a22fc1f9b47",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/i1_model_checks.py": "62231d1d7bb3236c4fff4582a7e981fe82d2d7a499c901cf4ec6e65ea1a845c3",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/model_checks.py": "2f58e238d2ee170eb4cbe3508c06473d88daa07ad7a5fa2e0130ed4784727730",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs": "36513b7fd6db2aab3a3e591e4d2e9b04b1db95740c760bdabd55af03b8bab082",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/test_support.rs": "45209b8afaa1f57463c3f909249a3e933e93afe8b1602183ccd0e3f427ee913e",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/.chanlun/review-results/issue1527-formal-i1-20261018/static_checks.py": "2a97f27701e9bcce298f494d922fd8e857f7e783aeac4bcb3fdd5856d31fc10b",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py": "36e79b726ca638dc24d6b23eb33119a4f866d89b3f1f274ba4a4d41e3526bd4d"
+      },
+      "stdout_sha256": "d7801c7c2255e9a71202ab2e4eed4aca556e02891a1e0fd53b272a805d0c0563",
+      "stderr": "",
+      "kind": "封包检查；不是Rust执行"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "input_sha256": {
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v2/mod.rs": "f6c33210bbba7d438e1382801612aa3db35914a93dc725903c2340648bd5eac1",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission.rs": "f7b9b2688ad2901c96c67aa06ea163077b90a2a87cfeac2f9a71072e79668c13",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_anchor.rs": "3a0680d4a00784694737b65176874d2dbbdce8a59c89aad544223e3b32d671cd",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_private/fd_wal.rs": "a5956fcdce9db4ffbf80d3bcdcea4a5b92c3e873136bb3b9bbc99974594e8382",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_private/mod.rs": "1fc3d5c7933a5a2787c26d557fbc4e9a98bdaa2707c082166dad20d3c03e670a",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_provider.rs": "45306996a31c5f8f760a8d107b57894a1d2fa9d966fc15eaf9cdca880f45a18f",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/driver.rs": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/mod.rs": "f301023bba9f1d6588f0021694b1ff9a0498f481e174889b20b0bd5a83936811",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/writer_cli.rs": "62df023972c1a0c3f575b33cead4f7bd700b99111eec6afa2805f929c359bd2b",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_structure_session.rs": "628347f6c682f1649f2d0d5f41fbe8fde5565064f31fd04d3f6e6322c6b47199",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/s_content/job.rs": "de9c6f46b4e8827962f0ef3e7b31bd1300b2e9b461c58e573cb7efa001939554",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/anchor_tests.rs": "c15fe1c01c619414c86b12505e7f1578a28acc2986184ae597d80a22fc1f9b47",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/i1_model_checks.py": "62231d1d7bb3236c4fff4582a7e981fe82d2d7a499c901cf4ec6e65ea1a845c3",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/model_checks.py": "2f58e238d2ee170eb4cbe3508c06473d88daa07ad7a5fa2e0130ed4784727730",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs": "36513b7fd6db2aab3a3e591e4d2e9b04b1db95740c760bdabd55af03b8bab082",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/test_support.rs": "45209b8afaa1f57463c3f909249a3e933e93afe8b1602183ccd0e3f427ee913e"
+      },
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "",
+      "kind": "封包检查；不是Rust执行"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--binary",
+        "5cb7253d46d973669e7d10cd3331e12c9ef313b1",
+        "--",
+        "rust/src/bin/s_session_v2/mod.rs",
+        "rust/src/bin/s_session_v3/driver.rs",
+        "rust/src/bin/s_session_v3/mod.rs",
+        "rust/src/bin/s_session_v3/writer_cli.rs",
+        "rust/src/bin/s_structure_session.rs",
+        "rust/src/s_content/job.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "input_sha256": {
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v2/mod.rs": "f6c33210bbba7d438e1382801612aa3db35914a93dc725903c2340648bd5eac1",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission.rs": "f7b9b2688ad2901c96c67aa06ea163077b90a2a87cfeac2f9a71072e79668c13",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_anchor.rs": "3a0680d4a00784694737b65176874d2dbbdce8a59c89aad544223e3b32d671cd",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_private/fd_wal.rs": "a5956fcdce9db4ffbf80d3bcdcea4a5b92c3e873136bb3b9bbc99974594e8382",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_private/mod.rs": "1fc3d5c7933a5a2787c26d557fbc4e9a98bdaa2707c082166dad20d3c03e670a",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_provider.rs": "45306996a31c5f8f760a8d107b57894a1d2fa9d966fc15eaf9cdca880f45a18f",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/driver.rs": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/mod.rs": "f301023bba9f1d6588f0021694b1ff9a0498f481e174889b20b0bd5a83936811",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/writer_cli.rs": "62df023972c1a0c3f575b33cead4f7bd700b99111eec6afa2805f929c359bd2b",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_structure_session.rs": "628347f6c682f1649f2d0d5f41fbe8fde5565064f31fd04d3f6e6322c6b47199",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/s_content/job.rs": "de9c6f46b4e8827962f0ef3e7b31bd1300b2e9b461c58e573cb7efa001939554",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/anchor_tests.rs": "c15fe1c01c619414c86b12505e7f1578a28acc2986184ae597d80a22fc1f9b47",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/i1_model_checks.py": "62231d1d7bb3236c4fff4582a7e981fe82d2d7a499c901cf4ec6e65ea1a845c3",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/model_checks.py": "2f58e238d2ee170eb4cbe3508c06473d88daa07ad7a5fa2e0130ed4784727730",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs": "36513b7fd6db2aab3a3e591e4d2e9b04b1db95740c760bdabd55af03b8bab082",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/test_support.rs": "45209b8afaa1f57463c3f909249a3e933e93afe8b1602183ccd0e3f427ee913e"
+      },
+      "stdout_sha256": "e94720c9eb43f60d9fcba2c0807c7e0a035b35f90a8b785ee7f635f1fd1be70b",
+      "stderr": "",
+      "kind": "封包检查；不是Rust执行"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--no-index",
+        "--binary",
+        "--",
+        "/dev/null",
+        "rust/src/bin/s_session_v3/admission.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 1,
+      "input_sha256": {
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission.rs": "f7b9b2688ad2901c96c67aa06ea163077b90a2a87cfeac2f9a71072e79668c13"
+      },
+      "stdout_sha256": "71ece3f23ae4304967b6730b331087362241896560a8b9b340bcf7ba3b23c816",
+      "stderr": "",
+      "kind": "封包检查；不是Rust执行"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--no-index",
+        "--binary",
+        "--",
+        "/dev/null",
+        "rust/src/bin/s_session_v3/admission_anchor.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 1,
+      "input_sha256": {
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_anchor.rs": "3a0680d4a00784694737b65176874d2dbbdce8a59c89aad544223e3b32d671cd"
+      },
+      "stdout_sha256": "65977d70cbbe04dbebc93a061c13c686b2226b6ba2037a133b58a29896fc056f",
+      "stderr": "",
+      "kind": "封包检查；不是Rust执行"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--no-index",
+        "--binary",
+        "--",
+        "/dev/null",
+        "rust/src/bin/s_session_v3/admission_private/fd_wal.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 1,
+      "input_sha256": {
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_private/fd_wal.rs": "a5956fcdce9db4ffbf80d3bcdcea4a5b92c3e873136bb3b9bbc99974594e8382"
+      },
+      "stdout_sha256": "e497c0e612a51d052d3d77d88dcfb36d3236e0c0a95f08c28120f47905a48cb1",
+      "stderr": "",
+      "kind": "封包检查；不是Rust执行"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--no-index",
+        "--binary",
+        "--",
+        "/dev/null",
+        "rust/src/bin/s_session_v3/admission_private/mod.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 1,
+      "input_sha256": {
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_private/mod.rs": "1fc3d5c7933a5a2787c26d557fbc4e9a98bdaa2707c082166dad20d3c03e670a"
+      },
+      "stdout_sha256": "86664d9fcea19b1b91313e0920410688f6e7fdd02a2e7a5727ae90ec906f21ff",
+      "stderr": "",
+      "kind": "封包检查；不是Rust执行"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--no-index",
+        "--binary",
+        "--",
+        "/dev/null",
+        "rust/src/bin/s_session_v3/admission_provider.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 1,
+      "input_sha256": {
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/rust/src/bin/s_session_v3/admission_provider.rs": "45306996a31c5f8f760a8d107b57894a1d2fa9d966fc15eaf9cdca880f45a18f"
+      },
+      "stdout_sha256": "d213a2ef626f7737d7acf2cefdc0626015d3636a8579fa8d04a93b36e990a7f4",
+      "stderr": "",
+      "kind": "封包检查；不是Rust执行"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--no-index",
+        "--binary",
+        "--",
+        "/dev/null",
+        "s_session/tests/issue1527_recovery/anchor_tests.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 1,
+      "input_sha256": {
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/anchor_tests.rs": "c15fe1c01c619414c86b12505e7f1578a28acc2986184ae597d80a22fc1f9b47"
+      },
+      "stdout_sha256": "536358b7af0dc41766615cf3fe2681a5b45387598564245d1a2d6d4ab32d3eaa",
+      "stderr": "",
+      "kind": "封包检查；不是Rust执行"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--no-index",
+        "--binary",
+        "--",
+        "/dev/null",
+        "s_session/tests/issue1527_recovery/i1_model_checks.py"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 1,
+      "input_sha256": {
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/i1_model_checks.py": "62231d1d7bb3236c4fff4582a7e981fe82d2d7a499c901cf4ec6e65ea1a845c3"
+      },
+      "stdout_sha256": "be728fa1330e8b1d355154f8cf8606e452aabe8e45f49ca633efe334aa28550f",
+      "stderr": "",
+      "kind": "封包检查；不是Rust执行"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--no-index",
+        "--binary",
+        "--",
+        "/dev/null",
+        "s_session/tests/issue1527_recovery/model_checks.py"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 1,
+      "input_sha256": {
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/model_checks.py": "2f58e238d2ee170eb4cbe3508c06473d88daa07ad7a5fa2e0130ed4784727730"
+      },
+      "stdout_sha256": "dacf6ad4f5a1f7877fb89477c5d4f9568753eb67b76bce35aed191a640a27e31",
+      "stderr": "",
+      "kind": "封包检查；不是Rust执行"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--no-index",
+        "--binary",
+        "--",
+        "/dev/null",
+        "s_session/tests/issue1527_recovery/provider_tests.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 1,
+      "input_sha256": {
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/provider_tests.rs": "36513b7fd6db2aab3a3e591e4d2e9b04b1db95740c760bdabd55af03b8bab082"
+      },
+      "stdout_sha256": "141145d491eb12c62691ff25bf3fc9bbf149bfd1ee6ed891228e5c5520840c5a",
+      "stderr": "",
+      "kind": "封包检查；不是Rust执行"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--no-index",
+        "--binary",
+        "--",
+        "/dev/null",
+        "s_session/tests/issue1527_recovery/test_support.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 1,
+      "input_sha256": {
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/s_session/tests/issue1527_recovery/test_support.rs": "45209b8afaa1f57463c3f909249a3e933e93afe8b1602183ccd0e3f427ee913e"
+      },
+      "stdout_sha256": "339360436ef9b784557a771fd66096ff22c8047acfe33cd7ec00374b836d3ab7",
+      "stderr": "",
+      "kind": "封包检查；不是Rust执行"
+    },
+    {
+      "argv": [
+        "git",
+        "apply",
+        "--check",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/.chanlun/review-results/issue1527-formal-i1-20261018/FINAL.patch"
+      ],
+      "cwd": "/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/issue1527-exact-patch-huup6yff",
+      "rc": 0,
+      "input_sha256": {
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/.chanlun/review-results/issue1527-formal-i1-20261018/FINAL.patch": "e0c7acd93b410d90436f7e8e3dbcdd775beeab3b3ad1df2c77f5c1d2bbafdc46",
+        "/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/issue1527-exact-patch-huup6yff/rust/src/bin/s_session_v2/mod.rs": "c00c79cf66b1b3fc6a17af1d6e0718484e519badb198a69c8645f3fe9bf582bb",
+        "/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/issue1527-exact-patch-huup6yff/rust/src/bin/s_session_v3/driver.rs": "eac29a9962608bb7ae5a2eeae01ac54e0c6b177140b1dd5c99ae23062fb2dc61",
+        "/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/issue1527-exact-patch-huup6yff/rust/src/bin/s_session_v3/mod.rs": "6add412005c72cad9bcd9a89a13f8e370cb9e3ff1d3b7f67fc1bc078ab8264c7",
+        "/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/issue1527-exact-patch-huup6yff/rust/src/bin/s_session_v3/writer_cli.rs": "e412dd79940562e44d93738ecf2333c6be899a1dc197fccbc2e8f4b4bbf65b3d",
+        "/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/issue1527-exact-patch-huup6yff/rust/src/bin/s_structure_session.rs": "bb5be48f271e1757f80e0e13c7c1ad9784743330ea74bfda2a1c17a80e0d965a",
+        "/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/issue1527-exact-patch-huup6yff/rust/src/s_content/job.rs": "9f6c3b48c3447a0a82de397029658f164d0f8b7ea06c687c024c8b43b8581d34"
+      },
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "",
+      "kind": "封包检查；不是Rust执行"
+    },
+    {
+      "argv": [
+        "git",
+        "apply",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/.chanlun/review-results/issue1527-formal-i1-20261018/FINAL.patch"
+      ],
+      "cwd": "/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/issue1527-exact-patch-huup6yff",
+      "rc": 0,
+      "input_sha256": {
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree/.chanlun/review-results/issue1527-formal-i1-20261018/FINAL.patch": "e0c7acd93b410d90436f7e8e3dbcdd775beeab3b3ad1df2c77f5c1d2bbafdc46",
+        "/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/issue1527-exact-patch-huup6yff/rust/src/bin/s_session_v2/mod.rs": "c00c79cf66b1b3fc6a17af1d6e0718484e519badb198a69c8645f3fe9bf582bb",
+        "/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/issue1527-exact-patch-huup6yff/rust/src/bin/s_session_v3/driver.rs": "eac29a9962608bb7ae5a2eeae01ac54e0c6b177140b1dd5c99ae23062fb2dc61",
+        "/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/issue1527-exact-patch-huup6yff/rust/src/bin/s_session_v3/mod.rs": "6add412005c72cad9bcd9a89a13f8e370cb9e3ff1d3b7f67fc1bc078ab8264c7",
+        "/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/issue1527-exact-patch-huup6yff/rust/src/bin/s_session_v3/writer_cli.rs": "e412dd79940562e44d93738ecf2333c6be899a1dc197fccbc2e8f4b4bbf65b3d",
+        "/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/issue1527-exact-patch-huup6yff/rust/src/bin/s_structure_session.rs": "bb5be48f271e1757f80e0e13c7c1ad9784743330ea74bfda2a1c17a80e0d965a",
+        "/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/issue1527-exact-patch-huup6yff/rust/src/s_content/job.rs": "9f6c3b48c3447a0a82de397029658f164d0f8b7ea06c687c024c8b43b8581d34"
+      },
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "",
+      "kind": "封包检查；不是Rust执行"
+    }
+  ],
+  "rust_tests": "NOT_RUN",
+  "sqlite_execution": "NOT_RUN",
+  "patch_reconstruction": {
+    "base": "5cb7253d46d973669e7d10cd3331e12c9ef313b1",
+    "base_file_sha256": {
+      "rust/src/bin/s_session_v2/mod.rs": "c00c79cf66b1b3fc6a17af1d6e0718484e519badb198a69c8645f3fe9bf582bb",
+      "rust/src/bin/s_session_v3/driver.rs": "eac29a9962608bb7ae5a2eeae01ac54e0c6b177140b1dd5c99ae23062fb2dc61",
+      "rust/src/bin/s_session_v3/mod.rs": "6add412005c72cad9bcd9a89a13f8e370cb9e3ff1d3b7f67fc1bc078ab8264c7",
+      "rust/src/bin/s_session_v3/writer_cli.rs": "e412dd79940562e44d93738ecf2333c6be899a1dc197fccbc2e8f4b4bbf65b3d",
+      "rust/src/bin/s_structure_session.rs": "bb5be48f271e1757f80e0e13c7c1ad9784743330ea74bfda2a1c17a80e0d965a",
+      "rust/src/s_content/job.rs": "9f6c3b48c3447a0a82de397029658f164d0f8b7ea06c687c024c8b43b8581d34"
+    },
+    "files": {
+      "rust/src/bin/s_session_v2/mod.rs": {
+        "expected": "f6c33210bbba7d438e1382801612aa3db35914a93dc725903c2340648bd5eac1",
+        "reconstructed": "f6c33210bbba7d438e1382801612aa3db35914a93dc725903c2340648bd5eac1"
+      },
+      "rust/src/bin/s_session_v3/admission.rs": {
+        "expected": "f7b9b2688ad2901c96c67aa06ea163077b90a2a87cfeac2f9a71072e79668c13",
+        "reconstructed": "f7b9b2688ad2901c96c67aa06ea163077b90a2a87cfeac2f9a71072e79668c13"
+      },
+      "rust/src/bin/s_session_v3/admission_anchor.rs": {
+        "expected": "3a0680d4a00784694737b65176874d2dbbdce8a59c89aad544223e3b32d671cd",
+        "reconstructed": "3a0680d4a00784694737b65176874d2dbbdce8a59c89aad544223e3b32d671cd"
+      },
+      "rust/src/bin/s_session_v3/admission_private/fd_wal.rs": {
+        "expected": "a5956fcdce9db4ffbf80d3bcdcea4a5b92c3e873136bb3b9bbc99974594e8382",
+        "reconstructed": "a5956fcdce9db4ffbf80d3bcdcea4a5b92c3e873136bb3b9bbc99974594e8382"
+      },
+      "rust/src/bin/s_session_v3/admission_private/mod.rs": {
+        "expected": "1fc3d5c7933a5a2787c26d557fbc4e9a98bdaa2707c082166dad20d3c03e670a",
+        "reconstructed": "1fc3d5c7933a5a2787c26d557fbc4e9a98bdaa2707c082166dad20d3c03e670a"
+      },
+      "rust/src/bin/s_session_v3/admission_provider.rs": {
+        "expected": "45306996a31c5f8f760a8d107b57894a1d2fa9d966fc15eaf9cdca880f45a18f",
+        "reconstructed": "45306996a31c5f8f760a8d107b57894a1d2fa9d966fc15eaf9cdca880f45a18f"
+      },
+      "rust/src/bin/s_session_v3/driver.rs": {
+        "expected": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307",
+        "reconstructed": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307"
+      },
+      "rust/src/bin/s_session_v3/mod.rs": {
+        "expected": "f301023bba9f1d6588f0021694b1ff9a0498f481e174889b20b0bd5a83936811",
+        "reconstructed": "f301023bba9f1d6588f0021694b1ff9a0498f481e174889b20b0bd5a83936811"
+      },
+      "rust/src/bin/s_session_v3/writer_cli.rs": {
+        "expected": "62df023972c1a0c3f575b33cead4f7bd700b99111eec6afa2805f929c359bd2b",
+        "reconstructed": "62df023972c1a0c3f575b33cead4f7bd700b99111eec6afa2805f929c359bd2b"
+      },
+      "rust/src/bin/s_structure_session.rs": {
+        "expected": "628347f6c682f1649f2d0d5f41fbe8fde5565064f31fd04d3f6e6322c6b47199",
+        "reconstructed": "628347f6c682f1649f2d0d5f41fbe8fde5565064f31fd04d3f6e6322c6b47199"
+      },
+      "rust/src/s_content/job.rs": {
+        "expected": "de9c6f46b4e8827962f0ef3e7b31bd1300b2e9b461c58e573cb7efa001939554",
+        "reconstructed": "de9c6f46b4e8827962f0ef3e7b31bd1300b2e9b461c58e573cb7efa001939554"
+      },
+      "s_session/tests/issue1527_recovery/anchor_tests.rs": {
+        "expected": "c15fe1c01c619414c86b12505e7f1578a28acc2986184ae597d80a22fc1f9b47",
+        "reconstructed": "c15fe1c01c619414c86b12505e7f1578a28acc2986184ae597d80a22fc1f9b47"
+      },
+      "s_session/tests/issue1527_recovery/i1_model_checks.py": {
+        "expected": "62231d1d7bb3236c4fff4582a7e981fe82d2d7a499c901cf4ec6e65ea1a845c3",
+        "reconstructed": "62231d1d7bb3236c4fff4582a7e981fe82d2d7a499c901cf4ec6e65ea1a845c3"
+      },
+      "s_session/tests/issue1527_recovery/model_checks.py": {
+        "expected": "2f58e238d2ee170eb4cbe3508c06473d88daa07ad7a5fa2e0130ed4784727730",
+        "reconstructed": "2f58e238d2ee170eb4cbe3508c06473d88daa07ad7a5fa2e0130ed4784727730"
+      },
+      "s_session/tests/issue1527_recovery/provider_tests.rs": {
+        "expected": "36513b7fd6db2aab3a3e591e4d2e9b04b1db95740c760bdabd55af03b8bab082",
+        "reconstructed": "36513b7fd6db2aab3a3e591e4d2e9b04b1db95740c760bdabd55af03b8bab082"
+      },
+      "s_session/tests/issue1527_recovery/test_support.rs": {
+        "expected": "45209b8afaa1f57463c3f909249a3e933e93afe8b1602183ccd0e3f427ee913e",
+        "reconstructed": "45209b8afaa1f57463c3f909249a3e933e93afe8b1602183ccd0e3f427ee913e"
+      }
+    },
+    "result": "全部逐字一致",
+    "sqlite_or_rust_execution": false
+  },
+  "latest_status": "受限静态/模型/精确patch检查通过；完整任务BLOCKED"
+}

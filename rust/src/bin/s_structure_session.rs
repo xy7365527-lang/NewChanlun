@@ -317,6 +317,7 @@ CREATE TABLE IF NOT EXISTS catalog (
 "#;
 
 fn open_db(db: &Path) -> Result<Connection, String> {
+    v3::admission::require_current(db)?;
     let conn = Connection::open_with_flags(
         db,
         rusqlite::OpenFlags::default() | rusqlite::OpenFlags::SQLITE_OPEN_PRIVATE_CACHE,
@@ -5403,6 +5404,14 @@ fn run() -> Result<(), String> {
         return Ok(());
     }
     let _writer_lock = v2::legacy_write_lock(&args)?;
+    if let Some(guard) = &_writer_lock {
+        guard.require_admitted()?;
+    }
+    let _admission_open_guard = _writer_lock
+        .as_ref()
+        .map(|g| g.enter())
+        .transpose()?
+        .flatten();
     let cmd = args[1].as_str();
     let db = arg_value(&args, "--db").map(PathBuf::from);
     let session = arg_value(&args, "--session").unwrap_or_else(|| "s-session-default".to_string());

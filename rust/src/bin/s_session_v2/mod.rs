@@ -2473,13 +2473,17 @@ fn serve(
     epoch: &str,
     clock_path: &Path,
     bounds: Bounds,
+    mut admission: crate::v3::admission_anchor::PreparedAdmission,
 ) -> Result<(), String> {
     positive(epoch, "v2 writer_epoch")?;
     cache::configure(bounds.cache_bytes);
     // 监督器nonce仅用于把Ready绑定真实启动进程；绝不进入业务payload/hash/持久事实。
     let control_instance_id = std::env::var("S_CONTROL_INSTANCE_ID").ok();
-    let _lock = process_lock(db)?;
-    let clock = ClockPlan::load(clock_path)?;
+    let clock = ClockPlan::parse(strict_json(&admission.read_file(clock_path, None)?)?)?;
+    let scope = crate::v3::admission::WriterScope::admit(db, admission)?;
+    let _open_guard = scope.enter()?;
+    let db = scope.db_path();
+    scope.require_admitted()?;
     let conn = open_db(db)?;
     let tx = conn.unchecked_transaction().map_err(err)?;
     verify_writer_epoch(&tx, epoch)?;
@@ -2514,12 +2518,16 @@ fn serve(
             clock: clock.clone(),
         };
         // 此身份已持久接纳：换代只取得新推进权，不能修改原payload中的旧writer_epoch。
+        scope.require_admitted()?;
         advance_core(db, epoch, Some(&context))?;
     }
+    scope.finish_startup()?;
     serve_unix(socket, bounds.transport(), envelope, |e| {
         response(
             e,
-            handle(db, profile, epoch, &clock, e),
+            scope
+                .require_admitted()
+                .and_then(|()| handle(db, profile, epoch, &clock, e)),
             &identity,
             control_instance_id.as_deref(),
         )
@@ -2575,6 +2583,13 @@ pub fn dispatch(args: &[String]) -> Result<bool, String> {
             queue: usize::try_from(positive_arg(args, "--queue-capacity")?).map_err(err)?,
             connections: usize::try_from(positive_arg(args, "--max-connections")?).map_err(err)?,
         };
+        let db = PathBuf::from(arg(args, "--db")?);
+        let admission = crate::v3::admission_anchor::from_args_for_db(
+            &db,
+            args,
+            crate::v3::admission_anchor::ControlEnv::capture(),
+        )
+        .map_err(|error| error.to_string())?;
         serve(
             Path::new(&arg(args, "--db")?),
             Path::new(&arg(args, "--socket")?),
@@ -2582,6 +2597,7 @@ pub fn dispatch(args: &[String]) -> Result<bool, String> {
             &arg(args, "--writer-epoch")?,
             Path::new(&arg(args, "--clock-plan")?),
             bounds,
+            admission,
         )?;
         return Ok(true);
     }
@@ -2591,26 +2607,66 @@ pub fn dispatch(args: &[String]) -> Result<bool, String> {
             .any(|k| args.iter().any(|a| a == k))
     {
         let db = PathBuf::from(arg(args, "--db")?);
-        let _lock = process_lock(&db)?;
-        let clock = ClockPlan::load(Path::new(&arg(args, "--clock-plan")?))?;
-        let out = recover_core(
+        let mut admission = crate::v3::admission_anchor::from_args_for_db(
             &db,
+            args,
+            crate::v3::admission_anchor::ControlEnv::capture(),
+        )
+        .map_err(|error| error.to_string())?;
+        let clock = ClockPlan::parse(strict_json(
+            &admission.read_file(Path::new(&arg(args, "--clock-plan")?), None)?,
+        )?)?;
+        let scope = crate::v3::admission::WriterScope::admit(&db, admission)?;
+        let _open_guard = scope.enter()?;
+        scope.require_admitted()?;
+        let out = recover_core(
+            scope.db_path(),
             &arg(args, "--new-epoch")?,
             Some((&clock, &arg(args, "--clock-event-id")?)),
         )?;
-        println!("{out}");
+        scope.write_result(&out)?;
+        scope.finish_startup()?;
         return Ok(true);
     }
     Ok(false)
 }
 
-pub fn legacy_write_lock(args: &[String]) -> Result<Option<File>, String> {
-    if matches!(
-        args.get(1).map(String::as_str),
-        Some("init" | "reset" | "accept" | "advance" | "recover")
-    ) {
+// init/reset 保留旧锁分支，本提案不授予新库准备、重置或既存无锚接管资格。
+pub enum LegacyWriteGuard {
+    Initialization(File),
+    Existing(crate::v3::admission::WriterScope),
+}
+impl LegacyWriteGuard {
+    pub(crate) fn enter(&self) -> Result<Option<crate::v3::admission::OpenGuard>, String> {
+        match self {
+            Self::Initialization(_) => Ok(None),
+            Self::Existing(scope) => scope.enter().map(Some),
+        }
+    }
+    pub fn require_admitted(&self) -> Result<(), String> {
+        match self {
+            Self::Initialization(_) => Ok(()),
+            Self::Existing(scope) => scope.require_admitted(),
+        }
+    }
+}
+
+pub fn legacy_write_lock(args: &[String]) -> Result<Option<LegacyWriteGuard>, String> {
+    let command = args.get(1).map(String::as_str);
+    if matches!(command, Some("accept" | "advance" | "recover")) {
         let db = PathBuf::from(arg(args, "--db")?);
-        return process_lock(&db).map(Some);
+        let prepared = crate::v3::admission_anchor::from_args_for_db(
+            &db,
+            args,
+            crate::v3::admission_anchor::ControlEnv::capture(),
+        )
+        .map_err(|error| error.to_string())?;
+        return crate::v3::admission::WriterScope::admit(&db, prepared)
+            .map(|scope| Some(LegacyWriteGuard::Existing(scope)));
+    }
+    if matches!(command, Some("init" | "reset")) {
+        let db = PathBuf::from(arg(args, "--db")?);
+        return process_lock(&db).map(|file| Some(LegacyWriteGuard::Initialization(file)));
     }
     Ok(None)
 }
