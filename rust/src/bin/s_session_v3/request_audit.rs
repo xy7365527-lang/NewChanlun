@@ -4,6 +4,7 @@
 //! owner可按实际无写终结接收完整slot；只有owner绑定同连接当前快照后才能免重核。
 //! 旧来源池本身仍不能授予完整history或提交许可。
 use super::audit_store::{CodecRead, NativeAdmission};
+use super::native_shared::NativeRc as Rc;
 use super::{audit_header::AuditSourceCommit, state::ImmutableHistoricalAudit};
 use newchan_rust::{
     s_content::{capture_allocation::scratch::WorkScope, AuditCapture, CodecVec},
@@ -13,7 +14,7 @@ use rusqlite::{
     types::{Type, ValueRef},
     Params, Transaction,
 };
-use std::{ffi::CStr, rc::Rc};
+use std::ffi::CStr;
 
 /// #1394 frozen entry allocation within the existing S7 source budget. Releasing the
 /// old pool later does not enlarge this request's workspace allowance.
@@ -45,7 +46,7 @@ pub(super) struct RequestAuditContext {
     workspace_budget: Option<ManifestWorkspaceBudget>,
     // #1394 显式接线域；普通预算冻结不自动启用强制cold准入。
     #[cfg(feature = "s_capture_native_testonly")]
-    cold_parent: Option<super::audit_owner::native::Budget>,
+    cold_parent: std::cell::RefCell<Option<super::audit_owner::native::Budget>>,
     #[cfg(feature = "s_capture_native_testonly")]
     handoff_parent: std::cell::RefCell<Option<super::audit_owner::native::Budget>>,
     #[cfg(test)]
@@ -176,7 +177,7 @@ impl RequestAuditContext {
             drop(slot.result);
             drop(slot.binding);
             if let Some(pending) = slot.source_pending {
-                if let Some(parent) = self.cold_parent_budget() {
+                if let Some(parent) = self.request_parent_budget() {
                     // 可选封存使用同一父账的独立工作域；只在域结束后处理拒绝。
                     // 强制cold已完成，不能将这里的失败重判为cold成功或重跑None。
                     let retained = match parent.codec_work() {
@@ -1734,17 +1735,37 @@ impl RequestAuditContext {
         let contract = self
             .workspace_budget
             .ok_or("S3WriterResourcesInvalid：未冻结cold父预算")?;
-        if self.cold_parent.is_some() || self.slot.is_some() {
+        if self.cold_parent.borrow().is_some() || self.slot.is_some() {
             return Err("S3WriterResourcesInvalid：cold父预算必须在首次审计前启用一次".into());
         }
-        self.cold_parent = Some(
+        *self.cold_parent.get_mut() = Some(
             super::audit_owner::native::Budget::new(contract.allowance, 0)
                 .map_err(|_| "S3WriterResourcesInvalid：cold父预算不足")?,
         );
         Ok(())
     }
     pub(super) fn cold_parent_budget(&self) -> Option<super::audit_owner::native::Budget> {
-        self.cold_parent.clone()
+        self.request_parent_budget()
+    }
+    /// #1488 strict消费者在audit_admission成功后调用；未绑定或过期均拒绝，绝不返回预建cold父。
+    pub(crate) fn bound_parent_budget(&self) -> Result<super::audit_owner::native::Budget, String> {
+        let bound = self
+            .handoff_parent
+            .borrow()
+            .clone()
+            .ok_or("StaleWriter：尚未绑定实际候选父账")?;
+        if !self.matches_complete_budget(&bound) {
+            return Err("StaleWriter：候选父账作用域已过期".into());
+        }
+        Ok(bound)
+    }
+    /// 内部冷构造入口：候选已绑定时优先原父；strict消费者必须用bound_parent_budget。
+    /// 调用方在事务准入完成后取得句柄，再调用codec_work；不可缓存准入前句柄。
+    pub(super) fn request_parent_budget(&self) -> Option<super::audit_owner::native::Budget> {
+        self.handoff_parent
+            .borrow()
+            .clone()
+            .or_else(|| self.cold_parent.borrow().clone())
     }
     /// #1488：第一次接纳钉住真实父Arc，同请求的后续事务只复用这个域。
     pub(super) fn bind_complete_budget(
@@ -1762,15 +1783,23 @@ impl RequestAuditContext {
         }
         if self
             .cold_parent
+            .borrow()
             .as_ref()
             .is_some_and(|cold| !cold.same_parent(parent) && !cold.pristine_cold_parent())
         {
             return Err("StaleWriter：冻结合同已绑定外来cold父账".into());
         }
         let bound = parent
-            .bind_or_handoff(contract.domain, contract.allowance)
+            .bind_frozen(
+                contract.domain,
+                contract.total,
+                contract.legacy,
+                contract.old_pool,
+            )
             .map_err(|_| "StaleWriter：预算交接被拒绝")?;
         *self.handoff_parent.borrow_mut() = Some(bound.clone());
+        // 未使用的外来cold父在绑定后退场；已有外部观察句柄仍保持它自己的真实元数据。
+        drop(self.cold_parent.borrow_mut().take());
         Ok(bound)
     }
     pub(super) fn matches_complete_budget(
@@ -2295,7 +2324,7 @@ mod handoff_domain_tests {
         assert!(first.bind_complete_budget(&foreign).is_err());
         assert_eq!((bound.live(), bound.peak(), bound.remaining()), before);
         let mut next = RequestAuditContext::default();
-        next.freeze_manifest_workspace_budget(1 << 20, 0, 64)
+        next.freeze_manifest_workspace_budget(1 << 20, 0, bound.live())
             .unwrap();
         let current = next.bind_complete_budget(&bound).unwrap();
         assert!(current.same_parent(&bound));

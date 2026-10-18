@@ -668,38 +668,7 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
         result: &mut WorkVec<T>,
         additional: usize,
     ) -> Result<(), CodecError> {
-        let failure = |reason| {
-            self.work_budget()
-                .map_or_else(capture_allocation::work::allocation_error, |b| {
-                    b.native_failure(reason)
-                })
-        };
-        let needed = result
-            .len()
-            .checked_add(additional)
-            .ok_or_else(|| failure(capture_allocation::scratch::ScratchFailure::Budget))?;
-        if needed <= result.capacity() || self.budget().is_some() {
-            return Ok(());
-        }
-        // 只替 Native 动态结果申请新完整块；已释放旧块仍保守持账，不提前减费。
-        let next = needed
-            .max(
-                result
-                    .capacity()
-                    .checked_mul(2)
-                    .ok_or_else(|| failure(capture_allocation::scratch::ScratchFailure::Budget))?,
-            )
-            .max(4);
-        let bytes = next
-            .checked_mul(std::mem::size_of::<T>())
-            .ok_or_else(|| failure(capture_allocation::scratch::ScratchFailure::Budget))?;
-        if let Some(permit) = self.reserve_native(bytes)? {
-            result
-                .try_reserve_exact(next - result.len())
-                .map_err(|_| failure(capture_allocation::scratch::ScratchFailure::Allocation))?;
-            permit.retain();
-        }
-        Ok(())
+        self.native_vec_room(result, additional)
     }
     pub(super) fn budget(&self) -> Option<OwnedBudget> {
         match self {

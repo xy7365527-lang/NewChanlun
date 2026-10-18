@@ -138,7 +138,7 @@ pub(super) struct Pool {
     pub(super) originals: sc::AuditCapture,
     pub(super) nodes: usize,
     binding: Binding,
-    proofs: Vec<Proof>,
+    proofs: sc::CodecVec<Proof>,
     source_cost: SourceCost,
     capacity: RetainedCapacity,
     subset_selection: Option<sc::NativeCountsSubsetReport>,
@@ -241,7 +241,7 @@ impl Pool {
     fn build_bounded_counts(
         originals: sc::AuditCapture,
         binding: Binding,
-        proofs: Vec<Proof>,
+        proofs: sc::CodecVec<Proof>,
         cap: usize,
     ) -> Result<Self, String> {
         Self::build_bounded_counts_admitted(originals, binding, proofs, cap, None)
@@ -249,7 +249,7 @@ impl Pool {
     fn build_bounded_counts_admitted(
         originals: sc::AuditCapture,
         binding: Binding,
-        mut proofs: Vec<Proof>,
+        mut proofs: sc::CodecVec<Proof>,
         cap: usize,
         work: Option<&WorkScope>,
     ) -> Result<Self, String> {
@@ -300,36 +300,14 @@ impl Pool {
             .len()
             .checked_sub(certificates.len())
             .ok_or("CountsSubsetProofCountInvalid")?;
-        proofs.drain(..remove);
+        proofs.remove_prefix(remove);
         for (proof, certificate) in proofs.iter_mut().rev().zip(certificates) {
             if !certificate.matches_state(&proof.key.state) {
                 return Err("CountsSubsetStateCertificateInvalid".into());
             }
             proof.dependency = Some(certificate);
         }
-        if let Some(work) = work {
-            if proofs.len() < proofs.capacity() {
-                // 缩容也可能分配：旧块仍在时先许可完整新块，再只移动Proof。
-                let bytes = proofs
-                    .len()
-                    .checked_mul(std::mem::size_of::<Proof>())
-                    .ok_or_else(|| {
-                        work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget)
-                            .to_string()
-                    })?;
-                let permit = work.reserve_native(bytes).map_err(|e| e.to_string())?;
-                let mut compact = Vec::new();
-                compact.try_reserve_exact(proofs.len()).map_err(|_| {
-                    work.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
-                        .to_string()
-                })?;
-                compact.append(&mut proofs);
-                proofs = compact;
-                permit.retain();
-            }
-        } else {
-            proofs.shrink_to_fit();
-        }
+        proofs.try_compact_native(work).map_err(|e| e.to_string())?;
         let nodes = originals
             .native_retention_numbers_for_testonly()
             .ok_or("CountsSubsetNodeCountInvalid")?
@@ -348,7 +326,7 @@ impl Pool {
         originals: sc::AuditCapture,
         nodes: usize,
         binding: Binding,
-        proofs: Vec<Proof>,
+        proofs: sc::CodecVec<Proof>,
     ) -> Result<Self, String> {
         // Drop全部Public/Template/Frame memo，保留原件owner及两份纯codec成功根集合。
         let originals = originals
@@ -621,14 +599,14 @@ impl Keeper {
 /// 与请求slot共存的候选证书；SQL原件只在完整审计的同一事务中封存。
 pub(super) struct PendingPool {
     binding: Binding,
-    proofs: Vec<Proof>,
+    proofs: sc::CodecVec<Proof>,
     hits: usize,
     cold: usize,
 }
 pub(super) struct Trial<'a> {
     prior: Option<&'a Pool>,
     bound: bool,
-    proofs: Vec<Proof>,
+    proofs: sc::CodecVec<Proof>,
     pub(super) hits: usize,
     pub(super) cold: usize,
 }
@@ -657,7 +635,7 @@ impl<'a> Trial<'a> {
         Ok(Self {
             prior,
             bound,
-            proofs: Vec::new(),
+            proofs: sc::CodecVec::default(),
             hits: 0,
             cold: 0,
         })
@@ -698,11 +676,13 @@ impl<'a> Trial<'a> {
         NativeAdmission(work)
             .native_vec_room(&mut self.proofs, 1)
             .map_err(|e| e.to_string())?;
-        self.proofs.push(Proof {
-            key,
-            counts: counts.clone(),
-            dependency: None,
-        });
+        self.proofs
+            .try_push(Proof {
+                key,
+                counts: counts.clone(),
+                dependency: None,
+            })
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
     pub(super) fn complete(

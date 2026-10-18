@@ -58,9 +58,18 @@ fn native_reference<R: RefOutput>(
     digest: NodeDigest,
     extent: Option<u64>,
 ) -> Result<R, CodecError> {
-    let permit = source.reserve_native(R::NATIVE_HEAP)?;
+    let permit = if R::NATIVE_HEAP == 0 {
+        None
+    } else {
+        source.reserve_native(R::NATIVE_HEAP)?
+    };
+    if permit.is_some() && !R::RETAINS_NATIVE {
+        return Err(CodecError::scratch(
+            super::capture_allocation::scratch::ScratchFailure::Ledger,
+        ));
+    }
     let reference = R::from_checked(kind, digest, extent);
-    Ok(reference.with_native_permit(permit))
+    reference.with_native_permit(permit)
 }
 
 /// 本模块的稳定拒绝码（与 §5.1–5.3 的 content codec 码互不冲突）。
@@ -466,11 +475,12 @@ pub(super) trait FieldOutput<'names>: Sized {
         permit: Option<super::capture_allocation::scratch::NativeReservation>,
         _work: Option<&super::WorkBudget>,
     ) -> Result<(), CodecError> {
-        self.append(name, reference)?;
-        if let Some(permit) = permit {
-            permit.retain();
+        if permit.is_some() {
+            return Err(CodecError::scratch(
+                super::capture_allocation::scratch::ScratchFailure::Ledger,
+            ));
         }
-        Ok(())
+        self.append(name, reference)
     }
 }
 impl<'names> FieldOutput<'names> for super::capture_allocation::native_owned::NativeRefFields {

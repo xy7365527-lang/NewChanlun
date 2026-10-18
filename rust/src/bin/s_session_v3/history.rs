@@ -162,9 +162,11 @@ fn native_cut_projection<'scope, 'connection, 'capture>(
         aux_index::native_cut_members(aux, s, m.generation, true, batch)?;
     let public_array =
         |s: &mut HashReader<'_>, nodes: &[NodeDigest]| -> Result<sc::Built, String> {
-            let mut values = Vec::new();
+            let mut values = sc::CodecVec::default();
             s.native_vec_room(&mut values, nodes.len()).map_err(err)?;
-            values.extend(nodes.iter().copied().map(sc::ValueView::Edge));
+            for digest in nodes {
+                values.try_push(sc::ValueView::Edge(*digest)).map_err(err)?;
+            }
             s.write_template_view(sc::ValueView::Array(&values))
                 .map_err(err)
         };
@@ -1768,7 +1770,7 @@ fn hash_array_metered_with_work(
 #[derive(Default)]
 struct PrefixArray {
     count: u64,
-    stack: Vec<(u64, NodeDigest)>,
+    stack: sc::CodecVec<(u64, NodeDigest)>,
 }
 impl PrefixArray {
     fn branch(left: &NodeDigest, right: &NodeDigest, count: u64) -> Result<NodeDigest, String> {
@@ -1784,7 +1786,9 @@ impl PrefixArray {
             .checked_add(1)
             .ok_or_else(|| err("前缀叶数溢出"))?;
         sc::checked_frame_len(next).map_err(err)?;
-        self.stack.push((1, sc::frame(sc::tag::SEQ_LEAF, &digest)));
+        self.stack
+            .try_push((1, sc::frame(sc::tag::SEQ_LEAF, &digest)))
+            .map_err(err)?;
         while self.stack.len() >= 2 {
             let (right_count, right) = self.stack[self.stack.len() - 1];
             let (left_count, left) = self.stack[self.stack.len() - 2];
@@ -1796,7 +1800,7 @@ impl PrefixArray {
                 .ok_or_else(|| err("前缀分支叶数溢出"))?;
             let digest = Self::branch(&left, &right, count)?;
             self.stack.truncate(self.stack.len() - 2);
-            self.stack.push((count, digest));
+            self.stack.try_push((count, digest)).map_err(err)?;
         }
         self.count = next;
         Ok(())
@@ -1957,14 +1961,14 @@ impl NodeSource for ReadOwner<'_> {
 }
 
 enum OverlayOwner {
-    Dynamic(BTreeMap<NodeDigest, (u8, Vec<u8>)>),
+    Dynamic(super::audit_store::NativeTree<NodeDigest, (u8, sc::CodecVec<u8>)>),
     #[cfg(test)]
     Bounded(sc::capture_allocation::overlay::OverlaySlab),
 }
 impl OverlayOwner {
     fn get(&self, digest: &NodeDigest) -> Option<(u8, &[u8])> {
         match self {
-            Self::Dynamic(m) => m.get(digest).map(|(t, b)| (*t, b.as_slice())),
+            Self::Dynamic(m) => m.get(digest).map(|(t, b)| (*t, b.as_ref())),
             #[cfg(test)]
             Self::Bounded(s) => s.original(digest),
         }
@@ -1981,32 +1985,11 @@ impl OverlayOwner {
     ) -> Result<(), sc::CodecError> {
         match self {
             Self::Dynamic(m) => {
-                let permit = if let Some(work) = work {
-                    let levels = usize::BITS as usize - (m.len() + 1).leading_zeros() as usize + 2;
-                    let node = 11 * std::mem::size_of::<(NodeDigest, (u8, Vec<u8>))>()
-                        + 16 * std::mem::size_of::<usize>();
-                    let bytes = node
-                        .checked_mul(levels)
-                        .and_then(|n| n.checked_add(b.len()))
-                        .ok_or_else(|| {
-                            work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget)
-                        })?;
-                    Some(work.reserve_native(bytes)?)
-                } else {
-                    None
-                };
-                let mut body = Vec::new();
-                body.try_reserve_exact(b.len()).map_err(|_| {
-                    work.map_or_else(
-                        || sc::CodecError::new(sc::capture_allocation::LIMIT, "overlay分配失败"),
-                        |w| w.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation),
-                    )
-                })?;
-                body.extend_from_slice(b);
-                m.insert(d, (t, body));
-                if let Some(permit) = permit {
-                    permit.retain();
-                }
+                let admission = super::audit_store::NativeAdmission(work);
+                let mut body = sc::CodecVec::default();
+                admission.native_codec_room(&mut body, b.len())?;
+                body.try_extend_bytes(b)?;
+                m.insert_admitted(d, (t, body), &admission)?;
                 Ok(())
             }
             #[cfg(test)]
@@ -2380,7 +2363,7 @@ impl<'a> HashReader<'a> {
     pub(super) fn captured(capture: &'a sc::AuditCapture, max_render_bytes: Option<u64>) -> Self {
         Self {
             source: ReadOwner::Captured(capture),
-            overlay: OverlayOwner::Dynamic(BTreeMap::new()),
+            overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
             #[cfg(feature = "s_capture_native_testonly")]
@@ -2462,7 +2445,7 @@ impl<'a> HashReader<'a> {
     pub(super) fn new(source: &'a mut dyn NodeSource) -> Self {
         Self {
             source: ReadOwner::Dynamic(source),
-            overlay: OverlayOwner::Dynamic(BTreeMap::new()),
+            overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
             #[cfg(feature = "s_capture_native_testonly")]
@@ -2479,7 +2462,7 @@ impl<'a> HashReader<'a> {
     ) -> Self {
         Self {
             source: ReadOwner::Dynamic(source),
-            overlay: OverlayOwner::Dynamic(BTreeMap::new()),
+            overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
             #[cfg(feature = "s_capture_native_testonly")]
@@ -2497,7 +2480,7 @@ impl<'a> HashReader<'a> {
     ) -> Self {
         Self {
             source: ReadOwner::Dynamic(source),
-            overlay: OverlayOwner::Dynamic(BTreeMap::new()),
+            overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
             #[cfg(feature = "s_capture_native_testonly")]
@@ -2516,7 +2499,7 @@ impl<'a> HashReader<'a> {
     ) -> Self {
         Self {
             source: ReadOwner::Dynamic(source),
-            overlay: OverlayOwner::Dynamic(BTreeMap::new()),
+            overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
             #[cfg(feature = "s_capture_native_testonly")]
@@ -2552,6 +2535,9 @@ impl NodeSource for HashReader<'_> {
         }
     }
     fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, sc::CodecError> {
+        self.read_scoped(d)?.into_plain()
+    }
+    fn read_scoped(&mut self, d: &NodeDigest) -> Result<sc::job::ScopedNodeRead, sc::CodecError> {
         if self.owned.is_some() {
             return Err(sc::CodecError::new(
                 sc::capture_allocation::INCOMPLETE,
@@ -2562,7 +2548,7 @@ impl NodeSource for HashReader<'_> {
         if let Some(b) = self.budget {
             b.precheck()?;
         }
-        let value = if let Some((tag, body)) = self.overlay.get(d) {
+        let (value, permit) = if let Some((tag, body)) = self.overlay.get(d) {
             #[cfg(test)]
             super::state::trace_read(true);
             let permit = self.reserve_copy(body.len())?;
@@ -2570,19 +2556,13 @@ impl NodeSource for HashReader<'_> {
                 tag,
                 body: body.to_vec(),
             };
-            if let Some(permit) = permit {
-                permit.retain();
-            }
-            result
+            (result, permit)
         } else {
             #[cfg(test)]
             super::state::trace_read(false);
             let permit = self.reserve_source_copy(d)?;
             let result = self.source.read(d)?;
-            if let Some(permit) = permit {
-                permit.retain();
-            }
-            result
+            (result, permit)
         };
         if let Some(b) = self.budget {
             if let NodeRead::Found { tag, body } = &value {
@@ -2590,7 +2570,7 @@ impl NodeSource for HashReader<'_> {
             }
             b.precheck()?;
         }
-        Ok(value)
+        Ok(sc::job::ScopedNodeRead::from_plain(value, permit))
     }
 
     fn checked_read(
@@ -2598,7 +2578,7 @@ impl NodeSource for HashReader<'_> {
         d: &NodeDigest,
     ) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
         self.checked_read_scoped(d)
-            .map(|frame| frame.map(sc::job::ScopedFrame::into_frame))
+            .and_then(|frame| frame.map(sc::job::ScopedFrame::into_frame).transpose())
     }
     fn checked_read_scoped(
         &mut self,
@@ -3164,7 +3144,7 @@ mod tests {
         assert_eq!(jumps.root_at(9011).unwrap(), hash_array(&nodes).unwrap());
         let mut overflow = PrefixArray {
             count: sc::MAX_FRAME_LEN,
-            stack: Vec::new(),
+            stack: sc::CodecVec::default(),
         };
         assert!(overflow.append([0; 32]).is_err());
         assert_eq!(overflow.count, sc::MAX_FRAME_LEN);
@@ -6519,6 +6499,7 @@ fn verify_required_meta_admitted(
 ) -> Result<i64, String> {
     use super::audit_owner::native::JsonShape;
     let admission = super::audit_store::NativeAdmission(Some(work));
+    let mut reserved_bytes = 0usize;
     for key in [
         "session_id",
         "writer_epoch",
@@ -6534,30 +6515,36 @@ fn verify_required_meta_admitted(
         stmt.bind_text(1, key).map_err(err)?;
         if let Some(mut row) = stmt.next().map_err(err)? {
             let text = row.text(0).map_err(err)?;
-            admission.native_admit(text.len()).map_err(err)?;
+            reserved_bytes = reserved_bytes
+                .checked_add(text.len())
+                .ok_or_else(|| err(admission.native_overflow()))?;
             if key == "scope" {
-                admission
-                    .native_admit(JsonShape::scan(text.as_bytes()).parse_peak())
-                    .map_err(err)?;
+                reserved_bytes = reserved_bytes
+                    .checked_add(JsonShape::scan(text.as_bytes()).parse_peak())
+                    .ok_or_else(|| err(admission.native_overflow()))?;
             }
         }
         stmt.finalize().map_err(err)?;
     }
     // format!("cut-{generation}")：初块8，i64最长20位后新块至多24；
     // meta_i64 的两个 label：初块10，增长块 max(20, 5 + key.len())。
-    admission.native_admit(8 + 24).map_err(err)?;
+    reserved_bytes = reserved_bytes
+        .checked_add(8 + 24)
+        .ok_or_else(|| err(admission.native_overflow()))?;
     for key in ["generation", "last_advance_frontier"] {
-        admission
-            .native_admit(10 + 20usize.max(5 + key.len()))
-            .map_err(err)?;
+        reserved_bytes = reserved_bytes
+            .checked_add(10 + 20usize.max(5 + key.len()))
+            .ok_or_else(|| err(admission.native_overflow()))?;
     }
     // validate_scope 原样构造的固定两字段期望对象也与解析树共存。
-    admission
-        .native_admit(
+    reserved_bytes = reserved_bytes
+        .checked_add(
             JsonShape::scan(br#"{"structure":"CompleteCut","economic":"not_started"}"#)
                 .parse_peak(),
         )
-        .map_err(err)?;
+        .ok_or_else(|| err(admission.native_overflow()))?;
+    let _temporaries = admission.native_reservation(reserved_bytes).map_err(err)?;
+    // 原严格核返回时所有String、JSON树、格式化缓冲已析构，随后原许可析构。
     verify_required_meta(tx)
 }
 

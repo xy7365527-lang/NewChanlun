@@ -50,6 +50,14 @@ impl<K: Ord, V> NativeTree<K, V> {
         value: V,
         admission: &(impl CodecRead + ?Sized),
     ) -> Result<Option<V>, CodecError> {
+        if let Some(work) = admission.codec_work() {
+            self.permits.try_reserve_native(work, 0)?;
+        } else if self.permits.is_native_bound() {
+            return Err(CodecError::new(
+                sc::capture_allocation::INCOMPLETE,
+                "Native树操作缺当前工作域",
+            ));
+        }
         if !self.tree.contains_key(&key) && self.tree.len() >= self.high_water {
             if let Some(work) = admission.codec_work() {
                 let depth = usize::BITS as usize - self.tree.len().leading_zeros() as usize + 2;
@@ -91,6 +99,9 @@ impl<K: Ord, V> NativeTree<K, V> {
         self.high_water = 0;
         self.permits.clear();
     }
+    pub(crate) fn retain(&mut self, f: impl FnMut(&K, &mut V) -> bool) {
+        self.tree.retain(f);
+    }
     pub(crate) fn permit_capacity(&self) -> usize {
         self.permits.capacity()
     }
@@ -99,17 +110,188 @@ impl<K: Ord, V> NativeTree<K, V> {
         let node_bound = std::mem::size_of::<(K, V)>()
             .saturating_mul(11)
             .saturating_add(16 * std::mem::size_of::<usize>());
-        self.high_water.saturating_mul(node_bound).saturating_add(
-            self.permits.capacity().saturating_mul(std::mem::size_of::<
-                sc::capture_allocation::scratch::NativeReservation,
-            >()),
-        )
+        let nodes = if self.permits.is_native_bound() {
+            self.permits
+                .iter()
+                .fold(0usize, |n, p| n.saturating_add(p.bytes()))
+        } else {
+            self.tree.len().saturating_mul(node_bound)
+        };
+        nodes.saturating_add(self.permits.capacity().saturating_mul(std::mem::size_of::<
+            sc::capture_allocation::scratch::NativeReservation,
+        >()))
     }
 }
 impl<K, V> std::ops::Deref for NativeTree<K, V> {
     type Target = std::collections::BTreeMap<K, V>;
     fn deref(&self) -> &Self::Target {
         &self.tree
+    }
+}
+
+impl<'a, K, V> IntoIterator for &'a NativeTree<K, V> {
+    type Item = (&'a K, &'a V);
+    type IntoIter = std::collections::btree_map::Iter<'a, K, V>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.tree.iter()
+    }
+}
+/// std HashMap的表容量原许可；字段顺序保证旧块先释放再返费。
+pub(crate) struct NativeMap<K, V> {
+    map: std::collections::HashMap<K, V>,
+    permit: Option<sc::capture_allocation::scratch::NativeReservation>,
+}
+impl<K, V> Default for NativeMap<K, V> {
+    fn default() -> Self {
+        Self {
+            map: Default::default(),
+            permit: None,
+        }
+    }
+}
+impl<K: Eq + std::hash::Hash, V> NativeMap<K, V> {
+    pub(crate) fn reserve_admitted(
+        &mut self,
+        admission: &(impl CodecRead + ?Sized),
+    ) -> Result<(), CodecError> {
+        let Some(work) = admission.codec_work() else {
+            if self.permit.is_some() {
+                return Err(CodecError::new(
+                    sc::capture_allocation::INCOMPLETE,
+                    "Native map缺当前工作域",
+                ));
+            }
+            return self
+                .map
+                .try_reserve(1)
+                .map_err(|_| CodecError::new(sc::capture_allocation::LIMIT, "map扩容失败"));
+        };
+        work.check_current()?;
+        if self
+            .permit
+            .as_ref()
+            .is_some_and(|p| !p.belongs_to_parent(work))
+            || (self.permit.is_none() && self.map.capacity() != 0)
+        {
+            return Err(work.reject(sc::capture_allocation::scratch::ScratchFailure::Ledger));
+        }
+        let bytes = admission.native_hash_bytes::<K, V>(self.map.len(), self.map.capacity())?;
+        if bytes == 0 {
+            return Ok(());
+        }
+        let permit = work.reserve_native(bytes)?;
+        let mut next = std::collections::HashMap::new();
+        next.try_reserve(self.map.len() + 1).map_err(|_| {
+            work.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
+        })?;
+        next.extend(self.map.drain());
+        drop(std::mem::replace(&mut self.map, next));
+        self.permit = Some(permit);
+        Ok(())
+    }
+    pub(crate) fn insert(&mut self, key: K, value: V) -> Option<V> {
+        assert!(
+            self.permit.is_none()
+                || self.map.contains_key(&key)
+                || self.map.len() < self.map.capacity()
+        );
+        self.map.insert(key, value)
+    }
+    pub(crate) fn remove<Q: std::hash::Hash + Eq + ?Sized>(&mut self, key: &Q) -> Option<V>
+    where
+        K: std::borrow::Borrow<Q>,
+    {
+        self.map.remove(key)
+    }
+    pub(crate) fn clear(&mut self) {
+        self.map.clear();
+    }
+    pub(crate) fn retain(&mut self, f: impl FnMut(&K, &mut V) -> bool) {
+        self.map.retain(f);
+    }
+}
+impl<K, V> std::ops::Deref for NativeMap<K, V> {
+    type Target = std::collections::HashMap<K, V>;
+    fn deref(&self) -> &Self::Target {
+        &self.map
+    }
+}
+
+/// 树集合与节点许可同属一个拥有者；集合先析构，许可随后返还。
+pub(crate) struct NativeSet<K> {
+    values: NativeTree<K, ()>,
+}
+impl<K> Default for NativeSet<K> {
+    fn default() -> Self {
+        Self {
+            values: NativeTree::default(),
+        }
+    }
+}
+impl<K: Ord> NativeSet<K> {
+    pub(crate) fn first(&self) -> Option<&K> {
+        self.values.first_key_value().map(|(k, _)| k)
+    }
+    pub(crate) fn last(&self) -> Option<&K> {
+        self.values.last_key_value().map(|(k, _)| k)
+    }
+    pub(crate) fn range<Q: Ord + ?Sized, R: std::ops::RangeBounds<Q>>(
+        &self,
+        range: R,
+    ) -> impl DoubleEndedIterator<Item = &K>
+    where
+        K: std::borrow::Borrow<Q>,
+    {
+        self.values.range(range).map(|(key, _)| key)
+    }
+    pub(crate) fn insert_admitted(
+        &mut self,
+        key: K,
+        admission: &(impl CodecRead + ?Sized),
+    ) -> Result<bool, CodecError> {
+        self.values
+            .insert_admitted(key, (), admission)
+            .map(|old| old.is_none())
+    }
+    pub(crate) fn contains<Q: Ord + ?Sized>(&self, key: &Q) -> bool
+    where
+        K: std::borrow::Borrow<Q>,
+    {
+        self.values.contains_key(key)
+    }
+    pub(crate) fn take<Q: Ord + ?Sized>(&mut self, key: &Q) -> Option<K>
+    where
+        K: std::borrow::Borrow<Q>,
+    {
+        self.values.remove_entry(key).map(|(key, ())| key)
+    }
+    pub(crate) fn remove<Q: Ord + ?Sized>(&mut self, key: &Q) -> bool
+    where
+        K: std::borrow::Borrow<Q>,
+    {
+        self.take(key).is_some()
+    }
+    pub(crate) fn clear(&mut self) {
+        self.values.clear();
+    }
+    pub(crate) fn len(&self) -> usize {
+        self.values.len()
+    }
+    pub(crate) fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+    pub(crate) fn iter(&self) -> std::collections::btree_map::Keys<'_, K, ()> {
+        self.values.keys()
+    }
+    pub(crate) fn allocation_bytes(&self) -> usize {
+        self.values.allocation_bytes()
+    }
+}
+impl<'a, K> IntoIterator for &'a NativeSet<K> {
+    type Item = &'a K;
+    type IntoIter = std::collections::btree_map::Keys<'a, K, ()>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.values.keys()
     }
 }
 
@@ -137,11 +319,14 @@ impl sc::path::PathView for NativeFieldPath {
 
 /// 仅bin内的静态codec门；具体捕获owner不可擦除成外来来源。
 pub(crate) trait CodecRead: NodeSource {
-    fn native_admit(&self, bytes: usize) -> Result<(), CodecError> {
-        if let Some(work) = self.codec_work() {
-            work.reserve_native(bytes)?.retain();
-        }
-        Ok(())
+    #[must_use = "原许可必须由实际载荷持有至析构"]
+    fn native_reservation(
+        &self,
+        bytes: usize,
+    ) -> Result<Option<sc::capture_allocation::scratch::NativeReservation>, CodecError> {
+        self.codec_work()
+            .map(|work| work.reserve_native(bytes))
+            .transpose()
     }
     fn native_overflow(&self) -> CodecError {
         self.codec_work().map_or_else(
@@ -149,36 +334,15 @@ pub(crate) trait CodecRead: NodeSource {
             |w| w.reject(sc::capture_allocation::scratch::ScratchFailure::Budget),
         )
     }
-    fn native_vec_room<T>(&self, values: &mut Vec<T>, additional: usize) -> Result<(), CodecError> {
-        if self.codec_work().is_none() {
-            return Ok(());
+    fn native_vec_room<T>(
+        &self,
+        values: &mut sc::CodecVec<T>,
+        additional: usize,
+    ) -> Result<(), CodecError> {
+        match self.codec_work() {
+            Some(work) => values.try_reserve_native(work, additional),
+            None => values.try_reserve(additional),
         }
-        let needed = values
-            .len()
-            .checked_add(additional)
-            .ok_or_else(|| self.native_overflow())?;
-        if needed <= values.capacity() {
-            return Ok(());
-        }
-        let next = needed
-            .max(
-                values
-                    .capacity()
-                    .checked_mul(2)
-                    .ok_or_else(|| self.native_overflow())?,
-            )
-            .max(4);
-        let bytes = next
-            .checked_mul(std::mem::size_of::<T>())
-            .ok_or_else(|| self.native_overflow())?;
-        let permit = self.codec_work().unwrap().reserve_native(bytes)?;
-        values.try_reserve_exact(next - values.len()).map_err(|_| {
-            self.codec_work()
-                .unwrap()
-                .reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
-        })?;
-        permit.retain();
-        Ok(())
     }
     fn native_codec_room<T>(
         &self,
@@ -225,30 +389,9 @@ pub(crate) trait CodecRead: NodeSource {
     }
     fn native_std_map_room<K: Eq + std::hash::Hash, V>(
         &self,
-        map: &mut std::collections::HashMap<K, V>,
+        map: &mut NativeMap<K, V>,
     ) -> Result<(), CodecError> {
-        let bytes = self.native_hash_bytes::<K, V>(map.len(), map.capacity())?;
-        if bytes > 0 {
-            let work = self.codec_work().unwrap();
-            let permit = work.reserve_native(bytes)?;
-            map.try_reserve(1).map_err(|_| {
-                work.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
-            })?;
-            permit.retain();
-        }
-        Ok(())
-    }
-    fn native_tree_room<K, V>(&self, len: usize) -> Result<(), CodecError> {
-        if self.codec_work().is_none() {
-            return Ok(());
-        }
-        let depth = usize::BITS as usize - len.leading_zeros() as usize + 2;
-        let bytes = std::mem::size_of::<(K, V)>()
-            .checked_mul(11)
-            .and_then(|n| n.checked_add(16 * std::mem::size_of::<usize>()))
-            .and_then(|n| n.checked_mul(depth))
-            .ok_or_else(|| self.native_overflow())?;
-        self.native_admit(bytes)
+        map.reserve_admitted(self)
     }
     /// #1488 新消费面必须持有返回 owner；不会经过旧 retain 接口后二次收费。
     fn native_owned_text(
@@ -311,22 +454,6 @@ pub(crate) trait CodecRead: NodeSource {
     ) -> Result<NativeValue<String>, CodecError> {
         NativeValue::<String>::try_format(args, self.codec_work())
     }
-    fn native_ref_fields_bytes<'a>(
-        &self,
-        fields: impl IntoIterator<Item = (&'a str, &'a ContentRef)>,
-    ) -> Result<(), CodecError> {
-        let node =
-            11 * std::mem::size_of::<(String, ContentRef)>() + 16 * std::mem::size_of::<usize>();
-        for (name, reference) in fields {
-            let bytes = node
-                .checked_add(name.len())
-                .and_then(|n| n.checked_add(reference.format.len()))
-                .and_then(|n| n.checked_add(reference.root.len()))
-                .ok_or_else(|| self.native_overflow())?;
-            self.native_admit(bytes)?;
-        }
-        Ok(())
-    }
     fn native_verify_original(
         &self,
         capture: &sc::AuditCapture,
@@ -345,19 +472,24 @@ pub(crate) trait CodecRead: NodeSource {
                 Some(self.scope)
             }
             fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+                self.read_scoped(digest)?.into_plain()
+            }
+            fn read_scoped(
+                &mut self,
+                digest: &NodeDigest,
+            ) -> Result<sc::job::ScopedNodeRead, CodecError> {
                 let permit = self
                     .scope
                     .reserve_native(self.capture.original(digest).map_or(0, |(_, b)| b.len()))?;
                 let value = self.capture.reader().read(digest)?;
-                permit.retain();
-                Ok(value)
+                Ok(sc::job::ScopedNodeRead::from_plain(value, Some(permit)))
             }
             fn checked_read(
                 &mut self,
                 digest: &NodeDigest,
             ) -> Result<Option<sc::job::CheckedFrame>, CodecError> {
                 self.checked_read_scoped(digest)
-                    .map(|f| f.map(sc::job::ScopedFrame::into_frame))
+                    .and_then(|f| f.map(sc::job::ScopedFrame::into_frame).transpose())
             }
             fn checked_read_scoped(
                 &mut self,

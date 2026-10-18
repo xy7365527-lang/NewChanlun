@@ -400,7 +400,10 @@ fn blob_digest(bytes: &[u8]) -> [u8; 32] {
 ///
 /// 物理域由私有登记表唯一决定（旧整块 / 新节点图），两者都按同一内容寻址判据核验；
 /// 不提供「一种失败再试另一种」的降级通道：图域见到整块字节即拒绝，整块域见不到字节即拒绝。
-fn load_batch_bytes(conn: &Connection, batch_id: &str) -> Result<std::sync::Arc<[u8]>, String> {
+fn load_batch_bytes(
+    conn: &Connection,
+    batch_id: &str,
+) -> Result<crate::v3::native_shared::NativeArc<[u8]>, String> {
     let mut reader = evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET);
     load_batch_with(conn, &mut reader, batch_id, false).map(|(bytes, _, _)| bytes)
 }
@@ -409,35 +412,24 @@ fn load_batch_bytes_with(
     conn: &Connection,
     reader: &mut evidence_store::Reader<'_>,
     batch_id: &str,
-) -> Result<std::sync::Arc<[u8]>, String> {
+) -> Result<crate::v3::native_shared::NativeArc<[u8]>, String> {
     load_batch_with(conn, reader, batch_id, false).map(|(bytes, _, _)| bytes)
 }
 
 /// Arc内联owner和控制块各自随最后共享者析构；不借scope保守记账代替所有权。
 struct SharedHeaderText {
     text: TextValue,
-    _permit: Option<newchan_rust::s_content::capture_allocation::scratch::NativeReservation>,
 }
 fn share_header_text_admitted(
     text: &str,
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
-) -> Result<std::sync::Arc<SharedHeaderText>, String> {
+) -> Result<crate::v3::native_shared::NativeArc<SharedHeaderText>, String> {
     use v3::audit_store::{CodecRead, NativeAdmission};
-    let permit = work
-        .map(|work| {
-            work.reserve_native(
-                std::mem::size_of::<SharedHeaderText>() + 2 * std::mem::size_of::<usize>(),
-            )
-        })
-        .transpose()
-        .map_err(|e| e.to_string())?;
     let text = NativeAdmission(work)
         .native_text(text)
         .map_err(|e| e.to_string())?;
-    Ok(std::sync::Arc::new(SharedHeaderText {
-        text,
-        _permit: permit,
-    }))
+    crate::v3::native_shared::NativeArc::try_new_shallow(SharedHeaderText { text }, work)
+        .map_err(|e| e.to_string())
 }
 impl SharedHeaderText {
     fn as_str(&self) -> &str {
@@ -463,7 +455,6 @@ impl PartialEq for SharedHeaderText {
 impl Eq for SharedHeaderText {}
 struct SharedPlainJson {
     value: PlainJson,
-    _permit: Option<newchan_rust::s_content::capture_allocation::scratch::NativeReservation>,
 }
 impl SharedPlainJson {
     fn as_ref(&self) -> &Value {
@@ -484,29 +475,19 @@ impl std::fmt::Debug for SharedPlainJson {
 fn share_plain_json_admitted(
     value: PlainJson,
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
-) -> Result<std::sync::Arc<SharedPlainJson>, String> {
-    let permit = work
-        .map(|work| {
-            work.reserve_native(
-                std::mem::size_of::<SharedPlainJson>() + 2 * std::mem::size_of::<usize>(),
-            )
-        })
-        .transpose()
-        .map_err(|e| e.to_string())?;
-    Ok(std::sync::Arc::new(SharedPlainJson {
-        value,
-        _permit: permit,
-    }))
+) -> Result<crate::v3::native_shared::NativeArc<SharedPlainJson>, String> {
+    crate::v3::native_shared::NativeArc::try_new_shallow(SharedPlainJson { value }, work)
+        .map_err(|e| e.to_string())
 }
 
 /// 只从已完整严格解析且公开内容身份核验通过的 batch 投影；不补字段、不从控制表反推。
 /// 旧 v1 忽略这四字段；v2 对每个 Some 字符串继续逐字比较，缺失/非字符串均不能通过。
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct BatchControlHeader {
-    protocol_revision: Option<std::sync::Arc<SharedHeaderText>>,
-    session_generation: Option<std::sync::Arc<SharedHeaderText>>,
-    clock_plan_hash: Option<std::sync::Arc<SharedHeaderText>>,
-    semantic_commit_ns: Option<std::sync::Arc<SharedHeaderText>>,
+    protocol_revision: Option<crate::v3::native_shared::NativeArc<SharedHeaderText>>,
+    session_generation: Option<crate::v3::native_shared::NativeArc<SharedHeaderText>>,
+    clock_plan_hash: Option<crate::v3::native_shared::NativeArc<SharedHeaderText>>,
+    semantic_commit_ns: Option<crate::v3::native_shared::NativeArc<SharedHeaderText>>,
 }
 impl BatchControlHeader {
     fn from_verified_batch(batch: &Value) -> Self {
@@ -637,7 +618,7 @@ fn read_batch_storage_admitted(
     Ok((blob, byte_len, graph))
 }
 enum ProfileBatchBytes {
-    Plain(std::sync::Arc<[u8]>),
+    Plain(crate::v3::native_shared::NativeArc<[u8]>),
     Owned(newchan_rust::s_content::CodecVec<u8>),
 }
 impl std::ops::Deref for ProfileBatchBytes {
@@ -707,7 +688,13 @@ fn capture_batch_ref_with(
     conn: &Connection,
     reader: &mut evidence_store::Reader<'_>,
     batch_id: &str,
-) -> Result<(BatchRef, Option<std::sync::Arc<cache::RootCert>>), String> {
+) -> Result<
+    (
+        BatchRef,
+        Option<crate::v3::native_shared::NativeArc<cache::RootCert>>,
+    ),
+    String,
+> {
     if evidence_store::format(conn)?.graph() {
         let (blob, byte_len) = read_batch_row(conn, batch_id)?;
         if !blob.is_empty() {
@@ -745,9 +732,9 @@ fn load_batch_with(
     with_value: bool,
 ) -> Result<
     (
-        std::sync::Arc<[u8]>,
-        Option<std::sync::Arc<SharedPlainJson>>,
-        Option<std::sync::Arc<cache::RootCert>>,
+        crate::v3::native_shared::NativeArc<[u8]>,
+        Option<crate::v3::native_shared::NativeArc<SharedPlainJson>>,
+        Option<crate::v3::native_shared::NativeArc<cache::RootCert>>,
     ),
     String,
 > {
@@ -758,8 +745,8 @@ fn load_batch_with(
     let blob = blob.try_into_plain().map_err(|e| e.to_string())?;
     if !graph {
         // 旧整块域：完整规范字节就在这一行。
-        evidence_store::admit_byte_arc(blob.len(), work)?;
-        let bytes: std::sync::Arc<[u8]> = std::sync::Arc::from(blob.as_slice());
+        let bytes = crate::v3::native_shared::NativeArc::try_copy_slice(blob.as_slice(), work)
+            .map_err(|e| e.to_string())?;
         let digest = blob_digest(&blob);
         // 整块域也走同一句柄缓存：命中要求当前行内字节与此前核过的完全一致。
         let key = evidence_store::batch_root_key_admitted(batch_id, None, work)?;
@@ -818,14 +805,14 @@ fn load_batch_with(
 fn parse_batch_value(
     bytes: &[u8],
     batch_id: &str,
-) -> Result<std::sync::Arc<SharedPlainJson>, String> {
+) -> Result<crate::v3::native_shared::NativeArc<SharedPlainJson>, String> {
     parse_batch_value_admitted(bytes, batch_id, None)
 }
 fn parse_batch_value_admitted(
     bytes: &[u8],
     batch_id: &str,
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
-) -> Result<std::sync::Arc<SharedPlainJson>, String> {
+) -> Result<crate::v3::native_shared::NativeArc<SharedPlainJson>, String> {
     use v3::audit_store::{CodecRead, NativeAdmission};
     let parsed = v3::business_json::strict_json_owner_admitted(bytes, None, work)
         .map(|parsed| match parsed {
@@ -865,9 +852,9 @@ fn read_record_original(
     root_key: &str,
     column: &str,
     label: &str,
-) -> Result<std::sync::Arc<[u8]>, String> {
+) -> Result<crate::v3::native_shared::NativeArc<[u8]>, String> {
     if !format.records_in_graph() {
-        return Ok(std::sync::Arc::from(column.as_bytes()));
+        return Ok(crate::v3::native_shared::NativeArc::from(column.as_bytes()));
     }
     if !column.is_empty() {
         return Err(format!(
@@ -897,8 +884,8 @@ fn load_batch_value_with(
     batch_id: &str,
 ) -> Result<
     (
-        std::sync::Arc<SharedPlainJson>,
-        Option<std::sync::Arc<cache::RootCert>>,
+        crate::v3::native_shared::NativeArc<SharedPlainJson>,
+        Option<crate::v3::native_shared::NativeArc<cache::RootCert>>,
     ),
     String,
 > {
@@ -4259,7 +4246,7 @@ fn json_shape_with_owner_admitted(
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
 ) -> Result<v3::business_json::JsonOwner, String> {
     #[cfg(feature = "s_capture_native_testonly")]
-    if let Some(work) = work {
+    let permit = if let Some(work) = work {
         if owner.is_some() {
             return Err(work
                 .reject(
@@ -4267,17 +4254,31 @@ fn json_shape_with_owner_admitted(
                 )
                 .to_string());
         }
-        work.reserve_native(v3::audit_owner::native::JsonShape::scan(text.as_bytes()).parse_peak())
-            .map_err(|e| e.to_string())?
-            .retain();
-    }
+        Some(
+            work.reserve_native(
+                v3::audit_owner::native::JsonShape::scan(text.as_bytes()).parse_peak(),
+            )
+            .map_err(|e| e.to_string())?,
+        )
+    } else {
+        None
+    };
     #[cfg(not(feature = "s_capture_native_testonly"))]
     if let Some(work) = work {
         return Err(work
             .reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger)
             .to_string());
     }
-    json_shape_with_owner(text, shape, owner)
+    let value = json_shape_with_owner(text, shape, owner)?;
+    #[cfg(feature = "s_capture_native_testonly")]
+    let value = match value {
+        v3::business_json::JsonOwner::Plain(value) => {
+            v3::business_json::JsonOwner::Plain(value.with_reservation(permit))
+        }
+        #[cfg(feature = "s_allocation_json_testonly")]
+        owned @ v3::business_json::JsonOwner::Owned(_) => owned,
+    };
+    Ok(value)
 }
 
 fn json_shape_with_owner(
@@ -10293,7 +10294,7 @@ mod staged_graph_audit_regressions {
             .unwrap();
         assert_eq!(wrapped.bytes, original.bytes);
         assert!(!wrapped.originals_verified && !wrapped.reused);
-        assert!(!std::sync::Arc::ptr_eq(
+        assert!(!crate::v3::native_shared::NativeArc::ptr_eq(
             original.root_cert.as_ref().unwrap(),
             wrapped.root_cert.as_ref().unwrap()
         ));
@@ -11045,9 +11046,9 @@ mod legacy_profile_owner_regressions {
             .codec_work()
             .unwrap()
             .run(|scope| {
-                NativeAdmission(Some(scope))
-                    .native_admit(137)
-                    .map_err(|e| e.to_string())?;
+                let _caller_payload = NativeAdmission(Some(scope))
+    .native_owned_text("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+    .map_err(|e| e.to_string())?;
                 let before = budget.live();
                 let mut reader =
                     evidence_store::Reader::new_admitted(&conn, EVIDENCE_READ_BUDGET, Some(scope))?;
@@ -11117,9 +11118,9 @@ mod legacy_profile_owner_regressions {
                     .codec_work()
                     .unwrap()
                     .run(|scope| {
-                        NativeAdmission(Some(scope))
-                            .native_admit(137)
-                            .map_err(|e| e.to_string())?;
+                        let _caller_payload = NativeAdmission(Some(scope))
+    .native_owned_text("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+    .map_err(|e| e.to_string())?;
                         let before = budget.live();
                         let mut reader = evidence_store::Reader::new_admitted(
                             &tx,

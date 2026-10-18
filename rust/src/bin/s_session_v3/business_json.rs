@@ -1525,6 +1525,11 @@ impl PlainJson {
             child_permits: sc::CodecVec::default(),
         }
     }
+    pub(crate) fn with_reservation(mut self, permit: Option<NativeReservation>) -> Self {
+        assert!(self.permit.is_none());
+        self.permit = permit;
+        self
+    }
     // 只供ScopedJsonArray空数组/空替换buffer构造；每个子树许可由push逐项携入。
     fn itemized_array(permit: NativeReservation, rows: Vec<Value>) -> Self {
         debug_assert!(rows.is_empty());
@@ -1544,7 +1549,11 @@ impl PlainJson {
     #[cfg(feature = "s_capture_native_testonly")]
     pub(crate) fn retained_heap_bytes(&self) -> usize {
         use super::audit_retention::Retained;
-        self.value.heap_bytes().saturating_add(
+        let admitted = self.child_permits.iter().fold(
+            self.permit.as_ref().map_or(0, NativeReservation::bytes),
+            |n, p| n.saturating_add(p.bytes()),
+        );
+        self.value.heap_bytes().max(admitted).saturating_add(
             self.child_permits
                 .capacity()
                 .saturating_mul(std::mem::size_of::<NativeReservation>()),

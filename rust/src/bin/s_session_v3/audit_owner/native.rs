@@ -301,13 +301,13 @@ impl From<String> for Failure {
     }
 }
 #[derive(Clone)]
-pub(crate) struct Budget(Arc<Ledger>, u64, u64);
+pub(crate) struct Budget(Arc<Ledger>, u64, u64, usize);
 // 请求号在不可变Budget句柄上；父账只保存紧凑的来源序号和活动scope计数。
 // 两个计数都checked拒绝溢出，不回绕、不复用旧来源；避免扩大原128字节小帽探针。
 struct Domain {
-    allowance: usize,
-    live: usize,
-    peak: usize,
+    remaining: usize,
+    low_water: usize,
+    total_limit: usize,
     unassigned: usize,
     serial: u32,
     active_scopes: u16,
@@ -468,30 +468,28 @@ impl Budget {
             self.0.native_peak.load(Ordering::Acquire),
         )
     }
-    pub(crate) fn pristine_cold_parent(&self) -> bool {
-        let metadata = Layout::new::<[AtomicUsize; 2]>()
+    pub(crate) fn metadata_bytes() -> usize {
+        Layout::new::<[AtomicUsize; 2]>()
             .extend(Layout::new::<Ledger>())
             .expect("父账元数据布局")
             .0
             .pad_to_align()
-            .size();
+            .size()
+    }
+    pub(crate) fn pristine_cold_parent(&self) -> bool {
+        let metadata = Self::metadata_bytes();
         self.0.domain.lock().is_ok_and(|d| {
             d.serial == 0
                 && self.1 == 0
                 && d.state == 0
                 && d.unassigned == 0
-                && d.live == metadata
-                && d.peak == metadata
+                && d.remaining == self.3 - metadata
+                && d.low_water == d.remaining
         })
     }
     pub(crate) fn new(limit: usize, retained: usize) -> Result<Self, BudgetExceeded> {
         // 当前 Rust 1.98 ArcInner 元数据；在 Arc::new 前预留，不声称 fallible Arc。
-        let metadata = Layout::new::<[AtomicUsize; 2]>()
-            .extend(Layout::new::<Ledger>())
-            .map_err(|_| BudgetExceeded)?
-            .0
-            .pad_to_align()
-            .size();
+        let metadata = Self::metadata_bytes();
         let live = retained.checked_add(metadata).ok_or(BudgetExceeded)?;
         if live > limit {
             return Err(BudgetExceeded);
@@ -500,9 +498,9 @@ impl Budget {
             Arc::new(Ledger {
                 domain: Mutex::new(Domain {
                     serial: 0,
-                    allowance: limit,
-                    live,
-                    peak: live,
+                    remaining: limit - live,
+                    low_water: limit - live,
+                    total_limit: limit,
                     unassigned: retained,
                     active_scopes: 0,
                     state: 0,
@@ -518,7 +516,112 @@ impl Budget {
             }),
             0,
             0,
+            limit,
         ))
+    }
+    pub(crate) fn check_current(&self) -> Result<(), BudgetExceeded> {
+        let d = self.0.domain.lock().map_err(|_| BudgetExceeded)?;
+        if d.state & BROKEN != 0 || u64::from(d.serial) != self.1 {
+            return Err(BudgetExceeded);
+        }
+        Ok(())
+    }
+    pub(crate) fn total_limit(&self) -> Result<usize, BudgetExceeded> {
+        self.check_current()?;
+        Ok(self
+            .0
+            .domain
+            .lock()
+            .map_err(|_| BudgetExceeded)?
+            .total_limit)
+    }
+    /// #1488 冻结合同同时限制总容量和本请求增量；旧费用不能再次扣A。
+    pub(crate) fn bind_frozen(
+        &self,
+        request: u64,
+        total: usize,
+        legacy: usize,
+        old_pool: usize,
+    ) -> Result<Self, BudgetExceeded> {
+        let allowance = total
+            .checked_sub(legacy)
+            .and_then(|n| n.checked_sub(old_pool))
+            .ok_or(BudgetExceeded)?;
+        let mut d = self.0.domain.lock().map_err(|_| BudgetExceeded)?;
+        if d.state & BROKEN != 0 || self.1 != u64::from(d.serial) || request == 0 {
+            return Err(BudgetExceeded);
+        }
+        if self.2 == 0 {
+            if d.state != 0 || self.3 != allowance {
+                return Err(BudgetExceeded);
+            }
+            d.state |= BOUND;
+            return Ok(Self(self.0.clone(), self.1, request, allowance));
+        }
+        if self.2 == request {
+            return if self.3 == allowance {
+                Ok(self.clone())
+            } else {
+                Err(BudgetExceeded)
+            };
+        }
+        let live = self.live();
+        if request < self.2 || d.active_scopes != 0 || live > old_pool {
+            return Err(BudgetExceeded);
+        }
+        // old_pool中剩余的独立旧池与legacy仍冻结：此父最多占L+A。
+        // checked的L<=O同时证明(L+A)+(O-L)+legacy == total。
+        let total_limit = live.checked_add(allowance).ok_or(BudgetExceeded)?;
+        let serial = d.serial.checked_add(1).ok_or(BudgetExceeded)?;
+        d.serial = serial;
+        d.total_limit = total_limit;
+        d.remaining = allowance;
+        d.low_water = allowance;
+        Ok(Self(self.0.clone(), u64::from(serial), request, allowance))
+    }
+    /// 工作域和新块一起预检；预算拒绝不能先接纳原件或改变峰值。
+    fn preflight_codec_vec<T>(
+        &self,
+        v: &newchan_rust::s_content::CodecVec<T>,
+        additional: usize,
+    ) -> Result<(), Failure> {
+        self.check_current()?;
+        let parent: Arc<dyn ScratchParent> = self.0.clone();
+        if v.is_native_bound() && !v.native_parent_matches(&parent) {
+            return Err(Failure::Invalid("Native原件来自外来父账".into()));
+        }
+        if !v.is_native_bound() && !v.can_adopt_native() {
+            return Err(Failure::Invalid("Native不接其它allocator容器".into()));
+        }
+        let needed = v.len().checked_add(additional).ok_or(BudgetExceeded)?;
+        let growth = if needed > v.capacity() {
+            needed
+                .max(v.capacity().checked_mul(2).ok_or(BudgetExceeded)?)
+                .max(4)
+                .checked_mul(size_of::<T>())
+                .ok_or(BudgetExceeded)?
+        } else {
+            0
+        };
+        let bytes = growth
+            .checked_add(CodecWork::metadata_bytes())
+            .ok_or(BudgetExceeded)?;
+        let d = self.0.domain.lock().map_err(|_| BudgetExceeded)?;
+        if bytes > d.remaining
+            || self
+                .live()
+                .checked_add(bytes)
+                .filter(|n| *n <= d.total_limit)
+                .is_none()
+            || (!v.is_native_bound()
+                && v.capacity()
+                    .checked_mul(size_of::<T>())
+                    .filter(|n| *n <= d.unassigned)
+                    .is_none())
+        {
+            return Err(BudgetExceeded.into());
+        }
+        Ok(())
     }
     pub(crate) fn same_parent(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
@@ -540,12 +643,11 @@ impl Budget {
         allowance: usize,
     ) -> Result<Self, BudgetExceeded> {
         let mut d = self.0.domain.lock().map_err(|_| BudgetExceeded)?;
-        if u64::from(d.serial) != self.1 || d.state != 0 || d.allowance != allowance || request == 0
-        {
+        if u64::from(d.serial) != self.1 || d.state != 0 || self.3 != allowance || request == 0 {
             return Err(BudgetExceeded);
         }
         d.state |= BOUND;
-        Ok(Self(self.0.clone(), self.1, request))
+        Ok(Self(self.0.clone(), self.1, request, allowance))
     }
     /// #1488：同父账接纳新请求，只开启新的增量计数；累计观察值和旧许可不动。
     pub(crate) fn handoff(&self, request: u64, allowance: usize) -> Result<Self, BudgetExceeded> {
@@ -554,7 +656,7 @@ impl Budget {
             return Err(BudgetExceeded);
         }
         if self.2 == request {
-            return if d.allowance == allowance {
+            return if self.3 == allowance {
                 Ok(self.clone())
             } else {
                 Err(BudgetExceeded)
@@ -563,19 +665,22 @@ impl Budget {
         if request < self.2 || d.active_scopes != 0 {
             return Err(BudgetExceeded);
         }
-        self.live().checked_add(allowance).ok_or(BudgetExceeded)?;
+        let total_limit = self.live().checked_add(allowance).ok_or(BudgetExceeded)?;
         let serial = d.serial.checked_add(1).ok_or(BudgetExceeded)?;
         d.serial = serial;
-        d.allowance = allowance;
+        d.total_limit = total_limit;
         // 这是新冻结域的增量读数；Ledger.live/peak及各分项历史高水位始终不重置。
         // 旧来源仍由每个不可复制许可携带，返还只动累计占用，不回补本域。
-        d.live = 0;
-        d.peak = 0;
-        Ok(Self(self.0.clone(), u64::from(serial), request))
+        d.remaining = allowance;
+        d.low_water = allowance;
+        Ok(Self(self.0.clone(), u64::from(serial), request, allowance))
     }
     pub(crate) fn matches_request(&self, request: u64, allowance: usize) -> bool {
         self.0.domain.lock().is_ok_and(|d| {
-            u64::from(d.serial) == self.1 && self.2 == request && d.allowance == allowance
+            d.state & BROKEN == 0
+                && u64::from(d.serial) == self.1
+                && self.2 == request
+                && self.3 == allowance
         })
     }
     pub(crate) fn remaining(&self) -> usize {
@@ -584,13 +689,13 @@ impl Budget {
             .lock()
             .ok()
             .filter(|d| u64::from(d.serial) == self.1)
-            .and_then(|d| d.allowance.checked_sub(d.live))
+            .map(|d| d.remaining)
             .unwrap_or(0)
     }
     pub(crate) fn request_peak(&self) -> usize {
         self.0.domain.lock().map_or(usize::MAX, |d| {
             if u64::from(d.serial) == self.1 {
-                d.peak
+                self.3 - d.low_water
             } else {
                 usize::MAX
             }
@@ -634,7 +739,7 @@ impl Budget {
         if u64::from(d.serial) != self.1 {
             return Err(Failure::Invalid("旧冻结域不可新建工作域".into()));
         }
-        let allowance = d.allowance;
+        let allowance = self.3;
         drop(d);
         CodecWork::new_in_origin(self.0.clone(), allowance, self.1).map_err(Failure::from)
     }
@@ -650,6 +755,7 @@ impl Budget {
         &self,
         v: &mut newchan_rust::s_content::CodecVec<T>,
     ) -> Result<(), Failure> {
+        self.check_current()?;
         if v.is_native_bound() {
             let parent: Arc<dyn ScratchParent> = self.0.clone();
             return if v.native_parent_matches(&parent) {
@@ -669,6 +775,7 @@ impl Budget {
             newchan_rust::s_content::capture_allocation::scratch::NativeReservation::adopt(
                 self.0.clone(),
                 bytes,
+                self.1,
             )?;
         v.attach_native_reservation(permit)
             .map_err(|e| Failure::Invalid(e.to_string()))
@@ -678,9 +785,10 @@ impl Budget {
         v: &mut newchan_rust::s_content::CodecVec<T>,
         additional: usize,
     ) -> Result<(), Failure> {
-        self.adopt_codec_vec(v)?;
+        self.preflight_codec_vec(v, additional)?;
+        // 工作域元数据先准入。Plain原件的接纳由容器在新块准入/分配成功后提交。
         self.codec_work()?
-            .run(|w| v.try_reserve_native(w, additional))
+            .run(|w| v.try_reserve_native_adopting(w, additional))
             .map_err(|e| match e {
                 WorkError::Resource(e) => e.into(),
                 WorkError::Operation(e) => Failure::Invalid(e.to_string()),
@@ -710,6 +818,7 @@ impl Budget {
         fee: &mut Permit,
         additional: usize,
     ) -> Result<(), BudgetExceeded> {
+        self.check_current()?;
         if !self.same_parent(&fee.budget) || fee.bytes != vec_bytes::<T>(v.capacity()) {
             return Err(BudgetExceeded);
         }
@@ -731,6 +840,7 @@ impl Budget {
         m: &mut Reserved<HashMap<K, V>>,
         key: &K,
     ) -> Result<(), BudgetExceeded> {
+        self.check_current()?;
         if !self.same_parent(&m._permit.budget)
             || m._permit.bytes != hash_slots::<K, V>(m.capacity())
         {
@@ -751,6 +861,7 @@ impl Budget {
         k: Reserved<String>,
         v: V,
     ) -> Result<(), BudgetExceeded> {
+        self.check_current()?;
         if !self.same_parent(&k._permit.budget)
             || !self.same_parent(&m.fees._permit.budget)
             || k._permit.origin != self.1
@@ -929,14 +1040,14 @@ impl Ledger {
             return Err(ScratchFailure::Ledger);
         }
         let next = d
-            .live
-            .checked_add(bytes)
-            .filter(|n| *n <= d.allowance)
+            .remaining
+            .checked_sub(bytes)
             .ok_or(ScratchFailure::Budget)?;
         let total = self
             .live
             .load(Ordering::Acquire)
             .checked_add(bytes)
+            .filter(|n| *n <= d.total_limit)
             .ok_or(ScratchFailure::Budget)?;
         let part = kind
             .map(|k| {
@@ -955,8 +1066,8 @@ impl Ledger {
             d.active_scopes
         };
         d.active_scopes = active_scopes;
-        d.live = next;
-        d.peak = d.peak.max(next);
+        d.remaining = next;
+        d.low_water = d.low_water.min(next);
         if let Some((live, peak, n)) = part {
             live.store(n, Ordering::Release);
             peak.fetch_max(n, Ordering::Relaxed);
@@ -988,9 +1099,11 @@ impl Ledger {
             return Err(ScratchFailure::Ledger);
         }
         let current = if origin == u64::from(d.serial) {
-            d.live.checked_sub(bytes).ok_or(ScratchFailure::Ledger)?
+            d.remaining
+                .checked_add(bytes)
+                .ok_or(ScratchFailure::Ledger)?
         } else {
-            d.live
+            d.remaining
         };
         let part = kind
             .map(|k| {
@@ -1001,7 +1114,7 @@ impl Ledger {
                     .ok_or(ScratchFailure::Ledger)
             })
             .transpose()?;
-        d.live = current;
+        d.remaining = current;
         self.live.store(total, Ordering::Release);
         if let Some((live, n)) = part {
             live.store(n, Ordering::Release);
@@ -1020,9 +1133,9 @@ impl ScratchParent for Ledger {
     fn origin(&self) -> u64 {
         self.domain.lock().map_or(u64::MAX, |d| u64::from(d.serial))
     }
-    fn adopt_native(&self, bytes: usize) -> Result<u64, ScratchFailure> {
+    fn adopt_native(&self, bytes: usize, expected: u64) -> Result<u64, ScratchFailure> {
         let mut d = self.domain.lock().map_err(|_| ScratchFailure::Ledger)?;
-        if d.state & BROKEN != 0 {
+        if d.state & BROKEN != 0 || expected != u64::from(d.serial) {
             return Err(ScratchFailure::Ledger);
         }
         let unassigned = d
@@ -1724,5 +1837,234 @@ mod cross_request_budget_tests {
         assert!(budget.adopt(cost).is_err());
         drop(values);
         assert_eq!(budget.live(), live - cost);
+    }
+}
+
+#[cfg(test)]
+// #1488 v2反例锁。NOT_RUN：本轮未获准编译或执行Rust。
+mod lifecycle_repair_v2_tests {
+    use super::*;
+    use newchan_rust::s_content::{
+        self as sc, capture_allocation::audit_json::BusinessMap, CodecVec,
+    };
+
+    #[test]
+    fn frozen_increment_accepts_700_old_and_20_new_with_200_allowance() {
+        let first = Budget::new(900, 0).unwrap().bind_initial(100, 900).unwrap();
+        let metadata = Budget::metadata_bytes();
+        let old_candidate = first
+            .reserve(650 - metadata)
+            .unwrap()
+            .hold(vec![7u8; 650 - metadata]);
+        let old_raw = first.reserve(50).unwrap().hold(vec![8u8; 50]);
+        assert_eq!(first.live(), 700);
+        let next = first.bind_frozen(101, 1000, 100, 700).unwrap();
+        assert_eq!(next.remaining(), 200);
+        let new = next.reserve(20).unwrap().hold(vec![9u8; 20]);
+        assert_eq!(next.live() + 100, 820);
+        assert_eq!(next.remaining(), 180);
+        drop(old_candidate);
+        drop(old_raw);
+        assert_eq!(next.remaining(), 180, "旧来源返还不能增发当前A");
+        drop(new);
+        assert_eq!(next.remaining(), 200);
+    }
+
+    #[test]
+    fn frozen_old_pool_must_include_actual_parent_metadata_before_handoff() {
+        let first = Budget::new(4096, 0)
+            .unwrap()
+            .bind_initial(110, 4096)
+            .unwrap();
+        let bytes = first.reserve(300).unwrap().hold(vec![1u8; 300]);
+        let before = (first.live(), first.peak(), first.remaining());
+        assert!(first.bind_frozen(111, 4096, 0, 300).is_err());
+        assert_eq!((first.live(), first.peak(), first.remaining()), before);
+        assert_eq!(&**bytes, &[1u8; 300]);
+        let next = first.bind_frozen(111, 4096, 0, before.0).unwrap();
+        let all = next.reserve(next.remaining()).unwrap();
+        assert_eq!(next.live(), 4096);
+        let full = (next.live(), next.peak(), next.remaining());
+        assert!(next.reserve(1).is_err());
+        assert_eq!((next.live(), next.peak(), next.remaining()), full);
+        drop(all);
+        drop(bytes);
+    }
+
+    #[test]
+    fn expired_domain_cannot_adopt_plain_vec_even_without_growth() {
+        let mut values = CodecVec::from_plain(vec![1u64, 2, 3]);
+        let bytes = values.capacity() * size_of::<u64>();
+        let first = Budget::new(4096, bytes)
+            .unwrap()
+            .bind_initial(120, 4096)
+            .unwrap();
+        let next = first.handoff(121, 4096).unwrap();
+        let before = (
+            next.live(),
+            next.peak(),
+            next.remaining(),
+            next.0.domain.lock().unwrap().unassigned,
+        );
+        let pointer = values.as_ptr();
+        assert!(first.codec_vec_grow(&mut values, 0).is_err());
+        assert!(first.adopt_codec_vec(&mut values).is_err());
+        assert!(!values.is_native_bound());
+        assert_eq!(values.as_ptr(), pointer);
+        assert_eq!(&*values, &[1, 2, 3]);
+        assert_eq!(
+            (
+                next.live(),
+                next.peak(),
+                next.remaining(),
+                next.0.domain.lock().unwrap().unassigned
+            ),
+            before
+        );
+        next.codec_vec_grow(&mut values, 0).unwrap();
+        assert!(values.is_native_bound());
+        assert_eq!(values.as_ptr(), pointer);
+    }
+
+    #[test]
+    fn insufficient_scope_metadata_keeps_plain_vec_and_original_fee_unchanged() {
+        let mut values = CodecVec::from_plain(vec![4u64, 5, 6]);
+        let bytes = values.capacity() * size_of::<u64>();
+        let limit = Budget::metadata_bytes() + bytes + CodecWork::metadata_bytes() - 1;
+        let budget = Budget::new(limit, bytes).unwrap();
+        let before = (
+            budget.live(),
+            budget.peak(),
+            budget.remaining(),
+            budget.0.domain.lock().unwrap().unassigned,
+        );
+        let pointer = values.as_ptr();
+        let capacity = values.capacity();
+        assert!(budget.codec_vec_grow(&mut values, 0).is_err());
+        assert_eq!(
+            (values.as_ptr(), values.capacity(), values.is_native_bound()),
+            (pointer, capacity, false)
+        );
+        assert_eq!(&*values, &[4, 5, 6]);
+        assert_eq!(
+            (
+                budget.live(),
+                budget.peak(),
+                budget.remaining(),
+                budget.0.domain.lock().unwrap().unassigned
+            ),
+            before
+        );
+        budget.adopt_codec_vec(&mut values).unwrap();
+        drop(values);
+        assert_eq!(budget.live(), Budget::metadata_bytes());
+    }
+
+    #[test]
+    fn expired_budget_rejects_spare_vec_hash_and_tree_replacement() {
+        let first = Budget::new(65536, 0)
+            .unwrap()
+            .bind_initial(130, 65536)
+            .unwrap();
+        let mut values = first.empty::<Vec<u64>>().unwrap();
+        first.vec_grow(&mut values, 4).unwrap();
+        values.push(1);
+        let mut map = first.empty::<HashMap<u64, u64>>().unwrap();
+        first.hash_room(&mut map, &1).unwrap();
+        map.insert(1, 2);
+        let mut tree = Tree::new(&first).unwrap();
+        first
+            .tree_insert(&mut tree, first.string("same").unwrap(), 1i64)
+            .unwrap();
+        let key = first.string("same").unwrap();
+        let next = first.handoff(131, 4096).unwrap();
+        let before = (next.live(), next.peak(), next.remaining());
+        assert!(first.vec_grow(&mut values, 0).is_err());
+        assert!(first.hash_room(&mut map, &1).is_err());
+        assert!(first.tree_insert(&mut tree, key, 2i64).is_err());
+        assert_eq!(&**values, &[1]);
+        assert_eq!(map.get(&1), Some(&2));
+        assert_eq!(next.remaining(), before.2);
+        assert_eq!(next.peak(), before.1);
+    }
+
+    #[test]
+    fn business_map_rejects_foreign_parent_before_spare_capacity_or_growth() {
+        let first = Budget::new(65536, 0)
+            .unwrap()
+            .bind_initial(140, 65536)
+            .unwrap();
+        let base = first.live();
+        let mut map = first
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let mut map = BusinessMap::<u64, u64>::plain();
+                map.try_reserve_native(work, 3)?;
+                map.insert(1, 10)?;
+                Ok::<_, sc::CodecError>(map)
+            })
+            .unwrap();
+        let foreign = Budget::new(65536, 0).unwrap();
+        for additional in [0, map.capacity() + 1] {
+            let capacity = map.capacity();
+            let live = first.live();
+            let result = foreign
+                .codec_work()
+                .unwrap()
+                .run(|work| map.try_reserve_native(work, additional));
+            assert!(matches!(
+                result,
+                Err(WorkError::Resource(ScratchFailure::Ledger))
+            ));
+            assert_eq!(map.capacity(), capacity);
+            assert_eq!(map.get(&1), Some(&10));
+            assert_eq!(first.live(), live);
+        }
+        let next = first.handoff(141, 65536).unwrap();
+        next.codec_work()
+            .unwrap()
+            .run(|work| {
+                map.try_reserve_native(work, 0)?;
+                map.insert(1, 20)?;
+                map.try_reserve_native(work, map.capacity() + 1)?;
+                map.insert(2, 30)?;
+                Ok::<_, sc::CodecError>(())
+            })
+            .unwrap();
+        assert_eq!(map.get(&1), Some(&20));
+        assert_eq!(map.get(&2), Some(&30));
+        drop(map);
+        assert_eq!(next.live(), base);
+    }
+
+    #[test]
+    fn temporary_native_text_and_codec_capacity_release_on_actual_owner_drop() {
+        use crate::v3::audit_store::{CodecRead, NativeAdmission};
+        let parent = Budget::new(65536, 0).unwrap();
+        let base = parent.live();
+        parent
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let admission = NativeAdmission(Some(work));
+                let start = parent.live();
+                let text = admission.native_owned_text("actual temporary text")?;
+                let mut values = CodecVec::default();
+                admission.native_vec_room(&mut values, 4)?;
+                values.try_push(17u64)?;
+                assert!(parent.live() > start);
+                let capacity = values.capacity();
+                admission.native_vec_room(&mut values, capacity + 1)?;
+                let after_growth = parent.live();
+                drop(values);
+                assert!(parent.live() < after_growth);
+                assert_eq!(&**text, "actual temporary text");
+                drop(text);
+                assert_eq!(parent.live(), start);
+                Ok::<_, sc::CodecError>(())
+            })
+            .unwrap();
+        assert_eq!(parent.live(), base);
     }
 }

@@ -853,7 +853,7 @@ impl<'a, 'conn> PublicationMaterialStore<'a, 'conn> {
         digest: &NodeDigest,
     ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
         self.current_scoped(digest)
-            .map(|f| f.map(s_content::job::ScopedFrame::into_frame))
+            .and_then(|f| f.map(s_content::job::ScopedFrame::into_frame).transpose())
     }
     fn current_scoped(
         &mut self,

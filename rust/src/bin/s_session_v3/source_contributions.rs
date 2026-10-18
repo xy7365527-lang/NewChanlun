@@ -4,9 +4,9 @@ use super::super::audit_owner::{
 };
 use super::super::audit_retention::{self as retention, Retained, RetainedDelta};
 use super::super::business_json::TextValue;
+use super::super::native_shared::NativeRc as Rc;
 use super::*;
 use std::collections::{BTreeMap, BTreeSet};
-use std::rc::Rc;
 #[path = "source_order.rs"]
 mod source_order;
 use source_order::{Handle, Order};
@@ -74,13 +74,13 @@ impl Retained for source_pending::StepContribution {
 
 // 各容器只在实际修改处增减账；最终 retained_bytes 不遍历历史。
 struct Map<K, V> {
-    values: BTreeMap<K, V>,
+    values: super::audit_store::NativeTree<K, V>,
     bytes: usize,
 }
 impl<K, V> Default for Map<K, V> {
     fn default() -> Self {
         Self {
-            values: BTreeMap::new(),
+            values: Default::default(),
             bytes: 0,
         }
     }
@@ -98,7 +98,6 @@ impl<K: Ord + Retained, V: Retained> Map<K, V> {
         key: K,
         value: V,
     ) -> Result<Option<V>, String> {
-        let before = self.values.len();
         let old_bytes = self
             .values
             .get_key_value(&key)
@@ -107,12 +106,8 @@ impl<K: Ord + Retained, V: Retained> Map<K, V> {
         // BTreeMap::insert retains the original key when replacing.
         let retained_key = self.values.get_key_value(&key).map(|(k, _)| k.heap_bytes());
         let new_bytes = retained_key.map_or(new_bytes, |k| k.saturating_add(value.heap_bytes()));
-        if !self.values.contains_key(&key) {
-            s.native_tree_room::<K, V>(self.values.len()).map_err(err)?;
-        }
-        let old = self.values.insert(key, value);
+        let old = self.values.insert_admitted(key, value, s).map_err(err)?;
         let mut delta = RetainedDelta::default();
-        delta.tree_len::<K, V>(before, self.values.len());
         delta.release_bytes(old_bytes);
         delta.add_bytes(new_bytes);
         self.bytes = delta.apply(self.bytes).map_err(|failure| match failure {
@@ -130,11 +125,7 @@ impl<K: Ord + Retained, V: Retained> Map<K, V> {
         };
         self.bytes = self
             .bytes
-            .checked_sub(
-                key.heap_bytes()
-                    .saturating_add(value.heap_bytes())
-                    .saturating_add(retention::tree_slots::<K, V>(1)),
-            )
+            .checked_sub(key.heap_bytes().saturating_add(value.heap_bytes()))
             .ok_or_else(|| err("来源保留费下溢"))?;
         if self.values.is_empty() {
             self.values.clear();
@@ -165,9 +156,9 @@ impl<K: Ord + Retained, V: Retained> Map<K, V> {
         Ok(result)
     }
 }
-impl<K, V> Retained for Map<K, V> {
+impl<K: Ord, V> Retained for Map<K, V> {
     fn heap_bytes(&self) -> usize {
-        self.bytes
+        self.bytes.saturating_add(self.values.allocation_bytes())
     }
 }
 impl RawLookup for Map<i64, Source> {
@@ -189,37 +180,34 @@ impl ShapeLookup for Map<TextValue, Shape> {
     }
 }
 struct Tree<K> {
-    values: BTreeSet<K>,
+    values: super::audit_store::NativeSet<K>,
     bytes: usize,
 }
 impl<K> Default for Tree<K> {
     fn default() -> Self {
         Self {
-            values: BTreeSet::new(),
+            values: Default::default(),
             bytes: 0,
         }
     }
 }
 impl<K> std::ops::Deref for Tree<K> {
-    type Target = BTreeSet<K>;
+    type Target = super::audit_store::NativeSet<K>;
     fn deref(&self) -> &Self::Target {
         &self.values
     }
 }
 impl<K: Ord + Retained> Tree<K> {
     fn insert(&mut self, s: &(impl CodecRead + ?Sized), key: K) -> Result<bool, String> {
-        if self.values.contains(&key) {
+        let key_bytes = key.heap_bytes();
+        if !self.values.insert_admitted(key, s).map_err(err)? {
             return Ok(false);
         }
-        s.native_tree_room::<K, ()>(self.values.len())
-            .map_err(err)?;
         self.bytes = self
             .bytes
-            .checked_add(retention::tree_slots::<K, ()>(1))
-            .and_then(|n| n.checked_add(key.heap_bytes()))
+            .checked_add(key_bytes)
             .filter(|n| *n != usize::MAX)
             .ok_or_else(|| err("来源保留费溢出"))?;
-        self.values.insert(key);
         Ok(true)
     }
     fn remove<Q: Ord + ?Sized>(&mut self, key: &Q) -> Result<bool, String>
@@ -229,7 +217,7 @@ impl<K: Ord + Retained> Tree<K> {
         if let Some(old) = self.values.take(key) {
             self.bytes = self
                 .bytes
-                .checked_sub(retention::tree_slots::<K, ()>(1).saturating_add(old.heap_bytes()))
+                .checked_sub(old.heap_bytes())
                 .ok_or_else(|| err("来源保留费下溢"))?;
             if self.values.is_empty() {
                 self.values.clear();
@@ -240,18 +228,21 @@ impl<K: Ord + Retained> Tree<K> {
         }
     }
 }
-impl<K> Retained for Tree<K> {
+impl<K: Ord> Retained for Tree<K> {
     fn heap_bytes(&self) -> usize {
-        self.bytes
+        self.bytes.saturating_add(self.values.allocation_bytes())
     }
 }
 fn owned(s: &(impl CodecRead + ?Sized), text: &str) -> Result<TextValue, String> {
     s.native_text(text)
 }
-fn vec_push<T>(s: &(impl CodecRead + ?Sized), v: &mut Vec<T>, value: T) -> Result<(), String> {
+fn vec_push<T>(
+    s: &(impl CodecRead + ?Sized),
+    v: &mut sc::CodecVec<T>,
+    value: T,
+) -> Result<(), String> {
     s.native_vec_room(v, 1).map_err(err)?;
-    v.push(value);
-    Ok(())
+    v.try_push(value).map_err(err)
 }
 fn link<K: Ord + Retained>(
     s: &(impl CodecRead + ?Sized),
@@ -633,8 +624,8 @@ fn member(
     }
 }
 struct Changes {
-    removed: Vec<(Handle, NodeDigest)>,
-    added: Vec<Handle>,
+    removed: sc::CodecVec<(Handle, NodeDigest)>,
+    added: sc::CodecVec<Handle>,
 }
 fn apply_order(
     s: &mut SourceMaterial<'_, '_, '_, '_>,
@@ -649,8 +640,8 @@ fn apply_order(
     }
     let current = d.current;
     let len = d.edits.len();
-    let mut removals = Vec::new();
-    let mut additions = Vec::new();
+    let mut removals = sc::CodecVec::default();
+    let mut additions = sc::CodecVec::default();
     let mut retained = 0usize;
     for i in 0..len {
         match delta(s, stream)?.edits[i] {
@@ -700,8 +691,8 @@ fn apply_order(
         work.sort_comparisons += 1;
         a.0.cmp(&b.0)
     });
-    let mut removed = Vec::new();
-    let mut added = Vec::new();
+    let mut removed = sc::CodecVec::default();
+    let mut added = sc::CodecVec::default();
     for (rank, value) in removals {
         let handle = order.remove(s, rank, value)?;
         vec_push(s, &mut removed, (handle, value))?;
@@ -1052,13 +1043,12 @@ impl NativeSourceState {
                 self.groups.put(s, index, group)?;
                 dirty_groups.insert(s, index)?;
             }
-            s.native_admit(std::mem::size_of::<Object>() + 2 * std::mem::size_of::<usize>())
-                .map_err(err)?;
+            let object = Rc::try_new_shallow(object, s.codec_work()).map_err(err)?;
             self.objects.put(
                 s,
                 handle,
                 Entry {
-                    value: Rc::new(object),
+                    value: object,
                     group,
                 },
             )?;
@@ -1206,7 +1196,7 @@ impl NativeSourceState {
             }
         }
         // 已删除步骤的后继仍可能改变 seed/waiting 边界。
-        let mut successors = Vec::new();
+        let mut successors = sc::CodecVec::default();
         for coord in sequence.iter() {
             if !self.steps.contains_key(coord) {
                 if let Some(next) = self.step_coords.range(*coord..).next() {
@@ -1666,7 +1656,7 @@ impl NativeSourceState {
         }
         let current = d.current;
         let len = d.edits.len();
-        let mut additions = Vec::new();
+        let mut additions = sc::CodecVec::default();
         for i in 0..len {
             match delta(s, stream)?.edits[i] {
                 Edit::Remove { value, .. } => {
@@ -1800,8 +1790,8 @@ pub(crate) fn audit_native_bound(
             + state.witness_order.visits.get()
             + state.request_order.visits.get();
         state.work = SourceWork::default();
-        material
-            .native_admit(
+        let _producer_fee = material
+            .native_reservation(
                 profile
                     .len()
                     .checked_add(rule.len())

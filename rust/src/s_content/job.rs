@@ -388,7 +388,7 @@ pub struct ScopedFrame {
     frame: CheckedFrame,
     permit: Option<super::capture_allocation::scratch::NativeReservation>,
 }
-pub(super) struct ScopedBody {
+pub struct ScopedBody {
     body: Vec<u8>,
     _permit: Option<super::capture_allocation::scratch::NativeReservation>,
 }
@@ -398,12 +398,60 @@ impl std::ops::Deref for ScopedBody {
         &self.body
     }
 }
-impl ScopedBody {
-    pub(super) fn into_plain(self) -> Vec<u8> {
-        if let Some(permit) = self._permit {
-            permit.retain();
+pub enum ScopedNodeRead {
+    Missing,
+    Found { tag: u8, body: ScopedBody },
+}
+impl ScopedNodeRead {
+    pub fn from_plain(
+        read: NodeRead,
+        permit: Option<super::capture_allocation::scratch::NativeReservation>,
+    ) -> Self {
+        match read {
+            NodeRead::Missing => Self::Missing,
+            NodeRead::Found { tag, body } => Self::Found {
+                tag,
+                body: ScopedBody {
+                    body,
+                    _permit: permit,
+                },
+            },
         }
-        self.body
+    }
+    pub fn into_plain(self) -> Result<NodeRead, CodecError> {
+        match self {
+            Self::Missing => Ok(NodeRead::Missing),
+            Self::Found { tag, body } => Ok(NodeRead::Found {
+                tag,
+                body: body.into_plain()?,
+            }),
+        }
+    }
+    pub fn from_checked(frame: Option<ScopedFrame>) -> Self {
+        match frame {
+            None => Self::Missing,
+            Some(frame) => {
+                let (tag, body) = frame.into_body();
+                Self::Found { tag, body }
+            }
+        }
+    }
+}
+impl ScopedBody {
+    pub fn check_with(
+        self,
+        f: impl FnOnce(Vec<u8>) -> Result<CheckedFrame, CodecError>,
+    ) -> Result<ScopedFrame, CodecError> {
+        let Self { body, _permit } = self;
+        f(body).map(|frame| ScopedFrame::new(frame, _permit))
+    }
+    pub(super) fn into_plain(self) -> Result<Vec<u8>, CodecError> {
+        if self._permit.is_some() {
+            return Err(CodecError::scratch(
+                super::capture_allocation::scratch::ScratchFailure::Ledger,
+            ));
+        }
+        Ok(self.body)
     }
 }
 impl ScopedFrame {
@@ -431,12 +479,13 @@ impl ScopedFrame {
     pub fn usage(&self) -> &CheckedNodeUsage {
         self.frame.usage()
     }
-    pub fn into_frame(self) -> CheckedFrame {
-        // 旧 API 返回独立 Vec，无法随值析构；这一路保守持账到父账结束。
-        if let Some(permit) = self.permit {
-            permit.retain();
+    pub fn into_frame(self) -> Result<CheckedFrame, CodecError> {
+        if self.permit.is_some() {
+            return Err(CodecError::scratch(
+                super::capture_allocation::scratch::ScratchFailure::Ledger,
+            ));
         }
-        self.frame
+        Ok(self.frame)
     }
     pub(super) fn into_body(self) -> (u8, ScopedBody) {
         let (tag, body) = self.frame.into_parts();
@@ -1229,38 +1278,41 @@ impl<'a> JobNodeSource<'a> {
 }
 
 impl NodeSource for JobNodeSource<'_> {
+    fn codec_work(&self) -> Option<&super::capture_allocation::scratch::WorkScope> {
+        self.inner.codec_work()
+    }
     fn max_render_bytes(&self) -> Option<u64> {
         self.inner.max_render_bytes()
     }
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
-        self.job.begin_first_read()?;
-        let read = self.inner.read(digest)?;
-        // 读后复查：期限在读取期间过掉即拒绝，不再接纳该节点。
-        self.job.check_deadline()?;
-        match read {
-            NodeRead::Missing => Ok(NodeRead::Missing),
-            NodeRead::Found { tag, body } => {
-                self.job.accept_node(digest, tag, &body)?;
-                Ok(NodeRead::Found { tag, body })
-            }
-        }
+        self.read_scoped(digest)?.into_plain()
     }
-
-    /// 核验读口：起钟 → 内层原始读 → 读后期限门 → 核 F → 记账。
-    ///
-    /// 与 [`NodeSource::read`] 的顺序对应关系：`accept_node`（核 F ＋ 记账）换成
-    /// `Job::accept_frame` 在原 `accept_node` 的位置核 F 一次并记账；期限在读取期间
-    /// 过掉时先拒，连 F 也不算。
-    fn checked_read(&mut self, digest: &NodeDigest) -> Result<Option<CheckedFrame>, CodecError> {
+    fn read_scoped(&mut self, digest: &NodeDigest) -> Result<ScopedNodeRead, CodecError> {
         self.job.begin_first_read()?;
-        let read = self.inner.read(digest)?;
+        let read = self.inner.read_scoped(digest)?;
+        self.job.check_deadline()?;
+        if let ScopedNodeRead::Found { tag, body } = &read {
+            self.job.accept_node(digest, *tag, body)?;
+        }
+        Ok(read)
+    }
+    fn checked_read(&mut self, digest: &NodeDigest) -> Result<Option<CheckedFrame>, CodecError> {
+        self.checked_read_scoped(digest)?
+            .map(ScopedFrame::into_frame)
+            .transpose()
+    }
+    fn checked_read_scoped(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<Option<ScopedFrame>, CodecError> {
+        self.job.begin_first_read()?;
+        let read = self.inner.read_scoped(digest)?;
         self.job.check_deadline()?;
         match read {
-            NodeRead::Missing => Ok(None),
-            NodeRead::Found { tag, body } => {
-                let frame = self.job.accept_frame(digest, tag, body)?;
-                Ok(Some(frame))
-            }
+            ScopedNodeRead::Missing => Ok(None),
+            ScopedNodeRead::Found { tag, body } => body
+                .check_with(|body| self.job.accept_frame(digest, tag, body))
+                .map(Some),
         }
     }
 }

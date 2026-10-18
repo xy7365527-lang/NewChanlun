@@ -290,18 +290,22 @@ pub(crate) use retained_struct;
 // 统计载荷上界与 RAII 退账独立；这里绝不根据统计差释放 Native 许可。
 impl<T: Retained> Retained for sc::capture_allocation::native_owned::NativeValue<T> {
     fn heap_bytes(&self) -> usize {
-        self.as_ref().heap_bytes()
+        self.as_ref()
+            .heap_bytes()
+            .max(self.retained_charge().unwrap_or(0))
     }
 }
 impl<K: Ord + Retained, V: Retained> Retained for super::audit_store::NativeTree<K, V> {
     fn heap_bytes(&self) -> usize {
-        sum(std::iter::once(tree_slots::<K, V>(self.len()))
-            .chain(std::iter::once(vec_bytes::<
-                sc::capture_allocation::scratch::NativeReservation,
-            >(self.permit_capacity())))
-            .chain(
-                self.iter()
-                    .map(|(k, v)| sum([k.heap_bytes(), v.heap_bytes()])),
-            ))
+        sum(std::iter::once(self.allocation_bytes()).chain(
+            self.iter()
+                .map(|(k, v)| sum([k.heap_bytes(), v.heap_bytes()])),
+        ))
+    }
+}
+
+impl<T: Retained> Retained for super::native_shared::NativeRc<T> {
+    fn heap_bytes(&self) -> usize {
+        sum([self.allocation_bytes(), self.as_ref().heap_bytes()])
     }
 }

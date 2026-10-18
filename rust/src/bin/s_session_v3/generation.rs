@@ -1948,7 +1948,9 @@ pub(super) fn witness_identity(
 ) -> Result<String, String> {
     let bytes = witness_identity_bytes(store, object_id, slot, mi, raw_bars)?;
     // 旧裸 String 接口；Native 来源核改走下方携原许可的输出。
-    store.native_admit(bytes.len()).map_err(codec_error)?;
+    if store.codec_work().is_some() {
+        return Err("Native witness身份必须使用witness_identity_native持有原许可".into());
+    }
     let mut result = String::with_capacity(bytes.len());
     result.extend(bytes.into_iter().map(char::from));
     Ok(result)

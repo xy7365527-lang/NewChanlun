@@ -66,7 +66,7 @@ pub(super) struct ImmutableHistoricalAudit {
 }
 enum HistoricalOwner {
     Unique(ImmutableHistoricalAudit),
-    Shared(std::rc::Rc<ImmutableHistoricalAudit>),
+    Shared(super::native_shared::NativeRc<ImmutableHistoricalAudit>),
 }
 impl std::ops::Deref for AuditedState {
     type Target = ImmutableHistoricalAudit;
@@ -302,19 +302,7 @@ pub(super) fn audit_native_in_request_admitted(
         let HistoricalOwner::Unique(result) = audited.historical else {
             unreachable!()
         };
-        if let Some(work) = work {
-            // Rc控制块的两个计数及内联值，对齐后一次准入；嵌套内容另按各自入口计。
-            let layout = std::alloc::Layout::new::<[usize; 2]>()
-                .extend(std::alloc::Layout::new::<ImmutableHistoricalAudit>())
-                .map_err(|_| {
-                    work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget)
-                        .to_string()
-                })?
-                .0
-                .pad_to_align();
-            work.reserve_native(layout.size()).map_err(err)?.retain();
-        }
-        let result = std::rc::Rc::new(result);
+        let result = super::native_shared::NativeRc::try_new_shallow(result, work).map_err(err)?;
         let binding =
             super::request_audit::HistoricalDependencyBinding::read_admitted(tx, &result, work)?;
         let frontier = result
@@ -2585,11 +2573,11 @@ impl AuditedState {
         let historical = match self.historical {
             HistoricalOwner::Unique(v) => v,
             HistoricalOwner::Shared(v) => {
-                let value =
-                    std::rc::Rc::try_unwrap(v).map_err(|_| err("owner 历史仍有外部共享引用"))?;
+                let shell_bytes = v.allocation_bytes();
+                let value = super::native_shared::NativeRc::try_unwrap(v)
+                    .map_err(|_| err("owner 历史仍有外部共享引用"))?;
                 // facts 只移动；try_unwrap 真正释放的是 Rc 外壳和两个计数。
-                retained.release_bytes(std::mem::size_of::<ImmutableHistoricalAudit>());
-                retained.release_bytes(2 * std::mem::size_of::<usize>());
+                retained.release_bytes(shell_bytes);
                 value
             }
         };
@@ -2684,9 +2672,8 @@ impl AuditedState {
     ) -> Result<usize, super::audit_owner::native::Failure> {
         let historical = match &mut self.historical {
             HistoricalOwner::Unique(v) => v,
-            HistoricalOwner::Shared(v) => {
-                std::rc::Rc::get_mut(v).ok_or_else(|| err("raw owner 仍有借用"))?
-            }
+            HistoricalOwner::Shared(v) => super::native_shared::NativeRc::get_mut(v)
+                .ok_or_else(|| err("raw owner 仍有借用"))?,
         };
         historical
             .raw_prefixes

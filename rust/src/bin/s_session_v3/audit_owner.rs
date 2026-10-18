@@ -743,7 +743,12 @@ impl AuditConnection {
         #[cfg(feature = "s_capture_native_testonly")]
         if let Some(candidate) = pending.as_mut() {
             candidate.refresh_capture_charge()?;
-            if candidate.charge.total >= active.effect_limit.get() {
+            if candidate
+                .charge
+                .total
+                .checked_add(native::Budget::metadata_bytes())
+                .is_none_or(|n| n > candidate.resources.total_limit().unwrap_or(0))
+            {
                 return Err(construction_state::stale("来源原件/证明保留账超过效果帽"));
             }
         }
@@ -1136,7 +1141,11 @@ impl AuditConnection {
         self.complete
             .borrow()
             .as_ref()
-            .map_or(0, |c| c.charge.total)
+            .map_or(0, |c| {
+                c.charge
+                    .total
+                    .saturating_add(native::Budget::metadata_bytes())
+            })
             .saturating_add(
                 self.construction
                     .borrow()
@@ -1313,7 +1322,7 @@ impl AuditTxn<'_> {
                 std::mem::size_of::<construction_state::PendingRawState>(),
                 std::mem::size_of::<BoundRawAdvance<'_>>(),
             ]);
-            if retained > context.complete_workspace_limit()
+            if retained > context.complete_retention_cap()
                 || !context.matches_complete_budget(&candidate.resources)
             {
                 return Err(construction_state::stale("raw增量工作额度或父域不符"));
@@ -1454,7 +1463,7 @@ impl AuditTxn<'_> {
                 ));
             }
             let audited = self.audit_required_in_parent(mode, context)?;
-            let parent = context.cold_parent_budget();
+            let parent = context.request_parent_budget();
             if known {
                 if let Some(slot) = context.take() {
                     match CompleteCandidate::capture(
@@ -1493,7 +1502,7 @@ impl AuditTxn<'_> {
         context: &mut request_audit::RequestAuditContext,
     ) -> Result<state::AuditedState, String> {
         #[cfg(feature = "s_capture_native_testonly")]
-        if let Some(parent) = context.cold_parent_budget() {
+        if let Some(parent) = context.request_parent_budget() {
             let failure = |e: native::Failure| match e {
                 native::Failure::BudgetExceeded => {
                     "S3WriterResourcesInvalid：冷审计父预算不足".to_owned()
@@ -1630,6 +1639,8 @@ struct CompleteCandidate {
     originals: native::Tracked<Vec<request_audit::ExactRows>>,
     charge: CompleteCharge,
     _inline_permit: native::Permit,
+    // 无父冷构造的slot归属从初始原许可移入；detach先释放slot再释放此许可。
+    slot_permit: Option<native::Permit>,
     // 最后析构：冷审计时的同一父账随所有真实载荷跨事务保留。
     resources: native::Budget,
 }
@@ -1901,6 +1912,20 @@ impl CompleteCandidate {
                     .map_err(|_| invalid("原件容器初始许可不足"))?,
             ));
         }
+        let slot_permit = if parent.is_none() {
+            let bytes = charge
+                .slot_result_capacity
+                .checked_add(charge.historical_binding_capacity)
+                .and_then(|n| n.checked_add(charge.source_pool_charge))
+                .ok_or_else(|| invalid("slot初始原件费溢出"))?;
+            Some(
+                budget
+                    .adopt(bytes)
+                    .map_err(|_| invalid("slot初始原件许可不足"))?,
+            )
+        } else {
+            None
+        };
         let q = match q::Facts::cold(tx, &originals, &audited, &budget) {
             Ok(q) => q,
             Err(native::Failure::BudgetExceeded) => return Ok(Err(slot)),
@@ -1925,6 +1950,7 @@ impl CompleteCandidate {
             charge,
             resources: budget,
             _inline_permit: inline_permit,
+            slot_permit,
         }))
     }
 }
@@ -2045,6 +2071,7 @@ impl CompleteCandidate {
             drop(slot.result);
             drop(slot.binding);
             drop(slot.source_pending);
+            drop(self.slot_permit.take());
             let released = self
                 .charge
                 .slot_result_capacity
@@ -2349,7 +2376,12 @@ impl CompleteCandidate {
             self.charge.entry_reserved_bytes,
             budget.request_peak().max(recording_peak),
         ]));
-        if self.charge.total >= limit {
+        if self
+            .charge
+            .total
+            .checked_add(native::Budget::metadata_bytes())
+            .is_none_or(|n| n > budget.total_limit().unwrap_or(0))
+        {
             return Ok(None);
         }
         self.charge.incremental_steps += 1;
@@ -2504,7 +2536,7 @@ impl AuditTxn<'_> {
                     .total
                     .checked_add(pending.retained_bytes())
                     .ok_or_else(|| construction_state::stale("Carry保留账溢出"))?;
-                if retained > context.unwrap().complete_workspace_limit() {
+                if retained > context.unwrap().complete_retention_cap() {
                     return Err(construction_state::stale("Carry保留账超过完整工作帽"));
                 }
                 *self.construction.borrow_mut() = Some(pending);
@@ -2520,13 +2552,28 @@ impl AuditTxn<'_> {
             if let Some(mut candidate) = candidate {
                 let limit = context
                     .map(|c| c.complete_workspace_limit())
-                    .unwrap_or(candidate.limit.saturating_sub(candidate.charge.total));
+                    .unwrap_or(candidate.limit)
+                    .min(candidate.resources.remaining());
                 let raw_bytes = self
                     .construction
                     .borrow()
                     .as_ref()
                     .map_or(0, |s| s.retained_bytes());
-                let limit = limit.checked_sub(raw_bytes).unwrap_or(0);
+                // raw旧费属于冻结old_pool；总保留门与本域增量门分别核验。
+                if candidate
+                    .charge
+                    .total
+                    .checked_add(raw_bytes)
+                    .and_then(|n| n.checked_add(native::Budget::metadata_bytes()))
+                    .is_none_or(|n| {
+                        n > context.map_or_else(
+                            || candidate.resources.total_limit().unwrap_or(0),
+                            |c| c.complete_retention_cap(),
+                        )
+                    })
+                {
+                    return Err(construction_state::stale("完整保留费超过总容量帽"));
+                }
                 let op = match operation {
                     FixedOperation::Accept => effects::Operation::Accept,
                     FixedOperation::Begin => effects::Operation::Begin,
@@ -2534,7 +2581,8 @@ impl AuditTxn<'_> {
                     FixedOperation::Recover => effects::Operation::Recover,
                 };
                 candidate.detach_slot()?;
-                if let Some(recording_cap) = limit.checked_sub(candidate.charge.total) {
+                {
+                    let recording_cap = limit;
                     if let Some(recording) = effects::Recording::start(
                         self.tx(),
                         op,
@@ -2629,9 +2677,7 @@ impl AuditTxn<'_> {
                 .take()
                 .ok_or_else(|| invalid("效果日志缺候选"))?;
             let limit = self.effect_limit.get();
-            let recording_cap = limit
-                .checked_sub(candidate.charge.total)
-                .ok_or_else(|| invalid("效果日志与候选保留费超过工作额度"))?;
+            let recording_cap = limit;
             let Some(mut effects) =
                 recording.finish(self.tx(), &mut candidate.originals, recording_cap)?
             else {

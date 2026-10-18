@@ -34,15 +34,19 @@ pub struct NativeReservation {
 impl NativeReservation {
     /// #1488：只消费父账已有的未分配原件费；不签发新额度。
     #[doc(hidden)]
-    pub fn adopt(parent: Arc<dyn ScratchParent>, bytes: usize) -> Result<Self, ScratchFailure> {
-        let origin = parent.adopt_native(bytes)?;
+    pub fn adopt(
+        parent: Arc<dyn ScratchParent>,
+        bytes: usize,
+        expected: u64,
+    ) -> Result<Self, ScratchFailure> {
+        let origin = parent.adopt_native(bytes, expected)?;
         Ok(Self {
             parent,
             bytes,
             origin,
         })
     }
-    pub(super) fn bytes(&self) -> usize {
+    pub fn bytes(&self) -> usize {
         self.bytes
     }
 
@@ -84,8 +88,8 @@ impl NativeReservation {
         other.bytes = 0;
         Ok(())
     }
-    pub fn retain(mut self) {
-        self.bytes = 0;
+    pub fn hold<T>(self, value: T) -> super::native_owned::NativeValue<T> {
+        super::native_owned::NativeValue::from_reserved(value, Some(self))
     }
 }
 impl Drop for NativeReservation {
@@ -125,7 +129,7 @@ pub trait ScratchParent: Send + Sync {
     fn origin(&self) -> u64 {
         0
     }
-    fn adopt_native(&self, _bytes: usize) -> Result<u64, ScratchFailure> {
+    fn adopt_native(&self, _bytes: usize, _expected: u64) -> Result<u64, ScratchFailure> {
         Err(ScratchFailure::Ledger)
     }
     fn close_scope(&self, _origin: u64) -> Result<(), ScratchFailure> {
@@ -442,6 +446,19 @@ impl Drop for CodecWork {
     }
 }
 impl WorkScope {
+    /// #1488：无增长/替换也先核当前域；不预留零字节、不改变账本观察值。
+    pub fn check_current(&self) -> Result<(), CodecError> {
+        self.handle.check_write()
+    }
+    pub(crate) fn adopt_native(&self, bytes: usize) -> Result<NativeReservation, CodecError> {
+        self.check_current()?;
+        NativeReservation::adopt(
+            self.handle.core().parent.clone(),
+            bytes,
+            self.handle.core().origin,
+        )
+        .map_err(|e| self.reject(e))
+    }
     /// 实际 Plain 分配之前预留；溢出/容量不足沿当前独占操作域分类。
     pub fn reserve_native(&self, bytes: usize) -> Result<NativeReservation, CodecError> {
         self.handle.reserve_native(bytes)

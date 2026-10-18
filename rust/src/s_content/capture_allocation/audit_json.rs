@@ -2105,6 +2105,14 @@ impl<K: Eq + std::hash::Hash, V> BusinessMap<K, V> {
         additional: usize,
     ) -> Result<(), CodecError> {
         use super::scratch::ScratchFailure;
+        work.check_current()?;
+        if self
+            .1
+            .as_ref()
+            .is_some_and(|permit| !permit.belongs_to_parent(work))
+        {
+            return Err(work.reject(ScratchFailure::Ledger));
+        }
         let super::work::WorkMap::Plain(map) = &mut self.0 else {
             return Err(work.reject(ScratchFailure::Ledger));
         };

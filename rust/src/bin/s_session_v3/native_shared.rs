@@ -92,6 +92,10 @@ macro_rules! shared_family {
             lease: $lease,
         }
         impl<T> $strong<T> {
+            /// 原无工作域入口；Native消费者使用try_new_shallow并显式传当前scope。
+            pub(crate) fn new(value: T) -> Self {
+                Self::try_new_shallow(value, None).expect("unscoped shared layout")
+            }
             /// 只准入新共享块；value 的动态字段须已各自持费。None 仅供原无域入口。
             pub(crate) fn try_new_shallow(
                 value: T,
@@ -103,6 +107,18 @@ macro_rules! shared_family {
                     value: $ptr::new(value),
                     lease,
                 })
+            }
+        }
+        impl<T> $strong<T> {
+            pub(crate) fn try_unwrap(this: Self) -> Result<T, Self> {
+                let Self { value, lease } = this;
+                match $ptr::try_unwrap(value) {
+                    Ok(value) => {
+                        drop(lease);
+                        Ok(value)
+                    }
+                    Err(value) => Err(Self { value, lease }),
+                }
             }
         }
         impl<T: ?Sized> $strong<T> {
@@ -251,6 +267,17 @@ slice_copy!(NativeRc, Rc, RcLease, i64);
 slice_copy!(NativeRc, Rc, RcLease, u8);
 slice_copy!(NativeArc, Arc, ArcLease, i64);
 slice_copy!(NativeArc, Arc, ArcLease, u8);
+
+impl From<&[u8]> for NativeArc<[u8]> {
+    fn from(bytes: &[u8]) -> Self {
+        Self::try_copy_slice(bytes, None).expect("unscoped byte layout")
+    }
+}
+impl From<Vec<u8>> for NativeArc<[u8]> {
+    fn from(bytes: Vec<u8>) -> Self {
+        Self::from(bytes.as_slice())
+    }
+}
 
 #[cfg(test)]
 mod tests {

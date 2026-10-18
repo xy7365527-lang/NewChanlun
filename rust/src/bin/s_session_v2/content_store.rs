@@ -115,22 +115,12 @@ fn read_material(
     conn: &Connection,
     digest: &NodeDigest,
 ) -> Result<Option<(u8, Vec<u8>)>, CodecError> {
-    read_material_admitted(conn, digest, None)
-}
-
-/// 借用经过 NOMEM 检查的 SQL 正文，取得父账许可后才生成 Rust 副本。
-fn read_material_admitted(
-    conn: &Connection,
-    digest: &NodeDigest,
-    work: Option<&WorkScope>,
-) -> Result<Option<(u8, Vec<u8>)>, CodecError> {
-    let result = read_material_reserved(conn, digest, work)?;
-    Ok(result.map(|(tag, body, permit)| {
-        if let Some(permit) = permit {
-            permit.retain();
-        }
-        (tag, body)
-    }))
+    Ok(
+        read_material_reserved(conn, digest, None)?.map(|(tag, body, permit)| {
+            debug_assert!(permit.is_none());
+            (tag, body)
+        }),
+    )
 }
 fn read_material_reserved(
     conn: &Connection,
@@ -183,17 +173,6 @@ fn read_material_reserved(
     Ok(Some((tag, body, permit)))
 }
 
-/// Native 正文复制在许可之后；无 scope 的旧调用维持同一复制语义。
-pub(super) fn native_body_copy(
-    work: Option<&WorkScope>,
-    body: &[u8],
-) -> Result<Vec<u8>, CodecError> {
-    let (body, permit) = native_body_reserved(work, body)?;
-    if let Some(permit) = permit {
-        permit.retain();
-    }
-    Ok(body)
-}
 pub(super) fn native_body_reserved(
     work: Option<&WorkScope>,
     body: &[u8],
@@ -244,17 +223,6 @@ fn read_checked_node_scoped(
     }
 }
 
-fn read_checked_node_admitted(
-    conn: &Connection,
-    digest: &NodeDigest,
-    work: Option<&WorkScope>,
-) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
-    match read_material_admitted(conn, digest, work)? {
-        None => Ok(None),
-        Some((tag, body)) => s_content::job::CheckedFrame::checked(digest, tag, body).map(Some),
-    }
-}
-
 #[cfg(test)]
 thread_local! { static SQL_READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) }; }
 
@@ -292,7 +260,13 @@ const SAME_MATERIAL_BYTES: usize = 4 * 1024 * 1024;
 const SAME_MATERIAL_ENTRIES: usize = 65_536;
 #[derive(Default)]
 struct SameMaterial {
-    frames: BTreeMap<NodeDigest, (s_content::job::CheckedFrame, usize)>,
+    frames: BTreeMap<
+        NodeDigest,
+        (
+            s_content::capture_allocation::native_owned::NativeValue<s_content::job::CheckedFrame>,
+            usize,
+        ),
+    >,
     retained_capacity: usize,
     // frames 先析构；许可只在整棵实际树释放后归还。
     tree_permit: Option<NativeReservation>,
@@ -358,10 +332,14 @@ impl SameMaterial {
                 NodeDigest,
                 (s_content::job::CheckedFrame, usize),
             >(work, next)?;
-            let retained = native_body_copy(work, frame.body())?;
+            let (retained, body_permit) = native_body_reserved(work, frame.body())?;
             let capacity = retained.capacity();
             if capacity <= remaining {
                 let proof = frame.checked_same_material(digest, tag, retained)?;
+                let proof = match body_permit {
+                    Some(permit) => permit.hold(proof),
+                    None => s_content::capture_allocation::native_owned::NativeValue::without_reservation(proof),
+                };
                 self.frames.insert(*digest, (proof, capacity));
                 self.tree_permit = tree_permit;
                 self.retained_capacity += capacity;
@@ -660,7 +638,7 @@ impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
         digest: &NodeDigest,
     ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
         self.current_scoped(digest)
-            .map(|f| f.map(s_content::job::ScopedFrame::into_frame))
+            .and_then(|f| f.map(s_content::job::ScopedFrame::into_frame).transpose())
     }
     fn current_scoped(
         &mut self,
@@ -719,6 +697,14 @@ impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl NodeSource for NativeReadLease<'_, '_> {
+    fn read_scoped(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<s_content::job::ScopedNodeRead, CodecError> {
+        self.checked_read_scoped(digest)
+            .map(s_content::job::ScopedNodeRead::from_checked)
+    }
+
     fn checked_read_scoped(
         &mut self,
         d: &NodeDigest,
@@ -893,6 +879,14 @@ impl<'a, 'conn> TxStore<'a, 'conn> {
 }
 
 impl NodeSource for TxStore<'_, '_> {
+    fn read_scoped(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<s_content::job::ScopedNodeRead, CodecError> {
+        self.checked_read_scoped(digest)
+            .map(s_content::job::ScopedNodeRead::from_checked)
+    }
+
     fn checked_read_scoped(
         &mut self,
         d: &NodeDigest,
@@ -937,8 +931,11 @@ impl NodeSource for TxStore<'_, '_> {
         &mut self,
         digest: &NodeDigest,
     ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
-        self.checked_read_scoped(digest)
-            .map(|frame| frame.map(s_content::job::ScopedFrame::into_frame))
+        self.checked_read_scoped(digest).and_then(|frame| {
+            frame
+                .map(s_content::job::ScopedFrame::into_frame)
+                .transpose()
+        })
     }
 }
 
@@ -2344,6 +2341,7 @@ fn request_capture_digest(row: &rusqlite::Row<'_>) -> Result<NodeDigest, CodecEr
 #[derive(Default)]
 pub(crate) struct OriginalScanScratch {
     seen: std::collections::HashSet<NodeDigest>,
+    permit: Option<NativeReservation>,
     #[cfg(test)]
     capacity_growths: u64,
 }
@@ -2368,6 +2366,15 @@ impl OriginalScanScratch {
         let Some(work) = work else {
             return Ok(self.insert(digest));
         };
+        work.check_current()?;
+        if self
+            .permit
+            .as_ref()
+            .is_some_and(|permit| !permit.belongs_to_parent(work))
+            || (self.permit.is_none() && self.seen.capacity() != 0)
+        {
+            return Err(work.reject(s_content::capture_allocation::scratch::ScratchFailure::Ledger));
+        }
         if self.seen.contains(&digest) {
             return Ok(false);
         }
@@ -2380,7 +2387,7 @@ impl OriginalScanScratch {
             self.seen.try_reserve(1).map_err(|_| {
                 work.reject(s_content::capture_allocation::scratch::ScratchFailure::Allocation)
             })?;
-            permit.retain();
+            self.permit = Some(permit);
         }
         let first = self.seen.insert(digest);
         #[cfg(test)]
@@ -2465,7 +2472,8 @@ fn capture_originals_admitted(
         work.rebind_scans += u64::from(prior.is_some());
     });
     // Locals drop in reverse order: nodes first, whole-tree permit afterwards.
-    let mut tree_permit = None;
+    let mut tree_permit = s_content::CodecVec::default();
+    let mut body_permits = s_content::CodecVec::default();
     let mut nodes = s_content::MemoryNodes::new();
     let mut scratch = OriginalScanScratch::default();
     let mut matched = 0usize;
@@ -2483,19 +2491,45 @@ fn capture_originals_admitted(
             .len()
             .checked_add(usize::from(!nodes.contains(&digest)))
             .ok_or_else(|| NativeAdmission(work).native_overflow())?;
-        let next_permit = native_tree_storage::<NodeDigest, (u8, Vec<u8>)>(work, next)?;
-        let body = native_body_copy(work, bytes)?;
+        let next_permit = if next > nodes.len() {
+            if let Some(work) = work {
+                tree_permit.try_reserve_native(work, 1)?;
+                let depth = usize::BITS as usize - nodes.len().leading_zeros() as usize + 2;
+                let bytes = std::mem::size_of::<(NodeDigest, (u8, Vec<u8>))>()
+                    .checked_mul(11)
+                    .and_then(|n| n.checked_add(16 * std::mem::size_of::<usize>()))
+                    .and_then(|n| n.checked_mul(depth))
+                    .ok_or_else(|| NativeAdmission(Some(work)).native_overflow())?;
+                Some(work.reserve_native(bytes)?)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        NativeAdmission(work).native_codec_room(&mut body_permits, 1)?;
+        let source_bytes = bytes
+            .len()
+            .checked_add(97)
+            .ok_or_else(|| NativeAdmission(work).native_overflow())?;
+        let source_permit = work
+            .map(|work| work.reserve_native(source_bytes))
+            .transpose()?;
+        let (body, body_permit) = native_body_reserved(work, bytes)?;
         nodes.insert_unchecked(digest, tag, body);
-        tree_permit = next_permit;
+        if let Some(index) = body_permits.iter().position(|(old, _, _)| old == &digest) {
+            drop(body_permits.remove(index));
+        }
+        body_permits.try_push((digest, body_permit, source_permit))?;
+        if let Some(permit) = next_permit {
+            tree_permit.try_push(permit)?;
+        }
         Ok(())
     })?;
     same &= prior.is_some_and(|(_, count)| matched == count);
     let count = nodes.len();
-    let capture = s_content::AuditCapture::new(nodes);
-    // Return owns the tree; conservative retention until the caller's entire parent domain ends.
-    if let Some(permit) = tree_permit {
-        permit.retain();
-    }
+    let capture = s_content::AuditCapture::new(nodes)
+        .with_original_fees_for_testonly(tree_permit, body_permits)?;
     Ok((capture, count, same))
 }
 #[cfg(feature = "s_capture_native_testonly")]

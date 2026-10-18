@@ -206,6 +206,55 @@ impl<T> CodecVec<T> {
     ) -> Result<(), CodecError> {
         self.reserve_native_work(&work.budget(), additional)
     }
+    /// #1488 冷原件接纳的原子入口。所有可能失败的容量/新块准入均在接纳前。
+    #[doc(hidden)]
+    pub fn try_reserve_native_adopting(
+        &mut self,
+        work: &super::scratch::WorkScope,
+        additional: usize,
+    ) -> Result<(), CodecError> {
+        use super::scratch::ScratchFailure;
+        work.check_current()?;
+        if self.native_permit.is_some() {
+            return self.try_reserve_native(work, additional);
+        }
+        let old_bytes = self.retained_layout_bytes()?;
+        let VecStorage::Plain(values) = &mut self.storage else {
+            return Err(work.reject(ScratchFailure::Ledger));
+        };
+        let needed = values
+            .len()
+            .checked_add(additional)
+            .ok_or_else(|| work.reject(ScratchFailure::Budget))?;
+        if needed <= values.capacity() {
+            self.native_permit = Some(work.adopt_native(old_bytes)?);
+            return Ok(());
+        }
+        let capacity = needed
+            .max(
+                values
+                    .capacity()
+                    .checked_mul(2)
+                    .ok_or_else(|| work.reject(ScratchFailure::Budget))?,
+            )
+            .max(4);
+        let bytes = capacity
+            .checked_mul(std::mem::size_of::<T>())
+            .ok_or_else(|| work.reject(ScratchFailure::Budget))?;
+        let permit = work.reserve_native(bytes)?;
+        let mut replacement = Vec::new();
+        replacement
+            .try_reserve_exact(capacity)
+            .map_err(|_| work.reject(ScratchFailure::Allocation))?;
+        // 原件仍在values；接纳失败前没有append或绑定。成功后只做不可失败的移动。
+        let old_permit = work.adopt_native(old_bytes)?;
+        replacement.append(values);
+        let old = std::mem::replace(values, replacement);
+        drop(old);
+        drop(old_permit);
+        self.native_permit = Some(permit);
+        Ok(())
+    }
     pub(crate) fn reserve_native_work(
         &mut self,
         work: &WorkBudget,
@@ -258,6 +307,56 @@ impl<T> CodecVec<T> {
         replacement
             .try_reserve_exact(next)
             .map_err(|_| work.native_failure(ScratchFailure::Allocation))?;
+        replacement.append(values);
+        let old = std::mem::replace(values, replacement);
+        drop(old);
+        self.native_permit = permit;
+        Ok(())
+    }
+    pub fn remove_prefix(&mut self, count: usize) {
+        match &mut self.storage {
+            VecStorage::Plain(values) => {
+                drop(values.drain(..count));
+            }
+            VecStorage::Owned(values) => {
+                drop(values.drain(..count));
+            }
+        }
+    }
+    /// #1488 新旧块同时持费，载荷移动完成后才销毁旧块和它的原许可。
+    pub fn try_compact_native(
+        &mut self,
+        work: Option<&super::scratch::WorkScope>,
+    ) -> Result<(), CodecError> {
+        use super::scratch::ScratchFailure;
+        if let Some(work) = work {
+            work.check_current()?;
+            if (self.native_permit.is_none() && self.capacity() != 0)
+                || self
+                    .native_permit
+                    .as_ref()
+                    .is_some_and(|p| !p.belongs_to_parent(work))
+            {
+                return Err(work.reject(ScratchFailure::Ledger));
+            }
+        } else if self.native_permit.is_some() {
+            return Err(allocation_error());
+        }
+        let VecStorage::Plain(values) = &mut self.storage else {
+            return Err(allocation_error());
+        };
+        if values.len() == values.capacity() {
+            return Ok(());
+        }
+        let bytes = values
+            .len()
+            .checked_mul(std::mem::size_of::<T>())
+            .ok_or_else(allocation_error)?;
+        let permit = work.map(|w| w.reserve_native(bytes)).transpose()?;
+        let mut replacement = Vec::new();
+        replacement.try_reserve_exact(values.len()).map_err(|_| {
+            work.map_or_else(allocation_error, |w| w.reject(ScratchFailure::Allocation))
+        })?;
         replacement.append(values);
         let old = std::mem::replace(values, replacement);
         drop(old);

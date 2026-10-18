@@ -267,11 +267,13 @@ pub(super) trait RefOutput: Sized {
     fn with_native_permit(
         self,
         permit: Option<super::capture_allocation::scratch::NativeReservation>,
-    ) -> Self {
-        if let Some(permit) = permit {
-            permit.retain();
+    ) -> Result<Self, super::CodecError> {
+        if permit.is_some() {
+            return Err(super::CodecError::scratch(
+                super::capture_allocation::scratch::ScratchFailure::Ledger,
+            ));
         }
-        self
+        Ok(self)
     }
     fn from_checked(kind: Kind, digest: NodeDigest, extent: Option<u64>) -> Self;
 }
@@ -297,8 +299,8 @@ impl RefOutput for super::capture_allocation::native_owned::NativeValue<ContentR
     fn with_native_permit(
         self,
         permit: Option<super::capture_allocation::scratch::NativeReservation>,
-    ) -> Self {
-        self.attach_reserved(permit)
+    ) -> Result<Self, super::CodecError> {
+        Ok(self.attach_reserved(permit))
     }
 }
 

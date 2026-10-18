@@ -15,8 +15,10 @@ use super::{canonical_json, content_manifest, content_store, v2};
 use crate::staged_nodes;
 use crate::v3::audit_store::HashReader;
 use crate::v3::audit_store::{CodecRead, CodecStore, NativeAdmission};
+use crate::v3::audit_store::{NativeSet, NativeTree};
 use crate::v3::audit_store::{RefFields, RefValue};
 use crate::v3::business_json;
+use crate::v3::native_shared::NativeRc as Rc;
 use content_manifest::Decimal;
 #[cfg(test)]
 use content_manifest::ManifestRoots;
@@ -34,7 +36,6 @@ use sc::Value as V;
 use sc::ValueView as VV;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::CStr;
-use std::rc::Rc;
 
 #[derive(Debug)]
 pub(super) struct ResolvedTemplates {
@@ -287,13 +288,21 @@ pub(crate) fn resolve_indexed_templates_pending_view(
 /// 仅当前Native历史审计能构造；寿命绑原始capture，不借overlay临时体。
 pub(crate) struct NativePublicationMemo<'capture> {
     capture: &'capture sc::AuditCapture,
-    fields: BTreeMap<(String, String, &'static str, Option<u64>), Rc<RefFields<'static>>>,
+    fields: NativeTree<
+        (
+            NativeValue<String>,
+            NativeValue<String>,
+            &'static str,
+            Option<u64>,
+        ),
+        Rc<RefFields<'static>>,
+    >,
 }
 impl<'capture> NativePublicationMemo<'capture> {
     pub(crate) fn new(store: &HashReader<'capture>) -> Option<Self> {
         store.native_projection_capture().map(|capture| Self {
             capture,
-            fields: BTreeMap::new(),
+            fields: NativeTree::default(),
         })
     }
     fn check_store(&self, store: &HashReader<'_>) -> Result<(), String> {
@@ -320,8 +329,8 @@ impl<'capture> NativePublicationMemo<'capture> {
             .verify_refview(record, sc::Mode::Template)
             .map_err(err)?;
         let key = (
-            record.format().to_owned(),
-            record.root().to_owned(),
+            store.native_string(record.format()).map_err(err)?,
+            store.native_string(record.root()).map_err(err)?,
             record.kind().name(),
             record.extent(),
         );
@@ -330,8 +339,10 @@ impl<'capture> NativePublicationMemo<'capture> {
         }
         let fields = read_publication_fields(store, record)?;
         // 单次DFS成功即已提取全部十字段；不记业务判断/失败，每cut原位重跑。
-        let fields = Rc::new(fields);
-        self.fields.insert(key, Rc::clone(&fields));
+        let fields = Rc::try_new_shallow(fields, store.codec_work()).map_err(err)?;
+        self.fields
+            .insert_admitted(key, Rc::clone(&fields), store)
+            .map_err(err)?;
         Ok(PublicationFields::Shared(fields))
     }
 }
@@ -501,7 +512,7 @@ pub(crate) fn resolve_native_dual_templates_pending_view(
                 return Err(err("真实Template数组与独立有序双投影不同"));
             }
         }
-        let mut values = Vec::new();
+        let mut values = sc::CodecVec::default();
         store
             .native_vec_room(&mut values, names.len())
             .map_err(err)?;
@@ -516,7 +527,7 @@ pub(crate) fn resolve_native_dual_templates_pending_view(
                     .digest()
                     .map_err(err)?
             };
-            values.push((*name, VV::Edge(digest)));
+            values.try_push((*name, VV::Edge(digest))).map_err(err)?;
         }
         let built = store
             .write_template_view(VV::Object(&values))
@@ -746,45 +757,59 @@ fn generation_admitted(
 fn strict_json_admitted(
     raw: &str,
     admission: &NativeAdmission<'_>,
-) -> Result<serde_json::Value, String> {
-    if admission.0.is_some() {
-        #[cfg(feature = "s_capture_native_testonly")]
-        admission
-            .native_admit(
-                crate::v3::audit_owner::native::JsonShape::scan(raw.as_bytes()).parse_peak(),
-            )
-            .map_err(err)?;
-        #[cfg(not(feature = "s_capture_native_testonly"))]
-        return Err(err(admission
-            .0
-            .unwrap()
-            .reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)));
-    }
-    strict_json(raw.as_bytes())
+) -> Result<NativeValue<serde_json::Value>, String> {
+    #[cfg(feature = "s_capture_native_testonly")]
+    let permit = admission
+        .native_reservation(
+            crate::v3::audit_owner::native::JsonShape::scan(raw.as_bytes()).parse_peak(),
+        )
+        .map_err(err)?;
+    #[cfg(not(feature = "s_capture_native_testonly"))]
+    let permit: Option<sc::capture_allocation::scratch::NativeReservation> =
+        if admission.0.is_some() {
+            return Err(err(admission
+                .0
+                .unwrap()
+                .reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)));
+        } else {
+            None
+        };
+    let value = strict_json(raw.as_bytes())?;
+    Ok(match permit {
+        Some(permit) => permit.hold(value),
+        None => NativeValue::without_reservation(value),
+    })
 }
 fn canonical_admitted(
     value: &serde_json::Value,
     admission: &NativeAdmission<'_>,
-) -> Result<String, String> {
-    if admission.0.is_some() {
-        #[cfg(feature = "s_capture_native_testonly")]
-        admission
-            .native_admit(
-                crate::v3::audit_owner::native::JsonShape::of_value(value).canonical_peak(),
-            )
-            .map_err(err)?;
-        #[cfg(not(feature = "s_capture_native_testonly"))]
-        return Err(err(admission
-            .0
-            .unwrap()
-            .reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)));
-    }
-    Ok(canonical_json(value))
+) -> Result<NativeValue<String>, String> {
+    #[cfg(feature = "s_capture_native_testonly")]
+    let permit = admission
+        .native_reservation(
+            crate::v3::audit_owner::native::JsonShape::of_value(value).canonical_peak(),
+        )
+        .map_err(err)?;
+    #[cfg(not(feature = "s_capture_native_testonly"))]
+    let permit: Option<sc::capture_allocation::scratch::NativeReservation> =
+        if admission.0.is_some() {
+            return Err(err(admission
+                .0
+                .unwrap()
+                .reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)));
+        } else {
+            None
+        };
+    let value = canonical_json(value);
+    Ok(match permit {
+        Some(permit) => permit.hold(value),
+        None => NativeValue::without_reservation(value),
+    })
 }
 fn canonical_array_admitted(
     values: &[JsonView<'_>],
     admission: &NativeAdmission<'_>,
-) -> Result<String, String> {
+) -> Result<NativeValue<String>, String> {
     let owner = business_json::json_from_view_admitted(admission, JsonView::ArraySlice(values))?;
     match owner {
         business_json::JsonOwner::Plain(value) => canonical_admitted(&value, admission),
@@ -853,7 +878,7 @@ pub(crate) fn verify_current_begin_admitted(
     }
     let scope_raw = meta_admitted(tx, "scope", work)?;
     let scope = strict_json_admitted(&scope_raw, &admission)?;
-    if hash_view(&admission, VV::Json((&scope).into()))? != m.scope.digest().map_err(err)? {
+    if hash_view(&admission, VV::Json(scope.as_ref().into()))? != m.scope.digest().map_err(err)? {
         return Err(err("scope 与冻结域不同"));
     }
     let frontier = query_one(
@@ -871,13 +896,13 @@ pub(crate) fn verify_current_begin_admitted(
         |r|Ok((row_text_admitted(r,0,&admission)?,row_text_admitted(r,1,&admission)?,row_text_admitted(r,2,&admission)?,row_text_admitted(r,3,&admission)?,r.integer(4)?,row_text_admitted(r,5,&admission)?))).map_err(err)?;
     let clock_value = strict_json_admitted(&clock_raw, &admission)?;
     // ClockPlan::parse 的规则核使用栈上 FixedHash，唯一拥有的摘要文本为 64 字节。
-    admission.native_admit(64).map_err(err)?;
-    let clock = v2::ClockPlan::parse(clock_value)?;
+    let _clock_hash_permit = admission.native_reservation(64).map_err(err)?;
+    let clock = clock_value.try_map(v2::ClockPlan::parse)?;
     if protocol.as_str() != "s-session/3"
         || inc.as_str() != m.session_generation
         || clock_hash.as_str() != m.clock_plan_hash
         || clock.hash != clock_hash.as_str()
-        || canonical_admitted(&clock.value, &admission)? != clock_raw.as_str()
+        || canonical_admitted(&clock.value, &admission)?.as_str() != clock_raw.as_str()
     {
         return Err(err("协议/会话代号/clock 冻结原件不同"));
     }
@@ -895,8 +920,9 @@ pub(crate) fn verify_current_begin_admitted(
     if receipt != accepted_receipt {
         return Err(err("message 的接纳收据与实际源行不同"));
     }
-    let envelope = validate_envelope(strict_json_admitted(&raw, &admission)?, "s-session/3")?;
-    if canonical_admitted(&envelope, &admission)? != raw.as_str()
+    let envelope = strict_json_admitted(&raw, &admission)?
+        .try_map(|value| validate_envelope(value, "s-session/3"))?;
+    if canonical_admitted(&envelope, &admission)?.as_str() != raw.as_str()
         || ph.as_str() != s.payload_hash
         || cid.as_str() != s.clock_event_id
         || accepted > frontier
@@ -998,8 +1024,8 @@ fn object_births(
     tx: &Transaction<'_>,
     m: &MetadataView<'_>,
     store: &(impl CodecStore + ?Sized),
-) -> Result<BTreeMap<NodeDigest, ObjectBirth>, String> {
-    let mut out = BTreeMap::new();
+) -> Result<NativeTree<NodeDigest, ObjectBirth>, String> {
+    let mut out = NativeTree::default();
     let latest = generation_admitted(tx, store)?.max(m.generation);
     {
         let mut stmt = CheckedStatement::prepare(tx, c"SELECT object_id,object_revision,kind,batch_id,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM s_content_objects").map_err(err)?;
@@ -1040,12 +1066,11 @@ fn object_births(
                 b.superseded = None;
             }
             let digest = hash_view(store, VV::String(&id))?;
-            if !out.contains_key(&digest) {
-                store
-                    .native_tree_room::<NodeDigest, ObjectBirth>(out.len())
-                    .map_err(err)?;
-            }
-            if out.insert(digest, b).is_some() {
+            if out
+                .insert_admitted(digest, b, store)
+                .map_err(err)?
+                .is_some()
+            {
                 return Err(err("对象身份同时存在两个独立表"));
             }
         }
@@ -1062,8 +1087,8 @@ fn observation_births(
     tx: &Transaction<'_>,
     m: &MetadataView<'_>,
     store: &(impl CodecStore + ?Sized),
-) -> Result<BTreeMap<NodeDigest, ObservationBirth>, String> {
-    let mut out = BTreeMap::new();
+) -> Result<NativeTree<NodeDigest, ObservationBirth>, String> {
+    let mut out = NativeTree::default();
     let latest = generation_admitted(tx, store)?.max(m.generation);
     let mut stmt = CheckedStatement::prepare(
         tx,
@@ -1084,12 +1109,7 @@ fn observation_births(
             continue;
         }
         let digest = hash_view(store, VV::String(&id))?;
-        if !out.contains_key(&digest) {
-            store
-                .native_tree_room::<NodeDigest, ObservationBirth>(out.len())
-                .map_err(err)?;
-        }
-        out.insert(digest, b);
+        out.insert_admitted(digest, b, store).map_err(err)?;
     }
     stmt.finalize().map_err(err)?;
     Ok(out)
@@ -1251,12 +1271,9 @@ fn resolve_objects(
         n[0] += 1;
         v.set(n);
     });
-    let mut expected = BTreeSet::new();
+    let mut expected = NativeSet::default();
     for (id, _) in births.iter().filter(|(_, b)| member(b, m, family)) {
-        store
-            .native_tree_room::<NodeDigest, ()>(expected.len())
-            .map_err(err)?;
-        expected.insert(*id);
+        expected.insert_admitted(*id, store).map_err(err)?;
     }
     // 本轮只修改其它成员的batch标量；未处理成员仍来自同一不可变模板数组。
     let array = store.lookup_field_ref(root.view(), name).map_err(err)?;
@@ -1264,7 +1281,7 @@ fn resolve_objects(
     if n != expected.len() as u64 {
         return Err(err(format!("{name} 与独立索引成员数不符")));
     }
-    let mut seen = BTreeSet::new();
+    let mut seen = NativeSet::default();
     for i in 0..n {
         let path = PublicationPath::new(
             store,
@@ -1286,12 +1303,7 @@ fn resolve_objects(
             .ok_or_else(|| err("缺object_id"))?
             .digest()
             .map_err(err)?;
-        if expected.contains(&id) && !seen.contains(&id) {
-            store
-                .native_tree_room::<NodeDigest, ()>(seen.len())
-                .map_err(err)?;
-        }
-        if !expected.contains(&id) || !seen.insert(id) {
+        if !expected.contains(&id) || !seen.insert_admitted(id, store).map_err(err)? {
             return Err(err(format!("{name} 存在越界/重复身份")));
         }
         let b = &births[&id];
@@ -1373,21 +1385,18 @@ fn resolve_observations(
         n[1] += 1;
         v.set(n);
     });
-    let mut expected = BTreeSet::new();
+    let mut expected = NativeSet::default();
     for (id, _) in births
         .iter()
         .filter(|(_, b)| !delta || b.first == m.generation)
     {
-        store
-            .native_tree_room::<NodeDigest, ()>(expected.len())
-            .map_err(err)?;
-        expected.insert(*id);
+        expected.insert_admitted(*id, store).map_err(err)?;
     }
     let n = array_len(store, root, "observations")?;
     if n != expected.len() as u64 {
         return Err(err("观察与独立索引成员数不符"));
     }
-    let mut seen = BTreeSet::new();
+    let mut seen = NativeSet::default();
     for i in 0..n {
         let path = PublicationPath::new(
             store,
@@ -1402,12 +1411,7 @@ fn resolve_observations(
             .map_err(err)?
             .digest()
             .map_err(err)?;
-        if expected.contains(&id) && !seen.contains(&id) {
-            store
-                .native_tree_room::<NodeDigest, ()>(seen.len())
-                .map_err(err)?;
-        }
-        if !expected.contains(&id) || !seen.insert(id) {
+        if !expected.contains(&id) || !seen.insert_admitted(id, store).map_err(err)? {
             return Err(err("观察有越界/重复身份"));
         }
         let b = &births[&id];

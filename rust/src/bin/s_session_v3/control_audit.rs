@@ -464,9 +464,9 @@ mod tests {
             .unwrap()
             .run(|scope| {
                 // 代表调用方已持有的父域工作；控制链必须继续使用这一本账。
-                NativeAdmission(Some(scope))
-                    .native_admit(137)
-                    .map_err(|e| e.to_string())?;
+                let _caller_payload = NativeAdmission(Some(scope))
+    .native_owned_text("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+    .map_err(|e| e.to_string())?;
                 let before = budget.live();
                 let mut native =
                     prepare_s3_control_history_admitted(&domain.fixture.conn, None, Some(scope))?;

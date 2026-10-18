@@ -218,17 +218,28 @@ fn control_decode_admitted(
     work: Option<&WorkScope>,
 ) -> Result<JsonOwner, String> {
     control_native_owner(owner, work)?;
-    if work.is_some() {
-        #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_capture_native_testonly")]
+    let permit = if work.is_some() {
         NativeAdmission(work)
-            .native_admit(
+            .native_reservation(
                 crate::v3::audit_owner::native::JsonShape::scan(raw.as_bytes()).parse_peak(),
             )
-            .map_err(err)?;
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+            .map_err(err)?
+    } else {
+        None
+    };
+    #[cfg(not(feature = "s_capture_native_testonly"))]
+    if work.is_some() {
         return Err("prototype_audit_allocation_incomplete：Native控制JSON未启用".into());
     }
-    control_decode(raw, owner, legacy)
+    let value = control_decode(raw, owner, legacy)?;
+    #[cfg(feature = "s_capture_native_testonly")]
+    let value = match value {
+        JsonOwner::Plain(value) => JsonOwner::Plain(value.with_reservation(permit)),
+        #[cfg(feature = "s_allocation_json_testonly")]
+        owned @ JsonOwner::Owned(_) => owned,
+    };
+    Ok(value)
 }
 fn control_canonical_equal(
     value: JsonView<'_>,
