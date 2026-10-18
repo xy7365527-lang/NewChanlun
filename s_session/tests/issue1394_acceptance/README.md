@@ -33,3 +33,22 @@ python3 -O -B s_session/tests/issue1394_acceptance/run_checks.py --offline
 `fixtures/PREPARATION-CONTRACT.json` 为指定 ce7198… 原字节。其中的 null 和历史提案不能当运行配置。测试中的 toy 现金数值、账、输入、进程身份和资源值仅属于各自临时夹具，不能产正式 Voice 或财务验收成功。
 
 本次来源、报告及检查原件见 `.chanlun/review-results/issue1394-acceptance-integration-20261018/`。这两处新增文件均留为未提交差异，供管理者收包及独立审查。
+
+2026-10-18 同票返修 v2：正式独审01的六项修复、固定反例与本轮原输出见
+`.chanlun/review-results/issue1394-acceptance-revision2-20261018/REPORT.md`。
+上段及旧报告描述旧包交付时状态；历史测量未改，不能当本轮字节的测试成绩。
+
+新增 `captured_cut.py` 只消费已捕获原字节，核固定 Q 分页、financial 全 basis
+闭包和六族全集，返回未认证事实；`voice_bridge.py` 消费显式生产字段映射、
+实际 terminal/K/source 与独立 γ 原件，返回全部未认证候选或缺项。二者无产品启动
+能力，不生成独评 APPROVE、不自动 BindVoice。完整合同、真实 wire 形状与边界见新报告目录
+`CONNECTION-CONTRACT.md`；未来统一 producer 未冻结，所有运行值仍须根逐对象冻结。
+
+只运行本轮影响面的回归（在本目录执行）：
+
+```sh
+python3 -B -m unittest test_scheduler test_scheduler_integration test_evidence test_financial_oracle test_supervisor test_journal test_control test_review01 test_capture_bridge -v
+```
+
+`test_review01` 保留独审固定输入并补成对成功/拒绝路径；`test_capture_bridge` 是明确
+toy 捕获流与字段映射，不能当正式 G/terminal/K 输出或 P11。普通及 `-O` 实际成绩见本轮报告。

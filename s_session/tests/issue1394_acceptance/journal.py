@@ -1,7 +1,8 @@
-"""只追加、同步落盘的控制日记；失败消费不退款，不自动恢复业务。
+"""同步落盘的控制日记；消费只追加且不退款，不自动恢复业务。
 
 同一冻结 inode 上 flock 串行化多个进程。截断/未知尾部失败封闭；不宣称抵御
 有权限重写整个历史及其根指针的攻击者，也不提供产品执行授权。
+唯有持锁的未获准成功receipt尾段在写入失败/超时时撤去，消费仍保持pending。
 """
 from contextlib import contextmanager
 from dataclasses import asdict
@@ -63,7 +64,7 @@ class Journal:
                 "日记路径身份改变")
 
     @contextmanager
-    def locked(self, deadline):
+    def locked(self, deadline, *, check_exit=True):
         while True:
             remaining(deadline)
             self.verify()
@@ -75,8 +76,9 @@ class Journal:
         try:
             self.verify()
             yield
-            self.verify()
-            remaining(deadline)
+            if check_exit:
+                self.verify()
+                remaining(deadline)
         finally:
             fcntl.flock(self.fd, fcntl.LOCK_UN)
 
@@ -118,18 +120,28 @@ class Journal:
             previous = sha(line)
         return entries, previous, len(raw), next_step, pending
 
-    def _append(self, event):
+    def _append(self, event, deadline):
         entries, previous, size, _, _ = self.read()
         wire = canonical({"previous": previous, "event": event}) + b"\n"
         require(len(entries) < self.max_records and size + len(wire) <= self.max_bytes, "日记帽耗尽")
         sent = 0
-        while sent < len(wire):
-            remaining(self.header["work_deadline"])
-            n = os.write(self.fd, wire[sent:])
-            require(n > 0, "日记写入中断")
-            sent += n
-        os.fsync(self.fd)
-        remaining(self.header["work_deadline"])
+        try:
+            while sent < len(wire):
+                remaining(deadline)
+                n = os.write(self.fd, wire[sent:])
+                require(n > 0, "日记写入中断")
+                sent += n
+            os.fsync(self.fd)
+            self.verify()
+            remaining(deadline)
+        except BaseException:
+            if event["kind"] == "receipt":
+                # 仍持排他锁：撤去本次未获准成功的尾段，保留已消费 pending。
+                # 不改旧记录/不退款；失败 fsync 或迟到写不能在重开后变成成功。
+                self.verify()
+                os.ftruncate(self.fd, size)
+                os.fsync(self.fd)
+            raise
 
     def consume(self, step, predecessor_sha):
         with self.locked(min(step.deadline, self.header["work_deadline"])):
@@ -139,16 +151,20 @@ class Journal:
                     and step.sha() == self.header["steps"][next_step], "阶段偏离冻结日记")
             previous = entries[-1]["sha"] if entries else self.header["seed"]
             require(predecessor_sha == previous, "前驱原回执不匹配")
-            self._append({"kind": "consume", "step": step.sha(), "predecessor": previous})
+            self._append({"kind": "consume", "step": step.sha(), "predecessor": previous},
+                         min(step.deadline, self.header["work_deadline"]))
 
     def finish(self, step, receipt):
-        with self.locked(min(step.deadline, self.header["work_deadline"])):
+        # _append 在同锁内完成最后身份/截止检查并负责撤去失败尾段。
+        # 避免退出context再做一次可失败I/O却已离开其撤尾保护范围。
+        with self.locked(min(step.deadline, self.header["work_deadline"]), check_exit=False):
             entries, _, _, index, pending = self.read()
             require(pending == step.sha() and receipt.step_sha == pending
                     and receipt.sequence == index and receipt.stage == step.stage
                     and receipt.scenario == step.scenario
                     and receipt.predecessor_sha == entries[-1]["predecessor"], "完成回执错绑")
-            self._append({"kind": "receipt", "step": step.sha(), "sha": receipt.sha()})
+            self._append({"kind": "receipt", "step": step.sha(), "sha": receipt.sha()},
+                         min(step.deadline, self.header["work_deadline"]))
 
     def close(self):
         if self.fd is not None:

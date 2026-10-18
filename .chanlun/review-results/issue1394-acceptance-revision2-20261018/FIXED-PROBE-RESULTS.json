@@ -1,0 +1,65 @@
+{
+  "formal_report_sha256": "3c4ff1b9cf589eb0253a647a1a2baef41861d383437691c811895ad6c7be0fb0",
+  "formal_probe_sha256": "c51419e3a664968c0d384174e5337540033e2a8f8925ea6010b88fa3c4f72930",
+  "fixed_input_location": "s_session/tests/issue1394_acceptance/test_review01.py",
+  "tests": [
+    {
+      "method": "test_F1_requirements_and_steps_both_removed_fixed_probe",
+      "normal_and_optimized_pass": true
+    },
+    {
+      "method": "test_F2_second_owner_original_probe_and_ordered_full_set",
+      "normal_and_optimized_pass": true
+    },
+    {
+      "method": "test_F3_self_consistent_fake_cut_fixed_probe_and_legal_E",
+      "normal_and_optimized_pass": true
+    },
+    {
+      "method": "test_F3_missing_original_and_wrong_E_session_generation_root_receipt",
+      "normal_and_optimized_pass": true
+    },
+    {
+      "method": "test_F4_last_evidence_crosses_work_deadline_fixed_probe",
+      "normal_and_optimized_pass": true
+    },
+    {
+      "method": "test_F4_serialization_and_journal_return_cannot_publish_success",
+      "normal_and_optimized_pass": true
+    },
+    {
+      "method": "test_F4_same_cut_second_parse_and_serialization_fixed_clock",
+      "normal_and_optimized_pass": true
+    },
+    {
+      "method": "test_F4_verify_exchanges_final_empty_set_check_is_budgeted",
+      "normal_and_optimized_pass": true
+    },
+    {
+      "method": "test_F4_late_fsync_keeps_consumed_journal_without_success_receipt",
+      "normal_and_optimized_pass": true
+    },
+    {
+      "method": "test_F5_monitor_first_ack_receive_race_fixed_probe",
+      "normal_and_optimized_pass": true
+    },
+    {
+      "method": "test_F5_monitor_descendant_race_and_malicious_binding",
+      "normal_and_optimized_pass": true
+    },
+    {
+      "method": "test_F5_bad_first_ack_not_adopted",
+      "normal_and_optimized_pass": true
+    },
+    {
+      "method": "test_F6_wait_late_live_dead_and_kill_branches_keep_reap_fact",
+      "normal_and_optimized_pass": true
+    },
+    {
+      "method": "test_F6_timeout_still_visits_other_registered_owners_and_summary",
+      "normal_and_optimized_pass": true
+    }
+  ],
+  "execution_authorized": false,
+  "product_status": "NOT_RUN"
+}

@@ -1,0 +1,37 @@
+[
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-B",
+      "-m",
+      "unittest",
+      "test_capture_bridge",
+      "-v"
+    ],
+    "cwd": "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance",
+    "returncode": 0,
+    "elapsed_seconds": 0.5368376250116853,
+    "output": "normal-resource-followup.txt",
+    "scope": "最终资源硬化后仅重跑受影响的捕获/桥模块",
+    "execution_authorized": false,
+    "product_status": "NOT_RUN"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-O",
+      "-B",
+      "-m",
+      "unittest",
+      "test_capture_bridge",
+      "-v"
+    ],
+    "cwd": "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance",
+    "returncode": 0,
+    "elapsed_seconds": 0.5688691250106785,
+    "output": "optimized-resource-followup.txt",
+    "scope": "最终资源硬化后仅重跑受影响的捕获/桥模块",
+    "execution_authorized": false,
+    "product_status": "NOT_RUN"
+  }
+]

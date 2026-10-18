@@ -16,6 +16,7 @@ class Original:
         before = d.file_stat(self.path)
         raw = d.read_original(self.path, budget)
         d.require(d.file_stat(self.path) == before and d.sha(raw) == self.sha256, "原件变化或摘要不符")
+        budget.check()
         return raw
 
 
@@ -63,14 +64,18 @@ def verify_exchanges(expected, exchanges, budget, *, session_id, session_generat
         keys = {key for dom, key in receipt_keys if dom == domain}
         d.require(set(snapshot["requests"]) == keys == set(snapshot["receipts"]),
                   "持久原请求/回执有额外或缺失身份")
-    return tuple(results)
+    result = tuple(results)
+    budget.check()
+    return result
 
 
 def same_cut(query_original, history_original, expected_cut, budget):
     query, history = d.strict(query_original.read(budget)), d.strict(history_original.read(budget))
     d.require(query["cut"] == history["cut"] == expected_cut, "query/history 非同 cut")
     d.require(query["image"] == history["image"], "同 cut 查询与持久历史图像不符")
-    return d.sha(d.canonical({"query": query, "history": history}))
+    result = d.sha(d.canonical({"query": query, "history": history}))
+    budget.check()
+    return result
 
 
 def recovery_exact(before, recovered, *, seam, pending_key, request, receipt):

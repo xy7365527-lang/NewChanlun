@@ -39,6 +39,7 @@ def fixture():
                 requests = (
                     s.Request(binding, "UNIT_TEST_ONLY_EXPECTED_A"),
                     s.Request(replace(binding, owner="B:beta", domain="B:beta",
+                                      epoch=1,  # recover 只重启具名目标；beta 未重启。
                                       db=binding.db + ".beta", request_sha=h(receipt_key + "/beta"),
                                       receipt_key=receipt_key + "/beta"), "UNIT_TEST_ONLY_EXPECTED_B"),
                 )

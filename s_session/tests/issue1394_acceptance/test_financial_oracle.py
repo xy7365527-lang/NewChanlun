@@ -154,12 +154,27 @@ class FinancialTests(unittest.TestCase):
             grants.append(grant)
             state["responsibilities"].append({"responsibility_id":gid,"owner":p["owner"],"amount":amounts[ident],"grant":grant})
         state["slots"][0]["grants"]=grants
+        # 独立手写E原库快照；并非由audit或B的actual反推。
+        rows=copy.deepcopy(args["histories"]["E"])
+        previous=""
+        for row in rows:
+            row["commit_ns"]="10" if row["seq"]==2 else str(row["seq"])
+            row["root"]=sha(canonical({"domain_id":"E","session_id":"UNIT_TEST_ONLY",
+                "session_generation":"1","commit_seq":str(row["seq"]),"previous_root":previous,
+                "commit_ns":row["commit_ns"],"image_hash":sha(canonical(row["image"]))}))
+            previous=row["root"]
+        cut={"domain_id":"E","commit_seq":"2","root_hash":rows[-1]["root"]}
+        e_original={"meta":{"domain_id":"E","session_id":"UNIT_TEST_ONLY","session_generation":"1"},
+                    "commits":rows,"receipts":{"Reserve/slot":{"kind":"ReserveReceipt","domain_id":"E",
+                    "record":{"slot_id":"slot"},"receipt_key":"Reserve/slot","commit_ns":"10","cut":cut}}}
+        args["e_original_raw"]=canonical(e_original)
+        args["e_original_sha"]=sha(args["e_original_raw"])
         return data,args,grants
 
     def test_reserved_commit_requires_original_liability_and_time_order(self):
         data,args,grants=self.reserved_fixture()
         final=copy.deepcopy(args["histories"]["B:beta"][-1]);final["seq"]=2
-        cut={"commit_seq":"2","domain_id":"E","root":"UNIT_TEST_ONLY"}
+        cut=f.strict(args["e_original_raw"])["receipts"]["Reserve/slot"]["cut"]
         decision=final["image"]["finance"]["decisions"][0]
         decision.update(state="Committed",grant={"original":grants[2],"e_cut":cut},
                         local_commit_receipt={"e_cut":cut,"commit_ns":"11"})

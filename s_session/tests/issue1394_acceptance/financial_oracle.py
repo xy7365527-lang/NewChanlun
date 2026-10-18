@@ -31,7 +31,8 @@ def total(values):
 
 
 def audit(finance_raw, finance_sha, *, session_id, session_generation,
-          initial_books, initial_sequences, operations, histories, budget):
+          initial_books, initial_sequences, operations, histories, budget,
+          e_original_raw=None, e_original_sha=None):
     require(type(budget) is ReadBudget, "核账必须沿用共享 Job 预算")
     budget.charge((finance_raw,))
     require(sha(finance_raw) == finance_sha, "冻结资金输入摘要不符")
@@ -69,6 +70,40 @@ def audit(finance_raw, finance_sha, *, session_id, session_generation,
     liabilities, imported, seen_requests = {}, False, {}
     cap, baseline = amount(data["policy"]["cap"]), amount(data["baseline"]["amount"])
     observations = []
+    e_cuts = {}
+    if any(e["op"] == "CommitDecision" and e["outcome"] == "LocalCommitReceipt" for e in operations):
+        require(type(e_original_raw) is bytes and e_original_sha is not None,
+                "本地提交缺独立E持久原件/pin")
+        budget.charge((e_original_raw,))
+        require(sha(e_original_raw) == e_original_sha, "独立E原件摘要不符")
+        original = strict(e_original_raw)
+        meta = original["meta"]
+        require(meta.get("domain_id") == "E" and meta.get("session_id") == session_id
+                and meta.get("session_generation") == session_generation, "独立E原库域/会话/代际不同")
+        previous = ""
+        for seq, row in enumerate(original["commits"]):
+            budget.check()
+            require(row["seq"] == seq, "独立E历史必须从0完整连续")
+            root = sha(canonical({"domain_id": "E", "session_id": session_id,
+                "session_generation": session_generation, "commit_seq": str(seq),
+                "previous_root": previous, "commit_ns": row["commit_ns"],
+                "image_hash": sha(canonical(row["image"]))}))
+            require(row["root"] == root, "独立E提交根链不符")
+            require(seq in indexed["E"] and row["image"] == indexed["E"][seq]["image"],
+                    "独立E原库与核账历史不符")
+            e_cuts[seq] = {"domain_id": "E", "commit_seq": str(seq), "root_hash": root}
+            previous = root
+        require(set(e_cuts) == set(indexed["E"]), "独立E原库历史全集缺漏")
+        for event in operations:
+            if event["domain"] == "E" and event["op"] == "Reserve" and event["outcome"] == "ReserveReceipt":
+                row = original["commits"][event["seq"]]
+                receipt = original["receipts"].get(event["receipt_key"])
+                require(type(receipt) is dict and receipt.get("kind") == "ReserveReceipt"
+                        and receipt.get("domain_id") == "E" and receipt.get("record", {}).get("slot_id") == event["id"]
+                        and receipt.get("receipt_key") == event["receipt_key"]
+                        and receipt.get("commit_ns") == row["commit_ns"]
+                        and receipt.get("cut") == e_cuts[event["seq"]]
+                        and row["commit_ns"] == event["commit_ns"], "Reserve原提交/回执/时间身份不同")
 
     def check_image(owner, seq):
         budget.check()
@@ -126,7 +161,7 @@ def audit(finance_raw, finance_sha, *, session_id, session_generation,
                     for field, value in grants[ident].items():
                         require(actual["grant"]["original"][field] == value, "本地 grant 内容不符")
                     require(actual["local_commit_receipt"]["e_cut"] == actual["grant"]["e_cut"]
-                            and actual["grant"]["e_cut"]["commit_seq"] == grants[ident]["reserved_seq"],
+                            == e_cuts[int(grants[ident]["reserved_seq"])],
                             "本地提交 E cut 不符")
                     require(amount(actual["local_commit_receipt"]["commit_ns"]) >= amount(grants[ident]["reserved_ns"]),
                             "B Commit 早于 E 保留责任")
@@ -220,6 +255,7 @@ def audit(finance_raw, finance_sha, *, session_id, session_generation,
     for owner in histories:
         budget.check()
         require([r["seq"] for r in histories[owner]] == expected_seqs[owner], "持久提交全集额外/遗漏")
+    budget.check()
     return {"scope": "INDEPENDENT_FINANCIAL_INVARIANTS_ONLY", "input_sha256": finance_sha,
             "checked_intermediates": observations, "product_status": "NOT_RUN", "execution_authorized": False,
             "not_verified": ["S/Voice权威", "六族结构业务语义", "真实完整历史", "资金原件的外部授权"]}

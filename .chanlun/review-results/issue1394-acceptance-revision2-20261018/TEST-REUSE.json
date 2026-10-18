@@ -1,0 +1,32 @@
+{
+  "scope": "91项后仅captured_cut和test_capture_bridge更改；其余82项及直接依赖字节不变，复用而不重跑",
+  "unchanged": [
+    "s_session/tests/issue1394_acceptance/closure.py",
+    "s_session/tests/issue1394_acceptance/control.py",
+    "s_session/tests/issue1394_acceptance/driver.py",
+    "s_session/tests/issue1394_acceptance/evidence.py",
+    "s_session/tests/issue1394_acceptance/financial_oracle.py",
+    "s_session/tests/issue1394_acceptance/journal.py",
+    "s_session/tests/issue1394_acceptance/oracle.py",
+    "s_session/tests/issue1394_acceptance/run_checks.py",
+    "s_session/tests/issue1394_acceptance/scheduler.py",
+    "s_session/tests/issue1394_acceptance/supervisor.py",
+    "s_session/tests/issue1394_acceptance/test_closure.py",
+    "s_session/tests/issue1394_acceptance/test_control.py",
+    "s_session/tests/issue1394_acceptance/test_driver.py",
+    "s_session/tests/issue1394_acceptance/test_driver_regressions.py",
+    "s_session/tests/issue1394_acceptance/test_evidence.py",
+    "s_session/tests/issue1394_acceptance/test_financial_oracle.py",
+    "s_session/tests/issue1394_acceptance/test_journal.py",
+    "s_session/tests/issue1394_acceptance/test_review01.py",
+    "s_session/tests/issue1394_acceptance/test_scheduler.py",
+    "s_session/tests/issue1394_acceptance/test_scheduler_integration.py",
+    "s_session/tests/issue1394_acceptance/test_supervisor.py",
+    "s_session/tests/issue1394_acceptance/voice_bridge.py"
+  ],
+  "changed": [
+    "s_session/tests/issue1394_acceptance/captured_cut.py",
+    "s_session/tests/issue1394_acceptance/test_capture_bridge.py"
+  ],
+  "final_followup_methods": 10
+}

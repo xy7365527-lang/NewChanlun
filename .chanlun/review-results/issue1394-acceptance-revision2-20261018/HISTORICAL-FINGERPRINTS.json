@@ -1,0 +1,12 @@
+{
+  "DELIVERY-FILES.json": {
+    "scope": "b8c5历史Git原字节，非当前返修字节",
+    "files": 47,
+    "mismatches": []
+  },
+  "MANAGER-DELIVERY-FILES.json": {
+    "scope": "b8c5历史Git原字节，非当前返修字节",
+    "files": 53,
+    "mismatches": []
+  }
+}

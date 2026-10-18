@@ -36,6 +36,7 @@ class EvidenceTests(unittest.TestCase):
                 connection.executemany("INSERT INTO receipts VALUES(?,?)", [(k,d.canonical(v).decode()) for k,v in replies.items()])
                 connection.executemany("INSERT INTO messages VALUES(?,?)", [(k,d.canonical(v).decode()) for k,v in requests.items()])
             # 此处是原件边界的显式 toy 规范化输入，不声称已实现真实 message-key 映射。
+            connection.close()
             raw = d.read_domain(db, budget=self.budget)
             self.snapshots[domain] = {**raw, "db": str(db), "owner": domain, "epoch": 1}
         self.expected = tuple(x.request for x in self.exchanges)

@@ -42,7 +42,8 @@ def check(manifest_path, expect='committed', *, admission=None, budget=None,
     return audit(data_raw, manifest['finance']['input_sha256'],
                  session_id=manifest['session_id'], session_generation=manifest['session_generation'],
                  initial_books=frozen['initial_books'], initial_sequences=frozen['initial_sequences'],
-                 operations=frozen['operations'], histories={k: v['commits'] for k,v in domains.items()}, budget=budget)
+                 operations=frozen['operations'], histories={k: v['commits'] for k,v in domains.items()}, budget=budget,
+                 e_original_raw=canonical(domains['E']), e_original_sha=frozen.get('e_original_sha256'))
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)

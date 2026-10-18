@@ -159,20 +159,26 @@ class SupervisorCore:
                     self.probe.signal(identity, signal.SIGTERM)
                     until = min(self.limits.cleanup_deadline - self.limits.kill_wait,
                                 self.clock() + self.limits.term_grace)
-                    if not self.probe.wait(identity, until):
+                    row["reaped"] = self.probe.wait(identity, until)
+                    require(self.clock() < self.limits.cleanup_deadline, "wait 后回收截止耗尽")
+                    if not row["reaped"]:
                         if self.probe.alive(identity):
                             self.live_identity(identity)
                             require(self.clock() < self.limits.cleanup_deadline, "KILL 截止耗尽")
                             self.probe.signal(identity, signal.SIGKILL)
                         row["reaped"] = self.probe.wait(identity, self.limits.cleanup_deadline)
+                        require(self.clock() < self.limits.cleanup_deadline, "wait 后回收截止耗尽")
                     else:
                         row["reaped"] = True
                 else:
                     row["reaped"] = self.probe.wait(identity, self.limits.cleanup_deadline)
+                    require(self.clock() < self.limits.cleanup_deadline, "wait 后回收截止耗尽")
                 require(row["reaped"], "未取得 wait/reap 证明")
             except BaseException as error:
                 row["errors"].append(type(error).__name__ + ": " + str(error))
             rows.append(row)
+        if self.clock() >= self.limits.cleanup_deadline:
+            self.failures.append("汇总时回收截止耗尽")
         self.cleanup_result = {"reason": reason, "owners": rows, "failures": self.failures[:],
                                "status": "CONTROL_REAPED" if not self.failures and all(r["reaped"] and not r["errors"] for r in rows)
                                else "INCOMPLETE", "product_status": "NOT_RUN"}
@@ -194,8 +200,8 @@ def monitor(core, receive, emit):
                           core.last_heartbeat + core.limits.heartbeat_timeout - core.clock())
             require(timeout > 0, "监督接收截止已到")
             message = receive(timeout)
-            core.tick()
             if message is None:
+                core.tick()
                 continue
             kind = message["kind"]
             if kind == "ACK_REQUEST":
@@ -203,13 +209,22 @@ def monitor(core, receive, emit):
             elif kind == "HEARTBEAT":
                 core.heartbeat(Identity(**message["worker"]))
             elif kind == "REGISTER_DESCENDANT":
+                require(Identity(**message["worker"]) == core.worker
+                        and message["contract_sha256"] == core.contract_sha,
+                        "后代登记 worker/合同错绑")
+                core.live_identity(core.worker)
+                require(message["parent"] in core.owners, "后代登记缺已握手父owner")
+                require(core.clock() < core.limits.work_deadline, "后代登记过期")
                 core.register(Identity(**message["identity"]), parent=message["parent"])
             elif kind in {"CANCEL", "COMPLETE"}:
                 require(Identity(**message["worker"]) == core.worker, "取消者身份不同")
+                core.tick()
                 reason = kind
                 break
             else:
                 require(False, "未知监督命令")
+            # 消息内具名身份先核验/登记，随后才做后代全集采样；陌生 PID 仍拒绝。
+            core.tick()
     except BaseException as error:
         reason = type(error).__name__ + ": " + str(error)
         core.failures.append(reason)

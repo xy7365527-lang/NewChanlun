@@ -1,7 +1,7 @@
 """#1394：仅静态/假适配器调度；产品执行门保持关闭。"""
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from hashlib import sha256
 import json
 import math
@@ -45,6 +45,11 @@ class Requirements:
     scenarios: tuple[Scenario, ...]
     negative_domains: tuple[str, ...]
     comparisons: tuple[str, ...]
+
+
+# 更换合同必须显式修改此 pin 并重审，不能由调用者自报摘要取得授权。
+PREPARATION_SHA = "ce719894bcb8aa60e956d723271250d57d892ddbb6c70dea64bd0cf4aaca8fa1"
+PREPARATION_PATH = Path(__file__).parent / "fixtures/PREPARATION-CONTRACT.json"
 
 
 def load_requirements(path: Path, expected_sha: str) -> Requirements:
@@ -271,7 +276,8 @@ def validate_plan(plan: Plan) -> None:
     require(plan.execution_authorized is False, "静态调度包不能接产品运行授权")
     for name in ("contract_sha", "seed_sha", "source_sha", "input_sha", "manifest_sha", "voice_sha"):
         require(sha_ok(getattr(plan, name)), f"无效 {name}")
-    require(sha_ok(plan.requirements.preparation_sha), "准备合同未绑定")
+    require(plan.requirements == load_requirements(PREPARATION_PATH, PREPARATION_SHA),
+            "Requirements 偏离固定准备合同原字节")
     for name in ("formal_voice_authority_sha", "frozen_resources_sha",
                  "artifact_manifest_sha", "supervisor_sha", "policy_original_sha"):
         require(sha_ok(getattr(plan, name)), f"缺少正式原件 {name}")
@@ -294,6 +300,7 @@ def validate_plan(plan: Plan) -> None:
     scenarios = {s.name: s for s in plan.requirements.scenarios}
     recovery_previous: dict[tuple[str, str, str], int] = {}
     original_requests: dict[str, tuple[str, str, str]] = {}
+    business_requests: dict[str, tuple[Request, ...]] = {}
     for step in plan.steps:
         b = step.binding
         require(b.run_id == plan.run_id and b.contract_sha == plan.contract_sha, "运行/合同错绑")
@@ -314,6 +321,23 @@ def validate_plan(plan: Plan) -> None:
         require(len(set(step.expected_proofs)) == len(step.expected_proofs), "步骤判据重复")
         if step.kind in ("business", "resend"):
             require(bool(step.requests), "业务请求全集为空")
+        domain_key = step.scenario, b.domain, b.owner
+        old_epoch = epochs.get(domain_key)
+        if old_epoch is not None:
+            if step.kind == "recover":
+                require(b.epoch > old_epoch, "恢复必须新epoch")
+                recovery_previous[domain_key] = old_epoch
+            else:
+                require(b.epoch == old_epoch, "非恢复阶段换epoch")
+        epochs[domain_key] = b.epoch
+        if step.kind == "resend":
+            originals = business_requests.get(step.scenario, ())
+            require(originals and domain_key in recovery_previous, "重送缺原请求全集/具名恢复")
+            expected_requests = tuple(replace(r, binding=replace(
+                r.binding, epoch=epochs[(step.scenario, r.binding.domain, r.binding.owner)],
+                cut=b.cut)) for r in originals)
+            require(step.requests == expected_requests,
+                    "恢复逐owner epoch/原字节身份/出现序号/有序全集错绑")
         request_keys = []
         occurrences = {}
         request_originals = {}
@@ -334,21 +358,16 @@ def validate_plan(plan: Plan) -> None:
                     "幂等出现改变原请求摘要")
             request_domain = step.scenario, rb.domain, rb.owner
             require(owner_dbs.setdefault(request_domain, rb.db) == rb.db, "请求全集同owner换库")
+            require(epochs.setdefault(request_domain, rb.epoch) == rb.epoch,
+                    "请求owner未登记恢复却改变epoch")
             scenario_for_request = scenarios[step.scenario]
             if scenario_for_request.family == "normal":
                 normal_dbs[scenario_for_request.repeat].add(rb.db)
             request_keys.append((rb.domain, rb.owner, rb.epoch, rb.receipt_key, rb.operation, request.ordinal))
         require(len(request_keys) == len(set(request_keys)), "请求全集重复身份")
-        domain_key = step.scenario, b.domain, b.owner
         require(owner_dbs.setdefault(domain_key, b.db) == b.db, "同owner换库")
-        old_epoch = epochs.get(domain_key)
-        if old_epoch is not None:
-            if step.kind == "recover":
-                require(b.epoch > old_epoch, "恢复必须新epoch")
-                recovery_previous[domain_key] = old_epoch
-            else:
-                require(b.epoch == old_epoch, "非恢复阶段换epoch")
-        epochs[domain_key] = b.epoch
+        if step.kind == "business":
+            business_requests[step.scenario] = step.requests
         scenario = scenarios[step.scenario]
         if scenario.family == "normal" and step.kind == "business":
             require(set(plan.requirements.negative_domains).issubset(r.case for r in step.requests),
@@ -420,16 +439,23 @@ class Scheduler:
                 self._remaining(min(step.deadline, self.plan.work_deadline))
                 if self.journal is not None:
                     self.journal.consume(step, previous)
+                self._remaining(min(step.deadline, self.plan.work_deadline))
                 ev = self.adapter.perform(step, previous)
                 # 包含ACK、落盘、解析等全部耗时；过期原件永不放行下一阶段。
                 self._remaining(min(step.deadline, self.plan.work_deadline))
                 self._evidence(step, previous, ev)
+                deadline = min(step.deadline, self.plan.work_deadline)
+                self._remaining(deadline)
                 receipt = StageReceipt(len(receipts), step.stage, step.scenario,
                                        step.sha(), previous, digest(asdict(ev)), "SIMULATED_VERIFIED")
+                receipt_sha = receipt.sha()
+                self._remaining(deadline)
                 if self.journal is not None:
                     self.journal.finish(step, receipt)
+                self._remaining(deadline)
                 receipts.append(receipt)
-                previous = receipt.sha()
+                previous = receipt_sha
+            self._remaining(min(self.plan.steps[-1].deadline, self.plan.work_deadline))
             outcome = "SIMULATED_COMPLETE_NOT_PRODUCT_ACCEPTANCE"
         except BaseException as exc:
             error = f"{type(exc).__name__}: {exc}"
@@ -448,6 +474,7 @@ class Scheduler:
                 require({c.owner for c in cleanup} == set(registered), "回收未覆盖完整owner注册表")
                 require(all(c.reaped and not c.error and sha_ok(c.original_sha) for c in cleanup),
                         "存在未回收/未知owner")
+                self._remaining(self.plan.cleanup_deadline)
             except BaseException as exc:
                 error += f"; cleanup {type(exc).__name__}: {exc}"
                 outcome = "INCOMPLETE"
@@ -459,7 +486,12 @@ class Scheduler:
                 require(seal.final_outcome == outcome and
                         seal.cleanup_sha == digest([asdict(c) for c in cleanup]) and
                         seal.stage_receipts_sha == digest([asdict(r) for r in receipts]), "封口回执错绑")
+                self._remaining(self.plan.seal_deadline)
             except BaseException as exc:
                 error += f"; seal {type(exc).__name__}: {exc}"
                 outcome, seal = "INCOMPLETE", None
-        return Result(outcome, error, tuple(receipts), tuple(attempted), cleanup, seal)
+        result = Result(outcome, error, tuple(receipts), tuple(attempted), cleanup, seal)
+        if self.clock() >= self.plan.seal_deadline:
+            return replace(result, outcome="INCOMPLETE", seal=None,
+                           error=error + "; result 固定封口截止耗尽")
+        return result

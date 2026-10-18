@@ -1,0 +1,15 @@
+test_bridge_rejects_hash_profile_prefix_labels_interval_and_mapping (test_capture_bridge.CaptureBridgeTests.test_bridge_rejects_hash_profile_prefix_labels_interval_and_mapping) ... ok
+test_capture_digest_inventory_and_source_identity_rejected (test_capture_bridge.CaptureBridgeTests.test_capture_digest_inventory_and_source_identity_rejected) ... ok
+test_complete_toy_capture_and_unapproved_candidate (test_capture_bridge.CaptureBridgeTests.test_complete_toy_capture_and_unapproved_candidate) ... ok
+test_missing_terminal_K_gamma_reports_no_candidates (test_capture_bridge.CaptureBridgeTests.test_missing_terminal_K_gamma_reports_no_candidates) ... ok
+test_multi_host_refused_and_multiple_candidates_retained (test_capture_bridge.CaptureBridgeTests.test_multi_host_refused_and_multiple_candidates_retained) ... ok
+test_no_raw_history_Active_or_OperationSequence_fallback (test_capture_bridge.CaptureBridgeTests.test_no_raw_history_Active_or_OperationSequence_fallback) ... ok
+test_repin_does_not_allow_mixed_cut_missing_page_or_fake_suffix (test_capture_bridge.CaptureBridgeTests.test_repin_does_not_allow_mixed_cut_missing_page_or_fake_suffix) ... ok
+test_resources_null_missing_dimensions_old_caps_and_deadlines_refused (test_capture_bridge.CaptureBridgeTests.test_resources_null_missing_dimensions_old_caps_and_deadlines_refused) ... ok
+test_size_caps_not_widened_and_expired_budget (test_capture_bridge.CaptureBridgeTests.test_size_caps_not_widened_and_expired_budget) ... ok
+test_whole_source_interval_gap_and_K_cycle_refused (test_capture_bridge.CaptureBridgeTests.test_whole_source_interval_gap_and_K_cycle_refused) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.495s
+
+OK
