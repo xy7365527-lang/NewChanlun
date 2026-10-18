@@ -1,0 +1,44 @@
+name: "#1406 C6a 专用候选（PENDING）"
+
+on:
+  push:
+    branches: [validate/1406-c6a]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-1406-c6a-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  c6a:
+    if: github.ref == 'refs/heads/validate/1406-c6a'
+    runs-on: ubuntu-24.04
+    # 执行仍严格受同t0的2070秒终点；增加的15分钟只供远端证据传输。
+    timeout-minutes: 50
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      EXPECTED_SHA: ${{ github.sha }}
+    steps:
+      - name: 固定同一原点（checkout也消耗原期限）
+        run: python3 -c 'import os,time; open(os.environ["GITHUB_ENV"],"a").write("C6A_T0_NS="+str(time.clock_gettime_ns(time.CLOCK_MONOTONIC))+"\n")'
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: 源绑定与独评门（当前必拒绝）
+        run: python3 -B .github/scripts/run-1406-c6a.py --preflight
+      - name: 唯一具名真实运行入口
+        timeout-minutes: 35
+        run: python3 -B .github/scripts/run-1406-c6a.py --run
+      - name: 保留成功或失败原件
+        if: always()
+        timeout-minutes: 15
+        uses: actions/upload-artifact@v4
+        with:
+          name: 1406-c6a-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/1406-c6a-artifacts/
+          include-hidden-files: true
+          if-no-files-found: error
+          # step成功及远端artifact实际可取仍须独立核验，RESULT不证明交付。
