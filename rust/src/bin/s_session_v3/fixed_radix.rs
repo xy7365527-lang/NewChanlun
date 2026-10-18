@@ -290,9 +290,8 @@ impl<K: FixedKey, V> FixedRadix<K, V> {
                 match link {
                     Link::Leaf(leaf) => return Ok(Some(std::mem::replace(&mut leaf.value, value))),
                     Link::Branch(branch) => {
-                        link = branch.children[side(code, branch.bit)]
-                            .as_mut()
-                            .expect("two children")
+                        let index = side(code, branch.bit);
+                        link = branch.children[index].as_mut().expect("two children")
                     }
                 }
             }
