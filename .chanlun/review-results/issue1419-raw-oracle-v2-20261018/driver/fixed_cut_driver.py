@@ -58,6 +58,29 @@ def natural(value):
     return int(value)
 
 
+def bind_named_submissions(submissions, accepted_cuts):
+    """离线接点：以原始具名请求的事件数绑定其实际成功后固定切面。
+
+    accepted_cuts 必须由请求/回复轨迹关联提供，不能用输入条数猜产品 generation。
+    本函数检查字节摘要、会话与重复绑定，不证明真实接纳动作发生过。
+    """
+    require(len(submissions)==len(accepted_cuts),'具名提交与实际切面数量不符')
+    bindings={};seen=set()
+    for request,cut in zip(submissions,accepted_cuts):
+        require(request['payload_hash']==sha(canonical(request['payload'])),'提交payload摘要不符')
+        require(all(request[k]==cut[k] for k in ('session_id','session_generation')),'提交切面会话不符')
+        generation=cut['cut_generation'];natural(generation)
+        natural(cut['input_frontier']);natural(request['source_epoch'])
+        key=(request['source_epoch'],request['message_id'])
+        require(generation not in bindings and key not in seen,'重复提交/代际绑定')
+        seen.add(key)
+        events=request['payload']['raw_input']['events']
+        require(isinstance(events,list) and events,'具名提交无接纳事件')
+        bindings[generation]={k:request[k] for k in ('session_id','session_generation','message_id','source_epoch')}
+        bindings[generation]['accepted_events']=str(len(events))
+    return bindings
+
+
 def checksum(token, fields, schema):
     exact(token, fields)
     require(token["token_schema"] == schema, "token版本不符")
@@ -209,10 +232,18 @@ class Collector:
             offset = end
             payload = {"op": "content", "content_token": deepcopy(token)}
 
-    def watch(self, cursor, through_generation, client_id, max_batches=1):
+    def watch(self, cursor, through_generation, client_id, max_batches=1, *, accepted_commits):
+        """accepted_commits 按实际代际绑定具名提交及接纳事件数；不推测产品代际。
+
+        值含 session_id/session_generation/message_id/source_epoch/accepted_events。
+        跨 writer epoch 仍属于同会话 input_frontier；不得因 epoch 变化清零。
+        """
         exact(cursor, CURSOR)
         cursor = deepcopy(cursor)
         after, results = natural(cursor["after_generation"]), []
+        previous_frontier = natural(cursor['last_seq']) if cursor['last_seq'] is not None else -1
+        require(isinstance(accepted_commits,dict),'缺具名提交接纳账簿')
+        seen_commits=set()
         require(through_generation > after and max_batches > 0, "watch范围无效")
         while after < through_generation:
             page = self.call("/api/v3/watch", {"op": "watch", "cursor": cursor,
@@ -224,6 +255,19 @@ class Collector:
                 exact(delta, DELTA)
                 require(natural(delta["generation"]) == after + 1 and delta["base_cut"] == cursor["base_cut"], "watch断链")
                 require(delta["session_id"] == cursor["session_id"] and delta["catalog_revision"] == cursor["catalog_revision"], "watch身份变化")
+                frontier=natural(delta['input_frontier'])
+                require(frontier>=previous_frontier,'watch输入前沿回退')
+                binding=accepted_commits.get(delta['generation'])
+                require(isinstance(binding,dict),'缺具名提交代际绑定')
+                exact(binding,{'session_id','session_generation','message_id','source_epoch','accepted_events'})
+                require(all(binding[k]==cursor[k] for k in ('session_id','session_generation')),'具名提交会话绑定不符')
+                require(isinstance(binding['message_id'],str) and binding['message_id'],'提交名缺失')
+                natural(binding['source_epoch'])
+                count=natural(binding['accepted_events'])
+                key=(binding['source_epoch'],binding['message_id'])
+                require(key not in seen_commits,'提交重复接纳')
+                require(frontier-previous_frontier==count,'watch前沿与具名提交接纳事件数不符')
+                seen_commits.add(key);previous_frontier=frontier
                 after += 1
                 require(after <= through_generation, "watch越过固定目标")
                 cursor.update(after_generation=str(after), base_cut=delta["next_cut"],

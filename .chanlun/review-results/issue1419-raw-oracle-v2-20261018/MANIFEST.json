@@ -1,26 +1,31 @@
 {
-  "schema": "issue1419-raw-oracle-v2-manifest/1",
+  "schema": "issue1419-raw-oracle-v3-manifest/1",
   "ticket": 1419,
   "parent_task": "01a12e01-45a1-7173-a3e8-d338d108fb93",
   "manager": "/root/manage_1419_sandcastle",
   "worker_identity": "Sandcastle外部Codex；不声明原生子代理注册",
-  "session_id": "运行时事件登记",
+  "session_id": "由运行时事件登记",
   "classification": "开放票工作草稿",
+  "baseline": "7cc205c8a83a683fd0ce7c84dfe753a198c5dc92",
+  "branch": "codex/1419-raw-fix-v3-20261018",
   "authorization": false,
+  "execution_authorized": false,
   "product_run": "NOT_RUN",
   "source_tree": "PENDING_SOURCE",
   "source_commit": "PENDING_SOURCE",
   "binary_sha256": "PENDING_SOURCE",
+  "review_status": "PENDING_INDEPENDENT_REVIEW_OF_V3_DIFF",
+  "prior_manifest": "fixes-v3/V2-MANIFEST.json.reference",
   "files": [
     {
       "path": "AC-DOMAIN-MATRIX.json",
-      "bytes": 37851,
-      "sha256": "45ddb4c374af72826c94d2754bee6299fb45a15d94374ed9744c25e82b54dbdb"
+      "bytes": 38402,
+      "sha256": "edbfebbe94946afb4070c02334b413f8cdfa8d84590fdccc551dc86b6a65cabe"
     },
     {
       "path": "AC-DOMAIN-MATRIX.md",
-      "bytes": 8733,
-      "sha256": "93405a0d97baabdbd6f1fd058e444f1c76664735f28ce8f4e7075fd836156ac5"
+      "bytes": 9329,
+      "sha256": "b1452d24a6c74de48117c5d7e2a617a94deb9e9f8b79d4b51e5b9e2e852a765f"
     },
     {
       "path": "DEFINITION-REFERENCES.json",
@@ -59,8 +64,8 @@
     },
     {
       "path": "REPORT.md",
-      "bytes": 12441,
-      "sha256": "a0d8291e6cdcab5dd20d8099c53d3bed8d4f4a304cffa3536792cb2f4a07b5b7"
+      "bytes": 13379,
+      "sha256": "16fcbc3a72fd674fdf7706053476ba43ee5cb616dff86e93b9fb9b6d9d8cff8c"
     },
     {
       "path": "S-RESOURCES.reference.json",
@@ -74,18 +79,18 @@
     },
     {
       "path": "driver/content_closure.py",
-      "bytes": 11619,
-      "sha256": "0af690f7022c2e8be4795c33304b7e3abe0c9e98fb8ea3cb8f54587503c02693"
+      "bytes": 12454,
+      "sha256": "9f7f81bb29eebbd4fe02d55e48b527a8225bf8dcac7c7670e55f9a759edb676c"
     },
     {
       "path": "driver/driver_v2.py",
-      "bytes": 8732,
-      "sha256": "bf36a5642526992621e9fcd80aaae008e1168a43b819a444c9bc6ee9dd42fa45"
+      "bytes": 17720,
+      "sha256": "e5784f17f7a71e09894686db36e611ea7ec24af78a8493ed28de74f6e4776061"
     },
     {
       "path": "driver/fixed_cut_driver.py",
-      "bytes": 16673,
-      "sha256": "5e37be5d9053dd73002bea2268552f04bcb2d96333e87d5ad30105f55679e48f"
+      "bytes": 19659,
+      "sha256": "f9df71c3229ad90e59728944a1283a70d4ee816a75dfc103bb7701d808cc549a"
     },
     {
       "path": "driver/prepare_candidate.py",
@@ -94,8 +99,8 @@
     },
     {
       "path": "driver/raw_oracle.py",
-      "bytes": 14262,
-      "sha256": "c146720674ec1f0f4fadfa3b0ce47aadb99b381d7a5b84634fa67ef2458084d5"
+      "bytes": 14593,
+      "sha256": "4500a308a22bb763f273aa807def13405550993eef0e8196dca58d8aa09cb76e"
     },
     {
       "path": "driver/seal_bundle.py",
@@ -104,13 +109,13 @@
     },
     {
       "path": "driver/test_v2.py",
-      "bytes": 14646,
-      "sha256": "45f23b93bb93825bd94681d9977f0f8650dc95aa983d3686d4ae42cb611a3b56"
+      "bytes": 16329,
+      "sha256": "49c020e5d5c81634e7f5714c9fb124cf54bac9baa8f2b80ecc7a1885a89e02bd"
     },
     {
       "path": "driver/toy_supervisor.py",
-      "bytes": 4188,
-      "sha256": "bab89259fe8b1f2afc7262ab8bc4c527d6b8f64393d91f47ea5bd0a805df317d"
+      "bytes": 5543,
+      "sha256": "7f5a5e7fc90b4c33e551db1808b5ca1b4b29e81d8d5d1fe3347b2d3615ed5ff5"
     },
     {
       "path": "driver/verify_delivery.py",
@@ -141,6 +146,191 @@
       "path": "expected/withdraw-second-center.json",
       "bytes": 22446,
       "sha256": "b8f22fbd42e0bb6ee5dd78b4b42bc6c5a52198c32b515a0447f7d3649df42baa"
+    },
+    {
+      "path": "fixes-v3/CHECK-OUTPUT.json",
+      "bytes": 69861,
+      "sha256": "4a5cc9e6a0e48ad76879f070a302f96545f6e5726ef06cbd3d314f387b55147f"
+    },
+    {
+      "path": "fixes-v3/EXACT-RUN-PROPOSAL.json",
+      "bytes": 14876,
+      "sha256": "cba4f74e806e8780bceaee4d6724156792548de54e042191759e487501077e2f"
+    },
+    {
+      "path": "fixes-v3/FIX-MATRIX.json",
+      "bytes": 5217,
+      "sha256": "b159042f00ea5be7631387dd1cd8c2b5d3c818f0b2e60f47e12e815944371e5a"
+    },
+    {
+      "path": "fixes-v3/REPORT.md",
+      "bytes": 11291,
+      "sha256": "d8174d98c405cbaab9da5f253d32a7a25f6859b01cd1b1fb2fd6c303b2b173db"
+    },
+    {
+      "path": "fixes-v3/STATIC-WIRE-SOURCES.json",
+      "bytes": 25586,
+      "sha256": "f2be92d38b613056822aed79c0faa175831073d1b0bbd2cd09c956f35ef5803e"
+    },
+    {
+      "path": "fixes-v3/SUPPLEMENT-OUTPUT.json",
+      "bytes": 3402,
+      "sha256": "4b55a0190abc5cda1d4e280f5037933660df67963d00bd2b50b308b9682e305a"
+    },
+    {
+      "path": "fixes-v3/V2-INDEPENDENT-REVIEW.reference.json",
+      "bytes": 12942,
+      "sha256": "5712fd229ee84180a78faaa6f85ce26ab08c5cf390c293490cd31843b45d13f1"
+    },
+    {
+      "path": "fixes-v3/V2-MANIFEST.json.reference",
+      "bytes": 15507,
+      "sha256": "27e4aafffab167e418666620d23b48a81bb33ad5774a361d7da7409666c0b5c1"
+    },
+    {
+      "path": "fixes-v3/V2-SHA256SUMS.reference",
+      "bytes": 8834,
+      "sha256": "5f5a249a3f6b2a98f46235f8d67bf9fb0d9a85d63924ede9e340f1b957cd2797"
+    },
+    {
+      "path": "fixes-v3/VALIDATION-SUMMARY.json",
+      "bytes": 1017,
+      "sha256": "6f6cc3b6ad89280ee9ae7f1767a3ddace5160a891f731ecd08e7c253dbd5143c"
+    },
+    {
+      "path": "fixes-v3/changes.patch",
+      "bytes": 289140,
+      "sha256": "3364d29cc0d5d2c99a8a69687cd0c06de5d0d073d4302d2acd2d2aabf51c6d71"
+    },
+    {
+      "path": "fixes-v3/delivery-check.stdout",
+      "bytes": 385,
+      "sha256": "c04007379b8cd00e27c04627e9d0a013fbb7fa248c8576fb91d3b4a095458d93"
+    },
+    {
+      "path": "fixes-v3/domain_fields.py",
+      "bytes": 5414,
+      "sha256": "a7bc1295c8478926b3217433e4dc7b080b58022ce81e4a9aad2926f8e82a0591"
+    },
+    {
+      "path": "fixes-v3/final-run-sources.json",
+      "bytes": 2075,
+      "sha256": "b2a882ed9c5f8930fc70547685848e3ed246ed18518d8f660d68607e3f3f4bd1"
+    },
+    {
+      "path": "fixes-v3/independent_fixture.py",
+      "bytes": 7367,
+      "sha256": "49104b53631deeba220f3ff8cd586beed2b7d325bd6a7125e2bb367e709c243e"
+    },
+    {
+      "path": "fixes-v3/initial-run-sources.json",
+      "bytes": 1987,
+      "sha256": "3033be5b2ebc95145668c75581c36a1c504848208edebbe7b87b461fd10a08b8"
+    },
+    {
+      "path": "fixes-v3/seal_v3.py",
+      "bytes": 4196,
+      "sha256": "b9d67ed9ec85166c18ab03838f0d2319b1e5b0011f20c68bf3c6725285f5d891"
+    },
+    {
+      "path": "fixes-v3/static-check.stdout",
+      "bytes": 3500,
+      "sha256": "a3d613be8c7787caa3962d8dee107e90f9aa679b7f146c86fbc1a42fdb864bff"
+    },
+    {
+      "path": "fixes-v3/test_fixes.py",
+      "bytes": 17337,
+      "sha256": "1fd97065f743323db40d7981aba3cdb1b76a0d803a681c4090b84e8089e19395"
+    },
+    {
+      "path": "fixes-v3/test_supplement.py",
+      "bytes": 5152,
+      "sha256": "f38dc42df4c960445d907c950173dd41086c2bbd73467b5207619560c8b37d23"
+    },
+    {
+      "path": "fixes-v3/tests.f8-recheck.stdout",
+      "bytes": 203,
+      "sha256": "0e0ec629a5bbfe68c667f87b866d45aba79f5f99c2da70b203673c2678ce7593"
+    },
+    {
+      "path": "fixes-v3/tests.initial.stdout",
+      "bytes": 1558,
+      "sha256": "ddee52db323aa5525c6aa80bad5b0f3743482512755ac403a4b7b7b2d3d4eca2"
+    },
+    {
+      "path": "fixes-v3/tests.supplement.stdout",
+      "bytes": 1568,
+      "sha256": "6f714f91be651c5bb21c4ac5e7aa7ed0b2564125941e29107fac24f85087713f"
+    },
+    {
+      "path": "fixes-v3/toy-regression/validation/supervisor-toy.json",
+      "bytes": 3585,
+      "sha256": "13c9d669b8c3123259b6ceaf21f823240837ea8b22e239d1a1237225df2cd97e"
+    },
+    {
+      "path": "fixes-v3/toy-regression/validation/toy-logs/0/stderr.raw",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "fixes-v3/toy-regression/validation/toy-logs/0/stdout.raw",
+      "bytes": 12,
+      "sha256": "270c26140fdf3f03a0043ca8823c9e4db18d982aa977887e09ed3fda77f810b7"
+    },
+    {
+      "path": "fixes-v3/toy-regression/validation/toy-logs/1/stderr.raw",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "fixes-v3/toy-regression/validation/toy-logs/1/stdout.raw",
+      "bytes": 9,
+      "sha256": "c1b5463c830cfb637885da88bec621e4ee36f0016bfda8f79d22066ec7c68532"
+    },
+    {
+      "path": "fixes-v3/toy-regression/validation/toy-logs/2/stderr.raw",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "fixes-v3/toy-regression/validation/toy-logs/2/stdout.raw",
+      "bytes": 16,
+      "sha256": "675423fd0d56624dacd2d4170777a964b390144c453906f99ac7aef223c8b782"
+    },
+    {
+      "path": "fixes-v3/toy-regression/validation/toy-logs/3/stderr.raw",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "fixes-v3/toy-regression/validation/toy-logs/3/stdout.raw",
+      "bytes": 128,
+      "sha256": "24da1b81d0b16df6428eee73c69fcb2a93c76bc6df706f0c6670fe6bfe800464"
+    },
+    {
+      "path": "fixes-v3/toy-regression/validation/toy-logs/4/stderr.raw",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "fixes-v3/toy-regression/validation/toy-logs/4/stdout.raw",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "fixes-v3/toy-regression/validation/toy-logs/5/stderr.raw",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "fixes-v3/toy-regression/validation/toy-logs/5/stdout.raw",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "fixes-v3/verify_v3.py",
+      "bytes": 3371,
+      "sha256": "fdd8baa0adeb5af7c01793b264205ad2d2da8bd7c9303d11c50e5e999b813290"
     },
     {
       "path": "raw/CONSTRUCTION-RECIPE.json",
@@ -465,6 +655,13 @@
   ],
   "exclusions": [
     "MANIFEST.json不自引",
-    "SHA256SUMS不自引；其覆盖MANIFEST.json"
-  ]
+    "SHA256SUMS不自引；覆盖MANIFEST.json"
+  ],
+  "patch": {
+    "path": "fixes-v3/changes.patch",
+    "sha256": "3364d29cc0d5d2c99a8a69687cd0c06de5d0d073d4302d2acd2d2aabf51c6d71",
+    "scope": "全部新增实体及已有文件修改；不含自身或两个可再生根清单，避免哈希循环",
+    "regenerate": "python3 -B fixes-v3/seal_v3.py",
+    "reverse_check": "PASS"
+  }
 }

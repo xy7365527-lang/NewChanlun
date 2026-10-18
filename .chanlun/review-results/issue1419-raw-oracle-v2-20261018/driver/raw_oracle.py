@@ -139,13 +139,19 @@ def derive_segments(strokes):
         direction=strokes[start]['direction']; up=direction=='UP'
         opposite=[b for b in strokes[start:] if b['direction']!=direction]
         hit=None; candidates=[]
+        # 按推进顺序先过域门，包括不足三元素及不成 strict 的 pending 前缀。
+        # 终结之后的元素属于下一段，不借未来元素扩大当前检查域。
+        advanced=[]
+        for element in opposite[:2]:
+            advanced.append(element);seq_proof(advanced)
         for j in range(1,len(opposite)-1):
             a,b,c=opposite[j-1:j+2]
+            advanced.append(c)
+            steps=seq_proof(advanced)
             strict=(b['high']>max(a['high'],c['high']) and b['low']>max(a['low'],c['low'])) if up else (b['high']<min(a['high'],c['high']) and b['low']<min(a['low'],c['low']))
             if not strict:
                 continue
             # 本夹具所有候选均不互含，不触发#1490窗/并列；不实现替代宽档。
-            steps=seq_proof(opposite[:j+2])
             gap=b['low']>a['high'] if up else a['low']>b['high']
             closed=c['low']<=a['high'] if up else c['high']>=a['low']
             proof={'abc':[feature(x) for x in (a,b,c)],'standardization':steps,

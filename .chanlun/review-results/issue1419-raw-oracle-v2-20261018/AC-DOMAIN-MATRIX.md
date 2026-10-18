@@ -45,3 +45,7 @@
 AC-02：只覆盖此无包含/无同型相邻/非退化有限域与具名负控，其他正常/端点/退化/证据不足及跨级同输入同输出锁仍欠。
 AC-03：只提供最低构造级10完成段→2中枢→1连接/1相邻对的独立expected；高级递归、上级对象、下游真实消费及全部ST量词未验。
 票面四项：AC1/2的定义备料已完成；AC3全未运行；AC4只完成独立oracle与具名重放/恢复预期。没有把任一整项勾为通过。
+
+## v3 修复适用范围（2026-10-18）
+
+本表原 AC/A 原文、源指针与量词保持。新增定向锁只覆盖有限域静态字段比较、闭包/预算、fake 初始化清理和 watch 输入前沿。原 v2 独审为 CHANGES_REQUIRED；当前修复待另会话独审，见 `fixes-v3/REPORT.md`。first_visibility、known_at、AsKnown、entity_revision、raw_history、withdrawn_objects 等逐项 UNVERIFIED；受控 raw 不替代真实市场域、原量、完整历史、正式 S3Q、双跑、持久恢复或浏览器验收。整票完成仍为 false，候选执行授权仍为 false。

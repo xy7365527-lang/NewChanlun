@@ -57,29 +57,49 @@ def fixture(objects=None):
 
 
 def domain_records(ledger):
+    # 仅旧 API 回归的自洽夹具，不属于独立 oracle 或独立评审。
+    from domain_fields import wire,endpoint,formation,segment_facts
     result=[]
-    def add(kind,data):result.append({'kind':kind,'payload_json':JSONText({'data':data})})
-    strokes=ledger['low_level']['strokes']
-    for s in ledger['segments']+[ledger['pending_segment']]:
+    def add(kind,data):result.append({'kind':kind,'object_id':'oid:'+str(len(result)), 'payload_json':JSONText({'data':wire(data)})})
+    strokes=ledger['low_level']['strokes'];fm={f['id']:f for f in ledger['low_level']['fractals']}
+    for f in fm.values():add('CC-008.endpoint',endpoint(f))
+    for b in strokes:
+        add('CC-010.bi',dict(entity_id=b['id'],identity_anchor=b['start_raw'],start=endpoint(fm[b['endpoint_fractals'][0]]),
+                            end=endpoint(fm[b['endpoint_fractals'][1]]),formation=formation(b),formed_evidence=formation(b)))
+    all_units=ledger['segments']+([ledger['pending_segment']] if ledger['pending_segment'] else [])
+    objects={};byid={s['id']:s for s in all_units}
+    for s in all_units:
         end=s.get('observed_through_stroke',len(strokes)-1)
-        refs=[{'stroke_index':str(b['index']),'start_anchor':str(b['start_raw']),'end_anchor':str(b['end_raw']),
-               'start_price':str(b['start_price']),'end_price':str(b['end_price']),
-               'start_roots':[str(b['start_raw'])],'end_roots':[str(b['end_raw'])]} for b in strokes[s['start_stroke']:end+1]]
-        add('CC-013.segment',{'entity_id':s['id'],'construction':{'start_stroke':str(s['start_stroke'])},
-                             'result':s.get('result','NO_FIRST'),'geometric_end':{'stroke_index':str(s.get('end_stroke',0))},'stroke_refs':refs})
+        refs=[dict(stroke_index=b['index'],entity_id=b['id'],start_anchor=b['start_raw'],end_anchor=b['end_raw'],
+                   start_price=b['start_price'],end_price=b['end_price'],start_roots=[b['start_raw']],end_roots=[b['end_raw']]) for b in strokes[s['start_stroke']:end+1]]
+        add('CC-013.segment',dict(entity_id=s['id'],stroke_refs=refs,**segment_facts(s,strokes)))
+        objects[s['id']]=result[-1]['object_id']
+    def unit(uid):
+        s=byid[uid];d=dict(unit_id=uid,unit_object_id=objects[uid])
+        if 'result' in s:d.update(direction=s['direction'],lo=s['low'],hi=s['high'])
+        else:d['completed']=False
+        return d
     for c in ledger['centers']:
-        add('CC-016.center',{'entity_id':c['id'],'seed_units':c['seed'],'members':c['members'],'zn_members':c['Zn']})
+        add('CC-016.center',{'entity_id':c['id'],'seed_attempt_id':'attempt:'+str(c['seed'][0]),'seed_units':c['seed'],'members':c['members'],'zn_members':c['Zn']})
         roles={}
         for group,keys in [('CORE',['ZD','ZG']),('OUTER',['DD','GG']),('INNER_EXTREMA',['D','G'])]:
-            roles[group]={k:{'value':str(c[k] if k in ('ZD','ZG') else c['roles'][k]),'frozen':group=='CORE',
-                             'contributors':c['contributors'].get(k,[])} for k in keys}
+            roles[group]={k:{'value':c[k] if k in ('ZD','ZG') else c['roles'][k],'frozen':group=='CORE',
+                            'contributors':c['contributors'].get(k,[uid for uid in c['seed'] if byid[uid]['low' if k=='ZD' else 'high']==c.get(k)])} for k in keys}
         add('CC-017.center_roles',{'center_id':c['id'],'roles':roles})
+    for a in ledger['attempts']:
+        c=next((c for c in ledger['centers'] if c['seed']==a['seed']),None)
+        data=dict(entity_id='attempt:'+a['seed'][0],units=[unit(u) for u in a['seed']],
+                  vector=dict(zip(('completed','consecutive','same_level','alternating','strict'),a['condition_vector'])),
+                  core_order=a['core_order'],result='FORMED' if c else 'EXCLUDED',exclusion_reason=None,center_id=c['id'] if c else None)
+        for k in ('ZD','ZG'):data[k]={'value':a[k],'contributors':[uid for uid in a['seed'] if byid[uid]['low' if k=='ZD' else 'high']==a[k]]}
+        add('CC-016.center_seed_attempt',data)
     for a in ledger['assignments']:
-        add('CC-022.unit_assignment',{'unit':{'unit_id':a['unit']},'status':a['status'],'center_id':a.get('center'),
+        add('CC-022.unit_assignment',{'unit':unit(a['unit']),'status':a['status'],'center_id':a.get('center'),
                                      'left_center_id':a.get('left_center'),'right_center_id':a.get('right_center')})
     for p in ledger['pairs']:
         matrix={'B.'+y+'?A.'+x:{'LT':'>','EQ':'=','GT':'<'}[v] for xy,v in p['matrix16'].items() for x,y in [xy.split(':')]}
-        add('CC-020.center_pair',{'a_center_id':p['left'],'b_center_id':p['right'],'leaf':p['leaf'],'matrix':matrix})
+        add('CC-020.center_pair',{'a_center_id':p['left'],'b_center_id':p['right'],'leaf':p['leaf'],'matrix':matrix,
+            'connector_units':[a['unit'] for a in ledger['assignments'] if a.get('left_center')==p['left'] and a.get('right_center')==p['right']]})
     return result
 
 
