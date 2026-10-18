@@ -1,0 +1,26 @@
+{
+  "schema": "issue1393-validation/1",
+  "status": "PREPARED_NOT_AUTHORIZED",
+  "source_commit": "UNBOUND",
+  "source_tree": "UNBOUND",
+  "prepared_commit": "UNBOUND",
+  "prepared_tree": "UNBOUND",
+  "product_manifest_sha256": "UNBOUND",
+  "runner_sha256": "UNBOUND",
+  "workflow_false_sha256": "UNBOUND",
+  "ci_sha256": "UNBOUND",
+  "telemetry_sha256": "UNBOUND",
+  "approval_text": "UNBOUND",
+  "approval_sha256": "UNBOUND",
+  "review_text": "UNBOUND",
+  "review_sha256": "UNBOUND",
+  "run_attempt": "1",
+  "lib_features": [
+    "default"
+  ],
+  "s_features": [
+    "default",
+    "s_session"
+  ],
+  "total_seconds": 3600
+}
