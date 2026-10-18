@@ -1,0 +1,423 @@
+{
+  "execution_authorized": false,
+  "product_status": "NOT_RUN",
+  "methods": [
+    "test_supervisor.SupervisorTests.test_ack_registers_same_worker_caps_deadline_and_nonce_once",
+    "test_supervisor.SupervisorTests.test_null_or_missing_caps_and_script_change_refused",
+    "test_supervisor.SupervisorTests.test_script_change_after_registration_stops_at_next_sample",
+    "test_supervisor.SupervisorTests.test_registered_descendants_cancel_reaps_leaf_then_parent",
+    "test_supervisor.SupervisorTests.test_unregistered_descendant_is_not_adopted_or_signalled",
+    "test_supervisor.SupervisorTests.test_heartbeat_loss_deadline_and_resource_unknown_stop",
+    "test_supervisor.SupervisorTests.test_pid_reuse_does_not_signal_foreign_process",
+    "test_supervisor.SupervisorTests.test_term_timeout_escalation_and_no_restart",
+    "test_supervisor.SupervisorTests.test_continuous_monitor_samples_and_handles_transport_loss",
+    "test_review01.Review01Tests.test_F5_monitor_first_ack_receive_race_fixed_probe",
+    "test_review01.Review01Tests.test_F5_monitor_descendant_race_and_malicious_binding",
+    "test_review01.Review01Tests.test_F5_bad_first_ack_not_adopted",
+    "test_review02.Review02Tests.test_R_F5_already_queued_ACK_and_descendant",
+    "test_review02.Review02Tests.test_R_F5_queued_forgery_unknown_and_expired_not_adopted",
+    "test_review02.Review02Tests.test_N1_empty_cursor_legal_null_and_broken_order_refused",
+    "test_review02.Review02Tests.test_N2_fixed_session_request_frame_and_Q_page_caps",
+    "test_review02.Review02Tests.test_N3_separate_Q_and_reader_jobs_exact_boundaries",
+    "test_review02.Review02Tests.test_N3_binding_old_ambiguity_and_cross_object_rejected",
+    "test_review02.Review02Tests.test_N3_node_and_record_caps_stay_with_their_object",
+    "test_review02.Review02Tests.test_N4_size_observation_not_Voice_64_128_caps",
+    "test_review02.Review02Tests.test_N5_historical_stage_expired_current_valid",
+    "test_capture_bridge.CaptureBridgeTests.test_complete_toy_capture_and_unapproved_candidate",
+    "test_capture_bridge.CaptureBridgeTests.test_capture_digest_inventory_and_source_identity_rejected",
+    "test_capture_bridge.CaptureBridgeTests.test_repin_does_not_allow_mixed_cut_missing_page_or_fake_suffix",
+    "test_review03.Review03Tests.test_R_F5_heartbeat_then_first_ACK_formal_probe",
+    "test_review03.Review03Tests.test_R_F5_two_REGISTERs_formal_probe",
+    "test_review03.Review03Tests.test_R_F5_ACK_force_sample_waits_for_queued_descendants",
+    "test_review03.Review03Tests.test_R_F5_empty_queue_boundary_and_no_queue_legal",
+    "test_review03.Review03Tests.test_R_F5_stranger_at_empty_or_COMPLETE_boundary_rejected",
+    "test_review03.Review03Tests.test_R_F5_forged_queued_registration_never_acknowledged",
+    "test_review03.Review03Tests.test_R_F5_original_deadlines_not_extended_by_queue_or_heartbeat",
+    "test_review03.Review03Tests.test_R_F5_heartbeat_stream_has_fixed_sampling_boundary",
+    "test_review03.Review03Tests.test_R_F5_COMPLETE_before_registration_is_not_a_grace_period",
+    "test_review03.Review03Tests.test_R_F5_queued_ACK_still_requires_resource_sample",
+    "test_review03.Review03Tests.test_N2_raw_5940_positive_6040_negative_and_exact_padded_cap",
+    "test_review03.Review03Tests.test_N2_each_financial_page_checks_its_own_raw_limit",
+    "test_review03.Review03Tests.test_N2_basis_raw_object_caps_and_job_wire_remain_independent"
+  ],
+  "method_count": 37,
+  "new_method_count": 13,
+  "before": [
+    {
+      "path": "s_session/tests/issue1394_acceptance/captured_cut.py",
+      "bytes": 25853,
+      "sha256": "8ca23ec3257dbe3db4e9260a1b45c22bdf62b666f7b9e4a6e141811b6010d3f8"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/closure.py",
+      "bytes": 8290,
+      "sha256": "5459ab3d8dce283677efead39206c2fbba4593d965f913c5f5c7336a1258762d"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/control.py",
+      "bytes": 6301,
+      "sha256": "950595b87956e6d8923c816cac9739d7aff29c0582f5a2bfe8bfd9383ddb8057"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/driver.py",
+      "bytes": 44599,
+      "sha256": "1735bffa631b1d4789f363204fec97fd26ceccd1ca439cc340bcd00a8ebf05f7"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/evidence.py",
+      "bytes": 5318,
+      "sha256": "92af6d56aecde7ea051de178fea72135b6c5b35a430ec44940cd425db2a0ce10"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/financial_oracle.py",
+      "bytes": 17454,
+      "sha256": "edc5b5477e7b185582a2a65cbd31e07d7015c49a9e203c630a697646f4d3d854"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/journal.py",
+      "bytes": 9663,
+      "sha256": "ff08d15e084216d1d6b8bb1efe8e3dcb74bfe281b20edb8262ad3e61c1211781"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/oracle.py",
+      "bytes": 3299,
+      "sha256": "16639a001aa73662b00209934513d808a0d0b3600023e2d3e2f35eb263e54eb7"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/run_checks.py",
+      "bytes": 1720,
+      "sha256": "94c180cd611cc7d2f1a99f94bb61fed6594d8aac8ea52470aefc7cbb91072bae"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/scheduler.py",
+      "bytes": 23479,
+      "sha256": "9c0d876f159e7b7cc33bfb55dae12ad67ff0b29cf7c56bf6e08d87032f8a6a16"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/supervisor.py",
+      "bytes": 14324,
+      "sha256": "6840975995c90397b1aa9bba3bb6b091a422af65f094ad37c32b6d035a9642ee"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_capture_bridge.py",
+      "bytes": 20988,
+      "sha256": "f0e68226c82f3a2d9c8a27b8714faab1a998ce4431a8168c3048d10686d8a128"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_closure.py",
+      "bytes": 5537,
+      "sha256": "d4f6772d82109c9cd05901cf667bf21d3b1740e11976036c86352eeb5a2d5710"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_control.py",
+      "bytes": 5375,
+      "sha256": "2c96cffc3b024f798d863b40bc345e386283c39f5e2da5853ab00b5fcdd01711"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver.py",
+      "bytes": 31184,
+      "sha256": "fd443df0c247934a8b2435d9e98169ed33f97baec6e17eca647ebab5d4b58176"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver_regressions.py",
+      "bytes": 6602,
+      "sha256": "621e990d5c7c6ed9dbe512efd30c7957696b346575439ddf5b5068bc95fc5b5d"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_evidence.py",
+      "bytes": 6289,
+      "sha256": "11cac54a757c437b660441f82a0d2b0e4843bcc22eb1106d30a2b8232933e52c"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_financial_oracle.py",
+      "bytes": 12185,
+      "sha256": "d643adef91a95a79b7c247af07c7a0259b9eac8f45e9951244af52ca8589c205"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_journal.py",
+      "bytes": 5205,
+      "sha256": "7f63cc0d2535d481b676818d88282729d40738568c84e761a7dd6c01c0876fde"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review01.py",
+      "bytes": 15165,
+      "sha256": "f5caecc55061352166cf22b6e08ed0c29ed83916c8f1e6e7d570bb1250c6c4e9"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review02.py",
+      "bytes": 20621,
+      "sha256": "94cbc050baa085104a7b67fcd580ef635afa952f10be63a23512b826f8e888e7"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review03.py",
+      "bytes": 13515,
+      "sha256": "1bd6d532d74dc7938a50b2840e050786c06eb2f109a2aa26885e1efc306e7196"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler.py",
+      "bytes": 19433,
+      "sha256": "8abd24b983978336ac9c86cf4cb89548ab5e87eea38b2dc2bf97140ffd440b58"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler_integration.py",
+      "bytes": 1389,
+      "sha256": "98b0d9bb348d3b1190e3ae0d623dc2e0e5d4ff9a4763e319c00463bc618424b8"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_supervisor.py",
+      "bytes": 7889,
+      "sha256": "57899f3abedebdb5be90606b5d812c8f8d4c6604f579b9e208d9d242f885b651"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/voice_bridge.py",
+      "bytes": 11955,
+      "sha256": "36248173678a4167aaadb5a3840de11d3d4f477963f4926f070de6fb33b63dfc"
+    }
+  ],
+  "after": [
+    {
+      "path": "s_session/tests/issue1394_acceptance/captured_cut.py",
+      "bytes": 25853,
+      "sha256": "8ca23ec3257dbe3db4e9260a1b45c22bdf62b666f7b9e4a6e141811b6010d3f8"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/closure.py",
+      "bytes": 8290,
+      "sha256": "5459ab3d8dce283677efead39206c2fbba4593d965f913c5f5c7336a1258762d"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/control.py",
+      "bytes": 6301,
+      "sha256": "950595b87956e6d8923c816cac9739d7aff29c0582f5a2bfe8bfd9383ddb8057"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/driver.py",
+      "bytes": 44599,
+      "sha256": "1735bffa631b1d4789f363204fec97fd26ceccd1ca439cc340bcd00a8ebf05f7"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/evidence.py",
+      "bytes": 5318,
+      "sha256": "92af6d56aecde7ea051de178fea72135b6c5b35a430ec44940cd425db2a0ce10"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/financial_oracle.py",
+      "bytes": 17454,
+      "sha256": "edc5b5477e7b185582a2a65cbd31e07d7015c49a9e203c630a697646f4d3d854"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/journal.py",
+      "bytes": 9663,
+      "sha256": "ff08d15e084216d1d6b8bb1efe8e3dcb74bfe281b20edb8262ad3e61c1211781"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/oracle.py",
+      "bytes": 3299,
+      "sha256": "16639a001aa73662b00209934513d808a0d0b3600023e2d3e2f35eb263e54eb7"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/run_checks.py",
+      "bytes": 1720,
+      "sha256": "94c180cd611cc7d2f1a99f94bb61fed6594d8aac8ea52470aefc7cbb91072bae"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/scheduler.py",
+      "bytes": 23479,
+      "sha256": "9c0d876f159e7b7cc33bfb55dae12ad67ff0b29cf7c56bf6e08d87032f8a6a16"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/supervisor.py",
+      "bytes": 14324,
+      "sha256": "6840975995c90397b1aa9bba3bb6b091a422af65f094ad37c32b6d035a9642ee"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_capture_bridge.py",
+      "bytes": 20988,
+      "sha256": "f0e68226c82f3a2d9c8a27b8714faab1a998ce4431a8168c3048d10686d8a128"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_closure.py",
+      "bytes": 5537,
+      "sha256": "d4f6772d82109c9cd05901cf667bf21d3b1740e11976036c86352eeb5a2d5710"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_control.py",
+      "bytes": 5375,
+      "sha256": "2c96cffc3b024f798d863b40bc345e386283c39f5e2da5853ab00b5fcdd01711"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver.py",
+      "bytes": 31184,
+      "sha256": "fd443df0c247934a8b2435d9e98169ed33f97baec6e17eca647ebab5d4b58176"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver_regressions.py",
+      "bytes": 6602,
+      "sha256": "621e990d5c7c6ed9dbe512efd30c7957696b346575439ddf5b5068bc95fc5b5d"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_evidence.py",
+      "bytes": 6289,
+      "sha256": "11cac54a757c437b660441f82a0d2b0e4843bcc22eb1106d30a2b8232933e52c"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_financial_oracle.py",
+      "bytes": 12185,
+      "sha256": "d643adef91a95a79b7c247af07c7a0259b9eac8f45e9951244af52ca8589c205"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_journal.py",
+      "bytes": 5205,
+      "sha256": "7f63cc0d2535d481b676818d88282729d40738568c84e761a7dd6c01c0876fde"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review01.py",
+      "bytes": 15165,
+      "sha256": "f5caecc55061352166cf22b6e08ed0c29ed83916c8f1e6e7d570bb1250c6c4e9"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review02.py",
+      "bytes": 20621,
+      "sha256": "94cbc050baa085104a7b67fcd580ef635afa952f10be63a23512b826f8e888e7"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review03.py",
+      "bytes": 13515,
+      "sha256": "1bd6d532d74dc7938a50b2840e050786c06eb2f109a2aa26885e1efc306e7196"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler.py",
+      "bytes": 19433,
+      "sha256": "8abd24b983978336ac9c86cf4cb89548ab5e87eea38b2dc2bf97140ffd440b58"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler_integration.py",
+      "bytes": 1389,
+      "sha256": "98b0d9bb348d3b1190e3ae0d623dc2e0e5d4ff9a4763e319c00463bc618424b8"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_supervisor.py",
+      "bytes": 7889,
+      "sha256": "57899f3abedebdb5be90606b5d812c8f8d4c6604f579b9e208d9d242f885b651"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/voice_bridge.py",
+      "bytes": 11955,
+      "sha256": "36248173678a4167aaadb5a3840de11d3d4f477963f4926f070de6fb33b63dfc"
+    }
+  ],
+  "runs": [
+    {
+      "mode": "normal",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "-m",
+        "unittest",
+        "-v",
+        "test_supervisor.SupervisorTests.test_ack_registers_same_worker_caps_deadline_and_nonce_once",
+        "test_supervisor.SupervisorTests.test_null_or_missing_caps_and_script_change_refused",
+        "test_supervisor.SupervisorTests.test_script_change_after_registration_stops_at_next_sample",
+        "test_supervisor.SupervisorTests.test_registered_descendants_cancel_reaps_leaf_then_parent",
+        "test_supervisor.SupervisorTests.test_unregistered_descendant_is_not_adopted_or_signalled",
+        "test_supervisor.SupervisorTests.test_heartbeat_loss_deadline_and_resource_unknown_stop",
+        "test_supervisor.SupervisorTests.test_pid_reuse_does_not_signal_foreign_process",
+        "test_supervisor.SupervisorTests.test_term_timeout_escalation_and_no_restart",
+        "test_supervisor.SupervisorTests.test_continuous_monitor_samples_and_handles_transport_loss",
+        "test_review01.Review01Tests.test_F5_monitor_first_ack_receive_race_fixed_probe",
+        "test_review01.Review01Tests.test_F5_monitor_descendant_race_and_malicious_binding",
+        "test_review01.Review01Tests.test_F5_bad_first_ack_not_adopted",
+        "test_review02.Review02Tests.test_R_F5_already_queued_ACK_and_descendant",
+        "test_review02.Review02Tests.test_R_F5_queued_forgery_unknown_and_expired_not_adopted",
+        "test_review02.Review02Tests.test_N1_empty_cursor_legal_null_and_broken_order_refused",
+        "test_review02.Review02Tests.test_N2_fixed_session_request_frame_and_Q_page_caps",
+        "test_review02.Review02Tests.test_N3_separate_Q_and_reader_jobs_exact_boundaries",
+        "test_review02.Review02Tests.test_N3_binding_old_ambiguity_and_cross_object_rejected",
+        "test_review02.Review02Tests.test_N3_node_and_record_caps_stay_with_their_object",
+        "test_review02.Review02Tests.test_N4_size_observation_not_Voice_64_128_caps",
+        "test_review02.Review02Tests.test_N5_historical_stage_expired_current_valid",
+        "test_capture_bridge.CaptureBridgeTests.test_complete_toy_capture_and_unapproved_candidate",
+        "test_capture_bridge.CaptureBridgeTests.test_capture_digest_inventory_and_source_identity_rejected",
+        "test_capture_bridge.CaptureBridgeTests.test_repin_does_not_allow_mixed_cut_missing_page_or_fake_suffix",
+        "test_review03.Review03Tests.test_R_F5_heartbeat_then_first_ACK_formal_probe",
+        "test_review03.Review03Tests.test_R_F5_two_REGISTERs_formal_probe",
+        "test_review03.Review03Tests.test_R_F5_ACK_force_sample_waits_for_queued_descendants",
+        "test_review03.Review03Tests.test_R_F5_empty_queue_boundary_and_no_queue_legal",
+        "test_review03.Review03Tests.test_R_F5_stranger_at_empty_or_COMPLETE_boundary_rejected",
+        "test_review03.Review03Tests.test_R_F5_forged_queued_registration_never_acknowledged",
+        "test_review03.Review03Tests.test_R_F5_original_deadlines_not_extended_by_queue_or_heartbeat",
+        "test_review03.Review03Tests.test_R_F5_heartbeat_stream_has_fixed_sampling_boundary",
+        "test_review03.Review03Tests.test_R_F5_COMPLETE_before_registration_is_not_a_grace_period",
+        "test_review03.Review03Tests.test_R_F5_queued_ACK_still_requires_resource_sample",
+        "test_review03.Review03Tests.test_N2_raw_5940_positive_6040_negative_and_exact_padded_cap",
+        "test_review03.Review03Tests.test_N2_each_financial_page_checks_its_own_raw_limit",
+        "test_review03.Review03Tests.test_N2_basis_raw_object_caps_and_job_wire_remain_independent"
+      ],
+      "cwd": "s_session/tests/issue1394_acceptance",
+      "exit_code": 0,
+      "output": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/normal-targeted.txt",
+      "output_sha256": "e6b6bc6e6cfb07231874549f1d0038756817166fca7fa293eb622bb3a60832bd"
+    },
+    {
+      "mode": "optimized",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "-O",
+        "-m",
+        "unittest",
+        "-v",
+        "test_supervisor.SupervisorTests.test_ack_registers_same_worker_caps_deadline_and_nonce_once",
+        "test_supervisor.SupervisorTests.test_null_or_missing_caps_and_script_change_refused",
+        "test_supervisor.SupervisorTests.test_script_change_after_registration_stops_at_next_sample",
+        "test_supervisor.SupervisorTests.test_registered_descendants_cancel_reaps_leaf_then_parent",
+        "test_supervisor.SupervisorTests.test_unregistered_descendant_is_not_adopted_or_signalled",
+        "test_supervisor.SupervisorTests.test_heartbeat_loss_deadline_and_resource_unknown_stop",
+        "test_supervisor.SupervisorTests.test_pid_reuse_does_not_signal_foreign_process",
+        "test_supervisor.SupervisorTests.test_term_timeout_escalation_and_no_restart",
+        "test_supervisor.SupervisorTests.test_continuous_monitor_samples_and_handles_transport_loss",
+        "test_review01.Review01Tests.test_F5_monitor_first_ack_receive_race_fixed_probe",
+        "test_review01.Review01Tests.test_F5_monitor_descendant_race_and_malicious_binding",
+        "test_review01.Review01Tests.test_F5_bad_first_ack_not_adopted",
+        "test_review02.Review02Tests.test_R_F5_already_queued_ACK_and_descendant",
+        "test_review02.Review02Tests.test_R_F5_queued_forgery_unknown_and_expired_not_adopted",
+        "test_review02.Review02Tests.test_N1_empty_cursor_legal_null_and_broken_order_refused",
+        "test_review02.Review02Tests.test_N2_fixed_session_request_frame_and_Q_page_caps",
+        "test_review02.Review02Tests.test_N3_separate_Q_and_reader_jobs_exact_boundaries",
+        "test_review02.Review02Tests.test_N3_binding_old_ambiguity_and_cross_object_rejected",
+        "test_review02.Review02Tests.test_N3_node_and_record_caps_stay_with_their_object",
+        "test_review02.Review02Tests.test_N4_size_observation_not_Voice_64_128_caps",
+        "test_review02.Review02Tests.test_N5_historical_stage_expired_current_valid",
+        "test_capture_bridge.CaptureBridgeTests.test_complete_toy_capture_and_unapproved_candidate",
+        "test_capture_bridge.CaptureBridgeTests.test_capture_digest_inventory_and_source_identity_rejected",
+        "test_capture_bridge.CaptureBridgeTests.test_repin_does_not_allow_mixed_cut_missing_page_or_fake_suffix",
+        "test_review03.Review03Tests.test_R_F5_heartbeat_then_first_ACK_formal_probe",
+        "test_review03.Review03Tests.test_R_F5_two_REGISTERs_formal_probe",
+        "test_review03.Review03Tests.test_R_F5_ACK_force_sample_waits_for_queued_descendants",
+        "test_review03.Review03Tests.test_R_F5_empty_queue_boundary_and_no_queue_legal",
+        "test_review03.Review03Tests.test_R_F5_stranger_at_empty_or_COMPLETE_boundary_rejected",
+        "test_review03.Review03Tests.test_R_F5_forged_queued_registration_never_acknowledged",
+        "test_review03.Review03Tests.test_R_F5_original_deadlines_not_extended_by_queue_or_heartbeat",
+        "test_review03.Review03Tests.test_R_F5_heartbeat_stream_has_fixed_sampling_boundary",
+        "test_review03.Review03Tests.test_R_F5_COMPLETE_before_registration_is_not_a_grace_period",
+        "test_review03.Review03Tests.test_R_F5_queued_ACK_still_requires_resource_sample",
+        "test_review03.Review03Tests.test_N2_raw_5940_positive_6040_negative_and_exact_padded_cap",
+        "test_review03.Review03Tests.test_N2_each_financial_page_checks_its_own_raw_limit",
+        "test_review03.Review03Tests.test_N2_basis_raw_object_caps_and_job_wire_remain_independent"
+      ],
+      "cwd": "s_session/tests/issue1394_acceptance",
+      "exit_code": 0,
+      "output": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/optimized-targeted.txt",
+      "output_sha256": "db3ba58deb9390e2c11394293aa9c79cb01c67752a02e1a73ad88ebd47c2f0a6"
+    }
+  ],
+  "base_commit": "6cb6bbf33eb079f639abae2449ccc9b98d81a11c",
+  "unchanged_during_checks": true,
+  "old_method_count": 24,
+  "independent_review": "新字节待独审",
+  "test_selection": {
+    "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/TEST-SELECTION.json",
+    "bytes": 7285,
+    "sha256": "2fb3f830cafcfd069b1eb8355a737d40e7f9e82ae82e22cae9f7a9b2fcc3cb5b"
+  }
+}

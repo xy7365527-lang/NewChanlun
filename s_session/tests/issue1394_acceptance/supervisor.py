@@ -66,32 +66,46 @@ class SupervisorCore:
 
     def ack(self, binding):
         try:
-            require(not self.stopped and self.clock() < self.limits.work_deadline, "监督已停止/过期")
-            self.live_identity(self.worker)
-            require(binding["contract_sha256"] == self.contract_sha
-                    and binding["worker_pid"] == self.worker.pid
-                    and binding["worker_start_identity"] == self.worker.start
-                    and binding["worker_process_group"] == self.worker.group, "ACK worker/合同错绑")
-            require(binding["nonce"] and binding["nonce"] not in self.nonces, "ACK nonce 重放")
-            stage = self.stages[binding["stage"]]
-            require(binding["resource_caps"] == stage["resource_caps"]
-                    and binding["absolute_deadline_monotonic"] == stage["deadline"]
-                    and stage["deadline"] <= self.limits.work_deadline, "ACK 资源/同截止不符")
-            row = binding["owner"]
-            identity = self.probe.identity(row["pid"])
-            require(identity.start == row["start_identity"] and identity.group == row["process_group"]
-                    and identity.parent == self.worker.pid and row["domain_id"] == stage["domain_id"]
-                    and row["writer_epoch"] == stage["writer_epoch"], "ACK owner 不是本 worker 子进程")
-            self.register(identity, parent=self.worker.pid)
-            self.nonces.add(binding["nonce"])
-            self.tick(force=True)
-            require(not self.stopped and self.clock() < stage["deadline"], "ACK 采样后已停止/过期")
-            self.events.append({"kind": "ACK", "binding": binding})
-            return {"kind": "ACK", "binding": binding}
+            self._register_ack(binding)
+            return self._sample_and_ack((binding,))[0]
         except BaseException:
             self.failures.append("ACK_FAILURE")
             self.stop("ACK_FAILURE")
             raise
+
+    def _register_ack(self, binding):
+        """只验证并登记身份；排队批次结束并采样前不产生ACK。"""
+        require(not self.stopped and self.clock() < self.limits.work_deadline, "监督已停止/过期")
+        self.live_identity(self.worker)
+        require(binding["contract_sha256"] == self.contract_sha
+                and binding["worker_pid"] == self.worker.pid
+                and binding["worker_start_identity"] == self.worker.start
+                and binding["worker_process_group"] == self.worker.group, "ACK worker/合同错绑")
+        require(binding["nonce"] and binding["nonce"] not in self.nonces, "ACK nonce 重放")
+        stage = self.stages[binding["stage"]]
+        require(binding["resource_caps"] == stage["resource_caps"]
+                and binding["absolute_deadline_monotonic"] == stage["deadline"]
+                and stage["deadline"] <= self.limits.work_deadline, "ACK 资源/同截止不符")
+        row = binding["owner"]
+        identity = self.probe.identity(row["pid"])
+        require(identity.start == row["start_identity"] and identity.group == row["process_group"]
+                and identity.parent == self.worker.pid and row["domain_id"] == stage["domain_id"]
+                and row["writer_epoch"] == stage["writer_epoch"], "ACK owner 不是本 worker 子进程")
+        self.register(identity, parent=self.worker.pid)
+        self.nonces.add(binding["nonce"])
+
+    def _sample_and_ack(self, bindings, *, deadline=None):
+        # 直接ack与monitor排队路径共用强制采样，不能发出尚未经采样的ACK。
+        self.tick(force=True)
+        require(not self.stopped and self.clock() < self.limits.work_deadline
+                and self.clock() < self.last_heartbeat + self.limits.heartbeat_timeout
+                and (deadline is None or self.clock() < deadline),
+                "ACK 采样后已停止/过期")
+        for binding in bindings:
+            require(self.clock() < self.stages[binding["stage"]]["deadline"], "ACK 采样后已停止/过期")
+        replies = [{"kind": "ACK", "binding": binding} for binding in bindings]
+        self.events.extend(replies)
+        return replies
 
     def register(self, identity, *, parent):
         require(not self.stopped and type(identity) is Identity and identity.pid != self.worker.pid,
@@ -198,46 +212,57 @@ class SupervisorCore:
 def monitor(core, receive, emit):
     """可放入独立进程的持续循环；receive(timeout) 须受同截止且返回 None 表示无消息。
 
+    receive(0)必须非阻塞。每批只排空立即可读消息，最多持续原sample_interval；
+    原工作/心跳截止不随本批心跳延长。空队列、固定采样边界或COMPLETE/CANCEL
+    都结束本批并强制采样；结束标记后的登记不能追认此前的陌生PID。
     传输 EOF 必须抛异常，不能伪装为心跳。这里不把 stdio/toy 传输声称为产品
     Unix ACK 服务；真实 OS Probe 与服务原件仍是独立准入条件。
     """
     reason = "MONITOR_FAILED"
     try:
         while not core.stopped:
-            # 先接收排队的具名握手，完整性采样放在核验之后。
-            timeout = min(core.limits.sample_interval,
-                          core.limits.work_deadline - core.clock(),
-                          core.last_heartbeat + core.limits.heartbeat_timeout - core.clock())
+            receive_deadline = min(core.limits.work_deadline,
+                                   core.last_heartbeat + core.limits.heartbeat_timeout)
+            timeout = min(core.limits.sample_interval, receive_deadline - core.clock())
             require(timeout > 0, "监督接收截止已到")
             message = receive(timeout)
             if message is None:
                 core.tick()
                 continue
-            require(core.clock() < core.limits.work_deadline
-                    and core.clock() < core.last_heartbeat + core.limits.heartbeat_timeout,
-                    "接收超过原工作/心跳截止")
-            kind = message["kind"]
-            if kind == "ACK_REQUEST":
-                emit(core.ack(message["binding"]))
-            elif kind == "HEARTBEAT":
-                core.heartbeat(Identity(**message["worker"]))
-            elif kind == "REGISTER_DESCENDANT":
-                require(Identity(**message["worker"]) == core.worker
-                        and message["contract_sha256"] == core.contract_sha,
-                        "后代登记 worker/合同错绑")
-                core.live_identity(core.worker)
-                require(message["parent"] in core.owners, "后代登记缺已握手父owner")
-                require(core.clock() < core.limits.work_deadline, "后代登记过期")
-                core.register(Identity(**message["identity"]), parent=message["parent"])
-            elif kind in {"CANCEL", "COMPLETE"}:
-                require(Identity(**message["worker"]) == core.worker, "取消者身份不同")
-                core.tick()
-                reason = kind
+            batch_until = min(receive_deadline, core.clock() + core.limits.sample_interval)
+            pending_acks = []
+            terminal = None
+            while message is not None:
+                require(core.clock() < receive_deadline, "接收超过原工作/心跳截止")
+                kind = message["kind"]
+                if kind == "ACK_REQUEST":
+                    core._register_ack(message["binding"])
+                    pending_acks.append(message["binding"])
+                elif kind == "HEARTBEAT":
+                    core.heartbeat(Identity(**message["worker"]))
+                elif kind == "REGISTER_DESCENDANT":
+                    require(Identity(**message["worker"]) == core.worker
+                            and message["contract_sha256"] == core.contract_sha,
+                            "后代登记 worker/合同错绑")
+                    core.live_identity(core.worker)
+                    require(message["parent"] in core.owners, "后代登记缺已握手父owner")
+                    require(core.clock() < core.limits.work_deadline, "后代登记过期")
+                    core.register(Identity(**message["identity"]), parent=message["parent"])
+                elif kind in {"CANCEL", "COMPLETE"}:
+                    require(Identity(**message["worker"]) == core.worker, "取消者身份不同")
+                    terminal = kind
+                else:
+                    require(False, "未知监督命令")
+                if terminal is not None or core.clock() >= batch_until:
+                    break
+                message = receive(0)
+            require(core.clock() < receive_deadline, "接收超过原工作/心跳截止")
+            replies = core._sample_and_ack(pending_acks, deadline=receive_deadline)
+            for reply in replies:
+                emit(reply)
+            if terminal is not None:
+                reason = terminal
                 break
-            else:
-                require(False, "未知监督命令")
-            # 消息内具名身份先核验/登记，随后才做后代全集采样；陌生 PID 仍拒绝。
-            core.tick()
     except BaseException as error:
         reason = type(error).__name__ + ": " + str(error)
         core.failures.append(reason)

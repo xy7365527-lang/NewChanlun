@@ -1,0 +1,37 @@
+{
+  "command": [
+    "/opt/homebrew/opt/python@3.14/bin/python3.14",
+    "-B",
+    "-m",
+    "unittest",
+    "-v",
+    "test_review03.Review03Tests.test_R_F5_heartbeat_then_first_ACK_formal_probe",
+    "test_review03.Review03Tests.test_R_F5_two_REGISTERs_formal_probe",
+    "test_review03.Review03Tests.test_R_F5_ACK_force_sample_waits_for_queued_descendants",
+    "test_review03.Review03Tests.test_N2_raw_5940_positive_6040_negative_and_exact_padded_cap"
+  ],
+  "cwd": "s_session/tests/issue1394_acceptance",
+  "exit_code": 1,
+  "methods": [
+    "test_review03.Review03Tests.test_R_F5_heartbeat_then_first_ACK_formal_probe",
+    "test_review03.Review03Tests.test_R_F5_two_REGISTERs_formal_probe",
+    "test_review03.Review03Tests.test_R_F5_ACK_force_sample_waits_for_queued_descendants",
+    "test_review03.Review03Tests.test_N2_raw_5940_positive_6040_negative_and_exact_padded_cap"
+  ],
+  "expected_failure": true,
+  "base_implementation": {
+    "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/BASELINE-PYTHON.json",
+    "bytes": 4782,
+    "sha256": "cb8a14d0da173baddd3ac48b42cb63403b47c4f44d6554c54b897b89ca20e741"
+  },
+  "test_source": {
+    "path": "s_session/tests/issue1394_acceptance/test_review03.py",
+    "bytes": 13515,
+    "sha256": "1bd6d532d74dc7938a50b2840e050786c06eb2f109a2aa26885e1efc306e7196"
+  },
+  "output": {
+    "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/red-targeted.txt",
+    "bytes": 5504,
+    "sha256": "87fa71a8614110712501f2658323a1f07628515d2ae5e354ba6ab376074512d0"
+  }
+}

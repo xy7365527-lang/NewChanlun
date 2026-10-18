@@ -1,0 +1,59 @@
+{
+  "source_role": "b46固定协议快照；SOURCE-CHECKS在TEST-REUSE已逐字复核，非统一新producer",
+  "conclusion": "closure请求自身预算包含末LF；session实际序列化后按原长度核会话帽；客户端原样转发；strict_json使用serde_json解析而未比较输入与重序列化。此次仅实核原wire长度，不把producer的规范输出习惯提升成导出器新增准入规则。",
+  "snapshot": "现有原帧资源检查与snapshot分页块逐字不变；AST/块SHA见STATIC-CHECKS",
+  "financial_paths": "目前支持financial-basis和financial-closure；两者session/reader/Job都按Capture原件长度计；closure每页再核自己request帽；不新增未接线financial-content路由。",
+  "sources": [
+    {
+      "path": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/rust/src/bin/s_session_v3/financial_reader.rs",
+      "bytes": 48668,
+      "sha256": "0b7a010162341e1d72a978bd9aed8095bdbf6dc804fa7c46eae2f52a2fc328f2",
+      "line_excerpts": [
+        {
+          "start": 728,
+          "end": 756,
+          "text": "/// 的最长前缀，使规范回复 JSON 加末尾 LF 不超过请求的 `max_reply_bytes`；首节点即装不下则拒绝本次。\npub(super) fn closure_with(\n    tx: &Transaction<'_>,\n    request: &Value,\n    audited: Option<&state::AuditedState>,\n    table: &mut Option<ClosureTable>,\n    bounds: ClosureBounds,\n    stats: &mut ClosureStats,\n) -> Result<Value, String> {\n    exact(request, &CLOSURE_FIELDS)?;\n    if request[\"schema_revision\"] != CLOSURE_SCHEMA {\n        return Err(invalid(\"SchemaUnsupported：财务闭包版本不符\"));\n    }\n    let anchor = &request[\"anchor\"];\n    exact(anchor, &ANCHOR_FIELDS)?;\n    let claimed = ContentRef::from_transport_json(&anchor[\"basis_ref\"]).map_err(invalid)?;\n    let path = fragment::parse_path(&request[\"path\"]).map_err(invalid)?;\n    let after = match request[\"after\"].as_str() {\n        Some(\"\") => None,\n        Some(root) => Some(sc::parse_root(root).map_err(invalid)?),\n        None => return Err(invalid(\"after须为文本\")),\n    };\n    let budget = positive(\n        required(request, \"max_reply_bytes\").map_err(invalid)?,\n        \"max_reply_bytes\",\n    )\n    .map_err(invalid)?;\n    let budget = u64::try_from(budget).map_err(invalid)?;\n    let owned;"
+        },
+        {
+          "start": 827,
+          "end": 865,
+          "text": "        return Err(invalid(\"after 之后已无闭包节点\"));\n    }\n    let mut reply = json!({\"anchor\":anchor,\"path\":request[\"path\"],\"after\":request[\"after\"],\n        \"target_ref\":index.target.to_transport_json(),\"total\":digests.len().to_string(),\n        \"nodes\":[],\"next\":sc::root_string(&digests[start]),\"done\":false,\"ok\":true});\n    // 末尾 LF 计入；占位 next 与真实值等长，done 由 false 改为 true 只会变短。\n    let mut used = u64::try_from(canonical_json(&reply).len()).map_err(invalid)? + 1;\n    let mut nodes = Vec::new();\n    let mut end = start;\n    while end < digests.len() {\n        let digest = digests[end];\n        let (tag, body) = match sc::NodeSource::read(&mut graph, &digest).map_err(invalid)? {\n            sc::NodeRead::Found { tag, body } => (tag, body),\n            sc::NodeRead::Missing => return Err(missing(\"已审副本缺闭包节点\")),\n        };\n        if sc::frame(tag, &body) != digest {\n            return Err(invalid(\"闭包节点 F(tag,body) 与摘要不符\"));\n        }\n        let node = ProofNode {\n            root: sc::root_string(&digest),\n            tag: format!(\"{tag:02x}\"),\n            body_hex: hex_lower(&body),\n        }\n        .to_json();\n        let size = u64::try_from(canonical_json(&node).len()).map_err(invalid)?\n            + u64::from(!nodes.is_empty());\n        if used.saturating_add(size) > budget {\n            break;\n        }\n        used += size;\n        nodes.push(node);\n        end += 1;\n    }\n    if nodes.is_empty() {\n        return Err(closure_refusal(\n            \"ClosureReplyBytes\",\n            \"单个闭包节点超过请求的 max_reply_bytes\",\n        ));\n    }"
+        }
+      ]
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/rust/src/bin/s_session_v3/financial_session.rs",
+      "bytes": 79041,
+      "sha256": "ded7f8c61a21910586d5cba9bfa81afc6378723055bd6b2f3ab0c77de1eaa0a0",
+      "line_excerpts": [
+        {
+          "start": 1206,
+          "end": 1217,
+          "text": "        let request = strict_json(body).map_err(invalid)?;\n        let s = Instant::now();\n        // R7(b)：anchor／会话身份不符与其他请求级拒绝一样只拒本次，会话保持有效（ANCHOR_MISMATCH_POLICY）。\n        let out = self.serve_audited(&command, &request, deadline, &mut t.closure)?;\n        let mut bytes = canonical_json(&out).into_bytes();\n        bytes.push(b'\\n');\n        t.serve_us = us(s);\n        if bytes.len() as u64 > self.resources.max_reply_bytes {\n            return Err(incomplete(\n                \"SessionReplyBytes\",\n                \"回复超过会话 max_reply_bytes\",\n            ));"
+        },
+        {
+          "start": 1805,
+          "end": 1816,
+          "text": "fn read_reply(stream: &mut UnixStream, deadline: Instant) -> Reply {\n    let reply = read_frame(stream, CLIENT_MAX_REPLY, deadline).map_err(|f| match f {\n        FrameFault::Io(e) => missing(format!(\"读会话回复：{e:?}\")),\n        FrameFault::TooLarge(_) => missing(\"会话回复帧超界\"),\n    })?;\n    match reply.first() {\n        Some(0) => Ok(reply[1..].to_vec()),\n        Some(1) => Err(String::from_utf8_lossy(&reply[1..]).into_owned()),\n        _ => Err(missing(\"会话回复格式错误\")),\n    }\n}\n"
+        },
+        {
+          "start": 1834,
+          "end": 1859,
+          "text": "/// 客户端：`<financial-basis-ref|financial-content|financial-closure> --protocol-revision s-session/3 --db <db>\n/// --session <socket>`。只转发 stdin 原字节、自身二进制 SHA 与 --db 的 (dev, ino)，把回复原字节\n/// 写到 stdout；会话拒绝即以其原因失败；从不本地审计、从不回落冷路径。\npub(super) fn client(args: &[String]) -> Result<(), String> {\n    let command = args.get(1).map(String::as_str).unwrap_or_default();\n    if !matches!(\n        command,\n        \"financial-basis-ref\" | \"financial-content\" | \"financial-closure\"\n    ) {\n        return Err(invalid(\"会话客户端只接受三条财务命令\"));\n    }\n    let flags = parse_flags(\n        args,\n        &[\"--protocol-revision\", \"--db\", \"--session\"],\n        \"会话客户端\",\n    )?;\n    let db = Path::new(&flags.0[\"--db\"]);\n    let identity = super::financial_reader::client_db_identity(db)?;\n    let mut body = Vec::new();\n    std::io::stdin().read_to_end(&mut body).map_err(invalid)?;\n    let sha = self_sha256()?;\n    let stream = connect(&flags.0[\"--session\"])?;\n    let deadline = Instant::now() + Duration::from_millis(CLIENT_WAIT_MS);\n    let reply = exchange(stream, command, &sha, identity, &body, deadline)?;\n    let mut out = std::io::stdout().lock();\n    out.write_all(&reply).map_err(invalid)?;"
+        }
+      ]
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/rust/src/session_protocol.rs",
+      "bytes": 33987,
+      "sha256": "1420f14c93d9f3bfa6df3834abf079676fb36a860a18c7bc4017f419b70fb15f",
+      "line_excerpts": [
+        {
+          "start": 228,
+          "end": 232,
+          "text": "pub fn strict_json(bytes: &[u8]) -> Result<Value, String> {\n    serde_json::from_slice::<Strict>(bytes)\n        .map(|s| s.0)\n        .map_err(|e| format!(\"SchemaUnsupported：{e}\"))\n}"
+        }
+      ]
+    }
+  ]
+}

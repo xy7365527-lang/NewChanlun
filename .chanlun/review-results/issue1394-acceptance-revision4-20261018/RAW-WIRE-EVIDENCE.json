@@ -1,0 +1,49 @@
+{
+  "scope": "UNIT_TEST_ONLY：正式probe对应的toy原件；不是产品捕获",
+  "generator": "test_capture_bridge.fixture；首个financial-closure原reply逐字保存；负例仅前加100个空格，request分别只改max_reply_bytes",
+  "test_methods": [
+    "test_review03.Review03Tests.test_N2_raw_5940_positive_6040_negative_and_exact_padded_cap",
+    "test_review03.Review03Tests.test_N2_each_financial_page_checks_its_own_raw_limit"
+  ],
+  "closure_page_count": 16,
+  "reply_equality_after_parse": true,
+  "expected_cases": [
+    {
+      "reply_bytes": 5940,
+      "request_cap": 5940,
+      "result": "UNAUTHENTICATED_FACTS"
+    },
+    {
+      "reply_bytes": 6040,
+      "request_cap": 5940,
+      "result": "闭包回复超过请求帽"
+    },
+    {
+      "reply_bytes": 6040,
+      "request_cap": 6040,
+      "result": "UNAUTHENTICATED_FACTS"
+    }
+  ],
+  "files": [
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/references/toy-closure-5940.reply",
+      "bytes": 5940,
+      "sha256": "8aa0bd56c4f745c880d63eef7e6d13946783825c6d42e3bc1256b66a03db5f84"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/references/toy-closure-6040.reply",
+      "bytes": 6040,
+      "sha256": "25e85585d9cd00f2a4922a6711c26b8f65d90e9fe55bbddabea12024eea70301"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/references/toy-closure-cap5940.request",
+      "bytes": 384,
+      "sha256": "110e89c1273ce9db5551e3bedb7fa1dcfd5b240a23e6d4582a8a80c9a52703ba"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/references/toy-closure-cap6040.request",
+      "bytes": 384,
+      "sha256": "e79e70d2b1789f76563e33155306617bd3ff101edb713732d8f99e31a8c160d9"
+    }
+  ]
+}

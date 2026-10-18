@@ -253,7 +253,9 @@ def export_captured(contract_raw, expected_sha, captures, source, budget, closur
         if capture.route=='snapshot':pages.append(envelope(capture,fixed))
         elif capture.route=='financial-basis':
             d.require(basis_pair is None,'重复basis');basis_pair=(d.strict(capture.request),d.strict(capture.reply))
-        elif capture.route=='financial-closure':closure_pages.append((d.strict(capture.request),d.strict(capture.reply)))
+        elif capture.route=='financial-closure':
+            # 每页保留原wire长度（含空白/LF），解析后重编码不能替代请求自身的帽。
+            closure_pages.append((d.strict(capture.request),d.strict(capture.reply),len(capture.reply)))
         else:raise d.Rejected('未接线捕获route；不猜wire格式')
     d.require(pages and basis_pair and closure_pages,'缺snapshot/basis/全闭包原件')
     rows=[];metadata=None;next_token=None;issued=None;done=False
@@ -286,12 +288,12 @@ def export_captured(contract_raw, expected_sha, captures, source, budget, closur
         d.require(next_token==expected,'分页token字段/checksum/来源漂移')
     d.require(done,'缺末页')
     nodes=[];after='';finished=False;node_total=None
-    for request,reply in closure_pages:
+    for request,reply,reply_bytes in closure_pages:
         budget.check();d.require(not finished,'闭包完成后多页')
         d.exact(request,{'schema_revision','anchor','path','after','max_reply_bytes'},'closure请求')
         d.require(request['schema_revision']=='s-financial-closure/1' and request['anchor']==anchor
                   and request['path']==[] and request['after']==after,'闭包不是固定全basis/分页断裂')
-        d.require(len(d.canonical(reply))+1<=decimal(request['max_reply_bytes']),'闭包回复超过请求帽')
+        d.require(reply_bytes<=decimal(request['max_reply_bytes']),'闭包回复超过请求帽')
         d.require(reply['ok'] is True and reply['anchor']==anchor and reply['path']==[] and reply['after']==after
                   and reply['target_ref']==anchor['basis_ref'],'闭包回复错绑')
         if node_total is None:node_total=decimal(reply['total'])

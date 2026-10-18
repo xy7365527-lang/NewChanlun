@@ -1,0 +1,72 @@
+test_R_F5_heartbeat_then_first_ACK_formal_probe (test_review03.Review03Tests.test_R_F5_heartbeat_then_first_ACK_formal_probe) ... ERROR
+test_R_F5_two_REGISTERs_formal_probe (test_review03.Review03Tests.test_R_F5_two_REGISTERs_formal_probe) ... ERROR
+test_R_F5_ACK_force_sample_waits_for_queued_descendants (test_review03.Review03Tests.test_R_F5_ACK_force_sample_waits_for_queued_descendants) ... ERROR
+test_N2_raw_5940_positive_6040_negative_and_exact_padded_cap (test_review03.Review03Tests.test_N2_raw_5940_positive_6040_negative_and_exact_padded_cap) ... FAIL
+
+======================================================================
+ERROR: test_R_F5_heartbeat_then_first_ACK_formal_probe (test_review03.Review03Tests.test_R_F5_heartbeat_then_first_ACK_formal_probe)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review03.py", line 41, in test_R_F5_heartbeat_then_first_ACK_formal_probe
+    sup.monitor(core, receive, outputs.append)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/supervisor.py", line 240, in monitor
+    core.tick()
+    ~~~~~~~~~^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/supervisor.py", line 131, in tick
+    require(observed <= set(self.owners), "存在未登记后代；监督不完整")
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/driver.py", line 49, in require
+    raise Rejected(message)
+driver.Rejected: 存在未登记后代；监督不完整
+
+======================================================================
+ERROR: test_R_F5_two_REGISTERs_formal_probe (test_review03.Review03Tests.test_R_F5_two_REGISTERs_formal_probe)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review03.py", line 58, in test_R_F5_two_REGISTERs_formal_probe
+    sup.monitor(core, receive, outputs.append)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/supervisor.py", line 240, in monitor
+    core.tick()
+    ~~~~~~~~~^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/supervisor.py", line 131, in tick
+    require(observed <= set(self.owners), "存在未登记后代；监督不完整")
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/driver.py", line 49, in require
+    raise Rejected(message)
+driver.Rejected: 存在未登记后代；监督不完整
+
+======================================================================
+ERROR: test_R_F5_ACK_force_sample_waits_for_queued_descendants (test_review03.Review03Tests.test_R_F5_ACK_force_sample_waits_for_queued_descendants)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review03.py", line 77, in test_R_F5_ACK_force_sample_waits_for_queued_descendants
+    sup.monitor(core, receive, emit)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/supervisor.py", line 221, in monitor
+    emit(core.ack(message["binding"]))
+         ~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/supervisor.py", line 87, in ack
+    self.tick(force=True)
+    ~~~~~~~~~^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/supervisor.py", line 131, in tick
+    require(observed <= set(self.owners), "存在未登记后代；监督不完整")
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/driver.py", line 49, in require
+    raise Rejected(message)
+driver.Rejected: 存在未登记后代；监督不完整
+
+======================================================================
+FAIL: test_N2_raw_5940_positive_6040_negative_and_exact_padded_cap (test_review03.Review03Tests.test_N2_raw_5940_positive_6040_negative_and_exact_padded_cap)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review03.py", line 201, in test_N2_raw_5940_positive_6040_negative_and_exact_padded_cap
+    with self.assertRaisesRegex(d.Rejected, '闭包回复超过请求帽'):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Rejected not raised
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.029s
+
+FAILED (failures=1, errors=3)

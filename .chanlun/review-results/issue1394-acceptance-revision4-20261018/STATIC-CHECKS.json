@@ -1,0 +1,494 @@
+{
+  "base_commit": "6cb6bbf33eb079f639abae2449ccc9b98d81a11c",
+  "head": "6cb6bbf33eb079f639abae2449ccc9b98d81a11c",
+  "branch": "codex/1394-acceptance-integration-20261018",
+  "execution_authorized": false,
+  "product_status": "NOT_RUN",
+  "modules": [
+    {
+      "path": "s_session/tests/issue1394_acceptance/captured_cut.py",
+      "bytes": 25853,
+      "sha256": "8ca23ec3257dbe3db4e9260a1b45c22bdf62b666f7b9e4a6e141811b6010d3f8",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/closure.py",
+      "bytes": 8290,
+      "sha256": "5459ab3d8dce283677efead39206c2fbba4593d965f913c5f5c7336a1258762d",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/control.py",
+      "bytes": 6301,
+      "sha256": "950595b87956e6d8923c816cac9739d7aff29c0582f5a2bfe8bfd9383ddb8057",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/driver.py",
+      "bytes": 44599,
+      "sha256": "1735bffa631b1d4789f363204fec97fd26ceccd1ca439cc340bcd00a8ebf05f7",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/evidence.py",
+      "bytes": 5318,
+      "sha256": "92af6d56aecde7ea051de178fea72135b6c5b35a430ec44940cd425db2a0ce10",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/financial_oracle.py",
+      "bytes": 17454,
+      "sha256": "edc5b5477e7b185582a2a65cbd31e07d7015c49a9e203c630a697646f4d3d854",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/journal.py",
+      "bytes": 9663,
+      "sha256": "ff08d15e084216d1d6b8bb1efe8e3dcb74bfe281b20edb8262ad3e61c1211781",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/oracle.py",
+      "bytes": 3299,
+      "sha256": "16639a001aa73662b00209934513d808a0d0b3600023e2d3e2f35eb263e54eb7",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/run_checks.py",
+      "bytes": 1720,
+      "sha256": "94c180cd611cc7d2f1a99f94bb61fed6594d8aac8ea52470aefc7cbb91072bae",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/scheduler.py",
+      "bytes": 23479,
+      "sha256": "9c0d876f159e7b7cc33bfb55dae12ad67ff0b29cf7c56bf6e08d87032f8a6a16",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/supervisor.py",
+      "bytes": 14324,
+      "sha256": "6840975995c90397b1aa9bba3bb6b091a422af65f094ad37c32b6d035a9642ee",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_capture_bridge.py",
+      "bytes": 20988,
+      "sha256": "f0e68226c82f3a2d9c8a27b8714faab1a998ce4431a8168c3048d10686d8a128",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 10,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_closure.py",
+      "bytes": 5537,
+      "sha256": "d4f6772d82109c9cd05901cf667bf21d3b1740e11976036c86352eeb5a2d5710",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 9,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_control.py",
+      "bytes": 5375,
+      "sha256": "2c96cffc3b024f798d863b40bc345e386283c39f5e2da5853ab00b5fcdd01711",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 5,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver.py",
+      "bytes": 31184,
+      "sha256": "fd443df0c247934a8b2435d9e98169ed33f97baec6e17eca647ebab5d4b58176",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 41,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver_regressions.py",
+      "bytes": 6602,
+      "sha256": "621e990d5c7c6ed9dbe512efd30c7957696b346575439ddf5b5068bc95fc5b5d",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 5,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_evidence.py",
+      "bytes": 6289,
+      "sha256": "11cac54a757c437b660441f82a0d2b0e4843bcc22eb1106d30a2b8232933e52c",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 7,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_financial_oracle.py",
+      "bytes": 12185,
+      "sha256": "d643adef91a95a79b7c247af07c7a0259b9eac8f45e9951244af52ca8589c205",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 10,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_journal.py",
+      "bytes": 5205,
+      "sha256": "7f63cc0d2535d481b676818d88282729d40738568c84e761a7dd6c01c0876fde",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 7,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review01.py",
+      "bytes": 15165,
+      "sha256": "f5caecc55061352166cf22b6e08ed0c29ed83916c8f1e6e7d570bb1250c6c4e9",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 14,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review02.py",
+      "bytes": 20621,
+      "sha256": "94cbc050baa085104a7b67fcd580ef635afa952f10be63a23512b826f8e888e7",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 17,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review03.py",
+      "bytes": 13515,
+      "sha256": "1bd6d532d74dc7938a50b2840e050786c06eb2f109a2aa26885e1efc306e7196",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 13,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler.py",
+      "bytes": 19433,
+      "sha256": "8abd24b983978336ac9c86cf4cb89548ab5e87eea38b2dc2bf97140ffd440b58",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 27,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler_integration.py",
+      "bytes": 1389,
+      "sha256": "98b0d9bb348d3b1190e3ae0d623dc2e0e5d4ff9a4763e319c00463bc618424b8",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 2,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_supervisor.py",
+      "bytes": 7889,
+      "sha256": "57899f3abedebdb5be90606b5d812c8f8d4c6604f579b9e208d9d242f885b651",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 10,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/voice_bridge.py",
+      "bytes": 11955,
+      "sha256": "36248173678a4167aaadb5a3840de11d3d4f477963f4926f070de6fb33b63dfc",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    }
+  ],
+  "module_count": 26,
+  "original_methods": [
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver.py",
+      "count": 41,
+      "same_file_bytes": true,
+      "methods": [
+        "AdapterTests.test_current_protocol",
+        "AdapterTests.test_null_cold_reading_refused",
+        "AdapterTests.test_nine_field_old_v2_refused",
+        "AdapterTests.test_old_economic_domain_refused",
+        "AdapterTests.test_mixed_session_refused",
+        "AdapterTests.test_resource_null_and_256mib_overrun_refused",
+        "AdapterTests.test_reply_cap_relationship",
+        "AdapterTests.test_socket_parent_permissions",
+        "AdapterTests.test_strict_json",
+        "AdapterTests.test_exact_positive_numbers",
+        "AdapterTests.test_pinned_hash",
+        "AdapterTests.test_ab_fresh_independent",
+        "AdapterTests.test_custody_flat_shape_without_database_insertion",
+        "AdapterTests.test_missing_database_never_created",
+        "AdapterTests.test_recovery_detects_changed_originals",
+        "AdapterTests.test_ab_compares_actuals_exactly",
+        "AdapterTests.test_oracle_default_actual_database_read_refused",
+        "AdapterTests.test_oracle_arithmetic_and_optimized_python_safety",
+        "AdapterTests.test_ready_binds_current_startup_and_three_capture_versions",
+        "AdapterTests.test_default_execution_refuses_before_popen",
+        "AdapterTests.test_preparation_false_does_not_become_admission",
+        "AdapterTests.test_economic_envelope_is_current_domain",
+        "AdapterTests.test_wire_unknown_keeps_original_and_no_reply_fabrication",
+        "AdapterTests.test_wire_frame_cap_refuses_before_connect",
+        "AdapterTests.test_supervisor_real_unix_ack_and_mismatch",
+        "AdapterTests.test_owned_toy_marker_sigkill_and_reap",
+        "AdapterTests.test_strict_overflow_nested_and_finite_preserved",
+        "AdapterTests.test_ack_all_steps_share_absolute_deadline",
+        "AdapterTests.test_save_checks_deadline_after_fsync",
+        "AdapterTests.test_command_stage_epoch_consumed_even_on_hash_failure",
+        "AdapterTests.test_cleanup_normal_exit_between_polls_reaps_and_closes",
+        "AdapterTests.test_cleanup_exit_during_ps_and_hash_failure_still_seals",
+        "AdapterTests.test_cleanup_all_keeps_other_owner_when_one_fails",
+        "AdapterTests.test_sqlite_explicit_close_success_parse_and_query_failure",
+        "AdapterTests.test_sqlite_shared_cumulative_records_and_bytes",
+        "AdapterTests.test_sqlite_busy_deadline_closes_without_restarting_window",
+        "AdapterTests.test_consumed_stage_remains_consumed_after_binary_hash_failure",
+        "AdapterTests.test_real_gate_ack_loss_and_late_disk_reap_without_release",
+        "AdapterTests.test_sqlite_progress_handler_interrupts_expensive_view",
+        "AdapterTests.test_custody_shared_byte_budget_counts_bytes_and_closes",
+        "AdapterTests.test_cleanup_term_timeout_escalates_then_reaps"
+      ],
+      "removed_or_changed": []
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler.py",
+      "count": 27,
+      "same_file_bytes": true,
+      "methods": [
+        "SchedulerTests.test_quantifier_from_original_contract",
+        "SchedulerTests.test_full_order_and_receipt_chain",
+        "SchedulerTests.test_missing_formal_voice_rejects_before_work_cleanup_still_runs",
+        "SchedulerTests.test_all_missing_originals_rejected",
+        "SchedulerTests.test_product_gate_and_real_adapter_blocked",
+        "SchedulerTests.test_failure_at_each_kind_cleanup_and_seal",
+        "SchedulerTests.test_cancel_cleanup_and_seal",
+        "SchedulerTests.test_received_is_not_business_success",
+        "SchedulerTests.test_late_ack_or_persist_stops_before_next_stage",
+        "SchedulerTests.test_duplicate_run_cannot_retry_after_failure",
+        "SchedulerTests.test_stages_cannot_be_missing_reordered_or_repeated",
+        "SchedulerTests.test_binding_corruptions_before_start",
+        "SchedulerTests.test_evidence_wrong_binding_predecessor_command_resource_deadline",
+        "SchedulerTests.test_missing_or_extra_proof_rejected",
+        "SchedulerTests.test_cleanup_one_owner_failure_continues_remaining_and_seals",
+        "SchedulerTests.test_cleanup_missing_owner_fails",
+        "SchedulerTests.test_seal_failure_does_not_override_error_with_success",
+        "SchedulerTests.test_resend_original_identity_required",
+        "SchedulerTests.test_recovery_requires_new_epoch",
+        "SchedulerTests.test_multiple_decision_owner_receipts_cannot_be_dropped_or_extra",
+        "SchedulerTests.test_request_independent_verdict_required",
+        "SchedulerTests.test_same_cut_request_identity_required",
+        "SchedulerTests.test_resource_deadline_never_extended",
+        "SchedulerTests.test_ab_database_overlap_rejected",
+        "SchedulerTests.test_idempotent_repeat_uses_occurrence_without_changing_identity",
+        "SchedulerTests.test_negative_business_response_cannot_turn_into_success",
+        "SchedulerTests.test_original_normal_negative_domain_and_comparison_quantifiers_preserved"
+      ],
+      "removed_or_changed": []
+    }
+  ],
+  "unchanged_function_checks": [
+    {
+      "path": "s_session/tests/issue1394_acceptance/supervisor.py",
+      "function": "SupervisorCore.__init__",
+      "source_sha256": "1c863a0bb0893e57fb9a8c730a6aed1ebbec3bc5fb436c91398df0f4ab0ab2e0",
+      "base_source_sha256": "1c863a0bb0893e57fb9a8c730a6aed1ebbec3bc5fb436c91398df0f4ab0ab2e0",
+      "same_source": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/supervisor.py",
+      "function": "SupervisorCore.live_identity",
+      "source_sha256": "9e537335b330caa5a6a1a4e32a225c621380377be071a9b0a43bb090cb78a827",
+      "base_source_sha256": "9e537335b330caa5a6a1a4e32a225c621380377be071a9b0a43bb090cb78a827",
+      "same_source": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/supervisor.py",
+      "function": "SupervisorCore.register",
+      "source_sha256": "2ca6367697e7a4feea33f063d925b6cc4959009e6f2d924059994f1df05986b5",
+      "base_source_sha256": "2ca6367697e7a4feea33f063d925b6cc4959009e6f2d924059994f1df05986b5",
+      "same_source": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/supervisor.py",
+      "function": "SupervisorCore.heartbeat",
+      "source_sha256": "f08167eec4cd85fcfc8da0b2a8745cfe11efbafaea22c84a63620b789c91f7cf",
+      "base_source_sha256": "f08167eec4cd85fcfc8da0b2a8745cfe11efbafaea22c84a63620b789c91f7cf",
+      "same_source": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/supervisor.py",
+      "function": "SupervisorCore.tick",
+      "source_sha256": "14061a5b11df5b6a467c77ce86facdabe87759f8fefb3e21e7eb56430c2c357f",
+      "base_source_sha256": "14061a5b11df5b6a467c77ce86facdabe87759f8fefb3e21e7eb56430c2c357f",
+      "same_source": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/supervisor.py",
+      "function": "SupervisorCore.stop",
+      "source_sha256": "caaab1ec64b2ec8cf23ce9f0eb4025b4e67e34f97828a08efd329e45e5e70db4",
+      "base_source_sha256": "caaab1ec64b2ec8cf23ce9f0eb4025b4e67e34f97828a08efd329e45e5e70db4",
+      "same_source": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/captured_cut.py",
+      "function": "resources",
+      "source_sha256": "d51c53df884d70d8e0a12a2cbf332a574e49317108e793e281e365473f39b728",
+      "base_source_sha256": "d51c53df884d70d8e0a12a2cbf332a574e49317108e793e281e365473f39b728",
+      "same_source": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/captured_cut.py",
+      "function": "capture_job",
+      "source_sha256": "292c07a949961ac9d3ae49ff915d1063fe64a41401b3ee47edf5f42558b93d5e",
+      "base_source_sha256": "292c07a949961ac9d3ae49ff915d1063fe64a41401b3ee47edf5f42558b93d5e",
+      "same_source": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/captured_cut.py",
+      "function": "charge_capture",
+      "source_sha256": "8324c0e7c2bacecb106bc27e0ec8cd1d97e6a45528b6fe48d7b7a2cc47ec3e0a",
+      "base_source_sha256": "8324c0e7c2bacecb106bc27e0ec8cd1d97e6a45528b6fe48d7b7a2cc47ec3e0a",
+      "same_source": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/captured_cut.py",
+      "function": "envelope",
+      "source_sha256": "a1582de6ec26da16fefe3e9c3374e061d76e7ec5d24e38bae3faf33f3a5ff0f8",
+      "base_source_sha256": "a1582de6ec26da16fefe3e9c3374e061d76e7ec5d24e38bae3faf33f3a5ff0f8",
+      "same_source": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/captured_cut.py",
+      "function": "content_ref",
+      "source_sha256": "7e2b23914c5ff875dd40de0f08361718a551910514620c457727bc92e3a4c860",
+      "base_source_sha256": "7e2b23914c5ff875dd40de0f08361718a551910514620c457727bc92e3a4c860",
+      "same_source": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/captured_cut.py",
+      "function": "decode_verified",
+      "source_sha256": "cbd2f497fbff860dc07deba488c386af0534decc10279fac52425a94acee5ee7",
+      "base_source_sha256": "cbd2f497fbff860dc07deba488c386af0534decc10279fac52425a94acee5ee7",
+      "same_source": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/captured_cut.py",
+      "function": "row_identity",
+      "source_sha256": "695c94b1dcb967095e7a360bdf89beacaded9f714f8f80f0c0e43474785b4c24",
+      "base_source_sha256": "695c94b1dcb967095e7a360bdf89beacaded9f714f8f80f0c0e43474785b4c24",
+      "same_source": true
+    }
+  ],
+  "snapshot_pagination_block": {
+    "same_source": true,
+    "sha256": "bfa755e0c903664df4a83f3447b110a6e13fc5695a6ecb9c2f012f6c79048da1"
+  },
+  "tracked_changes": [
+    "s_session/tests/issue1394_acceptance/captured_cut.py",
+    "s_session/tests/issue1394_acceptance/supervisor.py"
+  ],
+  "git_diff_check": {
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "scope": "本轮内存AST/compile；未导入或运行产品，不代表全部测试通过"
+}
