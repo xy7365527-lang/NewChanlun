@@ -78,8 +78,8 @@ const VERSION_KIND: &str = "CC-056.version";
 /// CC-056 的槽位常量（`TB-02-B` 版本对象）。
 const VERSION_SLOT: &str = "TB-02-B";
 /// 载荷头三常量（与旧配方逐字相同）。
-const PAYLOAD_SCHEMA: &str = "s-new-bi/1";
-const PAYLOAD_POLICY: &str = "standard_raw_gap_3";
+const PAYLOAD_SCHEMA: &str = tb02b::CURRENT_CONTRACT.schema;
+const PAYLOAD_POLICY: &str = tb02b::CURRENT_CONTRACT.policy;
 const PAYLOAD_VIEW_ROLE: &str = "main";
 /// 变更事件的固定原因轴（与旧配方同值 `stroke::RULE`）。
 const CHANGE_CAUSE: &str = RULE;
@@ -138,7 +138,7 @@ fn coord_i64(coord: usize) -> Result<i64, BiError> {
 /// **历史插入**各计一次；普通尾部追加不计。每次**全扫** `all_events`。
 ///
 /// 这是生产实现；`tb02b::fact_basis` 只是冻结测试 oracle（旧模块不再进生产路径）。
-fn fact_generation(all_events: ArrayView<'_>) -> Result<i64, BiError> {
+pub(super) fn fact_generation(all_events: ArrayView<'_>) -> Result<i64, BiError> {
     let mut max_coord = i64::MIN;
     let mut generation: i64 = 1;
     for event in all_events.iter() {
@@ -185,6 +185,10 @@ pub(super) enum BiLedgerView<'a> {
 }
 
 impl<'a> BiLedgerView<'a> {
+    pub(super) fn coords(self) -> impl Iterator<Item = i64> + 'a {
+        self.iter().map(|(coord, _)| coord)
+    }
+
     fn len(self) -> usize {
         match self {
             Self::Plain(rows) => rows.len(),
@@ -1192,7 +1196,7 @@ impl ContentBi {
         let known = sc::write_value(
             &mut *store,
             &known_value(
-                &ledger,
+                input.raw,
                 input.generation,
                 input.frontier,
                 input.semantic_commit_ns.as_deref(),
@@ -1209,13 +1213,14 @@ impl ContentBi {
             let deps = self
                 .coords
                 .coord_set(&mut *store, &endpoint.source_coords)?;
+            let data = structure_fact(store, endpoint)?;
             objects.push(build_typed(
                 producer,
                 &mut *store,
                 ENDPOINT_KIND,
                 &slot,
                 fact_generation,
-                endpoint_value(endpoint),
+                CValue::Edge(data.digest),
                 &deps,
                 input.generation,
                 input.cut,
@@ -1241,13 +1246,14 @@ impl ContentBi {
                 &pair.new.source_coords,
                 &[],
             )?;
+            let data = structure_fact(store, pair)?;
             objects.push(build_typed(
                 producer,
                 &mut *store,
                 kind,
                 &slot,
                 fact_generation,
-                pair_value(pair),
+                CValue::Edge(data.digest),
                 &deps,
                 input.generation,
                 input.cut,
@@ -1260,9 +1266,9 @@ impl ContentBi {
             active.insert(entity.clone());
             let previous = prior.bi.get(&entity);
             let carried = previous.filter(|old| old.confirmation.is_some());
-            let start = sc::write_value(&mut *store, &endpoint_value(&stroke.start))?;
-            let end = sc::write_value(&mut *store, &endpoint_value(&stroke.end))?;
-            let formation = sc::write_value(&mut *store, &conditions_value(&stroke.formation))?;
+            let start = structure_fact(store, &stroke.start)?;
+            let end = structure_fact(store, &stroke.end)?;
+            let formation = structure_fact(store, &stroke.formation)?;
             // 确认：旧对象已有确认时**沿用首次不可逆见证**（值根原样引用），不借新后继
             // 把确认获知时间推后；否则用本次事实的确认。
             let (confirmation, confirmed_known_at, confirmation_coords, confirmation_successor) =
@@ -1285,7 +1291,7 @@ impl ContentBi {
                     }
                     None => match stroke.confirmation.as_ref() {
                         Some(new) => {
-                            let built = sc::write_value(&mut *store, &confirmation_value(new))?;
+                            let built = structure_fact(store, new)?;
                             (
                                 CValue::Edge(built.digest),
                                 CValue::Edge(known.digest),
@@ -1420,8 +1426,10 @@ impl ContentBi {
                 ));
             }
             let start_root = first_extreme_root(&stroke.start)?;
-            let end_root = first_extreme_root(&stroke.end)?;
-            for (coord, row) in input.raw.range(start_root, end_root) {
+            // #1405 / #1343 Q2：成员覆盖完整终点极值区，事件代表仍取首根。
+            let member_end_root = last_extreme_root(&stroke.end)?;
+            let event_root = first_extreme_root(&stroke.end)?;
+            for (coord, row) in input.raw.range(start_root, member_end_root) {
                 let identity =
                     row.get("identity_key")
                         .and_then(JsonView::as_str)
@@ -1483,7 +1491,7 @@ impl ContentBi {
 
             // 就地变更事件：依赖面是**全账本**（与旧配方 `sources` 同一条）；`before`/`after`
             // 直接引用上一代与新写出的数据根。
-            let event_at = ledger.text(end_root, "ts")?.to_string();
+            let event_at = ledger.text(event_root, "ts")?.to_string();
             for change in &changes {
                 let slot = slot_of(&[generation_text.as_str(), entity.as_str(), *change]);
                 let before = match previous {
@@ -1721,12 +1729,13 @@ fn slot_of(parts: &[&str]) -> Value {
 }
 
 /// 已知时间对象（`known_at`；有界标量小对象，同一代共用同一个根）。
-fn known_value(
-    ledger: &Ledger<'_>,
+pub(super) fn known_value(
+    raw: BiLedgerView<'_>,
     generation: i64,
     frontier: i64,
     semantic_commit_ns: Option<&str>,
 ) -> Result<CValue, BiError> {
+    let ledger = Ledger { rows: raw };
     let latest = ledger.latest();
     let receipt = latest
         .and_then(|row| row.get("receipt_id").and_then(JsonView::as_str))
@@ -1755,7 +1764,16 @@ fn known_value(
     ]))
 }
 
+/// /2 新事实的同一借用序列化核；Native 文本、字段及数组先准入后构造。
+fn structure_fact<T: serde::Serialize + ?Sized>(
+    store: &mut dyn NodeStore,
+    value: &T,
+) -> Result<Built, BiError> {
+    crate::v3::content_structure::fact(store, value).map_err(|detail| BiError::Facts { detail })
+}
+
 /// 端点值（旧 `wire(serde_json::to_value(Endpoint))` 的同一条文本编码）。
+#[cfg(test)]
 fn endpoint_value(endpoint: &Endpoint) -> CValue {
     CValue::Object(vec![
         (
@@ -1779,8 +1797,12 @@ fn endpoint_value(endpoint: &Endpoint) -> CValue {
             usize_array(&endpoint.extreme_roots),
         ),
         (
-            "raw_position".to_string(),
-            optional_usize(endpoint.raw_position),
+            "raw_first".to_string(),
+            CValue::String(endpoint.raw_first.to_string()),
+        ),
+        (
+            "raw_last".to_string(),
+            CValue::String(endpoint.raw_last.to_string()),
         ),
         (
             "source_coords".to_string(),
@@ -1795,6 +1817,7 @@ fn endpoint_value(endpoint: &Endpoint) -> CValue {
 }
 
 /// 条件值（旧 `Conditions` 的文本编码；`vector` 保留 bool/null 差别）。
+#[cfg(test)]
 fn conditions_value(conditions: &Conditions) -> CValue {
     CValue::Object(vec![
         (
@@ -1803,7 +1826,7 @@ fn conditions_value(conditions: &Conditions) -> CValue {
         ),
         (
             "raw_between_actual_extrema".to_string(),
-            optional_usize(conditions.raw_between_actual_extrema),
+            CValue::String(conditions.raw_between_actual_extrema.to_string()),
         ),
         (
             "top_price".to_string(),
@@ -1838,6 +1861,7 @@ fn conditions_value(conditions: &Conditions) -> CValue {
 }
 
 /// 确认值（旧 `Confirmation` 的文本编码）。
+#[cfg(test)]
 fn confirmation_value(confirmation: &Confirmation) -> CValue {
     CValue::Object(vec![
         (
@@ -1864,6 +1888,7 @@ fn confirmation_value(confirmation: &Confirmation) -> CValue {
 }
 
 /// 端点对值（旧 `PairFact` 的文本编码）。
+#[cfg(test)]
 fn pair_value(pair: &PairFact) -> CValue {
     CValue::Object(vec![
         ("old".to_string(), endpoint_value(&pair.old)),
@@ -1885,6 +1910,7 @@ fn pair_value(pair: &PairFact) -> CValue {
             "retained_anchors".to_string(),
             usize_array(&pair.retained_anchors),
         ),
+        ("evidence".to_string(), str_array(&pair.evidence)),
         (
             "waiting_reasons".to_string(),
             str_array(&pair.waiting_reasons),
@@ -1910,6 +1936,7 @@ fn str_array(values: &[&'static str]) -> CValue {
     )
 }
 
+#[cfg(test)]
 fn optional_usize(value: Option<usize>) -> CValue {
     match value {
         Some(value) => CValue::String(value.to_string()),
@@ -1929,6 +1956,21 @@ fn first_extreme_root(endpoint: &Endpoint) -> Result<i64, BiError> {
     endpoint
         .extreme_roots
         .first()
+        .map(|root| coord_i64(*root))
+        .transpose()?
+        .ok_or_else(|| BiError::Facts {
+            detail: format!(
+                "端点 {} 没有极值根，无法定位关系成员区间",
+                endpoint.group_anchor
+            ),
+        })
+}
+
+/// 终点极值根末项（成员闭区间的上界；与首根一样拒绝空集及坐标溢出）。
+fn last_extreme_root(endpoint: &Endpoint) -> Result<i64, BiError> {
+    endpoint
+        .extreme_roots
+        .last()
         .map(|root| coord_i64(*root))
         .transpose()?
         .ok_or_else(|| BiError::Facts {
@@ -2878,6 +2920,199 @@ mod tests {
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
 
+    /// #1405：共享内容路径在同一 parser 事实上与 v2 投影对拍，多根极值坐标仍按 raw 序位。
+    #[test]
+    fn parity_tb1405_root_sets_and_equal_price_evidence() {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/tb02v_same_price/syn2_multi_root_group.json"
+        ))
+        .unwrap();
+        let highs = fixture["highs"].as_array().unwrap();
+        let lows = fixture["lows"].as_array().unwrap();
+        let rows: Vec<Row> = highs
+            .iter()
+            .zip(lows)
+            .enumerate()
+            .map(|(index, (high, low))| Row {
+                coord: index as i64 * 10,
+                high: high.as_f64().unwrap() as i64,
+                low: low.as_f64().unwrap() as i64,
+                revision: 1,
+                seq: index as i64,
+            })
+            .collect();
+        let mut harness = Harness::new();
+        let mut previous = None;
+        let mut saw_roots = false;
+        for prefix in 3..=rows.len() {
+            let (bars, _, _) = ledger(&rows[..prefix]);
+            saw_roots |= facts_of(&bars)
+                .endpoints
+                .iter()
+                .any(|endpoint| endpoint.extreme_roots.len() > 1);
+            previous = Some(run_generation(
+                &mut harness,
+                &rows[..prefix],
+                previous.as_ref(),
+                "#1405根集合",
+            ));
+        }
+        assert!(saw_roots, "夹具必须实际产生多根极值端点");
+    }
+
+    #[test]
+    fn tb1405_member_bounds_reject_empty_or_unrepresentable_roots() {
+        let (bars, _, _) = ledger(&fixture_rows());
+        let mut endpoint = facts_of(&bars).endpoints[0].clone();
+        endpoint.extreme_roots.clear();
+        assert!(matches!(
+            first_extreme_root(&endpoint),
+            Err(BiError::Facts { .. })
+        ));
+        assert!(matches!(
+            last_extreme_root(&endpoint),
+            Err(BiError::Facts { .. })
+        ));
+        if let Some(overflow) = usize::try_from(i64::MAX)
+            .ok()
+            .and_then(|n| n.checked_add(1))
+        {
+            endpoint.extreme_roots = vec![overflow];
+            assert!(matches!(
+                first_extreme_root(&endpoint),
+                Err(BiError::Facts { .. })
+            ));
+            assert!(matches!(
+                last_extreme_root(&endpoint),
+                Err(BiError::Facts { .. })
+            ));
+        }
+    }
+
+    /// #1405 HIGH-MEMBER-ROOT-TAIL：已成笔的多根终点必须逐前缀保留全部成员。
+    #[test]
+    fn parity_tb1405_formed_multi_root_tail_members_every_prefix() {
+        use newchan_rust::theta_v0::types::quantize;
+
+        for (name, fixture, start, end, tail) in [
+            (
+                "syn3_multi_root_replace",
+                include_str!("../../../tests/fixtures/tb02v_same_price/syn3_multi_root_replace.json"),
+                3usize,
+                9usize,
+                10usize,
+            ),
+            (
+                "real_C_bars14_40_multi_root_second_gate",
+                include_str!("../../../tests/fixtures/tb02v_same_price/real_C_bars14_40_multi_root_second_gate.json"),
+                12,
+                21,
+                22,
+            ),
+        ] {
+            let fixture: Value = serde_json::from_str(fixture).unwrap();
+            let highs = fixture["highs"].as_array().unwrap();
+            let lows = fixture["lows"].as_array().unwrap();
+            assert_eq!(highs.len(), lows.len());
+            for stride in [1usize, 10] {
+                let label = format!("{name} stride={stride}");
+                // 与见证原入口 load_symbol 使用同一量化函数；real_C 的小数价不可截断。
+                let tick_size = ThetaConfig::default().tick.tick_size;
+                let rows: Vec<Row> = highs
+                    .iter()
+                    .zip(lows)
+                    .enumerate()
+                    .map(|(index, (high, low))| Row {
+                        coord: (index * stride) as i64,
+                        high: quantize(high.as_f64().unwrap(), tick_size),
+                        low: quantize(low.as_f64().unwrap(), tick_size),
+                        revision: 1,
+                        seq: index as i64,
+                    })
+                    .collect();
+                let mut harness = Harness::new();
+                let mut previous = None;
+                let mut saw_formed_multi_root = false;
+                let mut saw_multi_root_event = false;
+                for prefix in 3..=rows.len() {
+                    let label = format!("{label} prefix={prefix}");
+                    let (bars, raw, _) = ledger(&rows[..prefix]);
+                    let facts = facts_of(&bars);
+                    // 完整 v2/v3 对象、载荷、记录和关系逐字段对拍，不能只检查端点根集。
+                    let generation = run_generation(
+                        &mut harness,
+                        &rows[..prefix],
+                        previous.as_ref(),
+                        &label,
+                    );
+                    let relations: Vec<Value> =
+                        generation.relations.iter().map(render_value).collect();
+                    for stroke in &facts.strokes {
+                        let entity = format!("bi:1:{}", stroke.identity_anchor);
+                        let first = *stroke.start.extreme_roots.iter().min().unwrap() as i64;
+                        let last = *stroke.end.extreme_roots.iter().max().unwrap() as i64;
+                        let expected: Vec<String> = raw
+                            .range(first..=last)
+                            .map(|(_, row)| {
+                                format!(
+                                    "raw:{}@{}",
+                                    row["identity_key"].as_str().unwrap(),
+                                    row["revision"]
+                                )
+                            })
+                            .collect();
+                        let actual: Vec<String> = relations
+                            .iter()
+                            .filter(|relation| {
+                                relation["relation_type"] == "member_of"
+                                    && relation["object"] == entity
+                            })
+                            .map(|relation| relation["subject"].as_str().unwrap().to_string())
+                            .collect();
+                        assert_eq!(actual, expected, "{label} {entity} 完整成员闭区间");
+                        if stroke.end.extreme_roots.len() <= 1 {
+                            continue;
+                        }
+                        saw_formed_multi_root = true;
+                        assert_eq!(stroke.start.group_anchor, start * stride, "{label}");
+                        assert_eq!(stroke.end.group_anchor, end * stride, "{label}");
+                        assert_eq!(
+                            stroke.end.extreme_roots,
+                            vec![end * stride, tail * stride],
+                            "{label} 必须触达已审多根成笔见证"
+                        );
+                        assert!(
+                            actual.contains(&format!("raw:k-{}@1", tail * stride)),
+                            "{label} 必须包含 syn3 raw 10 / real_C raw 22（按 stride 映射）"
+                        );
+                        let event_root = *stroke.end.extreme_roots.iter().min().unwrap() as i64;
+                        for object in &generation.objects {
+                            if object_kind(object) != CHANGE_KIND {
+                                continue;
+                            }
+                            let payload: Value = serde_json::from_str(&render_built(
+                                &mut harness.store,
+                                &object.payload,
+                            ))
+                            .unwrap();
+                            if payload["data"]["entity_id"] == entity {
+                                saw_multi_root_event = true;
+                                assert_eq!(
+                                    payload["data"]["event_at"], raw[&event_root]["ts"],
+                                    "{label} event_at 必须继续取终点首根"
+                                );
+                                assert_ne!(raw[&event_root]["ts"], raw[&last]["ts"], "{label}");
+                            }
+                        }
+                    }
+                    previous = Some(generation);
+                }
+                assert!(saw_formed_multi_root, "{label} 必须实际产生多根成笔终点");
+                assert!(saw_multi_root_event, "{label} 必须实际检查多根终点变更事件");
+            }
+        }
+    }
+
     /// 多前缀普通 append：覆盖同代确认沿用、端点延伸、稀疏坐标与七个 kind 齐备。
     #[test]
     fn parity_every_prefix_append_confirm_extension_and_sparse_coords() {
@@ -3646,4 +3881,38 @@ mod tests {
             .expect("追加代必须可恢复");
         assert_same_roots(&clean_full, &recovered_full, "追加代拒写恢复");
     }
+}
+
+/// #1419：与 known_value 共用 Ledger::latest，新增结构路径直接写借用字段和内容边。
+pub(super) fn known_root(
+    store: &mut dyn NodeStore,
+    raw: BiLedgerView<'_>,
+    generation: i64,
+    frontier: i64,
+    commit: Option<&str>,
+) -> Result<Built, String> {
+    use crate::v3::structure_value::{object, put, string, Value as V};
+    let latest = Ledger { rows: raw }.latest();
+    let optional = |v: Option<&str>| -> Result<V, String> {
+        v.map(|s| string(s, store))
+            .transpose()
+            .map(|v| v.unwrap_or(V::Null))
+    };
+    let value = object(
+        [
+            ("generation", string(generation, store)?),
+            ("input_frontier", string(frontier, store)?),
+            (
+                "receipt_id",
+                optional(latest.and_then(|r| r.get("receipt_id").and_then(JsonView::as_str)))?,
+            ),
+            (
+                "received_at",
+                optional(latest.and_then(|r| r.get("received_at").and_then(JsonView::as_str)))?,
+            ),
+            ("semantic_commit_ns", optional(commit)?),
+        ],
+        store,
+    )?;
+    put(&value, store)
 }

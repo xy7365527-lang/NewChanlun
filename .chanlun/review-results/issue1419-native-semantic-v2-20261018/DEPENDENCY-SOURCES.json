@@ -1,0 +1,177 @@
+[
+  {
+    "path": "rust/src/theta_v0/parser/stroke.rs",
+    "donor_sha256": "e55feecfa62d4d8937c725be7cc49b65c7c1fd959700a2bee58ba34b03fb80d2",
+    "bytes": 56338
+  },
+  {
+    "path": "rust/src/theta_v0/parser/second_fold.rs",
+    "donor_sha256": "25faeb1b9af214704258433c513394df120f5087a0ef16f99421a7f56ce4f0c1",
+    "bytes": 27603
+  },
+  {
+    "path": "rust/src/theta_v0/parser/mod.rs",
+    "donor_sha256": "6da7182d75d60f9e0131e3112c5dba3c465a5e13e7d484f5a0e43f11732bc2f7",
+    "bytes": 38118
+  },
+  {
+    "path": "rust/src/theta_v0/parser/segment.rs",
+    "donor_sha256": "d0399baca9a87a3ef39a4f47f6aa94d48e450cde393879abf16f5516b970c9e7",
+    "bytes": 84335
+  },
+  {
+    "path": "rust/src/theta_v0/parser/feature_seq.rs",
+    "donor_sha256": "56a8e3d43abdbee7c79b627d70b6d222dfdb52cf5fbe7917fa8e91c5c3ec3aab",
+    "bytes": 49355
+  },
+  {
+    "path": "rust/src/theta_v0/parser/second_kind.rs",
+    "donor_sha256": "f4e0ca7308074d63b4c742be900f0e461d86e9707cc226fbe71587a2e6a1c906",
+    "bytes": 16906
+  },
+  {
+    "path": "rust/src/theta_v0/config.rs",
+    "donor_sha256": "d7bf588e7605a2574c7651aa81ed64400d1f2a680a41a4e529d755a941576b6d",
+    "bytes": 34322
+  },
+  {
+    "path": "rust/src/theta_v0/classifier/center.rs",
+    "donor_sha256": "97e7c3033debbdda65cbd5897b63473a957b71146b377e2409ef92c8f2698f74",
+    "bytes": 87745
+  },
+  {
+    "path": "rust/src/theta_v0/classifier/center_scan.rs",
+    "donor_sha256": "d90d3d6b630cc41eecaf1faec2881d9634a098afde32184705b30b92354fb77c",
+    "bytes": 18828
+  },
+  {
+    "path": "rust/src/theta_v0/classifier/recursive_tower.rs",
+    "donor_sha256": "4f1a7f875460807f23baff731ee799ef90bb738e0e1584e7f9fafd577fed6112",
+    "bytes": 160874
+  },
+  {
+    "path": "rust/src/theta_v0/classifier/mod.rs",
+    "donor_sha256": "8025167c5483e577fceb0c3b7b12344e9e61b5c4746a85980407654a83e859e2",
+    "bytes": 12563
+  },
+  {
+    "path": "rust/src/theta_v0/parser/stroke_tb02v_tests.rs",
+    "donor_sha256": "01b8540e36971b34a8ae78972154caa25fa7f44074e907180ca657d3ef2349b2",
+    "bytes": 28193
+  },
+  {
+    "path": "rust/src/theta_v0/parser/tb02w_tests.rs",
+    "donor_sha256": "8ae874f3ec62955204a8aa27f1f378915cf7c2ac5465e05603ca2c3be489a899",
+    "bytes": 44932
+  },
+  {
+    "path": "rust/src/theta_v0/classifier/tests/center_scan_1419.rs",
+    "donor_sha256": "97b4380b7a981ad60e2d2b9479744b6f21accc795544e03161e0bec1acda1994",
+    "bytes": 40577
+  },
+  {
+    "path": "rust/src/theta_v0/classifier/tests/center_pair_1424.rs",
+    "donor_sha256": "582f0f6436110df1a02ce142eca53291a10b97a653ba4a918925c11ca6599cc8",
+    "bytes": 15519
+  },
+  {
+    "path": "rust/src/bin/s_session_v2/content_bi.rs",
+    "donor_sha256": "b3ed67cce4f3c5a315ed69f76a03b441cc6dcab317abd4b16b1023b8a8855335",
+    "bytes": 155153
+  },
+  {
+    "path": "rust/src/bin/s_session_v2/content_producer.rs",
+    "donor_sha256": "57c02cf2c4a8810e4031048533826f5174f80c88af97fe6154718bfd4ee0eacd",
+    "bytes": 279090
+  },
+  {
+    "path": "rust/src/bin/s_session_v2/tb02a_facts.rs",
+    "donor_sha256": "f33aa9e513191f689b18539b06faf97b159484bbe9f8d88aefef5f8a92d4c5b4",
+    "bytes": 54592
+  },
+  {
+    "path": "rust/src/bin/s_session_v2/tb02b.rs",
+    "donor_sha256": "4d4db9df229bb5768ba5890e445cae272977694349c37128fec4fe32bb81732f",
+    "bytes": 16427
+  },
+  {
+    "path": "rust/src/bin/s_session_v2/tb02c.rs",
+    "donor_sha256": "3742db857c20e2d46be21893eeaf2770e8b2c315bc26f41e18ce4194a3eeebe4",
+    "bytes": 25092
+  },
+  {
+    "path": "rust/src/bin/s_session_v2/tb02e.rs",
+    "donor_sha256": "9701f93d114eb62a8321cb558b6117a50b6653a0c81d7d7666fe5aedef369b60",
+    "bytes": 69688
+  },
+  {
+    "path": "rust/src/bin/s_session_v2/tb02f.rs",
+    "donor_sha256": "417be8f52a8b6613deb2edfe181b6ecc495e21920969cac6794ac1c17c3fcee0",
+    "bytes": 34245
+  },
+  {
+    "path": "rust/src/bin/s_session_v3/generation.rs",
+    "donor_sha256": "471825f38f5a41796346b286386d64f5ad25e06bfbd01ac51ea77248bdda4c0f",
+    "bytes": 185048
+  },
+  {
+    "path": "rust/src/bin/s_session_v3/object_index.rs",
+    "donor_sha256": "6dc03d398393c8f2705aae5815ad82fd2ae0c2fbe94f59a05ec811bbd36a2f87",
+    "bytes": 239602
+  },
+  {
+    "path": "rust/src/bin/s_session_v3/prepared.rs",
+    "donor_sha256": "dc1cdab4f60bd804ebe679e006ff790a9ca253f0d4a29ba97b9f4ff73893b97a",
+    "bytes": 105053
+  },
+  {
+    "path": "rust/src/bin/s_session_v3/mod.rs",
+    "donor_sha256": "7c7483132ae093cbf14c28fa50debcccafbbd25d3e6bd0d5cab7789df5bc0022",
+    "bytes": 65709
+  },
+  {
+    "path": "rust/src/bin/s_session_v3/aux_index.rs",
+    "donor_sha256": "61d2813121d8299a493c1b4a2b04ffbfc63554c0fb23051e01c409707d8d4687",
+    "bytes": 147397
+  },
+  {
+    "path": "rust/src/bin/s_session_v3/catalog_evidence.rs",
+    "donor_sha256": "c200ce86557b8d3c54a623a70a5dea5a8f951a02125474a529e0941f81f04023",
+    "bytes": 70225
+  },
+  {
+    "path": "rust/src/bin/s_session_v3/source_audit.rs",
+    "donor_sha256": "1d2d85ed50e6b5b103fe1ce1a2e118c6172d7ad11769e313480d95288ca4a182",
+    "bytes": 182984
+  },
+  {
+    "path": "rust/src/bin/s_session_v3/source_contributions.rs",
+    "donor_sha256": "507a66ef81681f02f7ae580fac2493488b54a6de218b42e88b5e224a83c307ce",
+    "bytes": 81263
+  },
+  {
+    "path": "rust/src/bin/s_session_v3/source_pending.rs",
+    "donor_sha256": "dba163bcbfc8f635041212a89c04946ae162fa9a7cb262b5affe1e5040a1f4cd",
+    "bytes": 29628
+  },
+  {
+    "path": "rust/src/bin/s_session_v3/source_delta.rs",
+    "donor_sha256": "03310199a675572525f3aad10d669e1f621202dab5e195797ba0da52e1b04dcc",
+    "bytes": 50744
+  },
+  {
+    "path": "rust/src/bin/s_session_v3/source_structure.rs",
+    "donor_sha256": "5dd619d794f97a06800d4b92210f253c7afc0ddad84ae80b83c3516685255111",
+    "bytes": 62995
+  },
+  {
+    "path": "rust/src/bin/s_session_v3/content_structure.rs",
+    "donor_sha256": "3e7803272c1503ef9579ab812a81e7b69f5e26a9c4896bef71fd06520d50ca65",
+    "bytes": 117437
+  },
+  {
+    "path": "rust/src/bin/s_structure_session.rs",
+    "donor_sha256": "fc75d59e8a81cde6ebef41fca035b0b599bc68b2c00e71f5f18e9aae48439907",
+    "bytes": 492629
+  }
+]

@@ -19,6 +19,54 @@ pub(super) const STEP: [&str; 12] = [
     "waiting_reasons",
 ];
 const INITIAL: &str = "initial_direction_unsettled";
+const EQUAL_EXTREME: &str = "equal_extreme_identity";
+
+/// #1405 / #1343：只有具名 /2 合同把同价极值标签作为证据；/1 仍按原等待原因核验。
+pub(super) fn equal_is_evidence(rule: &str) -> Result<bool, String> {
+    let contract =
+        tb02b::contract_for_rule(rule).ok_or_else(|| err("步骤知识来源审计规则修订未声明"))?;
+    Ok(contract == tb02b::CURRENT_CONTRACT)
+}
+
+fn is_waiting_reason(reason: &str, equal_is_evidence: bool) -> bool {
+    !(equal_is_evidence && reason == EQUAL_EXTREME)
+}
+
+fn request_reasons(
+    s: &mut (impl CodecRead + ?Sized),
+    evidence: &RefValue,
+    request: &RefValue,
+    waiting_count: usize,
+    missing_direction: bool,
+    equal_is_evidence: bool,
+) -> Result<(), String> {
+    if waiting_count == 0 && missing_direction {
+        return strings(s, request, &["direction_not_yet_established"]);
+    }
+    if !equal_is_evidence {
+        // 历史 /1 保持完整原件相等；不能按新口径删掉旧请求的同价等待原因。
+        return if request == evidence {
+            Ok(())
+        } else {
+            Err(err("CC004知识请求未绑定完整reasons"))
+        };
+    }
+    if request.kind() != Kind::Array || request.extent() != Some(waiting_count as u64) {
+        return Err(err("CC004知识请求未绑定版本化等待reasons"));
+    }
+    let actual = elements(s, request)?;
+    let mut index = 0;
+    for item in elements(s, evidence)? {
+        let reason = text_value(s, &item, "waiting reason")?;
+        if is_waiting_reason(reason.as_str(), equal_is_evidence) {
+            if actual.get(index) != Some(&item) {
+                return Err(err("CC004知识请求未绑定版本化等待reasons"));
+            }
+            index += 1;
+        }
+    }
+    Ok(())
+}
 
 /// 与源修订摘要同时冻结五字段投影；借用原始账，Owned 不造 serde 值或普通容器。
 pub(super) fn raw_bar(
@@ -41,6 +89,7 @@ pub(super) struct Step<'a> {
     fields: SourceFields<'static>,
     key: bj::TextValue,
     reasons: RefValue,
+    waiting_count: usize,
     insufficient: bool,
     incomplete: bool,
 }
@@ -51,6 +100,7 @@ pub(super) trait StepView {
     fn fields(&self) -> &SourceFields<'static>;
     fn key(&self) -> &bj::TextValue;
     fn reasons(&self) -> &RefValue;
+    fn waiting_count(&self) -> usize;
     fn insufficient(&self) -> bool;
     fn incomplete(&self) -> bool;
 }
@@ -67,6 +117,9 @@ impl StepView for Step<'_> {
     fn reasons(&self) -> &RefValue {
         &self.reasons
     }
+    fn waiting_count(&self) -> usize {
+        self.waiting_count
+    }
     fn insufficient(&self) -> bool {
         self.insufficient
     }
@@ -81,6 +134,7 @@ pub(super) struct StepContribution {
     pub(super) fields: SourceFields<'static>,
     pub(super) key: bj::TextValue,
     pub(super) reasons: RefValue,
+    pub(super) waiting_count: usize,
     pub(super) insufficient: bool,
     pub(super) incomplete: bool,
 }
@@ -90,13 +144,15 @@ impl StepContribution {
         s: &mut (impl SourceFieldStore + ?Sized),
         object: std::rc::Rc<Object>,
         raw: &(impl RawLookup + ?Sized),
+        rule: &str,
     ) -> Result<(i64, Self), String> {
-        let (coord, step) = step_record(s, &object, raw)?;
+        let (coord, step) = step_record(s, &object, raw, equal_is_evidence(rule)?)?;
         let Step {
             object: _,
             fields,
             key,
             reasons,
+            waiting_count,
             insufficient,
             incomplete,
         } = step;
@@ -107,6 +163,7 @@ impl StepContribution {
                 fields,
                 key,
                 reasons,
+                waiting_count,
                 insufficient,
                 incomplete,
             },
@@ -126,6 +183,9 @@ impl StepView for StepContribution {
     }
     fn reasons(&self) -> &RefValue {
         &self.reasons
+    }
+    fn waiting_count(&self) -> usize {
+        self.waiting_count
     }
     fn insufficient(&self) -> bool {
         self.insufficient
@@ -251,6 +311,7 @@ pub(super) fn step_record<'a>(
     s: &mut (impl SourceFieldStore + ?Sized),
     object: &'a Object,
     raw: &(impl RawLookup + ?Sized),
+    equal_is_evidence: bool,
 ) -> Result<(i64, Step<'a>), String> {
     let p = payload(s, object)?;
     exact(&p, Kind::Object, STEP.len() as u64)?;
@@ -276,17 +337,22 @@ pub(super) fn step_record<'a>(
     let reasons = fields.get_admitted(s, "waiting_reasons")?;
     let reason_items = elements(s, &reasons)?;
     let mut insufficient = false;
+    let mut waiting_count = 0;
     for item in &reason_items {
         let reason = text_value(s, item, "waiting reason")?;
+        if !is_waiting_reason(reason.as_str(), equal_is_evidence) {
+            continue;
+        }
+        waiting_count += 1;
         insufficient |= matches!(
             reason.as_str(),
             "fewer_than_three_merged_bars" | "no_subsequent_bar" | "direction_not_yet_established"
         );
     }
-    let incomplete = !reason_items.is_empty()
-        || fields.get_admitted(s, "direction_evidence")?.kind() == Kind::Null;
-    insufficient |= reason_items.is_empty()
-        && fields.get_admitted(s, "direction_evidence")?.kind() == Kind::Null;
+    let incomplete =
+        waiting_count != 0 || fields.get_admitted(s, "direction_evidence")?.kind() == Kind::Null;
+    insufficient |=
+        waiting_count == 0 && fields.get_admitted(s, "direction_evidence")?.kind() == Kind::Null;
     drop(parsed);
     Ok((
         coord,
@@ -295,6 +361,7 @@ pub(super) fn step_record<'a>(
             fields,
             key,
             reasons,
+            waiting_count,
             insufficient,
             incomplete,
         },
@@ -467,7 +534,7 @@ pub(super) fn unsettled_seed_group(
     Ok(())
 }
 
-pub(super) trait StepLookup {
+pub(super) trait StepLookup: source_structure::Lookup {
     fn get_step(&self, coord: i64) -> Option<&dyn StepView>;
     fn contains_subject(&self, id: &str) -> bool;
 }
@@ -478,6 +545,12 @@ pub(super) trait RequestSlots {
 struct FullStepLookup<'a, 'b, 'c> {
     steps: &'a BusinessMap<i64, Step<'b>>,
     subjects: &'a BusinessMap<&'c str, i64>,
+    objects: &'a BusinessMap<&'b str, &'b Object>,
+}
+impl source_structure::Lookup for FullStepLookup<'_, '_, '_> {
+    fn object(&self, id: &str) -> Option<&Object> {
+        self.objects.get(id).copied()
+    }
 }
 impl StepLookup for FullStepLookup<'_, '_, '_> {
     fn get_step(&self, coord: i64) -> Option<&dyn StepView> {
@@ -510,8 +583,11 @@ fn request_record(
     request: &RefValue,
     steps: &BusinessMap<i64, Step<'_>>,
     step_subjects: &BusinessMap<&str, i64>,
+    objects: &BusinessMap<&str, &Object>,
+    rule: &str,
     requests: &mut BusinessMap<bj::TextValue, ()>,
     bound: &mut BusinessMap<i64, ()>,
+    equal_is_evidence: bool,
 ) -> Result<(), String> {
     request_record_with_slots(
         s,
@@ -519,8 +595,11 @@ fn request_record(
         &FullStepLookup {
             steps,
             subjects: step_subjects,
+            objects,
         },
         &mut FullRequestSlots { requests, bound },
+        equal_is_evidence,
+        rule,
     )
 }
 
@@ -529,6 +608,8 @@ pub(super) fn request_record_with_slots(
     request: &RefValue,
     steps: &impl StepLookup,
     slots: &mut impl RequestSlots,
+    equal_is_evidence: bool,
+    rule: &str,
 ) -> Result<(), String> {
     exact(request, Kind::Object, 5)?;
     let fields = SourceFields::read_subset(
@@ -553,6 +634,31 @@ pub(super) fn request_record_with_slots(
         return Err(err("同cut知识请求重复"));
     }
     if view.index(0).and_then(|v| v.as_str()) != Some(CC004_STEP_KIND) {
+        if rule == crate::V3_STRUCTURE_RULE_REVISION
+            && (view
+                .index(0)
+                .and_then(|v| v.index(0))
+                .and_then(|v| v.as_str())
+                .is_some_and(|kind| source_structure::is_kind(rule, kind))
+                || view
+                    .index(1)
+                    .and_then(|v| v.index(2))
+                    .and_then(|v| v.as_str())
+                    == Some("structure-classification/1"))
+        {
+            return source_structure::audit_request(s, request, view, steps);
+        }
+        if rule == crate::V3_STRUCTURE_RULE_REVISION {
+            let subject = fields.scalar(s, "subject_id")?;
+            if subject
+                .view()
+                .as_str()
+                .and_then(|id| source_structure::Lookup::object(steps, id))
+                .is_some_and(|o| source_structure::is_kind(rule, o.kind.as_str()))
+            {
+                return Err(err("结构主体不能绑定到其它请求槽位"));
+            }
+        }
         // 非步骤请求可共存，但不能换一个 key 重复声明同一等待主体。
         let subject = fields.scalar(s, "subject_id")?;
         if subject
@@ -583,13 +689,16 @@ pub(super) fn request_record_with_slots(
         return Err(err("CC004知识请求key/subject/来源不一致"));
     }
     let reasons = fields.get_admitted(s, "reasons")?;
-    if step.reasons().extent() == Some(0)
-        && step.fields().get_admitted(s, "direction_evidence")?.kind() == Kind::Null
-    {
-        strings(s, &reasons, &["direction_not_yet_established"])?;
-    } else if &reasons != step.reasons() {
-        return Err(err("CC004知识请求未绑定完整reasons"));
-    }
+    let missing_direction =
+        step.fields().get_admitted(s, "direction_evidence")?.kind() == Kind::Null;
+    request_reasons(
+        s,
+        step.reasons(),
+        &reasons,
+        step.waiting_count(),
+        missing_direction,
+        equal_is_evidence,
+    )?;
     let axes = fields.get_admitted(s, "axes")?;
     exact(&axes, Kind::Object, 4)?;
     let axes = SourceFields::read_subset(
@@ -636,8 +745,10 @@ pub(super) fn audit<'a>(
     objects: impl IntoIterator<Item = &'a Object>,
     raw: &BusinessMap<i64, Source>,
     groups: &BusinessMap<i64, Group>,
+    rule: &str,
     deadline: Option<Instant>,
 ) -> Result<sc::CodecVec<i64>, String> {
+    let equal_is_evidence = equal_is_evidence(rule)?;
     #[cfg(test)]
     super::source_call_note(|n| {
         n.full_pending_calls += 1;
@@ -646,14 +757,21 @@ pub(super) fn audit<'a>(
     let mut steps = bj::new_map(allocation.as_ref());
     let mut step_subjects = bj::new_map(allocation.as_ref());
     let mut knowledge = None;
+    let mut structure_objects = bj::new_map(allocation.as_ref());
     #[cfg(test)]
     super::source_call_note(|n| n.full_members_enumerations += 1);
     for object in objects {
         super::super::history::check_deadline(deadline)?;
+        if rule == crate::V3_STRUCTURE_RULE_REVISION {
+            s.native_map_room(&mut structure_objects).map_err(err)?;
+            structure_objects
+                .insert(object.id.as_str(), object)
+                .map_err(err)?;
+        }
         if object.kind == CC054_KNOWLEDGE_KIND {
             knowledge_record(s, object, &mut knowledge)?;
         } else if object.kind == CC004_STEP_KIND {
-            let (coord, step) = step_record(s, object, raw)?;
+            let (coord, step) = step_record(s, object, raw, equal_is_evidence)?;
             s.native_map_room(&mut step_subjects).map_err(err)?;
             step_subjects
                 .insert(object.id.as_str(), coord)
@@ -700,19 +818,52 @@ pub(super) fn audit<'a>(
     }
     let mut requests = bj::new_map(allocation.as_ref());
     let mut bound = bj::new_map(allocation.as_ref());
+    let mut structure_counts = bj::new_map(allocation.as_ref());
     let request_array = field(s, &knowledge, "requests")?;
     #[cfg(test)]
     super::source_call_note(|n| n.full_members_enumerations += 1);
     for request in elements(s, &request_array)? {
         super::super::history::check_deadline(deadline)?;
+        if rule == crate::V3_STRUCTURE_RULE_REVISION {
+            let subject = scalar(s, &request, "subject_id")?;
+            if let Some(id) = subject.view().as_str() {
+                if structure_objects
+                    .get(id)
+                    .is_some_and(|o| source_structure::is_kind(rule, o.kind.as_str()))
+                {
+                    let count = structure_counts.get(id).copied().unwrap_or(0usize);
+                    s.native_map_room(&mut structure_counts).map_err(err)?;
+                    structure_counts
+                        .insert(
+                            s.native_text(id)?,
+                            count.checked_add(1).ok_or_else(|| err("结构请求数溢出"))?,
+                        )
+                        .map_err(err)?;
+                }
+            }
+        }
         request_record(
             s,
             &request,
             &steps,
             &step_subjects,
+            &structure_objects,
+            rule,
             &mut requests,
             &mut bound,
+            equal_is_evidence,
         )?;
+    }
+    for (_, object) in structure_objects.iter() {
+        if source_structure::is_kind(rule, object.kind.as_str())
+            && structure_counts
+                .get(object.id.as_str())
+                .copied()
+                .unwrap_or(0)
+                != source_structure::expected_requests(s, object)?
+        {
+            return Err(err("结构对象缺一一具名分类请求"));
+        }
     }
     if bound.len() != steps.len() {
         return Err(err("CC004缺一一绑定的知识请求"));

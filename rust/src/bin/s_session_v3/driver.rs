@@ -566,6 +566,27 @@ mod tests {
             .unwrap()
     }
 
+    /// #1405：只有规则元数据为历史 /1 的空库也不准新写者接纳/恢复；Q 的只读审计仍可读。
+    #[test]
+    fn historical_bi_rule_is_readable_but_writer_and_recover_leave_it_unchanged() {
+        let f = Fixture::new();
+        let mut c = open_db(&f.db).unwrap();
+        meta_set(&c, "rule_revision", crate::LEGACY_V3_RULE_REVISION).unwrap();
+        let before = db_meta(&c).unwrap();
+        {
+            let tx = c.transaction().unwrap();
+            state::audit(&tx).expect("历史规则只读审计");
+        }
+        assert!(f.open("1").err().unwrap().contains("VersionUnsupported"));
+        assert!(recover(&f.db, "2", &f.clock, "recover-1")
+            .err()
+            .unwrap()
+            .contains("VersionUnsupported"));
+        assert_eq!(db_meta(&c).unwrap(), before);
+        assert_eq!(count(&c, "raw_events"), 0);
+        assert_eq!(count(&c, "s_input_messages"), 0);
+    }
+
     #[test]
     fn audit_owner_driver_normal_requests_release_transactions_and_statements() {
         fn ended(driver: &Driver) {

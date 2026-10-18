@@ -1,0 +1,32 @@
+[
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/run01-artifacts/ADAPTATION-MATRIX.md",
+    "sha256": "75bb11d15b5406607b2b81cda166d99fe984eb3ce169fe2c39c3153ac96a5dd4",
+    "bytes": 14425
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/run01-artifacts/DEPENDENCY-SOURCES.json",
+    "sha256": "9c4f79325fe2fd8021dedb0eb9d01dfe2d96704c691369765e83c960a6db184a",
+    "bytes": 7523
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/run01-artifacts/SOURCES-THREE-WAY.json",
+    "sha256": "6b74e9ae3e6d308252684b6de3f8f5b000feefd232e4a2f1a17f8629191ebbf9",
+    "bytes": 11655
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/run01-artifacts/REFERENCE-SEARCH.md",
+    "sha256": "1b7c90d06086e0aecb3bbae82e467891f5b3d41c72140d19c39c219e8e4504b2",
+    "bytes": 4403
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/run01-artifacts/XERJ-ATTEMPTS.json",
+    "sha256": "836261b9189ddc977d281ecd62de833d08183c0fb6fa22c134ab5f4ca2d0f96d",
+    "bytes": 1553
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/run01-artifacts/REFERENCE-HITS.json",
+    "sha256": "ed243437370852eaa58448a44dd63298740f90a439c3f5b61ead3f78ee2d73fc",
+    "bytes": 8074
+  }
+]

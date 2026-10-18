@@ -1,0 +1,41 @@
+{
+  "rustfmt_parse_and_format": true,
+  "git_diff_check": true,
+  "protected_inclusion_unchanged": true,
+  "fixture_include_closure": true,
+  "missing_fixtures": [],
+  "k1_top_level_field_parity": true,
+  "k1_wire_fields": [
+    "breach_watermark",
+    "budget_granted",
+    "budget_policy",
+    "candidate",
+    "consumed_digest",
+    "consumed_len",
+    "dir_state",
+    "from_stroke",
+    "input_stroke_count",
+    "killed_by",
+    "matched",
+    "rule_revision",
+    "schema",
+    "semantic_state",
+    "standard",
+    "through_stroke"
+  ],
+  "projection_uses_borrowed_k1": true,
+  "native_container_insert_signature": true,
+  "native_knowledge_insert": true,
+  "python_toy_extreme_regions": {
+    "cases": 420,
+    "passed": true,
+    "scope": "独立模型，未执行Rust"
+  },
+  "rust_compiled": false,
+  "rust_tests_executed": false,
+  "execution_authorized": false,
+  "reverse_patch_check": true,
+  "source_file_count": 46,
+  "rust_file_count": 40,
+  "source_patch_sha256": "297ad7bb4ced9f2d802532ed243b1a33441109711fa24938768064ddca05493b"
+}

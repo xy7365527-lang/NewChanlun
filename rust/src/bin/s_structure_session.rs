@@ -79,6 +79,10 @@ mod tb02a_facts;
 mod tb02b;
 #[path = "s_session_v2/tb02c.rs"]
 mod tb02c;
+#[path = "s_session_v2/tb02e.rs"]
+mod tb02e;
+#[path = "s_session_v2/tb02f.rs"]
+mod tb02f;
 use std::path::{Path, PathBuf};
 
 #[cfg(test)]
@@ -96,16 +100,16 @@ use serde_json::{json, Value};
 /// CC-006 验收合同修订（SPEC-COVERAGE-INPUT.json `/classification_axes/5`）。
 ///
 /// v2 结构写者（本文件 `init_core`/`accept_core`/`advance_core`）的规则修订：它发布 TB-02-A…D。
-const RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/1+segment-second/1";
+/// #1405：同价/极值区裁定采用 new-bi/2；旧规则会话 AsKnown，不混两代笔对象。
+const RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2+segment-second/2";
 
-/// #1394 整合 W-2：`s-session/3`（v3）写者的规则修订。v3 只发布 TB-02-A/B 对象（包含、分型、
-/// 新笔），不声明 `segment-second`；它冻结在 FIN 线与 S86 r6 库所用的值，新二进制因此仍能
-/// 接收这些库，v3 对象身份配方里的规则修订也不变。
-///
-/// 两个常量对应两个规则修订、各配自己发布的对象集与目录轴表
-/// （[`tb02a_facts::CatalogAxisTable`]），由各写者按自己的修订选定，不是同一判断的宽严两档
-/// （#799）。退场条件：v3 承载 TB-02-C/D 的新票落地即与 [`RULE_REVISION`] 合并为一个常量。
-const V3_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/1";
+/// #1405：历史 v3 TB-02-A/B（13 轴）域，保留读取/验证身份，不自动迁移旧库。
+const V3_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2";
+const LEGACY_V3_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/1";
+/// #1419/#1424：共享事实直接构造的 A…F 写者域（22 轴）。
+/// 笔/段沿用已裁 /2，中枢及相邻关系沿用各自 /1；历史域不得用新对象回填。
+const V3_STRUCTURE_RULE_REVISION: &str =
+    "s2-axis-quantifiers+new-bi/2+segment-second/2+center-seed/1+center-pair/1";
 
 /// S 唯一结构写者的默认 writer_epoch（可经 `--writer-epoch` / `recover` 换代）。
 const DEFAULT_WRITER_EPOCH: &str = "1";
@@ -322,12 +326,17 @@ fn open_db(db: &Path) -> Result<Connection, String> {
         rusqlite::OpenFlags::default() | rusqlite::OpenFlags::SQLITE_OPEN_PRIVATE_CACHE,
     )
     .map_err(|e| format!("打开 SQLite 失败：{e}"))?;
+    configure_db_connection(&conn)?;
+    Ok(conn)
+}
+
+fn configure_db_connection(conn: &Connection) -> Result<(), String> {
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;")
         .map_err(|e| format!("设置 WAL/FULL 失败：{e}"))?;
     #[cfg(target_os = "macos")]
     conn.execute_batch("PRAGMA fullfsync=ON;")
         .map_err(|e| format!("设置 fullfsync 失败：{e}"))?;
-    Ok(conn)
+    Ok(())
 }
 
 fn db_meta(conn: &Connection) -> Result<BTreeMap<String, String>, String> {
@@ -3217,12 +3226,19 @@ fn advance_core(
             layer = Some(incr.append(bar));
         }
     }
+    // #1420：同一 K1 游标簿跨 cut/恢复续扫，oracle 与共享证据路径消费同一检查点。
+    let mut second_store = parser::second_fold::SecondFoldStore::new(tb02c::round_budget());
+    if is_ohlc {
+        tb02c::restore_cursors(&read_active_objects(&conn)?, &mut second_store);
+    }
     let mut oracle_facts = None;
     let (layer, group_evidence) = if is_ohlc {
         if s_fact_cache::oracle_enabled() {
             // 测试开关：全量 oracle（与增量路径逐代对拍用）。
             let started = s_fact_cache::phase::begin();
-            let (layer, facts) = parser::parse_layer_with_inclusion_facts(&raw_bars, &config);
+            let (layer, facts, store) =
+                parser::parse_layer_with_inclusion_facts_store(&raw_bars, &config, second_store);
+            second_store = store;
             s_fact_cache::phase::record("parse_oracle", started.elapsed().as_nanos());
             let groups = parser::GroupParseEvidence {
                 groups: facts.groups.clone(),
@@ -3243,10 +3259,12 @@ fn advance_core(
             // 从**真实生效输入**的已证稳定前缀追加；前缀内变化即从最早受影响坐标失效并保守重放。
             let started = s_fact_cache::phase::begin();
             let outcome = lane_guard.lane(&lane_key).advance(&raw_bars);
-            let (layer, facts) = parser::parse_layer_with_group_evidence(
+            let (layer, facts, store) = parser::parse_layer_with_group_evidence_store(
                 lane_guard.lane(&lane_key).state(),
                 &config,
+                second_store,
             );
+            second_store = store;
             s_fact_cache::phase::record("parse", started.elapsed().as_nanos());
             let _ = outcome;
             (layer, Some(facts))
@@ -3325,14 +3343,7 @@ fn advance_core(
 
     for (start, shape) in &wins {
         let start = *start;
-        // #1373 同角色极值身份仍有竞争时，不给依赖该组的分型选根。
-        if group_evidence.as_ref().is_some_and(|f| {
-            f.groups[start..start + 3]
-                .iter()
-                .any(|g| g.high_sources.len() != 1 || g.low_sources.len() != 1)
-        }) {
-            continue;
-        }
+        // #1405（#1343 Q2）：极值身份是根集合，形态只读组价，多根窗口照常发布。
         match shape {
             Cc006LocalShape::Classified {
                 branch,
@@ -3476,7 +3487,8 @@ fn advance_core(
             &structure_cut,
             frontier,
             v2::commit_time(&conn, context)?,
-        );
+            &second_store,
+        )?;
         objects.extend(segments);
         relations.extend(edges);
     }
@@ -5289,9 +5301,20 @@ fn recover_core(
     let _capture = cache::begin_capture(EVIDENCE_READ_BUDGET);
     let new_epoch_i =
         parse_writer_epoch(new_epoch, "--new-epoch").map_err(|e| format!("InvalidDomain：{e}"))?;
-    let mut conn = open_db(db)?;
+    // #1405/#1420：旧规则恢复在设置 WAL 之前拒绝；缺失的库也不得由恢复入口创建。
+    let mut conn = Connection::open_with_flags(
+        db,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE
+            | rusqlite::OpenFlags::SQLITE_OPEN_PRIVATE_CACHE,
+    )
+    .map_err(|e| format!("打开 SQLite 失败：{e}"))?;
     ensure_initialized(&conn)?;
     ensure_writable(&conn)?;
+    // 历史规则只读，包括换代恢复；不得清除它的未决 Begin。
+    if meta_get_opt(&conn, "rule_revision")?.as_deref() != Some(RULE_REVISION) {
+        return Err("VersionMismatch：历史规则会话只读，禁止恢复写者或清除未决 Begin".into());
+    }
+    configure_db_connection(&conn)?;
     record_connection_pragmas(&conn, "recover");
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
@@ -5687,6 +5710,332 @@ mod tests {
                 String::from_utf8_lossy(&out.stderr)
             );
         }
+    }
+
+    /// #1420：按 tb02d `generate-input.py` 的端点→整数 OHLC 规则（UP；DOWN 为 10000 镜像），
+    /// 末尾按末笔方向多延伸 `tail` 根（只延长末笔，不新增分型）。返回 (open, high, low, close)。
+    fn design_rows(points: &[i64], up: bool, tail: i64) -> Vec<(i64, i64, i64, i64)> {
+        let prices: Vec<i64> = points.iter().map(|x| 2000 + 100 * x).collect();
+        let centers: Vec<i64> = prices
+            .iter()
+            .enumerate()
+            .map(|(j, p)| p + if j % 2 == 0 { 1 } else { -1 })
+            .collect();
+        let mut q = vec![centers[0] + 200, centers[0]];
+        for w in centers.windows(2) {
+            for k in 1..=4 {
+                q.push(w[0] + ((w[1] - w[0]) * k).div_euclid(4));
+            }
+        }
+        let last = *centers.last().unwrap();
+        let delta = if (prices.len() - 1) % 2 == 0 {
+            100
+        } else {
+            -100
+        };
+        q.extend((1..=2 + tail).map(|k| last + k * delta));
+        q.iter()
+            .map(|&x| {
+                let (o, h, l, c) = (x, x + 1, x - 1, x);
+                if up {
+                    (o, h, l, c)
+                } else {
+                    (10000 - o, 10000 - l, 10000 - h, 10000 - c)
+                }
+            })
+            .collect()
+    }
+
+    /// #1420/#1394 预整合：共享包含事实入口不得丢 K1，正常与退化输入均同全量入口逐位一致。
+    /// 本测试只执行解析/内存线形，不创建 S 库；正式恢复仍由下面会话测试承担。
+    #[test]
+    fn tb02w_group_evidence_store_matches_full_on_resume() {
+        const POINTS: &[i64] = &[0, 20, 10, 40, 25, 35, 22, 45, 30, 38, 26, 34];
+        for up in [true, false] {
+            for degraded in [false, true] {
+                for budget in [0, 1, 50, 200] {
+                    let config = ThetaConfig::default();
+                    let rows = design_rows(POINTS, up, 6);
+                    let mut state = parser::inclusion::IncrFactsState::empty();
+                    let mut bars = Vec::new();
+                    let mut checkpoints = Vec::new();
+                    let mut seen_second = false;
+                    let mut seen_grant = false;
+                    for (j, &(open, high, low, close)) in rows.iter().enumerate() {
+                        let bar = Bar {
+                            source_index: if degraded { rows.len() - j } else { j },
+                            timestamp: j as i64,
+                            open,
+                            high,
+                            low,
+                            close,
+                            volume: 1.0,
+                            untradable: false,
+                        };
+                        bars.push(bar);
+                        state.append(bar);
+                        let mut restored = parser::second_fold::SecondFoldStore::new(budget);
+                        for wire in &checkpoints {
+                            restored.restore(wire);
+                        }
+                        let (expected, full, full_store) =
+                            parser::parse_layer_with_inclusion_facts_store(
+                                &bars,
+                                &config,
+                                restored.clone(),
+                            );
+                        let (actual, groups, shared_store) =
+                            parser::parse_layer_with_group_evidence_store(
+                                &state, &config, restored,
+                            );
+                        assert_eq!(
+                            actual,
+                            expected,
+                            "up={up} degraded={degraded} budget={budget} prefix={}",
+                            bars.len()
+                        );
+                        assert_eq!(groups.groups, full.groups);
+                        assert_eq!(Some(groups.stroke_facts), full.stroke_facts);
+                        seen_second |= groups
+                            .segment_facts
+                            .candidates
+                            .iter()
+                            .any(|c| c.second.is_some());
+                        assert_eq!(Some(groups.segment_facts), full.segment_facts);
+                        assert_eq!(shared_store.round_budget, budget);
+                        assert_eq!(shared_store.checkpoint(), full_store.checkpoint());
+                        assert_eq!(shared_store.round_counts(), full_store.round_counts());
+                        seen_grant |= shared_store.round_counts().1 > 0;
+                        checkpoints = shared_store.checkpoint();
+                    }
+                    assert_eq!(state.degraded(), degraded);
+                    if !degraded {
+                        assert!(seen_second, "对拍必须覆盖 SECOND 候选");
+                        if budget == 1 {
+                            assert!(seen_grant, "预算 1 必须覆盖检查点恢复后的追加预算");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn design_input(rows: &[(i64, i64, i64, i64)]) -> Value {
+        let lows_highs: Vec<_> = rows.iter().map(|r| (r.2, r.1)).collect();
+        let mut input = ohlc_input(&lows_highs, false);
+        for (i, r) in rows.iter().enumerate() {
+            input["events"][i]["open"] = json!(r.0.to_string());
+            input["events"][i]["close"] = json!(r.3.to_string());
+        }
+        input
+    }
+
+    /// 快照中段合同对象全数过 Python 合同（逐对象 + 同 cut 引用）。
+    fn contract_check(snapshot: &Value) {
+        use std::io::Write;
+        let program = "import json,sys;sys.path.insert(0,sys.argv[1]);import s_tb02_contract as c;objs=json.load(sys.stdin)\nseg=[o for o in objs if o['kind'] in c.SEGMENT_KINDS]\nfor o in seg: c.validate_payload(o['kind'],o['payload'])\nc.validate_segment_links(seg)\n";
+        let mut child = std::process::Command::new("python3")
+            .arg("-c")
+            .arg(program)
+            .arg(fixture(""))
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(snapshot["objects"].to_string().as_bytes())
+            .unwrap();
+        let out = child.wait_with_output().unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    fn segment_data(snapshot: &Value, kind: &str, entity: &str) -> Option<Value> {
+        snapshot["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find_map(|o| {
+                (o["kind"] == kind && o["payload"]["data"]["entity_id"] == entity)
+                    .then(|| o["payload"]["data"].clone())
+            })
+    }
+
+    fn version_data(snapshot: &Value) -> Value {
+        snapshot["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|o| o["kind"] == "CC-056.segment_version")
+            .unwrap()["payload"]["data"]
+            .clone()
+    }
+
+    /// 依次接纳前 `counts[i]` 根并各推进一代（一代一轮调度）；返回每代快照。S 每代全量重算并核
+    /// 整条代链，debug 下逐根推进过慢，故只在关心的切点推进。
+    fn run_design(
+        rows: &[(i64, i64, i64, i64)],
+        budget: Option<u32>,
+        counts: &[usize],
+    ) -> (TestFiles, Vec<Value>) {
+        tb02c::TEST_ROUND_BUDGET.with(|c| c.set(budget));
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let mut snaps = vec![];
+        for &count in counts {
+            accept_ohlc(&files, &design_input(&rows[..count]));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            let snap = snapshot_of(&files, None);
+            contract_check(&snap);
+            snaps.push(snap);
+        }
+        tb02c::TEST_ROUND_BUDGET.with(|c| c.set(None));
+        (files, snaps)
+    }
+
+    fn final_results(snapshot: &Value) -> Vec<(Value, Value, Value)> {
+        snapshot["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|o| o["kind"] == "CC-013.segment")
+            .map(|o| {
+                let d = &o["payload"]["data"];
+                (
+                    d["entity_id"].clone(),
+                    d["result"].clone(),
+                    d["geometric_end"].clone(),
+                )
+            })
+            .collect()
+    }
+
+    fn assert_killed_published(snaps: &[Value], up: bool, round: &str) {
+        let mut killed_seen = false;
+        for snap in snaps {
+            let v = version_data(snap);
+            assert_eq!(v["scan_budget"]["round_strokes"], round);
+            if round == "0" {
+                assert_eq!(v["scan_cursors"], json!([]), "预算 0 无调度检查点");
+            }
+            assert_eq!(
+                v["delivered_scope"],
+                "seed_strict_first_and_second_terminal"
+            );
+            let Some(seg) = segment_data(snap, "CC-013.segment", "segment:1:1") else {
+                continue;
+            };
+            if seg["result"] != "KILLED_CASE_TWO" {
+                continue;
+            }
+            killed_seen = true;
+            assert_eq!(
+                seg["waiting_reasons"][0],
+                "second_candidate_killed_by_new_extreme"
+            );
+            let second =
+                segment_data(snap, "CC-012.feature_sequence", "second:segment:1:1").unwrap();
+            assert_eq!(second["second_sequence_status"], "KILLED");
+            assert_eq!(second["scan"]["semantic_state"], "KILLED_BY_NEW_EXTREME");
+            assert_eq!(
+                second["facts"]["killed_by"]["comparison"],
+                if up { ">" } else { "<" }
+            );
+            assert_eq!(second["scan"]["cursor"]["schema"], "second-fold-cursor/1");
+        }
+        assert!(killed_seen, "up={up}: 越界先到须发布 KILLED_CASE_TWO");
+        assert_eq!(
+            segment_data(snaps.last().unwrap(), "CC-013.segment", "segment:1:1").unwrap()["result"],
+            "CASE_ONE",
+            "up={up}: 078:52 失效后原段延续、由后续第一种情况终结"
+        );
+    }
+
+    /// #1420 tb02c 片：失效候选进 S（KILLED_CASE_TWO / SECOND=KILLED / 三态扫描事实），全程过合同；
+    /// 预算 1 时耗尽候选下一 cut 先追加预算再续扫（检查点经 CC-056 的 K1 线形带入），不会永久停在
+    /// INCOMPLETE，输入走完后与预算 0 的结论相同；recover 后快照不变、续接新输入照常推进。
+    /// 设计点笔 j 在第 4j+7 根时已知：s5（候选 c）27、s6（越界）31、s7（A 终结）35。预算 1 时候选在
+    /// 27 耗尽、29 追加后 OPEN、31 再耗尽、33 追加到 3 笔即在末笔 s6 判失效。
+    #[test]
+    fn tb02w_killed_case_two_scan_budget_resume_and_recover() {
+        const KILLED: &[i64] = &[0, 20, 10, 40, 25, 35, 22, 45, 30, 38, 26, 34];
+        let down = design_rows(KILLED, false, 0);
+        let (_, snaps) = run_design(&down, None, &[31, 33, down.len()]);
+        assert_killed_published(&snaps, false, "0");
+        let rows = design_rows(KILLED, true, 6);
+        let (_, base) = run_design(&rows, None, &[rows.len()]);
+        let counts: Vec<usize> = (25..rows.len()).step_by(2).chain([rows.len()]).collect();
+        let (files, budgeted) = run_design(&rows, Some(1), &counts);
+        assert_killed_published(&budgeted, true, "1");
+        let mut bound_seen = false;
+        let mut granted_max = 0u64;
+        for snap in &budgeted {
+            let Some(second) = segment_data(snap, "CC-012.feature_sequence", "second:segment:1:1")
+            else {
+                continue;
+            };
+            if second["scan"]["coverage"] == "INCOMPLETE_RESOURCE_BOUND" {
+                bound_seen = true;
+                assert!(second["scan"]["semantic_state"].is_null());
+                let seg = segment_data(snap, "CC-013.segment", "segment:1:1").unwrap();
+                assert_eq!(seg["result"], "PENDING_CASE_TWO");
+                assert!(seg["waiting_reasons"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&json!("second_sequence_resource_bound")));
+                assert_ne!(
+                    version_data(snap)["scan_cursors"],
+                    json!([]),
+                    "耗尽游标须进检查点"
+                );
+            }
+            let g = second["scan"]["budget"]["granted"]
+                .as_str()
+                .unwrap()
+                .parse::<u64>()
+                .unwrap();
+            granted_max = granted_max.max(g);
+        }
+        assert!(bound_seen, "预算 1 须出现耗尽");
+        assert!(granted_max >= 3, "跨 cut 追加预算未发生（{granted_max}）");
+        assert_eq!(
+            final_results(budgeted.last().unwrap()),
+            final_results(base.last().unwrap()),
+            "续扫完毕与预算 0 结论相同"
+        );
+        tb02c::TEST_ROUND_BUDGET.with(|c| c.set(Some(1)));
+        let before = snapshot_of(&files, None);
+        cmd_recover(&files.db(), "2").unwrap();
+        assert_eq!(snapshot_of(&files, None), before, "recover 不改已发布 cut");
+        let mut more = rows.clone();
+        let last = *more.last().unwrap();
+        // 沿末笔方向再延伸一根：只延长末笔，结论不应变。
+        let step = (last.3 - more[more.len() - 2].3).signum() * 100;
+        more.push((last.0 + step, last.1 + step, last.2 + step, last.3 + step));
+        accept_core(
+            &files.db(),
+            &canonical_json(&design_input(&more)),
+            &fixture("profiles/ohlc_integer_tb02a_v1.json"),
+            "2",
+            None,
+        )
+        .unwrap();
+        cmd_advance(&files.db(), "2").unwrap();
+        let after = snapshot_of(&files, None);
+        tb02c::TEST_ROUND_BUDGET.with(|c| c.set(None));
+        contract_check(&after);
+        assert_eq!(
+            final_results(&after),
+            final_results(base.last().unwrap()),
+            "恢复后续接输入，结论不变"
+        );
     }
 
     /// 显式 (event_id, source_coord, open, high, low, close) 的 OHLC 输入；业务身份由 event_id
@@ -6120,7 +6469,9 @@ mod tests {
     }
 
     #[test]
-    fn tb02a_three_groups_with_equal_roots_wait_for_exact_shape_request() {
+    fn tb02a_three_groups_with_equal_roots_publish_shape_with_root_set() {
+        // #1405（#1343 Q2/Q4）：组 {1,2} 的高点由两根同取 10——极值身份是根集合，不是未定态。
+        // 依赖该组的窗口照常发 CC-006；组/步骤请求不因同价标未定，标签只作证据留在载荷。
         let files = TestFiles::new();
         init_test_db(&files);
         accept_ohlc(
@@ -6138,24 +6489,76 @@ mod tests {
                 .count(),
             3
         );
-        assert!(objects.iter().any(|o| o["kind"] == "CC-005.inclusion_group"
-            && o["payload"]["high_sources"] == json!(["1", "2"])));
-        assert!(!objects.iter().any(|o| o["kind"] == "CC-006.local_shape"));
+        let group = objects
+            .iter()
+            .find(|o| {
+                o["kind"] == "CC-005.inclusion_group"
+                    && o["payload"]["high_sources"] == json!(["1", "2"])
+            })
+            .unwrap();
+        assert_eq!(
+            group["payload"]["waiting_reasons"],
+            json!(["equal_extreme_identity"]),
+            "同价标签留作证据"
+        );
+        let shapes: Vec<_> = objects
+            .iter()
+            .filter(|o| o["kind"] == "CC-006.local_shape")
+            .collect();
+        assert_eq!(shapes.len(), 1, "多根窗口照常发布形态");
+        assert_eq!(
+            (
+                &shapes[0]["window_start"],
+                &shapes[0]["window_mid"],
+                &shapes[0]["window_end"],
+                &shapes[0]["branch"]
+            ),
+            (&json!("0"), &json!("1"), &json!("3"), &json!("RISING"))
+        );
         let knowledge = objects
             .iter()
             .find(|o| o["kind"] == "CC-054.knowledge_state")
             .unwrap();
-        let slot = canonical_json(&json!(["CC-006.local_shape", ["0", "1", "3"]]));
-        let request = knowledge["payload"]["requests"]
+        assert_eq!(
+            knowledge["payload"]["domain"],
+            "established_direction_with_extreme_root_sets"
+        );
+        assert!(!knowledge["payload"]["waiting_reasons"]
             .as_array()
             .unwrap()
+            .contains(&json!("equal_extreme_identity")));
+        let requests = knowledge["payload"]["requests"].as_array().unwrap();
+        assert!(
+            requests.iter().all(|r| r["subject_id"].is_string()
+                || r["request_id"] == canonical_json(&json!(["CC-006.local_shape", "pending"]))),
+            "不再有 subject=null 的同价窗口请求"
+        );
+        for slot in [
+            json!(["CC-006.local_shape", ["0", "1", "3"]]),
+            json!(["CC-005.inclusion_group", "1"]),
+            json!(["CC-004.inclusion_step", "2"]),
+        ] {
+            let request = requests
+                .iter()
+                .find(|r| r["request_id"] == canonical_json(&slot))
+                .unwrap_or_else(|| panic!("缺请求 {slot}"));
+            assert!(request["subject_id"].is_string(), "{slot}");
+            assert_eq!(request["reasons"], json!([]), "{slot}");
+            assert_eq!(request["axes"]["computation"], "COMPLETE", "{slot}");
+            assert_eq!(request["axes"]["applicability"], "IN_DOMAIN", "{slot}");
+        }
+        let step = objects
             .iter()
-            .find(|r| r["request_id"] == slot)
+            .find(|o| {
+                o["kind"] == "CC-004.inclusion_step"
+                    && o["payload"]["incoming"]["source_coord"] == "2"
+            })
             .unwrap();
-        assert!(request["subject_id"].is_null());
-        assert_eq!(request["reasons"], json!(["equal_extreme_identity"]));
-        assert_eq!(request["source_coords"], json!(["0", "1", "2", "3"]));
-        assert_eq!(request["axes"]["computation"], "INCOMPLETE");
+        assert_eq!(
+            step["payload"]["waiting_reasons"],
+            json!(["equal_extreme_identity"]),
+            "步骤载荷的同价标签留作证据"
+        );
         let conn = open_db(&files.db()).unwrap();
         let evidence: String = conn
             .query_row(
@@ -6165,7 +6568,12 @@ mod tests {
             )
             .unwrap();
         let evidence: Value = serde_json::from_str(&evidence).unwrap();
-        assert_eq!(evidence["axes"]["CC-006"]["run_status"], "waiting");
+        // 原 #1373 门下此处为 "waiting"；同价窗口照常发布后 CC-006 轴实际运行。
+        assert_eq!(evidence["axes"]["CC-006"]["run_status"], "run");
+        assert_eq!(
+            evidence["axes"]["CC-006"]["evidence"]["waiting_reasons"],
+            json!([])
+        );
     }
 
     #[test]
@@ -7704,6 +8112,118 @@ mod tests {
         assert!(!financial_basis_pending(&open_db(&files.db()).unwrap()).unwrap());
     }
 
+    /// #1405/#1420：人工元数据负控，不是旧 producer 导出的历史原件。
+    /// 空库 / 已接纳未发布 raw / 未决 Begin 均在版本门拒绝，所有表原值保持；当前规则正控可恢复。
+    #[test]
+    fn tb1405_composed_s2_recover_rejects_old_rules_before_any_persistent_change() {
+        fn stored_rows(conn: &Connection) -> Vec<(String, Vec<Vec<rusqlite::types::Value>>)> {
+            let tables = {
+                let mut stmt = conn
+                    .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+                    .unwrap();
+                let rows = stmt.query_map([], |r| r.get::<_, String>(0)).unwrap();
+                rows.collect::<Result<Vec<_>, _>>().unwrap()
+            };
+            tables
+                .into_iter()
+                .map(|table| {
+                    let quoted = table.replace('"', "\"\"");
+                    let mut stmt = conn
+                        .prepare(&format!("SELECT * FROM \"{quoted}\""))
+                        .unwrap();
+                    let columns = stmt.column_count();
+                    let mut rows = stmt
+                        .query_map([], |r| {
+                            (0..columns)
+                                .map(|n| r.get::<_, rusqlite::types::Value>(n))
+                                .collect::<rusqlite::Result<Vec<_>>>()
+                        })
+                        .unwrap()
+                        .collect::<Result<Vec<_>, _>>()
+                        .unwrap();
+                    rows.sort_by_cached_key(|row| format!("{row:?}"));
+                    (table, rows)
+                })
+                .collect()
+        }
+        for rule in [
+            "s2-axis-quantifiers",
+            "s2-axis-quantifiers+new-bi/1",
+            "s2-axis-quantifiers+new-bi/2",
+            "s2-axis-quantifiers+new-bi/1+segment-first/1",
+            "s2-axis-quantifiers+new-bi/1+segment-second/1",
+            "s2-axis-quantifiers+new-bi/2+segment-second/1",
+            "s2-axis-quantifiers+new-bi/1+segment-second/2",
+            "unknown-rule",
+            RULE_REVISION,
+        ] {
+            for pending in 0..3 {
+                let files = TestFiles::new();
+                init_test_db(&files);
+                if pending > 0 {
+                    accept(
+                        &files,
+                        &test_input(&[ev("e0", "1", "0", "10000")]),
+                        "recover-rule.json",
+                        DEFAULT_WRITER_EPOCH,
+                    );
+                }
+                let conn = open_db(&files.db()).unwrap();
+                if pending == 2 {
+                    meta_set(&conn, "advance_state", "begun:dead:1:0").unwrap();
+                    meta_set(&conn, "begin_token", "dead").unwrap();
+                }
+                // 未生成任何新笔/段对象；只构造版本门负控，不重标当前 producer 原件为历史合同。
+                meta_set(&conn, "rule_revision", rule).unwrap();
+                let before = stored_rows(&conn);
+                let result = recover_core(&files.db(), "2", None);
+                if rule == RULE_REVISION {
+                    let receipt = result.unwrap();
+                    assert_eq!(receipt["new_epoch"], "2");
+                    assert_eq!(
+                        meta_get_opt(&conn, "writer_epoch").unwrap().as_deref(),
+                        Some("2")
+                    );
+                    assert_eq!(
+                        meta_get_opt(&conn, "advance_state").unwrap().as_deref(),
+                        Some("idle")
+                    );
+                } else {
+                    assert!(
+                        result.unwrap_err().starts_with("VersionMismatch："),
+                        "{rule}/{pending}"
+                    );
+                    assert_eq!(stored_rows(&conn), before, "{rule}/{pending}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn tb1405_composed_s2_recover_rejects_old_rule_before_journal_mode_change() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let conn = Connection::open(files.db()).unwrap();
+        meta_set(&conn, "rule_revision", "s2-axis-quantifiers+new-bi/1").unwrap();
+        let mode: String = conn
+            .query_row("PRAGMA journal_mode=DELETE", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(mode, "delete");
+        let before = db_meta(&conn).unwrap();
+        drop(conn);
+
+        assert!(recover_core(&files.db(), "2", None)
+            .unwrap_err()
+            .starts_with("VersionMismatch："));
+
+        let conn = Connection::open(files.db()).unwrap();
+        let mode: String = conn
+            .query_row("PRAGMA journal_mode", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(mode, "delete");
+        assert_eq!(db_meta(&conn).unwrap(), before);
+    }
+
     #[test]
     fn recover_clears_pending_begin_and_keeps_reachable_root() {
         let files = TestFiles::new();
@@ -8529,18 +9049,23 @@ mod tests {
 
         let s = snapshot_of(&files, None);
         // 见证 raw_bars.supersedes_revision 必须是规范十进制字符串（不 Number 中转）。
-        let mut saw_supersedes: Option<String> = None;
+        // #1420：见证按 object_id（含 rule_revision 的内容哈希）排序，规则版本变更即换序；
+        // 不以「最后一个」见证代表最新修订，只核所有引用都是字符串且含精确往返的 >2^53 值。
+        let mut saw_supersedes = std::collections::BTreeSet::new();
         for w in s["witnesses"].as_array().unwrap() {
             for rb in w["raw_bars"].as_array().unwrap() {
                 if let Some(sup) = rb.get("supersedes_revision") {
                     if !sup.is_null() {
                         assert!(sup.is_string(), "supersedes_revision 应为字符串：{sup}");
-                        saw_supersedes = Some(sup.as_str().unwrap().to_string());
+                        saw_supersedes.insert(sup.as_str().unwrap().to_string());
                     }
                 }
             }
         }
-        assert_eq!(saw_supersedes.as_deref(), Some("9007199254740993"));
+        assert!(
+            saw_supersedes.contains("9007199254740993"),
+            "第二次 >2^53 修订的 supersedes 须精确往返：{saw_supersedes:?}"
+        );
         // raw_history 的 supersedes_revision 同样为字符串。
         for r in s["raw_history"].as_array().unwrap() {
             if r["supersedes_revision"] != Value::Null {

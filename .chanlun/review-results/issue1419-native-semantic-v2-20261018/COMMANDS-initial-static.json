@@ -1,0 +1,110 @@
+[
+  {
+    "argv": [
+      "git",
+      "rev-parse",
+      "HEAD"
+    ],
+    "exit_code": 0,
+    "stdout": "5cb7253d46d973669e7d10cd3331e12c9ef313b1\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "diff",
+      "--name-only",
+      "5cb7253d46d973669e7d10cd3331e12c9ef313b1"
+    ],
+    "exit_code": 0,
+    "stdout": "rust/src/bin/s_session_v2/content_bi.rs\nrust/src/bin/s_session_v2/content_producer.rs\nrust/src/bin/s_session_v2/tb02a_facts.rs\nrust/src/bin/s_session_v2/tb02b.rs\nrust/src/bin/s_session_v2/tb02c.rs\nrust/src/bin/s_session_v3/audit_owner.rs\nrust/src/bin/s_session_v3/aux_index.rs\nrust/src/bin/s_session_v3/catalog_evidence.rs\nrust/src/bin/s_session_v3/driver.rs\nrust/src/bin/s_session_v3/generation.rs\nrust/src/bin/s_session_v3/mod.rs\nrust/src/bin/s_session_v3/object_index.rs\nrust/src/bin/s_session_v3/object_records.rs\nrust/src/bin/s_session_v3/prepared.rs\nrust/src/bin/s_session_v3/source_audit.rs\nrust/src/bin/s_session_v3/source_contributions.rs\nrust/src/bin/s_session_v3/source_delta.rs\nrust/src/bin/s_session_v3/source_pending.rs\nrust/src/bin/s_structure_session.rs\nrust/src/theta_v0/classifier/center.rs\nrust/src/theta_v0/classifier/mod.rs\nrust/src/theta_v0/classifier/recursive_tower.rs\nrust/src/theta_v0/classifier/tests/mod.rs\nrust/src/theta_v0/config.rs\nrust/src/theta_v0/parser/feature_seq.rs\nrust/src/theta_v0/parser/mod.rs\nrust/src/theta_v0/parser/second_kind.rs\nrust/src/theta_v0/parser/segment.rs\nrust/src/theta_v0/parser/stroke.rs\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "ls-files",
+      "--others",
+      "--exclude-standard"
+    ],
+    "exit_code": 0,
+    "stdout": ".chanlun/review-results/issue1419-native-semantic-v2-20261018/ADAPTATION-MATRIX.md\n.chanlun/review-results/issue1419-native-semantic-v2-20261018/CHECKS.py\n.chanlun/review-results/issue1419-native-semantic-v2-20261018/DEPENDENCY-SOURCES.json\nrust/src/bin/s_session_v2/tb02e.rs\nrust/src/bin/s_session_v2/tb02f.rs\nrust/src/bin/s_session_v3/content_structure.rs\nrust/src/bin/s_session_v3/source_structure.rs\nrust/src/bin/s_session_v3/structure_value.rs\nrust/src/theta_v0/classifier/center_scan.rs\nrust/src/theta_v0/classifier/tests/center_pair_1424.rs\nrust/src/theta_v0/classifier/tests/center_scan_1419.rs\nrust/src/theta_v0/parser/second_fold.rs\nrust/src/theta_v0/parser/stroke_tb02v_tests.rs\nrust/src/theta_v0/parser/tb02w_tests.rs\nrust/tests/fixtures/center_pair_1424_lean.json\nrust/tests/fixtures/center_pair_1424_worked_examples.json\nrust/tests/fixtures/tb02v_same_price/real_C_bars14_40_multi_root_second_gate.json\nrust/tests/fixtures/tb02v_same_price/syn2_multi_root_group.json\nrust/tests/fixtures/tb02v_same_price/syn3_multi_root_replace.json\ns_session/tests/fixtures/tb02e-real/btc-tail50k-first600.json\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "rustfmt",
+      "--edition",
+      "2021",
+      "--config",
+      "skip_children=true",
+      "--check",
+      "rust/src/bin/s_session_v2/content_bi.rs",
+      "rust/src/bin/s_session_v2/content_producer.rs",
+      "rust/src/bin/s_session_v2/tb02a_facts.rs",
+      "rust/src/bin/s_session_v2/tb02b.rs",
+      "rust/src/bin/s_session_v2/tb02c.rs",
+      "rust/src/bin/s_session_v2/tb02e.rs",
+      "rust/src/bin/s_session_v2/tb02f.rs",
+      "rust/src/bin/s_session_v3/audit_owner.rs",
+      "rust/src/bin/s_session_v3/aux_index.rs",
+      "rust/src/bin/s_session_v3/catalog_evidence.rs",
+      "rust/src/bin/s_session_v3/content_structure.rs",
+      "rust/src/bin/s_session_v3/driver.rs",
+      "rust/src/bin/s_session_v3/generation.rs",
+      "rust/src/bin/s_session_v3/mod.rs",
+      "rust/src/bin/s_session_v3/object_index.rs",
+      "rust/src/bin/s_session_v3/object_records.rs",
+      "rust/src/bin/s_session_v3/prepared.rs",
+      "rust/src/bin/s_session_v3/source_audit.rs",
+      "rust/src/bin/s_session_v3/source_contributions.rs",
+      "rust/src/bin/s_session_v3/source_delta.rs",
+      "rust/src/bin/s_session_v3/source_pending.rs",
+      "rust/src/bin/s_session_v3/source_structure.rs",
+      "rust/src/bin/s_session_v3/structure_value.rs",
+      "rust/src/bin/s_structure_session.rs",
+      "rust/src/theta_v0/classifier/center.rs",
+      "rust/src/theta_v0/classifier/center_scan.rs",
+      "rust/src/theta_v0/classifier/mod.rs",
+      "rust/src/theta_v0/classifier/recursive_tower.rs",
+      "rust/src/theta_v0/classifier/tests/center_pair_1424.rs",
+      "rust/src/theta_v0/classifier/tests/center_scan_1419.rs",
+      "rust/src/theta_v0/classifier/tests/mod.rs",
+      "rust/src/theta_v0/config.rs",
+      "rust/src/theta_v0/parser/feature_seq.rs",
+      "rust/src/theta_v0/parser/mod.rs",
+      "rust/src/theta_v0/parser/second_fold.rs",
+      "rust/src/theta_v0/parser/second_kind.rs",
+      "rust/src/theta_v0/parser/segment.rs",
+      "rust/src/theta_v0/parser/stroke.rs",
+      "rust/src/theta_v0/parser/stroke_tb02v_tests.rs",
+      "rust/src/theta_v0/parser/tb02w_tests.rs"
+    ],
+    "exit_code": 1,
+    "stdout": "Diff in /Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/adapt-v2-worktree/rust/src/bin/s_session_v3/mod.rs:55:\n mod financial_reader;\n // #1394 DESIGN-R6 c2 候选：长驻只读财务会话（待 §5.7 多请求一致性修订裁定）。\n pub(crate) mod content_structure;\n-pub(crate) mod structure_value;\n #[cfg(unix)]\n mod financial_session;\n pub(crate) mod fixed_radix;\nDiff in /Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/adapt-v2-worktree/rust/src/bin/s_session_v3/mod.rs:86:\n mod q_wire;\n mod reader;\n mod request_audit;\n+pub(crate) mod structure_value;\n #[cfg(feature = \"s_capture_native_testonly\")]\n pub(crate) use request_audit::ManifestWorkspaceBudget;\n mod s_allocation;\nDiff in /Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/adapt-v2-worktree/rust/src/theta_v0/classifier/tests/mod.rs:9:\n mod rebase_txn;\n mod third_class_anchor;\n \n-mod center_scan_1419;\n mod center_pair_1424;\n+mod center_scan_1419;\n \n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "diff",
+      "--check",
+      "5cb7253d46d973669e7d10cd3331e12c9ef313b1"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "diff",
+      "5cb7253d46d973669e7d10cd3331e12c9ef313b1",
+      "--",
+      "rust/src/theta_v0/parser/inclusion.rs"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  }
+]

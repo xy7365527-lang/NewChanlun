@@ -36,6 +36,8 @@ pub(crate) use source_contributions::{
 mod source_pending;
 #[path = "source_prefix.rs"]
 mod source_prefix;
+#[path = "source_structure.rs"]
+mod source_structure;
 use source_prefix::{NativeSourceMemo, ParseDomain, SourceCoords};
 #[cfg(test)]
 pub(super) fn reset_native_source_prefix_stats() {
@@ -832,6 +834,7 @@ pub(super) struct Counts {
 }
 // 来源判据依赖精确查找而不依赖哈希布局。Native 的持久树不会在扩容时重排全历史。
 trait RawLookup {
+    fn len(&self) -> usize;
     fn get(&self, coord: &i64) -> Option<&Source>;
     fn contains_key(&self, coord: &i64) -> bool {
         self.get(coord).is_some()
@@ -841,6 +844,9 @@ trait RawLookup {
     }
 }
 impl RawLookup for BusinessMap<i64, Source> {
+    fn len(&self) -> usize {
+        BusinessMap::len(self)
+    }
     fn get(&self, coord: &i64) -> Option<&Source> {
         BusinessMap::get(self, coord)
     }
@@ -849,6 +855,9 @@ impl RawLookup for BusinessMap<i64, Source> {
     }
 }
 impl<T: RawLookup + ?Sized> RawLookup for &T {
+    fn len(&self) -> usize {
+        (**self).len()
+    }
     fn get(&self, coord: &i64) -> Option<&Source> {
         (**self).get(coord)
     }
@@ -1622,6 +1631,8 @@ fn audit_object_record(
     record: &RefValue,
     raw: &(impl RawLookup + ?Sized),
     producer: &Cc004Producer,
+    rule: &str,
+    current_generation: i64,
     ids: &mut BusinessMap<bj::TextValue, ()>,
     groups: &mut BusinessMap<i64, Group>,
     checked_refs: &mut BusinessMap<(NodeDigest, bool), i64>,
@@ -1636,6 +1647,8 @@ fn audit_object_record(
         record,
         raw,
         producer,
+        rule,
+        current_generation,
         &mut FullObjectSlots { ids, groups },
         checked_refs,
         native_sources,
@@ -1651,6 +1664,8 @@ fn audit_object_record_with_slots(
     record: &RefValue,
     raw: &(impl RawLookup + ?Sized),
     producer: &Cc004Producer,
+    rule: &str,
+    current_generation: i64,
     slots: &mut impl ObjectSlots,
     checked_refs: &mut BusinessMap<(NodeDigest, bool), i64>,
     mut native_sources: Option<&mut NativeSourceMemo<'_>>,
@@ -1710,6 +1725,7 @@ fn audit_object_record_with_slots(
         ]
         .contains(&kind.as_str())
             && !tb02b::KINDS.contains(&kind.as_str())
+            && !source_structure::is_kind(rule, kind.as_str())
         {
             return Err(err("未声明typed事实种类"));
         }
@@ -1767,13 +1783,12 @@ fn audit_object_record_with_slots(
             return Err(err("typed obj3身份与来源/载荷原件不符"));
         }
         if tb02b::KINDS.contains(&kind.as_str()) {
+            let contract =
+                tb02b::contract_for_rule(rule).ok_or_else(|| err("新笔来源审计规则修订未声明"))?;
             for (k, want) in [
-                ("schema_revision", "s-new-bi/1"),
-                (
-                    "semantic_version",
-                    newchan_rust::theta_v0::parser::stroke::RULE,
-                ),
-                ("policy_version", "standard_raw_gap_3"),
+                ("schema_revision", contract.schema),
+                ("semantic_version", contract.semantic),
+                ("policy_version", contract.policy),
                 ("view_role", "main"),
             ] {
                 if text(s, &payload, k)? != want {
@@ -1791,6 +1806,24 @@ fn audit_object_record_with_slots(
                 )?
             {
                 return Err(err("新笔payload槽位与fact_key不同"));
+            }
+        }
+        if source_structure::is_kind(rule, kind.as_str()) {
+            source_structure::audit_payload(
+                s,
+                kind.as_str(),
+                &payload,
+                parsed.index(1).unwrap(),
+                &sources,
+                raw,
+                current_generation,
+            )?;
+        }
+        if kind == CC054_KNOWLEDGE_KIND {
+            let contract = tb02b::contract_for_rule(rule)
+                .ok_or_else(|| err("知识域来源审计规则修订未声明"))?;
+            if text(s, &payload, "domain")? != contract.knowledge_domain {
+                return Err(err("TB-02-A 知识域与cut规则版本不符"));
             }
         }
         if kind == CC005_GROUP_KIND {
@@ -2205,6 +2238,11 @@ fn audit_generated_in_store(
         }
         &ordinary_raw
     };
+    let current_generation = if rule == crate::V3_STRUCTURE_RULE_REVISION {
+        number(s, state, "generation")?
+    } else {
+        0
+    };
     let object_array = field_ref(s, state, "objects")?;
     #[cfg(test)]
     super::state::trace_event("source_objects", None);
@@ -2223,6 +2261,8 @@ fn audit_generated_in_store(
             &record,
             raw,
             &producer,
+            rule,
+            current_generation,
             &mut ids,
             &mut groups,
             &mut checked_refs,
@@ -2235,8 +2275,9 @@ fn audit_generated_in_store(
         s.native_codec_room(&mut objects, 1).map_err(err)?;
         objects.try_push(object).map_err(err)?;
     }
+    source_structure::audit_full(s, &objects, rule)?;
     // #1394 r3：先绑定已发布未定事实，再核组成员与 pending 的不交完备并集。
-    let pending = source_pending::audit(s, objects.iter(), raw, &groups, deadline)?;
+    let pending = source_pending::audit(s, objects.iter(), raw, &groups, rule, deadline)?;
     let mut partition = bj::new_map(allocation.as_ref());
     let ordered_groups = sorted_numeric_entries(s, &groups)?;
     #[cfg(test)]
@@ -2346,6 +2387,177 @@ mod tests {
         tests::{accept_ohlc, init_test_db, located_ohlc_input, tb02b_oracle_rows, TestFiles},
     };
     use sc::MemoryNodes;
+
+    // #1419：用共享工厂生成真实身份与记录，再走公共 full/native 共用的对象来源门。
+    // 这里只测规则修订准入；空原始账不抵扣正式非空结构输入验收。
+    fn audit_rule_kind_record(
+        nodes: &mut MemoryNodes,
+        rule: &str,
+        kind: &str,
+        slot: &Value,
+        payload: &Value,
+        memo_fields: bool,
+    ) -> Result<Object, String> {
+        let producer = Cc004Producer::new(tb02a::PROFILE, rule);
+        let empty = sc::write_value(nodes, &V::Array(vec![])).unwrap();
+        let object = producer
+            .build_object(
+                nodes,
+                kind,
+                canonical_json(&json!([kind, slot])),
+                cv(payload).unwrap(),
+                empty.clone(),
+                empty,
+                1,
+                "cut-1",
+            )
+            .unwrap();
+        let record = RefValue::Plain(object.record.content_ref());
+        // 工厂记录还含三个内部值边；来源核消费现有 TYPED 定义的十字段公开投影。
+        let mut public_fields = vec![];
+        for key in TYPED {
+            let value = field(nodes, &record, key).unwrap();
+            public_fields.push(((*key).to_string(), V::Edge(digest(&value).unwrap())));
+        }
+        let record = RefValue::Plain(
+            sc::write_value(nodes, &V::Object(public_fields))
+                .unwrap()
+                .content_ref(),
+        );
+        audit_object_record(
+            nodes,
+            &record,
+            &BusinessMap::<i64, Source>::plain(),
+            &producer,
+            rule,
+            1,
+            &mut BusinessMap::plain(),
+            &mut BusinessMap::plain(),
+            &mut BusinessMap::plain(),
+            None,
+            0,
+            memo_fields,
+            None,
+            None,
+        )
+    }
+
+    #[test]
+    fn structure_rule_rejects_new_kinds_under_legacy_rules() {
+        for rule in [crate::LEGACY_V3_RULE_REVISION, crate::V3_RULE_REVISION] {
+            for kind in crate::tb02c::KINDS
+                .iter()
+                .chain(crate::tb02e::KINDS)
+                .chain(crate::tb02f::KINDS)
+            {
+                for memo_fields in [false, true] {
+                    let mut nodes = MemoryNodes::default();
+                    let result = audit_rule_kind_record(
+                        &mut nodes,
+                        rule,
+                        kind,
+                        &json!("test-slot"),
+                        &json!({}),
+                        memo_fields,
+                    );
+                    assert_eq!(
+                        result.err(),
+                        Some(err("未声明typed事实种类")),
+                        "旧规则 {rule} 不得放行 {kind}，memo_fields={memo_fields}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn structure_rule_accepts_declared_versions_and_checks_payload() {
+        let rule = crate::V3_STRUCTURE_RULE_REVISION;
+        for memo_fields in [false, true] {
+            let mut nodes = MemoryNodes::default();
+            let mut objects = vec![];
+            for (kind, slot, schema, semantic, policy, delivered) in [
+                (
+                    "CC-056.segment_version",
+                    "TB-02-W",
+                    crate::tb02c::SCHEMA,
+                    newchan_rust::theta_v0::parser::segment::CONSTRUCTION_RULE,
+                    "seed_closed_strict_second",
+                    "seed_strict_first_and_second_terminal",
+                ),
+                (
+                    "CC-056.center_version",
+                    "TB-02-E",
+                    crate::tb02e::SCHEMA_REVISION,
+                    "center-seed/1",
+                    "strict_seed_zn_outer_c_resume",
+                    "l0_strict_seed_zn_roles_c_resume_assignment",
+                ),
+                (
+                    "CC-056.pair_version",
+                    "TB-02-F",
+                    crate::tb02f::SCHEMA_REVISION,
+                    "center-pair/1",
+                    "zn_outer_five_leaf_pending_ge9",
+                    "l0_adjacent_pair_five_leaf_zn_outer_and_unit_core_position",
+                ),
+            ] {
+                let mut payload = json!({
+                    "schema_revision": schema,
+                    "semantic_version": semantic,
+                    "policy_version": policy,
+                    "view_role": "main",
+                    "object_generation": "1",
+                    "slot": slot,
+                    "data": {
+                        "delivered_scope": delivered,
+                        "waiting_reasons": [],
+                        "deferred_scope": [],
+                        "input_frontier": "-1"
+                    }
+                });
+                objects.push(
+                    audit_rule_kind_record(
+                        &mut nodes,
+                        rule,
+                        kind,
+                        &json!(slot),
+                        &payload,
+                        memo_fields,
+                    )
+                    .unwrap(),
+                );
+                // 新规则放行kind后仍核其载荷；合法obj3身份不能替代此门。
+                payload["data"]["delivered_scope"] = json!("undeclared");
+                assert_eq!(
+                    audit_rule_kind_record(
+                        &mut nodes,
+                        rule,
+                        kind,
+                        &json!(slot),
+                        &payload,
+                        memo_fields,
+                    )
+                    .err(),
+                    Some(err("结构版本槽位/范围/全原始账来源不符"))
+                );
+            }
+            source_structure::audit_full(&mut nodes, &objects, rule).unwrap();
+            assert_eq!(
+                audit_rule_kind_record(
+                    &mut nodes,
+                    rule,
+                    "CC-056.future_version",
+                    &json!("unknown"),
+                    &json!({}),
+                    memo_fields,
+                )
+                .err(),
+                Some(err("未声明typed事实种类"))
+            );
+        }
+    }
+
     pub(super) const STATE: &[&str] = &[
         "generation",
         "structure_cut",
@@ -2434,6 +2646,7 @@ mod tests {
             catalog_revision: &catalog,
             scope: &scope,
             semantic_commit_ns: None,
+            structure_prior: crate::v3::generation::StructurePriors::default(),
             prior: PriorState {
                 bi_records: vec![],
                 version_record: None,
@@ -2812,6 +3025,7 @@ mod tests {
                             catalog_revision: &catalog,
                             scope: &scope,
                             semantic_commit_ns: None,
+                            structure_prior: crate::v3::generation::StructurePriors::default(),
                             prior: PriorState {
                                 bi_records: vec![],
                                 version_record: None,

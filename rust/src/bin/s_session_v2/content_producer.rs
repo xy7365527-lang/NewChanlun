@@ -57,6 +57,75 @@ const OBJECT_REVISION: i64 = 1;
 /// §5.3 的类型化对象身份帧：`F(0x20, V)`。
 const OBJECT_ID_TAG: u8 = 0x20;
 
+/// CC-054 显式分类请求四轴；调用者必须以具体请求的同次证据给出，不能从等待原因推断。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum RequestInputQuality {
+    Sufficient,
+    Insufficient,
+    Inconsistent,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum RequestApplicability {
+    InDomain,
+    OutsideDomain,
+    DomainProofMissing,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum RequestComputation {
+    Complete,
+    Incomplete,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum RequestValidity {
+    Current,
+    Superseded,
+    Withdrawn,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct RequestAxes {
+    pub input_quality: RequestInputQuality,
+    pub applicability: RequestApplicability,
+    pub computation: RequestComputation,
+    pub validity: RequestValidity,
+}
+impl RequestAxes {
+    pub(super) fn fields(self) -> [(&'static str, &'static str); 4] {
+        [
+            (
+                "input_quality",
+                match self.input_quality {
+                    RequestInputQuality::Sufficient => "SUFFICIENT",
+                    RequestInputQuality::Insufficient => "INSUFFICIENT",
+                    RequestInputQuality::Inconsistent => "INCONSISTENT",
+                },
+            ),
+            (
+                "applicability",
+                match self.applicability {
+                    RequestApplicability::InDomain => "IN_DOMAIN",
+                    RequestApplicability::OutsideDomain => "OUTSIDE_DOMAIN",
+                    RequestApplicability::DomainProofMissing => "DOMAIN_PROOF_MISSING",
+                },
+            ),
+            (
+                "computation",
+                match self.computation {
+                    RequestComputation::Complete => "COMPLETE",
+                    RequestComputation::Incomplete => "INCOMPLETE",
+                },
+            ),
+            (
+                "validity",
+                match self.validity {
+                    RequestValidity::Current => "CURRENT",
+                    RequestValidity::Superseded => "SUPERSEDED",
+                    RequestValidity::Withdrawn => "WITHDRAWN",
+                },
+            ),
+        ]
+    }
+}
+
 /// 内容生产错误：缺源、共享态退化、类型不符与长度溢出一律显式拒绝。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum ProducerError {
@@ -953,7 +1022,12 @@ impl Cc004Producer {
             generation,
             cut,
         )?;
-        let mut reasons: Vec<&'static str> = view.waiting_reasons.to_vec();
+        let mut reasons: Vec<_> = view
+            .waiting_reasons
+            .iter()
+            .copied()
+            .filter(|reason| *reason != "equal_extreme_identity")
+            .collect();
         if view.evidence.is_none() && reasons.is_empty() {
             reasons.push("direction_not_yet_established");
         }
@@ -1274,6 +1348,8 @@ impl Cc004Producer {
         ]))
     }
 
+    /// 已具名实际分类请求。保留精确五字段 wire；身份键由调用者绑定主体、子轴、观察路径及版本。
+    /// 此口不复用 A 的原因启发式，false 结果与未计算结果由显式四轴区分。
     /// 待决请求（主体为空）：键与原因由调用方按全量配方给出，本口不造默认值。
     ///
     /// 两类待决形态都用本口：竞争极值窗（键尾 = 三锚坐标数组）与不足三根的
@@ -1337,9 +1413,7 @@ impl Cc004Producer {
             ("waiting_reasons".to_string(), reasons_value()),
             (
                 "domain".to_string(),
-                CValue::String(
-                    "established_direction_without_extreme_identity_competition".to_string(),
-                ),
+                CValue::String(tb02b::CURRENT_CONTRACT.knowledge_domain.to_string()),
             ),
             (
                 "requests".to_string(),
@@ -2106,8 +2180,7 @@ impl Cc004Producer {
 
     /// 从同次 parser 的共享态借出三组窗口并构造 CC-006 形态对象。
     ///
-    /// - `Ok(None)`：`start + 2` 越界（没有该窗口），或窗口内任一组的同角色极值身份仍有竞争
-    ///   （旧生成路径同样不给依赖该组的分型选根，只留待决请求）；
+    /// - `Ok(None)`：`start + 2` 越界（没有该窗口）；#1405 多根极值身份不挡形态发布。
     /// - `Err(Degraded)`：共享态退化，**先于索引判定**；
     /// - `Err(WindowNotClassified)`：窗口不在 CC-006 可判域内（不造第五分型、不回落旧 Value）。
     pub(super) fn build_shape(
@@ -2131,9 +2204,6 @@ impl Cc004Producer {
             return Ok(None);
         };
         let views = [left, mid, right];
-        if shape_window_has_competing_extremes(&views) {
-            return Ok(None);
-        }
         self.build_shape_object(
             store,
             [start, start + 1, start + 2],
@@ -2525,6 +2595,11 @@ impl Cc004Producer {
         view: &GroupEvidenceView<'_>,
         reasons: &[&'static str],
     ) -> Result<CValue, ProducerError> {
+        // #1405：标签保留在原件里，请求原因仅反映方向未建立。
+        let mut labels = reasons.to_vec();
+        if view.high_sources.len() > 1 || view.low_sources.len() > 1 {
+            labels.push("equal_extreme_identity");
+        }
         let members = self.coords_array(&mut *store, &group_members_coords(view))?;
         let high_sources = self.coord_texts_slice(&mut *store, view.high_sources)?;
         let low_sources = self.coord_texts_slice(&mut *store, view.low_sources)?;
@@ -2572,7 +2647,7 @@ impl Cc004Producer {
             (
                 "waiting_reasons".to_string(),
                 CValue::Array(
-                    reasons
+                    labels
                         .iter()
                         .map(|reason| CValue::String((*reason).to_string()))
                         .collect(),
@@ -3032,9 +3107,6 @@ pub(super) fn group_reasons(view: &GroupEvidenceView<'_>) -> Vec<&'static str> {
     if view.direction_evidence.is_none() {
         reasons.push("direction_not_yet_established");
     }
-    if view.high_sources.len() > 1 || view.low_sources.len() > 1 {
-        reasons.push("equal_extreme_identity");
-    }
     reasons
 }
 
@@ -3043,8 +3115,7 @@ pub(super) fn group_reasons_admitted(
     store: &dyn NodeStore,
     view: &GroupEvidenceView<'_>,
 ) -> Result<sc::CodecVec<&'static str>, ProducerError> {
-    let count = usize::from(view.direction_evidence.is_none())
-        + usize::from(view.high_sources.len() > 1 || view.low_sources.len() > 1);
+    let count = usize::from(view.direction_evidence.is_none());
     let mut reasons = if let Some(work) = store.codec_work() {
         // 当前 scope 活性独立核验；此处是空新容器，不借旧许可的同父判断。
         let _active = work.reserve_native(0)?;
@@ -3063,9 +3134,6 @@ pub(super) fn group_reasons_admitted(
     };
     if view.direction_evidence.is_none() {
         reasons.try_push("direction_not_yet_established")?;
-    }
-    if view.high_sources.len() > 1 || view.low_sources.len() > 1 {
-        reasons.try_push("equal_extreme_identity")?;
     }
     Ok(reasons)
 }
@@ -3140,13 +3208,6 @@ fn fractal_relations(bar: &Bar, references: &[(String, i64)]) -> Vec<CValue> {
         }
     }
     relations
-}
-
-/// CC-006 三组窗口里是否还有同角色极值身份竞争（旧生成路径据此不给分型选根）。
-fn shape_window_has_competing_extremes(views: &[GroupEvidenceView<'_>; 3]) -> bool {
-    views
-        .iter()
-        .any(|view| view.high_sources.len() != 1 || view.low_sources.len() != 1)
 }
 
 /// 组对象的来源集合（与全量配方 `group_sources` 同一条）：成员 ∪ 方向证据 ∪ 封口证据。
@@ -4119,9 +4180,6 @@ mod tests {
             .collect();
         let mut records = Vec::new();
         for start in 0..facts.groups.len().saturating_sub(2) {
-            if group_facts_competing(facts, start) {
-                continue;
-            }
             let input_refs = oracle_shape_input_refs(facts, &fixture.raw, start);
             let (branch, dir_ab, dir_bc, comparisons_json) = oracle_shape_parts(
                 &facts.merged[start],
@@ -4247,9 +4305,6 @@ mod tests {
             .collect();
         let mut classified = 0usize;
         for start in 0..facts.groups.len() - 2 {
-            if group_facts_competing(&facts, start) {
-                continue;
-            }
             let input_refs = oracle_shape_input_refs(&facts, &fixture.raw, start);
             let (branch, dir_ab, dir_bc, comparisons_json) = oracle_shape_parts(
                 &facts.merged[start],
@@ -4472,9 +4527,8 @@ mod tests {
     fn cc006_shape_revision_moves_both_ref_encodings_and_rebuilds_after_discard() {
         let mut fixture = fixture_with_profile(CASE_SHAPE, tb02a::PROFILE);
         let facts = fixture.state.materialize_facts();
-        let start = (0..facts.groups.len().saturating_sub(2))
-            .find(|start| !group_facts_competing(&facts, *start))
-            .expect("本夹具至少一个可判窗口");
+        assert!(facts.groups.len() >= 3, "本夹具至少一个可判窗口");
+        let start = 0;
         let before = fixture
             .producer
             .build_shape(&mut fixture.store, &fixture.state, start, GENERATION, CUT)
@@ -4629,7 +4683,13 @@ mod tests {
                     object.object_id.clone(),
                 );
                 requests.push(object.request.clone().expect("步骤请求"));
-                reasons.extend(facts.steps[index].waiting_reasons.iter().copied());
+                reasons.extend(
+                    facts.steps[index]
+                        .waiting_reasons
+                        .iter()
+                        .copied()
+                        .filter(|reason| *reason != "equal_extreme_identity"),
+                );
             }
             // 2) 组
             for index in 0..fixture.state.group_count() {
@@ -4653,45 +4713,11 @@ mod tests {
                 reasons.extend(group_reasons(&view));
                 requests.push(object.request.clone().expect("组请求"));
             }
-            // 3) 竞争极值窗的待决请求（与全量配方同序：按窗口起点）
-            let mut competing = 0usize;
-            for start in 0..facts.groups.len().saturating_sub(2) {
-                if !group_facts_competing(&facts, start) {
-                    continue;
-                }
-                competing += 1;
-                let views = [start, start + 1, start + 2].map(|index| {
-                    fixture
-                        .state
-                        .shared_group(index)
-                        .expect("共享态可用")
-                        .expect("组在域内")
-                });
-                let anchors: Vec<usize> = views.iter().map(|view| view.bar.source_index).collect();
-                let key = CValue::Array(vec![
-                    CValue::String(CC006_SHAPE_KIND.to_string()),
-                    CValue::Array(
-                        anchors
-                            .iter()
-                            .map(|anchor| CValue::String(anchor.to_string()))
-                            .collect(),
-                    ),
-                ]);
-                let sources = group_window_sources(&views);
-                requests.push(
-                    fixture
-                        .producer
-                        .pending_request(
-                            &mut fixture.store,
-                            key,
-                            &["equal_extreme_identity"],
-                            &sources,
-                        )
-                        .expect("待决形态请求"),
-                );
-                reasons.push("equal_extreme_identity");
-            }
-            assert_eq!(competing > 0, want_competing, "{case}: 竞争窗覆盖口径不符");
+            // #1405：多根极值仍覆盖，但不再生成待决形态请求。
+            let competing = (0..facts.groups.len().saturating_sub(2))
+                .filter(|start| group_facts_competing(&facts, *start))
+                .count();
+            assert_eq!(competing > 0, want_competing, "{case}: 多根窗覆盖口径不符");
             // 4) 形态请求 + 三条 CC-007 请求（同序，逐个窗口）
             for (start, shape_record) in &records {
                 let shape = fixture
@@ -6585,5 +6611,151 @@ mod tests {
         let last = committed.last().expect("末步");
         verify(&mut reader, &last.record.content_ref()).expect("commit 后读事务可核");
         assert_eq!(render(&mut reader, &last.record), rendered);
+    }
+}
+
+/// #1419 新结构产物：三个兼容字段的真实 buffer 许可随对象转移到 Generated。
+/// 旧 TypedObject ABI 保留；inner 先析构，许可随后归还。
+pub(super) struct NativeStructureObject {
+    inner: TypedObject,
+    _strings: Option<sc::capture_allocation::scratch::NativeReservation>,
+}
+impl std::ops::Deref for NativeStructureObject {
+    type Target = TypedObject;
+    fn deref(&self) -> &TypedObject {
+        &self.inner
+    }
+}
+impl Cc004Producer {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn build_structure_object(
+        &self,
+        store: &mut dyn NodeStore,
+        kind: &str,
+        fact_key: &str,
+        payload: Built,
+        input_refs: Built,
+        source_coords: Built,
+        generation: i64,
+        cut: &str,
+    ) -> Result<NativeStructureObject, ProducerError> {
+        use sc::ValueView as V;
+        let identity =
+            self.typed_identity_scoped(kind, fact_key, &payload, &input_refs, store.codec_work())?;
+        let bytes = 69usize
+            .checked_add(fact_key.len())
+            .and_then(|n| n.checked_add(cut.len()))
+            .ok_or_else(|| ProducerError::Overflow("结构文本容量溢出".into()))?;
+        let permit = store
+            .codec_work()
+            .map(|w| w.reserve_native(bytes))
+            .transpose()?;
+        let allocation_error = || -> ProducerError {
+            match store.codec_work() {
+                Some(work) => work
+                    .reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
+                    .into(),
+                None => ProducerError::Overflow("结构文本分配失败".into()),
+            }
+        };
+        let copy = |s: &str| -> Result<String, ProducerError> {
+            let mut v = String::new();
+            v.try_reserve_exact(s.len())
+                .map_err(|_| allocation_error())?;
+            v.push_str(s);
+            Ok(v)
+        };
+        let mut object_id = String::new();
+        object_id
+            .try_reserve_exact(69)
+            .map_err(|_| allocation_error())?;
+        use std::fmt::Write;
+        write!(&mut object_id, "{}", object_id_display(&identity))
+            .map_err(|_| ProducerError::Overflow("对象身份格式失败".into()))?;
+        let key = copy(fact_key)?;
+        let cut = copy(cut)?;
+        let payload_json = Built {
+            digest: put_json_text_node(store, &payload.digest)?,
+            kind: Kind::JsonText,
+            extent: None,
+        };
+        let input_refs_json = Built {
+            digest: put_json_text_node(store, &input_refs.digest)?,
+            kind: Kind::JsonText,
+            extent: None,
+        };
+        let source_coords_json = Built {
+            digest: put_json_text_node(store, &source_coords.digest)?,
+            kind: Kind::JsonText,
+            extent: None,
+        };
+        let revision_text = crate::v3::business_json::Decimal::new(OBJECT_REVISION);
+        let generation_text = crate::v3::business_json::Decimal::new(generation);
+        let revision = V::Number(sc::BorrowedNumberToken::parse(revision_text.text())?);
+        let gen = V::Number(sc::BorrowedNumberToken::parse(generation_text.text())?);
+        let fields = [
+            ("object_id", V::String(&object_id)),
+            ("object_revision", revision),
+            ("kind", V::String(kind)),
+            ("fact_key", V::String(&key)),
+            ("payload", V::Edge(payload.digest)),
+            ("input_refs", V::Edge(input_refs.digest)),
+            ("source_coords", V::Edge(source_coords.digest)),
+            ("payload_json", V::Edge(payload_json.digest)),
+            ("input_refs_json", V::Edge(input_refs_json.digest)),
+            ("source_coords_json", V::Edge(source_coords_json.digest)),
+            ("first_known_generation", gen),
+            ("first_known_cut", V::String(&cut)),
+            ("published_generation", gen),
+        ];
+        let record = sc::write_value_view(store, V::Object(&fields))?;
+        Ok(NativeStructureObject {
+            inner: TypedObject {
+                object_id,
+                identity,
+                fact_key: key,
+                record,
+                payload,
+                input_refs,
+                source_coords,
+                payload_json,
+                input_refs_json,
+                source_coords_json,
+                generation,
+                cut,
+                request: None,
+            },
+            _strings: permit,
+        })
+    }
+    /// 请求键已在同一 store 成边；保精确五字段，不物化旧 CValue 全树。
+    pub(super) fn explicit_request_root(
+        &self,
+        store: &mut dyn NodeStore,
+        key: &Built,
+        subject_id: &str,
+        axes: RequestAxes,
+        reasons: &[&str],
+        coords: &Built,
+    ) -> Result<Built, String> {
+        use crate::v3::structure_value as sv;
+        let key_text = crate::v3::content_structure::canonical_root_text(store, key)?;
+        let axis = axes.fields().map(|(k, v)| (k, sc::ValueView::String(v)));
+        let axis =
+            sc::write_value_view(store, sc::ValueView::Object(&axis)).map_err(|e| e.to_string())?;
+        let mut reason_values = sv::Vec::new();
+        for r in reasons {
+            reason_values.push(sc::ValueView::String(r), store)?;
+        }
+        let reasons = sc::write_value_view(store, sc::ValueView::Array(&reason_values))
+            .map_err(|e| e.to_string())?;
+        let fields = [
+            ("request_id", sc::ValueView::String(&key_text)),
+            ("subject_id", sc::ValueView::String(subject_id)),
+            ("axes", sc::ValueView::Edge(axis.digest)),
+            ("reasons", sc::ValueView::Edge(reasons.digest)),
+            ("source_coords", sc::ValueView::Edge(coords.digest)),
+        ];
+        sc::write_value_view(store, sc::ValueView::Object(&fields)).map_err(|e| e.to_string())
     }
 }

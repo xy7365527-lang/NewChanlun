@@ -1,0 +1,246 @@
+{
+  "execution_authorized": false,
+  "execution_location": "待根指定远端受控环境，本机禁执行",
+  "baseline": "5cb7253d46d973669e7d10cd3331e12c9ef313b1",
+  "source_manifest": "SOURCE-MANIFEST.json",
+  "preconditions": [
+    "根冻结并批准最终组合树，逐文件对齐来源SHA",
+    "若组合#1393等变更，重新生成同树清单，不借用旧run/财务原件",
+    "先远端编译并核过滤器实际命中测试数，不接受0测试成功",
+    "所有数据库仅测试自建临时夹具，不接生产库"
+  ],
+  "cases": [
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--features",
+        "s_session,s_capture_native_testonly",
+        "--bin",
+        "s_structure_session",
+        "content_bi::tests::parity_tb1405",
+        "--",
+        "--nocapture"
+      ],
+      "purpose": "同价多根、成员边界与共享内容对照",
+      "execution_authorized": false
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--features",
+        "s_session,s_capture_native_testonly",
+        "--bin",
+        "s_structure_session",
+        "v3::content_structure::native_wire_tests",
+        "--",
+        "--nocapture"
+      ],
+      "purpose": "整数文本/bool/null/浮点拒绝、K1借用wire",
+      "execution_authorized": false
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--features",
+        "s_session,s_capture_native_testonly",
+        "--bin",
+        "s_structure_session",
+        "v3::structure_value::tests",
+        "--",
+        "--nocapture"
+      ],
+      "purpose": "真实输出owner、部分失败释放、异父插入拒绝",
+      "execution_authorized": false
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--features",
+        "s_session,s_capture_native_testonly",
+        "--bin",
+        "s_structure_session",
+        "v3::generation::tests::structure_domain_wires_versions_knowledge_axes_and_rejects_foreign_prior",
+        "--",
+        "--nocapture"
+      ],
+      "purpose": "完整结构规则、Native返回owner、目录、恢复身份",
+      "execution_authorized": false
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--features",
+        "s_session,s_capture_native_testonly",
+        "--bin",
+        "s_structure_session",
+        "tb02a_facts::catalog_axis_owner_tests",
+        "--",
+        "--nocapture"
+      ],
+      "purpose": "Native目录与oracle及资源失败",
+      "execution_authorized": false
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--features",
+        "s_session,s_capture_native_testonly",
+        "--bin",
+        "s_structure_session",
+        "tb02a_facts::structure_catalog_contract_tests",
+        "--",
+        "--nocapture"
+      ],
+      "purpose": "C/D/E/F目录范围、具名请求轴",
+      "execution_authorized": false
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--features",
+        "s_session,s_capture_native_testonly",
+        "--bin",
+        "s_structure_session",
+        "v3::source_structure::",
+        "--",
+        "--nocapture"
+      ],
+      "purpose": "payload/links、错绑、同cut身份、增量实体删除",
+      "execution_authorized": false
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--features",
+        "s_session,s_capture_native_testonly",
+        "--bin",
+        "s_structure_session",
+        "v3::source_audit::tests::structure_rule",
+        "--",
+        "--nocapture"
+      ],
+      "purpose": "版本×kind及payload",
+      "execution_authorized": false
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--features",
+        "s_session,s_capture_native_testonly",
+        "--bin",
+        "s_structure_session",
+        "v3::driver::tests::historical_bi_rule_is_readable_but_writer_and_recover_leave_it_unchanged",
+        "--",
+        "--nocapture"
+      ],
+      "purpose": "历史只读、写者及恢复无副作用",
+      "execution_authorized": false
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--features",
+        "s_session,s_capture_native_testonly",
+        "--bin",
+        "s_structure_session",
+        "v3::generation::tests::finish_axes_resource_rejection_preserves_published_roots",
+        "--",
+        "--nocapture"
+      ],
+      "purpose": "目录失败不替换已发布根",
+      "execution_authorized": false
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--lib",
+        "theta_v0::parser::stroke::tb02v_tests",
+        "--",
+        "--nocapture"
+      ],
+      "purpose": "/2笔语义",
+      "execution_authorized": false
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--lib",
+        "theta_v0::parser::tb02w_tests",
+        "--",
+        "--nocapture"
+      ],
+      "purpose": "第二序列恢复与预算",
+      "execution_authorized": false
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--lib",
+        "theta_v0::classifier::tests::center_scan_1419",
+        "--",
+        "--nocapture"
+      ],
+      "purpose": "中心扫描同核",
+      "execution_authorized": false
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--lib",
+        "theta_v0::classifier::tests::center_pair_1424",
+        "--",
+        "--nocapture"
+      ],
+      "purpose": "五叶及既有Lean夹具对照",
+      "execution_authorized": false
+    }
+  ],
+  "not_in_this_worker": [
+    "正式raw S3/Q非空及修订双跑恢复",
+    "浏览器验收",
+    "Long/历史全量/真实库",
+    "独立评审及发布准入"
+  ]
+}

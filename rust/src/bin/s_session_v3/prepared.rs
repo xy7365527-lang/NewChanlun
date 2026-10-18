@@ -601,6 +601,7 @@ impl Runtime {
             catalog_revision: get("catalog_revision")?,
             scope: scope_root,
         };
+        super::require_current_writer_rule(&metadata.rule_revision)?;
         content_publication::verify_current_begin_admitted(tx, token, metadata.view(), work)?;
         if metadata.profile_id != tb02a::PROFILE {
             return Err(err("非OHLC档生成/来源接线仍未实现"));
@@ -671,12 +672,15 @@ impl Runtime {
                     .map_err(err)?,
                     budget: None,
                 };
+                let structure_prior =
+                    object_index::structure_prior_records(&store, &audited.objects)?;
                 sc::write_value(&mut store, &scope_value).map_err(err)?;
                 let generator = self.generator.as_mut().ok_or_else(|| err("生成器未绑定"))?;
                 let mut generated = generator.generate_bound(
                     &mut store,
                     raw,
                     generation::BoundGenerationInput {
+                        structure_prior: structure_prior.borrowed(),
                         generation,
                         structure_cut: &metadata.structure_cut,
                         input_frontier: frontier,
@@ -816,6 +820,7 @@ impl Runtime {
         let effective = super::business_json::effective(audited.raw.view(), None)?;
         let (prior_bi, prior_version) = object_index::prior_records(&audited.objects)?;
         let input = GenerationInput {
+            structure_prior: generation::StructurePriors::default(),
             all_events: audited.raw.view(),
             effective: effective.raw_view(),
             generation,
@@ -862,6 +867,12 @@ impl Runtime {
                     )
                     .map_err(err)?,
                     budget: None,
+                };
+                let structure_prior =
+                    object_index::structure_prior_records(&store, &audited.objects)?;
+                let input = GenerationInput {
+                    structure_prior: structure_prior.borrowed(),
+                    ..input
                 };
                 self.generate_node_products(
                     &mut store,
@@ -956,6 +967,11 @@ impl Runtime {
                 .with_work(work),
             budget: audited.budget.clone(),
         };
+        let structure_prior = object_index::structure_prior_records(&store, &audited.objects)?;
+        let input = GenerationInput {
+            structure_prior: structure_prior.borrowed(),
+            ..input
+        };
         let NodeProducts {
             generated: _generated,
             objects,
@@ -1032,7 +1048,7 @@ impl Runtime {
         #[cfg(feature = "s_capture_native_testonly")] workspace_budget: Option<
             request_audit::ManifestWorkspaceBudget,
         >,
-        input: &GenerationInput<'raw>,
+        input: &GenerationInput<'raw, '_>,
         audited: &state::AuditedState,
         metadata: &ManifestMetadata,
         scope_value: &V,

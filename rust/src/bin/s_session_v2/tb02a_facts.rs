@@ -3,7 +3,12 @@
 //! #1394 2C：CC-007 的 24 比较单元按「精确分型参考价/源身份 × 后续 event 版本」缓存，
 //! 每条 bar 的 4×6 单元只求值一次；同分型追加后续 bar 为有序追加，修订只重算受影响单元
 //! 并按内容键核过，旧 cut 原件（已发布的不可变 Value）不动。
+//! #1405（#1343 Q2/Q4）：极值身份是根集合；同价标签只作证据，不作请求未定原因。
 use super::*;
+
+const EQUAL_EXTREME_IDENTITY: &str = "equal_extreme_identity";
+/// #1405：旧知识域只在旧规则会话里 AsKnown 可读。
+const KNOWLEDGE_DOMAIN: &str = tb02b::CURRENT_CONTRACT.knowledge_domain;
 use newchan_rust::theta_v0::parser::inclusion::{
     InclusionDirectionEvidence, InclusionFacts, InclusionGroupFact, InclusionStepFact,
 };
@@ -306,7 +311,12 @@ fn step_payload(step: &InclusionStepFact) -> Value {
 }
 
 fn step_extra_reasons(step: &InclusionStepFact) -> Vec<&'static str> {
-    let mut step_reasons = step.waiting_reasons.clone();
+    let mut step_reasons: Vec<_> = step
+        .waiting_reasons
+        .iter()
+        .copied()
+        .filter(|reason| *reason != EQUAL_EXTREME_IDENTITY)
+        .collect();
     if step.direction_evidence.is_none() && step_reasons.is_empty() {
         step_reasons.push("direction_not_yet_established");
     }
@@ -330,17 +340,18 @@ fn group_reasons(group: &InclusionGroupFact) -> Vec<&'static str> {
     if group.direction_evidence.is_none() {
         reasons.push("direction_not_yet_established");
     }
-    if group.high_sources.len() > 1 || group.low_sources.len() > 1 {
-        reasons.push("equal_extreme_identity");
-    }
     reasons
 }
 
 fn group_payload(index: usize, group: &InclusionGroupFact, reasons: &[&'static str]) -> Value {
+    let mut labels = reasons.to_vec();
+    if group.high_sources.len() > 1 || group.low_sources.len() > 1 {
+        labels.push(EQUAL_EXTREME_IDENTITY);
+    }
     json!({"group_index":index.to_string(),"group_anchor":group.bar.source_index.to_string(),"members":coords(&group.members),
         "open":group.bar.open.to_string(),"high":group.bar.high.to_string(),"low":group.bar.low.to_string(),"close":group.bar.close.to_string(),
         "high_sources":coords(&group.high_sources),"low_sources":coords(&group.low_sources),"confirmed":group.confirmed,"confirmation_evidence":direction(&group.confirmation_evidence),
-        "direction":group.direction_evidence.as_ref().map(|e|dir_str(e.direction)),"direction_evidence":direction(&group.direction_evidence),"waiting_reasons":reasons})
+        "direction":group.direction_evidence.as_ref().map(|e|dir_str(e.direction)),"direction_evidence":direction(&group.direction_evidence),"waiting_reasons":labels})
 }
 
 /// CC-007 组装的**唯一**实现（全量 oracle 与跨代增量共用，含 2C 比较单元缓存）。
@@ -478,6 +489,12 @@ pub(super) fn build_with_units(
     let mut requests = Vec::new();
     let mut all_reasons: Vec<&str> = Vec::new();
     for step in &trace.steps {
+        all_reasons.extend(
+            step.waiting_reasons
+                .iter()
+                .copied()
+                .filter(|reason| *reason != EQUAL_EXTREME_IDENTITY),
+        );
         let payload = step_payload(step);
         let slot = step_slot(step);
         let id = b.add(
@@ -492,7 +509,6 @@ pub(super) fn build_with_units(
             step_extra_reasons(step),
             step.source_coords.clone(),
         ));
-        all_reasons.extend(&step.waiting_reasons);
     }
     for (index, group) in trace.groups.iter().enumerate() {
         let reasons = group_reasons(group);
@@ -507,30 +523,6 @@ pub(super) fn build_with_units(
         );
         requests.push(request(slot, json!(id), reasons.clone(), sources));
         all_reasons.extend(reasons);
-    }
-    for window in trace.groups.windows(3) {
-        if window
-            .iter()
-            .any(|g| g.high_sources.len() != 1 || g.low_sources.len() != 1)
-        {
-            let anchors: Vec<usize> = window.iter().map(|g| g.bar.source_index).collect();
-            let mut sources = Vec::new();
-            for group in window {
-                sources.extend(&group.members);
-                if let Some(e) = &group.direction_evidence {
-                    sources.extend(&e.source_coords);
-                }
-                if let Some(e) = &group.confirmation_evidence {
-                    sources.extend(&e.source_coords);
-                }
-            }
-            requests.push(request(
-                json!(["CC-006.local_shape", coords(&anchors)]),
-                Value::Null,
-                vec!["equal_extreme_identity"],
-                sources,
-            ));
-        }
     }
     for shape in shapes {
         let window: Vec<usize> = ["window_start", "window_mid", "window_end"]
@@ -600,7 +592,7 @@ pub(super) fn build_with_units(
         "detail":{"tb02a":true,"source_coords":coords(&sources),"input_frontier":frontier.to_string(),"waiting_reasons":all_reasons}})).collect();
     b.add("CC-054.knowledge_state",json!(["CC-054.knowledge_state","TB-02-A"]),json!({"scope":"TB-02-A","input_frontier":frontier.to_string(),
         "known_facts":["raw_ohlc","inclusion_trace","group_provenance"],"waiting_reasons":all_reasons,
-        "domain":"established_direction_without_extreme_identity_competition","requests":requests}),sources);
+        "domain":KNOWLEDGE_DOMAIN,"requests":requests}),sources);
     b.objects.sort_by(|a, b| {
         (
             a["kind"].as_str(),
@@ -728,7 +720,14 @@ pub(super) fn build_incremental(
     // 1) CC-004 步骤：不可变事实——旧步直接复用完整原件。
     for index in 0..state.step_count() {
         let coord = state.step_coord(index).expect("步骤索引在域内");
-        all_reasons.extend(state.step_waiting_reasons(index).unwrap_or(&[]));
+        all_reasons.extend(
+            state
+                .step_waiting_reasons(index)
+                .unwrap_or(&[])
+                .iter()
+                .copied()
+                .filter(|reason| *reason != EQUAL_EXTREME_IDENTITY),
+        );
         let slot = json!(["CC-004.inclusion_step", coord.to_string()]);
         let key = canonical_json(&slot);
         if let Some(record) = cache.records.get(&key) {
@@ -766,13 +765,7 @@ pub(super) fn build_incremental(
     for (index, compact) in groups.iter().enumerate() {
         let version = state.group_version(index).unwrap_or(0);
         let anchor = compact.bar.source_index;
-        let mut reasons: Vec<&'static str> = Vec::new();
-        if compact.direction_evidence.is_none() {
-            reasons.push("direction_not_yet_established");
-        }
-        if compact.high_sources.len() > 1 || compact.low_sources.len() > 1 {
-            reasons.push("equal_extreme_identity");
-        }
+        let reasons = group_reasons(&group_facts[index]);
         all_reasons.extend(reasons.iter().copied());
         let slot = json!(["CC-005.inclusion_group", anchor.to_string()]);
         let key = canonical_json(&json!([
@@ -813,32 +806,7 @@ pub(super) fn build_incremental(
         b.objects.push(object);
         requests.push(request);
     }
-    // 3) 同角色极值竞争的三组窗口请求（与全量同序、同内容）。
-    for window in groups.windows(3) {
-        if window
-            .iter()
-            .any(|g| g.high_sources.len() != 1 || g.low_sources.len() != 1)
-        {
-            let anchors: Vec<usize> = window.iter().map(|g| g.bar.source_index).collect();
-            let mut sources = Vec::new();
-            for group in window {
-                let fact = &group_facts[anchor_index[&group.bar.source_index]];
-                sources.extend(&fact.members);
-                if let Some(e) = &fact.direction_evidence {
-                    sources.extend(&e.source_coords);
-                }
-                if let Some(e) = &fact.confirmation_evidence {
-                    sources.extend(&e.source_coords);
-                }
-            }
-            requests.push(request(
-                json!(["CC-006.local_shape", coords(&anchors)]),
-                Value::Null,
-                vec!["equal_extreme_identity"],
-                sources,
-            ));
-        }
-    }
+    // #1405：同价极值根集合不再产生 CC-006 未定请求。
     // 4) CC-006 形状 → CC-007（继续交给同一 `cc007_add`，2C 单元缓存跨代复用）。
     for shape in shapes {
         let window: Vec<usize> = ["window_start", "window_mid", "window_end"]
@@ -917,7 +885,7 @@ pub(super) fn build_incremental(
         json!(["CC-054.knowledge_state", "TB-02-A"]),
         json!({"scope":"TB-02-A","input_frontier":frontier.to_string(),
         "known_facts":["raw_ohlc","inclusion_trace","group_provenance"],"waiting_reasons":all_reasons,
-        "domain":"established_direction_without_extreme_identity_competition","requests":requests}),
+        "domain":KNOWLEDGE_DOMAIN,"requests":requests}),
         sources,
     );
     b.objects.push(knowledge);
@@ -942,23 +910,28 @@ fn raw_bar(raw: &Value) -> Value {
 
 /// #1394 整合 W-3：目录轴表随规则修订走——每个写者按自己发布的对象集声明目录。
 ///
-/// v3（[`crate::V3_RULE_REVISION`]）只发布 TB-02-A/B，取 13 轴（与 FIN 线逐字同口径）；
-/// v2 写者（[`crate::RULE_REVISION`]）另发布 TB-02-C/D，取 17 轴（main #1392/#1404 口径）。
-/// 两张表各对应一个规则修订、由调用方按自己的修订选定，不存在「一张判不出再换另一张」
-/// 的兜底（#799）。退场条件同 `V3_RULE_REVISION`：v3 承载 TB-02-C/D 后只剩一张表。
+/// 历史 v3 A/B 保留 13 轴，v2 C/D 保留 17 轴，新 v3 A…F 域取 22 轴。
+/// 表按原始规则身份选择；旧库不会因新代码上线而增加对象或改变 AsKnown 目录。
+/// 这些表只声明覆盖范围，不参与判据分派或失败兜底（#799）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum CatalogAxisTable {
-    /// `s2-axis-quantifiers+new-bi/1`：CC-001…010、CC-054、CC-055、CC-056（13 轴）。
+    /// `s2-axis-quantifiers+new-bi/2`：CC-001…010、CC-054、CC-055、CC-056（13 轴）。
     NewBi,
-    /// `s2-axis-quantifiers+new-bi/1+segment-second/1`：另加 CC-011…014（17 轴）。
+    /// `s2-axis-quantifiers+new-bi/2+segment-second/2`：另加 CC-011…014（17 轴），含 #1420 续扫。
     SegmentSecond,
+    /// #1419/#1424：再加 CC-016/017/018/020/022，保各片真实 delivered/deferred。
+    CenterPair,
 }
 
 impl CatalogAxisTable {
     pub(super) fn for_rule_revision(rule_revision: &str) -> Option<Self> {
         match rule_revision {
-            crate::V3_RULE_REVISION => Some(Self::NewBi),
-            crate::RULE_REVISION => Some(Self::SegmentSecond),
+            crate::V3_STRUCTURE_RULE_REVISION => Some(Self::CenterPair),
+            crate::LEGACY_V3_RULE_REVISION | crate::V3_RULE_REVISION => Some(Self::NewBi),
+            "s2-axis-quantifiers+new-bi/1+segment-second/1"
+            | "s2-axis-quantifiers+new-bi/1+segment-second/2"
+            | "s2-axis-quantifiers+new-bi/2+segment-second/1"
+            | crate::RULE_REVISION => Some(Self::SegmentSecond),
             _ => None,
         }
     }
@@ -974,6 +947,11 @@ impl CatalogAxisTable {
                 "CC-001", "CC-002", "CC-003", "CC-004", "CC-005", "CC-006", "CC-007", "CC-008",
                 "CC-009", "CC-010", "CC-011", "CC-012", "CC-013", "CC-014", "CC-054", "CC-055",
                 "CC-056",
+            ],
+            Self::CenterPair => &[
+                "CC-001", "CC-002", "CC-003", "CC-004", "CC-005", "CC-006", "CC-007", "CC-008",
+                "CC-009", "CC-010", "CC-011", "CC-012", "CC-013", "CC-014", "CC-016", "CC-017",
+                "CC-018", "CC-020", "CC-022", "CC-054", "CC-055", "CC-056",
             ],
         }
     }
@@ -1111,6 +1089,11 @@ pub(super) fn catalog_axes_admitted<'a, 'objects, 'changes>(
             "CC-011" => "CC-011.",
             "CC-012" => "CC-012.feature_sequence",
             "CC-013" | "CC-014" => "CC-013.segment",
+            "CC-016" => "CC-016.",
+            "CC-017" => "CC-017.center_roles",
+            "CC-018" => "CC-018.unit_core_position",
+            "CC-020" => "CC-020.center_pair",
+            "CC-022" => "CC-022.unit_assignment",
             "CC-055" => "CC-055.",
             "CC-056" if table == CatalogAxisTable::NewBi => "CC-056.version",
             "CC-056" => "CC-056.",
@@ -1165,13 +1148,26 @@ pub(super) fn catalog_axes_admitted<'a, 'objects, 'changes>(
                         .as_array()
                         .and_then(|a| a.get(0))
                         .unwrap_or(JsonView::Null);
-                    if first.as_str() == Some(kind)
-                        || first
-                            .as_array()
-                            .and_then(|a| a.get(0))
-                            .and_then(|v| v.as_str())
-                            == Some(kind)
-                    {
+                    let request_slot = key.view().as_array().and_then(|a| a.get(1));
+                    let request_field = |i| {
+                        request_slot
+                            .and_then(|v| v.as_array())
+                            .and_then(|a| a.get(i))
+                    };
+                    let named = table == CatalogAxisTable::CenterPair
+                        && request_field(2).and_then(|v| v.as_str())
+                            == Some("structure-classification/1");
+                    let matches_axis = if named {
+                        request_field(0).and_then(|v| v.as_str()) == Some(axis)
+                    } else {
+                        first.as_str() == Some(kind)
+                            || first
+                                .as_array()
+                                .and_then(|a| a.get(0))
+                                .and_then(|v| v.as_str())
+                                == Some(kind)
+                    };
+                    if matches_axis {
                         for r in field(request, "reasons").as_array().unwrap().iter() {
                             add_reason(r)?;
                         }
@@ -1183,6 +1179,10 @@ pub(super) fn catalog_axes_admitted<'a, 'objects, 'changes>(
             Some("CC-056.version")
         } else if matches!(axis, "CC-011" | "CC-012" | "CC-013" | "CC-014") {
             Some("CC-056.segment_version")
+        } else if matches!(axis, "CC-016" | "CC-017" | "CC-022") {
+            Some("CC-056.center_version")
+        } else if matches!(axis, "CC-018" | "CC-020") {
+            Some("CC-056.pair_version")
         } else {
             None
         };
@@ -1209,8 +1209,6 @@ pub(super) fn catalog_axes_admitted<'a, 'objects, 'changes>(
             }
         }
         let ids_view = Rows(&ids);
-        let delivered;
-        let deferred;
         let mut revisions;
         let mut withdrawal_rows;
         let revisions_view;
@@ -1218,13 +1216,34 @@ pub(super) fn catalog_axes_admitted<'a, 'objects, 'changes>(
         let mut evidence_fields =
             bj::new_work::<(&str, JsonView<'_>)>(store.allocation_budget().as_ref());
         let segment = matches!(axis, "CC-011" | "CC-012" | "CC-013" | "CC-014");
+        let center = matches!(axis, "CC-016" | "CC-017" | "CC-022");
+        let pair = matches!(axis, "CC-018" | "CC-020");
+        let delivered_segment = [
+            JsonView::String("finite_complete_prefix_strict_second"),
+            JsonView::String("independent_stroke_and_segment_break_facts"),
+            JsonView::String("general_scan_continuation"),
+        ];
+        let deferred_segment = [
+            JsonView::String("general_equal_identity"),
+            JsonView::String("global_G006_bridge"),
+        ];
+        let delivered_center = tb02e::DELIVERED_SUBOBLIGATIONS.map(JsonView::String);
+        let deferred_center = tb02e::DEFERRED_SCOPE.map(JsonView::String);
+        let delivered_pair = tb02f::DELIVERED_SUBOBLIGATIONS.map(JsonView::String);
+        let deferred_pair = tb02f::DEFERRED_SCOPE.map(JsonView::String);
+        let (scope, delivered, deferred): (&str, &[JsonView<'_>], &[JsonView<'_>]) = if segment {
+            ("TB-02-W", &delivered_segment, &deferred_segment)
+        } else if center {
+            ("TB-02-E", &delivered_center, &deferred_center)
+        } else if pair {
+            ("TB-02-F", &delivered_pair, &deferred_pair)
+        } else {
+            ("TB-02-A", &[], &[])
+        };
         push(
             store,
             &mut evidence_fields,
-            (
-                "scope",
-                JsonView::String(if segment { "TB-02-D" } else { "TB-02-A" }),
-            ),
+            ("scope", JsonView::String(scope)),
         )?;
         push(
             store,
@@ -1236,25 +1255,16 @@ pub(super) fn catalog_axes_admitted<'a, 'objects, 'changes>(
             &mut evidence_fields,
             ("waiting_reasons", JsonView::ArraySlice(&unique)),
         )?;
-        delivered = [
-            JsonView::String("finite_complete_prefix_strict_second"),
-            JsonView::String("independent_stroke_and_segment_break_facts"),
-        ];
-        deferred = [
-            JsonView::String("general_equal_identity"),
-            JsonView::String("general_scan_continuation"),
-            JsonView::String("global_G006_bridge"),
-        ];
-        if segment {
+        if segment || center || pair {
             push(
                 store,
                 &mut evidence_fields,
-                ("delivered_subobligations", JsonView::ArraySlice(&delivered)),
+                ("delivered_subobligations", JsonView::ArraySlice(delivered)),
             )?;
             push(
                 store,
                 &mut evidence_fields,
-                ("deferred_subobligations", JsonView::ArraySlice(&deferred)),
+                ("deferred_subobligations", JsonView::ArraySlice(deferred)),
             )?;
         }
         let mut run = if ids.is_empty() {
@@ -1314,11 +1324,23 @@ pub(super) fn catalog_axes_admitted<'a, 'objects, 'changes>(
             &[
                 (
                     "impl_status",
-                    JsonView::String(if matches!(axis, "CC-012" | "CC-013" | "CC-014") {
-                        "not_implemented"
-                    } else {
-                        "implemented"
-                    }),
+                    JsonView::String(
+                        if matches!(
+                            axis,
+                            "CC-012"
+                                | "CC-013"
+                                | "CC-014"
+                                | "CC-016"
+                                | "CC-017"
+                                | "CC-018"
+                                | "CC-020"
+                                | "CC-022"
+                        ) {
+                            "not_implemented"
+                        } else {
+                            "implemented"
+                        },
+                    ),
                 ),
                 ("proof_status", JsonView::String("not_proved")),
                 ("run_status", JsonView::String(run)),
@@ -1445,6 +1467,11 @@ fn catalog_axes_oracle<'a, 'objects, 'changes>(
             "CC-011" => "CC-011.",
             "CC-012" => "CC-012.feature_sequence",
             "CC-013" | "CC-014" => "CC-013.segment",
+            "CC-016" => "CC-016.",
+            "CC-017" => "CC-017.center_roles",
+            "CC-018" => "CC-018.unit_core_position",
+            "CC-020" => "CC-020.center_pair",
+            "CC-022" => "CC-022.unit_assignment",
             "CC-055" => "CC-055.",
             // 13 轴表只有 `CC-056.version`（FIN 口径）；17 轴表另收 `CC-056.segment_version`。
             "CC-056" if table == CatalogAxisTable::NewBi => "CC-056.version",
@@ -1481,7 +1508,16 @@ fn catalog_axes_oracle<'a, 'objects, 'changes>(
                 for request in k["requests"].as_array().unwrap() {
                     let key: Value =
                         serde_json::from_str(request["request_id"].as_str().unwrap()).unwrap();
-                    if key[0] == kind || key[0][0] == kind {
+                    let matches_axis = if table == CatalogAxisTable::CenterPair
+                        && key[1][2] == "structure-classification/1"
+                    {
+                        // 同一 CC-013 对象可承载 CC-013/014 的不同请求；
+                        // 新结构请求以具名请求槽中的轴归属，不能按对象种类合并。
+                        key[1][0] == axis
+                    } else {
+                        key[0] == kind || key[0][0] == kind
+                    };
+                    if matches_axis {
                         waiting.extend(request["reasons"].as_array().unwrap().clone());
                     }
                 }
@@ -1507,20 +1543,39 @@ fn catalog_axes_oracle<'a, 'objects, 'changes>(
                 waiting.extend(p["data"]["waiting_reasons"].as_array().unwrap().clone());
             }
         }
+        let structure_version = match axis {
+            "CC-016" | "CC-017" | "CC-022" => Some("CC-056.center_version"),
+            "CC-018" | "CC-020" => Some("CC-056.pair_version"),
+            _ => None,
+        };
+        if let Some(version_kind) = structure_version {
+            for o in objects.iter().filter(|o| o["kind"] == version_kind) {
+                let p: Value = serde_json::from_str(o["payload_json"].as_str().unwrap()).unwrap();
+                waiting.extend(p["data"]["waiting_reasons"].as_array().unwrap().clone());
+            }
+        }
         waiting.sort_by_key(canonical_json);
         waiting.dedup();
         let mut evidence = json!({"scope":"TB-02-A","object_ids":ids,"waiting_reasons":waiting});
         if matches!(axis, "CC-011" | "CC-012" | "CC-013" | "CC-014") {
-            evidence["scope"] = json!("TB-02-D");
+            evidence["scope"] = json!("TB-02-W");
             evidence["delivered_subobligations"] = json!([
                 "finite_complete_prefix_strict_second",
-                "independent_stroke_and_segment_break_facts"
+                "independent_stroke_and_segment_break_facts",
+                "general_scan_continuation"
             ]);
-            evidence["deferred_subobligations"] = json!([
-                "general_equal_identity",
-                "general_scan_continuation",
-                "global_G006_bridge"
-            ]);
+            evidence["deferred_subobligations"] =
+                json!(["general_equal_identity", "global_G006_bridge"]);
+        }
+        if matches!(axis, "CC-016" | "CC-017" | "CC-022") {
+            evidence["scope"] = json!("TB-02-E");
+            evidence["delivered_subobligations"] = json!(tb02e::DELIVERED_SUBOBLIGATIONS);
+            evidence["deferred_subobligations"] = json!(tb02e::DEFERRED_SCOPE);
+        }
+        if matches!(axis, "CC-018" | "CC-020") {
+            evidence["scope"] = json!("TB-02-F");
+            evidence["delivered_subobligations"] = json!(tb02f::DELIVERED_SUBOBLIGATIONS);
+            evidence["deferred_subobligations"] = json!(tb02f::DEFERRED_SCOPE);
         }
         let mut run = if ids.is_empty() {
             if waiting.is_empty() {
@@ -1566,7 +1621,7 @@ fn catalog_axes_oracle<'a, 'objects, 'changes>(
                 )
             );
         }
-        axes.insert(axis.into(),json!({"impl_status":if matches!(axis,"CC-012"|"CC-013"|"CC-014"){"not_implemented"}else{"implemented"},"proof_status":"not_proved","run_status":run,"evidence":evidence}));
+        axes.insert(axis.into(),json!({"impl_status":if matches!(axis,"CC-012"|"CC-013"|"CC-014"|"CC-016"|"CC-017"|"CC-018"|"CC-020"|"CC-022"){"not_implemented"}else{"implemented"},"proof_status":"not_proved","run_status":run,"evidence":evidence}));
     }
     Value::Object(axes)
 }
@@ -1625,7 +1680,11 @@ mod catalog_axis_owner_tests {
     #[test]
     fn catalog_owner_matches_frozen_oracle_for_full_and_empty_axis_tables() {
         let objects = objects();
-        for table in [CatalogAxisTable::NewBi, CatalogAxisTable::SegmentSecond] {
+        for table in [
+            CatalogAxisTable::NewBi,
+            CatalogAxisTable::SegmentSecond,
+            CatalogAxisTable::CenterPair,
+        ] {
             for rows in [&objects[..], &[][..]] {
                 let expected = catalog_axes_oracle(table, rows, &[], 0, &[], &[]);
                 let actual = catalog_axes(table, rows, &[], 0, &[], &[]);
@@ -1647,7 +1706,11 @@ mod catalog_axis_owner_tests {
         ];
         let replaces = [json!({"old":"old","new":"new"})];
         for frontier in [0, 2] {
-            for table in [CatalogAxisTable::NewBi, CatalogAxisTable::SegmentSecond] {
+            for table in [
+                CatalogAxisTable::NewBi,
+                CatalogAxisTable::SegmentSecond,
+                CatalogAxisTable::CenterPair,
+            ] {
                 let expected =
                     catalog_axes_oracle(table, &objects, &raw, frontier, &changes, &replaces);
                 let actual = catalog_axes(table, &objects, &raw, frontier, &changes, &replaces);
@@ -1705,5 +1768,224 @@ mod catalog_axis_owner_tests {
             );
         }
         assert!(saw_failure && saw_success);
+    }
+}
+
+#[cfg(test)]
+mod structure_catalog_contract_tests {
+    use super::*;
+
+    #[test]
+    fn tb02w_catalog_scope_is_bound_to_exact_rule_without_completing_parent_axes() {
+        assert_eq!(
+            CatalogAxisTable::for_rule_revision(crate::RULE_REVISION),
+            Some(CatalogAxisTable::SegmentSecond)
+        );
+        assert_eq!(
+            CatalogAxisTable::for_rule_revision(crate::V3_RULE_REVISION),
+            Some(CatalogAxisTable::NewBi)
+        );
+        assert_eq!(CatalogAxisTable::for_rule_revision("unknown-rule"), None);
+        let raw = Vec::<Value>::new();
+        let axes = catalog_axes(CatalogAxisTable::SegmentSecond, &[], &raw, -1, &[], &[]);
+        assert_eq!(axes.as_object().unwrap().len(), 17);
+        for axis in ["CC-011", "CC-012", "CC-013", "CC-014"] {
+            let evidence = &axes[axis]["evidence"];
+            assert_eq!(evidence["scope"], "TB-02-W");
+            assert!(evidence["delivered_subobligations"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("general_scan_continuation")));
+            assert_eq!(
+                evidence["deferred_subobligations"],
+                json!(["general_equal_identity", "global_G006_bridge"])
+            );
+            if axis != "CC-011" {
+                assert_eq!(axes[axis]["impl_status"], "not_implemented");
+            }
+        }
+        let v3 = catalog_axes(CatalogAxisTable::NewBi, &[], &raw, -1, &[], &[]);
+        assert_eq!(v3.as_object().unwrap().len(), 13);
+        assert!(v3.get("CC-011").is_none());
+    }
+
+    #[test]
+    fn center_pair_catalog_preserves_old_domains_and_deferred_obligations() {
+        assert_eq!(
+            CatalogAxisTable::for_rule_revision(crate::V3_STRUCTURE_RULE_REVISION),
+            Some(CatalogAxisTable::CenterPair)
+        );
+        let raw = Vec::<Value>::new();
+        let objects = vec![
+            json!({"kind":"CC-016.center", "object_id":"center-real-reference"}),
+            json!({"kind":"CC-020.center_pair", "object_id":"pair-real-reference"}),
+            json!({"kind":"CC-056.pair_version", "object_id":"pair-version",
+                "payload_json":canonical_json(&json!({"data":{"waiting_reasons":["ge9_upgrade_1429"]}}))}),
+        ];
+        let axes = catalog_axes(CatalogAxisTable::CenterPair, &objects, &raw, -1, &[], &[]);
+        assert_eq!(axes.as_object().unwrap().len(), 22);
+        assert_eq!(
+            axes["CC-016"]["evidence"]["object_ids"],
+            json!(["center-real-reference"])
+        );
+        assert_eq!(
+            axes["CC-020"]["evidence"]["object_ids"],
+            json!(["pair-real-reference"])
+        );
+        assert_eq!(
+            axes["CC-020"]["evidence"]["waiting_reasons"],
+            json!(["ge9_upgrade_1429"])
+        );
+        for axis in ["CC-016", "CC-017", "CC-022"] {
+            assert_eq!(
+                axes[axis]["evidence"]["deferred_subobligations"],
+                json!(tb02e::DEFERRED_SCOPE)
+            );
+            assert_eq!(axes[axis]["impl_status"], "not_implemented");
+        }
+        for axis in ["CC-018", "CC-020"] {
+            assert_eq!(
+                axes[axis]["evidence"]["deferred_subobligations"],
+                json!(tb02f::DEFERRED_SCOPE)
+            );
+            assert_eq!(axes[axis]["impl_status"], "not_implemented");
+        }
+        for (table, count) in [
+            (CatalogAxisTable::NewBi, 13),
+            (CatalogAxisTable::SegmentSecond, 17),
+        ] {
+            let old = catalog_axes(table, &objects, &raw, -1, &[], &[]);
+            assert_eq!(old.as_object().unwrap().len(), count);
+            assert!(old.get("CC-020").is_none());
+        }
+    }
+
+    #[test]
+    fn structure_request_reasons_follow_named_axis_not_subject_kind() {
+        let requests: Vec<Value> = [
+            (
+                "CC-011.seed",
+                "CC-011",
+                "construction_conditions",
+                "construction_pending",
+            ),
+            (
+                "CC-013.segment",
+                "CC-013",
+                "semantic_termination_result",
+                "termination_pending",
+            ),
+            (
+                "CC-013.segment",
+                "CC-014",
+                "known_fact_vector",
+                "fact_pending",
+            ),
+            (
+                "CC-016.seed_attempt",
+                "CC-016",
+                "seed_condition_vector",
+                "seed_pending",
+            ),
+        ]
+        .into_iter()
+        .map(|(kind, axis, request_axis, reason)| {
+            json!({
+                "request_id": canonical_json(&json!([
+                    [kind, ["subject-slot"]],
+                    [axis, request_axis, "structure-classification/1", [], "obj3:test-subject"]
+                ])),
+                "reasons": [reason]
+            })
+        })
+        .collect();
+        let objects = vec![json!({
+            "kind": "CC-054.knowledge_state",
+            "object_id": "knowledge-routing-fixture",
+            "payload_json": canonical_json(&json!({"requests": requests, "waiting_reasons": []}))
+        })];
+        let raw = Vec::<Value>::new();
+        let axes = catalog_axes(CatalogAxisTable::CenterPair, &objects, &raw, -1, &[], &[]);
+        for (axis, reason) in [
+            ("CC-011", "construction_pending"),
+            ("CC-013", "termination_pending"),
+            ("CC-014", "fact_pending"),
+            ("CC-016", "seed_pending"),
+        ] {
+            assert_eq!(axes[axis]["evidence"]["waiting_reasons"], json!([reason]));
+        }
+        assert_eq!(axes["CC-012"]["evidence"]["waiting_reasons"], json!([]));
+    }
+
+    fn entry(key: &str) -> UnitEntry {
+        UnitEntry {
+            bar: json!({"source_coord":"1","open":"1","high":"2","low":"1","close":"2"}),
+            relations: json!([{"axis":"high"}]),
+            key: key.to_string(),
+        }
+    }
+
+    #[test]
+    fn units_are_computed_once_per_exact_content_key_and_reused_afterwards() {
+        let mut cache = UnitsCache::new(1000);
+        let first = cache.unit("refs-a", 7, "k1".into(), || entry("k1"));
+        assert_eq!(cache.computed(), 1);
+        assert_eq!(cache.reused(), 0);
+        // 同内容键：直接复用（同一原件）
+        let second = cache.unit("refs-a", 7, "k1".into(), || entry("k1"));
+        assert_eq!(cache.computed(), 1);
+        assert_eq!(cache.reused(), 1);
+        assert_eq!(first.key, second.key);
+        // 不同参考集：各自独立求值（每条分型的 24 单元各自算一次）
+        cache.unit("refs-b", 7, "k1".into(), || entry("k1"));
+        assert_eq!(cache.computed(), 2);
+    }
+
+    #[test]
+    fn same_coord_with_changed_content_is_recomputed_and_old_version_kept() {
+        let mut cache = UnitsCache::new(1000);
+        cache.unit("refs-a", 7, "k1".into(), || entry("k1"));
+        cache.unit("refs-a", 7, "k2".into(), || entry("k2"));
+        assert_eq!(cache.computed(), 2, "同源坐标内容键变化必须重算");
+        assert_eq!(cache.invalidated(), 1);
+        // 回退到旧版本：按精确内容键命中旧原件（旧 cut 原件不动）
+        cache.unit("refs-a", 7, "k1".into(), || entry("k1"));
+        assert_eq!(cache.computed(), 2);
+        assert_eq!(cache.reused(), 1);
+    }
+
+    #[test]
+    fn revision_invalidates_affected_coords_and_capacity_eviction_is_output_neutral() {
+        let mut cache = UnitsCache::new(1000);
+        for coord in 0..5i64 {
+            cache.unit("refs-a", coord, format!("k{coord}"), || {
+                entry(&format!("k{coord}"))
+            });
+        }
+        assert_eq!(cache.computed(), 5);
+        cache.invalidate_from(3);
+        assert_eq!(cache.computed(), 5);
+        for coord in 0..5i64 {
+            cache.unit("refs-a", coord, format!("k{coord}"), || {
+                entry(&format!("k{coord}"))
+            });
+        }
+        assert_eq!(cache.computed(), 7, "修订坐标 3、4 必须重算");
+        assert_eq!(
+            cache.reused(),
+            3,
+            "修订起点之前的坐标 0-2 未受影响、直接复用"
+        );
+        // 容量不足：只失去复用（可重算），输出内容不变
+        let mut tiny = UnitsCache::new(1);
+        let a = tiny.unit("refs-a", 1, "k1".into(), || entry("k1"));
+        let _b = tiny.unit("refs-a", 1, "k1".into(), || entry("k1"));
+        let _c = tiny.unit("refs-a", 2, "k2".into(), || entry("k2"));
+        let d = tiny.unit("refs-a", 1, "k1".into(), || entry("k1"));
+        assert_eq!(
+            a.relations, d.relations,
+            "超限清空后重算必须给出逐字段相同的原件"
+        );
+        assert!(tiny.evictions() >= 1);
     }
 }
