@@ -39,8 +39,8 @@ WORK_SECONDS, CASE_SECONDS, FINAL_SECONDS = 600, 300, 630
 STARTUP_SECONDS, EXCHANGE_SECONDS, PROCESS_SECONDS = 10, 30, 30
 TERM_SECONDS, KILL_SECONDS = 3, 3
 FRAME_BYTES = 1048576
-ANCHOR_SCHEMA, ANCHOR_BYTES = "c6a-clock/1", 1024
-ANCHOR_OPS: tuple[ClockOp, ...] = ("work", "we5-case", "we5-q", "we7-case", "we7-q")
+ANCHOR_SCHEMA, ANCHOR_BYTES = "c6a-clock/2", 1024
+ANCHOR_OPS: tuple[ClockOp, ...] = ('work', 'we5-case', 'we5-owner:E', 'we5-owner:B:chong-R1', 'we5-q', 'we7-case', 'we7-owner:E', 'we7-owner:B:chong-N1', 'we7-owner:B:chong-N2', 'we7-owner:B:chong-N3', 'we7-q')
 SOURCE = {"source_namespace": "testonly-tb1406", "source_epoch": "fixture-epoch-1",
           "producer_id": "tb1406-c7a", "producer_epoch": "1"}
 QUERY_SOURCE = {"source_namespace": "testonly-tb1406-query", "source_epoch": "fixture-epoch-1",
@@ -65,7 +65,7 @@ INPUT_NAMES = (
 )
 
 
-ClockOp = Literal["work", "we5-case", "we5-q", "we7-case", "we7-q"]
+ClockOp = Literal['work', 'we5-case', 'we5-owner:E', 'we5-owner:B:chong-R1', 'we5-q', 'we7-case', 'we7-owner:E', 'we7-owner:B:chong-N1', 'we7-owner:B:chong-N2', 'we7-owner:B:chong-N3', 'we7-q']
 CaseName = Literal["we5", "we7"]
 
 
@@ -176,7 +176,7 @@ class ExternalClock:
     def request(self, op: Literal["we5-case", "we7-case"], budget: Budget | None = None) -> CaseAnchor: ...
 
     @overload
-    def request(self, op: Literal["we5-q", "we7-q"], budget: Budget | None = None) -> QAnchor: ...
+    def request(self, op: Literal['we5-owner:E', 'we5-owner:B:chong-R1', 'we5-q', 'we7-owner:E', 'we7-owner:B:chong-N1', 'we7-owner:B:chong-N2', 'we7-owner:B:chong-N3', 'we7-q'], budget: Budget | None = None) -> QAnchor: ...
 
     def request(self, op: ClockOp, budget: Budget | None = None) -> ClockAnchor:
         require(not self.closed and self.index < len(ANCHOR_OPS) and op == ANCHOR_OPS[self.index], "外部时钟顺序/重复请求")
@@ -299,6 +299,16 @@ class Budget:
             if name not in ("we5", "we7"):
                 raise ValueError("外部时钟q名称非法")
             return self.anchors.request("we5-q" if name == "we5" else "we7-q", self)
+        started = self.clock()
+        return {"started_at": started, "deadline": min(started + STARTUP_SECONDS, self.case_end, self.work_end),
+                "case_deadline": self.case_end, "work_deadline": self.work_end}
+
+    def owner_start(self, name: CaseName, domain: str) -> QAnchor:
+        self.check()
+        op = name + "-owner:" + domain
+        if self.anchors is not None:
+            require(op in ANCHOR_OPS, "owner startup 域/case 非法")
+            return cast(QAnchor, self.anchors.request(cast(ClockOp, op), self))
         started = self.clock()
         return {"started_at": started, "deadline": min(started + STARTUP_SECONDS, self.case_end, self.work_end),
                 "case_deadline": self.case_end, "work_deadline": self.work_end}
@@ -848,7 +858,8 @@ class Case:
             result = decode_frame(self.supervisor.run(self.args(domain, "init"), self.name + "-init"))
             equal((result["kind"], result["domain_id"]), ("Initialized", domain), "init 原回执")
             self.epochs[domain] = result["writer_epoch"]
-            end = min(self.budget.clock() + STARTUP_SECONDS, self.budget.case_end, self.budget.work_end)
+            startup = self.budget.owner_start(self.name, domain)
+            end = startup["deadline"]
             proc = self.supervisor.spawn(self.args(domain, "serve"), self.name + "-serve")
             self.processes.append(proc)
             self.budget.until(end)

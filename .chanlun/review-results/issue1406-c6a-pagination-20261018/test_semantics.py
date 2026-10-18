@@ -322,14 +322,19 @@ class ProducerCase(d.Case):
         return result
     def start(self):
         self.entries = []
+        self.independent_owner_anchors = {}
         # manifest.json 已由父类 d.Case.__init__() 创建，无需重复保存
         for domain in self.nodes:
             init = self.processlog.spawn(self.args(domain, 'init'), self.name + '-init',
                 d.canonical({'kind': 'Initialized', 'domain_id': domain, 'writer_epoch': '1'}))
             self.processlog.reap(init)
             self.epochs[domain] = '1'
+            started = self.processlog.tick()
+            anchor = {'started_at': started, 'deadline': started + 10, 'case_deadline': 300, 'work_deadline': 600}
+            self.independent_owner_anchors[domain] = anchor
             self.entries.append(self.processlog.spawn(self.args(domain, 'serve'), self.name + '-serve'))
-            self.owner(domain, {'op': 'ReadView', 'cut': None, 'as_known_ns': None}, 'ready-' + domain)
+            self.owner(domain, {'op': 'ReadView', 'cut': None, 'as_known_ns': None}, 'ready-' + domain,
+                       deadline=anchor['deadline'])
         d.save(self.work / 'query.json', {'schema_revision': 'economic-query/1', 'manifest': 'manifest.json',
             'manifest_hash': d.digest(self.manifest), 'query_source': d.QUERY_SOURCE, 'producer_epoch': '1',
             'expected_epochs': self.epochs, 'resources': d.QUERY_RESOURCES})
@@ -609,6 +614,8 @@ def fixture(output):
         'source_sha': build['source_sha'], 'source_tree': build['source_tree'], 'source_files': SOURCE,
         'binaries_before': build['binaries'], 'binaries_after': build['binaries'],
         'driver_started_monotonic': 0, 'driver_finished_monotonic': processes.time + .01,
+        'owner_startup_anchors': {'we5': copy.deepcopy(c5.independent_owner_anchors),
+                                  'we7': copy.deepcopy(c7.independent_owner_anchors)},
         'case_startup_anchors': {'we5': copy.deepcopy(c5.independent_startup_anchors),
                                  'we7': copy.deepcopy(c7.independent_startup_anchors)}}
     reseal(output, provenance, receipt)
@@ -1031,6 +1038,40 @@ class SemanticsTests(unittest.TestCase):
             obj['deadline'] += 20
         with self.changed({proof_name:d.canonical(proof), transport_name:d.canonical(transport)}):
             with self.assertRaisesRegex(ValueError, '可信锚 started_at'):
+                sem.verify_runtime(self.output, self.build, self.provenance)
+
+    def test_owner_parent_window_is_tighter_than_logical_30_seconds(self):
+        for case in ('we5', 'we7'):
+            proof = json.loads((self.output / case / 'logical-0001-pagination.json').read_bytes())
+            anchor = self.provenance['owner_startup_anchors'][case]['E']
+            self.assertEqual(proof['deadline'], anchor['deadline'])
+            self.assertLess(proof['deadline'], proof['started_at'] + 30)
+        self.assertEqual(sem.verify_runtime(self.output, self.build, self.provenance)['steps'], 41)
+
+    def test_owner_anchor_missing_wrong_domain_replay_and_short_window_reject(self):
+        mutations = [
+            lambda p: p.pop('owner_startup_anchors'),
+            lambda p: p['owner_startup_anchors']['we5'].pop('E'),
+            lambda p: p['owner_startup_anchors']['we5'].update({'WRONG': p['owner_startup_anchors']['we5'].pop('E')}),
+            lambda p: p['owner_startup_anchors']['we5'].update({'B:chong-R1': p['owner_startup_anchors']['we5']['E']}),
+            lambda p: p['owner_startup_anchors']['we5']['E'].update(deadline=1),
+            lambda p: p['owner_startup_anchors']['we5']['E'].update(deadline=999),
+            lambda p: p['owner_startup_anchors']['we5']['E'].update(started_at=float('nan')),
+        ]
+        for mutation in mutations:
+            bad = copy.deepcopy(self.provenance)
+            mutation(bad)
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                sem.verify_runtime(self.output, self.build, bad)
+
+    def test_readiness_arbitrary_short_deadline_is_rejected(self):
+        name, original, _ = self.find_logical(lambda p, doc: p['domain'] == 'E')
+        changed = copy.deepcopy(original)
+        changed['deadline'] -= 1
+        for row in changed['physical']:
+            row['deadline'] = changed['deadline']
+        with self.changed({name: d.canonical(changed)}):
+            with self.assertRaisesRegex(ValueError, '分页30秒唯一截止'):
                 sem.verify_runtime(self.output, self.build, self.provenance)
 
     def test_pagination_deadline_and_sequence_mutations(self):

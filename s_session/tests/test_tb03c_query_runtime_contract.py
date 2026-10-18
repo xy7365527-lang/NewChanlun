@@ -55,16 +55,22 @@ class ExternalClockTests(unittest.TestCase):
         work=self.client.request("work")
         return runtime.Budget(work["t0"],clock=lambda:self.now[0],anchors=self.client)
 
-    def test_complete_five_requests_keep_external_origin_and_close_fd(self):
+    def start_q(self, budget, name):
+        for op in runtime.ANCHOR_OPS:
+            if op.startswith(name + "-owner:"):
+                budget.owner_start(name, op.split("-owner:", 1)[1])
+        return budget.q_start(name)
+
+    def test_complete_eleven_requests_keep_external_origin_and_close_fd(self):
         budget=self.budget()
         self.assertEqual((budget.work_end,budget.final_end),(600,630))
         self.assertEqual(budget.remaining(600),580)
         budget.begin_case("we5")
         self.assertEqual(budget.case_end,320)
-        self.assertEqual(budget.q_start("we5")["deadline"],30)
+        self.assertEqual(self.start_q(budget,"we5")["deadline"],30)
         self.now[0]=25
         budget.begin_case("we7")
-        budget.q_start("we7")
+        self.start_q(budget,"we7")
         self.assertEqual([r["op"] for r in self.sock.requests],list(runtime.ANCHOR_OPS))
         self.assertTrue(self.sock.closed)
         self.assertFalse(self.sock.inheritable)
@@ -77,20 +83,20 @@ class ExternalClockTests(unittest.TestCase):
     def test_q_response_delay_spends_signed_window(self):
         budget=self.budget();budget.begin_case("we5")
         self.sock.delay=11
-        with self.assertRaisesRegex(ValueError,"已过期"):budget.q_start("we5")
+        with self.assertRaisesRegex(ValueError,"已过期"):self.start_q(budget,"we5")
         self.assertTrue(self.sock.closed)
 
     def test_nine_second_response_leaves_one_second(self):
         budget=self.budget();budget.begin_case("we5")
         self.sock.delay=9
-        anchor=budget.q_start("we5")
+        anchor=self.start_q(budget,"we5")
         self.assertEqual(budget.until(anchor["deadline"]),1)
 
     def test_old_case_expired_prevents_request_for_new_case(self):
-        budget=self.budget();budget.begin_case("we5");budget.q_start("we5")
+        budget=self.budget();budget.begin_case("we5");self.start_q(budget,"we5")
         self.now[0]=320
         with self.assertRaises(TimeoutError):budget.begin_case("we7")
-        self.assertEqual(len(self.sock.requests),3)
+        self.assertEqual(len(self.sock.requests),5)
 
     def test_cancellation_prevents_handshake_send(self):
         budget=self.budget();budget.cancel=signal.SIGTERM
@@ -517,7 +523,10 @@ class StartupTests(unittest.TestCase):
                 {"kind": "Initialized", "domain_id": "E", "writer_epoch": "1"})), spawn=Mock(return_value=object()))
             seed, _, _ = runtime.load_inputs()
             manifest = copy.deepcopy(seed["manifest"])
-            manifest["chongs"] = []
+            if not external:
+                manifest["chongs"] = []
+            else:
+                supervisor.run.side_effect = lambda command, label: canonical({"kind": "Initialized", "domain_id": "B:" + command[command.index("--chong")+1] if "--chong" in command else "E", "writer_epoch": "1"})
             case = runtime.Case("we5" if external else "probe", Path(temp) / "case", supervisor, Path(temp), manifest)
             if delay_target == "q-spawn":
                 def delayed_spawn(command,label):
@@ -534,7 +543,7 @@ class StartupTests(unittest.TestCase):
                 deadlines.append(("Q", deadline))
                 if delay_target == "Q":
                     now[0] += 11
-                ready = {"manifest_hash": digest(case.manifest), "book_revision": "tb03c-book/1", "domains": ["E"],
+                ready = {"manifest_hash": digest(case.manifest), "book_revision": "tb03c-book/1", "domains": list(case.nodes),
                         "session_id": case.manifest["session_id"], "session_generation": case.manifest["session_generation"], "producer_epoch": "1"}
                 case.sequence += 1
                 (case.output / f"{case.sequence:04d}.http-response.bin").write_bytes(canonical(ready))
@@ -546,7 +555,7 @@ class StartupTests(unittest.TestCase):
             fake.getsockname.return_value = ("127.0.0.1", 19001)
             with patch.object(runtime.socket, "socket", return_value=fake), patch.object(Path, "is_socket", return_value=True):
                 case.start()
-            self.assertEqual(deadlines, [("owner", 10), ("Q", 10)])
+            self.assertEqual(deadlines, [("owner", 10)] * len(case.nodes) + [("Q", 10)])
 
     def test_ready_within_absolute_startup_deadlines(self):
         self.run_start()

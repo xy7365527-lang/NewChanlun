@@ -468,6 +468,10 @@ def replay_case_class(driver, binder):
             self.budget = types.SimpleNamespace(until=lambda end: (_ for _ in ()).throw(
                 ValueError('离线分页不可借用生产截止判据')))
             self.last_logical_time = process.start
+            require(type(provenance.get('owner_startup_anchors')) is dict and name in provenance['owner_startup_anchors'],
+                    '缺独立 owner startup 锚 ' + name)
+            self.owner_anchors = provenance['owner_startup_anchors'][name]
+            equal(set(self.owner_anchors), set(self.nodes), '独立 owner startup 完整域集合')
             self.server_processes = []
             self.internal_messages = set()
             self.q_attempt = 0
@@ -823,10 +827,21 @@ def replay_case_class(driver, binder):
                 reply = driver.decode_frame(raw)
                 equal((reply['kind'], reply['domain_id'], reply['writer_epoch']), ('Initialized', domain, '1'), '正常轨 init 身份')
                 self.epochs[domain] = reply['writer_epoch']
+                anchor = self.owner_anchors[domain]
+                equal(set(anchor), {'started_at', 'deadline', 'case_deadline', 'work_deadline'}, 'owner startup 锚字段')
+                require(all(finite(v) for v in anchor.values()), 'owner startup 锚非有限')
+                equal((anchor['case_deadline'], anchor['work_deadline']),
+                      (self.clock_anchors['case_deadline'], self.clock_anchors['work_deadline']), 'owner startup 父期限')
+                equal(anchor['deadline'], min(anchor['started_at'] + 10, anchor['case_deadline'], anchor['work_deadline']),
+                      'owner startup 固定10秒')
                 serve, _ = self.process.consume(self.args(domain, 'serve'), self.name + '-serve')
+                require(init['reaped']['monotonic'] <= anchor['started_at'] <= serve['monotonic'],
+                        'owner startup 锚不属于本次 init/serve')
+                require(self.last_logical_time <= anchor['started_at'], 'owner startup 锚重放或错序')
+                self.last_logical_time = anchor['started_at']
                 require(init['reaped']['monotonic'] <= serve['monotonic'], 'init 未退出即 serve')
                 self.server_processes.append(serve)
-                equal(self.owner(domain, {'op': 'ReadView', 'cut': None, 'as_known_ns': None}, 'ready-' + domain)['kind'],
+                equal(self.owner(domain, {'op': 'ReadView', 'cut': None, 'as_known_ns': None}, 'ready-' + domain, deadline=anchor['deadline'])['kind'],
                       'EconomicView', 'owner 启动完整就绪')
             config = {'schema_revision': 'economic-query/1', 'manifest': 'manifest.json',
                       'manifest_hash': driver.digest(self.manifest), 'query_source': driver.QUERY_SOURCE,
@@ -897,8 +912,9 @@ def verify_runtime(output: Path, build_evidence: dict, provenance: dict) -> dict
     """
     required = {'checkout_root', 'binaries_dir', 'python_executable', 'source_sha', 'source_tree',
                 'source_files', 'binaries_before', 'binaries_after', 'driver_started_monotonic',
-                'driver_finished_monotonic', 'artifact_manifest_sha256', 'case_startup_anchors'}
+                'driver_finished_monotonic', 'artifact_manifest_sha256', 'case_startup_anchors', 'owner_startup_anchors'}
     require(required <= set(provenance), '缺独立外层 provenance')
+    equal(set(provenance['owner_startup_anchors']), {'we5', 'we7'}, 'owner startup case 集合')
     output = Path(output).resolve()
     driver = load_driver(provenance['checkout_root'], provenance['source_files'])
     binder = binder_for(driver)
