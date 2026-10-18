@@ -1,0 +1,197 @@
+{
+  "status": "blocked",
+  "summary": "准备差异已形成且定向验证通过；原资源帽数值缺失，生产常量与合同保持 UNBOUND，真实准入拒绝。",
+  "issue": 1393,
+  "base_commit": "8542c00cb1b1013e8adc0ffdddc54e4d42f894a4",
+  "base_tree": "036351df2c741a6c6967945e38d4a1419f2eb3aa",
+  "branch": "codex/1393-lock-preserve-prepare-20261018",
+  "parent_task": "01a12e01-45a1-7173-a3e8-d338d108fb93",
+  "manager": "/root/manage_1393_sandcastle",
+  "worker_identity": "外部 Sandcastle Codex 工蜂；真实 session_id 由运行时登记，非父任务原生子代理注册声明",
+  "blockers": [
+    {
+      "kind": "缺少事实",
+      "fields": [
+        "single_bytes",
+        "total_bytes",
+        "files",
+        "items",
+        "upload_bytes"
+      ],
+      "detail": "所查固定入口/helper/workflow/telemetry/旧报告/合同/独审未提供所称既有帽数值；已请求精确值或指针，未收到。禁止把 toy 帽或 2 GiB 启动门当作已批准输出帽。"
+    }
+  ],
+  "contract": {
+    "path": ".chanlun/review-results/issue1393-lock-preserve-20261018/CONTRACT-DRAFT.json",
+    "schema": "issue1393-lock-preserve/1",
+    "operation": "UPDATE_WORKSPACE_PRESERVE_LOCK_ONLY",
+    "ref": "refs/heads/codex/1393-lock-preserve-once-20261018",
+    "gate": "False",
+    "prepared_commit": "UNBOUND",
+    "prepared_tree": "UNBOUND",
+    "approval": "UNBOUND",
+    "review": "UNBOUND",
+    "resource_caps": "UNBOUND"
+  },
+  "validation": [
+    {
+      "command": "python3 -B -m unittest discover -s .github/scripts -p test_issue1393_lock_prepare.py -v",
+      "exit": 0,
+      "tests": 47,
+      "seconds": 1.215,
+      "stdout": "toy-verified.stdout",
+      "stderr": "toy-verified.stderr",
+      "scope": "标准库隔离 toy/mock；两项既有监督器 toy 仅启动 Python"
+    },
+    {
+      "command": "python3 -B .chanlun/review-results/issue1393-lock-preserve-20261018/verify_prepare_static.py",
+      "exit": 0,
+      "groups": 7,
+      "stdout": "static-verified.stdout",
+      "stderr": "static-verified.stderr",
+      "scope": "AST/现有 YAML 解析器/bash -n、上传 toy、只读 Git 与摘要"
+    },
+    {
+      "prior_rounds": [
+        {
+          "name": "toy-round01",
+          "tests": 28,
+          "failures": 3,
+          "errors": 2,
+          "exit": 1
+        },
+        {
+          "name": "toy-round02",
+          "tests": 43,
+          "exit": 0
+        },
+        {
+          "name": "toy-round03",
+          "tests": 46,
+          "exit": 0
+        },
+        {
+          "name": "static-round01",
+          "groups": 7,
+          "exit": 0
+        }
+      ],
+      "preserved": true
+    }
+  ],
+  "resource_boundary": {
+    "seconds": 900,
+    "final_reserve": 90,
+    "jobs": 1,
+    "telemetry_seconds": 10,
+    "initial_disk_bytes": 2147483648,
+    "disk_semantics": "仅启动门；非内存/全程磁盘/上传帽",
+    "digest_chunk_bytes": 1048576,
+    "message_bytes": 32768,
+    "event_bytes": 1048576,
+    "production_caps": "UNBOUND",
+    "toy_caps_only": {
+      "single_bytes": 4194304,
+      "total_bytes": 33554432,
+      "upload_bytes": 33554432,
+      "files": 512,
+      "items": 100000
+    },
+    "continuous_subprocess_output_hard_cap": "未验证；原数值缺失，禁止真实准入"
+  },
+  "evidence_behavior": {
+    "registry": "仅独占 sparse cache 原件；无额外网络 argv；缺失为 proof_gap",
+    "edges": "完整文本边与精确目标边并列；歧义/悬空/未知来源拒绝",
+    "constraint_solution": "待独审，不承诺零升级或数学最小",
+    "tempfile": "必须包存在和根边；精确版本待真实结果",
+    "raw_history_preserved": 38,
+    "product_entries": 8375,
+    "product_manifest_sha256": "e1059a227dc513426f1a201f02ad94b42c5dfad5d2299d96e88e6901c676785a"
+  },
+  "not_run": [
+    "本机及远端 Cargo/rustc/rustup",
+    "真实工具链安装/解析/registry 获取",
+    "网络/API/浏览器",
+    "Rust/产品/Lean/fixture",
+    "真实 GitHub run/checkout/upload",
+    "Linux subreaper 实机",
+    "新独立评审",
+    "E 发布/F 激活/push",
+    "主验证/生成锁接受/第二次 Cargo/main 合入"
+  ],
+  "prohibited_actions_performed": [],
+  "files": {
+    ".github/scripts/issue1393_lock_prepare.py": {
+      "bytes": 45775,
+      "sha256": "482df8cd25685203df1dc41d89061c4fef662333f9b1811c3f1906b867da491a"
+    },
+    ".github/scripts/test_issue1393_lock_prepare.py": {
+      "bytes": 57727,
+      "sha256": "778cd658124af85281c35bc5404d7cdcf3fefb8ff4a6cb842f75d28c54728ac4"
+    },
+    ".github/workflows/issue1393-lock-prepare.yml": {
+      "bytes": 9932,
+      "sha256": "575a359672eae363938cc29a36dc844c8b1d427899ba4304f8a4410ea1dffcd4"
+    },
+    ".chanlun/review-results/issue1393-lock-preserve-20261018/CONTRACT-DRAFT.json": {
+      "bytes": 2667,
+      "sha256": "bd754a59c52729f93f56c3ed9e3da88363607a0e3734495e6be9f1f2498205a1"
+    },
+    ".chanlun/review-results/issue1393-lock-preserve-20261018/PREPARE-REPORT.md": {
+      "bytes": 10720,
+      "sha256": "7e2fc8841696a51e77709e96c59989d6e8472a45f79123dc96f11a7b13b68279"
+    },
+    ".chanlun/review-results/issue1393-lock-preserve-20261018/static-round01.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    ".chanlun/review-results/issue1393-lock-preserve-20261018/static-round01.stdout": {
+      "bytes": 8578,
+      "sha256": "c8f1514874f28c10dd7ae9d3c6b09f149d2a01e8258471216d59a901f216e29c"
+    },
+    ".chanlun/review-results/issue1393-lock-preserve-20261018/static-verified.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    ".chanlun/review-results/issue1393-lock-preserve-20261018/static-verified.stdout": {
+      "bytes": 8578,
+      "sha256": "c8f1514874f28c10dd7ae9d3c6b09f149d2a01e8258471216d59a901f216e29c"
+    },
+    ".chanlun/review-results/issue1393-lock-preserve-20261018/toy-round01.stderr": {
+      "bytes": 9517,
+      "sha256": "2018f6ef8e4071045a6dde3349149f3eed5781aab4906810cb7d3ac5872e2536"
+    },
+    ".chanlun/review-results/issue1393-lock-preserve-20261018/toy-round01.stdout": {
+      "bytes": 801,
+      "sha256": "1ac95e844d09aaf8a88456c96d26000cd613642183e159ebca7a18792e315d35"
+    },
+    ".chanlun/review-results/issue1393-lock-preserve-20261018/toy-round02.stderr": {
+      "bytes": 6227,
+      "sha256": "7ba66aa72097debce3aa7cfbac435c4c6112ea9edcc14009208a6b50663be071"
+    },
+    ".chanlun/review-results/issue1393-lock-preserve-20261018/toy-round02.stdout": {
+      "bytes": 801,
+      "sha256": "1ac95e844d09aaf8a88456c96d26000cd613642183e159ebca7a18792e315d35"
+    },
+    ".chanlun/review-results/issue1393-lock-preserve-20261018/toy-round03.stderr": {
+      "bytes": 6682,
+      "sha256": "c961333a66306e1db8aee93792334e7dc5c70eb7c4e81ed27f6bbdcc3c73af45"
+    },
+    ".chanlun/review-results/issue1393-lock-preserve-20261018/toy-round03.stdout": {
+      "bytes": 1545,
+      "sha256": "e9779181567b78143f86bfb3e339735db16a18896cb14a53c2b174da851cb490"
+    },
+    ".chanlun/review-results/issue1393-lock-preserve-20261018/toy-verified.stderr": {
+      "bytes": 6823,
+      "sha256": "ba9bc2a608b7555c8e50c19287241e831b2ae50d4a68059c9b5143bc5e5d6f5b"
+    },
+    ".chanlun/review-results/issue1393-lock-preserve-20261018/toy-verified.stdout": {
+      "bytes": 1545,
+      "sha256": "c54ed836efd2e877ca38de7dbc9e7e11f11bb3c987e596094cf67986309ac190"
+    },
+    ".chanlun/review-results/issue1393-lock-preserve-20261018/verify_prepare_static.py": {
+      "bytes": 8956,
+      "sha256": "51e3b06812cc42c7f3eca288a815d02add91d5d64dbbf8b3f32be53ef8402784"
+    }
+  }
+}

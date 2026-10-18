@@ -28,11 +28,10 @@ def contract():
     c.update(source_commit='8e50d40933c2a6a25f882481f3c46aa885ce6407',
              source_tree='0a2e04a4ce22a6b8732ad3b55f57446ee3f066f0')
     c.update({k: 'ab' * 32 for k in v.HASH_FIELDS})
-    for key in ('approval', 'review'):
-        c[key + '_text'] = 'toy 原件，仅溯源，不授予运行许可：' + key
-        c[key + '_sha256'] = m.digest(c[key + '_text'].encode())
     c['helper_sha256'] = m.HELPER_SHA256
-    return c
+    c['manifest_sha256'] = m.MANIFEST_SHA256
+    c['old_lock_sha256'] = m.OLD_LOCK_SHA256
+    return provenance(c)
 
 
 def message(c=None):
@@ -62,7 +61,52 @@ def blob(raw):
     return hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
 
 
-class ContractTests(unittest.TestCase):
+TOY_CAPS = {'single_bytes': 4 * 1024**2, 'total_bytes': 32 * 1024**2,
+            'files': 512, 'items': 100000, 'upload_bytes': 32 * 1024**2}
+
+
+class ToyCapsTest(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(patch.dict(m.RESOURCE_CAPS, TOY_CAPS, clear=True))
+
+
+def provenance(c):
+    for kind in ('approval', 'review'):
+        c[kind + '_text'] = json.dumps({'schema': 'issue1393-lock-preserve-' + kind + '/1',
+                                       'scope_sha256': m.contract_scope(c), 'text': 'toy 原件，不授予运行许可'}, ensure_ascii=False)
+        c[kind + '_sha256'] = m.digest(c[kind + '_text'].encode())
+    return c
+
+
+def cache_record(name, version, deps=None):
+    return {'name': name, 'vers': version, 'deps': deps or [], 'cksum': 'ab' * 32,
+            'features': {}, 'yanked': False, 'rust_version': '1.63'}
+
+
+def write_cache(work, records):
+    base = work / m.SPARSE_CACHE
+    base.mkdir(parents=True, exist_ok=True)
+    (base / 'config.json').write_text(json.dumps({'dl': 'https://static.crates.io/crates', 'api': 'https://crates.io'}))
+    by_name = {}
+    for r in records:
+        by_name.setdefault(r['name'], []).append(r)
+    for name, rows in by_name.items():
+        p = base / '.cache' / m.sparse_path(name)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b'\x03\x02\0\0\0etag: "toy"\0' + b''.join(
+            r['vers'].encode() + b'\0' + json.dumps(r).encode() + b'\0' for r in rows))
+
+
+def lock(rows, root_deps=None):
+    text = '[[package]]\nname="newchan_rust"\nversion="0.1.0"\ndependencies=' + json.dumps(root_deps or []) + '\n'
+    for name, version, deps in rows:
+        text += ('[[package]]\nname=' + json.dumps(name) + '\nversion=' + json.dumps(version)
+                 + '\nsource=' + json.dumps(m.REGISTRY) + '\nchecksum="' + 'ab' * 32
+                 + '"\ndependencies=' + json.dumps(deps) + '\n')
+    return text.encode()
+
+
+class ContractTests(ToyCapsTest):
     def test_false_zero_commands_and_no_event_read(self):
         with patch.dict(os.environ, {'ISSUE1393_LOCK_EXECUTE': 'False'}, clear=True), \
                 patch.object(subprocess, 'Popen') as popen, patch.object(v, 'read_push_contract') as read:
@@ -71,8 +115,8 @@ class ContractTests(unittest.TestCase):
             read.assert_not_called()
 
     def test_draft_is_rejected(self):
-        for name in ('CONTRACT-DRAFT.json', 'FIX-CONTRACT-DRAFT.json'):
-            draft = json.loads((m.ROOT / (m.REPORT + name)).read_text())
+        for folder, name in ((m.REPORT, 'CONTRACT-DRAFT.json'), (m.LEGACY_REPORT, 'CONTRACT-DRAFT.json'), (m.LEGACY_REPORT, 'FIX-CONTRACT-DRAFT.json')):
+            draft = json.loads((m.ROOT / (folder + name)).read_text())
             with self.subTest(draft=name), self.assertRaises(v.Refused):
                 v.validate_contract('True', draft)
             with self.assertRaises(v.Refused):
@@ -145,10 +189,12 @@ class ContractTests(unittest.TestCase):
 
     def test_message_never_becomes_path_or_argv(self):
         c = contract()
-        c['approval_text'] = '$(touch /tmp/no) ; `whoami` ../x --build'
+        receipt = json.loads(c['approval_text'])
+        receipt['text'] = '$(touch /tmp/no) ; `whoami` ../x --build'
+        c['approval_text'] = json.dumps(receipt)
         c['approval_sha256'] = m.digest(c['approval_text'].encode())
         v.parse_message(message(c))
-        self.assertEqual(m.resolution_argv(Path('/fixed')), ['cargo', '+' + m.TOOLCHAIN, 'generate-lockfile', '--manifest-path', '/fixed/rust/Cargo.toml'])
+        self.assertEqual(m.resolution_argv(Path('/fixed')), ['cargo', '+' + m.TOOLCHAIN, 'update', '--workspace', '--manifest-path', '/fixed/rust/Cargo.toml'])
         with tempfile.TemporaryDirectory() as d:
             s = v.Supervisor(Path(d), budget())
             with patch.object(subprocess, 'Popen') as popen:
@@ -161,7 +207,7 @@ class ContractTests(unittest.TestCase):
             m.load_fixed_helper()
 
 
-class IdentityTests(unittest.TestCase):
+class IdentityTests(ToyCapsTest):
     def test_complete_binding_and_mutations(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
@@ -169,9 +215,9 @@ class IdentityTests(unittest.TestCase):
             false = b'name: toy\nenv:\n' + m.GATE_FALSE
             contents = {m.WORKFLOW: false.replace(m.GATE_FALSE, m.GATE_TRUE), m.RUNNER: b'runner',
                         '.github/workflows/ci.yml': b'ci', m.TELEMETRY: b'telemetry',
-                        m.HELPER: (m.ROOT / m.HELPER).read_bytes(), 'rust/Cargo.toml': b'manifest',
-                        'rust/Cargo.lock': b'lock', '.github/workflows/issue1393-validation.yml': b'old workflow',
-                        m.REPORT + 'RUST-TOOLCHAIN-39091453686.txt': (m.RUSTC_FIRST + '\n' + m.RUSTC_COMMIT + '\n' + m.CARGO_VERSION).encode()}
+                        m.HELPER: (m.ROOT / m.HELPER).read_bytes(), 'rust/Cargo.toml': (m.ROOT / 'rust/Cargo.toml').read_bytes(),
+                        'rust/Cargo.lock': (m.ROOT / 'rust/Cargo.lock').read_bytes(), '.github/workflows/issue1393-validation.yml': b'old workflow',
+                        m.LEGACY_REPORT + 'RUST-TOOLCHAIN-39091453686.txt': (m.RUSTC_FIRST + '\n' + m.RUSTC_COMMIT + '\n' + m.CARGO_VERSION).encode()}
             for p, raw in contents.items():
                 path = root / p
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -179,13 +225,16 @@ class IdentityTests(unittest.TestCase):
             mappings = {m.RUNNER: 'runner_sha256', '.github/workflows/ci.yml': 'ci_sha256', m.TELEMETRY: 'telemetry_sha256',
                         m.HELPER: 'helper_sha256', 'rust/Cargo.toml': 'manifest_sha256', 'rust/Cargo.lock': 'old_lock_sha256',
                         '.github/workflows/issue1393-validation.yml': 'validation_workflow_sha256',
-                        m.REPORT + 'RUST-TOOLCHAIN-39091453686.txt': 'toolchain_evidence_sha256'}
+                        m.LEGACY_REPORT + 'RUST-TOOLCHAIN-39091453686.txt': 'toolchain_evidence_sha256'}
             for p, k in mappings.items():
                 c[k] = m.digest(contents[p])
             c['workflow_false_sha256'] = m.digest(false)
-            tree = b'100644 blob ' + b'ab' * 20 + b'\trust/src/lib.rs\0'
+            legacy_tree = ('100644 blob ' + 'ab' * 20 + '\t' + m.LEGACY_REPORT + 'RUST-TOOLCHAIN-39091453686.txt\0').encode()
+            tree = b'100644 blob ' + b'ab' * 20 + b'\trust/src/lib.rs\0' + legacy_tree
+            (root / 'execution-ls-tree.stdout').write_bytes(tree)
             c['product_manifest_sha256'] = m.digest(v.canonical(v.product_entries(tree)))
-            replies = {'git-head': head.encode(), 'git-message': b'tree toy\n\n' + message(c).encode(),
+            provenance(c)
+            replies = {'legacy-ls-tree': legacy_tree, 'git-head': head.encode(), 'git-message': b'tree toy\n\n' + message(c).encode(),
                        'git-parent': (head + ' ' + c['prepared_commit']).encode(),
                        'git-ancestry': (c['source_commit'] + ' ' + c['source_tree']).encode(),
                        'git-prepared-tree': c['prepared_tree'].encode(), 'git-dirty': b'',
@@ -201,7 +250,8 @@ class IdentityTests(unittest.TestCase):
                     with self.subTest(path=p), self.assertRaises(v.Refused):
                         m.bind_source(root, c, s, event(c))
                     (root / p).write_bytes(contents[p])
-                mutations = [('git-ancestry', b''),
+                mutations = [('legacy-ls-tree', b''), ('legacy-ls-tree', legacy_tree.replace(b'abab', b'cdcd', 1)),
+                             ('git-ancestry', b''),
                              ('git-ancestry', (c['source_commit'] + ' ' + '56' * 20).encode()),
                              ('git-prepared-tree', b'12' * 20),
                              ('git-parent', (head + ' ' + c['prepared_commit'] + ' ' + 'ef' * 20).encode()),
@@ -247,7 +297,7 @@ class IdentityTests(unittest.TestCase):
                 v.verify_activation(a, b)
 
 
-class ResolutionTests(unittest.TestCase):
+class ResolutionTests(ToyCapsTest):
     def test_target_selection_copies_actual_entries_only(self):
         entries = {p: ('100644', 'blob', 'ab' * 20) for p in
                    ('rust/Cargo.toml', 'rust/Cargo.lock', 'rust/src/lib.rs', 'rust/src/bin/a.rs',
@@ -333,15 +383,15 @@ class ResolutionTests(unittest.TestCase):
                 v.Budget(bad)
 
     def test_full_package_and_edge_changes_are_disclosed(self):
-        old = b'[[package]]\nname="root"\nversion="1"\ndependencies=["x 1"]\n[[package]]\nname="x"\nversion="1"\n'
-        new = b'[[package]]\nname="root"\nversion="1"\ndependencies=["x 2", "tempfile"]\n[[package]]\nname="x"\nversion="2"\n[[package]]\nname="tempfile"\nversion="3"\n'
+        old = lock([('x', '1.0.0', [])], ['x 1.0.0'])
+        new = lock([('x', '2.0.0', []), ('tempfile', '3.0.0', [])], ['x 2.0.0', 'tempfile'])
         result = m.lock_changes(old, new)
         self.assertEqual(len(result['packages_after']), 3)
         self.assertEqual([p['name'] for p in result['removed']], ['x'])
         self.assertEqual(result['version_or_source_changes'][0]['name'], 'x')
         self.assertEqual(len(result['edges_added']), 2)
         self.assertEqual(len(result['edges_removed']), 1)
-        self.assertEqual(result['updated_same_identity'][0]['after']['dependencies'], ['x 2', 'tempfile'])
+        self.assertEqual(result['updated_same_identity'][0]['after']['dependencies'], ['x 2.0.0', 'tempfile'])
 
     def test_generated_lock_requires_official_checksum_and_tempfile_edge(self):
         raw = ('[[package]]\nname="newchan_rust"\nversion="0.1.0"\ndependencies=["tempfile"]\n'
@@ -358,15 +408,17 @@ class ResolutionTests(unittest.TestCase):
             work, out = p / 'work', p / 'out'
             (work / 'rust').mkdir(parents=True)
             out.mkdir()
-            raw = b'[[package]]\nname="old"\nversion="1"\n'
+            raw = lock([])
             (work / 'rust/Cargo.lock').write_bytes(raw)
             (out / 'Cargo.lock.old').write_bytes(raw)
+            (out / 'Cargo.toml').write_bytes(b'[dev-dependencies]\ntempfile="3"\n')
+            write_cache(work, [])
             m.preserve_resolution(work, out, budget())
             self.assertEqual((out / 'Cargo.lock').read_bytes(), raw)
             self.assertEqual((out / 'Cargo.lock.patch').read_text(), '')
             self.assertEqual(json.loads((out / 'registry.json').read_text())['files'], [])
             m.save(out / 'result.json', {'status': 'FAILED'})
-            m.save(out / 'steps.json', [{'name': 'generate-lockfile', 'status': 'FAILED'}])
+            m.save(out / 'steps.json', [{'name': 'update-workspace', 'status': 'FAILED'}])
             v.package(out, budget())
             self.assertIn('Cargo.lock', json.loads((out / 'FILES.json').read_text()))
             self.assertTrue((out / 'evidence.zip').exists())
@@ -392,9 +444,11 @@ class ResolutionTests(unittest.TestCase):
                 calls = []
                 def generate(supervisor, _root, name, argv, cwd, env):
                     calls.append(argv)
-                    self.assertEqual(name, 'generate-lockfile')
+                    self.assertEqual(name, 'update-workspace')
                     self.assertEqual(argv, m.resolution_argv(temp / 'issue1393-lock-work'))
                     self.assertFalse('GITHUB_TOKEN' in env)
+                    self.assertEqual((cwd / 'Cargo.lock').read_bytes(), old)
+                    write_cache(cwd.parent, [cache_record('tempfile', '3.0.0')])
                     (cwd / 'Cargo.lock').write_bytes(new)
                     (supervisor.output / (name + '.command.stdout')).write_bytes(b'toy generation raw\n')
                     supervisor.records.append({'name': name, 'status': 'FAILED' if fail else 'PASS', 'exit': 7 if fail else 0})
@@ -402,7 +456,8 @@ class ResolutionTests(unittest.TestCase):
                         raise v.Refused('toy 命令失败，不重跑')
                     return b''
                 with patch.dict(os.environ, {'ISSUE1393_LOCK_EXECUTE': 'True', 'RUNNER_TEMP': str(temp)}, clear=True), \
-                        patch.object(m, 'ROOT', root), patch.object(m, 'bind_source', side_effect=bind), \
+                        patch.object(m, 'ROOT', root), patch.object(m, 'MANIFEST_SHA256', m.digest(manifest)), \
+                        patch.object(m, 'OLD_LOCK_SHA256', m.digest(old)), patch.object(m, 'bind_source', side_effect=bind), \
                         patch.object(v, 'read_push_contract', return_value=(event(), contract())), \
                         patch.object(m, 'install_toolchain'), patch.object(v, 'telemetry_command', side_effect=generate), \
                         patch.object(m.shutil, 'disk_usage', return_value=SimpleNamespace(free=3 * 1024**3)), \
@@ -429,10 +484,335 @@ class ResolutionTests(unittest.TestCase):
             with self.assertRaises(v.Refused):
                 m.preserve_resolution(p / 'work', p / 'out', budget())
             self.assertEqual((p / 'out/Cargo.lock').read_bytes(), b'invalid TOML!')
-            self.assertTrue((p / 'out/registry.json').exists())
+            self.assertTrue((p / 'out/registry-failure.json').exists())
 
 
-class PackageTailTests(unittest.TestCase):
+class PreserveContractTests(ToyCapsTest):
+    def test_new_contract_and_old_generation_rejected(self):
+        c = contract()
+        v.validate_contract('True', c)
+        for k, value in (('schema', 'issue1393-lock-prepare/1'), ('command', 'GENERATE_LOCKFILE_ONLY'),
+                         ('operation', 'GENERATE_LOCKFILE_ONLY'), ('ref', 'refs/heads/codex/1393-lock-once-20261018'),
+                         ('old_lock_sha256', 'ce204e12ec8b8d25b41668fb3c466315a309252d873c6dbb89bdf64ba97f6ab6'),
+                         ('manifest_sha256', 'cd' * 32), ('registry_network_fallback', 'ALLOW')):
+            with self.subTest(field=k), self.assertRaises(v.Refused):
+                v.validate_contract('True', provenance(dict(c, **{k: value})))
+        for kind in ('approval', 'review'):
+            bad = dict(c)
+            bad[kind + '_text'] = '旧 generate 批准，即使重新计算摘要也不能使用'
+            bad[kind + '_sha256'] = m.digest(bad[kind + '_text'].encode())
+            with self.assertRaises(v.Refused):
+                v.validate_contract('True', bad)
+        for key in ('prepared_commit', 'prepared_tree', 'runner_sha256'):
+            bad = dict(c, **{key: 'cd' * (20 if key.startswith('prepared_') else 32)})
+            with self.assertRaises(v.Refused):
+                v.validate_contract('True', bad)
+        with self.assertRaises(v.Refused):
+            v.parse_message(message(c).replace('LOCK-PRESERVE-CONTRACT', 'LOCK-CONTRACT'))
+
+    def test_unbound_caps_fail_closed(self):
+        with patch.dict(m.RESOURCE_CAPS, dict.fromkeys(TOY_CAPS, 'UNBOUND'), clear=True):
+            c = contract()
+            with patch.object(subprocess, 'Popen') as spawn, self.assertRaises(v.Refused):
+                v.validate_contract('True', c)
+            spawn.assert_not_called()
+            with tempfile.TemporaryDirectory() as d, self.assertRaises(v.Refused):
+                m.EvidenceIO(Path(d), budget())
+
+    def test_original_source_hashes_are_actual(self):
+        self.assertEqual(m.digest((m.ROOT / 'rust/Cargo.toml').read_bytes()), m.MANIFEST_SHA256)
+        self.assertEqual(m.digest((m.ROOT / 'rust/Cargo.lock').read_bytes()), m.OLD_LOCK_SHA256)
+
+    def test_ast_has_only_update_workspace_no_fallback_or_lock_delete(self):
+        import ast
+        tree = ast.parse((m.ROOT / m.RUNNER).read_text())
+        self.assertEqual(m.resolution_argv(Path('/exclusive')),
+                         ['cargo', '+' + m.TOOLCHAIN, 'update', '--workspace', '--manifest-path', '/exclusive/rust/Cargo.toml'])
+        forbidden = {'generate-lockfile', 'metadata', 'build', 'check', 'test'}
+        calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                 and n.func.attr == 'telemetry_command']
+        self.assertEqual(len(calls), 4)
+        for call in calls:
+            # 固定安装/版本读取与唯一解析，无 second Cargo resolution。
+            arg = call.args[3]
+            if isinstance(arg, ast.List):
+                words = [n.value for n in arg.elts if isinstance(n, ast.Constant)]
+                self.assertFalse(forbidden.intersection(words))
+        self.assertFalse(any(isinstance(n, ast.Attribute) and n.attr in ('unlink', 'rmtree', 'Popen') for n in ast.walk(tree)))
+
+
+    def test_missing_or_changed_lock_never_calls_resolver(self):
+        for mode in ('missing', 'changed'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as d:
+                temp = Path(d).resolve()
+                (temp / 'issue1393-lock-start.json').write_text(json.dumps({'monotonic': time.monotonic(), 'wall': time.time(), 'total_seconds': 900}))
+                manifest = b'[dev-dependencies]\ntempfile="3"\n'
+                old = lock([])
+                def copy_source(_root, work, out, _budget):
+                    (work / 'rust').mkdir()
+                    (work / 'rust/Cargo.toml').write_bytes(manifest)
+                    (work / 'rust/Cargo.lock').write_bytes(old)
+                    (out / 'Cargo.lock.old').write_bytes(old)
+                    (out / 'Cargo.toml').write_bytes(manifest)
+                    write_cache(work, [])
+                    return []
+                def install(_root, work, _supervisor, _env):
+                    path = work / 'rust/Cargo.lock'
+                    if mode == 'missing':
+                        path.unlink()
+                    else:
+                        path.write_bytes(old + b'\n# tampered')
+                with contextlib.ExitStack() as stack:
+                    for cm in (patch.dict(os.environ, {'ISSUE1393_LOCK_EXECUTE': 'True', 'RUNNER_TEMP': str(temp)}, clear=True),
+                               patch.object(m, 'bind_source'), patch.object(v, 'read_push_contract', return_value=(event(), contract())),
+                               patch.object(m, 'copy_resolution_source', side_effect=copy_source),
+                               patch.object(m, 'install_toolchain', side_effect=install), patch.object(m.signal, 'signal'),
+                               patch.object(m.shutil, 'disk_usage', return_value=SimpleNamespace(free=3 * 1024**3)),
+                               patch.object(m, 'MANIFEST_SHA256', m.digest(manifest)), patch.object(m, 'OLD_LOCK_SHA256', m.digest(old))):
+                        stack.enter_context(cm)
+                    cargo = stack.enter_context(patch.object(v, 'telemetry_command'))
+                    spawn = stack.enter_context(patch.object(subprocess, 'Popen'))
+                    self.assertEqual(m.main(), 1)
+                    cargo.assert_not_called()
+                    spawn.assert_not_called()
+                result = json.loads((temp / 'issue1393-lock-evidence/result.json').read_text())
+                self.assertNotEqual(result['status'], 'PASS')
+                self.assertEqual(result['resolution'], 'NOT_RUN')
+                self.assertEqual((temp / 'issue1393-lock-evidence/Cargo.lock.old').read_bytes(), old)
+
+    def test_wrong_input_lock_rejected_before_transport(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            work, out = root / 'work', root / 'out'
+            out.mkdir()
+            work.mkdir()
+            manifest = (m.ROOT / 'rust/Cargo.toml').read_bytes()
+            wrong = b'wrong generated lock'
+            inputs = {'rust/Cargo.toml': manifest, 'rust/Cargo.lock': wrong}
+            (root / 'rust').mkdir()
+            for name, raw in inputs.items():
+                (root / name).write_bytes(raw)
+            (out / 'execution-ls-tree.stdout').write_bytes(b''.join(
+                ('100644 blob ' + blob(raw) + '\t' + name + '\0').encode() for name, raw in inputs.items()))
+            with patch.object(subprocess, 'Popen') as spawn, self.assertRaises(v.Refused):
+                m.copy_resolution_source(root, work, out, budget())
+            spawn.assert_not_called()
+            self.assertEqual(list(work.iterdir()), [])
+
+    def test_archive_upload_cap_blocks_packaging(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)
+            m.save(out / 'result.json', {'status': 'FAILED'})
+            m.save(out / 'steps.json', [])
+            with patch.dict(m.RESOURCE_CAPS, upload_bytes=1), self.assertRaises(v.Refused):
+                m.package(out, budget())
+            self.assertFalse((out / 'evidence.zip').exists())
+
+
+class RegistryTests(ToyCapsTest):
+    def setUp(self):
+        super().setUp()
+        self.temp = self.enterContext(tempfile.TemporaryDirectory())
+        self.base = Path(self.temp).resolve()
+        self.work, self.out = self.base / 'work', self.base / 'out'
+        (self.work / 'rust').mkdir(parents=True)
+        self.out.mkdir()
+        self.b = budget()
+        self.old = lock([('parent', '1.0.0', ['child']), ('child', '1.0.0', [])], ['parent'])
+        self.new = lock([('parent', '1.0.0', ['child']), ('child', '2.0.0', []), ('tempfile', '3.0.0', [])], ['parent', 'tempfile'])
+        (self.out / 'Cargo.toml').write_bytes(b'[dependencies]\nparent="1"\n[dev-dependencies]\ntempfile="3"\n')
+        (self.out / 'Cargo.lock.old').write_bytes(self.old)
+        (self.work / 'rust/Cargo.lock').write_bytes(self.new)
+        dep = {'name': 'alias', 'package': 'child', 'req': '>=1, <3', 'features': ['fast'],
+               'optional': True, 'default_features': False, 'target': 'cfg(unix)', 'kind': 'normal', 'registry': None}
+        self.records = [cache_record('parent', '1.0.0', [dep]), cache_record('child', '1.0.0'),
+                        cache_record('child', '2.0.0'), cache_record('tempfile', '3.0.0')]
+        write_cache(self.work, self.records)
+        self.spawn = self.enterContext(patch.object(subprocess, 'Popen', side_effect=AssertionError('不准真实 Cargo/网络子进程')))
+
+    def tearDown(self):
+        self.spawn.assert_not_called()
+        super().tearDown()
+
+    def preserve(self):
+        return m.preserve_resolution(self.work, self.out, self.b)
+
+    def test_complete_records_parents_features_and_retargeted_text_edge(self):
+        self.preserve()
+        changes = json.loads((self.out / 'lock-changes.json').read_text())
+        self.assertEqual(changes['text_unchanged_target_changed'], [
+            {'parent': ['parent', '1.0.0', m.REGISTRY], 'dependency': 'child',
+             'before': ['child', '1.0.0', m.REGISTRY], 'after': ['child', '2.0.0', m.REGISTRY]}])
+        self.assertFalse(any(e[-1] == 'child' for e in changes['edges_added'] + changes['edges_removed']))
+        evidence = json.loads((self.out / 'registry.json').read_text())
+        self.assertTrue(evidence['complete'])
+        self.assertEqual(len(evidence['records']), 4)
+        for row in evidence['records']:
+            self.assertEqual(m.digest(row['raw_json'].encode()), row['raw_json_sha256'])
+            self.assertEqual(json.loads(row['raw_json']), row['record'])
+            self.assertEqual(m.digest((self.out / row['cache_artifact']).read_bytes()), row['cache_sha256'])
+        parents = [e for e in evidence['constraint_parents'] if e['target'][0] == 'child']
+        self.assertEqual({e['graph'] for e in parents}, {'before', 'after'})
+        self.assertTrue(all(e['constraints'][0]['req'] == '>=1, <3' and e['constraints'][0]['features'] == ['fast'] for e in parents))
+        roots = [e for e in evidence['constraint_parents'] if e['target'][0] == 'tempfile']
+        self.assertEqual(roots[0]['constraints'][0]['declaration']['version'], '3')
+        self.assertEqual(evidence['semver_solution'], 'NOT_SOLVED_PENDING_INDEPENDENT_REVIEW')
+
+    def test_null_package_alias_is_normal_dependency(self):
+        self.records[0]['deps'][0].update(name='child', package=None)
+        write_cache(self.work, self.records)
+        self.preserve()
+        self.assertTrue(json.loads((self.out / 'registry.json').read_text())['complete'])
+
+    def test_missing_old_version_is_proof_gap(self):
+        write_cache(self.work, [r for r in self.records if not (r['name'] == 'child' and r['vers'] == '1.0.0')])
+        with self.assertRaises(v.Refused):
+            self.preserve()
+        proof = json.loads((self.out / 'registry.json').read_text())
+        self.assertFalse(proof['complete'])
+        self.assertTrue(any(g.get('identity') == ['child', '1.0.0', m.REGISTRY] for g in proof['proof_gap']))
+        self.assertEqual((self.out / 'Cargo.lock').read_bytes(), self.new)
+
+    def test_missing_cache_and_no_scan_or_network(self):
+        path = self.work / m.SPARSE_CACHE / '.cache' / m.sparse_path('child')
+        path.unlink()
+        with patch.object(Path, 'rglob', side_effect=AssertionError('不准扫描 registry')), self.assertRaises(v.Refused):
+            self.preserve()
+        proof = json.loads((self.out / 'registry.json').read_text())
+        self.assertFalse(proof['complete'])
+        self.assertTrue(any(g.get('name') == 'child' for g in proof['proof_gap']))
+
+    def test_unknown_format_source_checksum_and_missing_parent_constraint(self):
+        variants = [('deps', []), ('cksum', 'cd' * 32), ('deps', [dict(self.records[0]['deps'][0], registry='https://other')])]
+        for key, value in variants:
+            with self.subTest(key=key, value=value):
+                for p in self.out.iterdir():
+                    if p.name not in ('Cargo.toml', 'Cargo.lock.old'):
+                        p.unlink()
+                modified = copy.deepcopy(self.records)
+                modified[0][key] = value
+                write_cache(self.work, modified)
+                with self.assertRaises(v.Refused):
+                    self.preserve()
+                self.assertFalse(json.loads((self.out / 'registry.json').read_text())['complete'])
+        path = self.work / m.SPARSE_CACHE / '.cache' / m.sparse_path('child')
+        with self.assertRaises(v.Refused):
+            m.sparse_records(path.read_bytes().replace(b'\x03\x02', b'\x04\x02', 1), 'child')
+
+    def test_registry_duplicate_versions_and_truncated_json(self):
+        raw = (self.work / m.SPARSE_CACHE / '.cache' / m.sparse_path('child')).read_bytes()
+        for bad in (raw[:-1], raw + raw[raw.index(b'1.0.0\0'):], raw.replace(b'"vers":', b'"vers":"x","vers":', 1)):
+            with self.assertRaises(v.Refused):
+                m.sparse_records(bad, 'child')
+
+    def test_graph_rejects_ambiguity_dangling_and_unknown_source(self):
+        rows = [('child', '1.0.0', []), ('child', '2.0.0', [])]
+        for raw in (lock(rows, ['child']), lock(rows, ['missing']),
+                    lock(rows, ['child 1.0.0 (git+https://other)']),
+                    lock(rows, ['child 1.0.0']).replace(m.REGISTRY.encode(), b'git+https://other')):
+            with self.assertRaises(v.Refused):
+                m.lock_changes(raw, raw)
+        for text in ('child 1.0.0', 'child 1.0.0 (' + m.REGISTRY + ')'):
+            raw = lock(rows, [text])
+            self.assertEqual(m.lock_changes(raw, raw)['resolved_edges_before'][0]['target'][1], '1.0.0')
+
+    def test_deleted_package_requires_old_record_and_parent(self):
+        (self.work / 'rust/Cargo.lock').write_bytes(lock([('tempfile', '3.0.0', [])], ['tempfile']))
+        self.preserve()
+        proof = json.loads((self.out / 'registry.json').read_text())
+        self.assertIn(['child', '1.0.0', m.REGISTRY], [r['identity'] for r in proof['records']])
+        self.assertTrue(any(e['graph'] == 'before' and e['target'][0] == 'parent' for e in proof['constraint_parents']))
+
+    def test_caps_preflight_before_read_and_single_total_items(self):
+        io_guard = m.EvidenceIO(self.out, self.b)
+        path = self.work / 'large.raw'
+        path.write_bytes(b'x' * 600)
+        with patch.dict(m.RESOURCE_CAPS, single_bytes=512), patch.object(Path, 'open') as opened, self.assertRaises(v.Refused):
+            io_guard.read(path, self.work)
+        opened.assert_not_called()
+        with patch.dict(m.RESOURCE_CAPS, total_bytes=io_guard.check()[1] - 1), patch.object(Path, 'open') as opened, self.assertRaises(v.Refused):
+            io_guard.read(path, self.work)
+        opened.assert_not_called()
+        with patch.dict(m.RESOURCE_CAPS, items=1):
+            io_guard.take_items(1)
+            with self.assertRaises(v.Refused):
+                io_guard.take_items(1)
+        with patch.dict(m.RESOURCE_CAPS, files=1), patch.object(Path, 'open') as opened, self.assertRaises(v.Refused):
+            m.EvidenceIO(self.out, self.b)
+        opened.assert_not_called()
+
+    def test_cumulative_read_bytes_and_items(self):
+        guard = m.EvidenceIO(self.out, self.b)
+        path = self.work / 'bytes.raw'
+        path.write_bytes(b'x' * 512)
+        with patch.dict(m.RESOURCE_CAPS, total_bytes=1024):
+            guard.read(path, self.work)
+            guard.read(path, self.work)
+            with self.assertRaises(v.Refused):
+                guard.read(path, self.work)
+        guard = m.EvidenceIO(self.out, self.b)
+        with patch.dict(m.RESOURCE_CAPS, items=1):
+            guard.read(path, self.work)
+            with self.assertRaises(v.Refused):
+                guard.read(path, self.work)
+
+    def test_registry_read_parse_hash_write_expiry_and_exception(self):
+        for stage in ('read', 'parse', 'hash', 'write'):
+            for fault in ('deadline', 'exception'):
+                with self.subTest(stage=stage, fault=fault):
+                    for p in self.out.iterdir():
+                        if p.name not in ('Cargo.toml', 'Cargo.lock.old'):
+                            p.unlink()
+                    b = budget()
+                    changes = m.lock_changes(self.old, self.new)
+                    guard = m.EvidenceIO(self.out, b)
+                    fn = {'read': guard.read, 'parse': m.sparse_records, 'hash': m.digest, 'write': guard.write}[stage]
+                    target, attr = {'read': (guard, 'read'), 'parse': (m, 'sparse_records'),
+                                    'hash': (m, 'digest'), 'write': (guard, 'write')}[stage]
+                    fired = []
+                    def corrupt(*args, **kwargs):
+                        val = fn(*args, **kwargs)
+                        if not fired:
+                            fired.append(True)
+                            if fault == 'exception':
+                                raise OSError('toy 取证失败')
+                            b.mono -= 1000
+                        return val
+                    with patch.object(target, attr, side_effect=corrupt), self.assertRaises((v.Refused, OSError)):
+                        m.snapshot_registry(self.work, self.out, b, changes, guard)
+                    self.assertTrue(fired)
+                    self.assertFalse(json.loads((self.out / 'registry-failure.json').read_text())['complete'])
+                    if (self.out / 'registry.json').exists():
+                        self.assertFalse(json.loads((self.out / 'registry.json').read_text())['complete'])
+
+    def test_symlink_and_summary_write_expiry_never_complete(self):
+        path = self.work / m.SPARSE_CACHE / '.cache' / m.sparse_path('child')
+        raw = path.read_bytes()
+        target = self.work / 'foreign'
+        target.write_bytes(raw)
+        path.unlink()
+        path.symlink_to(target)
+        with self.assertRaises(v.Refused):
+            self.preserve()
+        self.assertFalse(json.loads((self.out / 'registry.json').read_text())['complete'])
+        path.unlink()
+        path.write_bytes(raw)
+        for p in self.out.iterdir():
+            if p.name not in ('Cargo.toml', 'Cargo.lock.old'):
+                p.unlink()
+        b = budget()
+        guard = m.EvidenceIO(self.out, b)
+        real_json = guard.json
+        def expire(name, value):
+            real_json(name, value)
+            if name == 'registry.json':
+                b.wall -= 1000
+        with patch.object(guard, 'json', side_effect=expire), self.assertRaises(v.Refused):
+            m.snapshot_registry(self.work, self.out, b, m.lock_changes(self.old, self.new), guard)
+        self.assertFalse(json.loads((self.out / 'registry.json').read_text())['complete'])
+
+
+class PackageTailTests(ToyCapsTest):
     STAGES = ('zip-open', 'zip-read', 'zip-eof', 'zip-close', 'zip-update',
               'zip-hexdigest', 'receipt-before', 'receipt-after', 'package-return',
               'print-serialize', 'print-after')
@@ -512,7 +892,7 @@ class PackageTailTests(unittest.TestCase):
 
             def serialize(value, *args, **kwargs):
                 text = real_dumps(value, *args, **kwargs)
-                if isinstance(value, dict) and value.get('resolution') == 'GENERATED_PENDING_ROOT_REVIEW' \
+                if isinstance(value, dict) and value.get('resolution') == 'UPDATED_PENDING_ROOT_REVIEW' \
                         and value.get('status') == 'PASS' and 'sort_keys' not in kwargs:
                     trip('print-serialize')
                 return text
@@ -534,6 +914,10 @@ class PackageTailTests(unittest.TestCase):
                 (work / 'rust').mkdir()
                 (work / 'rust/Cargo.lock').write_bytes(raw)
                 (output / 'Cargo.lock.old').write_bytes(raw)
+                manifest = b'[dev-dependencies]\ntempfile="3"\n'
+                (output / 'Cargo.toml').write_bytes(manifest)
+                (work / 'rust/Cargo.toml').write_bytes(manifest)
+                write_cache(work, [])
                 (output / 'original.stdout').write_bytes(original)
                 return []
 
@@ -546,6 +930,8 @@ class PackageTailTests(unittest.TestCase):
                         patch.object(m.time, 'monotonic', side_effect=lambda: clocks['monotonic']),
                         patch.object(m.time, 'time', side_effect=lambda: clocks['wall']),
                         patch.object(m, 'bind_source'),
+                        patch.object(m, 'OLD_LOCK_SHA256', m.digest(raw)),
+                        patch.object(m, 'MANIFEST_SHA256', m.digest(b'[dev-dependencies]\ntempfile="3"\n')),
                         patch.object(v, 'read_push_contract', return_value=(event(), contract())),
                         patch.object(v, 'Supervisor', side_effect=supervise),
                         patch.object(m, 'copy_resolution_source', side_effect=copy_source),

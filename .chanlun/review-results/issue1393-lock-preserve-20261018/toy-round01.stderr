@@ -1,0 +1,122 @@
+test_bad_event_zero_commands_and_keeps_original (test_issue1393_lock_prepare.ContractTests.test_bad_event_zero_commands_and_keeps_original) ... ok
+test_draft_is_rejected (test_issue1393_lock_prepare.ContractTests.test_draft_is_rejected) ... ok
+test_every_contract_field_required_typed_and_bound (test_issue1393_lock_prepare.ContractTests.test_every_contract_field_required_typed_and_bound) ... ok
+test_false_zero_commands_and_no_event_read (test_issue1393_lock_prepare.ContractTests.test_false_zero_commands_and_no_event_read) ... ok
+test_fixed_module_hash_checked_before_execution (test_issue1393_lock_prepare.ContractTests.test_fixed_module_hash_checked_before_execution) ... ok
+test_message_never_becomes_path_or_argv (test_issue1393_lock_prepare.ContractTests.test_message_never_becomes_path_or_argv) ... ok
+test_push_identity_and_attempt (test_issue1393_lock_prepare.ContractTests.test_push_identity_and_attempt) ... ok
+test_strict_envelope_duplicates_and_limits (test_issue1393_lock_prepare.ContractTests.test_strict_envelope_duplicates_and_limits) ... ok
+test_wrong_hashes_and_provenance (test_issue1393_lock_prepare.ContractTests.test_wrong_hashes_and_provenance) ... ok
+test_complete_binding_and_mutations (test_issue1393_lock_prepare.IdentityTests.test_complete_binding_and_mutations) ... ok
+test_unique_gate (test_issue1393_lock_prepare.IdentityTests.test_unique_gate) ... ok
+test_digest_streams_multiple_chunks_and_refuses_expired_before_io (test_issue1393_lock_prepare.PackageTailTests.test_digest_streams_multiple_chunks_and_refuses_expired_before_io) ... ok
+test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) ... 
+  test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='print-serialize') ... FAIL
+test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) ... 
+  test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='print-serialize') ... FAIL
+test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) ... 
+  test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='print-serialize') ... FAIL
+test_main_tail_within_window (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_within_window) ... ok
+test_clean_environment_drops_all_injected_settings (test_issue1393_lock_prepare.ResolutionTests.test_clean_environment_drops_all_injected_settings) ... ok
+test_deadline_stops_python_toy_and_reaps_group (test_issue1393_lock_prepare.ResolutionTests.test_deadline_stops_python_toy_and_reaps_group) ... ok
+test_expired_budget_starts_nothing (test_issue1393_lock_prepare.ResolutionTests.test_expired_budget_starts_nothing) ... ok
+test_failed_resolution_keeps_lock_manifest_diff_and_registry (test_issue1393_lock_prepare.ResolutionTests.test_failed_resolution_keeps_lock_manifest_diff_and_registry) ... ERROR
+test_fixed_toolchain_rejects_drift (test_issue1393_lock_prepare.ResolutionTests.test_fixed_toolchain_rejects_drift) ... ok
+test_full_package_and_edge_changes_are_disclosed (test_issue1393_lock_prepare.ResolutionTests.test_full_package_and_edge_changes_are_disclosed) ... ok
+test_generated_lock_requires_official_checksum_and_tempfile_edge (test_issue1393_lock_prepare.ResolutionTests.test_generated_lock_requires_official_checksum_and_tempfile_edge) ... ok
+test_invalid_lock_still_keeps_raw_and_registry (test_issue1393_lock_prepare.ResolutionTests.test_invalid_lock_still_keeps_raw_and_registry) ... ERROR
+test_main_resolves_once_in_temp_and_preserves_failure (test_issue1393_lock_prepare.ResolutionTests.test_main_resolves_once_in_temp_and_preserves_failure) ... ok
+test_shared_deadline_and_failure_no_rerun_preserves_output (test_issue1393_lock_prepare.ResolutionTests.test_shared_deadline_and_failure_no_rerun_preserves_output) ... ok
+test_source_blob_tamper_and_symlink (test_issue1393_lock_prepare.ResolutionTests.test_source_blob_tamper_and_symlink) ... ok
+test_target_selection_copies_actual_entries_only (test_issue1393_lock_prepare.ResolutionTests.test_target_selection_copies_actual_entries_only) ... ok
+
+======================================================================
+ERROR: test_failed_resolution_keeps_lock_manifest_diff_and_registry (test_issue1393_lock_prepare.ResolutionTests.test_failed_resolution_keeps_lock_manifest_diff_and_registry)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 415, in test_failed_resolution_keeps_lock_manifest_diff_and_registry
+    m.preserve_resolution(work, out, budget())
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/issue1393_lock_prepare.py", line 632, in preserve_resolution
+    require(not errors, '；'.join(errors))
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/issue1393_validate.py", line 106, in require
+    raise Refused(message)
+_issue1393_lock_fixed_helper.Refused: 原件路径逃逸或 symlink；缺完整新旧依赖图
+
+======================================================================
+ERROR: test_invalid_lock_still_keeps_raw_and_registry (test_issue1393_lock_prepare.ResolutionTests.test_invalid_lock_still_keeps_raw_and_registry)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 485, in test_invalid_lock_still_keeps_raw_and_registry
+    self.assertEqual((p / 'out/Cargo.lock').read_bytes(), b'invalid TOML!')
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py", line 777, in read_bytes
+    with self.open(mode='rb', buffering=0) as f:
+         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py", line 771, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/tmpebqf13yr/out/Cargo.lock'
+
+======================================================================
+FAIL: test_main_tail_monotonic_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_monotonic_deadline) (stage='print-serialize')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 659, in test_main_tail_monotonic_deadline
+    self.run_tail(stage, 'monotonic')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 638, in run_tail
+    self.assertEqual(fired, [stage])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['print-serialize']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'print-serialize'
+
+- []
++ ['print-serialize']
+
+======================================================================
+FAIL: test_main_tail_sigterm (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_sigterm) (stage='print-serialize')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 669, in test_main_tail_sigterm
+    self.run_tail(stage, 'signal')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 638, in run_tail
+    self.assertEqual(fired, [stage])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['print-serialize']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'print-serialize'
+
+- []
++ ['print-serialize']
+
+======================================================================
+FAIL: test_main_tail_wall_deadline (test_issue1393_lock_prepare.PackageTailTests.test_main_tail_wall_deadline) (stage='print-serialize')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 664, in test_main_tail_wall_deadline
+    self.run_tail(stage, 'wall')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1393-lock-prepare-20261018/.github/scripts/test_issue1393_lock_prepare.py", line 638, in run_tail
+    self.assertEqual(fired, [stage])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [] != ['print-serialize']
+
+Second list contains 1 additional elements.
+First extra element 0:
+'print-serialize'
+
+- []
++ ['print-serialize']
+
+----------------------------------------------------------------------
+Ran 28 tests in 0.915s
+
+FAILED (failures=3, errors=2)

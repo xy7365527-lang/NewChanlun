@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "run_id": "1cd304f7-88fd-4abe-9a2d-f9749352f3a1",
+  "ticket": 1393,
+  "parent_thread_id": "01a12e01-45a1-7173-a3e8-d338d108fb93",
+  "manager_agent_id": "/root/manage_1393_sandcastle",
+  "manager_kind": "codex_native_subagent",
+  "worker_kind": "sandcastle_external_codex",
+  "native_subagent": false,
+  "status": "failed",
+  "mode": "execute",
+  "model": "gpt-6-astra",
+  "effort": "xhigh",
+  "sandbox_backend": "no-sandbox",
+  "codex_sandbox": "workspace-write",
+  "approval_policy": "never",
+  "automatic_claim": false,
+  "automatic_push": false,
+  "automatic_merge": false,
+  "checkout_preserved": true,
+  "expected_head": "8542c00cb1b1013e8adc0ffdddc54e4d42f894a4",
+  "checkout_before": {
+    "root": "/Volumes/AgentStorage/issue1393-lock-prepare-20261018",
+    "branch": "codex/1393-lock-preserve-prepare-20261018",
+    "head": "8542c00cb1b1013e8adc0ffdddc54e4d42f894a4",
+    "status": ""
+  },
+  "checkout_after": {
+    "root": "/Volumes/AgentStorage/issue1393-lock-prepare-20261018",
+    "branch": "codex/1393-lock-preserve-prepare-20261018",
+    "head": "8542c00cb1b1013e8adc0ffdddc54e4d42f894a4",
+    "status": "M .github/scripts/issue1393_lock_prepare.py\n M .github/scripts/test_issue1393_lock_prepare.py\n M .github/workflows/issue1393-lock-prepare.yml\n?? .chanlun/review-results/issue1393-lock-preserve-20261018/CONTRACT-DRAFT.json\n?? .chanlun/review-results/issue1393-lock-preserve-20261018/PREPARE-REPORT.md\n?? .chanlun/review-results/issue1393-lock-preserve-20261018/PREPARE-VALIDATION.json\n?? .chanlun/review-results/issue1393-lock-preserve-20261018/static-round01.stderr\n?? .chanlun/review-results/issue1393-lock-preserve-20261018/static-round01.stdout\n?? .chanlun/review-results/issue1393-lock-preserve-20261018/static-verified.stderr\n?? .chanlun/review-results/issue1393-lock-preserve-20261018/static-verified.stdout\n?? .chanlun/review-results/issue1393-lock-preserve-20261018/toy-round01.stderr\n?? .chanlun/review-results/issue1393-lock-preserve-20261018/toy-round01.stdout\n?? .chanlun/review-results/issue1393-lock-preserve-20261018/toy-round02.stderr\n?? .chanlun/review-results/issue1393-lock-preserve-20261018/toy-round02.stdout\n?? .chanlun/review-results/issue1393-lock-preserve-20261018/toy-round03.stderr\n?? .chanlun/review-results/issue1393-lock-preserve-20261018/toy-round03.stdout\n?? .chanlun/review-results/issue1393-lock-preserve-20261018/toy-verified.stderr\n?? .chanlun/review-results/issue1393-lock-preserve-20261018/toy-verified.stdout\n?? .chanlun/review-results/issue1393-lock-preserve-20261018/verify_prepare_static.py"
+  },
+  "started_at": "2026-10-18T06:31:59.988Z",
+  "ended_at": "2026-10-18T06:46:29.259Z",
+  "process_pid": 19372,
+  "process_exit": {
+    "code": 0,
+    "signal": null
+  },
+  "external_session_id": "01a14db5-c505-7c91-bfdc-8775e07c0829",
+  "external_session_log": "/Users/silencehan/.codex/sessions/2026/10/18/rollout-2026-10-18T14-32-05-01a14db5-c505-7c91-bfdc-8775e07c0829.jsonl",
+  "output_dir": "/Volumes/AgentStorage/issue1393-sandcastle-20261018-management/run-16-preserve-lock-prepare",
+  "stdout_log": "/Volumes/AgentStorage/issue1393-sandcastle-20261018-management/run-16-preserve-lock-prepare/codex.stdout.jsonl",
+  "stderr_log": "/Volumes/AgentStorage/issue1393-sandcastle-20261018-management/run-16-preserve-lock-prepare/codex.stderr.log",
+  "events_log": "/Volumes/AgentStorage/issue1393-sandcastle-20261018-management/run-16-preserve-lock-prepare/events.jsonl",
+  "prompt_sha256": "458e9b787366592f800370fc5856e20f00e8b778a3ee3251f7e610a9ee8a72d7",
+  "result": {
+    "status": "blocked",
+    "summary": "准备差异已写入工作区并通过定向验证；原资源帽数值缺失，合同尚不能冻结。",
+    "findings": [
+      "已实现新 schema/ref、原 manifest/旧锁硬绑定、唯一 update --workspace、无 fallback，以及 registry 原件和双口径依赖边取证。",
+      "single_bytes、total_bytes、files、items、upload_bytes 缺少可核原值，保持 UNBOUND；工作流保持 False。",
+      "已交付新目录下 PREPARE-REPORT.md、PREPARE-VALIDATION.json、CONTRACT-DRAFT.json及测试原件。",
+      "仅修改指定范围；38 份历史原件保全。未执行 Cargo、网络、提交或远端动作。"
+    ],
+    "validation": [
+      "47 项隔离 toy/mock 测试通过；7 组静态检查通过。",
+      "git diff --check、交付摘要与写集检查通过；HEAD 保持 8542c00，未暂存。"
+    ]
+  },
+  "failure_reason": "工蜂报告 blocked"
+}

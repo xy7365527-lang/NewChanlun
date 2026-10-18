@@ -1,8 +1,8 @@
-name: '#1393 独立锁解析准备（尚未授权）'
+name: '#1393 保旧锁解析准备（尚未授权）'
 
 on:
   push:
-    branches: [codex/1393-lock-once-20261018]
+    branches: [codex/1393-lock-preserve-once-20261018]
 
 permissions:
   contents: read
@@ -67,7 +67,7 @@ jobs:
         if: always() && env.ISSUE1393_LOCK_EXECUTE == 'True'
         run: |
           python3 -B - <<'PY'
-          import json, os, time
+          import ast, json, os, stat, time
           from pathlib import Path
           p = Path(os.environ['RUNNER_TEMP'])
           out = p / 'issue1393-lock-evidence'
@@ -80,7 +80,7 @@ jobs:
           if not (out / 'steps.json').exists():
               save('steps.json', [{'name': n, 'status': 'NOT_RUN', 'reason': '缺原件；不推断执行'} for n in
                                   ('source-copy', 'install-toolchain', 'rust-version', 'cargo-version',
-                                   'generate-lockfile', 'preserve-resolution')])
+                                   'update-workspace', 'preserve-resolution')])
           if not (out / 'PACKAGE.json').exists():
               save('PACKAGE.json', {'status': 'NOT_RUN', 'reason': 'runner 未封包，保留现有原件'})
           try:
@@ -90,8 +90,31 @@ jobs:
               remaining = 0
           # 给实际结论记录留 10 秒；不给上传另起 15 分钟。
           minutes = max(0, int((remaining - 10) // 60))
+          cap_status = 'REFUSED'
+          try:
+              tree = ast.parse(Path('.github/scripts/issue1393_lock_prepare.py').read_text())
+              caps = ast.literal_eval(next(n.value for n in tree.body if isinstance(n, ast.Assign)
+                                           and any(isinstance(t, ast.Name) and t.id == 'RESOURCE_CAPS' for t in n.targets)))
+              assert all(type(n) is int and n > 0 for n in caps.values())
+              count = size = 0
+              for path in out.iterdir():
+                  info = path.lstat()
+                  assert stat.S_ISREG(info.st_mode) and info.st_size <= caps['single_bytes']
+                  count += 1
+                  size += info.st_size
+                  assert count + 2 <= caps['files'] and size + 4096 <= min(caps['total_bytes'], caps['upload_bytes'])
+              cap_status = 'WITHIN_BOUND'
+          except Exception:
+              minutes = 0
+          # 预算/帽检查耗时仍属于同一窗口；不因初次 remaining 尚正就准上传。
+          try:
+              remaining = min(start['monotonic'] + 900 - time.monotonic(), start['wall'] + 900 - time.time())
+              minutes = min(minutes, max(0, int((remaining - 10) // 60)))
+          except Exception:
+              minutes = 0
           save('UPLOAD-REQUEST.json', {'status': 'REQUESTED' if minutes else 'NOT_RUN',
                                       'remaining_seconds': remaining, 'timeout_minutes': minutes,
+                                      'resource_cap_status': cap_status,
                                       'authority': '后续步骤实际 outcome/conclusion；请求不等于成功'})
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
               f.write('allowed=' + str(minutes > 0).lower() + '\nminutes=' + str(max(1, minutes)) + '\n')
@@ -120,7 +143,7 @@ jobs:
           PAYLOAD_URL: ${{ steps.payload.outputs.artifact-url }}
         run: |
           python3 -B - <<'PY'
-          import json, os, time
+          import ast, json, os, stat, time
           from pathlib import Path
           p = Path(os.environ['RUNNER_TEMP'])
           receipt = {'outcome': os.environ['PAYLOAD_OUTCOME'], 'conclusion': os.environ['PAYLOAD_CONCLUSION'],
@@ -137,6 +160,24 @@ jobs:
           except Exception:
               left = 0
           minutes = max(0, int((left - 5) // 60))
+          try:
+              tree = ast.parse(Path('.github/scripts/issue1393_lock_prepare.py').read_text())
+              caps = ast.literal_eval(next(n.value for n in tree.body if isinstance(n, ast.Assign)
+                                           and any(isinstance(t, ast.Name) and t.id == 'RESOURCE_CAPS' for t in n.targets)))
+              assert all(type(n) is int and n > 0 for n in caps.values())
+              uploaded = count = 0
+              for path in (p / 'issue1393-lock-evidence').iterdir():
+                  info = path.lstat()
+                  assert stat.S_ISREG(info.st_mode) and info.st_size <= caps['single_bytes']
+                  uploaded += info.st_size
+                  count += 1
+                  assert count + 1 <= caps['files']
+              assert len(raw.encode()) <= caps['single_bytes']
+              assert uploaded + len(raw.encode()) <= min(caps['total_bytes'], caps['upload_bytes'])
+              left = min(s['monotonic'] + 900 - time.monotonic(), s['wall'] + 900 - time.time())
+              minutes = min(minutes, max(0, int((left - 5) // 60)))
+          except Exception:
+              minutes = 0
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
               f.write('allowed=' + str(minutes > 0).lower() + '\nminutes=' + str(max(1, minutes)) + '\n')
           if receipt['conclusion'] != 'success':
