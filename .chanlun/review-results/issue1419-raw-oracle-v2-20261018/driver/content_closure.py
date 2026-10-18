@@ -5,6 +5,7 @@
 资源为调用者显式给定的逻辑工作上限；不是OS硬帽。
 """
 from dataclasses import dataclass
+from itertools import chain
 import hashlib
 import re
 from fixed_cut_driver import require,canonical,FAMILIES,strict_load
@@ -53,14 +54,23 @@ def ref_check(ref):
 
 
 class Encoder:
-    def __init__(self):self.nodes={}
+    def __init__(self,work_budget=None):
+        self.budget=work_budget
+        self.charge()
+        self.nodes={}
+
+    def charge(self,count=1):
+        if self.budget is not None:self.budget.charge(count)
+
 
     def add(self,tag,body):
+        self.charge(1+(len(body)+4095)//4096)
         root='sc1-'+frame(tag,body)
         self.nodes[root]={'root':root,'tag':f'{tag:02x}','body_hex':body.hex()}
         return root_bytes(root)
 
     def merkle(self,roots):
+        self.charge(1+len(roots))
         n=len(roots)
         if not n:return self.add(0x11,b'')
         if n==1:return self.add(0x12,roots[0])
@@ -68,6 +78,7 @@ class Encoder:
         return self.add(0x13,u64(n)+self.merkle(roots[:k])+self.merkle(roots[k:]))
 
     def encode(self,v):
+        self.charge()
         extent=None
         if isinstance(v,Edge):ref_check(v.ref);return v.ref.copy()
         if v is None:tag,body=0,b''
@@ -75,14 +86,19 @@ class Encoder:
         elif isinstance(v,(str,Number)):
             tag=4 if isinstance(v,Number) else 3
             token=v.token if tag==4 else v
+            self.charge(1+(len(token)+1023)//1024)
             if tag==4:require(re.fullmatch(r'-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?',token),'number token')
             b=token.encode('utf8');extent=str(len(b))
             body=u64(len(b))+self.merkle([self.add(0x10,b[i:i+4096]) for i in range(0,len(b),4096)])
         elif type(v) is int:return self.encode(Number(str(v)))
         elif isinstance(v,JSONText):tag,body=7,root_bytes(self.encode(v.value)['root'])
         elif type(v) is list:
+            self.charge(len(v))
             tag=5;extent=str(len(v));body=u64(len(v))+self.merkle([root_bytes(self.encode(x)['root']) for x in v])
         elif type(v) is dict:
+            self.charge(1+len(v)*max(1,len(v).bit_length()))
+            for key in v:
+                self.charge(1+(len(key)+1023)//1024 if type(key) is str else 1)
             require(all(type(k) is str for k in v),'object key')
             tag=6;extent=str(len(v))
             roots=[self.add(0x14,root_bytes(self.encode(k)['root'])+root_bytes(self.encode(v[k])['root'])) for k in sorted(v,key=lambda k:k.encode())]
@@ -98,23 +114,88 @@ class WorkBudget:
         require(type(limit) is int and limit>0,'逻辑工作预算无效')
         self.limit=limit;self.used=0;self.check=check
 
-    def charge(self):
-        self.used+=1
-        require(self.used<=self.limit,f'闭包逻辑工作量超限：used={self.used}, limit={self.limit}')
+    def charge(self,count=1):
+        # 先查绝对截止并预留；失败不消耗未获准的工作，不把帽向上挪。
         self.check()
+        require(type(count) is int and count>=0,'逻辑工作计量无效')
+        require(count<=self.limit-self.used,
+                f'闭包逻辑工作量超限：used={self.used}, requested={count}, limit={self.limit}')
+        self.used+=count
+
+    def iter(self,values):
+        # 连 next()/StopIteration 都收费，空输入和碎片输入不能零费绕过。
+        self.charge()
+        iterator=iter(values)
+        while True:
+            self.charge()
+            try:value=next(iterator)
+            except StopIteration:return
+            yield value
+
+    def scan(self,value):
+        """在复制/序列化前有界遍历；字符串按最多4KiB UTF-8块预留。"""
+        self.charge()
+        stack=[iter((value,))]
+        while stack:
+            self.charge()
+            try:item=next(stack[-1])
+            except StopIteration:stack.pop();continue
+            if isinstance(item,dict):
+                self.charge();stack.append(iter(chain(item.keys(),item.values())))
+            elif isinstance(item,(list,tuple)):
+                self.charge();stack.append(iter(item))
+            elif isinstance(item,(str,bytes)):
+                unit=1024 if isinstance(item,str) else 4096
+                self.charge(1+(len(item)+unit-1)//unit)
+            require(len(stack)<128,'工作扫描深度超限')
+
+
+def header_from_raw(tag,body):
+    """s-content-v3.js headerFromRaw:648-681；包括未被引用的节点。"""
+    n=len(body)
+    if tag in (0,1,2,8,0x11):require(n==0,'节点头：空体种类有载荷')
+    elif tag in (3,4,5,6):
+        require(n==40,'节点头：值头长度')
+        require(int.from_bytes(body[:8],'big')<2**63,'节点头：U64域')
+    elif tag in (7,0x12):require(n==32,'节点头：单子长度')
+    elif tag==0x10:require(1<=n<=4096,'节点头：字节块长度')
+    elif tag==0x13:
+        require(n==72,'节点头：分支长度')
+        require(1<int.from_bytes(body[:8],'big')<2**63,'节点头：分支计数')
+    elif tag==0x14:require(n==64,'节点头：field长度')
+    else:raise ValueError('节点头：未知tag')
 
 
 class Graph:
     def __init__(self,nodes,*,max_nodes,max_bytes,max_work,work_budget=None):
-        self.pool={};self.budget=work_budget or WorkBudget(max_work);self.memo={};total=0
-        for n in nodes:
-            require(set(n)=={'root','tag','body_hex'},'节点字段')
-            require(re.fullmatch('[0-9a-f]{2}',n['tag']) and re.fullmatch('(?:[0-9a-f]{2})*',n['body_hex']),'节点hex')
-            t=int(n['tag'],16);b=bytes.fromhex(n['body_hex'])
+        self.budget=work_budget if work_budget is not None else WorkBudget(max_work)
+        require(self.budget.limit==max_work,'工作预算帽不一致')
+        self.budget.charge()
+        self.pool={};self.memo={};total=0
+        for n in self.budget.iter(nodes):
+            self.budget.charge()
+            require(isinstance(n,dict) and len(n)==3 and set(n)=={'root','tag','body_hex'},'节点字段')
+            require(type(n['tag']) is str and len(n['tag'])==2 and
+                    re.fullmatch('[0-9a-f]{2}',n['tag']),'节点hex')
+            text=n['body_hex']
+            require(type(text) is str and len(text)%2==0,'节点hex')
+            size=len(text)//2
+            # 在正则扫描、hex分配和hash之前分别预留；重复节点也完整收费。
+            self.budget.charge(1+(len(text)+4095)//4096)
+            require(re.fullmatch('(?:[0-9a-f]{2})*',text),'节点hex')
+            self.budget.charge(1+(size+4095)//4096)
+            require(size<=max_bytes,'节点集合超提案限额')
+            root_bytes(n['root'])
+            duplicate=n['root'] in self.pool
+            require(duplicate or (len(self.pool)<max_nodes and size<=max_bytes-total),'节点集合超提案限额')
+            t=int(n['tag'],16);b=bytes.fromhex(text)
+            self.budget.charge(1+(size+4095)//4096)
             require(n['root']=='sc1-'+frame(t,b),'节点hash不符')
-            if n['root'] in self.pool:require(self.pool[n['root']]==(t,b),'节点冲突')
+            self.budget.charge()
+            header_from_raw(t,b)
+            self.budget.charge()
+            if duplicate:require(self.pool[n['root']]==(t,b),'节点冲突')
             else:total+=len(b);self.pool[n['root']]=(t,b)
-            require(len(self.pool)<=max_nodes and total<=max_bytes,'节点集合超提案限额')
         self.bytes=total
 
     @property
@@ -135,6 +216,7 @@ class Graph:
         return {'format':'s-content/1','root':root,'kind':KINDS[t],'extent':extent}
 
     def checked(self,ref):
+        self.budget.charge()
         ref_check(ref);require(self.ref(ref['root'])==ref,'引用种类/extent不符')
         return ref['root']
 
@@ -196,7 +278,7 @@ class Graph:
 
     def resolve(self,ref,path):
         self.checked(ref)
-        for step in path:
+        for step in self.budget.iter(path):
             require(type(step) is dict and len(step)==1,'路径格式')
             if 'field' in step:
                 require(ref['kind']=='object','field路径非object')
@@ -211,7 +293,8 @@ class Graph:
         return ref
 
 
-def projection(snapshot):
+def projection(snapshot,work_budget=None):
+    if work_budget is not None:work_budget.scan(snapshot)
     require(set(snapshot)=={'fixed_cut','catalog','rows','counts','scope','omissions','order_version','cut_projection_digest'},'projection八个传输字段')
     require(snapshot['omissions']==[] and snapshot['order_version']=='s-record-order/2','projection范围/序')
     counts={f:sum(r['family']==f for r in snapshot['rows']) for f in FAMILIES}
@@ -226,23 +309,33 @@ def projection(snapshot):
     value={k:snapshot[k] for k in ('counts','scope','omissions','order_version')}
     value.update(fixed_cut=fixed,catalog=Edge(snapshot['catalog']),
                  rows=[{**r,'record':Edge(r['record'])} for r in snapshot['rows']])
-    enc=Encoder();ref=enc.encode(value)
+    enc=Encoder(work_budget);ref=enc.encode(value)
+    if work_budget is not None:work_budget.charge()
     qcut='qcut3-'+frame(0x22,root_bytes(ref['root']))
     require(qcut==snapshot['cut_projection_digest'],'七字段qcut3不符')
+    if work_budget is not None:work_budget.charge(len(enc.nodes))
     return ref,list(enc.nodes.values())
 
 
 def close_projection(snapshot,pages,*,max_nodes,max_bytes,max_work,work_budget=None):
-    ref,built_nodes=projection(snapshot)
+    work_budget=work_budget if work_budget is not None else WorkBudget(max_work)
+    require(work_budget.limit==max_work,'工作预算帽不一致')
+    work_budget.charge()
+    require(isinstance(pages,(list,tuple)),'内容页必须是可重遍历的固定集合')
+    ref,built_nodes=projection(snapshot,work_budget)
     anchor={'kind':'projection','fixed_cut':snapshot['fixed_cut'],
             'cut_projection_digest':snapshot['cut_projection_digest'],'projection_ref':ref}
-    nodes=built_nodes+[n for page in pages for n in page['nodes']]
+    def page_nodes():
+        for page in work_budget.iter(pages):
+            yield from work_budget.iter(page['nodes'])
+    nodes=chain(built_nodes,page_nodes())
     graph=Graph(nodes,max_nodes=max_nodes,max_bytes=max_bytes,max_work=max_work,work_budget=work_budget)
     # Edge 的编码仅承诺 root；原始传输引用的其余元数据必须另核，不能重推后自证。
     graph.checked(snapshot['catalog'])
     graph.checked(snapshot['fixed_cut']['catalog_evidence'])
-    for row in snapshot['rows']:graph.checked(row['record'])
-    for p in pages:
+    for row in work_budget.iter(snapshot['rows']):graph.checked(row['record'])
+    for p in work_budget.iter(pages):
+        work_budget.scan(p)
         require(p['anchor']==anchor,'内容混切面或projection_ref')
         target=graph.resolve(ref,p['path']);require(target==p['target_ref'],'内容路径根不符')
         unit='items' if target['kind'] in ('array','object') else 'bytes' if target['kind'] in ('string','number') else 'value'

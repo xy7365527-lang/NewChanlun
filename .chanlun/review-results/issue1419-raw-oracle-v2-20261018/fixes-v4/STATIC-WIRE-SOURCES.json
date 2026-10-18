@@ -1,0 +1,88 @@
+{
+  "qualification": "静态协议参考；不是冻结产品源或运行资格",
+  "sources": [
+    {
+      "commit": "2694afcf147f3ba4114fde386470886c2428efc0",
+      "path": "rust/src/bin/s_session_v3/object_records.rs",
+      "bytes": 128581,
+      "sha256": "12bb78de584c5f77899cbcb520a701aa5c6587537c37896d022ece0809183c50",
+      "blob": "cea38c43af5571366498dea5c51f1f37beb8e4ea",
+      "excerpts": [
+        {
+          "first_line": 70,
+          "last_line": 119,
+          "byte_start_inclusive": 4865,
+          "byte_end_exclusive": 6273,
+          "sha256": "05d9bab3919eda64cee670bded5f06bd25adebae455b7887ce3ab43c2932312b",
+          "text": "\n/// 泛型六字段对象的内部辅助记录字段集：十项旧生成态字段 + 三条内容边\n/// （`content_producer::TypedObject::record` 的唯一形状）。\npub(super) const TYPED_RECORD_FIELDS: [&str; 13] = [\n    \"object_id\",\n    \"object_revision\",\n    \"kind\",\n    \"fact_key\",\n    \"payload\",\n    \"input_refs\",\n    \"source_coords\",\n    \"payload_json\",\n    \"input_refs_json\",\n    \"source_coords_json\",\n    \"first_known_generation\",\n    \"first_known_cut\",\n    \"published_generation\",\n];\n/// 原 sealed `generated_state.objects` 单条（泛型）：旧行的十列。\npub(super) const TYPED_SEALED_FIELDS: [&str; 10] = [\n    \"object_id\",\n    \"object_revision\",\n    \"kind\",\n    \"fact_key\",\n    \"payload_json\",\n    \"input_refs_json\",\n    \"source_coords_json\",\n    \"first_known_generation\",\n    \"first_known_cut\",\n    \"published_generation\",\n];\n/// 公开 wire 单条（泛型）：`tb02a::project` 的十五项。\npub(super) const TYPED_WIRE_FIELDS: [&str; 15] = [\n    \"object_id\",\n    \"object_revision\",\n    \"kind\",\n    \"batch_id\",\n    \"fact_key\",\n    \"payload\",\n    \"input_refs\",\n    \"source_coords\",\n    \"first_known_generation\",\n    \"first_known_cut\",\n    \"published_generation\",\n    \"withdrawn_generation\",\n    \"withdrawal_reason\",\n    \"superseded_by\",\n    \"lifecycle\",\n];\n/// CC-006 内部辅助记录字段集：旧行字段 + 三条内容边（`comparisons` 取代 `comparisons_json`）。\n"
+        },
+        {
+          "first_line": 769,
+          "last_line": 829,
+          "byte_start_inclusive": 31269,
+          "byte_end_exclusive": 33539,
+          "sha256": "5dd68ada62a2fb31a210f64402653fc18f302fbc1dd66217989d23865b702e5d",
+          "text": "/// 泛型公开 wire 单条（十五字段）：大载荷三条边直接借根；批号与生命期来自 `life`。\nfn typed_wire(\n    store: &mut (impl CodecStore + ?Sized),\n    record: &TypedRecord,\n    life: LifeView<'_>,\n) -> Result<Built, RecordError> {\n    use sc::{capture_allocation::audit_json::JsonView as J, ValueView as B};\n    let revision = super::business_json::Decimal::new(record.object_revision);\n    let first = super::business_json::Decimal::new(life.first_known_generation);\n    let published = super::business_json::Decimal::new(life.published_generation);\n    let withdrawn = life\n        .withdrawn_generation\n        .map(super::business_json::Decimal::new);\n    let fields = [\n        (\"object_id\", B::String(&record.object_id)),\n        (\"object_revision\", B::String(revision.text())),\n        (\"kind\", B::String(&record.kind)),\n        (\n            \"batch_id\",\n            match life.batch {\n                BatchView::CurrentBatch => B::BatchSelf,\n                BatchView::Existing(s) => B::String(s),\n            },\n        ),\n        (\"fact_key\", B::String(&record.fact_key)),\n        (\"payload\", B::Edge(record.payload.digest()?)),\n        (\"input_refs\", B::Edge(record.input_refs.digest()?)),\n        (\"source_coords\", B::Edge(record.source_coords.digest()?)),\n        (\"first_known_generation\", B::String(first.text())),\n        (\"first_known_cut\", B::String(life.first_known_cut)),\n        (\"published_generation\", B::String(published.text())),\n        (\n            \"withdrawn_generation\",\n            withdrawn\n                .as_ref()\n                .map(|v| B::String(v.text()))\n                .unwrap_or(B::Json(J::Null)),\n        ),\n        (\n            \"withdrawal_reason\",\n            life.withdrawal_reason\n                .map(B::String)\n                .unwrap_or(B::Json(J::Null)),\n        ),\n        (\n            \"superseded_by\",\n            life.superseded_by\n                .map(B::String)\n                .unwrap_or(B::Json(J::Null)),\n        ),\n        (\n            \"lifecycle\",\n            B::String(if life.withdrawn_generation.is_some() {\n                \"withdrawn\"\n            } else {\n                \"active\"\n            }),\n        ),\n    ];\n    Ok(store.write_template_view(B::Object(&fields))?)\n}\n"
+        }
+      ]
+    },
+    {
+      "commit": "4161ebfe6d1a11b93cccf1de1a8f134c6c7d2c6a",
+      "path": "s_session/browser/s-content-v3.js",
+      "bytes": 54218,
+      "sha256": "fb21d3467a189ac1d09cd585b07ca927083bee550fdd2c50419eac82b20ba926",
+      "blob": "31f797879a1a100794af2eec4cee5040d5c1a649",
+      "excerpts": [
+        {
+          "first_line": 97,
+          "last_line": 103,
+          "byte_start_inclusive": 2973,
+          "byte_end_exclusive": 3189,
+          "sha256": "520c13b885f81cf18c9f58f9852577e41dd24dc9be205382fd8fe36310e8daa8",
+          "text": "  function read64(b, at = 0) {\n    if (b.length < at + 8) fail(\"short U64\");\n    let n = 0n;\n    for (let i = at; i < at + 8; i++) n = (n << 8n) | BigInt(b[i]);\n    if (n > MAX) fail(\"U64 domain\");\n    return n;\n  }\n"
+        },
+        {
+          "first_line": 648,
+          "last_line": 681,
+          "byte_start_inclusive": 19467,
+          "byte_end_exclusive": 20748,
+          "sha256": "419e7c2226cb7e97e61a9c4af7abb78f9fcec84347ac906b1d4ed020866f1833",
+          "text": "  function headerFromRaw(raw) {\n    const b = unhex(raw.body_hex),\n      tag = parseInt(raw.tag, 16);\n    let n = null;\n    if (tag <= 2 || tag === 8 || tag === 0x11) {\n      if (b.length !== 0) fail(\"empty body\");\n    } else if (tag >= 3 && tag <= 6) {\n      if (b.length !== 40) fail(\"value header length\");\n      n = read64(b);\n    } else if (tag === 7 || tag === 0x12) {\n      if (b.length !== 32) fail(\"single child length\");\n    } else if (tag === 0x10) {\n      if (!b.length || b.length > 4096) fail(\"block size\");\n    } else if (tag === 0x13) {\n      if (b.length !== 72) fail(\"branch length\");\n      n = read64(b);\n      if (n <= 1n) fail(\"branch count\");\n    } else if (tag === 0x14) {\n      if (b.length !== 64) fail(\"field length\");\n    } else fail(\"unknown tag\");\n    const ref =\n      tag <= 8\n        ? Object.freeze({\n            format: \"s-content/1\",\n            root: raw.root,\n            kind: kinds[tag],\n            extent: n === null ? null : n.toString(),\n          })\n        : null;\n    return { tag, b, n, ref };\n  }\n  // Transition monoids validate compressed byte ropes without replaying a\n  // shared block at every logical offset. Each map includes every legal entry\n  // state, so a memoized block cannot hide a UTF-8 or number boundary violation.\n"
+        },
+        {
+          "first_line": 746,
+          "last_line": 766,
+          "byte_start_inclusive": 23041,
+          "byte_end_exclusive": 23893,
+          "sha256": "a95c73d9fc483d70d2e6133649f888120eeae675775dabb7ea737e88f1d6d4f8",
+          "text": "    static async create(nodes) {\n      if (!Array.isArray(nodes)) fail(\"nodes array\");\n      const map = new Map(),\n        headers = new Map();\n      let framedBytes = 0n;\n      const snapshot = nodes.map((input) => {\n        exact(input, [\"root\", \"tag\", \"body_hex\"]);\n        return Object.freeze({ ...input });\n      });\n      for (const raw of snapshot) {\n        hashBytes(raw.root);\n        if (typeof raw.tag !== \"string\" || !/^[0-9a-f]{2}$/.test(raw.tag))\n          fail(\"tag\");\n        const b = unhex(raw.body_hex);\n        if (map.has(raw.root)) fail(\"duplicate node/root collision\");\n        if ((await framedHash(parseInt(raw.tag, 16), b)) !== raw.root)\n          fail(\"node hash\");\n        map.set(raw.root, raw);\n        headers.set(raw.root, headerFromRaw(raw));\n        framedBytes += BigInt(DOMAIN.length + 1 + 8 + b.length);\n      }\n"
+        }
+      ]
+    },
+    {
+      "commit": "4161ebfe6d1a11b93cccf1de1a8f134c6c7d2c6a",
+      "path": "s_session/browser/q3-consumer.js",
+      "bytes": 98529,
+      "sha256": "26318cc02a263a70d56883d9b526e8bf0e897bce574a3b873a418c92fedf9e98",
+      "blob": "4fa91eecb57aeeb883e42c28e0d18e211c3c3df8",
+      "excerpts": [
+        {
+          "first_line": 42,
+          "last_line": 60,
+          "byte_start_inclusive": 1098,
+          "byte_end_exclusive": 1478,
+          "sha256": "1151ba1a06424ef77955beb66c37f91f8182a0c1fb04cf554f8d04279928a327",
+          "text": "  const FIXED = [\n    \"session_id\",\n    \"session_generation\",\n    \"structure_cut\",\n    \"cut_generation\",\n    \"catalog_revision\",\n    \"index_frontier\",\n    \"profile_id\",\n    \"profile_hash\",\n    \"input_frontier\",\n    \"seq_range\",\n    \"catalog_run_status\",\n    \"catalog_evidence\",\n    \"scope\",\n    \"rule_revision\",\n    \"history_mode\",\n    \"as_of_generation\",\n  ];\n  const HEADER = [\n"
+        },
+        {
+          "first_line": 1628,
+          "last_line": 1656,
+          "byte_start_inclusive": 54149,
+          "byte_end_exclusive": 55141,
+          "sha256": "cfec137c42d4336f88bf308f5f740aa2ebfb22407e17f65f08bbc120782a1e3c",
+          "text": "    async function comparePublication(delta, snapshot) {\n      const dd = await f(delta, \"delta\");\n      for (const [dk, sk] of [\n        [\"session_id\", \"session_id\"],\n        [\"generation\", \"generation\"],\n        [\"catalog_revision\", \"catalog_revision\"],\n        [\"next_cut\", \"structure_cut\"],\n        [\"index_frontier\", \"index_frontier\"],\n        [\"input_frontier\", \"input_frontier\"],\n        [\"seq_range\", \"seq_range\"],\n        [\"catalog_run_status\", \"catalog_run_status\"],\n        [\"catalog_evidence\", \"catalog_evidence\"],\n      ])\n        need(\n          await equal(await f(dd, dk), await f(snapshot, sk)),\n          \"Delta/Snapshot字段不同：\" + sk,\n        );\n      for (const k of [\"profile_id\", \"profile_hash\", \"scope\"])\n        need(\n          await equal(\n            await f(await f(dd, \"catalog_evidence\"), k),\n            await f(snapshot, k),\n          ),\n          \"Delta来源不同\",\n        );\n    }\n    class Client {\n      #committed = null;\n      get committed() {\n"
+        }
+      ]
+    }
+  ]
+}

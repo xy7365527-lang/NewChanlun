@@ -1,0 +1,50 @@
+[
+  {
+    "argv": [
+      "curl",
+      "-fsS",
+      "--max-time",
+      "8",
+      "-H",
+      "Content-Type: application/json",
+      "-d",
+      "{\"query\": {\"query_string\": {\"query\": \"source_structure rule generation\"}}, \"size\": 3, \"_source\": [\"path\", \"name\", \"code\", \"impl\"]}",
+      "http://127.0.0.1:19200/nc1419gate-docs/_search"
+    ],
+    "exit_code": 7,
+    "stdout": "",
+    "stderr": "curl: (7) Failed to connect to 127.0.0.1 port 19200 after 0 ms: Couldn't connect to server\n"
+  },
+  {
+    "argv": [
+      "curl",
+      "-fsS",
+      "--max-time",
+      "8",
+      "-H",
+      "Content-Type: application/json",
+      "-d",
+      "{\"query\": {\"query_string\": {\"query\": \"Native CodecVec BoundGenerationInput\"}}, \"size\": 3, \"_source\": [\"path\", \"name\", \"code\", \"impl\"]}",
+      "http://127.0.0.1:19200/nc1488generation-docs/_search"
+    ],
+    "exit_code": 7,
+    "stdout": "",
+    "stderr": "curl: (7) Failed to connect to 127.0.0.1 port 19200 after 0 ms: Couldn't connect to server\n"
+  },
+  {
+    "argv": [
+      "curl",
+      "-fsS",
+      "--max-time",
+      "8",
+      "-H",
+      "Content-Type: application/json",
+      "-d",
+      "{\"query\": {\"query_string\": {\"query\": \"MemoryReservation try_grow\"}}, \"size\": 3, \"_source\": [\"path\", \"name\", \"code\", \"impl\"]}",
+      "http://127.0.0.1:19200/nc1488d1ref-docs/_search"
+    ],
+    "exit_code": 7,
+    "stdout": "",
+    "stderr": "curl: (7) Failed to connect to 127.0.0.1 port 19200 after 0 ms: Couldn't connect to server\n"
+  }
+]
