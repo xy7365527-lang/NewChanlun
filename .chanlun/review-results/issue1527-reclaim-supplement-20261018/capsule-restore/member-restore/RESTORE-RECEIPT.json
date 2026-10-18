@@ -1,0 +1,107 @@
+{
+  "members": [
+    {
+      "candidate": "worktree",
+      "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e",
+      "bytes": 2888,
+      "attrs_match": true,
+      "raw_path_bytes_match": true,
+      "argv": [
+        "/usr/bin/bsdtar",
+        "--acls",
+        "--xattrs",
+        "--fflags",
+        "--numeric-owner",
+        "--same-owner",
+        "-xpf",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/.chanlun/review-results/issue1527-reclaim-supplement-20261018/members/worktree.pax.tar.gz",
+        "-C",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/.chanlun/review-results/issue1527-reclaim-supplement-20261018/member-restore/worktree"
+      ],
+      "exit_code": 0
+    },
+    {
+      "candidate": "r4-candidate-worktree",
+      "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e",
+      "bytes": 2888,
+      "attrs_match": true,
+      "raw_path_bytes_match": true,
+      "argv": [
+        "/usr/bin/bsdtar",
+        "--acls",
+        "--xattrs",
+        "--fflags",
+        "--numeric-owner",
+        "--same-owner",
+        "-xpf",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/.chanlun/review-results/issue1527-reclaim-supplement-20261018/members/r4-candidate-worktree.pax.tar.gz",
+        "-C",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/.chanlun/review-results/issue1527-reclaim-supplement-20261018/member-restore/r4-candidate-worktree"
+      ],
+      "exit_code": 0
+    },
+    {
+      "candidate": "review-worktree-01",
+      "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e",
+      "bytes": 2888,
+      "attrs_match": true,
+      "raw_path_bytes_match": true,
+      "argv": [
+        "/usr/bin/bsdtar",
+        "--acls",
+        "--xattrs",
+        "--fflags",
+        "--numeric-owner",
+        "--same-owner",
+        "-xpf",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/.chanlun/review-results/issue1527-reclaim-supplement-20261018/members/review-worktree-01.pax.tar.gz",
+        "-C",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/.chanlun/review-results/issue1527-reclaim-supplement-20261018/member-restore/review-worktree-01"
+      ],
+      "exit_code": 0
+    },
+    {
+      "candidate": "r4-repair-worktree",
+      "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e",
+      "bytes": 2888,
+      "attrs_match": true,
+      "raw_path_bytes_match": true,
+      "argv": [
+        "/usr/bin/bsdtar",
+        "--acls",
+        "--xattrs",
+        "--fflags",
+        "--numeric-owner",
+        "--same-owner",
+        "-xpf",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/.chanlun/review-results/issue1527-reclaim-supplement-20261018/members/r4-repair-worktree.pax.tar.gz",
+        "-C",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/.chanlun/review-results/issue1527-reclaim-supplement-20261018/member-restore/r4-repair-worktree"
+      ],
+      "exit_code": 0
+    },
+    {
+      "candidate": "review-tail-worktree",
+      "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e",
+      "bytes": 2888,
+      "attrs_match": true,
+      "raw_path_bytes_match": true,
+      "argv": [
+        "/usr/bin/bsdtar",
+        "--acls",
+        "--xattrs",
+        "--fflags",
+        "--numeric-owner",
+        "--same-owner",
+        "-xpf",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/.chanlun/review-results/issue1527-reclaim-supplement-20261018/members/review-tail-worktree.pax.tar.gz",
+        "-C",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/.chanlun/review-results/issue1527-reclaim-supplement-20261018/member-restore/review-tail-worktree"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "passed": true,
+  "complete_base_restore": false,
+  "deleteAuthorized": false
+}

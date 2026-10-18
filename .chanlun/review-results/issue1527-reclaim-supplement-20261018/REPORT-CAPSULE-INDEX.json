@@ -1,0 +1,3030 @@
+[
+  {
+    "path": "ACTIVITY-INITIAL.json",
+    "raw_path_hex": "41435449564954592d494e495449414c2e6a736f6e",
+    "mode": 33188,
+    "bytes": 54536,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303526683538587,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "131c82c5287d90f8a607f6c12d2f8475e162afea887af9e0ca56a4bda4623700"
+  },
+  {
+    "path": "ACTIVITY.json",
+    "raw_path_hex": "41435449564954592e6a736f6e",
+    "mode": 33188,
+    "bytes": 56841,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303527303259637,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "9ecb3df29ab2057d71a395034141e8463829236344c504adb3f587f2d60547ae"
+  },
+  {
+    "path": "CANDIDATES.json",
+    "raw_path_hex": "43414e444944415445532e6a736f6e",
+    "mode": 33188,
+    "bytes": 2040,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303964643217778,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "b1e98be87efad7922937075e1bb450f158d2291bfe0fd710dd032482a2cc21ea"
+  },
+  {
+    "path": "CHECKS.json",
+    "raw_path_hex": "434845434b532e6a736f6e",
+    "mode": 33188,
+    "bytes": 3750,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303964642992902,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "2f9512ebed2c85b80fefe0431b18b7c8940afab6c3b20700576153e9b864f8ab"
+  },
+  {
+    "path": "INCREMENT-VERIFY.json",
+    "raw_path_hex": "494e4352454d454e542d5645524946592e6a736f6e",
+    "mode": 33188,
+    "bytes": 1359,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303770014874289,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "af7b8e2c02361cfa7d2f394e2e183e63f640a41985d190ad8e57072a957203d1"
+  },
+  {
+    "path": "LFS-VERIFY.json",
+    "raw_path_hex": "4c46532d5645524946592e6a736f6e",
+    "mode": 33188,
+    "bytes": 2139,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303308144655423,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "f93dc3cba32b3c7a5f4083d379605b177947d6c5020c2a21ee67eea50f4185a4"
+  },
+  {
+    "path": "MANIFEST.json",
+    "raw_path_hex": "4d414e49464553542e6a736f6e",
+    "mode": 33188,
+    "bytes": 21129,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303964658234558,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "5b93b2eeea684ecc4b70c082aad03835446fe841b2b10bf8b548ed5c9c51a695"
+  },
+  {
+    "path": "MEMBERS.json",
+    "raw_path_hex": "4d454d424552532e6a736f6e",
+    "mode": 33188,
+    "bytes": 10455,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303308552367680,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "93fc5b1515d2c29810bc6d77ab2d6cba9e16b9ad31642c50bf35f98e4d08263a"
+  },
+  {
+    "path": "METADATA-REPLAY-TOY.json",
+    "raw_path_hex": "4d455441444154412d5245504c41592d544f592e6a736f6e",
+    "mode": 33188,
+    "bytes": 596,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303666159502581,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "642f3a302f692a823fc8061d7fe1709ba56fd58935a1e8372cd2c7acb1fb2256"
+  },
+  {
+    "path": "NEXT-ACTION-PLAN.json",
+    "raw_path_hex": "4e4558542d414354494f4e2d504c414e2e6a736f6e",
+    "mode": 33188,
+    "bytes": 5038,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303964642819735,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "7c0bc194f8d4de9801d4fe8d3b8f8d10a392c31b2d6985a7e5b3edc9533bb219"
+  },
+  {
+    "path": "ORIGINAL-FREEZE-FIRST-ATTEMPT.json",
+    "raw_path_hex": "4f524947494e414c2d465245455a452d46495253542d415454454d50542e6a736f6e",
+    "mode": 33188,
+    "bytes": 89374,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303307483554594,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "f9ac70c69a285d7aa257159b77492da5a4e7f398088f4f05cb2971f5974aa0f2"
+  },
+  {
+    "path": "ORIGINAL-FREEZE-VERIFY.json",
+    "raw_path_hex": "4f524947494e414c2d465245455a452d5645524946592e6a736f6e",
+    "mode": 33188,
+    "bytes": 129883,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303307980294188,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "f3655eeaa5a17c2460bfb9407a254ed4302608068a66d7fe1ae046132f8f6de7"
+  },
+  {
+    "path": "SOURCE-INTEGRITY-AND-BUDGET.json",
+    "raw_path_hex": "534f555243452d494e544547524954592d414e442d4255444745542e6a736f6e",
+    "mode": 33188,
+    "bytes": 2377656,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303470337166859,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "55100c885e36a911f99ab8c902cc25d29b3b9ab8a05e5d307d52da0df8ebf51f"
+  },
+  {
+    "path": "SUPPLEMENT.md",
+    "raw_path_hex": "535550504c454d454e542e6d64",
+    "mode": 33188,
+    "bytes": 12083,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303964643397196,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "47b70638cfb53c8276e376803b411c206cd4268062a3f40d7c5c5bc8606ad3ce"
+  },
+  {
+    "path": "UNICODE-TOY.json",
+    "raw_path_hex": "554e49434f44452d544f592e6a736f6e",
+    "mode": 33188,
+    "bytes": 2518,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303404279013578,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "a7c9076131f57c47cf8f1e795a17f9a2185b0538bd2b704e7b911c687ea471c6"
+  },
+  {
+    "path": "audit.py",
+    "raw_path_hex": "61756469742e7079",
+    "mode": 33188,
+    "bytes": 9340,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303526611255246,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "93d8620a11d9a39399bd169652aba457a06a35e8525e8637b749c4e2b9cfa457"
+  },
+  {
+    "path": "capsule.py",
+    "raw_path_hex": "63617073756c652e7079",
+    "mode": 33188,
+    "bytes": 7773,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303735263007690,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "7c2fd3fe43aaa238ea445d2b30ff0d1168c9a7a1798b34a9dff12a52f665a0b7"
+  },
+  {
+    "path": "collect.py",
+    "raw_path_hex": "636f6c6c6563742e7079",
+    "mode": 33188,
+    "bytes": 7743,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303307530628608,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "6fcab5926fab937780703d8c22ed3ddd02ec69fac2be19ea32383f422e587fe7"
+  },
+  {
+    "path": "common.py",
+    "raw_path_hex": "636f6d6d6f6e2e7079",
+    "mode": 33188,
+    "bytes": 2529,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303602867324594,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "7f4a93f5e54704e24a7dbe77ebf85c8600035f72bc3977a067594d1885eb4c05"
+  },
+  {
+    "path": "hash-guard",
+    "raw_path_hex": "686173682d6775617264",
+    "mode": 16877,
+    "bytes": 128,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303770010967312,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "hash-guard/MEMBERS.json",
+    "raw_path_hex": "686173682d67756172642f4d454d424552532e6a736f6e",
+    "mode": 33188,
+    "bytes": 10455,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303770011084937,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "459473c9f41f57b80b0aa0f59c8c3a8346e520b355de2979e0023b19ea5b1be8"
+  },
+  {
+    "path": "hash-guard/members",
+    "raw_path_hex": "686173682d67756172642f6d656d62657273",
+    "mode": 16877,
+    "bytes": 224,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303770010591018,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "hash-guard/members/r4-candidate-worktree.pax.tar.gz",
+    "raw_path_hex": "686173682d67756172642f6d656d626572732f72342d63616e6469646174652d776f726b747265652e7061782e7461722e677a",
+    "mode": 33188,
+    "bytes": 1109,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303770009703556,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "b1bb0fec16aed2bc02fd76c43129adaef9501a28a35f171180fe5f591894e86b"
+  },
+  {
+    "path": "hash-guard/members/r4-repair-worktree.pax.tar.gz",
+    "raw_path_hex": "686173682d67756172642f6d656d626572732f72342d7265706169722d776f726b747265652e7061782e7461722e677a",
+    "mode": 33188,
+    "bytes": 1109,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303770010378142,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "bc6257178dd39d03c8f7dc6ea5b889c715389c9194b171c4d1a2198680eed6db"
+  },
+  {
+    "path": "hash-guard/members/review-tail-worktree.pax.tar.gz",
+    "raw_path_hex": "686173682d67756172642f6d656d626572732f7265766965772d7461696c2d776f726b747265652e7061782e7461722e677a",
+    "mode": 33188,
+    "bytes": 1106,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303770010792811,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "c9528da1a62d974975024eb9ca6613e43e66ed81ec03fbb77196e1ca6df4506e"
+  },
+  {
+    "path": "hash-guard/members/review-worktree-01.pax.tar.gz",
+    "raw_path_hex": "686173682d67756172642f6d656d626572732f7265766965772d776f726b747265652d30312e7061782e7461722e677a",
+    "mode": 33188,
+    "bytes": 1109,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303770010110474,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "a48099aec58a122f91a38d74ccf36d9ab6ee77a2ea57101f67577226eb3186fe"
+  },
+  {
+    "path": "hash-guard/members/worktree.pax.tar.gz",
+    "raw_path_hex": "686173682d67756172642f6d656d626572732f776f726b747265652e7061782e7461722e677a",
+    "mode": 33188,
+    "bytes": 1104,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303770009160886,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "323ab785858c8d2ecae8689fe851ace834ce04e79583e7e1eba68e51c611417f"
+  },
+  {
+    "path": "hash_missing_proposal.py",
+    "raw_path_hex": "686173685f6d697373696e675f70726f706f73616c2e7079",
+    "mode": 33188,
+    "bytes": 3760,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303602888262568,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "661f06c3ae4ebcb806a39302023deb22aeb9e7c18ba75fe5caa7bff644a43343"
+  },
+  {
+    "path": "member-restore",
+    "raw_path_hex": "6d656d6265722d726573746f7265",
+    "mode": 16832,
+    "bytes": 256,
+    "attrs": {
+      "mode": 16832,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383897767058,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/RESTORE-RECEIPT.json",
+    "raw_path_hex": "6d656d6265722d726573746f72652f524553544f52452d524543454950542e6a736f6e",
+    "mode": 33188,
+    "bytes": 4133,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383897862642,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "18a518c1489038aed39b2072610f333034e769f11a72c4f24b12afd18fcffe6d"
+  },
+  {
+    "path": "member-restore/r4-candidate-worktree",
+    "raw_path_hex": "6d656d6265722d726573746f72652f72342d63616e6469646174652d776f726b74726565",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383876715084,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/r4-candidate-worktree/.chanlun",
+    "raw_path_hex": "6d656d6265722d726573746f72652f72342d63616e6469646174652d776f726b747265652f2e6368616e6c756e",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383876752418,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/r4-candidate-worktree/.chanlun/review-results",
+    "raw_path_hex": "6d656d6265722d726573746f72652f72342d63616e6469646174652d776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c7473",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383876786626,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/r4-candidate-worktree/.chanlun/review-results/issue1371-tb01-b",
+    "raw_path_hex": "6d656d6265722d726573746f72652f72342d63616e6469646174652d776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d62",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383876820626,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/r4-candidate-worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim",
+    "raw_path_hex": "6d656d6265722d726573746f72652f72342d63616e6469646174652d776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383876855751,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/r4-candidate-worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence",
+    "raw_path_hex": "6d656d6265722d726573746f72652f72342d63616e6469646174652d776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d2f65766964656e6365",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383876890501,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/r4-candidate-worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules",
+    "raw_path_hex": "6d656d6265722d726573746f72652f72342d63616e6469646174652d776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d2f65766964656e63652f72756c6573",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383877295587,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/r4-candidate-worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json",
+    "raw_path_hex": "6d656d6265722d726573746f72652f72342d63616e6469646174652d776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d2f65766964656e63652f72756c65732f736563726574732e6a736f6e",
+    "mode": 33188,
+    "bytes": 2888,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792297049613115775,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e"
+  },
+  {
+    "path": "member-restore/r4-repair-worktree",
+    "raw_path_hex": "6d656d6265722d726573746f72652f72342d7265706169722d776f726b74726565",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383889461102,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/r4-repair-worktree/.chanlun",
+    "raw_path_hex": "6d656d6265722d726573746f72652f72342d7265706169722d776f726b747265652f2e6368616e6c756e",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383889510936,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/r4-repair-worktree/.chanlun/review-results",
+    "raw_path_hex": "6d656d6265722d726573746f72652f72342d7265706169722d776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c7473",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383889545644,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/r4-repair-worktree/.chanlun/review-results/issue1371-tb01-b",
+    "raw_path_hex": "6d656d6265722d726573746f72652f72342d7265706169722d776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d62",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383889581228,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/r4-repair-worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim",
+    "raw_path_hex": "6d656d6265722d726573746f72652f72342d7265706169722d776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383889615186,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/r4-repair-worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence",
+    "raw_path_hex": "6d656d6265722d726573746f72652f72342d7265706169722d776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d2f65766964656e6365",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383889649437,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/r4-repair-worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules",
+    "raw_path_hex": "6d656d6265722d726573746f72652f72342d7265706169722d776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d2f65766964656e63652f72756c6573",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383890146731,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/r4-repair-worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json",
+    "raw_path_hex": "6d656d6265722d726573746f72652f72342d7265706169722d776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d2f65766964656e63652f72756c65732f736563726574732e6a736f6e",
+    "mode": 33188,
+    "bytes": 2888,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792298554901766049,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e"
+  },
+  {
+    "path": "member-restore/review-tail-worktree",
+    "raw_path_hex": "6d656d6265722d726573746f72652f7265766965772d7461696c2d776f726b74726565",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383895543006,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/review-tail-worktree/.chanlun",
+    "raw_path_hex": "6d656d6265722d726573746f72652f7265766965772d7461696c2d776f726b747265652f2e6368616e6c756e",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383895580090,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/review-tail-worktree/.chanlun/review-results",
+    "raw_path_hex": "6d656d6265722d726573746f72652f7265766965772d7461696c2d776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c7473",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383895609923,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/review-tail-worktree/.chanlun/review-results/issue1371-tb01-b",
+    "raw_path_hex": "6d656d6265722d726573746f72652f7265766965772d7461696c2d776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d62",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383895641215,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/review-tail-worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim",
+    "raw_path_hex": "6d656d6265722d726573746f72652f7265766965772d7461696c2d776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383895672132,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/review-tail-worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence",
+    "raw_path_hex": "6d656d6265722d726573746f72652f7265766965772d7461696c2d776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d2f65766964656e6365",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383895710048,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/review-tail-worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules",
+    "raw_path_hex": "6d656d6265722d726573746f72652f7265766965772d7461696c2d776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d2f65766964656e63652f72756c6573",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383896095717,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/review-tail-worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json",
+    "raw_path_hex": "6d656d6265722d726573746f72652f7265766965772d7461696c2d776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d2f65766964656e63652f72756c65732f736563726574732e6a736f6e",
+    "mode": 33188,
+    "bytes": 2888,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792298558504373770,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e"
+  },
+  {
+    "path": "member-restore/review-worktree-01",
+    "raw_path_hex": "6d656d6265722d726573746f72652f7265766965772d776f726b747265652d3031",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383882856071,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/review-worktree-01/.chanlun",
+    "raw_path_hex": "6d656d6265722d726573746f72652f7265766965772d776f726b747265652d30312f2e6368616e6c756e",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383882893446,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/review-worktree-01/.chanlun/review-results",
+    "raw_path_hex": "6d656d6265722d726573746f72652f7265766965772d776f726b747265652d30312f2e6368616e6c756e2f7265766965772d726573756c7473",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383882925697,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/review-worktree-01/.chanlun/review-results/issue1371-tb01-b",
+    "raw_path_hex": "6d656d6265722d726573746f72652f7265766965772d776f726b747265652d30312f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d62",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383882956155,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/review-worktree-01/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim",
+    "raw_path_hex": "6d656d6265722d726573746f72652f7265766965772d776f726b747265652d30312f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383882991822,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/review-worktree-01/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence",
+    "raw_path_hex": "6d656d6265722d726573746f72652f7265766965772d776f726b747265652d30312f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d2f65766964656e6365",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383883035155,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/review-worktree-01/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules",
+    "raw_path_hex": "6d656d6265722d726573746f72652f7265766965772d776f726b747265652d30312f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d2f65766964656e63652f72756c6573",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383883446616,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/review-worktree-01/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json",
+    "raw_path_hex": "6d656d6265722d726573746f72652f7265766965772d776f726b747265652d30312f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d2f65766964656e63652f72756c65732f736563726574732e6a736f6e",
+    "mode": 33188,
+    "bytes": 2888,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792297882048040231,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e"
+  },
+  {
+    "path": "member-restore/worktree",
+    "raw_path_hex": "6d656d6265722d726573746f72652f776f726b74726565",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383869694342,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/worktree/.chanlun",
+    "raw_path_hex": "6d656d6265722d726573746f72652f776f726b747265652f2e6368616e6c756e",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383869744759,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/worktree/.chanlun/review-results",
+    "raw_path_hex": "6d656d6265722d726573746f72652f776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c7473",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383869783968,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/worktree/.chanlun/review-results/issue1371-tb01-b",
+    "raw_path_hex": "6d656d6265722d726573746f72652f776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d62",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383869820426,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim",
+    "raw_path_hex": "6d656d6265722d726573746f72652f776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383869855343,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence",
+    "raw_path_hex": "6d656d6265722d726573746f72652f776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d2f65766964656e6365",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383869895468,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules",
+    "raw_path_hex": "6d656d6265722d726573746f72652f776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d2f65766964656e63652f72756c6573",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383870535430,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "member-restore/worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json",
+    "raw_path_hex": "6d656d6265722d726573746f72652f776f726b747265652f2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d2f65766964656e63652f72756c65732f736563726574732e6a736f6e",
+    "mode": 33188,
+    "bytes": 2888,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792296356310424331,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e"
+  },
+  {
+    "path": "members",
+    "raw_path_hex": "6d656d62657273",
+    "mode": 16877,
+    "bytes": 224,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303308548753580,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "members/r4-candidate-worktree.pax.tar.gz",
+    "raw_path_hex": "6d656d626572732f72342d63616e6469646174652d776f726b747265652e7061782e7461722e677a",
+    "mode": 33188,
+    "bytes": 1109,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303308313412136,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "b1bb0fec16aed2bc02fd76c43129adaef9501a28a35f171180fe5f591894e86b"
+  },
+  {
+    "path": "members/r4-repair-worktree.pax.tar.gz",
+    "raw_path_hex": "6d656d626572732f72342d7265706169722d776f726b747265652e7061782e7461722e677a",
+    "mode": 33188,
+    "bytes": 1109,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303308472281886,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "bc6257178dd39d03c8f7dc6ea5b889c715389c9194b171c4d1a2198680eed6db"
+  },
+  {
+    "path": "members/review-tail-worktree.pax.tar.gz",
+    "raw_path_hex": "6d656d626572732f7265766965772d7461696c2d776f726b747265652e7061782e7461722e677a",
+    "mode": 33188,
+    "bytes": 1106,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303308551058716,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "c9528da1a62d974975024eb9ca6613e43e66ed81ec03fbb77196e1ca6df4506e"
+  },
+  {
+    "path": "members/review-worktree-01.pax.tar.gz",
+    "raw_path_hex": "6d656d626572732f7265766965772d776f726b747265652d30312e7061782e7461722e677a",
+    "mode": 33188,
+    "bytes": 1109,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303308393384805,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "a48099aec58a122f91a38d74ccf36d9ab6ee77a2ea57101f67577226eb3186fe"
+  },
+  {
+    "path": "members/worktree.pax.tar.gz",
+    "raw_path_hex": "6d656d626572732f776f726b747265652e7061782e7461722e677a",
+    "mode": 33188,
+    "bytes": 1104,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303308234883182,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "323ab785858c8d2ecae8689fe851ace834ce04e79583e7e1eba68e51c611417f"
+  },
+  {
+    "path": "metadata-replay-toy",
+    "raw_path_hex": "6d657461646174612d7265706c61792d746f79",
+    "mode": 16877,
+    "bytes": 128,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303666145019985,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "metadata-replay-toy/content-target",
+    "raw_path_hex": "6d657461646174612d7265706c61792d746f792f636f6e74656e742d746172676574",
+    "mode": 16877,
+    "bytes": 128,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1700000000123456789,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "metadata-replay-toy/content-target/file",
+    "raw_path_hex": "6d657461646174612d7265706c61792d746f792f636f6e74656e742d7461726765742f66696c65",
+    "mode": 33257,
+    "bytes": 29,
+    "attrs": {
+      "mode": 33257,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1700000000123456789,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "user.issue1527": {
+          "size": 18,
+          "sha256": "e8ea4f2a4046b7dbf70d6e2a1c5be54a1e17c56357292a9cce7d8c5bb594d98a"
+        },
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "42ad4302183548d860c11efb8f316bd5293490ea7b7d82e238e5d83cf98e43b5"
+  },
+  {
+    "path": "metadata-replay-toy/content-target/link",
+    "raw_path_hex": "6d657461646174612d7265706c61792d746f792f636f6e74656e742d7461726765742f6c696e6b",
+    "mode": 41453,
+    "bytes": 4,
+    "attrs": {
+      "mode": 41453,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1700000000123456789,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": "file",
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "link_hex": "66696c65"
+  },
+  {
+    "path": "metadata-replay-toy/metadata-stage",
+    "raw_path_hex": "6d657461646174612d7265706c61792d746f792f6d657461646174612d7374616765",
+    "mode": 16877,
+    "bytes": 128,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1700000000123456789,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "metadata-replay-toy/metadata-stage/file",
+    "raw_path_hex": "6d657461646174612d7265706c61792d746f792f6d657461646174612d73746167652f66696c65",
+    "mode": 33257,
+    "bytes": 0,
+    "attrs": {
+      "mode": 33257,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1700000000123456789,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "user.issue1527": {
+          "size": 18,
+          "sha256": "e8ea4f2a4046b7dbf70d6e2a1c5be54a1e17c56357292a9cce7d8c5bb594d98a"
+        },
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "metadata-replay-toy/metadata-stage/link",
+    "raw_path_hex": "6d657461646174612d7265706c61792d746f792f6d657461646174612d73746167652f6c696e6b",
+    "mode": 41453,
+    "bytes": 4,
+    "attrs": {
+      "mode": 41453,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1700000000123456789,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": "file",
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "link_hex": "66696c65"
+  },
+  {
+    "path": "metadata_replay_toy.py",
+    "raw_path_hex": "6d657461646174615f7265706c61795f746f792e7079",
+    "mode": 33188,
+    "bytes": 2209,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303666067326098,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "323a13afd198a563295397b95ed71dd3de9d2334c26addc2a86f5f797a156cb1"
+  },
+  {
+    "path": "original_attribute_reader.py",
+    "raw_path_hex": "6f726967696e616c5f6174747269627574655f7265616465722e7079",
+    "mode": 33188,
+    "bytes": 21615,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303562491582313,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "b1d0481a79d7ed815e762fbf84dc313a3193d0abcdaa824c955feabd2e99e42d"
+  },
+  {
+    "path": "restore_members.py",
+    "raw_path_hex": "726573746f72655f6d656d626572732e7079",
+    "mode": 33188,
+    "bytes": 3887,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303383737274551,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "f8061bdb8dc5b93970954fa80646a943fcf5a816e7081ac671cca83338141d18"
+  },
+  {
+    "path": "unicode-toy",
+    "raw_path_hex": "756e69636f64652d746f79",
+    "mode": 16877,
+    "bytes": 128,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303384009713545,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v2",
+    "raw_path_hex": "756e69636f64652d746f792d7632",
+    "mode": 16877,
+    "bytes": 160,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303391158058030,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v2/restored",
+    "raw_path_hex": "756e69636f64652d746f792d76322f726573746f726564",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303391165012146,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v2/restored/topological-computation",
+    "raw_path_hex": "756e69636f64652d746f792d76322f726573746f7265642f746f706f6c6f676963616c2d636f6d7075746174696f6e",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303391165059313,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v2/restored/topological-computation/signifier_net",
+    "raw_path_hex": "756e69636f64652d746f792d76322f726573746f7265642f746f706f6c6f676963616c2d636f6d7075746174696f6e2f7369676e69666965725f6e6574",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303391165095688,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v2/restored/topological-computation/signifier_net/corpora",
+    "raw_path_hex": "756e69636f64652d746f792d76322f726573746f7265642f746f706f6c6f676963616c2d636f6d7075746174696f6e2f7369676e69666965725f6e65742f636f72706f7261",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303391165134021,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v2/restored/topological-computation/signifier_net/corpora/uncategorized",
+    "raw_path_hex": "756e69636f64652d746f792d76322f726573746f7265642f746f706f6c6f676963616c2d636f6d7075746174696f6e2f7369676e69666965725f6e65742f636f72706f72612f756e63617465676f72697a6564",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303391165637274,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v2/restored/topological-computation/signifier_net/corpora/uncategorized/Security_Territory_Population__Lectures_at_the_Collège_de_France_1977--1978.md",
+    "raw_path_hex": "756e69636f64652d746f792d76322f726573746f7265642f746f706f6c6f676963616c2d636f6d7075746174696f6e2f7369676e69666965725f6e65742f636f72706f72612f756e63617465676f72697a65642f53656375726974795f5465727269746f72795f506f70756c6174696f6e5f5f4c656374757265735f61745f7468655f436f6c6c65cc8067655f64655f4672616e63655f313937372d2d313937382e6d64",
+    "mode": 33256,
+    "bytes": 39,
+    "attrs": {
+      "mode": 33256,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1700000000123456789,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "user.issue1527": {
+          "size": 15,
+          "sha256": "7ad2f62f8a196437950f87f28d16e8f8da3d6b7fcd9736a0bc49b31e28930684"
+        },
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "7288be23ad899c70507683a059867036d33d40942ed985032b54e33331397382"
+  },
+  {
+    "path": "unicode-toy-v2/source",
+    "raw_path_hex": "756e69636f64652d746f792d76322f736f75726365",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303391141582493,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v2/source/topological-computation",
+    "raw_path_hex": "756e69636f64652d746f792d76322f736f757263652f746f706f6c6f676963616c2d636f6d7075746174696f6e",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303391141619452,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v2/source/topological-computation/signifier_net",
+    "raw_path_hex": "756e69636f64652d746f792d76322f736f757263652f746f706f6c6f676963616c2d636f6d7075746174696f6e2f7369676e69666965725f6e6574",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303391141652286,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v2/source/topological-computation/signifier_net/corpora",
+    "raw_path_hex": "756e69636f64652d746f792d76322f736f757263652f746f706f6c6f676963616c2d636f6d7075746174696f6e2f7369676e69666965725f6e65742f636f72706f7261",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303391141684119,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v2/source/topological-computation/signifier_net/corpora/uncategorized",
+    "raw_path_hex": "756e69636f64652d746f792d76322f736f757263652f746f706f6c6f676963616c2d636f6d7075746174696f6e2f7369676e69666965725f6e65742f636f72706f72612f756e63617465676f72697a6564",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303391141723286,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v2/source/topological-computation/signifier_net/corpora/uncategorized/Security_Territory_Population__Lectures_at_the_Collège_de_France_1977--1978.md",
+    "raw_path_hex": "756e69636f64652d746f792d76322f736f757263652f746f706f6c6f676963616c2d636f6d7075746174696f6e2f7369676e69666965725f6e65742f636f72706f72612f756e63617465676f72697a65642f53656375726974795f5465727269746f72795f506f70756c6174696f6e5f5f4c656374757265735f61745f7468655f436f6c6cc3a867655f64655f4672616e63655f313937372d2d313937382e6d64",
+    "mode": 33256,
+    "bytes": 39,
+    "attrs": {
+      "mode": 33256,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1700000000123456789,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "user.issue1527": {
+          "size": 15,
+          "sha256": "7ad2f62f8a196437950f87f28d16e8f8da3d6b7fcd9736a0bc49b31e28930684"
+        },
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "7288be23ad899c70507683a059867036d33d40942ed985032b54e33331397382"
+  },
+  {
+    "path": "unicode-toy-v2/unicode.pax.tar.gz",
+    "raw_path_hex": "756e69636f64652d746f792d76322f756e69636f64652e7061782e7461722e677a",
+    "mode": 33188,
+    "bytes": 624,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303391159878371,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "c2b3716a67bb102bac8371d87e6b0c0634dd4cba8f967a20e883f4772fbbc026"
+  },
+  {
+    "path": "unicode-toy-v3",
+    "raw_path_hex": "756e69636f64652d746f792d7633",
+    "mode": 16877,
+    "bytes": 224,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303404273109634,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v3/metadata-only.pax.tar.gz",
+    "raw_path_hex": "756e69636f64652d746f792d76332f6d657461646174612d6f6e6c792e7061782e7461722e677a",
+    "mode": 33188,
+    "bytes": 461,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303404272993758,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "a87e287262d618232a55188da02f5f3d790f618a9f3416a578355572570296d8"
+  },
+  {
+    "path": "unicode-toy-v3/restored",
+    "raw_path_hex": "756e69636f64652d746f792d76332f726573746f726564",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303404269843618,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v3/restored/topological-computation",
+    "raw_path_hex": "756e69636f64652d746f792d76332f726573746f7265642f746f706f6c6f676963616c2d636f6d7075746174696f6e",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303404269894410,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v3/restored/topological-computation/signifier_net",
+    "raw_path_hex": "756e69636f64652d746f792d76332f726573746f7265642f746f706f6c6f676963616c2d636f6d7075746174696f6e2f7369676e69666965725f6e6574",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303404269931535,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v3/restored/topological-computation/signifier_net/corpora",
+    "raw_path_hex": "756e69636f64652d746f792d76332f726573746f7265642f746f706f6c6f676963616c2d636f6d7075746174696f6e2f7369676e69666965725f6e65742f636f72706f7261",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303404269967077,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v3/restored/topological-computation/signifier_net/corpora/uncategorized",
+    "raw_path_hex": "756e69636f64652d746f792d76332f726573746f7265642f746f706f6c6f676963616c2d636f6d7075746174696f6e2f7369676e69666965725f6e65742f636f72706f72612f756e63617465676f72697a6564",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303404271271250,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v3/restored/topological-computation/signifier_net/corpora/uncategorized/Security_Territory_Population__Lectures_at_the_Collège_de_France_1977--1978.md",
+    "raw_path_hex": "756e69636f64652d746f792d76332f726573746f7265642f746f706f6c6f676963616c2d636f6d7075746174696f6e2f7369676e69666965725f6e65742f636f72706f72612f756e63617465676f72697a65642f53656375726974795f5465727269746f72795f506f70756c6174696f6e5f5f4c656374757265735f61745f7468655f436f6c6cc3a867655f64655f4672616e63655f313937372d2d313937382e6d64",
+    "mode": 33256,
+    "bytes": 39,
+    "attrs": {
+      "mode": 33256,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1700000000123456789,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "user.issue1527": {
+          "size": 15,
+          "sha256": "7ad2f62f8a196437950f87f28d16e8f8da3d6b7fcd9736a0bc49b31e28930684"
+        },
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "7288be23ad899c70507683a059867036d33d40942ed985032b54e33331397382"
+  },
+  {
+    "path": "unicode-toy-v3/source",
+    "raw_path_hex": "756e69636f64652d746f792d76332f736f75726365",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303404243520202,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v3/source/topological-computation",
+    "raw_path_hex": "756e69636f64652d746f792d76332f736f757263652f746f706f6c6f676963616c2d636f6d7075746174696f6e",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303404243554953,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v3/source/topological-computation/signifier_net",
+    "raw_path_hex": "756e69636f64652d746f792d76332f736f757263652f746f706f6c6f676963616c2d636f6d7075746174696f6e2f7369676e69666965725f6e6574",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303404243584536,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v3/source/topological-computation/signifier_net/corpora",
+    "raw_path_hex": "756e69636f64652d746f792d76332f736f757263652f746f706f6c6f676963616c2d636f6d7075746174696f6e2f7369676e69666965725f6e65742f636f72706f7261",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303404243612744,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v3/source/topological-computation/signifier_net/corpora/uncategorized",
+    "raw_path_hex": "756e69636f64652d746f792d76332f736f757263652f746f706f6c6f676963616c2d636f6d7075746174696f6e2f7369676e69666965725f6e65742f636f72706f72612f756e63617465676f72697a6564",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303404243649161,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v3/source/topological-computation/signifier_net/corpora/uncategorized/Security_Territory_Population__Lectures_at_the_Collège_de_France_1977--1978.md",
+    "raw_path_hex": "756e69636f64652d746f792d76332f736f757263652f746f706f6c6f676963616c2d636f6d7075746174696f6e2f7369676e69666965725f6e65742f636f72706f72612f756e63617465676f72697a65642f53656375726974795f5465727269746f72795f506f70756c6174696f6e5f5f4c656374757265735f61745f7468655f436f6c6cc3a867655f64655f4672616e63655f313937372d2d313937382e6d64",
+    "mode": 33256,
+    "bytes": 39,
+    "attrs": {
+      "mode": 33256,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1700000000123456789,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "user.issue1527": {
+          "size": 15,
+          "sha256": "7ad2f62f8a196437950f87f28d16e8f8da3d6b7fcd9736a0bc49b31e28930684"
+        },
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "7288be23ad899c70507683a059867036d33d40942ed985032b54e33331397382"
+  },
+  {
+    "path": "unicode-toy-v3/truncation-proof",
+    "raw_path_hex": "756e69636f64652d746f792d76332f7472756e636174696f6e2d70726f6f66",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303404278028615,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy-v3/truncation-proof/payload",
+    "raw_path_hex": "756e69636f64652d746f792d76332f7472756e636174696f6e2d70726f6f662f7061796c6f6164",
+    "mode": 33256,
+    "bytes": 0,
+    "attrs": {
+      "mode": 33256,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1700000000123456789,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "user.issue1527": {
+          "size": 15,
+          "sha256": "7ad2f62f8a196437950f87f28d16e8f8da3d6b7fcd9736a0bc49b31e28930684"
+        },
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "unicode-toy-v3/unicode.pax.tar.gz",
+    "raw_path_hex": "756e69636f64652d746f792d76332f756e69636f64652e7061782e7461722e677a",
+    "mode": 33188,
+    "bytes": 624,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303404263372504,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "535684aaba06e93b7941c864c10bb284f1c2239582fc9e7f489360657322ba65"
+  },
+  {
+    "path": "unicode-toy/restored",
+    "raw_path_hex": "756e69636f64652d746f792f726573746f726564",
+    "mode": 16877,
+    "bytes": 64,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303384009712128,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy/source",
+    "raw_path_hex": "756e69636f64652d746f792f736f75726365",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303384010350798,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy/source/topological-computation",
+    "raw_path_hex": "756e69636f64652d746f792f736f757263652f746f706f6c6f676963616c2d636f6d7075746174696f6e",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303384010442132,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy/source/topological-computation/signifier_net",
+    "raw_path_hex": "756e69636f64652d746f792f736f757263652f746f706f6c6f676963616c2d636f6d7075746174696f6e2f7369676e69666965725f6e6574",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303384010496590,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy/source/topological-computation/signifier_net/corpora",
+    "raw_path_hex": "756e69636f64652d746f792f736f757263652f746f706f6c6f676963616c2d636f6d7075746174696f6e2f7369676e69666965725f6e65742f636f72706f7261",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303384010543716,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy/source/topological-computation/signifier_net/corpora/uncategorized",
+    "raw_path_hex": "756e69636f64652d746f792f736f757263652f746f706f6c6f676963616c2d636f6d7075746174696f6e2f7369676e69666965725f6e65742f636f72706f72612f756e63617465676f72697a6564",
+    "mode": 16877,
+    "bytes": 96,
+    "attrs": {
+      "mode": 16877,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303384010612257,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    }
+  },
+  {
+    "path": "unicode-toy/source/topological-computation/signifier_net/corpora/uncategorized/Security_Territory_Population__Lectures_at_the_Collège_de_France_1977--1978.md",
+    "raw_path_hex": "756e69636f64652d746f792f736f757263652f746f706f6c6f676963616c2d636f6d7075746174696f6e2f7369676e69666965725f6e65742f636f72706f72612f756e63617465676f72697a65642f53656375726974795f5465727269746f72795f506f70756c6174696f6e5f5f4c656374757265735f61745f7468655f436f6c6cc3a867655f64655f4672616e63655f313937372d2d313937382e6d64",
+    "mode": 33256,
+    "bytes": 39,
+    "attrs": {
+      "mode": 33256,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303384010720300,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "7288be23ad899c70507683a059867036d33d40942ed985032b54e33331397382"
+  },
+  {
+    "path": "unicode_toy.py",
+    "raw_path_hex": "756e69636f64655f746f792e7079",
+    "mode": 33188,
+    "bytes": 4549,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303404147268165,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "c27bf96d26984ed6bde0f044a5178387aabd07e1f212a3bcd5ac4e7d59b182f0"
+  },
+  {
+    "path": "validate_increment.py",
+    "raw_path_hex": "76616c69646174655f696e6372656d656e742e7079",
+    "mode": 33188,
+    "bytes": 2518,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303769900597706,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "6f3dc086d6c67509d2fafdb9a50c13e02c3d9460fe3e81de0ccdd4c00339442b"
+  },
+  {
+    "path": "write_reports.py",
+    "raw_path_hex": "77726974655f7265706f7274732e7079",
+    "mode": 33188,
+    "bytes": 21077,
+    "attrs": {
+      "mode": 33188,
+      "uid": 501,
+      "gid": 20,
+      "mtime_ns": 1792303964478087164,
+      "fflags_set": 0,
+      "fflags_clear": 0,
+      "symlink": null,
+      "acl_entries": 0,
+      "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "xattrs": {
+        "com.apple.provenance": {
+          "size": 11,
+          "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+        }
+      }
+    },
+    "sha256": "3f724c2a9a9a4f21c528aeac086a6b494c8d9250cf3a8807a353909790406aa1"
+  }
+]

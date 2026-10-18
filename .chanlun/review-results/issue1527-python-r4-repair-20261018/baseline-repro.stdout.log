@@ -1,0 +1,77 @@
+[
+  {
+    "name": "control_permission",
+    "result": "REPRODUCED",
+    "finding": "R4-H1",
+    "outcomes": [
+      {
+        "kind": "half_env",
+        "blocked_before_status_stop": true,
+        "error": {
+          "code": "ControlMismatch",
+          "stage": "E0",
+          "wire_bytes": 0
+        }
+      },
+      {
+        "kind": "invalid_admission",
+        "blocked_before_status_stop": true,
+        "error": {
+          "code": "BindingInvalid",
+          "stage": "E1",
+          "wire_bytes": 717
+        }
+      }
+    ],
+    "signal": "未发送"
+  },
+  {
+    "name": "configured_failure_retry",
+    "result": "REPRODUCED",
+    "finding": "R4-M1",
+    "outcomes": [
+      {
+        "kind": "permission",
+        "first": {
+          "code": "Identity",
+          "stage": "E4",
+          "wire_bytes": 1468
+        },
+        "retry": "accepted_new_inode",
+        "same_t0": true,
+        "additional_wire": 241,
+        "dispatched": 1
+      },
+      {
+        "kind": "mismatch",
+        "first": {
+          "code": "ControlMismatch",
+          "stage": "E4",
+          "wire_bytes": 1458
+        },
+        "retry": "accepted_new_inode",
+        "same_t0": true,
+        "additional_wire": 241,
+        "dispatched": 1
+      }
+    ],
+    "external_process": "未启动，派发处为stub"
+  },
+  {
+    "name": "child_error_receipt",
+    "result": "REPRODUCED",
+    "finding": "R4-M2",
+    "public_error": {
+      "ok": false,
+      "error": "生命周期动作失败",
+      "category": "CalledProcessError",
+      "returncode": 7
+    },
+    "held_receipt": {
+      "wire_bytes": 1372,
+      "stage": "E4"
+    },
+    "redaction": "PASS",
+    "external_process": "小Python退出码stub，非Rust"
+  }
+]

@@ -1,0 +1,464 @@
+{
+  "ticket": 1527,
+  "parent_task": "01a12e01-45a1-7173-a3e8-d338d108fb93",
+  "manager": "/root/manage_1527_sandcastle",
+  "created_utc": "2026-10-18T06:12:44.657619+00:00",
+  "fixed_head": "44a977568948542aa6d00ecab50e2d468e20b76c",
+  "artifact_class": "绑定#1527的增量工作草稿/证物",
+  "original_manifest": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/review-tail-worktree/.chanlun/review-results/issue1527-reclaim-seal-20261018/MANIFEST.json",
+  "original_manifest_sha256": "b1583962355c2eacefaac1dfbd83fec25d23c1b84fc9b89f2f0e863aa375c701",
+  "original_freeze_receipt": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/reclaim-frozen/FREEZE.json",
+  "original_freeze_receipt_sha256": "7a6b84ee1e4ce15a95d9a4544b4df80c98f6803a3cd291bfa37450c19004be2c",
+  "original_sources_unmodified": [
+    {
+      "name": "worktree",
+      "path": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/worktree",
+      "source": "3315ed1d59ba31ffbad3f0b959702eaa92f4ddbd",
+      "base": "3315ed1d59ba31ffbad3f0b959702eaa92f4ddbd",
+      "preserved_ref": "refs/heads/codex/1527-formal-recovery-20261018",
+      "git_pointer": {
+        "path": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/worktree/.git",
+        "kind": "regular-pointer"
+      },
+      "git_private_dir": "/Users/silencehan/Projects/NewChanlun/.git/worktrees/worktree21",
+      "common_git_dir": "/Users/silencehan/Projects/NewChanlun/.git",
+      "source_tree": "worktree/source-tree0",
+      "full_inventory": "worktree/INVENTORY.json",
+      "private_inventory": "worktree/GIT-PRIVATE-INVENTORY.json",
+      "raw_metadata_payload": "worktree/metadata-only.pax.tar.gz",
+      "unique_payload": "worktree/unique.pax.tar.gz",
+      "git_private_payload": "worktree/git-private.pax.tar.gz",
+      "patches": [
+        "worktree/head-to-worktree.patch",
+        "worktree/head-to-index.patch"
+      ],
+      "content_resolution": "worktree/CONTENT-RESOLUTION.json",
+      "archive_hashes": {
+        "unique.pax.tar.gz": "6cd5a02528c8a2f3b2bc2a39ad2be39da033a32398a9f807076b15d09165855b",
+        "git-private.pax.tar.gz": "5293349f7d6444af65073b646803b0cf678b5281467ee4c2548aa60ea1858b43",
+        "metadata-only.pax.tar.gz": "ef27c37b7219e6cad4bdd1142795aa940ff4a3a1d7ee7df944c8ebea768dcdf0",
+        "INVENTORY.json": "89a65a491a9b32db8125dce47a39c2a044dda0665ccfa35a0a9476eed1fda274",
+        "GIT-PRIVATE-INVENTORY.json": "686fa2b0812001c6a040351557a67799b74fb0f0851547348ed8ba1800965592",
+        "SEAL.json": "5de37ee1abe2e7fc165e09d34d290476bd7b4f1bddd3444b520b078d4e82f539"
+      },
+      "restore_receipt": "worktree/VERIFY-RESTORE-V2.json",
+      "deleteAuthorized": false
+    },
+    {
+      "name": "r4-candidate-worktree",
+      "path": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/r4-candidate-worktree",
+      "source": "5cb7253d46d973669e7d10cd3331e12c9ef313b1",
+      "base": "5cb7253d46d973669e7d10cd3331e12c9ef313b1",
+      "preserved_ref": "refs/heads/codex/1527-r4-anchor-candidate-20261018",
+      "git_pointer": {
+        "path": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/r4-candidate-worktree/.git",
+        "kind": "regular-pointer"
+      },
+      "git_private_dir": "/Users/silencehan/Projects/NewChanlun/.git/worktrees/r4-candidate-worktree",
+      "common_git_dir": "/Users/silencehan/Projects/NewChanlun/.git",
+      "source_tree": "r4-candidate-worktree/source-tree0",
+      "full_inventory": "r4-candidate-worktree/INVENTORY.json",
+      "private_inventory": "r4-candidate-worktree/GIT-PRIVATE-INVENTORY.json",
+      "raw_metadata_payload": "r4-candidate-worktree/metadata-only.pax.tar.gz",
+      "unique_payload": "r4-candidate-worktree/unique.pax.tar.gz",
+      "git_private_payload": "r4-candidate-worktree/git-private.pax.tar.gz",
+      "patches": [
+        "r4-candidate-worktree/head-to-worktree.patch",
+        "r4-candidate-worktree/head-to-index.patch"
+      ],
+      "content_resolution": "r4-candidate-worktree/CONTENT-RESOLUTION.json",
+      "archive_hashes": {
+        "unique.pax.tar.gz": "ad41b63b9da30dd533ef2cc68677f93f29092ede8cb46c8bc3f085c067388ae9",
+        "git-private.pax.tar.gz": "b3c2f61aafba54aa61c7c455018d370ed6e049a1675cb72b63ea4a0d72e78c49",
+        "metadata-only.pax.tar.gz": "a3a3ff02e038ab78942d9ed94ea2d54520c15195da4d9f953675e3f3e2a4cbf0",
+        "INVENTORY.json": "d7e83d3ffda626fa8dab8d1e40ce4a333c1b552497922b7307ed720f84cf6a04",
+        "GIT-PRIVATE-INVENTORY.json": "56cfe7808e9ae7c4abe4f34cb185fe0fb8bf146701fa49d465fe5b74386448c0",
+        "SEAL.json": "e349d80e6947b3ee109d69f442786d331330767724ffc69e5b5acfb5815c1f22"
+      },
+      "restore_receipt": "r4-candidate-worktree/VERIFY-RESTORE-V2.json",
+      "deleteAuthorized": false
+    },
+    {
+      "name": "review-worktree-01",
+      "path": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/review-worktree-01",
+      "source": "5cb7253d46d973669e7d10cd3331e12c9ef313b1",
+      "base": "5cb7253d46d973669e7d10cd3331e12c9ef313b1",
+      "preserved_ref": "refs/heads/codex/1527-r4-independent-review-20261018",
+      "git_pointer": {
+        "path": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/review-worktree-01/.git",
+        "kind": "regular-pointer"
+      },
+      "git_private_dir": "/Users/silencehan/Projects/NewChanlun/.git/worktrees/review-worktree-01",
+      "common_git_dir": "/Users/silencehan/Projects/NewChanlun/.git",
+      "source_tree": "review-worktree-01/source-tree0",
+      "full_inventory": "review-worktree-01/INVENTORY.json",
+      "private_inventory": "review-worktree-01/GIT-PRIVATE-INVENTORY.json",
+      "raw_metadata_payload": "review-worktree-01/metadata-only.pax.tar.gz",
+      "unique_payload": "review-worktree-01/unique.pax.tar.gz",
+      "git_private_payload": "review-worktree-01/git-private.pax.tar.gz",
+      "patches": [
+        "review-worktree-01/head-to-worktree.patch",
+        "review-worktree-01/head-to-index.patch"
+      ],
+      "content_resolution": "review-worktree-01/CONTENT-RESOLUTION.json",
+      "archive_hashes": {
+        "unique.pax.tar.gz": "b47c62a7f160c5dc0aa3a1f5be0f1ff8e7e6e9abae3fef730cee0479b94c4402",
+        "git-private.pax.tar.gz": "ae789e10c276023678d4e8544a4f2b14d8cabf238233e4e4ee83d695c1c6ac27",
+        "metadata-only.pax.tar.gz": "bc21c1894082c994cfb328ac74440ca589f51c4a63992c9da7dcccd7a5e9dcb1",
+        "INVENTORY.json": "aea372b95a3fbe4bf49960220e5aa5230f333170822d08cb52b3a0c22bab0bcb",
+        "GIT-PRIVATE-INVENTORY.json": "3996a12242fd0eb1594b76c336c4a58cd1ab04e80d237c8ff6943781c52e5cc4",
+        "SEAL.json": "e531a9452d91b188791e8aa94074de317f27c2189c41c600795aa496b4be3bb7"
+      },
+      "restore_receipt": "review-worktree-01/VERIFY-RESTORE-V2.json",
+      "deleteAuthorized": false
+    },
+    {
+      "name": "r4-repair-worktree",
+      "path": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/r4-repair-worktree",
+      "source": "5cb7253d46d973669e7d10cd3331e12c9ef313b1",
+      "base": "5cb7253d46d973669e7d10cd3331e12c9ef313b1",
+      "preserved_ref": "refs/heads/codex/1527-r4-job-binding-repair-20261018",
+      "git_pointer": {
+        "path": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/r4-repair-worktree/.git",
+        "kind": "regular-pointer"
+      },
+      "git_private_dir": "/Users/silencehan/Projects/NewChanlun/.git/worktrees/r4-repair-worktree",
+      "common_git_dir": "/Users/silencehan/Projects/NewChanlun/.git",
+      "source_tree": "r4-repair-worktree/source-tree0",
+      "full_inventory": "r4-repair-worktree/INVENTORY.json",
+      "private_inventory": "r4-repair-worktree/GIT-PRIVATE-INVENTORY.json",
+      "raw_metadata_payload": "r4-repair-worktree/metadata-only.pax.tar.gz",
+      "unique_payload": "r4-repair-worktree/unique.pax.tar.gz",
+      "git_private_payload": "r4-repair-worktree/git-private.pax.tar.gz",
+      "patches": [
+        "r4-repair-worktree/head-to-worktree.patch",
+        "r4-repair-worktree/head-to-index.patch"
+      ],
+      "content_resolution": "r4-repair-worktree/CONTENT-RESOLUTION.json",
+      "archive_hashes": {
+        "unique.pax.tar.gz": "33363348a35160301a2d5cb78b6ba088b3415ab57a3347c1b95be4d496d347a2",
+        "git-private.pax.tar.gz": "1ab9c8c1326167f21796ba507bda96796abc5da47722b1f4b82805d4c70a6b4f",
+        "metadata-only.pax.tar.gz": "38cdd371691c6f791d3b6b007ce39a03052b2758379dd58a3a7e4b54f46a3836",
+        "INVENTORY.json": "b0bb786763474a1c8092a9ac6320bcefac049b684dcefbb152563637c5cf8576",
+        "GIT-PRIVATE-INVENTORY.json": "de2065a6cc29b3a989cbd85abe85336d783875c0d0034d1af371e23018247792",
+        "SEAL.json": "ee9267c0f609be21fb5a28fe8ddabf9fe77eb2336d622b07848ccb3cdd1a1c2b"
+      },
+      "restore_receipt": "r4-repair-worktree/VERIFY-RESTORE-V2.json",
+      "deleteAuthorized": false
+    },
+    {
+      "name": "review-tail-worktree",
+      "path": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/review-tail-worktree",
+      "source": "c02fdf6df956694907d8654e4b2be1bff62c28e4",
+      "base": "c02fdf6df956694907d8654e4b2be1bff62c28e4",
+      "preserved_ref": "refs/heads/codex/1527-r4-tail-review-20261018",
+      "git_pointer": {
+        "path": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/review-tail-worktree/.git",
+        "kind": "regular-pointer"
+      },
+      "git_private_dir": "/Users/silencehan/Projects/NewChanlun/.git/worktrees/review-tail-worktree",
+      "common_git_dir": "/Users/silencehan/Projects/NewChanlun/.git",
+      "source_tree": "review-tail-worktree/source-tree0",
+      "full_inventory": "review-tail-worktree/INVENTORY.json",
+      "private_inventory": "review-tail-worktree/GIT-PRIVATE-INVENTORY.json",
+      "raw_metadata_payload": "review-tail-worktree/metadata-only.pax.tar.gz",
+      "unique_payload": "review-tail-worktree/unique.pax.tar.gz",
+      "git_private_payload": "review-tail-worktree/git-private.pax.tar.gz",
+      "patches": [
+        "review-tail-worktree/head-to-worktree.patch",
+        "review-tail-worktree/head-to-index.patch"
+      ],
+      "content_resolution": "review-tail-worktree/CONTENT-RESOLUTION.json",
+      "archive_hashes": {
+        "unique.pax.tar.gz": "2246803eb491ad87a9291858e6f3497dfeac1910770824e5f62567e8ab9c606b",
+        "git-private.pax.tar.gz": "d334a7ec63202bf31ae257cd41fc5cd67e0685f2354e9424ed8de6a2e5205cb9",
+        "metadata-only.pax.tar.gz": "2444a84fcebf8f9e9b4323c43f247d71cddea5502eafaf3dc275cbf5da4d987a",
+        "INVENTORY.json": "35ccec159dab3efbbeda4f251b59db86cd958011163031b0aa571a0780066fc2",
+        "GIT-PRIVATE-INVENTORY.json": "7f2674356021053ad543234f66bca278be52d20d4950a3634a4b3668060c00fe",
+        "SEAL.json": "a9ea1d3be8101669defd775dbf98d35a0d46065e89f6c13988db00316cc3f9c1"
+      },
+      "restore_receipt": "review-tail-worktree/VERIFY-RESTORE-V2.json",
+      "deleteAuthorized": false
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "ACTIVITY-INITIAL.json",
+      "bytes": 54536,
+      "sha256": "131c82c5287d90f8a607f6c12d2f8475e162afea887af9e0ca56a4bda4623700"
+    },
+    {
+      "path": "ACTIVITY.json",
+      "bytes": 56841,
+      "sha256": "9ecb3df29ab2057d71a395034141e8463829236344c504adb3f587f2d60547ae"
+    },
+    {
+      "path": "CANDIDATES.json",
+      "bytes": 2040,
+      "sha256": "b1e98be87efad7922937075e1bb450f158d2291bfe0fd710dd032482a2cc21ea"
+    },
+    {
+      "path": "CHECKS.json",
+      "bytes": 3750,
+      "sha256": "2f9512ebed2c85b80fefe0431b18b7c8940afab6c3b20700576153e9b864f8ab"
+    },
+    {
+      "path": "INCREMENT-VERIFY.json",
+      "bytes": 1359,
+      "sha256": "af7b8e2c02361cfa7d2f394e2e183e63f640a41985d190ad8e57072a957203d1"
+    },
+    {
+      "path": "LFS-VERIFY.json",
+      "bytes": 2139,
+      "sha256": "f93dc3cba32b3c7a5f4083d379605b177947d6c5020c2a21ee67eea50f4185a4"
+    },
+    {
+      "path": "MEMBERS.json",
+      "bytes": 10455,
+      "sha256": "93fc5b1515d2c29810bc6d77ab2d6cba9e16b9ad31642c50bf35f98e4d08263a"
+    },
+    {
+      "path": "METADATA-REPLAY-TOY.json",
+      "bytes": 596,
+      "sha256": "642f3a302f692a823fc8061d7fe1709ba56fd58935a1e8372cd2c7acb1fb2256"
+    },
+    {
+      "path": "NEXT-ACTION-PLAN.json",
+      "bytes": 5038,
+      "sha256": "7c0bc194f8d4de9801d4fe8d3b8f8d10a392c31b2d6985a7e5b3edc9533bb219"
+    },
+    {
+      "path": "ORIGINAL-FREEZE-FIRST-ATTEMPT.json",
+      "bytes": 89374,
+      "sha256": "f9ac70c69a285d7aa257159b77492da5a4e7f398088f4f05cb2971f5974aa0f2"
+    },
+    {
+      "path": "ORIGINAL-FREEZE-VERIFY.json",
+      "bytes": 129883,
+      "sha256": "f3655eeaa5a17c2460bfb9407a254ed4302608068a66d7fe1ae046132f8f6de7"
+    },
+    {
+      "path": "SOURCE-INTEGRITY-AND-BUDGET.json",
+      "bytes": 2377656,
+      "sha256": "55100c885e36a911f99ab8c902cc25d29b3b9ab8a05e5d307d52da0df8ebf51f"
+    },
+    {
+      "path": "SUPPLEMENT.md",
+      "bytes": 12083,
+      "sha256": "47b70638cfb53c8276e376803b411c206cd4268062a3f40d7c5c5bc8606ad3ce"
+    },
+    {
+      "path": "UNICODE-TOY.json",
+      "bytes": 2518,
+      "sha256": "a7c9076131f57c47cf8f1e795a17f9a2185b0538bd2b704e7b911c687ea471c6"
+    },
+    {
+      "path": "audit.py",
+      "bytes": 9340,
+      "sha256": "93d8620a11d9a39399bd169652aba457a06a35e8525e8637b749c4e2b9cfa457"
+    },
+    {
+      "path": "capsule.py",
+      "bytes": 7773,
+      "sha256": "7c2fd3fe43aaa238ea445d2b30ff0d1168c9a7a1798b34a9dff12a52f665a0b7"
+    },
+    {
+      "path": "collect.py",
+      "bytes": 7743,
+      "sha256": "6fcab5926fab937780703d8c22ed3ddd02ec69fac2be19ea32383f422e587fe7"
+    },
+    {
+      "path": "common.py",
+      "bytes": 2529,
+      "sha256": "7f4a93f5e54704e24a7dbe77ebf85c8600035f72bc3977a067594d1885eb4c05"
+    },
+    {
+      "path": "hash-guard/MEMBERS.json",
+      "bytes": 10455,
+      "sha256": "459473c9f41f57b80b0aa0f59c8c3a8346e520b355de2979e0023b19ea5b1be8"
+    },
+    {
+      "path": "hash-guard/members/r4-candidate-worktree.pax.tar.gz",
+      "bytes": 1109,
+      "sha256": "b1bb0fec16aed2bc02fd76c43129adaef9501a28a35f171180fe5f591894e86b"
+    },
+    {
+      "path": "hash-guard/members/r4-repair-worktree.pax.tar.gz",
+      "bytes": 1109,
+      "sha256": "bc6257178dd39d03c8f7dc6ea5b889c715389c9194b171c4d1a2198680eed6db"
+    },
+    {
+      "path": "hash-guard/members/review-tail-worktree.pax.tar.gz",
+      "bytes": 1106,
+      "sha256": "c9528da1a62d974975024eb9ca6613e43e66ed81ec03fbb77196e1ca6df4506e"
+    },
+    {
+      "path": "hash-guard/members/review-worktree-01.pax.tar.gz",
+      "bytes": 1109,
+      "sha256": "a48099aec58a122f91a38d74ccf36d9ab6ee77a2ea57101f67577226eb3186fe"
+    },
+    {
+      "path": "hash-guard/members/worktree.pax.tar.gz",
+      "bytes": 1104,
+      "sha256": "323ab785858c8d2ecae8689fe851ace834ce04e79583e7e1eba68e51c611417f"
+    },
+    {
+      "path": "hash_missing_proposal.py",
+      "bytes": 3760,
+      "sha256": "661f06c3ae4ebcb806a39302023deb22aeb9e7c18ba75fe5caa7bff644a43343"
+    },
+    {
+      "path": "member-restore/RESTORE-RECEIPT.json",
+      "bytes": 4133,
+      "sha256": "18a518c1489038aed39b2072610f333034e769f11a72c4f24b12afd18fcffe6d"
+    },
+    {
+      "path": "member-restore/r4-candidate-worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json",
+      "bytes": 2888,
+      "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e"
+    },
+    {
+      "path": "member-restore/r4-repair-worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json",
+      "bytes": 2888,
+      "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e"
+    },
+    {
+      "path": "member-restore/review-tail-worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json",
+      "bytes": 2888,
+      "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e"
+    },
+    {
+      "path": "member-restore/review-worktree-01/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json",
+      "bytes": 2888,
+      "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e"
+    },
+    {
+      "path": "member-restore/worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json",
+      "bytes": 2888,
+      "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e"
+    },
+    {
+      "path": "members/r4-candidate-worktree.pax.tar.gz",
+      "bytes": 1109,
+      "sha256": "b1bb0fec16aed2bc02fd76c43129adaef9501a28a35f171180fe5f591894e86b"
+    },
+    {
+      "path": "members/r4-repair-worktree.pax.tar.gz",
+      "bytes": 1109,
+      "sha256": "bc6257178dd39d03c8f7dc6ea5b889c715389c9194b171c4d1a2198680eed6db"
+    },
+    {
+      "path": "members/review-tail-worktree.pax.tar.gz",
+      "bytes": 1106,
+      "sha256": "c9528da1a62d974975024eb9ca6613e43e66ed81ec03fbb77196e1ca6df4506e"
+    },
+    {
+      "path": "members/review-worktree-01.pax.tar.gz",
+      "bytes": 1109,
+      "sha256": "a48099aec58a122f91a38d74ccf36d9ab6ee77a2ea57101f67577226eb3186fe"
+    },
+    {
+      "path": "members/worktree.pax.tar.gz",
+      "bytes": 1104,
+      "sha256": "323ab785858c8d2ecae8689fe851ace834ce04e79583e7e1eba68e51c611417f"
+    },
+    {
+      "path": "metadata-replay-toy/content-target/file",
+      "bytes": 29,
+      "sha256": "42ad4302183548d860c11efb8f316bd5293490ea7b7d82e238e5d83cf98e43b5"
+    },
+    {
+      "path": "metadata-replay-toy/metadata-stage/file",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "metadata_replay_toy.py",
+      "bytes": 2209,
+      "sha256": "323a13afd198a563295397b95ed71dd3de9d2334c26addc2a86f5f797a156cb1"
+    },
+    {
+      "path": "original_attribute_reader.py",
+      "bytes": 21615,
+      "sha256": "b1d0481a79d7ed815e762fbf84dc313a3193d0abcdaa824c955feabd2e99e42d"
+    },
+    {
+      "path": "restore_members.py",
+      "bytes": 3887,
+      "sha256": "f8061bdb8dc5b93970954fa80646a943fcf5a816e7081ac671cca83338141d18"
+    },
+    {
+      "path": "unicode-toy/source/topological-computation/signifier_net/corpora/uncategorized/Security_Territory_Population__Lectures_at_the_Collège_de_France_1977--1978.md",
+      "bytes": 39,
+      "sha256": "7288be23ad899c70507683a059867036d33d40942ed985032b54e33331397382"
+    },
+    {
+      "path": "unicode-toy-v2/restored/topological-computation/signifier_net/corpora/uncategorized/Security_Territory_Population__Lectures_at_the_Collège_de_France_1977--1978.md",
+      "bytes": 39,
+      "sha256": "7288be23ad899c70507683a059867036d33d40942ed985032b54e33331397382"
+    },
+    {
+      "path": "unicode-toy-v2/source/topological-computation/signifier_net/corpora/uncategorized/Security_Territory_Population__Lectures_at_the_Collège_de_France_1977--1978.md",
+      "bytes": 39,
+      "sha256": "7288be23ad899c70507683a059867036d33d40942ed985032b54e33331397382"
+    },
+    {
+      "path": "unicode-toy-v2/unicode.pax.tar.gz",
+      "bytes": 624,
+      "sha256": "c2b3716a67bb102bac8371d87e6b0c0634dd4cba8f967a20e883f4772fbbc026"
+    },
+    {
+      "path": "unicode-toy-v3/metadata-only.pax.tar.gz",
+      "bytes": 461,
+      "sha256": "a87e287262d618232a55188da02f5f3d790f618a9f3416a578355572570296d8"
+    },
+    {
+      "path": "unicode-toy-v3/restored/topological-computation/signifier_net/corpora/uncategorized/Security_Territory_Population__Lectures_at_the_Collège_de_France_1977--1978.md",
+      "bytes": 39,
+      "sha256": "7288be23ad899c70507683a059867036d33d40942ed985032b54e33331397382"
+    },
+    {
+      "path": "unicode-toy-v3/source/topological-computation/signifier_net/corpora/uncategorized/Security_Territory_Population__Lectures_at_the_Collège_de_France_1977--1978.md",
+      "bytes": 39,
+      "sha256": "7288be23ad899c70507683a059867036d33d40942ed985032b54e33331397382"
+    },
+    {
+      "path": "unicode-toy-v3/truncation-proof/payload",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "unicode-toy-v3/unicode.pax.tar.gz",
+      "bytes": 624,
+      "sha256": "535684aaba06e93b7941c864c10bb284f1c2239582fc9e7f489360657322ba65"
+    },
+    {
+      "path": "unicode_toy.py",
+      "bytes": 4549,
+      "sha256": "c27bf96d26984ed6bde0f044a5178387aabd07e1f212a3bcd5ac4e7d59b182f0"
+    },
+    {
+      "path": "validate_increment.py",
+      "bytes": 2518,
+      "sha256": "6f3dc086d6c67509d2fafdb9a50c13e02c3d9460fe3e81de0ccdd4c00339442b"
+    },
+    {
+      "path": "write_reports.py",
+      "bytes": 21077,
+      "sha256": "3f724c2a9a9a4f21c528aeac086a6b494c8d9250cf3a8807a353909790406aa1"
+    }
+  ],
+  "transport_envelope_excludes_from_core_manifest": [
+    "CAPSULE-RESTORE-VERIFY.json",
+    "MANIFEST.json",
+    "REPORT-CAPSULE-INDEX.json",
+    "REPORT-CAPSULE-MEMBERS0",
+    "REPORT-CAPSULE.json",
+    "REPORT-CAPSULE.pax.tar.gz"
+  ],
+  "report_capsule_restore_proof": "CAPSULE-RESTORE-VERIFY.json",
+  "supplement_outside_checkout_preserved": false,
+  "current_checkout_excluded_from_deletion": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree",
+  "complete_base_restore_verified": false,
+  "deleteAuthorized": false
+}

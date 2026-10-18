@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "api": "copyfile",
+  "flags": 786439,
+  "flag_names": [
+    "COPYFILE_ACL",
+    "COPYFILE_STAT",
+    "COPYFILE_XATTR",
+    "COPYFILE_NOFOLLOW_SRC",
+    "COPYFILE_NOFOLLOW_DST"
+  ],
+  "COPYFILE_DATA": false,
+  "regular_content_sha256_before": "42ad4302183548d860c11efb8f316bd5293490ea7b7d82e238e5d83cf98e43b5",
+  "regular_content_sha256_after": "42ad4302183548d860c11efb8f316bd5293490ea7b7d82e238e5d83cf98e43b5",
+  "regular_directory_symlink_attrs_match": true,
+  "scope": "三类小样，与候选同样ACL空/fflags零；完整base未运行",
+  "deleteAuthorized": false
+}
