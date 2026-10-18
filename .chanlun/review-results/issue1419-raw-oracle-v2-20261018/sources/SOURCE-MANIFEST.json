@@ -1,0 +1,198 @@
+[
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/.chanlun/definitions/bi.md",
+    "copy": "sources/definitions/bi.md",
+    "role": "已裁正本；字节来自固定5cb",
+    "bytes": 46959,
+    "sha256": "a2420f95016c7df7915a5f96719621bdc8e6138356635bc7599ada853a63f0a6"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/.chanlun/definitions/xianduan.md",
+    "copy": "sources/definitions/xianduan.md",
+    "role": "已裁正本；字节来自固定5cb",
+    "bytes": 55730,
+    "sha256": "bb571365125251918dc89dc19fd5b3cbea788221e6ef93957cc3a918cf810143"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/.chanlun/definitions/zhongshu.md",
+    "copy": "sources/definitions/zhongshu.md",
+    "role": "已裁正本；字节来自固定5cb",
+    "bytes": 66205,
+    "sha256": "4e9cdbc8c43b850f9a56b201dd89b12f45e27cc88876e35f255d36adaf306d66"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/docs/chanlun/text/blog/020-第20课.md",
+    "copy": "sources/blog/020-第20课.md",
+    "role": "作者归属按引用行逐项核；不引用编者注",
+    "bytes": 26838,
+    "sha256": "25f8f0bbe9ffbab48a27b552a081ff3925b6c01bfe1cae30c2616fe9b99b49ef"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/docs/chanlun/text/blog/062-第62课.md",
+    "copy": "sources/blog/062-第62课.md",
+    "role": "作者归属按引用行逐项核；不引用编者注",
+    "bytes": 11272,
+    "sha256": "289acd34caf0b502f2da409f1abdd2dd37d316769e6f61018dc35c334fed8c4a"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/docs/chanlun/text/blog/067-第67课.md",
+    "copy": "sources/blog/067-第67课.md",
+    "role": "作者归属按引用行逐项核；不引用编者注",
+    "bytes": 42042,
+    "sha256": "257521bf636734a6d71d724674aac093976e5f505c8ff156619fe7d3b1af459a"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/docs/chanlun/text/blog/071-第71课.md",
+    "copy": "sources/blog/071-第71课.md",
+    "role": "作者归属按引用行逐项核；不引用编者注",
+    "bytes": 17303,
+    "sha256": "6a980424b9e5ea417d7c482bfae30f96ee11c07b3c7011081e94a6d742a38d66"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/docs/chanlun/text/blog/077-第77课.md",
+    "copy": "sources/blog/077-第77课.md",
+    "role": "作者归属按引用行逐项核；不引用编者注",
+    "bytes": 16329,
+    "sha256": "dbce65991f2997f171ddce1476fb1b4950c8e91d139c50f6c5273af125c3b62f"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/docs/chanlun/text/blog/078-第78课.md",
+    "copy": "sources/blog/078-第78课.md",
+    "role": "作者归属按引用行逐项核；不引用编者注",
+    "bytes": 26720,
+    "sha256": "7575dfe108360af50ea9bc1309635044e775f92d3d22f12169f048bd02bb75c5"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/docs/chanlun/text/blog/081-第81课.md",
+    "copy": "sources/blog/081-第81课.md",
+    "role": "作者归属按引用行逐项核；不引用编者注",
+    "bytes": 50378,
+    "sha256": "18caff8a718f9cbccee454872e85350fcd99b051ebedda4b19578c341136d7b8"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/s_session/browser/s-content-v3.js",
+    "copy": "sources/5cb/s_session/browser/s-content-v3.js",
+    "role": "只读接口/历史实现证据；不是定义oracle",
+    "bytes": 54218,
+    "sha256": "fb21d3467a189ac1d09cd585b07ca927083bee550fdd2c50419eac82b20ba926"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/s_session/browser/q3-consumer.js",
+    "copy": "sources/5cb/s_session/browser/q3-consumer.js",
+    "role": "只读接口/历史实现证据；不是定义oracle",
+    "bytes": 98529,
+    "sha256": "26318cc02a263a70d56883d9b526e8bf0e897bce574a3b873a418c92fedf9e98"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/rust/src/bin/s_session_v3/projection.rs",
+    "copy": "sources/5cb/rust/src/bin/s_session_v3/projection.rs",
+    "role": "只读接口/历史实现证据；不是定义oracle",
+    "bytes": 58378,
+    "sha256": "59bf7b936bb34b6c9010ee15a98fda59db350b6bf32dbfcb46317a24c465c4c2"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/rust/src/bin/s_session_v3/raw_input.rs",
+    "copy": "sources/5cb/rust/src/bin/s_session_v3/raw_input.rs",
+    "role": "只读接口/历史实现证据；不是定义oracle",
+    "bytes": 8227,
+    "sha256": "3e02b40deb3341085096238d55ce2f7d9e11d6af9fadf8de8dfde83624cebe45"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/rust/src/bin/s_session_v2/tb02a.rs",
+    "copy": "sources/5cb/rust/src/bin/s_session_v2/tb02a.rs",
+    "role": "只读接口/历史实现证据；不是定义oracle",
+    "bytes": 36517,
+    "sha256": "fda3cd86c647390bf6475e7bda1064839107c5745abe05b46a30a58f2e3d6fe5"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/rust/src/bin/s_session_v2/tb02c.rs",
+    "copy": "sources/5cb/rust/src/bin/s_session_v2/tb02c.rs",
+    "role": "只读接口/历史实现证据；不是定义oracle",
+    "bytes": 18642,
+    "sha256": "251811310fbe4866f32f89a9f154dc6a88278cd96aed601ac5a26eed461bce55"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/rust/src/theta_v0/parser/feature_seq.rs",
+    "copy": "sources/5cb/rust/src/theta_v0/parser/feature_seq.rs",
+    "role": "只读接口/历史实现证据；不是定义oracle",
+    "bytes": 42050,
+    "sha256": "dab24fe5344c879f1a6c948cdd65183235c040c319cafbfc7465a50d65112ba2"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/s_session/README.md",
+    "copy": "sources/5cb/s_session/README.md",
+    "role": "只读接口/历史实现证据；不是定义oracle",
+    "bytes": 22074,
+    "sha256": "cc78d3febcf57b3f92d1d0420538b473cc50d6fc1bad7290a9acc3a7f8642ede"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-run01-artifacts/raw-evidence/sources/634f62cd/rust/src/theta_v0/config.rs",
+    "copy": "sources/634f/rust/src/theta_v0/config.rs",
+    "role": "复用前轮封存donor原件；不执行",
+    "bytes": 34322,
+    "sha256": "d7bf588e7605a2574c7651aa81ed64400d1f2a680a41a4e529d755a941576b6d"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-run01-artifacts/raw-evidence/sources/634f62cd/rust/src/bin/s_session_v3/generation.rs",
+    "copy": "sources/634f/rust/src/bin/s_session_v3/generation.rs",
+    "role": "复用前轮封存donor原件；不执行",
+    "bytes": 185048,
+    "sha256": "471825f38f5a41796346b286386d64f5ad25e06bfbd01ac51ea77248bdda4c0f"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-run01-artifacts/raw-evidence/sources/634f62cd/rust/src/bin/s_session_v2/tb02e.rs",
+    "copy": "sources/634f/rust/src/bin/s_session_v2/tb02e.rs",
+    "role": "复用前轮封存donor原件；不执行",
+    "bytes": 69688,
+    "sha256": "9701f93d114eb62a8321cb558b6117a50b6653a0c81d7d7666fe5aedef369b60"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-run01-artifacts/raw-evidence/sources/634f62cd/rust/src/bin/s_session_v2/tb02f.rs",
+    "copy": "sources/634f/rust/src/bin/s_session_v2/tb02f.rs",
+    "role": "复用前轮封存donor原件；不执行",
+    "bytes": 34245,
+    "sha256": "417be8f52a8b6613deb2edfe181b6ecc495e21920969cac6794ac1c17c3fcee0"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/issue1419-live.json",
+    "copy": "sources/issue1419-live.json",
+    "role": "本轮票完整原件",
+    "bytes": 24930,
+    "sha256": "b3ce84e3f3839082e99c3ef63d390818864cda42b90dedbdcaff39b8804a7f4a"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/blocked-by.json",
+    "copy": "sources/blocked-by.json",
+    "role": "本轮原生依赖原件",
+    "bytes": 41571,
+    "sha256": "368d74325d97a7846fa6baf32d2ba00050fe4fef1ad138589ecab8d695207c4e"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-run01-artifacts/raw-evidence/RAW-INVENTORY.json",
+    "copy": "sources/MARKET600-INVENTORY.reference.json",
+    "role": "仅原件清单复用；600市场raw不替换",
+    "bytes": 2879,
+    "sha256": "f5c1988c218d677327441c2e7e553c9645c836b5057b7e1b9b96e820e7632ede"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-run01-artifacts/raw-evidence/oracle/REFERENCE-CONDITIONAL-LEDGER.json",
+    "copy": "sources/MARKET600-CONDITIONAL.reference.json",
+    "role": "6完成+1进行/1中心0对；非独立raw oracle",
+    "bytes": 1742,
+    "sha256": "d1b4bdf7f509897a9bc83d9dac3a27a9b2ac5c99224e9029e9c226caace3eb87"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-run01-artifacts/raw-evidence/validation/unit-tests.stdout",
+    "copy": "sources/PRIOR-23-CHECKS.reference.stdout",
+    "role": "前轮原结果，只复用不重跑",
+    "bytes": 3103,
+    "sha256": "eecd872885e905dc40e4cb705465507c910987405193cc9d75619b4a78018c5d"
+  },
+  {
+    "original": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-oracle-v2-worktree/s_session/catalog/signed-catalog.json",
+    "copy": "sources/signed-catalog.json",
+    "role": "原目录字节；新源实际22轴绑定仍待核",
+    "bytes": 84259,
+    "sha256": "938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069"
+  }
+]

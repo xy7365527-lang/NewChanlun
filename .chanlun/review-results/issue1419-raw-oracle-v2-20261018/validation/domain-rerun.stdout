@@ -1,0 +1,7 @@
+test_domain_adapter_positive_and_zn_mutation_negative (__main__.V2Tests.test_domain_adapter_positive_and_zn_mutation_negative) ... ok
+test_domain_withdrawal_rejects_stale_pair (__main__.V2Tests.test_domain_withdrawal_rejects_stale_pair) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.147s
+
+OK

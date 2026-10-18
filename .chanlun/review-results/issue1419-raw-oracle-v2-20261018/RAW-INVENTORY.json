@@ -1,0 +1,113 @@
+{
+  "controlled": [
+    {
+      "path": "RAW-INPUT.json",
+      "bytes": 18486,
+      "sha256": "a4c172590b03aca248e8e73240cb17fd444415bcab8fec8250a1bb5e08d123a8"
+    },
+    {
+      "path": "raw/CONSTRUCTION-RECIPE.json",
+      "bytes": 694,
+      "sha256": "0b387046c7352eb4fd656f497e965043859d6a6f86798b025af748908de1877c"
+    },
+    {
+      "path": "raw/ORDER.json",
+      "bytes": 18500,
+      "sha256": "51ffabd11baff9347bed1bc42d1997a8da6bd2143bc25719e00c00be60c5c671"
+    },
+    {
+      "path": "raw/advance-0111.epoch2.json",
+      "bytes": 1064,
+      "sha256": "e3afc613e29348a081129f253b852b8fd106e702bd30b7b1d48a55dfc69b4e29"
+    },
+    {
+      "path": "raw/clock-plan.json",
+      "bytes": 28954,
+      "sha256": "b95ece1d8bf5868b961dacfb3b1ed0b7845facda398b59537881a5b73f4ed232"
+    },
+    {
+      "path": "raw/messages.base.jsonl",
+      "bytes": 147596,
+      "sha256": "bd70f80ecd2ebf4783b4a5cdcb9d84049a82b4f5190052c76509a570b7a21580"
+    },
+    {
+      "path": "raw/messages.recovery-epoch2.jsonl",
+      "bytes": 74160,
+      "sha256": "d84ece145300de4296267cdbfdf3c155a5228e04dfb43b07186e86d49b2ca924"
+    },
+    {
+      "path": "raw/restore-original.json",
+      "bytes": 18380,
+      "sha256": "a8e8afa16c6a63155fbb391066a28c2351328e965556ea9698dacfe839e9890a"
+    },
+    {
+      "path": "raw/restore-original.message.json",
+      "bytes": 31538,
+      "sha256": "c62dbbdad84cf2d7e7283bc7798029221a1cf0765fb8f505565191811ddf64a5"
+    },
+    {
+      "path": "raw/revise-non-zn-tail.json",
+      "bytes": 18380,
+      "sha256": "4c89559dcd84db98b4aab4ee46896a3b27b5d250cb8f2334e1d060257df9c0a0"
+    },
+    {
+      "path": "raw/revise-non-zn-tail.message.json",
+      "bytes": 1386,
+      "sha256": "abb624127d503765032eff09f3d359a71cd69c7cc27920d38b4d502dc8679610"
+    },
+    {
+      "path": "raw/withdraw-second-center.json",
+      "bytes": 18380,
+      "sha256": "39a4c47e3c065c65e30ab8db2341c695ad001f4c840d90f79b507b9c6dcaab6e"
+    },
+    {
+      "path": "raw/withdraw-second-center.message.json",
+      "bytes": 31550,
+      "sha256": "afffd8915f29c976f7311ee39c559c3c0d66b73404ca316015cd710e1ff891d7"
+    }
+  ],
+  "input_order": "raw/ORDER.json",
+  "independent_expected": [
+    {
+      "path": "INDEPENDENT-WITNESS-LEDGER.json",
+      "bytes": 900251,
+      "sha256": "cb1b687bb75bc6d25e4650b0dd93fee053c4053395b08f240c22c35518f555d8"
+    },
+    {
+      "path": "expected/TRANSITIONS.json",
+      "bytes": 1249,
+      "sha256": "3ffeeb9707bef0530b6c0d345c26b76ca834598a5102f1c13a33dcf8857b9d70"
+    },
+    {
+      "path": "expected/base.json",
+      "bytes": 44065,
+      "sha256": "0b15e2556315ec50bad4bc9b2d29f264289a85356a9f993ca6b4e4f77ed2cf3e"
+    },
+    {
+      "path": "expected/restore-original.json",
+      "bytes": 44065,
+      "sha256": "0b15e2556315ec50bad4bc9b2d29f264289a85356a9f993ca6b4e4f77ed2cf3e"
+    },
+    {
+      "path": "expected/revise-non-zn-tail.json",
+      "bytes": 44065,
+      "sha256": "da566173f66caf4f33926e0d81071daefe570bacd9da1530a423bcd393148014"
+    },
+    {
+      "path": "expected/withdraw-second-center.json",
+      "bytes": 22446,
+      "sha256": "b8f22fbd42e0bb6ee5dd78b4b42bc6c5a52198c32b515a0447f7d3649df42baa"
+    }
+  ],
+  "market_control": {
+    "bundle": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-run01-artifacts",
+    "inventory": "sources/MARKET600-INVENTORY.reference.json",
+    "reference_ledger": "sources/MARKET600-CONDITIONAL.reference.json",
+    "unchanged": true,
+    "full_cache_rehashed_this_round": false,
+    "whole_history_satisfied": false
+  },
+  "new_market_window_search": false,
+  "volume": "controlled unit quantity = 1；无市场量替换",
+  "authorization": false
+}
