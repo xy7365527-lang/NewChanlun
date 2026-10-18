@@ -23,9 +23,14 @@
 //!   根行或参数槽任一变化都会改变指纹，从而撤销复用并严格重核。缓存超预算只失去复用。
 
 use super::*;
+// #1527：库/bin 共用迁移后的唯一原验证器；SQL 类型拒绝仍在原读行位置。
 use crate::v3::audit_store::{CodecRead, NativeAdmission};
 use crate::v3::business_json::{new_map, new_work, BusinessMap, TextValue};
 use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
+pub(super) use newchan_rust::s_content::legacy_evidence::hex_bytes;
+use newchan_rust::s_content::legacy_evidence::{
+    hex, node_id, verify_node_row, KIND_LEAF, KIND_SEQ,
+};
 use newchan_rust::s_content::{capture_allocation::OwnedBudget, CodecVec};
 use newchan_rust::sqlite_checked::CheckedStatement;
 
@@ -145,9 +150,6 @@ CREATE TABLE IF NOT EXISTS s_evidence_roots (
   content_sha256 TEXT NOT NULL
 )";
 
-/// 节点种类：0 = 精确字节叶；1 = 有序拼接节点。
-const KIND_LEAF: i64 = 0;
-const KIND_SEQ: i64 = 1;
 /// 拼接节点 payload 的分量标签。
 const TAG_LIT: u8 = 0;
 const TAG_REF: u8 = 1;
@@ -851,14 +853,6 @@ fn decomposable_json_text(text: &str) -> Option<Value> {
         Value::Object(_) | Value::Array(_) => Some(parsed),
         _ => None,
     }
-}
-
-fn node_id(kind: i64, payload: &[u8]) -> [u8; 32] {
-    use sha2::{Digest, Sha256};
-    let mut h = Sha256::new();
-    h.update([kind as u8]);
-    h.update(payload);
-    h.finalize().into()
 }
 
 /// 拼接节点的一个分量（解析结果，字面量只留字节切片）。
@@ -2220,31 +2214,6 @@ fn read_node_row_admitted(
     Ok((kind, payload, declared))
 }
 
-fn verify_node_row(id: &[u8; 32], kind: i64, payload: &[u8], len: i64) -> Result<u64, String> {
-    if kind != KIND_LEAF && kind != KIND_SEQ {
-        return Err(format!(
-            "StorageUnavailable：私有节点 {} 种类 `{kind}` 未声明",
-            hex(id)
-        ));
-    }
-    if node_id(kind, payload) != *id {
-        return Err(format!(
-            "StorageUnavailable：私有节点 {} 同 ID 异内容（内容寻址不符）",
-            hex(id)
-        ));
-    }
-    let declared = u64::try_from(len)
-        .map_err(|_| format!("StorageUnavailable：私有节点 {} 长度非负越界", hex(id)))?;
-    if kind == KIND_LEAF {
-        if declared != payload.len() as u64 {
-            return Err(format!(
-                "StorageUnavailable：私有叶 {} 声明长度与实际不符",
-                hex(id)
-            ));
-        }
-    }
-    Ok(declared)
-}
 fn node_children(
     kind: i64,
     payload: &[u8],
@@ -2380,14 +2349,6 @@ enum Frame {
     },
     Lit(CodecVec<u8>),
     Slot(u16),
-}
-
-fn hex(id: &[u8; 32]) -> String {
-    hex_bytes(id)
-}
-
-pub(super) fn hex_bytes(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 fn decode_id(bytes: &[u8]) -> Option<[u8; 32]> {

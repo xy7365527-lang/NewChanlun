@@ -1,0 +1,716 @@
+{
+  "旧行用例": [
+    {
+      "用例": "空叶",
+      "kind": 0,
+      "payload_hex": "",
+      "len": 0,
+      "id": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+      "结果": 0
+    },
+    {
+      "用例": "非UTF8原字节",
+      "kind": 0,
+      "payload_hex": "00ff",
+      "len": 2,
+      "id": "ae974d4a74c2371d8cfe842b7aa4f6698de8570526eeb3db1941b0b72311d470",
+      "结果": 2
+    },
+    {
+      "用例": "kind先于坏hash和负len",
+      "kind": 256,
+      "payload_hex": "616263",
+      "len": -1,
+      "id": "0000000000000000000000000000000000000000000000000000000000000000",
+      "结果": "StorageUnavailable：私有节点 0000000000000000000000000000000000000000000000000000000000000000 种类 `256` 未声明"
+    },
+    {
+      "用例": "负kind先拒",
+      "kind": -1,
+      "payload_hex": "",
+      "len": -1,
+      "id": "0000000000000000000000000000000000000000000000000000000000000000",
+      "结果": "StorageUnavailable：私有节点 0000000000000000000000000000000000000000000000000000000000000000 种类 `-1` 未声明"
+    },
+    {
+      "用例": "hash先于负len",
+      "kind": 0,
+      "payload_hex": "616263",
+      "len": -1,
+      "id": "0000000000000000000000000000000000000000000000000000000000000000",
+      "结果": "StorageUnavailable：私有节点 0000000000000000000000000000000000000000000000000000000000000000 同 ID 异内容（内容寻址不符）"
+    },
+    {
+      "用例": "非负长度检查",
+      "kind": 0,
+      "payload_hex": "616263",
+      "len": -1,
+      "id": "609f6e36d2405585188d5cfd761f407c7cc46a7d3f314c88270469dde315fcd1",
+      "结果": "StorageUnavailable：私有节点 609f6e36d2405585188d5cfd761f407c7cc46a7d3f314c88270469dde315fcd1 长度非负越界"
+    },
+    {
+      "用例": "叶长度",
+      "kind": 0,
+      "payload_hex": "616263",
+      "len": 4,
+      "id": "609f6e36d2405585188d5cfd761f407c7cc46a7d3f314c88270469dde315fcd1",
+      "结果": "StorageUnavailable：私有叶 609f6e36d2405585188d5cfd761f407c7cc46a7d3f314c88270469dde315fcd1 声明长度与实际不符"
+    },
+    {
+      "用例": "SEQ行不冒称闭包已核",
+      "kind": 1,
+      "payload_hex": "6e6f7420612073657175656e6365",
+      "len": 9223372036854775807,
+      "id": "7b017133edaa420a0b3c2f6b3822b2b93b5649dd0b5dc88f4ed2df03859ff04b",
+      "结果": 9223372036854775807
+    }
+  ],
+  "首错事件": [
+    {
+      "用例": "先业务后deadline",
+      "观察": [
+        [
+          0,
+          "业务原错",
+          false
+        ],
+        [
+          2,
+          "晚到deadline",
+          true
+        ],
+        [
+          1,
+          null,
+          false
+        ],
+        [
+          2,
+          null,
+          false
+        ],
+        [
+          3,
+          null,
+          false
+        ],
+        [
+          4,
+          null,
+          false
+        ],
+        [
+          5,
+          null,
+          false
+        ],
+        [
+          6,
+          null,
+          false
+        ]
+      ],
+      "首错": "业务原错",
+      "回调次错": [
+        null,
+        null,
+        "晚到deadline",
+        null,
+        null,
+        null,
+        null
+      ],
+      "原返回次错": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "用例": "先VFS预算后SQL包装",
+      "观察": [
+        [
+          0,
+          "wire cap",
+          true
+        ],
+        [
+          0,
+          "stopped wrapper",
+          true
+        ],
+        [
+          0,
+          "SQL原返回",
+          false
+        ],
+        [
+          1,
+          null,
+          false
+        ],
+        [
+          2,
+          null,
+          false
+        ],
+        [
+          3,
+          null,
+          false
+        ],
+        [
+          4,
+          null,
+          false
+        ],
+        [
+          5,
+          null,
+          false
+        ],
+        [
+          6,
+          null,
+          false
+        ]
+      ],
+      "首错": "wire cap",
+      "回调次错": [
+        "stopped wrapper",
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "原返回次错": [
+        "SQL原返回",
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "用例": "先progress期限后SQL包装",
+      "观察": [
+        [
+          0,
+          "早到deadline",
+          true
+        ],
+        [
+          0,
+          "SQL interrupted",
+          false
+        ],
+        [
+          1,
+          null,
+          false
+        ],
+        [
+          2,
+          null,
+          false
+        ],
+        [
+          3,
+          null,
+          false
+        ],
+        [
+          4,
+          null,
+          false
+        ],
+        [
+          5,
+          null,
+          false
+        ],
+        [
+          6,
+          null,
+          false
+        ]
+      ],
+      "首错": "早到deadline",
+      "回调次错": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "原返回次错": [
+        "SQL interrupted",
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "用例": "先回滚后期限",
+      "观察": [
+        [
+          1,
+          "rollback原错",
+          false
+        ],
+        [
+          2,
+          "晚到deadline",
+          true
+        ],
+        [
+          1,
+          null,
+          false
+        ],
+        [
+          2,
+          null,
+          false
+        ],
+        [
+          3,
+          null,
+          false
+        ],
+        [
+          4,
+          null,
+          false
+        ],
+        [
+          5,
+          null,
+          false
+        ],
+        [
+          6,
+          null,
+          false
+        ]
+      ],
+      "首错": "rollback原错",
+      "回调次错": [
+        null,
+        null,
+        "晚到deadline",
+        null,
+        null,
+        null,
+        null
+      ],
+      "原返回次错": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "用例": "先关闭后期限",
+      "观察": [
+        [
+          3,
+          "close原错",
+          false
+        ],
+        [
+          6,
+          "晚到deadline",
+          false
+        ],
+        [
+          1,
+          null,
+          false
+        ],
+        [
+          2,
+          null,
+          false
+        ],
+        [
+          3,
+          null,
+          false
+        ],
+        [
+          4,
+          null,
+          false
+        ],
+        [
+          5,
+          null,
+          false
+        ],
+        [
+          6,
+          null,
+          false
+        ]
+      ],
+      "首错": "close原错",
+      "回调次错": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "原返回次错": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        "晚到deadline"
+      ]
+    },
+    {
+      "用例": "先结预留后期限",
+      "观察": [
+        [
+          5,
+          "reconcile原错",
+          false
+        ],
+        [
+          6,
+          "晚到deadline",
+          false
+        ],
+        [
+          1,
+          null,
+          false
+        ],
+        [
+          2,
+          null,
+          false
+        ],
+        [
+          3,
+          null,
+          false
+        ],
+        [
+          4,
+          null,
+          false
+        ],
+        [
+          5,
+          null,
+          false
+        ],
+        [
+          6,
+          null,
+          false
+        ]
+      ],
+      "首错": "reconcile原错",
+      "回调次错": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "原返回次错": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        "晚到deadline"
+      ]
+    },
+    {
+      "用例": "业务成功但最终超期",
+      "观察": [
+        [
+          6,
+          "deadline",
+          false
+        ],
+        [
+          1,
+          null,
+          false
+        ],
+        [
+          2,
+          null,
+          false
+        ],
+        [
+          3,
+          null,
+          false
+        ],
+        [
+          4,
+          null,
+          false
+        ],
+        [
+          5,
+          null,
+          false
+        ],
+        [
+          6,
+          null,
+          false
+        ]
+      ],
+      "首错": "deadline",
+      "回调次错": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "原返回次错": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "用例": "全成功",
+      "观察": [
+        [
+          1,
+          null,
+          false
+        ],
+        [
+          2,
+          null,
+          false
+        ],
+        [
+          3,
+          null,
+          false
+        ],
+        [
+          4,
+          null,
+          false
+        ],
+        [
+          5,
+          null,
+          false
+        ],
+        [
+          6,
+          null,
+          false
+        ]
+      ],
+      "首错": null,
+      "回调次错": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "原返回次错": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "用例": "原业务错误逐字",
+      "观察": [
+        [
+          0,
+          "原业务错误：逐字",
+          false
+        ],
+        [
+          1,
+          null,
+          false
+        ],
+        [
+          2,
+          null,
+          false
+        ],
+        [
+          3,
+          null,
+          false
+        ],
+        [
+          4,
+          null,
+          false
+        ],
+        [
+          5,
+          null,
+          false
+        ],
+        [
+          6,
+          null,
+          false
+        ]
+      ],
+      "首错": "原业务错误：逐字",
+      "回调次错": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "原返回次错": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "用例": "六收尾均失败仍保主错和每阶段两类次错",
+      "观察": [
+        [
+          0,
+          "业务原错",
+          false
+        ],
+        [
+          1,
+          "回调1",
+          true
+        ],
+        [
+          1,
+          "收尾返回1",
+          false
+        ],
+        [
+          2,
+          "回调2",
+          true
+        ],
+        [
+          2,
+          "收尾返回2",
+          false
+        ],
+        [
+          3,
+          "回调3",
+          true
+        ],
+        [
+          3,
+          "收尾返回3",
+          false
+        ],
+        [
+          4,
+          "回调4",
+          true
+        ],
+        [
+          4,
+          "收尾返回4",
+          false
+        ],
+        [
+          5,
+          "回调5",
+          true
+        ],
+        [
+          5,
+          "收尾返回5",
+          false
+        ],
+        [
+          6,
+          "回调6",
+          true
+        ],
+        [
+          6,
+          "收尾返回6",
+          false
+        ]
+      ],
+      "首错": "业务原错"
+    }
+  ],
+  "实读量": [
+    {
+      "实读": 4,
+      "已接纳增量": 4,
+      "原wire": 4,
+      "拒收累计": 0
+    },
+    {
+      "实读": 3,
+      "已接纳增量": 0,
+      "原wire": 4,
+      "拒收累计": 3
+    }
+  ]
+}

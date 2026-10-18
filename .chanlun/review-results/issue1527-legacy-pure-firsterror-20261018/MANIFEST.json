@@ -1,0 +1,414 @@
+{
+  "票号": "#1527",
+  "名分": "绑定OPEN #1527的工作草稿；不是I1完成或生产验收",
+  "source": "9d8e5c328a4a15aad1e53dac1a875f788e30b05b",
+  "tree": "87167df04264e1287f5e6810b60e41241144fd99",
+  "product_parent": "ce3dd877359e4ccec76b54f1d3d0f3585d85d78f",
+  "父输入": [
+    {
+      "路径": "../LEGACY-PURE-BASE.json",
+      "SHA256": "9dc344bff80b55a5151396066f2483005df15fc756599cb59d46216f56b21ac4"
+    },
+    {
+      "路径": "../ROOT-LEGACY-G1-G4-DECISION.md",
+      "SHA256": "3d3e45b1f674c1a614f2d4392822148ec177dd9d006caee5137dc3cc786797f4"
+    },
+    {
+      "路径": "../ROOT-I1-IMPLEMENTATION-SCOPE.md",
+      "SHA256": "f76dae5bbfeb9a770d20e87ab204f3ad74eae4dedafc927ef5de4b18849c6bb2"
+    },
+    {
+      "路径": "../I1-RESPONSIBILITY-AND-REUSE.md",
+      "SHA256": "2c820d967600145a616e1cb82a3e8996802d34c4a0c5aa567bf34fdab14d8219"
+    },
+    {
+      "路径": "../PRIOR-R4-V3-DESIGN-TRANSCRIPT.md",
+      "SHA256": "c2cbd8a8808e8f2500b8a2659304c56bce77ce1d2120ac93ff83aae7230c9dea"
+    },
+    {
+      "路径": "../PRIOR-R4-PROVENANCE.json",
+      "SHA256": "d8d16087466f0e0a7fa3c6d1eeb69a41cb5d3910294d15142f672f4fcf17344f"
+    },
+    {
+      "路径": "../xerj-reference-checkpoint-query.json",
+      "SHA256": "bbae0745b35b62d633c7d01c3958fe5db1e36427ce2b08c6ca37b0f2f28c31d2"
+    }
+  ],
+  "固定源": [
+    {
+      "source": "9d8e5c328a4a15aad1e53dac1a875f788e30b05b",
+      "路径": "rust/src/s_content.rs",
+      "blob": "78dfa517ae0254d616df8b0cef342e488de3dfb0",
+      "SHA256": "4d9a85e5fb7d1f95649359df97ae1f9168d0b9dd96a9d13af9fb8d62edd596c6"
+    },
+    {
+      "source": "9d8e5c328a4a15aad1e53dac1a875f788e30b05b",
+      "路径": "rust/src/bin/s_session_v2/evidence_store.rs",
+      "blob": "cdec55d572bf3fe9bcb23f50e998659d4512c453",
+      "SHA256": "3686ab764d587f79402024f0974b35b37bbe1eef8a19fa8a0c0475b282f8093e"
+    },
+    {
+      "source": "9d8e5c328a4a15aad1e53dac1a875f788e30b05b",
+      "路径": "rust/src/bin/s_session_v3/admission_private/mod.rs",
+      "blob": "e4729cffe7abe89317eb161fe449afababc82c40",
+      "SHA256": "77365f849305df523a2e8ac725d9bdaca87ee2178b7dccc9acce38c9148f16b0"
+    },
+    {
+      "source": "9d8e5c328a4a15aad1e53dac1a875f788e30b05b",
+      "路径": "rust/src/bin/s_structure_session.rs",
+      "blob": "eda35d76384445a42b3ab57bc434d2bbc0281097",
+      "SHA256": "fc9b7278cab67cf2ef644ed6a1a618c6360b4c814757c25d7fe4387f642ebb7b"
+    },
+    {
+      "source": "9d8e5c328a4a15aad1e53dac1a875f788e30b05b",
+      "路径": "rust/Cargo.toml",
+      "blob": "b9ebc403e407543ef882f69f4bd51e20253a296d",
+      "SHA256": "f991a4bcb9e1238eae93357fbe4c960ae482aaf559b58457b374dc9b224e2cbb"
+    },
+    {
+      "source": "9d8e5c328a4a15aad1e53dac1a875f788e30b05b",
+      "路径": "rust/Cargo.lock",
+      "blob": "605d532780b54779117c3fd12c41ba4cef707119",
+      "SHA256": "af8449bbc52d59d7ed9fbdb62c27150bcfa00f7ff061e16d28b3b7bd017c2a3b"
+    },
+    {
+      "source": "9d8e5c328a4a15aad1e53dac1a875f788e30b05b",
+      "路径": "rust/src/lib.rs",
+      "blob": "6ab3bb17e4477ca96d06ead6ff32d405476c610e",
+      "SHA256": "fb95d0650b35b65682adedbf85c8d6d432faf4c4e40913ada954e60e9e1b5710"
+    },
+    {
+      "source": "9d8e5c328a4a15aad1e53dac1a875f788e30b05b",
+      "路径": "rust/src/s_content/job.rs",
+      "blob": "67aa0b680b13cf234d40aa342673c304010ac847",
+      "SHA256": "de9c6f46b4e8827962f0ef3e7b31bd1300b2e9b461c58e573cb7efa001939554"
+    },
+    {
+      "source": "9d8e5c328a4a15aad1e53dac1a875f788e30b05b",
+      "路径": "rust/src/bin/s_session_v3/admission_anchor.rs",
+      "blob": "b8d929b83c9d85f5e91987886a70141e7d5c0bd1",
+      "SHA256": "7a843631bdfb4ad28fbc97da30e1da2bfeace4c0434fcbd1f82592d3321195c7"
+    },
+    {
+      "source": "9d8e5c328a4a15aad1e53dac1a875f788e30b05b",
+      "路径": "rust/src/bin/s_session_v3/admission.rs",
+      "blob": "e271830ed01c23b5344ce1a8ffd67061dc11d5e0",
+      "SHA256": "af8fe339de50438854c35cfbe7c2b6e2c68cdce76e07a17f643606d27d1535b1"
+    },
+    {
+      "source": "9d8e5c328a4a15aad1e53dac1a875f788e30b05b",
+      "路径": "rust/src/bin/s_session_v3/admission_private/fd_wal.rs",
+      "blob": "b3668fed8e744f04f987cc805db4b4a479ecfdfc",
+      "SHA256": "4a5e210dc8c3cbb9ba2885202feed665e94a6ce8d63ce8e8d5e616371e5d6a71"
+    },
+    {
+      "source": "9d8e5c328a4a15aad1e53dac1a875f788e30b05b",
+      "路径": "rust/src/bin/s_session_v3/state.rs",
+      "blob": "f35557d3cecb4ba8a893dc343a8978f98638ea80",
+      "SHA256": "0d5fef5afbae66d1b9a84c77df73e3443f4e1c841b3290414291c38c272b93ed"
+    },
+    {
+      "source": "9d8e5c328a4a15aad1e53dac1a875f788e30b05b",
+      "路径": "rust/src/bin/s_session_v3/audit_owner.rs",
+      "blob": "75f8344863e4d626e6494f7619cbe6a39ea4fb37",
+      "SHA256": "565cba303bbd3e4eeacfe02b46fe357905d9c4739375e4aff39d3f832214b61c"
+    },
+    {
+      "source": "9d8e5c328a4a15aad1e53dac1a875f788e30b05b",
+      "路径": "rust/src/bin/s_session_v2/cache.rs",
+      "blob": "fa44e8fe05bf27333f77cc69d6ecbab5e5baaaed",
+      "SHA256": "af08d77ff21cd6b9d55fd79e1adcca77c1324419abd7dc587ab16d560e9c6329"
+    },
+    {
+      "source": "9d8e5c328a4a15aad1e53dac1a875f788e30b05b",
+      "路径": "rust/src/bin/s_session_v2/audit.rs",
+      "blob": "47f09c1196fd966eeeb662d0084e47a1f478892a",
+      "SHA256": "3f9b030dc7bcf5945f20ec3f52f82dd6b34f5497653d0e33e7681b1d396f9752"
+    },
+    {
+      "source": "9d8e5c328a4a15aad1e53dac1a875f788e30b05b",
+      "路径": "s_session/tests/issue1527_recovery/test_support.rs",
+      "blob": "50a667b470f81761b98bde4e54537d898f174de2",
+      "SHA256": "45209b8afaa1f57463c3f909249a3e933e93afe8b1602183ccd0e3f427ee913e"
+    },
+    {
+      "source": "9d8e5c328a4a15aad1e53dac1a875f788e30b05b",
+      "路径": "AGENTS.md",
+      "blob": "1524625d3c08de50cd650697bcc013518ff86657",
+      "SHA256": "cc4eaa6e2336578a1424f44f6e7dd00593db427bdd94d780b3cdc1f4e045b35f"
+    },
+    {
+      "source": "9d8e5c328a4a15aad1e53dac1a875f788e30b05b",
+      "路径": "docs/agents/generation-constitution.md",
+      "blob": "ebce8dcf5616e840b80cd931b2e07abe71db36a4",
+      "SHA256": "6871ddb943cbc523c2c5a228bb1046adf9e27072b7c1ba929c7d8c683e23021e"
+    },
+    {
+      "source": "c1c156ed5851c36395fed35e0dc763f5d5b248e5",
+      "路径": ".chanlun/review-results/issue1527-legacy-job-proposal-20261018/PROPOSAL.md",
+      "blob": "9a050f91b09a78002350b873beae3eec6d781205",
+      "SHA256": "bd3562ac2242c14e6f9d798bea0335b79b25f3dfb0e9e80268d7836ad6389d9a"
+    },
+    {
+      "source": "c1c156ed5851c36395fed35e0dc763f5d5b248e5",
+      "路径": ".chanlun/review-results/issue1527-legacy-job-proposal-20261018/interfaces.rs",
+      "blob": "d3a6d2317bfa5c40b42d377283528661754701f6",
+      "SHA256": "820176c68cefcdef61687a23b3447dda38ff9db802d27703a41a051d3dafe749"
+    },
+    {
+      "source": "c1c156ed5851c36395fed35e0dc763f5d5b248e5",
+      "路径": ".chanlun/review-results/issue1527-legacy-job-proposal-20261018/CHECKS.json",
+      "blob": "34b2e1061a775dec17bd42763528365f01494263",
+      "SHA256": "5b92193ee617a9a1cc3318b3e1c5c993963cf25901a9c1ecafb875b288938220"
+    },
+    {
+      "source": "c1c156ed5851c36395fed35e0dc763f5d5b248e5",
+      "路径": ".chanlun/review-results/issue1527-legacy-job-proposal-20261018/MANIFEST.json",
+      "blob": "8a018d7a86af85c2bd93bd7fc7cbad5284a9c608",
+      "SHA256": "c4479ae267f7b645672f9225323c28a529fe9cd25adb381c3a746acf792679cc"
+    },
+    {
+      "source": "b228d8ec05173127f17c4af777b2df51c65aa425",
+      "路径": ".chanlun/review-results/issue1527-rust-h1m02-r2-review-20261018/REVIEW.md",
+      "blob": "087b767e350d0bcf86885c920c94c3f41563692d",
+      "SHA256": "b6c5efcfdc0115f02d0181a4849ffb40b0141cd4eed084d3f9edfca7695ce523"
+    },
+    {
+      "source": "b228d8ec05173127f17c4af777b2df51c65aa425",
+      "路径": ".chanlun/review-results/issue1527-rust-h1m02-r2-review-20261018/CHECKS.json",
+      "blob": "b5d06141e877da1f4acf75032c326fdaa9623f56",
+      "SHA256": "1dcb812be261111293bfcf3cecf1bb9561c693e2494964c89722bbadbed72f4f"
+    },
+    {
+      "source": "b228d8ec05173127f17c4af777b2df51c65aa425",
+      "路径": ".chanlun/review-results/issue1527-rust-h1m02-r2-review-20261018/MANIFEST.json",
+      "blob": "744eecc1f0563af3b04ddbf36e75aa30c1dff7dc",
+      "SHA256": "4ecd226750d877ef3c2f002fd4e63539681a8fd673f45658eab7eb63f082622e"
+    }
+  ],
+  "旧报告不变": [
+    {
+      "路径": ".chanlun/review-results/issue1527-formal-i1-20261018/CALL-SURFACE.json",
+      "blob": "c4975e1b9357f155fb2c3eaedd5ee7b1892bad2a",
+      "SHA256": "4ce079f62e15ce262dd2cdb7adb08dbe3dd12a09f2a28ee7afb6ea097b9b21a8"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-formal-i1-20261018/CHECKS.json",
+      "blob": "44f37c2a1c2d16503703969af13aec7137784bf3",
+      "SHA256": "7081283eee8d5f648e4ed2da638c1f29e73445455f7ee20ac8f9f8262c2e974b"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-formal-i1-20261018/FINAL.patch",
+      "blob": "9bd05bf1de9ce2718c8159a6c0a772a41b8a0cef",
+      "SHA256": "e0c7acd93b410d90436f7e8e3dbcdd775beeab3b3ad1df2c77f5c1d2bbafdc46"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-formal-i1-20261018/IMPLEMENTATION.md",
+      "blob": "326ee453095e58ff4f665e6dffa14f1f589d65e9",
+      "SHA256": "45f42314c4b5f2abfb92df41eb379a3597be6f1eebc5dd402570016ced9a0f37"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-formal-i1-20261018/INHERITED-INTERFACE-CALLERS.patch",
+      "blob": "a40386783fc69823900a439bb81b3de02e2a15a3",
+      "SHA256": "c7f5620daaaa0a113fba4a672f017a216dc92e3a2271b6cd3b3a988525bb6e0d"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-formal-i1-20261018/INHERITED-INTERFACE-JOB.patch",
+      "blob": "cccc83a68ae641c595419d2c4e57d71f73f2248a",
+      "SHA256": "477dc7779e42ca45453f3b06499ec04370214e3349cb759a93e2460018610691"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-formal-i1-20261018/INHERITED-INTERFACE-PLAN.md",
+      "blob": "9114f1c40456c993a6e7d8ffcdee25e3abc65157",
+      "SHA256": "0d5cc65ca90d4203d4803e235900d6c2fede73bbf7663a29bb7afb043670b7ba"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-formal-i1-20261018/INHERITED-R4-CONTRACT.md",
+      "blob": "f8bdd737d416723061073a7af1f5cdecfc4e9310",
+      "SHA256": "de109178acbd5443df3a754219acaf156835e8eb8709ebdb1a80c4cd67020832"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-formal-i1-20261018/INHERITED-SOURCES.json",
+      "blob": "d7709eb88d7871d35d566e2670b87a2600a7b730",
+      "SHA256": "09132e82d2280217977dd155e0bd632e7d2956cfc0ebf9c911e10c1f3b54cb96"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-formal-i1-20261018/MANIFEST.json",
+      "blob": "2c36a8888ea2aa7434f0073ed3ee6069192dce6a",
+      "SHA256": "5e5fc02433ab2ecf3365ea9f80a7ae1a028de3b4b0eba825d46ec76178259732"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-formal-i1-20261018/package_checks.py",
+      "blob": "f6ce1e7fcf8aa2d26c0693e4b00cba443a269a66",
+      "SHA256": "b6cd6486fb2045da409f8ce16df1ae65f540ab299694c4458250c2210d333b40"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-formal-i1-20261018/static_checks.py",
+      "blob": "5a6f5e0ece27fae19fe67a673bb50d7ddd4ce7d7",
+      "SHA256": "2a97f27701e9bcce298f494d922fd8e857f7e783aeac4bcb3fdd5856d31fc10b"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-i1-b2b3-20261018/B2B3.md",
+      "blob": "8e4738452c606d9e407ae7e2f8a68657073a3564",
+      "SHA256": "70c8788d8bfc3ed7dab12257450167260d4def81b4c3cfff32ecccf5d52cd2bf"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-i1-b2b3-20261018/CHECKS.json",
+      "blob": "07a01878935266d4b3cf9fe3908e48e37176a324",
+      "SHA256": "9203a260e597b09df3de0b7cde925b023fc9ed39d4785d5921197bfa438c4255"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-i1-b2b3-20261018/FINAL-STATIC-RESULT.json",
+      "blob": "d3e293339c6ee4df3edc6f1b3bef8d55a9cfda03",
+      "SHA256": "8f2cb1079654d4ec546886babb295cdbb9f5637ba7fc279b7a53ef876c2ac164"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-i1-b2b3-20261018/FINAL.patch",
+      "blob": "3b3fc37fcdd2f9952072874fca23ea1cc72187fa",
+      "SHA256": "075e726c10d886e945c263a7a7b2a1d83d41f6df87535d738cc4a6144253171c"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-i1-b2b3-20261018/INITIAL-SHARED.patch",
+      "blob": "b6855366a59d32ff42143ecbb8e881335208559d",
+      "SHA256": "dca79b168e7806e0879e564bb3f69bb9ac0f590b289f0f1ce5435a3dd1b59fb5"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-i1-b2b3-20261018/MANIFEST.json",
+      "blob": "46eb12d290aca6cb5538b38859ffac8050e1df68",
+      "SHA256": "e1ca9a5baa9ddaf83be3db10e20f52ea0034308f55ceb00967db5d676d8d5024"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-i1-b2b3-20261018/NARROW-SHARED.patch",
+      "blob": "ff874f5c363ad05ca1583bc700a756a0b207446d",
+      "SHA256": "44e1461033b145f812e79c5741d0caad32021a4e9416f6eb16a216b18d6e54fb"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-i1-b2b3-20261018/STATIC-RESULT.json",
+      "blob": "3d87e7d331a2ab70f6f99ce9111efa9168ce1bb4",
+      "SHA256": "a067f57d0f65da2ee574f7dcc602b5424c4cd3ad9f8bab714b9bb67302bcb1dd"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-i1-b2b3-20261018/seal.py",
+      "blob": "6fd7411693326f6b2ae46dfafc04b10f823437df",
+      "SHA256": "24f73374088c9f62cf49604ecbb3b49cfd043f2b407dd77961b1beca59ae29f2"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-i1-b2b3-20261018/validate.py",
+      "blob": "b6a8f82a1758980a08e573e1701fb795df9cdd00",
+      "SHA256": "09566653dec11d75fc8b1d26cf290572ad923ba06eba4ec3b9748858fe8079e0"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-legacy-job-design-review-20261018/CHECKS.json",
+      "blob": "e9320f5d8984ba235516ed5844ca4471c213c718",
+      "SHA256": "ea3ece5d18815ec4029d7a2a6690fdd9e0f7542bc10d487459ac5d02f92795a1"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-legacy-job-design-review-20261018/MANIFEST.json",
+      "blob": "3b1467eb7ab863c3ecf53b75e2ddfb9705898d4b",
+      "SHA256": "c7f5f069a19556af53279937d4e72ab91049ab47f1f3fafb953263f8d19234c1"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-legacy-job-design-review-20261018/REVIEW.md",
+      "blob": "555ca86c9c4464e6d4d2968160f8c274d39d8962",
+      "SHA256": "c88cb684521cdd19d85b76afca440b7de1dd8ec3b94c83fb5085e1459e1a2b81"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-legacy-job-design-review-20261018/counterexamples.py",
+      "blob": "69777c152e7ef9ddcc986e2233eb77188790398e",
+      "SHA256": "f6fcc2abbd21a950ce4f65cc6bf15102871df281c18e4d2eaefdd4bc044079ea"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-rust-h1m02-repair-20261018/AFTER-MODELS.json",
+      "blob": "89179f2a7c8669590801b79cab67624886935ad4",
+      "SHA256": "1320f0e81035fa13f7c0d1a0206724038ab9db3db266707f366003caf981491e"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-rust-h1m02-repair-20261018/BEFORE-MODELS.json",
+      "blob": "9c7b8c4b10495d6280864ceb18c2335a24753229",
+      "SHA256": "e3dc3e77fe93cf079530d219faa54944609b6e0b29cd4b8088fa52209356ea2f"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-rust-h1m02-repair-20261018/CHECKS.json",
+      "blob": "58e12914e9c6237be106b58b27ad62e060d6748b",
+      "SHA256": "449876fc97264566355fe295554ac38970425e004b3171e3c60e42d1939623c3"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-rust-h1m02-repair-20261018/FINAL.patch",
+      "blob": "d71fc3b302eda5e56d925998bd82acadb6b87b33",
+      "SHA256": "da75b61856923eb4206191c869b8024e13e1a9513d182f0d27f30e7c94518e7b"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-rust-h1m02-repair-20261018/MANIFEST.json",
+      "blob": "68c8965836a98d134fc87a2a9a2d6d1746f2953d",
+      "SHA256": "9ba57f5d848abcb491cc7ba160740d258ed0eb12edb524bd36891d4ab6ddfbf8"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-rust-h1m02-repair-20261018/REPAIR.md",
+      "blob": "7e7f9bf281f47514163ceb7d56fa18228c4e7fe8",
+      "SHA256": "df794a8601c52393252ab7ad30bf3bb4eaccf12e6a133cf3915e300f007b2c0e"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-rust-h1m02-repair-20261018/models.py",
+      "blob": "bdaa150a34f30b3f75ad776d7d05a302f10215ce",
+      "SHA256": "03f3c9bb4114db797a381140f8a6c63c82268bc1714f604256ba0913fb0f8ea7"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-rust-h1m02-repair-20261018/verify.py",
+      "blob": "24189bf00ef63f1b56058b7b42ff8680e2b15a40",
+      "SHA256": "af6b1e3086e896108fdbba0908eead8108c8ebf885bb21c2ee2023f2d3c35b5a"
+    }
+  ],
+  "产品": [
+    {
+      "路径": "rust/src/s_content/legacy_evidence.rs",
+      "SHA256": "369e0ca12a33e4deb1d51237f45196df5427ea6acb314aa0361957b61e0bb7cd"
+    },
+    {
+      "路径": "rust/src/s_content.rs",
+      "SHA256": "fbac27e86ce87546f48c391f7edb24bce7797b81783fe1aed6ab5396ea4c0124"
+    },
+    {
+      "路径": "rust/src/bin/s_session_v2/evidence_store.rs",
+      "SHA256": "a862caf7fcb01f8d532bf89e5ef6b251f490946923bc9f6870d0dda0590e395c"
+    },
+    {
+      "路径": "rust/src/bin/s_session_v3/admission_private/mod.rs",
+      "SHA256": "a19af38170ddeba93621778524449753c4efc2cc61a9cc8888a9a475a0efc88b"
+    },
+    {
+      "路径": "rust/src/bin/s_structure_session.rs",
+      "SHA256": "06f6c9e802fdbcbde48e2c4a5c071a372aca68fb2967a7b540dec9fd7971f1a0"
+    }
+  ],
+  "包内文件": [
+    {
+      "路径": ".chanlun/review-results/issue1527-legacy-pure-firsterror-20261018/CHECKS.json",
+      "SHA256": "eb934554eff9ed5ffbe78e2982248e9de27dda3457eeaa62635175bb5a8b7d86"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-legacy-pure-firsterror-20261018/IMPLEMENTATION.md",
+      "SHA256": "a99610d33e056255deacf3420f6034ddf5f36828afb0b9accabc844eb0f4a20c"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-legacy-pure-firsterror-20261018/M03-TEST-INVENTORY.json",
+      "SHA256": "2028c0201d94c4a50fce4b0292ef4a425ba5f1dbdc61980155ef26fe45c1f1a6"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-legacy-pure-firsterror-20261018/MODEL-RESULTS.json",
+      "SHA256": "37a6f0fbedf38f836b94f8fa0cedba72a5a43c9d70e467b907ca9001bf2ca4e6"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-legacy-pure-firsterror-20261018/PRODUCT.patch",
+      "SHA256": "f2e3a43a7e605b7208f1f908c276b559e30558493ae3206b30241d42a1a6092a"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-legacy-pure-firsterror-20261018/VALIDATION.log",
+      "SHA256": "73c8e174224bd395a3cc5ba71f6a6909735f4b39486624549447668a4cd96dff"
+    },
+    {
+      "路径": ".chanlun/review-results/issue1527-legacy-pure-firsterror-20261018/verify.py",
+      "SHA256": "18fa8d06e078f66da3d740e5731a83c001f1d8671634ada7a9ca4c6537ef5123"
+    }
+  ],
+  "说明": "MANIFEST不自我hash；本脚本只操作固定白名单与本报告目录；无联网/索引/安装/凭据。"
+}
