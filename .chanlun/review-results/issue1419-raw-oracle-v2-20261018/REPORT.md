@@ -1,3 +1,7 @@
+> **2026-10-18 v3 修复状态更新**：外部 v2 独审结论为 **CHANGES_REQUIRED**，八项见 `fixes-v3/V2-INDEPENDENT-REVIEW.reference.json`。本目录 driver 已进入 v3 修复树；当前为修复工蜂定向验证通过、**PENDING_INDEPENDENT_REVIEW_OF_V3_DIFF**，不能沿用下文旧测试通过声明认定新树已独审。具体修复、实际失败与复验、字段量词和新候选合同见 [fixes-v3/REPORT.md](fixes-v3/REPORT.md)。
+>
+> 下文保留 v2 报告及其 `5cb7253d…` 原始身份，`validation/` 原输出不改。v3 接手基线为 `7cc205c8…`；新的代码/结果身份仅在 `fixes-v3/` 登记。原泛称“工具已补齐”不再适用于当前验收；静态字段子量词通过不覆盖 first_visibility、known_at、AsKnown、entity_revision、raw_history、withdrawn_objects。v3 候选合同在 `fixes-v3/EXACT-RUN-PROPOSAL.json`，原合同保留历史。全部授权仍为 false。
+
 # #1419 第二轮：受控 raw 与独立见证
 
 已补成一个声明为 **TestOnly** 的非空 raw 定义工作例：139 根 OHLC，经独立逐项演算得到 35 个分型、34 笔、10 个完成段、1 个进行中尾部、2 个非退化 strict 中枢、1 个连接段和 1 个完整相邻对。完整链条在 `INDEPENDENT-WITNESS-LEDGER.json`，逐项引文在 `DEFINITION-REFERENCES.json`。本包是开放票 #1419 的工作草稿，**不代表本票完成**。

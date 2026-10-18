@@ -536,5 +536,25 @@
     }
   ],
   "allowed_testonly_basis": "issue1419-live.json票面“TestOnly结构原始输入只证明声明受测域”；不把该许可扩大为市场或完整业务验收",
-  "entire_ticket_complete": false
+  "entire_ticket_complete": false,
+  "v3_repair_scope": {
+    "status": "PENDING_INDEPENDENT_REVIEW_OF_V3_DIFF",
+    "local_locks_only": true,
+    "entire_ticket_complete": false,
+    "original_quantifiers_unchanged": true,
+    "report": "fixes-v3/REPORT.md",
+    "unverified": [
+      "first_visibility",
+      "known_at",
+      "AsKnown",
+      "entity_revision",
+      "raw_history",
+      "withdrawn_objects",
+      "lower_source_coords_and_sealing",
+      "lower_confirmation",
+      "feature_sequence_objects",
+      "full_catalog_axes",
+      "product_source_binding"
+    ]
+  }
 }

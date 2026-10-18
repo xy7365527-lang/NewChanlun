@@ -92,9 +92,21 @@ class Encoder:
         return {'format':'s-content/1','root':'sc1-'+root.hex(),'kind':KINDS[tag],'extent':extent}
 
 
+class WorkBudget:
+    """闭包、领域转换共用，按访问计量；截止由调用者累计预算提供。"""
+    def __init__(self,limit,check=lambda:None):
+        require(type(limit) is int and limit>0,'逻辑工作预算无效')
+        self.limit=limit;self.used=0;self.check=check
+
+    def charge(self):
+        self.used+=1
+        require(self.used<=self.limit,f'闭包逻辑工作量超限：used={self.used}, limit={self.limit}')
+        self.check()
+
+
 class Graph:
-    def __init__(self,nodes,*,max_nodes,max_bytes,max_work):
-        self.pool={};self.work=0;self.max_work=max_work;self.memo={};total=0
+    def __init__(self,nodes,*,max_nodes,max_bytes,max_work,work_budget=None):
+        self.pool={};self.budget=work_budget or WorkBudget(max_work);self.memo={};total=0
         for n in nodes:
             require(set(n)=={'root','tag','body_hex'},'节点字段')
             require(re.fullmatch('[0-9a-f]{2}',n['tag']) and re.fullmatch('(?:[0-9a-f]{2})*',n['body_hex']),'节点hex')
@@ -105,9 +117,12 @@ class Graph:
             require(len(self.pool)<=max_nodes and total<=max_bytes,'节点集合超提案限额')
         self.bytes=total
 
+    @property
+    def work(self):return self.budget.used
+
     def node(self,root,depth=0):
-        self.work+=1
-        require(self.work<=self.max_work and depth<128,'闭包逻辑工作量/深度超限')
+        self.budget.charge()
+        require(depth<128,'闭包深度超限')
         require(root in self.pool,'缺失闭包节点:'+root)
         return self.pool[root]
 
@@ -217,12 +232,16 @@ def projection(snapshot):
     return ref,list(enc.nodes.values())
 
 
-def close_projection(snapshot,pages,*,max_nodes,max_bytes,max_work):
+def close_projection(snapshot,pages,*,max_nodes,max_bytes,max_work,work_budget=None):
     ref,built_nodes=projection(snapshot)
     anchor={'kind':'projection','fixed_cut':snapshot['fixed_cut'],
             'cut_projection_digest':snapshot['cut_projection_digest'],'projection_ref':ref}
     nodes=built_nodes+[n for page in pages for n in page['nodes']]
-    graph=Graph(nodes,max_nodes=max_nodes,max_bytes=max_bytes,max_work=max_work)
+    graph=Graph(nodes,max_nodes=max_nodes,max_bytes=max_bytes,max_work=max_work,work_budget=work_budget)
+    # Edge 的编码仅承诺 root；原始传输引用的其余元数据必须另核，不能重推后自证。
+    graph.checked(snapshot['catalog'])
+    graph.checked(snapshot['fixed_cut']['catalog_evidence'])
+    for row in snapshot['rows']:graph.checked(row['record'])
     for p in pages:
         require(p['anchor']==anchor,'内容混切面或projection_ref')
         target=graph.resolve(ref,p['path']);require(target==p['target_ref'],'内容路径根不符')

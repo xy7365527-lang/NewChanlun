@@ -1,0 +1,14 @@
+{
+  "scope": "Python AST/原件字节/schema/顺序/旧帽不变",
+  "product_run": "NOT_RUN",
+  "python_files": 10,
+  "input_files": 13,
+  "expected_files": 6,
+  "messages_per_arm": 142,
+  "accepted_events_per_arm": 270,
+  "final_input_frontier": 269,
+  "maximum_input_envelope_bytes": 21647,
+  "original_caps_byte_identical": true,
+  "all_checks": "PASS",
+  "authorization": false
+}
