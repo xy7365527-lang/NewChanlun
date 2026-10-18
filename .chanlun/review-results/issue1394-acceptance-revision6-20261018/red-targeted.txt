@@ -1,0 +1,40 @@
+test_R_F5_advancing_clock_last_emit_return_drains_before_sample (test_review05.Review05Tests.test_R_F5_advancing_clock_last_emit_return_drains_before_sample) ... FAIL
+test_R_F5_advancing_clock_before_second_ACK_drains_before_sample (test_review05.Review05Tests.test_R_F5_advancing_clock_before_second_ACK_drains_before_sample) ... FAIL
+test_R_F5_advancing_clock_near_boundary_legal_controls (test_review05.Review05Tests.test_R_F5_advancing_clock_near_boundary_legal_controls) ... ok
+test_R_F5_not_due_tick_still_checks_worker_identity (test_review05.Review05Tests.test_R_F5_not_due_tick_still_checks_worker_identity) ... ok
+test_R_F5_tick_clock_crossing_original_deadline_rejects_without_sample (test_review05.Review05Tests.test_R_F5_tick_clock_crossing_original_deadline_rejects_without_sample) ... ok
+
+======================================================================
+FAIL: test_R_F5_advancing_clock_last_emit_return_drains_before_sample (test_review05.Review05Tests.test_R_F5_advancing_clock_last_emit_return_drains_before_sample)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review05.py", line 47, in test_R_F5_advancing_clock_last_emit_return_drains_before_sample
+    self.queued_case(1, .124995)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review05.py", line 27, in queued_case
+    case.accepted(state, count)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 94, in accepted
+    self.assertIsNone(state['error'])
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: '存在未登记后代；监督不完整' is not None
+
+======================================================================
+FAIL: test_R_F5_advancing_clock_before_second_ACK_drains_before_sample (test_review05.Review05Tests.test_R_F5_advancing_clock_before_second_ACK_drains_before_sample)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review05.py", line 50, in test_R_F5_advancing_clock_before_second_ACK_drains_before_sample
+    self.queued_case(2, .124985)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review05.py", line 27, in queued_case
+    case.accepted(state, count)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_review04.py", line 94, in accepted
+    self.assertIsNone(state['error'])
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: '存在未登记后代；监督不完整' is not None
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.002s
+
+FAILED (failures=2)

@@ -1,0 +1,229 @@
+{
+  "probe_count": 7,
+  "executed_indices": [
+    5
+  ],
+  "original_code_sha256": "f29f1e2a497c60e3e787f35e55dea112b732956696a25c4bc150090f525736cf",
+  "original_output_exact_match": true,
+  "rows": [
+    {
+      "version": "base576a",
+      "point": "control",
+      "before_status": "CONTROL_REAPED",
+      "after_status": "CONTROL_REAPED",
+      "before_error": null,
+      "after_error": null,
+      "before_ACKs": [
+        "E"
+      ],
+      "after_ACKs": [
+        "E"
+      ],
+      "before_owners": [
+        101,
+        103,
+        104
+      ],
+      "after_owners": [
+        101,
+        103,
+        104
+      ],
+      "before_queue": [],
+      "after_queue": [],
+      "after_signals": [
+        104,
+        103,
+        101
+      ]
+    },
+    {
+      "version": "base576a",
+      "point": "last_emit_return",
+      "before_status": "CONTROL_REAPED",
+      "after_status": "CONTROL_REAPED",
+      "before_error": null,
+      "after_error": null,
+      "before_ACKs": [
+        "E"
+      ],
+      "after_ACKs": [
+        "E"
+      ],
+      "before_owners": [
+        101,
+        103,
+        104
+      ],
+      "after_owners": [
+        101,
+        103,
+        104
+      ],
+      "before_queue": [],
+      "after_queue": [],
+      "after_signals": [
+        104,
+        103,
+        101
+      ]
+    },
+    {
+      "version": "base576a",
+      "point": "before_next_ACK",
+      "before_status": "CONTROL_REAPED",
+      "after_status": "CONTROL_REAPED",
+      "before_error": null,
+      "after_error": null,
+      "before_ACKs": [
+        "E",
+        "B"
+      ],
+      "after_ACKs": [
+        "E",
+        "B"
+      ],
+      "before_owners": [
+        101,
+        102,
+        103,
+        104
+      ],
+      "after_owners": [
+        101,
+        102,
+        103,
+        104
+      ],
+      "before_queue": [],
+      "after_queue": [],
+      "after_signals": [
+        104,
+        103,
+        102,
+        101
+      ]
+    },
+    {
+      "version": "HEAD",
+      "point": "control",
+      "before_status": "CONTROL_REAPED",
+      "after_status": "CONTROL_REAPED",
+      "before_error": null,
+      "after_error": null,
+      "before_ACKs": [
+        "E"
+      ],
+      "after_ACKs": [
+        "E"
+      ],
+      "before_owners": [
+        101,
+        103,
+        104
+      ],
+      "after_owners": [
+        101,
+        103,
+        104
+      ],
+      "before_queue": [],
+      "after_queue": [],
+      "after_signals": [
+        104,
+        103,
+        101
+      ]
+    },
+    {
+      "version": "HEAD",
+      "point": "last_emit_return",
+      "before_status": "INCOMPLETE",
+      "after_status": "CONTROL_REAPED",
+      "before_error": "存在未登记后代；监督不完整",
+      "after_error": null,
+      "before_ACKs": [
+        "E"
+      ],
+      "after_ACKs": [
+        "E"
+      ],
+      "before_owners": [
+        101
+      ],
+      "after_owners": [
+        101,
+        103,
+        104
+      ],
+      "before_queue": [
+        "HEARTBEAT",
+        "REGISTER_DESCENDANT",
+        "REGISTER_DESCENDANT",
+        "COMPLETE"
+      ],
+      "after_queue": [],
+      "after_signals": [
+        104,
+        103,
+        101
+      ]
+    },
+    {
+      "version": "HEAD",
+      "point": "before_next_ACK",
+      "before_status": "INCOMPLETE",
+      "after_status": "CONTROL_REAPED",
+      "before_error": "存在未登记后代；监督不完整",
+      "after_error": null,
+      "before_ACKs": [
+        "E"
+      ],
+      "after_ACKs": [
+        "E",
+        "B"
+      ],
+      "before_owners": [
+        101,
+        102
+      ],
+      "after_owners": [
+        101,
+        102,
+        103,
+        104
+      ],
+      "before_queue": [
+        "HEARTBEAT",
+        "REGISTER_DESCENDANT",
+        "REGISTER_DESCENDANT",
+        "COMPLETE"
+      ],
+      "after_queue": [],
+      "after_signals": [
+        104,
+        103,
+        102,
+        101
+      ]
+    }
+  ],
+  "references": {
+    "path": ".chanlun/review-results/issue1394-acceptance-revision6-20261018/references/REVIEW-05-SUPERVISOR-PROBES.json",
+    "bytes": 99404,
+    "sha256": "dcb19ae7681bb71ce325245c5de2626a9f5bc9d7a210ea1aeb759fca76df26f4"
+  },
+  "before": {
+    "path": ".chanlun/review-results/issue1394-acceptance-revision6-20261018/formal-probe-5-before.txt",
+    "bytes": 3750,
+    "sha256": "ee808e914cfaa488305b9291ce6070bcb5289f80217f7d8c5632aa3834a8b86e"
+  },
+  "after": {
+    "path": ".chanlun/review-results/issue1394-acceptance-revision6-20261018/formal-probe-5-after.txt",
+    "bytes": 3725,
+    "sha256": "e7450e5919a12c0de178e2672817415dd20248cbfa01124f50aafb873a876d3f"
+  },
+  "baseline": "576a13470566a5ca4625eae3d4e89abcb950e346",
+  "baseline_sha256": "6840975995c90397b1aa9bba3bb6b091a422af65f094ad37c32b6d035a9642ee",
+  "scope": "只重放新增竞态和近边界正例；索引0/1/2/3/4/6旧检查不重跑，原命令输出完整保留在references。HEAD标签为当前未提交字节。"
+}

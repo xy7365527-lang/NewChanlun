@@ -1,0 +1,184 @@
+{
+  "ticket": 1394,
+  "base_commit": "4b3a84ebba8178e03aa04b2bd2a6a4138d9d438a",
+  "execution_authorized": false,
+  "product_status": "NOT_RUN",
+  "python_version": "3.14.6 (main, Jun 10 2026, 10:03:53) [Clang 21.0.0 (clang-2100.0.123.102)]",
+  "fresh_AST_memory_compile": [
+    {
+      "path": "s_session/tests/issue1394_acceptance/supervisor.py",
+      "bytes": 15944,
+      "sha256": "bd67216a54b35e86d3cd432ff2b1ab8debbff3e4db391e6d86abfb3d5954b603",
+      "ast": true,
+      "compile_optimizations": [
+        0,
+        1
+      ]
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review05.py",
+      "bytes": 3243,
+      "sha256": "7e1c2508edde58aa715ef78bf85fe25de792c8e34a5a3222a800e6b5bf624eae",
+      "ast": true,
+      "compile_optimizations": [
+        0,
+        1
+      ]
+    }
+  ],
+  "reused_unchanged_static_count": 29,
+  "reused_static": {
+    "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/STATIC-CHECKS.json",
+    "bytes": 7754,
+    "sha256": "3bfc9f09f3a1140bfeb63d47508911e6a46aa2cea0a3ae29d3ea4074346f7e89"
+  },
+  "original_methods": [
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver.py",
+      "bytes": 31184,
+      "sha256": "fd443df0c247934a8b2435d9e98169ed33f97baec6e17eca647ebab5d4b58176",
+      "count": 41,
+      "methods": [
+        "AdapterTests.test_current_protocol",
+        "AdapterTests.test_null_cold_reading_refused",
+        "AdapterTests.test_nine_field_old_v2_refused",
+        "AdapterTests.test_old_economic_domain_refused",
+        "AdapterTests.test_mixed_session_refused",
+        "AdapterTests.test_resource_null_and_256mib_overrun_refused",
+        "AdapterTests.test_reply_cap_relationship",
+        "AdapterTests.test_socket_parent_permissions",
+        "AdapterTests.test_strict_json",
+        "AdapterTests.test_exact_positive_numbers",
+        "AdapterTests.test_pinned_hash",
+        "AdapterTests.test_ab_fresh_independent",
+        "AdapterTests.test_custody_flat_shape_without_database_insertion",
+        "AdapterTests.test_missing_database_never_created",
+        "AdapterTests.test_recovery_detects_changed_originals",
+        "AdapterTests.test_ab_compares_actuals_exactly",
+        "AdapterTests.test_oracle_default_actual_database_read_refused",
+        "AdapterTests.test_oracle_arithmetic_and_optimized_python_safety",
+        "AdapterTests.test_ready_binds_current_startup_and_three_capture_versions",
+        "AdapterTests.test_default_execution_refuses_before_popen",
+        "AdapterTests.test_preparation_false_does_not_become_admission",
+        "AdapterTests.test_economic_envelope_is_current_domain",
+        "AdapterTests.test_wire_unknown_keeps_original_and_no_reply_fabrication",
+        "AdapterTests.test_wire_frame_cap_refuses_before_connect",
+        "AdapterTests.test_supervisor_real_unix_ack_and_mismatch",
+        "AdapterTests.test_owned_toy_marker_sigkill_and_reap",
+        "AdapterTests.test_strict_overflow_nested_and_finite_preserved",
+        "AdapterTests.test_ack_all_steps_share_absolute_deadline",
+        "AdapterTests.test_save_checks_deadline_after_fsync",
+        "AdapterTests.test_command_stage_epoch_consumed_even_on_hash_failure",
+        "AdapterTests.test_cleanup_normal_exit_between_polls_reaps_and_closes",
+        "AdapterTests.test_cleanup_exit_during_ps_and_hash_failure_still_seals",
+        "AdapterTests.test_cleanup_all_keeps_other_owner_when_one_fails",
+        "AdapterTests.test_sqlite_explicit_close_success_parse_and_query_failure",
+        "AdapterTests.test_sqlite_shared_cumulative_records_and_bytes",
+        "AdapterTests.test_sqlite_busy_deadline_closes_without_restarting_window",
+        "AdapterTests.test_consumed_stage_remains_consumed_after_binary_hash_failure",
+        "AdapterTests.test_real_gate_ack_loss_and_late_disk_reap_without_release",
+        "AdapterTests.test_sqlite_progress_handler_interrupts_expensive_view",
+        "AdapterTests.test_custody_shared_byte_budget_counts_bytes_and_closes",
+        "AdapterTests.test_cleanup_term_timeout_escalates_then_reaps"
+      ],
+      "entire_file_matches_fixed_head": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler.py",
+      "bytes": 19433,
+      "sha256": "8abd24b983978336ac9c86cf4cb89548ab5e87eea38b2dc2bf97140ffd440b58",
+      "count": 27,
+      "methods": [
+        "SchedulerTests.test_quantifier_from_original_contract",
+        "SchedulerTests.test_full_order_and_receipt_chain",
+        "SchedulerTests.test_missing_formal_voice_rejects_before_work_cleanup_still_runs",
+        "SchedulerTests.test_all_missing_originals_rejected",
+        "SchedulerTests.test_product_gate_and_real_adapter_blocked",
+        "SchedulerTests.test_failure_at_each_kind_cleanup_and_seal",
+        "SchedulerTests.test_cancel_cleanup_and_seal",
+        "SchedulerTests.test_received_is_not_business_success",
+        "SchedulerTests.test_late_ack_or_persist_stops_before_next_stage",
+        "SchedulerTests.test_duplicate_run_cannot_retry_after_failure",
+        "SchedulerTests.test_stages_cannot_be_missing_reordered_or_repeated",
+        "SchedulerTests.test_binding_corruptions_before_start",
+        "SchedulerTests.test_evidence_wrong_binding_predecessor_command_resource_deadline",
+        "SchedulerTests.test_missing_or_extra_proof_rejected",
+        "SchedulerTests.test_cleanup_one_owner_failure_continues_remaining_and_seals",
+        "SchedulerTests.test_cleanup_missing_owner_fails",
+        "SchedulerTests.test_seal_failure_does_not_override_error_with_success",
+        "SchedulerTests.test_resend_original_identity_required",
+        "SchedulerTests.test_recovery_requires_new_epoch",
+        "SchedulerTests.test_multiple_decision_owner_receipts_cannot_be_dropped_or_extra",
+        "SchedulerTests.test_request_independent_verdict_required",
+        "SchedulerTests.test_same_cut_request_identity_required",
+        "SchedulerTests.test_resource_deadline_never_extended",
+        "SchedulerTests.test_ab_database_overlap_rejected",
+        "SchedulerTests.test_idempotent_repeat_uses_occurrence_without_changing_identity",
+        "SchedulerTests.test_negative_business_response_cannot_turn_into_success",
+        "SchedulerTests.test_original_normal_negative_domain_and_comparison_quantifiers_preserved"
+      ],
+      "entire_file_matches_fixed_head": true
+    }
+  ],
+  "unchanged_SupervisorCore_methods": [
+    {
+      "name": "__init__",
+      "sha256": "1c863a0bb0893e57fb9a8c730a6aed1ebbec3bc5fb436c91398df0f4ab0ab2e0",
+      "bytes": 1019
+    },
+    {
+      "name": "live_identity",
+      "sha256": "9e537335b330caa5a6a1a4e32a225c621380377be071a9b0a43bb090cb78a827",
+      "bytes": 130
+    },
+    {
+      "name": "ack",
+      "sha256": "871fd3baa0ee0aced4b899170c53bc3bbe6948b59a6ab34d7809f8406db94c4e",
+      "bytes": 264
+    },
+    {
+      "name": "_register_ack",
+      "sha256": "822591fcebeaf1e3291e3b75f491ece2a567594f457f555387d320f10f1f8874",
+      "bytes": 1433
+    },
+    {
+      "name": "_sample_and_ack",
+      "sha256": "e3571ee09daec538503116892960cd800e566a8acb243080c5e375ae7ce40cfc",
+      "bytes": 747
+    },
+    {
+      "name": "register",
+      "sha256": "2ca6367697e7a4feea33f063d925b6cc4959009e6f2d924059994f1df05986b5",
+      "bytes": 649
+    },
+    {
+      "name": "heartbeat",
+      "sha256": "f08167eec4cd85fcfc8da0b2a8745cfe11efbafaea22c84a63620b789c91f7cf",
+      "bytes": 350
+    },
+    {
+      "name": "stop",
+      "sha256": "caaab1ec64b2ec8cf23ce9f0eb4025b4e67e34f97828a08efd329e45e5e70db4",
+      "bytes": 2892
+    }
+  ],
+  "drain_byte_identical": true,
+  "tick_old_AST_unchanged_after_removing_only_new_parameter_and_dispatch": true,
+  "git_diff_check": {
+    "command": "git diff --check",
+    "exit_code": 0,
+    "output": {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision6-20261018/diff-check.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "scope": "只新跑两份变化Python的AST/内存compile(0/1)；其他29份静态检查按相同SHA复用。没有pyc/真实Probe/产品执行。",
+  "new_delivery_trailing_whitespace": [],
+  "changed_files": [
+    "s_session/tests/issue1394_acceptance/supervisor.py",
+    "s_session/tests/issue1394_acceptance/test_review05.py"
+  ],
+  "new_report_directory": ".chanlun/review-results/issue1394-acceptance-revision6-20261018",
+  "scope_verified": true
+}

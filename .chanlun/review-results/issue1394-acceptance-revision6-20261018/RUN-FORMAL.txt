@@ -1,0 +1,50 @@
+# #1394 工作草稿：原探针源码原样compile/exec，git只读对象预先取得，禁止派生进程。
+from pathlib import Path
+import contextlib
+import hashlib
+import io
+import json
+import shlex
+import subprocess
+import sys
+from unittest.mock import patch
+
+report = Path(__file__).parent
+mode = sys.argv[1]
+code = (report/'FORMAL-PROBE-5-SOURCE.txt').read_bytes()
+base_path = Path('/tmp/issue1394-r6-base576a-supervisor.py')
+base = base_path.read_bytes()
+source = Path('s_session/tests/issue1394_acceptance')
+def fingerprint():
+    return [{'path': str(p), 'bytes': len(p.read_bytes()),
+             'sha256': hashlib.sha256(p.read_bytes()).hexdigest()}
+            for p in sorted(source.glob('*.py'))]
+def git_object(args, **kwargs):
+    expected = ['git', 'show', '576a13470566a5ca4625eae3d4e89abcb950e346:s_session/tests/issue1394_acceptance/supervisor.py']
+    if args != expected:
+        raise RuntimeError('非指定只读对象请求')
+    return subprocess.CompletedProcess(args, 0, stdout=base)
+before = fingerprint()
+stream = io.StringIO()
+with patch('subprocess.run', side_effect=git_object), \
+     patch('subprocess.Popen', side_effect=RuntimeError('禁止真实子进程')), \
+     patch('socket.socket', side_effect=RuntimeError('禁止网络')), \
+     patch('sqlite3.connect', side_effect=RuntimeError('禁止数据库')), \
+     contextlib.redirect_stdout(stream):
+    exec(compile(code, 'FORMAL-PROBE-5-SOURCE.txt', 'exec'), {'__name__': '__main__'})
+after = fingerprint()
+output = report/('formal-probe-5-'+mode+'.txt')
+output.write_text(stream.getvalue())
+obj = {'command': shlex.join([sys.executable, '-B', str(Path(__file__)), mode]),
+       'cwd': str(Path.cwd()), 'exit_code': 0, 'probe_index': 5,
+       'source_sha256': hashlib.sha256(code).hexdigest(),
+       'baseline_git_command': 'git show 576a13470566a5ca4625eae3d4e89abcb950e346:s_session/tests/issue1394_acceptance/supervisor.py > /tmp/issue1394-r6-base576a-supervisor.py',
+       'baseline_bytes': len(base), 'baseline_sha256': hashlib.sha256(base).hexdigest(),
+       'execution_note': '原代码未改；subprocess.run仅替换为预取git原字节的内存读取，禁止真实子进程/网络/DB',
+       'before': before, 'after': after, 'fingerprints_equal': before == after,
+       'output': {'path': str(output), 'bytes': len(output.read_bytes()),
+                  'sha256': hashlib.sha256(output.read_bytes()).hexdigest()}}
+(report/('FORMAL-PROBES-'+mode.upper()+'.json')).write_text(json.dumps(obj, ensure_ascii=False, indent=2)+'\n')
+print(stream.getvalue(), end='')
+if before != after:
+    raise RuntimeError('测试期间源码变化')

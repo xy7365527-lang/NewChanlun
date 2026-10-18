@@ -1,0 +1,48 @@
+# #1394 工作草稿：仅按 TEST-SELECTION 执行有限内存测试并记录原输出。
+from pathlib import Path
+import contextlib
+import hashlib
+import io
+import json
+import shlex
+import sys
+import unittest
+from unittest.mock import patch
+
+report = Path(__file__).parent
+source = Path('s_session/tests/issue1394_acceptance')
+sys.path.insert(0, str(source.resolve()))
+mode = sys.argv[1]
+selected = json.loads((report/'TEST-SELECTION.json').read_bytes())['methods']
+methods = [r['id'] for r in selected if mode != 'red' or r['new']]
+
+def fingerprint():
+    return [{'path': str(p), 'bytes': len(p.read_bytes()),
+             'sha256': hashlib.sha256(p.read_bytes()).hexdigest()}
+            for p in sorted(source.glob('*.py'))]
+
+before = fingerprint()
+stream = io.StringIO()
+# 禁止测试启动进程、网络连接或数据库；导入本身不执行这些动作。
+with patch('subprocess.Popen', side_effect=RuntimeError('禁止真实子进程')), \
+     patch('socket.socket', side_effect=RuntimeError('禁止网络')), \
+     patch('sqlite3.connect', side_effect=RuntimeError('禁止数据库')), \
+     contextlib.redirect_stdout(stream), contextlib.redirect_stderr(stream):
+    suite = unittest.defaultTestLoader.loadTestsFromNames(methods)
+    result = unittest.TextTestRunner(stream=stream, verbosity=2).run(suite)
+after = fingerprint()
+output = report/(mode+'-targeted.txt')
+output.write_text(stream.getvalue())
+exit_code = 0 if result.wasSuccessful() and before == after else 1
+obj = {'command': shlex.join([sys.executable, '-B', *(['-O'] if sys.flags.optimize else []),
+                             str(Path(__file__)), mode]),
+       'cwd': str(Path.cwd()), 'optimize': sys.flags.optimize, 'exit_code': exit_code,
+       'methods': methods, 'tests_run': result.testsRun,
+       'failures': [t.id() for t, _ in result.failures],
+       'errors': [t.id() for t, _ in result.errors], 'skipped': result.skipped,
+       'before': before, 'after': after, 'fingerprints_equal': before == after,
+       'output': {'path': str(output), 'bytes': len(output.read_bytes()),
+                  'sha256': hashlib.sha256(output.read_bytes()).hexdigest()}}
+(report/(mode.upper()+'-RESULTS.json')).write_text(json.dumps(obj, ensure_ascii=False, indent=2)+'\n')
+print(stream.getvalue(), end='')
+sys.exit(exit_code)

@@ -1,0 +1,353 @@
+{
+  "ticket": 1394,
+  "execution_authorized": false,
+  "product_status": "NOT_RUN",
+  "unchanged_count": 29,
+  "unchanged_modules": [
+    {
+      "path": "s_session/tests/issue1394_acceptance/captured_cut.py",
+      "bytes": 26595,
+      "sha256": "982d9a9a82af5dd49c9500e11adc4de64fa856156318e7f7de25081b8ac9c89d",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/closure.py",
+      "bytes": 8290,
+      "sha256": "5459ab3d8dce283677efead39206c2fbba4593d965f913c5f5c7336a1258762d",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/control.py",
+      "bytes": 6301,
+      "sha256": "950595b87956e6d8923c816cac9739d7aff29c0582f5a2bfe8bfd9383ddb8057",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/driver.py",
+      "bytes": 44599,
+      "sha256": "1735bffa631b1d4789f363204fec97fd26ceccd1ca439cc340bcd00a8ebf05f7",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/evidence.py",
+      "bytes": 5318,
+      "sha256": "92af6d56aecde7ea051de178fea72135b6c5b35a430ec44940cd425db2a0ce10",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/financial_oracle.py",
+      "bytes": 17454,
+      "sha256": "edc5b5477e7b185582a2a65cbd31e07d7015c49a9e203c630a697646f4d3d854",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/journal.py",
+      "bytes": 9663,
+      "sha256": "ff08d15e084216d1d6b8bb1efe8e3dcb74bfe281b20edb8262ad3e61c1211781",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/oracle.py",
+      "bytes": 3299,
+      "sha256": "16639a001aa73662b00209934513d808a0d0b3600023e2d3e2f35eb263e54eb7",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/product_capture.py",
+      "bytes": 64036,
+      "sha256": "2d364e95e786757cf9d3f4c05cdc414e75d1c1b0c7ecc975b180591b51073e6a",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/run_checks.py",
+      "bytes": 1720,
+      "sha256": "94c180cd611cc7d2f1a99f94bb61fed6594d8aac8ea52470aefc7cbb91072bae",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/scheduler.py",
+      "bytes": 23479,
+      "sha256": "9c0d876f159e7b7cc33bfb55dae12ad67ff0b29cf7c56bf6e08d87032f8a6a16",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_capture_bridge.py",
+      "bytes": 21277,
+      "sha256": "199ed7f07334ebf5f766a713833c2446ca1aab7ee7e6a4b31387dc54d3e72e34",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_capture_order.py",
+      "bytes": 9944,
+      "sha256": "4314d6ed607429ebd3e0ece447b4e7dd3aeb6f101077445ac3200d0aa1ffb782",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_closure.py",
+      "bytes": 5537,
+      "sha256": "d4f6772d82109c9cd05901cf667bf21d3b1740e11976036c86352eeb5a2d5710",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_control.py",
+      "bytes": 5375,
+      "sha256": "2c96cffc3b024f798d863b40bc345e386283c39f5e2da5853ab00b5fcdd01711",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver.py",
+      "bytes": 31184,
+      "sha256": "fd443df0c247934a8b2435d9e98169ed33f97baec6e17eca647ebab5d4b58176",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver_regressions.py",
+      "bytes": 6602,
+      "sha256": "621e990d5c7c6ed9dbe512efd30c7957696b346575439ddf5b5068bc95fc5b5d",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_evidence.py",
+      "bytes": 6289,
+      "sha256": "11cac54a757c437b660441f82a0d2b0e4843bcc22eb1106d30a2b8232933e52c",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_financial_oracle.py",
+      "bytes": 12185,
+      "sha256": "d643adef91a95a79b7c247af07c7a0259b9eac8f45e9951244af52ca8589c205",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_journal.py",
+      "bytes": 5205,
+      "sha256": "7f63cc0d2535d481b676818d88282729d40738568c84e761a7dd6c01c0876fde",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_product_capture.py",
+      "bytes": 43365,
+      "sha256": "5aad6736c16230009041c41be5093d709f5d9c64269f09985bd92d35d6d63e6f",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review01.py",
+      "bytes": 15165,
+      "sha256": "f5caecc55061352166cf22b6e08ed0c29ed83916c8f1e6e7d570bb1250c6c4e9",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review02.py",
+      "bytes": 20621,
+      "sha256": "94cbc050baa085104a7b67fcd580ef635afa952f10be63a23512b826f8e888e7",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review03.py",
+      "bytes": 13515,
+      "sha256": "1bd6d532d74dc7938a50b2840e050786c06eb2f109a2aa26885e1efc306e7196",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review04.py",
+      "bytes": 11776,
+      "sha256": "34024c7e7621296d7a3644f120d1bf2518f4ea6366fbb821463ee5729f036b2f",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler.py",
+      "bytes": 19433,
+      "sha256": "8abd24b983978336ac9c86cf4cb89548ab5e87eea38b2dc2bf97140ffd440b58",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler_integration.py",
+      "bytes": 1389,
+      "sha256": "98b0d9bb348d3b1190e3ae0d623dc2e0e5d4ff9a4763e319c00463bc618424b8",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_supervisor.py",
+      "bytes": 7889,
+      "sha256": "57899f3abedebdb5be90606b5d812c8f8d4c6604f579b9e208d9d242f885b651",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/voice_bridge.py",
+      "bytes": 11955,
+      "sha256": "36248173678a4167aaadb5a3840de11d3d4f477963f4926f070de6fb33b63dfc",
+      "matches_fixed_head": true,
+      "matches_prior_execution_fingerprint": true,
+      "matches_prior_static_fingerprint": true
+    }
+  ],
+  "history_count": 169,
+  "history_manifest": {
+    "path": ".chanlun/review-results/issue1394-acceptance-revision6-20261018/BASELINE-REPORTS.json",
+    "bytes": 36086,
+    "sha256": "62fb9de5ff11de911c3bdbca4153a9c223179cce8b9e7e8e7909dae878df1bbd"
+  },
+  "history_all_unchanged": true,
+  "references": [
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/TEST-RESULTS.json",
+      "bytes": 56878,
+      "sha256": "e949d4424ad94e80deba2ce93968d7790d889435901ee739957f2c9b5ad188ba"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/TEST-REUSE.json",
+      "bytes": 33057,
+      "sha256": "b476f0791fb92e9febde968da7c5630b85c9c2b26af4ea727ef3d063286437b6"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/STATIC-CHECKS.json",
+      "bytes": 20377,
+      "sha256": "4abe792b8ce206adabcc42714ce57257255eec056e401b0637906e419c934e0f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/NORMAL-RESULTS.json",
+      "bytes": 19017,
+      "sha256": "17d789f428b8c501402bf99dec79b5ae3fb765f19e950f78c751c663cef6437c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/OPTIMIZED-RESULTS.json",
+      "bytes": 19033,
+      "sha256": "69baf0602df14c9724d877899ae92baf7fddf75897c146866bcac5a411569db4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/REPORT.md",
+      "bytes": 7373,
+      "sha256": "2f45c14ff084937853dd10f75d8825add62843bf3656ad2025c20ffe3dafd64c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/FIX-LEDGER.md",
+      "bytes": 3289,
+      "sha256": "ce4a6992d254adc979b18452ec22e6464b8be0bcd26702a07c0316d387ae783f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/TEST-RESULTS.json",
+      "bytes": 1906,
+      "sha256": "d7479a5fabd67e651f00f49b41f4ee95aa9dad1ea3a5d3ef88019aa9d4503d3b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/TEST-REUSE.json",
+      "bytes": 39593,
+      "sha256": "49867242299be48e2f058e1b7ceffdc5b2db8b17c95d65e0ef27f35447f55149"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/STATIC-CHECKS.json",
+      "bytes": 7754,
+      "sha256": "3bfc9f09f3a1140bfeb63d47508911e6a46aa2cea0a3ae29d3ea4074346f7e89"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/NORMAL-RESULTS.json",
+      "bytes": 15540,
+      "sha256": "b0818fc550ef1518f4b0110eb57c9fdce7fd9f9e43ced8bbef8c69e83903be2b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/OPTIMIZED-RESULTS.json",
+      "bytes": 15553,
+      "sha256": "bad2047823c6354df336da0fa304fa35e0780d44e6e4365348abff1ebdc8a181"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/REPORT.md",
+      "bytes": 8071,
+      "sha256": "e9ceb0b4e410e94404c35bf46c4be6ef8e3d4be85439b23bc84ad1dc715b8ab2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/TEST-RESULTS.json",
+      "bytes": 9933,
+      "sha256": "fc716d29abebf07f1acb0f3c18aba9d9aa25cf1a72c861410c64ec26e9aa5503"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/TEST-REUSE.json",
+      "bytes": 12270,
+      "sha256": "da475b33b5fb3eab49dbbb6a2f2fd6eb65c87391f7f7c8d098c7f8617112d622"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/STATIC-CHECKS.json",
+      "bytes": 15367,
+      "sha256": "6e04cdb7f2590c66efe7300a402a5b02b73195105e65855e5331bd40f2ab9aa3"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/REPORT.md",
+      "bytes": 7993,
+      "sha256": "71ccbd11dc792fa29bdfeb354e1edfce01dcb06ebb0d8fde432c41cea36b0201"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/normal-targeted.txt",
+      "bytes": 5719,
+      "sha256": "c045df77fa6c0f76647e95edbfdb2e4119bd7fce1e5d11d7796ae6815fba495d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/optimized-targeted.txt",
+      "bytes": 5719,
+      "sha256": "37c6211e575b2f4512ebdc886a9301afb2f9b4643ea841b498fc646d44ff50bb"
+    }
+  ],
+  "fingerprint_source": ".chanlun/review-results/issue1394-capture-object-order-20261018/NORMAL-RESULTS.json",
+  "static_source": ".chanlun/review-results/issue1394-capture-object-order-20261018/STATIC-CHECKS.json",
+  "scope": "只按原字节精确SHA复用；Q序当前源与revision5较早源不同，采用当前Q序封包30文件指纹，不把旧revision5的captured_cut/fixture指纹冒充当前。引用旧运行/独审不升级其结论。29个未变模块、169份旧报告未重跑未改写。",
+  "not_reexecuted": [
+    "40/38/37/68/91/82/host123集合",
+    "Q序36方法",
+    "ps/socket三项",
+    "真实产品/OS/网络/DB/资金"
+  ]
+}

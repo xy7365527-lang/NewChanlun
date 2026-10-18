@@ -1,0 +1,256 @@
+[
+  {
+    "version": "base576a",
+    "point": "control",
+    "clock_each_read_seconds": 2e-06,
+    "error": null,
+    "status": "CONTROL_REAPED",
+    "ACKs": [
+      "E"
+    ],
+    "receive_calls": [
+      0.125,
+      0,
+      0.125,
+      0,
+      0,
+      0
+    ],
+    "owners": [
+      101,
+      103,
+      104
+    ],
+    "queued": [],
+    "signals": [
+      104,
+      103,
+      101
+    ],
+    "clock_reads_since_last_sample": [
+      0.124502,
+      0.125504,
+      0.125506,
+      0.125508,
+      0.12551,
+      0.125512,
+      0.126514,
+      0.126516,
+      0.126518,
+      0.12752
+    ]
+  },
+  {
+    "version": "base576a",
+    "point": "last_emit_return",
+    "clock_each_read_seconds": 2e-06,
+    "error": null,
+    "status": "CONTROL_REAPED",
+    "ACKs": [
+      "E"
+    ],
+    "receive_calls": [
+      0.125,
+      0,
+      0.125,
+      0,
+      0,
+      0
+    ],
+    "owners": [
+      101,
+      103,
+      104
+    ],
+    "queued": [],
+    "signals": [
+      104,
+      103,
+      101
+    ],
+    "clock_reads_since_last_sample": [
+      0.124997,
+      0.125999,
+      0.126001,
+      0.126003,
+      0.126005,
+      0.126007,
+      0.127009,
+      0.127011,
+      0.127013,
+      0.128015
+    ]
+  },
+  {
+    "version": "base576a",
+    "point": "before_next_ACK",
+    "clock_each_read_seconds": 2e-06,
+    "error": null,
+    "status": "CONTROL_REAPED",
+    "ACKs": [
+      "E",
+      "B"
+    ],
+    "receive_calls": [
+      0.125,
+      0,
+      0,
+      0.125,
+      0,
+      0,
+      0
+    ],
+    "owners": [
+      101,
+      102,
+      103,
+      104
+    ],
+    "queued": [],
+    "signals": [
+      104,
+      103,
+      102,
+      101
+    ],
+    "clock_reads_since_last_sample": [
+      0.124987,
+      0.125989,
+      0.125991,
+      0.125993,
+      0.125995,
+      0.125997,
+      0.126999,
+      0.127001,
+      0.127003,
+      0.128005
+    ]
+  },
+  {
+    "version": "HEAD",
+    "point": "control",
+    "clock_each_read_seconds": 2e-06,
+    "error": null,
+    "status": "CONTROL_REAPED",
+    "ACKs": [
+      "E"
+    ],
+    "receive_calls": [
+      0.125,
+      0,
+      0.125,
+      0,
+      0,
+      0
+    ],
+    "owners": [
+      101,
+      103,
+      104
+    ],
+    "queued": [],
+    "signals": [
+      104,
+      103,
+      101
+    ],
+    "clock_reads_since_last_sample": [
+      0.124502,
+      0.124504,
+      0.124506,
+      0.124508,
+      0.12451,
+      0.125512,
+      0.125514,
+      0.125516,
+      0.125518,
+      0.12552
+    ]
+  },
+  {
+    "version": "HEAD",
+    "point": "last_emit_return",
+    "clock_each_read_seconds": 2e-06,
+    "error": null,
+    "status": "CONTROL_REAPED",
+    "ACKs": [
+      "E"
+    ],
+    "receive_calls": [
+      0.125,
+      0,
+      0.125,
+      0,
+      0,
+      0
+    ],
+    "owners": [
+      101,
+      103,
+      104
+    ],
+    "queued": [],
+    "signals": [
+      104,
+      103,
+      101
+    ],
+    "clock_reads_since_last_sample": [
+      0.124997,
+      0.124999,
+      0.125001,
+      0.125003,
+      0.125005,
+      0.126007,
+      0.126009,
+      0.126011,
+      0.126013,
+      0.126015
+    ]
+  },
+  {
+    "version": "HEAD",
+    "point": "before_next_ACK",
+    "clock_each_read_seconds": 2e-06,
+    "error": null,
+    "status": "CONTROL_REAPED",
+    "ACKs": [
+      "E",
+      "B"
+    ],
+    "receive_calls": [
+      0.125,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "owners": [
+      101,
+      102,
+      103,
+      104
+    ],
+    "queued": [],
+    "signals": [
+      104,
+      103,
+      102,
+      101
+    ],
+    "clock_reads_since_last_sample": [
+      0.124987,
+      0.124989,
+      0.124991,
+      0.124993,
+      0.124995,
+      0.124997,
+      0.124999,
+      0.125001,
+      0.125003,
+      0.125005
+    ]
+  }
+]

@@ -1,0 +1,22 @@
+import sys,json,types,subprocess
+sys.path.insert(0,"s_session/tests/issue1394_acceptance")
+import supervisor
+import test_review04 as t
+raw=subprocess.run(["git","show","576a13470566a5ca4625eae3d4e89abcb950e346:s_session/tests/issue1394_acceptance/supervisor.py"],capture_output=True,check=True).stdout
+base=types.ModuleType("rf5_precise_base");base.__file__=supervisor.__file__;sys.modules[base.__name__]=base
+exec(compile(raw,"fixed_base/supervisor.py","exec"),base.__dict__)
+results=[]
+for label,module in (("base576a",base),("HEAD",supervisor)):
+ for point,count,delay in (("control",1,.1245),("last_emit_return",1,.124995),("before_next_ACK",2,.124985)):
+  t.sup=module;case=t.Review04Tests()
+  trace=[]
+  def effect(s):
+   case.queue_descendants(s)
+   def clock():
+    s["now"][0]+=.000002
+    trace.append(round(s["now"][0]-s["core"].last_sample,8))
+    return s["now"][0]
+   s["core"].clock=clock
+  state=case.scenario(count=count,delay=delay,queued=True,effect=effect)
+  results.append({"version":label,"point":point,"clock_each_read_seconds":.000002,"error":state["error"],"status":state["outputs"][-1][1]["status"],"ACKs":[v["binding"]["stage"] for at,v in state["outputs"] if v.get("kind")=="ACK"],"receive_calls":state["calls"],"owners":list(state["core"].owners),"queued":[x["kind"] if x else None for x in state["queue"]],"signals":[p for p,_ in state["probe"].signals],"clock_reads_since_last_sample":trace[:10]})
+print(json.dumps(results,ensure_ascii=False,indent=2))

@@ -1,0 +1,331 @@
+{
+  "command": "/opt/homebrew/opt/python@3.14/bin/python3.14 -B /Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/.chanlun/review-results/issue1394-acceptance-revision6-20261018/RUN-FORMAL.txt after",
+  "cwd": "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018",
+  "exit_code": 0,
+  "probe_index": 5,
+  "source_sha256": "f29f1e2a497c60e3e787f35e55dea112b732956696a25c4bc150090f525736cf",
+  "baseline_git_command": "git show 576a13470566a5ca4625eae3d4e89abcb950e346:s_session/tests/issue1394_acceptance/supervisor.py > /tmp/issue1394-r6-base576a-supervisor.py",
+  "baseline_bytes": 14324,
+  "baseline_sha256": "6840975995c90397b1aa9bba3bb6b091a422af65f094ad37c32b6d035a9642ee",
+  "execution_note": "原代码未改；subprocess.run仅替换为预取git原字节的内存读取，禁止真实子进程/网络/DB",
+  "before": [
+    {
+      "path": "s_session/tests/issue1394_acceptance/captured_cut.py",
+      "bytes": 26595,
+      "sha256": "982d9a9a82af5dd49c9500e11adc4de64fa856156318e7f7de25081b8ac9c89d"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/closure.py",
+      "bytes": 8290,
+      "sha256": "5459ab3d8dce283677efead39206c2fbba4593d965f913c5f5c7336a1258762d"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/control.py",
+      "bytes": 6301,
+      "sha256": "950595b87956e6d8923c816cac9739d7aff29c0582f5a2bfe8bfd9383ddb8057"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/driver.py",
+      "bytes": 44599,
+      "sha256": "1735bffa631b1d4789f363204fec97fd26ceccd1ca439cc340bcd00a8ebf05f7"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/evidence.py",
+      "bytes": 5318,
+      "sha256": "92af6d56aecde7ea051de178fea72135b6c5b35a430ec44940cd425db2a0ce10"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/financial_oracle.py",
+      "bytes": 17454,
+      "sha256": "edc5b5477e7b185582a2a65cbd31e07d7015c49a9e203c630a697646f4d3d854"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/journal.py",
+      "bytes": 9663,
+      "sha256": "ff08d15e084216d1d6b8bb1efe8e3dcb74bfe281b20edb8262ad3e61c1211781"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/oracle.py",
+      "bytes": 3299,
+      "sha256": "16639a001aa73662b00209934513d808a0d0b3600023e2d3e2f35eb263e54eb7"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/product_capture.py",
+      "bytes": 64036,
+      "sha256": "2d364e95e786757cf9d3f4c05cdc414e75d1c1b0c7ecc975b180591b51073e6a"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/run_checks.py",
+      "bytes": 1720,
+      "sha256": "94c180cd611cc7d2f1a99f94bb61fed6594d8aac8ea52470aefc7cbb91072bae"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/scheduler.py",
+      "bytes": 23479,
+      "sha256": "9c0d876f159e7b7cc33bfb55dae12ad67ff0b29cf7c56bf6e08d87032f8a6a16"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/supervisor.py",
+      "bytes": 15944,
+      "sha256": "bd67216a54b35e86d3cd432ff2b1ab8debbff3e4db391e6d86abfb3d5954b603"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_capture_bridge.py",
+      "bytes": 21277,
+      "sha256": "199ed7f07334ebf5f766a713833c2446ca1aab7ee7e6a4b31387dc54d3e72e34"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_capture_order.py",
+      "bytes": 9944,
+      "sha256": "4314d6ed607429ebd3e0ece447b4e7dd3aeb6f101077445ac3200d0aa1ffb782"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_closure.py",
+      "bytes": 5537,
+      "sha256": "d4f6772d82109c9cd05901cf667bf21d3b1740e11976036c86352eeb5a2d5710"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_control.py",
+      "bytes": 5375,
+      "sha256": "2c96cffc3b024f798d863b40bc345e386283c39f5e2da5853ab00b5fcdd01711"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver.py",
+      "bytes": 31184,
+      "sha256": "fd443df0c247934a8b2435d9e98169ed33f97baec6e17eca647ebab5d4b58176"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver_regressions.py",
+      "bytes": 6602,
+      "sha256": "621e990d5c7c6ed9dbe512efd30c7957696b346575439ddf5b5068bc95fc5b5d"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_evidence.py",
+      "bytes": 6289,
+      "sha256": "11cac54a757c437b660441f82a0d2b0e4843bcc22eb1106d30a2b8232933e52c"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_financial_oracle.py",
+      "bytes": 12185,
+      "sha256": "d643adef91a95a79b7c247af07c7a0259b9eac8f45e9951244af52ca8589c205"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_journal.py",
+      "bytes": 5205,
+      "sha256": "7f63cc0d2535d481b676818d88282729d40738568c84e761a7dd6c01c0876fde"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_product_capture.py",
+      "bytes": 43365,
+      "sha256": "5aad6736c16230009041c41be5093d709f5d9c64269f09985bd92d35d6d63e6f"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review01.py",
+      "bytes": 15165,
+      "sha256": "f5caecc55061352166cf22b6e08ed0c29ed83916c8f1e6e7d570bb1250c6c4e9"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review02.py",
+      "bytes": 20621,
+      "sha256": "94cbc050baa085104a7b67fcd580ef635afa952f10be63a23512b826f8e888e7"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review03.py",
+      "bytes": 13515,
+      "sha256": "1bd6d532d74dc7938a50b2840e050786c06eb2f109a2aa26885e1efc306e7196"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review04.py",
+      "bytes": 11776,
+      "sha256": "34024c7e7621296d7a3644f120d1bf2518f4ea6366fbb821463ee5729f036b2f"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review05.py",
+      "bytes": 3243,
+      "sha256": "7e1c2508edde58aa715ef78bf85fe25de792c8e34a5a3222a800e6b5bf624eae"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler.py",
+      "bytes": 19433,
+      "sha256": "8abd24b983978336ac9c86cf4cb89548ab5e87eea38b2dc2bf97140ffd440b58"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler_integration.py",
+      "bytes": 1389,
+      "sha256": "98b0d9bb348d3b1190e3ae0d623dc2e0e5d4ff9a4763e319c00463bc618424b8"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_supervisor.py",
+      "bytes": 7889,
+      "sha256": "57899f3abedebdb5be90606b5d812c8f8d4c6604f579b9e208d9d242f885b651"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/voice_bridge.py",
+      "bytes": 11955,
+      "sha256": "36248173678a4167aaadb5a3840de11d3d4f477963f4926f070de6fb33b63dfc"
+    }
+  ],
+  "after": [
+    {
+      "path": "s_session/tests/issue1394_acceptance/captured_cut.py",
+      "bytes": 26595,
+      "sha256": "982d9a9a82af5dd49c9500e11adc4de64fa856156318e7f7de25081b8ac9c89d"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/closure.py",
+      "bytes": 8290,
+      "sha256": "5459ab3d8dce283677efead39206c2fbba4593d965f913c5f5c7336a1258762d"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/control.py",
+      "bytes": 6301,
+      "sha256": "950595b87956e6d8923c816cac9739d7aff29c0582f5a2bfe8bfd9383ddb8057"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/driver.py",
+      "bytes": 44599,
+      "sha256": "1735bffa631b1d4789f363204fec97fd26ceccd1ca439cc340bcd00a8ebf05f7"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/evidence.py",
+      "bytes": 5318,
+      "sha256": "92af6d56aecde7ea051de178fea72135b6c5b35a430ec44940cd425db2a0ce10"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/financial_oracle.py",
+      "bytes": 17454,
+      "sha256": "edc5b5477e7b185582a2a65cbd31e07d7015c49a9e203c630a697646f4d3d854"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/journal.py",
+      "bytes": 9663,
+      "sha256": "ff08d15e084216d1d6b8bb1efe8e3dcb74bfe281b20edb8262ad3e61c1211781"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/oracle.py",
+      "bytes": 3299,
+      "sha256": "16639a001aa73662b00209934513d808a0d0b3600023e2d3e2f35eb263e54eb7"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/product_capture.py",
+      "bytes": 64036,
+      "sha256": "2d364e95e786757cf9d3f4c05cdc414e75d1c1b0c7ecc975b180591b51073e6a"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/run_checks.py",
+      "bytes": 1720,
+      "sha256": "94c180cd611cc7d2f1a99f94bb61fed6594d8aac8ea52470aefc7cbb91072bae"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/scheduler.py",
+      "bytes": 23479,
+      "sha256": "9c0d876f159e7b7cc33bfb55dae12ad67ff0b29cf7c56bf6e08d87032f8a6a16"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/supervisor.py",
+      "bytes": 15944,
+      "sha256": "bd67216a54b35e86d3cd432ff2b1ab8debbff3e4db391e6d86abfb3d5954b603"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_capture_bridge.py",
+      "bytes": 21277,
+      "sha256": "199ed7f07334ebf5f766a713833c2446ca1aab7ee7e6a4b31387dc54d3e72e34"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_capture_order.py",
+      "bytes": 9944,
+      "sha256": "4314d6ed607429ebd3e0ece447b4e7dd3aeb6f101077445ac3200d0aa1ffb782"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_closure.py",
+      "bytes": 5537,
+      "sha256": "d4f6772d82109c9cd05901cf667bf21d3b1740e11976036c86352eeb5a2d5710"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_control.py",
+      "bytes": 5375,
+      "sha256": "2c96cffc3b024f798d863b40bc345e386283c39f5e2da5853ab00b5fcdd01711"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver.py",
+      "bytes": 31184,
+      "sha256": "fd443df0c247934a8b2435d9e98169ed33f97baec6e17eca647ebab5d4b58176"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver_regressions.py",
+      "bytes": 6602,
+      "sha256": "621e990d5c7c6ed9dbe512efd30c7957696b346575439ddf5b5068bc95fc5b5d"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_evidence.py",
+      "bytes": 6289,
+      "sha256": "11cac54a757c437b660441f82a0d2b0e4843bcc22eb1106d30a2b8232933e52c"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_financial_oracle.py",
+      "bytes": 12185,
+      "sha256": "d643adef91a95a79b7c247af07c7a0259b9eac8f45e9951244af52ca8589c205"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_journal.py",
+      "bytes": 5205,
+      "sha256": "7f63cc0d2535d481b676818d88282729d40738568c84e761a7dd6c01c0876fde"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_product_capture.py",
+      "bytes": 43365,
+      "sha256": "5aad6736c16230009041c41be5093d709f5d9c64269f09985bd92d35d6d63e6f"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review01.py",
+      "bytes": 15165,
+      "sha256": "f5caecc55061352166cf22b6e08ed0c29ed83916c8f1e6e7d570bb1250c6c4e9"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review02.py",
+      "bytes": 20621,
+      "sha256": "94cbc050baa085104a7b67fcd580ef635afa952f10be63a23512b826f8e888e7"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review03.py",
+      "bytes": 13515,
+      "sha256": "1bd6d532d74dc7938a50b2840e050786c06eb2f109a2aa26885e1efc306e7196"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review04.py",
+      "bytes": 11776,
+      "sha256": "34024c7e7621296d7a3644f120d1bf2518f4ea6366fbb821463ee5729f036b2f"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review05.py",
+      "bytes": 3243,
+      "sha256": "7e1c2508edde58aa715ef78bf85fe25de792c8e34a5a3222a800e6b5bf624eae"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler.py",
+      "bytes": 19433,
+      "sha256": "8abd24b983978336ac9c86cf4cb89548ab5e87eea38b2dc2bf97140ffd440b58"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler_integration.py",
+      "bytes": 1389,
+      "sha256": "98b0d9bb348d3b1190e3ae0d623dc2e0e5d4ff9a4763e319c00463bc618424b8"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_supervisor.py",
+      "bytes": 7889,
+      "sha256": "57899f3abedebdb5be90606b5d812c8f8d4c6604f579b9e208d9d242f885b651"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/voice_bridge.py",
+      "bytes": 11955,
+      "sha256": "36248173678a4167aaadb5a3840de11d3d4f477963f4926f070de6fb33b63dfc"
+    }
+  ],
+  "fingerprints_equal": true,
+  "output": {
+    "path": "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/.chanlun/review-results/issue1394-acceptance-revision6-20261018/formal-probe-5-after.txt",
+    "bytes": 3725,
+    "sha256": "e7450e5919a12c0de178e2672817415dd20248cbfa01124f50aafb873a876d3f"
+  }
+}

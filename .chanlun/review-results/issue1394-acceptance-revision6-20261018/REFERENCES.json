@@ -1,0 +1,14 @@
+[
+  {
+    "original_path": "/Volumes/AgentStorage/issue1394-sandcastle-manager-20261018/REVIEW-05-SUPERVISOR.md",
+    "path": ".chanlun/review-results/issue1394-acceptance-revision6-20261018/references/REVIEW-05-SUPERVISOR.md",
+    "bytes": 3737,
+    "sha256": "98e40846756c95359964a7bd54309c28ddb37a1268bcf2b40d57c529d0a7ad5a"
+  },
+  {
+    "original_path": "/Volumes/AgentStorage/issue1394-sandcastle-manager-20261018/REVIEW-05-SUPERVISOR-PROBES.json",
+    "path": ".chanlun/review-results/issue1394-acceptance-revision6-20261018/references/REVIEW-05-SUPERVISOR-PROBES.json",
+    "bytes": 99404,
+    "sha256": "dcb19ae7681bb71ce325245c5de2626a9f5bc9d7a210ea1aeb759fca76df26f4"
+  }
+]

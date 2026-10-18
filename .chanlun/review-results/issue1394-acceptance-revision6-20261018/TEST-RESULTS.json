@@ -1,0 +1,94 @@
+{
+  "ticket": 1394,
+  "base_commit": "4b3a84ebba8178e03aa04b2bd2a6a4138d9d438a",
+  "execution_authorized": false,
+  "product_status": "NOT_RUN",
+  "new_method_count": 5,
+  "old_method_count": 24,
+  "distinct_methods": 29,
+  "runs": [
+    {
+      "mode": "red",
+      "metadata": {
+        "path": ".chanlun/review-results/issue1394-acceptance-revision6-20261018/RED-RESULTS.json",
+        "bytes": 13130,
+        "sha256": "8a6cdea3f19593588bb548d618e08b9be65da826cb2373183076bc1c78b61c2c"
+      },
+      "output": {
+        "path": "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/.chanlun/review-results/issue1394-acceptance-revision6-20261018/red-targeted.txt",
+        "bytes": 3167,
+        "sha256": "7feadc6877feb3a97fe9dbe3d4f3b89be05ff5c05d0a1f556acba236e49ac068"
+      },
+      "exit_code": 1,
+      "tests_run": 5,
+      "failed_methods": [
+        "test_review05.Review05Tests.test_R_F5_advancing_clock_last_emit_return_drains_before_sample",
+        "test_review05.Review05Tests.test_R_F5_advancing_clock_before_second_ACK_drains_before_sample"
+      ]
+    },
+    {
+      "mode": "normal",
+      "metadata": {
+        "path": ".chanlun/review-results/issue1394-acceptance-revision6-20261018/NORMAL-RESULTS.json",
+        "bytes": 15122,
+        "sha256": "60dcd6062bc34bb48cb587c26688e69482516abe30ccb40b68d47d3b7033a4cc"
+      },
+      "output": {
+        "path": "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/.chanlun/review-results/issue1394-acceptance-revision6-20261018/normal-targeted.txt",
+        "bytes": 4466,
+        "sha256": "00597c3a86e8291af33fa0618ed888e61267ad908da642b241cd3c841c9bdf0b"
+      },
+      "exit_code": 0,
+      "tests_run": 29,
+      "failed_methods": []
+    },
+    {
+      "mode": "optimized",
+      "metadata": {
+        "path": ".chanlun/review-results/issue1394-acceptance-revision6-20261018/OPTIMIZED-RESULTS.json",
+        "bytes": 15131,
+        "sha256": "abe536495bb027c843c43dc9c552a4b42d9014cb2a25aca5649ba9e3b594dc89"
+      },
+      "output": {
+        "path": "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/.chanlun/review-results/issue1394-acceptance-revision6-20261018/optimized-targeted.txt",
+        "bytes": 4466,
+        "sha256": "00597c3a86e8291af33fa0618ed888e61267ad908da642b241cd3c841c9bdf0b"
+      },
+      "exit_code": 0,
+      "tests_run": 29,
+      "failed_methods": []
+    }
+  ],
+  "selection": {
+    "path": ".chanlun/review-results/issue1394-acceptance-revision6-20261018/TEST-SELECTION.json",
+    "bytes": 7012,
+    "sha256": "66abf6c5cc3971d25cd4b96bea61739971d5907fc0d86aba8e821339d6d29544"
+  },
+  "fingerprints_per_run": 31,
+  "scope": "普通/-O为同29方法两模式；红灯5方法中2失败、3通过；不重跑历史整套",
+  "development_attempts": [
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision6-20261018/attempt1-NORMAL-RESULTS.json",
+      "bytes": 15366,
+      "sha256": "9a3d082fdead018ecff893354529454709f525b4c5bae8e58b3e2e5862699654"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision6-20261018/attempt1-OPTIMIZED-RESULTS.json",
+      "bytes": 15375,
+      "sha256": "7b68c914b8bfc331ab5bff10a1c99b51f21942e298c83cb9d0f4ce0f75bf8aeb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision6-20261018/attempt1-FORMAL-PROBES-AFTER.json",
+      "bytes": 13035,
+      "sha256": "e18c6fd700f60314dab6325771275731176948653305898e0f64e045a05b944f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision6-20261018/attempt1-supervisor-source.txt",
+      "bytes": 15922,
+      "sha256": "206da316c6302944a7ef4dc7bd1b5a5660c97d91c0a83693b4d4361684308493"
+    }
+  ],
+  "development_note": "首版普通/-O均28/29通过；终止边界改走_sample_and_ack导致心跳耗尽报错文字变化。最终终止边界强制tick采样并沿用发送后检查，原测试未改。",
+  "red_existing_30_sources_match_fixed_head": true,
+  "new_test_source_unchanged_red_to_final": true
+}

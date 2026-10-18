@@ -127,7 +127,7 @@ class SupervisorCore:
                 "心跳已过原截止，不能补发续命")
         self.last_heartbeat = self.clock()
 
-    def tick(self, *, force=False):
+    def tick(self, *, force=False, sample_boundary=None):
         if self.stopped:
             return
         try:
@@ -137,6 +137,9 @@ class SupervisorCore:
             self.live_identity(self.worker)
             if not force and now - self.last_sample < self.limits.sample_interval:
                 return
+            if sample_boundary is not None:
+                # #1394：由实际到期判定交给有限排队边界，边界再强制采样。
+                return sample_boundary()
             for script, expected in self.scripts:
                 require(bounded_hash(script, self.limits.work_deadline) == expected,
                         "监督/worker 脚本字节偏离冻结摘要")
@@ -268,12 +271,10 @@ def monitor(core, receive, emit):
             def send_boundary():
                 require(not core.stopped and core.clock() < receive_deadline,
                         "发送超过原工作/心跳截止或监督已停止")
-                if terminal is None and core.clock() - core.last_sample >= core.limits.sample_interval:
-                    # 发送期间也可能排入合法登记；沿用有限排队规则再采样。
-                    # 始终保留本轮最初的receive_deadline，心跳不能替发送续期。
-                    replies.extend(drain(receive(0)))
-                else:
-                    core.tick()
+                # #1394：只有tick判定实际到期后才排队并强制采样，避免两次读钟分叉。
+                # 沿用原receive_deadline；终止标记后的登记不得追认。
+                core.tick(sample_boundary=lambda: replies.extend(drain(receive(0)))
+                          if terminal is None else core.tick(force=True))
                 require(not core.stopped and core.clock() < receive_deadline
                         and core.clock() < core.last_heartbeat + core.limits.heartbeat_timeout,
                         "发送采样后超过原工作/心跳截止或监督已停止")

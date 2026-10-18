@@ -1,0 +1,164 @@
+{
+  "ticket": 1394,
+  "base_commit": "4b3a84ebba8178e03aa04b2bd2a6a4138d9d438a",
+  "enumerated_before_tests_utc": "2026-10-18T06:40:36.180378+00:00",
+  "impact": [
+    "SupervisorCore.tick实际到期分派",
+    "monitor.send_boundary发送前后",
+    "monitor.drain有限排队与强制采样（原规则保留）"
+  ],
+  "methods": [
+    {
+      "id": "test_review05.Review05Tests.test_R_F5_advancing_clock_last_emit_return_drains_before_sample",
+      "new": true,
+      "reason": "独审05连续时钟两反例、近边界正例、未到期身份/截止保护"
+    },
+    {
+      "id": "test_review05.Review05Tests.test_R_F5_advancing_clock_before_second_ACK_drains_before_sample",
+      "new": true,
+      "reason": "独审05连续时钟两反例、近边界正例、未到期身份/截止保护"
+    },
+    {
+      "id": "test_review05.Review05Tests.test_R_F5_advancing_clock_near_boundary_legal_controls",
+      "new": true,
+      "reason": "独审05连续时钟两反例、近边界正例、未到期身份/截止保护"
+    },
+    {
+      "id": "test_review05.Review05Tests.test_R_F5_not_due_tick_still_checks_worker_identity",
+      "new": true,
+      "reason": "独审05连续时钟两反例、近边界正例、未到期身份/截止保护"
+    },
+    {
+      "id": "test_review05.Review05Tests.test_R_F5_tick_clock_crossing_original_deadline_rejects_without_sample",
+      "new": true,
+      "reason": "独审05连续时钟两反例、近边界正例、未到期身份/截止保护"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_formal_second_stage_expires_between_sends",
+      "new": false,
+      "reason": "独审05已闭合的两发送HIGH及发送排队边界；逐项保持原判据"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_formal_two_ACK_work_and_heartbeat_exhaustion",
+      "new": false,
+      "reason": "独审05已闭合的两发送HIGH及发送排队边界；逐项保持原判据"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_single_ACK_COMPLETE_checks_returned_work_deadline",
+      "new": false,
+      "reason": "独审05已闭合的两发送HIGH及发送排队边界；逐项保持原判据"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_single_ACK_CANCEL_checks_returned_work_deadline",
+      "new": false,
+      "reason": "独审05已闭合的两发送HIGH及发送排队边界；逐项保持原判据"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_last_ACK_checks_returned_heartbeat",
+      "new": false,
+      "reason": "独审05已闭合的两发送HIGH及发送排队边界；逐项保持原判据"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_formal_single_ACK_due_stranger_before_terminal",
+      "new": false,
+      "reason": "独审05已闭合的两发送HIGH及发送排队边界；逐项保持原判据"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_two_ACK_last_return_due_RSS_over_cap",
+      "new": false,
+      "reason": "独审05已闭合的两发送HIGH及发送排队边界；逐项保持原判据"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_first_return_due_RSS_stops_remaining_ACK",
+      "new": false,
+      "reason": "独审05已闭合的两发送HIGH及发送排队边界；逐项保持原判据"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_exact_original_deadline_is_exhausted",
+      "new": false,
+      "reason": "独审05已闭合的两发送HIGH及发送排队边界；逐项保持原判据"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_due_sample_can_exhaust_next_stage_before_send",
+      "new": false,
+      "reason": "独审05已闭合的两发送HIGH及发送排队边界；逐项保持原判据"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_due_sample_can_exhaust_heartbeat_before_terminal",
+      "new": false,
+      "reason": "独审05已闭合的两发送HIGH及发送排队边界；逐项保持原判据"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_legal_send_delays_keep_original_deadlines_and_due_samples",
+      "new": false,
+      "reason": "独审05已闭合的两发送HIGH及发送排队边界；逐项保持原判据"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_send_due_sample_drains_queued_heartbeat_and_multiple_REGISTERs",
+      "new": false,
+      "reason": "独审05已闭合的两发送HIGH及发送排队边界；逐项保持原判据"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_send_due_sample_drains_queued_ACK_internal_path",
+      "new": false,
+      "reason": "独审05已闭合的两发送HIGH及发送排队边界；逐项保持原判据"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_send_queue_does_not_hide_stranger_or_extend_original_deadline",
+      "new": false,
+      "reason": "独审05已闭合的两发送HIGH及发送排队边界；逐项保持原判据"
+    },
+    {
+      "id": "test_review04.Review04Tests.test_R_F5_send_queue_sampling_boundary_is_finite",
+      "new": false,
+      "reason": "独审05已闭合的两发送HIGH及发送排队边界；逐项保持原判据"
+    },
+    {
+      "id": "test_review03.Review03Tests.test_R_F5_heartbeat_then_first_ACK_formal_probe",
+      "new": false,
+      "reason": "原有限排队登记与终止边界保护"
+    },
+    {
+      "id": "test_review03.Review03Tests.test_R_F5_two_REGISTERs_formal_probe",
+      "new": false,
+      "reason": "原有限排队登记与终止边界保护"
+    },
+    {
+      "id": "test_review03.Review03Tests.test_R_F5_ACK_force_sample_waits_for_queued_descendants",
+      "new": false,
+      "reason": "原有限排队登记与终止边界保护"
+    },
+    {
+      "id": "test_review03.Review03Tests.test_R_F5_COMPLETE_before_registration_is_not_a_grace_period",
+      "new": false,
+      "reason": "原有限排队登记与终止边界保护"
+    },
+    {
+      "id": "test_review03.Review03Tests.test_R_F5_queued_ACK_still_requires_resource_sample",
+      "new": false,
+      "reason": "原有限排队登记与终止边界保护"
+    },
+    {
+      "id": "test_supervisor.SupervisorTests.test_script_change_after_registration_stops_at_next_sample",
+      "new": false,
+      "reason": "tick默认/强制/空接收路径不变；仅内存Probe及临时脚本"
+    },
+    {
+      "id": "test_supervisor.SupervisorTests.test_heartbeat_loss_deadline_and_resource_unknown_stop",
+      "new": false,
+      "reason": "tick默认/强制/空接收路径不变；仅内存Probe及临时脚本"
+    },
+    {
+      "id": "test_supervisor.SupervisorTests.test_continuous_monitor_samples_and_handles_transport_loss",
+      "new": false,
+      "reason": "tick默认/强制/空接收路径不变；仅内存Probe及临时脚本"
+    }
+  ],
+  "new_count": 5,
+  "old_count": 24,
+  "total": 29,
+  "formal_probe_indices": [
+    5
+  ],
+  "excluded": "不重跑40/38/37/68/91/82/host123或ps/socket三项；无真实子进程/网络/DB/产品运行"
+}
