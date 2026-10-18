@@ -1,0 +1,377 @@
+{
+  "scope": "Python 模型/普通文件，非 Rust/SQLite 验收",
+  "candidate_sha256": {
+    "rust/src/bin/s_session_v3/admission_provider.rs": "baa30ef7a80a35b46ca1465c12b626925bc5458653072841da858f2040c92b4e",
+    "rust/src/bin/s_session_v3/admission.rs": "b8f9f4e38ad94831e005804a71f61eb8d90294094372dc694eca603e3d8a6a14"
+  },
+  "h01": [
+    {
+      "controller_held": true,
+      "baseline_admitted": false,
+      "candidate_admitted_by_suffix": false,
+      "physical_bytes": 4096,
+      "model_store_bytes": 8192,
+      "unknown_rejected": true,
+      "identity_replacement_detected": true,
+      "controller_lock_retained_until_close": true
+    },
+    {
+      "controller_held": false,
+      "baseline_admitted": false,
+      "candidate_admitted_by_suffix": false,
+      "physical_bytes": 4096,
+      "model_store_bytes": 8192,
+      "unknown_rejected": true,
+      "identity_replacement_detected": true,
+      "controller_lock_retained_until_close": true
+    }
+  ],
+  "m02_reviewed": {
+    "policy_from_source": {
+      "take_early": true,
+      "latch": false
+    },
+    "cases": [
+      {
+        "cause": "stopped",
+        "first": "原超限首错",
+        "repeat_finish": null,
+        "require": null,
+        "same_object_and_quantities_retained": false,
+        "terminal_original_retained": false,
+        "after_cleanup_finish": null,
+        "first_error_not_replaced": false,
+        "before": {
+          "wire": 17,
+          "pending": 0,
+          "t0": 123456,
+          "stopped": "原超限首错",
+          "expired": false,
+          "reservations": 0
+        },
+        "after_failed_finish": {
+          "wire": 17,
+          "pending": 0,
+          "t0": 123456,
+          "stopped": "原超限首错",
+          "expired": false,
+          "reservations": 0
+        },
+        "contract_satisfied_in_model": false
+      },
+      {
+        "cause": "deadline",
+        "first": "原期限到期",
+        "repeat_finish": null,
+        "require": null,
+        "same_object_and_quantities_retained": false,
+        "terminal_original_retained": false,
+        "after_cleanup_finish": null,
+        "first_error_not_replaced": false,
+        "before": {
+          "wire": 17,
+          "pending": 0,
+          "t0": 123456,
+          "stopped": null,
+          "expired": true,
+          "reservations": 0
+        },
+        "after_failed_finish": {
+          "wire": 17,
+          "pending": 0,
+          "t0": 123456,
+          "stopped": "原期限到期",
+          "expired": true,
+          "reservations": 0
+        },
+        "contract_satisfied_in_model": false
+      },
+      {
+        "cause": "reservation",
+        "first": "原未结预留",
+        "repeat_finish": null,
+        "require": null,
+        "same_object_and_quantities_retained": false,
+        "terminal_original_retained": false,
+        "after_cleanup_finish": null,
+        "first_error_not_replaced": false,
+        "before": {
+          "wire": 17,
+          "pending": 33,
+          "t0": 123456,
+          "stopped": null,
+          "expired": false,
+          "reservations": 1
+        },
+        "after_failed_finish": {
+          "wire": 17,
+          "pending": 33,
+          "t0": 123456,
+          "stopped": null,
+          "expired": false,
+          "reservations": 1
+        },
+        "contract_satisfied_in_model": false
+      },
+      {
+        "cause": "success",
+        "first": null,
+        "repeat_finish": null,
+        "require": null,
+        "same_object_and_quantities_retained": null,
+        "terminal_original_retained": null,
+        "after_cleanup_finish": null,
+        "first_error_not_replaced": null,
+        "before": {
+          "wire": 17,
+          "pending": 0,
+          "t0": 123456,
+          "stopped": null,
+          "expired": false,
+          "reservations": 0
+        },
+        "after_failed_finish": {
+          "wire": 17,
+          "pending": 0,
+          "t0": 123456,
+          "stopped": null,
+          "expired": false,
+          "reservations": 0
+        },
+        "contract_satisfied_in_model": true
+      }
+    ]
+  },
+  "m02_fixed_baseline": {
+    "policy_from_source": {
+      "take_early": false,
+      "latch": false
+    },
+    "cases": [
+      {
+        "cause": "stopped",
+        "first": "原超限首错",
+        "repeat_finish": "原超限首错",
+        "require": "原超限首错",
+        "same_object_and_quantities_retained": true,
+        "terminal_original_retained": true,
+        "after_cleanup_finish": "原超限首错",
+        "first_error_not_replaced": true,
+        "before": {
+          "wire": 17,
+          "pending": 0,
+          "t0": 123456,
+          "stopped": "原超限首错",
+          "expired": false,
+          "reservations": 0
+        },
+        "after_failed_finish": {
+          "wire": 17,
+          "pending": 0,
+          "t0": 123456,
+          "stopped": "原超限首错",
+          "expired": false,
+          "reservations": 0
+        },
+        "contract_satisfied_in_model": true
+      },
+      {
+        "cause": "deadline",
+        "first": "原期限到期",
+        "repeat_finish": "原期限到期",
+        "require": "原期限到期",
+        "same_object_and_quantities_retained": true,
+        "terminal_original_retained": true,
+        "after_cleanup_finish": "原期限到期",
+        "first_error_not_replaced": true,
+        "before": {
+          "wire": 17,
+          "pending": 0,
+          "t0": 123456,
+          "stopped": null,
+          "expired": true,
+          "reservations": 0
+        },
+        "after_failed_finish": {
+          "wire": 17,
+          "pending": 0,
+          "t0": 123456,
+          "stopped": "原期限到期",
+          "expired": true,
+          "reservations": 0
+        },
+        "contract_satisfied_in_model": true
+      },
+      {
+        "cause": "reservation",
+        "first": "原未结预留",
+        "repeat_finish": "原未结预留",
+        "require": null,
+        "same_object_and_quantities_retained": true,
+        "terminal_original_retained": true,
+        "after_cleanup_finish": null,
+        "first_error_not_replaced": false,
+        "before": {
+          "wire": 17,
+          "pending": 33,
+          "t0": 123456,
+          "stopped": null,
+          "expired": false,
+          "reservations": 1
+        },
+        "after_failed_finish": {
+          "wire": 17,
+          "pending": 33,
+          "t0": 123456,
+          "stopped": null,
+          "expired": false,
+          "reservations": 1
+        },
+        "contract_satisfied_in_model": false
+      },
+      {
+        "cause": "success",
+        "first": null,
+        "repeat_finish": null,
+        "require": null,
+        "same_object_and_quantities_retained": null,
+        "terminal_original_retained": null,
+        "after_cleanup_finish": null,
+        "first_error_not_replaced": null,
+        "before": {
+          "wire": 17,
+          "pending": 0,
+          "t0": 123456,
+          "stopped": null,
+          "expired": false,
+          "reservations": 0
+        },
+        "after_failed_finish": {
+          "wire": 17,
+          "pending": 0,
+          "t0": 123456,
+          "stopped": null,
+          "expired": false,
+          "reservations": 0
+        },
+        "contract_satisfied_in_model": true
+      }
+    ]
+  },
+  "m02_candidate": {
+    "policy_from_source": {
+      "take_early": false,
+      "latch": false
+    },
+    "cases": [
+      {
+        "cause": "stopped",
+        "first": "原超限首错",
+        "repeat_finish": "原超限首错",
+        "require": "原超限首错",
+        "same_object_and_quantities_retained": true,
+        "terminal_original_retained": true,
+        "after_cleanup_finish": "原超限首错",
+        "first_error_not_replaced": true,
+        "before": {
+          "wire": 17,
+          "pending": 0,
+          "t0": 123456,
+          "stopped": "原超限首错",
+          "expired": false,
+          "reservations": 0
+        },
+        "after_failed_finish": {
+          "wire": 17,
+          "pending": 0,
+          "t0": 123456,
+          "stopped": "原超限首错",
+          "expired": false,
+          "reservations": 0
+        },
+        "contract_satisfied_in_model": true
+      },
+      {
+        "cause": "deadline",
+        "first": "原期限到期",
+        "repeat_finish": "原期限到期",
+        "require": "原期限到期",
+        "same_object_and_quantities_retained": true,
+        "terminal_original_retained": true,
+        "after_cleanup_finish": "原期限到期",
+        "first_error_not_replaced": true,
+        "before": {
+          "wire": 17,
+          "pending": 0,
+          "t0": 123456,
+          "stopped": null,
+          "expired": true,
+          "reservations": 0
+        },
+        "after_failed_finish": {
+          "wire": 17,
+          "pending": 0,
+          "t0": 123456,
+          "stopped": "原期限到期",
+          "expired": true,
+          "reservations": 0
+        },
+        "contract_satisfied_in_model": true
+      },
+      {
+        "cause": "reservation",
+        "first": "原未结预留",
+        "repeat_finish": "原未结预留",
+        "require": null,
+        "same_object_and_quantities_retained": true,
+        "terminal_original_retained": true,
+        "after_cleanup_finish": null,
+        "first_error_not_replaced": false,
+        "before": {
+          "wire": 17,
+          "pending": 33,
+          "t0": 123456,
+          "stopped": null,
+          "expired": false,
+          "reservations": 1
+        },
+        "after_failed_finish": {
+          "wire": 17,
+          "pending": 33,
+          "t0": 123456,
+          "stopped": null,
+          "expired": false,
+          "reservations": 1
+        },
+        "contract_satisfied_in_model": false
+      },
+      {
+        "cause": "success",
+        "first": null,
+        "repeat_finish": null,
+        "require": null,
+        "same_object_and_quantities_retained": null,
+        "terminal_original_retained": null,
+        "after_cleanup_finish": null,
+        "first_error_not_replaced": null,
+        "before": {
+          "wire": 17,
+          "pending": 0,
+          "t0": 123456,
+          "stopped": null,
+          "expired": false,
+          "reservations": 0
+        },
+        "after_failed_finish": {
+          "wire": 17,
+          "pending": 0,
+          "t0": 123456,
+          "stopped": null,
+          "expired": false,
+          "reservations": 0
+        },
+        "contract_satisfied_in_model": true
+      }
+    ]
+  }
+}

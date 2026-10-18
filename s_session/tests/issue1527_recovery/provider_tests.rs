@@ -186,3 +186,123 @@ fn repeated_profile_reads_charge_actual_bytes_on_the_same_startup_job() {
     assert_eq!(after.nodes, before.nodes);
     assert_eq!(after.records, before.records);
 }
+
+// #1527 M-02：以下真实 WriterScope 回归源码均 NOT_RUN。
+fn startup_snapshot(scope: &WriterScope) -> newchan_rust::s_content::job::JobSnapshot {
+    scope
+        .inner
+        .accounting
+        .borrow_mut()
+        .as_mut()
+        .expect("失败必须保留原账")
+        .accounting()
+        .snapshot()
+}
+
+fn assert_same_accounting_except_elapsed(
+    mut before: newchan_rust::s_content::job::JobSnapshot,
+    after: newchan_rust::s_content::job::JobSnapshot,
+) {
+    assert!(after.elapsed_ms >= before.elapsed_ms);
+    before.elapsed_ms = after.elapsed_ms;
+    assert_eq!(before, after);
+}
+
+#[test]
+fn failed_finish_keeps_pending_original_deadline_and_rejects_guard_even_after_cleanup() {
+    let f = Fixture::new();
+    let command = super::super::admission_anchor::CommandAccounting::begin();
+    let scope = WriterScope::admit(&f.db, f.prepared()).unwrap();
+    let guard = scope.enter().unwrap();
+    let (grant, deadline) = {
+        let mut slot = scope.inner.accounting.borrow_mut();
+        let mut account = slot.as_mut().unwrap().accounting();
+        account.charge_wire_bytes(17).unwrap();
+        let deadline = account.first_read_deadline().unwrap();
+        (account.reserve_staged(33).unwrap(), deadline)
+    };
+    let before = startup_snapshot(&scope);
+    assert_eq!(before.open_reservations, 1);
+    assert_eq!(before.stopped, None);
+    let first = scope.finish_startup().unwrap_err();
+    assert!(first.contains("job_reservation"));
+    assert_eq!(scope.finish_startup().unwrap_err(), first);
+    assert_eq!(scope.require_admitted().unwrap_err(), first);
+    assert_eq!(require_current(&f.db).unwrap_err(), first);
+    assert_same_accounting_except_elapsed(before.clone(), startup_snapshot(&scope));
+    {
+        let mut slot = scope.inner.accounting.borrow_mut();
+        let mut account = slot.as_mut().unwrap().accounting();
+        assert_eq!(account.first_read_deadline().unwrap(), deadline);
+        account.release(&grant).unwrap(); // 合法清理仍在原账，不恢复失败资格。
+    }
+    assert_eq!(scope.finish_startup().unwrap_err(), first);
+    assert_eq!(scope.require_admitted().unwrap_err(), first);
+    let cleaned = startup_snapshot(&scope);
+    assert_eq!(cleaned.wire_bytes, before.wire_bytes);
+    assert_eq!(cleaned.open_reservations, 0);
+    drop(scope);
+    assert_eq!(require_current(&f.db).unwrap_err(), first);
+    drop(guard);
+
+    // B2 终端仍持同一原账及原 t0，实际 stderr 写返回后才记费。
+    let mut sink = Vec::new();
+    let receipt = command.report(&first, &mut sink);
+    assert_eq!(
+        receipt.first_read_at.unwrap()
+            + std::time::Duration::from_millis(before.limits.max_elapsed_ms),
+        deadline
+    );
+    let after = receipt.job.expect("失败不能撤下终端原账");
+    assert_eq!(after.wire_bytes, before.wire_bytes + sink.len() as u128);
+    assert_eq!(receipt.actual_stderr_bytes, sink.len() as u128);
+    assert_eq!(receipt.unaccepted_stderr_bytes, 0);
+}
+
+#[test]
+fn failed_finish_keeps_stopped_first_error_actual_wire_and_reservation_until_stderr() {
+    let f = Fixture::new();
+    let command = super::super::admission_anchor::CommandAccounting::begin();
+    let scope = WriterScope::admit(&f.db, f.prepared()).unwrap();
+    let guard = scope.enter().unwrap();
+    let before_charge = startup_snapshot(&scope).wire_bytes;
+    let (grant, first) = {
+        let mut slot = scope.inner.accounting.borrow_mut();
+        let mut account = slot.as_mut().unwrap().accounting();
+        let grant = account.reserve_store(29).unwrap();
+        // 测试注入一笔超额实量，核原 charge 的尾量/首错，非实际 I/O 成绩。
+        let error = account.charge_wire_bytes(u64::MAX).unwrap_err().to_string();
+        (grant, error)
+    };
+    let before = startup_snapshot(&scope);
+    assert_eq!(before.wire_bytes, before_charge + u64::MAX as u128);
+    assert_eq!(before.open_reservations, 1);
+    assert_eq!(before.stopped, Some("job_limit_exceeded"));
+    assert_eq!(scope.finish_startup().unwrap_err(), first);
+    assert_eq!(scope.finish_startup().unwrap_err(), first);
+    assert_eq!(scope.require_admitted().unwrap_err(), first);
+    assert_eq!(require_current(&f.db).unwrap_err(), first);
+    assert_same_accounting_except_elapsed(before.clone(), startup_snapshot(&scope));
+    drop(scope);
+    assert_eq!(require_current(&f.db).unwrap_err(), first);
+    drop(guard);
+    drop(grant); // 丢弃 token 不伪造 release，原 pending 必须留下。
+    let mut sink = Vec::new();
+    let receipt = command.report(&first, &mut sink);
+    assert_same_accounting_except_elapsed(before, receipt.job.unwrap());
+    assert_eq!(receipt.actual_stderr_bytes, sink.len() as u128);
+    assert_eq!(receipt.unaccepted_stderr_bytes, sink.len() as u128);
+    assert_eq!(receipt.accounting_error.as_deref(), Some(first.as_str()));
+}
+
+#[test]
+fn successful_finish_clears_startup_account_once_and_keeps_runtime_qualification() {
+    let f = Fixture::new();
+    let scope = WriterScope::admit(&f.db, f.prepared()).unwrap();
+    let _guard = scope.enter().unwrap();
+    scope.finish_startup().unwrap();
+    assert!(scope.inner.accounting.borrow().is_none());
+    scope.finish_startup().unwrap();
+    scope.require_admitted().unwrap();
+    require_current(&f.db).unwrap();
+}

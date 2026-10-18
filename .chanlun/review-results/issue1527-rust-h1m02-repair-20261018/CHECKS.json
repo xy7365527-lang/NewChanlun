@@ -1,0 +1,1057 @@
+{
+  "issue": 1527,
+  "base": "f7d34f47cba8a0ea0ceb55499206520f058da61f",
+  "review_source": "3dde745d3909f882beac67de106a42d0f097aa65",
+  "scope": "H-01/M-02 候选返修；非 Rust 运行/完整准入验收",
+  "actual": {
+    "branch": "codex/1527-formal-i1-integration-20261018",
+    "tracked_write_set": [
+      "rust/src/bin/s_session_v3/admission.rs",
+      "rust/src/bin/s_session_v3/admission_provider.rs",
+      "s_session/tests/issue1527_recovery/provider_tests.rs"
+    ],
+    "historical_reports_unchanged": {
+      ".chanlun/review-results/issue1527-formal-i1-20261018/CALL-SURFACE.json": {
+        "sha256": "4ce079f62e15ce262dd2cdb7adb08dbe3dd12a09f2a28ee7afb6ea097b9b21a8",
+        "bytes": 11999
+      },
+      ".chanlun/review-results/issue1527-formal-i1-20261018/CHECKS.json": {
+        "sha256": "7081283eee8d5f648e4ed2da638c1f29e73445455f7ee20ac8f9f8262c2e974b",
+        "bytes": 67160
+      },
+      ".chanlun/review-results/issue1527-formal-i1-20261018/FINAL.patch": {
+        "sha256": "e0c7acd93b410d90436f7e8e3dbcdd775beeab3b3ad1df2c77f5c1d2bbafdc46",
+        "bytes": 201764
+      },
+      ".chanlun/review-results/issue1527-formal-i1-20261018/IMPLEMENTATION.md": {
+        "sha256": "45f42314c4b5f2abfb92df41eb379a3597be6f1eebc5dd402570016ced9a0f37",
+        "bytes": 13107
+      },
+      ".chanlun/review-results/issue1527-formal-i1-20261018/INHERITED-INTERFACE-CALLERS.patch": {
+        "sha256": "c7f5620daaaa0a113fba4a672f017a216dc92e3a2271b6cd3b3a988525bb6e0d",
+        "bytes": 17830
+      },
+      ".chanlun/review-results/issue1527-formal-i1-20261018/INHERITED-INTERFACE-JOB.patch": {
+        "sha256": "477dc7779e42ca45453f3b06499ec04370214e3349cb759a93e2460018610691",
+        "bytes": 8035
+      },
+      ".chanlun/review-results/issue1527-formal-i1-20261018/INHERITED-INTERFACE-PLAN.md": {
+        "sha256": "0d5cc65ca90d4203d4803e235900d6c2fede73bbf7663a29bb7afb043670b7ba",
+        "bytes": 17245
+      },
+      ".chanlun/review-results/issue1527-formal-i1-20261018/INHERITED-R4-CONTRACT.md": {
+        "sha256": "de109178acbd5443df3a754219acaf156835e8eb8709ebdb1a80c4cd67020832",
+        "bytes": 12112
+      },
+      ".chanlun/review-results/issue1527-formal-i1-20261018/INHERITED-SOURCES.json": {
+        "sha256": "09132e82d2280217977dd155e0bd632e7d2956cfc0ebf9c911e10c1f3b54cb96",
+        "bytes": 2456
+      },
+      ".chanlun/review-results/issue1527-formal-i1-20261018/MANIFEST.json": {
+        "sha256": "5e5fc02433ab2ecf3365ea9f80a7ae1a028de3b4b0eba825d46ec76178259732",
+        "bytes": 6692
+      },
+      ".chanlun/review-results/issue1527-formal-i1-20261018/package_checks.py": {
+        "sha256": "b6cd6486fb2045da409f8ce16df1ae65f540ab299694c4458250c2210d333b40",
+        "bytes": 6650
+      },
+      ".chanlun/review-results/issue1527-formal-i1-20261018/static_checks.py": {
+        "sha256": "2a97f27701e9bcce298f494d922fd8e857f7e783aeac4bcb3fdd5856d31fc10b",
+        "bytes": 5428
+      },
+      ".chanlun/review-results/issue1527-i1-b2b3-20261018/B2B3.md": {
+        "sha256": "70c8788d8bfc3ed7dab12257450167260d4def81b4c3cfff32ecccf5d52cd2bf",
+        "bytes": 11239
+      },
+      ".chanlun/review-results/issue1527-i1-b2b3-20261018/CHECKS.json": {
+        "sha256": "9203a260e597b09df3de0b7cde925b023fc9ed39d4785d5921197bfa438c4255",
+        "bytes": 21957
+      },
+      ".chanlun/review-results/issue1527-i1-b2b3-20261018/FINAL-STATIC-RESULT.json": {
+        "sha256": "8f2cb1079654d4ec546886babb295cdbb9f5637ba7fc279b7a53ef876c2ac164",
+        "bytes": 2090
+      },
+      ".chanlun/review-results/issue1527-i1-b2b3-20261018/FINAL.patch": {
+        "sha256": "075e726c10d886e945c263a7a7b2a1d83d41f6df87535d738cc4a6144253171c",
+        "bytes": 48185
+      },
+      ".chanlun/review-results/issue1527-i1-b2b3-20261018/INITIAL-SHARED.patch": {
+        "sha256": "dca79b168e7806e0879e564bb3f69bb9ac0f590b289f0f1ce5435a3dd1b59fb5",
+        "bytes": 1351
+      },
+      ".chanlun/review-results/issue1527-i1-b2b3-20261018/MANIFEST.json": {
+        "sha256": "e1ca9a5baa9ddaf83be3db10e20f52ea0034308f55ceb00967db5d676d8d5024",
+        "bytes": 8379
+      },
+      ".chanlun/review-results/issue1527-i1-b2b3-20261018/NARROW-SHARED.patch": {
+        "sha256": "44e1461033b145f812e79c5741d0caad32021a4e9416f6eb16a216b18d6e54fb",
+        "bytes": 5156
+      },
+      ".chanlun/review-results/issue1527-i1-b2b3-20261018/STATIC-RESULT.json": {
+        "sha256": "a067f57d0f65da2ee574f7dcc602b5424c4cd3ad9f8bab714b9bb67302bcb1dd",
+        "bytes": 2359
+      },
+      ".chanlun/review-results/issue1527-i1-b2b3-20261018/seal.py": {
+        "sha256": "24f73374088c9f62cf49604ecbb3b49cfd043f2b407dd77961b1beca59ae29f2",
+        "bytes": 7697
+      },
+      ".chanlun/review-results/issue1527-i1-b2b3-20261018/validate.py": {
+        "sha256": "09566653dec11d75fc8b1d26cf290572ad923ba06eba4ec3b9748858fe8079e0",
+        "bytes": 12232
+      }
+    },
+    "fixed_review": {
+      "path": ".chanlun/review-results/issue1527-formal-i1-review-20261018/REVIEW.md",
+      "sha256": "02887e075dab2857f225c4aad213c737e49a1a3e35bf101feaeb5f2086290379",
+      "bytes": 20412
+    },
+    "protected_bytes_unchanged": {
+      "rust/src/bin/s_session_v3/admission_anchor.rs": "7a843631bdfb4ad28fbc97da30e1da2bfeace4c0434fcbd1f82592d3321195c7",
+      "rust/src/bin/s_session_v3/admission_private/mod.rs": "77365f849305df523a2e8ac725d9bdaca87ee2178b7dccc9acce38c9148f16b0",
+      "rust/src/bin/s_session_v3/admission_private/fd_wal.rs": "4a5e210dc8c3cbb9ba2885202feed665e94a6ce8d63ce8e8d5e616371e5d6a71",
+      "rust/src/bin/s_session_v3/state.rs": "0d5fef5afbae66d1b9a84c77df73e3443f4e1c841b3290414291c38c272b93ed",
+      "rust/src/bin/s_session_v3/audit_owner.rs": "565cba303bbd3e4eeacfe02b46fe357905d9c4739375e4aff39d3f832214b61c",
+      "rust/src/bin/s_session_v3/driver.rs": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307",
+      "rust/src/bin/s_session_v3/writer_cli.rs": "62df023972c1a0c3f575b33cead4f7bd700b99111eec6afa2805f929c359bd2b",
+      "rust/src/bin/s_session_v3/mod.rs": "f301023bba9f1d6588f0021694b1ff9a0498f481e174889b20b0bd5a83936811",
+      "rust/src/bin/s_session_v2/mod.rs": "a27ecf49731dd4938696b57406aeb51e0d5f42fd066d917ba2ffc6976ebb13df",
+      "rust/src/bin/s_structure_session.rs": "fc9b7278cab67cf2ef644ed6a1a618c6360b4c814757c25d7fe4387f642ebb7b",
+      "rust/src/s_content/job.rs": "de9c6f46b4e8827962f0ef3e7b31bd1300b2e9b461c58e573cb7efa001939554",
+      "s_session/tests/issue1527_recovery/b2b3_terminal_tests.rs": "c9bb5c7fa6154d12c6100a81483595d9087cb7040d6b9ef588efd4dbad0d4b6f"
+    },
+    "existing_provider_tests_prefix_unchanged": "ed27f916eeb08167a57e05ebb9696b705ce45021e2c569387dafafdc0fa7c720",
+    "b2_original_io_bodies_unchanged": [
+      "pub(crate) fn write_result(",
+      "pub(crate) fn read_current_text(",
+      "pub(crate) fn read_profile_text(",
+      "pub(crate) fn load_startup_profile(",
+      "pub(crate) fn write_current_result(",
+      "pub(crate) fn read_startup(",
+      "pub(crate) fn require_current("
+    ],
+    "m02_static_control_flow": "首错提前返回；失败在清槽/终端撤账前返回；无换账/续期/释放预留",
+    "h01_static_pin_and_accounting": "沿原 Pinned 固定FD/身份及 st_blocks×512；无重取控制锁/创建/删除",
+    "rustfmt_stdin": {
+      "files": [
+        "rust/src/bin/s_session_v3/admission.rs",
+        "rust/src/bin/s_session_v3/admission_provider.rs",
+        "s_session/tests/issue1527_recovery/provider_tests.rs"
+      ],
+      "meaning": "仅语法解析，不证明类型/借用/编译或执行"
+    },
+    "python_ast": [
+      {
+        "path": ".chanlun/review-results/issue1527-rust-h1m02-repair-20261018/models.py",
+        "sha256": "03f3c9bb4114db797a381140f8a6c63c82268bc1714f604256ba0913fb0f8ea7"
+      },
+      {
+        "path": ".chanlun/review-results/issue1527-rust-h1m02-repair-20261018/verify.py",
+        "sha256": "af6b1e3086e896108fdbba0908eead8108c8ebf885bb21c2ee2023f2d3c35b5a"
+      }
+    ],
+    "models": {
+      "path": ".chanlun/review-results/issue1527-rust-h1m02-repair-20261018/AFTER-MODELS.json",
+      "sha256": "1320f0e81035fa13f7c0d1a0206724038ab9db3db266707f366003caf981491e",
+      "scope": "Python 模型/普通文件，非 Rust/SQLite 验收"
+    },
+    "before_models": {
+      "sha256": "e3dc3e77fe93cf079530d219faa54944609b6e0b29cd4b8088fa52209356ea2f",
+      "meaning": "返修前普通文件/模型反例；不冒充 Rust 失败运行"
+    },
+    "exact_patch_rebuild": {
+      "rust/src/bin/s_session_v3/admission.rs": {
+        "hunks": 3,
+        "rebuilt_sha256": "af8fe339de50438854c35cfbe7c2b6e2c68cdce76e07a17f643606d27d1535b1"
+      },
+      "rust/src/bin/s_session_v3/admission_provider.rs": {
+        "hunks": 3,
+        "rebuilt_sha256": "05e50a96d6fb9b8adb03f7d6f9c9dad7cabc0810a139980e389e09f9f1deb2de"
+      },
+      "s_session/tests/issue1527_recovery/provider_tests.rs": {
+        "hunks": 1,
+        "rebuilt_sha256": "b536c7360ddbcb2ac221da9aa4d6110f7d2fdf0d20f00f72bb0a1f08a2f7ef6b"
+      }
+    },
+    "final_patch_sha256": "da75b61856923eb4206191c869b8024e13e1a9513d182f0d27f30e7c94518e7b",
+    "products": {
+      "rust/src/bin/s_session_v3/admission.rs": {
+        "sha256": "af8fe339de50438854c35cfbe7c2b6e2c68cdce76e07a17f643606d27d1535b1",
+        "bytes": 15284
+      },
+      "rust/src/bin/s_session_v3/admission_provider.rs": {
+        "sha256": "05e50a96d6fb9b8adb03f7d6f9c9dad7cabc0810a139980e389e09f9f1deb2de",
+        "bytes": 17981
+      },
+      "s_session/tests/issue1527_recovery/provider_tests.rs": {
+        "sha256": "b536c7360ddbcb2ac221da9aa4d6110f7d2fdf0d20f00f72bb0a1f08a2f7ef6b",
+        "bytes": 11939
+      }
+    }
+  },
+  "commands": [
+    {
+      "argv": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "d74c2faf2789e02e7f0e1761675e5ffd896bf9c5b8def40a8bcf311f7d8f4f70",
+      "stdout_bytes": 41,
+      "stderr": "",
+      "stdout": "f7d34f47cba8a0ea0ceb55499206520f058da61f\n"
+    },
+    {
+      "argv": [
+        "git",
+        "branch",
+        "--show-current"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "eda2925fefe6af56a5f36181ba632903eb9b9dd53308c793bb906643d74c0348",
+      "stdout_bytes": 42,
+      "stderr": "",
+      "stdout": "codex/1527-formal-i1-integration-20261018\n"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--name-only",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "f1b8d393995414dbaeea8f78c15e6c4c8b8b1573d22680c5be4ca965de8e9962",
+      "stdout_bytes": 140,
+      "stderr": "",
+      "stdout": "rust/src/bin/s_session_v3/admission.rs\nrust/src/bin/s_session_v3/admission_provider.rs\ns_session/tests/issue1527_recovery/provider_tests.rs\n"
+    },
+    {
+      "argv": [
+        "git",
+        "ls-files",
+        "--others",
+        "--exclude-standard"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "119a95aa8e14d1ad45d7d70926e18730368b41e6dfd4446c617912079b7e3205",
+      "stdout_bytes": 301,
+      "stderr": "",
+      "stdout": ".chanlun/review-results/issue1527-rust-h1m02-repair-20261018/AFTER-MODELS.json\n.chanlun/review-results/issue1527-rust-h1m02-repair-20261018/BEFORE-MODELS.json\n.chanlun/review-results/issue1527-rust-h1m02-repair-20261018/models.py\n.chanlun/review-results/issue1527-rust-h1m02-repair-20261018/verify.py\n"
+    },
+    {
+      "argv": [
+        "git",
+        "ls-tree",
+        "-r",
+        "--name-only",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f",
+        ".chanlun/review-results/issue1527-formal-i1-20261018",
+        ".chanlun/review-results/issue1527-i1-b2b3-20261018"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "f598818f856ba37fe809d4474ebca9b2a8fa46ddd57ef0d182d0d89feefbe6e8",
+      "stdout_bytes": 1546,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:.chanlun/review-results/issue1527-formal-i1-20261018/CALL-SURFACE.json"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "4ce079f62e15ce262dd2cdb7adb08dbe3dd12a09f2a28ee7afb6ea097b9b21a8",
+      "stdout_bytes": 11999,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:.chanlun/review-results/issue1527-formal-i1-20261018/CHECKS.json"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "7081283eee8d5f648e4ed2da638c1f29e73445455f7ee20ac8f9f8262c2e974b",
+      "stdout_bytes": 67160,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:.chanlun/review-results/issue1527-formal-i1-20261018/FINAL.patch"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "e0c7acd93b410d90436f7e8e3dbcdd775beeab3b3ad1df2c77f5c1d2bbafdc46",
+      "stdout_bytes": 201764,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:.chanlun/review-results/issue1527-formal-i1-20261018/IMPLEMENTATION.md"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "45f42314c4b5f2abfb92df41eb379a3597be6f1eebc5dd402570016ced9a0f37",
+      "stdout_bytes": 13107,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:.chanlun/review-results/issue1527-formal-i1-20261018/INHERITED-INTERFACE-CALLERS.patch"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "c7f5620daaaa0a113fba4a672f017a216dc92e3a2271b6cd3b3a988525bb6e0d",
+      "stdout_bytes": 17830,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:.chanlun/review-results/issue1527-formal-i1-20261018/INHERITED-INTERFACE-JOB.patch"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "477dc7779e42ca45453f3b06499ec04370214e3349cb759a93e2460018610691",
+      "stdout_bytes": 8035,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:.chanlun/review-results/issue1527-formal-i1-20261018/INHERITED-INTERFACE-PLAN.md"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "0d5cc65ca90d4203d4803e235900d6c2fede73bbf7663a29bb7afb043670b7ba",
+      "stdout_bytes": 17245,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:.chanlun/review-results/issue1527-formal-i1-20261018/INHERITED-R4-CONTRACT.md"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "de109178acbd5443df3a754219acaf156835e8eb8709ebdb1a80c4cd67020832",
+      "stdout_bytes": 12112,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:.chanlun/review-results/issue1527-formal-i1-20261018/INHERITED-SOURCES.json"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "09132e82d2280217977dd155e0bd632e7d2956cfc0ebf9c911e10c1f3b54cb96",
+      "stdout_bytes": 2456,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:.chanlun/review-results/issue1527-formal-i1-20261018/MANIFEST.json"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "5e5fc02433ab2ecf3365ea9f80a7ae1a028de3b4b0eba825d46ec76178259732",
+      "stdout_bytes": 6692,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:.chanlun/review-results/issue1527-formal-i1-20261018/package_checks.py"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "b6cd6486fb2045da409f8ce16df1ae65f540ab299694c4458250c2210d333b40",
+      "stdout_bytes": 6650,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:.chanlun/review-results/issue1527-formal-i1-20261018/static_checks.py"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "2a97f27701e9bcce298f494d922fd8e857f7e783aeac4bcb3fdd5856d31fc10b",
+      "stdout_bytes": 5428,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:.chanlun/review-results/issue1527-i1-b2b3-20261018/B2B3.md"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "70c8788d8bfc3ed7dab12257450167260d4def81b4c3cfff32ecccf5d52cd2bf",
+      "stdout_bytes": 11239,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:.chanlun/review-results/issue1527-i1-b2b3-20261018/CHECKS.json"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "9203a260e597b09df3de0b7cde925b023fc9ed39d4785d5921197bfa438c4255",
+      "stdout_bytes": 21957,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:.chanlun/review-results/issue1527-i1-b2b3-20261018/FINAL-STATIC-RESULT.json"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "8f2cb1079654d4ec546886babb295cdbb9f5637ba7fc279b7a53ef876c2ac164",
+      "stdout_bytes": 2090,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:.chanlun/review-results/issue1527-i1-b2b3-20261018/FINAL.patch"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "075e726c10d886e945c263a7a7b2a1d83d41f6df87535d738cc4a6144253171c",
+      "stdout_bytes": 48185,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:.chanlun/review-results/issue1527-i1-b2b3-20261018/INITIAL-SHARED.patch"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "dca79b168e7806e0879e564bb3f69bb9ac0f590b289f0f1ce5435a3dd1b59fb5",
+      "stdout_bytes": 1351,
+      "stderr": "",
+      "stdout": "--- a/rust/src/bin/s_session_v3/state.rs\n+++ b/rust/src/bin/s_session_v3/state.rs\n@@ -515,11 +515,11 @@\n     {\n         let _ = (tx, deadline, max, job, profile);\n         Err(\"prototype_audit_allocation_incomplete：Q分配原型未启用\".into())\n     }\n }\n-fn audit_with_budget(\n+pub(super) fn audit_with_budget(\n     tx: &Transaction<'_>,\n     deadline: Option<std::time::Instant>,\n     max_render_bytes: Option<u64>,\n     budget: Option<&dyn audit_budget::Budget>,\n ) -> Result<AuditedState, String> {\n--- a/rust/src/bin/s_session_v3/audit_owner.rs\n+++ b/rust/src/bin/s_session_v3/audit_owner.rs\n@@ -339,11 +339,12 @@\n         } else {\n             s_allocation::audit_startup(tx, mode)?;\n         }\n         verify_writer_epoch(tx, epoch)?;\n         let control = control::S3Control::attach(tx, clock)?;\n-        let (profile_value, profile_id, profile_hash) = load_profile(profile)?;\n+        let (profile_value, profile_id, profile_hash) =\n+            super::admission::load_startup_profile(profile)?;\n         if profile_id != tb02a::PROFILE {\n             return Err(\"VersionUnsupported：S3驱动尚未实现非OHLC生成，拒绝接纳\".into());\n         }\n         if meta_get_opt(tx, \"profile_hash\")?.as_deref() != Some(profile_hash.as_str()) {\n             return Err(\"IdentityConflict：S3驱动profile与冻结档案不符\".into());\n"
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:.chanlun/review-results/issue1527-i1-b2b3-20261018/MANIFEST.json"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "e1ca9a5baa9ddaf83be3db10e20f52ea0034308f55ceb00967db5d676d8d5024",
+      "stdout_bytes": 8379,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:.chanlun/review-results/issue1527-i1-b2b3-20261018/NARROW-SHARED.patch"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "44e1461033b145f812e79c5741d0caad32021a4e9416f6eb16a216b18d6e54fb",
+      "stdout_bytes": 5156,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:.chanlun/review-results/issue1527-i1-b2b3-20261018/STATIC-RESULT.json"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "a067f57d0f65da2ee574f7dcc602b5424c4cd3ad9f8bab714b9bb67302bcb1dd",
+      "stdout_bytes": 2359,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:.chanlun/review-results/issue1527-i1-b2b3-20261018/seal.py"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "24f73374088c9f62cf49604ecbb3b49cfd043f2b407dd77961b1beca59ae29f2",
+      "stdout_bytes": 7697,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:.chanlun/review-results/issue1527-i1-b2b3-20261018/validate.py"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "09566653dec11d75fc8b1d26cf290572ad923ba06eba4ec3b9748858fe8079e0",
+      "stdout_bytes": 12232,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-review-worktree",
+        "show",
+        "3dde745d3909f882beac67de106a42d0f097aa65:.chanlun/review-results/issue1527-formal-i1-review-20261018/REVIEW.md"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "02887e075dab2857f225c4aad213c737e49a1a3e35bf101feaeb5f2086290379",
+      "stdout_bytes": 20412,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:rust/src/bin/s_session_v3/admission_anchor.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "7a843631bdfb4ad28fbc97da30e1da2bfeace4c0434fcbd1f82592d3321195c7",
+      "stdout_bytes": 45319,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:rust/src/bin/s_session_v3/admission_private/mod.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "77365f849305df523a2e8ac725d9bdaca87ee2178b7dccc9acce38c9148f16b0",
+      "stdout_bytes": 9896,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:rust/src/bin/s_session_v3/admission_private/fd_wal.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "4a5e210dc8c3cbb9ba2885202feed665e94a6ce8d63ce8e8d5e616371e5d6a71",
+      "stdout_bytes": 34863,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:rust/src/bin/s_session_v3/state.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "0d5fef5afbae66d1b9a84c77df73e3443f4e1c841b3290414291c38c272b93ed",
+      "stdout_bytes": 117614,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:rust/src/bin/s_session_v3/audit_owner.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "565cba303bbd3e4eeacfe02b46fe357905d9c4739375e4aff39d3f832214b61c",
+      "stdout_bytes": 183965,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:rust/src/bin/s_session_v3/driver.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "d311d3267251a1bb1acb96261b8178d35d03af880e7ea2fab3434bd31bbf4307",
+      "stdout_bytes": 182154,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:rust/src/bin/s_session_v3/writer_cli.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "62df023972c1a0c3f575b33cead4f7bd700b99111eec6afa2805f929c359bd2b",
+      "stdout_bytes": 30765,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:rust/src/bin/s_session_v3/mod.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "f301023bba9f1d6588f0021694b1ff9a0498f481e174889b20b0bd5a83936811",
+      "stdout_bytes": 65232,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:rust/src/bin/s_session_v2/mod.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "a27ecf49731dd4938696b57406aeb51e0d5f42fd066d917ba2ffc6976ebb13df",
+      "stdout_bytes": 161159,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:rust/src/bin/s_structure_session.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "fc9b7278cab67cf2ef644ed6a1a618c6360b4c814757c25d7fe4387f642ebb7b",
+      "stdout_bytes": 481339,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:rust/src/s_content/job.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "de9c6f46b4e8827962f0ef3e7b31bd1300b2e9b461c58e573cb7efa001939554",
+      "stdout_bytes": 57613,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:s_session/tests/issue1527_recovery/b2b3_terminal_tests.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "c9bb5c7fa6154d12c6100a81483595d9087cb7040d6b9ef588efd4dbad0d4b6f",
+      "stdout_bytes": 3890,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:s_session/tests/issue1527_recovery/provider_tests.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "ed27f916eeb08167a57e05ebb9696b705ce45021e2c569387dafafdc0fa7c720",
+      "stdout_bytes": 6624,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:rust/src/bin/s_session_v3/admission.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "b8f9f4e38ad94831e005804a71f61eb8d90294094372dc694eca603e3d8a6a14",
+      "stdout_bytes": 14551,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:rust/src/bin/s_session_v3/admission_provider.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "45306996a31c5f8f760a8d107b57894a1d2fa9d966fc15eaf9cdca880f45a18f",
+      "stdout_bytes": 12572,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "rustfmt",
+        "--edition",
+        "2021",
+        "--emit",
+        "stdout",
+        "--config",
+        "skip_children=true"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": "af8fe339de50438854c35cfbe7c2b6e2c68cdce76e07a17f643606d27d1535b1",
+      "stdout_sha256": "af8fe339de50438854c35cfbe7c2b6e2c68cdce76e07a17f643606d27d1535b1",
+      "stdout_bytes": 15284,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "rustfmt",
+        "--edition",
+        "2021",
+        "--emit",
+        "stdout",
+        "--config",
+        "skip_children=true"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": "05e50a96d6fb9b8adb03f7d6f9c9dad7cabc0810a139980e389e09f9f1deb2de",
+      "stdout_sha256": "05e50a96d6fb9b8adb03f7d6f9c9dad7cabc0810a139980e389e09f9f1deb2de",
+      "stdout_bytes": 17981,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "rustfmt",
+        "--edition",
+        "2021",
+        "--emit",
+        "stdout",
+        "--config",
+        "skip_children=true"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": "b536c7360ddbcb2ac221da9aa4d6110f7d2fdf0d20f00f72bb0a1f08a2f7ef6b",
+      "stdout_sha256": "b536c7360ddbcb2ac221da9aa4d6110f7d2fdf0d20f00f72bb0a1f08a2f7ef6b",
+      "stdout_bytes": 11939,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        ".chanlun/review-results/issue1527-rust-h1m02-repair-20261018/models.py"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "1320f0e81035fa13f7c0d1a0206724038ab9db3db266707f366003caf981491e",
+      "stdout_bytes": 10548,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_bytes": 0,
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--binary",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f",
+        "--",
+        "rust/src/bin/s_session_v3/admission.rs",
+        "rust/src/bin/s_session_v3/admission_provider.rs",
+        "s_session/tests/issue1527_recovery/provider_tests.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "da75b61856923eb4206191c869b8024e13e1a9513d182f0d27f30e7c94518e7b",
+      "stdout_bytes": 15498,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:rust/src/bin/s_session_v3/admission.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "b8f9f4e38ad94831e005804a71f61eb8d90294094372dc694eca603e3d8a6a14",
+      "stdout_bytes": 14551,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:rust/src/bin/s_session_v3/admission_provider.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "45306996a31c5f8f760a8d107b57894a1d2fa9d966fc15eaf9cdca880f45a18f",
+      "stdout_bytes": 12572,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:s_session/tests/issue1527_recovery/provider_tests.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "ed27f916eeb08167a57e05ebb9696b705ce45021e2c569387dafafdc0fa7c720",
+      "stdout_bytes": 6624,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:rust/src/bin/s_session_v3/admission.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "b8f9f4e38ad94831e005804a71f61eb8d90294094372dc694eca603e3d8a6a14",
+      "stdout_bytes": 14551,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:rust/src/bin/s_session_v3/admission_provider.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "45306996a31c5f8f760a8d107b57894a1d2fa9d966fc15eaf9cdca880f45a18f",
+      "stdout_bytes": 12572,
+      "stderr": "",
+      "stdout": null
+    },
+    {
+      "argv": [
+        "git",
+        "show",
+        "f7d34f47cba8a0ea0ceb55499206520f058da61f:s_session/tests/issue1527_recovery/provider_tests.rs"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/formal-i1-worktree",
+      "rc": 0,
+      "stdin_sha256": null,
+      "stdout_sha256": "ed27f916eeb08167a57e05ebb9696b705ce45021e2c569387dafafdc0fa7c720",
+      "stdout_bytes": 6624,
+      "stderr": "",
+      "stdout": null
+    }
+  ],
+  "rust_test_sources": [
+    {
+      "file": "rust/src/bin/s_session_v3/admission_provider.rs",
+      "name": "closed_controller_fd_with_retained_path_is_pinned_and_physically_counted",
+      "status": "NOT_RUN"
+    },
+    {
+      "file": "rust/src/bin/s_session_v3/admission_provider.rs",
+      "name": "control_lock_substitutes_are_rejected",
+      "status": "NOT_RUN"
+    },
+    {
+      "file": "rust/src/bin/s_session_v3/admission_provider.rs",
+      "name": "held_controller_lock_is_pinned_and_physically_counted_without_relocking",
+      "status": "NOT_RUN"
+    },
+    {
+      "file": "rust/src/bin/s_session_v3/admission_provider.rs",
+      "name": "known_control_lock_does_not_allow_unknown_sidecars",
+      "status": "NOT_RUN"
+    },
+    {
+      "file": "rust/src/bin/s_session_v3/admission_provider.rs",
+      "name": "same_bytes_replacement_cannot_replace_the_pinned_control_lock",
+      "status": "NOT_RUN"
+    },
+    {
+      "file": "s_session/tests/issue1527_recovery/provider_tests.rs",
+      "name": "failed_finish_keeps_pending_original_deadline_and_rejects_guard_even_after_cleanup",
+      "status": "NOT_RUN"
+    },
+    {
+      "file": "s_session/tests/issue1527_recovery/provider_tests.rs",
+      "name": "failed_finish_keeps_stopped_first_error_actual_wire_and_reservation_until_stderr",
+      "status": "NOT_RUN"
+    },
+    {
+      "file": "s_session/tests/issue1527_recovery/provider_tests.rs",
+      "name": "successful_finish_clears_startup_account_once_and_keeps_runtime_qualification",
+      "status": "NOT_RUN"
+    }
+  ],
+  "inherited": [
+    "旧独评 H-01/M-02 及 B1；只取固定 Git 报告，不重写旧结论",
+    "f7d34f47 的 B2 同账/终端stderr和 B3 S3原算法审计；本轮核原字节，未重跑",
+    "父目录 XERJ 缓存仅作既有检索参考；未安装/索引/联网"
+  ],
+  "not_run": [
+    "cargo/rustc/build",
+    "全部 Rust 测试/类型/借用/ABI/Drop运行",
+    "SQLite 实际执行/Controller和Rust跨进程联调",
+    "正式S/Q/旧binary/历史重型",
+    "完整9011/资源峰值/恢复/金融隔离独立双跑",
+    "继承模型/测试重跑",
+    "网络"
+  ],
+  "open": [
+    "B1 D2生产RAM",
+    "S2/legacy旧域计量",
+    "I1最终验收",
+    "I2",
+    "I3",
+    "I4",
+    "I5",
+    "9011",
+    "64GiB/store",
+    "AgentStorage148GiB",
+    "金融/隔离/真实恢复/独立双跑/全部六目标"
+  ],
+  "status": "PASS_STATIC_AND_MODELS_ONLY"
+}

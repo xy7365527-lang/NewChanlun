@@ -60,12 +60,17 @@ struct Inner {
     lease: Arc<BudgetLease>,
     source: MeasuredDomain,
     accounting: RefCell<Option<FinishedAdmission>>,
+    // #1527 M-02：原 Job 的未结预留错误不设 stopped；scope 必须保留首次收尾失败。
+    startup_failure: RefCell<Option<String>>,
     // 资格必须与文件锁同寿命，控制 lease 的 Arc 不能单独授权开库。
     writer: Lock,
     maintenance: Lock,
 }
 impl Inner {
     fn startup_gate(&self) -> Result<(), String> {
+        if let Some(error) = self.startup_failure.borrow().as_ref() {
+            return Err(error.clone());
+        }
         if let Some(account) = self.accounting.borrow_mut().as_mut() {
             account
                 .accounting()
@@ -162,6 +167,7 @@ impl WriterScope {
                 lease: Arc::clone(finished.lease()),
                 source,
                 accounting: RefCell::new(Some(finished)),
+                startup_failure: RefCell::new(None),
                 writer,
                 maintenance,
             }),
@@ -188,12 +194,20 @@ impl WriterScope {
     }
     /// Ready 前结束启动外围账；之后服务请求沿既有请求账，不把启动期限冒作永久租约。
     pub(crate) fn finish_startup(&self) -> Result<(), String> {
+        if let Some(error) = self.inner.startup_failure.borrow().as_ref() {
+            return Err(error.clone());
+        }
         let mut state = self.inner.accounting.borrow_mut();
         if let Some(account) = state.as_mut() {
-            account.finish_output().map_err(|e| e.to_string())?;
+            if let Err(error) = account.finish_output() {
+                let error = error.to_string();
+                *self.inner.startup_failure.borrow_mut() = Some(error.clone());
+                return Err(error);
+            }
+            // 成功才撤下同一本启动账和 B2 终端引用；失败不动原量、预留或 t0。
+            state.take();
+            super::admission_anchor::finish_terminal_startup();
         }
-        state.take();
-        super::admission_anchor::finish_terminal_startup();
         Ok(())
     }
     pub(crate) fn write_result(&self, value: &serde_json::Value) -> Result<(), String> {

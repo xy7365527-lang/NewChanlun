@@ -131,6 +131,10 @@ impl MeasuredDomain {
             consumed.check(Stage::E6).map_err(|e| e.to_string())?;
             let pinned = Pinned::open(path).map_err(|e| consumed.failure(&e))?;
             consumed.check(Stage::E6).map_err(|e| e.to_string())?;
+            // #1527 H-01：监督器的既存控制锁只读固定、照实计量；不创建、不重新 flock。
+            if path == &sidecar(&db, ".control.lock") && pinned.directory {
+                return Err(consumed.failure("ControlLockNotRegular"));
+            }
             if !identities.insert((pinned.stamp.dev, pinned.stamp.ino)) {
                 return Err(consumed.failure("SourceAliasedMember"));
             }
@@ -230,6 +234,7 @@ impl MeasuredDomain {
                         "-journal",
                         ".writer.lock",
                         ".maintenance.lock",
+                        ".control.lock",
                         ".control-owner.json",
                         ".admission-private",
                     ]
@@ -338,15 +343,147 @@ impl MeasuredDomain {
         }
         Ok(())
     }
-    /// 原件开始合法写入后不能再要求旧 mtime/长度；只核原主库和固定目录身份。
+    /// 原件合法写入后主库/目录只核身份；监督器控制锁仍核固定完整 stamp。
     /// 此门不证明 sidecar 的跨开库连续性（I-3）。
     pub(super) fn verify_runtime(&self) -> Result<(), String> {
         self.files[self.main_index].verify(false)?;
         for p in &self.files {
             if p.directory {
                 p.verify(false)?;
+            } else if p.path == sidecar(&self.db, ".control.lock") {
+                // #1527 H-01：关 FD 留路径合法；控制锁不是 SQLite 的可变侧件。
+                p.verify(true)?;
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod control_lock_tests {
+    // #1527 H-01：仅普通文件/真实 loader 的源码测试；本轮 NOT_RUN。
+    use super::*;
+    use std::io::Write;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    struct Fixture {
+        root: PathBuf,
+        db: PathBuf,
+        control: PathBuf,
+    }
+    impl Fixture {
+        fn new() -> Self {
+            let root = std::env::temp_dir().join(format!(
+                "issue1527-control-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            std::fs::create_dir(&root).unwrap();
+            let root = root.canonicalize().unwrap();
+            let db = root.join("ordinary.db");
+            std::fs::write(&db, b"provider test: no SQLite open").unwrap();
+            let control = sidecar(&db, ".control.lock");
+            Self { root, db, control }
+        }
+        fn consumed(&self) -> ConsumedAdmission {
+            super::super::admission_anchor::test_prepare(&self.db)
+                .consume()
+                .unwrap()
+        }
+    }
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+
+    fn control_lock_is_measured(held: bool) {
+        let f = Fixture::new();
+        let mut controller = File::create(&f.control).unwrap();
+        controller.write_all(&[0x52; 4096]).unwrap();
+        controller.sync_all().unwrap();
+        controller.try_lock().unwrap();
+        let original = Stamp::of(&controller.metadata().unwrap());
+        assert!(original.blocks > 0);
+        let controller = if held {
+            Some(controller)
+        } else {
+            drop(controller);
+            None
+        };
+        let consumed = f.consumed();
+        let source = MeasuredDomain::measure(&consumed).unwrap();
+        let pinned = source.files.iter().find(|p| p.path == f.control).unwrap();
+        assert_eq!(pinned.stamp, original);
+        assert_eq!(Stamp::of(&pinned.file.metadata().unwrap()), original);
+        assert_eq!(Stamp::of(&std::fs::metadata(&f.control).unwrap()), original);
+        let expected: u64 = source
+            .members
+            .iter()
+            .map(|p| std::fs::symlink_metadata(p).unwrap().blocks() * 512)
+            .sum();
+        assert_eq!(source.existing.store_bytes, expected);
+        assert_eq!(source.existing.staged_bytes, 0);
+        let without_control = expected - original.blocks * 512;
+        assert!(source.existing.store_bytes > without_control);
+        source.verify_before_open().unwrap();
+        source.verify_runtime().unwrap();
+
+        let probe = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&f.control)
+            .unwrap();
+        if held {
+            assert!(probe.try_lock().is_err(), "监督器仍拥有锁");
+            drop(controller);
+        }
+        probe.try_lock().unwrap(); // provider 的只读 FD 没有争抢/延长控制锁。
+        assert_eq!(std::fs::read(&f.control).unwrap(), vec![0x52; 4096]);
+    }
+
+    #[test]
+    fn held_controller_lock_is_pinned_and_physically_counted_without_relocking() {
+        control_lock_is_measured(true);
+    }
+    #[test]
+    fn closed_controller_fd_with_retained_path_is_pinned_and_physically_counted() {
+        control_lock_is_measured(false);
+    }
+    #[test]
+    fn known_control_lock_does_not_allow_unknown_sidecars() {
+        let f = Fixture::new();
+        std::fs::write(&f.control, b"").unwrap();
+        let consumed = f.consumed();
+        std::fs::write(sidecar(&f.db, ".unknown"), b"unknown").unwrap();
+        assert!(MeasuredDomain::measure(&consumed)
+            .err()
+            .unwrap()
+            .contains("UnknownDatabaseSidecar"));
+    }
+    #[test]
+    fn control_lock_substitutes_are_rejected() {
+        for kind in ["symlink", "hardlink", "directory"] {
+            let f = Fixture::new();
+            let consumed = f.consumed();
+            match kind {
+                "symlink" => std::os::unix::fs::symlink(&f.db, &f.control).unwrap(),
+                "hardlink" => std::fs::hard_link(&f.db, &f.control).unwrap(),
+                _ => std::fs::create_dir(&f.control).unwrap(),
+            }
+            assert!(MeasuredDomain::measure(&consumed).is_err(), "{kind}");
+        }
+    }
+    #[test]
+    fn same_bytes_replacement_cannot_replace_the_pinned_control_lock() {
+        let f = Fixture::new();
+        std::fs::write(&f.control, b"control").unwrap();
+        let source = MeasuredDomain::measure(&f.consumed()).unwrap();
+        let replacement = f.root.join("replacement");
+        std::fs::write(&replacement, b"control").unwrap();
+        std::fs::rename(&replacement, &f.control).unwrap();
+        assert!(source.verify_before_open().is_err());
+        assert!(source.verify_runtime().is_err());
     }
 }
