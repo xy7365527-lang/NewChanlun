@@ -93,6 +93,16 @@ fn copy_string(text: &str, work: Option<&WorkScope>) -> Result<String, CodecErro
     Ok(value)
 }
 impl NativeValue<String> {
+    /// 仅供旧无scope边界按值取回原String；Native许可存在即拒绝，不复制或保留绕行。
+    pub fn into_unscoped(self) -> Result<String, CodecError> {
+        if self.permit.is_some() {
+            return Err(CodecError::static_detail(
+                crate::s_content::code::SOURCE,
+                "Native字符串不可移出原许可",
+            ));
+        }
+        Ok(self.value)
+    }
     /// 接收旧无作用域 API 已拥有的字符串；不分配，也不声称已准入。
     pub fn from_unscoped(value: String) -> Self {
         Self::from_reserved(value, None)
@@ -165,6 +175,21 @@ impl Default for NativeRefFields {
     }
 }
 impl NativeRefFields {
+    /// #1488 只读实体布局统计；不释放、不转移许可，也不将统计值当成准入。
+    pub fn plain_retained_bytes(&self) -> Option<usize> {
+        self.entries.iter().try_fold(
+            self.entries.capacity().checked_mul(std::mem::size_of::<(
+                NativeValue<String>,
+                NativeValue<ContentRef>,
+            )>())?,
+            |bytes, (key, value)| {
+                bytes
+                    .checked_add(key.capacity())?
+                    .checked_add(value.format.capacity())?
+                    .checked_add(value.root.capacity())
+            },
+        )
+    }
     /// 借用来源不转移旧许可：新键、引用、buffer 都在当前域先准入再复制。
     /// 输入可任意排列，输出按键规范序；重复名称不以 map 覆盖掩盖。
     pub fn try_from_views<'a>(
@@ -406,6 +431,28 @@ mod tests {
             .unwrap()
             .run(f)
             .unwrap()
+    }
+
+    #[test]
+    fn string_unscoped_exit_moves_only_legacy_payload_and_rejects_native() {
+        let mut plain = String::with_capacity(64);
+        plain.push_str("legacy-only");
+        let pointer = plain.as_ptr();
+        let capacity = plain.capacity();
+        let returned = NativeValue::<String>::from_unscoped(plain)
+            .into_unscoped()
+            .unwrap();
+        assert_eq!(returned, "legacy-only");
+        assert_eq!(returned.as_ptr(), pointer);
+        assert_eq!(returned.capacity(), capacity);
+
+        let parent = Parent::new(1 << 20);
+        let native = run(&parent, |work| {
+            NativeValue::<String>::try_from_str("must-stay-owned", Some(work))
+        });
+        assert!(parent.native() > 0);
+        assert!(native.into_unscoped().is_err());
+        assert_eq!(parent.live(), 0);
     }
 
     #[test]
@@ -952,6 +999,11 @@ mod tests {
         );
         assert_eq!(fields.get("a").unwrap().as_ref(), &first);
         let charged = parent.native();
+        // Layout inspection must neither release the payload owners nor charge a second time.
+        let layout = fields.plain_retained_bytes().unwrap();
+        assert_eq!(layout, charged);
+        assert_eq!(fields.plain_retained_bytes(), Some(layout));
+        assert_eq!(parent.native(), charged);
         let cloned = run(&parent, |work| fields.try_clone_admitted(work));
         assert_eq!(parent.native(), 2 * charged);
         drop(cloned);

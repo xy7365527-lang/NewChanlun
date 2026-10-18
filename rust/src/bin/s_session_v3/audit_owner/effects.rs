@@ -672,6 +672,12 @@ pub(super) struct Change {
     pub(super) old: Option<Vec<SqlCell>>,
     pub(super) new: Option<Vec<SqlCell>>,
 }
+impl Retained for Change {
+    fn heap_bytes(&self) -> usize {
+        // table/rowid/slot无动态载荷，原有old/new真实容器各计一次。
+        sum([self.old.heap_bytes(), self.new.heap_bytes()])
+    }
+}
 pub(super) struct Effects {
     pub(super) set: Option<construction_set::PendingSet>,
     pub(super) changes: Vec<Change>,

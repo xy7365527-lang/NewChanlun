@@ -31,6 +31,11 @@ pub struct NativeReservation {
     bytes: usize,
 }
 impl NativeReservation {
+    /// 只核父账身份；有效操作域仍由本次reserve_native检查。
+    #[doc(hidden)]
+    pub fn belongs_to_parent(&self, work: &WorkScope) -> bool {
+        Arc::ptr_eq(&self.parent, &work.handle.core().parent)
+    }
     pub fn retain(mut self) {
         self.bytes = 0;
     }

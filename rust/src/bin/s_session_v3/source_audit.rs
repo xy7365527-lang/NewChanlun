@@ -1763,7 +1763,7 @@ fn audit_object_record_with_slots(
                 content_producer::object_id_display(&identity)
             ))
             .map_err(err)?;
-        if id != expected {
+        if id.as_str() != expected.as_str() {
             return Err(err("typed obj3身份与来源/载荷原件不符"));
         }
         if tb02b::KINDS.contains(&kind.as_str()) {
@@ -1989,7 +1989,7 @@ fn audit_shape_record(
             content_producer::object_id_display(&identity)
         ))
         .map_err(err)?;
-    if expected != object.id {
+    if expected.as_str() != object.id.as_str() {
         return Err(err("CC006 obj3与同cut组事实身份不符"));
     }
     Ok(Shape { groups: indices })

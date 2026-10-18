@@ -979,20 +979,26 @@ impl CatalogAxisTable {
     }
 }
 
-pub(super) fn catalog_axes<'a>(
+pub(super) fn catalog_axes<'a, 'objects, 'changes>(
     table: CatalogAxisTable,
-    objects: &[Value],
+    objects: impl Into<crate::v3::business_json::RawEventsView<'objects>>,
     raw: impl Into<crate::v3::business_json::RawEventsView<'a>>,
     previous_frontier: i64,
-    withdrawals: &[Value],
-    replaces: &[Value],
+    withdrawals: impl Into<crate::v3::business_json::RawEventsView<'changes>>,
+    replaces: impl Into<crate::v3::business_json::RawEventsView<'changes>>,
 ) -> Value {
+    use crate::v3::business_json::field;
+    let objects = objects.into();
     let raw = raw.into();
+    let withdrawals = withdrawals.into();
+    let replaces = replaces.into();
     let mut axes = serde_json::Map::new();
     let knowledge = objects
         .iter()
-        .find(|o| o["kind"] == "CC-054.knowledge_state")
-        .map(|o| serde_json::from_str::<Value>(o["payload_json"].as_str().unwrap()).unwrap());
+        .find(|o| field(*o, "kind").as_str() == Some("CC-054.knowledge_state"))
+        .map(|o| {
+            serde_json::from_str::<Value>(field(o, "payload_json").as_str().unwrap()).unwrap()
+        });
     for &axis in table.axes() {
         let kind = match axis {
             "CC-001" | "CC-002" | "CC-003" | "CC-004" => "CC-004.inclusion_step",
@@ -1015,7 +1021,7 @@ pub(super) fn catalog_axes<'a>(
         let ids: Vec<Value> = objects
             .iter()
             .filter(|o| {
-                o["kind"].as_str().is_some_and(|k| {
+                field(*o, "kind").as_str().is_some_and(|k| {
                     if kind.ends_with('.') {
                         k.starts_with(kind)
                     } else {
@@ -1026,13 +1032,13 @@ pub(super) fn catalog_axes<'a>(
             .filter(|o| {
                 if matches!(axis, "CC-001" | "CC-002" | "CC-003") {
                     let p: Value =
-                        serde_json::from_str(o["payload_json"].as_str().unwrap()).unwrap();
+                        serde_json::from_str(field(*o, "payload_json").as_str().unwrap()).unwrap();
                     !p["comparisons"].as_array().unwrap().is_empty()
                 } else {
                     true
                 }
             })
-            .map(|o| o["object_id"].clone())
+            .map(|o| serde_json::to_value(field(o, "object_id")).unwrap())
             .collect();
         let mut waiting: Vec<Value> = Vec::new();
         if let Some(k) = &knowledge {
@@ -1049,17 +1055,22 @@ pub(super) fn catalog_axes<'a>(
             }
         }
         if matches!(axis, "CC-008" | "CC-009" | "CC-010" | "CC-055" | "CC-056") {
-            for o in objects.iter().filter(|o| o["kind"] == "CC-056.version") {
-                let p: Value = serde_json::from_str(o["payload_json"].as_str().unwrap()).unwrap();
+            for o in objects
+                .iter()
+                .filter(|o| field(*o, "kind").as_str() == Some("CC-056.version"))
+            {
+                let p: Value =
+                    serde_json::from_str(field(o, "payload_json").as_str().unwrap()).unwrap();
                 waiting.extend(p["data"]["waiting_reasons"].as_array().unwrap().clone());
             }
         }
         if matches!(axis, "CC-011" | "CC-012" | "CC-013" | "CC-014") {
             for o in objects
                 .iter()
-                .filter(|o| o["kind"] == "CC-056.segment_version")
+                .filter(|o| field(*o, "kind").as_str() == Some("CC-056.segment_version"))
             {
-                let p: Value = serde_json::from_str(o["payload_json"].as_str().unwrap()).unwrap();
+                let p: Value =
+                    serde_json::from_str(field(o, "payload_json").as_str().unwrap()).unwrap();
                 waiting.extend(p["data"]["waiting_reasons"].as_array().unwrap().clone());
             }
         }
@@ -1110,10 +1121,17 @@ pub(super) fn catalog_axes<'a>(
             evidence["raw_revisions"] = json!(revisions);
             evidence["withdrawals"] = json!(withdrawals
                 .iter()
-                .map(project_withdrawal_wire)
+                .map(|value| {
+                    let wire = crate::v3::business_json::WithdrawalWire::new(value)?;
+                    serde_json::to_value(wire.view()).map_err(|e| e.to_string())
+                })
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap());
-            evidence["replaces"] = json!(replaces);
+            evidence["replaces"] = json!(
+                newchan_rust::s_content::capture_allocation::audit_json::JsonView::BorrowedArray(
+                    &replaces
+                )
+            );
         }
         axes.insert(axis.into(),json!({"impl_status":if matches!(axis,"CC-012"|"CC-013"|"CC-014"){"not_implemented"}else{"implemented"},"proof_status":"not_proved","run_status":run,"evidence":evidence}));
     }

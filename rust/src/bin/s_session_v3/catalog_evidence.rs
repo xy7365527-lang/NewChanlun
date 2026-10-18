@@ -375,14 +375,16 @@ fn axes_entries<'r>(
 /// 字段、值类型、OHLC `tested_domain` 逐字沿旧生产；`batch_id` 用 `V::BatchSelf`；
 /// `scope` 取 `metadata.scope` 值边；`axes` 直接接同次最终 `generated_state.catalog_axes`
 /// 的值边（不重渲染、不重造轴）。8 个计数用规范十进制文本。
-pub(super) fn build_template(
+pub(super) fn build_template<'changes>(
     store: &mut dyn NodeStore,
     metadata: &ManifestMetadata,
     generated_state: &ContentRef,
     counts: &super::source_audit::Counts,
-    withdrawals: &[Value],
-    replaces: &[Value],
+    withdrawals: impl Into<RawEventsView<'changes>>,
+    replaces: impl Into<RawEventsView<'changes>>,
 ) -> Result<(TextValue, RefValue), String> {
+    let withdrawals = withdrawals.into();
+    let replaces = replaces.into();
     require_ohlc(&metadata.profile_id)?;
     let axes = generated_axes_ref(store, generated_state.into())?;
     let run = declared_run(counts);
@@ -431,7 +433,7 @@ pub(super) fn build_template(
 /// CC-056 的 `raw_revisions`/`withdrawals`/`replaces` 必须与调用者的独立依据逐位同根。
 /// 不重跑包含、分型、新笔或其它业务判定；不替代调用方的完整历史审计。
 #[allow(clippy::too_many_arguments)]
-pub(super) fn verify_cut<'a>(
+pub(super) fn verify_cut<'a, 'changes>(
     store: &mut dyn NodeStore,
     metadata: &ManifestMetadata,
     generated_state: &ContentRef,
@@ -439,8 +441,8 @@ pub(super) fn verify_cut<'a>(
     raw_prefix: impl Into<RawEventsView<'a>>,
     previous_frontier: i64,
     counts: &super::source_audit::Counts,
-    withdrawals: &[Value],
-    replaces: &[Value],
+    withdrawals: impl Into<RawEventsView<'changes>>,
+    replaces: impl Into<RawEventsView<'changes>>,
 ) -> Result<(), String> {
     verify_cut_metered(
         store,
@@ -457,7 +459,7 @@ pub(super) fn verify_cut<'a>(
     )
 }
 #[allow(clippy::too_many_arguments)]
-pub(super) fn verify_cut_until<'a>(
+pub(super) fn verify_cut_until<'a, 'changes>(
     store: &mut dyn NodeStore,
     metadata: &ManifestMetadata,
     generated_state: &ContentRef,
@@ -465,8 +467,8 @@ pub(super) fn verify_cut_until<'a>(
     raw_prefix: impl Into<RawEventsView<'a>>,
     previous_frontier: i64,
     counts: &super::source_audit::Counts,
-    withdrawals: &[Value],
-    replaces: &[Value],
+    withdrawals: impl Into<RawEventsView<'changes>>,
+    replaces: impl Into<RawEventsView<'changes>>,
     deadline: Option<std::time::Instant>,
 ) -> Result<(), String> {
     verify_cut_metered(
@@ -484,7 +486,7 @@ pub(super) fn verify_cut_until<'a>(
     )
 }
 #[allow(clippy::too_many_arguments)]
-pub(super) fn verify_cut_metered<'a>(
+pub(super) fn verify_cut_metered<'a, 'changes>(
     store: &mut dyn NodeStore,
     metadata: &ManifestMetadata,
     generated_state: &ContentRef,
@@ -492,13 +494,13 @@ pub(super) fn verify_cut_metered<'a>(
     raw_prefix: impl Into<RawEventsView<'a>>,
     previous_frontier: i64,
     counts: &super::source_audit::Counts,
-    withdrawals: &[Value],
-    replaces: &[Value],
+    withdrawals: impl Into<RawEventsView<'changes>>,
+    replaces: impl Into<RawEventsView<'changes>>,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<(), String> {
-    let withdrawal_view = bj::ValuesArray(withdrawals);
-    let replacement_view = bj::ValuesArray(replaces);
+    let withdrawal_view = withdrawals.into();
+    let replacement_view = replaces.into();
     verify_cut_in_store(
         &mut super::audit_store::StoreView::generic(store),
         metadata.view(),
@@ -1203,8 +1205,8 @@ mod tests {
         axes: ContentRef,
         raw: Vec<Value>,
         counts: source_audit::Counts,
-        withdrawals: Vec<Value>,
-        replaces: Vec<Value>,
+        withdrawals: bj::JsonOwner,
+        replaces: bj::JsonOwner,
         run: String,
         evidence_template: ContentRef,
         batch_id: String,
@@ -1374,7 +1376,7 @@ mod tests {
         };
         let mut generated = runtime.generate(&mut store, &generation_input).unwrap();
         let plan = object_index::plan(&mut store, &generated.objects, &[], 1).unwrap();
-        assert!(plan.withdrawals.is_empty() && plan.replaces.is_empty());
+        assert!(plan.withdrawals.array_len() == 0 && plan.replaces.array_len() == 0);
         generated
             .finish_axes(&mut store, -1, &plan.withdrawals, &plan.replaces)
             .unwrap();
@@ -1448,7 +1450,9 @@ mod tests {
             &evidence_template,
             &run,
         );
-        let generated_state = generated.generated_state.clone();
+        // 此夹具仅用无 scope MemoryNodes；生产路径不得借 Deref::clone 丢许可。
+        assert!(!generated.generated_state.is_native_admitted());
+        let generated_state = generated.generated_state.as_ref().clone();
         drop(generated);
         Fixture {
             dir,
@@ -1618,8 +1622,8 @@ mod tests {
             ("windows_total", f.counts.windows),
             ("merged_bars", f.counts.groups),
             ("effective_source_positions", f.counts.effective),
-            ("withdrawals", f.withdrawals.len()),
-            ("replaces", f.replaces.len()),
+            ("withdrawals", f.withdrawals.array_len()),
+            ("replaces", f.replaces.array_len()),
             ("insufficient_knowledge", f.counts.insufficient),
             ("domain_not_satisfied", f.counts.outside_domain),
         ] {

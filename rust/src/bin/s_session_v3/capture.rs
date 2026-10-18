@@ -414,7 +414,7 @@ impl ConfiguredCapture<'_> {
                 )?;
                 // Content回复也包含Delta引用，不能借片段路径绕过完整闭包的三原子门。
                 measure_delta(&mut graph, &cut.delta, self.resources, job)?;
-                cut.delta.clone()
+                super::audit_store::CodecRead::native_ref_clone(&graph, &cut.delta).map_err(err)?
             }
         };
         if self.capture.allocation.is_some() {

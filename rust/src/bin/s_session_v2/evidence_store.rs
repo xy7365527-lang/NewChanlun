@@ -1173,8 +1173,8 @@ struct RootRow {
 pub(super) struct VerifiedRoot {
     pub(super) bytes: std::sync::Arc<[u8]>,
     pub(super) declared_length: u64,
-    pub(super) content_sha256: String,
-    pub(super) value: Option<std::sync::Arc<Value>>,
+    pub(super) content_sha256: TextValue,
+    pub(super) value: Option<std::sync::Arc<crate::SharedPlainJson>>,
     /// 本次用新鲜行算出的闭包指纹（供「对原件内容敏感」的前缀/复用判据）。
     pub(super) closure: [u8; 32],
     /// 本次是否命中已核句柄（true = 未重新展开；false = 本次完整展开并核过）。
@@ -1192,7 +1192,7 @@ pub(super) struct VerifiedRoot {
 /// 只有当前完整闭包逐字节命中已核原件才成立；没有展开字节或解码值。
 pub(super) struct VerifiedRootProof {
     pub(super) declared_length: u64,
-    pub(super) content_sha256: String,
+    pub(super) content_sha256: TextValue,
     pub(super) closure: [u8; 32],
     pub(super) root_cert: std::sync::Arc<cache::RootCert>,
 }
@@ -1768,7 +1768,7 @@ impl<'a> Reader<'a> {
         Ok(Some(VerifiedRootProof {
             declared_length: check.row.expanded_length,
             content_sha256: NativeAdmission(self.work)
-                .native_string(check.row.content_sha256.as_str())
+                .native_text(check.row.content_sha256.as_str())
                 .map_err(|e| e.to_string())?,
             closure: check.digest,
             root_cert,
@@ -1867,7 +1867,7 @@ impl<'a> Reader<'a> {
                                 .ok_or_else(|| admission.native_overflow().to_string())?,
                         )
                         .map_err(|e| e.to_string())?;
-                    let cert = cache::RootCert::new(
+                    let cert = cache::RootCert::new_admitted(
                         check.row.node,
                         check.row.slots.to_vec(),
                         check.row.expanded_length,
@@ -1924,10 +1924,7 @@ impl<'a> Reader<'a> {
                     "StorageUnavailable：私有根 `{root_key}` 非 JSON 对象"
                 ));
             }
-            admission
-                .native_admit(std::mem::size_of::<Value>() + 2 * std::mem::size_of::<usize>())
-                .map_err(|e| e.to_string())?;
-            let parsed = std::sync::Arc::new(parsed);
+            let parsed = crate::share_plain_json_admitted(parsed, self.work)?;
             if let Some(cert) = retained.clone() {
                 retained = cache::handle_put_certified_admitted(
                     root_key,
@@ -1946,7 +1943,7 @@ impl<'a> Reader<'a> {
             bytes,
             declared_length: check.row.expanded_length,
             content_sha256: NativeAdmission(self.work)
-                .native_string(check.row.content_sha256.as_str())
+                .native_text(check.row.content_sha256.as_str())
                 .map_err(|e| e.to_string())?,
             value,
             closure: check.digest,
@@ -1968,7 +1965,7 @@ impl<'a> Reader<'a> {
     pub(super) fn read_fixed_cut_value(
         &mut self,
         root_key: &str,
-    ) -> Result<(std::sync::Arc<[u8]>, std::sync::Arc<Value>), String> {
+    ) -> Result<(std::sync::Arc<[u8]>, std::sync::Arc<crate::SharedPlainJson>), String> {
         let root = self.read_root(root_key, true)?;
         let value = root
             .value
@@ -2645,7 +2642,7 @@ mod metadata_regressions {
         let full = reader.read_root("batch/shared", true).unwrap();
         assert_eq!(full.bytes.as_ref(), expected);
         assert_eq!(
-            full.value.as_deref(),
+            full.value.as_deref().map(|v| v.as_ref()),
             Some(&v2::strict_json(&expected).unwrap())
         );
         assert_eq!(cache::retained_bytes(), 0);

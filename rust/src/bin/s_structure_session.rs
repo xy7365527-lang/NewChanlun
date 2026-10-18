@@ -39,7 +39,9 @@ mod v3;
 #[path = "s_session_v3/object_diff.rs"]
 mod object_diff;
 
+use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
 use std::collections::BTreeMap;
+use v3::business_json::{PlainJson, TextValue};
 
 #[path = "s_session_v2/audit.rs"]
 mod audit;
@@ -411,14 +413,100 @@ fn load_batch_bytes_with(
     load_batch_with(conn, reader, batch_id, false).map(|(bytes, _, _)| bytes)
 }
 
+/// Arc内联owner和控制块各自随最后共享者析构；不借scope保守记账代替所有权。
+struct SharedHeaderText {
+    text: TextValue,
+    _permit: Option<newchan_rust::s_content::capture_allocation::scratch::NativeReservation>,
+}
+fn share_header_text_admitted(
+    text: &str,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<std::sync::Arc<SharedHeaderText>, String> {
+    use v3::audit_store::{CodecRead, NativeAdmission};
+    let permit = work
+        .map(|work| {
+            work.reserve_native(
+                std::mem::size_of::<SharedHeaderText>() + 2 * std::mem::size_of::<usize>(),
+            )
+        })
+        .transpose()
+        .map_err(|e| e.to_string())?;
+    let text = NativeAdmission(work)
+        .native_text(text)
+        .map_err(|e| e.to_string())?;
+    Ok(std::sync::Arc::new(SharedHeaderText {
+        text,
+        _permit: permit,
+    }))
+}
+impl SharedHeaderText {
+    fn as_str(&self) -> &str {
+        self.text.as_str()
+    }
+}
+impl std::ops::Deref for SharedHeaderText {
+    type Target = str;
+    fn deref(&self) -> &str {
+        self.as_str()
+    }
+}
+impl std::fmt::Debug for SharedHeaderText {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.as_str().fmt(f)
+    }
+}
+impl PartialEq for SharedHeaderText {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+impl Eq for SharedHeaderText {}
+struct SharedPlainJson {
+    value: PlainJson,
+    _permit: Option<newchan_rust::s_content::capture_allocation::scratch::NativeReservation>,
+}
+impl SharedPlainJson {
+    fn as_ref(&self) -> &Value {
+        self.value.as_ref()
+    }
+}
+impl std::ops::Deref for SharedPlainJson {
+    type Target = Value;
+    fn deref(&self) -> &Value {
+        self.as_ref()
+    }
+}
+impl std::fmt::Debug for SharedPlainJson {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.as_ref().fmt(f)
+    }
+}
+fn share_plain_json_admitted(
+    value: PlainJson,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<std::sync::Arc<SharedPlainJson>, String> {
+    let permit = work
+        .map(|work| {
+            work.reserve_native(
+                std::mem::size_of::<SharedPlainJson>() + 2 * std::mem::size_of::<usize>(),
+            )
+        })
+        .transpose()
+        .map_err(|e| e.to_string())?;
+    Ok(std::sync::Arc::new(SharedPlainJson {
+        value,
+        _permit: permit,
+    }))
+}
+
 /// 只从已完整严格解析且公开内容身份核验通过的 batch 投影；不补字段、不从控制表反推。
 /// 旧 v1 忽略这四字段；v2 对每个 Some 字符串继续逐字比较，缺失/非字符串均不能通过。
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct BatchControlHeader {
-    protocol_revision: Option<String>,
-    session_generation: Option<String>,
-    clock_plan_hash: Option<String>,
-    semantic_commit_ns: Option<String>,
+    protocol_revision: Option<std::sync::Arc<SharedHeaderText>>,
+    session_generation: Option<std::sync::Arc<SharedHeaderText>>,
+    clock_plan_hash: Option<std::sync::Arc<SharedHeaderText>>,
+    semantic_commit_ns: Option<std::sync::Arc<SharedHeaderText>>,
 }
 impl BatchControlHeader {
     fn from_verified_batch(batch: &Value) -> Self {
@@ -428,16 +516,11 @@ impl BatchControlHeader {
         batch: &Value,
         work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
     ) -> Result<Self, String> {
-        use v3::audit_store::{CodecRead, NativeAdmission};
         let string = |key| {
             batch
                 .get(key)
                 .and_then(Value::as_str)
-                .map(|text| {
-                    NativeAdmission(work)
-                        .native_string(text)
-                        .map_err(|e| e.to_string())
-                })
+                .map(|text| share_header_text_admitted(text, work))
                 .transpose()
         };
         Ok(Self {
@@ -456,7 +539,7 @@ impl BatchControlHeader {
         ]
         .iter()
         .fold(4usize, |n, value| {
-            n.saturating_add(value.as_ref().map_or(0, String::len))
+            n.saturating_add(value.as_ref().map_or(0, |v| v.len()))
         })
     }
 }
@@ -663,7 +746,7 @@ fn load_batch_with(
 ) -> Result<
     (
         std::sync::Arc<[u8]>,
-        Option<std::sync::Arc<Value>>,
+        Option<std::sync::Arc<SharedPlainJson>>,
         Option<std::sync::Arc<cache::RootCert>>,
     ),
     String,
@@ -732,14 +815,17 @@ fn load_batch_with(
     Ok((root.bytes, root.value, root.root_cert))
 }
 
-fn parse_batch_value(bytes: &[u8], batch_id: &str) -> Result<std::sync::Arc<Value>, String> {
+fn parse_batch_value(
+    bytes: &[u8],
+    batch_id: &str,
+) -> Result<std::sync::Arc<SharedPlainJson>, String> {
     parse_batch_value_admitted(bytes, batch_id, None)
 }
 fn parse_batch_value_admitted(
     bytes: &[u8],
     batch_id: &str,
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
-) -> Result<std::sync::Arc<Value>, String> {
+) -> Result<std::sync::Arc<SharedPlainJson>, String> {
     use v3::audit_store::{CodecRead, NativeAdmission};
     let parsed = v3::business_json::strict_json_owner_admitted(bytes, None, work)
         .map(|parsed| match parsed {
@@ -764,10 +850,7 @@ fn parse_batch_value_admitted(
             "StorageUnavailable：batch {batch_id} 规范字节非 JSON 对象"
         ));
     }
-    NativeAdmission(work)
-        .native_admit(std::mem::size_of::<Value>() + 2 * std::mem::size_of::<usize>())
-        .map_err(|e| e.to_string())?;
-    Ok(std::sync::Arc::new(parsed))
+    share_plain_json_admitted(parsed, work)
 }
 
 /// #1394 第二段：逻辑记录大原件的**唯一**读取入口（Delta 原件与结构事实三列原件共用）。
@@ -814,7 +897,7 @@ fn load_batch_value_with(
     batch_id: &str,
 ) -> Result<
     (
-        std::sync::Arc<Value>,
+        std::sync::Arc<SharedPlainJson>,
         Option<std::sync::Arc<cache::RootCert>>,
     ),
     String,
@@ -1177,7 +1260,10 @@ fn verify_profile_binding(conn: &Connection) -> Result<(String, String), String>
     let (id, hash) = verify_profile_binding_with_owner(conn, None)?;
     match (id, hash) {
         (v3::business_json::TextValue::Plain(id), v3::business_json::TextValue::Plain(hash)) => {
-            Ok((id, hash))
+            Ok((
+                id.into_unscoped().map_err(|e| e.to_string())?,
+                hash.into_unscoped().map_err(|e| e.to_string())?,
+            ))
         }
         _ => Err("prototype_audit_allocation_incomplete：normal profile不可擦除Owned".into()),
     }
@@ -2215,73 +2301,144 @@ fn read_raw_events_until(
     Ok(rows)
 }
 
-/// Native cold原始账沿相同SQL顺序、列类型及唯一验证核，在借用后准入再复制。
+/// 当前scope拥有完整raw数组；借SQL字段与OHLC视图，不拆出裸Vec<Value>。
 fn read_raw_events_until_admitted(
     conn: &Connection,
     deadline: Option<std::time::Instant>,
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
-) -> Result<Vec<Value>, String> {
-    use v3::audit_store::CodecRead;
-    if work.is_none() {
-        return read_raw_events_until(conn, deadline);
-    }
+) -> Result<v3::business_json::JsonOwner, String> {
     check_read_deadline(deadline)?;
-    let admission = v3::audit_store::NativeAdmission(work);
+    if work.is_none() {
+        return Ok(v3::business_json::JsonOwner::Plain(
+            Value::Array(read_raw_events_until(conn, deadline)?).into(),
+        ));
+    }
     let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
         conn, c"SELECT identity_key, revision, input_revision, payload_hash, receipt_id, seq, source_namespace, source_epoch, instrument, event_id, received_at, raw_text, price, ts, volume, source_coord, supersedes_revision FROM raw_events ORDER BY seq ASC",
     ).map_err(|e| format!("prepare 读取失败：{e}"))?;
-    let mut rows = Vec::new();
+    let mut rows = v3::business_json::ScopedJsonArray::new(None, work)?;
     while let Some(mut row) = stmt.next().map_err(|e| format!("collect 失败：{e}"))? {
         check_read_deadline(deadline)?;
-        let mut fields = serde_json::Map::new();
-        for (column, key) in [
-            (0, "identity_key"),
-            (2, "input_revision"),
-            (3, "payload_hash"),
-            (4, "receipt_id"),
-            (6, "source_namespace"),
-            (7, "source_epoch"),
-            (8, "instrument"),
-            (9, "event_id"),
-            (10, "received_at"),
-            (11, "raw_text"),
-            (12, "price"),
-            (13, "ts"),
-            (14, "volume"),
-            (15, "source_coord"),
-        ] {
-            let text = row.text(column).map_err(|e| format!("collect 失败：{e}"))?;
-            let value = Value::String(admission.native_string(text).map_err(|e| e.to_string())?);
-            tb02a::raw_insert_admitted(&mut fields, key, value, &admission)?;
-        }
-        for (column, key) in [(1, "revision"), (5, "seq")] {
-            let value = Value::from(
-                row.integer(column)
-                    .map_err(|e| format!("collect 失败：{e}"))?,
-            );
-            tb02a::raw_insert_admitted(&mut fields, key, value, &admission)?;
-        }
-        let value = row
-            .optional_integer(16)
-            .map_err(|e| format!("collect 失败：{e}"))?
-            .map(Value::from)
-            .unwrap_or(Value::Null);
-        tb02a::raw_insert_admitted(&mut fields, "supersedes_revision", value, &admission)?;
-        admission
-            .native_vec_room(&mut rows, 1)
-            .map_err(|e| e.to_string())?;
-        rows.push(Value::Object(fields));
+        let owner = decode_raw_row_admitted(&mut row, work)?;
+        rows.push(owner.view())?;
     }
     stmt.finalize()
         .map_err(|e| format!("finalize 读取失败：{e}"))?;
-    tb02a::enrich_raw_until_admitted(conn, &mut rows, deadline, work)?;
-    v3::business_json::validate_raw_admitted(
-        v3::business_json::RawEventsView::plain(&rows),
-        deadline,
-        work,
-    )?;
+    // 全部raw列类型与SQL完成后才进入OHLC阶段，保留旧首错顺序。
+    let raw = rows.finish();
     check_read_deadline(deadline)?;
-    Ok(rows)
+    let ohlc = tb02a::prepare_raw_enrichment_admitted(conn, work)?;
+    let owner = if ohlc {
+        let mut enriched = v3::business_json::ScopedJsonArray::new(None, work)?;
+        for row in raw.view().as_array().expect("raw构造器只产数组").iter() {
+            check_read_deadline(deadline)?;
+            let row = tb02a::enrich_raw_view_admitted(conn, row, true, work)?;
+            enriched.push(row.view())?;
+        }
+        enriched.finish()
+    } else {
+        raw
+    };
+    // 同一验证核；RawEvents由拥有者保留原许可，不使借视图逃出。
+    // 验证逐行时不能丢掉修订链；统一入口接受借用JsonOwner数组。
+    v3::business_json::validate_raw_admitted((&owner).into(), deadline, work)?;
+    check_read_deadline(deadline)?;
+    Ok(owner)
+}
+
+fn decode_raw_row_admitted(
+    row: &mut newchan_rust::sqlite_checked::CheckedRow<'_>,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<v3::business_json::JsonOwner, String> {
+    use newchan_rust::s_content::capture_allocation::audit_json::JsonView;
+    use v3::audit_store::{CodecRead, NativeAdmission};
+    let admission = NativeAdmission(work);
+    let columns = [
+        (0, "identity_key"),
+        (2, "input_revision"),
+        (3, "payload_hash"),
+        (4, "receipt_id"),
+        (6, "source_namespace"),
+        (7, "source_epoch"),
+        (8, "instrument"),
+        (9, "event_id"),
+        (10, "received_at"),
+        (11, "raw_text"),
+        (12, "price"),
+        (13, "ts"),
+        (14, "volume"),
+        (15, "source_coord"),
+    ];
+    let mut texts: [Option<NativeValue<String>>; 14] = std::array::from_fn(|_| None);
+    let mut revision = None;
+    let mut seq = None;
+    for ((column, _), text) in columns.iter().zip(texts.iter_mut()) {
+        // 与旧decode_raw_row的列读取顺序相同：文本0、整数1、文本2..4、整数5。
+        if *column == 2 {
+            revision = Some(Value::from(
+                row.integer(1).map_err(|e| format!("collect 失败：{e}"))?,
+            ));
+        }
+        if *column == 6 {
+            seq = Some(Value::from(
+                row.integer(5).map_err(|e| format!("collect 失败：{e}"))?,
+            ));
+        }
+        *text = Some(
+            admission
+                .native_string(
+                    row.text(*column)
+                        .map_err(|e| format!("collect 失败：{e}"))?,
+                )
+                .map_err(|e| e.to_string())?,
+        );
+    }
+    let revision = revision.expect("固定列序包含revision");
+    let seq = seq.expect("固定列序包含seq");
+    let supersedes = row
+        .optional_integer(16)
+        .map_err(|e| format!("collect 失败：{e}"))?
+        .map(Value::from)
+        .unwrap_or(Value::Null);
+    let mut fields: [(&str, JsonView<'_>); 17] = [("", JsonView::Null); 17];
+    for (index, ((_, key), text)) in columns.iter().zip(texts.iter()).enumerate() {
+        fields[index] = (key, JsonView::String(text.as_ref().unwrap().as_str()));
+    }
+    fields[14] = ("revision", (&revision).into());
+    fields[15] = ("seq", (&seq).into());
+    fields[16] = ("supersedes_revision", (&supersedes).into());
+    v3::business_json::json_from_view_admitted(
+        &admission,
+        JsonView::object_fields(&fields).map_err(|e| e.to_string())?,
+    )
+}
+
+/// Q固定追加与cold路径复用完全相同的列解码/OHLC借视图核。
+#[cfg(feature = "s_capture_native_testonly")]
+fn read_raw_event_at_admitted(
+    conn: &Connection,
+    seq: i64,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<v3::business_json::JsonOwner, String> {
+    let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(conn,
+        c"SELECT identity_key,revision,input_revision,payload_hash,receipt_id,seq,source_namespace,source_epoch,instrument,event_id,received_at,raw_text,price,ts,volume,source_coord,supersedes_revision FROM raw_events WHERE seq=?1").map_err(|e|format!("StorageUnavailable：{e}"))?;
+    stmt.bind_integer(1, seq)
+        .map_err(|e| format!("StorageUnavailable：{e}"))?;
+    let mut row = stmt
+        .next()
+        .map_err(|e| format!("StorageUnavailable：{e}"))?
+        .ok_or("StorageUnavailable：raw seq缺失")?;
+    let owner = decode_raw_row_admitted(&mut row, work)?;
+    drop(row);
+    stmt.finalize()
+        .map_err(|e| format!("StorageUnavailable：{e}"))?;
+    // 固定seq入口仍只读该行及对应OHLC，不新增全表计数。
+    let ohlc = tb02a::enabled_admitted(conn, work)?;
+    if ohlc {
+        tb02a::enrich_raw_view_admitted(conn, owner.view(), true, work)
+    } else {
+        Ok(owner)
+    }
 }
 
 fn decode_raw_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Value> {
@@ -3879,7 +4036,9 @@ fn project_wire_integers(v: &Value) -> Value {
     match v3::business_json::project_wire_integers_with_owner(v.into(), None)
         .expect("普通 wire 整数投影")
     {
-        v3::business_json::JsonOwner::Plain(v) => v,
+        v3::business_json::JsonOwner::Plain(v) => {
+            v.into_unscoped().expect("None wire入口不持Native许可")
+        }
         #[cfg(feature = "s_allocation_json_testonly")]
         v3::business_json::JsonOwner::Owned(_) => unreachable!("None入口不返回owned"),
     }
@@ -4086,7 +4245,7 @@ enum JsonShape {
 
 fn json_shape(text: &str, shape: JsonShape) -> Result<Value, String> {
     match json_shape_with_owner(text, shape, None)? {
-        v3::business_json::JsonOwner::Plain(v) => Ok(v),
+        v3::business_json::JsonOwner::Plain(v) => v.into_unscoped(),
         #[cfg(feature = "s_allocation_json_testonly")]
         v3::business_json::JsonOwner::Owned(_) => {
             Err("prototype_audit_allocation_incomplete：normal JSON shape不可擦除Owned".into())
@@ -4135,8 +4294,8 @@ fn json_shape_with_owner(
         .map(v3::business_json::JsonOwner::Owned)
         .map_err(|e| format!("持久 JSON 解析失败：{e}"))?
     } else {
-        serde_json::from_str(text)
-            .map(v3::business_json::JsonOwner::Plain)
+        serde_json::from_str::<Value>(text)
+            .map(|v| v3::business_json::JsonOwner::Plain(v.into()))
             .map_err(|e| format!("持久 JSON 解析失败：{e}"))?
     };
     #[cfg(not(feature = "s_allocation_json_testonly"))]
@@ -4144,8 +4303,8 @@ fn json_shape_with_owner(
         if owner.is_some() {
             return Err("prototype_audit_allocation_incomplete：owned legacy JSON未启用".into());
         }
-        serde_json::from_str(text)
-            .map(v3::business_json::JsonOwner::Plain)
+        serde_json::from_str::<Value>(text)
+            .map(|v| v3::business_json::JsonOwner::Plain(v.into()))
             .map_err(|e| format!("持久 JSON 解析失败：{e}"))?
     };
     let view = value.view();
@@ -7054,24 +7213,58 @@ mod tests {
         assert!(rels.iter().any(|r| r["relation_type"] == "supersedes"));
     }
 
+    #[test]
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn native_batch_header_shares_original_text_permits_until_last_drop() {
+        let budget = v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let header = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                BatchControlHeader::from_verified_batch_admitted(
+                    &json!({"protocol_revision":"s-session/2", "session_generation":"1",
+                    "clock_plan_hash":"clock", "semantic_commit_ns":"20"}),
+                    Some(work),
+                )
+            })
+            .unwrap();
+        assert!(budget.live() > baseline);
+        let shared = header.clone();
+        drop(header);
+        assert_eq!(
+            shared.semantic_commit_ns.as_deref().map(|v| v.as_str()),
+            Some("20")
+        );
+        assert!(budget.live() > baseline);
+        drop(shared);
+        assert_eq!(budget.live(), baseline);
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     fn assert_native_raw_matches_plain(conn: &Connection, expected_len: usize, ohlc: bool) {
-        let expected = read_raw_events_until_admitted(conn, None, None).unwrap();
+        let expected = read_raw_events_until(conn, None).unwrap();
         assert_eq!(expected.len(), expected_len);
         assert!(expected
             .iter()
             .any(|row| row["supersedes_revision"].as_i64() == Some(1)));
         let budget = v3::audit_owner::native::Budget::new(8 * 1024 * 1024, 0).unwrap();
-        budget
+        let retained = budget
             .codec_work()
             .unwrap()
             .run(|work| {
                 let actual = read_raw_events_until_admitted(conn, None, Some(work))?;
+                let parsed = match &actual {
+                    v3::business_json::JsonOwner::Plain(value) => value.as_ref(),
+                    #[cfg(feature = "s_allocation_json_testonly")]
+                    _ => unreachable!("Native raw保留PlainJson"),
+                };
                 assert_eq!(
-                    actual, expected,
-                    "完整SQL JSON、payload hash和receipt逐字段对照"
+                    parsed,
+                    &Value::Array(expected.clone()),
+                    "完整SQL JSON逐字段对照"
                 );
-                for (seq, row) in actual.iter().enumerate() {
+                for (seq, row) in parsed.as_array().unwrap().iter().enumerate() {
                     v3::business_json::validate_raw_row_admitted(
                         row.into(),
                         seq,
@@ -7089,13 +7282,13 @@ mod tests {
                         }
                     }
                 }
-                let held = budget.live();
-                drop(actual);
-                assert_eq!(budget.live(), held, "Native保守账随父Budget持有");
-                Ok::<_, String>(())
+                Ok::<_, String>(actual)
             })
             .unwrap();
         assert!(budget.live() > 0);
+        let held = budget.live();
+        drop(retained);
+        assert!(budget.live() < held, "raw父拥有者析构归还原载荷许可");
         assert_eq!(budget.scratch_observation().0, 0);
         assert_eq!(budget.scratch_observation().2, 0);
     }
@@ -7121,6 +7314,93 @@ mod tests {
         );
         let conn = open_db(&files.db()).unwrap();
         assert_native_raw_matches_plain(&conn, 3, false);
+    }
+
+    #[test]
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn native_raw_column_errors_precede_ohlc_cardinality_and_earlier_row_faults() {
+        // 两个真正双故障；用BLOB并核typeof，避免TEXT affinity把INTEGER自动转成文本。
+        for cardinality_fault in [true, false] {
+            let files = TestFiles::new();
+            init_test_db(&files);
+            accept_ohlc(&files, &ohlc_input(&[(0, 4), (2, 5), (1, 6)], false));
+            let conn = open_db(&files.db()).unwrap();
+            let last: i64 = conn
+                .query_row("SELECT MAX(seq) FROM raw_events", [], |r| r.get(0))
+                .unwrap();
+            let original: String = conn
+                .query_row(
+                    "SELECT raw_text FROM raw_events WHERE seq=?1",
+                    [last],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            conn.execute(
+                "UPDATE raw_events SET raw_text=x'626164' WHERE seq=?1",
+                [last],
+            )
+            .unwrap();
+            let stored_type: String = conn
+                .query_row(
+                    "SELECT typeof(raw_text) FROM raw_events WHERE seq=?1",
+                    [last],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(stored_type, "blob", "损坏fixture必须真实违反TEXT列类型");
+            if cardinality_fault {
+                conn.execute(
+                    "DELETE FROM raw_ohlc WHERE rowid=(SELECT MIN(rowid) FROM raw_ohlc)",
+                    [],
+                )
+                .unwrap();
+            } else {
+                conn.execute("UPDATE raw_ohlc SET close='999999' WHERE (identity_key,revision)=(SELECT identity_key,revision FROM raw_events ORDER BY seq LIMIT 1)", []).unwrap();
+            }
+            let native_error = || {
+                let budget = v3::audit_owner::native::Budget::new(8 * 1024 * 1024, 0).unwrap();
+                match budget
+                    .codec_work()
+                    .unwrap()
+                    .run(|work| read_raw_events_until_admitted(&conn, None, Some(work)))
+                    .err()
+                    .expect("双故障必须拒绝")
+                {
+                    newchan_rust::s_content::capture_allocation::scratch::WorkError::Operation(
+                        message,
+                    ) => message,
+                    newchan_rust::s_content::capture_allocation::scratch::WorkError::Resource(
+                        error,
+                    ) => {
+                        panic!("首错顺序测试意外遭遇资源失败：{error:?}")
+                    }
+                }
+            };
+            let plain = read_raw_events_until(&conn, None).unwrap_err();
+            let native = native_error();
+            assert!(
+                plain.starts_with("collect 失败："),
+                "旧入口先拒绝全部raw列类型：{plain}"
+            );
+            assert!(
+                native.starts_with("collect 失败："),
+                "Native不得提前返回OHLC故障：{native}"
+            );
+            assert!(!native.contains("OHLC"));
+            // 修复较晚raw列后，原本被遮住的OHLC错误才成为首错。
+            conn.execute(
+                "UPDATE raw_events SET raw_text=?1 WHERE seq=?2",
+                params![original, last],
+            )
+            .unwrap();
+            let expected = if cardinality_fault {
+                "StorageUnavailable：raw_ohlc与原始账不一一对应"
+            } else {
+                "StorageUnavailable：OHLC schema/close索引矛盾"
+            };
+            assert_eq!(read_raw_events_until(&conn, None).unwrap_err(), expected);
+            assert_eq!(native_error(), expected);
+        }
     }
 
     #[test]
@@ -10309,7 +10589,10 @@ mod staged_graph_audit_regressions {
             )
             .unwrap();
             let header = BatchControlHeader::from_verified_batch(&batch);
-            assert_eq!(header.protocol_revision.as_deref(), field.as_str());
+            assert_eq!(
+                header.protocol_revision.as_deref().map(|v| v.as_str()),
+                field.as_str()
+            );
             assert_eq!(load_batch_bytes(&conn, &id).unwrap().as_ref(), bytes);
         }
         let duplicate = br#"{"protocol_revision":"s-session/2","nested":{"x":1,"x":2}}"#;
@@ -10825,7 +11108,7 @@ mod legacy_profile_owner_regressions {
                 assert_eq!(plain.bytes.as_ref(), &expected);
                 assert_eq!(plain.declared_length as usize, expected.len());
                 assert_eq!(plain.content_sha256, batch_content_hash(&id).unwrap());
-                assert_eq!(plain.value.as_deref(), Some(&value));
+                assert_eq!(plain.value.as_deref().map(|v| v.as_ref()), Some(&value));
                 drop(plain_reader);
                 cache::configure(cache_limit);
                 let budget = v3::audit_owner::native::Budget::new(16 * 1024 * 1024, 0).unwrap();
@@ -10849,7 +11132,7 @@ mod legacy_profile_owner_regressions {
                             assert_eq!(root.declared_length, plain.declared_length);
                             assert_eq!(root.content_sha256, plain.content_sha256);
                             assert_eq!(root.closure, plain.closure);
-                            assert_eq!(root.value.as_deref(), Some(&value));
+                            assert_eq!(root.value.as_deref().map(|v| v.as_ref()), Some(&value));
                             assert_eq!(root.reused, cache_limit > 0 && pass == 1);
                         }
                         // 第二次命中含已解析Value，仍会真实投影控制头并走其缓存准入。

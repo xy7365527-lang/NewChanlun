@@ -236,8 +236,9 @@ pub(super) fn audit_native_in_request_admitted(
             }
         };
         let control = control_audit::prepare_s3_control_history_admitted(tx, None, work)?;
-        let raw =
-            super::business_json::RawEvents::Plain(read_raw_events_until_admitted(tx, None, work)?);
+        let raw = super::business_json::RawEvents::from_json_owner(
+            read_raw_events_until_admitted(tx, None, work)?,
+        )?;
         if let Some((prior_binding, prior_result, source_pending)) = prior {
             #[cfg(test)]
             context.before_binding(tx);
@@ -716,14 +717,14 @@ fn audit_core_fresh_inner(
                     .is_some_and(|c| c.is_allocation_prototype())
             }) {
                 Some(b) => super::business_json::read_owned(tx, deadline, b)?,
-                None => super::business_json::RawEvents::Plain(read_raw_events_until_admitted(
-                    tx, deadline, work,
-                )?),
+                None => super::business_json::RawEvents::from_json_owner(
+                    read_raw_events_until_admitted(tx, deadline, work)?,
+                )?,
             };
             #[cfg(not(feature = "s_allocation_json_testonly"))]
-            let raw = super::business_json::RawEvents::Plain(read_raw_events_until_admitted(
-                tx, deadline, work,
-            )?);
+            let raw = super::business_json::RawEvents::from_json_owner(
+                read_raw_events_until_admitted(tx, deadline, work)?,
+            )?;
             (control, raw)
         }
     };
@@ -2784,9 +2785,10 @@ mod transaction_material_qualification {
             let fresh = if which == 7 {
                 Some((
                     control_audit::prepare_s3_control_history(&tx).unwrap(),
-                    super::super::business_json::RawEvents::Plain(
+                    super::super::business_json::RawEvents::from_json_owner(
                         read_raw_events_until_admitted(&tx, None, None).unwrap(),
-                    ),
+                    )
+                    .unwrap(),
                 ))
             } else {
                 None
