@@ -1,0 +1,169 @@
+{
+  "ticket": 1393,
+  "base_head": "3315ed1d59ba31ffbad3f0b959702eaa92f4ddbd",
+  "base_tree": "8e854b779f62e035a0e00caed9ee060257ff15c5",
+  "delivery_commit": null,
+  "delivery_tree": null,
+  "state": "未暂存差异；不是已入Git交付",
+  "tracked_diff_sha256": "a32df67d2920c246ea23650f0b9eced701fd6ae3aeb7ef7e86b6bd5c4428b730",
+  "files": [
+    {
+      "path": ".chanlun/review-results/issue1393-sandcastle-20261018/REPORT.md",
+      "sha256": "25e900da22a933af8db8a59f020be67387f9503a716de047b4c6b4a52c277359",
+      "bytes": 16194,
+      "tracked": false
+    },
+    {
+      "path": ".chanlun/review-results/issue1393-sandcastle-20261018/VALIDATION.json",
+      "sha256": "26fe3b52fcf63898243a80a06feda208d14e8e1bc48482acf3d332f8b7ebd5ed",
+      "bytes": 1847,
+      "tracked": false
+    },
+    {
+      "path": ".chanlun/review-results/issue1393-sandcastle-20261018/verify_model.py",
+      "sha256": "8562cbf248c7745f5ad2052083f8b181fa5f6db525eceb18fa0d33a7a8a7f62b",
+      "bytes": 11270,
+      "tracked": false
+    },
+    {
+      "path": ".chanlun/review-results/issue1393-sandcastle-20261018/verify_static.py",
+      "sha256": "b6cc0b82e53c863518885515d04b2d2ef093776917fdf81647ce31500a8757f1",
+      "bytes": 2025,
+      "tracked": false
+    },
+    {
+      "path": "formal/Origin/RawInclusionInitialization.lean",
+      "sha256": "78c103e13a328f3361ff7b4e685a6299bafa68bc03d5847070b8a60c71be6d80",
+      "bytes": 4641,
+      "tracked": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/tb02a.rs",
+      "sha256": "b7624bc5cf26135cfec45aeb422ec001605f89733e952ce03d4104fc1f42154f",
+      "bytes": 13694,
+      "tracked": true
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/tb02a_facts.rs",
+      "sha256": "7766a89ac54725a9ddf8f196923bde95c6213a040deba8b8e18261f22ab1bacb",
+      "bytes": 25161,
+      "tracked": true
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/tb02u_tests.rs",
+      "sha256": "05c457d7499fec1ec3d777cd12864ed670060c9e8e70af25727fe61830f4c35b",
+      "bytes": 6614,
+      "tracked": false
+    },
+    {
+      "path": "rust/src/bin/s_structure_session.rs",
+      "sha256": "9d2c553057fa8ced786df7e5b10e302b4fe236047b9a5b2742ef3a992e453b6f",
+      "bytes": 296057,
+      "tracked": true
+    },
+    {
+      "path": "rust/src/theta_v0/parser/inclusion.rs",
+      "sha256": "c4fd40c84e5743c1733cb98312a8a26e6608d799c162a3fce9f85f1759c61235",
+      "bytes": 53309,
+      "tracked": true
+    },
+    {
+      "path": "rust/src/theta_v0/parser/inclusion_tb02u_tests.rs",
+      "sha256": "68e560eb0879e152efa7e460e3a9e07cf68d32d6e49d0af22574954c7b65aaed",
+      "bytes": 8132,
+      "tracked": false
+    },
+    {
+      "path": "rust/src/theta_v0/parser/mod.rs",
+      "sha256": "ece72aaa087636ca66ceb4638a5836e457ec7e7c7d96f454e83032714d256195",
+      "bytes": 31165,
+      "tracked": true
+    },
+    {
+      "path": "rust/src/theta_v0/parser/stroke.rs",
+      "sha256": "35a941024fad0aef7065b08c731fab0d30336a6bb0efc9f6c85c3910d5fbc031",
+      "bytes": 51982,
+      "tracked": true
+    },
+    {
+      "path": "rust/src/theta_v0/parser/tb02u_tests.rs",
+      "sha256": "9e2d562ea1f98402ce22546546d95afe10d3ba00c2c0287e9176612751268577",
+      "bytes": 2063,
+      "tracked": false
+    },
+    {
+      "path": "rust/tests/fixtures/tb02u/oracle.json",
+      "sha256": "73cc523b9580967f31cc47c38e54a53de41a0a345ee9770ca6ab0c6fa1da285e",
+      "bytes": 1839,
+      "tracked": false
+    },
+    {
+      "path": "s_session/browser/index.html",
+      "sha256": "40300651e564aacc29bfd33b39569e755a13dfe10f7050472bc9606c129752ac",
+      "bytes": 53205,
+      "tracked": true
+    },
+    {
+      "path": "s_session/browser/tb01c-client.js",
+      "sha256": "bff8557b21e6512fced7f926311e82801ce23e00146d3ee6a51bbcbdbfd665bf",
+      "bytes": 86086,
+      "tracked": true
+    },
+    {
+      "path": "s_session/s_query_integrity.py",
+      "sha256": "48d26ddab9026a963f94a9561dde1e6d65716065c63e6c9b104a9b1a93090d75",
+      "bytes": 76635,
+      "tracked": true
+    },
+    {
+      "path": "s_session/s_tb02_contract.py",
+      "sha256": "011c8f423efff4f6e4583ce3574c1571412e1efcefb643af4c7bda7f09f10570",
+      "bytes": 59719,
+      "tracked": true
+    },
+    {
+      "path": "s_session/tests/test_tb02u_contract.py",
+      "sha256": "092bb749cad258129a44956c492831f49cf5594dc4f09187d05807030871d62d",
+      "bytes": 7535,
+      "tracked": false
+    }
+  ],
+  "read_only_evidence": [
+    {
+      "name": "issue1393.json",
+      "sha256": "d2002eaf2ceab5b07d1205b12837017d8dcfd921395033ce5f73afb884444e04"
+    },
+    {
+      "name": "comments1342.json",
+      "sha256": "d6531cac6b5230c9ebb31fb7d79097340d53df16ba52c4cc912ac115f784a526"
+    },
+    {
+      "name": "dependencies1393.json",
+      "sha256": "b745ae20a195cad6e65e360b40aa23dda6874d7679e06a7de99295481083ad47"
+    },
+    {
+      "name": "REFERENCE-RESULT.md",
+      "sha256": "89332daf9554f3522bec86cd10bc77ebccbf8e93863c543404ad33e32d884133"
+    },
+    {
+      "name": "run-01-static-report.md",
+      "sha256": "6af62774d0f8c5c93ac62485b687bf49b6389628128ba4620fced0b85c31fe2a"
+    },
+    {
+      "name": "xerj-nc1320src-inclusion.json",
+      "sha256": "3eadeee397574adcfbe11b37a2e1d3e01d809904427653ab0a2cffe8b27a7563"
+    },
+    {
+      "name": "xerj-nc1419gate-inclusion.json",
+      "sha256": "0d2f4ecf2f4a4c3a72f50dfbf36263871991dca970bc12782dda6062ed915668"
+    },
+    {
+      "name": "xerj-nautilus-reference-all.json",
+      "sha256": "8f2304838253c51889429c41871542f467d22764b0ec7dbb8faec956c0278dda"
+    },
+    {
+      "name": "xerj-nautilus-state-reference.json",
+      "sha256": "f7853a247fb99bb255f79397108dcf6a79db2109add34239499864ef50a3ec16"
+    }
+  ]
+}

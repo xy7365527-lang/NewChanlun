@@ -250,7 +250,7 @@ function renderFactValue(value) {
 function renderTypedCard(object, snapshot, cls) {
   const entity = object.payload?.data?.entity_id;
   const relations = snapshot.relations.filter(row => row.subject === object.object_id || row.object === object.object_id || row.subject === entity || row.object === entity);
-  const labels = {"CC-004.inclusion_step":"包含步骤与逐价关系", "CC-005.inclusion_group":"完整组成员、组首与极值来源", "CC-007.fractal_description":"已发生的顶/底关系与后续事实", "CC-054.knowledge_state":"逐请求四轴与等待边界"};
+  const labels = {"CC-004.initialization":"初始方向与首个原始相邻证据", "CC-004.undetermined_raw":"未定方向的原始 K 线", "CC-004.inclusion_step":"包含步骤与逐价关系", "CC-005.inclusion_group":"完整组成员、组首与极值来源", "CC-007.fractal_description":"已发生的顶/底关系与后续事实", "CC-054.knowledge_state":"逐请求四轴与等待边界"};
   return `<details open id="${escAttr(object.object_id)}"><summary class="${escAttr(cls || "")}">${esc(labels[object.kind] || object.kind)} · ${esc(object.object_id)} · first_known=${esc(object.first_known_generation)} · published=${esc(object.published_generation)} · ${esc(object.lifecycle)}</summary>` +
     `<p>固定语义槽 ${esc(object.fact_key)} · 首次 cut ${esc(object.first_known_cut)} · 批次 ${esc(object.batch_id)}</p>` +
     (object.lifecycle === "withdrawn" ? `<p>撤回代 ${esc(object.withdrawn_generation)} · ${esc(object.withdrawal_reason)} · 替代 ${esc(object.superseded_by)}</p>` : "") +

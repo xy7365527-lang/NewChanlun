@@ -60,7 +60,7 @@ use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde_json::{json, Value};
 
 /// CC-006 验收合同修订（SPEC-COVERAGE-INPUT.json `/classification_axes/5`）。
-const RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/1+segment-second/1";
+const RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/1+segment-second/1+raw-initialization-w/1";
 
 /// S 唯一结构写者的默认 writer_epoch（可经 `--writer-epoch` / `recover` 换代）。
 const DEFAULT_WRITER_EPOCH: &str = "1";
@@ -1891,6 +1891,17 @@ fn compute_diff(
     let new_by_slot: BTreeMap<String, &Value> =
         new_objects.iter().map(|o| (tb02a::slot(o), o)).collect();
     for old in existing_active {
+        // #1393：跨 kind 的未定 raw → 正式组显式替代；持久撤回/审计共用既有 owner。
+        if let Some(new) = tb02a_facts::replacing_group(old, new_objects) {
+            withdrawals.push(tb02a::withdrawal(
+                old,
+                "superseded_by_revision",
+                new["object_id"].clone(),
+            ));
+            replaces
+                .push(json!({"new_object_id":new["object_id"],"old_object_id":old["object_id"]}));
+            continue;
+        }
         match new_by_slot.get(&tb02a::slot(old)) {
             None => withdrawals.push(tb02a::withdrawal(
                 old,
@@ -2047,7 +2058,8 @@ fn advance_core(
     ensure_initialized(&conn)?;
     if meta_get_opt(&conn, "rule_revision")?.as_deref() != Some(RULE_REVISION) {
         return Err(
-            "VersionMismatch：历史规则会话只读；新笔规则须新建代际，不复用旧 Open 缓存".into(),
+            "VersionMismatch：历史规则会话只读；结构及初始化规则须新建代际，不复用旧 Open 缓存"
+                .into(),
         );
     }
     record_connection_pragmas(&conn, "advance");
@@ -2350,6 +2362,7 @@ fn advance_core(
             facts,
             &raw_by_coord,
             &objects,
+            &read_active_objects(&conn)?,
             gen,
             &structure_cut,
             frontier,
@@ -4150,6 +4163,8 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    include!("s_session_v2/tb02u_tests.rs");
+
     use super::*;
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};

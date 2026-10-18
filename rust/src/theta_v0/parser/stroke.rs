@@ -560,7 +560,12 @@ impl IncrStrokes {
             self.config = None;
         }
         self.last_source_index = Some(bar.source_index);
+        let was_unsettled = self.facts.unsettled();
         self.facts.append(bar);
+        if was_unsettled && !self.facts.unsettled() {
+            // #1393：W 激活重折 raw0；未定期的等待态/扫描缓存不得跨越该边界。
+            self.config = None;
+        }
     }
 
     pub(crate) fn facts_state(&self) -> &super::inclusion::IncrFactsState {
@@ -604,7 +609,7 @@ impl IncrStrokes {
                 self.checkpoint = ScanCheckpoint::capture(&self.scan, mid + 1);
             }
         }
-        // 未定初向只在三组形成以前触发，此时没有可冻结端点。
+        // #1393：未定初向没有正式组或可冻结端点；激活时已清空等待态。
         if self.facts.unsettled()
             && !self
                 .scan

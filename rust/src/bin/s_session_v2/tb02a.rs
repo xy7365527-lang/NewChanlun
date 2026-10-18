@@ -252,6 +252,8 @@ pub(super) fn project(o: &Value) -> Result<Value, String> {
     if !matches!(
         kind,
         "CC-004.inclusion_step"
+            | "CC-004.initialization"
+            | "CC-004.undetermined_raw"
             | "CC-005.inclusion_group"
             | "CC-007.fractal_description"
             | "CC-054.knowledge_state"
