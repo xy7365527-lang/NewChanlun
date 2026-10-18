@@ -1,0 +1,20 @@
+--- /Volumes/AgentStorage/issue1394-scheduler-v1-20261018/test_scheduler.py
++++ s_session/tests/issue1394_acceptance/test_scheduler.py
+@@ -5,7 +5,7 @@
+ 
+ import scheduler as s
+ 
+-PREP = Path("/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/PREPARATION-CONTRACT.json")
++PREP = Path(__file__).parent / "fixtures/PREPARATION-CONTRACT.json"
+ PREP_SHA = "ce719894bcb8aa60e956d723271250d57d892ddbb6c70dea64bd0cf4aaca8fa1"
+ 
+ 
+@@ -59,7 +59,7 @@
+                   "economic-session/2", "economic-manifest/1", tuple(steps), 60.0, 70.0, 80.0)
+ 
+ 
+-class FakeAdapter:
++class FakeAdapter(s.SimulationAdapter):
+     mode = "UNIT_TEST_ONLY"
+ 
+     def __init__(self, clock=None):

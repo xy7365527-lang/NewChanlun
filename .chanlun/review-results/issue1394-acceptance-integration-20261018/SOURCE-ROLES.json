@@ -1,0 +1,94 @@
+{
+  "schema_revision": "issue1394-integration-source-roles/1",
+  "issue": 1394,
+  "spec": 1340,
+  "parent_task": "01a12e01-45a1-7173-a3e8-d338d108fb93",
+  "manager": "/root/implement_1394_scheduler_v1",
+  "execution_authorized": false,
+  "product_status": {
+    "S": "NOT_RUN",
+    "E": "NOT_RUN",
+    "B": "NOT_RUN",
+    "Q": "NOT_RUN",
+    "Long": "NOT_RUN",
+    "full_history": "NOT_RUN",
+    "P11": "NOT_RUN",
+    "AC1": "NOT_RUN",
+    "AC2": "NOT_RUN",
+    "AC3": "NOT_RUN",
+    "AC4": "NOT_RUN",
+    "AC5": "NOT_RUN"
+  },
+  "tool_host": {
+    "checkout": "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018",
+    "branch": "codex/1394-acceptance-integration-20261018",
+    "base_commit": "3315ed1d59ba31ffbad3f0b959702eaa92f4ddbd",
+    "role": "新验收工具宿主，不代表 producer 运行来源；本次差异未提交"
+  },
+  "original_driver_static_source": {
+    "commit": "b46ba296993371cb56b2dff7ef878647dc0665ad",
+    "tree": "f8733c328a7f1ab4b19725e0e97ec6dd9caf2bb1",
+    "status": "只读静态协议来源，不继承旧 PASS"
+  },
+  "imports": [
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-driver-p0-v2-20261018/MANIFEST.json",
+      "expected_sha256": "21422ddca25cfce0b84999a621d34746da99086e2e2ededfee01ba2d925c51d9",
+      "actual_sha256": "21422ddca25cfce0b84999a621d34746da99086e2e2ededfee01ba2d925c51d9",
+      "match": true
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-driver-p0-v2-20261018/driver.py",
+      "expected_sha256": "3b29bbbebb7df49bf28a58ff04597a2e93cb5d92f27f21eb79642b7421cea380",
+      "actual_sha256": "3b29bbbebb7df49bf28a58ff04597a2e93cb5d92f27f21eb79642b7421cea380",
+      "match": true
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-scheduler-v1-20261018/MANIFEST.json",
+      "expected_sha256": "54677dc0523de874eea0a5ff51f2dd06f88b14b75e6d6c18943d53b1e2c3bc1e",
+      "actual_sha256": "54677dc0523de874eea0a5ff51f2dd06f88b14b75e6d6c18943d53b1e2c3bc1e",
+      "match": true
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-scheduler-v1-20261018/scheduler.py",
+      "expected_sha256": "3fa2b0da18f900fd848ae9c78481eac02d602d3d3203009cb87995ff178e8866",
+      "actual_sha256": "3fa2b0da18f900fd848ae9c78481eac02d602d3d3203009cb87995ff178e8866",
+      "match": true
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/PREPARATION-CONTRACT.json",
+      "expected_sha256": "ce719894bcb8aa60e956d723271250d57d892ddbb6c70dea64bd0cf4aaca8fa1",
+      "actual_sha256": "ce719894bcb8aa60e956d723271250d57d892ddbb6c70dea64bd0cf4aaca8fa1",
+      "match": true
+    }
+  ],
+  "C1_producer_last_byte_patch": {
+    "commit": "99e819192bd6c91b1dd90e058a93c2a98d5aaaf3",
+    "tree": "955cf8fabda358b94619714198e52916ac0738ff",
+    "path": "/Volumes/AgentStorage/issue1394-closure-last-byte-20261018",
+    "role": "管理者提供的已静审窄修身份；未并入本工具、未编译、未运行、不是执行 source"
+  },
+  "inputs": {
+    "synthetic_9011": "TestOnly 长域输入，不能冒完整市场历史",
+    "old_1374_voice_50070": "不同域；不可拼接或改 hash 复用",
+    "formal_same_domain_S_terminal_gamma_K_bridge": "MISSING",
+    "same_domain_real_Voice": "MISSING",
+    "producer_ARTIFACTS": "MISSING",
+    "consumer_ARTIFACTS": "MISSING"
+  },
+  "reviews": {
+    "prior_reviews": "references/，仅对应原封包",
+    "current_diff_independent_review": "NOT_RUN；由管理者随后独立 invocation"
+  },
+  "scope": {
+    "frontend_owner": 1460,
+    "K4": "排除",
+    "keep_open": [
+      1394,
+      1361,
+      1340,
+      1323,
+      1279
+    ]
+  }
+}

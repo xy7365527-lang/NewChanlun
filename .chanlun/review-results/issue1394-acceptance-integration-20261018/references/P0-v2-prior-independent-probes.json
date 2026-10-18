@@ -1,0 +1,50 @@
+{
+  "binary_changed_between_admission_and_owner_baseline": {
+    "frozen_sha": "2a1e4a46a2ffc43bcb4a01b9c90c2c9fdae21411757b1eabcfa4e87ac85ca259",
+    "before": "863ff672f5c8b0e159897027d0c135e0946d1737c86705b094d1dcc966a1b71e",
+    "after": "863ff672f5c8b0e159897027d0c135e0946d1737c86705b094d1dcc966a1b71e",
+    "returncode": 0,
+    "stdout": "changedn",
+    "cleanup_reaped": true,
+    "hash_calls": [
+      "2a1e4a46a2ffc43bcb4a01b9c90c2c9fdae21411757b1eabcfa4e87ac85ca259",
+      "863ff672f5c8b0e159897027d0c135e0946d1737c86705b094d1dcc966a1b71e",
+      "863ff672f5c8b0e159897027d0c135e0946d1737c86705b094d1dcc966a1b71e",
+      "863ff672f5c8b0e159897027d0c135e0946d1737c86705b094d1dcc966a1b71e",
+      "863ff672f5c8b0e159897027d0c135e0946d1737c86705b094d1dcc966a1b71e"
+    ]
+  },
+  "mkdir_failure_writes_unowned_directory": {
+    "error": "FileExistsError",
+    "spawned": false,
+    "before": [
+      "SENTINEL"
+    ],
+    "after": [
+      "CLEANUP.json",
+      "SENTINEL"
+    ],
+    "cleanup": {
+      "binary_sha256_after": "b502cb4c5b46b8d4192ec6bcb600ce8922f1afc396fcf646e8765c6eba74a0bf",
+      "binary_sha256_before": "b502cb4c5b46b8d4192ec6bcb600ce8922f1afc396fcf646e8765c6eba74a0bf",
+      "errors": [],
+      "owner": {},
+      "reaped": false,
+      "reason": "FileExistsError: [Errno 17] File exists: '/private/tmp/r1394p0-uqhcupi9/selftest-w7zbvk_u/preexisting-evidence'",
+      "returncode": null
+    }
+  },
+  "ps_failure_before_ack_reaps_and_closes": {
+    "reaped": true,
+    "returncode": -15,
+    "streams_closed": true
+  },
+  "identity_mismatch_does_not_signal_and_closes": {
+    "signals": 0,
+    "reaped": false,
+    "errors": [
+      "Rejected: toy identity mismatch"
+    ],
+    "closed": true
+  }
+}

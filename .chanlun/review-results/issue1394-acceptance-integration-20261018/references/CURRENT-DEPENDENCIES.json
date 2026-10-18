@@ -1,0 +1,28 @@
+{
+  "schema_revision": "issue1394-current-dependencies/2",
+  "execution_authorized": false,
+  "historical_missing_not_current_source_blocker": [
+    "P10/P16-v2 old contract original",
+    "P11 old driver original",
+    "tb1394 remaining-path PLAN",
+    "old r7 source/SEAL"
+  ],
+  "new_source_replacement": "SOURCE-ROLES.json b46-current-candidate, no inherited PASS",
+  "required_before_product_execution": {
+    "current_driver_source_sha256_and_review": null,
+    "full_Long_seed_and_order": null,
+    "real_Voice_authority": null,
+    "finance_policy_and_TestOnly_clock": null,
+    "producer_ARTIFACTS": null,
+    "consumer_ARTIFACTS": null,
+    "exact_toolchain": null,
+    "session_resource3_freeze": null,
+    "reader_resource1_and_job_limits_freeze": null,
+    "Q3_Delta3_freeze_keeping18": null,
+    "E_B_transport_resources_freeze": null,
+    "per_stage_total_deadlines_and_caps": null,
+    "supervisor_binary_sha256": null,
+    "root_single_run_admission_seed": null,
+    "independent_cleanup_and_seal_reservations": null
+  }
+}

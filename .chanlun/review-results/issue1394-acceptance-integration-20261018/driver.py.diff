@@ -1,0 +1,166 @@
+--- /Volumes/AgentStorage/issue1394-real-driver-p0-v2-20261018/driver.py
++++ s_session/tests/issue1394_acceptance/driver.py
+@@ -96,15 +96,62 @@
+     return raw
+ 
+ 
+-def save_new(path: str | Path, value: JSON, *, deadline: float | None = None) -> None:
++def save_new(path: str | Path, value: JSON, *, deadline: float | None = None,
++             directory: OwnedDirectory | None = None) -> None:
+     if deadline is not None:
+         remaining(deadline)
+-    with Path(path).open("xb") as stream:
++    with (directory.open_new(Path(path).name) if directory else Path(path).open("xb")) as stream:
+         stream.write(canonical(value) + b"\n")
+         stream.flush()
+         os.fsync(stream.fileno())
+     if deadline is not None:
+         remaining(deadline)
++    if directory:
++        directory.verify()
++
++
++class OwnedDirectory:
++    """只在本实例新建且路径身份未替换的目录写原件；fd 防止路径切换后误写。"""
++    def __init__(self, path: str | Path) -> None:
++        self.path = Path(path)
++        require(self.path.is_absolute(), "原件目录必须绝对路径")
++        self.fd = None
++        self.parent_fd = os.open(self.path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
++        try:
++            os.mkdir(self.path.name, mode=0o700, dir_fd=self.parent_fd)
++            created = os.stat(self.path.name, dir_fd=self.parent_fd, follow_symlinks=False)
++            self.fd = os.open(self.path.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
++                              dir_fd=self.parent_fd)
++            self.identity = (created.st_dev, created.st_ino)
++            self.verify()
++        except BaseException:
++            self.close()
++            raise
++
++    def verify(self) -> None:
++        require(self.fd is not None and self.parent_fd is not None, "原件目录句柄已关闭")
++        observed = self.path.lstat()
++        held = os.fstat(self.fd)
++        parent = self.path.parent.stat()
++        parent_held = os.fstat(self.parent_fd)
++        require(stat.S_ISDIR(observed.st_mode) and
++                (observed.st_dev, observed.st_ino) == self.identity == (held.st_dev, held.st_ino)
++                and (parent.st_dev, parent.st_ino) == (parent_held.st_dev, parent_held.st_ino),
++                "原件目录已被替换")
++
++    def open_new(self, name: str):
++        require(name not in {"", ".", ".."} and Path(name).name == name, "原件名称无效")
++        self.verify()
++        fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
++                     0o600, dir_fd=self.fd)
++        return os.fdopen(fd, "wb")
++
++    def close(self) -> None:
++        for field in ("fd", "parent_fd"):
++            fd = getattr(self, field, None)
++            if fd is not None:
++                os.close(fd)
++                setattr(self, field, None)
+ 
+ 
+ def validate_resources(session: dict[str, JSON], reader: dict[str, JSON]) -> None:
+@@ -613,17 +660,21 @@
+         self.term_grace_seconds, self.kill_wait_seconds = admission.term_grace_seconds, admission.kill_wait_seconds
+         self.output, self.argv, self.supervisor = Path(output), argv, supervisor
+         self.caps, self.deadline = caps, deadline
+-        self.binary_before = bounded_hash(argv[0], deadline)
++        # 冻结合同是唯一预期；任何观测不得升级为新的执行授权。
++        self.binary_before = command["binary_sha256"]
++        require(bounded_hash(argv[0], deadline) == self.binary_before,
++                "构造前 binary 偏离冻结摘要")
+         require(Path(argv[0]).is_absolute(), "产品 executable 须绝对路径")
+         self.stdout = self.stderr = self.process = None
+         self.identity: dict[str, JSON] = {}
+         self.cleanup_result: CleanupReceipt | None = None
+         self.released = False
++        self.directory = None
+         try:
+             remaining(deadline)
+-            self.output.mkdir(mode=0o700)
+-            self.stdout = (self.output / "stdout").open("xb")
+-            self.stderr = (self.output / "stderr").open("xb")
++            self.directory = OwnedDirectory(self.output)
++            self.stdout = self.directory.open_new("stdout")
++            self.stderr = self.directory.open_new("stderr")
+             remaining(deadline)
+             gate = ("import json,os,sys,time; p=json.loads(sys.stdin.buffer.readline()); "
+                     "a=p[\"argv\"]; "
+@@ -639,11 +690,12 @@
+             admission.register_owner(self)
+             self.identity.update(process_identity(self.process, deadline))
+             ack = supervisor.ack(stage, self.identity, caps, deadline)
+-            save_new(self.output / "ACK.json", ack, deadline=deadline)
+-            save_new(self.output / "OWNER.json", {**self.identity, "argv": argv}, deadline=deadline)
++            self._save("ACK.json", ack, deadline)
++            self._save("OWNER.json", {**self.identity, "argv": argv}, deadline)
+             wire = canonical({"argv": argv, "deadline": deadline}) + b"\n"
+             require(len(wire) <= 1048576, "gate 命令超过控制帧")
+             require(bounded_hash(argv[0], deadline) == self.binary_before, "放行前 binary 摘要变化")
++            self.directory.verify()
+             os.set_blocking(self.process.stdin.fileno(), False)
+             self.released = True  # 写出首字节前即按可能已执行对待
+             sent = 0
+@@ -657,8 +709,13 @@
+             self.released = True
+             self.process.stdin.close()
+         except BaseException as error:
+-            self.cleanup(type(error).__name__ + ": " + str(error))
++            # 没有目录所有权时回执随异常交还调用者，不写已有/被替换的路径。
++            error.cleanup_receipt = self.cleanup(type(error).__name__ + ": " + str(error))
+             raise
++
++    def _save(self, name: str, value: JSON, deadline: float) -> None:
++        require(self.directory is not None, "未拥有原件目录")
++        save_new(self.output / name, value, deadline=deadline, directory=self.directory)
+ 
+     def verify_identity(self, *, deadline: float | None = None,
+                         allow_exited: bool = False) -> bool:
+@@ -697,7 +754,7 @@
+                     require(marker == {"domain_id": domain, "message_id": message,
+                                        "phase": phase, "pid": self.process.pid,
+                                        "test_only": True}, "marker 不是本次 owner/请求/缝")
+-                    save_new(self.output / "MARKER.json", marker, deadline=self.deadline)
++                    self._save("MARKER.json", marker, self.deadline)
+                     self.verified_marker = marker
+                     return marker
+                 time.sleep(min(0.02, remaining(self.deadline)))
+@@ -721,7 +778,7 @@
+                        "returncode": code, "reaped": True, "time_ns": str(time.time_ns()),
+                        "binary_sha256_before": self.binary_before, "binary_sha256_after": after}
+             require(after == self.binary_before, "SIGKILL 后 binary 摘要变化")
+-            save_new(self.output / "KILL.json", receipt, deadline=self.deadline)
++            self._save("KILL.json", receipt, self.deadline)
+             return receipt
+         except BaseException as error:
+             self.cleanup(str(error))
+@@ -737,7 +794,7 @@
+             after = bounded_hash(self.argv[0], self.deadline)
+             receipt = {"owner": self.identity, "returncode": code, "reaped": True,
+                        "binary_sha256_before": self.binary_before, "binary_sha256_after": after}
+-            save_new(self.output / "FINISH.json", receipt, deadline=self.deadline)
++            self._save("FINISH.json", receipt, self.deadline)
+             require(code == 0 and after == self.binary_before, "writer 非正常完成或 binary 变化")
+             return receipt
+         except BaseException as error:
+@@ -804,10 +861,13 @@
+                                   "binary_sha256_before": self.binary_before,
+                                   "binary_sha256_after": after}
+         try:
+-            if self.output.exists() and not (self.output / "CLEANUP.json").exists():
+-                save_new(self.output / "CLEANUP.json", result, deadline=self.seal_deadline)
++            if self.directory is not None:
++                self._save("CLEANUP.json", result, self.seal_deadline)
+         except BaseException as error:
+             errors.append("seal: " + type(error).__name__ + ": " + str(error))
++        finally:
++            if self.directory is not None:
++                self.directory.close()
+         self.cleanup_result = result
+         return result
+ 

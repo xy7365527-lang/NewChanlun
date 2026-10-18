@@ -1,0 +1,25 @@
+[
+  {
+    "argv": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-B",
+      "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/run_checks.py"
+    ],
+    "returncode": 0,
+    "seconds": 1.4395487919973675,
+    "output": "HOST-normal-all.txt",
+    "tail": "isor.SupervisorTests.test_real_short_toy_child_cancel_wait_reap_with_explicit_fake_identity) ... ok\ntest_registered_descendants_cancel_reaps_leaf_then_parent (test_supervisor.SupervisorTests.test_registered_descendants_cancel_reaps_leaf_then_parent) ... ok\ntest_script_change_after_registration_stops_at_next_sample (test_supervisor.SupervisorTests.test_script_change_after_registration_stops_at_next_sample) ... ok\ntest_term_timeout_escalation_and_no_restart (test_supervisor.SupervisorTests.test_term_timeout_escalation_and_no_restart) ... ok\ntest_unregistered_descendant_is_not_adopted_or_signalled (test_supervisor.SupervisorTests.test_unregistered_descendant_is_not_adopted_or_signalled) ... ok\n\n----------------------------------------------------------------------\nRan 123 tests in 1.321s\n\nOK\n"
+  },
+  {
+    "argv": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-O",
+      "-B",
+      "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/run_checks.py"
+    ],
+    "returncode": 0,
+    "seconds": 1.1840599999995902,
+    "output": "HOST-optimized-all.txt",
+    "tail": "isor.SupervisorTests.test_real_short_toy_child_cancel_wait_reap_with_explicit_fake_identity) ... ok\ntest_registered_descendants_cancel_reaps_leaf_then_parent (test_supervisor.SupervisorTests.test_registered_descendants_cancel_reaps_leaf_then_parent) ... ok\ntest_script_change_after_registration_stops_at_next_sample (test_supervisor.SupervisorTests.test_script_change_after_registration_stops_at_next_sample) ... ok\ntest_term_timeout_escalation_and_no_restart (test_supervisor.SupervisorTests.test_term_timeout_escalation_and_no_restart) ... ok\ntest_unregistered_descendant_is_not_adopted_or_signalled (test_supervisor.SupervisorTests.test_unregistered_descendant_is_not_adopted_or_signalled) ... ok\n\n----------------------------------------------------------------------\nRan 123 tests in 1.072s\n\nOK\n"
+  }
+]

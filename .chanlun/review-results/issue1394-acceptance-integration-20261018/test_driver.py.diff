@@ -1,0 +1,20 @@
+--- /Volumes/AgentStorage/issue1394-real-driver-p0-v2-20261018/test_driver.py
++++ s_session/tests/issue1394_acceptance/test_driver.py
+@@ -23,7 +23,7 @@
+ 
+ class AdapterTests(unittest.TestCase):
+     def setUp(self):
+-        self.tmp = tempfile.TemporaryDirectory(dir=Path(__file__).parent, prefix="selftest-")
++        self.tmp = tempfile.TemporaryDirectory(dir="/tmp", prefix="r1394-")
+         self.root = Path(self.tmp.name)
+         os.chmod(self.root, 0o700)
+ 
+@@ -419,7 +419,7 @@
+         owner.argv = [str(Path(sys.executable).resolve())]
+         owner.binary_before = d.sha(Path(owner.argv[0]).read_bytes())
+         owner.output = self.root / "FAKE-OWNER"
+-        owner.output.mkdir()
++        owner.directory = d.OwnedDirectory(owner.output)
+         owner.identity = {"pid": 123, "start_identity": "toy", "process_group": 123,
+                           "domain_id": "E", "writer_epoch": "1"}
+         owner.domain, owner.epoch, owner.stage = "E", "1", "toy"

@@ -1,0 +1,575 @@
+{
+  "schema_revision": "issue1394-real-acceptance-preparation/2",
+  "issue": 1394,
+  "parent_map": 1323,
+  "spec": 1340,
+  "created_at": "2026-10-18T03:08:13.636813+00:00",
+  "status": "DRAFT_BLOCKED_NOT_AN_EXECUTION_GRANT",
+  "execution_authorized": false,
+  "product_executed": false,
+  "build_executed": false,
+  "identities_file": "SOURCE-ROLES.json",
+  "missing_originals_file": "CURRENT-DEPENDENCIES.json",
+  "current_driver": null,
+  "adopted_source": {
+    "path": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/.chanlun/review-results/issue1394-content-v3-20260916/APPROVED-SOURCE.md",
+    "sha256": "fab912c6ebe3613969d65fc924368a1d5c9b343f0c3f7a123241645413771d30",
+    "amendment": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/.chanlun/review-results/issue1394-delivery-20261014/A6-5.7-REVISION.r2.md"
+  },
+  "producer_r7": {
+    "status": "historical_missing_not_restored",
+    "source_commit": null,
+    "ARTIFACTS": null
+  },
+  "consumer": {
+    "worktree": "/Users/silencehan/.codex/worktrees/goal1323-fin-integration/NewChanlun",
+    "head": "b46ba296993371cb56b2dff7ef878647dc0665ad",
+    "tree": "f8733c328a7f1ab4b19725e0e97ec6dd9caf2bb1",
+    "status_porcelain": "",
+    "ARTIFACTS": null,
+    "source_manifest": "CONSUMER-SOURCE-MANIFEST.json"
+  },
+  "inputs": {
+    "full_historical_input": null,
+    "frozen_finance_input": null,
+    "real_voice_authority": null,
+    "source_originals": null,
+    "economic_manifest": null,
+    "S_launcher": null,
+    "economic_launcher": null,
+    "oracle_freeze": null,
+    "TestOnly_clock_plan": null,
+    "policy_id": null,
+    "input_order": null
+  },
+  "protocol": {
+    "economic_revision": "economic-session/2",
+    "finance_revision": "tb03b-finance/2",
+    "structure_exact_fields": [
+      "binary",
+      "binary_sha256",
+      "db",
+      "session_id",
+      "session_generation",
+      "writer_epoch",
+      "reader_revision",
+      "content_format",
+      "reader_resources",
+      "reader_session"
+    ],
+    "reader_revision": "s-financial-basis/3",
+    "content_format": "s-content/1",
+    "reader_session": null,
+    "reader_session_rule": "必须是已冻绝对Unix socket路径，UTF8<=103字节且父目录无group/other权限；null只作旧历史识别，不准新域静默退冷读",
+    "reader_resources": {
+      "schema_revision": "s-financial-reader-resources/1",
+      "max_request_bytes": null,
+      "max_reply_bytes": null,
+      "max_stderr_bytes": null,
+      "request_timeout_ms": null,
+      "job_limits": {
+        "max_total_wire_bytes": null,
+        "max_total_node_bytes": null,
+        "max_total_nodes": null,
+        "max_total_records": null,
+        "max_total_requests": null,
+        "max_elapsed_ms": null,
+        "max_staged_bytes": null,
+        "max_store_bytes": null
+      }
+    },
+    "session_resources": {
+      "schema_revision": "s-financial-session-resources/3",
+      "startup_timeout_ms": null,
+      "retained_bytes": "268435456",
+      "max_requests": null,
+      "max_request_bytes": null,
+      "max_reply_bytes": null,
+      "request_timeout_ms": null,
+      "max_capture_bytes": null,
+      "max_closure_nodes": null
+    },
+    "custody_revision": "s-financial-session-custody/2",
+    "consistency": "a",
+    "anchor_mismatch_policy": "reject-request",
+    "new_basis_for_each": [
+      "Prepare",
+      "Reserve",
+      "Commit"
+    ],
+    "one_frozen_reading": "SessionClosure",
+    "no_cold_fallback": true,
+    "closure_receipt_requirement": "实际完整遍历节点集与收到闭包流逐个相同，本地已有节点不豁免",
+    "Q_resources": {
+      "schema_revision": "s-query-resources/3",
+      "limits": {
+        "capture_deadline_ms": "2000",
+        "client_lease_ms": "10000",
+        "max_cache_bytes": "268435456",
+        "max_cached_images": "2",
+        "max_capture_bytes": "268435456",
+        "max_client_leases": "16",
+        "max_client_pending_batches": "4",
+        "max_frame_bytes": "1048576",
+        "max_page_size": "31",
+        "max_pending_connections": "16",
+        "max_query_queue": "8",
+        "max_query_workers": "2",
+        "max_reply_bytes": "8388608",
+        "max_watch_batches": "4",
+        "poll_interval_ms": "500",
+        "socket_read_timeout_ms": "2000",
+        "socket_write_timeout_ms": "1000",
+        "verify_deadline_ms": "5000",
+        "max_atomic_delta_node_bytes": null,
+        "max_atomic_delta_nodes": null,
+        "max_atomic_delta_records": null
+      }
+    },
+    "E_B_transport_resources": {
+      "max_frame_bytes": null,
+      "response_timeout_ms": null
+    },
+    "old_financial_basis": {
+      "max_whole_reply_bytes": "16777216",
+      "max_whole_call_ms": "10000",
+      "authority": "APPROVED-SOURCE.md:317（旧financial-basis整份16MiB/10秒保持）",
+      "new_reader_equivalence_claim": false
+    },
+    "cumulative_accounting": {
+      "wire": "请求/响应/错误/reader stdout+stderr、peer proof与节点导入全计，重试/祖先重传全额重计",
+      "nodes": "不同根分帧bytes与count，含本地复用；每个上下文检查保留",
+      "records": "六族Snapshot与七变化集合每次访问计费，失败重访/同代对拍/嵌套basis不免",
+      "requests": "HTTP/子进程/本地peer捕获包括错误重试",
+      "elapsed": "每经济操作首次依赖读取起的绝对期限，整个Reserve申请集共享，不逐片续期",
+      "storage": "stage峰值与whole store，包括既存/历史引用/日志；不删仍引用节点腾额度",
+      "reader_lifetime": "单次reader启动至退出/回收，最早截止同时生效",
+      "failure": "Incomplete/MissingDependency，不产生经济提交；不抬帽、不换冷读法"
+    }
+  },
+  "stage_contracts": [
+    {
+      "phase": "preflight_identity_and_input_hashes",
+      "authorized": false,
+      "entry_must_have": [
+        "exact_root_run_admission_seed",
+        "root_admission_seed_sha256_matches_contract",
+        "supervisor_ACK_for_first_product_stage"
+      ],
+      "absolute_deadline_ms_from_t0": null,
+      "timeout_ms": null,
+      "rss_cap_bytes": null,
+      "disk_cap_bytes": null,
+      "stdout_stderr_cap_bytes": null,
+      "max_owned_processes": null,
+      "on_missing": "STOP_BEFORE_SPAWN",
+      "on_failure": "FAIL_WITH_ORIGINALS_NO_SYNTHETIC_FALLBACK",
+      "previous_stage_receipt_required": false
+    },
+    {
+      "phase": "build_artifact_identity_check",
+      "authorized": false,
+      "entry_must_have": [
+        "root_exact_grant",
+        "matching_contract_sha",
+        "supervisor_ACK",
+        "previous_stage_receipt"
+      ],
+      "absolute_deadline_ms_from_t0": null,
+      "timeout_ms": null,
+      "rss_cap_bytes": null,
+      "disk_cap_bytes": null,
+      "stdout_stderr_cap_bytes": null,
+      "max_owned_processes": null,
+      "on_missing": "STOP_BEFORE_SPAWN",
+      "on_failure": "FAIL_WITH_ORIGINALS_NO_SYNTHETIC_FALLBACK",
+      "previous_stage_receipt_required": true
+    },
+    {
+      "phase": "S_writer_input_and_finish_custody",
+      "authorized": false,
+      "entry_must_have": [
+        "root_exact_grant",
+        "matching_contract_sha",
+        "supervisor_ACK",
+        "previous_stage_receipt"
+      ],
+      "absolute_deadline_ms_from_t0": null,
+      "timeout_ms": null,
+      "rss_cap_bytes": null,
+      "disk_cap_bytes": null,
+      "stdout_stderr_cap_bytes": null,
+      "max_owned_processes": null,
+      "on_missing": "STOP_BEFORE_SPAWN",
+      "on_failure": "FAIL_WITH_ORIGINALS_NO_SYNTHETIC_FALLBACK",
+      "previous_stage_receipt_required": true
+    },
+    {
+      "phase": "S_financial_session_startup_and_READY",
+      "authorized": false,
+      "entry_must_have": [
+        "root_exact_grant",
+        "matching_contract_sha",
+        "supervisor_ACK",
+        "previous_stage_receipt"
+      ],
+      "absolute_deadline_ms_from_t0": null,
+      "timeout_ms": null,
+      "rss_cap_bytes": null,
+      "disk_cap_bytes": null,
+      "stdout_stderr_cap_bytes": null,
+      "max_owned_processes": null,
+      "on_missing": "STOP_BEFORE_SPAWN",
+      "on_failure": "FAIL_WITH_ORIGINALS_NO_SYNTHETIC_FALLBACK",
+      "previous_stage_receipt_required": true
+    },
+    {
+      "phase": "fresh_A_full_long_normal",
+      "authorized": false,
+      "entry_must_have": [
+        "root_exact_grant",
+        "matching_contract_sha",
+        "supervisor_ACK",
+        "previous_stage_receipt"
+      ],
+      "absolute_deadline_ms_from_t0": null,
+      "timeout_ms": null,
+      "rss_cap_bytes": null,
+      "disk_cap_bytes": null,
+      "stdout_stderr_cap_bytes": null,
+      "max_owned_processes": null,
+      "on_missing": "STOP_BEFORE_SPAWN",
+      "on_failure": "FAIL_WITH_ORIGINALS_NO_SYNTHETIC_FALLBACK",
+      "previous_stage_receipt_required": true
+    },
+    {
+      "phase": "fresh_B_full_long_normal",
+      "authorized": false,
+      "entry_must_have": [
+        "root_exact_grant",
+        "matching_contract_sha",
+        "supervisor_ACK",
+        "previous_stage_receipt"
+      ],
+      "absolute_deadline_ms_from_t0": null,
+      "timeout_ms": null,
+      "rss_cap_bytes": null,
+      "disk_cap_bytes": null,
+      "stdout_stderr_cap_bytes": null,
+      "max_owned_processes": null,
+      "on_missing": "STOP_BEFORE_SPAWN",
+      "on_failure": "FAIL_WITH_ORIGINALS_NO_SYNTHETIC_FALLBACK",
+      "previous_stage_receipt_required": true
+    },
+    {
+      "phase": "cap80_joint_feasible_testonly_domain",
+      "authorized": false,
+      "entry_must_have": [
+        "root_exact_grant",
+        "matching_contract_sha",
+        "supervisor_ACK",
+        "previous_stage_receipt"
+      ],
+      "absolute_deadline_ms_from_t0": null,
+      "timeout_ms": null,
+      "rss_cap_bytes": null,
+      "disk_cap_bytes": null,
+      "stdout_stderr_cap_bytes": null,
+      "max_owned_processes": null,
+      "on_missing": "STOP_BEFORE_SPAWN",
+      "on_failure": "FAIL_WITH_ORIGINALS_NO_SYNTHETIC_FALLBACK",
+      "previous_stage_receipt_required": true
+    },
+    {
+      "phase": "fault_matrix_before_after_commit",
+      "authorized": false,
+      "entry_must_have": [
+        "root_exact_grant",
+        "matching_contract_sha",
+        "supervisor_ACK",
+        "previous_stage_receipt"
+      ],
+      "absolute_deadline_ms_from_t0": null,
+      "timeout_ms": null,
+      "rss_cap_bytes": null,
+      "disk_cap_bytes": null,
+      "stdout_stderr_cap_bytes": null,
+      "max_owned_processes": null,
+      "on_missing": "STOP_BEFORE_SPAWN",
+      "on_failure": "FAIL_WITH_ORIGINALS_NO_SYNTHETIC_FALLBACK",
+      "previous_stage_receipt_required": true
+    },
+    {
+      "phase": "owner_unavailable_and_common_storage_unknown",
+      "authorized": false,
+      "entry_must_have": [
+        "root_exact_grant",
+        "matching_contract_sha",
+        "supervisor_ACK",
+        "previous_stage_receipt"
+      ],
+      "absolute_deadline_ms_from_t0": null,
+      "timeout_ms": null,
+      "rss_cap_bytes": null,
+      "disk_cap_bytes": null,
+      "stdout_stderr_cap_bytes": null,
+      "max_owned_processes": null,
+      "on_missing": "STOP_BEFORE_SPAWN",
+      "on_failure": "FAIL_WITH_ORIGINALS_NO_SYNTHETIC_FALLBACK",
+      "previous_stage_receipt_required": true
+    },
+    {
+      "phase": "same_source_query_history_watch_original",
+      "authorized": false,
+      "entry_must_have": [
+        "root_exact_grant",
+        "matching_contract_sha",
+        "supervisor_ACK",
+        "previous_stage_receipt"
+      ],
+      "absolute_deadline_ms_from_t0": null,
+      "timeout_ms": null,
+      "rss_cap_bytes": null,
+      "disk_cap_bytes": null,
+      "stdout_stderr_cap_bytes": null,
+      "max_owned_processes": null,
+      "on_missing": "STOP_BEFORE_SPAWN",
+      "on_failure": "FAIL_WITH_ORIGINALS_NO_SYNTHETIC_FALLBACK",
+      "previous_stage_receipt_required": true
+    },
+    {
+      "phase": "offline_S_absent_recovery_and_oracle",
+      "authorized": false,
+      "entry_must_have": [
+        "root_exact_grant",
+        "matching_contract_sha",
+        "supervisor_ACK",
+        "previous_stage_receipt"
+      ],
+      "absolute_deadline_ms_from_t0": null,
+      "timeout_ms": null,
+      "rss_cap_bytes": null,
+      "disk_cap_bytes": null,
+      "stdout_stderr_cap_bytes": null,
+      "max_owned_processes": null,
+      "on_missing": "STOP_BEFORE_SPAWN",
+      "on_failure": "FAIL_WITH_ORIGINALS_NO_SYNTHETIC_FALLBACK",
+      "previous_stage_receipt_required": true
+    }
+  ],
+  "supervision": {
+    "supervisor_binary_or_script": null,
+    "supervisor_sha256": null,
+    "ack_identity_fields": [
+      "contract_sha256",
+      "nonce",
+      "worker_pid",
+      "worker_start_identity",
+      "process_group",
+      "stage",
+      "absolute_deadline",
+      "resource_caps"
+    ],
+    "handshake": "supervisor记录ACK且worker核ACK后才能启动该阶段；失联与无ACK禁止工作，不能先跑后补",
+    "cleanup_scope": "只回收本次pid/start_identity/process_group登记的进程，逐项wait/reap；不pkill同名全机进程",
+    "term_grace_ms": null,
+    "kill_after_ms": null,
+    "seal_deadline_ms": null,
+    "restart_policy": "no_automatic_restart",
+    "request_absolute_deadline_never_reset": true,
+    "first_stage_seed": {
+      "root_run_admission": null,
+      "root_run_admission_sha256": null,
+      "preflight_seed": null,
+      "first_stage_requires_no_previous_stage": true
+    },
+    "recovery_rebinding": {
+      "each_new_pid_start_identity_epoch_requires_new_binding": true,
+      "root_total_deadline_never_reset": true,
+      "new_product_work_requires_current_ACK": true
+    },
+    "cleanup_and_seal_independent_entries": {
+      "on": [
+        "cancel",
+        "ACK_loss",
+        "resource_exhaustion",
+        "prior_stage_failure",
+        "normal_completion"
+      ],
+      "may_start_without_previous_success": true,
+      "may_start_without_new_product_ACK": true,
+      "must_have": "existing local ownership registry or exact root admission seed; never adopt unrelated processes",
+      "product_spawn_allowed": false,
+      "cleanup_deadline_ms_reserved": null,
+      "seal_deadline_ms_reserved": null,
+      "cleanup_proposal_ms": "60000",
+      "seal_proposal_ms": "65000",
+      "proposals_from_historical_r6_not_current_authorization": true,
+      "entire_run_deadline_reservation_required": true,
+      "cleanup_steps": [
+        "snapshot local owned process registry",
+        "verify PID/start identity/process group before signalling",
+        "TERM then KILL under frozen grace; always wait/reap",
+        "record unknown/mismatch/unreaped as failure, no PASS",
+        "preserve DB/WAL/log/original responses; do not repair business database"
+      ],
+      "seal_steps": [
+        "freeze all outcomes including error/cancel/ACK-loss",
+        "hash originals and cleanup receipt under reserved I/O/log/disk/time caps",
+        "produce FAIL/INCOMPLETE when cleanup/cap/deadline insufficient",
+        "never depend on product being alive or previous stage being successful"
+      ],
+      "proposal_total_cleanup_ms": "60000",
+      "proposal_TERM_grace_ms": "2000",
+      "proposal_KILL_wait_ms": "8000",
+      "proposal_remaining_cleanup_budget_ms": "50000",
+      "proposal_explanation": "总cleanup60000ms内TERM2000+KILL/wait8000+余量50000；比旧r6 TERM60000ms更短，仅提案。全部仍需根冻结，不能从null自动启用。seal65000ms另预留，计入整次总deadline。"
+    }
+  },
+  "verification": {
+    "fresh_runs": [
+      "A",
+      "B"
+    ],
+    "fresh_runs_rule": "相同冻结全Long输入顺序/政策/时钟；独立空目录、独立新进程，禁止复制A数据库/输出到B",
+    "independent_oracle_reference": "/Volumes/AgentStorage/issue1394-real-contract-v2-20261018/producer-source/s_session/tests/tb03b_oracle.py",
+    "oracle_adaptation_status": "NOT_REVIEWED_FOR_CURRENT_PROTOCOL",
+    "oracle_source_rule": "只读持久数据库/原请求回执，独立从冻结现金权利/数量价格费用算expected；禁止从生产reducer生成expected或把expected复制为actual",
+    "compare": [
+      "canonical_commits",
+      "original_receipts",
+      "original_requests",
+      "accounting_components",
+      "q",
+      "fixed_Q",
+      "locks",
+      "liabilities",
+      "unique_closure_nodes",
+      "same_cut_queries"
+    ],
+    "normal_negative_domains": [
+      "idempotent_duplicate",
+      "stale_writer",
+      "identity_conflict",
+      "insufficient_cap_wait_without_new_grant",
+      "abort_committed_rejected"
+    ],
+    "recovery_matrix": [
+      {
+        "op": "PrepareDecision",
+        "domain": "B:alpha",
+        "seams": [
+          "before_commit",
+          "after_commit"
+        ],
+        "repeat_each": [
+          "A",
+          "B"
+        ]
+      },
+      {
+        "op": "Reserve",
+        "domain": "E",
+        "seams": [
+          "before_commit",
+          "after_commit"
+        ],
+        "repeat_each": [
+          "A",
+          "B"
+        ]
+      },
+      {
+        "op": "CommitDecision",
+        "domain": "B:alpha",
+        "seams": [
+          "before_commit",
+          "after_commit"
+        ],
+        "repeat_each": [
+          "A",
+          "B"
+        ]
+      },
+      {
+        "op": "ImportResponsibility",
+        "domain": "E",
+        "seams": [
+          "before_commit",
+          "after_commit"
+        ],
+        "repeat_each": [
+          "A",
+          "B"
+        ]
+      },
+      {
+        "op": "AbortDecision",
+        "domain": "B:alpha",
+        "seams": [
+          "before_commit",
+          "after_commit"
+        ],
+        "repeat_each": [
+          "A",
+          "B"
+        ]
+      },
+      {
+        "op": "CloseApplicants",
+        "domain": "E",
+        "seams": [
+          "before_commit",
+          "after_commit"
+        ],
+        "repeat_each": [
+          "A",
+          "B"
+        ]
+      }
+    ],
+    "extra_recovery_domains": [
+      "B:alpha unavailable after E Reserve",
+      "common E storage unknown: no new commitment",
+      "S offline: local history/idempotent return/audit recovery"
+    ],
+    "recovery_steps": [
+      "等待真实owner持久边界marker，记录pid和请求身份",
+      "由监督者向同一已核pid执行SIGKILL并等待回收；留退出/信号/时间原件",
+      "只读捕获真实DB及WAL/shm身份与历史，不写库",
+      "按冻结恢复协议从持久化恢复并递增epoch；核旧epoch被拒",
+      "重复原业务身份核回执幂等与责任不丢不重；前提交与后提交区别断言",
+      "S不可用时核本地历史恢复与审计不依赖S在线",
+      "独立oracle逐项核账并对照A/B；失败保原错误不得赋True"
+    ],
+    "no_manual_database_insert": true,
+    "no_truncated_input_for_full_long": true
+  },
+  "frontend_scope": {
+    "backend_test_client_allowed": true,
+    "new_product_browser_prerequisite_for_1323": false,
+    "product_owner_issue": 1460,
+    "legacy_1394_AC4_browser": "单列未完成责任；如以客户端证据改变1394旧AC验收方式须根明确登记，不默默勾选浏览器"
+  },
+  "excluded_pseudo_evidence": {
+    "directory": "/Volumes/AgentStorage/issue1394-ac5-20261017-2123",
+    "excluded": [
+      "run1_executor.py synthetic fallback",
+      "run2_executor.py copies expected",
+      "recovery_executor.py sleep+expected/True"
+    ],
+    "retain_originals": true
+  },
+  "closure_gates": [
+    "P10/P16静态复用仅父控登记，不重跑也不扩大到实跑",
+    "Long fresh A/B PASS并独审",
+    "逐片null旧读法退场核定，44九字段旧manifest报告不自动结清全部",
+    "最终节点闭包等于独立遍历原件入仓",
+    "真实AC1..5逐条证据对账",
+    "保留1323/1340/1279 OPEN，前端1460与K4分界不变"
+  ],
+  "candidate_name": "b46-current-candidate",
+  "new_source_roles": "SOURCE-ROLES.json",
+  "resource_inheritance": "RESOURCE-INHERITANCE.json",
+  "supersedes_only_preparation_file": "v1 PREPARATION-CONTRACT.json; v1 bytes preserved"
+}

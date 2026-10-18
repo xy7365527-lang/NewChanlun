@@ -1,0 +1,94 @@
+--- /Volumes/AgentStorage/issue1394-real-driver-p0-v2-20261018/oracle.py
++++ s_session/tests/issue1394_acceptance/oracle.py
+@@ -22,71 +22,27 @@
+         raise ValueError('oracle 数值溢出')
+     return result
+ 
+-def check(manifest_path, expect='committed', *, admission=None):
++def check(manifest_path, expect='committed', *, admission=None, budget=None,
++          audit_contract=None):
++    """真实入口必须另具冻结核账合同；不再用第一条 slot/owner 覆盖其余 decision。"""
++    from driver import ReadBudget, read_original
++    from financial_oracle import audit
+     require(type(admission) is ExecutionAdmission, '独立核账实际读库尚未获根精确准入')
+-    manifest = strict(Path(manifest_path).read_bytes())
+-    require(manifest["finance"]["schema_revision"] == "tb03b-finance/2" and manifest.get("protocol_revision") == "economic-session/2", "独立核账必须当前 /2 域")
+-    data_raw = Path(manifest['finance']['input_path']).read_bytes()
+-    require(hashlib.sha256(data_raw).hexdigest() == manifest['finance']['input_sha256'], "独立核账条件失败：hashlib.sha256(data_raw).hexdigest() == manifest['finance']['input_sha256']")
+-    data = strict(data_raw)
+-    require(data['kind'] == 'TestOnly' and data['policy']['model'] == 'TestOnlyUnleveragedCashBuy', "独立核账条件失败：data['kind'] == 'TestOnly' and data['policy']['model'] == 'TestOnlyUnleveragedCashBuy'")
+-    require(data['policy']['allocation_policy_id'] == '#1349/atomic-slot-wait/v1', "独立核账条件失败：data['policy']['allocation_policy_id'] == '#1349/atomic-slot-wait/v1'")
+-    rights = {r['right_id']: r for r in data['rights']}
+-    baseline, cap = (amount(data['baseline']['amount']), amount(data['policy']['cap']))
+-    expected = {}
+-    for plan in data['plans']:
+-        quantity, price, tail = (amount(plan[k]) for k in ('quantity', 'limit_price', 'fee_tail'))
+-        bound = quantity * price + tail
+-        require(bound <= amount(rights[plan['right_id']]['amount']), "独立核账条件失败：bound <= amount(rights[plan['right_id']]['amount'])")
+-        expected[plan['decision_id']] = {'bound': str(bound), 'quantity': str(quantity), 'owner': plan['owner'], 'plan_hash': sha(plan)}
+-    required = baseline + sum((int(e['bound']) for e in expected.values()))
+-    domains = {'E': read_domain(manifest['e']['db'])}
+-    domains.update({'B:' + b['chong_id']: read_domain(b['db']) for b in manifest['chongs']})
+-    e_image = domains['E']['commits'][-1]['image']['finance']
+-    actual_liability = sum((amount(r['amount']) for r in e_image['responsibilities']))
+-    slot = e_image['slots'][0]
+-    if expect == 'awaiting_policy':
+-        require(required > cap, '独立核账条件失败：required > cap')
+-        require(slot['state'] == 'AwaitingAllocationPolicy', "独立核账条件失败：slot['state'] == 'AwaitingAllocationPolicy'")
+-        require(slot['waiting_for'] == data['policy']['allocation_policy_id'], "独立核账条件失败：slot['waiting_for'] == data['policy']['allocation_policy_id']")
+-        require(slot['grants'] == [] and actual_liability == baseline, "独立核账条件失败：slot['grants'] == [] and actual_liability == baseline")
+-    else:
+-        require(required <= cap and actual_liability == required, '独立核账条件失败：required <= cap and actual_liability == required')
+-        require(slot['state'] == 'Reserved' and len(slot['grants']) == len(expected), "独立核账条件失败：slot['state'] == 'Reserved' and len(slot['grants']) == len(expected)")
+-    observations = {}
+-    for decision_id, exp in expected.items():
+-        domain = domains[exp['owner']]
+-        history = domain['commits']
+-        state = history[-1]['image']
+-        initial = next((c['image']['book'] for c in history if c['image']['book'] is not None))
+-        book = state['book']
+-        require(book['actual_quantity'] == initial['actual_quantity'], "独立核账条件失败：book['actual_quantity'] == initial['actual_quantity']")
+-        require(book['fixed_q'] == initial['fixed_q'], "独立核账条件失败：book['fixed_q'] == initial['fixed_q']")
+-        require(book['known_cost_totals'] == initial['known_cost_totals'], "独立核账条件失败：book['known_cost_totals'] == initial['known_cost_totals']")
+-        require(book['income_book'] == initial['income_book'], "独立核账条件失败：book['income_book'] == initial['income_book']")
+-        require(book['unknown']['principal_baseline']['status'] == 'Unknown', "独立核账条件失败：book['unknown']['principal_baseline']['status'] == 'Unknown'")
+-        require(book['unknown']['capital_phase']['status'] == 'Unknown', "独立核账条件失败：book['unknown']['capital_phase']['status'] == 'Unknown'")
+-        d = next((d for d in state['finance']['decisions'] if d['decision_id'] == decision_id))
+-        require(d['prepared']['locked_amount'] == exp['bound'], "独立核账条件失败：d['prepared']['locked_amount'] == exp['bound']")
+-        worst = amount(initial['actual_quantity']) + amount(exp['quantity'])
+-        require(d['prepared']['worst_quantity'] == str(worst) and worst <= amount(book['fixed_q']), "独立核账条件失败：d['prepared']['worst_quantity'] == str(worst) and worst <= amount(book['fixed_q'])")
+-        require(d['execution_eligibility'] == 'None', "独立核账条件失败：d['execution_eligibility'] == 'None'")
+-        should_commit = expect == 'committed' or (expect == 'unavailable_alpha' and exp['owner'] != 'B:alpha')
+-        require(d['state'] == ('Committed' if should_commit else 'Prepared'), "独立核账条件失败：d['state'] == ('Committed' if should_commit else 'Prepared')")
+-        if should_commit:
+-            receipt = next((r for r in domain['receipts'].values() if r['kind'] == 'LocalCommitReceipt' and r['record']['decision_id'] == decision_id))
+-            grant = next((g for g in slot['grants'] if g['decision_id'] == decision_id))
+-            require(receipt['record']['grant']['original'] == grant, "独立核账条件失败：receipt['record']['grant']['original'] == grant")
+-            require(grant['amount'] == exp['bound'] and grant['plan_hash'] == exp['plan_hash'], "独立核账条件失败：grant['amount'] == exp['bound'] and grant['plan_hash'] == exp['plan_hash']")
+-            require(amount(grant['reserved_ns']) <= amount(receipt['commit_ns']), "独立核账条件失败：amount(grant['reserved_ns']) <= amount(receipt['commit_ns'])")
+-            require(receipt['record']['local_commit_receipt']['e_cut']['commit_seq'] == grant['reserved_seq'], "独立核账条件失败：receipt['record']['local_commit_receipt']['e_cut']['commit_seq'] == grant['reserved_seq']")
+-            for c in history:
+-                for old in c['image']['finance']['decisions']:
+-                    if old['state'] == 'Prepared':
+-                        require(old['grant'] is None and old['local_commit_receipt'] is None, "独立核账条件失败：old['grant'] is None and old['local_commit_receipt'] is None")
+-        observations[exp['owner']] = {'q': book['actual_quantity'], 'Q': book['fixed_q'], 'lock': exp['bound'], 'worst_q': str(worst), 'state': d['state']}
+-    semantic = {name: {'commits': value['commits'], 'receipts': value['receipts'], 'requests': value['requests']} for name, value in domains.items()}
+-    return {'scope': expect, 'input_sha256': hashlib.sha256(data_raw).hexdigest(), 'required_total': str(required), 'retained_total': str(actual_liability), 'observations': observations, 'domain_semantic_hashes': {name: sha(v) for name, v in semantic.items()}, 'semantic': semantic}
++    require(type(budget) is ReadBudget and audit_contract is not None,
++            '缺共享 Job 预算或冻结完整核账原件；不从 actual 生成 expected')
++    frozen = strict(audit_contract.read(budget))
++    manifest = strict(read_original(manifest_path, budget))
++    require(manifest['schema_revision'] == 'economic-manifest/1' and
++            manifest.get('protocol_revision') == 'economic-session/2', '经济协议不符')
++    require(frozen['manifest_sha256'] == sha(manifest), '核账合同/manifest 不同')
++    data_raw = read_original(manifest['finance']['input_path'], budget)
++    domains = {'E': read_domain(manifest['e']['db'], budget=budget)}
++    domains.update({'B:' + b['chong_id']: read_domain(b['db'], budget=budget)
++                    for b in manifest['chongs']})
++    return audit(data_raw, manifest['finance']['input_sha256'],
++                 session_id=manifest['session_id'], session_generation=manifest['session_generation'],
++                 initial_books=frozen['initial_books'], initial_sequences=frozen['initial_sequences'],
++                 operations=frozen['operations'], histories={k: v['commits'] for k,v in domains.items()}, budget=budget)
+ 
+ def main():
+     p = argparse.ArgumentParser(description=__doc__)

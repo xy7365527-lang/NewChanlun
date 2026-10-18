@@ -1,0 +1,102 @@
+[
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-B",
+      "s_session/tests/issue1394_acceptance/run_checks.py"
+    ],
+    "output": "normal-final-all.txt",
+    "returncode": 1,
+    "elapsed_seconds": 3.277771458000643,
+    "scope": "ALL_TARGETED",
+    "discovered": 123,
+    "run": 123,
+    "success": false,
+    "errors": [
+      "test_driver.AdapterTests.test_owned_toy_marker_sigkill_and_reap",
+      "test_driver.AdapterTests.test_real_gate_ack_loss_and_late_disk_reap_without_release (failure='ack')",
+      "test_driver.AdapterTests.test_real_gate_ack_loss_and_late_disk_reap_without_release (failure='disk')"
+    ],
+    "failures": [
+      "test_driver.AdapterTests.test_supervisor_real_unix_ack_and_mismatch"
+    ],
+    "excluded": {},
+    "execution_authorized": false,
+    "product_status": "NOT_RUN"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-B",
+      "s_session/tests/issue1394_acceptance/run_checks.py",
+      "--offline"
+    ],
+    "output": "normal-final-offline.txt",
+    "returncode": 0,
+    "elapsed_seconds": 1.1314024159946712,
+    "scope": "OFFLINE_SUBSET",
+    "discovered": 123,
+    "run": 120,
+    "success": true,
+    "errors": [],
+    "failures": [],
+    "excluded": {
+      "test_driver.AdapterTests.test_owned_toy_marker_sigkill_and_reap": "沙箱禁止 Unix socket bind 与 /bin/ps",
+      "test_driver.AdapterTests.test_real_gate_ack_loss_and_late_disk_reap_without_release": "沙箱禁止 /bin/ps",
+      "test_driver.AdapterTests.test_supervisor_real_unix_ack_and_mismatch": "沙箱禁止 Unix socket bind 与 /bin/ps"
+    },
+    "execution_authorized": false,
+    "product_status": "NOT_RUN"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-O",
+      "-B",
+      "s_session/tests/issue1394_acceptance/run_checks.py"
+    ],
+    "output": "optimized-final-all.txt",
+    "returncode": 1,
+    "elapsed_seconds": 3.1142466669989517,
+    "scope": "ALL_TARGETED",
+    "discovered": 123,
+    "run": 123,
+    "success": false,
+    "errors": [
+      "test_driver.AdapterTests.test_owned_toy_marker_sigkill_and_reap",
+      "test_driver.AdapterTests.test_real_gate_ack_loss_and_late_disk_reap_without_release (failure='ack')",
+      "test_driver.AdapterTests.test_real_gate_ack_loss_and_late_disk_reap_without_release (failure='disk')"
+    ],
+    "failures": [
+      "test_driver.AdapterTests.test_supervisor_real_unix_ack_and_mismatch"
+    ],
+    "excluded": {},
+    "execution_authorized": false,
+    "product_status": "NOT_RUN"
+  },
+  {
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-O",
+      "-B",
+      "s_session/tests/issue1394_acceptance/run_checks.py",
+      "--offline"
+    ],
+    "output": "optimized-final-offline.txt",
+    "returncode": 0,
+    "elapsed_seconds": 1.0847939169980236,
+    "scope": "OFFLINE_SUBSET",
+    "discovered": 123,
+    "run": 120,
+    "success": true,
+    "errors": [],
+    "failures": [],
+    "excluded": {
+      "test_driver.AdapterTests.test_owned_toy_marker_sigkill_and_reap": "沙箱禁止 Unix socket bind 与 /bin/ps",
+      "test_driver.AdapterTests.test_real_gate_ack_loss_and_late_disk_reap_without_release": "沙箱禁止 /bin/ps",
+      "test_driver.AdapterTests.test_supervisor_real_unix_ack_and_mismatch": "沙箱禁止 Unix socket bind 与 /bin/ps"
+    },
+    "execution_authorized": false,
+    "product_status": "NOT_RUN"
+  }
+]

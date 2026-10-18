@@ -1,0 +1,295 @@
+{
+  "issue": 1394,
+  "base_commit": "3315ed1d59ba31ffbad3f0b959702eaa92f4ddbd",
+  "status": "BLOCKED_PRODUCT_NOT_RUN",
+  "execution_authorized": false,
+  "current_diff_independent_review": "NOT_RUN",
+  "source_unchanged_since_tests": true,
+  "all_seven_input_pins_still_match": true,
+  "git_status": "?? .chanlun/review-results/issue1394-acceptance-integration-20261018/\n?? s_session/tests/issue1394_acceptance/\n",
+  "scope": "仅当前 checkout 两个新目录；本清单不含自身摘要，无 commit/push/merge",
+  "files": [
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/REPORT.md",
+      "bytes": 13945,
+      "mode": "0o644",
+      "sha256": "cedae504677bb8774eafa400f321ee88e0bce59faa5d2069e9c784b598cc44e4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/SOURCE-CHECKS.json",
+      "bytes": 60534,
+      "mode": "0o644",
+      "sha256": "79d8069a47df399feeb52391581ec0c4cb187ded1cbd65df124a1101db5d7cd4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/SOURCE-ROLES.json",
+      "bytes": 3638,
+      "mode": "0o644",
+      "sha256": "9fa3a34ab3edcead59aab44b0eb8f0109426169a6150f83d91228d8225bb5c7d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/STATIC-CHECKS.json",
+      "bytes": 5180,
+      "mode": "0o644",
+      "sha256": "d43e2d4ace75bb55ac9c63f440bd9e93373243237f217859409c4e32d3d59844"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/TEST-RESULTS-FINAL.json",
+      "bytes": 3456,
+      "mode": "0o644",
+      "sha256": "ca1b99ba77330f79f0f1a6b26b9c9ec8437d06f0563ebd6a0f6f5921ab59e791"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/TEST-RESULTS.json",
+      "bytes": 3431,
+      "mode": "0o644",
+      "sha256": "872839c18246427578bfcff81786a5e9205a735a55f77debecdf0103380fbe4f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/driver.py.diff",
+      "bytes": 8671,
+      "mode": "0o644",
+      "sha256": "cc62ba10cda48ab541d3311babe97ae4ce162a6a6c9c5f5334a206d02520e221"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/normal-all.txt",
+      "bytes": 26409,
+      "mode": "0o644",
+      "sha256": "690c8e40e96bed0b6cdc8f36b4a2fcaa25a94e97f43d618becce6d3b652b4c63"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/normal-final-all.txt",
+      "bytes": 26567,
+      "mode": "0o644",
+      "sha256": "3434e8f07dca140ba52a48b90e1d7a24aa6cc9cde8f975c87b1a312e8cb93406"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/normal-final-offline.txt",
+      "bytes": 16866,
+      "mode": "0o644",
+      "sha256": "65b5b4b8fe5f0f91c516e1831deba61bda0d6b4953c99df7c402f672bcd0247f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/normal-offline.txt",
+      "bytes": 16707,
+      "mode": "0o644",
+      "sha256": "ab542157eafbd60320167087c1464c90e30be6173722fb049417e0ec35174c97"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/optimized-all.txt",
+      "bytes": 26409,
+      "mode": "0o644",
+      "sha256": "dd97ecc50061b75417ae98704afdc1dfecc4f49e6d928679db59be83eb94bb98"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/optimized-final-all.txt",
+      "bytes": 26568,
+      "mode": "0o644",
+      "sha256": "4692ea6897ee93cab40d1d127d95de852fe5e1b9b89b49bdbaf5d2e0f2dcc7e9"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/optimized-final-offline.txt",
+      "bytes": 16866,
+      "mode": "0o644",
+      "sha256": "b4dab3a63e521d9a5a32f79b4a226928a71295cbe0ed2532d473602d79347515"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/optimized-offline.txt",
+      "bytes": 16707,
+      "mode": "0o644",
+      "sha256": "a276e0e5299c4a1414e4aee5cdf477878bcec63c42330f19e883f8dc1758306b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/oracle.py.diff",
+      "bytes": 8960,
+      "mode": "0o644",
+      "sha256": "af5884f1047cf481928f16130b82cf3ce8df6f764502ac73ff466f8c7c5be52b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/references/CURRENT-DEPENDENCIES.json",
+      "bytes": 1040,
+      "mode": "0o644",
+      "sha256": "e90ebc8e9aa5c98a5016ea6f6e288bfd1c70cbaaed3620effd34c343f0788c2a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/references/INPUT-INVENTORY.md",
+      "bytes": 7260,
+      "mode": "0o644",
+      "sha256": "038b6d8aa9b2e260b897901bcb2c517257dbd50c8fa344cd4c694f1528a16392"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/references/P0-v2-prior-independent-probes.json",
+      "bytes": 1726,
+      "mode": "0o644",
+      "sha256": "302aa36ae2c82d928a383ae9e70aa808904d38ae4cdadc4d216424fb0e9b9dde"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/references/P0-v2-prior-independent-review.md",
+      "bytes": 8852,
+      "mode": "0o644",
+      "sha256": "cfc7deb0a5a486185df19e026e70a8fd8dfeef41ce372f774a8186dc6605cabb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/references/XERJ-REFERENCES.json",
+      "bytes": 12425,
+      "mode": "0o644",
+      "sha256": "952d62db9148713e80ae1b5ffe7484c584d3bdc69775ba3a947ffe3333fa10ce"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/references/driver-v1-prior-independent-review.md",
+      "bytes": 11256,
+      "mode": "0o644",
+      "sha256": "ca54aa7a54d17a89fe249e2a555e6267730cba67cda21859cf17b81f45d7d29a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/scheduler.py.diff",
+      "bytes": 4431,
+      "mode": "0o644",
+      "sha256": "dfd901623960f4a3ef8601fc047324b7190d00701c0e33bb70c4f7364b864e3c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/test_driver.py.diff",
+      "bytes": 973,
+      "mode": "0o644",
+      "sha256": "ae612ecabf5f1033b62cbf4a7122c7471942191fed6528820ce729403b31e336"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/test_scheduler.py.diff",
+      "bytes": 677,
+      "mode": "0o644",
+      "sha256": "6a096514dc42b131a5d3e7f9eb351fde1774b876d557201147713c11b1dbf0e5"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/README.md",
+      "bytes": 3244,
+      "mode": "0o644",
+      "sha256": "f0cd2859dde27c81bb899e8f8d1c45acf9f130e0ae5db26de66060d47ce9702b"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/closure.py",
+      "bytes": 8290,
+      "mode": "0o644",
+      "sha256": "5459ab3d8dce283677efead39206c2fbba4593d965f913c5f5c7336a1258762d"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/control.py",
+      "bytes": 6301,
+      "mode": "0o644",
+      "sha256": "950595b87956e6d8923c816cac9739d7aff29c0582f5a2bfe8bfd9383ddb8057"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/driver.py",
+      "bytes": 44599,
+      "mode": "0o644",
+      "sha256": "1735bffa631b1d4789f363204fec97fd26ceccd1ca439cc340bcd00a8ebf05f7"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/evidence.py",
+      "bytes": 5217,
+      "mode": "0o644",
+      "sha256": "59f8fba79d3c94a1fae473a30322e47699fdf9f3fb01abdac64df6025c33ee28"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/financial_oracle.py",
+      "bytes": 14682,
+      "mode": "0o644",
+      "sha256": "f16ee86c987cfd783aa0d85544966bf660ec80012a8f18c8989832b4f4c56412"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/fixtures/PREPARATION-CONTRACT.json",
+      "bytes": 20004,
+      "mode": "0o644",
+      "sha256": "ce719894bcb8aa60e956d723271250d57d892ddbb6c70dea64bd0cf4aaca8fa1"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/journal.py",
+      "bytes": 7624,
+      "mode": "0o644",
+      "sha256": "739c57680f3677a4a1fd60de64b5e9a20391e818a77e0fdc3c0cb9c452caca61"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/oracle.py",
+      "bytes": 3194,
+      "mode": "0o644",
+      "sha256": "09286d40f2602b86a19de834983048cd38a63197c31df65c2f4d7013e7f302be"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/run_checks.py",
+      "bytes": 1720,
+      "mode": "0o644",
+      "sha256": "94c180cd611cc7d2f1a99f94bb61fed6594d8aac8ea52470aefc7cbb91072bae"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/scheduler.py",
+      "bytes": 21434,
+      "mode": "0o644",
+      "sha256": "d8591d237117b1bd9580821dee09657b11eadaa4e00db5577b42dbe3b1c58c72"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/supervisor.py",
+      "bytes": 11206,
+      "mode": "0o644",
+      "sha256": "27720cb73a1a0af3184654fbd6d6c119fd73d3e84d928386dd667ceac69dc972"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_closure.py",
+      "bytes": 5537,
+      "mode": "0o644",
+      "sha256": "d4f6772d82109c9cd05901cf667bf21d3b1740e11976036c86352eeb5a2d5710"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_control.py",
+      "bytes": 5375,
+      "mode": "0o644",
+      "sha256": "2c96cffc3b024f798d863b40bc345e386283c39f5e2da5853ab00b5fcdd01711"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver.py",
+      "bytes": 31184,
+      "mode": "0o644",
+      "sha256": "fd443df0c247934a8b2435d9e98169ed33f97baec6e17eca647ebab5d4b58176"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver_regressions.py",
+      "bytes": 6602,
+      "mode": "0o644",
+      "sha256": "621e990d5c7c6ed9dbe512efd30c7957696b346575439ddf5b5068bc95fc5b5d"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_evidence.py",
+      "bytes": 6258,
+      "mode": "0o644",
+      "sha256": "1ca3e190be03078e59d7c4edbd3b3f5c649a3541ab447e3eee7aa749c0baac47"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_financial_oracle.py",
+      "bytes": 11087,
+      "mode": "0o644",
+      "sha256": "4e4aa83aa273cc230166f122618a6abaad67ad85632320ab23739275112d1885"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_journal.py",
+      "bytes": 5165,
+      "mode": "0o644",
+      "sha256": "97e1947e763b6fbf59208fd149b2a88141dff8b327e05fee2ca2fe40d798f26d"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler.py",
+      "bytes": 19333,
+      "mode": "0o644",
+      "sha256": "1437551453d37d72b989f2e0d483daaf8aa90daef6ba0980acb8280691d94271"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler_integration.py",
+      "bytes": 1389,
+      "mode": "0o644",
+      "sha256": "98b0d9bb348d3b1190e3ae0d623dc2e0e5d4ff9a4763e319c00463bc618424b8"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_supervisor.py",
+      "bytes": 7889,
+      "mode": "0o644",
+      "sha256": "57899f3abedebdb5be90606b5d812c8f8d4c6604f579b9e208d9d242f885b651"
+    }
+  ]
+}
