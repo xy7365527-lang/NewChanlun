@@ -1,0 +1,76 @@
+{
+  "commands": [
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "/dev/null",
+        "rust/src/theta_v0/parser/second_fold/wire_match.rs"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "rev-parse",
+        "--abbrev-ref",
+        "HEAD"
+      ],
+      "exit_code": 0,
+      "stdout": "codex/1419-source-fix-v3-20261018\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "exit_code": 0,
+      "stdout": "2694afcf147f3ba4114fde386470886c2428efc0\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "status",
+        "--short"
+      ],
+      "exit_code": 0,
+      "stdout": " M rust/src/bin/s_session_v2/content_producer.rs\n M rust/src/bin/s_session_v3/source_contributions.rs\n M rust/src/theta_v0/backtest/econ_positive/tests.rs\n M rust/src/theta_v0/backtest/runner_tests.rs\n M rust/src/theta_v0/classifier/cand_predicate.rs\n M rust/src/theta_v0/classifier/center.rs\n M rust/src/theta_v0/classifier/descend.rs\n M rust/src/theta_v0/classifier/recursive_tower.rs\n M rust/src/theta_v0/classifier/signal/cert.rs\n M rust/src/theta_v0/classifier/tests/center_pair_1424.rs\n M rust/src/theta_v0/classifier/voice_eat.rs\n M rust/src/theta_v0/parser/second_fold.rs\n M rust/src/theta_v0/parser/tb02w_tests.rs\n?? .chanlun/review-results/issue1419-source-fix-v3-20261018/\n?? rust/src/theta_v0/parser/second_fold/\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--quiet",
+        "HEAD",
+        "--",
+        "formal",
+        "rust/src/theta_v0/parser/inclusion.rs",
+        "rust/src/s_content/capture_allocation",
+        "rust/src/bin/s_session_v3/audit_owner.rs",
+        "rust/src/bin/s_session_v3/q.rs",
+        "rust/src/bin/s_session_v3/effects.rs",
+        ".chanlun/review-results/issue1419-native-semantic-v2-20261018"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "source_manifest_rows_verified": 53,
+  "input_hashes_unchanged": true,
+  "protected_paths_unchanged": true,
+  "new_source_trailing_whitespace_lines": [],
+  "new_source_no_index_note": "exit1为新文件差异，空白诊断为空；不写成exit0。",
+  "rust": "NOT_RUN",
+  "k1": "PENDING_BUDGET_API",
+  "approval": "未批准"
+}

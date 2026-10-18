@@ -86,7 +86,9 @@ impl RMove {
         }
     }
 
-    /// 走势区间下沿 lo（Lean `Move.lo`/`Move.interval`）。
+    /// 走势区间下沿 lo。Lean `Move.lo`/`Move.interval` 的同值定义仅绑定 donor
+    /// `634f62cddfaddf656a35ca9b9db20cb716b62bff` 的 `formal/Formal/RecursiveConstruction.lean`；
+    /// 非空 subs 取极值、空 subs 为 0。当前 checkout 仍用旧 Lean 定义，同拍未验（#1419）。
     /// Segment 直接取 lo；Compose 取 subs 区间下沿的最小值（外缘下沿，无 subs ⟹ 0 占位）。
     pub fn lo(&self) -> Tick {
         match self {
@@ -95,7 +97,7 @@ impl RMove {
         }
     }
 
-    /// 走势区间上沿 hi（Lean `Move.hi`/`Move.interval`）。
+    /// 走势区间上沿 hi；Lean 来源、有效域及未验边界同 [`Self::lo`]（#1419）。
     pub fn hi(&self) -> Tick {
         match self {
             RMove::Segment { hi, .. } => *hi,

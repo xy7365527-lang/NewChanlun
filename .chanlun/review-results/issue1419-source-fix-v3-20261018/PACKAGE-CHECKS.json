@@ -1,0 +1,12 @@
+{
+  "product_files": 53,
+  "changed_rust_files": 14,
+  "source_and_delta_reverse_check": "PASS_READ_ONLY",
+  "new_artifact_trailing_whitespace": [],
+  "product_diffcheck": "PASS",
+  "full_tree_diffcheck": "FAIL_ARTIFACT_V2_SOURCE_PATCH_EXIT_2",
+  "note": "新 patch 用零上下文避免空上下文行混同空白错误；应用时须 --unidiff-zero。不修改旧报告。",
+  "rust_compiled": false,
+  "tests_executed": false,
+  "approved": false
+}

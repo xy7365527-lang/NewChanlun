@@ -142,7 +142,11 @@ pub struct LeveledMove {
     /// 全量/增量产同 ID——`compose_level`/`compose_level_resume` 注入 ordinal。
     pub id: ElementId,
     /// ★#1419 根裁定 r2 第 1 条：**走势区间**缓存 `(lo, hi)` = 本走势全部子走势的价格极值
-    /// （Lean `Formal.RecursiveConstruction.Move.interval`，与递归 `rmove.lo()/hi()` 同值）。
+    /// 与递归 `rmove.lo()/hi()` 同值；Lean 定义来源仅绑定 donor
+    /// `634f62cddfaddf656a35ca9b9db20cb716b62bff` 的
+    /// `formal/Formal/RecursiveConstruction.lean::Move.interval/listInterval`：非空 subs 取全部子走势
+    /// 极值，空 subs 为 (0, 0)。当前 checkout 的 Lean 仍为 centers 外缘/零初值旧定义，
+    /// 不据此声明同拍；最终统一源树的 Lean 绑定与执行验证仍待根完成（#1419）。
     ///
     /// 走势区间不是中枢外缘：中枢 GG/DD 只聚合 Zn（`center::is_zn`），走势区间取全部子走势（含
     /// 非 Zn 的末成员——其端点就是走势的实际极值）。生产构造（[`Self::from_unit`]、[`Self::compose`]）
@@ -261,7 +265,8 @@ impl LeveledMove {
             "#897：run 载荷恒非空（末位 = 本窗口真派生中枢）"
         );
         // ★#1419 r2 第 1 条：走势区间 = 全部子走势区间的极值（读子走势缓存，O(k)）；空 subs 记 (0,0)，
-        // 与 `RMove::lo/hi` 的 `unwrap_or(0)` 及 Lean `Move.listInterval []` 同口径。
+        // 与 `RMove::lo/hi` 的 `unwrap_or(0)` 同口径；Lean `Move.listInterval []` 仅指
+        // interval_cache 文档所绑定的 donor 定义，不指当前 checkout（#1419）。
         let interval = subs
             .iter()
             .map(LeveledMove::envelope)
@@ -336,7 +341,8 @@ impl LeveledMove {
 ///   不开新同级别中枢（Q2 裁决：连续围绕同一区间震荡 = 一个延伸中枢，不拆成多个重叠碎片）。
 /// - **Step3 non-extension**：仅当 `d_j > ZG ∨ g_j < ZD` 停止延伸，中枢结算；u_j 是突破段（连接段），
 ///   不属于任何中枢，下一个同级别 seed 自 u_{j+1}（= last_member+2）起找（★#1419 R8，#812 Z-5，
-///   `zhongshu.md` §6.1；`028-第28课.md:770`【答疑·作者回复】「不构成任何中枢中的一段」）。
+///   `.chanlun/definitions/zhongshu.md` §6.1【Z-5】的 C 续扫裁定）。028:770 原文主语是「跳空」，
+///   本规则引用已裁 C 口径，不把该句扩为一般突破段的直接原文证明。
 ///
 /// 与旧「非重叠三段窗口、成立支 +3」的差异：旧版把围绕同一核心的持续震荡拆成多个外缘互相重叠的
 /// 同级别中枢（L0 全历史 94.4% 相邻重叠，#141 问题包 §3-b 坐实）；canonical 版把它们吸收进一个
@@ -632,8 +638,8 @@ pub fn scan_center_facts<S: ScanSink>(
                     upgraded: n >= UPGRADE_TOTAL_SEGMENTS,
                     emitted,
                 });
-                // ★#1419 R8（#812 Z-5，`zhongshu.md` §6.1 C 口径）：结算（`j < len`，u_j 为突破段）后从
-                // last_member+2 = j+1 续扫——突破段是连接段，不属于任何中枢（`028-第28课.md:770`），
+                // ★#1419 R8：#812 Z-5、`.chanlun/definitions/zhongshu.md` §6.1 已裁 C 口径：
+                // 结算（`j < len`，u_j 为突破段）后从 last_member+2 = j+1 续扫；突破段独立作连接段，
                 // 不得被下一中枢的 seed 复用（A-ST-016-01）。窗口开放（`j == len`：延伸吃到末尾、尚无
                 // 突破段、未结算）时停在 j：没有可跳过的段，尾部追加单元按 frontier 协议 pop 本窗重扫；
                 // 写 `j + 1` 会让 `consumed` 越界到 `len + 1`。Lean 对应 `refStep` 的 `endE + 2`

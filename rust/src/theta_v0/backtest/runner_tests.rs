@@ -5183,6 +5183,7 @@ fn ng_tower() -> Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>
     use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
     use super::super::super::types::Direction;
     vec![std::rc::Rc::new(vec![LeveledMove {
+        interval_cache: None,
         rmove: RMove::Segment {
             direction: Direction::Down,
             lo: 30,
@@ -5364,6 +5365,7 @@ fn nest_gate_admit_semantics() {
     use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
     use super::super::super::types::Direction;
     let upper = LeveledMove {
+        interval_cache: None,
         rmove: RMove::Segment {
             direction: Direction::Up,
             lo: 20,
@@ -6023,6 +6025,7 @@ fn nest_chain_gate_typed_none_reuses_old_xzd() {
     use super::super::super::classifier::LevelState;
     use super::super::super::types::Direction;
     let upper = LeveledMove {
+        interval_cache: None,
         rmove: RMove::Segment {
             direction: Direction::Up,
             lo: 20,
@@ -6107,6 +6110,7 @@ fn nest_chain_gate_cross_reuse_excluded_from_agree() {
     let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
     // lvl=1 Type3 候选：旧臂 nest base gate（定律一下沉锚）在空次级账本下失败 ⟹ Xzd 通道。
     let upper = LeveledMove {
+        interval_cache: None,
         rmove: RMove::Segment {
             direction: Direction::Up,
             lo: 20,

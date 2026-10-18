@@ -1,0 +1,119 @@
+{
+  "ticket": 1419,
+  "role": "Sandcastle外部Codex工蜂",
+  "manager": "/root/manage_1419_sandcastle",
+  "parent": "01a12e01-45a1-7173-a3e8-d338d108fb93",
+  "native_subagent": false,
+  "status": "blocked",
+  "reason": "PENDING_BUDGET_API；K1恢复登记持费未闭环，其余五项候选已修。",
+  "head": "2694afcf147f3ba4114fde386470886c2428efc0",
+  "baseline": "5cb7253d46d973669e7d10cd3331e12c9ef313b1",
+  "scope": "本轮工作草稿清单，不是独审或发布封印。",
+  "excluded_self_metadata": [
+    "REPORT-MANIFEST.json",
+    "SEAL-CHECK.json",
+    "SHA256SUMS"
+  ],
+  "files": [
+    {
+      "path": "CHECK-RESULTS.json",
+      "bytes": 976,
+      "sha256": "4a84ec7c78b7c4967096d95f44966320a1ecf5631cbe25939f2e5bb0437ac1e3"
+    },
+    {
+      "path": "CHECK-RUN-1.json",
+      "bytes": 2479,
+      "sha256": "30ff366cd7a760a8dd875df66cafb36e841fa828506e0c222a38e8e740a4b612"
+    },
+    {
+      "path": "CHECKS.py",
+      "bytes": 9861,
+      "sha256": "ac5dd5e647e302cad8f6e0682fbd5ca0dbbe8cb4b2115b801550d5a627d7c8fa"
+    },
+    {
+      "path": "COMMANDS.json",
+      "bytes": 41434,
+      "sha256": "748f4fa846819fe1e5bdbf1696c23d25fa6ff3c612e2463380d28aa77b53bdcb"
+    },
+    {
+      "path": "CONSTRUCTOR-CENSUS.json",
+      "bytes": 6894,
+      "sha256": "cbce7ce8eae3c98089721a48f096957a5ca5dbc6e31aca0574d610eddd00a9de"
+    },
+    {
+      "path": "DELTA.patch",
+      "bytes": 27649,
+      "sha256": "5225ff053305fbda63e1d9d3fb8381a3693bbed3f057a7029849fea38615758a"
+    },
+    {
+      "path": "FINAL-STATIC-ATTEMPT1.json",
+      "bytes": 383,
+      "sha256": "1b313356c9a0ba94ab1aab1e481232844e6fb13016ea026ec142c124cc2f5b79"
+    },
+    {
+      "path": "FINAL-STATIC.json",
+      "bytes": 2422,
+      "sha256": "88ec8e58d5c9f1c4481f015558c788976b4be6b95d891a48efd89b95f6a5efe9"
+    },
+    {
+      "path": "INPUTS.json",
+      "bytes": 8065,
+      "sha256": "cb57b690861c3cec70d08c1a72f6656a16eb0d62ff37ad8b866f45fa78aa4476"
+    },
+    {
+      "path": "K1-OWNER-HANDOFF.md",
+      "bytes": 6309,
+      "sha256": "84ecfcecc0cced9d160dca547b3cda956b84af77085b87d0a0e764baffe4cf14"
+    },
+    {
+      "path": "PACKAGE-CHECKS.json",
+      "bytes": 452,
+      "sha256": "e3292c42e4dc4d4b32acd51f8d232cb46ec97907d952c95d7836be31ea5feae9"
+    },
+    {
+      "path": "PACKAGE-COMMANDS.json",
+      "bytes": 6819,
+      "sha256": "b9d2fc0324d666f07238ea85dd3c159ae09760b59d07e1af14afc9d38ae998d8"
+    },
+    {
+      "path": "PACKAGE.py",
+      "bytes": 6772,
+      "sha256": "38df927b47139f87c016c1e3b8794e392e49f78b4b609a3113b39f84e665bb7c"
+    },
+    {
+      "path": "REPORT.md",
+      "bytes": 7498,
+      "sha256": "2d07002a16b54b8ca78391b630f42cff1c934f4c9de53b5f8ce8445d13f16c7d"
+    },
+    {
+      "path": "RUST-LOCKS-NOT-RUN.json",
+      "bytes": 2328,
+      "sha256": "6ae162d117ea239e34d303c000afd8b3c2cb59e8d00f171860147120e1b6f82e"
+    },
+    {
+      "path": "SERDE-SOURCE-CHECK.json",
+      "bytes": 1198,
+      "sha256": "3a05b61ae4d46c16b4298039271d57a3a02a4c9b8cbb3a4440538703e0b1f85c"
+    },
+    {
+      "path": "SHARED-CALLS.md",
+      "bytes": 4059,
+      "sha256": "3c87f14a3dc9882c11f0f4cb481fcfb37f0b477637296418aebd7087feb2274a"
+    },
+    {
+      "path": "SOURCE-MANIFEST.json",
+      "bytes": 46876,
+      "sha256": "72898a003840295a4eaa18b441c3cd94d698ef7d99783cb9aa26fb43c018888d"
+    },
+    {
+      "path": "SOURCE.patch",
+      "bytes": 794960,
+      "sha256": "c10931dbd07bae206946f9739d70ae38991bb10c0a0eabf244441bb07604367b"
+    },
+    {
+      "path": "WRITESET.json",
+      "bytes": 987,
+      "sha256": "9a3bd0caf4b1c7a2a1451f018327f9fee82bccf7b380d3aa05e4114e2ab2a2d1"
+    }
+  ]
+}

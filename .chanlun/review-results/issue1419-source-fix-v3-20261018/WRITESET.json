@@ -1,0 +1,21 @@
+{
+  "head": "2694afcf147f3ba4114fde386470886c2428efc0",
+  "product_files": [
+    "rust/src/bin/s_session_v2/content_producer.rs",
+    "rust/src/bin/s_session_v3/source_contributions.rs",
+    "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+    "rust/src/theta_v0/backtest/runner_tests.rs",
+    "rust/src/theta_v0/classifier/cand_predicate.rs",
+    "rust/src/theta_v0/classifier/center.rs",
+    "rust/src/theta_v0/classifier/descend.rs",
+    "rust/src/theta_v0/classifier/recursive_tower.rs",
+    "rust/src/theta_v0/classifier/signal/cert.rs",
+    "rust/src/theta_v0/classifier/tests/center_pair_1424.rs",
+    "rust/src/theta_v0/classifier/voice_eat.rs",
+    "rust/src/theta_v0/parser/second_fold.rs",
+    "rust/src/theta_v0/parser/second_fold/wire_match.rs",
+    "rust/src/theta_v0/parser/tb02w_tests.rs"
+  ],
+  "report_directory": ".chanlun/review-results/issue1419-source-fix-v3-20261018",
+  "note": "报告文件逐项见 REPORT-MANIFEST.json；旧 v2 报告及原件未改。"
+}

@@ -1536,7 +1536,7 @@ impl NativeSourceState {
         &mut self,
         s: &(impl CodecRead + ?Sized),
         handle: Handle,
-        touched: &mut Tree<String>,
+        touched: &mut Tree<TextValue>,
     ) -> Result<(), String> {
         let request = self
             .requests
@@ -1667,10 +1667,13 @@ impl NativeSourceState {
                         objects: &self.objects,
                         entities: &self.structure_entities,
                     },
-                    id,
+                    id.as_str(),
                 ) {
                     if source_structure::is_kind(&self.rule, object.kind.as_str())
-                        && self.request_subjects.get(id).map_or(0, |set| set.len())
+                        && self
+                            .request_subjects
+                            .get(id.as_str())
+                            .map_or(0, |set| set.len())
                             != source_structure::expected_requests(s, object)?
                     {
                         return Err(err("结构对象缺一一具名分类请求"));

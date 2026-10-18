@@ -383,7 +383,11 @@ fn compute_zd(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Tick {
 /// 原文 `020-第20课.md:52`【正文】：「与中枢方向一致的次级别走势类型称为Z走势段……GG=max(gn)……
 /// DD=min(dn)，n遍历中枢中所有Zn」——中枢方向由形成它的首段定（回升形成的中枢由向上的次级别走势
 /// 确定），故判据取「与 seed 首单元同向」。L0 端点相连交替时即位次奇偶（第 1、3、5…段）；上级输入
-/// 方向不保证交替，两种判据在那里分歧，按 D-A 取方向（Lean `CenterConstruct.lean` 同拍带方向）。
+/// 方向不保证交替，两种判据在那里分歧，按 D-A 取方向。带方向的 Lean 来源仅绑定 donor
+/// `634f62cddfaddf656a35ca9b9db20cb716b62bff` 的
+/// `formal/Origin/CenterConstruct.lean::segHL/znAgg/extendWeak`，覆盖 seed 与弱接触延伸的 Zn 聚合；
+/// 不含 ≥9 升级重切。当前 checkout 的 Lean 仍为无方向、全成员聚合旧定义，不声明同拍；
+/// 最终统一源树的 Lean 绑定与执行验证仍待根完成（#1419）。
 /// seed 外缘（`compute_gg/compute_dd`）与延伸外缘（`recursive_tower::detect_centers_windowed_resume`）
 /// 都只经本谓词判 Zn。
 pub(super) fn is_zn(u: &UnitRange, seed_first: &UnitRange) -> bool {

@@ -408,6 +408,7 @@ mod tests {
     fn verify_containment_catches_dependency_host_counterexample() {
         // 子 e=[2,8)，父 a=[0,5)：ρ_e=8 > ρ_a=5 违反 WF-Contain（依附 host，非构成父）。
         let child = LeveledMove {
+            interval_cache: None,
             rmove: RMove::Segment {
                 direction: Direction::Up,
                 lo: 0,
@@ -422,6 +423,7 @@ mod tests {
             },
         };
         let parent = LeveledMove {
+            interval_cache: None,
             rmove: RMove::Segment {
                 direction: Direction::Up,
                 lo: 0,

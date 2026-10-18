@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "git",
+    "diff",
+    "--no-index",
+    "--check",
+    "--",
+    "/dev/null",
+    "rust/src/theta_v0/parser/second_fold/wire_match.rs"
+  ],
+  "exit_code": 1,
+  "stdout": "",
+  "stderr": "",
+  "driver_result": "AssertionError：检查脚本误要求 exit=0；--no-index 新文件差异退出1且没有空白诊断。源文件没有因该断言失败而改变。"
+}

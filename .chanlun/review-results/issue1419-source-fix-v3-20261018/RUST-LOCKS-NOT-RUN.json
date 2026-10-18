@@ -1,0 +1,67 @@
+{
+  "execution_authorized": false,
+  "compile_status": "NOT_RUN",
+  "tests": [
+    {
+      "name": "theta_v0::parser::second_fold::wire_match_tests::borrowed_k1_match_agrees_with_legacy_normalization",
+      "file": "rust/src/theta_v0/parser/second_fold.rs",
+      "line": 777,
+      "source_sha256": "c711ed788e224b38258fd9fe2c6dfc9bb26f65b2db99d7100e5bb020da82cea2",
+      "status": "NOT_RUN",
+      "scope": "借用比对与旧 normalized 逐变异一致；不证明 Native 持费",
+      "future_argv_not_executed": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--lib",
+        "theta_v0::parser::second_fold::wire_match_tests::borrowed_k1_match_agrees_with_legacy_normalization",
+        "--",
+        "--exact",
+        "--nocapture"
+      ]
+    },
+    {
+      "name": "theta_v0::parser::tb02w_tests::tb02w_k1_borrowed_restore_keeps_nonempty_contract",
+      "file": "rust/src/theta_v0/parser/tb02w_tests.rs",
+      "line": 853,
+      "source_sha256": "4acefc6af972188d80872019539aa8ca9a77d45b8f4fe584183f6ee8068c21a6",
+      "status": "NOT_RUN",
+      "scope": "非空恢复/伪造 shape/预算保持",
+      "future_argv_not_executed": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--lib",
+        "theta_v0::parser::tb02w_tests::tb02w_k1_borrowed_restore_keeps_nonempty_contract",
+        "--",
+        "--exact",
+        "--nocapture"
+      ]
+    },
+    {
+      "name": "content_producer::tests::cc005_group_matches_full_oracle_bytes",
+      "file": "rust/src/bin/s_session_v2/content_producer.rs",
+      "line": 4089,
+      "source_sha256": "f152c90871552dc658c390e6e0ad56d3b0078d45b02299a0326f9035002e0d8e",
+      "status": "NOT_RUN",
+      "scope": "新增方向未定且同价标签场景，完整载荷/请求对拍",
+      "future_argv_not_executed": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--bin",
+        "s_structure_session",
+        "--features",
+        "s_capture_native_testonly",
+        "content_producer::tests::cc005_group_matches_full_oracle_bytes",
+        "--",
+        "--exact",
+        "--nocapture"
+      ]
+    }
+  ],
+  "native_owner_tests": "PENDING_BUDGET_API；尚缺持费到消费、失败释放与异父/失效scope测试"
+}

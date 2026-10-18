@@ -1,0 +1,27 @@
+{
+  "rustfmt_changed_only": true,
+  "product_diffcheck_base": true,
+  "incremental_diffcheck_head": true,
+  "full_tree_diffcheck": {
+    "exit_code": 2,
+    "passed": false,
+    "note": "旧 v2 SOURCE.patch 上下文空格是 artifact 数据；产品通过不冒称全树通过。"
+  },
+  "interval_cache_census": true,
+  "mechanical_33_match_donor": true,
+  "request_text_owner_and_str_borrow": true,
+  "labels_borrowed_no_extra_vector": true,
+  "k1_verification_no_json_clone": true,
+  "k1_matcher_no_heap_constructor": true,
+  "k1_owner_handoff": {
+    "status": "PENDING_BUDGET_API",
+    "registered_wire_clone_remains": true,
+    "note": "仅核验端去树已落地；恢复登记端仍待 #1488 非复制许可链接口，不算闭环。"
+  },
+  "protected_sources_unchanged": true,
+  "c_resume_behavior_unchanged": true,
+  "lean_donor_binding": true,
+  "rust_compile_and_tests": "NOT_RUN",
+  "lean_product_formal_raw_s3q": "NOT_RUN",
+  "execution_authorized": false
+}

@@ -29,6 +29,8 @@ use super::feature_seq::{
     SECOND_SEQ_SCAN_BUDGET_POLICY,
 };
 
+mod wire_match;
+
 /// K1 游标结构版本。
 pub const SECOND_FOLD_CURSOR_SCHEMA: &str = "second-fold-cursor/1";
 
@@ -469,6 +471,7 @@ fn wire_int(v: &serde_json::Value) -> Option<i64> {
 }
 
 /// 数字一律转十进制文本（与 S 对象线形一致），便于逐字段比对。
+#[cfg(test)]
 fn normalized(v: serde_json::Value) -> serde_json::Value {
     use serde_json::Value;
     match v {
@@ -609,7 +612,8 @@ impl SecondFoldCursor {
             }
             probe.state.step(strokes, &candidate);
         }
-        let verified = normalized(probe.to_wire()) == normalized(wire.clone());
+        // #1419：核验直接消费借用 wire；不再生成 probe JSON 或复制输入 JSON。
+        let verified = wire_match::matches(&probe.wire_view(), wire);
         Some((if verified { probe } else { cursor }, verified, exhausted))
     }
 }
@@ -721,5 +725,108 @@ impl SecondFoldStore {
     /// 诊断读数：(本轮自线形核验通过的游标数, 本轮因耗尽而追加预算的游标数)。
     pub fn round_counts(&self) -> (usize, usize) {
         (self.verified, self.granted)
+    }
+}
+
+#[cfg(test)]
+mod wire_match_tests {
+    use super::*;
+    use serde_json::{json, Value};
+
+    // 修改每层节点、删除字段/数组元素及增添未知字段；保留旧造树核作测试 oracle。
+    fn mutations(value: &Value) -> Vec<Value> {
+        let mut out = vec![Value::Null, json!(false), json!("01"), json!(1.0)];
+        match value {
+            Value::Object(fields) => {
+                let mut extra = fields.clone();
+                extra.insert("unexpected".into(), Value::Null);
+                out.push(Value::Object(extra));
+                for (key, item) in fields {
+                    let mut missing = fields.clone();
+                    missing.remove(key);
+                    out.push(Value::Object(missing));
+                    for changed in mutations(item) {
+                        let mut fields = fields.clone();
+                        fields.insert(key.clone(), changed);
+                        out.push(Value::Object(fields));
+                    }
+                }
+            }
+            Value::Array(items) => {
+                let mut extra = items.clone();
+                extra.push(Value::Null);
+                out.push(Value::Array(extra));
+                for (index, item) in items.iter().enumerate() {
+                    let mut missing = items.clone();
+                    missing.remove(index);
+                    out.push(Value::Array(missing));
+                    for changed in mutations(item) {
+                        let mut items = items.clone();
+                        items[index] = changed;
+                        out.push(Value::Array(items));
+                    }
+                }
+            }
+            _ => {}
+        }
+        out
+    }
+
+    /// NOT_RUN：借用核与旧 normalized 核同判，包含空/非空、终点、缺键和多键。
+    #[test]
+    fn borrowed_k1_match_agrees_with_legacy_normalization() {
+        for terminal in [
+            None,
+            Some(SecondTerminal::Confirmed),
+            Some(SecondTerminal::KilledByNewExtreme),
+            Some(SecondTerminal::OpenAtPrefixEnd),
+        ] {
+            let mut cursor = SecondFoldCursor::new(
+                SecondCandidateId {
+                    seg_dir: Direction::Down,
+                    b_stroke: 0,
+                    candidate_extreme: i64::MIN,
+                },
+                3,
+            );
+            if terminal.is_some() {
+                let element = FeatureElement {
+                    high: i64::MAX,
+                    low: i64::MIN,
+                    stroke_idx: 1,
+                    stroke_indices: vec![1, 3],
+                };
+                cursor.state.facts.standard = vec![element.clone()];
+                cursor.state.facts.semantic_state = terminal;
+                cursor.state.facts.matched = Some(SecondCheck {
+                    elements: [element.clone(), element.clone(), element],
+                    top_fractal: true,
+                    bottom_fractal: false,
+                    through_stroke: 3,
+                });
+                cursor.state.facts.killed_by = Some(SecondKill {
+                    stroke_idx: 3,
+                    price: i64::MIN,
+                    candidate_extreme: i64::MAX,
+                    comparison: "lt",
+                });
+                cursor.state.facts.breach_watermark = Some(i64::MIN);
+                cursor.state.dir_state = Some(Direction::Up);
+                cursor.state.consumed_len = 3;
+            }
+            let wire = cursor.to_wire();
+            let legacy = normalized(wire.clone());
+            assert!(wire_match::matches(&cursor.wire_view(), &wire));
+            assert!(wire_match::matches(&cursor.wire_view(), &legacy));
+            for base in [&wire, &legacy] {
+                for changed in mutations(base) {
+                    assert_eq!(
+                        wire_match::matches(&cursor.wire_view(), &changed),
+                        legacy == normalized(changed.clone()),
+                        "terminal={terminal:?}, wire={changed}"
+                    );
+                }
+            }
+        }
     }
 }

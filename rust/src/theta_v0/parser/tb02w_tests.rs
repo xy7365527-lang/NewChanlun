@@ -848,6 +848,50 @@ fn tb02w_k1_wire_restore_verifies_then_resumes() {
     );
 }
 
+/// NOT_RUN：真实非空游标经借用核恢复；shape 篡改仍走原重折叠，并保留累计预算。
+#[test]
+fn tb02w_k1_borrowed_restore_keeps_nonempty_contract() {
+    for sign in [1, -1] {
+        let ss = chain(CONFIRMED, sign);
+        let candidate = SecondCandidateId {
+            seg_dir: dir(sign),
+            b_stroke: 3,
+            candidate_extreme: 40 * sign,
+        };
+        let mut cursor = SecondFoldCursor::new(candidate, 3);
+        cursor.resume(&ss).unwrap();
+        assert!(cursor.state.consumed_len > 0);
+        assert!(!cursor.state.facts.standard.is_empty());
+        for wire in [cursor.to_wire(), wire_text(cursor.to_wire())] {
+            let (restored, verified, exhausted) = SecondFoldCursor::from_wire(&wire, &ss).unwrap();
+            assert!(verified);
+            assert_eq!(restored, cursor);
+            assert_eq!(exhausted, cursor.exhausted());
+            for mutation in 0..3 {
+                let mut forged = wire.clone();
+                match mutation {
+                    0 => {
+                        forged.as_object_mut().unwrap().remove("matched");
+                    }
+                    1 => {
+                        forged["standard"][0]["extra"] = serde_json::Value::Null;
+                    }
+                    _ => {
+                        forged["standard"][0]["stroke_indices"] = serde_json::json!([]);
+                    }
+                }
+                let (mut reset, verified, _) = SecondFoldCursor::from_wire(&forged, &ss).unwrap();
+                assert!(!verified);
+                assert_eq!(reset.budget_granted, cursor.budget_granted);
+                assert_eq!(
+                    reset.resume(&ss).unwrap(),
+                    second_sequence(&ss, dir(sign), 3, 40 * sign, 3)
+                );
+            }
+        }
+    }
+}
+
 fn round(
     ss: &[Stroke],
     budget: u32,

@@ -1,0 +1,9 @@
+{
+  "sha256sum_entries": 21,
+  "passed": true,
+  "trailing_whitespace": [],
+  "source_manifest_sha256": "72898a003840295a4eaa18b441c3cd94d698ef7d99783cb9aa26fb43c018888d",
+  "source_patch_sha256": "c10931dbd07bae206946f9739d70ae38991bb10c0a0eabf244441bb07604367b",
+  "delta_patch_sha256": "5225ff053305fbda63e1d9d3fb8381a3693bbed3f057a7029849fea38615758a",
+  "no_runtime_qualification": true
+}

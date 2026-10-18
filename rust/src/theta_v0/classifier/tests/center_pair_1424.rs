@@ -1,8 +1,8 @@
 //! #1424 TB-02-F：相邻中枢五叶关系（CC-020）与延伸测试单元位置（CC-018）的工作例锁。
 //!
-//! 期待值取自独立 oracle `.chanlun/review-results/issue1424-tb02f-20261014/oracle_pairs.py` 的输出
-//! `rust/tests/fixtures/center_pair_1424_worked_examples.json`（纯标准库手算，不导入项目代码；备料
-//! `tb1424-prep-r2` 同一算法），不从被测函数推出。W0–W12 的含义见夹具 `note` 字段：
+//! 期待值载体为 `rust/tests/fixtures/center_pair_1424_worked_examples.json`。历史标注的独立生成器
+//! `.chanlun/review-results/issue1424-tb02f-20261014/oracle_pairs.py` 在当前树及固定 donor 均缺失，
+//! 本轮不能复核其生成过程或独立性（#1419）；没有用被测函数重写夹具。W0–W12 的含义见 `note` 字段：
 //! W3/W4 是 R26 判别例（Zn 外缘判新生、全单元外缘判扩展）；W5 外缘恰等；W6/W11 核心相切/重叠；W7 外缘包含与
 //! #1478 端点条款下的连接段；W8 两单元连接段；W9 ≥9 窗口一端待定；W10 相切位置；W12 B 开放期的关系修订。
 
@@ -363,7 +363,10 @@ fn s1424_tower_pairs_same_judgment_and_ge9_not_copied() {
     );
 }
 
-/// #804：Lean 真求值导出五叶与三态，不能以 Python oracle 代替形式化对拍。
+/// #804 / #1419：8 例夹具的源码出处为 donor
+/// `634f62cddfaddf656a35ca9b9db20cb716b62bff` 的 `formal/Origin/CenterPairFixtureExport.lean`。
+/// 只覆盖导出模块所列工作例，不证明当前 checkout 的 Lean 定义已绑定或已经运行同拍。
+/// 本轮未运行 Lean；独立 oracle 生成器缺失的边界见本票 source-fix-v3 报告。
 #[test]
 fn s1424_lean_five_leaf_fixture_parity() {
     let fixture: Value = serde_json::from_str(include_str!(concat!(

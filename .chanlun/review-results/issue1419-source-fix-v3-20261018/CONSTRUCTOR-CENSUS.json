@@ -1,0 +1,256 @@
+{
+  "method": "git ls-files -- '*.rs' 全仓 Rust；词法屏蔽注释/字符串，枚举 LeveledMove/LevelMove、use/type 别名和含 rmove 的 Self 字面量，平衡花括号读取顶层字段；非 Rust 文本和宏动态生成不属于该静态枚举。",
+  "rust_files_scanned": 593,
+  "aliases": [
+    "LM",
+    "LM2",
+    "LevelMove",
+    "LeveledMove"
+  ],
+  "alias_origins": [
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "alias": "LM2",
+      "line": 1675
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/runner_tests.rs",
+      "alias": "LM",
+      "line": 4602
+    },
+    {
+      "file": "rust/src/theta_v0/strategy/interp.rs",
+      "alias": "LM",
+      "line": 1517
+    }
+  ],
+  "per_file_literals": {
+    "rust/src/theta_v0/backtest/econ_positive/tests.rs": 22,
+    "rust/src/theta_v0/backtest/runner_tests.rs": 4,
+    "rust/src/theta_v0/classifier/cand_predicate.rs": 3,
+    "rust/src/theta_v0/classifier/recursive_tower.rs": 2,
+    "rust/src/theta_v0/classifier/signal/cert.rs": 2,
+    "rust/src/theta_v0/classifier/voice_eat.rs": 2
+  },
+  "literal_total": 35,
+  "fixed_per_file": {
+    "rust/src/theta_v0/backtest/econ_positive/tests.rs": 22,
+    "rust/src/theta_v0/backtest/runner_tests.rs": 4,
+    "rust/src/theta_v0/classifier/cand_predicate.rs": 3,
+    "rust/src/theta_v0/classifier/signal/cert.rs": 2,
+    "rust/src/theta_v0/classifier/voice_eat.rs": 2
+  },
+  "missing": [],
+  "entries": [
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "name": "LeveledMove",
+      "line": 78,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "name": "LeveledMove",
+      "line": 99,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "name": "LeveledMove",
+      "line": 1000,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "name": "LeveledMove",
+      "line": 1032,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "name": "LeveledMove",
+      "line": 1168,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "name": "LeveledMove",
+      "line": 1243,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "name": "LeveledMove",
+      "line": 1328,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "name": "LeveledMove",
+      "line": 1419,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "name": "LeveledMove",
+      "line": 1447,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "name": "LeveledMove",
+      "line": 1504,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "name": "LeveledMove",
+      "line": 1532,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "name": "LeveledMove",
+      "line": 1602,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "name": "LeveledMove",
+      "line": 1631,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "name": "LM2",
+      "line": 1680,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "name": "LM2",
+      "line": 1705,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "name": "LeveledMove",
+      "line": 8179,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "name": "LeveledMove",
+      "line": 8221,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "name": "LeveledMove",
+      "line": 8248,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "name": "LeveledMove",
+      "line": 8265,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "name": "LeveledMove",
+      "line": 8290,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "name": "LeveledMove",
+      "line": 8320,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "name": "LeveledMove",
+      "line": 8348,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/runner_tests.rs",
+      "name": "LeveledMove",
+      "line": 5185,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/runner_tests.rs",
+      "name": "LeveledMove",
+      "line": 5367,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/runner_tests.rs",
+      "name": "LeveledMove",
+      "line": 6027,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/backtest/runner_tests.rs",
+      "name": "LeveledMove",
+      "line": 6112,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/classifier/cand_predicate.rs",
+      "name": "LeveledMove",
+      "line": 575,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/classifier/cand_predicate.rs",
+      "name": "LeveledMove",
+      "line": 1508,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/classifier/cand_predicate.rs",
+      "name": "LeveledMove",
+      "line": 1531,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/classifier/recursive_tower.rs",
+      "name": "LeveledMove",
+      "line": 204,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/classifier/recursive_tower.rs",
+      "name": "LeveledMove",
+      "line": 275,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/classifier/signal/cert.rs",
+      "name": "LeveledMove",
+      "line": 393,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/classifier/signal/cert.rs",
+      "name": "LeveledMove",
+      "line": 427,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/classifier/voice_eat.rs",
+      "name": "LeveledMove",
+      "line": 410,
+      "interval_cache": true
+    },
+    {
+      "file": "rust/src/theta_v0/classifier/voice_eat.rs",
+      "name": "LeveledMove",
+      "line": 425,
+      "interval_cache": true
+    }
+  ]
+}

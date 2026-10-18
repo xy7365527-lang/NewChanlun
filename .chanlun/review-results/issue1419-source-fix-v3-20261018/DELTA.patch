@@ -1,0 +1,606 @@
+diff --git a/rust/src/bin/s_session_v2/content_producer.rs b/rust/src/bin/s_session_v2/content_producer.rs
+index b32271d59d2c79c3b8b6ff587bd5184bcc08c0ef..489849db44663bfa1d087c4de1243c7d8134421a 100644
+--- a/rust/src/bin/s_session_v2/content_producer.rs
++++ b/rust/src/bin/s_session_v2/content_producer.rs
+@@ -2599,4 +2599,5 @@ impl Cc004Producer {
+-        let mut labels = reasons.to_vec();
+-        if view.high_sources.len() > 1 || view.low_sources.len() > 1 {
+-            labels.push("equal_extreme_identity");
+-        }
++        // #1419：借用原因并在栈上追加可选标签，不复制另一份未准入的 Vec。
++        let labels = reasons.iter().copied().chain(
++            (view.high_sources.len() > 1 || view.low_sources.len() > 1)
++                .then_some("equal_extreme_identity"),
++        );
+@@ -2651,2 +2652 @@ impl Cc004Producer {
+-                        .iter()
+-                        .map(|reason| CValue::String((*reason).to_string()))
++                        .map(|reason| CValue::String(reason.to_string()))
+@@ -4092,0 +4093,7 @@ mod tests {
++            // #1419：原因非空且附加同价标签，覆盖原 to_vec/push 的两项消费顺序。
++            (
++                "waiting/equal-extremes",
++                &[(0, 10, 5), (1, 10, 5)][..],
++                true,
++                false,
++            ),
+diff --git a/rust/src/bin/s_session_v3/source_contributions.rs b/rust/src/bin/s_session_v3/source_contributions.rs
+index 5c71ed504e07d0738dab470aa3872ed915d3ee0a..5a6aa7a349b6ae8a17667dc4613ca59ae9c89d67 100644
+--- a/rust/src/bin/s_session_v3/source_contributions.rs
++++ b/rust/src/bin/s_session_v3/source_contributions.rs
+@@ -1539 +1539 @@ impl NativeSourceState {
+-        touched: &mut Tree<String>,
++        touched: &mut Tree<TextValue>,
+@@ -1670 +1670 @@ impl NativeSourceState {
+-                    id,
++                    id.as_str(),
+@@ -1673 +1673,4 @@ impl NativeSourceState {
+-                        && self.request_subjects.get(id).map_or(0, |set| set.len())
++                        && self
++                            .request_subjects
++                            .get(id.as_str())
++                            .map_or(0, |set| set.len())
+diff --git a/rust/src/theta_v0/backtest/econ_positive/tests.rs b/rust/src/theta_v0/backtest/econ_positive/tests.rs
+index a7d92c476319549d7f8aecf8e0b959f32f16c365..76f4e6b3a1c4fc908425ef979bde72c4b7a66119 100644
+--- a/rust/src/theta_v0/backtest/econ_positive/tests.rs
++++ b/rust/src/theta_v0/backtest/econ_positive/tests.rs
+@@ -78,0 +79 @@ fn xzd_seg(s: usize, e: usize) -> LeveledMove {
++        interval_cache: None,
+@@ -98,0 +100 @@ fn xzd_seg_hi(s: usize, e: usize, hi: i64) -> LeveledMove {
++        interval_cache: None,
+@@ -998,0 +1001 @@ fn multilevel_nest_cert_two_level_rung_chain() {
++            interval_cache: None,
+@@ -1029,0 +1033 @@ fn multilevel_nest_cert_two_level_rung_chain() {
++        interval_cache: None,
+@@ -1164,0 +1169 @@ fn build_gate_certificate_structbreak_zero_bits_always_none() {
++        interval_cache: None,
+@@ -1238,0 +1244 @@ fn cand_delta_type23_base_gate_level0_and_small_to_big() {
++        interval_cache: None,
+@@ -1322,0 +1329 @@ fn cand_delta_rung_dispatch() {
++        interval_cache: None,
+@@ -1412,0 +1420 @@ fn multilevel_nest_cert_cand_false_propagates_zero() {
++            interval_cache: None,
+@@ -1439,0 +1448 @@ fn multilevel_nest_cert_cand_false_propagates_zero() {
++        interval_cache: None,
+@@ -1495,0 +1505 @@ fn multilevel_nest_cert_type2_bypasses_divergence_gate() {
++            interval_cache: None,
+@@ -1522,0 +1533 @@ fn multilevel_nest_cert_type2_bypasses_divergence_gate() {
++        interval_cache: None,
+@@ -1591,0 +1603 @@ fn multilevel_nest_cert_wrong_direction_returns_false() {
++            interval_cache: None,
+@@ -1619,0 +1632 @@ fn multilevel_nest_cert_wrong_direction_returns_false() {
++        interval_cache: None,
+@@ -1667,0 +1681 @@ fn seg2(dir: Dir2, lo: i64, hi: i64, s: usize, e: usize, ord: u64) -> LM2 {
++        interval_cache: None,
+@@ -1691,0 +1706 @@ fn compose2(subs: Vec<LM2>, center: Ct2, level: u32, ord: u64) -> LM2 {
++        interval_cache: None,
+@@ -8164,0 +8180 @@ fn find_move_by_span_locates_containing_move() {
++        interval_cache: None,
+@@ -8205,0 +8222 @@ fn window_extreme_bar_tracks_delta_side_and_ties() {
++        interval_cache: None,
+@@ -8231,0 +8249 @@ fn window_extreme_bar_tracks_delta_side_and_ties() {
++        interval_cache: None,
+@@ -8247,0 +8266 @@ fn window_extreme_bar_tracks_delta_side_and_ties() {
++        interval_cache: None,
+@@ -8271,0 +8291 @@ fn departure_unit_end_picks_last_trend_direction_submove() {
++        interval_cache: None,
+@@ -8300,0 +8321 @@ fn departure_unit_end_picks_last_trend_direction_submove() {
++        interval_cache: None,
+@@ -8327,0 +8349 @@ fn departure_unit_end_picks_last_trend_direction_submove() {
++        interval_cache: None,
+diff --git a/rust/src/theta_v0/backtest/runner_tests.rs b/rust/src/theta_v0/backtest/runner_tests.rs
+index 1bb201120a8d90511f46a910c463273d4b86fe55..1394aaad78322575c42faddaa2e38da00745eac9 100644
+--- a/rust/src/theta_v0/backtest/runner_tests.rs
++++ b/rust/src/theta_v0/backtest/runner_tests.rs
+@@ -5185,0 +5186 @@ fn ng_tower() -> Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>
++        interval_cache: None,
+@@ -5366,0 +5368 @@ fn nest_gate_admit_semantics() {
++        interval_cache: None,
+@@ -6025,0 +6028 @@ fn nest_chain_gate_typed_none_reuses_old_xzd() {
++        interval_cache: None,
+@@ -6109,0 +6113 @@ fn nest_chain_gate_cross_reuse_excluded_from_agree() {
++        interval_cache: None,
+diff --git a/rust/src/theta_v0/classifier/cand_predicate.rs b/rust/src/theta_v0/classifier/cand_predicate.rs
+index 47c33ba67d1417bdeb63d2eb9125549a5efb2e02..36226a01a2c235ae26c1434bda62be546ff819ca 100644
+--- a/rust/src/theta_v0/classifier/cand_predicate.rs
++++ b/rust/src/theta_v0/classifier/cand_predicate.rs
+@@ -575,0 +576 @@ mod tests {
++            interval_cache: None,
+@@ -1507,0 +1509 @@ mod tests {
++            interval_cache: None,
+@@ -1529,0 +1532 @@ mod tests {
++            interval_cache: None,
+diff --git a/rust/src/theta_v0/classifier/center.rs b/rust/src/theta_v0/classifier/center.rs
+index 2207358e4dba9725a3cafdf421b5077812ee193e..a788a2186ddbefb9913e74821a99ef3c2e7ce287 100644
+--- a/rust/src/theta_v0/classifier/center.rs
++++ b/rust/src/theta_v0/classifier/center.rs
+@@ -386 +386,5 @@ fn compute_zd(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Tick {
+-/// 方向不保证交替，两种判据在那里分歧，按 D-A 取方向（Lean `CenterConstruct.lean` 同拍带方向）。
++/// 方向不保证交替，两种判据在那里分歧，按 D-A 取方向。带方向的 Lean 来源仅绑定 donor
++/// `634f62cddfaddf656a35ca9b9db20cb716b62bff` 的
++/// `formal/Origin/CenterConstruct.lean::segHL/znAgg/extendWeak`，覆盖 seed 与弱接触延伸的 Zn 聚合；
++/// 不含 ≥9 升级重切。当前 checkout 的 Lean 仍为无方向、全成员聚合旧定义，不声明同拍；
++/// 最终统一源树的 Lean 绑定与执行验证仍待根完成（#1419）。
+diff --git a/rust/src/theta_v0/classifier/descend.rs b/rust/src/theta_v0/classifier/descend.rs
+index 2b4e9cd23da4312146b4073d7a0167dd42106154..7865d0664ac987030c284a76b3d51d9cf912a715 100644
+--- a/rust/src/theta_v0/classifier/descend.rs
++++ b/rust/src/theta_v0/classifier/descend.rs
+@@ -89 +89,3 @@ impl RMove {
+-    /// 走势区间下沿 lo（Lean `Move.lo`/`Move.interval`）。
++    /// 走势区间下沿 lo。Lean `Move.lo`/`Move.interval` 的同值定义仅绑定 donor
++    /// `634f62cddfaddf656a35ca9b9db20cb716b62bff` 的 `formal/Formal/RecursiveConstruction.lean`；
++    /// 非空 subs 取极值、空 subs 为 0。当前 checkout 仍用旧 Lean 定义，同拍未验（#1419）。
+@@ -98 +100 @@ impl RMove {
+-    /// 走势区间上沿 hi（Lean `Move.hi`/`Move.interval`）。
++    /// 走势区间上沿 hi；Lean 来源、有效域及未验边界同 [`Self::lo`]（#1419）。
+diff --git a/rust/src/theta_v0/classifier/recursive_tower.rs b/rust/src/theta_v0/classifier/recursive_tower.rs
+index ca7573aaac7ef071e22aad71f134acc4d1ebbb36..6824948dd9229a4b5ba2bacbfaae1f54f3e0a7d5 100644
+--- a/rust/src/theta_v0/classifier/recursive_tower.rs
++++ b/rust/src/theta_v0/classifier/recursive_tower.rs
+@@ -145 +145,5 @@ pub struct LeveledMove {
+-    /// （Lean `Formal.RecursiveConstruction.Move.interval`，与递归 `rmove.lo()/hi()` 同值）。
++    /// 与递归 `rmove.lo()/hi()` 同值；Lean 定义来源仅绑定 donor
++    /// `634f62cddfaddf656a35ca9b9db20cb716b62bff` 的
++    /// `formal/Formal/RecursiveConstruction.lean::Move.interval/listInterval`：非空 subs 取全部子走势
++    /// 极值，空 subs 为 (0, 0)。当前 checkout 的 Lean 仍为 centers 外缘/零初值旧定义，
++    /// 不据此声明同拍；最终统一源树的 Lean 绑定与执行验证仍待根完成（#1419）。
+@@ -264 +268,2 @@ impl LeveledMove {
+-        // 与 `RMove::lo/hi` 的 `unwrap_or(0)` 及 Lean `Move.listInterval []` 同口径。
++        // 与 `RMove::lo/hi` 的 `unwrap_or(0)` 同口径；Lean `Move.listInterval []` 仅指
++        // interval_cache 文档所绑定的 donor 定义，不指当前 checkout（#1419）。
+@@ -339 +344,2 @@ impl LeveledMove {
+-///   `zhongshu.md` §6.1；`028-第28课.md:770`【答疑·作者回复】「不构成任何中枢中的一段」）。
++///   `.chanlun/definitions/zhongshu.md` §6.1【Z-5】的 C 续扫裁定）。028:770 原文主语是「跳空」，
++///   本规则引用已裁 C 口径，不把该句扩为一般突破段的直接原文证明。
+@@ -635,2 +641,2 @@ pub fn scan_center_facts<S: ScanSink>(
+-                // ★#1419 R8（#812 Z-5，`zhongshu.md` §6.1 C 口径）：结算（`j < len`，u_j 为突破段）后从
+-                // last_member+2 = j+1 续扫——突破段是连接段，不属于任何中枢（`028-第28课.md:770`），
++                // ★#1419 R8：#812 Z-5、`.chanlun/definitions/zhongshu.md` §6.1 已裁 C 口径：
++                // 结算（`j < len`，u_j 为突破段）后从 last_member+2 = j+1 续扫；突破段独立作连接段，
+diff --git a/rust/src/theta_v0/classifier/signal/cert.rs b/rust/src/theta_v0/classifier/signal/cert.rs
+index d0c14f4aeab84dbc51372dd32c9ef3cad8573640..f2c62f06b935b08f5ca064408d860fc635f3d2d6 100644
+--- a/rust/src/theta_v0/classifier/signal/cert.rs
++++ b/rust/src/theta_v0/classifier/signal/cert.rs
+@@ -393,0 +394 @@ mod tests {
++            interval_cache: None,
+@@ -426,0 +428 @@ mod tests {
++            interval_cache: None,
+diff --git a/rust/src/theta_v0/classifier/tests/center_pair_1424.rs b/rust/src/theta_v0/classifier/tests/center_pair_1424.rs
+index 34ba49f79fc85a4499ca985800662f6acc6ce966..bb6a093ed134dc331d167abed9ff62c585b13225 100644
+--- a/rust/src/theta_v0/classifier/tests/center_pair_1424.rs
++++ b/rust/src/theta_v0/classifier/tests/center_pair_1424.rs
+@@ -3,3 +3,3 @@
+-//! 期待值取自独立 oracle `.chanlun/review-results/issue1424-tb02f-20261014/oracle_pairs.py` 的输出
+-//! `rust/tests/fixtures/center_pair_1424_worked_examples.json`（纯标准库手算，不导入项目代码；备料
+-//! `tb1424-prep-r2` 同一算法），不从被测函数推出。W0–W12 的含义见夹具 `note` 字段：
++//! 期待值载体为 `rust/tests/fixtures/center_pair_1424_worked_examples.json`。历史标注的独立生成器
++//! `.chanlun/review-results/issue1424-tb02f-20261014/oracle_pairs.py` 在当前树及固定 donor 均缺失，
++//! 本轮不能复核其生成过程或独立性（#1419）；没有用被测函数重写夹具。W0–W12 的含义见 `note` 字段：
+@@ -366 +366,4 @@ fn s1424_tower_pairs_same_judgment_and_ge9_not_copied() {
+-/// #804：Lean 真求值导出五叶与三态，不能以 Python oracle 代替形式化对拍。
++/// #804 / #1419：8 例夹具的源码出处为 donor
++/// `634f62cddfaddf656a35ca9b9db20cb716b62bff` 的 `formal/Origin/CenterPairFixtureExport.lean`。
++/// 只覆盖导出模块所列工作例，不证明当前 checkout 的 Lean 定义已绑定或已经运行同拍。
++/// 本轮未运行 Lean；独立 oracle 生成器缺失的边界见本票 source-fix-v3 报告。
+diff --git a/rust/src/theta_v0/classifier/voice_eat.rs b/rust/src/theta_v0/classifier/voice_eat.rs
+index d52579a129644eef3b89891b96085312c7d82ae2..8d95a700ef2def59c7f91c62bc9c947c849498f6 100644
+--- a/rust/src/theta_v0/classifier/voice_eat.rs
++++ b/rust/src/theta_v0/classifier/voice_eat.rs
+@@ -410,0 +411 @@ mod tests {
++            interval_cache: None,
+@@ -424,0 +426 @@ mod tests {
++            interval_cache: None,
+diff --git a/rust/src/theta_v0/parser/second_fold.rs b/rust/src/theta_v0/parser/second_fold.rs
+index b60d276a4f1c14d190fcba77414a0176a388a421..4d8db84dbe3545f04b4798791020b61c2f853168 100644
+--- a/rust/src/theta_v0/parser/second_fold.rs
++++ b/rust/src/theta_v0/parser/second_fold.rs
+@@ -31,0 +32,2 @@ use super::feature_seq::{
++mod wire_match;
++
+@@ -471,0 +474 @@ fn wire_int(v: &serde_json::Value) -> Option<i64> {
++#[cfg(test)]
+@@ -612 +615,2 @@ impl SecondFoldCursor {
+-        let verified = normalized(probe.to_wire()) == normalized(wire.clone());
++        // #1419：核验直接消费借用 wire；不再生成 probe JSON 或复制输入 JSON。
++        let verified = wire_match::matches(&probe.wire_view(), wire);
+@@ -725,0 +730,103 @@ impl SecondFoldStore {
++
++#[cfg(test)]
++mod wire_match_tests {
++    use super::*;
++    use serde_json::{json, Value};
++
++    // 修改每层节点、删除字段/数组元素及增添未知字段；保留旧造树核作测试 oracle。
++    fn mutations(value: &Value) -> Vec<Value> {
++        let mut out = vec![Value::Null, json!(false), json!("01"), json!(1.0)];
++        match value {
++            Value::Object(fields) => {
++                let mut extra = fields.clone();
++                extra.insert("unexpected".into(), Value::Null);
++                out.push(Value::Object(extra));
++                for (key, item) in fields {
++                    let mut missing = fields.clone();
++                    missing.remove(key);
++                    out.push(Value::Object(missing));
++                    for changed in mutations(item) {
++                        let mut fields = fields.clone();
++                        fields.insert(key.clone(), changed);
++                        out.push(Value::Object(fields));
++                    }
++                }
++            }
++            Value::Array(items) => {
++                let mut extra = items.clone();
++                extra.push(Value::Null);
++                out.push(Value::Array(extra));
++                for (index, item) in items.iter().enumerate() {
++                    let mut missing = items.clone();
++                    missing.remove(index);
++                    out.push(Value::Array(missing));
++                    for changed in mutations(item) {
++                        let mut items = items.clone();
++                        items[index] = changed;
++                        out.push(Value::Array(items));
++                    }
++                }
++            }
++            _ => {}
++        }
++        out
++    }
++
++    /// NOT_RUN：借用核与旧 normalized 核同判，包含空/非空、终点、缺键和多键。
++    #[test]
++    fn borrowed_k1_match_agrees_with_legacy_normalization() {
++        for terminal in [
++            None,
++            Some(SecondTerminal::Confirmed),
++            Some(SecondTerminal::KilledByNewExtreme),
++            Some(SecondTerminal::OpenAtPrefixEnd),
++        ] {
++            let mut cursor = SecondFoldCursor::new(
++                SecondCandidateId {
++                    seg_dir: Direction::Down,
++                    b_stroke: 0,
++                    candidate_extreme: i64::MIN,
++                },
++                3,
++            );
++            if terminal.is_some() {
++                let element = FeatureElement {
++                    high: i64::MAX,
++                    low: i64::MIN,
++                    stroke_idx: 1,
++                    stroke_indices: vec![1, 3],
++                };
++                cursor.state.facts.standard = vec![element.clone()];
++                cursor.state.facts.semantic_state = terminal;
++                cursor.state.facts.matched = Some(SecondCheck {
++                    elements: [element.clone(), element.clone(), element],
++                    top_fractal: true,
++                    bottom_fractal: false,
++                    through_stroke: 3,
++                });
++                cursor.state.facts.killed_by = Some(SecondKill {
++                    stroke_idx: 3,
++                    price: i64::MIN,
++                    candidate_extreme: i64::MAX,
++                    comparison: "lt",
++                });
++                cursor.state.facts.breach_watermark = Some(i64::MIN);
++                cursor.state.dir_state = Some(Direction::Up);
++                cursor.state.consumed_len = 3;
++            }
++            let wire = cursor.to_wire();
++            let legacy = normalized(wire.clone());
++            assert!(wire_match::matches(&cursor.wire_view(), &wire));
++            assert!(wire_match::matches(&cursor.wire_view(), &legacy));
++            for base in [&wire, &legacy] {
++                for changed in mutations(base) {
++                    assert_eq!(
++                        wire_match::matches(&cursor.wire_view(), &changed),
++                        legacy == normalized(changed.clone()),
++                        "terminal={terminal:?}, wire={changed}"
++                    );
++                }
++            }
++        }
++    }
++}
+diff --git a/rust/src/theta_v0/parser/tb02w_tests.rs b/rust/src/theta_v0/parser/tb02w_tests.rs
+index f9902286bad0eef5c5f34b75839df492b5f75977..d32e4ec24c54c7aca11790efda0c2a48d565a4b7 100644
+--- a/rust/src/theta_v0/parser/tb02w_tests.rs
++++ b/rust/src/theta_v0/parser/tb02w_tests.rs
+@@ -850,0 +851,44 @@ fn tb02w_k1_wire_restore_verifies_then_resumes() {
++/// NOT_RUN：真实非空游标经借用核恢复；shape 篡改仍走原重折叠，并保留累计预算。
++#[test]
++fn tb02w_k1_borrowed_restore_keeps_nonempty_contract() {
++    for sign in [1, -1] {
++        let ss = chain(CONFIRMED, sign);
++        let candidate = SecondCandidateId {
++            seg_dir: dir(sign),
++            b_stroke: 3,
++            candidate_extreme: 40 * sign,
++        };
++        let mut cursor = SecondFoldCursor::new(candidate, 3);
++        cursor.resume(&ss).unwrap();
++        assert!(cursor.state.consumed_len > 0);
++        assert!(!cursor.state.facts.standard.is_empty());
++        for wire in [cursor.to_wire(), wire_text(cursor.to_wire())] {
++            let (restored, verified, exhausted) = SecondFoldCursor::from_wire(&wire, &ss).unwrap();
++            assert!(verified);
++            assert_eq!(restored, cursor);
++            assert_eq!(exhausted, cursor.exhausted());
++            for mutation in 0..3 {
++                let mut forged = wire.clone();
++                match mutation {
++                    0 => {
++                        forged.as_object_mut().unwrap().remove("matched");
++                    }
++                    1 => {
++                        forged["standard"][0]["extra"] = serde_json::Value::Null;
++                    }
++                    _ => {
++                        forged["standard"][0]["stroke_indices"] = serde_json::json!([]);
++                    }
++                }
++                let (mut reset, verified, _) = SecondFoldCursor::from_wire(&forged, &ss).unwrap();
++                assert!(!verified);
++                assert_eq!(reset.budget_granted, cursor.budget_granted);
++                assert_eq!(
++                    reset.resume(&ss).unwrap(),
++                    second_sequence(&ss, dir(sign), 3, 40 * sign, 3)
++                );
++            }
++        }
++    }
++}
++
+diff --git a/rust/src/theta_v0/parser/second_fold/wire_match.rs b/rust/src/theta_v0/parser/second_fold/wire_match.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..70475176e3fdc96d2040ff3d64423cb79082e738
+--- /dev/null
++++ b/rust/src/theta_v0/parser/second_fold/wire_match.rs
+@@ -0,0 +1,242 @@
++//! #1419：以 K1 的权威序列化视图核验借用 wire，不生成或复制 JSON 树。
++//! 只接受该视图使用的整数、文本、bool/null、数组、struct 与 unit enum；新增 wire 类型须显式补齐。
++use serde::ser::{self, Serialize};
++use serde_json::Value;
++use std::fmt::{self, Write};
++
++#[derive(Debug)]
++struct Mismatch;
++impl fmt::Display for Mismatch {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        f.write_str("K1 wire 不匹配")
++    }
++}
++impl std::error::Error for Mismatch {}
++impl ser::Error for Mismatch {
++    fn custom<T: fmt::Display>(_: T) -> Self {
++        Self
++    }
++}
++type Result<T = ()> = std::result::Result<T, Mismatch>;
++
++fn require(ok: bool) -> Result {
++    if ok {
++        Ok(())
++    } else {
++        Err(Mismatch)
++    }
++}
++
++// K1 的整数最多 20 位、数字型摘要文本 16 位；更长的数字不可能匹配这些预期字段。
++// 满则拒绝，不分配兜底。数字统一为十进制文本，与旧 normalized 的规则相同。
++struct NumberText {
++    bytes: [u8; 128],
++    len: usize,
++}
++impl fmt::Write for NumberText {
++    fn write_str(&mut self, s: &str) -> fmt::Result {
++        let end = self.len.checked_add(s.len()).ok_or(fmt::Error)?;
++        let dest = self.bytes.get_mut(self.len..end).ok_or(fmt::Error)?;
++        dest.copy_from_slice(s.as_bytes());
++        self.len = end;
++        Ok(())
++    }
++}
++impl NumberText {
++    fn new(value: impl fmt::Display) -> Result<Self> {
++        let mut out = Self {
++            bytes: [0; 128],
++            len: 0,
++        };
++        write!(&mut out, "{value}").map_err(|_| Mismatch)?;
++        Ok(out)
++    }
++    fn as_str(&self) -> &str {
++        std::str::from_utf8(&self.bytes[..self.len]).expect("数字格式为 ASCII")
++    }
++}
++
++pub(super) fn matches<T: Serialize + ?Sized>(value: &T, wire: &Value) -> bool {
++    value.serialize(Matcher(wire)).is_ok()
++}
++
++struct Matcher<'a>(&'a Value);
++struct Array<'a> {
++    values: &'a [Value],
++    index: usize,
++}
++impl Array<'_> {
++    fn item<T: Serialize + ?Sized>(&mut self, value: &T) -> Result {
++        let wire = self.values.get(self.index).ok_or(Mismatch)?;
++        value.serialize(Matcher(wire))?;
++        self.index += 1;
++        Ok(())
++    }
++    fn finish(self) -> Result {
++        require(self.index == self.values.len())
++    }
++}
++impl ser::SerializeSeq for Array<'_> {
++    type Ok = ();
++    type Error = Mismatch;
++    fn serialize_element<T: Serialize + ?Sized>(&mut self, value: &T) -> Result {
++        self.item(value)
++    }
++    fn end(self) -> Result {
++        self.finish()
++    }
++}
++impl ser::SerializeTuple for Array<'_> {
++    type Ok = ();
++    type Error = Mismatch;
++    fn serialize_element<T: Serialize + ?Sized>(&mut self, value: &T) -> Result {
++        self.item(value)
++    }
++    fn end(self) -> Result {
++        self.finish()
++    }
++}
++
++struct Object<'a> {
++    fields: &'a serde_json::Map<String, Value>,
++    remaining: usize,
++}
++impl ser::SerializeStruct for Object<'_> {
++    type Ok = ();
++    type Error = Mismatch;
++    fn serialize_field<T: Serialize + ?Sized>(&mut self, key: &'static str, value: &T) -> Result {
++        let wire = self.fields.get(key).ok_or(Mismatch)?;
++        value.serialize(Matcher(wire))?;
++        self.remaining = self.remaining.checked_sub(1).ok_or(Mismatch)?;
++        Ok(())
++    }
++    fn end(self) -> Result {
++        require(self.remaining == 0)
++    }
++}
++
++macro_rules! integer {
++    ($($method:ident($ty:ty)),* $(,)?) => {$(
++        fn $method(self, value: $ty) -> Result {
++            self.serialize_str(NumberText::new(value)?.as_str())
++        }
++    )*};
++}
++impl<'a> ser::Serializer for Matcher<'a> {
++    type Ok = ();
++    type Error = Mismatch;
++    type SerializeSeq = Array<'a>;
++    type SerializeTuple = Array<'a>;
++    type SerializeStruct = Object<'a>;
++    type SerializeTupleStruct = ser::Impossible<(), Mismatch>;
++    type SerializeTupleVariant = ser::Impossible<(), Mismatch>;
++    type SerializeMap = ser::Impossible<(), Mismatch>;
++    type SerializeStructVariant = ser::Impossible<(), Mismatch>;
++
++    integer!(
++        serialize_i8(i8),
++        serialize_i16(i16),
++        serialize_i32(i32),
++        serialize_i64(i64),
++        serialize_u8(u8),
++        serialize_u16(u16),
++        serialize_u32(u32),
++        serialize_u64(u64)
++    );
++    fn serialize_bool(self, value: bool) -> Result {
++        require(self.0.as_bool() == Some(value))
++    }
++    fn serialize_str(self, value: &str) -> Result {
++        match self.0 {
++            Value::String(text) => require(text == value),
++            Value::Number(number) => require(NumberText::new(number)?.as_str() == value),
++            _ => Err(Mismatch),
++        }
++    }
++    fn serialize_none(self) -> Result {
++        require(self.0.is_null())
++    }
++    fn serialize_some<T: Serialize + ?Sized>(self, value: &T) -> Result {
++        value.serialize(self)
++    }
++    fn serialize_unit(self) -> Result {
++        self.serialize_none()
++    }
++    fn serialize_unit_struct(self, _: &'static str) -> Result {
++        self.serialize_unit()
++    }
++    fn serialize_unit_variant(self, _: &'static str, _: u32, name: &'static str) -> Result {
++        self.serialize_str(name)
++    }
++    fn serialize_newtype_struct<T: Serialize + ?Sized>(self, _: &'static str, value: &T) -> Result {
++        value.serialize(self)
++    }
++    fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq> {
++        let values = self.0.as_array().ok_or(Mismatch)?;
++        require(len.map_or(true, |len| len == values.len()))?;
++        Ok(Array { values, index: 0 })
++    }
++    fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple> {
++        self.serialize_seq(Some(len))
++    }
++    fn serialize_struct(self, _: &'static str, len: usize) -> Result<Self::SerializeStruct> {
++        let fields = self.0.as_object().ok_or(Mismatch)?;
++        require(fields.len() == len)?;
++        Ok(Object {
++            fields,
++            remaining: len,
++        })
++    }
++    fn serialize_f32(self, _: f32) -> Result {
++        Err(Mismatch)
++    }
++    fn serialize_f64(self, _: f64) -> Result {
++        Err(Mismatch)
++    }
++    fn serialize_char(self, _: char) -> Result {
++        Err(Mismatch)
++    }
++    fn serialize_bytes(self, _: &[u8]) -> Result {
++        Err(Mismatch)
++    }
++    fn serialize_newtype_variant<T: Serialize + ?Sized>(
++        self,
++        _: &'static str,
++        _: u32,
++        _: &'static str,
++        _: &T,
++    ) -> Result {
++        Err(Mismatch)
++    }
++    fn serialize_tuple_struct(
++        self,
++        _: &'static str,
++        _: usize,
++    ) -> Result<Self::SerializeTupleStruct> {
++        Err(Mismatch)
++    }
++    fn serialize_tuple_variant(
++        self,
++        _: &'static str,
++        _: u32,
++        _: &'static str,
++        _: usize,
++    ) -> Result<Self::SerializeTupleVariant> {
++        Err(Mismatch)
++    }
++    fn serialize_map(self, _: Option<usize>) -> Result<Self::SerializeMap> {
++        Err(Mismatch)
++    }
++    fn serialize_struct_variant(
++        self,
++        _: &'static str,
++        _: u32,
++        _: &'static str,
++        _: usize,
++    ) -> Result<Self::SerializeStructVariant> {
++        Err(Mismatch)
++    }
++    fn collect_str<T: fmt::Display + ?Sized>(self, _: &T) -> Result {
++        Err(Mismatch)
++    }
++}

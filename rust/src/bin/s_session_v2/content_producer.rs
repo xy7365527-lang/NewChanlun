@@ -2596,10 +2596,11 @@ impl Cc004Producer {
         reasons: &[&'static str],
     ) -> Result<CValue, ProducerError> {
         // #1405：标签保留在原件里，请求原因仅反映方向未建立。
-        let mut labels = reasons.to_vec();
-        if view.high_sources.len() > 1 || view.low_sources.len() > 1 {
-            labels.push("equal_extreme_identity");
-        }
+        // #1419：借用原因并在栈上追加可选标签，不复制另一份未准入的 Vec。
+        let labels = reasons.iter().copied().chain(
+            (view.high_sources.len() > 1 || view.low_sources.len() > 1)
+                .then_some("equal_extreme_identity"),
+        );
         let members = self.coords_array(&mut *store, &group_members_coords(view))?;
         let high_sources = self.coord_texts_slice(&mut *store, view.high_sources)?;
         let low_sources = self.coord_texts_slice(&mut *store, view.low_sources)?;
@@ -2648,8 +2649,7 @@ impl Cc004Producer {
                 "waiting_reasons".to_string(),
                 CValue::Array(
                     labels
-                        .iter()
-                        .map(|reason| CValue::String((*reason).to_string()))
+                        .map(|reason| CValue::String(reason.to_string()))
                         .collect(),
                 ),
             ),
@@ -4090,6 +4090,13 @@ mod tests {
         for (case, bars, want_equal_extreme, want_any_direction) in [
             ("merge/new-group/direction", CASE_MERGE, true, true),
             ("initial-unsettled/waiting", CASE_WAITING, false, false),
+            // #1419：原因非空且附加同价标签，覆盖原 to_vec/push 的两项消费顺序。
+            (
+                "waiting/equal-extremes",
+                &[(0, 10, 5), (1, 10, 5)][..],
+                true,
+                false,
+            ),
         ] {
             let mut fixture = fixture(bars);
             let facts = fixture.state.materialize_facts();

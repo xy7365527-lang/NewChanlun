@@ -1,0 +1,182 @@
+[
+  {
+    "argv": [
+      "git",
+      "rev-parse",
+      "HEAD"
+    ],
+    "exit_code": 0,
+    "stdout": "2694afcf147f3ba4114fde386470886c2428efc0\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "ls-files",
+      "--others",
+      "--exclude-standard",
+      "--",
+      "rust",
+      "s_session"
+    ],
+    "exit_code": 0,
+    "stdout": "rust/src/theta_v0/parser/second_fold/wire_match.rs\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "diff",
+      "--name-only",
+      "5cb7253d46d973669e7d10cd3331e12c9ef313b1",
+      "--",
+      "rust",
+      "s_session"
+    ],
+    "exit_code": 0,
+    "stdout": "rust/src/bin/s_session_v2/content_bi.rs\nrust/src/bin/s_session_v2/content_producer.rs\nrust/src/bin/s_session_v2/tb02a_facts.rs\nrust/src/bin/s_session_v2/tb02b.rs\nrust/src/bin/s_session_v2/tb02c.rs\nrust/src/bin/s_session_v2/tb02e.rs\nrust/src/bin/s_session_v2/tb02f.rs\nrust/src/bin/s_session_v3/audit_owner.rs\nrust/src/bin/s_session_v3/aux_index.rs\nrust/src/bin/s_session_v3/catalog_evidence.rs\nrust/src/bin/s_session_v3/content_structure.rs\nrust/src/bin/s_session_v3/driver.rs\nrust/src/bin/s_session_v3/generation.rs\nrust/src/bin/s_session_v3/mod.rs\nrust/src/bin/s_session_v3/object_index.rs\nrust/src/bin/s_session_v3/object_records.rs\nrust/src/bin/s_session_v3/prepared.rs\nrust/src/bin/s_session_v3/source_audit.rs\nrust/src/bin/s_session_v3/source_contributions.rs\nrust/src/bin/s_session_v3/source_delta.rs\nrust/src/bin/s_session_v3/source_pending.rs\nrust/src/bin/s_session_v3/source_structure.rs\nrust/src/bin/s_session_v3/structure_value.rs\nrust/src/bin/s_structure_session.rs\nrust/src/theta_v0/backtest/econ_positive/tests.rs\nrust/src/theta_v0/backtest/runner_tests.rs\nrust/src/theta_v0/classifier/cand_predicate.rs\nrust/src/theta_v0/classifier/center.rs\nrust/src/theta_v0/classifier/center_scan.rs\nrust/src/theta_v0/classifier/descend.rs\nrust/src/theta_v0/classifier/mod.rs\nrust/src/theta_v0/classifier/recursive_tower.rs\nrust/src/theta_v0/classifier/signal/cert.rs\nrust/src/theta_v0/classifier/tests/center_pair_1424.rs\nrust/src/theta_v0/classifier/tests/center_scan_1419.rs\nrust/src/theta_v0/classifier/tests/mod.rs\nrust/src/theta_v0/classifier/voice_eat.rs\nrust/src/theta_v0/config.rs\nrust/src/theta_v0/parser/feature_seq.rs\nrust/src/theta_v0/parser/mod.rs\nrust/src/theta_v0/parser/second_fold.rs\nrust/src/theta_v0/parser/second_kind.rs\nrust/src/theta_v0/parser/segment.rs\nrust/src/theta_v0/parser/stroke.rs\nrust/src/theta_v0/parser/stroke_tb02v_tests.rs\nrust/src/theta_v0/parser/tb02w_tests.rs\nrust/tests/fixtures/center_pair_1424_lean.json\nrust/tests/fixtures/center_pair_1424_worked_examples.json\nrust/tests/fixtures/tb02v_same_price/real_C_bars14_40_multi_root_second_gate.json\nrust/tests/fixtures/tb02v_same_price/syn2_multi_root_group.json\nrust/tests/fixtures/tb02v_same_price/syn3_multi_root_replace.json\ns_session/tests/fixtures/tb02e-real/btc-tail50k-first600.json\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "diff",
+      "--name-only",
+      "2694afcf147f3ba4114fde386470886c2428efc0",
+      "--",
+      "rust",
+      "s_session"
+    ],
+    "exit_code": 0,
+    "stdout": "rust/src/bin/s_session_v2/content_producer.rs\nrust/src/bin/s_session_v3/source_contributions.rs\nrust/src/theta_v0/backtest/econ_positive/tests.rs\nrust/src/theta_v0/backtest/runner_tests.rs\nrust/src/theta_v0/classifier/cand_predicate.rs\nrust/src/theta_v0/classifier/center.rs\nrust/src/theta_v0/classifier/descend.rs\nrust/src/theta_v0/classifier/recursive_tower.rs\nrust/src/theta_v0/classifier/signal/cert.rs\nrust/src/theta_v0/classifier/tests/center_pair_1424.rs\nrust/src/theta_v0/classifier/voice_eat.rs\nrust/src/theta_v0/parser/second_fold.rs\nrust/src/theta_v0/parser/tb02w_tests.rs\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "diff",
+      "--no-index",
+      "--binary",
+      "--full-index",
+      "--unified=0",
+      "--",
+      "/dev/null",
+      "rust/src/theta_v0/parser/second_fold/wire_match.rs"
+    ],
+    "exit_code": 1,
+    "stdout_in": "SOURCE.patch",
+    "stdout_sha256": "9482cc184095088163e19e2af6e3a94a9d02fe72a1a7ed39d5111156a6cb3a65",
+    "stderr": "",
+    "note": "--no-index exit 1 表示存在差异。"
+  },
+  {
+    "argv": [
+      "git",
+      "diff",
+      "--no-ext-diff",
+      "--binary",
+      "--full-index",
+      "--unified=0",
+      "5cb7253d46d973669e7d10cd3331e12c9ef313b1",
+      "--",
+      "rust",
+      "s_session"
+    ],
+    "exit_code": 0,
+    "stdout_in": "SOURCE.patch",
+    "stdout_sha256": "8eae5ee9b38554ccacd19f998b9156f9f6c864ad4b2319960f2d3decded00c84",
+    "stderr": "",
+    "note": "文件尾追加上述新源码差异，完整 artifact SHA 见报告清单。"
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "--reverse",
+      "--check",
+      "--unidiff-zero",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/.chanlun/review-results/issue1419-source-fix-v3-20261018/SOURCE.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "diff",
+      "--no-index",
+      "--binary",
+      "--full-index",
+      "--unified=0",
+      "--",
+      "/dev/null",
+      "rust/src/theta_v0/parser/second_fold/wire_match.rs"
+    ],
+    "exit_code": 1,
+    "stdout_in": "DELTA.patch",
+    "stdout_sha256": "9482cc184095088163e19e2af6e3a94a9d02fe72a1a7ed39d5111156a6cb3a65",
+    "stderr": "",
+    "note": "--no-index exit 1 表示存在差异。"
+  },
+  {
+    "argv": [
+      "git",
+      "diff",
+      "--no-ext-diff",
+      "--binary",
+      "--full-index",
+      "--unified=0",
+      "2694afcf147f3ba4114fde386470886c2428efc0",
+      "--",
+      "rust",
+      "s_session"
+    ],
+    "exit_code": 0,
+    "stdout_in": "DELTA.patch",
+    "stdout_sha256": "afbca180f466269a3cc13f06e52cb02035babec45f1aa34d63d403014f110bc9",
+    "stderr": "",
+    "note": "文件尾追加上述新源码差异，完整 artifact SHA 见报告清单。"
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "--reverse",
+      "--check",
+      "--unidiff-zero",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/.chanlun/review-results/issue1419-source-fix-v3-20261018/DELTA.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "rustfmt",
+      "--edition",
+      "2021",
+      "--config",
+      "skip_children=true",
+      "--check",
+      "rust/src/theta_v0/parser/second_fold/wire_match.rs"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "diff",
+      "--check",
+      "5cb7253d46d973669e7d10cd3331e12c9ef313b1",
+      "--",
+      "rust",
+      "s_session"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  }
+]

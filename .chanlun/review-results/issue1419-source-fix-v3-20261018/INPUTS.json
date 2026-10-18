@@ -1,0 +1,162 @@
+[
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/SOURCE-V2-INDEPENDENT-REVIEW.json",
+    "bytes": 10783,
+    "sha256": "ff56f528a27be86ce52b0ef2e194df56f8828a86747a4a32ba496f852c3ee3fb",
+    "git_blob": "1cd865f844ace649fed0ef82b505e03c7c9da8fc",
+    "role": "复用来源，不视为已验证新树"
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/issue1419-live.json",
+    "bytes": 24930,
+    "sha256": "b3ce84e3f3839082e99c3ef63d390818864cda42b90dedbdcaff39b8804a7f4a",
+    "git_blob": "ad3c5ca0b500725f5ab7f0b7db742d7b35e40fcc",
+    "role": "复用来源，不视为已验证新树"
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/run01-artifacts/XERJ-ATTEMPTS.json",
+    "bytes": 1553,
+    "sha256": "836261b9189ddc977d281ecd62de833d08183c0fb6fa22c134ab5f4ca2d0f96d",
+    "git_blob": "a65b6ca7fb1b739248dd768231f46ab70d8f14fb",
+    "role": "复用来源，不视为已验证新树"
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/run01-artifacts/REFERENCE-HITS.json",
+    "bytes": 8074,
+    "sha256": "ed243437370852eaa58448a44dd63298740f90a439c3f5b61ead3f78ee2d73fc",
+    "git_blob": "06029cc36a46b6abcbe60f4eb68d5bdec04aef48",
+    "role": "复用来源，不视为已验证新树"
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/.chanlun/review-results/issue1419-native-semantic-v2-20261018/ADAPTATION-MATRIX.md",
+    "bytes": 18798,
+    "sha256": "4a01ecc5a073cbffaec844f0d6d72704c5e9076991ff1bbe1f4ce295781520b1",
+    "git_blob": "a12d0fef9b2bf2665c33c69be1dc2b56da126c3a",
+    "role": "复用来源，不视为已验证新树"
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/.chanlun/review-results/issue1419-native-semantic-v2-20261018/CHECK-RESULTS.json",
+    "bytes": 1053,
+    "sha256": "de0aaf2a4f29ee59a21b41d8d6e8f0241e2aad18ead0cde9e9441302f0885b67",
+    "git_blob": "807106c3c0275235717823888c240c1285bde033",
+    "role": "复用来源，不视为已验证新树"
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/.chanlun/review-results/issue1419-native-semantic-v2-20261018/CHECKS.py",
+    "bytes": 4720,
+    "sha256": "4562fbd6382a6931c074346fd99d867f26ebb41105bcb9fd5db9bb45ee450278",
+    "git_blob": "c807d0552122e6a6732a3273eab457ec40095664",
+    "role": "复用来源，不视为已验证新树"
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/.chanlun/review-results/issue1419-native-semantic-v2-20261018/COMMANDS-initial-static.json",
+    "bytes": 6395,
+    "sha256": "9d1a87a27f2bc90f49148f3ebc71046cae083e43f7f6a1e4c85ab85d84367458",
+    "git_blob": "9b112f05a42c27c52ea839cb4dafd35e7e8debde",
+    "role": "复用来源，不视为已验证新树"
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/.chanlun/review-results/issue1419-native-semantic-v2-20261018/COMMANDS.json",
+    "bytes": 5973,
+    "sha256": "c4afbc2f44530728b0dd70bdee02aa93034d5303bd514f5a9445bad74fa11b64",
+    "git_blob": "4c58d5454d056238cdcc8449df02e9c936ef07c4",
+    "role": "复用来源，不视为已验证新树"
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/.chanlun/review-results/issue1419-native-semantic-v2-20261018/DEPENDENCY-SOURCES.json",
+    "bytes": 6025,
+    "sha256": "4717a0486e01b75a9e78c358388648de1f05088622415e3b70645215258c2de9",
+    "git_blob": "715f487cd92b66f636f7f3d376f183879a91f85e",
+    "role": "复用来源，不视为已验证新树"
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/.chanlun/review-results/issue1419-native-semantic-v2-20261018/EXECUTION-CANDIDATES.json",
+    "bytes": 6392,
+    "sha256": "3796f7ccf4b01d17231215440017601d0ff2259b61ffb6649a3bb34b3f0f69d5",
+    "git_blob": "6f223d1baae2289ff7fa22b66efaa19d12cc7983",
+    "role": "复用来源，不视为已验证新树"
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/.chanlun/review-results/issue1419-native-semantic-v2-20261018/REFERENCE-SEARCH.md",
+    "bytes": 1966,
+    "sha256": "749a15ab0036b2328fbaf6d190b3ed564775c543f5b4b3223c871077f7d0931b",
+    "git_blob": "8421945f31389c851e6916ba170bdf03a075ce11",
+    "role": "复用来源，不视为已验证新树"
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/.chanlun/review-results/issue1419-native-semantic-v2-20261018/REPORT.md",
+    "bytes": 4934,
+    "sha256": "1d1c92271bf43eb25eaa4bd66bf1589c07f9dc9ca5d8e7014e0f5122c670c142",
+    "git_blob": "89e5e4d1d389cc6f324511a01d6137df9557a0a8",
+    "role": "复用来源，不视为已验证新树"
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/.chanlun/review-results/issue1419-native-semantic-v2-20261018/REUSED-SOURCES.json",
+    "bytes": 1332,
+    "sha256": "b59d9ac565ac2305c5acf4abdebfa513e4814ed0162a7a4bf7de8985f34d251e",
+    "git_blob": "d3b2c86c5bc3279da6f1b8642f7c816de05345fd",
+    "role": "复用来源，不视为已验证新树"
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/.chanlun/review-results/issue1419-native-semantic-v2-20261018/SHA256SUMS",
+    "bytes": 1019,
+    "sha256": "2110f0bf9a309073bf0b4618b331f2c94cfeab7cac9b80c83ecd6e1b394c0097",
+    "git_blob": "2de926a3273c5690efa6905403acb372c37c526d",
+    "role": "复用来源，不视为已验证新树"
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/.chanlun/review-results/issue1419-native-semantic-v2-20261018/SOURCE-MANIFEST.json",
+    "bytes": 23646,
+    "sha256": "1071f5b925f098d916d55ae9c678cf2426e17467c291f7948f41746a9dcea77c",
+    "git_blob": "f1bb906754d8d6969225ddaefeadfca099938d8d",
+    "role": "复用来源，不视为已验证新树"
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/.chanlun/review-results/issue1419-native-semantic-v2-20261018/SOURCE.patch",
+    "bytes": 862912,
+    "sha256": "297ad7bb4ced9f2d802532ed243b1a33441109711fa24938768064ddca05493b",
+    "git_blob": "77c26cf704223b9fe6143e804c5d6bd7e75d622e",
+    "role": "复用来源，不视为已验证新树"
+  },
+  {
+    "path": "formal/Formal/RecursiveConstruction.lean",
+    "donor_revision": "634f62cddfaddf656a35ca9b9db20cb716b62bff",
+    "donor": {
+      "bytes": 42177,
+      "sha256": "a52d166af476cf75c51deea0eb83ad6838df9f0598ae33227c56bf90a37fc117",
+      "git_blob": "aa128452aed47df35dc053187e53bac75bff5ad4"
+    },
+    "checkout": {
+      "bytes": 41411,
+      "sha256": "142686bda93dd3ab77359eb93b4926cf5c7ef69d09f92bc18ad99467ec705a85",
+      "git_blob": "1bc6a8ea95c092b817152275a6da50fb542dbc1a"
+    },
+    "role": "只读源码引用，Lean NOT_RUN"
+  },
+  {
+    "path": "formal/Origin/CenterConstruct.lean",
+    "donor_revision": "634f62cddfaddf656a35ca9b9db20cb716b62bff",
+    "donor": {
+      "bytes": 52127,
+      "sha256": "4eb89c332c707772345fb7f42ef72b1e1b5efb72beebc8e40d9cd913095dcd60",
+      "git_blob": "e73453b1d5de7afc2ccfb5d5289e109811286cf8"
+    },
+    "checkout": {
+      "bytes": 44509,
+      "sha256": "a3707aa3c6652018fe44a3b183833353b174831d1f2e139dbdeb59e7ecab40d4",
+      "git_blob": "44831da60572f3352713a921cf72924c3443dda8"
+    },
+    "role": "只读源码引用，Lean NOT_RUN"
+  },
+  {
+    "path": "formal/Origin/CenterPairFixtureExport.lean",
+    "donor_revision": "634f62cddfaddf656a35ca9b9db20cb716b62bff",
+    "donor": {
+      "bytes": 3004,
+      "sha256": "b5ee7d61f44d14a7697edc7f8a3c4e93d70aee9ac45db7540aef6666d56d7372",
+      "git_blob": "f863ec022ba43fb738bf10cc36f0a0f152f9feeb"
+    },
+    "checkout": null,
+    "role": "只读源码引用，Lean NOT_RUN"
+  }
+]
