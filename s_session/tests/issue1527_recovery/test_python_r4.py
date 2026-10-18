@@ -1,0 +1,681 @@
+"""#1527 本轮 Python 实码测试：真实小文件/SQLite，外部程序仅封闭 stub。"""
+
+import contextlib
+import errno
+import hashlib
+import io
+import json
+import os
+from pathlib import Path
+import sqlite3
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import recovery_admission as admission
+import s_service_control as control
+
+
+def encode(value):
+    return json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+
+
+def identity(path):
+    item = path.stat()
+    return {"device": item.st_dev, "inode": item.st_ino, "uid": item.st_uid,
+            "mode": stat.S_IMODE(item.st_mode)}
+
+
+class Fixture:
+    """手工提供已锚原件，非生产首次发布算法。"""
+
+    def __init__(self, root, pending=False, limits=None, owner_mode=0o600):
+        self.root = root.resolve()
+        self.db = self.root / "source.sqlite"
+        with contextlib.closing(sqlite3.connect(self.db)) as db:
+            with db:
+                db.execute("CREATE TABLE sentinel(value TEXT)")
+                db.execute("INSERT INTO sentinel VALUES ('保留原库')")
+        self.state = self.root / "state"
+        self.state.mkdir(mode=0o755)
+        self.container = self.state / (admission.PENDING if pending else admission.PUBLISHED)
+        self.container.mkdir(mode=0o700)
+        self.limits = {key: "1000000" for key in admission.LIMIT_FIELDS}
+        if limits:
+            self.limits.update(limits)
+        self.raw = b"  " + encode(self.limits) + b"\n"  # 原始 SHA，不以规范 JSON 替换。
+        self.path = self.container / "limits.json"
+        self.path.write_bytes(self.raw)
+        self.path.chmod(0o600)
+        self.binding_path = self.container / "binding.json"
+        self.binding_path.touch(mode=0o600)
+        self.binding = {"db": str(self.db), "path": str(self.state / admission.PUBLISHED / "limits.json"),
+                        "sha256": hashlib.sha256(self.raw).hexdigest(),
+                        "file_identity": identity(self.path), "binding_identity": identity(self.binding_path),
+                        "directory_identity": identity(self.container)}
+        self.binding_path.write_bytes(encode(self.binding))
+        self.owner_path = Path(str(self.db) + ".control-owner.json")
+        self.owner = {"db": str(self.db), "state_dir": str(self.state), "admission": self.binding}
+        self.owner_path.write_bytes(encode(self.owner))
+        self.owner_path.chmod(owner_mode)
+        self.db_hash = hashlib.sha256(self.db.read_bytes()).hexdigest()
+
+    def load(self, env=None, deadline=None):
+        return admission.RecoveryAdmission(self.db, self.state, deadline or time.monotonic() + 10,
+                                            {} if env is None else env)
+
+    def env(self):
+        return {admission.ENV_SHA: self.binding["sha256"], admission.ENV_IDENTITY: encode(self.binding).decode()}
+
+    def rewrite_binding(self):
+        self.binding_path.write_bytes(encode(self.binding))
+        self.owner_path.write_bytes(encode(self.owner))
+
+    def config(self, revision="s-launcher/3"):
+        return {"schema_revision": revision, "db": str(self.db), "socket": str(self.root / "s.sock"),
+                "binary": str(self.root / "stub.py"), "python": sys.executable,
+                "catalog": str(self.root / "catalog"), "profile": str(self.root / "profile"),
+                "clock_plan": str(self.root / "clock"), "browser": str(self.root / "browser"),
+                "query_resource_config": str(self.root / "query"),
+                "session_id": "test", "session_generation": "1", "source_namespace": "test",
+                "source_epoch": "1", "producer_id": "test", "producer_epoch": "1", "writer_epoch": "1",
+                "query_epoch": "1", "port": "12345", "startup_timeout_ms": "10000",
+                "delivery_retain_generations": "1",
+                "s_resources": {key: "1000" for key in control.S_RESOURCE_FIELDS}}
+
+    def stub(self, output=None, rc=0):
+        path = self.root / "stub.py"
+        body = ("import hashlib,json,os,sys\n"
+                "args=sys.argv[1:]\n"
+                "p=args[args.index('--admission-job-limits')+1]\n"
+                "with open(p,'rb') as f: sha=hashlib.sha256(f.read()).hexdigest()\n"
+                "result={'stub':True,'argv':args,'sha_match':sha==os.environ.get('S_CONTROL_ADMISSION_SHA256')}\n"
+                "print(json.dumps(result))\n") if output is None else "print(" + repr(output) + ")\n"
+        path.write_text("#!" + sys.executable + "\n" + body + f"raise SystemExit({rc})\n")
+        path.chmod(0o700)
+        return path
+
+
+class R4Tests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="issue1527-r4-")
+        self.root = Path(self.temporary.name)
+        self.env_guard = patch.dict(os.environ, {}, clear=True)
+        self.env_guard.start()
+
+    def tearDown(self):
+        self.env_guard.stop()
+        self.temporary.cleanup()
+
+    def fixture(self, **kwargs):
+        return Fixture(self.root, **kwargs)
+
+    def assert_source(self, fixture):
+        self.assertEqual(hashlib.sha256(fixture.db.read_bytes()).hexdigest(), fixture.db_hash)
+
+    def test_valid_anchor_no_env_counts_exact_payload_holds_fds_and_keeps_state_0755(self):
+        f = self.fixture(owner_mode=0o644)
+        expected = sum(p.stat().st_size for p in (f.owner_path, f.binding_path, f.path))
+        with contextlib.closing(f.load()) as lease:
+            self.assertEqual(lease.wire_bytes, expected)
+            t0 = lease.first_read_at
+            held = list(lease._fds)
+            lease.publish()
+            lease.revalidate()
+            self.assertEqual(lease.first_read_at, t0)
+            self.assertEqual(lease.wire_bytes, expected)
+            self.assertEqual(lease.limits_path, f.binding["path"])
+            self.assertEqual(json.loads(lease.child_environment({})[admission.ENV_IDENTITY]), f.binding)
+            self.assertEqual(identity(f.state)["mode"], 0o755)
+        for descriptor in held:
+            with self.assertRaises(OSError):
+                os.fstat(descriptor)
+        self.assert_source(f)
+
+    def test_pending_resume_keeps_all_original_inodes_bytes_and_anchor(self):
+        f = self.fixture(pending=True)
+        owner_bytes, owner_id = f.owner_path.read_bytes(), identity(f.owner_path)
+        with contextlib.closing(f.load(f.env())) as lease:
+            with self.assertRaises(admission.AdmissionError):
+                _ = lease.limits_path
+            lease.publish()
+            target = Path(lease.limits_path)
+            self.assertEqual(identity(target), f.binding["file_identity"])
+            self.assertEqual(identity(target.parent), f.binding["directory_identity"])
+            self.assertEqual(identity(target.parent / "binding.json"), f.binding["binding_identity"])
+            self.assertEqual(target.read_bytes(), f.raw)
+            self.assertFalse(f.container.exists())
+            lease.publish()
+        self.assertEqual(f.owner_path.read_bytes(), owner_bytes)
+        self.assertEqual(identity(f.owner_path), owner_id)
+        self.assert_source(f)
+
+    def test_persistent_post_rename_parent_fsync_failure_never_succeeds_on_retry(self):
+        for parent in ("state", "root"):
+            with self.subTest(parent=parent):
+                root = self.root / parent
+                root.mkdir()
+                f = Fixture(root, pending=True)
+                saved = f.owner_path.read_bytes()
+                real_sync = admission.os.fsync
+                failures = []
+                def broken(fd):
+                    if (f.state / admission.PUBLISHED).exists() and _same_directory(fd, getattr(f, parent)):
+                        failures.append(fd)
+                        raise OSError(errno.EIO, "注入持续失败")
+                    real_sync(fd)
+                for _ in range(2):
+                    with contextlib.closing(f.load()) as lease, patch.object(admission.os, "fsync", side_effect=broken):
+                        with self.assertRaises(admission.AdmissionError):
+                            lease.publish()
+                        self.assertFalse(lease._published)
+                self.assertEqual(len(failures), 2)
+                self.assertTrue((f.state / admission.PUBLISHED).exists())
+                self.assertEqual(f.owner_path.read_bytes(), saved)
+                with contextlib.closing(f.load()) as lease:
+                    lease.publish()
+                self.assert_source(f)
+
+    def test_sync_order_pending_then_owner_then_rename_then_both_parents(self):
+        f = self.fixture(pending=True)
+        events = []
+        real_sync, real_publish = admission.os.fsync, admission._publish_noreplace
+        with contextlib.closing(f.load()) as lease:
+            names = {fd: key for key, (fd, _) in lease._files.items()}
+            names.update({lease.directory_fd: "pending", lease.state_fd: "state", lease.parent_fd: "db_parent"})
+            def sync(fd):
+                events.append(names[fd])
+                real_sync(fd)
+            def publish(fd):
+                events.append("rename")
+                real_publish(fd)
+            with patch.object(admission.os, "fsync", side_effect=sync), patch.object(admission, "_publish_noreplace", side_effect=publish):
+                lease.publish()
+        self.assertEqual(events, ["limits", "binding", "pending", "state", "owner", "db_parent",
+                                  "rename", "db_parent", "state"])
+
+    def test_pending_fsync_failure_preserves_pending_and_owner(self):
+        f = self.fixture(pending=True)
+        original = f.owner_path.read_bytes()
+        with contextlib.closing(f.load()) as lease, patch.object(admission.os, "fsync", side_effect=OSError(errno.EIO, "失败")):
+            with self.assertRaises(admission.AdmissionError):
+                lease.publish()
+        self.assertTrue(f.container.exists())
+        self.assertFalse((f.state / admission.PUBLISHED).exists())
+        self.assertEqual(f.owner_path.read_bytes(), original)
+
+    def test_atomic_publish_does_not_replace_racing_empty_final(self):
+        f = self.fixture(pending=True)
+        real_publish = admission._publish_noreplace
+        def raced(fd):
+            (f.state / admission.PUBLISHED).mkdir(mode=0o700)
+            real_publish(fd)
+        with contextlib.closing(f.load()) as lease, patch.object(admission, "_publish_noreplace", side_effect=raced):
+            with self.assertRaises(admission.AdmissionError):
+                lease.publish()
+        self.assertTrue(f.container.exists())
+        self.assertEqual(list((f.state / admission.PUBLISHED).iterdir()), [])
+
+    def test_missing_owner_does_not_bootstrap_even_without_env(self):
+        f = self.fixture()
+        f.owner_path.unlink()
+        with self.assertRaises(admission.AdmissionError) as caught:
+            f.load()
+        self.assertEqual(caught.exception.code, "AnchorMissing")
+        self.assertEqual(caught.exception.wire_bytes, 0)
+        self.assertFalse(f.owner_path.exists())
+
+    def test_missing_entire_final_is_lost_not_first_publication(self):
+        f = self.fixture()
+        f.container.rename(f.root / "saved")
+        with self.assertRaises(admission.AdmissionError) as caught:
+            f.load()
+        self.assertEqual(caught.exception.code, "AnchorLost")
+        self.assertFalse(f.container.exists())
+
+    def test_final_plus_pending_is_conflict_and_preserved(self):
+        f = self.fixture()
+        pending = f.state / admission.PENDING
+        pending.mkdir(mode=0o700)
+        with self.assertRaises(admission.AdmissionError) as caught:
+            f.load()
+        self.assertEqual(caught.exception.code, "AnchorConflict")
+        self.assertTrue(pending.exists())
+
+    def test_unanchored_pending_or_owner_without_admission_never_resigns(self):
+        f = self.fixture(pending=True)
+        f.owner.pop("admission")
+        f.owner_path.write_bytes(encode(f.owner))
+        saved = f.owner_path.read_bytes()
+        with self.assertRaises(admission.AdmissionError):
+            f.load()
+        self.assertEqual(f.owner_path.read_bytes(), saved)
+        self.assertTrue(f.container.exists())
+
+    def test_half_env_fails_before_payload_and_cannot_redirect_db(self):
+        f = self.fixture()
+        for env in ({admission.ENV_SHA: f.binding["sha256"]},
+                    {admission.ENV_IDENTITY: encode(f.binding).decode()}):
+            with self.subTest(keys=list(env)), self.assertRaises(admission.AdmissionError) as caught:
+                f.load(env)
+            self.assertEqual(caught.exception.wire_bytes, 0)
+            self.assertIsNone(caught.exception.first_read_at)
+        other = {**f.binding, "db": str(f.root / "other.sqlite")}
+        with self.assertRaises(admission.AdmissionError):
+            f.load({**f.env(), admission.ENV_IDENTITY: encode(other).decode()})
+        self.assertFalse((f.root / "other.sqlite").exists())
+
+    def test_invalid_env_and_crosschecks_never_echo_values(self):
+        f = self.fixture()
+        secret = "不应回显的控制内容"
+        for env in ({admission.ENV_SHA: secret, admission.ENV_IDENTITY: "{}"},
+                    {admission.ENV_SHA: "0" * 64, admission.ENV_IDENTITY: encode(f.binding).decode()},
+                    {**f.env(), admission.ENV_IDENTITY: '{"' + secret + '":1,"' + secret + '":2}'}):
+            with self.subTest(env_keys=list(env)), self.assertRaises(admission.AdmissionError) as caught:
+                f.load(env)
+            self.assertNotIn(secret, str(caught.exception))
+
+    def test_all_limit_fields_reject_noncanonical_values_without_defaults(self):
+        f = self.fixture()
+        for value in (True, 1, 1.0, "0", "01", "-1", "1.0", "9223372036854775808", "١"):
+            for key in admission.LIMIT_FIELDS:
+                with self.subTest(key=key, value=value):
+                    values = {**f.limits, key: value}
+                    raw = encode(values)
+                    f.path.write_bytes(raw)
+                    f.binding["sha256"] = hashlib.sha256(raw).hexdigest()
+                    f.rewrite_binding()
+                    with self.assertRaises(admission.AdmissionError):
+                        f.load()
+        for values in ({}, {**f.limits, "extra": "1"}, {key: value for key, value in f.limits.items() if key != "max_store_bytes"}):
+            f.path.write_bytes(encode(values))
+            f.binding["sha256"] = hashlib.sha256(encode(values)).hexdigest()
+            f.rewrite_binding()
+            with self.assertRaises(admission.AdmissionError):
+                f.load()
+
+    def test_identity_fields_are_exact_typed_integers(self):
+        f = self.fixture()
+        original = json.loads(encode(f.binding))
+        for field in ("file_identity", "binding_identity", "directory_identity"):
+            for value in (True, 1.0, "1", -1, 2**64):
+                f.binding[field]["inode"] = value
+                f.rewrite_binding()
+                with self.subTest(field=field, value=value), self.assertRaises(admission.AdmissionError):
+                    f.load()
+                f.binding[field] = original[field].copy()
+        f.binding["file_identity"]["extra"] = 1
+        f.rewrite_binding()
+        with self.assertRaises(admission.AdmissionError):
+            f.load()
+
+    def test_each_control_file_rejects_links_permissions_and_fifo(self):
+        f = self.fixture()
+        for path in (f.owner_path, f.binding_path, f.path):
+            original, mode = path.read_bytes(), stat.S_IMODE(path.stat().st_mode)
+            for kind in ("hardlink", "symlink", "fifo", "mode"):
+                with self.subTest(path=path.name, kind=kind):
+                    saved = path.with_name(path.name + ".saved")
+                    if kind == "hardlink":
+                        os.link(path, saved)
+                    elif kind == "mode":
+                        path.chmod(0o666)
+                    else:
+                        path.rename(saved)
+                        if kind == "symlink":
+                            path.symlink_to(saved)
+                        else:
+                            os.mkfifo(path, 0o600)
+                    with self.assertRaises(admission.AdmissionError):
+                        f.load()
+                    if kind == "hardlink":
+                        saved.unlink()
+                    elif kind == "mode":
+                        path.chmod(mode)
+                    else:
+                        path.unlink()
+                        saved.rename(path)
+                    self.assertEqual(path.read_bytes(), original)
+
+    def test_bounded_read_charges_65537th_byte(self):
+        f = self.fixture()
+        f.owner_path.write_bytes(b" " * (admission.CONTROL_MAX + 1000))
+        with self.assertRaises(admission.AdmissionError) as caught:
+            f.load()
+        self.assertEqual(caught.exception.code, "ControlTooLarge")
+        self.assertEqual(caught.exception.wire_bytes, 65537)
+
+    def test_partial_read_then_io_error_keeps_actual_count(self):
+        f = self.fixture()
+        actual = admission.os.read
+        calls = []
+        def read(fd, size):
+            calls.append(size)
+            if len(calls) == 1:
+                return actual(fd, 7)
+            raise OSError(errno.EIO, "失败")
+        with patch.object(admission.os, "read", side_effect=read), self.assertRaises(admission.AdmissionError) as caught:
+            f.load()
+        self.assertEqual(caught.exception.wire_bytes, 7)
+
+    def test_expired_read_keeps_returned_bytes(self):
+        f = self.fixture()
+        actual = admission.os.read
+        clock = [10.0]
+        def read(fd, size):
+            result = actual(fd, size)
+            clock[0] = 11.0
+            return result
+        with patch.object(admission.time, "monotonic", side_effect=lambda: clock[0]), \
+             patch.object(admission.os, "read", side_effect=read), self.assertRaises(admission.AdmissionError) as caught:
+            f.load(deadline=11.0)
+        self.assertEqual(caught.exception.code, "Deadline")
+        self.assertEqual(caught.exception.wire_bytes, f.owner_path.stat().st_size)
+        self.assertEqual(caught.exception.first_read_at, 10.0)
+
+    def test_last_sync_expiry_or_inode_replacement_prevents_success(self):
+        f = self.fixture()
+        real_sync = admission.os.fsync
+        for kind in ("deadline", "replacement"):
+            clock = [10.0]
+            with self.subTest(kind=kind), patch.object(admission.time, "monotonic", side_effect=lambda: clock[0]):
+                with contextlib.closing(f.load(deadline=11.0)) as lease:
+                    count = []
+                    def sync(fd):
+                        real_sync(fd)
+                        count.append(fd)
+                        if len(count) == 8:
+                            if kind == "deadline":
+                                clock[0] = 11.0
+                            else:
+                                saved = f.path.with_suffix(".saved")
+                                f.path.rename(saved)
+                                f.path.write_bytes(saved.read_bytes())
+                                f.path.chmod(0o600)
+                    with patch.object(admission.os, "fsync", side_effect=sync), self.assertRaises(admission.AdmissionError):
+                        lease.publish()
+                    self.assertFalse(lease._published)
+
+    def test_named_budget_is_only_crosscheck_and_counts_its_actual_read(self):
+        f = self.fixture(pending=True)
+        source = f.root / "configured.json"
+        source.write_bytes(f.raw)
+        source.chmod(0o644)
+        with contextlib.closing(f.load()) as lease:
+            before = lease.wire_bytes
+            lease.crosscheck_limits(str(source))
+            self.assertEqual(lease.wire_bytes, before + len(f.raw))
+            lease.publish()
+            self.assertEqual(lease.limits_path, f.binding["path"])
+            saved = source.with_suffix(".saved")
+            source.rename(saved)
+            source.write_bytes(saved.read_bytes())
+            source.chmod(0o644)
+            with self.assertRaises(admission.AdmissionError):
+                lease.revalidate()
+
+    def test_explicit_budget_mismatch_rejects_before_pending_publish_or_child(self):
+        f = self.fixture(pending=True)
+        source = f.root / "configured.json"
+        source.write_bytes(encode(f.limits))  # 同值不同原字节也不得替换。
+        source.chmod(0o600)
+        config = {**f.config(), "admission_job_limits": str(source)}
+        with contextlib.closing(control.Controller(config, f.state)) as controller:
+            with patch.object(controller, "runtime_environment") as runtime, self.assertRaises(admission.AdmissionError):
+                controller.start_s("1")
+            runtime.assert_not_called()
+        self.assertTrue(f.container.exists())
+        self.assertFalse((f.state / admission.PUBLISHED).exists())
+
+    def test_read_metadata_change_and_same_bytes_new_inode_are_rejected(self):
+        f = self.fixture()
+        actual = admission.os.read
+        changed = []
+        def read(fd, size):
+            chunk = actual(fd, size)
+            if not changed:
+                changed.append(True)
+                f.owner_path.chmod(0o644)
+            return chunk
+        with patch.object(admission.os, "read", side_effect=read), self.assertRaises(admission.AdmissionError) as caught:
+            f.load()
+        self.assertEqual(caught.exception.code, "Changed")
+        f.owner_path.chmod(0o600)
+        for path in (f.owner_path, f.binding_path, f.path):
+            with contextlib.closing(f.load()) as lease:
+                saved = path.with_name(path.name + ".saved")
+                path.rename(saved)
+                path.write_bytes(saved.read_bytes())
+                path.chmod(0o600)
+                with self.assertRaises(admission.AdmissionError):
+                    lease.revalidate()
+                path.unlink()
+                saved.rename(path)
+
+    def test_directory_state_db_and_late_pending_substitutions_are_rejected(self):
+        f = self.fixture()
+        for path in (f.container, f.state, f.db):
+            with self.subTest(path=path.name), contextlib.closing(f.load()) as lease:
+                saved = path.with_name(path.name + ".saved")
+                path.rename(saved)
+                if saved.is_dir():
+                    path.mkdir(mode=0o700)
+                else:
+                    path.write_bytes(saved.read_bytes())
+                with self.assertRaises(admission.AdmissionError):
+                    lease.revalidate()
+                if path.is_dir():
+                    path.rmdir()
+                else:
+                    path.unlink()
+                saved.rename(path)
+        with contextlib.closing(f.load()) as lease:
+            (f.state / admission.PENDING).mkdir()
+            with self.assertRaises(admission.AdmissionError):
+                lease.revalidate()
+
+    def test_wire_limit_and_original_elapsed_gate_precede_publish(self):
+        f = self.fixture(limits={"max_total_wire_bytes": "1"})
+        with self.assertRaises(admission.AdmissionError) as caught:
+            f.load()
+        self.assertEqual(caught.exception.code, "WireLimit")
+        self.assertGreater(caught.exception.wire_bytes, 1)
+        f.limits["max_total_wire_bytes"] = "1000000"
+        f.limits["max_elapsed_ms"] = "20"
+        f.path.write_bytes(encode(f.limits))
+        f.binding["sha256"] = hashlib.sha256(encode(f.limits)).hexdigest()
+        f.rewrite_binding()
+        clock = [100.0]
+        with patch.object(admission.time, "monotonic", side_effect=lambda: clock[0]):
+            with contextlib.closing(f.load(deadline=101.0)) as lease:
+                clock[0] = 100.02
+                for _ in range(2):
+                    with self.assertRaises(admission.AdmissionError) as expired:
+                        lease.publish()
+                    self.assertEqual(expired.exception.code, "Deadline")
+                self.assertEqual(lease.first_read_at, 100.0)
+
+    def test_owner_and_binding_exact_schema_and_duplicate_keys(self):
+        f = self.fixture()
+        for path, raw in ((f.owner_path, encode({**f.owner, "extra": None})),
+                          (f.binding_path, encode({**f.binding, "extra": None})),
+                          (f.path, b'{"max_elapsed_ms":"1","max_elapsed_ms":"2"}')):
+            original = path.read_bytes()
+            path.write_bytes(raw)
+            if path == f.path:
+                f.binding["sha256"] = hashlib.sha256(raw).hexdigest()
+                f.rewrite_binding()
+            with self.assertRaises(admission.AdmissionError):
+                f.load()
+            path.write_bytes(original)
+
+    def test_controller_missing_anchor_cannot_create_owner_or_start_init(self):
+        f = self.fixture()
+        f.owner_path.unlink()
+        with patch.object(control.subprocess, "run") as run, self.assertRaises(admission.AdmissionError):
+            control.Controller(f.config(), f.state)
+        run.assert_not_called()
+        self.assertFalse(f.owner_path.exists())
+        self.assert_source(f)
+
+    def test_status_still_reads_owner2_or_lost_budget_but_writer_cannot_use_them(self):
+        f = self.fixture()
+        f.container.rename(f.root / "saved")
+        for owner in (f.owner, {"db": str(f.db), "state_dir": str(f.state)}):
+            f.owner_path.write_bytes(encode(owner))
+            with contextlib.closing(control.Controller(f.config(), f.state)) as controller:
+                self.assertEqual(controller.status("s")["state"], "not_started")
+                with self.assertRaises(admission.AdmissionError):
+                    controller.start_s("1")
+            self.assertFalse(f.container.exists())
+
+    def test_lazy_preparation_cannot_renew_t0_or_adopt_replacement_after_failure(self):
+        f = self.fixture()
+        clock = [10.0]
+        f.limits["max_elapsed_ms"] = "1"
+        f.path.write_bytes(encode(f.limits))
+        f.binding["sha256"] = hashlib.sha256(encode(f.limits)).hexdigest()
+        f.rewrite_binding()
+        with patch.object(admission.time, "monotonic", side_effect=lambda: clock[0]):
+            with contextlib.closing(control.Controller(f.config(), f.state)) as controller:
+                t0 = controller.admission.first_read_at
+                clock[0] = 10.002
+                with self.assertRaises(admission.AdmissionError) as first:
+                    controller.start_s("1")
+                before = controller.admission.wire_bytes
+                with self.assertRaises(admission.AdmissionError) as retry:
+                    controller.start_s("1")
+                self.assertIs(retry.exception, first.exception)
+                self.assertEqual(first.exception.code, "Deadline")
+                self.assertEqual(controller.admission.first_read_at, t0)
+                self.assertEqual(controller.admission.wire_bytes, before)
+
+    def test_new_db_is_not_prepared_or_initialized(self):
+        f = self.fixture()
+        f.db.unlink()
+        with patch.object(control.subprocess, "run") as run, self.assertRaises(FileNotFoundError):
+            control.Controller(f.config(), f.state)
+        run.assert_not_called()
+        self.assertFalse(f.db.exists())
+
+    def test_shared_economic_constructor_keeps_original_owner2_contract(self):
+        root = self.root.resolve()
+        db, state = root / "economic.sqlite", root / "economic-state"
+        config = {"db": str(db), "socket_service": "owner", "startup_timeout_ms": "1000"}
+        with contextlib.closing(control.Controller(config, state)) as controller:
+            self.assertIsNone(controller.admission)
+            self.assertEqual(json.loads(Path(str(db) + ".control-owner.json").read_bytes()),
+                             {"db": str(db), "state_dir": str(state)})
+        self.assertFalse(db.exists())
+
+    def test_real_stub_recover_receives_published_path_env_and_remaining_deadline(self):
+        f = self.fixture(pending=True)
+        f.stub()
+        clock = [10.0]
+        real_run = subprocess.run
+        calls = []
+        def run(argv, **kwargs):
+            calls.append((argv, kwargs["timeout"]))
+            return real_run(argv, **kwargs)
+        def runtime(deadline):
+            self.assertEqual(deadline, 20.0)
+            clock[0] = 13.0
+            return {}
+        with patch.object(control.time, "monotonic", side_effect=lambda: clock[0]):
+            with contextlib.closing(control.Controller(f.config(), f.state)) as controller:
+                with patch.object(controller, "status", return_value={"state": "stopped"}), \
+                     patch.object(controller, "runtime_environment", side_effect=runtime), \
+                     patch.object(control.subprocess, "run", side_effect=run):
+                    result = controller.recover("2", "test-event")
+        self.assertEqual(calls[0][1], 7.0)
+        self.assertTrue(result["reply"]["stub"])
+        self.assertTrue(result["reply"]["sha_match"])
+        argv = result["reply"]["argv"]
+        self.assertEqual(argv[0], "recover")
+        self.assertEqual(argv[argv.index("--admission-job-limits") + 1], f.binding["path"])
+        self.assert_source(f)
+
+    def test_start_s2_s3_stub_argv_seven_fields_and_shared_deadline(self):
+        f = self.fixture()
+        f.stub()
+        original = encode(f.config()["s_resources"])
+        for revision in ("s-launcher/2", "s-launcher/3"):
+            clock = [30.0]
+            captured = []
+            def start(service, argv, env, **kwargs):
+                captured.append((argv, kwargs))
+                result = subprocess.run(argv, env=env, capture_output=True, check=True,
+                                        timeout=control.remaining(kwargs["deadline"]))
+                self.assertTrue(json.loads(result.stdout)["sha_match"])
+                clock[0] = 35.0
+            def runtime(deadline):
+                clock[0] = 32.0
+                return {}
+            with self.subTest(revision=revision), patch.object(control.time, "monotonic", side_effect=lambda: clock[0]):
+                with contextlib.closing(control.Controller(f.config(revision), f.state)) as controller:
+                    with patch.object(controller, "runtime_environment", side_effect=runtime), \
+                         patch.object(controller, "prepare_socket", return_value=None), \
+                         patch.object(controller, "start_process", side_effect=start), \
+                         patch.object(controller, "wait_ready", return_value={"state": "ready"}) as ready:
+                        result = controller.start_s("1")
+                    ready.assert_called_once_with("s", "1", deadline=40.0)
+                    self.assertIsNone(result["initialization"])
+                    argv, kwargs = captured[0]
+                    self.assertEqual(argv[1], "serve")
+                    self.assertEqual(argv[argv.index("--admission-job-limits") + 1], f.binding["path"])
+                    self.assertEqual(kwargs["deadline"], 40.0)
+                    if revision == "s-launcher/3":
+                        frozen = json.loads(Path(kwargs["resource_identity"]["path"]).read_bytes())
+                        self.assertEqual(set(frozen["s_resources"]), control.S_RESOURCE_FIELDS)
+                        self.assertEqual(encode(frozen["s_resources"]), original)
+        self.assert_source(f)
+
+    def test_expired_runtime_does_not_spawn_or_renew_action_deadline(self):
+        f = self.fixture()
+        clock = [1.0]
+        with patch.object(control.time, "monotonic", side_effect=lambda: clock[0]):
+            with contextlib.closing(control.Controller(f.config(), f.state)) as controller:
+                def runtime(deadline):
+                    clock[0] = deadline
+                    return {}
+                with patch.object(controller, "runtime_environment", side_effect=runtime), \
+                     patch.object(controller, "start_process") as spawn:
+                    for _ in range(2):
+                        with self.assertRaises(admission.AdmissionError) as caught:
+                            controller.start_s("1")
+                        self.assertEqual(caught.exception.code, "Deadline")
+                    spawn.assert_not_called()
+                self.assertEqual(controller.admission_deadline, 11.0)
+
+    def test_subprocess_error_and_invalid_reply_are_redacted_at_cli(self):
+        f = self.fixture()
+        secret = "不得回显原控制内容"
+        for output, rc in ((secret, 7), ('{"' + secret + '":1,"' + secret + '":2}', 0)):
+            f.stub(output=output, rc=rc)
+            config = f.root / "config.json"
+            config.write_bytes(encode(f.config()))
+            error = io.StringIO()
+            argv = ["s_service_control.py", "recover", "--config", str(config), "--state-dir", str(f.state),
+                    "--new-epoch", "2", "--clock-event-id", "event"]
+            with patch.object(sys, "argv", argv), patch.object(control.Controller, "status", return_value={"state": "stopped"}), \
+                 patch.object(control.Controller, "runtime_environment", return_value={}), contextlib.redirect_stderr(error):
+                self.assertEqual(control.main(), 1)
+            self.assertNotIn(secret, error.getvalue())
+            parsed = json.loads(error.getvalue())
+            self.assertFalse(parsed["ok"])
+            if rc:
+                self.assertEqual(parsed["returncode"], rc)
+
+
+def _same_directory(fd, path):
+    a, b = os.fstat(fd), path.stat()
+    return (a.st_dev, a.st_ino) == (b.st_dev, b.st_ino)
+
+
+if __name__ == "__main__":
+    unittest.main()
