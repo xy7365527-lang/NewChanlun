@@ -2,7 +2,7 @@ name: '#1488 六 driver 原成功合同诊断'
 
 on:
   push:
-    branches: [validate/1488-driver-six]
+    branches: [codex/1488-r5-driver-six-20261018]
 
 permissions:
   contents: read
