@@ -20,7 +20,7 @@ CONTRACT_READY = False  # 两 CI 文件独审、源码绑定和尾差复核后�
 CI_FILES = {".github/scripts/run-1488-driver-ci.py", ".github/workflows/issue-1488-driver-six.yml"}
 LEGACY_RUNNER = ".github/scripts/run-1488-delta-ci.py"
 LEGACY_SHA256 = "2c94e9e8354bd3fe369067210054db903df019cf9ce8c1345a6ec6d107b297dc"
-FEATURES = "s_session,s_capture_native_testonly,s_allocation_json_testonly"
+FEATURES = "s_session,s_capture_native_testonly"
 DISK_MIN_BYTES = 2147483648
 TESTS = [
     "v3::driver::tests::audit_owner_complete_accept_tail_begin_recover_retry_and_revision_qualification",
