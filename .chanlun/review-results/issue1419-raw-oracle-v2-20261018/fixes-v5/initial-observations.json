@@ -1,0 +1,128 @@
+{
+  "schema": "issue1419-v5-targeted-observations/1",
+  "tests": 3,
+  "failures": 3,
+  "errors": 0,
+  "observations": [
+    {
+      "case": "F1直接JSONText",
+      "closure": true,
+      "accepted": {
+        "status": "SCOPED_STATIC_FIELDS_VERIFIED_LIFECYCLE_UNVERIFIED",
+        "segments": 10,
+        "centers": 2,
+        "pairs_compared": 1,
+        "product_run": "NOT_RUN",
+        "verified_subquantifiers": [
+          "有限域低级端点几何/笔formation及引用绑定",
+          "段端点/construction/strict/fact_vector/终结证书",
+          "seed五条件/核心/成员/Zn贡献/归属null及实体引用",
+          "相邻对连接成员及16格"
+        ],
+        "unverified": {
+          "first_visibility": "UNVERIFIED",
+          "known_at": "UNVERIFIED",
+          "AsKnown": "UNVERIFIED",
+          "entity_revision": "UNVERIFIED",
+          "raw_history": "UNVERIFIED",
+          "withdrawn_objects": "UNVERIFIED",
+          "lower_source_coords_and_sealing": "UNVERIFIED",
+          "lower_confirmation": "UNVERIFIED",
+          "feature_sequence_objects": "UNVERIFIED",
+          "full_catalog_axes": "UNVERIFIED",
+          "product_source_binding": "UNVERIFIED"
+        },
+        "logical_work_used": 372406,
+        "limitations": "只声明逐项静态子量词；真实前缀轨迹和生命周期输出未接入，禁止据此销项"
+      }
+    },
+    {
+      "case": "F2两百万header",
+      "error": null,
+      "work": 112,
+      "reply_bytes": 550,
+      "writes": [
+        319,
+        550,
+        2000272
+      ],
+      "serialized": [
+        "headers"
+      ]
+    },
+    {
+      "case": "F8分次profile漂移",
+      "accepted": [
+        140,
+        141,
+        142
+      ],
+      "error": null
+    }
+  ],
+  "source_identity": {
+    "driver/assemble_evidence.py": {
+      "bytes": 16440,
+      "sha256": "b9cca7d3fbf1965da125925f8caaf7932718410232f72d303687ede6a31c74b4"
+    },
+    "driver/content_closure.py": {
+      "bytes": 16713,
+      "sha256": "65aa1aa87939bb11a019c215a636f46a01ef4045bc3f4a2276fce5940f713d82"
+    },
+    "driver/driver_v2.py": {
+      "bytes": 18528,
+      "sha256": "1cb02275c511afe68321a0b6006eae5e411e05255478232c0d891ff4d1cce0f8"
+    },
+    "driver/fixed_cut_driver.py": {
+      "bytes": 21831,
+      "sha256": "202711033c9c99e4fd831241248a862668c2153661e2903807f6017dd0987191"
+    },
+    "driver/prepare_candidate.py": {
+      "bytes": 9867,
+      "sha256": "b251d99d366ebc7c68dd2fe8f2bdf5b0ff6b48009118d5e9c96c67f2aaebba00"
+    },
+    "driver/raw_oracle.py": {
+      "bytes": 14593,
+      "sha256": "4500a308a22bb763f273aa807def13405550993eef0e8196dca58d8aa09cb76e"
+    },
+    "driver/seal_bundle.py": {
+      "bytes": 3854,
+      "sha256": "c90b87e529b37a497aa3e86940f4ec8906b9c5a614e41b74f26ba21825cd2575"
+    },
+    "driver/test_v2.py": {
+      "bytes": 17385,
+      "sha256": "89f917cd0283a8c3bfa7082dd40a8eca473d638121e9fdab62126f5f1a6aaf7b"
+    },
+    "driver/toy_supervisor.py": {
+      "bytes": 5543,
+      "sha256": "7f5a5e7fc90b4c33e551db1808b5ca1b4b29e81d8d5d1fe3347b2d3615ed5ff5"
+    },
+    "driver/verify_delivery.py": {
+      "bytes": 4363,
+      "sha256": "3402c467f96f3d4fda9d822aa97f1933e8bddfb1d33400428f32f4a6eeaa9e30"
+    },
+    "fixes-v5/run_checks.py": {
+      "bytes": 1644,
+      "sha256": "0fa67e652a98dd8514b45f66869232be1859c5603982a8f96b6fbf0491b8be4b"
+    },
+    "fixes-v5/test_v5.py": {
+      "bytes": 6071,
+      "sha256": "8198f96d1c52810f243807bdfd87263c9be4e9e6852ffa56580d882e7f682c6f"
+    },
+    "fixes-v4/test_v4.py": {
+      "bytes": 17182,
+      "sha256": "b820ea1a3b143bf38b7bc25800bb36b8eb589581574ce2458d00d2a46f9bd95a"
+    },
+    "fixes-v3/domain_fields.py": {
+      "bytes": 5414,
+      "sha256": "a7bc1295c8478926b3217433e4dc7b080b58022ce81e4a9aad2926f8e82a0591"
+    },
+    "fixes-v3/independent_fixture.py": {
+      "bytes": 7367,
+      "sha256": "49104b53631deeba220f3ff8cd586beed2b7d325bd6a7125e2bb367e709c243e"
+    }
+  },
+  "authorization": false,
+  "product_run": "NOT_RUN",
+  "qualification": "实施工蜂定向内存/fake，非独立评审"
+}

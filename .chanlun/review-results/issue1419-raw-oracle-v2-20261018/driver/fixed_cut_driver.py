@@ -22,6 +22,9 @@ CONTENT_TOKEN = set("token_schema anchor path target_ref unit offset limit issue
 CONTENT_PAGE = set("target_ref unit offset end total items nodes done anchor path next_token validated_capture_digest ok".split())
 CURSOR = set("session_id session_generation catalog_revision scope after_generation base_cut index_frontier last_seq order_version".split())
 FIXED = set("session_id session_generation structure_cut cut_generation catalog_revision index_frontier profile_id profile_hash input_frontier seq_range catalog_run_status catalog_evidence scope rule_revision history_mode as_of_generation".split())
+# FIXED 的其余八字段是逐代值，须逐项与 delta/代际核对，不能冻结为常量。
+WATCH_IDENTITY = ('session_id', 'session_generation', 'catalog_revision', 'profile_id',
+                  'profile_hash', 'scope', 'rule_revision', 'history_mode')
 DELTA = set("generation session_id catalog_revision base_cut next_cut seq_range index_frontier input_frontier catalog_run_status catalog_evidence delta".split())
 
 
@@ -59,12 +62,15 @@ def natural(value):
     return int(value)
 
 
-def bind_named_submissions(submissions, accepted_cuts):
+def bind_named_submissions(submissions, accepted_cuts, *, work_budget):
     """离线接点：以原始具名请求的事件数绑定其实际成功后固定切面。
 
     accepted_cuts 必须由请求/回复轨迹关联提供，不能用输入条数猜产品 generation。
     本函数检查字节摘要、会话与重复绑定，不证明真实接纳动作发生过。
     """
+    # 必须复用消费方工作预算，在请求 canonical 和切面 deepcopy 前准入两棵树。
+    work_budget.scan(submissions)
+    work_budget.scan(accepted_cuts)
     require(len(submissions)==len(accepted_cuts),'具名提交与实际切面数量不符')
     bindings={};seen=set()
     for request,cut in zip(submissions,accepted_cuts):
@@ -111,9 +117,18 @@ class Budget:
 
 
 class Collector:
-    def __init__(self, identity, budget, exchange, output, query_epoch):
+    def __init__(self, identity, budget, exchange, output, query_epoch, *, work_budget):
+        # v5 构造合同：从首次外来身份复制起即持有同一 WorkBudget，无默认帽。
+        self.budget, self.work_budget = budget, work_budget
+        original_check = work_budget.check
+        def check():
+            budget.check()
+            original_check()
+        work_budget.check = check
+        self.work(identity)
+        self.work(query_epoch)
         exact(identity, {"session_id", "session_generation", "source_namespace", "source_epoch", "producer_id", "producer_epoch"})
-        self.identity, self.budget, self.exchange = deepcopy(identity), budget, exchange
+        self.identity, self.exchange = deepcopy(identity), exchange
         require(natural(query_epoch) > 0, "query epoch必须为正")
         self.query_epoch = query_epoch
         self.output = Path(output)
@@ -127,6 +142,8 @@ class Collector:
         else:budget.scan(value)
 
     def call(self, route, payload):
+        self.work(route)
+        self.work(self.identity)
         self.work(payload)
         self.budget.check()
         self.sequence += 1
@@ -139,12 +156,16 @@ class Collector:
         status, headers, raw_reply = self.exchange(route, raw_request)
         # exchange自身须限读；返回后先预留原件处理费用，再写盘/hash/解析。
         # 超工作帽的回复不继续处理；这不是网络分配或同步IO硬帽。
+        self.work(status)
+        self.work(headers)
         self.work(raw_reply)
+        require(type(status) is int and 100 <= status <= 599, '回复status类型/范围不符')
+        require(isinstance(headers, dict) and isinstance(raw_reply, bytes), '回复元数据/原字节类型不符')
+        self.budget.charge(len(raw_reply))
         prefix.with_suffix(".reply").write_bytes(raw_reply)
         prefix.with_suffix(".meta.json").write_bytes(canonical({"route": route, "status": status,
             "headers": headers, "request_sha256": sha(raw_request), "reply_sha256": sha(raw_reply),
             "reply_bytes": len(raw_reply), "runtime": "OFFLINE_TRANSCRIPT_ONLY"}))
-        self.budget.charge(len(raw_reply))
         require(status == 200, "非200回复；拒绝重试重置预算")
         reply = strict_load(raw_reply)
         self.work(reply)
@@ -166,6 +187,7 @@ class Collector:
 
     def snapshot(self, fixed, page_size):
         self.work(fixed)
+        self.work(page_size)
         require(type(page_size) is int and page_size > 0, "分页大小无效")
         require(fixed["history_mode"] in ("AsKnown", "RecomputedWithRevision"), "模式不符")
         # 固定 generation；不能用latest补缺页。
@@ -224,6 +246,7 @@ class Collector:
 
     def content(self, anchor, path, unit, limit):
         self.work(anchor);self.work(path)
+        self.work(unit);self.work(limit)
         require(unit in ("items", "bytes", "value") and type(limit) is int and limit > 0, "内容单位/限额无效")
         payload = {"op": "content", "anchor": deepcopy(anchor), "path": deepcopy(path),
                    "unit": unit, "offset": "0", "limit": str(limit)}
@@ -255,22 +278,59 @@ class Collector:
             offset = end
             payload = {"op": "content", "content_token": deepcopy(token)}
 
+    def bind_watch(self, fixed, cursor):
+        """只允许一次显式安装可信切面；调用者负责其快照/来源资格，本核不自签。
+
+        保留完整固定切面和游标。不能用下一代 accepted_cut 反向当首代信任根。
+        """
+        self.work(fixed)
+        self.work(cursor)
+        require(not hasattr(self, '_watch_state'), 'watch已绑定；禁止重置身份')
+        exact(fixed, FIXED)
+        exact(cursor, CURSOR)
+        for key in ('session_id', 'session_generation'):
+            require(fixed[key] == self.identity[key], '可信切面会话不符:'+key)
+        for ck, fk in (('session_id','session_id'), ('session_generation','session_generation'),
+                       ('catalog_revision','catalog_revision'), ('scope','scope'),
+                       ('after_generation','cut_generation'), ('base_cut','structure_cut'),
+                       ('index_frontier','index_frontier'), ('last_seq','input_frontier')):
+            require(cursor[ck] == fixed[fk], '可信切面游标不符:'+ck)
+        require(cursor['order_version'] == 's-record-order/2', 'watch序版本不符')
+        for key in ('cut_generation','index_frontier','input_frontier','as_of_generation'):
+            natural(fixed[key])
+        require(fixed['as_of_generation'] == fixed['cut_generation'], '可信切面as_of_generation不符')
+        self.work()
+        anchor = deepcopy(fixed)
+        state = dict(fixed=deepcopy(fixed), cursor=deepcopy(cursor), seen_commits=set())
+        self._watch_anchor, self._watch_state = anchor, state
+
     def watch(self, cursor, through_generation, client_id, max_batches=1, *, accepted_commits):
         """accepted_commits 按实际代际绑定具名提交及接纳事件数；不推测产品代际。
 
         值含请求身份、accepted_events 和未丢字段的正式 accepted_cut。
         跨 writer epoch 仍属于同会话 input_frontier；不得因 epoch 变化清零。
         """
+        self.work(cursor)
+        self.work(client_id)
+        self.work(through_generation)
+        self.work(max_batches)
+        self.work(accepted_commits)
+        require(hasattr(self, '_watch_state'), 'watch缺可信固定切面；先bind_watch')
         exact(cursor, CURSOR)
+        require(cursor == self._watch_state['cursor'], 'watch游标不符：必须续接上次已验证状态')
         cursor = deepcopy(cursor)
         after, results = natural(cursor["after_generation"]), []
         previous_frontier = natural(cursor['last_seq']) if cursor['last_seq'] is not None else -1
         require(isinstance(accepted_commits,dict),'缺具名提交接纳账簿')
-        seen_commits=set();prior_cut=None
-        require(through_generation > after and max_batches > 0, "watch范围无效")
+        self.work_budget.charge(1+len(self._watch_state['seen_commits']))
+        seen_commits = set(self._watch_state['seen_commits'])
+        prior_cut = self._watch_state['fixed']
+        require(type(through_generation) is int and type(max_batches) is int
+                and through_generation > after and max_batches > 0, "watch范围无效")
         while after < through_generation:
             page = self.call("/api/v3/watch", {"op": "watch", "cursor": cursor,
                 "max_batches": str(min(max_batches, through_generation - after)), "client_id": client_id})
+            self.work(page)
             exact(page, set("deltas next_cursor observed_head delivery_frontier has_more gap validated_capture_digest ok".split()))
             require(page["gap"] is None, "watch发生Gap；成功证明不完整，保原件且不静默重取")
             require(isinstance(page["deltas"], list) and 0 < len(page["deltas"]) <= max_batches, "watch空页/批次越界")
@@ -285,6 +345,9 @@ class Collector:
                 exact(binding,{'session_id','session_generation','message_id','source_epoch','accepted_events','accepted_cut'})
                 require(all(binding[k]==cursor[k] for k in ('session_id','session_generation')),'具名提交会话绑定不符')
                 cut=binding['accepted_cut'];exact(cut,FIXED)
+                for name in WATCH_IDENTITY:
+                    require(cut[name] == self._watch_anchor[name] == prior_cut[name],
+                            '接纳切面身份变化:'+name)
                 for name in ('session_id','session_generation','catalog_revision','scope'):
                     require(cut[name]==cursor[name],'接纳切面身份不符:'+name)
                 for dk,ck in (('generation','cut_generation'),('next_cut','structure_cut'),
@@ -293,9 +356,7 @@ class Collector:
                               ('catalog_evidence','catalog_evidence')):
                     require(delta[dk]==cut[ck],'watch与接纳切面不符:'+ck)
                 require(cut['as_of_generation']==delta['generation'],'接纳切面as_of_generation不符')
-                if prior_cut is not None:
-                    for name in ('profile_id','profile_hash','rule_revision','history_mode'):
-                        require(cut[name]==prior_cut[name],'接纳切面身份变化:'+name)
+                natural(cut['index_frontier'])
                 prior_cut=cut
                 require(isinstance(binding['message_id'],str) and binding['message_id'],'提交名缺失')
                 natural(binding['source_epoch'])
@@ -308,8 +369,14 @@ class Collector:
                 require(after <= through_generation, "watch越过固定目标")
                 cursor.update(after_generation=str(after), base_cut=delta["next_cut"],
                               index_frontier=delta["index_frontier"], last_seq=delta["input_frontier"])
-                results.append(delta)
+                self.work()
+                results.append(deepcopy(delta))
             require(page["next_cursor"] == cursor, "watch游标不符")
+        # 整次调用验证成功后才一次安装；任何失败不推进切面/游标/去重账，预算不回滚。
+        self.work(prior_cut)
+        self.work(cursor)
+        state = dict(fixed=deepcopy(prior_cut), cursor=deepcopy(cursor), seen_commits=seen_commits)
+        self._watch_state = state
         return {"deltas": results, "next_cursor": cursor, "closure_verified": False}
 
 

@@ -147,6 +147,9 @@ class WorkBudget:
             elif isinstance(item,(str,bytes)):
                 unit=1024 if isinstance(item,str) else 4096
                 self.charge(1+(len(item)+unit-1)//unit)
+            elif type(item) is int:
+                # 元数据也可带整数；在 JSON 十进制转换分配前按位长预留。
+                self.charge(1+(item.bit_length()+1023)//1024)
             require(len(stack)<128,'工作扫描深度超限')
 
 

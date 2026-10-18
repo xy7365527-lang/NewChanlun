@@ -1,21 +1,21 @@
 {
-  "schema": "issue1419-raw-oracle-v4-manifest/1",
+  "schema": "issue1419-raw-oracle-v5-manifest/1",
   "ticket": 1419,
   "classification": "开放票工作草稿",
-  "baseline": "4161ebfe6d1a11b93cccf1de1a8f134c6c7d2c6a",
-  "branch": "codex/1419-raw-fix-v4-20261018",
+  "baseline": "46a11d1cbdeecab3444efbfd324be29a73ecb293",
+  "branch": "codex/1419-raw-fix-v5-20261018",
   "parent_task": "01a12e01-45a1-7173-a3e8-d338d108fb93",
   "manager": "/root/manage_1419_sandcastle",
   "worker_identity": "Sandcastle外部Codex；不声明原生子代理注册",
   "session_id": "由运行时事件登记",
   "authorization": false,
   "execution_authorized": false,
-  "product_run": "NOT_RUN",
-  "source_tree": "PENDING_SOURCE",
   "source_commit": "PENDING_SOURCE",
+  "source_tree": "PENDING_SOURCE",
   "binary_sha256": "PENDING_SOURCE",
-  "review_status": "PENDING_INDEPENDENT_REVIEW_OF_V4_DIFF",
-  "prior_manifest": "fixes-v4/V3-MANIFEST.json.reference",
+  "product_run": "NOT_RUN",
+  "review_status": "PENDING_INDEPENDENT_REVIEW_OF_V5_DIFF",
+  "prior_manifest": "fixes-v5/V4-MANIFEST.json.reference",
   "files": [
     {
       "path": "AC-DOMAIN-MATRIX.json",
@@ -79,18 +79,18 @@
     },
     {
       "path": "driver/content_closure.py",
-      "bytes": 16713,
-      "sha256": "65aa1aa87939bb11a019c215a636f46a01ef4045bc3f4a2276fce5940f713d82"
+      "bytes": 16908,
+      "sha256": "e602b90a20e5028e2859a10404e244f0d413079cbf7a24d9b96de40fd8fc23d8"
     },
     {
       "path": "driver/driver_v2.py",
-      "bytes": 18528,
-      "sha256": "1cb02275c511afe68321a0b6006eae5e411e05255478232c0d891ff4d1cce0f8"
+      "bytes": 19663,
+      "sha256": "28fdf641623ddc2f66f335e407c2a0dc61d3353afa8cdd1ae8f9294d35c0792f"
     },
     {
       "path": "driver/fixed_cut_driver.py",
-      "bytes": 21831,
-      "sha256": "202711033c9c99e4fd831241248a862668c2153661e2903807f6017dd0987191"
+      "bytes": 25601,
+      "sha256": "8873c5ee0fb57a6946f4b07abe2d6962b98aef3c50a8b4cccac7dc2907a2ecd0"
     },
     {
       "path": "driver/prepare_candidate.py",
@@ -109,8 +109,8 @@
     },
     {
       "path": "driver/test_v2.py",
-      "bytes": 17385,
-      "sha256": "89f917cd0283a8c3bfa7082dd40a8eca473d638121e9fdab62126f5f1a6aaf7b"
+      "bytes": 17572,
+      "sha256": "55946f115533faec5ebc2be6cc2be6c03867b7faabdead46a7f26683ce436028"
     },
     {
       "path": "driver/toy_supervisor.py",
@@ -488,6 +488,216 @@
       "sha256": "dd87b29fc0f27c032b7eed7ded37efdcbff25384646e00179ad2e64c23a4d1ab"
     },
     {
+      "path": "fixes-v5/DRIVER-CONTRACT.schema.json",
+      "bytes": 7590,
+      "sha256": "0ae27a1c333648db99b79826be5d53f47a341242510136a777ef8976a10a6f0d"
+    },
+    {
+      "path": "fixes-v5/EXACT-RUN-PROPOSAL.json",
+      "bytes": 16602,
+      "sha256": "31b7811c0ef74489572d289340bc9f5e1961a4beaf5f98584e0efea0a38e8331"
+    },
+    {
+      "path": "fixes-v5/FIX-MATRIX.json",
+      "bytes": 3523,
+      "sha256": "0b1a34b40c09c645610eaf0b328d1dff1f23dbcd6af3d44a28cb91b4491bc005"
+    },
+    {
+      "path": "fixes-v5/METADATA-ENTRYPOINTS.json",
+      "bytes": 7025,
+      "sha256": "f3ed53b6cf562ebe8cc2fc7d2c9e2457ee5038a746b445e1c1b7a8b25eeae5e8"
+    },
+    {
+      "path": "fixes-v5/REPORT.md",
+      "bytes": 8092,
+      "sha256": "9e9fb743f9fd056dc6cb9e4feb53dd8a7cda62016f28741a95e9eb0f2ca12586"
+    },
+    {
+      "path": "fixes-v5/REUSED-EVIDENCE.json",
+      "bytes": 867,
+      "sha256": "c74db6ccb99f89492f71825f3c71f278e0ce90ae6d375e42960c1d036d4d1185"
+    },
+    {
+      "path": "fixes-v5/SCOPE.json",
+      "bytes": 2404,
+      "sha256": "ecca029f9cdfb260fbad705810c9d262c8f510f93afb45f73e60fe21892574b5"
+    },
+    {
+      "path": "fixes-v5/STATIC-CHECK.json",
+      "bytes": 26811,
+      "sha256": "4cdfbef6c4545ee1bb662b111160d8e945a8087deda391424edaf2641f068785"
+    },
+    {
+      "path": "fixes-v5/STATIC-WIRE-SOURCES.json",
+      "bytes": 9626,
+      "sha256": "4af9f4aeec11e63630f2816ecb68ef2eac923557ce91b35e09c14eaab6d228f9"
+    },
+    {
+      "path": "fixes-v5/TEST-SOURCE-REVISIONS.json",
+      "bytes": 26536,
+      "sha256": "887c660b7be416a053f10fdd7211c6b317fc03194c18ea267be08f2467d8d086"
+    },
+    {
+      "path": "fixes-v5/V4-INDEPENDENT-REVIEW.reference.json",
+      "bytes": 9516,
+      "sha256": "72f1222726ea48566396214b34a6ada156fc86fb14a95dc19e107fd17f396aa3"
+    },
+    {
+      "path": "fixes-v5/V4-MANIFEST.json.reference",
+      "bytes": 27663,
+      "sha256": "6c3d2ffd91c0085726a97186c437283b02481a8ba0cc351f57fac59498564123"
+    },
+    {
+      "path": "fixes-v5/V4-SHA256SUMS.reference",
+      "bytes": 15729,
+      "sha256": "e222ef51441c69eb00bf953da4dd48d7036ea9370a933028aa9dffee843be9a9"
+    },
+    {
+      "path": "fixes-v5/XERJ-AND-PRIOR-READS.json",
+      "bytes": 1249,
+      "sha256": "04e23508b656e90d846880810f15331bd258549897fa95402a13975905e398c6"
+    },
+    {
+      "path": "fixes-v5/acceptance-observations.json",
+      "bytes": 37368,
+      "sha256": "41607f7764501cf27bf3bd0c00c709b39007c85025e219d28927109a03f6945a"
+    },
+    {
+      "path": "fixes-v5/accepted-observations.json",
+      "bytes": 38974,
+      "sha256": "be705c24685ab0b79f7b59e1e2b4a8b19eda1c1228bbbc860583aaf526194f70"
+    },
+    {
+      "path": "fixes-v5/changes.patch",
+      "bytes": 639618,
+      "sha256": "56a3672a8538ceea0f8de676f50120eb7349fe39ae47d8fe8e25ad1446c26440"
+    },
+    {
+      "path": "fixes-v5/driver_v2.py.accepted.reference",
+      "bytes": 19663,
+      "sha256": "28fdf641623ddc2f66f335e407c2a0dc61d3353afa8cdd1ae8f9294d35c0792f"
+    },
+    {
+      "path": "fixes-v5/driver_v2.py.repaired.reference",
+      "bytes": 19632,
+      "sha256": "6d8b4aeed034fe2eb92b7de674a823c8dc1d864c678655bd9df8bdd07a40b7f2"
+    },
+    {
+      "path": "fixes-v5/final-observations.json",
+      "bytes": 39032,
+      "sha256": "3489ecdd95b2a917c24674dfb8d6ea8791c36be8768c9ff02c6236fc5b59b8b8"
+    },
+    {
+      "path": "fixes-v5/fixed_cut_driver.py.accepted.reference",
+      "bytes": 25462,
+      "sha256": "0833c4e4bca2f04c20298cc00b37807e31ae05faa7b61c283f5ad11cb0024464"
+    },
+    {
+      "path": "fixes-v5/fixed_cut_driver.py.repaired.reference",
+      "bytes": 25602,
+      "sha256": "806b239197ec66b45782e50ab5cc4cb9668090ef32050344303a84cf598f85b6"
+    },
+    {
+      "path": "fixes-v5/initial-observations.json",
+      "bytes": 4090,
+      "sha256": "627c76821ea038a9999b301f317bc0ce702b16cf775359d7561c8d160de03c44"
+    },
+    {
+      "path": "fixes-v5/repaired-observations.json",
+      "bytes": 2951,
+      "sha256": "32e9f4a1d39b26d1f5a2922516c61b5dc2c324da8417de9d24c28a6f5e3f4a0a"
+    },
+    {
+      "path": "fixes-v5/run_checks.py",
+      "bytes": 2757,
+      "sha256": "1efcf4ffef40bab9e3fa1ce791d0ff28eecdc548996488afe2f29a397872894c"
+    },
+    {
+      "path": "fixes-v5/run_checks.py.acceptance.reference",
+      "bytes": 2757,
+      "sha256": "1efcf4ffef40bab9e3fa1ce791d0ff28eecdc548996488afe2f29a397872894c"
+    },
+    {
+      "path": "fixes-v5/run_checks.py.accepted.reference",
+      "bytes": 2757,
+      "sha256": "1efcf4ffef40bab9e3fa1ce791d0ff28eecdc548996488afe2f29a397872894c"
+    },
+    {
+      "path": "fixes-v5/run_checks.py.final.reference",
+      "bytes": 2757,
+      "sha256": "1efcf4ffef40bab9e3fa1ce791d0ff28eecdc548996488afe2f29a397872894c"
+    },
+    {
+      "path": "fixes-v5/run_checks.py.initial.reference",
+      "bytes": 1644,
+      "sha256": "0fa67e652a98dd8514b45f66869232be1859c5603982a8f96b6fbf0491b8be4b"
+    },
+    {
+      "path": "fixes-v5/seal_v5.py",
+      "bytes": 12025,
+      "sha256": "87ac518858667469ccfc01d5ae93552060c86bca8d1f5fd4fe46caf6fa48d291"
+    },
+    {
+      "path": "fixes-v5/test_v5.py",
+      "bytes": 26902,
+      "sha256": "21160d525e1eacee72f05f0aca0f966cee3d2c6b3272f0d2bed3939d9b229ed4"
+    },
+    {
+      "path": "fixes-v5/test_v5.py.acceptance.reference",
+      "bytes": 23644,
+      "sha256": "eea1430b927a7dfd36cf67b7dad9139120554028e30218762ff1cd39e6d093ca"
+    },
+    {
+      "path": "fixes-v5/test_v5.py.accepted.reference",
+      "bytes": 25085,
+      "sha256": "82385a698ad78f26ae3d5f6c7376383d219c135915a9907348a12ff64d32f05f"
+    },
+    {
+      "path": "fixes-v5/test_v5.py.final.reference",
+      "bytes": 24171,
+      "sha256": "2a61001e13a27bf775d2cc309b60f5c72b19655b7407d8e4d9957ee5dceef0af"
+    },
+    {
+      "path": "fixes-v5/test_v5.py.initial.reference",
+      "bytes": 6071,
+      "sha256": "8198f96d1c52810f243807bdfd87263c9be4e9e6852ffa56580d882e7f682c6f"
+    },
+    {
+      "path": "fixes-v5/tests.acceptance.stdout",
+      "bytes": 34289,
+      "sha256": "9f73d35b479eb849d3150bfab764c6007ef2bb6c8a93b1892657f486a64c56a9"
+    },
+    {
+      "path": "fixes-v5/tests.accepted.stdout",
+      "bytes": 3029,
+      "sha256": "e41eb1635f1323292520e73288c8bab1f1ef2e7440b2a45ca0676a082f7fc809"
+    },
+    {
+      "path": "fixes-v5/tests.final.stdout",
+      "bytes": 2900,
+      "sha256": "430195524aa59279abe8969a8557b4e936ca5d0d6a9b8d36e1e2aa34133b9486"
+    },
+    {
+      "path": "fixes-v5/tests.initial.stdout",
+      "bytes": 2539,
+      "sha256": "a41ced6b740d3cd206633e1fe07429c9a40e2eb221e81e9efcd1ca0feef242ba"
+    },
+    {
+      "path": "fixes-v5/tests.repaired.stdout",
+      "bytes": 430,
+      "sha256": "8d76d0e09a80bf5d57b0423b7c0d9deb2da30e9c9bc7eaa1d00acb92b71241c4"
+    },
+    {
+      "path": "fixes-v5/tests.verified.stdout",
+      "bytes": 3175,
+      "sha256": "17d2a994627de524159d25453ce1f430d02d222d2e4a7ac3d8f68063e84e8ffe"
+    },
+    {
+      "path": "fixes-v5/verified-observations.json",
+      "bytes": 39807,
+      "sha256": "bf321cac3e1317bf59fe9f02625fe1da8b385deef15fdff9c76448ec1fd24191"
+    },
+    {
       "path": "raw/CONSTRUCTION-RECIPE.json",
       "bytes": 694,
       "sha256": "0b387046c7352eb4fd656f497e965043859d6a6f86798b025af748908de1877c"
@@ -810,13 +1020,13 @@
   ],
   "exclusions": [
     "MANIFEST.json不自引",
-    "SHA256SUMS不自引；覆盖MANIFEST.json"
+    "SHA256SUMS不自引；另覆盖MANIFEST.json"
   ],
   "patch": {
-    "path": "fixes-v4/changes.patch",
-    "sha256": "8f16cec1ce27ee612a44d5064f883dfb59b6936aa90bfa8690e3f622c535b772",
-    "scope": "相对固定基线全部新增/修改；排除补丁自身与可再生根MANIFEST.json、SHA256SUMS",
-    "regenerate": "python3 -B .chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v4/seal_v4.py",
+    "path": "fixes-v5/changes.patch",
+    "sha256": "56a3672a8538ceea0f8de676f50120eb7349fe39ae47d8fe8e25ad1446c26440",
+    "scope": "相对固定46a全部新增/修改；仅排除补丁自身及可再生根清单",
+    "regenerate": "python3 -B .chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v5/seal_v5.py",
     "reverse_check": "PASS"
   }
 }

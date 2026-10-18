@@ -1,0 +1,38 @@
+{
+  "status": "复用已读取记录",
+  "new_xerj_query": false,
+  "index_rebuilt": false,
+  "files": [
+    {
+      "path": "fixes-v4/REFERENCE-SEARCH.reference.md",
+      "bytes": 4403,
+      "sha256": "1b7c90d06086e0aecb3bbae82e467891f5b3d41c72140d19c39c219e8e4504b2"
+    },
+    {
+      "path": "fixes-v4/XERJ-ATTEMPTS.reference.json",
+      "bytes": 1553,
+      "sha256": "836261b9189ddc977d281ecd62de833d08183c0fb6fa22c134ab5f4ca2d0f96d"
+    },
+    {
+      "path": "fixes-v4/REFERENCE-HITS.reference.json",
+      "bytes": 8074,
+      "sha256": "ed243437370852eaa58448a44dd63298740f90a439c3f5b61ead3f78ee2d73fc"
+    },
+    {
+      "path": "fixes-v4/STATIC-WIRE-SOURCES.json",
+      "bytes": 10768,
+      "sha256": "e254dacd463df4f9ac0d48d564cdbba96bb87202a71ea9a39d85e7c2985d3289"
+    },
+    {
+      "path": "fixes-v4/CHECK-OUTPUT.json",
+      "bytes": 17484,
+      "sha256": "63abee4b040ba61ddefdfa74a1f59019ca577d7e8432c7eed1c1d2d6002a162b"
+    },
+    {
+      "path": "fixes-v4/REPORT.md",
+      "bytes": 8593,
+      "sha256": "84a210553359abbc8401a65d5751a342ba0eef88e5e637dacf7627df97ea4a9b"
+    }
+  ],
+  "qualification": "既有响应不算本轮成功检索；图工具不可用，按允许范围回退到固定Git原件与文件读取"
+}
