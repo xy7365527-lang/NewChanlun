@@ -1,0 +1,416 @@
+{
+  "runs": [
+    {
+      "run": "initial",
+      "tests": 10,
+      "failures": 1,
+      "errors": 0,
+      "stdout": "tests.initial.stdout",
+      "stdout_sha256": "18df7e0ff9d96673c333bb5639cdcb6d7371594f67331c058865502ca5064551",
+      "sources": [
+        {
+          "original_path": "driver/fixed_cut_driver.py",
+          "bytes": 37392,
+          "sha256": "4e44f6c91dc4c208267c3af43057821835c84a66f9cf08038f3c27fa91c7c964",
+          "resolved_source": {
+            "path": "fixes-v6/fixed_cut_driver.py.initial.reference"
+          }
+        },
+        {
+          "original_path": "driver/driver_v2.py",
+          "bytes": 17111,
+          "sha256": "09c04ebae8666ec3206d271627cbe51a230720b5dd7d2c72968e9933c3c1b962",
+          "resolved_source": {
+            "path": "fixes-v6/driver_v2.py.initial.reference"
+          }
+        },
+        {
+          "original_path": "fixes-v6/test_v6.py",
+          "bytes": 21994,
+          "sha256": "1747c1dc6d060fc7dbdbb44179071364b345b6d582c7a778c614924d5a86e068",
+          "resolved_source": {
+            "path": "fixes-v6/test_v6.py.initial.reference"
+          }
+        }
+      ],
+      "command": "python3 -B -m unittest discover -s .chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v6 -p test_v6.py -v",
+      "unchanged_dependencies": "driver/test_v2.py、content_closure及v4/v5测试均为固定1cb原件；没有保存该轮OBS"
+    },
+    {
+      "run": "repaired",
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "observations": 136,
+      "stdout": "tests.repaired.stdout",
+      "stdout_sha256": "2c3d4135daf284bcadb68fdc153bba7a3f4130ea8a02adba4a3b587e3da8f1ad",
+      "sources": [
+        {
+          "original_path": "driver/fixed_cut_driver.py",
+          "bytes": 40386,
+          "sha256": "a17b647919505f542536b02b2d52f76dd19c174c77866c6e4d5f60b1b38d68ed",
+          "resolved_source": {
+            "path": "fixes-v6/fixed_cut_driver.py.expanded.reference"
+          }
+        },
+        {
+          "original_path": "driver/driver_v2.py",
+          "bytes": 17111,
+          "sha256": "09c04ebae8666ec3206d271627cbe51a230720b5dd7d2c72968e9933c3c1b962",
+          "resolved_source": {
+            "path": "driver/driver_v2.py"
+          }
+        },
+        {
+          "original_path": "driver/content_closure.py",
+          "bytes": 16908,
+          "sha256": "e602b90a20e5028e2859a10404e244f0d413079cbf7a24d9b96de40fd8fc23d8",
+          "resolved_source": {
+            "path": "driver/content_closure.py"
+          }
+        },
+        {
+          "original_path": "driver/test_v2.py",
+          "bytes": 18050,
+          "sha256": "e5888321e8f1aa39f8751234baa720bdebf70c7b247c98a57623c3791400d856",
+          "resolved_source": {
+            "path": "driver/test_v2.py"
+          }
+        },
+        {
+          "original_path": "fixes-v6/test_v6.py",
+          "bytes": 21669,
+          "sha256": "a0313f1c2f33ddab51af2b7a472435d9333448a546f032724d2c60fd076ebf41",
+          "resolved_source": {
+            "path": "fixes-v6/test_v6.py.repaired.reference"
+          }
+        },
+        {
+          "original_path": "fixes-v6/run_checks.py",
+          "bytes": 2636,
+          "sha256": "b64a5e98354443091b840c75689343a7666c78176867ab27fc92ba7f1c1cdc06",
+          "resolved_source": {
+            "path": "fixes-v6/run_checks.py.repaired.reference"
+          }
+        },
+        {
+          "original_path": "fixes-v5/test_v5.py",
+          "bytes": 26902,
+          "sha256": "21160d525e1eacee72f05f0aca0f966cee3d2c6b3272f0d2bed3939d9b229ed4",
+          "resolved_source": {
+            "path": "fixes-v5/test_v5.py"
+          }
+        },
+        {
+          "original_path": "fixes-v4/test_v4.py",
+          "bytes": 17182,
+          "sha256": "b820ea1a3b143bf38b7bc25800bb36b8eb589581574ce2458d00d2a46f9bd95a",
+          "resolved_source": {
+            "path": "fixes-v4/test_v4.py"
+          }
+        }
+      ]
+    },
+    {
+      "run": "final",
+      "tests": 22,
+      "failures": 1,
+      "errors": 0,
+      "observations": 141,
+      "stdout": "tests.final.stdout",
+      "stdout_sha256": "9c52605c46500d6f2a2699c6d7938052667923c0a27929d9226c8b4e3c2adffd",
+      "sources": [
+        {
+          "original_path": "driver/fixed_cut_driver.py",
+          "bytes": 40386,
+          "sha256": "a17b647919505f542536b02b2d52f76dd19c174c77866c6e4d5f60b1b38d68ed",
+          "resolved_source": {
+            "path": "fixes-v6/fixed_cut_driver.py.expanded.reference"
+          }
+        },
+        {
+          "original_path": "driver/driver_v2.py",
+          "bytes": 17111,
+          "sha256": "09c04ebae8666ec3206d271627cbe51a230720b5dd7d2c72968e9933c3c1b962",
+          "resolved_source": {
+            "path": "driver/driver_v2.py"
+          }
+        },
+        {
+          "original_path": "driver/content_closure.py",
+          "bytes": 16908,
+          "sha256": "e602b90a20e5028e2859a10404e244f0d413079cbf7a24d9b96de40fd8fc23d8",
+          "resolved_source": {
+            "path": "driver/content_closure.py"
+          }
+        },
+        {
+          "original_path": "driver/test_v2.py",
+          "bytes": 18050,
+          "sha256": "e5888321e8f1aa39f8751234baa720bdebf70c7b247c98a57623c3791400d856",
+          "resolved_source": {
+            "path": "driver/test_v2.py"
+          }
+        },
+        {
+          "original_path": "fixes-v6/test_v6.py",
+          "bytes": 26335,
+          "sha256": "9a806a6e1f9a43babb4c3f175bb6e5dcd36ec83b87c4575f19ddcba76ee1df95",
+          "resolved_source": {
+            "path": "fixes-v6/test_v6.py.expanded.reference"
+          }
+        },
+        {
+          "original_path": "fixes-v6/run_checks.py",
+          "bytes": 2672,
+          "sha256": "6f4cb5fd5ba168da8ccd6b0eae371e0702adbb8d25f55cf77090e70fc4aabe8a",
+          "resolved_source": {
+            "path": "fixes-v6/run_checks.py"
+          }
+        },
+        {
+          "original_path": "fixes-v5/test_v5.py",
+          "bytes": 26902,
+          "sha256": "21160d525e1eacee72f05f0aca0f966cee3d2c6b3272f0d2bed3939d9b229ed4",
+          "resolved_source": {
+            "path": "fixes-v5/test_v5.py"
+          }
+        },
+        {
+          "original_path": "fixes-v4/test_v4.py",
+          "bytes": 17182,
+          "sha256": "b820ea1a3b143bf38b7bc25800bb36b8eb589581574ce2458d00d2a46f9bd95a",
+          "resolved_source": {
+            "path": "fixes-v4/test_v4.py"
+          }
+        }
+      ]
+    },
+    {
+      "run": "accepted",
+      "tests": 22,
+      "failures": 0,
+      "errors": 0,
+      "observations": 173,
+      "stdout": "tests.accepted.stdout",
+      "stdout_sha256": "79d41805fa0345ee84b87e6f76d3a58af8823918457e7ff583ac51019a6f2bb3",
+      "sources": [
+        {
+          "original_path": "driver/fixed_cut_driver.py",
+          "bytes": 40811,
+          "sha256": "cc622ee7d947a135549f3112c151ce5679a62431acfb49caa23b5af1f1d785f3",
+          "resolved_source": {
+            "path": "fixes-v6/fixed_cut_driver.py.accepted.reference"
+          }
+        },
+        {
+          "original_path": "driver/driver_v2.py",
+          "bytes": 17111,
+          "sha256": "09c04ebae8666ec3206d271627cbe51a230720b5dd7d2c72968e9933c3c1b962",
+          "resolved_source": {
+            "path": "driver/driver_v2.py"
+          }
+        },
+        {
+          "original_path": "driver/content_closure.py",
+          "bytes": 16908,
+          "sha256": "e602b90a20e5028e2859a10404e244f0d413079cbf7a24d9b96de40fd8fc23d8",
+          "resolved_source": {
+            "path": "driver/content_closure.py"
+          }
+        },
+        {
+          "original_path": "driver/test_v2.py",
+          "bytes": 18050,
+          "sha256": "e5888321e8f1aa39f8751234baa720bdebf70c7b247c98a57623c3791400d856",
+          "resolved_source": {
+            "path": "driver/test_v2.py"
+          }
+        },
+        {
+          "original_path": "fixes-v6/test_v6.py",
+          "bytes": 27239,
+          "sha256": "c46e56039b7d56530d5ba8df3841ded1f25caddf6b30bf13825c5e940b89d853",
+          "resolved_source": {
+            "path": "fixes-v6/test_v6.py.verified.reference"
+          }
+        },
+        {
+          "original_path": "fixes-v6/run_checks.py",
+          "bytes": 2672,
+          "sha256": "6f4cb5fd5ba168da8ccd6b0eae371e0702adbb8d25f55cf77090e70fc4aabe8a",
+          "resolved_source": {
+            "path": "fixes-v6/run_checks.py"
+          }
+        },
+        {
+          "original_path": "fixes-v5/test_v5.py",
+          "bytes": 26902,
+          "sha256": "21160d525e1eacee72f05f0aca0f966cee3d2c6b3272f0d2bed3939d9b229ed4",
+          "resolved_source": {
+            "path": "fixes-v5/test_v5.py"
+          }
+        },
+        {
+          "original_path": "fixes-v4/test_v4.py",
+          "bytes": 17182,
+          "sha256": "b820ea1a3b143bf38b7bc25800bb36b8eb589581574ce2458d00d2a46f9bd95a",
+          "resolved_source": {
+            "path": "fixes-v4/test_v4.py"
+          }
+        }
+      ]
+    },
+    {
+      "run": "verified",
+      "tests": 22,
+      "failures": 0,
+      "errors": 0,
+      "observations": 173,
+      "stdout": "tests.verified.stdout",
+      "stdout_sha256": "666b46d33a486c5fbe5fafc9fee12d0deb76f3caf6bbb91cb0695437b04074d6",
+      "sources": [
+        {
+          "original_path": "driver/fixed_cut_driver.py",
+          "bytes": 40849,
+          "sha256": "c1681c2cb07addad32e70aea123cf30606cc6f09a966771991b84d353927c618",
+          "resolved_source": {
+            "path": "fixes-v6/fixed_cut_driver.py.verified.reference"
+          }
+        },
+        {
+          "original_path": "driver/driver_v2.py",
+          "bytes": 17111,
+          "sha256": "09c04ebae8666ec3206d271627cbe51a230720b5dd7d2c72968e9933c3c1b962",
+          "resolved_source": {
+            "path": "driver/driver_v2.py"
+          }
+        },
+        {
+          "original_path": "driver/content_closure.py",
+          "bytes": 16908,
+          "sha256": "e602b90a20e5028e2859a10404e244f0d413079cbf7a24d9b96de40fd8fc23d8",
+          "resolved_source": {
+            "path": "driver/content_closure.py"
+          }
+        },
+        {
+          "original_path": "driver/test_v2.py",
+          "bytes": 18050,
+          "sha256": "e5888321e8f1aa39f8751234baa720bdebf70c7b247c98a57623c3791400d856",
+          "resolved_source": {
+            "path": "driver/test_v2.py"
+          }
+        },
+        {
+          "original_path": "fixes-v6/test_v6.py",
+          "bytes": 27239,
+          "sha256": "c46e56039b7d56530d5ba8df3841ded1f25caddf6b30bf13825c5e940b89d853",
+          "resolved_source": {
+            "path": "fixes-v6/test_v6.py.verified.reference"
+          }
+        },
+        {
+          "original_path": "fixes-v6/run_checks.py",
+          "bytes": 2672,
+          "sha256": "6f4cb5fd5ba168da8ccd6b0eae371e0702adbb8d25f55cf77090e70fc4aabe8a",
+          "resolved_source": {
+            "path": "fixes-v6/run_checks.py"
+          }
+        },
+        {
+          "original_path": "fixes-v5/test_v5.py",
+          "bytes": 26902,
+          "sha256": "21160d525e1eacee72f05f0aca0f966cee3d2c6b3272f0d2bed3939d9b229ed4",
+          "resolved_source": {
+            "path": "fixes-v5/test_v5.py"
+          }
+        },
+        {
+          "original_path": "fixes-v4/test_v4.py",
+          "bytes": 17182,
+          "sha256": "b820ea1a3b143bf38b7bc25800bb36b8eb589581574ce2458d00d2a46f9bd95a",
+          "resolved_source": {
+            "path": "fixes-v4/test_v4.py"
+          }
+        }
+      ]
+    },
+    {
+      "run": "delivered",
+      "tests": 22,
+      "failures": 0,
+      "errors": 0,
+      "observations": 173,
+      "stdout": "tests.delivered.stdout",
+      "stdout_sha256": "da031cbdf28d130b556ff32558f04b0313d59d49abeff8ef26c6df94d1318d71",
+      "sources": [
+        {
+          "original_path": "driver/fixed_cut_driver.py",
+          "bytes": 40957,
+          "sha256": "255a0aaf0417eb374cc00f210d937303a271aeb364913cb6bec1ca884289793e",
+          "resolved_source": {
+            "path": "driver/fixed_cut_driver.py"
+          }
+        },
+        {
+          "original_path": "driver/driver_v2.py",
+          "bytes": 17111,
+          "sha256": "09c04ebae8666ec3206d271627cbe51a230720b5dd7d2c72968e9933c3c1b962",
+          "resolved_source": {
+            "path": "driver/driver_v2.py"
+          }
+        },
+        {
+          "original_path": "driver/content_closure.py",
+          "bytes": 16908,
+          "sha256": "e602b90a20e5028e2859a10404e244f0d413079cbf7a24d9b96de40fd8fc23d8",
+          "resolved_source": {
+            "path": "driver/content_closure.py"
+          }
+        },
+        {
+          "original_path": "driver/test_v2.py",
+          "bytes": 18050,
+          "sha256": "e5888321e8f1aa39f8751234baa720bdebf70c7b247c98a57623c3791400d856",
+          "resolved_source": {
+            "path": "driver/test_v2.py"
+          }
+        },
+        {
+          "original_path": "fixes-v6/test_v6.py",
+          "bytes": 27381,
+          "sha256": "ea5edd8317d86edc5983793527ef59647b081b6cec89443996901d00f5316e7a",
+          "resolved_source": {
+            "path": "fixes-v6/test_v6.py"
+          }
+        },
+        {
+          "original_path": "fixes-v6/run_checks.py",
+          "bytes": 2672,
+          "sha256": "6f4cb5fd5ba168da8ccd6b0eae371e0702adbb8d25f55cf77090e70fc4aabe8a",
+          "resolved_source": {
+            "path": "fixes-v6/run_checks.py"
+          }
+        },
+        {
+          "original_path": "fixes-v5/test_v5.py",
+          "bytes": 26902,
+          "sha256": "21160d525e1eacee72f05f0aca0f966cee3d2c6b3272f0d2bed3939d9b229ed4",
+          "resolved_source": {
+            "path": "fixes-v5/test_v5.py"
+          }
+        },
+        {
+          "original_path": "fixes-v4/test_v4.py",
+          "bytes": 17182,
+          "sha256": "b820ea1a3b143bf38b7bc25800bb36b8eb589581574ce2458d00d2a46f9bd95a",
+          "resolved_source": {
+            "path": "fixes-v4/test_v4.py"
+          }
+        }
+      ]
+    }
+  ],
+  "qualification": "初跑与中间失败原件保留；delivered为最终受测面；accepted后补排序预收费，verified后将work回报更新到提交及观测复制之后"
+}

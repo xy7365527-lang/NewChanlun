@@ -1,0 +1,52 @@
+"""仅离线定向回归；保存实际stdout、轨迹与受测源身份，无产品/进程执行。"""
+import hashlib
+import io
+import json
+from pathlib import Path
+import sys
+import unittest
+from contextlib import redirect_stdout, redirect_stderr
+
+HERE=Path(__file__).resolve().parent
+ROOT=HERE.parent
+sys.path[:0]=[str(HERE),str(ROOT/'driver'),str(ROOT/'fixes-v5'),str(ROOT/'fixes-v4')]
+import test_v6 as v6
+import test_v5 as v5
+import test_v4 as v4
+from test_v2 import V2Tests
+
+
+def sha(raw):return hashlib.sha256(raw).hexdigest()
+
+
+def serial(value):
+    if isinstance(value,dict):return {('/'.join(k) if isinstance(k,tuple) else k):serial(v) for k,v in value.items()}
+    if isinstance(value,(list,tuple)):return [serial(v) for v in value]
+    return value
+
+
+def main():
+    tag=sys.argv[1] if len(sys.argv)>1 else 'final'
+    names=[n for n in unittest.defaultTestLoader.getTestCaseNames(v5.Tests)
+           if n.startswith('test_f2_') and n!='test_f2_all_foreign_scalar_metadata_before_string_conversion']
+    suite=unittest.TestSuite([unittest.defaultTestLoader.loadTestsFromTestCase(v6.Tests),
+        unittest.TestSuite(v5.Tests(n) for n in names+['test_f1_json_text_data_rehashed']),
+        unittest.TestSuite(v4.Tests(n) for n in ('test_f2_graph_duplicate_and_expired','test_f2_graph_byte_work_before_hex_hash')),
+        V2Tests('test_driver_collects_fixed_pages_and_full_content')])
+    source_files=['driver/fixed_cut_driver.py','driver/driver_v2.py','driver/content_closure.py','driver/test_v2.py',
+                  'fixes-v6/test_v6.py','fixes-v6/run_checks.py','fixes-v5/test_v5.py','fixes-v4/test_v4.py']
+    source_identity={n:dict(bytes=len((ROOT/n).read_bytes()),sha256=sha((ROOT/n).read_bytes())) for n in source_files}
+    output=io.StringIO()
+    with redirect_stdout(output),redirect_stderr(output):
+        result=unittest.TextTestRunner(stream=output,verbosity=2).run(suite)
+    (HERE/f'tests.{tag}.stdout').write_text(output.getvalue())
+    record=dict(tests=result.testsRun,failures=len(result.failures),errors=len(result.errors),
+                observations=v6.OBS+v5.OBS+v4.OBS,source_identity=source_identity,product_run='NOT_RUN')
+    (HERE/f'{tag}-observations.json').write_text(json.dumps(serial(record),ensure_ascii=False,indent=2)+'\n')
+    (HERE/f'{tag}-raw-exchange.jsonl').write_text(''.join(json.dumps(t,ensure_ascii=False)+'\n' for t in v6.RAW))
+    print(output.getvalue())
+    print(json.dumps(dict(tests=result.testsRun,failures=len(result.failures),errors=len(result.errors),observations=len(record['observations'])),ensure_ascii=False))
+    raise SystemExit(not result.wasSuccessful())
+
+
+if __name__=='__main__':main()

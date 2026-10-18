@@ -1,0 +1,24 @@
+test_all_entrypoints_reject_same_generation_conflicts (test_v6.Tests.test_all_entrypoints_reject_same_generation_conflicts) ... ok
+test_context_budget_admitted_before_copy (test_v6.Tests.test_context_budget_admitted_before_copy) ... ok
+test_full_projection_identity_and_closure_failure_no_receipt (test_v6.Tests.test_full_projection_identity_and_closure_failure_no_receipt) ... FAIL
+test_head_ahead_pagination_recompute_and_interleaving (test_v6.Tests.test_head_ahead_pagination_recompute_and_interleaving) ... ok
+test_historical_and_future_snapshots_share_watch_context (test_v6.Tests.test_historical_and_future_snapshots_share_watch_context) ... ok
+test_original_accepted_999_vs_delta_139_and_identity_locks (test_v6.Tests.test_original_accepted_999_vs_delta_139_and_identity_locks) ... ok
+test_receipts_only_from_real_complete_chain (test_v6.Tests.test_receipts_only_from_real_complete_chain) ... ok
+test_stale_receipt_and_return_alias (test_v6.Tests.test_stale_receipt_and_return_alias) ... ok
+test_watch_envelope_negatives_and_recovery (test_v6.Tests.test_watch_envelope_negatives_and_recovery) ... ok
+test_watch_transaction_failures_and_direct_call_guard (test_v6.Tests.test_watch_transaction_failures_and_direct_call_guard) ... ok
+
+======================================================================
+FAIL: test_full_projection_identity_and_closure_failure_no_receipt (test_v6.Tests.test_full_projection_identity_and_closure_failure_no_receipt)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree/.chanlun/review-results/issue1419-raw-oracle-v2-20261018/fixes-v6/test_v6.py", line 219, in test_full_projection_identity_and_closure_failure_no_receipt
+    with self.assertRaises((ValueError,OSError)) as error: collect(c,ex)
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: (<class 'ValueError'>, <class 'OSError'>) not raised
+
+----------------------------------------------------------------------
+Ran 10 tests in 15.219s
+
+FAILED (failures=1)

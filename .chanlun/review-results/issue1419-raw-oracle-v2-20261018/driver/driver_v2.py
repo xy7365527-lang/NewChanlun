@@ -10,48 +10,8 @@ from fixed_cut_driver import Collector,require,canonical,strict_load
 
 
 class CollectorV2(Collector):
-    def closed_snapshot(self,fixed,page_size,*,max_nodes,max_bytes,max_work):
-        if not hasattr(self,'work_budget'):
-            self.work_budget=WorkBudget(max_work,self.budget.check)
-        work_budget=self.work_budget
-        require(work_budget.limit==max_work,'工作预算帽不一致；禁止重置/加帽')
-        work_budget.charge()
-        snapshot=self.snapshot(fixed,page_size)
-        root,_=projection(snapshot,work_budget)
-        work_budget.charge()
-        anchor={'kind':'projection','fixed_cut':fixed,
-                'cut_projection_digest':snapshot['cut_projection_digest'],'projection_ref':root}
-        queue=deque([(root,[])]);seen=set();pages=[];stored_bytes=0
-        while queue:
-            work_budget.charge()
-            target,path=queue.popleft()
-            if target['root'] in seen:continue
-            work_budget.charge()
-            require(len(seen)<max_nodes,'内容队列超限');seen.add(target['root'])
-            kind=target['kind'];unit='items' if kind in ('array','object') else 'bytes' if kind in ('string','number') else 'value'
-            work_budget.charge()
-            result=self.content(anchor,path,unit,1 if unit=='value' else page_size)
-            for p in work_budget.iter(result['pages']):
-                work_budget.scan(p)
-                require(p['target_ref']==target,'内容请求root不符')
-                size=len(canonical(p))
-                require(size<=max_bytes-stored_bytes,'内容暂存超提案限额')
-                work_budget.charge();pages.append(p);stored_bytes+=size
-                def enqueue(child,step_kind,step_value):
-                    # path复制和队列槽位都在分配前收费；同根重复项也不能免费排队。
-                    work_budget.charge(2+len(path))
-                    require(len(queue)<max_nodes,'内容队列超限')
-                    queue.append((child,path+[{step_kind:step_value}]))
-                if kind=='object':
-                    for e in work_budget.iter(p['items']):enqueue(e['value_ref'],'field',e['key'])
-                elif kind=='array':
-                    for i,r in enumerate(work_budget.iter(p['items'])):enqueue(r,'index',str(int(p['offset'])+i))
-                elif kind=='json_text':
-                    graph=Graph(p['nodes'],max_nodes=max_nodes,max_bytes=max_bytes,max_work=max_work,work_budget=work_budget)
-                    child=graph.resolve(target,[{'json_text':True}])
-                    enqueue(child,'json_text',True)
-        verified=close_projection(snapshot,pages,max_nodes=max_nodes,max_bytes=max_bytes,max_work=max_work,work_budget=work_budget)
-        return snapshot,pages,verified
+    """兼容入口：完整收集链与会话提交由Collector唯一实现，直调不另立可信态。"""
+    pass
 
 
 def plain(v,graph):

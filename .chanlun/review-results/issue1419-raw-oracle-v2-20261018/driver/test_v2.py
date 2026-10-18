@@ -184,7 +184,7 @@ class V2Tests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'撤回后'):compare_domain(close_projection(s,[p],**LIMITS),w,require_pair=False)
 
     def test_driver_collects_fixed_pages_and_full_content(self):
-        snapshot,root_page,graph=fixture()
+        snapshot,root_page,graph=fixture([{'kind':'UNTESTED.toy','payload':{'value':'ok'}}])
         identity={'session_id':'toy','session_generation':'1','source_namespace':'toy.query','source_epoch':'1','producer_id':'toy-driver','producer_epoch':'1'}
         captured=[];sent_nodes=False;repeat_nodes=False
         def exchange(route,raw):
@@ -219,6 +219,10 @@ class V2Tests(unittest.TestCase):
                     print('重复全图fake拒绝',dict(calls=len(captured),work=collector.work_budget.used,limit=LIMITS['max_work']))
                 else:
                     _,_,v=collector.closed_snapshot(snapshot['fixed_cut'],2,**LIMITS)
+                    fixed=snapshot['fixed_cut']
+                    cursor={k:copy.deepcopy(fixed[k]) for k in ('session_id','session_generation','catalog_revision','scope','index_frontier')}
+                    cursor.update(after_generation=fixed['cut_generation'],base_cut=fixed['structure_cut'],last_seq=fixed['input_frontier'],order_version='s-record-order/2')
+                    collector.bind_watch(v['receipt'],cursor)
                     self.assertTrue(v['closure_verified']);self.assertGreater(len(captured),3)
                     self.assertIs(v['graph'].budget,collector.work_budget)
                     print('分块完整图fake通过',dict(calls=len(captured),work=v['graph'].work,limit=LIMITS['max_work']))

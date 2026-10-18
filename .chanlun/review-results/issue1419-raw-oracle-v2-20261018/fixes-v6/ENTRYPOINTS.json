@@ -1,0 +1,267 @@
+{
+  "method": "完整AST枚举三个模块顶层函数、类方法；与固定46a入口图对照",
+  "modules": [
+    {
+      "path": "driver/fixed_cut_driver.py",
+      "sha256": "255a0aaf0417eb374cc00f210d937303a271aeb364913cb6bec1ca884289793e",
+      "entries": [
+        {
+          "name": "canonical",
+          "line": 31
+        },
+        {
+          "name": "sha",
+          "line": 35
+        },
+        {
+          "name": "require",
+          "line": 39
+        },
+        {
+          "name": "strict_load",
+          "line": 44
+        },
+        {
+          "name": "exact",
+          "line": 56
+        },
+        {
+          "name": "natural",
+          "line": 60
+        },
+        {
+          "name": "bind_named_submissions",
+          "line": 65
+        },
+        {
+          "name": "checksum",
+          "line": 97
+        },
+        {
+          "name": "Budget.__init__",
+          "line": 106
+        },
+        {
+          "name": "Budget.check",
+          "line": 111
+        },
+        {
+          "name": "Budget.charge",
+          "line": 114
+        },
+        {
+          "name": "Collector.__init__",
+          "line": 130
+        },
+        {
+          "name": "Collector.session_state",
+          "line": 153
+        },
+        {
+          "name": "Collector._check_cut",
+          "line": 158
+        },
+        {
+          "name": "Collector._check_projection",
+          "line": 195
+        },
+        {
+          "name": "Collector._check_anchor",
+          "line": 208
+        },
+        {
+          "name": "Collector._stage_cut",
+          "line": 214
+        },
+        {
+          "name": "Collector.closed_snapshot",
+          "line": 223
+        },
+        {
+          "name": "Collector.work",
+          "line": 295
+        },
+        {
+          "name": "Collector.call",
+          "line": 301
+        },
+        {
+          "name": "Collector.snapshot",
+          "line": 397
+        },
+        {
+          "name": "Collector.content",
+          "line": 457
+        },
+        {
+          "name": "Collector.bind_watch",
+          "line": 492
+        },
+        {
+          "name": "Collector.watch",
+          "line": 513
+        },
+        {
+          "name": "compare_expected",
+          "line": 620
+        },
+        {
+          "name": "compare_replay_bytes",
+          "line": 632
+        },
+        {
+          "name": "main",
+          "line": 644
+        }
+      ]
+    },
+    {
+      "path": "driver/driver_v2.py",
+      "sha256": "09c04ebae8666ec3206d271627cbe51a230720b5dd7d2c72968e9933c3c1b962",
+      "entries": [
+        {
+          "name": "plain",
+          "line": 17
+        },
+        {
+          "name": "validate_public_payload",
+          "line": 33
+        },
+        {
+          "name": "records",
+          "line": 55
+        },
+        {
+          "name": "compare_domain",
+          "line": 84
+        },
+        {
+          "name": "compare_named_runs",
+          "line": 222
+        },
+        {
+          "name": "reject_live",
+          "line": 229
+        },
+        {
+          "name": "compare_first_visibility",
+          "line": 232
+        }
+      ]
+    },
+    {
+      "path": "driver/content_closure.py",
+      "sha256": "e602b90a20e5028e2859a10404e244f0d413079cbf7a24d9b96de40fd8fc23d8",
+      "entries": [
+        {
+          "name": "u64",
+          "line": 17
+        },
+        {
+          "name": "frame",
+          "line": 22
+        },
+        {
+          "name": "root_bytes",
+          "line": 26
+        },
+        {
+          "name": "ref_check",
+          "line": 46
+        },
+        {
+          "name": "Encoder.__init__",
+          "line": 57
+        },
+        {
+          "name": "Encoder.charge",
+          "line": 62
+        },
+        {
+          "name": "Encoder.add",
+          "line": 66
+        },
+        {
+          "name": "Encoder.merkle",
+          "line": 72
+        },
+        {
+          "name": "Encoder.encode",
+          "line": 80
+        },
+        {
+          "name": "WorkBudget.__init__",
+          "line": 113
+        },
+        {
+          "name": "WorkBudget.charge",
+          "line": 117
+        },
+        {
+          "name": "WorkBudget.iter",
+          "line": 125
+        },
+        {
+          "name": "WorkBudget.scan",
+          "line": 135
+        },
+        {
+          "name": "header_from_raw",
+          "line": 156
+        },
+        {
+          "name": "Graph.__init__",
+          "line": 173
+        },
+        {
+          "name": "Graph.work",
+          "line": 205
+        },
+        {
+          "name": "Graph.node",
+          "line": 207
+        },
+        {
+          "name": "Graph.ref",
+          "line": 213
+        },
+        {
+          "name": "Graph.checked",
+          "line": 221
+        },
+        {
+          "name": "Graph.r",
+          "line": 227
+        },
+        {
+          "name": "Graph.leaves",
+          "line": 229
+        },
+        {
+          "name": "Graph.entries",
+          "line": 237
+        },
+        {
+          "name": "Graph.byte_value",
+          "line": 251
+        },
+        {
+          "name": "Graph.decode",
+          "line": 260
+        },
+        {
+          "name": "Graph.resolve",
+          "line": 282
+        },
+        {
+          "name": "projection",
+          "line": 299
+        },
+        {
+          "name": "close_projection",
+          "line": 323
+        }
+      ]
+    }
+  ]
+}
