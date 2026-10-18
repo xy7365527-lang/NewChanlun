@@ -29,17 +29,60 @@ pub enum ScratchCharge {
 pub struct NativeReservation {
     parent: Arc<dyn ScratchParent>,
     bytes: usize,
+    origin: u64,
 }
 impl NativeReservation {
+    /// #1488：只消费父账已有的未分配原件费；不签发新额度。
+    #[doc(hidden)]
+    pub fn adopt(parent: Arc<dyn ScratchParent>, bytes: usize) -> Result<Self, ScratchFailure> {
+        let origin = parent.adopt_native(bytes)?;
+        Ok(Self {
+            parent,
+            bytes,
+            origin,
+        })
+    }
+    pub(super) fn bytes(&self) -> usize {
+        self.bytes
+    }
+
     /// 只核父账身份；有效操作域仍由本次reserve_native检查。
     #[doc(hidden)]
     pub fn belongs_to_parent(&self, work: &WorkScope) -> bool {
-        Arc::ptr_eq(&self.parent, &work.handle.core().parent)
+        self.belongs_to_parent_arc(&work.handle.core().parent)
+    }
+    pub(super) fn belongs_to_parent_arc(&self, parent: &Arc<dyn ScratchParent>) -> bool {
+        Arc::ptr_eq(&self.parent, parent)
     }
     /// 同级所有权容器只比较父身份，不授予当前操作域写资格。
     #[doc(hidden)]
     pub(super) fn same_parent(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.parent, &other.parent)
+    }
+    /// #1488：分拆只移动既有费用，不能复制许可或跨来源合并。
+    pub fn split(&mut self, bytes: usize) -> Result<Self, ScratchFailure> {
+        let remaining = self
+            .bytes
+            .checked_sub(bytes)
+            .ok_or(ScratchFailure::Ledger)?;
+        self.bytes = remaining;
+        Ok(Self {
+            parent: self.parent.clone(),
+            bytes,
+            origin: self.origin,
+        })
+    }
+    pub fn merge(&mut self, other: &mut Self) -> Result<(), ScratchFailure> {
+        if !self.same_parent(other) || self.origin != other.origin {
+            return Err(ScratchFailure::Ledger);
+        }
+        let bytes = self
+            .bytes
+            .checked_add(other.bytes)
+            .ok_or(ScratchFailure::Ledger)?;
+        self.bytes = bytes;
+        other.bytes = 0;
+        Ok(())
     }
     pub fn retain(mut self) {
         self.bytes = 0;
@@ -49,7 +92,7 @@ impl Drop for NativeReservation {
     fn drop(&mut self) {
         if self
             .parent
-            .release(self.bytes, ScratchCharge::Native)
+            .release(self.bytes, ScratchCharge::Native, self.origin)
             .is_err()
         {
             self.parent.invalidate();
@@ -59,8 +102,35 @@ impl Drop for NativeReservation {
 
 /// 实现方必须先原子预留总额，再更新观测分项；不得分别检查分项后相加。
 pub trait ScratchParent: Send + Sync {
-    fn reserve(&self, bytes: usize, kind: ScratchCharge) -> Result<(), ScratchFailure>;
-    fn release(&self, bytes: usize, kind: ScratchCharge) -> Result<(), ScratchFailure>;
+    fn reserve(&self, bytes: usize, kind: ScratchCharge) -> Result<u64, ScratchFailure>;
+    fn reserve_in_origin(
+        &self,
+        bytes: usize,
+        kind: ScratchCharge,
+        expected: u64,
+    ) -> Result<u64, ScratchFailure> {
+        if self.origin() != expected {
+            return Err(ScratchFailure::Ledger);
+        }
+        let origin = self.reserve(bytes, kind)?;
+        if origin != expected {
+            self.release(bytes, kind, origin)?;
+            return Err(ScratchFailure::Ledger);
+        }
+        Ok(origin)
+    }
+    fn release(&self, bytes: usize, kind: ScratchCharge, origin: u64)
+        -> Result<(), ScratchFailure>;
+    /// 单域测试父账使用0；生产父账返回当前冻结域。
+    fn origin(&self) -> u64 {
+        0
+    }
+    fn adopt_native(&self, _bytes: usize) -> Result<u64, ScratchFailure> {
+        Err(ScratchFailure::Ledger)
+    }
+    fn close_scope(&self, _origin: u64) -> Result<(), ScratchFailure> {
+        Ok(())
+    }
     fn health(&self) -> Result<(), ScratchFailure>;
     fn invalidate(&self);
 }
@@ -72,6 +142,7 @@ struct ScratchCore {
     parent: Arc<dyn ScratchParent>,
     limit: usize,
     metadata_charge: usize,
+    origin: u64,
     live: AtomicUsize,
     peak: AtomicUsize,
     failure: AtomicUsize,
@@ -93,27 +164,43 @@ impl Drop for ScratchHandle {
         if let Some(core) = Arc::into_inner(self.0.take().expect("scratch handle")) {
             let parent = core.parent.clone();
             let charge = core.metadata_charge;
+            let origin = core.origin;
             if core.live.load(Ordering::Acquire) != 0 {
                 parent.invalidate();
             }
             drop(core);
-            if parent.release(charge, ScratchCharge::Metadata).is_err() {
+            if parent
+                .release(charge, ScratchCharge::Metadata, origin)
+                .is_err()
+            {
                 parent.invalidate();
             }
         }
     }
 }
 impl ScratchHandle {
+    fn close(&self) {
+        if self.core().active.swap(false, Ordering::AcqRel) {
+            if let Err(error) = self.core().parent.close_scope(self.core().origin) {
+                self.fail(error);
+                self.core().parent.invalidate();
+            }
+        }
+    }
     pub(crate) fn reserve_native(&self, bytes: usize) -> Result<NativeReservation, CodecError> {
         self.check_write()?;
         let parent = self.core().parent.clone();
-        parent
-            .reserve(bytes, ScratchCharge::Native)
+        let origin = parent
+            .reserve_in_origin(bytes, ScratchCharge::Native, self.core().origin)
             .map_err(|failure| {
                 self.fail(failure);
                 CodecError::scratch(failure)
             })?;
-        Ok(NativeReservation { parent, bytes })
+        Ok(NativeReservation {
+            parent,
+            bytes,
+            origin,
+        })
     }
     fn core(&self) -> &ScratchCore {
         self.0.as_ref().expect("scratch handle")
@@ -156,7 +243,9 @@ impl ScratchHandle {
     }
     /// 写操作即使复用已有容量，也必须仍处于健康的活动域。
     fn check_write(&self) -> Result<(), CodecError> {
-        if !self.core().active.load(Ordering::Acquire) {
+        if !self.core().active.load(Ordering::Acquire)
+            || self.core().origin != self.core().parent.origin()
+        {
             return Err(CodecError::scratch(ScratchFailure::Ledger));
         }
         if let Some(failure) = self.failure() {
@@ -189,9 +278,17 @@ impl ScratchHandle {
             return Ok(());
         }
         // 父先、子后；回调在任何子锁之外（本核心没有锁）。
-        if let Err(e) = c.parent.reserve(bytes, ScratchCharge::Layout) {
-            self.fail(e);
-            return Err(e);
+        let origin = c
+            .parent
+            .reserve_in_origin(bytes, ScratchCharge::Layout, c.origin)
+            .map_err(|e| {
+                self.fail(e);
+                e
+            })?;
+        if origin != c.origin {
+            let _ = c.parent.release(bytes, ScratchCharge::Layout, origin);
+            self.fail(ScratchFailure::Ledger);
+            return Err(ScratchFailure::Ledger);
         }
         if c.live
             .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
@@ -200,7 +297,7 @@ impl ScratchHandle {
             .is_err()
         {
             self.fail(ScratchFailure::Budget);
-            if let Err(e) = c.parent.release(bytes, ScratchCharge::Layout) {
+            if let Err(e) = c.parent.release(bytes, ScratchCharge::Layout, c.origin) {
                 self.fail(e);
             }
             return Err(self.failure().unwrap());
@@ -231,7 +328,10 @@ impl ScratchHandle {
             self.fail(ScratchFailure::Ledger);
             return;
         }
-        if let Err(e) = c.parent.release(layout.size(), ScratchCharge::Layout) {
+        if let Err(e) = c
+            .parent
+            .release(layout.size(), ScratchCharge::Layout, c.origin)
+        {
             self.fail(e);
         }
     }
@@ -282,13 +382,23 @@ impl CodecWork {
             .size()
     }
     pub fn new(parent: Arc<dyn ScratchParent>, limit: usize) -> Result<Self, ScratchFailure> {
+        let origin = parent.origin();
+        Self::new_in_origin(parent, limit, origin)
+    }
+    #[doc(hidden)]
+    pub fn new_in_origin(
+        parent: Arc<dyn ScratchParent>,
+        limit: usize,
+        origin: u64,
+    ) -> Result<Self, ScratchFailure> {
         let metadata_charge = Self::metadata_bytes();
-        parent.reserve(metadata_charge, ScratchCharge::Metadata)?;
+        let origin = parent.reserve_in_origin(metadata_charge, ScratchCharge::Metadata, origin)?;
         Ok(Self {
             handle: ScratchHandle(Some(Arc::new(ScratchCore {
                 parent,
                 limit,
                 metadata_charge,
+                origin,
                 live: AtomicUsize::new(0),
                 peak: AtomicUsize::new(0),
                 failure: AtomicUsize::new(0),
@@ -306,7 +416,7 @@ impl CodecWork {
             _exclusive: PhantomData,
         };
         let result = f(&scope);
-        scope.handle.core().active.store(false, Ordering::Release);
+        scope.handle.close();
         let failure = scope.handle.failure();
         let semantic_first =
             scope.handle.core().failure.load(Ordering::Acquire) == SEMANTIC_FAILURE;
@@ -324,6 +434,11 @@ impl CodecWork {
             (_, Some(e)) => Err(WorkError::Resource(e)),
             (Ok(v), None) => Ok(v),
         }
+    }
+}
+impl Drop for CodecWork {
+    fn drop(&mut self) {
+        self.handle.close();
     }
 }
 impl WorkScope {

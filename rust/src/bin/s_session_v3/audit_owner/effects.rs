@@ -200,13 +200,14 @@ struct Journal {
     material_issued: bool,
 }
 struct MaterialResources {
-    budget: native::Budget,
-    // Some(work)对本片子域只占一次cap；不是另一次逐容器父账收费。
-    outer_cap: Option<NativeReservation>,
     parent_limit: usize,
     publication: Option<([u64; 3], usize)>,
     journal_owned_bytes: usize,
     shared_parent: bool,
+    journal_charge: native::Permit,
+    budget: native::Budget,
+    // 子账及其元数据先结束，最后返还外父账cap；不复制逐容器许可。
+    outer_cap: Option<NativeReservation>,
 }
 impl Journal {
     /// 只在失败出口观测；不增 Journal 字段、不改尺寸/预算，不清除首错或重试。
@@ -336,7 +337,12 @@ impl Journal {
             };
             let old = block(old_keys, old_nodes);
             let actual = block(self.keys.capacity(), self.nodes.capacity());
-            permit.commit(old, actual);
+            self.resources
+                .as_mut()
+                .unwrap()
+                .journal_charge
+                .replace_part(old, permit.finish(actual))
+                .expect("journal同域许可");
             if let Some(resources) = self.resources.as_mut().filter(|r| r.shared_parent) {
                 resources.journal_owned_bytes = resources
                     .journal_owned_bytes
@@ -380,7 +386,7 @@ impl Recording {
         let permit = budget
             .reserve(j.bytes)
             .map_err(|_| construction_state::stale("journal父账额度不足"))?;
-        permit.commit(0, j.bytes);
+        let journal_charge = permit.finish(j.bytes);
         j.resources = Some(MaterialResources {
             budget: budget.clone(),
             outer_cap: None,
@@ -388,6 +394,7 @@ impl Recording {
             publication: None,
             journal_owned_bytes: j.bytes,
             shared_parent: true,
+            journal_charge,
         });
         Ok(())
     }
@@ -538,7 +545,7 @@ impl Recording {
             .as_ref()
             .filter(|r| r.shared_parent)
             .map(|r| (r.budget.clone(), r.parent_limit));
-        let mut changes = Vec::new();
+        let mut changes = native::Tracked::new(Vec::new());
         let changes_bytes = vec_bytes::<Change>(journal.keys.len());
         let initial = sum([journal.bytes, changes_bytes]);
         if initial >= cap {
@@ -552,9 +559,8 @@ impl Recording {
         if changes.try_reserve_exact(journal.keys.len()).is_err() {
             return Ok(None);
         }
-        if let Some(permit) = changes_permit {
-            permit.commit(0, vec_bytes::<Change>(changes.capacity()));
-        }
+        let actual_changes = vec_bytes::<Change>(changes.capacity());
+        changes.attach(changes_permit.map(|permit| permit.finish(actual_changes)));
         let mut used = initial;
         let mut peak = used.max(journal.peak);
         let mut lower = (Table::Meta, 0usize);
@@ -566,8 +572,8 @@ impl Recording {
             let Some(mut remaining) = cap.checked_sub(used) else {
                 return Ok(None);
             };
-            if let Some((budget, limit)) = &parent {
-                remaining = remaining.min(limit.saturating_sub(budget.live()));
+            if let Some((budget, _limit)) = &parent {
+                remaining = remaining.min(budget.remaining());
             }
             let loaded = if key.table == Table::Node {
                 ExactRows::read_optional_bounded_params_in_parent(
@@ -599,8 +605,8 @@ impl Recording {
             let new = rows.rows.pop();
             let row_header_bytes = rows.manual_heap_bytes();
             drop(rows);
-            if let Some((budget, _)) = &parent {
-                budget.release(row_header_bytes);
+            if parent.is_some() && row_header_bytes != 0 {
+                return Err(construction_state::stale("父账读行头缺持有许可"));
             }
             let mut slot = None;
             let old = if key.table == Table::Node {
@@ -614,6 +620,10 @@ impl Recording {
                         let i = i + lower.1;
                         lower.1 = i + 1;
                         slot = Some(i);
+                        if let Some((budget, _)) = &parent {
+                            adopt_row(budget, &mut table.rows[i])
+                                .map_err(|e| invalid(format!("原行许可：{e:?}")))?;
+                        }
                         Some(std::mem::take(&mut table.rows[i]))
                     }
                     Err(_) => None,
@@ -655,7 +665,7 @@ impl Recording {
             drop(journal.nodes);
             drop(journal.stages);
             drop(journal.consumed);
-            resources.budget.release(owned);
+            let _ = (resources, owned); // resources在真实journal载荷之后析构，消费唯一许可。
         }
         Ok(Some(Effects {
             changes,
@@ -684,7 +694,7 @@ impl Retained for Change {
 }
 pub(super) struct Effects {
     pub(super) set: Option<construction_set::PendingSet>,
-    pub(super) changes: Vec<Change>,
+    pub(super) changes: native::Tracked<Vec<Change>>,
     pub(super) operation: Operation,
     pub(super) peak: usize,
     pub(super) bytes: usize,
@@ -725,6 +735,9 @@ impl Effects {
             let old_manual = change.old.as_ref().map_or(0, manual_row_bytes);
             let new_payload = change.new.heap_bytes();
             let old_capacity = vec_bytes::<sc::CodecVec<SqlCell>>(rows.capacity());
+            if self.shared_parent {
+                budget.adopt_codec_vec(rows)?;
+            }
             let native_rows = rows.is_native_bound();
             let mut mutate = |work: Option<&WorkScope>| -> Result<(), native::Failure> {
                 if let Some(work) = work {
@@ -752,20 +765,18 @@ impl Effects {
                             rows.try_insert_native(index, row, work)
                                 .map_err(|e| native::Failure::Invalid(e.to_string()))?;
                         } else {
-                            let next = rows.capacity().saturating_mul(2).max(4);
-                            let permit = if rows.len() == rows.capacity() {
-                                Some(budget.reserve(vec_bytes::<sc::CodecVec<SqlCell>>(next))?)
-                            } else {
-                                None
-                            };
-                            rows.try_insert(index, row)
-                                .map_err(|e| native::Failure::Invalid(e.to_string()))?;
-                            if let Some(permit) = permit {
-                                permit.commit(
-                                    old_capacity,
-                                    vec_bytes::<sc::CodecVec<SqlCell>>(rows.capacity()),
-                                );
-                            }
+                            budget.codec_vec_grow(rows, 1)?;
+                            budget
+                                .codec_work()?
+                                .run(|work| rows.try_insert_native(index, row, work))
+                                .map_err(|e| match e {
+                                    sc::capture_allocation::scratch::WorkError::Resource(e) => {
+                                        native::Failure::from(e)
+                                    }
+                                    sc::capture_allocation::scratch::WorkError::Operation(e) => {
+                                        native::Failure::Invalid(e.to_string())
+                                    }
+                                })?;
                         }
                         shift.1 += 1;
                     }
@@ -796,26 +807,12 @@ impl Effects {
                 .ok_or_else(|| invalid("SQL原件增量归属账溢出/缺旧费用"))?;
             if self.shared_parent {
                 drop(change.old.take());
-                budget.release(old_manual);
+                if old_manual != 0 {
+                    return Err(invalid("原行未携带许可").into());
+                }
             }
         }
-        if self.shared_parent {
-            // 已move的新行和Node正文不在remaining内；只释放真实销毁的容器/余行。
-            let remaining = sum([
-                vec_bytes::<Change>(self.changes.capacity()),
-                self.changes
-                    .iter()
-                    .map(|c| {
-                        sum([
-                            c.old.as_ref().map_or(0, manual_row_bytes),
-                            c.new.as_ref().map_or(0, manual_row_bytes),
-                        ])
-                    })
-                    .fold(0usize, usize::saturating_add),
-            ]);
-            drop(self.changes);
-            budget.release(remaining);
-        }
+        drop(self.changes);
         Ok(peak)
     }
 }
@@ -1550,6 +1547,9 @@ pub(super) fn with_material_access<T>(
                 publication: None,
                 journal_owned_bytes: 0,
                 shared_parent: false,
+                journal_charge: budget
+                    .adopt(j.bytes)
+                    .map_err(|_| construction_state::stale("journal初始费用缺失"))?,
             });
             Ok((budget, seal, j.material_epoch))
         })();
@@ -1741,6 +1741,17 @@ pub(super) fn begin_stage(tx: &Transaction<'_>, kind: StageKind) -> Result<Stage
     Ok(guard)
 }
 // Native行的许可跟随pop后的行移动，头部析构不退行的费用。
+fn adopt_row(
+    budget: &native::Budget,
+    row: &mut sc::CodecVec<SqlCell>,
+) -> Result<(), native::Failure> {
+    for cell in row.iter_mut() {
+        if let SqlCell::Text(bytes) | SqlCell::Blob(bytes) = cell {
+            budget.adopt_codec_vec(bytes)?;
+        }
+    }
+    budget.adopt_codec_vec(row)
+}
 fn manual_row_bytes(row: &sc::CodecVec<SqlCell>) -> usize {
     super::super::request_audit::manual_cells_bytes(row)
 }
@@ -1778,7 +1789,12 @@ fn reserve_consumed(j: &mut Journal, budget: &native::Budget) -> Result<(), Stri
         .try_reserve(next - j.consumed.len())
         .map_err(|_| construction_state::stale("stage身份索引分配失败"))?;
     let actual = consumed_bytes(j.consumed.capacity());
-    permit.commit(old, actual);
+    j.resources
+        .as_mut()
+        .ok_or_else(|| construction_state::stale("stage缺父账许可"))?
+        .journal_charge
+        .replace_part(old, permit.finish(actual))
+        .map_err(|_| construction_state::stale("stage许可来源失配"))?;
     if let Some(resources) = j.resources.as_mut().filter(|r| r.shared_parent) {
         resources.journal_owned_bytes = resources
             .journal_owned_bytes
@@ -1882,31 +1898,37 @@ impl StageGuard {
             }
             let budget = material.budget;
             let old_stage_capacity = vec_bytes::<StageReceipt>(j.stages.capacity());
-            budget
-                .vec_grow(&mut j.stages, 1)
-                .map_err(|_| construction_state::stale("stage容器额度不足"))?;
+            let mut stage_fee = j
+                .resources
+                .as_mut()
+                .ok_or_else(|| construction_state::stale("stage缺父账"))?
+                .journal_charge
+                .split(old_stage_capacity)
+                .map_err(|_| construction_state::stale("stage旧许可不足"))?;
+            let grow = budget.grow_vec(&mut j.stages, &mut stage_fee, 1);
+            j.resources
+                .as_mut()
+                .unwrap()
+                .journal_charge
+                .merge(&mut stage_fee)
+                .map_err(|_| construction_state::stale("stage许可来源失配"))?;
+            grow.map_err(|_| construction_state::stale("stage容器额度不足"))?;
             let stage_capacity = vec_bytes::<StageReceipt>(j.stages.capacity());
             if let Some(resources) = j.resources.as_mut().filter(|r| r.shared_parent) {
                 resources.journal_owned_bytes += stage_capacity - old_stage_capacity;
             }
             reserve_consumed(&mut j, budget)?;
-            let remaining = if let Some(resources) =
-                j.resources.as_ref().filter(|r| r.shared_parent)
-            {
-                j.cap
-                    .checked_sub(j.bytes)
-                    .ok_or_else(|| construction_state::stale("stage局部原件额度不足"))?
-                    .min(
-                        resources
-                            .parent_limit
-                            .checked_sub(budget.live())
-                            .ok_or_else(|| construction_state::stale("stage父账原件额度不足"))?,
-                    )
-            } else {
-                j.cap
-                    .checked_sub(budget.live())
-                    .ok_or_else(|| construction_state::stale("stage原件额度不足"))?
-            };
+            let remaining =
+                if let Some(resources) = j.resources.as_ref().filter(|r| r.shared_parent) {
+                    j.cap
+                        .checked_sub(j.bytes)
+                        .ok_or_else(|| construction_state::stale("stage局部原件额度不足"))?
+                        .min(budget.remaining())
+                } else {
+                    j.cap
+                        .checked_sub(budget.live())
+                        .ok_or_else(|| construction_state::stale("stage原件额度不足"))?
+                };
             let (originals, _) = ExactRows::read_optional_bounded_params_in_parent(
                 tx,
                 self.kind.table().row_sql(),
@@ -2682,7 +2704,9 @@ mod e_owner_move_tests {
             new: Some(row),
         }];
         let bytes = vec_bytes::<Change>(changes.capacity());
-        budget.reserve(bytes).unwrap().commit(0, bytes);
+        let changes_charge = Some(budget.reserve(bytes).unwrap().finish(bytes));
+        let mut changes = native::Tracked::new(changes);
+        changes.attach(changes_charge);
         let effects = Effects {
             set: None,
             changes,
@@ -2756,7 +2780,9 @@ mod e_owner_move_tests {
                 new,
             }];
             let bytes = vec_bytes::<Change>(changes.capacity());
-            budget.reserve(bytes).unwrap().commit(0, bytes);
+            let changes_charge = Some(budget.reserve(bytes).unwrap().finish(bytes));
+            let mut changes = native::Tracked::new(changes);
+            changes.attach(changes_charge);
             let effects = Effects {
                 set: None,
                 changes,

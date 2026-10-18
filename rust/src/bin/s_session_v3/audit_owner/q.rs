@@ -20,19 +20,21 @@ struct RawCharges {
     native: usize,
 }
 pub(super) struct Facts {
-    clock: v2::ClockPlan,
-    sid: String,
-    inc: String,
-    raw_tails: HashMap<String, (i64, i64)>,
-    coordinates: HashMap<i64, String>,
-    pending: BTreeMap<String, (i64, i64)>, // event -> (rowid, attempt_count)
-    frontiers: Vec<(i64, i64)>,
+    clock: native::Reserved<v2::ClockPlan>,
+    sid: native::Reserved<String>,
+    inc: native::Reserved<String>,
+    raw_tails: native::Reserved<HashMap<native::Reserved<String>, (i64, i64)>>,
+    coordinates: native::Reserved<HashMap<i64, native::Reserved<String>>>,
+    pending: native::Tree<(i64, i64)>, // event -> (rowid, attempt_count)
+    frontiers: native::Reserved<Vec<(i64, i64)>>,
     next: i64,
     max_ns: i64,
     epoch_count: i64,
     epoch_to: Option<i64>,
     epoch_generation: i64,
     retained: usize,
+    raw_capacity: Option<native::Permit>,
+    raw_fees: native::Reserved<Vec<native::Permit>>,
 }
 impl Retained for Facts {
     fn heap_bytes(&self) -> usize {
@@ -45,6 +47,7 @@ impl Retained for Facts {
             self.coordinates.heap_bytes(),
             self.pending.heap_bytes(),
             self.frontiers.heap_bytes(),
+            vec_bytes::<native::Permit>(self.raw_fees.capacity()),
         ])
     }
 }
@@ -66,7 +69,9 @@ impl Facts {
             64,
         ]))?;
         let clock = v2::stored_clock(tx)?;
-        clock_permit.commit(0, sum([clock.value.heap_bytes(), clock.hash.heap_bytes()]));
+        let clock = clock_permit
+            .finish(sum([clock.value.heap_bytes(), clock.hash.heap_bytes()]))
+            .hold(clock);
         let meta = effects::table(originals, Table::Meta)?;
         let sid = meta
             .rows
@@ -77,16 +82,18 @@ impl Facts {
             clock,
             sid: budget.string(text(&sid[2])?)?,
             inc: budget.string(text(&protocol[3])?)?,
-            raw_tails: Default::default(),
-            coordinates: Default::default(),
-            pending: Default::default(),
-            frontiers: Vec::new(),
+            raw_tails: budget.empty()?,
+            coordinates: budget.empty()?,
+            pending: native::Tree::new(budget)?,
+            frontiers: budget.empty()?,
             next: integer(&protocol[6])?,
             max_ns: parse_canonical_i64(text(&protocol[7])?, "phase frontier")?,
             epoch_count: 0,
             epoch_to: None,
             epoch_generation: 0,
             retained: 0,
+            raw_capacity: None,
+            raw_fees: budget.empty()?,
         };
         budget.vec_grow(&mut facts.frontiers, state.cuts.len())?;
         facts.frontiers.extend(
@@ -225,7 +232,7 @@ impl Facts {
         }
         // 包含没有被 UPDATE 命中的旧 pending attempt；根前移同样改变其 Begin 目标。
         if publish {
-            for (event, (rowid, count)) in &self.pending {
+            for (event, (rowid, count)) in self.pending.iter() {
                 if *count > 0 {
                     affected.insert((event.as_str(), *rowid));
                 }
@@ -235,7 +242,9 @@ impl Facts {
         let _covered_permit = budget.reserve(tree_slots::<i64, ()>(raw_insertions))?;
         let mut covered_new = BTreeSet::new();
         let _updates_permit =
-            budget.reserve(vec_bytes::<(String, i64, i64, bool)>(affected.len()))?;
+            budget.reserve(vec_bytes::<(native::Reserved<String>, i64, i64, bool)>(
+                affected.len(),
+            ))?;
         let mut updates = Vec::new();
         updates
             .try_reserve_exact(affected.len())
@@ -383,9 +392,7 @@ impl Facts {
                 budget.tree_insert(&mut self.pending, event, (rowid, count))?;
             } else {
                 remove_pending(&mut self.pending, &event, budget);
-                let bytes = event.capacity();
                 drop(event);
-                budget.release(bytes);
             }
         }
         self.next = next;
@@ -432,7 +439,7 @@ impl Facts {
                         bj::validate_raw_coordinate(
                             id,
                             coord,
-                            self.coordinates.get(&coord).map(String::as_str),
+                            self.coordinates.get(&coord).map(|value| value.as_str()),
                             previous.map(|(c, _)| *c),
                         )?;
                         bj::validate_raw_row_admitted(
@@ -509,7 +516,9 @@ impl Facts {
             ]))?;
             let value = read_raw_event_at(tx, seq)?;
             raw_added.manual = raw_added.manual.saturating_add(value.heap_bytes());
-            raw_permit.commit(0, value.heap_bytes());
+            let raw_fee = raw_permit.finish(value.heap_bytes());
+            budget.vec_grow(&mut self.raw_fees, 1)?;
+            self.raw_fees.push(raw_fee);
             let view = (&value).into();
             let id = bj::text(view, "identity_key")?;
             let coord = bj::coord(view)?;
@@ -517,7 +526,7 @@ impl Facts {
             bj::validate_raw_coordinate(
                 id,
                 coord,
-                self.coordinates.get(&coord).map(String::as_str),
+                self.coordinates.get(&coord).map(|value| value.as_str()),
                 previous.map(|(c, _)| *c),
             )?;
             {
@@ -533,7 +542,10 @@ impl Facts {
                 budget,
             )?;
             let old = vec_bytes::<Value>(raw.capacity());
-            budget.vec_grow(raw, 1)?;
+            if self.raw_capacity.is_none() {
+                self.raw_capacity = Some(budget.adopt(vec_bytes::<Value>(raw.capacity()))?);
+            }
+            budget.grow_vec(raw, self.raw_capacity.as_mut().unwrap(), 1)?;
             raw_added.manual = raw_added
                 .manual
                 .saturating_add(vec_bytes::<Value>(raw.capacity()) - old);
@@ -908,19 +920,8 @@ fn old(c: &Change) -> Result<&[SqlCell], Failure> {
 }
 
 /// #1394 最后一项删除后 std BTreeMap 仍可能持有空叶根；归还树槽费前真正释放它。
-fn remove_pending(pending: &mut BTreeMap<String, (i64, i64)>, event: &str, budget: &Budget) {
-    if let Some((key, value)) = pending.remove_entry(event) {
-        let released = sum([
-            key.heap_bytes(),
-            value.heap_bytes(),
-            tree_slots::<String, (i64, i64)>(1),
-        ]);
-        if pending.is_empty() {
-            pending.clear();
-        }
-        drop((key, value));
-        budget.release(released);
-    }
+fn remove_pending(pending: &mut native::Tree<(i64, i64)>, event: &str, _budget: &Budget) {
+    pending.remove(event);
 }
 
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
@@ -928,7 +929,7 @@ fn remove_pending(pending: &mut BTreeMap<String, (i64, i64)>, event: &str, budge
 fn pending_normal_last_remove_releases_root_before_charge() {
     let budget = Budget::new(1_048_576, 0).unwrap();
     let initial_charge = budget.live();
-    let mut pending = BTreeMap::new();
+    let mut pending = native::Tree::new(&budget).unwrap();
     let window = super::allocation_probe::Window::start();
     for index in 0..24 {
         let event = format!("pending-{index:02}");

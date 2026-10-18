@@ -249,8 +249,14 @@ impl NativeRawPrefixes {
         }
         let old = [self.raw_nodes.capacity(), self.raw_wire_nodes.capacity()];
         let append = raw.len() - self.raw_nodes.len();
-        native.codec_vec_grow(&mut self.raw_nodes, append)?;
-        native.codec_vec_grow(&mut self.raw_wire_nodes, append)?;
+        native.adopt_codec_vec(&mut self.raw_nodes)?;
+        native.adopt_codec_vec(&mut self.raw_wire_nodes)?;
+        self.raw_nodes
+            .try_reserve_native(work, append)
+            .map_err(err)?;
+        self.raw_wire_nodes
+            .try_reserve_native(work, append)
+            .map_err(err)?;
         for event in raw.iter().skip(self.raw_nodes.len()) {
             self.raw_nodes
                 .try_push(hash_json_in_store(&store, event, None, None)?)

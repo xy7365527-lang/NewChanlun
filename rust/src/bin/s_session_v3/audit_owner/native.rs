@@ -7,8 +7,8 @@ use std::{
     hash::Hash,
     mem::size_of,
     sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering},
-        Arc,
+        atomic::{AtomicUsize, Ordering},
+        Arc, Mutex,
     },
 };
 
@@ -301,12 +301,24 @@ impl From<String> for Failure {
     }
 }
 #[derive(Clone)]
-pub(crate) struct Budget(Arc<Ledger>);
+pub(crate) struct Budget(Arc<Ledger>, u64, u64);
+// 请求号在不可变Budget句柄上；父账只保存紧凑的来源序号和活动scope计数。
+// 两个计数都checked拒绝溢出，不回绕、不复用旧来源；避免扩大原128字节小帽探针。
+struct Domain {
+    allowance: usize,
+    live: usize,
+    peak: usize,
+    unassigned: usize,
+    serial: u32,
+    active_scopes: u16,
+    state: u8,
+}
+const BROKEN: u8 = 1;
+const BOUND: u8 = 2;
 struct Ledger {
-    limit: usize,
+    domain: Mutex<Domain>,
     live: AtomicUsize,
     peak: AtomicUsize,
-    broken: AtomicBool,
     scratch_live: AtomicUsize,
     scratch_peak: AtomicUsize,
     metadata_live: AtomicUsize,
@@ -317,39 +329,137 @@ struct Ledger {
 pub(crate) struct Permit {
     budget: Budget,
     bytes: usize,
+    origin: u64,
 }
 /// 字段按声明顺序析构：被保护的工作集先真正释放，许可随后归还。
 /// 避免 `(value, permit)` 局部绑定逆序析构时，先放掉许可再释放 value。
 pub(crate) struct Reserved<T> {
-    value: T,
+    inner: T,
     _permit: Permit,
+}
+/// 可选父账路径也用同一个持有者，错误出口不会先释放费用后释放载荷。
+pub(crate) struct Tracked<T> {
+    inner: T,
+    fee: Option<Permit>,
+}
+impl<T> Tracked<T> {
+    pub(crate) fn new(inner: T) -> Self {
+        Self { inner, fee: None }
+    }
+    pub(crate) fn attach(&mut self, fee: Option<Permit>) {
+        assert!(self.fee.is_none());
+        self.fee = fee;
+    }
+    pub(crate) fn has_permit(&self) -> bool {
+        self.fee.is_some()
+    }
+}
+impl<T> std::ops::Deref for Tracked<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        &self.inner
+    }
+}
+impl<T> std::ops::DerefMut for Tracked<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.inner
+    }
+}
+impl<T: Retained> Retained for Tracked<T> {
+    fn heap_bytes(&self) -> usize {
+        self.inner.heap_bytes()
+    }
+}
+impl<'a, T> IntoIterator for &'a mut Tracked<Vec<T>> {
+    type Item = &'a mut T;
+    type IntoIter = std::slice::IterMut<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.iter_mut()
+    }
+}
+impl<'a, T> IntoIterator for &'a Tracked<Vec<T>> {
+    type Item = &'a T;
+    type IntoIter = std::slice::Iter<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.iter()
+    }
 }
 impl<T> std::ops::Deref for Reserved<T> {
     type Target = T;
     fn deref(&self) -> &T {
-        &self.value
+        &self.inner
     }
 }
 impl Drop for Permit {
     fn drop(&mut self) {
-        self.budget.release(self.bytes);
+        self.budget
+            .0
+            .release_total(self.bytes, self.origin)
+            .expect("Native许可返还失配");
     }
 }
 impl Permit {
     pub(crate) fn hold<T>(self, value: T) -> Reserved<T> {
         Reserved {
-            value,
+            inner: value,
             _permit: self,
         }
     }
-    /// 只在成功构造且真实旧载荷已释放后结算。actual 是约定的保守保留费，不是 Layout 实测。
-    pub(crate) fn commit(mut self, old: usize, actual: usize) {
+    /// 新块已构造后只归还未使用部分；返回的许可必须随载荷持有。
+    pub(crate) fn finish(mut self, actual: usize) -> Self {
         assert!(actual <= self.bytes, "预留必须覆盖新保留费");
-        self.budget.release(self.bytes - actual);
-        self.budget.release(old);
-        self.bytes = 0;
+        self.budget
+            .0
+            .release_total(self.bytes - actual, self.origin)
+            .expect("Native许可结算");
+        self.bytes = actual;
+        self
+    }
+    pub(crate) fn split(&mut self, bytes: usize) -> Result<Self, BudgetExceeded> {
+        let remaining = self.bytes.checked_sub(bytes).ok_or(BudgetExceeded)?;
+        self.bytes = remaining;
+        Ok(Self {
+            budget: self.budget.clone(),
+            bytes,
+            origin: self.origin,
+        })
+    }
+    pub(crate) fn replace_part(
+        &mut self,
+        old: usize,
+        mut next: Self,
+    ) -> Result<(), BudgetExceeded> {
+        if !self.budget.same_parent(&next.budget) || self.origin != next.origin {
+            return Err(BudgetExceeded);
+        }
+        self.bytes
+            .checked_sub(old)
+            .and_then(|n| n.checked_add(next.bytes))
+            .ok_or(BudgetExceeded)?;
+        drop(self.split(old)?);
+        self.merge(&mut next)
+    }
+    pub(crate) fn merge(&mut self, other: &mut Self) -> Result<(), BudgetExceeded> {
+        if !self.budget.same_parent(&other.budget) || self.origin != other.origin {
+            return Err(BudgetExceeded);
+        }
+        let bytes = self.bytes.checked_add(other.bytes).ok_or(BudgetExceeded)?;
+        self.bytes = bytes;
+        other.bytes = 0;
+        Ok(())
     }
 }
+impl<T> std::ops::DerefMut for Reserved<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.inner
+    }
+}
+impl<T: Retained> Retained for Reserved<T> {
+    fn heap_bytes(&self) -> usize {
+        self.inner.heap_bytes()
+    }
+}
+
 impl Budget {
     #[cfg(test)]
     pub(super) fn native_observation(&self) -> (usize, usize) {
@@ -357,6 +467,22 @@ impl Budget {
             self.0.native_live.load(Ordering::Acquire),
             self.0.native_peak.load(Ordering::Acquire),
         )
+    }
+    pub(crate) fn pristine_cold_parent(&self) -> bool {
+        let metadata = Layout::new::<[AtomicUsize; 2]>()
+            .extend(Layout::new::<Ledger>())
+            .expect("父账元数据布局")
+            .0
+            .pad_to_align()
+            .size();
+        self.0.domain.lock().is_ok_and(|d| {
+            d.serial == 0
+                && self.1 == 0
+                && d.state == 0
+                && d.unassigned == 0
+                && d.live == metadata
+                && d.peak == metadata
+        })
     }
     pub(crate) fn new(limit: usize, retained: usize) -> Result<Self, BudgetExceeded> {
         // 当前 Rust 1.98 ArcInner 元数据；在 Arc::new 前预留，不声称 fallible Arc。
@@ -370,24 +496,127 @@ impl Budget {
         if live > limit {
             return Err(BudgetExceeded);
         }
-        Ok(Self(Arc::new(Ledger {
-            limit,
-            live: AtomicUsize::new(live),
-            peak: AtomicUsize::new(live),
-            broken: AtomicBool::new(false),
-            scratch_live: AtomicUsize::new(0),
-            scratch_peak: AtomicUsize::new(0),
-            metadata_live: AtomicUsize::new(0),
-            metadata_peak: AtomicUsize::new(0),
-            native_live: AtomicUsize::new(0),
-            native_peak: AtomicUsize::new(0),
-        })))
+        Ok(Self(
+            Arc::new(Ledger {
+                domain: Mutex::new(Domain {
+                    serial: 0,
+                    allowance: limit,
+                    live,
+                    peak: live,
+                    unassigned: retained,
+                    active_scopes: 0,
+                    state: 0,
+                }),
+                live: AtomicUsize::new(live),
+                peak: AtomicUsize::new(live),
+                scratch_live: AtomicUsize::new(0),
+                scratch_peak: AtomicUsize::new(0),
+                metadata_live: AtomicUsize::new(0),
+                metadata_peak: AtomicUsize::new(0),
+                native_live: AtomicUsize::new(0),
+                native_peak: AtomicUsize::new(0),
+            }),
+            0,
+            0,
+        ))
     }
-    pub(crate) fn reserve(&self, bytes: usize) -> Result<Permit, BudgetExceeded> {
-        self.0.reserve_total(bytes).map_err(|_| BudgetExceeded)?;
+    pub(crate) fn same_parent(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+    pub(crate) fn bind_or_handoff(
+        &self,
+        request: u64,
+        allowance: usize,
+    ) -> Result<Self, BudgetExceeded> {
+        if self.2 == 0 {
+            self.bind_initial(request, allowance)
+        } else {
+            self.handoff(request, allowance)
+        }
+    }
+    pub(crate) fn bind_initial(
+        &self,
+        request: u64,
+        allowance: usize,
+    ) -> Result<Self, BudgetExceeded> {
+        let mut d = self.0.domain.lock().map_err(|_| BudgetExceeded)?;
+        if u64::from(d.serial) != self.1 || d.state != 0 || d.allowance != allowance || request == 0
+        {
+            return Err(BudgetExceeded);
+        }
+        d.state |= BOUND;
+        Ok(Self(self.0.clone(), self.1, request))
+    }
+    /// #1488：同父账接纳新请求，只开启新的增量计数；累计观察值和旧许可不动。
+    pub(crate) fn handoff(&self, request: u64, allowance: usize) -> Result<Self, BudgetExceeded> {
+        let mut d = self.0.domain.lock().map_err(|_| BudgetExceeded)?;
+        if d.state & BROKEN != 0 || self.1 != u64::from(d.serial) || self.2 == 0 || request == 0 {
+            return Err(BudgetExceeded);
+        }
+        if self.2 == request {
+            return if d.allowance == allowance {
+                Ok(self.clone())
+            } else {
+                Err(BudgetExceeded)
+            };
+        }
+        if request < self.2 || d.active_scopes != 0 {
+            return Err(BudgetExceeded);
+        }
+        self.live().checked_add(allowance).ok_or(BudgetExceeded)?;
+        let serial = d.serial.checked_add(1).ok_or(BudgetExceeded)?;
+        d.serial = serial;
+        d.allowance = allowance;
+        // 这是新冻结域的增量读数；Ledger.live/peak及各分项历史高水位始终不重置。
+        // 旧来源仍由每个不可复制许可携带，返还只动累计占用，不回补本域。
+        d.live = 0;
+        d.peak = 0;
+        Ok(Self(self.0.clone(), u64::from(serial), request))
+    }
+    pub(crate) fn matches_request(&self, request: u64, allowance: usize) -> bool {
+        self.0.domain.lock().is_ok_and(|d| {
+            u64::from(d.serial) == self.1 && self.2 == request && d.allowance == allowance
+        })
+    }
+    pub(crate) fn remaining(&self) -> usize {
+        self.0
+            .domain
+            .lock()
+            .ok()
+            .filter(|d| u64::from(d.serial) == self.1)
+            .and_then(|d| d.allowance.checked_sub(d.live))
+            .unwrap_or(0)
+    }
+    pub(crate) fn request_peak(&self) -> usize {
+        self.0.domain.lock().map_or(usize::MAX, |d| {
+            if u64::from(d.serial) == self.1 {
+                d.peak
+            } else {
+                usize::MAX
+            }
+        })
+    }
+    pub(crate) fn adopt(&self, bytes: usize) -> Result<Permit, BudgetExceeded> {
+        let mut d = self.0.domain.lock().map_err(|_| BudgetExceeded)?;
+        if u64::from(d.serial) != self.1 || d.state & BROKEN != 0 {
+            return Err(BudgetExceeded);
+        }
+        d.unassigned = d.unassigned.checked_sub(bytes).ok_or(BudgetExceeded)?;
         Ok(Permit {
             budget: self.clone(),
             bytes,
+            origin: 0,
+        })
+    }
+    pub(crate) fn reserve(&self, bytes: usize) -> Result<Permit, BudgetExceeded> {
+        let origin = self
+            .0
+            .reserve_total(bytes, Some(self.1))
+            .map_err(|_| BudgetExceeded)?;
+        Ok(Permit {
+            budget: self.clone(),
+            bytes,
+            origin,
         })
     }
     pub(crate) fn live(&self) -> usize {
@@ -396,14 +625,18 @@ impl Budget {
     pub(crate) fn peak(&self) -> usize {
         self.0.peak.load(Ordering::Acquire)
     }
-    pub(crate) fn release(&self, bytes: usize) {
-        self.0
-            .release_total(bytes)
-            .expect("Native 归属账不得释放未持有费用");
-    }
     pub(crate) fn codec_work(&self) -> Result<CodecWork, Failure> {
-        // Arc coercion 复用已有控制块，不 new 包装适配器。
-        CodecWork::new(self.0.clone(), self.0.limit).map_err(Failure::from)
+        let d = self
+            .0
+            .domain
+            .lock()
+            .map_err(|_| Failure::Invalid("父账锁损坏".into()))?;
+        if u64::from(d.serial) != self.1 {
+            return Err(Failure::Invalid("旧冻结域不可新建工作域".into()));
+        }
+        let allowance = d.allowance;
+        drop(d);
+        CodecWork::new_in_origin(self.0.clone(), allowance, self.1).map_err(Failure::from)
     }
     pub(crate) fn scratch_observation(&self) -> (usize, usize, usize, usize) {
         (
@@ -413,41 +646,72 @@ impl Budget {
             self.0.metadata_peak.load(Ordering::Acquire),
         )
     }
-    pub(crate) fn string(&self, value: &str) -> Result<String, BudgetExceeded> {
-        let permit = self.reserve(value.len())?;
-        let mut out = String::new();
-        out.try_reserve_exact(value.len())
-            .map_err(|_| BudgetExceeded)?;
-        out.push_str(value);
-        permit.commit(0, out.capacity());
-        Ok(out)
-    }
-    pub(crate) fn vec_grow<T>(
+    pub(crate) fn adopt_codec_vec<T>(
         &self,
-        v: &mut Vec<T>,
-        additional: usize,
-    ) -> Result<(), BudgetExceeded> {
-        let needed = v.len().checked_add(additional).ok_or(BudgetExceeded)?;
-        if needed <= v.capacity() {
-            return Ok(());
+        v: &mut newchan_rust::s_content::CodecVec<T>,
+    ) -> Result<(), Failure> {
+        if v.is_native_bound() {
+            let parent: Arc<dyn ScratchParent> = self.0.clone();
+            return if v.native_parent_matches(&parent) {
+                Ok(())
+            } else {
+                Err(Failure::Invalid("Native原件来自外来父账".into()))
+            };
         }
-        let next = needed
-            .max(v.capacity().checked_mul(2).ok_or(BudgetExceeded)?)
-            .max(4);
-        let permit = self.reserve(vec_bytes::<T>(next))?;
-        let old = vec_bytes::<T>(v.capacity());
-        v.try_reserve_exact(next - v.len())
-            .map_err(|_| BudgetExceeded)?;
-        permit.commit(old, vec_bytes::<T>(v.capacity()));
-        Ok(())
+        if !v.can_adopt_native() {
+            return Err(Failure::Invalid("Native不接其它allocator容器".into()));
+        }
+        let bytes = v
+            .capacity()
+            .checked_mul(size_of::<T>())
+            .ok_or(BudgetExceeded)?;
+        let permit =
+            newchan_rust::s_content::capture_allocation::scratch::NativeReservation::adopt(
+                self.0.clone(),
+                bytes,
+            )?;
+        v.attach_native_reservation(permit)
+            .map_err(|e| Failure::Invalid(e.to_string()))
     }
     pub(crate) fn codec_vec_grow<T>(
         &self,
         v: &mut newchan_rust::s_content::CodecVec<T>,
         additional: usize,
     ) -> Result<(), Failure> {
-        if v.allocation_budget().is_some() {
-            return Err(Failure::Invalid("Native预留不接Owned容器".into()));
+        self.adopt_codec_vec(v)?;
+        self.codec_work()?
+            .run(|w| v.try_reserve_native(w, additional))
+            .map_err(|e| match e {
+                WorkError::Resource(e) => e.into(),
+                WorkError::Operation(e) => Failure::Invalid(e.to_string()),
+            })
+    }
+    pub(crate) fn empty<T: Default>(&self) -> Result<Reserved<T>, BudgetExceeded> {
+        Ok(self.reserve(0)?.hold(T::default()))
+    }
+    pub(crate) fn string(&self, value: &str) -> Result<Reserved<String>, BudgetExceeded> {
+        let permit = self.reserve(value.len())?;
+        let mut out = String::new();
+        out.try_reserve_exact(value.len())
+            .map_err(|_| BudgetExceeded)?;
+        out.push_str(value);
+        Ok(permit.finish(out.capacity()).hold(out))
+    }
+    pub(crate) fn vec_grow<T>(
+        &self,
+        v: &mut Reserved<Vec<T>>,
+        additional: usize,
+    ) -> Result<(), BudgetExceeded> {
+        self.grow_vec(&mut v.inner, &mut v._permit, additional)
+    }
+    pub(crate) fn grow_vec<T>(
+        &self,
+        v: &mut Vec<T>,
+        fee: &mut Permit,
+        additional: usize,
+    ) -> Result<(), BudgetExceeded> {
+        if !self.same_parent(&fee.budget) || fee.bytes != vec_bytes::<T>(v.capacity()) {
+            return Err(BudgetExceeded);
         }
         let needed = v.len().checked_add(additional).ok_or(BudgetExceeded)?;
         if needed <= v.capacity() {
@@ -457,47 +721,180 @@ impl Budget {
             .max(v.capacity().checked_mul(2).ok_or(BudgetExceeded)?)
             .max(4);
         let permit = self.reserve(vec_bytes::<T>(next))?;
-        let old = vec_bytes::<T>(v.capacity());
         v.try_reserve_exact(next - v.len())
             .map_err(|_| BudgetExceeded)?;
-        permit.commit(old, vec_bytes::<T>(v.capacity()));
+        *fee = permit.finish(vec_bytes::<T>(v.capacity()));
         Ok(())
     }
     pub(crate) fn hash_room<K: Eq + Hash, V>(
         &self,
-        m: &mut HashMap<K, V>,
+        m: &mut Reserved<HashMap<K, V>>,
         key: &K,
     ) -> Result<(), BudgetExceeded> {
+        if !self.same_parent(&m._permit.budget)
+            || m._permit.bytes != hash_slots::<K, V>(m.capacity())
+        {
+            return Err(BudgetExceeded);
+        }
         if m.contains_key(key) || m.len() < m.capacity() {
             return Ok(());
         }
         let cap = hash_capacity(m.len().checked_add(1).ok_or(BudgetExceeded)?)?;
         let permit = self.reserve(hash_slots::<K, V>(cap))?;
-        let old = hash_slots::<K, V>(m.capacity());
-        m.try_reserve(1).map_err(|_| BudgetExceeded)?;
-        permit.commit(old, hash_slots::<K, V>(m.capacity()));
+        m.inner.try_reserve(1).map_err(|_| BudgetExceeded)?;
+        m._permit = permit.finish(hash_slots::<K, V>(m.capacity()));
         Ok(())
     }
-    pub(crate) fn tree_insert<K: Ord + Retained, V: Retained>(
+    pub(crate) fn tree_insert<V: Retained>(
         &self,
-        m: &mut BTreeMap<K, V>,
-        k: K,
+        m: &mut Tree<V>,
+        k: Reserved<String>,
         v: V,
     ) -> Result<(), BudgetExceeded> {
-        // k/v 的独立载荷已由调用点持账；这里只管理节点与真正被覆盖的旧载荷。
-        if let Some(old) = m.get_mut(&k) {
-            let released = sum([k.heap_bytes(), old.heap_bytes()]);
+        if !self.same_parent(&k._permit.budget)
+            || !self.same_parent(&m.fees._permit.budget)
+            || k._permit.origin != self.1
+        {
+            return Err(BudgetExceeded);
+        }
+        if let Some((old, _)) = m.entries.get_mut(k.as_str()) {
             *old = v;
-            drop(k);
-            self.release(released);
             return Ok(());
         }
-        let permit = self.reserve(tree_growth::<K, V>(m.len()))?;
-        m.insert(k, v);
-        permit.commit(0, tree_slots::<K, V>(1));
+        let mut node = self.reserve(tree_growth::<String, (V, usize)>(m.entries.len()))?;
+        let index = match m.fees.iter().position(Option::is_none) {
+            Some(index) => index,
+            None => {
+                self.vec_grow(&mut m.fees, 1)?;
+                m.fees.push(None);
+                m.fees.len() - 1
+            }
+        };
+        if node.origin != k._permit.origin {
+            return Err(BudgetExceeded);
+        }
+        let (key, mut key_fee) = k.into_parts();
+        m.entries.insert(key, (v, index));
+        node = node.finish(tree_slots::<String, (V, usize)>(1));
+        node.merge(&mut key_fee)?;
+        m.fees[index] = Some(node);
         Ok(())
     }
 }
+impl<T> Reserved<T> {
+    pub(crate) fn into_parts(self) -> (T, Permit) {
+        (self.inner, self._permit)
+    }
+}
+impl std::borrow::Borrow<str> for Reserved<String> {
+    fn borrow(&self) -> &str {
+        self.inner.as_str()
+    }
+}
+impl<T: std::hash::Hash> std::hash::Hash for Reserved<T> {
+    fn hash<H: std::hash::Hasher>(&self, h: &mut H) {
+        self.inner.hash(h)
+    }
+}
+impl<T: PartialEq> PartialEq for Reserved<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
+    }
+}
+impl<T: Eq> Eq for Reserved<T> {}
+impl<T: std::fmt::Debug> std::fmt::Debug for Reserved<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.inner.fmt(f)
+    }
+}
+impl<T: PartialEq> PartialEq<Vec<T>> for Reserved<Vec<T>> {
+    fn eq(&self, other: &Vec<T>) -> bool {
+        &self.inner == other
+    }
+}
+impl<T> IntoIterator for Reserved<Vec<T>> {
+    type Item = T;
+    type IntoIter = HeldIter<T>;
+    fn into_iter(self) -> Self::IntoIter {
+        HeldIter {
+            values: self.inner.into_iter(),
+            _permit: self._permit,
+        }
+    }
+}
+pub(crate) struct HeldIter<T> {
+    values: std::vec::IntoIter<T>,
+    _permit: Permit,
+}
+impl<T> Iterator for HeldIter<T> {
+    type Item = T;
+    fn next(&mut self) -> Option<T> {
+        self.values.next()
+    }
+}
+impl<'a, T> IntoIterator for &'a Reserved<Vec<T>> {
+    type Item = &'a T;
+    type IntoIter = std::slice::Iter<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.iter()
+    }
+}
+impl<'a, T> IntoIterator for &'a mut Reserved<Vec<T>> {
+    type Item = &'a mut T;
+    type IntoIter = std::slice::IterMut<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.iter_mut()
+    }
+}
+/// #1488：树节点/键许可在entries实际析构后释放；槽数组本身也先准入。
+pub(crate) struct Tree<V> {
+    entries: BTreeMap<String, (V, usize)>,
+    fees: Reserved<Vec<Option<Permit>>>,
+}
+impl<V> Tree<V> {
+    pub(crate) fn new(budget: &Budget) -> Result<Self, BudgetExceeded> {
+        Ok(Self {
+            entries: BTreeMap::new(),
+            fees: budget.empty()?,
+        })
+    }
+    pub(crate) fn len(&self) -> usize {
+        self.entries.len()
+    }
+    pub(crate) fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (&String, &V)> {
+        self.entries.iter().map(|(k, (v, _))| (k, v))
+    }
+    pub(crate) fn remove(&mut self, key: &str) {
+        if let Some((k, (v, index))) = self.entries.remove_entry(key) {
+            if self.entries.is_empty() {
+                self.entries.clear();
+            }
+            drop((k, v));
+            drop(self.fees[index].take());
+        }
+        if self.entries.is_empty() {
+            // 最后一项移除连同许可槽也真正释放，保持原空树返还合同。
+            let empty = self.fees._permit.split(0).expect("空许可");
+            self.fees = empty.hold(Vec::new());
+        }
+    }
+}
+impl<V: Retained> Retained for Tree<V> {
+    fn heap_bytes(&self) -> usize {
+        sum([
+            tree_slots::<String, (V, usize)>(self.entries.len()),
+            self.entries
+                .iter()
+                .map(|(k, (v, _))| sum([k.heap_bytes(), v.heap_bytes()]))
+                .sum(),
+            vec_bytes::<Option<Permit>>(self.fees.capacity()),
+        ])
+    }
+}
+
 use newchan_rust::s_content::capture_allocation::scratch::{
     CodecWork, ScratchCharge, ScratchFailure, ScratchParent, WorkError,
 };
@@ -518,29 +915,96 @@ impl<E: Into<Failure>> From<WorkError<E>> for Failure {
     }
 }
 impl Ledger {
-    fn reserve_total(&self, bytes: usize) -> Result<(), ScratchFailure> {
-        if self.broken.load(Ordering::Acquire) {
+    fn reserve_total(&self, bytes: usize, expected: Option<u64>) -> Result<u64, ScratchFailure> {
+        self.reserve_account(bytes, expected, None)
+    }
+    fn reserve_account(
+        &self,
+        bytes: usize,
+        expected: Option<u64>,
+        kind: Option<ScratchCharge>,
+    ) -> Result<u64, ScratchFailure> {
+        let mut d = self.domain.lock().map_err(|_| ScratchFailure::Ledger)?;
+        if d.state & BROKEN != 0 || expected.is_some_and(|e| e != u64::from(d.serial)) {
             return Err(ScratchFailure::Ledger);
         }
-        let old = self
+        let next = d
             .live
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
-                n.checked_add(bytes).filter(|n| *n <= self.limit)
+            .checked_add(bytes)
+            .filter(|n| *n <= d.allowance)
+            .ok_or(ScratchFailure::Budget)?;
+        let total = self
+            .live
+            .load(Ordering::Acquire)
+            .checked_add(bytes)
+            .ok_or(ScratchFailure::Budget)?;
+        let part = kind
+            .map(|k| {
+                let (live, peak) = self.component(k);
+                live.load(Ordering::Acquire)
+                    .checked_add(bytes)
+                    .map(|n| (live, peak, n))
+                    .ok_or(ScratchFailure::Ledger)
             })
-            .map_err(|_| ScratchFailure::Budget)?;
-        self.peak.fetch_max(old + bytes, Ordering::Relaxed);
-        Ok(())
+            .transpose()?;
+        let active_scopes = if matches!(kind, Some(ScratchCharge::Metadata)) {
+            d.active_scopes
+                .checked_add(1)
+                .ok_or(ScratchFailure::Ledger)?
+        } else {
+            d.active_scopes
+        };
+        d.active_scopes = active_scopes;
+        d.live = next;
+        d.peak = d.peak.max(next);
+        if let Some((live, peak, n)) = part {
+            live.store(n, Ordering::Release);
+            peak.fetch_max(n, Ordering::Relaxed);
+        }
+        self.live.store(total, Ordering::Release);
+        self.peak.fetch_max(total, Ordering::Relaxed);
+        Ok(u64::from(d.serial))
     }
-    fn release_total(&self, bytes: usize) -> Result<(), ScratchFailure> {
-        if self
+    fn release_total(&self, bytes: usize, origin: u64) -> Result<(), ScratchFailure> {
+        let result = self.release_account(bytes, origin, None);
+        if result.is_err() {
+            self.invalidate();
+        }
+        result
+    }
+    fn release_account(
+        &self,
+        bytes: usize,
+        origin: u64,
+        kind: Option<ScratchCharge>,
+    ) -> Result<(), ScratchFailure> {
+        let mut d = self.domain.lock().map_err(|_| ScratchFailure::Ledger)?;
+        let total = self
             .live
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
-                n.checked_sub(bytes)
-            })
-            .is_err()
-        {
-            self.broken.store(true, Ordering::Release);
+            .load(Ordering::Acquire)
+            .checked_sub(bytes)
+            .ok_or(ScratchFailure::Ledger)?;
+        if origin > u64::from(d.serial) {
             return Err(ScratchFailure::Ledger);
+        }
+        let current = if origin == u64::from(d.serial) {
+            d.live.checked_sub(bytes).ok_or(ScratchFailure::Ledger)?
+        } else {
+            d.live
+        };
+        let part = kind
+            .map(|k| {
+                let (live, _) = self.component(k);
+                live.load(Ordering::Acquire)
+                    .checked_sub(bytes)
+                    .map(|n| (live, n))
+                    .ok_or(ScratchFailure::Ledger)
+            })
+            .transpose()?;
+        d.live = current;
+        self.live.store(total, Ordering::Release);
+        if let Some((live, n)) = part {
+            live.store(n, Ordering::Release);
         }
         Ok(())
     }
@@ -553,37 +1017,74 @@ impl Ledger {
     }
 }
 impl ScratchParent for Ledger {
+    fn origin(&self) -> u64 {
+        self.domain.lock().map_or(u64::MAX, |d| u64::from(d.serial))
+    }
+    fn adopt_native(&self, bytes: usize) -> Result<u64, ScratchFailure> {
+        let mut d = self.domain.lock().map_err(|_| ScratchFailure::Ledger)?;
+        if d.state & BROKEN != 0 {
+            return Err(ScratchFailure::Ledger);
+        }
+        let unassigned = d
+            .unassigned
+            .checked_sub(bytes)
+            .ok_or(ScratchFailure::Ledger)?;
+        let native = self
+            .native_live
+            .load(Ordering::Acquire)
+            .checked_add(bytes)
+            .ok_or(ScratchFailure::Ledger)?;
+        d.unassigned = unassigned;
+        self.native_live.store(native, Ordering::Release);
+        self.native_peak.fetch_max(native, Ordering::Relaxed);
+        Ok(0)
+    }
+    fn close_scope(&self, origin: u64) -> Result<(), ScratchFailure> {
+        let mut d = self.domain.lock().map_err(|_| ScratchFailure::Ledger)?;
+        if u64::from(d.serial) != origin {
+            return Err(ScratchFailure::Ledger);
+        }
+        d.active_scopes = d
+            .active_scopes
+            .checked_sub(1)
+            .ok_or(ScratchFailure::Ledger)?;
+        Ok(())
+    }
     fn health(&self) -> Result<(), ScratchFailure> {
-        if self.broken.load(Ordering::Acquire) {
+        let d = self.domain.lock().map_err(|_| ScratchFailure::Ledger)?;
+        if d.state & BROKEN != 0 {
             Err(ScratchFailure::Ledger)
         } else {
             Ok(())
         }
     }
     fn invalidate(&self) {
-        self.broken.store(true, Ordering::Release);
-    }
-
-    fn reserve(&self, bytes: usize, kind: ScratchCharge) -> Result<(), ScratchFailure> {
-        self.reserve_total(bytes)?;
-        let (live, peak) = self.component(kind);
-        // 分项仅观测，准入由同一 total CAS 决定。
-        let n = live.fetch_add(bytes, Ordering::AcqRel) + bytes;
-        peak.fetch_max(n, Ordering::Relaxed);
-        Ok(())
-    }
-    fn release(&self, bytes: usize, kind: ScratchCharge) -> Result<(), ScratchFailure> {
-        let (live, _) = self.component(kind);
-        if live
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
-                n.checked_sub(bytes)
-            })
-            .is_err()
-        {
-            self.broken.store(true, Ordering::Release);
-            return Err(ScratchFailure::Ledger);
+        if let Ok(mut d) = self.domain.lock() {
+            d.state |= BROKEN;
         }
-        self.release_total(bytes)
+    }
+    fn reserve_in_origin(
+        &self,
+        bytes: usize,
+        kind: ScratchCharge,
+        expected: u64,
+    ) -> Result<u64, ScratchFailure> {
+        self.reserve_account(bytes, Some(expected), Some(kind))
+    }
+    fn reserve(&self, bytes: usize, kind: ScratchCharge) -> Result<u64, ScratchFailure> {
+        self.reserve_account(bytes, None, Some(kind))
+    }
+    fn release(
+        &self,
+        bytes: usize,
+        kind: ScratchCharge,
+        origin: u64,
+    ) -> Result<(), ScratchFailure> {
+        let result = self.release_account(bytes, origin, Some(kind));
+        if result.is_err() {
+            self.invalidate();
+        }
+        result
     }
 }
 /// 固定 std SwissTable：小表 4/8 桶只空一槽，>=16 桶的装载率 7/8；控制组最多16字节。
@@ -747,7 +1248,7 @@ mod tests {
         assert!(b.reserve(4096).is_err());
         drop(p);
         assert_eq!(b.live(), base);
-        let mut v = Vec::<u64>::new();
+        let mut v = b.empty::<Vec<u64>>().unwrap();
         b.vec_grow(&mut v, 4).unwrap();
         v.extend([1, 2, 3, 4]);
         let old = v.capacity() * size_of::<u64>();
@@ -759,6 +1260,7 @@ mod tests {
         let old_block = vec_bytes::<u64>(blocked.capacity());
         let tight = Budget::new(base + old_block + vec_bytes::<u64>(8) - 1, old_block).unwrap();
         let capacity = blocked.capacity();
+        let mut blocked = tight.adopt(old_block).unwrap().hold(blocked);
         assert!(tight.vec_grow(&mut blocked, 1).is_err());
         assert_eq!(blocked.capacity(), capacity);
         assert_eq!(&blocked[..], &[1, 2, 3, 4], "新块被拒绝时旧Vec必须完整保留");
@@ -983,5 +1485,244 @@ mod r8_native_admission_tests {
             "R8_NATIVE_MAP retained_bound_peak={:?}",
             budget.native_observation()
         );
+    }
+}
+
+#[cfg(test)]
+// NOT_RUN：本轮禁止编译及执行Rust测试；以下均为待运行回归锁。
+mod cross_request_budget_tests {
+    use super::*;
+    use newchan_rust::s_content::CodecVec;
+
+    #[test]
+    fn retained_scratch_layout_drops_in_old_origin_after_scope_closes() {
+        let first = Budget::new(4096, 0).unwrap();
+        let first = first.bind_initial(35, 4096).unwrap();
+        let base = first.live();
+        let mut bytes = first
+            .codec_work()
+            .unwrap()
+            .run(|w| {
+                let mut bytes = w.bytes();
+                bytes.try_extend_bytes(b"kept-layout")?;
+                Ok::<_, newchan_rust::s_content::CodecError>(bytes)
+            })
+            .unwrap();
+        let peak = first.peak();
+        let next = first.handoff(36, 64).unwrap();
+        let all = next.reserve(64).unwrap();
+        assert!(bytes.try_push(b'x').is_err());
+        assert_eq!(&*bytes, b"kept-layout");
+        drop(bytes);
+        assert_eq!(next.live(), base + 64);
+        assert_eq!(next.remaining(), 0);
+        assert!(next.peak() >= peak);
+        drop(all);
+        assert_eq!(next.live(), base);
+    }
+
+    #[test]
+    fn native_reservation_split_merge_rejects_foreign_and_new_origin() {
+        let first = Budget::new(4096, 0).unwrap();
+        let first = first.bind_initial(40, 4096).unwrap();
+        let mut kept = first
+            .codec_work()
+            .unwrap()
+            .run(|w| w.reserve_native(96))
+            .unwrap();
+        let mut part = kept.split(32).unwrap();
+        kept.merge(&mut part).unwrap();
+        assert!(part.split(1).is_err());
+        let second = first.handoff(41, 4096).unwrap();
+        let mut new = second
+            .codec_work()
+            .unwrap()
+            .run(|w| w.reserve_native(32))
+            .unwrap();
+        let remaining = second.remaining();
+        assert!(kept.merge(&mut new).is_err());
+        let foreign = Budget::new(4096, 0).unwrap();
+        let mut other = foreign
+            .codec_work()
+            .unwrap()
+            .run(|w| w.reserve_native(32))
+            .unwrap();
+        assert!(kept.merge(&mut other).is_err());
+        drop(kept);
+        assert_eq!(second.remaining(), remaining);
+        drop(new);
+        assert_eq!(second.remaining(), 4096);
+    }
+
+    #[test]
+    fn old_release_does_not_refill_allowance_with_real_native_payload() {
+        let old = Budget::new(4096, 0).unwrap();
+        let old = old.bind_initial(1, 4096).unwrap();
+        let base = old.live();
+        let bytes = old
+            .codec_work()
+            .unwrap()
+            .run(|w| {
+                let mut bytes = CodecVec::default();
+                bytes.try_reserve_native(w, 128)?;
+                bytes.try_extend_bytes(b"original")?;
+                Ok::<_, newchan_rust::s_content::CodecError>(bytes)
+            })
+            .unwrap();
+        let live = old.live();
+        let peak = old.peak();
+        let current = old.handoff(2, 64).unwrap();
+        assert!(old.same_parent(&current));
+        assert_eq!((current.live(), current.peak()), (live, peak));
+        let current_fee = current.reserve(64).unwrap();
+        drop(bytes);
+        assert_eq!(current.live(), base + 64);
+        assert_eq!(current.remaining(), 0);
+        assert!(current.reserve(1).is_err());
+        assert!(old.reserve(1).is_err());
+        drop(current_fee);
+        assert_eq!(current.remaining(), 64);
+        assert_eq!(current.live(), base);
+        assert!(current.peak() >= peak);
+    }
+
+    #[test]
+    fn native_growth_across_two_requests_keeps_payload_and_charge_origin() {
+        let first = Budget::new(4096, 0).unwrap();
+        let first = first.bind_initial(10, 4096).unwrap();
+        let base = first.live();
+        let mut values = first
+            .codec_work()
+            .unwrap()
+            .run(|w| {
+                let mut values = CodecVec::default();
+                for n in 0u64..4 {
+                    values.try_push_native(n, w)?;
+                }
+                Ok::<_, newchan_rust::s_content::CodecError>(values)
+            })
+            .unwrap();
+        let second = first.handoff(11, 4096).unwrap();
+        second
+            .codec_work()
+            .unwrap()
+            .run(|w| values.try_push_native(4, w))
+            .unwrap();
+        assert_eq!(&*values, &[0, 1, 2, 3, 4]);
+        assert_eq!(second.live(), base + values.capacity() * size_of::<u64>());
+        let before = second.peak();
+        let third = second.handoff(12, 32).unwrap();
+        drop(values);
+        assert_eq!(third.live(), base);
+        assert_eq!(third.remaining(), 32);
+        assert_eq!(third.peak(), before);
+    }
+
+    #[test]
+    fn cross_request_denied_growth_preserves_old_payload_and_origin() {
+        let first = Budget::new(4096, 0).unwrap();
+        let first = first.bind_initial(15, 4096).unwrap();
+        let mut values = first
+            .codec_work()
+            .unwrap()
+            .run(|w| {
+                let mut values = CodecVec::default();
+                for n in 0u64..4 {
+                    values.try_push_native(n, w)?;
+                }
+                Ok::<_, newchan_rust::s_content::CodecError>(values)
+            })
+            .unwrap();
+        let live = first.live();
+        let allowance = CodecWork::metadata_bytes() + 63;
+        let next = first.handoff(16, allowance).unwrap();
+        let result = next
+            .codec_work()
+            .unwrap()
+            .run(|w| values.try_push_native(4, w));
+        assert!(matches!(
+            result,
+            Err(WorkError::Resource(ScratchFailure::Budget))
+        ));
+        assert_eq!(&*values, &[0, 1, 2, 3]);
+        assert_eq!(values.capacity(), 4);
+        assert_eq!(next.live(), live);
+        assert_eq!(next.remaining(), allowance);
+        drop(values);
+        assert_eq!(next.remaining(), allowance);
+    }
+
+    #[test]
+    fn handoff_active_scope_overflow_and_changed_contract_are_atomic() {
+        let budget = Budget::new(4096, 0).unwrap();
+        let budget = budget.bind_initial(20, 4096).unwrap();
+        let work = budget.codec_work().unwrap();
+        let before = (budget.live(), budget.peak(), budget.remaining());
+        assert!(budget.handoff(21, 4096).is_err());
+        assert_eq!((budget.live(), budget.peak(), budget.remaining()), before);
+        drop(work);
+        let before = (budget.live(), budget.peak(), budget.remaining());
+        assert!(budget.handoff(21, usize::MAX).is_err());
+        assert!(budget.handoff(20, 4095).is_err());
+        assert_eq!((budget.live(), budget.peak(), budget.remaining()), before);
+        let all = budget.reserve(budget.remaining()).unwrap();
+        let full = (budget.live(), budget.peak());
+        assert!(budget.reserve(1).is_err());
+        assert_eq!((budget.live(), budget.peak()), full);
+        drop(all);
+    }
+
+    #[test]
+    fn permit_split_merge_foreign_source_and_duplicate_consumption_reject() {
+        let a = Budget::new(4096, 0).unwrap();
+        let b = Budget::new(4096, 0).unwrap();
+        let base = a.live();
+        let mut whole = a.reserve(96).unwrap();
+        let mut part = whole.split(32).unwrap();
+        let mut foreign = b.reserve(32).unwrap();
+        assert!(whole.merge(&mut foreign).is_err());
+        whole.merge(&mut part).unwrap();
+        assert!(part.split(1).is_err());
+        assert_eq!(a.live(), base + 96);
+        drop(part);
+        assert_eq!(a.live(), base + 96);
+        drop(whole);
+        assert_eq!(a.live(), base);
+    }
+
+    #[test]
+    fn old_tree_remove_and_drop_return_only_their_own_origin() {
+        let old = Budget::new(65536, 0).unwrap();
+        let old = old.bind_initial(30, 65536).unwrap();
+        let base = old.live();
+        let mut tree = Tree::new(&old).unwrap();
+        old.tree_insert(&mut tree, old.string("old-key").unwrap(), (1i64, 2i64))
+            .unwrap();
+        let next = old.handoff(31, 64).unwrap();
+        let full = next.reserve(64).unwrap();
+        tree.remove("old-key");
+        assert_eq!(next.remaining(), 0);
+        assert_eq!(next.live(), base + 64);
+        drop(tree);
+        drop(full);
+        assert_eq!(next.live(), base);
+    }
+
+    #[test]
+    fn initial_original_fee_can_be_adopted_only_once() {
+        let mut values = CodecVec::from_plain(vec![1u64, 2, 3, 4]);
+        let cost = values.capacity() * size_of::<u64>();
+        let budget = Budget::new(4096, cost).unwrap();
+        let live = budget.live();
+        budget.adopt_codec_vec(&mut values).unwrap();
+        assert_eq!(budget.live(), live);
+        let foreign = Budget::new(4096, cost).unwrap();
+        let foreign_before = (foreign.live(), foreign.peak());
+        assert!(foreign.adopt_codec_vec(&mut values).is_err());
+        assert_eq!((foreign.live(), foreign.peak()), foreign_before);
+        assert_eq!(&*values, &[1, 2, 3, 4]);
+        assert!(budget.adopt(cost).is_err());
+        drop(values);
+        assert_eq!(budget.live(), live - cost);
     }
 }

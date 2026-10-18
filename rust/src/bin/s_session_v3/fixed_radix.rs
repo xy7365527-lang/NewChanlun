@@ -551,7 +551,7 @@ mod tests {
         }
     }
     impl ScratchParent for Parent {
-        fn reserve(&self, n: usize, kind: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn reserve(&self, n: usize, kind: ScratchCharge) -> Result<u64, ScratchFailure> {
             if n != 0 && matches!(kind, ScratchCharge::Native) {
                 let attempt = self.attempts.fetch_add(1, Ordering::SeqCst) + 1;
                 if attempt == self.fail_on.load(Ordering::SeqCst) {
@@ -560,9 +560,12 @@ mod tests {
             }
             let live = self.live.fetch_add(n, Ordering::SeqCst) + n;
             self.peak.fetch_max(live, Ordering::SeqCst);
-            Ok(())
+            Ok(0)
         }
-        fn release(&self, n: usize, _: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn release(&self, n: usize, _: ScratchCharge, origin: u64) -> Result<(), ScratchFailure> {
+            if origin != 0 {
+                return Err(ScratchFailure::Ledger);
+            }
             assert!(self.live.fetch_sub(n, Ordering::SeqCst) >= n);
             Ok(())
         }

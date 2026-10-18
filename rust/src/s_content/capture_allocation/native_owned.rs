@@ -385,7 +385,7 @@ mod tests {
         }
     }
     impl ScratchParent for Parent {
-        fn reserve(&self, bytes: usize, kind: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn reserve(&self, bytes: usize, kind: ScratchCharge) -> Result<u64, ScratchFailure> {
             let mut counts = self.counts.lock().unwrap();
             let next = counts
                 .live
@@ -399,9 +399,17 @@ mod tests {
                 counts.native += bytes;
             }
             counts.peak = counts.peak.max(next);
-            Ok(())
+            Ok(0)
         }
-        fn release(&self, bytes: usize, kind: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn release(
+            &self,
+            bytes: usize,
+            kind: ScratchCharge,
+            origin: u64,
+        ) -> Result<(), ScratchFailure> {
+            if origin != 0 {
+                return Err(ScratchFailure::Ledger);
+            }
             let mut counts = self.counts.lock().unwrap();
             counts.live = counts
                 .live

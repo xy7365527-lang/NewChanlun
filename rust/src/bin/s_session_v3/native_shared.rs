@@ -293,7 +293,7 @@ mod tests {
         }
     }
     impl ScratchParent for Parent {
-        fn reserve(&self, bytes: usize, kind: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn reserve(&self, bytes: usize, kind: ScratchCharge) -> Result<u64, ScratchFailure> {
             let mut c = self.counts.lock().unwrap();
             let next = c.live.checked_add(bytes).ok_or(ScratchFailure::Budget)?;
             if next > self.limit {
@@ -303,9 +303,17 @@ mod tests {
             if matches!(kind, ScratchCharge::Native) {
                 c.native += bytes;
             }
-            Ok(())
+            Ok(0)
         }
-        fn release(&self, bytes: usize, kind: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn release(
+            &self,
+            bytes: usize,
+            kind: ScratchCharge,
+            origin: u64,
+        ) -> Result<(), ScratchFailure> {
+            if origin != 0 {
+                return Err(ScratchFailure::Ledger);
+            }
             let mut c = self.counts.lock().unwrap();
             c.live = c.live.checked_sub(bytes).ok_or(ScratchFailure::Ledger)?;
             if matches!(kind, ScratchCharge::Native) {

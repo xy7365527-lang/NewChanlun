@@ -7636,11 +7636,14 @@ mod r6_codec_memo_tests {
             panic!("正常生命周期不应损坏账本");
         }
 
-        fn reserve(&self, n: usize, _: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn reserve(&self, n: usize, _: ScratchCharge) -> Result<u64, ScratchFailure> {
             self.0.fetch_add(n, Ordering::SeqCst);
-            Ok(())
+            Ok(0)
         }
-        fn release(&self, n: usize, _: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn release(&self, n: usize, _: ScratchCharge, origin: u64) -> Result<(), ScratchFailure> {
+            if origin != 0 {
+                return Err(ScratchFailure::Ledger);
+            }
             assert!(self.0.fetch_sub(n, Ordering::SeqCst) >= n);
             Ok(())
         }
@@ -7728,7 +7731,7 @@ mod native_owner_codec_bridge_tests {
         }
     }
     impl ScratchParent for Parent {
-        fn reserve(&self, n: usize, kind: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn reserve(&self, n: usize, kind: ScratchCharge) -> Result<u64, ScratchFailure> {
             if let ScratchCharge::Native = kind {
                 if self
                     .native
@@ -7755,9 +7758,17 @@ mod native_owner_codec_bridge_tests {
                 }
                 ScratchCharge::Metadata => {}
             }
-            Ok(())
+            Ok(0)
         }
-        fn release(&self, n: usize, kind: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn release(
+            &self,
+            n: usize,
+            kind: ScratchCharge,
+            origin: u64,
+        ) -> Result<(), ScratchFailure> {
+            if origin != 0 {
+                return Err(ScratchFailure::Ledger);
+            }
             assert!(self.live.fetch_sub(n, Ordering::SeqCst) >= n);
             match kind {
                 ScratchCharge::Layout => {

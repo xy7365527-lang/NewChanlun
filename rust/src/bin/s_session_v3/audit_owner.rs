@@ -111,7 +111,7 @@ impl<'w> PublicationScope<'w> {
     fn remaining(&self) -> usize {
         self.resources
             .parent_limit
-            .saturating_sub(self.resources.budget.live())
+            .min(self.resources.budget.remaining())
     }
 }
 #[cfg(feature = "s_capture_native_testonly")]
@@ -1189,7 +1189,10 @@ impl AuditTxn<'_> {
         let candidate = complete
             .as_ref()
             .ok_or_else(|| construction_state::stale("publication缺完整父账"))?;
-        if candidate.seal != before || candidate.limit != context.complete_workspace_limit() {
+        if candidate.seal != before
+            || candidate.limit != context.complete_workspace_limit()
+            || !context.matches_complete_budget(&candidate.resources)
+        {
             return Err(construction_state::stale("publication父账或冻结额度域改变"));
         }
         Ok(PublicationResources {
@@ -1310,7 +1313,18 @@ impl AuditTxn<'_> {
                 std::mem::size_of::<construction_state::PendingRawState>(),
                 std::mem::size_of::<BoundRawAdvance<'_>>(),
             ]);
-            let budget = native::Budget::new(context.complete_workspace_limit(), retained)
+            if retained > context.complete_workspace_limit()
+                || !context.matches_complete_budget(&candidate.resources)
+            {
+                return Err(construction_state::stale("raw增量工作额度或父域不符"));
+            }
+            // 独立入口也沿候选真实父账；旧candidate/raw费用已持有，不能重新seed。
+            let budget = candidate.resources.clone();
+            let _inline = budget
+                .reserve(sum([
+                    std::mem::size_of::<construction_state::PendingRawState>(),
+                    std::mem::size_of::<BoundRawAdvance<'_>>(),
+                ]))
                 .map_err(|_| construction_state::stale("raw增量工作额度不足"))?;
             let work = budget
                 .codec_work()
@@ -1406,6 +1420,15 @@ impl AuditTxn<'_> {
             let prior = self.owner.complete.borrow_mut().take();
             if let Some(mut candidate) = prior {
                 if known && candidate.seal.same_snapshot(&seal) {
+                    let resources = match context.bind_complete_budget(&candidate.resources) {
+                        Ok(resources) => resources,
+                        Err(error) => {
+                            *self.owner.complete.borrow_mut() = Some(candidate);
+                            return Err(error);
+                        }
+                    };
+                    candidate.resources = resources;
+                    candidate.limit = context.complete_workspace_limit();
                     candidate.seal = seal;
                     candidate.charge.entry_reserved_bytes = context.complete_entry_reserved_bytes();
                     #[cfg(test)]
@@ -1443,7 +1466,9 @@ impl AuditTxn<'_> {
                         context.complete_entry_reserved_bytes(),
                         parent.as_ref(),
                     )? {
-                        Ok(candidate) => {
+                        Ok(mut candidate) => {
+                            candidate.resources =
+                                context.bind_complete_budget(&candidate.resources)?;
                             context.note_complete_source_work(
                                 candidate
                                     .slot
@@ -1597,12 +1622,14 @@ struct CompleteCandidate {
     slot: Option<request_audit::VerifiedHistoricalSlot>,
     capture: Option<newchan_rust::s_content::AuditCapture>,
     node_count: usize,
-    q: q::Facts,
     limit: usize,
+    // raw载荷必须先于Q持有的Plain raw许可析构。
     audited: state::AuditedState,
+    q: q::Facts,
     // Q 全集：所有非节点表、schema/完整配置/clock/raw尾/控制关系，不是只有 H 的绑定。
-    originals: Vec<request_audit::ExactRows>,
+    originals: native::Tracked<Vec<request_audit::ExactRows>>,
     charge: CompleteCharge,
+    _inline_permit: native::Permit,
     // 最后析构：冷审计时的同一父账随所有真实载荷跨事务保留。
     resources: native::Budget,
 }
@@ -1709,13 +1736,14 @@ impl CompleteCandidate {
         if charge.total >= limit {
             return Ok(Err(slot));
         }
-        if let Some(parent) = parent {
-            let Ok(permit) = parent.reserve(std::mem::size_of::<Self>()) else {
-                return Ok(Err(slot));
-            };
-            permit.commit(0, std::mem::size_of::<Self>());
-        }
-        let mut originals: Vec<request_audit::ExactRows> = Vec::new();
+        let inline_permit = match parent
+            .map(|b| b.reserve(std::mem::size_of::<Self>()))
+            .transpose()
+        {
+            Ok(permit) => permit,
+            Err(_) => return Ok(Err(slot)),
+        };
+        let mut originals = native::Tracked::new(Vec::<request_audit::ExactRows>::new());
         let mut candidate_peak = charge.total;
         // 表名同样经有界原件读取；不先 collect 一份未登记的 String 列表。
         let Some((tables, tables_peak)) = request_audit::ExactRows::read_optional_bounded_in_parent(
@@ -1748,12 +1776,9 @@ impl CompleteCandidate {
         if originals.try_reserve_exact(table_capacity).is_err() {
             return Ok(Err(slot));
         }
-        if let Some(permit) = outer_permit {
-            permit.commit(
-                0,
-                super::audit_retention::vec_bytes::<request_audit::ExactRows>(originals.capacity()),
-            );
-        }
+        let actual_outer =
+            super::audit_retention::vec_bytes::<request_audit::ExactRows>(originals.capacity());
+        originals.attach(outer_permit.map(|permit| permit.finish(actual_outer)));
         candidate_peak = candidate_peak.max(before_reserve);
         let mut read_original = |sql: &str, sql_heap: usize| -> Result<bool, String> {
             let extra = sum([originals.heap_bytes(), tables.heap_bytes(), sql_heap]);
@@ -1804,7 +1829,7 @@ impl CompleteCandidate {
             if before_sql >= limit {
                 return Ok(Err(slot));
             }
-            let sql_permit = match parent.map(|b| b.reserve(requested)).transpose() {
+            let _sql_permit = match parent.map(|b| b.reserve(requested)).transpose() {
                 Ok(permit) => permit,
                 Err(_) => return Ok(Err(slot)),
             };
@@ -1820,9 +1845,7 @@ impl CompleteCandidate {
                 sql.push(c);
             }
             sql.push_str(SUFFIX);
-            if let Some(permit) = sql_permit {
-                permit.commit(0, sql.capacity());
-            }
+            // sql_permit在sql之前声明，错误及正常出口均先销毁sql。
             let extra = sum([originals.heap_bytes(), tables.heap_bytes(), sql.capacity()]);
             let Some(remaining) = limit.checked_sub(charge.total.saturating_add(extra)) else {
                 return Ok(Err(slot));
@@ -1861,6 +1884,23 @@ impl CompleteCandidate {
                 Err(_) => return Ok(Err(slot)),
             },
         };
+        let inline_permit = match inline_permit {
+            Some(p) => p,
+            None => budget
+                .adopt(std::mem::size_of::<Self>())
+                .map_err(|_| invalid("候选初始许可不足"))?,
+        };
+        if !originals.has_permit() {
+            originals.attach(Some(
+                budget
+                    .adopt(
+                        super::audit_retention::vec_bytes::<request_audit::ExactRows>(
+                            originals.capacity(),
+                        ),
+                    )
+                    .map_err(|_| invalid("原件容器初始许可不足"))?,
+            ));
+        }
         let q = match q::Facts::cold(tx, &originals, &audited, &budget) {
             Ok(q) => q,
             Err(native::Failure::BudgetExceeded) => return Ok(Err(slot)),
@@ -1884,6 +1924,7 @@ impl CompleteCandidate {
             originals,
             charge,
             resources: budget,
+            _inline_permit: inline_permit,
         }))
     }
 }
@@ -2041,7 +2082,7 @@ impl CompleteCandidate {
         // 共享父账的峰已含 candidate；journal 局部帽仍由 Recording 单独检查。
         // Budget 允许准入恰等于 limit 的预留，不能把一次满额预留再判作越界。
         let recording_peak = if effects.shared_parent {
-            let peak = self.resources.peak();
+            let peak = self.resources.request_peak();
             // limit 已扣除外层 raw/source/set；全父账峰必须和完整父帽比较，
             // 否则会对已经计入同账的载荷再次扣费。
             if peak > self.limit {
@@ -2172,11 +2213,11 @@ impl CompleteCandidate {
                 })
                 .ok_or_else(|| invalid("缺 commit 实际效果"))?;
             let ns = effects::text(&commit.new.as_ref().unwrap()[4])?;
-            let row_ids = |table| -> Result<Vec<i64>, native::BudgetExceeded> {
-                let mut rows = Vec::new();
+            let row_ids = |table| -> Result<_, native::BudgetExceeded> {
+                let mut rows = budget.empty::<Vec<i64>>()?;
                 budget.vec_grow(&mut rows, effects.rows(table).count())?;
                 rows.extend(effects.rows(table).map(|change| change.rowid));
-                Ok(rows)
+                Ok(rows.into_parts())
             };
             let row_ids = (|| -> Result<_, native::BudgetExceeded> {
                 Ok((
@@ -2188,16 +2229,25 @@ impl CompleteCandidate {
                     ],
                 ))
             })();
-            let (objects, auxiliary) = match row_ids {
-                Ok(rows) => rows,
+            struct RowIds {
+                objects: Vec<i64>,
+                auxiliary: [Vec<i64>; 3],
+                _fees: [native::Permit; 4],
+            }
+            let row_ids = match row_ids {
+                Ok(((objects, objects_fee), [(a0, f0), (a1, f1), (a2, f2)])) => RowIds {
+                    objects,
+                    auxiliary: [a0, a1, a2],
+                    _fees: [objects_fee, f0, f1, f2],
+                },
                 Err(_) => return Ok(None),
             };
             #[cfg(test)]
             eprintln!(
                 "owner actual suffix g={g} nodes={} object_effects={} aux_effects={:?}",
                 self.node_count,
-                objects.len(),
-                auxiliary.each_ref().map(Vec::len)
+                row_ids.objects.len(),
+                row_ids.auxiliary.each_ref().map(Vec::len)
             );
             // publication 借同一父scope；其它既有固定写路径保留独立调用合同。
             let mut append_cut =
@@ -2208,8 +2258,8 @@ impl CompleteCandidate {
                         g,
                         batch,
                         ns,
-                        &objects,
-                        &auxiliary,
+                        &row_ids.objects,
+                        &row_ids.auxiliary,
                         &bound,
                         scope,
                         &budget,
@@ -2236,14 +2286,7 @@ impl CompleteCandidate {
                 Err(native::Failure::Invalid(e)) => return Err(e),
             };
             // 这些行号只在本次 append_cut 借用；真实销毁后归还各 Vec 实际容量。
-            let row_ids_charge = super::audit_retention::vec_bytes::<i64>(objects.capacity())
-                + auxiliary
-                    .iter()
-                    .map(|rows| super::audit_retention::vec_bytes::<i64>(rows.capacity()))
-                    .sum::<usize>();
-            drop(objects);
-            drop(auxiliary);
-            budget.release(row_ids_charge);
+            drop(row_ids);
             self.audited = audited;
             self.charge.historical_and_raw_capacity =
                 match retained.apply(self.charge.historical_and_raw_capacity) {
@@ -2304,7 +2347,7 @@ impl CompleteCandidate {
         self.charge.effects_peak = self.charge.effects_peak.max(peak);
         self.charge.handoff_peak = self.charge.handoff_peak.max(sum([
             self.charge.entry_reserved_bytes,
-            budget.peak().max(recording_peak),
+            budget.request_peak().max(recording_peak),
         ]));
         if self.charge.total >= limit {
             return Ok(None);
@@ -2377,6 +2420,15 @@ impl AuditTxn<'_> {
                 if !context.source_cache_enabled() {
                     return reject_warm();
                 }
+                let resources = match context.bind_complete_budget(&candidate.resources) {
+                    Ok(resources) => resources,
+                    Err(error) => {
+                        *self.owner.complete.borrow_mut() = Some(candidate);
+                        return Err(error);
+                    }
+                };
+                candidate.resources = resources;
+                candidate.limit = context.complete_workspace_limit();
                 candidate.charge.entry_reserved_bytes = context.complete_entry_reserved_bytes();
             }
             candidate.seal = seal;
@@ -4165,6 +4217,75 @@ mod construction_tests {
             assert!(owner.construction_lease.stale.get());
         }
     }
+    // NOT_RUN：新增回归本轮只静态检查。
+    // #1488：独立context重新冻结，失败必须确实到达尾检或真实COMMIT。
+    fn cross_request_publication_case(fail_tail: bool, fail_commit: bool) {
+        let mut f = fixture();
+        let (envelope, token) = f.accept_begin(2, ("scope-next", 10, 8, 16, 6, 12), 1);
+        let owner = AuditConnection::open(&f.db_path()).unwrap();
+        let mut first = context();
+        let cold = owner.begin(TransactionBehavior::Deferred).unwrap();
+        cold.audit_admission(
+            &json!({"payload":{"op":"ready"}}),
+            &s_allocation::Mode::CapturedNative,
+            &mut first,
+        )
+        .unwrap();
+        owner.continue_with(cold.read_end().unwrap()).unwrap();
+        let before = owner.complete.borrow().as_ref().unwrap().resources.clone();
+        let peak = before.peak();
+        let mut next = request_audit::RequestAuditContext::with_source_keeper(
+            cross_request_source_cache::Keeper::new(536_870_912),
+        );
+        next.freeze_manifest_workspace_budget(536_870_912, 0, owner.complete_retained_bytes())
+            .unwrap();
+        let commits = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let seen = commits.clone();
+        owner
+            .connection
+            .commit_hook(Some(move || {
+                seen.fetch_add(1, Ordering::SeqCst);
+                fail_commit
+            }))
+            .unwrap();
+        PUBLICATION_TAIL_FAILURE.with(|flag| flag.set(fail_tail));
+        let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        let result = owner.publish(&mut runtime, &token, &envelope, &mut next);
+        assert!(
+            !PUBLICATION_TAIL_FAILURE.with(Cell::get),
+            "必须实际消费尾检故障"
+        );
+        if fail_tail || fail_commit {
+            assert!(result.is_err());
+            assert_eq!(commits.load(Ordering::SeqCst), usize::from(fail_commit));
+            assert_eq!(meta_i64(&owner.connection, "generation").unwrap(), 1);
+            assert!(owner.construction_lease.stale.get());
+        } else {
+            let (receipt, ended) = result.unwrap();
+            assert_eq!(receipt.generation, 2);
+            owner.continue_with(ended).unwrap();
+            let complete = owner.complete.borrow();
+            let after = &complete.as_ref().unwrap().resources;
+            assert!(after.same_parent(&before));
+            assert!(next.matches_complete_budget(after));
+            assert!(after.peak() >= peak);
+            assert!(after.live() > 0);
+        }
+        owner.connection.commit_hook(None::<fn() -> bool>).unwrap();
+    }
+    #[test]
+    fn cross_request_ready_first_publication_preserves_real_parent() {
+        cross_request_publication_case(false, false);
+    }
+    #[test]
+    fn cross_request_publication_tail_failure_cannot_commit() {
+        cross_request_publication_case(true, false);
+    }
+    #[test]
+    fn cross_request_actual_commit_failure_cannot_promote() {
+        cross_request_publication_case(false, true);
+    }
+
     #[test]
     fn publication_single_parent_scope_reaches_raw_runtime_material_and_validation() {
         publication_scope_case(false);
@@ -4489,5 +4610,17 @@ mod raw_native_move_ownership_tests {
                 "pending 与 token 的真实 owner 全部析构才归零"
             );
         }
+    }
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+impl AuditConnection {
+    pub(super) fn complete_budget_for_test(&self) -> native::Budget {
+        self.complete
+            .borrow()
+            .as_ref()
+            .expect("完整候选")
+            .resources
+            .clone()
     }
 }

@@ -2823,10 +2823,18 @@ mod transaction_material_qualification {
         use sc::capture_allocation::scratch::*;
         struct Parent;
         impl ScratchParent for Parent {
-            fn reserve(&self, _: usize, _: ScratchCharge) -> Result<(), ScratchFailure> {
-                Ok(())
+            fn reserve(&self, _: usize, _: ScratchCharge) -> Result<u64, ScratchFailure> {
+                Ok(0)
             }
-            fn release(&self, _: usize, _: ScratchCharge) -> Result<(), ScratchFailure> {
+            fn release(
+                &self,
+                _: usize,
+                _: ScratchCharge,
+                origin: u64,
+            ) -> Result<(), ScratchFailure> {
+                if origin != 0 {
+                    return Err(ScratchFailure::Ledger);
+                }
                 Ok(())
             }
             fn health(&self) -> Result<(), ScratchFailure> {

@@ -341,6 +341,34 @@ impl<T> CodecVec<T> {
         }
     }
     /// 是否已绑定 Native 父账，包括容量为零的许可。
+    /// #1488：已有初始原件费的消费式附接，不分配也不复制载荷。
+    #[doc(hidden)]
+    #[doc(hidden)]
+    pub fn native_parent_matches(
+        &self,
+        parent: &std::sync::Arc<dyn super::scratch::ScratchParent>,
+    ) -> bool {
+        self.native_permit
+            .as_ref()
+            .is_some_and(|permit| permit.belongs_to_parent_arc(parent))
+    }
+    pub fn can_adopt_native(&self) -> bool {
+        self.native_permit.is_none() && matches!(self.storage, VecStorage::Plain(_))
+    }
+    #[doc(hidden)]
+    pub fn attach_native_reservation(
+        &mut self,
+        permit: super::scratch::NativeReservation,
+    ) -> Result<(), CodecError> {
+        if self.native_permit.is_some()
+            || !matches!(self.storage, VecStorage::Plain(_))
+            || permit.bytes() != self.retained_layout_bytes()?
+        {
+            return Err(CodecError::scratch(super::scratch::ScratchFailure::Ledger));
+        }
+        self.native_permit = Some(permit);
+        Ok(())
+    }
     pub fn is_native_bound(&self) -> bool {
         self.native_permit.is_some()
     }
@@ -1131,7 +1159,7 @@ mod native_vec_scope_tests {
         }
     }
     impl ScratchParent for Parent {
-        fn reserve(&self, bytes: usize, kind: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn reserve(&self, bytes: usize, kind: ScratchCharge) -> Result<u64, ScratchFailure> {
             let mut c = self.counts.lock().unwrap();
             let next = c.live.checked_add(bytes).ok_or(ScratchFailure::Budget)?;
             if next > self.limit {
@@ -1142,9 +1170,17 @@ mod native_vec_scope_tests {
             if matches!(kind, ScratchCharge::Native) {
                 c.native += bytes;
             }
-            Ok(())
+            Ok(0)
         }
-        fn release(&self, bytes: usize, kind: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn release(
+            &self,
+            bytes: usize,
+            kind: ScratchCharge,
+            origin: u64,
+        ) -> Result<(), ScratchFailure> {
+            if origin != 0 {
+                return Err(ScratchFailure::Ledger);
+            }
             let mut c = self.counts.lock().unwrap();
             c.live = c.live.checked_sub(bytes).ok_or(ScratchFailure::Ledger)?;
             if matches!(kind, ScratchCharge::Native) {

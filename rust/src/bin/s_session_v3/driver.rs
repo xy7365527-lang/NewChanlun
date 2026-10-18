@@ -1091,6 +1091,36 @@ mod tests {
 
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
+    // NOT_RUN：本轮只静态检查。
+    fn cross_request_ready_first_write_and_two_requests_preserve_parent() {
+        let f = Fixture::new();
+        let o = Fixture::new();
+        let mut native = complete_driver(&f);
+        let mut ordinary = o.open("1").unwrap();
+        let ready = envelope("handoff-ready", json!({"op":"ready"}));
+        assert_eq!(
+            native.handle(ready.clone()).unwrap(),
+            ordinary.handle(ready).unwrap()
+        );
+        let original = native.conn.complete_budget_for_test();
+        let mut peak = original.peak();
+        for n in 1..=2 {
+            assert_eq!(
+                native.handle(Fixture::ingest(n)).unwrap(),
+                ordinary.handle(Fixture::ingest(n)).unwrap()
+            );
+            let current = native.conn.complete_budget_for_test();
+            assert!(current.same_parent(&original));
+            assert!(current.live() > 0);
+            assert!(current.peak() >= peak);
+            peak = current.peak();
+            native.conn.assert_complete_matches_cold();
+        }
+        assert!(original.reserve(1).is_err(), "旧请求句柄不能获得新分配资格");
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
     fn audit_owner_normal_append_keeps_candidate_below_old_multiplier_gate() {
         let f = Fixture::new();
         let o = Fixture::new();

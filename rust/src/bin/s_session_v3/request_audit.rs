@@ -20,6 +20,8 @@ use std::{ffi::CStr, rc::Rc};
 #[cfg(feature = "s_capture_native_testonly")]
 #[derive(Clone, Copy, Debug, serde::Serialize)]
 pub(crate) struct ManifestWorkspaceBudget {
+    #[serde(skip)]
+    domain: u64,
     total: usize,
     legacy: usize,
     old_pool: usize,
@@ -44,6 +46,8 @@ pub(super) struct RequestAuditContext {
     // #1394 显式接线域；普通预算冻结不自动启用强制cold准入。
     #[cfg(feature = "s_capture_native_testonly")]
     cold_parent: Option<super::audit_owner::native::Budget>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    handoff_parent: std::cell::RefCell<Option<super::audit_owner::native::Budget>>,
     #[cfg(test)]
     binding_hook: Option<fn(&Transaction<'_>)>,
     #[cfg(test)]
@@ -112,7 +116,16 @@ impl RequestAuditContext {
         let allowance = total
             .checked_sub(used)
             .ok_or("S3WriterResourcesInvalid：共享来源费用超过S7")?;
+        static NEXT_FREEZE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        let domain = NEXT_FREEZE
+            .fetch_update(
+                std::sync::atomic::Ordering::Relaxed,
+                std::sync::atomic::Ordering::Relaxed,
+                |n| n.checked_add(1),
+            )
+            .map_err(|_| "S3WriterResourcesInvalid：冻结域编号耗尽")?;
         self.workspace_budget = Some(ManifestWorkspaceBudget {
+            domain,
             total,
             legacy,
             old_pool,
@@ -1733,6 +1746,45 @@ impl RequestAuditContext {
     pub(super) fn cold_parent_budget(&self) -> Option<super::audit_owner::native::Budget> {
         self.cold_parent.clone()
     }
+    /// #1488：第一次接纳钉住真实父Arc，同请求的后续事务只复用这个域。
+    pub(super) fn bind_complete_budget(
+        &self,
+        parent: &super::audit_owner::native::Budget,
+    ) -> Result<super::audit_owner::native::Budget, String> {
+        let contract = self.workspace_budget.ok_or("StaleWriter：缺冻结合同")?;
+        if let Some(bound) = self.handoff_parent.borrow().as_ref() {
+            if !bound.same_parent(parent)
+                || !parent.matches_request(contract.domain, contract.allowance)
+            {
+                return Err("StaleWriter：请求父账或冻结域失配".into());
+            }
+            return Ok(bound.clone());
+        }
+        if self
+            .cold_parent
+            .as_ref()
+            .is_some_and(|cold| !cold.same_parent(parent) && !cold.pristine_cold_parent())
+        {
+            return Err("StaleWriter：冻结合同已绑定外来cold父账".into());
+        }
+        let bound = parent
+            .bind_or_handoff(contract.domain, contract.allowance)
+            .map_err(|_| "StaleWriter：预算交接被拒绝")?;
+        *self.handoff_parent.borrow_mut() = Some(bound.clone());
+        Ok(bound)
+    }
+    pub(super) fn matches_complete_budget(
+        &self,
+        parent: &super::audit_owner::native::Budget,
+    ) -> bool {
+        self.workspace_budget
+            .is_some_and(|c| parent.matches_request(c.domain, c.allowance))
+            && self
+                .handoff_parent
+                .borrow()
+                .as_ref()
+                .is_some_and(|bound| bound.same_parent(parent))
+    }
     pub(super) fn complete_workspace_limit(&self) -> usize {
         self.workspace_budget.map_or(0, |b| b.allowance)
     }
@@ -2222,5 +2274,47 @@ mod r_owner_move_tests {
         assert_eq!(exact.manual_heap_bytes(), column_bytes + expected_row_bytes);
         drop(exact);
         assert_eq!(owned.snapshot().live_requested_layout_bytes, 0);
+    }
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+// NOT_RUN：本轮只静态检查。
+mod handoff_domain_tests {
+    use super::super::audit_owner::native::Budget;
+    use super::*;
+    #[test]
+    fn frozen_request_rejects_foreign_parent_and_expired_domain() {
+        let mut first = RequestAuditContext::default();
+        first
+            .freeze_manifest_workspace_budget(1 << 20, 0, 0)
+            .unwrap();
+        let parent = Budget::new(1 << 20, 0).unwrap();
+        let bound = first.bind_complete_budget(&parent).unwrap();
+        let foreign = Budget::new(1 << 20, 0).unwrap();
+        let before = (bound.live(), bound.peak(), bound.remaining());
+        assert!(first.bind_complete_budget(&foreign).is_err());
+        assert_eq!((bound.live(), bound.peak(), bound.remaining()), before);
+        let mut next = RequestAuditContext::default();
+        next.freeze_manifest_workspace_budget(1 << 20, 0, 64)
+            .unwrap();
+        let current = next.bind_complete_budget(&bound).unwrap();
+        assert!(current.same_parent(&bound));
+        assert!(!first.matches_complete_budget(&bound));
+        assert!(first.bind_complete_budget(&bound).is_err());
+        assert!(next.matches_complete_budget(&current));
+    }
+    #[test]
+    fn used_foreign_cold_parent_cannot_be_replaced_by_handoff() {
+        let mut context = RequestAuditContext::default();
+        context
+            .freeze_manifest_workspace_budget(1 << 20, 0, 0)
+            .unwrap();
+        context.enable_cold_admission_for_testonly().unwrap();
+        let occupied = context.cold_parent_budget().unwrap().reserve(64).unwrap();
+        let candidate = Budget::new(1 << 20, 0).unwrap();
+        let before = (candidate.live(), candidate.peak());
+        assert!(context.bind_complete_budget(&candidate).is_err());
+        assert_eq!((candidate.live(), candidate.peak()), before);
+        drop(occupied);
     }
 }

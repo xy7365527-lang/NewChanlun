@@ -1583,16 +1583,19 @@ mod catalog_axis_owner_tests {
         limit: usize,
     }
     impl ScratchParent for Parent {
-        fn reserve(&self, n: usize, _: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn reserve(&self, n: usize, _: ScratchCharge) -> Result<u64, ScratchFailure> {
             let mut live = self.live.lock().unwrap();
             let next = live.checked_add(n).ok_or(ScratchFailure::Budget)?;
             if next > self.limit {
                 return Err(ScratchFailure::Budget);
             }
             *live = next;
-            Ok(())
+            Ok(0)
         }
-        fn release(&self, n: usize, _: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn release(&self, n: usize, _: ScratchCharge, origin: u64) -> Result<(), ScratchFailure> {
+            if origin != 0 {
+                return Err(ScratchFailure::Ledger);
+            }
             let mut live = self.live.lock().unwrap();
             *live = live.checked_sub(n).ok_or(ScratchFailure::Ledger)?;
             Ok(())
