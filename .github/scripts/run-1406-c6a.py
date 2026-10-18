@@ -237,6 +237,40 @@ def resources_ok(sample, initial_free, rss_limit):
     require(sample["rss"] <= rss_limit, "group RSS")
 
 
+def resource_inline_encode(request):
+    """只做有界CPU准备；不在父线程发布request文件或解析真实路径。"""
+    require(type(request) is dict and set(request) == {"groups", "filesystem", "output"}, "resource inline request fields")
+    value = {"schema": "c6a-resource-probe/1", **request}
+    resource_inline_validate(value)
+    raw = json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":"))
+    require(len(raw.encode("utf-8")) <= 16384, "resource inline exceeds 16 KiB")
+    return raw
+
+
+def resource_inline_validate(value):
+    require(type(value) is dict and set(value) == {"schema", "groups", "filesystem", "output"},
+            "resource inline fields")
+    require(value["schema"] == "c6a-resource-probe/1", "resource inline schema")
+    groups = value["groups"]
+    require(type(groups) is list and len(groups) <= 1 and
+            all(type(pid) is int and 0 < pid <= 2**31 - 1 for pid in groups), "resource inline groups")
+    for key in ("filesystem", "output"):
+        path = value[key]
+        require(type(path) is str and 0 < len(path) <= 4096 and "\x00" not in path and
+                len(path.encode("utf-8")) <= 4096 and Path(path).is_absolute() and
+                str(Path(path)) == path and ".." not in Path(path).parts, "resource inline path")
+
+
+def resource_inline_decode(raw):
+    require(type(raw) is str and len(raw) <= 16384 and len(raw.encode("utf-8")) <= 16384,
+            "resource inline exceeds 16 KiB")
+    value = parse_json(raw)
+    resource_inline_validate(value)
+    require(json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":")) == raw,
+            "resource inline noncanonical JSON")
+    return {key: value[key] for key in ("groups", "filesystem", "output")}
+
+
 def anchor_packet(sock: socket.socket) -> bytes:
     """一个有界packet；收到意外SCM_RIGHTS也必须关闭，不能泄漏描述符。"""
     raw, ancillary, flags, _ = sock.recvmsg(ANCHOR_BYTES, socket.CMSG_SPACE(16 * array.array("i").itemsize))
@@ -620,11 +654,18 @@ class LinuxSupervisor:
 
     def probe(self, groups, deadline, *, allow_cancel=True):
         # 观测helper独立组；受当前阶段截止且不递归监测。小收据不带完整进程清单。
+        # 准备前后核同一stage活动D；只序列化有界inline参数，不做request文件IO。
+        active_end = deadline - REAP_RESERVE
+        require(clock() < active_end, "resource preparation reached stage active deadline")
+        require(type(groups) in (list, tuple) and len(groups) <= 1, "resource inline groups")
         output = self.artifacts / f"probe-{self.serial + 1:05d}.json"
         request = {"groups": list(groups), "filesystem": str(self.filesystem), "output": str(output)}
-        # 保守收紧观测helper：活动最多一个原采样周期，回收仍包含在原阶段截止。
+        require(Path(__file__).is_absolute(), "resource worker script must be absolute")
+        command = [sys.executable, "-B", __file__, "--resource-inline", resource_inline_encode(request)]
+        require(clock() < active_end, "resource preparation reached stage active deadline")
+        # 局部取样点在准备完成后；stdio/Popen继续计入.25，不从返回重基。
         probe_end = min(deadline, clock() + REAP_RESERVE + POLL_SECONDS)
-        receipt = self.run("resources", self.worker_command("resources", request), probe_end,
+        receipt = self.run("resources", command, probe_end,
                            monitor=False, allow_cancel=allow_cancel)
         sample = small_json(output)
         require(receipt["exit"] == 0, "resource helper failed")
@@ -942,11 +983,17 @@ def real_run():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--preflight", action="store_true")
-    parser.add_argument("--run", action="store_true")
-    parser.add_argument("--worker", nargs=2)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--preflight", action="store_true")
+    mode.add_argument("--run", action="store_true")
+    mode.add_argument("--worker", nargs=2)
+    mode.add_argument("--resource-inline")
     args = parser.parse_args()
+    if args.resource_inline is not None:
+        worker("resources", resource_inline_decode(args.resource_inline))
+        return 0
     if args.worker:
+        require(args.worker[0] != "resources", "resources requires inline request")
         worker(args.worker[0], small_json(args.worker[1]))
         return 0
     if args.run:
