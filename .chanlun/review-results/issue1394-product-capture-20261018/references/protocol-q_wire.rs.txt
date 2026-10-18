@@ -1,0 +1,46 @@
+rust/src/bin/s_session_v3/q_wire.rs:374:     }
+rust/src/bin/s_session_v3/q_wire.rs:375:     let hash = hex(bj::sha_json(payload, allocation)?);
+rust/src/bin/s_session_v3/q_wire.rs:376:     let hash = std::str::from_utf8(&hash).expect("ASCII digest");
+rust/src/bin/s_session_v3/q_wire.rs:377:     let id_material = [
+rust/src/bin/s_session_v3/q_wire.rs:378:         bj::field(request, "source_namespace"),
+rust/src/bin/s_session_v3/q_wire.rs:379:         bj::field(request, "source_epoch"),
+rust/src/bin/s_session_v3/q_wire.rs:380:         bj::field(request, "message_id"),
+rust/src/bin/s_session_v3/q_wire.rs:381:         JsonView::String(hash),
+rust/src/bin/s_session_v3/q_wire.rs:382:     ];
+rust/src/bin/s_session_v3/q_wire.rs:383:     let id_hash = hex(bj::sha_json(
+rust/src/bin/s_session_v3/q_wire.rs:384:         JsonView::ArraySlice(&id_material),
+rust/src/bin/s_session_v3/q_wire.rs:385:         allocation,
+rust/src/bin/s_session_v3/q_wire.rs:386:     )?);
+rust/src/bin/s_session_v3/q_wire.rs:387:     let mut id = [0; 70];
+rust/src/bin/s_session_v3/q_wire.rs:388:     id[..6].copy_from_slice(b"reply-");
+rust/src/bin/s_session_v3/q_wire.rs:389:     id[6..].copy_from_slice(&id_hash);
+rust/src/bin/s_session_v3/q_wire.rs:390:     let id = std::str::from_utf8(&id).expect("ASCII reply ID");
+rust/src/bin/s_session_v3/q_wire.rs:391:     let mut producer = bj::new_work(allocation);
+rust/src/bin/s_session_v3/q_wire.rs:392:     producer.try_extend_bytes(b"Q:").map_err(err)?;
+rust/src/bin/s_session_v3/q_wire.rs:393:     producer.try_extend_bytes(session.as_bytes()).map_err(err)?;
+rust/src/bin/s_session_v3/q_wire.rs:394:     let producer = bj::TextValue::from_bytes(producer)?;
+rust/src/bin/s_session_v3/q_wire.rs:395:     let causal_fields = [
+rust/src/bin/s_session_v3/q_wire.rs:396:         ("source_namespace", bj::field(request, "source_namespace")),
+rust/src/bin/s_session_v3/q_wire.rs:397:         ("source_epoch", bj::field(request, "source_epoch")),
+rust/src/bin/s_session_v3/q_wire.rs:398:         ("message_id", bj::field(request, "message_id")),
+rust/src/bin/s_session_v3/q_wire.rs:399:         ("payload_hash", bj::field(request, "payload_hash")),
+rust/src/bin/s_session_v3/q_wire.rs:400:     ];
+rust/src/bin/s_session_v3/q_wire.rs:401:     let causal = [JsonView::object_fields(&causal_fields).map_err(err)?];
+rust/src/bin/s_session_v3/q_wire.rs:402:     let fields = [
+rust/src/bin/s_session_v3/q_wire.rs:403:         ("schema_revision", JsonView::String("s-session/3")),
+rust/src/bin/s_session_v3/q_wire.rs:404:         ("session_id", JsonView::String(session)),
+rust/src/bin/s_session_v3/q_wire.rs:405:         ("session_generation", JsonView::String(incarnation)),
+rust/src/bin/s_session_v3/q_wire.rs:406:         ("source_namespace", JsonView::String("s-observe/replies")),
+rust/src/bin/s_session_v3/q_wire.rs:407:         ("source_epoch", JsonView::String(epoch)),
+rust/src/bin/s_session_v3/q_wire.rs:408:         ("message_id", JsonView::String(id)),
+rust/src/bin/s_session_v3/q_wire.rs:409:         ("producer_id", JsonView::String(&producer)),
+rust/src/bin/s_session_v3/q_wire.rs:410:         ("producer_epoch", JsonView::String(epoch)),
+rust/src/bin/s_session_v3/q_wire.rs:411:         ("payload_hash", JsonView::String(hash)),
+rust/src/bin/s_session_v3/q_wire.rs:412:         ("causal_refs", JsonView::ArraySlice(&causal)),
+rust/src/bin/s_session_v3/q_wire.rs:413:         ("payload", payload),
+rust/src/bin/s_session_v3/q_wire.rs:414:     ];
+rust/src/bin/s_session_v3/q_wire.rs:415:     encode_view(
+rust/src/bin/s_session_v3/q_wire.rs:416:         JsonView::object_fields(&fields).map_err(err)?,
+rust/src/bin/s_session_v3/q_wire.rs:417:         resources.limit(Limit::ReplyBytes),
+rust/src/bin/s_session_v3/q_wire.rs:418:         job,
+rust/src/bin/s_session_v3/q_wire.rs:419:         allocation,

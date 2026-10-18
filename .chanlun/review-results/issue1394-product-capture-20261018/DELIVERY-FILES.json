@@ -1,0 +1,155 @@
+{
+  "ticket": 1394,
+  "classification": "绑定1394工作草稿",
+  "base_commit": "827ac95f3b9aebc36c0a493fe273aac7699481e0",
+  "execution_authorized": false,
+  "product_status": "NOT_RUN",
+  "commit_created": false,
+  "scope": "仅两新Python及本新报告目录；不含自身，不预写未来commit",
+  "files": [
+    {
+      "path": "s_session/tests/issue1394_acceptance/product_capture.py",
+      "bytes": 64036,
+      "sha256": "2d364e95e786757cf9d3f4c05cdc414e75d1c1b0c7ecc975b180591b51073e6a",
+      "mode": "0o644"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_product_capture.py",
+      "bytes": 43365,
+      "sha256": "5aad6736c16230009041c41be5093d709f5d9c64269f09985bd92d35d6d63e6f",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/BASELINE-PYTHON.json",
+      "bytes": 4633,
+      "sha256": "07c37dd43f3ff0654ff418040a25d2ca631926630df0f75e4659de98e3c4edff",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/IMPLEMENTATION-LEDGER.md",
+      "bytes": 3262,
+      "sha256": "8aa08f7f30dedbdc1129b9c60adc1f8319bfc7929c77d1f222bacac806943f2f",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/INTERFACE-CONTRACT.md",
+      "bytes": 7480,
+      "sha256": "f74eb4b662830299a70fc2fa4707c9b11790b2a37e10b919679fb0612addc24f",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/PROTOCOL-SOURCES.json",
+      "bytes": 5257,
+      "sha256": "f728439c6c1791a03d1fe0e4bf440d0dcdd7aa6f192e278ed84d7fb5e1706c44",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/REPORT.md",
+      "bytes": 7993,
+      "sha256": "71ccbd11dc792fa29bdfeb354e1edfce01dcb06ebb0d8fde432c41cea36b0201",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/SOURCE-FREEZE.json",
+      "bytes": 4654,
+      "sha256": "dfd5a311d8d6ad48695eb44be5922033ac1adc4cd918c176e5080e70b47648c1",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/STATIC-CHECKS.json",
+      "bytes": 15367,
+      "sha256": "6e04cdb7f2590c66efe7300a402a5b02b73195105e65855e5331bd40f2ab9aa3",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/TEST-RESULTS.json",
+      "bytes": 9933,
+      "sha256": "fc716d29abebf07f1acb0f3c18aba9d9aa25cf1a72c861410c64ec26e9aa5503",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/TEST-REUSE.json",
+      "bytes": 12270,
+      "sha256": "da475b33b5fb3eab49dbbb6a2f2fd6eb65c87391f7f7c8d098c7f8617112d622",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/TEST-SELECTION.json",
+      "bytes": 5020,
+      "sha256": "7c390c4a3ed90e5a73a4f42c585ec689a6bf5398520a64693137d27f2cad6ffd",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/normal-targeted.txt",
+      "bytes": 6185,
+      "sha256": "a4e2f9a8c15c4d3d9ec71e474e9b1cf790b6a1928c478105a1f908d9460b6d34",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/optimized-targeted.txt",
+      "bytes": 6185,
+      "sha256": "6c31baa63dd0210b826abd236bd3797177cf1d149c54a3cdd4e728874e3c89b1",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/C1-financial-reader.diff",
+      "bytes": 1626,
+      "sha256": "33d58928d4da375f2cff848ba533968366e5eeb840b6c81362574e9de2a8c7db",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/PRODUCT-CAPTURE-SOURCE-FREEZE.json",
+      "bytes": 4367,
+      "sha256": "7b984bfcd74e7f22f7d229f12a317cb7746cedb3e4371a17a5282ef2f4c1d8ed",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/REVIEW-04-INDEPENDENT.md",
+      "bytes": 4762,
+      "sha256": "7f2c2e00bd339578584fe3d933cb358cf436b375a6f8480f56c0f72bd240381c",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/protocol-financial_reader.rs.txt",
+      "bytes": 11399,
+      "sha256": "801c7f69e9f0213d50e2f0f42496f92ddf96afb90cc77d6dfbfa888296264577",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/protocol-financial_session.rs.txt",
+      "bytes": 2901,
+      "sha256": "d0087e5627d5c52ad8bb071e7131ae2dfcdbaa23d769a66988364e225ea6e6e3",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/protocol-projection.rs.txt",
+      "bytes": 5096,
+      "sha256": "7679b4cff0d4c344f3154551309c6c0ee6c01532b0b082d25901148d5fbbfeea",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/protocol-q_http_input.rs.txt",
+      "bytes": 4079,
+      "sha256": "a8ac1542ac845dfead72cfda55a5136e39ec2b9e84804896490ac3c477c74eb5",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/protocol-q_runtime.rs.txt",
+      "bytes": 3628,
+      "sha256": "9adeec5558c65926322d6b542a61a7c20b902ff4c9174a241fd27dc129a5f0af",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/protocol-q_snapshot.rs.txt",
+      "bytes": 10734,
+      "sha256": "3e330612bb059677ae8064dddf3d88e4db26f4fe6b1594342ee08472d116d880",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/protocol-q_wire.rs.txt",
+      "bytes": 3832,
+      "sha256": "f1d8e5c3f61c069a83ddd0de87055a7351ed186dc290b0073b1b48ca5a2cd81e",
+      "mode": "0o644"
+    }
+  ]
+}

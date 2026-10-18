@@ -1,0 +1,127 @@
+rust/src/bin/s_session_v3/q_snapshot.rs:29: const TOKEN_FIELDS: [&str; 17] = [
+rust/src/bin/s_session_v3/q_snapshot.rs:30:     "token_schema",
+rust/src/bin/s_session_v3/q_snapshot.rs:31:     "session_id",
+rust/src/bin/s_session_v3/q_snapshot.rs:32:     "session_generation",
+rust/src/bin/s_session_v3/q_snapshot.rs:33:     "cut_generation",
+rust/src/bin/s_session_v3/q_snapshot.rs:34:     "scope",
+rust/src/bin/s_session_v3/q_snapshot.rs:35:     "history_mode",
+rust/src/bin/s_session_v3/q_snapshot.rs:36:     "structure_cut",
+rust/src/bin/s_session_v3/q_snapshot.rs:37:     "catalog_revision",
+rust/src/bin/s_session_v3/q_snapshot.rs:38:     "index_frontier",
+rust/src/bin/s_session_v3/q_snapshot.rs:39:     "profile_hash",
+rust/src/bin/s_session_v3/q_snapshot.rs:40:     "rule_revision",
+rust/src/bin/s_session_v3/q_snapshot.rs:41:     "order_version",
+rust/src/bin/s_session_v3/q_snapshot.rs:42:     "page_size",
+rust/src/bin/s_session_v3/q_snapshot.rs:43:     "offset",
+rust/src/bin/s_session_v3/q_snapshot.rs:44:     "cut_projection_digest",
+rust/src/bin/s_session_v3/q_snapshot.rs:45:     "issued_capture_digest",
+rust/src/bin/s_session_v3/q_snapshot.rs:46:     "token_checksum",
+rust/src/bin/s_session_v3/q_snapshot.rs:47: ];
+rust/src/bin/s_session_v3/q_snapshot.rs:48: const FIRST_FIELDS: [&str; 8] = [
+rust/src/bin/s_session_v3/q_snapshot.rs:49:     "op",
+rust/src/bin/s_session_v3/q_snapshot.rs:50:     "session_id",
+rust/src/bin/s_session_v3/q_snapshot.rs:51:     "session_generation",
+rust/src/bin/s_session_v3/q_snapshot.rs:52:     "scope",
+rust/src/bin/s_session_v3/q_snapshot.rs:53:     "history_mode",
+rust/src/bin/s_session_v3/q_snapshot.rs:54:     "as_of_generation",
+rust/src/bin/s_session_v3/q_snapshot.rs:55:     "page_size",
+rust/src/bin/s_session_v3/q_snapshot.rs:56:     "order_version",
+rust/src/bin/s_session_v3/q_snapshot.rs:57: ];
+rust/src/bin/s_session_v3/q_snapshot.rs:58: pub(super) struct Request {
+rust/src/bin/s_session_v3/q_snapshot.rs:389:     let wire = projection.wire.view();
+rust/src/bin/s_session_v3/q_snapshot.rs:390:     let fixed = bj::field(wire, "fixed_cut");
+rust/src/bin/s_session_v3/q_snapshot.rs:391:     let session = required_view(fixed, "session_id")?;
+rust/src/bin/s_session_v3/q_snapshot.rs:392:     let incarnation = required_view(fixed, "session_generation")?;
+rust/src/bin/s_session_v3/q_snapshot.rs:393:     for key in ["session_id", "session_generation"] {
+rust/src/bin/s_session_v3/q_snapshot.rs:394:         if bj::field(request.envelope_view(), key) != bj::field(fixed, key) {
+rust/src/bin/s_session_v3/q_snapshot.rs:395:             return Err(err("外层session/化身与当前已核会话不符"));
+rust/src/bin/s_session_v3/q_snapshot.rs:396:         }
+rust/src/bin/s_session_v3/q_snapshot.rs:397:     }
+rust/src/bin/s_session_v3/q_snapshot.rs:398:     let issued = request.issued.as_deref().unwrap_or(capture_digest);
+rust/src/bin/s_session_v3/q_snapshot.rs:399:     if request.issued.is_some() {
+rust/src/bin/s_session_v3/q_snapshot.rs:400:         let token = token_with_budget(
+rust/src/bin/s_session_v3/q_snapshot.rs:401:             &projection,
+rust/src/bin/s_session_v3/q_snapshot.rs:402:             issued,
+rust/src/bin/s_session_v3/q_snapshot.rs:403:             request.page_size,
+rust/src/bin/s_session_v3/q_snapshot.rs:404:             request.offset,
+rust/src/bin/s_session_v3/q_snapshot.rs:405:             allocation,
+rust/src/bin/s_session_v3/q_snapshot.rs:406:         )?;
+rust/src/bin/s_session_v3/q_snapshot.rs:407:         if bj::field(
+rust/src/bin/s_session_v3/q_snapshot.rs:408:             bj::field(request.envelope_view(), "payload"),
+rust/src/bin/s_session_v3/q_snapshot.rs:409:             "snapshot_token",
+rust/src/bin/s_session_v3/q_snapshot.rs:410:         ) != token.view()
+rust/src/bin/s_session_v3/q_snapshot.rs:411:         {
+rust/src/bin/s_session_v3/q_snapshot.rs:412:             return Err(err("snapshot_token与本次已核指定历史切面的实际身份/根不符"));
+rust/src/bin/s_session_v3/q_snapshot.rs:413:         }
+rust/src/bin/s_session_v3/q_snapshot.rs:414:     } else {
+rust/src/bin/s_session_v3/q_snapshot.rs:415:         let payload = bj::field(request.envelope_view(), "payload");
+rust/src/bin/s_session_v3/q_snapshot.rs:416:         for key in ["session_id", "session_generation", "scope"] {
+rust/src/bin/s_session_v3/q_snapshot.rs:417:             if bj::field(payload, key) != bj::field(fixed, key) {
+rust/src/bin/s_session_v3/q_snapshot.rs:418:                 return Err(err(format!("首请求{key}与当前已核会话不符")));
+rust/src/bin/s_session_v3/q_snapshot.rs:419:             }
+rust/src/bin/s_session_v3/q_snapshot.rs:420:         }
+rust/src/bin/s_session_v3/q_snapshot.rs:421:         if bj::field(payload, "order_version") != bj::field(wire, "order_version") {
+rust/src/bin/s_session_v3/q_snapshot.rs:422:             return Err(err("order_version不符"));
+rust/src/bin/s_session_v3/q_snapshot.rs:638:             let mut capture = capture_configured(&f.db_path(), &resources, &mut job).unwrap();
+rust/src/bin/s_session_v3/q_snapshot.rs:639:             let before_projection = job.snapshot().records;
+rust/src/bin/s_session_v3/q_snapshot.rs:640:             let bytes = capture
+rust/src/bin/s_session_v3/q_snapshot.rs:641:                 .snapshot(&request(&incoming, &resources), "7", &mut job)
+rust/src/bin/s_session_v3/q_snapshot.rs:642:                 .unwrap();
+rust/src/bin/s_session_v3/q_snapshot.rs:643:             assert_eq!(
+rust/src/bin/s_session_v3/q_snapshot.rs:644:                 job.snapshot().records - before_projection,
+rust/src/bin/s_session_v3/q_snapshot.rs:645:                 wanted.len() as u64
+rust/src/bin/s_session_v3/q_snapshot.rs:646:             );
+rust/src/bin/s_session_v3/q_snapshot.rs:647:             let response = strict_json(&bytes).unwrap();
+rust/src/bin/s_session_v3/q_snapshot.rs:648:             assert_eq!(&bytes[..], canonical_json(&response).as_bytes());
+rust/src/bin/s_session_v3/q_snapshot.rs:649:             assert_eq!(response.as_object().unwrap().len(), 11);
+rust/src/bin/s_session_v3/q_snapshot.rs:650:             assert_eq!(response["schema_revision"], "s-session/3");
+rust/src/bin/s_session_v3/q_snapshot.rs:651:             let page = &response["payload"];
+rust/src/bin/s_session_v3/q_snapshot.rs:652:             assert_eq!(page.as_object().unwrap().len(), 13);
+rust/src/bin/s_session_v3/q_snapshot.rs:653:             assert!(page.get("projection_ref").is_none());
+rust/src/bin/s_session_v3/q_snapshot.rs:654:             assert_eq!(
+rust/src/bin/s_session_v3/q_snapshot.rs:655:                 response["payload_hash"],
+rust/src/bin/s_session_v3/q_snapshot.rs:656:                 sha256_hex(canonical_json(page).as_bytes())
+rust/src/bin/s_session_v3/q_snapshot.rs:657:             );
+rust/src/bin/s_session_v3/q_snapshot.rs:658:             assert_eq!(
+rust/src/bin/s_session_v3/q_snapshot.rs:659:                 response["causal_refs"][0]["payload_hash"],
+rust/src/bin/s_session_v3/q_snapshot.rs:660:                 incoming["payload_hash"]
+rust/src/bin/s_session_v3/q_snapshot.rs:661:             );
+rust/src/bin/s_session_v3/q_snapshot.rs:662:             assert_eq!(page["fixed_cut"], plain_wire(&expected)["fixed_cut"]);
+rust/src/bin/s_session_v3/q_snapshot.rs:663:             assert_eq!(page["counts"], plain_wire(&expected)["counts"]);
+rust/src/bin/s_session_v3/q_snapshot.rs:664:             assert_eq!(page["cut_projection_digest"], expected.digest.as_str());
+rust/src/bin/s_session_v3/q_snapshot.rs:665:             assert_eq!(page["offset"], rows.len().to_string());
+rust/src/bin/s_session_v3/q_snapshot.rs:666:             rows.extend(page["rows"].as_array().unwrap().iter().cloned());
+rust/src/bin/s_session_v3/q_snapshot.rs:667:             pages += 1;
+rust/src/bin/s_session_v3/q_snapshot.rs:668:             if pages == 1 {
+rust/src/bin/s_session_v3/q_snapshot.rs:669:                 issued = page["validated_capture_digest"].as_str().unwrap().into();
+rust/src/bin/s_session_v3/q_snapshot.rs:670:                 drop(capture);
+rust/src/bin/s_session_v3/q_snapshot.rs:671:                 publish(&mut f, 2);
+rust/src/bin/s_session_v3/q_snapshot.rs:672:             } else {
+rust/src/bin/s_session_v3/q_snapshot.rs:673:                 let current = page["validated_capture_digest"].as_str().unwrap();
+rust/src/bin/s_session_v3/q_snapshot.rs:674:                 assert_ne!(current, issued);
+rust/src/bin/s_session_v3/q_snapshot.rs:675:                 if latest.is_empty() {
+rust/src/bin/s_session_v3/q_snapshot.rs:676:                     latest = current.into();
+rust/src/bin/s_session_v3/q_snapshot.rs:677:                 } else {
+rust/src/bin/s_session_v3/q_snapshot.rs:678:                     assert_eq!(current, latest);
+rust/src/bin/s_session_v3/q_snapshot.rs:679:                 }
+rust/src/bin/s_session_v3/q_snapshot.rs:680:             }
+rust/src/bin/s_session_v3/q_snapshot.rs:681:             if page["done"] == true {
+rust/src/bin/s_session_v3/q_snapshot.rs:682:                 assert!(page["next_token"].is_null());
+rust/src/bin/s_session_v3/q_snapshot.rs:683:                 break;
+rust/src/bin/s_session_v3/q_snapshot.rs:684:             }
+rust/src/bin/s_session_v3/q_snapshot.rs:685:             let next = &page["next_token"];
+rust/src/bin/s_session_v3/q_snapshot.rs:686:             assert_eq!(next.as_object().unwrap().len(), 17);
+rust/src/bin/s_session_v3/q_snapshot.rs:687:             assert_eq!(next["issued_capture_digest"], issued);
+rust/src/bin/s_session_v3/q_snapshot.rs:688:             assert_eq!(next["offset"], rows.len().to_string());
+rust/src/bin/s_session_v3/q_snapshot.rs:689:             incoming = envelope(
+rust/src/bin/s_session_v3/q_snapshot.rs:690:                 &plain_wire(&expected)["fixed_cut"],
+rust/src/bin/s_session_v3/q_snapshot.rs:691:                 json!({"op":"snapshot","snapshot_token":next}),
+rust/src/bin/s_session_v3/q_snapshot.rs:692:             );
+rust/src/bin/s_session_v3/q_snapshot.rs:693:             assert!(pages <= wanted.len());
+rust/src/bin/s_session_v3/q_snapshot.rs:694:         }
+rust/src/bin/s_session_v3/q_snapshot.rs:695:         assert_eq!(&rows, wanted);
+rust/src/bin/s_session_v3/q_snapshot.rs:696:         // 每页投影仍访问完整六族一次；同一job还累计每次当前完整历史审计的访问。
+rust/src/bin/s_session_v3/q_snapshot.rs:697:         assert!(job.snapshot().records > (pages * wanted.len()) as u64);
+rust/src/bin/s_session_v3/q_snapshot.rs:698:         assert_eq!(job.snapshot().requests, pages as u64);
+rust/src/bin/s_session_v3/q_snapshot.rs:699:         assert_eq!(job.snapshot().wire_bytes, 0, "编码不冒充真实发送");
+rust/src/bin/s_session_v3/q_snapshot.rs:700:     }

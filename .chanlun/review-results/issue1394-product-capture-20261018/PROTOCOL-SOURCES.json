@@ -1,0 +1,170 @@
+[
+  {
+    "commit": "b46ba296993371cb56b2dff7ef878647dc0665ad",
+    "tree": "f8733c328a7f1ab4b19725e0e97ec6dd9caf2bb1",
+    "path": "rust/src/bin/s_session_v3/financial_reader.rs",
+    "bytes": 48668,
+    "sha256": "0b7a010162341e1d72a978bd9aed8095bdbf6dc804fa7c46eae2f52a2fc328f2",
+    "ranges": [
+      [
+        427,
+        463
+      ],
+      [
+        570,
+        582
+      ],
+      [
+        729,
+        754
+      ],
+      [
+        827,
+        875
+      ]
+    ],
+    "excerpt": {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/protocol-financial_reader.rs.txt",
+      "bytes": 11399,
+      "sha256": "801c7f69e9f0213d50e2f0f42496f92ddf96afb90cc77d6dfbfa888296264577"
+    },
+    "scope": "同一冻结历史树的协议证据；非新producer准入",
+    "supplemental_to_14_file_freeze": false
+  },
+  {
+    "commit": "b46ba296993371cb56b2dff7ef878647dc0665ad",
+    "tree": "f8733c328a7f1ab4b19725e0e97ec6dd9caf2bb1",
+    "path": "rust/src/bin/s_session_v3/financial_session.rs",
+    "bytes": 79041,
+    "sha256": "ded7f8c61a21910586d5cba9bfa81afc6378723055bd6b2f3ab0c77de1eaa0a0",
+    "ranges": [
+      [
+        1833,
+        1861
+      ]
+    ],
+    "excerpt": {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/protocol-financial_session.rs.txt",
+      "bytes": 2901,
+      "sha256": "d0087e5627d5c52ad8bb071e7131ae2dfcdbaa23d769a66988364e225ea6e6e3"
+    },
+    "scope": "同一冻结历史树的协议证据；非新producer准入",
+    "supplemental_to_14_file_freeze": false
+  },
+  {
+    "commit": "b46ba296993371cb56b2dff7ef878647dc0665ad",
+    "tree": "f8733c328a7f1ab4b19725e0e97ec6dd9caf2bb1",
+    "path": "rust/src/bin/s_session_v3/q_snapshot.rs",
+    "bytes": 34922,
+    "sha256": "6f6632673208897b21046989c8e896081468c293866a8db0fce13da2f5cdd1a9",
+    "ranges": [
+      [
+        29,
+        58
+      ],
+      [
+        389,
+        422
+      ],
+      [
+        638,
+        700
+      ]
+    ],
+    "excerpt": {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/protocol-q_snapshot.rs.txt",
+      "bytes": 10734,
+      "sha256": "3e330612bb059677ae8064dddf3d88e4db26f4fe6b1594342ee08472d116d880"
+    },
+    "scope": "同一冻结历史树的协议证据；非新producer准入",
+    "supplemental_to_14_file_freeze": false
+  },
+  {
+    "commit": "b46ba296993371cb56b2dff7ef878647dc0665ad",
+    "tree": "f8733c328a7f1ab4b19725e0e97ec6dd9caf2bb1",
+    "path": "rust/src/bin/s_session_v3/q_runtime.rs",
+    "bytes": 102730,
+    "sha256": "e316142febbbafe24791aa84e729d1d189443b67b2af015dfafc86cd836b9bdd",
+    "ranges": [
+      [
+        998,
+        1038
+      ]
+    ],
+    "excerpt": {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/protocol-q_runtime.rs.txt",
+      "bytes": 3628,
+      "sha256": "9adeec5558c65926322d6b542a61a7c20b902ff4c9174a241fd27dc129a5f0af"
+    },
+    "scope": "同一冻结历史树的协议证据；非新producer准入",
+    "supplemental_to_14_file_freeze": false
+  },
+  {
+    "commit": "b46ba296993371cb56b2dff7ef878647dc0665ad",
+    "tree": "f8733c328a7f1ab4b19725e0e97ec6dd9caf2bb1",
+    "path": "rust/src/bin/s_session_v3/projection.rs",
+    "bytes": 58903,
+    "sha256": "58059cc9a54fd9f6c06cf8f29aacbee6e8bc13945eca2029716fe8bcb295d48c",
+    "ranges": [
+      [
+        341,
+        395
+      ]
+    ],
+    "excerpt": {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/protocol-projection.rs.txt",
+      "bytes": 5096,
+      "sha256": "7679b4cff0d4c344f3154551309c6c0ee6c01532b0b082d25901148d5fbbfeea"
+    },
+    "scope": "同一冻结历史树的协议证据；非新producer准入",
+    "supplemental_to_14_file_freeze": false
+  },
+  {
+    "commit": "b46ba296993371cb56b2dff7ef878647dc0665ad",
+    "tree": "f8733c328a7f1ab4b19725e0e97ec6dd9caf2bb1",
+    "path": "rust/src/bin/s_session_v3/q_http_input.rs",
+    "bytes": 46589,
+    "sha256": "fed1f97b7a17a129263939837ef0039ab9634bb8727ef4a7f111c95542a32a24",
+    "ranges": [
+      [
+        1,
+        5
+      ],
+      [
+        308,
+        327
+      ],
+      [
+        742,
+        758
+      ]
+    ],
+    "excerpt": {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/protocol-q_http_input.rs.txt",
+      "bytes": 4079,
+      "sha256": "a8ac1542ac845dfead72cfda55a5136e39ec2b9e84804896490ac3c477c74eb5"
+    },
+    "scope": "同一冻结历史树的协议证据；非新producer准入",
+    "supplemental_to_14_file_freeze": true
+  },
+  {
+    "commit": "b46ba296993371cb56b2dff7ef878647dc0665ad",
+    "tree": "f8733c328a7f1ab4b19725e0e97ec6dd9caf2bb1",
+    "path": "rust/src/bin/s_session_v3/q_wire.rs",
+    "bytes": 19309,
+    "sha256": "f4b2afc858001a5b8a62da73fced7d3283640b2834dd4995aaeef39a15ffb6f1",
+    "ranges": [
+      [
+        374,
+        419
+      ]
+    ],
+    "excerpt": {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/protocol-q_wire.rs.txt",
+      "bytes": 3832,
+      "sha256": "f1d8e5c3f61c069a83ddd0de87055a7351ed186dc290b0073b1b48ca5a2cd81e"
+    },
+    "scope": "同一冻结历史树的协议证据；非新producer准入",
+    "supplemental_to_14_file_freeze": true
+  }
+]

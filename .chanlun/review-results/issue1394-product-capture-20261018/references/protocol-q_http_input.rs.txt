@@ -1,0 +1,42 @@
+rust/src/bin/s_session_v3/q_http_input.rs:1: //! #1394：Q HTTP 输入层的有界读。
+rust/src/bin/s_session_v3/q_http_input.rs:2: //!
+rust/src/bin/s_session_v3/q_http_input.rs:3: //! 这里复用旧只读 HTTP 合同：请求行、全部头和 body 共用一个绝对读期限与
+rust/src/bin/s_session_v3/q_http_input.rs:4: //! `max_frame_bytes`；不接受 chunked，也不按 Content-Length 预分配。它只解析
+rust/src/bin/s_session_v3/q_http_input.rs:5: //! 输入，不决定路由、响应 envelope 或服务端 Q 资源之外的消费者 Job 记账。
+rust/src/bin/s_session_v3/q_http_input.rs:308:             return Err(Failure::invalid("HTTP body读取顺序不符"));
+rust/src/bin/s_session_v3/q_http_input.rs:309:         }
+rust/src/bin/s_session_v3/q_http_input.rs:310:         self.body_read = true;
+rust/src/bin/s_session_v3/q_http_input.rs:311:         if head.transfer_encoding {
+rust/src/bin/s_session_v3/q_http_input.rs:312:             return Err(Failure::invalid("不接受 Transfer-Encoding"));
+rust/src/bin/s_session_v3/q_http_input.rs:313:         }
+rust/src/bin/s_session_v3/q_http_input.rs:314:         if head.content_lengths.len() != 1 {
+rust/src/bin/s_session_v3/q_http_input.rs:315:             return Err(Failure::invalid("需要唯一 Content-Length"));
+rust/src/bin/s_session_v3/q_http_input.rs:316:         }
+rust/src/bin/s_session_v3/q_http_input.rs:317:         let length = parse_content_length(&head.content_lengths[0])?;
+rust/src/bin/s_session_v3/q_http_input.rs:318:         // 解析头时可能已把 body 读入 pending；这些字节已计入 total，不能再当作头部消费。
+rust/src/bin/s_session_v3/q_http_input.rs:319:         let header_bytes = self
+rust/src/bin/s_session_v3/q_http_input.rs:320:             .total
+rust/src/bin/s_session_v3/q_http_input.rs:321:             .saturating_sub(u64::try_from(self.pending_len()).unwrap_or(u64::MAX));
+rust/src/bin/s_session_v3/q_http_input.rs:322:         let remaining = self.maximum.saturating_sub(header_bytes);
+rust/src/bin/s_session_v3/q_http_input.rs:323:         if length > remaining {
+rust/src/bin/s_session_v3/q_http_input.rs:324:             return Err(Failure::budget("请求帧超过 max_frame_bytes"));
+rust/src/bin/s_session_v3/q_http_input.rs:325:         }
+rust/src/bin/s_session_v3/q_http_input.rs:326:         let capacity = usize::try_from(length)
+rust/src/bin/s_session_v3/q_http_input.rs:327:             .map_err(|_| Failure::budget("请求 body 长度超出本机索引范围"))?;
+rust/src/bin/s_session_v3/q_http_input.rs:742:     fn buffered_body_counts_once_against_exact_frame_limit() {
+rust/src/bin/s_session_v3/q_http_input.rs:743:         let prefix = b"POST /x HTTP/1.1\r\nContent-Length: 3\r\n\r\n";
+rust/src/bin/s_session_v3/q_http_input.rs:744:         let mut bytes = prefix.to_vec();
+rust/src/bin/s_session_v3/q_http_input.rs:745:         bytes.extend_from_slice(b"abc");
+rust/src/bin/s_session_v3/q_http_input.rs:746:         let exact = bytes.len() as u64;
+rust/src/bin/s_session_v3/q_http_input.rs:747:         let mut reader = Cursor::new(bytes.clone());
+rust/src/bin/s_session_v3/q_http_input.rs:748:         let mut input = Input::new(&mut reader, &resources(exact, 1000)).unwrap();
+rust/src/bin/s_session_v3/q_http_input.rs:749:         let head = input.head().unwrap();
+rust/src/bin/s_session_v3/q_http_input.rs:750:         assert_eq!(&*input.body(&head).unwrap(), b"abc");
+rust/src/bin/s_session_v3/q_http_input.rs:751: 
+rust/src/bin/s_session_v3/q_http_input.rs:752:         let mut reader = Cursor::new(bytes);
+rust/src/bin/s_session_v3/q_http_input.rs:753:         let mut input = Input::new(&mut reader, &resources(exact - 1, 1000)).unwrap();
+rust/src/bin/s_session_v3/q_http_input.rs:754:         assert_eq!(input.head().unwrap_err().status, 503);
+rust/src/bin/s_session_v3/q_http_input.rs:755:     }
+rust/src/bin/s_session_v3/q_http_input.rs:756: 
+rust/src/bin/s_session_v3/q_http_input.rs:757:     #[test]
+rust/src/bin/s_session_v3/q_http_input.rs:758:     fn python_header_count_boundary_is_99_nonempty_lines() {

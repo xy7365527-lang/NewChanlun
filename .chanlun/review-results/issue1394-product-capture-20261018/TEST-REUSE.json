@@ -1,0 +1,327 @@
+{
+  "ticket": 1394,
+  "scope": "旧证据逐字绑定；不是本轮重新执行，旧结论不被本轮改写",
+  "execution_authorized": false,
+  "old_module_reuse": [
+    {
+      "path": "s_session/tests/issue1394_acceptance/captured_cut.py",
+      "bytes": 25853,
+      "sha256": "8ca23ec3257dbe3db4e9260a1b45c22bdf62b666f7b9e4a6e141811b6010d3f8",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/closure.py",
+      "bytes": 8290,
+      "sha256": "5459ab3d8dce283677efead39206c2fbba4593d965f913c5f5c7336a1258762d",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/control.py",
+      "bytes": 6301,
+      "sha256": "950595b87956e6d8923c816cac9739d7aff29c0582f5a2bfe8bfd9383ddb8057",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/driver.py",
+      "bytes": 44599,
+      "sha256": "1735bffa631b1d4789f363204fec97fd26ceccd1ca439cc340bcd00a8ebf05f7",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/evidence.py",
+      "bytes": 5318,
+      "sha256": "92af6d56aecde7ea051de178fea72135b6c5b35a430ec44940cd425db2a0ce10",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/financial_oracle.py",
+      "bytes": 17454,
+      "sha256": "edc5b5477e7b185582a2a65cbd31e07d7015c49a9e203c630a697646f4d3d854",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/journal.py",
+      "bytes": 9663,
+      "sha256": "ff08d15e084216d1d6b8bb1efe8e3dcb74bfe281b20edb8262ad3e61c1211781",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/oracle.py",
+      "bytes": 3299,
+      "sha256": "16639a001aa73662b00209934513d808a0d0b3600023e2d3e2f35eb263e54eb7",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/run_checks.py",
+      "bytes": 1720,
+      "sha256": "94c180cd611cc7d2f1a99f94bb61fed6594d8aac8ea52470aefc7cbb91072bae",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/scheduler.py",
+      "bytes": 23479,
+      "sha256": "9c0d876f159e7b7cc33bfb55dae12ad67ff0b29cf7c56bf6e08d87032f8a6a16",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/supervisor.py",
+      "bytes": 14324,
+      "sha256": "6840975995c90397b1aa9bba3bb6b091a422af65f094ad37c32b6d035a9642ee",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_capture_bridge.py",
+      "bytes": 20988,
+      "sha256": "f0e68226c82f3a2d9c8a27b8714faab1a998ce4431a8168c3048d10686d8a128",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_closure.py",
+      "bytes": 5537,
+      "sha256": "d4f6772d82109c9cd05901cf667bf21d3b1740e11976036c86352eeb5a2d5710",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_control.py",
+      "bytes": 5375,
+      "sha256": "2c96cffc3b024f798d863b40bc345e386283c39f5e2da5853ab00b5fcdd01711",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver.py",
+      "bytes": 31184,
+      "sha256": "fd443df0c247934a8b2435d9e98169ed33f97baec6e17eca647ebab5d4b58176",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver_regressions.py",
+      "bytes": 6602,
+      "sha256": "621e990d5c7c6ed9dbe512efd30c7957696b346575439ddf5b5068bc95fc5b5d",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_evidence.py",
+      "bytes": 6289,
+      "sha256": "11cac54a757c437b660441f82a0d2b0e4843bcc22eb1106d30a2b8232933e52c",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_financial_oracle.py",
+      "bytes": 12185,
+      "sha256": "d643adef91a95a79b7c247af07c7a0259b9eac8f45e9951244af52ca8589c205",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_journal.py",
+      "bytes": 5205,
+      "sha256": "7f63cc0d2535d481b676818d88282729d40738568c84e761a7dd6c01c0876fde",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review01.py",
+      "bytes": 15165,
+      "sha256": "f5caecc55061352166cf22b6e08ed0c29ed83916c8f1e6e7d570bb1250c6c4e9",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review02.py",
+      "bytes": 20621,
+      "sha256": "94cbc050baa085104a7b67fcd580ef635afa952f10be63a23512b826f8e888e7",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review03.py",
+      "bytes": 13515,
+      "sha256": "1bd6d532d74dc7938a50b2840e050786c06eb2f109a2aa26885e1efc306e7196",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler.py",
+      "bytes": 19433,
+      "sha256": "8abd24b983978336ac9c86cf4cb89548ab5e87eea38b2dc2bf97140ffd440b58",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler_integration.py",
+      "bytes": 1389,
+      "sha256": "98b0d9bb348d3b1190e3ae0d623dc2e0e5d4ff9a4763e319c00463bc618424b8",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_supervisor.py",
+      "bytes": 7889,
+      "sha256": "57899f3abedebdb5be90606b5d812c8f8d4c6604f579b9e208d9d242f885b651",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/voice_bridge.py",
+      "bytes": 11955,
+      "sha256": "36248173678a4167aaadb5a3840de11d3d4f477963f4926f070de6fb33b63dfc",
+      "baseline_equal": true,
+      "revision4_sha_matches": true
+    }
+  ],
+  "references": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 24747,
+      "sha256": "cc4eaa6e2336578a1424f44f6e7dd00593db427bdd94d780b3cdc1f4e045b35f"
+    },
+    {
+      "path": "CLAUDE.md",
+      "bytes": 1623,
+      "sha256": "7a78617f78b2e7a05f136cc934e9047954ac12492adbbe01cd3dd0a77f18cbdc"
+    },
+    {
+      "path": ".sandcastle/CODEX-CHILD.md",
+      "bytes": 7028,
+      "sha256": "60e0f9270f6fbeb53c22c5b91d07500079c7f0c9c7fb9ebd4b8d874a3c5c8502"
+    },
+    {
+      "path": ".agents/skills/ask-matt/SKILL.md",
+      "bytes": 11491,
+      "sha256": "3d38910535f5f01e15bc5fd7f6ca8880d628cd248741f08e6780dd7c1828e832"
+    },
+    {
+      "path": "docs/agents/generation-constitution.md",
+      "bytes": 4593,
+      "sha256": "6871ddb943cbc523c2c5a228bb1046adf9e27072b7c1ba929c7d8c683e23021e"
+    },
+    {
+      "path": "docs/agents/issue-tracker.md",
+      "bytes": 5662,
+      "sha256": "236fc407b17139aaeec76cdfa4a6f291320c8a7058c8f13fac316894230df8a6"
+    },
+    {
+      "path": "docs/agents/delivery-discipline.md",
+      "bytes": 11941,
+      "sha256": "efa40109c11f4d57f034fd3919c4cfc90894c93c54568fe92743f9a9a4d9be13"
+    },
+    {
+      "path": "docs/agents/wayfinder-workflow.md",
+      "bytes": 39254,
+      "sha256": "2ff82f1ca6916b503c4b7f1c04fe624aeb60310d57729e05da1e3ebed65ec107"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/CONNECTION-CONTRACT.md",
+      "bytes": 21060,
+      "sha256": "a3cf14b1486e1aa34afbc193f5ace19186590dd664388108fb523a8ed6f5fb3f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/PRODUCER-DEPENDENCY-HANDOFF.md",
+      "bytes": 2441,
+      "sha256": "8dbd039c0d448ab92a05df22c6d5e63220652e06528dbb7868f6530a251afeb5"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/SOURCE-CHECKS.json",
+      "bytes": 9862,
+      "sha256": "8f893305fdf83cb69786d10cb757545edb2742fcf5fe1bc6a98aa3233463dc69"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/INTEGRATION-SOURCE-CHECKS.json",
+      "bytes": 60534,
+      "sha256": "79d8069a47df399feeb52391581ec0c4cb187ded1cbd65df124a1101db5d7cd4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/REVISION2-SOURCE-CHECKS.json",
+      "bytes": 10618,
+      "sha256": "d4852edc6972371ee94fb79796addd11621e30fedfaf019029a5010fb1f07c0d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/INTEGRATION-XERJ-REFERENCES.json",
+      "bytes": 12425,
+      "sha256": "952d62db9148713e80ae1b5ffe7484c584d3bdc69775ba3a947ffe3333fa10ce"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/REPORT.md",
+      "bytes": 6028,
+      "sha256": "52d056594be27a21f5c875a38fd7cfb22b9dcd0b214ddeff540d615b79b6cb48"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/FIX-LEDGER.md",
+      "bytes": 3384,
+      "sha256": "d2cc2a1028f16765f9d1d8389cc6056a563ac3a3558d14921001dd6000b77663"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/STATIC-CHECKS.json",
+      "bytes": 18037,
+      "sha256": "075f00e80793963e95f151b09f4dc1e1ed5c5471a7d6e98b12e275667160c2bd"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/TEST-RESULTS.json",
+      "bytes": 21610,
+      "sha256": "7fb2645e55a4a0f0fe4af8b6dd63b0af429644208050d56ece269e8418f88c84"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/TEST-REUSE.json",
+      "bytes": 23010,
+      "sha256": "407bf06e28e6cf9a5c2375367fdb615e96f6a139bef1b9231f8f5bafcab0f43b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/PROTOCOL-CHECKS.json",
+      "bytes": 7890,
+      "sha256": "11f9dead218f245a366a4383629818e288770b825dae42ad7cbc56d03d7c39a8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/normal-targeted.txt",
+      "bytes": 5499,
+      "sha256": "e6b6bc6e6cfb07231874549f1d0038756817166fca7fa293eb622bb3a60832bd"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/optimized-targeted.txt",
+      "bytes": 5499,
+      "sha256": "db3ba58deb9390e2c11394293aa9c79cb01c67752a02e1a73ad88ebd47c2f0a6"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/DELIVERY-FILES.json",
+      "bytes": 5830,
+      "sha256": "35258f5432ae725bc53985c81d98b295cadb626e86af298c71d4264b1f85c7b2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/SOURCE-CHECKS.json",
+      "bytes": 60534,
+      "sha256": "79d8069a47df399feeb52391581ec0c4cb187ded1cbd65df124a1101db5d7cd4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/references/XERJ-REFERENCES.json",
+      "bytes": 12425,
+      "sha256": "952d62db9148713e80ae1b5ffe7484c584d3bdc69775ba3a947ffe3333fa10ce"
+    }
+  ],
+  "not_rerun": [
+    "旧37",
+    "旧68",
+    "旧91",
+    "旧82",
+    "host123",
+    "旧ps/socket三项"
+  ],
+  "R_F5": "独审04正式BLOCK保持；管理者另修",
+  "N2": "独审04已闭合，原模块未改",
+  "historical_source": "14份原件另以Git对象精确核验；XERJ/SOURCE-CHECKS保留既有引用，不安装索引、不核别票WIP"
+}

@@ -1,0 +1,41 @@
+rust/src/bin/s_session_v3/q_runtime.rs:998:     writer: &mut W,
+rust/src/bin/s_session_v3/q_runtime.rs:999:     status: u16,
+rust/src/bin/s_session_v3/q_runtime.rs:1000:     body_len: usize,
+rust/src/bin/s_session_v3/q_runtime.rs:1001:     resources: &QResources,
+rust/src/bin/s_session_v3/q_runtime.rs:1002: ) -> Result<(), String> {
+rust/src/bin/s_session_v3/q_runtime.rs:1003:     let reason = match status {
+rust/src/bin/s_session_v3/q_runtime.rs:1004:         200 => "OK",
+rust/src/bin/s_session_v3/q_runtime.rs:1005:         400 => "Bad Request",
+rust/src/bin/s_session_v3/q_runtime.rs:1006:         404 => "Not Found",
+rust/src/bin/s_session_v3/q_runtime.rs:1007:         414 => "Request-URI Too Long",
+rust/src/bin/s_session_v3/q_runtime.rs:1008:         431 => "Request Header Fields Too Large",
+rust/src/bin/s_session_v3/q_runtime.rs:1009:         501 => "Not Implemented",
+rust/src/bin/s_session_v3/q_runtime.rs:1010:         503 => "Service Unavailable",
+rust/src/bin/s_session_v3/q_runtime.rs:1011:         _ => return Err("Q HTTP状态码未声明".into()),
+rust/src/bin/s_session_v3/q_runtime.rs:1012:     };
+rust/src/bin/s_session_v3/q_runtime.rs:1013:     // 固定字面量 + status 3位 +最长reason 31字节 + usize十进制最大位数。
+rust/src/bin/s_session_v3/q_runtime.rs:1014:     // 用BITS作位数保守上界，每一位十进制至少需要一位二进制，含最末CRLF。
+rust/src/bin/s_session_v3/q_runtime.rs:1015:     const FIXED: &str = "HTTP/1.0  \r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: \r\nCache-Control: no-store\r\nConnection: close\r\n\r\n";
+rust/src/bin/s_session_v3/q_runtime.rs:1016:     const HEADER_MAX: usize =
+rust/src/bin/s_session_v3/q_runtime.rs:1017:         FIXED.len() + 3 + "Request Header Fields Too Large".len() + usize::BITS as usize;
+rust/src/bin/s_session_v3/q_runtime.rs:1018:     struct Header {
+rust/src/bin/s_session_v3/q_runtime.rs:1019:         bytes: [u8; HEADER_MAX],
+rust/src/bin/s_session_v3/q_runtime.rs:1020:         len: usize,
+rust/src/bin/s_session_v3/q_runtime.rs:1021:     }
+rust/src/bin/s_session_v3/q_runtime.rs:1022:     impl std::fmt::Write for Header {
+rust/src/bin/s_session_v3/q_runtime.rs:1023:         fn write_str(&mut self, value: &str) -> std::fmt::Result {
+rust/src/bin/s_session_v3/q_runtime.rs:1024:             let end = self.len.checked_add(value.len()).ok_or(std::fmt::Error)?;
+rust/src/bin/s_session_v3/q_runtime.rs:1025:             let target = self.bytes.get_mut(self.len..end).ok_or(std::fmt::Error)?;
+rust/src/bin/s_session_v3/q_runtime.rs:1026:             target.copy_from_slice(value.as_bytes());
+rust/src/bin/s_session_v3/q_runtime.rs:1027:             self.len = end;
+rust/src/bin/s_session_v3/q_runtime.rs:1028:             Ok(())
+rust/src/bin/s_session_v3/q_runtime.rs:1029:         }
+rust/src/bin/s_session_v3/q_runtime.rs:1030:     }
+rust/src/bin/s_session_v3/q_runtime.rs:1031:     let mut header = Header {
+rust/src/bin/s_session_v3/q_runtime.rs:1032:         bytes: [0; HEADER_MAX],
+rust/src/bin/s_session_v3/q_runtime.rs:1033:         len: 0,
+rust/src/bin/s_session_v3/q_runtime.rs:1034:     };
+rust/src/bin/s_session_v3/q_runtime.rs:1035:     use std::fmt::Write;
+rust/src/bin/s_session_v3/q_runtime.rs:1036:     write!(&mut header, "HTTP/1.0 {status} {reason}\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: {body_len}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n")
+rust/src/bin/s_session_v3/q_runtime.rs:1037:         .map_err(|_| "Q HTTP头栈编码上界错误")?;
+rust/src/bin/s_session_v3/q_runtime.rs:1038:     let deadline = Instant::now()

@@ -1,0 +1,75 @@
+{
+  "ticket": 1394,
+  "classification": "绑定1394工作草稿",
+  "execution_authorized": false,
+  "scope": [
+    "新模块协议状态机",
+    "新模块准入扩展及原stdin gate适配",
+    "原字节与资源/原截止",
+    "内存socket/Popen替身"
+  ],
+  "selected": [
+    "test_product_capture.ProtocolTests.test_complete_real_shapes_raw_order_and_missing_dependency",
+    "test_product_capture.ProtocolTests.test_q_cut_offset_metadata_token_and_identity_stop_before_next",
+    "test_product_capture.ProtocolTests.test_q_full_envelope_required_and_duplicate_json_rejected",
+    "test_product_capture.ProtocolTests.test_q_duplicate_rows_family_order_and_counts_rejected",
+    "test_product_capture.ProtocolTests.test_q_intrafamily_reorder_rejected_before_any_financial_request",
+    "test_product_capture.ProtocolTests.test_validated_digest_may_change_but_issued_identity_must_not",
+    "test_product_capture.ProtocolTests.test_missing_q_page_or_closure_page_never_falls_through",
+    "test_product_capture.ProtocolTests.test_unknown_transport_keeps_attempted_request",
+    "test_product_capture.ProtocolTests.test_basis_all_objects_order_index_hash_and_identity_locked",
+    "test_product_capture.ProtocolTests.test_closure_after_next_total_order_and_node_bytes_locked",
+    "test_product_capture.ProtocolTests.test_raw_closure_whitespace_and_lf_count_against_each_request",
+    "test_product_capture.ProtocolTests.test_errors_stderr_and_nonzero_originals_preserved_without_next",
+    "test_product_capture.ProtocolTests.test_object_request_and_reply_caps_independent",
+    "test_product_capture.ProtocolTests.test_job_wire_counts_http_headers_stderr_and_prior_usage",
+    "test_product_capture.ProtocolTests.test_q_http_request_header_counts_against_original_frame_cap",
+    "test_product_capture.ProtocolTests.test_q_each_page_charges_whole_projection_not_small_returned_slice",
+    "test_product_capture.ProtocolTests.test_jobs_requests_nodes_records_and_session_cumulative",
+    "test_product_capture.ProtocolTests.test_no_default_caps_or_owner_job_borrowing",
+    "test_product_capture.ProtocolTests.test_staged_store_usage_not_reset_and_limits_not_extended",
+    "test_product_capture.ProtocolTests.test_lifecycle_cannot_retry_or_clear_counter_on_second_capture",
+    "test_product_capture.ProtocolTests.test_rejection_halts_entire_lifecycle",
+    "test_product_capture.ProtocolTests.test_deadlines_before_after_and_request_timeout_no_renewal",
+    "test_product_capture.ProtocolTests.test_deadline_minimum_current_whole_job_and_historical_stage",
+    "test_product_capture.ProtocolTests.test_wrong_argv_cold_path_endpoint_and_path_rejected_pre_io",
+    "test_product_capture.ProtocolTests.test_exchange_identity_mismatch_stops",
+    "test_product_capture.ProtocolTests.test_inventory_exact_originals_including_failed_stderr",
+    "test_product_capture.AdmissionTests.test_unadmitted_booleans_strings_and_fake_zero_io",
+    "test_product_capture.AdmissionTests.test_real_driver_pin_receipt_and_lifecycle_reused_without_reset",
+    "test_product_capture.AdmissionTests.test_mutated_binary_argv_endpoint_owner_deadline_zero_io",
+    "test_product_capture.AdmissionTests.test_binary_file_change_rejected_before_supervisor_or_product_connect",
+    "test_product_capture.AdmissionTests.test_product_transport_requires_its_state_machine_and_no_retry",
+    "test_product_capture.AdmissionTests.test_supervisor_ack_returning_late_never_reaches_product_or_read_guard",
+    "test_product_capture.AdmissionTests.test_post_request_guard_refusal_keeps_full_reply_and_stops_next",
+    "test_product_capture.AdmissionTests.test_absent_or_legacy_read_guard_denies_product_io",
+    "test_product_capture.AdmissionTests.test_read_guard_exact_nonce_binding_times_and_usage",
+    "test_product_capture.AdmissionTests.test_stdin_gate_preserves_raw_bytes_after_ack_and_consumes_command_once",
+    "test_product_capture.AdmissionTests.test_stdin_ack_failure_never_writes_gate_or_request",
+    "test_product_capture.AdmissionTests.test_real_http_implementation_on_memory_socket_preserves_wire"
+  ],
+  "count": 38,
+  "commands": [
+    "python3 -B -m unittest -v test_product_capture",
+    "python3 -B -O -m unittest -v test_product_capture"
+  ],
+  "excluded": [
+    "旧37/68/91/82/host123",
+    "旧ps/socket三项",
+    "cargo/rustc",
+    "真实子进程、网络、DB、S/E/B/Q、Long、浏览器、资金"
+  ],
+  "reason": "仅新状态机/传输/准入及其作者自检发现的同范围缺口；复用旧fixture函数，不加载旧TestCase集合。最终计费锁含完整HTTP帧及每页全投影。",
+  "fixed_python": [
+    {
+      "path": "s_session/tests/issue1394_acceptance/product_capture.py",
+      "bytes": 64036,
+      "sha256": "2d364e95e786757cf9d3f4c05cdc414e75d1c1b0c7ecc975b180591b51073e6a"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_product_capture.py",
+      "bytes": 43365,
+      "sha256": "5aad6736c16230009041c41be5093d709f5d9c64269f09985bd92d35d6d63e6f"
+    }
+  ]
+}

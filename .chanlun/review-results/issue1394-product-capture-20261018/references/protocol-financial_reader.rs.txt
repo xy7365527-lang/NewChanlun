@@ -1,0 +1,125 @@
+rust/src/bin/s_session_v3/financial_reader.rs:427: pub(super) fn basis_ref_with(
+rust/src/bin/s_session_v3/financial_reader.rs:428:     tx: &Transaction<'_>,
+rust/src/bin/s_session_v3/financial_reader.rs:429:     request: &Value,
+rust/src/bin/s_session_v3/financial_reader.rs:430:     audited: Option<&state::AuditedState>,
+rust/src/bin/s_session_v3/financial_reader.rs:431: ) -> Result<Value, String> {
+rust/src/bin/s_session_v3/financial_reader.rs:432:     exact(request, &QUERY_FIELDS)?;
+rust/src/bin/s_session_v3/financial_reader.rs:433:     if request["schema_revision"] != "s-financial-query/1" {
+rust/src/bin/s_session_v3/financial_reader.rs:434:         return Err(invalid("SchemaUnsupported：财务点查版本不符"));
+rust/src/bin/s_session_v3/financial_reader.rs:435:     }
+rust/src/bin/s_session_v3/financial_reader.rs:436:     let sid = required(request, "session_id")?;
+rust/src/bin/s_session_v3/financial_reader.rs:437:     let generation = required(request, "session_generation")?;
+rust/src/bin/s_session_v3/financial_reader.rs:438:     let epoch = required(request, "writer_epoch")?;
+rust/src/bin/s_session_v3/financial_reader.rs:439:     positive(generation, "session_generation")?;
+rust/src/bin/s_session_v3/financial_reader.rs:440:     positive(epoch, "writer_epoch")?;
+rust/src/bin/s_session_v3/financial_reader.rs:441:     let wanted = request["object_ids"]
+rust/src/bin/s_session_v3/financial_reader.rs:442:         .as_array()
+rust/src/bin/s_session_v3/financial_reader.rs:443:         .ok_or_else(|| invalid("object_ids须为数组"))?;
+rust/src/bin/s_session_v3/financial_reader.rs:444:     let mut unique = BTreeSet::new();
+rust/src/bin/s_session_v3/financial_reader.rs:445:     for item in wanted {
+rust/src/bin/s_session_v3/financial_reader.rs:446:         let id = item
+rust/src/bin/s_session_v3/financial_reader.rs:447:             .as_str()
+rust/src/bin/s_session_v3/financial_reader.rs:448:             .filter(|s| !s.is_empty())
+rust/src/bin/s_session_v3/financial_reader.rs:449:             .ok_or_else(|| invalid("object_id须为非空文本"))?;
+rust/src/bin/s_session_v3/financial_reader.rs:450:         if !unique.insert(id.to_owned()) {
+rust/src/bin/s_session_v3/financial_reader.rs:451:             return Err(invalid("object_ids重复"));
+rust/src/bin/s_session_v3/financial_reader.rs:452:         }
+rust/src/bin/s_session_v3/financial_reader.rs:453:     }
+rust/src/bin/s_session_v3/financial_reader.rs:454:     let owned;
+rust/src/bin/s_session_v3/financial_reader.rs:455:     let audited = match audited {
+rust/src/bin/s_session_v3/financial_reader.rs:456:         Some(audited) => audited,
+rust/src/bin/s_session_v3/financial_reader.rs:457:         None => {
+rust/src/bin/s_session_v3/financial_reader.rs:458:             owned = state::audit(tx)?;
+rust/src/bin/s_session_v3/financial_reader.rs:459:             &owned
+rust/src/bin/s_session_v3/financial_reader.rs:460:         }
+rust/src/bin/s_session_v3/financial_reader.rs:461:     };
+rust/src/bin/s_session_v3/financial_reader.rs:462:     let mut source = content_store::ReadStore::new(tx).map_err(invalid)?;
+rust/src/bin/s_session_v3/financial_reader.rs:463:     let mut graph = history::HashReader::new(&mut source);
+rust/src/bin/s_session_v3/financial_reader.rs:570:             found
+rust/src/bin/s_session_v3/financial_reader.rs:571:                 .remove(item.as_str().unwrap())
+rust/src/bin/s_session_v3/financial_reader.rs:572:                 .ok_or_else(|| missing("请求对象不在当前活动快照"))
+rust/src/bin/s_session_v3/financial_reader.rs:573:         })
+rust/src/bin/s_session_v3/financial_reader.rs:574:         .collect::<Result<Vec<_>, _>>()?;
+rust/src/bin/s_session_v3/financial_reader.rs:575:     Ok(
+rust/src/bin/s_session_v3/financial_reader.rs:576:         json!({"schema_revision":"s-financial-basis/3","content_format":"s-content/1","kind":"FinancialBasisRef",
+rust/src/bin/s_session_v3/financial_reader.rs:577:         "session_id":basis.session_id,"session_generation":basis.session_generation,"writer_epoch":basis.writer_epoch,
+rust/src/bin/s_session_v3/financial_reader.rs:578:         "pending_revision":false,"commit_ns":basis.commit_ns,"basis_ref":basis.root.to_transport_json(),
+rust/src/bin/s_session_v3/financial_reader.rs:579:         "snapshot_ref":basis.snapshot,"selected_objects":selected,
+rust/src/bin/s_session_v3/financial_reader.rs:580:         "proof_nodes":nodes.into_values().map(|n| n.to_json()).collect::<Vec<_>>() }),
+rust/src/bin/s_session_v3/financial_reader.rs:581:     )
+rust/src/bin/s_session_v3/financial_reader.rs:582: }
+rust/src/bin/s_session_v3/financial_reader.rs:729: pub(super) fn closure_with(
+rust/src/bin/s_session_v3/financial_reader.rs:730:     tx: &Transaction<'_>,
+rust/src/bin/s_session_v3/financial_reader.rs:731:     request: &Value,
+rust/src/bin/s_session_v3/financial_reader.rs:732:     audited: Option<&state::AuditedState>,
+rust/src/bin/s_session_v3/financial_reader.rs:733:     table: &mut Option<ClosureTable>,
+rust/src/bin/s_session_v3/financial_reader.rs:734:     bounds: ClosureBounds,
+rust/src/bin/s_session_v3/financial_reader.rs:735:     stats: &mut ClosureStats,
+rust/src/bin/s_session_v3/financial_reader.rs:736: ) -> Result<Value, String> {
+rust/src/bin/s_session_v3/financial_reader.rs:737:     exact(request, &CLOSURE_FIELDS)?;
+rust/src/bin/s_session_v3/financial_reader.rs:738:     if request["schema_revision"] != CLOSURE_SCHEMA {
+rust/src/bin/s_session_v3/financial_reader.rs:739:         return Err(invalid("SchemaUnsupported：财务闭包版本不符"));
+rust/src/bin/s_session_v3/financial_reader.rs:740:     }
+rust/src/bin/s_session_v3/financial_reader.rs:741:     let anchor = &request["anchor"];
+rust/src/bin/s_session_v3/financial_reader.rs:742:     exact(anchor, &ANCHOR_FIELDS)?;
+rust/src/bin/s_session_v3/financial_reader.rs:743:     let claimed = ContentRef::from_transport_json(&anchor["basis_ref"]).map_err(invalid)?;
+rust/src/bin/s_session_v3/financial_reader.rs:744:     let path = fragment::parse_path(&request["path"]).map_err(invalid)?;
+rust/src/bin/s_session_v3/financial_reader.rs:745:     let after = match request["after"].as_str() {
+rust/src/bin/s_session_v3/financial_reader.rs:746:         Some("") => None,
+rust/src/bin/s_session_v3/financial_reader.rs:747:         Some(root) => Some(sc::parse_root(root).map_err(invalid)?),
+rust/src/bin/s_session_v3/financial_reader.rs:748:         None => return Err(invalid("after须为文本")),
+rust/src/bin/s_session_v3/financial_reader.rs:749:     };
+rust/src/bin/s_session_v3/financial_reader.rs:750:     let budget = positive(
+rust/src/bin/s_session_v3/financial_reader.rs:751:         required(request, "max_reply_bytes").map_err(invalid)?,
+rust/src/bin/s_session_v3/financial_reader.rs:752:         "max_reply_bytes",
+rust/src/bin/s_session_v3/financial_reader.rs:753:     )
+rust/src/bin/s_session_v3/financial_reader.rs:754:     .map_err(invalid)?;
+rust/src/bin/s_session_v3/financial_reader.rs:827:         return Err(invalid("after 之后已无闭包节点"));
+rust/src/bin/s_session_v3/financial_reader.rs:828:     }
+rust/src/bin/s_session_v3/financial_reader.rs:829:     let mut reply = json!({"anchor":anchor,"path":request["path"],"after":request["after"],
+rust/src/bin/s_session_v3/financial_reader.rs:830:         "target_ref":index.target.to_transport_json(),"total":digests.len().to_string(),
+rust/src/bin/s_session_v3/financial_reader.rs:831:         "nodes":[],"next":sc::root_string(&digests[start]),"done":false,"ok":true});
+rust/src/bin/s_session_v3/financial_reader.rs:832:     // 末尾 LF 计入；占位 next 与真实值等长，done 由 false 改为 true 只会变短。
+rust/src/bin/s_session_v3/financial_reader.rs:833:     let mut used = u64::try_from(canonical_json(&reply).len()).map_err(invalid)? + 1;
+rust/src/bin/s_session_v3/financial_reader.rs:834:     let mut nodes = Vec::new();
+rust/src/bin/s_session_v3/financial_reader.rs:835:     let mut end = start;
+rust/src/bin/s_session_v3/financial_reader.rs:836:     while end < digests.len() {
+rust/src/bin/s_session_v3/financial_reader.rs:837:         let digest = digests[end];
+rust/src/bin/s_session_v3/financial_reader.rs:838:         let (tag, body) = match sc::NodeSource::read(&mut graph, &digest).map_err(invalid)? {
+rust/src/bin/s_session_v3/financial_reader.rs:839:             sc::NodeRead::Found { tag, body } => (tag, body),
+rust/src/bin/s_session_v3/financial_reader.rs:840:             sc::NodeRead::Missing => return Err(missing("已审副本缺闭包节点")),
+rust/src/bin/s_session_v3/financial_reader.rs:841:         };
+rust/src/bin/s_session_v3/financial_reader.rs:842:         if sc::frame(tag, &body) != digest {
+rust/src/bin/s_session_v3/financial_reader.rs:843:             return Err(invalid("闭包节点 F(tag,body) 与摘要不符"));
+rust/src/bin/s_session_v3/financial_reader.rs:844:         }
+rust/src/bin/s_session_v3/financial_reader.rs:845:         let node = ProofNode {
+rust/src/bin/s_session_v3/financial_reader.rs:846:             root: sc::root_string(&digest),
+rust/src/bin/s_session_v3/financial_reader.rs:847:             tag: format!("{tag:02x}"),
+rust/src/bin/s_session_v3/financial_reader.rs:848:             body_hex: hex_lower(&body),
+rust/src/bin/s_session_v3/financial_reader.rs:849:         }
+rust/src/bin/s_session_v3/financial_reader.rs:850:         .to_json();
+rust/src/bin/s_session_v3/financial_reader.rs:851:         let size = u64::try_from(canonical_json(&node).len()).map_err(invalid)?
+rust/src/bin/s_session_v3/financial_reader.rs:852:             + u64::from(!nodes.is_empty());
+rust/src/bin/s_session_v3/financial_reader.rs:853:         if used.saturating_add(size) > budget {
+rust/src/bin/s_session_v3/financial_reader.rs:854:             break;
+rust/src/bin/s_session_v3/financial_reader.rs:855:         }
+rust/src/bin/s_session_v3/financial_reader.rs:856:         used += size;
+rust/src/bin/s_session_v3/financial_reader.rs:857:         nodes.push(node);
+rust/src/bin/s_session_v3/financial_reader.rs:858:         end += 1;
+rust/src/bin/s_session_v3/financial_reader.rs:859:     }
+rust/src/bin/s_session_v3/financial_reader.rs:860:     if nodes.is_empty() {
+rust/src/bin/s_session_v3/financial_reader.rs:861:         return Err(closure_refusal(
+rust/src/bin/s_session_v3/financial_reader.rs:862:             "ClosureReplyBytes",
+rust/src/bin/s_session_v3/financial_reader.rs:863:             "单个闭包节点超过请求的 max_reply_bytes",
+rust/src/bin/s_session_v3/financial_reader.rs:864:         ));
+rust/src/bin/s_session_v3/financial_reader.rs:865:     }
+rust/src/bin/s_session_v3/financial_reader.rs:866:     stats.nodes = u64::try_from(nodes.len()).unwrap_or(u64::MAX);
+rust/src/bin/s_session_v3/financial_reader.rs:867:     reply["nodes"] = Value::Array(nodes);
+rust/src/bin/s_session_v3/financial_reader.rs:868:     reply["next"] = json!(sc::root_string(&digests[end - 1]));
+rust/src/bin/s_session_v3/financial_reader.rs:869:     reply["done"] = json!(end == digests.len());
+rust/src/bin/s_session_v3/financial_reader.rs:870:     Ok(reply)
+rust/src/bin/s_session_v3/financial_reader.rs:871: }
+rust/src/bin/s_session_v3/financial_reader.rs:872: // ===== financial-closure 结束 =====
+rust/src/bin/s_session_v3/financial_reader.rs:873: 
+rust/src/bin/s_session_v3/financial_reader.rs:874: #[cfg(test)]
+rust/src/bin/s_session_v3/financial_reader.rs:875: mod tests {

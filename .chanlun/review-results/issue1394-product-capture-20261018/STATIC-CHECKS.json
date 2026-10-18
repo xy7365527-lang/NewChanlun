@@ -1,0 +1,517 @@
+{
+  "ticket": 1394,
+  "base_commit": "827ac95f3b9aebc36c0a493fe273aac7699481e0",
+  "head": "827ac95f3b9aebc36c0a493fe273aac7699481e0",
+  "branch": "codex/1394-acceptance-integration-20261018",
+  "execution_authorized": false,
+  "product_status": "NOT_RUN",
+  "modules": [
+    {
+      "path": "s_session/tests/issue1394_acceptance/captured_cut.py",
+      "bytes": 25853,
+      "sha256": "8ca23ec3257dbe3db4e9260a1b45c22bdf62b666f7b9e4a6e141811b6010d3f8",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/closure.py",
+      "bytes": 8290,
+      "sha256": "5459ab3d8dce283677efead39206c2fbba4593d965f913c5f5c7336a1258762d",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/control.py",
+      "bytes": 6301,
+      "sha256": "950595b87956e6d8923c816cac9739d7aff29c0582f5a2bfe8bfd9383ddb8057",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/driver.py",
+      "bytes": 44599,
+      "sha256": "1735bffa631b1d4789f363204fec97fd26ceccd1ca439cc340bcd00a8ebf05f7",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/evidence.py",
+      "bytes": 5318,
+      "sha256": "92af6d56aecde7ea051de178fea72135b6c5b35a430ec44940cd425db2a0ce10",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/financial_oracle.py",
+      "bytes": 17454,
+      "sha256": "edc5b5477e7b185582a2a65cbd31e07d7015c49a9e203c630a697646f4d3d854",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/journal.py",
+      "bytes": 9663,
+      "sha256": "ff08d15e084216d1d6b8bb1efe8e3dcb74bfe281b20edb8262ad3e61c1211781",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/oracle.py",
+      "bytes": 3299,
+      "sha256": "16639a001aa73662b00209934513d808a0d0b3600023e2d3e2f35eb263e54eb7",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/product_capture.py",
+      "bytes": 64036,
+      "sha256": "2d364e95e786757cf9d3f4c05cdc414e75d1c1b0c7ecc975b180591b51073e6a",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/run_checks.py",
+      "bytes": 1720,
+      "sha256": "94c180cd611cc7d2f1a99f94bb61fed6594d8aac8ea52470aefc7cbb91072bae",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/scheduler.py",
+      "bytes": 23479,
+      "sha256": "9c0d876f159e7b7cc33bfb55dae12ad67ff0b29cf7c56bf6e08d87032f8a6a16",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/supervisor.py",
+      "bytes": 14324,
+      "sha256": "6840975995c90397b1aa9bba3bb6b091a422af65f094ad37c32b6d035a9642ee",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_capture_bridge.py",
+      "bytes": 20988,
+      "sha256": "f0e68226c82f3a2d9c8a27b8714faab1a998ce4431a8168c3048d10686d8a128",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 10,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_closure.py",
+      "bytes": 5537,
+      "sha256": "d4f6772d82109c9cd05901cf667bf21d3b1740e11976036c86352eeb5a2d5710",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 9,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_control.py",
+      "bytes": 5375,
+      "sha256": "2c96cffc3b024f798d863b40bc345e386283c39f5e2da5853ab00b5fcdd01711",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 5,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver.py",
+      "bytes": 31184,
+      "sha256": "fd443df0c247934a8b2435d9e98169ed33f97baec6e17eca647ebab5d4b58176",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 41,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver_regressions.py",
+      "bytes": 6602,
+      "sha256": "621e990d5c7c6ed9dbe512efd30c7957696b346575439ddf5b5068bc95fc5b5d",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 5,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_evidence.py",
+      "bytes": 6289,
+      "sha256": "11cac54a757c437b660441f82a0d2b0e4843bcc22eb1106d30a2b8232933e52c",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 7,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_financial_oracle.py",
+      "bytes": 12185,
+      "sha256": "d643adef91a95a79b7c247af07c7a0259b9eac8f45e9951244af52ca8589c205",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 10,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_journal.py",
+      "bytes": 5205,
+      "sha256": "7f63cc0d2535d481b676818d88282729d40738568c84e761a7dd6c01c0876fde",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 7,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_product_capture.py",
+      "bytes": 43365,
+      "sha256": "5aad6736c16230009041c41be5093d709f5d9c64269f09985bd92d35d6d63e6f",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 38,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review01.py",
+      "bytes": 15165,
+      "sha256": "f5caecc55061352166cf22b6e08ed0c29ed83916c8f1e6e7d570bb1250c6c4e9",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 14,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review02.py",
+      "bytes": 20621,
+      "sha256": "94cbc050baa085104a7b67fcd580ef635afa952f10be63a23512b826f8e888e7",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 17,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review03.py",
+      "bytes": 13515,
+      "sha256": "1bd6d532d74dc7938a50b2840e050786c06eb2f109a2aa26885e1efc306e7196",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 13,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler.py",
+      "bytes": 19433,
+      "sha256": "8abd24b983978336ac9c86cf4cb89548ab5e87eea38b2dc2bf97140ffd440b58",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 27,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler_integration.py",
+      "bytes": 1389,
+      "sha256": "98b0d9bb348d3b1190e3ae0d623dc2e0e5d4ff9a4763e319c00463bc618424b8",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 2,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_supervisor.py",
+      "bytes": 7889,
+      "sha256": "57899f3abedebdb5be90606b5d812c8f8d4c6604f579b9e208d9d242f885b651",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 10,
+      "assert_nodes": 0
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/voice_bridge.py",
+      "bytes": 11955,
+      "sha256": "36248173678a4167aaadb5a3840de11d3d4f477963f4926f070de6fb33b63dfc",
+      "ast_compile_modes": [
+        0,
+        1
+      ],
+      "test_methods": 0,
+      "assert_nodes": 0
+    }
+  ],
+  "old_python_unchanged": [
+    {
+      "path": "s_session/tests/issue1394_acceptance/captured_cut.py",
+      "bytes": 25853,
+      "sha256": "8ca23ec3257dbe3db4e9260a1b45c22bdf62b666f7b9e4a6e141811b6010d3f8",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/closure.py",
+      "bytes": 8290,
+      "sha256": "5459ab3d8dce283677efead39206c2fbba4593d965f913c5f5c7336a1258762d",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/control.py",
+      "bytes": 6301,
+      "sha256": "950595b87956e6d8923c816cac9739d7aff29c0582f5a2bfe8bfd9383ddb8057",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/driver.py",
+      "bytes": 44599,
+      "sha256": "1735bffa631b1d4789f363204fec97fd26ceccd1ca439cc340bcd00a8ebf05f7",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/evidence.py",
+      "bytes": 5318,
+      "sha256": "92af6d56aecde7ea051de178fea72135b6c5b35a430ec44940cd425db2a0ce10",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/financial_oracle.py",
+      "bytes": 17454,
+      "sha256": "edc5b5477e7b185582a2a65cbd31e07d7015c49a9e203c630a697646f4d3d854",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/journal.py",
+      "bytes": 9663,
+      "sha256": "ff08d15e084216d1d6b8bb1efe8e3dcb74bfe281b20edb8262ad3e61c1211781",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/oracle.py",
+      "bytes": 3299,
+      "sha256": "16639a001aa73662b00209934513d808a0d0b3600023e2d3e2f35eb263e54eb7",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/run_checks.py",
+      "bytes": 1720,
+      "sha256": "94c180cd611cc7d2f1a99f94bb61fed6594d8aac8ea52470aefc7cbb91072bae",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/scheduler.py",
+      "bytes": 23479,
+      "sha256": "9c0d876f159e7b7cc33bfb55dae12ad67ff0b29cf7c56bf6e08d87032f8a6a16",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/supervisor.py",
+      "bytes": 14324,
+      "sha256": "6840975995c90397b1aa9bba3bb6b091a422af65f094ad37c32b6d035a9642ee",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_capture_bridge.py",
+      "bytes": 20988,
+      "sha256": "f0e68226c82f3a2d9c8a27b8714faab1a998ce4431a8168c3048d10686d8a128",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_closure.py",
+      "bytes": 5537,
+      "sha256": "d4f6772d82109c9cd05901cf667bf21d3b1740e11976036c86352eeb5a2d5710",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_control.py",
+      "bytes": 5375,
+      "sha256": "2c96cffc3b024f798d863b40bc345e386283c39f5e2da5853ab00b5fcdd01711",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver.py",
+      "bytes": 31184,
+      "sha256": "fd443df0c247934a8b2435d9e98169ed33f97baec6e17eca647ebab5d4b58176",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver_regressions.py",
+      "bytes": 6602,
+      "sha256": "621e990d5c7c6ed9dbe512efd30c7957696b346575439ddf5b5068bc95fc5b5d",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_evidence.py",
+      "bytes": 6289,
+      "sha256": "11cac54a757c437b660441f82a0d2b0e4843bcc22eb1106d30a2b8232933e52c",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_financial_oracle.py",
+      "bytes": 12185,
+      "sha256": "d643adef91a95a79b7c247af07c7a0259b9eac8f45e9951244af52ca8589c205",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_journal.py",
+      "bytes": 5205,
+      "sha256": "7f63cc0d2535d481b676818d88282729d40738568c84e761a7dd6c01c0876fde",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review01.py",
+      "bytes": 15165,
+      "sha256": "f5caecc55061352166cf22b6e08ed0c29ed83916c8f1e6e7d570bb1250c6c4e9",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review02.py",
+      "bytes": 20621,
+      "sha256": "94cbc050baa085104a7b67fcd580ef635afa952f10be63a23512b826f8e888e7",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review03.py",
+      "bytes": 13515,
+      "sha256": "1bd6d532d74dc7938a50b2840e050786c06eb2f109a2aa26885e1efc306e7196",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler.py",
+      "bytes": 19433,
+      "sha256": "8abd24b983978336ac9c86cf4cb89548ab5e87eea38b2dc2bf97140ffd440b58",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler_integration.py",
+      "bytes": 1389,
+      "sha256": "98b0d9bb348d3b1190e3ae0d623dc2e0e5d4ff9a4763e319c00463bc618424b8",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_supervisor.py",
+      "bytes": 7889,
+      "sha256": "57899f3abedebdb5be90606b5d812c8f8d4c6604f579b9e208d9d242f885b651",
+      "baseline_equal": true
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/voice_bridge.py",
+      "bytes": 11955,
+      "sha256": "36248173678a4167aaadb5a3840de11d3d4f477963f4926f070de6fb33b63dfc",
+      "baseline_equal": true
+    }
+  ],
+  "original_driver_test_methods": 41,
+  "original_scheduler_test_methods": 27,
+  "checks": [
+    {
+      "command": [
+        "git",
+        "diff",
+        "--no-index",
+        "--check",
+        "/dev/null",
+        "s_session/tests/issue1394_acceptance/product_capture.py"
+      ],
+      "exit_code": 1,
+      "output": "",
+      "meaning": "新文件差异存在（此git的no-index退出1）；无空白错误输出"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--no-index",
+        "--check",
+        "/dev/null",
+        "s_session/tests/issue1394_acceptance/test_product_capture.py"
+      ],
+      "exit_code": 1,
+      "output": "",
+      "meaning": "新文件差异存在（此git的no-index退出1）；无空白错误输出"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "output": ""
+    }
+  ],
+  "scope_check": "当前git状态仅两个新源码/测试文件与新报告目录；无旧文件差异",
+  "production_assert_statements": 0
+}

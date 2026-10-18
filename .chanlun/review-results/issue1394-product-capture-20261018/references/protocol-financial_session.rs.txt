@@ -1,0 +1,29 @@
+rust/src/bin/s_session_v3/financial_session.rs:1833: 
+rust/src/bin/s_session_v3/financial_session.rs:1834: /// 客户端：`<financial-basis-ref|financial-content|financial-closure> --protocol-revision s-session/3 --db <db>
+rust/src/bin/s_session_v3/financial_session.rs:1835: /// --session <socket>`。只转发 stdin 原字节、自身二进制 SHA 与 --db 的 (dev, ino)，把回复原字节
+rust/src/bin/s_session_v3/financial_session.rs:1836: /// 写到 stdout；会话拒绝即以其原因失败；从不本地审计、从不回落冷路径。
+rust/src/bin/s_session_v3/financial_session.rs:1837: pub(super) fn client(args: &[String]) -> Result<(), String> {
+rust/src/bin/s_session_v3/financial_session.rs:1838:     let command = args.get(1).map(String::as_str).unwrap_or_default();
+rust/src/bin/s_session_v3/financial_session.rs:1839:     if !matches!(
+rust/src/bin/s_session_v3/financial_session.rs:1840:         command,
+rust/src/bin/s_session_v3/financial_session.rs:1841:         "financial-basis-ref" | "financial-content" | "financial-closure"
+rust/src/bin/s_session_v3/financial_session.rs:1842:     ) {
+rust/src/bin/s_session_v3/financial_session.rs:1843:         return Err(invalid("会话客户端只接受三条财务命令"));
+rust/src/bin/s_session_v3/financial_session.rs:1844:     }
+rust/src/bin/s_session_v3/financial_session.rs:1845:     let flags = parse_flags(
+rust/src/bin/s_session_v3/financial_session.rs:1846:         args,
+rust/src/bin/s_session_v3/financial_session.rs:1847:         &["--protocol-revision", "--db", "--session"],
+rust/src/bin/s_session_v3/financial_session.rs:1848:         "会话客户端",
+rust/src/bin/s_session_v3/financial_session.rs:1849:     )?;
+rust/src/bin/s_session_v3/financial_session.rs:1850:     let db = Path::new(&flags.0["--db"]);
+rust/src/bin/s_session_v3/financial_session.rs:1851:     let identity = super::financial_reader::client_db_identity(db)?;
+rust/src/bin/s_session_v3/financial_session.rs:1852:     let mut body = Vec::new();
+rust/src/bin/s_session_v3/financial_session.rs:1853:     std::io::stdin().read_to_end(&mut body).map_err(invalid)?;
+rust/src/bin/s_session_v3/financial_session.rs:1854:     let sha = self_sha256()?;
+rust/src/bin/s_session_v3/financial_session.rs:1855:     let stream = connect(&flags.0["--session"])?;
+rust/src/bin/s_session_v3/financial_session.rs:1856:     let deadline = Instant::now() + Duration::from_millis(CLIENT_WAIT_MS);
+rust/src/bin/s_session_v3/financial_session.rs:1857:     let reply = exchange(stream, command, &sha, identity, &body, deadline)?;
+rust/src/bin/s_session_v3/financial_session.rs:1858:     let mut out = std::io::stdout().lock();
+rust/src/bin/s_session_v3/financial_session.rs:1859:     out.write_all(&reply).map_err(invalid)?;
+rust/src/bin/s_session_v3/financial_session.rs:1860:     out.flush().map_err(invalid)
+rust/src/bin/s_session_v3/financial_session.rs:1861: }

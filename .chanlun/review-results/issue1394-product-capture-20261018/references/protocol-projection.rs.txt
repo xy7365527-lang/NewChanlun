@@ -1,0 +1,55 @@
+rust/src/bin/s_session_v3/projection.rs:341:     let mut rows = bj::json_from_view(JsonView::ArraySlice(&[]), budget.as_ref())?;
+rust/src/bin/s_session_v3/projection.rs:342:     let mut row_roots = bj::new_work(budget.as_ref());
+rust/src/bin/s_session_v3/projection.rs:343:     let mut counts = [UDecimal::new(0); 7];
+rust/src/bin/s_session_v3/projection.rs:344:     let mut object_ids = bj::new_map(budget.as_ref());
+rust/src/bin/s_session_v3/projection.rs:345:     for (family_index, family) in FAMILIES.into_iter().enumerate() {
+rust/src/bin/s_session_v3/projection.rs:346:         let mut ordered = bj::new_work(budget.as_ref());
+rust/src/bin/s_session_v3/projection.rs:347:         if let Some(cut) = cut {
+rust/src/bin/s_session_v3/projection.rs:348:             let collection = field(&mut s, cut.snapshot.view(), family)?;
+rust/src/bin/s_session_v3/projection.rs:349:             if collection.kind() != Kind::Array {
+rust/src/bin/s_session_v3/projection.rs:350:                 return Err(err("快照记录族不是数组"));
+rust/src/bin/s_session_v3/projection.rs:351:             }
+rust/src/bin/s_session_v3/projection.rs:352:             for i in 0..collection.extent().ok_or_else(|| err("数组缺extent"))? {
+rust/src/bin/s_session_v3/projection.rs:353:                 s.job.charge_records(1).map_err(err)?;
+rust/src/bin/s_session_v3/projection.rs:354:                 let record = s
+rust/src/bin/s_session_v3/projection.rs:355:                     .lookup_ref(collection.view(), &[sc::path::PathStep::Index(i)])
+rust/src/bin/s_session_v3/projection.rs:356:                     .map_err(err)?;
+rust/src/bin/s_session_v3/projection.rs:357:                 let (order, key) = record_order_key(&mut s, family, record.view())?;
+rust/src/bin/s_session_v3/projection.rs:358:                 ordered.try_push((order, key, record, i)).map_err(err)?;
+rust/src/bin/s_session_v3/projection.rs:359:             }
+rust/src/bin/s_session_v3/projection.rs:360:         }
+rust/src/bin/s_session_v3/projection.rs:361:         // ordinal保留原stable排序的平局顺序，unstable不分配普通sort scratch。
+rust/src/bin/s_session_v3/projection.rs:362:         ordered.sort_unstable_by(|a, b| a.0[..].cmp(&b.0[..]).then(a.3.cmp(&b.3)));
+rust/src/bin/s_session_v3/projection.rs:363:         let mut keys = bj::new_map(budget.as_ref());
+rust/src/bin/s_session_v3/projection.rs:364:         counts[family_index] = UDecimal::new(ordered.len() as u64);
+rust/src/bin/s_session_v3/projection.rs:365:         for (_, key, record, _) in ordered {
+rust/src/bin/s_session_v3/projection.rs:366:             if keys
+rust/src/bin/s_session_v3/projection.rs:367:                 .insert(key.try_clone(budget.as_ref())?, ())
+rust/src/bin/s_session_v3/projection.rs:368:                 .map_err(err)?
+rust/src/bin/s_session_v3/projection.rs:369:                 .is_some()
+rust/src/bin/s_session_v3/projection.rs:370:             {
+rust/src/bin/s_session_v3/projection.rs:371:                 return Err(err(format!("{family}含重复公开键")));
+rust/src/bin/s_session_v3/projection.rs:372:             }
+rust/src/bin/s_session_v3/projection.rs:373:             if matches!(family, "objects" | "withdrawn_objects")
+rust/src/bin/s_session_v3/projection.rs:374:                 && object_ids
+rust/src/bin/s_session_v3/projection.rs:375:                     .insert(key.try_clone(budget.as_ref())?, ())
+rust/src/bin/s_session_v3/projection.rs:376:                     .map_err(err)?
+rust/src/bin/s_session_v3/projection.rs:377:                     .is_some()
+rust/src/bin/s_session_v3/projection.rs:378:             {
+rust/src/bin/s_session_v3/projection.rs:379:                 return Err(err("active/withdrawn对象身份冲突"));
+rust/src/bin/s_session_v3/projection.rs:380:             }
+rust/src/bin/s_session_v3/projection.rs:381:             let record_transport = TransportView::new(record.view());
+rust/src/bin/s_session_v3/projection.rs:382:             let row_fields = [
+rust/src/bin/s_session_v3/projection.rs:383:                 ("family", JsonView::String(family)),
+rust/src/bin/s_session_v3/projection.rs:384:                 ("key", key.view()),
+rust/src/bin/s_session_v3/projection.rs:385:                 ("record", record_transport.view()),
+rust/src/bin/s_session_v3/projection.rs:386:             ];
+rust/src/bin/s_session_v3/projection.rs:387:             let row = JsonView::object_fields(&row_fields).map_err(err)?;
+rust/src/bin/s_session_v3/projection.rs:388:             row_roots
+rust/src/bin/s_session_v3/projection.rs:389:                 .try_push(sc::ValueView::Edge(
+rust/src/bin/s_session_v3/projection.rs:390:                     edge_object(&mut s, row, &[("record", &record)])?
+rust/src/bin/s_session_v3/projection.rs:391:                         .digest()
+rust/src/bin/s_session_v3/projection.rs:392:                         .map_err(err)?,
+rust/src/bin/s_session_v3/projection.rs:393:                 ))
+rust/src/bin/s_session_v3/projection.rs:394:                 .map_err(err)?;
+rust/src/bin/s_session_v3/projection.rs:395:             push_array(&mut rows, row)?;
