@@ -3,6 +3,7 @@ use super::super::audit_owner::{
     BoundRawAdvance, Edit, RawAdvanceBinding, SourceArray, SourceCutBinding, SourceMaterial,
 };
 use super::super::audit_retention::{self as retention, Retained, RetainedDelta};
+use super::super::business_json::TextValue;
 use super::*;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
@@ -25,8 +26,7 @@ fn fields_bytes(fields: &SourceFields<'_>, _names: &[&str]) -> usize {
 fn coords_bytes(coords: &SourceCoords) -> usize {
     match coords {
         SourceCoords::Original(v) => v.capacity().saturating_mul(std::mem::size_of::<i64>()),
-        SourceCoords::Shared(v) => (2 * std::mem::size_of::<usize>())
-            .saturating_add(v.len().saturating_mul(std::mem::size_of::<i64>())),
+        SourceCoords::Shared(v) => v.allocation_bytes(),
     }
 }
 impl Retained for Shape {
@@ -186,7 +186,7 @@ impl GroupLookup for Map<i64, Group> {
         self.values.len()
     }
 }
-impl ShapeLookup for Map<String, Shape> {
+impl ShapeLookup for Map<TextValue, Shape> {
     fn get(&self, id: &str) -> Option<&Shape> {
         self.values.get(id)
     }
@@ -248,8 +248,8 @@ impl<K> Retained for Tree<K> {
         self.bytes
     }
 }
-fn owned(s: &(impl CodecRead + ?Sized), text: &str) -> Result<String, String> {
-    s.native_string(text).map_err(err)
+fn owned(s: &(impl CodecRead + ?Sized), text: &str) -> Result<TextValue, String> {
+    s.native_text(text)
 }
 fn vec_push<T>(s: &(impl CodecRead + ?Sized), v: &mut Vec<T>, value: T) -> Result<(), String> {
     s.native_vec_room(v, 1).map_err(err)?;
@@ -367,7 +367,7 @@ impl Retained for Entry {
     }
 }
 struct Witness {
-    id: String,
+    id: TextValue,
     slot: i64,
 }
 impl Retained for Witness {
@@ -386,8 +386,8 @@ impl Retained for Observation {
     }
 }
 struct Request {
-    key: String,
-    subject: Option<String>,
+    key: TextValue,
+    subject: Option<TextValue>,
     coord: Option<i64>,
 }
 impl Retained for Request {
@@ -437,33 +437,33 @@ pub(crate) struct NativeSourceState {
     root: Built,
     raw_binding: RawAdvanceBinding,
     raw_prefix: usize,
-    rule: String,
+    rule: TextValue,
     raw: Map<i64, Source>,
     raw_ordinals: Map<i64, usize>,
     raw_order: Tree<i64>,
     objects: Map<Handle, Entry>,
     object_order: Order,
     object_sequence: Option<sc::SequenceRef>,
-    ids: Map<String, Handle>,
-    structure_dependents: Map<String, Tree<Handle>>,
-    structure_entities: Map<String, Handle>,
-    structure_entity_dependents: Map<String, Tree<Handle>>,
-    structure_versions: Map<String, Handle>,
+    ids: Map<TextValue, Handle>,
+    structure_dependents: Map<TextValue, Tree<Handle>>,
+    structure_entities: Map<TextValue, Handle>,
+    structure_entity_dependents: Map<TextValue, Tree<Handle>>,
+    structure_versions: Map<TextValue, Handle>,
     structure_changes: Tree<Handle>,
     groups: Map<i64, Group>,
     group_ids: Map<i64, Handle>,
     group_indices: Tree<i64>,
     gaps: Tree<i64>,
-    shapes: Map<String, Shape>,
-    shape_slots: Map<String, (u8, usize)>,
-    missing_shapes: Tree<String>,
+    shapes: Map<TextValue, Shape>,
+    shape_slots: Map<TextValue, (u8, usize)>,
+    missing_shapes: Tree<TextValue>,
     raw_objects: Map<i64, Tree<Handle>>,
     group_shapes: Map<i64, Tree<Handle>>,
-    shape_witnesses: Map<String, Tree<Handle>>,
+    shape_witnesses: Map<TextValue, Tree<Handle>>,
     witnesses: Map<Handle, Witness>,
     witness_order: Order,
     witness_sequence: Option<sc::SequenceRef>,
-    slots: Map<(String, i64), Handle>,
+    slots: Map<(TextValue, i64), Handle>,
     observations: Map<NodeDigest, Observation>,
     observation_sequence: Option<sc::SequenceRef>,
     insufficient: usize,
@@ -471,7 +471,7 @@ pub(crate) struct NativeSourceState {
     steps: Map<i64, StepState>,
     step_coords: Tree<i64>,
     step_handles: Map<Handle, i64>,
-    step_subjects: Map<String, i64>,
+    step_subjects: Map<TextValue, i64>,
     knowledge: Option<Handle>,
     pending: Tree<i64>,
     members: Map<i64, Tree<(i64, usize)>>,
@@ -481,9 +481,9 @@ pub(crate) struct NativeSourceState {
     requests: Map<Handle, Request>,
     request_order: Order,
     request_sequence: Option<sc::SequenceRef>,
-    request_keys: Map<String, Handle>,
+    request_keys: Map<TextValue, Handle>,
     request_bound: Map<i64, Handle>,
-    request_subjects: Map<String, Tree<Handle>>,
+    request_subjects: Map<TextValue, Tree<Handle>>,
     step_requests: Map<i64, Tree<Handle>>,
     missing_requests: Tree<i64>,
     pub(crate) work: SourceWork,
@@ -1005,7 +1005,7 @@ struct ObjectKeys<'a> {
     at: Handle,
     order: &'a Order,
     events: &'a mut Tree<(usize, Handle)>,
-    ids: &'a mut Map<String, Handle>,
+    ids: &'a mut Map<TextValue, Handle>,
     group_ids: &'a mut Map<i64, Handle>,
     groups: &'a mut Map<i64, Group>,
     group: Option<i64>,
@@ -1688,8 +1688,8 @@ impl NativeSourceState {
     }
 }
 struct NativeObjects<'a> {
-    ids: &'a Map<String, Handle>,
-    entities: &'a Map<String, Handle>,
+    ids: &'a Map<TextValue, Handle>,
+    entities: &'a Map<TextValue, Handle>,
     objects: &'a Map<Handle, Entry>,
 }
 impl source_structure::Lookup for NativeObjects<'_> {
@@ -1708,7 +1708,7 @@ impl source_structure::Lookup for NativeObjects<'_> {
 }
 struct NativeSteps<'a> {
     steps: &'a Map<i64, StepState>,
-    subjects: &'a Map<String, i64>,
+    subjects: &'a Map<TextValue, i64>,
     objects: NativeObjects<'a>,
 }
 impl source_structure::Lookup for NativeSteps<'_> {
@@ -1728,7 +1728,7 @@ struct RequestKeys<'a> {
     at: Handle,
     order: &'a Order,
     events: &'a mut Tree<(usize, Handle)>,
-    keys: &'a mut Map<String, Handle>,
+    keys: &'a mut Map<TextValue, Handle>,
     bound: &'a mut Map<i64, Handle>,
 }
 impl RequestSlots for RequestKeys<'_> {
@@ -2021,7 +2021,7 @@ struct WitnessKeys<'a> {
     at: Handle,
     order: &'a Order,
     events: &'a mut Tree<(usize, Handle)>,
-    slots: &'a mut Map<(String, i64), Handle>,
+    slots: &'a mut Map<(TextValue, i64), Handle>,
 }
 impl WitnessSlots for WitnessKeys<'_> {
     fn reserve(&mut self, _: &(impl CodecRead + ?Sized)) -> Result<(), String> {

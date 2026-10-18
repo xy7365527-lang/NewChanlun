@@ -52,14 +52,15 @@
 
 #![allow(dead_code)]
 
-use super::audit_store::CodecRead;
-use super::business_json::{self as bj, RawEventsView};
+use super::audit_store::{CodecRead, CodecStore};
+use super::business_json::{self as bj, JsonOwner, RawEventsView, TextValue};
+use super::fixed_radix::FixedRadix;
 use super::{content_structure, object_records};
 use crate::content_bi::{BiBuildInputView, BiLedgerView, ContentBi, PriorState};
 use crate::content_producer::{
-    array_from_sequence, group_reasons, raw_prefix_coords, Cc004Producer, Cc006Object, Cc007Object,
-    ParserFractalShape, ProducerError, RawRefSpec, TypedObject, CC004_STEP_KIND, CC005_GROUP_KIND,
-    CC006_SHAPE_KIND, CC007_FRACTAL_KIND, CC054_KNOWLEDGE_KIND,
+    array_from_sequence, group_reasons_admitted, raw_prefix_coords, Cc004Producer, Cc006Object,
+    Cc007Object, ParserFractalShape, ProducerError, RawRefSpec, TypedObject, CC004_STEP_KIND,
+    CC005_GROUP_KIND, CC006_SHAPE_KIND, CC007_FRACTAL_KIND, CC054_KNOWLEDGE_KIND,
 };
 use crate::s_fact_cache;
 use newchan_rust::s_content::path::PathStep;
@@ -68,17 +69,16 @@ use newchan_rust::s_content::{
     Value as CValue,
 };
 use newchan_rust::session_protocol::parse_canonical_i64;
-use newchan_rust::theta_v0::classifier::local_shape::{
-    classify_local_shape_sliding, Cc006LocalShape,
-};
+use newchan_rust::theta_v0::classifier::local_shape::{classify_local_shape, Cc006LocalShape};
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser;
 use newchan_rust::theta_v0::parser::inclusion::{GroupEvidenceView, IncrFactsState};
 use newchan_rust::theta_v0::types::Bar;
 use sc::capture_allocation::audit_json::JsonView;
+use sc::capture_allocation::native_owned::NativeValue;
+use sc::{CodecVec, ValueView as VV};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
 
 /// 同一已核活跃发布索引选择的 C/D/E/F 前代根；空值仅用于首代/旧 A/B 域。
 #[derive(Default)]
@@ -89,7 +89,7 @@ pub(super) struct StructurePriors<'a> {
 }
 
 /// 生成输入：全部取调用方**同一读集**的真实值；本文不读库、不重排、不补默认。
-pub(super) struct GenerationInput<'a> {
+pub(super) struct GenerationInput<'a, 'p> {
     /// 全修订史（`read_raw_events` 的 seq 序，含历史修订）。
     pub all_events: RawEventsView<'a>,
     /// 当前生效账（每个业务身份的最新 revision，按 source_coord 升序）。
@@ -110,11 +110,11 @@ pub(super) struct GenerationInput<'a> {
     pub semantic_commit_ns: Option<&'a str>,
     /// 上一代发布态的**已核** CC-010.bi / CC-056.version 记录根（调用方独立索引给出）。
     pub prior: PriorState<'a>,
-    pub structure_prior: StructurePriors<'a>,
+    pub structure_prior: StructurePriors<'p>,
 }
 
 /// #1488：raw/effective 不可由调用者另给；仅含当前元数据与已核 prior。
-pub(super) struct BoundGenerationInput<'a> {
+pub(super) struct BoundGenerationInput<'a, 'p> {
     pub generation: i64,
     pub structure_cut: &'a str,
     pub input_frontier: i64,
@@ -125,7 +125,7 @@ pub(super) struct BoundGenerationInput<'a> {
     pub scope: &'a Value,
     pub semantic_commit_ns: Option<&'a str>,
     pub prior: PriorState<'a>,
-    pub structure_prior: StructurePriors<'a>,
+    pub structure_prior: StructurePriors<'p>,
 }
 
 /// 一条已构造对象：身份 + 生成态记录 + 可复用的构造结果。
@@ -133,9 +133,9 @@ pub(super) struct BoundGenerationInput<'a> {
 /// 顺序（生成态 `objects` 数组）＝旧 sealed 批次：CC-006 形态（窗序）→ 已按
 /// `(kind, fact_key, object_id)` 排序的泛型事实 → TB-02-B 对象（线序）→ 新结构域的 C/D/E/F。
 pub(super) struct ProducedObject {
-    kind: String,
-    fact_key: Option<String>,
-    object_id: String,
+    kind: NativeValue<String>,
+    fact_key: Option<NativeValue<String>>,
+    object_id: NativeValue<String>,
     generated: Built,
     body: ObjectBody,
 }
@@ -164,6 +164,7 @@ impl ShapeBuild {
 
 enum ObjectBody {
     Typed(TypedObject),
+    Structure(crate::content_producer::NativeStructureObject),
     Fractal(Cc007Object),
     Shape(Cc006Object),
 }
@@ -179,7 +180,7 @@ impl ProducedObject {
 
     /// 泛型六字段对象的槽位规范文本；CC-006 的旧配方没有该字段（返回 `None`）。
     pub(super) fn fact_key(&self) -> Option<&str> {
-        self.fact_key.as_deref()
+        self.fact_key.as_ref().map(|v| v.as_str())
     }
 
     /// 生成态记录值根（原 sealed `generated_state.objects[i]` 的逻辑字段）。
@@ -202,11 +203,21 @@ impl ProducedObject {
         object_records::wire_template(store, self.borrowed(), life, current_generation)
     }
 
+    pub(super) fn wire_template_view(
+        &self,
+        store: &mut (impl crate::v3::audit_store::CodecStore + ?Sized),
+        life: object_records::LifeView<'_>,
+        current_generation: i64,
+    ) -> Result<Built, object_records::RecordError> {
+        object_records::wire_template_view(store, self.borrowed(), life, current_generation)
+    }
+
     /// 内部构造记录借用视图：根接线在同一批产物内直接消费（`content_bi::PriorState` 的
     /// 13 字段 private 根），不再由调用方重复构造。
     pub(super) fn borrowed(&self) -> object_records::BorrowedObject<'_> {
         match &self.body {
             ObjectBody::Typed(object) => object_records::BorrowedObject::Typed(object),
+            ObjectBody::Structure(object) => object_records::BorrowedObject::Typed(object),
             ObjectBody::Fractal(object) => object_records::BorrowedObject::Fractal(object),
             ObjectBody::Shape(object) => object_records::BorrowedObject::Shape(object),
         }
@@ -216,6 +227,7 @@ impl ProducedObject {
     fn payload(&self) -> Option<&Built> {
         match &self.body {
             ObjectBody::Typed(object) => Some(&object.payload),
+            ObjectBody::Structure(object) => Some(&object.payload),
             ObjectBody::Fractal(object) => Some(&object.payload),
             ObjectBody::Shape(_) => None,
         }
@@ -224,28 +236,28 @@ impl ProducedObject {
 
 /// 一条 CC-006 见证（生成态字段与旧配方同名同型；身份由真实新 `obj3-` 派生）。
 pub(super) struct WitnessRecord {
-    pub witness_id: String,
-    pub object_id: String,
+    pub witness_id: NativeValue<String>,
+    pub object_id: NativeValue<String>,
     pub slot: usize,
     pub built: Built,
 }
 
 /// 跨代共享的两条原始账数组根。
 pub(super) struct RawRoots {
-    pub raw_events: ContentRef,
-    pub effective_events: ContentRef,
+    pub raw_events: NativeValue<ContentRef>,
+    pub effective_events: NativeValue<ContentRef>,
 }
 
 /// 生成态标量（`emit_state` 的输入；OHLC 两段 finish 时复用，不重造对象）。
 struct StateMeta {
     generation: i64,
-    structure_cut: String,
+    structure_cut: TextValue,
     input_frontier: i64,
-    catalog_revision: String,
-    profile_id: String,
-    profile_hash: String,
-    rule_revision: String,
-    scope: CValue,
+    catalog_revision: TextValue,
+    profile_id: TextValue,
+    profile_hash: TextValue,
+    rule_revision: TextValue,
+    scope: Built,
 }
 
 /// 生成态六条数组根（数组节点；其序列在 [`SequenceMemo`] 里跨代续接）。
@@ -263,25 +275,25 @@ struct StateRoots {
 /// 生命周期参数只借调用方的 `all_events`（目录轴需要真实 seq/revision 投影，不复制整份历史）。
 pub(super) struct Generated<'a> {
     /// 顺序 = 旧 sealed 批次（见 [`ProducedObject`]）。
-    pub objects: Vec<ProducedObject>,
+    pub objects: CodecVec<ProducedObject>,
     /// 顺序 = 形态序 × 槽位 0..3（旧配方逐字同序）。
-    pub witnesses: Vec<WitnessRecord>,
+    pub witnesses: CodecVec<WitnessRecord>,
     /// 生成态 `relations` 值边：has_witness/classified_as + 新笔关系。
     /// `supersedes`/`replaces` 属发布期，由 root 追加，不在本集合内。
-    pub relations: Vec<Built>,
+    pub relations: CodecVec<Built>,
     /// 生成态 `observations` 值边（已按旧配方去重）。
-    pub observations: Vec<Built>,
+    pub observations: CodecVec<Built>,
     pub raw: RawRoots,
     /// OHLC 的真实目录轴（`finish_axes` 之前恒 `None`，绝不假空）。
-    pub catalog_axes: Option<ContentRef>,
+    pub catalog_axes: Option<NativeValue<ContentRef>>,
     /// 14 字段草案根；OHLC 时必须经 [`Generated::finish_axes`] 才是最终根。
-    pub state_without_axes: ContentRef,
+    pub state_without_axes: NativeValue<ContentRef>,
     /// 当前最终生成态根（OHLC 在 `finish_axes` 成功后更新）。
-    pub generated_state: ContentRef,
+    pub generated_state: NativeValue<ContentRef>,
     meta: StateMeta,
     roots: StateRoots,
     /// 本代知识请求线序（仅供目录轴最小投影消费，不进生成态对象）。
-    requests: Vec<Built>,
+    requests: CodecVec<Built>,
     all_events: RawEventsView<'a>,
     is_ohlc: bool,
 }
@@ -298,51 +310,50 @@ impl<'a> Generated<'a> {
     ///
     /// 只改生成态对象节点与 `catalog_axes`，不展开任何大字段；对象/见证/关系/观察的内容根
     /// 都不变。非 OHLC 域没有该字段，调用即拒绝（不假空）。
-    pub(super) fn finish_axes(
+    pub(super) fn finish_axes<'changes>(
         &mut self,
         store: &mut dyn NodeStore,
         previous_frontier: i64,
-        withdrawals: &[Value],
-        replaces: &[Value],
-    ) -> Result<ContentRef, String> {
+        withdrawals: impl Into<RawEventsView<'changes>>,
+        replaces: impl Into<RawEventsView<'changes>>,
+    ) -> Result<NativeValue<ContentRef>, String> {
+        let withdrawals = withdrawals.into();
+        let replaces = replaces.into();
         if !self.is_ohlc {
             return Err(
                 "VersionUnsupported：目录轴只存在于 OHLC 档案；非 OHLC 生成态没有该字段，拒绝假空"
                     .to_string(),
             );
         }
-        let mut projection: Vec<Value> = Vec::with_capacity(self.objects.len());
+        let mut rows = CodecVec::default();
         for object in &self.objects {
-            projection.push(catalog_projection_entry(
-                &mut *store,
-                object,
-                &self.requests,
-            )?);
+            let row = catalog_projection_entry(&mut *store, object, &self.requests)?;
+            push_gen(&mut rows, row, store)?;
         }
-        // 规则域与真实构造面一起选择；旧 A/B 域保留 13 轴，新结构域显式使用完整表。
-        let axis_table =
+        let rows = JsonOwners(&rows);
+        let projection = bj::json_from_view_admitted(store, JsonView::BorrowedArray(&rows))?;
+        // 与原目录轴函数同一判据；借入实际 owner，不擦成裸 Value 数组。
+        let axes_owner = crate::tb02a_facts::catalog_axes_admitted(
+            &*store,
             crate::tb02a_facts::CatalogAxisTable::for_rule_revision(&self.meta.rule_revision)
-                .ok_or_else(|| {
-                    format!(
-                        "VersionUnsupported：规则域 {} 没有已审目录轴表",
-                        self.meta.rule_revision
-                    )
-                })?;
-        let axes_value = crate::tb02a_facts::catalog_axes(
-            axis_table,
+                .ok_or("VersionUnsupported：规则域没有已审目录轴表")?,
             &projection,
             self.all_events,
             previous_frontier,
             withdrawals,
             replaces,
-        );
-        let axes = sc::write_value(&mut *store, &json_to_cvalue(&axes_value)?)
+        )?;
+        // #1488：producer owner持续存活至同核整数检查和codec写出完成。
+        let axes = write_json_view(&mut *store, axes_owner.view())
             .map_err(|error| format!("GenError：目录轴写入失败：{error}"))?;
-        let reference = axes.content_ref();
+        let reference = native_ref(store, &axes)?;
         let state = emit_state(store, &self.meta, &self.roots, Some(&reference))?;
+        let returned =
+            NativeValue::<ContentRef>::try_from_view((&state).into(), store.codec_work())
+                .map_err(codec_error)?;
         self.catalog_axes = Some(reference);
-        self.generated_state = state.clone();
-        Ok(state)
+        self.generated_state = state;
+        Ok(returned)
     }
 }
 
@@ -355,7 +366,7 @@ pub(super) struct GenerationRuntime {
     profile_id: String,
     rule_revision: String,
     /// `(source_coord, revision)` → 已写事件节点摘要（原件不可变；见模块文档）。
-    event_nodes: BTreeMap<(i64, i64), NodeDigest>,
+    event_nodes: FixedRadix<(i64, i64), NodeDigest>,
     /// #1488：owner 绑定的 raw/parser pending 状态；不混用旧线程 Lane 的全指纹路径。
     delta_lane: Option<s_fact_cache::DeltaLane>,
     raw_events_seq: SequenceMemo,
@@ -397,7 +408,7 @@ impl GenerationRuntime {
             bi: ContentBi::new(),
             profile_id: profile_id.to_string(),
             rule_revision: rule_revision.to_string(),
-            event_nodes: BTreeMap::new(),
+            event_nodes: FixedRadix::default(),
             delta_lane: None,
             raw_events_seq: SequenceMemo::default(),
             effective_events_seq: SequenceMemo::default(),
@@ -413,7 +424,7 @@ impl GenerationRuntime {
     /// 旧线程车道仍由完整输入比较恢复；新 delta 车道没有这道全扫，必须与根一起丢弃。
     pub(super) fn discard_runtime_state(&mut self) {
         self.bi.discard_runtime_state(&mut self.producer);
-        self.event_nodes.clear();
+        self.event_nodes = FixedRadix::default();
         self.delta_lane = None;
         self.raw_events_seq.discard();
         self.effective_events_seq.discard();
@@ -459,9 +470,15 @@ impl GenerationRuntime {
         let budget = raw.budget();
         let mut appended = sc::CodecVec::new_with_allocation(budget);
         let append_ordinals = bound.append_ordinals();
-        appended
-            .try_reserve_exact(append_ordinals.len())
-            .map_err(codec_error)?;
+        if let Some(work) = store.codec_work() {
+            appended
+                .try_reserve_native(work, append_ordinals.len())
+                .map_err(codec_error)?;
+        } else {
+            appended
+                .try_reserve_exact(append_ordinals.len())
+                .map_err(codec_error)?;
+        }
         for ordinal in append_ordinals {
             let event = raw
                 .get(ordinal)
@@ -475,9 +492,15 @@ impl GenerationRuntime {
             .unwrap_or(lane.rows().len())
             .min(lane.rows().len());
         let mut effective_suffix = sc::CodecVec::new_with_allocation(budget);
-        effective_suffix
-            .try_reserve_exact(lane.rows().len() - prefix)
-            .map_err(codec_error)?;
+        if let Some(work) = store.codec_work() {
+            effective_suffix
+                .try_reserve_native(work, lane.rows().len() - prefix)
+                .map_err(codec_error)?;
+        } else {
+            effective_suffix
+                .try_reserve_exact(lane.rows().len() - prefix)
+                .map_err(codec_error)?;
+        }
         for row in &lane.rows()[prefix..] {
             // 所有赢家原件都已在 raw append 路径写过；旧尾只查节点，不再读/解码其 raw。
             // 初期没有 ordinal→node 索引时不能按(coord,revision)回读旧 raw 冒充 Δ。
@@ -545,7 +568,7 @@ impl GenerationRuntime {
     pub(super) fn generate<'b>(
         &mut self,
         store: &mut dyn NodeStore,
-        input: &GenerationInput<'b>,
+        input: &GenerationInput<'b, '_>,
     ) -> Result<Generated<'b>, String> {
         self.generate_with_allocation(store, input, None)
     }
@@ -554,20 +577,28 @@ impl GenerationRuntime {
     pub(super) fn generate_with_allocation<'b>(
         &mut self,
         store: &mut dyn NodeStore,
-        input: &GenerationInput<'b>,
+        input: &GenerationInput<'b, '_>,
         budget: Option<&sc::capture_allocation::OwnedBudget>,
     ) -> Result<Generated<'b>, String> {
-        self.generate_impl(store, input, budget, None, None)
+        let result = self.generate_impl(store, input, budget, None, None);
+        if result.is_err() {
+            self.discard_runtime_state();
+        }
+        result
     }
 
     /// 仅受控 NativeReadLease 分支可提供 token；外部调用方不能用 bool 开启资格。
     pub(super) fn generate_native_lease<'b>(
         &mut self,
         store: &mut dyn NodeStore,
-        input: &GenerationInput<'b>,
+        input: &GenerationInput<'b, '_>,
         native: &super::prepared::NativeGeneration,
     ) -> Result<Generated<'b>, String> {
-        self.generate_impl(store, input, None, Some(native), None)
+        let result = self.generate_impl(store, input, None, Some(native), None);
+        if result.is_err() {
+            self.discard_runtime_state();
+        }
+        result
     }
 
     /// 完整生成消费同一 owner raw 资格；结果仍不是 C 的完整集合 seal 或提交回执。
@@ -575,7 +606,7 @@ impl GenerationRuntime {
         &mut self,
         store: &mut dyn NodeStore,
         bound: &super::audit_owner::BoundRawAdvance<'b>,
-        input: BoundGenerationInput<'b>,
+        input: BoundGenerationInput<'b, '_>,
     ) -> Result<Generated<'b>, String> {
         let result = (|| {
             bound.ensure_current()?;
@@ -642,11 +673,17 @@ impl GenerationRuntime {
     fn generate_impl<'b>(
         &mut self,
         store: &mut dyn NodeStore,
-        input: &GenerationInput<'b>,
+        input: &GenerationInput<'b, '_>,
         budget: Option<&sc::capture_allocation::OwnedBudget>,
         native: Option<&super::prepared::NativeGeneration>,
         delta: Option<(s_fact_cache::EffectiveRawView<'_>, RawGenerationDelta)>,
     ) -> Result<Generated<'b>, String> {
+        if budget.is_some() && store.codec_work().is_some() {
+            return Err(
+                "prototype_audit_allocation_incomplete：生成入口不能混用Owned keys账与Native父账"
+                    .into(),
+            );
+        }
         if self.delta_lane.is_some() {
             return Err("GenError：delta 车道不能切回完整 generate 重判，须显式丢弃".into());
         }
@@ -657,28 +694,37 @@ impl GenerationRuntime {
         let config = ThetaConfig::default();
 
         // ── 原始账：生效账 → coord 表 + Bar 序列 + 事件节点；全修订史 → 事件节点 ──
-        let mut raw_by_coord: BTreeMap<i64, JsonView<'_>> = BTreeMap::new();
-        let mut raw_bars: Vec<Bar> = Vec::with_capacity(input.effective.len());
-        let mut effective_nodes: Vec<NodeDigest> = Vec::with_capacity(input.effective.len());
-        let mut coord_nodes: BTreeMap<i64, NodeDigest> = BTreeMap::new();
-        let mut all_nodes: Vec<NodeDigest> = Vec::new();
+        let mut raw_by_coord: FixedRadix<i64, JsonView<'_>> = FixedRadix::default();
+        let mut raw_bars: CodecVec<Bar> = CodecVec::default();
+        let mut effective_nodes: CodecVec<NodeDigest> = CodecVec::default();
+        let mut coord_nodes: FixedRadix<i64, NodeDigest> = FixedRadix::default();
+        let mut all_nodes: CodecVec<NodeDigest> = CodecVec::default();
         let delta_view = delta.as_ref().map(|(view, _)| *view);
         if delta_view.is_none() {
             for event in input.effective {
                 let coord = bj::coord(event)?;
-                if raw_by_coord.insert(coord, event).is_some() {
+                if raw_by_coord
+                    .insert_admitted(coord, event, &*store)
+                    .map_err(codec_error)?
+                    .is_some()
+                {
                     return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖见证".to_string());
                 }
-                raw_bars.push(bar_of(event)?);
+                push_gen(&mut raw_bars, bar_of(event)?, store)?;
                 let node = event_node(&mut self.event_nodes, store, event)?;
-                coord_nodes.insert(coord, node);
-                effective_nodes.push(node);
+                coord_nodes
+                    .insert_admitted(coord, node, &*store)
+                    .map_err(codec_error)?;
+                push_gen(&mut effective_nodes, node, store)?;
             }
-            all_nodes = Vec::with_capacity(input.all_events.len());
             for event in input.all_events {
-                all_nodes.push(event_node(&mut self.event_nodes, store, event)?);
+                push_gen(
+                    &mut all_nodes,
+                    event_node(&mut self.event_nodes, store, event)?,
+                    store,
+                )?;
             }
-            for (coord, event) in &raw_by_coord {
+            for (coord, event) in raw_by_coord.iter() {
                 self.producer
                     .bind_source(store, *coord, raw_ref_spec(*event)?)
                     .map_err(producer_error)?;
@@ -686,7 +732,7 @@ impl GenerationRuntime {
         }
         let raw_ledger = match delta_view {
             Some(view) => BiLedgerView::Delta(view),
-            None => BiLedgerView::Views(&raw_by_coord),
+            None => BiLedgerView::RadixViews(&raw_by_coord),
         };
         // full oracle 与 delta 共用下方生成核，只有原账/parser 取得方式不同。
         let mut lane_guard = if delta_view.is_none() {
@@ -741,18 +787,22 @@ impl GenerationRuntime {
             None
         };
 
-        // ── 形态窗：多根极值身份按 #1405 根集合语义发布──
-        let wins = classify_local_shape_sliding(merged);
-        let mut shape_objects: Vec<ProducedObject> = Vec::new();
-        let mut witnesses: Vec<WitnessRecord> = Vec::new();
-        let mut relations: Vec<Built> = Vec::new();
-        let mut observations: Vec<(bool, Built)> = Vec::new();
+        // ── 形态窗：竞争极值判决取 producer 的同一条判据（build_shape 的 Ok(None)）──
+        let wins = (0..merged.len().saturating_sub(2)).map(|start| {
+            (
+                start,
+                classify_local_shape(&merged[start], &merged[start + 1], &merged[start + 2]),
+            )
+        });
+        let mut shape_objects: CodecVec<ProducedObject> = CodecVec::default();
+        let mut witnesses: CodecVec<WitnessRecord> = CodecVec::default();
+        let mut relations: CodecVec<Built> = CodecVec::default();
+        let mut observations: CodecVec<(bool, Built)> = CodecVec::default();
         // 逐形态的请求组（旧配方线序：形态请求 → 该形态的 CC-007 三条请求）。
-        let mut shape_requests: Vec<(Built, Vec<Built>)> = Vec::new();
-        let mut fractals: Vec<ProducedObject> = Vec::new();
-        let mut fractal_reasons: Vec<&'static str> = Vec::new();
-        for (start, shape) in &wins {
-            let start = *start;
+        let mut shape_requests: CodecVec<(Built, CodecVec<Built>)> = CodecVec::default();
+        let mut fractals: CodecVec<ProducedObject> = CodecVec::default();
+        let mut fractal_reasons: CodecVec<&'static str> = CodecVec::default();
+        for (start, shape) in wins {
             let built_shape = match &fractal_sources {
                 Some(sources) => self
                     .producer
@@ -777,8 +827,8 @@ impl GenerationRuntime {
                         start,
                         &object,
                     )?;
-                    witnesses.extend(wits);
-                    relations.extend(rels);
+                    extend_gen(&mut witnesses, wits, store)?;
+                    extend_gen(&mut relations, rels, store)?;
                     let request = object.request.clone();
                     let fractal = match (&built_shape, &mut fractal_sources) {
                         (ShapeBuild::Native(shape), Some(sources)) => self
@@ -794,64 +844,76 @@ impl GenerationRuntime {
                         ),
                     }
                     .map_err(producer_error)?;
-                    let mut fractal_requests: Vec<Built> = Vec::new();
+                    let mut fractal_requests: CodecVec<Built> = CodecVec::default();
                     if let Some(fractal_object) = fractal {
-                        fractal_reasons.extend(fractal_object.knowledge_reasons.iter().copied());
-                        fractal_requests.extend(fractal_object.requests.iter().cloned());
+                        extend_gen(
+                            &mut fractal_reasons,
+                            fractal_object.knowledge_reasons.iter().copied(),
+                            store,
+                        )?;
+                        extend_gen(
+                            &mut fractal_requests,
+                            fractal_object.requests.iter().cloned(),
+                            store,
+                        )?;
                         let generated = object_records::generated(
                             store,
                             object_records::BorrowedObject::Fractal(&fractal_object),
                         )
                         .map_err(record_error)?;
-                        fractals.push(ProducedObject {
-                            kind: CC007_FRACTAL_KIND.to_string(),
-                            fact_key: Some(fractal_object.fact_key.clone()),
-                            object_id: fractal_object.object_id.clone(),
-                            generated,
-                            body: ObjectBody::Fractal(fractal_object),
-                        });
+                        push_gen(
+                            &mut fractals,
+                            ProducedObject {
+                                kind: native_text(store, CC007_FRACTAL_KIND)?,
+                                fact_key: Some(native_text(store, &fractal_object.fact_key)?),
+                                object_id: native_text(store, &fractal_object.object_id)?,
+                                generated,
+                                body: ObjectBody::Fractal(fractal_object),
+                            },
+                            store,
+                        )?;
                     }
-                    shape_requests.push((request, fractal_requests));
+                    push_gen(&mut shape_requests, (request, fractal_requests), store)?;
                     let generated = object_records::generated(
                         store,
                         object_records::BorrowedObject::Shape(&object),
                     )
                     .map_err(record_error)?;
-                    shape_objects.push(ProducedObject {
-                        kind: CC006_SHAPE_KIND.to_string(),
-                        fact_key: None,
-                        object_id: object.object_id.clone(),
-                        generated,
-                        body: ObjectBody::Shape(built_shape.into_object()),
-                    });
+                    push_gen(
+                        &mut shape_objects,
+                        ProducedObject {
+                            kind: native_text(store, CC006_SHAPE_KIND)?,
+                            fact_key: None,
+                            object_id: native_text(store, &object.object_id)?,
+                            generated,
+                            body: ObjectBody::Shape(built_shape.into_object()),
+                        },
+                        store,
+                    )?;
                 }
                 (
                     Cc006LocalShape::DomainNotSatisfied { reason },
                     Err(ProducerError::WindowNotClassified(_)),
                 ) => {
-                    let value = serde_json::json!({
-                        "kind": "domain_not_satisfied",
-                        "reason": reason.as_str(),
-                        "window_start": start,
-                        "window_mid": start + 1,
-                        "window_end": start + 2,
-                        "detail": {},
-                    });
-                    observations.push((false, write_json(store, &value)?));
+                    let value = shape_observation(
+                        store,
+                        "domain_not_satisfied",
+                        reason.as_str(),
+                        [Some(start), Some(start + 1), Some(start + 2)],
+                    )?;
+                    push_gen(&mut observations, (false, value), store)?;
                 }
                 (
                     Cc006LocalShape::InsufficientKnowledge,
                     Err(ProducerError::WindowNotClassified(_)),
                 ) => {
-                    let value = serde_json::json!({
-                        "kind": "insufficient_knowledge",
-                        "reason": "fewer_than_three_bars",
-                        "window_start": start,
-                        "window_mid": Value::Null,
-                        "window_end": Value::Null,
-                        "detail": {},
-                    });
-                    observations.push((false, write_json(store, &value)?));
+                    let value = shape_observation(
+                        store,
+                        "insufficient_knowledge",
+                        "fewer_than_three_bars",
+                        [Some(start), None, None],
+                    )?;
+                    push_gen(&mut observations, (false, value), store)?;
                 }
                 (classified, Err(error)) => {
                     return Err(format!(
@@ -862,104 +924,120 @@ impl GenerationRuntime {
             }
         }
 
-        // ── 泛型事实：步骤 → 组 → 形态/分型请求 → 不足三根待决请求 ──
-        let mut typed: Vec<ProducedObject> = Vec::new();
-        let mut step_requests: Vec<Built> = Vec::new();
-        let mut group_requests: Vec<Built> = Vec::new();
-        let mut all_reasons: Vec<&'static str> = Vec::new();
+        // ── 泛型事实：步骤 → 组 → 竞争窗待决请求 → 形态/分型请求 → 不足三根待决请求 ──
+        let mut typed: CodecVec<ProducedObject> = CodecVec::default();
+        let mut step_requests: CodecVec<Built> = CodecVec::default();
+        let mut group_requests: CodecVec<Built> = CodecVec::default();
+        let mut all_reasons: CodecVec<&'static str> = CodecVec::default();
         for index in 0..state.step_count() {
             let view = state
                 .shared_step(index)
                 .map_err(|error| format!("GenError：共享步骤证据不可用：{}", error.reason))?
                 .ok_or_else(|| format!("GenError：步骤 {index} 缺共享证据"))?;
-            all_reasons.extend(
+            extend_gen(
+                &mut all_reasons,
                 view.waiting_reasons
                     .iter()
                     .copied()
                     .filter(|reason| *reason != "equal_extreme_identity"),
-            );
+                store,
+            )?;
             let object = self
                 .producer
                 .build_step_object(store, &view, gen, cut)
                 .map_err(producer_error)?;
-            step_requests.push(object.request.clone().ok_or_else(|| {
-                format!("GenError：CC-004 步骤 {index} 缺知识请求（旧配方必须有）")
-            })?);
+            push_gen(
+                &mut step_requests,
+                object.request.clone().ok_or_else(|| {
+                    format!("GenError：CC-004 步骤 {index} 缺知识请求（旧配方必须有）")
+                })?,
+                store,
+            )?;
             let generated =
                 object_records::generated(store, object_records::BorrowedObject::Typed(&object))
                     .map_err(record_error)?;
-            typed.push(ProducedObject {
-                kind: CC004_STEP_KIND.to_string(),
-                fact_key: Some(object.fact_key.clone()),
-                object_id: object.object_id.clone(),
-                generated,
-                body: ObjectBody::Typed(object),
-            });
+            push_gen(
+                &mut typed,
+                ProducedObject {
+                    kind: native_text(store, CC004_STEP_KIND)?,
+                    fact_key: Some(native_text(store, &object.fact_key)?),
+                    object_id: native_text(store, &object.object_id)?,
+                    generated,
+                    body: ObjectBody::Typed(object),
+                },
+                store,
+            )?;
         }
         for index in 0..state.group_count() {
             let view = state
                 .shared_group(index)
                 .map_err(|error| format!("GenError：共享组证据不可用：{}", error.reason))?
                 .ok_or_else(|| format!("GenError：组 {index} 缺共享证据"))?;
-            all_reasons.extend_from_slice(&group_reasons(&view));
+            extend_gen(
+                &mut all_reasons,
+                group_reasons_admitted(store, &view)
+                    .map_err(producer_error)?
+                    .iter()
+                    .copied(),
+                store,
+            )?;
             let object = self
                 .producer
                 .build_group_object(store, index, &view, gen, cut)
                 .map_err(producer_error)?;
-            group_requests.push(object.request.clone().ok_or_else(|| {
-                format!("GenError：CC-005 组 {index} 缺知识请求（旧配方必须有）")
-            })?);
+            push_gen(
+                &mut group_requests,
+                object.request.clone().ok_or_else(|| {
+                    format!("GenError：CC-005 组 {index} 缺知识请求（旧配方必须有）")
+                })?,
+                store,
+            )?;
             let generated =
                 object_records::generated(store, object_records::BorrowedObject::Typed(&object))
                     .map_err(record_error)?;
-            typed.push(ProducedObject {
-                kind: CC005_GROUP_KIND.to_string(),
-                fact_key: Some(object.fact_key.clone()),
-                object_id: object.object_id.clone(),
-                generated,
-                body: ObjectBody::Typed(object),
-            });
+            push_gen(
+                &mut typed,
+                ProducedObject {
+                    kind: native_text(store, CC005_GROUP_KIND)?,
+                    fact_key: Some(native_text(store, &object.fact_key)?),
+                    object_id: native_text(store, &object.object_id)?,
+                    generated,
+                    body: ObjectBody::Typed(object),
+                },
+                store,
+            )?;
         }
         let mut requests: Vec<Built> = Vec::new();
         requests.extend(step_requests);
         requests.extend(group_requests);
         for (shape_request, fractal_requests) in &shape_requests {
-            requests.push(shape_request.clone());
-            requests.extend(fractal_requests.iter().cloned());
+            push_gen(&mut requests, shape_request.clone(), store)?;
+            extend_gen(&mut requests, fractal_requests.iter().cloned(), store)?;
         }
         if merged.len() < 3 {
-            all_reasons.push("fewer_than_three_merged_bars");
+            push_gen(&mut all_reasons, "fewer_than_three_merged_bars", store)?;
             let key = CValue::Array(vec![
                 CValue::String(CC006_SHAPE_KIND.to_string()),
                 CValue::String("pending".to_string()),
             ]);
             let sources = raw_prefix_coords(state).map_err(producer_error)?;
-            requests.push(
+            push_gen(
+                &mut requests,
                 self.producer
                     .pending_request(store, key, &["fewer_than_three_merged_bars"], &sources)
                     .map_err(producer_error)?,
-            );
+                store,
+            )?;
         }
         if !state.has_direction_evidence() {
-            all_reasons.push("direction_not_yet_established");
+            push_gen(&mut all_reasons, "direction_not_yet_established", store)?;
         }
         if state.unsettled() {
-            all_reasons.push("initial_direction_unsettled");
+            push_gen(&mut all_reasons, "initial_direction_unsettled", store)?;
         }
-        all_reasons.extend(fractal_reasons);
-        typed.extend(fractals);
-        typed.sort_by(|left, right| {
-            (
-                left.kind.as_str(),
-                left.fact_key.as_deref(),
-                left.object_id.as_str(),
-            )
-                .cmp(&(
-                    right.kind.as_str(),
-                    right.fact_key.as_deref(),
-                    right.object_id.as_str(),
-                ))
-        });
+        extend_gen(&mut all_reasons, fractal_reasons, store)?;
+        extend_gen(&mut typed, fractals, store)?;
+        stable_sort_typed_admitted(&mut typed, store)?;
 
         let knowledge_position = typed.len();
 
@@ -988,35 +1066,49 @@ impl GenerationRuntime {
             let generated =
                 object_records::generated(store, object_records::BorrowedObject::Typed(&object))
                     .map_err(record_error)?;
-            typed.push(ProducedObject {
-                kind,
-                fact_key: Some(object.fact_key.clone()),
-                object_id: object.object_id.clone(),
-                generated,
-                body: ObjectBody::Typed(object),
-            });
+            push_gen(
+                &mut typed,
+                ProducedObject {
+                    kind,
+                    fact_key: Some(native_text(store, &object.fact_key)?),
+                    object_id: native_text(store, &object.object_id)?,
+                    generated,
+                    body: ObjectBody::Typed(object),
+                },
+                store,
+            )?;
         }
         for relation in &bi.relations {
-            relations.push(
+            push_gen(
+                &mut relations,
                 sc::write_value(&mut *store, relation)
                     .map_err(|error| format!("GenError：关系值写入失败：{error}"))?,
-            );
+                store,
+            )?;
         }
 
         if structure_enabled {
-            let known_value =
-                crate::content_bi::known_value(raw_ledger, gen, frontier, input.semantic_commit_ns)
-                    .map_err(|e| format!("GenError：结构 known_at 不可用：{e}"))?;
-            let known_at = sc::write_value(&mut *store, &known_value).map_err(codec_error)?;
+            let known_at = crate::content_bi::known_root(
+                store,
+                raw_ledger,
+                gen,
+                frontier,
+                input.semantic_commit_ns,
+            )?;
             let fact_generation = crate::content_bi::fact_generation(
                 JsonView::BorrowedArray(&input.all_events)
                     .as_array()
                     .unwrap(),
             )
             .map_err(|e| format!("GenError：结构事实代际不可用：{e}"))?;
-            let all_sources = raw_prefix_coords(state)
-                .map_err(producer_error)?
-                .materialize();
+            let mut all_sources = CodecVec::default();
+            for coord in raw_ledger.coords() {
+                push_gen(
+                    &mut all_sources,
+                    usize::try_from(coord).map_err(|_| "原始坐标溢出")?,
+                    store,
+                )?;
+            }
             let context = content_structure::StructureContext {
                 fact_generation,
                 generation: gen,
@@ -1051,10 +1143,10 @@ impl GenerationRuntime {
                 &context,
             )?;
             for output in [cd, ef] {
-                all_reasons.extend(output.waiting_reasons);
-                relations.extend(output.relations);
+                extend_gen(&mut all_reasons, output.waiting_reasons, store)?;
+                extend_gen(&mut relations, output.relations, store)?;
                 // 包含一对象多子轴的完整唯一集合；不再从 TypedObject.request 重复收集。
-                requests.extend(output.requests);
+                extend_gen(&mut requests, output.requests, store)?;
                 for object in output.objects {
                     let kind = typed_kind(store, &object)?;
                     let generated = object_records::generated(
@@ -1062,13 +1154,17 @@ impl GenerationRuntime {
                         object_records::BorrowedObject::Typed(&object),
                     )
                     .map_err(record_error)?;
-                    typed.push(ProducedObject {
-                        kind,
-                        fact_key: Some(object.fact_key.clone()),
-                        object_id: object.object_id.clone(),
-                        generated,
-                        body: ObjectBody::Typed(object),
-                    });
+                    push_gen(
+                        &mut typed,
+                        ProducedObject {
+                            kind,
+                            fact_key: Some(native_text(store, &object.fact_key)?),
+                            object_id: native_text(store, &object.object_id)?,
+                            generated,
+                            body: ObjectBody::Structure(object),
+                        },
+                        store,
+                    )?;
                 }
             }
         }
@@ -1088,27 +1184,30 @@ impl GenerationRuntime {
             )
             .map_err(producer_error)?;
         for observation in &knowledge.observations {
-            observations.push((true, observation.clone()));
+            push_gen(&mut observations, (true, observation.clone()), store)?;
         }
         let generated = object_records::generated(
             store,
             object_records::BorrowedObject::Typed(&knowledge.object),
         )
         .map_err(record_error)?;
-        typed.insert(
-            knowledge_position,
-            ProducedObject {
-                kind: CC054_KNOWLEDGE_KIND.to_string(),
-                fact_key: Some(knowledge.object.fact_key.clone()),
-                object_id: knowledge.object.object_id.clone(),
-                generated,
-                body: ObjectBody::Typed(knowledge.object),
-            },
-        );
+        let knowledge_object = ProducedObject {
+            kind: native_text(store, CC054_KNOWLEDGE_KIND)?,
+            fact_key: Some(native_text(store, &knowledge.object.fact_key)?),
+            object_id: native_text(store, &knowledge.object.object_id)?,
+            generated,
+            body: ObjectBody::Typed(knowledge.object),
+        };
+        if let Some(work) = store.codec_work() {
+            typed.try_insert_native(knowledge_position, knowledge_object, work)
+        } else {
+            typed.try_insert(knowledge_position, knowledge_object)
+        }
+        .map_err(codec_error)?;
 
         // ── 生成态六条数组：跨代共享序列 + 旧配方等价去重 ──
-        let mut objects: Vec<ProducedObject> = shape_objects;
-        objects.extend(typed);
+        let mut objects: CodecVec<ProducedObject> = shape_objects;
+        extend_gen(&mut objects, typed, store)?;
         let deduped = dedupe_observations(store, &observations)?;
         let (raw_events_array, effective_array) = match delta {
             Some((_, roots)) => (roots.raw_events, roots.effective_events),
@@ -1123,20 +1222,10 @@ impl GenerationRuntime {
                 )?,
             ),
         };
-        let object_nodes: Vec<NodeDigest> = objects
-            .iter()
-            .map(|object| object.generated.digest)
-            .collect();
-        let witness_nodes: Vec<NodeDigest> = witnesses
-            .iter()
-            .map(|witness| witness.built.digest)
-            .collect();
-        let relation_nodes: Vec<NodeDigest> =
-            relations.iter().map(|relation| relation.digest).collect();
-        let observation_nodes: Vec<NodeDigest> = deduped
-            .iter()
-            .map(|observation| observation.digest)
-            .collect();
+        let object_nodes = collect_gen(objects.iter().map(|o| o.generated.digest), store)?;
+        let witness_nodes = collect_gen(witnesses.iter().map(|w| w.built.digest), store)?;
+        let relation_nodes = collect_gen(relations.iter().map(|r| r.digest), store)?;
+        let observation_nodes = collect_gen(deduped.iter().map(|o| o.digest), store)?;
         let objects_array = self
             .objects_seq
             .sync(store, &object_nodes, "objects", budget)?;
@@ -1152,13 +1241,13 @@ impl GenerationRuntime {
 
         let meta = StateMeta {
             generation: gen,
-            structure_cut: cut.to_string(),
+            structure_cut: TextValue::Plain(native_text(store, cut)?),
             input_frontier: frontier,
-            catalog_revision: input.catalog_revision.to_string(),
-            profile_id: input.profile_id.to_string(),
-            profile_hash: input.profile_hash.to_string(),
-            rule_revision: input.rule_revision.to_string(),
-            scope: json_to_cvalue(input.scope)?,
+            catalog_revision: TextValue::Plain(native_text(store, input.catalog_revision)?),
+            profile_id: TextValue::Plain(native_text(store, input.profile_id)?),
+            profile_hash: TextValue::Plain(native_text(store, input.profile_hash)?),
+            rule_revision: TextValue::Plain(native_text(store, input.rule_revision)?),
+            scope: write_json(store, input.scope)?,
         };
         let roots = StateRoots {
             raw_events: raw_events_array,
@@ -1175,11 +1264,15 @@ impl GenerationRuntime {
             relations,
             observations: deduped,
             raw: RawRoots {
-                raw_events: roots.raw_events.content_ref(),
-                effective_events: roots.effective_events.content_ref(),
+                raw_events: native_ref(store, &roots.raw_events)?,
+                effective_events: native_ref(store, &roots.effective_events)?,
             },
             catalog_axes: None,
-            state_without_axes: state_without_axes.clone(),
+            state_without_axes: NativeValue::<ContentRef>::try_from_view(
+                (&state_without_axes).into(),
+                store.codec_work(),
+            )
+            .map_err(codec_error)?,
             generated_state: state_without_axes,
             meta,
             roots,
@@ -1198,67 +1291,150 @@ pub(super) struct RawGenerationDelta {
     pub changes: s_fact_cache::ParserChanges,
 }
 
+fn native_text(store: &dyn NodeStore, text: &str) -> Result<NativeValue<String>, String> {
+    NativeValue::<String>::try_from_str(text, store.codec_work()).map_err(codec_error)
+}
+fn native_ref(store: &dyn NodeStore, built: &Built) -> Result<NativeValue<ContentRef>, String> {
+    NativeValue::<ContentRef>::try_from_built(built, store.codec_work()).map_err(codec_error)
+}
+fn push_gen<T>(values: &mut CodecVec<T>, value: T, store: &dyn NodeStore) -> Result<(), String> {
+    if let Some(work) = store.codec_work() {
+        values.try_reserve_native(work, 1).map_err(codec_error)?;
+    }
+    values.try_push(value).map_err(codec_error)
+}
+fn extend_gen<T>(
+    values: &mut CodecVec<T>,
+    items: impl IntoIterator<Item = T>,
+    store: &dyn NodeStore,
+) -> Result<(), String> {
+    for value in items {
+        push_gen(values, value, store)?;
+    }
+    Ok(())
+}
+/// #1488：与旧stable sort同序；两份真实持费索引工作区，unstable核以原ordinal破平局。
+fn shape_observation(
+    store: &mut dyn NodeStore,
+    kind: &str,
+    reason: &str,
+    positions: [Option<usize>; 3],
+) -> Result<Built, String> {
+    let window = positions.map(|position| position.map(Value::from).unwrap_or(Value::Null));
+    let empty = [];
+    let fields = [
+        ("kind", JsonView::String(kind)),
+        ("reason", JsonView::String(reason)),
+        ("window_start", JsonView::Plain(&window[0])),
+        ("window_mid", JsonView::Plain(&window[1])),
+        ("window_end", JsonView::Plain(&window[2])),
+        (
+            "detail",
+            JsonView::object_fields(&empty).map_err(codec_error)?,
+        ),
+    ];
+    write_json_view(
+        store,
+        JsonView::object_fields(&fields).map_err(codec_error)?,
+    )
+}
+
+fn stable_sort_typed_admitted(
+    values: &mut [ProducedObject],
+    store: &dyn NodeStore,
+) -> Result<(), String> {
+    stable_sort_admitted(values, store, |a, b| {
+        (a.kind.as_str(), a.fact_key.as_deref(), a.object_id.as_str()).cmp(&(
+            b.kind.as_str(),
+            b.fact_key.as_deref(),
+            b.object_id.as_str(),
+        ))
+    })
+}
+fn stable_sort_admitted<T>(
+    values: &mut [T],
+    store: &dyn NodeStore,
+    mut compare: impl FnMut(&T, &T) -> std::cmp::Ordering,
+) -> Result<(), String> {
+    let mut order = collect_gen(0..values.len(), store)?;
+    order.sort_unstable_by(|left, right| {
+        compare(&values[*left], &values[*right]).then_with(|| left.cmp(right))
+    });
+    let mut destination = collect_gen((0..values.len()).map(|_| 0usize), store)?;
+    for (target, original) in order.iter().enumerate() {
+        destination[*original] = target;
+    }
+    for index in 0..values.len() {
+        while destination[index] != index {
+            let target = destination[index];
+            values.swap(index, target);
+            destination.swap(index, target);
+        }
+    }
+    Ok(())
+}
+
+fn collect_gen<T>(
+    items: impl IntoIterator<Item = T>,
+    store: &dyn NodeStore,
+) -> Result<CodecVec<T>, String> {
+    let mut values = CodecVec::default();
+    extend_gen(&mut values, items, store)?;
+    Ok(values)
+}
+
 /// 生成态对象（14 字段 + 可选 `catalog_axes`）：只写对象节点，六条数组借既有根。
 fn emit_state(
     store: &mut dyn NodeStore,
     meta: &StateMeta,
     roots: &StateRoots,
     axes: Option<&ContentRef>,
-) -> Result<ContentRef, String> {
-    let mut fields: Vec<(String, CValue)> = vec![
-        ("generation".into(), number(meta.generation)?),
+) -> Result<NativeValue<ContentRef>, String> {
+    let generation = super::super::content_manifest::Decimal::new(meta.generation);
+    let frontier = super::super::content_manifest::Decimal::new(meta.input_frontier);
+    let generation = sc::BorrowedNumberToken::parse(generation.as_str()).map_err(codec_error)?;
+    let frontier = sc::BorrowedNumberToken::parse(frontier.as_str()).map_err(codec_error)?;
+    let axes_digest = axes
+        .map(ContentRef::digest)
+        .transpose()
+        .map_err(codec_error)?;
+    let fields = [
+        ("generation", VV::Number(generation)),
+        ("structure_cut", VV::String(&meta.structure_cut)),
+        ("input_frontier", VV::Number(frontier)),
+        ("catalog_revision", VV::String(&meta.catalog_revision)),
+        ("profile_id", VV::String(&meta.profile_id)),
+        ("profile_hash", VV::String(&meta.profile_hash)),
+        ("rule_revision", VV::String(&meta.rule_revision)),
+        ("raw_events", VV::Edge(roots.raw_events.digest)),
+        ("effective_events", VV::Edge(roots.effective_events.digest)),
+        ("objects", VV::Edge(roots.objects.digest)),
+        ("witnesses", VV::Edge(roots.witnesses.digest)),
+        ("relations", VV::Edge(roots.relations.digest)),
+        ("observations", VV::Edge(roots.observations.digest)),
+        ("scope", VV::Edge(meta.scope.digest)),
         (
-            "structure_cut".into(),
-            CValue::String(meta.structure_cut.clone()),
+            "catalog_axes",
+            axes_digest.map_or(VV::Json(JsonView::Null), VV::Edge),
         ),
-        ("input_frontier".into(), number(meta.input_frontier)?),
-        (
-            "catalog_revision".into(),
-            CValue::String(meta.catalog_revision.clone()),
-        ),
-        ("profile_id".into(), CValue::String(meta.profile_id.clone())),
-        (
-            "profile_hash".into(),
-            CValue::String(meta.profile_hash.clone()),
-        ),
-        (
-            "rule_revision".into(),
-            CValue::String(meta.rule_revision.clone()),
-        ),
-        ("raw_events".into(), CValue::Edge(roots.raw_events.digest)),
-        (
-            "effective_events".into(),
-            CValue::Edge(roots.effective_events.digest),
-        ),
-        ("objects".into(), CValue::Edge(roots.objects.digest)),
-        ("witnesses".into(), CValue::Edge(roots.witnesses.digest)),
-        ("relations".into(), CValue::Edge(roots.relations.digest)),
-        (
-            "observations".into(),
-            CValue::Edge(roots.observations.digest),
-        ),
-        ("scope".into(), meta.scope.clone()),
     ];
-    if let Some(axes) = axes {
-        fields.push((
-            "catalog_axes".into(),
-            CValue::Edge(axes.digest().map_err(codec_error)?),
-        ));
-    }
-    let built = sc::write_value(&mut *store, &CValue::Object(fields))
-        .map_err(|error| format!("GenError：生成态写入失败：{error}"))?;
-    Ok(built.content_ref())
+    let built = sc::write_value_view(
+        &mut *store,
+        VV::Object(&fields[..if axes.is_some() { 15 } else { 14 }]),
+    )
+    .map_err(|error| format!("GenError：生成态写入失败：{error}"))?;
+    native_ref(store, &built)
 }
 
 /// #1394：Plain维持bulk extend与clear容量复用，Owned仅由实际CodecVec allocator持账。
 enum SequenceKeys {
-    Plain(Vec<NodeDigest>),
+    Plain(CodecVec<NodeDigest>),
     #[cfg(feature = "s_allocation_json_testonly")]
     Owned(sc::CodecVec<NodeDigest>),
 }
 impl Default for SequenceKeys {
     fn default() -> Self {
-        Self::Plain(Vec::new())
+        Self::Plain(CodecVec::default())
     }
 }
 impl SequenceKeys {
@@ -1290,10 +1466,16 @@ impl SequenceKeys {
             )
         }
     }
-    fn reserve_owned(&mut self, length: usize) -> Result<(), String> {
+    fn reserve_admitted(&mut self, store: &dyn NodeStore, length: usize) -> Result<(), String> {
         match self {
-            Self::Plain(_) => {
-                let _ = length;
+            Self::Plain(keys) => {
+                let additional = length.saturating_sub(keys.len());
+                if let Some(work) = store.codec_work() {
+                    keys.try_reserve_native(work, additional)
+                        .map_err(codec_error)?;
+                } else {
+                    keys.try_reserve_exact(additional).map_err(codec_error)?;
+                }
                 Ok(())
             }
             #[cfg(feature = "s_allocation_json_testonly")]
@@ -1302,11 +1484,14 @@ impl SequenceKeys {
                 .map_err(codec_error),
         }
     }
+
     fn replace_reserved(&mut self, elements: &[NodeDigest]) -> Result<(), String> {
         match self {
             Self::Plain(keys) => {
                 keys.clear();
-                keys.extend_from_slice(elements);
+                for digest in elements {
+                    keys.try_push(*digest).map_err(codec_error)?;
+                }
             }
             #[cfg(feature = "s_allocation_json_testonly")]
             Self::Owned(keys) => {
@@ -1325,7 +1510,9 @@ impl SequenceKeys {
         match self {
             Self::Plain(keys) => {
                 keys.truncate(prefix);
-                keys.extend_from_slice(suffix);
+                for digest in suffix {
+                    keys.try_push(*digest).map_err(codec_error)?;
+                }
             }
             #[cfg(feature = "s_allocation_json_testonly")]
             Self::Owned(keys) => {
@@ -1376,12 +1563,25 @@ impl SequenceMemo {
     }
     fn discard(&mut self) {
         match &mut self.keys {
-            SequenceKeys::Plain(keys) => keys.clear(),
-            #[cfg(feature = "s_allocation_json_testonly")]
-            SequenceKeys::Owned(_) => self.keys = SequenceKeys::default(),
+            SequenceKeys::Plain(keys) if !keys.is_native_bound() => keys.clear(),
+            _ => self.keys = SequenceKeys::default(),
         }
         self.seq = None;
         self.bound = false;
+    }
+    fn check_native_scope(&mut self, store: &dyn NodeStore) -> Result<(), String> {
+        let keys = match &mut self.keys {
+            SequenceKeys::Plain(keys) => keys,
+            #[cfg(feature = "s_allocation_json_testonly")]
+            SequenceKeys::Owned(_) => return Ok(()),
+        };
+        match store.codec_work() {
+            Some(work) if self.bound => keys.try_reserve_native(work, 0).map_err(codec_error),
+            None if keys.is_native_bound() => Err(
+                "prototype_audit_allocation_incomplete：Native sequence缓存需要当前scope".into(),
+            ),
+            _ => Ok(()),
+        }
     }
 
     /// 消费本模块由已核变化导出的 splice；不读取或比较任何未变 keys。
@@ -1393,6 +1593,7 @@ impl SequenceMemo {
         what: &'static str,
         budget: Option<&sc::capture_allocation::OwnedBudget>,
     ) -> Result<Built, String> {
+        self.check_native_scope(store)?;
         if self.bound
             && !match (self.allocation_budget(), budget) {
                 (None, None) => true,
@@ -1420,15 +1621,18 @@ impl SequenceMemo {
             .unchanged_prefix
             .checked_add(edit.replacement_suffix.len())
             .ok_or_else(|| format!("GenError：{what} splice 长度溢出"))?;
-        let mut next_keys = if !self.bound {
-            budget.map(SequenceKeys::owned).transpose()?
+        let mut next_keys = if !self.bound && (budget.is_some() || store.codec_work().is_some()) {
+            Some(match budget {
+                Some(b) => SequenceKeys::owned(b)?,
+                None => SequenceKeys::default(),
+            })
         } else {
             None
         };
         next_keys
             .as_mut()
             .unwrap_or(&mut self.keys)
-            .reserve_owned(length)?;
+            .reserve_admitted(store, length)?;
         let seq = sc::sequence_rebuild_suffix_with_allocation(
             &mut *store,
             &previous,
@@ -1457,6 +1661,7 @@ impl SequenceMemo {
         what: &'static str,
         budget: Option<&sc::capture_allocation::OwnedBudget>,
     ) -> Result<Built, String> {
+        self.check_native_scope(store)?;
         if self.bound
             && !match (self.allocation_budget(), budget) {
                 (None, None) => true,
@@ -1467,15 +1672,18 @@ impl SequenceMemo {
             return Err("prototype_audit_allocation_incomplete：缓存账本改变，须discard".into());
         }
         // 初次Owned绑定暂留局部，失败不冻结模式；现有Owned真实扩容先同时留账旧新块。
-        let mut next_keys = if !self.bound {
-            budget.map(SequenceKeys::owned).transpose()?
+        let mut next_keys = if !self.bound && (budget.is_some() || store.codec_work().is_some()) {
+            Some(match budget {
+                Some(b) => SequenceKeys::owned(b)?,
+                None => SequenceKeys::default(),
+            })
         } else {
             None
         };
         next_keys
             .as_mut()
             .unwrap_or(&mut self.keys)
-            .reserve_owned(elements.len())?;
+            .reserve_admitted(store, elements.len())?;
         let keys = self.keys.as_slice();
         let common = keys
             .iter()
@@ -1515,28 +1723,46 @@ impl SequenceMemo {
 fn dedupe_observations(
     store: &mut dyn NodeStore,
     observations: &[(bool, Built)],
-) -> Result<Vec<Built>, String> {
-    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut out: Vec<Built> = Vec::with_capacity(observations.len());
+) -> Result<CodecVec<Built>, String> {
+    let mut seen = bj::new_map::<NativeValue<String>, ()>(None);
+    let mut out = CodecVec::default();
     for (from_knowledge, built) in observations {
+        let root = native_ref(store, built)?;
         let key = if *from_knowledge {
-            format!("\u{1}tb02a\u{1}{}", built.root())
+            store
+                .native_format(format_args!("\u{1}tb02a\u{1}{}", root.root))
+                .map_err(codec_error)?
         } else {
-            let root = built.content_ref();
-            format!(
-                "{}\u{1}{}\u{1}{}\u{1}{}\u{1}{}",
-                field_text(store, &root, "kind")?,
-                field_text(store, &root, "window_start")?,
-                field_text(store, &root, "window_mid")?,
-                field_text(store, &root, "window_end")?,
-                field_text(store, &root, "reason")?,
-            )
+            let kind = field_text_admitted(store, &root, "kind")?;
+            let start = field_text_admitted(store, &root, "window_start")?;
+            let mid = field_text_admitted(store, &root, "window_mid")?;
+            let end = field_text_admitted(store, &root, "window_end")?;
+            let reason = field_text_admitted(store, &root, "reason")?;
+            store
+                .native_format(format_args!(
+                    "{}\u{1}{}\u{1}{}\u{1}{}\u{1}{}",
+                    kind, start, mid, end, reason
+                ))
+                .map_err(codec_error)?
         };
-        if seen.insert(key) {
-            out.push(built.clone());
+        if !seen.contains_key(key.as_str()) {
+            store.native_map_room(&mut seen).map_err(codec_error)?;
+            seen.insert(key, ()).map_err(codec_error)?;
+            push_gen(&mut out, built.clone(), store)?;
         }
     }
     Ok(out)
+}
+fn field_text_admitted(
+    store: &mut dyn NodeStore,
+    root: &ContentRef,
+    name: &str,
+) -> Result<TextValue, String> {
+    let reference = store
+        .lookup_field_ref(root.into(), name)
+        .map_err(|error| format!("GenError：小路径定位失败：{error}"))?;
+    let value = bj::render_json(store, reference.view())?;
+    json_text(store, value.view())
 }
 
 /// 目录轴的**最小消费投影**：每项只给 `object_id`/`kind` 与目录函数真正读取的小路径值。
@@ -1550,58 +1776,103 @@ fn dedupe_observations(
 /// - 其余 kind：空对象（旧函数对这些 kind 从不解析 `payload_json`）。
 ///
 /// 不读 `source_coords`/`input_refs` 等大边，也不重造整份 payload。
+struct JsonOwners<'a>(&'a [JsonOwner]);
+impl sc::capture_allocation::audit_json::JsonArray for JsonOwners<'_> {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+    fn get(&self, index: usize) -> Option<JsonView<'_>> {
+        self.0.get(index).map(JsonOwner::view)
+    }
+}
+fn json_text(store: &dyn NodeStore, view: JsonView<'_>) -> Result<TextValue, String> {
+    struct Output<'a> {
+        bytes: CodecVec<u8>,
+        source: &'a dyn NodeStore,
+    }
+    impl std::io::Write for Output<'_> {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            if let Some(work) = self.source.codec_work() {
+                self.bytes
+                    .try_reserve_native(work, bytes.len())
+                    .map_err(std::io::Error::other)?;
+            }
+            self.bytes
+                .try_extend_bytes(bytes)
+                .map_err(std::io::Error::other)?;
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut output = Output {
+        bytes: CodecVec::default(),
+        source: store,
+    };
+    serde_json::to_writer(&mut output, &view)
+        .map_err(|e| format!("GenError：小字段渲染失败：{e}"))?;
+    TextValue::from_bytes(output.bytes)
+}
+fn projection_field(
+    store: &mut dyn NodeStore,
+    root: &Built,
+    path: &[&str],
+) -> Result<JsonOwner, String> {
+    let mut reference = store.native_built_ref(root).map_err(codec_error)?;
+    for field in path {
+        reference = store
+            .lookup_field_ref(reference.view(), field)
+            .map_err(|e| format!("GenError：小路径定位失败：{e}"))?;
+    }
+    bj::render_json(store, reference.view())
+}
 fn catalog_projection_entry(
     store: &mut dyn NodeStore,
     object: &ProducedObject,
     requests: &[Built],
-) -> Result<Value, String> {
-    let mut entry = serde_json::Map::new();
-    entry.insert(
-        "object_id".to_string(),
-        Value::String(object.object_id().to_string()),
-    );
-    entry.insert("kind".to_string(), Value::String(object.kind().to_string()));
-    let projection = if object.kind() == CC004_STEP_KIND {
-        let payload = object.payload().ok_or_else(|| {
+) -> Result<JsonOwner, String> {
+    let payload = || {
+        object.payload().ok_or_else(|| {
             format!(
-                "GenError：CC-004 对象 {} 缺 payload 值根",
+                "GenError：{} 对象 {} 缺 payload 值根",
+                object.kind(),
                 object.object_id()
             )
-        })?;
-        let comparisons = path_of(store, &payload.content_ref(), &[step_field("comparisons")])?;
-        format!("{{\"comparisons\":{}}}", render_text(store, &comparisons)?)
-    } else if object.kind() == CC054_KNOWLEDGE_KIND {
-        let payload = object.payload().ok_or_else(|| {
-            format!(
-                "GenError：CC-054 对象 {} 缺 payload 值根",
-                object.object_id()
-            )
-        })?;
-        let root = payload.content_ref();
-        let waiting_path = path_of(store, &root, &[step_field("waiting_reasons")])?;
-        let waiting = render_text(store, &waiting_path)?;
-        let mut request_items: Vec<Value> = Vec::with_capacity(requests.len());
-        for request in requests {
-            let request_root = request.content_ref();
-            let request_id_path = path_of(store, &request_root, &[step_field("request_id")])?;
-            // `request_id` 在载荷里是**文本字段**，其内容才是规范键 JSON；投影必须还原成
-            // 同一个字符串值（旧目录函数随后 `from_str` 得到键数组），不能带渲染外层引号。
-            let request_id = parse_small_json(
-                &render_text(store, &request_id_path)?,
-                "知识请求 request_id",
-            )?;
-            let reasons_path = path_of(store, &request_root, &[step_field("reasons")])?;
-            let reasons = render_text(store, &reasons_path)?;
-            request_items.push(serde_json::json!({
-                "request_id": request_id,
-                "reasons": parse_small_json(&reasons, "知识请求 reasons")?,
-            }));
-        }
-        serde_json::json!({
-            "waiting_reasons": parse_small_json(&waiting, "知识状态 waiting_reasons")?,
-            "requests": request_items,
         })
-        .to_string()
+    };
+    let projection = if object.kind() == CC004_STEP_KIND {
+        let comparisons = projection_field(store, payload()?, &["comparisons"])?;
+        let fields = [("comparisons", comparisons.view())];
+        json_text(
+            store,
+            JsonView::object_fields(&fields).map_err(codec_error)?,
+        )?
+    } else if object.kind() == CC054_KNOWLEDGE_KIND {
+        let waiting = projection_field(store, payload()?, &["waiting_reasons"])?;
+        let mut request_items = CodecVec::default();
+        for request in requests {
+            let request_id = projection_field(store, request, &["request_id"])?;
+            let reasons = projection_field(store, request, &["reasons"])?;
+            let fields = [
+                ("request_id", request_id.view()),
+                ("reasons", reasons.view()),
+            ];
+            let row = bj::json_from_view_admitted(
+                store,
+                JsonView::object_fields(&fields).map_err(codec_error)?,
+            )?;
+            push_gen(&mut request_items, row, store)?;
+        }
+        let items = JsonOwners(&request_items);
+        let fields = [
+            ("waiting_reasons", waiting.view()),
+            ("requests", JsonView::BorrowedArray(&items)),
+        ];
+        json_text(
+            store,
+            JsonView::object_fields(&fields).map_err(codec_error)?,
+        )?
     } else if matches!(
         object.kind(),
         "CC-056.version"
@@ -1609,25 +1880,25 @@ fn catalog_projection_entry(
             | "CC-056.center_version"
             | "CC-056.pair_version"
     ) {
-        let payload = object.payload().ok_or_else(|| {
-            format!(
-                "GenError：CC-056 对象 {} 缺 payload 值根",
-                object.object_id()
-            )
-        })?;
-        let root = payload.content_ref();
-        let waiting_path = path_of(
-            store,
-            &root,
-            &[step_field("data"), step_field("waiting_reasons")],
-        )?;
-        let waiting = render_text(store, &waiting_path)?;
-        format!("{{\"data\":{{\"waiting_reasons\":{waiting}}}}}")
+        let waiting = projection_field(store, payload()?, &["data", "waiting_reasons"])?;
+        let inner = [("waiting_reasons", waiting.view())];
+        let outer = [(
+            "data",
+            JsonView::object_fields(&inner).map_err(codec_error)?,
+        )];
+        json_text(store, JsonView::object_fields(&outer).map_err(codec_error)?)?
     } else {
-        String::from("{}")
+        TextValue::Plain(native_text(store, "{}")?)
     };
-    entry.insert("payload_json".to_string(), Value::String(projection));
-    Ok(Value::Object(entry))
+    let fields = [
+        ("object_id", JsonView::String(object.object_id())),
+        ("kind", JsonView::String(object.kind())),
+        ("payload_json", JsonView::String(&projection)),
+    ];
+    bj::json_from_view_admitted(
+        store,
+        JsonView::object_fields(&fields).map_err(codec_error)?,
+    )
 }
 
 fn step_field(name: &str) -> PathStep {
@@ -1663,106 +1934,103 @@ fn parse_small_json(text: &str, what: &'static str) -> Result<Value, String> {
 /// CC-006 三组窗口的见证与关系（配方与旧生成段逐字相同，只换真实新 `obj3-` 身份）。
 fn shape_witnesses(
     store: &mut dyn NodeStore,
-    event_nodes: &mut BTreeMap<(i64, i64), NodeDigest>,
+    event_nodes: &mut FixedRadix<(i64, i64), NodeDigest>,
     raw_by_coord: BiLedgerView<'_>,
-    coord_nodes: &BTreeMap<i64, NodeDigest>,
+    coord_nodes: &FixedRadix<i64, NodeDigest>,
     views: &[GroupEvidenceView<'_>; 3],
     start: usize,
     object: &Cc006Object,
-) -> Result<(Vec<WitnessRecord>, Vec<Built>), String> {
-    let mut witnesses: Vec<WitnessRecord> = Vec::with_capacity(3);
-    let mut relations: Vec<Built> = Vec::with_capacity(4);
+) -> Result<(CodecVec<WitnessRecord>, CodecVec<Built>), String> {
+    let mut witnesses = CodecVec::default();
+    let mut relations = CodecVec::default();
     for (slot, view) in views.iter().enumerate() {
         let mi = start + slot;
-        let mut bar_nodes: Vec<NodeDigest> = Vec::with_capacity(view.members.len());
+        let mut bar_nodes = CodecVec::default();
         for coord in view.members {
             let coord = *coord as i64;
             let event = raw_by_coord.get(coord).ok_or_else(|| {
                 format!("StorageUnavailable：见证成员坐标 {coord} 不在本次生效账内")
             })?;
-            match coord_nodes.get(&coord) {
-                Some(node) => bar_nodes.push(*node),
-                None => bar_nodes.push(event_node(event_nodes, store, event)?),
-            }
+            let node = match coord_nodes.get(&coord) {
+                Some(node) => *node,
+                None => event_node(event_nodes, store, event)?,
+            };
+            push_gen(&mut bar_nodes, VV::Edge(node), store)?;
         }
-        let bar_array = sc::write_value(
-            &mut *store,
-            &CValue::Array(bar_nodes.into_iter().map(CValue::Edge).collect()),
-        )
-        .map_err(|error| format!("GenError：见证 raw_bars 写入失败：{error}"))?;
-        let witness_id = witness_identity(store, &object.object_id, slot, mi, &bar_array)?;
-        let record = CValue::Object(vec![
+        let bar_array = sc::write_value_view(&mut *store, VV::Array(&bar_nodes))
+            .map_err(|error| format!("GenError：见证 raw_bars 写入失败：{error}"))?;
+        let witness_id = witness_identity_native(store, &object.object_id, slot, mi, &bar_array)?;
+        let source_index =
+            super::super::content_manifest::Decimal::new(view.bar.source_index as i64);
+        let slot_text = super::super::content_manifest::Decimal::new(slot as i64);
+        let close = store
+            .native_format(format_args!("{}", view.bar.close))
+            .map_err(codec_error)?;
+        let high = store
+            .native_format(format_args!("{}", view.bar.high))
+            .map_err(codec_error)?;
+        let low = store
+            .native_format(format_args!("{}", view.bar.low))
+            .map_err(codec_error)?;
+        let open = store
+            .native_format(format_args!("{}", view.bar.open))
+            .map_err(codec_error)?;
+        let fields = [
+            ("merged_close", VV::String(&close)),
+            ("merged_high", VV::String(&high)),
+            ("merged_low", VV::String(&low)),
+            ("merged_open", VV::String(&open)),
             (
-                "merged_close".to_string(),
-                CValue::String(view.bar.close.to_string()),
+                "merged_source_index",
+                VV::Number(
+                    sc::BorrowedNumberToken::parse(source_index.as_str()).map_err(codec_error)?,
+                ),
             ),
+            ("object_id", VV::String(&object.object_id)),
+            ("raw_bars", VV::Edge(bar_array.digest)),
             (
-                "merged_high".to_string(),
-                CValue::String(view.bar.high.to_string()),
+                "slot",
+                VV::Number(
+                    sc::BorrowedNumberToken::parse(slot_text.as_str()).map_err(codec_error)?,
+                ),
             ),
-            (
-                "merged_low".to_string(),
-                CValue::String(view.bar.low.to_string()),
-            ),
-            (
-                "merged_open".to_string(),
-                CValue::String(view.bar.open.to_string()),
-            ),
-            (
-                "merged_source_index".to_string(),
-                number(view.bar.source_index as i64)?,
-            ),
-            (
-                "object_id".to_string(),
-                CValue::String(object.object_id.clone()),
-            ),
-            ("raw_bars".to_string(), CValue::Edge(bar_array.digest)),
-            ("slot".to_string(), number(slot as i64)?),
-            ("witness_id".to_string(), CValue::String(witness_id.clone())),
-        ]);
-        let built = sc::write_value(&mut *store, &record)
+            ("witness_id", VV::String(&witness_id)),
+        ];
+        let built = sc::write_value_view(&mut *store, VV::Object(&fields))
             .map_err(|error| format!("GenError：见证记录写入失败：{error}"))?;
-        witnesses.push(WitnessRecord {
-            witness_id: witness_id.clone(),
-            object_id: object.object_id.clone(),
-            slot,
-            built,
-        });
-        let relation = CValue::Object(vec![
-            ("object".to_string(), CValue::String(witness_id)),
-            (
-                "relation_type".to_string(),
-                CValue::String("has_witness".to_string()),
-            ),
-            (
-                "subject".to_string(),
-                CValue::String(object.object_id.clone()),
-            ),
-        ]);
-        relations.push(
-            sc::write_value(&mut *store, &relation)
-                .map_err(|error| format!("GenError：关系值写入失败：{error}"))?,
-        );
+        let fields = [
+            ("object", VV::String(&witness_id)),
+            ("relation_type", VV::String("has_witness")),
+            ("subject", VV::String(&object.object_id)),
+        ];
+        let relation = sc::write_value_view(&mut *store, VV::Object(&fields))
+            .map_err(|error| format!("GenError：关系值写入失败：{error}"))?;
+        push_gen(
+            &mut witnesses,
+            WitnessRecord {
+                witness_id,
+                object_id: native_text(store, &object.object_id)?,
+                slot,
+                built,
+            },
+            store,
+        )?;
+        push_gen(&mut relations, relation, store)?;
     }
-    let window = format!(
-        "window-{}-{}-{}",
-        object.window[0], object.window[1], object.window[2]
-    );
-    let classified = CValue::Object(vec![
-        (
-            "object".to_string(),
-            CValue::String(object.object_id.clone()),
-        ),
-        (
-            "relation_type".to_string(),
-            CValue::String("classified_as".to_string()),
-        ),
-        ("subject".to_string(), CValue::String(window)),
-    ]);
-    relations.push(
-        sc::write_value(&mut *store, &classified)
-            .map_err(|error| format!("GenError：关系值写入失败：{error}"))?,
-    );
+    let window = store
+        .native_format(format_args!(
+            "window-{}-{}-{}",
+            object.window[0], object.window[1], object.window[2]
+        ))
+        .map_err(codec_error)?;
+    let fields = [
+        ("object", VV::String(&object.object_id)),
+        ("relation_type", VV::String("classified_as")),
+        ("subject", VV::String(&window)),
+    ];
+    let classified = sc::write_value_view(&mut *store, VV::Object(&fields))
+        .map_err(|error| format!("GenError：关系值写入失败：{error}"))?;
+    push_gen(&mut relations, classified, store)?;
     Ok((witnesses, relations))
 }
 
@@ -1777,6 +2045,33 @@ pub(super) fn witness_identity(
     mi: usize,
     raw_bars: &Built,
 ) -> Result<String, String> {
+    let bytes = witness_identity_bytes(store, object_id, slot, mi, raw_bars)?;
+    // 旧裸 String 接口；Native 来源核改走下方携原许可的输出。
+    store.native_admit(bytes.len()).map_err(codec_error)?;
+    let mut result = String::with_capacity(bytes.len());
+    result.extend(bytes.into_iter().map(char::from));
+    Ok(result)
+}
+
+pub(super) fn witness_identity_native(
+    store: &mut (impl CodecRead + ?Sized),
+    object_id: &str,
+    slot: usize,
+    mi: usize,
+    raw_bars: &Built,
+) -> Result<sc::capture_allocation::native_owned::NativeValue<String>, String> {
+    let bytes = witness_identity_bytes(store, object_id, slot, mi, raw_bars)?;
+    let text = std::str::from_utf8(&bytes).expect("固定 ASCII witness 身份");
+    store.native_string(text).map_err(codec_error)
+}
+
+fn witness_identity_bytes(
+    store: &mut (impl CodecRead + ?Sized),
+    object_id: &str,
+    slot: usize,
+    mi: usize,
+    raw_bars: &Built,
+) -> Result<[u8; 20], String> {
     if object_id.contains('"') || object_id.contains('\\') {
         return Err(format!(
             "GenError：对象身份 `{object_id}` 含需转义字符，拒绝拼入规范输入"
@@ -1799,14 +2094,13 @@ pub(super) fn witness_identity(
             .map_err(|e| format!("GenError：见证输入失败：{e}"))?;
     }
     let digest = hasher.finalize();
-    // 输出固定为 wit- + 16 个十六进制字符；许可早于唯一的 String 分配。
-    store.native_admit(20).map_err(codec_error)?;
-    let mut result = String::with_capacity(20);
-    result.push_str("wit-");
+    // 两种输出所有权共用同一个配方；固定 ASCII 暂存不分配堆内存。
+    let mut result = [0u8; 20];
+    result[..4].copy_from_slice(b"wit-");
     const HEX: &[u8; 16] = b"0123456789abcdef";
-    for byte in &digest[..8] {
-        result.push(HEX[(byte >> 4) as usize] as char);
-        result.push(HEX[(byte & 15) as usize] as char);
+    for (i, byte) in digest[..8].iter().enumerate() {
+        result[4 + i * 2] = HEX[(byte >> 4) as usize];
+        result[5 + i * 2] = HEX[(byte & 15) as usize];
     }
     Ok(result)
 }
@@ -1827,7 +2121,7 @@ impl std::io::Write for DigestWriter<'_> {
 
 /// 事件节点：`(source_coord, revision)` memo + 逐字段写节点（小原件，非大数组）。
 fn event_node(
-    memo: &mut BTreeMap<(i64, i64), NodeDigest>,
+    memo: &mut FixedRadix<(i64, i64), NodeDigest>,
     store: &mut dyn NodeStore,
     event: JsonView<'_>,
 ) -> Result<NodeDigest, String> {
@@ -1835,12 +2129,14 @@ fn event_node(
     let revision = bj::field(event, "revision")
         .as_i64()
         .ok_or("StorageUnavailable：raw.revision 不是 i64")?;
+    memo.check_admission(&*store).map_err(codec_error)?;
     if let Some(node) = memo.get(&(coord, revision)) {
         return Ok(*node);
     }
     let built = sc::write_json_view(&mut *store, event)
         .map_err(|error| format!("GenError：原始事件节点写入失败：{error}"))?;
-    memo.insert((coord, revision), built.digest);
+    memo.insert_admitted((coord, revision), built.digest, &*store)
+        .map_err(codec_error)?;
     Ok(built.digest)
 }
 
@@ -1871,20 +2167,27 @@ fn group_views(state: &IncrFactsState, start: usize) -> Result<[GroupEvidenceVie
 }
 
 /// TB-02-B 对象的 kind：从记录读回（不重算判据，不猜默认）。
-fn typed_kind(store: &mut dyn NodeStore, object: &TypedObject) -> Result<String, String> {
-    let root = object.record.content_ref();
-    let kind = path_of(store, &root, &[step_field("kind")])?;
-    if kind.kind != Kind::String {
+fn typed_kind(
+    store: &mut dyn NodeStore,
+    object: &TypedObject,
+) -> Result<NativeValue<String>, String> {
+    let root = native_ref(store, &object.record)?;
+    let kind = store
+        .lookup_field_ref((&root).into(), "kind")
+        .map_err(codec_error)?;
+    if kind.kind() != Kind::String {
         return Err(format!(
             "GenError：对象 {} 记录 kind 不是字符串（{:?}）",
-            object.object_id, kind.kind
+            object.object_id,
+            kind.kind()
         ));
     }
-    let text = render_text(store, &kind)?;
-    parse_small_json(&text, "记录 kind")?
+    let value = bj::render_json(store, kind.view())?;
+    let text = value
+        .view()
         .as_str()
-        .map(str::to_string)
-        .ok_or_else(|| format!("GenError：对象 {} 记录 kind 不是文本", object.object_id))
+        .ok_or_else(|| format!("GenError：对象 {} 记录 kind 不是文本", object.object_id))?;
+    native_text(store, text)
 }
 
 /// 规范 JSON 数字节点（精确整数）。
@@ -1931,7 +2234,34 @@ fn json_to_cvalue(value: &Value) -> Result<CValue, String> {
 }
 
 fn write_json(store: &mut dyn NodeStore, value: &Value) -> Result<Built, String> {
-    sc::write_value(&mut *store, &json_to_cvalue(value)?)
+    write_json_view(store, value.into())
+}
+
+fn write_json_view(
+    store: &mut (impl CodecStore + ?Sized),
+    value: JsonView<'_>,
+) -> Result<Built, String> {
+    fn check(value: JsonView<'_>) -> Result<(), String> {
+        if let Some(n) = value.number() {
+            if n.as_i64().is_none() && n.as_u64().is_none() {
+                return Err(format!(
+                    "GenError：原始行出现非整数 JSON 数字 `{n}`（不把 token 静默改写）"
+                ));
+            }
+        } else if let Some(items) = value.as_array() {
+            for item in items {
+                check(item)?;
+            }
+        } else if let Some(fields) = value.as_object() {
+            for (_, item) in fields.iter() {
+                check(item)?;
+            }
+        }
+        Ok(())
+    }
+    check(value)?;
+    store
+        .write_json_view(value)
         .map_err(|error| format!("GenError：值写入失败：{error}"))
 }
 
@@ -1949,6 +2279,42 @@ fn codec_error(error: sc::CodecError) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn borrowed_json_write_keeps_old_integer_oracle_and_rejects_before_put() {
+        let original = serde_json::json!({"items": [i64::MIN, u64::MAX], "text": "1.5"});
+        let mut expected_nodes = sc::MemoryNodes::new();
+        let expected =
+            sc::write_value(&mut expected_nodes, &json_to_cvalue(&original).unwrap()).unwrap();
+        let mut actual_nodes = sc::MemoryNodes::new();
+        let actual = write_json_view(&mut actual_nodes, (&original).into()).unwrap();
+        assert_eq!(actual.digest, expected.digest);
+        let bad = serde_json::json!({"outer": [1, {"float": 1.5}]});
+        let mut refused = sc::MemoryNodes::new();
+        let error = write_json_view(&mut refused, (&bad).into()).unwrap_err();
+        assert_eq!(
+            error,
+            "GenError：原始行出现非整数 JSON 数字 `1.5`（不把 token 静默改写）"
+        );
+        assert_eq!(refused.iter().count(), 0, "完整整数预检先于任何节点写出");
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_axis_view_uses_same_integer_guard_and_codec_root() {
+        let original = serde_json::json!({"CC-004": {"count": 2, "ids": ["a", "b"]}});
+        let budget = sc::capture_allocation::OwnedBudget::new(1 << 20);
+        let owner =
+            sc::capture_allocation::audit_json::OwnedJson::from_view((&original).into(), &budget)
+                .unwrap();
+        let mut plain_nodes = sc::MemoryNodes::new();
+        let expected = write_json(&mut plain_nodes, &original).unwrap();
+        let mut owned_nodes = sc::MemoryNodes::new();
+        let actual = write_json_view(&mut owned_nodes, owner.view()).unwrap();
+        assert_eq!(actual.digest, expected.digest);
+        drop(owner);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+
     use super::*;
     use crate::tests::{
         accept_ohlc, init_test_db, located_ohlc_input, tb02b_oracle_rows, TestFiles,
@@ -1960,6 +2326,373 @@ mod tests {
     };
     use newchan_rust::s_content::{render_canonical, MemoryNodes};
     use serde_json::json;
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    struct NativeFixture<'a> {
+        inner: &'a mut MemoryNodes,
+        work: &'a sc::capture_allocation::scratch::WorkScope,
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    impl sc::NodeSource for NativeFixture<'_> {
+        fn read(&mut self, digest: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+            self.inner.read(digest)
+        }
+        fn codec_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
+            Some(self.work)
+        }
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    impl sc::NodeSink for NativeFixture<'_> {
+        fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
+            self.inner.put(digest, tag, body)
+        }
+        fn codec_sink_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
+            Some(self.work)
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn event_radix_memo_hit_requires_current_native_scope_and_keeps_root_recipe() {
+        let event = serde_json::json!({"source_coord":"0","revision":1,"value":7});
+        let mut oracle = MemoryNodes::new();
+        let expected = sc::write_json_view(&mut oracle, (&event).into())
+            .unwrap()
+            .digest;
+        let budget = super::super::audit_owner::native::Budget::new(1 << 20, 0).unwrap();
+        let baseline = budget.live();
+        let mut memo = FixedRadix::default();
+        let mut nodes = MemoryNodes::new();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let mut store = NativeFixture {
+                    inner: &mut nodes,
+                    work,
+                };
+                let actual = event_node(&mut memo, &mut store, (&event).into())?;
+                assert_eq!(actual, expected);
+                let count = store.inner.iter().count();
+                assert_eq!(
+                    event_node(&mut memo, &mut store, (&event).into())?,
+                    expected
+                );
+                assert_eq!(store.inner.iter().count(), count);
+                Ok::<_, String>(())
+            })
+            .unwrap();
+        let mut plain = MemoryNodes::new();
+        assert!(event_node(&mut memo, &mut plain, (&event).into()).is_err());
+        assert_eq!(
+            plain.iter().count(),
+            0,
+            "no memo hit may silently bypass current domain"
+        );
+        drop(memo);
+        assert_eq!(budget.live(), baseline);
+    }
+
+    #[test]
+    fn fixed_shape_observations_match_old_json_roots() {
+        // Oracles copy the frozen pre-G1 JSON recipes, independently of helper inputs.
+        let start = 7usize;
+        let cases = [
+            (
+                "domain_not_satisfied",
+                "adjacent_inclusion",
+                [Some(start), Some(start + 1), Some(start + 2)],
+                serde_json::json!({
+                    "kind": "domain_not_satisfied",
+                    "reason": "adjacent_inclusion",
+                    "window_start": start,
+                    "window_mid": start + 1,
+                    "window_end": start + 2,
+                    "detail": {},
+                }),
+            ),
+            (
+                "insufficient_knowledge",
+                "fewer_than_three_bars",
+                [Some(start), None, None],
+                serde_json::json!({
+                    "kind": "insufficient_knowledge",
+                    "reason": "fewer_than_three_bars",
+                    "window_start": start,
+                    "window_mid": Value::Null,
+                    "window_end": Value::Null,
+                    "detail": {},
+                }),
+            ),
+        ];
+        for (kind, reason, positions, old) in cases {
+            let mut oracle = MemoryNodes::new();
+            let expected = write_json(&mut oracle, &old).unwrap();
+            let mut actual = MemoryNodes::new();
+            let got = shape_observation(&mut actual, kind, reason, positions).unwrap();
+            assert_eq!(got.digest, expected.digest);
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_stable_sort_matches_old_equal_key_order_and_refuses_atomically() {
+        let input = (0..128usize).map(|i| ((i * 37) % 9, i)).collect::<Vec<_>>();
+        let mut expected = input.clone();
+        expected.sort_by(|a, b| a.0.cmp(&b.0));
+        let budget = super::super::audit_owner::native::Budget::new(1 << 20, 0).unwrap();
+        let baseline = budget.live();
+        let mut actual = input.clone();
+        let mut nodes = MemoryNodes::new();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let store = NativeFixture {
+                    inner: &mut nodes,
+                    work,
+                };
+                stable_sort_admitted(&mut actual, &store, |a, b| a.0.cmp(&b.0))
+            })
+            .unwrap();
+        assert_eq!(actual, expected, "与旧稳定排序逐项同序，等键原ordinal不变");
+        assert_eq!(budget.live(), baseline, "排序临时工作区已经真实释放");
+        let tiny = super::super::audit_owner::native::Budget::new(
+            baseline + sc::capture_allocation::scratch::CodecWork::metadata_bytes() + 8,
+            0,
+        )
+        .unwrap();
+        let tiny_baseline = tiny.live();
+        let mut refused = input.clone();
+        let result = tiny.codec_work().unwrap().run(|work| {
+            let store = NativeFixture {
+                inner: &mut nodes,
+                work,
+            };
+            stable_sort_admitted(&mut refused, &store, |a, b| a.0.cmp(&b.0))
+        });
+        assert!(matches!(
+            result,
+            Err(sc::capture_allocation::scratch::WorkError::Resource(_))
+        ));
+        assert_eq!(refused, input, "全部工作区准入完成前不改原顺序");
+        assert_eq!(tiny.live(), tiny_baseline);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_sequence_cross_generation_same_parent_foreign_refusal_and_discard() {
+        let mut nodes = MemoryNodes::new();
+        let a = sc::write_value(&mut nodes, &CValue::Bool(true))
+            .unwrap()
+            .digest;
+        let b = sc::write_value(&mut nodes, &CValue::Bool(false))
+            .unwrap()
+            .digest;
+        let c = sc::write_value(&mut nodes, &CValue::Null).unwrap().digest;
+        let mut oracle = SequenceMemo::default();
+        let first = oracle.sync(&mut nodes, &[a, b], "oracle-1", None).unwrap();
+        let second = oracle
+            .sync(&mut nodes, &[a, c, b], "oracle-2", None)
+            .unwrap();
+        let budget = super::super::audit_owner::native::Budget::new(1 << 20, 0).unwrap();
+        let baseline = budget.live();
+        let mut memo = SequenceMemo::default();
+        let got = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let mut store = NativeFixture {
+                    inner: &mut nodes,
+                    work,
+                };
+                memo.sync(&mut store, &[a, b], "native-1", None)
+            })
+            .unwrap();
+        assert_eq!(got.digest, first.digest);
+        assert!(budget.live() > baseline, "离域后真实keys容量仍持费");
+        let got = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let mut store = NativeFixture {
+                    inner: &mut nodes,
+                    work,
+                };
+                memo.sync(&mut store, &[a, c, b], "native-2", None)
+            })
+            .unwrap();
+        assert_eq!(got.digest, second.digest);
+        let before = memo.seq;
+        let foreign = super::super::audit_owner::native::Budget::new(1 << 20, 0).unwrap();
+        let foreign_baseline = foreign.live();
+        let result = foreign.codec_work().unwrap().run(|work| {
+            let mut store = NativeFixture {
+                inner: &mut nodes,
+                work,
+            };
+            memo.sync(&mut store, &[a, c, b], "foreign-zero-growth", None)
+        });
+        assert!(matches!(
+            result,
+            Err(sc::capture_allocation::scratch::WorkError::Resource(_))
+        ));
+        assert_eq!(memo.seq, before);
+        assert_eq!(memo.keys.as_slice(), &[a, c, b]);
+        assert_eq!(foreign.live(), foreign_baseline);
+        assert!(memo.sync(&mut nodes, &[a], "no-scope", None).is_err());
+        assert_eq!(memo.seq, before);
+        memo.discard();
+        assert_eq!(
+            budget.live(),
+            baseline,
+            "Native discard释放keys真实buffer及绑定"
+        );
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_generated_results_match_plain_and_keep_permits_until_drop() {
+        let events = delta_raw_fixture();
+        let effective = bj::effective(events.as_slice().into(), None).unwrap();
+        let scope = json!({"instrument":"native-generation", "exchange":"fixture"});
+        let input = GenerationInput {
+            structure_prior: Default::default(),
+            all_events: events.as_slice().into(),
+            effective: effective.raw_view(),
+            generation: 1,
+            structure_cut: "cut-1",
+            input_frontier: events.len() as i64,
+            profile_id: crate::tb02a::PROFILE,
+            profile_hash: "profile-hash",
+            rule_revision: "r",
+            catalog_revision: "catalog",
+            scope: &scope,
+            semantic_commit_ns: None,
+            prior: PriorState {
+                bi_records: Vec::new(),
+                version_record: None,
+            },
+        };
+        let mut plain_nodes = MemoryNodes::new();
+        let mut plain_runtime =
+            GenerationRuntime::new("native-parity/plain".into(), crate::tb02a::PROFILE, "r");
+        let mut plain = plain_runtime.generate(&mut plain_nodes, &input).unwrap();
+        plain.finish_axes(&mut plain_nodes, -1, &[], &[]).unwrap();
+        let budget = super::super::audit_owner::native::Budget::new(16 * 1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let mut native_nodes = MemoryNodes::new();
+        let mut runtime =
+            GenerationRuntime::new("native-parity/native".into(), crate::tb02a::PROFILE, "r");
+        let generated = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| -> Result<_, String> {
+                let mut store = NativeFixture {
+                    inner: &mut native_nodes,
+                    work,
+                };
+                let mut generated = runtime.generate(&mut store, &input)?;
+                generated.finish_axes(&mut store, -1, &[], &[])?;
+                assert!(generated.generated_state.is_native_admitted());
+                assert!(generated.raw.raw_events.is_native_admitted());
+                assert!(generated
+                    .objects
+                    .iter()
+                    .all(|o| o.object_id.is_native_admitted()));
+                assert!(generated
+                    .witnesses
+                    .iter()
+                    .all(|w| w.witness_id.is_native_admitted()));
+                Ok(generated)
+            })
+            .unwrap();
+        assert_eq!(generated.generated_state, plain.generated_state);
+        assert_eq!(
+            generated
+                .objects
+                .iter()
+                .map(|o| (o.kind(), o.fact_key(), o.object_id()))
+                .collect::<Vec<_>>(),
+            plain
+                .objects
+                .iter()
+                .map(|o| (o.kind(), o.fact_key(), o.object_id()))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            generated
+                .witnesses
+                .iter()
+                .map(|w| (&w.witness_id, &w.object_id, w.slot, &w.built))
+                .collect::<Vec<_>>(),
+            plain
+                .witnesses
+                .iter()
+                .map(|w| (&w.witness_id, &w.object_id, w.slot, &w.built))
+                .collect::<Vec<_>>()
+        );
+        assert!(budget.live() > baseline, "离开工作域后结果仍持有原许可");
+        drop(generated);
+        drop(runtime);
+        assert_eq!(budget.live(), baseline, "实际持有者析构后归还原账");
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn finish_axes_resource_rejection_preserves_published_roots() {
+        let events = delta_raw_fixture();
+        let effective = bj::effective(events.as_slice().into(), None).unwrap();
+        let scope = json!({"instrument":"native-finish-reject", "exchange":"fixture"});
+        let input = GenerationInput {
+            structure_prior: Default::default(),
+            all_events: events.as_slice().into(),
+            effective: effective.raw_view(),
+            generation: 1,
+            structure_cut: "cut-1",
+            input_frontier: events.len() as i64,
+            profile_id: crate::tb02a::PROFILE,
+            profile_hash: "profile-hash",
+            rule_revision: "r",
+            catalog_revision: "catalog",
+            scope: &scope,
+            semantic_commit_ns: None,
+            prior: PriorState {
+                bi_records: Vec::new(),
+                version_record: None,
+            },
+        };
+        let mut nodes = MemoryNodes::new();
+        let mut runtime =
+            GenerationRuntime::new("native-finish-reject".into(), crate::tb02a::PROFILE, "r");
+        let mut generated = runtime.generate(&mut nodes, &input).unwrap();
+        generated.finish_axes(&mut nodes, -1, &[], &[]).unwrap();
+        let state = generated.generated_state.as_ref().clone();
+        let axes = generated.catalog_axes.as_ref().unwrap().as_ref().clone();
+        const LIMIT: usize = 16 * 1024 * 1024;
+        let budget = super::super::audit_owner::native::Budget::new(LIMIT, 0).unwrap();
+        let baseline = budget.live();
+        let result = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| -> Result<(), String> {
+                let _occupy = budget.reserve(LIMIT - budget.live() - 1).unwrap();
+                let mut store = NativeFixture {
+                    inner: &mut nodes,
+                    work,
+                };
+                let result = generated.finish_axes(&mut store, -1, &[], &[]);
+                assert!(result.is_err());
+                assert_eq!(generated.generated_state.as_ref(), &state);
+                assert_eq!(generated.catalog_axes.as_ref().unwrap().as_ref(), &axes);
+                result.map(|_| ())
+            });
+        assert!(matches!(
+            result,
+            Err(sc::capture_allocation::scratch::WorkError::Resource(_))
+        ));
+        assert_eq!(budget.live(), baseline, "拒绝后释放全部暂存许可");
+    }
 
     fn delta_raw_fixture() -> Vec<Value> {
         [
@@ -2018,6 +2751,40 @@ mod tests {
         let mut generated = first.generate(&mut nodes, &input).unwrap();
         generated.finish_axes(&mut nodes, -1, &[], &[]).unwrap();
         generated.verify_new_closure(&mut nodes).unwrap();
+        #[cfg(feature = "s_capture_native_testonly")]
+        {
+            let budget =
+                super::super::audit_owner::native::Budget::new(16 * 1024 * 1024, 0).unwrap();
+            let baseline = budget.live();
+            let mut native_nodes = MemoryNodes::new();
+            let mut native_runtime = GenerationRuntime::new(
+                "structure-wire-native".into(),
+                crate::tb02a::PROFILE,
+                crate::V3_STRUCTURE_RULE_REVISION,
+            );
+            let result = budget
+                .codec_work()
+                .unwrap()
+                .run(|work| -> Result<_, String> {
+                    let mut store = NativeFixture {
+                        inner: &mut native_nodes,
+                        work,
+                    };
+                    let mut output = native_runtime.generate(&mut store, &input)?;
+                    output.finish_axes(&mut store, -1, &[], &[])?;
+                    Ok(output)
+                })
+                .unwrap();
+            assert_eq!(result.generated_state, generated.generated_state);
+            assert!(result
+                .objects
+                .iter()
+                .any(|o| matches!(&o.body, ObjectBody::Structure(_))));
+            assert!(budget.live() > baseline, "C/D/E/F结果离域后仍持父账许可");
+            drop(result);
+            drop(native_runtime);
+            assert_eq!(budget.live(), baseline);
+        }
         let mut canonical = Vec::new();
         render_canonical(&mut nodes, &generated.generated_state, &mut canonical).unwrap();
         let state: Value = serde_json::from_slice(&canonical).unwrap();
@@ -2067,8 +2834,10 @@ mod tests {
         let mut segment_version = None;
         let mut ef_records = Vec::new();
         for object in &generated.objects {
-            let ObjectBody::Typed(typed) = &object.body else {
-                continue;
+            let typed: &TypedObject = match &object.body {
+                ObjectBody::Typed(typed) => typed,
+                ObjectBody::Structure(typed) => typed,
+                _ => continue,
             };
             match object.kind() {
                 "CC-013.segment" => segment_records.push(typed.record.clone()),
@@ -2147,7 +2916,7 @@ mod tests {
         gen: i64,
         frontier: i64,
         prior: PriorState<'a>,
-    ) -> BoundGenerationInput<'a> {
+    ) -> BoundGenerationInput<'a, 'a> {
         BoundGenerationInput {
             structure_prior: StructurePriors::default(),
             generation: gen,
@@ -3985,7 +4754,7 @@ mod tests {
             assert!(
                 old_id.starts_with("wit-") && new.witness_id.starts_with("wit-"),
                 "{label}: 见证{index} 身份族（旧 `{old_id}` / 新 `{}`）",
-                new.witness_id
+                new.witness_id.as_str()
             );
             // 配方锁：旧配方在测试内独立复算；本域必须是同一配方、只把输入换成真实新 `obj3-`。
             let owner = oracle_objects
@@ -4032,14 +4801,14 @@ mod tests {
             );
             assert_eq!(
                 witness_recipe_id(new.object_id.as_str(), slot, mi, &mine_witness["raw_bars"]),
-                new.witness_id,
+                new.witness_id.as_str(),
                 "{label}: 见证{index} 同配方 + 新 obj3 输入"
             );
             assert_eq!(
                 old["raw_bars"], mine_witness["raw_bars"],
                 "{label}: 见证{index} 完整 raw_bars"
             );
-            map.push((old_id.to_string(), new.witness_id.clone()));
+            map.push((old_id.to_string(), new.witness_id.as_str().to_owned()));
         }
         let mapped = map_ids(&oracle.batch, &map);
         const FIELDS: [&str; 15] = [

@@ -47,6 +47,7 @@ pub(super) mod business_json;
 mod capture;
 mod catalog_evidence;
 mod commit;
+pub(crate) mod content_structure;
 mod control;
 mod control_audit;
 #[cfg(feature = "s_capture_native_testonly")]
@@ -83,6 +84,7 @@ mod q_watch;
 mod q_wire;
 mod reader;
 mod request_audit;
+pub(crate) mod structure_value;
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) use request_audit::ManifestWorkspaceBudget;
 mod s_allocation;

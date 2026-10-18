@@ -1,14 +1,13 @@
 //! #1419/#1420：同次段事实直接构造 C/D 内容边；E/F 与生成态接线另行验收。
 //! 不调用旧对象 JSON builder，不重算段判据；obj3 身份只调用共享工厂。
 use crate::content_producer::{
-    Cc004Producer, RequestApplicability, RequestAxes, RequestComputation, RequestInputQuality,
-    RequestValidity, TypedObject,
+    Cc004Producer, NativeStructureObject as TypedObject, RequestApplicability, RequestAxes,
+    RequestComputation, RequestInputQuality, RequestValidity,
 };
-use newchan_rust::s_content::{self as sc, Built, ContentRef, NodeStore, Value as CV};
+use newchan_rust::s_content::{self as sc, Built, NodeStore};
 use newchan_rust::theta_v0::{
     parser::{
         feature_seq::{SecondTerminal, SECOND_SEQ_SCAN_BUDGET_POLICY},
-        inclusion::CoordsRef,
         second_fold::{SecondCandidateId, SecondFoldStore},
         segment::{ConstructionFact, SegmentFacts, CONSTRUCTION_RULE, TAIL_WINDOW},
         stroke::StrokeFacts,
@@ -16,9 +15,13 @@ use newchan_rust::theta_v0::{
     types::{Direction, Segment},
 };
 use serde::Serialize;
+macro_rules! vec_in { ($nodes:expr; $($v:expr),* $(,)?) => { Vec::from_iter([$($v),*], $nodes)? }; }
+use super::audit_store::CodecRead;
+use super::structure_value::{
+    self as sv, CloneIn, Map as BTreeMap, Set as BTreeSet, Text, Value as CV, Vec,
+};
 #[cfg(test)]
 use serde_json::Value;
-use std::collections::{BTreeMap, BTreeSet};
 
 /// 调用者必须一次 parser 取得这些值；恢复先于 parser，不在投影器里恢复或重算。
 pub(super) struct StructureEvidence<'a> {
@@ -43,8 +46,8 @@ pub(super) struct StructureContext<'a> {
 }
 pub(super) struct SegmentObject {
     pub candidate_index: usize,
-    pub entity_id: String,
-    pub object_id: String,
+    pub entity_id: Text,
+    pub object_id: Text,
     pub sources: Vec<usize>,
 }
 pub(super) struct StructureOutput {
@@ -56,62 +59,91 @@ pub(super) struct StructureOutput {
     pub waiting_reasons: Vec<&'static str>,
 }
 
-fn s(value: impl ToString) -> CV {
-    CV::String(value.to_string())
-}
-fn obj<const N: usize>(fields: [(&str, CV); N]) -> CV {
-    CV::Object(fields.into_iter().map(|(k, v)| (k.to_owned(), v)).collect())
-}
+use sv::{object as obj, put, string as s};
 fn edge(root: &Built) -> CV {
     CV::Edge(root.digest)
 }
-fn built(reference: &ContentRef) -> Result<Built, String> {
+fn field(nodes: &mut dyn NodeStore, root: &Built, name: &str) -> Result<Built, String> {
+    let root = nodes.native_built_ref(root).map_err(|e| e.to_string())?;
+    let value = nodes
+        .lookup_field_ref(root.view(), name)
+        .map_err(|e| e.to_string())?;
     Ok(Built {
-        digest: reference.digest().map_err(|e| e.to_string())?,
-        kind: reference.kind,
-        extent: reference.extent,
+        digest: value.view().digest().map_err(|e| e.to_string())?,
+        kind: value.kind(),
+        extent: value.extent(),
     })
 }
-fn put(nodes: &mut dyn NodeStore, value: CV) -> Result<Built, String> {
-    sc::write_value(nodes, &value).map_err(|e| e.to_string())
-}
-fn field(nodes: &mut dyn NodeStore, root: &Built, name: &str) -> Result<Built, String> {
-    built(
-        &sc::path::lookup_path(
-            nodes,
-            &root.content_ref(),
-            &[sc::path::PathStep::Field(name.to_owned())],
-        )
-        .map_err(|e| e.to_string())?,
-    )
-}
-fn text(nodes: &mut dyn NodeStore, root: &Built) -> Result<String, String> {
+fn text(nodes: &mut dyn NodeStore, root: &Built) -> Result<Text, String> {
     if root.kind != sc::Kind::String {
         return Err("结构字段不是文本".into());
     }
-    let mut bytes = Vec::new();
-    sc::render_canonical(nodes, &root.content_ref(), &mut bytes).map_err(|e| e.to_string())?;
-    serde_json::from_slice(&bytes).map_err(|e| format!("结构文本: {e}"))
+    let root = nodes.native_built_ref(root).map_err(|e| e.to_string())?;
+    let owner = super::business_json::render_json(nodes, root.view())?;
+    Text::new(owner.view().as_str().ok_or("结构字段不是文本")?, nodes)
 }
-fn field_text(nodes: &mut dyn NodeStore, root: &Built, name: &str) -> Result<String, String> {
+fn field_text(nodes: &mut dyn NodeStore, root: &Built, name: &str) -> Result<Text, String> {
     let value = field(nodes, root, name)?;
     text(nodes, &value)
 }
-fn canonical_key(nodes: &mut dyn NodeStore, value: CV) -> Result<String, String> {
-    let root = put(nodes, value)?;
-    let mut bytes = Vec::new();
-    sc::render_canonical(nodes, &root.content_ref(), &mut bytes).map_err(|e| e.to_string())?;
-    String::from_utf8(bytes).map_err(|e| e.to_string())
+pub(crate) fn canonical_root_text(nodes: &mut dyn NodeStore, root: &Built) -> Result<Text, String> {
+    enum Bytes {
+        Native(sc::capture_allocation::scratch::ScratchBytes),
+        Plain(std::vec::Vec<u8>),
+    }
+    impl std::io::Write for Bytes {
+        fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+            match self {
+                Self::Native(v) => v.try_extend_bytes(b).map_err(std::io::Error::other)?,
+                Self::Plain(v) => v.extend_from_slice(b),
+            }
+            Ok(b.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut bytes = match nodes.codec_work() {
+        Some(w) => Bytes::Native(w.bytes()),
+        None => Bytes::Plain(std::vec::Vec::new()),
+    };
+    let reference = nodes.native_built_ref(root).map_err(|e| e.to_string())?;
+    nodes
+        .render_ref(reference.view(), &mut bytes)
+        .map_err(|e| e.to_string())?;
+    let bytes: &[u8] = match &bytes {
+        Bytes::Native(v) => v,
+        Bytes::Plain(v) => v,
+    };
+    Text::new(
+        std::str::from_utf8(bytes).map_err(|e| e.to_string())?,
+        nodes,
+    )
+}
+fn canonical_key(value: CV, nodes: &mut dyn NodeStore) -> Result<Text, String> {
+    let root = put(&value, nodes)?;
+    canonical_root_text(nodes, &root)
 }
 fn sorted_sources(mut sources: Vec<usize>) -> Vec<usize> {
     sources.sort_unstable();
     sources.dedup();
     sources
 }
-fn coord_tree(sources: &[usize]) -> CoordsRef {
-    sources
-        .iter()
-        .fold(CoordsRef::empty(), |coords, &n| coords.append_greater(n))
+fn source_coords(sources: &[usize], nodes: &mut dyn NodeStore) -> Result<Built, String> {
+    fact(nodes, sources)
+}
+fn input_refs(
+    producer: &Cc004Producer,
+    sources: &[usize],
+    nodes: &mut dyn NodeStore,
+) -> Result<Built, String> {
+    let mut values = Vec::new();
+    for &coord in sources {
+        let coord = i64::try_from(coord).map_err(|_| "来源坐标溢出")?;
+        let digest = producer.source_root(coord).ok_or("结构来源未登记")?;
+        values.push(CV::Edge(digest), nodes)?;
+    }
+    put(&CV::Array(values), nodes)
 }
 
 fn complete_axes() -> RequestAxes {
@@ -144,7 +176,6 @@ fn outside_axes() -> RequestAxes {
 }
 fn classification_request(
     producer: &mut Cc004Producer,
-    nodes: &mut dyn NodeStore,
     requests: &mut Vec<Built>,
     subject: &TypedObject,
     cc: &str,
@@ -153,55 +184,49 @@ fn classification_request(
     axes: RequestAxes,
     reasons: &[&str],
     sources: &[usize],
+    nodes: &mut dyn NodeStore,
 ) -> Result<(), String> {
     // 主体 obj3 已绑定完整事实和源版本；固定请求版本与观察路径隔离同对象内的多次判定。
     // 与 source_pending 的规范二元槽位协议相同：对象 slot + 具名请求 slot。
     let kind = field_text(nodes, &subject.record, "kind")?;
     let slot = field(nodes, &subject.payload, "slot")?;
-    let key = CV::Array(vec![
-        CV::Array(vec![s(kind), edge(&slot)]),
-        CV::Array(vec![
-            s(cc),
-            s(axis),
-            s("structure-classification/1"),
+    let key = CV::Array(vec_in![nodes;
+        CV::Array(vec_in![nodes;s(kind, nodes)?, edge(&slot)]),
+        CV::Array(vec_in![nodes;
+            s(cc, nodes)?,
+            s(axis, nodes)?,
+            s("structure-classification/1", nodes)?,
             path,
-            s(&subject.object_id),
+            s(&subject.object_id, nodes)?,
         ]),
     ]);
-    requests.push(
-        producer
-            .explicit_request(
-                nodes,
-                key,
-                &subject.object_id,
-                axes,
-                reasons,
-                &coord_tree(sources),
-            )
-            .map_err(|e| e.to_string())?,
-    );
+    let key = put(&key, nodes)?;
+    let coords = source_coords(sources, nodes)?;
+    let request =
+        producer.explicit_request_root(nodes, &key, &subject.object_id, axes, reasons, &coords)?;
+    requests.push(request, nodes)?;
     Ok(())
 }
 fn construction_requests(
     producer: &mut Cc004Producer,
-    nodes: &mut dyn NodeStore,
     requests: &mut Vec<Built>,
     subject: &TypedObject,
     path: CV,
     c: &ConstructionFact,
     sources: &[usize],
+    nodes: &mut dyn NodeStore,
 ) -> Result<(), String> {
     classification_request(
         producer,
-        nodes,
         requests,
         subject,
         "CC-011",
         "length",
-        path.clone(),
+        path.clone_in(nodes)?,
         complete_axes(),
         &[],
         sources,
+        nodes,
     )?;
     let (axes, reasons): (_, &[&str]) = if c.vector.is_some() {
         (complete_axes(), &[])
@@ -212,15 +237,15 @@ fn construction_requests(
     };
     classification_request(
         producer,
-        nodes,
         requests,
         subject,
         "CC-011",
         "construction_conditions",
-        path.clone(),
+        path.clone_in(nodes)?,
         axes,
         reasons,
         sources,
+        nodes,
     )?;
     let (axes, reasons): (_, &[&str]) = match c.vector {
         Some([true, true, true, true]) if c.direction.is_some() => (complete_axes(), &[]),
@@ -233,7 +258,6 @@ fn construction_requests(
     };
     classification_request(
         producer,
-        nodes,
         requests,
         subject,
         "CC-011",
@@ -242,22 +266,28 @@ fn construction_requests(
         axes,
         reasons,
         sources,
+        nodes,
     )
 }
 
 /// 从已核事实直接序列化为内容值，整数遵从 s-segment/3 的十进制文本规则。
 /// 不经 serde_json::Value、JSON 文本或旧 typed object；每份事实根只构造一次并跨对象接边。
-fn fact<T: Serialize + ?Sized>(nodes: &mut dyn NodeStore, value: &T) -> Result<Built, String> {
+pub(crate) fn fact<T: Serialize + ?Sized>(
+    nodes: &mut dyn NodeStore,
+    value: &T,
+) -> Result<Built, String> {
     put(
+        &(value
+            .serialize(WireSerializer(nodes))
+            .map_err(|e| e.to_string())?),
         nodes,
-        value.serialize(WireSerializer).map_err(|e| e.to_string())?,
     )
 }
 
 struct PriorSegment {
     data: Built,
     revision: i64,
-    result: String,
+    result: Text,
 }
 fn verify_prior(
     nodes: &mut dyn NodeStore,
@@ -265,7 +295,10 @@ fn verify_prior(
     record: &Built,
     kind: &str,
 ) -> Result<Built, String> {
-    sc::verify(nodes, &record.content_ref()).map_err(|e| e.to_string())?;
+    let record_ref = nodes.native_built_ref(record).map_err(|e| e.to_string())?;
+    nodes
+        .verify_ref(record_ref.view(), sc::Mode::Public)
+        .map_err(|e| e.to_string())?;
     if field_text(nodes, record, "kind")? != kind {
         return Err("prior kind 不符".into());
     }
@@ -275,9 +308,13 @@ fn verify_prior(
     if payload.kind != sc::Kind::Object || refs.kind != sc::Kind::Array {
         return Err("prior 内容边类型不符".into());
     }
-    let derived = producer
-        .typed_object_id(kind, &key, &payload, &refs)
+    let identity = producer
+        .typed_identity_scoped(kind, &key, &payload, &refs, nodes.codec_work())
         .map_err(|e| e.to_string())?;
+    let derived = Text::format(
+        format_args!("{}", crate::content_producer::object_id_display(&identity)),
+        nodes,
+    )?;
     if field_text(nodes, record, "object_id")? != derived {
         return Err("prior obj3 身份不符".into());
     }
@@ -292,7 +329,11 @@ fn verify_prior(
         }
     }
     let slot = field(nodes, &payload, "slot")?;
-    if canonical_key(nodes, CV::Array(vec![s(kind), edge(&slot)]))? != key {
+    if canonical_key(
+        CV::Array(vec_in![nodes;s(kind, nodes)?, edge(&slot)]),
+        nodes,
+    )? != key
+    {
         return Err("prior fact_key 与 slot 不符".into());
     }
     let data = field(nodes, &payload, "data")?;
@@ -310,7 +351,7 @@ fn read_prior(
     nodes: &mut dyn NodeStore,
     producer: &Cc004Producer,
     prior: &StructurePrior<'_>,
-) -> Result<BTreeMap<String, PriorSegment>, String> {
+) -> Result<BTreeMap<Text, PriorSegment>, String> {
     if !prior.segment_records.is_empty() && prior.version_record.is_none() {
         return Err("prior 段记录缺本 cut 段版本根".into());
     }
@@ -320,7 +361,7 @@ fn read_prior(
         let entity = field_text(nodes, &data, "entity_id")?;
         let revision_text = field_text(nodes, &data, "entity_revision")?;
         let revision = revision_text.parse::<i64>().map_err(|e| e.to_string())?;
-        if revision < 1 || revision.to_string() != revision_text {
+        if revision < 1 || Text::format(format_args!("{revision}"), nodes)? != revision_text {
             return Err("prior 非法修订".into());
         }
         let result = field_text(nodes, &data, "result")?;
@@ -332,7 +373,8 @@ fn read_prior(
                     revision,
                     result,
                 },
-            )
+                nodes,
+            )?
             .is_some()
         {
             return Err("prior 重复段实体".into());
@@ -357,13 +399,21 @@ pub(super) fn restore_second_cursors(
     };
     let data = verify_prior(nodes, producer, record, crate::tb02c::KINDS[5])?;
     let cursors = field(nodes, &data, "scan_cursors")?;
-    let items =
-        sc::path::lookup_array_items(nodes, &cursors.content_ref()).map_err(|e| e.to_string())?;
+    let cursors = nodes
+        .native_built_ref(&cursors)
+        .map_err(|e| e.to_string())?;
+    let items = nodes
+        .lookup_array_ref(cursors.view())
+        .map_err(|e| e.to_string())?;
     for item in items {
-        let mut bytes = Vec::new();
-        sc::render_canonical(nodes, &item, &mut bytes).map_err(|e| e.to_string())?;
-        let wire: serde_json::Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
-        fold.restore(&wire);
+        let wire = super::business_json::render_json(nodes, item.view())?;
+        match &wire {
+            super::business_json::JsonOwner::Plain(value) => fold.restore(value.as_ref()),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            super::business_json::JsonOwner::Owned(_) => {
+                return Err("K1恢复只接受Native游标线形".into())
+            }
+        }
     }
     Ok(())
 }
@@ -371,44 +421,47 @@ pub(super) fn restore_second_cursors(
 #[allow(clippy::too_many_arguments)]
 fn emit(
     producer: &mut Cc004Producer,
-    nodes: &mut dyn NodeStore,
     ctx: &StructureContext<'_>,
     kind: &str,
     slot: CV,
     data: &Built,
     sources: &[usize],
+    nodes: &mut dyn NodeStore,
 ) -> Result<TypedObject, String> {
-    let slot = put(nodes, slot)?;
-    let key = canonical_key(nodes, CV::Array(vec![s(kind), edge(&slot)]))?;
-    let payload = obj([
-        ("schema_revision", s(header(kind).0)),
-        ("semantic_version", s(header(kind).1)),
-        ("policy_version", s(header(kind).2)),
-        ("view_role", s("main")),
-        ("object_generation", s(ctx.fact_generation)),
-        ("slot", edge(&slot)),
-        ("data", edge(data)),
-    ]);
-    let coords = coord_tree(sources);
-    let input_refs = producer
-        .source_refs_array(nodes, &coords)
-        .map_err(|e| e.to_string())?;
-    let source_coords = producer
-        .coords_array(nodes, &coords)
-        .map_err(|e| e.to_string())?;
+    let slot = put(&(slot), nodes)?;
+    let key = canonical_key(
+        CV::Array(vec_in![nodes;s(kind, nodes)?, edge(&slot)]),
+        nodes,
+    )?;
+    let payload = obj(
+        [
+            ("schema_revision", s(header(kind).0, nodes)?),
+            ("semantic_version", s(header(kind).1, nodes)?),
+            ("policy_version", s(header(kind).2, nodes)?),
+            ("view_role", s("main", nodes)?),
+            ("object_generation", s(ctx.fact_generation, nodes)?),
+            ("slot", edge(&slot)),
+            ("data", edge(data)),
+        ],
+        nodes,
+    )?;
+    let refs = input_refs(producer, sources, nodes)?;
+    let coords = source_coords(sources, nodes)?;
+    let payload = put(&payload, nodes)?;
     producer
-        .build_object(
+        .build_structure_object(
             nodes,
             kind,
-            key,
+            &key,
             payload,
-            input_refs,
-            source_coords,
+            refs,
+            coords,
             ctx.generation,
             ctx.cut,
         )
         .map_err(|e| e.to_string())
 }
+
 fn stroke_refs(
     nodes: &mut dyn NodeStore,
     strokes: &StrokeFacts,
@@ -426,29 +479,38 @@ fn stroke_refs(
         .take(through.saturating_add(1))
         .skip(from)
     {
-        sources.extend(&bi.start.source_coords);
-        sources.extend(&bi.end.source_coords);
+        sources.extend(bi.start.source_coords.iter().copied(), nodes)?;
+        sources.extend(bi.end.source_coords.iter().copied(), nodes)?;
         let a = fact(nodes, &bi.start.extreme_roots)?;
         let b = fact(nodes, &bi.end.extreme_roots)?;
         let value = put(
+            &(obj(
+                [
+                    ("stroke_index", s(i, nodes)?),
+                    (
+                        "entity_id",
+                        s(
+                            Text::format(
+                                format_args!("bi:{generation}:{}", bi.identity_anchor),
+                                nodes,
+                            )?,
+                            nodes,
+                        )?,
+                    ),
+                    ("start_anchor", s(bi.start.group_anchor, nodes)?),
+                    ("end_anchor", s(bi.end.group_anchor, nodes)?),
+                    ("start_price", s(bi.start.price, nodes)?),
+                    ("end_price", s(bi.end.price, nodes)?),
+                    ("start_roots", edge(&a)),
+                    ("end_roots", edge(&b)),
+                ],
+                nodes,
+            )?),
             nodes,
-            obj([
-                ("stroke_index", s(i)),
-                (
-                    "entity_id",
-                    s(format!("bi:{generation}:{}", bi.identity_anchor)),
-                ),
-                ("start_anchor", s(bi.start.group_anchor)),
-                ("end_anchor", s(bi.end.group_anchor)),
-                ("start_price", s(bi.start.price)),
-                ("end_price", s(bi.end.price)),
-                ("start_roots", edge(&a)),
-                ("end_roots", edge(&b)),
-            ]),
         )?;
-        values.push(edge(&value));
+        values.push(edge(&value), nodes)?;
     }
-    Ok((put(nodes, CV::Array(values))?, sorted_sources(sources)))
+    Ok((put(&(CV::Array(values)), nodes)?, sorted_sources(sources)))
 }
 fn second_status(state: Option<SecondTerminal>) -> &'static str {
     match state {
@@ -457,7 +519,7 @@ fn second_status(state: Option<SecondTerminal>) -> &'static str {
         _ => "PENDING",
     }
 }
-fn replace_value(fields: &mut [(String, CV)], key: &str, value: CV) -> Result<(), String> {
+fn replace_value(fields: &mut [(Text, CV)], key: &str, value: CV) -> Result<(), String> {
     let (_, slot) = fields
         .iter_mut()
         .find(|(k, _)| k == key)
@@ -474,7 +536,12 @@ pub(super) fn build_cd(
     prior: &StructurePrior<'_>,
     ctx: &StructureContext<'_>,
 ) -> Result<StructureOutput, String> {
-    sc::verify(nodes, &ctx.known_at.content_ref()).map_err(|e| e.to_string())?;
+    let known_ref = nodes
+        .native_built_ref(ctx.known_at)
+        .map_err(|e| e.to_string())?;
+    nodes
+        .verify_ref(known_ref.view(), sc::Mode::Public)
+        .map_err(|e| e.to_string())?;
     if ctx.known_at.kind != sc::Kind::Object {
         return Err("known_at 必须为真实对象根".into());
     }
@@ -482,25 +549,24 @@ pub(super) fn build_cd(
     let facts = evidence.segment_facts;
     let strokes = evidence.stroke_facts;
     let mut out = StructureOutput {
-        requests: vec![],
-        objects: vec![],
-        relations: vec![],
-        segments: vec![],
-        waiting_reasons: facts.waiting_reasons.clone(),
+        requests: Vec::new(),
+        objects: Vec::new(),
+        relations: Vec::new(),
+        segments: Vec::new(),
+        waiting_reasons: Vec::from_iter(facts.waiting_reasons.iter().copied(), nodes)?,
     };
-    let mut seeds: Vec<_> = facts.seeds.iter().collect();
+    let mut seeds = Vec::from_iter(facts.seeds.iter(), nodes)?;
     for c in &facts.candidates {
         if !seeds.iter().any(|s| s.start_stroke == c.seed.start_stroke) {
-            seeds.push(&c.seed);
+            seeds.push(&c.seed, nodes)?;
         }
     }
     for seed in seeds {
-        let anchor = strokes
-            .strokes
-            .get(seed.start_stroke)
-            .map(|s| s.identity_anchor.to_string())
-            .unwrap_or_else(|| "empty".into());
-        let entity = format!("seed:{}:{anchor}", ctx.fact_generation);
+        let anchor = match strokes.strokes.get(seed.start_stroke) {
+            Some(v) => Text::format(format_args!("{}", v.identity_anchor), nodes)?,
+            None => Text::new("empty", nodes)?,
+        };
+        let entity = Text::format(format_args!("seed:{}:{anchor}", ctx.fact_generation), nodes)?;
         let (refs, sources) = stroke_refs(
             nodes,
             strokes,
@@ -513,25 +579,36 @@ pub(super) fn build_cd(
         )?;
         let construction = fact(nodes, seed)?;
         let data = put(
+            &(obj(
+                [
+                    ("entity_id", s(&entity, nodes)?),
+                    ("construction", edge(&construction)),
+                    ("stroke_refs", edge(&refs)),
+                ],
+                nodes,
+            )?),
             nodes,
-            obj([
-                ("entity_id", s(&entity)),
-                ("construction", edge(&construction)),
-                ("stroke_refs", edge(&refs)),
-            ]),
         )?;
         let kind = crate::tb02c::KINDS[if seed.vector == Some([true; 4]) { 0 } else { 6 }];
-        let object = emit(producer, nodes, ctx, kind, s(entity), &data, &sources)?;
+        let object = emit(
+            producer,
+            ctx,
+            kind,
+            s(entity, nodes)?,
+            &data,
+            &sources,
+            nodes,
+        )?;
         construction_requests(
             producer,
-            nodes,
             &mut out.requests,
             &object,
-            s("construction"),
+            s("construction", nodes)?,
             seed,
             &sources,
+            nodes,
         )?;
-        out.objects.push(object);
+        out.objects.push(object, nodes)?;
     }
     let mut active = BTreeSet::new();
     for (candidate_index, c) in facts.candidates.iter().enumerate() {
@@ -542,11 +619,14 @@ pub(super) fn build_cd(
         let up = bi.start.kind == "BOTTOM";
         let dir = if up { "UP" } else { "DOWN" };
         let opposite = if up { "DOWN" } else { "UP" };
-        let entity = format!("segment:{}:{}", ctx.fact_generation, bi.identity_anchor);
-        if !active.insert(entity.clone()) {
+        let entity = Text::format(
+            format_args!("segment:{}:{}", ctx.fact_generation, bi.identity_anchor),
+            nodes,
+        )?;
+        if !active.insert(entity.clone_in(nodes)?, nodes)? {
             return Err("重复本次段实体".into());
         }
-        let sequence = format!("first:{entity}");
+        let sequence = Text::format(format_args!("first:{entity}"), nodes)?;
         let (refs, sources) = stroke_refs(
             nodes,
             strokes,
@@ -556,58 +636,77 @@ pub(super) fn build_cd(
         )?;
         let first = fact(nodes, &c.first)?;
         let scan = put(
+            &(obj(
+                [
+                    ("from_stroke", s(c.start_stroke, nodes)?),
+                    (
+                        "through_stroke",
+                        s(
+                            c.first
+                                .raw_elements
+                                .last()
+                                .map_or(c.start_stroke, |e| e.stroke_idx),
+                            nodes,
+                        )?,
+                    ),
+                    (
+                        "input_stroke_count",
+                        s(
+                            c.first
+                                .raw_elements
+                                .last()
+                                .map_or(c.start_stroke + 1, |e| e.stroke_idx + 1),
+                            nodes,
+                        )?,
+                    ),
+                    ("resource_truncated", CV::Bool(false)),
+                    ("tail_cache_window", s(TAIL_WINDOW, nodes)?),
+                ],
+                nodes,
+            )?),
             nodes,
-            obj([
-                ("from_stroke", s(c.start_stroke)),
-                (
-                    "through_stroke",
-                    s(c.first
-                        .raw_elements
-                        .last()
-                        .map_or(c.start_stroke, |e| e.stroke_idx)),
-                ),
-                (
-                    "input_stroke_count",
-                    s(c.first
-                        .raw_elements
-                        .last()
-                        .map_or(c.start_stroke + 1, |e| e.stroke_idx + 1)),
-                ),
-                ("resource_truncated", CV::Bool(false)),
-                ("tail_cache_window", s(TAIL_WINDOW)),
-            ]),
         )?;
         let data = put(
+            &(obj(
+                [
+                    ("entity_id", s(&sequence, nodes)?),
+                    ("segment_id", s(&entity, nodes)?),
+                    ("role", s("FIRST_SEQUENCE", nodes)?),
+                    ("direction", s(dir, nodes)?),
+                    ("member_direction", s(opposite, nodes)?),
+                    ("facts", edge(&first)),
+                    ("stroke_refs", edge(&refs)),
+                    ("scan", edge(&scan)),
+                    (
+                        "second_sequence_status",
+                        s(
+                            c.second
+                                .as_ref()
+                                .map_or("NOT_APPLICABLE", |v| second_status(v.semantic_state)),
+                            nodes,
+                        )?,
+                    ),
+                ],
+                nodes,
+            )?),
             nodes,
-            obj([
-                ("entity_id", s(&sequence)),
-                ("segment_id", s(&entity)),
-                ("role", s("FIRST_SEQUENCE")),
-                ("direction", s(dir)),
-                ("member_direction", s(opposite)),
-                ("facts", edge(&first)),
-                ("stroke_refs", edge(&refs)),
-                ("scan", edge(&scan)),
-                (
-                    "second_sequence_status",
-                    s(c.second
-                        .as_ref()
-                        .map_or("NOT_APPLICABLE", |v| second_status(v.semantic_state))),
-                ),
-            ]),
         )?;
         let first_object = emit(
             producer,
-            nodes,
             ctx,
             crate::tb02c::KINDS[1],
-            s(&sequence),
+            s(&sequence, nodes)?,
             &data,
             &sources,
+            nodes,
         )?;
-        let first_id = first_object.object_id.clone();
-        out.objects.push(first_object);
-        let second_sequence = c.second.as_ref().map(|_| format!("second:{entity}"));
+        let first_id = Text::new(&first_object.object_id, nodes)?;
+        out.objects.push(first_object, nodes)?;
+        let second_sequence = c
+            .second
+            .as_ref()
+            .map(|_| Text::format(format_args!("second:{entity}"), nodes))
+            .transpose()?;
         let second_id = if let Some(second) = &c.second {
             let b_stroke = second
                 .from_stroke
@@ -621,60 +720,69 @@ pub(super) fn build_cd(
                     candidate_extreme: second.candidate_extreme,
                 })
                 .ok_or("IdentityConflict：第二种候选不在同次游标簿")?;
-            let cursor_root = fact(nodes, &cursor.to_wire())?;
+            let cursor_root = fact(nodes, &cursor.wire_view())?;
             let second_root = fact(nodes, second)?;
             let semantic = fact(nodes, &second.semantic_state)?;
             let coverage = fact(nodes, &second.coverage)?;
             let budget = fact(nodes, &cursor.budget_granted)?;
             let scan = put(
+                &(obj(
+                    [
+                        ("from_stroke", s(second.from_stroke, nodes)?),
+                        ("through_stroke", s(second.through_stroke, nodes)?),
+                        ("input_stroke_count", s(second.input_stroke_count, nodes)?),
+                        ("resource_truncated", CV::Bool(second.resource_truncated)),
+                        ("tail_cache_window", s(0, nodes)?),
+                        ("semantic_state", edge(&semantic)),
+                        ("coverage", edge(&coverage)),
+                        (
+                            "budget",
+                            obj(
+                                [
+                                    ("policy", s(SECOND_SEQ_SCAN_BUDGET_POLICY, nodes)?),
+                                    ("granted", edge(&budget)),
+                                ],
+                                nodes,
+                            )?,
+                        ),
+                        ("cursor", edge(&cursor_root)),
+                    ],
+                    nodes,
+                )?),
                 nodes,
-                obj([
-                    ("from_stroke", s(second.from_stroke)),
-                    ("through_stroke", s(second.through_stroke)),
-                    ("input_stroke_count", s(second.input_stroke_count)),
-                    ("resource_truncated", CV::Bool(second.resource_truncated)),
-                    ("tail_cache_window", s(0)),
-                    ("semantic_state", edge(&semantic)),
-                    ("coverage", edge(&coverage)),
-                    (
-                        "budget",
-                        obj([
-                            ("policy", s(SECOND_SEQ_SCAN_BUDGET_POLICY)),
-                            ("granted", edge(&budget)),
-                        ]),
-                    ),
-                    ("cursor", edge(&cursor_root)),
-                ]),
             )?;
             let name = second_sequence.as_ref().ok_or("缺第二序列实体")?;
             let data = put(
+                &(obj(
+                    [
+                        ("entity_id", s(name, nodes)?),
+                        ("segment_id", s(&entity, nodes)?),
+                        ("role", s("SECOND_SEQUENCE", nodes)?),
+                        ("direction", s(dir, nodes)?),
+                        ("member_direction", s(dir, nodes)?),
+                        ("facts", edge(&second_root)),
+                        ("stroke_refs", edge(&refs)),
+                        ("scan", edge(&scan)),
+                        (
+                            "second_sequence_status",
+                            s(second_status(second.semantic_state), nodes)?,
+                        ),
+                    ],
+                    nodes,
+                )?),
                 nodes,
-                obj([
-                    ("entity_id", s(name)),
-                    ("segment_id", s(&entity)),
-                    ("role", s("SECOND_SEQUENCE")),
-                    ("direction", s(dir)),
-                    ("member_direction", s(dir)),
-                    ("facts", edge(&second_root)),
-                    ("stroke_refs", edge(&refs)),
-                    ("scan", edge(&scan)),
-                    (
-                        "second_sequence_status",
-                        s(second_status(second.semantic_state)),
-                    ),
-                ]),
             )?;
             let object = emit(
                 producer,
-                nodes,
                 ctx,
                 crate::tb02c::KINDS[1],
-                s(name),
+                s(name, nodes)?,
                 &data,
                 &sources,
+                nodes,
             )?;
-            let id = object.object_id.clone();
-            out.objects.push(object);
+            let id = Text::new(&object.object_id, nodes)?;
+            out.objects.push(object, nodes)?;
             Some(id)
         } else {
             None
@@ -684,16 +792,19 @@ pub(super) fn build_cd(
             let end = &strokes.strokes.get(i).ok_or("候选段端越界")?.end;
             let roots = fact(nodes, &end.extreme_roots)?;
             put(
+                &(obj(
+                    [
+                        ("stroke_index", s(i, nodes)?),
+                        ("group_anchor", s(end.group_anchor, nodes)?),
+                        ("extreme_roots", edge(&roots)),
+                        ("price", s(end.price, nodes)?),
+                    ],
+                    nodes,
+                )?),
                 nodes,
-                obj([
-                    ("stroke_index", s(i)),
-                    ("group_anchor", s(end.group_anchor)),
-                    ("extreme_roots", edge(&roots)),
-                    ("price", s(end.price)),
-                ]),
             )?
         } else {
-            put(nodes, CV::Null)?
+            put(&(CV::Null), nodes)?
         };
         let formed = match previous {
             Some(p) => field(nodes, &p.data, "formed_known_at")?,
@@ -710,7 +821,7 @@ pub(super) fn build_cd(
                 _ => ctx.known_at.clone(),
             }
         } else {
-            put(nodes, CV::Null)?
+            put(&(CV::Null), nodes)?
         };
         let strict = fact(nodes, &c.strict)?;
         let vector = fact(nodes, &c.fact_vector)?;
@@ -718,57 +829,78 @@ pub(super) fn build_cd(
         let waiting = fact(nodes, &c.waiting_reasons)?;
         let attempts = fact(nodes, &c.termination_attempts)?;
         let trigger = fact(nodes, &c.trigger_stroke)?;
-        let CV::Object(mut fields) = obj([
-            ("entity_id", s(&entity)),
-            ("entity_revision", s(1)),
-            (
-                "seed_id",
-                s(format!(
-                    "seed:{}:{}",
-                    ctx.fact_generation, bi.identity_anchor
-                )),
-            ),
-            ("sequence_id", s(&sequence)),
-            ("sequence_object_id", s(&first_id)),
-            (
-                "second_sequence_id",
-                second_sequence.as_ref().map_or(CV::Null, s),
-            ),
-            (
-                "second_sequence_object_id",
-                second_id.as_ref().map_or(CV::Null, s),
-            ),
-            ("strict", edge(&strict)),
-            ("fact_vector", edge(&vector)),
-            ("construction", edge(&construction)),
-            ("result", s(c.result)),
-            ("waiting_reasons", edge(&waiting)),
-            ("termination_attempts", edge(&attempts)),
-            ("geometric_end", edge(&geometric)),
-            ("trigger_stroke", edge(&trigger)),
-            ("formed_known_at", edge(&formed)),
-            ("terminated_known_at", edge(&terminated)),
-            ("stroke_refs", edge(&refs)),
-        ]) else {
+        let CV::Object(mut fields) = obj(
+            [
+                ("entity_id", s(&entity, nodes)?),
+                ("entity_revision", s(1, nodes)?),
+                (
+                    "seed_id",
+                    s(
+                        Text::format(
+                            format_args!("seed:{}:{}", ctx.fact_generation, bi.identity_anchor),
+                            nodes,
+                        )?,
+                        nodes,
+                    )?,
+                ),
+                ("sequence_id", s(&sequence, nodes)?),
+                ("sequence_object_id", s(&first_id, nodes)?),
+                (
+                    "second_sequence_id",
+                    second_sequence
+                        .as_ref()
+                        .map(|v| s(v, nodes))
+                        .transpose()?
+                        .unwrap_or(CV::Null),
+                ),
+                (
+                    "second_sequence_object_id",
+                    second_id
+                        .as_ref()
+                        .map(|v| s(v, nodes))
+                        .transpose()?
+                        .unwrap_or(CV::Null),
+                ),
+                ("strict", edge(&strict)),
+                ("fact_vector", edge(&vector)),
+                ("construction", edge(&construction)),
+                ("result", s(c.result, nodes)?),
+                ("waiting_reasons", edge(&waiting)),
+                ("termination_attempts", edge(&attempts)),
+                ("geometric_end", edge(&geometric)),
+                ("trigger_stroke", edge(&trigger)),
+                ("formed_known_at", edge(&formed)),
+                ("terminated_known_at", edge(&terminated)),
+                ("stroke_refs", edge(&refs)),
+            ],
+            nodes,
+        )?
+        else {
             unreachable!()
         };
-        let normalized = put(nodes, CV::Object(fields.clone()))?;
+        let normalized = put(&(CV::Object(fields.clone_in(nodes)?)), nodes)?;
         let changed = if let Some(p) = previous {
-            let names: Vec<_> = fields.iter().map(|(k, _)| k.as_str()).collect();
-            let prior_fields = sc::path::lookup_object_fields(nodes, &p.data.content_ref(), &names)
+            let names = Vec::from_iter(fields.iter().map(|(k, _)| k.as_str()), nodes)?;
+            let r = nodes.native_built_ref(&p.data).map_err(|e| e.to_string())?;
+            let prior_fields = nodes
+                .lookup_fields_ref(r.view(), &names)
                 .map_err(|e| e.to_string())?;
             let mut normalized_prior = Vec::new();
-            for (key, reference) in prior_fields {
-                normalized_prior.push((
-                    key.clone(),
-                    if key == "entity_revision" {
-                        s(1)
-                    } else {
-                        edge(&built(&reference)?)
-                    },
-                ));
+            for key in names.iter().copied() {
+                let reference = prior_fields.get(key).ok_or("旧对象缺事实字段")?;
+                normalized_prior.push(
+                    (
+                        Text::new(key, nodes)?,
+                        if key == "entity_revision" {
+                            s(1, nodes)?
+                        } else {
+                            CV::Edge(reference.digest().map_err(|e| e.to_string())?)
+                        },
+                    ),
+                    nodes,
+                )?;
             }
-            put(nodes, CV::Object(normalized_prior))?.digest != normalized.digest
+            put(&(CV::Object(normalized_prior)), nodes)?.digest != normalized.digest
         } else {
             true
         };
@@ -776,36 +908,38 @@ pub(super) fn build_cd(
             .map_or(0, |p| p.revision)
             .checked_add(i64::from(changed))
             .ok_or("段修订溢出")?;
-        replace_value(&mut fields, "entity_revision", s(revision))?;
-        let data = put(nodes, CV::Object(fields))?;
+        replace_value(&mut fields, "entity_revision", s(revision, nodes)?)?;
+        let data = put(&(CV::Object(fields)), nodes)?;
         let object = emit(
             producer,
-            nodes,
             ctx,
             crate::tb02c::KINDS[2],
-            s(&entity),
+            s(&entity, nodes)?,
             &data,
             &sources,
+            nodes,
         )?;
-        let object_id = object.object_id.clone();
+        let object_id = Text::new(&object.object_id, nodes)?;
         construction_requests(
             producer,
-            nodes,
             &mut out.requests,
             &object,
-            s("construction"),
+            s("construction", nodes)?,
             &c.construction,
             &sources,
+            nodes,
         )?;
         for (index, attempt) in c.termination_attempts.iter().enumerate() {
             construction_requests(
                 producer,
-                nodes,
                 &mut out.requests,
                 &object,
-                CV::Array(vec![s("termination_attempts"), s(index), s("construction")]),
+                CV::Array(
+                    vec_in![nodes;s("termination_attempts", nodes)?, s(index, nodes)?, s("construction", nodes)?],
+                ),
                 &attempt.construction,
                 &sources,
+                nodes,
             )?;
         }
         // 完整当前前缀的 NO_FIRST / PENDING / KILLED 是已计算的语义结果；资源截断才缺计算。
@@ -819,12 +953,11 @@ pub(super) fn build_cd(
             );
         classification_request(
             producer,
-            nodes,
             &mut out.requests,
             &object,
             "CC-013",
             "semantic_termination_result",
-            s("result"),
+            s("result", nodes)?,
             if resource_missing {
                 computation_pending_axes()
             } else {
@@ -836,17 +969,17 @@ pub(super) fn build_cd(
                 &[]
             },
             &sources,
+            nodes,
         )?;
         let facts_complete =
             c.fact_vector.new_segment_formed.is_some() && c.fact_vector.segment_broken.is_some();
         classification_request(
             producer,
-            nodes,
             &mut out.requests,
             &object,
             "CC-014",
             "known_fact_vector",
-            s("fact_vector"),
+            s("fact_vector", nodes)?,
             if facts_complete {
                 complete_axes()
             } else {
@@ -858,40 +991,47 @@ pub(super) fn build_cd(
                 &["break_facts_scan_incomplete"]
             },
             &sources,
+            nodes,
         )?;
         // 扫描范围与覆盖事实均由同次 parser 明确给出；覆盖不足也是已求出的覆盖分类。
         classification_request(
             producer,
-            nodes,
             &mut out.requests,
             &object,
             "CC-014",
             "scan_coverage",
-            s("fact_vector"),
+            s("fact_vector", nodes)?,
             complete_axes(),
             &[],
             &sources,
+            nodes,
         )?;
-        out.objects.push(object);
-        out.segments.push(SegmentObject {
-            candidate_index,
-            entity_id: entity.clone(),
-            object_id: object_id.clone(),
-            sources: sources.clone(),
-        });
-        let mut relations = vec![(
-            sequence.clone(),
+        out.objects.push(object, nodes)?;
+        out.segments.push(
+            SegmentObject {
+                candidate_index,
+                entity_id: entity.clone_in(nodes)?,
+                object_id: object_id.clone_in(nodes)?,
+                sources: sources.clone_in(nodes)?,
+            },
+            nodes,
+        )?;
+        let mut relations = vec_in![nodes;(
+            sequence.clone_in(nodes)?,
             "derived_from",
-            entity.clone(),
-            sources.clone(),
+            entity.clone_in(nodes)?,
+            sources.clone_in(nodes)?,
         )];
         if let Some(second) = &second_sequence {
-            relations.push((
-                second.clone(),
-                "derived_from",
-                entity.clone(),
-                sources.clone(),
-            ));
+            relations.push(
+                (
+                    second.clone_in(nodes)?,
+                    "derived_from",
+                    entity.clone_in(nodes)?,
+                    sources.clone_in(nodes)?,
+                ),
+                nodes,
+            )?;
         }
         for (elements, seq) in std::iter::once((&c.first.raw_elements, &sequence)).chain(
             c.second
@@ -904,51 +1044,71 @@ pub(super) fn build_cd(
                     .strokes
                     .get(element.stroke_idx)
                     .ok_or("成员笔越界")?;
-                let deps = sorted_sources(
+                let deps = sorted_sources(Vec::from_iter(
                     member
                         .start
                         .source_coords
                         .iter()
                         .chain(&member.end.source_coords)
-                        .copied()
-                        .collect(),
-                );
-                relations.push((
-                    format!("bi:{}:{}", ctx.fact_generation, member.identity_anchor),
-                    "member_of",
-                    seq.clone(),
-                    deps,
-                ));
+                        .copied(),
+                    nodes,
+                )?);
+                relations.push(
+                    (
+                        Text::format(
+                            format_args!("bi:{}:{}", ctx.fact_generation, member.identity_anchor),
+                            nodes,
+                        )?,
+                        "member_of",
+                        seq.clone_in(nodes)?,
+                        deps,
+                    ),
+                    nodes,
+                )?;
             }
         }
         for (source, relation, target, deps) in relations {
             let data = put(
+                &(obj(
+                    [
+                        ("source_id", s(&source, nodes)?),
+                        ("relation_kind", s(relation, nodes)?),
+                        ("target_id", s(&target, nodes)?),
+                        ("version", s(revision, nodes)?),
+                        ("witness_object_id", s(&object_id, nodes)?),
+                    ],
+                    nodes,
+                )?),
                 nodes,
-                obj([
-                    ("source_id", s(&source)),
-                    ("relation_kind", s(relation)),
-                    ("target_id", s(&target)),
-                    ("version", s(revision)),
-                    ("witness_object_id", s(&object_id)),
-                ]),
             )?;
-            out.objects.push(emit(
-                producer,
+            out.objects.push(
+                emit(
+                    producer,
+                    ctx,
+                    crate::tb02c::KINDS[3],
+                    CV::Array(
+                        vec_in![nodes;s(&source, nodes)?, s(relation, nodes)?, s(&target, nodes)?],
+                    ),
+                    &data,
+                    &deps,
+                    nodes,
+                )?,
                 nodes,
-                ctx,
-                crate::tb02c::KINDS[3],
-                CV::Array(vec![s(&source), s(relation), s(&target)]),
-                &data,
-                &deps,
-            )?);
-            out.relations.push(put(
+            )?;
+            out.relations.push(
+                put(
+                    &(obj(
+                        [
+                            ("subject", s(source, nodes)?),
+                            ("relation_type", s(relation, nodes)?),
+                            ("object", s(target, nodes)?),
+                        ],
+                        nodes,
+                    )?),
+                    nodes,
+                )?,
                 nodes,
-                obj([
-                    ("subject", s(source)),
-                    ("relation_type", s(relation)),
-                    ("object", s(target)),
-                ]),
-            )?);
+            )?;
         }
         if changed {
             let change = match previous {
@@ -959,91 +1119,101 @@ pub(super) fn build_cd(
                 _ => "updated",
             };
             let change_data = put(
+                &(obj(
+                    [
+                        ("entity_id", s(&entity, nodes)?),
+                        ("change", s(change, nodes)?),
+                        ("before", previous.map_or(CV::Null, |p| edge(&p.data))),
+                        ("after", edge(&data)),
+                        ("known_at", edge(ctx.known_at)),
+                        ("object_id", s(&object_id, nodes)?),
+                    ],
+                    nodes,
+                )?),
                 nodes,
-                obj([
-                    ("entity_id", s(&entity)),
-                    ("change", s(change)),
-                    ("before", previous.map_or(CV::Null, |p| edge(&p.data))),
-                    ("after", edge(&data)),
-                    ("known_at", edge(ctx.known_at)),
-                    ("object_id", s(&object_id)),
-                ]),
             )?;
-            out.objects.push(emit(
-                producer,
-                nodes,
-                ctx,
-                crate::tb02c::KINDS[4],
-                CV::Array(vec![s(ctx.generation), s(&entity), s(change)]),
-                &change_data,
-                &sources,
-            )?);
+            out.objects.push(emit(producer, ctx, crate::tb02c::KINDS[4], CV::Array(vec_in![nodes;s(ctx.generation, nodes)?, s(&entity, nodes)?, s(change, nodes)?]), &change_data, &sources, nodes)?, nodes)?;
         }
-        out.waiting_reasons.extend(&c.waiting_reasons);
+        out.waiting_reasons
+            .extend(c.waiting_reasons.iter().copied(), nodes)?;
     }
-    let all_sources = sorted_sources(ctx.all_sources.to_vec());
+    let all_sources = sorted_sources(Vec::from_iter(ctx.all_sources.iter().copied(), nodes)?);
     for (entity, prior) in &old {
         if !active.contains(entity) {
             let data = put(
+                &(obj(
+                    [
+                        ("entity_id", s(entity, nodes)?),
+                        ("change", s("withdrawn", nodes)?),
+                        ("before", edge(&prior.data)),
+                        ("after", CV::Null),
+                        ("known_at", edge(ctx.known_at)),
+                        ("object_id", CV::Null),
+                    ],
+                    nodes,
+                )?),
                 nodes,
-                obj([
-                    ("entity_id", s(entity)),
-                    ("change", s("withdrawn")),
-                    ("before", edge(&prior.data)),
-                    ("after", CV::Null),
-                    ("known_at", edge(ctx.known_at)),
-                    ("object_id", CV::Null),
-                ]),
             )?;
-            out.objects.push(emit(
-                producer,
-                nodes,
-                ctx,
-                crate::tb02c::KINDS[4],
-                CV::Array(vec![s(ctx.generation), s(entity), s("withdrawn")]),
-                &data,
-                &all_sources,
-            )?);
+            out.objects.push(emit(producer, ctx, crate::tb02c::KINDS[4], CV::Array(vec_in![nodes;s(ctx.generation, nodes)?, s(entity, nodes)?, s("withdrawn", nodes)?]), &data, &all_sources, nodes)?, nodes)?;
         }
     }
     out.waiting_reasons.sort_unstable();
     out.waiting_reasons.dedup();
     let waiting = fact(nodes, &out.waiting_reasons)?;
     // 唯一公开 checkpoint 枚举口的权威 wire；选择/排序仍由 SecondFoldStore 决定。
-    let checkpoint = fact(nodes, &evidence.second_store.checkpoint())?;
+    let mut checkpoint_values = Vec::new();
+    for cursor in evidence.second_store.checkpoint_cursors() {
+        let cursor = fact(nodes, &cursor.wire_view())?;
+        checkpoint_values.push(edge(&cursor), nodes)?;
+    }
+    let checkpoint = put(&CV::Array(checkpoint_values), nodes)?;
     let data = put(
+        &(obj(
+            [
+                ("input_frontier", s(ctx.frontier, nodes)?),
+                ("waiting_reasons", edge(&waiting)),
+                ("known_at", edge(ctx.known_at)),
+                (
+                    "delivered_scope",
+                    s("seed_strict_first_and_second_terminal", nodes)?,
+                ),
+                (
+                    "deferred_scope",
+                    CV::Array(
+                        vec_in![nodes;s("general_equal_identity", nodes)?, s("global_G006_bridge", nodes)?],
+                    ),
+                ),
+                (
+                    "scan_budget",
+                    obj(
+                        [
+                            ("policy", s(SECOND_SEQ_SCAN_BUDGET_POLICY, nodes)?),
+                            (
+                                "round_strokes",
+                                s(evidence.second_store.round_budget, nodes)?,
+                            ),
+                        ],
+                        nodes,
+                    )?,
+                ),
+                ("scan_cursors", edge(&checkpoint)),
+            ],
+            nodes,
+        )?),
         nodes,
-        obj([
-            ("input_frontier", s(ctx.frontier)),
-            ("waiting_reasons", edge(&waiting)),
-            ("known_at", edge(ctx.known_at)),
-            (
-                "delivered_scope",
-                s("seed_strict_first_and_second_terminal"),
-            ),
-            (
-                "deferred_scope",
-                CV::Array(vec![s("general_equal_identity"), s("global_G006_bridge")]),
-            ),
-            (
-                "scan_budget",
-                obj([
-                    ("policy", s(SECOND_SEQ_SCAN_BUDGET_POLICY)),
-                    ("round_strokes", s(evidence.second_store.round_budget)),
-                ]),
-            ),
-            ("scan_cursors", edge(&checkpoint)),
-        ]),
     )?;
-    out.objects.push(emit(
-        producer,
+    out.objects.push(
+        emit(
+            producer,
+            ctx,
+            crate::tb02c::KINDS[5],
+            s("TB-02-W", nodes)?,
+            &data,
+            &all_sources,
+            nodes,
+        )?,
         nodes,
-        ctx,
-        crate::tb02c::KINDS[5],
-        s("TB-02-W"),
-        &data,
-        &all_sources,
-    )?);
+    )?;
     Ok(out)
 }
 
@@ -1085,38 +1255,45 @@ fn anchor(id: &str) -> &str {
 fn center_anchor(id: &str) -> &str {
     id.strip_prefix("center:").unwrap_or(id)
 }
-fn unit_value(u: &crate::tb02e::SegUnit) -> CV {
-    match u.range {
-        Some(r) => obj([
-            ("unit_id", s(&u.unit_id)),
-            ("unit_object_id", s(&u.object_id)),
-            ("direction", s(direction(r.direction))),
-            ("lo", s(r.lo)),
-            ("hi", s(r.hi)),
-        ]),
-        None => obj([
-            ("unit_id", s(&u.unit_id)),
-            ("unit_object_id", s(&u.object_id)),
-            ("completed", CV::Bool(false)),
-        ]),
-    }
+fn unit_value(u: &crate::tb02e::SegUnit, nodes: &dyn sc::NodeSource) -> Result<CV, String> {
+    Ok(match u.range {
+        Some(r) => obj(
+            [
+                ("unit_id", s(&u.unit_id, nodes)?),
+                ("unit_object_id", s(&u.object_id, nodes)?),
+                ("direction", s(direction(r.direction), nodes)?),
+                ("lo", s(r.lo, nodes)?),
+                ("hi", s(r.hi, nodes)?),
+            ],
+            nodes,
+        )?,
+        None => obj(
+            [
+                ("unit_id", s(&u.unit_id, nodes)?),
+                ("unit_object_id", s(&u.object_id, nodes)?),
+                ("completed", CV::Bool(false)),
+            ],
+            nodes,
+        )?,
+    })
 }
-fn unit_sources<'a>(units: impl IntoIterator<Item = &'a crate::tb02e::SegUnit>) -> Vec<usize> {
-    sorted_sources(
-        units
-            .into_iter()
-            .flat_map(|u| u.sources.iter().copied())
-            .collect(),
-    )
+fn unit_sources<'a>(
+    units: impl IntoIterator<Item = &'a crate::tb02e::SegUnit>,
+    nodes: &dyn sc::NodeSource,
+) -> Result<Vec<usize>, String> {
+    Ok(sorted_sources(Vec::from_iter(
+        units.into_iter().flat_map(|u| u.sources.iter().copied()),
+        nodes,
+    )?))
 }
-fn vec_fields(value: CV) -> Result<Vec<(String, CV)>, String> {
+fn vec_fields(value: CV) -> Result<Vec<(Text, CV)>, String> {
     match value {
         CV::Object(v) => Ok(v),
         _ => Err("内部字段非对象".into()),
     }
 }
-fn root_eq(nodes: &mut dyn NodeStore, old: &Built, key: &str, new: CV) -> Result<bool, String> {
-    Ok(field(nodes, old, key)?.digest == put(nodes, new)?.digest)
+fn root_eq(old: &Built, key: &str, new: CV, nodes: &mut dyn NodeStore) -> Result<bool, String> {
+    Ok(field(nodes, old, key)?.digest == put(&(new), nodes)?.digest)
 }
 fn revision_of(nodes: &mut dyn NodeStore, old: Option<&Built>) -> Result<i64, String> {
     match old {
@@ -1124,7 +1301,7 @@ fn revision_of(nodes: &mut dyn NodeStore, old: Option<&Built>) -> Result<i64, St
         Some(old) => {
             let value = field_text(nodes, old, "entity_revision")?;
             let n = value.parse::<i64>().map_err(|e| e.to_string())?;
-            if n < 1 || n.to_string() != value {
+            if n < 1 || Text::format(format_args!("{n}"), nodes)? != value {
                 return Err("非法旧修订".into());
             }
             Ok(n)
@@ -1140,21 +1317,23 @@ fn next_revision(nodes: &mut dyn NodeStore, old: Option<&Built>) -> Result<i64, 
 fn same_fields(
     nodes: &mut dyn NodeStore,
     old: &Built,
-    fresh: &[(String, CV)],
+    fresh: &[(Text, CV)],
     bookkeeping: &[&str],
 ) -> Result<bool, String> {
-    let mut names: Vec<&str> = fresh.iter().map(|(k, _)| k.as_str()).collect();
+    let mut names = Vec::from_iter(fresh.iter().map(|(k, _)| k.as_str()), nodes)?;
     for k in bookkeeping {
         if !names.contains(k) {
-            names.push(k);
+            names.push(k, nodes)?;
         }
     }
-    let fields = sc::path::lookup_object_fields(nodes, &old.content_ref(), &names)
+    let r = nodes.native_built_ref(old).map_err(|e| e.to_string())?;
+    let fields = nodes
+        .lookup_fields_ref(r.view(), &names)
         .map_err(|e| e.to_string())?;
     for (key, value) in fresh {
         if !bookkeeping.contains(&key.as_str()) {
-            let old = fields.get(key).ok_or("旧对象缺事实字段")?;
-            if old.digest().map_err(|e| e.to_string())? != put(nodes, value.clone())?.digest {
+            let old = fields.get(key.as_str()).ok_or("旧对象缺事实字段")?;
+            if old.digest().map_err(|e| e.to_string())? != put(value, nodes)?.digest {
                 return Ok(false);
             }
         }
@@ -1162,9 +1341,9 @@ fn same_fields(
     Ok(true)
 }
 fn keep_known_node(
-    nodes: &mut dyn NodeStore,
     old: Option<&Built>,
     value: CV,
+    nodes: &mut dyn NodeStore,
 ) -> Result<Built, String> {
     let fields = vec_fields(value)?;
     if let Some(old) = old {
@@ -1172,12 +1351,12 @@ fn keep_known_node(
             return Ok(old.clone());
         }
     }
-    put(nodes, CV::Object(fields))
+    put(&(CV::Object(fields)), nodes)
 }
 fn revise_node(
-    nodes: &mut dyn NodeStore,
     old: Option<&Built>,
     value: CV,
+    nodes: &mut dyn NodeStore,
 ) -> Result<(Built, i64, bool), String> {
     let mut fields = vec_fields(value)?;
     let changed = match old {
@@ -1187,10 +1366,10 @@ fn revise_node(
     let revision = revision_of(nodes, old)?
         .checked_add(i64::from(changed))
         .ok_or("修订溢出")?;
-    replace_value(&mut fields, "entity_revision", s(revision))?;
-    Ok((put(nodes, CV::Object(fields))?, revision, changed))
+    replace_value(&mut fields, "entity_revision", s(revision, nodes)?)?;
+    Ok((put(&(CV::Object(fields)), nodes)?, revision, changed))
 }
-type StructureEdge = (String, &'static str, String, String, String, Vec<usize>);
+type StructureEdge = (Text, &'static str, Text, Text, Text, Vec<usize>);
 #[allow(clippy::too_many_arguments)]
 fn change_object(
     producer: &mut Cc004Producer,
@@ -1205,24 +1384,33 @@ fn change_object(
     sources: &[usize],
 ) -> Result<TypedObject, String> {
     let data = put(
+        &(obj(
+            [
+                ("entity_id", s(entity, nodes)?),
+                ("change", s(change, nodes)?),
+                ("before", before.map_or(CV::Null, edge)),
+                ("after", after.map_or(CV::Null, edge)),
+                ("known_at", edge(ctx.known_at)),
+                (
+                    "object_id",
+                    object_id
+                        .map(|v| s(v, nodes))
+                        .transpose()?
+                        .unwrap_or(CV::Null),
+                ),
+            ],
+            nodes,
+        )?),
         nodes,
-        obj([
-            ("entity_id", s(entity)),
-            ("change", s(change)),
-            ("before", before.map_or(CV::Null, edge)),
-            ("after", after.map_or(CV::Null, edge)),
-            ("known_at", edge(ctx.known_at)),
-            ("object_id", object_id.map_or(CV::Null, s)),
-        ]),
     )?;
     emit(
         producer,
-        nodes,
         ctx,
         kind,
-        CV::Array(vec![s(ctx.generation), s(entity), s(change)]),
+        CV::Array(vec_in![nodes;s(ctx.generation, nodes)?, s(entity, nodes)?, s(change, nodes)?]),
         &data,
         sources,
+        nodes,
     )
 }
 fn emit_edges(
@@ -1235,98 +1423,246 @@ fn emit_edges(
 ) -> Result<(), String> {
     for (source, relation, target, version, witness, sources) in edges {
         let data = put(
+            &(obj(
+                [
+                    ("source_id", s(&source, nodes)?),
+                    ("relation_kind", s(relation, nodes)?),
+                    ("target_id", s(&target, nodes)?),
+                    ("version", s(version, nodes)?),
+                    ("witness_object_id", s(witness, nodes)?),
+                ],
+                nodes,
+            )?),
             nodes,
-            obj([
-                ("source_id", s(&source)),
-                ("relation_kind", s(relation)),
-                ("target_id", s(&target)),
-                ("version", s(version)),
-                ("witness_object_id", s(witness)),
-            ]),
         )?;
-        out.objects.push(emit(
-            producer,
+        out.objects.push(
+            emit(
+                producer,
+                ctx,
+                kind,
+                CV::Array(
+                    vec_in![nodes;s(&source, nodes)?, s(relation, nodes)?, s(&target, nodes)?],
+                ),
+                &data,
+                &sources,
+                nodes,
+            )?,
             nodes,
-            ctx,
-            kind,
-            CV::Array(vec![s(&source), s(relation), s(&target)]),
-            &data,
-            &sources,
-        )?);
-        out.relations.push(put(
+        )?;
+        out.relations.push(
+            put(
+                &(obj(
+                    [
+                        ("subject", s(source, nodes)?),
+                        ("relation_type", s(relation, nodes)?),
+                        ("object", s(target, nodes)?),
+                    ],
+                    nodes,
+                )?),
+                nodes,
+            )?,
             nodes,
-            obj([
-                ("subject", s(source)),
-                ("relation_type", s(relation)),
-                ("object", s(target)),
-            ]),
-        )?);
+        )?;
     }
     Ok(())
 }
 /// 同次 C/D 对象映射 → 已提取的共享输入合同；不按数组位置合成对象身份。
+/// donor tb02e::units_from_segment_rows 的同一输入合同，直接借同次事实逐项核。
+/// 只把通过核验的成员极值映射到塔 L0；未完成的内部段、断链、方向或范围不符均拒绝。
 fn segment_units(
     evidence: &StructureEvidence<'_>,
     segments: &[SegmentObject],
+    nodes: &mut dyn NodeStore,
 ) -> Result<crate::tb02e::UnitInputs, String> {
-    use crate::tb02e::{CompletedSegmentUnit, SegmentStrokePrices, SegmentUnitRow};
+    use crate::tb02e::{SegUnit, UnitInputs};
+    fn miss(
+        check: &str,
+        position: CV,
+        expected: CV,
+        actual: CV,
+        out: &mut Vec<CV>,
+        nodes: &dyn sc::NodeSource,
+    ) -> Result<(), String> {
+        out.push(
+            obj(
+                [
+                    ("check", s(check, nodes)?),
+                    ("position", position),
+                    ("expected", expected),
+                    ("actual", actual),
+                ],
+                nodes,
+            )?,
+            nodes,
+        )
+    }
     if segments.len() != evidence.segment_facts.candidates.len() {
         return Err("C/D 段映射未完整覆盖同次候选".into());
     }
     let mut seen = BTreeSet::new();
     let mut rows = Vec::new();
-    let index = |i: usize| i64::try_from(i).map_err(|_| "笔下标溢出".to_string());
-    for published in segments {
-        if !seen.insert(published.candidate_index) {
+    for p in segments {
+        if !seen.insert(p.candidate_index, nodes)? {
             return Err("重复段候选映射".into());
         }
         let c = evidence
             .segment_facts
             .candidates
-            .get(published.candidate_index)
+            .get(p.candidate_index)
             .ok_or("段映射候选越界")?;
-        let strokes = &evidence.stroke_facts.strokes;
-        let start = strokes.get(c.start_stroke).ok_or("段起笔越界")?;
-        let completed = if matches!(c.result, "CASE_ONE" | "CASE_TWO") {
+        rows.push((p, c), nodes)?;
+    }
+    rows.sort_unstable_by_key(|(p, c)| (c.start_stroke, p.candidate_index));
+    let tower = newchan_rust::theta_v0::classifier::center_scan::l0_units(evidence.segments);
+    let mut out = UnitInputs {
+        completed: Vec::new(),
+        in_progress: None,
+    };
+    let mut mismatches = Vec::new();
+    let mut completed_count = 0usize;
+    let mut previous_end = None;
+    for (i, (p, c)) in rows.iter().enumerate() {
+        let position = || {
+            obj(
+                [
+                    ("candidate_index", s(i, nodes)?),
+                    ("unit_id", s(&p.entity_id, nodes)?),
+                ],
+                nodes,
+            )
+        };
+        let completed = matches!(c.result, "CASE_ONE" | "CASE_TWO");
+        if completed || i + 1 == rows.len() {
+            if previous_end.is_some_and(|end: usize| end.checked_add(1) != Some(c.start_stroke)) {
+                miss(
+                    "contiguity",
+                    position()?,
+                    s(previous_end.unwrap() as i128 + 1, nodes)?,
+                    s(c.start_stroke, nodes)?,
+                    &mut mismatches,
+                    nodes,
+                )?;
+            }
+        } else {
+            miss(
+                "interior_incomplete",
+                position()?,
+                s("CASE_ONE|CASE_TWO", nodes)?,
+                s("incomplete", nodes)?,
+                &mut mismatches,
+                nodes,
+            )?;
+            continue;
+        }
+        let range = if completed {
             let end = c.end_stroke.ok_or("完成段缺端笔")?;
-            let refs = strokes
-                .iter()
-                .enumerate()
-                .take(c.observed_through.checked_add(1).ok_or("观察下标溢出")?)
-                .skip(c.start_stroke)
-                .map(|(i, b)| {
-                    Ok(SegmentStrokePrices {
-                        stroke_index: index(i)?,
-                        start_price: b.start.price,
-                        end_price: b.end.price,
-                    })
-                })
-                .collect::<Result<Vec<_>, String>>()?;
-            Some(CompletedSegmentUnit {
-                end_stroke: index(end)?,
-                start_price: start.start.price,
-                end_price: strokes.get(end).ok_or("段端越界")?.end.price,
-                member_stroke_indices: c
-                    .construction
-                    .stroke_indices
-                    .iter()
-                    .map(|&i| index(i))
-                    .collect::<Result<Vec<_>, _>>()?,
-                stroke_refs: refs,
-            })
+            let start = evidence
+                .stroke_facts
+                .strokes
+                .get(c.start_stroke)
+                .ok_or("段起笔越界")?;
+            let finish = evidence.stroke_facts.strokes.get(end).ok_or("段端越界")?;
+            let direction = c.construction.direction.unwrap_or("");
+            let price_direction = if finish.end.price > start.start.price {
+                "UP"
+            } else {
+                "DOWN"
+            };
+            if direction != price_direction {
+                miss(
+                    "direction",
+                    position()?,
+                    s(price_direction, nodes)?,
+                    s(direction, nodes)?,
+                    &mut mismatches,
+                    nodes,
+                )?;
+            }
+            let mut extremes: Option<(i64, i64)> = None;
+            for &m in &c.construction.stroke_indices {
+                if m < c.start_stroke || m > c.observed_through {
+                    return Err(format!(
+                        "TB02E_INPUT_CONTRACT：成员笔 {m} 不在 CC-013 stroke_refs 中"
+                    ));
+                }
+                let bi = evidence.stroke_facts.strokes.get(m).ok_or("成员笔越界")?;
+                let (s, e) = (bi.start.price, bi.end.price);
+                let (lo, hi) = extremes.unwrap_or((s.min(e), s.max(e)));
+                extremes = Some((lo.min(s).min(e), hi.max(s).max(e)));
+            }
+            let (lo, hi) = extremes.ok_or("TB02E_INPUT_CONTRACT：完成段没有成员笔")?;
+            let k = completed_count;
+            completed_count += 1;
+            previous_end = Some(end);
+            if let Some(u) = tower.get(k) {
+                let position = || {
+                    obj(
+                        [
+                            ("completed_index", s(k, nodes)?),
+                            ("unit_id", s(&p.entity_id, nodes)?),
+                        ],
+                        nodes,
+                    )
+                };
+                for (check, expected, actual) in [("lo", u.lo, lo), ("hi", u.hi, hi)] {
+                    if expected != actual {
+                        miss(
+                            check,
+                            position()?,
+                            s(expected, nodes)?,
+                            s(actual, nodes)?,
+                            &mut mismatches,
+                            nodes,
+                        )?;
+                    }
+                }
+                if direction != self::direction(u.direction) {
+                    miss(
+                        "direction",
+                        position()?,
+                        s(self::direction(u.direction), nodes)?,
+                        s(direction, nodes)?,
+                        &mut mismatches,
+                        nodes,
+                    )?;
+                }
+                Some(*u)
+            } else {
+                None
+            }
         } else {
             None
         };
-        rows.push(SegmentUnitRow {
-            unit_id: published.entity_id.clone(),
-            object_id: published.object_id.clone(),
-            start_stroke: index(c.start_stroke)?,
-            direction: c.construction.direction.unwrap_or("").to_owned(),
-            sources: published.sources.clone(),
-            completed,
-        });
+        let unit = SegUnit {
+            unit_id: p.entity_id.clone_in(nodes)?,
+            object_id: p.object_id.clone_in(nodes)?,
+            range,
+            sources: p.sources.clone_in(nodes)?,
+        };
+        if completed {
+            out.completed.push(unit, nodes)?;
+        } else {
+            out.in_progress = Some(unit);
+        }
     }
-    crate::tb02e::units_from_segment_rows(rows, evidence.segments)
+    if completed_count != tower.len() {
+        miss(
+            "count",
+            obj([("completed_units", s(completed_count, nodes)?)], nodes)?,
+            s(tower.len(), nodes)?,
+            s(completed_count, nodes)?,
+            &mut mismatches,
+            nodes,
+        )?;
+    }
+    if !mismatches.is_empty() {
+        let root = put(&CV::Array(mismatches), nodes)?;
+        return Err(format!(
+            "TB02E_INPUT_CONTRACT：段对象与塔 L0 单元不符，本 cut 拒绝提交：{}",
+            canonical_root_text(nodes, &root)?
+        ));
+    }
+    Ok(out)
 }
 
 /// E/F 同一中心扫描的直接内容投影；所有判据来自 center_scan/center 共享核。
@@ -1338,7 +1674,7 @@ pub(super) fn build_ef(
     prior: &EfPrior<'_>,
     ctx: &StructureContext<'_>,
 ) -> Result<StructureOutput, String> {
-    let inputs = segment_units(evidence, cd_segments)?;
+    let inputs = segment_units(evidence, cd_segments, nodes)?;
     build_ef_units(producer, nodes, &inputs, prior, ctx)
 }
 fn build_ef_units(
@@ -1357,11 +1693,13 @@ fn build_ef_units(
             scan_center_facts_full, PairOutcome, ScanState, SeedFromSelf, UnitAssignment,
         },
     };
-    let units: Vec<_> = inputs
-        .completed
-        .iter()
-        .map(|u| u.range.ok_or_else(|| "完成单元缺区间".to_owned()))
-        .collect::<Result<_, _>>()?;
+    let units = Vec::try_from_iter(
+        inputs
+            .completed
+            .iter()
+            .map(|u| u.range.ok_or_else(|| "完成单元缺区间".to_string())),
+        nodes,
+    )?;
     let facts = scan_center_facts_full(&units, center_from_segments);
     if facts
         .attempts
@@ -1371,16 +1709,14 @@ fn build_ef_units(
         return Err("TB02E_INPUT_CONTRACT：完成单元方向未交替".into());
     }
     let windows = facts.window_facts(&units);
-    let ids: Vec<_> = inputs
-        .completed
-        .iter()
-        .map(|u| u.unit_id.as_str())
-        .collect();
-    let center_ids: Vec<_> = windows
-        .iter()
-        .map(|w| format!("center:{}", anchor(ids[w.first])))
-        .collect();
-    let mut previous = BTreeMap::<(String, String), Built>::new();
+    let ids = Vec::from_iter(inputs.completed.iter().map(|u| u.unit_id.as_str()), nodes)?;
+    let center_ids = Vec::try_from_iter(
+        windows
+            .iter()
+            .map(|w| Text::format(format_args!("center:{}", anchor(ids[w.first])), nodes)),
+        nodes,
+    )?;
+    let mut previous = BTreeMap::<(Text, Text), Built>::new();
     let mut prior_versions = BTreeSet::new();
     for record in prior.records {
         let kind = field_text(nodes, record, "kind")?;
@@ -1393,13 +1729,13 @@ fn build_ef_units(
         }
         let data = verify_prior(nodes, producer, record, &kind)?;
         if kind == crate::tb02e::KINDS[6] || kind == crate::tb02f::KINDS[4] {
-            if !prior_versions.insert(kind) {
+            if !prior_versions.insert(kind, nodes)? {
                 return Err("EF prior 重复版本根".into());
             }
             continue;
         }
         let entity = field_text(nodes, &data, "entity_id")?;
-        if previous.insert((kind, entity), data).is_some() {
+        if previous.insert((kind, entity), data, nodes)?.is_some() {
             return Err("EF prior 重复实体".into());
         }
     }
@@ -1409,90 +1745,117 @@ fn build_ef_units(
     {
         return Err("EF prior 缺中心或中枢对版本根".into());
     }
-    let old = |kind: &str, entity: &str| previous.get(&(kind.to_owned(), entity.to_owned()));
-    let mut out = StructureOutput {
-        requests: vec![],
-        objects: vec![],
-        relations: vec![],
-        segments: vec![],
-        waiting_reasons: vec![],
+    let old = |kind: &str, entity: &str| {
+        previous
+            .iter()
+            .find(|((k, e), _)| k.as_str() == kind && e.as_str() == entity)
+            .map(|(_, v)| v)
     };
-    let mut edges: Vec<StructureEdge> = vec![];
+    let mut out = StructureOutput {
+        requests: Vec::new(),
+        objects: Vec::new(),
+        relations: Vec::new(),
+        segments: Vec::new(),
+        waiting_reasons: Vec::new(),
+    };
+    let mut edges: Vec<StructureEdge> = Vec::new();
     let mut attempt_ids = BTreeMap::new();
     for a in &facts.attempts {
         let seed = &inputs.completed[a.at..a.at + 3];
         let seed_units = &units[a.at..a.at + 3];
         let roles = CenterRoles::of_members(seed_units);
-        let extremum = |var: RoleVar| {
-            let contributors: Vec<_> = roles
-                .contributors(seed_units, var)
-                .into_iter()
-                .map(|k| s(ids[a.at + k]))
-                .collect();
+        let extremum = |var: RoleVar| -> Result<CV, String> {
+            let contributors = Vec::try_from_iter(
+                roles
+                    .contributors(seed_units, var)
+                    .into_iter()
+                    .map(|k| s(ids[a.at + k], nodes)),
+                nodes,
+            )?;
             let witness = if contributors.len() >= 2 {
-                contributors.clone()
+                contributors.clone_in(nodes)?
             } else {
-                vec![]
+                Vec::new()
             };
-            obj([
-                ("value", s(roles.value(var))),
-                ("contributors", CV::Array(contributors)),
-                ("same_price_witness", CV::Array(witness)),
-            ])
+            obj(
+                [
+                    ("value", s(roles.value(var), nodes)?),
+                    ("contributors", CV::Array(contributors)),
+                    ("same_price_witness", CV::Array(witness)),
+                ],
+                nodes,
+            )
         };
         let v = a.facts.condition_vector(SeedInput::TOWER);
-        let entity = format!("seed_attempt:{}", anchor(ids[a.at]));
+        let entity = Text::format(format_args!("seed_attempt:{}", anchor(ids[a.at])), nodes)?;
         let center = facts
             .windows
             .iter()
             .position(|w| w.seed_at == a.at)
-            .map(|w| s(&center_ids[w]))
+            .map(|w| s(&center_ids[w], nodes))
+            .transpose()?
             .unwrap_or(CV::Null);
-        let value = obj([
-            ("entity_id", s(&entity)),
-            ("units", CV::Array(seed.iter().map(unit_value).collect())),
-            (
-                "vector",
-                obj([
-                    ("completed", CV::Bool(v.completed)),
-                    ("consecutive", CV::Bool(v.consecutive)),
-                    ("same_level", CV::Bool(v.same_level)),
-                    ("alternating", CV::Bool(v.alternating)),
-                    ("strict", v.strict.map_or(CV::Null, CV::Bool)),
-                ]),
-            ),
-            ("ZD", extremum(RoleVar::Zd)),
-            ("ZG", extremum(RoleVar::Zg)),
-            ("core_order", s(a.facts.core_order.as_str())),
-            ("result", s(if a.formed { "FORMED" } else { "EXCLUDED" })),
-            (
-                "exclusion_reason",
-                a.facts
-                    .exclusion(SeedRule::Complete)
-                    .map_or(CV::Null, |r| s(r.as_str())),
-            ),
-            ("center_id", center),
-            ("known_at", edge(ctx.known_at)),
-        ]);
-        let data = keep_known_node(nodes, old(crate::tb02e::KINDS[0], &entity), value)?;
-        let sources = unit_sources(seed);
+        let value = obj(
+            [
+                ("entity_id", s(&entity, nodes)?),
+                (
+                    "units",
+                    CV::Array(Vec::try_from_iter(
+                        seed.iter().map(|u| unit_value(u, nodes)),
+                        nodes,
+                    )?),
+                ),
+                (
+                    "vector",
+                    obj(
+                        [
+                            ("completed", CV::Bool(v.completed)),
+                            ("consecutive", CV::Bool(v.consecutive)),
+                            ("same_level", CV::Bool(v.same_level)),
+                            ("alternating", CV::Bool(v.alternating)),
+                            ("strict", v.strict.map_or(CV::Null, CV::Bool)),
+                        ],
+                        nodes,
+                    )?,
+                ),
+                ("ZD", extremum(RoleVar::Zd)?),
+                ("ZG", extremum(RoleVar::Zg)?),
+                ("core_order", s(a.facts.core_order.as_str(), nodes)?),
+                (
+                    "result",
+                    s(if a.formed { "FORMED" } else { "EXCLUDED" }, nodes)?,
+                ),
+                (
+                    "exclusion_reason",
+                    a.facts
+                        .exclusion(SeedRule::Complete)
+                        .map(|r| s(r.as_str(), nodes))
+                        .transpose()?
+                        .unwrap_or(CV::Null),
+                ),
+                ("center_id", center),
+                ("known_at", edge(ctx.known_at)),
+            ],
+            nodes,
+        )?;
+        let data = keep_known_node(old(crate::tb02e::KINDS[0], &entity), value, nodes)?;
+        let sources = unit_sources(seed, nodes)?;
         let object = emit(
             producer,
-            nodes,
             ctx,
             crate::tb02e::KINDS[0],
-            s(&entity),
+            s(&entity, nodes)?,
             &data,
             &sources,
+            nodes,
         )?;
         classification_request(
             producer,
-            nodes,
             &mut out.requests,
             &object,
             "CC-016",
             "seed_condition_vector",
-            s("vector"),
+            s("vector", nodes)?,
             if v.strict.is_some() {
                 complete_axes()
             } else {
@@ -1504,36 +1867,40 @@ fn build_ef_units(
                 &["seed_strict_not_evaluated"]
             },
             &sources,
+            nodes,
         )?;
         classification_request(
             producer,
-            nodes,
             &mut out.requests,
             &object,
             "CC-016",
             "core_order",
-            s("core_order"),
+            s("core_order", nodes)?,
             complete_axes(),
             &[],
             &sources,
+            nodes,
         )?;
-        edges.push((
-            entity.clone(),
-            "attempted_from",
-            ids[a.at].to_owned(),
-            "1".into(),
-            object.object_id.clone(),
-            sources,
-        ));
-        out.objects.push(object);
-        attempt_ids.insert(a.at, entity);
+        edges.push(
+            (
+                entity.clone_in(nodes)?,
+                "attempted_from",
+                Text::new(ids[a.at], nodes)?,
+                Text::new("1", nodes)?,
+                Text::new(&object.object_id, nodes)?,
+                sources,
+            ),
+            nodes,
+        )?;
+        out.objects.push(object, nodes)?;
+        attempt_ids.insert(a.at, entity, nodes)?;
     }
-    let mut revisions = vec![];
+    let mut revisions = Vec::new();
     for (w, wf) in windows.iter().enumerate() {
         let entity = &center_ids[w];
         let members = &inputs.completed[wf.first..=wf.last];
-        let member_ids: Vec<_> = (wf.first..=wf.last).map(|k| s(ids[k])).collect();
-        let roles_entity = format!("roles:{entity}");
+        let member_ids = Vec::try_from_iter((wf.first..=wf.last).map(|k| s(ids[k], nodes)), nodes)?;
+        let roles_entity = Text::format(format_args!("roles:{entity}"), nodes)?;
         let status = if wf.upgrade_pending {
             "UPGRADE_PENDING_TB02H"
         } else if wf.settled {
@@ -1545,242 +1912,302 @@ fn build_ef_units(
             .next_tested_unit
             .filter(|&k| k == units.len())
             .and(inputs.in_progress.as_ref())
-            .map_or(CV::Null, |u| s(&u.unit_id));
-        let break_unit = wf.break_unit.map_or(CV::Null, |k| s(ids[k]));
+            .map(|u| s(&u.unit_id, nodes))
+            .transpose()?
+            .unwrap_or(CV::Null);
+        let break_unit = wf
+            .break_unit
+            .map(|k| s(ids[k], nodes))
+            .transpose()?
+            .unwrap_or(CV::Null);
         let prior = old(crate::tb02e::KINDS[1], entity);
         let settled = if wf.settled {
             match prior {
                 Some(p)
-                    if root_eq(nodes, p, "settled", CV::Bool(true))?
-                        && root_eq(nodes, p, "break_unit", break_unit.clone())? =>
+                    if root_eq(p, "settled", CV::Bool(true), nodes)?
+                        && root_eq(p, "break_unit", break_unit.clone_in(nodes)?, nodes)? =>
                 {
                     field(nodes, p, "settled_known_at")?
                 }
                 _ => ctx.known_at.clone(),
             }
         } else {
-            put(nodes, CV::Null)?
+            put(&(CV::Null), nodes)?
         };
         let formed = match prior {
             Some(p) => field(nodes, p, "formed_known_at")?,
             None => ctx.known_at.clone(),
         };
-        let value = obj([
-            ("entity_id", s(entity)),
-            ("entity_revision", s(1)),
-            (
-                "seed_attempt_id",
-                s(attempt_ids.get(&wf.first).ok_or("中心缺真实seed attempt")?),
-            ),
-            ("seed_units", CV::Array(member_ids[..3].to_vec())),
-            ("zn_direction", s(direction(units[wf.first].direction))),
-            ("members", CV::Array(member_ids.clone())),
-            (
-                "zn_members",
-                CV::Array(wf.zn_members.iter().map(|&k| s(ids[k])).collect()),
-            ),
-            ("status", s(status)),
-            ("settled", CV::Bool(wf.settled)),
-            ("break_unit", break_unit),
-            ("break_up", CV::Bool(wf.break_up.unwrap_or(false))),
-            ("break_up_defined", CV::Bool(wf.break_up.is_some())),
-            (
-                "resume_anchor",
-                if wf.settled {
-                    obj([("after_unit_id", s(ids[wf.last])), ("offset", s(2))])
-                } else {
-                    CV::Null
-                },
-            ),
-            ("next_tested_unit", next),
-            ("roles_id", s(&roles_entity)),
-            ("formed_known_at", edge(&formed)),
-            ("settled_known_at", edge(&settled)),
-        ]);
-        let (data, revision, changed) = revise_node(nodes, prior, value)?;
-        let mut sources = unit_sources(members);
-        if let Some(k) = wf.break_unit {
-            sources.extend(&inputs.completed[k].sources);
-        }
-        let sources = sorted_sources(sources);
-        let object = emit(
-            producer,
-            nodes,
-            ctx,
-            crate::tb02e::KINDS[1],
-            s(entity),
-            &data,
-            &sources,
-        )?;
-        let oid = object.object_id.clone();
-        out.objects.push(object);
-        let role = |var: RoleVar| {
-            let r = wf.role(var);
-            let hidden = wf.upgrade_pending && !var.frozen();
-            let contributors: Vec<_> = if hidden {
-                vec![]
-            } else {
-                r.contributors.iter().map(|&k| s(ids[k])).collect()
-            };
-            let witness = if contributors.len() >= 2 {
-                contributors.clone()
-            } else {
-                vec![]
-            };
-            obj([
-                ("value", if hidden { CV::Null } else { s(r.value) }),
-                ("contributors", CV::Array(contributors)),
-                ("same_price_witness", CV::Array(witness)),
-                ("frozen", CV::Bool(var.frozen())),
+        let value = obj(
+            [
+                ("entity_id", s(entity, nodes)?),
+                ("entity_revision", s(1, nodes)?),
                 (
-                    "null_reason",
-                    if hidden {
-                        s("UPGRADE_PENDING_TB02H")
+                    "seed_attempt_id",
+                    s(
+                        attempt_ids.get(&wf.first).ok_or("中心缺真实seed attempt")?,
+                        nodes,
+                    )?,
+                ),
+                (
+                    "seed_units",
+                    CV::Array(Vec::try_from_iter(
+                        member_ids[..3].iter().map(|v| v.clone_in(nodes)),
+                        nodes,
+                    )?),
+                ),
+                (
+                    "zn_direction",
+                    s(direction(units[wf.first].direction), nodes)?,
+                ),
+                ("members", CV::Array(member_ids.clone_in(nodes)?)),
+                (
+                    "zn_members",
+                    CV::Array(Vec::try_from_iter(
+                        wf.zn_members.iter().map(|&k| s(ids[k], nodes)),
+                        nodes,
+                    )?),
+                ),
+                ("status", s(status, nodes)?),
+                ("settled", CV::Bool(wf.settled)),
+                ("break_unit", break_unit),
+                ("break_up", CV::Bool(wf.break_up.unwrap_or(false))),
+                ("break_up_defined", CV::Bool(wf.break_up.is_some())),
+                (
+                    "resume_anchor",
+                    if wf.settled {
+                        obj(
+                            [
+                                ("after_unit_id", s(ids[wf.last], nodes)?),
+                                ("offset", s(2, nodes)?),
+                            ],
+                            nodes,
+                        )?
                     } else {
                         CV::Null
                     },
                 ),
-            ])
+                ("next_tested_unit", next),
+                ("roles_id", s(&roles_entity, nodes)?),
+                ("formed_known_at", edge(&formed)),
+                ("settled_known_at", edge(&settled)),
+            ],
+            nodes,
+        )?;
+        let (data, revision, changed) = revise_node(prior, value, nodes)?;
+        let mut sources = unit_sources(members, nodes)?;
+        if let Some(k) = wf.break_unit {
+            sources.extend(inputs.completed[k].sources.iter().copied(), nodes)?;
+        }
+        let sources = sorted_sources(sources);
+        let object = emit(
+            producer,
+            ctx,
+            crate::tb02e::KINDS[1],
+            s(entity, nodes)?,
+            &data,
+            &sources,
+            nodes,
+        )?;
+        let oid = Text::new(&object.object_id, nodes)?;
+        out.objects.push(object, nodes)?;
+        let role = |var: RoleVar| -> Result<CV, String> {
+            let r = wf.role(var);
+            let hidden = wf.upgrade_pending && !var.frozen();
+            let contributors: Vec<_> = if hidden {
+                Vec::new()
+            } else {
+                Vec::try_from_iter(r.contributors.iter().map(|&k| s(ids[k], nodes)), nodes)?
+            };
+            let witness = if contributors.len() >= 2 {
+                contributors.clone_in(nodes)?
+            } else {
+                Vec::new()
+            };
+            obj(
+                [
+                    ("value", if hidden { CV::Null } else { s(r.value, nodes)? }),
+                    ("contributors", CV::Array(contributors)),
+                    ("same_price_witness", CV::Array(witness)),
+                    ("frozen", CV::Bool(var.frozen())),
+                    (
+                        "null_reason",
+                        if hidden {
+                            s("UPGRADE_PENDING_TB02H", nodes)?
+                        } else {
+                            CV::Null
+                        },
+                    ),
+                ],
+                nodes,
+            )
         };
         let roles = put(
+            &(obj(
+                [
+                    (
+                        "CORE",
+                        obj(
+                            [("ZD", role(RoleVar::Zd)?), ("ZG", role(RoleVar::Zg)?)],
+                            nodes,
+                        )?,
+                    ),
+                    (
+                        "OUTER",
+                        obj(
+                            [("DD", role(RoleVar::Dd)?), ("GG", role(RoleVar::Gg)?)],
+                            nodes,
+                        )?,
+                    ),
+                    (
+                        "INNER_EXTREMA",
+                        obj([("D", role(RoleVar::D)?), ("G", role(RoleVar::G)?)], nodes)?,
+                    ),
+                ],
+                nodes,
+            )?),
             nodes,
-            obj([
-                (
-                    "CORE",
-                    obj([("ZD", role(RoleVar::Zd)), ("ZG", role(RoleVar::Zg))]),
-                ),
-                (
-                    "OUTER",
-                    obj([("DD", role(RoleVar::Dd)), ("GG", role(RoleVar::Gg))]),
-                ),
-                (
-                    "INNER_EXTREMA",
-                    obj([("D", role(RoleVar::D)), ("G", role(RoleVar::G))]),
-                ),
-            ]),
         )?;
         let old_roles = old(crate::tb02e::KINDS[2], &roles_entity);
         let roles_data = match old_roles {
             Some(p)
-                if root_eq(nodes, p, "roles", edge(&roles))?
-                    && root_eq(nodes, p, "center_id", s(entity))? =>
+                if root_eq(p, "roles", edge(&roles), nodes)?
+                    && root_eq(p, "center_id", s(entity, nodes)?, nodes)? =>
             {
                 p.clone()
             }
             _ => {
                 let revision = next_revision(nodes, old_roles)?;
                 let prev = match old_roles {
-                    Some(p) => obj([
-                        (
-                            "entity_revision",
-                            edge(&field(nodes, p, "entity_revision")?),
-                        ),
-                        ("roles", edge(&field(nodes, p, "roles")?)),
-                    ]),
+                    Some(p) => obj(
+                        [
+                            (
+                                "entity_revision",
+                                edge(&field(nodes, p, "entity_revision")?),
+                            ),
+                            ("roles", edge(&field(nodes, p, "roles")?)),
+                        ],
+                        nodes,
+                    )?,
                     None => CV::Null,
                 };
                 put(
+                    &(obj(
+                        [
+                            ("entity_id", s(&roles_entity, nodes)?),
+                            ("entity_revision", s(revision, nodes)?),
+                            ("center_id", s(entity, nodes)?),
+                            ("roles", edge(&roles)),
+                            ("previous", prev),
+                            ("known_at", edge(ctx.known_at)),
+                        ],
+                        nodes,
+                    )?),
                     nodes,
-                    obj([
-                        ("entity_id", s(&roles_entity)),
-                        ("entity_revision", s(revision)),
-                        ("center_id", s(entity)),
-                        ("roles", edge(&roles)),
-                        ("previous", prev),
-                        ("known_at", edge(ctx.known_at)),
-                    ]),
                 )?
             }
         };
         let roles_changed = old_roles.is_some_and(|p| p.digest != roles_data.digest);
         let roles_object = emit(
             producer,
-            nodes,
             ctx,
             crate::tb02e::KINDS[2],
-            s(&roles_entity),
+            s(&roles_entity, nodes)?,
             &roles_data,
             &sources,
+            nodes,
         )?;
-        let roles_oid = roles_object.object_id.clone();
-        out.objects.push(roles_object);
+        let roles_oid = Text::new(&roles_object.object_id, nodes)?;
+        out.objects.push(roles_object, nodes)?;
         if !wf.upgrade_pending {
             for k in wf.first..=wf.last {
-                edges.push((
-                    ids[k].to_owned(),
-                    "member_of",
-                    entity.clone(),
-                    revision.to_string(),
-                    oid.clone(),
-                    inputs.completed[k].sources.clone(),
-                ));
+                edges.push(
+                    (
+                        Text::new(ids[k], nodes)?,
+                        "member_of",
+                        entity.clone_in(nodes)?,
+                        Text::format(format_args!("{revision}"), nodes)?,
+                        oid.clone_in(nodes)?,
+                        inputs.completed[k].sources.clone_in(nodes)?,
+                    ),
+                    nodes,
+                )?;
             }
         }
-        let mut changes = vec![];
+        let mut changes = Vec::new();
         match prior {
-            None => changes.push("formed"),
+            None => changes.push("formed", nodes)?,
             Some(p) if changed => {
                 let count = field(nodes, p, "members")?
                     .extent
                     .ok_or("旧members缺长度")?;
                 if count < member_ids.len() as u64 {
-                    changes.push("member_added");
+                    changes.push("member_added", nodes)?;
                 }
-                if !root_eq(nodes, p, "settled", CV::Bool(true))? && wf.settled {
-                    changes.push("settled");
+                if !root_eq(p, "settled", CV::Bool(true), nodes)? && wf.settled {
+                    changes.push("settled", nodes)?;
                 }
                 if field_text(nodes, p, "status")? != "UPGRADE_PENDING_TB02H" && wf.upgrade_pending
                 {
-                    changes.push("upgrade_pending");
+                    changes.push("upgrade_pending", nodes)?;
                 }
             }
             _ => {}
         }
         for change in changes {
-            out.objects.push(change_object(
-                producer,
+            out.objects.push(
+                change_object(
+                    producer,
+                    nodes,
+                    ctx,
+                    crate::tb02e::KINDS[5],
+                    entity,
+                    change,
+                    prior,
+                    Some(&data),
+                    Some(&oid),
+                    &sources,
+                )?,
                 nodes,
-                ctx,
-                crate::tb02e::KINDS[5],
-                entity,
-                change,
-                prior,
-                Some(&data),
-                Some(&oid),
-                &sources,
-            )?);
+            )?;
         }
         if roles_changed {
-            out.objects.push(change_object(
-                producer,
+            out.objects.push(
+                change_object(
+                    producer,
+                    nodes,
+                    ctx,
+                    crate::tb02e::KINDS[5],
+                    &roles_entity,
+                    "roles_updated",
+                    old_roles,
+                    Some(&roles_data),
+                    Some(&roles_oid),
+                    &sources,
+                )?,
                 nodes,
-                ctx,
-                crate::tb02e::KINDS[5],
-                &roles_entity,
-                "roles_updated",
-                old_roles,
-                Some(&roles_data),
-                Some(&roles_oid),
-                &sources,
-            )?);
+            )?;
         }
-        revisions.push(revision);
+        revisions.push(revision, nodes)?;
     }
-    let all_sources = sorted_sources(ctx.all_sources.to_vec());
+    let all_sources = sorted_sources(Vec::from_iter(ctx.all_sources.iter().copied(), nodes)?);
     for ((kind, entity), p) in &previous {
         if kind == crate::tb02e::KINDS[1] && !center_ids.contains(entity) {
-            out.objects.push(change_object(
-                producer,
+            out.objects.push(
+                change_object(
+                    producer,
+                    nodes,
+                    ctx,
+                    crate::tb02e::KINDS[5],
+                    entity,
+                    "withdrawn",
+                    Some(p),
+                    None,
+                    None,
+                    &all_sources,
+                )?,
                 nodes,
-                ctx,
-                crate::tb02e::KINDS[5],
-                entity,
-                "withdrawn",
-                Some(p),
-                None,
-                None,
-                &all_sources,
-            )?);
+            )?;
         }
     }
     let unit_facts = facts.unit_facts();
@@ -1790,7 +2217,7 @@ fn build_ef_units(
         .map(|(k, f)| (&inputs.completed[k], Some(*f)))
         .chain(inputs.in_progress.iter().map(|u| (u, None)))
     {
-        let entity = format!("assign:{}", unit.unit_id);
+        let entity = Text::format(format_args!("assign:{}", unit.unit_id), nodes)?;
         let (status, center, left, right, pending, reason, seed) = match f {
             None => (
                 "NOT_YET_ASSIGNED",
@@ -1832,61 +2259,81 @@ fn build_ef_units(
             },
         };
         if let Some(reason) = reason {
-            out.waiting_reasons.push(reason);
+            out.waiting_reasons.push(reason, nodes)?;
         }
-        let value = obj([
-            ("entity_id", s(&entity)),
-            ("unit", unit_value(unit)),
-            ("status", s(status)),
-            ("center_id", center.map_or(CV::Null, |w| s(&center_ids[w]))),
-            (
-                "left_center_id",
-                left.map_or(CV::Null, |w| s(&center_ids[w])),
-            ),
-            (
-                "right_center_id",
-                right.map_or(CV::Null, |w| s(&center_ids[w])),
-            ),
-            ("right_pending", CV::Bool(pending)),
-            ("reason", reason.map_or(CV::Null, s)),
-            ("seed_from_self", s(seed.as_str())),
-            ("known_at", edge(ctx.known_at)),
-        ]);
-        let data = keep_known_node(nodes, old(crate::tb02e::KINDS[3], &entity), value)?;
+        let value = obj(
+            [
+                ("entity_id", s(&entity, nodes)?),
+                ("unit", unit_value(unit, nodes)?),
+                ("status", s(status, nodes)?),
+                (
+                    "center_id",
+                    center
+                        .map(|w| s(&center_ids[w], nodes))
+                        .transpose()?
+                        .unwrap_or(CV::Null),
+                ),
+                (
+                    "left_center_id",
+                    left.map(|w| s(&center_ids[w], nodes))
+                        .transpose()?
+                        .unwrap_or(CV::Null),
+                ),
+                (
+                    "right_center_id",
+                    right
+                        .map(|w| s(&center_ids[w], nodes))
+                        .transpose()?
+                        .unwrap_or(CV::Null),
+                ),
+                ("right_pending", CV::Bool(pending)),
+                (
+                    "reason",
+                    reason.map(|v| s(v, nodes)).transpose()?.unwrap_or(CV::Null),
+                ),
+                ("seed_from_self", s(seed.as_str(), nodes)?),
+                ("known_at", edge(ctx.known_at)),
+            ],
+            nodes,
+        )?;
+        let data = keep_known_node(old(crate::tb02e::KINDS[3], &entity), value, nodes)?;
         let object = emit(
             producer,
-            nodes,
             ctx,
             crate::tb02e::KINDS[3],
-            s(&entity),
+            s(&entity, nodes)?,
             &data,
             &unit.sources,
+            nodes,
         )?;
-        let oid = object.object_id.clone();
+        let oid = Text::new(&object.object_id, nodes)?;
         // 全读法扫描同时给出 member/connector/not-yet；未完成单元的已知未归属状态不是 false 或漏算。
         classification_request(
             producer,
-            nodes,
             &mut out.requests,
             &object,
             "CC-022",
             "assignment_status",
-            s("status"),
+            s("status", nodes)?,
             complete_axes(),
             &[],
             &unit.sources,
+            nodes,
         )?;
-        out.objects.push(object);
+        out.objects.push(object, nodes)?;
         for (relation, w) in [("connects_left", left), ("connects_right", right)] {
             if let Some(w) = w {
-                edges.push((
-                    unit.unit_id.clone(),
-                    relation,
-                    center_ids[w].clone(),
-                    revisions[w].to_string(),
-                    oid.clone(),
-                    unit.sources.clone(),
-                ));
+                edges.push(
+                    (
+                        unit.unit_id.clone_in(nodes)?,
+                        relation,
+                        center_ids[w].clone_in(nodes)?,
+                        Text::format(format_args!("{}", revisions[w]), nodes)?,
+                        oid.clone_in(nodes)?,
+                        unit.sources.clone_in(nodes)?,
+                    ),
+                    nodes,
+                )?;
             }
         }
     }
@@ -1910,69 +2357,91 @@ fn build_ef_units(
             None
         }
     };
-    let awaiting = |k: usize| match id_at(k) {
-        Some(id) => (s(id), CV::Null, CV::Null),
-        None => (
-            CV::Null,
-            len.checked_sub(1)
-                .map_or(CV::Null, |i| s(&inputs.completed[i].unit_id)),
-            s(k as i128 - (len as i128 - 1)),
-        ),
+    let awaiting = |k: usize| -> Result<(CV, CV, CV), String> {
+        Ok(match id_at(k) {
+            Some(id) => (s(id, nodes)?, CV::Null, CV::Null),
+            None => (
+                CV::Null,
+                len.checked_sub(1)
+                    .map(|i| s(&inputs.completed[i].unit_id, nodes))
+                    .transpose()?
+                    .unwrap_or(CV::Null),
+                s(k as i128 - (len as i128 - 1), nodes)?,
+            ),
+        })
     };
     let cursor = match facts.scan_state() {
         ScanState::Extending { center, next_unit } => {
-            let (unit, after, offset) = awaiting(next_unit);
-            obj([
-                ("state", s("EXTENDING")),
-                ("center_id", s(&center_ids[center])),
-                ("seed_start_unit_id", CV::Null),
-                ("awaiting_unit_id", unit),
-                ("awaiting_after_unit_id", after),
-                ("awaiting_offset", offset),
-            ])
+            let (unit, after, offset) = awaiting(next_unit)?;
+            obj(
+                [
+                    ("state", s("EXTENDING", nodes)?),
+                    ("center_id", s(&center_ids[center], nodes)?),
+                    ("seed_start_unit_id", CV::Null),
+                    ("awaiting_unit_id", unit),
+                    ("awaiting_after_unit_id", after),
+                    ("awaiting_offset", offset),
+                ],
+                nodes,
+            )?
         }
         ScanState::SeekingSeed {
             seed_start,
             awaiting_unit,
         } => {
-            let (unit, after, offset) = awaiting(awaiting_unit);
-            obj([
-                ("state", s("SEEKING_SEED")),
-                ("center_id", CV::Null),
-                ("seed_start_unit_id", id_at(seed_start).map_or(CV::Null, s)),
-                ("awaiting_unit_id", unit),
-                ("awaiting_after_unit_id", after),
-                ("awaiting_offset", offset),
-            ])
+            let (unit, after, offset) = awaiting(awaiting_unit)?;
+            obj(
+                [
+                    ("state", s("SEEKING_SEED", nodes)?),
+                    ("center_id", CV::Null),
+                    (
+                        "seed_start_unit_id",
+                        id_at(seed_start)
+                            .map(|v| s(v, nodes))
+                            .transpose()?
+                            .unwrap_or(CV::Null),
+                    ),
+                    ("awaiting_unit_id", unit),
+                    ("awaiting_after_unit_id", after),
+                    ("awaiting_offset", offset),
+                ],
+                nodes,
+            )?
         }
     };
     let waiting = fact(nodes, &out.waiting_reasons)?;
     let deferred = fact(nodes, &crate::tb02e::DEFERRED_SCOPE)?;
     let data = put(
+        &(obj(
+            [
+                ("input_frontier", s(ctx.frontier, nodes)?),
+                ("known_at", edge(ctx.known_at)),
+                ("scan_cursor", cursor),
+                ("waiting_reasons", edge(&waiting)),
+                (
+                    "delivered_scope",
+                    s("l0_strict_seed_zn_roles_c_resume_assignment", nodes)?,
+                ),
+                ("deferred_scope", edge(&deferred)),
+            ],
+            nodes,
+        )?),
         nodes,
-        obj([
-            ("input_frontier", s(ctx.frontier)),
-            ("known_at", edge(ctx.known_at)),
-            ("scan_cursor", cursor),
-            ("waiting_reasons", edge(&waiting)),
-            (
-                "delivered_scope",
-                s("l0_strict_seed_zn_roles_c_resume_assignment"),
-            ),
-            ("deferred_scope", edge(&deferred)),
-        ]),
     )?;
-    out.objects.push(emit(
-        producer,
+    out.objects.push(
+        emit(
+            producer,
+            ctx,
+            crate::tb02e::KINDS[6],
+            s("TB-02-E", nodes)?,
+            &data,
+            &all_sources,
+            nodes,
+        )?,
         nodes,
-        ctx,
-        crate::tb02e::KINDS[6],
-        s("TB-02-E"),
-        &data,
-        &all_sources,
-    )?);
+    )?;
     // F: consume this exact facts instance; no second scan and no reconstructed center geometry.
-    let mut edges = vec![];
+    let mut edges = Vec::new();
     for (w, tested) in facts.tested_positions(&units).iter().enumerate() {
         let center = &center_ids[w];
         let wf = &windows[w];
@@ -1980,24 +2449,38 @@ fn build_ef_units(
         let seed = &inputs.completed[wf.first..wf.first + 3];
         for t in tested {
             let unit = &inputs.completed[t.unit];
-            let entity = format!("ucp:{}:{}", center_anchor(center), anchor(&unit.unit_id));
-            let value = obj([
-                ("entity_id", s(&entity)),
-                ("center_id", s(center)),
-                ("unit", unit_value(unit)),
-                ("core", obj([("ZD", s(core.zd)), ("ZG", s(core.zg))])),
-                ("position", s(t.position.as_str())),
-                ("closed_overlap", CV::Bool(t.position.closed_overlap())),
-                ("strict_leave", CV::Bool(t.position.leave_side().is_some())),
-                (
-                    "leave_side",
-                    t.position
-                        .leave_side()
-                        .map_or(CV::Null, |d| s(direction(d))),
-                ),
-                ("construction_role", s(t.role.as_str())),
-                ("destruction", s(crate::tb02f::DESTRUCTION)),
-            ]);
+            let entity = Text::format(
+                format_args!("ucp:{}:{}", center_anchor(center), anchor(&unit.unit_id)),
+                nodes,
+            )?;
+            let value = obj(
+                [
+                    ("entity_id", s(&entity, nodes)?),
+                    ("center_id", s(center, nodes)?),
+                    ("unit", unit_value(unit, nodes)?),
+                    (
+                        "core",
+                        obj(
+                            [("ZD", s(core.zd, nodes)?), ("ZG", s(core.zg, nodes)?)],
+                            nodes,
+                        )?,
+                    ),
+                    ("position", s(t.position.as_str(), nodes)?),
+                    ("closed_overlap", CV::Bool(t.position.closed_overlap())),
+                    ("strict_leave", CV::Bool(t.position.leave_side().is_some())),
+                    (
+                        "leave_side",
+                        t.position
+                            .leave_side()
+                            .map(|d| s(direction(d), nodes))
+                            .transpose()?
+                            .unwrap_or(CV::Null),
+                    ),
+                    ("construction_role", s(t.role.as_str(), nodes)?),
+                    ("destruction", s(crate::tb02f::DESTRUCTION, nodes)?),
+                ],
+                nodes,
+            )?;
             let mut fields = vec_fields(value)?;
             let prior = old(crate::tb02f::KINDS[0], &entity);
             let data = match prior {
@@ -2005,94 +2488,141 @@ fn build_ef_units(
                     p.clone()
                 }
                 _ => {
-                    fields.push(("center_revision".into(), s(revisions[w])));
-                    fields.push(("known_at".into(), edge(ctx.known_at)));
-                    put(nodes, CV::Object(fields))?
+                    fields.push(
+                        (
+                            Text::new("center_revision", nodes)?,
+                            s(revisions[w], nodes)?,
+                        ),
+                        nodes,
+                    )?;
+                    fields.push((Text::new("known_at", nodes)?, edge(ctx.known_at)), nodes)?;
+                    put(&(CV::Object(fields)), nodes)?
                 }
             };
             let version = field_text(nodes, &data, "center_revision")?;
-            let sources = unit_sources(seed.iter().chain(std::iter::once(unit)));
+            let sources = unit_sources(seed.iter().chain(std::iter::once(unit)), nodes)?;
             let object = emit(
                 producer,
-                nodes,
                 ctx,
                 crate::tb02f::KINDS[0],
-                s(&entity),
+                s(&entity, nodes)?,
                 &data,
                 &sources,
+                nodes,
             )?;
-            let oid = object.object_id.clone();
+            let oid = Text::new(&object.object_id, nodes)?;
             classification_request(
                 producer,
-                nodes,
                 &mut out.requests,
                 &object,
                 "CC-018",
                 "unit_core_position",
-                s("position"),
+                s("position", nodes)?,
                 complete_axes(),
                 &[],
                 &sources,
+                nodes,
             )?;
-            out.objects.push(object);
-            edges.push((
-                entity.clone(),
-                "position_of",
-                unit.unit_id.clone(),
-                version.clone(),
-                oid.clone(),
-                unit.sources.clone(),
-            ));
-            edges.push((
-                entity,
-                "position_against",
-                center.clone(),
-                version,
-                oid,
-                sources,
-            ));
+            out.objects.push(object, nodes)?;
+            edges.push(
+                (
+                    entity.clone_in(nodes)?,
+                    "position_of",
+                    unit.unit_id.clone_in(nodes)?,
+                    version.clone_in(nodes)?,
+                    oid.clone_in(nodes)?,
+                    unit.sources.clone_in(nodes)?,
+                ),
+                nodes,
+            )?;
+            edges.push(
+                (
+                    entity,
+                    "position_against",
+                    center.clone_in(nodes)?,
+                    version,
+                    oid,
+                    sources,
+                ),
+                nodes,
+            )?;
         }
     }
-    let mut pair_ids = vec![];
+    let mut pair_ids = Vec::new();
     let mut pending = 0;
     for pair in facts.pair_facts(&units) {
         let (a, b) = (&center_ids[pair.left], &center_ids[pair.right]);
-        let entity = format!("pair:{}:{}", center_anchor(a), center_anchor(b));
-        let side = |w: usize| {
+        let entity = Text::format(
+            format_args!("pair:{}:{}", center_anchor(a), center_anchor(b)),
+            nodes,
+        )?;
+        let side = |w: usize| -> Result<CV, String> {
             let center = facts.window_center(&units, w);
             let outer = !windows[w].upgrade_pending;
-            obj([
-                ("ZD", s(center.zd)),
-                ("ZG", s(center.zg)),
-                ("DD", if outer { s(center.dd) } else { CV::Null }),
-                ("GG", if outer { s(center.gg) } else { CV::Null }),
-            ])
+            obj(
+                [
+                    ("ZD", s(center.zd, nodes)?),
+                    ("ZG", s(center.zg, nodes)?),
+                    (
+                        "DD",
+                        if outer {
+                            s(center.dd, nodes)?
+                        } else {
+                            CV::Null
+                        },
+                    ),
+                    (
+                        "GG",
+                        if outer {
+                            s(center.gg, nodes)?
+                        } else {
+                            CV::Null
+                        },
+                    ),
+                ],
+                nodes,
+            )
         };
         let (status, leaf, matrix, witnesses, null_reason) = match pair.outcome {
             PairOutcome::Evaluated(f) => {
-                let mut matrix = vec![];
+                let mut matrix = Vec::new();
                 for x in PairEndpoint::ALL {
                     for y in PairEndpoint::ALL {
-                        matrix.push((
-                            format!("B.{}?A.{}", x.as_str(), y.as_str()),
-                            s(match f.cmp(x, y) {
-                                std::cmp::Ordering::Less => "<",
-                                std::cmp::Ordering::Equal => "=",
-                                std::cmp::Ordering::Greater => ">",
-                            }),
-                        ));
+                        matrix.push(
+                            (
+                                Text::format(
+                                    format_args!("B.{}?A.{}", x.as_str(), y.as_str()),
+                                    nodes,
+                                )?,
+                                s(
+                                    match f.cmp(x, y) {
+                                        std::cmp::Ordering::Less => "<",
+                                        std::cmp::Ordering::Equal => "=",
+                                        std::cmp::Ordering::Greater => ">",
+                                    },
+                                    nodes,
+                                )?,
+                            ),
+                            nodes,
+                        )?;
                     }
                 }
                 (
                     "EVALUATED",
                     Some(f.leaf),
                     CV::Object(matrix),
-                    obj([
-                        ("core_tangent", CV::Bool(f.core_tangent())),
-                        ("outer_touch", CV::Bool(f.outer_touch())),
-                        ("outer_containment", s(f.outer_containment().as_str())),
-                        ("core_containment", s(f.core_containment().as_str())),
-                    ]),
+                    obj(
+                        [
+                            ("core_tangent", CV::Bool(f.core_tangent())),
+                            ("outer_touch", CV::Bool(f.outer_touch())),
+                            (
+                                "outer_containment",
+                                s(f.outer_containment().as_str(), nodes)?,
+                            ),
+                            ("core_containment", s(f.core_containment().as_str(), nodes)?),
+                        ],
+                        nodes,
+                    )?,
                     CV::Null,
                 )
             }
@@ -2103,43 +2633,59 @@ fn build_ef_units(
                     None,
                     CV::Null,
                     CV::Null,
-                    s(crate::tb02f::PENDING),
+                    s(crate::tb02f::PENDING, nodes)?,
                 )
             }
         };
-        let value = obj([
-            ("entity_id", s(&entity)),
-            ("a_center_id", s(a)),
-            ("a_revision", s(revisions[pair.left])),
-            ("b_center_id", s(b)),
-            ("b_revision", s(revisions[pair.right])),
-            (
-                "connector_units",
-                CV::Array(pair.connectors.clone().map(|k| s(ids[k])).collect()),
-            ),
-            ("status", s(status)),
-            ("leaf", leaf.map_or(CV::Null, |l| s(l.as_str()))),
-            (
-                "direction",
-                leaf.and_then(PairLeaf::direction)
-                    .map_or(CV::Null, |d| s(direction(d))),
-            ),
-            ("provisional", CV::Bool(!windows[pair.right].settled)),
-            (
-                "inputs",
-                obj([("A", side(pair.left)), ("B", side(pair.right))]),
-            ),
-            ("matrix", matrix),
-            ("witnesses", witnesses),
-            (
-                "realization",
-                obj([
-                    ("upper_center", s(crate::tb02f::REALIZATION_UPPER)),
-                    ("trend", s(crate::tb02f::REALIZATION_TREND)),
-                ]),
-            ),
-            ("null_reason", null_reason),
-        ]);
+        let value = obj(
+            [
+                ("entity_id", s(&entity, nodes)?),
+                ("a_center_id", s(a, nodes)?),
+                ("a_revision", s(revisions[pair.left], nodes)?),
+                ("b_center_id", s(b, nodes)?),
+                ("b_revision", s(revisions[pair.right], nodes)?),
+                (
+                    "connector_units",
+                    CV::Array(Vec::try_from_iter(
+                        pair.connectors.clone().map(|k| s(ids[k], nodes)),
+                        nodes,
+                    )?),
+                ),
+                ("status", s(status, nodes)?),
+                (
+                    "leaf",
+                    leaf.map(|l| s(l.as_str(), nodes))
+                        .transpose()?
+                        .unwrap_or(CV::Null),
+                ),
+                (
+                    "direction",
+                    leaf.and_then(PairLeaf::direction)
+                        .map(|d| s(direction(d), nodes))
+                        .transpose()?
+                        .unwrap_or(CV::Null),
+                ),
+                ("provisional", CV::Bool(!windows[pair.right].settled)),
+                (
+                    "inputs",
+                    obj([("A", side(pair.left)?), ("B", side(pair.right)?)], nodes)?,
+                ),
+                ("matrix", matrix),
+                ("witnesses", witnesses),
+                (
+                    "realization",
+                    obj(
+                        [
+                            ("upper_center", s(crate::tb02f::REALIZATION_UPPER, nodes)?),
+                            ("trend", s(crate::tb02f::REALIZATION_TREND, nodes)?),
+                        ],
+                        nodes,
+                    )?,
+                ),
+                ("null_reason", null_reason),
+            ],
+            nodes,
+        )?;
         let mut fields = vec_fields(value)?;
         let prior = old(crate::tb02f::KINDS[1], &entity);
         let (data, change) = match prior {
@@ -2156,27 +2702,36 @@ fn build_ef_units(
             _ => {
                 let revision = next_revision(nodes, prior)?;
                 let previous = match prior {
-                    Some(p) => obj([
-                        (
-                            "entity_revision",
-                            edge(&field(nodes, p, "entity_revision")?),
-                        ),
-                        ("status", edge(&field(nodes, p, "status")?)),
-                        ("leaf", edge(&field(nodes, p, "leaf")?)),
-                    ]),
+                    Some(p) => obj(
+                        [
+                            (
+                                "entity_revision",
+                                edge(&field(nodes, p, "entity_revision")?),
+                            ),
+                            ("status", edge(&field(nodes, p, "status")?)),
+                            ("leaf", edge(&field(nodes, p, "leaf")?)),
+                        ],
+                        nodes,
+                    )?,
                     None => CV::Null,
                 };
                 let formed = match prior {
                     Some(p) => field(nodes, p, "formed_known_at")?,
                     None => ctx.known_at.clone(),
                 };
-                fields.extend([
-                    ("entity_revision".into(), s(revision)),
-                    ("previous".into(), previous),
-                    ("formed_known_at".into(), edge(&formed)),
-                    ("known_at".into(), edge(ctx.known_at)),
-                ]);
-                let leaf_value = leaf.map_or(CV::Null, |l| s(l.as_str()));
+                fields.extend(
+                    [
+                        (Text::new("entity_revision", nodes)?, s(revision, nodes)?),
+                        (Text::new("previous", nodes)?, previous),
+                        (Text::new("formed_known_at", nodes)?, edge(&formed)),
+                        (Text::new("known_at", nodes)?, edge(ctx.known_at)),
+                    ],
+                    nodes,
+                )?;
+                let leaf_value = leaf
+                    .map(|l| s(l.as_str(), nodes))
+                    .transpose()?
+                    .unwrap_or(CV::Null);
                 let change = match prior {
                     None => "formed",
                     Some(p)
@@ -2185,33 +2740,34 @@ fn build_ef_units(
                     {
                         "pending_upgrade"
                     }
-                    Some(p) if !root_eq(nodes, p, "leaf", leaf_value)? => "leaf_revised",
+                    Some(p) if !root_eq(p, "leaf", leaf_value, nodes)? => "leaf_revised",
                     _ => "inputs_revised",
                 };
-                (put(nodes, CV::Object(fields))?, Some(change))
+                (put(&(CV::Object(fields)), nodes)?, Some(change))
             }
         };
-        let sources =
-            unit_sources(&inputs.completed[windows[pair.left].first..=windows[pair.right].last]);
+        let sources = unit_sources(
+            &inputs.completed[windows[pair.left].first..=windows[pair.right].last],
+            nodes,
+        )?;
         let object = emit(
             producer,
-            nodes,
             ctx,
             crate::tb02f::KINDS[1],
-            s(&entity),
+            s(&entity, nodes)?,
             &data,
             &sources,
+            nodes,
         )?;
-        let oid = object.object_id.clone();
+        let oid = Text::new(&object.object_id, nodes)?;
         // ≥9 的 pending 缺有效外缘，分类域尚未证成；上级 realization 尚未构造不影响已求值的 pair。
         classification_request(
             producer,
-            nodes,
             &mut out.requests,
             &object,
             "CC-020",
             "center_pair_development",
-            s("leaf"),
+            s("leaf", nodes)?,
             if leaf.is_some() {
                 complete_axes()
             } else {
@@ -2223,49 +2779,59 @@ fn build_ef_units(
                 &[crate::tb02f::PENDING]
             },
             &sources,
+            nodes,
         )?;
-        out.objects.push(object);
+        out.objects.push(object, nodes)?;
         let version = field_text(nodes, &data, "entity_revision")?;
         for (relation, target) in [("pair_from", a), ("pair_to", b)] {
-            edges.push((
-                entity.clone(),
-                relation,
-                target.clone(),
-                version.clone(),
-                oid.clone(),
-                sources.clone(),
-            ));
+            edges.push(
+                (
+                    entity.clone_in(nodes)?,
+                    relation,
+                    target.clone_in(nodes)?,
+                    version.clone_in(nodes)?,
+                    oid.clone_in(nodes)?,
+                    sources.clone_in(nodes)?,
+                ),
+                nodes,
+            )?;
         }
         if let Some(change) = change {
-            out.objects.push(change_object(
-                producer,
+            out.objects.push(
+                change_object(
+                    producer,
+                    nodes,
+                    ctx,
+                    crate::tb02f::KINDS[3],
+                    &entity,
+                    change,
+                    prior,
+                    Some(&data),
+                    Some(&oid),
+                    &sources,
+                )?,
                 nodes,
-                ctx,
-                crate::tb02f::KINDS[3],
-                &entity,
-                change,
-                prior,
-                Some(&data),
-                Some(&oid),
-                &sources,
-            )?);
+            )?;
         }
-        pair_ids.push(entity);
+        pair_ids.push(entity, nodes)?;
     }
     for ((kind, entity), p) in &previous {
         if kind == crate::tb02f::KINDS[1] && !pair_ids.contains(entity) {
-            out.objects.push(change_object(
-                producer,
+            out.objects.push(
+                change_object(
+                    producer,
+                    nodes,
+                    ctx,
+                    crate::tb02f::KINDS[3],
+                    entity,
+                    "withdrawn",
+                    Some(p),
+                    None,
+                    None,
+                    &all_sources,
+                )?,
                 nodes,
-                ctx,
-                crate::tb02f::KINDS[3],
-                entity,
-                "withdrawn",
-                Some(p),
-                None,
-                None,
-                &all_sources,
-            )?);
+            )?;
         }
     }
     emit_edges(
@@ -2277,87 +2843,120 @@ fn build_ef_units(
         &mut out,
     )?;
     let pair_waiting: Vec<&str> = if pending > 0 {
-        vec![crate::tb02f::PENDING]
+        vec_in![nodes;crate::tb02f::PENDING]
     } else {
-        vec![]
+        Vec::new()
     };
     let waiting = fact(nodes, &pair_waiting)?;
     let deferred = fact(nodes, &crate::tb02f::DEFERRED_SCOPE)?;
     let data = put(
+        &(obj(
+            [
+                ("input_frontier", s(ctx.frontier, nodes)?),
+                ("known_at", edge(ctx.known_at)),
+                ("pair_count", s(pair_ids.len(), nodes)?),
+                ("pending_pairs", s(pending, nodes)?),
+                ("waiting_reasons", edge(&waiting)),
+                (
+                    "delivered_scope",
+                    s(
+                        "l0_adjacent_pair_five_leaf_zn_outer_and_unit_core_position",
+                        nodes,
+                    )?,
+                ),
+                ("deferred_scope", edge(&deferred)),
+            ],
+            nodes,
+        )?),
         nodes,
-        obj([
-            ("input_frontier", s(ctx.frontier)),
-            ("known_at", edge(ctx.known_at)),
-            ("pair_count", s(pair_ids.len())),
-            ("pending_pairs", s(pending)),
-            ("waiting_reasons", edge(&waiting)),
-            (
-                "delivered_scope",
-                s("l0_adjacent_pair_five_leaf_zn_outer_and_unit_core_position"),
-            ),
-            ("deferred_scope", edge(&deferred)),
-        ]),
     )?;
-    out.objects.push(emit(
-        producer,
+    out.objects.push(
+        emit(
+            producer,
+            ctx,
+            crate::tb02f::KINDS[4],
+            s("TB-02-F", nodes)?,
+            &data,
+            &all_sources,
+            nodes,
+        )?,
         nodes,
-        ctx,
-        crate::tb02f::KINDS[4],
-        s("TB-02-F"),
-        &data,
-        &all_sources,
-    )?);
-    out.waiting_reasons.extend(pair_waiting);
+    )?;
+    out.waiting_reasons.extend(pair_waiting, nodes)?;
     out.waiting_reasons.sort_unstable();
     out.waiting_reasons.dedup();
     Ok(out)
 }
 
-// 直接 Serde → 内容值适配；仅数字线形不同，其余遵从事实类型自身 Serialize 实现。
-struct WireSerializer;
-struct WireSeq(Vec<CV>);
-struct WireMap {
-    fields: Vec<(String, CV)>,
-    key: Option<String>,
+// 与 donor WireSerializer 相同的整数文本合同；缓冲区均在当前父账先准入。
+struct WireSerializer<'a>(&'a dyn sc::NodeSource);
+struct WireSeq<'a> {
+    values: Vec<CV>,
+    nodes: &'a dyn sc::NodeSource,
 }
-struct WireVariant {
-    name: String,
-    fields: WireMap,
+struct WireMap<'a> {
+    fields: Vec<(Text, CV)>,
+    key: Option<Text>,
+    nodes: &'a dyn sc::NodeSource,
 }
-struct WireTupleVariant {
-    name: String,
-    fields: WireSeq,
+struct WireVariant<'a> {
+    name: Text,
+    fields: WireMap<'a>,
 }
-type SerError = serde_json::Error;
-macro_rules! wire_number {($($method:ident:$ty:ty),*)=>{$(fn $method(self,value:$ty)->Result<CV,SerError>{Ok(s(value))})*};}
-impl serde::Serializer for WireSerializer {
+struct WireTupleVariant<'a> {
+    name: Text,
+    fields: WireSeq<'a>,
+}
+#[derive(Debug)]
+struct SerError(String);
+impl std::fmt::Display for SerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+impl std::error::Error for SerError {}
+impl serde::ser::Error for SerError {
+    fn custom<T: std::fmt::Display>(v: T) -> Self {
+        Self(v.to_string())
+    }
+}
+impl From<String> for SerError {
+    fn from(v: String) -> Self {
+        Self(v)
+    }
+}
+macro_rules! wire_number {($($method:ident:$ty:ty),*)=>{$(fn $method(self,v:$ty)->Result<CV,SerError>{Ok(s(v,self.0)?)})*};}
+impl<'a> serde::Serializer for WireSerializer<'a> {
     type Ok = CV;
     type Error = SerError;
-    type SerializeSeq = WireSeq;
-    type SerializeTuple = WireSeq;
-    type SerializeTupleStruct = WireSeq;
-    type SerializeTupleVariant = WireTupleVariant;
-    type SerializeMap = WireMap;
-    type SerializeStruct = WireMap;
-    type SerializeStructVariant = WireVariant;
+    type SerializeSeq = WireSeq<'a>;
+    type SerializeTuple = WireSeq<'a>;
+    type SerializeTupleStruct = WireSeq<'a>;
+    type SerializeTupleVariant = WireTupleVariant<'a>;
+    type SerializeMap = WireMap<'a>;
+    type SerializeStruct = WireMap<'a>;
+    type SerializeStructVariant = WireVariant<'a>;
     wire_number!(serialize_i8:i8,serialize_i16:i16,serialize_i32:i32,serialize_i64:i64,serialize_i128:i128,serialize_u8:u8,serialize_u16:u16,serialize_u32:u32,serialize_u64:u64,serialize_u128:u128);
     fn serialize_f32(self, _: f32) -> Result<CV, SerError> {
-        Err(serde::ser::Error::custom("段事实不允许浮点数"))
+        Err(SerError("段事实不允许浮点数".into()))
     }
     fn serialize_f64(self, _: f64) -> Result<CV, SerError> {
-        Err(serde::ser::Error::custom("段事实不允许浮点数"))
+        Err(SerError("段事实不允许浮点数".into()))
     }
     fn serialize_bool(self, v: bool) -> Result<CV, SerError> {
         Ok(CV::Bool(v))
     }
     fn serialize_char(self, v: char) -> Result<CV, SerError> {
-        Ok(s(v))
+        Ok(s(v, self.0)?)
     }
     fn serialize_str(self, v: &str) -> Result<CV, SerError> {
-        Ok(s(v))
+        Ok(s(v, self.0)?)
     }
     fn serialize_bytes(self, v: &[u8]) -> Result<CV, SerError> {
-        Ok(CV::Array(v.iter().map(s).collect()))
+        Ok(CV::Array(Vec::try_from_iter(
+            v.iter().map(|v| s(v, self.0)),
+            self.0,
+        )?))
     }
     fn serialize_none(self) -> Result<CV, SerError> {
         Ok(CV::Null)
@@ -2377,7 +2976,7 @@ impl serde::Serializer for WireSerializer {
         _: u32,
         v: &'static str,
     ) -> Result<CV, SerError> {
-        Ok(s(v))
+        Ok(s(v, self.0)?)
     }
     fn serialize_newtype_struct<T: Serialize + ?Sized>(
         self,
@@ -2393,16 +2992,20 @@ impl serde::Serializer for WireSerializer {
         k: &'static str,
         v: &T,
     ) -> Result<CV, SerError> {
-        Ok(obj([(k, v.serialize(self)?)]))
+        let n = self.0;
+        Ok(obj([(k, v.serialize(self)?)], n)?)
     }
-    fn serialize_seq(self, _: Option<usize>) -> Result<WireSeq, SerError> {
-        Ok(WireSeq(Vec::new()))
+    fn serialize_seq(self, _: Option<usize>) -> Result<WireSeq<'a>, SerError> {
+        Ok(WireSeq {
+            values: Vec::new(),
+            nodes: self.0,
+        })
     }
-    fn serialize_tuple(self, _: usize) -> Result<WireSeq, SerError> {
-        Ok(WireSeq(Vec::new()))
+    fn serialize_tuple(self, n: usize) -> Result<WireSeq<'a>, SerError> {
+        self.serialize_seq(Some(n))
     }
-    fn serialize_tuple_struct(self, _: &'static str, _: usize) -> Result<WireSeq, SerError> {
-        Ok(WireSeq(Vec::new()))
+    fn serialize_tuple_struct(self, _: &'static str, n: usize) -> Result<WireSeq<'a>, SerError> {
+        self.serialize_seq(Some(n))
     }
     fn serialize_tuple_variant(
         self,
@@ -2410,23 +3013,24 @@ impl serde::Serializer for WireSerializer {
         _: u32,
         k: &'static str,
         _: usize,
-    ) -> Result<WireTupleVariant, SerError> {
+    ) -> Result<WireTupleVariant<'a>, SerError> {
         Ok(WireTupleVariant {
-            name: k.into(),
-            fields: WireSeq(Vec::new()),
+            name: Text::new(k, self.0)?,
+            fields: WireSeq {
+                values: Vec::new(),
+                nodes: self.0,
+            },
         })
     }
-    fn serialize_map(self, _: Option<usize>) -> Result<WireMap, SerError> {
+    fn serialize_map(self, _: Option<usize>) -> Result<WireMap<'a>, SerError> {
         Ok(WireMap {
             fields: Vec::new(),
             key: None,
+            nodes: self.0,
         })
     }
-    fn serialize_struct(self, _: &'static str, _: usize) -> Result<WireMap, SerError> {
-        Ok(WireMap {
-            fields: Vec::new(),
-            key: None,
-        })
+    fn serialize_struct(self, _: &'static str, n: usize) -> Result<WireMap<'a>, SerError> {
+        self.serialize_map(Some(n))
     }
     fn serialize_struct_variant(
         self,
@@ -2434,28 +3038,30 @@ impl serde::Serializer for WireSerializer {
         _: u32,
         k: &'static str,
         _: usize,
-    ) -> Result<WireVariant, SerError> {
+    ) -> Result<WireVariant<'a>, SerError> {
         Ok(WireVariant {
-            name: k.into(),
+            name: Text::new(k, self.0)?,
             fields: WireMap {
                 fields: Vec::new(),
                 key: None,
+                nodes: self.0,
             },
         })
     }
 }
-impl serde::ser::SerializeSeq for WireSeq {
+impl serde::ser::SerializeSeq for WireSeq<'_> {
     type Ok = CV;
     type Error = SerError;
     fn serialize_element<T: Serialize + ?Sized>(&mut self, v: &T) -> Result<(), SerError> {
-        self.0.push(v.serialize(WireSerializer)?);
+        self.values
+            .push(v.serialize(WireSerializer(self.nodes))?, self.nodes)?;
         Ok(())
     }
     fn end(self) -> Result<CV, SerError> {
-        Ok(CV::Array(self.0))
+        Ok(CV::Array(self.values))
     }
 }
-impl serde::ser::SerializeTuple for WireSeq {
+impl serde::ser::SerializeTuple for WireSeq<'_> {
     type Ok = CV;
     type Error = SerError;
     fn serialize_element<T: Serialize + ?Sized>(&mut self, v: &T) -> Result<(), SerError> {
@@ -2465,7 +3071,7 @@ impl serde::ser::SerializeTuple for WireSeq {
         serde::ser::SerializeSeq::end(self)
     }
 }
-impl serde::ser::SerializeTupleStruct for WireSeq {
+impl serde::ser::SerializeTupleStruct for WireSeq<'_> {
     type Ok = CV;
     type Error = SerError;
     fn serialize_field<T: Serialize + ?Sized>(&mut self, v: &T) -> Result<(), SerError> {
@@ -2475,29 +3081,27 @@ impl serde::ser::SerializeTupleStruct for WireSeq {
         serde::ser::SerializeSeq::end(self)
     }
 }
-impl serde::ser::SerializeMap for WireMap {
+impl serde::ser::SerializeMap for WireMap<'_> {
     type Ok = CV;
     type Error = SerError;
-    fn serialize_key<T: Serialize + ?Sized>(&mut self, k: &T) -> Result<(), SerError> {
-        let CV::String(k) = k.serialize(WireSerializer)? else {
-            return Err(serde::ser::Error::custom("非文本对象键"));
+    fn serialize_key<T: Serialize + ?Sized>(&mut self, v: &T) -> Result<(), SerError> {
+        let CV::String(k) = v.serialize(WireSerializer(self.nodes))? else {
+            return Err(SerError("非文本对象键".into()));
         };
         self.key = Some(k);
         Ok(())
     }
     fn serialize_value<T: Serialize + ?Sized>(&mut self, v: &T) -> Result<(), SerError> {
-        let k = self
-            .key
-            .take()
-            .ok_or_else(|| <SerError as serde::ser::Error>::custom("缺对象键"))?;
-        self.fields.push((k, v.serialize(WireSerializer)?));
+        let k = self.key.take().ok_or_else(|| SerError("缺对象键".into()))?;
+        self.fields
+            .push((k, v.serialize(WireSerializer(self.nodes))?), self.nodes)?;
         Ok(())
     }
     fn end(self) -> Result<CV, SerError> {
         Ok(CV::Object(self.fields))
     }
 }
-impl serde::ser::SerializeStruct for WireMap {
+impl serde::ser::SerializeStruct for WireMap<'_> {
     type Ok = CV;
     type Error = SerError;
     fn serialize_field<T: Serialize + ?Sized>(
@@ -2505,24 +3109,34 @@ impl serde::ser::SerializeStruct for WireMap {
         k: &'static str,
         v: &T,
     ) -> Result<(), SerError> {
-        self.fields.push((k.into(), v.serialize(WireSerializer)?));
+        self.fields.push(
+            (
+                Text::new(k, self.nodes)?,
+                v.serialize(WireSerializer(self.nodes))?,
+            ),
+            self.nodes,
+        )?;
         Ok(())
     }
     fn end(self) -> Result<CV, SerError> {
         Ok(CV::Object(self.fields))
     }
 }
-impl serde::ser::SerializeTupleVariant for WireTupleVariant {
+impl serde::ser::SerializeTupleVariant for WireTupleVariant<'_> {
     type Ok = CV;
     type Error = SerError;
     fn serialize_field<T: Serialize + ?Sized>(&mut self, v: &T) -> Result<(), SerError> {
         serde::ser::SerializeSeq::serialize_element(&mut self.fields, v)
     }
     fn end(self) -> Result<CV, SerError> {
-        Ok(CV::Object(vec![(self.name, CV::Array(self.fields.0))]))
+        let n = self.fields.nodes;
+        Ok(CV::Object(Vec::from_iter(
+            [(self.name, CV::Array(self.fields.values))],
+            n,
+        )?))
     }
 }
-impl serde::ser::SerializeStructVariant for WireVariant {
+impl serde::ser::SerializeStructVariant for WireVariant<'_> {
     type Ok = CV;
     type Error = SerError;
     fn serialize_field<T: Serialize + ?Sized>(
@@ -2533,774 +3147,60 @@ impl serde::ser::SerializeStructVariant for WireVariant {
         serde::ser::SerializeStruct::serialize_field(&mut self.fields, k, v)
     }
     fn end(self) -> Result<CV, SerError> {
-        Ok(CV::Object(vec![(
-            self.name,
-            CV::Object(self.fields.fields),
-        )]))
+        let n = self.fields.nodes;
+        Ok(CV::Object(Vec::from_iter(
+            [(self.name, CV::Object(self.fields.fields))],
+            n,
+        )?))
     }
 }
 
 #[cfg(test)]
-fn parse_json_field(o: &Value, key: &str) -> Result<Value, String> {
-    let text = o[key].as_str().ok_or_else(|| format!("{key} missing"))?;
-    serde_json::from_str(text).map_err(|e| format!("parse {key}: {e}"))
-}
-
-#[cfg(test)]
-fn decode_prior(store: &mut dyn NodeStore, prior: &[Built]) -> Result<Vec<Value>, String> {
-    prior
-        .iter()
-        .map(|built| decode_object(store, built))
-        .collect()
-}
-
-#[cfg(test)]
-fn decode_object(store: &mut dyn NodeStore, built: &Built) -> Result<Value, String> {
-    let mut bytes = Vec::new();
-    sc::render_canonical(store, &built.content_ref(), &mut bytes)
-        .map_err(|e| format!("decode: {e}"))?;
-    let value: Value = serde_json::from_slice(&bytes).map_err(|e| format!("decode JSON: {e}"))?;
-    if !value.is_object() {
-        return Err("decode: expected object record".into());
-    }
-    Ok(value)
-}
-
-#[cfg(test)]
-fn json_to_cvalue(v: &Value) -> Result<sc::Value, String> {
-    match v {
-        Value::Null => Ok(sc::Value::Null),
-        Value::Bool(b) => Ok(sc::Value::Bool(*b)),
-        Value::Number(n) => sc::NumberToken::parse(&n.to_string())
-            .map(sc::Value::Number)
-            .map_err(|e| format!("number: {e}")),
-        Value::String(s) => Ok(sc::Value::String(s.clone())),
-        Value::Array(a) => {
-            let mut out = Vec::new();
-            for item in a {
-                out.push(json_to_cvalue(item)?);
-            }
-            Ok(sc::Value::Array(out))
-        }
-        Value::Object(m) => {
-            let mut out = Vec::new();
-            for (k, val) in m {
-                out.push((k.clone(), json_to_cvalue(val)?));
-            }
-            Ok(sc::Value::Object(out))
-        }
-    }
-}
-
-#[cfg(test)]
-fn json_to_built(store: &mut dyn NodeStore, v: &Value) -> Result<Built, String> {
-    let cvalue = json_to_cvalue(v)?;
-    sc::write_value(store, &cvalue).map_err(|e| format!("write relation: {e}"))
-}
-
-#[cfg(test)]
-mod tests {
+mod native_wire_tests {
     use super::*;
-
     #[test]
-    fn codec_bridge_preserves_json_types_and_number_domain() {
-        let value = serde_json::json!({
-            "bools": [true, false], "null": null,
-            "signed": i64::MIN, "unsigned": u64::MAX,
-            "fraction": -1.25, "exponent": 1.25e100,
-            "nested": [{"text": "quoted \" text"}]
-        });
-        let mut store = sc::MemoryNodes::new();
-        let built = json_to_built(&mut store, &value).unwrap();
-        assert_eq!(decode_object(&mut store, &built).unwrap(), value);
-    }
-
-    #[test]
-    fn prior_decode_propagates_missing_node_after_valid_record() {
-        let mut store = sc::MemoryNodes::new();
-        let valid = json_to_built(&mut store, &serde_json::json!({"ok": true})).unwrap();
-        let mut foreign_store = sc::MemoryNodes::new();
-        let missing =
-            json_to_built(&mut foreign_store, &serde_json::json!({"missing": true})).unwrap();
-        let expected = decode_object(&mut store, &missing).unwrap_err();
-        assert_eq!(
-            decode_prior(&mut store, &[valid, missing]).unwrap_err(),
-            expected
-        );
-    }
-
-    #[test]
-    fn object_decode_rejects_real_nonobject_and_invalid_payload() {
-        let mut store = sc::MemoryNodes::new();
-        let scalar = json_to_built(&mut store, &serde_json::json!(true)).unwrap();
-        assert_eq!(
-            decode_object(&mut store, &scalar).unwrap_err(),
-            "decode: expected object record"
-        );
-        assert!(
-            parse_json_field(&serde_json::json!({"payload_json": "{"}), "payload_json").is_err()
-        );
-    }
-
-    fn fixture_bars(rows: &[Value]) -> Vec<newchan_rust::theta_v0::types::Bar> {
-        rows.iter()
-            .enumerate()
-            .map(|(i, r)| newchan_rust::theta_v0::types::Bar {
-                source_index: i,
-                timestamp: i as i64,
-                open: r["open"].as_i64().unwrap(),
-                high: r["high"].as_i64().unwrap(),
-                low: r["low"].as_i64().unwrap(),
-                close: r["close"].as_i64().unwrap(),
-                volume: 1.0,
-                untradable: false,
-            })
-            .collect()
-    }
-    fn fixture_raw(rows: &[Value]) -> BTreeMap<i64, Value> {
-        rows.iter().enumerate().map(|(i,_)|(i as i64,serde_json::json!({"identity_key":format!("raw-{i}"),"payload_hash":"h","receipt_id":format!("receipt-{i}"),"event_id":format!("bar-{i}"),"input_revision":"1","revision":1,"seq":i,"source_coord":i.to_string(),"received_at":"2000-01-01T00:00:00Z"}))).collect()
-    }
-    fn bind_fixture(
-        producer: &mut Cc004Producer,
-        nodes: &mut dyn NodeStore,
-        raw: &BTreeMap<i64, Value>,
-    ) {
-        for (&i, r) in raw {
-            producer
-                .bind_source(
-                    nodes,
-                    i,
-                    crate::content_producer::RawRefSpec {
-                        identity_key: r["identity_key"].as_str().unwrap().into(),
-                        payload_hash: r["payload_hash"].as_str().unwrap().into(),
-                        receipt_id: r["receipt_id"].as_str().unwrap().into(),
-                        event_id: r["event_id"].as_str().unwrap().into(),
-                        input_revision: "1".into(),
-                        revision: 1,
-                        seq: i,
-                        source_coord: i.to_string(),
-                    },
-                )
-                .unwrap();
-        }
-    }
-    fn normalize_ids(v: &mut Value, ids: &BTreeMap<String, String>) {
-        match v {
-            Value::String(s) => {
-                if let Some(key) = ids.get(s) {
-                    *s = key.clone();
-                }
-            }
-            Value::Array(a) => {
-                for v in a {
-                    normalize_ids(v, ids)
-                }
-            }
-            Value::Object(o) => {
-                for v in o.values_mut() {
-                    normalize_ids(v, ids)
-                }
-            }
-            _ => {}
-        }
-    }
-    fn records(nodes: &mut dyn NodeStore, objects: &[TypedObject]) -> Vec<Value> {
-        objects
-            .iter()
-            .map(|o| decode_object(nodes, &o.record).unwrap())
-            .collect()
-    }
-
-    /// 跨生产者/消费者合同：exact 五字段、二元规范键、真实主体、来源及具名轴。
-    fn check_requests(nodes: &mut dyn NodeStore, output: &StructureOutput) -> Vec<Value> {
-        let objects: BTreeMap<_, _> = output
-            .objects
-            .iter()
-            .map(|o| (o.object_id.as_str(), o))
-            .collect();
-        let mut seen = BTreeSet::new();
-        let mut requests = vec![];
-        for root in &output.requests {
-            let r = decode_object(nodes, root).unwrap();
-            assert_eq!(
-                r.as_object()
-                    .unwrap()
-                    .keys()
-                    .map(String::as_str)
-                    .collect::<BTreeSet<_>>(),
-                BTreeSet::from([
-                    "request_id",
-                    "subject_id",
-                    "axes",
-                    "reasons",
-                    "source_coords"
-                ])
-            );
-            let key_text = r["request_id"].as_str().unwrap();
-            assert!(seen.insert(key_text.to_owned()), "同 cut 重复请求");
-            let key: Value = serde_json::from_str(key_text).unwrap();
-            assert_eq!(
-                key.as_array().unwrap().len(),
-                2,
-                "source_pending 二元键合同"
-            );
-            let subject = r["subject_id"].as_str().unwrap();
-            let object = objects.get(subject).expect("请求主体必须是本次真实obj3");
-            assert!(subject.starts_with("obj3-"));
-            assert_eq!(
-                key[0],
-                serde_json::from_str::<Value>(&object.fact_key).unwrap()
-            );
-            assert_eq!(key[1][2], "structure-classification/1");
-            assert_eq!(key[1][4], subject);
-            assert_eq!(
-                r["axes"]
-                    .as_object()
-                    .unwrap()
-                    .keys()
-                    .map(String::as_str)
-                    .collect::<BTreeSet<_>>(),
-                BTreeSet::from(["input_quality", "applicability", "computation", "validity"])
-            );
-            assert_eq!(r["axes"]["validity"], "CURRENT");
-            let mut source_bytes = vec![];
-            sc::render_canonical(
-                nodes,
-                &object.source_coords.content_ref(),
-                &mut source_bytes,
-            )
-            .unwrap();
-            assert_eq!(
-                r["source_coords"],
-                serde_json::from_slice::<Value>(&source_bytes).unwrap()
-            );
-            assert!(object.request.is_none(), "唯一请求集合不可重复装入对象");
-            requests.push(r);
-        }
-        requests
-    }
-
-    #[test]
-    fn construction_requests_distinguish_false_outside_domain_and_missing_evidence() {
+    fn integer_text_bool_null_and_array_order_share_codec_kernel() {
         let mut nodes = sc::MemoryNodes::new();
-        let mut producer = Cc004Producer::new(crate::tb02a::PROFILE, crate::RULE_REVISION);
-        let raw = fixture_raw(&[serde_json::json!({})]);
-        bind_fixture(&mut producer, &mut nodes, &raw);
-        let known=json_to_built(&mut nodes,&serde_json::json!({"generation":"1","input_frontier":"0","receipt_id":"receipt-0","received_at":"2000-01-01T00:00:00Z","semantic_commit_ns":null})).unwrap();
-        let ctx = StructureContext {
-            fact_generation: 1,
-            generation: 1,
-            cut: "cut-1",
-            frontier: 0,
-            known_at: &known,
-            all_sources: &[0],
-        };
-        let mut c = ConstructionFact {
-            start_stroke: 0,
-            stroke_indices: vec![0, 1, 2],
-            length: "odd_ge3",
-            vector: Some([true, false, true, true]),
-            overlap: Some([1, 0]),
-            overlap_relation: Some(">"),
-            direction: None,
-            failed_conditions: vec!["closed_seed_overlap"],
-        };
-        for (case, expected_condition, expected_direction) in [
-            ("known_false", "IN_DOMAIN", "OUTSIDE_DOMAIN"),
-            ("known_even", "OUTSIDE_DOMAIN", "OUTSIDE_DOMAIN"),
-            (
-                "missing_vector",
-                "DOMAIN_PROOF_MISSING",
-                "DOMAIN_PROOF_MISSING",
-            ),
-        ] {
-            if case == "known_even" {
-                c.length = "even_ge3";
-                c.vector = None;
-                c.stroke_indices.push(3);
-            }
-            if case == "missing_vector" {
-                c.length = "odd_ge3";
-                c.stroke_indices.pop();
-            }
-            let data = fact(&mut nodes, &c).unwrap();
-            let object = emit(
-                &mut producer,
-                &mut nodes,
-                &ctx,
-                crate::tb02c::KINDS[6],
-                s(case),
-                &data,
-                &[0],
-            )
-            .unwrap();
-            let mut output = StructureOutput {
-                objects: vec![],
-                relations: vec![],
-                segments: vec![],
-                requests: vec![],
-                waiting_reasons: vec![],
-            };
-            construction_requests(
-                &mut producer,
-                &mut nodes,
-                &mut output.requests,
-                &object,
-                s("construction"),
-                &c,
-                &[0],
-            )
-            .unwrap();
-            output.objects.push(object);
-            let reqs = check_requests(&mut nodes, &output);
-            assert_eq!(reqs.len(), 3);
-            let get = |axis: &str| {
-                reqs.iter()
-                    .find(|r| {
-                        let key: Value =
-                            serde_json::from_str(r["request_id"].as_str().unwrap()).unwrap();
-                        key[1][1] == axis
-                    })
-                    .unwrap()
-            };
-            assert_eq!(get("length")["axes"]["computation"], "COMPLETE");
-            assert_eq!(
-                get("construction_conditions")["axes"]["applicability"],
-                expected_condition
-            );
-            assert_eq!(
-                get("direction")["axes"]["applicability"],
-                expected_direction
-            );
-            assert_eq!(
-                get("construction_conditions")["axes"]["computation"],
-                if case == "missing_vector" {
-                    "INCOMPLETE"
-                } else {
-                    "COMPLETE"
-                }
-            );
-        }
-    }
-
-    #[test]
-    fn cd_direct_frozen_cases_match_oracle_and_close_real_object_references() {
-        let ledger: Value = serde_json::from_str(include_str!(
-            "../../../../s_session/tests/fixtures/tb02d/raw-ledger.json"
-        ))
+        let value = serde_json::json!({"z":[2,-3,null,true],"a":"x"});
+        let actual = fact(&mut nodes, &value).unwrap();
+        let expected = sc::write_value(
+            &mut nodes,
+            &sc::Value::Object(vec![
+                ("a".into(), sc::Value::String("x".into())),
+                (
+                    "z".into(),
+                    sc::Value::Array(vec![
+                        sc::Value::String("2".into()),
+                        sc::Value::String("-3".into()),
+                        sc::Value::Null,
+                        sc::Value::Bool(true),
+                    ]),
+                ),
+            ]),
+        )
         .unwrap();
-        let mut segments = 0;
-        let mut seconds = 0;
-        for (name, rows) in ledger["cases"].as_object().unwrap() {
-            let rows = rows.as_array().unwrap();
-            let bars = fixture_bars(rows);
-            let raw = fixture_raw(rows);
-            let (layer, facts, fold) =
-                newchan_rust::theta_v0::parser::parse_layer_with_inclusion_facts_store(
-                    &bars,
-                    &newchan_rust::theta_v0::config::ThetaConfig::default(),
-                    SecondFoldStore::new(crate::tb02c::round_budget()),
-                );
-            let evidence = StructureEvidence {
-                segments: &layer.segments,
-                segment_facts: facts.segment_facts.as_ref().unwrap(),
-                stroke_facts: facts.stroke_facts.as_ref().unwrap(),
-                second_store: &fold,
-            };
-            let mut nodes = sc::MemoryNodes::new();
-            let mut producer = Cc004Producer::new(crate::tb02a::PROFILE, crate::RULE_REVISION);
-            bind_fixture(&mut producer, &mut nodes, &raw);
-            let known=json_to_built(&mut nodes,&serde_json::json!({"generation":"28","input_frontier":"27","receipt_id":raw.values().last().map(|r|&r["receipt_id"]),"received_at":raw.values().last().map(|r|&r["received_at"]),"semantic_commit_ns":null})).unwrap();
-            let sources: Vec<_> = (0..rows.len()).collect();
-            let ctx = StructureContext {
-                fact_generation: 1,
-                generation: 28,
-                cut: "cut-28",
-                frontier: 27,
-                known_at: &known,
-                all_sources: &sources,
-            };
-            let output = build_cd(
-                &mut producer,
-                &mut nodes,
-                &evidence,
-                &StructurePrior {
-                    segment_records: &[],
-                    version_record: None,
-                },
-                &ctx,
-            )
-            .unwrap();
-            let actual = records(&mut nodes, &output.objects);
-            let requests = check_requests(&mut nodes, &output);
-            for segment in &output.segments {
-                let own: Vec<_> = requests
-                    .iter()
-                    .filter(|r| r["subject_id"] == segment.object_id)
-                    .collect();
-                for axis in [
-                    "semantic_termination_result",
-                    "known_fact_vector",
-                    "scan_coverage",
-                ] {
-                    assert_eq!(
-                        own.iter()
-                            .filter(|r| {
-                                let k: Value =
-                                    serde_json::from_str(r["request_id"].as_str().unwrap())
-                                        .unwrap();
-                                k[1][1] == axis
-                            })
-                            .count(),
-                        1
-                    );
-                }
-                for r in own {
-                    let key: Value =
-                        serde_json::from_str(r["request_id"].as_str().unwrap()).unwrap();
-                    if key[1][1] == "scan_coverage" {
-                        assert_eq!(r["axes"]["computation"], "COMPLETE");
-                    }
-                    if key[1][1] == "known_fact_vector" {
-                        let fact =
-                            &evidence.segment_facts.candidates[segment.candidate_index].fact_vector;
-                        assert_eq!(
-                            r["axes"]["computation"],
-                            if fact.new_segment_formed.is_some() {
-                                "COMPLETE"
-                            } else {
-                                "INCOMPLETE"
-                            }
-                        );
-                        assert_eq!(r["axes"]["input_quality"], "SUFFICIENT");
-                    }
-                }
-            }
-            if !sources.is_empty() {
-                let mut unbound = Cc004Producer::new(crate::tb02a::PROFILE, crate::RULE_REVISION);
-                assert!(
-                    build_cd(
-                        &mut unbound,
-                        &mut nodes,
-                        &evidence,
-                        &StructurePrior {
-                            segment_records: &[],
-                            version_record: None
-                        },
-                        &ctx
-                    )
-                    .is_err(),
-                    "未登记来源不得生成空来源对象"
-                );
-            }
-            let (expected, _) = crate::tb02c::build(
-                evidence.segment_facts,
-                evidence.stroke_facts,
-                &raw,
-                &[],
-                &[],
-                28,
-                "cut-28",
-                27,
-                None,
-                &fold,
-            )
-            .unwrap();
-            let normalize = |rows: &[Value]| -> BTreeMap<String, Value> {
-                let ids: BTreeMap<_, _> = rows
-                    .iter()
-                    .map(|r| {
-                        (
-                            r["object_id"].as_str().unwrap().to_string(),
-                            r["fact_key"].as_str().unwrap().to_string(),
-                        )
-                    })
-                    .collect();
-                rows.iter().map(|r|{let mut payload:Value=serde_json::from_str(r["payload_json"].as_str().unwrap()).unwrap();normalize_ids(&mut payload,&ids);(r["fact_key"].as_str().unwrap().to_string(),serde_json::json!({"payload":payload,"sources":r["source_coords_json"],"refs":r["input_refs_json"]}))}).collect()
-            };
-            assert_eq!(normalize(&actual), normalize(&expected), "{name}");
-            let ids: BTreeSet<_> = output
-                .objects
-                .iter()
-                .map(|o| o.object_id.as_str())
-                .collect();
-            for r in &actual {
-                let p: Value = serde_json::from_str(r["payload_json"].as_str().unwrap()).unwrap();
-                for key in [
-                    "sequence_object_id",
-                    "second_sequence_object_id",
-                    "witness_object_id",
-                    "object_id",
-                ] {
-                    if let Some(id) = p["data"][key].as_str() {
-                        assert!(ids.contains(id), "{name} dangling {key}={id}");
-                        assert!(id.starts_with("obj3-"));
-                    }
-                }
-                if r["kind"] == crate::tb02c::KINDS[2] {
-                    segments += 1;
-                }
-                if p["data"]["role"] == "SECOND_SEQUENCE" {
-                    seconds += 1;
-                }
-            }
-            let prior_segments: Vec<_> = output
-                .objects
-                .iter()
-                .filter(|o| {
-                    field_text(&mut nodes, &o.record, "kind").unwrap() == crate::tb02c::KINDS[2]
-                })
-                .map(|o| o.record.clone())
-                .collect();
-            let version = output
-                .objects
-                .iter()
-                .find(|o| {
-                    field_text(&mut nodes, &o.record, "kind").unwrap() == crate::tb02c::KINDS[5]
-                })
-                .unwrap()
-                .record
-                .clone();
-            let replay = build_cd(
-                &mut producer,
-                &mut nodes,
-                &evidence,
-                &StructurePrior {
-                    segment_records: &prior_segments,
-                    version_record: Some(&version),
-                },
-                &ctx,
-            )
-            .unwrap();
-            assert_eq!(
-                output
-                    .segments
-                    .iter()
-                    .map(|s| &s.object_id)
-                    .collect::<Vec<_>>(),
-                replay
-                    .segments
-                    .iter()
-                    .map(|s| &s.object_id)
-                    .collect::<Vec<_>>(),
-                "稳定事实不前移修订 {name}"
-            );
-            assert!(
-                !records(&mut nodes, &replay.objects)
-                    .iter()
-                    .any(|r| r["kind"] == crate::tb02c::KINDS[4]),
-                "{name} 伪造change"
-            );
-            if evidence
-                .segment_facts
-                .candidates
-                .iter()
-                .any(|c| c.second.is_some())
-            {
-                let empty = SecondFoldStore::new(crate::tb02c::round_budget());
-                let wrong = StructureEvidence {
-                    second_store: &empty,
-                    ..evidence
-                };
-                let error = match build_cd(
-                    &mut producer,
-                    &mut nodes,
-                    &wrong,
-                    &StructurePrior {
-                        segment_records: &[],
-                        version_record: None,
-                    },
-                    &ctx,
-                ) {
-                    Ok(_) => panic!("错误游标簿被接受"),
-                    Err(e) => e,
-                };
-                assert!(error.contains("IdentityConflict"));
-            }
-        }
-        assert!(segments > 0, "必须覆盖真实段对象");
-        assert!(seconds > 0, "必须覆盖真实第二种候选");
+        assert_eq!(actual, expected);
+        let before = nodes.iter().count();
+        assert!(fact(&mut nodes, &1.25f64)
+            .unwrap_err()
+            .contains("不允许浮点"));
+        assert_eq!(nodes.iter().count(), before, "编码拒绝不能先写节点");
     }
-
     #[test]
-    fn ef_direct_prefix_revisions_pending_and_retained_history_match_oracle() {
-        use newchan_rust::theta_v0::classifier::center::UnitRange;
-        // 有界段层合同夹具；身份显式作为外部 C/D 输入，不宣称由此覆盖生产 parser 接线。
-        let endpoints = [
-            10, 40, 20, 35, 30, 38, 21, 25, 5, 9, 2, 8, 3, 7, 4, 7, 4, 7, 4, 7,
-        ];
+    fn k1_borrowed_view_matches_existing_wire_after_integer_normalization() {
+        use newchan_rust::theta_v0::parser::second_fold::SecondFoldCursor;
+        let c = SecondFoldCursor::new(
+            SecondCandidateId {
+                seg_dir: Direction::Up,
+                b_stroke: 2,
+                candidate_extreme: 99,
+            },
+            3,
+        );
         let mut nodes = sc::MemoryNodes::new();
-        let mut producer = Cc004Producer::new(crate::tb02a::PROFILE, crate::RULE_REVISION);
-        let rows: Vec<_> = endpoints
-            .iter()
-            .map(|p| serde_json::json!({"open":p,"high":p,"low":p,"close":p}))
-            .collect();
-        let all_raw = fixture_raw(&rows);
-        bind_fixture(&mut producer, &mut nodes, &all_raw);
-        let mut prior_roots = Vec::new();
-        let mut prior_oracle = Vec::new();
-        let mut aliases = BTreeMap::<String, String>::new();
-        let mut pending_seen = false;
-        let mut evaluated_seen = false;
-        for n in 1..endpoints.len() {
-            let completed = (0..n)
-                .map(|k| crate::tb02e::SegUnit {
-                    unit_id: format!("segment:1:{}", 10 + 4 * k),
-                    object_id: format!("test-external-cd-{k}"),
-                    range: Some(UnitRange {
-                        start_index: 4 * k,
-                        end_index: 4 * k + 4,
-                        direction: if endpoints[k + 1] > endpoints[k] {
-                            Direction::Up
-                        } else {
-                            Direction::Down
-                        },
-                        lo: endpoints[k].min(endpoints[k + 1]),
-                        hi: endpoints[k].max(endpoints[k + 1]),
-                    }),
-                    sources: vec![k],
-                })
-                .collect();
-            let inputs = crate::tb02e::UnitInputs {
-                completed,
-                in_progress: Some(crate::tb02e::SegUnit {
-                    unit_id: format!("segment:1:{}", 10 + 4 * n),
-                    object_id: format!("test-external-cd-{n}"),
-                    range: None,
-                    sources: vec![n],
-                }),
-            };
-            let raw: BTreeMap<_, _> = all_raw
-                .iter()
-                .take(n + 1)
-                .map(|(k, v)| (*k, v.clone()))
-                .collect();
-            let generation = n as i64 + 1;
-            let cut = format!("cut-{generation}");
-            let frontier = n as i64;
-            let known=json_to_built(&mut nodes,&serde_json::json!({"generation":generation.to_string(),"input_frontier":frontier.to_string(),"receipt_id":raw.values().last().unwrap()["receipt_id"],"received_at":"2000-01-01T00:00:00Z","semantic_commit_ns":null})).unwrap();
-            let sources: Vec<_> = (0..=n).collect();
-            let ctx = StructureContext {
-                fact_generation: 1,
-                generation,
-                cut: &cut,
-                frontier,
-                known_at: &known,
-                all_sources: &sources,
-            };
-            let output = build_ef_units(
-                &mut producer,
-                &mut nodes,
-                &inputs,
-                &EfPrior {
-                    records: &prior_roots,
-                },
-                &ctx,
-            )
-            .unwrap();
-            let actual = records(&mut nodes, &output.objects);
-            let requests = check_requests(&mut nodes, &output);
-            let mut request_counts = BTreeMap::<String, usize>::new();
-            for r in &requests {
-                *request_counts
-                    .entry(r["subject_id"].as_str().unwrap().to_owned())
-                    .or_default() += 1;
-                let key: Value = serde_json::from_str(r["request_id"].as_str().unwrap()).unwrap();
-                let record = actual
-                    .iter()
-                    .find(|o| o["object_id"] == r["subject_id"])
-                    .unwrap();
-                let payload: Value =
-                    serde_json::from_str(record["payload_json"].as_str().unwrap()).unwrap();
-                if key[1][0] == "CC-020" && payload["data"]["status"] == crate::tb02f::PENDING {
-                    assert_eq!(r["axes"]["computation"], "INCOMPLETE");
-                    assert_eq!(r["axes"]["applicability"], "DOMAIN_PROOF_MISSING");
-                    assert_eq!(r["reasons"], serde_json::json!([crate::tb02f::PENDING]));
-                } else {
-                    // 含 false 的 seed、进行中单元的已知未归属、尚未实现上级的已判 pair 都已完成。
-                    assert_eq!(r["axes"]["computation"], "COMPLETE");
-                    assert_eq!(r["axes"]["applicability"], "IN_DOMAIN");
-                }
-            }
-            for r in &actual {
-                let expected = match r["kind"].as_str().unwrap() {
-                    "CC-016.center_seed_attempt" => 2,
-                    "CC-018.unit_core_position"
-                    | "CC-020.center_pair"
-                    | "CC-022.unit_assignment" => 1,
-                    _ => 0,
-                };
-                assert_eq!(
-                    request_counts
-                        .get(r["object_id"].as_str().unwrap())
-                        .copied()
-                        .unwrap_or(0),
-                    expected
-                );
-            }
-            let (mut expected, _, centers) = crate::tb02e::build(
-                &inputs,
-                &raw,
-                &[],
-                &prior_oracle,
-                generation,
-                &cut,
-                frontier,
-                None,
-            )
-            .unwrap();
-            let (pairs, _) = crate::tb02f::build(
-                &inputs,
-                &centers,
-                &raw,
-                &prior_oracle,
-                generation,
-                &cut,
-                frontier,
-            );
-            expected.extend(pairs);
-            for r in actual.iter().chain(&expected) {
-                aliases.insert(
-                    r["object_id"].as_str().unwrap().to_owned(),
-                    r["fact_key"].as_str().unwrap().to_owned(),
-                );
-            }
-            let normalize = |rows: &[Value]| -> BTreeMap<String, Value> {
-                rows.iter().map(|r|{let mut p:Value=serde_json::from_str(r["payload_json"].as_str().unwrap()).unwrap();normalize_ids(&mut p,&aliases);(r["fact_key"].as_str().unwrap().into(),serde_json::json!({"payload":p,"sources":r["source_coords_json"],"refs":r["input_refs_json"]}))}).collect()
-            };
-            assert_eq!(normalize(&actual), normalize(&expected), "EF cut={cut}");
-            let ids: BTreeSet<_> = output
-                .objects
-                .iter()
-                .map(|o| o.object_id.as_str())
-                .collect();
-            for r in &actual {
-                let p: Value = serde_json::from_str(r["payload_json"].as_str().unwrap()).unwrap();
-                if let Some(w) = p["data"]["witness_object_id"].as_str() {
-                    assert!(ids.contains(w), "dangling witness {w}");
-                }
-                if r["kind"] == crate::tb02f::KINDS[1] {
-                    pending_seen |= p["data"]["status"] == crate::tb02f::PENDING;
-                    evaluated_seen |= p["data"]["status"] == "EVALUATED";
-                }
-            }
-            prior_roots = output
-                .objects
-                .iter()
-                .filter(|o| {
-                    let k = field_text(&mut nodes, &o.record, "kind").unwrap();
-                    crate::tb02e::KINDS[..4].contains(&k.as_str())
-                        || crate::tb02f::KINDS[..2].contains(&k.as_str())
-                        || k == crate::tb02e::KINDS[6]
-                        || k == crate::tb02f::KINDS[4]
-                })
-                .map(|o| o.record.clone())
-                .collect();
-            prior_oracle = expected;
-        }
-        assert!(
-            pending_seen && evaluated_seen,
-            "必须经历对已成立→≥9 pending翻转"
+        assert_eq!(
+            fact(&mut nodes, &c.wire_view()).unwrap(),
+            fact(&mut nodes, &c.to_wire()).unwrap()
         );
     }
 }

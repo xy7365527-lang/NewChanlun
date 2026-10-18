@@ -89,45 +89,40 @@ pub(super) struct RequestAxes {
     pub validity: RequestValidity,
 }
 impl RequestAxes {
-    fn value(self) -> CValue {
-        CValue::Object(
-            [
-                (
-                    "input_quality",
-                    match self.input_quality {
-                        RequestInputQuality::Sufficient => "SUFFICIENT",
-                        RequestInputQuality::Insufficient => "INSUFFICIENT",
-                        RequestInputQuality::Inconsistent => "INCONSISTENT",
-                    },
-                ),
-                (
-                    "applicability",
-                    match self.applicability {
-                        RequestApplicability::InDomain => "IN_DOMAIN",
-                        RequestApplicability::OutsideDomain => "OUTSIDE_DOMAIN",
-                        RequestApplicability::DomainProofMissing => "DOMAIN_PROOF_MISSING",
-                    },
-                ),
-                (
-                    "computation",
-                    match self.computation {
-                        RequestComputation::Complete => "COMPLETE",
-                        RequestComputation::Incomplete => "INCOMPLETE",
-                    },
-                ),
-                (
-                    "validity",
-                    match self.validity {
-                        RequestValidity::Current => "CURRENT",
-                        RequestValidity::Superseded => "SUPERSEDED",
-                        RequestValidity::Withdrawn => "WITHDRAWN",
-                    },
-                ),
-            ]
-            .into_iter()
-            .map(|(k, v)| (k.to_owned(), CValue::String(v.to_owned())))
-            .collect(),
-        )
+    pub(super) fn fields(self) -> [(&'static str, &'static str); 4] {
+        [
+            (
+                "input_quality",
+                match self.input_quality {
+                    RequestInputQuality::Sufficient => "SUFFICIENT",
+                    RequestInputQuality::Insufficient => "INSUFFICIENT",
+                    RequestInputQuality::Inconsistent => "INCONSISTENT",
+                },
+            ),
+            (
+                "applicability",
+                match self.applicability {
+                    RequestApplicability::InDomain => "IN_DOMAIN",
+                    RequestApplicability::OutsideDomain => "OUTSIDE_DOMAIN",
+                    RequestApplicability::DomainProofMissing => "DOMAIN_PROOF_MISSING",
+                },
+            ),
+            (
+                "computation",
+                match self.computation {
+                    RequestComputation::Complete => "COMPLETE",
+                    RequestComputation::Incomplete => "INCOMPLETE",
+                },
+            ),
+            (
+                "validity",
+                match self.validity {
+                    RequestValidity::Current => "CURRENT",
+                    RequestValidity::Superseded => "SUPERSEDED",
+                    RequestValidity::Withdrawn => "WITHDRAWN",
+                },
+            ),
+        ]
     }
 }
 
@@ -697,6 +692,20 @@ pub(super) struct Cc004Producer {
     delta_epoch: Option<u64>,
 }
 
+/// #1488 来源身份核只借用 producer 的只读方法；初始化载荷先销毁，再归还原许可。
+/// 此壳不提供可变入口，也不声称覆盖可变生产构造器随后建立的缓存。
+pub(super) struct SourceIdentityProducer {
+    inner: Cc004Producer,
+    _initial: Option<sc::capture_allocation::scratch::NativeReservation>,
+}
+
+impl std::ops::Deref for SourceIdentityProducer {
+    type Target = Cc004Producer;
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
 #[cfg(test)]
 /// 测试/测量面读数（不参与任何判据）。
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -724,6 +733,28 @@ pub(super) struct MemoCounts {
 }
 
 impl Cc004Producer {
+    pub(super) fn for_source_audit(
+        profile_id: &str,
+        rule_revision: &str,
+        work: Option<&sc::capture_allocation::scratch::WorkScope>,
+    ) -> Result<SourceIdentityProducer, CodecError> {
+        let bytes = profile_id
+            .len()
+            .checked_add(rule_revision.len())
+            .and_then(|n| n.checked_add(2 * std::mem::size_of::<[usize; 2]>()))
+            .ok_or_else(|| {
+                work.map_or_else(
+                    || CodecError::new(sc::capture_allocation::LIMIT, "Native容量溢出"),
+                    |w| w.reject(sc::capture_allocation::scratch::ScratchFailure::Budget),
+                )
+            })?;
+        let permit = work.map(|w| w.reserve_native(bytes)).transpose()?;
+        Ok(SourceIdentityProducer {
+            inner: Self::new(profile_id, rule_revision),
+            _initial: permit,
+        })
+    }
+
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn visit_runtime_roots(&self, f: &mut dyn FnMut(&'static str, NodeDigest)) {
         for (_, root) in self.sources.values() {
@@ -1319,43 +1350,6 @@ impl Cc004Producer {
 
     /// 已具名实际分类请求。保留精确五字段 wire；身份键由调用者绑定主体、子轴、观察路径及版本。
     /// 此口不复用 A 的原因启发式，false 结果与未计算结果由显式四轴区分。
-    pub(super) fn explicit_request(
-        &mut self,
-        store: &mut dyn NodeStore,
-        key: CValue,
-        subject_id: &str,
-        axes: RequestAxes,
-        reasons: &[&str],
-        sources: &CoordsRef,
-    ) -> Result<Built, ProducerError> {
-        let coords = self.coords_array(store, sources)?;
-        // 请求键可复用调用方对象 slot 的内容边，必须在同一个节点读集中规范渲染。
-        // A 的旧 canonical_text 私有草稿表仅适用于不含外部边的自足值，不能用于此处。
-        let key_root = sc::write_value(store, &key)?;
-        let mut key_bytes = Vec::new();
-        sc::render_canonical(store, &key_root.content_ref(), &mut key_bytes)?;
-        let key_text = String::from_utf8(key_bytes).map_err(|error| ProducerError::Type {
-            what: "显式请求规范键",
-            detail: error.to_string(),
-        })?;
-        let request = CValue::Object(vec![
-            ("request_id".into(), CValue::String(key_text)),
-            ("subject_id".into(), CValue::String(subject_id.to_owned())),
-            ("axes".into(), axes.value()),
-            (
-                "reasons".into(),
-                CValue::Array(
-                    reasons
-                        .iter()
-                        .map(|r| CValue::String((*r).to_owned()))
-                        .collect(),
-                ),
-            ),
-            ("source_coords".into(), CValue::Edge(coords.digest)),
-        ]);
-        Ok(sc::write_value(store, &request)?)
-    }
-
     /// 待决请求（主体为空）：键与原因由调用方按全量配方给出，本口不造默认值。
     ///
     /// 两类待决形态都用本口：竞争极值窗（键尾 = 三锚坐标数组）与不足三根的
@@ -1446,32 +1440,14 @@ impl Cc004Producer {
         )?;
         let mut observations: Vec<Built> = Vec::with_capacity(waiting_reasons.len());
         for reason in &waiting_reasons {
-            let observation = CValue::Object(vec![
-                (
-                    "kind".to_string(),
-                    CValue::String("awaiting_scope".to_string()),
-                ),
-                ("reason".to_string(), CValue::String((*reason).to_string())),
-                ("window_start".to_string(), CValue::Null),
-                ("window_mid".to_string(), CValue::Null),
-                ("window_end".to_string(), CValue::Null),
-                (
-                    "detail".to_string(),
-                    CValue::Object(vec![
-                        ("tb02a".to_string(), CValue::Bool(true)),
-                        (
-                            "source_coords".to_string(),
-                            CValue::Edge(object.source_coords.digest),
-                        ),
-                        (
-                            "input_frontier".to_string(),
-                            CValue::String(frontier.to_string()),
-                        ),
-                        ("waiting_reasons".to_string(), reasons_value()),
-                    ]),
-                ),
-            ]);
-            observations.push(sc::write_value(&mut *store, &observation)?);
+            let reason_views = ReasonViews(&waiting_reasons);
+            observations.push(write_knowledge_observation(
+                store,
+                reason,
+                &frontier.to_string(),
+                object.source_coords.digest,
+                &reason_views,
+            )?);
         }
         Ok(Cc054Assembly {
             object,
@@ -3087,6 +3063,44 @@ pub(super) fn coords_ref_from_slice(coords: &[usize]) -> CoordsRef {
     out
 }
 
+/// 借用原因数组；不复制文本、不建立第二棵业务 JSON 树。
+struct ReasonViews<'a>(&'a [&'static str]);
+impl sc::capture_allocation::audit_json::JsonArray for ReasonViews<'_> {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+    fn get(&self, index: usize) -> Option<sc::capture_allocation::audit_json::JsonView<'_>> {
+        self.0
+            .get(index)
+            .map(|reason| sc::capture_allocation::audit_json::JsonView::String(reason))
+    }
+}
+fn write_knowledge_observation(
+    store: &mut dyn NodeStore,
+    reason: &str,
+    frontier: &str,
+    source_coords: NodeDigest,
+    reasons: &dyn sc::capture_allocation::audit_json::JsonArray,
+) -> Result<Built, ProducerError> {
+    use sc::capture_allocation::audit_json::JsonView as J;
+    use sc::ValueView as V;
+    let detail = [
+        ("tb02a", V::Json(J::Bool(true))),
+        ("source_coords", V::Edge(source_coords)),
+        ("input_frontier", V::String(frontier)),
+        ("waiting_reasons", V::Json(J::BorrowedArray(reasons))),
+    ];
+    let fields = [
+        ("kind", V::String("awaiting_scope")),
+        ("reason", V::String(reason)),
+        ("window_start", V::Json(J::Null)),
+        ("window_mid", V::Json(J::Null)),
+        ("window_end", V::Json(J::Null)),
+        ("detail", V::Object(&detail)),
+    ];
+    Ok(sc::write_value_view(store, V::Object(&fields))?)
+}
+
 /// 组对象的等待原因（与全量配方 `group_reasons` 同序同值）。
 pub(super) fn group_reasons(view: &GroupEvidenceView<'_>) -> Vec<&'static str> {
     let mut reasons = Vec::new();
@@ -3094,6 +3108,34 @@ pub(super) fn group_reasons(view: &GroupEvidenceView<'_>) -> Vec<&'static str> {
         reasons.push("direction_not_yet_established");
     }
     reasons
+}
+
+/// #1488 原原因序不变；新容器的实际容量由当前操作先准入。
+pub(super) fn group_reasons_admitted(
+    store: &dyn NodeStore,
+    view: &GroupEvidenceView<'_>,
+) -> Result<sc::CodecVec<&'static str>, ProducerError> {
+    let count = usize::from(view.direction_evidence.is_none());
+    let mut reasons = if let Some(work) = store.codec_work() {
+        // 当前 scope 活性独立核验；此处是空新容器，不借旧许可的同父判断。
+        let _active = work.reserve_native(0)?;
+        let mut values = sc::CodecVec::default();
+        values.try_reserve_native(work, count)?;
+        values
+    } else {
+        #[cfg(feature = "s_allocation_json_testonly")]
+        let budget = store.allocation_budget();
+        #[cfg(feature = "s_allocation_json_testonly")]
+        let mut values = sc::CodecVec::new_with_allocation(budget.as_ref());
+        #[cfg(not(feature = "s_allocation_json_testonly"))]
+        let mut values = sc::CodecVec::default();
+        values.try_reserve(count)?;
+        values
+    };
+    if view.direction_evidence.is_none() {
+        reasons.try_push("direction_not_yet_established")?;
+    }
+    Ok(reasons)
 }
 
 /// 竞争窗口的待决请求来源：三组来源链的并集 = **右组来源链**（归纳嵌套前缀性，见
@@ -3308,6 +3350,77 @@ mod tests {
     use super::*;
     use newchan_rust::s_content::{render_canonical, verify, MemoryNodes, NodeRead, NodeSource};
     use sha2::{Digest, Sha256};
+
+    /// NOT_RUN：本机重型运行禁令；比对根及每次 put 的完整顺序/字节。
+    #[test]
+    fn knowledge_observation_view_matches_legacy_root_and_write_order() {
+        #[derive(Default)]
+        struct Trace {
+            nodes: MemoryNodes,
+            writes: Vec<(NodeDigest, u8, Vec<u8>)>,
+        }
+        impl NodeSink for Trace {
+            fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError> {
+                self.writes.push((digest, tag, body.to_vec()));
+                self.nodes.put(digest, tag, body)
+            }
+        }
+        impl NodeSource for Trace {
+            fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+                self.nodes.read(digest)
+            }
+        }
+        for reasons in [
+            &[][..],
+            &["direction_not_yet_established"][..],
+            &["equal_extreme_identity", "no_subsequent_bar"][..],
+        ] {
+            for frontier in ["0", "9001", "-1"] {
+                let mut old = Trace::default();
+                let mut new = Trace::default();
+                let old_coords = empty_array(&mut old).unwrap();
+                let new_coords = empty_array(&mut new).unwrap();
+                assert_eq!(old_coords.digest, new_coords.digest);
+                for reason in reasons {
+                    let legacy = CValue::Object(vec![
+                        ("kind".into(), CValue::String("awaiting_scope".into())),
+                        ("reason".into(), CValue::String((*reason).into())),
+                        ("window_start".into(), CValue::Null),
+                        ("window_mid".into(), CValue::Null),
+                        ("window_end".into(), CValue::Null),
+                        (
+                            "detail".into(),
+                            CValue::Object(vec![
+                                ("tb02a".into(), CValue::Bool(true)),
+                                ("source_coords".into(), CValue::Edge(old_coords.digest)),
+                                ("input_frontier".into(), CValue::String(frontier.into())),
+                                (
+                                    "waiting_reasons".into(),
+                                    CValue::Array(
+                                        reasons
+                                            .iter()
+                                            .map(|r| CValue::String((*r).into()))
+                                            .collect(),
+                                    ),
+                                ),
+                            ]),
+                        ),
+                    ]);
+                    let want = sc::write_value(&mut old, &legacy).unwrap();
+                    let got = write_knowledge_observation(
+                        &mut new,
+                        reason,
+                        frontier,
+                        new_coords.digest,
+                        &ReasonViews(reasons),
+                    )
+                    .unwrap();
+                    assert_eq!(got.digest, want.digest);
+                }
+                assert_eq!(new.writes, old.writes);
+            }
+        }
+    }
 
     const PROFILE: &str = "testonly_ohlc/1";
     const RULE: &str = "test-rule/1";
@@ -6498,5 +6611,151 @@ mod tests {
         let last = committed.last().expect("末步");
         verify(&mut reader, &last.record.content_ref()).expect("commit 后读事务可核");
         assert_eq!(render(&mut reader, &last.record), rendered);
+    }
+}
+
+/// #1419 新结构产物：三个兼容字段的真实 buffer 许可随对象转移到 Generated。
+/// 旧 TypedObject ABI 保留；inner 先析构，许可随后归还。
+pub(super) struct NativeStructureObject {
+    inner: TypedObject,
+    _strings: Option<sc::capture_allocation::scratch::NativeReservation>,
+}
+impl std::ops::Deref for NativeStructureObject {
+    type Target = TypedObject;
+    fn deref(&self) -> &TypedObject {
+        &self.inner
+    }
+}
+impl Cc004Producer {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn build_structure_object(
+        &self,
+        store: &mut dyn NodeStore,
+        kind: &str,
+        fact_key: &str,
+        payload: Built,
+        input_refs: Built,
+        source_coords: Built,
+        generation: i64,
+        cut: &str,
+    ) -> Result<NativeStructureObject, ProducerError> {
+        use sc::ValueView as V;
+        let identity =
+            self.typed_identity_scoped(kind, fact_key, &payload, &input_refs, store.codec_work())?;
+        let bytes = 69usize
+            .checked_add(fact_key.len())
+            .and_then(|n| n.checked_add(cut.len()))
+            .ok_or_else(|| ProducerError::Overflow("结构文本容量溢出".into()))?;
+        let permit = store
+            .codec_work()
+            .map(|w| w.reserve_native(bytes))
+            .transpose()?;
+        let allocation_error = || -> ProducerError {
+            match store.codec_work() {
+                Some(work) => work
+                    .reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
+                    .into(),
+                None => ProducerError::Overflow("结构文本分配失败".into()),
+            }
+        };
+        let copy = |s: &str| -> Result<String, ProducerError> {
+            let mut v = String::new();
+            v.try_reserve_exact(s.len())
+                .map_err(|_| allocation_error())?;
+            v.push_str(s);
+            Ok(v)
+        };
+        let mut object_id = String::new();
+        object_id
+            .try_reserve_exact(69)
+            .map_err(|_| allocation_error())?;
+        use std::fmt::Write;
+        write!(&mut object_id, "{}", object_id_display(&identity))
+            .map_err(|_| ProducerError::Overflow("对象身份格式失败".into()))?;
+        let key = copy(fact_key)?;
+        let cut = copy(cut)?;
+        let payload_json = Built {
+            digest: put_json_text_node(store, &payload.digest)?,
+            kind: Kind::JsonText,
+            extent: None,
+        };
+        let input_refs_json = Built {
+            digest: put_json_text_node(store, &input_refs.digest)?,
+            kind: Kind::JsonText,
+            extent: None,
+        };
+        let source_coords_json = Built {
+            digest: put_json_text_node(store, &source_coords.digest)?,
+            kind: Kind::JsonText,
+            extent: None,
+        };
+        let revision_text = crate::v3::business_json::Decimal::new(OBJECT_REVISION);
+        let generation_text = crate::v3::business_json::Decimal::new(generation);
+        let revision = V::Number(sc::BorrowedNumberToken::parse(revision_text.text())?);
+        let gen = V::Number(sc::BorrowedNumberToken::parse(generation_text.text())?);
+        let fields = [
+            ("object_id", V::String(&object_id)),
+            ("object_revision", revision),
+            ("kind", V::String(kind)),
+            ("fact_key", V::String(&key)),
+            ("payload", V::Edge(payload.digest)),
+            ("input_refs", V::Edge(input_refs.digest)),
+            ("source_coords", V::Edge(source_coords.digest)),
+            ("payload_json", V::Edge(payload_json.digest)),
+            ("input_refs_json", V::Edge(input_refs_json.digest)),
+            ("source_coords_json", V::Edge(source_coords_json.digest)),
+            ("first_known_generation", gen),
+            ("first_known_cut", V::String(&cut)),
+            ("published_generation", gen),
+        ];
+        let record = sc::write_value_view(store, V::Object(&fields))?;
+        Ok(NativeStructureObject {
+            inner: TypedObject {
+                object_id,
+                identity,
+                fact_key: key,
+                record,
+                payload,
+                input_refs,
+                source_coords,
+                payload_json,
+                input_refs_json,
+                source_coords_json,
+                generation,
+                cut,
+                request: None,
+            },
+            _strings: permit,
+        })
+    }
+    /// 请求键已在同一 store 成边；保精确五字段，不物化旧 CValue 全树。
+    pub(super) fn explicit_request_root(
+        &self,
+        store: &mut dyn NodeStore,
+        key: &Built,
+        subject_id: &str,
+        axes: RequestAxes,
+        reasons: &[&str],
+        coords: &Built,
+    ) -> Result<Built, String> {
+        use crate::v3::structure_value as sv;
+        let key_text = crate::v3::content_structure::canonical_root_text(store, key)?;
+        let axis = axes.fields().map(|(k, v)| (k, sc::ValueView::String(v)));
+        let axis =
+            sc::write_value_view(store, sc::ValueView::Object(&axis)).map_err(|e| e.to_string())?;
+        let mut reason_values = sv::Vec::new();
+        for r in reasons {
+            reason_values.push(sc::ValueView::String(r), store)?;
+        }
+        let reasons = sc::write_value_view(store, sc::ValueView::Array(&reason_values))
+            .map_err(|e| e.to_string())?;
+        let fields = [
+            ("request_id", sc::ValueView::String(&key_text)),
+            ("subject_id", sc::ValueView::String(subject_id)),
+            ("axes", sc::ValueView::Edge(axis.digest)),
+            ("reasons", sc::ValueView::Edge(reasons.digest)),
+            ("source_coords", sc::ValueView::Edge(coords.digest)),
+        ];
+        sc::write_value_view(store, sc::ValueView::Object(&fields)).map_err(|e| e.to_string())
     }
 }
