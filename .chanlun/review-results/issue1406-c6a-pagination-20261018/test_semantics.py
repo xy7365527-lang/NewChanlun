@@ -31,6 +31,19 @@ from s_socket_client import reply_envelope
 from test_tb03c_query_runtime_contract import We7FakeCase
 
 
+def resolved_fixture(backend, payload, message, reply):
+    request = d.Case.envelope(backend, payload, message)
+    body = {k: v for k, v in payload.items() if k != 'op'}
+    event = {'kind': 'ResolveEvidence', 'evidence_id': payload['evidence_id'],
+        'evidence': body, 'covered': [v['fact_key'] for v in payload['covered']],
+        'commit_seq': reply['cut']['commit_seq'], 'commit_ns': backend.commit_ns['E'],
+        'origin_message': {k: request[k] for k in ('source_namespace', 'source_epoch', 'message_id')},
+        'origin_request_hash': d.digest(request)}
+    reply.update(evidence_id=payload['evidence_id'], evidence_hash=d.digest(body),
+                 covered=event['covered'], commit_ns=event['commit_ns'])
+    return event
+
+
 class Backend7(We7FakeCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -107,7 +120,9 @@ class Backend7(We7FakeCase):
                 proof['e_commit_proof']['image'] = copy.deepcopy(self.images['E'])
                 proof['e_commit_proof']['commit_ns'] = self.commit_ns[domain]
             elif payload['op'] == 'ResolveEvidence':
-                self.resolution_proofs[payload['covered'][0]['fact_key']]['receipt'] = copy.deepcopy(reply)
+                self.images['E']['history'][-1] = resolved_fixture(self, payload, message, reply)
+                self.resolution_proofs[payload['covered'][0]['fact_key']].update(
+                    image=copy.deepcopy(self.images['E']), receipt=copy.deepcopy(reply))
             elif payload['op'] == 'ApplyAllocation':
                 self.images[domain]['applied'][-1]['commit_ns'] = self.commit_ns[domain]
             self.responses[message] = copy.deepcopy(reply)
@@ -124,6 +139,7 @@ class Backend5:
         self.global_commit_ns = 0  # 全局单调时钟，与 Backend7 一致
         self.processlog = None
         self.page_transfers = {}
+        self.resolved = {}
 
     def cut(self, domain):
         return {'domain_id': domain, 'commit_seq': str(self.seqs[domain]), 'root_hash': d.digest([domain, self.seqs[domain]])}
@@ -189,6 +205,12 @@ class Backend5:
         expected = step['outcome']
         if expected not in ('Recorded', 'Resolved', 'Applied'):
             return {'kind': 'Error', 'error': expected + '：pure-fixture', 'domain_id': domain}
+        if payload['op'] == 'ResolveEvidence' and payload['evidence_id'] in self.resolved:
+            original_payload, original_reply = self.resolved[payload['evidence_id']]
+            if payload != original_payload:
+                raise ValueError('synthetic identity conflict')
+            self.responses[message] = copy.deepcopy(original_reply)
+            return copy.deepcopy(original_reply)
         self.model.advance(step)
         self.seqs[domain] += 1
         self.global_commit_ns += 1  # 全局递增
@@ -202,7 +224,7 @@ class Backend5:
         target['recorded'] = [record(*v) for v in self.model.applied.values()]
         e['pending'] = [{'fact_key': k, 'token': v['token'], 'scope': v['scope'], 'reason': {'kind': v['reason']}}
                         for k, v in self.model.pending.items()]
-        e['history'] = [{'kind': 'ResolveEvidence', 'evidence_id': r} for r in self.model.resolved]
+        # 保留已产生的完整历史来源；同业务重放不提交。
         target['applied'] = [{'fact_key': k, 'allocation_id': event['allocation_id'], 'status': 'Applied'}
                              for k, (_, _, event) in self.model.applied.items()]
         if self.model.book:
@@ -221,6 +243,9 @@ class Backend5:
         if expected == 'Recorded':
             event = d.event_at(payload['raw_utf8'], payload['json_pointer'])
             reply.update(fact_key=d.fact_key(event), fact_hash=d.fact_hash(payload['raw_utf8'], payload['json_pointer']), token=payload['token'])
+        if expected == 'Resolved':
+            e['history'].append(resolved_fixture(self, payload, message, reply))
+            self.resolved[payload['evidence_id']] = (copy.deepcopy(payload), copy.deepcopy(reply))
         self.responses[message] = copy.deepcopy(reply)
         return reply
 
@@ -286,6 +311,7 @@ class ProducerCase(d.Case):
 
         for index in range(len(self.nodes)):
             (self.work / f'{index}.db').write_bytes(b'SYNTHETIC-NOT-A-SQLITE-DATABASE')
+            (self.work / f'{index}.db.writer.lock').write_bytes(b'')
         self.processlog, self.backend = processes, backend
         self.backend.processlog = processes
         self.backend.manifest = self.manifest
@@ -1179,6 +1205,182 @@ class SemanticsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'provenance'):
             sem.verify_runtime(self.output, self.build, bad)
 
+
+
+    def test_exact_writer_lock_missing_nonempty_symlink_and_extra_rejected(self):
+        lock = self.output / 'we5/state/0.db.writer.lock'
+        extra = lock.with_name('999.db.writer.lock')
+        originals = {name:(self.output/name).read_bytes() for name in ('ARTIFACTS.json','RESULT.json')}
+        old_hash = self.provenance['artifact_manifest_sha256']
+        for kind in ('missing','nonempty','symlink','extra'):
+            with self.subTest(kind=kind):
+                try:
+                    if kind=='missing':lock.unlink()
+                    elif kind=='nonempty':lock.write_bytes(b'forged')
+                    elif kind=='symlink':lock.unlink();lock.symlink_to('0.db')
+                    else:extra.write_bytes(b'')
+                    if kind!='symlink':reseal(self.output,self.provenance)
+                    with self.assertRaises((ValueError,FileNotFoundError)):
+                        sem.verify_runtime(self.output,self.build,self.provenance)
+                finally:
+                    if lock.is_symlink():lock.unlink()
+                    lock.write_bytes(b'')
+                    extra.unlink(missing_ok=True)
+                    for name,raw in originals.items():(self.output/name).write_bytes(raw)
+                    self.provenance['artifact_manifest_sha256']=old_hash
+
+
+class ReceiptReplayTests(unittest.TestCase):
+    """行为锁使用完整自洽请求/历史；完整 wire/envelope 另由41步夹具覆盖。"""
+    def case(self):
+        cls = sem.replay_case_class(d, b)
+        c = cls.__new__(cls)
+        c.name = 'we5'
+        c.manifest = {'session_id': 'unit-replay', 'session_generation': '1'}
+        c.nodes = {'E': {}, 'B:unit': {}}
+        c.epochs = dict.fromkeys(c.nodes, '1')
+        c.resolved_receipts, c.completed_write = {}, None
+        c.pending, c.last_views = None, None
+        c.public_watch = None
+        payload = {'op': 'ResolveEvidence', 'evidence_id': 'r1',
+            'covered': [{'fact_key': 'fact', 'fact_hash': 'f'*64, 'token': 't'}],
+            'frontier': {'source_namespace': d.SOURCE['source_namespace'],
+                         'source_epoch': d.SOURCE['source_epoch'], 'cursor': '2'},
+            'dependency_version': 'deps/1'}
+        request = {'schema_revision': 'economic-session/1', 'session_id': 'unit-replay',
+            'session_generation': '1', **d.SOURCE, 'message_id': 'step-004',
+            'payload_hash': d.digest(payload), 'payload': payload, 'causal_refs': []}
+        empty = {'history': [], 'pending': [], 'recorded': [], 'applied': []}
+        def view(domain, seq, image):
+            return {'domain_id': domain, 'writer_epoch': '1', 'cut': {'domain_id': domain,
+                'commit_seq': str(seq), 'root_hash': d.digest([domain, seq])},
+                'commit_ns': str(seq), 'image': image, 'image_hash': d.digest(image)}
+        before = {'E': view('E', 4, copy.deepcopy(empty)), 'B:unit': view('B:unit', 0, copy.deepcopy(empty))}
+        body = {k:v for k,v in payload.items() if k != 'op'}
+        event = {'kind': 'ResolveEvidence', 'evidence_id': 'r1', 'evidence': body,
+            'covered': ['fact'], 'commit_seq': '5', 'commit_ns': '5',
+            'origin_message': {k:request[k] for k in ('source_namespace','source_epoch','message_id')},
+            'origin_request_hash': d.digest(request)}
+        after = copy.deepcopy(before)
+        after['E'] = view('E', 5, {**copy.deepcopy(empty), 'history': [event]})
+        receipt = {'kind': 'Resolved', 'domain_id': 'E', 'evidence_id': 'r1',
+            'evidence_hash': d.digest(body), 'covered': ['fact'], 'commit_ns': '5', 'cut': after['E']['cut']}
+        return c, payload, request, receipt, before, after
+
+    def observe(self, c, payload, request, receipt, before, after):
+        # 每项深层负控先通过完整响应头/hash/causal验证，拒绝来自登记/历史语义门。
+        response = reply_envelope(request, receipt, session_id=c.manifest['session_id'],
+            session_generation=c.manifest['session_generation'], namespace='economic-session/replies',
+            producer_id='E:'+c.manifest['session_id'], producer_epoch=c.epochs['E'])
+        d.validate_reply(request, d.decode_frame(d.canonical(response)), producer='E', producer_epoch=c.epochs['E'])
+        c.pending = ('E', copy.deepcopy(payload), copy.deepcopy(receipt), copy.deepcopy(before),
+                     copy.deepcopy(request), request['message_id'])
+        with patch.object(d.Case, 'observe', return_value=copy.deepcopy(after)):
+            return c.observe()
+
+    def public(self, c, before, after, *, watch=None):
+        c.public_watch = watch or {'domains': {k:{'status':'Available', 'base_cut':v['cut'],
+            'next_cut':v['cut'], 'changes':[]} for k,v in after.items()}}
+        current = {'domains': {k:{'status':'Available', **v} for k,v in after.items()}}
+        with patch.object(d.Case, 'check_public', return_value=current):
+            c.check_public(before, after, c.completed_write['message'])
+
+    def accepted(self):
+        c,p,r,s,before,after = self.case()
+        self.observe(c,p,r,s,before,after)
+        self.assertEqual(c.resolved_receipts, {})
+        self.public(c,before,after)
+        self.assertEqual(c.resolved_receipts, {})
+        c.close_business()
+        current = copy.deepcopy(after)
+        current['E']['cut'] = {**current['E']['cut'], 'commit_seq':'7', 'root_hash':d.digest('later')}
+        current['E']['commit_ns'] = '7'
+        r = copy.deepcopy(r);r['message_id'] = 'step-017'
+        return c,p,r,s,current
+
+    def test_valid_historical_receipt_full_owner_and_public_empty(self):
+        c,p,r,s,current = self.accepted()
+        self.observe(c,p,r,s,current,current)
+        self.assertTrue(c.completed_write['replay'])
+        self.public(c,current,current)
+        c.close_business()
+        self.assertEqual(len(c.resolved_receipts),1)
+
+    def test_first_failure_and_public_failure_never_register(self):
+        c,p,r,s,before,after = self.case()
+        bad=copy.deepcopy(s);bad['cut']['commit_seq']='4'
+        with self.assertRaises(ValueError):self.observe(c,p,r,bad,before,after)
+        self.assertEqual(c.resolved_receipts,{})
+        c,p,r,s,before,after = self.case();self.observe(c,p,r,s,before,after)
+        with self.assertRaisesRegex(ValueError,'公共验收未闭合'):c.close_business()
+        self.assertEqual(c.resolved_receipts,{})
+        with patch.object(d.Case,'check_public',side_effect=ValueError('Q failure')):
+            with self.assertRaises(ValueError):c.check_public(before,after,r['message_id'])
+        self.assertEqual(c.resolved_receipts,{})
+
+    def test_self_consistent_context_isolation_and_unknown_identity(self):
+        for kind in ('case','manifest','session','generation','source','source_epoch','producer','domain','identity'):
+            with self.subTest(kind=kind):
+                c,p,r,s,current=self.accepted()
+                if kind=='case':c.name='other'
+                elif kind=='manifest':c.manifest['extra']='other'
+                elif kind=='session':c.manifest['session_id']='other';r['session_id']='other'
+                elif kind=='generation':c.manifest['session_generation']='2';r['session_generation']='2'
+                elif kind=='source':r['source_namespace']='other';p['frontier']['source_namespace']='other'
+                elif kind=='source_epoch':r['source_epoch']='other';p['frontier']['source_epoch']='other'
+                elif kind=='producer':r['producer_epoch']='2'
+                elif kind=='domain':c.epochs['E']='2'
+                elif kind=='identity':p['evidence_id']='unknown'
+                r['payload']=copy.deepcopy(p);r['payload_hash']=d.digest(p)
+                # 请求/内容hash自洽；无当前key的已验登记，旧回执仍须首次cut等式。
+                with self.assertRaisesRegex(ValueError,'成功回执 cut'):self.observe(c,p,r,s,current,current)
+
+    def test_cross_owner_domain_self_consistent_envelopes_do_not_borrow_E_registry(self):
+        c,p,r,s,current=self.accepted()
+        domain='B:unit'
+        s['domain_id']=domain;s['cut']={**s['cut'],'domain_id':domain}
+        current[domain]['cut']={**s['cut'],'commit_seq':'7','root_hash':d.digest('B-later')}
+        response=reply_envelope(r,s,session_id=c.manifest['session_id'],
+            session_generation=c.manifest['session_generation'],namespace='economic-session/replies',
+            producer_id=domain+':'+c.manifest['session_id'],producer_epoch='1')
+        d.validate_reply(r,d.decode_frame(d.canonical(response)),producer=domain,producer_epoch='1')
+        c.pending=(domain,p,s,current,r,r['message_id'])
+        with patch.object(d.Case,'observe',return_value=copy.deepcopy(current)):
+            with self.assertRaisesRegex(ValueError,'成功回执 cut'):c.observe()
+
+    def test_wrong_content_receipt_history_owner_and_stale_registry(self):
+        for kind in ('content','receipt','origin','sequence','covered','stale','owner'):
+            with self.subTest(kind=kind):
+                c,p,r,s,current=self.accepted()
+                if kind=='content':p['dependency_version']='different';r['payload']=p;r['payload_hash']=d.digest(p)
+                elif kind=='receipt':s['covered']=[]
+                elif kind in ('origin','sequence','covered','stale'):
+                    row=next(iter(c.resolved_receipts.values()))
+                    if kind=='stale':row['request']['source_epoch']='other';row['request']['payload_hash']=d.digest(row['request']['payload'])
+                    else:
+                        event=next(h for h in row['after']['E']['image']['history'] if h['evidence_id']=='r1')
+                        event[{'origin':'origin_request_hash','sequence':'commit_seq','covered':'covered'}[kind]] = [] if kind=='covered' else 'forged'
+                        row['after']['E']['image_hash']=d.digest(row['after']['E']['image'])
+                after=copy.deepcopy(current)
+                if kind=='owner':after['B:unit']['image']['pending']=[{'fake':True}];after['B:unit']['image_hash']=d.digest(after['B:unit']['image'])
+                with self.assertRaises(ValueError):self.observe(c,p,r,s,current,after)
+
+    def test_watch_nonempty_extra_domain_and_changed_base_rejected(self):
+        for kind in ('delta','domain','base'):
+            with self.subTest(kind=kind):
+                c,p,r,s,current=self.accepted();self.observe(c,p,r,s,current,current)
+                watch={'domains':{k:{'status':'Available','base_cut':v['cut'],'next_cut':v['cut'],'changes':[]} for k,v in current.items()}}
+                if kind=='delta':watch['domains']['E']['changes']=[{'fake':True}]
+                elif kind=='domain':watch['domains']['extra']=watch['domains']['E']
+                else:watch['domains']['E']['base_cut']={**current['E']['cut'],'commit_seq':'6'}
+                with self.assertRaises(ValueError):self.public(c,current,current,watch=watch)
+
+    def test_other_case_has_no_registry_and_capture_apply_are_not_exempt(self):
+        c,p,r,s,current=self.accepted();other,*_=self.case()
+        with self.assertRaisesRegex(ValueError,'成功回执 cut'):self.observe(other,p,r,s,current,current)
+        for op in ('CaptureExternal','ApplyAllocation'):
+            payload={**p,'op':op};request={**r,'payload':payload,'payload_hash':d.digest(payload)}
+            with self.assertRaisesRegex(ValueError,'成功回执 cut'):self.observe(c,payload,request,s,current,current)
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

@@ -463,6 +463,8 @@ def replay_case_class(driver, binder):
             # 初始化父类 d.Case.paged 需要的序列计数器（参考 tb03c_query_runtime.py:600）
             self.sequence, self.query_sequence, self.logical_sequence = 0, 0, 0
             self.business, self.last_views, self.pending = [], None, None
+            self.resolved_receipts, self.completed_write = {}, None
+            self.public_watch = None
             self.startup = False
             # 分页由下面独立的离线核验实现；禁止调用生产组装 helper 或伪时钟。
             self.budget = types.SimpleNamespace(until=lambda end: (_ for _ in ()).throw(
@@ -790,11 +792,76 @@ def replay_case_class(driver, binder):
                     equal(reply['as_known_ns'], payload['as_known_ns'], '公共获知时刻')
             elif path.endswith('/watch'):
                 equal(set(reply), {'kind', 'session_id', 'session_generation', 'manifest_hash', 'domains'}, '公共 watch 完整字段')
+            if path.endswith('/watch'):
+                self.public_watch = copy.deepcopy(reply)
             return reply
+
+        def resolve_key(self, domain, request):
+            # 每 case 独占，仍显式绑定全部可信上下文，禁止跨源/域借登记。
+            return driver.canonical([self.name, self.manifest['session_id'],
+                self.manifest['session_generation'], driver.digest(self.manifest), domain,
+                self.epochs[domain], *[request[k] for k in ('schema_revision', 'session_id',
+                'session_generation', 'producer_id', 'producer_epoch', 'source_namespace', 'source_epoch')],
+                request['payload']['op'], request['payload']['evidence_id']])
+
+        def close_business(self):
+            # 只在下一个业务步骤/finish 到达时登记；上一步 oracle、同消息重送、
+            # owner/Q/H3 任一失败都会中止，不会走到这里。
+            if self.completed_write is not None:
+                row = self.completed_write
+                require(row['public_checked'], '成功步骤公共验收未闭合')
+                if row['key'] is not None and not row['replay']:
+                    require(row['key'] not in self.resolved_receipts, '重复首次登记')
+                    self.resolved_receipts[row['key']] = copy.deepcopy(row)
+                self.completed_write = None
+
+        def resolve_history(self, domain, payload, receipt, request, before, after):
+            equal(domain, 'E', 'Resolve 域')
+            equal(receipt['kind'], 'Resolved', 'Resolve 回执类型')
+            equal(receipt['domain_id'], domain, 'Resolve 回执域')
+            body = {k: v for k, v in payload.items() if k != 'op'}
+            equal(receipt['evidence_id'], payload['evidence_id'], 'Resolve 业务身份')
+            equal(receipt['evidence_hash'], driver.digest(body), 'Resolve 证据内容hash')
+            rows = [h for h in after['image']['history']
+                    if h.get('kind') == 'ResolveEvidence' and h.get('evidence_id') == payload['evidence_id']]
+            equal(len(rows), 1, 'Resolve 唯一原历史')
+            event = rows[0]
+            equal(event, {'kind': 'ResolveEvidence', 'evidence_id': payload['evidence_id'],
+                'evidence': body, 'covered': [v['fact_key'] for v in payload['covered']],
+                'commit_seq': receipt['cut']['commit_seq'], 'commit_ns': receipt['commit_ns'],
+                'origin_message': {k: request[k] for k in ('source_namespace', 'source_epoch', 'message_id')},
+                'origin_request_hash': driver.digest(request)}, 'Resolve 原历史来源')
+            equal(receipt['covered'], event['covered'], 'Resolve 回执覆盖集')
+            equal(receipt['commit_ns'], after['commit_ns'], 'Resolve 原提交时间')
+            equal(receipt['cut'], after['cut'], 'Resolve 原提交cut')
+            equal(int(after['cut']['commit_seq']), int(before['cut']['commit_seq']) + 1, 'Resolve 首次单提交')
+            require(not any(h.get('kind') == 'ResolveEvidence' and h.get('evidence_id') == payload['evidence_id']
+                            for h in before['image']['history']), 'Resolve 未登记旧身份不可伪首次')
+            equal(after['image']['history'][:-1], before['image']['history'], 'Resolve 历史只能追加')
+            equal(after['image']['history'][-1], event, 'Resolve 原提交末事件')
+            return copy.deepcopy(event)
+
+        def check_public(self, before, after, label):
+            current = super().check_public(before, after, label)
+            row = self.completed_write
+            if row is not None:
+                equal(label, row['message'], '成功步骤公共验收身份')
+                equal((before, after), (row['before'], row['after']), '成功步骤完整owner绑定')
+                if row['replay']:
+                    equal(before, after, '重放完整owner不变')
+                    equal(set(current['domains']), set(self.nodes), '重放Q精确域集合')
+                    equal(set(self.public_watch['domains']), set(self.nodes), '重放watch精确域集合')
+                    for domain, owner in after.items():
+                        equal(self.public_watch['domains'][domain], {'status': 'Available',
+                            'base_cut': owner['cut'], 'next_cut': owner['cut'], 'changes': []}, '重放watch空变化')
+                row['public_checked'] = True
+            return current
 
         def owner(self, domain, payload, message, *, deadline=None):
             first = message not in self.requests
             if message.startswith(('step-', 'we7-')) and first:
+                self.close_business()
+                require(self.pending is None, '前一步owner未闭合')
                 require(len(self.business) < len(self.schedule), '多余业务步骤')
                 expected = self.schedule[len(self.business)]
                 equal((domain, payload, message), (expected['domain'], expected['payload'], expected['message']), '独立 41 步请求顺序')
@@ -803,17 +870,38 @@ def replay_case_class(driver, binder):
             if message.startswith(('step-', 'we7-')) and first:
                 equal(driver.outcome(reply), self.schedule[len(self.business)-1]['outcome'], '独立步骤 outcome')
                 if reply['kind'] in ('Recorded', 'Resolved', 'Applied'):
-                    self.pending = (domain, copy.deepcopy(payload), copy.deepcopy(reply), copy.deepcopy(self.last_views))
+                    self.pending = (domain, copy.deepcopy(payload), copy.deepcopy(reply),
+                                    copy.deepcopy(self.last_views), copy.deepcopy(self.requests[message]), message)
             return reply
 
         def observe(self):
             result = super().observe()
             if self.pending:
-                domain, payload, receipt, previous = self.pending
+                domain, payload, receipt, previous, request, message = self.pending
                 require(previous is not None, '写前 owner 缺失')
-                equal(receipt['cut'], result[domain]['cut'], '成功回执 cut 对 after owner')
-                if payload['op'] == 'CaptureExternal':
-                    binder.verify_capture(payload, receipt, previous['E'], result['E'])
+                key = self.resolve_key(domain, request) if payload['op'] == 'ResolveEvidence' else None
+                original = self.resolved_receipts.get(key) if key is not None else None
+                event = None
+                if original is not None:
+                    equal(driver.canonical(payload), driver.canonical(original['payload']), '重放原业务内容')
+                    equal(driver.canonical(receipt), driver.canonical(original['receipt']), '重放原持久回执')
+                    equal(original['key'], self.resolve_key(domain, original['request']), '重放登记身份过期')
+                    event = self.resolve_history(domain, original['payload'], original['receipt'],
+                        original['request'], original['before'][domain], original['after'][domain])
+                    equal(event, original['event'], '重放登记原历史')
+                    equal(previous, result, '重放完整owner不变')
+                    equal([h for h in result[domain]['image']['history']
+                           if h.get('kind') == 'ResolveEvidence' and h.get('evidence_id') == payload['evidence_id']],
+                          [event], '重放当前保留原历史')
+                else:
+                    equal(receipt['cut'], result[domain]['cut'], '成功回执 cut 对 after owner')
+                    if key is not None:
+                        event = self.resolve_history(domain, payload, receipt, request, previous[domain], result[domain])
+                    if payload['op'] == 'CaptureExternal':
+                        binder.verify_capture(payload, receipt, previous['E'], result['E'])
+                self.completed_write = {'key': key, 'payload': payload, 'receipt': receipt, 'request': request,
+                    'message': message, 'before': previous, 'after': copy.deepcopy(result), 'event': event,
+                    'replay': original is not None, 'public_checked': False}
                 self.pending = None
             self.last_views = copy.deepcopy(result)
             return result
@@ -896,6 +984,7 @@ def replay_case_class(driver, binder):
             self.startup = True
 
         def finish(self):
+            self.close_business()
             equal(self.business, [row['message'] for row in self.schedule], '完整业务步骤')
             require(self.pending is None and self.startup, '步骤未闭合')
             for serve in self.server_processes:
@@ -980,6 +1069,9 @@ def verify_runtime(output: Path, build_evidence: dict, provenance: dict) -> dict
             equal(case.work_start, clock_origin, '两 case 必须同一 driver t0')
             traces[name] = {'steps': len(case.business), 'transports': case.sequence}
             for i in range(len(case.nodes)):
+                # init/serve 已按该 manifest 的精确 --db 核验；process_lock 创建
+                # 空持久锁文件，File 退出释放 OS 锁但不删除路径。仅消费具名副产物。
+                equal(case.read_bytes(f'state/{i}.db.writer.lock'), b'', 'owner writer锁必须为空')
                 for suffix in ('.db', '.db-wal', '.db-shm'):
                     allowed.add(f'{name}/state/{i}{suffix}')
     require(processes.rows[-1]['monotonic'] <= clock_origin + receipt['elapsed'] <= processes.end, '候选 elapsed 与进程账同源')
