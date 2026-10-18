@@ -1209,6 +1209,12 @@ pub(super) fn catalog_axes_admitted<'a, 'objects, 'changes>(
             }
         }
         let ids_view = Rows(&ids);
+        let delivered;
+        let deferred;
+        let mut revisions;
+        let mut withdrawal_rows;
+        let revisions_view;
+        let withdrawals_view;
         let mut evidence_fields =
             bj::new_work::<(&str, JsonView<'_>)>(store.allocation_budget().as_ref());
         let segment = matches!(axis, "CC-011" | "CC-012" | "CC-013" | "CC-014");
@@ -1230,11 +1236,11 @@ pub(super) fn catalog_axes_admitted<'a, 'objects, 'changes>(
             &mut evidence_fields,
             ("waiting_reasons", JsonView::ArraySlice(&unique)),
         )?;
-        let delivered = [
+        delivered = [
             JsonView::String("finite_complete_prefix_strict_second"),
             JsonView::String("independent_stroke_and_segment_break_facts"),
         ];
-        let deferred = [
+        deferred = [
             JsonView::String("general_equal_identity"),
             JsonView::String("general_scan_continuation"),
             JsonView::String("global_G006_bridge"),
@@ -1260,8 +1266,8 @@ pub(super) fn catalog_axes_admitted<'a, 'objects, 'changes>(
         } else {
             "run"
         };
-        let mut revisions = bj::new_work::<JsonOwner>(store.allocation_budget().as_ref());
-        let mut withdrawal_rows = bj::new_work::<JsonOwner>(store.allocation_budget().as_ref());
+        revisions = bj::new_work::<JsonOwner>(store.allocation_budget().as_ref());
+        withdrawal_rows = bj::new_work::<JsonOwner>(store.allocation_budget().as_ref());
         if axis == "CC-056" {
             for event in raw.iter().filter(|r| {
                 field(*r, "seq").as_i64().unwrap() > previous_frontier
@@ -1283,8 +1289,8 @@ pub(super) fn catalog_axes_admitted<'a, 'objects, 'changes>(
                 push(store, &mut withdrawal_rows, owner)?;
             }
         }
-        let revisions_view = Rows(&revisions);
-        let withdrawals_view = Rows(&withdrawal_rows);
+        revisions_view = Rows(&revisions);
+        withdrawals_view = Rows(&withdrawal_rows);
         if axis == "CC-056" {
             push(
                 store,
