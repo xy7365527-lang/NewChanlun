@@ -12,7 +12,7 @@ def budget():return d.ReadBudget(time.monotonic()+10,100000,8*1024*1024)
 def fp(value):return d.sha(d.canonical(value))
 
 
-def fixture():
+def fixture(*, storage_order=None):
     b=budget();nodes={};input_raw=b'UNIT_TEST_ONLY complete input bytes'
     resource={'session':{k:'1000000' for k in d.SESSION},'reader':{k:'1000000' for k in d.READER},
               'q':{'schema_revision':'s-query-resources/3','limits':{k:'1000000' for k in x.Q_LIMITS}},
@@ -45,6 +45,8 @@ def fixture():
               'catalog_run_status':'toy','history_mode':'AsKnown','as_of_generation':'1',
               'catalog_evidence':{'axes':['UNIT_TEST_ONLY']},**{k:[] for k in x.FAMILIES}}
     snapshot['objects']=[obj,terminal,carrier]
+    if storage_order is not None:
+        snapshot['objects']=[snapshot['objects'][i] for i in storage_order]
     # 六族记录全在完整basis根内；不能拿空族代替现有来源、关系、见证与历史。
     snapshot['witnesses']=[{'witness_id':'w','object_id':'terminal','slot':'0'}]
     snapshot['relations']=[{'subject':'terminal','relation_type':'source','object':'source'}]
@@ -92,9 +94,10 @@ def fixture():
         reply['causal_refs']=[{k:req[k] for k in ('source_namespace','source_epoch','message_id','payload_hash')}]
         captures.append(x.Capture('snapshot',d.canonical(req),d.canonical(reply),qbinding))
     query={'schema_revision':'s-financial-query/1',**{k:anchor[k] for k in ('session_id','session_generation','writer_epoch')},
-           'object_ids':[r['object_id'] for r in snapshot['objects']]}
+           'object_ids':[r['key'][0] for r in rows if r['family']=='objects']}
     selected=[]
-    for index,record in enumerate(snapshot['objects']):
+    # #1394：请求与回复沿Q公开序，index仍为独立源snapshot中的位置。
+    for index,record in sorted(enumerate(snapshot['objects']),key=lambda pair:x.row_identity('objects',pair[1])[1]):
         ref=x.content_ref(record,b)
         selected.append({'object_id':record['object_id'],'snapshot_index':str(index),'object_ref':ref,
                          'object_hash':c.root_bytes(c.node_root(0x23,c.root_bytes(ref['root']))).hex()})

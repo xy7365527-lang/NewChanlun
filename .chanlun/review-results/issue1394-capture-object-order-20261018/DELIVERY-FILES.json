@@ -1,0 +1,131 @@
+{
+  "ticket": 1394,
+  "baseline": "3f769f9c6581122451eb24603924bcd533b8419f",
+  "scope": "本轮差异与报告清单；非合入或产品准入",
+  "execution_authorized": false,
+  "product_status": "NOT_RUN",
+  "independent_review": "待审",
+  "self_and_future_commit_excluded": true,
+  "files": [
+    {
+      "path": "s_session/tests/issue1394_acceptance/captured_cut.py",
+      "bytes": 26595,
+      "sha256": "982d9a9a82af5dd49c9500e11adc4de64fa856156318e7f7de25081b8ac9c89d",
+      "mode": "0o644"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_capture_bridge.py",
+      "bytes": 21277,
+      "sha256": "199ed7f07334ebf5f766a713833c2446ca1aab7ee7e6a4b31387dc54d3e72e34",
+      "mode": "0o644"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_capture_order.py",
+      "bytes": 9944,
+      "sha256": "4314d6ed607429ebd3e0ece447b4e7dd3aeb6f101077445ac3200d0aa1ffb782",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/BEFORE-SOURCES.json",
+      "bytes": 57976,
+      "sha256": "cbf49aab613f87081a0c827a69beee554752b6ab8aa2a887d7c4cefc13c4d422",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/FINAL-CHECKS.json",
+      "bytes": 1144,
+      "sha256": "9c7062046bca9f6441c58f9791560bce6ed1f903d9b12a07bf4f72b66b39f39c",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/FIXTURE-COMPARISON.json",
+      "bytes": 20451,
+      "sha256": "1ac699cc042ab43e3fdad57867e8946d6374d27d3ac3b47e096710611627a59e",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/NORMAL-RESULTS.json",
+      "bytes": 15540,
+      "sha256": "b0818fc550ef1518f4b0110eb57c9fdce7fd9f9e43ced8bbef8c69e83903be2b",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/OPTIMIZED-RESULTS.json",
+      "bytes": 15553,
+      "sha256": "bad2047823c6354df336da0fa304fa35e0780d44e6e4365348abff1ebdc8a181",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/PROTOCOL-SOURCES.json",
+      "bytes": 8136,
+      "sha256": "9e13974cbf3c9ebae2c66e14a7ab120df754dcd1d7444e1d499c880e9f8d0faf",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/RED-RESULTS.json",
+      "bytes": 13411,
+      "sha256": "3dff676ac08345a97562aba79fd0ccfb7d665674bab84ef09b40da3bd7663462",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/REPORT.md",
+      "bytes": 8071,
+      "sha256": "e9ceb0b4e410e94404c35bf46c4be6ef8e3d4be85439b23bc84ad1dc715b8ab2",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/STATIC-CHECKS.json",
+      "bytes": 7754,
+      "sha256": "3bfc9f09f3a1140bfeb63d47508911e6a46aa2cea0a3ae29d3ea4074346f7e89",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/TEST-RESULTS.json",
+      "bytes": 1906,
+      "sha256": "d7479a5fabd67e651f00f49b41f4ee95aa9dad1ea3a5d3ef88019aa9d4503d3b",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/TEST-REUSE.json",
+      "bytes": 39593,
+      "sha256": "49867242299be48e2f058e1b7ceffdc5b2db8b17c95d65e0ef27f35447f55149",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/TEST-SELECTION.json",
+      "bytes": 10021,
+      "sha256": "752029c06c54430cf153b123ed6d339b149e17a0a4d5e49229b644ec1daea976",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/financial-reader-99e819192bd6c91b1dd90e058a93c2a98d5aaaf3.txt",
+      "bytes": 7264,
+      "sha256": "1ca0aa2b7b6ccb34b34932eedfdd9e101de1f236fdc1962af466a555b364738c",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/financial-reader-b46ba296993371cb56b2dff7ef878647dc0665ad.txt",
+      "bytes": 7264,
+      "sha256": "1ca0aa2b7b6ccb34b34932eedfdd9e101de1f236fdc1962af466a555b364738c",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/normal-targeted.txt",
+      "bytes": 5719,
+      "sha256": "c045df77fa6c0f76647e95edbfdb2e4119bd7fce1e5d11d7796ae6815fba495d",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/optimized-targeted.txt",
+      "bytes": 5719,
+      "sha256": "37c6211e575b2f4512ebdc886a9301afb2f9b4643ea841b498fc646d44ff50bb",
+      "mode": "0o644"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/red-targeted.txt",
+      "bytes": 20238,
+      "sha256": "0f2d704fff038d24a0321319836b03971bef18bda07a91c88a32aa624e17eedd",
+      "mode": "0o644"
+    }
+  ]
+}

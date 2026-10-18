@@ -1,0 +1,672 @@
+{
+  "scope": "仅有限toy构造；固定clock=100；旧函数由固定基线在内存加载，不跑旧集合",
+  "source_and_input_unchanged": true,
+  "first_closure_reply_bytes": 5940,
+  "first_closure_reply_sha256": "8aa0bd56c4f745c880d63eef7e6d13946783825c6d42e3bc1256b66a03db5f84",
+  "capture_comparison": [
+    {
+      "route": "snapshot",
+      "before": {
+        "route": "snapshot",
+        "request_sha256": "442b8cef6c7888c70d6013504a256fc8a6b343b2e73a08542a6754539450d7f4",
+        "reply_sha256": "22c1af77b8d1bc6eab6051dcbee88050bacdf64724053fad1dbeb6a1bc59a223",
+        "binding": {
+          "q": "toy-q-object",
+          "job": "q-job"
+        }
+      },
+      "after": {
+        "route": "snapshot",
+        "request_sha256": "442b8cef6c7888c70d6013504a256fc8a6b343b2e73a08542a6754539450d7f4",
+        "reply_sha256": "22c1af77b8d1bc6eab6051dcbee88050bacdf64724053fad1dbeb6a1bc59a223",
+        "binding": {
+          "q": "toy-q-object",
+          "job": "q-job"
+        }
+      },
+      "bytes_before": [
+        502,
+        2818
+      ],
+      "bytes_after": [
+        502,
+        2818
+      ],
+      "unchanged": true
+    },
+    {
+      "route": "snapshot",
+      "before": {
+        "route": "snapshot",
+        "request_sha256": "042697a058b9f18e07dbb99fd1eac5fe9b4fbcb1771d76e4f9afb9a9371c1052",
+        "reply_sha256": "2cf9f63026db5b5c2434094b4690cb6020d6162493fc04f3670288e7a214b4a1",
+        "binding": {
+          "q": "toy-q-object",
+          "job": "q-job"
+        }
+      },
+      "after": {
+        "route": "snapshot",
+        "request_sha256": "042697a058b9f18e07dbb99fd1eac5fe9b4fbcb1771d76e4f9afb9a9371c1052",
+        "reply_sha256": "2cf9f63026db5b5c2434094b4690cb6020d6162493fc04f3670288e7a214b4a1",
+        "binding": {
+          "q": "toy-q-object",
+          "job": "q-job"
+        }
+      },
+      "bytes_before": [
+        1045,
+        2816
+      ],
+      "bytes_after": [
+        1045,
+        2816
+      ],
+      "unchanged": true
+    },
+    {
+      "route": "snapshot",
+      "before": {
+        "route": "snapshot",
+        "request_sha256": "0745bfc9f6eba92e8e077f73ad1b7d930248a2957137d73ef36dccb53665744c",
+        "reply_sha256": "5fa036e167c2e9e5323ed5cb83d559171f64bc06750c662bf189bf216468b017",
+        "binding": {
+          "q": "toy-q-object",
+          "job": "q-job"
+        }
+      },
+      "after": {
+        "route": "snapshot",
+        "request_sha256": "0745bfc9f6eba92e8e077f73ad1b7d930248a2957137d73ef36dccb53665744c",
+        "reply_sha256": "5fa036e167c2e9e5323ed5cb83d559171f64bc06750c662bf189bf216468b017",
+        "binding": {
+          "q": "toy-q-object",
+          "job": "q-job"
+        }
+      },
+      "bytes_before": [
+        1045,
+        2838
+      ],
+      "bytes_after": [
+        1045,
+        2838
+      ],
+      "unchanged": true
+    },
+    {
+      "route": "snapshot",
+      "before": {
+        "route": "snapshot",
+        "request_sha256": "cc743fbdf7d01b6a9fad9feb47fd518c5f89ba733cd35e7e81bb95e5ec121567",
+        "reply_sha256": "becb7c06e9eb0d73ab27a220b6f9b59c21a9343b28b6c16a33779558fa2ed651",
+        "binding": {
+          "q": "toy-q-object",
+          "job": "q-job"
+        }
+      },
+      "after": {
+        "route": "snapshot",
+        "request_sha256": "cc743fbdf7d01b6a9fad9feb47fd518c5f89ba733cd35e7e81bb95e5ec121567",
+        "reply_sha256": "becb7c06e9eb0d73ab27a220b6f9b59c21a9343b28b6c16a33779558fa2ed651",
+        "binding": {
+          "q": "toy-q-object",
+          "job": "q-job"
+        }
+      },
+      "bytes_before": [
+        1045,
+        1935
+      ],
+      "bytes_after": [
+        1045,
+        1935
+      ],
+      "unchanged": true
+    },
+    {
+      "route": "financial-basis",
+      "before": {
+        "route": "financial-basis",
+        "request_sha256": "9afa7cc08d5f5611bde1402d40ee5535b74117bbb5c3e1ae91f1e6dc007417fa",
+        "reply_sha256": "c2a849742414d3f33af3e0fb890f869cbdb4e991be314fdbcd4d63f3f5314bd5",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "after": {
+        "route": "financial-basis",
+        "request_sha256": "ff375bbfd41fcd2c8e7f4c286f374fc1e8dc9f366b02fee53b6c403238bf26ba",
+        "reply_sha256": "2def9b9279512867574f648fb6f1b519f4e0667bdcf92ff22a5c0ee725d0e96d",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "bytes_before": [
+        157,
+        1358
+      ],
+      "bytes_after": [
+        157,
+        1358
+      ],
+      "unchanged": false
+    },
+    {
+      "route": "financial-closure",
+      "before": {
+        "route": "financial-closure",
+        "request_sha256": "5145aa4e9ff9d5ec95d8e063fed49199f03bccaf7debddb78f0ec2ee74120d20",
+        "reply_sha256": "8aa0bd56c4f745c880d63eef7e6d13946783825c6d42e3bc1256b66a03db5f84",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "after": {
+        "route": "financial-closure",
+        "request_sha256": "5145aa4e9ff9d5ec95d8e063fed49199f03bccaf7debddb78f0ec2ee74120d20",
+        "reply_sha256": "8aa0bd56c4f745c880d63eef7e6d13946783825c6d42e3bc1256b66a03db5f84",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "bytes_before": [
+        385,
+        5940
+      ],
+      "bytes_after": [
+        385,
+        5940
+      ],
+      "unchanged": true
+    },
+    {
+      "route": "financial-closure",
+      "before": {
+        "route": "financial-closure",
+        "request_sha256": "64da7bbb3f2b472c67e39a2519e1786b37ad7646f4e1239c7fb89c255301cbe2",
+        "reply_sha256": "6a4d14da5a0dd44d3423921b1aa47dc7d9465aec9e053bfa5b6c9020612d1dd4",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "after": {
+        "route": "financial-closure",
+        "request_sha256": "64da7bbb3f2b472c67e39a2519e1786b37ad7646f4e1239c7fb89c255301cbe2",
+        "reply_sha256": "6a4d14da5a0dd44d3423921b1aa47dc7d9465aec9e053bfa5b6c9020612d1dd4",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "bytes_before": [
+        453,
+        6460
+      ],
+      "bytes_after": [
+        453,
+        6460
+      ],
+      "unchanged": true
+    },
+    {
+      "route": "financial-closure",
+      "before": {
+        "route": "financial-closure",
+        "request_sha256": "38edd5eb0473ded09260c7893b607650d6570e89f97c78c347235d4caef78d9f",
+        "reply_sha256": "f716bbc455c2378f5d27678c7c9b06b5c8ce599a3ea2604f700e717868bdd499",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "after": {
+        "route": "financial-closure",
+        "request_sha256": "38edd5eb0473ded09260c7893b607650d6570e89f97c78c347235d4caef78d9f",
+        "reply_sha256": "f716bbc455c2378f5d27678c7c9b06b5c8ce599a3ea2604f700e717868bdd499",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "bytes_before": [
+        453,
+        6370
+      ],
+      "bytes_after": [
+        453,
+        6370
+      ],
+      "unchanged": true
+    },
+    {
+      "route": "financial-closure",
+      "before": {
+        "route": "financial-closure",
+        "request_sha256": "f1b021a6777417d21d72cf0f235a6f911dc21a9bbb6edd3e4d168fd63be4a022",
+        "reply_sha256": "ba9bcc7268f6ad15005462a423ad6787b3ebec44600e43929452bfe9f9d40a4e",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "after": {
+        "route": "financial-closure",
+        "request_sha256": "f1b021a6777417d21d72cf0f235a6f911dc21a9bbb6edd3e4d168fd63be4a022",
+        "reply_sha256": "ba9bcc7268f6ad15005462a423ad6787b3ebec44600e43929452bfe9f9d40a4e",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "bytes_before": [
+        453,
+        6010
+      ],
+      "bytes_after": [
+        453,
+        6010
+      ],
+      "unchanged": true
+    },
+    {
+      "route": "financial-closure",
+      "before": {
+        "route": "financial-closure",
+        "request_sha256": "5dea4ea7e1fd5c08ca4b456f78dc4d65e4c233dbf0cf405339981ae6ea4d9041",
+        "reply_sha256": "a58cebc1af13cef8d4bf526de41cb30bdd883cda2f88d01c5c647e76a6f555eb",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "after": {
+        "route": "financial-closure",
+        "request_sha256": "5dea4ea7e1fd5c08ca4b456f78dc4d65e4c233dbf0cf405339981ae6ea4d9041",
+        "reply_sha256": "a58cebc1af13cef8d4bf526de41cb30bdd883cda2f88d01c5c647e76a6f555eb",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "bytes_before": [
+        453,
+        6250
+      ],
+      "bytes_after": [
+        453,
+        6250
+      ],
+      "unchanged": true
+    },
+    {
+      "route": "financial-closure",
+      "before": {
+        "route": "financial-closure",
+        "request_sha256": "f141a355b2b06ff1910ff851cb5fbc4d56d4cc6c5d0829b1149ed161907acae5",
+        "reply_sha256": "9ab24524f356d328343ce0ed6255902aeb1acab213e67433418c0247d508d5ee",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "after": {
+        "route": "financial-closure",
+        "request_sha256": "f141a355b2b06ff1910ff851cb5fbc4d56d4cc6c5d0829b1149ed161907acae5",
+        "reply_sha256": "9ab24524f356d328343ce0ed6255902aeb1acab213e67433418c0247d508d5ee",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "bytes_before": [
+        453,
+        5846
+      ],
+      "bytes_after": [
+        453,
+        5846
+      ],
+      "unchanged": true
+    },
+    {
+      "route": "financial-closure",
+      "before": {
+        "route": "financial-closure",
+        "request_sha256": "92edaa008a48fbd0124f1e93e6dda0586f971a09840994ef5bece4e9f6b7411e",
+        "reply_sha256": "4840170cc332331ed7fa4a5aacff5b81cd8e31bb39f9937b728547e14d8841f3",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "after": {
+        "route": "financial-closure",
+        "request_sha256": "92edaa008a48fbd0124f1e93e6dda0586f971a09840994ef5bece4e9f6b7411e",
+        "reply_sha256": "4840170cc332331ed7fa4a5aacff5b81cd8e31bb39f9937b728547e14d8841f3",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "bytes_before": [
+        453,
+        6244
+      ],
+      "bytes_after": [
+        453,
+        6244
+      ],
+      "unchanged": true
+    },
+    {
+      "route": "financial-closure",
+      "before": {
+        "route": "financial-closure",
+        "request_sha256": "85b9104031cbfd69468e5405abb515ef5233af773231275eb936d7fb5367db6e",
+        "reply_sha256": "8b17d7cc1429654bea11743c7bac7af36012388bd02d1f3b045b0109e3c9db33",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "after": {
+        "route": "financial-closure",
+        "request_sha256": "85b9104031cbfd69468e5405abb515ef5233af773231275eb936d7fb5367db6e",
+        "reply_sha256": "8b17d7cc1429654bea11743c7bac7af36012388bd02d1f3b045b0109e3c9db33",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "bytes_before": [
+        453,
+        6154
+      ],
+      "bytes_after": [
+        453,
+        6154
+      ],
+      "unchanged": true
+    },
+    {
+      "route": "financial-closure",
+      "before": {
+        "route": "financial-closure",
+        "request_sha256": "24e98922bcea527e5a8e491e2f7dd2d6aec1c78b63c8aac5b1d55628267eae6f",
+        "reply_sha256": "24d9a0ce256df86aed0ba042f3b6adab9dba04edaeaf04a161defa8434900563",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "after": {
+        "route": "financial-closure",
+        "request_sha256": "24e98922bcea527e5a8e491e2f7dd2d6aec1c78b63c8aac5b1d55628267eae6f",
+        "reply_sha256": "24d9a0ce256df86aed0ba042f3b6adab9dba04edaeaf04a161defa8434900563",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "bytes_before": [
+        453,
+        6488
+      ],
+      "bytes_after": [
+        453,
+        6488
+      ],
+      "unchanged": true
+    },
+    {
+      "route": "financial-closure",
+      "before": {
+        "route": "financial-closure",
+        "request_sha256": "995f713d012931f09754c1ac16efaedd07286582a1d0dc65ff3285a7f0ad7221",
+        "reply_sha256": "435f21ee8aac19026a81001ba7515d7642abed83f45e73b4c2cca67aa1ccd0b0",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "after": {
+        "route": "financial-closure",
+        "request_sha256": "995f713d012931f09754c1ac16efaedd07286582a1d0dc65ff3285a7f0ad7221",
+        "reply_sha256": "435f21ee8aac19026a81001ba7515d7642abed83f45e73b4c2cca67aa1ccd0b0",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "bytes_before": [
+        453,
+        6310
+      ],
+      "bytes_after": [
+        453,
+        6310
+      ],
+      "unchanged": true
+    },
+    {
+      "route": "financial-closure",
+      "before": {
+        "route": "financial-closure",
+        "request_sha256": "137bea83bfd6599939848c52e051156c3613a424792afc04fe64f4933e309f77",
+        "reply_sha256": "193109766c8178b35374391a8760d2f9407a40cfe4fce0f199a20e0131425b3c",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "after": {
+        "route": "financial-closure",
+        "request_sha256": "137bea83bfd6599939848c52e051156c3613a424792afc04fe64f4933e309f77",
+        "reply_sha256": "193109766c8178b35374391a8760d2f9407a40cfe4fce0f199a20e0131425b3c",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "bytes_before": [
+        453,
+        6242
+      ],
+      "bytes_after": [
+        453,
+        6242
+      ],
+      "unchanged": true
+    },
+    {
+      "route": "financial-closure",
+      "before": {
+        "route": "financial-closure",
+        "request_sha256": "e5ef75d82dce46e6da872faa6bfdd81740b4eb8c6049c2b0de9e44ce7945f53e",
+        "reply_sha256": "e84378aa6e74181b6cb95ee0a3c5d28c3b76564ec2eea992495a76441be38354",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "after": {
+        "route": "financial-closure",
+        "request_sha256": "e5ef75d82dce46e6da872faa6bfdd81740b4eb8c6049c2b0de9e44ce7945f53e",
+        "reply_sha256": "e84378aa6e74181b6cb95ee0a3c5d28c3b76564ec2eea992495a76441be38354",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "bytes_before": [
+        453,
+        6210
+      ],
+      "bytes_after": [
+        453,
+        6210
+      ],
+      "unchanged": true
+    },
+    {
+      "route": "financial-closure",
+      "before": {
+        "route": "financial-closure",
+        "request_sha256": "2c9c5566a2dee26f39dd0cac34ae91191f48c73a325921508da65d99bf233d69",
+        "reply_sha256": "64dcbfcf45674d07f76e67a36e0e5a5e48a26699e5be3ff1ee1546330eca8e20",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "after": {
+        "route": "financial-closure",
+        "request_sha256": "2c9c5566a2dee26f39dd0cac34ae91191f48c73a325921508da65d99bf233d69",
+        "reply_sha256": "64dcbfcf45674d07f76e67a36e0e5a5e48a26699e5be3ff1ee1546330eca8e20",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "bytes_before": [
+        453,
+        6182
+      ],
+      "bytes_after": [
+        453,
+        6182
+      ],
+      "unchanged": true
+    },
+    {
+      "route": "financial-closure",
+      "before": {
+        "route": "financial-closure",
+        "request_sha256": "9dd69510a730506345f5f3b5f4409c87d2763dbd2b5d596152de8dfcf8356518",
+        "reply_sha256": "edfa8430251a126b9fa74cee6707738162172110554671e2451798f2d1971434",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "after": {
+        "route": "financial-closure",
+        "request_sha256": "9dd69510a730506345f5f3b5f4409c87d2763dbd2b5d596152de8dfcf8356518",
+        "reply_sha256": "edfa8430251a126b9fa74cee6707738162172110554671e2451798f2d1971434",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "bytes_before": [
+        453,
+        6082
+      ],
+      "bytes_after": [
+        453,
+        6082
+      ],
+      "unchanged": true
+    },
+    {
+      "route": "financial-closure",
+      "before": {
+        "route": "financial-closure",
+        "request_sha256": "424716a51aca9d8203777faf905cfdc59b6069011ab0e2f1f4a9f943179f1941",
+        "reply_sha256": "3a9c0517c38f6aed54992cbc44fc992599634c8ab4d5210b8b565e25a917aa34",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "after": {
+        "route": "financial-closure",
+        "request_sha256": "424716a51aca9d8203777faf905cfdc59b6069011ab0e2f1f4a9f943179f1941",
+        "reply_sha256": "3a9c0517c38f6aed54992cbc44fc992599634c8ab4d5210b8b565e25a917aa34",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "bytes_before": [
+        453,
+        5856
+      ],
+      "bytes_after": [
+        453,
+        5856
+      ],
+      "unchanged": true
+    },
+    {
+      "route": "financial-closure",
+      "before": {
+        "route": "financial-closure",
+        "request_sha256": "58b5c7442cf76ab60de1e6bf153c059576955bc89022823f06d14ce447967777",
+        "reply_sha256": "a93e4f488763e7e5509d6c3f2a4acd740977e3d17e77b090163fca476f06323c",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "after": {
+        "route": "financial-closure",
+        "request_sha256": "58b5c7442cf76ab60de1e6bf153c059576955bc89022823f06d14ce447967777",
+        "reply_sha256": "a93e4f488763e7e5509d6c3f2a4acd740977e3d17e77b090163fca476f06323c",
+        "binding": {
+          "session": "toy-session-object",
+          "reader": "toy-reader-object",
+          "job": "financial-job"
+        }
+      },
+      "bytes_before": [
+        453,
+        1660
+      ],
+      "bytes_after": [
+        453,
+        1660
+      ],
+      "unchanged": true
+    }
+  ]
+}

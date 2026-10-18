@@ -1,0 +1,55 @@
+{
+  "counts": {
+    "new": 14,
+    "old": 22,
+    "distinct": 36
+  },
+  "scope": "普通/-O是同36方法两模式，不是72个不同方法；红灯仅14新增方法",
+  "runs": [
+    {
+      "mode": "red",
+      "result": {
+        "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/RED-RESULTS.json",
+        "bytes": 13411,
+        "sha256": "3dff676ac08345a97562aba79fd0ccfb7d665674bab84ef09b40da3bd7663462"
+      },
+      "exit_code": 1,
+      "output": {
+        "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/red-targeted.txt",
+        "bytes": 20238,
+        "sha256": "0f2d704fff038d24a0321319836b03971bef18bda07a91c88a32aa624e17eedd"
+      },
+      "fingerprints_unchanged": true
+    },
+    {
+      "mode": "normal",
+      "result": {
+        "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/NORMAL-RESULTS.json",
+        "bytes": 15540,
+        "sha256": "b0818fc550ef1518f4b0110eb57c9fdce7fd9f9e43ced8bbef8c69e83903be2b"
+      },
+      "exit_code": 0,
+      "output": {
+        "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/normal-targeted.txt",
+        "bytes": 5719,
+        "sha256": "c045df77fa6c0f76647e95edbfdb2e4119bd7fce1e5d11d7796ae6815fba495d"
+      },
+      "fingerprints_unchanged": true
+    },
+    {
+      "mode": "optimized",
+      "result": {
+        "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/OPTIMIZED-RESULTS.json",
+        "bytes": 15553,
+        "sha256": "bad2047823c6354df336da0fa304fa35e0780d44e6e4365348abff1ebdc8a181"
+      },
+      "exit_code": 0,
+      "output": {
+        "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/optimized-targeted.txt",
+        "bytes": 5719,
+        "sha256": "37c6211e575b2f4512ebdc886a9301afb2f9b4643ea841b498fc646d44ff50bb"
+      },
+      "fingerprints_unchanged": true
+    }
+  ]
+}

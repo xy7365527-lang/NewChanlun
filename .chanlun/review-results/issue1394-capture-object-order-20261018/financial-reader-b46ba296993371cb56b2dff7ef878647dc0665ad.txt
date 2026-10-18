@@ -1,0 +1,87 @@
+rust/src/bin/s_session_v3/financial_reader.rs:488:         "kind",
+rust/src/bin/s_session_v3/financial_reader.rs:489:         "session_id",
+rust/src/bin/s_session_v3/financial_reader.rs:490:         "session_generation",
+rust/src/bin/s_session_v3/financial_reader.rs:491:         "writer_epoch",
+rust/src/bin/s_session_v3/financial_reader.rs:492:         "commit_ns",
+rust/src/bin/s_session_v3/financial_reader.rs:493:     ] {
+rust/src/bin/s_session_v3/financial_reader.rs:494:         string_proof(&mut graph, &basis.root, &[field(key)], &mut nodes)?;
+rust/src/bin/s_session_v3/financial_reader.rs:495:     }
+rust/src/bin/s_session_v3/financial_reader.rs:496:     add_nodes(
+rust/src/bin/s_session_v3/financial_reader.rs:497:         &mut nodes,
+rust/src/bin/s_session_v3/financial_reader.rs:498:         range(
+rust/src/bin/s_session_v3/financial_reader.rs:499:             &mut graph,
+rust/src/bin/s_session_v3/financial_reader.rs:500:             &basis.root,
+rust/src/bin/s_session_v3/financial_reader.rs:501:             &[field("snapshot")],
+rust/src/bin/s_session_v3/financial_reader.rs:502:             Unit::Items,
+rust/src/bin/s_session_v3/financial_reader.rs:503:             0,
+rust/src/bin/s_session_v3/financial_reader.rs:504:             20,
+rust/src/bin/s_session_v3/financial_reader.rs:505:             sc::MAX_FRAME_LEN,
+rust/src/bin/s_session_v3/financial_reader.rs:506:         )?,
+rust/src/bin/s_session_v3/financial_reader.rs:507:     )?;
+rust/src/bin/s_session_v3/financial_reader.rs:508:     for key in [
+rust/src/bin/s_session_v3/financial_reader.rs:509:         "session_id",
+rust/src/bin/s_session_v3/financial_reader.rs:510:         "generation",
+rust/src/bin/s_session_v3/financial_reader.rs:511:         "structure_cut",
+rust/src/bin/s_session_v3/financial_reader.rs:512:         "catalog_revision",
+rust/src/bin/s_session_v3/financial_reader.rs:513:         "index_frontier",
+rust/src/bin/s_session_v3/financial_reader.rs:514:         "profile_id",
+rust/src/bin/s_session_v3/financial_reader.rs:515:         "profile_hash",
+rust/src/bin/s_session_v3/financial_reader.rs:516:         "history_mode",
+rust/src/bin/s_session_v3/financial_reader.rs:517:         "input_frontier",
+rust/src/bin/s_session_v3/financial_reader.rs:518:         "catalog_run_status",
+rust/src/bin/s_session_v3/financial_reader.rs:519:     ] {
+rust/src/bin/s_session_v3/financial_reader.rs:520:         string_proof(
+rust/src/bin/s_session_v3/financial_reader.rs:521:             &mut graph,
+rust/src/bin/s_session_v3/financial_reader.rs:522:             &basis.root,
+rust/src/bin/s_session_v3/financial_reader.rs:523:             &[field("snapshot"), field(key)],
+rust/src/bin/s_session_v3/financial_reader.rs:524:             &mut nodes,
+rust/src/bin/s_session_v3/financial_reader.rs:525:         )?;
+rust/src/bin/s_session_v3/financial_reader.rs:526:     }
+rust/src/bin/s_session_v3/financial_reader.rs:527:     let objects = lookup_path(
+rust/src/bin/s_session_v3/financial_reader.rs:528:         &mut graph,
+rust/src/bin/s_session_v3/financial_reader.rs:529:         &basis.root,
+rust/src/bin/s_session_v3/financial_reader.rs:530:         &[field("snapshot"), field("objects")],
+rust/src/bin/s_session_v3/financial_reader.rs:531:     )
+rust/src/bin/s_session_v3/financial_reader.rs:532:     .map_err(invalid)?;
+rust/src/bin/s_session_v3/financial_reader.rs:533:     if objects.kind != Kind::Array {
+rust/src/bin/s_session_v3/financial_reader.rs:534:         return Err(invalid("snapshot.objects不是数组"));
+rust/src/bin/s_session_v3/financial_reader.rs:535:     }
+rust/src/bin/s_session_v3/financial_reader.rs:536:     let mut found = BTreeMap::new();
+rust/src/bin/s_session_v3/financial_reader.rs:537:     for index in 0..objects.extent.ok_or_else(|| invalid("objects缺长度"))? {
+rust/src/bin/s_session_v3/financial_reader.rs:538:         let path = [field("snapshot"), field("objects"), PathStep::Index(index)];
+rust/src/bin/s_session_v3/financial_reader.rs:539:         let object = lookup_path(&mut graph, &basis.root, &path).map_err(invalid)?;
+rust/src/bin/s_session_v3/financial_reader.rs:540:         let id_path = [
+rust/src/bin/s_session_v3/financial_reader.rs:541:             field("snapshot"),
+rust/src/bin/s_session_v3/financial_reader.rs:542:             field("objects"),
+rust/src/bin/s_session_v3/financial_reader.rs:543:             PathStep::Index(index),
+rust/src/bin/s_session_v3/financial_reader.rs:544:             field("object_id"),
+rust/src/bin/s_session_v3/financial_reader.rs:545:         ];
+rust/src/bin/s_session_v3/financial_reader.rs:546:         let id = scalar_text(&mut graph, &basis.root, &id_path)?;
+rust/src/bin/s_session_v3/financial_reader.rs:547:         if unique.contains(&id) {
+rust/src/bin/s_session_v3/financial_reader.rs:548:             let proof = range(
+rust/src/bin/s_session_v3/financial_reader.rs:549:                 &mut graph,
+rust/src/bin/s_session_v3/financial_reader.rs:550:                 &basis.root,
+rust/src/bin/s_session_v3/financial_reader.rs:551:                 &[field("snapshot"), field("objects")],
+rust/src/bin/s_session_v3/financial_reader.rs:552:                 Unit::Items,
+rust/src/bin/s_session_v3/financial_reader.rs:553:                 index,
+rust/src/bin/s_session_v3/financial_reader.rs:554:                 1,
+rust/src/bin/s_session_v3/financial_reader.rs:555:                 sc::MAX_FRAME_LEN,
+rust/src/bin/s_session_v3/financial_reader.rs:556:             )?;
+rust/src/bin/s_session_v3/financial_reader.rs:557:             add_nodes(&mut nodes, proof)?;
+rust/src/bin/s_session_v3/financial_reader.rs:558:             string_proof(&mut graph, &basis.root, &id_path, &mut nodes)?;
+rust/src/bin/s_session_v3/financial_reader.rs:559:             let hash = sc::frame(0x23, &object.digest().map_err(invalid)?);
+rust/src/bin/s_session_v3/financial_reader.rs:560:             let object_hash = hash.iter().map(|b| format!("{b:02x}")).collect::<String>();
+rust/src/bin/s_session_v3/financial_reader.rs:561:             if found.insert(id, json!({"object_id":scalar_text(&mut graph, &basis.root, &id_path)?,
+rust/src/bin/s_session_v3/financial_reader.rs:562:                 "object_hash":object_hash,"object_ref":object.to_transport_json(),"snapshot_index":index.to_string()})).is_some() {
+rust/src/bin/s_session_v3/financial_reader.rs:563:                 return Err(invalid("snapshot.objects重复对象身份"));
+rust/src/bin/s_session_v3/financial_reader.rs:564:             }
+rust/src/bin/s_session_v3/financial_reader.rs:565:         }
+rust/src/bin/s_session_v3/financial_reader.rs:566:     }
+rust/src/bin/s_session_v3/financial_reader.rs:567:     let selected = wanted
+rust/src/bin/s_session_v3/financial_reader.rs:568:         .iter()
+rust/src/bin/s_session_v3/financial_reader.rs:569:         .map(|item| {
+rust/src/bin/s_session_v3/financial_reader.rs:570:             found
+rust/src/bin/s_session_v3/financial_reader.rs:571:                 .remove(item.as_str().unwrap())
+rust/src/bin/s_session_v3/financial_reader.rs:572:                 .ok_or_else(|| missing("请求对象不在当前活动快照"))
+rust/src/bin/s_session_v3/financial_reader.rs:573:         })
+rust/src/bin/s_session_v3/financial_reader.rs:574:         .collect::<Result<Vec<_>, _>>()?;

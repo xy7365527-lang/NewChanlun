@@ -1,0 +1,137 @@
+{
+  "ticket": 1394,
+  "execution_authorized": false,
+  "product_status": "NOT_RUN",
+  "new": [
+    "test_capture_order.CaptureOrderTests.test_public_order_201_preserves_all_raw_bytes_and_source",
+    "test_capture_order.CaptureOrderTests.test_same_public_and_storage_order_still_passes",
+    "test_capture_order.CaptureOrderTests.test_storage_order_request_even_with_matching_selected_is_rejected",
+    "test_capture_order.CaptureOrderTests.test_request_missing_duplicate_extra_and_same_set_wrong_order_rejected",
+    "test_capture_order.CaptureOrderTests.test_selected_order_missing_duplicate_and_extra_rejected",
+    "test_capture_order.CaptureOrderTests.test_selected_index_invalid_or_outside_snapshot_rejected",
+    "test_capture_order.CaptureOrderTests.test_selected_duplicate_index_rejected",
+    "test_capture_order.CaptureOrderTests.test_public_rank_cannot_replace_snapshot_index",
+    "test_capture_order.CaptureOrderTests.test_selected_id_ref_and_hash_each_bind_independent_record",
+    "test_capture_order.CaptureOrderTests.test_selected_fields_and_snapshot_ref_remain_exact",
+    "test_capture_order.CaptureOrderTests.test_q_wire_reordering_is_not_repaired_by_request_or_selected",
+    "test_capture_order.CaptureOrderTests.test_independent_source_cannot_be_replaced_with_mutated_wire",
+    "test_capture_order.CaptureOrderTests.test_basis_proof_remains_bound_to_full_closure",
+    "test_capture_order.CaptureOrderTests.test_memory_adapter_capture_exports_without_rewriting_requests"
+  ],
+  "old_groups": [
+    {
+      "reason": "修改fixture的全部原桥接行为，包含源/闭包/资源/Voice影响路径",
+      "methods": [
+        "test_capture_bridge.CaptureBridgeTests.test_complete_toy_capture_and_unapproved_candidate",
+        "test_capture_bridge.CaptureBridgeTests.test_capture_digest_inventory_and_source_identity_rejected",
+        "test_capture_bridge.CaptureBridgeTests.test_repin_does_not_allow_mixed_cut_missing_page_or_fake_suffix",
+        "test_capture_bridge.CaptureBridgeTests.test_missing_terminal_K_gamma_reports_no_candidates",
+        "test_capture_bridge.CaptureBridgeTests.test_no_raw_history_Active_or_OperationSequence_fallback",
+        "test_capture_bridge.CaptureBridgeTests.test_bridge_rejects_hash_profile_prefix_labels_interval_and_mapping",
+        "test_capture_bridge.CaptureBridgeTests.test_multi_host_refused_and_multiple_candidates_retained",
+        "test_capture_bridge.CaptureBridgeTests.test_size_caps_not_widened_and_expired_budget",
+        "test_capture_bridge.CaptureBridgeTests.test_whole_source_interval_gap_and_K_cycle_refused",
+        "test_capture_bridge.CaptureBridgeTests.test_resources_null_missing_dimensions_old_caps_and_deadlines_refused"
+      ]
+    },
+    {
+      "reason": "对象顺序后仍保持N1游标、N2对象帽、N3独立Job、N4观察尺寸、N5原截止",
+      "methods": [
+        "test_review02.Review02Tests.test_N1_empty_cursor_legal_null_and_broken_order_refused",
+        "test_review02.Review02Tests.test_N2_fixed_session_request_frame_and_Q_page_caps",
+        "test_review02.Review02Tests.test_N3_separate_Q_and_reader_jobs_exact_boundaries",
+        "test_review02.Review02Tests.test_N3_binding_old_ambiguity_and_cross_object_rejected",
+        "test_review02.Review02Tests.test_N3_node_and_record_caps_stay_with_their_object",
+        "test_review02.Review02Tests.test_N4_size_observation_not_Voice_64_128_caps",
+        "test_review02.Review02Tests.test_N5_historical_stage_expired_current_valid"
+      ]
+    },
+    {
+      "reason": "N2原5940/6040及逐页/对象/Job帽",
+      "methods": [
+        "test_review03.Review03Tests.test_N2_raw_5940_positive_6040_negative_and_exact_padded_cap",
+        "test_review03.Review03Tests.test_N2_each_financial_page_checks_its_own_raw_limit",
+        "test_review03.Review03Tests.test_N2_basis_raw_object_caps_and_job_wire_remain_independent"
+      ]
+    },
+    {
+      "reason": "未修改adapter的真实形状原序与selected检查；只选两方法",
+      "methods": [
+        "test_product_capture.ProtocolTests.test_complete_real_shapes_raw_order_and_missing_dependency",
+        "test_product_capture.ProtocolTests.test_basis_all_objects_order_index_hash_and_identity_locked"
+      ]
+    }
+  ],
+  "red_methods": [
+    "test_capture_order.CaptureOrderTests.test_public_order_201_preserves_all_raw_bytes_and_source",
+    "test_capture_order.CaptureOrderTests.test_same_public_and_storage_order_still_passes",
+    "test_capture_order.CaptureOrderTests.test_storage_order_request_even_with_matching_selected_is_rejected",
+    "test_capture_order.CaptureOrderTests.test_request_missing_duplicate_extra_and_same_set_wrong_order_rejected",
+    "test_capture_order.CaptureOrderTests.test_selected_order_missing_duplicate_and_extra_rejected",
+    "test_capture_order.CaptureOrderTests.test_selected_index_invalid_or_outside_snapshot_rejected",
+    "test_capture_order.CaptureOrderTests.test_selected_duplicate_index_rejected",
+    "test_capture_order.CaptureOrderTests.test_public_rank_cannot_replace_snapshot_index",
+    "test_capture_order.CaptureOrderTests.test_selected_id_ref_and_hash_each_bind_independent_record",
+    "test_capture_order.CaptureOrderTests.test_selected_fields_and_snapshot_ref_remain_exact",
+    "test_capture_order.CaptureOrderTests.test_q_wire_reordering_is_not_repaired_by_request_or_selected",
+    "test_capture_order.CaptureOrderTests.test_independent_source_cannot_be_replaced_with_mutated_wire",
+    "test_capture_order.CaptureOrderTests.test_basis_proof_remains_bound_to_full_closure",
+    "test_capture_order.CaptureOrderTests.test_memory_adapter_capture_exports_without_rewriting_requests"
+  ],
+  "green_methods": [
+    "test_capture_order.CaptureOrderTests.test_public_order_201_preserves_all_raw_bytes_and_source",
+    "test_capture_order.CaptureOrderTests.test_same_public_and_storage_order_still_passes",
+    "test_capture_order.CaptureOrderTests.test_storage_order_request_even_with_matching_selected_is_rejected",
+    "test_capture_order.CaptureOrderTests.test_request_missing_duplicate_extra_and_same_set_wrong_order_rejected",
+    "test_capture_order.CaptureOrderTests.test_selected_order_missing_duplicate_and_extra_rejected",
+    "test_capture_order.CaptureOrderTests.test_selected_index_invalid_or_outside_snapshot_rejected",
+    "test_capture_order.CaptureOrderTests.test_selected_duplicate_index_rejected",
+    "test_capture_order.CaptureOrderTests.test_public_rank_cannot_replace_snapshot_index",
+    "test_capture_order.CaptureOrderTests.test_selected_id_ref_and_hash_each_bind_independent_record",
+    "test_capture_order.CaptureOrderTests.test_selected_fields_and_snapshot_ref_remain_exact",
+    "test_capture_order.CaptureOrderTests.test_q_wire_reordering_is_not_repaired_by_request_or_selected",
+    "test_capture_order.CaptureOrderTests.test_independent_source_cannot_be_replaced_with_mutated_wire",
+    "test_capture_order.CaptureOrderTests.test_basis_proof_remains_bound_to_full_closure",
+    "test_capture_order.CaptureOrderTests.test_memory_adapter_capture_exports_without_rewriting_requests",
+    "test_capture_bridge.CaptureBridgeTests.test_complete_toy_capture_and_unapproved_candidate",
+    "test_capture_bridge.CaptureBridgeTests.test_capture_digest_inventory_and_source_identity_rejected",
+    "test_capture_bridge.CaptureBridgeTests.test_repin_does_not_allow_mixed_cut_missing_page_or_fake_suffix",
+    "test_capture_bridge.CaptureBridgeTests.test_missing_terminal_K_gamma_reports_no_candidates",
+    "test_capture_bridge.CaptureBridgeTests.test_no_raw_history_Active_or_OperationSequence_fallback",
+    "test_capture_bridge.CaptureBridgeTests.test_bridge_rejects_hash_profile_prefix_labels_interval_and_mapping",
+    "test_capture_bridge.CaptureBridgeTests.test_multi_host_refused_and_multiple_candidates_retained",
+    "test_capture_bridge.CaptureBridgeTests.test_size_caps_not_widened_and_expired_budget",
+    "test_capture_bridge.CaptureBridgeTests.test_whole_source_interval_gap_and_K_cycle_refused",
+    "test_capture_bridge.CaptureBridgeTests.test_resources_null_missing_dimensions_old_caps_and_deadlines_refused",
+    "test_review02.Review02Tests.test_N1_empty_cursor_legal_null_and_broken_order_refused",
+    "test_review02.Review02Tests.test_N2_fixed_session_request_frame_and_Q_page_caps",
+    "test_review02.Review02Tests.test_N3_separate_Q_and_reader_jobs_exact_boundaries",
+    "test_review02.Review02Tests.test_N3_binding_old_ambiguity_and_cross_object_rejected",
+    "test_review02.Review02Tests.test_N3_node_and_record_caps_stay_with_their_object",
+    "test_review02.Review02Tests.test_N4_size_observation_not_Voice_64_128_caps",
+    "test_review02.Review02Tests.test_N5_historical_stage_expired_current_valid",
+    "test_review03.Review03Tests.test_N2_raw_5940_positive_6040_negative_and_exact_padded_cap",
+    "test_review03.Review03Tests.test_N2_each_financial_page_checks_its_own_raw_limit",
+    "test_review03.Review03Tests.test_N2_basis_raw_object_caps_and_job_wire_remain_independent",
+    "test_product_capture.ProtocolTests.test_complete_real_shapes_raw_order_and_missing_dependency",
+    "test_product_capture.ProtocolTests.test_basis_all_objects_order_index_hash_and_identity_locked"
+  ],
+  "counts": {
+    "new": 14,
+    "old": 22,
+    "distinct": 36
+  },
+  "impact": [
+    "captured_cut.export_captured：仅Q公开wanted与selected原snapshot绑定段",
+    "test_capture_bridge.fixture：合成wire改用已构造Q序；保原snapshot、闭包及5940 bytes；增加同序存储输入",
+    "product_capture使用其它captured_cut函数；两源文件保持原字节，内存端到端接口新锁",
+    "voice_bridge只导入未变decimal/fingerprint/MIB；全部原桥接方法定向验证",
+    "driver/scheduler/supervisor/closure/journal未改；原41/27方法静态保留，R-F5按SHA复用"
+  ],
+  "not_run": [
+    "旧37/38/68/91/82/host123完整集合",
+    "ps/socket三项",
+    "R-F5旧集合",
+    "产品/真实进程/网络/数据库/cargo/rustc/Long"
+  ]
+}

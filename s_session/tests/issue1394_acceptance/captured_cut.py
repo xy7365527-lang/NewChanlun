@@ -347,20 +347,29 @@ def export_captured(contract_raw, expected_sha, captures, source, budget, closur
     qdigest='qcut3-'+c.root_bytes(c.node_root(0x22,c.root_bytes(projection_ref['root']))).hex()
     d.require(qdigest==metadata['cut_projection_digest']==contract['cut_projection_digest'],'Q完整投影根不符')
     request,reply=basis_pair
-    wanted=[r['object_id'] for r in snapshot['objects']]
+    # #1394：已核Q公开序是请求原序；snapshot仍保留独立原件的存储序。
+    wanted=[row['key'][0] for row in rows if row['family']=='objects']
+    active=[record['object_id'] for record in snapshot['objects']]
+    d.require(len(wanted)==len(set(wanted))==len(active) and set(wanted)==set(active),
+              '财务点查须为完整活动对象且不重复')
     d.require(request=={'schema_revision':'s-financial-query/1','session_id':anchor['session_id'],
-        'session_generation':anchor['session_generation'],'writer_epoch':anchor['writer_epoch'],'object_ids':wanted},'财务点查未覆盖全对象')
+        'session_generation':anchor['session_generation'],'writer_epoch':anchor['writer_epoch'],'object_ids':wanted},'财务点查未按Q原序覆盖全对象')
     d.require(reply['schema_revision']=='s-financial-basis/3' and reply['kind']=='FinancialBasisRef'
               and reply['content_format']=='s-content/1' and reply['pending_revision'] is False
               and reply['basis_ref']==anchor['basis_ref'],'财务basis未固定')
     d.require(all(reply[k]==anchor[k] for k in ('session_id','session_generation','writer_epoch','commit_ns')),'财务会话身份不同')
     d.require(reply['snapshot_ref']==content_ref(snapshot,budget),'财务快照ref不符')
-    selected=[]
-    for index,record in enumerate(snapshot['objects']):
+    selected=reply['selected_objects'];indices=set()
+    d.require(type(selected) is list and len(selected)==len(wanted),'点查对象缺漏/额外项')
+    for oid,item in zip(wanted,selected):
+        d.exact(item,{'object_id','snapshot_index','object_ref','object_hash'},'点查对象')
+        index=decimal(item['snapshot_index'])
+        d.require(index<len(snapshot['objects']) and index not in indices,'点查对象索引越界/重复')
+        indices.add(index);record=snapshot['objects'][index]
         ref=content_ref(record,budget)
-        selected.append({'object_id':record['object_id'],'snapshot_index':str(index),'object_ref':ref,
-            'object_hash':c.root_bytes(c.node_root(0x23,c.root_bytes(ref['root']))).hex()})
-    d.require(reply['selected_objects']==selected,'点查对象/顺序/来源hash不符')
+        d.require(item['object_id']==oid==record['object_id'] and item['object_ref']==ref
+                  and item['object_hash']==c.root_bytes(c.node_root(0x23,c.root_bytes(ref['root']))).hex(),
+                  '点查对象/顺序/来源hash不符')
     for raw in reply['proof_nodes']:
         d.require(raw['root'] in by_root and c.Node(raw['root'],int(raw['tag'],16),bytes.fromhex(raw['body_hex']))==by_root[raw['root']], '财务proof不在原件闭包')
     result={'schema_revision':'issue1394-captured-facts/1','source':identity,'fixed_cut':fixed,'anchor':anchor,

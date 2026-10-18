@@ -1,0 +1,222 @@
+test_public_order_201_preserves_all_raw_bytes_and_source (test_capture_order.CaptureOrderTests.test_public_order_201_preserves_all_raw_bytes_and_source) ... ERROR
+test_same_public_and_storage_order_still_passes (test_capture_order.CaptureOrderTests.test_same_public_and_storage_order_still_passes) ... ok
+test_storage_order_request_even_with_matching_selected_is_rejected (test_capture_order.CaptureOrderTests.test_storage_order_request_even_with_matching_selected_is_rejected) ... FAIL
+test_request_missing_duplicate_extra_and_same_set_wrong_order_rejected (test_capture_order.CaptureOrderTests.test_request_missing_duplicate_extra_and_same_set_wrong_order_rejected) ... ok
+test_selected_order_missing_duplicate_and_extra_rejected (test_capture_order.CaptureOrderTests.test_selected_order_missing_duplicate_and_extra_rejected) ... 
+  test_selected_order_missing_duplicate_and_extra_rejected (test_capture_order.CaptureOrderTests.test_selected_order_missing_duplicate_and_extra_rejected) (change=<function CaptureOrderTests.test_selected_order_missing_duplicate_and_extra_rejected.<locals>.<lambda> at 0x106461d20>) ... FAIL
+  test_selected_order_missing_duplicate_and_extra_rejected (test_capture_order.CaptureOrderTests.test_selected_order_missing_duplicate_and_extra_rejected) (change=<function CaptureOrderTests.test_selected_order_missing_duplicate_and_extra_rejected.<locals>.<lambda> at 0x106463e20>) ... FAIL
+  test_selected_order_missing_duplicate_and_extra_rejected (test_capture_order.CaptureOrderTests.test_selected_order_missing_duplicate_and_extra_rejected) (change=<function CaptureOrderTests.test_selected_order_missing_duplicate_and_extra_rejected.<locals>.<lambda> at 0x106463c10>) ... FAIL
+  test_selected_order_missing_duplicate_and_extra_rejected (test_capture_order.CaptureOrderTests.test_selected_order_missing_duplicate_and_extra_rejected) (change=<function CaptureOrderTests.test_selected_order_missing_duplicate_and_extra_rejected.<locals>.<lambda> at 0x106463480>) ... FAIL
+test_selected_index_invalid_or_outside_snapshot_rejected (test_capture_order.CaptureOrderTests.test_selected_index_invalid_or_outside_snapshot_rejected) ... ok
+test_selected_duplicate_index_rejected (test_capture_order.CaptureOrderTests.test_selected_duplicate_index_rejected) ... FAIL
+test_public_rank_cannot_replace_snapshot_index (test_capture_order.CaptureOrderTests.test_public_rank_cannot_replace_snapshot_index) ... FAIL
+test_selected_id_ref_and_hash_each_bind_independent_record (test_capture_order.CaptureOrderTests.test_selected_id_ref_and_hash_each_bind_independent_record) ... 
+  test_selected_id_ref_and_hash_each_bind_independent_record (test_capture_order.CaptureOrderTests.test_selected_id_ref_and_hash_each_bind_independent_record) (field='object_id') ... FAIL
+  test_selected_id_ref_and_hash_each_bind_independent_record (test_capture_order.CaptureOrderTests.test_selected_id_ref_and_hash_each_bind_independent_record) (field='object_ref') ... FAIL
+  test_selected_id_ref_and_hash_each_bind_independent_record (test_capture_order.CaptureOrderTests.test_selected_id_ref_and_hash_each_bind_independent_record) (field='object_hash') ... FAIL
+test_selected_fields_and_snapshot_ref_remain_exact (test_capture_order.CaptureOrderTests.test_selected_fields_and_snapshot_ref_remain_exact) ... ok
+test_q_wire_reordering_is_not_repaired_by_request_or_selected (test_capture_order.CaptureOrderTests.test_q_wire_reordering_is_not_repaired_by_request_or_selected) ... ok
+test_independent_source_cannot_be_replaced_with_mutated_wire (test_capture_order.CaptureOrderTests.test_independent_source_cannot_be_replaced_with_mutated_wire) ... ok
+test_basis_proof_remains_bound_to_full_closure (test_capture_order.CaptureOrderTests.test_basis_proof_remains_bound_to_full_closure) ... 
+  test_basis_proof_remains_bound_to_full_closure (test_capture_order.CaptureOrderTests.test_basis_proof_remains_bound_to_full_closure) (foreign=False) ... ERROR
+  test_basis_proof_remains_bound_to_full_closure (test_capture_order.CaptureOrderTests.test_basis_proof_remains_bound_to_full_closure) (foreign=True) ... FAIL
+test_memory_adapter_capture_exports_without_rewriting_requests (test_capture_order.CaptureOrderTests.test_memory_adapter_capture_exports_without_rewriting_requests) ... ERROR
+
+======================================================================
+ERROR: test_public_order_201_preserves_all_raw_bytes_and_source (test_capture_order.CaptureOrderTests.test_public_order_201_preserves_all_raw_bytes_and_source)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_capture_order.py", line 43, in test_public_order_201_preserves_all_raw_bytes_and_source
+    facts = cap.export(*data)
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_capture_bridge.py", line 126, in export
+    return x.export_captured(raw,d.sha(raw),captures,nodes.__getitem__,b,c.Budget(10000,4000000,100000,b.deadline),input_raw=input_raw)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/captured_cut.py", line 351, in export_captured
+    d.require(request=={'schema_revision':'s-financial-query/1','session_id':anchor['session_id'],
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        'session_generation':anchor['session_generation'],'writer_epoch':anchor['writer_epoch'],'object_ids':wanted},'财务点查未覆盖全对象')
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/driver.py", line 49, in require
+    raise Rejected(message)
+driver.Rejected: 财务点查未覆盖全对象
+
+======================================================================
+ERROR: test_basis_proof_remains_bound_to_full_closure (test_capture_order.CaptureOrderTests.test_basis_proof_remains_bound_to_full_closure) (foreign=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_capture_order.py", line 169, in test_basis_proof_remains_bound_to_full_closure
+    self.assertEqual(cap.export(*data)['status'], 'UNAUTHENTICATED_FACTS')
+                     ~~~~~~~~~~^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_capture_bridge.py", line 126, in export
+    return x.export_captured(raw,d.sha(raw),captures,nodes.__getitem__,b,c.Budget(10000,4000000,100000,b.deadline),input_raw=input_raw)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/captured_cut.py", line 351, in export_captured
+    d.require(request=={'schema_revision':'s-financial-query/1','session_id':anchor['session_id'],
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        'session_generation':anchor['session_generation'],'writer_epoch':anchor['writer_epoch'],'object_ids':wanted},'财务点查未覆盖全对象')
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/driver.py", line 49, in require
+    raise Rejected(message)
+driver.Rejected: 财务点查未覆盖全对象
+
+======================================================================
+ERROR: test_memory_adapter_capture_exports_without_rewriting_requests (test_capture_order.CaptureOrderTests.test_memory_adapter_capture_exports_without_rewriting_requests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_capture_order.py", line 179, in test_memory_adapter_capture_exports_without_rewriting_requests
+    facts = cap.export(contract, machine.captures, source, input_raw)
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_capture_bridge.py", line 126, in export
+    return x.export_captured(raw,d.sha(raw),captures,nodes.__getitem__,b,c.Budget(10000,4000000,100000,b.deadline),input_raw=input_raw)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/captured_cut.py", line 351, in export_captured
+    d.require(request=={'schema_revision':'s-financial-query/1','session_id':anchor['session_id'],
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        'session_generation':anchor['session_generation'],'writer_epoch':anchor['writer_epoch'],'object_ids':wanted},'财务点查未覆盖全对象')
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/driver.py", line 49, in require
+    raise Rejected(message)
+driver.Rejected: 财务点查未覆盖全对象
+
+======================================================================
+FAIL: test_storage_order_request_even_with_matching_selected_is_rejected (test_capture_order.CaptureOrderTests.test_storage_order_request_even_with_matching_selected_is_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_capture_order.py", line 63, in test_storage_order_request_even_with_matching_selected_is_rejected
+    with self.assertRaisesRegex(d.Rejected, '财务点查'):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Rejected not raised
+
+======================================================================
+FAIL: test_selected_order_missing_duplicate_and_extra_rejected (test_capture_order.CaptureOrderTests.test_selected_order_missing_duplicate_and_extra_rejected) (change=<function CaptureOrderTests.test_selected_order_missing_duplicate_and_extra_rejected.<locals>.<lambda> at 0x106461d20>)
+----------------------------------------------------------------------
+driver.Rejected: 财务点查未覆盖全对象
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_capture_order.py", line 78, in test_selected_order_missing_duplicate_and_extra_rejected
+    with self.subTest(change=change), self.assertRaisesRegex(d.Rejected, '点查对象'):
+                                      ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "点查对象" does not match "财务点查未覆盖全对象"
+
+======================================================================
+FAIL: test_selected_order_missing_duplicate_and_extra_rejected (test_capture_order.CaptureOrderTests.test_selected_order_missing_duplicate_and_extra_rejected) (change=<function CaptureOrderTests.test_selected_order_missing_duplicate_and_extra_rejected.<locals>.<lambda> at 0x106463e20>)
+----------------------------------------------------------------------
+driver.Rejected: 财务点查未覆盖全对象
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_capture_order.py", line 78, in test_selected_order_missing_duplicate_and_extra_rejected
+    with self.subTest(change=change), self.assertRaisesRegex(d.Rejected, '点查对象'):
+                                      ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "点查对象" does not match "财务点查未覆盖全对象"
+
+======================================================================
+FAIL: test_selected_order_missing_duplicate_and_extra_rejected (test_capture_order.CaptureOrderTests.test_selected_order_missing_duplicate_and_extra_rejected) (change=<function CaptureOrderTests.test_selected_order_missing_duplicate_and_extra_rejected.<locals>.<lambda> at 0x106463c10>)
+----------------------------------------------------------------------
+driver.Rejected: 财务点查未覆盖全对象
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_capture_order.py", line 78, in test_selected_order_missing_duplicate_and_extra_rejected
+    with self.subTest(change=change), self.assertRaisesRegex(d.Rejected, '点查对象'):
+                                      ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "点查对象" does not match "财务点查未覆盖全对象"
+
+======================================================================
+FAIL: test_selected_order_missing_duplicate_and_extra_rejected (test_capture_order.CaptureOrderTests.test_selected_order_missing_duplicate_and_extra_rejected) (change=<function CaptureOrderTests.test_selected_order_missing_duplicate_and_extra_rejected.<locals>.<lambda> at 0x106463480>)
+----------------------------------------------------------------------
+driver.Rejected: 财务点查未覆盖全对象
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_capture_order.py", line 78, in test_selected_order_missing_duplicate_and_extra_rejected
+    with self.subTest(change=change), self.assertRaisesRegex(d.Rejected, '点查对象'):
+                                      ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "点查对象" does not match "财务点查未覆盖全对象"
+
+======================================================================
+FAIL: test_selected_duplicate_index_rejected (test_capture_order.CaptureOrderTests.test_selected_duplicate_index_rejected)
+----------------------------------------------------------------------
+driver.Rejected: 财务点查未覆盖全对象
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_capture_order.py", line 88, in test_selected_duplicate_index_rejected
+    with self.assertRaisesRegex(d.Rejected, '点查对象'):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "点查对象" does not match "财务点查未覆盖全对象"
+
+======================================================================
+FAIL: test_public_rank_cannot_replace_snapshot_index (test_capture_order.CaptureOrderTests.test_public_rank_cannot_replace_snapshot_index)
+----------------------------------------------------------------------
+driver.Rejected: 财务点查未覆盖全对象
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_capture_order.py", line 96, in test_public_rank_cannot_replace_snapshot_index
+    with self.assertRaisesRegex(d.Rejected, '点查对象'):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "点查对象" does not match "财务点查未覆盖全对象"
+
+======================================================================
+FAIL: test_selected_id_ref_and_hash_each_bind_independent_record (test_capture_order.CaptureOrderTests.test_selected_id_ref_and_hash_each_bind_independent_record) (field='object_id')
+----------------------------------------------------------------------
+driver.Rejected: 财务点查未覆盖全对象
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_capture_order.py", line 103, in test_selected_id_ref_and_hash_each_bind_independent_record
+    with self.subTest(field=field), self.assertRaisesRegex(d.Rejected, '点查对象'):
+                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "点查对象" does not match "财务点查未覆盖全对象"
+
+======================================================================
+FAIL: test_selected_id_ref_and_hash_each_bind_independent_record (test_capture_order.CaptureOrderTests.test_selected_id_ref_and_hash_each_bind_independent_record) (field='object_ref')
+----------------------------------------------------------------------
+driver.Rejected: 财务点查未覆盖全对象
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_capture_order.py", line 103, in test_selected_id_ref_and_hash_each_bind_independent_record
+    with self.subTest(field=field), self.assertRaisesRegex(d.Rejected, '点查对象'):
+                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "点查对象" does not match "财务点查未覆盖全对象"
+
+======================================================================
+FAIL: test_selected_id_ref_and_hash_each_bind_independent_record (test_capture_order.CaptureOrderTests.test_selected_id_ref_and_hash_each_bind_independent_record) (field='object_hash')
+----------------------------------------------------------------------
+driver.Rejected: 财务点查未覆盖全对象
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_capture_order.py", line 103, in test_selected_id_ref_and_hash_each_bind_independent_record
+    with self.subTest(field=field), self.assertRaisesRegex(d.Rejected, '点查对象'):
+                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "点查对象" does not match "财务点查未覆盖全对象"
+
+======================================================================
+FAIL: test_basis_proof_remains_bound_to_full_closure (test_capture_order.CaptureOrderTests.test_basis_proof_remains_bound_to_full_closure) (foreign=True)
+----------------------------------------------------------------------
+driver.Rejected: 财务点查未覆盖全对象
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/s_session/tests/issue1394_acceptance/test_capture_order.py", line 166, in test_basis_proof_remains_bound_to_full_closure
+    with self.assertRaisesRegex(d.Rejected, 'proof'):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: "proof" does not match "财务点查未覆盖全对象"
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.395s
+
+FAILED (failures=11, errors=3)

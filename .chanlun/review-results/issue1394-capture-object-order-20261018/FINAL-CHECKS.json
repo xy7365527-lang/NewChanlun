@@ -1,0 +1,30 @@
+{
+  "baseline": "3f769f9c6581122451eb24603924bcd533b8419f",
+  "branch": "codex/1394-acceptance-integration-20261018",
+  "test_fingerprints_match_final_source": true,
+  "old_report_count_unchanged": 151,
+  "git_diff_check": {
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "untracked_source_document_whitespace_check": true,
+  "first_evidence_whitespace_attempt": {
+    "exit_code": 1,
+    "output": "RuntimeError: 新增文件尾空白：/Volumes/AgentStorage/issue1394-sandcastle-integration-20261018/.chanlun/review-results/issue1394-capture-object-order-20261018/red-targeted.txt",
+    "resolution": "原始unittest输出含自身尾空白，保持原字节；只对新增源码/md/json执行尾空白检查，未改任何测试源码或输出"
+  },
+  "scope_check": true,
+  "tracked_diff": [
+    "s_session/tests/issue1394_acceptance/captured_cut.py",
+    "s_session/tests/issue1394_acceptance/test_capture_bridge.py"
+  ],
+  "execution_authorized": false,
+  "product_status": "NOT_RUN",
+  "independent_review": "待管理者固定组合SHA并双路独审"
+}
