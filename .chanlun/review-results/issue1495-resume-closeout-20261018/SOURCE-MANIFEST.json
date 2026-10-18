@@ -1,0 +1,63 @@
+{
+  "ticket": 1495,
+  "kind": "pure_documentation_closeout_candidate",
+  "parent_origin_main": "0c397d20de4076dbb6f7caa62738fc04cf72322f",
+  "write_scope": ".chanlun/review-results/issue1495-resume-closeout-20261018",
+  "copied_reports": [
+    {
+      "target": "RESUME-READINESS.md",
+      "source": "/tmp/1495-resume-readiness-20261018.md",
+      "sha256": "3afde84d5adf056a77fc036aea8256a7377631b4dd047b79d75fe422cebd469b"
+    },
+    {
+      "target": "CLEANUP-PREFLIGHT.md",
+      "source": "/tmp/1495-cleanup-preflight-20261018.md",
+      "sha256": "09f142066053994d617810e2dd3b3a441099ae31dd1d7391ed759fab6ca961e3"
+    },
+    {
+      "target": "CLEANUP-PREFLIGHT.json",
+      "source": "/tmp/1495-cleanup-preflight-20261018.json",
+      "sha256": "273af54568c31d8b0c30f98040133a463767b308e1ebe64676ee31abbd4360d2"
+    },
+    {
+      "target": "CLEANUP-EXECUTION.md",
+      "source": "/tmp/1495-cleanup-execution-20261018.md",
+      "sha256": "7a90ecffa5ce343ffcc9b00d08aa12dacb7bd870658d00adee5e3aaf53ec43fc"
+    },
+    {
+      "target": "CLEANUP-EXECUTION.json",
+      "source": "/tmp/1495-cleanup-execution-20261018.json",
+      "sha256": "73bbeb5d5baccb6cd054583e8fcd332fbd8c20e992a26040108d49f1aa1de619"
+    }
+  ],
+  "copied_backup_summaries": [
+    {
+      "target": "BACKUP-MANIFEST.json",
+      "source": "/Volumes/AgentStorage/issue1495-old-wip-backup-20261018/MANIFEST.json",
+      "sha256": "9664b6793af20893471227441014788c50f1e7bf5141ed0f656c63d1892adec7"
+    },
+    {
+      "target": "BACKUP-SHA256SUMS.txt",
+      "source": "/Volumes/AgentStorage/issue1495-old-wip-backup-20261018/SHA256SUMS",
+      "sha256": "4eb084a4645f32b0095b27dbe77e4bb3936a5f319e447e3717d96d4d11450054"
+    },
+    {
+      "target": "WIP-DECLARATION-COMPARISON.json",
+      "source": "/Volumes/AgentStorage/issue1495-old-wip-backup-20261018/declaration-comparison.json",
+      "sha256": "a6b913b9298e8f87ebc33f57bb0232c7066d52668cbbc3b2e1e0d1db3d909b00"
+    },
+    {
+      "target": "WIP-COMMENT-COMPARISON.json",
+      "source": "/Volumes/AgentStorage/issue1495-old-wip-backup-20261018/comment-comparison.json",
+      "sha256": "fb9b3f5a605f2216ac077621fd57cfbce6858451c75f6cab676f48b9ac480cf5"
+    }
+  ],
+  "external_backup_kept": "/Volumes/AgentStorage/issue1495-old-wip-backup-20261018",
+  "excluded": [
+    "full original Lean snapshots",
+    "uncommitted patch original",
+    "formal/.lake cache",
+    "credentials"
+  ],
+  "status": "candidate only; no push/PR/main merge/issue close"
+}

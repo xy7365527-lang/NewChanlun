@@ -1,0 +1,32 @@
+[
+  {
+    "block": 1,
+    "normalized_preserved": false,
+    "classification": "已由独审修正范围声明"
+  },
+  {
+    "block": 2,
+    "normalized_preserved": true,
+    "classification": "已收编原文"
+  },
+  {
+    "block": 3,
+    "normalized_preserved": true,
+    "classification": "已收编原文"
+  },
+  {
+    "block": 4,
+    "normalized_preserved": true,
+    "classification": "已收编原文"
+  },
+  {
+    "block": 5,
+    "normalized_preserved": false,
+    "classification": "已扩充时序/方向说明"
+  },
+  {
+    "block": 6,
+    "normalized_preserved": true,
+    "classification": "已收编原文"
+  }
+]

@@ -1,0 +1,20 @@
+{
+  "diff_check_exit": 0,
+  "credential_pattern_scan": {
+    "scope": ".chanlun/review-results/issue1495-resume-closeout-20261018",
+    "patterns": [
+      "private_key",
+      "github_token",
+      "openai_like_key"
+    ],
+    "hits": [],
+    "limit": "local text pattern scan; no claim of general secret detection"
+  },
+  "existing_delivery_sha_checks": 8,
+  "existing_delivery_sha_all_match": true,
+  "new_builds_or_tests": "NOT_RUN_PURE_DOCUMENTATION",
+  "pushed": false,
+  "PR_created": false,
+  "main_merged": false,
+  "issue_closed": false
+}

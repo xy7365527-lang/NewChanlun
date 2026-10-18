@@ -1,0 +1,22 @@
+{
+  "source_worktree": "/Volumes/AgentStorage/sc-wt/1495",
+  "head": "dedf11f047b9c809c167b35e728e4a2ee8bf3494",
+  "status": " M formal/Origin/SegmentFeatureSeq.lean\n",
+  "tracked_modified": [
+    "formal/Origin/SegmentFeatureSeq.lean"
+  ],
+  "untracked": [],
+  "ignored_count": 1144,
+  "ignored_top_dirs": [
+    "formal"
+  ],
+  "unmerged_commits_vs_delivery": [],
+  "restore_check_exit": 0,
+  "restore_apply_exit": 0,
+  "restored_byte_identical": true,
+  "original_unchanged": true,
+  "executable_blocks": 24,
+  "all_normalized_blocks_contained": true,
+  "ignored_all_lake_cache": true,
+  "ignored_backup_exclusion": "1144项均formal/.lake/再生产缓存，不含未追踪成果，不备份缓存"
+}
