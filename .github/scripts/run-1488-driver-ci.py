@@ -16,7 +16,7 @@ import time
 
 REVIEWED_SOURCE = "b6f96ecd31b290cff95e3a8de6db5f579e0a70d0"
 REVIEWED_TREE = "0ad5c8c586f28d7753f6232d1da1d8295ffbc175"
-CONTRACT_READY = False  # 两 CI 文件独审、源码绑定和尾差复核后由主控显式开启。
+CONTRACT_READY = True  # 两 CI 文件独审、源码绑定和尾差复核后由主控显式开启。
 CI_FILES = {".github/scripts/run-1488-driver-ci.py", ".github/workflows/issue-1488-driver-six.yml"}
 LEGACY_RUNNER = ".github/scripts/run-1488-delta-ci.py"
 LEGACY_SHA256 = "2c94e9e8354bd3fe369067210054db903df019cf9ce8c1345a6ec6d107b297dc"
