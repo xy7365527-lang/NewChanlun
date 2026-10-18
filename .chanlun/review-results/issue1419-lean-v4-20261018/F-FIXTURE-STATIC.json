@@ -1,0 +1,298 @@
+{
+  "scope": "解析 Lean 输入字面量 + Python 整数公式；不是 Lean 导出",
+  "cases": 8,
+  "fixture_sha256": "0802c65c41a20a268b7d3e7bd7f94cc12def98fb5dbb357dbb518cd70d662c78",
+  "semantic_fields_match": true,
+  "finite_ordered_pairs": 4900,
+  "matrix_scope": "128 格由输入核算；fixture/Lean 导出没有矩阵字段，未声称运行 Rust 比较",
+  "derived": [
+    {
+      "name": "W2_UP_EXPANSION",
+      "row_next_col_prev": [
+        "DD",
+        "ZD",
+        "ZG",
+        "GG"
+      ],
+      "matrix": [
+        [
+          1,
+          1,
+          1,
+          -1
+        ],
+        [
+          1,
+          1,
+          1,
+          -1
+        ],
+        [
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1
+        ]
+      ],
+      "four_state": "levelExpansion"
+    },
+    {
+      "name": "W3_DISC_DOWN_NEWBIRTH",
+      "row_next_col_prev": [
+        "DD",
+        "ZD",
+        "ZG",
+        "GG"
+      ],
+      "matrix": [
+        [
+          -1,
+          -1,
+          -1,
+          -1
+        ],
+        [
+          -1,
+          -1,
+          -1,
+          -1
+        ],
+        [
+          -1,
+          -1,
+          -1,
+          -1
+        ],
+        [
+          -1,
+          -1,
+          -1,
+          -1
+        ]
+      ],
+      "four_state": "downContinuation"
+    },
+    {
+      "name": "W3_FULL_UNIT_COUNTERFACTUAL",
+      "row_next_col_prev": [
+        "DD",
+        "ZD",
+        "ZG",
+        "GG"
+      ],
+      "matrix": [
+        [
+          -1,
+          -1,
+          -1,
+          -1
+        ],
+        [
+          -1,
+          -1,
+          -1,
+          -1
+        ],
+        [
+          1,
+          -1,
+          -1,
+          -1
+        ],
+        [
+          1,
+          -1,
+          -1,
+          -1
+        ]
+      ],
+      "four_state": "levelExpansion"
+    },
+    {
+      "name": "W4_DISC_UP_NEWBIRTH",
+      "row_next_col_prev": [
+        "DD",
+        "ZD",
+        "ZG",
+        "GG"
+      ],
+      "matrix": [
+        [
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1
+        ]
+      ],
+      "four_state": "upContinuation"
+    },
+    {
+      "name": "W5_OUTER_TOUCH",
+      "row_next_col_prev": [
+        "DD",
+        "ZD",
+        "ZG",
+        "GG"
+      ],
+      "matrix": [
+        [
+          -1,
+          -1,
+          -1,
+          -1
+        ],
+        [
+          -1,
+          -1,
+          -1,
+          -1
+        ],
+        [
+          -1,
+          -1,
+          -1,
+          -1
+        ],
+        [
+          0,
+          -1,
+          -1,
+          -1
+        ]
+      ],
+      "four_state": "levelExpansion"
+    },
+    {
+      "name": "W6_CORE_TANGENT",
+      "row_next_col_prev": [
+        "DD",
+        "ZD",
+        "ZG",
+        "GG"
+      ],
+      "matrix": [
+        [
+          1,
+          1,
+          -1,
+          -1
+        ],
+        [
+          1,
+          1,
+          0,
+          -1
+        ],
+        [
+          1,
+          1,
+          1,
+          -1
+        ],
+        [
+          1,
+          1,
+          1,
+          1
+        ]
+      ],
+      "four_state": "coreOverlap"
+    },
+    {
+      "name": "W6_REVERSE_TANGENT",
+      "row_next_col_prev": [
+        "DD",
+        "ZD",
+        "ZG",
+        "GG"
+      ],
+      "matrix": [
+        [
+          -1,
+          -1,
+          -1,
+          -1
+        ],
+        [
+          -1,
+          -1,
+          -1,
+          -1
+        ],
+        [
+          1,
+          0,
+          -1,
+          -1
+        ],
+        [
+          1,
+          1,
+          1,
+          -1
+        ]
+      ],
+      "four_state": "coreOverlap"
+    },
+    {
+      "name": "W11_CORE_OVERLAP",
+      "row_next_col_prev": [
+        "DD",
+        "ZD",
+        "ZG",
+        "GG"
+      ],
+      "matrix": [
+        [
+          1,
+          1,
+          -1,
+          -1
+        ],
+        [
+          1,
+          1,
+          -1,
+          -1
+        ],
+        [
+          1,
+          1,
+          1,
+          -1
+        ],
+        [
+          1,
+          1,
+          1,
+          1
+        ]
+      ],
+      "four_state": "coreOverlap"
+    }
+  ]
+}

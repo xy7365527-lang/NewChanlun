@@ -1,0 +1,233 @@
+[
+  {
+    "argv": [
+      "git",
+      "apply",
+      "--check",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/formal__Formal__DivergenceNesting.lean.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/formal__Formal__DivergenceNesting.lean.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "--check",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/formal__Formal__RecursiveConstruction.lean.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/formal__Formal__RecursiveConstruction.lean.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "--check",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/formal__Origin__CenterConstruct.lean.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/formal__Origin__CenterConstruct.lean.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "--check",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/formal__Origin__CenterConstruction.lean.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/formal__Origin__CenterConstruction.lean.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "--check",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/formal__Origin__CenterPairFixtureExport.lean.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/formal__Origin__CenterPairFixtureExport.lean.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "--check",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/formal__Origin__CenterStates.lean.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/formal__Origin__CenterStates.lean.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "--check",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/formal__Origin__PromQual.lean.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/formal__Origin__PromQual.lean.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "--check",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/formal__Origin__ScanAssemblyMirror.lean.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/formal__Origin__ScanAssemblyMirror.lean.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "--check",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/formal__Origin__SegmentFeatureSeq.lean.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/formal__Origin__SegmentFeatureSeq.lean.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "--check",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/formal__Origin__UnifiedScanMirrorBridge.lean.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/formal__Origin__UnifiedScanMirrorBridge.lean.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "--check",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/formal__Phase2__Claim10_SegmentV1.lean.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/formal__Phase2__Claim10_SegmentV1.lean.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  }
+]

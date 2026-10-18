@@ -17,7 +17,7 @@ Origin/SegmentFeatureSeq.lean — 线段/笔的特征序列法（task #113，缠
   · 第二种情况：第一、二元素间**有缺口**，须从分型极值起的反向序列出现对偶分型才确认（067:37-38）。
 - 第71课（特征序列包含关系严格性）：
   · "特征序列的元素要探讨包含关系，首先必须是同一特征序列的元素。"（071:28）
-  · 分界点两侧两元素**不存在**包含关系（071:40）。
+  · 分界点两侧两元素**不存在**包含关系（071:42）。
 - 第78课（古怪线段 + 顶高于底）：
   · "以向上笔开始的线段一定结束于向上笔……一个线段，不可能是从底到底或从顶到顶。"（078:18）
   · "顶肯定要高于底，如果你划出一个不符合这基本要求的线段，那肯定是划错了。"（078:20）
@@ -262,7 +262,7 @@ def IsStandardized : List FeatureElem → Prop
   | a :: b :: rest => ¬ Contains a b ∧ ¬ Contains b a ∧ IsStandardized (b :: rest)
 
 /--
-  **★第71课分界点禁包含（071:40）** —— 假设转折点前后两元素**不存在**包含关系。
+  **★第71课分界点禁包含（071:42）** —— 假设转折点前后两元素**不存在**包含关系。
 
   形式化：分界点前元素 `pre` 与分界点后第一元素 `post`（不同特征序列）互不包含。
   ★这正是 §3 `Contains` 不混入"同一特征序列"前提的原因——跨序列包含被此处显式禁止。
@@ -272,7 +272,7 @@ def BoundaryNoInclusion (pre post : FeatureElem) : Prop :=
 
 /--
   **★分界点禁包含反退化见证（L0，非平凡）**：若 `pre=[0,10]` 含 `post=[2,8]`，则违反禁包含。
-  这证明 `BoundaryNoInclusion` 真能否决（与平凡真对比）——第71:40 的力度呈现约束有内容。
+  这证明 `BoundaryNoInclusion` 真能否决（与平凡真对比）——第71:42 的力度呈现约束有内容。
 -/
 theorem boundaryNoInclusion_rejects_contained :
     ¬ BoundaryNoInclusion ⟨0, 10, by decide⟩ ⟨2, 8, by decide⟩ := by
@@ -351,6 +351,330 @@ theorem segment_two_cases_exhaustive (e1 e2 : FeatureElem) (revSeq : List Featur
   by_cases h : HasGap e1 e2
   · exact Or.inr ⟨h, segmentEndUp_caseTwo e1 e2 revSeq h⟩
   · exact Or.inl ⟨h, segmentEndUp_caseOne e1 e2 revSeq h⟩
+
+/-! ═══════════════════════════════════════════════════════════════
+    § 6.1 第一种情况：先破判据与转折点窗三态（#1490 X-31，#1495）
+    ═══════════════════════════════════════════════════════════════
+
+    口径来源：`.chanlun/definitions/xianduan.md` §7.1 第 1／3／4 条与 §15 X-31；
+    #1490 裁定 Q2-c（先破判据与严格分型谓词的等价性推导）。
+    原文锚：`docs/chanlun/text/blog/071-第71课.md` :30／:32／:38／:40／:42【正文】
+    （第一种情况的确认方式；转折点前后两元素之间不作包含处理）。
+
+    · 第一种情况确认＝先破判据：候选转折点 b 之后按序只看同向特征序列元素；
+      向上段里先出现低点跌破 b.low 的元素即确认，先出现高点超过 b.high 的元素
+      即候选被新极值杀掉，被 b 包含的元素跳过，前缀结束仍未分出则窗开放。
+      向下段镜像。
+    · 转折点窗三态：CONFIRMED／KILLED_BY_NEW_EXTREME／OPEN_AT_PREFIX_END，
+      对应 `TurnWindowState.confirmed／killedByNewExtreme／openAtPrefixEnd`。
+    · 等价引理：c 取窗中首个未被跳过的元素（故 b 不包含 c），且无并列输入
+      （c 与 b 的相关端点价不等）时，先破判据与第 67 课严格分型谓词
+      `IsTopFractal`／`IsBottomFractal` 等价；并列情形（c 与 b 同高／同低）
+      由先破判据给出裁决，不要求与严格谓词等价。
+    · #799：本节第一种情况只按先破判据确认；严格谓词保持原样，用于本节等价锁，
+      不作为确认失败后的备用判据。既有 SegmentEndUp/Down 与历史消费者未迁移，
+      本节不声称全 Lean 构造链已接入这一新定义（#1495 的范围是定义与引理）。
+
+    #1419 同树边界 D_FIRST_RUNTIME_BINDING：固定 545e 的 CONSTRUCTION_RULE 虽为
+    segment-second/2，feature_seq.rs::append 仍先 push 试探分型、失败后包含合并，
+    scan_trigger 仍取 is_fractal_and_gap 的严格分型；没有本节转折点窗的状态载体。
+    因此本节落实已裁 #1490 定义，不冒充当前 Rust 第一种情况的行为等价证明。
+    还缺冻结 a/b、窗成员身份、首次出窗与旧段延续到正式段端的桥；不是第二终结的 K1。
+-/
+
+/-- **第一种情况确认＝先破判据·向上段（xianduan.md §7.1 第 1 条，#1490 X-31）**
+
+转折点 `b` 是向上段特征序列的最高元素：`a.high < b.high`，其后元素 `c` 未创新高
+（`c.high ≤ b.high`，并列不算创新高），且先跌破 `b.low`（`c.low < b.low`）。 -/
+def FirstBreakConfirmsUp (a b c : FeatureElem) : Prop :=
+  a.high < b.high ∧ c.high ≤ b.high ∧ c.low < b.low
+
+/-- **第一种情况确认＝先破判据·向下段（对偶）** -/
+def FirstBreakConfirmsDown (a b c : FeatureElem) : Prop :=
+  b.low < a.low ∧ b.low ≤ c.low ∧ b.high < c.high
+
+instance (a b c : FeatureElem) : Decidable (FirstBreakConfirmsUp a b c) := by
+  unfold FirstBreakConfirmsUp; infer_instance
+
+instance (a b c : FeatureElem) : Decidable (FirstBreakConfirmsDown a b c) := by
+  unfold FirstBreakConfirmsDown; infer_instance
+
+/-- **转折点窗三态（xianduan.md §7.1 第 3／4 条，#1490 X-31）**
+
+* `confirmed`：转折点之后先破对侧端点，第一种情况确认；
+* `killedByNewExtreme`：先出现新极值，原转折点作废；
+* `openAtPrefixEnd`：走完当前前缀仍未裁出，窗口保持开放。 -/
+inductive TurnWindowState
+  | confirmed
+  | killedByNewExtreme
+  | openAtPrefixEnd
+  deriving DecidableEq, Repr
+
+/-- 向上段转折点 `b` 之后的窗：先破新高 ⟹ killed；先破 `b.low` ⟹ confirmed；
+被 `b` 包含的元素跳过；走完前缀 ⟹ open。
+输入按时间排列、与 b 同向（向下笔），不把窗成员合并进 b。若某笔同时越过两端，
+其起点 high 在终点 low 之前到达，故先判 killed；笔方向前提沿用 §1 的调用方约束。 -/
+def turnWindowStateUp (b : FeatureElem) : List FeatureElem → TurnWindowState
+  | [] => .openAtPrefixEnd
+  | x :: rest =>
+    if b.high < x.high then .killedByNewExtreme
+    else if x.low < b.low then .confirmed
+    else turnWindowStateUp b rest
+
+/-- 向下段转折点窗（对偶）：先破新低 ⟹ killed；先破 `b.high` ⟹ confirmed。 -/
+def turnWindowStateDown (b : FeatureElem) : List FeatureElem → TurnWindowState
+  | [] => .openAtPrefixEnd
+  | x :: rest =>
+    if x.low < b.low then .killedByNewExtreme
+    else if b.high < x.high then .confirmed
+    else turnWindowStateDown b rest
+
+theorem firstBreakUp_iff_topFractal (a b c : FeatureElem)
+    (hnc : ¬ Contains b c) (hne : c.high ≠ b.high) :
+    FirstBreakConfirmsUp a b c ↔ IsTopFractal a b c := by
+  unfold FirstBreakConfirmsUp IsTopFractal
+  unfold Contains at hnc
+  constructor
+  · intro ⟨h1, h2, _⟩
+    exact ⟨h1, by (try simp only [Tick] at *); omega⟩
+  · intro ⟨h1, h2⟩
+    have h3 : ¬ (b.low ≤ c.low) := fun hle => hnc ⟨hle, by (try simp only [Tick] at *); omega⟩
+    exact ⟨h1, by (try simp only [Tick] at *); omega, by (try simp only [Tick] at *); omega⟩
+
+theorem firstBreakDown_iff_bottomFractal (a b c : FeatureElem)
+    (hnc : ¬ Contains b c) (hne : c.low ≠ b.low) :
+    FirstBreakConfirmsDown a b c ↔ IsBottomFractal a b c := by
+  unfold FirstBreakConfirmsDown IsBottomFractal
+  unfold Contains at hnc
+  constructor
+  · intro ⟨h1, h2, _⟩
+    exact ⟨h1, by (try simp only [Tick] at *); omega⟩
+  · intro ⟨h1, h2⟩
+    have h3 : ¬ (c.high ≤ b.high) := fun hle => hnc ⟨by (try simp only [Tick] at *); omega, hle⟩
+    exact ⟨h1, by (try simp only [Tick] at *); omega, by (try simp only [Tick] at *); omega⟩
+
+theorem firstBreakUp_tie_confirms (a b c : FeatureElem)
+    (h1 : a.high < b.high) (h2 : c.high = b.high) (h3 : c.low < b.low) :
+    FirstBreakConfirmsUp a b c ∧ ¬ IsTopFractal a b c := by
+  unfold FirstBreakConfirmsUp IsTopFractal
+  exact ⟨⟨h1, by (try simp only [Tick] at *); omega, h3⟩, fun ⟨_, h⟩ => by (try simp only [Tick] at *); omega⟩
+
+theorem firstBreakDown_tie_confirms (a b c : FeatureElem)
+    (h1 : b.low < a.low) (h2 : c.low = b.low) (h3 : b.high < c.high) :
+    FirstBreakConfirmsDown a b c ∧ ¬ IsBottomFractal a b c := by
+  unfold FirstBreakConfirmsDown IsBottomFractal
+  exact ⟨⟨h1, by (try simp only [Tick] at *); omega, h3⟩, fun ⟨_, h⟩ => by (try simp only [Tick] at *); omega⟩
+
+theorem turnWindowStateUp_contained_skip (b x : FeatureElem) (rest : List FeatureElem)
+    (h : Contains b x) :
+    turnWindowStateUp b (x :: rest) = turnWindowStateUp b rest := by
+  unfold Contains at h
+  have h1 : ¬ b.high < x.high := by (try simp only [Tick] at *); omega
+  have h2 : ¬ x.low < b.low := by (try simp only [Tick] at *); omega
+  simp only [turnWindowStateUp, if_neg h1, if_neg h2]
+
+theorem turnWindowStateDown_contained_skip (b x : FeatureElem) (rest : List FeatureElem)
+    (h : Contains b x) :
+    turnWindowStateDown b (x :: rest) = turnWindowStateDown b rest := by
+  unfold Contains at h
+  have h1 : ¬ x.low < b.low := by (try simp only [Tick] at *); omega
+  have h2 : ¬ b.high < x.high := by (try simp only [Tick] at *); omega
+  simp only [turnWindowStateDown, if_neg h1, if_neg h2]
+
+theorem turnWindowStateUp_singleton_confirmed (b c : FeatureElem) :
+    turnWindowStateUp b [c] = .confirmed ↔ c.high ≤ b.high ∧ c.low < b.low := by
+  by_cases h1 : b.high < c.high <;> by_cases h2 : c.low < b.low <;>
+    simp [turnWindowStateUp, h1, h2] <;> (try simp only [Tick] at *) <;> omega
+
+theorem turnWindowStateDown_singleton_confirmed (b c : FeatureElem) :
+    turnWindowStateDown b [c] = .confirmed ↔ b.low ≤ c.low ∧ b.high < c.high := by
+  by_cases h1 : c.low < b.low <;> by_cases h2 : b.high < c.high <;>
+    simp [turnWindowStateDown, h1, h2] <;> (try simp only [Tick] at *) <;> omega
+
+theorem turnWindowStateUp_singleton_iff_firstBreak (a b c : FeatureElem)
+    (hab : a.high < b.high) :
+    turnWindowStateUp b [c] = .confirmed ↔ FirstBreakConfirmsUp a b c := by
+  rw [turnWindowStateUp_singleton_confirmed]
+  unfold FirstBreakConfirmsUp
+  exact ⟨fun h => ⟨hab, h⟩, fun h => h.2⟩
+
+theorem turnWindowStateDown_singleton_iff_firstBreak (a b c : FeatureElem)
+    (hab : b.low < a.low) :
+    turnWindowStateDown b [c] = .confirmed ↔ FirstBreakConfirmsDown a b c := by
+  rw [turnWindowStateDown_singleton_confirmed]
+  unfold FirstBreakConfirmsDown
+  exact ⟨fun h => ⟨hab, h⟩, fun h => h.2⟩
+
+theorem turnWindowStateUp_append_of_ne_open (b : FeatureElem) (xs ys : List FeatureElem)
+    (h : turnWindowStateUp b xs ≠ .openAtPrefixEnd) :
+    turnWindowStateUp b (xs ++ ys) = turnWindowStateUp b xs := by
+  induction xs with
+  | nil => exact (h rfl).elim
+  | cons x rest ih =>
+    simp only [List.cons_append, turnWindowStateUp] at h ⊢
+    by_cases h1 : b.high < x.high
+    · simp [h1]
+    · by_cases h2 : x.low < b.low
+      · simp [h1, h2]
+      · simp only [if_neg h1, if_neg h2] at h ⊢
+        exact ih h
+
+theorem turnWindowStateDown_append_of_ne_open (b : FeatureElem) (xs ys : List FeatureElem)
+    (h : turnWindowStateDown b xs ≠ .openAtPrefixEnd) :
+    turnWindowStateDown b (xs ++ ys) = turnWindowStateDown b xs := by
+  induction xs with
+  | nil => exact (h rfl).elim
+  | cons x rest ih =>
+    simp only [List.cons_append, turnWindowStateDown] at h ⊢
+    by_cases h1 : x.low < b.low
+    · simp [h1]
+    · by_cases h2 : b.high < x.high
+      · simp [h1, h2]
+      · simp only [if_neg h1, if_neg h2] at h ⊢
+        exact ih h
+
+theorem turnWindowState_exhaustive (s : TurnWindowState) :
+    s = .confirmed ∨ s = .killedByNewExtreme ∨ s = .openAtPrefixEnd := by
+  cases s <;> simp
+
+/-- #1419：第一种情况同一特征笔越过两端时，新极值优先（向上旧段的特征笔向下）。 -/
+theorem turnWindowStateUp_both_breached (b c : FeatureElem) (rest : List FeatureElem)
+    (hh : b.high < c.high) (_hl : c.low < b.low) :
+    turnWindowStateUp b (c :: rest) = .killedByNewExtreme := by
+  simp [turnWindowStateUp, hh]
+
+/-- 向下旧段的特征笔向上；同笔先到 low 一侧的新极值，亦作废。 -/
+theorem turnWindowStateDown_both_breached (b c : FeatureElem) (rest : List FeatureElem)
+    (hl : c.low < b.low) (_hh : b.high < c.high) :
+    turnWindowStateDown b (c :: rest) = .killedByNewExtreme := by
+  simp [turnWindowStateDown, hl]
+
+example : turnWindowStateUp ⟨0, 10, by decide⟩ [⟨2, 8, by decide⟩] = .openAtPrefixEnd := by
+  decide
+
+example : turnWindowStateUp ⟨0, 10, by decide⟩ [⟨-2, 10, by decide⟩] = .confirmed := by
+  decide
+
+example : turnWindowStateUp ⟨0, 10, by decide⟩ [⟨5, 12, by decide⟩] = .killedByNewExtreme := by
+  decide
+
+example : turnWindowStateDown ⟨0, 10, by decide⟩ [⟨0, 12, by decide⟩] = .confirmed := by
+  decide
+
+/-- 首个出窗元素。此前元素全是窗成员；其区间不并入 b（#1490 §7.1 第 3 条）。
+这给等价引理的 `¬ Contains b c` 提供可达域来源，而不是另设过滤条件。 -/
+def firstOutsideWindow (b : FeatureElem) : List FeatureElem → Option FeatureElem
+  | [] => none
+  | x :: rest => if Contains b x then firstOutsideWindow b rest else some x
+
+theorem firstOutsideWindow_not_contains (b c : FeatureElem) (xs : List FeatureElem)
+    (h : firstOutsideWindow b xs = some c) : ¬ Contains b c := by
+  induction xs with
+  | nil => simp [firstOutsideWindow] at h
+  | cons x rest ih =>
+    by_cases hx : Contains b x
+    · exact ih (by simpa [firstOutsideWindow, hx] using h)
+    · have hc : x = c := by simpa [firstOutsideWindow, hx] using h
+      exact hc ▸ hx
+
+theorem turnWindowStateUp_firstOutside (b c : FeatureElem) (xs : List FeatureElem)
+    (h : firstOutsideWindow b xs = some c) :
+    turnWindowStateUp b xs = turnWindowStateUp b [c] := by
+  induction xs with
+  | nil => simp [firstOutsideWindow] at h
+  | cons x rest ih =>
+    by_cases hx : Contains b x
+    · rw [turnWindowStateUp_contained_skip b x rest hx]
+      exact ih (by simpa [firstOutsideWindow, hx] using h)
+    · have hc : x = c := by simpa [firstOutsideWindow, hx] using h
+      subst c
+      have hout : b.high < x.high ∨ x.low < b.low := by
+        simp only [Contains, Tick] at hx ⊢
+        omega
+      rcases hout with hh | hl
+      · simp [turnWindowStateUp, hh]
+      · simp [turnWindowStateUp, hl]
+
+theorem turnWindowStateDown_firstOutside (b c : FeatureElem) (xs : List FeatureElem)
+    (h : firstOutsideWindow b xs = some c) :
+    turnWindowStateDown b xs = turnWindowStateDown b [c] := by
+  induction xs with
+  | nil => simp [firstOutsideWindow] at h
+  | cons x rest ih =>
+    by_cases hx : Contains b x
+    · rw [turnWindowStateDown_contained_skip b x rest hx]
+      exact ih (by simpa [firstOutsideWindow, hx] using h)
+    · have hc : x = c := by simpa [firstOutsideWindow, hx] using h
+      subst c
+      have hout : x.low < b.low ∨ b.high < x.high := by
+        simp only [Contains, Tick] at hx ⊢
+        omega
+      rcases hout with hl | hh
+      · simp [turnWindowStateDown, hl]
+      · simp [turnWindowStateDown, hh]
+
+/-- OPEN 正好是前缀内每个元素都在 b 范围内；相等不构成破（071:32）。 -/
+theorem turnWindowStateUp_open_iff (b : FeatureElem) (xs : List FeatureElem) :
+    turnWindowStateUp b xs = .openAtPrefixEnd ↔ ∀ x ∈ xs, Contains b x := by
+  induction xs with
+  | nil => simp [turnWindowStateUp]
+  | cons x rest ih =>
+    by_cases hh : b.high < x.high <;> by_cases hl : x.low < b.low <;>
+      simp [turnWindowStateUp, hh, hl, Contains, Tick, ih] <;>
+      simp only [Tick] at * <;> omega
+
+theorem turnWindowStateDown_open_iff (b : FeatureElem) (xs : List FeatureElem) :
+    turnWindowStateDown b xs = .openAtPrefixEnd ↔ ∀ x ∈ xs, Contains b x := by
+  induction xs with
+  | nil => simp [turnWindowStateDown]
+  | cons x rest ih =>
+    by_cases hl : x.low < b.low <;> by_cases hh : b.high < x.high <;>
+      simp [turnWindowStateDown, hh, hl, Contains, Tick, ih] <;>
+      simp only [Tick] at * <;> omega
+
+/-- 第一种情况的完整前缀确认定义：a、b 无缺口，b 是候选峰，窗内先破确认。
+三元素 FirstBreakConfirmsUp 只表达局部几何；这里显式带入缺口与时间先后。 -/
+def FirstKindConfirmsUp (a b : FeatureElem) (xs : List FeatureElem) : Prop :=
+  ¬ HasGap a b ∧ a.high < b.high ∧ turnWindowStateUp b xs = .confirmed
+
+/-- 第一种情况完整前缀确认的向下对偶。 -/
+def FirstKindConfirmsDown (a b : FeatureElem) (xs : List FeatureElem) : Prop :=
+  ¬ HasGap a b ∧ b.low < a.low ∧ turnWindowStateDown b xs = .confirmed
+
+/-- 在真实首个出窗元素上，无并列时先破确认等价于 067 严格顶分型。
+`¬ Contains` 由首个出窗的定义证明；缺口条件在两边完全相同。 -/
+theorem firstKindUp_iff_topFractal (a b c : FeatureElem) (xs : List FeatureElem)
+    (hfirst : firstOutsideWindow b xs = some c) (hne : c.high ≠ b.high) :
+    FirstKindConfirmsUp a b xs ↔ ¬ HasGap a b ∧ IsTopFractal a b c := by
+  unfold FirstKindConfirmsUp
+  rw [turnWindowStateUp_firstOutside b c xs hfirst,
+    turnWindowStateUp_singleton_confirmed]
+  change (¬ HasGap a b ∧ FirstBreakConfirmsUp a b c) ↔ _
+  rw [firstBreakUp_iff_topFractal a b c (firstOutsideWindow_not_contains b c xs hfirst) hne]
+
+theorem firstKindDown_iff_bottomFractal (a b c : FeatureElem) (xs : List FeatureElem)
+    (hfirst : firstOutsideWindow b xs = some c) (hne : c.low ≠ b.low) :
+    FirstKindConfirmsDown a b xs ↔ ¬ HasGap a b ∧ IsBottomFractal a b c := by
+  unfold FirstKindConfirmsDown
+  rw [turnWindowStateDown_firstOutside b c xs hfirst,
+    turnWindowStateDown_singleton_confirmed]
+  change (¬ HasGap a b ∧ FirstBreakConfirmsDown a b c) ↔ _
+  rw [firstBreakDown_iff_bottomFractal a b c
+    (firstOutsideWindow_not_contains b c xs hfirst) hne]
+
+/-- 窗成员若被当作 c，严格分型可以成立而先破尚未确认；说明可达域不可省略。 -/
+example : IsTopFractal ⟨0, 8, by decide⟩ ⟨2, 10, by decide⟩ ⟨3, 9, by decide⟩ ∧
+    turnWindowStateUp ⟨2, 10, by decide⟩ [⟨3, 9, by decide⟩] = .openAtPrefixEnd := by
+  constructor
+  · unfold IsTopFractal; decide
+  · decide
+
+/-- 确认与作废都取首次出窗；相同元素集合的相反时间顺序给出不同终态。 -/
+example : turnWindowStateUp ⟨0, 10, by decide⟩
+    [⟨2, 12, by decide⟩, ⟨-2, 8, by decide⟩] = .killedByNewExtreme ∧
+    turnWindowStateUp ⟨0, 10, by decide⟩
+    [⟨-2, 8, by decide⟩, ⟨2, 12, by decide⟩] = .confirmed := by
+  decide
 
 /-! ═══════════════════════════════════════════════════════════════════════
     § 7. 新笔定义（第81课《忽闻台风可休市》）

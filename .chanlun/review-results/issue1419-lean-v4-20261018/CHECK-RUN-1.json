@@ -1,0 +1,9 @@
+{
+  "argv": [
+    "python3",
+    ".chanlun/review-results/issue1419-lean-v4-20261018/CHECKS.py"
+  ],
+  "exit_code": 0,
+  "stdout": "SOURCE: 11 项基线/donor/patch 字节核验通过；写集、空白与新增证明逃逸关键字检查通过。\nC_MODEL: 1625 个有限树匹配递归极值/缓存归约/级别平移；非 Zn 末成员及空子树边界通过。\nD_MODEL: 3375 组三元素×双方向，首出窗/并列域/终态追加保持通过；旧严格判据有 2 个具名分离例。\nE_MODEL: 4 组 donor 字面期待值匹配；冻结核心、Zn 极值、非 Zn 末成员及 C 续扫可分辨。旧 fixture 缺 4 案例/2 元数据（已登记）。\nF_MODEL: 4900 个有序域中心对五叶恰一/四态公式一致；8 例输入、标签、三态投影与既有 JSON 逐字段相同。\n边界：Lean 类型检查/求值/fixture 漂移 gate、Rust 与产品运行、独审全部 NOT_RUN。\n",
+  "stderr": ""
+}

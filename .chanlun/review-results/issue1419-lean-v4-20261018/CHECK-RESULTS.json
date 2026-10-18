@@ -1,0 +1,13 @@
+{
+  "static_and_finite_models": "PASS",
+  "counts": {
+    "C_trees": 1625,
+    "D_triples": 3375,
+    "F_ordered_pairs": 4900
+  },
+  "lean_typecheck": "NOT_RUN",
+  "lean_export": "NOT_RUN",
+  "fixture_drift_gate": "NOT_RUN",
+  "rust_product_execution": "NOT_RUN",
+  "independent_review": "NOT_RUN"
+}

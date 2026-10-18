@@ -1,0 +1,28 @@
+{
+  "classification": "#1419 工作草稿；未提交的 Lean 候选与静查证据",
+  "base": "545e9f75faec49be39de7799e0aaf3f6c8276de9",
+  "donor": "634f62cddfaddf656a35ca9b9db20cb716b62bff",
+  "branch": "codex/1419-lean-v4-20261018",
+  "formal_files": [
+    "formal/Formal/DivergenceNesting.lean",
+    "formal/Formal/RecursiveConstruction.lean",
+    "formal/Origin/CenterConstruct.lean",
+    "formal/Origin/CenterConstruction.lean",
+    "formal/Origin/CenterPairFixtureExport.lean",
+    "formal/Origin/CenterStates.lean",
+    "formal/Origin/PromQual.lean",
+    "formal/Origin/ScanAssemblyMirror.lean",
+    "formal/Origin/SegmentFeatureSeq.lean",
+    "formal/Origin/UnifiedScanMirrorBridge.lean",
+    "formal/Phase2/Claim10_SegmentV1.lean"
+  ],
+  "patches": {
+    "DELTA.patch": "9229b8b6901e864a0ab9161139ece4f6377fbcde4f19555fbe7bc28fa1bc0474",
+    "ADAPTATIONS.patch": "221c5a036216f9fa8eb8d785e5e0bfd956bd8a3dc5a3120036ff621c49e41f99"
+  },
+  "model_run": "CHECK-RUN-1.json",
+  "final_edit": "模型核验后只订正说明注释，封包更新文件哈希；不重复模型",
+  "lean_rust_fixture_runtime": "NOT_RUN",
+  "review": "NOT_RUN",
+  "hash_rule": "SHA256SUMS 覆盖全部 11 项 formal 及本目录全部其他文件，自身除外；路径相对 checkout 根。"
+}

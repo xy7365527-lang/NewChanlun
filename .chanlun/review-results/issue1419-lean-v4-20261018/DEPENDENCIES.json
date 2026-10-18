@@ -1,0 +1,99 @@
+{
+  "method": "全 formal 文本 import 闭包，不执行编译器",
+  "scanned_modules": 153,
+  "direct": {
+    "Formal.DivergenceNesting": [
+      "Formal.TrendTrichotomy",
+      "Formal.RecursiveConstruction"
+    ],
+    "Formal.RecursiveConstruction": [
+      "Formal.TrendTrichotomy",
+      "Formal.CenterTrichotomy"
+    ],
+    "Origin.CenterConstruct": [
+      "Origin.ChanlunElements",
+      "Origin.CenterStates",
+      "Origin.CenterFull",
+      "Origin.CenterConstruction",
+      "Lean.Data.Json"
+    ],
+    "Origin.CenterConstruction": [
+      "Origin.ChanlunElements",
+      "Origin.CenterStates",
+      "Origin.CenterFull"
+    ],
+    "Origin.CenterPairFixtureExport": [
+      "Origin.CenterStates",
+      "Lean.Data.Json"
+    ],
+    "Origin.CenterStates": [
+      "Origin.ChanlunElements"
+    ],
+    "Origin.PromQual": [
+      "Formal.RecursiveConstruction"
+    ],
+    "Origin.ScanAssemblyMirror": [],
+    "Origin.SegmentFeatureSeq": [
+      "Origin.ChanlunElements"
+    ],
+    "Origin.UnifiedScanMirrorBridge": [],
+    "Phase2.Claim10_SegmentV1": []
+  },
+  "reverse_closure": [
+    "Formal",
+    "Formal.DivergenceNesting",
+    "Formal.EvalSoundness",
+    "Formal.RStarNonSpecial",
+    "Formal.RecursiveConstruction",
+    "Foundation.ChanlunInstantiation",
+    "Origin.BspClassification",
+    "Origin.BspConstruction",
+    "Origin.BspEventBridge",
+    "Origin.BuySellPredicate",
+    "Origin.CenterAutoAssign",
+    "Origin.CenterComplete",
+    "Origin.CenterConstruct",
+    "Origin.CenterConstruction",
+    "Origin.CenterFull",
+    "Origin.CenterPairFixtureExport",
+    "Origin.CenterStates",
+    "Origin.ConcreteBehaviorQuotient",
+    "Origin.LiftContext",
+    "Origin.MainTheorem",
+    "Origin.ParityFixtureExport",
+    "Origin.Pipeline",
+    "Origin.PromQual",
+    "Origin.RMoveCompose",
+    "Origin.RecursiveLevelSystem",
+    "Origin.ScanAssemblyBridge",
+    "Origin.ScanAssemblyMirror",
+    "Origin.ScanAssemblyNegative",
+    "Origin.SecondSellClosedLoop",
+    "Origin.SegmentAutoConstruct",
+    "Origin.SegmentConstruction",
+    "Origin.SegmentFeatureComplete",
+    "Origin.SegmentFeatureSeq",
+    "Origin.SellClosedLoop",
+    "Origin.SellPointRecog",
+    "Origin.SubLevelDescent",
+    "Origin.SubVoiceOpenClose",
+    "Origin.ThetaInstantiation",
+    "Origin.TrendSixState",
+    "Origin.UnifiedScanMirrorBridge",
+    "Origin.UnifiedScanMirrorRunner",
+    "Origin.VoiceCoverTheorem",
+    "Origin.VoiceThreeLevel",
+    "Origin.WellFoundedRank",
+    "Phase2.Claim10_SegmentV1",
+    "Strict.CThetaWiring",
+    "Strict.Decomp",
+    "Strict.Recursive",
+    "Strict.Trend",
+    "Tlayers.Operational",
+    "Tlayers.Payoff",
+    "Tlayers.Spiral"
+  ],
+  "local_lean_source": "/Users/silencehan/.elan/toolchains/leanprover--lean4---v4.31.0/src/lean",
+  "mathlib_present": false,
+  "typecheck": "NOT_RUN"
+}

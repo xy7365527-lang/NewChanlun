@@ -1,0 +1,140 @@
+{
+  "xerj": {
+    "status": 200,
+    "query": {
+      "query": {
+        "query_string": {
+          "query": "listInterval OR PairLeaf OR SecondKindTerminal OR FirstBreakConfirmsUp"
+        }
+      },
+      "size": 4,
+      "_source": [
+        "path",
+        "name",
+        "code",
+        "impl"
+      ]
+    },
+    "total_hits": {
+      "value": 2,
+      "relation": "eq"
+    },
+    "indexes": [
+      "nc1419gate-docs",
+      "nc1419gate-docs"
+    ],
+    "lean_specific_result": false
+  },
+  "inputs": [
+    {
+      "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/issue1419-live.json",
+      "bytes": 24930,
+      "sha256": "b3ce84e3f3839082e99c3ef63d390818864cda42b90dedbdcaff39b8804a7f4a"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/SOURCE-V2-INDEPENDENT-REVIEW.json",
+      "bytes": 10783,
+      "sha256": "ff56f528a27be86ce52b0ef2e194df56f8828a86747a4a32ba496f852c3ee3fb"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/README.md",
+      "bytes": 2596,
+      "sha256": "4504a26568ec2604f0b14fd718aabb97e256744d6b3bd3e62b6e7af7714ada75"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/INDEX.json",
+      "bytes": 13569,
+      "sha256": "e71b4056289fcf91b920ae9fe72060ba26b3c60eb4d76b39c3320fc3c13e8c45"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/lean-same-source-preparation/XERJ-REFERENCE-ATTEMPT.json",
+      "bytes": 19664,
+      "sha256": "39ac6dd99a589973ec0bb1489426b9f0aa638300c8b9a04a708e0622353c6a1a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1419-source-fix-v3-20261018/REPORT.md",
+      "bytes": 7498,
+      "sha256": "2d07002a16b54b8ca78391b630f42cff1c934f4c9de53b5f8ce8445d13f16c7d"
+    },
+    {
+      "path": ".chanlun/definitions/xianduan.md",
+      "bytes": 55730,
+      "sha256": "bb571365125251918dc89dc19fd5b3cbea788221e6ef93957cc3a918cf810143"
+    },
+    {
+      "path": ".chanlun/definitions/zhongshu.md",
+      "bytes": 66205,
+      "sha256": "4e9cdbc8c43b850f9a56b201dd89b12f45e27cc88876e35f255d36adaf306d66"
+    },
+    {
+      "path": "formal/lean-toolchain",
+      "bytes": 25,
+      "sha256": "efac0b94923b2d8b6840cd35be9177ad0fc5ab2332f4f4311c98712cee92fdee"
+    },
+    {
+      "path": "formal/lakefile.toml",
+      "bytes": 12464,
+      "sha256": "1482bb790f13ab896c9fb579fff78eb91440cfb6ae49bc72ac9657782aae5eca"
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/descend.rs",
+      "bytes": 18336,
+      "sha256": "c35ccfc3ceb5409deb6e642b33d131c7179423c5fff64110af741d81d5753a92"
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/recursive_tower.rs",
+      "bytes": 161403,
+      "sha256": "18c19bc3f31c22bc888707a0f16d82c2624e9697b8c3c8e712e449567ac50147"
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/center.rs",
+      "bytes": 88102,
+      "sha256": "2f652087589eb565239a8afde1b249734990b074a2e2539420d15c15695ebec1"
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/ref_v1.rs",
+      "bytes": 13946,
+      "sha256": "437d920344dd25393a64f8eadc9906057fe8d0f88192a5f0e7a080c98d891deb"
+    },
+    {
+      "path": "rust/src/theta_v0/parser/segment.rs",
+      "bytes": 84335,
+      "sha256": "d0399baca9a87a3ef39a4f47f6aa94d48e450cde393879abf16f5516b970c9e7"
+    },
+    {
+      "path": "rust/src/theta_v0/parser/feature_seq.rs",
+      "bytes": 49355,
+      "sha256": "56a8e3d43abdbee7c79b627d70b6d222dfdb52cf5fbe7917fa8e91c5c3ec3aab"
+    },
+    {
+      "path": "rust/src/theta_v0/parser/second_fold.rs",
+      "bytes": 34207,
+      "sha256": "c711ed788e224b38258fd9fe2c6dfc9bb26f65b2db99d7100e5bb020da82cea2"
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/tests/center_pair_1424.rs",
+      "bytes": 15818,
+      "sha256": "5c9491f28193a7a72ce06df4ca60572fdc2c4de7758007a28be10ce2c0f9ca7e"
+    },
+    {
+      "path": "rust/tests/fixtures/center_pair_1424_lean.json",
+      "bytes": 1355,
+      "sha256": "0802c65c41a20a268b7d3e7bd7f94cc12def98fb5dbb357dbb518cd70d662c78"
+    },
+    {
+      "path": "rust/tests/fixtures/center_pair_1424_worked_examples.json",
+      "bytes": 50000,
+      "sha256": "3dcbb7b09cb7e7c5e539b3232ee222bcf23ba44ec87bb8cfcb5bffae8e41821c"
+    },
+    {
+      "path": "rust/tests/fixtures/theta_v0_center_parity.json",
+      "bytes": 717,
+      "sha256": "da7c73f78910759531d63e841ac38eea1c090d9218c66faf632a6fb2c493c5e6"
+    },
+    {
+      "path": "scripts/check_fixture_drift.py",
+      "bytes": 10194,
+      "sha256": "d676e1760bfc140b27cb06f0e48bbb49b00930a2d8b3627be260137314a0feed"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "scope": "局部几何函数有限模型，非 Rust 执行；显示不能声称 /2 已同拍",
+  "cases": [
+    {
+      "a": [
+        0,
+        8
+      ],
+      "b": [
+        2,
+        10
+      ],
+      "c": [
+        3,
+        9
+      ],
+      "old_strict_top": true,
+      "new_window": "open"
+    },
+    {
+      "a": [
+        0,
+        8
+      ],
+      "b": [
+        2,
+        10
+      ],
+      "c": [
+        1,
+        10
+      ],
+      "old_strict_top": false,
+      "new_window": "confirmed"
+    }
+  ]
+}

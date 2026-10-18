@@ -1,0 +1,245 @@
+{
+  "classification": "开放1419工作草稿，只读来源准备，不是实现或通过",
+  "current_source": "545e9f75faec49be39de7799e0aaf3f6c8276de9",
+  "current_formal_equals_base_5cb": true,
+  "donor_source": "634f62cddfaddf656a35ca9b9db20cb716b62bff",
+  "files": [
+    {
+      "path": "formal/Formal/DivergenceNesting.lean",
+      "current_base_bytes": 38624,
+      "current_base_sha256": "d69cf0c77154f38862b506aa268ae773ffa2f2cefd230dbaeb06d23841c19a77",
+      "donor_bytes": 40471,
+      "donor_sha256": "14c8a0adc9ba3e8331ba972b39d73a513b57b1611d047bb9a378aacfbdbf833b",
+      "patch_sha256": "8e30b1df073bccf58aa32855fa979e767bf63c0a8e0be09558a6ad70a32a2d7c",
+      "imports": [
+        "import Formal.TrendTrichotomy",
+        "import Formal.RecursiveConstruction"
+      ],
+      "changed_declarations": [
+        "+def positiveDownTail : OpenTail :="
+      ]
+    },
+    {
+      "path": "formal/Formal/RecursiveConstruction.lean",
+      "current_base_bytes": 41411,
+      "current_base_sha256": "142686bda93dd3ab77359eb93b4926cf5c7ef69d09f92bc18ad99467ec705a85",
+      "donor_bytes": 42177,
+      "donor_sha256": "a52d166af476cf75c51deea0eb83ad6838df9f0598ae33227c56bf90a37fc117",
+      "patch_sha256": "460e0b93d3ffe016f43ed0cd2821c667c8eb45e0f9ab53595edb0ebff4a3856f",
+      "imports": [
+        "import Formal.TrendTrichotomy",
+        "import Formal.CenterTrichotomy"
+      ],
+      "changed_declarations": [
+        "-def interval : Move → (Int × Int)",
+        "+  def interval : Move → (Int × Int)",
+        "+  def listInterval : List Move → (Int × Int)"
+      ]
+    },
+    {
+      "path": "formal/Origin/CenterConstruct.lean",
+      "current_base_bytes": 44509,
+      "current_base_sha256": "a3707aa3c6652018fe44a3b183833353b174831d1f2e139dbdeb59e7ecab40d4",
+      "donor_bytes": 52127,
+      "donor_sha256": "4eb89c332c707772345fb7f42ef72b1e1b5efb72beebc8e40d9cd913095dcd60",
+      "patch_sha256": "7459ea87b01647c705d06e544c65af5ff0a5bf1121734a193d4c804a98d8f2d6",
+      "imports": [
+        "import Origin.ChanlunElements",
+        "import Origin.CenterStates",
+        "import Origin.CenterFull",
+        "import Origin.CenterConstruction",
+        "import Lean.Data.Json"
+      ],
+      "changed_declarations": [
+        "-def segHL (s : Segment) : Tick × Tick := (segHigh s, segLow s)",
+        "+def segHL (s : Segment) : Tick × Tick × Direction := (segHigh s, segLow s, s.direction)",
+        "+def znAgg (zdir d : Direction) (gg dd h l : Tick) : Tick × Tick :=",
+        "-def extendWeak (comps : List (Tick × Tick)) (zd zg : Tick) :",
+        "+def extendWeak (comps : List (Tick × Tick × Direction)) (zd zg : Tick) (zdir : Direction) :",
+        "-def refStep (comps : List (Tick × Tick)) (n : Nat) (i : Nat) :",
+        "+def refStep (comps : List (Tick × Tick × Direction)) (n : Nat) (i : Nat) :",
+        "-def refLoop (comps : List (Tick × Tick)) (n : Nat) : Nat → Nat → List RefZhongshu",
+        "+def refLoop (comps : List (Tick × Tick × Direction)) (n : Nat) : Nat → Nat → List RefZhongshu",
+        "+def segsOfEndpointsFrom : Nat → List Tick → List Segment",
+        "+def segsOfEndpoints (ps : List Tick) : List Segment := segsOfEndpointsFrom 0 ps",
+        "+def e2UpEndpoints : List Tick := [10, 40, 20, 35, 30, 38, 21, 25, 5, 15, 2, 12, 4, 9]",
+        "+def e2DownEndpoints : List Tick := e2UpEndpoints.map (fun p => 45 - p)",
+        "+def e4Endpoints : List Tick := [10, 40, 20, 35, 5, 15, 2, 18, 15, 17, 1, 8]",
+        "+def dirExtSegs : List Segment :=",
+        "+structure RefSummary where",
+        "+def refSummary (zs : RefZhongshu) : RefSummary :=",
+        "+theorem witness_e2_up_zn_c_resume :",
+        "+theorem witness_e2_down_zn_c_resume :",
+        "+theorem witness_e4_tangent_seed_two_unit_connector :",
+        "+theorem witness_zn_direction_not_parity :"
+      ]
+    },
+    {
+      "path": "formal/Origin/CenterConstruction.lean",
+      "current_base_bytes": 21312,
+      "current_base_sha256": "478a00a239e77b6ac66554c8428efaff7f1af69f9edbf73f2f4250aaa895bc3c",
+      "donor_bytes": 23841,
+      "donor_sha256": "dec48ade24695869ea572a8a5d15941b9a37a179720008d578e497a2b3252c40",
+      "patch_sha256": "3b9098c15822bc03f26f80354850df5b25a79c8b68650aadfeaf822a9ac86852",
+      "imports": [
+        "import Origin.ChanlunElements",
+        "import Origin.CenterStates",
+        "import Origin.CenterFull"
+      ],
+      "changed_declarations": [
+        "-def computeGG (s1 s2 s3 : Segment) : Tick := tmax (tmax (segHigh s1) (segHigh s2)) (segHigh s3)",
+        "+def isZn (s first : Segment) : Bool := decide (s.direction = first.direction)",
+        "+def znMax (first : Segment) (acc : Tick) (s : Segment) : Tick :=",
+        "+def znMin (first : Segment) (acc : Tick) (s : Segment) : Tick :=",
+        "+theorem le_znMax (first : Segment) (acc : Tick) (s : Segment) : acc ≤ znMax first acc s := by",
+        "+theorem znMin_le (first : Segment) (acc : Tick) (s : Segment) : znMin first acc s ≤ acc := by",
+        "+def computeGG (s1 s2 s3 : Segment) : Tick := znMax s1 (znMax s1 (segHigh s1) s2) s3",
+        "-def computeDD (s1 s2 s3 : Segment) : Tick := tmin (tmin (segLow s1) (segLow s2)) (segLow s3)",
+        "+def computeDD (s1 s2 s3 : Segment) : Tick := znMin s1 (znMin s1 (segLow s1) s2) s3",
+        "+theorem segHigh_le_computeGG (s1 s2 s3 : Segment) : segHigh s1 ≤ computeGG s1 s2 s3 := by",
+        "+theorem computeDD_le_segLow (s1 s2 s3 : Segment) : computeDD s1 s2 s3 ≤ segLow s1 := by",
+        "+def dirSeg1 : Segment := { direction := Direction.up,   startIndex := 0, endIndex := 1, startPrice := 10, endPrice := 40 }",
+        "+def dirSeg2 : Segment := { direction := Direction.up,   startIndex := 1, endIndex := 2, startPrice := 20, endPrice := 50 }",
+        "+def dirSeg3 : Segment := { direction := Direction.down, startIndex := 2, endIndex := 3, startPrice := 30, endPrice := 0 }",
+        "+theorem witness_zn_direction_gg : computeGG dirSeg1 dirSeg2 dirSeg3 = 50 := by",
+        "+theorem witness_zn_direction_dd : computeDD dirSeg1 dirSeg2 dirSeg3 = 10 := by"
+      ]
+    },
+    {
+      "path": "formal/Origin/CenterPairFixtureExport.lean",
+      "base_present": false,
+      "base_sha256": null,
+      "donor_sha256": "b5ee7d61f44d14a7697edc7f8a3c4e93d70aee9ac45db7540aef6666d56d7372",
+      "donor_bytes": 3004,
+      "patch_sha256": "3689ea6e03aa4e2f962d367176223b324f3200ecb9622dffb2b3906e4d548def",
+      "imports": [
+        "import Origin.CenterStates",
+        "import Lean.Data.Json"
+      ],
+      "changed_declarations": [
+        "+def mkCenter (dd zd zg gg : Tick) (hlo : dd ≤ zd) (hcore : zd ≤ zg) (hhi : zg ≤ gg) : CenterWithOuter :=",
+        "+def leafName : PairLeaf → String",
+        "+def developmentName : CenterDevelopment → String",
+        "+def side (c : CenterWithOuter) : Json :=",
+        "+def row (name : String) (a b : CenterWithOuter) : Json :=",
+        "+def fixture : Json := Json.mkObj ["
+      ]
+    },
+    {
+      "path": "formal/Origin/CenterStates.lean",
+      "base_present": true,
+      "base_sha256": "8355eaba2ca8b0f1ef50b8167802ce2f5c6abdab188dd3f49ea25859936a1a0a",
+      "donor_sha256": "7dbc794144318d7a069825887edce63efc13f64e66fa4ce4e4829c8cbe1e9d0c",
+      "donor_bytes": 29753,
+      "patch_sha256": "46891f24f86f562c50baa7101ca32ef07cd1926ea5c8b4825514695e25f49395",
+      "imports": [
+        "import Origin.ChanlunElements"
+      ],
+      "changed_declarations": [
+        "+inductive PairLeaf where",
+        "+def classifyPairLeaf (prev next : CenterWithOuter) : PairLeaf :=",
+        "+def PairLeafHolds (prev next : CenterWithOuter) : PairLeaf → Prop",
+        "+theorem classifyPairLeaf_iff (prev next : CenterWithOuter) (leaf : PairLeaf) :",
+        "+theorem pairLeaf_total_unique (prev next : CenterWithOuter) :",
+        "+def PairLeaf.development : PairLeaf → CenterDevelopment",
+        "+theorem classifyDevelopment_pair_projection (prev next : CenterWithOuter) :",
+        "+theorem classifyDevelopment_legacy_formula (prev next : CenterWithOuter) :"
+      ]
+    },
+    {
+      "path": "formal/Origin/PromQual.lean",
+      "base_present": true,
+      "base_sha256": "baa71eec085be068ca7216b7557b7231b5147d8efbda55ed80ab6989a4f9cd8d",
+      "donor_sha256": "05a6be0361b2823063393ca58b54c6f1e33e7354c46532ecfbc1a821db7a0205",
+      "donor_bytes": 39657,
+      "patch_sha256": "814bfa0cae0dd1308f6565143068c4f6df6e22e5646fb74ff61b55fe4c65fb86",
+      "imports": [
+        "import Formal.RecursiveConstruction"
+      ],
+      "changed_declarations": [
+        "-theorem shiftMove_interval (k : Nat) (m : Move) : (shiftMove k m).interval = m.interval := by",
+        "+  theorem shiftMove_interval (k : Nat) : (m : Move) → (shiftMove k m).interval = m.interval",
+        "+  theorem shiftMoveList_listInterval (k : Nat) :"
+      ]
+    },
+    {
+      "path": "formal/Origin/ScanAssemblyMirror.lean",
+      "base_present": true,
+      "base_sha256": "4e4d92508a3d18c8ae698213f16c89a8a5d21aeeea7ca5f0ffa98a2ff0c73a4a",
+      "donor_sha256": "c3c406a55865de54bbe8d573b3e40fda5d1f7c24735b4175fb84960ff2ac5a8e",
+      "donor_bytes": 57009,
+      "patch_sha256": "3a9b088084d5395d7e19a8de65d0dc19b0e1d6f51388ac51f5c2c025ad260a8a",
+      "imports": [],
+      "changed_declarations": []
+    },
+    {
+      "path": "formal/Origin/SegmentFeatureSeq.lean",
+      "base_present": true,
+      "base_sha256": "4f727a53f24ee548abd340ab6894be5f976d21ef4bd1d12bde18f5e3973429dc",
+      "donor_sha256": "a9978ce332cea564ab324114859a9d7a4baaea55c11bf924dd5e1af6b988ba01",
+      "donor_bytes": 40273,
+      "patch_sha256": "117b2db29092ba5c89efb9c08dbf8c4dd573ca0252dfb447cf227d3e1281edc4",
+      "imports": [
+        "import Origin.ChanlunElements"
+      ],
+      "changed_declarations": [
+        "+def FirstBreakConfirmsUp (a b c : FeatureElem) : Prop :=",
+        "+def FirstBreakConfirmsDown (a b c : FeatureElem) : Prop :=",
+        "+inductive TurnWindowState",
+        "+def turnWindowStateUp (b : FeatureElem) : List FeatureElem → TurnWindowState",
+        "+def turnWindowStateDown (b : FeatureElem) : List FeatureElem → TurnWindowState",
+        "+theorem firstBreakUp_iff_topFractal (a b c : FeatureElem)",
+        "+theorem firstBreakDown_iff_bottomFractal (a b c : FeatureElem)",
+        "+theorem firstBreakUp_tie_confirms (a b c : FeatureElem)",
+        "+theorem firstBreakDown_tie_confirms (a b c : FeatureElem)",
+        "+theorem turnWindowStateUp_contained_skip (b x : FeatureElem) (rest : List FeatureElem)",
+        "+theorem turnWindowStateDown_contained_skip (b x : FeatureElem) (rest : List FeatureElem)",
+        "+theorem turnWindowStateUp_singleton_confirmed (b c : FeatureElem) :",
+        "+theorem turnWindowStateDown_singleton_confirmed (b c : FeatureElem) :",
+        "+theorem turnWindowStateUp_singleton_iff_firstBreak (a b c : FeatureElem)",
+        "+theorem turnWindowStateDown_singleton_iff_firstBreak (a b c : FeatureElem)",
+        "+theorem turnWindowStateUp_append_of_ne_open (b : FeatureElem) (xs ys : List FeatureElem)",
+        "+theorem turnWindowStateDown_append_of_ne_open (b : FeatureElem) (xs ys : List FeatureElem)",
+        "+theorem turnWindowState_exhaustive (s : TurnWindowState) :",
+        "+def firstOutsideWindow (b : FeatureElem) : List FeatureElem → Option FeatureElem",
+        "+theorem firstOutsideWindow_not_contains (b c : FeatureElem) (xs : List FeatureElem)",
+        "+theorem turnWindowStateUp_firstOutside (b c : FeatureElem) (xs : List FeatureElem)",
+        "+theorem turnWindowStateDown_firstOutside (b c : FeatureElem) (xs : List FeatureElem)",
+        "+theorem turnWindowStateUp_open_iff (b : FeatureElem) (xs : List FeatureElem) :",
+        "+theorem turnWindowStateDown_open_iff (b : FeatureElem) (xs : List FeatureElem) :",
+        "+def FirstKindConfirmsUp (a b : FeatureElem) (xs : List FeatureElem) : Prop :=",
+        "+def FirstKindConfirmsDown (a b : FeatureElem) (xs : List FeatureElem) : Prop :=",
+        "+theorem firstKindUp_iff_topFractal (a b c : FeatureElem) (xs : List FeatureElem)",
+        "+theorem firstKindDown_iff_bottomFractal (a b c : FeatureElem) (xs : List FeatureElem)"
+      ]
+    },
+    {
+      "path": "formal/Origin/UnifiedScanMirrorBridge.lean",
+      "base_present": true,
+      "base_sha256": "bd43a275acba66e131f7ab4ce05a4f0c146393ccc0c4ec99961197a08050d258",
+      "donor_sha256": "7ff50abc6e2968566f5c98994e4a2384ff62e217a70b6a2475a1e061de401b2c",
+      "donor_bytes": 116597,
+      "patch_sha256": "a36e51f6760aa98fa8b0f203644c86853eeb11f853bd7018708727cecf505360",
+      "imports": [],
+      "changed_declarations": []
+    },
+    {
+      "path": "formal/Phase2/Claim10_SegmentV1.lean",
+      "base_present": true,
+      "base_sha256": "df704d6ce4114f2f767c6dd65e10dc33eeb1c4032b52d7720bab262cd2c76c97",
+      "donor_sha256": "f2e4be6b364db1c571e213ea8fd2702b7adc861add4d01b1433649bdc0b82d12",
+      "donor_bytes": 35206,
+      "patch_sha256": "a52d1b2d665b5099bd402028eb51ae444b2af7b97c9b7816d8684e10b12fc21b",
+      "imports": [],
+      "changed_declarations": [
+        "+inductive SecondKindTerminal where",
+        "+def SecondKindTerminal.terminatesSegment : SecondKindTerminal → Bool",
+        "+theorem second_kind_terminal_trichotomy (t : SecondKindTerminal) :",
+        "+theorem terminates_iff_confirmed (t : SecondKindTerminal) :"
+      ]
+    }
+  ],
+  "graph_fallback": "已核codebase-memory项目列表，无当前formal索引，按已知固定Git对象读取",
+  "execution_authorized": false,
+  "lean_build": "NOT_RUN"
+}

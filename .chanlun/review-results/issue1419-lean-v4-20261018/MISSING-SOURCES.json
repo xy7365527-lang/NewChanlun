@@ -1,0 +1,28 @@
+[
+  {
+    "argv": [
+      "git",
+      "ls-tree",
+      "-r",
+      "--name-only",
+      "545e9f75faec49be39de7799e0aaf3f6c8276de9"
+    ],
+    "exit_code": 0,
+    "path_filter": "basename oracle_pairs.py 或精确 issue1419-tb02e-20261013/worked-examples.json",
+    "matches": [],
+    "total_paths": 8909
+  },
+  {
+    "argv": [
+      "git",
+      "ls-tree",
+      "-r",
+      "--name-only",
+      "634f62cddfaddf656a35ca9b9db20cb716b62bff"
+    ],
+    "exit_code": 0,
+    "path_filter": "basename oracle_pairs.py 或精确 issue1419-tb02e-20261013/worked-examples.json",
+    "matches": [],
+    "total_paths": 8888
+  }
+]

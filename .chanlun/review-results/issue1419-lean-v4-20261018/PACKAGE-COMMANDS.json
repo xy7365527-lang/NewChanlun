@@ -1,0 +1,109 @@
+[
+  {
+    "argv": [
+      "git",
+      "rev-parse",
+      "HEAD"
+    ],
+    "exit_code": 0,
+    "stdout": "545e9f75faec49be39de7799e0aaf3f6c8276de9\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "branch",
+      "--show-current"
+    ],
+    "exit_code": 0,
+    "stdout": "codex/1419-lean-v4-20261018\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "diff",
+      "--check",
+      "--",
+      "formal"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "diff",
+      "--no-index",
+      "--check",
+      "/dev/null",
+      "formal/Origin/CenterPairFixtureExport.lean"
+    ],
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "diff",
+      "--name-only",
+      "545e9f75faec49be39de7799e0aaf3f6c8276de9"
+    ],
+    "exit_code": 0,
+    "stdout": "formal/Formal/DivergenceNesting.lean\nformal/Formal/RecursiveConstruction.lean\nformal/Origin/CenterConstruct.lean\nformal/Origin/CenterConstruction.lean\nformal/Origin/CenterStates.lean\nformal/Origin/PromQual.lean\nformal/Origin/ScanAssemblyMirror.lean\nformal/Origin/SegmentFeatureSeq.lean\nformal/Origin/UnifiedScanMirrorBridge.lean\nformal/Phase2/Claim10_SegmentV1.lean\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "ls-files",
+      "--others",
+      "--exclude-standard"
+    ],
+    "exit_code": 0,
+    "stdout": ".chanlun/review-results/issue1419-lean-v4-20261018/CHECK-RESULTS.json\n.chanlun/review-results/issue1419-lean-v4-20261018/CHECK-RUN-1.json\n.chanlun/review-results/issue1419-lean-v4-20261018/CHECKS.py\n.chanlun/review-results/issue1419-lean-v4-20261018/D-FIRST-COUNTEREXAMPLES.json\n.chanlun/review-results/issue1419-lean-v4-20261018/DEPENDENCIES.json\n.chanlun/review-results/issue1419-lean-v4-20261018/E-FIXTURE-GAP.json\n.chanlun/review-results/issue1419-lean-v4-20261018/F-FIXTURE-STATIC.json\n.chanlun/review-results/issue1419-lean-v4-20261018/INPUTS.json\n.chanlun/review-results/issue1419-lean-v4-20261018/MATRIX.md\n.chanlun/review-results/issue1419-lean-v4-20261018/MISSING-SOURCES.json\n.chanlun/review-results/issue1419-lean-v4-20261018/PACKAGE.py\n.chanlun/review-results/issue1419-lean-v4-20261018/REFERENCES.json\n.chanlun/review-results/issue1419-lean-v4-20261018/REPORT.md\n.chanlun/review-results/issue1419-lean-v4-20261018/SOURCE-APPLICATION.json\n.chanlun/review-results/issue1419-lean-v4-20261018/SOURCE-INDEX.json\n.chanlun/review-results/issue1419-lean-v4-20261018/SOURCE-MANIFEST.json\n.chanlun/review-results/issue1419-lean-v4-20261018/STATIC-COMMANDS.json\nformal/Origin/CenterPairFixtureExport.lean\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "diff",
+      "545e9f75faec49be39de7799e0aaf3f6c8276de9",
+      "--",
+      "rust",
+      "formal/lakefile.toml",
+      "formal/lean-toolchain"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "--reverse",
+      "--check",
+      "--unidiff-zero",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/.chanlun/review-results/issue1419-lean-v4-20261018/DELTA.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "apply",
+      "--reverse",
+      "--check",
+      "--unidiff-zero",
+      "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/source-fix-v3-worktree/.chanlun/review-results/issue1419-lean-v4-20261018/ADAPTATIONS.patch"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  }
+]

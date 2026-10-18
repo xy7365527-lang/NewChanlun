@@ -1,0 +1,15 @@
+{
+  "status": "SOURCE_SHAPE_MISMATCH",
+  "missing_cases": [
+    "e2_up_zn_c_resume",
+    "e2_down_zn_c_resume",
+    "e4_tangent_seed_connector",
+    "zn_direction_not_parity"
+  ],
+  "missing_metadata": [
+    "meta.break_up_scope",
+    "meta.break_up_note"
+  ],
+  "fixture_drift_gate": "NOT_RUN",
+  "reason": "漂移脚本会执行 lake；当前任务禁止。需最终统一 source 远端重导出并修复 ref_v1 消费者。"
+}

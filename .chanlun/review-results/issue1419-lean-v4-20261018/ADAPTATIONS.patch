@@ -1,0 +1,222 @@
+diff --git a/formal/Formal/RecursiveConstruction.lean b/formal/Formal/RecursiveConstruction.lean
+--- a/formal/Formal/RecursiveConstruction.lean
++++ b/formal/Formal/RecursiveConstruction.lean
+@@ -67,0 +68,16 @@
++
++/-- #1419：走势区间不读中枢外缘与级别；中枢换成 Zn 外缘不会删去子走势极值。 -/
++theorem interval_compose_centers_irrelevant (subs : List Move)
++    (cs ds : List Center) (l k : Nat) :
++    (compose subs cs l).interval = (compose subs ds k).interval := rfl
++
++/-- #1419：空组合有占位区间；非空正价/负价列表不引入零哨兵。 -/
++example : (compose [] [] 1).interval = (0, 0) := by decide
++example : (compose [segment .up 10 40, segment .down 5 25] [] 1).interval = (5, 40) := by
++  decide
++example : (compose [segment .up (-40) (-10), segment .down (-25) (-5)] [] 1).interval
++    = (-40, -5) := by decide
++
++/-- #1419：递归取值，包括与首段反向的末成员；这里只锁区间函数，不假设已构成完整走势。 -/
++example : (compose [compose [segment .up 10 40, segment .down 5 25] [] 1,
++    segment .up 12 30] [] 2).interval = (5, 40) := by decide
+diff --git a/formal/Origin/CenterConstruct.lean b/formal/Origin/CenterConstruct.lean
+--- a/formal/Origin/CenterConstruct.lean
++++ b/formal/Origin/CenterConstruct.lean
+@@ -28 +28 @@
+-  本文件用几何必要条件（ZD ≤ ZG）作识别判据（诚实边界：still-MISSING-B′ 完整判据见
++  本文件用几何必要条件（ZD < ZG，#812 Z-2）作识别判据（诚实边界：still-MISSING-B′ 完整判据见
+@@ -314 +314 @@
+-    § 5.5 reference v1 引擎语义（engine-audit 包 reference_chanlun.py 逐字直译）
++    § 5.5 reference v1 构造骨架（#812 C 续扫与 #1419 Zn 聚合已覆盖旧参考行为）
+@@ -338 +338,2 @@
+-      reference v1 算法在定义层逐字忠实，**不是**任何「v1 中枢在真实行情上有效」的 L2 断言。
++      本节定义可由内核检查，**不是**任何「v1 中枢在真实行情上有效」的 L2 断言。
++      #1419 本轮未运行该命令，也不以旧参考或 donor 的验收认证此树。
+@@ -398,0 +400,5 @@
++
++/-- #1419：非 Zn 不改外缘；是否成为成员仍单独由 weakOverlap 决定。 -/
++theorem znAgg_other_direction (zdir d : Direction) (gg dd h l : Tick) (hd : d ≠ zdir) :
++    znAgg zdir d gg dd h l = (gg, dd) := by
++  simp [znAgg, hd]
+@@ -430,0 +437,8 @@
++/-- #1419：弱接触的非 Zn 仍推进成员边界，保持冻结核心与外缘，再处理下一单元。 -/
++theorem extendWeak_nonZn_member (comps : List (Tick × Tick × Direction))
++    (zd zg : Tick) (zdir d : Direction) (fuel endAcc j : Nat) (gg dd h l : Tick)
++    (hc : comps[j]? = some (h, l, d)) (hw : weakOverlap h l zd zg = true) (hd : d ≠ zdir) :
++    extendWeak comps zd zg zdir (fuel + 1) endAcc j gg dd =
++      extendWeak comps zd zg zdir fuel j (j + 1) gg dd := by
++  simp only [extendWeak, hc, hw, if_true, znAgg_other_direction zdir d gg dd h l hd]
++
+@@ -435 +449 @@
+-  逐字对齐 reference：
++  沿用 reference 的滑窗结构，按已裁规则适配：
+@@ -493,2 +507,2 @@
+-  **★reference v1 中枢构造（reference_chanlun.py `zhongshus_from_components_ref`，逐字）** ——
+-  `List Segment → List RefZhongshu`。完成态段 → (high,low) 投影 → v1 滑窗。
++  **★已裁中枢构造（reference_chanlun.py `zhongshus_from_components_ref` 的骨架）** ——
++  `List Segment → List RefZhongshu`。完成态段 → (high,low,方向) 投影 → Zn 外缘与 C 续扫。
+@@ -621,3 +635,4 @@
+-    期待值取自 S0 oracle 冻结稿 `.chanlun/review-results/issue1419-tb02e-20261013/worked-examples.json`
+-    的 `streams.*.final_scan_lean_ref`（口径 `ZN_OUTER_C_RESUME`），不从本文件函数推出。oracle 对未结算
+-    中枢的 `breakUp` 记「未定义」。根裁定 r2 R4 已定：S 事实层对未结算中枢发布 `breakUp=false` 且
++    #1419：输入与期待值承接固定 donor 634f62cddfaddf656a35ca9b9db20cb716b62bff 的本节。
++    donor 所称 S0 `.chanlun/review-results/issue1419-tb02e-20261013/worked-examples.json`
++    在当前树不存在，故本轮不声称独立生成过程已复核；静态模型核算不等于 Lean 运行。
++    根裁定 r2 R4 已定：S 事实层对未结算中枢发布 `breakUp=false` 且
+@@ -639 +654 @@
+-/-- oracle UP 流 K12（u0..u12 完成）。 -/
++/-- donor 工作例 UP 流 K12（u0..u12 完成）。 -/
+@@ -641 +656 @@
+-/-- oracle DOWN 流 = UP 的 `p' = 45 − p` 镜像。 -/
++/-- donor 工作例 DOWN 流 = UP 的 `p' = 45 − p` 镜像。 -/
+@@ -643 +658 @@
+-/-- oracle E4 流 K10（u0..u10 完成）。 -/
++/-- donor 工作例 E4 流 K10（u0..u10 完成）。 -/
+@@ -676 +691 @@
+-  native_decide
++  decide
+@@ -682 +697 @@
+-  native_decide
++  decide
+@@ -691 +706 @@
+-  native_decide
++  decide
+@@ -699 +714 @@
+-      = ([⟨0, 4, 20, 30, 10, 60, false⟩] : List RefSummary) := by native_decide
++      = ([⟨0, 4, 20, 30, 10, 60, false⟩] : List RefSummary) := by decide
+@@ -733 +748,3 @@
+-  声明这一点，rust 侧对拍读该字段并据此跳过。
++  声明这一点。#1419 具名缺口 E_REFERENCE_FIXTURE_BINDING：545e 的 ref_v1.rs 仍为全成员外缘、
++  A 口径续扫，theta_v0_center_parity.json 也尚未有这四组新案例及 scope 元数据；不得声称当前
++  Rust 对拍已读取此字段。后续统一 source 须修复参考消费者并实际重导出，本轮不改 Rust/fixture。
+diff --git a/formal/Origin/CenterConstruction.lean b/formal/Origin/CenterConstruction.lean
+--- a/formal/Origin/CenterConstruction.lean
++++ b/formal/Origin/CenterConstruction.lean
+@@ -15 +15 @@
+-    外缘 GG/DD（三段聚合，与核心同三段）。
++    外缘 GG/DD（仅聚合与 seed 首段同向的 Zn，#1419）。
+@@ -33 +33 @@
+-  （口径 B 全三段定核心 + 三段聚合外缘，§6.3/§6.4 公式直译，637号）。"三段是否构成中枢"的判据用
++  （口径 B 全三段定核心 + Zn 聚合外缘，#1419）。"三段是否构成中枢"的判据用
+@@ -104,2 +104,3 @@
+-  原文 `020-第20课.md:52`【正文】：「与中枢方向一致的次级别走势类型称为Z走势段……GG=max(gn)……
+-  DD=min(dn)，n遍历中枢中所有Zn」；中枢方向由形成它的首段定。L0 方向交替时即位次奇偶（第 1、3 段），
++  原文 `docs/chanlun/text/blog/020-第20课.md:52`【正文】：
++  「GG=max(gn),G=min(gn),D=max(dn),DD=min(dn)，n遍历中枢中所有Zn」。
++  seed 首段方向作为中枢方向是 #1419 D-A 已批口径。L0 方向交替时即位次奇偶（第 1、3 段），
+diff --git a/formal/Origin/CenterPairFixtureExport.lean b/formal/Origin/CenterPairFixtureExport.lean
+--- a/formal/Origin/CenterPairFixtureExport.lean
++++ b/formal/Origin/CenterPairFixtureExport.lean
+@@ -1,4 +1,8 @@
+-/- #1424：五叶判据的 Lean → Rust 机器导出夹具。
+-输入来自独立工作例 oracle_pairs.py 的 W2/W3/W4/W5/W6/W11；标签与投影由 Lean 真求值。
+-只验证 DD≤ZD≤ZG≤GG 域内代数对拍；不证明扫描构造/≥9 窗口/正式会话验收。
+-运行：lake env lean Origin/CenterPairFixtureExport.lean
++/- #1419 / #1424：五叶判据的 Lean → Rust 导出入口。
++8 例输入逐字承接固定 donor 634f62cddfaddf656a35ca9b9db20cb716b62bff 的本文件，
++对应当前 rust/tests/fixtures/center_pair_1424_lean.json；本轮只静态核对，未运行 Lean 导出。
++donor 注释所称 oracle_pairs.py 在当前树与 donor 均未找到，不能据此声称独立生成已复核。
++标签与旧三态投影在执行本入口时由下列函数求值；实际来源/待验项见 #1419 lean-v4 报告。
++有效域 DD≤ZD≤ZG≤GG；这 8 例还满足 S 的 ZD<ZG。无 16 格矩阵导出，
++不证明扫描构造/≥9 窗口/正式会话验收；四态投影定理见 CenterStates。
++后续获准远端验收时的入口：lake env lean Origin/CenterPairFixtureExport.lean
+diff --git a/formal/Origin/CenterStates.lean b/formal/Origin/CenterStates.lean
+--- a/formal/Origin/CenterStates.lean
++++ b/formal/Origin/CenterStates.lean
+@@ -2 +2 @@
+-Origin/CenterStates.lean — 中枢位置三态 + 中枢对五叶及发展三态投影（#113、#1424）
++Origin/CenterStates.lean — 中枢位置三态 + 中枢对五叶及四态/三态投影（#113、#1424、#1419）
+@@ -332 +332,2 @@
+-/-- 与 Rust center_pair_facts 同顺序；全部五叶由同一函数给出。 -/
++/-- #1419：与 545e 的 Rust center_pair_facts 同顺序（下扩展先于上扩展）。
++全部五叶由同一函数给出；谓词等价证明只覆盖 CenterWithOuter 的有序域。 -/
+@@ -335,0 +337 @@
++  else if next.core.zg < prev.core.zd then .downExpansion
+@@ -337 +338,0 @@
+-  else if next.core.zg < prev.core.zd then .downExpansion
+@@ -371,0 +373,45 @@
++
++/-- #1419 / #1424：塔内四态，扩展方向合并；核心相切/重叠仅为几何关系。
++与 Rust CenterRelation 同名分，不声称 CC-018 延伸或高级对象已构造。 -/
++inductive PairRelation where
++  | upContinuation
++  | downContinuation
++  | levelExpansion
++  | coreOverlap
++deriving DecidableEq, Repr
++
++/-- 唯一五叶到四态的投影，与 Rust PairLeaf::relation 逐构造子对应。 -/
++def PairLeaf.relation : PairLeaf → PairRelation
++  | .upNewbirth => .upContinuation
++  | .downNewbirth => .downContinuation
++  | .upExpansion | .downExpansion => .levelExpansion
++  | .coreNotStrictlySeparated => .coreOverlap
++
++def classifyPairRelation (prev next : CenterWithOuter) : PairRelation :=
++  (classifyPairLeaf prev next).relation
++
++/-- 四态语义只合并五叶谓词，不建立第二套运行时判据。 -/
++def PairRelationHolds (prev next : CenterWithOuter) : PairRelation → Prop
++  | .upContinuation => PairLeafHolds prev next .upNewbirth
++  | .downContinuation => PairLeafHolds prev next .downNewbirth
++  | .levelExpansion =>
++      PairLeafHolds prev next .upExpansion ∨ PairLeafHolds prev next .downExpansion
++  | .coreOverlap => PairLeafHolds prev next .coreNotStrictlySeparated
++
++theorem classifyPairRelation_projection (prev next : CenterWithOuter) :
++    classifyPairRelation prev next = (classifyPairLeaf prev next).relation := rfl
++
++/-- 投影标签与四态谓词双向对应；外缘包含核心的假设由五叶定理继承。 -/
++theorem classifyPairRelation_iff (prev next : CenterWithOuter) (rel : PairRelation) :
++    classifyPairRelation prev next = rel ↔ PairRelationHolds prev next rel := by
++  cases rel <;>
++    simp only [PairRelationHolds, ← classifyPairLeaf_iff] <;>
++    cases h : classifyPairLeaf prev next <;>
++    simp [classifyPairRelation, h, PairLeaf.relation]
++
++theorem pairRelation_total_unique (prev next : CenterWithOuter) :
++    ∃ rel, PairRelationHolds prev next rel ∧
++      ∀ other, PairRelationHolds prev next other → other = rel := by
++  refine ⟨classifyPairRelation prev next, (classifyPairRelation_iff prev next _).mp rfl, ?_⟩
++  intro other h
++  exact ((classifyPairRelation_iff prev next other).mpr h).symm
+diff --git a/formal/Origin/SegmentFeatureSeq.lean b/formal/Origin/SegmentFeatureSeq.lean
+--- a/formal/Origin/SegmentFeatureSeq.lean
++++ b/formal/Origin/SegmentFeatureSeq.lean
+@@ -376,0 +377,6 @@
++
++    #1419 同树边界 D_FIRST_RUNTIME_BINDING：固定 545e 的 CONSTRUCTION_RULE 虽为
++    segment-second/2，feature_seq.rs::append 仍先 push 试探分型、失败后包含合并，
++    scan_trigger 仍取 is_fractal_and_gap 的严格分型；没有本节转折点窗的状态载体。
++    因此本节落实已裁 #1490 定义，不冒充当前 Rust 第一种情况的行为等价证明。
++    还缺冻结 a/b、窗成员身份、首次出窗与旧段延续到正式段端的桥；不是第二终结的 K1。
+@@ -532,0 +539,12 @@
++
++/-- #1419：第一种情况同一特征笔越过两端时，新极值优先（向上旧段的特征笔向下）。 -/
++theorem turnWindowStateUp_both_breached (b c : FeatureElem) (rest : List FeatureElem)
++    (hh : b.high < c.high) (_hl : c.low < b.low) :
++    turnWindowStateUp b (c :: rest) = .killedByNewExtreme := by
++  simp [turnWindowStateUp, hh]
++
++/-- 向下旧段的特征笔向上；同笔先到 low 一侧的新极值，亦作废。 -/
++theorem turnWindowStateDown_both_breached (b c : FeatureElem) (rest : List FeatureElem)
++    (hl : c.low < b.low) (_hh : b.high < c.high) :
++    turnWindowStateDown b (c :: rest) = .killedByNewExtreme := by
++  simp [turnWindowStateDown, hl]
+diff --git a/formal/Phase2/Claim10_SegmentV1.lean b/formal/Phase2/Claim10_SegmentV1.lean
+--- a/formal/Phase2/Claim10_SegmentV1.lean
++++ b/formal/Phase2/Claim10_SegmentV1.lean
+@@ -265,2 +265,2 @@
+-  `rust/src/theta_v0/parser/second_fold.rs`，由含失效的独立 oracle 与批处理/增量/恢复三路逐位
+-  对拍锁定）。上文 `classifyTermination` 返回 `secondKind` 的读法"待第二特征序列分型确认"
++  `rust/src/theta_v0/parser/second_fold.rs`；含失效的独立 oracle 与批处理/增量/恢复三路逐位
++  对拍是尚待执行的验收义务，本轮未运行）。上文 `classifyTermination` 返回 `secondKind` 的读法"待第二特征序列分型确认"
+@@ -267,0 +268,9 @@
++
++  #1419 具名缺口 D_SECOND_FOLD_REFINEMENT：545e 的 SecondFoldState::step 只把与旧段同向的笔
++  加入第二序列，先 apply_inclusion（独立 dir_state），再查标准序列末三元素的顶或底分型，
++  最后才用该笔合并前的 reach 严格越过冻结 P 判失效。因此同笔先确认；不能复用第一种情况
++  turnWindowState 的新极值优先序。动态精化还缺 Stroke/FeatureElement/成员下标/dir_state/
++  candidate_extreme 到本模块 Interval 的关系、apply_inclusion 的逐步保持与末三元素分型桥。
++  finish 在预算先耗尽时保 semantic_state=None，不能塞进 openAtPrefixEnd；K1 的 grant、
++  未封存末笔重算、一步撤销与输入修订拒绝亦未形式化。当前文件未固定这些 Rust 状态接口的 Lean
++  映射；本节不给空壳动态定理，静态三态也不证明资源边界或恢复等价（#1344 / #1420）。
