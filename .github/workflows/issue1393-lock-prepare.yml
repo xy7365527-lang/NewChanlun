@@ -1,0 +1,154 @@
+name: '#1393 独立锁解析准备（尚未授权）'
+
+on:
+  push:
+    branches: [codex/1393-lock-once-20261018]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue1393-lock-prepare-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # 唯一门；根分别批准 E 的 False 预发布与 F 的单次 push。
+  ISSUE1393_LOCK_EXECUTE: 'False'
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  lock-prepare:
+    runs-on: ubuntu-24.04
+    # 整个 job 的外层上限，包含 checkout、解析、回收和两次 artifact 上传。
+    timeout-minutes: 15
+    steps:
+      - name: 拒绝默认关闭入口
+        if: env.ISSUE1393_LOCK_EXECUTE != 'True'
+        shell: bash --noprofile --norc -e {0}
+        run: |
+          echo 'PREPARED_NOT_AUTHORIZED：所有真实命令 NOT_RUN'
+          exit 1
+
+      - name: 记录唯一共享起点
+        if: env.ISSUE1393_LOCK_EXECUTE == 'True'
+        run: |
+          python3 -B - <<'PY'
+          import json, os, time
+          from pathlib import Path
+          start = {'monotonic': time.monotonic(), 'wall': time.time(), 'total_seconds': 900}
+          (Path(os.environ['RUNNER_TEMP']) / 'issue1393-lock-start.json').write_text(json.dumps(start))
+          PY
+
+      - uses: actions/checkout@v4
+        if: env.ISSUE1393_LOCK_EXECUTE == 'True'
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          lfs: false
+          submodules: false
+          sparse-checkout-cone-mode: false
+          # 完整 Git 元数据；工作树只含解析源、固定控制文件和工具链证据。
+          sparse-checkout: |
+            /rust/
+            /.github/scripts/issue1393_lock_prepare.py
+            /.github/scripts/issue1393_validate.py
+            /.github/scripts/run-cargo-with-telemetry.sh
+            /.github/workflows/ci.yml
+            /.github/workflows/issue1393-validation.yml
+            /.github/workflows/issue1393-lock-prepare.yml
+            /.chanlun/review-results/issue1393-lock-prepare-20261018/RUST-TOOLCHAIN-39091453686.txt
+
+      - name: 核身份并仅解析一次锁文件
+        if: env.ISSUE1393_LOCK_EXECUTE == 'True'
+        run: python3 -B .github/scripts/issue1393_lock_prepare.py
+
+      - name: 登记缺失原件与剩余上传预算
+        id: archive
+        if: always() && env.ISSUE1393_LOCK_EXECUTE == 'True'
+        run: |
+          python3 -B - <<'PY'
+          import json, os, time
+          from pathlib import Path
+          p = Path(os.environ['RUNNER_TEMP'])
+          out = p / 'issue1393-lock-evidence'
+          out.mkdir(exist_ok=True)
+          def save(name, obj):
+              (out / name).write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n')
+          if not (out / 'result.json').exists():
+              save('result.json', {'status': 'FAILED', 'resolution': 'NOT_RUN_OR_UNKNOWN',
+                                  'formal_validation': 'NOT_RUN', 'reason': 'runner 缺结论原件，不推断成功'})
+          if not (out / 'steps.json').exists():
+              save('steps.json', [{'name': n, 'status': 'NOT_RUN', 'reason': '缺原件；不推断执行'} for n in
+                                  ('source-copy', 'install-toolchain', 'rust-version', 'cargo-version',
+                                   'generate-lockfile', 'preserve-resolution')])
+          if not (out / 'PACKAGE.json').exists():
+              save('PACKAGE.json', {'status': 'NOT_RUN', 'reason': 'runner 未封包，保留现有原件'})
+          try:
+              start = json.loads((p / 'issue1393-lock-start.json').read_text())
+              remaining = min(start['monotonic'] + 900 - time.monotonic(), start['wall'] + 900 - time.time())
+          except Exception:
+              remaining = 0
+          # 给实际结论记录留 10 秒；不给上传另起 15 分钟。
+          minutes = max(0, int((remaining - 10) // 60))
+          save('UPLOAD-REQUEST.json', {'status': 'REQUESTED' if minutes else 'NOT_RUN',
+                                      'remaining_seconds': remaining, 'timeout_minutes': minutes,
+                                      'authority': '后续步骤实际 outcome/conclusion；请求不等于成功'})
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write('allowed=' + str(minutes > 0).lower() + '\nminutes=' + str(max(1, minutes)) + '\n')
+          PY
+
+      - name: 上传完整原件与封包（失败仍保存）
+        id: payload
+        if: always() && env.ISSUE1393_LOCK_EXECUTE == 'True' && steps.archive.outputs.allowed == 'true'
+        timeout-minutes: ${{ fromJSON(steps.archive.outputs.minutes) }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue1393-lock-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/issue1393-lock-evidence/
+          if-no-files-found: error
+          include-hidden-files: true
+          compression-level: 0
+
+      - name: 记录本次真实上传结论
+        id: receipt
+        if: always() && env.ISSUE1393_LOCK_EXECUTE == 'True'
+        env:
+          PAYLOAD_OUTCOME: ${{ steps.payload.outcome }}
+          PAYLOAD_CONCLUSION: ${{ steps.payload.conclusion }}
+          PAYLOAD_ID: ${{ steps.payload.outputs.artifact-id }}
+          PAYLOAD_DIGEST: ${{ steps.payload.outputs.artifact-digest }}
+          PAYLOAD_URL: ${{ steps.payload.outputs.artifact-url }}
+        run: |
+          python3 -B - <<'PY'
+          import json, os, time
+          from pathlib import Path
+          p = Path(os.environ['RUNNER_TEMP'])
+          receipt = {'outcome': os.environ['PAYLOAD_OUTCOME'], 'conclusion': os.environ['PAYLOAD_CONCLUSION'],
+                     'artifact_id': os.environ['PAYLOAD_ID'], 'artifact_digest': os.environ['PAYLOAD_DIGEST'],
+                     'artifact_url': os.environ['PAYLOAD_URL'], 'formal_validation': 'NOT_RUN'}
+          raw = json.dumps(receipt, ensure_ascii=False, indent=2) + '\n'
+          (p / 'issue1393-lock-UPLOAD-ACTUAL.json').write_text(raw)
+          print(raw)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+              f.write('本次 lock artifact 实际上传收据（不代表正式验证）：\n```json\n' + raw + '```\n')
+          try:
+              s = json.loads((p / 'issue1393-lock-start.json').read_text())
+              left = min(s['monotonic'] + 900 - time.monotonic(), s['wall'] + 900 - time.time())
+          except Exception:
+              left = 0
+          minutes = max(0, int((left - 5) // 60))
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write('allowed=' + str(minutes > 0).lower() + '\nminutes=' + str(max(1, minutes)) + '\n')
+          if receipt['conclusion'] != 'success':
+              raise SystemExit('完整 artifact 未成功上传；仅保留实际失败/跳过结论，不推断交付成功')
+          PY
+
+      # 首包不能包含自身上传完成后的结论；单独收据包，日志始终是最终权威。
+      - name: 上传实际结论收据
+        if: always() && env.ISSUE1393_LOCK_EXECUTE == 'True' && steps.receipt.outputs.allowed == 'true'
+        timeout-minutes: ${{ fromJSON(steps.receipt.outputs.minutes) }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue1393-lock-upload-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/issue1393-lock-UPLOAD-ACTUAL.json
+          if-no-files-found: error

@@ -1,0 +1,2 @@
+{"status": "REFUSED", "resolution": "NOT_RUN", "formal_validation": "NOT_RUN", "authorization": "合同摘要仅溯源；实际根权限必须在 E 预发布和 F push 前分别核验", "error": "缺少唯一完整封套"}
+PREPARED_NOT_AUTHORIZED：全部真实命令 NOT_RUN

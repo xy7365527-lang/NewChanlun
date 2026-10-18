@@ -1,0 +1,37 @@
+[
+  {
+    "path": "/Volumes/AgentStorage/issue1393-sandcastle-20261018-management/RUST-TOOLCHAIN-39091453686.txt",
+    "sha256": "736b421f60c5b1726852e33b51ead31d694db8773ab782881b6125df410db3fa",
+    "bytes": 558
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1393-sandcastle-20261018-management/reference-1488-transport/issue-1488-driver-six.yml",
+    "sha256": "9c5cf48e969d06fecfbe0dcfd76f149bf09a2a0598dab4685dec90ca055c0790",
+    "bytes": 1221
+  },
+  {
+    "path": "/Volumes/AgentStorage/issue1393-sandcastle-20261018-management/reference-1488-transport/run-1488-driver-ci.py",
+    "sha256": "05360b7b0777165e82c2bdf0b8b338e6ee7c3e00f93ac933d07c5001eee440bf",
+    "bytes": 96961
+  },
+  {
+    "path": ".chanlun/review-results/issue1393-sandcastle-20261018/reference-evidence/xerj-nautilus-reference-all.json",
+    "sha256": "8f2304838253c51889429c41871542f467d22764b0ec7dbb8faec956c0278dda",
+    "bytes": 953196
+  },
+  {
+    "path": ".chanlun/review-results/issue1393-sandcastle-20261018/reference-evidence/xerj-nc1419gate-inclusion.json",
+    "sha256": "0d2f4ecf2f4a4c3a72f50dfbf36263871991dca970bc12782dda6062ed915668",
+    "bytes": 136840
+  },
+  {
+    "path": ".chanlun/review-results/issue1393-sandcastle-20261018/reference-evidence/xerj-nc1320src-inclusion.json",
+    "sha256": "3eadeee397574adcfbe11b37a2e1d3e01d809904427653ab0a2cffe8b27a7563",
+    "bytes": 137552
+  },
+  {
+    "path": ".chanlun/review-results/issue1393-sandcastle-20261018/reference-evidence/xerj-nautilus-state-reference.json",
+    "sha256": "f7853a247fb99bb255f79397108dcf6a79db2109add34239499864ef50a3ec16",
+    "bytes": 91586
+  }
+]

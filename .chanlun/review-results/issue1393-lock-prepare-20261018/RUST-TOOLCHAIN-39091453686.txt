@@ -1,0 +1,4 @@
+rust-check	Record runner, toolchain, linker, and initial resources (#1141)	2026-10-18T02:50:02.8299329Z rustc 1.99.0 (b940084d7 2026-09-28)
+rust-check	Record runner, toolchain, linker, and initial resources (#1141)	2026-10-18T02:50:02.8300670Z commit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4
+rust-check	Record runner, toolchain, linker, and initial resources (#1141)	2026-10-18T02:50:02.8302542Z release: 1.99.0
+rust-check	Record runner, toolchain, linker, and initial resources (#1141)	2026-10-18T02:50:02.8806504Z cargo 1.99.0 (5f94df478 2026-08-27)

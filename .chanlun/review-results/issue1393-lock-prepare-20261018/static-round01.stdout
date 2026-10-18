@@ -1,0 +1,6 @@
+PASS：新 Python 文件 AST
+PASS：YAML、精确 push、False 零外部命令、15 分钟、只读 token、sparse、无 LFS/submodules
+PASS：全部内嵌 Python AST 与 bash -n；message 不插入 shell
+PASS：固定 helper 摘要、identity/Budget/Supervisor 复用、固定工具链与唯一解析 argv
+PASS：固定 commit/tree/分支、无 tracked 改动、无暂存、完整新写集在授权范围
+PASS：空白检查；既有 runner/workflow/telemetry/Rust/Lean/manifest/lock 保持

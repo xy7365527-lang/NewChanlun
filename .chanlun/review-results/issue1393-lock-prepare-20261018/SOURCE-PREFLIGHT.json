@@ -1,0 +1,431 @@
+{
+  "count": 85,
+  "files": [
+    {
+      "path": "rust/Cargo.lock",
+      "sha256": "c591858344c1ff7c62335e10c0e2f1f5cf9e7447a8caf81cd92e556bac248b62",
+      "bytes": 55961
+    },
+    {
+      "path": "rust/Cargo.toml",
+      "sha256": "f129440150dd1eb148ddb07ca5828e14a13c41122e018920c05efa1bea2c8727",
+      "bytes": 12236
+    },
+    {
+      "path": "rust/src/bin/b_chong_session.rs",
+      "sha256": "34adfbb8456b5e81ea35c81b6cb11ebc83fe85f4aa571ea669115adf3ff56af1",
+      "bytes": 211
+    },
+    {
+      "path": "rust/src/bin/cp_capability_smoke.rs",
+      "sha256": "c733bb16a95a90ea319c019c88bc84cb9e45afcc285ead3dfb3aa114f1601c3c",
+      "bytes": 25770
+    },
+    {
+      "path": "rust/src/bin/e_economic_session.rs",
+      "sha256": "866dbe66d598648b5c324ad77eaa825c2a856caa37a19b41d4145f7f251e7005",
+      "bytes": 208
+    },
+    {
+      "path": "rust/src/bin/issue550_event_battery.rs",
+      "sha256": "a90c1dabc7bdb4fa60e3274e31d55df77c51820b34d0da1a0a7ec27eb63f88de",
+      "bytes": 28236
+    },
+    {
+      "path": "rust/src/bin/lav_seal_samples.rs",
+      "sha256": "3bf72686fbdc1144456d267510ee40bac35ef90857cfdd60a849a9d8efda6ac1",
+      "bytes": 3649
+    },
+    {
+      "path": "rust/src/bin/p100_cert_bsp_recon.rs",
+      "sha256": "5c7e6d61f86b9b2c941c6f3d363d0d0e28c408d24f753f168d4816bd14124944",
+      "bytes": 9816
+    },
+    {
+      "path": "rust/src/bin/p101_cert_bsp_tag.rs",
+      "sha256": "7534ff2d708bf151f07b53f7e88eb5ac20c2f7ccca50e6d70eeed8c3db251dbd",
+      "bytes": 9086
+    },
+    {
+      "path": "rust/src/bin/p102_b_long_zero_probe.rs",
+      "sha256": "3ee310ff25728354a5fada00275065cffc7cb3c4e18d9104dfa22c4c420c68b1",
+      "bytes": 22501
+    },
+    {
+      "path": "rust/src/bin/p1035_type1_lead.rs",
+      "sha256": "d648463826f37f55680eeb8e36b45fd04b01897ed17cb06e1605a37995f59e25",
+      "bytes": 14829
+    },
+    {
+      "path": "rust/src/bin/p104_trend_div_funnel.rs",
+      "sha256": "09be7d8ad325a6786591da7bb9ca0c76dafb0e21b26a510f7ec60c7cf0481213",
+      "bytes": 14807
+    },
+    {
+      "path": "rust/src/bin/p105_cert_level_spectrum.rs",
+      "sha256": "8479788327c10fa85f3e896d89ededbb4e8497b3c222acab7ba6cd64efccf0a7",
+      "bytes": 18157
+    },
+    {
+      "path": "rust/src/bin/p106_cert_forward_pnl.rs",
+      "sha256": "36d5c4e56fbf9767a974a4e220b76e46eb4e34cb386d1f9c9bc0629b10079769",
+      "bytes": 27049
+    },
+    {
+      "path": "rust/src/bin/p107_level_calib.rs",
+      "sha256": "20d89ce81bb71275f11a7418588016c3fbee89a8cef69f4c9c40ef52aebaf401",
+      "bytes": 12920
+    },
+    {
+      "path": "rust/src/bin/p107_level_funnel_audit.rs",
+      "sha256": "620452578e746a47efa4e59b4d98e3781cba7ba233e7569db7020d8ef601c956",
+      "bytes": 34135
+    },
+    {
+      "path": "rust/src/bin/p108_dparent_caliber_counterfactual.rs",
+      "sha256": "a7d729bdc7ba291ed7f91e9432e8fc0bc99306912c76b278c79924035c957e87",
+      "bytes": 46258
+    },
+    {
+      "path": "rust/src/bin/p108_interval_probe.rs",
+      "sha256": "f10136fae6626235677782fa8cf4c41405ed69f00582373fc1da9f937f219330",
+      "bytes": 11558
+    },
+    {
+      "path": "rust/src/bin/p109_chain157_gate_attrition.rs",
+      "sha256": "5d76e678b28dbafb8e3bf1328ff104d60612f84b3359de4ce0c85aeff08f65c3",
+      "bytes": 52598
+    },
+    {
+      "path": "rust/src/bin/p111_parent_divergence_validity.rs",
+      "sha256": "3ab60e3881a30c60679289a31d584429ab26b583b0f8a109b9e1962e4530bcae",
+      "bytes": 49486
+    },
+    {
+      "path": "rust/src/bin/p112_trend_predicate_caseaudit.rs",
+      "sha256": "d5ec5f043cc16367bbd8ddf2c870df17c7a906b558c86dbfd802751d73d033f8",
+      "bytes": 48444
+    },
+    {
+      "path": "rust/src/bin/p113_pan_caseaudit.rs",
+      "sha256": "8cc79dea5c8d5668e6c5a25da9f867e48e248d52c386fd984a4c15ee20914615",
+      "bytes": 69661
+    },
+    {
+      "path": "rust/src/bin/p116_turnpoint_anchor_existence.rs",
+      "sha256": "5f040bb3af673f3a3f94381c8a7531f69951645ebbff70f91e8977e97025626b",
+      "bytes": 51225
+    },
+    {
+      "path": "rust/src/bin/p117_h4_attribution.rs",
+      "sha256": "7d3f0a45349fa02fe2d5f72b539a7093ab52d30cf42debe3a45135c1fe8e4d12",
+      "bytes": 62327
+    },
+    {
+      "path": "rust/src/bin/p117_s1a_level_recheck.rs",
+      "sha256": "af9177056bea71f8c2c6fd42c4fd323788e8cd591751c1bdd6f6202328c8749c",
+      "bytes": 47992
+    },
+    {
+      "path": "rust/src/bin/p119_l5_decompose.rs",
+      "sha256": "aa7a61434894bf5a297a04b6ed9f033c57fbbcff340f98ca2687dbb0c5d63708",
+      "bytes": 36282
+    },
+    {
+      "path": "rust/src/bin/p122_replay_profile.rs",
+      "sha256": "55b1cdf15cc69dc2b05d56234ed3e26efff50c9cd7775e7f285ba7338cced7cb",
+      "bytes": 35699
+    },
+    {
+      "path": "rust/src/bin/p123_fast_replay.rs",
+      "sha256": "5acfcf39a5a90e6f4894f463598e224c3c45bd962716521e50843893c7c96eb1",
+      "bytes": 213942
+    },
+    {
+      "path": "rust/src/bin/p124_merge.rs",
+      "sha256": "f2b381dfe4526f7db899e77ad990aaff2704e2da2f1fd320989caa237708f418",
+      "bytes": 57960
+    },
+    {
+      "path": "rust/src/bin/p124_shard_replay.rs",
+      "sha256": "36f96ec69f89804e364c2e849bd070502400c7252960d1cf147c9be99a1c09de",
+      "bytes": 63553
+    },
+    {
+      "path": "rust/src/bin/p125_endorsement_audit.rs",
+      "sha256": "2a775a52d46ce206011d21eb29a858d7aaea57351dfe08b87a8f0ce926a6ad99",
+      "bytes": 33555
+    },
+    {
+      "path": "rust/src/bin/p126_d3_descending_clock.rs",
+      "sha256": "cd831a4a086557cbd02b95fcc38c157e667f9b39436c66aa5f443f119f9cc4b6",
+      "bytes": 14147
+    },
+    {
+      "path": "rust/src/bin/p127_skip_impact.rs",
+      "sha256": "f013fcbea71f7d4c6d856060dabdef49c473b6931134a9519678b28db988f92e",
+      "bytes": 20760
+    },
+    {
+      "path": "rust/src/bin/p129_44ke_strict_skip.rs",
+      "sha256": "2d4bbc2c16f74c1612f8b33eb8c1a669fdda6d0c1a6ae98bf355b57247e642f2",
+      "bytes": 19850
+    },
+    {
+      "path": "rust/src/bin/p409_pan_live_probe.rs",
+      "sha256": "a62357afd48541200331dc87f36d3e17f4d9d3128a1b2aec1cfba11c2cb7ef07",
+      "bytes": 26459
+    },
+    {
+      "path": "rust/src/bin/p76_case2_replay.rs",
+      "sha256": "0656ea1fd46c0ddaef3744c2daf5d560e225d1d43d68583376e54591f6e8cc45",
+      "bytes": 8484
+    },
+    {
+      "path": "rust/src/bin/p83_yield_remeasure.rs",
+      "sha256": "f7abcaf59da89119e4d6cdb0d01d4b1476fd0bec9cc78938c0c974b83b3925c0",
+      "bytes": 21765
+    },
+    {
+      "path": "rust/src/bin/p84_failclosed_audit.rs",
+      "sha256": "7d5553c1f61376ee2321ae7961f3b6c61dfd401d1dd76ff85ba71bab5e3c11fa",
+      "bytes": 26927
+    },
+    {
+      "path": "rust/src/bin/p856_ed_dominance.rs",
+      "sha256": "a622662721ac7a99a63f81f17503a5d51a5b23641e2f76b948dd7b7c1fb117f1",
+      "bytes": 22316
+    },
+    {
+      "path": "rust/src/bin/p86_anchor_hypothesis.rs",
+      "sha256": "7a76767f3abdaa17709627223a6696d4155fe387662de079f64f211093eb1249",
+      "bytes": 36335
+    },
+    {
+      "path": "rust/src/bin/p89_dual_core_audit.rs",
+      "sha256": "f6d7729ea6e749686c824e6afdc096390a0383c486431276051a58503772d95d",
+      "bytes": 18158
+    },
+    {
+      "path": "rust/src/bin/p907_cost_gate_level.rs",
+      "sha256": "cc01c16e60d85500bdfc2a2760b5069cbd56b09b4c92f073c70acc8c3ab716f4",
+      "bytes": 18562
+    },
+    {
+      "path": "rust/src/bin/p915_capacity_frequency.rs",
+      "sha256": "e860b48647fbdc22a5bd9a2e263004e668f93ed3a2320578d6d53d2420128413",
+      "bytes": 24844
+    },
+    {
+      "path": "rust/src/bin/p92_nest_replay_postruling.rs",
+      "sha256": "f9d5bd984bb3dc5546409939194018be51649db6f079f96404c778b12c19d409",
+      "bytes": 46233
+    },
+    {
+      "path": "rust/src/bin/p938_bound_center_openness.rs",
+      "sha256": "ae99206fe19f3c320bf190e1e3b74e7c4397fca24db6c9ca041e897993954d30",
+      "bytes": 11668
+    },
+    {
+      "path": "rust/src/bin/p938_seed_moved_composition.rs",
+      "sha256": "fdc62152f0c1567263294353e36f84ee8fb150d8bf49c96974da48d4376a925b",
+      "bytes": 17187
+    },
+    {
+      "path": "rust/src/bin/p93_invalidseed_probe.rs",
+      "sha256": "4b02f8157594b605dad822052b8feb51800985b18ef054df65b100e960bb982a",
+      "bytes": 15961
+    },
+    {
+      "path": "rust/src/bin/p940_struct_input_abc.rs",
+      "sha256": "27b216ce9f1590c63ad0eab4173b75acb60d86eddeff48d642b6b139dae5f1cf",
+      "bytes": 26642
+    },
+    {
+      "path": "rust/src/bin/p944_bsp_layer_mismatch.rs",
+      "sha256": "b7e64c4016ede641b2d4138d05a4986c679ae42e57716c4016c006b68c98ca60",
+      "bytes": 29093
+    },
+    {
+      "path": "rust/src/bin/p946_seg_structure_alignment.rs",
+      "sha256": "7d63dc20652fd60767f87aa32621186c84775507c80261448b7ed368e610b508",
+      "bytes": 24461
+    },
+    {
+      "path": "rust/src/bin/p95_carriedonly_ab.rs",
+      "sha256": "5740bd458bf1d0d98f05710e9cd7b3afc1daf505a741af37bf4b6a8fcc2027ef",
+      "bytes": 28955
+    },
+    {
+      "path": "rust/src/bin/p977_force_def_validation.rs",
+      "sha256": "2d3217d6201016572478bcf52b254ed24897a68a3e077e17e91c1482bb82f84a",
+      "bytes": 13708
+    },
+    {
+      "path": "rust/src/bin/p985_s8_consume_baseline.rs",
+      "sha256": "f1d1aa9c2c481180d2c3b2076909c12b7d9869b65d65ad873b0c3f6e2a64cd90",
+      "bytes": 10563
+    },
+    {
+      "path": "rust/src/bin/p985_tv_endpoint_blunt.rs",
+      "sha256": "339bb2a459ff20216a990a5768ba504cb5e70e610fccf03fbd88f56154e390c9",
+      "bytes": 7106
+    },
+    {
+      "path": "rust/src/bin/p992_gauge_diff.rs",
+      "sha256": "91f81585fa4b86737927ce9d8799c8934e2b1babe1677419f2a354ef41421e30",
+      "bytes": 2622
+    },
+    {
+      "path": "rust/src/bin/p_issue668_bsp_bridge_battery.rs",
+      "sha256": "ac8caf644e210782626a936d5bb5a4d2419073ad2a37028f52d64a4c277c3723",
+      "bytes": 22214
+    },
+    {
+      "path": "rust/src/bin/p_issue668_bsp_key_truth.rs",
+      "sha256": "355307c7f08b8196f51d275fffb9e259d68bdc83b0a9410bcd8404257a902616",
+      "bytes": 19449
+    },
+    {
+      "path": "rust/src/bin/pi_bsp_timing.rs",
+      "sha256": "ed7a950b5f60da4bf0f0a079812917ff985074d3e646b10fe7e45227380015be",
+      "bytes": 49923
+    },
+    {
+      "path": "rust/src/bin/pure_bsp_timing.rs",
+      "sha256": "ec932d7b5d08202008f13bf145449113f91018f0c9814674777e0f5f2712f843",
+      "bytes": 12874
+    },
+    {
+      "path": "rust/src/bin/replay_compare.rs",
+      "sha256": "39de5001c76be4b5a9db40bad910a403ec15801d0d42118567a9c2d7c6d1a620",
+      "bytes": 4430
+    },
+    {
+      "path": "rust/src/bin/s2_lean_mirror_extract.rs",
+      "sha256": "b82450a2d401bd5697756d23a029a91ebd74616ff8855111d46459e94cc63e7d",
+      "bytes": 191384
+    },
+    {
+      "path": "rust/src/bin/s_structure_session.rs",
+      "sha256": "9d2c553057fa8ced786df7e5b10e302b4fe236047b9a5b2742ef3a992e453b6f",
+      "bytes": 296057
+    },
+    {
+      "path": "rust/src/bin/strict_nest_check.rs",
+      "sha256": "f313d51dc9ff60c3261730060778c2013f182e6084bb65f1ef61185339f79d4e",
+      "bytes": 101864
+    },
+    {
+      "path": "rust/src/bin/tangency_probe.rs",
+      "sha256": "d96b795bdba2f267e563ca13a709710d598945b0f777f3e82ddb04caf20a2603",
+      "bytes": 7237
+    },
+    {
+      "path": "rust/src/bin/theta_accept.rs",
+      "sha256": "29f6ea67036e72c1acb64cb1ca0feaefdc7fe01e633c76a79abcd52032102500",
+      "bytes": 19261
+    },
+    {
+      "path": "rust/src/bin/theta_backtest.rs",
+      "sha256": "cb228c18216a00402f81fed225833a19901ecf157cda25f9ddf9865d88a036f0",
+      "bytes": 10514
+    },
+    {
+      "path": "rust/src/bin/theta_m1_dual.rs",
+      "sha256": "429b5192eb817243a7dae9032ff301066be0cd53e6a054089e7df6f1a04470d1",
+      "bytes": 23731
+    },
+    {
+      "path": "rust/src/bin/theta_overlay.rs",
+      "sha256": "ca28818741e2e62f66da749f2ca958e0fe6055c0e97c6da12c32352a2ff5edff",
+      "bytes": 10551
+    },
+    {
+      "path": "rust/src/bin/theta_replay.rs",
+      "sha256": "a099e3c1d2ad4d757275ba567574a1df5d68404687bb43bc53158e38e4defbe4",
+      "bytes": 7016
+    },
+    {
+      "path": "rust/src/lib.rs",
+      "sha256": "e2469cefb0296e91019d6efef8548f26ff27a301ef9704c0f8398779f8c6c72d",
+      "bytes": 111443
+    },
+    {
+      "path": "rust/tests/bsp_predicate_lean_parity.rs",
+      "sha256": "90daecd0a7504447c271f48b3922aa4ef06beaee5f75d833e4adc59d54432098",
+      "bytes": 10770
+    },
+    {
+      "path": "rust/tests/certificate_chain_single_source.rs",
+      "sha256": "7755d071393a030730a28b982bc72e67db45b54f3667962bf5a40143e0d866fe",
+      "bytes": 3061
+    },
+    {
+      "path": "rust/tests/econ_oddeven_diagnosis.rs",
+      "sha256": "d7d273632b8469db540f86223485b92a4feab189305b0e92fa701e7a984c9a3b",
+      "bytes": 20130
+    },
+    {
+      "path": "rust/tests/issue1087_scan_lean_parity.rs",
+      "sha256": "e38c8a94a9adea19190dab7ec0d7a550423d85984eee6659fe35d44145a8737e",
+      "bytes": 8522
+    },
+    {
+      "path": "rust/tests/issue533_p123_byte_guardrail.rs",
+      "sha256": "0a82bcad51a47b90388c0f308f4bf43a9bec6f396da2f18f611524ba228eac6a",
+      "bytes": 11399
+    },
+    {
+      "path": "rust/tests/nest_isolation_guard.rs",
+      "sha256": "56d1573ad9fd0bca40c07dc6a232f3f1b208bf2de82f673f14614a723b1575dd",
+      "bytes": 6819
+    },
+    {
+      "path": "rust/tests/replay_compare_test.rs",
+      "sha256": "c411bd3beb5b457ad273d09258fafaae9ce272621386083832ce81749943f525",
+      "bytes": 5371
+    },
+    {
+      "path": "rust/tests/theta_pi_stream.rs",
+      "sha256": "1903ed2182db01b646274f0fe433203a9469e18338f30e783e3cf77eb214c660",
+      "bytes": 5919
+    },
+    {
+      "path": "rust/tests/theta_v0_07b_gating.rs",
+      "sha256": "a97bc7e17ada120ac20a0cdf0d520bf13640303d0a88056f700303f6ad7d1497",
+      "bytes": 7396
+    },
+    {
+      "path": "rust/tests/theta_v0_buy_parity.rs",
+      "sha256": "96506ab1299c115d49d829360a82daa6464092d9873fd09e4d24aabbe6e724a6",
+      "bytes": 26255
+    },
+    {
+      "path": "rust/tests/theta_v0_center_parity.rs",
+      "sha256": "3cebd4a145eae6fd704db1f892c9a6635ee1811fc40164e8743e6a5d7f13cbf5",
+      "bytes": 8347
+    },
+    {
+      "path": "rust/tests/theta_v0_classifier_parity.rs",
+      "sha256": "a95c66b2fc557aa20122ac608f945dc0733436cbca1db7cb1d310d0a29f520d0",
+      "bytes": 46412
+    },
+    {
+      "path": "rust/tests/theta_v0_fixture_drift.rs",
+      "sha256": "93b36937a15d29a93aff3e44a1a599f3c500952d6481ac2937e0001770b5922f",
+      "bytes": 3708
+    },
+    {
+      "path": "rust/tests/theta_v0_lean_parity.rs",
+      "sha256": "c0629878b394a27ba49bc0d2981cced8ed5756d8a2ead3031a98b4f6366d2fd6",
+      "bytes": 8844
+    },
+    {
+      "path": "rust/tests/theta_v0_perf_profile.rs",
+      "sha256": "eec91c2a97e9a89670a5fdf5ca54d7ada96cd753693f83a4c18e7cfb934658af",
+      "bytes": 10318
+    }
+  ],
+  "scope": "本机仅静态读源与核摘要，没有复制或运行产品"
+}

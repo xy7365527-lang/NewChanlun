@@ -1,0 +1,137 @@
+{
+  "schema": "issue1393-lock-preparation-validation/1",
+  "status": "PREPARED_NOT_AUTHORIZED",
+  "issue": 1393,
+  "baseline_commit": "8e50d40933c2a6a25f882481f3c46aa885ce6407",
+  "baseline_tree": "0a2e04a4ce22a6b8732ad3b55f57446ee3f066f0",
+  "branch": "codex/1393-lock-prepare-20261018",
+  "execution_ref": "refs/heads/codex/1393-lock-once-20261018",
+  "gate": "False",
+  "scope": "仅可审准备字节；当前所有最终绑定 UNBOUND；没有具体运行许可",
+  "tests": {
+    "command": "python3 -B -m unittest discover -s .github/scripts -p test_issue1393_lock_prepare.py -v",
+    "passed": 23,
+    "seconds": 0.249,
+    "stdout": "toy-verified.stdout",
+    "stderr": "toy-verified.stderr"
+  },
+  "static": {
+    "command": "python3 -B .chanlun/review-results/issue1393-lock-prepare-20261018/verify_static.py",
+    "passed_groups": 7,
+    "stdout": "static-verified.stdout",
+    "stderr": "static-verified.stderr"
+  },
+  "history": [
+    {
+      "files": "toy-round01.*",
+      "tests": 21,
+      "passed": 20,
+      "errors": 1,
+      "reason": "源根外 macOS 祖先 symlink 过宽拒绝，已修正；原件保留"
+    },
+    {
+      "files": "toy-round02.*",
+      "tests": 21,
+      "passed": 21
+    },
+    {
+      "files": "toy-final.*",
+      "tests": 23,
+      "passed": 23
+    },
+    {
+      "files": "toy-verified.*",
+      "tests": 23,
+      "passed": 23
+    }
+  ],
+  "static_source_transport": {
+    "count": 85,
+    "bytes": 2734136,
+    "receipt": "SOURCE-PREFLIGHT.json",
+    "execution": "NOT_RUN"
+  },
+  "entry_sha256": {
+    ".github/workflows/issue1393-lock-prepare.yml": "20df22d0138dbe879d5215423404e8b137efd9521ab4b8e0ac47750fd73b2776",
+    ".github/scripts/issue1393_lock_prepare.py": "3e1e7a694891d887b5f8c0d7c44a30052a1105263c2976eeba5ac07a8afd70da",
+    ".github/scripts/test_issue1393_lock_prepare.py": "73481ed99f8eb6d8ab35626eb470cbdc0e18e3b792130cc280072ee8faac9b71"
+  },
+  "unchanged_sha256": {
+    ".github/scripts/issue1393_validate.py": "a98e7e6f54dacef35476f245a1f938df6cd0a952191fd7ea67938dd7185b1830",
+    ".github/scripts/run-cargo-with-telemetry.sh": "57ae7b0a305af3a0e8948a653721721739681ce41f1a7cd359b163a164fc299e",
+    ".github/workflows/ci.yml": "b347f7914874c84c62bbc6f899036a53588e62c947930e8dc8e871489f0a702e",
+    ".github/workflows/issue1393-validation.yml": "47c31701f9f2c9b34291721dab1623ede0bb54bbbb97ba58cb34efc5272ffe5b",
+    "rust/Cargo.toml": "f129440150dd1eb148ddb07ca5828e14a13c41122e018920c05efa1bea2c8727",
+    "rust/Cargo.lock": "c591858344c1ff7c62335e10c0e2f1f5cf9e7447a8caf81cd92e556bac248b62"
+  },
+  "references": [
+    {
+      "path": "/Volumes/AgentStorage/issue1393-sandcastle-20261018-management/RUST-TOOLCHAIN-39091453686.txt",
+      "sha256": "736b421f60c5b1726852e33b51ead31d694db8773ab782881b6125df410db3fa",
+      "bytes": 558
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1393-sandcastle-20261018-management/reference-1488-transport/issue-1488-driver-six.yml",
+      "sha256": "9c5cf48e969d06fecfbe0dcfd76f149bf09a2a0598dab4685dec90ca055c0790",
+      "bytes": 1221
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1393-sandcastle-20261018-management/reference-1488-transport/run-1488-driver-ci.py",
+      "sha256": "05360b7b0777165e82c2bdf0b8b338e6ee7c3e00f93ac933d07c5001eee440bf",
+      "bytes": 96961
+    },
+    {
+      "path": ".chanlun/review-results/issue1393-sandcastle-20261018/reference-evidence/xerj-nautilus-reference-all.json",
+      "sha256": "8f2304838253c51889429c41871542f467d22764b0ec7dbb8faec956c0278dda",
+      "bytes": 953196
+    },
+    {
+      "path": ".chanlun/review-results/issue1393-sandcastle-20261018/reference-evidence/xerj-nc1419gate-inclusion.json",
+      "sha256": "0d2f4ecf2f4a4c3a72f50dfbf36263871991dca970bc12782dda6062ed915668",
+      "bytes": 136840
+    },
+    {
+      "path": ".chanlun/review-results/issue1393-sandcastle-20261018/reference-evidence/xerj-nc1320src-inclusion.json",
+      "sha256": "3eadeee397574adcfbe11b37a2e1d3e01d809904427653ab0a2cffe8b27a7563",
+      "bytes": 137552
+    },
+    {
+      "path": ".chanlun/review-results/issue1393-sandcastle-20261018/reference-evidence/xerj-nautilus-state-reference.json",
+      "sha256": "f7853a247fb99bb255f79397108dcf6a79db2109add34239499864ef50a3ec16",
+      "bytes": 91586
+    }
+  ],
+  "not_run": [
+    "本机 cargo/rustc/rustup",
+    "真实工具链安装",
+    "真实 generate-lockfile",
+    "网络及 registry 获取",
+    "真实 GitHub checkout/push/run/upload",
+    "Linux runner/subreaper 实测",
+    "正式 Rust 编译/测试",
+    "Long/产品/Lean/fixture",
+    "独立评审",
+    "E 预发布",
+    "F 单次 push"
+  ],
+  "limitations": [
+    "生成成功不代表正式 --locked 验证成功",
+    "2 GiB 仅起始磁盘门，不是全程硬帽",
+    "同组进程回收和 Linux subreaper 远端尚未实测，不宣称约束任意 setsid 逃逸",
+    "截止或外部强制终止可能使上传不可用，实际结论以 Actions 为准",
+    "批准/独审摘要仅溯源，根须分别核准 E 预发布及 F 单次 push"
+  ],
+  "delivery": [
+    "REPORT.md",
+    "CONTRACT-DRAFT.json",
+    "VALIDATION.json",
+    "REFERENCE-READ.json",
+    "SOURCE-PREFLIGHT.json",
+    "RUST-TOOLCHAIN-39091453686.txt",
+    "toy-verified.stdout",
+    "toy-verified.stderr",
+    "static-verified.stdout",
+    "static-verified.stderr"
+  ],
+  "review": "本轮自查；等待管理者固定和独审后递根，不冒充独立评审"
+}
