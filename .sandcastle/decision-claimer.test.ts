@@ -7,6 +7,7 @@ import {
   ADR_FORMAT_LINE, AUTH_LINE, MAX_ROUNDS, isCitationOnlyBlock, landingProblem, revisePrompt, CITATION_SECTION, DRAFT_SECTIONS, GH_API_WRITE_DENY, READ_TOOLS, hasCitationTable, toolArgs, FETCH_URL, MAIN_REF, MODEL_FABLE, MODEL_OPUS, DryRunWriteError,
   allocateAdr, applyReclass, draftPrompt, ensureSrc, extractFirstApiKey, guardGh, reclassSuggestion, renumberDraft, reviewPrompt, initialState, isGhWrite, landingTarget, missingDraftSections,
   nextAfterReview, parseArgs, parseClassification, parseReview, processTicket, selectCandidates,
+  resolvedReason, pickUnresolved, finishedTickets,
   isRetryable, makeClaudeRunner, loadResume,
   type Deps, type GhRunner, type ModelCall, type OnceResult,
 } from "./decision-claimer.mts";
@@ -620,4 +621,82 @@ test("live P 类：贴标签失败只记断点，下一轮只补贴标签与取�
   assert.equal(s2.stage, undefined);
   assert.deepEqual(h.modelCalls, []);
   assert.deepEqual(writesOf(h.ghCalls), ["issue edit 1565 --add-assignee", "issue edit 1565 --add-label", "issue edit 1565 --remove-assignee"]);
+});
+
+// ───────── 图审计 2026-10-20 第 13 条：已裁定 / 已关闭票不再进裁决面 ─────────
+
+test("resolvedReason：已关闭、resolution 评论、用户批复都跳过；待用户批复与正文提及不算", () => {
+  const c = (body: string) => ({ author: "x", body });
+  assert.equal(resolvedReason({ state: "CLOSED", comments: [] }), "票已关闭");
+  assert.equal(resolvedReason({ state: "OPEN", comments: [c(`${AUTH_LINE}\n\n**resolution**：T 类`)] }), "票上已有 resolution");
+  assert.equal(resolvedReason({ state: "OPEN", comments: [c("用户 2026-10-20 批复：「同意」——采纳方案 A")] }), "票上已有用户批复");
+  assert.equal(resolvedReason({ state: "OPEN", comments: [c("用户 2026-10-20 批复\n\n批复已落成正本")] }), "票上已有用户批复");
+  // #1565 的影子评论：首行「待用户批复」，草稿里还可能写「需用户批复」——都不是批复。
+  assert.equal(resolvedReason({ state: "OPEN", comments: [c("**P 类影子模式，待用户批复**（原判 T）\n草稿：此项需用户批复")] }), null);
+  assert.equal(resolvedReason({ state: "OPEN", comments: [c("分级：T — 理由")] }), null);
+  assert.equal(resolvedReason({ comments: [] }), null);
+});
+
+test("pickUnresolved：逐张读票，跳过已裁定票不占并发槽，读票失败本轮跳过", () => {
+  const views: Record<number, unknown> = {
+    1565: { number: 1565, state: "CLOSED", title: "a", body: "", labels: [], assignees: [], comments: [] },
+    1566: { number: 1566, state: "OPEN", title: "b", body: "", labels: [], assignees: [], comments: [{ author: { login: "u" }, body: "用户 2026-10-20 批复：同意" }] },
+    1567: { number: 1567, state: "OPEN", title: "c", body: "", labels: [], assignees: [], comments: [] },
+    1569: { number: 1569, state: "OPEN", title: "e", body: "", labels: [], assignees: [], comments: [] },
+  };
+  const gh: GhRunner = (args) => {
+    if (args[0] === "issue" && args[1] === "view") {
+      const v = views[Number(args[2])];
+      if (!v) throw new Error("EOF");
+      return JSON.stringify(v);
+    }
+    return "[]";
+  };
+  const skipped: number[] = [];
+  assert.deepEqual(pickUnresolved(gh, [1565, 1566, 1568, 1567, 1569], 1, (n) => skipped.push(n)), [1567]);
+  assert.deepEqual(skipped, [1565, 1566, 1568]);
+  assert.deepEqual(pickUnresolved(gh, [1565, 1567, 1569], 3, () => {}), [1567, 1569]);
+});
+
+test("finishedTickets：终态跳过，error 与带断点的不跳过", () => {
+  const root = mkdtempSync(join(tmpdir(), "decision-finished-"));
+  const put = (n: number, v: object) => { mkdirSync(join(root, String(n)), { recursive: true }); writeFileSync(join(root, String(n), "summary.json"), JSON.stringify(v)); };
+  put(1, { phase: "done" });
+  put(2, { phase: "shadow_p" });
+  put(3, { phase: "error" });
+  put(4, { phase: "land_t", stage: "reviewed_pass" });
+  put(5, { phase: "review_parse_error" });
+  assert.deepEqual([...finishedTickets(root, [1, 2, 3, 4, 5, 6].map((number) => ({ number })))].sort(), [1, 2]);
+});
+
+test("live processTicket：已有用户批复的票不 claim、不调模型、不覆盖 summary.json", async () => {
+  const { d, ghCalls, modelCalls } = fakeDeps("live", []);
+  const base = d.gh;
+  d.gh = (args, input) => {
+    if (args[0] === "issue" && args[1] === "view") {
+      ghCalls.push(args);
+      return JSON.stringify({ number: 1565, state: "OPEN", title: "W", body: "", labels: [{ name: "wayfinder:grilling" }], assignees: [], comments: [{ author: { login: "u" }, body: "用户 2026-10-20 批复：「同意」" }] });
+    }
+    return base(args, input);
+  };
+  d.me = "me";
+  mkdirSync(join(d.outRoot, "1565"), { recursive: true });
+  writeFileSync(join(d.outRoot, "1565", "summary.json"), JSON.stringify({ phase: "error", error: "EOF" }));
+  const s = await processTicket(1565, d);
+  assert.equal(s.phase, "skipped");
+  assert.equal(ghCalls.filter(isWrite).length, 0);
+  assert.equal(modelCalls.length, 0);
+  assert.equal(JSON.parse(readFileSync(join(d.outRoot, "1565", "summary.json"), "utf8")).phase, "error");
+});
+
+test("live processTicket：已关闭票直接跳过", async () => {
+  const { d, ghCalls } = fakeDeps("live", []);
+  const base = d.gh;
+  d.gh = (args, input) => {
+    if (args[0] === "issue" && args[1] === "view") return JSON.stringify({ number: 9, state: "CLOSED", title: "x", body: "", labels: [], assignees: [], comments: [] });
+    return base(args, input);
+  };
+  const s = await processTicket(9, d);
+  assert.equal(s.phase, "skipped");
+  assert.equal(ghCalls.filter(isWrite).length, 0);
 });

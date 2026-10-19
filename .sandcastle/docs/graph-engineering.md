@@ -56,6 +56,8 @@ Opus 5.5 审查者另起进程，只拿草稿和源文件，看不到起草推�
 
 wayfinder_engine 下一轮重扫；FU blocker 全关的实施票被挂 `sandcastle`，进执行面。
 
+放行判据（2026-10-20 图审计第 13–15 条修正）：扫描集是 open 的 `ready-for-agent` ∪ `wayfinder:impl`；实施票按 `[impl]` 标题或 `wayfinder:impl` 标签认；批准态沿 sub_issues 子树递归，取祖先链上最近一张 SPEC 的批准态（map 直挂票取 map 的 SPEC）。有任何 assignee、有 open blocker、带 `needs-approval`/`ready-for-human`/`needs-info`/`wontfix`、或仍有 open 子票的汇总票，一律不挂 `sandcastle`。裁决面 decision-claimer 在 live 与 dry-run 下都跳过本地已到终态的票，以及已关闭、已有 resolution 或「用户 … 批复」评论的票。
+
 ## 授权记录
 
 #1323 Notes 追加一条，comment 同步留痕：

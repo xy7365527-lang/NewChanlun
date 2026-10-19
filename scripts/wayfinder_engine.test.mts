@@ -19,7 +19,10 @@ import {
   classifyTicket,
   openBlockerCount,
   buildSpecApprovalIndex,
+  buildOpenChildIndex,
   withSpecApproval,
+  explainTicket,
+  isImplCandidate,
   summarizeQueue,
   planReleases,
   renderStatus,
@@ -397,8 +400,95 @@ test("renderStatus：五桶分明，不把 sandcastle 空误写成 ready-for-age
     tickets,
     summary,
   );
-  assert.equal(text.includes("全仓 ready-for-agent（open）：2 张"), true);
+  assert.equal(text.includes("扫描集 open（ready-for-agent ∪ wayfinder:impl）：2 张"), true);
   assert.equal(text.includes("已获 sandcastle 拾取权（可拾取）：0"), true);
   assert.equal(text.includes("待释放（合资格实装票，本轮挂 sandcastle）：1 → #1"), true);
-  assert.equal(text.includes("不合资格（决策/spec/未批准 spec 等，不放行）：1"), true);
+  assert.equal(text.includes("不合资格（决策/spec/未批准 spec/人闸标签等，不放行）：1"), true);
+});
+
+// ── 图审计 2026-10-20 第 14/15 条：SPEC 子树递归、wayfinder:impl 扫描、SPEC 标题兼容 ──
+
+test("isSpecTicket：兼容「📋 SPEC：」「SPEC：」「SPEC:」与 [spec]，不误认正文提及", () => {
+  for (const t of ["📋 SPEC：完整生产程序（#1323，R2）", "SPEC：完整生产程序（#1323）", "SPEC: x", "  spec：x", "[spec] x", "📋 SPEC x"]) {
+    assert.equal(isSpecTicket({ title: t }), true, t);
+  }
+  for (const t of ["[impl] TB-02 落地 SPEC：x", "SPECIAL 项", "关于 SPEC：x 的讨论", "[grilling] SPEC 批准口径"]) {
+    assert.equal(isSpecTicket({ title: t }), false, t);
+  }
+});
+
+test("isImplCandidate：[impl] 标题或 wayfinder:impl 标签；决策票即使带 impl 标签也不算", () => {
+  assert.equal(isImplCandidate({ title: "[impl] x", labels: [] }), true);
+  assert.equal(isImplCandidate({ title: "TB-03-B 叶子", labels: ["wayfinder:impl"] }), true);
+  assert.equal(isImplCandidate({ title: "[task] x", labels: [] }), false);
+  assert.equal(isImplCandidate({ title: "[impl] x", labels: ["wayfinder:grilling"] }), false);
+});
+
+/** #1323 形状：map → SPEC #1340 → TB 汇总 → 叶 → 纵片；另有 map 直挂实装票与其子票。 */
+function tree1323(specComments: IssueComment[]): MapState {
+  const slice = child({ number: 1524, title: "[impl] 纵片 B", labels: ["wayfinder:impl"] });
+  const leaf = child({ number: 1394, title: "[impl] TB-03-B 叶", labels: ["wayfinder:impl"], children: [slice] });
+  const leafClosed = child({ number: 1390, title: "[impl] TB-03-A 叶", state: "CLOSED", labels: ["wayfinder:impl"] });
+  const tb = child({ number: 1362, title: "TB-04 汇验", labels: ["wayfinder:impl"], children: [leaf, leafClosed] });
+  const spec1340 = child({ number: 1340, title: "📋 SPEC：完整生产程序（#1323，R2）", comments: specComments, children: [tb] });
+  const nested = child({ number: 1527, title: "[task] 恢复路径", labels: ["wayfinder:impl"] });
+  const direct = child({ number: 1405, title: "[impl] 直挂", children: [nested] });
+  return map({ number: 1323, children: [decision(1530, "OPEN"), spec1340, direct] });
+}
+
+test("buildSpecApprovalIndex：已批准 SPEC 的批准态递归到 TB 汇总、叶、纵片与直挂票的子票", () => {
+  const idx = buildSpecApprovalIndex([tree1323([approvalComment()])], ORCH);
+  for (const n of [1362, 1394, 1390, 1524, 1405, 1527]) assert.equal(idx.get(n), true, `#${n}`);
+  const pending = buildSpecApprovalIndex([tree1323([])], ORCH);
+  for (const n of [1362, 1394, 1524, 1527]) assert.equal(pending.get(n), false, `#${n}`);
+  // 驳回后不放行（时间序推进）。
+  const rejected = buildSpecApprovalIndex([tree1323([approvalComment(), rejectComment()])], ORCH);
+  assert.equal(rejected.get(1394), false);
+});
+
+test("buildSpecApprovalIndex：子树里的 SPEC 用自己的批准态（最近 SPEC 说了算）", () => {
+  const leaf = child({ number: 901, title: "[impl] 子 spec 下的叶", labels: ["wayfinder:impl"] });
+  const subSpec = child({ number: 900, title: "SPEC：子 spec", children: [leaf] });
+  const m = map({ number: 42, children: [spec(500, "OPEN", [approvalComment()]), subSpec] });
+  assert.equal(buildSpecApprovalIndex([m], ORCH).get(901), false);
+  subSpec.comments = [approvalComment()];
+  const m2 = map({ number: 43, children: [spec(501, "OPEN", []), subSpec] });
+  assert.equal(buildSpecApprovalIndex([m2], ORCH).get(901), true);
+});
+
+test("buildSpecApprovalIndex：环与重复挂载不死循环", () => {
+  const a = child({ number: 1, title: "[impl] a" });
+  const b = child({ number: 2, title: "[impl] b", children: [a] });
+  a.children = [b];
+  const idx = buildSpecApprovalIndex([map({ number: 42, children: [spec(500, "OPEN", [approvalComment()]), a] })], ORCH);
+  assert.equal(idx.get(1), true);
+  assert.equal(idx.get(2), true);
+});
+
+test("放行：TB 叶子只带 wayfinder:impl 也能放行；已有负责人、open blocker、汇总票、人闸标签一律不放行", () => {
+  const maps = [tree1323([approvalComment()])];
+  const scan: ReadyTicket[] = [
+    ready({ number: 1524, title: "纵片 B", labels: ["wayfinder:impl"] }),                       // 可放行
+    ready({ number: 1394, title: "[impl] TB-03-B", labels: ["wayfinder:impl"], assignees: ["xy7365527-lang"] }), // 负责人在做
+    ready({ number: 1527, title: "[task] 恢复路径", labels: ["wayfinder:impl"], blockedBy: 1 }),   // open blocker
+    ready({ number: 1362, title: "TB-04 汇验", labels: ["wayfinder:impl"] }),                     // 汇总票，子票未全关
+    ready({ number: 1405, title: "[impl] 直挂", labels: ["needs-approval"] }),                     // 人闸
+    ready({ number: 1530, title: "[grilling] FU-08", labels: ["wayfinder:grilling", "ready-for-agent"] }), // 决策票
+    ready({ number: 7777, title: "[impl] 图外", labels: ["wayfinder:impl"] }),                    // 不在 open map 子树
+  ];
+  const view = withSpecApproval(scan, buildSpecApprovalIndex(maps, ORCH), buildOpenChildIndex(maps));
+  assert.deepEqual(planReleases(view), [1524]);
+  const why = Object.fromEntries(view.map((t) => [t.number, explainTicket(t)]));
+  assert.match(why[1394]!, /^claimed/);
+  assert.match(why[1527]!, /^blocked/);
+  assert.match(why[1362]!, /汇总票，open 子票 1/);
+  assert.match(why[1405]!, /人闸标签 needs-approval/);
+  assert.match(why[1530]!, /非实装票/);
+  assert.match(why[7777]!, /不在任何 open map 子树内/);
+});
+
+test("已有负责人：不论 assignee 最近是否活跃，引擎都不放行（释放认领归人工）", () => {
+  const t = ready({ number: 1488, title: "[impl] S 写者", labels: ["wayfinder:impl"], assignees: ["xy7365527-lang"], specApproved: true });
+  assert.equal(classifyTicket(t), "claimed");
+  assert.deepEqual(planReleases([t]), []);
 });
