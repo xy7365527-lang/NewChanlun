@@ -195,7 +195,7 @@
 **约束原文与出处（照实）**：「生成态不写生命周期元数据」**未见于 ADR、`CONTEXT.md` 或任何 `.chanlun/definitions/` 正本**（在 main `b63a3fd586` 的 `docs/adr`、`CONTEXT.md`、`.chanlun/definitions` 检索 `生命周期元数据`／`首获知`／`first_known`：只命中本文件上节 `cut / first_known` 与 `docs/adr/0037-s-content-bounded-layout.md:12` 按 `first_known_generation` 排快照，二者都不是该约束）。它目前只存在于两处：
 
 1. 代码：`rust/src/bin/s_session_v3/generation.rs:16-17`（#1394 线 `d1441b5d77` 引入，[#1419](https://github.com/xy7365527-lang/NewChanlun/issues/1419) 整合分支 `356df5db72` 同行未变，**尚未进 main**）逐字：「本模块不发出生许可，不写任何生命周期元数据，也不把 `wit-`/`window-` 之外的任何 `*_id` 当发布身份」。
-2. 其规范根据：#1394 采纳件 `.chanlun/review-results/issue1394-content-v3-20260916/APPROVED-SOURCE.md:200`（同上两提交；采纳记录 `ADOPTION.json`，用户「照办 批准」，`recorded_at_utc` 2026-09-15T23:44Z§5.1–5.9）逐字：「生成态元数据与独立索引的首获知元数据继续分开」；`:201` 把「实际首获知／撤回元数据」划入 `publication_template`。该目录属工作草稿名分，不是正本层。另见 #1419 issuecomment-6265160238 待裁第 3 条、issuecomment-6265209957 主控裁定第 3 条。
+2. 其规范根据：#1394 采纳件 `.chanlun/review-results/issue1394-content-v3-20260916/APPROVED-SOURCE.md:200`（同上两提交；采纳记录 `ADOPTION.json`，用户「照办 批准」，`recorded_at_utc` 2026-09-15T23:44Z；§5.1–5.9）逐字：「生成态元数据与独立索引的首获知元数据继续分开」；`:201` 把「实际首获知／撤回元数据」划入 `publication_template`。该目录属工作草稿名分，不是正本层。另见 #1419 issuecomment-6265160238 待裁第 3 条、issuecomment-6265209957 主控裁定第 3 条。
 
 **本裁定一并正式化（以 W 对象发布所需为限）**：S3 生成态的输入是同一读集的 raw 全修订史、当前生效账，以及上一代**已核发布内容**（与既有 `generation.rs:111` 读上一代已核 CC-010.bi / CC-056.version 记录根同一口径）。生成态**不读**首获知、发布代号、撤回等生命周期字段作为取值输入，**不写**这些字段；它们归 root 的独立出生／撤回索引。理由：生命周期字段是发布链对「何时被看见」的记账，若进入生成输入，生成结果就依赖发布历史，§5.4 的无循环派生与「独立索引独立核出生」都会失去意义。正式化只覆盖本节需要的这一面；S3 其余生成／发布边界仍以 #1394 采纳件为准，后续若立 ADR 收编，本节随之改为引用。
 
