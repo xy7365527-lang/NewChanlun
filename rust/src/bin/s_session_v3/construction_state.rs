@@ -508,7 +508,9 @@ impl PendingRawState {
         let Some(previous) = previous else {
             return Err(stale("Recover迁移缺原有效资格"));
         };
-
+        if previous.writer_epoch.is_some_and(|epoch| epoch != handoff.from) {
+            return Err(stale("Recover迁移旧资格不属于当前持久epoch"));
+        }
         // P3-1：换代证明所绑父账/冻结域须恰为事务实际候选父账；状态块许可须仍挂该账。
         let Some(stamp) = handoff.parent.as_ref() else {
             return Err(stale("Recover迁移缺父账交接摘要"));
