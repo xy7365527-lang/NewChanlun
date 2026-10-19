@@ -13,8 +13,8 @@ from test_tb02d_contract import first_sample, samples
 
 ROOT = Path(__file__).resolve().parents[1]
 CLIENT = ROOT / "browser/tb01c-client.js"
-RULE_V2 = "s2-axis-quantifiers+new-bi/1+segment-second/1"
-RULE_V3 = "s2-axis-quantifiers+new-bi/1+segment-second/2"
+RULE_V2 = "s2-axis-quantifiers+new-bi/2+segment-second/1"
+RULE_V3 = "s2-axis-quantifiers+new-bi/2+segment-second/2"
 SEQ, SEG, VER, CHANGE = "CC-012.feature_sequence", "CC-013.segment", "CC-056.segment_version", "CC-055.segment_change"
 TERMINALS = {  # 名 → (scan.semantic_state, second_sequence_status, coverage)
     "CONFIRMED": ("CONFIRMED", "CONFIRMED", "COMPLETE"),

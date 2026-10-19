@@ -9,7 +9,7 @@ const API = require('../browser/tb01c-client.js');
 const seed = require('./fixtures/tb02c/contract-seed.json');
 
 const SEQ = 'CC-012.feature_sequence', SEG = 'CC-013.segment', VER = 'CC-056.segment_version';
-const RULE_V2 = 's2-axis-quantifiers+new-bi/1+segment-second/1', RULE_V3 = 's2-axis-quantifiers+new-bi/1+segment-second/2';
+const RULE_V2 = 's2-axis-quantifiers+new-bi/2+segment-second/1', RULE_V3 = 's2-axis-quantifiers+new-bi/2+segment-second/2';
 const PROFILE = 'ohlc_integer_tb02a_v1';
 const TERMINALS = {CONFIRMED: ['CONFIRMED', 'CONFIRMED', 'COMPLETE'], KILLED: ['KILLED_BY_NEW_EXTREME', 'KILLED', 'COMPLETE'],
   OPEN: ['OPEN_AT_PREFIX_END', 'PENDING', 'COMPLETE'], BUDGET: [null, 'PENDING', 'INCOMPLETE_RESOURCE_BOUND']};
