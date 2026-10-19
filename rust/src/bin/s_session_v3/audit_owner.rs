@@ -966,7 +966,7 @@ impl AuditConnection {
         // P3-1：证明另绑本事务候选父账身份与冻结域摘要；读不到则不绑，迁移时按缺摘要拒绝。
         #[cfg(feature = "s_capture_native_testonly")]
         #[allow(unused_mut)]
-        let mut handoff = match self
+        let mut handoff = match active
             .complete
             .borrow()
             .as_ref()
