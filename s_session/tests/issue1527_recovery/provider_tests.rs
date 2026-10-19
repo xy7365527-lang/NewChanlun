@@ -31,7 +31,8 @@ impl Fixture {
             &db,
             "admission-fixture",
             &base.join("catalog/signed-catalog.json"),
-            &base.join("profiles/testonly_tick_1_1_ohlc.json"),
+            // 完整业务审计只接线 OHLC 档（非 OHLC 档按设计拒绝），正控须用生产 OHLC 档。
+            &base.join("profiles/ohlc_integer_tb02a_v1.json"),
             "1",
             &clock,
             4,
