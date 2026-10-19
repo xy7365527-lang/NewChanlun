@@ -1924,6 +1924,7 @@ impl SnapshotSeal {
             && self.write_sequence == next.write_sequence
             && self.data_version == next.data_version
             && self.schema_version == next.schema_version
+            && self.domain == next.domain
     }
 }
 #[cfg(feature = "s_capture_native_testonly")]
