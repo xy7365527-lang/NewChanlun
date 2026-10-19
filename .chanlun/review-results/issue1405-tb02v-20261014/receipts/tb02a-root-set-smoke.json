@@ -1,0 +1,17 @@
+{
+ "wait_equal_high": {
+  "check_root_set": "PASS",
+  "checks": 61,
+  "as_known_v1": "v1 waiting expectation now fails: 知识状态必须保留缺口"
+ },
+ "wait_equal_low": {
+  "check_root_set": "PASS",
+  "checks": 61,
+  "as_known_v1": "v1 waiting expectation now fails: 知识状态必须保留缺口"
+ },
+ "wait_equal_both": {
+  "check_root_set": "PASS",
+  "checks": 65,
+  "as_known_v1": "v1 waiting expectation now fails: 知识状态必须保留缺口"
+ }
+}

@@ -1,0 +1,10 @@
+# cargo test --features s_session --bin s_structure_session
+B 片 1f90227633：
+test result: ok. 81 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 475.17s
+C2 片升会话规则后首跑（顺序敏感测试，随后按 #1419/#1420 同款修正）：
+test tests::large_predecessor_supersedes_and_evidence_wire_are_strings ... FAILED
+test result: FAILED. 80 passed; 1 failed; 1 ignored; 0 measured; 0 filtered out; finished in 477.08s
+C2 定点复跑：
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 68 filtered out; finished in 22.12s
+D 片 93e9097915 全量：
+test result: ok. 81 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 481.87s

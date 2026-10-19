@@ -29,7 +29,7 @@ function endpoint(e,expected){
  const f=expected.fractals.find(f=>f[3]===n(e.extreme_roots[0]));ok(f,'候选端点没有冻结原始分型依据');
  eq([n(e.merged_index),e.kind,n(e.price)],[f[0],f[1],f[2]],'候选端点不符冻结分型');
  eq(n(e.group_anchor),expected.groups[f[0]][0][0],'候选组锚不符原始组');
- eq(n(e.raw_position),f[3],'候选原始位置不符实际根');
+ eq('raw_first' in e?[n(e.raw_first),n(e.raw_last)]:[n(e.raw_position),n(e.raw_position)],[f[3],f[3]],'候选原始位置不符实际根');
  eq(e.waiting_reasons,[],'已声明无同价域出现端点缺证');return f;
 }
 function condition(a,b,c,expected){
@@ -61,6 +61,7 @@ function projectionCheck(trace,prefix,snapshot,expected){
   const stronger=a[1]==='TOP'?b[2]>a[2]:b[2]<a[2];
   eq(p.conditions,null,'同型不得伪装异型失败');eq(p.comparison,b[2]>a[2]?'GT':'LT','同型价格比较错误');
   eq(p.selection,stronger?'REPLACE':'KEEP','同型选择错误');eq(p.retained_anchors,[stronger?p.new.group_anchor:p.old.group_anchor],'同型保留锚错误');
+  if('evidence' in p)eq(p.evidence,[],'本叶外不得出现同价证据');
  }
  const actual=d.bis.map(b=>{condition(b.start,b.end,b.formation,expected);eq(b.formation.vector,[true,true,true],'成笔非111');return [n(b.start.extreme_roots[0]),n(b.end.extreme_roots[0])];}).sort((a,b)=>a[0]-b[0]);
  eq(actual,selected(trace,prefix),'具名轨迹实际选中笔不符独立预期');
