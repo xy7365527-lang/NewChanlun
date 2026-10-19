@@ -135,6 +135,9 @@ struct Proof {
     dependency: Option<sc::NativeCountsSubsetCertificate>,
 }
 pub(super) struct Pool {
+    // #1488 P2-4负控：真实封存路径上注入的重复许可；首字段，析构时最先返还。
+    #[cfg(test)]
+    seal_fault_duplicate: Option<sc::capture_allocation::scratch::NativeReservation>,
     pub(super) originals: sc::AuditCapture,
     pub(super) nodes: usize,
     binding: Binding,
@@ -144,6 +147,20 @@ pub(super) struct Pool {
     subset_selection: Option<sc::NativeCountsSubsetReport>,
 }
 
+/// #1488 P2-4负控：下一次带工作域的封存额外签一张重复许可（一次性）。
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum SealFault {
+    /// 对已收费的来源成本同额再签。
+    SourceCostResign,
+    /// 对已收费的proofs块按容量再签。
+    ProofsBlockDuplicate,
+}
+#[cfg(test)]
+thread_local! {
+    pub(super) static SEAL_FAULT: std::cell::Cell<Option<SealFault>> =
+        const { std::cell::Cell::new(None) };
+}
 #[derive(Default, Clone, Debug, Serialize)]
 pub(super) struct SourceCost {
     node_body_bytes: usize,
@@ -320,6 +337,19 @@ impl Pool {
             return Err("CountsSubsetExactFeeMismatch".into());
         }
         pool.subset_selection = Some(selection);
+        #[cfg(test)]
+        if let Some(work) = work {
+            if let Some(fault) = SEAL_FAULT.with(|f| f.take()) {
+                let bytes = match fault {
+                    SealFault::SourceCostResign => pool.source_cost.total,
+                    SealFault::ProofsBlockDuplicate => {
+                        mul(pool.proofs.capacity(), std::mem::size_of::<Proof>())?
+                    }
+                };
+                pool.seal_fault_duplicate =
+                    Some(work.reserve_native(bytes).map_err(|e| e.to_string())?);
+            }
+        }
         Ok(pool)
     }
     fn build(
@@ -445,6 +475,8 @@ impl Pool {
         .into_iter()
         .try_fold(std::mem::size_of::<Self>(), add)?;
         Ok(Self {
+            #[cfg(test)]
+            seal_fault_duplicate: None,
             originals,
             nodes,
             binding,

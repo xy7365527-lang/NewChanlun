@@ -3185,6 +3185,193 @@ fn r13_optional_sql_rows_share_parent_without_changing_cells() {
     assert_eq!(parent.live(), before);
 }
 
+/// #1488 P2-4：封存池逐许可普查（独立于live差额）。`seal`=审计开始至封存后本父账全部
+/// 签发/归还事件；`released`=封存池析构期间事件，`freed0`=析构前本线程累计真实释放。
+/// C1 残余+逐张存活许可之和=封存后live；C2 无未匹配归还；C3 存活许可均为Native；
+/// C4 池析构恰好归还封存存活多重集且不签发；C5 析构时无真实释放支撑的归还恰为节点
+/// 来源许可（每节点一张、和=正文+digest/tag/证书——S7双角色的合同额），多出即重复计费。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+fn seal_census_check(
+    seal: &[native::CensusEvent],
+    residual: usize,
+    after_seal: usize,
+    freed0: u64,
+    released: &[native::CensusEvent],
+    breakdown: &Value,
+    nodes: usize,
+) -> Result<Value, String> {
+    let mut live: Vec<(&'static str, usize)> = Vec::new();
+    let mut unmatched = Vec::new();
+    for e in seal {
+        if e.reserve {
+            live.push((e.kind, e.bytes));
+        } else if let Some(i) = live.iter().rposition(|x| *x == (e.kind, e.bytes)) {
+            live.remove(i);
+        } else if let Some(i) = live.iter().rposition(|x| x.0 == e.kind && x.1 > e.bytes) {
+            live[i].1 -= e.bytes;
+        } else {
+            unmatched.push((e.kind, e.bytes));
+        }
+    }
+    let sum: usize = live.iter().map(|x| x.1).sum();
+    if residual.checked_add(sum) != Some(after_seal) {
+        return Err(format!(
+            "C1 普查恒等式失败：{after_seal} != {residual} + {sum}"
+        ));
+    }
+    if !unmatched.is_empty() {
+        return Err(format!("C2 未匹配归还 {unmatched:?}"));
+    }
+    if let Some(x) = live.iter().find(|x| x.0 != "native") {
+        return Err(format!("C3 封存存活许可非Native {x:?}"));
+    }
+    if released.iter().any(|e| e.reserve) {
+        return Err("C4 池析构期间签发新许可".into());
+    }
+    let mut dropped = released
+        .iter()
+        .map(|e| (e.kind, e.bytes))
+        .collect::<Vec<_>>();
+    live.sort();
+    dropped.sort();
+    if dropped != live {
+        return Err(format!(
+            "C4 池析构归还({}张/{}B)不等于封存存活({}张/{sum}B)",
+            dropped.len(),
+            dropped.iter().map(|x| x.1).sum::<usize>(),
+            live.len()
+        ));
+    }
+    let mut previous = freed0;
+    let mut unbacked = (0usize, 0usize);
+    for e in released {
+        if e.freed == previous {
+            unbacked = (unbacked.0 + 1, unbacked.1 + e.bytes);
+        }
+        previous = e.freed;
+    }
+    let field = |name: &str| {
+        breakdown[name]
+            .as_u64()
+            .map(|v| v as usize)
+            .ok_or(format!("来源成本缺{name}"))
+    };
+    let expected = field("node_body_bytes")? + field("node_digest_tag_certificate_bytes")?;
+    if unbacked != (nodes, expected) {
+        return Err(format!(
+            "C5 无释放支撑的归还{unbacked:?}不等于节点来源许可({nodes}, {expected})：重复计费"
+        ));
+    }
+    Ok(
+        json!({"permits":live.len(),"sealed_bytes":sum,"node_source_permits":nodes,"node_source_bytes":expected}),
+    )
+}
+
+/// #1488 P2-4负控：在真实封存路径（finish_source_keeper→retain_completed_admitted→
+/// build_bounded_counts_admitted 的同一工作域）注入重复许可；live差额恒等式对重复许可
+/// 自洽而照样通过，逐许可普查必须识别。无注入的对照组普查通过。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[test]
+fn p2_4_seal_census_flags_duplicate_permit_on_real_seal_path() {
+    use cross_request_source_cache::{SealFault, SEAL_FAULT};
+    let mut f = prepared::tests::Fixture::new();
+    let (envelope, token) = f.accept_begin(1, ("p24-source", 0, 6, 12, 3, 7), 1);
+    f.publish(&envelope, &token).unwrap();
+    let total = 64 * 1024 * 1024;
+    let mut baseline = None;
+    for fault in [
+        None,
+        Some(SealFault::SourceCostResign),
+        Some(SealFault::ProofsBlockDuplicate),
+    ] {
+        let mut owner = AuditConnection::open(&f.db_path()).unwrap();
+        let mut keeper = cross_request_source_cache::Keeper::new(total);
+        for request in 0..2 {
+            let old_pool = keeper.retained_source_bytes();
+            let mut context = request_audit::RequestAuditContext::with_source_keeper(keeper);
+            context
+                .freeze_manifest_workspace_budget(total, 0, old_pool)
+                .unwrap();
+            context.enable_cold_admission_for_testonly().unwrap();
+            let parent = context.cold_parent_budget().expect("准入冷核持真实父账");
+            let residual = parent.live();
+            parent.census_arm();
+            let active = owner.begin(TransactionBehavior::Deferred).unwrap();
+            let audited = parent
+                .codec_work()
+                .unwrap()
+                .run(|scope| {
+                    state::audit_native_in_request_admitted(active.tx(), &mut context, Some(scope))
+                })
+                .unwrap();
+            drop(audited);
+            let ended = active.read_end().unwrap();
+            if request == 1 {
+                SEAL_FAULT.with(|armed| armed.set(fault));
+            }
+            owner.finish_source_keeper(context, ended);
+            assert_eq!(
+                SEAL_FAULT.with(|armed| armed.get()),
+                None,
+                "注入须由真实封存消费"
+            );
+            keeper = owner.take_source_keeper().unwrap();
+            let seal_census = parent.census_take();
+            let report = keeper.report();
+            assert_eq!(report["rejected"], 0);
+            assert_eq!(report["retained_counts_proofs"], 1);
+            assert_eq!(report["hits"], request);
+            if request == 0 {
+                continue;
+            }
+            let after_seal = parent.live();
+            let pool = keeper.take().expect("封存池存活");
+            let nodes = pool.nodes;
+            parent.census_arm();
+            let freed0 = allocation_probe::released_bytes();
+            drop(pool);
+            let released = parent.census_take();
+            let sealed = after_seal
+                .checked_sub(parent.live())
+                .expect("封存池析构不得让父账增长");
+            // 旧判据（r14 seal_identity 同式）：残余+封存差额=封存后live，析构后回到残余。
+            assert_eq!(residual + sealed, after_seal, "差额恒等式");
+            assert_eq!(parent.live(), residual, "析构后回到残余");
+            let census = seal_census_check(
+                &seal_census,
+                residual,
+                after_seal,
+                freed0,
+                &released,
+                &report["source_cost_breakdown"],
+                nodes,
+            );
+            eprintln!(
+                "P24_SEAL_CENSUS {}",
+                json!({"fault":format!("{fault:?}"),"sealed":sealed,"census":census.as_ref().map_err(|e|e.as_str())})
+            );
+            match fault {
+                None => {
+                    census.unwrap();
+                    baseline = Some(sealed);
+                }
+                Some(fault) => {
+                    let error = census.expect_err("重复许可必须被普查识别");
+                    assert!(error.starts_with("C5"), "{fault:?}: {error}");
+                    let extra = sealed - baseline.unwrap();
+                    assert!(extra > 0, "注入确实多签");
+                    if fault == SealFault::SourceCostResign {
+                        assert_eq!(
+                            extra,
+                            report["retained_source_cost"].as_u64().unwrap() as usize
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 #[test]
 fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
@@ -3218,26 +3405,11 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
             .try_fold(0usize, |sum, (_, bytes)| sum.checked_add(*bytes))
             .ok_or("封存许可之和溢出")?;
         if residual.checked_add(sum) != Some(after_seal) {
-            return Err(format!("父账恒等式失败：{after_seal} != {residual} + {sum}"));
+            return Err(format!(
+                "父账恒等式失败：{after_seal} != {residual} + {sum}"
+            ));
         }
         Ok(())
-    }
-    fn census_live(events: &[native::CensusEvent]) -> Value {
-        let mut live: Vec<(&'static str, usize)> = Vec::new();
-        let mut unmatched = Vec::new();
-        for e in events {
-            if e.reserve {
-                live.push((e.kind, e.bytes));
-            } else if let Some(i) = live.iter().rposition(|x| *x == (e.kind, e.bytes)) {
-                live.remove(i);
-            } else if let Some(i) = live.iter().rposition(|x| x.0 == e.kind && x.1 > e.bytes) {
-                live[i].1 -= e.bytes;
-            } else {
-                unmatched.push((e.kind, e.bytes));
-            }
-        }
-        live.sort();
-        json!({"live":live,"unmatched":unmatched,"sum":live.iter().map(|x|x.1).sum::<usize>()})
     }
     let mut f = prepared::tests::Fixture::new();
     let (envelope, token) = f.accept_begin(1, ("r14-source", 0, 6, 12, 3, 7), 1);
@@ -3337,8 +3509,7 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                 );
                 let residual = residual.unwrap();
                 let after_seal = parent.live();
-                let census = parent.census_take();
-                eprintln!("UO25_CENSUS_SEAL {}", json!({"request":request,"admitted":admitted,"events":census.len(),"live":census_live(&census)}));
+                let seal_census = parent.census_take();
                 assert!(
                     after_seal <= after_drop.unwrap(),
                     "封存不得对已释放字节事后补签"
@@ -3349,14 +3520,23 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                     continue;
                 }
                 let pool = keeper.take().expect("封存池存活");
+                let nodes = pool.nodes;
                 parent.census_arm();
                 let freed0 = allocation_probe::released_bytes();
                 drop(pool);
-                eprintln!("UO25_FREED0 {freed0}");
                 let released = parent.census_take();
-                let deltas = released.windows(2).map(|w| w[1].freed - w[0].freed).collect::<Vec<_>>();
-                let first = released.first().map(|e| e.freed);
-                eprintln!("UO25_CENSUS_DROP {}", json!({"request":request,"admitted":admitted,"released":released.iter().map(|e|(e.kind,e.bytes)).collect::<Vec<_>>(),"deltas":deltas,"first_freed":first}));
+                // P2-4：逐许可普查独立于下方live差额恒等式，核封存池无重复计费。
+                let census = seal_census_check(
+                    &seal_census,
+                    residual,
+                    after_seal,
+                    freed0,
+                    &released,
+                    &report["source_cost_breakdown"],
+                    nodes,
+                )
+                .unwrap();
+                eprintln!("R14_SEAL_CENSUS {census}");
                 let sealed = after_seal
                     .checked_sub(parent.live())
                     .expect("封存池析构不得让父账增长");

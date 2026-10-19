@@ -49,3 +49,4 @@ v3::audit_owner::effects::construction_coverage_tests::p2_2_private_journal_pare
 v3::request_audit::handoff_domain_tests::p1_1_same_parent_pool_counts_l0_once_and_items_keep_contract
 v3::request_audit::handoff_domain_tests::p1_1_unmappable_old_pool_is_rejected_without_mutation
 v3::driver::tests::p1_1_driver_warm_old_pool_partition_counts_l0_once
+v3::audit_owner::p2_4_seal_census_flags_duplicate_permit_on_real_seal_path
