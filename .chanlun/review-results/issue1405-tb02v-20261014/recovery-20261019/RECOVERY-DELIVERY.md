@@ -38,10 +38,10 @@
 
 `browser-run/RESULT.json` 的 `status: FAIL` 只来自收尾。依据是 `tests/tb02a_runtime.py` 的 `execute()`：主体（启动、27 次输入、live/AsKnown/重访查询、`collect_core`——在 `tb02b_runtime.py` 中它先跑 cursor 检查、`query-oracle`、真浏览器，浏览器子进程返回码非 0 即抛错——再落 semantic core 与源码 hash 复核）全部成功才把状态置为 `CAPTURED_…`；`finally` 里 `cleanup()` 有任何错误再把状态改成 `FAIL`。本次 `RESULT.json` 无 `error` 字段且有 `core_records: 154`，说明主体走完、浏览器返回 0；唯一错误是 `cleanup.errors = [{"action": "stop-s", ...}]`。
 
-`control-events.jsonl` 末条记录：`stop-s` 退出码 1，stderr「s 尚未退出，不自动升级信号」，耗时 10.08 s。对应 `s_session/s_service_control.py` 的 `stop()`：对经身份复核的 S 发一次 SIGTERM，在 `startup_timeout_ms`（本配置 10000）内轮询，超时即抛此错，按设计不升级到 SIGKILL。脚本随后 `sleep 3` 复查：无 `s_structure_session`/chrome 残留进程，18960/18961 端口空闲（`RCS.txt`）。所以 S 是在 SIGTERM 后 10 s 多才退出，没有遗留进程。
+`control-events.jsonl` 末条记录：`stop-s` 退出码 1，stderr「s 尚未退出，不自动升级信号」，耗时 10.08 s。对应 `s_session/s_service_control.py` 的 `stop()`：对经身份复核的 S 发一次 SIGTERM，在 `startup_timeout_ms`（本配置 10000）内轮询，超时即抛此错，按设计不升级到 SIGKILL。脚本随后 `sleep 3` 复查：无 `s_structure_session`/chrome 残留进程，18960/18961 端口空闲（`RCS.txt`）。收据只能证明「10 s 观察窗内未观察到 S 退出、3 s 后已无残留」，S 实际何时退出、是否慢退出均未证实。
 
-对验收 3 的影响：浏览器与页面判定在收尾之前已经完成并落盘，`check-browser` 只读这些原件，与收尾无关；session 检查来自另一次运行，其 cleanup 零错误。所以 `stop-s` 超时不改变验收 3 的 PASS。它暴露的是另一件事：Linux 上 S 的 SIGTERM 退出可能超过 10 s 观察窗。上一次尝试的浏览器运行里 `stop-q` 报了同样的错（`browser-225314-failed/RESULT.json`），说明不是 S 独有。退出慢的原因（是否与库大小、检查点或关闭时序有关）没有查，归后续，不在本票改判据。runtime 总判照原样记 FAIL。
+对验收 3 的影响：浏览器与页面判定在收尾之前已经完成并落盘，`check-browser` 只读这些原件，与收尾无关；session 检查来自另一次运行，其 cleanup 零错误。所以 `stop-s` 超时不改变验收 3 的 PASS。上一次尝试的浏览器运行里 `stop-q` 报了同样的错（`browser-225314-failed/RESULT.json`），同一 S 二进制在 session-run 收尾 `stop-s` 零错误，所以问题更像出在观察侧而非 S 本身：S 未安装 SIGTERM 处理（默认处置立即终止，SQLite 关闭/检查点不运行），而 `s_service_control.py` 的 `stop()` 会把轮询期间 `ps` 查询失败吞为 `unknown` 继续等，超时后只报「尚未退出」、不带观察记录（独立评审 WARN-2）。根因未查，归后续，不在本票改判据。runtime 总判照原样记 FAIL。
 
 ## 评审
 
-#1571 原「非作者 Opus 5.5 可合」评审无原件，且在 `1870e95895` 之前。本次对 `5baeb030a6..1870e95895` 全量补评，报告见本目录 `REVIEW-1571-full-opus.md`（结论以该文件末行 `VERDICT:` 为准）。
+#1571 原「非作者 Opus 5.5 可合」评审无原件，且在 `1870e95895` 之前。本次由 claude-opus-5-5 非作者对 `5baeb030a6..1870e95895` 全量补评（后台 CLI，经本机 CLIProxyLocal；只读检出 `299485822f`），报告 `REVIEW-1571-full-opus.md`，末行 `VERDICT: PASS`，BLOCK 0 / WARN 3 / INFO 8；机读结果 `REVIEW-1571-full-opus.RESULT.json`，评审提示 `REVIEW-1571-brief.md`。WARN-1（本指针悬空）与 WARN-2（本节慢退出措辞）已在本文订正；WARN-3（旧规则库带未决 Begin 时 serve 指引 recover 而 recover 已拒，成死路）属实现行为，登记于 #1405 交主控裁定。
