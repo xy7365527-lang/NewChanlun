@@ -54,14 +54,20 @@ export function cliProxyEnv(): Record<string, string> {
   };
 }
 
-/** 工蜂 provider：Sandcastle 自带 claudeCode + 统一路由环境变量。 */
+/**
+ * 工蜂 provider：Sandcastle 自带 claudeCode。
+ *
+ * 路由环境变量（cliProxyEnv）必须放在沙盒后端的 env 上，不能放在 claudeCode({ env })：
+ * @ai-hero/sandcastle 0.12 的 createSandbox 流程建沙盒时 agentProviderEnv 固定为 {}，
+ * sandbox.run 执行 agent 命令时也不带 provider env——放这里会被静默丢弃，CLI 退回本机
+ * OAuth 登录态（#1547 冒烟实测：「OAuth session expired」）。
+ */
 export function claudeWorker(
   model: string,
   effort: "low" | "medium" | "high" | "xhigh" | "max" = "medium",
 ): AgentProvider {
   return claudeCode(model, {
     effort,
-    env: cliProxyEnv(),
     // noSandbox 不会替 agent 加 --dangerously-skip-permissions；AFK 工蜂须显式放开工具权限。
     permissionMode: "bypassPermissions",
   });

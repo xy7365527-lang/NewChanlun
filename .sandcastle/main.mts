@@ -8,13 +8,13 @@ import * as sandcastle from "@ai-hero/sandcastle";
 // #1547：沙盒后端暂用 noSandbox（agent 直接在宿主上、于 sandcastle 自建的独立 worktree 内运行）。
 // 切回 docker 的条件：Docker daemon 在宿主常驻运行，且 `docker image inspect sandcastle:newchanlun`
 // 成功（镜像已按 .sandcastle/Dockerfile 构建）；届时 sandboxProvider() 换回
-// docker({ imageName: "sandcastle:newchanlun", env: resolveSandboxGithubEnv() })，
+// docker({ imageName: "sandcastle:newchanlun", env: { ...resolveSandboxGithubEnv(), ...cliProxyEnv() } })，
 // 并注意容器内 127.0.0.1:8318 不指向宿主，claude-route.ts 的 BASE_URL 要改成 host.docker.internal。
 import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
 import type { AgentProvider, Sandbox, SandboxRunResult } from "@ai-hero/sandcastle";
 import { execSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
-import { claudeWorker } from "./claude-route.mts";
+import { claudeWorker, cliProxyEnv } from "./claude-route.mts";
 
 const TOKEN_ROTATION_MARKER = "/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/GH_TOKEN_ROTATION_REQUIRED";
 if (existsSync(TOKEN_ROTATION_MARKER)) {
@@ -83,7 +83,8 @@ function resolveSandboxGithubEnv(): Record<string, string> {
 }
 
 function sandboxProvider() {
-  return noSandbox({ env: resolveSandboxGithubEnv() });
+  // 路由变量走沙盒后端 env（理由见 claude-route.mts claudeWorker 注释）。
+  return noSandbox({ env: { ...resolveSandboxGithubEnv(), ...cliProxyEnv() } });
 }
 
 function hasOpenBlocker(issue: number): boolean {
