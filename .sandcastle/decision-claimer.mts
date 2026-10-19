@@ -15,7 +15,7 @@
  * 读取，只进子进程环境变量，不打印、不写日志、不落文件。
  */
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -47,6 +47,11 @@ export const LANDING_ROOTS = [".chanlun/definitions/", "docs/adr/", "CONTEXT.md"
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const GH_REPO = process.env.GH_REPO ?? "xy7365527-lang/NewChanlun";
+/** 取远端 main 用 ssh 地址：本机 https 拉取会卡死。 */
+export const FETCH_URL = process.env.DECISION_FETCH_URL ?? "git@github.com:xy7365527-lang/NewChanlun.git";
+export const MAIN_REF = "refs/remotes/origin/main";
+/** 草稿里 ADR 一律写占位编号，落地时才分配真实编号。 */
+export const ADR_PLACEHOLDER = "NNNN";
 
 // ───────────────────────── 参数 ─────────────────────────
 
@@ -172,7 +177,7 @@ export function parseClassification(text: string): Classification {
 
 export type Verdict = "PASS" | "BLOCK";
 export interface ReviewItem { rule: Rule; verdict: Verdict; basis: string }
-export interface Review { items: ReviewItem[]; verdict: Verdict; problems: string[] }
+export interface Review { items: ReviewItem[]; verdict: Verdict; problems: string[]; parseError: boolean }
 
 /** R1–R7 审查解析：缺项、非法值、无依据一律记 BLOCK。 */
 export function parseReview(text: string, draftMissing: string[] = []): Review {
@@ -185,7 +190,9 @@ export function parseReview(text: string, draftMissing: string[] = []): Review {
     for (const [k, v] of Object.entries(src)) byRule.set(k, (v ?? {}) as Record<string, unknown>);
   }
   const problems: string[] = [];
-  if (!j) problems.push("审查输出无 JSON");
+  // 输出里找不到任何 R1–R7 条目：这是解析失败，与审查者真给出 BLOCK 分开记。
+  const parseError = !j || !RULES.some((r) => byRule.has(r));
+  if (parseError) problems.push("审查输出无可解析的 R1–R7 JSON");
   const items = RULES.map((rule): ReviewItem => {
     const it = byRule.get(rule);
     const verdict = String(it?.verdict ?? "").toUpperCase();
@@ -202,7 +209,7 @@ export function parseReview(text: string, draftMissing: string[] = []): Review {
   });
   if (draftMissing.length) problems.push(`草稿缺段：${draftMissing.join("、")}`);
   const verdict: Verdict = problems.length === 0 && items.every((i) => i.verdict === "PASS") ? "PASS" : "BLOCK";
-  return { items, verdict, problems };
+  return { items, verdict, problems, parseError };
 }
 
 /** 草稿七段校验：返回缺失的段名。 */
@@ -211,12 +218,55 @@ export function missingDraftSections(draft: string): string[] {
   return DRAFT_SECTIONS.filter((s) => !heads.has(s));
 }
 
-/** 草稿里声明的正本落点（`正本落点：<path>`），且必须在 LANDING_ROOTS 内。 */
+/** 清掉路径两侧的 Markdown 修饰（反引号、粗斜体、尖括号、句末标点）。 */
+function cleanPath(raw: string): string {
+  const tok = raw.trim().replace(/^[*_`<\s]+/, "").split(/[\s`*<>，。；;,（(]/)[0] ?? "";
+  return tok.replace(/[*_`>.:：]+$/, "").replace(/^\.\//, "");
+}
+
+/**
+ * 草稿里声明的正本落点，且必须在 LANDING_ROOTS 内。容许三种写法：
+ *   正本落点：path      **正本落点**：`path`      ### 正本落点（下一非空行为路径）
+ */
 export function landingTarget(draft: string): string | null {
-  const m = /正本落点[:：]\s*[*_`]*([^\s*`]+)/.exec(draft);
+  const lines = draft.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^\s*(?:[-+>]\s*)?(#{1,6}\s*)?[*_]*正本落点[*_]*\s*(?:[:：]\s*(.*))?$/.exec(lines[i]);
+    if (!m) continue;
+    let raw = (m[2] ?? "").trim();
+    if (!raw) {
+      let k = i + 1;
+      while (k < lines.length && !lines[k].trim()) k++;
+      raw = lines[k]?.trim() ?? "";
+      if (raw.startsWith("#")) return null;
+    }
+    const p = cleanPath(raw);
+    return isLandingPath(p) ? p : null;
+  }
+  return null;
+}
+
+export interface ReclassSuggestion { to: Klass; reason: string }
+
+/** 起草者的改判建议：草稿里单独一行 `改判建议：T|P — 理由`。起草者自己不得改判。 */
+export function reclassSuggestion(draft: string): ReclassSuggestion | null {
+  const m = /^\s*[*_]*改判建议[*_]*\s*[:：]\s*[*_`]*([TPtp])\b[*_`]*\s*(?:类)?\s*[—\-–:：]*\s*(.*)$/m.exec(draft);
   if (!m) return null;
-  const p = m[1].replace(/_+$/, "").replace(/^\.\//, "");
-  return isLandingPath(p) ? p : null;
+  return { to: m[1].toUpperCase() as Klass, reason: m[2].trim() };
+}
+
+export interface ReclassDecision { klass: Klass; converted: boolean; note?: string }
+
+/** 编排逻辑对改判建议的处置：建议转 P 即转 P；建议转 T 一律忽略并记录。 */
+export function applyReclass(klass: Klass, sug: ReclassSuggestion | null): ReclassDecision {
+  if (!sug || sug.to === klass) return { klass, converted: false };
+  if (sug.to === "P") return { klass: "P", converted: true, note: `起草者建议转 P，已转：${sug.reason}` };
+  return { klass, converted: false, note: `起草者建议转 T，已忽略（分级器判 P）：${sug.reason}` };
+}
+
+/** P 类草稿自写 T 类授权句 = 起草者越权改判。 */
+export function draftClassProblems(draft: string, klass: Klass): string[] {
+  return klass === "P" && draft.includes(AUTH_LINE) ? ["P 类草稿写入 T 类预授权句，起草者越权改判"] : [];
 }
 
 export function isLandingPath(p: string): boolean {
@@ -224,9 +274,69 @@ export function isLandingPath(p: string): boolean {
   return LANDING_ROOTS.some((r) => (r.endsWith("/") ? p.startsWith(r) && p.length > r.length : p === r));
 }
 
+// ───────────────────────── ADR 编号 ─────────────────────────
+
+const ADR_RE = /^docs\/adr\/(\d{4}|NNNN)-(.+\.md)$/;
+
+/** 目录里现有 ADR 的最大编号。 */
+export function maxAdrNumber(files: string[]): number {
+  return files.reduce((mx, f) => {
+    const m = /^(\d{4})-.+\.md$/.exec(f);
+    return m ? Math.max(mx, Number(m[1])) : mx;
+  }, 0);
+}
+
+export interface AdrAllocation { path: string; number: number | null; renumbered: boolean }
+
+/**
+ * 给落点分配 ADR 编号。非 docs/adr 落点原样返回；已存在于 main 的 ADR 视为修订原件，不改号；
+ * 其余（占位 NNNN 或草稿自编的号）按 max(main, 已预留) + 1 顺序分配，加文件锁防并发撞号。
+ * reserve=false 只预览（dry-run），不写预留表。
+ */
+export async function allocateAdr(
+  target: string,
+  ticket: number,
+  o: { adrDir: string; stateDir: string; reserve: boolean; sleep?: (ms: number) => Promise<void> },
+): Promise<AdrAllocation> {
+  const m = ADR_RE.exec(target);
+  if (!m) return { path: target, number: null, renumbered: false };
+  const files = existsSync(o.adrDir) ? readdirSync(o.adrDir) : [];
+  if (m[1] !== ADR_PLACEHOLDER && files.includes(`${m[1]}-${m[2]}`)) return { path: target, number: Number(m[1]), renumbered: false };
+  const slug = m[2];
+  const resFile = join(o.stateDir, "adr-reservations.json");
+  const lock = join(o.stateDir, ".adr-alloc.lock");
+  const sleep = o.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+  mkdirSync(o.stateDir, { recursive: true });
+  for (let i = 0; ; i++) {
+    try { writeFileSync(lock, String(process.pid), { flag: "wx" }); break; } catch {
+      if (i >= 600) throw new Error(`ADR 编号锁 ${lock} 被占用超时`);
+      await sleep(100);
+    }
+  }
+  try {
+    const res: Record<string, number> = existsSync(resFile) ? JSON.parse(readFileSync(resFile, "utf8")) : {};
+    const mainMax = maxAdrNumber(files);
+    // 预留号大于 main 最大号才算仍有效；已被 main 追上的预留作废。
+    const live = Object.entries(res).filter(([, v]) => v > mainMax);
+    const mine = live.find(([k]) => k === String(ticket))?.[1];
+    const n = mine ?? Math.max(mainMax, ...live.map(([, v]) => v)) + 1;
+    if (o.reserve) writeJson(resFile, { ...res, [String(ticket)]: n });
+    return { path: `docs/adr/${String(n).padStart(4, "0")}-${slug}`, number: n, renumbered: true };
+  } finally {
+    rmSync(lock, { force: true });
+  }
+}
+
+/** 把草稿里的旧落点与「ADR NNNN」占位换成分配到的编号。 */
+export function renumberDraft(draft: string, from: string, a: AdrAllocation): string {
+  if (!a.renumbered || a.number === null) return draft;
+  const num = String(a.number).padStart(4, "0");
+  return draft.split(from).join(a.path).replace(/ADR[\s-]*NNNN/g, `ADR ${num}`);
+}
+
 // ───────────────────────── 状态转移 ─────────────────────────
 
-export type Phase = "classify" | "draft" | "review" | "land_t" | "shadow_p" | "done" | "error";
+export type Phase = "classify" | "draft" | "review" | "land_t" | "shadow_p" | "review_parse_error" | "done" | "error";
 export interface RunState {
   phase: Phase;
   klass: Klass;
@@ -246,7 +356,7 @@ export function nextAfterReview(s: RunState, r: Review): RunState {
   if (s.attempt === 1) {
     return { ...s, phase: "draft", attempt: 2, drafterModel: MODEL_OPUS, reviewFeedback: formatFeedback(r) };
   }
-  return { ...s, phase: "shadow_p", convertedToP: s.klass === "T", klass: "P" };
+  return { ...s, phase: "shadow_p", convertedToP: s.convertedToP || s.klass === "T", klass: "P" };
 }
 
 export function formatFeedback(r: Review): string {
@@ -421,6 +531,7 @@ export function draftPrompt(t: TicketContext, c: Classification, feedback?: stri
   return `你是 NewChanlun 仓 #1323 图的裁决起草者。当前目录是 origin/main 的只读检出；禁止修改任何文件，只读取证。
 先读 AGENTS.md（教义正本、#799 收敛通则、#804 总缝规则、引原文四步核验）、CONTEXT.md、.sandcastle/docs/graph-engineering.md，以及票面点名的票（gh issue view <号> --comments）。
 本票分级：${c.klass} 类 —— ${c.reason}
+分级由分级器决定，你无权改判：按 ${c.klass} 类起草。若你认为分级有误，在「授权引用」段末另起一行写 \`改判建议：T 或 P — 理由\`，由编排逻辑处置；其余部分仍按 ${c.klass} 类写。
 
 ${renderTicket(t)}
 ${feedback ? `\n## 上一稿被独立审查 BLOCK，必须逐条处理：\n${feedback}\n` : ""}
@@ -429,11 +540,11 @@ ${DRAFT_SECTIONS.map((s) => `## ${s}`).join("\n")}
 
 硬要求：
 1. 权威依据逐条带可回查位置：docs/chanlun/text/blog/<课>.md:<行>、ADR 路径、.chanlun/definitions/ 路径或票评论链接。引缠师原文须核行号、逐字、作者归属（界前界后＋行首注）、行内注四步；核不过就不引。
-2. 「裁定」段必须有一行 \`正本落点：<路径>\`，路径只能在 .chanlun/definitions/、docs/adr/ 下，或为 CONTEXT.md。
+2. 「裁定」段必须单独一行写纯文本 \`正本落点：<路径>\`（行首就是「正本落点：」，路径不加反引号、粗体或其他修饰，行内不写别的）。路径只能在 .chanlun/definitions/ 下、docs/adr/ 下，或为 CONTEXT.md。新建 ADR 一律写 docs/adr/${ADR_PLACEHOLDER}-<英文短名>.md，正文提到它时写「ADR ${ADR_PLACEHOLDER}」；真实编号落地时按 main 顺序分配，不要自己编号。
 3. 验收清单每项必须是以下之一：可执行命令、测试名、文件存在、票状态；判据二值。
 4. 不越出 #1323 Destination；T 类草稿不得夹带 P 类取舍；不得新增同一判断的宽严两档或失败兜底。
 5. 「受影响票与 blocking 边变化」列出全部受影响票号和每条要增删的 blocking 边。
-6. 「授权引用」段：T 类写「${AUTH_LINE}」并引用户 2026-10-18 原话；P 类写「待用户批复（影子模式）」。
+6. 「授权引用」段：${c.klass === "T" ? `写「${AUTH_LINE}」并引用户 2026-10-18 原话` : "写「待用户批复（影子模式）」，不得写 T 类预授权句"}。
 只输出草稿正文，不要前言或结语。`;
 }
 
@@ -442,7 +553,7 @@ export function reviewPrompt(t: TicketContext, c: Classification, draft: string)
 需要时用 Read/Grep/rg 回查每条引用，用 gh issue view 查票。审查依据：AGENTS.md、.chanlun/definitions/、docs/adr/、CONTEXT.md、.sandcastle/docs/graph-engineering.md「3. 独审」。
 
 被审票：#${t.number} ${t.title}
-起草时的分级：${c.klass} 类 —— ${c.reason}
+分级器结论：${c.klass} 类 —— ${c.reason}
 
 逐条给 PASS 或 BLOCK，每条必须写依据（BLOCK 写清要改什么）：
 R1 每条引用回查成立（路径存在、行号与逐字内容一致、作者归属正确）。
@@ -451,13 +562,21 @@ R3 验收项全部可执行、判据二值。
 R4 不越出 Destination；T 类草稿里没有夹带 P 类取舍。
 R5 不新增同一判断的宽严两档或失败兜底。
 R6 受影响票与 blocking 边清单完整。
-R7 分级正确。
+R7 分级器结论（${c.klass} 类）正确。只审上面这条分级器结论；草稿内对分级的表述或「改判建议」不是审查对象。
+
+材料缺失（引用文件不存在、票读不到、工具调用失败）也必须照常输出：对受影响的条目判 BLOCK 并在依据里写明缺什么，其余条目照常审。任何情况下都要输出 R1–R7 全部七项。
 
 ===== 草稿开始 =====
 ${draft}
 ===== 草稿结束 =====
 
 最后只输出一个 JSON 代码块：{"R1":{"verdict":"PASS|BLOCK","basis":"..."}, ... ,"R7":{...}}`;
+}
+
+export function reviewRetryPrompt(base: string): string {
+  return `${base}
+
+上一次输出无法解析为 R1–R7 JSON。这次回答的最后一段必须是一个 \`\`\`json 代码块，七个键 R1–R7 齐全，每项含 verdict（PASS 或 BLOCK）与 basis。`;
 }
 
 export function landPrompt(t: TicketContext, draft: string, target: string): string {
@@ -472,6 +591,8 @@ ${draft}`;
 
 export interface Deps {
   mode: Mode;
+  /** ADR 编号预留表与锁所在目录；缺省 outRoot。 */
+  stateDir?: string;
   gh: GhRunner;
   git: (cwd: string, args: string[]) => string;
   model: ModelRunner;
@@ -491,6 +612,11 @@ export interface Summary {
   attempts: number;
   durationsMs: Record<string, number>;
   plannedWrites: string[];
+  /** 起草者改判建议的处置记录。 */
+  reclassNotes?: string[];
+  /** 审查结论计数：真 BLOCK 与解析失败分开。 */
+  reviewCounts?: { pass: number; block: number; parseError: number };
+  landing?: string;
   error?: string;
 }
 
@@ -539,28 +665,57 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
     writeJson(join(dir, "classify.json"), { ticket: n, model: MODEL_FABLE, ...cls, durationMs: cr.durationMs, raw: cr.text });
     write(`评论 #${n}：分级：${cls.klass} — ${cls.reason}`, ["issue", "comment", String(n), "--body-file", "-"], `分级：${cls.klass} — ${cls.reason}`);
 
-    // 2–3. 起草 / 独审，至多两轮
+    // 2–3. 起草 / 独审，至多两轮。分级由分级器定，起草者只能提改判建议。
     let s = initialState(cls.klass);
+    let effCls: Classification = cls;
     let draft = "";
     let review: Review | undefined;
+    const counts = { pass: 0, block: 0, parseError: 0 };
+    summary.reviewCounts = counts;
+    summary.reclassNotes = [];
     while (s.phase === "draft") {
       summary.attempts = s.attempt;
-      const dr = await d.model({ model: s.drafterModel, prompt: draftPrompt(t, cls, s.reviewFeedback), cwd: d.srcDir, role: "draft" });
+      const dr = await d.model({ model: s.drafterModel, prompt: draftPrompt(t, effCls, s.reviewFeedback), cwd: d.srcDir, role: "draft" });
       draft = dr.text.trim() + "\n";
       summary.durationsMs[`draft${s.attempt}`] = dr.durationMs;
       if (s.attempt > 1 && existsSync(join(dir, "draft.md"))) renameSync(join(dir, "draft.md"), join(dir, `draft.attempt${s.attempt - 1}.md`));
       writeFileSync(join(dir, "draft.md"), draft);
 
+      const rc = applyReclass(s.klass, reclassSuggestion(draft));
+      if (rc.note) summary.reclassNotes.push(`第 ${s.attempt} 稿：${rc.note}`);
+      if (rc.converted) {
+        s = { ...s, klass: "P", convertedToP: true };
+        effCls = { ...cls, klass: "P", reason: `${cls.reason}（${rc.note}）` };
+      }
+
       const missing = missingDraftSections(draft);
-      const rr = await d.model({ model: MODEL_OPUS, prompt: reviewPrompt(t, cls, draft), cwd: d.srcDir, role: "review" });
+      const extra = draftClassProblems(draft, s.klass);
+      const basePrompt = reviewPrompt(t, effCls, draft);
+      let rr = await d.model({ model: MODEL_OPUS, prompt: basePrompt, cwd: d.srcDir, role: "review" });
       review = parseReview(rr.text, missing);
+      let retried = false;
+      if (review.parseError) {
+        retried = true;
+        rr = await d.model({ model: MODEL_OPUS, prompt: reviewRetryPrompt(basePrompt), cwd: d.srcDir, role: "review" });
+        review = parseReview(rr.text, missing);
+      }
+      if (!review.parseError && extra.length) review = { ...review, verdict: "BLOCK", problems: [...review.problems, ...extra] };
+      if (review.parseError) counts.parseError++;
+      else if (review.verdict === "PASS") counts.pass++;
+      else counts.block++;
       summary.durationsMs[`review${s.attempt}`] = rr.durationMs;
       if (s.attempt > 1 && existsSync(join(dir, "review.json"))) renameSync(join(dir, "review.json"), join(dir, `review.attempt${s.attempt - 1}.json`));
       writeJson(join(dir, "review.json"), {
-        ticket: n, attempt: s.attempt, drafter: s.drafterModel, reviewer: MODEL_OPUS,
-        verdict: review.verdict, items: review.items, problems: review.problems, draftMissingSections: missing,
+        ticket: n, attempt: s.attempt, drafter: s.drafterModel, reviewer: MODEL_OPUS, klass: s.klass,
+        verdict: review.parseError ? "review_parse_error" : review.verdict, parseError: review.parseError, retried,
+        items: review.parseError ? [] : review.items, problems: review.problems, draftMissingSections: missing,
         durationMs: rr.durationMs, raw: rr.text,
       });
+      if (review.parseError) {
+        s = { ...s, phase: "review_parse_error" };
+        summary.error = "审查输出两次均无法解析为 R1–R7 JSON（review_parse_error），未计入 BLOCK";
+        break;
+      }
       s = nextAfterReview(s, review);
     }
     summary.klass = s.klass;
@@ -568,16 +723,25 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
 
     // 4. 落地
     if (s.phase === "land_t") {
-      const target = landingTarget(draft);
-      if (!target) {
+      const declared = landingTarget(draft);
+      if (!declared) {
         s = { ...s, phase: "shadow_p", klass: "P", convertedToP: true };
         summary.klass = "P";
         summary.convertedToP = true;
         summary.error = "草稿未声明合法正本落点，转 P";
-      } else if (d.mode === "dry-run") {
-        summary.plannedWrites.push(`分支 decision/${n}：写 ${target} 并推送`, `评论 #${n}：resolution（首行「${AUTH_LINE}」）`);
       } else {
-        await landT(t, draft, target, dir, d, summary);
+        const alloc = await allocateAdr(declared, n, { adrDir: join(d.srcDir, "docs/adr"), stateDir: d.stateDir ?? d.outRoot, reserve: d.mode === "live" });
+        const target = alloc.path;
+        summary.landing = alloc.renumbered ? `${target}（草稿写 ${declared}，按 main 顺序分配）` : target;
+        if (alloc.renumbered) {
+          draft = renumberDraft(draft, declared, alloc);
+          writeFileSync(join(dir, "draft.md"), draft);
+        }
+        if (d.mode === "dry-run") {
+          summary.plannedWrites.push(`分支 decision/${n}：写 ${target} 并推送`, `评论 #${n}：resolution（首行「${AUTH_LINE}」）`);
+        } else {
+          await landT(t, draft, target, dir, d, summary);
+        }
       }
     }
     if (s.phase === "shadow_p") {
@@ -586,7 +750,8 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
       write(`标签 #${n}：+needs-approval`, ["issue", "edit", String(n), "--add-label", "needs-approval"]);
       write(`取消认领 #${n}`, ["issue", "edit", String(n), "--remove-assignee", "@me"]);
     }
-    summary.phase = s.phase === "land_t" || s.phase === "shadow_p" ? s.phase : "done";
+    if (s.phase === "review_parse_error") write(`取消认领 #${n}（审查解析失败，待重跑）`, ["issue", "edit", String(n), "--remove-assignee", "@me"]);
+    summary.phase = s.phase === "land_t" || s.phase === "shadow_p" || s.phase === "review_parse_error" ? s.phase : "done";
   } catch (e) {
     summary.phase = "error";
     summary.error = e instanceof Error ? e.message : String(e);
@@ -612,9 +777,9 @@ async function landT(t: TicketContext, draft: string, target: string, dir: strin
   const n = t.number;
   const branch = `decision/${n}`;
   const wt = join(dir, "land-wt");
-  d.git(d.repoRoot, ["fetch", "origin", "main"]);
+  fetchMain(d.repoRoot, d.git);
   if (existsSync(wt)) d.git(d.repoRoot, ["worktree", "remove", "--force", wt]);
-  d.git(d.repoRoot, ["worktree", "add", "-B", branch, wt, "origin/main"]);
+  d.git(d.repoRoot, ["worktree", "add", "-B", branch, wt, MAIN_REF]);
   const lr = await d.model({ model: MODEL_OPUS, prompt: landPrompt(t, draft, target), cwd: wt, role: "land", allowWrite: true });
   s.durationsMs.land = lr.durationMs;
   const changed = d.git(wt, ["status", "--porcelain"]).split("\n").filter(Boolean).map((l) => l.slice(3));
@@ -623,7 +788,7 @@ async function landT(t: TicketContext, draft: string, target: string, dir: strin
   if (stray.length) throw new Error(`落地越界改动：${stray.join(", ")}`);
   d.git(wt, ["add", "--", target]);
   d.git(wt, ["commit", "-m", `decision(#${n}): ${t.title}\n\n${AUTH_LINE}；独审 ${MODEL_OPUS} R1–R7 PASS。`]);
-  d.git(wt, ["push", "-u", "origin", branch]);
+  d.git(wt, ["push", FETCH_URL, `HEAD:refs/heads/${branch}`]);
   const sha = d.git(wt, ["rev-parse", "HEAD"]).trim();
   const body = `${AUTH_LINE}\n\n**resolution**：T 类，独立审查 R1–R7 全 PASS。正本 \`${target}\` 已写入分支 \`${branch}\`（${sha.slice(0, 10)}），待按日批量 PR 合入 main 后关票。\n\n` +
     `草稿：\`${dir}/draft.md\`；审查：\`${dir}/review.json\`\n\n<details><summary>草稿全文</summary>\n\n${draft}\n</details>`;
@@ -658,7 +823,7 @@ function finishedTickets(outRoot: string, children: RawChild[]): Set<number> {
     if (!existsSync(p)) continue;
     try {
       const s = JSON.parse(readFileSync(p, "utf8")) as Summary;
-      if (s.phase !== "error") done.add(c.number);
+      if (s.phase !== "error" && s.phase !== "review_parse_error") done.add(c.number);
     } catch { /* 坏文件视为未完成 */ }
   }
   return done;
@@ -677,15 +842,26 @@ export async function runPool<T, R>(items: T[], limit: number, fn: (x: T) => Pro
   return out;
 }
 
-function ensureSrc(repoRoot: string, srcDir: string, git: Deps["git"]) {
-  git(repoRoot, ["fetch", "origin", "main"]);
+/** 用 ssh 地址把远端 main 取到 refs/remotes/origin/main，返回取到的 SHA。 */
+export function fetchMain(gitDir: string, git: Deps["git"]): string {
+  git(gitDir, ["fetch", FETCH_URL, `+main:${MAIN_REF}`]);
+  return git(gitDir, ["rev-parse", MAIN_REF]).trim();
+}
+
+/** 取证检出对齐最新远端 main；fetch 在 srcDir 所属的库里做，checkout 后 HEAD 必须等于刚取到的 SHA。 */
+export function ensureSrc(repoRoot: string, srcDir: string, git: Deps["git"]): string {
   if (!existsSync(srcDir)) {
+    const sha = fetchMain(repoRoot, git);
     mkdirSync(dirname(srcDir), { recursive: true });
-    git(repoRoot, ["worktree", "add", "--detach", srcDir, "origin/main"]);
-  } else {
-    if (git(srcDir, ["status", "--porcelain"]).trim()) throw new Error(`取证检出 ${srcDir} 不干净，拒绝运行`);
-    git(srcDir, ["checkout", "--detach", "origin/main"]);
+    git(repoRoot, ["worktree", "add", "--detach", srcDir, sha]);
+  } else if (git(srcDir, ["status", "--porcelain"]).trim()) {
+    throw new Error(`取证检出 ${srcDir} 不干净，拒绝运行`);
   }
+  const sha = fetchMain(srcDir, git);
+  git(srcDir, ["checkout", "--detach", sha]);
+  const head = git(srcDir, ["rev-parse", "HEAD"]).trim();
+  if (head !== sha) throw new Error(`取证检出 HEAD ${head.slice(0, 10)} ≠ 远端 main ${sha.slice(0, 10)}，拒绝运行`);
+  return sha;
 }
 
 function log(msg: string) {
@@ -705,7 +881,7 @@ async function round(a: Args, d: Deps) {
   log(`${a.mode} 本轮：${tickets.map((n) => `#${n}`).join(" ")}`);
   const results = await runPool(tickets, a.concurrency, (n) => processTicket(n, d));
   for (const r of results) {
-    log(`#${r.ticket} → ${r.phase}${r.klass ? ` ${r.klass}` : ""}${r.convertedToP ? "（转 P）" : ""} 轮数 ${r.attempts} 用时 ${Math.round((r.durationsMs.total ?? 0) / 1000)}s${r.error ? ` 错误：${r.error}` : ""}`);
+    log(`#${r.ticket} → ${r.phase}${r.klass ? ` ${r.klass}` : ""}${r.convertedToP ? "（转 P）" : ""}${r.landing ? ` 落点 ${r.landing}` : ""} 轮数 ${r.attempts} 用时 ${Math.round((r.durationsMs.total ?? 0) / 1000)}s${r.error ? ` 错误：${r.error}` : ""}`);
   }
 }
 
@@ -723,7 +899,8 @@ async function main() {
   };
   for (;;) {
     try {
-      ensureSrc(REPO_ROOT, srcDir, git);
+      const sha = ensureSrc(REPO_ROOT, srcDir, git);
+      log(`取证检出对齐远端 main ${sha.slice(0, 10)}`);
       await round(a, d);
     } catch (e) {
       log(`本轮失败：${e instanceof Error ? e.message : String(e)}`);

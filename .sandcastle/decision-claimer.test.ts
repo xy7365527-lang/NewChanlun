@@ -1,11 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  DRAFT_SECTIONS, MODEL_FABLE, MODEL_OPUS, DryRunWriteError,
-  extractFirstApiKey, guardGh, initialState, isGhWrite, landingTarget, missingDraftSections,
+  AUTH_LINE, DRAFT_SECTIONS, FETCH_URL, MAIN_REF, MODEL_FABLE, MODEL_OPUS, DryRunWriteError,
+  allocateAdr, applyReclass, draftPrompt, ensureSrc, extractFirstApiKey, guardGh, reclassSuggestion, renumberDraft, reviewPrompt, initialState, isGhWrite, landingTarget, missingDraftSections,
   nextAfterReview, parseArgs, parseClassification, parseReview, processTicket, selectCandidates,
   type Deps, type GhRunner, type ModelCall,
 } from "./decision-claimer.mts";
@@ -203,4 +203,159 @@ test("live P 类：claim、分级评论、影子评论、needs-approval 依次�
     "issue edit 1531 --add-label",
     "issue edit 1531 --remove-assignee",
   ]);
+});
+
+// ───────── #1547 dry-run 批测缺陷回归 ─────────
+
+/** #1536 dry-run 草稿原文节选：落点写在 ### 标题下一行。 */
+const DRAFT_1536 = `## 裁定
+
+采纳候选 B「完整域扩展」，同时补充以下约束与执行顺序：
+
+### 正本落点
+
+.chanlun/definitions/history-profile.md
+
+（新建教义正本，记录完整历史数据六族 schema、数据质量三态语义与 ModelOrderUnspecified 分支的教义归属）
+`;
+/** #1537 dry-run 草稿原文节选：粗体标签 + 反引号路径。 */
+const DRAFT_1537 = `## 裁定
+
+**正本落点**：\`docs/adr/0038-dual-run-determinism-recovery-seek-asknown.md\`
+
+### 1. 双跑确定性协议（候选 A）
+`;
+
+test("正本落点：#1536 标题下一行、#1537 粗体反引号、纯文本三种写法都能解析", () => {
+  assert.equal(landingTarget(DRAFT_1536), ".chanlun/definitions/history-profile.md");
+  assert.equal(landingTarget(DRAFT_1537), "docs/adr/0038-dual-run-determinism-recovery-seek-asknown.md");
+  assert.equal(landingTarget("x\n正本落点：docs/adr/NNNN-foo.md\n"), "docs/adr/NNNN-foo.md");
+  assert.equal(landingTarget("- 正本落点：`CONTEXT.md`。"), "CONTEXT.md");
+  assert.equal(landingTarget("### 正本落点\n\n### 下一节\n"), null);
+  assert.equal(landingTarget("### 正本落点\n\nrust/src/lib.rs\n"), null);
+});
+
+test("起草提示要求落点单独一行纯文本、ADR 写占位编号", () => {
+  const t = { number: 1, title: "x", body: "", labels: [], assignees: [], comments: [], blockers: [] };
+  const p = draftPrompt(t, { klass: "T", reason: "r", parsed: true });
+  assert.match(p, /单独一行写纯文本/);
+  assert.match(p, /docs\/adr\/NNNN-/);
+  assert.match(p, /改判建议/);
+  const pp = draftPrompt(t, { klass: "P", reason: "r", parsed: true });
+  assert.ok(!pp.includes(`写「${AUTH_LINE}」`));
+});
+
+test("改判建议：转 P 即转，转 T 忽略并记录；无建议不动", () => {
+  assert.deepEqual(reclassSuggestion("## 授权引用\n改判建议：P — 涉及真实账户"), { to: "P", reason: "涉及真实账户" });
+  assert.equal(reclassSuggestion("无"), null);
+  assert.deepEqual(applyReclass("T", { to: "P", reason: "x" }).klass, "P");
+  const keep = applyReclass("P", { to: "T", reason: "纯 schema" });
+  assert.equal(keep.klass, "P");
+  assert.equal(keep.converted, false);
+  assert.match(keep.note ?? "", /已忽略/);
+  assert.deepEqual(applyReclass("T", null), { klass: "T", converted: false });
+});
+
+test("审查提示：R7 只审分级器结论，材料缺失也必须 BLOCK 并输出 JSON", () => {
+  const t = { number: 1, title: "x", body: "", labels: [], assignees: [], comments: [], blockers: [] };
+  const p = reviewPrompt(t, { klass: "P", reason: "账户", parsed: true }, "草稿");
+  assert.match(p, /R7 分级器结论（P 类）正确/);
+  assert.match(p, /材料缺失.*BLOCK/);
+});
+
+test("审查解析：无 JSON 记 parseError，与真 BLOCK 分开", () => {
+  assert.equal(parseReview("没有 JSON").parseError, true);
+  assert.equal(parseReview(fence({ foo: 1 })).parseError, true);
+  const real = parseReview(fence({ ...pass(), R4: { verdict: "BLOCK", basis: "越界" } }));
+  assert.equal(real.parseError, false);
+  assert.equal(real.verdict, "BLOCK");
+});
+
+test("dry-run：审查首次解析失败重试一次，仍失败记 review_parse_error 不升档", async () => {
+  const { d, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, "抱歉无法完成", "还是没有"]);
+  const s = await processTicket(1531, d);
+  assert.equal(s.phase, "review_parse_error");
+  assert.deepEqual(s.reviewCounts, { pass: 0, block: 0, parseError: 1 });
+  assert.equal(modelCalls.length, 4);
+  assert.match(modelCalls[3].prompt, /无法解析/);
+  const rv = JSON.parse(readFileSync(join(d.outRoot, "1531", "review.json"), "utf8"));
+  assert.equal(rv.verdict, "review_parse_error");
+  assert.deepEqual(rv.items, []);
+});
+
+test("dry-run：解析失败后重试成功照常走 PASS", async () => {
+  const { d } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, "坏输出", fence(pass())]);
+  const s = await processTicket(1531, d);
+  assert.equal(s.phase, "land_t");
+  assert.deepEqual(s.reviewCounts, { pass: 1, block: 0, parseError: 0 });
+});
+
+test("dry-run：T 类草稿建议转 P，编排转 P，审查按 P 类审", async () => {
+  const draft = goodDraft + "\n改判建议：P — 含真实账户参数\n";
+  const { d, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), draft, fence(pass())]);
+  const s = await processTicket(1531, d);
+  assert.equal(s.phase, "shadow_p");
+  assert.equal(s.klass, "P");
+  assert.equal(s.convertedToP, true);
+  assert.match(modelCalls[2].prompt, /分级器结论：P 类/);
+  assert.match(s.reclassNotes?.[0] ?? "", /建议转 P，已转/);
+});
+
+test("dry-run：P 类草稿建议转 T 被忽略；P 类草稿自写预授权句判 BLOCK", async () => {
+  const draft = goodDraft + `\n${AUTH_LINE}\n改判建议：T — 纯技术\n`;
+  const { d } = fakeDeps("dry-run", [fence({ class: "P", reason: "账户" }), draft, fence(pass()), draft, fence(pass())]);
+  const s = await processTicket(1531, d);
+  assert.equal(s.klass, "P");
+  assert.match(s.reclassNotes?.[0] ?? "", /已忽略/);
+  assert.deepEqual(s.reviewCounts, { pass: 0, block: 2, parseError: 0 });
+});
+
+test("ADR 编号：占位与草稿自编号都按 main 最大号顺序分配，并发不撞号", async () => {
+  const root = mkdtempSync(join(tmpdir(), "adr-alloc-"));
+  const adrDir = join(root, "adr");
+  mkdirSync(adrDir);
+  for (const f of ["0036-a.md", "0037-b.md", "README.md"]) writeFileSync(join(adrDir, f), "");
+  const o = { adrDir, stateDir: join(root, "state"), reserve: true };
+  const [a, b] = await Promise.all([
+    allocateAdr("docs/adr/0038-dual-run.md", 1537, o),
+    allocateAdr("docs/adr/0038-venue.md", 1540, o),
+  ]);
+  assert.deepEqual([a.number, b.number].sort(), [38, 39]);
+  assert.equal((await allocateAdr("docs/adr/NNNN-dual-run.md", 1537, o)).number, a.number);
+  assert.equal((await allocateAdr("docs/adr/0037-b.md", 1, o)).renumbered, false);
+  assert.equal((await allocateAdr(".chanlun/definitions/x.md", 1, o)).number, null);
+  const preview = await allocateAdr("docs/adr/NNNN-z.md", 9, { ...o, reserve: false });
+  assert.equal(preview.number, 40);
+  assert.equal((await allocateAdr("docs/adr/NNNN-z.md", 9, { ...o, reserve: false })).number, 40);
+  assert.equal(renumberDraft("见 ADR NNNN；落点 docs/adr/NNNN-z.md", "docs/adr/NNNN-z.md", preview), "见 ADR 0040；落点 docs/adr/0040-z.md");
+});
+
+test("dry-run：T 类 ADR 落点按 main 顺序改号并写回草稿", async () => {
+  const draft = DRAFT_SECTIONS.map((x) => `## ${x}\n内容${x === "裁定" ? "\n正本落点：docs/adr/NNNN-x.md\n依 ADR NNNN" : ""}`).join("\n\n");
+  const { d } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), draft, fence(pass())]);
+  d.srcDir = mkdtempSync(join(tmpdir(), "src-"));
+  mkdirSync(join(d.srcDir, "docs/adr"), { recursive: true });
+  writeFileSync(join(d.srcDir, "docs/adr/0037-b.md"), "");
+  const s = await processTicket(1531, d);
+  assert.equal(s.phase, "land_t");
+  assert.match(s.landing ?? "", /^docs\/adr\/0038-x\.md/);
+  assert.match(readFileSync(join(d.outRoot, "1531", "draft.md"), "utf8"), /ADR 0038/);
+});
+
+test("ensureSrc：在 srcDir 的库里用 ssh 地址 fetch，HEAD 与远端 main 不等即拒绝", () => {
+  const src = mkdtempSync(join(tmpdir(), "src-"));
+  const calls: Array<[string, string[]]> = [];
+  let head = "abc123";
+  const git = (cwd: string, args: string[]) => {
+    calls.push([cwd, args]);
+    if (args[0] === "status") return "";
+    if (args[0] === "rev-parse" && args[1] === MAIN_REF) return "abc123\n";
+    if (args[0] === "rev-parse") return head + "\n";
+    return "";
+  };
+  assert.equal(ensureSrc("/repo", src, git), "abc123");
+  assert.deepEqual(calls[1], [src, ["fetch", FETCH_URL, `+main:${MAIN_REF}`]]);
+  assert.deepEqual(calls.find(([, a]) => a[0] === "checkout")?.[1], ["checkout", "--detach", "abc123"]);
+  head = "stale99";
+  assert.throws(() => ensureSrc("/repo", src, git), /拒绝运行/);
 });
