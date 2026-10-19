@@ -48,3 +48,4 @@ v3::audit_owner::effects::construction_coverage_tests::p2_2_private_journal_pare
 # #1488 P1-1 冻结old_pool逐项分区（0025）
 v3::request_audit::handoff_domain_tests::p1_1_same_parent_pool_counts_l0_once_and_items_keep_contract
 v3::request_audit::handoff_domain_tests::p1_1_unmappable_old_pool_is_rejected_without_mutation
+v3::driver::tests::p1_1_driver_warm_old_pool_partition_counts_l0_once
