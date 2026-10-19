@@ -163,6 +163,12 @@ def gate_fixture(directory):
     return p.ReadAdmission(admission, supervisor), replies
 
 
+def owned_transport(test, gate):
+    directory = d.OwnedDirectory(gate.extension["output"])
+    test.addCleanup(directory.close)
+    return p.ProductTransport(gate, directory.path, directory=directory)
+
+
 class ProtocolTests(unittest.TestCase):
     def test_complete_real_shapes_raw_order_and_missing_dependency(self):
         plan, replies = fixture()
@@ -552,7 +558,7 @@ class AdmissionTests(unittest.TestCase):
     def test_product_transport_requires_its_state_machine_and_no_retry(self):
         with tempfile.TemporaryDirectory() as td:
             gate, _ = gate_fixture(td)
-            transport = p.ProductTransport(gate, Path(td) / "unused")
+            transport = owned_transport(self, gate)
             slot = gate.plan["slots"][0]
             with self.assertRaises(d.Rejected):
                 transport.exchange(slot, b"{}", b"{}", slot["deadline"])
@@ -593,7 +599,7 @@ class AdmissionTests(unittest.TestCase):
     def test_post_request_guard_refusal_keeps_full_reply_and_stops_next(self):
         with tempfile.TemporaryDirectory() as td:
             gate, replies = gate_fixture(td)
-            transport = p.ProductTransport(gate, Path(td) / "unused")
+            transport = owned_transport(self, gate)
             machine = p.CaptureMachine(gate.plan, gate.ledger, transport)
 
             def guard(slot, request, deadline, phase):
@@ -618,7 +624,7 @@ class AdmissionTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as td:
                 gate, _ = gate_fixture(td)
                 slot = gate.plan["slots"][0]
-                transport = p.ProductTransport(gate, Path(td) / "unused")
+                transport = owned_transport(self, gate)
                 machine = p.CaptureMachine(gate.plan, gate.ledger, transport)
                 request = machine.request(slot)
                 wire = p.http_request(gate.plan["q"]["endpoint"], request)
@@ -728,7 +734,7 @@ class AdmissionTests(unittest.TestCase):
                 return chunk
 
             channel.recv.side_effect = recv
-            transport = p.ProductTransport(gate, Path(td) / "unused")
+            transport = owned_transport(self, gate)
             machine = p.CaptureMachine(gate.plan, gate.ledger, transport)
             request = machine.request(slot)
             wire = p.http_request(gate.plan["q"]["endpoint"], request)
@@ -741,6 +747,318 @@ class AdmissionTests(unittest.TestCase):
             channel.sendall.assert_called_once_with(wire)
             channel.connect.assert_called_once_with(("127.0.0.1", 4567))
             spawn.assert_not_called()
+
+
+class RepairTests(unittest.TestCase):
+    def test_a1_preexisting_cli_directory_never_supplies_originals(self):
+        with tempfile.TemporaryDirectory() as td:
+            gate, _ = gate_fixture(td)
+            slot = next(s for s in gate.plan["slots"] if s["route"] == "financial-basis")
+            output = Path(gate.extension["output"])
+            output.mkdir()
+            foreign = output / slot["id"]
+            foreign.mkdir()
+            for name in ("stdout", "stderr"):
+                (foreign / name).write_bytes(b"FOREIGN_PREEXISTING_BYTES")
+            request = b"{}"
+            gate.guarded = (slot["id"], d.sha(request), slot["deadline"], "before")
+            gate.ledger.dispatched.add(slot["id"])
+            # 直接测实际 _StdinProcess 构造失败及 _cli finally，传输构造边界另由 A2 锁。
+            transport = p.ProductTransport.__new__(p.ProductTransport)
+            transport.gate, transport.output = gate, output
+            exchange = p.Exchange()
+            with patch.object(p.subprocess, "Popen") as spawn:
+                with self.assertRaises(FileExistsError) as raised:
+                    transport._cli(slot, request, slot["deadline"], exchange)
+                spawn.assert_not_called()
+            self.assertIsNone(raised.exception.read_owner.directory)
+            self.assertFalse(exchange.identity["cleanup"]["reaped"])
+            self.assertEqual(exchange.reply, b"")
+            self.assertEqual(exchange.stderr, b"")
+            self.assertEqual((foreign / "stdout").read_bytes(), b"FOREIGN_PREEXISTING_BYTES")
+
+    def test_a2_direct_transport_rejects_unapproved_or_unowned_output(self):
+        with tempfile.TemporaryDirectory() as td:
+            gate, _ = gate_fixture(td)
+            with patch.object(p.socket, "socket") as network, patch.object(p.subprocess, "Popen") as spawn:
+                for output in (Path(td) / "unapproved-output", Path(gate.extension["output"])):
+                    with self.subTest(output=output), self.assertRaises(d.Rejected):
+                        p.ProductTransport(gate, output)
+                network.assert_not_called()
+                spawn.assert_not_called()
+            self.assertFalse(Path(gate.extension["output"]).exists())
+
+    def test_a3_binary_drift_rejected_before_output_creation(self):
+        with tempfile.TemporaryDirectory() as td:
+            gate, _ = gate_fixture(td)
+            Path(gate.plan["reader_binary"]).write_bytes(b"changed after admission")
+            with patch.object(p.socket, "socket") as network, patch.object(p.subprocess, "Popen") as spawn:
+                try:
+                    p.capture_product(gate, gate.extension["output"])
+                except d.Rejected:
+                    pass
+                network.assert_not_called()
+                spawn.assert_not_called()
+            self.assertFalse(Path(gate.extension["output"]).exists())
+
+    def test_a4_formal_low_tool_budget_rejects_raw_input(self):
+        plan, replies = fixture()
+        plan["verification"].update(read_max_bytes="852", read_max_records="7")
+        result, machine, transport = run(plan, replies)
+        self.assertEqual(result["capture_status"], "INCOMPLETE")
+        self.assertIn("读取帽", result["failure"])
+        self.assertLessEqual(len(transport.requests), 1)
+        if machine.captures:
+            self.assertEqual(machine.captures[0].reply, replies[0].reply)
+
+
+    def cli_originals(self, replacement=None, ack_error=False):
+        with tempfile.TemporaryDirectory() as td:
+            gate, _ = gate_fixture(td)
+            transport = owned_transport(self, gate)
+            slot = next(s for s in gate.plan["slots"] if s["route"] == "financial-basis")
+            request = b"raw request\n"
+            gate.guarded = (slot["id"], d.sha(request), slot["deadline"], "before")
+            gate.ledger.dispatched.add(slot["id"])
+            child = Mock()
+            child.pid, child.stdin.fileno.return_value = 404, 999
+            child.poll.return_value = 9
+            child.wait.return_value = 9
+            stdout, stderr = b' {"unknown":"actual owner"} \n', b'original failure \x00\xff\n'
+            directory = transport.output / slot["id"]
+
+            def spawn(*args, **kwargs):
+                for name, raw in (("stdout", stdout), ("stderr", stderr)):
+                    kwargs[name].write(raw)
+                    kwargs[name].flush()
+                return child
+
+            def ack(*args):
+                if replacement == "directory":
+                    directory.rename(directory.with_name("held-original-directory"))
+                    directory.mkdir()
+                    for name in ("stdout", "stderr"):
+                        (directory / name).write_bytes(b"FOREIGN_REPLACEMENT")
+                if replacement == "file":
+                    for name in ("stdout", "stderr"):
+                        (directory / name).rename(directory / (name + ".original"))
+                        (directory / name).write_bytes(b"FOREIGN_REPLACEMENT")
+                if ack_error:
+                    raise d.Rejected("actual ACK failure")
+                return {"kind": "ACK"}
+
+            exchange = p.Exchange()
+            with patch.object(p.subprocess, "Popen", side_effect=spawn) as spawned, \
+                    patch.object(d, "process_identity", return_value={"pid":404,"start_identity":"fake","process_group":404}), \
+                    patch.object(gate.supervisor, "ack", side_effect=ack), patch.object(p.os, "set_blocking"), \
+                    patch.object(p.os, "write", side_effect=lambda fd, raw: len(raw)):
+                if ack_error:
+                    with self.assertRaisesRegex(d.Rejected, "actual ACK failure"):
+                        transport._cli(slot, request, slot["deadline"], exchange)
+                else:
+                    transport._cli(slot, request, slot["deadline"], exchange)
+            self.assertEqual(spawned.call_count, 1)
+            self.assertEqual(exchange.reply, stdout)
+            self.assertEqual(exchange.stderr, stderr)
+            self.assertEqual(exchange.returncode, 9)
+            self.assertTrue(exchange.identity["cleanup"]["reaped"])
+            owner = gate.admission.active_owners[(slot["stage"], "S", "1")]
+            self.assertEqual(owner.output_readers, {})
+            self.assertIsNone(owner.directory.fd)
+            self.assertTrue(owner.stdout.closed and owner.stderr.closed)
+            # 封存路径替换时只复制持有原件，不能把外来文件加进清单。
+            machine = p.CaptureMachine(gate.plan, gate.ledger, transport)
+            machine.originals.append(dict(slot=slot,deadline=slot["deadline"],request=request,
+                                          transport_request=request,exchange=exchange))
+            result = {"capture_status":"INCOMPLETE"}
+            inventory = p.persist_originals(machine, result, transport.directory, gate.admission.seal_deadline)
+            self.assertEqual((transport.output / "capture-000000.reply").read_bytes(), stdout)
+            self.assertEqual((transport.output / "capture-000000.stderr").read_bytes(), stderr)
+            for item in inventory:
+                self.assertEqual(d.sha((transport.output / item["path"]).read_bytes()), item["sha256"])
+            if replacement:
+                self.assertTrue(result["original_path_errors"])
+                self.assertFalse(any(i["path"].endswith("/stdout") or i["path"].endswith("/stderr") for i in inventory))
+            else:
+                self.assertTrue(any(i["path"].endswith("/stdout") for i in inventory))
+            return exchange
+
+    def test_a1_owned_error_originals_survive_cleanup(self):
+        self.cli_originals(ack_error=True)
+
+    def test_a1_owned_unknown_nonzero_originals_retained(self):
+        self.cli_originals()
+
+    def test_a1_replaced_directory_retains_only_held_originals(self):
+        exchange = self.cli_originals(replacement="directory", ack_error=True)
+        self.assertTrue(exchange.identity["cleanup"]["errors"])
+
+    def test_a1_replaced_output_files_never_supply_foreign_bytes(self):
+        self.cli_originals(replacement="file", ack_error=True)
+
+    def test_a2_direct_owned_transport_keeps_legal_capture(self):
+        with tempfile.TemporaryDirectory() as td:
+            gate, replies = gate_fixture(td)
+            transport = owned_transport(self, gate)
+            machine = p.CaptureMachine(gate.plan, gate.ledger, transport)
+            for slot, reply in zip(gate.plan["slots"], replies):
+                if slot["argv"]:
+                    reply.identity.update(argv=slot["argv"], binary_sha256_before=gate.plan["source"]["binary_sha256"],
+                                          binary_sha256_after=gate.plan["source"]["binary_sha256"])
+            pending = iter(replies)
+            def receive(slot, raw, deadline, result):
+                reply = copy.deepcopy(next(pending))
+                reply.started = result.started
+                return reply
+            with patch.object(gate, "guard"), patch.object(transport,"_http",side_effect=receive) as http_call, \
+                    patch.object(transport,"_cli",side_effect=receive) as cli_call, \
+                    patch.object(p.socket,"socket") as network, patch.object(p.subprocess,"Popen") as spawn:
+                result = machine.run()
+            self.assertEqual(result["capture_status"], "UNAUTHENTICATED_RAW_CAPTURE", result["failure"])
+            self.assertEqual(http_call.call_count + cli_call.call_count, len(gate.plan["slots"]))
+            self.assertEqual([c.reply for c in machine.captures], [r.reply for r in replies])
+            spawn.assert_not_called()
+            network.assert_not_called()
+
+    def test_a2_wrong_closed_and_replaced_directory_rejected(self):
+        for kind in ("wrong", "closed", "replaced", "fake"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as td:
+                gate, _ = gate_fixture(td)
+                output = Path(gate.extension["output"])
+                directory = d.OwnedDirectory(output if kind != "wrong" else Path(td) / "other")
+                try:
+                    if kind == "closed": directory.close()
+                    if kind == "replaced":
+                        output.rename(Path(td) / "old")
+                        output.mkdir()
+                    with patch.object(p.socket,"socket") as network, patch.object(p.subprocess,"Popen") as spawn:
+                        with self.assertRaises(d.Rejected):
+                            p.ProductTransport(gate, output, directory=Mock() if kind == "fake" else directory)
+                        spawn.assert_not_called()
+                        network.assert_not_called()
+                finally:
+                    directory.close()
+
+    def test_a2_directory_replaced_after_transport_before_send_zero_io(self):
+        with tempfile.TemporaryDirectory() as td:
+            gate, _ = gate_fixture(td)
+            transport = owned_transport(self, gate)
+            machine = p.CaptureMachine(gate.plan, gate.ledger, transport)
+            transport.output.rename(Path(td) / "old")
+            transport.output.mkdir()
+            with patch.object(gate,"guard") as guard, patch.object(transport,"_http") as http_call:
+                result = machine.run()
+            self.assertEqual(result["capture_status"], "INCOMPLETE")
+            guard.assert_not_called()
+            http_call.assert_not_called()
+
+    def test_a3_live_owner_and_earliest_deadline_drift_zero_directory(self):
+        for kind in ("session-owner", "q-owner", "work", "capture-stage", "q-job", "request-stage"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as td:
+                gate, _ = gate_fixture(td)
+                deadline = None
+                if kind.endswith("owner"):
+                    role = kind.split("-")[0]
+                    owner = gate.admission.active_owners[tuple(gate.plan[role]["owner_key"])]
+                    owner.verify_identity.side_effect = d.Rejected("live owner disappeared")
+                else:
+                    r = gate.plan["resources"]
+                    deadline = {"work": r["deadlines"]["work"], "capture-stage": r["deadlines"]["stages"][gate.plan["stage"]],
+                        "q-job": r["jobs"]["q-job"]["deadline"], "request-stage": r["deadlines"]["stages"][gate.plan["slots"][0]["stage"]]}[kind]
+                with patch.object(p.socket,"socket") as network, patch.object(p.subprocess,"Popen") as spawn, \
+                        patch.object(gate.supervisor,"ack") as ack, patch.object(d,"exchange_frame") as control:
+                    if deadline is None:
+                        with self.assertRaises(d.Rejected): p.capture_product(gate, gate.extension["output"])
+                    else:
+                        with patch.object(p.time,"monotonic",return_value=deadline), self.assertRaises(d.Rejected):
+                            p.capture_product(gate, gate.extension["output"])
+                    for call in (network, spawn, ack, control): call.assert_not_called()
+                self.assertFalse(Path(gate.extension["output"]).exists())
+
+    def test_a3_send_guard_still_rechecks_binary_after_transport(self):
+        with tempfile.TemporaryDirectory() as td:
+            gate, _ = gate_fixture(td)
+            transport = owned_transport(self, gate)
+            machine = p.CaptureMachine(gate.plan, gate.ledger, transport)
+            Path(gate.plan["reader_binary"]).write_bytes(b"late drift")
+            with patch.object(gate.supervisor,"ack") as ack, patch.object(transport,"_http") as http_call:
+                result = machine.run()
+            self.assertEqual(result["capture_status"], "INCOMPLETE")
+            self.assertIn("binary", result["failure"])
+            ack.assert_not_called()
+            http_call.assert_not_called()
+
+    def test_a4_raw_bytes_count_before_parse_and_keep_whitespace(self):
+        plan, replies = fixture()
+        raw = b" " * 900 + replies[0].reply + b"\n"
+        replies[0].reply, replies[0].transport_reply = raw, http(raw)
+        request = p.CaptureMachine(plan, p.Ledger(plan), p.MemoryTransport([])).request(plan["slots"][0])
+        first_bytes = len(p.http_request(plan["q"]["endpoint"], request)) + len(http(raw))
+        plan["verification"]["read_max_bytes"] = str(first_bytes - 1)
+        with patch.object(p.CaptureMachine,"_snapshot",side_effect=AssertionError("未扣原bytes就解析")) as parse:
+            result, machine, transport = run(plan, replies)
+        self.assertEqual(result["capture_status"], "INCOMPLETE")
+        self.assertEqual(len(transport.requests), 1)
+        self.assertEqual(machine.captures[0].reply, raw)
+        self.assertEqual(machine.read_budget.bytes_read, first_bytes)
+        parse.assert_not_called()
+
+    def test_a4_byte_budget_accumulates_across_requests(self):
+        plan, replies = fixture()
+        first_request = p.CaptureMachine(plan,p.Ledger(plan),p.MemoryTransport([])).request(plan["slots"][0])
+        first_bytes = len(p.http_request(plan["q"]["endpoint"],first_request)) + len(replies[0].transport_reply)
+        plan["verification"]["read_max_bytes"] = str(first_bytes)
+        result, machine, transport = run(plan,replies)
+        self.assertEqual(result["capture_status"], "INCOMPLETE")
+        self.assertEqual(len(transport.requests), 1)
+        self.assertGreater(machine.read_budget.bytes_read, first_bytes)
+        self.assertIs(machine.read_budget, machine.ledger.read_budget)
+
+    def test_a4_record_budget_counts_nodes_and_projection_work(self):
+        for limit in (7, 500):
+            plan, replies = fixture()
+            plan["verification"]["read_max_records"] = str(limit)
+            result, machine, _ = run(plan,replies)
+            self.assertEqual(result["capture_status"], "INCOMPLETE")
+            self.assertEqual(machine.read_budget.records, limit + 1)
+            self.assertIn("读取帽", result["failure"])
+        plan, replies = fixture()
+        result, machine, _ = run(plan,replies)
+        self.assertEqual(result["capture_status"], "UNAUTHENTICATED_RAW_CAPTURE",result["failure"])
+        nodes = len(machine.nodes)
+        self.assertGreater(machine.read_budget.records, nodes + 2 * len(machine.captures) + len(machine.rows))
+        self.assertEqual(machine.read_budget.bytes_read, sum(len(o["transport_request"]) +
+            len(o["exchange"].transport_reply) + len(o["exchange"].stderr) for o in machine.originals))
+
+    def test_a4_same_budget_spans_projection_closure_and_final_graph(self):
+        plan, replies = fixture()
+        references = []
+        original_ref, original_decode, original_verify = x.content_ref, x.decode_verified, p.c.verify
+        def content(value,budget,*args):
+            references.append(budget.budget)
+            return original_ref(value,budget,*args)
+        def decode(target,nodes,budget):
+            references.append(budget.budget)
+            return original_decode(target,nodes,budget)
+        def verify(target,nodes,source,budget):
+            references.append(budget.read_budget)
+            return original_verify(target,nodes,source,budget)
+        with patch.object(x,"content_ref",side_effect=content), patch.object(x,"decode_verified",side_effect=decode), \
+                patch.object(p.c,"verify",side_effect=verify):
+            result, machine, _ = run(plan,replies)
+        self.assertEqual(result["capture_status"], "UNAUTHENTICATED_RAW_CAPTURE", result["failure"])
+        self.assertGreater(len(references), 5)
+        self.assertTrue(all(b is machine.ledger.read_budget for b in references))
+
+    def test_a4_budget_not_reset_by_admission_wrapper_or_second_machine(self):
+        with tempfile.TemporaryDirectory() as td:
+            gate, _ = gate_fixture(td)
+            gate.ledger.read_budget.charge((b"prior bytes",))
+            before = gate.ledger.read_budget
+            other = p.ReadAdmission(gate.admission, gate.supervisor)
+            machine = p.CaptureMachine(other.plan,other.ledger,p.MemoryTransport([]))
+            self.assertIs(machine.read_budget, before)
+            self.assertEqual((before.records,before.bytes_read),(1,11))
 
 
 if __name__ == "__main__":

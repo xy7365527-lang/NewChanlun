@@ -1,0 +1,59 @@
+test_a1_preexisting_cli_directory_never_supplies_originals (test_product_capture.RepairTests.test_a1_preexisting_cli_directory_never_supplies_originals) ... FAIL
+test_a2_direct_transport_rejects_unapproved_or_unowned_output (test_product_capture.RepairTests.test_a2_direct_transport_rejects_unapproved_or_unowned_output) ... 
+  test_a2_direct_transport_rejects_unapproved_or_unowned_output (test_product_capture.RepairTests.test_a2_direct_transport_rejects_unapproved_or_unowned_output) (output=PosixPath('/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/tmprbikm8b9/unapproved-output')) ... FAIL
+  test_a2_direct_transport_rejects_unapproved_or_unowned_output (test_product_capture.RepairTests.test_a2_direct_transport_rejects_unapproved_or_unowned_output) (output=PosixPath('/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/tmprbikm8b9/capture')) ... FAIL
+test_a3_binary_drift_rejected_before_output_creation (test_product_capture.RepairTests.test_a3_binary_drift_rejected_before_output_creation) ... FAIL
+test_a4_formal_low_tool_budget_rejects_raw_input (test_product_capture.RepairTests.test_a4_formal_low_tool_budget_rejects_raw_input) ... FAIL
+
+======================================================================
+FAIL: test_a1_preexisting_cli_directory_never_supplies_originals (test_product_capture.RepairTests.test_a1_preexisting_cli_directory_never_supplies_originals)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-read-capture-audit-20261018/s_session/tests/issue1394_acceptance/test_product_capture.py", line 770, in test_a1_preexisting_cli_directory_never_supplies_originals
+    self.assertEqual(exchange.reply, b"")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: b'FOREIGN_PREEXISTING_BYTES' != b''
+
+======================================================================
+FAIL: test_a2_direct_transport_rejects_unapproved_or_unowned_output (test_product_capture.RepairTests.test_a2_direct_transport_rejects_unapproved_or_unowned_output) (output=PosixPath('/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/tmprbikm8b9/unapproved-output'))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-read-capture-audit-20261018/s_session/tests/issue1394_acceptance/test_product_capture.py", line 779, in test_a2_direct_transport_rejects_unapproved_or_unowned_output
+    with self.subTest(output=output), self.assertRaises(d.Rejected):
+                                      ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: Rejected not raised
+
+======================================================================
+FAIL: test_a2_direct_transport_rejects_unapproved_or_unowned_output (test_product_capture.RepairTests.test_a2_direct_transport_rejects_unapproved_or_unowned_output) (output=PosixPath('/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/tmprbikm8b9/capture'))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-read-capture-audit-20261018/s_session/tests/issue1394_acceptance/test_product_capture.py", line 779, in test_a2_direct_transport_rejects_unapproved_or_unowned_output
+    with self.subTest(output=output), self.assertRaises(d.Rejected):
+                                      ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: Rejected not raised
+
+======================================================================
+FAIL: test_a3_binary_drift_rejected_before_output_creation (test_product_capture.RepairTests.test_a3_binary_drift_rejected_before_output_creation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-read-capture-audit-20261018/s_session/tests/issue1394_acceptance/test_product_capture.py", line 796, in test_a3_binary_drift_rejected_before_output_creation
+    self.assertFalse(Path(gate.extension["output"]).exists())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false
+
+======================================================================
+FAIL: test_a4_formal_low_tool_budget_rejects_raw_input (test_product_capture.RepairTests.test_a4_formal_low_tool_budget_rejects_raw_input)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1394-read-capture-audit-20261018/s_session/tests/issue1394_acceptance/test_product_capture.py", line 802, in test_a4_formal_low_tool_budget_rejects_raw_input
+    self.assertEqual(result["capture_status"], "INCOMPLETE")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'UNAUTHENTICATED_RAW_CAPTURE' != 'INCOMPLETE'
+- UNAUTHENTICATED_RAW_CAPTURE
++ INCOMPLETE
+
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.057s
+
+FAILED (failures=5)

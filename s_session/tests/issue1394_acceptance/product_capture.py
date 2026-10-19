@@ -7,12 +7,14 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, field
+import hashlib
 import ipaddress
 import math
 import os
 from pathlib import Path
 import re
 import socket
+import stat
 import subprocess
 import sys
 import time
@@ -202,6 +204,11 @@ class Ledger:
         self.dispatched = set()
         self.capture_ids = set()
         self.halted = False
+        verify = plan["verification"]
+        self.read_budget = d.ReadBudget(min(plan["resources"]["deadlines"]["work"],
+            plan["resources"]["deadlines"]["stages"][plan["stage"]],
+            *(slot["deadline"] for slot in plan["slots"])),
+            d.positive(verify["read_max_records"]), d.positive(verify["read_max_bytes"]))
         self._check()
 
     def _check(self):
@@ -274,6 +281,21 @@ class MemoryTransport:
         return result
 
 
+class _ReadWork:
+    """共用工具账；一次结构检查点计一条，原 bytes 只在进入解析前计入。"""
+    def __init__(self, budget):
+        self.budget = budget
+
+    def check(self):
+        self.budget.charge(())
+
+
+class _ClosureWork(c.Budget):
+    def check(self):
+        self.read_budget.charge(())
+        super().check()
+
+
 class CaptureMachine:
     """有序协议状态机；传输异常及验证异常均停止，已收到的错误原件不丢。"""
     def __init__(self, plan, ledger, transport, *, clock=time.monotonic):
@@ -289,6 +311,8 @@ class CaptureMachine:
         self.q_done = self.closure_done = False
         self.metadata = self.token = self.issued = self.basis = self.total_nodes = None
         self.after = ""
+        self.read_budget = ledger.read_budget
+        self.read_work = _ReadWork(self.read_budget)
 
     def _deadline(self, slot, started):
         r = self.plan["resources"]
@@ -323,6 +347,7 @@ class CaptureMachine:
                             "after": self.after, "max_reply_bytes": slot["closure_max_reply_bytes"]}) + b"\n"
 
     def _snapshot(self, capture, deadline):
+        self.read_work.check()
         request, response = d.strict(capture.request), d.strict(capture.reply)
         d.exact(request, ENVELOPE, "Q 原请求信封")
         d.exact(response, ENVELOPE, "Q 原回复信封")
@@ -351,6 +376,7 @@ class CaptureMachine:
         seen = {(row["family"], d.canonical(row["key"])) for row in self.rows}
         object_ids = {row["key"][0] for row in self.rows if row["family"] in ("objects", "withdrawn_objects")}
         for row in page["rows"]:
+            self.read_work.check()
             d.exact(row, {"family", "key", "record"}, "Q 公开记录")
             d.require(row["family"] in x.FAMILIES and type(row["key"]) is list, "Q 未知记录族")
             width = 3 if row["family"] == "relations" else 2 if row["family"] == "raw_history" else 1
@@ -385,8 +411,7 @@ class CaptureMachine:
 
     def _check_projection(self, deadline):
         # 全页原序先与冻结根相符，才可发 basis；不等 financial 后才发现 Q 行序变动。
-        verify = self.plan["verification"]
-        budget = d.ReadBudget(deadline, d.positive(verify["read_max_records"]), d.positive(verify["read_max_bytes"]))
+        budget = self.read_work
         fixed = self.plan["fixed_cut"]
         projection = {**self.metadata, "fixed_cut": dict(fixed, catalog_evidence=x.Edge(fixed["catalog_evidence"])),
                       "catalog": x.Edge(self.metadata["catalog"]),
@@ -397,6 +422,7 @@ class CaptureMachine:
         d.require(digest == self.plan["cut_projection_digest"], "Q 全页原序/完整投影根不同")
 
     def _basis(self, capture):
+        self.read_work.check()
         request, reply, anchor = d.strict(capture.request), d.strict(capture.reply), self.plan["anchor"]
         d.exact(reply, {"schema_revision", "content_format", "kind", "session_id", "session_generation", "writer_epoch",
                         "pending_revision", "commit_ns", "basis_ref", "snapshot_ref", "selected_objects", "proof_nodes"}, "basis 回复")
@@ -411,6 +437,7 @@ class CaptureMachine:
         references = {r["key"][0]: r["record"] for r in self.rows if r["family"] == "objects"}
         indices = set()
         for oid, item in zip(wanted, selected):
+            self.read_work.check()
             d.exact(item, {"object_id", "object_ref", "object_hash", "snapshot_index"}, "selected object")
             index = x.decimal(item["snapshot_index"])
             d.require(index < len(wanted) and index not in indices, "basis index 缺漏/重复")
@@ -421,6 +448,7 @@ class CaptureMachine:
         d.require(type(reply["proof_nodes"]) is list, "basis proof 非数组")
         prior = ""
         for raw in reply["proof_nodes"]:
+            self.read_work.check()
             node = self._node(raw)
             d.require(node.root > prior, "basis proof 乱序/重复")
             prior = node.root
@@ -436,6 +464,7 @@ class CaptureMachine:
         return node
 
     def _closure(self, capture):
+        self.read_work.check()
         request, reply, anchor = d.strict(capture.request), d.strict(capture.reply), self.plan["anchor"]
         d.exact(reply, {"anchor", "path", "after", "target_ref", "total", "nodes", "next", "done", "ok"}, "闭包回复")
         d.require(reply["ok"] is True and reply["anchor"] == anchor and reply["path"] == []
@@ -447,6 +476,7 @@ class CaptureMachine:
         d.require(total == self.total_nodes and type(reply["nodes"]) is list and reply["nodes"], "闭包 total 漂移/空页")
         count = size = 0
         for raw in reply["nodes"]:
+            self.read_work.check()
             node = self._node(raw)
             d.require(node.root > (self.nodes[-1].root if self.nodes else ""), "闭包乱序/重复")
             self.nodes.append(node)
@@ -466,13 +496,15 @@ class CaptureMachine:
         # 沿根可达边对照收到的节点全集；typed verifier 与独立库读取留给 export。
         by_root = {node.root: node for node in self.nodes}
         for raw in self.basis["proof_nodes"]:
+            self.read_work.check()
             n = self._node(raw)
             d.require(by_root.get(n.root) == n, "basis proof 不是同一闭包原件")
         d.require(len(self.nodes) <= d.positive(caps["max_total_nodes"]), "reader 节点帽")
         verify = self.plan["verification"]
-        budget = d.ReadBudget(deadline, d.positive(verify["read_max_records"]), d.positive(verify["read_max_bytes"]))
-        cb = c.Budget(d.positive(verify["closure_max_nodes"]), d.positive(verify["closure_max_bytes"]),
+        budget = self.read_work
+        cb = _ClosureWork(d.positive(verify["closure_max_nodes"]), d.positive(verify["closure_max_bytes"]),
                       d.positive(verify["closure_max_visits"]), deadline)
+        cb.read_budget = self.read_budget
         # 此调用只做收到流的内部类型/可达校验。source 是同一流，故不是独立原库验真。
         # 不把 c.verify 的返回值作为导出认证，不调用 export_captured。
         c.verify(self.plan["anchor"]["basis_ref"], self.nodes, by_root.__getitem__, cb)
@@ -493,7 +525,7 @@ class CaptureMachine:
         expected = []
         for family in x.FAMILIES:
             for record in sorted(snapshot[family], key=lambda row: x.row_identity(family, row)[1]):
-                budget.charge((d.canonical(record),))
+                budget.check()
                 expected.append({"family": family, "key": x.row_identity(family, record)[0], "record": x.content_ref(record, budget)})
         d.require(expected == self.rows, "Q 原序/六族全集不是实际闭包 snapshot")
         for item in self.basis["selected_objects"]:
@@ -519,6 +551,9 @@ class CaptureMachine:
                 original = {"slot": copy.deepcopy(slot), "deadline": deadline, "request": request,
                             "transport_request": wire, "exchange": exchange}
                 self.originals.append(original)
+                # 一份原请求帧计一条；完整 HTTP 头也计入。不能以 canonical 大小替代。
+                self.read_budget.deadline = min(self.read_budget.deadline, deadline)
+                self.read_budget.charge((wire,))
                 try:
                     received = self.transport.exchange(slot, request, wire, deadline)
                     d.require(type(received) is Exchange, "传输未返回原件")
@@ -530,7 +565,12 @@ class CaptureMachine:
                 # 先保留全部已收到原件，再处理超时、错误码、解析或帽失败。
                 capture = x.Capture(slot["route"], request, exchange.reply, copy.deepcopy(slot["binding"]))
                 self.captures.append(capture)
-                self.ledger.add(name, wire=len(exchange.transport_reply) + len(exchange.stderr))
+                # 先封存实收原件，再在任何解析前计费。CLI reply 与 transport_reply 是同一原件。
+                try:
+                    self.ledger.add(name, wire=len(exchange.transport_reply) + len(exchange.stderr))
+                finally:
+                    # 一份回复原件连同 stderr 计一条；任一账拒绝都不能抹掉另一账已观测的用量。
+                    self.read_budget.charge((exchange.transport_reply, exchange.stderr))
                 d.require(exchange.complete and exchange.error is None, "传输未知/截断：" + str(exchange.error))
                 d.require(started <= exchange.started <= exchange.ended <= self.clock() < deadline,
                           "调用后超原截止/时间身份非法")
@@ -710,6 +750,24 @@ class ReadAdmission:
         self.ledger._check()
         self.guarded = (slot["id"], d.sha(request), deadline, phase)
 
+    def verify_current(self):
+        """目录占用前重核实际 owner/binary 和原最早截止；不发监督或产品请求。"""
+        self.preflight()
+        r, a = self.plan["resources"], self.admission
+        deadline = min(a.business_deadline, self.supervisor.deadline, r["deadlines"]["work"],
+            r["deadlines"]["stages"][self.plan["stage"]],
+            *(j["deadline"] for j in r["jobs"].values()),
+            *(min(s["deadline"], r["deadlines"]["stages"][s["stage"]]) for s in self.plan["slots"]))
+        d.remaining(deadline)
+        for role in ("session", "q"):
+            pin = self.plan[role]
+            owner = a.active_owners[tuple(pin["owner_key"])]
+            owner.verify_identity(deadline=deadline)
+            d.require(d.bounded_hash(owner.argv[0], deadline) == pin["binary_sha256"], "owner binary 漂移")
+        d.require(d.bounded_hash(self.plan["reader_binary"], deadline) == self.plan["source"]["binary_sha256"],
+                  "reader binary 漂移")
+        d.remaining(deadline)
+
 
 class _StdinProcess(d.OwnedProcess):
     """原 OwnedProcess 的严格 stdin gate 适配；复用登记、身份、cleanup/reap。
@@ -735,12 +793,27 @@ class _StdinProcess(d.OwnedProcess):
         self.output, self.argv, self.caps, self.deadline = Path(output), slot["argv"], caps, deadline
         self.binary_before = command["binary_sha256"]
         self.stdout = self.stderr = self.process = self.directory = None
+        self.output_readers, self.output_originals, self.output_inventory = {}, {}, {}
+        self.output_errors = []
         self.identity, self.cleanup_result, self.released = {}, None, False
         self.sent = 0
         try:
             d.remaining(deadline)
             self.directory = d.OwnedDirectory(output)
-            self.stdout, self.stderr = self.directory.open_new("stdout"), self.directory.open_new("stderr")
+            for name in ("stdout", "stderr"):
+                stream = self.directory.open_new(name)
+                setattr(self, name, stream)
+                # 独立读句柄只从刚取得的目录打开，并与本次新建的写句柄逐项核身份。
+                fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=self.directory.fd)
+                try:
+                    held, created = os.fstat(fd), os.fstat(stream.fileno())
+                    d.require(stat.S_ISREG(held.st_mode) and (held.st_dev, held.st_ino) ==
+                              (created.st_dev, created.st_ino), "原输出文件身份被替换")
+                    self.directory.verify()
+                    self.output_readers[name] = (fd, (held.st_dev, held.st_ino))
+                except BaseException:
+                    os.close(fd)
+                    raise
             control = ("import json,os,time\nb=bytearray()\nwhile True:\n c=os.read(0,1)\n"
                        " if not c: raise SystemExit(125)\n b.extend(c)\n if c==b'\\n': break\n"
                        "p=json.loads(b)\nif time.monotonic()>=p['deadline']: raise SystemExit(124)\n"
@@ -788,14 +861,66 @@ class _StdinProcess(d.OwnedProcess):
             error.cleanup_receipt = self.cleanup(str(error))
             raise
 
+    def _save(self, name, value, deadline):
+        super()._save(name, value, deadline)
+        observed = os.stat(name, dir_fd=self.directory.fd, follow_symlinks=False)
+        raw = d.canonical(value) + b"\n"
+        self.output_inventory[name] = {"bytes": len(raw), "sha256": d.sha(raw),
+            "identity": (observed.st_dev, observed.st_ino),
+            "times": (observed.st_mtime_ns, observed.st_ctime_ns)}
+
+    def cleanup(self, reason="cleanup"):
+        # TERM/KILL/wait/reap、关闭写句柄与回执仍完整走原 OwnedProcess。
+        receipt = super().cleanup(reason)
+        for name, (fd, identity) in list(self.output_readers.items()):
+            try:
+                d.remaining(self.seal_deadline)
+                before = os.fstat(fd)
+                d.require(stat.S_ISREG(before.st_mode) and (before.st_dev, before.st_ino) == identity,
+                          "持有的原输出句柄身份变化")
+                cap = d.positive(self.caps["reader"]["max_reply_bytes" if name == "stdout" else "max_stderr_bytes"])
+                digest, count, prefix = hashlib.sha256(), 0, bytearray()
+                # 文件仍在本实例取得的句柄上；目录被换也绝不读替换路径。
+                while True:
+                    d.remaining(self.seal_deadline)
+                    block = os.read(fd, 65536)
+                    if not block:
+                        break
+                    digest.update(block)
+                    count += len(block)
+                    prefix.extend(block[:max(0, cap + 1 - len(prefix))])
+                    self.output_originals[name] = bytes(prefix)
+                self.output_originals[name] = bytes(prefix)
+                after = os.fstat(fd)
+                d.require((before.st_size, before.st_mtime_ns, before.st_ctime_ns) ==
+                          (after.st_size, after.st_mtime_ns, after.st_ctime_ns) and count == after.st_size,
+                          "原输出封口中变化")
+                self.output_inventory[name] = {"bytes": count, "sha256": digest.hexdigest(), "identity": identity,
+                    "times": (after.st_mtime_ns, after.st_ctime_ns)}
+                if count > cap:
+                    self.output_errors.append(name + " 原输出超帽；Exchange 仅保留原前缀，完整原文件未改")
+            except (d.Rejected, OSError, ValueError) as error:
+                self.output_errors.append(name + ": " + type(error).__name__ + ": " + str(error))
+            finally:
+                os.close(fd)
+                del self.output_readers[name]
+        return receipt
+
 
 class ProductTransport:
     """只接受根 grant 包装；真实 CLI/HTTP，无重试、代理或裸产品 subprocess.run。"""
-    def __init__(self, gate, output):
+    def __init__(self, gate, output, *, directory=None):
         d.require(type(gate) is ReadAdmission, "未准入零产品 IO")
-        gate.preflight()
-        self.gate, self.output = gate, Path(output)
+        self.gate, self.output, self.directory = gate, Path(output), directory
+        self._verify_directory()
+        gate.verify_current()
         self.machine = None
+
+    def _verify_directory(self):
+        d.require(str(self.output) == self.gate.extension["output"], "输出目录未绑定根准入")
+        d.require(type(self.directory) is d.OwnedDirectory and self.directory.path == self.output,
+                  "产品传输缺本次独占目录句柄")
+        self.directory.verify()
 
     def exchange(self, slot, request, wire, deadline):
         d.require(type(self.gate) is ReadAdmission, "产品传输缺准入")
@@ -807,7 +932,9 @@ class ProductTransport:
         self.gate.ledger.dispatched.add(slot["id"])
         result = Exchange(started=time.monotonic())
         try:
+            self._verify_directory()
             self.gate.guard(slot, request, deadline, "before")
+            self._verify_directory()
             if slot["route"] == "snapshot":
                 result = self._http(slot, wire, deadline, result)
             else:
@@ -898,17 +1025,11 @@ class ProductTransport:
                 receipt = owner.cleanup("read-capture-finished")
                 result.identity["cleanup"] = receipt
                 result.returncode = receipt["returncode"]
-                # 保留原 stdout/stderr 文件。超帽时只读有限前缀，清单明确不完整，绝不伪造空错误。
-                caps = self.gate.plan["resources"]["reader"]
-                for key, filename, maximum in (("reply", "stdout", "max_reply_bytes"), ("stderr", "stderr", "max_stderr_bytes")):
-                    path = owner.output / filename
-                    if path.is_file() and not path.is_symlink():
-                        with path.open("rb") as stream:
-                            setattr(result, key, stream.read(d.positive(caps[maximum]) + 1))
-                        if path.stat().st_size > d.positive(caps[maximum]):
-                            result.complete = False
+                for key, filename in (("reply", "stdout"), ("stderr", "stderr")):
+                    setattr(result, key, owner.output_originals.get(filename, b""))
+                result.identity["output_errors"] = list(owner.output_errors)
                 result.transport_reply = result.reply
-                if not receipt["reaped"] or receipt["errors"]:
+                if not receipt["reaped"] or receipt["errors"] or owner.output_errors:
                     result.complete = False
         return result
 
@@ -919,9 +1040,10 @@ def capture_product(gate, output):
     gate.preflight()
     d.require(gate.plan["capture_id"] not in gate.ledger.capture_ids, "同 grant/capture 不得再次运行")
     d.require(str(Path(output)) == gate.extension["output"], "输出目录未绑定根准入")
-    transport = ProductTransport(gate, output)
+    gate.verify_current()
     directory = d.OwnedDirectory(output)
     try:
+        transport = ProductTransport(gate, output, directory=directory)
         machine = CaptureMachine(gate.plan, gate.ledger, transport)
         result = machine.run()
         result["originals"] = persist_originals(machine, result, directory, gate.admission.seal_deadline)
@@ -962,14 +1084,28 @@ def persist_originals(machine, result, directory, deadline):
             owner = gate.admission.active_owners.get((slot["stage"], "S", machine.plan["anchor"]["writer_epoch"]))
             if type(owner) is not _StdinProcess:
                 continue
-            for filename in ("stdout", "stderr", "OWNER.json", "ACK.json", "CLEANUP.json"):
-                path = owner.output / filename
-                if path.exists():
-                    d.require(not path.is_symlink() and path.is_file(), "原进程原件被替换")
-                    before = d.file_stat(path)
-                    digest = d.bounded_hash(path, deadline)
-                    d.require(d.file_stat(path) == before, "原件封口中变化")
-                    inventory.append({"path": str(path.relative_to(directory.path)), "bytes": int(before["st_size"]), "sha256": digest})
+            # 摘要来自持有的原句柄。这里只核路径仍指向原 inode，不读取路径中的任何内容。
+            fd = None
+            try:
+                directory.verify()
+                d.remaining(deadline)
+                d.require(owner.directory is not None and owner.output == directory.path / slot["id"],
+                          "原进程目录不属于本次输出")
+                fd = os.open(slot["id"], os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory.fd)
+                observed = os.fstat(fd)
+                d.require((observed.st_dev, observed.st_ino) == owner.directory.identity, "原进程目录被替换")
+                for filename, item in owner.output_inventory.items():
+                    observed = os.stat(filename, dir_fd=fd, follow_symlinks=False)
+                    d.require(stat.S_ISREG(observed.st_mode) and (observed.st_dev, observed.st_ino) == item["identity"]
+                              and observed.st_size == item["bytes"]
+                              and (observed.st_mtime_ns, observed.st_ctime_ns) == item["times"], "原进程文件被替换")
+                    inventory.append({"path": slot["id"] + "/" + filename,
+                                      "bytes": item["bytes"], "sha256": item["sha256"]})
+            except (d.Rejected, OSError) as error:
+                result.setdefault("original_path_errors", []).append(str(error))
+            finally:
+                if fd is not None:
+                    os.close(fd)
     save("RESULT.json", d.canonical(result) + b"\n")
     # 不在清单内列清单自身；不包含未来 commit。
     with directory.open_new("ORIGINALS.json") as stream:

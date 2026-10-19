@@ -1,0 +1,1164 @@
+{
+  "ticket": 1394,
+  "material_head": "490b53c20810176c5dbbe5ad8dcade47058b8570",
+  "subject": "4b3a84ebba8178e03aa04b2bd2a6a4138d9d438a",
+  "role": "限定材料及实施工作台，非生产source；尚未copyback",
+  "source_map_sha256": "8256f61978f49dabe315c3adf2e36a90edef391a0f2f0953eb2d2b141f2f476f",
+  "files": [
+    {
+      "path": ".agents/skills/ask-matt/SKILL.md",
+      "bytes": 11491,
+      "sha256": "3d38910535f5f01e15bc5fd7f6ca8880d628cd248741f08e6780dd7c1828e832"
+    },
+    {
+      "path": ".agents/skills/code-review/SKILL.md",
+      "bytes": 11338,
+      "sha256": "284219593ad71c42f808e17ae1380d45c218728fdbf5e001a771bf3ed0fda1eb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/DELIVERY-FILES.json",
+      "bytes": 11380,
+      "sha256": "873e3d5e8f41768ee12b5632d90eb3d1cbfd5ed97cd7190b2ebca2943598c175"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/HOST-TEST-RESULTS.json",
+      "bytes": 2292,
+      "sha256": "ea216c86afd2704a7205440e5429174c3ca1cc216603a83ef6861b977faf1bf8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/HOST-normal-all.txt",
+      "bytes": 16911,
+      "sha256": "c81c8368190d06e10ec132b31d56a7b82854e929b4c54c087c1181fba952e429"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/HOST-optimized-all.txt",
+      "bytes": 16911,
+      "sha256": "10396d2ee7d1f25f933d856b30dc5e8e8e4ca3cc418559b601b3c26d86c5e337"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/MANAGER-DELIVERY-FILES.json",
+      "bytes": 11201,
+      "sha256": "3ffad6d07058e89cc239c12590f1280781db5a97996c5b8bf124132ccb73bf74"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/MANAGER-RECEIPT.md",
+      "bytes": 1240,
+      "sha256": "a9fdedcaf3d2b31cb78f956003ec6acb34699d02a1568c421c3d9c6ce586fe33"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/REPORT.md",
+      "bytes": 13945,
+      "sha256": "cedae504677bb8774eafa400f321ee88e0bce59faa5d2069e9c784b598cc44e4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/SOURCE-CHECKS.json",
+      "bytes": 60534,
+      "sha256": "79d8069a47df399feeb52391581ec0c4cb187ded1cbd65df124a1101db5d7cd4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/SOURCE-ROLES.json",
+      "bytes": 3638,
+      "sha256": "9fa3a34ab3edcead59aab44b0eb8f0109426169a6150f83d91228d8225bb5c7d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/SOURCE-ROUTE-NOTE.md",
+      "bytes": 838,
+      "sha256": "52164a9e07dbb0c26cd71f659fadb131fba362329a99f27128820bc5d6ea5396"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/STATIC-CHECKS.json",
+      "bytes": 5180,
+      "sha256": "d43e2d4ace75bb55ac9c63f440bd9e93373243237f217859409c4e32d3d59844"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/TEST-RESULTS-FINAL.json",
+      "bytes": 3456,
+      "sha256": "ca1b99ba77330f79f0f1a6b26b9c9ec8437d06f0563ebd6a0f6f5921ab59e791"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/TEST-RESULTS.json",
+      "bytes": 3431,
+      "sha256": "872839c18246427578bfcff81786a5e9205a735a55f77debecdf0103380fbe4f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/driver.py.diff",
+      "bytes": 8671,
+      "sha256": "cc62ba10cda48ab541d3311babe97ae4ce162a6a6c9c5f5334a206d02520e221"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/normal-all.txt",
+      "bytes": 26409,
+      "sha256": "690c8e40e96bed0b6cdc8f36b4a2fcaa25a94e97f43d618becce6d3b652b4c63"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/normal-final-all.txt",
+      "bytes": 26567,
+      "sha256": "3434e8f07dca140ba52a48b90e1d7a24aa6cc9cde8f975c87b1a312e8cb93406"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/normal-final-offline.txt",
+      "bytes": 16866,
+      "sha256": "65b5b4b8fe5f0f91c516e1831deba61bda0d6b4953c99df7c402f672bcd0247f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/normal-offline.txt",
+      "bytes": 16707,
+      "sha256": "ab542157eafbd60320167087c1464c90e30be6173722fb049417e0ec35174c97"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/optimized-all.txt",
+      "bytes": 26409,
+      "sha256": "dd97ecc50061b75417ae98704afdc1dfecc4f49e6d928679db59be83eb94bb98"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/optimized-final-all.txt",
+      "bytes": 26568,
+      "sha256": "4692ea6897ee93cab40d1d127d95de852fe5e1b9b89b49bdbaf5d2e0f2dcc7e9"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/optimized-final-offline.txt",
+      "bytes": 16866,
+      "sha256": "b4dab3a63e521d9a5a32f79b4a226928a71295cbe0ed2532d473602d79347515"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/optimized-offline.txt",
+      "bytes": 16707,
+      "sha256": "a276e0e5299c4a1414e4aee5cdf477878bcec63c42330f19e883f8dc1758306b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/oracle.py.diff",
+      "bytes": 8960,
+      "sha256": "af5884f1047cf481928f16130b82cf3ce8df6f764502ac73ff466f8c7c5be52b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/references/CURRENT-DEPENDENCIES.json",
+      "bytes": 1040,
+      "sha256": "e90ebc8e9aa5c98a5016ea6f6e288bfd1c70cbaaed3620effd34c343f0788c2a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/references/INPUT-INVENTORY.md",
+      "bytes": 7260,
+      "sha256": "038b6d8aa9b2e260b897901bcb2c517257dbd50c8fa344cd4c694f1528a16392"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/references/P0-v2-prior-independent-probes.json",
+      "bytes": 1726,
+      "sha256": "302aa36ae2c82d928a383ae9e70aa808904d38ae4cdadc4d216424fb0e9b9dde"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/references/P0-v2-prior-independent-review.md",
+      "bytes": 8852,
+      "sha256": "cfc7deb0a5a486185df19e026e70a8fd8dfeef41ce372f774a8186dc6605cabb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/references/XERJ-REFERENCES.json",
+      "bytes": 12425,
+      "sha256": "952d62db9148713e80ae1b5ffe7484c584d3bdc69775ba3a947ffe3333fa10ce"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/references/driver-v1-prior-independent-review.md",
+      "bytes": 11256,
+      "sha256": "ca54aa7a54d17a89fe249e2a555e6267730cba67cda21859cf17b81f45d7d29a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/scheduler.py.diff",
+      "bytes": 4431,
+      "sha256": "dfd901623960f4a3ef8601fc047324b7190d00701c0e33bb70c4f7364b864e3c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/test_driver.py.diff",
+      "bytes": 973,
+      "sha256": "ae612ecabf5f1033b62cbf4a7122c7471942191fed6528820ce729403b31e336"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-integration-20261018/test_scheduler.py.diff",
+      "bytes": 677,
+      "sha256": "6a096514dc42b131a5d3e7f9eb351fde1774b876d557201147713c11b1dbf0e5"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/CONNECTION-CONTRACT.md",
+      "bytes": 17681,
+      "sha256": "f38f4705edc018da680ae1e8faadeab62556da8f55324a337f2975b438d5b341"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/DELIVERY-FILES.json",
+      "bytes": 9753,
+      "sha256": "d6ebe0618e193c009c6dfb61ac53c8eb6dbd998b5ad46d04ae8dfa7346326502"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/FIX-LEDGER.md",
+      "bytes": 5269,
+      "sha256": "59900e7ce9d8b7410d6b17f631026774e2b263536270daf10d951d642047aea3"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/FIXED-PROBE-RESULTS.json",
+      "bytes": 2171,
+      "sha256": "af2ca72ab21e4285f3971fcdafe5e5e2285580d3986b3cce42867982b12918db"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/HISTORICAL-FINGERPRINTS.json",
+      "bytes": 277,
+      "sha256": "161cd2eae1dae546b4944e3ed6ad7ad5db4331f69107051fa064c310fcc52b89"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/MANAGER-DELIVERY-FILES.json",
+      "bytes": 10145,
+      "sha256": "fee94df30c322a8576a6aac7cc10b285f5fc1e4d0d2ddfbe9b5e06fe58638d38"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/MANAGER-RECEIPT.md",
+      "bytes": 751,
+      "sha256": "1c868218aab3ee36874ebd891bb0733ce32c9d275d0dd26d6716240445f8e982"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/PRODUCER-DEPENDENCY-HANDOFF.md",
+      "bytes": 2441,
+      "sha256": "8dbd039c0d448ab92a05df22c6d5e63220652e06528dbb7868f6530a251afeb5"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/REPORT.md",
+      "bytes": 8085,
+      "sha256": "af7d3a20e0bcd6b4b33888e30953490ed981359c8e871573041462b7e9a95358"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/SOURCE-CHECKS.json",
+      "bytes": 10618,
+      "sha256": "d4852edc6972371ee94fb79796addd11621e30fedfaf019029a5010fb1f07c0d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/SOURCE-ROLES.json",
+      "bytes": 4770,
+      "sha256": "b09391897ca8b8006a86a5e815985671bd9b2547e6cac6437aaaeba508eefbeb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/STATIC-CHECKS-91.json",
+      "bytes": 7525,
+      "sha256": "ee9e2eadd331f6d46efd0a073b553b17804ea80d52601a62bb7c27a043e3fad0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/STATIC-CHECKS.json",
+      "bytes": 7526,
+      "sha256": "9f1d789ed02005e29f33c660d07f6684fda2c501425bd243eed59960f1ab872e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/TEST-RESULTS-RESOURCE-FOLLOWUP.json",
+      "bytes": 1090,
+      "sha256": "8b568200f058ce5f8235f9916ffc26d5f82ae46101bbd8a5140bbc6cea6e5fbd"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/TEST-RESULTS.json",
+      "bytes": 1458,
+      "sha256": "8539febd8e49337a2f1bbf042928b4130eecd369e7adca471095d90ab4c87202"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/TEST-REUSE.json",
+      "bytes": 1656,
+      "sha256": "7f2faccef64c971befccaab765b93e4996740d3b6769ce098fe9e5294da7c09c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/normal-resource-followup.txt",
+      "bytes": 1729,
+      "sha256": "532b25591c05412d94b894e2a0080bb5f2399f9fa1a446ede798fce575962040"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/normal-targeted.txt",
+      "bytes": 13235,
+      "sha256": "f3fe958ce064f793849159665c98b467ca7a90ee92df2d0723e6ab0048d22bf4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/optimized-resource-followup.txt",
+      "bytes": 1729,
+      "sha256": "4716f6f467657adbbf72b65afcc0eb7d980a18e785129289aab6a97c13f9c9b6"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/optimized-targeted.txt",
+      "bytes": 13235,
+      "sha256": "a1ace8b084a0bb886a2cc6527760224c78ed8c71b2e1770c7d814ab1b3e2a0c4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/references/READONLY-BRIDGE-MAP-ea41.md",
+      "bytes": 16460,
+      "sha256": "1bafdb8fa7778a58d07e9401b0fd16ee394fff8236f37ea13e2d4d4f322923ba"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/references/REVIEW-01-INDEPENDENT-PROBES.json",
+      "bytes": 30398,
+      "sha256": "c51419e3a664968c0d384174e5337540033e2a8f8925ea6010b88fa3c4f72930"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/references/REVIEW-01-INDEPENDENT.md",
+      "bytes": 5682,
+      "sha256": "3c4ff1b9cf589eb0253a647a1a2baef41861d383437691c811895ad6c7be0fb0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision2-20261018/references/SOURCE-ROUTE-NOTE.md",
+      "bytes": 838,
+      "sha256": "52164a9e07dbb0c26cd71f659fadb131fba362329a99f27128820bc5d6ea5396"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/CONNECTION-CONTRACT.md",
+      "bytes": 21060,
+      "sha256": "a3cf14b1486e1aa34afbc193f5ace19186590dd664388108fb523a8ed6f5fb3f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/DELIVERY-FILES.json",
+      "bytes": 12457,
+      "sha256": "5b6ef6a9f60800fe4eafb18eef89be6d7fd935c4fe8b3a5a8a5e85bd72291144"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/FIX-LEDGER.md",
+      "bytes": 9022,
+      "sha256": "fbdfacef0b18ef8eb422d7180ab73eb9be638f1ddf562729335a86c80d1c8f48"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/PRODUCER-DEPENDENCY-HANDOFF.md",
+      "bytes": 2441,
+      "sha256": "8dbd039c0d448ab92a05df22c6d5e63220652e06528dbb7868f6530a251afeb5"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/REPORT.md",
+      "bytes": 4789,
+      "sha256": "b110f6da8414b3d4c983c580e8c5580f8f6a0b3596f801fa8eeba5227d1ec434"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/SOURCE-CHECKS.json",
+      "bytes": 9862,
+      "sha256": "8f893305fdf83cb69786d10cb757545edb2742fcf5fe1bc6a98aa3233463dc69"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/SOURCE-ROLES.json",
+      "bytes": 5511,
+      "sha256": "20ce04340bac4185147d7435c1161f588fe6c551bbac0276311999f439cfc8d9"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/STATIC-CHECKS.json",
+      "bytes": 10210,
+      "sha256": "86c029714bd80cf5c687bf088a6a613dafd2551a5413953f2481c32a9c38ae04"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/TEST-RESULTS.json",
+      "bytes": 8365,
+      "sha256": "b6d2b22895d84c250e0f77d6f0f9184d92012e7437d0481cfa183a568f2da088"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/TEST-REUSE.json",
+      "bytes": 4432,
+      "sha256": "bf4c9612cf496c2e0e5c06c59234afb742f11b19f0f07ed9415fe477087ac069"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/normal-targeted.txt",
+      "bytes": 10225,
+      "sha256": "0beb52f4c45f9b3a200f997edde9ec6eb32fa81e63b6dfb2ab1d54f788b69687"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/optimized-targeted.txt",
+      "bytes": 10225,
+      "sha256": "98715544507a43749d4820890d32bd2e698a8caefe8fec1de3349524564a8069"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/C1-closure-cursor.txt",
+      "bytes": 1344,
+      "sha256": "050022b9f7be9d6622ec3525450703f086f9f45a0de655904e6829d055d3ce03"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/HISTORICAL-HOST-TEST-RESULTS.json",
+      "bytes": 2292,
+      "sha256": "ea216c86afd2704a7205440e5429174c3ca1cc216603a83ef6861b977faf1bf8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/HISTORICAL-HOST-normal-all.txt",
+      "bytes": 16911,
+      "sha256": "c81c8368190d06e10ec132b31d56a7b82854e929b4c54c087c1181fba952e429"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/HISTORICAL-HOST-optimized-all.txt",
+      "bytes": 16911,
+      "sha256": "10396d2ee7d1f25f933d856b30dc5e8e8e4ca3cc418559b601b3c26d86c5e337"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/INTEGRATION-SOURCE-CHECKS.json",
+      "bytes": 60534,
+      "sha256": "79d8069a47df399feeb52391581ec0c4cb187ded1cbd65df124a1101db5d7cd4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/INTEGRATION-XERJ-REFERENCES.json",
+      "bytes": 12425,
+      "sha256": "952d62db9148713e80ae1b5ffe7484c584d3bdc69775ba3a947ffe3333fa10ce"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/READONLY-BRIDGE-MAP-ea41.md",
+      "bytes": 16460,
+      "sha256": "1bafdb8fa7778a58d07e9401b0fd16ee394fff8236f37ea13e2d4d4f322923ba"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/REVIEW-01-INDEPENDENT-PROBES.json",
+      "bytes": 30398,
+      "sha256": "c51419e3a664968c0d384174e5337540033e2a8f8925ea6010b88fa3c4f72930"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/REVIEW-01-INDEPENDENT.md",
+      "bytes": 5682,
+      "sha256": "3c4ff1b9cf589eb0253a647a1a2baef41861d383437691c811895ad6c7be0fb0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/REVIEW-02-INDEPENDENT-PROBES.json",
+      "bytes": 25513,
+      "sha256": "51c16f90e41be4a66e3eb288b603c4cc14c29a5615858c8a2560b3a06d39642b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/REVIEW-02-INDEPENDENT.md",
+      "bytes": 7765,
+      "sha256": "8d90c9c037aeaea13d826cf57c77d62f7d6fb8e04010b64d5f2dbac062baf7f5"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/REVISION2-SOURCE-CHECKS.json",
+      "bytes": 10618,
+      "sha256": "d4852edc6972371ee94fb79796addd11621e30fedfaf019029a5010fb1f07c0d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/REVISION2-SOURCE-ROLES.json",
+      "bytes": 4770,
+      "sha256": "b09391897ca8b8006a86a5e815985671bd9b2547e6cac6437aaaeba508eefbeb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision3-20261018/references/SOURCE-ROUTE-NOTE.md",
+      "bytes": 838,
+      "sha256": "52164a9e07dbb0c26cd71f659fadb131fba362329a99f27128820bc5d6ea5396"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/BASELINE-PYTHON.json",
+      "bytes": 4782,
+      "sha256": "cb8a14d0da173baddd3ac48b42cb63403b47c4f44d6554c54b897b89ca20e741"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/DELIVERY-FILES.json",
+      "bytes": 5830,
+      "sha256": "35258f5432ae725bc53985c81d98b295cadb626e86af298c71d4264b1f85c7b2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/FIX-LEDGER.md",
+      "bytes": 3384,
+      "sha256": "d2cc2a1028f16765f9d1d8389cc6056a563ac3a3558d14921001dd6000b77663"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/PROTOCOL-CHECKS.json",
+      "bytes": 7890,
+      "sha256": "11f9dead218f245a366a4383629818e288770b825dae42ad7cbc56d03d7c39a8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/RAW-WIRE-EVIDENCE.json",
+      "bytes": 1824,
+      "sha256": "9b6e9107ac3d983bed2fab1251e69458beda975d0c83d940a798eb7ed88a952f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/RED-RESULTS.json",
+      "bytes": 1559,
+      "sha256": "a223a3de2592a44dd65935b9db546020289618e11c300450f25732e0fa9adaff"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/REPORT.md",
+      "bytes": 6028,
+      "sha256": "52d056594be27a21f5c875a38fd7cfb22b9dcd0b214ddeff540d615b79b6cb48"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/STATIC-CHECKS.json",
+      "bytes": 18037,
+      "sha256": "075f00e80793963e95f151b09f4dc1e1ed5c5471a7d6e98b12e275667160c2bd"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/TEST-RESULTS.json",
+      "bytes": 21610,
+      "sha256": "7fb2645e55a4a0f0fe4af8b6dd63b0af429644208050d56ece269e8418f88c84"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/TEST-REUSE.json",
+      "bytes": 23010,
+      "sha256": "407bf06e28e6cf9a5c2375367fdb615e96f6a139bef1b9231f8f5bafcab0f43b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/TEST-SELECTION.json",
+      "bytes": 7285,
+      "sha256": "2fb3f830cafcfd069b1eb8355a737d40e7f9e82ae82e22cae9f7a9b2fcc3cb5b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/normal-targeted.txt",
+      "bytes": 5499,
+      "sha256": "e6b6bc6e6cfb07231874549f1d0038756817166fca7fa293eb622bb3a60832bd"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/optimized-targeted.txt",
+      "bytes": 5499,
+      "sha256": "db3ba58deb9390e2c11394293aa9c79cb01c67752a02e1a73ad88ebd47c2f0a6"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/red-targeted.txt",
+      "bytes": 5504,
+      "sha256": "87fa71a8614110712501f2658323a1f07628515d2ae5e354ba6ab376074512d0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/references/REVIEW-03-INDEPENDENT-PROBES.json",
+      "bytes": 27263,
+      "sha256": "accd04d4973e3bd80cd2d9ef9915b7c374aebcd0f343c4d5cf7523c831d1666f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/references/REVIEW-03-INDEPENDENT.md",
+      "bytes": 5170,
+      "sha256": "3842328bbffc0db6c63c4b715bd4a479f63c0f130b225ff4cc4cbcaf47463816"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/references/toy-closure-5940.reply",
+      "bytes": 5940,
+      "sha256": "8aa0bd56c4f745c880d63eef7e6d13946783825c6d42e3bc1256b66a03db5f84"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/references/toy-closure-6040.reply",
+      "bytes": 6040,
+      "sha256": "25e85585d9cd00f2a4922a6711c26b8f65d90e9fe55bbddabea12024eea70301"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/references/toy-closure-cap5940.request",
+      "bytes": 384,
+      "sha256": "110e89c1273ce9db5551e3bedb7fa1dcfd5b240a23e6d4582a8a80c9a52703ba"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision4-20261018/references/toy-closure-cap6040.request",
+      "bytes": 384,
+      "sha256": "e79e70d2b1789f76563e33155306617bd3ff101edb713732d8f99e31a8c160d9"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/BASELINE-PYTHON.json",
+      "bytes": 5358,
+      "sha256": "b2ba624af5a8651d1b9e47679b2a9e87e1679c348a1d91c7512e47152fb6014b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/DELIVERY-FILES.json",
+      "bytes": 7153,
+      "sha256": "695a70a5d9c8ad130e5ac755c31f5eecadf89158218501445c7c48c22dd2feb9"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/FIX-LEDGER.md",
+      "bytes": 3289,
+      "sha256": "ce4a6992d254adc979b18452ec22e6464b8be0bcd26702a07c0316d387ae783f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/FORMAL-COMPARISON.json",
+      "bytes": 17464,
+      "sha256": "9599535fc69a9657ab3fb1f1e84181ffcd461fe9a119dcd372af18ab592ff23a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/FORMAL-PROBES-AFTER.json",
+      "bytes": 1098,
+      "sha256": "efaf5877de0c16b1599a61ab8b2c19f02bd601b0dc598acc3d3fa5ca35fb6212"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/FORMAL-PROBES-BEFORE.json",
+      "bytes": 1101,
+      "sha256": "684580ca1a3181866b851f266834435fd268c7a2d62c1185d7a19a6b5933ee4b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/NORMAL-RESULTS.json",
+      "bytes": 19017,
+      "sha256": "17d789f428b8c501402bf99dec79b5ae3fb765f19e950f78c751c663cef6437c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/OPTIMIZED-RESULTS.json",
+      "bytes": 19033,
+      "sha256": "69baf0602df14c9724d877899ae92baf7fddf75897c146866bcac5a411569db4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/RED-RESULTS.json",
+      "bytes": 14724,
+      "sha256": "faf5983dda7d586d4fe224393004b2230550264a126df45c51ef20a36dc5e524"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/REFERENCES.json",
+      "bytes": 1056,
+      "sha256": "64b77699758f70d03ebdbf73f206d3fde459824552be6792d2e0f14a9de9cb5f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/REPORT.md",
+      "bytes": 7373,
+      "sha256": "2f45c14ff084937853dd10f75d8825add62843bf3656ad2025c20ffe3dafd64c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/STATIC-CHECKS.json",
+      "bytes": 20377,
+      "sha256": "4abe792b8ce206adabcc42714ce57257255eec056e401b0637906e419c934e0f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/TEST-RESULTS.json",
+      "bytes": 56878,
+      "sha256": "e949d4424ad94e80deba2ce93968d7790d889435901ee739957f2c9b5ad188ba"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/TEST-REUSE.json",
+      "bytes": 33057,
+      "sha256": "b476f0791fb92e9febde968da7c5630b85c9c2b26af4ea727ef3d063286437b6"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/TEST-SELECTION.json",
+      "bytes": 8348,
+      "sha256": "929c6453d1e7a2c7b82b01836883371b85867fb5ff0b42556497b28fa9c99e7e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/formal-probe-1-after.txt",
+      "bytes": 5265,
+      "sha256": "d41321f518430e6818c24e65259d47e229002fd351322484c4f6f1a091be6189"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/formal-probe-1-before.txt",
+      "bytes": 5020,
+      "sha256": "b7d94630d47c9605d8c8882f6532a390ea39db2ad0529c47cd120bdf907f28dc"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/formal-probe-2-after.txt",
+      "bytes": 7319,
+      "sha256": "8c587cae6d183b57a0605bb520e01c20a4fa425a7abcf064d3ae1635a08fa9c3"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/formal-probe-2-before.txt",
+      "bytes": 7044,
+      "sha256": "eebc7edaa3f21d3c90de7139f02456d3177daeba885311dd667f41a6314fe95c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/formal-probe-3-after.txt",
+      "bytes": 2487,
+      "sha256": "8fc0702f4584959e361cc624142a610fbdcb94bb8dd97ead79b81df42cb12ca0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/formal-probe-3-before.txt",
+      "bytes": 2095,
+      "sha256": "dec139dab6256d188db715526cb6027ed8427567f822a1fc2dd04b587b8d8608"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/normal-targeted.txt",
+      "bytes": 5965,
+      "sha256": "1dfc297edab5184725aa5a64761063a24483adf39dd13f1eb1eec8b5f3d1a093"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/optimized-targeted.txt",
+      "bytes": 5965,
+      "sha256": "1dfc297edab5184725aa5a64761063a24483adf39dd13f1eb1eec8b5f3d1a093"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/red-targeted.txt",
+      "bytes": 45601,
+      "sha256": "05964a598e96c81a9bdeb0d77428cd8a6645fa8a2c8e95c79a7d5ef9995f28e4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/references/REVIEW-04-INDEPENDENT-PROBES.json",
+      "bytes": 37709,
+      "sha256": "010624e5babf3c57944dc831fd0069f7029d291b117773228195014359cce143"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-acceptance-revision5-20261018/references/REVIEW-04-INDEPENDENT.md",
+      "bytes": 4762,
+      "sha256": "7f2c2e00bd339578584fe3d933cb358cf436b375a6f8480f56c0f72bd240381c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/BEFORE-SOURCES.json",
+      "bytes": 57976,
+      "sha256": "cbf49aab613f87081a0c827a69beee554752b6ab8aa2a887d7c4cefc13c4d422"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/DELIVERY-FILES.json",
+      "bytes": 5127,
+      "sha256": "4ada1e35b0bc9ee503a7bf501594a80ebc11731a3f77fd8c271da90294541867"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/FINAL-CHECKS.json",
+      "bytes": 1144,
+      "sha256": "9c7062046bca9f6441c58f9791560bce6ed1f903d9b12a07bf4f72b66b39f39c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/FIXTURE-COMPARISON.json",
+      "bytes": 20451,
+      "sha256": "1ac699cc042ab43e3fdad57867e8946d6374d27d3ac3b47e096710611627a59e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/NORMAL-RESULTS.json",
+      "bytes": 15540,
+      "sha256": "b0818fc550ef1518f4b0110eb57c9fdce7fd9f9e43ced8bbef8c69e83903be2b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/OPTIMIZED-RESULTS.json",
+      "bytes": 15553,
+      "sha256": "bad2047823c6354df336da0fa304fa35e0780d44e6e4365348abff1ebdc8a181"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/PROTOCOL-SOURCES.json",
+      "bytes": 8136,
+      "sha256": "9e13974cbf3c9ebae2c66e14a7ab120df754dcd1d7444e1d499c880e9f8d0faf"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/RED-RESULTS.json",
+      "bytes": 13411,
+      "sha256": "3dff676ac08345a97562aba79fd0ccfb7d665674bab84ef09b40da3bd7663462"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/REPORT.md",
+      "bytes": 8071,
+      "sha256": "e9ceb0b4e410e94404c35bf46c4be6ef8e3d4be85439b23bc84ad1dc715b8ab2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/STATIC-CHECKS.json",
+      "bytes": 7754,
+      "sha256": "3bfc9f09f3a1140bfeb63d47508911e6a46aa2cea0a3ae29d3ea4074346f7e89"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/TEST-RESULTS.json",
+      "bytes": 1906,
+      "sha256": "d7479a5fabd67e651f00f49b41f4ee95aa9dad1ea3a5d3ef88019aa9d4503d3b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/TEST-REUSE.json",
+      "bytes": 39593,
+      "sha256": "49867242299be48e2f058e1b7ceffdc5b2db8b17c95d65e0ef27f35447f55149"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/TEST-SELECTION.json",
+      "bytes": 10021,
+      "sha256": "752029c06c54430cf153b123ed6d339b149e17a0a4d5e49229b644ec1daea976"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/financial-reader-99e819192bd6c91b1dd90e058a93c2a98d5aaaf3.txt",
+      "bytes": 7264,
+      "sha256": "1ca0aa2b7b6ccb34b34932eedfdd9e101de1f236fdc1962af466a555b364738c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/financial-reader-b46ba296993371cb56b2dff7ef878647dc0665ad.txt",
+      "bytes": 7264,
+      "sha256": "1ca0aa2b7b6ccb34b34932eedfdd9e101de1f236fdc1962af466a555b364738c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/normal-targeted.txt",
+      "bytes": 5719,
+      "sha256": "c045df77fa6c0f76647e95edbfdb2e4119bd7fce1e5d11d7796ae6815fba495d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/optimized-targeted.txt",
+      "bytes": 5719,
+      "sha256": "37c6211e575b2f4512ebdc886a9301afb2f9b4643ea841b498fc646d44ff50bb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-capture-object-order-20261018/red-targeted.txt",
+      "bytes": 20238,
+      "sha256": "0f2d704fff038d24a0321319836b03971bef18bda07a91c88a32aa624e17eedd"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/BASELINE-PYTHON.json",
+      "bytes": 4633,
+      "sha256": "07c37dd43f3ff0654ff418040a25d2ca631926630df0f75e4659de98e3c4edff"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/DELIVERY-FILES.json",
+      "bytes": 6144,
+      "sha256": "0e10a89196acccab71e73ffcfbff7f432f503494d730dfe37b24ed741e56c40a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/IMPLEMENTATION-LEDGER.md",
+      "bytes": 3262,
+      "sha256": "8aa08f7f30dedbdc1129b9c60adc1f8319bfc7929c77d1f222bacac806943f2f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/INTERFACE-CONTRACT.md",
+      "bytes": 7480,
+      "sha256": "f74eb4b662830299a70fc2fa4707c9b11790b2a37e10b919679fb0612addc24f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/PROTOCOL-SOURCES.json",
+      "bytes": 5257,
+      "sha256": "f728439c6c1791a03d1fe0e4bf440d0dcdd7aa6f192e278ed84d7fb5e1706c44"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/REPORT.md",
+      "bytes": 7993,
+      "sha256": "71ccbd11dc792fa29bdfeb354e1edfce01dcb06ebb0d8fde432c41cea36b0201"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/SOURCE-FREEZE.json",
+      "bytes": 4654,
+      "sha256": "dfd5a311d8d6ad48695eb44be5922033ac1adc4cd918c176e5080e70b47648c1"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/STATIC-CHECKS.json",
+      "bytes": 15367,
+      "sha256": "6e04cdb7f2590c66efe7300a402a5b02b73195105e65855e5331bd40f2ab9aa3"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/TEST-RESULTS.json",
+      "bytes": 9933,
+      "sha256": "fc716d29abebf07f1acb0f3c18aba9d9aa25cf1a72c861410c64ec26e9aa5503"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/TEST-REUSE.json",
+      "bytes": 12270,
+      "sha256": "da475b33b5fb3eab49dbbb6a2f2fd6eb65c87391f7f7c8d098c7f8617112d622"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/TEST-SELECTION.json",
+      "bytes": 5020,
+      "sha256": "7c390c4a3ed90e5a73a4f42c585ec689a6bf5398520a64693137d27f2cad6ffd"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/normal-targeted.txt",
+      "bytes": 6185,
+      "sha256": "a4e2f9a8c15c4d3d9ec71e474e9b1cf790b6a1928c478105a1f908d9460b6d34"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/optimized-targeted.txt",
+      "bytes": 6185,
+      "sha256": "6c31baa63dd0210b826abd236bd3797177cf1d149c54a3cdd4e728874e3c89b1"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/C1-financial-reader.diff",
+      "bytes": 1626,
+      "sha256": "33d58928d4da375f2cff848ba533968366e5eeb840b6c81362574e9de2a8c7db"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/PRODUCT-CAPTURE-SOURCE-FREEZE.json",
+      "bytes": 4367,
+      "sha256": "7b984bfcd74e7f22f7d229f12a317cb7746cedb3e4371a17a5282ef2f4c1d8ed"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/REVIEW-04-INDEPENDENT.md",
+      "bytes": 4762,
+      "sha256": "7f2c2e00bd339578584fe3d933cb358cf436b375a6f8480f56c0f72bd240381c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/protocol-financial_reader.rs.txt",
+      "bytes": 11399,
+      "sha256": "801c7f69e9f0213d50e2f0f42496f92ddf96afb90cc77d6dfbfa888296264577"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/protocol-financial_session.rs.txt",
+      "bytes": 2901,
+      "sha256": "d0087e5627d5c52ad8bb071e7131ae2dfcdbaa23d769a66988364e225ea6e6e3"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/protocol-projection.rs.txt",
+      "bytes": 5096,
+      "sha256": "7679b4cff0d4c344f3154551309c6c0ee6c01532b0b082d25901148d5fbbfeea"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/protocol-q_http_input.rs.txt",
+      "bytes": 4079,
+      "sha256": "a8ac1542ac845dfead72cfda55a5136e39ec2b9e84804896490ac3c477c74eb5"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/protocol-q_runtime.rs.txt",
+      "bytes": 3628,
+      "sha256": "9adeec5558c65926322d6b542a61a7c20b902ff4c9174a241fd27dc129a5f0af"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/protocol-q_snapshot.rs.txt",
+      "bytes": 10734,
+      "sha256": "3e330612bb059677ae8064dddf3d88e4db26f4fe6b1594342ee08472d116d880"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-product-capture-20261018/references/protocol-q_wire.rs.txt",
+      "bytes": 3832,
+      "sha256": "f1d8e5c3f61c069a83ddd0de87055a7351ed186dc290b0073b1b48ca5a2cd81e"
+    },
+    {
+      "path": ".sandcastle/CODEX-CHILD.md",
+      "bytes": 7028,
+      "sha256": "60e0f9270f6fbeb53c22c5b91d07500079c7f0c9c7fb9ebd4b8d874a3c5c8502"
+    },
+    {
+      "path": ".sandcastle/README.md",
+      "bytes": 8743,
+      "sha256": "8f886899c4a173a6412ac0b10c7d4d6e02aa5e3482d7b035890392a0cb28159a"
+    },
+    {
+      "path": "AGENTS.md",
+      "bytes": 24747,
+      "sha256": "cc4eaa6e2336578a1424f44f6e7dd00593db427bdd94d780b3cdc1f4e045b35f"
+    },
+    {
+      "path": "CLAUDE.md",
+      "bytes": 1623,
+      "sha256": "7a78617f78b2e7a05f136cc934e9047954ac12492adbbe01cd3dd0a77f18cbdc"
+    },
+    {
+      "path": "CONTEXT.md",
+      "bytes": 63857,
+      "sha256": "05db2cfd351fc6d99e413615e13685f73425137c422065157475cd2214f9a65e"
+    },
+    {
+      "path": "docs/agents/delivery-discipline.md",
+      "bytes": 11941,
+      "sha256": "efa40109c11f4d57f034fd3919c4cfc90894c93c54568fe92743f9a9a4d9be13"
+    },
+    {
+      "path": "docs/agents/generation-constitution.md",
+      "bytes": 4593,
+      "sha256": "6871ddb943cbc523c2c5a228bb1046adf9e27072b7c1ba929c7d8c683e23021e"
+    },
+    {
+      "path": "docs/agents/issue-tracker.md",
+      "bytes": 5662,
+      "sha256": "236fc407b17139aaeec76cdfa4a6f291320c8a7058c8f13fac316894230df8a6"
+    },
+    {
+      "path": "docs/agents/pstack-lite/E2E-1131.md",
+      "bytes": 6383,
+      "sha256": "8f95e117389bf173d1c217163529c56331662ddaccdf339a8e91cd9dae1a8ba1"
+    },
+    {
+      "path": "docs/agents/pstack-lite/LICENSE.MIT",
+      "bytes": 1067,
+      "sha256": "bc957ca6bee02792566a1a028d105e02e247c6e77cf057061674273da77b200e"
+    },
+    {
+      "path": "docs/agents/pstack-lite/PILOT-1139.md",
+      "bytes": 47490,
+      "sha256": "8bef916b17b065d47c4c11152c670ae1c8811a04f094a915a11bb6f8f428e0f8"
+    },
+    {
+      "path": "docs/agents/pstack-lite/README.md",
+      "bytes": 3011,
+      "sha256": "e3b555f0fd7055eb4d5bd51ea29cbbf475b258cca86e28cc23108433453830b1"
+    },
+    {
+      "path": "docs/agents/pstack-lite/SKILL.md.template",
+      "bytes": 1419,
+      "sha256": "443d85e03c8d066dcdd7ff2ea2d4b74aa963f47199d8509064c53a0e3544d322"
+    },
+    {
+      "path": "docs/agents/pstack-lite/SOURCE-STATEMENT.md",
+      "bytes": 2970,
+      "sha256": "edde00a27aeca0833d83415b55738cfca8688bb9e30a1060a0ff7f89ebb9e1a6"
+    },
+    {
+      "path": "docs/agents/pstack-lite/TRIGGER-FIXTURES.md",
+      "bytes": 6418,
+      "sha256": "f6ab0c98701b33547f41e43cc15d29141dfc8e725b61316a1c241aaae9278964"
+    },
+    {
+      "path": "docs/agents/pstack-lite/VERIFICATION-1130.md",
+      "bytes": 5187,
+      "sha256": "bdf4fecd1712ecf2d932290d0b338b860d3d8622024e90fb02cd69408bbcf9ab"
+    },
+    {
+      "path": "docs/agents/pstack-lite/VERIFICATION-1135.md",
+      "bytes": 7675,
+      "sha256": "fa1de6787b84634f956eecfa404b90266b752c64e01bf9ee7d379cdd77288d0e"
+    },
+    {
+      "path": "docs/agents/pstack-lite/VERIFICATION-1138.md",
+      "bytes": 52819,
+      "sha256": "97d2ef75844d05532516bcfa207103a6a32a88a5b43cf564c0247b10dab7e872"
+    },
+    {
+      "path": "docs/agents/pstack-lite/adversarial-gate-fixtures.json",
+      "bytes": 14020,
+      "sha256": "b71947cfcb63a583bc7d526b7e3fd2535fffba1e0ee0b64fbde29d5133e150b5"
+    },
+    {
+      "path": "docs/agents/pstack-lite/fixtures.json",
+      "bytes": 16556,
+      "sha256": "e54c2d79807d70db305d09545ac6527cc4b8f1e57d0cc417f790e9954bde7d4a"
+    },
+    {
+      "path": "docs/agents/pstack-lite/fixtures/probe-fixture/SKILL.md",
+      "bytes": 383,
+      "sha256": "81d41d95ca5cbf482577528a14ab4d44277487479e80db465bcbeaa2061418eb"
+    },
+    {
+      "path": "docs/agents/skill-local-customizations.md",
+      "bytes": 9377,
+      "sha256": "a5f9943581d5e8fab0bff10359ae5628c1304c2b2338b6988b16e3043a6bd163"
+    },
+    {
+      "path": "docs/agents/stat-provenance.md",
+      "bytes": 4096,
+      "sha256": "ae73f61bccfcf8563f9c0a829a9d3a8bd8023bc55ea7ca52794d0696a338aa8b"
+    },
+    {
+      "path": "docs/agents/wayfinder-session-brief.md",
+      "bytes": 2941,
+      "sha256": "f2cb8d318d53b99f16c5448105ab5bd785dd4d45f9d6e809278aa8878906de77"
+    },
+    {
+      "path": "docs/agents/wayfinder-workflow.md",
+      "bytes": 39254,
+      "sha256": "2ff82f1ca6916b503c4b7f1c04fe624aeb60310d57729e05da1e3ebed65ec107"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/README.md",
+      "bytes": 4537,
+      "sha256": "1106bacf0ba045dd9a903551f0afd5ff2396e4b5c0a932991c44580d17cafb10"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/captured_cut.py",
+      "bytes": 26595,
+      "sha256": "982d9a9a82af5dd49c9500e11adc4de64fa856156318e7f7de25081b8ac9c89d"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/closure.py",
+      "bytes": 8290,
+      "sha256": "5459ab3d8dce283677efead39206c2fbba4593d965f913c5f5c7336a1258762d"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/control.py",
+      "bytes": 6301,
+      "sha256": "950595b87956e6d8923c816cac9739d7aff29c0582f5a2bfe8bfd9383ddb8057"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/driver.py",
+      "bytes": 44599,
+      "sha256": "1735bffa631b1d4789f363204fec97fd26ceccd1ca439cc340bcd00a8ebf05f7"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/evidence.py",
+      "bytes": 5318,
+      "sha256": "92af6d56aecde7ea051de178fea72135b6c5b35a430ec44940cd425db2a0ce10"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/financial_oracle.py",
+      "bytes": 17454,
+      "sha256": "edc5b5477e7b185582a2a65cbd31e07d7015c49a9e203c630a697646f4d3d854"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/fixtures/PREPARATION-CONTRACT.json",
+      "bytes": 20004,
+      "sha256": "ce719894bcb8aa60e956d723271250d57d892ddbb6c70dea64bd0cf4aaca8fa1"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/journal.py",
+      "bytes": 9663,
+      "sha256": "ff08d15e084216d1d6b8bb1efe8e3dcb74bfe281b20edb8262ad3e61c1211781"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/oracle.py",
+      "bytes": 3299,
+      "sha256": "16639a001aa73662b00209934513d808a0d0b3600023e2d3e2f35eb263e54eb7"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/product_capture.py",
+      "bytes": 64036,
+      "sha256": "2d364e95e786757cf9d3f4c05cdc414e75d1c1b0c7ecc975b180591b51073e6a"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/run_checks.py",
+      "bytes": 1720,
+      "sha256": "94c180cd611cc7d2f1a99f94bb61fed6594d8aac8ea52470aefc7cbb91072bae"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/scheduler.py",
+      "bytes": 23479,
+      "sha256": "9c0d876f159e7b7cc33bfb55dae12ad67ff0b29cf7c56bf6e08d87032f8a6a16"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/supervisor.py",
+      "bytes": 15794,
+      "sha256": "12c80ef107eeb5cf1623a86aaa9896a493eb6556e2ba01c7d24338d3625433c1"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_capture_bridge.py",
+      "bytes": 21277,
+      "sha256": "199ed7f07334ebf5f766a713833c2446ca1aab7ee7e6a4b31387dc54d3e72e34"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_capture_order.py",
+      "bytes": 9944,
+      "sha256": "4314d6ed607429ebd3e0ece447b4e7dd3aeb6f101077445ac3200d0aa1ffb782"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_closure.py",
+      "bytes": 5537,
+      "sha256": "d4f6772d82109c9cd05901cf667bf21d3b1740e11976036c86352eeb5a2d5710"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_control.py",
+      "bytes": 5375,
+      "sha256": "2c96cffc3b024f798d863b40bc345e386283c39f5e2da5853ab00b5fcdd01711"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver.py",
+      "bytes": 31184,
+      "sha256": "fd443df0c247934a8b2435d9e98169ed33f97baec6e17eca647ebab5d4b58176"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_driver_regressions.py",
+      "bytes": 6602,
+      "sha256": "621e990d5c7c6ed9dbe512efd30c7957696b346575439ddf5b5068bc95fc5b5d"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_evidence.py",
+      "bytes": 6289,
+      "sha256": "11cac54a757c437b660441f82a0d2b0e4843bcc22eb1106d30a2b8232933e52c"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_financial_oracle.py",
+      "bytes": 12185,
+      "sha256": "d643adef91a95a79b7c247af07c7a0259b9eac8f45e9951244af52ca8589c205"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_journal.py",
+      "bytes": 5205,
+      "sha256": "7f63cc0d2535d481b676818d88282729d40738568c84e761a7dd6c01c0876fde"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_product_capture.py",
+      "bytes": 43365,
+      "sha256": "5aad6736c16230009041c41be5093d709f5d9c64269f09985bd92d35d6d63e6f"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review01.py",
+      "bytes": 15165,
+      "sha256": "f5caecc55061352166cf22b6e08ed0c29ed83916c8f1e6e7d570bb1250c6c4e9"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review02.py",
+      "bytes": 20621,
+      "sha256": "94cbc050baa085104a7b67fcd580ef635afa952f10be63a23512b826f8e888e7"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review03.py",
+      "bytes": 13515,
+      "sha256": "1bd6d532d74dc7938a50b2840e050786c06eb2f109a2aa26885e1efc306e7196"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_review04.py",
+      "bytes": 11776,
+      "sha256": "34024c7e7621296d7a3644f120d1bf2518f4ea6366fbb821463ee5729f036b2f"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler.py",
+      "bytes": 19433,
+      "sha256": "8abd24b983978336ac9c86cf4cb89548ab5e87eea38b2dc2bf97140ffd440b58"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_scheduler_integration.py",
+      "bytes": 1389,
+      "sha256": "98b0d9bb348d3b1190e3ae0d623dc2e0e5d4ff9a4763e319c00463bc618424b8"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/test_supervisor.py",
+      "bytes": 7889,
+      "sha256": "57899f3abedebdb5be90606b5d812c8f8d4c6604f579b9e208d9d242f885b651"
+    },
+    {
+      "path": "s_session/tests/issue1394_acceptance/voice_bridge.py",
+      "bytes": 11955,
+      "sha256": "36248173678a4167aaadb5a3840de11d3d4f477963f4926f070de6fb33b63dfc"
+    }
+  ],
+  "original_git_show_verified": 228,
+  "references": [
+    {
+      "source": "/Volumes/AgentStorage/issue1394-sandcastle-manager-20261018/REVIEW-PRODUCT-01-INDEPENDENT.md",
+      "path": ".chanlun/review-results/issue1394-product-capture-repair1-20261018/references/REVIEW-PRODUCT-01-INDEPENDENT.md",
+      "bytes": 8067,
+      "sha256": "7c5d1a6783e4033a978d61a1e2d7fb29269e562b5b16f044b57e8fdc827815ab"
+    },
+    {
+      "source": "/Volumes/AgentStorage/issue1394-sandcastle-manager-20261018/REVIEW-PRODUCT-01-PROBES.json",
+      "path": ".chanlun/review-results/issue1394-product-capture-repair1-20261018/references/REVIEW-PRODUCT-01-PROBES.json",
+      "bytes": 42768,
+      "sha256": "424c38464e5b843b72be841a3effbaebaafd844f0d8082531322a6fcabc98503"
+    }
+  ]
+}
