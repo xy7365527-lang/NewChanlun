@@ -9,6 +9,8 @@ use std::cell::Cell;
 use std::ops::Range;
 
 pub(super) fn stale(detail: &str) -> String {
+    #[cfg(test)]
+    eprintln!("UO1488_STALE {detail}\n{}", std::backtrace::Backtrace::force_capture());
     format!("StaleWriter：construction资格失效：{detail}")
 }
 
@@ -48,6 +50,8 @@ impl Default for Lease {
 }
 impl Lease {
     pub(super) fn invalidate(&self) {
+        #[cfg(test)]
+        eprintln!("UO1488_INVALIDATE\n{}", std::backtrace::Backtrace::force_capture());
         self.stale.set(true);
         self.serial.set(self.serial.get().saturating_add(1));
     }
