@@ -91,10 +91,7 @@ impl ReplayComparator {
     /// # 错误
     ///
     /// - dump 文件不存在或解析失败
-    pub fn new(
-        d4_snapshots: Vec<StateSnapshot>,
-        p123_dump_path: &str,
-    ) -> Result<Self, String> {
+    pub fn new(d4_snapshots: Vec<StateSnapshot>, p123_dump_path: &str) -> Result<Self, String> {
         let p123_dump = Self::parse_p123_dump(p123_dump_path)?;
         Ok(Self {
             d4_snapshots,
@@ -187,8 +184,8 @@ impl ReplayComparator {
 
         let mut lines = Vec::new();
         for (line_num, line_result) in reader.lines().enumerate() {
-            let raw_line = line_result
-                .map_err(|e| format!("读取第 {} 行失败: {}", line_num + 1, e))?;
+            let raw_line =
+                line_result.map_err(|e| format!("读取第 {} 行失败: {}", line_num + 1, e))?;
 
             // 跳过空行
             if raw_line.trim().is_empty() {
@@ -322,8 +319,7 @@ mod tests {
         temp_file.flush().unwrap();
 
         let dump_path = temp_file.path().to_str().unwrap();
-        let comparator =
-            ReplayComparator::new(replay.all_snapshots().to_vec(), dump_path).unwrap();
+        let comparator = ReplayComparator::new(replay.all_snapshots().to_vec(), dump_path).unwrap();
 
         let result = comparator.compare();
         assert_eq!(result.total_bars, 3);
@@ -355,8 +351,7 @@ mod tests {
         temp_file.flush().unwrap();
 
         let dump_path = temp_file.path().to_str().unwrap();
-        let comparator =
-            ReplayComparator::new(replay.all_snapshots().to_vec(), dump_path).unwrap();
+        let comparator = ReplayComparator::new(replay.all_snapshots().to_vec(), dump_path).unwrap();
 
         let result = comparator.compare();
         assert_eq!(result.total_bars, 3);

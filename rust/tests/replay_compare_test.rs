@@ -2,7 +2,9 @@
 //!
 //! 验证 `ReplayComparator` 对拍功能的正确性。
 
-use newchan_rust::trading::replay::{BarInput, ClassificationEngine, ClassificationOutput, LayerState, ReplayEngine};
+use newchan_rust::trading::replay::{
+    BarInput, ClassificationEngine, ClassificationOutput, LayerState, ReplayEngine,
+};
 use newchan_rust::trading::replay_comparator::ReplayComparator;
 use std::collections::HashMap;
 use std::io::Write;
@@ -69,10 +71,7 @@ fn test_replay_compare_10_bars() {
     temp_file.flush().unwrap();
 
     let dump_path = temp_file.path().to_str().unwrap();
-    let comparator = ReplayComparator::new(
-        replay.all_snapshots().to_vec(),
-        dump_path,
-    ).unwrap();
+    let comparator = ReplayComparator::new(replay.all_snapshots().to_vec(), dump_path).unwrap();
 
     let result = comparator.compare();
     assert_eq!(result.total_bars, 10);
@@ -104,10 +103,7 @@ fn test_replay_compare_100_bars() {
     temp_file.flush().unwrap();
 
     let dump_path = temp_file.path().to_str().unwrap();
-    let comparator = ReplayComparator::new(
-        replay.all_snapshots().to_vec(),
-        dump_path,
-    ).unwrap();
+    let comparator = ReplayComparator::new(replay.all_snapshots().to_vec(), dump_path).unwrap();
 
     let result = comparator.compare();
     assert_eq!(result.total_bars, 100);
@@ -139,10 +135,7 @@ fn test_replay_compare_1000_bars() {
     temp_file.flush().unwrap();
 
     let dump_path = temp_file.path().to_str().unwrap();
-    let comparator = ReplayComparator::new(
-        replay.all_snapshots().to_vec(),
-        dump_path,
-    ).unwrap();
+    let comparator = ReplayComparator::new(replay.all_snapshots().to_vec(), dump_path).unwrap();
 
     let result = comparator.compare();
     assert_eq!(result.total_bars, 1000);
@@ -174,10 +167,7 @@ fn test_replay_compare_count_mismatch() {
     temp_file.flush().unwrap();
 
     let dump_path = temp_file.path().to_str().unwrap();
-    let comparator = ReplayComparator::new(
-        replay.all_snapshots().to_vec(),
-        dump_path,
-    ).unwrap();
+    let comparator = ReplayComparator::new(replay.all_snapshots().to_vec(), dump_path).unwrap();
 
     let result = comparator.compare();
     assert_eq!(result.total_bars, 5); // 取较小值

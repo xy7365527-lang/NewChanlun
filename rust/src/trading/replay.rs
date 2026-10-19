@@ -113,7 +113,7 @@ impl ReplayEngine {
     /// 回放单个 bar
     pub fn replay_bar(&mut self, bar: BarInput) {
         let output = self.classification_engine.process_bar(bar.clone());
-        
+
         let layer_states: HashMap<LayerId, LayerState> = self
             .classification_engine
             .list_layers()
@@ -124,13 +124,13 @@ impl ReplayEngine {
                     .map(|state| (*layer_id, state))
             })
             .collect();
-        
+
         let snapshot = StateSnapshot {
             timestamp_ms: bar.timestamp_ms,
             output,
             layer_states,
         };
-        
+
         self.state_snapshots.push(snapshot);
         self.processed_bars.push(bar);
     }
@@ -236,7 +236,11 @@ mod tests {
         }
 
         fn list_layers(&self) -> Vec<(LayerId, String)> {
-            vec![(0, "L0".to_string()), (1, "L1".to_string()), (2, "L2".to_string())]
+            vec![
+                (0, "L0".to_string()),
+                (1, "L1".to_string()),
+                (2, "L2".to_string()),
+            ]
         }
 
         fn reset(&mut self) {}
@@ -281,7 +285,7 @@ mod tests {
         assert_eq!(book.total_bars, 3);
         assert_eq!(book.snapshots, 3);
         assert_eq!(book.layers.len(), 3); // MinimalEngine has 3 layers
-        
+
         // 验证 layers 内容
         let layer_ids: Vec<LayerId> = book.layers.iter().map(|(id, _)| *id).collect();
         assert_eq!(layer_ids, vec![0, 1, 2]);
