@@ -2885,7 +2885,8 @@ mod u2_exit_adopt_tests {
             assert_eq!(budget.live(), base + charge, "{name}：一块一张");
             // 容量内重复grow / push：同一allocation不得再签。
             for _ in 0..3 {
-                grow(&budget, &mut v, v.capacity() - v.len()).unwrap();
+                let spare = v.capacity() - v.len();
+                grow(&budget, &mut v, spare).unwrap();
                 assert_eq!(v.native_retained_charge(), Some(charge), "{name}");
                 assert_eq!(budget.live(), base + charge, "{name}：容量内重复reserve不得再签");
             }
@@ -2898,7 +2899,8 @@ mod u2_exit_adopt_tests {
             .unwrap();
             assert_eq!(budget.live(), base + charge, "{name}：容量内push不得再签");
             // 增长：新块先持票、旧块随旧许可归还，最终只剩新块一张。
-            grow(&budget, &mut v, v.capacity() + 1).unwrap();
+            let beyond = v.capacity() + 1;
+            grow(&budget, &mut v, beyond).unwrap();
             let grown = v.native_retained_charge().unwrap();
             assert!(grown > charge);
             assert_eq!(grown, v.capacity() * size_of::<u64>(), "{name}");
