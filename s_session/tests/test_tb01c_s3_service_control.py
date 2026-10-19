@@ -14,6 +14,7 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import s_service_control as control
+from r4_anchor_fixture import anchored_controller
 from s_socket_client import reply_envelope
 
 
@@ -61,31 +62,30 @@ class S3LifecycleTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     control.read_config(path)
 
-    def test_start_s3_init_serve_and_ready_use_one_deadline_and_unchanged_seven_values(self):
+    def test_start_s3_serve_and_ready_use_one_deadline_without_init_and_unchanged_seven_values(self):
+        # #1527 R4：S 只消费既存锚与既存库，start_s 不再在库缺失时 init 建库（建库/首签归 #1567）。
         with tempfile.TemporaryDirectory(prefix="s3-select-") as directory:
             config = self.config(directory)
             original = control.canonical(config["s_resources"])
-            controller = control.Controller(config, Path(directory) / "state")
             clock = [0.0]
+            controller = anchored_controller(config, Path(directory) / "state", clock=lambda: clock[0])
             def environment(deadline):
                 self.assertEqual(deadline, 0.025)
                 clock[0] = 0.010
                 return {"owned": "environment"}
-            def initialize(command, **kwargs):
-                self.assertEqual(command[-2:], ["--protocol-revision", "s-session/3"])
-                self.assertAlmostEqual(kwargs["timeout"], 0.015)
-                clock[0] = 0.020
-                return control.subprocess.CompletedProcess(command, 0, b'{"initialized":true}', b"")
             try:
                 with patch.object(control.time, "monotonic", side_effect=lambda: clock[0]), \
                      patch.object(controller, "runtime_environment", side_effect=environment), \
                      patch.object(controller, "prepare_socket", return_value=None), \
-                     patch.object(control.subprocess, "run", side_effect=initialize), \
+                     patch.object(control.subprocess, "run") as run, \
                      patch.object(controller, "start_process") as start, \
                      patch.object(controller, "wait_ready", return_value={"state": "ready"}) as ready:
                     result = controller.start_s("1")
+                run.assert_not_called()
                 command = start.call_args.args[1]
+                self.assertEqual(command[1], "serve")
                 self.assertEqual(command[command.index("--protocol-revision") + 1], "s-session/3")
+                self.assertEqual(command[command.index("--admission-job-limits") + 1], controller.admission.limits_path)
                 self.assertNotIn("--audit-cache-source-bytes", command)
                 identity = start.call_args.kwargs["resource_identity"]
                 self.assertEqual(command[command.index("--resource-config") + 1], identity["path"])
@@ -96,7 +96,7 @@ class S3LifecycleTests(unittest.TestCase):
                 self.assertEqual(hashlib.sha256(frozen).hexdigest(), identity["sha256"])
                 self.assertEqual(stat.S_IMODE(Path(identity["path"]).stat().st_mode), 0o600)
                 ready.assert_called_once_with("s", "1", deadline=0.025)
-                self.assertEqual(result["initialization"], {"initialized": True})
+                self.assertIsNone(result["initialization"])
                 self.assertEqual(control.canonical(config["s_resources"]), original)
                 request = controller.ready_request("1")
                 self.assertEqual(request["schema_revision"], "s-session/3")
@@ -105,37 +105,42 @@ class S3LifecycleTests(unittest.TestCase):
             finally:
                 controller.close()
 
-    def test_expired_environment_or_init_never_resets_budget_or_spawns(self):
-        for stage in ("environment", "init"):
+    def test_expired_environment_or_socket_never_resets_budget_or_spawns(self):
+        # #1527 R4：原 init 阶段已删除；改以 socket 准备阶段耗尽期限验证同一不变式（不续钟、不 spawn、不 init）。
+        for stage in ("environment", "socket"):
             with self.subTest(stage=stage), tempfile.TemporaryDirectory(prefix="s3-budget-") as directory:
-                controller = control.Controller(self.config(directory), Path(directory) / "state")
                 clock = [0.0]
+                controller = anchored_controller(self.config(directory), Path(directory) / "state",
+                                                 clock=lambda: clock[0])
                 def environment(deadline):
                     if stage == "environment":
                         clock[0] = deadline
                     return {}
-                def initialize(*args, **kwargs):
+                def socket(deadline):
                     clock[0] = 0.025
-                    return control.subprocess.CompletedProcess([], 0, b'{"initialized":true}', b"")
                 try:
                     with patch.object(control.time, "monotonic", side_effect=lambda: clock[0]), \
                          patch.object(controller, "runtime_environment", side_effect=environment), \
-                         patch.object(controller, "prepare_socket", return_value=None), \
-                         patch.object(control.subprocess, "run", side_effect=initialize) as init, \
+                         patch.object(controller, "prepare_socket", side_effect=socket) as prepared, \
+                         patch.object(control.subprocess, "run") as run, \
                          patch.object(controller, "start_process") as start, \
                          patch.object(controller, "wait_ready") as ready:
-                        with self.assertRaises(TimeoutError):
+                        # 期限在环境探测内耗尽时由 R4 闸先以 Deadline 拒绝；socket 阶段耗尽由控制器 remaining() 拒绝。
+                        with self.assertRaises((TimeoutError, control.AdmissionError)) as refused:
                             controller.start_s("1")
+                    if isinstance(refused.exception, control.AdmissionError):
+                        self.assertEqual(refused.exception.code, "Deadline")
                     start.assert_not_called()
                     ready.assert_not_called()
+                    run.assert_not_called()
                     if stage == "environment":
-                        init.assert_not_called()
+                        prepared.assert_not_called()
                 finally:
                     controller.close()
 
     def test_frozen_resource_file_cannot_be_adopted_changed_or_unbound(self):
         with tempfile.TemporaryDirectory(prefix="s3-freeze-") as directory:
-            controller = control.Controller(self.config(directory), Path(directory) / "state")
+            controller = anchored_controller(self.config(directory), Path(directory) / "state")
             deadline = time.monotonic() + 2
             try:
                 identity = controller.freeze_s_resources(deadline)
@@ -174,7 +179,7 @@ class S3LifecycleTests(unittest.TestCase):
     def test_resource_identity_is_saved_with_pid_nonce_and_exact_argv(self):
         with tempfile.TemporaryDirectory(prefix="s3-record-") as directory:
             config = self.config(directory)
-            controller = control.Controller(config, Path(directory) / "state")
+            controller = anchored_controller(config, Path(directory) / "state")
             deadline = time.monotonic() + 2
             try:
                 identity = controller.freeze_s_resources(deadline)
@@ -197,7 +202,7 @@ class S3LifecycleTests(unittest.TestCase):
     def test_s3_ready_validates_payload_nonce_complete_reply_and_live_process(self):
         with tempfile.TemporaryDirectory(prefix="s3-ready-") as directory:
             config = self.config(directory)
-            controller = control.Controller(config, Path(directory) / "state")
+            controller = anchored_controller(config, Path(directory) / "state")
             request = controller.ready_request("1")
             record = {"state": "running", "service": "s", "pid": 123456,
                       "process_identity": "exact current", "control_instance_id": "current"}
@@ -248,7 +253,7 @@ class S3LifecycleTests(unittest.TestCase):
 
     def test_s3_recover_selects_new_domain_and_never_falls_back(self):
         with tempfile.TemporaryDirectory(prefix="s3-recover-") as directory:
-            controller = control.Controller(self.config(directory), Path(directory) / "state")
+            controller = anchored_controller(self.config(directory), Path(directory) / "state")
             try:
                 with patch.object(controller, "status", return_value={"state": "stopped"}), \
                      patch.object(controller, "runtime_environment", return_value={}), \
@@ -268,7 +273,7 @@ class S3LifecycleTests(unittest.TestCase):
 
     def test_s3_q_rejects_old_resource_version_before_spawn(self):
         with tempfile.TemporaryDirectory(prefix="s3-q-mismatch-") as directory:
-            controller = control.Controller(self.config(directory), Path(directory) / "state")
+            controller = anchored_controller(self.config(directory), Path(directory) / "state")
             try:
                 with patch.object(controller, "query_resource_revision", return_value="legacy/2"), \
                      patch.object(controller, "runtime_environment") as environment, \
@@ -287,7 +292,7 @@ class S3LifecycleTests(unittest.TestCase):
                 config["startup_timeout_ms"] = "2000"
                 Path(config["db"]).touch()
                 state_dir = Path(directory) / "state"
-                controller = control.Controller(config, state_dir)
+                controller = anchored_controller(config, state_dir)
                 old = controller.freeze_s_resources(time.monotonic() + 2)
                 command = [config["binary"], "serve", "--protocol-revision", "s-session/3",
                            "--resource-config", old["path"]]
@@ -301,7 +306,7 @@ class S3LifecycleTests(unittest.TestCase):
                 controller.save_record("s", record)
                 controller.close()
                 updated = {**config, "s_resources": {**config["s_resources"], "max_frame_bytes": "16384"}}
-                controller = control.Controller(updated, state_dir)
+                controller = anchored_controller(updated, state_dir)
                 if case == "tampered":
                     Path(old["path"]).write_bytes(b"{}")
                 def observation(pid, command=None, *, deadline=None):
@@ -337,7 +342,7 @@ class S3LifecycleTests(unittest.TestCase):
     def test_new_child_cannot_reuse_old_frozen_budget_after_configuration_change(self):
         with tempfile.TemporaryDirectory(prefix="s3-budget-binding-") as directory:
             config = self.config(directory)
-            controller = control.Controller(config, Path(directory) / "state")
+            controller = anchored_controller(config, Path(directory) / "state")
             deadline = time.monotonic() + 2
             try:
                 old = controller.freeze_s_resources(deadline)
@@ -361,7 +366,7 @@ class S3LifecycleTests(unittest.TestCase):
         for revision in ("s-launcher/3", "s-launcher/2"):
             with self.subTest(revision=revision), tempfile.TemporaryDirectory(prefix="s3-child-digest-") as directory:
                 config = self.config(directory, revision)
-                controller = control.Controller(config, Path(directory) / "state")
+                controller = anchored_controller(config, Path(directory) / "state")
                 deadline = time.monotonic() + 2
                 environment = {"S_CONTROL_RESOURCE_SHA256": "f" * 64, "PRESERVE": "owned"}
                 identity = controller.freeze_s_resources(deadline) if revision == "s-launcher/3" else None

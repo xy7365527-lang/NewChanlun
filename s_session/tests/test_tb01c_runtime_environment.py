@@ -14,6 +14,7 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import s_service_control as control
+from r4_anchor_fixture import anchored_controller
 from economic_service_control import EconomicController
 
 
@@ -21,7 +22,7 @@ class RuntimeIntegrationTests(unittest.TestCase):
     @staticmethod
     def controller(root, domain="S"):
         if domain == "S":
-            return control.Controller({"db": str(root / "s.sqlite"), "python": sys.executable,
+            return anchored_controller({"db": str(root / "s.sqlite"), "python": sys.executable,
                                        "startup_timeout_ms": "2000"}, root / "s-state")
         return EconomicController(
             {"python": sys.executable, "startup_timeout_ms": "2000", "state_root": str(root / "owners")},
