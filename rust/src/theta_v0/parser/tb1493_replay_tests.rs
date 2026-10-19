@@ -47,8 +47,9 @@ fn replay(bars: &[Bar], ladder: &[usize]) -> (Replay, ParseLayer) {
         }
         if let Some(p) = &prev {
             // 已发射段（除末段可随末笔改写）须是后一前缀的前缀；只比保留前缀之后的区间。
-            let k = layer.segments_confirmed_len.min(p.segments.len());
-            let old = &p.segments[k..p.segments.len().saturating_sub(1)];
+            let end = p.segments.len().saturating_sub(1);
+            let k = layer.segments_confirmed_len.min(end);
+            let old = &p.segments[k..end];
             let new = layer.segments.get(k..k + old.len());
             if new != Some(old) {
                 let j = (0..old.len())
