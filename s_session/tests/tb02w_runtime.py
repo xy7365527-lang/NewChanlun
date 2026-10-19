@@ -12,7 +12,7 @@
   并对拍 A≡B≡C 的结构对象。`--browser` 时在 A 上用真 Chromium 读既有页面。
 
 期望值全部来自本文件 EXPECTED（按笔逐步手算，依据 xianduan.md §5.1、078:52、067:38、065:28），
-不调用生产 reducer。cut 约定同 tb02d：笔 i 在已接纳 4i+7 根时首次已知。
+不调用生产 reducer。笔 i 在已接纳 4i+7 根时首次已知；消息按笔分组（首条 7 根、其后每条 4 根），第 g 代恰知 g 笔。
 """
 import argparse
 import contextlib
@@ -85,22 +85,31 @@ def prepare(args):
             namespace = "testonly.ohlc." + sid
             case_dir = plan_dir / case
             case_dir.mkdir()
-            events, messages = {}, []
-            for index, bar in enumerate(rows):
+            # 一条消息一代：首条 7 根（笔 0 首次已知），其后每条 4 根（每代多知一笔），余根并入末条。
+            # 于是第 g 代恰知 g 笔（g ≤ 笔数），cut 数与笔数同阶，避开 #1497 的 Q 冷校验超线性。
+            groups, cursor = [rows[:7]], 7
+            while cursor + 4 <= len(rows):
+                groups.append(rows[cursor:cursor + 4])
+                cursor += 4
+            if cursor < len(rows):
+                groups.append(rows[cursor:])
+            events, messages, inputs_at = {}, [], []
+            for index, group in enumerate(groups):
                 op = "op-" + str(index).zfill(4)
                 base = 946684800000000000 + index * 10000000000
                 events[op] = {"accept_ns": str(base), "attempts": [{"begin_ns": str(base + 100000000), "commit_ns": str(base + 200000000)}]}
-                raw = {"event_id": bar["raw_id"], "revision": "1", "seq": str(bar["raw_index"]), "received_at": "2000-01-01T00:00:00Z",
-                       "raw_text": canonical(bar).decode(), "timestamp": str(bar["raw_index"] * 60), "volume": "1",
-                       **{k: str(bar[k]) for k in ("open", "high", "low", "close")}}
+                raws = [{"event_id": bar["raw_id"], "revision": "1", "seq": str(bar["raw_index"]), "received_at": "2000-01-01T00:00:00Z",
+                         "raw_text": canonical(bar).decode(), "timestamp": str(bar["raw_index"] * 60), "volume": "1",
+                         **{k: str(bar[k]) for k in ("open", "high", "low", "close")}} for bar in group]
                 payload = {"op": "ingest", "target_session_id": sid, "target_session_generation": "1", "writer_epoch": "1",
                            "clock_event_id": op,
                            "raw_input": {"schema_revision": "s-ohlc/1", "session_id": sid, "source_namespace": namespace,
-                                         "source_epoch": "1", "instrument": "TEST-OHLC", "profile": "ohlc_integer_tb02a_v1", "events": [raw]}}
+                                         "source_epoch": "1", "instrument": "TEST-OHLC", "profile": "ohlc_integer_tb02a_v1", "events": raws}}
                 messages.append({"schema_revision": "s-session/2", "session_id": sid, "session_generation": "1",
                                  "source_namespace": namespace, "source_epoch": "1", "message_id": op, "producer_id": "tb02w-input",
                                  "producer_epoch": "1", "causal_refs": [], "payload_hash": hashlib.sha256(canonical(payload)).hexdigest(),
                                  "payload": payload})
+                inputs_at.append(group[-1]["raw_index"] + 1)
             dump(case_dir / "clock.json", {"schema_revision": "s-clock-plan/1", "clock_plan_id": sid,
                                            "origin_utc": "2000-01-01T00:00:00Z", "unit": "ns", "events": events})
             (case_dir / "messages.jsonl").write_bytes(b"".join(canonical(m) + b"\n" for m in messages))
@@ -117,8 +126,8 @@ def prepare(args):
                     "clock_plan": str(case_dir / "clock.json"), "browser": str(ROOT / "browser/index.html"),
                     "query_resource_config": str(ROOT / "tests/fixtures/tb01c/query-resources.json"), "s_resources": resources})
                 port += 1
-            cases[case] = {"design": design, "direction": direction, "inputs": len(rows),
-                           "fault_index": len(rows) // 2}
+            cases[case] = {"design": design, "direction": direction, "inputs": len(rows), "generations": len(messages),
+                           "inputs_at_generation": inputs_at, "fault_index": len(messages) // 2}
     plan = {"schema": "tb02w-runtime-plan/1", "ticket": 1420, "cases": cases,
             "binary_sha256": hashlib.sha256(args.binary.read_bytes()).hexdigest(),
             "generator_sha256": hashlib.sha256((ROOT / "tests/fixtures/tb02d/generate-input.py").read_bytes()).hexdigest(),
@@ -147,7 +156,7 @@ def check_case(case, meta, known):
     up = direction == "UP"
     timeline, seen_kill, problems, checked = [], False, [], {}
     for generation in sorted(known):
-        n = known_strokes(generation)
+        n = known_strokes(meta["inputs_at_generation"][generation - 1])
         seg = find(known[generation], "CC-013.segment", SEGMENT)
         second = find(known[generation], "CC-012.feature_sequence", SECOND)
         result = seg and seg["result"]
@@ -263,9 +272,10 @@ def session(args):
                       node=args.node, fault_index=meta["fault_index"] if arm == "C" else None, fault_stage="after_batch")
             if arm == "A" and args.browser:
                 want = EXPECTED[meta["design"]]
-                cut_for = lambda n: str(4 * (n - 1) + 7)  # noqa: E731 笔 n-1 首次已知的 cut
+                gens = meta["inputs_at_generation"]
+                cut_for = lambda n: str(next(g + 1 for g, i in enumerate(gens) if known_strokes(i) >= n))  # noqa: E731
                 killed_n = next((n for n, e in want.items() if e["result"] == "KILLED_CASE_TWO"), max(want))
-                run.browser_args = {"module": args.playwright_module, "final": str(meta["inputs"]),
+                run.browser_args = {"module": args.playwright_module, "final": str(meta["generations"]),
                                     "killed": cut_for(killed_n), "open": cut_for(6), "design": meta["design"]}
             with deadline(f"{case}/{arm}", 5400):
                 result = run.execute()
