@@ -2503,7 +2503,8 @@ mod u2_exit_adopt_tests {
         assert_eq!(budget.live(), base + fee.bytes);
         assert_eq!(moved_in(&budget), 0);
         let mut fee = fee;
-        budget.grow_vec(&mut raw, &mut fee, raw.capacity() + 1).unwrap();
+        let more = raw.capacity() + 1;
+        budget.grow_vec(&mut raw, &mut fee, more).unwrap();
         drop(fee);
         assert_eq!(budget.live(), base);
     }
