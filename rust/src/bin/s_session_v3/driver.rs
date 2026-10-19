@@ -1151,13 +1151,15 @@ mod tests {
         let expected = (1..=3)
             .map(|n| ordinary.handle(Fixture::ingest(n)).unwrap())
             .collect::<Vec<_>>();
+        // 与source_keeper_driver_*同一measured cap：完整候选装不下，稀疏池才承载。
+        let cap = measured_source_cap(&mut ordinary);
         let fixture = Fixture::new();
         let mut driver = Driver::open_for_serve_with_mode(
             &fixture.db,
             &fixture.profile,
             "1",
             fixture.clock.clone(),
-            S7,
+            cap,
             s_allocation::Mode::CapturedNative,
         )
         .unwrap();
@@ -1193,6 +1195,14 @@ mod tests {
         let carried = partition.carried();
         assert!(carried >= physical, "K物理live全部进入O+U");
         let legacy = crate::cache::retained_bytes();
+        // 生产T=cap：K物理live装不下时冻结拒绝（旧口径只计合同额会照收，物理超额逃出T）。
+        if legacy + carried > cap {
+            let mut tight = request_audit::RequestAuditContext::default();
+            assert!(tight
+                .freeze_manifest_workspace_partition(cap, legacy, partition.clone())
+                .is_err());
+            assert!(tight.manifest_workspace_budget().is_none());
+        }
         let mut context = request_audit::RequestAuditContext::default();
         context
             .freeze_manifest_workspace_partition(S7, legacy, partition)
@@ -1211,12 +1221,12 @@ mod tests {
         );
         assert!(old_allowance - allowance >= physical - contract);
         drop(context);
-        // 生产后续请求不受影响：放回keeper，第3个请求回复与ordinary逐字相同。
+        // 生产后续请求：放回keeper走真实入口（装不下即只丢可选池），回复与ordinary逐字相同。
         driver.conn.put_source_keeper_for_test(keeper);
         assert_eq!(driver.handle(Fixture::ingest(3)).unwrap(), expected[2]);
         eprintln!(
             "{}",
-            json!({"scenario":"p1-2-keeper-physical","contract":contract,"physical":physical,"carried":carried,"allowance":allowance})
+            json!({"scenario":"p1-2-keeper-physical","cap":cap,"legacy":legacy,"contract":contract,"physical":physical,"carried":carried,"allowance_at_s7":allowance})
         );
     }
 
