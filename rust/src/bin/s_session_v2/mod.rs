@@ -1264,7 +1264,7 @@ fn serve(
 /// 故只给实际可走的路径：CLI 只读查看，或人工以当前规则新建代际（本协议无原库迁移入口）。
 fn stale_begin_on_historical_rule(rule: &str, db: &Path) -> String {
     format!(
-        "VersionMismatch：历史规则会话（rule_revision=`{rule}`，本二进制为 `{RULE_REVISION}`）留有未完成Begin，永久闭门：历史规则只读，recover 同样拒绝（不换代、不清未决Begin），本库不能再以 serve 提供服务。可走路径：①只读查看用 CLI `catalog`/`snapshot`/`meta --db {}`；②恢复服务须人工以当前规则 `init` 新库（新 --session-generation）并重新接纳原始输入——当前无旧库迁移入口（TB-10 #1368）",
+        "VersionMismatch：历史规则会话（rule_revision=`{rule}`，本二进制为 `{RULE_REVISION}`）留有未完成Begin，永久闭门：历史规则只读，recover 同样拒绝（不换代、不清未决Begin），本库不能再以 serve 提供服务。可走路径：①只读查看用 CLI `catalog`/`snapshot`/`meta --db {}`；②恢复服务须人工以当前规则走 v2 `init` 建新路径的库（`--db <新路径> --session --catalog --profile --session-generation <新代> --clock-plan --delivery-retain-generations` 缺一不可；不带后三者会建成 v1 库，serve 不收）并重新接纳原始输入——当前无旧库迁移入口（TB-10 #1368）",
         db.display()
     )
 }
@@ -1594,7 +1594,14 @@ mod tests {
         let msg = serve(&f.db, &socket, &f.profile, "1", &clock_path, bounds()).unwrap_err();
         assert!(msg.starts_with("VersionMismatch："), "{msg}");
         assert!(!msg.contains("请监督器先正式recover"), "{msg}");
-        for path in ["`catalog`", "`snapshot`", "`meta --db", "`init`", "#1368"] {
+        for path in [
+            "`catalog`",
+            "`snapshot`",
+            "`meta --db",
+            "v2 `init`",
+            "--clock-plan --delivery-retain-generations",
+            "#1368",
+        ] {
             assert!(msg.contains(path), "缺可走路径 {path}：{msg}");
         }
         assert!(!socket.exists(), "拒绝须发生在绑定 socket 之前");
@@ -1615,7 +1622,7 @@ mod tests {
         drop(ro);
         assert_eq!(files(&f.db), before, "历史规则库字节须不变");
 
-        // 路径②：人工以当前规则新建代际，新库可通过 serve 前置的规则与闭门检查。
+        // 路径②：人工以当前规则新建代际，新库满足 serve 的规则与闭门前件（未实起 serve，避免绑定阻塞）。
         let base = Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .unwrap()
