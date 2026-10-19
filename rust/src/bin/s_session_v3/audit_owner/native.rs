@@ -727,7 +727,6 @@ impl LedgerMark {
         let (Some(before), Some(after)) = (before, self.current()) else {
             return false;
         };
-        if std::env::var_os("P1A_OLD").is_none() { self.1 = after; let _ = before; return true; }
         match before
             .checked_sub(after)
             .and_then(|released| self.1.checked_sub(released))
