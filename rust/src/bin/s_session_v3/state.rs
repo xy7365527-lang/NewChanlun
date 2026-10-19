@@ -2552,23 +2552,6 @@ mod owner_retention {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
-fn uo1488_fields(tag: &str, h: &ImmutableHistoricalAudit) {
-    use crate::v3::audit_retention::Retained;
-    eprintln!(
-        "UO1488_F {tag} control={} prefixes={} sources={} aux_facts={} object_facts={} cuts={} objects={} auxiliary={} inline={}",
-        h.control_facts.heap_bytes(),
-        h.raw_prefixes.heap_bytes(),
-        h.raw_sources.heap_bytes(),
-        h.auxiliary_facts.heap_bytes(),
-        h.object_facts.heap_bytes(),
-        h.cuts.heap_bytes(),
-        h.objects.heap_bytes(),
-        h.auxiliary.heap_bytes(),
-        std::mem::size_of::<ImmutableHistoricalAudit>()
-    );
-}
-
 #[cfg(feature = "s_capture_native_testonly")]
 impl AuditedState {
     pub(super) fn append_owner_cut(
@@ -2587,14 +2570,6 @@ impl AuditedState {
     ) -> Result<(Self, super::audit_retention::RetainedDelta), super::audit_owner::native::Failure>
     {
         let mut retained = super::audit_retention::RetainedDelta::default();
-        #[cfg(test)]
-        match &self.historical {
-            HistoricalOwner::Unique(v) => uo1488_fields("before_unique", v),
-            HistoricalOwner::Shared(v) => {
-                eprintln!("UO1488_F shell={}", v.allocation_bytes());
-                uo1488_fields("before_shared", v.as_ref())
-            }
-        }
         let historical = match self.historical {
             HistoricalOwner::Unique(v) => v,
             HistoricalOwner::Shared(v) => {
@@ -2639,8 +2614,6 @@ impl AuditedState {
             work,
             native,
         )?;
-        #[cfg(test)]
-        eprintln!("UO1488_F history_delta={history_delta:?} retained_before_merge={retained:?}");
         retained.merge(history_delta);
         let mut source = Some(
             source_audit::NativeSourceAudit::restore(
@@ -2673,23 +2646,6 @@ impl AuditedState {
         #[cfg(test)]
         trace_event("owner_suffix_complete", Some(g));
         let raw_sources = source.map(|source| source.into_raw_facts_retained(&mut retained));
-        #[cfg(test)]
-        eprintln!("UO1488_F retained_final={retained:?}");
-        #[cfg(test)]
-        {
-            use crate::v3::audit_retention::Retained;
-            eprintln!(
-                "UO1488_F after control={} prefixes={} sources={} aux_facts={} object_facts={} cuts={} objects={} auxiliary={}",
-                updated.control_facts.heap_bytes(),
-                updated.raw_prefixes.heap_bytes(),
-                raw_sources.heap_bytes(),
-                updated.auxiliary_facts.heap_bytes(),
-                updated.object_sweep.heap_bytes(),
-                updated.cuts.heap_bytes(),
-                updated.objects.heap_bytes(),
-                updated.auxiliary.heap_bytes()
-            );
-        }
         Ok((
             Self {
                 raw: self.raw,

@@ -475,18 +475,6 @@ impl<'raw> RawPrefixIndex<'raw> {
         self,
         delta: &mut super::audit_retention::RetainedDelta,
     ) -> RawPrefixFacts {
-        #[cfg(test)]
-        {
-            use super::audit_retention::Retained;
-            eprintln!(
-                "UO1488_R delta={:?} winners={}/{}/{} ordered={}/{}/{} coords={}/{}/{} key_sizes={:?}",
-                self.retained,
-                self.facts.winners.heap_bytes(), self.facts.winners.capacity(), self.facts.winners.len(),
-                self.facts.ordered.heap_bytes(), self.facts.ordered.len(), self.facts.ordered.permit_capacity(),
-                self.facts.coordinates.heap_bytes(), self.facts.coordinates.capacity(), self.facts.coordinates.len(),
-                self.facts.winners.iter().map(|(k, _)| k.heap_bytes()).collect::<Vec<_>>()
-            );
-        }
         delta.merge(self.retained);
         self.facts
     }
