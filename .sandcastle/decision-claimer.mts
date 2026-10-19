@@ -5,8 +5,9 @@
  * 设计正本：.sandcastle/docs/graph-engineering.md「裁决流程」。每张 grilling 票：
  *   分级（Fable 5.1）→ 起草（Fable 5.1）→ 独审（Opus 5.5，独立进程，只读草稿与源）
  *   → T 类 PASS：decision/<票号> 分支落正本 + resolution 评论；P 类：挂 needs-approval。
- *   BLOCK 一次：起草者升档 Opus 5.5 带审查意见重做；再 BLOCK：转 P 类。
+ *   其他 BLOCK：一次升档 Opus 5.5 带审查意见重做；仍 BLOCK：转 P 类。
  *
+ *   只有 R1 引用类 BLOCK：一次只改引用的修订轮；总轮次上限 MAX_ROUNDS。起草后先查正本落点，越界退回重写一次。
  * 模式：默认 --dry-run，只写 /Volumes/AgentStorage/decisions/<票号>/，不写 GitHub。
  *       --live 才 claim（assign）、评论、打标签、推 decision 分支。
  * 调用：node --import tsx .sandcastle/decision-claimer.mts [--live] [--loop] [--ticket N ...]
@@ -240,6 +241,12 @@ function cleanPath(raw: string): string {
  *   正本落点：path      **正本落点**：`path`      ### 正本落点（下一非空行为路径）
  */
 export function landingTarget(draft: string): string | null {
+  const p = declaredLanding(draft);
+  return p !== null && isLandingPath(p) ? p : null;
+}
+
+/** 草稿声明的正本落点（清掉修饰，不校验根）；没写落点返回 null。 */
+export function declaredLanding(draft: string): string | null {
   const lines = draft.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     const m = /^\s*(?:[-+>]\s*)?(#{1,6}\s*)?[*_]*正本落点[*_]*\s*(?:[:：]\s*(.*))?$/.exec(lines[i]);
@@ -251,9 +258,16 @@ export function landingTarget(draft: string): string | null {
       raw = lines[k]?.trim() ?? "";
       if (raw.startsWith("#")) return null;
     }
-    const p = cleanPath(raw);
-    return isLandingPath(p) ? p : null;
+    return cleanPath(raw) || null;
   }
+  return null;
+}
+
+/** 起草后的落点硬检查：合法返回 null，否则返回退回起草者的原因。 */
+export function landingProblem(draft: string): string | null {
+  const p = declaredLanding(draft);
+  if (p === null) return "草稿未声明「正本落点：<路径>」";
+  if (!isLandingPath(p)) return `正本落点 ${p} 越界：只能在 ${LANDING_ROOTS.join("、")} 内`;
   return null;
 }
 
@@ -348,26 +362,48 @@ export function renumberDraft(draft: string, from: string, a: AdrAllocation): st
 // ───────────────────────── 状态转移 ─────────────────────────
 
 export type Phase = "classify" | "draft" | "review" | "land_t" | "shadow_p" | "review_parse_error" | "done" | "error";
+/** 起草/审查总轮次上限（含升档重做与只改引用的修订轮）。 */
+export const MAX_ROUNDS = 3;
+/** 起草方式：首稿、升档重做、只改引用的修订。 */
+export type DraftMode = "initial" | "redo" | "revise";
 export interface RunState {
   phase: Phase;
   klass: Klass;
   attempt: number;
   drafterModel: string;
   convertedToP: boolean;
+  draftMode: DraftMode;
+  upgraded: boolean;
+  revised: boolean;
   reviewFeedback?: string;
 }
 
 export function initialState(klass: Klass): RunState {
-  return { phase: "draft", klass, attempt: 1, drafterModel: MODEL_FABLE, convertedToP: false };
+  return { phase: "draft", klass, attempt: 1, drafterModel: MODEL_FABLE, convertedToP: false, draftMode: "initial", upgraded: false, revised: false };
 }
 
-/** 审查后的转移：PASS→落地；首次 BLOCK→升档 Opus 重做；再 BLOCK→转 P。 */
+/** BLOCK 依据指向具体引用的特征：行号、文件:行、逐字、转述、核实命令、评论 id、引文。 */
+const CITATION_POINTER = /行号|[\w.\/`]:\d+|逐字|转述|核实命令|评论\s*id|引文/i;
+
+/** 只有 R1 BLOCK、且每条依据都指向具体引用，没有其他问题。 */
+export function isCitationOnlyBlock(r: Review): boolean {
+  if (r.parseError || r.verdict !== "BLOCK" || r.problems.length > 0) return false;
+  const blocked = r.items.filter((i) => i.verdict === "BLOCK");
+  return blocked.length > 0 && blocked.every((i) => i.rule === "R1" && CITATION_POINTER.test(i.basis));
+}
+
+/**
+ * 审查后的转移：PASS→落地；只有 R1 引用类 BLOCK→一次只改引用的修订轮（Opus）；
+ * 其他 BLOCK→一次升档 Opus 重做；修订与升档都用过或总轮次到 MAX_ROUNDS 仍 BLOCK→转 P。
+ */
 export function nextAfterReview(s: RunState, r: Review): RunState {
   if (r.verdict === "PASS") return { ...s, phase: s.klass === "T" ? "land_t" : "shadow_p" };
-  if (s.attempt === 1) {
-    return { ...s, phase: "draft", attempt: 2, drafterModel: MODEL_OPUS, reviewFeedback: formatFeedback(r) };
-  }
-  return { ...s, phase: "shadow_p", convertedToP: s.convertedToP || s.klass === "T", klass: "P" };
+  const toP: RunState = { ...s, phase: "shadow_p", convertedToP: s.convertedToP || s.klass === "T", klass: "P" };
+  if (s.attempt >= MAX_ROUNDS) return toP;
+  const next = { ...s, phase: "draft" as const, attempt: s.attempt + 1, drafterModel: MODEL_OPUS, reviewFeedback: formatFeedback(r) };
+  if (isCitationOnlyBlock(r) && !s.revised) return { ...next, draftMode: "revise", revised: true };
+  if (!s.upgraded) return { ...next, draftMode: "redo", upgraded: true };
+  return toP;
 }
 
 export function formatFeedback(r: Review): string {
@@ -574,8 +610,24 @@ ${DRAFT_SECTIONS.map((s) => `## ${s}`).join("\n")}
 5. 不越出 #1323 Destination；T 类草稿不得夹带 P 类取舍；不得新增同一判断的宽严两档或失败兜底。
 6. 「受影响票与 blocking 边变化」列出全部受影响票号和每条要增删的 blocking 边。
 7. 「授权引用」段：${c.klass === "T" ? `写「${AUTH_LINE}」并引用户 2026-10-18 原话` : "写「待用户批复（影子模式）」，不得写 T 类预授权句"}。
-8. 「${CITATION_SECTION}」段是一张 Markdown 表，表头为 \`| 引用 | 核实命令 | 结果摘要 |\`，草稿里每一条引用（文件:行、ADR、定义文件条款、票号、评论 id）各占一行：写出你实际执行的核实命令与看到的结果摘要。表里没有的引用视为未核实。
+8. 「${CITATION_SECTION}」段是一张 Markdown 表，表头为 \`| 引用 | 核实命令 | 结果摘要 |\`，草稿里每一条引用（文件:行、ADR、定义文件条款、票号、评论 id）各占一行：写出你实际执行的核实命令与看到的结果摘要。表里没有的引用视为未核实。自证表里写不出亲眼看到的原文就整条删掉（连同正文里那条引用），不许写「未直接看到但结构确认」之类。
 只输出草稿正文，不要前言或结语。`;
+}
+
+/** 修订轮：只改被审查点名的引用与自证表，裁定内容不动。 */
+export function revisePrompt(t: TicketContext, c: Classification, prevDraft: string, feedback: string): string {
+  return `${draftPrompt(t, c)}
+
+## 本轮是「只改引用」的修订轮
+上一稿的裁定内容已过审，独立审查只对以下引用 BLOCK：
+${feedback}
+
+逐条处理：重新用工具核实被点名的引用，改正行号、把转述改成与原文一致、让核实命令真正覆盖所引的行；核实不到的引用连同自证表里那一行一起删掉。
+只准改这些引用和「${CITATION_SECTION}」表；「裁定」「候选」「验收清单」「受影响票与 blocking 边变化」「授权引用」的取舍与内容保持原样，正本落点保持原样。输出修订后的完整草稿。
+
+===== 上一稿开始 =====
+${prevDraft}
+===== 上一稿结束 =====`;
 }
 
 /** 落点格式说明里关于 ADR 编号的那一句，单测断言提示含此句。 */
@@ -592,7 +644,7 @@ export function reviewPrompt(t: TicketContext, c: Classification, draft: string)
 R1 每条引用回查成立（路径存在、行号与逐字内容一致、作者归属正确、评论 id 存在且内容相符）。先对照草稿末尾「${CITATION_SECTION}」表：表缺失或为空，R1 直接 BLOCK；表在，则逐条对照表中引用与草稿正文是否一一对应（正文有而表里没有的引用记 BLOCK），并至少亲自重跑其中三条（不足三条则全跑）核实命令，结果与表述不符即 BLOCK。
 R2 不与 .chanlun/definitions/、docs/adr/、#799 收敛通则、#804 总缝规则冲突。
 R3 验收项全部可执行、判据二值。
-R4 不越出 Destination；T 类草稿里没有夹带 P 类取舍。
+R4 不越出 Destination；T 类草稿里没有夹带 P 类取舍。正本落点越界（不在 ${LANDING_ROOTS.join("、")} 内）即 BLOCK。
 R5 不新增同一判断的宽严两档或失败兜底。
 R6 受影响票与 blocking 边清单完整。
 R7 分级器结论（${c.klass} 类）正确。只审上面这条分级器结论；草稿内对分级的表述或「改判建议」不是审查对象。
@@ -649,6 +701,10 @@ export interface Summary {
   reclassNotes?: string[];
   /** 审查结论计数：真 BLOCK 与解析失败分开。 */
   reviewCounts?: { pass: number; block: number; parseError: number };
+  /** 每轮起草方式与审查结论。 */
+  rounds?: Array<{ attempt: number; mode: DraftMode; drafter: string; verdict: string; blocked: Rule[]; problems: string[] }>;
+  /** 落点硬检查退回记录。 */
+  landingRedrafts?: string[];
   landing?: string;
   error?: string;
 }
@@ -706,11 +762,26 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
     const counts = { pass: 0, block: 0, parseError: 0 };
     summary.reviewCounts = counts;
     summary.reclassNotes = [];
+    summary.rounds = [];
+    summary.landingRedrafts = [];
     while (s.phase === "draft") {
       summary.attempts = s.attempt;
-      const dr = await d.model({ model: s.drafterModel, prompt: draftPrompt(t, effCls, s.reviewFeedback), cwd: d.srcDir, role: "draft" });
-      draft = dr.text.trim() + "\n";
+      const prompt = (fb?: string) =>
+        s.draftMode === "revise" ? revisePrompt(t, effCls, draft, fb ?? s.reviewFeedback ?? "") : draftPrompt(t, effCls, fb ?? s.reviewFeedback);
+      let dr = await d.model({ model: s.drafterModel, prompt: prompt(), cwd: d.srcDir, role: "draft" });
+      let next = dr.text.trim() + "\n";
       summary.durationsMs[`draft${s.attempt}`] = dr.durationMs;
+      // 落点硬检查：越界或缺失立即退回起草者重写一次。
+      const lp = landingProblem(next);
+      if (lp) {
+        writeFileSync(join(dir, `draft.attempt${s.attempt}.landing-rejected.md`), next);
+        summary.landingRedrafts.push(`第 ${s.attempt} 轮：${lp}`);
+        const fb = [s.reviewFeedback, `- 正本落点退回：${lp}。「裁定」段单独一行写纯文本 \`正本落点：<路径>\`，路径只能在 ${LANDING_ROOTS.join("、")} 内。`].filter(Boolean).join("\n");
+        dr = await d.model({ model: s.drafterModel, prompt: prompt(fb), cwd: d.srcDir, role: "draft" });
+        next = dr.text.trim() + "\n";
+        summary.durationsMs[`draft${s.attempt}_landing`] = dr.durationMs;
+      }
+      draft = next;
       if (s.attempt > 1 && existsSync(join(dir, "draft.md"))) renameSync(join(dir, "draft.md"), join(dir, `draft.attempt${s.attempt - 1}.md`));
       writeFileSync(join(dir, "draft.md"), draft);
 
@@ -738,8 +809,14 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
       else counts.block++;
       summary.durationsMs[`review${s.attempt}`] = rr.durationMs;
       if (s.attempt > 1 && existsSync(join(dir, "review.json"))) renameSync(join(dir, "review.json"), join(dir, `review.attempt${s.attempt - 1}.json`));
+      summary.rounds.push({
+        attempt: s.attempt, mode: s.draftMode, drafter: s.drafterModel,
+        verdict: review.parseError ? "review_parse_error" : review.verdict,
+        blocked: review.parseError ? [] : review.items.filter((i) => i.verdict === "BLOCK").map((i) => i.rule),
+        problems: review.problems,
+      });
       writeJson(join(dir, "review.json"), {
-        ticket: n, attempt: s.attempt, drafter: s.drafterModel, reviewer: MODEL_OPUS, klass: s.klass,
+        ticket: n, attempt: s.attempt, mode: s.draftMode, drafter: s.drafterModel, reviewer: MODEL_OPUS, klass: s.klass,
         verdict: review.parseError ? "review_parse_error" : review.verdict, parseError: review.parseError, retried,
         items: review.parseError ? [] : review.items, problems: review.problems, draftMissingSections: missing,
         durationMs: rr.durationMs, raw: rr.text,
@@ -801,7 +878,7 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
 
 function shadowComment(n: number, draft: string, r: Review, dir: string, s: Summary): string {
   const table = r.items.map((i) => `| ${i.rule} | ${i.verdict} | ${i.basis.replace(/\|/g, "\\|").replace(/\n/g, " ")} |`).join("\n");
-  return `**P 类影子模式，待用户批复**${s.convertedToP ? "（原判 T，两轮审查 BLOCK 后转 P）" : ""}\n\n` +
+  return `**P 类影子模式，待用户批复**${s.convertedToP ? `（原判 T，${s.attempts} 轮审查仍 BLOCK 后转 P）` : ""}\n\n` +
     `独立审查（${MODEL_OPUS}）：**${r.verdict}**\n\n| 条 | 结论 | 依据 |\n|---|---|---|\n${table}\n\n` +
     `草稿与审查原件：\`${dir}/\`\n\n<details><summary>草稿全文</summary>\n\n${draft}\n</details>`;
 }

@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  ADR_FORMAT_LINE, AUTH_LINE, CITATION_SECTION, DRAFT_SECTIONS, GH_API_WRITE_DENY, READ_TOOLS, hasCitationTable, toolArgs, FETCH_URL, MAIN_REF, MODEL_FABLE, MODEL_OPUS, DryRunWriteError,
+  ADR_FORMAT_LINE, AUTH_LINE, MAX_ROUNDS, isCitationOnlyBlock, landingProblem, revisePrompt, CITATION_SECTION, DRAFT_SECTIONS, GH_API_WRITE_DENY, READ_TOOLS, hasCitationTable, toolArgs, FETCH_URL, MAIN_REF, MODEL_FABLE, MODEL_OPUS, DryRunWriteError,
   allocateAdr, applyReclass, draftPrompt, ensureSrc, extractFirstApiKey, guardGh, reclassSuggestion, renumberDraft, reviewPrompt, initialState, isGhWrite, landingTarget, missingDraftSections,
   nextAfterReview, parseArgs, parseClassification, parseReview, processTicket, selectCandidates,
   type Deps, type GhRunner, type ModelCall,
@@ -169,7 +169,7 @@ test("dry-run 全流程：T 类 PASS 只落本地三份文件，不调任何 gh 
 });
 
 test("dry-run 两轮 BLOCK：第二稿由 Opus 起草并带审查意见，最终转 P，仍不写 GitHub", async () => {
-  const block = fence({ ...pass(), R1: { verdict: "BLOCK", basis: "行号漂移" } });
+  const block = fence({ ...pass(), R1: { verdict: "BLOCK", basis: "行号漂移" }, R3: { verdict: "BLOCK", basis: "验收项不可执行" } });
   const { d, ghCalls, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, block, goodDraft, block]);
   const s = await processTicket(1531, d);
   assert.equal(s.phase, "shadow_p");
@@ -398,4 +398,85 @@ test("引用自证表：缺段或只有表头不算；缺表的草稿即使审�
   const { d } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), noTable, fence(pass()), noTable, fence(pass())]);
   const r = await processTicket(1, d);
   assert.notEqual(r.phase, "land_t");
+});
+
+// ───────── #1547 fix3：落点硬检查与只改引用的修订轮 ─────────
+
+const r1Block = (basis: string) => fence({ ...pass(), R1: { verdict: "BLOCK", basis } });
+const r3Block = fence({ ...pass(), R3: { verdict: "BLOCK", basis: "验收项不可执行" } });
+
+test("落点硬检查：缺失与越界给出原因，合法返回 null", () => {
+  assert.equal(landingProblem(goodDraft), null);
+  assert.match(landingProblem("## 裁定\n无落点")!, /未声明/);
+  assert.match(landingProblem("正本落点：rust/src/lib.rs")!, /rust\/src\/lib\.rs 越界/);
+});
+
+test("isCitationOnlyBlock：只有 R1 且依据指向具体引用才算", () => {
+  assert.equal(isCitationOnlyBlock(parseReview(r1Block("replay.rs:283 核实命令没覆盖该行"))), true);
+  assert.equal(isCitationOnlyBlock(parseReview(r1Block("CONTEXT.md 行号差一行"))), true);
+  assert.equal(isCitationOnlyBlock(parseReview(r1Block("裁定思路有问题"))), false);
+  assert.equal(isCitationOnlyBlock(parseReview(fence({ ...pass(), R1: { verdict: "BLOCK", basis: "行号差一行" }, R6: { verdict: "BLOCK", basis: "缺票" } }))), false);
+  assert.equal(isCitationOnlyBlock(parseReview(r1Block("行号差一行"), ["授权引用"])), false);
+});
+
+test("状态转移：R1 引用 BLOCK 进修订轮，其他 BLOCK 升档，总轮次上限 3", () => {
+  const cite = parseReview(r1Block("x.md:12 行号差一行"));
+  const other = parseReview(r3Block);
+  let s = nextAfterReview(initialState("T"), cite);
+  assert.deepEqual([s.phase, s.attempt, s.draftMode, s.drafterModel], ["draft", 2, "revise", MODEL_OPUS]);
+  s = nextAfterReview(s, other);
+  assert.deepEqual([s.phase, s.attempt, s.draftMode], ["draft", 3, "redo"]);
+  assert.equal(nextAfterReview(s, cite).phase, "shadow_p");
+  assert.equal(MAX_ROUNDS, 3);
+  // 升档后剩 R1 引用 BLOCK：第三轮修订；修订后仍 BLOCK 转 P
+  let u = nextAfterReview(initialState("T"), other);
+  assert.equal(u.draftMode, "redo");
+  u = nextAfterReview(u, cite);
+  assert.deepEqual([u.attempt, u.draftMode], [3, "revise"]);
+  const end = nextAfterReview(u, cite);
+  assert.deepEqual([end.phase, end.klass, end.convertedToP], ["shadow_p", "P", true]);
+  // 修订用过后再遇 R1 引用 BLOCK 不再修订，走升档
+  const v = nextAfterReview(nextAfterReview(initialState("T"), cite), cite);
+  assert.equal(v.draftMode, "redo");
+});
+
+test("dry-run 修订轮：只拿上一稿与引用意见，不改裁定，再审 PASS 落地", async () => {
+  const { d, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, r1Block("AGENTS.md:1 行号差一行"), goodDraft, fence(pass())]);
+  const s = await processTicket(7, d);
+  assert.equal(s.phase, "land_t");
+  assert.equal(s.attempts, 2);
+  const rev = modelCalls[3];
+  assert.equal(rev.model, MODEL_OPUS);
+  assert.match(rev.prompt, /只改引用」的修订轮/);
+  assert.match(rev.prompt, /===== 上一稿开始 =====/);
+  assert.match(rev.prompt, /R1 BLOCK：AGENTS\.md:1 行号差一行/);
+  assert.deepEqual(s.rounds!.map((r) => [r.mode, r.verdict]), [["initial", "BLOCK"], ["revise", "PASS"]]);
+});
+
+test("dry-run 三轮仍 BLOCK 转 P：首稿 R3→升档→R1 引用→修订→仍 BLOCK", async () => {
+  const cite = r1Block("x.md:3 转述多出内容");
+  const { d, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, r3Block, goodDraft, cite, goodDraft, cite]);
+  const s = await processTicket(8, d);
+  assert.equal(s.phase, "shadow_p");
+  assert.equal(s.convertedToP, true);
+  assert.deepEqual(s.rounds!.map((r) => r.mode), ["initial", "redo", "revise"]);
+  assert.equal(modelCalls.length, 7);
+});
+
+test("dry-run 落点越界：退回起草者重写一次，原因写进反馈", async () => {
+  const bad = goodDraft.replace("docs/adr/0099-x.md", "rust/src/lib.rs");
+  const { d, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), bad, goodDraft, fence(pass())]);
+  const s = await processTicket(9, d);
+  assert.equal(s.phase, "land_t");
+  assert.match(modelCalls[2].prompt, /正本落点退回：正本落点 rust\/src\/lib\.rs 越界/);
+  assert.equal(s.landingRedrafts!.length, 1);
+  assert.ok(existsSync(join(d.outRoot, "9", "draft.attempt1.landing-rejected.md")));
+});
+
+test("提示：自证表看不到原文整条删；R4 落点越界即 BLOCK；修订提示保留落点", () => {
+  const t = { number: 1, title: "x", body: "", labels: [], assignees: [], comments: [], blockers: [] };
+  const c = { klass: "T" as const, reason: "r", parsed: true };
+  assert.match(draftPrompt(t, c), /写不出亲眼看到的原文就整条删掉.*不许写「未直接看到但结构确认」/);
+  assert.match(reviewPrompt(t, c, "草稿"), /R4 .*正本落点越界.*即 BLOCK/);
+  assert.match(revisePrompt(t, c, "上稿", "- R1 BLOCK：x"), /正本落点保持原样/);
 });
