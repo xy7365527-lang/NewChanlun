@@ -997,20 +997,6 @@ impl TxStore<'_, '_> {
                 if let Some(stage) = self.stage {
                     return stage.put_new(digest, tag, body);
                 }
-                #[cfg(all(test, feature = "s_capture_native_testonly"))]
-                {
-                    let h: String = digest.iter().take(16).map(|b| format!("{b:02x}")).collect();
-                    eprintln!("UO1488_DIRECT d={h} tag={tag}");
-                    if [
-                        "13ed03448ec570c4cb447cc97c20c0fc",
-                        "56b50123d56f92d6f51c97f4f04cffae",
-                        "26b6a4fb791e35b50d1a0421880ceed8",
-                    ]
-                    .contains(&h.as_str())
-                    {
-                        eprintln!("UO1488_BT {h}\n{}", std::backtrace::Backtrace::force_capture());
-                    }
-                }
                 self.tx
                     .prepare_cached(
                         "INSERT INTO s_content_nodes(digest, tag, body) VALUES(?1, ?2, ?3)",
