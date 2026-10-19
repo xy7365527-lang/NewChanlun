@@ -329,11 +329,12 @@ struct Ledger {
     metadata_peak: AtomicUsize,
     native_live: AtomicUsize,
     native_peak: AtomicUsize,
-    // #1488 P2-4：测试普查——布防期间逐笔记录本账每张许可的签发/归还（种类、字节），
-    // 独立于live差额推导，供逐许可核对封存池计费。
-    #[cfg(test)]
-    census: Mutex<Option<Vec<CensusEvent>>>,
 }
+// #1488 P2-4：测试普查——布防期间逐笔记录该账每张许可的签发/归还（种类、字节），
+// 独立于live差额推导，供逐许可核对封存池计费。按Ledger地址登记于账外，
+// 不改Ledger布局（控制块M=Layout([AtomicUsize;2])⊕Layout(Ledger)=128属合同常量）。
+#[cfg(test)]
+static CENSUS: Mutex<Vec<(usize, Vec<CensusEvent>)>> = Mutex::new(Vec::new());
 /// #1488 P2-4：单笔许可事件；kind=None为Permit/总账许可，其余为Native/Layout/Metadata分项。
 #[cfg(test)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize)]
@@ -552,8 +553,6 @@ impl Budget {
                 metadata_peak: AtomicUsize::new(0),
                 native_live: AtomicUsize::new(0),
                 native_peak: AtomicUsize::new(0),
-                #[cfg(test)]
-                census: Mutex::new(None),
             }),
             0,
             0,
@@ -641,12 +640,21 @@ impl Budget {
     /// #1488 P2-4：布防逐许可普查；已布防时清空重来。
     #[cfg(test)]
     pub(crate) fn census_arm(&self) {
-        *self.0.census.lock().unwrap() = Some(Vec::with_capacity(CENSUS_CAPACITY));
+        let key = Arc::as_ptr(&self.0) as usize;
+        let mut census = CENSUS.lock().unwrap();
+        census.retain(|(armed, _)| *armed != key);
+        census.push((key, Vec::with_capacity(CENSUS_CAPACITY)));
     }
     /// #1488 P2-4：取出并撤防；未布防返回空。
     #[cfg(test)]
     pub(crate) fn census_take(&self) -> Vec<CensusEvent> {
-        self.0.census.lock().unwrap().take().unwrap_or_default()
+        let key = Arc::as_ptr(&self.0) as usize;
+        let mut census = CENSUS.lock().unwrap();
+        census
+            .iter()
+            .position(|(armed, _)| *armed == key)
+            .map(|i| census.swap_remove(i).1)
+            .unwrap_or_default()
     }
     /// #1488 P1-1：容器真实驻留在本父账（同一Ledger）上；未绑定Native的容器不在任何账上。
     pub(crate) fn holds_codec_vec<T>(&self, v: &newchan_rust::s_content::CodecVec<T>) -> bool {
@@ -1427,8 +1435,9 @@ impl Ledger {
         if bytes == 0 {
             return;
         }
-        if let Ok(mut census) = self.census.lock() {
-            if let Some(events) = census.as_mut() {
+        let key = self as *const Self as usize;
+        if let Ok(mut census) = CENSUS.lock() {
+            if let Some((_, events)) = census.iter_mut().find(|(armed, _)| *armed == key) {
                 assert!(events.len() < CENSUS_CAPACITY, "许可普查容量耗尽");
                 events.push(CensusEvent {
                     reserve,
