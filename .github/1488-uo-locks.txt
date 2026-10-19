@@ -57,3 +57,4 @@ v3::audit_owner::effects::construction_coverage_tests::p3b_start_on_keeps_pre_p2
 v3::driver::tests::p3_d_cold_root_residue_after_clear_handles_is_rejected
 v3::audit_owner::p1_alpha_stray_on_keeper_ledger_survives_discard_retry_and_is_rejected
 v3::cross_request_source_cache::tests::p3b_seal_rejects_missing_source_claim_on_charged_body
+v3::audit_owner::native::u2_exit_adopt_tests::p3g_codec_vec_grow_and_scratch_never_double_reserve_same_allocation

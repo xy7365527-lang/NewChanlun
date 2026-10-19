@@ -2858,6 +2858,74 @@ mod u2_exit_adopt_tests {
         drop(empty);
         assert_eq!(budget.live(), before.0);
     }
+    // #1488 P3-γ（复审0028）：同一allocation重复物理reserve的负控补到codec_vec_grow与scratch
+    // （WorkScope::try_reserve_native/try_push_native）两个入口：容量内重复调用不再签；增长换块后
+    // 只剩新块一张（旧许可随旧块归还，不累计）；他父账对同一allocation再签被拒且两账不动；
+    // 对已绑票块再附同额许可被拒、被拒许可即时归还。
+    #[test]
+    fn p3g_codec_vec_grow_and_scratch_never_double_reserve_same_allocation() {
+        let f = |e: newchan_rust::s_content::CodecError| Failure::Invalid(e.to_string());
+        let other = Budget::fresh(65536).unwrap();
+        let other_before = ledger(&other);
+        type Grow = fn(&Budget, &mut CodecVec<u64>, usize) -> Result<(), Failure>;
+        let via_codec_vec_grow: Grow = |b, v, n| b.codec_vec_grow(v, n);
+        let via_scratch: Grow = |b, v, n| {
+            in_work(b, |scope| {
+                v.try_reserve_native(scope, n)
+                    .map_err(|e| Failure::Invalid(e.to_string()))
+            })
+        };
+        for (name, grow) in [("codec_vec_grow", via_codec_vec_grow), ("scratch", via_scratch)] {
+            let budget = Budget::fresh(65536).unwrap();
+            let base = budget.live();
+            let mut v = CodecVec::<u64>::from_plain(Vec::new());
+            grow(&budget, &mut v, 4).unwrap();
+            let charge = v.native_retained_charge().expect(name);
+            assert_eq!(charge, v.capacity() * size_of::<u64>(), "{name}");
+            assert_eq!(budget.live(), base + charge, "{name}：一块一张");
+            // 容量内重复grow / push：同一allocation不得再签。
+            for _ in 0..3 {
+                grow(&budget, &mut v, v.capacity() - v.len()).unwrap();
+                assert_eq!(v.native_retained_charge(), Some(charge), "{name}");
+                assert_eq!(budget.live(), base + charge, "{name}：容量内重复reserve不得再签");
+            }
+            in_work(&budget, |scope| {
+                while v.len() < v.capacity() {
+                    v.try_push_native(1, scope).map_err(f)?;
+                }
+                Ok(())
+            })
+            .unwrap();
+            assert_eq!(budget.live(), base + charge, "{name}：容量内push不得再签");
+            // 增长：新块先持票、旧块随旧许可归还，最终只剩新块一张。
+            grow(&budget, &mut v, v.capacity() + 1).unwrap();
+            let grown = v.native_retained_charge().unwrap();
+            assert!(grown > charge);
+            assert_eq!(grown, v.capacity() * size_of::<u64>(), "{name}");
+            assert_eq!(budget.live(), base + grown, "{name}：旧块许可不累计");
+            // 他父账对同一allocation再签：两入口都拒，两账、容器不动。
+            let ptr = v.as_ptr();
+            for n in [0, 1, 64] {
+                assert!(grow(&other, &mut v, n).is_err(), "{name}：他父账重签必须拒绝");
+                assert_eq!(ledger(&other), other_before, "{name}");
+                assert_eq!(budget.live(), base + grown, "{name}");
+                assert_eq!((v.as_ptr(), v.native_retained_charge()), (ptr, Some(grown)));
+            }
+            // 已绑票块再附同额许可：被拒，被拒许可即时归还。
+            in_work(&budget, |scope| {
+                let inside = budget.live();
+                let duplicate = scope.reserve_native(grown).map_err(f)?;
+                assert_eq!(budget.live(), inside + grown);
+                assert!(v.attach_native_reservation(duplicate).is_err(), "{name}");
+                assert_eq!(budget.live(), inside, "{name}：被拒的重复许可已归还");
+                Ok(())
+            })
+            .unwrap();
+            assert_eq!(budget.live(), base + grown);
+            drop(v);
+            assert_eq!(budget.live(), base, "{name}");
+        }
+    }
     // #1488 P2-1（评审 0024）：生产出生入口 fresh 无 moved_in；codec_vec_grow 对已分配裸块拒绝
     // 且不改容器与账，零容量裸块只经真实预留绑票；未覆写 adopt_native 的父（生产 Ledger 形态）恒拒。
     #[test]
