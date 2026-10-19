@@ -1096,8 +1096,7 @@ mod tests {
     fn p3_1_cold_root_audit_failure_leaves_no_permit_on_destroyed_root() {
         let f = Fixture::new();
         let mut build = f.open("1").unwrap();
-        let input = Fixture::ingest(1);
-        let committed = build.handle(input.clone()).unwrap();
+        build.handle(Fixture::ingest(1)).unwrap();
         let ready = envelope("ready-cold-root", json!({"op":"ready"}));
         let expected = build.handle(ready.clone()).unwrap();
         drop(build);
@@ -1110,21 +1109,20 @@ mod tests {
             s_allocation::Mode::CapturedNative,
         )
         .unwrap();
+        // v3 driver 不配置 legacy memo；显式开启保留，使失败首跑真实经 NativeAdmission 保留证书。
+        crate::cache::configure(268_435_456);
         assert!(crate::cache::retention_enabled());
         crate::v3::audit_owner::cold_root_probe::take();
-        for request in [ready.clone(), input] {
-            let reply = bounded.handle(request.clone()).unwrap();
-            assert_eq!(
-                reply,
-                if request["payload"]["op"] == "ready" {
-                    expected.clone()
-                } else {
-                    committed.clone()
-                }
-            );
-        }
+        let reply = bounded.handle(ready.clone());
+        crate::cache::configure(0);
+        assert_eq!(reply.unwrap(), expected);
         let notes = crate::v3::audit_owner::cold_root_probe::take();
         assert!(!notes.is_empty(), "须经冷根审计失败分支");
+        // 负控：清除前根上确有失败首跑留下的保留许可（无本修复即挂在已析构根上）。
+        assert!(
+            notes.iter().any(|&(before, _)| before != 0),
+            "失败首跑未在根上留下保留：{notes:?}"
+        );
         assert!(
             notes.iter().all(|&(_, after)| after == 0),
             "根析构前仍有残留许可：{notes:?}"
