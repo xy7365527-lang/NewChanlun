@@ -385,7 +385,7 @@ mod tests {
         assert_eq!(after.records - before.records, 2);
         assert_eq!(
             after.node_bytes - before.node_bytes,
-            (sc::DOMAIN_SEPARATOR.len() + 9 + 4) as u128
+            (sc::DOMAIN_SEPARATOR.len() + 9 + 4) as u64
         );
         drop(account);
         drop(started);

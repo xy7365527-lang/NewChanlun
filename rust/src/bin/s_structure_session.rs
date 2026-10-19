@@ -5578,7 +5578,7 @@ mod tests {
 
 
     // #1527 M-03：既有断言测业务/持久状态，直接走原 core；不建立生产准入或输出夹具。
-    fn accept_business_file(
+    pub(crate) fn accept_business_file(
         db: &Path,
         input_path: &Path,
         profile_path: &Path,
@@ -5588,11 +5588,11 @@ mod tests {
         accept_core(db, &text, profile_path, configured_epoch, None).map(|_| ())
     }
 
-    fn advance_business(db: &Path, configured_epoch: &str) -> Result<(), String> {
+    pub(crate) fn advance_business(db: &Path, configured_epoch: &str) -> Result<(), String> {
         advance_core(db, configured_epoch, None).map(|_| ())
     }
 
-    fn recover_business(db: &Path, new_epoch: &str) -> Result<(), String> {
+    pub(crate) fn recover_business(db: &Path, new_epoch: &str) -> Result<(), String> {
         recover_core(db, new_epoch, None).map(|_| ())
     }
 
@@ -9943,8 +9943,8 @@ mod tests {
 mod staged_graph_audit_regressions {
     use super::*;
     use crate::tests::{
-        accept_ohlc, fixture, graph_digest, init_test_db, located_ohlc_input, tb02b_oracle_rows,
-        write_input, TestFiles,
+        accept_business_file, accept_ohlc, advance_business, fixture, graph_digest, init_test_db,
+        located_ohlc_input, recover_business, tb02b_oracle_rows, write_input, TestFiles,
     };
 
     /// 把库从 `evidence-graph/3` 退成**真正的** `evidence-graph/2`：Delta 与结构事实三列大原件
