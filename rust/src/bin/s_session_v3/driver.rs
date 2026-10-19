@@ -1444,7 +1444,8 @@ mod tests {
             .expect("旧serial raw token必须被拒");
         assert!(error.contains("raw token 已结束、回滚或撤销"), "{error}");
         native.epoch = "2".into();
-        let mut context = recover_lock_context(&mut native);
+        // Recover 不回交来源池；以无来源缓存的请求上下文实际发起旧 token 发布。
+        let mut context = request_audit::RequestAuditContext::default();
         let error = native
             .conn
             .publish(&mut native.runtime, &old_begin, &second, &mut context)
