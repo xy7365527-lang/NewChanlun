@@ -2724,6 +2724,10 @@ mod u2_exit_adopt_tests {
         let foreign_rows = born(&foreign, vec![4u64]);
         let other = Budget::new(65536, 0).unwrap();
         let other_before = ledger(&other);
+        // scratch通道在他父账上开空WorkScope本身会抬峰值（工作域元数据，live即归还）；峰值上限取空scope实测。
+        let probe = Budget::fresh(65536).unwrap();
+        in_work(&probe, |_| Ok(())).unwrap();
+        let empty_scope_peak = probe.peak();
         assert!(other.require_codec_vec_owned(&foreign_rows).is_err());
         assert_eq!(ledger(&other), other_before);
     }
@@ -2909,7 +2913,9 @@ mod u2_exit_adopt_tests {
             let ptr = v.as_ptr();
             for n in [0, 1, 64] {
                 assert!(grow(&other, &mut v, n).is_err(), "{name}：他父账重签必须拒绝");
-                assert_eq!(ledger(&other), other_before, "{name}");
+                let now = ledger(&other);
+                assert_eq!((now.0, now.2, now.3), (other_before.0, other_before.2, other_before.3), "{name}");
+                assert!(now.1 <= other_before.1.max(empty_scope_peak), "{name}：峰值只许含空scope元数据");
                 assert_eq!(budget.live(), base + grown, "{name}");
                 assert_eq!((v.as_ptr(), v.native_retained_charge()), (ptr, Some(grown)));
             }
