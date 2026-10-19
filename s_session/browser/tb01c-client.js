@@ -764,7 +764,7 @@
         const versions = [...active.values()].filter(v => v.kind === "CC-056.segment_version" && v.payload.schema_revision === "s-segment/4");
         need(versions.length > 0 && versions.every(v => v.payload.data.waiting_reasons.includes(PARSE_INVALID_REASON)), "段端门失败未在段版本标阻断");
         const axes = fixed.catalog_evidence.axes || {};
-        need(["CC-011", "CC-012", "CC-013", "CC-014"].every(cid => !Object.hasOwn(axes, cid) || axes[cid].evidence.waiting_reasons.includes(PARSE_INVALID_REASON)), "段端门失败未在逐轴证据标阻断");
+        need(["CC-011", "CC-012", "CC-013", "CC-014"].every(cid => !Object.hasOwn(axes, cid) || axes[cid]?.evidence?.waiting_reasons?.includes(PARSE_INVALID_REASON) === true), "段端门失败未在逐轴证据标阻断");
       }
     }
     for (const record of [...state.snapshot.objects, ...state.snapshot.withdrawn_objects]) {
