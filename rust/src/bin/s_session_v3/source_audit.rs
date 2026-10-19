@@ -1651,13 +1651,12 @@ fn audit_generated_in_store(
                 return Err(err("typed obj3身份与来源/载荷原件不符"));
             }
             if tb02b::KINDS.contains(&kind.as_str()) {
+                let contract = tb02b::contract_for_rule(rule)
+                    .ok_or_else(|| err("新笔来源审计规则修订未声明"))?;
                 for (k, want) in [
-                    ("schema_revision", "s-new-bi/1"),
-                    (
-                        "semantic_version",
-                        newchan_rust::theta_v0::parser::stroke::RULE,
-                    ),
-                    ("policy_version", "standard_raw_gap_3"),
+                    ("schema_revision", contract.schema),
+                    ("semantic_version", contract.semantic),
+                    ("policy_version", contract.policy),
                     ("view_role", "main"),
                 ] {
                     if text(s, &payload, k)? != want {
@@ -1675,6 +1674,13 @@ fn audit_generated_in_store(
                     )?
                 {
                     return Err(err("新笔payload槽位与fact_key不同"));
+                }
+            }
+            if kind == CC054_KNOWLEDGE_KIND {
+                let contract = tb02b::contract_for_rule(rule)
+                    .ok_or_else(|| err("知识域来源审计规则修订未声明"))?;
+                if text(s, &payload, "domain")? != contract.knowledge_domain {
+                    return Err(err("TB-02-A 知识域与cut规则版本不符"));
                 }
             }
             if kind == CC005_GROUP_KIND {
@@ -1742,7 +1748,7 @@ fn audit_generated_in_store(
             .map_err(err)?;
     }
     // #1394 r3：先绑定已发布未定事实，再核组成员与 pending 的不交完备并集。
-    let pending = source_pending::audit(s, &objects, raw, &groups, deadline)?;
+    let pending = source_pending::audit(s, &objects, raw, &groups, rule, deadline)?;
     let mut partition = bj::new_map(allocation.as_ref());
     let ordered_groups = sorted_numeric_entries(s, &groups)?;
     for (expected, (index, group)) in ordered_groups.iter().enumerate() {
@@ -2137,6 +2143,137 @@ mod tests {
         let root = generated.generated_state.clone();
         (store, root, raw, rule)
     }
+
+    fn tb1405_pending_fixture(
+        rows: &[(&str, i64, i64, i64, i64, i64)],
+    ) -> (MemoryNodes, ContentRef, Vec<Value>, String) {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept_ohlc(&files, &located_ohlc_input(rows));
+        let c = open_db(&files.db()).unwrap();
+        let raw = read_raw_events(&c).unwrap();
+        let effective = read_effective_events(&raw).unwrap();
+        let get = |k| meta_get_opt(&c, k).unwrap().unwrap();
+        let profile_hash = get("profile_hash");
+        let rule = crate::V3_RULE_REVISION.to_string();
+        let catalog = get("catalog_revision");
+        let scope = serde_json::from_str(&get("scope")).unwrap();
+        let mut store = MemoryNodes::default();
+        let mut runtime =
+            GenerationRuntime::new("tb1405-pending".to_string(), tb02a::PROFILE, &rule);
+        let generated = runtime
+            .generate(
+                &mut store,
+                &GenerationInput {
+                    all_events: (&raw).into(),
+                    effective: (&effective).into(),
+                    generation: 1,
+                    structure_cut: "cut-1",
+                    input_frontier: raw.len() as i64 - 1,
+                    profile_id: tb02a::PROFILE,
+                    profile_hash: &profile_hash,
+                    rule_revision: &rule,
+                    catalog_revision: &catalog,
+                    scope: &scope,
+                    semantic_commit_ns: None,
+                    prior: PriorState {
+                        bi_records: vec![],
+                        version_record: None,
+                    },
+                },
+            )
+            .unwrap();
+        let state = generated.generated_state.clone();
+        (store, state, raw, rule)
+    }
+
+    const TB1405_EQUAL_STEP_ROWS: &[(&str, i64, i64, i64, i64, i64)] = &[
+        ("e0", 0, 0, 1, 0, 1),
+        ("e1", 1, 3, 10, 3, 10),
+        ("e2", 2, 5, 10, 5, 10),
+        ("e3", 3, 20, 30, 20, 30),
+    ];
+
+    fn tb1405_none_some_read_only(
+        s: &mut MemoryNodes,
+        state: &ContentRef,
+        raw: &[Value],
+        rule: &str,
+    ) -> Counts {
+        let before: Vec<_> = s.iter().map(|(d, t, b)| (*d, t, b.to_vec())).collect();
+        let none = audit_generated(s, state, raw, tb02a::PROFILE, rule).unwrap();
+        let meter = Meter::default();
+        let mut reader = super::super::history::HashReader::metered(s, None, None, Some(&meter));
+        let some = audit_generated_metered(
+            &mut reader,
+            state,
+            raw,
+            tb02a::PROFILE,
+            rule,
+            None,
+            Some(&meter),
+        )
+        .unwrap();
+        drop(reader);
+        assert_eq!(none, some);
+        let after: Vec<_> = s.iter().map(|(d, t, b)| (*d, t, b.to_vec())).collect();
+        assert_eq!(before, after, "来源审计不得改写任何原件节点");
+        none
+    }
+
+    #[test]
+    fn tb1405_equal_step_evidence_audits_in_none_and_some() {
+        let (mut s, state, raw, rule) = tb1405_pending_fixture(TB1405_EQUAL_STEP_ROWS);
+        let counts = tb1405_none_some_read_only(&mut s, &state, &raw, &rule);
+        assert_eq!((counts.groups, counts.windows, counts.effective), (3, 1, 4));
+        let mut bytes = Vec::new();
+        sc::render_canonical(&mut s, &state, &mut bytes).unwrap();
+        let value: Value = serde_json::from_slice(&bytes).unwrap();
+        let objects = value["objects"].as_array().unwrap();
+        let key = canonical_json(&json!([CC004_STEP_KIND, "2"]));
+        let step = objects.iter().find(|o| o["fact_key"] == key).unwrap();
+        let payload: Value = serde_json::from_str(step["payload_json"].as_str().unwrap()).unwrap();
+        assert_eq!(payload["action"], "merge");
+        assert!(!payload["direction_evidence"].is_null());
+        assert_eq!(
+            payload["waiting_reasons"],
+            json!(["equal_extreme_identity"])
+        );
+        let knowledge = objects
+            .iter()
+            .find(|o| o["kind"] == CC054_KNOWLEDGE_KIND)
+            .unwrap();
+        let payload: Value =
+            serde_json::from_str(knowledge["payload_json"].as_str().unwrap()).unwrap();
+        let request = payload["requests"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["request_id"] == key)
+            .unwrap();
+        assert_eq!(request["reasons"], json!([]));
+        assert_eq!(
+            request["axes"],
+            json!({"input_quality":"SUFFICIENT", "applicability":"IN_DOMAIN", "computation":"COMPLETE", "validity":"CURRENT"})
+        );
+    }
+
+    #[test]
+    fn tb1405_initial_unsettled_and_seed_fallback_still_audit() {
+        let initial = [
+            ("i0", 0, 0, 10, 0, 10),
+            ("i1", 1, 1, 9, 1, 9),
+            ("i2", 2, 20, 30, 20, 30),
+        ];
+        for rows in [&initial[..], &initial[..1]] {
+            let (mut s, state, raw, rule) = tb1405_pending_fixture(rows);
+            let counts = tb1405_none_some_read_only(&mut s, &state, &raw, &rule);
+            assert_eq!(counts.effective, rows.len());
+            assert_eq!(counts.groups, 1);
+            assert_eq!(counts.windows, 0);
+        }
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     fn ledger_event(identity: &str, coord: &str, revision: i64, seq: i64) -> Value {
         json!({"identity_key": identity, "source_coord": coord, "revision": revision,
@@ -3589,6 +3726,133 @@ mod tests {
             "CC006 obj3与同cut组事实身份不符",
         );
     }
+    #[test]
+    fn reidentified_legacy_bi_header_and_knowledge_domain_are_rejected_in_v2() {
+        for (kind, key, replacement, reason) in [
+            (
+                "CC-008.endpoint",
+                "schema_revision",
+                "s-new-bi/1",
+                "新笔载荷语义头不同",
+            ),
+            (
+                CC054_KNOWLEDGE_KIND,
+                "domain",
+                "established_direction_without_extreme_identity_competition",
+                "TB-02-A 知识域与cut规则版本不符",
+            ),
+        ] {
+            let (mut s, state, raw, rule) = fixture();
+            let objects_root = field(&mut s, &state, "objects").unwrap();
+            let objects = elements(&mut s, &objects_root).unwrap();
+            let index = objects
+                .iter()
+                .position(|object| text(&mut s, object, "kind").unwrap() == kind)
+                .unwrap();
+            let payload = field(&mut s, &objects[index], "payload_json").unwrap();
+            let payload =
+                sc::path::lookup_path_refview(&mut s, payload.view(), &[PathStep::JsonText])
+                    .unwrap();
+            let mut bytes = Vec::new();
+            sc::render_canonical(&mut s, &payload, &mut bytes).unwrap();
+            let mut value: Value = newchan_rust::session_protocol::strict_json(&bytes).unwrap();
+            value[key] = json!(replacement);
+            let changed_payload = sc::write_value(&mut s, &cv(&value).unwrap())
+                .unwrap()
+                .content_ref();
+            let refs = field(&mut s, &objects[index], "input_refs_json").unwrap();
+            let refs =
+                sc::path::lookup_path_refview(&mut s, refs.view(), &[PathStep::JsonText]).unwrap();
+            let fact_key = text(&mut s, &objects[index], "fact_key").unwrap();
+            let id = Cc004Producer::new(tb02a::PROFILE, &rule)
+                .typed_object_id(
+                    kind,
+                    &fact_key,
+                    &built(&changed_payload).unwrap(),
+                    &built(&refs).unwrap(),
+                )
+                .unwrap();
+            let payload_json = json_text_edge(&mut s, &changed_payload);
+            let changed = replace_field(
+                &mut s,
+                &objects[index],
+                TYPED,
+                "payload_json",
+                V::Edge(digest(&payload_json).unwrap()),
+            );
+            let changed = replace_field(&mut s, &changed, TYPED, "object_id", V::String(id));
+            let forged = replace_member(&mut s, &state, "objects", index, changed);
+            assert_rejected_in_both_modes(&mut s, &forged, &raw, &rule, reason);
+        }
+    }
+
+    #[test]
+    fn tb1405_reidentified_equal_step_request_regressions_are_rejected() {
+        for (axis, wrong) in [
+            ("reasons", "equal_extreme_identity"),
+            ("input_quality", "INSUFFICIENT"),
+            ("applicability", "DOMAIN_PROOF_MISSING"),
+            ("computation", "INCOMPLETE"),
+            ("validity", "STALE"),
+        ] {
+            let (mut s, state, raw, rule) = tb1405_pending_fixture(TB1405_EQUAL_STEP_ROWS);
+            let objects_root = field(&mut s, &state, "objects").unwrap();
+            let objects = elements(&mut s, &objects_root).unwrap();
+            let index = objects
+                .iter()
+                .position(|object| text(&mut s, object, "kind").unwrap() == CC054_KNOWLEDGE_KIND)
+                .unwrap();
+            let payload = field(&mut s, &objects[index], "payload_json").unwrap();
+            let payload =
+                sc::path::lookup_path_refview(&mut s, payload.view(), &[PathStep::JsonText])
+                    .unwrap();
+            let mut bytes = Vec::new();
+            sc::render_canonical(&mut s, &payload, &mut bytes).unwrap();
+            let mut value: Value = serde_json::from_slice(&bytes).unwrap();
+            let key = canonical_json(&json!([CC004_STEP_KIND, "2"]));
+            let request = value["requests"]
+                .as_array_mut()
+                .unwrap()
+                .iter_mut()
+                .find(|request| request["request_id"] == key)
+                .unwrap();
+            let expected_error = if axis == "reasons" {
+                request["reasons"] = json!([wrong]);
+                "CC004知识请求未绑定版本化等待reasons"
+            } else {
+                request["axes"][axis] = json!(wrong);
+                "CC004知识请求四轴不同"
+            };
+            let changed_payload = sc::write_value(&mut s, &cv(&value).unwrap())
+                .unwrap()
+                .content_ref();
+            let refs = field(&mut s, &objects[index], "input_refs_json").unwrap();
+            let refs =
+                sc::path::lookup_path_refview(&mut s, refs.view(), &[PathStep::JsonText]).unwrap();
+            let fact_key = text(&mut s, &objects[index], "fact_key").unwrap();
+            let id = Cc004Producer::new(tb02a::PROFILE, &rule)
+                .typed_object_id(
+                    CC054_KNOWLEDGE_KIND,
+                    &fact_key,
+                    &built(&changed_payload).unwrap(),
+                    &built(&refs).unwrap(),
+                )
+                .unwrap();
+            let payload_json = json_text_edge(&mut s, &changed_payload);
+            let changed = replace_field(
+                &mut s,
+                &objects[index],
+                TYPED,
+                "payload_json",
+                V::Edge(digest(&payload_json).unwrap()),
+            );
+            let changed = replace_field(&mut s, &changed, TYPED, "object_id", V::String(id));
+            let forged = replace_member(&mut s, &state, "objects", index, changed);
+            // Merkle与六字段身份均合法，必须由版本化请求/四轴语义拒绝。
+            assert_rejected_in_both_modes(&mut s, &forged, &raw, &rule, expected_error);
+        }
+    }
+
     #[test]
     fn real_ohlc_objects_and_witnesses_bind_to_sources_without_reclassification() {
         let (mut s, state, raw, rule) = fixture();

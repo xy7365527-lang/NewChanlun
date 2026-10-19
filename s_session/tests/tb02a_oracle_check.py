@@ -391,6 +391,41 @@ def check_waiting(snapshot: dict, expected: dict, audit: Audit) -> None:
     audit.require(any(row["reason"] == reason for row in snapshot["observations"]), "等待须有同源观察")
 
 
+def check_root_set(snapshot: dict, expected: dict, audit: Audit) -> None:
+    """#1405（#1343 Q2/Q4）：组内多根同极值是完成的根集合身份，不是等待。"""
+    index = expected["waiting_raw_index"]
+    steps = [obj for obj in snapshot["objects"] if obj["kind"] == KINDS[0]
+             and obj["payload"]["incoming"]["source_coord"] == str(index)]
+    audit.equal(len(steps), 1, "根集合例完整步骤")
+    step = steps[0]["payload"]
+    audit.equal(step["action"], "merge", "根集合例是完成的数值折叠")
+    audit.equal(step["direction"], expected["direction"], "根集合例方向")
+    audit.equal(step["contains"], True, "根集合例包含事实")
+    audit.equal([step["acc_after"]["low"], step["acc_after"]["high"]], list(map(str, expected["candidate_value_only"])), "折叠数值")
+    audit.equal(step["high_sources"], list(map(str, expected["candidate_high_raw_indices"])), "高点根集合原样即身份")
+    audit.equal(step["low_sources"], list(map(str, expected["candidate_low_raw_indices"])), "低点根集合原样即身份")
+    audit.require(expected["evidence_label"] in step["waiting_reasons"], "同价标签留作证据")
+    anchor = str(expected["source_pair_anchor_raw_indices"][1])
+    groups = [obj for obj in snapshot["objects"] if obj["kind"] == KINDS[1] and obj["payload"]["group_anchor"] == anchor]
+    audit.equal(len(groups), 1, "根集合例具名组")
+    audit.equal(groups[0]["payload"]["high_sources"], list(map(str, expected["candidate_high_raw_indices"])), "组高点根集合")
+    audit.equal(groups[0]["payload"]["low_sources"], list(map(str, expected["candidate_low_raw_indices"])), "组低点根集合")
+    knowledge = [obj["payload"] for obj in snapshot["objects"] if obj["kind"] == KINDS[4]]
+    audit.equal(len(knowledge), 1, "根集合例知识状态唯一")
+    audit.equal(knowledge[0]["domain"], expected["knowledge_domain"], "知识域按 #1343 升级")
+    audit.require(expected["knowledge_must_not_wait"] not in knowledge[0]["waiting_reasons"], "同价不得作知识缺口")
+    requests = {row["request_id"]: row for row in knowledge[0]["requests"]}
+    for kind, obj in (("CC-004.inclusion_step", steps[0]), ("CC-005.inclusion_group", groups[0])):
+        slot = canonical([kind, str(index) if kind == "CC-004.inclusion_step" else anchor]).decode()
+        audit.require(slot in requests, "根集合例具名请求/" + kind)
+        row = requests[slot]
+        audit.equal(row["subject_id"], obj["object_id"], "请求绑定同 cut 对象/" + kind)
+        audit.equal(row["reasons"], [], "根集合例请求无未定理由/" + kind)
+        audit.equal(row["axes"]["computation"], "COMPLETE", "根集合例计算轴/" + kind)
+        audit.equal(row["axes"]["applicability"], "IN_DOMAIN", "根集合例适用域轴/" + kind)
+    audit.require(not any(row["reason"] == expected["knowledge_must_not_wait"] for row in snapshot["observations"]), "同价不得作等待观察")
+
+
 def check_revision(public: dict, count: int, audit: Audit) -> None:
     before = public["known-" + str(count - 2)]
     after = public["known-" + str(count - 1)]
@@ -693,10 +728,14 @@ def check_case(run: dict, oracle: dict, ledger: dict, public: dict, audit: Audit
     snapshot = public["known-" + str(count - 1)]
     success = {row["case_id"]: row for row in oracle["success_cases"]}
     waiting = {row["case_id"]: row for row in oracle["waiting_cases"]}
+    root_set = {row["case_id"]: row for row in oracle["root_set_cases"]}
     bars = {row["case_id"]: row["raw_bars"] for row in ledger["cases"]}
     name = run["expected_case"]
     if name in waiting:
         check_waiting(snapshot, waiting[name], audit)
+        return
+    if name in root_set:
+        check_root_set(snapshot, root_set[name], audit)
         return
     expected = success[name]
     check_groups(snapshot, expected, audit, bars[name])

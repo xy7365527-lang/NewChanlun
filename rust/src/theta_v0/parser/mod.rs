@@ -165,7 +165,7 @@ pub fn parse_layer(bars: &[Bar], config: &ThetaConfig) -> ParseLayer {
 /// 增量血缘，不发出复用许可。
 ///
 /// ⚠`positions` 必须显式取自状态：`build_stroke_facts`（空 steps 版）的 `positions_of_steps`
-/// 会丢 raw 序位（结果为空映射），使 `raw_position`/raw 间隔判据失真，故本处只能走
+/// 会丢 raw 序位（结果为空映射），使 `raw_first`/`raw_last`（极值区 raw 间隔，#1343）失真，故本处只能走
 /// [`stroke::build_stroke_facts_with_positions`]。
 fn parse_layer_from_inclusion_state(
     state: &inclusion::IncrFactsState,
@@ -728,12 +728,8 @@ mod tests {
                     .any(|g| g.high_sources.len() > 1 || g.low_sources.len() > 1);
                 let stroke_facts = facts.stroke_facts.as_ref().expect("同次生产新笔");
                 for e in &stroke_facts.endpoints {
-                    if let (Some(position), Some(root)) =
-                        (e.raw_position, e.extreme_roots.first().copied())
-                    {
-                        // 非连续 source coords：极值根坐标 ≠ raw 序位（坐标相减必错）。
-                        saw_sparse_positions |= root != position;
-                    }
+                    // 非连续 source coords：极值根坐标 ≠ raw 序位（坐标相减必错）。
+                    saw_sparse_positions |= e.extreme_roots.first() != Some(&e.raw_first);
                 }
                 for bi in &stroke_facts.strokes {
                     if bi.confirmation.is_some() {
@@ -749,7 +745,7 @@ mod tests {
         assert!(saw_unsettled, "夹具未覆盖初始包含未定");
         assert!(saw_long_group, "夹具未覆盖长包含（组内 ≥8 根）");
         assert!(saw_sparse_positions, "夹具未覆盖非连续 source coords");
-        assert!(saw_tie, "夹具未覆盖同价极值 waiting");
+        assert!(saw_tie, "夹具未覆盖同价极值根集（#1343 极值区）");
         assert!(saw_confirmation_recompute, "夹具未覆盖形成后封口确认重算");
     }
 }
