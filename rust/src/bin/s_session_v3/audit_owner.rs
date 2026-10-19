@@ -3350,9 +3350,13 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                 }
                 let pool = keeper.take().expect("封存池存活");
                 parent.census_arm();
+                let freed0 = allocation_probe::released_bytes();
                 drop(pool);
+                eprintln!("UO25_FREED0 {freed0}");
                 let released = parent.census_take();
-                eprintln!("UO25_CENSUS_DROP {}", json!({"request":request,"admitted":admitted,"released":released}));
+                let deltas = released.windows(2).map(|w| w[1].freed - w[0].freed).collect::<Vec<_>>();
+                let first = released.first().map(|e| e.freed);
+                eprintln!("UO25_CENSUS_DROP {}", json!({"request":request,"admitted":admitted,"released":released.iter().map(|e|(e.kind,e.bytes)).collect::<Vec<_>>(),"deltas":deltas,"first_freed":first}));
                 let sealed = after_seal
                     .checked_sub(parent.live())
                     .expect("封存池析构不得让父账增长");

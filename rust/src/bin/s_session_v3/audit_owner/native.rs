@@ -341,7 +341,12 @@ pub(crate) struct CensusEvent {
     pub(crate) reserve: bool,
     pub(crate) kind: &'static str,
     pub(crate) bytes: usize,
+    // 记录时本线程累计真实释放字节（allocation_probe）；相邻两次归还之差即其间析构的对象。
+    pub(crate) freed: u64,
 }
+/// 普查容量预留，记账不得引发分配/realloc而污染freed读数；超额即判普查失效。
+#[cfg(test)]
+const CENSUS_CAPACITY: usize = 1 << 20;
 #[cfg(test)]
 fn census_kind(kind: Option<ScratchCharge>) -> &'static str {
     match kind {
@@ -636,7 +641,7 @@ impl Budget {
     /// #1488 P2-4：布防逐许可普查；已布防时清空重来。
     #[cfg(test)]
     pub(crate) fn census_arm(&self) {
-        *self.0.census.lock().unwrap() = Some(Vec::new());
+        *self.0.census.lock().unwrap() = Some(Vec::with_capacity(CENSUS_CAPACITY));
     }
     /// #1488 P2-4：取出并撤防；未布防返回空。
     #[cfg(test)]
@@ -1424,10 +1429,12 @@ impl Ledger {
         }
         if let Ok(mut census) = self.census.lock() {
             if let Some(events) = census.as_mut() {
+                assert!(events.len() < CENSUS_CAPACITY, "许可普查容量耗尽");
                 events.push(CensusEvent {
                     reserve,
                     kind: census_kind(kind),
                     bytes,
+                    freed: super::allocation_probe::released_bytes(),
                 });
             }
         }
