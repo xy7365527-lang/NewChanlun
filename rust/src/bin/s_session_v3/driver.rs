@@ -1014,6 +1014,300 @@ mod tests {
         );
     }
 
+    // ---- #1488 受控同owner Recover迁移锁（0031）----
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn recover_lock_context(d: &mut Driver) -> request_audit::RequestAuditContext {
+        let mut context = request_audit::RequestAuditContext::default();
+        let total = d.audit_cache_source_bytes.unwrap();
+        let legacy = crate::cache::retained_bytes();
+        let keeper_cap = total.checked_sub(legacy).unwrap();
+        let mut keeper = d.conn.take_source_keeper().expect("成功链保留原来源池");
+        let partition = d.conn.old_pool_partition(Some(&keeper)).unwrap();
+        context
+            .freeze_manifest_workspace_partition(total, legacy, partition)
+            .unwrap();
+        keeper.set_retention_cap(keeper_cap);
+        context.attach_source_keeper(keeper);
+        context
+    }
+    /// 同 test 01 前段：Commit12 → Accept20 → ready → Begin21 → ready；停在 Recover 之前。
+    /// owner 此时持有已提交构造资格与同快照完整原件，持久 writer_epoch=1、begin_token 非空。
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn recover_lock_driver(f: &Fixture) -> (Driver, Value, Value) {
+        let mut native = complete_driver(f);
+        native.handle(Fixture::ingest(1)).unwrap();
+        let ready = envelope("ready-recover-lock", json!({"op":"ready"}));
+        native.handle(ready.clone()).unwrap();
+        let second = Fixture::ingest(2);
+        let mut context = recover_lock_context(&mut native);
+        let (admitted, ended) = native
+            .conn
+            .admit(
+                second.clone(),
+                &native.epoch,
+                &native.clock,
+                &native.profile_id,
+                native.volume_unit.as_deref(),
+                &native.mode,
+                &mut context,
+            )
+            .unwrap();
+        assert!(matches!(
+            admitted,
+            super::super::audit_owner::Admission::Advance { accepted: true, .. }
+        ));
+        native.conn.finish_source_keeper(context, ended);
+        native.handle(ready.clone()).unwrap();
+        let mut context = recover_lock_context(&mut native);
+        drop(
+            native
+                .conn
+                .begin_advance(&second, &native.epoch, &native.clock, &native.mode, &mut context)
+                .unwrap(),
+        );
+        let (_, ended) = native
+            .conn
+            .admit(
+                ready.clone(),
+                &native.epoch,
+                &native.clock,
+                &native.profile_id,
+                native.volume_unit.as_deref(),
+                &native.mode,
+                &mut context,
+            )
+            .unwrap();
+        native.conn.finish_source_keeper(context, ended);
+        let probe = native.conn.recover_probe_for_test();
+        assert!(!probe.stale && !probe.retired);
+        let q = probe.qualification.expect("Recover前owner持有已提交构造资格");
+        assert!(q.has_fee && q.writer_epoch.is_none());
+        assert!(native.conn.complete_retained_bytes() > 0);
+        assert_eq!(recover_lock_meta(f, "writer_epoch").as_deref(), Some("1"));
+        assert_ne!(recover_lock_meta(f, "begin_token").as_deref(), Some(""));
+        (native, second, ready)
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn recover_lock_meta(f: &Fixture, key: &str) -> Option<String> {
+        use rusqlite::OptionalExtension;
+        Connection::open(&f.db)
+            .unwrap()
+            .query_row("SELECT value FROM meta WHERE key=?1", [key], |r| r.get(0))
+            .optional()
+            .unwrap()
+    }
+    /// 失败的 Recover 不得晋升：租约撤销、资格不在 owner、持久 epoch 不动。
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn assert_recover_revoked(native: &Driver, f: &Fixture, serial_before: u64, epoch: &str) {
+        let probe = native.conn.recover_probe_for_test();
+        assert!(probe.stale, "失败后租约必须撤销：{probe:?}");
+        assert!(probe.serial > serial_before, "撤销须推进租约序号：{probe:?}");
+        assert!(probe.qualification.is_none(), "失败后不得留资格：{probe:?}");
+        assert_eq!(recover_lock_meta(f, "writer_epoch").as_deref(), Some(epoch));
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn recover_lock_same_owner_promotes_and_voids_old_epoch_token_and_lease() {
+        let f = Fixture::with_clock(
+            json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"s3-driver","origin_utc":"2026-09-18T00:00:00Z","unit":"ns","events":{
+            "input-1":{"accept_ns":"10","attempts":[{"begin_ns":"11","commit_ns":"12"},{"begin_ns":"14","commit_ns":"15"}]},
+            "input-2":{"accept_ns":"20","attempts":[{"begin_ns":"21","commit_ns":"22"},{"begin_ns":"24","commit_ns":"25"}]},
+            "input-3":{"accept_ns":"30","attempts":[{"begin_ns":"31","commit_ns":"32"},{"begin_ns":"34","commit_ns":"35"}]},
+            "recover-1":{"recover_ns":"13"},"recover-2":{"recover_ns":"23"},"recover-3":{"recover_ns":"26"}}}),
+        );
+        let (mut native, second, _) = recover_lock_driver(&f);
+        let before = native.conn.recover_probe_for_test();
+        let old = before.qualification.unwrap();
+        let reply = native.conn.recover("2", &native.clock, "recover-2").unwrap();
+        assert!(!reply["recovered_begin"].is_null());
+        let after = native.conn.recover_probe_for_test();
+        assert!(!after.stale && !after.retired, "{after:?}");
+        // 旧租约：真实 COMMIT 后 close 推进序号，旧 raw token 绑定的 serial 不再匹配。
+        assert!(after.serial > before.serial, "{before:?} → {after:?}");
+        let promoted = after.qualification.expect("Recover成功后晋升新资格");
+        assert_eq!(promoted.writer_epoch, Some(2));
+        assert_eq!(promoted.binding, old.binding);
+        assert!(promoted.has_fee);
+        // 旧 Begin token 随持久换代清空。
+        assert_eq!(recover_lock_meta(&f, "writer_epoch").as_deref(), Some("2"));
+        assert_eq!(recover_lock_meta(&f, "begin_token").as_deref(), Some(""));
+        assert_eq!(recover_lock_meta(&f, "advance_state").as_deref(), Some("idle"));
+        // 资格戳=持久 epoch，下一次 Recover 从该戳出发仍可迁移。
+        native.conn.recover("3", &native.clock, "recover-3").unwrap();
+        let chained = native.conn.recover_probe_for_test();
+        assert!(chained.serial > after.serial);
+        assert_eq!(chained.qualification.unwrap().writer_epoch, Some(3));
+        // 旧 epoch 请求被拒，且不保留任何资格。
+        native.epoch = "2".into();
+        let mut context = recover_lock_context(&mut native);
+        let error = native
+            .advance(&second, &mut context)
+            .err()
+            .expect("旧epoch推进必须被拒");
+        assert!(error.contains("StaleWriter"), "{error}");
+        drop(context);
+        assert_recover_revoked(&native, &f, chained.serial, "3");
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn recover_lock_rejects_non_increasing_epoch() {
+        use super::super::construction_state::RecoverHandoff;
+        assert!(RecoverHandoff::new(2, 2).is_err());
+        assert!(RecoverHandoff::new(2, 1).is_err());
+        assert!(RecoverHandoff::new(1, 2).is_ok());
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        let error = native
+            .conn
+            .recover("1", &native.clock, "recover-2")
+            .unwrap_err();
+        assert!(error.contains("StaleWriter"), "{error}");
+        assert_recover_revoked(&native, &f, serial, "1");
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn recover_lock_rejects_unclosed_recover_effects() {
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        // Recover 不声明 s_input_messages 写；精确 effects 必须拒绝而非晋升。
+        native.conn.set_recover_after_write_for_test(|tx| {
+            tx.execute(
+                "UPDATE s_input_messages SET status=status WHERE rowid=(SELECT min(rowid) FROM s_input_messages)",
+                [],
+            )
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+        });
+        assert!(native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .is_err());
+        assert_recover_revoked(&native, &f, serial, "1");
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn recover_lock_commit_failure_and_rollback_never_promote() {
+        // 写后回滚：Recover 写已落事务、effects 闭合前出错。
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        native
+            .conn
+            .set_recover_after_write_for_test(|_| Err("测试注入Recover写后回滚".into()));
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert!(error.contains("测试注入Recover写后回滚"), "{error}");
+        assert_recover_revoked(&native, &f, serial, "1");
+        // 真实 SQLite COMMIT 失败：effects 已闭合、epoch 已确认，仍不得晋升。
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        native.conn.commit_hook(Some(|| true)).unwrap();
+        assert!(native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .is_err());
+        native.conn.commit_hook(None::<fn() -> bool>).unwrap();
+        assert_recover_revoked(&native, &f, serial, "1");
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn recover_lock_external_write_and_read_domain_change_still_revoke() {
+        // Recover 前外写：不得以旧资格迁移。
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        Connection::open(&f.db)
+            .unwrap()
+            .execute("UPDATE meta SET value=value WHERE key='generation'", [])
+            .unwrap();
+        assert!(native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .is_err());
+        assert_recover_revoked(&native, &f, serial, "1");
+        // Recover 前读域变化（连接级 PRAGMA）：同样撤销。
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        let recursive: i64 = native
+            .conn
+            .query_row("PRAGMA recursive_triggers", [], |r| r.get(0))
+            .unwrap();
+        native
+            .conn
+            .execute_batch(&format!("PRAGMA recursive_triggers={}", 1 - recursive))
+            .unwrap();
+        assert!(native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .is_err());
+        assert_recover_revoked(&native, &f, serial, "1");
+        // 迁移成功后的外写：新资格同样被撤销，不因 Recover 晋升而豁免。
+        let f = Fixture::new();
+        let (mut native, _, ready) = recover_lock_driver(&f);
+        native.conn.recover("2", &native.clock, "recover-2").unwrap();
+        let promoted = native.conn.recover_probe_for_test();
+        assert_eq!(promoted.qualification.unwrap().writer_epoch, Some(2));
+        Connection::open(&f.db)
+            .unwrap()
+            .execute("UPDATE meta SET value=value WHERE key='generation'", [])
+            .unwrap();
+        native.epoch = "2".into();
+        let _ = native.handle(ready);
+        let probe = native.conn.recover_probe_for_test();
+        assert!(probe.stale && probe.serial > promoted.serial, "{probe:?}");
+        assert!(probe.qualification.is_none(), "{probe:?}");
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn recover_lock_handoff_failure_revokes() {
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        native.conn.inject_recover_handoff_failure_for_test();
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert!(error.contains("测试注入Recover交接失败"), "{error}");
+        assert_recover_revoked(&native, &f, serial, "1");
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn recover_lock_budget_live_and_peak_continue_across_recover() {
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let old = native.conn.recover_probe_for_test().qualification.unwrap();
+        let (mark, live, peak) = native.conn.complete_ledger_for_test().unwrap();
+        assert!(live > 0 && peak >= live);
+        native.conn.recover("2", &native.clock, "recover-2").unwrap();
+        // 同一父账（不换空账），live 不被抹零、peak 不回落，状态块许可随资格 move。
+        assert!(native.conn.complete_on_ledger_for_test(&mark), "Recover后换了父账");
+        let (_, live_after, peak_after) = native.conn.complete_ledger_for_test().unwrap();
+        assert!(live_after >= live, "live被抹：{live} → {live_after}");
+        assert!(peak_after >= peak, "peak被抹：{peak} → {peak_after}");
+        assert_eq!(mark.current(), Some(live_after));
+        let promoted = native.conn.recover_probe_for_test().qualification.unwrap();
+        assert!(promoted.has_fee);
+        assert_eq!(promoted.retained, old.retained);
+        eprintln!(
+            "{}",
+            json!({"scenario":"recover-budget-continuity","live":[live,live_after],"peak":[peak,peak_after],"retained":promoted.retained})
+        );
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn audit_owner_complete_optional_budget_releases_without_changing_reply() {

@@ -1341,6 +1341,50 @@ impl AuditConnection {
         }
         partition
     }
+    /// #1488 受控 Recover 迁移锁：owner 租约与已提交资格的只读观测。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn recover_probe_for_test(&self) -> RecoverProbe {
+        RecoverProbe {
+            stale: self.construction_lease.stale.get(),
+            serial: self.construction_lease.serial.get(),
+            retired: self.retired.get(),
+            qualification: self.construction.borrow().as_ref().map(|c| RecoverQualification {
+                writer_epoch: c.writer_epoch(),
+                has_fee: c.has_fee(),
+                binding: c.binding(),
+                retained: c.retained_bytes(),
+            }),
+        }
+    }
+    /// 完整候选所在父账的弱读数（不延长父账寿命）及其 live/peak。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn complete_ledger_for_test(&self) -> Option<(native::LedgerMark, usize, usize)> {
+        self.complete.borrow().as_ref().map(|c| {
+            (
+                c.resources.quiescent_mark(),
+                c.resources.live(),
+                c.resources.peak(),
+            )
+        })
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn complete_on_ledger_for_test(&self, mark: &native::LedgerMark) -> bool {
+        self.complete
+            .borrow()
+            .as_ref()
+            .is_some_and(|c| mark.live_for(&c.resources).is_some())
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn inject_recover_handoff_failure_for_test(&self) {
+        RECOVER_HANDOFF_FAILURE.with(|flag| flag.set(true));
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn set_recover_after_write_for_test(
+        &self,
+        hook: fn(&Transaction<'_>) -> Result<(), String>,
+    ) {
+        RECOVER_AFTER_WRITE.with(|slot| slot.set(Some(hook)));
+    }
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn complete_report(&self) -> Value {
         self.complete.borrow().as_ref().map_or(Value::Null, |c| json!({
@@ -1839,6 +1883,23 @@ impl AuditTxn<'_> {
         }
         Ok(out)
     }
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct RecoverProbe {
+    pub(super) stale: bool,
+    pub(super) serial: u64,
+    pub(super) retired: bool,
+    pub(super) qualification: Option<RecoverQualification>,
+}
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct RecoverQualification {
+    pub(super) writer_epoch: Option<i64>,
+    pub(super) has_fee: bool,
+    pub(super) binding: RawAdvanceBinding,
+    pub(super) retained: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2745,16 +2806,18 @@ impl AuditTxn<'_> {
         if let FixedOperation::Recover(handoff) = operation {
             if self.construction.borrow().is_none() && self.owner.construction.borrow().is_some()
             {
-                #[cfg(test)]
-                if RECOVER_HANDOFF_FAILURE.with(|flag| flag.replace(false)) {
-                    return Err(construction_state::stale("测试注入Recover交接失败"));
-                }
                 let complete = self.complete.borrow();
                 let seal = self.construction_seal()?;
                 let Some(candidate) = complete.as_ref().filter(|c| c.seal == seal) else {
                     return Err(construction_state::stale("Recover迁移缺同快照完整原件"));
                 };
                 let previous = self.owner.construction.borrow_mut().take();
+                // 负控注入：原资格已离开 owner、尚未成为事务构造时交接失败。
+                #[cfg(test)]
+                if RECOVER_HANDOFF_FAILURE.with(|flag| flag.replace(false)) {
+                    drop(previous);
+                    return Err(construction_state::stale("测试注入Recover交接失败"));
+                }
                 let pending = construction_state::PendingRawState::recover(
                     previous,
                     seal,

@@ -58,3 +58,11 @@ v3::driver::tests::p3_d_cold_root_residue_after_clear_handles_is_rejected
 v3::audit_owner::p1_alpha_stray_on_keeper_ledger_survives_discard_retry_and_is_rejected
 v3::cross_request_source_cache::tests::p3b_seal_rejects_missing_source_claim_on_charged_body
 v3::audit_owner::native::u2_exit_adopt_tests::p3g_codec_vec_grow_and_scratch_never_double_reserve_same_allocation
+# #1488 受控同owner Recover迁移（0031）
+v3::driver::tests::recover_lock_same_owner_promotes_and_voids_old_epoch_token_and_lease
+v3::driver::tests::recover_lock_rejects_non_increasing_epoch
+v3::driver::tests::recover_lock_rejects_unclosed_recover_effects
+v3::driver::tests::recover_lock_commit_failure_and_rollback_never_promote
+v3::driver::tests::recover_lock_external_write_and_read_domain_change_still_revoke
+v3::driver::tests::recover_lock_handoff_failure_revokes
+v3::driver::tests::recover_lock_budget_live_and_peak_continue_across_recover
