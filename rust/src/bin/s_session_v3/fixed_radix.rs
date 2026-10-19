@@ -758,7 +758,11 @@ mod tests {
             assert_eq!(entries(&tree), old);
             assert_eq!(
                 parent.peak.load(Ordering::SeqCst),
-                if offset == 1 { leaf + scope_metadata } else { 2 * leaf + scope_metadata },
+                if offset == 1 {
+                    leaf + scope_metadata
+                } else {
+                    2 * leaf + scope_metadata
+                },
                 "staged leaf stays charged until rejected branch preparation unwinds"
             );
             assert_eq!(parent.live.load(Ordering::SeqCst), leaf);
@@ -774,7 +778,7 @@ mod tests {
         run(&parent, |a| tree.insert_admitted(7, 2, a)).unwrap();
         assert_eq!(
             parent.peak.load(Ordering::SeqCst),
-            2 * leaf + branch,
+            2 * leaf + branch + scope_metadata,
             "old leaf plus both prepared blocks are simultaneously charged"
         );
         assert_eq!(parent.live.load(Ordering::SeqCst), 2 * leaf + branch);
