@@ -820,17 +820,25 @@ pub(super) fn publication_put(
     tag: u8,
     body: &[u8],
     work: Option<&WorkScope>,
+    #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<
+        &super::staged_nodes::StageOwner<'_>,
+    >,
 ) -> Result<PublicationPutEffect, CodecError> {
     let mut before_write = None;
     TxStore {
         tx,
         work,
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
-        stage: None,
+        stage,
     }
     .put_before_write(digest, tag, body, || {
         before_write = Some(tx.total_changes())
     })?;
+    // staged：SQL 缺该节点时 put 只进暂存、不碰 SQL，基底原件不变；可达闭包由 Commit 的 Final cut 落盘。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    if stage.is_some() && before_write.is_some() {
+        return Ok(PublicationPutEffect::Noop);
+    }
     Ok(match before_write {
         None => PublicationPutEffect::Noop,
         Some(before)

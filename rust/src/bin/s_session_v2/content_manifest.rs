@@ -657,6 +657,42 @@ impl PreparedManifestWorkspace {
         manifest: &UnpublishedManifest,
         work: Option<&s_content::capture_allocation::scratch::WorkScope>,
     ) -> Result<super::content_publication::ResolvedTemplates, String> {
+        self.resolve_in_publication_inner(
+            tx,
+            token,
+            metadata,
+            roots,
+            manifest,
+            work,
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            None,
+        )
+    }
+    /// staged 臂：本租约新写节点只进暂存，由 Commit 的 Final cut 仅落可达闭包；
+    /// 原件重绑仍只读真实 SQL，暂存层不冒充素材。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(crate) fn resolve_in_publication_staged(
+        self,
+        tx: &mut rusqlite::Transaction<'_>,
+        token: &str,
+        metadata: &ManifestMetadata,
+        roots: &(impl ManifestRootSource + ?Sized),
+        manifest: &UnpublishedManifest,
+        work: Option<&s_content::capture_allocation::scratch::WorkScope>,
+        stage: &super::staged_nodes::StageOwner<'_>,
+    ) -> Result<super::content_publication::ResolvedTemplates, String> {
+        self.resolve_in_publication_inner(tx, token, metadata, roots, manifest, work, Some(stage))
+    }
+    fn resolve_in_publication_inner(
+        self,
+        tx: &mut rusqlite::Transaction<'_>,
+        token: &str,
+        metadata: &ManifestMetadata,
+        roots: &(impl ManifestRootSource + ?Sized),
+        manifest: &UnpublishedManifest,
+        work: Option<&s_content::capture_allocation::scratch::WorkScope>,
+        #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<&super::staged_nodes::StageOwner<'_>>,
+    ) -> Result<super::content_publication::ResolvedTemplates, String> {
         // No qualified originals exist across these actual Begin/scope/frontier SELECTs.
         // The issuer itself performs them; callers cannot substitute a scope/frontier token.
         super::content_publication::verify_current_begin_admitted(
@@ -669,7 +705,16 @@ impl PreparedManifestWorkspace {
             super::content_publication::current_publication_frontier_admitted(tx, work)?;
         NativePublicationLease::new(tx)
             .map_err(|e| format!("PublicationInvalid：{e}"))?
-            .resolve(self, metadata, roots, manifest, previous_frontier, work)
+            .resolve(
+                self,
+                metadata,
+                roots,
+                manifest,
+                previous_frontier,
+                work,
+                #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                stage,
+            )
     }
 }
 
@@ -695,12 +740,17 @@ impl<'lease, 'conn> NativePublicationLease<'lease, 'conn> {
         manifest: &UnpublishedManifest,
         previous_frontier: i64,
         work: Option<&s_content::capture_allocation::scratch::WorkScope>,
+        #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<&super::staged_nodes::StageOwner<'_>>,
     ) -> Result<super::content_publication::ResolvedTemplates, String> {
         let budget = workspace.budget;
         let source_cost = workspace.source_cost;
         let before = manifest_workspace_stats();
         let tx = &*self.tx;
         let mut store = PublicationMaterialStore::new(tx, self.insert_can_preserve).with_work(work);
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        {
+            store.stage = stage;
+        }
         let mut issued_owner = false;
         let mut bound_originals = 0usize;
         let mut owner_body_capacity = 0usize;
@@ -802,6 +852,12 @@ struct PublicationMaterialStore<'a, 'conn> {
     poisoned: bool,
     work: Option<&'a s_content::capture_allocation::scratch::WorkScope>,
     tree_permit: Option<s_content::capture_allocation::scratch::NativeReservation>,
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    stage: Option<&'a super::staged_nodes::StageOwner<'a>>,
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    rebinding: bool,
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    staged_puts: std::collections::BTreeSet<NodeDigest>,
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl<'a, 'conn> PublicationMaterialStore<'a, 'conn> {
@@ -814,6 +870,12 @@ impl<'a, 'conn> PublicationMaterialStore<'a, 'conn> {
             poisoned: false,
             work: None,
             tree_permit: None,
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            stage: None,
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            rebinding: false,
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            staged_puts: Default::default(),
         }
     }
     fn with_work(
@@ -835,6 +897,22 @@ impl<'a, 'conn> PublicationMaterialStore<'a, 'conn> {
         Ok(())
     }
     fn rebind_originals(
+        &mut self,
+        originals: &std::collections::BTreeMap<NodeDigest, (u8, s_content::CodecVec<u8>)>,
+    ) -> Result<bool, CodecError> {
+        // 重绑只认真实 SQL 原件，暂存层新节点不冒充素材。
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        {
+            self.rebinding = true;
+        }
+        let result = self.rebind_originals_inner(originals);
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        {
+            self.rebinding = false;
+        }
+        result
+    }
+    fn rebind_originals_inner(
         &mut self,
         originals: &std::collections::BTreeMap<NodeDigest, (u8, s_content::CodecVec<u8>)>,
     ) -> Result<bool, CodecError> {
@@ -868,7 +946,20 @@ impl<'a, 'conn> PublicationMaterialStore<'a, 'conn> {
                 Ok(Some(s_content::job::ScopedFrame::new(frame, permit)))
             } else {
                 record_workspace_stats(|stats| stats.publication_fallback_sql_reads += 1);
-                super::content_store::publication_read_checked(self.tx, digest, self.work)
+                #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                if let Some(stage) = self.stage {
+                    stage.check_transaction(self.tx)?;
+                }
+                let current =
+                    super::content_store::publication_read_checked(self.tx, digest, self.work)?;
+                #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                // 只回读本租约自己 put 进暂存的新节点；其余暂存不冒充素材。
+                if current.is_none() && !self.rebinding && self.staged_puts.contains(digest) {
+                    if let Some(stage) = self.stage {
+                        return stage.read_scoped(digest);
+                    }
+                }
+                Ok(current)
             }
         })();
         if result.is_err() {
@@ -923,7 +1014,15 @@ impl s_content::NodeSink for PublicationMaterialStore<'_, '_> {
             tag,
             body,
             self.work,
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            self.stage,
         );
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        if self.stage.is_some()
+            && matches!(result, Ok(super::content_store::PublicationPutEffect::Noop))
+        {
+            self.staged_puts.insert(digest);
+        }
         match result {
             Ok(
                 super::content_store::PublicationPutEffect::Noop

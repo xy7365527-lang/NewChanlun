@@ -82,6 +82,7 @@ pub(super) fn resolve_current_births_staged(
     if let Some(workspace) = workspace {
         // 冻结workspace只消费真实SQL。生成租约已经析构，再将本代模板闭包落库；
         // 之后才允许workspace取得独占publication租约，不以overlay冒充素材。
+        // 租约内新写节点只进暂存，由 Commit 的 Final cut 只落可达闭包（与 cold staged 同字节）。
         let template_roots = [
             manifest.value.digest,
             roots.view().generated_state.digest().map_err(err)?,
@@ -90,7 +91,7 @@ pub(super) fn resolve_current_births_staged(
             m.scope.digest().map_err(err)?,
         ];
         stage.flush_cut(tx, staged_nodes::FlushCut::Final(&template_roots))?;
-        workspace.resolve_in_publication_admitted(tx, token, m, roots, manifest, work)
+        workspace.resolve_in_publication_staged(tx, token, m, roots, manifest, work, stage)
     } else {
         resolve_current_births_inner(tx, token, m, roots, manifest, work, Some(stage))
     }
