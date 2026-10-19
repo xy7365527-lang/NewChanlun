@@ -214,3 +214,56 @@ fn tb1493_replay_full_history() {
     assert_eq!(r.invalid_bars, 0);
     assert!(max_zero_run <= 1, "每 25 万根分桶不得有连续零桶");
 }
+
+fn vm_hwm_mb() -> u64 {
+    std::fs::read_to_string("/proc/self/status")
+        .ok()
+        .and_then(|s| {
+            s.lines()
+                .find(|l| l.starts_with("VmRSS:"))
+                .and_then(|l| l.split_whitespace().nth(1)?.parse::<u64>().ok())
+        })
+        .unwrap_or(0)
+        / 1024
+}
+
+#[test]
+#[ignore = "诊断：facts 路径内存随前缀增长"]
+fn tb1493_facts_memory_probe() {
+    let all = load_full();
+    let tail = &all[all.len() - 50_000..];
+    let bars = &tail[5..];
+    for n in [2_000usize, 5_000, 10_000, 20_000] {
+        let (layer, facts) = parse_layer_with_inclusion_facts(&bars[..n], &ThetaConfig::default());
+        let sf = facts.segment_facts.as_ref().unwrap();
+        let first_checks: usize = sf.candidates.iter().map(|c| c.first.checks.len()).sum();
+        let first_steps: usize = sf.candidates.iter().map(|c| c.first.steps.len()).sum();
+        let idx_first: usize = sf
+            .candidates
+            .iter()
+            .flat_map(|c| c.first.checks.iter().flat_map(|k| k.elements.iter()))
+            .map(|e| e.stroke_indices.len())
+            .sum();
+        let second: usize = sf
+            .candidates
+            .iter()
+            .filter_map(|c| c.second.as_ref())
+            .map(|s| s.steps.len())
+            .sum();
+        let idx_second: usize = sf
+            .candidates
+            .iter()
+            .filter_map(|c| c.second.as_ref())
+            .flat_map(|s| s.steps.iter())
+            .map(|st| st.after.stroke_indices.len())
+            .sum();
+        let attempts: usize = sf.candidates.iter().map(|c| c.termination_attempts.len()).sum();
+        eprintln!(
+            "TB1493 MEM n={n} rss_mb={} strokes={} cands={} first_checks={first_checks} first_steps={first_steps} idx_first={idx_first} second_steps={second} idx_second={idx_second} attempts={attempts} seeds={}",
+            vm_hwm_mb(),
+            layer.strokes.len(),
+            sf.candidates.len(),
+            sf.seeds.len()
+        );
+    }
+}
