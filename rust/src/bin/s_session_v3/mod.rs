@@ -1683,9 +1683,3 @@ mod transaction_view_multiple_bad_fixture {
         println!("AB_TWO_BAD {}", error);
     }
 }
-
-/// #1419 裁定②：原 v2 写入测试的 S3 承接（分片 a：S bin 主测试；分片 b：v2 会话/服务测试）。
-#[cfg(test)]
-mod v2_retirement_tests_a;
-#[cfg(test)]
-mod v2_retirement_tests_b;

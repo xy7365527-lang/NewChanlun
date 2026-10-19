@@ -2142,6 +2142,7 @@ pub(super) fn validate_control_history_admitted(
 fn process_lock(db: &Path) -> Result<File, String> {
     session_transport::process_lock(db, "S")
 }
+#[cfg_attr(not(test), allow(dead_code))] // #1419 裁定②：v2 写者仅留测试种子/oracle，生产入口已拒
 fn init_v2(
     db: &Path,
     session: &str,
@@ -2463,6 +2464,7 @@ impl Bounds {
     }
 }
 
+#[cfg_attr(not(test), allow(dead_code))] // #1419 裁定②：v2 写者仅留测试种子/oracle，生产入口已拒
 fn serve(
     db: &Path,
     socket: &Path,
@@ -2523,93 +2525,27 @@ fn serve(
     })
 }
 
-fn arg(args: &[String], key: &str) -> Result<String, String> {
-    arg_value(args, key).ok_or_else(|| format!("缺 {key}"))
-}
-fn positive_arg(args: &[String], key: &str) -> Result<i64, String> {
-    positive(&arg(args, key)?, key)
-}
+/// #1419 主控裁定②（issuecomment-6265209957）：v2 写入口（`init --session-generation…`、`serve`、
+/// 带时钟 `recover`）一律拒绝，新旧会话同拒；旧 v2 库只读（`retained_watch` 等读路径不变）。
+/// `s_structure_session::run_with` 已先行拦截，这里是第二道门：本分派不再进入任何 v2 写函数。
 pub fn dispatch(args: &[String]) -> Result<bool, String> {
     let cmd = args.get(1).map(String::as_str).unwrap_or("");
-    if cmd == "init"
+    let v2_init = cmd == "init"
         && [
             "--session-generation",
             "--clock-plan",
             "--delivery-retain-generations",
         ]
         .iter()
-        .any(|k| args.iter().any(|a| a == k))
-    {
-        let out = init_v2(
-            Path::new(&arg(args, "--db")?),
-            &arg(args, "--session")?,
-            Path::new(&arg(args, "--catalog")?),
-            Path::new(&arg(args, "--profile")?),
-            &arg(args, "--session-generation")?,
-            Path::new(&arg(args, "--clock-plan")?),
-            positive_arg(args, "--delivery-retain-generations")?,
-        )?;
-        println!("{out}");
-        return Ok(true);
-    }
-    if cmd == "serve" {
-        let bounds = Bounds {
-            frame: usize::try_from(positive_arg(args, "--max-frame-bytes")?).map_err(err)?,
-            read: Duration::from_millis(positive_arg(args, "--read-timeout-ms")? as u64),
-            write: Duration::from_millis(positive_arg(args, "--write-timeout-ms")? as u64),
-            response: Duration::from_millis(positive(
-                &arg_value(args, "--response-timeout-ms")
-                    .unwrap_or_else(|| arg_value(args, "--read-timeout-ms").unwrap_or_default()),
-                "response-timeout-ms",
-            )? as u64),
-            cache_bytes: arg_value(args, "--audit-cache-source-bytes")
-                .map(|s| {
-                    parse_canonical_i64(&s, "audit-cache-source-bytes")
-                        .and_then(|v| usize::try_from(v).map_err(err))
-                })
-                .transpose()?
-                .unwrap_or(0),
-            queue: usize::try_from(positive_arg(args, "--queue-capacity")?).map_err(err)?,
-            connections: usize::try_from(positive_arg(args, "--max-connections")?).map_err(err)?,
-        };
-        serve(
-            Path::new(&arg(args, "--db")?),
-            Path::new(&arg(args, "--socket")?),
-            Path::new(&arg(args, "--profile")?),
-            &arg(args, "--writer-epoch")?,
-            Path::new(&arg(args, "--clock-plan")?),
-            bounds,
-        )?;
-        return Ok(true);
-    }
-    if cmd == "recover"
+        .any(|k| args.iter().any(|a| a == k));
+    let v2_recover = cmd == "recover"
         && ["--clock-plan", "--clock-event-id"]
             .iter()
-            .any(|k| args.iter().any(|a| a == k))
-    {
-        let db = PathBuf::from(arg(args, "--db")?);
-        let _lock = process_lock(&db)?;
-        let clock = ClockPlan::load(Path::new(&arg(args, "--clock-plan")?))?;
-        let out = recover_core(
-            &db,
-            &arg(args, "--new-epoch")?,
-            Some((&clock, &arg(args, "--clock-event-id")?)),
-        )?;
-        println!("{out}");
-        return Ok(true);
+            .any(|k| args.iter().any(|a| a == k));
+    if v2_init || v2_recover || cmd == "serve" {
+        return Err(crate::V2_WRITER_RETIRED.to_string());
     }
     Ok(false)
-}
-
-pub fn legacy_write_lock(args: &[String]) -> Result<Option<File>, String> {
-    if matches!(
-        args.get(1).map(String::as_str),
-        Some("init" | "reset" | "accept" | "advance" | "recover")
-    ) {
-        let db = PathBuf::from(arg(args, "--db")?);
-        return process_lock(&db).map(Some);
-    }
-    Ok(None)
 }
 
 /// v2普通Watch只能走独立保留引用；旧v1数据仍由原命令实现读取。

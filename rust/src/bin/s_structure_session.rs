@@ -5301,22 +5301,27 @@ fn remove_db_files(db: &Path) {
 
 fn run() -> Result<(), String> {
     let args: Vec<String> = std::env::args().collect();
+    run_with(&args)
+}
+
+/// 可测分派入口（#1419 裁定② 负控用）：与 `main` 同一路由。
+fn run_with(args: &[String]) -> Result<(), String> {
     if args.len() < 2 {
         return Err(usage());
     }
-    if v3::dispatch(&args)? {
+    if v3::dispatch(args)? {
         return Ok(());
     }
     // #1419 裁定②：S3 未认领的写子命令一律拒绝（v2/v1 新旧会话同拒），只读子命令照常。
     if is_v2_write_command(args[1].as_str()) {
         return Err(V2_WRITER_RETIRED.to_string());
     }
-    if v2::dispatch(&args)? {
+    if v2::dispatch(args)? {
         return Ok(());
     }
     let cmd = args[1].as_str();
-    let db = arg_value(&args, "--db").map(PathBuf::from);
-    let as_of = arg_value(&args, "--as-of")
+    let db = arg_value(args, "--db").map(PathBuf::from);
+    let as_of = arg_value(args, "--as-of")
         .map(|s| parse_canonical_i64(&s, "--as-of"))
         .transpose()?
         .map(|v| {
@@ -5327,7 +5332,7 @@ fn run() -> Result<(), String> {
             }
         })
         .transpose()?;
-    let identity_key = arg_value(&args, "--identity-key");
+    let identity_key = arg_value(args, "--identity-key");
 
     match cmd {
         "catalog" => cmd_catalog(&db.ok_or("缺 --db".to_string())?, as_of),
@@ -5340,7 +5345,7 @@ fn run() -> Result<(), String> {
             cmd_query(&db.ok_or("缺 --db".to_string())?, &k)
         }
         "watch" => {
-            let after = arg_value(&args, "--after-generation")
+            let after = arg_value(args, "--after-generation")
                 .map(|s| parse_canonical_i64(&s, "--after-generation"))
                 .transpose()?
                 .unwrap_or(0);
@@ -5363,6 +5368,90 @@ fn main() {
 #[cfg(test)]
 mod tests {
     include!("s_session_v2/tb02u_tests.rs");
+
+    /// #1419 裁定②负控（issuecomment-6265209957）：v2 写入口对新旧会话一律拒写且不动库字节；
+    /// 旧会话（测试种子写出的 RULE_REVISION 库）只读子命令照常、`--as-of` 为 AsKnown。
+    #[test]
+    fn v2_writer_retired_rejects_new_and_old_sessions_and_old_stays_readable() {
+        let argv = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<String>>();
+        let catalog = fixture("catalog/signed-catalog.json");
+        let profile = fixture("profiles/ohlc_integer_tb02a_v1.json");
+        let catalog = catalog.to_str().unwrap();
+        let profile = profile.to_str().unwrap();
+
+        // 旧会话：测试种子造两代历史。
+        let old = TestFiles::new();
+        init_test_db(&old);
+        accept_ohlc(&old, &ohlc_input(&[(0, 10), (2, 8), (3, 11)], false));
+        cmd_advance(&old.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        accept_ohlc(&old, &ohlc_input(&[(0, 10), (2, 8), (3, 11), (1, 12)], false));
+        cmd_advance(&old.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let input = old.0.join("next-input.json");
+        std::fs::write(
+            &input,
+            canonical_json(&ohlc_input(&[(0, 10), (2, 8), (3, 11), (1, 12), (4, 13)], false)),
+        )
+        .unwrap();
+        let input = input.to_str().unwrap().to_string();
+
+        // 新会话：目标不存在，任何写子命令都不得创建它。
+        let fresh = TestFiles::new();
+        let fresh_db = fresh.db();
+        let fresh_db = fresh_db.to_str().unwrap();
+        let old_db = old.db();
+        let old_db = old_db.to_str().unwrap();
+        let writes = |db: &str| {
+            vec![
+                argv(&["s", "init", "--db", db, "--session", "s-session-testonly-001", "--catalog", catalog]),
+                argv(&["s", "reset", "--db", db, "--session", "s-session-testonly-001", "--catalog", catalog]),
+                argv(&["s", "accept", "--db", db, "--input", &input, "--profile", profile, "--writer-epoch", "1"]),
+                argv(&["s", "advance", "--db", db, "--writer-epoch", "1"]),
+                argv(&["s", "recover", "--db", db, "--new-epoch", "2"]),
+                argv(&["s", "serve", "--db", db, "--profile", profile, "--writer-epoch", "1"]),
+                argv(&["s", "init", "--protocol-revision", "s-session/2", "--db", db, "--session", "s-session-testonly-001", "--catalog", catalog]),
+            ]
+        };
+        for args in writes(fresh_db) {
+            let err = run_with(&args).unwrap_err();
+            assert_eq!(err, V2_WRITER_RETIRED, "{args:?}");
+            assert!(!Path::new(fresh_db).exists(), "{args:?} 不得创建新库");
+        }
+        let dir_bytes = |dir: &Path| {
+            let mut files: Vec<(String, Vec<u8>)> = std::fs::read_dir(dir)
+                .unwrap()
+                .map(|e| e.unwrap().path())
+                .filter(|p| p.is_file())
+                .map(|p| (p.display().to_string(), std::fs::read(&p).unwrap()))
+                .collect();
+            files.sort();
+            files
+        };
+        let before = dir_bytes(&old.0);
+        for args in writes(old_db) {
+            let err = run_with(&args).unwrap_err();
+            assert_eq!(err, V2_WRITER_RETIRED, "{args:?}");
+            assert_eq!(dir_bytes(&old.0), before, "{args:?} 不得改动旧库");
+        }
+        let conn = open_db(&old.db()).unwrap();
+        assert_eq!(meta_get_opt(&conn, "rule_revision").unwrap().as_deref(), Some(RULE_REVISION));
+        assert_eq!(meta_get_opt(&conn, "generation").unwrap().as_deref(), Some("2"));
+        drop(conn);
+
+        // 旧会话只读：查询子命令照常；--as-of 为 AsKnown 且与种子当时一致。
+        for args in [
+            argv(&["s", "catalog", "--db", old_db]),
+            argv(&["s", "catalog", "--db", old_db, "--as-of", "1"]),
+            argv(&["s", "snapshot", "--db", old_db]),
+            argv(&["s", "snapshot", "--db", old_db, "--as-of", "1"]),
+            argv(&["s", "watch", "--db", old_db, "--after-generation", "0"]),
+            argv(&["s", "meta", "--db", old_db]),
+        ] {
+            run_with(&args).unwrap_or_else(|e| panic!("{args:?}: {e}"));
+        }
+        let as_known = snapshot_of(&old, Some(1));
+        assert_eq!(as_known["history_mode"], json!("AsKnown"));
+        assert_eq!(as_known["raw_history"].as_array().unwrap().len(), 3);
+    }
 
     use super::*;
     use std::sync::atomic::{AtomicU64, Ordering};

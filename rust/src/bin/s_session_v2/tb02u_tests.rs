@@ -1,4 +1,5 @@
-// #1393：复用正式 S owner 的 toy 合同测试；本轮禁止运行产品，均 NOT_RUN。
+// #1393：复用 S owner 的 toy 合同测试。#1419 裁定②后写者是测试种子（v2 生产写入口已拒），
+// W 对象的生产承载待 S3（#1565）。
 fn tb02u_kind(snapshot: &Value, kind: &str) -> Vec<Value> {
     snapshot["objects"]
         .as_array()
@@ -47,7 +48,14 @@ fn tb02u_old_cut_explicit_replaces_revision_and_recovery() {
             initialization[0]["payload"]["initialization_policy_revision"],
             "raw-initialization-w/1"
         );
-        assert!(RULE_REVISION.contains("+raw-initialization-w/1"));
+        // #1419 裁定②：v2 写者已退役，本测试的写者是测试种子（库规则串仍是旧 RULE_REVISION，
+        // 不带 W 后缀）。W 判据（未定 raw 首次发生、显式 replaces、修订、历史 cut 不变）在此由共享
+        // 事实构造层承载；生产承载（S3 发 W 对象）阻塞于 #1565，届时迁到 S3。
+        assert!(!RULE_REVISION.contains("raw-initialization-w"));
+        assert_eq!(
+            meta_get_opt(&conn, "rule_revision").unwrap().as_deref(),
+            Some(RULE_REVISION)
+        );
         if index % 2 == 0 {
             assert_eq!(pending.len(), raw.len());
             assert!(groups.is_empty());
@@ -118,6 +126,7 @@ fn tb02u_old_cut_explicit_replaces_revision_and_recovery() {
         histories.push(snapshot_of(&files, Some((index + 1) as i64)));
         drop(conn);
         // 重开持久边界并轮换 writer epoch；无新 raw 的 Advance 不造对象。
+        // （recover 段同为测试种子写者；S3 承接阻塞于 #1565。）
         epoch = (index + 2).to_string();
         cmd_recover(&files.db(), &epoch).unwrap();
         advance_core(&files.db(), &epoch, None).unwrap();
