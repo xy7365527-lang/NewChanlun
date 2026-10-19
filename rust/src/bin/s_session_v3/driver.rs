@@ -3823,9 +3823,10 @@ mod tests {
                 .conn
                 .take_source_keeper()
                 .unwrap_or_else(|| super::super::cross_request_source_cache::Keeper::new(total));
-            let old = keeper.retained_source_bytes() + d.conn.complete_retained_bytes();
+            // #1488 P1-1：入口旧费走生产同一逐项分区（O+uncovered）。
+            let old = d.conn.old_pool_partition(Some(&keeper)).unwrap();
             let mut c = request_audit::RequestAuditContext::with_source_keeper(keeper);
-            c.freeze_manifest_workspace_budget(total, crate::cache::retained_bytes(), old)
+            c.freeze_manifest_workspace_partition(total, crate::cache::retained_bytes(), old)
                 .unwrap();
             c
         }
