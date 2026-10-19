@@ -642,6 +642,22 @@ unsafe extern "C" fn current_time(_: *mut ffi::sqlite3_vfs, out: *mut f64) -> c_
     .unwrap_or(ffi::SQLITE_ERROR)
 }
 
+// #1527：业务审计里不带 WHERE 的 count(*) 会以「无库名、空列名」的 SQLITE_READ 上报整表读取。
+// 白名单来源：探针提交 f3624c5d 在 windows-5090 跑全套 `cargo test --features s_session
+// --bin s_structure_session`，记录到的零列整表读共 768 次，全部 db=<none>、origin=<none>，
+// 恰为下列 9 张表（见 #1527 issuecomment-6267843338 之后的评论）。审计新增此类读前须同步本表。
+const COUNT_SCAN_TABLES: &[&[u8]] = &[
+    b"catalog",
+    b"raw_events",
+    b"raw_ohlc",
+    b"s_content_meta",
+    b"s_content_publications",
+    b"s_delivery_policy",
+    b"s_delivery_refs",
+    b"s_protocol_meta",
+    b"structure_deltas",
+];
+
 // #1527：只列原完整审计实际使用的只读动作；无 DDL/DML/ATTACH/SAVEPOINT/未知函数。
 fn audit_sql_allowed(
     action: c_int,
@@ -656,12 +672,12 @@ fn audit_sql_allowed(
     }
     match action {
         ffi::SQLITE_SELECT => true,
-        // count(*) 优化路径以「无库名、空列名」上报整表读取；仍限只读、无触发器/视图来源。
-        ffi::SQLITE_READ => {
-            db == Some(b"main")
-                || (db.is_none() && b == Some(b""))
-                || a == Some(b"pragma_table_info")
+        // count(*) 优化路径以「无库名、空列名」上报整表读取；只对无库名的业务表白名单放行，
+        // 带库名（含 main）的整表读一律拒绝。
+        ffi::SQLITE_READ if b == Some(b"") => {
+            db.is_none() && a.is_some_and(|table| COUNT_SCAN_TABLES.contains(&table))
         }
+        ffi::SQLITE_READ => db == Some(b"main") || a == Some(b"pragma_table_info"),
         ffi::SQLITE_TRANSACTION => matches!(a, Some(b"BEGIN" | b"ROLLBACK")),
         ffi::SQLITE_FUNCTION => matches!(
             b,
@@ -848,6 +864,60 @@ mod authorization_tests {
             None,
             true
         ));
+    }
+
+    #[test]
+    fn count_scan_reads_are_limited_to_business_tables() {
+        let read = |table: Option<&[u8]>, column: Option<&[u8]>, db: Option<&[u8]>| {
+            audit_sql_allowed(ffi::SQLITE_READ, table, column, db, None, true)
+        };
+        for &table in COUNT_SCAN_TABLES {
+            assert!(read(Some(table), Some(b""), None), "{table:?}");
+            // 同表带触发器/视图来源仍拒绝。
+            assert!(!audit_sql_allowed(
+                ffi::SQLITE_READ,
+                Some(table),
+                Some(b""),
+                None,
+                Some(b"v"),
+                true
+            ));
+        }
+        // 非白名单表：系统表与未被审计零列读过的业务表。
+        for table in [
+            b"sqlite_schema".as_slice(),
+            b"sqlite_master",
+            b"sqlite_temp_master",
+            b"sqlite_temp_schema",
+            b"sqlite_sequence",
+            b"meta",
+            b"s_content_nodes",
+            b"RAW_EVENTS",
+            b"",
+        ] {
+            assert!(!read(Some(table), Some(b""), None), "{table:?}");
+        }
+        assert!(!read(None, Some(b""), None));
+        // 带库名的整表读（main、temp、附加库）一律拒绝，含白名单表名。
+        for db in [b"main".as_slice(), b"temp", b"aux"] {
+            assert!(!read(Some(b"raw_events"), Some(b""), Some(db)), "{db:?}");
+            assert!(!read(Some(b"sqlite_temp_master"), Some(b""), Some(db)));
+        }
+        // 无库名的其他读形态：有列名或缺列名都不走白名单。
+        assert!(!read(Some(b"raw_events"), Some(b"id"), None));
+        assert!(!read(Some(b"raw_events"), None, None));
+        assert!(!read(Some(b"sqlite_schema"), Some(b"sql"), None));
+        // 白名单只管 SQLITE_READ；同参数的其他动作照旧拒绝。
+        for action in [ffi::SQLITE_INSERT, ffi::SQLITE_DELETE, ffi::SQLITE_UPDATE] {
+            assert!(!audit_sql_allowed(
+                action,
+                Some(b"raw_events"),
+                Some(b""),
+                None,
+                None,
+                true
+            ));
+        }
     }
 }
 
