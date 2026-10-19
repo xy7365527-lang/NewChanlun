@@ -5,14 +5,14 @@
 
 - `prepare`：按 tb02d 固定生成器（`fixtures/tb02d/generate-input.py` 的 `raw_rows`，只由手算端点
   生成整数 OHLC，不导入生产代码）把两个设计写成冻结消息、时钟与 s-launcher/2 配置。
-  `killed_then_b`：078:52 失效先到（s6 严格越过 P），其后 s8/s10 在旧「只认分型」下会让候选复活；
+  `killed`：078:52 失效先到（s6 严格越过 P），其后 s8 在旧「只认分型」下会让候选复活；
   `confirmed`：第二特征序列先成分型（067:38）。每个设计 UP/DOWN 两向。
 - `session`：每个用例三次正式运行（launcher 起 S/Q，socket 逐条接纳，HTTP live/AsKnown/重访）：
   A 不中断；B 新进程同输入重放；C 在中间消息 SIGKILL S 后 recover 续跑。逐 cut 对手算期望，
   并对拍 A≡B≡C 的结构对象。`--browser` 时在 A 上用真 Chromium 读既有页面。
 
 期望值全部来自本文件 EXPECTED（按笔逐步手算，依据 xianduan.md §5.1、078:52、067:38、065:28），
-不调用生产 reducer。笔 i 在已接纳 4i+7 根时首次已知；消息按笔分组（首条 7 根、其后每条 4 根），第 g 代恰知 g 笔。
+不调用生产 reducer。cut 约定同 tb02d：笔 i 在已接纳 4i+7 根时首次已知。
 """
 import argparse
 import contextlib
@@ -37,12 +37,15 @@ _spec.loader.exec_module(GEN)
 
 DESIGNS = {
     # s3 = FIRST 顶分型中心 b（P=40），a/b 缺口 [20,25] 未被 c(s5 低 22) 封闭 ⟹ 第二种候选。
-    "killed_then_b": [0, 20, 10, 40, 25, 35, 22, 45, 30, 38, 26, 34, 15, 28, 20, 50, 30, 60],
+    # 取到 s9 为止（10 笔、44 根）：s9 补出 FIRST 顶分型即判 A；s8 已构成旧「只认分型」的复活诱饵
+    # （第二序列 (25,35)(22,45)(30,38) 在 s8 处成顶分型）。根数受正式 ingest「一事件一代」与 Q 冷校验
+    # 5s 门（#1497）共同约束，不再加长。
+    "killed": [0, 20, 10, 40, 25, 35, 22, 45, 30, 38, 26],
     "confirmed": [0, 20, 10, 40, 25, 35, 22, 30, 23, 33],
 }
 # 手算（已知笔数 n → segment:1:1 的状态）。只列判定点；其余 cut 由单调约束覆盖。
 EXPECTED = {
-    "killed_then_b": {
+    "killed": {
         # n=6：s5 补成 FIRST 顶分型，c 未封缺口；第二序列仅 s4 一项 ⟹ 未决，不是否定（065:28）。
         6: {"result": "PENDING_CASE_TWO", "semantic": "OPEN_AT_PREFIX_END"},
         # n=7：s6 22→45 先严格越过 P=40（078:52）⟹ 候选失效；原段不终结。
@@ -85,31 +88,22 @@ def prepare(args):
             namespace = "testonly.ohlc." + sid
             case_dir = plan_dir / case
             case_dir.mkdir()
-            # 一条消息一代：首条 7 根（笔 0 首次已知），其后每条 4 根（每代多知一笔），余根并入末条。
-            # 于是第 g 代恰知 g 笔（g ≤ 笔数），cut 数与笔数同阶，避开 #1497 的 Q 冷校验超线性。
-            groups, cursor = [rows[:7]], 7
-            while cursor + 4 <= len(rows):
-                groups.append(rows[cursor:cursor + 4])
-                cursor += 4
-            if cursor < len(rows):
-                groups.append(rows[cursor:])
-            events, messages, inputs_at = {}, [], []
-            for index, group in enumerate(groups):
+            events, messages = {}, []
+            for index, bar in enumerate(rows):
                 op = "op-" + str(index).zfill(4)
                 base = 946684800000000000 + index * 10000000000
                 events[op] = {"accept_ns": str(base), "attempts": [{"begin_ns": str(base + 100000000), "commit_ns": str(base + 200000000)}]}
-                raws = [{"event_id": bar["raw_id"], "revision": "1", "seq": str(bar["raw_index"]), "received_at": "2000-01-01T00:00:00Z",
-                         "raw_text": canonical(bar).decode(), "timestamp": str(bar["raw_index"] * 60), "volume": "1",
-                         **{k: str(bar[k]) for k in ("open", "high", "low", "close")}} for bar in group]
+                raw = {"event_id": bar["raw_id"], "revision": "1", "seq": str(bar["raw_index"]), "received_at": "2000-01-01T00:00:00Z",
+                       "raw_text": canonical(bar).decode(), "timestamp": str(bar["raw_index"] * 60), "volume": "1",
+                       **{k: str(bar[k]) for k in ("open", "high", "low", "close")}}
                 payload = {"op": "ingest", "target_session_id": sid, "target_session_generation": "1", "writer_epoch": "1",
                            "clock_event_id": op,
                            "raw_input": {"schema_revision": "s-ohlc/1", "session_id": sid, "source_namespace": namespace,
-                                         "source_epoch": "1", "instrument": "TEST-OHLC", "profile": "ohlc_integer_tb02a_v1", "events": raws}}
+                                         "source_epoch": "1", "instrument": "TEST-OHLC", "profile": "ohlc_integer_tb02a_v1", "events": [raw]}}
                 messages.append({"schema_revision": "s-session/2", "session_id": sid, "session_generation": "1",
                                  "source_namespace": namespace, "source_epoch": "1", "message_id": op, "producer_id": "tb02w-input",
                                  "producer_epoch": "1", "causal_refs": [], "payload_hash": hashlib.sha256(canonical(payload)).hexdigest(),
                                  "payload": payload})
-                inputs_at.append(group[-1]["raw_index"] + 1)
             dump(case_dir / "clock.json", {"schema_revision": "s-clock-plan/1", "clock_plan_id": sid,
                                            "origin_utc": "2000-01-01T00:00:00Z", "unit": "ns", "events": events})
             (case_dir / "messages.jsonl").write_bytes(b"".join(canonical(m) + b"\n" for m in messages))
@@ -126,8 +120,8 @@ def prepare(args):
                     "clock_plan": str(case_dir / "clock.json"), "browser": str(ROOT / "browser/index.html"),
                     "query_resource_config": str(ROOT / "tests/fixtures/tb01c/query-resources.json"), "s_resources": resources})
                 port += 1
-            cases[case] = {"design": design, "direction": direction, "inputs": len(rows), "generations": len(messages),
-                           "inputs_at_generation": inputs_at, "fault_index": len(messages) // 2}
+            cases[case] = {"design": design, "direction": direction, "inputs": len(rows),
+                           "fault_index": len(rows) // 2}
     plan = {"schema": "tb02w-runtime-plan/1", "ticket": 1420, "cases": cases,
             "binary_sha256": hashlib.sha256(args.binary.read_bytes()).hexdigest(),
             "generator_sha256": hashlib.sha256((ROOT / "tests/fixtures/tb02d/generate-input.py").read_bytes()).hexdigest(),
@@ -156,7 +150,7 @@ def check_case(case, meta, known):
     up = direction == "UP"
     timeline, seen_kill, problems, checked = [], False, [], {}
     for generation in sorted(known):
-        n = known_strokes(meta["inputs_at_generation"][generation - 1])
+        n = known_strokes(generation)
         seg = find(known[generation], "CC-013.segment", SEGMENT)
         second = find(known[generation], "CC-012.feature_sequence", SECOND)
         result = seg and seg["result"]
@@ -196,7 +190,7 @@ def check_case(case, meta, known):
     terminal = max(want)
     if final[2] != want[terminal]["result"]:
         problems.append(f"末 cut result {final[2]} ≠ {want[terminal]['result']}")
-    if design == "killed_then_b" and not seen_kill:
+    if design == "killed" and not seen_kill:
         problems.append("未出现 KILLED_CASE_TWO")
     return {"status": "PASS" if not problems else "FAIL", "problems": problems,
             "decision_cuts": {str(k): v for k, v in checked.items()}, "timeline": timeline}
@@ -272,10 +266,9 @@ def session(args):
                       node=args.node, fault_index=meta["fault_index"] if arm == "C" else None, fault_stage="after_batch")
             if arm == "A" and args.browser:
                 want = EXPECTED[meta["design"]]
-                gens = meta["inputs_at_generation"]
-                cut_for = lambda n: str(next(g + 1 for g, i in enumerate(gens) if known_strokes(i) >= n))  # noqa: E731
+                cut_for = lambda n: str(4 * (n - 1) + 7)  # noqa: E731 笔 n-1 首次已知的 cut
                 killed_n = next((n for n, e in want.items() if e["result"] == "KILLED_CASE_TWO"), max(want))
-                run.browser_args = {"module": args.playwright_module, "final": str(meta["generations"]),
+                run.browser_args = {"module": args.playwright_module, "final": str(meta["inputs"]),
                                     "killed": cut_for(killed_n), "open": cut_for(6), "design": meta["design"]}
             with deadline(f"{case}/{arm}", 5400):
                 result = run.execute()

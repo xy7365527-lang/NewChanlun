@@ -59,7 +59,7 @@ async function main() {
     const navigation = await page.goto(base.href, {waitUntil:'load', timeout:10000});
     assert.ok(navigation && navigation.status() === 200 && new URL(navigation.url()).origin === base.origin, '正式页面导航未完成');
     record('navigation-loaded');
-    const killed = args.design === 'killed_then_b';
+    const killed = args.design === 'killed';
     const views = [
       {cut: args['final-cut'], mode: 'RecomputedWithRevision', label: 'final',
        want: {'CC-012': ['SECOND_SEQUENCE', killed ? 'KILLED_BY_NEW_EXTREME' : 'CONFIRMED', 'semantic_state'],
