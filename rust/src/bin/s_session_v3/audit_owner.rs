@@ -3435,6 +3435,100 @@ fn p2_4_seal_census_flags_duplicate_permit_on_real_seal_path() {
     }
 }
 
+/// #1488 P1-2（复审0026反例）：请求n在真实工作域内把keeper池封存在其请求父账K上（K的物理live
+/// 大于池合同额）；请求n+1入口discard候选（生产 held>keeper_cap 分支）后重新分区——K须按其物理
+/// live只计一次（含M_K），不能只按合同额。冻结后T的物理占用 E+K物理live+A 不超过T；旧口径
+/// （O只含合同额）多放出的A=物理−合同，在此定量复现并锁住。随后请求n+1沿生产路径继续，keeper照常命中。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[test]
+fn p1_2_keeper_pool_on_other_ledger_counts_physical_live_after_discard() {
+    let mut f = prepared::tests::Fixture::new();
+    let (envelope, token) = f.accept_begin(1, ("p12-source", 0, 6, 12, 3, 7), 1);
+    f.publish(&envelope, &token).unwrap();
+    let total = 64 * 1024 * 1024;
+    let mut owner = AuditConnection::open(&f.db_path()).unwrap();
+    let request = |owner: &mut AuditConnection,
+                   keeper: cross_request_source_cache::Keeper,
+                   partition: Option<request_audit::OldPoolPartition>| {
+        let old_pool = keeper.retained_source_bytes();
+        let mut context = request_audit::RequestAuditContext::with_source_keeper(keeper);
+        match partition {
+            Some(p) => context.freeze_manifest_workspace_partition(total, 0, p).unwrap(),
+            None => context.freeze_manifest_workspace_budget(total, 0, old_pool).unwrap(),
+        }
+        let frozen = context.manifest_workspace_budget().unwrap();
+        context.enable_cold_admission_for_testonly().unwrap();
+        let parent = context.cold_parent_budget().unwrap();
+        let active = owner.begin(TransactionBehavior::Deferred).unwrap();
+        let audited = parent
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                state::audit_native_in_request_admitted(active.tx(), &mut context, Some(scope))
+            })
+            .unwrap();
+        drop(audited);
+        let ended = active.read_end().unwrap();
+        owner.finish_source_keeper(context, ended);
+        frozen
+    };
+    // 请求n-1、n：第二次请求在其冷父账K上封存出keeper池。
+    let mut keeper = cross_request_source_cache::Keeper::new(total);
+    for _ in 0..2 {
+        request(&mut owner, keeper, None);
+        keeper = owner.take_source_keeper().unwrap();
+    }
+    let contract = keeper.retained_source_bytes();
+    assert!(contract > 0);
+    let home = keeper.source_home().expect("池封存在请求父账K").clone();
+    let physical = home.live();
+    let m = native::Budget::metadata_bytes();
+    assert!(
+        physical > contract + m,
+        "反例前提：K物理live {physical} 大于池合同额 {contract} + M"
+    );
+    // 请求n+1入口：discard候选后重新分区。
+    owner.discard_after_error();
+    let partition = owner.old_pool_partition(Some(&keeper)).unwrap();
+    let group = partition
+        .homes()
+        .iter()
+        .find(|h| h.origin == request_audit::OldPoolPartition::KEEPER_PARENT)
+        .expect("keeper池按所在父账单列一组");
+    assert_eq!(group.l0, physical, "按池父账物理live计");
+    assert_eq!(partition.l0(), physical);
+    assert_eq!(partition.old_pool(), contract + m, "O=池合同额+M_K");
+    assert_eq!(partition.uncovered(), physical - contract - m, "物理超合同部分列为U");
+    let carried = partition.carried();
+    assert_eq!(carried, physical, "K物理live恰好计一次");
+    // 旧口径：keeper只按合同额进O（无M_K、无U）。
+    let old_allowance = total - contract;
+    // 冻结后T的物理占用：E(0)+K物理live+A ≤ T。
+    let mut probe = request_audit::RequestAuditContext::default();
+    probe
+        .freeze_manifest_workspace_partition(total, 0, partition.clone())
+        .unwrap();
+    let allowance = probe.manifest_workspace_budget().unwrap().allowance();
+    assert_eq!(carried + allowance, total);
+    assert!(physical + allowance <= total, "T物理占用不超E+O+A");
+    assert_eq!(old_allowance - allowance, physical - contract, "旧口径多放出物理−合同");
+    assert!(old_allowance + physical > total, "旧口径下物理占用逃出T");
+    drop(probe);
+    // 来源不明：静止点后在K上新挂许可，分区拒绝。
+    let stray = home.reserve(3_000).unwrap();
+    assert!(owner.old_pool_partition(Some(&keeper)).is_err());
+    drop(stray);
+    // 请求n+1沿生产路径继续：冻结用该分区，keeper照常命中。
+    let frozen = request(&mut owner, keeper, Some(partition));
+    assert_eq!(frozen.allowance(), allowance);
+    let keeper = owner.take_source_keeper().unwrap();
+    assert_eq!(keeper.report()["hits"], 2);
+    eprintln!(
+        "P12_KEEPER_PHYSICAL {}",
+        json!({"contract":contract,"physical":physical,"m":m,"carried":carried,"allowance":allowance,"old_allowance":old_allowance})
+    );
+}
+
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 #[test]
 fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
