@@ -3783,8 +3783,9 @@ mod tests {
                         if let Some(prepared::tests::RuntimeRootCell::Blob(digest)) = row.first() {
                             if !control_digests.contains(digest) {
                                 extra_count += 1;
-                                if extra_count <= 5 {
-                                    eprintln!("  extra node digest[{}]: {} bytes", extra_count, digest.len());
+                                if extra_count <= 10 {
+                                    let hex: String = digest.iter().take(16).map(|b| format!("{:02x}", b)).collect();
+                                    eprintln!("  extra[{}] digest: {}...", extra_count, hex);
                                 }
                             }
                         }
