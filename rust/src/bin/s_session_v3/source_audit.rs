@@ -3573,6 +3573,9 @@ mod tests {
         // #1394 r3：相同原 fixture 新增 CC004/CC054 绑定及 raw bar 投影费用。
         // dc425df7 旧轨迹为 151351 reads / 170797 F；本次未缩减原访问，
         // 新轨迹增加 13016 reads / 14276 F，固定以下实测计数和完整有序摘要。
+        // #1394 合入 #1405 后重冻：对象/组/窗口计数不变，读取与 F 各多 120，为合并后实测值；
+        // 规则修订升 new-bi/2，发布内容按 #1343 同价裁定改变，摘要随之改变。120 未逐节点分解。
+        // 旧摘要（new-bi/1）：read 8418acae…、budget f194dbc3…。
         assert_eq!(
             (
                 counts.objects,
@@ -3584,15 +3587,15 @@ mod tests {
             ),
             (76, 13, 11, 14, 0, 0)
         );
-        assert_eq!(roots.len(), 151351 + 13016, "r3完整Some读取轨迹");
-        assert_eq!(frames, 170797 + 14276, "r3完整Some F次数");
+        assert_eq!(roots.len(), 151351 + 13016 + 120, "r3完整Some读取轨迹");
+        assert_eq!(frames, 170797 + 14276 + 120, "r3完整Some F次数");
         assert_eq!(
             read_hash,
-            "8418acae04255ccc19c4cdd3d76b746e57fcf3be9636a716d5aba8055a1d6012"
+            "ffa6288e00eb063d0d10c234ae2f013fff0f15ce5e94e9777c5d0bf33359f2e9"
         );
         assert_eq!(
             budget_hash,
-            "f194dbc3abaa5e2228f97c51a3825082975dcdedd44090e20428a9583dfe82d1"
+            "06e35514afeb5411501d062780ddd409a1796c54a38f3eac7912596d8eeda26e"
         );
     }
     fn json_text_edge(s: &mut dyn NodeStore, value: &ContentRef) -> ContentRef {
