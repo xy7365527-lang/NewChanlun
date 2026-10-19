@@ -28,6 +28,34 @@ RULE_CONTRACTS = {
     "s2-axis-quantifiers+new-bi/1+segment-second/1": ("s-new-bi/1", "s-segment/2", KNOWLEDGE_DOMAIN_V1),
     "s2-axis-quantifiers+new-bi/2+segment-second/1": ("s-new-bi/2", "s-segment/2", KNOWLEDGE_DOMAIN_V2),
 }
+# #1393：旧 cut 继续按旧 schema 读取；W 字段必须与该 cut 的规则版本一致。
+INITIALIZATION_POLICY = "raw-initialization-w/1"
+INITIALIZATION_KINDS = ("CC-004.initialization", "CC-004.undetermined_raw")
+KINDS += INITIALIZATION_KINDS
+# #1393 W 单域知识域；W 规则 cut 的 TB-02-A 知识状态逐字取 W 冻结源。
+W_KNOWLEDGE_DOMAIN = "raw_adjacent_W_initialization"
+# #1393×#1405 整合：完整规则串精确白名单——无后缀者即自身基规则；带 W 后缀者显式映射，不剥后缀推断。
+RULE_BASES = {rule: rule for rule in RULE_CONTRACTS}
+RULE_BASES["s2-axis-quantifiers+new-bi/1+segment-second/1+" + INITIALIZATION_POLICY] = (
+    "s2-axis-quantifiers+new-bi/1+segment-second/1"
+)
+
+
+def base_rule(rule_revision):
+    if type(rule_revision) is not str or rule_revision not in RULE_BASES:
+        raise ValueError("未获准的完整规则组合")
+    return RULE_BASES[rule_revision]
+
+
+def initialization_policy(payload):
+    if payload["initialization_policy_revision"] != INITIALIZATION_POLICY:
+        raise ValueError("初始化政策版本未声明")
+
+
+def direction_state(payload):
+    if payload["direction_state"] not in ("Undetermined", "Established"):
+        raise ValueError("初始化方向状态未声明")
+
 
 FACT_COLUMNS = ("object_id", "object_revision", "kind", "batch_id", "fact_key", "payload_json", "input_refs_json", "source_coords_json", "first_known_generation", "first_known_cut", "published_generation", "withdrawn_generation", "withdrawal_reason", "superseded_by")
 FACT_FIELDS = ("object_id", "object_revision", "kind", "batch_id", "fact_key", "payload", "input_refs", "source_coords", "first_known_generation", "first_known_cut", "published_generation", "withdrawn_generation", "withdrawal_reason", "superseded_by", "lifecycle")
@@ -143,6 +171,21 @@ def _validate_payload_fields(kind, p):
         validate_segment_payload(kind, p)
     elif kind in BI_KINDS:
         validate_bi_payload(kind, p)
+    elif kind == "CC-004.initialization":
+        keys(p, ("initialization_policy_revision", "direction_state", "first_raw_pair"), kind)
+        initialization_policy(p)
+        direction_state(p)
+        direction_evidence(p["first_raw_pair"])
+        if (p["direction_state"] == "Undetermined") != (p["first_raw_pair"] is None):
+            raise ValueError("初始化状态与首对证据不一致")
+    elif kind == "CC-004.undetermined_raw":
+        keys(p, ("raw", "direction_state", "initialization_policy_revision", "pending_since_cut"), kind)
+        initialization_policy(p)
+        bar(p["raw"], "undetermined.raw")
+        if p["direction_state"] != "Undetermined":
+            raise ValueError("未定原件携伪方向")
+        if not re.fullmatch(r"cut-[1-9][0-9]*", text(p["pending_since_cut"], "pending_since_cut")):
+            raise ValueError("未定记录发生 cut 非法")
     elif kind == KINDS[0]:
         keys(p, ("action", "incoming", "acc_before", "acc_after", "direction", "direction_evidence", "comparisons", "endpoint_order", "contains", "high_sources", "low_sources", "waiting_reasons"), kind)
         if p["action"] not in ("seed", "establish_direction", "merge", "new_group", "waiting"):
@@ -177,7 +220,13 @@ def _validate_payload_fields(kind, p):
             coords(p[key], key)
         strings(p["waiting_reasons"], "waiting_reasons")
     elif kind == KINDS[1]:
-        keys(p, ("group_index", "group_anchor", "members", "open", "high", "low", "close", "high_sources", "low_sources", "confirmed", "direction", "direction_evidence", "confirmation_evidence", "waiting_reasons"), kind)
+        extra = ("initialization_policy_revision", "initial_direction_evidence") if "initialization_policy_revision" in p else ()
+        keys(p, ("group_index", "group_anchor", "members", "open", "high", "low", "close", "high_sources", "low_sources", "confirmed", "direction", "direction_evidence", "confirmation_evidence", "waiting_reasons") + extra, kind)
+        if extra:
+            initialization_policy(p)
+            direction_evidence(p["initial_direction_evidence"])
+            if p["initial_direction_evidence"] is None:
+                raise ValueError("W 正式组缺初始化证据")
         integer(p["group_index"], "group_index", 0)
         integer(p["group_anchor"], "group_anchor", 0)
         bar({"source_coord": p["group_anchor"], **{k: p[k] for k in ("open", "high", "low", "close")}}, "group")
@@ -233,12 +282,16 @@ def _validate_payload_fields(kind, p):
                 if (rel["axis"], rel["value"], rel["reference"], rel["reference_value"]) != (axis, item["bar"][axis], ref["name"], ref["value"]) or rel["order"] not in ("LT", "EQ", "GT"):
                     raise ValueError("后续关系来源字段不一致")
     elif kind == KINDS[3]:
-        keys(p, ("scope", "input_frontier", "known_facts", "waiting_reasons", "domain", "requests"), kind)
+        extra = ("initialization_policy_revision", "direction_state") if "initialization_policy_revision" in p else ()
+        keys(p, ("scope", "input_frontier", "known_facts", "waiting_reasons", "domain", "requests") + extra, kind)
+        if extra:
+            initialization_policy(p)
+            direction_state(p)
         if p["scope"] != "TB-02-A":
             raise ValueError("knowledge scope 不符")
         integer(p["input_frontier"], "knowledge.input_frontier", -1)
         strings(p["waiting_reasons"], "knowledge.waiting_reasons")
-        if p["known_facts"] != ["raw_ohlc", "inclusion_trace", "group_provenance"] or p["domain"] not in (KNOWLEDGE_DOMAIN_V1, KNOWLEDGE_DOMAIN_V2):
+        if p["known_facts"] != ["raw_ohlc", "inclusion_trace", "group_provenance"] or p["domain"] not in ((W_KNOWLEDGE_DOMAIN,) if extra else (KNOWLEDGE_DOMAIN_V1, KNOWLEDGE_DOMAIN_V2)):
             raise ValueError("knowledge 已知事实/限定域声明不符")
         request_ids = set()
         for request in array(p["requests"], "knowledge.requests"):
@@ -294,6 +347,7 @@ def validate_fact(value, meta=None, raw=None):
 
 
 def _validate_fact(value, meta=None, raw=None, *, _identity_hash=None):
+    rule = base_rule(meta["rule_revision"]) if meta is not None else None
     keys(value, FACT_FIELDS, "typed object")
     wire_tree(value)
     for key in ("object_id", "batch_id", "fact_key", "first_known_cut"):
@@ -333,10 +387,23 @@ def _validate_fact(value, meta=None, raw=None, *, _identity_hash=None):
         raise ValueError("事实源坐标与扁平输入引用不一一对应")
     p, kind = value["payload"], value["kind"]
     slot = p["slot"] if kind in BI_KINDS + SEGMENT_KINDS else p["incoming"]["source_coord"] if kind == KINDS[0] else p["group_anchor"] if kind == KINDS[1] else p["window"] if kind == KINDS[2] else "TB-02-A"
+    if kind == "CC-004.initialization":
+        slot = "W"
+    elif kind == "CC-004.undetermined_raw":
+        slot = p["raw"]["source_coord"]
+        if p["pending_since_cut"] != value["first_known_cut"]:
+            raise ValueError("未定发生 cut 与首次获知不同")
     if value["fact_key"] != canonical([kind, slot]).decode():
         raise ValueError("fact_key 与真实语义槽不符")
     if meta is not None:
-        bi_schema, segment_schema, domain = RULE_CONTRACTS.get(meta["rule_revision"], (None, None, None))
+        w_policy = meta["rule_revision"] != rule
+        if kind in INITIALIZATION_KINDS and not w_policy:
+            raise ValueError("旧规则 cut 混入 W 初始化对象")
+        if kind in (KINDS[1], KINDS[3]) and w_policy != ("initialization_policy_revision" in p):
+            raise ValueError("初始化字段与 cut 规则版本不符")
+        bi_schema, segment_schema, domain = RULE_CONTRACTS[rule]
+        if w_policy:
+            domain = W_KNOWLEDGE_DOMAIN
         if kind in SEGMENT_KINDS and p["schema_revision"] != segment_schema:
             raise ValueError("段合同与cut规则版本不符")
         if kind in BI_KINDS and p["schema_revision"] != bi_schema:
@@ -351,7 +418,7 @@ def _validate_fact(value, meta=None, raw=None, *, _identity_hash=None):
             raise ValueError("typed object 内容身份 hash 不闭合")
 
 
-def validate_sources(value, effective):
+def validate_sources(value, effective, *, raw=None):
     """只核已有字段的原始来源与已封存对象引用，不计算包含、方向或分型。"""
     sources = set(value["source_coords"])
     def walk(item, key=None):
@@ -373,17 +440,61 @@ def validate_sources(value, effective):
             raise ValueError("typed input_ref 不是该发布 cut 的有效源修订")
     by_source = {ref["source_coord"]: ref for ref in value["input_refs"]}
     p, kind = value["payload"], value["kind"]
-    if kind == KINDS[0]:
+    if kind == "CC-004.undetermined_raw":
+        raw_bars = [p["raw"]]
+    elif kind == "CC-004.initialization":
+        evidence = p["first_raw_pair"]
+        raw_bars = [] if evidence is None else [evidence["previous_acc"], evidence["incoming"]]
+    elif kind == KINDS[0]:
         raw_bars = [p["incoming"]]
         if p["direction_evidence"] is not None:
             raw_bars.append(p["direction_evidence"]["incoming"])
     elif kind == KINDS[1]:
         raw_bars = [p[key]["incoming"] for key in ("direction_evidence", "confirmation_evidence") if p[key] is not None]
+        if "initial_direction_evidence" in p:
+            evidence = p["initial_direction_evidence"]
+            raw_bars.extend((evidence["previous_acc"], evidence["incoming"]))
     elif kind == KINDS[2]:
         raw_bars = p["descriptive_labels"]["raw_ohlc"] + [item["bar"] for item in p["subsequent_development"]["bars"]]
     else:
         raw_bars = []
+    if raw is not None:
+        for item in raw_bars:
+            ref = by_source[item["source_coord"]]
+            seq = int(ref["seq"])
+            if seq >= len(raw) or any(ref[key] != raw[seq][key] for key in REF_FIELDS):
+                raise ValueError("typed input_ref 与完整已接纳账不一致")
+            if any(item[key] != raw[seq][key] for key in ("open", "high", "low", "close")):
+                raise ValueError("事实中原始 OHLC 值与真实源记录不符")
     return by_source, raw_bars
+
+
+def validate_initialization_links(records, rule_revision):
+    """#1393：核同 cut 的初始化原件与引用一致性，不重算 W 几何。"""
+    if base_rule(rule_revision) == rule_revision:
+        return
+    initial = [r for r in records if r["kind"] == "CC-004.initialization"]
+    if len(initial) != 1:
+        raise ValueError("同 cut 缺少唯一初始化对象")
+    initial = initial[0]
+    p = initial["payload"]
+    initial_refs = {ref["source_coord"]: ref for ref in initial["input_refs"]}
+    for record in records:
+        kind, payload = record["kind"], record["payload"] if "payload" in record else None
+        if kind == KINDS[1]:
+            if (p["direction_state"] != "Established"
+                    or payload.get("initial_direction_evidence") != p["first_raw_pair"]):
+                raise ValueError("组初始化证据与同 cut 初始化对象不一致")
+            refs = {ref["source_coord"]: ref for ref in record["input_refs"]}
+            if any(refs.get(coord) != ref for coord, ref in initial_refs.items()):
+                raise ValueError("组初始化引用与同 cut 原始修订不同")
+        elif kind == "CC-004.undetermined_raw":
+            if p["direction_state"] != "Undetermined":
+                raise ValueError("已定初始化混入未定原件")
+            if any(initial_refs.get(ref["source_coord"]) != ref for ref in record["input_refs"]):
+                raise ValueError("未定原件引用与同 cut 初始化不同")
+        elif kind == KINDS[3] and payload["direction_state"] != p["direction_state"]:
+            raise ValueError("知识方向状态与同 cut 初始化不同")
 
 
 def validate_axes(axes, object_ids=None):

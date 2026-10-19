@@ -7,10 +7,13 @@ use super::*;
 
 /// 包含层对「组内多根同极值」的证据标签（`parser::inclusion` 写入步骤事实）。
 const EQUAL_EXTREME_IDENTITY: &str = "equal_extreme_identity";
-/// #1405：TB-02-A 知识域——方向已建立，极值身份以根集合计（#1343 Q2）。
-/// 旧值 `established_direction_without_extreme_identity_competition` 只在旧规则会话里 AsKnown 可读。
-const KNOWLEDGE_DOMAIN: &str = "established_direction_with_extreme_root_sets";
-use newchan_rust::theta_v0::parser::inclusion::{InclusionDirectionEvidence, InclusionFacts};
+/// #1405 的 TB-02-A 知识域（极值身份以根集合计，#1343 Q2）在无 W 规则会话里为
+/// `established_direction_with_extreme_root_sets`（Python/浏览器合同按规则 AsKnown 可读）。
+/// #1393×#1405 整合：本写者规则串带 `raw-initialization-w/1`，知识域逐字取 W 冻结源。
+const KNOWLEDGE_DOMAIN: &str = "raw_adjacent_W_initialization";
+use newchan_rust::theta_v0::parser::inclusion::{
+    InclusionDirectionEvidence, InclusionFacts, INITIALIZATION_POLICY,
+};
 
 fn bar(b: &Bar) -> Value {
     json!({"source_coord":b.source_index.to_string(),"open":b.open.to_string(),"high":b.high.to_string(),"low":b.low.to_string(),"close":b.close.to_string()})
@@ -109,7 +112,10 @@ fn request(key: Value, id: Value, reasons: Vec<&str>, mut sources: Vec<usize>) -
     let insufficient = reasons.iter().any(|r| {
         matches!(
             *r,
-            "fewer_than_three_merged_bars" | "no_subsequent_bar" | "direction_not_yet_established"
+            "fewer_than_three_merged_bars"
+                | "no_subsequent_bar"
+                | "direction_not_yet_established"
+                | "initial_direction_unsettled"
         )
     });
     json!({"request_id":canonical_json(&key),"subject_id":id,
@@ -123,6 +129,7 @@ pub(super) fn build(
     trace: &InclusionFacts,
     raw: &BTreeMap<i64, Value>,
     shapes: &[Value],
+    previous: &[Value],
     gen: i64,
     cut: &str,
     frontier: i64,
@@ -135,7 +142,75 @@ pub(super) fn build(
     };
     let mut requests = Vec::new();
     let mut all_reasons: Vec<&str> = Vec::new();
-    for step in &trace.steps {
+    // #1393：初始化事实显式携政策与首个 raw 对；不以 object_revision 冒充政策版本。
+    let initial_sources: Vec<usize> = trace
+        .initial_direction_evidence
+        .as_ref()
+        .map(|e| e.source_coords.clone())
+        .unwrap_or_else(|| trace.unmapped_sources.clone());
+    let init_slot = json!(["CC-004.initialization", "W"]);
+    let init_id = b.add("CC-004.initialization", init_slot.clone(), json!({
+        "initialization_policy_revision": INITIALIZATION_POLICY,
+        "direction_state": if trace.initial_direction_unsettled { "Undetermined" } else { "Established" },
+        "first_raw_pair": direction(&trace.initial_direction_evidence),
+    }), initial_sources.clone());
+    requests.push(request(
+        init_slot,
+        json!(init_id),
+        if trace.initial_direction_unsettled {
+            vec!["initial_direction_unsettled"]
+        } else {
+            vec![]
+        },
+        initial_sources,
+    ));
+    if trace.initial_direction_unsettled {
+        requests.push(request(
+            json!(["CC-005.inclusion_group", "pending"]),
+            Value::Null,
+            vec!["initial_direction_unsettled"],
+            trace.unmapped_sources.clone(),
+        ));
+    }
+    for raw_bar in &trace.pending_raw {
+        let slot = json!(["CC-004.undetermined_raw", raw_bar.source_index.to_string()]);
+        let key = canonical_json(&slot);
+        let refs = canonical_json(&json!([raw_ref(&raw[&(raw_bar.source_index as i64)])]));
+        let old = previous.iter().find(|o| {
+            o["kind"] == "CC-004.undetermined_raw"
+                && o["fact_key"] == key
+                && o["input_refs_json"] == refs
+        });
+        // #1393：原件身份不变；未定记录重新出现时以发生 cut 区分，仍走统一内容寻址。
+        let since = old
+            .map(|o| o["first_known_cut"].as_str().unwrap())
+            .unwrap_or(cut);
+        let id = b.add(
+            "CC-004.undetermined_raw",
+            slot.clone(),
+            json!({"raw":bar(raw_bar),"direction_state":"Undetermined",
+                "initialization_policy_revision":INITIALIZATION_POLICY,"pending_since_cut":since}),
+            vec![raw_bar.source_index],
+        );
+        if let Some(old) = old {
+            let object = b.objects.last_mut().unwrap();
+            for key in [
+                "first_known_generation",
+                "first_known_cut",
+                "published_generation",
+            ] {
+                object[key] = old[key].clone();
+            }
+        }
+        requests.push(request(
+            slot,
+            json!(id),
+            vec!["initial_direction_unsettled"],
+            vec![raw_bar.source_index],
+        ));
+    }
+    // 未定原件已有独立载体；waiting 步不冒充 acc 或合并过程。
+    for step in trace.steps.iter().filter(|s| s.action != "waiting") {
         let (cmp, endpoints) = comparisons(step.acc_before.as_ref(), &step.incoming);
         let payload = json!({"action":step.action,"incoming":bar(&step.incoming),"acc_before":step.acc_before.as_ref().map(bar),
             "acc_after":step.acc_after.as_ref().map(bar),"direction":step.direction_evidence.as_ref().map(|e|dir_str(e.direction)),
@@ -186,7 +261,8 @@ pub(super) fn build(
         if let Some(e) = &group.confirmation_evidence {
             sources.extend(&e.source_coords);
         }
-        let payload = json!({"group_index":index.to_string(),"group_anchor":group.bar.source_index.to_string(),"members":coords(&group.members),
+        let payload = json!({"initialization_policy_revision":INITIALIZATION_POLICY,
+            "initial_direction_evidence":direction(&trace.initial_direction_evidence),"group_index":index.to_string(),"group_anchor":group.bar.source_index.to_string(),"members":coords(&group.members),
             "open":group.bar.open.to_string(),"high":group.bar.high.to_string(),"low":group.bar.low.to_string(),"close":group.bar.close.to_string(),
             "high_sources":coords(&group.high_sources),"low_sources":coords(&group.low_sources),"confirmed":group.confirmed,"confirmation_evidence":direction(&group.confirmation_evidence),
             "direction":group.direction_evidence.as_ref().map(|e|dir_str(e.direction)),"direction_evidence":direction(&group.direction_evidence),"waiting_reasons":labels});
@@ -335,6 +411,8 @@ pub(super) fn build(
         "detail":{"tb02a":true,"source_coords":coords(&sources),"input_frontier":frontier.to_string(),"waiting_reasons":all_reasons}})).collect();
     b.add("CC-054.knowledge_state",json!(["CC-054.knowledge_state","TB-02-A"]),json!({"scope":"TB-02-A","input_frontier":frontier.to_string(),
         "known_facts":["raw_ohlc","inclusion_trace","group_provenance"],"waiting_reasons":all_reasons,
+        "initialization_policy_revision":INITIALIZATION_POLICY,
+        "direction_state":if trace.initial_direction_unsettled{"Undetermined"}else{"Established"},
         "domain":KNOWLEDGE_DOMAIN,"requests":requests}),sources);
     b.objects.sort_by(|a, b| {
         (
@@ -372,7 +450,8 @@ pub(super) fn catalog_axes(
         "CC-010", "CC-011", "CC-012", "CC-013", "CC-014", "CC-054", "CC-055", "CC-056",
     ] {
         let kind = match axis {
-            "CC-001" | "CC-002" | "CC-003" | "CC-004" => "CC-004.inclusion_step",
+            "CC-001" | "CC-002" | "CC-003" => "CC-004.inclusion_step",
+            "CC-004" => "CC-004.",
             "CC-005" => "CC-005.inclusion_group",
             "CC-006" => "CC-006.local_shape",
             "CC-007" => "CC-007.fractal_description",
@@ -417,7 +496,11 @@ pub(super) fn catalog_axes(
                 for request in k["requests"].as_array().unwrap() {
                     let key: Value =
                         serde_json::from_str(request["request_id"].as_str().unwrap()).unwrap();
-                    if key[0] == kind || key[0][0] == kind {
+                    if key[0] == kind
+                        || key[0][0] == kind
+                        || (kind.ends_with('.')
+                            && key[0].as_str().is_some_and(|k| k.starts_with(kind)))
+                    {
                         waiting.extend(request["reasons"].as_array().unwrap().clone());
                     }
                 }
@@ -487,4 +570,21 @@ pub(super) fn catalog_axes(
         axes.insert(axis.into(),json!({"impl_status":if matches!(axis,"CC-012"|"CC-013"|"CC-014"){"not_implemented"}else{"implemented"},"proof_status":"not_proved","run_status":run,"evidence":evidence}));
     }
     Value::Object(axes)
+}
+
+/// #1393：组的成员来自 parser；R2 仅将旧未定记录映射到包含该 raw 的新组。
+/// 撤回表的 superseded_by 可承载此多对一关系，既有 audit/AsKnown 同源重建。
+pub(super) fn replacing_group<'a>(old: &Value, new_objects: &'a [Value]) -> Option<&'a Value> {
+    if old["kind"] != "CC-004.undetermined_raw" {
+        return None;
+    }
+    let old_payload: Value = serde_json::from_str(old["payload_json"].as_str()?).ok()?;
+    let coord = &old_payload["raw"]["source_coord"];
+    new_objects.iter().find(|o| {
+        if o["kind"] != "CC-005.inclusion_group" {
+            return false;
+        }
+        let payload: Value = serde_json::from_str(o["payload_json"].as_str().unwrap()).unwrap();
+        payload["members"].as_array().unwrap().contains(coord)
+    })
 }

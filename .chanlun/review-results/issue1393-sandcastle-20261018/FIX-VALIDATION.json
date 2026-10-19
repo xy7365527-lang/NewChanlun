@@ -1,0 +1,238 @@
+{
+  "ticket": 1393,
+  "status": "completed",
+  "scope": "三项协议返修与轻量自测；待新的独立Sandcastle会话复审",
+  "head": "ab3f3fb0e1638f1ef3543b8b1948cd1856dc8675",
+  "head_tree": "3c383be7f45fe55d4a270ac3ef32a0b253de793b",
+  "reviewed_product_head": "c25f35f1dfe088affa07f18479f6736d069fc9a6",
+  "branch": "codex/1393-sandcastle-w-20261018",
+  "working_tree": "未暂存WIP；未创建交付commit/tree；head_tree不是含本轮差异的树",
+  "original_review": {
+    "artifact": "INDEPENDENT-REVIEW-01.json",
+    "process_exit_code": 0,
+    "business_status": "blocked",
+    "findings": 3
+  },
+  "fixes": [
+    {
+      "finding": "P1 完整规则准入",
+      "state": "已修复/自测通过/待独立复审"
+    },
+    {
+      "finding": "P1 组初始化两端原件及同cut链接",
+      "state": "已修复/自测通过/待独立复审"
+    },
+    {
+      "finding": "P2 JS payload原件精确修订与坐标/OHLC",
+      "state": "已修复/自测通过/待独立复审"
+    }
+  ],
+  "checks": [
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s s_session/tests -p test_tb02u_review_regressions.py -v",
+      "status": "PASS",
+      "exit_code": 0,
+      "tests": 6,
+      "final_observed_seconds": 0.131
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s s_session/tests -p test_tb02u_contract.py -v",
+      "status": "PASS",
+      "exit_code": 0,
+      "tests": 5,
+      "observed_seconds": 0.028
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s s_session/tests -p test_tb02d_validate_once.py -v",
+      "status": "PASS",
+      "exit_code": 0,
+      "tests": 9,
+      "observed_seconds": 0.023
+    },
+    {
+      "command": "node --check s_session/browser/tb01c-client.js",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 .chanlun/review-results/issue1393-sandcastle-20261018/verify_static.py",
+      "status": "PASS",
+      "exit_code": 0,
+      "scope": "五个几何函数相对3315ed1不变、规则token追加、Python AST、Lean静态无占位；非编译/证明"
+    },
+    {
+      "command": "git diff --check",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "command": "Python ast.parse：本轮三个Python写集逐文件读取并解析",
+      "status": "PASS"
+    },
+    {
+      "command": "git diff --cached --name-only；git diff --name-only ab3f3fb0e1638f1ef3543b8b1948cd1856dc8675 -- rust formal src .chanlun/definitions",
+      "status": "PASS",
+      "result": "均为空"
+    },
+    {
+      "command": "git show ab3f3fb0e1638f1ef3543b8b1948cd1856dc8675:<原件路径> 与工作区逐字节比较",
+      "status": "PASS",
+      "files": 11
+    }
+  ],
+  "unittest_total": 20,
+  "regression_matrix": {
+    "valid_snapshots": 6,
+    "source_counterexamples": 63,
+    "same_cut_counterexamples": 6,
+    "legal_rules": 5,
+    "illegal_rules": 11,
+    "segment_schema_cases": 6,
+    "source_identity_check": "69个来源/同cut反例均先通过字段与实际内容SHA；显式核合法OHLC几何",
+    "javascript": "typed + validateTB02CutSources + 生产同源validateTB02Identity联合执行，纯Node"
+  },
+  "baseline_reproduction": {
+    "source": "ab3f3fb0e1638f1ef3543b8b1948cd1856dc8675",
+    "method": "git show只读源码；Python内存module与Node vm，不替换checkout",
+    "accepted_before_fix": [
+      "unknown+raw-initialization-w/1",
+      "重复W后缀",
+      "双加号空token",
+      "组首对previous_acc high/close 4→3，重新哈希后来源校验仍通过",
+      "JS未定raw.high=11 vs raw_history.high=10；typed/sources/SHA均通过"
+    ]
+  },
+  "changed_files_excluding_this_json": [
+    {
+      "path": "s_session/s_tb02_contract.py",
+      "bytes": 62616,
+      "sha256": "9c851fdc719ba5a26782c56f47f60606e4806523c0685b47d90a0b27b39f3eac"
+    },
+    {
+      "path": "s_session/s_query_integrity.py",
+      "bytes": 76392,
+      "sha256": "dcb24fd10b76dca91684611052e8a7e079b08359a84d8af00a612b2ffd0b0699"
+    },
+    {
+      "path": "s_session/browser/tb01c-client.js",
+      "bytes": 91358,
+      "sha256": "709b8b94376c0a88dcbb402e253b4069ad1b9563383a17ebe9dd9dac73bae1ec"
+    },
+    {
+      "path": "s_session/tests/test_tb02u_review_regressions.py",
+      "bytes": 18582,
+      "sha256": "be59a5aad7709bd5510ddd97b4ab6aa5fb62a436b6846198a14058d83b823513"
+    },
+    {
+      "path": ".chanlun/review-results/issue1393-sandcastle-20261018/REPORT.md",
+      "bytes": 17131,
+      "sha256": "89a3fc7ab9365c67e12fa1d9e80f1037f7b5e1cf987c57468bdc25692709ebcb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1393-sandcastle-20261018/MANAGER-CHECKPOINT.md",
+      "bytes": 1674,
+      "sha256": "a04628a0601e3bba8ae85ba08131fdd961468322ae325e59cda9c725bb09d4ed"
+    },
+    {
+      "path": ".chanlun/review-results/issue1393-sandcastle-20261018/FIX-REPORT.md",
+      "bytes": 5779,
+      "sha256": "6d1c41a75dafd2132668c8cf1abeee9c3d601c66047b1c050497ff32fe1d68b3"
+    }
+  ],
+  "tracked_diff_sha256": "3a38e4524aeda5b451fa19b083d4ab75b1c4b3b52d8ae45cc2025051a87bfb9e",
+  "diff_hash_scope": "已跟踪文件差异；未跟踪测试/报告另列完整文件SHA256；本JSON自哈希由收包者另算",
+  "preserved_originals": [
+    {
+      "path": ".chanlun/review-results/issue1393-sandcastle-20261018/MANIFEST.json",
+      "bytes": 5662,
+      "sha256": "face853b3e3280f45e6630fcfc3748139d0d33168fd8cc36eaaec5f8f7d24564",
+      "unchanged_from_head": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1393-sandcastle-20261018/VALIDATION.json",
+      "bytes": 1847,
+      "sha256": "26fe3b52fcf63898243a80a06feda208d14e8e1bc48482acf3d332f8b7ebd5ed",
+      "unchanged_from_head": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1393-sandcastle-20261018/INDEPENDENT-REVIEW-01.json",
+      "bytes": 8552,
+      "sha256": "43069238945c31e3476fccb40426ac3cc628c4cdedce0ddb06c7c8770c2e6bd9",
+      "unchanged_from_head": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1393-sandcastle-20261018/run-01-static-report.md",
+      "bytes": 18473,
+      "sha256": "6af62774d0f8c5c93ac62485b687bf49b6389628128ba4620fced0b85c31fe2a",
+      "unchanged_from_head": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1393-sandcastle-20261018/verify_static.py",
+      "bytes": 2025,
+      "sha256": "b6cc0b82e53c863518885515d04b2d2ef093776917fdf81647ce31500a8757f1",
+      "unchanged_from_head": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1393-sandcastle-20261018/verify_model.py",
+      "bytes": 11270,
+      "sha256": "8562cbf248c7745f5ad2052083f8b181fa5f6db525eceb18fa0d33a7a8a7f62b",
+      "unchanged_from_head": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1393-sandcastle-20261018/reference-evidence/REFERENCE-RESULT.md",
+      "bytes": 2111,
+      "sha256": "89332daf9554f3522bec86cd10bc77ebccbf8e93863c543404ad33e32d884133",
+      "unchanged_from_head": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1393-sandcastle-20261018/reference-evidence/xerj-nautilus-state-reference.json",
+      "bytes": 91586,
+      "sha256": "f7853a247fb99bb255f79397108dcf6a79db2109add34239499864ef50a3ec16",
+      "unchanged_from_head": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1393-sandcastle-20261018/reference-evidence/xerj-nautilus-reference-all.json",
+      "bytes": 953196,
+      "sha256": "8f2304838253c51889429c41871542f467d22764b0ec7dbb8faec956c0278dda",
+      "unchanged_from_head": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1393-sandcastle-20261018/reference-evidence/xerj-nc1320src-inclusion.json",
+      "bytes": 137552,
+      "sha256": "3eadeee397574adcfbe11b37a2e1d3e01d809904427653ab0a2cffe8b27a7563",
+      "unchanged_from_head": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1393-sandcastle-20261018/reference-evidence/xerj-nc1419gate-inclusion.json",
+      "bytes": 136840,
+      "sha256": "0d2f4ecf2f4a4c3a72f50dfbf36263871991dca970bc12782dda6062ed915668",
+      "unchanged_from_head": true
+    }
+  ],
+  "not_run": [
+    "cargo/rustc",
+    "Rust编译与测试",
+    "产品二进制",
+    "正式S会话/API/浏览器",
+    "产品新进程重放/故障恢复",
+    "Long/真实历史批处理",
+    "lake/Lean构建",
+    "fixture drift",
+    "CI",
+    "#1419/#1488组合验收",
+    "资金/订单等外效"
+  ],
+  "fixture_drift": {
+    "status": "NOT_RUN",
+    "reason": "禁止本机自动lake build；新增Lean不豁免fixture义务",
+    "exit_codes": {
+      "0": "无漂移",
+      "1": "真实漂移",
+      "3": "缺lake",
+      "4": "构建失败",
+      "5": "导出失败"
+    }
+  },
+  "lean": "默认roots尚未接入；待实际验证入口接线和定向核验，不能声称已核证明",
+  "next": "管理者固定最终源码；新独立Sandcastle会话复审三项及尾部diff；后续验证须另获授权"
+}

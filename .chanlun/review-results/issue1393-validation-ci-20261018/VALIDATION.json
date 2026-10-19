@@ -1,0 +1,56 @@
+{
+  "ticket": 1393,
+  "scope": "默认 False 的必要 CI 实施；未提交 WIP",
+  "base": "ab3f3fb0e1638f1ef3543b8b1948cd1856dc8675",
+  "checks": [
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .github/scripts -p test_issue1393_validate.py -v",
+      "exit": 0,
+      "tests": 19,
+      "seconds": 2.366,
+      "stdout": "toy-final.stdout",
+      "stderr": "toy-final.stderr"
+    },
+    {
+      "command": "python3 .chanlun/review-results/issue1393-validation-ci-20261018/verify_static.py",
+      "exit": 0,
+      "stdout": "static-final.stdout",
+      "stderr": "static-final.stderr"
+    }
+  ],
+  "history": [
+    {
+      "run": "toy-round01",
+      "exit": 1,
+      "reason": "两个进程组 EPERM 未捕获错误；已修复"
+    },
+    {
+      "run": "toy-round02",
+      "exit": 0,
+      "tests": 16
+    },
+    {
+      "run": "toy-round03",
+      "exit": 0,
+      "tests": 18
+    },
+    {
+      "run": "static-round01",
+      "exit": 1,
+      "reason": "静态脚本误解 no-index diff 退出1，产品检查未运行"
+    }
+  ],
+  "not_run": [
+    "cargo",
+    "rustc",
+    "Rust 编译/真实测试",
+    "Lean/lake",
+    "fixture",
+    "真实产品/会话/API/浏览器",
+    "Long/历史",
+    "网络/CI/push/dispatch",
+    "独立评审"
+  ],
+  "gate": "False",
+  "contract_status": "PREPARED_NOT_AUTHORIZED"
+}

@@ -1,0 +1,4 @@
+AST + py_compile PASS: .github/scripts/issue1393_validate.py
+AST + py_compile PASS: .github/scripts/test_issue1393_validate.py
+YAML + workflow gate + 60-minute job + embedded Python/shell syntax PASS
+ci.yml exact additive-only comparison PASS; original build/fixture preserved

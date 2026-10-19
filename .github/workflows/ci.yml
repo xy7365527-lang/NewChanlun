@@ -339,6 +339,11 @@ jobs:
         run: lake build
         working-directory: formal
 
+      # #1393：此单文件不在 lake 默认 roots；常规 CI 必须持续显式核验。
+      - name: Check raw inclusion initialization (Lean, #1393)
+        run: lake env lean Origin/RawInclusionInitialization.lean
+        working-directory: formal
+
       - name: Fixture drift check (Lean → fixtures)
         # 红时脚本自身打出字段级 diff + 每个漂移 fixture 的再生（重落盘）命令
         run: python3 scripts/check_fixture_drift.py
