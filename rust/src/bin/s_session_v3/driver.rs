@@ -3872,7 +3872,7 @@ mod tests {
                     eprintln!("  wrote {} nodes to {}", native_nodes.len(), nodes_path);
 
                     // BFS 可达性分析：从所有 roots 出发，标记能到达的 nodes
-                    use std::collections::{HashMap, HashSet};
+                    use std::collections::HashMap;
                     let nodes_map: HashMap<Vec<u8>, Vec<u8>> = native.conn
                         .prepare("SELECT digest,tag,body FROM s_content_nodes")
                         .unwrap()
