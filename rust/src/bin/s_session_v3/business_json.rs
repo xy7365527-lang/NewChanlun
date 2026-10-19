@@ -492,16 +492,26 @@ impl<'raw> RawPrefixIndex<'raw> {
     }
     fn clear_winners(&mut self) {
         #[cfg(feature = "s_capture_native_testonly")]
-        {
-            for (key, _) in self.facts.winners.iter() {
-                self.retained.release(key);
-            }
-            self.retained
-                .tree_len::<i64, usize>(self.facts.ordered.len(), 0);
+        for (key, _) in self.facts.winners.iter() {
+            self.retained.release(key);
         }
+        #[cfg(feature = "s_capture_native_testonly")]
+        let ordered_before = self.facts.ordered.allocation_bytes();
         // HashMap clear 保留桶；BTree clear 真实释放根。
         self.facts.winners.retain(|_, _| false);
         self.facts.ordered.clear();
+        #[cfg(feature = "s_capture_native_testonly")]
+        self.ordered_retained(ordered_before);
+    }
+    /// 有序树按其实际许可/节点上界（allocation_bytes）记增量，与全量 heap_bytes 同口径。
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn ordered_retained(&mut self, before: usize) {
+        let after = self.facts.ordered.allocation_bytes();
+        if after >= before {
+            self.retained.add_bytes(after - before);
+        } else {
+            self.retained.release_bytes(before - after);
+        }
     }
 
     pub(super) fn is_empty(&self) -> bool {
@@ -634,14 +644,13 @@ impl<'raw> RawPrefixIndex<'raw> {
                 .map_err(|e| e.to_string())?;
             if let Some((_, _, old)) = previous {
                 #[cfg(feature = "s_capture_native_testonly")]
-                let len = self.ordered.len();
+                let ordered_before = self.facts.ordered.allocation_bytes();
                 self.ordered.remove(&old);
                 if self.ordered.is_empty() {
                     self.ordered.clear();
                 }
                 #[cfg(feature = "s_capture_native_testonly")]
-                self.retained
-                    .tree_len::<i64, usize>(len, self.facts.ordered.len());
+                self.ordered_retained(ordered_before);
                 admission
                     .native_codec_room(&mut updates.removed, 1)
                     .map_err(|e| e.to_string())?;
@@ -658,9 +667,7 @@ impl<'raw> RawPrefixIndex<'raw> {
         updates.added.sort_unstable_by_key(|(c, _)| *c);
         for &(c, ordinal) in &updates.added {
             #[cfg(feature = "s_capture_native_testonly")]
-            let len = self.ordered.len();
-            #[cfg(feature = "s_capture_native_testonly")]
-            let permit_capacity = self.ordered.permit_capacity();
+            let ordered_before = self.facts.ordered.allocation_bytes();
             if self
                 .ordered
                 .insert_admitted(c, ordinal, admission)
@@ -670,15 +677,7 @@ impl<'raw> RawPrefixIndex<'raw> {
                 return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖业务身份".into());
             }
             #[cfg(feature = "s_capture_native_testonly")]
-            {
-                self.retained
-                    .tree_len::<i64, usize>(len, self.facts.ordered.len());
-                self.retained
-                    .vec_capacity::<sc::capture_allocation::scratch::NativeReservation>(
-                        permit_capacity,
-                        self.facts.ordered.permit_capacity(),
-                    );
-            }
+            self.ordered_retained(ordered_before);
         }
         self.prefix = prefix;
         Ok(updates)
