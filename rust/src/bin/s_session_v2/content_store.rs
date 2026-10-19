@@ -947,8 +947,6 @@ impl NodeSource for TxStore<'_, '_> {
     }
 }
 
-thread_local! { static UO_PUTS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) }; }
-pub(crate) fn uo_puts() -> u64 { UO_PUTS.with(|c| c.get()) }
 impl TxStore<'_, '_> {
     fn put_before_write(
         &mut self,
@@ -957,7 +955,6 @@ impl TxStore<'_, '_> {
         body: &[u8],
         before_write: impl FnOnce(),
     ) -> Result<(), CodecError> {
-        UO_PUTS.with(|c| c.set(c.get() + 1));
         let result = self.put_before_write_inner(digest, tag, body, before_write);
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
         if result.is_err() {
