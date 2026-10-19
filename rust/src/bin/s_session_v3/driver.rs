@@ -1096,6 +1096,18 @@ mod tests {
             .optional()
             .unwrap()
     }
+    /// 第二连接两次真实提交、终态内容不变：只有版本能看出外写（同值 UPDATE 不落盘，不算外写）。
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn recover_lock_external_write(f: &Fixture) {
+        let c = Connection::open(&f.db).unwrap();
+        c.execute("UPDATE meta SET value=value||'~' WHERE key='generation'", [])
+            .unwrap();
+        c.execute(
+            "UPDATE meta SET value=substr(value,1,length(value)-1) WHERE key='generation'",
+            [],
+        )
+        .unwrap();
+    }
     /// 失败的 Recover 不得晋升：租约撤销、资格不在 owner、持久 epoch 不动。
     #[cfg(feature = "s_capture_native_testonly")]
     fn assert_recover_revoked(native: &Driver, f: &Fixture, serial_before: u64, epoch: &str) {
@@ -1231,16 +1243,17 @@ mod tests {
         let f = Fixture::new();
         let (native, _, _) = recover_lock_driver(&f);
         let serial = native.conn.recover_probe_for_test().serial;
-        let dv = |c: &Connection| -> i64 { c.query_row("PRAGMA main.data_version", [], |r| r.get(0)).unwrap() };
-        let dv0 = dv(&native.conn);
-        let changed = Connection::open(&f.db)
-            .unwrap()
-            .execute("UPDATE meta SET value=value WHERE key='generation'", [])
-            .unwrap();
-        let dv1 = dv(&native.conn);
-        let outcome = native.conn.recover("2", &native.clock, "recover-2");
-        eprintln!("DIAG changed={changed} dv0={dv0} dv1={dv1} outcome={outcome:?} probe={:?}", native.conn.recover_probe_for_test());
-        assert!(outcome.is_err());
+        let version = |c: &Connection| -> i64 {
+            c.query_row("PRAGMA main.data_version", [], |r| r.get(0))
+                .unwrap()
+        };
+        let before = version(&native.conn);
+        recover_lock_external_write(&f);
+        assert_ne!(version(&native.conn), before, "外写必须真实提交");
+        assert!(native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .is_err());
         assert_recover_revoked(&native, &f, serial, "1");
         // Recover 前读域变化（连接级 PRAGMA）：同样撤销。
         let f = Fixture::new();
@@ -1265,10 +1278,7 @@ mod tests {
         native.conn.recover("2", &native.clock, "recover-2").unwrap();
         let promoted = native.conn.recover_probe_for_test();
         assert_eq!(promoted.qualification.unwrap().writer_epoch, Some(2));
-        Connection::open(&f.db)
-            .unwrap()
-            .execute("UPDATE meta SET value=value WHERE key='generation'", [])
-            .unwrap();
+        recover_lock_external_write(&f);
         native.epoch = "2".into();
         let _ = native.handle(ready);
         let probe = native.conn.recover_probe_for_test();
