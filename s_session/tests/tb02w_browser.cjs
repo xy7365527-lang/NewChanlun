@@ -63,7 +63,7 @@ async function main() {
     const views = [
       {cut: args['final-cut'], mode: 'RecomputedWithRevision', label: 'final',
        want: {'CC-012': ['SECOND_SEQUENCE', killed ? 'KILLED_BY_NEW_EXTREME' : 'CONFIRMED', 'semantic_state'],
-              'CC-013': [killed ? 'CASE_ONE' : 'CASE_TWO', 'geometric_end'], 'CC-014': ['fact_vector']}},
+              'CC-013': killed ? ['KILLED_CASE_TWO', 'second_candidate_killed_by_new_extreme'] : ['CASE_TWO', 'geometric_end'], 'CC-014': ['fact_vector']}},
       {cut: args['killed-cut'], mode: 'AsKnown', label: 'decided',
        want: killed ? {'CC-012': ['KILLED_BY_NEW_EXTREME', 'killed_by'], 'CC-013': ['KILLED_CASE_TWO', 'second_candidate_killed_by_new_extreme']}
                     : {'CC-012': ['CONFIRMED', 'matched'], 'CC-013': ['CASE_TWO']}},
