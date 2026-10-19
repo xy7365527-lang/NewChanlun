@@ -3786,6 +3786,19 @@ impl AuditCapture {
                 })?))
             })
     }
+    /// #1488 P3-β：正文块已物理计费（Native绑定）的节点数；与合同项数对拍，漏签claim即可检出。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[doc(hidden)]
+    pub fn native_bound_body_nodes_for_testonly(&self) -> usize {
+        let CaptureNodes::Native(native) = &self.nodes else {
+            return 0;
+        };
+        native
+            .nodes
+            .values()
+            .filter(|node| node.body.is_native_bound())
+            .count()
+    }
     /// #1488 P3-α：逐节点来源合同额（多重集），供普查实测“与合同额同额、却无持有者的物理许可”张数。
     #[cfg(feature = "s_capture_native_testonly")]
     #[doc(hidden)]

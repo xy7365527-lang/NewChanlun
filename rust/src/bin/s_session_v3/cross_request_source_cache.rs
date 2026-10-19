@@ -481,7 +481,10 @@ impl Pool {
         ]
         .into_iter()
         .try_fold(8, add)?;
-        if claims != 0
+        // #1488 P3-β：claims==0也要核——只要有正文块已物理计费，就必须每节点一项；
+        // 只有全无物理计费正文（无工作域的捕获）时才允许无合同项。
+        let bound = originals.native_bound_body_nodes_for_testonly();
+        if (claims != 0 || bound != 0)
             && (claims != nodes
                 || claimed
                     != add(
@@ -982,6 +985,69 @@ mod tests {
                 .is_err());
                 assert_eq!(budget.live(), charged);
                 drop(held);
+                assert_eq!(budget.live(), base);
+                Ok::<_, String>(())
+            })
+            .unwrap();
+    }
+
+    /// #1488 P3-β锁：封存核对来源合同项在claims==0时也执行。正文块已物理计费却漏签claim
+    /// （claims=0）必须报SourceClaimContractMismatch（负控）；每节点一项（正控）与全无物理计费
+    /// 正文的无工作域捕获（claims=0、bound=0，对照）照常封存。
+    #[test]
+    fn p3b_seal_rejects_missing_source_claim_on_charged_body() {
+        use super::super::audit_owner::native::Budget;
+        use sc::capture_allocation::scratch::NativeReservation;
+        type Fees = sc::CodecVec<(sc::NodeDigest, Option<NativeReservation>, Option<usize>)>;
+        let budget = Budget::new(1024 * 1024, 0).unwrap();
+        let body = b"p3b-source-body".to_vec();
+        let tag = sc::tag::BYTES_CHUNK;
+        let digest = sc::frame(tag, &body);
+        let claim = body.len() + 97;
+        let seal = |capture: sc::AuditCapture| {
+            Pool::build(
+                capture,
+                1,
+                Binding {
+                    frontier: 0,
+                    rows: sc::CodecVec::default(),
+                },
+                sc::CodecVec::default(),
+            )
+            .map(drop)
+        };
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let e = |e: sc::CodecError| e.to_string();
+                let base = budget.live();
+                let native = |fee: Option<NativeReservation>, source: Option<usize>| {
+                    let mut nodes = sc::MemoryNodes::new();
+                    nodes.insert_unchecked(digest, tag, body.clone());
+                    sc::AuditCapture::new(nodes)
+                        .with_original_fees_for_testonly(
+                            sc::CodecVec::default(),
+                            Fees::from_plain(vec![(digest, fee, source)]),
+                        )
+                        .and_then(|c| c.enable_native_frame_reuse_admitted_for_testonly(Some(work)))
+                        .map_err(e)
+                };
+                // 负控：正文块已物理计费、漏签claim。
+                let missing = native(Some(work.reserve_native(body.len()).map_err(e)?), None)?;
+                assert_eq!(missing.native_source_claims_for_testonly().map_err(e)?, (0, 0));
+                assert_eq!(missing.native_bound_body_nodes_for_testonly(), 1);
+                assert_eq!(seal(missing), Err("SourceClaimContractMismatch".to_string()));
+                assert_eq!(budget.live(), base, "被拒封存不留物理账");
+                // 正控：每节点一项。
+                let signed =
+                    native(Some(work.reserve_native(body.len()).map_err(e)?), Some(claim))?;
+                assert_eq!(signed.native_source_claims_for_testonly().map_err(e)?, (1, claim));
+                seal(signed).unwrap();
+                // 对照：全无物理计费正文的捕获（无许可、无claim）仍可封存。
+                let plain = native(None, None)?;
+                assert_eq!(plain.native_bound_body_nodes_for_testonly(), 0);
+                seal(plain).unwrap();
                 assert_eq!(budget.live(), base);
                 Ok::<_, String>(())
             })
