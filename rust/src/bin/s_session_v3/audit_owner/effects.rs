@@ -579,7 +579,7 @@ impl Recording {
             .map_err(|_| invalid("效果日志仍有外借"))?
             .into_inner()
             .map_err(invalid)?;
-        if false && journal.unexpected {
+        if journal.unexpected {
             return Err(invalid("固定 operation 出现未声明实际效果"));
         }
         if journal.overflow {
