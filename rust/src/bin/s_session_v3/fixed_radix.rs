@@ -742,8 +742,27 @@ mod tests {
         let branch = Layout::new::<Branch<i64, usize>>().size();
         // #1488 主控裁定：v4 合同 :28 要求工作域控制块元数据 M 计费；每次 run() 的
         // CodecWork::new 先预留 M（不计 attempts、计入 peak、run 结束释放）。独立常量交叉核 M。
+        // 独立表达式（不调用 metadata_bytes）：ArcInner 头 strong/weak 两个 usize，接 ScratchCore
+        // 同型字段镜像（dyn 父胖指针、limit/metadata_charge/origin、四个原子计数、active）。
+        // 当前 Rust 1.98 x86_64 上为 16 + pad(16+8+8+8+4*8+1 → 80) = 96 字节。
+        #[allow(dead_code)]
+        struct CoreMirror(
+            std::sync::Arc<dyn Send + Sync>,
+            usize,
+            usize,
+            u64,
+            [std::sync::atomic::AtomicUsize; 4],
+            std::sync::atomic::AtomicBool,
+        );
+        let independent = Layout::new::<[usize; 2]>()
+            .extend(Layout::new::<CoreMirror>())
+            .unwrap()
+            .0
+            .pad_to_align()
+            .size();
+        assert_eq!(independent, 96, "独立布局推导与字面 96B 不符");
         let scope_metadata = CodecWork::metadata_bytes();
-        assert_eq!(scope_metadata, 96, "工作域元数据 M 与独立常量 96B 不符");
+        assert_eq!(scope_metadata, independent, "工作域元数据 M 与独立布局推导不符");
         assert_eq!(parent.live.load(Ordering::SeqCst), leaf);
         for offset in [1, 2] {
             let attempts = parent.attempts.load(Ordering::SeqCst);

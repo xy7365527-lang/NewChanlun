@@ -35,6 +35,23 @@ impl ManifestWorkspaceBudget {
     }
 }
 
+/// #1488 P3-4：冷出生许可的铸造凭据。字段与构造只在本模块（冻结入口）可见，不可Clone/Copy；
+/// `BootstrapGrant::from_freeze`消费它，同crate其它代码无法伪造冷出生许可。
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) struct FreezeSeal {
+    domain: u64,
+    limit: usize,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl FreezeSeal {
+    pub(crate) fn domain(&self) -> u64 {
+        self.domain
+    }
+    pub(crate) fn limit(&self) -> usize {
+        self.limit
+    }
+}
+
 /// #1488 v4：唯一真实分配父与（R13兼容需要时）只读观察句柄；后者不可隐式转成Budget。
 #[cfg(feature = "s_capture_native_testonly")]
 pub(super) struct ParentPreparation {
@@ -151,7 +168,9 @@ impl RequestAuditContext {
             old_pool,
             allowance,
         });
-        self.bootstrap = Some(super::audit_owner::native::BootstrapGrant::new(allowance));
+        self.bootstrap = Some(super::audit_owner::native::BootstrapGrant::from_freeze(
+            FreezeSeal { domain, limit: allowance },
+        ));
         Ok(())
     }
     #[cfg(feature = "s_capture_native_testonly")]
@@ -1776,7 +1795,9 @@ impl RequestAuditContext {
                 .bootstrap
                 .take()
                 .ok_or("S3WriterResourcesInvalid：冷出生许可已消费")?;
-            debug_assert_eq!(grant.limit(), contract.allowance);
+            if grant.domain() != contract.domain || grant.limit() != contract.allowance {
+                return Err("S3WriterResourcesInvalid：冷出生许可不属于本次冻结域".into());
+            }
             let root = super::audit_owner::native::Budget::bootstrap(grant)
                 .map_err(|_| "S3WriterResourcesInvalid：cold父预算不足")?;
             *self.cold_parent.get_mut() = Some(root.clone());
@@ -1802,7 +1823,10 @@ impl RequestAuditContext {
         if self.cold_parent.borrow().is_some() || self.handoff_parent.borrow().is_some() {
             return None;
         }
-        self.bootstrap.take()
+        let contract = self.workspace_budget?;
+        self.bootstrap
+            .take()
+            .filter(|g| g.domain() == contract.domain && g.limit() == contract.allowance)
     }
     pub(super) fn cold_parent_budget(&self) -> Option<super::audit_owner::native::Budget> {
         self.request_parent_budget()
@@ -2423,6 +2447,37 @@ mod handoff_domain_tests {
         assert!(context.prepare_parent(None).is_err());
         assert!(context.prepare_parent(Some(&root)).is_err());
         assert_eq!(root.live(), Budget::metadata_bytes());
+    }
+    /// #1488 P3-4：冷出生许可只由冻结凭据铸造并绑定冻结域；非本域许可（fixture域0或他次冻结）
+    /// 不得出生根账，拒绝时不消费本域状态之外的任何账。
+    #[test]
+    fn bootstrap_grant_from_other_freeze_domain_is_rejected() {
+        let mut first = RequestAuditContext::default();
+        first
+            .freeze_manifest_workspace_budget(1 << 20, 0, 0)
+            .unwrap();
+        let mut second = RequestAuditContext::default();
+        second
+            .freeze_manifest_workspace_budget(1 << 20, 0, 0)
+            .unwrap();
+        // 他次冻结铸造的真实许可，搬到本上下文。
+        second.bootstrap = first.bootstrap.take();
+        assert!(second.prepare_parent(None).is_err(), "他域冷许可必须拒绝");
+        assert!(second.cold_parent_budget().is_none(), "拒绝不出生根账");
+        // fixture许可（域0）同理不可冒充冻结许可。
+        let mut third = RequestAuditContext::default();
+        third
+            .freeze_manifest_workspace_budget(1 << 20, 0, 0)
+            .unwrap();
+        third.bootstrap = Some(
+            super::super::audit_owner::native::BootstrapGrant::for_test(1 << 20),
+        );
+        assert!(third.take_bootstrap_grant().is_none(), "fixture许可不得取出");
+        third.bootstrap = Some(
+            super::super::audit_owner::native::BootstrapGrant::for_test(1 << 20),
+        );
+        assert!(third.prepare_parent(None).is_err());
+        assert!(third.cold_parent_budget().is_none());
     }
     /// #1488 v4 暖路径：prepare_parent(Some)绑定真实父并作废冷许可；观察句柄sponsor同origin。
     #[test]

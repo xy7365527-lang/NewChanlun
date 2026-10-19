@@ -976,15 +976,30 @@ impl Budget {
 }
 /// #1488 v4 冷出生许可：只由本次冻结调用签发，不可Clone，只可被`Budget::bootstrap`消费一次。
 /// 根Ledger控制块M在`Arc::new`前按A与总帽检查（`new`内live=M<=limit）。
+/// 生产唯一构造入口是`from_freeze`，须消费冻结入口私有铸造的`FreezeSeal`（字段与构造均为
+/// request_audit模块私有）；许可绑定冻结域编号，消费方核对域后才出生根账。
 pub(crate) struct BootstrapGrant {
     limit: usize,
+    domain: u64,
 }
 impl BootstrapGrant {
-    pub(crate) fn new(limit: usize) -> Self {
-        Self { limit }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(crate) fn from_freeze(seal: super::super::request_audit::FreezeSeal) -> Self {
+        Self {
+            limit: seal.limit(),
+            domain: seal.domain(),
+        }
+    }
+    /// 纯账本算术fixture；域0不对应任何真实冻结（冻结域编号从1起）。
+    #[cfg(test)]
+    pub(crate) fn for_test(limit: usize) -> Self {
+        Self { limit, domain: 0 }
     }
     pub(crate) fn limit(&self) -> usize {
         self.limit
+    }
+    pub(crate) fn domain(&self) -> u64 {
+        self.domain
     }
 }
 /// #1488 v4 移入许可：已存在载荷在一个锁事务中按当前域双门（G+x<=A、L+x<=总帽）真实预留，
@@ -2373,7 +2388,7 @@ mod unified_ownership_v4_tests {
     /// MoveIn：双门真实预留、拆出同origin许可、超额拒绝不改账、Drop归还未拆部分并解除MOVING。
     #[test]
     fn move_in_reserves_splits_and_returns_rest_without_partial_mutation() {
-        let root = Budget::bootstrap(BootstrapGrant::new(1024))
+        let root = Budget::bootstrap(BootstrapGrant::for_test(1024))
             .unwrap()
             .bind_initial(200, 1024)
             .unwrap();
@@ -2408,7 +2423,7 @@ mod unified_ownership_v4_tests {
     /// 换域结束MoveIn：旧移入不可再拆；未拆余额与其后adopt的许可返还只降L，不回补新域A。
     #[test]
     fn handoff_ends_move_in_and_old_rest_never_refills_new_allowance() {
-        let root = Budget::bootstrap(BootstrapGrant::new(4096))
+        let root = Budget::bootstrap(BootstrapGrant::for_test(4096))
             .unwrap()
             .bind_initial(210, 4096)
             .unwrap();
