@@ -1834,8 +1834,9 @@ impl RequestAuditContext {
     ) -> Result<super::audit_owner::native::Budget, String> {
         let contract = self.workspace_budget.ok_or("StaleWriter：缺冻结合同")?;
         if let Some(bound) = self.handoff_parent.borrow().as_ref() {
+            // #1488 v4：prepare_parent已换域绑定；候选仍持旧序号句柄，只校同Arc且已绑句柄仍属本域。
             if !bound.same_parent(parent)
-                || !parent.matches_request(contract.domain, contract.allowance)
+                || !bound.matches_request(contract.domain, contract.allowance)
             {
                 return Err("StaleWriter：请求父账或冻结域失配".into());
             }
