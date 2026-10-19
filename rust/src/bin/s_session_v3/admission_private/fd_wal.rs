@@ -213,7 +213,6 @@ unsafe extern "C" fn open(
             MAIN
         } else if name == Some(ctx.wal_name.as_bytes())
             && flags & types == ffi::SQLITE_OPEN_WAL
-            && ctx.wal.is_some()
             && ctx.exclusive_armed.load(Ordering::SeqCst)
             && ctx.main_open.load(Ordering::SeqCst)
         {
@@ -331,6 +330,11 @@ unsafe extern "C" fn read(
             return ffi::SQLITE_IOERR_SHORT_READ;
         }
         let Some(source) = ctx.source(f.kind) else {
+            // #1527：MainOnly 介质（WAL 头库、无 -wal 文件）由 SQLite 在独占模式下打开一个
+            // 只读空 WAL；没有任何字节可读，按 short-read 合同返回全零，不发生 I/O。
+            if f.kind == WAL && ctx.wal.is_none() {
+                return ffi::SQLITE_IOERR_SHORT_READ;
+            }
             return ffi::SQLITE_IOERR_READ;
         };
         if !source.unchanged() {
@@ -410,6 +414,12 @@ unsafe extern "C" fn size(file: *mut ffi::sqlite3_file, out: *mut i64) -> c_int 
             return ffi::SQLITE_IOERR_FSTAT;
         }
         let Some(source) = ctx.source(f.kind) else {
+            if f.kind == WAL && ctx.wal.is_none() {
+                unsafe {
+                    *out = 0;
+                }
+                return ctx.record("size-absent-wal", f.kind, 0, 0, ffi::SQLITE_OK);
+            }
             return ffi::SQLITE_IOERR_FSTAT;
         };
         if !source.unchanged() {
@@ -646,7 +656,12 @@ fn audit_sql_allowed(
     }
     match action {
         ffi::SQLITE_SELECT => true,
-        ffi::SQLITE_READ => db == Some(b"main") || a == Some(b"pragma_table_info"),
+        // count(*) 优化路径以「无库名、空列名」上报整表读取；仍限只读、无触发器/视图来源。
+        ffi::SQLITE_READ => {
+            db == Some(b"main")
+                || (db.is_none() && b == Some(b""))
+                || a == Some(b"pragma_table_info")
+        }
         ffi::SQLITE_TRANSACTION => matches!(a, Some(b"BEGIN" | b"ROLLBACK")),
         ffi::SQLITE_FUNCTION => matches!(
             b,

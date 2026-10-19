@@ -4178,7 +4178,9 @@ mod tests {
                 .and_then(|value| value.parse::<i64>().ok())
                 .unwrap_or(-1);
             drop(conn);
-            cmd_advance(&self.files.db(), DEFAULT_WRITER_EPOCH).expect("oracle advance");
+            // #1527 M-03：oracle 只测业务/持久态，走原 core，不建立生产准入。
+            crate::tests::advance_business(&self.files.db(), DEFAULT_WRITER_EPOCH)
+                .expect("oracle advance");
             previous_frontier
         }
 
