@@ -469,6 +469,7 @@ impl PendingRawState {
             return Err(stale("Recover迁移旧资格不属于当前持久epoch"));
         }
         let mut pending = Self::carry(Some(previous), seal, raw_len, lease)?;
+        pending.retained = 0;
         pending.recover = Some((handoff, false));
         Ok(pending)
     }
