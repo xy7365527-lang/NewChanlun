@@ -1149,10 +1149,15 @@ impl AuditConnection {
             .map_or(0, |c| {
                 // #1488 v4（反例C）：E/O交集按物理L只计一次——同父Ledger内的候选、封存来源、
                 // Native保守费与状态许可都在L中；旧池至少覆盖L，否则换域必拒（L<=O）。
+                eprintln!(
+                    "UO25_DIAG {}",
+                    json!({"L":c.resources.live(),"charge":c.charge.total,"M":native::Budget::metadata_bytes(),
+                        "scratch":c.resources.scratch_observation(),"source_pool_charge":c.charge.source_pool_charge,
+                        "slot":c.slot.is_some(),"constr":self.construction.borrow().as_ref().map_or(0, |c| c.retained_bytes())})
+                );
                 c.charge
                     .total
                     .saturating_add(native::Budget::metadata_bytes())
-                    .max(c.resources.live())
             })
             .saturating_add(
                 self.construction
