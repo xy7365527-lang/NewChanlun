@@ -3323,7 +3323,9 @@ fn seal_census_check(
         ));
     }
     // 析构归还中不属任何持有者的许可（多出的张）即重复计费；清单多出的张即漏列/错账。
+    // 0字节许可（空容器的reserve_native(0)）不动父账，普查不登记，清单同样不计。
     let mut held = inventory;
+    held.retain(|bytes| *bytes != 0);
     held.sort_unstable();
     let mut returned = dropped.iter().map(|x| x.1).collect::<Vec<_>>();
     returned.sort_unstable();
