@@ -5,7 +5,7 @@
 
 - `prepare`：按 tb02d 固定生成器（`fixtures/tb02d/generate-input.py` 的 `raw_rows`，只由手算端点
   生成整数 OHLC，不导入生产代码）把两个设计写成冻结消息、时钟与 s-launcher/2 配置。
-  `killed`：078:52 失效先到（s6 严格越过 P），其后 s8 在旧「只认分型」下会让候选复活；
+  `killed`：078:52 失效先到（s6 严格越过 P），其后再走两笔仍保持失效；
   `confirmed`：第二特征序列先成分型（067:38）。每个设计 UP/DOWN 两向。
 - `session`：每个用例三次正式运行（launcher 起 S/Q，socket 逐条接纳，HTTP live/AsKnown/重访）：
   A 不中断；B 新进程同输入重放；C 在中间消息 SIGKILL S 后 recover 续跑。逐 cut 对手算期望，
@@ -37,9 +37,10 @@ _spec.loader.exec_module(GEN)
 
 DESIGNS = {
     # s3 = FIRST 顶分型中心 b（P=40），a/b 缺口 [20,25] 未被 c(s5 低 22) 封闭 ⟹ 第二种候选。
-    # 取到 s8 为止（9 笔、40 根）：s8 使第二序列 (25,35)(22,45)(30,38) 在 s6 处成顶分型——旧「只认分型」
-    # 下的复活诱饵。根数受正式 ingest「一事件一代」与 Q 冷校验 5s 门（#1497，实测第 43 代越门）约束；
-    # 失效后 A 由第一种情况终结（需 s9，第 43 根）由 Rust 会话测试锁定，不在本脚本。
+    # 取到 s8 为止（9 笔、40 根）。根数受正式 ingest「一事件一代」与 Q 冷校验 5s 门（#1497，本机实测
+    # 第 43 代越门）约束。旧「只认分型」的复活诱饵要到 s10 才成形、失效后 A 由第一种情况终结要到 s9，
+    # 两者都超出该门，由 Rust 锁 tb02w_killed_candidate_never_revives_incremental_and_from_full 与
+    # S 会话测试 tb02w_killed_case_two_scan_budget_resume_and_recover 承担。
     "killed": [0, 20, 10, 40, 25, 35, 22, 45, 30, 38],
     "confirmed": [0, 20, 10, 40, 25, 35, 22, 30, 23, 33],
 }
@@ -50,8 +51,7 @@ EXPECTED = {
         6: {"result": "PENDING_CASE_TWO", "semantic": "OPEN_AT_PREFIX_END"},
         # n=7：s6 22→45 先严格越过 P=40（078:52）⟹ 候选失效；原段不终结。
         7: {"result": "KILLED_CASE_TWO", "semantic": "KILLED_BY_NEW_EXTREME", "killed_stroke": 6, "killed_point": 45},
-        # n=9：s8 补出第二序列顶分型 (25,35)(22,45)(30,38)，旧「只认分型」会在此确认；失效不复活，
-        # FIRST 尚无新分型（s7 还缺右元素）⟹ 活动候选仍是已失效者。
+        # n=9：失效后再走两笔，FIRST 尚无新分型（s7 还缺右元素）⟹ 活动候选仍是已失效者，不改判、不复活。
         9: {"result": "KILLED_CASE_TWO", "semantic": "KILLED_BY_NEW_EXTREME"},
     },
     "confirmed": {
