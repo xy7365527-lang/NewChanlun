@@ -134,13 +134,20 @@ impl Staging {
                         m.len()
                     ))
                 }
-                _ => {}
+                Ok(_) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => {
+                    return Err(format!(
+                        "StorageUnavailable：检查 {} 失败：{e}，拒绝发布",
+                        side.display()
+                    ))
+                }
             }
         }
         std::fs::File::open(&self.path)
             .and_then(|f| f.sync_all())
             .map_err(|e| format!("StorageUnavailable：fsync 暂存库失败：{e}"))?;
-        rename_noreplace(&self.path, &self.target).map_err(|e| {
+        publish_noreplace(&self.path, &self.target).map_err(|e| {
             if e.kind() == std::io::ErrorKind::AlreadyExists {
                 super::existing_db_error(&self.target)
             } else {
@@ -175,6 +182,46 @@ impl Drop for Staging {
 fn c_path(path: &Path) -> std::io::Result<CString> {
     CString::new(path.as_os_str().as_bytes())
         .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "路径含 NUL"))
+}
+
+/// 目标名旁若已有 `-wal/-journal`（外来或旧库遗留），新库首次打开会回放它们；拒绝 init，不删除。
+pub(super) fn refuse_foreign_sides(db: &Path) -> Result<(), String> {
+    for suffix in ["-wal", "-journal"] {
+        let mut name = db.as_os_str().to_os_string();
+        name.push(suffix);
+        let side = PathBuf::from(name);
+        match std::fs::symlink_metadata(&side) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Ok(_) => {
+                return Err(format!(
+                    "StorageUnavailable：目标旁已有 {}（来历不明，新库打开会回放它）；init 拒绝且不删除，请人工核对",
+                    side.display()
+                ))
+            }
+            Err(e) => return Err(format!("StorageUnavailable：检查 {} 失败：{e}", side.display())),
+        }
+    }
+    Ok(())
+}
+
+/// 不覆盖地把暂存库放到目标名：优先原子 rename；文件系统不支持该 rename 标志时改用
+/// `link`（同样原子、目标存在即 EEXIST）后删除暂存名。两者都不支持则报错，不退回可覆盖的 rename。
+fn publish_noreplace(from: &Path, to: &Path) -> std::io::Result<()> {
+    match rename_noreplace(from, to) {
+        Err(e) if rename_flag_unsupported(&e) => {
+            std::fs::hard_link(from, to)?;
+            std::fs::remove_file(from)
+        }
+        other => other,
+    }
+}
+
+fn rename_flag_unsupported(e: &std::io::Error) -> bool {
+    e.kind() == std::io::ErrorKind::Unsupported
+        || matches!(
+            e.raw_os_error(),
+            Some(code) if code == libc::EINVAL || code == libc::ENOTSUP || code == libc::ENOSYS
+        )
 }
 
 /// 不覆盖的原子 rename；目标已存在时返回 `AlreadyExists`。

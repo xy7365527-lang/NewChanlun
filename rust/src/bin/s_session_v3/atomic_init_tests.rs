@@ -343,3 +343,19 @@ fn sweep_only_removes_this_databases_staging_names() {
     }
     assert!(target_absent_or_complete(&db));
 }
+
+#[test]
+fn foreign_wal_beside_absent_target_is_refused_and_kept() {
+    let dir = Dir::new("foreign");
+    let db = dir.0.join("s3.sqlite");
+    let clock = write_clock(&dir.0);
+    let wal = dir.0.join("s3.sqlite-wal");
+    std::fs::write(&wal, b"foreign wal").unwrap();
+    let err = run_init(&db, &clock).unwrap_err();
+    assert!(err.contains("目标旁已有"), "{err}");
+    assert!(!db.exists());
+    assert_eq!(std::fs::read(&wal).unwrap(), b"foreign wal");
+    std::fs::remove_file(&wal).unwrap();
+    run_init(&db, &clock).unwrap();
+    assert!(target_absent_or_complete(&db));
+}

@@ -420,6 +420,7 @@ pub(super) fn init_v3(
     }
     // #1568：锁内清扫本库名下死去 init 的暂存残留，再在新暂存文件上建库；目标只在完整核对后
     // 以不覆盖的原子 rename 出现。失败时守卫删暂存，目标保持不存在，可原样重试。
+    atomic_init::refuse_foreign_sides(db)?;
     atomic_init::sweep_stale(db)?;
     let staging = atomic_init::Staging::new(db)?;
     let out = build_domain(
