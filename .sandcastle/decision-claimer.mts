@@ -42,6 +42,8 @@ export const DRAFT_SECTIONS = [
   "受影响票与 blocking 边变化",
   "授权引用",
 ] as const;
+/** 草稿七段之后必须附的引用自证表段名。 */
+export const CITATION_SECTION = "引用自证";
 /** T 类落地只准改这些正本位置。 */
 export const LANDING_ROOTS = [".chanlun/definitions/", "docs/adr/", "CONTEXT.md"];
 
@@ -216,6 +218,15 @@ export function parseReview(text: string, draftMissing: string[] = []): Review {
 export function missingDraftSections(draft: string): string[] {
   const heads = new Set([...draft.matchAll(/^#{1,3}\s*(?:\d+[.、]\s*)?(.+?)\s*$/gm)].map((m) => m[1].trim()));
   return DRAFT_SECTIONS.filter((s) => !heads.has(s));
+}
+
+/** 引用自证表：须有「## 引用自证」段且段内至少一行表格数据（表头与分隔行之外）。 */
+export function hasCitationTable(draft: string): boolean {
+  const m = new RegExp(`^#{1,3}\\s*(?:\\d+[.、]\\s*)?${CITATION_SECTION}\\s*$`, "m").exec(draft);
+  if (!m) return false;
+  const rest = draft.slice(m.index + m[0].length).split(/^#{1,3}\s/m)[0];
+  const rows = rest.split(/\r?\n/).filter((l) => /^\s*\|.*\|\s*$/.test(l) && !/^\s*\|[\s:|-]+\|\s*$/.test(l));
+  return rows.length >= 2;
 }
 
 /** 清掉路径两侧的 Markdown 修饰（反引号、粗斜体、尖括号、句末标点）。 */
@@ -421,16 +432,32 @@ export function backoffMs(attempt: number, baseMs = 20_000, capMs = 300_000): nu
   return Math.min(capMs, baseMs * 2 ** (attempt - 1));
 }
 
-const READ_TOOLS = ["Read", "Grep", "Glob", "Bash(gh issue view:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(rg:*)"];
+/** 只读取证：评论 id 只能用这两条 gh api 查询回查。 */
+export const GH_API_READ_TOOLS = [
+  `Bash(gh api repos/${GH_REPO}/issues/comments/*)`,
+  `Bash(gh api repos/${GH_REPO}/issues/*/comments*)`,
+];
+export const READ_TOOLS = ["Read", "Grep", "Glob", "Bash(gh issue view:*)", ...GH_API_READ_TOOLS, "Bash(git log:*)", "Bash(git show:*)", "Bash(rg:*)"];
 const WRITE_TOOLS = ["Edit", "Write", "MultiEdit", "NotebookEdit"];
+/** gh api 一切带方法或请求体的形态都拒，保证上面两条只能 GET。 */
+export const GH_API_WRITE_DENY = [
+  "Bash(gh api *-X*)", "Bash(gh api *--method*)", "Bash(gh api *-f *)", "Bash(gh api *-F *)",
+  "Bash(gh api *--field*)", "Bash(gh api *--raw-field*)", "Bash(gh api *--input*)",
+  "Bash(gh api *-f=*)", "Bash(gh api *-F=*)",
+];
+export function toolArgs(allowWrite: boolean): string[] {
+  return [
+    "--allowedTools", ...(allowWrite ? [...READ_TOOLS, ...WRITE_TOOLS] : READ_TOOLS),
+    "--disallowedTools", ...(allowWrite ? GH_API_WRITE_DENY : [...WRITE_TOOLS, ...GH_API_WRITE_DENY]),
+  ];
+}
 
 function claudeOnce(c: ModelCall, token: string, timeoutMs: number): Promise<{ code: number; stdout: string; stderr: string }> {
   const env: NodeJS.ProcessEnv = { ...process.env, ANTHROPIC_BASE_URL: PROXY_BASE_URL, ANTHROPIC_AUTH_TOKEN: token };
   delete env.ANTHROPIC_API_KEY;
   const args = [
     "-p", "--bare", "--model", c.model, "--output-format", "json", "--no-session-persistence",
-    "--allowedTools", ...(c.allowWrite ? [...READ_TOOLS, ...WRITE_TOOLS] : READ_TOOLS),
-    ...(c.allowWrite ? [] : ["--disallowedTools", ...WRITE_TOOLS]),
+    ...toolArgs(!!c.allowWrite),
   ];
   return new Promise((res) => {
     const child = spawn("claude", args, { cwd: c.cwd, env, stdio: ["pipe", "pipe", "pipe"] });
@@ -529,34 +556,40 @@ ${renderTicket(t)}
 
 export function draftPrompt(t: TicketContext, c: Classification, feedback?: string): string {
   return `你是 NewChanlun 仓 #1323 图的裁决起草者。当前目录是 origin/main 的只读检出；禁止修改任何文件，只读取证。
-先读 AGENTS.md（教义正本、#799 收敛通则、#804 总缝规则、引原文四步核验）、CONTEXT.md、.sandcastle/docs/graph-engineering.md，以及票面点名的票（gh issue view <号> --comments）。
+先读 AGENTS.md（教义正本、#799 收敛通则、#804 总缝规则、引原文四步核验）、CONTEXT.md、.sandcastle/docs/graph-engineering.md，以及票面点名的票（gh issue view <号> --comments）。评论 id 用 gh api repos/${GH_REPO}/issues/comments/<id> 或 gh api repos/${GH_REPO}/issues/<号>/comments 取，只读。
 本票分级：${c.klass} 类 —— ${c.reason}
 分级由分级器决定，你无权改判：按 ${c.klass} 类起草。若你认为分级有误，在「授权引用」段末另起一行写 \`改判建议：T 或 P — 理由\`，由编排逻辑处置；其余部分仍按 ${c.klass} 类写。
 
 ${renderTicket(t)}
 ${feedback ? `\n## 上一稿被独立审查 BLOCK，必须逐条处理：\n${feedback}\n` : ""}
-输出一份 resolution 草稿（Markdown），恰好包含以下七个二级标题，顺序一致、标题逐字相同：
+输出一份 resolution 草稿（Markdown），先是以下七个二级标题，顺序一致、标题逐字相同；七段之后最后再附一段 \`## ${CITATION_SECTION}\`：
 ${DRAFT_SECTIONS.map((s) => `## ${s}`).join("\n")}
+## ${CITATION_SECTION}
 
 硬要求：
 1. 权威依据逐条带可回查位置：docs/chanlun/text/blog/<课>.md:<行>、ADR 路径、.chanlun/definitions/ 路径或票评论链接。引缠师原文须核行号、逐字、作者归属（界前界后＋行首注）、行内注四步；核不过就不引。
-2. 「裁定」段必须单独一行写纯文本 \`正本落点：<路径>\`（行首就是「正本落点：」，路径不加反引号、粗体或其他修饰，行内不写别的）。路径只能在 .chanlun/definitions/ 下、docs/adr/ 下，或为 CONTEXT.md。新建 ADR 一律写 docs/adr/${ADR_PLACEHOLDER}-<英文短名>.md，正文提到它时写「ADR ${ADR_PLACEHOLDER}」；真实编号落地时按 main 顺序分配，不要自己编号。
-3. 验收清单每项必须是以下之一：可执行命令、测试名、文件存在、票状态；判据二值。
-4. 不越出 #1323 Destination；T 类草稿不得夹带 P 类取舍；不得新增同一判断的宽严两档或失败兜底。
-5. 「受影响票与 blocking 边变化」列出全部受影响票号和每条要增删的 blocking 边。
-6. 「授权引用」段：${c.klass === "T" ? `写「${AUTH_LINE}」并引用户 2026-10-18 原话` : "写「待用户批复（影子模式）」，不得写 T 类预授权句"}。
+2. 每条引用写进草稿前必须先用工具核实：文件引用用 Read 或 rg 看到该路径该行的原文；ADR 与定义文件引用先确认文件存在、所引条款在文件里逐字可见；票评论引用先用 gh api repos/${GH_REPO}/issues/comments/<id> 取到该评论并核对作者与内容。核实不到的路径、行号、条款、评论 id 一律不引，也不得凭记忆补写。
+3. 「裁定」段必须单独一行写纯文本 \`正本落点：<路径>\`（行首就是「正本落点：」，路径不加反引号、粗体或其他修饰，行内不写别的）。路径只能在 .chanlun/definitions/ 下、docs/adr/ 下，或为 CONTEXT.md。${ADR_FORMAT_LINE}
+4. 验收清单每项必须是以下之一：可执行命令、测试名、文件存在、票状态；判据二值。
+5. 不越出 #1323 Destination；T 类草稿不得夹带 P 类取舍；不得新增同一判断的宽严两档或失败兜底。
+6. 「受影响票与 blocking 边变化」列出全部受影响票号和每条要增删的 blocking 边。
+7. 「授权引用」段：${c.klass === "T" ? `写「${AUTH_LINE}」并引用户 2026-10-18 原话` : "写「待用户批复（影子模式）」，不得写 T 类预授权句"}。
+8. 「${CITATION_SECTION}」段是一张 Markdown 表，表头为 \`| 引用 | 核实命令 | 结果摘要 |\`，草稿里每一条引用（文件:行、ADR、定义文件条款、票号、评论 id）各占一行：写出你实际执行的核实命令与看到的结果摘要。表里没有的引用视为未核实。
 只输出草稿正文，不要前言或结语。`;
 }
 
+/** 落点格式说明里关于 ADR 编号的那一句，单测断言提示含此句。 */
+export const ADR_FORMAT_LINE = `新建 ADR 时落点一律写 \`正本落点：docs/adr/${ADR_PLACEHOLDER}-<英文短名>.md\`，正文提到它时写「ADR ${ADR_PLACEHOLDER}」，编号永远写 ${ADR_PLACEHOLDER}，落地时按 main 顺序分配；反例（禁止）：\`正本落点：docs/adr/0041-dual-run.md\`、「ADR 0041」、引用一个仓内并不存在的 ADR 编号。`;
+
 export function reviewPrompt(t: TicketContext, c: Classification, draft: string): string {
   return `你是 NewChanlun 仓 #1323 图裁决面的独立审查者。你看不到起草过程，只拿草稿与仓内源文件。当前目录是 origin/main 的只读检出；禁止修改任何文件。
-需要时用 Read/Grep/rg 回查每条引用，用 gh issue view 查票。审查依据：AGENTS.md、.chanlun/definitions/、docs/adr/、CONTEXT.md、.sandcastle/docs/graph-engineering.md「3. 独审」。
+需要时用 Read/Grep/rg 回查每条引用，用 gh issue view 查票，用 gh api repos/${GH_REPO}/issues/comments/<id> 或 gh api repos/${GH_REPO}/issues/<号>/comments 回查评论 id（只读）。审查依据：AGENTS.md、.chanlun/definitions/、docs/adr/、CONTEXT.md、.sandcastle/docs/graph-engineering.md「3. 独审」。
 
 被审票：#${t.number} ${t.title}
 分级器结论：${c.klass} 类 —— ${c.reason}
 
 逐条给 PASS 或 BLOCK，每条必须写依据（BLOCK 写清要改什么）：
-R1 每条引用回查成立（路径存在、行号与逐字内容一致、作者归属正确）。
+R1 每条引用回查成立（路径存在、行号与逐字内容一致、作者归属正确、评论 id 存在且内容相符）。先对照草稿末尾「${CITATION_SECTION}」表：表缺失或为空，R1 直接 BLOCK；表在，则逐条对照表中引用与草稿正文是否一一对应（正文有而表里没有的引用记 BLOCK），并至少亲自重跑其中三条（不足三条则全跑）核实命令，结果与表述不符即 BLOCK。
 R2 不与 .chanlun/definitions/、docs/adr/、#799 收敛通则、#804 总缝规则冲突。
 R3 验收项全部可执行、判据二值。
 R4 不越出 Destination；T 类草稿里没有夹带 P 类取舍。
@@ -688,7 +721,7 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
         effCls = { ...cls, klass: "P", reason: `${cls.reason}（${rc.note}）` };
       }
 
-      const missing = missingDraftSections(draft);
+      const missing = [...missingDraftSections(draft), ...(hasCitationTable(draft) ? [] : [CITATION_SECTION])];
       const extra = draftClassProblems(draft, s.klass);
       const basePrompt = reviewPrompt(t, effCls, draft);
       let rr = await d.model({ model: MODEL_OPUS, prompt: basePrompt, cwd: d.srcDir, role: "review" });

@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  AUTH_LINE, DRAFT_SECTIONS, FETCH_URL, MAIN_REF, MODEL_FABLE, MODEL_OPUS, DryRunWriteError,
+  ADR_FORMAT_LINE, AUTH_LINE, CITATION_SECTION, DRAFT_SECTIONS, GH_API_WRITE_DENY, READ_TOOLS, hasCitationTable, toolArgs, FETCH_URL, MAIN_REF, MODEL_FABLE, MODEL_OPUS, DryRunWriteError,
   allocateAdr, applyReclass, draftPrompt, ensureSrc, extractFirstApiKey, guardGh, reclassSuggestion, renumberDraft, reviewPrompt, initialState, isGhWrite, landingTarget, missingDraftSections,
   nextAfterReview, parseArgs, parseClassification, parseReview, processTicket, selectCandidates,
   type Deps, type GhRunner, type ModelCall,
@@ -12,7 +12,8 @@ import {
 
 const pass = (basis = "回查成立") => Object.fromEntries(["R1", "R2", "R3", "R4", "R5", "R6", "R7"].map((r) => [r, { verdict: "PASS", basis }]));
 const fence = (v: unknown) => "说明文字\n```json\n" + JSON.stringify(v) + "\n```\n";
-const goodDraft = DRAFT_SECTIONS.map((s) => `## ${s}\n内容${s === "裁定" ? "\n正本落点：docs/adr/0099-x.md" : ""}`).join("\n\n");
+const citeTable = `## ${CITATION_SECTION}\n| 引用 | 核实命令 | 结果摘要 |\n|---|---|---|\n| AGENTS.md:1 | rg -n x AGENTS.md | 见行 |`;
+const goodDraft = DRAFT_SECTIONS.map((s) => `## ${s}\n内容${s === "裁定" ? "\n正本落点：docs/adr/0099-x.md" : ""}`).join("\n\n") + "\n\n" + citeTable + "\n";
 
 test("parseArgs 默认 dry-run，--live 才写", () => {
   assert.equal(parseArgs([]).mode, "dry-run");
@@ -331,7 +332,7 @@ test("ADR 编号：占位与草稿自编号都按 main 最大号顺序分配，�
 });
 
 test("dry-run：T 类 ADR 落点按 main 顺序改号并写回草稿", async () => {
-  const draft = DRAFT_SECTIONS.map((x) => `## ${x}\n内容${x === "裁定" ? "\n正本落点：docs/adr/NNNN-x.md\n依 ADR NNNN" : ""}`).join("\n\n");
+  const draft = DRAFT_SECTIONS.map((x) => `## ${x}\n内容${x === "裁定" ? "\n正本落点：docs/adr/NNNN-x.md\n依 ADR NNNN" : ""}`).join("\n\n") + "\n\n" + citeTable;
   const { d } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), draft, fence(pass())]);
   d.srcDir = mkdtempSync(join(tmpdir(), "src-"));
   mkdirSync(join(d.srcDir, "docs/adr"), { recursive: true });
@@ -358,4 +359,43 @@ test("ensureSrc：在 srcDir 的库里用 ssh 地址 fetch，HEAD 与远端 main
   assert.deepEqual(calls.find(([, a]) => a[0] === "checkout")?.[1], ["checkout", "--detach", "abc123"]);
   head = "stale99";
   assert.throws(() => ensureSrc("/repo", src, git), /拒绝运行/);
+});
+
+test("取证工具：起草/审查可只读 gh api 查评论，写形态一律拒", () => {
+  assert.ok(READ_TOOLS.includes("Bash(gh api repos/xy7365527-lang/NewChanlun/issues/comments/*)"));
+  const ro = toolArgs(false);
+  const dis = ro.slice(ro.indexOf("--disallowedTools") + 1);
+  for (const w of ["Edit", "Write", ...GH_API_WRITE_DENY]) assert.ok(dis.includes(w), w);
+  assert.ok(GH_API_WRITE_DENY.some((x) => x.includes("-X")) && GH_API_WRITE_DENY.some((x) => x.includes("--input")));
+  const rw = toolArgs(true);
+  assert.ok(rw.includes("Edit") && rw.slice(rw.indexOf("--disallowedTools") + 1).every((x) => !["Edit", "Write"].includes(x)));
+});
+
+test("起草提示：先核实再引用、附引用自证表、ADR NNNN 与落点格式同一行带反例", () => {
+  const t = { number: 1, title: "x", body: "", labels: [], assignees: [], comments: [], blockers: [] };
+  const p = draftPrompt(t, { klass: "T", reason: "r", parsed: true });
+  assert.match(p, /核实不到的路径、行号、条款、评论 id 一律不引/);
+  assert.match(p, /\| 引用 \| 核实命令 \| 结果摘要 \|/);
+  assert.ok(p.includes(`## ${CITATION_SECTION}`));
+  const line = p.split("\n").find((l) => l.includes("单独一行写纯文本"));
+  assert.ok(line && line.includes(ADR_FORMAT_LINE), "ADR 编号要求须与落点格式说明同一行");
+  assert.match(ADR_FORMAT_LINE, /编号永远写 NNNN/);
+  assert.match(ADR_FORMAT_LINE, /反例（禁止）：`正本落点：docs\/adr\/0041-/);
+});
+
+test("审查提示：R1 先对照引用自证表，表缺失即 BLOCK，可 gh api 回查评论", () => {
+  const t = { number: 1, title: "x", body: "", labels: [], assignees: [], comments: [], blockers: [] };
+  const p = reviewPrompt(t, { klass: "T", reason: "r", parsed: true }, "草稿");
+  assert.match(p, /R1 .*引用自证」表：表缺失或为空，R1 直接 BLOCK/);
+  assert.match(p, /gh api repos\/xy7365527-lang\/NewChanlun\/issues\/comments\/<id>/);
+});
+
+test("引用自证表：缺段或只有表头不算；缺表的草稿即使审查全 PASS 也 BLOCK", async () => {
+  assert.equal(hasCitationTable(goodDraft), true);
+  assert.equal(hasCitationTable(goodDraft.replace(citeTable, "")), false);
+  assert.equal(hasCitationTable(`## ${CITATION_SECTION}\n| 引用 | 核实命令 | 结果摘要 |\n|---|---|---|\n`), false);
+  const noTable = goodDraft.replace(citeTable, "");
+  const { d } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), noTable, fence(pass()), noTable, fence(pass())]);
+  const r = await processTicket(1, d);
+  assert.notEqual(r.phase, "land_t");
 });
