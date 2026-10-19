@@ -22,7 +22,7 @@
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/silencehan/Projects/NewChanlun</string>
+    <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host</string>
 
     <key>StartInterval</key>
     <integer>300</integer>
@@ -41,9 +41,9 @@
     </dict>
 
     <key>StandardOutPath</key>
-    <string>/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/health-monitor.stdout.log</string>
+    <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/logs/health-monitor.stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/health-monitor.stderr.log</string>
+    <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/logs/health-monitor.stderr.log</string>
 </dict>
 </plist>

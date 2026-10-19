@@ -26,7 +26,7 @@
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/silencehan/Projects/NewChanlun</string>
+    <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host</string>
 
     <!-- 常驻：脚本内部 10 分钟轮询，正常不退出；退出即拉起。 -->
     <key>KeepAlive</key>
@@ -49,9 +49,9 @@
     </dict>
 
     <key>StandardOutPath</key>
-    <string>/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/decision-claimer.stdout.log</string>
+    <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/logs/decision-claimer.stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/decision-claimer.stderr.log</string>
+    <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/logs/decision-claimer.stderr.log</string>
 </dict>
 </plist>
