@@ -3222,6 +3222,23 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
         }
         Ok(())
     }
+    fn census_live(events: &[native::CensusEvent]) -> Value {
+        let mut live: Vec<(&'static str, usize)> = Vec::new();
+        let mut unmatched = Vec::new();
+        for e in events {
+            if e.reserve {
+                live.push((e.kind, e.bytes));
+            } else if let Some(i) = live.iter().rposition(|x| *x == (e.kind, e.bytes)) {
+                live.remove(i);
+            } else if let Some(i) = live.iter().rposition(|x| x.0 == e.kind && x.1 > e.bytes) {
+                live[i].1 -= e.bytes;
+            } else {
+                unmatched.push((e.kind, e.bytes));
+            }
+        }
+        live.sort();
+        json!({"live":live,"unmatched":unmatched,"sum":live.iter().map(|x|x.1).sum::<usize>()})
+    }
     let mut f = prepared::tests::Fixture::new();
     let (envelope, token) = f.accept_begin(1, ("r14-source", 0, 6, 12, 3, 7), 1);
     f.publish(&envelope, &token).unwrap();
@@ -3244,6 +3261,9 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
             let parent = context.cold_parent_budget();
             // 残余=审计前父账已有的真实许可（控制块M）；审计/slot许可都应在封存前后析构返还。
             let residual = parent.as_ref().map(|p| p.live());
+            if let Some(parent) = &parent {
+                parent.census_arm();
+            }
             let active = owner.begin(TransactionBehavior::Deferred).unwrap();
             let audited = if let Some(parent) = &parent {
                 parent
@@ -3317,6 +3337,8 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                 );
                 let residual = residual.unwrap();
                 let after_seal = parent.live();
+                let census = parent.census_take();
+                eprintln!("UO25_CENSUS_SEAL {}", json!({"request":request,"admitted":admitted,"events":census.len(),"live":census_live(&census)}));
                 assert!(
                     after_seal <= after_drop.unwrap(),
                     "封存不得对已释放字节事后补签"
@@ -3327,7 +3349,10 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                     continue;
                 }
                 let pool = keeper.take().expect("封存池存活");
+                parent.census_arm();
                 drop(pool);
+                let released = parent.census_take();
+                eprintln!("UO25_CENSUS_DROP {}", json!({"request":request,"admitted":admitted,"released":released}));
                 let sealed = after_seal
                     .checked_sub(parent.live())
                     .expect("封存池析构不得让父账增长");

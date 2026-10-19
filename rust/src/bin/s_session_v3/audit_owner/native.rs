@@ -329,6 +329,27 @@ struct Ledger {
     metadata_peak: AtomicUsize,
     native_live: AtomicUsize,
     native_peak: AtomicUsize,
+    // #1488 P2-4：测试普查——布防期间逐笔记录本账每张许可的签发/归还（种类、字节），
+    // 独立于live差额推导，供逐许可核对封存池计费。
+    #[cfg(test)]
+    census: Mutex<Option<Vec<CensusEvent>>>,
+}
+/// #1488 P2-4：单笔许可事件；kind=None为Permit/总账许可，其余为Native/Layout/Metadata分项。
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize)]
+pub(crate) struct CensusEvent {
+    pub(crate) reserve: bool,
+    pub(crate) kind: &'static str,
+    pub(crate) bytes: usize,
+}
+#[cfg(test)]
+fn census_kind(kind: Option<ScratchCharge>) -> &'static str {
+    match kind {
+        None => "permit",
+        Some(ScratchCharge::Metadata) => "metadata",
+        Some(ScratchCharge::Layout) => "layout",
+        Some(ScratchCharge::Native) => "native",
+    }
 }
 pub(crate) struct Permit {
     budget: Budget,
@@ -526,6 +547,8 @@ impl Budget {
                 metadata_peak: AtomicUsize::new(0),
                 native_live: AtomicUsize::new(0),
                 native_peak: AtomicUsize::new(0),
+                #[cfg(test)]
+                census: Mutex::new(None),
             }),
             0,
             0,
@@ -609,6 +632,16 @@ impl Budget {
         d.remaining = allowance;
         d.low_water = allowance;
         Ok(Self(self.0.clone(), u64::from(serial), request, allowance))
+    }
+    /// #1488 P2-4：布防逐许可普查；已布防时清空重来。
+    #[cfg(test)]
+    pub(crate) fn census_arm(&self) {
+        *self.0.census.lock().unwrap() = Some(Vec::new());
+    }
+    /// #1488 P2-4：取出并撤防；未布防返回空。
+    #[cfg(test)]
+    pub(crate) fn census_take(&self) -> Vec<CensusEvent> {
+        self.0.census.lock().unwrap().take().unwrap_or_default()
     }
     /// #1488 P1-1：容器真实驻留在本父账（同一Ledger）上；未绑定Native的容器不在任何账上。
     pub(crate) fn holds_codec_vec<T>(&self, v: &newchan_rust::s_content::CodecVec<T>) -> bool {
@@ -1380,7 +1413,24 @@ impl Ledger {
         }
         self.live.store(total, Ordering::Release);
         self.peak.fetch_max(total, Ordering::Relaxed);
+        #[cfg(test)]
+        self.census_note(true, kind, bytes);
         Ok(u64::from(d.serial))
+    }
+    #[cfg(test)]
+    fn census_note(&self, reserve: bool, kind: Option<ScratchCharge>, bytes: usize) {
+        if bytes == 0 {
+            return;
+        }
+        if let Ok(mut census) = self.census.lock() {
+            if let Some(events) = census.as_mut() {
+                events.push(CensusEvent {
+                    reserve,
+                    kind: census_kind(kind),
+                    bytes,
+                });
+            }
+        }
     }
     fn release_total(&self, bytes: usize, origin: u64) -> Result<(), ScratchFailure> {
         let result = self.release_account(bytes, origin, None);
@@ -1425,6 +1475,8 @@ impl Ledger {
         if let Some((live, n)) = part {
             live.store(n, Ordering::Release);
         }
+        #[cfg(test)]
+        self.census_note(false, kind, bytes);
         Ok(())
     }
     fn component(&self, kind: ScratchCharge) -> (&AtomicUsize, &AtomicUsize) {
