@@ -25,7 +25,7 @@ Origin/CenterConstruct.lean — centersOf 构造层升级：退化平凡桩 → 
     严格公式 `(max(a2,b2,c2), min(a1,b1,c1))` 裁错——canonical = B 全三段。本文件 centersOf 路径
     已迁 B，与 § 5.5 ref_v1 路径（本就 B 全三段）**口径统一**。
 - §6.1（中枢定义）："走势中枢：某级别走势类型中，被至少三个连续次级别走势类型所重叠的部分。"
-  本文件用几何必要条件（ZD ≤ ZG）作识别判据（诚实边界：still-MISSING-B′ 完整判据见
+  本文件用几何必要条件（ZD < ZG，#812 Z-2）作识别判据（诚实边界：still-MISSING-B′ 完整判据见
   CenterComplete.lean）。
 
 ═══════════════════════════════════════════════════════════════════════════
@@ -311,7 +311,7 @@ theorem centersOfWithOuter_nontrivial :
   · exact witnessCenter_gg
 
 /-! ═══════════════════════════════════════════════════════════════════════
-    § 5.5 reference v1 引擎语义（engine-audit 包 reference_chanlun.py 逐字直译）
+    § 5.5 reference v1 构造骨架（#812 C 续扫与 #1419 Zn 聚合已覆盖旧参考行为）
     ═══════════════════════════════════════════════════════════════════════
 
     ★工位定位（第Ⅱ类中枢 reference 语义，codex 裁决「全部必须形式化+实装+parity」）：
@@ -335,7 +335,8 @@ theorem centersOfWithOuter_nontrivial :
     ★认识论等级（formalization-validity-domain 231号，强制）：
       全部 **L0**——纯整数 max3/min3 + fuel-bounded 滑窗（终止机器检查）+ 弱接触延伸 +
       生命周期字段，不依赖经验数据。`lake env lean Origin/CenterConstruct.lean` 通过 =
-      reference v1 算法在定义层逐字忠实，**不是**任何「v1 中枢在真实行情上有效」的 L2 断言。
+      本节定义可由内核检查，**不是**任何「v1 中枢在真实行情上有效」的 L2 断言。
+      #1419 本轮未运行该命令，也不以旧参考或 donor 的验收认证此树。
 -/
 
 /--
@@ -397,6 +398,11 @@ def segHL (s : Segment) : Tick × Tick × Direction := (segHigh s, segLow s, s.d
 def znAgg (zdir d : Direction) (gg dd h l : Tick) : Tick × Tick :=
   if decide (d = zdir) then (tmax gg h, tmin dd l) else (gg, dd)
 
+/-- #1419：非 Zn 不改外缘；是否成为成员仍单独由 weakOverlap 决定。 -/
+theorem znAgg_other_direction (zdir d : Direction) (gg dd h l : Tick) (hd : d ≠ zdir) :
+    znAgg zdir d gg dd h l = (gg, dd) := by
+  simp [znAgg, hd]
+
 /--
   **弱接触延伸内循环（reference_chanlun.py:129-134 的 `while j<n and weak_overlap`）** ——
   从下标 `j` 起，对固定核心 `[zd,zg]` 逐段做弱接触延伸，返回 `(end, j', gg', dd')`。★#1419 S3：
@@ -428,11 +434,19 @@ def extendWeak (comps : List (Tick × Tick × Direction)) (zd zg : Tick) (zdir :
           else
             (endAcc, j, gg, dd)  -- 段离开核心（reference while 条件假，settled 候选）
 
+/-- #1419：弱接触的非 Zn 仍推进成员边界，保持冻结核心与外缘，再处理下一单元。 -/
+theorem extendWeak_nonZn_member (comps : List (Tick × Tick × Direction))
+    (zd zg : Tick) (zdir d : Direction) (fuel endAcc j : Nat) (gg dd h l : Tick)
+    (hc : comps[j]? = some (h, l, d)) (hw : weakOverlap h l zd zg = true) (hd : d ≠ zdir) :
+    extendWeak comps zd zg zdir (fuel + 1) endAcc j gg dd =
+      extendWeak comps zd zg zdir fuel j (j + 1) gg dd := by
+  simp only [extendWeak, hc, hw, if_true, znAgg_other_direction zdir d gg dd h l hd]
+
 /--
   **reference 主滑窗（reference_chanlun.py:117-155 的 `while i+2 < n`）** ——
   从下标 `i` 起识别一个 v1 中枢，返回 `(中枢?, 下一个 i)`。fuel 保证终止（每步 i 严格增）。
 
-  逐字对齐 reference：
+  沿用 reference 的滑窗结构，按已裁规则适配：
   - 前三段 `zd=max3(lows)/zg=min3(highs)`（全三段核心，frozen v1）。
   - `zg <= zd`（核心空）⟹ 无中枢，`i+=1` 滑窗（reference:122-124）。
   - 否则：gg/dd 初始取 seed 三段中的 Zn（首段恒为 Zn，第 2、3 段与首段同向才算；★#1419 S3），
@@ -490,8 +504,8 @@ def refLoop (comps : List (Tick × Tick × Direction)) (n : Nat) : Nat → Nat �
       else []
 
 /--
-  **★reference v1 中枢构造（reference_chanlun.py `zhongshus_from_components_ref`，逐字）** ——
-  `List Segment → List RefZhongshu`。完成态段 → (high,low) 投影 → v1 滑窗。
+  **★已裁中枢构造（reference_chanlun.py `zhongshus_from_components_ref` 的骨架）** ——
+  `List Segment → List RefZhongshu`。完成态段 → (high,low,方向) 投影 → Zn 外缘与 C 续扫。
 
   对齐 reference:96-155：`n = len(completed)`，`n < 3 ⟹ []`，否则 refLoop 收集。
   本函数不做 `completed_mask` 过滤（输入已是完成态段；mask 过滤在调用点，reference:158-160）。
@@ -618,9 +632,10 @@ theorem witness_ref_settled_break_up :
     § 5.5.3b #1419 判别例（Zn 外缘 + C 口径续扫 + D-A 方向判据，L0）
     ──────────────────────────────────────────────────────────────────────
 
-    期待值取自 S0 oracle 冻结稿 `.chanlun/review-results/issue1419-tb02e-20261013/worked-examples.json`
-    的 `streams.*.final_scan_lean_ref`（口径 `ZN_OUTER_C_RESUME`），不从本文件函数推出。oracle 对未结算
-    中枢的 `breakUp` 记「未定义」。根裁定 r2 R4 已定：S 事实层对未结算中枢发布 `breakUp=false` 且
+    #1419：输入与期待值承接固定 donor 634f62cddfaddf656a35ca9b9db20cb716b62bff 的本节。
+    donor 所称 S0 `.chanlun/review-results/issue1419-tb02e-20261013/worked-examples.json`
+    在当前树不存在，故本轮不声称独立生成过程已复核；静态模型核算不等于 Lean 运行。
+    根裁定 r2 R4 已定：S 事实层对未结算中枢发布 `breakUp=false` 且
     `breakUp_defined=false`；本 reference 保留 refStep 的占位编码（未结算 ⟹ true），下列 witness 不锁
     未结算中枢的 breakUp，§ 5.5.4 夹具在 `meta.break_up_scope` 里声明对拍只比已结算中枢的 breakUp。
 -/
@@ -636,11 +651,11 @@ def segsOfEndpointsFrom : Nat → List Tick → List Segment
 /-- 端点序列 → 相连段序列（下标自 0 起）。 -/
 def segsOfEndpoints (ps : List Tick) : List Segment := segsOfEndpointsFrom 0 ps
 
-/-- oracle UP 流 K12（u0..u12 完成）。 -/
+/-- donor 工作例 UP 流 K12（u0..u12 完成）。 -/
 def e2UpEndpoints : List Tick := [10, 40, 20, 35, 30, 38, 21, 25, 5, 15, 2, 12, 4, 9]
-/-- oracle DOWN 流 = UP 的 `p' = 45 − p` 镜像。 -/
+/-- donor 工作例 DOWN 流 = UP 的 `p' = 45 − p` 镜像。 -/
 def e2DownEndpoints : List Tick := e2UpEndpoints.map (fun p => 45 - p)
-/-- oracle E4 流 K10（u0..u10 完成）。 -/
+/-- donor 工作例 E4 流 K10（u0..u10 完成）。 -/
 def e4Endpoints : List Tick := [10, 40, 20, 35, 5, 15, 2, 18, 15, 17, 1, 8]
 
 /-- D-A 判别段（方向不交替，几何上合法的中枢窗口）：上[10,40] 上[20,50] 下[0,30] 下[5,25] 上[15,60]。 -/
@@ -673,13 +688,13 @@ def refSummary (zs : RefZhongshu) : RefSummary :=
 theorem witness_e2_up_zn_c_resume :
     (refZhongshusFromComponents (segsOfEndpoints e2UpEndpoints)).map refSummary
       = ([⟨0, 7, 20, 35, 10, 40, true⟩, ⟨9, 12, 4, 12, 2, 15, false⟩] : List RefSummary) := by
-  native_decide
+  decide
 
 /-- **★E2/E3 DOWN 镜像**：A 的 GG = 35（不是 40）。 -/
 theorem witness_e2_down_zn_c_resume :
     (refZhongshusFromComponents (segsOfEndpoints e2DownEndpoints)).map refSummary
       = ([⟨0, 7, 10, 25, 5, 35, true⟩, ⟨9, 12, 33, 41, 30, 43, false⟩] : List RefSummary) := by
-  native_decide
+  decide
 
 /--
   **★E4**：A = u0..u3 结算于 u4；续扫锚 u5 的 seed ZD = ZG = 15 相切不成立（严格 #812 Z-2）⟹ +1；
@@ -688,7 +703,7 @@ theorem witness_e2_down_zn_c_resume :
 theorem witness_e4_tangent_seed_two_unit_connector :
     (refZhongshusFromComponents (segsOfEndpoints e4Endpoints)).map refSummary
       = ([⟨0, 3, 20, 35, 10, 40, true⟩, ⟨6, 9, 15, 17, 2, 18, true⟩] : List RefSummary) := by
-  native_decide
+  decide
 
 /--
   **★D-A 方向判据**：Zn = 与首段同向（上）的第 1、2、5 段 ⟹ GG = 60、DD = 10；位次奇偶判据会取第
@@ -696,7 +711,7 @@ theorem witness_e4_tangent_seed_two_unit_connector :
 -/
 theorem witness_zn_direction_not_parity :
     (refZhongshusFromComponents dirExtSegs).map refSummary
-      = ([⟨0, 4, 20, 30, 10, 60, false⟩] : List RefSummary) := by native_decide
+      = ([⟨0, 4, 20, 30, 10, 60, false⟩] : List RefSummary) := by decide
 
 /-! ═══════════════════════════════════════════════════════════════════════
     § 5.5.4 机器导出 parity fixture（#eval → JSON，rust include_str! 耦合）
@@ -730,7 +745,9 @@ open Lean (Json) in
 
   `break_up` 的对拍范围（#1419 根裁定 r2 R4）：只比 `settled = true` 的中枢。未结算中枢的 `break_up`
   是 reference 占位编码（`true`），导出照实写出，但不参与对拍；`meta.break_up_scope = "settled_only"`
-  声明这一点，rust 侧对拍读该字段并据此跳过。
+  声明这一点。#1419 具名缺口 E_REFERENCE_FIXTURE_BINDING：545e 的 ref_v1.rs 仍为全成员外缘、
+  A 口径续扫，theta_v0_center_parity.json 也尚未有这四组新案例及 scope 元数据；不得声称当前
+  Rust 对拍已读取此字段。后续统一 source 须修复参考消费者并实际重导出，本轮不改 Rust/fixture。
 -/
 def refV1FixtureJson : Json :=
   Json.mkObj [

@@ -1,7 +1,11 @@
-/- #1424：五叶判据的 Lean → Rust 机器导出夹具。
-输入来自独立工作例 oracle_pairs.py 的 W2/W3/W4/W5/W6/W11；标签与投影由 Lean 真求值。
-只验证 DD≤ZD≤ZG≤GG 域内代数对拍；不证明扫描构造/≥9 窗口/正式会话验收。
-运行：lake env lean Origin/CenterPairFixtureExport.lean
+/- #1419 / #1424：五叶判据的 Lean → Rust 导出入口。
+8 例输入逐字承接固定 donor 634f62cddfaddf656a35ca9b9db20cb716b62bff 的本文件，
+对应当前 rust/tests/fixtures/center_pair_1424_lean.json；本轮只静态核对，未运行 Lean 导出。
+donor 注释所称 oracle_pairs.py 在当前树与 donor 均未找到，不能据此声称独立生成已复核。
+标签与旧三态投影在执行本入口时由下列函数求值；实际来源/待验项见 #1419 lean-v4 报告。
+有效域 DD≤ZD≤ZG≤GG；这 8 例还满足 S 的 ZD<ZG。无 16 格矩阵导出，
+不证明扫描构造/≥9 窗口/正式会话验收；四态投影定理见 CenterStates。
+后续获准远端验收时的入口：lake env lean Origin/CenterPairFixtureExport.lean
 -/
 import Origin.CenterStates
 import Lean.Data.Json

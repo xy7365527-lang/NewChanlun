@@ -66,6 +66,22 @@ mutual
         (min a.1 b.1, max a.2 b.2)
 end
 
+/-- #1419：走势区间不读中枢外缘与级别；中枢换成 Zn 外缘不会删去子走势极值。 -/
+theorem interval_compose_centers_irrelevant (subs : List Move)
+    (cs ds : List Center) (l k : Nat) :
+    (compose subs cs l).interval = (compose subs ds k).interval := rfl
+
+/-- #1419：空组合有占位区间；非空正价/负价列表不引入零哨兵。 -/
+example : (compose [] [] 1).interval = (0, 0) := by decide
+example : (compose [segment .up 10 40, segment .down 5 25] [] 1).interval = (5, 40) := by
+  decide
+example : (compose [segment .up (-40) (-10), segment .down (-25) (-5)] [] 1).interval
+    = (-40, -5) := by decide
+
+/-- #1419：递归取值，包括与首段反向的末成员；这里只锁区间函数，不假设已构成完整走势。 -/
+example : (compose [compose [segment .up 10 40, segment .down 5 25] [] 1,
+    segment .up 12 30] [] 2).interval = (5, 40) := by decide
+
 /-- 走势区间下沿。 -/
 def lo (m : Move) : Int := m.interval.1
 /-- 走势区间上沿。 -/

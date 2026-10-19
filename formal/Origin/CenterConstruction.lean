@@ -12,7 +12,7 @@ Origin/CenterConstruction.lean — centersOf 全自动构造（算 ZG/ZD/GG/DD�
 ═══════════════════════════════════════════════════════════════════════════
 中枢由 ≥3 个连续重叠次级别走势段构成。识别递归：
   - 取前 3 段，计算核心 ZG=min(g₁,g₂,g₃)/ZD=max(d₁,d₂,d₃)（口径 B 全三段定核心，637号）+
-    外缘 GG/DD（三段聚合，与核心同三段）。
+    外缘 GG/DD（仅聚合与 seed 首段同向的 Zn，#1419）。
   - 若三段确有公共重叠区间（ZD < ZG，中枢成立，严格 #812 Z-2）⟹ 产出一个 CenterFull，消费 3 段递归。
   - 否则（无中枢）消费 1 段前进（滑窗）。
 **终止性**：每步消费 ≥1 段 ⟹ 剩余段数严格递减 ⟹ well-founded（`List.length`）。
@@ -30,7 +30,7 @@ GG/DD/ZG/ZD 用 if 显式构造（不用 min/max——Mathlib 缺失时无 simp 
 诚实标注（gatekeeper，no-patch-mentality）：
 ★ TerminationAndDeterminismOnly + OuterComputationConstructive ——
   本文件证 centersOf 的**终止性 + 唯一性**（构造层骨架）+ ZG/ZD/GG/DD 的**构造性计算**
-  （口径 B 全三段定核心 + 三段聚合外缘，§6.3/§6.4 公式直译，637号）。"三段是否构成中枢"的判据用
+  （口径 B 全三段定核心 + Zn 聚合外缘，#1419）。"三段是否构成中枢"的判据用
   "全三段核心区间非空（ZD < ZG，严格 #812 Z-2）"封装——这是中枢重叠的**必要**几何条件（口径 B 下已含第三段
   贯穿），良构且终止；但**不**等于完整缠论中枢识别（须次级别走势段方向交替，still-MISSING-B′）。
   把骨架冒充为完整识别 = 声明膨胀（禁止）。
@@ -101,8 +101,9 @@ def computeZD (s1 s2 s3 : Segment) : Tick := tmax (tmax (segLow s1) (segLow s2))
 /--
   **Zn 判定（★#1419 D-A）** —— 段 `s` 与 seed 首段 `first` **方向相等** ⟺ `s` 是 Zn。
 
-  原文 `020-第20课.md:52`【正文】：「与中枢方向一致的次级别走势类型称为Z走势段……GG=max(gn)……
-  DD=min(dn)，n遍历中枢中所有Zn」；中枢方向由形成它的首段定。L0 方向交替时即位次奇偶（第 1、3 段），
+  原文 `docs/chanlun/text/blog/020-第20课.md:52`【正文】：
+  「GG=max(gn),G=min(gn),D=max(dn),DD=min(dn)，n遍历中枢中所有Zn」。
+  seed 首段方向作为中枢方向是 #1419 D-A 已批口径。L0 方向交替时即位次奇偶（第 1、3 段），
   不交替输入上两者分歧，按 D-A 取方向（与 Rust `center::is_zn` 同一判据，#804）。
 -/
 def isZn (s first : Segment) : Bool := decide (s.direction = first.direction)
