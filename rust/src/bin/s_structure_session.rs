@@ -316,7 +316,7 @@ fn open_historical_readonly(db: &Path) -> Result<Option<Connection>, String> {
         Ok(n) => n > 0,
         Err(e) if hot_rollback(&e) => {
             return Err(
-                "StorageUnavailable：库带未回滚的热日志（-journal），只读判规则无法在不改写原库的前提下完成；拒绝打开"
+                "StorageUnavailable：库带未回滚的回滚热日志（-journal）；只读连接无法在不改写原库的前提下读出 rule_revision，拒绝打开（含当前规则库：S 库自 init 起为 WAL，出现此日志须人工处置）"
                     .into(),
             )
         }
@@ -3863,7 +3863,8 @@ fn cmd_meta(db: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// TestOnly 诊断：用与 accept/advance/recover 相同的 open_db 连接，读回实际 PRAGMA
+/// TestOnly 诊断：用与 accept/advance/recover 相同的 open_db 连接（旧规则库上为只读连接，
+/// 读数不含写连接的 WAL/fullfsync 设置，#1405），读回实际 PRAGMA
 /// （journal_mode / synchronous / fullfsync）。供 macOS 根验从真实 writer 连接取证 fullfsync；
 /// 不是持久性自证，仅记录该连接的实际平台前件读数。
 fn cmd_pragma(db: &Path) -> Result<(), String> {
@@ -6226,6 +6227,9 @@ mod tests {
             "s2-axis-quantifiers",
             "s2-axis-quantifiers+new-bi/1",
             "s2-axis-quantifiers+new-bi/1+segment-second/1",
+            "s2-axis-quantifiers+new-bi/2",
+            "s2-axis-quantifiers+new-bi/1+segment-second/2",
+            "unknown-rule",
         ] {
             let files = TestFiles::new();
             tb1405_accepted_store(&files);
@@ -6388,6 +6392,34 @@ mod tests {
             before,
             "主库/-journal 字节须不变"
         );
+    }
+
+    /// 已正常关闭（无 -wal）的旧规则库：读、写、恢复入口后主库字节不变，-wal 不存在或为空。
+    #[test]
+    fn tb1405_cleanly_closed_old_rule_store_main_file_unchanged() {
+        let files = TestFiles::new();
+        tb1405_accepted_store(&files);
+        {
+            let writer = open_db(&files.db()).unwrap();
+            meta_set(&writer, "rule_revision", "s2-axis-quantifiers+new-bi/1").unwrap();
+        }
+        let wal = std::path::PathBuf::from(format!("{}-wal", files.db().display()));
+        assert!(!wal.exists(), "末次关闭须已检查点");
+        let main = std::fs::read(files.db()).unwrap();
+        assert!(recover_core(&files.db(), "2", None)
+            .unwrap_err()
+            .starts_with("VersionMismatch："));
+        assert!(cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH)
+            .unwrap_err()
+            .starts_with("VersionMismatch："));
+        cmd_meta(&files.db()).unwrap();
+        let tx_conn = open_db(&files.db()).unwrap();
+        let tx = tx_conn.unchecked_transaction().unwrap();
+        read_catalog_in_tx(&tx, None).unwrap();
+        drop(tx);
+        drop(tx_conn);
+        assert_eq!(std::fs::read(files.db()).unwrap(), main);
+        assert!(std::fs::read(&wal).map_or(true, |bytes| bytes.is_empty()));
     }
 
     /// 恢复入口不创建缺失的库。
