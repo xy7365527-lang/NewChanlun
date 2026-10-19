@@ -11,11 +11,7 @@ use super::{control::S3Control, *};
 #[cfg(test)]
 use content_manifest::ManifestRoots;
 use content_manifest::{ManifestMetadata, ManifestRootSource, UnpublishedManifest};
-use newchan_rust::s_content::{
-    self as sc,
-    path::{lookup_path, PathStep},
-    ContentRef, Kind,
-};
+use newchan_rust::s_content::{self as sc, path::PathStep, ContentRef, Kind};
 use rusqlite::Transaction;
 use sc::capture_allocation::native_owned::NativeValue;
 use sc::capture_allocation::scratch::WorkScope;
@@ -236,9 +232,10 @@ fn publish_prepared_inner(
             .as_str()
             .ok_or_else(|| err("目录运行状态不是文本"))?
             .to_owned();
-        let evidence_ref = lookup_path(
+        // 活动工作域下查找签发的原正文许可随引用持有，至函数结束随对象释放。
+        let evidence_ref = sc::path::lookup_path_native(
             &mut store,
-            &resolved.delta,
+            (&resolved.delta).into(),
             &[PathStep::Field("catalog_evidence".into())],
         )
         .map_err(err)?;
@@ -336,7 +333,10 @@ fn small_field(
     root: &ContentRef,
     field: &str,
 ) -> Result<Value, String> {
-    let reference = lookup_path(store, root, &[PathStep::Field(field.into())]).map_err(err)?;
+    // 活动工作域下查找签发的原正文许可随引用持有，渲染后随对象释放。
+    let reference =
+        sc::path::lookup_path_native(store, root.into(), &[PathStep::Field(field.into())])
+            .map_err(err)?;
     let mut bytes = Vec::new();
     sc::render_canonical(store, &reference, &mut bytes).map_err(err)?;
     strict_json(&bytes)
