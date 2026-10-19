@@ -54,7 +54,7 @@ tb02d 七个设计（`second_open`、`second_nondual`、`second_inclusion`、`se
 
 ## CI
 
-rebase 前的 dispatch 运行 [39236762674](https://github.com/xy7365527-lang/NewChanlun/actions/runs/39236762674)（组合提交，基点 `4aea4f72ef`）：test / fixture-drift / s-observer 通过，rust-check 内 cargo check（默认、backtest_bin）、fmt、TB-02-C、s_session 正式结构会话通过；`default targets` 与 `backtest_bin` 两步 lib 测试第 2 次尝试为 2827/1 与 2833/1，唯一失败是 main 既有红 `calibration_sweep_finds_non_collapsed_segments`（#1563）。第 1 次尝试 backtest_bin 另有 `incremental_tower_scaling_dominates_full_synthetic` 计时比 0.743 > 0.7，重跑通过，判计时抖动。main `4aea4f72ef` 的 CI 39226675505 为 m3 + calibration 两红；**本分支上 `m3_partition_synthetic_holds` 转绿**（#1563 的第一项）。`default targets` 在 lib 处先红，其后的集成目标与当时的 main 一样未执行；#1564 已给该步加 `--no-fail-fast` 并修了 calibration，rebase 后以 PR 上的 CI 为准（见票面评论）。
+rebase 前的 dispatch 运行 [39236762674](https://github.com/xy7365527-lang/NewChanlun/actions/runs/39236762674)（组合提交，基点 `4aea4f72ef`）：test / fixture-drift / s-observer 通过，rust-check 内 cargo check（默认、backtest_bin）、fmt、TB-02-C、s_session 正式结构会话通过；`default targets` 与 `backtest_bin` 两步 lib 测试第 2 次尝试为 2827/1 与 2833/1，唯一失败是 main 既有红 `calibration_sweep_finds_non_collapsed_segments`（#1563）。第 1 次尝试 backtest_bin 另有 `incremental_tower_scaling_dominates_full_synthetic` 计时比 0.743 > 0.7，重跑通过，判计时抖动。main `4aea4f72ef` 的 CI 39226675505 为 m3 + calibration 两红；本分支上 `m3_partition_synthetic_holds` 转绿，但**属偶然，不是修复**：独审二分（#1420 issuecomment-6269318617）确认转绿始于 `279b7c8708`（078:52 失效语义），与续扫游标、预算无关；该种子 3000 根时段数 24→14、交易 0→1，最后候选自第 160 笔起卡在 `FAILED_GEOMETRY`/`top_gt_bottom`，正是 #1487 查明、#1493 要修的段端门吸收态。m3 的判定以 #1493 落地后在 main 上重跑为准，本票不据此关闭 #1563 第一项。`default targets` 在 lib 处先红，其后的集成目标与当时的 main 一样未执行；#1564 已给该步加 `--no-fail-fast` 并修了 calibration，rebase 后以 PR 上的 CI 为准（见票面评论）。
 
 ## 不在本 PR
 
