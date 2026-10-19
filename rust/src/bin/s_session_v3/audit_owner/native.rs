@@ -1025,11 +1025,43 @@ impl<E: Into<Failure>> From<WorkError<E>> for Failure {
         }
     }
 }
+// #1488 诊断（临时，仅测试）：父账拒绝点打印调用栈，定位基线工作域失败来源。
+#[cfg(test)]
+fn diag_reject(what: &str, bytes: usize, detail: String) {
+    eprintln!(
+        "UO1488_DIAG {what} bytes={bytes} {detail}\n{}",
+        std::backtrace::Backtrace::force_capture()
+    );
+}
 impl Ledger {
     fn reserve_total(&self, bytes: usize, expected: Option<u64>) -> Result<u64, ScratchFailure> {
         self.reserve_account(bytes, expected, None)
     }
     fn reserve_account(
+        &self,
+        bytes: usize,
+        expected: Option<u64>,
+        kind: Option<ScratchCharge>,
+    ) -> Result<u64, ScratchFailure> {
+        let result = self.reserve_account_inner(bytes, expected, kind);
+        #[cfg(test)]
+        if let Err(e) = result {
+            let d = self.domain.lock().map(|d| {
+                format!(
+                    "serial={} expected={expected:?} remaining={} total_limit={} live={} state={} unassigned={} kind={kind:?} err={e:?}",
+                    d.serial,
+                    d.remaining,
+                    d.total_limit,
+                    self.live.load(Ordering::Acquire),
+                    d.state,
+                    d.unassigned
+                )
+            });
+            diag_reject("reserve", bytes, d.unwrap_or_default());
+        }
+        result
+    }
+    fn reserve_account_inner(
         &self,
         bytes: usize,
         expected: Option<u64>,
@@ -1136,12 +1168,29 @@ impl ScratchParent for Ledger {
     fn adopt_native(&self, bytes: usize, expected: u64) -> Result<u64, ScratchFailure> {
         let mut d = self.domain.lock().map_err(|_| ScratchFailure::Ledger)?;
         if d.state & BROKEN != 0 || expected != u64::from(d.serial) {
+            #[cfg(test)]
+            diag_reject(
+                "adopt_native_serial",
+                bytes,
+                format!("serial={} expected={expected} state={}", d.serial, d.state),
+            );
             return Err(ScratchFailure::Ledger);
         }
-        let unassigned = d
-            .unassigned
-            .checked_sub(bytes)
-            .ok_or(ScratchFailure::Ledger)?;
+        let Some(unassigned) = d.unassigned.checked_sub(bytes) else {
+            #[cfg(test)]
+            diag_reject(
+                "adopt_native",
+                bytes,
+                format!(
+                    "serial={} unassigned={} remaining={} live={}",
+                    d.serial,
+                    d.unassigned,
+                    d.remaining,
+                    self.live.load(Ordering::Acquire)
+                ),
+            );
+            return Err(ScratchFailure::Ledger);
+        };
         let native = self
             .native_live
             .load(Ordering::Acquire)
