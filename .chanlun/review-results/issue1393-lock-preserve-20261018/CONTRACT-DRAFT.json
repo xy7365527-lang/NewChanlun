@@ -59,7 +59,7 @@
   "runner_label": "ubuntu-24.04",
   "runner_os": "Linux",
   "runner_path": ".github/scripts/issue1393_lock_prepare.py",
-  "runner_sha256": "d8dc43da8026dedc2123364084b30cf9c51b5db35aa3a0190040abf679bea85d",
+  "runner_sha256": "60a29eb9988a05d9a330b91cd6e47f01734a5c0edc2ddeb8357b3704979b6dba",
   "rustc_commit": "b940084d7eb6a299eb4bfeb8e34901bc051e7ac4",
   "schema": "issue1393-lock-preserve/2",
   "source_commit": "8e50d40933c2a6a25f882481f3c46aa885ce6407",

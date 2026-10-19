@@ -14,6 +14,7 @@ test_upload_gate_equal_and_over_cap (__main__.GateTests.test_upload_gate_equal_a
 test_workflow_pins_action_compression_and_gates (__main__.GateTests.test_workflow_pins_action_compression_and_gates) ... ok
 test_complete_binding_and_mutations (__main__.IdentityTests.test_complete_binding_and_mutations) ... ok
 test_unique_gate (__main__.IdentityTests.test_unique_gate) ... ok
+test_caps_match_in_repo_root_original (__main__.NewCapsContractTests.test_caps_match_in_repo_root_original) ... ok
 test_real_caps_are_root_named_values_and_preserved_limits (__main__.NewCapsContractTests.test_real_caps_are_root_named_values_and_preserved_limits) ... ok
 test_runner_has_no_network_or_http_fetch_path (__main__.NewCapsContractTests.test_runner_has_no_network_or_http_fetch_path) ... ok
 test_wrong_caps_values_types_unknown_fields_and_old_schema_rejected (__main__.NewCapsContractTests.test_wrong_caps_values_types_unknown_fields_and_old_schema_rejected) ... ok
@@ -74,12 +75,13 @@ test_source_blob_tamper_and_symlink (__main__.ResolutionTests.test_source_blob_t
 test_target_selection_copies_actual_entries_only (__main__.ResolutionTests.test_target_selection_copies_actual_entries_only) ... ok
 test_bound_covers_python_store_zip_and_formula_exact (__main__.UploadBoundTests.test_bound_covers_python_store_zip_and_formula_exact) ... ok
 test_bound_rejects_forbidden_names_and_zip64_regimes (__main__.UploadBoundTests.test_bound_rejects_forbidden_names_and_zip64_regimes) ... ok
+test_check_refuses_existing_output_over_combined_cap_equal_passes (__main__.UploadBoundTests.test_check_refuses_existing_output_over_combined_cap_equal_passes) ... ok
 test_output_rejects_directories_and_symlinks (__main__.UploadBoundTests.test_output_rejects_directories_and_symlinks) ... ok
 test_package_projection_blocks_before_any_tail_write (__main__.UploadBoundTests.test_package_projection_blocks_before_any_tail_write) ... ok
 test_receipt_reserve_is_finite_and_precomputed (__main__.UploadBoundTests.test_receipt_reserve_is_finite_and_precomputed) ... ok
 test_write_refused_when_containers_would_exceed_upload_cap (__main__.UploadBoundTests.test_write_refused_when_containers_would_exceed_upload_cap) ... ok
 
 ----------------------------------------------------------------------
-Ran 80 tests in 1.522s
+Ran 82 tests in 1.470s
 
 OK

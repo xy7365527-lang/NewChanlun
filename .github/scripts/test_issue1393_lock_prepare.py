@@ -1063,6 +1063,29 @@ class NewCapsContractTests(ToyCapsTest):
         self.assertEqual(m.FIXED['schema'], 'issue1393-lock-preserve/2')
         self.assertIn('本次新定的更窄上限（不是「既有帽」）', source)
 
+    def test_caps_match_in_repo_root_original(self):
+        # 根原件副本随源入仓并钉摘要；字面量或合同任一与根原件分叉即红（CI 可见，不依赖外盘）。
+        path = m.ROOT / m.REPORT / 'ROOT-REGISTRY-CAPS-20261018.json'
+        raw = path.read_bytes()
+        self.assertEqual(m.digest(raw), 'd4c6e15423f79acbecc2d52dd5aaacb33d5e5cd96c65d7b0f149ab785025600e')
+        root = json.loads(raw)
+        reg = root['registry_evidence']
+        import ast
+        tree = ast.parse((m.ROOT / m.RUNNER).read_text())
+        literal = next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign)
+                       and any(isinstance(t, ast.Name) and t.id == 'RESOURCE_CAPS' for t in n.targets))
+        expected = {k: reg[k] for k in ('single_bytes', 'total_bytes', 'files', 'items')}
+        expected['upload_bytes'] = root['upload_bytes']
+        self.assertEqual(literal, expected)
+        caps = m.FIXED['resource_caps']
+        for k in ('single_bytes', 'total_bytes', 'files', 'items', 'mode', 'additional_network_for_evidence'):
+            self.assertTrue(m.strict_equal(caps['registry_evidence'][k], reg[k]), k)
+        self.assertTrue(m.strict_equal(caps['upload_bytes'], root['upload_bytes']))
+        self.assertEqual(caps['upload_counting'], root['upload_counting'])
+        self.assertTrue(m.strict_equal(caps['existing_preserved'], root['existing_preserved']))
+        draft = json.loads((m.ROOT / m.REPORT / 'CONTRACT-DRAFT.json').read_text())
+        self.assertTrue(m.strict_equal(draft['resource_caps'], caps))
+
     def test_wrong_caps_values_types_unknown_fields_and_old_schema_rejected(self):
         c = contract()
         v.validate_contract('True', c)
@@ -1326,6 +1349,23 @@ class UploadBoundTests(ToyCapsTest):
                 guard.write('big.bin', b'b' * 100)
                 self.assertEqual(guard.check()['main_bound'] + m.RECEIPT_RESERVE, m.RESOURCE_CAPS['upload_bytes'])
 
+    def test_check_refuses_existing_output_over_combined_cap_equal_passes(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)
+            (out / 'a.log').write_bytes(b'a' * 1234)
+            (out / '中文.json').write_bytes(b'{}')
+            exact = m.container_bound((p.name, p.stat().st_size) for p in out.iterdir()) + m.RECEIPT_RESERVE
+            with patch.dict(m.RESOURCE_CAPS, upload_bytes=exact):
+                self.assertEqual(m.EvidenceIO(out, budget()).check()['main_bound'] + m.RECEIPT_RESERVE, exact)
+            with patch.dict(m.RESOURCE_CAPS, upload_bytes=exact - 1), self.assertRaises(v.Refused):
+                m.EvidenceIO(out, budget())
+            guard = m.EvidenceIO(out, budget())
+            with patch.dict(m.RESOURCE_CAPS, upload_bytes=exact - 1):
+                for call in (guard.check, lambda: guard.take_items(0), lambda: guard.run(len, b'')):
+                    with self.assertRaises(v.Refused):
+                        call()
+            self.assertEqual((out / 'a.log').read_bytes(), b'a' * 1234)
+
     def test_package_projection_blocks_before_any_tail_write(self):
         with tempfile.TemporaryDirectory() as d:
             out = Path(d)
@@ -1434,7 +1474,13 @@ class GateTests(ToyCapsTest):
             self.assertEqual(s['with']['compression-level'], 0)
             self.assertIn("allowed == 'true'", s['if'])
         receipt_paths = uploads[1]['with']['path'].splitlines()
-        self.assertEqual([p.rsplit('/', 1)[1] for p in receipt_paths], list(m.RECEIPT_LIMITS))
+        # 多文件 path 的 rootDirectory 是最近公共祖先；三件都必须直接位于 runner.temp，
+        # 才使 destinationPath = '/'+名，与 container_bound/receipt-gate 计数的名字一致。
+        self.assertEqual(receipt_paths, ['${{ runner.temp }}/' + n for n in m.RECEIPT_LIMITS])
+        self.assertTrue(all(p.count('/') == 1 for p in receipt_paths))
+        self.assertEqual(uploads[0]['with']['path'], '${{ runner.temp }}/issue1393-lock-evidence/')
+        archive = next(s for s in steps if s.get('id') == 'archive')['run']
+        self.assertIn("Path(os.environ['RUNNER_TEMP']) / 'issue1393-lock-evidence'", archive)
         runs = {s.get('id'): s.get('run', '') for s in steps}
         self.assertIn('issue1393_lock_prepare.py upload-gate', runs['archive'])
         self.assertIn('issue1393_lock_prepare.py receipt-gate', runs['receipt'])

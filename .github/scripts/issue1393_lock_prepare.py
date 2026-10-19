@@ -461,8 +461,9 @@ def upload_name(name):
 def container_bound(entries):
     """固定 action + compression-level 0 的单个上传容器保守上界（ZIP store，非 ZIP64）。
 
-    每项 = 原文字节 + 128 + 2*UTF8('/'+名)；每容器 + 98。依据 compress-commons 6.0.2：
-    LFH 30、CFH 46、数据描述 ≤24（ZIP64 形式）、ZIP64 central extra 28；comment/extra 默认空；
+    每项 = 原文字节 + 固定元数据 128B + 名字 2 次（LFH、CFH 各一次）共 2*UTF8('/'+名)；每容器 + 98。
+    128 = LFH 30 + CFH 46 + 数据描述 ≤24（ZIP64 形式）+ ZIP64 central extra 28，不含名字；
+    依据 compress-commons 6.0.2，comment/extra 默认空；
     EOCD 22 + ZIP64 EOCD 56 + locator 20。超过 4 GiB 或项数达 ZIP64 门即拒绝，不外推。
     名字含前导 '/'（destinationPath 原样），比 archiver 去前导斜杠后的实名多 1B，保守。
     """

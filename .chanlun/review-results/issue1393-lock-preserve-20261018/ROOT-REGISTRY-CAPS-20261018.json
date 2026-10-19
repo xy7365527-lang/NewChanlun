@@ -1,0 +1,31 @@
+{
+  "ticket": 1393,
+  "decision": "PREPARATION_ONLY_NEW_NARROWER_CAPS",
+  "source": "root explicit follow-up 2026-10-18",
+  "registry_evidence": {
+    "mode": "EXISTING_EXCLUSIVE_CARGO_CACHE_ONLY",
+    "additional_network_for_evidence": false,
+    "single_bytes": 65536,
+    "total_bytes": 2097152,
+    "files": 128,
+    "items": 512
+  },
+  "upload_bytes": 33554432,
+  "upload_counting": "ALL_ARTIFACT_CONTAINERS_COMBINED_INCLUDING_MAIN_AND_RECEIPT_OUTER_OVERHEAD",
+  "existing_preserved": {
+    "MAX_MESSAGE_BYTES": 32768,
+    "MAX_EVENT_BYTES": 1048576,
+    "total_seconds": 900,
+    "final_reserve_seconds": 90,
+    "jobs": 1,
+    "telemetry_seconds": 10,
+    "initial_disk_bytes": 2147483648
+  },
+  "failure": "registry cap/missing raw => explicit proof_gap and incomplete, no truncation falsely complete; upload cap exceeded => stop upload, preserve required originals",
+  "registry_network_boundary": "Cargo operation's required official registry accesses unchanged; no extra evidence fetch",
+  "not_authorized": [
+    "second Cargo run",
+    "F push",
+    "main merge"
+  ]
+}

@@ -1,0 +1,138 @@
+{
+  "verdict": "PASS_LIMITED_STATIC",
+  "reviewed_commit": "5583547bdae20df917de60790834d34a8197ff82",
+  "reviewed_tree": "fb78b380bfa8c441fd6b7d1b627e63a8936c6a6f",
+  "base_commit": "d06b12743db549389cbd2f8aa8cf4d86ac84d3b8",
+  "reviewer": "Claude Opus 5.5 (independent review bee)",
+  "review_date": "2026-10-19",
+  "findings": [
+    {
+      "id": "H1",
+      "severity": "HIGH",
+      "title": "EvidenceIO.check() 合计上界检查未被测试覆盖",
+      "evidence": "变异测试2：移除 .github/scripts/issue1393_lock_prepare.py:528 的 require(state['main_bound'] + RECEIPT_RESERVE <= RESOURCE_CAPS['upload_bytes'], ...) 后，80 个测试仍全部通过",
+      "required_fix": "添加边界测试：构造总计 33554432 - RECEIPT_RESERVE - 200 字节散件断言封包成功、+300 字节断言拒绝"
+    },
+    {
+      "id": "H2",
+      "severity": "HIGH",
+      "title": "workflow 收据包 path 多文件 rootDirectory 推断未测试",
+      "evidence": ".github/workflows/issue1393-lock-prepare.yml:142-145 使用多行 path（三个文件），action 会推断 rootDirectory 为共同父目录；若路径写错（如混入 issue1393-lock-evidence/ 子目录），会静默失败或上传错误内容；runner 测试全 mock Popen，workflow 测试只核 YAML valid 不核路径语义",
+      "required_fix": "在 workflow 测试中解析步骤142-145，断言三个路径均在 runner.temp/ 且不含子目录；或添加 ADR/注释说明 rootDirectory 推断约束"
+    },
+    {
+      "id": "H3",
+      "severity": "HIGH",
+      "title": "帽值常量缺 CI 锁定与根原件一致性检查",
+      "evidence": "五个帽数值只在 .github/scripts/issue1393_lock_prepare.py:47-48 定义为 Python dict 字面量；合同、测试均引用该变量；但无 CI 检查其与 ROOT-REGISTRY-CAPS-20261018.json 逐字一致；若开发者误改字面量，测试会用新值通过而与根帽静默分叉",
+      "required_fix": "添加 CI 步骤：读取根帽 JSON 与 runner AST 字面量，断言逐字一致；或将帽值移至独立 JSON 运行时加载并核 SHA256"
+    },
+    {
+      "id": "M1",
+      "severity": "MEDIUM",
+      "title": "container_bound() 注释与实现有微小偏差",
+      "evidence": ".github/scripts/issue1393_lock_prepare.py:462-468 注释写'每项 = 原文 + 128 + 2·UTF8名'，但未说明 128 已含两次名字开销的预留；实现 :476 正确但注释可更精确",
+      "required_fix": "修改注释为'每项固定元数据 128B（含 LFH/CFH/描述/extra）+ 2·UTF8名字节（LFH/CFH 各一次）'"
+    },
+    {
+      "id": "L1",
+      "severity": "LOW",
+      "title": "扫描中文件变化只事后检测无 inotify",
+      "evidence": ".github/scripts/issue1393_lock_prepare.py:691-692 扫描结束后核 st_size 未变；但扫描期间（可能数秒）无实时监控；任务书未要求 inotify，且独占临时环境并发写入概率极低",
+      "required_fix": "保持现状（文档注明独占环境）或添加 fcntl 文件锁（可选）"
+    }
+  ],
+  "mutation_experiments": [
+    {
+      "id": 1,
+      "description": "破坏 single_bytes 检查：scan_sparse_cache limit() 返回 999999999",
+      "expected": "测试变红",
+      "actual": "✓ 测试变红",
+      "failed_test": "test_single_record_equal_cap_complete_and_over_cap_proof_gap_untruncated",
+      "conclusion": "single_bytes 边界被有效测试覆盖"
+    },
+    {
+      "id": 2,
+      "description": "移除 EvidenceIO.check() 的 upload_bytes 合计检查 (line 528)",
+      "expected": "测试变红",
+      "actual": "✗ 测试仍通过",
+      "failed_test": null,
+      "conclusion": "FINDING-H1: 合计上界检查未被测试覆盖"
+    },
+    {
+      "id": 3,
+      "description": "从测试中移除 compression_level=6 检查",
+      "expected": "测试减少覆盖",
+      "actual": "✓ 测试仍通过（79个）",
+      "failed_test": null,
+      "conclusion": "验证测试可被移除，不是变异实验失败"
+    }
+  ],
+  "tests_run": "python3 -B .github/scripts/test_issue1393_lock_prepare.py => Ran 80 tests in 1.825s OK",
+  "not_run": [
+    "cargo/rustc/rustup (零 Rust 工具链调用)",
+    "lake/Lean (零形式化验证)",
+    "真实 GitHub Actions (本地 Python unittest)",
+    "网络/HTTP (零联网取证)",
+    "fixture drift 检查 (未运行 scripts/check_fixture_drift.py)",
+    "产品代码 (newchan_rust 未编译/运行)",
+    "浏览器 (零 E2E)",
+    "git push/dispatch/merge (只读工位)",
+    "真实上传 (upload-artifact 未调用)"
+  ],
+  "verification_details": {
+    "item_1_caps_values": {
+      "single_bytes": "✓ 65536 (root JSON + runner AST + CONTRACT-DRAFT 逐字一致)",
+      "total_bytes": "✓ 2097152",
+      "files": "✓ 128",
+      "items": "✓ 512",
+      "upload_bytes": "✓ 33554432",
+      "source_naming": "✓ 'ROOT_NEW_NARROWER_CAPS_20261018' 明称本次新定",
+      "preserved_values": "✓ MAX_MESSAGE_BYTES=32768, MAX_EVENT_BYTES=1048576, total_seconds=900, jobs=1, initial_disk_bytes=2147483648 保持原义"
+    },
+    "item_2_counting_objects": {
+      "single_bytes_scope": "✓ 单条所需版本 JSON 原文 (scan_sparse_cache limit() 只对 current in wanted 缓冲)",
+      "total_files_scope": "✓ registry.json + registry-* 正文 (is_registry_evidence() 定义，工具链日志不计入)",
+      "items_scope": "✓ 保留版本记录条数 (take_items() 扫描中每保留一条即计)",
+      "upload_scope": "✓ 主包+收据容器外层合计 (container_bound() ZIP store 公式)",
+      "no_whole_cache_copy": "✓ meta['scope']='WHOLE_CACHE_FILE_NOT_ARCHIVED_ONLY_IDENTITY_AND_SELECTED_RECORD_RAW'"
+    },
+    "item_3_cache_only": {
+      "no_network_imports": "✓ AST 扫描禁止 socket/urllib/http/subprocess (test line 1112-1122)",
+      "streaming_budget": "✓ 每块前后 check_budget() (line 668,670)",
+      "proof_gap_cases": "✓ 缺 cache/版本/约束父、单条超限、截断、重复版本均记 gap",
+      "no_truncation": "✓ overflow 记 gap 不截断冒充完整 (line 653-655)"
+    },
+    "item_4_upload_bound": {
+      "formula_match": "✓ container_bound() 98+Σ(size+128+2·name) 与 dist-upload-index.js:3304 uploadStream 直传一致",
+      "fixed_action": "✓ ea165f8d65b6e75b540449e92b4886f43607fa02 (workflow line 94,139)",
+      "compression_0": "✓ workflow line 100,147 + runner ZIP_STORED",
+      "pre_upload_check": "✓ upload-gate 冻结清单核上界 (line 976-987)",
+      "post_write_block": "✓ receipt-gate 核门后目录未变 (line 997)",
+      "receipt_bounded": "✓ RECEIPT_LIMITS 固定上限，RECEIPT_RESERVE 事前常数 (line 74,482)",
+      "workflow_order": "✓ archive → payload (if allowed) → receipt → 收据上传 (if allowed)",
+      "rootDirectory": "⚠️ FINDING-H2: 收据 path 多文件推断未测试",
+      "coverage_gap": "⚠️ FINDING-H1: EvidenceIO.check() 合计检查未被测试"
+    },
+    "item_5_contract": {
+      "schema_v2": "✓ issue1393-lock-preserve/2 (line 84)",
+      "strict_types": "✓ strict_equal() 递归核类型，拒绝 0/False、1.0/1 (line 139-147)",
+      "reject_old": "✓ 旧 schema/operation/ref/批准 拒绝 (line 153-163)",
+      "reject_unknown": "✓ 未知字段/嵌套拒绝 (test line 1036-1087, 16 种变异)",
+      "draft_consistent": "✓ CONTRACT-DRAFT.json 与 FIXED 一致",
+      "unbound_preserved": "✓ approval/review/prepared 均 'UNBOUND'"
+    },
+    "item_6_tests_unchanged": {
+      "run16_count": "47 tests (d06b1274)",
+      "run17_count": "80 tests (5583547b)",
+      "modified_tests": {
+        "test_full_round_trip": "✓ 加强（验证摘录偏移、原文未截断）",
+        "test_caps_preflight": "✓ 保持（改为函数参数测读上限，新增 registry 区分测试）",
+        "test_registry_expiry": "✓ 保持（hook 换为 scan_sparse_cache）"
+      },
+      "new_tests": "33 项新增覆盖 (帽值字面量、合同类型、无网络导入、单条等于帽等)"
+    }
+  },
+  "blocking_conditions": "3 个 HIGH findings (H1/H2/H3) 需修复或管理者明确接受后方可授权运行；当前不建议激活 ISSUE1393_LOCK_EXECUTE: 'True'",
+  "recommendation": "修复 H1/H2/H3 或由管理者出具残留风险接受声明后，进入真实工具链运行与独立人工独审阶段"
+}
