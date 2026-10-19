@@ -64,11 +64,13 @@ fn replay(bars: &[Bar], ladder: &[usize]) -> (Replay, ParseLayer) {
         r.seg_counts.push(layer.segments.len());
         let n = i + 1;
         if ladder.contains(&n) {
-            let (full, facts) = parse_layer_with_inclusion_facts(&bars[..n], &theta);
+            // 全量走生产入口；段事实在同一批笔上取（inclusion 事实路径随前缀二次增长，见内存探针）。
+            let full = parse_layer(&bars[..n], &theta);
             assert_eq!(layer.strokes, full.strokes, "前缀 {n}：笔");
             assert_eq!(layer.segments, full.segments, "前缀 {n}：段");
             assert_eq!(layer.tail, full.tail, "前缀 {n}：尾部");
-            let sf = facts.segment_facts.unwrap();
+            let (fsegs, _, sf) = segment::divide_segments_with_facts(&full.strokes, &theta.parse);
+            assert_eq!(&fsegs, &*full.segments, "前缀 {n}：观察路径同一判定");
             assert_eq!(
                 inc.segments_parse_invalid_from(),
                 sf.parse_invalid_from.as_ref().map(|p| p.seg_start),
@@ -132,9 +134,8 @@ fn report(tag: &str, r: &Replay, n: usize, bucket: usize) -> (usize, usize) {
 }
 
 /// 全量 facts 读数：FAILED_GEOMETRY、fail-closed、流首段起点位移、指定笔所在候选。
-fn facts_report(tag: &str, bars: &[Bar], sites: &[usize]) {
-    let (layer, facts) = parse_layer_with_inclusion_facts(bars, &ThetaConfig::default());
-    let sf = facts.segment_facts.unwrap();
+fn facts_report(tag: &str, layer: &ParseLayer, sites: &[usize]) {
+    let (_, _, sf) = segment::divide_segments_with_facts(&layer.strokes, &ThetaConfig::default().parse);
     let seed = sf.seeds.last().map(|s| s.start_stroke);
     let failed = sf
         .candidates
@@ -142,13 +143,13 @@ fn facts_report(tag: &str, bars: &[Bar], sites: &[usize]) {
         .filter(|c| c.result == "FAILED_GEOMETRY")
         .count();
     eprintln!(
-        "TB1493 {tag} FACTS strokes={} segments={} failed_geometry={failed} parse_invalid={:?} first_seed={seed:?} first_start={:?} last_segment_end_bar={:?} bars={}",
+        "TB1493 {tag} FACTS strokes={} segments={} failed_geometry={failed} parse_invalid={:?} first_seed={seed:?} first_start={:?} last_segment_end_bar={:?} last_stroke_end_bar={:?}",
         layer.strokes.len(),
         layer.segments.len(),
         sf.parse_invalid_from.as_ref().map(|p| (p.seg_start, p.end_stroke)),
         sf.candidates.first().map(|c| c.start_stroke),
         layer.segments.last().map(|s| s.end_index),
-        bars.len()
+        layer.strokes.last().map(|s| s.end_index)
     );
     for &s in sites {
         let c = sf.candidates.iter().rev().find(|c| c.start_stroke <= s);
@@ -177,7 +178,7 @@ fn tb1493_replay_tail_window_ladder() {
     let all = load_full();
     let tail = &all[all.len() - 50_000..];
     let bars = &tail[5..]; // start_offset=5（#1419 L3 / #1405 口径）
-    let (r, _) = replay(bars, &[5_000, 10_000, 20_000, 30_000, 40_000, bars.len()]);
+    let (r, last) = replay(bars, &[5_000, 10_000, 20_000, 30_000, 40_000, bars.len()]);
     let ladder: Vec<_> = [5_000, 10_000, 20_000, 30_000, 40_000, bars.len()]
         .iter()
         .map(|&n| r.seg_counts[n - 1])
@@ -190,7 +191,7 @@ fn tb1493_replay_tail_window_ladder() {
         assert!(k > 0, "尾窗 {lo}–{hi} 段层停产");
     }
     report("TAIL", &r, bars.len(), 5_000);
-    facts_report("TAIL", bars, &[370, 508, 3040]);
+    facts_report("TAIL", &last, &[370, 508, 3040]);
     assert_eq!(r.invalid_bars, 0);
 }
 
@@ -206,7 +207,7 @@ fn tb1493_replay_full_history() {
         let k = r.emits.iter().filter(|&&e| e >= raw && e < raw + 100_000).count();
         eprintln!("TB1493 FULL after_raw={raw} emits_in_100k={k}");
     }
-    facts_report("FULL", &bars, &[3178, 59848]);
+    facts_report("FULL", &last, &[3178, 59848]);
     eprintln!(
         "TB1493 FULL last_segment_end={:?} n={n} longest_gap={longest_gap}",
         last.segments.last().map(|s| s.end_index)
