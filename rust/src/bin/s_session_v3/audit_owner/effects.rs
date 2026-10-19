@@ -621,7 +621,7 @@ impl Recording {
                         lower.1 = i + 1;
                         slot = Some(i);
                         if let Some((budget, _)) = &parent {
-                            adopt_row(budget, &mut table.rows[i])
+                            require_row_owned(budget, &table.rows[i])
                                 .map_err(|e| invalid(format!("原行许可：{e:?}")))?;
                         }
                         Some(std::mem::take(&mut table.rows[i]))
@@ -735,13 +735,9 @@ impl Effects {
             let old_manual = change.old.as_ref().map_or(0, manual_row_bytes);
             let new_payload = change.new.heap_bytes();
             let old_capacity = vec_bytes::<sc::CodecVec<SqlCell>>(rows.capacity());
-            // v4 例外：adopt 已分配的 originals.rows。
-            // - 生产路径（shared_parent=true）：originals 已在父账下读取（L543-547→L584/592），
-            //   adopt_codec_vec 只检查绑定（native.rs:L773 早返回），不做实际追认。
-            // - 测试路径（shared_parent=false）：originals 是 Plain 分配（未绑定），此处真实 adopt。
-            //   理想情况：测试应模拟生产行为，在父账下预分配（见 #1488 U2 遗留项）。
+            // #1488 U2：共享父下 originals 已在父账下读取出生，这里只核本父身份，不追认。
             if self.shared_parent {
-                budget.adopt_codec_vec(rows)?;
+                budget.require_codec_vec_owned(rows)?;
             }
             let native_rows = rows.is_native_bound();
             let mut mutate = |work: Option<&WorkScope>| -> Result<(), native::Failure> {
@@ -1773,18 +1769,17 @@ pub(super) fn begin_stage(tx: &Transaction<'_>, kind: StageKind) -> Result<Stage
     Ok(guard)
 }
 // Native行的许可跟随pop后的行移动，头部析构不退行的费用。
-// v4 例外：与 L739 同理，只在 originals 已绑定时调用（L624 前置条件 parent.is_some()），
-// 实际只检查绑定。测试路径中可能真实 adopt（见 #1488 U2 遗留项）。
-fn adopt_row(
+// #1488 U2：父账下原行已由本父许可出生，这里只核身份，不追认；未持票原行拒绝。
+fn require_row_owned(
     budget: &native::Budget,
-    row: &mut sc::CodecVec<SqlCell>,
+    row: &sc::CodecVec<SqlCell>,
 ) -> Result<(), native::Failure> {
-    for cell in row.iter_mut() {
+    for cell in row.iter() {
         if let SqlCell::Text(bytes) | SqlCell::Blob(bytes) = cell {
-            budget.adopt_codec_vec(bytes)?;
+            budget.require_codec_vec_owned(bytes)?;
         }
     }
-    budget.adopt_codec_vec(row)
+    budget.require_codec_vec_owned(row)
 }
 fn manual_row_bytes(row: &sc::CodecVec<SqlCell>) -> usize {
     super::super::request_audit::manual_cells_bytes(row)

@@ -251,11 +251,10 @@ impl NativeRawPrefixes {
         }
         let old = [self.raw_nodes.capacity(), self.raw_wire_nodes.capacity()];
         let append = raw.len() - self.raw_nodes.len();
-        // v4 例外：跨会话所有权转移。raw_nodes/raw_wire_nodes 在初始 audit session 中创建
-        // （hash_current_raw:L1154/1161，绑定到 store.allocation_budget()），此时转移到当前
-        // session 的 native Budget。v4 框架未涵盖跨会话场景，保留 adopt。
-        native.adopt_codec_vec(&mut self.raw_nodes)?;
-        native.adopt_codec_vec(&mut self.raw_wire_nodes)?;
+        // #1488 U2：不追认冷构造遗留的前缀容量；未持本父票者先取新块许可再分配，
+        // 摘要移入后旧块析构，许可随容器移动。已由本父出生者只核身份。
+        native.rebirth_codec_vec(&mut self.raw_nodes, work, append)?;
+        native.rebirth_codec_vec(&mut self.raw_wire_nodes, work, append)?;
         self.raw_nodes
             .try_reserve_native(work, append)
             .map_err(err)?;

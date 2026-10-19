@@ -542,11 +542,15 @@ impl Facts {
                 budget,
             )?;
             let old = vec_bytes::<Value>(raw.capacity());
-            // v4 例外：跨会话容量追认。Plain raw 向量在候选生产中创建（此时无 Budget），
-            // 首次增量 Q 时需将已分配容量纳入当前 session Budget 管理。
-            // 只在首次调用时 adopt，之后 raw_capacity 持久化，后续 grow_vec 直接使用。
+            // #1488 U2：不追认冷构造遗留的 Plain raw 容量。首次增量 Q 先从本父取同容量新块许可、
+            // 再分配，载荷移入后旧块析构；许可随 raw_capacity 持久，后续 grow_vec 直接使用。
             if self.raw_capacity.is_none() {
-                self.raw_capacity = Some(budget.adopt(vec_bytes::<Value>(raw.capacity()))?);
+                let mut fee = budget.reserve(0)?;
+                let mut fresh = Vec::new();
+                budget.grow_vec(&mut fresh, &mut fee, raw.capacity())?;
+                fresh.append(raw);
+                *raw = fresh;
+                self.raw_capacity = Some(fee);
             }
             budget.grow_vec(raw, self.raw_capacity.as_mut().unwrap(), 1)?;
             raw_added.manual = raw_added

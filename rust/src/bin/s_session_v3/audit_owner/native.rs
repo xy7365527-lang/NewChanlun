@@ -713,6 +713,8 @@ impl Budget {
             }
         })
     }
+    /// #1488 U2：追认已退出生产路径，仅测试 fixture 保留（编译期隔离）。
+    #[cfg(test)]
     pub(crate) fn adopt(&self, bytes: usize) -> Result<Permit, BudgetExceeded> {
         let mut d = self.0.domain.lock().map_err(|_| BudgetExceeded)?;
         if u64::from(d.serial) != self.1 || d.state & BROKEN != 0 {
@@ -763,6 +765,8 @@ impl Budget {
             self.0.metadata_peak.load(Ordering::Acquire),
         )
     }
+    /// #1488 U2：追认已退出生产路径，仅测试 fixture 保留（编译期隔离）。
+    #[cfg(test)]
     pub(crate) fn adopt_codec_vec<T>(
         &self,
         v: &mut newchan_rust::s_content::CodecVec<T>,
@@ -791,6 +795,52 @@ impl Budget {
             )?;
         v.attach_native_reservation(permit)
             .map_err(|e| Failure::Invalid(e.to_string()))
+    }
+    /// #1488 U2：生产路径只核“已由本父票出生”，不追认；未绑定/外来父/非Plain一律拒绝且不改动。
+    pub(crate) fn require_codec_vec_owned<T>(
+        &self,
+        v: &newchan_rust::s_content::CodecVec<T>,
+    ) -> Result<(), Failure> {
+        self.check_current()?;
+        let parent: Arc<dyn ScratchParent> = self.0.clone();
+        if v.native_parent_matches(&parent) {
+            Ok(())
+        } else {
+            Err(Failure::Invalid("原件未由本父账许可出生，不得追认".into()))
+        }
+    }
+    /// #1488 U2：未持票Plain容器不追认既有容量。先从本父活工作域取新块许可、再分配，
+    /// 载荷移入新块后旧块即析构；新许可随容器移动。已绑本父直接放行；外来父或非Plain拒绝且不改动。
+    pub(crate) fn rebirth_codec_vec<T>(
+        &self,
+        v: &mut newchan_rust::s_content::CodecVec<T>,
+        work: &newchan_rust::s_content::capture_allocation::scratch::WorkScope,
+        additional: usize,
+    ) -> Result<(), Failure> {
+        self.check_current()?;
+        if v.is_native_bound() {
+            return self.require_codec_vec_owned(v);
+        }
+        if !v.can_adopt_native() {
+            return Err(Failure::Invalid("Native不接其它allocator容器".into()));
+        }
+        let needed = v.len().checked_add(additional).ok_or(BudgetExceeded)?;
+        let mut fresh = newchan_rust::s_content::CodecVec::from_plain(Vec::new());
+        fresh
+            .try_reserve_native(work, needed)
+            .map_err(|e| Failure::Invalid(e.to_string()))?;
+        let parent: Arc<dyn ScratchParent> = self.0.clone();
+        if !fresh.native_parent_matches(&parent) {
+            return Err(Failure::Invalid("工作域不属本父账".into()));
+        }
+        // 新块许可与分配均已成功；以下只做不可失败的移动（容量已足）。
+        let old = std::mem::replace(v, fresh)
+            .try_into_plain()
+            .map_err(|e| Failure::Invalid(e.to_string()))?;
+        for x in old {
+            v.try_push(x).map_err(|e| Failure::Invalid(e.to_string()))?;
+        }
+        Ok(())
     }
     pub(crate) fn codec_vec_grow<T>(
         &self,
