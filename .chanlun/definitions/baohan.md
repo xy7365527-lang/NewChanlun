@@ -1,13 +1,14 @@
 # K线包含处理（Baohan / Inclusion Merge）
 
 > 正本：本文件是 K线包含处理 的教义正本。
-> 最后裁定：[#1342](https://github.com/xy7365527-lang/NewChanlun/issues/1342)（2026-10-13，初始方向与全包含前缀）
-> 受影响代码清单：见正文「#1342 受影响代码清单」（工作草稿副本 `.chanlun/review-results/issue1323-grilling-20261013/1342-AFFECTED-CODE.md`，票关后随归档出仓）
+> 最后裁定：[#1565](https://github.com/xy7365527-lang/NewChanlun/issues/1565)（2026-10-20，未定前缀上 W 对象的发布与 `pending_since_cut`）；前次 [#1342](https://github.com/xy7365527-lang/NewChanlun/issues/1342)（2026-10-13，初始方向与全包含前缀）
+> 受影响代码清单：见正文「#1565 受影响代码清单」与「#1342 受影响代码清单」（后者工作草稿副本 `.chanlun/review-results/issue1323-grilling-20261013/1342-AFFECTED-CODE.md`，票关后随归档出仓）
 
-**版本**: v1.6
+**版本**: v1.7
 **状态**: 已结算
-**最后更新**: 2026-10-14
+**最后更新**: 2026-10-20
 **变更**:
+- v1.7 落 [#1565](https://github.com/xy7365527-lang/NewChanlun/issues/1565)：新增「未定前缀上 W 对象的发布与 `pending_since_cut`」节——定义为对象携带的到达事实、逐代原样延续；写明 S3「生成态不写生命周期元数据」的出处并就 W 所需一面正式化；附受影响代码清单
 - v1.6 补录 [#1343](https://github.com/xy7365527-lang/NewChanlun/issues/1343)：组内极值根是**集合**（按到达序），组锚≠极值根且极值根可多根；集合语义进笔的 raw 间隔（见 `bi.md` §7.1），本文件不另立判据
 - v1.5 落 [#1342](https://github.com/xy7365527-lang/NewChanlun/issues/1342)：初始方向改为「等待首个 raw 非包含严格对」（W）；新增「未定前缀的输出与身份」节与受影响代码清单；未结算问题 3 关闭
 - v1.0 初版
@@ -171,6 +172,54 @@
 - **身份变化**：方向出现后，原始身份永久保留；新建或修订的组对象显式 `replaces` 被替代的未定记录；旧 cut 不回填，旧 AsKnown 返回旧对象。组锚 = 组内首根 raw 序号，内部极值发生根另记（见上文「组锚与序号关系」）。
 - **版本**：初始化政策版本、raw 修订、结构版本、object revision 分开记；只改政策也须新规则版本。
 - **不在本票但已裁**：同价极值身份（RD-02 [#1343](https://github.com/xy7365527-lang/NewChanlun/issues/1343)，2026-10-14）——集合语义，见 `bi.md` §7.1。
+
+## 未定前缀上 W 对象的发布与 `pending_since_cut`（[#1565](https://github.com/xy7365527-lang/NewChanlun/issues/1565) 裁定，2026-10-20，`[新缠论:选择]`）
+
+本节补上节「观察载体」里 `cut / first_known` 的那一格：未定原件对象 `CC-004.undetermined_raw` 的 `pending_since_cut` 是什么、从哪来，以及 S3 生成态在不读、不写生命周期元数据的前提下怎样发布 `CC-004.initialization`（槽 W）与 `CC-004.undetermined_raw`。用户 2026-10-20 在 #1565 批复采纳方案 A。
+
+### 定义
+
+**`pending_since_cut`（未定发生 cut）**：对象携带的到达事实，记该 raw 原件**首次进入未定状态时所在的 cut**。它是该对象 payload 的一部分，进 typed object_id 的内容寻址；它不是生产者历史，也不是发布链的首获知元数据。
+
+- **首次进入**：某 raw 原件在 cut c 首次以未定状态出现（上一代没有同一原件身份的活动未定对象），取 `pending_since_cut = c`。
+- **逐代原样延续**：方向未建立期间，下一代若仍有同一原件身份的未定对象，则从上一代**已核活动对象的 payload** 原样抄入 `pending_since_cut`，不重新取值。原件身份 = 槽（`CC-004.undetermined_raw`, raw 序号）+ 输入引用（含 raw 修订）；与 W 源一致（`de73545cbf:rust/src/bin/s_session_v2/tb02a_facts.rs:168-176`）。
+- **延续何时断开**：方向建立后，未定记录按上节由组对象 `replaces`，延续终止；raw 修订使输入引用变化，按新原件处理。此后同一序号再次进入未定状态，属新一次到达，取当时的 cut。旧对象与旧 AsKnown 不回填。
+- **只读 payload，不读生命周期字段**：延续的输入只有上一代已核对象的 `payload.pending_since_cut`。`first_known_generation`、`first_known_cut`、`published_generation`、撤回代号等字段**不得**作为取值输入，也不得由生成态写入或抄入对象。
+
+### 为何不从原始 K 线重算
+
+一个 cut 可以包含多根 K 线：cut 按代编号（整合分支 `rust/src/bin/s_structure_session.rs:3349` `structure_cut = cut-{gen}`），一代推进把上次输入前沿之后的全部新 raw 事件一起读入，可以是多根。raw K 线本身只带 raw 序号与修订，没有「它在哪个 cut 第一次被看见」这项事实；cut ↔ seq 的对应记在发布历史（清单、时钟、前沿）里，那正是生成态不碰的发布链。所以从当代 raw 序列只能重算「哪些原件处于未定」（`firstPair` 判据），算不出 `pending_since_cut`；要重算就得回头读发布历史，等于把冲突换个位置。到达事实只能在到达那一刻记下，随对象带走。
+
+### 与 S3 生成态约束的关系与出处
+
+**约束原文与出处（照实）**：「生成态不写生命周期元数据」**未见于 ADR、`CONTEXT.md` 或任何 `.chanlun/definitions/` 正本**（在 main `b63a3fd586` 的 `docs/adr`、`CONTEXT.md`、`.chanlun/definitions` 检索 `生命周期元数据`／`首获知`／`first_known`：只命中本文件上节 `cut / first_known` 与 `docs/adr/0037-s-content-bounded-layout.md:12` 按 `first_known_generation` 排快照，二者都不是该约束）。它目前只存在于两处：
+
+1. 代码：`rust/src/bin/s_session_v3/generation.rs:16-17`（#1394 线 `d1441b5d77` 引入，[#1419](https://github.com/xy7365527-lang/NewChanlun/issues/1419) 整合分支 `356df5db72` 同行未变，**尚未进 main**）逐字：「本模块不发出生许可，不写任何生命周期元数据，也不把 `wit-`/`window-` 之外的任何 `*_id` 当发布身份」。
+2. 其规范根据：#1394 采纳件 `.chanlun/review-results/issue1394-content-v3-20260916/APPROVED-SOURCE.md:200`（同上两提交；采纳记录 `ADOPTION.json`，用户 2026-09-15「照办 批准」§5.1–5.9）逐字：「生成态元数据与独立索引的首获知元数据继续分开」；`:201` 把「实际首获知／撤回元数据」划入 `publication_template`。该目录属工作草稿名分，不是正本层。另见 #1419 issuecomment-6265160238 待裁第 3 条、issuecomment-6265209957 主控裁定第 3 条。
+
+**本裁定一并正式化（以 W 对象发布所需为限）**：S3 生成态的输入是同一读集的 raw 全修订史、当前生效账，以及上一代**已核发布内容**（与既有 `generation.rs:111` 读上一代已核 CC-010.bi / CC-056.version 记录根同一口径）。生成态**不读**首获知、发布代号、撤回等生命周期字段作为取值输入，**不写**这些字段；它们归 root 的独立出生／撤回索引。理由：生命周期字段是发布链对「何时被看见」的记账，若进入生成输入，生成结果就依赖发布历史，§5.4 的无循环派生与「独立索引独立核出生」都会失去意义。正式化只覆盖本节需要的这一面；S3 其余生成／发布边界仍以 #1394 采纳件为准，后续若立 ADR 收编，本节随之改为引用。
+
+**为何方案 A 不违反该约束**：`pending_since_cut` 在 payload 里，延续读的是上一代已核内容，不是生命周期字段。由于 typed object_id = F({kind, fact_key, payload, input_refs, profile_id, rule_revision})（`APPROVED-SOURCE.md:171`），方向未建立且原件不变时，每代算出的未定对象内容身份**逐字相同**；root 的独立出生索引据此判为既有对象，首获知元数据由索引自己保持。生成态无需抄写 `first_known_*`（W 源 `tb02a_facts.rs:184-193` 的抄写在 S3 中归索引）。
+
+### 与 W 原语义一致、无宽严两档
+
+- **取值相同**：W 源 v2 写者取 `since = 上一代同身份对象的 first_known_cut`，首次取当代 cut（`de73545cbf:…/tb02a_facts.rs:174-176`）。按定义，该对象首次发布时 `pending_since_cut = first_known_cut = 当时的 cut`，此后两者逐代同值延续；合同侧对此有硬核验（整合分支 `s_session/s_tb02_contract.py:399`「未定发生 cut 与首次获知不同」即拒）。所以「读 payload.pending_since_cut」与「读 first_known_cut」在一切合法历史上输出逐位相同——这是同一个判断换了取值来源，不是第二套判据。
+- **只有一条通道**：生成态只按本节取值；**不得**在 payload 缺失或不可核时退回读 `first_known_cut`，也不得改用当代 cut 补值。上一代对象不可核即按旧状态审计失败处理，不降级放行（AGENTS.md「收敛通则」#799）。合同 / 前端对 `pending_since_cut == first_known_cut` 的比对是发布后的核验，不参与生成取值。
+- **与 Lean 正本**：`formal/Origin/RawInclusionInitialization.lean`（`de73545cbf`）只形式化初始化几何（`firstPair` / `initializeRaw`；其头注 `:8` 明写不覆盖 S 持久身份），本节不改其任一定义；`pending_since_cut` 属 S 持久身份层，Lean 侧无对应项，也无冲突。
+
+### #1565 受影响代码清单（基线：#1419 整合分支 `356df5db72`；W 源 `de73545cbf`）
+
+| 侧 | 文件:行 | 处置 | 归属 |
+|---|---|---|---|
+| Rust | `rust/src/bin/s_session_v2/tb02a_facts.rs:414/:461-469/:477-486`（`add_initialization`） | v2 写者：取值改读上一代同身份对象 `payload.pending_since_cut`（与现读 `first_known_cut` 输出逐位相同）；`:477-486` 抄 `first_known_*` 留在 v2（v2 写入口按 #1419 主控裁定第 2 条退役，只读 AsKnown 时不再执行） | #1419 |
+| Rust | `rust/src/bin/s_structure_session.rs:3350-3351` | `previous_active` 作 W 延续输入：注释改为「读上一代已核对象 payload」 | #1419 |
+| Rust | `rust/src/bin/s_session_v2/content_producer.rs:659/:982/:1002`（`Cc004Producer`、`build_step`、`build_step_object`） | S3 构造器：补发 `CC-004.initialization`（槽 W）与逐原件 `CC-004.undetermined_raw`，`pending_since_cut` 按本节取值；等待期不再把 waiting 步发成 `CC-004.inclusion_step`（W 移植审查 B2） | #1419 |
+| Rust | `rust/src/bin/s_session_v2/content_producer.rs:1379/:1436`（`build_knowledge_state`） | CC-054 补 `initialization_policy_revision`／`direction_state`；`:1436` 已用 `W_CONTRACT.knowledge_domain`（审查 B1 已处理），保持 | #1419 |
+| Rust | `rust/src/bin/s_session_v2/content_producer.rs:4032` | 「永不建立」样例的 S3 发布形态测试解除对 #1565 的阻塞，补 W 对象逐代 `pending_since_cut` 不变与 v2 对拍 | #1419 |
+| Rust | `rust/src/bin/s_session_v3/generation.rs:16-17/:111` | 约束注释加票号 #1565 指路；`prior` 增上一代已核活动 W 未定对象根（与 bi/version 同口径），只读 payload | #1419 |
+| Rust | `rust/src/bin/s_session_v3/source_audit.rs:1715-1722/:1817-1822` | 来源审计 kind 白名单补两种 W kind（现仅 CC-004 步／005／007／054 与 tb02b kinds）；`:1818` 按 rule 取合同保持 | #1419 |
+| Python / JS | `s_session/s_tb02_contract.py:192/:399`、`s_session/browser/q3-typed.js:126`、`s_session/browser/tb01c-client.js:2729` | 不改判据：保留为发布后核验，不作生成输入（`q3-typed.js` 缺 `cut-[1-9][0-9]*` 形式检查，见 W 移植审查 N2） | #1419 / [#1393](https://github.com/xy7365527-lang/NewChanlun/issues/1393) |
+| Lean | `formal/Origin/RawInclusionInitialization.lean`（`de73545cbf`） | 不改 | — |
 
 ## #1342 受影响代码清单（基线 main `465174240b`）
 
