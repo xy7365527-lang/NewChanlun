@@ -1145,6 +1145,7 @@ impl Drop for AuditTxn<'_> {
                 }
                 effects::clear_node_journal(&tx);
             }
+            self.owner.clear_candidates();
             self.owner.connection.flush_prepared_statement_cache();
             // 不依赖 rusqlite 的隐式 Drop 回滚；必须核实终结结果。
             if tx.rollback().is_err() || !self.owner.connection.is_autocommit() {
@@ -2784,7 +2785,11 @@ impl AuditTxn<'_> {
         operation: FixedOperation,
         context: Option<&request_audit::RequestAuditContext>,
     ) -> Result<(), String> {
-        self.before_fixed_write_inner(operation, context)
+        let result = self.before_fixed_write_inner(operation, context);
+        if result.is_err() {
+            self.owner.invalidate_construction();
+        }
+        result
     }
     fn before_fixed_write_inner(
         &self,
