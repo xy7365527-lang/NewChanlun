@@ -1,0 +1,12 @@
+[
+  "/home/hanju/.local/share/codex-runtimes/node-v22.23.3-linux-x64/bin/node",
+  "/home/hanju/nc-remote/wt/20261019-225709-c4bbdd9f8a/s_session/tests/tb02b_browser.cjs",
+  "--base-url",
+  "http://127.0.0.1:18961",
+  "--output",
+  "/home/hanju/tb1405-browser/20261019-225737/browser-run/browser",
+  "--playwright-module",
+  "/home/hanju/nc-remote/pw/node_modules/playwright",
+  "--generation",
+  "27"
+]

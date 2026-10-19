@@ -84,6 +84,6 @@ catalog evidence 计数照实变化（real_C 27 根，终 cut）：CC-006 local_
 ## 限制
 
 - 尾 5 万根读数锁是 `#[ignore]` 外部数据测试（数据 3.5 MB 不入仓），CI 不跑；入仓的常跑锁是六见证、选择无关、单根同值、双进程哈希与 tb02b 账簿。
-- 浏览器只跑了根批的一次（real_C 27 根，D 片之前的二进制）；D 片的 TB-02-A 改动经正式会话 + HTTP 公共查询（含 JS 客户端校验）验证，未再起浏览器。
-- 独立评审 INFO：那一次浏览器跑在 B 片 `1f90227633` 的二进制上，会话规则仍是 `s2-axis-quantifiers+new-bi/1+segment-second/1`，对象却是 `s-new-bi/2`；终版 `RULE_CONTRACTS` 绑定会拒这个组合（G 片的 `new-bi/1 会话 cut 里出现 s-new-bi/2 对象被拒` 正锁此例）。页面字段可见性证据（组锚、极值根集、`raw_first`/`raw_last`、两段 policy、KEEP 证据、退役等待原因零出现）仍有效；终版合同状态由 r3 轮（`93e9097915` 工作区，规则 new-bi/2，正式会话 + HTTP + JS 客户端校验）承担。
+- ~~浏览器只跑了根批的一次（real_C 27 根，D 片之前的二进制）；D 片的 TB-02-A 改动经正式会话 + HTTP 公共查询（含 JS 客户端校验）验证，未再起浏览器。~~ **订正（2026-10-20，#1405 关票门补记）**：恢复部分（PR #1571）在终版二进制（`c4bbdd9f8a` 构建，sha256 `08dfc651…7bcb`，规则 `new-bi/2` 组合串）上重跑了 real_C 27 根：正式会话检查 PASS，真 Chromium（Playwright headless shell 156，Linux）页面检查 PASS、0 page error、应显字段零缺失、退役等待态零出现；runtime 总判记 FAIL，只因收尾 `stop-s` 超时，不影响页面判定。收据与边界见 `recovery-20261019/RECOVERY-DELIVERY.md`。macOS Chrome 应用未跑。
+- 独立评审 INFO（历史，已由上条终版复核替代）：根批那一次浏览器跑在 B 片 `1f90227633` 的二进制上，会话规则仍是 `s2-axis-quantifiers+new-bi/1+segment-second/1`，对象却是 `s-new-bi/2`；终版 `RULE_CONTRACTS` 绑定会拒这个组合（G 片的 `new-bi/1 会话 cut 里出现 s-new-bi/2 对象被拒` 正锁此例）。页面字段可见性证据（组锚、极值根集、`raw_first`/`raw_last`、两段 policy、KEEP 证据、退役等待原因零出现）仍有效；终版合同状态由 r3 轮（`93e9097915` 工作区，规则 new-bi/2，正式会话 + HTTP + JS 客户端校验）承担。
 - 未开 PR、未跑 CI；DevSkim 实际增量待 CI SARIF。

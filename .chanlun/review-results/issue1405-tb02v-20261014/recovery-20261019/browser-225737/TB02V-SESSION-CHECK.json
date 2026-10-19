@@ -1,0 +1,66 @@
+{
+  "run_status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER",
+  "run_error": null,
+  "contract_all_cuts": {
+    "status": "passed",
+    "cuts": 27,
+    "case": null,
+    "scope": "真实库的Q/前端合同定点验证；非launcher/HTTP/GUI验收"
+  },
+  "status": "PASS",
+  "cuts": 27,
+  "extension_chain": [
+    [
+      18,
+      16,
+      "1"
+    ],
+    [
+      19,
+      16,
+      "2"
+    ],
+    [
+      20,
+      16,
+      "2"
+    ],
+    [
+      21,
+      16,
+      "2"
+    ],
+    [
+      22,
+      16,
+      "2"
+    ],
+    [
+      23,
+      16,
+      "2"
+    ],
+    [
+      24,
+      21,
+      "3"
+    ],
+    [
+      25,
+      21,
+      "4"
+    ],
+    [
+      26,
+      21,
+      "4"
+    ],
+    [
+      27,
+      21,
+      "4"
+    ]
+  ],
+  "first_stroke_cuts": 14,
+  "scope": "正式 launcher + socket 接纳 + HTTP 公共查询（live/AsKnown/重访）；浏览器另由 check-browser 核"
+}

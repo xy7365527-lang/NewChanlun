@@ -1,0 +1,515 @@
+ref=codex/1405-recovery-v4-onmain-20261019 sha=1870e958956601b46608cc3cc5fe08f9a9ccfca8 sub=rust cmd=cargo test --features s_session --bin s_structure_session 
+   Compiling newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261019-230224-1870e95895/rust)
+warning: the usage of Script Group `Greek` in this crate consists solely of mixed script confusables
+    --> src/recursive_t/rec_engine.rs:3495:8
+     |
+3495 | ...fn add_s...{
+     |       ^^^^^...^^^^^
+     |
+     = note: the usage includes 'τ' (U+03C4)
+     = note: please recheck to make sure their usages are indeed what you want
+     = note: `#[warn(mixed_script_confusables)]` on by default
+
+warning: unused imports: `PanDivShortRetraceObservation`, `drain_pan_div_short_retrace_observations`, `pan_div_subtype_channel_reason`, and `t3_in_c_grade_reason_to_pan_div_subtype`
+   --> src/theta_v0/classifier/signal.rs:127:5
+    |
+127 |     drain...tions, pan_div_subtype_channel_reason,
+    |     ^^^^^...^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+128 |     t3_in...btype, PanDivShortRetraceObservation,
+    |     ^^^^^...^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `step::coverage_step_from_buckets_sep`
+   --> src/theta_v0/strategy/coverage/mod.rs:129:5
+    |
+129 | use step:...s_sep;
+    |     ^^^^^...^^^^^
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> src/session_transport.rs:438:18
+    |
+438 | ...  .fetch_update(Or...
+    |       ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+438 -                 .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
+438 +                 .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
+    |
+
+warning: unused variable: `c`
+   --> src/theta_v0/classifier/recursive_tower.rs:409:20
+    |
+409 | ..., (c, w...
+    |       ^ help: if this is intentional, prefix it with an underscore: `_c`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `c`
+   --> src/theta_v0/classifier/recursive_tower.rs:676:24
+    |
+676 | ..., (c, w...
+    |       ^ help: if this is intentional, prefix it with an underscore: `_c`
+
+warning: variable does not need to be mutable
+    --> src/theta_v0/classifier/signal.rs:1246:9
+     |
+1246 | ...et mut j...range = ...
+     |       ----^...^^^^^
+     |       |
+     |       help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> src/theta_v0/classifier/pipeline.rs:850:17
+    |
+850 | ...et mut p = ...
+    |       ----^
+    |       |
+    |       help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> src/trading/axiom_voice.rs:367:17
+    |
+367 | ...et mut restore = ...
+    |       ----^^^^^^^
+    |       |
+    |       help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/trading/positional_fusion.rs:1506:25
+     |
+1506 | ...et mut cover =
+     |       ----^^^^^
+     |       |
+     |       help: remove this `mut`
+
+warning: field `dbg_sink_ok` is never read
+   --> src/fugue_v3/operate.rs:101:5
+    |
+ 70 | pub struct OperateEngine {
+    |            ------------- field in this struct
+...
+101 |     dbg_sink_ok: [u64; MAX_...
+    |     ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `buysellpoints` is never read
+   --> src/orchestrator.rs:473:9
+    |
+466 | ...truct LevelSnapshot {
+    |          ------------- field in this struct
+...
+473 | ...ub buysellpoints: Vec<...
+    |       ^^^^^^^^^^^^^
+    |
+    = note: `LevelSnapshot` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: field `reading_b_diverge` is never read
+   --> src/recursive_t/rec_engine.rs:996:5
+    |
+960 | pub struct TRoot {
+    |            ----- field in this struct
+...
+996 |     readi...verge: b...
+    |     ^^^^^...^^^^^
+
+warning: method `sink` is never used
+    --> src/recursive_t/rec_engine.rs:1687:8
+     |
+1169 | impl TRoot {
+     | ---------- method in this implementation
+...
+1687 |     fn sink(&m...
+     |        ^^^^
+
+warning: method `cost_basis` is never used
+   --> src/recursive_t/t_engine.rs:340:8
+    |
+276 | impl ...ngine {
+    | -----...----- method in this implementation
+...
+340 |     fn cost_basis(&self...
+    |        ^^^^^^^^^^
+
+warning: associated function `new` is never used
+   --> src/theta_v0/classifier/nest.rs:174:19
+    |
+170 | impl NestRung {
+    | ------------- associated function in this implementation
+...
+174 |     pub(crate) fn new(in...
+    |                   ^^^
+
+warning: associated function `from_parts` is never used
+   --> src/theta_v0/classifier/nest.rs:268:19
+    |
+257 | impl ...icate {
+    | -----...----- associated function in this implementation
+...
+268 |     pub(crate) fn from_parts(
+    |                   ^^^^^^^^^^
+
+warning: function `detect_centers_windowed` is never used
+   --> src/theta_v0/classifier/recursive_tower.rs:341:4
+    |
+341 | fn detec...dowed(
+    |    ^^^^^...^^^^^
+
+warning: function `trend_confirm_time` is never used
+   --> src/theta_v0/classifier/level_view/confirm.rs:379:15
+    |
+379 | ...fn trend..._time(
+    |       ^^^^^...^^^^^
+
+warning: function `nearest_confirmed_center` is never used
+   --> src/theta_v0/classifier/signal.rs:211:4
+    |
+211 | fn neare...enter(ce...
+    |    ^^^^^...^^^^^
+
+warning: function `t3_in_c_fixed_first_pair` is never used
+   --> src/theta_v0/classifier/signal.rs:447:15
+    |
+447 | ...fn t3_in..._pair(
+    |       ^^^^^...^^^^^
+
+warning: function `otherwise_domain_sidecar_begin` is never used
+   --> src/theta_v0/classifier/signal.rs:574:15
+    |
+574 | ...fn other...begin() {
+    |       ^^^^^...^^^^^
+
+warning: function `otherwise_domain_sidecar_take` is never used
+   --> src/theta_v0/classifier/signal.rs:580:15
+    |
+580 | ...fn other..._take() ...
+    |       ^^^^^...^^^^^
+
+warning: function `t3_in_c_grade_reason_to_pan_div_subtype` is never used
+  --> src/theta_v0/classifier/signal/pan_div_short.rs:38:15
+   |
+38 | ...fn t3_in...btype(
+   |       ^^^^^...^^^^^
+
+warning: function `pan_div_subtype_channel_reason` is never used
+  --> src/theta_v0/classifier/signal/pan_div_short.rs:54:15
+   |
+54 | ...fn pan_d...eason(su...
+   |       ^^^^^...^^^^^
+
+warning: struct `PanDivShortRetraceObservation` is never constructed
+  --> src/theta_v0/classifier/signal/pan_div_short.rs:66:19
+   |
+66 | ...ct PanDi...ation {
+   |       ^^^^^...^^^^^
+
+warning: associated function `from_record` is never used
+  --> src/theta_v0/classifier/signal/pan_div_short.rs:77:8
+   |
+76 | impl ...ation {
+   | -----...----- associated function in this implementation
+77 |     fn from_record(record: &ShortRetr...
+   |        ^^^^^^^^^^^
+
+warning: function `drain_pan_div_short_retrace_observations` is never used
+   --> src/theta_v0/classifier/signal/pan_div_short.rs:124:15
+    |
+124 | ...fn drain...tions(
+    |       ^^^^^...^^^^^
+
+warning: function `historical_bound_third_cert` is never used
+   --> src/theta_v0/classifier/pipeline.rs:194:15
+    |
+194 | ...fn histo..._cert(
+    |       ^^^^^...^^^^^
+
+warning: function `historical_bound_segment` is never used
+   --> src/theta_v0/classifier/pipeline.rs:215:4
+    |
+215 | fn histo...gment(
+    |    ^^^^^...^^^^^
+
+warning: function `has_any_fractal` is never used
+   --> src/theta_v0/parser/feature_seq.rs:222:4
+    |
+222 | fn has_a...actal(el...
+    |    ^^^^^...^^^^^
+
+warning: multiple fields are never read
+   --> src/theta_v0/strategy/coverage/compose.rs:107:9
+    |
+ 98 | ...rate) struct StepTrace {
+    |                 --------- fields in this struct
+...
+107 | ...ub closed: Vec<(ActiveLeg...
+    |       ^^^^^^
+108 | ...ub silent_drops: Vec<Acti...
+    |       ^^^^^^^^^^^^
+109 | ...ub opened: Vec<(Candidate...
+    |       ^^^^^^
+...
+117 | ...ub risk_exits: Vec<Active...
+    |       ^^^^^^^^^^
+...
+121 | ...ub overl...loses: Vec<Ac...
+    |       ^^^^^...^^^^^
+...
+125 | ...ub tw_event: Option<TwEve...
+    |       ^^^^^^^^
+...
+136 | ...ub verdicts: Vec<VoiceVer...
+    |       ^^^^^^^^
+...
+142 | ...ub lex_top3: Vec<(JThetaK...
+    |       ^^^^^^^^
+    |
+    = note: `StepTrace` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: function `pi_theta_step_traced` is never used
+   --> src/theta_v0/strategy/coverage/compose.rs:202:15
+    |
+202 | ...fn pi_th...raced(
+    |       ^^^^^...^^^^^
+
+warning: methods `overlay`, `position`, `iter`, and `as_contiguous` are never used
+   --> src/theta_v0/strategy/coverage/element.rs:112:19
+    |
+ 67 | impl<...w<'a> {
+    | -----...----- methods in this implementation
+...
+112 |     pub(crate) fn overlay(&self) -...
+    |                   ^^^^^^^
+...
+146 |     pub(crate) fn position(&self, ...
+    |                   ^^^^^^^^
+...
+156 |     pub(crate) fn iter(&self) -> i...
+    |                   ^^^^
+...
+167 |     pub(crate) fn as_contiguous(&s...
+    |                   ^^^^^^^^^^^^^
+
+warning: function `held_leg_tree_index` is never used
+  --> src/theta_v0/strategy/coverage/held.rs:34:4
+   |
+34 | fn held_...index(
+   |    ^^^^^...^^^^^
+
+warning: function `operation_role_indexed` is never used
+   --> src/theta_v0/strategy/coverage/role.rs:212:4
+    |
+212 | fn opera...dexed(
+    |    ^^^^^...^^^^^
+
+warning: methods `position_bounds`, `delta_capacity_units`, and `clamp_position` are never used
+   --> src/theta_v0/strategy/coverage/sizing.rs:382:19
+    |
+338 | impl ...kGate {
+    | -----...----- methods in this implementation
+...
+382 |     pub(crate) fn posit...ounds(&self, ...
+    |                   ^^^^^...^^^^^
+...
+388 |     pub(crate) fn delta...units(&s...
+    |                   ^^^^^...^^^^^
+...
+398 |     pub(crate) fn clamp...ition(&self, c...
+    |                   ^^^^^...^^^^^
+
+warning: function `pi_theta_step_prebuilt` is never used
+   --> src/theta_v0/strategy/coverage/sizing.rs:675:15
+    |
+675 | ...fn pi_th...built(
+    |       ^^^^^...^^^^^
+
+warning: associated items `fp_len` and `of` are never used
+   --> src/theta_v0/strategy/interp.rs:452:19
+    |
+450 | impl TreeKey {
+    | ------------ associated items in this implementation
+451 |     /// 指纹长度（诊断用：≈...
+452 |     pub(crate) fn fp_len(&s...
+    |                   ^^^^^^
+...
+456 |     pub(crate) fn of(tower:...
+    |                   ^^
+
+warning: struct `VoiceKey` is never constructed
+  --> src/theta_v0/strategy/shadow.rs:64:8
+   |
+64 | ...ct VoiceKey {
+   |       ^^^^^^^^
+
+warning: enum `ProductionFact` is never used
+  --> src/theta_v0/strategy/shadow.rs:72:17
+   |
+72 | ...um Produ...nFact {
+   |       ^^^^^...^^^^^
+
+warning: enum `DivergenceKind` is never used
+  --> src/theta_v0/strategy/shadow.rs:91:17
+   |
+91 | ...um Diver...eKind {
+   |       ^^^^^...^^^^^
+
+warning: struct `ShadowStepRecord` is never constructed
+   --> src/theta_v0/strategy/shadow.rs:117:19
+    |
+117 | ...ct Shado...ecord {
+    |       ^^^^^...^^^^^
+
+warning: struct `ShadowStats` is never constructed
+   --> src/theta_v0/strategy/shadow.rs:136:19
+    |
+136 | ...ct ShadowStats {
+    |       ^^^^^^^^^^^
+
+warning: methods `bump` and `divergences` are never used
+   --> src/theta_v0/strategy/shadow.rs:151:8
+    |
+150 | impl ...Stats {
+    | -----...----- methods in this implementation
+151 |     fn bump(&mut self, ki...
+    |        ^^^^
+...
+166 |     pub fn divergences(&s...
+    |            ^^^^^^^^^^^
+
+warning: struct `ShadowVoiceBook` is never constructed
+   --> src/theta_v0/strategy/shadow.rs:174:19
+    |
+174 | ...ct Shado...eBook {
+    |       ^^^^^...^^^^^
+
+warning: methods `observe_and_compare`, `records`, `stats`, and `render_report` are never used
+   --> src/theta_v0/strategy/shadow.rs:184:19
+    |
+180 | impl ...eBook {
+    | -----...----- methods in this implementation
+...
+184 |     pub(crate) fn obser...mpare(
+    |                   ^^^^^...^^^^^
+...
+297 |     pub(crate) fn records(&self) -> &[Sh...
+    |                   ^^^^^^^
+...
+302 |     pub(crate) fn stats(&self) -> &Shado...
+    |                   ^^^^^
+...
+307 |     pub(crate) fn render_report(&self) -...
+    |                   ^^^^^^^^^^^^^
+
+warning: function `production_fact` is never used
+   --> src/theta_v0/strategy/shadow.rs:371:4
+    |
+371 | fn produ..._fact(
+    |    ^^^^^...^^^^^
+
+warning: function `classify` is never used
+   --> src/theta_v0/strategy/shadow.rs:399:4
+    |
+399 | fn classify(de...
+    |    ^^^^^^^^
+
+warning: `newchan_rust` (lib) generated 49 warnings (run `cargo fix --lib -p newchan_rust` to apply 9 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.55s
+     Running unittests src/bin/s_structure_session.rs (/home/hanju/nc-remote/target/debug/deps/s_structure_session-7eb55d9e7d588854)
+
+running 87 tests
+test tb02c::tests::tb02c_member_relations_bind_only_the_member_sources ... ok
+test tests::cancellation_preserves_foreign_begin_and_reports_actual_release ... ok
+test tests::canonical_integer_rejects_non_canonical ... ok
+test tests::accept_rejects_stale_epoch_without_writing_receipts_or_metadata ... ok
+test tests::complete_batch_is_visible_before_reachable_root_and_never_overwritten ... ok
+test tests::as_of_unpublished_cut_is_rejected ... ok
+test tests::advance_without_new_input_is_idempotent ... ok
+test tests::bad_last_advance_frontier_blocks_reads_and_writes ... ok
+test tests::bigint_source_coords_and_revisions_roundtrip_wire ... ok
+test tests::as_known_cut_filters_all_fields_and_no_premature_top ... ok
+test tests::empty_advance_is_valid_frontier_minus_one ... ok
+test tests::corrupt_reachable_root_blocks_writes ... ok
+test tests::current_snapshot_excludes_unpublished_accepted_revision ... ok
+test tb02c::tests::tb02d_all_frozen_cases_project_into_strict_read_contracts ... ok
+test tests::correction_revision_chain_withdraws_top_then_rising_then_new_top ... ok
+test tests::full_signed_catalog_preserves_both_declared_branch_shapes ... ok
+test tests::equal_prices_publish_domain_observation_and_corrupt_json_fails_read ... ok
+test tests::future_withdrawn_object_is_rejected_as_corrupt ... ok
+test tests::out_of_order_late_revision_rejected ... ok
+test tests::large_predecessor_supersedes_and_evidence_wire_are_strings ... ok
+test tests::interior_delta_missing_blocks_writes_and_reads ... ok
+test tests::r10_as_known_zero_is_stable_through_accept_publish_and_revision ... ok
+test tests::corrupt_root_variants_block_all_writes ... ok
+test tests::recover_clears_pending_begin_and_keeps_reachable_root ... ok
+test tests::r9_prefix_observation_retains_sealed_first_version ... ok
+test tests::source_coord_collision_rejects_same_batch_and_other_business_identities ... ok
+test tests::replay_does_not_rebind_profile_of_an_existing_cut ... ok
+test tests::recover_requires_strictly_increasing_epoch ... ok
+test tests::revision_replay_conflict_and_old_version_no_revive ... ok
+test tests::inner_delta_payload_mismatch_blocks_writes_and_reads ... ok
+test tests::source_coord_exact_large_and_sparse_positions_remain_valid ... ok
+test tests::source_coord_revision_and_replay_keep_one_owner ... ok
+test tests::tb02a_raw_sidecar_tampering_is_not_tick_fallback ... ok
+test tests::tb02a_sealed_revision_history_and_independent_fact_index ... ok
+test tests::tb02a_strict_schema_discriminator_and_numeric_domain ... ok
+test tests::r10_pending_profile_corruption_fails_before_any_write ... ok
+test tests::tb02a_restored_numeric_shape_has_new_boundary_identity_without_reviving_history ... ok
+test tests::source_coord_pending_corruption_blocks_all_root_operations ... ok
+test tests::tb02a_three_groups_with_equal_roots_publish_shape_with_root_set ... ok
+test tests::future_index_rows_block_current_history_and_writes ... ok
+test tests::r9_all_required_delta_collections_and_scope_gate_writes ... ok
+test tests::source_coord_invalid_input_rolls_back_whole_accept_batch ... ok
+test tests::tb02a_window_external_direction_revision_disappearance_and_return ... ok
+test tests::source_coord_stored_corruption_rejects_before_new_begin ... ok
+test tests::tb02b_historical_identity_insertion_opens_new_generation_and_keeps_old_cut ... ok
+test tests::tb1405_cleanly_closed_old_rule_store_main_file_unchanged ... ok
+test tests::tb02b_same_generation_tail_append_keeps_first_confirmation ... ok
+test tests::tb1405_current_rule_store_reopen_reads_identical ... ok
+test tests::tb02b_successor_extension_preserves_confirmation_and_relation ... ok
+test tests::tb1405_recover_does_not_create_missing_store ... ok
+test tests::watch_returns_ordered_delta_and_gap_detection ... ok
+test tests::wire_integer_projection_preserves_bool_null_float ... ok
+test tests::wire_projection_rejects_corrupt_integer_types_without_mutating_input ... ok
+test tests::wire_projection_stringifies_coordinates_and_seq ... ok
+test tests::writer_epoch_invalid_configuration_does_not_change_state ... ok
+test tests::tb02b_revision_of_inserted_identity_opens_another_generation ... ok
+test tests::writer_epoch_transition_rejects_old_writer_and_recovers_pending_begin ... ok
+test tests::tb1405_old_rule_store_with_hot_wal_is_never_rewritten ... ok
+test tests::writer_epoch_zero_and_i64_max_are_exact_valid_epochs ... ok
+test tests::zero_generation_rejects_published_index_but_allows_pending_input ... ok
+test v2::testonly_audit_cost_breakdown ... ignored, explicit isolated database diagnostic
+test tests::writer_epoch_invalid_persistence_rejects_all_writes ... ok
+test tests::tb02b_same_input_extension_emits_all_changes ... ok
+test tests::wrong_root_tuple_blocks_writes_and_reads ... ok
+test v2::tests::v2_epoch_history_and_recover_phase_are_one_complete_chain ... ok
+test v2::tests::v2_bounded_cache_reuses_only_fresh_equal_dependencies ... ok
+test v2::tests::v2_expired_response_deadline_cannot_admit_a_job ... ok
+test v2::tests::v2_frame_requires_eof_and_rejects_delayed_second_frame ... ok
+test v2::tests::v2_exhausted_attempt_plan_has_zero_new_begin_or_write ... ok
+test v2::tests::v2_all_control_rows_and_pending_message_coverage_gate_every_write ... ok
+test v2::tests::v2_process_lock_prevents_second_writer ... ok
+test v2::tests::v2_pending_recovery_preserves_identity_and_uses_next_attempt ... ok
+test v2::tests::v2_readonly_root_rejects_corrupt_persisted_epoch ... ok
+test v2::tests::v2_ready_nonce_is_only_transport_diagnostics ... ok
+test v2::tests::v2_corrupt_control_or_pending_rows_block_all_writes ... ok
+test v2::tests::v2_same_generation_pending_damage_is_not_hidden_by_previous_healthy_audit ... ok
+test v2::tests::v2_response_wait_has_its_own_bounded_deadline ... ok
+test v2::tests::v2_strict_json_rejects_nested_duplicate_keys ... ok
+test v2::tests::v2_same_message_cannot_change_clock_or_payload ... ok
+test v2::tests::v2_retention_removes_only_delivery_refs_and_replays_original_result ... ok
+test v2::tests::v2_fresh_audit_rejects_birth_drift_in_every_cumulative_family ... ok
+test v2::tests::v2_two_fresh_directories_have_identical_authoritative_rows ... ok
+test tests::tb02b_persisted_identity_lifecycle_revision_and_old_cuts ... ok
+test tests::tb02b_batched_history_revision_and_tail_keep_distinct_fact_generation ... ok
+test tests::tb1405_old_rule_store_with_hot_rollback_journal_is_refused_unchanged ... ok
+test v2::tests::v2_warm_cache_cross_connection_damage_stops_all_writes ... ok
+test tests::tb02c_persistent_first_kind_and_normal_recovery has been running for over 60 seconds
+test tests::tb02c_persistent_first_kind_and_normal_recovery ... ok
+
+test result: ok. 86 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 371.15s
+
+EXIT=0 SECONDS=386
