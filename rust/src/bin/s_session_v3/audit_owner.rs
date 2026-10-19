@@ -990,6 +990,7 @@ impl AuditConnection {
         let transitioned_at = control.recover(clock_event, &generation)?;
         let recovered = if prior != "idle" {
             meta_set(tx, "advance_state", "idle")?;
+            meta_set(tx, "begin_token", "")?;
             meta_set(
                 tx,
                 "last_recovered_begin",
