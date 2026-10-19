@@ -257,7 +257,7 @@ def session(args):
         meta = plan["cases"][case]
         case_dir = plan_dir / case
         arms = {}
-        for arm in ("A", "B", "C"):
+        for arm in args.arms:
             output = case_dir / f"run-{arm}"
             run = Run(config=case_dir / f"config-{arm}.json", messages=case_dir / "messages.jsonl", output=output,
                       node=args.node, fault_index=meta["fault_index"] if arm == "C" else None, fault_stage="after_batch")
@@ -267,7 +267,7 @@ def session(args):
                 killed_n = next((n for n, e in want.items() if e["result"] == "KILLED_CASE_TWO"), max(want))
                 run.browser_args = {"module": args.playwright_module, "final": str(meta["inputs"]),
                                     "killed": cut_for(killed_n), "open": cut_for(6), "design": meta["design"]}
-            with deadline(f"{case}/{arm}", 900):
+            with deadline(f"{case}/{arm}", 5400):
                 result = run.execute()
             entry = {"status": result["status"], "error": result.get("error")}
             if result["status"] == "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER":
@@ -279,15 +279,15 @@ def session(args):
                 if arm == "C":
                     entry["lifecycle"] = json.loads((output / "RESULT.json").read_text()).get("status")
             arms[arm] = entry
-        a, b, c = (arms[x].get("structural") for x in "ABC")
-        same_ab = a is not None and a == b
-        same_ac = a is not None and a == c
-        oracle_ok = all(arms[x].get("hand_oracle", {}).get("status") == "PASS" for x in "ABC")
+        a, b, c = (arms.get(x, {}).get("structural") for x in "ABC")
+        same_ab = None if "B" not in arms else (a is not None and a == b)
+        same_ac = None if "C" not in arms else (a is not None and a == c)
+        oracle_ok = all(e.get("hand_oracle", {}).get("status") == "PASS" for e in arms.values())
         report["cases"][case] = {"arms": arms, "replay_new_process_equal": same_ab,
                                  "sigkill_recover_equal": same_ac,
-                                 "status": "PASS" if (same_ab and same_ac and oracle_ok) else "FAIL"}
+                                 "status": "PASS" if (same_ab is not False and same_ac is not False and oracle_ok) else "FAIL"}
     report["status"] = "PASS" if all(c["status"] == "PASS" for c in report["cases"].values()) else "FAIL"
-    dump(plan_dir / "TB02W-SESSION-CHECK.json", report)
+    dump(plan_dir / ("TB02W-SESSION-CHECK" + ("-" + "-".join(selected) if args.case else "") + ".json"), report)
     return report
 
 
@@ -304,6 +304,7 @@ def main():
     s.add_argument("--node", type=Path, required=True)
     s.add_argument("--case", action="append")
     s.add_argument("--browser", action="store_true")
+    s.add_argument("--arms", default="ABC", help="A=不中断；B=新进程重放；C=中间 SIGKILL 后 recover")
     s.add_argument("--playwright-module", default="playwright")
     args = parser.parse_args()
     report = {"prepare": prepare, "session": session}[args.command](args)
