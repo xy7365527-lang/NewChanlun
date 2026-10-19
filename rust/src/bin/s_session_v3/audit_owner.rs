@@ -48,6 +48,17 @@ pub(super) mod allocation_probe;
 pub(super) mod cold_root_probe {
     use std::cell::RefCell;
     thread_local!(static NOTES: RefCell<Vec<(usize, usize)>> = const { RefCell::new(Vec::new()) });
+    thread_local!(static FAIL_NEXT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) });
+    /// 下一次根内审计成功后注入一次失败，驱动真实的失败分支（首跑副作用已全部发生）。
+    pub(crate) fn fail_next_cold_root_audit() {
+        FAIL_NEXT.with(|f| f.set(true));
+    }
+    pub(super) fn inject_failure() -> Result<(), String> {
+        if FAIL_NEXT.with(|f| f.replace(false)) {
+            return Err("cold_root_probe: injected".into());
+        }
+        Ok(())
+    }
     pub(crate) fn note(before: usize, after: usize) {
         NOTES.with(|n| n.borrow_mut().push((before, after)));
     }
@@ -1499,22 +1510,28 @@ impl AuditTxn<'_> {
                 None
             };
             let (audited, cold_root) = match cold_root {
-                Some(root) => match self.audit_required_in_parent(mode, context, Some(&root)) {
-                    Ok(audited) => (audited, Some(root)),
-                    Err(_) => {
-                        drop(context.take());
-                        // #1488 P3-1：失败首跑在根工作域内经 legacy cache 保留的 NativeArc 仍持根许可；
-                        // 根析构前整体清除跨请求保留（缓存只影响复用，不改判据），不留挂在已析构根上的许可。
-                        let residue = root.live();
-                        if residue != 0 {
-                            crate::cache::clear_handles();
+                Some(root) => {
+                    let base = root.live();
+                    let first = self.audit_required_in_parent(mode, context, Some(&root));
+                    #[cfg(test)]
+                    let first = first.and_then(|a| cold_root_probe::inject_failure().map(|()| a));
+                    match first {
+                        Ok(audited) => (audited, Some(root)),
+                        Err(_) => {
+                            drop(context.take());
+                            // #1488 P3-1：失败首跑在根工作域内经 legacy cache 保留的 NativeArc 仍持根许可；
+                            // 根析构前整体清除跨请求保留（缓存只影响复用，不改判据），不留挂在已析构根上的许可。
+                            let residue = root.live().saturating_sub(base);
+                            if residue != 0 {
+                                crate::cache::clear_handles();
+                            }
+                            #[cfg(test)]
+                            cold_root_probe::note(residue, root.live().saturating_sub(base));
+                            drop(root);
+                            (self.audit_required_in_parent(mode, context, None)?, None)
                         }
-                        #[cfg(test)]
-                        cold_root_probe::note(residue, root.live());
-                        drop(root);
-                        (self.audit_required_in_parent(mode, context, None)?, None)
                     }
-                },
+                }
                 None => (self.audit_required_in_parent(mode, context, None)?, None),
             };
             let parent = context.request_parent_budget().or(cold_root);

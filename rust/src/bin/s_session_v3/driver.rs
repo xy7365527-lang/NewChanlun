@@ -1100,38 +1100,42 @@ mod tests {
         let ready = envelope("ready-cold-root", json!({"op":"ready"}));
         let expected = build.handle(ready.clone()).unwrap();
         drop(build);
-        let mut bounded = Driver::open_for_serve_with_mode(
-            &f.db,
-            &f.profile,
-            "1",
-            f.clock.clone(),
-            1024,
-            s_allocation::Mode::CapturedNative,
-        )
-        .unwrap();
-        // v3 driver 不配置 legacy memo；显式开启保留，使失败首跑真实经 NativeAdmission 保留证书。
-        crate::cache::configure(268_435_456);
-        assert!(crate::cache::retention_enabled());
-        crate::v3::audit_owner::cold_root_probe::take();
-        let reply = bounded.handle(ready.clone());
-        crate::cache::configure(0);
-        assert_eq!(reply.unwrap(), expected);
-        let notes = crate::v3::audit_owner::cold_root_probe::take();
-        assert!(!notes.is_empty(), "须经冷根审计失败分支");
-        // 负控：清除前根上确有失败首跑留下的保留许可（无本修复即挂在已析构根上）。
-        assert!(
-            notes.iter().any(|&(before, _)| before != 0),
-            "失败首跑未在根上留下保留：{notes:?}"
-        );
-        assert!(
-            notes.iter().all(|&(_, after)| after == 0),
-            "根析构前仍有残留许可：{notes:?}"
-        );
+        let probe = |cap: usize, inject: bool| {
+            let mut d = Driver::open_for_serve_with_mode(
+                &f.db,
+                &f.profile,
+                "1",
+                f.clock.clone(),
+                cap,
+                s_allocation::Mode::CapturedNative,
+            )
+            .unwrap();
+            // v3 driver 不配置 legacy memo；显式开启保留，使首跑真实经 NativeAdmission 保留证书。
+            crate::cache::configure(268_435_456);
+            assert!(crate::cache::retention_enabled());
+            crate::v3::audit_owner::cold_root_probe::take();
+            if inject {
+                crate::v3::audit_owner::cold_root_probe::fail_next_cold_root_audit();
+            }
+            let reply = d.handle(ready.clone());
+            crate::cache::configure(0);
+            assert_eq!(reply.unwrap(), expected);
+            let notes = crate::v3::audit_owner::cold_root_probe::take();
+            assert_eq!(notes.len(), 1, "须恰经一次冷根审计失败分支：{notes:?}");
+            assert_eq!(notes[0].1, 0, "根析构前仍有残留许可：{notes:?}");
+            notes[0]
+        };
+        // 自然失败：1024 不足，首跑在根上额度耗尽。
+        let natural = probe(1024, false);
+        // 真实首跑全部副作用发生后注入失败：负控核清除前根上确有 legacy 保留许可（无本修复即悬挂）。
+        let injected = probe(16 * 1024 * 1024, true);
+        assert!(injected.0 > 0, "首跑未在根上留下保留：{injected:?}");
         eprintln!(
             "{}",
-            json!({"scenario":"p3-1-cold-root-failure","notes":notes})
+            json!({"scenario":"p3-1-cold-root-failure","natural":natural,"injected":injected})
         );
     }
+
 
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
