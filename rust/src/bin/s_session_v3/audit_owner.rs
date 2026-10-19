@@ -3136,6 +3136,7 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
     for admitted in [false, true] {
         let mut owner = AuditConnection::open(&f.db_path()).unwrap();
         let mut keeper = cross_request_source_cache::Keeper::new(total);
+        let mut diag_prev: Option<native::Budget> = None;
         for request in 0..2 {
             let old_pool = keeper.retained_source_bytes();
             let mut context = request_audit::RequestAuditContext::with_source_keeper(keeper);
@@ -3147,6 +3148,8 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
             }
             let parent = context.cold_parent_budget();
             let diag_base = parent.as_ref().map(|p| p.live());
+            eprintln!("R14_DIAG_SAME {:?}", parent.as_ref().zip(diag_prev.as_ref()).map(|(a,b)| a.same_parent(b)));
+            diag_prev = parent.clone();
             let active = owner.begin(TransactionBehavior::Deferred).unwrap();
             let audited = if let Some(parent) = &parent {
                 parent
@@ -3190,12 +3193,13 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
             }
             if let Some(parent) = &parent {
                 let diag_after_seal = parent.live();
+                if request == 0 { eprintln!("R14_DIAG0 {}", json!({"admitted":admitted,"base":diag_base,"after_drop":diag_after_drop,"after_seal":diag_after_seal})); } else {
                 let diag_pool = keeper.take();
                 let diag_pool_some = diag_pool.is_some();
                 drop(diag_pool);
                 let diag_after_pool_drop = parent.live();
                 eprintln!("R14_DIAG {}", json!({"admitted":admitted,"request":request,"base":diag_base,"before_seal":before_seal,"after_drop":diag_after_drop,"after_seal":diag_after_seal,"after_pool_drop":diag_after_pool_drop,"pool":diag_pool_some,"old_pool":old_pool}));
-                panic!("R14_DIAG_STOP");
+                }
                 #[allow(unreachable_code)]
                 assert!(
                     parent.live() > before_seal.unwrap(),
