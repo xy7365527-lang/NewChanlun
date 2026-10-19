@@ -3189,9 +3189,16 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
             assert_eq!(complete(&audited), complete(&cold));
             let before_seal = parent.as_ref().map(|p| p.live());
             drop(audited);
+            let uo_a = parent.as_ref().map(|p| p.live());
             drop(cold);
+            let uo_b = parent.as_ref().map(|p| p.live());
             let ended = active.read_end().unwrap();
+            let uo_c = parent.as_ref().map(|p| p.live());
             owner.finish_source_keeper(context, ended);
+            eprintln!(
+                "UO1488_R14 admitted={admitted} request={request} before={before_seal:?} drop_audited={uo_a:?} drop_cold={uo_b:?} read_end={uo_c:?} after={:?}",
+                parent.as_ref().map(|p| p.live())
+            );
             keeper = owner.take_source_keeper().unwrap();
             let report = keeper.report();
             assert!(keeper.retained_source_bytes() > 0);
