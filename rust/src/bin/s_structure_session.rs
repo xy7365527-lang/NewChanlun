@@ -6314,6 +6314,7 @@ mod tests {
         let files = TestFiles::new();
         let db = files.0.join("旧规则 hot-journal.sqlite");
         let image = files.0.join("旧规则 hot-journal 现场.sqlite");
+        let diag;
         {
             let writer = Connection::open(&db).unwrap();
             writer
@@ -6331,6 +6332,28 @@ mod tests {
                      UPDATE filler SET x=zeroblob(500);",
                 )
                 .unwrap();
+            let pragma = |name: &str| {
+                writer
+                    .query_row(&format!("PRAGMA {name}"), [], |r| {
+                        r.get::<_, rusqlite::types::Value>(0)
+                    })
+                    .map(|v| format!("{name}={v:?}"))
+                    .unwrap_or_else(|e| format!("{name}:{e}"))
+            };
+            diag = format!(
+                "{} autocommit={} dir={}",
+                [
+                    "journal_mode",
+                    "cache_size",
+                    "cache_spill",
+                    "synchronous",
+                    "page_size"
+                ]
+                .map(pragma)
+                .join(","),
+                writer.is_autocommit(),
+                files.0.display()
+            );
             tb1405_crash_image(&db, &image);
             writer.execute_batch("ROLLBACK;").unwrap();
         }
@@ -6339,7 +6362,8 @@ mod tests {
         assert_eq!(
             &journal[..8],
             &[0xd9, 0xd5, 0x05, 0xf9, 0x20, 0xa1, 0x63, 0xd7],
-            "热日志头"
+            "热日志头 len={} {diag}",
+            journal.len()
         );
 
         let opened = match open_db(&image) {
