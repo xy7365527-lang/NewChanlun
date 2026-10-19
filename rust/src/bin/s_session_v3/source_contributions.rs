@@ -792,12 +792,12 @@ impl NativeSourceState {
             self.group_indices.remove(&index)?;
         }
         self.gap_at(s, index)?;
-        if let Some(next) = self
+        let next = self
             .group_indices
             .range((std::ops::Bound::Excluded(index), std::ops::Bound::Unbounded))
             .next()
-            .copied()
-        {
+            .copied();
+        if let Some(next) = next {
             self.gap_at(s, next)?;
         }
         for (position, coord) in group.members.iter().enumerate() {
