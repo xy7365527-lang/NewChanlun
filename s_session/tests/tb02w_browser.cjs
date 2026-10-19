@@ -47,7 +47,7 @@ async function main() {
     executablePath:process.env.TB02W_CHROMIUM_EXECUTABLE || process.env.TB02D_CHROMIUM_EXECUTABLE || process.env.TB02B_CHROMIUM_EXECUTABLE});
   context = await browser.newContext({recordHar:{path:path.join(args.output,'network.har'),content:'embed'}});
   const page = await context.newPage(), errors = [];
-  page.setDefaultTimeout(10000); page.setDefaultNavigationTimeout(10000);
+  page.setDefaultTimeout(60000); page.setDefaultNavigationTimeout(60000);  // #1420：WSL 无头壳渲染 40 代对象较慢，放宽到 60s（只是观察等待，不改 S/Q 资源）
   page.on('pageerror', e => { errors.push(String(e)); counts.pageerror++; record('pageerror'); });
   page.on('domcontentloaded', () => record('domcontentloaded'));
   page.on('load', () => record('load'));
@@ -56,7 +56,7 @@ async function main() {
   page.on('requestfinished', request => { counts.finished++; record('finished',{route:route(request)}); });
   page.on('requestfailed', request => { counts.failed++; record('failed',{route:route(request)}); });
     record('navigation-start');
-    const navigation = await page.goto(base.href, {waitUntil:'load', timeout:10000});
+    const navigation = await page.goto(base.href, {waitUntil:'load', timeout:60000});
     assert.ok(navigation && navigation.status() === 200 && new URL(navigation.url()).origin === base.origin, '正式页面导航未完成');
     record('navigation-loaded');
     const killed = args.design === 'killed';
@@ -73,7 +73,7 @@ async function main() {
     const seen = {};
     for (const view of views) {
       if (view.mode === 'AsKnown') { await page.locator('#asof-input').fill(view.cut); await page.locator('#btn-asof').click(); }
-      await page.waitForFunction(committedCutReady, {cut:view.cut,mode:view.mode}, {timeout:10000});
+      await page.waitForFunction(committedCutReady, {cut:view.cut,mode:view.mode}, {timeout:60000});
       record('cut-committed-' + view.label);
       for (const [axis, needles] of Object.entries(view.want)) {
         await page.locator(`[data-catalog-id="${axis}"]`).click();

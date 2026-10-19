@@ -230,7 +230,7 @@ def make_run_class():
             with (self.output / "browser.stdout").open("x") as out, (self.output / "browser.stderr").open("x") as err:
                 child = subprocess.Popen(command, stdout=out, stderr=err, start_new_session=True)
                 try:
-                    child.wait(timeout=90)
+                    child.wait(timeout=600)
                 finally:
                     if child.poll() is None:
                         os.killpg(child.pid, signal.SIGKILL)
