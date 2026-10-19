@@ -3333,6 +3333,7 @@ fn seal_census_check(
     breakdown: &Value,
     nodes: usize,
     claims: (usize, usize),
+    claim_amounts: Vec<usize>,
 ) -> Result<Value, String> {
     let mut live: Vec<(&'static str, usize)> = Vec::new();
     let mut unmatched = Vec::new();
@@ -3395,23 +3396,37 @@ fn seal_census_check(
     held.sort_unstable();
     let mut returned = dropped.iter().map(|x| x.1).collect::<Vec<_>>();
     returned.sort_unstable();
-    if returned != held {
-        let mut extra = returned.clone();
-        for bytes in &held {
-            if let Some(i) = extra.iter().position(|x| x == bytes) {
-                extra.swap_remove(i);
-            }
+    let mut extra = returned.clone();
+    for bytes in &held {
+        if let Some(i) = extra.iter().position(|x| x == bytes) {
+            extra.swap_remove(i);
         }
+    }
+    // #1488 P3-α：实测节点来源物理许可张数——无持有者的归还中，与某节点来源合同额同额者
+    // （多重集逐张匹配）。P2-A后来源只是合同角色，物理上应为0；P2-A前形态即每节点一张。
+    let mut amounts = claim_amounts;
+    let node_source_physical = extra
+        .iter()
+        .filter(|bytes| {
+            amounts
+                .iter()
+                .position(|a| a == *bytes)
+                .map(|i| amounts.swap_remove(i))
+                .is_some()
+        })
+        .count();
+    if returned != held {
         return Err(format!(
-            "C5 析构归还({}张/{}B)不等于持有者清单({}张/{}B)：无持有者的归还{extra:?}即重复计费",
+            "C5 析构归还({}张/{}B)不等于持有者清单({}张/{}B)：无持有者的归还{}张即重复计费，其中node_source_physical_permits={node_source_physical}",
             returned.len(),
             returned.iter().sum::<usize>(),
             held.len(),
-            held.iter().sum::<usize>()
+            held.iter().sum::<usize>(),
+            extra.len()
         ));
     }
     Ok(
-        json!({"permits":live.len(),"sealed_bytes":sum,"node_source_claims":claims.0,"node_source_claim_bytes":claims.1,"node_source_physical_permits":0}),
+        json!({"permits":live.len(),"sealed_bytes":sum,"node_source_claims":claims.0,"node_source_claim_bytes":claims.1,"node_source_physical_permits":node_source_physical}),
     )
 }
 
@@ -3431,6 +3446,7 @@ fn p2_4_seal_census_flags_duplicate_permit_on_real_seal_path() {
         None,
         Some(SealFault::SourceCostResign),
         Some(SealFault::ProofsBlockDuplicate),
+        Some(SealFault::NodeSourcePermits),
     ] {
         let mut owner = AuditConnection::open(&f.db_path()).unwrap();
         let mut keeper = cross_request_source_cache::Keeper::new(total);
@@ -3476,6 +3492,7 @@ fn p2_4_seal_census_flags_duplicate_permit_on_real_seal_path() {
             let pool = keeper.take().expect("封存池存活");
             let nodes = pool.nodes;
             let claims = pool.originals.native_source_claims_for_testonly().unwrap();
+            let claim_amounts = pool.originals.native_source_claim_amounts_for_testonly();
             parent.census_arm();
             let inventory = pool.native_permit_inventory_for_testonly().unwrap();
             drop(pool);
@@ -3495,6 +3512,7 @@ fn p2_4_seal_census_flags_duplicate_permit_on_real_seal_path() {
                 &report["source_cost_breakdown"],
                 nodes,
                 claims,
+                claim_amounts,
             );
             eprintln!(
                 "P24_SEAL_CENSUS {}",
@@ -3502,7 +3520,8 @@ fn p2_4_seal_census_flags_duplicate_permit_on_real_seal_path() {
             );
             match fault {
                 None => {
-                    census.unwrap();
+                    let census = census.unwrap();
+                    assert_eq!(census["node_source_physical_permits"], 0, "实测无同额来源物理许可");
                     baseline = Some(sealed);
                 }
                 Some(fault) => {
@@ -3515,6 +3534,15 @@ fn p2_4_seal_census_flags_duplicate_permit_on_real_seal_path() {
                             extra,
                             report["retained_source_cost"].as_u64().unwrap() as usize
                         );
+                    }
+                    // #1488 P3-α负控：P2-A前形态（每节点一张同额物理来源许可）被实测为nodes张，
+                    // 多签恰为来源合同额之和；无注入时实测0（r14与对照组）。
+                    if fault == SealFault::NodeSourcePermits {
+                        assert!(
+                            error.contains(&format!("node_source_physical_permits={nodes}")),
+                            "{error}"
+                        );
+                        assert_eq!(extra, claims.1);
                     }
                 }
             }
@@ -3834,6 +3862,8 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                 let pool = keeper.take().expect("封存池存活");
                 let nodes = pool.nodes;
                 let claims = pool.originals.native_source_claims_for_testonly().unwrap();
+                let claim_amounts = pool.originals.native_source_claim_amounts_for_testonly();
+                assert_eq!(claim_amounts.len(), nodes);
                 let (index_bytes, slot_now, slot_before_p2a) =
                     pool.originals.native_index_layout_for_testonly().unwrap();
                 parent.census_arm();
@@ -3850,6 +3880,7 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                     &report["source_cost_breakdown"],
                     nodes,
                     claims,
+                    claim_amounts,
                 )
                 .unwrap();
                 eprintln!("R14_SEAL_CENSUS {census}");

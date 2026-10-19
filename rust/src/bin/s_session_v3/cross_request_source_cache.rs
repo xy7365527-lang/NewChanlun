@@ -138,6 +138,9 @@ pub(super) struct Pool {
     // #1488 P2-4负控：真实封存路径上注入的重复许可；首字段，析构时最先返还。
     #[cfg(test)]
     seal_fault_duplicate: Option<sc::capture_allocation::scratch::NativeReservation>,
+    // #1488 P3-α负控：P2-A前的形态——每节点一张与来源合同额同额的物理许可。
+    #[cfg(test)]
+    seal_fault_node_source: Vec<sc::capture_allocation::scratch::NativeReservation>,
     pub(super) originals: sc::AuditCapture,
     pub(super) nodes: usize,
     binding: Binding,
@@ -158,6 +161,8 @@ pub(super) enum SealFault {
     SourceCostResign,
     /// 对已收费的proofs块按容量再签。
     ProofsBlockDuplicate,
+    /// #1488 P3-α：复现P2-A前每节点同额物理来源许可（逐节点按来源合同额签）。
+    NodeSourcePermits,
 }
 #[cfg(test)]
 thread_local! {
@@ -348,6 +353,13 @@ impl Pool {
                     SealFault::ProofsBlockDuplicate => {
                         mul(pool.proofs.capacity(), std::mem::size_of::<Proof>())?
                     }
+                    SealFault::NodeSourcePermits => {
+                        for bytes in pool.originals.native_source_claim_amounts_for_testonly() {
+                            pool.seal_fault_node_source
+                                .push(work.reserve_native(bytes).map_err(|e| e.to_string())?);
+                        }
+                        return Ok(pool);
+                    }
                 };
                 pool.seal_fault_duplicate =
                     Some(work.reserve_native(bytes).map_err(|e| e.to_string())?);
@@ -494,6 +506,8 @@ impl Pool {
         Ok(Self {
             #[cfg(test)]
             seal_fault_duplicate: None,
+            #[cfg(test)]
+            seal_fault_node_source: Vec::new(),
             originals,
             nodes,
             binding,
