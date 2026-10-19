@@ -40,7 +40,12 @@ fn tb02c_directional_inclusion_and_no_fractal_witnesses() {
         );
         let ss = chain(&[0, 10, 4, 12, 6, 14, 8].map(|p| p * sign));
         let (_, _, facts) = segment::divide_segments_with_facts(&ss, &ThetaConfig::default().parse);
-        assert_eq!(facts.candidates[0].result, "NO_FIRST");
+        // #1493：末元素 [8,14] 是无缺口峰候选、尚无第三元素 ⟹ OPEN_AT_PREFIX_END（§7.1 第 1 条）。
+        assert_eq!(facts.candidates[0].result, "PENDING_CASE_ONE");
+        assert_eq!(
+            facts.candidates[0].waiting_reasons,
+            vec!["first_kind_awaiting_third_stroke"]
+        );
         assert_eq!(facts.candidates[0].first.checks.last().unwrap().gap, None);
         assert!(
             !facts.candidates[0]
@@ -82,13 +87,32 @@ fn tb02c_turn_window_stays_open() {
     assert!(facts.parse_invalid_from.is_none());
 }
 
+/// #1493：按 §7.1 第 5 条定义流首段起点后首段门恒过；以 TestOnly 种子起点构造门失败，检验见证与
+/// fail-closed（`parse_invalid_from`）。生产口径下同一输入不失败。
+fn tb1493_seed_start<T>(f: impl FnOnce() -> T) -> T {
+    segment::FIRST_START_AT_SEED.with(|c| c.set(true));
+    let r = f();
+    segment::FIRST_START_AT_SEED.with(|c| c.set(false));
+    r
+}
+
 #[test]
 fn tb02c_geometry_failure_keeps_witness_and_does_not_emit() {
-    let (segments, _, facts) = segment::divide_segments_with_facts(
-        &chain(&[5, 10, 0, 5, -1, 2, -3, 3, -2, 1, -4]),
-        &ThetaConfig::default().parse,
-    );
+    let ss = chain(&[5, 10, 0, 5, -1, 2, -3, 3, -2, 1, -4]);
+    let (_, _, prod) = segment::divide_segments_with_facts(&ss, &ThetaConfig::default().parse);
+    assert!(prod.parse_invalid_from.is_none());
+    assert!(prod.candidates.iter().all(|c| c.result != "FAILED_GEOMETRY"));
+    let (segments, _, facts) = tb1493_seed_start(|| {
+        tb1493_full_eq_incremental(&ss);
+        segment::divide_segments_with_facts(&ss, &ThetaConfig::default().parse)
+    });
     assert!(segments.is_empty());
+    let invalid = facts.parse_invalid_from.as_ref().expect("门失败须 fail-closed 上报");
+    assert_eq!(invalid.seg_start, 0);
+    assert_eq!(invalid.construction_vector, Some([true, true, false, true]));
+    assert!(invalid.failed_conditions.contains(&"top_gt_bottom"));
+    assert_eq!(invalid.elements[1].stroke_idx, invalid.end_stroke + 1);
+    assert_eq!(facts.candidates[0].parse_invalid_from, Some(0));
     let c = &facts.candidates[0];
     assert_eq!(c.seed.overlap_relation, Some("TOUCH"));
     assert_eq!(c.result, "FAILED_GEOMETRY");
@@ -103,11 +127,21 @@ fn tb02c_geometry_failure_keeps_witness_and_does_not_emit() {
 fn tb02c_gap_does_not_hide_failed_geometry() {
     // FIRST 后三元素 [-16,-10],[-8,-6],[last,-7]：有 gap，
     // 分型端 -6 低于段首 0；不论 c 是否封 gap 都已知几何失败。
+    // #1493：生产口径下流首段起点按定义取 s4（-20），首段 s4–s6 合法；门失败只在 TestOnly 种子起点下构造。
     for last in [-12, -9] {
-        let (_, _, facts) = segment::divide_segments_with_facts(
-            &chain(&[0, 20, 8, 10, -20, -10, -16, -6, -8, -7, last]),
-            &ThetaConfig::default().parse,
+        let ss = chain(&[0, 20, 8, 10, -20, -10, -16, -6, -8, -7, last]);
+        let (segs, _, prod) =
+            segment::divide_segments_with_facts(&ss, &ThetaConfig::default().parse);
+        assert!(prod.parse_invalid_from.is_none());
+        assert_eq!(prod.candidates[0].start_stroke, 4);
+        assert_eq!(
+            prod.candidates[0].result,
+            if last == -12 { "CASE_ONE" } else { "PENDING_CASE_TWO" }
         );
+        assert_eq!(segs.len(), usize::from(last == -12));
+        let (_, _, facts) = tb1493_seed_start(|| {
+            segment::divide_segments_with_facts(&ss, &ThetaConfig::default().parse)
+        });
         let c = &facts.candidates[0];
         assert_eq!(c.first.checks.last().unwrap().gap, Some(true));
         assert_eq!(c.result, "FAILED_GEOMETRY");
@@ -482,20 +516,18 @@ fn tb1493_stream_first_segment_starts_at_extreme() {
 
 #[test]
 fn tb1493_gate_failure_is_fail_closed() {
-    // 门失败不回退、不改起点重判：跳过触发，并在 facts 与增量快照上置 parse_invalid_from。
-    let ss = chain(&[5, 10, 0, 5, -1, 2, -3, 3, -2, 1, -4]);
-    tb1493_full_eq_incremental(&ss);
-    let (segs, _, facts) = segment::divide_segments_with_facts(&ss, &ThetaConfig::default().parse);
-    if let Some(p) = &facts.parse_invalid_from {
-        assert!(segs.iter().all(|s| s.start_index >= ss[p.seg_start].start_index
-            || s.end_index < ss[p.seg_start].start_index));
+    // 门失败不回退、不改起点重判：跳过该触发、段继续，并在 facts 与增量快照上置同一 parse_invalid_from。
+    let ss = chain(&[0, 20, 8, 10, -20, -10, -16, -6, -8, -7, -12, -2, -9, 5, -5]);
+    tb1493_seed_start(|| {
+        tb1493_full_eq_incremental(&ss);
+        let (segs, _, facts) =
+            segment::divide_segments_with_facts(&ss, &ThetaConfig::default().parse);
+        let p = facts.parse_invalid_from.as_ref().expect("须 fail-closed 上报");
+        assert_eq!((p.seg_start, p.end_stroke), (0, 6));
         assert!(p.construction_vector.is_some_and(|v| v != [true; 4]));
-        assert_eq!(p.elements[1].stroke_idx, p.end_stroke + 1);
-        assert_eq!(
-            facts.candidates.iter().find_map(|c| c.parse_invalid_from),
-            Some(p.seg_start)
-        );
-    }
+        // 不改起点重判：此后不得出现以其他起点重开的流首段。
+        assert!(segs.iter().all(|s| s.start_index == ss[0].start_index));
+    });
 }
 
 fn tb1493_splitmix(state: &mut u64) -> u64 {

@@ -416,6 +416,10 @@ impl ParseInvalid {
 /// 反向最极端者（向上段取起点最低的向上笔，向下段镜像；并列取最早）。`078:22`／`:24`。
 /// 种子 `seed` 只定扫描起点；非流首段一律不适用。
 fn first_segment_start(strokes: &[Stroke], seed: usize, end: usize, seg_dir: Direction) -> usize {
+    #[cfg(test)]
+    if FIRST_START_AT_SEED.with(|c| c.get()) {
+        return seed;
+    }
     let mut best = seed;
     for j in (seed..=end).filter(|&j| strokes[j].direction == seg_dir) {
         let better = match seg_dir {
@@ -427,6 +431,14 @@ fn first_segment_start(strokes: &[Stroke], seed: usize, end: usize, seg_dir: Dir
         }
     }
     best
+}
+
+#[cfg(test)]
+thread_local! {
+    /// TestOnly（#1493）：流首段起点退回种子（§7.1 第 5 条之前的口径），仅用于在测试里构造段端门失败、
+    /// 检验 fail-closed 路径；不参与生产准入（#799 限定词 2）。按 §7.1 第 5 条定义起点时首段门恒过
+    /// （起点是最低的同向笔起点 ⟹ 顶>底与前三笔重叠必成立）。
+    pub(super) static FIRST_START_AT_SEED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// 段端门的单一判定（全量主循环与增量续扫共用，#804）。

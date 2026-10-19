@@ -1075,3 +1075,112 @@ fn tb02w_w2_provisional_budget_exhaustion_blocks_sealing() {
         ends(&s0)
     );
 }
+
+/// #1493：W1/W2 见证重搜（第一种情况口径改变后旧见证读数失效）。`cargo test -- --ignored tb1493_search`。
+#[test]
+#[ignore]
+fn tb1493_search_tb02w_witnesses() {
+    fn mix(st: &mut u64) -> u64 {
+        *st = st.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = *st;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
+    // 尖峰式交替折线：多数小幅、偶有大幅跳动。
+    fn prices(seed: u64, n: usize) -> Vec<i64> {
+        let mut st = seed;
+        let mut p = 100_000i64;
+        let mut out = vec![p];
+        let mut up = true;
+        for _ in 1..n {
+            let r = mix(&mut st);
+            let step = match r % 10 {
+                0 => 300 + (r >> 8) % 1200,
+                1 | 2 => 60 + (r >> 8) % 200,
+                _ => 2 + (r >> 8) % 70,
+            } as i64;
+            p += if up { step } else { -step };
+            out.push(p);
+            up = !up;
+        }
+        out
+    }
+    let cfg = ThetaConfig::default().parse;
+    let mut w1_found = 0;
+    for seed in 0..20_000u64 {
+        if w1_found >= 2 {
+            break;
+        }
+        let pr = prices(seed, 100);
+        let ss = witness_chain(&pr);
+        let n = ss.len();
+        let p = n - 2;
+        let mut inc = segment::IncrSegments::default();
+        for k in 0..=p {
+            inc = inc.append(&ss[..k], &cfg);
+        }
+        let Some(euf) = inc.earliest_unsealed_from() else {
+            continue;
+        };
+        let (segs, pending) = inc.to_result_vec();
+        let mut ok = true;
+        let mut diverged = vec![];
+        for q in p..=n {
+            let batch = segment::divide_segments_with_tail(&ss[..q], &cfg);
+            let bounded = segment::IncrSegments::from_checkpoint(&segs, pending, &ss[..p], Some(euf))
+                .append(&ss[..q], &cfg);
+            if bounded.to_result_vec() != batch {
+                ok = false;
+            }
+            let unbounded =
+                segment::IncrSegments::from_full(&segs, pending, &ss[..p]).append(&ss[..q], &cfg);
+            if unbounded.to_result_vec() != batch {
+                diverged.push(q);
+            }
+        }
+        if ok && !diverged.is_empty() {
+            w1_found += 1;
+            eprintln!("W1 seed={seed} p={p} euf={euf} diverged={diverged:?} prices={pr:?}");
+        }
+    }
+    let mut w2_found = 0;
+    for seed in 0..50_000u64 {
+        if w2_found >= 2 {
+            break;
+        }
+        for len in [25usize, 30, 35, 40] {
+            let pr = prices(seed, len);
+            let ss = witness_chain(&pr);
+            let mut w0 = ThetaConfig::default();
+            w0.parse.second_seq_scan_window = 0;
+            let mut w1 = ThetaConfig::default();
+            w1.parse.second_seq_scan_window = 1;
+            let (s0, _, f0) = segment::divide_segments_with_facts(&ss, &w0.parse);
+            let (s1, p1, f1) = segment::divide_segments_with_facts(&ss, &w1.parse);
+            let exhausted = |f: &segment::SegmentFacts| {
+                f.candidates.iter().any(|c| {
+                    c.second
+                        .as_ref()
+                        .is_some_and(|s| s.coverage == ScanCoverage::IncompleteResourceBound)
+                })
+            };
+            if !exhausted(&f0)
+                && exhausted(&f1)
+                && p1.is_some()
+                && s1.len() < s0.len()
+                && s1[..] == s0[..s1.len()]
+                && s1.len() >= 1
+            {
+                w2_found += 1;
+                let ends = |segs: &[Segment]| segs.iter().map(|g| g.end_index).collect::<Vec<_>>();
+                eprintln!(
+                    "W2 seed={seed} len={len} w0={:?} w1={:?} prices={pr:?}",
+                    ends(&s0),
+                    ends(&s1)
+                );
+                break;
+            }
+        }
+    }
+}
