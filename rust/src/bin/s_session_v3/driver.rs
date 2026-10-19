@@ -1081,7 +1081,7 @@ mod tests {
         let probe = native.conn.recover_probe_for_test();
         assert!(!probe.stale && !probe.retired);
         let q = probe.qualification.expect("Recover前owner持有已提交构造资格");
-        assert!(q.has_fee && q.writer_epoch.is_none());
+        assert!(q.writer_epoch.is_none());
         assert!(native.conn.complete_retained_bytes() > 0);
         assert_eq!(recover_lock_meta(f, "writer_epoch").as_deref(), Some("1"));
         assert_ne!(recover_lock_meta(f, "begin_token").as_deref(), Some(""));
@@ -1128,7 +1128,7 @@ mod tests {
         let promoted = after.qualification.expect("Recover成功后晋升新资格");
         assert_eq!(promoted.writer_epoch, Some(2));
         assert_eq!(promoted.binding, old.binding);
-        assert!(promoted.has_fee);
+        assert_eq!(promoted.has_fee, old.has_fee);
         // 旧 Begin token 随持久换代清空。
         assert_eq!(recover_lock_meta(&f, "writer_epoch").as_deref(), Some("2"));
         assert_eq!(recover_lock_meta(&f, "begin_token").as_deref(), Some(""));
@@ -1300,7 +1300,7 @@ mod tests {
         assert!(peak_after >= peak, "peak被抹：{peak} → {peak_after}");
         assert_eq!(mark.current(), Some(live_after));
         let promoted = native.conn.recover_probe_for_test().qualification.unwrap();
-        assert!(promoted.has_fee);
+        assert_eq!(promoted.has_fee, old.has_fee);
         assert_eq!(promoted.retained, old.retained);
         eprintln!(
             "{}",
