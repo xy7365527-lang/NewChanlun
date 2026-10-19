@@ -1,0 +1,6 @@
+{"status": "REFUSED", "resolution": "NOT_RUN", "formal_validation": "NOT_RUN", "authorization": "合同摘要仅溯源；实际根权限必须在 E 预发布和 F push 前分别核验", "error": "缺少唯一完整封套"}
+PREPARED_NOT_AUTHORIZED：全部真实命令 NOT_RUN
+{"status": "REFUSED", "resolution": "NOT_RUN", "formal_validation": "NOT_RUN", "authorization": "合同摘要仅溯源；实际根权限必须在 E 预发布和 F push 前分别核验", "error": "[Errno 17] File exists: '/private/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/tmpd5ak7nvf/issue1393-lock-work/cargo-home'", "registry_evidence": "COMPLETE_PENDING_REVIEW"}
+{"status": "REFUSED", "resolution": "NOT_RUN", "formal_validation": "NOT_RUN", "authorization": "合同摘要仅溯源；实际根权限必须在 E 预发布和 F push 前分别核验", "error": "[Errno 17] File exists: '/private/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/tmpm0mp7s1c/issue1393-lock-work/cargo-home'", "registry_evidence": "COMPLETE_PENDING_REVIEW"}
+{"status": "PASS", "resolution": "UPDATED_PENDING_ROOT_REVIEW", "formal_validation": "NOT_RUN", "authorization": "合同摘要仅溯源；实际根权限必须在 E 预发布和 F push 前分别核验", "registry_evidence": "COMPLETE_PENDING_REVIEW"}
+{"status": "FAILED", "resolution": "STARTED", "formal_validation": "NOT_RUN", "authorization": "合同摘要仅溯源；实际根权限必须在 E 预发布和 F push 前分别核验", "error": "toy 命令失败，不重跑", "registry_evidence": "COMPLETE_PENDING_REVIEW"}

@@ -62,15 +62,14 @@ jobs:
         if: env.ISSUE1393_LOCK_EXECUTE == 'True'
         run: python3 -B .github/scripts/issue1393_lock_prepare.py
 
-      - name: 登记缺失原件与剩余上传预算
+      - name: 登记缺失原件并在上传前核定全部容器上界
         id: archive
         if: always() && env.ISSUE1393_LOCK_EXECUTE == 'True'
         run: |
           python3 -B - <<'PY'
-          import ast, json, os, stat, time
+          import json, os
           from pathlib import Path
-          p = Path(os.environ['RUNNER_TEMP'])
-          out = p / 'issue1393-lock-evidence'
+          out = Path(os.environ['RUNNER_TEMP']) / 'issue1393-lock-evidence'
           out.mkdir(exist_ok=True)
           def save(name, obj):
               (out / name).write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n')
@@ -83,48 +82,16 @@ jobs:
                                    'update-workspace', 'preserve-resolution')])
           if not (out / 'PACKAGE.json').exists():
               save('PACKAGE.json', {'status': 'NOT_RUN', 'reason': 'runner 未封包，保留现有原件'})
-          try:
-              start = json.loads((p / 'issue1393-lock-start.json').read_text())
-              remaining = min(start['monotonic'] + 900 - time.monotonic(), start['wall'] + 900 - time.time())
-          except Exception:
-              remaining = 0
-          # 给实际结论记录留 10 秒；不给上传另起 15 分钟。
-          minutes = max(0, int((remaining - 10) // 60))
-          cap_status = 'REFUSED'
-          try:
-              tree = ast.parse(Path('.github/scripts/issue1393_lock_prepare.py').read_text())
-              caps = ast.literal_eval(next(n.value for n in tree.body if isinstance(n, ast.Assign)
-                                           and any(isinstance(t, ast.Name) and t.id == 'RESOURCE_CAPS' for t in n.targets)))
-              assert all(type(n) is int and n > 0 for n in caps.values())
-              count = size = 0
-              for path in out.iterdir():
-                  info = path.lstat()
-                  assert stat.S_ISREG(info.st_mode) and info.st_size <= caps['single_bytes']
-                  count += 1
-                  size += info.st_size
-                  assert count + 2 <= caps['files'] and size + 4096 <= min(caps['total_bytes'], caps['upload_bytes'])
-              cap_status = 'WITHIN_BOUND'
-          except Exception:
-              minutes = 0
-          # 预算/帽检查耗时仍属于同一窗口；不因初次 remaining 尚正就准上传。
-          try:
-              remaining = min(start['monotonic'] + 900 - time.monotonic(), start['wall'] + 900 - time.time())
-              minutes = min(minutes, max(0, int((remaining - 10) // 60)))
-          except Exception:
-              minutes = 0
-          save('UPLOAD-REQUEST.json', {'status': 'REQUESTED' if minutes else 'NOT_RUN',
-                                      'remaining_seconds': remaining, 'timeout_minutes': minutes,
-                                      'resource_cap_status': cap_status,
-                                      'authority': '后续步骤实际 outcome/conclusion；请求不等于成功'})
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-              f.write('allowed=' + str(minutes > 0).lower() + '\nminutes=' + str(max(1, minutes)) + '\n')
           PY
+          # 此后不再向上传目录写任何文件；门把冻结清单与请求写在目录外，随收据容器上传。
+          # 门按固定 action 的 ZIP store 上界核主包 + 收据容器事前上界 ≤ 33554432，超限/超时 allowed=false。
+          python3 -B .github/scripts/issue1393_lock_prepare.py upload-gate
 
       - name: 上传完整原件与封包（失败仍保存）
         id: payload
         if: always() && env.ISSUE1393_LOCK_EXECUTE == 'True' && steps.archive.outputs.allowed == 'true'
         timeout-minutes: ${{ fromJSON(steps.archive.outputs.minutes) }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: issue1393-lock-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/issue1393-lock-evidence/
@@ -143,53 +110,38 @@ jobs:
           PAYLOAD_URL: ${{ steps.payload.outputs.artifact-url }}
         run: |
           python3 -B - <<'PY'
-          import ast, json, os, stat, time
+          import json, os
           from pathlib import Path
           p = Path(os.environ['RUNNER_TEMP'])
           receipt = {'outcome': os.environ['PAYLOAD_OUTCOME'], 'conclusion': os.environ['PAYLOAD_CONCLUSION'],
                      'artifact_id': os.environ['PAYLOAD_ID'], 'artifact_digest': os.environ['PAYLOAD_DIGEST'],
                      'artifact_url': os.environ['PAYLOAD_URL'], 'formal_validation': 'NOT_RUN'}
-          raw = json.dumps(receipt, ensure_ascii=False, indent=2) + '\n'
-          (p / 'issue1393-lock-UPLOAD-ACTUAL.json').write_text(raw)
-          print(raw)
+          raw = (json.dumps(receipt, ensure_ascii=False, indent=2) + '\n').encode()
+          print(raw.decode())
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
-              f.write('本次 lock artifact 实际上传收据（不代表正式验证）：\n```json\n' + raw + '```\n')
-          try:
-              s = json.loads((p / 'issue1393-lock-start.json').read_text())
-              left = min(s['monotonic'] + 900 - time.monotonic(), s['wall'] + 900 - time.time())
-          except Exception:
-              left = 0
-          minutes = max(0, int((left - 5) // 60))
-          try:
-              tree = ast.parse(Path('.github/scripts/issue1393_lock_prepare.py').read_text())
-              caps = ast.literal_eval(next(n.value for n in tree.body if isinstance(n, ast.Assign)
-                                           and any(isinstance(t, ast.Name) and t.id == 'RESOURCE_CAPS' for t in n.targets)))
-              assert all(type(n) is int and n > 0 for n in caps.values())
-              uploaded = count = 0
-              for path in (p / 'issue1393-lock-evidence').iterdir():
-                  info = path.lstat()
-                  assert stat.S_ISREG(info.st_mode) and info.st_size <= caps['single_bytes']
-                  uploaded += info.st_size
-                  count += 1
-                  assert count + 1 <= caps['files']
-              assert len(raw.encode()) <= caps['single_bytes']
-              assert uploaded + len(raw.encode()) <= min(caps['total_bytes'], caps['upload_bytes'])
-              left = min(s['monotonic'] + 900 - time.monotonic(), s['wall'] + 900 - time.time())
-              minutes = min(minutes, max(0, int((left - 5) // 60)))
-          except Exception:
-              minutes = 0
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-              f.write('allowed=' + str(minutes > 0).lower() + '\nminutes=' + str(max(1, minutes)) + '\n')
-          if receipt['conclusion'] != 'success':
-              raise SystemExit('完整 artifact 未成功上传；仅保留实际失败/跳过结论，不推断交付成功')
+              f.write('本次 lock artifact 实际上传收据（不代表正式验证）：\n```json\n' + raw.decode() + '```\n')
+          # 收据事前上限 4096B（属 32 MiB 合计帽内切分）；超出则不写、不上传收据，日志为准。
+          if len(raw) > 4096:
+              raise SystemExit('实际上传收据超 4096B 事前上限，拒绝写入与上传')
+          with open(p / 'issue1393-lock-UPLOAD-ACTUAL.json', 'xb') as f:
+              f.write(raw)
           PY
+          python3 -B .github/scripts/issue1393_lock_prepare.py receipt-gate
+          if [ "$PAYLOAD_CONCLUSION" != success ]; then
+            echo '完整 artifact 未成功上传；仅保留实际失败/跳过结论，不推断交付成功'
+            exit 1
+          fi
 
-      # 首包不能包含自身上传完成后的结论；单独收据包，日志始终是最终权威。
+      # 首包不能包含自身上传完成后的结论；单独收据包（请求/冻结清单/实际收据），日志始终是最终权威。
       - name: 上传实际结论收据
         if: always() && env.ISSUE1393_LOCK_EXECUTE == 'True' && steps.receipt.outputs.allowed == 'true'
         timeout-minutes: ${{ fromJSON(steps.receipt.outputs.minutes) }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: issue1393-lock-upload-receipt-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/issue1393-lock-UPLOAD-ACTUAL.json
+          path: |
+            ${{ runner.temp }}/issue1393-lock-UPLOAD-REQUEST.json
+            ${{ runner.temp }}/issue1393-lock-UPLOAD-FROZEN.json
+            ${{ runner.temp }}/issue1393-lock-UPLOAD-ACTUAL.json
           if-no-files-found: error
+          compression-level: 0

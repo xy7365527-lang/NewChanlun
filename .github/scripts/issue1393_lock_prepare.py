@@ -41,15 +41,47 @@ DIGEST_CHUNK_BYTES = 1024 * 1024
 REPOSITORY = 'xy7365527-lang/NewChanlun'
 PUSH_REF = 'refs/heads/codex/1393-lock-preserve-once-20261018'
 OPERATION = 'UPDATE_WORKSPACE_PRESERVE_LOCK_ONLY'
-# 固定基线未给这些数值；不得把 2 GiB 启动门误作输出帽或凭空扩大权限。
-# 管理者须提供既有帽并冻结常量；UNBOUND 时合同/取证均拒绝。测试仅注入 toy 帽。
-RESOURCE_CAPS = {'single_bytes': 'UNBOUND', 'total_bytes': 'UNBOUND', 'files': 'UNBOUND',
-                 'items': 'UNBOUND', 'upload_bytes': 'UNBOUND'}
+# 根 2026-10-18 本次新定的更窄上限（不是「既有帽」）：管理目录 ROOT-REGISTRY-CAPS-20261018.json，
+# 留痕 https://github.com/xy7365527-lang/NewChanlun/issues/1393#issuecomment-6246643501 。
+# single/total/files/items 只计 registry 证据正文与版本记录；upload_bytes 计全部 artifact 容器外层合计。
+RESOURCE_CAPS = {'single_bytes': 65536, 'total_bytes': 2097152, 'files': 128, 'items': 512,
+                 'upload_bytes': 33554432}
+CAPS_SOURCE = 'ROOT_NEW_NARROWER_CAPS_20261018'
+REGISTRY_EVIDENCE_MODE = 'EXISTING_EXCLUSIVE_CARGO_CACHE_ONLY'
+# 官方 actions/upload-artifact 固定 commit（非可变 v4）；容器上界依据其实际 bundle 与锁定依赖。
+UPLOAD_ACTION = 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02'
+CAPS_CONTRACT = {
+    'source': CAPS_SOURCE, 'decision': 'PREPARATION_ONLY_NEW_NARROWER_CAPS',
+    'registry_evidence': {'mode': REGISTRY_EVIDENCE_MODE, 'additional_network_for_evidence': False,
+                          'single_bytes': 65536, 'total_bytes': 2097152, 'files': 128, 'items': 512,
+                          'counts': 'REGISTRY_EVIDENCE_BODY_AND_VERSION_RECORDS_ONLY'},
+    'upload_bytes': 33554432,
+    'upload_counting': 'ALL_ARTIFACT_CONTAINERS_COMBINED_INCLUDING_MAIN_AND_RECEIPT_OUTER_OVERHEAD',
+    'upload_bound': 'PRE_UPLOAD_ZIP_STORE_BOUND_98_PLUS_SUM_SIZE_128_2NAME', 'upload_action': UPLOAD_ACTION,
+    'compression_level': 0,
+    'existing_preserved': {'MAX_MESSAGE_BYTES': 32768, 'MAX_EVENT_BYTES': 1048576, 'total_seconds': 900,
+                           'final_reserve_seconds': 90, 'jobs': 1, 'telemetry_seconds': 10,
+                           'initial_disk_bytes': 2147483648},
+}
+ZIP_ARCHIVE_OVERHEAD = 98
+ZIP_ENTRY_OVERHEAD = 128
+ZIP_MAX_ENTRIES = 65535
+ZIP_MAX_BYTES = 0xFFFFFFFF
+RECEIPT_REQUEST = 'issue1393-lock-UPLOAD-REQUEST.json'
+RECEIPT_FROZEN = 'issue1393-lock-UPLOAD-FROZEN.json'
+RECEIPT_ACTUAL = 'issue1393-lock-UPLOAD-ACTUAL.json'
+# 收据容器内三件的实现内分配上限（属 32 MiB 合计帽内部切分，不是新增根帽）。
+RECEIPT_LIMITS = {RECEIPT_REQUEST: 4096, RECEIPT_FROZEN: 65536, RECEIPT_ACTUAL: 4096}
+PACKAGE_JSON_MAX = 4096
+REGISTRY_PREFIX = 'registry-'
+SCAN_CHUNK_BYTES = 65536
+VERSION_SEGMENT_MAX = 256
+VALIDATOR_MAX = 4096
 SPARSE_CACHE = 'cargo-home/registry/index/index.crates.io-1949cf8c6b5b557f'
 GATE_FALSE = b"  ISSUE1393_LOCK_EXECUTE: 'False'\n"
 GATE_TRUE = b"  ISSUE1393_LOCK_EXECUTE: 'True'\n"
 FIXED = {
-    'schema': 'issue1393-lock-preserve/1', 'status': 'BOUND_FOR_ROOT_REVIEW',
+    'schema': 'issue1393-lock-preserve/2', 'status': 'BOUND_FOR_ROOT_REVIEW',
     'repository': REPOSITORY, 'ref': PUSH_REF, 'event': 'push',
     'workflow_path': WORKFLOW, 'runner_path': RUNNER, 'job': 'lock-prepare',
     'runner_os': 'Linux', 'runner_label': 'ubuntu-24.04', 'run_attempt': '1',
@@ -60,8 +92,8 @@ FIXED = {
     'telemetry_seconds': 10, 'toolchain': TOOLCHAIN, 'rustc_commit': RUSTC_COMMIT,
     'cargo_version': CARGO_VERSION, 'command': OPERATION, 'operation': OPERATION,
     'registry': REGISTRY, 'output': 'ARTIFACT_ONLY', 'rerun': 'FORBIDDEN',
-    'registry_evidence': 'EXCLUSIVE_SPARSE_CACHE_ONLY_MISSING_IS_PROOF_GAP',
-    'registry_network_fallback': 'FORBIDDEN', 'resource_caps': RESOURCE_CAPS,
+    'registry_evidence': 'EXISTING_EXCLUSIVE_CARGO_CACHE_ONLY_NO_EXTRA_EVIDENCE_NETWORK_MISSING_IS_PROOF_GAP',
+    'registry_network_fallback': 'FORBIDDEN', 'resource_caps': CAPS_CONTRACT,
     'formal_validation': 'NOT_RUN',
 }
 EXTRA_HASHES = ('helper_sha256', 'manifest_sha256', 'old_lock_sha256',
@@ -104,16 +136,28 @@ def contract_scope(contract):
 _validate_contract = v.validate_contract
 
 
+def strict_equal(left, right):
+    """类型逐层相同的相等：拒绝 0/False、1/True、1.0/1 等宽松相等冒充根具名数值。"""
+    if type(left) is not type(right):
+        return False
+    if type(left) is dict:
+        return left.keys() == right.keys() and all(strict_equal(left[k], right[k]) for k in left)
+    if type(left) is list:
+        return len(left) == len(right) and all(strict_equal(a, b) for a, b in zip(left, right))
+    return left == right
+
+
 def validate_contract(gate, contract):
     _validate_contract(gate, contract)
-    require(all(type(value) is int and value > 0 for value in RESOURCE_CAPS.values()), '既有资源帽尚未绑定')
-    require(all(type(value) is int for value in contract['resource_caps'].values()), '资源帽必须精确整数')
+    caps_bound()
+    for key, expected in FIXED.items():
+        require(strict_equal(contract[key], expected), '合同固定值类型或数值不符：' + key)
     require(contract['manifest_sha256'] == MANIFEST_SHA256
             and contract['old_lock_sha256'] == OLD_LOCK_SHA256, '必须原 manifest 和原旧锁；拒绝广泛生成锁')
     for kind in ('approval', 'review'):
         receipt = v.strict_json(contract[kind + '_text'])
         require(type(receipt) is dict and set(receipt) == {'schema', 'scope_sha256', 'text'}
-                and receipt['schema'] == 'issue1393-lock-preserve-' + kind + '/1'
+                and receipt['schema'] == 'issue1393-lock-preserve-' + kind + '/2'
                 and receipt['scope_sha256'] == contract_scope(contract)
                 and type(receipt['text']) is str and receipt['text'].strip()
                 and receipt['text'] != 'UNBOUND', '旧批准/独审或未绑定新合同：' + kind)
@@ -307,87 +351,10 @@ def install_toolchain(root, work, supervisor, env):
     save(supervisor.output / 'toolchain-verified.json', binaries)
 
 
-class EvidenceIO:
-    """同一截止内，先核现有输出帽，再读/解析/写/摘要；不截断原件冒充完整。"""
-    def __init__(self, output, budget, supervisor=None):
-        self.output, self.budget, self.supervisor = output, budget, supervisor
-        self.read_bytes = 0
-        self.read_items = 0
-        self.items = 0
-        self.check()
-
-    def check(self):
-        check_budget(self.budget, self.supervisor)
-        require(all(type(n) is int and n > 0 for n in RESOURCE_CAPS.values()), '既有资源帽尚未绑定')
-        files, size = 0, 0
-        for path in self.output.iterdir():
-            check_budget(self.budget, self.supervisor)
-            info = path.lstat()
-            require(stat.S_ISREG(info.st_mode), '输出目录只准普通原件')
-            files += 1
-            size += info.st_size
-            require(info.st_size <= RESOURCE_CAPS['single_bytes'], '单原件字节帽')
-            require(files <= RESOURCE_CAPS['files'] and size <= RESOURCE_CAPS['total_bytes'], '输出累计字节/数量帽')
-        check_budget(self.budget, self.supervisor)
-        return files, size
-
-    def run(self, fn, *args):
-        self.check()
-        value = fn(*args)
-        self.check()
-        return value
-
-    def take_items(self, count):
-        self.check()
-        self.items += count
-        require(self.items <= RESOURCE_CAPS['items'], '取证累计项数帽')
-
-    def read(self, path, root):
-        self.check()
-        logical_root, path = root.absolute(), path.absolute()
-        require(path.is_relative_to(logical_root), '原件路径逃逸')
-        root, path = logical_root.resolve(), logical_root.resolve() / path.relative_to(logical_root)
-        require(not any(p.is_symlink() for p in (path, *path.parents)
-                                                      if p.is_relative_to(root)), '原件路径逃逸或 symlink')
-        info = path.lstat()
-        require(stat.S_ISREG(info.st_mode) and info.st_size <= RESOURCE_CAPS['single_bytes'], '原件非普通文件或超单响应帽')
-        require(self.read_items + 1 <= RESOURCE_CAPS['items']
-                and self.read_bytes + info.st_size <= RESOURCE_CAPS['total_bytes'], '输入累计字节/项数帽')
-        self.read_items += 1
-        self.read_bytes += info.st_size
-        self.check()
-        with path.open('rb') as stream:
-            raw = stream.read(info.st_size + 1)
-        self.check()
-        require(len(raw) == info.st_size and path.stat().st_size == info.st_size, '原件读取时变化')
-        return raw
-
-    def write(self, name, raw):
-        files, size = self.check()
-        require(Path(name).name == name and type(raw) is bytes, '固定输出文件名/字节')
-        require(len(raw) <= RESOURCE_CAPS['single_bytes'] and size + len(raw) <= RESOURCE_CAPS['total_bytes']
-                and files + 1 <= RESOURCE_CAPS['files'], '写入超过输出字节/数量帽')
-        with (self.output / name).open('xb') as stream:
-            stream.write(raw)
-        self.check()
-
-    def json(self, name, value):
-        self.check()
-        chunks = bytearray()
-        for chunk in json.JSONEncoder(ensure_ascii=False, sort_keys=True, indent=2).iterencode(value):
-            check_budget(self.budget, self.supervisor)
-            part = chunk.encode()
-            require(len(chunks) + len(part) + 1 <= RESOURCE_CAPS['single_bytes'], 'JSON 原件超过单响应帽')
-            chunks.extend(part)
-        chunks.extend(b'\n')
-        self.check()
-        self.write(name, bytes(chunks))
-
-
 def packages(raw):
-    require(len(raw) <= RESOURCE_CAPS['single_bytes'], 'lock 字节帽')
+    # lock 不是 registry 证据：字节由读取处的上传帽余量约束，不挪用 registry 四帽。
     rows = tomllib.loads(raw.decode()).get('package', [])
-    require(type(rows) is list and 0 < len(rows) <= RESOURCE_CAPS['items'], 'lock 缺 package 或超项数帽')
+    require(type(rows) is list and 0 < len(rows), 'lock 缺 package')
     result = {}
     for p in rows:
         require(type(p) is dict and type(p.get('name')) is str
@@ -404,7 +371,6 @@ def packages(raw):
                 and len(deps) == len(set(deps)), 'dependencies 类型或重复边')
         result[key] = p
     require(sum(not key[2] for key in result) == 1, '必须唯一根包')
-    require(sum(len(p.get('dependencies', [])) for p in rows) <= RESOURCE_CAPS['items'], 'lock 边项数帽')
     return result
 
 
@@ -476,15 +442,266 @@ def sparse_path(name):
     return name[:2] + '/' + name[2:4] + '/' + name
 
 
+def is_registry_evidence(name):
+    """registry 证据正文的唯一命名口径：四个 registry 帽只计这些文件。"""
+    return name == 'registry.json' or name.startswith(REGISTRY_PREFIX)
+
+
+def upload_name(name):
+    """upload-artifact 固定 commit 的 validateFilePath 禁字符；名字必须可严格 UTF-8 编码。"""
+    try:
+        encoded = ('/' + name).encode('utf-8', 'strict')
+    except UnicodeError:
+        raise v.Refused('上传项名不是合法 UTF-8：' + repr(name)) from None
+    require(name and not any(ch in name for ch in '":<>|*?\r\n') and '/' not in name and '\\' not in name,
+            '上传项名含禁字符或路径分隔：' + repr(name))
+    return encoded
+
+
+def container_bound(entries):
+    """固定 action + compression-level 0 的单个上传容器保守上界（ZIP store，非 ZIP64）。
+
+    每项 = 原文字节 + 128 + 2*UTF8('/'+名)；每容器 + 98。依据 compress-commons 6.0.2：
+    LFH 30、CFH 46、数据描述 ≤24（ZIP64 形式）、ZIP64 central extra 28；comment/extra 默认空；
+    EOCD 22 + ZIP64 EOCD 56 + locator 20。超过 4 GiB 或项数达 ZIP64 门即拒绝，不外推。
+    名字含前导 '/'（destinationPath 原样），比 archiver 去前导斜杠后的实名多 1B，保守。
+    """
+    rows = list(entries)
+    require(len(rows) < ZIP_MAX_ENTRIES, '容器项数达到 ZIP64 门，拒绝')
+    total = ZIP_ARCHIVE_OVERHEAD
+    for name, size in rows:
+        require(type(name) is str and type(size) is int and size >= 0, '容器项非法')
+        encoded = upload_name(name)
+        require(len(encoded) <= 0xFFFF and size < ZIP_MAX_BYTES, '容器项名/字节超 ZIP 非 ZIP64 范围')
+        total += size + ZIP_ENTRY_OVERHEAD + 2 * len(encoded)
+    require(total < ZIP_MAX_BYTES, '容器达 4 GiB ZIP64 门，拒绝')
+    return total
+
+
+# 收据容器三件的事前有限上界；实际写入超过各自上限即拒绝上传，不扩大。
+RECEIPT_RESERVE = container_bound(RECEIPT_LIMITS.items())
+
+
+def output_entries(output, budget=None, supervisor=None, hashes=False):
+    rows = []
+    for path in sorted(output.iterdir(), key=lambda p: p.name):
+        if budget is not None:
+            check_budget(budget, supervisor)
+        info = path.lstat()
+        require(stat.S_ISREG(info.st_mode), '上传目录只准普通文件（无目录/symlink/特殊文件）')
+        upload_name(path.name)
+        row = {'name': path.name, 'bytes': info.st_size}
+        if hashes:
+            row['sha256'] = file_digest(path, budget, supervisor)
+            require(path.lstat().st_size == info.st_size, '上传原件摘要期间变化')
+        rows.append(row)
+    return rows
+
+
+def caps_bound():
+    require(all(type(n) is int and n > 0 for n in RESOURCE_CAPS.values())
+            and set(RESOURCE_CAPS) == {'single_bytes', 'total_bytes', 'files', 'items', 'upload_bytes'},
+            '根资源帽尚未绑定')
+
+
+class EvidenceIO:
+    """同一截止内先核帽再读/解析/写/摘要；不截断原件冒充完整。
+
+    两套计数分开：registry 证据正文（registry.json / registry-*）按根四帽；
+    整个输出目录按上传容器上界 + 收据容器预留 ≤ upload_bytes。工具链日志、旧源等不计入 2 MiB。
+    """
+    def __init__(self, output, budget, supervisor=None):
+        self.output, self.budget, self.supervisor = output, budget, supervisor
+        self.items = 0
+        self.check()
+
+    def check(self):
+        check_budget(self.budget, self.supervisor)
+        caps_bound()
+        rows = output_entries(self.output, self.budget, self.supervisor)
+        registry = [r for r in rows if is_registry_evidence(r['name'])]
+        state = {'files': len(rows), 'bytes': sum(r['bytes'] for r in rows),
+                 'registry_files': len(registry), 'registry_bytes': sum(r['bytes'] for r in registry),
+                 'main_bound': container_bound((r['name'], r['bytes']) for r in rows)}
+        require(state['registry_files'] <= RESOURCE_CAPS['files']
+                and state['registry_bytes'] <= RESOURCE_CAPS['total_bytes'], 'registry 证据正文累计字节/文件帽')
+        require(state['main_bound'] + RECEIPT_RESERVE <= RESOURCE_CAPS['upload_bytes'], '全部 artifact 容器上界超上传帽')
+        check_budget(self.budget, self.supervisor)
+        return state
+
+    def headroom(self, name, state=None):
+        """再加一个名为 name 的文件时还能放下的最大字节数（全部容器合计帽）。"""
+        state = state or self.check()
+        return (RESOURCE_CAPS['upload_bytes'] - RECEIPT_RESERVE - state['main_bound']
+                - ZIP_ENTRY_OVERHEAD - 2 * len(upload_name(name)))
+
+    def run(self, fn, *args):
+        self.check()
+        value = fn(*args)
+        self.check()
+        return value
+
+    def take_items(self, count):
+        """registry 版本记录累计 ≤ items；扫描中每保留一条即计。"""
+        self.check()
+        require(type(count) is int and count >= 0, '项数非法')
+        require(self.items + count <= RESOURCE_CAPS['items'], 'registry 版本记录累计项数帽')
+        self.items += count
+
+    def open_checked(self, path, root):
+        self.check()
+        logical_root, path = root.absolute(), path.absolute()
+        require(path.is_relative_to(logical_root), '原件路径逃逸')
+        root, path = logical_root.resolve(), logical_root.resolve() / path.relative_to(logical_root)
+        require(not any(p.is_symlink() for p in (path, *path.parents)
+                        if p.is_relative_to(root)), '原件路径逃逸或 symlink')
+        info = path.lstat()
+        require(stat.S_ISREG(info.st_mode), '原件非普通文件')
+        return path, info
+
+    def read(self, path, root, limit):
+        """有界读：limit 先于打开核定；读后核大小未变。"""
+        path, info = self.open_checked(path, root)
+        require(type(limit) is int and 0 <= info.st_size <= limit, '原件超过读取上限')
+        self.check()
+        with path.open('rb') as stream:
+            raw = stream.read(info.st_size + 1)
+        self.check()
+        require(len(raw) == info.st_size and path.stat().st_size == info.st_size, '原件读取时变化')
+        return raw
+
+    def write(self, name, raw):
+        state = self.check()
+        require(Path(name).name == name and type(raw) is bytes, '固定输出文件名/字节')
+        if is_registry_evidence(name):
+            require(state['registry_files'] + 1 <= RESOURCE_CAPS['files']
+                    and state['registry_bytes'] + len(raw) <= RESOURCE_CAPS['total_bytes'],
+                    'registry 证据正文累计字节/文件帽')
+        require(len(raw) <= self.headroom(name, state), '写入后全部 artifact 容器上界超上传帽')
+        with (self.output / name).open('xb') as stream:
+            stream.write(raw)
+        self.check()
+
+    def json(self, name, value):
+        state = self.check()
+        limit = self.headroom(name, state)
+        if is_registry_evidence(name):
+            limit = min(limit, RESOURCE_CAPS['total_bytes'] - state['registry_bytes'])
+        chunks = bytearray()
+        for chunk in json.JSONEncoder(ensure_ascii=False, sort_keys=True, indent=2).iterencode(value):
+            check_budget(self.budget, self.supervisor)
+            part = chunk.encode()
+            require(len(chunks) + len(part) + 1 <= limit, 'JSON 原件超过剩余帽：' + name)
+            chunks.extend(part)
+        chunks.extend(b'\n')
+        self.check()
+        self.write(name, bytes(chunks))
+
+
+SPARSE_MAGIC = b'\x03\x02\0\0\0'
+
+
+def scan_sparse_cache(io, path, root, name, wanted):
+    """流式扫描独占 Cargo sparse cache（v3 / index schema 2），只保留 wanted 版本原文。
+
+    不读整文件进内存：只缓冲当前所需段（≤single_bytes）与短 version/validator 段；
+    每块前后核同一截止/信号；保留一条即计 items。不联网、不补取。
+    返回 (meta, kept, gaps)：kept[version] = (原 cache 偏移, 原文 bytes, 解析记录)。
+    """
+    path, info = io.open_checked(path, root)
+    hasher = hashlib.sha256()
+    kept, gaps, seen = {}, [], set()
+    magic = bytearray()
+    phase, current, validator = 'magic', None, None
+    seg, seg_start, seg_len, overflow = bytearray(), 5, 0, False
+    offset, scanned = 0, 0
+
+    def limit():
+        if phase == 'validator':
+            return VALIDATOR_MAX
+        if phase == 'version':
+            return VERSION_SEGMENT_MAX
+        return RESOURCE_CAPS['single_bytes'] if current in wanted else 0
+
+    def feed(piece):
+        nonlocal seg_len, overflow
+        seg_len += len(piece)
+        if overflow:
+            return
+        if seg_len > limit():
+            overflow = True
+            seg.clear()
+            return
+        seg.extend(piece)
+
+    def finish(end):
+        nonlocal phase, current, validator, seg_start, seg_len, overflow, scanned
+        if phase == 'validator':
+            require(not overflow and bytes(seg).startswith((b'etag:', b'last-modified:')), '缺/超长 cache validator 原件')
+            validator = bytes(seg)
+            phase = 'version'
+        elif phase == 'version':
+            require(not overflow and seg_len > 0, 'cache 版本段超长或为空')
+            current = bytes(seg).decode('utf-8', 'strict')
+            require(current not in seen, 'registry 重复版本：' + current)
+            seen.add(current)
+            phase = 'json'
+        else:
+            scanned += 1
+            if current in wanted:
+                if overflow:
+                    gaps.append({'version': current, 'reason': '单条版本原文超 single_bytes；不截断冒充完整',
+                                 'raw_bytes': seg_len, 'cache_offset': seg_start})
+                else:
+                    raw = bytes(seg)
+                    record = v.strict_json(raw)
+                    require(type(record) is dict and record.get('name') == name and record.get('vers') == current,
+                            'registry 名/版本不符')
+                    io.take_items(1)
+                    kept[current] = (seg_start, raw, record)
+            phase, current = 'version', None
+        seg.clear()
+        seg_start, seg_len, overflow = end + 1, 0, False
+
+    with path.open('rb') as stream:
+        while True:
+            check_budget(io.budget, io.supervisor)
+            chunk = stream.read(SCAN_CHUNK_BYTES)
+            check_budget(io.budget, io.supervisor)
+            if not chunk:
+                break
+            hasher.update(chunk)
+            i = 0
+            if phase == 'magic':
+                take = chunk[:5 - len(magic)]
+                magic.extend(take)
+                i = len(take)
+                if len(magic) == 5:
+                    require(bytes(magic) == SPARSE_MAGIC, '未知 sparse cache 格式')
+                    phase = 'validator'
+            while i < len(chunk):
+                j = chunk.find(b'\0', i)
+                feed(chunk[i:] if j < 0 else chunk[i:j])
+                if j < 0:
+                    break
+                finish(offset + j)
+                i = j + 1
+            offset += len(chunk)
+    check_budget(io.budget, io.supervisor)
+    require(offset == info.st_size and path.lstat().st_size == info.st_size, 'cache 扫描期间变化')
+    require(phase == 'version' and seg_len == 0 and validator is not None, 'sparse cache 截断/结构错误')
+    meta = {'path': str(path.relative_to(root.resolve())), 'bytes': offset, 'sha256': hasher.hexdigest(),
+            'validator': validator.decode('utf-8', 'strict'), 'entries_scanned': scanned,
+            'scope': 'WHOLE_CACHE_FILE_NOT_ARCHIVED_ONLY_IDENTITY_AND_SELECTED_RECORD_RAW'}
+    return meta, kept, gaps
+
+
 def sparse_records(raw, name):
-    # Cargo sparse cache v3 / index schema 2；不猜未知缓存格式，不执行内容。
-    require(len(raw) <= RESOURCE_CAPS['single_bytes'], 'registry 单响应字节帽')
-    require(raw[:5] == b'\x03\x02\0\0\0', '未知 sparse cache 格式')
+    """内存版仅供 toy 对拍；生产取证一律 scan_sparse_cache 流式路径。"""
+    require(raw[:5] == SPARSE_MAGIC, '未知 sparse cache 格式')
     parts = raw[5:].split(b'\0')
-    require(len(parts) >= 4 and parts[-1] == b'' and (len(parts) - 2) % 2 == 0,
-            'sparse cache 截断/结构错误')
+    require(len(parts) >= 4 and parts[-1] == b'' and (len(parts) - 2) % 2 == 0, 'sparse cache 截断/结构错误')
     require(parts[0].startswith((b'etag:', b'last-modified:')), '缺 cache validator 原件')
-    require((len(parts) - 2) // 2 <= RESOURCE_CAPS['items'], 'registry 版本项数帽')
     records = {}
     for i in range(1, len(parts) - 1, 2):
         version, line = parts[i].decode(), parts[i + 1]
@@ -498,8 +715,8 @@ def sparse_records(raw, name):
 def validate_registry_record(record, package):
     require(record.get('name') == package['name'] and record.get('vers') == package['version']
             and record.get('cksum') == package['checksum'], 'registry 精确版本/checksum 不符')
-    require(type(record.get('deps')) is list and len(record['deps']) <= RESOURCE_CAPS['items']
-            and type(record.get('features')) is dict and type(record.get('yanked')) is bool, 'registry 缺 deps/features/yanked')
+    require(type(record.get('deps')) is list and type(record.get('features')) is dict
+            and type(record.get('yanked')) is bool, 'registry 缺 deps/features/yanked')
     require(record.get('rust_version') is None or type(record['rust_version']) is str, 'registry rust_version 类型')
     require('features2' not in record or type(record['features2']) is dict, 'registry features2 类型')
     for dep in record['deps']:
@@ -526,20 +743,25 @@ def root_constraints(manifest, name):
 
 def snapshot_registry(work, output, budget, changes, io):
     summary = {'status': 'INCOMPLETE', 'complete': False, 'source': REGISTRY,
-               'index': 'sparse+https://index.crates.io/', 'acquisition': 'EXCLUSIVE_CACHE_ONLY',
-               'network_fallback': 'FORBIDDEN', 'files': [], 'records': [], 'constraint_parents': [],
+               'index': 'sparse+https://index.crates.io/', 'acquisition': REGISTRY_EVIDENCE_MODE,
+               'additional_network_for_evidence': False, 'network_fallback': 'FORBIDDEN',
+               'caps_source': CAPS_SOURCE,
+               'caps': {k: RESOURCE_CAPS[k] for k in ('single_bytes', 'total_bytes', 'files', 'items')},
+               'scope': {'records': 'EACH_SELECTED_RECORD_RAW_JSON_COMPLETE_OR_PROOF_GAP',
+                         'cache': 'WHOLE_CACHE_FILE_NOT_ARCHIVED; PATH/BYTES/SHA256/VALIDATOR ONLY'},
+               'files': [], 'records': [], 'constraint_parents': [],
                'proof_gap': [], 'semver_solution': 'NOT_SOLVED_PENDING_INDEPENDENT_REVIEW'}
     try:
         io.check()
         require(changes is not None, '缺完整新旧依赖图')
         base = work / SPARSE_CACHE
-        config_raw = io.read(base / 'config.json', work)
+        config_raw = io.read(base / 'config.json', work, RESOURCE_CAPS['single_bytes'])
         io.write('registry-config.raw', config_raw)
         config = io.run(v.strict_json, config_raw)
         summary['config'] = {'artifact': 'registry-config.raw', 'sha256': io.run(digest, config_raw)}
         require(type(config) is dict and config.get('dl') == 'https://static.crates.io/crates'
                 and config.get('api') == 'https://crates.io' and not config.get('auth-required', False), '非公共官方 registry 配置')
-        manifest_raw = io.read(output / 'Cargo.toml', output)
+        manifest_raw = io.read(output / 'Cargo.toml', output, io.headroom('Cargo.toml'))
         manifest = io.run(tomllib.loads, manifest_raw.decode())
         require(manifest.get('dev-dependencies', {}).get('tempfile') == '3', '根 tempfile 声明变化')
         needed, parents = {}, []
@@ -555,35 +777,40 @@ def snapshot_registry(work, output, budget, changes, io):
                     parent = tuple(edge['parent'])
                     needed[parent] = rows[parent]
                     parents.append(dict(edge, graph=side))
-        io.take_items(len(needed) + len(parents))
         selected = {}
         names = sorted({key[0] for key in needed if key[2]})
-        parsed_items = 0
         for index, name in enumerate(names):
             io.check()
+            wanted = {key[1]: key for key in needed if key[0] == name and key[2]}
             try:
                 relative = sparse_path(name)
-                raw = io.read(base / '.cache' / relative, work)
-                filename = 'registry-cache-' + str(index) + '.raw'
-                io.write(filename, raw)
-                checksum = io.run(digest, raw)
-                summary['files'].append({'name': name, 'path': str(base.relative_to(work) / '.cache' / relative),
-                                         'public_index_path': 'https://index.crates.io/' + relative,
-                                         'artifact': filename, 'bytes': len(raw), 'sha256': checksum})
-                records = io.run(sparse_records, raw, name)
-                io.take_items(len(records))
-                parsed_items += len(records)
-                require(parsed_items <= RESOURCE_CAPS['items'], 'registry 累计版本项数帽')
-                for key in sorted(k for k in needed if k[0] == name):
+                meta, kept, gaps = scan_sparse_cache(io, base / '.cache' / relative, work, name, set(wanted))
+                filename = REGISTRY_PREFIX + 'cache-' + str(index) + '.raw'
+                extract = bytearray(SPARSE_MAGIC + meta['validator'].encode() + b'\0')
+                positions = {}
+                for version in sorted(kept, key=lambda ver: kept[ver][0]):
+                    check_budget(budget, io.supervisor)
+                    extract.extend(version.encode() + b'\0')
+                    positions[version] = len(extract)
+                    extract.extend(kept[version][1] + b'\0')
+                io.write(filename, bytes(extract))
+                summary['files'].append(dict(meta, name=name, public_index_path='https://index.crates.io/' + relative,
+                                             evidence_artifact=filename, evidence_sha256=io.run(digest, bytes(extract)),
+                                             evidence_bytes=len(extract)))
+                for gap in gaps:
+                    summary['proof_gap'].append(dict(gap, identity=list(wanted[gap['version']])))
+                for version, key in sorted(wanted.items()):
+                    if any(g['version'] == version for g in gaps):
+                        continue
                     try:
-                        require(key[1] in records, 'cache 缺精确版本：' + key[1])
-                        record, line = records[key[1]]
+                        require(version in kept, 'cache 缺精确版本：' + version)
+                        cache_offset, raw, record = kept[version]
                         io.run(validate_registry_record, record, needed[key])
                         selected[key] = record
-                        summary['records'].append({'identity': list(key), 'source': REGISTRY,
-                                                   'cache_artifact': filename, 'cache_sha256': checksum,
-                                                   'raw_json': line.decode(), 'raw_json_sha256': io.run(digest, line),
-                                                   'record': record})
+                        summary['records'].append({'identity': list(key), 'source': REGISTRY, 'raw_complete': True,
+                                                   'cache_path': meta['path'], 'cache_offset': cache_offset,
+                                                   'raw_json_bytes': len(raw), 'raw_json_sha256': io.run(digest, raw),
+                                                   'evidence_artifact': filename, 'evidence_offset': positions[version]})
                     except Exception as exc:
                         summary['proof_gap'].append({'identity': list(key), 'reason': str(exc)[:500]})
                         io.check()
@@ -604,6 +831,7 @@ def snapshot_registry(work, output, budget, changes, io):
                 summary['proof_gap'].append({'edge': edge, 'reason': '缺约束父精确版本或对应依赖声明'})
             summary['constraint_parents'].append(dict(edge, constraints=constraints, provenance=provenance,
                                                       version_satisfaction='PENDING_REVIEW'))
+        summary['counts'] = {'records': io.items}
         require(not summary['proof_gap'], 'registry 原件/版本/约束父存在 proof_gap')
         summary.update(status='COMPLETE_PENDING_REVIEW', complete=True)
         io.json('registry.json', summary)
@@ -623,7 +851,7 @@ def snapshot_registry(work, output, budget, changes, io):
                 summary.update(status='FAILED', complete=False)
                 io.json('registry.json', summary)
             except Exception:
-                pass
+                save(output / 'registry.json', failure)
         raise
 
 
@@ -631,15 +859,13 @@ def preserve_resolution(work, output, budget, supervisor=None):
     errors, changes = [], None
     io = EvidenceIO(output, budget, supervisor)
     try:
-        raw = io.read(work / 'rust/Cargo.lock', work)
+        raw = io.read(work / 'rust/Cargo.lock', work, io.headroom('Cargo.lock'))
         io.write('Cargo.lock', raw)
-        old = io.read(output / 'Cargo.lock.old', output)
+        old = io.read(output / 'Cargo.lock.old', output, io.headroom('Cargo.lock.old'))
         patch = io.run(lambda: ''.join(difflib.unified_diff(old.decode().splitlines(True), raw.decode().splitlines(True),
                                                          fromfile='a/rust/Cargo.lock', tofile='b/rust/Cargo.lock')))
         io.write('Cargo.lock.patch', patch.encode())
         changes = io.run(lock_changes, old, raw)
-        io.take_items(sum(len(changes[k]) for k in ('packages_before', 'packages_after',
-                                                   'resolved_edges_before', 'resolved_edges_after')))
         io.json('lock-changes.json', changes)
     except Exception as exc:
         errors.append(str(exc))
@@ -685,39 +911,126 @@ def file_digest(path, budget, supervisor=None):
     return result
 
 
+PACKAGE_TAIL = ('FILES.json', 'evidence.zip', 'PACKAGE.json')
+
+
 def package(output, budget, supervisor=None):
-    """仅覆盖固定 helper 私有实例的封包边界；失败保留原件，由 main 写失败散件。"""
+    """封包前先按全部容器上界核定：现有散件 + FILES + evidence.zip 上界 + PACKAGE 上限 + 收据预留。"""
     check_budget(budget, supervisor)
     io = EvidenceIO(output, budget, supervisor)
-    count, size = io.check()
-    # ZIP_STORED 及清单/收据也占原输出与上传帽；不因封包复制而扩大帽。
-    overhead = 4096 + count * 1024
-    require(size + overhead <= RESOURCE_CAPS['single_bytes']
-            and size * 2 + overhead <= RESOURCE_CAPS['total_bytes']
-            and size * 2 + overhead <= RESOURCE_CAPS['upload_bytes']
-            and count + 3 <= RESOURCE_CAPS['files'], '封包/上传字节或数量帽')
+    rows = [r for r in output_entries(output, budget, supervisor) if r['name'] not in PACKAGE_TAIL]
     files = {}
-    for path in sorted(output.iterdir()):
-        if path.is_file() and path.name not in ('FILES.json', 'evidence.zip', 'PACKAGE.json'):
-            files[path.name] = {'sha256': file_digest(path, budget, supervisor), 'bytes': path.stat().st_size}
+    for row in rows:
+        files[row['name']] = {'sha256': file_digest(output / row['name'], budget, supervisor), 'bytes': row['bytes']}
     require('result.json' in files and 'steps.json' in files, '封包缺结果或步骤原件')
+    files_raw = v.canonical(files)
+    inner = [(name, item['bytes']) for name, item in files.items()] + [('FILES.json', len(files_raw))]
+    # Python zipfile ZIP_STORED（可寻址文件、无 ZIP64）每项 30+46+2*名，≤ 同一上界公式。
+    zip_bound = container_bound(inner)
+    projected = inner + [('evidence.zip', zip_bound), ('PACKAGE.json', PACKAGE_JSON_MAX)]
+    require(container_bound(projected) + RECEIPT_RESERVE <= RESOURCE_CAPS['upload_bytes'],
+            '封包后全部 artifact 容器上界超上传帽')
     check_budget(budget, supervisor)
-    save(output / 'FILES.json', files)
+    (output / 'FILES.json').write_bytes(files_raw)
     check_budget(budget, supervisor)
     with v.zipfile.ZipFile(output / 'evidence.zip', 'x', compression=v.zipfile.ZIP_STORED) as archive:
         for name in [*files, 'FILES.json']:
             check_budget(budget, supervisor)
             archive.write(output / name, name)
             check_budget(budget, supervisor)
+    require((output / 'evidence.zip').lstat().st_size <= zip_bound, '内层 ZIP 超出事前上界')
     archive_hash = file_digest(output / 'evidence.zip', budget, supervisor)
     io.check()
     check_budget(budget, supervisor)
+    receipt = v.canonical({'status': 'PACKAGED', 'sha256': archive_hash,
+                           'upload': 'NOT_RECORDED_HERE: 以 GitHub upload-artifact 步骤结论为准'})
+    require(len(receipt) <= PACKAGE_JSON_MAX, 'PACKAGE 收据超上限')
     save(output / 'PACKAGE.json', {'status': 'PACKAGED', 'sha256': archive_hash,
                                  'upload': 'NOT_RECORDED_HERE: 以 GitHub upload-artifact 步骤结论为准'})
+    io.check()
     check_budget(budget, supervisor)
 
 
 v.package = package
+
+
+def write_output(name, value):
+    path = os.environ.get('GITHUB_OUTPUT')
+    if path:
+        with open(path, 'a') as stream:
+            stream.write(name + '=' + value + '\n')
+
+
+def gate(mode):
+    """上传前门：在任何真实上传之前核定全部容器合计上界；超限/超时/变化即不上传，不删原件。"""
+    allowed, minutes, status = False, 0, {'mode': mode, 'status': 'REFUSED'}
+    temp = None
+    try:
+        require(os.environ.get('ISSUE1393_LOCK_EXECUTE') == 'True', 'False 门：上传 NOT_RUN')
+        temp = Path(os.environ['RUNNER_TEMP']).resolve()
+        out = temp / 'issue1393-lock-evidence'
+        start_path = temp / 'issue1393-lock-start.json'
+        require(start_path.lstat().st_size <= 4096, '起点原件超界')
+        budget = v.Budget(v.strict_json(start_path.read_bytes()))
+        caps_bound()
+        if mode == 'upload-gate':
+            rows = output_entries(out, budget, None, hashes=True)
+            main_bound = container_bound((r['name'], r['bytes']) for r in rows)
+            frozen = v.canonical({'schema': 'issue1393-lock-upload-frozen/1', 'directory': out.name,
+                                  'entries': rows, 'main_bound': main_bound, 'receipt_reserve': RECEIPT_RESERVE,
+                                  'upload_bytes': RESOURCE_CAPS['upload_bytes'], 'action': UPLOAD_ACTION})
+            require(len(frozen) <= RECEIPT_LIMITS[RECEIPT_FROZEN], '冻结清单超上限')
+            require(main_bound + RECEIPT_RESERVE <= RESOURCE_CAPS['upload_bytes'], '主包+收据容器上界超上传帽')
+            with (temp / RECEIPT_FROZEN).open('xb') as stream:
+                stream.write(frozen)
+            status.update(main_bound=main_bound, receipt_reserve=RECEIPT_RESERVE, entries=len(rows),
+                          frozen_sha256=digest(frozen))
+            reserve = 10
+        else:
+            require(mode == 'receipt-gate', '未知门')
+            outcome = os.environ.get('PAYLOAD_OUTCOME')
+            frozen_path = temp / RECEIPT_FROZEN
+            if frozen_path.exists():
+                require(frozen_path.lstat().st_size <= RECEIPT_LIMITS[RECEIPT_FROZEN], '冻结清单超上限')
+                frozen = v.strict_json(frozen_path.read_bytes())
+                rows = output_entries(out, budget, None, hashes=True)
+                require(rows == frozen['entries'], '上传目录在门后变化；上界失效，拒绝收据上传')
+                main_bound = frozen['main_bound']
+            else:
+                require(outcome != 'success', '主包已上传却无冻结清单')
+                main_bound = 0
+            sizes = []
+            for name, cap in RECEIPT_LIMITS.items():
+                path = temp / name
+                if path.exists():
+                    info = path.lstat()
+                    require(stat.S_ISREG(info.st_mode) and info.st_size <= cap, name + ' 超上限或非普通文件')
+                    sizes.append((name, info.st_size))
+            require(any(n == RECEIPT_ACTUAL for n, _ in sizes), '缺实际上传收据')
+            receipt_bound = container_bound(sizes)
+            require(main_bound + receipt_bound <= RESOURCE_CAPS['upload_bytes'], '主包+收据容器合计超上传帽')
+            status.update(main_bound=main_bound, receipt_bound=receipt_bound)
+            reserve = 5
+        minutes = max(0, int((budget.remaining() - reserve) // 60))
+        require(minutes > 0, '共享截止剩余不足以上传')
+        allowed = True
+        status['status'] = 'ALLOWED'
+    except Exception as exc:
+        status['error'] = str(exc)[:500]
+    if mode == 'upload-gate' and temp is not None:
+        request = v.canonical(dict(status, authority='后续步骤实际 outcome/conclusion；请求不等于成功'))
+        if len(request) > RECEIPT_LIMITS[RECEIPT_REQUEST]:
+            request = v.canonical({'mode': mode, 'status': 'REFUSED', 'error': 'REQUEST 超上限'})
+            allowed = False
+        try:
+            with (temp / RECEIPT_REQUEST).open('xb') as stream:
+                stream.write(request)
+        except Exception:
+            allowed = False
+    print(json.dumps(status, ensure_ascii=False))
+    write_output('allowed', str(allowed).lower())
+    write_output('minutes', str(max(1, minutes)))
+    return 0
 
 
 def failed_package(output, result, exc, supervisor):
@@ -769,13 +1082,13 @@ def main():
         install_toolchain(ROOT, work, supervisor, env)
         # Cargo update 缺 lock 会内部转 generate；调用前强制验证旧锁存在和原字节。
         io = EvidenceIO(output, budget, supervisor)
-        require(io.run(digest, io.read(work / 'rust/Cargo.lock', work)) == OLD_LOCK_SHA256,
+        require(io.run(digest, io.read(work / 'rust/Cargo.lock', work, io.headroom('Cargo.lock'))) == OLD_LOCK_SHA256,
                 '解析前旧锁缺失或改变，禁止调用 Cargo')
-        require(io.run(digest, io.read(work / 'rust/Cargo.toml', work)) == MANIFEST_SHA256,
+        require(io.run(digest, io.read(work / 'rust/Cargo.toml', work, io.headroom('Cargo.toml'))) == MANIFEST_SHA256,
                 '解析前 manifest 改变')
         result['resolution'] = 'STARTED'
         v.telemetry_command(supervisor, ROOT, 'update-workspace', resolution_argv(work), work / 'rust', env)
-        io.run(validate_generated_lock, io.read(work / 'rust/Cargo.lock', work))
+        io.run(validate_generated_lock, io.read(work / 'rust/Cargo.lock', work, io.headroom('Cargo.lock')))
         result['resolution'] = 'UPDATED_PENDING_ROOT_REVIEW'
         result['status'] = 'PASS'
         code = 0
@@ -826,4 +1139,7 @@ def main():
 
 
 if __name__ == '__main__':
+    if sys.argv[1:] in (['upload-gate'], ['receipt-gate']):
+        sys.exit(gate(sys.argv[1]))
+    require(sys.argv[1:] == [], '未知参数')
     sys.exit(main())

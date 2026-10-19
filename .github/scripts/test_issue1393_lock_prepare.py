@@ -72,7 +72,7 @@ class ToyCapsTest(unittest.TestCase):
 
 def provenance(c):
     for kind in ('approval', 'review'):
-        c[kind + '_text'] = json.dumps({'schema': 'issue1393-lock-preserve-' + kind + '/1',
+        c[kind + '_text'] = json.dumps({'schema': 'issue1393-lock-preserve-' + kind + '/2',
                                        'scope_sha256': m.contract_scope(c), 'text': 'toy 原件，不授予运行许可'}, ensure_ascii=False)
         c[kind + '_sha256'] = m.digest(c[kind + '_text'].encode())
     return c
@@ -647,10 +647,20 @@ class RegistryTests(ToyCapsTest):
         evidence = json.loads((self.out / 'registry.json').read_text())
         self.assertTrue(evidence['complete'])
         self.assertEqual(len(evidence['records']), 4)
+        files = {f['evidence_artifact']: f for f in evidence['files']}
         for row in evidence['records']:
-            self.assertEqual(m.digest(row['raw_json'].encode()), row['raw_json_sha256'])
-            self.assertEqual(json.loads(row['raw_json']), row['record'])
-            self.assertEqual(m.digest((self.out / row['cache_artifact']).read_bytes()), row['cache_sha256'])
+            extract = (self.out / row['evidence_artifact']).read_bytes()
+            raw = extract[row['evidence_offset']:row['evidence_offset'] + row['raw_json_bytes']]
+            self.assertEqual(m.digest(raw), row['raw_json_sha256'])
+            self.assertEqual(extract[row['evidence_offset'] + row['raw_json_bytes']], 0)
+            parsed = json.loads(raw)
+            self.assertEqual([parsed['name'], parsed['vers']], row['identity'][:2])
+            self.assertTrue(row['raw_complete'])
+            cache = (self.work / row['cache_path']).read_bytes()
+            self.assertEqual(cache[row['cache_offset']:row['cache_offset'] + row['raw_json_bytes']], raw)
+            self.assertEqual(m.digest(cache), files[row['evidence_artifact']]['sha256'])
+            self.assertEqual(m.digest(extract), files[row['evidence_artifact']]['evidence_sha256'])
+            self.assertEqual(m.sparse_records(extract, parsed['name'])[parsed['vers']][1], raw)
         parents = [e for e in evidence['constraint_parents'] if e['target'][0] == 'child']
         self.assertEqual({e['graph'] for e in parents}, {'before', 'after'})
         self.assertTrue(all(e['constraints'][0]['req'] == '>=1, <3' and e['constraints'][0]['features'] == ['fast'] for e in parents))
@@ -723,38 +733,38 @@ class RegistryTests(ToyCapsTest):
         self.assertIn(['child', '1.0.0', m.REGISTRY], [r['identity'] for r in proof['records']])
         self.assertTrue(any(e['graph'] == 'before' and e['target'][0] == 'parent' for e in proof['constraint_parents']))
 
-    def test_caps_preflight_before_read_and_single_total_items(self):
+    def test_caps_preflight_before_read_and_registry_total_files_items(self):
         io_guard = m.EvidenceIO(self.out, self.b)
         path = self.work / 'large.raw'
         path.write_bytes(b'x' * 600)
-        with patch.dict(m.RESOURCE_CAPS, single_bytes=512), patch.object(Path, 'open') as opened, self.assertRaises(v.Refused):
-            io_guard.read(path, self.work)
+        with patch.object(Path, 'open') as opened, self.assertRaises(v.Refused):
+            io_guard.read(path, self.work, 512)
         opened.assert_not_called()
-        with patch.dict(m.RESOURCE_CAPS, total_bytes=io_guard.check()[1] - 1), patch.object(Path, 'open') as opened, self.assertRaises(v.Refused):
-            io_guard.read(path, self.work)
+        self.assertEqual(io_guard.read(path, self.work, 600), b'x' * 600)
+        state = io_guard.check()
+        with patch.dict(m.RESOURCE_CAPS, total_bytes=state['registry_bytes'] + 10), \
+                patch.object(Path, 'open') as opened, self.assertRaises(v.Refused):
+            io_guard.write('registry-x.raw', b'y' * 11)
         opened.assert_not_called()
+        with patch.dict(m.RESOURCE_CAPS, total_bytes=state['registry_bytes'] + 10):
+            io_guard.write('registry-x.raw', b'y' * 10)
         with patch.dict(m.RESOURCE_CAPS, items=1):
             io_guard.take_items(1)
             with self.assertRaises(v.Refused):
                 io_guard.take_items(1)
-        with patch.dict(m.RESOURCE_CAPS, files=1), patch.object(Path, 'open') as opened, self.assertRaises(v.Refused):
+        registry_files = io_guard.check()['registry_files']
+        with patch.dict(m.RESOURCE_CAPS, files=registry_files), self.assertRaises(v.Refused):
+            io_guard.write('registry-y.raw', b'z')
+        with patch.dict(m.RESOURCE_CAPS, files=registry_files - 1), self.assertRaises(v.Refused):
             m.EvidenceIO(self.out, self.b)
-        opened.assert_not_called()
 
-    def test_cumulative_read_bytes_and_items(self):
+    def test_non_registry_originals_not_counted_in_registry_caps(self):
         guard = m.EvidenceIO(self.out, self.b)
-        path = self.work / 'bytes.raw'
-        path.write_bytes(b'x' * 512)
-        with patch.dict(m.RESOURCE_CAPS, total_bytes=1024):
-            guard.read(path, self.work)
-            guard.read(path, self.work)
-            with self.assertRaises(v.Refused):
-                guard.read(path, self.work)
-        guard = m.EvidenceIO(self.out, self.b)
-        with patch.dict(m.RESOURCE_CAPS, items=1):
-            guard.read(path, self.work)
-            with self.assertRaises(v.Refused):
-                guard.read(path, self.work)
+        with patch.dict(m.RESOURCE_CAPS, single_bytes=16, total_bytes=16, files=1):
+            guard.write('toolchain-log.stdout', b'L' * 4096)
+            state = guard.check()
+        self.assertEqual(state['registry_files'], 0)
+        self.assertEqual(state['registry_bytes'], 0)
 
     def test_registry_read_parse_hash_write_expiry_and_exception(self):
         for stage in ('read', 'parse', 'hash', 'write'):
@@ -766,8 +776,8 @@ class RegistryTests(ToyCapsTest):
                     b = budget()
                     changes = m.lock_changes(self.old, self.new)
                     guard = m.EvidenceIO(self.out, b)
-                    fn = {'read': guard.read, 'parse': m.sparse_records, 'hash': m.digest, 'write': guard.write}[stage]
-                    target, attr = {'read': (guard, 'read'), 'parse': (m, 'sparse_records'),
+                    fn = {'read': guard.read, 'parse': m.scan_sparse_cache, 'hash': m.digest, 'write': guard.write}[stage]
+                    target, attr = {'read': (guard, 'read'), 'parse': (m, 'scan_sparse_cache'),
                                     'hash': (m, 'digest'), 'write': (guard, 'write')}[stage]
                     fired = []
                     def corrupt(*args, **kwargs):
@@ -1016,6 +1026,422 @@ class PackageTailTests(ToyCapsTest):
                 m.file_digest(Path('memory-only'), budget(-m.FINAL_RESERVE - 1))
             opened.assert_not_called()
             hashed.assert_not_called()
+
+
+ROOT_CAPS_LITERAL = {'single_bytes': 65536, 'total_bytes': 2097152, 'files': 128, 'items': 512,
+                     'upload_bytes': 33554432}
+
+
+class NewCapsContractTests(ToyCapsTest):
+    def test_real_caps_are_root_named_values_and_preserved_limits(self):
+        with patch.dict(m.RESOURCE_CAPS, ROOT_CAPS_LITERAL, clear=True):
+            pass
+        source = (m.ROOT / m.RUNNER).read_text()
+        import ast
+        tree = ast.parse(source)
+        literal = next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign)
+                       and any(isinstance(t, ast.Name) and t.id == 'RESOURCE_CAPS' for t in n.targets))
+        self.assertEqual(literal, ROOT_CAPS_LITERAL)
+        caps = m.FIXED['resource_caps']
+        reg = caps['registry_evidence']
+        self.assertEqual({k: reg[k] for k in ('single_bytes', 'total_bytes', 'files', 'items')},
+                         {k: ROOT_CAPS_LITERAL[k] for k in ('single_bytes', 'total_bytes', 'files', 'items')})
+        self.assertIs(reg['additional_network_for_evidence'], False)
+        self.assertEqual(reg['mode'], 'EXISTING_EXCLUSIVE_CARGO_CACHE_ONLY')
+        self.assertEqual(caps['upload_bytes'], 33554432)
+        self.assertEqual(caps['upload_action'], 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02')
+        self.assertEqual(caps['source'], 'ROOT_NEW_NARROWER_CAPS_20261018')
+        kept = caps['existing_preserved']
+        self.assertEqual(kept, {'MAX_MESSAGE_BYTES': v.MAX_MESSAGE_BYTES, 'MAX_EVENT_BYTES': v.MAX_EVENT_BYTES,
+                                'total_seconds': m.TOTAL_SECONDS, 'final_reserve_seconds': m.FINAL_RESERVE,
+                                'jobs': m.FIXED['jobs'], 'telemetry_seconds': m.FIXED['telemetry_seconds'],
+                                'initial_disk_bytes': m.FIXED['initial_disk_bytes']})
+        self.assertEqual((v.MAX_MESSAGE_BYTES, v.MAX_EVENT_BYTES, m.TOTAL_SECONDS, m.FINAL_RESERVE),
+                         (32768, 1048576, 900, 90))
+        self.assertEqual((m.FIXED['jobs'], m.FIXED['telemetry_seconds'], m.FIXED['initial_disk_bytes']),
+                         (1, 10, 2147483648))
+        self.assertEqual(m.FIXED['schema'], 'issue1393-lock-preserve/2')
+        self.assertIn('本次新定的更窄上限（不是「既有帽」）', source)
+
+    def test_wrong_caps_values_types_unknown_fields_and_old_schema_rejected(self):
+        c = contract()
+        v.validate_contract('True', c)
+        def mutated(fn):
+            bad = copy.deepcopy(c)
+            fn(bad['resource_caps'])
+            return provenance(bad)
+        cases = {
+            'single+1': lambda x: x['registry_evidence'].update(single_bytes=65537),
+            'single float': lambda x: x['registry_evidence'].update(single_bytes=65536.0),
+            'total-1': lambda x: x['registry_evidence'].update(total_bytes=2097151),
+            'files bool-ish': lambda x: x['registry_evidence'].update(files=True),
+            'items': lambda x: x['registry_evidence'].update(items=513),
+            'network 0': lambda x: x['registry_evidence'].update(additional_network_for_evidence=0),
+            'network true': lambda x: x['registry_evidence'].update(additional_network_for_evidence=True),
+            'mode': lambda x: x['registry_evidence'].update(mode='CACHE_OR_NETWORK'),
+            'unknown nested': lambda x: x['registry_evidence'].update(extra=1),
+            'missing nested': lambda x: x['registry_evidence'].pop('items'),
+            'upload': lambda x: x.update(upload_bytes=33554433),
+            'upload counting': lambda x: x.update(upload_counting='INNER_ZIP_ONLY'),
+            'mutable action': lambda x: x.update(upload_action='actions/upload-artifact@v4'),
+            'compression': lambda x: x.update(compression_level=6),
+            'message cap': lambda x: x['existing_preserved'].update(MAX_MESSAGE_BYTES=65536),
+            'disk as output': lambda x: x['existing_preserved'].update(initial_disk_bytes=1),
+            'unknown top': lambda x: x.update(old_caps='UNBOUND'),
+        }
+        for label, fn in cases.items():
+            with self.subTest(case=label), self.assertRaises(v.Refused):
+                v.validate_contract('True', mutated(fn))
+        for key, value in (('schema', 'issue1393-lock-preserve/1'), ('resource_caps', {k: 'UNBOUND' for k in TOY_CAPS}),
+                           ('registry_evidence', 'EXCLUSIVE_SPARSE_CACHE_ONLY_MISSING_IS_PROOF_GAP'),
+                           ('jobs', True), ('total_seconds', 900.0)):
+            with self.subTest(field=key), self.assertRaises(v.Refused):
+                v.validate_contract('True', provenance(dict(copy.deepcopy(c), **{key: value})))
+        old = copy.deepcopy(c)
+        old['approval_text'] = json.dumps({'schema': 'issue1393-lock-preserve-approval/1',
+                                           'scope_sha256': m.contract_scope(old), 'text': '旧 schema 批准'})
+        old['approval_sha256'] = m.digest(old['approval_text'].encode())
+        with self.assertRaises(v.Refused):
+            v.validate_contract('True', old)
+        extra = dict(copy.deepcopy(c), unknown_field='x')
+        with self.assertRaises(v.Refused):
+            v.validate_contract('True', provenance(extra))
+
+    def test_runner_has_no_network_or_http_fetch_path(self):
+        import ast
+        tree = ast.parse((m.ROOT / m.RUNNER).read_text())
+        imported = {a.name.split('.')[0] for n in ast.walk(tree) if isinstance(n, (ast.Import, ast.ImportFrom))
+                    for a in getattr(n, 'names', [])} | {n.module.split('.')[0] for n in ast.walk(tree)
+                                                          if isinstance(n, ast.ImportFrom) and n.module}
+        self.assertFalse(imported & {'socket', 'urllib', 'http', 'requests', 'ssl', 'ftplib', 'subprocess'})
+        scan = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'scan_sparse_cache')
+        names = {n.attr for n in ast.walk(scan) if isinstance(n, ast.Attribute)} | {
+            n.id for n in ast.walk(scan) if isinstance(n, ast.Name)}
+        self.assertFalse(names & {'telemetry_command', 'Popen', 'urlopen', 'read_bytes', 'read_text', 'loads'})
+
+
+class NewCapsRegistryTests(RegistryTests):
+    def write_raw_cache(self, name, entries, header=b'etag: "toy"'):
+        p = self.work / m.SPARSE_CACHE / '.cache' / m.sparse_path(name)
+        p.write_bytes(b'\x03\x02\0\0\0' + header + b'\0' + b''.join(
+            ver.encode() + b'\0' + raw + b'\0' for ver, raw in entries))
+        return p
+
+    def padded(self, record, size):
+        raw = json.dumps(record).encode()
+        record = dict(record, pad='')
+        base = len(json.dumps(record).encode())
+        self.assertLessEqual(base, size)
+        return json.dumps(dict(record, pad='p' * (size - base))).encode()
+
+    def child_entries(self, size):
+        return [('1.0.0', self.padded(cache_record('child', '1.0.0'), size)),
+                ('2.0.0', json.dumps(cache_record('child', '2.0.0')).encode())]
+
+    def test_single_record_equal_cap_complete_and_over_cap_proof_gap_untruncated(self):
+        for size, complete in ((700, True), (701, False)):
+            with self.subTest(size=size):
+                for p in self.out.iterdir():
+                    if p.name not in ('Cargo.toml', 'Cargo.lock.old'):
+                        p.unlink()
+                self.write_raw_cache('child', self.child_entries(size))
+                with patch.dict(m.RESOURCE_CAPS, single_bytes=700):
+                    if complete:
+                        self.preserve()
+                    else:
+                        with self.assertRaises(v.Refused):
+                            self.preserve()
+                proof = json.loads((self.out / 'registry.json').read_text())
+                self.assertIs(proof['complete'], complete)
+                extract = b''.join(p.read_bytes() for p in self.out.glob('registry-cache-*.raw'))
+                if not complete:
+                    self.assertTrue(any(g.get('identity') == ['child', '1.0.0', m.REGISTRY]
+                                        and 'single_bytes' in g['reason'] for g in proof['proof_gap']))
+                    self.assertNotIn(b'"pad": "ppp', extract)
+
+    def test_unwanted_large_versions_skipped_and_not_counted(self):
+        huge = json.dumps(dict(cache_record('child', '0.9.0'), pad='q' * 15000)).encode()
+        entries = [('0.9.0', huge)] + [(ver, json.dumps(cache_record('child', ver)).encode()) for ver in ('1.0.0', '2.0.0')]
+        cache = self.write_raw_cache('child', entries)
+        with patch.dict(m.RESOURCE_CAPS, single_bytes=1024, total_bytes=12000), patch.object(m, 'SCAN_CHUNK_BYTES', 7):
+            self.preserve()
+        proof = json.loads((self.out / 'registry.json').read_text())
+        self.assertTrue(proof['complete'])
+        child = next(f for f in proof['files'] if f['name'] == 'child')
+        self.assertEqual(child['bytes'], cache.stat().st_size)
+        self.assertGreater(child['bytes'], 12000)
+        self.assertEqual(child['entries_scanned'], 3)
+        self.assertNotIn(b'qqqq', (self.out / child['evidence_artifact']).read_bytes())
+        self.assertIn('NOT_ARCHIVED', child['scope'])
+        registry_bytes = sum(p.stat().st_size for p in self.out.iterdir() if m.is_registry_evidence(p.name))
+        self.assertLessEqual(registry_bytes, 12000)
+
+    def test_registry_total_files_items_equal_and_over(self):
+        def clean():
+            for p in self.out.iterdir():
+                if p.name not in ('Cargo.toml', 'Cargo.lock.old'):
+                    p.unlink()
+        def measure(total):
+            clean()
+            with patch.dict(m.RESOURCE_CAPS, total_bytes=total, files=9, items=9):
+                self.preserve()
+            return sum(p.stat().st_size for p in self.out.iterdir() if m.is_registry_evidence(p.name))
+        # registry.json 内含帽数字；用与被测上限同位数的帽值重新测量，避免位数差影响计数。
+        first = measure(99999)
+        need_bytes = measure(10 ** len(str(first)) - 1)
+        need_files = sum(1 for p in self.out.iterdir() if m.is_registry_evidence(p.name))
+        need_items = len(json.loads((self.out / 'registry.json').read_text())['records'])
+        self.assertEqual(len(str(need_bytes)), len(str(need_bytes - 1)))
+        for key, limit, ok in (('total_bytes', need_bytes, True), ('total_bytes', need_bytes - 1, False),
+                               ('files', need_files, True), ('files', need_files - 1, False),
+                               ('items', need_items, True), ('items', need_items - 1, False)):
+            with self.subTest(key=key, limit=limit):
+                clean()
+                caps = dict(total_bytes=10 ** len(str(first)) - 1, files=9, items=9)
+                caps[key] = limit
+                with patch.dict(m.RESOURCE_CAPS, caps):
+                    if ok:
+                        self.preserve()
+                        self.assertTrue(json.loads((self.out / 'registry.json').read_text())['complete'])
+                    else:
+                        with self.assertRaises(v.Refused):
+                            self.preserve()
+                        if (self.out / 'registry.json').exists():
+                            self.assertFalse(json.loads((self.out / 'registry.json').read_text())['complete'])
+
+    def test_duplicate_records_accumulate_across_files(self):
+        with patch.dict(m.RESOURCE_CAPS, items=3):
+            with self.assertRaises(v.Refused):
+                self.preserve()
+
+    def test_truncated_mid_segment_duplicate_unwanted_and_bad_validator(self):
+        good = json.dumps(cache_record('child', '1.0.0')).encode()
+        two = json.dumps(cache_record('child', '2.0.0')).encode()
+        variants = {
+            'truncated': lambda p: p.write_bytes(p.read_bytes()[:-3]),
+            'dup unwanted': lambda p: self.write_raw_cache('child', [('0.1.0', b'{}'), ('0.1.0', b'{}'),
+                                                                     ('1.0.0', good), ('2.0.0', two)]),
+            'no validator': lambda p: self.write_raw_cache('child', [('1.0.0', good), ('2.0.0', two)], header=b'x'),
+            'empty file': lambda p: p.write_bytes(b''),
+            'bad magic': lambda p: p.write_bytes(b'\x04' + p.read_bytes()[1:]),
+        }
+        for label, fn in variants.items():
+            with self.subTest(case=label):
+                for p in self.out.iterdir():
+                    if p.name not in ('Cargo.toml', 'Cargo.lock.old'):
+                        p.unlink()
+                path = self.write_raw_cache('child', [('1.0.0', good), ('2.0.0', two)])
+                fn(path)
+                with self.assertRaises(v.Refused):
+                    self.preserve()
+                proof = json.loads((self.out / 'registry.json').read_text())
+                self.assertFalse(proof['complete'])
+
+    def test_scan_deadline_and_signal_mid_stream(self):
+        for fault in ('deadline', 'signal'):
+            with self.subTest(fault=fault):
+                for p in self.out.iterdir():
+                    if p.name not in ('Cargo.toml', 'Cargo.lock.old'):
+                        p.unlink()
+                b = budget()
+                supervisor = SimpleNamespace(interrupted=None)
+                guard = m.EvidenceIO(self.out, b, supervisor)
+                real_open = Path.open
+                class Reader(io.BytesIO):
+                    calls = 0
+                    def read(inner, size=-1):
+                        Reader.calls += 1
+                        if Reader.calls == 2:
+                            if fault == 'deadline':
+                                b.mono -= 1000
+                            else:
+                                supervisor.interrupted = 15
+                        return io.BytesIO.read(inner, size)
+                def opener(path, mode='r', *a, **k):
+                    if '.cache' in str(path) and mode == 'rb':
+                        with real_open(path, mode) as f:
+                            return Reader(f.read())
+                    return real_open(path, mode, *a, **k)
+                with patch.object(m, 'SCAN_CHUNK_BYTES', 8), patch.object(Path, 'open', opener), \
+                        self.assertRaises(v.Refused):
+                    m.snapshot_registry(self.work, self.out, b, m.lock_changes(self.old, self.new), guard)
+                self.assertFalse(json.loads((self.out / 'registry-failure.json').read_text())['complete'])
+
+    def test_constraint_parent_range_and_text_unchanged_target_changed_recorded(self):
+        self.preserve()
+        proof = json.loads((self.out / 'registry.json').read_text())
+        parents = [e for e in proof['constraint_parents'] if e['target'][0] == 'child']
+        self.assertTrue(parents and all(e['constraints'][0]['req'] == '>=1, <3' for e in parents))
+        self.assertEqual(proof['counts']['records'], len(proof['records']))
+
+
+class UploadBoundTests(ToyCapsTest):
+    def test_bound_covers_python_store_zip_and_formula_exact(self):
+        names = {'a.json': 0, 'Cargo.lock': 55961, '中文名.txt': 17, 'x' * 200: 3}
+        self.assertEqual(m.container_bound(names.items()),
+                         98 + sum(size + 128 + 2 * len(('/' + n).encode()) for n, size in names.items()))
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            for n, size in names.items():
+                (root / n).write_bytes(b'z' * size)
+            with v.zipfile.ZipFile(root / 'x.zip', 'w', compression=v.zipfile.ZIP_STORED) as z:
+                for n in names:
+                    z.write(root / n, n)
+            self.assertLessEqual((root / 'x.zip').stat().st_size, m.container_bound(names.items()))
+
+    def test_bound_rejects_forbidden_names_and_zip64_regimes(self):
+        for name in ('a:b', 'a|b', 'a\nb', 'a*b', 'a?b', 'a"b', 'a<b', 'a>b', 'a\rb', '', 'a/b', '\udcff'):
+            with self.subTest(name=repr(name)), self.assertRaises(v.Refused):
+                m.container_bound([(name, 1)])
+        with self.assertRaises(v.Refused):
+            m.container_bound([('a', 0xFFFFFFFF)])
+        with self.assertRaises(v.Refused):
+            m.container_bound([('f%d' % i, 0) for i in range(65535)])
+
+    def test_receipt_reserve_is_finite_and_precomputed(self):
+        self.assertEqual(m.RECEIPT_RESERVE, m.container_bound(m.RECEIPT_LIMITS.items()))
+        self.assertEqual(set(m.RECEIPT_LIMITS), {m.RECEIPT_REQUEST, m.RECEIPT_FROZEN, m.RECEIPT_ACTUAL})
+
+    def test_output_rejects_directories_and_symlinks(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)
+            (out / 'sub').mkdir()
+            with self.assertRaises(v.Refused):
+                m.EvidenceIO(out, budget())
+            (out / 'sub').rmdir()
+            (out / 'link').symlink_to('/etc/hosts')
+            with self.assertRaises(v.Refused):
+                m.EvidenceIO(out, budget())
+
+    def test_write_refused_when_containers_would_exceed_upload_cap(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)
+            guard = m.EvidenceIO(out, budget())
+            room = guard.headroom('big.bin')
+            cap = m.RESOURCE_CAPS['upload_bytes']
+            with patch.dict(m.RESOURCE_CAPS, upload_bytes=cap - room + 100):
+                with patch.object(Path, 'open') as opened, self.assertRaises(v.Refused):
+                    guard.write('big.bin', b'b' * 101)
+                opened.assert_not_called()
+                guard.write('big.bin', b'b' * 100)
+                self.assertEqual(guard.check()['main_bound'] + m.RECEIPT_RESERVE, m.RESOURCE_CAPS['upload_bytes'])
+
+    def test_package_projection_blocks_before_any_tail_write(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)
+            m.save(out / 'result.json', {'status': 'FAILED'})
+            m.save(out / 'steps.json', [])
+            (out / 'original.log').write_bytes(b'o' * 1000)
+            state = m.EvidenceIO(out, budget()).check()
+            with patch.dict(m.RESOURCE_CAPS, upload_bytes=state['main_bound'] + m.RECEIPT_RESERVE + 2000), \
+                    self.assertRaises(v.Refused):
+                m.package(out, budget())
+            self.assertFalse((out / 'evidence.zip').exists())
+            self.assertFalse((out / 'FILES.json').exists())
+            self.assertEqual((out / 'original.log').read_bytes(), b'o' * 1000)
+            m.package(out, budget())
+            zip_size = (out / 'evidence.zip').stat().st_size
+            self.assertLessEqual(zip_size, m.container_bound(
+                [(p.name, p.stat().st_size) for p in out.iterdir() if p.name not in m.PACKAGE_TAIL] +
+                [('FILES.json', (out / 'FILES.json').stat().st_size)]))
+
+
+class GateTests(ToyCapsTest):
+    def setUp(self):
+        super().setUp()
+        self.temp = Path(self.enterContext(tempfile.TemporaryDirectory())).resolve()
+        self.out = self.temp / 'issue1393-lock-evidence'
+        self.out.mkdir()
+        (self.temp / 'issue1393-lock-start.json').write_text(json.dumps(
+            {'monotonic': time.monotonic() - 100, 'wall': time.time() - 100, 'total_seconds': 900}))
+        (self.out / 'result.json').write_bytes(b'{}\n')
+        (self.out / 'evidence.zip').write_bytes(b'e' * 3000)
+        self.gh = self.temp / 'gh-output'
+        self.env = {'ISSUE1393_LOCK_EXECUTE': 'True', 'RUNNER_TEMP': str(self.temp), 'GITHUB_OUTPUT': str(self.gh)}
+        self.spawn = self.enterContext(patch.object(subprocess, 'Popen', side_effect=AssertionError('零真实子进程')))
+
+    def run_gate(self, mode, **env):
+        if self.gh.exists():
+            self.gh.unlink()
+        with patch.dict(os.environ, dict(self.env, **env), clear=True), contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(m.gate(mode), 0)
+        outputs = dict(line.split('=', 1) for line in self.gh.read_text().splitlines())
+        return outputs['allowed'] == 'true', json.loads(out.getvalue().splitlines()[-1])
+
+    def main_bound(self):
+        return m.container_bound((p.name, p.stat().st_size) for p in self.out.iterdir())
+
+    def test_upload_gate_equal_and_over_cap(self):
+        exact = self.main_bound() + m.RECEIPT_RESERVE
+        with patch.dict(m.RESOURCE_CAPS, upload_bytes=exact - 1):
+            allowed, status = self.run_gate('upload-gate')
+        self.assertFalse(allowed)
+        self.assertFalse((self.temp / m.RECEIPT_FROZEN).exists())
+        self.assertEqual(json.loads((self.temp / m.RECEIPT_REQUEST).read_text())['status'], 'REFUSED')
+        self.assertEqual((self.out / 'evidence.zip').read_bytes(), b'e' * 3000)
+        (self.temp / m.RECEIPT_REQUEST).unlink()
+        with patch.dict(m.RESOURCE_CAPS, upload_bytes=exact):
+            allowed, status = self.run_gate('upload-gate')
+        self.assertTrue(allowed)
+        frozen = json.loads((self.temp / m.RECEIPT_FROZEN).read_text())
+        self.assertEqual(frozen['main_bound'], self.main_bound())
+        self.assertEqual({e['name'] for e in frozen['entries']}, {'result.json', 'evidence.zip'})
+        self.assertFalse(any(p.name.startswith('issue1393-lock-UPLOAD') for p in self.out.iterdir()))
+
+    def test_receipt_gate_combined_cap_change_and_actual_limit(self):
+        self.assertTrue(self.run_gate('upload-gate')[0])
+        actual = self.temp / m.RECEIPT_ACTUAL
+        actual.write_bytes(b'{"conclusion": "success"}\n')
+        allowed, status = self.run_gate('receipt-gate', PAYLOAD_OUTCOME='success')
+        self.assertTrue(allowed)
+        sizes = [(n, (self.temp / n).stat().st_size) for n in m.RECEIPT_LIMITS]
+        exact = self.main_bound() + m.container_bound(sizes)
+        self.assertEqual(status['main_bound'] + status['receipt_bound'], exact)
+        with patch.dict(m.RESOURCE_CAPS, upload_bytes=exact):
+            self.assertTrue(self.run_gate('receipt-gate', PAYLOAD_OUTCOME='success')[0])
+        with patch.dict(m.RESOURCE_CAPS, upload_bytes=exact - 1):
+            self.assertFalse(self.run_gate('receipt-gate', PAYLOAD_OUTCOME='success')[0])
+        actual.write_bytes(b'a' * 4097)
+        self.assertFalse(self.run_gate('receipt-gate', PAYLOAD_OUTCOME='success')[0])
+        actual.write_bytes(b'{}\n')
+        (self.out / 'late.txt').write_bytes(b'x')
+        self.assertFalse(self.run_gate('receipt-gate', PAYLOAD_OUTCOME='success')[0])
+        (self.out / 'late.txt').unlink()
+        (self.out / 'result.json').write_bytes(b'{"x": 1}\n')
+        self.assertFalse(self.run_gate('receipt-gate', PAYLOAD_OUTCOME='success')[0])
+
+    def test_receipt_without_frozen_only_when_main_not_uploaded(self):
+        (self.temp / m.RECEIPT_ACTUAL).write_bytes(b'{}\n')
+        self.assertFalse(self.run_gate('receipt-gate', PAYLOAD_OUTCOME='success')[0])
+        self.assertTrue(self.run_gate('receipt-gate', PAYLOAD_OUTCOME='skipped')[0])
+
+    def test_false_gate_deadline_and_unknown_mode_refuse(self):
+        self.assertFalse(self.run_gate('upload-gate', ISSUE1393_LOCK_EXECUTE='False')[0])
+        (self.temp / 'issue1393-lock-start.json').write_text(json.dumps(
+            {'monotonic': time.monotonic() - 899, 'wall': time.time() - 899, 'total_seconds': 900}))
+        self.assertFalse(self.run_gate('upload-gate')[0])
+        self.assertFalse(self.run_gate('other-gate')[0])
+
+    def test_workflow_pins_action_compression_and_gates(self):
+        import yaml
+        text = (m.ROOT / m.WORKFLOW).read_text()
+        flow = yaml.safe_load(text)
+        steps = flow['jobs']['lock-prepare']['steps']
+        uploads = [s for s in steps if str(s.get('uses', '')).startswith('actions/upload-artifact')]
+        self.assertEqual(len(uploads), 2)
+        for s in uploads:
+            self.assertEqual(s['uses'], m.UPLOAD_ACTION)
+            self.assertEqual(s['with']['compression-level'], 0)
+            self.assertIn("allowed == 'true'", s['if'])
+        receipt_paths = uploads[1]['with']['path'].splitlines()
+        self.assertEqual([p.rsplit('/', 1)[1] for p in receipt_paths], list(m.RECEIPT_LIMITS))
+        runs = {s.get('id'): s.get('run', '') for s in steps}
+        self.assertIn('issue1393_lock_prepare.py upload-gate', runs['archive'])
+        self.assertIn('issue1393_lock_prepare.py receipt-gate', runs['receipt'])
+        self.assertNotIn('RESOURCE_CAPS', text)
+        self.assertNotIn('UPLOAD-REQUEST.json', runs['archive'].split('upload-gate')[0])
+        self.assertNotIn('@v4\n', ''.join(str(s.get('uses', '')) + '\n' for s in uploads))
+        self.assertIn("ISSUE1393_LOCK_EXECUTE: 'False'", text)
 
 
 if __name__ == '__main__':

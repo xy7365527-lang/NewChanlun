@@ -22,16 +22,36 @@
   "product_manifest_sha256": "e1059a227dc513426f1a201f02ad94b42c5dfad5d2299d96e88e6901c676785a",
   "ref": "refs/heads/codex/1393-lock-preserve-once-20261018",
   "registry": "registry+https://github.com/rust-lang/crates.io-index",
-  "registry_evidence": "EXCLUSIVE_SPARSE_CACHE_ONLY_MISSING_IS_PROOF_GAP",
+  "registry_evidence": "EXISTING_EXCLUSIVE_CARGO_CACHE_ONLY_NO_EXTRA_EVIDENCE_NETWORK_MISSING_IS_PROOF_GAP",
   "registry_network_fallback": "FORBIDDEN",
   "repository": "xy7365527-lang/NewChanlun",
   "rerun": "FORBIDDEN",
   "resource_caps": {
-    "files": "UNBOUND",
-    "items": "UNBOUND",
-    "single_bytes": "UNBOUND",
-    "total_bytes": "UNBOUND",
-    "upload_bytes": "UNBOUND"
+    "compression_level": 0,
+    "decision": "PREPARATION_ONLY_NEW_NARROWER_CAPS",
+    "existing_preserved": {
+      "MAX_EVENT_BYTES": 1048576,
+      "MAX_MESSAGE_BYTES": 32768,
+      "final_reserve_seconds": 90,
+      "initial_disk_bytes": 2147483648,
+      "jobs": 1,
+      "telemetry_seconds": 10,
+      "total_seconds": 900
+    },
+    "registry_evidence": {
+      "additional_network_for_evidence": false,
+      "counts": "REGISTRY_EVIDENCE_BODY_AND_VERSION_RECORDS_ONLY",
+      "files": 128,
+      "items": 512,
+      "mode": "EXISTING_EXCLUSIVE_CARGO_CACHE_ONLY",
+      "single_bytes": 65536,
+      "total_bytes": 2097152
+    },
+    "source": "ROOT_NEW_NARROWER_CAPS_20261018",
+    "upload_action": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+    "upload_bound": "PRE_UPLOAD_ZIP_STORE_BOUND_98_PLUS_SUM_SIZE_128_2NAME",
+    "upload_bytes": 33554432,
+    "upload_counting": "ALL_ARTIFACT_CONTAINERS_COMBINED_INCLUDING_MAIN_AND_RECEIPT_OUTER_OVERHEAD"
   },
   "review_sha256": "UNBOUND",
   "review_text": "UNBOUND",
@@ -39,9 +59,9 @@
   "runner_label": "ubuntu-24.04",
   "runner_os": "Linux",
   "runner_path": ".github/scripts/issue1393_lock_prepare.py",
-  "runner_sha256": "482df8cd25685203df1dc41d89061c4fef662333f9b1811c3f1906b867da491a",
+  "runner_sha256": "d8dc43da8026dedc2123364084b30cf9c51b5db35aa3a0190040abf679bea85d",
   "rustc_commit": "b940084d7eb6a299eb4bfeb8e34901bc051e7ac4",
-  "schema": "issue1393-lock-preserve/1",
+  "schema": "issue1393-lock-preserve/2",
   "source_commit": "8e50d40933c2a6a25f882481f3c46aa885ce6407",
   "source_tree": "0a2e04a4ce22a6b8732ad3b55f57446ee3f066f0",
   "status": "PREPARED_NOT_AUTHORIZED",
@@ -51,6 +71,6 @@
   "toolchain_evidence_sha256": "736b421f60c5b1726852e33b51ead31d694db8773ab782881b6125df410db3fa",
   "total_seconds": 900,
   "validation_workflow_sha256": "47c31701f9f2c9b34291721dab1623ede0bb54bbbb97ba58cb34efc5272ffe5b",
-  "workflow_false_sha256": "575a359672eae363938cc29a36dc844c8b1d427899ba4304f8a4410ea1dffcd4",
+  "workflow_false_sha256": "99cc0d1f9746fb7dced3b8611ca6282fe6e4014bbdbfd878d096449f4aa76620",
   "workflow_path": ".github/workflows/issue1393-lock-prepare.yml"
 }
