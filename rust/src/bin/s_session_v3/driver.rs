@@ -3918,7 +3918,7 @@ mod tests {
                         .filter(|d| !reachable.contains(*d))
                         .collect();
                     let extra_unreachable: Vec<_> = unreachable.iter()
-                        .filter(|d| !control_digests.contains(*d))
+                        .filter(|d| !control_digests.contains(**d))
                         .collect();
                     eprintln!("  reachable: {}, unreachable: {}", reachable.len(), unreachable.len());
                     eprintln!("  native 独有且不可达: {} / {}", extra_unreachable.len(), unreachable.len());
