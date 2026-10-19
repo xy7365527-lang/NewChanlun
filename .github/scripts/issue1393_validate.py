@@ -26,7 +26,7 @@ GATE_FALSE = b"  ISSUE1393_EXECUTE: 'False'\n"
 GATE_TRUE = b"  ISSUE1393_EXECUTE: 'True'\n"
 TOTAL_SECONDS = 3600
 REPOSITORY = 'xy7365527-lang/NewChanlun'
-PUSH_REF = 'refs/heads/codex/1393-validate-once-20261018'
+PUSH_REF = 'refs/heads/codex/1393-validate-twice-20261019'
 MESSAGE_BEGIN = 'ISSUE1393-CONTRACT-BEGIN\n'
 MESSAGE_END = '\nISSUE1393-CONTRACT-END'
 MAX_MESSAGE_BYTES = 32768
@@ -493,9 +493,21 @@ def verify_list(raw: bytes, cases):
 
 
 def verify_exact(raw: bytes, name: str):
+    """具名测试必须以 ok 收尾；--nocapture 时测试自身输出可夹在 `test <name> ... ` 与 `ok` 之间。"""
     text = raw.decode()
-    require(re.search(r'^test ' + re.escape(name) + r' \.\.\. ok$', text, re.M), '缺具名 exact 成功原件')
-    require(re.search(r'test result: ok\. 1 passed; 0 failed; 0 ignored; 0 measured;', text),
+    lines = text.splitlines()
+    head = 'test ' + name + ' ... '
+    starts = [i for i, line in enumerate(lines) if line.startswith(head)]
+    require(len(starts) == 1, '缺具名 exact 成功原件')
+    results = [i for i, line in enumerate(lines) if line.startswith('test result: ')]
+    require(len(results) == 1 and results[0] > starts[0], '缺具名 exact 成功原件')
+    span = [lines[starts[0]][len(head):], *lines[starts[0] + 1:results[0]]]
+    require(not any(line.startswith('test ') for line in span[1:]), 'exact 原件含其他测试行')
+    require(not any(line.strip() in ('FAILED', 'ignored') or line.endswith(' ... FAILED') for line in span),
+            '缺具名 exact 成功原件')
+    tail = [line for line in span if line.strip()]
+    require(span[0] == 'ok' or (tail and tail[-1] == 'ok'), '缺具名 exact 成功原件')
+    require(re.search(r'^test result: ok\. 1 passed; 0 failed; 0 ignored; 0 measured;', text, re.M),
             'exact 零运行、ignored 或非单项')
 
 

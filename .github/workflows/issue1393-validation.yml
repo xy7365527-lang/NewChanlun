@@ -2,7 +2,7 @@ name: Issue 1393 necessary validation (prepared, not authorized)
 
 on:
   push:
-    branches: [codex/1393-validate-once-20261018]
+    branches: [codex/1393-validate-twice-20261019]
 
 permissions:
   contents: read

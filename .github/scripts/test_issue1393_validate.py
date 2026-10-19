@@ -350,6 +350,40 @@ class BinaryTests(unittest.TestCase):
             with self.assertRaises(v.Refused):
                 v.verify_exact(bad, 'module::wanted')
 
+    def test_nocapture_output_between_name_and_ok_is_accepted_only_when_ok_closes(self):
+        name = 'tests::wanted'
+        result = b'\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 83 filtered out; finished in 1.21s\n'
+        split = (b'\nrunning 1 test\ntest tests::wanted ... {"ok":true,"session":"s"}\n{"epoch":"2","ok":true}\nok\n'
+                 + result)
+        v.verify_exact(split, name)
+        v.verify_exact(b'\nrunning 1 test\ntest tests::wanted ... {"a":1}\n\nok\n' + result, name)
+        prefix = b'\nrunning 1 test\ntest tests::wanted ... {"ok":true}\n'
+        bad_cases = {
+            'missing ok': prefix + result,
+            'ok only inside output': prefix.replace(b'{"ok":true}', b'{"x":1} ok') + result,
+            'FAILED closes': prefix + b'FAILED\n' + result,
+            'ok then FAILED': prefix + b'ok\nFAILED\n' + result,
+            'ignored closes': prefix + b'ignored\n' + result,
+            'other test inside span': prefix + b'test other ... ok\nok\n' + result,
+            'header twice': prefix + b'ok\ntest tests::wanted ... ok\n' + result,
+            'ok after result': prefix + result + b'ok\n',
+            'wrong name prefix': split.replace(b'test tests::wanted ...', b'test tests::wanted_more ...'),
+            'two passed': split.replace(b'1 passed', b'2 passed'),
+            'one failed': split.replace(b'test result: ok. 1 passed; 0 failed', b'test result: FAILED. 0 passed; 1 failed'),
+            'one ignored': split.replace(b'0 ignored', b'1 ignored'),
+            'two results': split + result,
+        }
+        for label, bad in bad_cases.items():
+            with self.subTest(label), self.assertRaises(v.Refused):
+                v.verify_exact(bad, name)
+
+    def test_real_run_39228184639_s_exact_0_shape_is_accepted(self):
+        lines = [b'', b'running 1 test',
+                 b'test tests::tb02u_old_cut_explicit_replaces_revision_and_recovery ... {"catalog_items":116,"ok":true}',
+                 *[b'{"epoch_transitioned":true,"new_epoch":"%d","ok":true}' % n for n in range(2, 6)], b'ok', b'',
+                 b'test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 83 filtered out; finished in 1.21s', b'']
+        v.verify_exact(b'\n'.join(lines), 'tests::tb02u_old_cut_explicit_replaces_revision_and_recovery')
+
     def test_real_source_contains_all_nine_declared_tests(self):
         root = Path(__file__).resolve().parents[2]
         v.verify_source_names(root, v.LIB_CASES)

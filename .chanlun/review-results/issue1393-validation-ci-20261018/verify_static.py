@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory(prefix='issue1393-pycompile-') as directory:
         py_compile.compile(str(path), cfile=str(Path(directory) / f'{index}.pyc'), doraise=True)
         print('AST + py_compile PASS:', relative)
 workflow = yaml.load((ROOT / '.github/workflows/issue1393-validation.yml').read_text(), Loader=yaml.BaseLoader)
-assert workflow['on'] == {'push': {'branches': ['codex/1393-validate-once-20261018']}}
+assert workflow['on'] == {'push': {'branches': ['codex/1393-validate-twice-20261019']}}
 assert workflow['permissions'] == {'contents': 'read'}
 assert workflow['concurrency']['cancel-in-progress'] == 'false'
 assert 'inputs.contract' not in (ROOT / '.github/workflows/issue1393-validation.yml').read_text()
