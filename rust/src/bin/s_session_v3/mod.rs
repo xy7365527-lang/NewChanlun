@@ -55,7 +55,6 @@ mod cross_request_source_cache;
 mod driver;
 mod financial_reader;
 // #1394 DESIGN-R6 c2 候选：长驻只读财务会话（待 §5.7 多请求一致性修订裁定）。
-mod content_structure;
 #[cfg(unix)]
 mod financial_session;
 mod generation;
@@ -101,16 +100,6 @@ const DELIVERY_POLICY_REVISION: &str = "generation-window/1";
 /// v3 init 允许出现的全部 flag（含 selector）；其余一律拒绝，不假装可用。
 const V3_INIT_FLAGS: [&str; 8] = [
     SELECTOR,
-    "--db",
-    "--session",
-    "--catalog",
-    "--profile",
-    "--session-generation",
-    "--clock-plan",
-    "--delivery-retain-generations",
-];
-/// 显式 `s-session/2` 必须齐全的初始化参数（与 `v2::dispatch` init 分支同一份合同）。
-const V2_INIT_FLAGS: [&str; 7] = [
     "--db",
     "--session",
     "--catalog",
@@ -210,20 +199,9 @@ pub(super) fn dispatch(args: &[String]) -> Result<bool, String> {
         return Ok(true);
     }
     if value == PREVIOUS_REVISION {
-        // 显式 s-session/2：强制走既有 v2 初始化；缺参不得回落旧 v1 入口（那会静默建错域）。
-        for key in V2_INIT_FLAGS {
-            if !args.iter().any(|a| a == key) {
-                return Err(format!(
-                    "VersionUnsupported：显式 {PREVIOUS_REVISION} 缺 {key}（v2 初始化合同要求全参）"
-                ));
-            }
-        }
-        if !v2::dispatch(args)? {
-            return Err(format!(
-                "VersionUnsupported：显式 {PREVIOUS_REVISION} 未进入 v2 初始化分派；拒绝回落旧域"
-            ));
-        }
-        return Ok(true);
+        // #1419 裁定②（issuecomment-6265209957）：显式 s-session/2 init 是 v2 写入口，一律拒绝；
+        // 不回落旧 v1 入口（那会静默建错域）。旧 v2 库只读 AsKnown。
+        return Err(crate::V2_WRITER_RETIRED.to_string());
     }
     Err(format!(
         "VersionUnsupported：未知协议版本选择 `{value}`；支持 {PREVIOUS_REVISION}（旧合同）与 {PROTOCOL_REVISION}（新域）"

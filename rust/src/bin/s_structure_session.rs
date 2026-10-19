@@ -119,6 +119,17 @@ fn is_structure_rule(rule: &str) -> bool {
     matches!(rule, V3_STRUCTURE_RULE_REVISION | W_STRUCTURE_RULE_REVISION)
 }
 
+/// #1419 主控裁定②（issuecomment-6265209957）：v2 结构写者（本文件 `init_core`/`accept_core`/
+/// `advance_core`/`recover_core` 及 `v2::init_v2`/`v2::serve`）退役——新旧会话一律不再写，
+/// 旧会话只读 AsKnown（catalog/snapshot/query/watch/meta/pragma/financial-basis）。写入只走 S3。
+/// 这些核心函数仅留给测试：历史库种子与 S3 差分对拍 oracle；生产入口在 `run`/`v2::dispatch` 拒绝。
+pub(crate) const V2_WRITER_RETIRED: &str = "VersionUnsupported：v2 结构写者已退役（#1419 裁定②）：新旧会话一律拒写，旧会话只读 AsKnown；写入请走 S3（s-session/3）";
+
+/// v2 写入口子命令集合（含 v2 `init --session-generation`、`serve`、带时钟 `recover`）。
+fn is_v2_write_command(cmd: &str) -> bool {
+    matches!(cmd, "init" | "reset" | "accept" | "advance" | "recover" | "serve")
+}
+
 /// S 唯一结构写者的默认 writer_epoch（可经 `--writer-epoch` / `recover` 换代）。
 const DEFAULT_WRITER_EPOCH: &str = "1";
 
@@ -1958,6 +1969,7 @@ fn record_connection_pragmas(conn: &Connection, stage: &str) {
     let _ = std::fs::write(&path, out);
 }
 
+#[cfg_attr(not(test), allow(dead_code))] // #1419 裁定②：v2 写者仅留测试种子/oracle，生产入口已拒
 fn cmd_init(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String> {
     println!("{}", init_core(db, session, catalog_path)?);
     Ok(())
@@ -1965,6 +1977,7 @@ fn cmd_init(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String>
 
 /// 旧 reset（先删后建 v1）语义不变；#1394 独评 F1 只加一道门：已有 `s-session/3` 域在任何删除
 /// 之前 fail closed（旧 reset 只懂 v1/v2 合同，本切片不提供新迁移/重置功能）。
+#[cfg_attr(not(test), allow(dead_code))] // #1419 裁定②：v2 写者仅留测试种子/oracle，生产入口已拒
 fn cmd_reset(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String> {
     // 与新域 init / 正式 writer 同一把锁覆盖「判域 → 删除 → 重建」，避免检查后换域。
     let _writer = newchan_rust::session_transport::process_lock(db, "S")?;
@@ -2098,6 +2111,7 @@ fn init_core(db: &Path, session: &str, catalog_path: &Path) -> Result<Value, Str
 // supersedes）+ profile 绑定。
 // ────────────────────────────────────────────────────────────────────────────
 
+#[cfg_attr(not(test), allow(dead_code))] // #1419 裁定②：v2 写者仅留测试种子/oracle，生产入口已拒
 fn cmd_accept(
     db: &Path,
     input_path: &Path,
@@ -2945,6 +2959,7 @@ fn persist_batch_before_publish_inner(
         .map_err(|e| format!("批次持久 commit 失败：{e}"))
 }
 
+#[cfg_attr(not(test), allow(dead_code))] // #1419 裁定②：v2 写者仅留测试种子/oracle，生产入口已拒
 fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
     println!("{}", advance_core(db, configured_epoch, None)?);
     Ok(())
@@ -5160,6 +5175,7 @@ fn cmd_watch(db: &Path, after_generation: i64) -> Result<(), String> {
 /// 正式 writer 换代 / 恢复：核当前持久状态，清未决 Begin（上一 writer 已退出，门保持关闭直到本
 /// 命令合法恢复），并按 `--new-epoch` 提升 writer_epoch（与 generation 同序持久历史）。旧 epoch 进程
 /// 此后重放被 StaleWriter 拒绝。这不是「手改 SQL」——是正式入口，历史写入 writer_epoch_history。
+#[cfg_attr(not(test), allow(dead_code))] // #1419 裁定②：v2 写者仅留测试种子/oracle，生产入口已拒
 fn cmd_recover(db: &Path, new_epoch: &str) -> Result<(), String> {
     println!("{}", recover_core(db, new_epoch, None)?);
     Ok(())
@@ -5257,9 +5273,6 @@ fn recover_core(
 
 fn usage() -> String {
     "用法：s_structure_session <init|accept|advance|catalog|snapshot|meta|watch|recover|reset|serve|query-serve> [参数]\n\
-     \x20 init      --db <路径> --session <id> --catalog <catalog.json>      （只允许不存在的目标）\n\
-     \x20 accept    --db <路径> --input <输入.json> --profile <profile.json> [--writer-epoch <n>]\n\
-     \x20 advance   --db <路径> [--writer-epoch <n>]\n\
      \x20 catalog   --db <路径> [--as-of <generation>]\n\
      \x20 snapshot  --db <路径> [--as-of <generation>]\n\
      \x20 meta      --db <路径>\n\
@@ -5270,8 +5283,7 @@ fn usage() -> String {
      \x20 advance --protocol-revision s-session/3 --db <已有库> --profile <profile.json> --writer-epoch <n> --clock-plan <clock.json> [--input <单份envelope.json> --max-input-bytes <显式上限>]（无input仅恢复已持久接纳的原消息）\n\
      \x20 recover --protocol-revision s-session/3 --db <已有库> --new-epoch <n> --clock-plan <clock.json> --clock-event-id <id>（监督器换代）\n\
      \x20 watch     --db <路径> --after-generation <n>\n\
-     \x20 recover   --db <路径> --new-epoch <n>\n\
-     \x20 reset     --db <路径> --session <id> --catalog <catalog.json>      （一次性试验：删除并重建）\n"
+     \x20 （#1419 裁定②：v2 旧库 init/accept/advance/recover/reset/serve 一律拒绝；旧库只读上列查询子命令）\n"
         .to_string()
 }
 
@@ -5295,18 +5307,15 @@ fn run() -> Result<(), String> {
     if v3::dispatch(&args)? {
         return Ok(());
     }
+    // #1419 裁定②：S3 未认领的写子命令一律拒绝（v2/v1 新旧会话同拒），只读子命令照常。
+    if is_v2_write_command(args[1].as_str()) {
+        return Err(V2_WRITER_RETIRED.to_string());
+    }
     if v2::dispatch(&args)? {
         return Ok(());
     }
-    let _writer_lock = v2::legacy_write_lock(&args)?;
     let cmd = args[1].as_str();
     let db = arg_value(&args, "--db").map(PathBuf::from);
-    let session = arg_value(&args, "--session").unwrap_or_else(|| "s-session-default".to_string());
-    let catalog = arg_value(&args, "--catalog").map(PathBuf::from);
-    let input = arg_value(&args, "--input").map(PathBuf::from);
-    let profile = arg_value(&args, "--profile").map(PathBuf::from);
-    let configured_epoch =
-        arg_value(&args, "--writer-epoch").unwrap_or_else(|| DEFAULT_WRITER_EPOCH.to_string());
     let as_of = arg_value(&args, "--as-of")
         .map(|s| parse_canonical_i64(&s, "--as-of"))
         .transpose()?
@@ -5318,27 +5327,9 @@ fn run() -> Result<(), String> {
             }
         })
         .transpose()?;
-    let new_epoch = arg_value(&args, "--new-epoch");
     let identity_key = arg_value(&args, "--identity-key");
 
     match cmd {
-        "init" => {
-            let d = db.ok_or("缺 --db".to_string())?;
-            let c = catalog.ok_or("缺 --catalog".to_string())?;
-            cmd_init(&d, &session, &c)
-        }
-        "reset" => {
-            let d = db.ok_or("缺 --db".to_string())?;
-            let c = catalog.ok_or("缺 --catalog".to_string())?;
-            cmd_reset(&d, &session, &c)
-        }
-        "accept" => {
-            let d = db.ok_or("缺 --db".to_string())?;
-            let i = input.ok_or("缺 --input".to_string())?;
-            let p = profile.ok_or("缺 --profile".to_string())?;
-            cmd_accept(&d, &i, &p, &configured_epoch)
-        }
-        "advance" => cmd_advance(&db.ok_or("缺 --db".to_string())?, &configured_epoch),
         "catalog" => cmd_catalog(&db.ok_or("缺 --db".to_string())?, as_of),
         "snapshot" => cmd_snapshot(&db.ok_or("缺 --db".to_string())?, as_of),
         "financial-basis" => cmd_financial_basis(&db.ok_or("缺 --db".to_string())?),
@@ -5357,10 +5348,6 @@ fn run() -> Result<(), String> {
                 return Err("InvalidDomain：--after-generation 必须 >= 0".to_string());
             }
             cmd_watch(&db.ok_or("缺 --db".to_string())?, after)
-        }
-        "recover" => {
-            let n = new_epoch.ok_or("recover 缺 --new-epoch".to_string())?;
-            cmd_recover(&db.ok_or("缺 --db".to_string())?, &n)
         }
         other => Err(format!("未知子命令 {other}\n{}", usage())),
     }
