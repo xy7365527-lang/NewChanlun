@@ -319,27 +319,10 @@ impl Driver {
                     let keeper_cap = total
                         .checked_sub(legacy)
                         .ok_or("S3WriterResourcesInvalid：legacy来源费用超过S7")?;
-                    // #1488 P1-1：旧费按逐项分区O+uncovered计；映射不成立即丢候选重映射，不补差。
-                    let fits = |p: &Result<request_audit::OldPoolPartition, String>| {
-                        p.as_ref().is_ok_and(|p| p.carried() <= keeper_cap)
-                    };
-                    let mut partition = self.conn.old_pool_partition(previous.as_ref());
-                    if !fits(&partition) {
-                        self.conn.discard_after_error();
-                        if let Some(k) = &mut previous {
-                            k.set_retention_cap(keeper_cap);
-                        }
-                        partition = self.conn.old_pool_partition(previous.as_ref());
-                    }
-                    // #1488 P1-2：keeper池按其父账物理live仍装不下或无从证明时只丢可选池，
-                    // 不把可丢弃缓存的失败变成业务失败。
-                    if !fits(&partition) {
-                        if let Some(k) = &mut previous {
-                            k.clear();
-                        }
-                        partition = self.conn.old_pool_partition(previous.as_ref());
-                    }
-                    let partition = partition?;
+                    // #1488 P1-1/P1-2/P1-α：逐项分区；不成立即丢候选重映射，再不成立只丢可选池。
+                    let partition = self
+                        .conn
+                        .entry_old_pool_partition(&mut previous, keeper_cap)?;
                     context.freeze_manifest_workspace_partition(total, legacy, partition)?;
                     if super::cross_request_source_cache::Keeper::retention_possible(keeper_cap) {
                         let mut keeper = previous.unwrap_or_else(|| {

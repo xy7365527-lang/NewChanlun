@@ -716,11 +716,23 @@ impl LedgerMark {
     pub(crate) fn live_for(&self, budget: &Budget) -> Option<usize> {
         std::ptr::eq(self.0.as_ptr(), Arc::as_ptr(&budget.0)).then_some(self.1)
     }
-    /// 只用于纯析构之后：重读仍存活父账的live；父账已释放则返回false（读数作废）。
-    pub(crate) fn refresh(&mut self) -> bool {
-        match self.0.upgrade() {
-            Some(ledger) => {
-                self.1 = ledger.live.load(Ordering::Acquire);
+    /// 父账当前live；父账已释放则None。只作结算的前后读数，从不直接成为静止点读数。
+    pub(crate) fn current(&self) -> Option<usize> {
+        self.0.upgrade().map(|ledger| ledger.live.load(Ordering::Acquire))
+    }
+    /// #1488 P1-α：纯析构（discard）后只按`before`→现在这段析构实际归还的字节下调读数，
+    /// 不把当前live重读为新基准——静止点之后出现的来源不明许可仍留在差额里，下次分区照拒。
+    /// 父账已释放、析构期间live反增、或归还量超过读数，读数作废（返回false，分区因缺读数拒绝）。
+    pub(crate) fn settle_release(&mut self, before: Option<usize>) -> bool {
+        let (Some(before), Some(after)) = (before, self.current()) else {
+            return false;
+        };
+        match before
+            .checked_sub(after)
+            .and_then(|released| self.1.checked_sub(released))
+        {
+            Some(mark) => {
+                self.1 = mark;
                 true
             }
             None => false,

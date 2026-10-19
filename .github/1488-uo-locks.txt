@@ -55,3 +55,4 @@ v3::cross_request_source_cache::tests::p2a_source_claim_points_to_charged_body_a
 v3::audit_owner::native::u2_exit_adopt_tests::p3a_production_reserve_native_rejects_allocated_plain_without_adopting
 v3::audit_owner::effects::construction_coverage_tests::p3b_start_on_keeps_pre_p2_2_result_categories
 v3::driver::tests::p3_d_cold_root_residue_after_clear_handles_is_rejected
+v3::audit_owner::p1_alpha_stray_on_keeper_ledger_survives_discard_retry_and_is_rejected

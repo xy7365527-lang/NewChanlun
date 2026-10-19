@@ -1218,10 +1218,19 @@ impl AuditConnection {
         drop(self.complete.borrow_mut().take());
     }
     pub(super) fn discard_after_error(&self) {
-        self.clear_candidates();
-        // #1488 P1-2：丢弃只析构，不新增分配；仍存活的保留父账（如keeper池所在账）按析构后live重读。
+        // #1488 P1-α：丢弃只析构，不新增分配；静止点读数只减去本次析构实际归还的字节，
+        // 不重读live——否则静止点之后出现的来源不明许可会被洗进读数、在重试分区时吸收进U。
         #[cfg(feature = "s_capture_native_testonly")]
-        self.quiescent.borrow_mut().retain_mut(|mark| mark.refresh());
+        let before: Vec<Option<usize>> =
+            self.quiescent.borrow().iter().map(|mark| mark.current()).collect();
+        self.clear_candidates();
+        #[cfg(feature = "s_capture_native_testonly")]
+        {
+            let mut before = before.into_iter();
+            self.quiescent
+                .borrow_mut()
+                .retain_mut(|mark| mark.settle_release(before.next().flatten()));
+        }
     }
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn complete_retained_bytes(&self) -> usize {
@@ -1284,6 +1293,34 @@ impl AuditConnection {
             partition.attest(mark)?;
         }
         partition.seal()
+    }
+    /// #1488 P1-1/P1-α：请求入口的old_pool冻结序列（driver生产路径原样搬入，供锁直接驱动）：
+    /// 旧费按逐项分区O+uncovered计；映射不成立即丢候选重映射，不补差；keeper池按其父账物理live
+    /// 仍装不下或无从证明时只丢可选池，不把可丢弃缓存的失败变成业务失败。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn entry_old_pool_partition(
+        &self,
+        previous: &mut Option<cross_request_source_cache::Keeper>,
+        keeper_cap: usize,
+    ) -> Result<request_audit::OldPoolPartition, String> {
+        let fits = |p: &Result<request_audit::OldPoolPartition, String>| {
+            p.as_ref().is_ok_and(|p| p.carried() <= keeper_cap)
+        };
+        let mut partition = self.old_pool_partition(previous.as_ref());
+        if !fits(&partition) {
+            self.discard_after_error();
+            if let Some(k) = previous.as_mut() {
+                k.set_retention_cap(keeper_cap);
+            }
+            partition = self.old_pool_partition(previous.as_ref());
+        }
+        if !fits(&partition) {
+            if let Some(k) = previous.as_mut() {
+                k.clear();
+            }
+            partition = self.old_pool_partition(previous.as_ref());
+        }
+        partition
     }
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn complete_report(&self) -> Value {
@@ -3574,6 +3611,74 @@ fn p1_2_keeper_pool_on_other_ledger_counts_physical_live_after_discard() {
     eprintln!(
         "P12_KEEPER_PHYSICAL {}",
         json!({"contract":contract,"physical":physical,"m":m,"carried":carried,"allowance":allowance,"old_allowance":old_allowance})
+    );
+}
+
+/// #1488 P1-α（复审0028反例）：请求n在K上封存池（静止点读数x）→ K上出现来源不明许可s →
+/// 请求n+1首次分区失败 → discard → 二次分区必须仍拒绝：discard不改K的live，静止点读数只能由
+/// 析构实际归还量下调，不得把x+s重读为新基准；s不得吸收进U、不得以该池冻结成功。
+/// 生产入口序列（`entry_old_pool_partition`，driver原样调用）最终只能丢可选池。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[test]
+fn p1_alpha_stray_on_keeper_ledger_survives_discard_retry_and_is_rejected() {
+    let mut f = prepared::tests::Fixture::new();
+    let (envelope, token) = f.accept_begin(1, ("p1a-source", 0, 6, 12, 3, 7), 1);
+    f.publish(&envelope, &token).unwrap();
+    let total = 64 * 1024 * 1024;
+    let mut owner = AuditConnection::open(&f.db_path()).unwrap();
+    let mut keeper = cross_request_source_cache::Keeper::new(total);
+    for _ in 0..2 {
+        let old_pool = keeper.retained_source_bytes();
+        let mut context = request_audit::RequestAuditContext::with_source_keeper(keeper);
+        context.freeze_manifest_workspace_budget(total, 0, old_pool).unwrap();
+        context.enable_cold_admission_for_testonly().unwrap();
+        let parent = context.cold_parent_budget().unwrap();
+        let active = owner.begin(TransactionBehavior::Deferred).unwrap();
+        let audited = parent
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                state::audit_native_in_request_admitted(active.tx(), &mut context, Some(scope))
+            })
+            .unwrap();
+        drop(audited);
+        let ended = active.read_end().unwrap();
+        owner.finish_source_keeper(context, ended);
+        keeper = owner.take_source_keeper().unwrap();
+    }
+    let home = keeper.source_home().expect("池封存在请求父账K").clone();
+    let x = home.live();
+    // 无stray时对照：同一序列可映射，K组按静止点x计。
+    let control = owner.old_pool_partition(Some(&keeper)).unwrap();
+    let k_group = |p: &request_audit::OldPoolPartition| {
+        p.homes()
+            .iter()
+            .find(|h| h.origin == request_audit::OldPoolPartition::KEEPER_PARENT)
+            .map(|h| (h.attested, h.l0, h.uncovered))
+    };
+    let (attested, l0, control_uncovered) = k_group(&control).expect("K单列一组");
+    assert_eq!((attested, l0), (Some(x), x));
+    drop(control);
+    // 来源不明许可s挂到K。
+    let stray = home.reserve(3_000).unwrap();
+    assert_eq!(home.live(), x + 3_000);
+    let first = owner.old_pool_partition(Some(&keeper));
+    assert!(first.is_err(), "首次分区：K的L0≠静止点读数，必须拒绝");
+    owner.discard_after_error();
+    assert_eq!(home.live(), x + 3_000, "discard不改K的live");
+    let second = owner.old_pool_partition(Some(&keeper));
+    let error = second.err().expect("二次分区必须仍拒绝，不得把s洗进静止点");
+    assert!(error.contains("来源不明"), "{error}");
+    // 生产入口序列：映射不成立只能丢可选池；s不入任何组的U，冻结不得带着该池成功。
+    let mut previous = Some(keeper);
+    let partition = owner.entry_old_pool_partition(&mut previous, total).unwrap();
+    assert!(k_group(&partition).is_none(), "不得以K组冻结");
+    assert!(!previous.as_ref().unwrap().has_pool(), "只丢可选池");
+    assert_eq!(partition.uncovered(), 0, "s不得吸收进U");
+    drop(stray);
+    eprintln!(
+        "P1A_STRAY_REJECTED {}",
+        json!({"x":x,"stray":3_000,"control_uncovered":control_uncovered,"error":error})
     );
 }
 
