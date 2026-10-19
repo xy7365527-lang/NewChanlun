@@ -1460,7 +1460,7 @@ mod tests {
             .err()
             .expect("旧Begin token必须被拒");
         eprintln!("{}", json!({"scenario":"recover-old-begin-token","error":error}));
-        assert!(error.contains("StaleWriter") || error.contains("Begin"), "{error}");
+        assert_eq!(error, "PublicationInvalid：当前 begin_token 不符");
         assert_eq!(recover_lock_meta(&f, "begin_token").as_deref(), Some(""));
         assert_eq!(recover_lock_meta(&f, "writer_epoch").as_deref(), Some("2"));
     }
