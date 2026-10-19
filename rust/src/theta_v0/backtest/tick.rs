@@ -308,9 +308,14 @@ mod tests {
     /// 线段层因样本短而「塌缩到 4 段」（prototype #972 退化点2 的实情），见报告 §2 的订正。
     const BTC_FIXTURE: &str = include_str!("../../../tests/fixtures/btc_agg_trades_20000.json");
 
-    /// 重标定后的 `new_stroke_min_gap`（扫参表见报告 §2；稳定点判据：笔中位尺寸逃出 $0.01 噪声底 +
-    /// 线段层非平凡 + 笔/段比稳定带）。gap=3 时笔中位尺寸 = $0.01（噪声主导）；gap=10 起逃出。
-    const RECALIBRATED_GAP: u32 = 10;
+    /// 重标定后的 `new_stroke_min_gap`（稳定点判据：笔中位尺寸逃出 $0.01 噪声底 + 线段层非平凡）。
+    ///
+    /// #973 定标时取 10（当时报告 §2：gap=10 起逃出）。#1392 起笔层按 SPEC #1340 严格新笔、#1405 起
+    /// 同型同价按 #1343 取先者（`bi.md` v2.2 §7.1，`077:54/:58`【正文】）——同一扫参在本样本上变成
+    /// gap 3/5/10/20/50 中位均 $0.01、gap=100 才逃出（$8.09，段 10；#1563 实测）。#1405 诊断已证
+    /// 与同价取法无关（裁定规则、keep 最早根、keep 最晚根三者 gap 5/10 中位同为 $0.01）。故按同一
+    /// 判据在现役笔定义下重标定为 100；判据本身不变。
+    const RECALIBRATED_GAP: u32 = 100;
 
     /// L1：单笔 aggTrade → Bar 的 O=H=L=C 量化 / 时间戳 / source_index / volume 口径。
     ///
@@ -444,7 +449,9 @@ mod tests {
     ///
     /// 扫参表见报告 §2；本测试把「稳定点判据」编码成断言（防回归）：
     /// 1. `RECALIBRATED_GAP` 处线段非平凡（> 4）；
-    /// 2. 笔中位尺寸在 `RECALIBRATED_GAP` 处**逃出 $0.01 噪声底**（gap=5 仍噪声主导，gap=10 逃出）。
+    /// 2. 笔中位尺寸在 `RECALIBRATED_GAP` 处**逃出 $0.01 噪声底**（高于 gap=5）；
+    /// 3. `RECALIBRATED_GAP` 是扫参网格里**首个**逃出噪声底的 gap（稳定点 = 最小的够格门槛，
+    ///    更小的 gap 中位仍等于 gap=3 的噪声底）。
     /// 用 `--nocapture` 跑本测试可重放完整扫参表。
     #[test]
     fn calibration_sweep_finds_non_collapsed_segments() {
@@ -489,5 +496,12 @@ mod tests {
             med_cal > med_5,
             "gap={RECALIBRATED_GAP} 笔中位尺寸 ${med_cal:.4} 未逃出 gap=5 的 ${med_5:.4} 噪声底"
         );
+        let (_, _, _, med_floor) = get(3);
+        for (g, _, _, med) in table.iter().filter(|(g, ..)| *g < RECALIBRATED_GAP) {
+            assert_eq!(
+                *med, med_floor,
+                "gap={g} 已逃出噪声底（${med:.4}），稳定点应前移，重标定 RECALIBRATED_GAP"
+            );
+        }
     }
 }
