@@ -3280,11 +3280,6 @@ fn seal_census_check(
         }
     }
     let sum: usize = live.iter().map(|x| x.1).sum();
-    {
-        let mut h = std::collections::BTreeMap::<usize, usize>::new();
-        for x in &live { *h.entry(x.1).or_default() += 1; }
-        eprintln!("DIAG_LIVE {} {}", json!(h.iter().map(|(b,c)|(*b,*c)).collect::<Vec<_>>()), json!({"breakdown":breakdown,"nodes":nodes}));
-    }
     if residual.checked_add(sum) != Some(after_seal) {
         return Err(format!(
             "C1 普查恒等式失败：{after_seal} != {residual} + {sum}"
@@ -3394,7 +3389,6 @@ fn p2_4_seal_census_flags_duplicate_permit_on_real_seal_path() {
             keeper = owner.take_source_keeper().unwrap();
             let seal_census = parent.census_take();
             let report = keeper.report();
-            eprintln!("DIAG_REPORT {}", json!({"cap":report["retained_capacity_breakdown"],"cap2":report["retained_capture"]}));
             assert_eq!(report["rejected"], 0);
             assert_eq!(report["retained_counts_proofs"], 1);
             assert_eq!(report["hits"], request);
