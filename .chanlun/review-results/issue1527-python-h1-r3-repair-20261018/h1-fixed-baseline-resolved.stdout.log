@@ -1,0 +1,135 @@
+{
+  "mode": "baseline",
+  "review_source": "e395c60180501fcc639e80ad24a8f955e75b3d8d",
+  "probe_sha256": "c56e106c3f0cafdd9e30a89d1e111c5596d39f9c93d74c78b7aed3a09720a8d8",
+  "product_sha256": {
+    "s_session/recovery_admission.py": "bf6f50735dbbb053c4474dc550dae127d89e64e10e85738ed01be9b440578f80",
+    "s_session/s_service_control.py": "82d7fd46759a2f5371d32c9f4ded2642b40f8e3a638e42b58e64b0b5b26b05c0",
+    "s_session/s_socket_client.py": "8fb63a14d131452e09b2ab3e4aeddef1c1cbf922ca641ec5a13a7db729b4a1e2"
+  },
+  "group": "h1_control_matrix",
+  "evidence": [
+    {
+      "variant": "owner2_half",
+      "construction": "PASS",
+      "result": "PASS",
+      "write_error": {
+        "type": "AdmissionError",
+        "code": "ControlMismatch",
+        "stage": "E0",
+        "wire_bytes": 230,
+        "elapsed_ms": 0.9602909995010123,
+        "control_receipt": {
+          "action": "start_s",
+          "stage": "E0",
+          "action_stage": "admission",
+          "admission_stage": "E0",
+          "wire_bytes": 230,
+          "wire_scope": "python_control_prelude",
+          "elapsed_ms": 0.9602909995010123
+        }
+      },
+      "control_wire": 230
+    },
+    {
+      "variant": "owner3_half",
+      "construction": "PASS",
+      "result": "PASS",
+      "write_error": {
+        "type": "AdmissionError",
+        "code": "ControlMismatch",
+        "stage": "E0",
+        "wire_bytes": 801,
+        "elapsed_ms": 0.9967079968191683,
+        "control_receipt": {
+          "action": "start_s",
+          "stage": "E0",
+          "action_stage": "admission",
+          "admission_stage": "E0",
+          "wire_bytes": 801,
+          "wire_scope": "python_control_prelude",
+          "elapsed_ms": 0.9967079968191683
+        }
+      },
+      "control_wire": 801
+    },
+    {
+      "variant": "mode644",
+      "construction": "PASS",
+      "result": "PASS",
+      "write_error": {
+        "type": "AdmissionError",
+        "code": "BindingInvalid",
+        "stage": "E1",
+        "wire_bytes": 785,
+        "elapsed_ms": 1.0902499925578013,
+        "control_receipt": {
+          "action": "start_s",
+          "stage": "E1",
+          "action_stage": "admission",
+          "admission_stage": "E1",
+          "wire_bytes": 785,
+          "wire_scope": "python_control_prelude",
+          "elapsed_ms": 1.0902499925578013
+        }
+      },
+      "control_wire": 785
+    },
+    {
+      "variant": "null",
+      "construction": "PASS",
+      "result": "PASS",
+      "write_error": {
+        "type": "AdmissionError",
+        "code": "AnchorInvalid",
+        "stage": "E1",
+        "wire_bytes": 233,
+        "elapsed_ms": 1.050791994202882,
+        "control_receipt": {
+          "action": "start_s",
+          "stage": "E1",
+          "action_stage": "admission",
+          "admission_stage": "E1",
+          "wire_bytes": 233,
+          "wire_scope": "python_control_prelude",
+          "elapsed_ms": 1.050791994202882
+        }
+      },
+      "control_wire": 233
+    },
+    {
+      "variant": "float_mode",
+      "construction": "PASS",
+      "result": "REPRODUCED",
+      "error": {
+        "type": "AdmissionError",
+        "code": "Invalid",
+        "stage": "E1",
+        "wire_bytes": 799,
+        "elapsed_ms": 0.03170799755025655
+      },
+      "blocked_actions": [
+        "status(s/q)",
+        "stop(s)",
+        "start_q"
+      ]
+    },
+    {
+      "variant": "float_payload",
+      "construction": "PASS",
+      "result": "REPRODUCED",
+      "error": {
+        "type": "AdmissionError",
+        "code": "Invalid",
+        "stage": "E1",
+        "wire_bytes": 250,
+        "elapsed_ms": 0.02704199869185686
+      },
+      "blocked_actions": [
+        "status(s/q)",
+        "stop(s)",
+        "start_q"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,255 @@
+{
+  "exact_exception_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json",
+  "exact_exception_blob": "ed44c86593eefebbc7e1061157628e360fba203c",
+  "source_bytes_read": 14440,
+  "archive_source_bytes_read": 14440,
+  "no_other_name_exception": true,
+  "members": [
+    {
+      "candidate": "worktree",
+      "source": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json",
+      "raw_path_hex": "2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d2f65766964656e63652f72756c65732f736563726574732e6a736f6e",
+      "git_blob": "ed44c86593eefebbc7e1061157628e360fba203c",
+      "bytes": 2888,
+      "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e",
+      "archive": "members/worktree.pax.tar.gz",
+      "archive_bytes": 1104,
+      "archive_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "attrs": {
+        "mode": 33188,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1792296356310424331,
+        "fflags_set": 0,
+        "fflags_clear": 0,
+        "symlink": null,
+        "acl_entries": 0,
+        "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "xattrs": {
+          "com.apple.provenance": {
+            "size": 11,
+            "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+          }
+        }
+      },
+      "source_signature": [
+        16777244,
+        10276343,
+        2888,
+        1792296356310424331,
+        1792296356310424331
+      ],
+      "argv": [
+        "/usr/bin/bsdtar",
+        "--format=pax",
+        "--acls",
+        "--xattrs",
+        "--fflags",
+        "--no-recursion",
+        "-czf",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/.chanlun/review-results/issue1527-reclaim-supplement-20261018/members/worktree.pax.tar.gz",
+        "-C",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/worktree",
+        ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json"
+      ],
+      "exit_code": 0
+    },
+    {
+      "candidate": "r4-candidate-worktree",
+      "source": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/r4-candidate-worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json",
+      "raw_path_hex": "2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d2f65766964656e63652f72756c65732f736563726574732e6a736f6e",
+      "git_blob": "ed44c86593eefebbc7e1061157628e360fba203c",
+      "bytes": 2888,
+      "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e",
+      "archive": "members/r4-candidate-worktree.pax.tar.gz",
+      "archive_bytes": 1109,
+      "archive_sha256": "b1bb0fec16aed2bc02fd76c43129adaef9501a28a35f171180fe5f591894e86b",
+      "attrs": {
+        "mode": 33188,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1792297049613115775,
+        "fflags_set": 0,
+        "fflags_clear": 0,
+        "symlink": null,
+        "acl_entries": 0,
+        "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "xattrs": {
+          "com.apple.provenance": {
+            "size": 11,
+            "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+          }
+        }
+      },
+      "source_signature": [
+        16777244,
+        10309887,
+        2888,
+        1792297049613115775,
+        1792297049613115775
+      ],
+      "argv": [
+        "/usr/bin/bsdtar",
+        "--format=pax",
+        "--acls",
+        "--xattrs",
+        "--fflags",
+        "--no-recursion",
+        "-czf",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/.chanlun/review-results/issue1527-reclaim-supplement-20261018/members/r4-candidate-worktree.pax.tar.gz",
+        "-C",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/r4-candidate-worktree",
+        ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json"
+      ],
+      "exit_code": 0
+    },
+    {
+      "candidate": "review-worktree-01",
+      "source": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/review-worktree-01/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json",
+      "raw_path_hex": "2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d2f65766964656e63652f72756c65732f736563726574732e6a736f6e",
+      "git_blob": "ed44c86593eefebbc7e1061157628e360fba203c",
+      "bytes": 2888,
+      "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e",
+      "archive": "members/review-worktree-01.pax.tar.gz",
+      "archive_bytes": 1109,
+      "archive_sha256": "a48099aec58a122f91a38d74ccf36d9ab6ee77a2ea57101f67577226eb3186fe",
+      "attrs": {
+        "mode": 33188,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1792297882048040231,
+        "fflags_set": 0,
+        "fflags_clear": 0,
+        "symlink": null,
+        "acl_entries": 0,
+        "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "xattrs": {
+          "com.apple.provenance": {
+            "size": 11,
+            "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+          }
+        }
+      },
+      "source_signature": [
+        16777244,
+        10348651,
+        2888,
+        1792297882048040231,
+        1792297882048040231
+      ],
+      "argv": [
+        "/usr/bin/bsdtar",
+        "--format=pax",
+        "--acls",
+        "--xattrs",
+        "--fflags",
+        "--no-recursion",
+        "-czf",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/.chanlun/review-results/issue1527-reclaim-supplement-20261018/members/review-worktree-01.pax.tar.gz",
+        "-C",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/review-worktree-01",
+        ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json"
+      ],
+      "exit_code": 0
+    },
+    {
+      "candidate": "r4-repair-worktree",
+      "source": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/r4-repair-worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json",
+      "raw_path_hex": "2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d2f65766964656e63652f72756c65732f736563726574732e6a736f6e",
+      "git_blob": "ed44c86593eefebbc7e1061157628e360fba203c",
+      "bytes": 2888,
+      "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e",
+      "archive": "members/r4-repair-worktree.pax.tar.gz",
+      "archive_bytes": 1109,
+      "archive_sha256": "bc6257178dd39d03c8f7dc6ea5b889c715389c9194b171c4d1a2198680eed6db",
+      "attrs": {
+        "mode": 33188,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1792298554901766049,
+        "fflags_set": 0,
+        "fflags_clear": 0,
+        "symlink": null,
+        "acl_entries": 0,
+        "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "xattrs": {
+          "com.apple.provenance": {
+            "size": 11,
+            "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+          }
+        }
+      },
+      "source_signature": [
+        16777244,
+        10373504,
+        2888,
+        1792298554901766049,
+        1792298554901766049
+      ],
+      "argv": [
+        "/usr/bin/bsdtar",
+        "--format=pax",
+        "--acls",
+        "--xattrs",
+        "--fflags",
+        "--no-recursion",
+        "-czf",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/.chanlun/review-results/issue1527-reclaim-supplement-20261018/members/r4-repair-worktree.pax.tar.gz",
+        "-C",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/r4-repair-worktree",
+        ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json"
+      ],
+      "exit_code": 0
+    },
+    {
+      "candidate": "review-tail-worktree",
+      "source": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/review-tail-worktree/.chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json",
+      "raw_path_hex": "2e6368616e6c756e2f7265766965772d726573756c74732f6973737565313337312d746230312d622f706f73746d657267652d646576736b696d2f65766964656e63652f72756c65732f736563726574732e6a736f6e",
+      "git_blob": "ed44c86593eefebbc7e1061157628e360fba203c",
+      "bytes": 2888,
+      "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e",
+      "archive": "members/review-tail-worktree.pax.tar.gz",
+      "archive_bytes": 1106,
+      "archive_sha256": "c9528da1a62d974975024eb9ca6613e43e66ed81ec03fbb77196e1ca6df4506e",
+      "attrs": {
+        "mode": 33188,
+        "uid": 501,
+        "gid": 20,
+        "mtime_ns": 1792298558504373770,
+        "fflags_set": 0,
+        "fflags_clear": 0,
+        "symlink": null,
+        "acl_entries": 0,
+        "acl_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "xattrs": {
+          "com.apple.provenance": {
+            "size": 11,
+            "sha256": "51ffaf597160bf77876890e70de0a6dd7f7f74bcaa460d85b79632d527c17d8c"
+          }
+        }
+      },
+      "source_signature": [
+        16777244,
+        10383062,
+        2888,
+        1792298558504373770,
+        1792298558504373770
+      ],
+      "argv": [
+        "/usr/bin/bsdtar",
+        "--format=pax",
+        "--acls",
+        "--xattrs",
+        "--fflags",
+        "--no-recursion",
+        "-czf",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/.chanlun/review-results/issue1527-reclaim-supplement-20261018/members/review-tail-worktree.pax.tar.gz",
+        "-C",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/review-tail-worktree",
+        ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "deleteAuthorized": false
+}

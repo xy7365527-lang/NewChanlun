@@ -1,0 +1,280 @@
+diff --git a/s_session/recovery_admission.py b/s_session/recovery_admission.py
+index 810eba2b66..7701191796 100644
+--- a/s_session/recovery_admission.py
++++ b/s_session/recovery_admission.py
+@@ -59,6 +59,17 @@ def _object(raw):
+     return value
+ 
+ 
++def _owner_control_object(raw):
++    """#1527 H1：只解控制顶层；嵌套字段和数值类型留给写入口验证。"""
++    # tuple 保留对象键值对并区别 JSON 数组；只对顶层执行唯一键检查。
++    # 数字保留词元，避免转换溢出/整数位数限制提前裁掉合法 admission JSON。
++    value = json.loads(raw.decode("utf-8"), object_pairs_hook=tuple,
++                       parse_int=str, parse_float=str, parse_constant=_reject_number)
++    if type(value) is not tuple:
++        raise ValueError("非对象")
++    return _unique(value)
++
++
+ def _identity(metadata):
+     return {"device": metadata.st_dev, "inode": metadata.st_ino,
+             "uid": metadata.st_uid, "mode": stat.S_IMODE(metadata.st_mode)}
+@@ -150,12 +161,11 @@ class RecoveryAdmission:
+             self.stage = "E1"
+             self.first_read_at = time.monotonic()
+             self._owner = self._read("owner", self.parent_fd, self.owner_name, {0o600, 0o644})
+-            owner = _object(self._owner)
++            owner = _owner_control_object(self._owner)
+             if set(owner) not in ({"db", "state_dir", "admission"}, {"db", "state_dir"}):
+                 self._fail("AnchorInvalid")
+             if owner["db"] != str(self.db) or owner["state_dir"] != str(self.state):
+                 self._fail("Identity")
+-            self._binding = owner.get("admission")
+             self._owner_loaded = True
+         except BaseException as exc:
+             try:
+@@ -176,6 +186,8 @@ class RecoveryAdmission:
+             self._gate()
+             self.require_owner()
+             self.stage = "E1"
++            # 控制缓存不是写资格；严格重解固定原字节，不重读 pathname 或续钟。
++            self._binding = _object(self._owner).get("admission")
+             if self._binding is None:
+                 self._fail("AnchorInvalid")
+             self._validate_binding(self._binding)
+diff --git a/s_session/tests/issue1527_recovery/test_python_r4.py b/s_session/tests/issue1527_recovery/test_python_r4.py
+index e52d681f6d..58b87e0828 100644
+--- a/s_session/tests/issue1527_recovery/test_python_r4.py
++++ b/s_session/tests/issue1527_recovery/test_python_r4.py
+@@ -735,6 +735,230 @@ class RepairTests(unittest.TestCase):
+                         self.assertEqual(c.start_q("1")["state"], "ready")
+                         start.assert_called_once()
+ 
++    def _h1_r3_snapshot(self, lease):
++        return (lease.first_read_at, lease.wire_bytes, lease.deadline, lease.job_deadline,
++                tuple(lease._fds), dict(lease._files), lease._owner)
++
++    def _h1_r3_reject_write(self, c, raw, codes=("Invalid",)):
++        before = self._h1_r3_snapshot(c.admission)
++        with patch.object(admission.os, "read", side_effect=AssertionError("不得再读 payload")), \
++             patch.object(admission, "_object", wraps=admission._object) as strict, \
++             patch.object(c, "runtime_environment") as runtime:
++            with self.assertRaises(admission.AdmissionError) as first:
++                c.start_s("1")
++            strict.assert_called_once_with(raw)
++            self.assertIn(first.exception.code, codes)
++            self.assertEqual(first.exception.stage, "E1")
++            self.assertEqual((first.exception.first_read_at, first.exception.wire_bytes), before[:2])
++            runtime.assert_not_called()
++            with patch.object(admission.os, "open", side_effect=AssertionError("首错后不得重开")):
++                for retry in (lambda: c.recover("2", "h1"), lambda: c.start_s("1"), c.admission.publish):
++                    with self.assertRaises(admission.AdmissionError) as again:
++                        retry()
++                    self.assertIs(again.exception, first.exception)
++            self.assertEqual(self._h1_r3_snapshot(c.admission), before)
++
++    def test_h1_r3_fresh_cli_decimal_controls_then_strict_write(self):
++        for variant in ("float_mode", "float_payload"):
++            for action in ("status", "stop-s", "start-q"):
++                with self.subTest(variant=variant, action=action):
++                    f = self.fixture(variant + action)
++                    owner = json.loads(encode(f.owner))
++                    if variant == "float_mode":
++                        owner["admission"]["file_identity"]["mode"] = 384.0
++                    else:
++                        owner["admission"] = 0.5
++                    raw = encode(owner)
++                    f.owner_path.write_bytes(raw)
++                    config = f.root / "config.json"
++                    config.write_bytes(encode(f.config("s-launcher/2")))
++                    for service in ("s", "q"):
++                        record = dict(service=service, pid=12345, db=str(f.db), process_identity="h1-identity",
++                                      command=["h1-stub"], control_instance_id="h1-instance")
++                        (f.state / (service + ".process.json")).write_bytes(encode(record))
++                    argv = ["control", action, "--config", str(config), "--state-dir", str(f.state)]
++                    instances, stdout, stderr = [], io.StringIO(), io.StringIO()
++                    original_close = control.Controller.close
++                    observed = ["h1-identity", "h1-identity", None] if action == "stop-s" else ["h1-identity"] * 2
++                    try:
++                        with patch.object(sys, "argv", argv), \
++                             patch.object(control, "process_identity", side_effect=observed) as observe, \
++                             patch.object(control.os, "kill") as kill, \
++                             patch.object(control.subprocess, "run", side_effect=AssertionError("禁止真实子进程")), \
++                             patch.object(control.Controller, "close", autospec=True, side_effect=instances.append), \
++                             patch.object(control.Controller, "query_resource_revision", return_value="legacy/2"), \
++                             patch.object(control.Controller, "start_process") as start, \
++                             patch.object(control.Controller, "wait_ready", return_value={"state": "ready"}), \
++                             contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
++                            rc = control.main()
++                            self.assertEqual(rc, 0, stderr.getvalue())
++                            self.assertEqual(stderr.getvalue(), "")
++                            result = json.loads(stdout.getvalue())
++                            self.assertTrue(result["ok"])
++                            self.assertEqual(len(instances), 1)
++                            c = instances[0]
++                            self.assertEqual(c.admission.wire_bytes, len(raw))
++                            self.assertIsNotNone(c.admission.first_read_at)
++                            if action == "status":
++                                self.assertEqual([r["state"] for r in result["result"]], ["running", "running"])
++                                self.assertEqual(observe.call_count, 2)
++                            elif action == "stop-s":
++                                self.assertEqual(result["result"][0]["state"], "stopped")
++                                self.assertEqual(observe.call_count, 3)
++                                kill.assert_called_once_with(12345, signal.SIGTERM)
++                            else:
++                                self.assertEqual(result["result"]["state"], "ready")
++                                observe.assert_not_called()
++                                start.assert_called_once()
++                                self.assertEqual(start.call_args.args[0], "q")
++                                self.assertIn(str(f.db), start.call_args.args[1])
++                            if action != "stop-s":
++                                kill.assert_not_called()
++                            if action != "start-q":
++                                start.assert_not_called()
++                            self._h1_r3_reject_write(c, raw)
++                            self.assertEqual(c.admission.deadline, c.admission_deadline)
++                    finally:
++                        for c in instances:
++                            held = tuple(c.admission._fds)
++                            original_close(c)
++                            for fd in held:
++                                with self.assertRaises(OSError):
++                                    os.fstat(fd)
++                    self.assertEqual(hashlib.sha256(f.db.read_bytes()).hexdigest(), f.db_hash)
++
++    def test_h1_r3_nested_duplicates_and_numeric_tokens_are_write_only(self):
++        payloads = ("duplicate_plain", "duplicate_escaped",
++                    b'[{"x":1,"x":2},0.5]', b'1e400', b'-0.5', b'0e0', b'9' * 5000)
++        for i, payload in enumerate(payloads):
++            with self.subTest(variant=i):
++                f = self.fixture(str(i))
++                if isinstance(payload, str):
++                    duplicate = b'"mode":384' if payload == "duplicate_plain" else b'"m\\u006fde":384'
++                    payload = encode(f.binding).replace(b'"mode":384', b'"mode":384,' + duplicate, 1)
++                raw = encode({"db": str(f.db), "state_dir": str(f.state)})[:-1] + b',"admission":' + payload + b'}'
++                f.owner_path.write_bytes(raw)
++                with contextlib.closing(control.Controller(f.config(), f.state)) as c:
++                    self.assertEqual(c.status("s")["state"], "not_started")
++                    # 超长整数可在解码器或完整 binding 类型检查处拒绝，均不得取得写资格。
++                    codes = ("Invalid", "BindingInvalid") if i == 6 else ("Invalid",)
++                    self._h1_r3_reject_write(c, raw, codes)
++
++    def test_h1_r3_owner_structure_rejects_before_process_observation(self):
++        variants = ("duplicate_db", "duplicate_admission", "escaped_db", "nested_nan", "nested_infinity",
++                    "nested_negative_infinity", "utf8", "syntax", "array", "scalar", "extra", "wrong_db", "wrong_state")
++        for variant in variants:
++            with self.subTest(variant=variant):
++                f = self.fixture(variant)
++                owner = {**f.owner, "admission": 0.5}
++                raw = encode(owner)
++                if variant == "duplicate_db":
++                    raw = raw[:-1] + b',"db":' + encode(str(f.db)) + b'}'
++                elif variant == "duplicate_admission":
++                    raw = raw[:-1] + b',"admission":0.5}'
++                elif variant == "escaped_db":
++                    raw = raw[:-1] + b',"d\\u0062":' + encode(str(f.db)) + b'}'
++                elif variant.startswith("nested_"):
++                    token = {"nested_nan": b'NaN', "nested_infinity": b'Infinity',
++                             "nested_negative_infinity": b'-Infinity'}[variant]
++                    raw = raw.replace(b'0.5', b'{"n":' + token + b'}')
++                elif variant == "utf8":
++                    raw = raw.replace(b'0.5', b'"\xff"')
++                elif variant == "syntax":
++                    raw = raw[:-1]
++                elif variant == "array":
++                    raw = encode(list(owner.items()))
++                elif variant == "scalar":
++                    raw = b'0.5'
++                elif variant == "extra":
++                    raw = encode({**owner, "extra": None})
++                else:
++                    owner["db" if variant == "wrong_db" else "state_dir"] = str(f.root / "wrong")
++                    raw = encode(owner)
++                f.owner_path.write_bytes(raw)
++                with contextlib.closing(control.Controller(f.config(), f.state)) as c, \
++                     patch.object(control, "process_identity") as observe, patch.object(control.os, "kill") as kill:
++                    with self.assertRaises(admission.AdmissionError) as first:
++                        c.status("s")
++                    self.assertEqual(first.exception.stage, "E1")
++                    self.assertEqual(first.exception.wire_bytes, len(raw))
++                    with self.assertRaises(admission.AdmissionError) as retry:
++                        c.stop("s", signal.SIGTERM)
++                    self.assertIs(retry.exception, first.exception)
++                    observe.assert_not_called()
++                    kill.assert_not_called()
++
++    def test_h1_r3_control_cache_rejects_owner_substitute_without_payload_read(self):
++        for next_action in ("status", "write"):
++            f = self.fixture(next_action)
++            raw = encode({**f.owner, "admission": 0.5})
++            f.owner_path.write_bytes(raw)
++            with contextlib.closing(control.Controller(f.config(), f.state)) as c:
++                self.assertEqual(c.status("s")["state"], "not_started")
++                before = self._h1_r3_snapshot(c.admission)
++                f.owner_path.rename(f.root / "original-owner.json")
++                f.owner_path.write_bytes(encode(f.owner))
++                f.owner_path.chmod(0o600)
++                with patch.object(admission.os, "read", side_effect=AssertionError("不得读替身")), \
++                     patch.object(c, "runtime_environment") as runtime:
++                    with self.assertRaises(admission.AdmissionError) as caught:
++                        c.status("s") if next_action == "status" else c.start_s("1")
++                    self.assertEqual(caught.exception.code, "Changed")
++                    self.assertEqual(self._h1_r3_snapshot(c.admission), before)
++                    runtime.assert_not_called()
++
++    def test_h1_r3_control_cache_does_not_renew_write_deadline(self):
++        f = self.fixture("cached-deadline")
++        f.owner_path.write_bytes(encode({**f.owner, "admission": 0.5}))
++        clock = [10.0]
++        with patch.object(control.time, "monotonic", side_effect=lambda: clock[0]), \
++             contextlib.closing(control.Controller(f.config(), f.state)) as c:
++            c.status("s")
++            before = self._h1_r3_snapshot(c.admission)
++            clock[0] = c.admission_deadline
++            with patch.object(admission.os, "read", side_effect=AssertionError("过期不得读")):
++                with self.assertRaises(admission.AdmissionError) as first:
++                    c.start_s("1")
++                self.assertEqual(first.exception.code, "Deadline")
++                with self.assertRaises(admission.AdmissionError) as retry:
++                    c.recover("2", "h1")
++                self.assertIs(retry.exception, first.exception)
++            self.assertEqual(self._h1_r3_snapshot(c.admission), before)
++
++    def test_h1_r3_valid_control_then_write_preserves_original_owner_and_budget(self):
++        for pending in (False, True):
++            f = self.fixture(str(pending), pending=pending)
++            with contextlib.closing(control.Controller(f.config("s-launcher/2"), f.state)) as c:
++                self.assertEqual(c.status("s")["state"], "not_started")
++                before = self._h1_r3_snapshot(c.admission)
++                raw = f.owner_path.read_bytes()
++                reads, real_read = [], admission.os.read
++                def read(fd, size):
++                    chunk = real_read(fd, size)
++                    reads.append((fd, len(chunk)))
++                    return chunk
++                with patch.object(admission.os, "read", side_effect=read), \
++                     patch.object(admission, "_object", wraps=admission._object) as strict, \
++                     patch.object(c, "runtime_environment", return_value={}) as runtime, \
++                     patch.object(c, "prepare_socket"), patch.object(c, "start_process") as start, \
++                     patch.object(c, "wait_ready", return_value={"state": "ready"}):
++                    self.assertEqual(c.start_s("1")["state"], "ready")
++                    self.assertEqual(strict.call_args_list[0].args, (raw,))
++                    runtime.assert_called_once_with(before[2])
++                    start.assert_called_once()
++                    self.assertEqual(start.call_args.kwargs["deadline"], before[2])
++                self.assertEqual(c.admission.first_read_at, before[0])
++                self.assertEqual(c.admission.deadline, before[2])
++                self.assertEqual(c.admission.job_deadline, before[0] + int(f.limits["max_elapsed_ms"]) / 1000)
++                self.assertEqual(tuple(c.admission._fds[:len(before[4])]), before[4])
++                self.assertEqual(c.admission._files["owner"], before[5]["owner"])
++                self.assertNotIn(before[5]["owner"][0], [fd for fd, size in reads])
++                self.assertEqual(c.admission.wire_bytes, len(raw) + sum(size for fd, size in reads))
++                self.assertEqual(c.admission.wire_bytes, len(raw) + len(encode(f.binding)) + len(f.raw))
++                self.assertEqual(Path(c.admission.limits_path).read_bytes(), f.raw)
++                self.assertEqual(f.owner_path.read_bytes(), raw)
++            self.assertEqual(hashlib.sha256(f.db.read_bytes()).hexdigest(), f.db_hash)
++
+     def test_deferred_first_read_keeps_original_startup_deadline(self):
+         f = self.fixture("deadline")
+         clock = [10.0]

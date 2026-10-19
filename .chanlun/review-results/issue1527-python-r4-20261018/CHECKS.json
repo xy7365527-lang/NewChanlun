@@ -1,0 +1,105 @@
+{
+  "issue": 1527,
+  "baseline": "5cb7253d46d973669e7d10cd3331e12c9ef313b1",
+  "at_utc": "2026-10-18T05:14:02.654192+00:00",
+  "结论": "本轮作者定向验证通过",
+  "checks": [
+    {
+      "name": "python-r4",
+      "argv": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "-W",
+        "error::ResourceWarning",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "s_session/tests/issue1527_recovery",
+        "-p",
+        "test_python_r4.py",
+        "-v"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree",
+      "rc": 0,
+      "stdout": {
+        "path": "python-r4.stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "stderr": {
+        "path": "python-r4.stderr.log",
+        "sha256": "00a8256906b2f28ffdbb08e4a799094af89afa7551e6769f98f0210d90c4ff3e",
+        "bytes": 5257
+      }
+    },
+    {
+      "name": "static",
+      "argv": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/.chanlun/review-results/issue1527-python-r4-20261018/check_static.py"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree",
+      "rc": 0,
+      "stdout": {
+        "path": "static.stdout.log",
+        "sha256": "e290e7098f78e866b4bdee33d5f5ef30ef340fc138cc6c46fff2ee2fef9400ef",
+        "bytes": 814
+      },
+      "stderr": {
+        "path": "static.stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    },
+    {
+      "name": "diff-whitespace",
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree",
+      "rc": 0,
+      "stdout": {
+        "path": "diff-whitespace.stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "stderr": {
+        "path": "diff-whitespace.stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    },
+    {
+      "name": "patch-reverse-check",
+      "argv": [
+        "git",
+        "apply",
+        "--reverse",
+        "--check",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/.chanlun/review-results/issue1527-python-r4-20261018/python-r4.patch"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree",
+      "rc": 0,
+      "stdout": {
+        "path": "patch-reverse-check.stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "stderr": {
+        "path": "patch-reverse-check.stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    }
+  ],
+  "历史52项作者与9项独审": "历史证据，非本轮通过",
+  "Rust类型检查": "NOT_RUN",
+  "Rust生产执行": "NOT_RUN",
+  "正式恢复": "NOT_RUN",
+  "外部调用": "仅临时封闭Python stub；不等于Rust消费或真实S/Q",
+  "独立评审": "未进行；本工蜂没有派发其他工蜂"
+}

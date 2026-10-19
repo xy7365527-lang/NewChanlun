@@ -1,0 +1,13 @@
+test_configured_errors_pin_first_failure_without_reopen (__main__.RepairTests.test_configured_errors_pin_first_failure_without_reopen) ... ok
+test_control_actions_ignore_write_env_and_admission (__main__.RepairTests.test_control_actions_ignore_write_env_and_admission) ... ok
+test_control_authority_and_process_identity_still_required (__main__.RepairTests.test_control_authority_and_process_identity_still_required) ... ok
+test_deferred_first_read_keeps_original_startup_deadline (__main__.RepairTests.test_deferred_first_read_keeps_original_startup_deadline) ... ok
+test_fresh_write_half_env_is_e0_zero_reads_and_latched (__main__.RepairTests.test_fresh_write_half_env_is_e0_zero_reads_and_latched) ... ok
+test_non_admission_errors_keep_public_receipts_and_redaction (__main__.RepairTests.test_non_admission_errors_keep_public_receipts_and_redaction) ... ok
+test_runtime_failure_retries_keep_first_receipt_and_t0 (__main__.RepairTests.test_runtime_failure_retries_keep_first_receipt_and_t0) ... ok
+test_valid_crosscheck_keeps_same_object_fsync_retry (__main__.RepairTests.test_valid_crosscheck_keeps_same_object_fsync_retry) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 1.062s
+
+OK

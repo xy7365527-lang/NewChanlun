@@ -1,0 +1,176 @@
+{
+  "issue": 1527,
+  "baseline": "52a86c684768b884aec24a3f794a89a4fe8a3402",
+  "review_source": "e395c60180501fcc639e80ad24a8f955e75b3d8d",
+  "manager": "/root/manage_1527_sandcastle",
+  "parent_task": "01a12e01-45a1-7173-a3e8-d338d108fb93",
+  "status": "工作草稿，待冻结独审",
+  "product": {
+    "s_session/recovery_admission.py": {
+      "baseline_sha256": "bf6f50735dbbb053c4474dc550dae127d89e64e10e85738ed01be9b440578f80",
+      "current_sha256": "bfab73da3c05e169929cbd6e88b2f2122928dd63a215f064eedf1fbe36e170ef"
+    },
+    "s_session/s_service_control.py": {
+      "baseline_sha256": "82d7fd46759a2f5371d32c9f4ded2642b40f8e3a638e42b58e64b0b5b26b05c0",
+      "current_sha256": "82d7fd46759a2f5371d32c9f4ded2642b40f8e3a638e42b58e64b0b5b26b05c0"
+    },
+    "s_session/tests/issue1527_recovery/test_python_r4.py": {
+      "baseline_sha256": "37a9b09ab301e017b12f336bc533ec8d73bc0162a01e3b420a334f3ee8cddffc",
+      "current_sha256": "dc8859b54f9909e232f8542ffc1c11179b906df8b2cc92790728087abc695b69"
+    }
+  },
+  "artifacts": [
+    {
+      "path": ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/CHECKS.json",
+      "sha256": "7ddf3ce4ec32d7af34d66c2bb48ee346b9bb9f6c90d3e975b6a34ef61625db51",
+      "bytes": 12098,
+      "ignored": false
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/REPAIR.md",
+      "sha256": "b7125a67dcd4ce12a3af61fe193d4875f07b3b4df4c989611eaff97c12096124",
+      "bytes": 9117,
+      "ignored": false
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/affected-write-cache.stderr.log",
+      "sha256": "6a5888b81869fa64afd524919b51580fa13c6607220a588deeff32494fdb0e36",
+      "bytes": 1190,
+      "ignored": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/affected-write-cache.stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "ignored": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-cli-red.stderr.log",
+      "sha256": "d4e46b5a9638b10fe998b759a886f5c9f5e22cfc0ece219de4a90f4b7217ded6",
+      "bytes": 7226,
+      "ignored": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-cli-red.stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "ignored": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-fixed-baseline-resolved.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "ignored": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-fixed-baseline-resolved.stdout.log",
+      "sha256": "ec86c357af73991c2f66adb01068c66ba3e0db5cd5ec6e30ec5aa79201a8b529",
+      "bytes": 3748,
+      "ignored": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-fixed-baseline.stderr.log",
+      "sha256": "0578df92dad8672900e278408ddef7dac3eeaaaf6e0f467efb01c1aa0840deb4",
+      "bytes": 714,
+      "ignored": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-fixed-baseline.stdout.log",
+      "sha256": "7049a78aaf06f3f8c5b117f87570bed4c3c6ccf195d8314b3de00ff48b42bd6f",
+      "bytes": 2840,
+      "ignored": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-fixed-probe-candidate.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "ignored": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-fixed-probe-candidate.stdout.log",
+      "sha256": "8139f47b5f39a61050286b2992ca5dbf9b2cb64be2f93f1637dc43e99e535790",
+      "bytes": 4193,
+      "ignored": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-r3-final.stderr.log",
+      "sha256": "0fbbd35e56c8206f7e4e8977afbd352f7ef82f435d1cb9a196ead532a22c1861",
+      "bytes": 1282,
+      "ignored": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-r3-final.stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "ignored": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-r3-green.stderr.log",
+      "sha256": "fc9f2012b38aadebbc08a2b42cdedff398ebe139b35c061c26685024e738132a",
+      "bytes": 1282,
+      "ignored": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-r3-green.stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "ignored": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/python-h1-r3-repair.patch",
+      "sha256": "506946a8ce1812c2350ff328db3afb51ce19bdb6cfd8c151c4acd0ae8a181bac",
+      "bytes": 17575,
+      "ignored": false
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/record_check.py",
+      "sha256": "e614ccc8acace02acf94019fad73abf81bb857f1ce729bf4cecdc488f74ba206",
+      "bytes": 1745,
+      "ignored": false
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/run_h1_review.py",
+      "sha256": "5f906433436c6e5171e9d59c4af29604bfcfd64cb5408d0ea1e791d0115b3c16",
+      "bytes": 2266,
+      "ignored": false
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/static-final.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "ignored": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/static-final.stdout.log",
+      "sha256": "8a0b2943321322544c6ada6d23c658d0083f5a857f95e05d657723fab29977eb",
+      "bytes": 8365,
+      "ignored": true
+    },
+    {
+      "path": ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/verify_static.py",
+      "sha256": "da1b8741b84ea4a60a84bbf12b6cfb76356376785745e8db1c2c4e30b684cb6b",
+      "bytes": 4323,
+      "ignored": false
+    }
+  ],
+  "force_add_paths": [
+    ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/affected-write-cache.stderr.log",
+    ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/affected-write-cache.stdout.log",
+    ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-cli-red.stderr.log",
+    ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-cli-red.stdout.log",
+    ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-fixed-baseline-resolved.stderr.log",
+    ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-fixed-baseline-resolved.stdout.log",
+    ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-fixed-baseline.stderr.log",
+    ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-fixed-baseline.stdout.log",
+    ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-fixed-probe-candidate.stderr.log",
+    ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-fixed-probe-candidate.stdout.log",
+    ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-r3-final.stderr.log",
+    ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-r3-final.stdout.log",
+    ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-r3-green.stderr.log",
+    ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/h1-r3-green.stdout.log",
+    ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/static-final.stderr.log",
+    ".chanlun/review-results/issue1527-python-h1-r3-repair-20261018/static-final.stdout.log"
+  ],
+  "self_hash_policy": "MANIFEST.json 本身不自哈希；其他交付实体全部列明。",
+  "previous_logs": "原16日志仅校验与保全，不在新增交付目录；44a977原缺件事实保留。"
+}

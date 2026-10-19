@@ -1,0 +1,267 @@
+{
+  "issue": 1527,
+  "baseline": "561dd8725436077ce870d8189a583b5727d5d7d4",
+  "independent_review": "NOT_RUN",
+  "executions": [
+    {
+      "label": "baseline-repro",
+      "argv": [
+        "python3",
+        "-B",
+        "-W",
+        "error::ResourceWarning",
+        "-c",
+        "import runpy,tempfile,json; from pathlib import Path; p=runpy.run_path(\"../python-r4-review-worktree/.chanlun/review-results/issue1527-python-r4-review-20261018/probe_review.py\"); results=[]\nwith p[\"patch\"].dict(p[\"os\"].environ, {}, clear=True), tempfile.TemporaryDirectory(dir=\"/private/tmp\",prefix=\"r4-repair-repro-\") as d:\n for name in (\"control_permission\",\"configured_failure_retry\",\"child_error_receipt\"):\n  root=Path(d)/name; root.mkdir(); results.append(dict(name=name,**p[name](root)))\nprint(json.dumps(results,ensure_ascii=False,indent=2))"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree",
+      "exit_code": 0,
+      "elapsed_seconds": 0.6260665839945432,
+      "source_sha256": {
+        "s_session/recovery_admission.py": "36e79b726ca638dc24d6b23eb33119a4f866d89b3f1f274ba4a4d41e3526bd4d",
+        "s_session/s_service_control.py": "afdc81785d2a30886b7dbe6f4f7a6fd9556fa32544bbc8d1dc22f654d2851cdd",
+        "s_session/tests/issue1527_recovery/test_python_r4.py": "1a386f500a092b2448e781857b155a3c4ebd850b49288db22b4639c5f525b96e"
+      },
+      "stdout": {
+        "path": "baseline-repro.stdout.log",
+        "sha256": "0d739c2fdcd6cb4dc737518846a1edef1f810acbca8fae34e289f0c64f5fda55",
+        "bytes": 1725
+      },
+      "stderr": {
+        "path": "baseline-repro.stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    },
+    {
+      "label": "regression-red",
+      "argv": [
+        "python3",
+        "-B",
+        "-W",
+        "error::ResourceWarning",
+        "s_session/tests/issue1527_recovery/test_python_r4.py",
+        "RepairTests",
+        "-v"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree",
+      "exit_code": 1,
+      "elapsed_seconds": 0.1332106249901699,
+      "source_sha256": {
+        "s_session/recovery_admission.py": "36e79b726ca638dc24d6b23eb33119a4f866d89b3f1f274ba4a4d41e3526bd4d",
+        "s_session/s_service_control.py": "afdc81785d2a30886b7dbe6f4f7a6fd9556fa32544bbc8d1dc22f654d2851cdd",
+        "s_session/tests/issue1527_recovery/test_python_r4.py": "c45ec2dd1eef826434caead6a1101e563e0e0aec69112b915927a115f3f47ed5"
+      },
+      "stdout": {
+        "path": "regression-red.stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "stderr": {
+        "path": "regression-red.stderr.log",
+        "sha256": "4d8256155d33b2824c7880fb2152389fa562927ba25f1e3a13f8d690c616d154",
+        "bytes": 14979
+      }
+    },
+    {
+      "label": "regression-green-1",
+      "argv": [
+        "python3",
+        "-B",
+        "-W",
+        "error::ResourceWarning",
+        "s_session/tests/issue1527_recovery/test_python_r4.py",
+        "RepairTests",
+        "-v"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree",
+      "exit_code": 0,
+      "elapsed_seconds": 1.03280500000983,
+      "source_sha256": {
+        "s_session/recovery_admission.py": "bf6f50735dbbb053c4474dc550dae127d89e64e10e85738ed01be9b440578f80",
+        "s_session/s_service_control.py": "fcd10c0aec54017eedc1e0c57a1c3acb8cd8a81cfe7b7cc9af5ff09ca99544e4",
+        "s_session/tests/issue1527_recovery/test_python_r4.py": "c45ec2dd1eef826434caead6a1101e563e0e0aec69112b915927a115f3f47ed5"
+      },
+      "stdout": {
+        "path": "regression-green-1.stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "stderr": {
+        "path": "regression-green-1.stderr.log",
+        "sha256": "d3edda46f4ad789b359f9ee311bc51dda862d8a6e24b218648fc882a486a5b56",
+        "bytes": 1088
+      }
+    },
+    {
+      "label": "targeted-compatibility-1",
+      "argv": [
+        "python3",
+        "-B",
+        "-W",
+        "error::ResourceWarning",
+        "s_session/tests/issue1527_recovery/test_python_r4.py",
+        "-v"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree",
+      "exit_code": 1,
+      "elapsed_seconds": 1.6414008329884382,
+      "source_sha256": {
+        "s_session/recovery_admission.py": "bf6f50735dbbb053c4474dc550dae127d89e64e10e85738ed01be9b440578f80",
+        "s_session/s_service_control.py": "fcd10c0aec54017eedc1e0c57a1c3acb8cd8a81cfe7b7cc9af5ff09ca99544e4",
+        "s_session/tests/issue1527_recovery/test_python_r4.py": "c45ec2dd1eef826434caead6a1101e563e0e0aec69112b915927a115f3f47ed5"
+      },
+      "stdout": {
+        "path": "targeted-compatibility-1.stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "stderr": {
+        "path": "targeted-compatibility-1.stderr.log",
+        "sha256": "eb2305cc71c2eb3feb08143c89c01bb7af36269a1ec0b8b6fdeb9a7970e8b030",
+        "bytes": 10595
+      }
+    },
+    {
+      "label": "targeted-compatibility-2",
+      "argv": [
+        "python3",
+        "-B",
+        "-W",
+        "error::ResourceWarning",
+        "s_session/tests/issue1527_recovery/test_python_r4.py",
+        "-v"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree",
+      "exit_code": 0,
+      "elapsed_seconds": 2.2964690000080736,
+      "source_sha256": {
+        "s_session/recovery_admission.py": "bf6f50735dbbb053c4474dc550dae127d89e64e10e85738ed01be9b440578f80",
+        "s_session/s_service_control.py": "fcd10c0aec54017eedc1e0c57a1c3acb8cd8a81cfe7b7cc9af5ff09ca99544e4",
+        "s_session/tests/issue1527_recovery/test_python_r4.py": "056d1fb9d475a6f752f0694bc4ae74dc15068b7b10c98e059505a8717aa13159"
+      },
+      "stdout": {
+        "path": "targeted-compatibility-2.stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "stderr": {
+        "path": "targeted-compatibility-2.stderr.log",
+        "sha256": "ac130d30c65a0f24e9eba15c244f203d429b32dd931b9a43e807d48f52390449",
+        "bytes": 6187
+      }
+    },
+    {
+      "label": "receipts-final",
+      "argv": [
+        "python3",
+        "-B",
+        "-W",
+        "error::ResourceWarning",
+        "s_session/tests/issue1527_recovery/test_python_r4.py",
+        "RepairTests.test_non_admission_errors_keep_public_receipts_and_redaction",
+        "RepairTests.test_runtime_failure_retries_keep_first_receipt_and_t0",
+        "RepairTests.test_configured_errors_pin_first_failure_without_reopen",
+        "R4Tests.test_lazy_preparation_cannot_renew_t0_or_adopt_replacement_after_failure",
+        "-v"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree",
+      "exit_code": 0,
+      "elapsed_seconds": 1.1330388329952257,
+      "source_sha256": {
+        "s_session/recovery_admission.py": "bf6f50735dbbb053c4474dc550dae127d89e64e10e85738ed01be9b440578f80",
+        "s_session/s_service_control.py": "82d7fd46759a2f5371d32c9f4ded2642b40f8e3a638e42b58e64b0b5b26b05c0",
+        "s_session/tests/issue1527_recovery/test_python_r4.py": "056d1fb9d475a6f752f0694bc4ae74dc15068b7b10c98e059505a8717aa13159"
+      },
+      "stdout": {
+        "path": "receipts-final.stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "stderr": {
+        "path": "receipts-final.stderr.log",
+        "sha256": "b5cba41137c970952abf1baf6d7024b33cddad726cf55a23b1507c115fee040a",
+        "bytes": 704
+      }
+    },
+    {
+      "label": "repair-final",
+      "argv": [
+        "python3",
+        "-B",
+        "-W",
+        "error::ResourceWarning",
+        "s_session/tests/issue1527_recovery/test_python_r4.py",
+        "RepairTests",
+        "-v"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree",
+      "exit_code": 0,
+      "elapsed_seconds": 1.1496888749970822,
+      "source_sha256": {
+        "s_session/recovery_admission.py": "bf6f50735dbbb053c4474dc550dae127d89e64e10e85738ed01be9b440578f80",
+        "s_session/s_service_control.py": "82d7fd46759a2f5371d32c9f4ded2642b40f8e3a638e42b58e64b0b5b26b05c0",
+        "s_session/tests/issue1527_recovery/test_python_r4.py": "37a9b09ab301e017b12f336bc533ec8d73bc0162a01e3b420a334f3ee8cddffc"
+      },
+      "stdout": {
+        "path": "repair-final.stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "stderr": {
+        "path": "repair-final.stderr.log",
+        "sha256": "ebb8c963e0dd63d5af53872266de334d43e82559b5f6c7399e7f45c82ecc8344",
+        "bytes": 1232
+      }
+    },
+    {
+      "label": "static-final",
+      "argv": [
+        "python3",
+        "-B",
+        ".chanlun/review-results/issue1527-python-r4-repair-20261018/verify_static.py"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree",
+      "exit_code": 0,
+      "elapsed_seconds": 0.4086389170115581,
+      "source_sha256": {
+        "s_session/recovery_admission.py": "bf6f50735dbbb053c4474dc550dae127d89e64e10e85738ed01be9b440578f80",
+        "s_session/s_service_control.py": "82d7fd46759a2f5371d32c9f4ded2642b40f8e3a638e42b58e64b0b5b26b05c0",
+        "s_session/tests/issue1527_recovery/test_python_r4.py": "37a9b09ab301e017b12f336bc533ec8d73bc0162a01e3b420a334f3ee8cddffc"
+      },
+      "stdout": {
+        "path": "static-final.stdout.log",
+        "sha256": "b8c35d08fd4258e6796241432d322ea20295fcecc392580390ad5926c171129a",
+        "bytes": 465
+      },
+      "stderr": {
+        "path": "static-final.stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    }
+  ],
+  "manager": "/root/manage_1527_sandcastle",
+  "parent_task": "01a12e01-45a1-7173-a3e8-d338d108fb93",
+  "decision": "作者返修与自验完成；本轮独评NOT_RUN，未自签PASS",
+  "count_contract": "42项为targeted-compatibility-2当时源码；后续final收据4项和最终增量8项单列，不叠加计数。原失败日志全部保留。",
+  "not_run": [
+    "独立复评",
+    "真实信号/进程回收",
+    "硬I/O/掉电",
+    "OS EINTR/取消",
+    "Rust构建与正式恢复",
+    "Linux renameat2",
+    "正式S/Q及旧binary",
+    "完整9011",
+    "64GiB/store",
+    "148GiB卷独立双跑"
+  ],
+  "open_obligations": [
+    "完整资源账及峰值归属",
+    "源RW连续",
+    "硬I/O、EINTR/取消",
+    "同核金融及恢复",
+    "全部六目标",
+    "#1405/#1420生产v4仍BLOCK_NOT_MERGEABLE"
+  ]
+}

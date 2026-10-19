@@ -1,0 +1,72 @@
+test_h1_r3_fresh_cli_decimal_controls_then_strict_write (s_session.tests.issue1527_recovery.test_python_r4.RepairTests.test_h1_r3_fresh_cli_decimal_controls_then_strict_write) ... 
+  test_h1_r3_fresh_cli_decimal_controls_then_strict_write (s_session.tests.issue1527_recovery.test_python_r4.RepairTests.test_h1_r3_fresh_cli_decimal_controls_then_strict_write) (variant='float_mode', action='status') ... FAIL
+  test_h1_r3_fresh_cli_decimal_controls_then_strict_write (s_session.tests.issue1527_recovery.test_python_r4.RepairTests.test_h1_r3_fresh_cli_decimal_controls_then_strict_write) (variant='float_mode', action='stop-s') ... FAIL
+  test_h1_r3_fresh_cli_decimal_controls_then_strict_write (s_session.tests.issue1527_recovery.test_python_r4.RepairTests.test_h1_r3_fresh_cli_decimal_controls_then_strict_write) (variant='float_mode', action='start-q') ... FAIL
+  test_h1_r3_fresh_cli_decimal_controls_then_strict_write (s_session.tests.issue1527_recovery.test_python_r4.RepairTests.test_h1_r3_fresh_cli_decimal_controls_then_strict_write) (variant='float_payload', action='status') ... FAIL
+  test_h1_r3_fresh_cli_decimal_controls_then_strict_write (s_session.tests.issue1527_recovery.test_python_r4.RepairTests.test_h1_r3_fresh_cli_decimal_controls_then_strict_write) (variant='float_payload', action='stop-s') ... FAIL
+  test_h1_r3_fresh_cli_decimal_controls_then_strict_write (s_session.tests.issue1527_recovery.test_python_r4.RepairTests.test_h1_r3_fresh_cli_decimal_controls_then_strict_write) (variant='float_payload', action='start-q') ... FAIL
+
+======================================================================
+FAIL: test_h1_r3_fresh_cli_decimal_controls_then_strict_write (s_session.tests.issue1527_recovery.test_python_r4.RepairTests.test_h1_r3_fresh_cli_decimal_controls_then_strict_write) (variant='float_mode', action='status')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/tests/issue1527_recovery/test_python_r4.py", line 793, in test_h1_r3_fresh_cli_decimal_controls_then_strict_write
+    self.assertEqual(rc, 0, stderr.getvalue())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : {"ok": false, "error": "\u751f\u547d\u5468\u671f\u52a8\u4f5c\u5931\u8d25", "category": "AdmissionError", "code": "Invalid", "stage": "E1", "wire_bytes": 623, "elapsed_ms": 0.041167004383169115}
+
+
+======================================================================
+FAIL: test_h1_r3_fresh_cli_decimal_controls_then_strict_write (s_session.tests.issue1527_recovery.test_python_r4.RepairTests.test_h1_r3_fresh_cli_decimal_controls_then_strict_write) (variant='float_mode', action='stop-s')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/tests/issue1527_recovery/test_python_r4.py", line 793, in test_h1_r3_fresh_cli_decimal_controls_then_strict_write
+    self.assertEqual(rc, 0, stderr.getvalue())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : {"ok": false, "error": "\u751f\u547d\u5468\u671f\u52a8\u4f5c\u5931\u8d25", "category": "AdmissionError", "code": "Invalid", "stage": "E1", "wire_bytes": 623, "elapsed_ms": 0.05929199687670916}
+
+
+======================================================================
+FAIL: test_h1_r3_fresh_cli_decimal_controls_then_strict_write (s_session.tests.issue1527_recovery.test_python_r4.RepairTests.test_h1_r3_fresh_cli_decimal_controls_then_strict_write) (variant='float_mode', action='start-q')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/tests/issue1527_recovery/test_python_r4.py", line 793, in test_h1_r3_fresh_cli_decimal_controls_then_strict_write
+    self.assertEqual(rc, 0, stderr.getvalue())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : {"ok": false, "error": "\u751f\u547d\u5468\u671f\u52a8\u4f5c\u5931\u8d25", "category": "AdmissionError", "code": "Invalid", "stage": "E1", "wire_bytes": 627, "elapsed_ms": 0.05387500277720392}
+
+
+======================================================================
+FAIL: test_h1_r3_fresh_cli_decimal_controls_then_strict_write (s_session.tests.issue1527_recovery.test_python_r4.RepairTests.test_h1_r3_fresh_cli_decimal_controls_then_strict_write) (variant='float_payload', action='status')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/tests/issue1527_recovery/test_python_r4.py", line 793, in test_h1_r3_fresh_cli_decimal_controls_then_strict_write
+    self.assertEqual(rc, 0, stderr.getvalue())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : {"ok": false, "error": "\u751f\u547d\u5468\u671f\u52a8\u4f5c\u5931\u8d25", "category": "AdmissionError", "code": "Invalid", "stage": "E1", "wire_bytes": 162, "elapsed_ms": 0.05833299655932933}
+
+
+======================================================================
+FAIL: test_h1_r3_fresh_cli_decimal_controls_then_strict_write (s_session.tests.issue1527_recovery.test_python_r4.RepairTests.test_h1_r3_fresh_cli_decimal_controls_then_strict_write) (variant='float_payload', action='stop-s')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/tests/issue1527_recovery/test_python_r4.py", line 793, in test_h1_r3_fresh_cli_decimal_controls_then_strict_write
+    self.assertEqual(rc, 0, stderr.getvalue())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : {"ok": false, "error": "\u751f\u547d\u5468\u671f\u52a8\u4f5c\u5931\u8d25", "category": "AdmissionError", "code": "Invalid", "stage": "E1", "wire_bytes": 162, "elapsed_ms": 0.035541001125238836}
+
+
+======================================================================
+FAIL: test_h1_r3_fresh_cli_decimal_controls_then_strict_write (s_session.tests.issue1527_recovery.test_python_r4.RepairTests.test_h1_r3_fresh_cli_decimal_controls_then_strict_write) (variant='float_payload', action='start-q')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/tests/issue1527_recovery/test_python_r4.py", line 793, in test_h1_r3_fresh_cli_decimal_controls_then_strict_write
+    self.assertEqual(rc, 0, stderr.getvalue())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : {"ok": false, "error": "\u751f\u547d\u5468\u671f\u52a8\u4f5c\u5931\u8d25", "category": "AdmissionError", "code": "Invalid", "stage": "E1", "wire_bytes": 164, "elapsed_ms": 0.034083001082763076}
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.040s
+
+FAILED (failures=6)

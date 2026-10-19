@@ -1,0 +1,11 @@
+test_fresh_write_half_env_is_e0_zero_reads_and_latched (s_session.tests.issue1527_recovery.test_python_r4.RepairTests.test_fresh_write_half_env_is_e0_zero_reads_and_latched) ... ok
+test_configured_errors_pin_first_failure_without_reopen (s_session.tests.issue1527_recovery.test_python_r4.RepairTests.test_configured_errors_pin_first_failure_without_reopen) ... ok
+test_runtime_failure_retries_keep_first_receipt_and_t0 (s_session.tests.issue1527_recovery.test_python_r4.RepairTests.test_runtime_failure_retries_keep_first_receipt_and_t0) ... ok
+test_valid_crosscheck_keeps_same_object_fsync_retry (s_session.tests.issue1527_recovery.test_python_r4.RepairTests.test_valid_crosscheck_keeps_same_object_fsync_retry) ... ok
+test_identity_fields_are_exact_typed_integers (s_session.tests.issue1527_recovery.test_python_r4.R4Tests.test_identity_fields_are_exact_typed_integers) ... ok
+test_lazy_preparation_cannot_renew_t0_or_adopt_replacement_after_failure (s_session.tests.issue1527_recovery.test_python_r4.R4Tests.test_lazy_preparation_cannot_renew_t0_or_adopt_replacement_after_failure) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.040s
+
+OK

@@ -1,0 +1,228 @@
+{
+  "issue": 1527,
+  "baseline": "5cb7253d46d973669e7d10cd3331e12c9ef313b1",
+  "来源": [
+    {
+      "path": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/ROOT-I1-IMPLEMENTATION-SCOPE.md",
+      "sha256": "f76dae5bbfeb9a770d20e87ab204f3ad74eae4dedafc927ef5de4b18849c6bb2"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/I1-RESPONSIBILITY-AND-REUSE.md",
+      "sha256": "2c820d967600145a616e1cb82a3e8996802d34c4a0c5aa567bf34fdab14d8219"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/ROOT-R4-ENGINEERING-SCOPE.md",
+      "sha256": "dd48d9bf9a6b52352361c536a290a3b993b3120f7405a5b4890cff6d4adb3470"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/PRIOR-R4-V3-DESIGN-TRANSCRIPT.md",
+      "sha256": "c2cbd8a8808e8f2500b8a2659304c56bce77ce1d2120ac93ff83aae7230c9dea"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/PRIOR-R4-PROVENANCE.json",
+      "sha256": "d8d16087466f0e0a7fa3c6d1eeb69a41cb5d3910294d15142f672f4fcf17344f"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/PRIOR-R4-EVIDENCE-2672.txt",
+      "sha256": "cda8e055b69cc2ea00c84de7e123bc0f6f5a5f63d64530e9d02320eee58099ad"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/PRIOR-R4-EVIDENCE-2734.txt",
+      "sha256": "d16ff306d08927e24f72e49eac76903392e9a4f22ec4ef4418d7b5bf5ba5e564"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/PRIOR-R4-EVIDENCE-3140.txt",
+      "sha256": "46a4f33dc495e423aeb0b325200ff4eb83062d9dcd17e1d88b4b2544a831745e"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/PRIOR-R4-EVIDENCE-3630.txt",
+      "sha256": "3ae2dc9fee4b854770a48700aafebfeed4fbb94fa4ae4d042809aca2d7103a57"
+    },
+    {
+      "path": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/PRIOR-R4-EVIDENCE-4048.txt",
+      "sha256": "b0cfbfe21ce98cbe92eebec19ffb6defa5d0a266025e2d0b98ad4d1e06c8c96f"
+    }
+  ],
+  "源码": [
+    {
+      "path": "s_session/recovery_admission.py",
+      "baseline_sha256": null,
+      "current_sha256": "36e79b726ca638dc24d6b23eb33119a4f866d89b3f1f274ba4a4d41e3526bd4d",
+      "baseline_status": "本轮新增"
+    },
+    {
+      "path": "s_session/s_service_control.py",
+      "baseline_sha256": "894427caa51d9d58ea32a980bb473a93ca6e9b8a3e4664aa0b1f5a985c592d69",
+      "current_sha256": "afdc81785d2a30886b7dbe6f4f7a6fd9556fa32544bbc8d1dc22f654d2851cdd",
+      "baseline_status": "既存"
+    },
+    {
+      "path": "s_session/tests/issue1527_recovery/test_python_r4.py",
+      "baseline_sha256": null,
+      "current_sha256": "1a386f500a092b2448e781857b155a3c4ebd850b49288db22b4639c5f525b96e",
+      "baseline_status": "本轮新增"
+    }
+  ],
+  "交付原件": [
+    {
+      "path": "CHECKS.json",
+      "sha256": "f3633984e2f2504badcf1ea34ed266027919ae6b5a9de1740a6129bac9ef1d56",
+      "bytes": 3415
+    },
+    {
+      "path": "CONTRACT.md",
+      "sha256": "a5d0d19007a87448dbbd56cfac0a720abe0385db43691939b674dfdccefec967",
+      "bytes": 8985
+    },
+    {
+      "path": "check_static.py",
+      "sha256": "8f7ab130ff4a0f188f6bcbe01810482e22b0a41ba0863f6cdf9ffbc26a6b41ca",
+      "bytes": 2304
+    },
+    {
+      "path": "diff-whitespace.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "diff-whitespace.stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "patch-reverse-check.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "patch-reverse-check.stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "python-r4.patch",
+      "sha256": "56100ec94df8d0cad6737d031cb87f55a0ad26557f79a269e3726cfa471ec57d",
+      "bytes": 64938
+    },
+    {
+      "path": "python-r4.stderr.log",
+      "sha256": "00a8256906b2f28ffdbb08e4a799094af89afa7551e6769f98f0210d90c4ff3e",
+      "bytes": 5257
+    },
+    {
+      "path": "python-r4.stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "run_checks.py",
+      "sha256": "bcf64612945e03c50d5d05942547f6c943d7c680b842d443df925c5674fa0820",
+      "bytes": 4605
+    },
+    {
+      "path": "static.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "static.stdout.log",
+      "sha256": "e290e7098f78e866b4bdee33d5f5ef30ef340fc138cc6c46fff2ee2fef9400ef",
+      "bytes": 814
+    }
+  ],
+  "命令与退出码": [
+    {
+      "name": "python-r4",
+      "argv": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "-W",
+        "error::ResourceWarning",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "s_session/tests/issue1527_recovery",
+        "-p",
+        "test_python_r4.py",
+        "-v"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree",
+      "rc": 0,
+      "stdout": {
+        "path": "python-r4.stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "stderr": {
+        "path": "python-r4.stderr.log",
+        "sha256": "00a8256906b2f28ffdbb08e4a799094af89afa7551e6769f98f0210d90c4ff3e",
+        "bytes": 5257
+      }
+    },
+    {
+      "name": "static",
+      "argv": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "-B",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/.chanlun/review-results/issue1527-python-r4-20261018/check_static.py"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree",
+      "rc": 0,
+      "stdout": {
+        "path": "static.stdout.log",
+        "sha256": "e290e7098f78e866b4bdee33d5f5ef30ef340fc138cc6c46fff2ee2fef9400ef",
+        "bytes": 814
+      },
+      "stderr": {
+        "path": "static.stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    },
+    {
+      "name": "diff-whitespace",
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree",
+      "rc": 0,
+      "stdout": {
+        "path": "diff-whitespace.stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "stderr": {
+        "path": "diff-whitespace.stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    },
+    {
+      "name": "patch-reverse-check",
+      "argv": [
+        "git",
+        "apply",
+        "--reverse",
+        "--check",
+        "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/.chanlun/review-results/issue1527-python-r4-20261018/python-r4.patch"
+      ],
+      "cwd": "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree",
+      "rc": 0,
+      "stdout": {
+        "path": "patch-reverse-check.stdout.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "stderr": {
+        "path": "patch-reverse-check.stderr.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    }
+  ],
+  "patch_sha256": "56100ec94df8d0cad6737d031cb87f55a0ad26557f79a269e3726cfa471ec57d",
+  "名分": "#1527工作草稿；当前checkout未提交差异，未合入"
+}

@@ -1,0 +1,179 @@
+test_configured_errors_pin_first_failure_without_reopen (__main__.RepairTests.test_configured_errors_pin_first_failure_without_reopen) ... FAIL
+test_control_actions_ignore_write_env_and_admission (__main__.RepairTests.test_control_actions_ignore_write_env_and_admission) ... 
+  test_control_actions_ignore_write_env_and_admission (__main__.RepairTests.test_control_actions_ignore_write_env_and_admission) (owner=2, broken='half') ... ERROR
+  test_control_actions_ignore_write_env_and_admission (__main__.RepairTests.test_control_actions_ignore_write_env_and_admission) (owner=3, broken='half') ... ERROR
+  test_control_actions_ignore_write_env_and_admission (__main__.RepairTests.test_control_actions_ignore_write_env_and_admission) (owner=3, broken='binding') ... ERROR
+test_control_authority_and_process_identity_still_required (__main__.RepairTests.test_control_authority_and_process_identity_still_required) ... ok
+test_fresh_write_half_env_is_e0_zero_reads_and_latched (__main__.RepairTests.test_fresh_write_half_env_is_e0_zero_reads_and_latched) ... ERROR
+test_non_admission_errors_keep_public_receipts_and_redaction (__main__.RepairTests.test_non_admission_errors_keep_public_receipts_and_redaction) ... ERROR
+test_runtime_failure_retries_keep_first_receipt_and_t0 (__main__.RepairTests.test_runtime_failure_retries_keep_first_receipt_and_t0) ... ERROR
+test_valid_crosscheck_keeps_same_object_fsync_retry (__main__.RepairTests.test_valid_crosscheck_keeps_same_object_fsync_retry) ... ok
+
+======================================================================
+ERROR: test_control_actions_ignore_write_env_and_admission (__main__.RepairTests.test_control_actions_ignore_write_env_and_admission) (owner=2, broken='half')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/tests/issue1527_recovery/test_python_r4.py", line 709, in test_control_actions_ignore_write_env_and_admission
+    contextlib.closing(control.Controller(f.config("s-launcher/2"), f.state)) as c:
+                       ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/s_service_control.py", line 227, in __init__
+    self.admission = RecoveryAdmission(self.db, self.state_dir, self.admission_deadline,
+                     ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                                       os.environ, owner_only=True)
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 148, in __init__
+    self._reraise(exc)
+    ~~~~~~~~~~~~~^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 219, in _reraise
+    raise exc
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 118, in __init__
+    self._env = self._parse_env(environment)
+                ~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 279, in _parse_env
+    self._fail("ControlMismatch")
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 215, in _fail
+    raise AdmissionError(code, self.stage, self.wire_bytes, self.first_read_at) from None
+recovery_admission.AdmissionError: R4 ControlMismatch；阶段=E0；实读字节=0
+
+======================================================================
+ERROR: test_control_actions_ignore_write_env_and_admission (__main__.RepairTests.test_control_actions_ignore_write_env_and_admission) (owner=3, broken='half')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/tests/issue1527_recovery/test_python_r4.py", line 709, in test_control_actions_ignore_write_env_and_admission
+    contextlib.closing(control.Controller(f.config("s-launcher/2"), f.state)) as c:
+                       ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/s_service_control.py", line 227, in __init__
+    self.admission = RecoveryAdmission(self.db, self.state_dir, self.admission_deadline,
+                     ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                                       os.environ, owner_only=True)
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 148, in __init__
+    self._reraise(exc)
+    ~~~~~~~~~~~~~^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 219, in _reraise
+    raise exc
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 118, in __init__
+    self._env = self._parse_env(environment)
+                ~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 279, in _parse_env
+    self._fail("ControlMismatch")
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 215, in _fail
+    raise AdmissionError(code, self.stage, self.wire_bytes, self.first_read_at) from None
+recovery_admission.AdmissionError: R4 ControlMismatch；阶段=E0；实读字节=0
+
+======================================================================
+ERROR: test_control_actions_ignore_write_env_and_admission (__main__.RepairTests.test_control_actions_ignore_write_env_and_admission) (owner=3, broken='binding')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/tests/issue1527_recovery/test_python_r4.py", line 709, in test_control_actions_ignore_write_env_and_admission
+    contextlib.closing(control.Controller(f.config("s-launcher/2"), f.state)) as c:
+                       ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/s_service_control.py", line 227, in __init__
+    self.admission = RecoveryAdmission(self.db, self.state_dir, self.admission_deadline,
+                     ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                                       os.environ, owner_only=True)
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 148, in __init__
+    self._reraise(exc)
+    ~~~~~~~~~~~~~^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 219, in _reraise
+    raise exc
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 143, in __init__
+    self._validate_binding(self._binding)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 272, in _validate_binding
+    self._binding_shape(binding)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 269, in _binding_shape
+    self._fail("BindingInvalid")
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 215, in _fail
+    raise AdmissionError(code, self.stage, self.wire_bytes, self.first_read_at) from None
+recovery_admission.AdmissionError: R4 BindingInvalid；阶段=E1；实读字节=613
+
+======================================================================
+ERROR: test_fresh_write_half_env_is_e0_zero_reads_and_latched (__main__.RepairTests.test_fresh_write_half_env_is_e0_zero_reads_and_latched)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/tests/issue1527_recovery/test_python_r4.py", line 733, in test_fresh_write_half_env_is_e0_zero_reads_and_latched
+    contextlib.closing(control.Controller(f.config(), f.state)) as c:
+                       ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/s_service_control.py", line 227, in __init__
+    self.admission = RecoveryAdmission(self.db, self.state_dir, self.admission_deadline,
+                     ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                                       os.environ, owner_only=True)
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 148, in __init__
+    self._reraise(exc)
+    ~~~~~~~~~~~~~^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 219, in _reraise
+    raise exc
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 118, in __init__
+    self._env = self._parse_env(environment)
+                ~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 279, in _parse_env
+    self._fail("ControlMismatch")
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 215, in _fail
+    raise AdmissionError(code, self.stage, self.wire_bytes, self.first_read_at) from None
+recovery_admission.AdmissionError: R4 ControlMismatch；阶段=E0；实读字节=0
+
+======================================================================
+ERROR: test_non_admission_errors_keep_public_receipts_and_redaction (__main__.RepairTests.test_non_admission_errors_keep_public_receipts_and_redaction)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/tests/issue1527_recovery/test_python_r4.py", line 845, in test_non_admission_errors_keep_public_receipts_and_redaction
+    self.assertEqual(receipt["stage"], stage)
+                     ~~~~~~~^^^^^^^^^
+KeyError: 'stage'
+
+======================================================================
+ERROR: test_runtime_failure_retries_keep_first_receipt_and_t0 (__main__.RepairTests.test_runtime_failure_retries_keep_first_receipt_and_t0)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/tests/issue1527_recovery/test_python_r4.py", line 863, in test_runtime_failure_retries_keep_first_receipt_and_t0
+    receipt = dict(first.exception.control_receipt)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ValueError' object has no attribute 'control_receipt'
+
+======================================================================
+FAIL: test_configured_errors_pin_first_failure_without_reopen (__main__.RepairTests.test_configured_errors_pin_first_failure_without_reopen)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/tests/issue1527_recovery/test_python_r4.py", line 785, in test_configured_errors_pin_first_failure_without_reopen
+    retry_action()
+    ~~~~~~~~~~~~^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/tests/issue1527_recovery/test_python_r4.py", line 782, in <lambda>
+    for retry_action in (lambda: c.start_s("1"), c.admission.publish,
+                                 ~~~~~~~~~^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/s_service_control.py", line 581, in start_s
+    self.admission.crosscheck_limits(config["admission_job_limits"])
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 396, in crosscheck_limits
+    self._reraise(exc)
+    ~~~~~~~~~~~~~^^^^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 225, in _reraise
+    raise exc
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 380, in crosscheck_limits
+    self._revalidate()
+    ~~~~~~~~~~~~~~~~^^
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 319, in _revalidate
+    parent = _directory(self.db.parent)
+  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/s_session/recovery_admission.py", line 74, in _directory
+    descriptor = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
+  File "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py", line 1176, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py", line 1180, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py", line 1241, in _execute_mock_call
+    raise effect
+AssertionError: 失败后禁止重开
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.046s
+
+FAILED (failures=1, errors=6)
