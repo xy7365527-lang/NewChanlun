@@ -505,6 +505,53 @@ impl Pool {
             home: None,
         })
     }
+    /// #1488 P3-c：按持有者逐张列出池实际持有的Native许可字节（原件capture、binding各层
+    /// CodecVec/文本/单元、proofs块与Key/证书值）。负控注入的 seal_fault_duplicate 不属任何
+    /// 持有者，故不在清单内；普查以清单对拍逐张归还，确定地识别多签。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn native_permit_inventory_for_testonly(&self) -> Result<Vec<usize>, String> {
+        use super::business_json::TextValue;
+        let mut out = Vec::new();
+        self.originals
+            .native_permit_inventory_for_testonly(&mut out)
+            .map_err(|e| e.to_string())?;
+        let text = |out: &mut Vec<usize>, value: &TextValue| match value {
+            TextValue::Plain(v) => out.extend(v.retained_charge()),
+            // Owned文本走Owned Layout账，不持Native许可（普查C3另核封存存活全为Native）。
+            TextValue::Owned(_) => {}
+        };
+        let cells = |out: &mut Vec<usize>, cells: &sc::CodecVec<SqlCell>| {
+            out.extend(cells.native_retained_charge());
+            for cell in cells.iter() {
+                if let SqlCell::Text(v) | SqlCell::Blob(v) = cell {
+                    out.extend(v.native_retained_charge());
+                }
+            }
+        };
+        out.extend(self.binding.rows.native_retained_charge());
+        for rows in self.binding.rows.iter() {
+            text(&mut out, &rows.sql);
+            cells(&mut out, &rows.scope);
+            out.extend(rows.columns.native_retained_charge());
+            for column in rows.columns.iter() {
+                text(&mut out, column);
+            }
+            out.extend(rows.rows.native_retained_charge());
+            for row in rows.rows.iter() {
+                cells(&mut out, row);
+            }
+        }
+        out.extend(self.proofs.native_retained_charge());
+        for proof in self.proofs.iter() {
+            out.extend(proof.key.state.retained_charge());
+            out.extend(proof.key.profile.retained_charge());
+            out.extend(proof.key.rule.retained_charge());
+            if let Some(certificate) = &proof.dependency {
+                certificate.native_permit_inventory(&mut out);
+            }
+        }
+        Ok(out)
+    }
 }
 
 pub(super) struct Keeper {

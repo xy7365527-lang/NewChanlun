@@ -342,10 +342,8 @@ pub(crate) struct CensusEvent {
     pub(crate) reserve: bool,
     pub(crate) kind: &'static str,
     pub(crate) bytes: usize,
-    // 记录时本线程累计真实释放字节（allocation_probe）；相邻两次归还之差即其间析构的对象。
-    pub(crate) freed: u64,
 }
-/// 普查容量预留，记账不得引发分配/realloc而污染freed读数；超额即判普查失效。
+/// 普查容量预留，记账期间不得引发分配/realloc；超额即判普查失效。
 #[cfg(test)]
 const CENSUS_CAPACITY: usize = 1 << 20;
 #[cfg(test)]
@@ -1465,7 +1463,6 @@ impl Ledger {
                     reserve,
                     kind: census_kind(kind),
                     bytes,
-                    freed: super::allocation_probe::released_bytes(),
                 });
             }
         }

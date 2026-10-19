@@ -3249,10 +3249,12 @@ fn r13_optional_sql_rows_share_parent_without_changing_cells() {
 }
 
 /// #1488 P2-4：封存池逐许可普查（独立于live差额）。`seal`=审计开始至封存后本父账全部
-/// 签发/归还事件；`released`=封存池析构期间事件，`freed0`=析构前本线程累计真实释放。
+/// 签发/归还事件；`released`=封存池析构期间事件，`inventory`=析构前按持有者逐张列出的池许可
+/// （`Pool::native_permit_inventory_for_testonly`，不含不属任何持有者的许可）。
 /// C1 残余+逐张存活许可之和=封存后live；C2 无未匹配归还；C3 存活许可均为Native；
 /// C4 池析构恰好归还封存存活多重集且不签发；C5（#1488 P2-A主控裁定后）来源合同项每节点一项、
-/// 和=正文+digest/tag/证书，且都指到已物理计费的正文块；析构时不再有任何无真实释放支撑的归还。
+/// 和=正文+digest/tag/证书，且都指到已物理计费的正文块；析构逐张归还多重集=持有者清单多重集
+/// （#1488 P3-c：按许可对拍，不再依赖allocator released_bytes交错，结果与分配器时序无关）。
 /// 原先C5期望每节点一张同额物理来源许可（r14：803张/111,334B=node_body+97·nodes），那是同一
 /// allocation在父账的第二个物理角色；现降为合同角色，只在O的source_cost里计一次，父账live随之少111,334B。
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
@@ -3260,7 +3262,7 @@ fn seal_census_check(
     seal: &[native::CensusEvent],
     residual: usize,
     after_seal: usize,
-    freed0: u64,
+    inventory: Vec<usize>,
     released: &[native::CensusEvent],
     breakdown: &Value,
     nodes: usize,
@@ -3308,14 +3310,6 @@ fn seal_census_check(
             live.len()
         ));
     }
-    let mut previous = freed0;
-    let mut unbacked = (0usize, 0usize);
-    for e in released {
-        if e.freed == previous {
-            unbacked = (unbacked.0 + 1, unbacked.1 + e.bytes);
-        }
-        previous = e.freed;
-    }
     let field = |name: &str| {
         breakdown[name]
             .as_u64()
@@ -3328,9 +3322,24 @@ fn seal_census_check(
             "C5 来源合同项{claims:?}不等于每节点一项({nodes}, {expected})"
         ));
     }
-    if unbacked != (0, 0) {
+    // 析构归还中不属任何持有者的许可（多出的张）即重复计费；清单多出的张即漏列/错账。
+    let mut held = inventory;
+    held.sort_unstable();
+    let mut returned = dropped.iter().map(|x| x.1).collect::<Vec<_>>();
+    returned.sort_unstable();
+    if returned != held {
+        let mut extra = returned.clone();
+        for bytes in &held {
+            if let Some(i) = extra.iter().position(|x| x == bytes) {
+                extra.swap_remove(i);
+            }
+        }
         return Err(format!(
-            "C5 无释放支撑的归还{unbacked:?}：重复计费"
+            "C5 析构归还({}张/{}B)不等于持有者清单({}张/{}B)：无持有者的归还{extra:?}即重复计费",
+            returned.len(),
+            returned.iter().sum::<usize>(),
+            held.len(),
+            held.iter().sum::<usize>()
         ));
     }
     Ok(
@@ -3400,7 +3409,7 @@ fn p2_4_seal_census_flags_duplicate_permit_on_real_seal_path() {
             let nodes = pool.nodes;
             let claims = pool.originals.native_source_claims_for_testonly().unwrap();
             parent.census_arm();
-            let freed0 = allocation_probe::released_bytes();
+            let inventory = pool.native_permit_inventory_for_testonly().unwrap();
             drop(pool);
             let released = parent.census_take();
             let sealed = after_seal
@@ -3413,7 +3422,7 @@ fn p2_4_seal_census_flags_duplicate_permit_on_real_seal_path() {
                 &seal_census,
                 residual,
                 after_seal,
-                freed0,
+                inventory,
                 &released,
                 &report["source_cost_breakdown"],
                 nodes,
@@ -3690,7 +3699,7 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                 let nodes = pool.nodes;
                 let claims = pool.originals.native_source_claims_for_testonly().unwrap();
                 parent.census_arm();
-                let freed0 = allocation_probe::released_bytes();
+                let inventory = pool.native_permit_inventory_for_testonly().unwrap();
                 drop(pool);
                 let released = parent.census_take();
                 // P2-4：逐许可普查独立于下方live差额恒等式，核封存池无重复计费。
@@ -3698,7 +3707,7 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                     &seal_census,
                     residual,
                     after_seal,
-                    freed0,
+                    inventory,
                     &released,
                     &report["source_cost_breakdown"],
                     nodes,

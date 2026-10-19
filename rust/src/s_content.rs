@@ -2597,6 +2597,15 @@ impl NativeCountsSubsetCertificate {
             && self.dependency_revision == 1
             && state == self.state.as_ref()
     }
+    /// #1488 P3-c：逐张列出证书实际持有的Native许可字节。
+    #[doc(hidden)]
+    pub fn native_permit_inventory(&self, out: &mut Vec<usize>) {
+        out.extend(
+            std::iter::once(&self.state)
+                .chain(&self.roots)
+                .filter_map(|root| root.retained_charge()),
+        );
+    }
 }
 /// 诊断计数不充当单组依赖列表；实际持有的闭包证书另逐字计费。
 #[cfg(feature = "s_capture_native_testonly")]
@@ -3714,6 +3723,43 @@ impl AuditCapture {
             .public
             .retained_bytes()
             .saturating_add(certificates.template.retained_bytes())
+    }
+
+    /// #1488 P3-c：逐个列出本capture实际持有的Native许可字节（索引、正文块、codec根、
+    /// 未转换原件费及其容器、memo seen）；按持有者枚举，不由live差额或释放读数推导。
+    /// 证明、owner codec证书仍存活时拒绝（封存后应已清空，不得漏列）。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[doc(hidden)]
+    pub fn native_permit_inventory_for_testonly(
+        &self,
+        out: &mut Vec<usize>,
+    ) -> Result<(), CodecError> {
+        let held = |p: &Option<capture_allocation::scratch::NativeReservation>| {
+            p.as_ref().map(capture_allocation::scratch::NativeReservation::bytes)
+        };
+        if self.owner_codec_retained_bytes_for_testonly() != 0 {
+            return Err(CodecError::new(code::SOURCE, "许可清单：owner codec证书未清空"));
+        }
+        for memo in [&self.public, &self.template] {
+            out.extend(held(&memo.borrow().native_seen_permit));
+        }
+        if let CaptureNodes::Native(native) = &self.nodes {
+            out.extend(held(&native.index_permit));
+            for node in native.nodes.values() {
+                if node.proof.borrow().is_some() {
+                    return Err(CodecError::new(code::SOURCE, "许可清单：节点证明未清空"));
+                }
+                out.extend(node.body.native_retained_charge());
+            }
+        }
+        out.extend(held(&self.codec_roots.borrow().public_permit));
+        if let Some(fees) = &self.original_fees {
+            out.extend(fees.bodies.native_retained_charge());
+            out.extend(fees.bodies.iter().filter_map(|(_, permit, _)| held(permit)));
+            out.extend(fees.table.native_retained_charge());
+            out.extend(fees.table.iter().map(|p| p.bytes()));
+        }
+        Ok(())
     }
 
     /// #1488 P2-A：逐节点复核来源合同项——每项须指到同节点已物理计费（Native绑定）的正文块，

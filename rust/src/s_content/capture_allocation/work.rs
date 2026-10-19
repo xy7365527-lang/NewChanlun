@@ -471,6 +471,13 @@ impl<T> CodecVec<T> {
     pub fn is_native_bound(&self) -> bool {
         self.native_permit.is_some()
     }
+    /// #1488 P3-c：本块实际持有的Native许可字节（只读，不签发、不转移）。
+    #[doc(hidden)]
+    pub fn native_retained_charge(&self) -> Option<usize> {
+        self.native_permit
+            .as_ref()
+            .map(super::scratch::NativeReservation::bytes)
+    }
     /// Native 写入必须带本次活 scope；共享入口核父身份并先准入完整新块。
     pub fn try_push_native(
         &mut self,
