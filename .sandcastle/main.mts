@@ -14,7 +14,7 @@ import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
 import type { AgentProvider, Sandbox, SandboxRunResult } from "@ai-hero/sandcastle";
 import { execSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
-import { claudeWorker } from "./claude-route.ts";
+import { claudeWorker } from "./claude-route.mts";
 
 const TOKEN_ROTATION_MARKER = "/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/GH_TOKEN_ROTATION_REQUIRED";
 if (existsSync(TOKEN_ROTATION_MARKER)) {
