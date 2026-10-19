@@ -125,6 +125,15 @@ fn is_structure_rule(rule: &str) -> bool {
 /// 这些核心函数仅留给测试：历史库种子与 S3 差分对拍 oracle；生产入口在 `run`/`v2::dispatch` 拒绝。
 pub(crate) const V2_WRITER_RETIRED: &str = "VersionUnsupported：v2 结构写者已退役（#1419 裁定②）：新旧会话一律拒写，旧会话只读 AsKnown；写入请走 S3（s-session/3）";
 
+// #1419 裁定（issuecomment-6265726014）：`s_v2_seed_testonly` 只许 debug/测试构建；发布构建开它直接编译失败。
+#[cfg(all(feature = "s_v2_seed_testonly", not(debug_assertions)))]
+compile_error!("s_v2_seed_testonly 只许 debug/测试构建：发布构建不得含 v2 种子写者（#1419 issuecomment-6265726014）");
+
+/// 种子构建自报子命令：只有 `s_v2_seed_testonly` 构建认它；发布二进制对它报「未知子命令」
+/// （CI 机械锁与 Python 种子套件据此确认手里的是不是种子工具）。
+#[cfg(feature = "s_v2_seed_testonly")]
+const V2_SEED_INFO: &str = "v2-seed-info";
+
 /// v2 写入口子命令集合（含 v2 `init --session-generation`、`serve`、带时钟 `recover`）。
 fn is_v2_write_command(cmd: &str) -> bool {
     matches!(cmd, "init" | "reset" | "accept" | "advance" | "recover" | "serve")
@@ -1969,7 +1978,7 @@ fn record_connection_pragmas(conn: &Connection, stage: &str) {
     let _ = std::fs::write(&path, out);
 }
 
-#[cfg_attr(not(test), allow(dead_code))] // #1419 裁定②：v2 写者仅留测试种子/oracle，生产入口已拒
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 fn cmd_init(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String> {
     println!("{}", init_core(db, session, catalog_path)?);
     Ok(())
@@ -1977,7 +1986,7 @@ fn cmd_init(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String>
 
 /// 旧 reset（先删后建 v1）语义不变；#1394 独评 F1 只加一道门：已有 `s-session/3` 域在任何删除
 /// 之前 fail closed（旧 reset 只懂 v1/v2 合同，本切片不提供新迁移/重置功能）。
-#[cfg_attr(not(test), allow(dead_code))] // #1419 裁定②：v2 写者仅留测试种子/oracle，生产入口已拒
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 fn cmd_reset(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String> {
     // 与新域 init / 正式 writer 同一把锁覆盖「判域 → 删除 → 重建」，避免检查后换域。
     let _writer = newchan_rust::session_transport::process_lock(db, "S")?;
@@ -1986,6 +1995,10 @@ fn cmd_reset(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String
     cmd_init(db, session, catalog_path)
 }
 
+#[cfg_attr(
+    not(any(test, feature = "s_v2_seed_testonly")),
+    expect(dead_code, reason = "#1419 机械锁：发布构建不得有任何调用 v2 核心写函数的路径")
+)]
 fn init_core(db: &Path, session: &str, catalog_path: &Path) -> Result<Value, String> {
     // H4：init 只允许不存在的目标——拒绝覆盖既有库（既有持久事实可恢复）。
     if db.exists() {
@@ -2111,7 +2124,7 @@ fn init_core(db: &Path, session: &str, catalog_path: &Path) -> Result<Value, Str
 // supersedes）+ profile 绑定。
 // ────────────────────────────────────────────────────────────────────────────
 
-#[cfg_attr(not(test), allow(dead_code))] // #1419 裁定②：v2 写者仅留测试种子/oracle，生产入口已拒
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 fn cmd_accept(
     db: &Path,
     input_path: &Path,
@@ -2126,6 +2139,10 @@ fn cmd_accept(
     Ok(())
 }
 
+#[cfg_attr(
+    not(any(test, feature = "s_v2_seed_testonly")),
+    expect(dead_code, reason = "#1419 机械锁：发布构建不得有任何调用 v2 核心写函数的路径")
+)]
 fn accept_core(
     db: &Path,
     text: &str,
@@ -2959,12 +2976,16 @@ fn persist_batch_before_publish_inner(
         .map_err(|e| format!("批次持久 commit 失败：{e}"))
 }
 
-#[cfg_attr(not(test), allow(dead_code))] // #1419 裁定②：v2 写者仅留测试种子/oracle，生产入口已拒
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
     println!("{}", advance_core(db, configured_epoch, None)?);
     Ok(())
 }
 
+#[cfg_attr(
+    not(any(test, feature = "s_v2_seed_testonly")),
+    expect(dead_code, reason = "#1419 机械锁：发布构建不得有任何调用 v2 核心写函数的路径")
+)]
 fn advance_core(
     db: &Path,
     configured_epoch: &str,
@@ -5175,12 +5196,16 @@ fn cmd_watch(db: &Path, after_generation: i64) -> Result<(), String> {
 /// 正式 writer 换代 / 恢复：核当前持久状态，清未决 Begin（上一 writer 已退出，门保持关闭直到本
 /// 命令合法恢复），并按 `--new-epoch` 提升 writer_epoch（与 generation 同序持久历史）。旧 epoch 进程
 /// 此后重放被 StaleWriter 拒绝。这不是「手改 SQL」——是正式入口，历史写入 writer_epoch_history。
-#[cfg_attr(not(test), allow(dead_code))] // #1419 裁定②：v2 写者仅留测试种子/oracle，生产入口已拒
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 fn cmd_recover(db: &Path, new_epoch: &str) -> Result<(), String> {
     println!("{}", recover_core(db, new_epoch, None)?);
     Ok(())
 }
 
+#[cfg_attr(
+    not(any(test, feature = "s_v2_seed_testonly")),
+    expect(dead_code, reason = "#1419 机械锁：发布构建不得有任何调用 v2 核心写函数的路径")
+)]
 fn recover_core(
     db: &Path,
     new_epoch: &str,
@@ -5312,6 +5337,11 @@ fn run_with(args: &[String]) -> Result<(), String> {
     if v3::dispatch(args)? {
         return Ok(());
     }
+    // #1419 裁定（6265726014）：只有 `s_v2_seed_testonly` 构建在拒绝之前放开 v2/v1 种子写入。
+    #[cfg(feature = "s_v2_seed_testonly")]
+    if seed_dispatch(args)? {
+        return Ok(());
+    }
     // #1419 裁定②：S3 未认领的写子命令一律拒绝（v2/v1 新旧会话同拒），只读子命令照常。
     if is_v2_write_command(args[1].as_str()) {
         return Err(V2_WRITER_RETIRED.to_string());
@@ -5358,6 +5388,54 @@ fn run_with(args: &[String]) -> Result<(), String> {
     }
 }
 
+/// #1419 裁定（issuecomment-6265726014）：v2/v1 种子写者，只在 `s_v2_seed_testonly` 构建存在。
+/// 供 `launch_s.sh` 与 r9/r13、tb01c_query_*、tb02a_*、tb01c/tb03b_runtime 等 Python 套件造种子库；
+/// 路由与退役前的生产路由逐字相同（v2 带时钟 init/serve/recover，其余走 v1 子命令）。
+#[cfg(feature = "s_v2_seed_testonly")]
+fn seed_dispatch(args: &[String]) -> Result<bool, String> {
+    let cmd = args[1].as_str();
+    if cmd == V2_SEED_INFO {
+        println!("{}", json!({"ok": true, "s_v2_seed_testonly": true}));
+        return Ok(true);
+    }
+    if v2::seed_dispatch(args)? {
+        return Ok(true);
+    }
+    if !matches!(cmd, "init" | "reset" | "accept" | "advance" | "recover") {
+        return Ok(false);
+    }
+    let _writer_lock = v2::legacy_write_lock(args)?;
+    let db = arg_value(args, "--db").map(PathBuf::from);
+    let session = arg_value(args, "--session").unwrap_or_else(|| "s-session-default".to_string());
+    let catalog = arg_value(args, "--catalog").map(PathBuf::from);
+    let configured_epoch =
+        arg_value(args, "--writer-epoch").unwrap_or_else(|| DEFAULT_WRITER_EPOCH.to_string());
+    match cmd {
+        "init" => cmd_init(
+            &db.ok_or("缺 --db".to_string())?,
+            &session,
+            &catalog.ok_or("缺 --catalog".to_string())?,
+        )?,
+        "reset" => cmd_reset(
+            &db.ok_or("缺 --db".to_string())?,
+            &session,
+            &catalog.ok_or("缺 --catalog".to_string())?,
+        )?,
+        "accept" => cmd_accept(
+            &db.ok_or("缺 --db".to_string())?,
+            &arg_value(args, "--input").map(PathBuf::from).ok_or("缺 --input".to_string())?,
+            &arg_value(args, "--profile").map(PathBuf::from).ok_or("缺 --profile".to_string())?,
+            &configured_epoch,
+        )?,
+        "advance" => cmd_advance(&db.ok_or("缺 --db".to_string())?, &configured_epoch)?,
+        _ => cmd_recover(
+            &db.ok_or("缺 --db".to_string())?,
+            &arg_value(args, "--new-epoch").ok_or("recover 缺 --new-epoch".to_string())?,
+        )?,
+    }
+    Ok(true)
+}
+
 fn main() {
     if let Err(e) = run() {
         eprintln!("{}", json!({"ok": false, "error": e}));
@@ -5371,6 +5449,20 @@ mod tests {
 
     /// #1419 裁定②负控（issuecomment-6265209957）：v2 写入口对新旧会话一律拒写且不动库字节；
     /// 旧会话（测试种子写出的 RULE_REVISION 库）只读子命令照常、`--as-of` 为 AsKnown。
+    #[cfg(not(feature = "s_v2_seed_testonly"))]
+    #[test]
+    fn v2_seed_info_is_unknown_outside_seed_build() {
+        let err = run_with(&["s".to_string(), "v2-seed-info".to_string()]).unwrap_err();
+        assert!(err.contains("未知子命令"), "{err}");
+    }
+
+    #[cfg(feature = "s_v2_seed_testonly")]
+    #[test]
+    fn v2_seed_build_reports_itself() {
+        assert!(run_with(&["s".to_string(), V2_SEED_INFO.to_string()]).is_ok());
+    }
+
+    #[cfg(not(feature = "s_v2_seed_testonly"))]
     #[test]
     fn v2_writer_retired_rejects_new_and_old_sessions_and_old_stays_readable() {
         let argv = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<String>>();

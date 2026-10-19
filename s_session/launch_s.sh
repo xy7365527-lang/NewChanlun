@@ -129,8 +129,9 @@ needs_build() {
 }
 
 build() {
-  echo "[launcher] 构建 S 二进制（cargo build --features s_session --bin s_structure_session）"
-  (cd "$ROOT/rust" && cargo build --features s_session --bin s_structure_session)
+  # #1419 裁定（issuecomment-6265726014）：本直接链路用 v1 init/accept/advance 造库，只许 v2 种子构建。
+  echo "[launcher] 构建 S 种子二进制（cargo build --features s_session,s_v2_seed_testonly --bin s_structure_session）"
+  (cd "$ROOT/rust" && cargo build --features s_session,s_v2_seed_testonly --bin s_structure_session)
   echo "$(host_stamp)" > "$STAMP"
 }
 
@@ -233,6 +234,17 @@ else
   BIN="$BIN_DEFAULT"
   [[ "$DO_BUILD" -eq 1 ]] && build
   needs_build && build
+fi
+
+# #1419：发布构建的 S 拒绝一切 v2/v1 写子命令；先确认手里是种子构建，默认产物不是就重建一次。
+if ! "$BIN" v2-seed-info >/dev/null 2>&1; then
+  if [[ "$BIN_EXPLICIT" -eq 0 ]]; then
+    build
+  fi
+  if ! "$BIN" v2-seed-info >/dev/null 2>&1; then
+    echo "[launcher] 错误：$BIN 不是 v2 种子构建（需 --features s_session,s_v2_seed_testonly）" >&2
+    exit 1
+  fi
 fi
 
 if [[ "$DO_RESET" -eq 1 ]]; then

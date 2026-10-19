@@ -7,6 +7,7 @@ use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
 use newchan_rust::s_content::{capture_allocation::OwnedBudget, CodecVec};
 pub use newchan_rust::session_protocol::strict_json;
 use newchan_rust::session_protocol::{nonnegative, positive, required, validate_envelope};
+#[cfg(any(test, feature = "s_v2_seed_testonly"))]
 use newchan_rust::session_transport::{self, serve_unix, TransportBounds};
 use newchan_rust::sqlite_checked::{CheckedRow, CheckedStatement};
 use std::ffi::CStr;
@@ -2139,10 +2140,11 @@ pub(super) fn validate_control_history_admitted(
     })
 }
 
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 fn process_lock(db: &Path) -> Result<File, String> {
     session_transport::process_lock(db, "S")
 }
-#[cfg_attr(not(test), allow(dead_code))] // #1419 裁定②：v2 写者仅留测试种子/oracle，生产入口已拒
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 fn init_v2(
     db: &Path,
     session: &str,
@@ -2336,6 +2338,7 @@ pub(super) fn validate_ingest_view(e: JsonView<'_>) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 fn handle(
     db: &Path,
     profile: &Path,
@@ -2415,6 +2418,7 @@ fn handle(
         _ => Err("SchemaUnsupported：未知op，恢复只允许正式监督器CLI".into()),
     }
 }
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 fn response(
     e: &Value,
     result: Result<Value, String>,
@@ -2441,6 +2445,7 @@ fn response(
     reply
 }
 
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 #[derive(Clone)]
 struct Bounds {
     frame: usize,
@@ -2451,6 +2456,7 @@ struct Bounds {
     queue: usize,
     connections: usize,
 }
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 impl Bounds {
     fn transport(&self) -> TransportBounds {
         TransportBounds {
@@ -2464,7 +2470,7 @@ impl Bounds {
     }
 }
 
-#[cfg_attr(not(test), allow(dead_code))] // #1419 裁定②：v2 写者仅留测试种子/oracle，生产入口已拒
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 fn serve(
     db: &Path,
     socket: &Path,
@@ -2546,6 +2552,102 @@ pub fn dispatch(args: &[String]) -> Result<bool, String> {
         return Err(crate::V2_WRITER_RETIRED.to_string());
     }
     Ok(false)
+}
+
+#[cfg(feature = "s_v2_seed_testonly")]
+fn arg(args: &[String], key: &str) -> Result<String, String> {
+    arg_value(args, key).ok_or_else(|| format!("缺 {key}"))
+}
+#[cfg(feature = "s_v2_seed_testonly")]
+fn positive_arg(args: &[String], key: &str) -> Result<i64, String> {
+    positive(&arg(args, key)?, key)
+}
+
+/// #1419 裁定（issuecomment-6265726014）：v2 种子写入口，只在 `s_v2_seed_testonly` 构建存在；
+/// 分派与退役前的 `dispatch` 逐字相同（见 0defdcc22b）。
+#[cfg(feature = "s_v2_seed_testonly")]
+pub fn seed_dispatch(args: &[String]) -> Result<bool, String> {
+    let cmd = args.get(1).map(String::as_str).unwrap_or("");
+    if cmd == "init"
+        && [
+            "--session-generation",
+            "--clock-plan",
+            "--delivery-retain-generations",
+        ]
+        .iter()
+        .any(|k| args.iter().any(|a| a == k))
+    {
+        let out = init_v2(
+            Path::new(&arg(args, "--db")?),
+            &arg(args, "--session")?,
+            Path::new(&arg(args, "--catalog")?),
+            Path::new(&arg(args, "--profile")?),
+            &arg(args, "--session-generation")?,
+            Path::new(&arg(args, "--clock-plan")?),
+            positive_arg(args, "--delivery-retain-generations")?,
+        )?;
+        println!("{out}");
+        return Ok(true);
+    }
+    if cmd == "serve" {
+        let bounds = Bounds {
+            frame: usize::try_from(positive_arg(args, "--max-frame-bytes")?).map_err(err)?,
+            read: Duration::from_millis(positive_arg(args, "--read-timeout-ms")? as u64),
+            write: Duration::from_millis(positive_arg(args, "--write-timeout-ms")? as u64),
+            response: Duration::from_millis(positive(
+                &arg_value(args, "--response-timeout-ms")
+                    .unwrap_or_else(|| arg_value(args, "--read-timeout-ms").unwrap_or_default()),
+                "response-timeout-ms",
+            )? as u64),
+            cache_bytes: arg_value(args, "--audit-cache-source-bytes")
+                .map(|s| {
+                    parse_canonical_i64(&s, "audit-cache-source-bytes")
+                        .and_then(|v| usize::try_from(v).map_err(err))
+                })
+                .transpose()?
+                .unwrap_or(0),
+            queue: usize::try_from(positive_arg(args, "--queue-capacity")?).map_err(err)?,
+            connections: usize::try_from(positive_arg(args, "--max-connections")?).map_err(err)?,
+        };
+        serve(
+            Path::new(&arg(args, "--db")?),
+            Path::new(&arg(args, "--socket")?),
+            Path::new(&arg(args, "--profile")?),
+            &arg(args, "--writer-epoch")?,
+            Path::new(&arg(args, "--clock-plan")?),
+            bounds,
+        )?;
+        return Ok(true);
+    }
+    if cmd == "recover"
+        && ["--clock-plan", "--clock-event-id"]
+            .iter()
+            .any(|k| args.iter().any(|a| a == k))
+    {
+        let db = PathBuf::from(arg(args, "--db")?);
+        let _lock = process_lock(&db)?;
+        let clock = ClockPlan::load(Path::new(&arg(args, "--clock-plan")?))?;
+        let out = recover_core(
+            &db,
+            &arg(args, "--new-epoch")?,
+            Some((&clock, &arg(args, "--clock-event-id")?)),
+        )?;
+        println!("{out}");
+        return Ok(true);
+    }
+    Ok(false)
+}
+
+#[cfg(feature = "s_v2_seed_testonly")]
+pub fn legacy_write_lock(args: &[String]) -> Result<Option<File>, String> {
+    if matches!(
+        args.get(1).map(String::as_str),
+        Some("init" | "reset" | "accept" | "advance" | "recover")
+    ) {
+        let db = PathBuf::from(arg(args, "--db")?);
+        return process_lock(&db).map(Some);
+    }
+    Ok(None)
 }
 
 /// v2普通Watch只能走独立保留引用；旧v1数据仍由原命令实现读取。

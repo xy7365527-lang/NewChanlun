@@ -18,6 +18,7 @@ import uuid
 from pathlib import Path
 
 from s_socket_client import decode_frame, exchange, validate_reply
+from v2_seed import require_seed_binary
 
 S_RESOURCE_FIELDS = {"max_frame_bytes", "read_timeout_ms", "write_timeout_ms", "response_timeout_ms",
                      "audit_cache_source_bytes", "queue_capacity", "max_connections"}
@@ -552,6 +553,8 @@ class Controller:
         config = self.config
         deadline = time.monotonic() + int(config["startup_timeout_ms"]) / 1000
         s3 = launcher_revision(config) == "s-launcher/3"
+        if not s3:  # #1419：s-launcher/2 写 v2 库，只许种子构建
+            require_seed_binary(config["binary"])
         validate_s_resources(config)
         positive(writer_epoch, "writer_epoch")
         environment = self.runtime_environment(deadline)
@@ -680,6 +683,8 @@ class Controller:
             raise ValueError("须有本控制器记录且已确认原 S 停止，才可恢复换代")
         positive(new_epoch, "new_epoch")
         config = self.config
+        if launcher_revision(config) != "s-launcher/3":  # #1419：s-launcher/2 换代写 v2 库，只许种子构建
+            require_seed_binary(config["binary"])
         deadline = time.monotonic() + int(config["startup_timeout_ms"]) / 1000
         environment = self.runtime_environment(deadline)
         command = [config["binary"], "recover", "--db", config["db"], "--new-epoch", new_epoch,
