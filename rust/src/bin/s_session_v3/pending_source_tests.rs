@@ -49,7 +49,8 @@ fn run_normal(scenario: &'static str, rows: [Row; 4]) {
         );
         // r2 两臂失败现场的生成根；修复只改变审计接收，不改变发布原件。
         // #1394 合入 #1405 后重冻：v3 写者规则升 `s2-axis-quantifiers+new-bi/2`（mod.rs 写入
-        // meta.rule_revision），TB-02-A/B 发布内容按 #1343 同价裁定改变；三处生成根为合并后实测值。
+        // meta.rule_revision），TB-02-A/B 发布内容按 #1343 同价裁定改变；三处生成根为合并后实测值，
+        // 与 `813fc75fa5`、`199caedfd0`、`dccb69793c` 三点实测逐值相同（变化来自 #1405 适配合并本身）。
         // 旧值（new-bi/1）：乱序 2342365b…、顺序 2c0906de…、较早修订 408fd573…。
         let frozen = match (scenario, step) {
             ("乱序新身份且前三根同OHLC", 2) => {
