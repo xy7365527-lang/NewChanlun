@@ -3128,6 +3128,27 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
             .collect::<Vec<_>>();
         json!({"raw":a.raw,"cuts":cuts,"objects":format!("{:?}",a.objects),"auxiliary":format!("{:?}",a.auxiliary)})
     }
+    // v4合同「不变量」：同一生产路径只有一个真实分配父和一个累计live账；许可随对象移动，
+    // 在对象析构以后返还；没有裸字节追认或同额补签。封存后父账live因此必须恰为
+    // 残余live加上封存池所持许可之和，且每张封存许可都挂在这一真实父账。
+    fn seal_identity(
+        parent: &native::Budget,
+        residual: usize,
+        after_seal: usize,
+        permits: &[(&native::Budget, usize)],
+    ) -> Result<(), String> {
+        if let Some((_, bytes)) = permits.iter().find(|(p, _)| !p.same_parent(parent)) {
+            return Err(format!("封存许可{bytes}挂错父账"));
+        }
+        let sum = permits
+            .iter()
+            .try_fold(0usize, |sum, (_, bytes)| sum.checked_add(*bytes))
+            .ok_or("封存许可之和溢出")?;
+        if residual.checked_add(sum) != Some(after_seal) {
+            return Err(format!("父账恒等式失败：{after_seal} != {residual} + {sum}"));
+        }
+        Ok(())
+    }
     let mut f = prepared::tests::Fixture::new();
     let (envelope, token) = f.accept_begin(1, ("r14-source", 0, 6, 12, 3, 7), 1);
     f.publish(&envelope, &token).unwrap();
@@ -3136,6 +3157,8 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
     for admitted in [false, true] {
         let mut owner = AuditConnection::open(&f.db_path()).unwrap();
         let mut keeper = cross_request_source_cache::Keeper::new(total);
+        // 上一请求的(父账, 残余, 封存后live)：旧池在本请求收尾时析构，许可须返还到它自己的父账。
+        let mut sealed_prior: Option<(native::Budget, usize, usize)> = None;
         for request in 0..2 {
             let old_pool = keeper.retained_source_bytes();
             let mut context = request_audit::RequestAuditContext::with_source_keeper(keeper);
@@ -3146,6 +3169,8 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                 context.enable_cold_admission_for_testonly().unwrap();
             }
             let parent = context.cold_parent_budget();
+            // 残余=审计前父账已有的真实许可（控制块M）；审计/slot许可都应在封存前后析构返还。
+            let residual = parent.as_ref().map(|p| p.live());
             let active = owner.begin(TransactionBehavior::Deferred).unwrap();
             let audited = if let Some(parent) = &parent {
                 parent
@@ -3167,9 +3192,27 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
             let before_seal = parent.as_ref().map(|p| p.live());
             drop(audited);
             drop(cold);
+            let after_drop = parent.as_ref().map(|p| p.live());
             let ended = active.read_end().unwrap();
             owner.finish_source_keeper(context, ended);
             keeper = owner.take_source_keeper().unwrap();
+            if let Some((prior, prior_residual, prior_after_seal)) = sealed_prior.take() {
+                // 旧池已被本请求的finish清掉：它的封存许可之和只能从旧父账返还。
+                let prior_sealed = prior_after_seal
+                    .checked_sub(prior.live())
+                    .expect("旧池析构不得让旧父账增长");
+                assert!(prior_sealed > 0, "封存新增许可必须留在冷核同父账");
+                seal_identity(
+                    &prior,
+                    prior_residual,
+                    prior_after_seal,
+                    &[(&prior, prior_sealed)],
+                )
+                .unwrap();
+                if let Some(parent) = &parent {
+                    assert!(!prior.same_parent(parent), "两请求各自持有真实父账");
+                }
+            }
             let report = keeper.report();
             assert!(keeper.retained_source_bytes() > 0);
             assert_eq!(report["retained_counts_proofs"], 1);
@@ -3187,10 +3230,6 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                 ordinary_source_cost = keeper.retained_source_bytes();
             }
             if let Some(parent) = &parent {
-                assert!(
-                    parent.live() > before_seal.unwrap(),
-                    "封存新增许可必须留在冷核同父账"
-                );
                 assert!(parent.peak() < total - old_pool);
                 assert_eq!(parent.scratch_observation().0, 0);
                 assert_eq!(parent.scratch_observation().2, 0);
@@ -3203,8 +3242,65 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                         "full_output_equal":true,"whole_heap_qualified":false
                     })
                 );
+                let residual = residual.unwrap();
+                let after_seal = parent.live();
+                assert!(
+                    after_seal <= after_drop.unwrap(),
+                    "封存不得对已释放字节事后补签"
+                );
+                if request == 0 {
+                    // 池须留给下一请求命中；其许可在下一请求收尾析构时核账。
+                    sealed_prior = Some((parent.clone(), residual, after_seal));
+                    continue;
+                }
+                let pool = keeper.take().expect("封存池存活");
+                drop(pool);
+                let sealed = after_seal
+                    .checked_sub(parent.live())
+                    .expect("封存池析构不得让父账增长");
+                assert!(sealed > 0, "封存新增许可必须留在冷核同父账");
+                seal_identity(parent, residual, after_seal, &[(parent, sealed)]).unwrap();
+
+                // 负控一｜重复计费：同父对已封存对象再收一次同额费用，恒等式必须失败。
+                let held = parent.reserve(sealed).unwrap();
+                let duplicate = parent.reserve(sealed).unwrap();
+                assert!(
+                    seal_identity(parent, residual, parent.live(), &[(parent, sealed)]).is_err(),
+                    "重复计费必须使恒等式失败"
+                );
+                drop(duplicate);
+                seal_identity(parent, residual, parent.live(), &[(parent, sealed)]).unwrap();
+
+                // 负控二｜事后追认：对已分配对象补签许可必须被拒且父账不变；
+                // 若把未进账的追认许可算进封存许可，恒等式必须失败。
+                let before_adopt = parent.live();
+                assert!(parent.adopt(sealed).is_err(), "事后追认必须被拒");
+                assert_eq!(parent.live(), before_adopt, "被拒追认不改父账");
+                assert!(
+                    seal_identity(
+                        parent,
+                        residual,
+                        parent.live(),
+                        &[(parent, sealed), (parent, sealed)]
+                    )
+                    .is_err(),
+                    "未进账的追认许可必须使恒等式失败"
+                );
+
+                // 负控三｜挂错父账：同额许可落在另一个Budget上，必须被识别为错父。
+                let other = native::Budget::new(total, 0).unwrap();
+                let foreign = other.reserve(sealed).unwrap();
+                assert_eq!(parent.live(), before_adopt, "错父许可不进本父账");
+                assert!(
+                    seal_identity(parent, residual, parent.live(), &[(&other, sealed)]).is_err(),
+                    "挂错父账的封存许可必须被拒"
+                );
+                drop(foreign);
+                drop(held);
+                assert_eq!(parent.live(), residual, "负控许可析构后父账回到残余");
             }
         }
+        assert!(sealed_prior.is_none(), "旧池须在下一请求核账");
     }
 }
 
