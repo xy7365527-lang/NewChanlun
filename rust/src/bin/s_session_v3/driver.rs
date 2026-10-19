@@ -3794,19 +3794,71 @@ mod tests {
                     }
                     eprintln!("  total extra nodes: {}", extra_count);
 
-                    // 输出 native 的 s_content_roots 与全部 s_content_nodes 到临时文件，回本地分析可达性
+                    // 输出 native 的 roots（模仿 prepared::tests::runtime_root_compare_reachable_bytes）与全部 s_content_nodes 到临时文件，回本地分析可达性
                     use std::io::Write;
                     let roots_path = "/tmp/staged_native_roots.txt";
                     let nodes_path = "/tmp/staged_native_nodes.txt";
-                    if let Some((_, roots_rows)) = native_tables.iter().find(|(t, _)| t == "s_content_roots") {
-                        let mut f = std::fs::File::create(roots_path).unwrap();
-                        for row in roots_rows {
-                            if let Some(prepared::tests::RuntimeRootCell::Blob(digest)) = row.first() {
-                                writeln!(f, "{}", digest.iter().map(|b| format!("{:02x}", b)).collect::<String>()).unwrap();
-                            }
+                    let mut roots = Vec::new();
+                    for (table, columns) in [
+                        (
+                            "s_content_publications",
+                            vec!["manifest_root", "snapshot_root", "delta_root"],
+                        ),
+                        (
+                            "s_content_objects",
+                            vec![
+                                "generated_root",
+                                "internal_root",
+                                "immutable_root",
+                                "birth_wire_root",
+                            ],
+                        ),
+                        ("s_content_witnesses", vec!["generated_root", "wire_root"]),
+                        ("s_content_relations", vec!["generated_root"]),
+                        (
+                            "s_content_observations",
+                            vec!["generated_root", "birth_wire_root"],
+                        ),
+                    ] {
+                        for column in columns {
+                            roots.extend(
+                                native.conn
+                                    .prepare(&format!("SELECT {column} FROM {table}"))
+                                    .unwrap()
+                                    .query_map([], |r| r.get::<_, Vec<u8>>(0))
+                                    .unwrap()
+                                    .collect::<Result<Vec<_>, _>>()
+                                    .unwrap(),
+                            );
                         }
-                        eprintln!("  wrote {} roots to {}", roots_rows.len(), roots_path);
                     }
+                    for (table, column) in [
+                        ("structure_deltas", "delta_json"),
+                        ("structure_deltas", "catalog_evidence_json"),
+                        ("catalog", "evidence_json"),
+                    ] {
+                        for raw in native.conn
+                            .prepare(&format!("SELECT {column} FROM {table}"))
+                            .unwrap()
+                            .query_map([], |r| r.get::<_, String>(0))
+                            .unwrap()
+                            .collect::<Result<Vec<_>, _>>()
+                            .unwrap()
+                        {
+                            let value = strict_json(raw.as_bytes()).unwrap();
+                            if value == json!({}) {
+                                continue;
+                            }
+                            let r = sc::TransportRef::from_json_view((&value).into()).unwrap();
+                            roots.push(r.digest().unwrap().to_vec());
+                        }
+                    }
+                    let mut f = std::fs::File::create(roots_path).unwrap();
+                    for digest in &roots {
+                        writeln!(f, "{}", digest.iter().map(|b| format!("{:02x}", b)).collect::<String>()).unwrap();
+                    }
+                    eprintln!("  wrote {} roots to {}", roots.len(), roots_path);
+
                     let mut f = std::fs::File::create(nodes_path).unwrap();
                     for row in native_nodes {
                         if let (Some(prepared::tests::RuntimeRootCell::Blob(digest)), Some(prepared::tests::RuntimeRootCell::Blob(children))) = (row.get(0), row.get(1)) {
