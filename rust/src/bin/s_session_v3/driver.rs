@@ -1443,9 +1443,13 @@ mod tests {
             .err()
             .expect("旧serial raw token必须被拒");
         assert!(error.contains("raw token 已结束、回滚或撤销"), "{error}");
+        // 现 epoch 无写请求归还来源池，旧 Begin token 随后以真实来源上下文发起发布。
         native.epoch = "2".into();
-        // Recover 不回交来源池；以无来源缓存的请求上下文实际发起旧 token 发布。
-        let mut context = request_audit::RequestAuditContext::default();
+        native
+            .handle(envelope("ready-recover-old-begin", json!({"op":"ready"})))
+            .unwrap();
+        assert!(!native.conn.recover_probe_for_test().stale);
+        let mut context = recover_lock_context(&mut native);
         let error = native
             .conn
             .publish(&mut native.runtime, &old_begin, &second, &mut context)
@@ -1479,7 +1483,10 @@ mod tests {
             .recover("2", &native.clock, "recover-2")
             .unwrap_err();
         eprintln!("{}", json!({"scenario":"recover-schema-change","error":error}));
-        assert!(error.contains("StaleWriter"), "{error}");
+        assert_eq!(
+            error,
+            "StaleWriter：construction资格失效：已有增量游标缺连续同域原件；禁止完整核回退"
+        );
         assert_recover_revoked(&native, &f, serial, "1");
         let f = Fixture::new();
         let (native, _, _) = recover_lock_driver(&f);
@@ -1503,7 +1510,10 @@ mod tests {
             .recover("2", &native.clock, "recover-2")
             .unwrap_err();
         eprintln!("{}", json!({"scenario":"recover-material-change","error":error}));
-        assert!(error.contains("StaleWriter"), "{error}");
+        assert_eq!(
+            error,
+            "StaleWriter：construction资格失效：已有增量游标缺连续同域原件；禁止完整核回退"
+        );
         assert_recover_revoked(&native, &f, serial, "1");
     }
 
