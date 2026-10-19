@@ -192,7 +192,7 @@ class Tests(unittest.TestCase):
 
     def test_stale_receipt_and_return_alias(self):
         ex=Exchange(); c=collector(ex); s,_,v=collect(c,ex); old=v['receipt']; old_cursor=cursor_for(s['fixed_cut'])
-        changes=dict(cut_generation='138', structure_cut='cut-138', as_of_generation='138',input_frontier='137',index_frontier='138')
+        changes=dict(cut_generation='138', structure_cut='cut-138', as_of_generation='138',input_frontier='137',index_frontier='138',seq_range={'from':'137','to':'137'})
         ex.use(material(changes)); s,_,v=collect(c,ex)
         with self.assertRaisesRegex(ValueError,'收据'): c.bind_watch(old,old_cursor)
         fixed=copy.deepcopy(s['fixed_cut']); cursor=cursor_for(fixed)
@@ -203,7 +203,7 @@ class Tests(unittest.TestCase):
 
     def test_all_entrypoints_reject_same_generation_conflicts(self):
         for cls in (fd.Collector,dv.CollectorV2):
-            for change in (dict(input_frontier='999'),dict(structure_cut='alien-cut'),dict(profile_id='alien'),
+            for change in (dict(input_frontier='999',seq_range={'from':'138','to':'999'}),dict(structure_cut='alien-cut'),dict(profile_id='alien'),
                            dict(profile_hash='c'*64),dict(rule_revision='alien'),dict(scope={}),dict(catalog_revision='alien')):
                 self.assertTrue(independently_close(material(change))['closure_verified'])
                 for entry in ('closed_snapshot','snapshot','content','call_snapshot','call_content'):
@@ -250,7 +250,7 @@ class Tests(unittest.TestCase):
 
     def test_watch_envelope_negatives_and_recovery(self):
         mutations={
-            'head_frontier':lambda p:p['observed_head'].update(input_frontier='999'),
+            'head_frontier':lambda p:p['observed_head'].update(input_frontier='999',seq_range=dict(p['observed_head']['seq_range'],to='999')),
             'head_profile':lambda p:p['observed_head'].update(profile_id='alien'),
             'head_cut':lambda p:p['observed_head'].update(structure_cut='alien-cut'),
             'head_evidence':lambda p:p['observed_head'].update(catalog_evidence=cc.Encoder().encode({'other':'evidence'})),
@@ -311,12 +311,12 @@ class Tests(unittest.TestCase):
     def test_historical_and_future_snapshots_share_watch_context(self):
         c,ex,cursor,pages,bindings=ready()
         base=ex.material
-        for changes in (dict(cut_generation='138',structure_cut='cut-138',as_of_generation='138',input_frontier='137',index_frontier='138'),
+        for changes in (dict(cut_generation='138',structure_cut='cut-138',as_of_generation='138',input_frontier='137',index_frontier='138',seq_range={'from':'137','to':'137'}),
                         dict(bindings['140']['accepted_cut']),dict(history_mode='RecomputedWithRevision',as_of_generation=None)):
             ex.use(material(changes));collect(c,ex)
         ex.use(base); c.watch(cursor,140,'client',accepted_commits=bindings)
         before=c.session_state
-        ex.use(material(dict(bindings['140']['accepted_cut'],input_frontier='999')))
+        ex.use(material(dict(bindings['140']['accepted_cut'],input_frontier='999',seq_range={'from':'139','to':'999'})))
         with self.assertRaisesRegex(ValueError,'同代'):collect(c,ex)
         self.assertEqual(c.session_state,before)
         self.record('历史/未来/两模式合法快照交错，同代冲突拒绝',c,ex)
@@ -324,7 +324,7 @@ class Tests(unittest.TestCase):
     def test_watch_transaction_failures_and_direct_call_guard(self):
         for failure in ('later_invalid','transport','metadata','budget'):
             c,ex,cursor,pages,bindings=ready(); before=c.session_state; used=c.work_budget.used
-            if failure=='later_invalid': ex.pages[1]['observed_head']['input_frontier']='999'
+            if failure=='later_invalid': ex.pages[1]['observed_head'].update(input_frontier='999',seq_range=dict(ex.pages[1]['observed_head']['seq_range'],to='999'))
             elif failure=='transport': ex.fail_on=ex.calls+2
             elif failure=='metadata':
                 def change(p):
@@ -347,10 +347,11 @@ class Tests(unittest.TestCase):
 
     def test_original_accepted_999_vs_delta_139_and_identity_locks(self):
         mutations={**{k:'alien' for k in fd.WATCH_IDENTITY if k!='scope'},'scope':{},'input_frontier':'999',
-                   'structure_cut':'alien','index_frontier':'999','catalog_run_status':'alien','seq_range':{'from':'8','to':'8'}}
+                   'structure_cut':'alien','index_frontier':'999','catalog_run_status':'alien','seq_range':{'from':'8','to':'139'}}
         for key,val in mutations.items():
             c,ex,cursor,pages,bindings=ready(); before=c.session_state
             bindings['140']['accepted_cut'][key]=val
+            if key=='input_frontier': bindings['140']['accepted_cut']['seq_range']['to']=val  # v8：保持 to==input_frontier，仍测前沿锁
             with self.assertRaises(ValueError) as error:c.watch(cursor,140,'client',accepted_commits=bindings)
             self.assertEqual(c.session_state,before)
             self.record('原前沿999/139及完整身份锁',c,ex,key=key,error=str(error.exception))
@@ -394,6 +395,7 @@ class Tests(unittest.TestCase):
         before=c.session_state
         for key,value in [('input_frontier','999'),('profile_id','alien'),('structure_cut','alien')]:
             bad=copy.deepcopy(pages[1]);bad['observed_head']=dict(ahead['observed_head'],**{key:value})
+            if key=='input_frontier': bad['observed_head']['seq_range']=dict(bad['observed_head']['seq_range'],to=value)
             bad['delivery_frontier']=copy.deepcopy(ahead['delivery_frontier']);bad['has_more']=True;ex.pages=[bad]
             with self.assertRaises(ValueError):c.watch(cursor,141,'client',accepted_commits=bindings)
             self.assertEqual(c.session_state,before)
@@ -451,6 +453,36 @@ class Tests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'同代完整切面冲突'):c.watch(cur,142,'client',accepted_commits=bindings)
         self.assertEqual(c.session_state['watch'],settled['watch'])
         self.record('v7 seq_range连续与追平空页',c,ex)
+
+    def test_v8_seq_range_to_equals_input_frontier(self):
+        # R7-1：delta 与观测头/接纳切面的 seq_range.to 必须等于 input_frontier；三处同步篡改仍拒，且不推进。
+        for newto in ('999','-1'):
+            c,ex,cursor,pages,bindings=ready(); before=c.session_state
+            bad=copy.deepcopy(pages[0]);bad['deltas'][0]['seq_range']['to']=newto
+            bad['observed_head']['seq_range']['to']=newto
+            b2=copy.deepcopy(bindings);b2['140']['accepted_cut']['seq_range']['to']=newto
+            ex.pages=[bad]
+            with self.assertRaisesRegex(ValueError,'seq_range.to与输入前沿不符'):
+                c.watch(cursor,140,'client',accepted_commits=b2)
+            self.assertEqual(c.session_state,before)
+            self.record('v8 delta seq_range.to='+newto+'拒',c,ex)
+        # 仅篡改 delta（观测头、接纳切面诚实）：由 watch 循环内的 delta 校验拒。
+        c,ex,cursor,pages,bindings=ready(); before=c.session_state
+        bad=copy.deepcopy(pages[0]);bad['deltas'][0]['seq_range']['to']='999';ex.pages=[bad]
+        with self.assertRaisesRegex(ValueError,'watch seq_range.to与输入前沿不符'):
+            c.watch(cursor,140,'client',accepted_commits=bindings)
+        self.assertEqual(c.session_state,before)
+        self.record('v8 仅delta seq_range.to篡改拒',c,ex)
+        # 追平空页的观测头单独篡改 to：经 _check_cut 拒，游标与 watch 状态不动。
+        c,ex,cursor,pages,bindings=ready()
+        ex.pages=[copy.deepcopy(pages[0])];cur=c.watch(cursor,140,'client',accepted_commits=bindings)['next_cursor']
+        settled=c.session_state
+        empty=copy.deepcopy(pages[0]);empty['deltas']=[];empty['next_cursor']=copy.deepcopy(cur)
+        empty['observed_head']['seq_range']['to']='999';ex.pages=[empty]
+        with self.assertRaisesRegex(ValueError,'切面seq_range.to与输入前沿不符'):
+            c.watch(cur,142,'client',accepted_commits=bindings)
+        self.assertEqual(c.session_state['watch'],settled['watch'])
+        self.record('v8 观测头seq_range.to篡改拒',c,ex)
 
 
 if __name__=='__main__': unittest.main(verbosity=2)

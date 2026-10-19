@@ -175,6 +175,8 @@ class Collector:
         exact(fixed['seq_range'], {'from', 'to'})
         natural(fixed['seq_range']['from'])
         if fixed['seq_range']['to'] != '-1': natural(fixed['seq_range']['to'])
+        # q3-consumer.js fixed（1969）：seq_range.to 必须恰为 input_frontier（v8 R7-1）。
+        require(fixed['seq_range']['to'] == fixed['input_frontier'], '切面seq_range.to与输入前沿不符')
         ref_check(fixed['catalog_evidence'])
         if state['anchor'] is not None:
             for key in WATCH_IDENTITY:
@@ -574,6 +576,8 @@ class Collector:
                 # q3-consumer.js：wire.seq_range.from 必须恰为 cursor.last_seq+1（v7 R6-1）。
                 exact(delta['seq_range'], {'from', 'to'})
                 require(delta['seq_range']['from'] == str(previous_frontier+1), 'watch seq_range断链')
+                # q3-consumer.js validateDelta（1566-1569）：seq_range.to 必须恰为 input_frontier（v8 R7-1）。
+                require(delta['seq_range']['to'] == delta['input_frontier'], 'watch seq_range.to与输入前沿不符')
                 binding=accepted_commits.get(delta['generation'])
                 require(isinstance(binding,dict),'缺具名提交代际绑定')
                 exact(binding,{'session_id','session_generation','message_id','source_epoch','accepted_events','accepted_cut'})
