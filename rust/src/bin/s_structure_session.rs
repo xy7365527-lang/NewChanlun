@@ -61,8 +61,9 @@ use serde_json::{json, Value};
 
 /// CC-006 验收合同修订（SPEC-COVERAGE-INPUT.json `/classification_axes/5`）。
 /// #1405：新笔规则升 `new-bi-dual-coordinate/2`（#1343 同价裁定）⟹ 会话级规则随之升 `new-bi/2`；
-/// 旧规则会话只读（AsKnown），同一 rule_revision 下不混两代笔对象。
-const RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2+segment-second/1";
+/// #1420：第二种候选三态终点与 K1 续扫（段合同 `s-segment/3`）⟹ 会话级规则升 `segment-second/2`。
+/// 旧规则会话只读（AsKnown），同一 rule_revision 下不混两代笔/段对象。
+const RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2+segment-second/2";
 
 /// S 唯一结构写者的默认 writer_epoch（可经 `--writer-epoch` / `recover` 换代）。
 const DEFAULT_WRITER_EPOCH: &str = "1";
@@ -2207,8 +2208,14 @@ fn advance_core(
             layer = Some(incr.append(bar));
         }
     }
+    // #1420：第二种候选经每 cut 的游标簿折叠；上一 cut 的 K1 游标经已发布对象带入（续扫与恢复同一路径）。
+    let mut second_store =
+        newchan_rust::theta_v0::parser::second_fold::SecondFoldStore::new(tb02c::round_budget());
     let (layer, inclusion_facts) = if is_ohlc {
-        let (layer, facts) = parser::parse_layer_with_inclusion_facts(&raw_bars, &config);
+        tb02c::restore_cursors(&read_active_objects(&conn)?, &mut second_store);
+        let (layer, facts, store) =
+            parser::parse_layer_with_inclusion_facts_store(&raw_bars, &config, second_store);
+        second_store = store;
         (layer, Some(facts))
     } else {
         (
@@ -2428,7 +2435,8 @@ fn advance_core(
             &structure_cut,
             frontier,
             v2::commit_time(&conn, context)?,
-        );
+            &second_store,
+        )?;
         objects.extend(segments);
         relations.extend(edges);
     }
@@ -4413,6 +4421,258 @@ mod tests {
                 String::from_utf8_lossy(&out.stderr)
             );
         }
+    }
+
+    /// #1420：按 tb02d `generate-input.py` 的端点→整数 OHLC 规则（UP；DOWN 为 10000 镜像），
+    /// 末尾按末笔方向多延伸 `tail` 根（只延长末笔，不新增分型）。返回 (open, high, low, close)。
+    fn design_rows(points: &[i64], up: bool, tail: i64) -> Vec<(i64, i64, i64, i64)> {
+        let prices: Vec<i64> = points.iter().map(|x| 2000 + 100 * x).collect();
+        let centers: Vec<i64> = prices
+            .iter()
+            .enumerate()
+            .map(|(j, p)| p + if j % 2 == 0 { 1 } else { -1 })
+            .collect();
+        let mut q = vec![centers[0] + 200, centers[0]];
+        for w in centers.windows(2) {
+            for k in 1..=4 {
+                q.push(w[0] + ((w[1] - w[0]) * k).div_euclid(4));
+            }
+        }
+        let last = *centers.last().unwrap();
+        let delta = if (prices.len() - 1) % 2 == 0 {
+            100
+        } else {
+            -100
+        };
+        q.extend((1..=2 + tail).map(|k| last + k * delta));
+        q.iter()
+            .map(|&x| {
+                let (o, h, l, c) = (x, x + 1, x - 1, x);
+                if up {
+                    (o, h, l, c)
+                } else {
+                    (10000 - o, 10000 - l, 10000 - h, 10000 - c)
+                }
+            })
+            .collect()
+    }
+
+    fn design_input(rows: &[(i64, i64, i64, i64)]) -> Value {
+        let lows_highs: Vec<_> = rows.iter().map(|r| (r.2, r.1)).collect();
+        let mut input = ohlc_input(&lows_highs, false);
+        for (i, r) in rows.iter().enumerate() {
+            input["events"][i]["open"] = json!(r.0.to_string());
+            input["events"][i]["close"] = json!(r.3.to_string());
+        }
+        input
+    }
+
+    /// 快照中段合同对象全数过 Python 合同（逐对象 + 同 cut 引用）。
+    fn contract_check(snapshot: &Value) {
+        use std::io::Write;
+        let program = "import json,sys;sys.path.insert(0,sys.argv[1]);import s_tb02_contract as c;objs=json.load(sys.stdin)\nseg=[o for o in objs if o['kind'] in c.SEGMENT_KINDS]\nfor o in seg: c.validate_payload(o['kind'],o['payload'])\nc.validate_segment_links(seg)\n";
+        let mut child = std::process::Command::new("python3")
+            .arg("-c")
+            .arg(program)
+            .arg(fixture(""))
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(snapshot["objects"].to_string().as_bytes())
+            .unwrap();
+        let out = child.wait_with_output().unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    fn segment_data(snapshot: &Value, kind: &str, entity: &str) -> Option<Value> {
+        snapshot["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find_map(|o| {
+                (o["kind"] == kind && o["payload"]["data"]["entity_id"] == entity)
+                    .then(|| o["payload"]["data"].clone())
+            })
+    }
+
+    fn version_data(snapshot: &Value) -> Value {
+        snapshot["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|o| o["kind"] == "CC-056.segment_version")
+            .unwrap()["payload"]["data"]
+            .clone()
+    }
+
+    /// 依次接纳前 `counts[i]` 根并各推进一代（一代一轮调度）；返回每代快照。S 每代全量重算并核
+    /// 整条代链，debug 下逐根推进过慢，故只在关心的切点推进。
+    fn run_design(
+        rows: &[(i64, i64, i64, i64)],
+        budget: Option<u32>,
+        counts: &[usize],
+    ) -> (TestFiles, Vec<Value>) {
+        tb02c::TEST_ROUND_BUDGET.with(|c| c.set(budget));
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let mut snaps = vec![];
+        for &count in counts {
+            accept_ohlc(&files, &design_input(&rows[..count]));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            let snap = snapshot_of(&files, None);
+            contract_check(&snap);
+            snaps.push(snap);
+        }
+        tb02c::TEST_ROUND_BUDGET.with(|c| c.set(None));
+        (files, snaps)
+    }
+
+    fn final_results(snapshot: &Value) -> Vec<(Value, Value, Value)> {
+        snapshot["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|o| o["kind"] == "CC-013.segment")
+            .map(|o| {
+                let d = &o["payload"]["data"];
+                (
+                    d["entity_id"].clone(),
+                    d["result"].clone(),
+                    d["geometric_end"].clone(),
+                )
+            })
+            .collect()
+    }
+
+    fn assert_killed_published(snaps: &[Value], up: bool, round: &str) {
+        let mut killed_seen = false;
+        for snap in snaps {
+            let v = version_data(snap);
+            assert_eq!(v["scan_budget"]["round_strokes"], round);
+            if round == "0" {
+                assert_eq!(v["scan_cursors"], json!([]), "预算 0 无调度检查点");
+            }
+            assert_eq!(
+                v["delivered_scope"],
+                "seed_strict_first_and_second_terminal"
+            );
+            let Some(seg) = segment_data(snap, "CC-013.segment", "segment:1:1") else {
+                continue;
+            };
+            if seg["result"] != "KILLED_CASE_TWO" {
+                continue;
+            }
+            killed_seen = true;
+            assert_eq!(
+                seg["waiting_reasons"][0],
+                "second_candidate_killed_by_new_extreme"
+            );
+            let second =
+                segment_data(snap, "CC-012.feature_sequence", "second:segment:1:1").unwrap();
+            assert_eq!(second["second_sequence_status"], "KILLED");
+            assert_eq!(second["scan"]["semantic_state"], "KILLED_BY_NEW_EXTREME");
+            assert_eq!(
+                second["facts"]["killed_by"]["comparison"],
+                if up { ">" } else { "<" }
+            );
+            assert_eq!(second["scan"]["cursor"]["schema"], "second-fold-cursor/1");
+        }
+        assert!(killed_seen, "up={up}: 越界先到须发布 KILLED_CASE_TWO");
+        assert_eq!(
+            segment_data(snaps.last().unwrap(), "CC-013.segment", "segment:1:1").unwrap()["result"],
+            "CASE_ONE",
+            "up={up}: 078:52 失效后原段延续、由后续第一种情况终结"
+        );
+    }
+
+    /// #1420 tb02c 片：失效候选进 S（KILLED_CASE_TWO / SECOND=KILLED / 三态扫描事实），全程过合同；
+    /// 预算 1 时耗尽候选下一 cut 先追加预算再续扫（检查点经 CC-056 的 K1 线形带入），不会永久停在
+    /// INCOMPLETE，输入走完后与预算 0 的结论相同；recover 后快照不变、续接新输入照常推进。
+    /// 设计点笔 j 在第 4j+7 根时已知：s5（候选 c）27、s6（越界）31、s7（A 终结）35。预算 1 时候选在
+    /// 27 耗尽、29 追加后 OPEN、31 再耗尽、33 追加到 3 笔即在末笔 s6 判失效。
+    #[test]
+    fn tb02w_killed_case_two_scan_budget_resume_and_recover() {
+        const KILLED: &[i64] = &[0, 20, 10, 40, 25, 35, 22, 45, 30, 38, 26, 34];
+        let down = design_rows(KILLED, false, 0);
+        let (_, snaps) = run_design(&down, None, &[31, 33, down.len()]);
+        assert_killed_published(&snaps, false, "0");
+        let rows = design_rows(KILLED, true, 6);
+        let (_, base) = run_design(&rows, None, &[rows.len()]);
+        let counts: Vec<usize> = (25..rows.len()).step_by(2).chain([rows.len()]).collect();
+        let (files, budgeted) = run_design(&rows, Some(1), &counts);
+        assert_killed_published(&budgeted, true, "1");
+        let mut bound_seen = false;
+        let mut granted_max = 0u64;
+        for snap in &budgeted {
+            let Some(second) = segment_data(snap, "CC-012.feature_sequence", "second:segment:1:1")
+            else {
+                continue;
+            };
+            if second["scan"]["coverage"] == "INCOMPLETE_RESOURCE_BOUND" {
+                bound_seen = true;
+                assert!(second["scan"]["semantic_state"].is_null());
+                let seg = segment_data(snap, "CC-013.segment", "segment:1:1").unwrap();
+                assert_eq!(seg["result"], "PENDING_CASE_TWO");
+                assert!(seg["waiting_reasons"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&json!("second_sequence_resource_bound")));
+                assert_ne!(
+                    version_data(snap)["scan_cursors"],
+                    json!([]),
+                    "耗尽游标须进检查点"
+                );
+            }
+            let g = second["scan"]["budget"]["granted"]
+                .as_str()
+                .unwrap()
+                .parse::<u64>()
+                .unwrap();
+            granted_max = granted_max.max(g);
+        }
+        assert!(bound_seen, "预算 1 须出现耗尽");
+        assert!(granted_max >= 3, "跨 cut 追加预算未发生（{granted_max}）");
+        assert_eq!(
+            final_results(budgeted.last().unwrap()),
+            final_results(base.last().unwrap()),
+            "续扫完毕与预算 0 结论相同"
+        );
+        tb02c::TEST_ROUND_BUDGET.with(|c| c.set(Some(1)));
+        let before = snapshot_of(&files, None);
+        cmd_recover(&files.db(), "2").unwrap();
+        assert_eq!(snapshot_of(&files, None), before, "recover 不改已发布 cut");
+        let mut more = rows.clone();
+        let last = *more.last().unwrap();
+        // 沿末笔方向再延伸一根：只延长末笔，结论不应变。
+        let step = (last.3 - more[more.len() - 2].3).signum() * 100;
+        more.push((last.0 + step, last.1 + step, last.2 + step, last.3 + step));
+        accept_core(
+            &files.db(),
+            &canonical_json(&design_input(&more)),
+            &fixture("profiles/ohlc_integer_tb02a_v1.json"),
+            "2",
+            None,
+        )
+        .unwrap();
+        cmd_advance(&files.db(), "2").unwrap();
+        let after = snapshot_of(&files, None);
+        tb02c::TEST_ROUND_BUDGET.with(|c| c.set(None));
+        contract_check(&after);
+        assert_eq!(
+            final_results(&after),
+            final_results(base.last().unwrap()),
+            "恢复后续接输入，结论不变"
+        );
     }
 
     /// 显式 (event_id, source_coord, open, high, low, close) 的 OHLC 输入；业务身份由 event_id

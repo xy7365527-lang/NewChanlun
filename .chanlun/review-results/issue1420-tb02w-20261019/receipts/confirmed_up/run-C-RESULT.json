@@ -1,0 +1,7 @@
+{
+ "status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER",
+ "semantic_oracle": "not_evaluated",
+ "browser": "not_evaluated",
+ "input_count": 40,
+ "core_records": 219
+}

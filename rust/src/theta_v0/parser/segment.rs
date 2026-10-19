@@ -156,7 +156,8 @@ fn find_overlap_start(strokes: &[Stroke], from: usize) -> Option<usize> {
     None
 }
 
-pub const CONSTRUCTION_RULE: &str = "segment-second/1";
+/// #1420：第二种候选三态终点（078:52 失效）改变段语义 ⟹ 新语义版本；旧版对象不回改。
+pub const CONSTRUCTION_RULE: &str = "segment-second/2";
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ConstructionFact {
@@ -432,6 +433,15 @@ fn record_candidate(
     let invalid = attempts
         .last()
         .is_some_and(|a| !a.construction.valid() || !a.minimum_count_met);
+    // #1344：活动第二种候选已被越界作废时，不得写成「待第二序列分型」。
+    let killed = deferred
+        && second.as_ref().is_some_and(|s| {
+            s.semantic_state == Some(super::feature_seq::SecondTerminal::KilledByNewExtreme)
+        });
+    // #1420：预算耗尽的候选封住本段（含假设转折点试探中遇到的），其扫描事实即本段的等待依据。
+    let resource_bound = second
+        .as_ref()
+        .is_some_and(|s| s.resource_truncated && s.matched.is_none());
     let result = if invalid {
         "FAILED_GEOMETRY"
     } else if end.is_some() {
@@ -440,7 +450,9 @@ fn record_candidate(
         } else {
             "CASE_ONE"
         }
-    } else if deferred {
+    } else if killed {
+        "KILLED_CASE_TWO"
+    } else if deferred || resource_bound {
         "PENDING_CASE_TWO"
     } else {
         "NO_FIRST"
@@ -450,7 +462,9 @@ fn record_candidate(
     let built = construction(strokes, start, end.map_or(observed_through + 1, |e| e + 1));
     let mut waiting_reasons = if invalid || end.is_some() {
         vec![]
-    } else if deferred {
+    } else if killed {
+        vec!["second_candidate_killed_by_new_extreme"]
+    } else if deferred || resource_bound {
         vec![if second.as_ref().is_some_and(|s| s.resource_truncated) {
             "second_sequence_resource_bound"
         } else {
@@ -748,7 +762,7 @@ pub fn divide_segments_with_tail(
     strokes: &[Stroke],
     config: &ParseConfig,
 ) -> (Vec<Segment>, Option<usize>) {
-    let (segments, tail, _) = divide_segments_core(strokes, config, false);
+    let (segments, tail, _) = divide_segments_core(strokes, config, false, &mut None);
     (segments, tail)
 }
 
@@ -757,13 +771,30 @@ pub fn divide_segments_with_facts(
     strokes: &[Stroke],
     config: &ParseConfig,
 ) -> (Vec<Segment>, Option<usize>, SegmentFacts) {
-    divide_segments_core(strokes, config, true)
+    divide_segments_core(strokes, config, true, &mut None)
+}
+
+/// #1420：同 [`divide_segments_with_facts`]，第二种候选经 S 层游标簿（K1）折叠并带回簿。
+pub fn divide_segments_with_facts_store(
+    strokes: &[Stroke],
+    config: &ParseConfig,
+    store: super::second_fold::SecondFoldStore,
+) -> (
+    Vec<Segment>,
+    Option<usize>,
+    SegmentFacts,
+    super::second_fold::SecondFoldStore,
+) {
+    let mut slot = Some(store);
+    let (segments, pending, facts) = divide_segments_core(strokes, config, true, &mut slot);
+    (segments, pending, facts, slot.unwrap_or_default())
 }
 
 fn divide_segments_core(
     strokes: &[Stroke],
     config: &ParseConfig,
     observe: bool,
+    store: &mut Option<super::second_fold::SecondFoldStore>,
 ) -> (Vec<Segment>, Option<usize>, SegmentFacts) {
     let mut facts = SegmentFacts::default();
     let mut segments = Vec::new();
@@ -796,6 +827,7 @@ fn divide_segments_core(
         TAIL_WINDOW,
         config.second_seq_scan_window,
     );
+    feat.set_second_store(store.take());
     if observe {
         feat.observe();
     }
@@ -875,6 +907,7 @@ fn divide_segments_core(
             min_seg,
         );
     }
+    *store = feat.take_second_store();
     (segments, pending_start, facts)
 }
 
@@ -926,8 +959,11 @@ pub struct IncrSegments {
     /// 不与历史取 min**（advancing）。
     ///
     /// **为何需要回退**：`second_seq_scan_window=0`（无限）下，新 bar 引入的同向笔可让 SecondKindPending
-    /// 复活（第二特征序列出现分形），级联改写已 confirmed 的更早段（#88 报告反例 seg[404]<confirmed_len=406）。
+    /// 改判（第二特征序列出现分形），级联改写已 confirmed 的更早段（#88 报告反例 seg[404]<confirmed_len=406）。
     /// 故 `append` 的 `confirmed_bound = min(末段end, earliest_unsealed_from)` 回退到 unsealed 起点前。
+    ///
+    /// #1344 / #1420（xianduan §5.1 检查点安全边界）：只有 `OPEN_AT_PREFIX_END` 与预算耗尽的候选
+    /// 记入本字段；`KILLED_BY_NEW_EXTREME` 不复活，失效笔不再是输入末笔后即封闭，边界随之前移。
     ///
     /// **advancing soundness**（codex #91 §二）：second_seq_has_fractal 一旦真则永真（构建由既定前缀
     /// 决定）+ 段连续性 ⟹ 未 resolve 的候选必在下轮重扫被重新发现；候选 resolve 后 euf 前移/清零 ⟹
@@ -960,13 +996,29 @@ impl IncrSegments {
     ///
     /// ★#88 边界（诚实声明，no-patch-mentality）：本函数**不重建** `earliest_unsealed_from`
     /// skip 历史——全量结果不记录哪些段曾跳过 SecondKind 候选。故恢复态设 `None`，首次 append 仅
-    /// 1 段回退。**仅在恢复前缀无 unsealed 候选时 bit-exact 安全**。生产路径是 `empty()` + 逐 bar
-    /// `append`（skip 历史跨 append 持久累积），**不经** `from_full`（当前无生产调用者）。若未来要
-    /// 在有 unsealed 前缀处恢复，须同时持久化/重建 `earliest_unsealed_from`。
+    /// 1 段回退。**仅在恢复前缀无 unsealed 候选时 bit-exact 安全**。#1344：已失效（非末笔触发）的
+    /// 候选不复活，不构成 unsealed，在此前提内可安全恢复（tb02w_tests 锁）。生产路径是 `empty()` + 逐 bar
+    /// `append`（skip 历史跨 append 持久累积），**不经** `from_full`（当前无生产调用者）。在有 unsealed
+    /// 前缀处恢复须带检查点边界，用 [`Self::from_checkpoint`]。
     pub fn from_full(
         segments: &[Segment],
         pending_start: Option<usize>,
         strokes: &[Stroke],
+    ) -> Self {
+        Self::from_checkpoint(segments, pending_start, strokes, None)
+    }
+
+    /// #1420（xianduan §5.1）：从全量结果 + 检查点安全边界恢复增量状态。
+    ///
+    /// `earliest_unsealed_from` 取自存检查点时的 [`Self::earliest_unsealed_from`]：最早未封闭第二种
+    /// 候选（`OPEN_AT_PREFIX_END` 或预算耗尽）所在段起点，随确认/失效前移；失效候选不复活，不入边界。
+    /// 带边界恢复后续扫，与同一完整输入的无中断全量逐位相同（对任意切点成立，tb02w 三路锁）；
+    /// `from_full` 是边界为空的特例。单个候选的续扫用 `second_fold::SecondFoldCursor`（K1）。
+    pub fn from_checkpoint(
+        segments: &[Segment],
+        pending_start: Option<usize>,
+        strokes: &[Stroke],
+        earliest_unsealed_from: Option<usize>,
     ) -> Self {
         // 重建 end_array_idx：段端 = strokes[s1].end_index，找 s1 在 strokes 中的位置。
         let mut end_indices: Vec<usize> = Vec::with_capacity(segments.len());
@@ -996,7 +1048,7 @@ impl IncrSegments {
             strokes_len: strokes.len(),
             confirmed_len,
             last_stroke: strokes.last().copied(),
-            earliest_unsealed_from: None,
+            earliest_unsealed_from,
         }
     }
 
@@ -1174,6 +1226,7 @@ impl IncrSegments {
 
         let pending_start = if seg_start < n { Some(seg_start) } else { None };
         // #93 advancing 变体（codex #91 补充裁定 §五）：直接持久化本轮重扫的新鲜 euf，**不**与历史取 min。
+        // #1344：确认/失效由非末笔决定后即终局（逐笔左折叠，先到者定），故下句对三态同样成立。
         // soundness（§二）：second_seq_has_fractal 一旦真则永真（构建由既定前缀决定，追加笔不改已算
         // elements）+ 段连续性（resume_seg_start 精确重合 flag 位置，见 append 内 debug_assert）⟹ 未
         // resolve 的候选必在下轮从 resume 重扫时被重新发现；仅当从 resume 到 n 全程零 flag（euf_rescan
