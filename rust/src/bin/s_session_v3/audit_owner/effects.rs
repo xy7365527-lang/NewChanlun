@@ -1547,28 +1547,16 @@ pub(super) fn with_material_access<T>(
             // #1488 U2：先创建空父账（retained=0），再从父账 reserve journal 费用，
             // 不走 adopt 追认。Budget::new(limit, j.bytes) 会把 j.bytes 放进 moved_in，
             // 但那不是真实许可；必须显式 reserve 后随 journal 持有。
-            let budget = native::Budget::new(j.cap, 0).map_err(|_| {
-                #[cfg(test)]
-                j.observe_failure(
-                    "material-parent-create-empty",
-                    Some(0),
-                    None,
-                    Some(tx.is_autocommit()),
-                    None,
-                );
-                construction_state::stale("材料共享父账元数据不足")
-            })?;
-            let journal_permit = budget.reserve(j.bytes).map_err(|_| {
-                #[cfg(test)]
-                j.observe_failure(
-                    "material-journal-reserve",
-                    Some(j.bytes),
-                    None,
-                    Some(tx.is_autocommit()),
-                    None,
-                );
-                construction_state::stale("journal初始费用预留失败")
-            })?;
+            let (budget, journal_permit) = native::Budget::new_empty_with_fee(j.cap, j.bytes)
+                .map_err(|failure| {
+                    let (_stage, _bytes, message) = match failure {
+                        None => ("material-parent-create-empty", 0, "材料共享父账元数据不足"),
+                        Some(_) => ("material-journal-reserve", j.bytes, "journal初始费用预留失败"),
+                    };
+                    #[cfg(test)]
+                    j.observe_failure(_stage, Some(_bytes), None, Some(tx.is_autocommit()), None);
+                    construction_state::stale(message)
+                })?;
             let journal_charge = journal_permit.finish(j.bytes);
             j.resources = Some(MaterialResources {
                 budget: budget.clone(),
@@ -2831,5 +2819,57 @@ mod e_owner_move_tests {
         assert_eq!(text(&originals[0].rows[0][1]).unwrap(), "updated");
         drop(originals);
         assert_eq!(budget.live(), 0);
+    }
+}
+
+#[cfg(test)]
+// #1488 U2：原 adopt_row（原 1750）改为只核本父出生身份；正/负锁。
+mod u2_row_owned_tests {
+    use super::*;
+    #[test]
+    fn u2_effects_row_owned_accepts_cells_born_under_parent() {
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        let tx = conn.transaction().unwrap();
+        let budget = native::Budget::new(1024 * 1024, 0).unwrap();
+        let (rows, _) = ExactRows::read_optional_bounded_in_parent(
+            &tx,
+            "SELECT 1,X'010203','keep'",
+            65536,
+            Some(&budget),
+        )
+        .unwrap()
+        .unwrap();
+        let before = (budget.live(), budget.peak(), budget.remaining());
+        require_row_owned(&budget, &rows.rows[0]).unwrap();
+        assert_eq!((budget.live(), budget.peak(), budget.remaining()), before);
+    }
+    #[test]
+    fn u2_effects_row_owned_rejects_plain_cell_or_foreign_parent_without_adopt() {
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        let tx = conn.transaction().unwrap();
+        let owner = native::Budget::new(1024 * 1024, 0).unwrap();
+        let (rows, _) = ExactRows::read_optional_bounded_in_parent(
+            &tx,
+            "SELECT 1,'keep'",
+            65536,
+            Some(&owner),
+        )
+        .unwrap()
+        .unwrap();
+        let mut row = sc::CodecVec::from_plain(vec![SqlCell::Text(sc::CodecVec::from_plain(
+            b"plain".to_vec(),
+        ))]);
+        // 遗留 moved_in 足以追认整行；新口径必须拒绝且不改账、不绑定。
+        let legacy = native::Budget::new(1024 * 1024, 4096).unwrap();
+        let before = (legacy.live(), legacy.peak(), legacy.remaining());
+        assert!(require_row_owned(&legacy, &row).is_err());
+        assert_eq!((legacy.live(), legacy.peak(), legacy.remaining()), before);
+        assert!(!row.is_native_bound());
+        if let Some(SqlCell::Text(bytes)) = row.iter_mut().next() {
+            assert!(!bytes.is_native_bound());
+        }
+        let other = native::Budget::new(1024 * 1024, 0).unwrap();
+        assert!(require_row_owned(&other, &rows.rows[0]).is_err());
+        require_row_owned(&owner, &rows.rows[0]).unwrap();
     }
 }

@@ -26,3 +26,14 @@ v3::request_audit::handoff_domain_tests::bootstrap_grant_is_consumed_exactly_onc
 v3::request_audit::handoff_domain_tests::warm_prepare_binds_real_parent_and_voids_grant
 v3::audit_owner::construction_tests::owner_cold_candidate_born_from_grant_with_move_in
 v3::audit_owner::construction_tests::owner_raw_pending_state_holds_its_fee_until_drop
+# #1488 U2 追认点退出生产路径（0022；每处正/负各一）
+v3::audit_owner::native::u2_exit_adopt_tests::u2_material_parent_born_empty_and_journal_fee_reserved
+v3::audit_owner::native::u2_exit_adopt_tests::u2_material_parent_rejects_fee_beyond_real_room_instead_of_moved_in
+v3::audit_owner::native::u2_exit_adopt_tests::u2_q_raw_rebirth_reserves_new_block_and_fee_moves_with_vec
+v3::audit_owner::native::u2_exit_adopt_tests::u2_q_raw_rebirth_never_draws_moved_in
+v3::audit_owner::native::u2_exit_adopt_tests::u2_effects_rows_accept_same_parent_born_without_charge
+v3::audit_owner::native::u2_exit_adopt_tests::u2_effects_rows_reject_plain_and_foreign_without_adopt
+v3::audit_owner::effects::u2_row_owned_tests::u2_effects_row_owned_accepts_cells_born_under_parent
+v3::audit_owner::effects::u2_row_owned_tests::u2_effects_row_owned_rejects_plain_cell_or_foreign_parent_without_adopt
+v3::audit_owner::native::u2_exit_adopt_tests::u2_history_prefix_rebirth_binds_new_block_under_parent
+v3::audit_owner::native::u2_exit_adopt_tests::u2_history_prefix_rebirth_never_draws_moved_in_or_foreign

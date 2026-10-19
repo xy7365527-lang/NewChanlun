@@ -796,6 +796,26 @@ impl Budget {
         v.attach_native_reservation(permit)
             .map_err(|e| Failure::Invalid(e.to_string()))
     }
+    /// #1488 U2：std Vec 不追认既有容量。先从本父取同容量新块许可、再分配，载荷移入后旧块析构；
+    /// 返回的许可覆盖新块且必须随容器持有。失败时容器与账均不变。
+    pub(crate) fn rebirth_vec<T>(&self, v: &mut Vec<T>) -> Result<Permit, BudgetExceeded> {
+        let mut fee = self.reserve(0)?;
+        let mut fresh = Vec::new();
+        self.grow_vec(&mut fresh, &mut fee, v.capacity())?;
+        fresh.append(v);
+        *v = fresh;
+        Ok(fee)
+    }
+    /// #1488 U2：空父账出生后从父真实预留首笔费用（不经 moved_in 追认）。
+    /// 返回 Err(None) 表示父元数据不足，Err(Some(parent)) 表示首笔费用预留失败（父随之析构）。
+    pub(crate) fn new_empty_with_fee(
+        limit: usize,
+        bytes: usize,
+    ) -> Result<(Self, Permit), Option<BudgetExceeded>> {
+        let budget = Self::new(limit, 0).map_err(|_| None)?;
+        let fee = budget.reserve(bytes).map_err(Some)?;
+        Ok((budget, fee))
+    }
     /// #1488 U2：生产路径只核“已由本父票出生”，不追认；未绑定/外来父/非Plain一律拒绝且不改动。
     pub(crate) fn require_codec_vec_owned<T>(
         &self,
@@ -2408,5 +2428,157 @@ mod unified_ownership_v4_tests {
         let before = domain(&legacy);
         assert!(legacy.move_in(32).is_err());
         assert_eq!(domain(&legacy), before);
+    }
+}
+
+#[cfg(test)]
+// #1488 U2：五处追认点退出生产路径的正/负锁。负锁统一用“遗留 moved_in 足以追认、真实余额不足”的父：
+// 若仍走 adopt 会成功；新路径必须拒绝且不改容器与账。
+mod u2_exit_adopt_tests {
+    use super::*;
+    use newchan_rust::s_content::{capture_allocation::scratch::WorkScope, CodecVec};
+
+    fn moved_in(b: &Budget) -> usize {
+        b.0.domain.lock().unwrap().moved_in
+    }
+    fn ledger(b: &Budget) -> (usize, usize, usize, usize) {
+        (b.live(), b.peak(), b.remaining(), moved_in(b))
+    }
+    fn in_work<R>(b: &Budget, f: impl FnOnce(&WorkScope) -> Result<R, Failure>) -> Result<R, Failure> {
+        b.codec_work()?.run(f).map_err(|e| match e {
+            newchan_rust::s_content::capture_allocation::scratch::WorkError::Resource(e) => {
+                Failure::Invalid(format!("{e:?}"))
+            }
+            newchan_rust::s_content::capture_allocation::scratch::WorkError::Operation(e) => e,
+        })
+    }
+    fn born<T>(b: &Budget, items: Vec<T>) -> CodecVec<T> {
+        in_work(b, |scope| {
+            let mut v = CodecVec::from_plain(Vec::new());
+            v.try_reserve_native(scope, items.len())
+                .map_err(|e| Failure::Invalid(e.to_string()))?;
+            for x in items {
+                v.try_push(x).map_err(|e| Failure::Invalid(e.to_string()))?;
+            }
+            Ok(v)
+        })
+        .unwrap()
+    }
+    fn legacy_tight(cost: usize) -> Budget {
+        Budget::new(Budget::metadata_bytes() + cost, cost).unwrap()
+    }
+
+    // effects.rs material 父（原 1546）：空父出生、首笔 journal 费真实预留，moved_in 恒 0。
+    #[test]
+    fn u2_material_parent_born_empty_and_journal_fee_reserved() {
+        let (budget, fee) = Budget::new_empty_with_fee(4096, 100).unwrap();
+        assert_eq!(moved_in(&budget), 0);
+        assert_eq!(budget.live(), Budget::metadata_bytes() + 100);
+        drop(fee);
+        assert_eq!(budget.live(), Budget::metadata_bytes());
+    }
+    #[test]
+    fn u2_material_parent_rejects_fee_beyond_real_room_instead_of_moved_in() {
+        assert!(matches!(
+            Budget::new_empty_with_fee(Budget::metadata_bytes() + 99, 100),
+            Err(Some(_))
+        ));
+        assert!(matches!(Budget::new_empty_with_fee(1, 0), Err(None)));
+        // 旧通道 Budget::new(limit, bytes) 能“容纳”同一笔费，正是追认；新入口不走它。
+        assert!(Budget::new(Budget::metadata_bytes() + 100, 100).is_ok());
+    }
+
+    // q.rs raw（原 546）：同容量新块先取许可再分配，许可随容器；moved_in 不动。
+    #[test]
+    fn u2_q_raw_rebirth_reserves_new_block_and_fee_moves_with_vec() {
+        let budget = Budget::new(4096, 0).unwrap();
+        let base = budget.live();
+        let mut raw = Vec::with_capacity(6);
+        raw.extend([1u64, 2, 3]);
+        let old_ptr = raw.as_ptr();
+        let fee = budget.rebirth_vec(&mut raw).unwrap();
+        assert_eq!(raw, [1, 2, 3]);
+        assert_ne!(raw.as_ptr(), old_ptr, "必须是许可之后新分配的块");
+        assert_eq!(fee.bytes, vec_bytes::<u64>(raw.capacity()));
+        assert_eq!(budget.live(), base + fee.bytes);
+        assert_eq!(moved_in(&budget), 0);
+        let mut fee = fee;
+        budget.grow_vec(&mut raw, &mut fee, raw.capacity() + 1).unwrap();
+        drop(fee);
+        assert_eq!(budget.live(), base);
+    }
+    #[test]
+    fn u2_q_raw_rebirth_never_draws_moved_in() {
+        let mut raw = Vec::with_capacity(4);
+        raw.extend([7u64, 8]);
+        let cost = vec_bytes::<u64>(raw.capacity());
+        let budget = legacy_tight(cost);
+        let before = ledger(&budget);
+        let (ptr, cap) = (raw.as_ptr(), raw.capacity());
+        assert!(budget.rebirth_vec(&mut raw).is_err());
+        assert_eq!((raw.as_ptr(), raw.capacity(), raw.as_slice()), (ptr, cap, &[7u64, 8][..]));
+        assert_eq!(ledger(&budget), before);
+    }
+
+    // effects.rs originals.rows（原 739）：只核本父出生身份，不追认。
+    #[test]
+    fn u2_effects_rows_accept_same_parent_born_without_charge() {
+        let budget = Budget::new(65536, 0).unwrap();
+        let rows = born(&budget, vec![1u64, 2]);
+        let before = ledger(&budget);
+        budget.require_codec_vec_owned(&rows).unwrap();
+        assert_eq!(ledger(&budget), before);
+    }
+    #[test]
+    fn u2_effects_rows_reject_plain_and_foreign_without_adopt() {
+        let plain = CodecVec::from_plain(vec![1u64, 2, 3]);
+        let budget = legacy_tight(plain.capacity() * size_of::<u64>());
+        let before = ledger(&budget);
+        assert!(budget.require_codec_vec_owned(&plain).is_err());
+        assert!(!plain.is_native_bound());
+        assert_eq!(ledger(&budget), before);
+        let foreign = Budget::new(65536, 0).unwrap();
+        let foreign_rows = born(&foreign, vec![4u64]);
+        let other = Budget::new(65536, 0).unwrap();
+        let other_before = ledger(&other);
+        assert!(other.require_codec_vec_owned(&foreign_rows).is_err());
+        assert_eq!(ledger(&other), other_before);
+    }
+
+    // history.rs raw 前缀（原 254）：未持票容器在本父活工作域重新出生；moved_in 不动。
+    #[test]
+    fn u2_history_prefix_rebirth_binds_new_block_under_parent() {
+        let budget = Budget::new(65536, 0).unwrap();
+        let base = budget.live();
+        let mut nodes = CodecVec::from_plain(vec![[1u8; 32], [2u8; 32]]);
+        in_work(&budget, |scope| budget.rebirth_codec_vec(&mut nodes, scope, 3)).unwrap();
+        assert!(nodes.is_native_bound());
+        budget.require_codec_vec_owned(&nodes).unwrap();
+        assert_eq!(&*nodes, &[[1u8; 32], [2u8; 32]]);
+        assert!(nodes.capacity() >= 5);
+        assert_eq!(moved_in(&budget), 0);
+        assert!(budget.live() > base);
+        drop(nodes);
+        assert_eq!(budget.live(), base);
+    }
+    #[test]
+    fn u2_history_prefix_rebirth_never_draws_moved_in_or_foreign() {
+        let mut nodes = CodecVec::from_plain(vec![[3u8; 32]]);
+        let cost = nodes.capacity() * 32;
+        let budget = Budget::new(Budget::metadata_bytes() + CodecWork::metadata_bytes() + cost, cost)
+            .unwrap();
+        // 工作域元数据会抬 peak；判据为 live/余额/moved_in 不变。
+        let before = (budget.live(), budget.remaining(), moved_in(&budget));
+        let ptr = nodes.as_ptr();
+        assert!(in_work(&budget, |scope| budget.rebirth_codec_vec(&mut nodes, scope, 0)).is_err());
+        assert!(!nodes.is_native_bound());
+        assert_eq!((nodes.as_ptr(), &*nodes), (ptr, &[[3u8; 32]][..]));
+        assert_eq!((budget.live(), budget.remaining(), moved_in(&budget)), before);
+        let foreign = Budget::new(65536, 0).unwrap();
+        let mut foreign_nodes = born(&foreign, vec![[4u8; 32]]);
+        let other = Budget::new(65536, 0).unwrap();
+        assert!(in_work(&other, |scope| other.rebirth_codec_vec(&mut foreign_nodes, scope, 1))
+            .is_err());
+        foreign.require_codec_vec_owned(&foreign_nodes).unwrap();
     }
 }
