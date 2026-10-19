@@ -59,6 +59,23 @@ pub(super) mod cold_root_probe {
         }
         Ok(())
     }
+    thread_local!(static LEAK_NEXT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) });
+    thread_local!(static LEAKED: RefCell<Vec<super::native::Permit>> = const { RefCell::new(Vec::new()) });
+    /// #1488 P3-d：下一次冷根失败分支在根上挂一张 legacy cache 之外、clear_handles 清不掉的许可。
+    pub(crate) fn leak_next_cold_root_permit(bytes: usize) {
+        LEAK_NEXT.with(|l| l.set(bytes));
+    }
+    pub(super) fn leak_if_armed(root: &super::native::Budget) {
+        let bytes = LEAK_NEXT.with(|l| l.replace(0));
+        if bytes != 0 {
+            let permit = root.reserve(bytes).expect("注入残留许可");
+            LEAKED.with(|l| l.borrow_mut().push(permit));
+        }
+    }
+    /// 取回注入的残留许可（析构即还给其根）。
+    pub(crate) fn take_leaked() -> Vec<super::native::Permit> {
+        LEAKED.with(|l| std::mem::take(&mut *l.borrow_mut()))
+    }
     pub(crate) fn note(before: usize, after: usize) {
         NOTES.with(|n| n.borrow_mut().push((before, after)));
     }
@@ -1605,12 +1622,22 @@ impl AuditTxn<'_> {
                             drop(context.take());
                             // #1488 P3-1：失败首跑在根工作域内经 legacy cache 保留的 NativeArc 仍持根许可；
                             // 根析构前整体清除跨请求保留（缓存只影响复用，不改判据），不留挂在已析构根上的许可。
+                            #[cfg(test)]
+                            cold_root_probe::leak_if_armed(&root);
                             let residue = root.live().saturating_sub(base);
                             if residue != 0 {
                                 crate::cache::clear_handles();
                             }
+                            // #1488 P3-d：清除后复核根残留归零；仍有许可即账不平，不析构根后带着
+                            // 来源不明的根许可无票重跑，直接报错。
+                            let left = root.live().saturating_sub(base);
                             #[cfg(test)]
-                            cold_root_probe::note(residue, root.live().saturating_sub(base));
+                            cold_root_probe::note(residue, left);
+                            if left != 0 {
+                                return Err(format!(
+                                    "S3WriterResourcesInvalid：冷根审计失败清除保留后根上仍残留{left}B许可"
+                                ));
+                            }
                             drop(root);
                             (self.audit_required_in_parent(mode, context, None)?, None)
                         }

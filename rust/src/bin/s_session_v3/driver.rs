@@ -1186,6 +1186,52 @@ mod tests {
         );
     }
 
+    /// #1488 P3-d（复审 0026）：冷根失败分支 clear_handles 后复核根残留；注入一张 legacy cache 之外、
+    /// clear_handles 清不掉的根许可，须报错而非析构根后无票重跑；对照组（不注入）回复与基线一致。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn p3_d_cold_root_residue_after_clear_handles_is_rejected() {
+        let f = Fixture::new();
+        let mut build = f.open("1").unwrap();
+        build.handle(Fixture::ingest(1)).unwrap();
+        let ready = envelope("ready-cold-root-residue", json!({"op":"ready"}));
+        let expected = build.handle(ready.clone()).unwrap();
+        drop(build);
+        for leak in [0usize, 4096] {
+            let mut d = Driver::open_for_serve_with_mode(
+                &f.db,
+                &f.profile,
+                "1",
+                f.clock.clone(),
+                16 * 1024 * 1024,
+                s_allocation::Mode::CapturedNative,
+            )
+            .unwrap();
+            crate::cache::configure(268_435_456);
+            crate::v3::audit_owner::cold_root_probe::take();
+            crate::v3::audit_owner::cold_root_probe::fail_next_cold_root_audit();
+            crate::v3::audit_owner::cold_root_probe::leak_next_cold_root_permit(leak);
+            let reply = d.handle(ready.clone());
+            crate::cache::configure(0);
+            let notes = crate::v3::audit_owner::cold_root_probe::take();
+            let leaked = crate::v3::audit_owner::cold_root_probe::take_leaked();
+            assert_eq!(notes.len(), 1, "须恰经一次冷根审计失败分支：{notes:?}");
+            if leak == 0 {
+                assert!(leaked.is_empty());
+                assert_eq!(notes[0].1, 0, "{notes:?}");
+                assert_eq!(reply.unwrap(), expected);
+            } else {
+                assert_eq!(leaked.len(), 1);
+                assert_eq!(notes[0].1, leak, "clear_handles清不掉注入许可：{notes:?}");
+                let error = reply.expect_err("根残留未归零必须报错");
+                assert!(
+                    error.contains("冷根审计失败清除保留后根上仍残留4096B许可"),
+                    "{error}"
+                );
+            }
+        }
+    }
+
 
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
