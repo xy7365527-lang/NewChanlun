@@ -683,7 +683,7 @@ class RepairTests(unittest.TestCase):
     """#1527 R4 独评返修锁；不发送真实信号，不启动正式服务。"""
 
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="r4-repair-", dir="/private/tmp")
+        self.temporary = tempfile.TemporaryDirectory(prefix="r4-repair-", dir=os.path.realpath(tempfile.gettempdir()))
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         env = patch.dict(os.environ, {}, clear=True)
