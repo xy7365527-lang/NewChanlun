@@ -1374,6 +1374,11 @@ impl AuditConnection {
             .as_ref()
             .is_some_and(|c| mark.live_for(&c.resources).is_some())
     }
+    /// 换代证明构造门（只认持久 epoch 严格上升）。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn recover_handoff_accepts_for_test(from: i64, to: i64) -> bool {
+        construction_state::RecoverHandoff::new(from, to).is_ok()
+    }
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn inject_recover_handoff_failure_for_test(&self) {
         RECOVER_HANDOFF_FAILURE.with(|flag| flag.set(true));

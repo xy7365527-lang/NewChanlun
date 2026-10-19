@@ -1153,10 +1153,10 @@ mod tests {
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn recover_lock_rejects_non_increasing_epoch() {
-        use super::super::construction_state::RecoverHandoff;
-        assert!(RecoverHandoff::new(2, 2).is_err());
-        assert!(RecoverHandoff::new(2, 1).is_err());
-        assert!(RecoverHandoff::new(1, 2).is_ok());
+        use super::super::audit_owner::AuditConnection;
+        assert!(!AuditConnection::recover_handoff_accepts_for_test(2, 2));
+        assert!(!AuditConnection::recover_handoff_accepts_for_test(2, 1));
+        assert!(AuditConnection::recover_handoff_accepts_for_test(1, 2));
         let f = Fixture::new();
         let (native, _, _) = recover_lock_driver(&f);
         let serial = native.conn.recover_probe_for_test().serial;
