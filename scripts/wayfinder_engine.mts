@@ -796,11 +796,14 @@ export function recheckBeforeRelease(v: {
  * 释放一张合资格实装票：挂 sandcastle（add-label 幂等，写路径 ghOnce）。
  * 挂前重读单票，缩小「扫描后才被人认领 / 新增 blocker」的竞态窗口。返回 null = 已挂。
  */
-function releaseTicket(number: number): string | null {
-  const v = JSON.parse(gh(`issue view ${number} --json state,labels,assignees,blockedBy`));
+export function releaseTicket(
+  number: number,
+  io: { read: (args: string) => string; write: (args: string) => string } = { read: gh, write: ghOnce },
+): string | null {
+  const v = JSON.parse(io.read(`issue view ${number} --json state,labels,assignees,blockedBy`));
   const why = recheckBeforeRelease(v);
   if (why) return why;
-  ghOnce(`issue edit ${number} --add-label sandcastle`);
+  io.write(`issue edit ${number} --add-label sandcastle`);
   return null;
 }
 

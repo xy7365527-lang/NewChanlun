@@ -22,6 +22,7 @@ import {
   buildOpenChildIndex,
   buildSpecTreeFacts,
   recheckBeforeRelease,
+  releaseTicket,
   withSpecApproval,
   explainTicket,
   isImplCandidate,
@@ -543,4 +544,26 @@ test("map 直挂的 wayfinder:impl 票：未挂 ready-for-agent 不放行，挂�
   assert.match(explainTicket(view[0]!), /祖先链上无 SPEC/);
   assert.equal(classifyTicket(view[1]!), "eligible");
   assert.equal(classifyTicket(view[2]!), "held");
+});
+
+test("已有负责人：不论 assignee 最近是否活跃，引擎都不放行（释放认领归人工）", () => {
+  const t = ready({ number: 1488, title: "[impl] S 写者", labels: ["wayfinder:impl", "ready-for-agent"], assignees: ["xy7365527-lang"], specApproved: true });
+  assert.equal(classifyTicket(t), "claimed");
+  assert.deepEqual(planReleases([t]), []);
+});
+
+test("releaseTicket：写前复核读到负责人 / blocker 不发 --add-label；干净才发", () => {
+  const run = (view: object) => {
+    const writes: string[] = [];
+    const why = releaseTicket(1524, { read: () => JSON.stringify(view), write: (a) => (writes.push(a), "") });
+    return { why, writes };
+  };
+  const busy = run({ state: "OPEN", labels: [], assignees: [{ login: "xy7365527-lang" }], blockedBy: { nodes: [] } });
+  assert.match(busy.why!, /已有负责人/);
+  assert.deepEqual(busy.writes, []);
+  const blocked = run({ state: "OPEN", labels: [], assignees: [], blockedBy: { nodes: [{ state: "OPEN" }] } });
+  assert.deepEqual(blocked.writes, []);
+  const ok = run({ state: "OPEN", labels: [{ name: "wayfinder:impl" }], assignees: [], blockedBy: { nodes: [] } });
+  assert.equal(ok.why, null);
+  assert.deepEqual(ok.writes, ["issue edit 1524 --add-label sandcastle"]);
 });

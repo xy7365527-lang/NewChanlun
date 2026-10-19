@@ -653,6 +653,12 @@ test("resolvedReason：已关闭、resolution 评论、用户批复都跳过；�
   assert.equal(resolvedReason({ comments: [c("用户 10-20 批复：退回重写")] }), null);
   assert.equal(resolvedReason({ comments: [c("用户 10-19 批复：同意"), c("## 退回重写（用户 10-20 批复）")] }), null);
   assert.equal(resolvedReason({ comments: [c("## 退回重写"), c("用户 10-21 批复：同意")] }), "票上已有用户批复");
+  // 首行中间提到「重写」、批复后的簿记评论都不重开；「还没 / 需」批复不算已批复。
+  assert.equal(resolvedReason({ comments: [c("用户 2026-10-20 批复：「同意」——按草稿重写 §3 后落地")] }), "票上已有用户批复");
+  assert.equal(resolvedReason({ comments: [c("用户 10-20 批复：同意"), c("已按用户批复重写正本 baohan.md")] }), "票上已有用户批复");
+  assert.equal(resolvedReason({ comments: [c("用户还没批复")] }), null);
+  assert.equal(resolvedReason({ comments: [c("用户需批复后再落地")] }), null);
+  assert.equal(resolvedReason({ comments: [c("用户 10-20 批复：「不同意」")] }), null);
   // 非编排者账号不算；影子评论草稿里夹一行 **resolution**： 也不算。
   assert.equal(resolvedReason({ comments: [{ author: "someone", body: "用户批复：同意" }] }), null);
   assert.equal(resolvedReason({ comments: [c("**P 类影子模式，待用户批复**\n\n<details>\n**resolution**：草稿里的一行\n</details>")] }), null);

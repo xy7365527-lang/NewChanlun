@@ -605,8 +605,12 @@ function firstLine(body: string): string {
   return line.replace(/^(?:\s*(?:>|#{1,6}|\*\*|__|[-*]\s))+\s*/, "").replace(/^\*\*|\*\*$/g, "").trim();
 }
 
-/** 退回 / 驳回：之后的批复才作数（#1530「## 退回重写（用户 … 批复：「同意」）」）。 */
-const REOPEN_RE = /退回|驳回|打回|重写|不批准|不同意/;
+/**
+ * 重开：首行以退回 / 驳回 / 打回 / 不批准 / 不同意开头（#1530「## 退回重写（用户 … 批复：「同意」）」），
+ * 或批复冒号后的内容以这些词开头（「用户 … 批复：退回重写」）。首行中间提到「重写」不算（「批复：同意——按草稿重写 §3」）。
+ */
+const REOPEN_HEAD = "(?:退回|驳回|打回|不批准|不同意)";
+const REOPEN_RE = new RegExp(`^${REOPEN_HEAD}|批复\\s*[：:]\\s*[「“"]?${REOPEN_HEAD}`);
 
 /**
  * 首行「用户 … 批复」且不是「未 / 待」批复（#1565 先例「用户 2026-10-20 批复：「同意」…」）。
@@ -614,7 +618,7 @@ const REOPEN_RE = /退回|驳回|打回|重写|不批准|不同意/;
  */
 function isUserResolution(line: string): boolean {
   const m = /^用户([^\n]{0,40}?)批复/.exec(line);
-  return !!m && !/[未待]/.test(m[1]!);
+  return !!m && !/[未待没需]/.test(m[1]!);
 }
 
 /**
@@ -634,6 +638,7 @@ export function resolvedReason(t: Pick<TicketContext, "state" | "comments">, orc
     if (c.body.trimStart().startsWith(AUTH_LINE) || /^resolution\s*[：:]/i.test(line)) reason = "票上已有 resolution";
     else if (REOPEN_RE.test(line)) reason = null;
     else if (isUserResolution(line)) reason = "票上已有用户批复";
+    // 其余评论（簿记、进度）不改变结论。
   }
   return reason;
 }
