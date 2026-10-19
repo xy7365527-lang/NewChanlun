@@ -948,11 +948,7 @@ impl NodeSource for TxStore<'_, '_> {
 }
 
 thread_local! { static UO_PUTS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) }; }
-impl Drop for TxStore<'_, '_> {
-    fn drop(&mut self) {
-        eprintln!("UO_TXSTORE_DROP cumulative_puts={}", UO_PUTS.with(|c| c.get()));
-    }
-}
+pub(crate) fn uo_puts() -> u64 { UO_PUTS.with(|c| c.get()) }
 impl TxStore<'_, '_> {
     fn put_before_write(
         &mut self,

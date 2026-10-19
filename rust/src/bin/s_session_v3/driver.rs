@@ -1142,10 +1142,15 @@ mod tests {
         );
         let cap = crate::cache::retained_bytes() + held + workspace;
         native.audit_cache_source_bytes = Some(cap);
+        let p0 = content_store::uo_puts();
         let (actual, events, _) = state::traced(true, || native.handle(Fixture::ingest(2)));
+        let p1 = content_store::uo_puts();
+        let ord = ordinary.handle(Fixture::ingest(2));
+        let p2 = content_store::uo_puts();
+        eprintln!("UO_PUTS native_ingest2={} ordinary_ingest2={} native_ok={}", p1 - p0, p2 - p1, actual.is_ok());
         assert_eq!(
             actual.unwrap(),
-            ordinary.handle(Fixture::ingest(2)).unwrap()
+            ord.unwrap()
         );
         assert!(native.conn.complete_retained_bytes() > 0);
         let retained = native.conn.complete_report();
