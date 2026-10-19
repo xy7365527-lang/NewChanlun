@@ -76,9 +76,6 @@ pub(super) struct RecoverHandoff {
 }
 impl RecoverHandoff {
     pub(super) fn new(from: i64, to: i64) -> Result<Self, String> {
-        if to <= from {
-            return Err("StaleWriter：recover换代必须严格上升".into());
-        }
         Ok(Self {
             from,
             to,
