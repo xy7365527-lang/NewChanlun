@@ -62,6 +62,23 @@ impl Lease {
     }
 }
 
+/// #1488 受控同owner Recover迁移的换代证明：owner 在本 Recover 事务内读到的持久
+/// writer_epoch（from）与目标（to）。只有 to 严格大于 from 才能构造；不含成功标记。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code))]
+pub(super) struct RecoverHandoff {
+    from: i64,
+    to: i64,
+}
+impl RecoverHandoff {
+    pub(super) fn new(from: i64, to: i64) -> Result<Self, String> {
+        if to <= from {
+            return Err(stale("Recover迁移持久epoch未严格上升"));
+        }
+        Ok(Self { from, to })
+    }
+}
+
 /// 只借用当前 raw；不 Clone、不序列化，不可跨事务复用。字段与生产构造均不对消费方开放。
 pub(crate) struct BoundRawAdvance<'raw> {
     raw: RawEventsView<'raw>,
@@ -165,6 +182,8 @@ pub(super) struct CommittedRawState {
     pub(super) seal: SnapshotSeal,
     binding: RawAdvanceBinding,
     pub(super) facts: RawPrefixFacts,
+    // 资格所属持久 writer_epoch；只由已提交的受控 Recover 迁移盖章，下一次 Recover 须从此 epoch 出发。
+    writer_epoch: Option<i64>,
     #[cfg(feature = "s_capture_native_testonly")]
     set: Option<super::construction_set::CommittedSet>,
     #[cfg(feature = "s_capture_native_testonly")]
@@ -194,6 +213,14 @@ impl CommittedRawState {
     pub(super) fn has_set(&self) -> bool {
         self.set.is_some()
     }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn writer_epoch(&self) -> Option<i64> {
+        self.writer_epoch
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn has_fee(&self) -> bool {
+        self.fee.is_some()
+    }
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn retained_bytes(&self) -> usize {
         self.retained
@@ -216,6 +243,9 @@ pub(super) struct PendingRawState {
     #[cfg(feature = "s_capture_native_testonly")]
     raw_token_bytes: usize,
     closed_total_changes: Option<u64>,
+    writer_epoch: Option<i64>,
+    // 受控 Recover 迁移：换代证明及“effects 闭合后持久 epoch 已确认等于 to”。
+    recover: Option<(RecoverHandoff, bool)>,
     // 最后析构：来源/原始事实先释放，再归还PendingSet持有的原父账许可。
     #[cfg(feature = "s_capture_native_testonly")]
     pending_set: Option<super::construction_set::PendingSet>,
@@ -276,6 +306,7 @@ impl PendingRawState {
             .map_or(0, |previous| previous.source_bytes);
         #[cfg(feature = "s_capture_native_testonly")]
         let fee = previous.as_mut().and_then(|previous| previous.fee.take());
+        let writer_epoch = previous.as_ref().and_then(|previous| previous.writer_epoch);
         let (previous_binding, previous_prefix, mut index) = match previous {
             Some(previous) => {
                 if !previous.seal.same_snapshot(&seal) {
@@ -344,6 +375,8 @@ impl PendingRawState {
             #[cfg(feature = "s_capture_native_testonly")]
             source_bytes,
             closed_total_changes: None,
+            writer_epoch,
+            recover: None,
             #[cfg(feature = "s_capture_native_testonly")]
             raw_token_bytes,
             #[cfg(feature = "s_capture_native_testonly")]
@@ -368,6 +401,7 @@ impl PendingRawState {
         if lease.stale.get() {
             return Err(stale("Carry租约已撤销"));
         }
+        let writer_epoch = previous.as_ref().and_then(|previous| previous.writer_epoch);
         let (binding, facts, set, retained, source, source_bytes, fee) =
             if let Some(previous) = previous {
                 if !previous.seal.same_snapshot(&seal) || raw_len < previous.facts.prefix_len() {
@@ -410,8 +444,51 @@ impl PendingRawState {
             source_bytes,
             raw_token_bytes: 0,
             closed_total_changes: None,
+            writer_epoch,
+            recover: None,
             fee,
         })
+    }
+
+    /// #1488 受控同owner Recover迁移：只接本owner未撤销、同快照的已提交资格，且资格戳
+    /// （若有）必须等于本事务读到的持久 from。原件游标、集合、来源与状态块许可原样 move，
+    /// 不换账、不重算、不推进binding；之后须 Recover effects 闭合、确认持久 epoch=to、
+    /// 真实 COMMIT 成功才晋升，任一失败由 owner 撤销租约。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn recover(
+        previous: Option<CommittedRawState>,
+        seal: SnapshotSeal,
+        raw_len: usize,
+        lease: &Lease,
+        handoff: RecoverHandoff,
+    ) -> Result<Self, String> {
+        let Some(previous) = previous else {
+            return Err(stale("Recover迁移缺原有效资格"));
+        };
+        if previous.writer_epoch.is_some_and(|epoch| epoch != handoff.from) {
+            return Err(stale("Recover迁移旧资格不属于当前持久epoch"));
+        }
+        let mut pending = Self::carry(Some(previous), seal, raw_len, lease)?;
+        pending.recover = Some((handoff, false));
+        Ok(pending)
+    }
+
+    /// Recover effects 闭合后由 owner 以已核 Q 的最后换代结果确认持久 epoch 恰为 to；
+    /// 非 Recover 迁移状态不受影响。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn confirm_recover(&mut self, persisted: Option<i64>) -> Result<(), String> {
+        match &mut self.recover {
+            None => Ok(()),
+            Some((handoff, confirmed))
+                if !*confirmed
+                    && self.closed_total_changes.is_some()
+                    && persisted == Some(handoff.to) =>
+            {
+                *confirmed = true;
+                Ok(())
+            }
+            Some(_) => Err(stale("Recover迁移effects未闭合或持久epoch与换代证明不符")),
+        }
     }
 
     #[cfg(feature = "s_capture_native_testonly")]
@@ -486,6 +563,9 @@ impl PendingRawState {
         if self.seal != seal || self.closed_total_changes != Some(total_changes) {
             return Err(stale("未闭合效果或闭合后再次写入"));
         }
+        if self.recover.is_some_and(|(_, confirmed)| !confirmed) {
+            return Err(stale("Recover迁移未确认持久epoch，不得晋升"));
+        }
         #[cfg(feature = "s_capture_native_testonly")]
         if let Some(set) = &self.pending_set {
             if set.requires_source() && self.source.is_none() {
@@ -501,6 +581,10 @@ impl PendingRawState {
             seal: self.seal,
             binding: self.binding,
             facts: self.facts,
+            // 已确认的 Recover 迁移晋升到新 epoch 资格；其余操作沿用原戳。
+            writer_epoch: self
+                .recover
+                .map_or(self.writer_epoch, |(handoff, _)| Some(handoff.to)),
             #[cfg(feature = "s_capture_native_testonly")]
             set: self.pending_set.map(|set| set.committed()).or(self.set),
             #[cfg(feature = "s_capture_native_testonly")]

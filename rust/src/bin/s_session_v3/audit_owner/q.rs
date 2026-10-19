@@ -52,6 +52,10 @@ impl Retained for Facts {
     }
 }
 impl Facts {
+    /// #1488 受控 Recover 迁移：已核 writer_epoch_history 最后一次换代的 to（只读）。
+    pub(super) fn last_epoch_to(&self) -> Option<i64> {
+        self.epoch_to
+    }
     pub(super) fn cold(
         tx: &Transaction<'_>,
         originals: &[ExactRows],

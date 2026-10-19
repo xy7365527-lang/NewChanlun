@@ -112,6 +112,11 @@ pub(crate) use construction_state::{BoundRawAdvance, RawAdvanceBinding, RawDomai
 thread_local! {
     static PUBLICATION_SCOPE_TRACE: std::cell::RefCell<Vec<(&'static str, usize)>> = const { std::cell::RefCell::new(Vec::new()) };
     static PUBLICATION_TAIL_FAILURE: Cell<bool> = const { Cell::new(false) };
+    // #1488 受控 Recover 迁移负控：交接失败注入点与 Recover 写后/effects 闭合前的事务回调。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    static RECOVER_HANDOFF_FAILURE: Cell<bool> = const { Cell::new(false) };
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    static RECOVER_AFTER_WRITE: Cell<Option<fn(&Transaction<'_>) -> Result<(), String>>> = const { Cell::new(None) };
 }
 /// #1488：唯一 publication 父资源。绝不持有 journal 强引用。
 #[cfg(feature = "s_capture_native_testonly")]
@@ -949,13 +954,15 @@ impl AuditConnection {
             state::audit(tx)?;
         }
         let current = meta_get_opt(tx, "writer_epoch")?.ok_or_else(|| invalid("缺writer_epoch"))?;
-        if next <= parse_writer_epoch(&current, "current writer_epoch")? {
+        let from = parse_writer_epoch(&current, "current writer_epoch")?;
+        if next <= from {
             return Err("StaleWriter：recover换代必须严格上升".into());
         }
+        let handoff = construction_state::RecoverHandoff::new(from, next)?;
         let control = control::S3Control::attach(tx, clock)?;
         let generation = meta_get_opt(tx, "generation")?.ok_or_else(|| invalid("缺generation"))?;
         let prior = meta_get_opt(tx, "advance_state")?.ok_or_else(|| invalid("缺advance_state"))?;
-        active.before_fixed_write(FixedOperation::Recover, None)?;
+        active.before_fixed_write(FixedOperation::Recover(handoff), None)?;
         let transitioned_at = control.recover(clock_event, &generation)?;
         let recovered = if prior != "idle" {
             meta_set(tx, "advance_state", "idle")?;
@@ -974,6 +981,10 @@ impl AuditConnection {
         let result = json!({"ok":true,"previous_epoch":current,"new_epoch":new_epoch,"epoch_transitioned":true,"recovered_begin":recovered,
             "reachable_root":{"generation":generation,"structure_cut":meta_get_opt(tx,"structure_cut")?,"index_frontier":meta_get_opt(tx,"index_frontier")?}});
         drop(control);
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        if let Some(hook) = RECOVER_AFTER_WRITE.with(Cell::take) {
+            hook(tx)?;
+        }
         active.finish_fixed_write()?;
         let ended = active.commit()?;
         self.continue_with(ended)?;
@@ -2614,7 +2625,8 @@ enum FixedOperation {
     Accept,
     Begin,
     Publish,
-    Recover,
+    // #1488：Recover 携带本事务读到的持久换代证明；只有它能触发受控同owner迁移。
+    Recover(construction_state::RecoverHandoff),
 }
 impl AuditConnection {
     /// 同一请求的 Accept/Begin 已提交结果在下一事务重新绑定，不刷新版本号。
@@ -2727,6 +2739,32 @@ impl AuditTxn<'_> {
                 "已发布增量游标缺同快照原件；禁止完整路径回退",
             ));
         }
+        // #1488 受控同owner Recover迁移：只在本事务尚无构造、owner 持有已提交资格时进入；
+        // 预算沿用候选已冻结的父账（无 context 不重绑、不换账），保留费由下方总容量门核验。
+        #[cfg(feature = "s_capture_native_testonly")]
+        if let FixedOperation::Recover(handoff) = operation {
+            if self.construction.borrow().is_none() && self.owner.construction.borrow().is_some()
+            {
+                #[cfg(test)]
+                if RECOVER_HANDOFF_FAILURE.with(|flag| flag.replace(false)) {
+                    return Err(construction_state::stale("测试注入Recover交接失败"));
+                }
+                let complete = self.complete.borrow();
+                let seal = self.construction_seal()?;
+                let Some(candidate) = complete.as_ref().filter(|c| c.seal == seal) else {
+                    return Err(construction_state::stale("Recover迁移缺同快照完整原件"));
+                };
+                let previous = self.owner.construction.borrow_mut().take();
+                let pending = construction_state::PendingRawState::recover(
+                    previous,
+                    seal,
+                    candidate.audited.raw.len(),
+                    &self.owner.construction_lease,
+                    handoff,
+                )?;
+                *self.construction.borrow_mut() = Some(pending);
+            }
+        }
         #[cfg(feature = "s_capture_native_testonly")]
         if matches!(operation, FixedOperation::Accept | FixedOperation::Begin)
             && self.construction.borrow().is_none()
@@ -2792,7 +2830,7 @@ impl AuditTxn<'_> {
                     FixedOperation::Accept => effects::Operation::Accept,
                     FixedOperation::Begin => effects::Operation::Begin,
                     FixedOperation::Publish => effects::Operation::Publish,
-                    FixedOperation::Recover => effects::Operation::Recover,
+                    FixedOperation::Recover(_) => effects::Operation::Recover,
                 };
                 candidate.detach_slot()?;
                 {
@@ -2941,11 +2979,11 @@ impl AuditTxn<'_> {
                     .close_set(set, current.roots.generated_state.view())?;
             }
             if strict {
-                self.construction
-                    .borrow_mut()
-                    .as_mut()
-                    .unwrap()
-                    .close_effects(self.construction_seal()?, closed_changes)?;
+                let mut construction = self.construction.borrow_mut();
+                let construction = construction.as_mut().unwrap();
+                construction.close_effects(self.construction_seal()?, closed_changes)?;
+                // 受控 Recover 迁移：精确 effects 已闭合，再以已核 Q 换代结果确认持久 epoch。
+                construction.confirm_recover(candidate.q.last_epoch_to())?;
             }
             *self.complete.borrow_mut() = Some(candidate);
         }
