@@ -740,6 +740,7 @@ impl BudgetStamp {
     /// 原Ledger已释放（strong=0）即不匹配，地址复用不会冒充原账。
     pub(crate) fn matches(&self, budget: &Budget) -> bool {
         self.same_ledger(&budget.0)
+            && self.serial == budget.1
             && self.request == budget.2
             && self.allowance == budget.3
             && budget.total_limit().ok() == Some(self.total_limit)
