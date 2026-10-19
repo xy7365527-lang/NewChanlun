@@ -6324,7 +6324,7 @@ mod tests {
                      INSERT INTO meta VALUES('session_id','s-session-testonly-001');
                      INSERT INTO meta VALUES('rule_revision','s2-axis-quantifiers+new-bi/1');
                      CREATE TABLE filler(x BLOB);
-                     WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<2000)
+                     WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<20000)
                        INSERT INTO filler SELECT randomblob(500) FROM n;
                      PRAGMA cache_size=1;
                      BEGIN;
