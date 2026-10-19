@@ -66,3 +66,10 @@ v3::driver::tests::recover_lock_commit_failure_and_rollback_never_promote
 v3::driver::tests::recover_lock_external_write_and_read_domain_change_still_revoke
 v3::driver::tests::recover_lock_handoff_failure_revokes
 v3::driver::tests::recover_lock_budget_live_and_peak_continue_across_recover
+v3::driver::tests::recover_lock_fee_permit_moves_on_same_parent_ledger
+v3::driver::tests::recover_lock_rejects_missing_candidate_or_parent_ledger
+v3::driver::tests::recover_lock_old_raw_token_and_begin_token_rejected_after_promotion
+v3::driver::tests::recover_lock_schema_and_material_change_revoke
+v3::driver::tests::recover_lock_rejects_stale_qualification_stamp
+v3::driver::tests::recover_lock_rejects_confirm_epoch_mismatch
+v3::driver::tests::recover_lock_rejects_foreign_ledger_budget_handoff

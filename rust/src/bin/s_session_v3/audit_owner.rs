@@ -117,6 +117,12 @@ thread_local! {
     static RECOVER_HANDOFF_FAILURE: Cell<bool> = const { Cell::new(false) };
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     static RECOVER_AFTER_WRITE: Cell<Option<fn(&Transaction<'_>) -> Result<(), String>>> = const { Cell::new(None) };
+    // #1488 0034 P3-6：确认门负控注入——交给 confirm_recover 的持久 epoch 读数偏移一位。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    static RECOVER_CONFIRM_SKEW: Cell<bool> = const { Cell::new(false) };
+    // #1488 0034 P3-1：交接摘要负控注入——Some(他账)改指他账，None改指同账下一冻结域。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    static RECOVER_PARENT_SKEW: std::cell::RefCell<Option<Option<native::Budget>>> = const { std::cell::RefCell::new(None) };
 }
 /// #1488：唯一 publication 父资源。绝不持有 journal 强引用。
 #[cfg(feature = "s_capture_native_testonly")]
@@ -955,10 +961,28 @@ impl AuditConnection {
         }
         let current = meta_get_opt(tx, "writer_epoch")?.ok_or_else(|| invalid("缺writer_epoch"))?;
         let from = parse_writer_epoch(&current, "current writer_epoch")?;
-        if next <= from {
-            return Err("StaleWriter：recover换代必须严格上升".into());
-        }
+        // 持久 epoch 严格上升门即换代证明构造门（原 next<=from 门并入，文案与顺序不变）。
         let handoff = construction_state::RecoverHandoff::new(from, next)?;
+        // P3-1：证明另绑本事务候选父账身份与冻结域摘要；读不到则不绑，迁移时按缺摘要拒绝。
+        #[cfg(feature = "s_capture_native_testonly")]
+        #[allow(unused_mut)]
+        let mut handoff = match self
+            .complete
+            .borrow()
+            .as_ref()
+            .and_then(|c| c.resources.handoff_stamp().ok())
+        {
+            Some(stamp) => handoff.bind_parent(stamp),
+            None => handoff,
+        };
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        if let Some(skew) = RECOVER_PARENT_SKEW.with(|s| s.borrow_mut().take()) {
+            let parent = handoff.parent_for_test();
+            *parent = match skew {
+                Some(foreign) => foreign.handoff_stamp().ok(),
+                None => parent.take().map(|stamp| stamp.skew_domain_for_test()),
+            };
+        }
         let control = control::S3Control::attach(tx, clock)?;
         let generation = meta_get_opt(tx, "generation")?.ok_or_else(|| invalid("缺generation"))?;
         let prior = meta_get_opt(tx, "advance_state")?.ok_or_else(|| invalid("缺advance_state"))?;
@@ -1382,6 +1406,94 @@ impl AuditConnection {
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn inject_recover_handoff_failure_for_test(&self) {
         RECOVER_HANDOFF_FAILURE.with(|flag| flag.set(true));
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn inject_recover_confirm_skew_for_test(&self) {
+        RECOVER_CONFIRM_SKEW.with(|flag| flag.set(true));
+    }
+    /// P3-1 负控：下一次 recover 的交接摘要改指 foreign（Some）或同账下一冻结域（None）。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn inject_recover_parent_for_test(&self, foreign: Option<native::Budget>) {
+        RECOVER_PARENT_SKEW.with(|s| *s.borrow_mut() = Some(foreign));
+    }
+    /// 状态块许可所挂父账：与 mark 同一 Ledger 时返回许可字节。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn qualification_fee_on_ledger_for_test(
+        &self,
+        mark: &native::LedgerMark,
+    ) -> Option<usize> {
+        self.construction
+            .borrow()
+            .as_ref()
+            .and_then(|c| c.fee_on_ledger_for_test(mark))
+    }
+    /// 改写已提交资格的 epoch 戳（只为咬住“资格戳≠from”门）。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn set_qualification_epoch_for_test(&self, epoch: Option<i64>) {
+        self.construction
+            .borrow_mut()
+            .as_mut()
+            .expect("须持有已提交资格")
+            .set_writer_epoch_for_test(epoch);
+    }
+    /// 拿走 owner 的完整候选（无候选）。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn drop_complete_for_test(&self) {
+        assert!(self.complete.borrow_mut().take().is_some(), "须持有完整候选");
+    }
+    /// 同父账开启新请求域，候选所持父账句柄随之不再是当前域（无当前父账）。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn expire_complete_parent_for_test(&self) {
+        let complete = self.complete.borrow();
+        let candidate = complete.as_ref().expect("须持有完整候选");
+        assert!(candidate.resources.total_limit().is_ok());
+        assert!(candidate.resources.handoff(u64::MAX, 0).is_ok(), "同父账换域");
+        assert!(candidate.resources.total_limit().is_err());
+    }
+    /// 测试选择器（同 construction_tests::mint/close_fixed）：在本 owner 上以 raw 增量签发并提交
+    /// 一份持有状态块许可（fee=Some）的资格；返回同事务签发的 raw token。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn issue_raw_qualification_for_test(
+        &self,
+        context: &mut request_audit::RequestAuditContext,
+    ) -> Result<(OldRawToken, Ended), String> {
+        let active = self.begin(TransactionBehavior::Immediate)?;
+        active.audit_admission(
+            &json!({"payload":{"op":"ready"}}),
+            &s_allocation::Mode::CapturedNative,
+            context,
+        )?;
+        let issued = active.with_bound_raw_advance(context, |token| {
+            token.ensure_current()?;
+            Ok(token.into_issued())
+        })?;
+        active.before_fixed_write(FixedOperation::Accept, Some(&*context))?;
+        active
+            .tx()
+            .execute(
+                "UPDATE s_protocol_meta SET next_attempt_ordinal=next_attempt_ordinal WHERE singleton=1",
+                [],
+            )
+            .map_err(invalid)?;
+        active.finish_fixed_write()?;
+        Ok((OldRawToken(issued), active.commit()?))
+    }
+    /// 旧 token 改记为当前租约序号（Recover 前当期）。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn restamp_raw_token_for_test(&self, token: OldRawToken) -> OldRawToken {
+        OldRawToken(token.0.restamp_for_test(&self.construction_lease))
+    }
+    /// 以 owner 当前候选原件与租约实际绑定旧 token；成功则交回同一 token 供再次调用。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn bind_raw_token_for_test(&self, token: OldRawToken) -> Result<OldRawToken, String> {
+        let complete = self.complete.borrow();
+        let candidate = complete
+            .as_ref()
+            .ok_or_else(|| invalid("缺当前候选原件"))?;
+        let bound = token
+            .0
+            .bind(candidate.audited.raw.view(), &self.construction_lease)?;
+        Ok(OldRawToken(bound.into_issued()))
     }
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn set_recover_after_write_for_test(
@@ -1890,6 +2002,9 @@ impl AuditTxn<'_> {
     }
 }
 
+/// #1488 Recover 锁：同事务签发后离开事务的旧 raw token（不透明）。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+pub(super) struct OldRawToken(construction_state::IssuedRawAdvance);
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct RecoverProbe {
@@ -2686,12 +2801,14 @@ impl CompleteCandidate {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum FixedOperation {
     Accept,
     Begin,
     Publish,
     // #1488：Recover 携带本事务读到的持久换代证明；只有它能触发受控同owner迁移。
+    // 非 Native 构建无构造资格、不迁移，证明只经构造门（RecoverHandoff::new）生效、不被读出。
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code))]
     Recover(construction_state::RecoverHandoff),
 }
 impl AuditConnection {
@@ -2808,7 +2925,7 @@ impl AuditTxn<'_> {
         // #1488 受控同owner Recover迁移：只在本事务尚无构造、owner 持有已提交资格时进入；
         // 预算沿用候选已冻结的父账（无 context 不重绑、不换账），保留费由下方总容量门核验。
         #[cfg(feature = "s_capture_native_testonly")]
-        if let FixedOperation::Recover(handoff) = operation {
+        if let FixedOperation::Recover(handoff) = &operation {
             if self.construction.borrow().is_none() && self.owner.construction.borrow().is_some()
             {
                 let complete = self.complete.borrow();
@@ -2828,7 +2945,8 @@ impl AuditTxn<'_> {
                     seal,
                     candidate.audited.raw.len(),
                     &self.owner.construction_lease,
-                    handoff,
+                    handoff.clone(),
+                    &candidate.resources,
                 )?;
                 *self.construction.borrow_mut() = Some(pending);
             }
@@ -3051,7 +3169,14 @@ impl AuditTxn<'_> {
                 let construction = construction.as_mut().unwrap();
                 construction.close_effects(self.construction_seal()?, closed_changes)?;
                 // 受控 Recover 迁移：精确 effects 已闭合，再以已核 Q 换代结果确认持久 epoch。
-                construction.confirm_recover(candidate.q.last_epoch_to())?;
+                let persisted = candidate.q.last_epoch_to();
+                #[cfg(test)]
+                let persisted = if RECOVER_CONFIRM_SKEW.with(|flag| flag.replace(false)) {
+                    persisted.map(|epoch| epoch + 1)
+                } else {
+                    persisted
+                };
+                construction.confirm_recover(persisted)?;
             }
             *self.complete.borrow_mut() = Some(candidate);
         }

@@ -64,18 +64,38 @@ impl Lease {
 
 /// #1488 受控同owner Recover迁移的换代证明：owner 在本 Recover 事务内读到的持久
 /// writer_epoch（from）与目标（to）。只有 to 严格大于 from 才能构造；不含成功标记。
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// 这是 owner.recover 唯一的持久 epoch 严格上升门（原 next<=from 门并入此处，文案与位置不变）。
+/// #1488 0034 P3-1：Native 下另绑本事务所见候选父账身份与冻结预算摘要，预算不隐式携带。
+#[derive(Clone, Debug)]
 #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code))]
 pub(super) struct RecoverHandoff {
     from: i64,
     to: i64,
+    #[cfg(feature = "s_capture_native_testonly")]
+    parent: Option<super::audit_owner::native::BudgetStamp>,
 }
 impl RecoverHandoff {
     pub(super) fn new(from: i64, to: i64) -> Result<Self, String> {
         if to <= from {
-            return Err(stale("Recover迁移持久epoch未严格上升"));
+            return Err("StaleWriter：recover换代必须严格上升".into());
         }
-        Ok(Self { from, to })
+        Ok(Self {
+            from,
+            to,
+            #[cfg(feature = "s_capture_native_testonly")]
+            parent: None,
+        })
+    }
+    /// 绑定本 Recover 事务实际持有的候选父账与冻结域；迁移时逐项比对，缺或不符即拒绝。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn bind_parent(mut self, parent: super::audit_owner::native::BudgetStamp) -> Self {
+        self.parent = Some(parent);
+        self
+    }
+    /// 负控注入：交接摘要改写为他账或同账下一冻结域。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn parent_for_test(&mut self) -> &mut Option<super::audit_owner::native::BudgetStamp> {
+        &mut self.parent
     }
 }
 
@@ -124,6 +144,12 @@ impl IssuedRawAdvance {
         };
         token.ensure_current()?;
         Ok(token)
+    }
+    /// #1488 Recover 锁：把 token 的租约序号改记为 owner 当前序号，模拟 Recover 前当期签发的旧 token。
+    #[cfg(test)]
+    pub(super) fn restamp_for_test(mut self, lease: &Lease) -> Self {
+        self.lease_serial = lease.serial.get();
+        self
     }
 }
 impl<'raw> BoundRawAdvance<'raw> {
@@ -183,6 +209,7 @@ pub(super) struct CommittedRawState {
     binding: RawAdvanceBinding,
     pub(super) facts: RawPrefixFacts,
     // 资格所属持久 writer_epoch；只由已提交的受控 Recover 迁移盖章，下一次 Recover 须从此 epoch 出发。
+    #[cfg(feature = "s_capture_native_testonly")]
     writer_epoch: Option<i64>,
     #[cfg(feature = "s_capture_native_testonly")]
     set: Option<super::construction_set::CommittedSet>,
@@ -221,6 +248,18 @@ impl CommittedRawState {
     pub(super) fn has_fee(&self) -> bool {
         self.fee.is_some()
     }
+    /// 状态块许可所挂父账（与 mark 同一 Ledger 时返回许可字节）。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn fee_on_ledger_for_test(
+        &self,
+        mark: &super::audit_owner::native::LedgerMark,
+    ) -> Option<usize> {
+        self.fee.as_ref().and_then(|fee| fee.on_ledger_for_test(mark))
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn set_writer_epoch_for_test(&mut self, epoch: Option<i64>) {
+        self.writer_epoch = epoch;
+    }
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn retained_bytes(&self) -> usize {
         self.retained
@@ -243,6 +282,7 @@ pub(super) struct PendingRawState {
     #[cfg(feature = "s_capture_native_testonly")]
     raw_token_bytes: usize,
     closed_total_changes: Option<u64>,
+    #[cfg(feature = "s_capture_native_testonly")]
     writer_epoch: Option<i64>,
     // 受控 Recover 迁移：换代证明及“effects 闭合后持久 epoch 已确认等于 to”。
     recover: Option<(RecoverHandoff, bool)>,
@@ -306,6 +346,7 @@ impl PendingRawState {
             .map_or(0, |previous| previous.source_bytes);
         #[cfg(feature = "s_capture_native_testonly")]
         let fee = previous.as_mut().and_then(|previous| previous.fee.take());
+        #[cfg(feature = "s_capture_native_testonly")]
         let writer_epoch = previous.as_ref().and_then(|previous| previous.writer_epoch);
         let (previous_binding, previous_prefix, mut index) = match previous {
             Some(previous) => {
@@ -375,6 +416,7 @@ impl PendingRawState {
             #[cfg(feature = "s_capture_native_testonly")]
             source_bytes,
             closed_total_changes: None,
+            #[cfg(feature = "s_capture_native_testonly")]
             writer_epoch,
             recover: None,
             #[cfg(feature = "s_capture_native_testonly")]
@@ -461,12 +503,20 @@ impl PendingRawState {
         raw_len: usize,
         lease: &Lease,
         handoff: RecoverHandoff,
+        parent: &super::audit_owner::native::Budget,
     ) -> Result<Self, String> {
         let Some(previous) = previous else {
             return Err(stale("Recover迁移缺原有效资格"));
         };
         if previous.writer_epoch.is_some_and(|epoch| epoch != handoff.from) {
             return Err(stale("Recover迁移旧资格不属于当前持久epoch"));
+        }
+        // P3-1：换代证明所绑父账/冻结域须恰为事务实际候选父账；状态块许可须仍挂该账。
+        let Some(stamp) = handoff.parent.as_ref() else {
+            return Err(stale("Recover迁移缺父账交接摘要"));
+        };
+        if !stamp.matches(parent) || previous.fee.as_ref().is_some_and(|fee| !stamp.holds(fee)) {
+            return Err(stale("Recover迁移父账或冻结域与交接摘要不符"));
         }
         let mut pending = Self::carry(Some(previous), seal, raw_len, lease)?;
         pending.recover = Some((handoff, false));
@@ -563,7 +613,7 @@ impl PendingRawState {
         if self.seal != seal || self.closed_total_changes != Some(total_changes) {
             return Err(stale("未闭合效果或闭合后再次写入"));
         }
-        if self.recover.is_some_and(|(_, confirmed)| !confirmed) {
+        if self.recover.as_ref().is_some_and(|(_, confirmed)| !confirmed) {
             return Err(stale("Recover迁移未确认持久epoch，不得晋升"));
         }
         #[cfg(feature = "s_capture_native_testonly")]
@@ -582,6 +632,7 @@ impl PendingRawState {
             binding: self.binding,
             facts: self.facts,
             // 已确认的 Recover 迁移晋升到新 epoch 资格；其余操作沿用原戳。
+            #[cfg(feature = "s_capture_native_testonly")]
             writer_epoch: self
                 .recover
                 .map_or(self.writer_epoch, |(handoff, _)| Some(handoff.to)),

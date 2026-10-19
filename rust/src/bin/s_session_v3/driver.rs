@@ -1182,7 +1182,21 @@ mod tests {
             .recover("1", &native.clock, "recover-2")
             .unwrap_err();
         assert!(error.contains("StaleWriter"), "{error}");
+        // 0034 P3-3：生产 owner.recover 门即 RecoverHandoff 构造门，具体原因逐字锁定。
+        assert_eq!(error, "StaleWriter：recover换代必须严格上升");
         assert_recover_revoked(&native, &f, serial, "1");
+        // 严格下降（晋升到 2 后回退到 1）同样在同一门被拒。
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        native.conn.recover("2", &native.clock, "recover-2").unwrap();
+        let serial = native.conn.recover_probe_for_test().serial;
+        let error = native
+            .conn
+            .recover("1", &native.clock, "recover-2")
+            .unwrap_err();
+        assert_eq!(error, "StaleWriter：recover换代必须严格上升");
+        assert_recover_revoked(&native, &f, serial, "2");
+        // 资格戳门：严格上升的证明若与资格戳不符，迁移门拒绝（见 recover_lock_rejects_stale_qualification_stamp）。
     }
 
     #[cfg(feature = "s_capture_native_testonly")]
@@ -1205,6 +1219,8 @@ mod tests {
             .recover("2", &native.clock, "recover-2")
             .unwrap_err();
         eprintln!("{}", json!({"scenario":"recover-unclosed-effects","error":error}));
+        // 0034 P3-4：拒绝原因逐字锁定为精确 effects 门，而非任意失败。
+        assert_eq!(error, "S3DriverInvalid：固定 operation 出现未声明实际效果");
         assert_recover_revoked(&native, &f, serial, "1");
     }
 
@@ -1323,6 +1339,252 @@ mod tests {
         eprintln!(
             "{}",
             json!({"scenario":"recover-budget-continuity","live":[live,live_after],"peak":[peak,peak_after],"retained":promoted.retained})
+        );
+    }
+
+    // ---- #1488 0034 返修锁（按独审 0032）----
+    /// P2-1(a)：资格持有 fee=Some 状态块许可时 Recover 迁移，许可原样随迁移、仍挂同父账。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn recover_lock_fee_permit_moves_on_same_parent_ledger() {
+        let f = Fixture::new();
+        let (mut native, _, _) = recover_lock_driver(&f);
+        let mut context = recover_lock_context(&mut native);
+        let (_token, ended) = native
+            .conn
+            .issue_raw_qualification_for_test(&mut context)
+            .unwrap();
+        native.conn.finish_source_keeper(context, ended);
+        let old = native.conn.recover_probe_for_test();
+        let old_q = old.qualification.expect("签发后owner持有资格");
+        assert!(old_q.has_fee, "须持有状态块许可：{old:?}");
+        let (mark, live, peak) = native.conn.complete_ledger_for_test().unwrap();
+        let fee = native
+            .conn
+            .qualification_fee_on_ledger_for_test(&mark)
+            .expect("许可挂候选父账");
+        assert!(fee > 0);
+        native.conn.recover("2", &native.clock, "recover-2").unwrap();
+        let after = native.conn.recover_probe_for_test();
+        assert!(!after.stale && after.serial > old.serial, "{after:?}");
+        let promoted = after.qualification.expect("Recover成功后晋升新资格");
+        assert_eq!(promoted.writer_epoch, Some(2));
+        assert!(promoted.has_fee, "许可被丢弃：{promoted:?}");
+        assert_eq!(promoted.retained, old_q.retained);
+        assert_eq!(promoted.binding, old_q.binding);
+        assert!(native.conn.complete_on_ledger_for_test(&mark), "Recover后换了父账");
+        assert_eq!(
+            native.conn.qualification_fee_on_ledger_for_test(&mark),
+            Some(fee),
+            "许可换账或改字节"
+        );
+        let (_, live_after, peak_after) = native.conn.complete_ledger_for_test().unwrap();
+        assert!(live_after >= live, "live被抹：{live} → {live_after}");
+        assert!(peak_after >= peak, "peak被抹：{peak} → {peak_after}");
+        eprintln!(
+            "{}",
+            json!({"scenario":"recover-fee-permit","fee":fee,"live":[live,live_after],"peak":[peak,peak_after]})
+        );
+    }
+
+    /// P2-1(b)：无候选 / 无当前父账时的 Recover 被拒，原因逐字锁定。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn recover_lock_rejects_missing_candidate_or_parent_ledger() {
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        native.conn.drop_complete_for_test();
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert_eq!(
+            error,
+            "StaleWriter：construction资格失效：已有增量游标缺连续同域原件；禁止完整核回退"
+        );
+        assert_recover_revoked(&native, &f, serial, "1");
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        native.conn.expire_complete_parent_for_test();
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert_eq!(error, "StaleWriter：construction资格失效：Recover迁移缺父账交接摘要");
+        assert_recover_revoked(&native, &f, serial, "1");
+    }
+
+    /// P2-1(c)：Recover 晋升后，旧 serial 的 raw token 与旧 Begin token 实际发起调用均被拒。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn recover_lock_old_raw_token_and_begin_token_rejected_after_promotion() {
+        let f = Fixture::new();
+        let (mut native, second, _) = recover_lock_driver(&f);
+        let old_begin = recover_lock_meta(&f, "begin_token").unwrap();
+        let mut context = recover_lock_context(&mut native);
+        let (token, ended) = native
+            .conn
+            .issue_raw_qualification_for_test(&mut context)
+            .unwrap();
+        native.conn.finish_source_keeper(context, ended);
+        // 正控：改记为 Recover 前当期序号后可实际绑定。
+        let token = native.conn.restamp_raw_token_for_test(token);
+        let token = native
+            .conn
+            .bind_raw_token_for_test(token)
+            .expect("Recover前当期token可绑定");
+        native.conn.recover("2", &native.clock, "recover-2").unwrap();
+        assert!(!native.conn.recover_probe_for_test().stale);
+        let error = native
+            .conn
+            .bind_raw_token_for_test(token)
+            .err()
+            .expect("旧serial raw token必须被拒");
+        assert!(error.contains("raw token 已结束、回滚或撤销"), "{error}");
+        native.epoch = "2".into();
+        let mut context = recover_lock_context(&mut native);
+        let error = native
+            .conn
+            .publish(&mut native.runtime, &old_begin, &second, &mut context)
+            .err()
+            .expect("旧Begin token必须被拒");
+        eprintln!("{}", json!({"scenario":"recover-old-begin-token","error":error}));
+        assert!(error.contains("StaleWriter") || error.contains("Begin"), "{error}");
+        assert_eq!(recover_lock_meta(&f, "begin_token").as_deref(), Some(""));
+        assert_eq!(recover_lock_meta(&f, "writer_epoch").as_deref(), Some("2"));
+    }
+
+    /// P2-1(d)：schema 域变化与材料域（raw_events）外写后，Recover 迁移撤销。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn recover_lock_schema_and_material_change_revoke() {
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        let schema = |c: &Connection| -> i64 {
+            c.query_row("PRAGMA main.schema_version", [], |r| r.get(0))
+                .unwrap()
+        };
+        let before = schema(&native.conn);
+        native
+            .conn
+            .execute_batch("CREATE TABLE main.recover_lock_schema_probe(x)")
+            .unwrap();
+        assert_ne!(schema(&native.conn), before, "schema域必须真实变化");
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        eprintln!("{}", json!({"scenario":"recover-schema-change","error":error}));
+        assert!(error.contains("StaleWriter"), "{error}");
+        assert_recover_revoked(&native, &f, serial, "1");
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        let c = Connection::open(&f.db).unwrap();
+        let rows = c
+            .execute(
+                "UPDATE raw_events SET raw_text=raw_text||' ' WHERE rowid=(SELECT max(rowid) FROM raw_events)",
+                [],
+            )
+            .unwrap();
+        assert_eq!(rows, 1, "材料域外写必须真实命中");
+        c.execute(
+            "UPDATE raw_events SET raw_text=substr(raw_text,1,length(raw_text)-1) WHERE rowid=(SELECT max(rowid) FROM raw_events)",
+            [],
+        )
+        .unwrap();
+        drop(c);
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        eprintln!("{}", json!({"scenario":"recover-material-change","error":error}));
+        assert!(error.contains("StaleWriter"), "{error}");
+        assert_recover_revoked(&native, &f, serial, "1");
+    }
+
+    /// P3-6：资格戳 ≠ 本事务持久 from 时迁移被拒。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn recover_lock_rejects_stale_qualification_stamp() {
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        native.conn.recover("2", &native.clock, "recover-2").unwrap();
+        let serial = native.conn.recover_probe_for_test().serial;
+        native.conn.set_qualification_epoch_for_test(Some(99));
+        let error = native
+            .conn
+            .recover("3", &native.clock, "recover-3")
+            .unwrap_err();
+        assert_eq!(
+            error,
+            "StaleWriter：construction资格失效：Recover迁移旧资格不属于当前持久epoch"
+        );
+        assert_recover_revoked(&native, &f, serial, "2");
+    }
+
+    /// P3-6：交给 confirm_recover 的持久 epoch 与换代证明不符时不得晋升。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn recover_lock_rejects_confirm_epoch_mismatch() {
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        native.conn.inject_recover_confirm_skew_for_test();
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert_eq!(
+            error,
+            "StaleWriter：construction资格失效：Recover迁移effects未闭合或持久epoch与换代证明不符"
+        );
+        assert_recover_revoked(&native, &f, serial, "1");
+    }
+
+    /// P3-1（主控裁定）：换代证明绑定父账身份与冻结域摘要；他账或同账他域交接一律拒绝。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn recover_lock_rejects_foreign_ledger_budget_handoff() {
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        let foreign = super::super::audit_owner::native::Budget::fresh(1 << 20).unwrap();
+        native.conn.inject_recover_parent_for_test(Some(foreign.clone()));
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert_eq!(
+            error,
+            "StaleWriter：construction资格失效：Recover迁移父账或冻结域与交接摘要不符"
+        );
+        assert_recover_revoked(&native, &f, serial, "1");
+        drop(foreign);
+        // 同父账、下一冻结域的摘要同样拒绝。
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        native.conn.inject_recover_parent_for_test(None);
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert_eq!(
+            error,
+            "StaleWriter：construction资格失效：Recover迁移父账或冻结域与交接摘要不符"
+        );
+        assert_recover_revoked(&native, &f, serial, "1");
+        // 正控：不注入时同一驱动形态迁移成功。
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        native.conn.recover("2", &native.clock, "recover-2").unwrap();
+        assert_eq!(
+            native.conn.recover_probe_for_test().qualification.unwrap().writer_epoch,
+            Some(2)
         );
     }
 

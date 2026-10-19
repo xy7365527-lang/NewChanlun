@@ -428,6 +428,11 @@ impl Drop for Permit {
     }
 }
 impl Permit {
+    /// #1488 Recover 锁：许可挂在 mark 所指父账上时返回许可字节（只读，不延长父账寿命）。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(crate) fn on_ledger_for_test(&self, mark: &LedgerMark) -> Option<usize> {
+        mark.live_for(&self.budget).map(|_| self.bytes)
+    }
     pub(crate) fn hold<T>(self, value: T) -> Reserved<T> {
         Reserved {
             inner: value,
@@ -705,6 +710,53 @@ impl Budget {
     #[cfg(feature = "s_capture_native_testonly")]
     pub(crate) fn quiescent_mark(&self) -> LedgerMark {
         LedgerMark(Arc::downgrade(&self.0), self.live())
+    }
+    /// #1488 0034 P3-1：Recover 交接所见父账身份与冻结域摘要（域序号、请求号、额度、总容量帽）。
+    /// 弱引用，不延长父账寿命、不进Ledger布局；读不到当前冻结域即拒绝出摘要。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(crate) fn handoff_stamp(&self) -> Result<BudgetStamp, BudgetExceeded> {
+        Ok(BudgetStamp {
+            ledger: Arc::downgrade(&self.0),
+            serial: self.1,
+            request: self.2,
+            allowance: self.3,
+            total_limit: self.total_limit()?,
+        })
+    }
+}
+/// #1488 0034 P3-1：Recover 换代证明绑定的父账身份与冻结预算摘要；迁移时逐项比对事务实际父账。
+#[cfg(feature = "s_capture_native_testonly")]
+#[derive(Clone, Debug)]
+pub(crate) struct BudgetStamp {
+    ledger: std::sync::Weak<Ledger>,
+    serial: u64,
+    request: u64,
+    allowance: usize,
+    total_limit: usize,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl BudgetStamp {
+    /// 同一Ledger、同一冻结域（序号/请求号/额度）且总容量帽读数一致才算同账同域。
+    /// 原Ledger已释放（strong=0）即不匹配，地址复用不会冒充原账。
+    pub(crate) fn matches(&self, budget: &Budget) -> bool {
+        self.same_ledger(&budget.0)
+            && self.serial == budget.1
+            && self.request == budget.2
+            && self.allowance == budget.3
+            && budget.total_limit().ok() == Some(self.total_limit)
+    }
+    /// 许可（可来自旧冻结域）仍挂本摘要所指同一Ledger。
+    pub(crate) fn holds(&self, permit: &Permit) -> bool {
+        self.same_ledger(&permit.budget.0)
+    }
+    fn same_ledger(&self, ledger: &Arc<Ledger>) -> bool {
+        self.ledger.strong_count() > 0 && std::ptr::eq(self.ledger.as_ptr(), Arc::as_ptr(ledger))
+    }
+    /// 负控注入：摘要改指同父账的下一冻结域。
+    #[cfg(test)]
+    pub(crate) fn skew_domain_for_test(mut self) -> Self {
+        self.serial += 1;
+        self
     }
 }
 /// #1488 P1-1/P1-2：某父账在请求收尾静止点（请求局部持有者已析构）的live；只认同一Ledger。
