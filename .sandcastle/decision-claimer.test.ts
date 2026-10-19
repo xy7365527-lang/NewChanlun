@@ -659,6 +659,8 @@ test("resolvedReason：已关闭、resolution 评论、用户批复都跳过；�
   assert.equal(resolvedReason({ comments: [c("用户还没批复")] }), null);
   assert.equal(resolvedReason({ comments: [c("用户需批复后再落地")] }), null);
   assert.equal(resolvedReason({ comments: [c("用户 10-20 批复：「不同意」")] }), null);
+  assert.equal(resolvedReason({ comments: [c("用户 10-20 批复：**不同意**")] }), null);
+  assert.equal(resolvedReason({ comments: [c("用户 10-20 批复：否决")] }), null);
   // 非编排者账号不算；影子评论草稿里夹一行 **resolution**： 也不算。
   assert.equal(resolvedReason({ comments: [{ author: "someone", body: "用户批复：同意" }] }), null);
   assert.equal(resolvedReason({ comments: [c("**P 类影子模式，待用户批复**\n\n<details>\n**resolution**：草稿里的一行\n</details>")] }), null);
