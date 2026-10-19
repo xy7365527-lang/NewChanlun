@@ -12,8 +12,9 @@ tb01c_http_capture.cjs 用浏览器同一份 tb01c-client.js 校验，全 cut �
   固定生成器生成整数 OHLC。会话只吃 OHLC，笔级夹具不能直接接纳，这是最小可行入口；端点价本身不进会话。
   手算：s5 确认 U s0–s2；D 候选自 s3，s6 ⊃ s4 且更极端（boundary_pair），s8／s10／s12 ⊂ s6 ⟹ 窗成员
   （s8 已知起 PENDING_CASE_ONE），s14 高 39 > 33 且低 15 ≥ 3 ⟹ 先破判据确认（CASE_ONE，段 s3–s5）。
-  64 根输入超过 Q 冷校验 5s 门（#1497 在案），本设计的 Q 资源配置只把 verify_deadline_ms 放宽到 120000，
-  其余资源与 tb01c 冻结配置相同（调度预算，不是语义）。
+  64 根逐根一代时，cut 41 起公共采集超过客户端 30s 总期限（首跑实测，#1497 同类规模问题）；本设计改为
+  一条 ingest 消息携多根（每代恰多知一笔：首代 7 根，其后每代 4 根，末代补尾 1 根），共 16 代；Q 资源配置
+  另把 verify_deadline_ms 放宽到 120000，其余与 tb01c 冻结配置相同（调度预算，不是语义）。
 
 期望值全部来自本文件 EXPECTED（按笔手算，依据 xianduan.md §7.1），不调用生产 reducer。cut 约定同 tb02d：
 笔 i 在已接纳 4i+7 根时首次已知。
@@ -48,6 +49,15 @@ DESIGNS = {
     "turn": ([0, 10, 4, 20, 5, 18, 7, 15, 3, 12], ("UP", "DOWN")),
     "e2_real": (e2_points(), ("UP",)),
 }
+BATCHED = {"e2_real"}  # 一代多知一笔（见模块头）；其余设计一根一代。
+
+
+def chunks(total, batched):
+    """每条消息携带的根数前缀界（累计）。"""
+    if not batched:
+        return list(range(1, total + 1))
+    bounds = list(range(7, total + 1, 4))
+    return bounds + ([total] if bounds[-1] != total else [])
 # 已知笔数 n → 实体 → 期望。只列判定点。
 EXPECTED = {
     "turn": {
@@ -83,17 +93,18 @@ def prepare(args):
             case_dir = plan_dir / case
             case_dir.mkdir()
             events, messages = {}, []
-            for index, bar in enumerate(rows):
+            bounds = chunks(len(rows), design in BATCHED)
+            for index, (lo, hi) in enumerate(zip([0] + bounds, bounds)):
                 op = "op-" + str(index).zfill(4)
                 base = 946684800000000000 + index * 10000000000
                 events[op] = {"accept_ns": str(base), "attempts": [{"begin_ns": str(base + 100000000), "commit_ns": str(base + 200000000)}]}
-                raw = {"event_id": bar["raw_id"], "revision": "1", "seq": str(bar["raw_index"]), "received_at": "2000-01-01T00:00:00Z",
-                       "raw_text": canonical(bar).decode(), "timestamp": str(bar["raw_index"] * 60), "volume": "1",
-                       **{k: str(bar[k]) for k in ("open", "high", "low", "close")}}
+                raws = [{"event_id": bar["raw_id"], "revision": "1", "seq": str(bar["raw_index"]), "received_at": "2000-01-01T00:00:00Z",
+                         "raw_text": canonical(bar).decode(), "timestamp": str(bar["raw_index"] * 60), "volume": "1",
+                         **{k: str(bar[k]) for k in ("open", "high", "low", "close")}} for bar in rows[lo:hi]]
                 payload = {"op": "ingest", "target_session_id": sid, "target_session_generation": "1", "writer_epoch": "1",
                            "clock_event_id": op,
                            "raw_input": {"schema_revision": "s-ohlc/1", "session_id": sid, "source_namespace": namespace,
-                                         "source_epoch": "1", "instrument": "TEST-OHLC", "profile": "ohlc_integer_tb02a_v1", "events": [raw]}}
+                                         "source_epoch": "1", "instrument": "TEST-OHLC", "profile": "ohlc_integer_tb02a_v1", "events": raws}}
                 messages.append({"schema_revision": "s-session/2", "session_id": sid, "session_generation": "1",
                                  "source_namespace": namespace, "source_epoch": "1", "message_id": op, "producer_id": "tb02x-input",
                                  "producer_epoch": "1", "causal_refs": [], "payload_hash": hashlib.sha256(canonical(payload)).hexdigest(),
@@ -114,7 +125,8 @@ def prepare(args):
                 "clock_plan": str(case_dir / "clock.json"), "browser": str(ROOT / "browser/index.html"),
                 "query_resource_config": str(query), "s_resources": resources})
             port += 1
-            cases[case] = {"design": design, "direction": direction, "inputs": len(rows), "points": points}
+            cases[case] = {"design": design, "direction": direction, "inputs": len(rows), "points": points,
+                           "inputs_by_generation": bounds, "generations": len(bounds)}
     plan = {"schema": "tb02x-runtime-plan/1", "ticket": 1493, "cases": cases,
             "binary_sha256": hashlib.sha256(args.binary.read_bytes()).hexdigest(),
             "e2_fixture_sha256": hashlib.sha256(E2.read_bytes()).hexdigest(),
@@ -128,7 +140,7 @@ def check_case(meta, known):
     want, problems, checked, timeline = EXPECTED[meta["design"]], [], {}, []
     pending_seen, confirmed_after_pending = {}, {}
     for generation in sorted(known):
-        n = W.known_strokes(generation)
+        n = W.known_strokes(meta["inputs_by_generation"][generation - 1]) if generation else 0
         row = [generation, n]
         for o in known[generation]["objects"]:
             if o["kind"] != "CC-013.segment":
@@ -221,8 +233,9 @@ def session(args):
                   node=args.node, fault_index=None, fault_stage="after_batch")
         if args.browser:
             entity, pending, confirmed = BROWSER_CUTS[meta["design"]]
-            cut_for = lambda n: str(4 * (n - 1) + 7)  # noqa: E731 笔 n-1 首次已知的 cut
-            run.browser_args = {"module": args.playwright_module, "final": str(meta["inputs"]), "entity": entity,
+            bounds = meta["inputs_by_generation"]
+            cut_for = lambda n: str(bounds.index(4 * (n - 1) + 7) + 1)  # noqa: E731 笔 n-1 首次已知的 cut
+            run.browser_args = {"module": args.playwright_module, "final": str(meta["generations"]), "entity": entity,
                                 "pending": cut_for(pending), "confirmed": cut_for(confirmed)}
         with W.deadline(case, 7200):
             result = run.execute()
