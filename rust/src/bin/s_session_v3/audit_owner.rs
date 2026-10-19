@@ -2811,10 +2811,6 @@ impl AuditTxn<'_> {
         if let FixedOperation::Recover(handoff) = operation {
             if self.construction.borrow().is_none() && self.owner.construction.borrow().is_some()
             {
-                if let Some(c) = self.complete.borrow_mut().as_mut() {
-                    let limit = c.resources.total_limit().unwrap_or(1 << 30);
-                    c.resources = native::Budget::fresh(limit).unwrap();
-                }
                 let complete = self.complete.borrow();
                 let seal = self.construction_seal()?;
                 let Some(candidate) = complete.as_ref().filter(|c| c.seal == seal) else {
