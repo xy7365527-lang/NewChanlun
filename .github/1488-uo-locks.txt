@@ -40,3 +40,5 @@ v3::audit_owner::native::u2_exit_adopt_tests::u2_history_prefix_rebirth_binds_ne
 v3::audit_owner::native::u2_exit_adopt_tests::u2_history_prefix_rebirth_never_draws_moved_in_or_foreign
 v3::audit_owner::native::u2_exit_adopt_tests::u2_fresh_parent_codec_vec_grow_never_adopts_allocated_plain
 v3::fixed_radix::tests::native_each_new_block_refusal_preserves_contents_and_real_layout_ledger
+v3::audit_owner::effects::construction_coverage_tests::p2_2_journal_permit_taken_before_recording_allocation
+v3::audit_owner::effects::construction_coverage_tests::p2_2_private_journal_parent_born_before_allocation_and_material_adds_no_fee

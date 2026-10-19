@@ -2592,13 +2592,15 @@ impl AuditTxn<'_> {
                 candidate.detach_slot()?;
                 {
                     let recording_cap = limit;
-                    if let Some(recording) = effects::Recording::start(
+                    // #1488 P2-2：journal 许可先于其任何分配从候选父账取得并随 journal 持有。
+                    if let Some(recording) = effects::Recording::start_on(
                         self.tx(),
                         op,
                         (limit / 8).min(recording_cap),
                         strict,
+                        &candidate.resources,
+                        candidate.limit,
                     )? {
-                        recording.attach_parent(&candidate.resources, candidate.limit)?;
                         if strict && matches!(operation, FixedOperation::Publish) {
                             let previous = candidate
                                 .audited

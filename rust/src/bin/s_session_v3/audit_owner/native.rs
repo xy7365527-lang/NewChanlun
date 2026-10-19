@@ -816,6 +816,8 @@ impl Budget {
         Ok(fee)
     }
     /// #1488 U2：空父账出生后从父真实预留首笔费用（不经 moved_in 追认）。
+    /// #1488 P2-2：生产 journal 已改为 Recording 出生前取许可，本 helper 仅测试编译。
+    #[cfg(test)]
     /// 返回 Err(None) 表示父元数据不足，Err(Some(parent)) 表示首笔费用预留失败（父随之析构）。
     pub(crate) fn new_empty_with_fee(
         limit: usize,

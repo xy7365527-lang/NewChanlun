@@ -373,13 +373,23 @@ pub(super) struct Recording {
     journal: Arc<Mutex<Journal>>,
 }
 impl Recording {
+    /// #1488 P2-2：遗留测试 fixture——journal 已分配后才按 j.bytes 从父预留，属事后同额补签；
+    /// 生产改走 start_on（许可先于任何 journal 分配），本入口仅测试编译。
+    #[cfg(test)]
     pub(super) fn attach_parent(
         &self,
         budget: &native::Budget,
         parent_limit: usize,
     ) -> Result<(), String> {
         let mut j = self.journal.lock().map_err(invalid)?;
-        if j.resources.is_some() || j.material_issued || j.unexpected || j.overflow {
+        // 无父 start 已带私有子账；fixture 附接替换它（旧私有许可随之返还），共享父仍只附接一次。
+        if j.resources
+            .as_ref()
+            .is_some_and(|r| r.shared_parent || r.outer_cap.is_some())
+            || j.material_issued
+            || j.unexpected
+            || j.overflow
+        {
             j.unexpected = true;
             return Err(construction_state::stale("固定写父账重复附接"));
         }
@@ -407,11 +417,33 @@ impl Recording {
         j.set_seed = Some(seed);
         Ok(())
     }
+    /// 无共享父：journal 私有子账（上限 cap）先出生，首笔许可先于任何 journal 分配。
     pub(super) fn start(
         tx: &Transaction<'_>,
         operation: Operation,
         cap: usize,
         strict: bool,
+    ) -> Result<Option<Self>, String> {
+        Self::start_inner(tx, operation, cap, strict, None)
+    }
+    /// #1488 P2-2：生产入口。journal 许可在 Journal 控制块与首个 keys 块分配之前从共享父取得，
+    /// 随 journal 持有；之后每个新块仍由 reserve_one 先预留再分配。
+    pub(super) fn start_on(
+        tx: &Transaction<'_>,
+        operation: Operation,
+        cap: usize,
+        strict: bool,
+        budget: &native::Budget,
+        parent_limit: usize,
+    ) -> Result<Option<Self>, String> {
+        Self::start_inner(tx, operation, cap, strict, Some((budget, parent_limit)))
+    }
+    fn start_inner(
+        tx: &Transaction<'_>,
+        operation: Operation,
+        cap: usize,
+        strict: bool,
+        parent: Option<(&native::Budget, usize)>,
     ) -> Result<Option<Self>, String> {
         let inline = std::mem::size_of::<Journal>() + 128;
         if cap < inline {
@@ -431,6 +463,23 @@ impl Recording {
         } else {
             None
         };
+        // 先取父与首笔许可：共享父直接预留；无父则私有子账先出生再预留（不经 moved_in）。
+        let (budget, parent_limit, shared_parent) = match parent {
+            Some((budget, limit)) => (budget.clone(), limit, true),
+            None => (
+                native::Budget::fresh(cap)
+                    .map_err(|_| construction_state::stale("材料共享父账元数据不足"))?,
+                cap,
+                false,
+            ),
+        };
+        let journal_charge = budget
+            .reserve(inline)
+            .map_err(|_| construction_state::stale("journal父账额度不足"))?
+            .finish(inline);
+        let first_block_fits = inline
+            .checked_add(vec_bytes::<Key>(32))
+            .is_some_and(|n| n <= cap);
         let mut journal = Journal {
             keys: Vec::new(),
             nodes: Default::default(),
@@ -451,11 +500,24 @@ impl Recording {
             extra_bytes: 0,
             consumed: Default::default(),
             stage_rows_bytes: 0,
-            resources: None,
+            resources: Some(MaterialResources {
+                budget,
+                outer_cap: None,
+                parent_limit,
+                publication: None,
+                journal_owned_bytes: if shared_parent { inline } else { 0 },
+                shared_parent,
+                journal_charge,
+            }),
             material_issued: false,
         };
         if !journal.reserve_one(false) {
-            return Ok(None);
+            // 帽内首块却未能取得父许可/分配：与旧附接失败同口径报父账不足。
+            return if first_block_fits {
+                Err(construction_state::stale("journal父账额度不足"))
+            } else {
+                Ok(None)
+            };
         }
         let journal = Arc::new(Mutex::new(journal));
         let hook = journal.clone();
@@ -1495,11 +1557,12 @@ pub(super) fn with_material_access<T>(
             return f(None);
         }
         let result = (|| {
+            // #1488 P2-2：私有子账自 Recording 出生即存在；重复签发由 material_issued 拦截。
             if j.unexpected
                 || j.overflow
                 || j.resources
                     .as_ref()
-                    .is_some_and(|r| !r.shared_parent || r.publication.is_some())
+                    .is_none_or(|r| r.shared_parent && r.publication.is_some())
                 || j.material_issued
                 || j.set.is_some()
                 || !j.stages.is_empty()
@@ -1521,7 +1584,8 @@ pub(super) fn with_material_access<T>(
                 .ok_or_else(|| construction_state::stale("材料能力缺owner seed"))?
                 .seal;
             j.material_issued = true;
-            if let Some(resources) = &j.resources {
+            let resources = j.resources.as_ref().expect("上方已核");
+            if resources.shared_parent {
                 if original_work.is_some() {
                     return Err(construction_state::stale(
                         "共享父账必须经publication同scope能力传入",
@@ -1529,7 +1593,8 @@ pub(super) fn with_material_access<T>(
                 }
                 return Ok((resources.budget.clone(), seal, j.material_epoch));
             }
-            // 先占外父账，再分配本片子账元数据；外cap不是提前释放的临时许可。
+            // #1488 P2-2：私有子账与 journal 首笔许可已在 Recording 出生、任何 journal 分配之前取得，
+            // 许可随 journal 移动；这里只占外父账 cap，不再事后按 j.bytes 同额补签。
             let outer_cap = original_work
                 .map(|w| w.reserve_native(j.cap))
                 .transpose()
@@ -1544,29 +1609,9 @@ pub(super) fn with_material_access<T>(
                     );
                     invalid(error)
                 })?;
-            // #1488 U2：先创建空父账（retained=0），再从父账 reserve journal 费用，
-            // 不走 adopt 追认。Budget::new(limit, j.bytes) 会把 j.bytes 放进 moved_in，
-            // 但那不是真实许可；必须显式 reserve 后随 journal 持有。
-            let (budget, journal_permit) = native::Budget::new_empty_with_fee(j.cap, j.bytes)
-                .map_err(|failure| {
-                    let (_stage, _bytes, message) = match failure {
-                        None => ("material-parent-create-empty", 0, "材料共享父账元数据不足"),
-                        Some(_) => ("material-journal-reserve", j.bytes, "journal初始费用预留失败"),
-                    };
-                    #[cfg(test)]
-                    j.observe_failure(_stage, Some(_bytes), None, Some(tx.is_autocommit()), None);
-                    construction_state::stale(message)
-                })?;
-            let journal_charge = journal_permit.finish(j.bytes);
-            j.resources = Some(MaterialResources {
-                budget: budget.clone(),
-                outer_cap,
-                parent_limit: j.cap,
-                publication: None,
-                journal_owned_bytes: 0,
-                shared_parent: false,
-                journal_charge,
-            });
+            let resources = j.resources.as_mut().expect("上方已核");
+            resources.outer_cap = outer_cap;
+            let budget = resources.budget.clone();
             Ok((budget, seal, j.material_epoch))
         })();
         if result.is_err() {
@@ -2220,6 +2265,61 @@ mod construction_coverage_tests {
             .unwrap();
         put(&tx, 1);
         assert!(recording.finish(&tx, &mut [], 0).unwrap().is_none());
+    }
+    // #1488 P2-2（评审 0024）：journal 许可先于 Journal 控制块/首块分配取得并随 journal 持有。
+    // 父余额不足首笔 inline 时在任何 journal 分配与 hook 安装之前拒绝且父账不变；成功时父账
+    // 恰增 j.bytes，峰值不含"已分配后再同额补签"的过渡项，journal 析构后全额返还。
+    #[test]
+    fn p2_2_journal_permit_taken_before_recording_allocation() {
+        let mut db = database();
+        let tx = db.transaction().unwrap();
+        let inline = std::mem::size_of::<Journal>() + 128;
+        let tight = native::Budget::new(native::Budget::metadata_bytes() + inline - 1, 0).unwrap();
+        let before = (tight.live(), tight.peak(), tight.remaining());
+        assert!(
+            Recording::start_on(&tx, Operation::Publish, 1 << 20, true, &tight, 1 << 20).is_err()
+        );
+        assert_eq!((tight.live(), tight.peak(), tight.remaining()), before);
+        let parent = native::Budget::new(1 << 20, 0).unwrap();
+        let base = parent.live();
+        let recording = Recording::start_on(&tx, Operation::Publish, 1 << 20, true, &parent, 1 << 20)
+            .unwrap()
+            .unwrap();
+        {
+            let j = recording.journal.lock().unwrap();
+            let r = j.resources.as_ref().unwrap();
+            assert!(r.shared_parent && r.outer_cap.is_none());
+            assert_eq!(r.journal_owned_bytes, j.bytes);
+            assert_eq!(parent.live(), base + j.bytes);
+            assert_eq!(parent.peak(), base + j.bytes);
+            assert_eq!(parent.moved_in_for_test(), 0);
+        }
+        drop(recording);
+        assert_eq!(parent.live(), base);
+    }
+    // 无共享父：私有子账先出生（moved_in 恒 0），首笔许可等于 journal 实占；材料签发不再补签。
+    #[test]
+    fn p2_2_private_journal_parent_born_before_allocation_and_material_adds_no_fee() {
+        let mut db = database();
+        let tx = db.transaction().unwrap();
+        let (recording, state) = set_recording(&tx);
+        let (child, at_start) = {
+            let j = recording.journal.lock().unwrap();
+            let r = j.resources.as_ref().unwrap();
+            assert!(!r.shared_parent);
+            assert_eq!(r.budget.moved_in_for_test(), 0);
+            assert_eq!(r.budget.live(), native::Budget::metadata_bytes() + j.bytes);
+            (r.budget.clone(), r.budget.live())
+        };
+        with_material_access(&tx, None, |m| {
+            let m = m.unwrap();
+            assert!(m.budget.same_parent(&child), "材料子账即出生时子账");
+            assert!(m.budget.live() >= at_start);
+            note_source_cut(m, (&state).into())
+        })
+        .unwrap();
+        assert_eq!(child.moved_in_for_test(), 0);
+        drop(recording);
     }
     fn set_recording(tx: &Transaction<'_>) -> (Recording, sc::ContentRef) {
         let fixture = super::super::construction_state::RawAdvanceFixture::new();
