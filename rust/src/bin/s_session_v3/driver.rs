@@ -320,17 +320,26 @@ impl Driver {
                         .checked_sub(legacy)
                         .ok_or("S3WriterResourcesInvalid：legacy来源费用超过S7")?;
                     // #1488 P1-1：旧费按逐项分区O+uncovered计；映射不成立即丢候选重映射，不补差。
-                    let held = self
-                        .conn
-                        .old_pool_partition(previous.as_ref())
-                        .map(|p| p.carried());
-                    if !held.is_ok_and(|held| held <= keeper_cap) {
+                    let fits = |p: &Result<request_audit::OldPoolPartition, String>| {
+                        p.as_ref().is_ok_and(|p| p.carried() <= keeper_cap)
+                    };
+                    let mut partition = self.conn.old_pool_partition(previous.as_ref());
+                    if !fits(&partition) {
                         self.conn.discard_after_error();
                         if let Some(k) = &mut previous {
                             k.set_retention_cap(keeper_cap);
                         }
+                        partition = self.conn.old_pool_partition(previous.as_ref());
                     }
-                    let partition = self.conn.old_pool_partition(previous.as_ref())?;
+                    // #1488 P1-2：keeper池按其父账物理live仍装不下或无从证明时只丢可选池，
+                    // 不把可丢弃缓存的失败变成业务失败。
+                    if !fits(&partition) {
+                        if let Some(k) = &mut previous {
+                            k.clear();
+                        }
+                        partition = self.conn.old_pool_partition(previous.as_ref());
+                    }
+                    let partition = partition?;
                     context.freeze_manifest_workspace_partition(total, legacy, partition)?;
                     if super::cross_request_source_cache::Keeper::retention_possible(keeper_cap) {
                         let mut keeper = previous.unwrap_or_else(|| {
@@ -1127,6 +1136,88 @@ mod tests {
             );
         }
         eprintln!("{}", json!({"scenario":"p1-1-warm-partition","partitions":seen}));
+    }
+
+    /// #1488 P1-2（复审0026反例）：请求n封存keeper池（池父账K的物理live大于合同额），
+    /// 请求n+1入口discard候选后重新分区——K须按其物理live只计一次（含M_K），不能只按合同额；
+    /// 冻结后T的物理占用（E + K物理live + A）不超过E+O+U+A=T。旧口径（O只含合同额）会让
+    /// （物理−合同）这部分逃出T，本锁以A_old−A=物理−合同定量复现并锁住。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn p1_2_keeper_pool_on_other_ledger_counts_physical_live_after_discard() {
+        const S7: usize = 536_870_912;
+        let reference = Fixture::new();
+        let mut ordinary = reference.open("1").unwrap();
+        let expected = (1..=3)
+            .map(|n| ordinary.handle(Fixture::ingest(n)).unwrap())
+            .collect::<Vec<_>>();
+        let fixture = Fixture::new();
+        let mut driver = Driver::open_for_serve_with_mode(
+            &fixture.db,
+            &fixture.profile,
+            "1",
+            fixture.clock.clone(),
+            S7,
+            s_allocation::Mode::CapturedNative,
+        )
+        .unwrap();
+        for n in 1..=2 {
+            assert_eq!(
+                driver.handle(Fixture::ingest(n)).unwrap(),
+                expected[n as usize - 1]
+            );
+        }
+        // 请求n：封存出keeper池，池所在父账不是任何保留候选的父账。
+        let keeper = driver.conn.take_source_keeper().expect("请求n封存keeper池");
+        let contract = keeper.retained_source_bytes();
+        assert!(contract > 0);
+        let home = keeper.source_home().expect("池封存在请求父账").clone();
+        let physical = home.live();
+        assert!(
+            physical > contract,
+            "反例前提：池父账物理live {physical} 大于合同额 {contract}"
+        );
+        // 请求n+1入口：discard候选（生产 held>keeper_cap 分支），重新分区。
+        driver.conn.discard_after_error();
+        let partition = driver
+            .conn
+            .old_pool_partition(Some(&keeper))
+            .expect("discard后keeper池仍可映射");
+        let group = partition
+            .homes()
+            .iter()
+            .find(|h| h.origin == request_audit::OldPoolPartition::KEEPER_PARENT)
+            .expect("keeper池按所在父账单列一组");
+        assert_eq!(group.l0, physical, "按池父账物理live计");
+        assert_eq!(partition.l0(), physical, "无候选：物理组只有K");
+        let carried = partition.carried();
+        assert!(carried >= physical, "K物理live全部进入O+U");
+        let legacy = crate::cache::retained_bytes();
+        let mut context = request_audit::RequestAuditContext::default();
+        context
+            .freeze_manifest_workspace_partition(S7, legacy, partition)
+            .unwrap();
+        let allowance = context.manifest_workspace_budget().unwrap().allowance();
+        assert_eq!(legacy + carried + allowance, S7);
+        assert!(
+            legacy + physical + allowance <= S7,
+            "T物理占用不超E+O+A"
+        );
+        let old_allowance = S7 - legacy - contract;
+        assert_eq!(
+            old_allowance - allowance,
+            carried - contract,
+            "旧口径多放出的A恰为物理超合同部分"
+        );
+        assert!(old_allowance - allowance >= physical - contract);
+        drop(context);
+        // 生产后续请求不受影响：放回keeper，第3个请求回复与ordinary逐字相同。
+        driver.conn.put_source_keeper_for_test(keeper);
+        assert_eq!(driver.handle(Fixture::ingest(3)).unwrap(), expected[2]);
+        eprintln!(
+            "{}",
+            json!({"scenario":"p1-2-keeper-physical","contract":contract,"physical":physical,"carried":carried,"allowance":allowance})
+        );
     }
 
     /// #1488 P3-1：冷根审计失败（1024 不足）且 legacy cache 保留开启时，根析构前根上不得残留许可；

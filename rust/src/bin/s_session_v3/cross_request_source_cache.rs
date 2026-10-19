@@ -145,6 +145,9 @@ pub(super) struct Pool {
     source_cost: SourceCost,
     capacity: RetainedCapacity,
     subset_selection: Option<sc::NativeCountsSubsetReport>,
+    // #1488 P1-2：池在其中封存的父账（只读live；池的许可本就持有该Ledger，不额外延长寿命）。
+    #[cfg(feature = "s_capture_native_testonly")]
+    home: Option<super::audit_owner::native::Budget>,
 }
 
 /// #1488 P2-4负控：下一次带工作域的封存额外签一张重复许可（一次性）。
@@ -484,6 +487,8 @@ impl Pool {
             source_cost,
             capacity,
             subset_selection: None,
+            #[cfg(feature = "s_capture_native_testonly")]
+            home: None,
         })
     }
 }
@@ -542,6 +547,15 @@ impl Keeper {
             .as_ref()
             .is_some_and(|pool| parent.holds_codec_vec(&pool.proofs))
     }
+    /// #1488 P1-2：保留池所在的物理父账；分区按该账live计，不只按合同额。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn source_home(&self) -> Option<&super::audit_owner::native::Budget> {
+        self.pool.as_ref().and_then(|pool| pool.home.as_ref())
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn has_pool(&self) -> bool {
+        self.pool.is_some()
+    }
     pub(super) fn finish(
         &mut self,
         prior: Option<Pool>,
@@ -593,7 +607,7 @@ impl Keeper {
         pending: PendingPool,
     ) {
         if self
-            .retain_completed_admitted(capture, nodes, pending, None)
+            .retain_completed_admitted(capture, nodes, pending, None, None)
             .is_err()
         {
             self.reject_completed();
@@ -606,17 +620,19 @@ impl Keeper {
         nodes: usize,
         pending: PendingPool,
         work: Option<&WorkScope>,
+        home: Option<&super::audit_owner::native::Budget>,
     ) -> Result<(), String> {
         self.clear();
         // slot.node_count仍为全capture数；稀疏池nodes由裁剪后的owner单独计数。
         let _ = nodes;
-        let next = Pool::build_bounded_counts_admitted(
+        let mut next = Pool::build_bounded_counts_admitted(
             capture,
             pending.binding,
             pending.proofs,
             self.cap,
             work,
         )?;
+        next.home = home.cloned();
         self.finish(None, next, pending.hits, pending.cold)
     }
     pub(super) fn reject_completed(&mut self) {

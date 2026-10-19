@@ -40,11 +40,14 @@ impl ManifestWorkspaceBudget {
     }
 }
 
-/// #1488 P1-1（v4「冻结old_pool费用分区」）：冻结入口逐项列(owner role, contract item, origin)。
-/// 合同额逐项照收进O（双份角色义务保留，共享不是减费依据）；同父物理账L0只读一次、只计一次：
-/// 同父合同额已覆盖的部分是parent已付覆盖额，L0超出同父合同额的真实分配为uncovered并消耗A，
-/// 同父合同额超出L0的部分与他父/无父项一起是外部余额。O中从不加L，也不以max补差。
-/// 无法证明映射（缺同父、来源驻留不明、L0装不下M、溢出、U>A、绑定时L0已变/换父）一律拒绝，不改T/E/O/A。
+/// #1488 P1-1/P1-2（v4「冻结old_pool费用分区」）：冻结入口逐项列(owner role, contract item, origin)。
+/// 合同额逐项照收进O（双份角色义务保留，共享不是减费依据）；物理账按“所在Ledger”分组，每个Ledger的
+/// live只读一次、只计一次：候选父账与keeper池所在父账各为一组（池与候选同父即拒绝保留池）。
+/// 每组L0必须等于上一请求收尾静止点的读数（`LedgerMark`，此时请求局部持有者已析构，组内持有者
+/// 恰为所列合同项的owner）；不等即有来源不明的许可/释放，拒绝冻结。组内L0超出该组合同额的部分
+/// 作为该组owner名下的“未覆盖新增真实分配”逐组列出并消耗A；O中从不加L，也不以max补差。
+/// 无法证明映射（缺父、无静止点读数、L0≠读数、L0装不下M、溢出、池候选同父、U>A、绑定时L0已变/换父）
+/// 一律拒绝，不改T/E/O/A。
 #[cfg(feature = "s_capture_native_testonly")]
 #[derive(Clone, Debug, serde::Serialize)]
 pub(crate) struct OldPoolItem {
@@ -53,12 +56,28 @@ pub(crate) struct OldPoolItem {
     pub(crate) origin: &'static str,
     pub(crate) contract: usize,
 }
+/// 一个物理Ledger分组：静止点读数、本次L0、组内合同额与覆盖/未覆盖。
+#[cfg(feature = "s_capture_native_testonly")]
+#[derive(Clone, serde::Serialize)]
+pub(crate) struct OldPoolHome {
+    pub(crate) origin: &'static str,
+    #[serde(skip)]
+    ledger: super::audit_owner::native::Budget,
+    pub(crate) attested: Option<usize>,
+    pub(crate) l0: usize,
+    pub(crate) contract: usize,
+    pub(crate) covered: usize,
+    pub(crate) uncovered: usize,
+    pub(crate) owners: Vec<&'static str>,
+}
 #[cfg(feature = "s_capture_native_testonly")]
 #[derive(Clone, serde::Serialize)]
 pub(crate) struct OldPoolPartition {
     items: Vec<OldPoolItem>,
+    homes: Vec<OldPoolHome>,
     #[serde(skip)]
     parent: Option<super::audit_owner::native::Budget>,
+    parent_l0: usize,
     l0: usize,
     on_parent_contract: usize,
     parent_paid: usize,
@@ -70,11 +89,26 @@ pub(crate) struct OldPoolPartition {
 #[cfg(feature = "s_capture_native_testonly")]
 impl OldPoolPartition {
     pub(crate) const ON_PARENT: &'static str = "candidate-parent";
-    pub(crate) const ELSEWHERE: &'static str = "other-or-no-parent";
+    pub(crate) const KEEPER_PARENT: &'static str = "keeper-parent";
+    pub(crate) const ELSEWHERE: &'static str = "no-ledger";
     pub(crate) fn new(parent: Option<&super::audit_owner::native::Budget>) -> Self {
         Self {
             items: Vec::new(),
+            homes: parent
+                .map(|p| OldPoolHome {
+                    origin: Self::ON_PARENT,
+                    ledger: p.clone(),
+                    attested: None,
+                    l0: 0,
+                    contract: 0,
+                    covered: 0,
+                    uncovered: 0,
+                    owners: Vec::new(),
+                })
+                .into_iter()
+                .collect(),
             parent: parent.cloned(),
+            parent_l0: 0,
             l0: 0,
             on_parent_contract: 0,
             parent_paid: 0,
@@ -84,22 +118,63 @@ impl OldPoolPartition {
             sealed: false,
         }
     }
-    /// 只列O角色合同项；E（legacy）由冻结入口单列。
-    pub(crate) fn item(
-        &mut self,
-        item: &'static str,
-        on_parent: bool,
-        contract: usize,
-    ) -> Result<(), String> {
+    fn open(&self) -> Result<(), String> {
         if self.sealed {
             return Err("S3WriterResourcesInvalid：old_pool映射已封口".into());
         }
-        if on_parent && self.parent.is_none() {
-            return Err(format!("S3WriterResourcesInvalid：old_pool项{item}缺同父账，无法映射"));
+        Ok(())
+    }
+    /// keeper池所在父账单列一组；与候选同父即拒绝保留池（同一L0不得被两组各读一次）。
+    pub(crate) fn keeper_home(
+        &mut self,
+        ledger: &super::audit_owner::native::Budget,
+    ) -> Result<(), String> {
+        self.open()?;
+        if self.homes.iter().any(|h| h.ledger.same_parent(ledger)) {
+            return Err("S3WriterResourcesInvalid：keeper池与候选同父，拒绝保留池".into());
         }
+        self.homes.push(OldPoolHome {
+            origin: Self::KEEPER_PARENT,
+            ledger: ledger.clone(),
+            attested: None,
+            l0: 0,
+            contract: 0,
+            covered: 0,
+            uncovered: 0,
+            owners: Vec::new(),
+        });
+        Ok(())
+    }
+    /// 记入某组的静止点读数；读数只认同一Ledger（他账的读数不能证明本组来源）。
+    pub(crate) fn attest(&mut self, mark: &super::audit_owner::native::LedgerMark) -> Result<(), String> {
+        self.open()?;
+        for home in &mut self.homes {
+            if let Some(live) = mark.live_for(&home.ledger) {
+                home.attested = Some(live);
+            }
+        }
+        Ok(())
+    }
+    /// 只列O角色合同项；E（legacy）由冻结入口单列。origin取ON_PARENT/KEEPER_PARENT/ELSEWHERE。
+    pub(crate) fn item(
+        &mut self,
+        item: &'static str,
+        origin: &'static str,
+        contract: usize,
+    ) -> Result<(), String> {
+        self.open()?;
         let overflow = || "S3WriterResourcesInvalid：old_pool合同额溢出".to_string();
+        if origin != Self::ELSEWHERE {
+            let home = self
+                .homes
+                .iter_mut()
+                .find(|h| h.origin == origin)
+                .ok_or_else(|| format!("S3WriterResourcesInvalid：old_pool项{item}缺{origin}父账，无法映射"))?;
+            home.contract = home.contract.checked_add(contract).ok_or_else(overflow)?;
+            home.owners.push(item);
+        }
         self.old_pool = self.old_pool.checked_add(contract).ok_or_else(overflow)?;
-        if on_parent {
+        if origin == Self::ON_PARENT {
             self.on_parent_contract = self
                 .on_parent_contract
                 .checked_add(contract)
@@ -108,30 +183,48 @@ impl OldPoolPartition {
         self.items.push(OldPoolItem {
             role: "O",
             item,
-            origin: if on_parent {
-                Self::ON_PARENT
-            } else {
-                Self::ELSEWHERE
-            },
+            origin,
             contract,
         });
         Ok(())
     }
-    /// 读一次同父L0并形成覆盖额/外部余额/uncovered；之后不可再加项。
+    /// 每组读一次L0并与静止点读数对拍，形成覆盖额/外部余额/逐组uncovered；之后不可再加项。
     pub(crate) fn seal(mut self) -> Result<Self, String> {
-        if self.sealed {
-            return Err("S3WriterResourcesInvalid：old_pool映射已封口".into());
+        self.open()?;
+        let m = super::audit_owner::native::Budget::metadata_bytes();
+        let overflow = || "S3WriterResourcesInvalid：old_pool物理账溢出".to_string();
+        for home in &mut self.homes {
+            let l0 = home.ledger.live();
+            // 同父控制块M本身就在L0中；L0装不下M说明物理账与合同布局对不上。
+            if l0 < m {
+                return Err(format!(
+                    "S3WriterResourcesInvalid：{}L0不含控制块M，old_pool无法映射",
+                    home.origin
+                ));
+            }
+            if home.attested != Some(l0) {
+                return Err(format!(
+                    "S3WriterResourcesInvalid：{}L0={l0}与收尾静止点读数{:?}不符，存在来源不明的许可，拒绝冻结",
+                    home.origin, home.attested
+                ));
+            }
+            home.l0 = l0;
+            home.covered = l0.min(home.contract);
+            home.uncovered = l0 - home.covered;
+            self.l0 = self.l0.checked_add(l0).ok_or_else(overflow)?;
+            self.parent_paid = self
+                .parent_paid
+                .checked_add(home.covered)
+                .ok_or_else(overflow)?;
+            self.uncovered = self
+                .uncovered
+                .checked_add(home.uncovered)
+                .ok_or_else(overflow)?;
+            if home.origin == Self::ON_PARENT {
+                self.parent_l0 = l0;
+            }
         }
-        let l0 = self.parent.as_ref().map_or(0, |p| p.live());
-        // 同父控制块M本身就在L0中；L0装不下M说明物理账与合同布局对不上。
-        if self.parent.is_some() && l0 < super::audit_owner::native::Budget::metadata_bytes() {
-            return Err("S3WriterResourcesInvalid：同父L0不含控制块M，old_pool无法映射".into());
-        }
-        let paid = l0.min(self.on_parent_contract);
-        self.l0 = l0;
-        self.parent_paid = paid;
-        self.uncovered = l0 - paid;
-        self.external = self.old_pool - paid;
+        self.external = self.old_pool - self.parent_paid;
         self.sealed = true;
         Ok(self)
     }
@@ -141,6 +234,7 @@ impl OldPoolPartition {
     pub(crate) fn uncovered(&self) -> usize {
         self.uncovered
     }
+    /// 各物理组L0之和（每个Ledger只计一次）。
     pub(crate) fn l0(&self) -> usize {
         self.l0
     }
@@ -152,6 +246,17 @@ impl OldPoolPartition {
     }
     pub(crate) fn items(&self) -> &[OldPoolItem] {
         &self.items
+    }
+    pub(crate) fn homes(&self) -> &[OldPoolHome] {
+        &self.homes
+    }
+    /// 未覆盖新增真实分配逐组列出：(role U, 来源组, 组内owner, 字节)。
+    pub(crate) fn uncovered_items(&self) -> Vec<(&'static str, &'static str, &[&'static str], usize)> {
+        self.homes
+            .iter()
+            .filter(|h| h.uncovered != 0)
+            .map(|h| ("U", h.origin, h.owners.as_slice(), h.uncovered))
+            .collect()
     }
     /// 本请求入口已占的旧费：O + uncovered（uncovered从A中扣，不改O）。
     pub(crate) fn carried(&self) -> usize {
@@ -273,7 +378,7 @@ impl RequestAuditContext {
         old_pool: usize,
     ) -> Result<(), String> {
         let mut partition = OldPoolPartition::new(None);
-        partition.item("unpartitioned-old-pool", false, old_pool)?;
+        partition.item("unpartitioned-old-pool", OldPoolPartition::ELSEWHERE, old_pool)?;
         self.freeze_manifest_workspace_partition(total, legacy, partition.seal()?)
     }
     #[cfg(feature = "s_capture_native_testonly")]
@@ -314,7 +419,7 @@ impl RequestAuditContext {
             legacy,
             old_pool,
             uncovered,
-            frozen_live: partition.parent.as_ref().map(|_| partition.l0),
+            frozen_live: partition.parent.as_ref().map(|_| partition.parent_l0),
             allowance,
         });
         *self.old_pool_parent.get_mut() = partition.parent;
@@ -377,6 +482,7 @@ impl RequestAuditContext {
                                     slot.node_count,
                                     pending,
                                     Some(scope),
+                                    Some(&parent),
                                 )
                             })
                             .is_ok(),
@@ -2645,8 +2751,9 @@ mod handoff_domain_tests {
         assert!(third.prepare_parent(None).is_err());
         assert!(third.cold_parent_budget().is_none());
     }
-    /// #1488 P1-1：封存池许可与完整候选、控制块M同挂一父时，L0只读一次只计一次；
-    /// O逐项照合同额收（不含L、不补差），L0超出同父合同额的真实分配作uncovered从A扣。
+    /// #1488 P1-1（0027改写，复审0026点名）：同父L0每一笔许可要么在收尾静止点读数内归属所列owner，
+    /// 要么拒绝。静止点之后挂上的3000B许可不属任何项、来源不明——冻结必须拒绝，T/E/O/A与父账不变；
+    /// 池与候选同父也必须拒绝（同一L0不得被两组各读一次）。静止点内超出合同额的真实分配逐组列为U。
     #[test]
     fn p1_1_same_parent_pool_counts_l0_once_and_items_keep_contract() {
         const T: usize = 1 << 20;
@@ -2656,35 +2763,86 @@ mod handoff_domain_tests {
         let parent = Budget::new(T, 0).unwrap();
         let bound = first.bind_complete_budget(&parent).unwrap();
         assert_eq!(bound.live(), m);
-        let (charge, pool, stray) = (40_960, 20_480, 3_000);
+        let (charge, excess, pool, stray) = (40_960, 1_000, 20_480, 3_000);
+        // 候选owner在静止点前持有的真实分配：合同额charge与超出合同的excess。
         let _charge = bound.reserve(charge).unwrap();
-        let _pool = bound.reserve(pool).unwrap();
-        let _stray = bound.reserve(stray).unwrap();
+        let _excess = bound.reserve(excess).unwrap();
+        let mark = bound.quiescent_mark();
+        let ledger = |b: &Budget| (b.live(), b.peak(), b.remaining(), b.total_limit().unwrap());
+        let candidate = |p: &mut OldPoolPartition| {
+            p.item("complete_candidate.charge.total", OldPoolPartition::ON_PARENT, charge)
+                .unwrap();
+            p.item("complete_parent.metadata_M", OldPoolPartition::ON_PARENT, m)
+                .unwrap();
+            p.attest(&mark).unwrap();
+        };
+        // (1) 来源不明的同父3000B许可：不属任何项、静止点后出现——拒绝冻结，不改T/E/O/A。
+        let stray_permit = bound.reserve(stray).unwrap();
+        let before = ledger(&bound);
+        let mut unknown = OldPoolPartition::new(Some(&bound));
+        candidate(&mut unknown);
+        let error = unknown.seal().err().expect("来源不明的同父许可必须拒绝");
+        assert!(error.contains("来源不明"), "{error}");
+        let mut next = RequestAuditContext::default();
+        assert!(next.manifest_workspace_budget().is_none());
+        assert!(next.take_bootstrap_grant().is_none());
+        assert_eq!(ledger(&bound), before);
+        drop(stray_permit);
+        // (2) 池与候选同父：拒绝保留池（keeper组与候选组同一Ledger）。
+        let mut shared = OldPoolPartition::new(Some(&bound));
+        candidate(&mut shared);
+        let error = shared.keeper_home(&bound).err().expect("池与候选同父必须拒绝");
+        assert!(error.contains("同父"), "{error}");
+        // (3) 静止点内全部许可都归属所列owner：L0只读一次只计一次，超合同部分逐组列为U。
         let l0 = bound.live();
-        assert_eq!(l0, m + charge + pool + stray);
+        assert_eq!(l0, m + charge + excess);
         let mut partition = OldPoolPartition::new(Some(&bound));
-        partition.item("complete_candidate.charge.total", true, charge).unwrap();
-        partition.item("complete_parent.metadata_M", true, m).unwrap();
-        partition.item("source_keeper_pool", true, pool).unwrap();
+        candidate(&mut partition);
         let partition = partition.seal().unwrap();
         assert_eq!(partition.l0(), l0, "L0只读一次");
-        assert_eq!(partition.old_pool(), charge + m + pool, "O=逐项合同额之和");
-        assert_eq!(partition.parent_paid(), charge + m + pool);
-        assert_eq!(partition.uncovered(), stray, "合同未覆盖的真实分配消耗A");
+        assert_eq!(partition.old_pool(), charge + m, "O=逐项合同额之和");
+        assert_eq!(partition.parent_paid(), charge + m);
+        assert_eq!(partition.uncovered(), excess, "静止点内超合同的真实分配消耗A");
         assert_eq!(partition.external(), 0);
-        assert_eq!(partition.carried(), l0, "同一封存块在O中只计一次");
-        // 旧公式：keeper + max(charge+M, L)，同父池块在keeper项与L中各计一次。
-        let legacy_formula = pool + (charge + m).max(l0);
-        assert!(partition.carried() < legacy_formula);
-        assert_eq!(legacy_formula - partition.carried(), pool);
+        assert_eq!(partition.carried(), l0, "同一块在O与U中只计一次");
+        let listed = partition.uncovered_items();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].0, "U");
+        assert_eq!(listed[0].1, OldPoolPartition::ON_PARENT);
+        assert_eq!(
+            listed[0].2,
+            &["complete_candidate.charge.total", "complete_parent.metadata_M"][..]
+        );
+        assert_eq!(listed[0].3, excess);
         assert!(partition
             .items()
             .iter()
             .all(|i| i.role == "O" && i.origin == OldPoolPartition::ON_PARENT));
-        let mut next = RequestAuditContext::default();
-        next.freeze_manifest_workspace_partition(T, 0, partition).unwrap();
+        // (4) keeper池在他父账K：按K的物理live计一次（含M_K），不只按合同额。
+        let keeper = Budget::new(T, 0).unwrap();
+        let _pool = keeper.reserve(pool).unwrap();
+        let _pool_excess = keeper.reserve(4_096).unwrap();
+        let keeper_mark = keeper.quiescent_mark();
+        let mut both = OldPoolPartition::new(Some(&bound));
+        candidate(&mut both);
+        both.keeper_home(&keeper).unwrap();
+        both.item("source_keeper_pool", OldPoolPartition::KEEPER_PARENT, pool)
+            .unwrap();
+        both.item("keeper_parent.metadata_M", OldPoolPartition::KEEPER_PARENT, m)
+            .unwrap();
+        // 只有候选组读数时keeper组无从证明：拒绝。
+        assert!(both.clone().seal().is_err());
+        both.attest(&keeper_mark).unwrap();
+        let both = both.seal().unwrap();
+        assert_eq!(both.l0(), l0 + keeper.live());
+        assert_eq!(both.old_pool(), charge + m + pool + m);
+        assert_eq!(both.uncovered(), excess + 4_096);
+        assert!(both.carried() >= both.l0(), "两账物理live全部进入O+U");
+        let next_partition = partition;
+        next.freeze_manifest_workspace_partition(T, 0, next_partition)
+            .unwrap();
         let frozen = next.manifest_workspace_budget().unwrap();
-        assert_eq!(frozen.allowance(), T - (charge + m + pool) - stray);
+        assert_eq!(frozen.allowance(), T - (charge + m) - excess);
         let current = next.bind_complete_budget(&bound).unwrap();
         assert!(current.same_parent(&bound));
         assert_eq!(current.remaining(), frozen.allowance());
@@ -2699,15 +2857,23 @@ mod handoff_domain_tests {
         let parent = Budget::new(T, 0).unwrap();
         let bound = first.bind_complete_budget(&parent).unwrap();
         let _held = bound.reserve(8_192).unwrap();
+        let mark = bound.quiescent_mark();
         let ledger = |b: &Budget| (b.live(), b.peak(), b.remaining(), b.total_limit().unwrap());
         let before = ledger(&bound);
         // (1) 同父项却无父账：无从证明驻留。
         let mut orphan = OldPoolPartition::new(None);
-        assert!(orphan.item("committed_raw_state", true, 512).is_err());
+        assert!(orphan
+            .item("committed_raw_state", OldPoolPartition::ON_PARENT, 512)
+            .is_err());
         // (2) uncovered超过A：冻结拒绝，不铸造许可、不写T/E/O/A。
         let mut wide = OldPoolPartition::new(Some(&bound));
-        wide.item("complete_parent.metadata_M", true, Budget::metadata_bytes())
-            .unwrap();
+        wide.item(
+            "complete_parent.metadata_M",
+            OldPoolPartition::ON_PARENT,
+            Budget::metadata_bytes(),
+        )
+        .unwrap();
+        wide.attest(&mark).unwrap();
         let wide = wide.seal().unwrap();
         assert!(wide.uncovered() > 0);
         let mut tight = RequestAuditContext::default();
@@ -2720,11 +2886,20 @@ mod handoff_domain_tests {
         // (3) 冻结后同父L0增长：映射过期，绑定拒绝。
         let mut stale = OldPoolPartition::new(Some(&bound));
         stale
-            .item("complete_candidate.charge.total", true, 8_192)
+            .item(
+                "complete_candidate.charge.total",
+                OldPoolPartition::ON_PARENT,
+                8_192,
+            )
             .unwrap();
         stale
-            .item("complete_parent.metadata_M", true, Budget::metadata_bytes())
+            .item(
+                "complete_parent.metadata_M",
+                OldPoolPartition::ON_PARENT,
+                Budget::metadata_bytes(),
+            )
             .unwrap();
+        stale.attest(&mark).unwrap();
         let mut next = RequestAuditContext::default();
         next.freeze_manifest_workspace_partition(T, 0, stale.seal().unwrap())
             .unwrap();

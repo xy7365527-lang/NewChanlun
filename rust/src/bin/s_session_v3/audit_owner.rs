@@ -167,6 +167,9 @@ pub(super) struct AuditConnection {
     complete: std::cell::RefCell<Option<CompleteCandidate>>,
     #[cfg(feature = "s_capture_native_testonly")]
     source_keeper: std::cell::RefCell<Option<cross_request_source_cache::Keeper>>,
+    // #1488 P1-1/P1-2：请求收尾静止点各保留父账的live读数；下次冻结逐账对拍，不等即来源不明。
+    #[cfg(feature = "s_capture_native_testonly")]
+    quiescent: std::cell::RefCell<Vec<native::LedgerMark>>,
 }
 
 /// 此标记只证明 owner 已确认事务终结，不证明任何缓存依赖保持。
@@ -274,6 +277,8 @@ impl AuditConnection {
             complete: Default::default(),
             #[cfg(feature = "s_capture_native_testonly")]
             source_keeper: Default::default(),
+            #[cfg(feature = "s_capture_native_testonly")]
+            quiescent: Default::default(),
         })
     }
 
@@ -794,6 +799,11 @@ impl AuditConnection {
         self.source_keeper.borrow_mut().take()
     }
 
+    /// #1488 P1-2锁：把入口取走的keeper放回（模拟生产入口不丢池时的attach路径）。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn put_source_keeper_for_test(&self, keeper: cross_request_source_cache::Keeper) {
+        *self.source_keeper.borrow_mut() = Some(keeper);
+    }
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn source_keeper_for_test(
         &self,
@@ -809,6 +819,9 @@ impl AuditConnection {
     ) {
         *self.source_keeper.get_mut() = None;
         if ended.life != self.life || self.retired.get() || !self.connection.is_autocommit() {
+            drop(context);
+            drop(ended);
+            self.mark_quiescent();
             return;
         }
         // 完整候选由本 owner 的无写审计或固定 effects 核验签发；来源池独立移交。
@@ -852,7 +865,33 @@ impl AuditConnection {
         {
             complete = None;
         }
+        // #1488 P1-1：池与候选同父时拒绝保留池——同一L0不得由两个owner分别认领。
+        if let (Some(c), Some(k)) = (complete.as_ref(), self.source_keeper.get_mut().as_mut()) {
+            if k.source_home().is_some_and(|home| home.same_parent(&c.resources)) {
+                k.reject_completed();
+            }
+        }
         *self.complete.get_mut() = complete;
+        self.mark_quiescent();
+    }
+
+    /// #1488 P1-1/P1-2：请求局部持有者（context/slot/ended）均已析构后，对保留下来的
+    /// 候选父账与keeper池父账各读一次live，作为下次冻结的来源证明；其后任何未经请求的增减都使映射失效。
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn mark_quiescent(&self) {
+        let mut marks = Vec::new();
+        if let Some(c) = self.complete.borrow().as_ref() {
+            marks.push(c.resources.quiescent_mark());
+        }
+        if let Some(home) = self
+            .source_keeper
+            .borrow()
+            .as_ref()
+            .and_then(|k| k.source_home())
+        {
+            marks.push(home.quiescent_mark());
+        }
+        *self.quiescent.borrow_mut() = marks;
     }
 
     pub(super) fn pending_originals(&self) -> Result<Vec<String>, String> {
@@ -1163,6 +1202,9 @@ impl AuditConnection {
     }
     pub(super) fn discard_after_error(&self) {
         self.clear_candidates();
+        // #1488 P1-2：丢弃只析构，不新增分配；仍存活的保留父账（如keeper池所在账）按析构后live重读。
+        #[cfg(feature = "s_capture_native_testonly")]
+        self.quiescent.borrow_mut().retain_mut(|mark| mark.refresh());
     }
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn complete_retained_bytes(&self) -> usize {
@@ -1188,26 +1230,45 @@ impl AuditConnection {
         &self,
         keeper: Option<&super::cross_request_source_cache::Keeper>,
     ) -> Result<request_audit::OldPoolPartition, String> {
+        use request_audit::OldPoolPartition as P;
         let complete = self.complete.borrow();
         let parent = complete.as_ref().map(|c| &c.resources);
-        let mut partition = request_audit::OldPoolPartition::new(parent);
+        let mut partition = P::new(parent);
         if let Some(c) = complete.as_ref() {
-            partition.item("complete_candidate.charge.total", true, c.charge.total)?;
+            partition.item("complete_candidate.charge.total", P::ON_PARENT, c.charge.total)?;
             partition.item(
                 "complete_parent.metadata_M",
-                true,
+                P::ON_PARENT,
                 native::Budget::metadata_bytes(),
             )?;
         }
         if let Some(raw) = self.construction.borrow().as_ref() {
             // 状态许可从候选同一父账拆出；缺候选即无从证明驻留，由分区拒绝。
-            partition.item("committed_raw_state", true, raw.retained_bytes())?;
+            partition.item("committed_raw_state", P::ON_PARENT, raw.retained_bytes())?;
         }
-        if let Some(k) = keeper.filter(|k| k.retained_source_bytes() != 0) {
-            let on_parent = parent.is_some_and(|p| k.source_on_parent(p));
-            partition.item("source_keeper_pool", on_parent, k.retained_source_bytes())?;
+        if let Some(k) = keeper.filter(|k| k.has_pool()) {
+            match k.source_home() {
+                // #1488 P1-2：池按其所在父账的物理live单列一组（与候选同父则由分区拒绝），
+                // 控制块M与池合同额同为该组合同项；不在任何账上的池只能按合同额计。
+                Some(home) => {
+                    if !k.source_on_parent(home) {
+                        return Err("S3WriterResourcesInvalid：keeper池证明容器不在所记父账，无法映射".into());
+                    }
+                    partition.keeper_home(home)?;
+                    partition.item("source_keeper_pool", P::KEEPER_PARENT, k.retained_source_bytes())?;
+                    partition.item(
+                        "keeper_parent.metadata_M",
+                        P::KEEPER_PARENT,
+                        native::Budget::metadata_bytes(),
+                    )?;
+                }
+                None => partition.item("source_keeper_pool", P::ELSEWHERE, k.retained_source_bytes())?,
+            }
         }
         drop(complete);
+        for mark in self.quiescent.borrow().iter() {
+            partition.attest(mark)?;
+        }
         partition.seal()
     }
     #[cfg(all(test, feature = "s_capture_native_testonly"))]

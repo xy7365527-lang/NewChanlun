@@ -708,6 +708,33 @@ impl Budget {
     pub(crate) fn same_parent(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
     }
+    /// #1488 P1-1/P1-2：请求收尾静止点的物理live读数；弱引用，不延长父账寿命、不进Ledger布局。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(crate) fn quiescent_mark(&self) -> LedgerMark {
+        LedgerMark(Arc::downgrade(&self.0), self.live())
+    }
+}
+/// #1488 P1-1/P1-2：某父账在请求收尾静止点（请求局部持有者已析构）的live；只认同一Ledger。
+#[cfg(feature = "s_capture_native_testonly")]
+#[derive(Clone)]
+pub(crate) struct LedgerMark(std::sync::Weak<Ledger>, usize);
+#[cfg(feature = "s_capture_native_testonly")]
+impl LedgerMark {
+    pub(crate) fn live_for(&self, budget: &Budget) -> Option<usize> {
+        std::ptr::eq(self.0.as_ptr(), Arc::as_ptr(&budget.0)).then_some(self.1)
+    }
+    /// 只用于纯析构之后：重读仍存活父账的live；父账已释放则返回false（读数作废）。
+    pub(crate) fn refresh(&mut self) -> bool {
+        match self.0.upgrade() {
+            Some(ledger) => {
+                self.1 = ledger.live.load(Ordering::Acquire);
+                true
+            }
+            None => false,
+        }
+    }
+}
+impl Budget {
     pub(crate) fn bind_or_handoff(
         &self,
         request: u64,
