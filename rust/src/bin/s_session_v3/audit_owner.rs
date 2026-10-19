@@ -1170,12 +1170,9 @@ impl AuditConnection {
             .borrow()
             .as_ref()
             .map_or(0, |c| {
-                // #1488 v4（反例C）：E/O交集按物理L只计一次——同父Ledger内的候选、封存来源、
-                // Native保守费与状态许可都在L中；旧池至少覆盖L，否则换域必拒（L<=O）。
                 c.charge
                     .total
                     .saturating_add(native::Budget::metadata_bytes())
-                    .max(c.resources.live())
             })
             .saturating_add(
                 self.construction
@@ -1183,6 +1180,35 @@ impl AuditConnection {
                     .as_ref()
                     .map_or(0, |c| c.retained_bytes()),
             )
+    }
+    /// #1488 P1-1（v4「冻结old_pool费用分区」）：O逐项照合同额收，不以max(L)补差；
+    /// 同父物理L0由分区只读一次，超出同父合同额的真实分配为uncovered并消耗A。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn old_pool_partition(
+        &self,
+        keeper: Option<&super::cross_request_source_cache::Keeper>,
+    ) -> Result<request_audit::OldPoolPartition, String> {
+        let complete = self.complete.borrow();
+        let parent = complete.as_ref().map(|c| &c.resources);
+        let mut partition = request_audit::OldPoolPartition::new(parent);
+        if let Some(c) = complete.as_ref() {
+            partition.item("complete_candidate.charge.total", true, c.charge.total)?;
+            partition.item(
+                "complete_parent.metadata_M",
+                true,
+                native::Budget::metadata_bytes(),
+            )?;
+        }
+        if let Some(raw) = self.construction.borrow().as_ref() {
+            // 状态许可从候选同一父账拆出；缺候选即无从证明驻留，由分区拒绝。
+            partition.item("committed_raw_state", true, raw.retained_bytes())?;
+        }
+        if let Some(k) = keeper.filter(|k| k.retained_source_bytes() != 0) {
+            let on_parent = parent.is_some_and(|p| k.source_on_parent(p));
+            partition.item("source_keeper_pool", on_parent, k.retained_source_bytes())?;
+        }
+        drop(complete);
+        partition.seal()
     }
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn complete_report(&self) -> Value {
@@ -3092,11 +3118,12 @@ fn r13_cold_candidate_and_q_share_parent_and_preserve_complete_output() {
         "测试观察句柄仍持父账；context退场不归还Native保守费"
     );
     owner.assert_complete_matches_cold();
-    let old_pool = owner.complete_retained_bytes();
+    let partition = owner.old_pool_partition(None).unwrap();
+    let old_pool = partition.old_pool();
     let mut next = request_audit::RequestAuditContext::with_source_keeper(
         cross_request_source_cache::Keeper::new(total),
     );
-    next.freeze_manifest_workspace_budget(total, 0, old_pool)
+    next.freeze_manifest_workspace_partition(total, 0, partition)
         .unwrap();
     // #1488 v4 暖路径：选唯一真实候选父；next_parent为同父sponsor付费的只读观察句柄。
     let preparation = next
@@ -4430,8 +4457,12 @@ mod construction_tests {
         let mut next = request_audit::RequestAuditContext::with_source_keeper(
             cross_request_source_cache::Keeper::new(536_870_912),
         );
-        next.freeze_manifest_workspace_budget(536_870_912, 0, owner.complete_retained_bytes())
-            .unwrap();
+        next.freeze_manifest_workspace_partition(
+            536_870_912,
+            0,
+            owner.old_pool_partition(None).unwrap(),
+        )
+        .unwrap();
         let commits = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let seen = commits.clone();
         owner

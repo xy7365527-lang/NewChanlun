@@ -45,3 +45,6 @@ v3::audit_owner::native::u2_exit_adopt_tests::p2_3_rebirth_codec_vec_peak_counts
 v3::fixed_radix::tests::native_each_new_block_refusal_preserves_contents_and_real_layout_ledger
 v3::audit_owner::effects::construction_coverage_tests::p2_2_journal_permit_taken_before_recording_allocation
 v3::audit_owner::effects::construction_coverage_tests::p2_2_private_journal_parent_born_before_allocation_and_material_adds_no_fee
+# #1488 P1-1 冻结old_pool逐项分区（0025）
+v3::request_audit::handoff_domain_tests::p1_1_same_parent_pool_counts_l0_once_and_items_keep_contract
+v3::request_audit::handoff_domain_tests::p1_1_unmappable_old_pool_is_rejected_without_mutation

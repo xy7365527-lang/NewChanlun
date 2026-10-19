@@ -503,6 +503,13 @@ impl Keeper {
     pub(super) fn retained_source_bytes(&self) -> usize {
         self.pool.as_ref().map_or(0, |pool| pool.source_cost.total)
     }
+    /// #1488 P1-1：保留池证明容器是否驻留在给定父账；判不了同父时按他父/无父计，不冲抵L0。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn source_on_parent(&self, parent: &super::audit_owner::native::Budget) -> bool {
+        self.pool
+            .as_ref()
+            .is_some_and(|pool| parent.holds_codec_vec(&pool.proofs))
+    }
     pub(super) fn finish(
         &mut self,
         prior: Option<Pool>,

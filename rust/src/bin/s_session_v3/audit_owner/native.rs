@@ -556,12 +556,28 @@ impl Budget {
         legacy: usize,
         old_pool: usize,
     ) -> Result<Self, BudgetExceeded> {
+        self.bind_frozen_mapped(request, total, legacy, old_pool, None)
+    }
+    /// #1488 P1-1：carried = O + uncovered（同父L0超出同父合同额的真实分配）。
+    /// frozen_live为冻结时逐项映射所读的同父L0；同锁复核，L0增长即映射过期，拒绝且不改账
+    /// （L0下降只使uncovered偏保守，carried仍覆盖L）。
+    pub(crate) fn bind_frozen_mapped(
+        &self,
+        request: u64,
+        total: usize,
+        legacy: usize,
+        old_pool: usize,
+        frozen_live: Option<usize>,
+    ) -> Result<Self, BudgetExceeded> {
         let allowance = total
             .checked_sub(legacy)
             .and_then(|n| n.checked_sub(old_pool))
             .ok_or(BudgetExceeded)?;
         let mut d = self.0.domain.lock().map_err(|_| BudgetExceeded)?;
         if d.state & BROKEN != 0 || self.1 != u64::from(d.serial) || request == 0 {
+            return Err(BudgetExceeded);
+        }
+        if frozen_live.is_some_and(|l0| self.live() > l0) {
             return Err(BudgetExceeded);
         }
         if self.2 == 0 {
@@ -593,6 +609,11 @@ impl Budget {
         d.remaining = allowance;
         d.low_water = allowance;
         Ok(Self(self.0.clone(), u64::from(serial), request, allowance))
+    }
+    /// #1488 P1-1：容器真实驻留在本父账（同一Ledger）上；未绑定Native的容器不在任何账上。
+    pub(crate) fn holds_codec_vec<T>(&self, v: &newchan_rust::s_content::CodecVec<T>) -> bool {
+        let parent: Arc<dyn ScratchParent> = self.0.clone();
+        v.is_native_bound() && v.native_parent_matches(&parent)
     }
     /// 工作域和新块一起预检；预算拒绝不能先接纳原件或改变峰值。
     fn preflight_codec_vec<T>(

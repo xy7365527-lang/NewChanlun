@@ -319,21 +319,19 @@ impl Driver {
                     let keeper_cap = total
                         .checked_sub(legacy)
                         .ok_or("S3WriterResourcesInvalid：legacy来源费用超过S7")?;
-                    let held = previous
-                        .as_ref()
-                        .map_or(0, |k| k.retained_source_bytes())
-                        .saturating_add(self.conn.complete_retained_bytes());
-                    if held > keeper_cap {
+                    // #1488 P1-1：旧费按逐项分区O+uncovered计；映射不成立即丢候选重映射，不补差。
+                    let held = self
+                        .conn
+                        .old_pool_partition(previous.as_ref())
+                        .map(|p| p.carried());
+                    if !held.is_ok_and(|held| held <= keeper_cap) {
                         self.conn.discard_after_error();
                         if let Some(k) = &mut previous {
                             k.set_retention_cap(keeper_cap);
                         }
                     }
-                    let old_pool = previous
-                        .as_ref()
-                        .map_or(0, |k| k.retained_source_bytes())
-                        .saturating_add(self.conn.complete_retained_bytes());
-                    context.freeze_manifest_workspace_budget(total, legacy, old_pool)?;
+                    let partition = self.conn.old_pool_partition(previous.as_ref())?;
+                    context.freeze_manifest_workspace_partition(total, legacy, partition)?;
                     if super::cross_request_source_cache::Keeper::retention_possible(keeper_cap) {
                         let mut keeper = previous.unwrap_or_else(|| {
                             super::cross_request_source_cache::Keeper::new(keeper_cap)
