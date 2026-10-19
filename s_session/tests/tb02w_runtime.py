@@ -147,11 +147,30 @@ def find(snapshot, kind, entity):
     return None
 
 
+VOLATILE = {"batch_id", "first_known_cut", "first_known_generation", "published_generation", "input_refs",
+            "object_revision", "lifecycle", "superseded_by", "withdrawn_generation", "withdrawal_reason"}
+
+
 def structural(snapshot):
-    """跨运行对拍的结构面：TB-02 对象的 (kind, fact_key, payload)；与写者换代、进程身份无关。"""
-    items = sorted((o["kind"], o["fact_key"], canonical(o["payload"]).decode())
-                   for o in snapshot["objects"] if o["kind"].startswith("CC-"))
-    return hashlib.sha256(canonical(items)).hexdigest(), len(items)
+    """跨运行对拍面。full：objects/withdrawn/relations/witnesses 全字段按 object_id 排序后的规范哈希；
+    semantic：只取对象的 kind + payload（无 payload 的取去掉批次/代际簿记字段后的其余字段）。"""
+    def key(o):
+        return canonical(o).decode()
+    full = {k: sorted((snapshot.get(k) or []), key=key) for k in ("objects", "withdrawn_objects", "relations", "witnesses")}
+    sem = sorted(canonical([o["kind"], o["payload"] if "payload" in o else {k: v for k, v in o.items() if k not in VOLATILE}]).decode()
+                 for o in snapshot["objects"])
+    return {"full": hashlib.sha256(canonical(full)).hexdigest(), "semantic": hashlib.sha256(canonical(sem)).hexdigest(),
+            "objects": len(snapshot["objects"])}
+
+
+def compare_arms(a, b):
+    if a is None or b is None:
+        return None
+    gens = sorted(set(a) | set(b), key=int)
+    full = [g for g in gens if a.get(g, {}).get("full") != b.get(g, {}).get("full")]
+    sem = [g for g in gens if a.get(g, {}).get("semantic") != b.get(g, {}).get("semantic")]
+    return {"cuts": len(gens), "full_equal": not full, "semantic_equal": not sem,
+            "full_diff_cuts": full[:10], "semantic_diff_cuts": sem[:10]}
 
 
 def check_case(case, meta, known):
@@ -272,33 +291,41 @@ def session(args):
         arms = {}
         for arm in args.arms:
             output = case_dir / f"run-{arm}"
-            run = Run(config=case_dir / f"config-{arm}.json", messages=case_dir / "messages.jsonl", output=output,
-                      node=args.node, fault_index=meta["fault_index"] if arm == "C" else None, fault_stage="after_batch")
-            if arm == "A" and args.browser:
-                want = EXPECTED[meta["design"]]
-                cut_for = lambda n: str(4 * (n - 1) + 7)  # noqa: E731 笔 n-1 首次已知的 cut
-                killed_n = next((n for n, e in want.items() if e["result"] == "KILLED_CASE_TWO"), max(want))
-                run.browser_args = {"module": args.playwright_module, "final": str(meta["inputs"]),
-                                    "killed": cut_for(killed_n), "open": cut_for(6), "design": meta["design"]}
-            with deadline(f"{case}/{arm}", 5400):
-                result = run.execute()
+            if args.reuse and (output / "RESULT.json").exists():
+                result = json.loads((output / "RESULT.json").read_text())
+            else:
+                run = Run(config=case_dir / f"config-{arm}.json", messages=case_dir / "messages.jsonl", output=output,
+                          node=args.node, fault_index=meta["fault_index"] if arm == "C" else None, fault_stage="after_batch")
+                if arm == "A" and args.browser:
+                    want = EXPECTED[meta["design"]]
+                    cut_for = lambda n: str(4 * (n - 1) + 7)  # noqa: E731 笔 n-1 首次已知的 cut
+                    killed_n = next((n for n, e in want.items() if e["result"] == "KILLED_CASE_TWO"), max(want))
+                    run.browser_args = {"module": args.playwright_module, "final": str(meta["inputs"]),
+                                        "killed": cut_for(killed_n), "open": cut_for(6), "design": meta["design"]}
+                with deadline(f"{case}/{arm}", 5400):
+                    result = run.execute()
             entry = {"status": result["status"], "error": result.get("error")}
             if result["status"] == "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER":
-                known = known_of(output)
-                entry["cuts"] = len(known)
-                entry["structural"] = {str(g): structural(s)[0] for g, s in sorted(known.items())}
-                entry["hand_oracle"] = check_case(case, meta, known)
-                entry["contract_all_cuts"] = verify(Path(json.loads((case_dir / f"config-{arm}.json").read_text())["db"]), None, args.node)
-                if arm == "C":
-                    entry["lifecycle"] = json.loads((output / "RESULT.json").read_text()).get("status")
+                try:
+                    known = known_of(output)
+                    entry["cuts"] = len(known)
+                    entry["structural"] = {str(g): structural(snap) for g, snap in sorted(known.items())}
+                    entry["hand_oracle"] = check_case(case, meta, known)
+                    del known
+                    entry["contract_all_cuts"] = verify(Path(json.loads((case_dir / f"config-{arm}.json").read_text())["db"]), None, args.node)
+                    if (output / "browser" / "RESULT.json").exists():
+                        entry["browser"] = json.loads((output / "browser" / "RESULT.json").read_text())
+                except Exception as exc:  # 评估失败不丢已采原件，照实记
+                    entry["evaluation_error"] = type(exc).__name__ + ": " + str(exc)
             arms[arm] = entry
+            dump(case_dir / f"EVAL-{arm}.json", entry)
         a, b, c = (arms.get(x, {}).get("structural") for x in "ABC")
-        same_ab = None if "B" not in arms else (a is not None and a == b)
-        same_ac = None if "C" not in arms else (a is not None and a == c)
+        same_ab = compare_arms(a, b)
+        same_ac = compare_arms(a, c)
         oracle_ok = all(e.get("hand_oracle", {}).get("status") == "PASS" for e in arms.values())
-        report["cases"][case] = {"arms": arms, "replay_new_process_equal": same_ab,
-                                 "sigkill_recover_equal": same_ac,
-                                 "status": "PASS" if (same_ab is not False and same_ac is not False and oracle_ok) else "FAIL"}
+        ok = oracle_ok and all(x is None or x["semantic_equal"] for x in (same_ab, same_ac))
+        report["cases"][case] = {"arms": arms, "replay_new_process": same_ab, "sigkill_recover": same_ac,
+                                 "status": "PASS" if ok else "FAIL"}
     report["status"] = "PASS" if all(c["status"] == "PASS" for c in report["cases"].values()) else "FAIL"
     dump(plan_dir / ("TB02W-SESSION-CHECK" + ("-" + "-".join(selected) if args.case else "") + ".json"), report)
     return report
@@ -318,12 +345,13 @@ def main():
     s.add_argument("--case", action="append")
     s.add_argument("--browser", action="store_true")
     s.add_argument("--arms", default="ABC", help="A=不中断；B=新进程重放；C=中间 SIGKILL 后 recover")
+    s.add_argument("--reuse", action="store_true", help="臂目录已有 RESULT.json 时不重跑，只重新评估")
     s.add_argument("--playwright-module", default="playwright")
     args = parser.parse_args()
     report = {"prepare": prepare, "session": session}[args.command](args)
     summary = report if args.command == "prepare" else {
         "status": report["status"],
-        "cases": {k: {"status": v["status"], "replay": v["replay_new_process_equal"], "recover": v["sigkill_recover_equal"],
+        "cases": {k: {"status": v["status"], "replay": v["replay_new_process"], "recover": v["sigkill_recover"],
                       "arms": {a: {"status": e["status"], "error": e.get("error"),
                                    "oracle": e.get("hand_oracle", {}).get("status"),
                                    "problems": e.get("hand_oracle", {}).get("problems"),
