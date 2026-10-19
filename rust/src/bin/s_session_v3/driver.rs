@@ -3931,6 +3931,44 @@ mod tests {
                     if extra_unreachable.len() != unreachable.len() {
                         eprintln!("  其中 {} 个不可达节点 control 也有", unreachable.len() - extra_unreachable.len());
                     }
+                    // runtime 根（生成器内存态，commit.rs FlushCut::Final(runtime)）逐名闭包覆盖
+                    let closure = |start: Vec<u8>| {
+                        let mut seen = HashSet::new();
+                        let mut todo = vec![start];
+                        while let Some(d) = todo.pop() {
+                            if !seen.insert(d.clone()) {
+                                continue;
+                            }
+                            if let Some(c) = nodes_map.get(&d) {
+                                for ch in c.chunks(32) {
+                                    todo.push(ch.to_vec());
+                                }
+                            }
+                        }
+                        seen
+                    };
+                    let extra_set: HashSet<Vec<u8>> =
+                        extra_unreachable.iter().map(|d| (**d).clone()).collect();
+                    for (arm, rt) in [
+                        ("native", native.runtime.visit_runtime_roots().unwrap()),
+                        ("control", control.runtime.visit_runtime_roots().unwrap()),
+                    ] {
+                        eprintln!("  {arm} runtime roots: {}", rt.len());
+                        let mut union = HashSet::new();
+                        for (name, root) in &rt {
+                            let s = closure(root.to_vec());
+                            let hit = s.iter().filter(|d| extra_set.contains(*d)).count();
+                            let in_persist = reachable.contains(&root.to_vec());
+                            eprintln!(
+                                "    {arm}.{name} root={} persist_reachable={in_persist} closure={} covers_extra={hit}",
+                                root.iter().take(8).map(|b| format!("{:02x}", b)).collect::<String>(),
+                                s.len()
+                            );
+                            union.extend(s);
+                        }
+                        let covered = extra_set.iter().filter(|d| union.contains(*d)).count();
+                        eprintln!("  {arm} runtime 闭包覆盖 extra: {covered}/{}", extra_set.len());
+                    }
                 }
             }
 
