@@ -16,8 +16,8 @@ tb01c_http_capture.cjs 用浏览器同一份 tb01c-client.js 校验，全 cut �
   b 低 ⟹ 先破判据确认（CASE_ONE，段 s'0–s'2，即真实 D s3–s5 3807.53→3770）。
   截窗原因（首跑实测）：夹具前 15 笔逐根一代 64 代时，cut 41 起公共采集超过生产客户端 30s 总期限（#1497 同类
   规模问题），且正式 ingest 拒绝一消息多事件（「ingest必须一事件」）。本设计只在判定 cut 上做 AsKnown 公共读，
-  末 cut 做一次 live 读（不逐 cut 读）；Q 资源配置只把 verify_deadline_ms 放宽到 120000，其余与 tb01c 冻结
-  配置相同；S 资源只把 response_timeout_ms 由 10000 放宽到 120000、采集器等回执的观察界同步放宽（实测 S 单条
+  末 cut 做一次 live 读（不逐 cut 读）；Q 资源配置只放宽 verify_deadline_ms（5000→120000）与捕获/缓存字节上限
+  （256MiB→2GiB/4GiB；52 代实测「全域捕获超过事前字节上限」），其余与 tb01c 冻结配置相同；S 资源只把 response_timeout_ms 由 10000 放宽到 120000、采集器等回执的观察界同步放宽（实测 S 单条
   接纳回执随代数近线性增长，第 46 条 7.1s，第 47 条越过 10s 被 S 断开）。均为调度预算，不是语义。
 
 期望值全部来自本文件 EXPECTED（按笔手算，依据 xianduan.md §7.1），不调用生产 reducer。cut 约定同 tb02d：
@@ -79,7 +79,7 @@ def prepare(args):
     plan_dir.mkdir(parents=True, exist_ok=False)
     resources = json.loads((ROOT / "tests/fixtures/tb01c/runtime-plan.json").read_text())["s_resources"]
     relaxed = json.loads((ROOT / "tests/fixtures/tb01c/query-resources.json").read_text())
-    relaxed["verify_deadline_ms"] = 120000
+    relaxed.update(verify_deadline_ms=120000, max_capture_bytes=2147483648, max_cache_bytes=4294967296)
     W.dump(plan_dir / "query-resources-relaxed.json", relaxed)
     cases, port = {}, args.port
     for design, (points, directions) in DESIGNS.items():
