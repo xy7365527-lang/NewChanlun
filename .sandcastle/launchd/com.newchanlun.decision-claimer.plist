@@ -20,7 +20,7 @@
         <string>/Users/silencehan/.local/bin/node</string>
         <string>--import</string>
         <string>tsx</string>
-        <string>/Users/silencehan/Projects/NewChanlun/.sandcastle/decision-claimer.mts</string>
+        <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/decision-claimer.mts</string>
         <string>--live</string>
         <string>--loop</string>
     </array>
