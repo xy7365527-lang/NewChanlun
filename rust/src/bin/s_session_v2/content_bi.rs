@@ -47,7 +47,8 @@ use super::content_producer::{array_from_sequence, Cc004Producer, ProducerError,
 use super::v3::fixed_radix::{FixedRadix, Iter as RadixIter};
 use super::*;
 use newchan_rust::s_content::capture_allocation::audit_json::{ArrayView, JsonArray, JsonView};
-use newchan_rust::s_content::path::{lookup_path, PathStep};
+use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
+use newchan_rust::s_content::path::{lookup_path_native, PathStep};
 use newchan_rust::s_content::{
     self as sc, Built, CodecError, ContentRef, Kind, NodeDigest, NodeStore, SequenceRef,
     Value as CValue,
@@ -765,16 +766,16 @@ struct PriorBi {
     entity_id: String,
     entity_revision: i64,
     end_group_anchor: i64,
-    start: ContentRef,
-    end: ContentRef,
-    data: ContentRef,
-    confirmation: Option<ContentRef>,
+    start: NativeValue<ContentRef>,
+    end: NativeValue<ContentRef>,
+    data: NativeValue<ContentRef>,
+    confirmation: Option<NativeValue<ContentRef>>,
     confirmation_successor_start: Option<String>,
     confirmation_source_coords: Option<Vec<usize>>,
-    formed_known_at: ContentRef,
-    formed_evidence: ContentRef,
-    confirmed_known_at: Option<ContentRef>,
-    version_causes: ContentRef,
+    formed_known_at: NativeValue<ContentRef>,
+    formed_evidence: NativeValue<ContentRef>,
+    confirmed_known_at: Option<NativeValue<ContentRef>>,
+    version_causes: NativeValue<ContentRef>,
 }
 
 /// 上一代发布态的索引：活跃 bi 记录 + 由版本对象给出的当前事实代际。
@@ -890,7 +891,7 @@ impl PriorBi {
 
 /// 上一代一条 `obj3` 记录的公共核验结果：已核的载荷边 + 事实键槽位。
 struct PriorRecord {
-    payload: ContentRef,
+    payload: NativeValue<ContentRef>,
     slot: String,
 }
 
@@ -1953,12 +1954,13 @@ fn nested_path(names: &[&str]) -> Vec<PathStep> {
 }
 
 /// 按路径定位（只核路径触碰到的节点与序列形状，见 `s_content::path`）。
+/// 活动工作域下查找签发的原正文许可随引用持有，至持有者（上一代索引）释放。
 fn resolve(
     store: &mut dyn NodeStore,
     reference: &ContentRef,
     path: &[PathStep],
-) -> Result<ContentRef, BiError> {
-    Ok(lookup_path(&mut *store, reference, path)?)
+) -> Result<NativeValue<ContentRef>, BiError> {
+    Ok(lookup_path_native(&mut *store, reference.into(), path)?)
 }
 
 /// 单个**叶**值的规范渲染（字符串 / 数字叶没有子树，闭包即该节点；容器不许走这里）。
@@ -2013,7 +2015,7 @@ fn optional_object(
     store: &mut dyn NodeStore,
     reference: &ContentRef,
     path: &[PathStep],
-) -> Result<Option<ContentRef>, BiError> {
+) -> Result<Option<NativeValue<ContentRef>>, BiError> {
     let target = resolve(store, reference, path)?;
     if target.kind == Kind::Null {
         return Ok(None);
