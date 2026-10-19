@@ -740,6 +740,10 @@ mod tests {
         run(&parent, |a| tree.insert_admitted(0, 1, a)).unwrap();
         let leaf = Layout::new::<Leaf<i64, usize>>().size();
         let branch = Layout::new::<Branch<i64, usize>>().size();
+        // #1488 主控裁定：v4 合同 :28 要求工作域控制块元数据 M 计费；每次 run() 的
+        // CodecWork::new 先预留 M（不计 attempts、计入 peak、run 结束释放）。独立常量交叉核 M。
+        let scope_metadata = CodecWork::metadata_bytes();
+        assert_eq!(scope_metadata, 96, "工作域元数据 M 与独立常量 96B 不符");
         assert_eq!(parent.live.load(Ordering::SeqCst), leaf);
         for offset in [1, 2] {
             let attempts = parent.attempts.load(Ordering::SeqCst);
@@ -754,7 +758,7 @@ mod tests {
             assert_eq!(entries(&tree), old);
             assert_eq!(
                 parent.peak.load(Ordering::SeqCst),
-                if offset == 1 { leaf } else { 2 * leaf },
+                if offset == 1 { leaf + scope_metadata } else { 2 * leaf + scope_metadata },
                 "staged leaf stays charged until rejected branch preparation unwinds"
             );
             assert_eq!(parent.live.load(Ordering::SeqCst), leaf);
