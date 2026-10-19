@@ -1142,9 +1142,12 @@ impl AuditConnection {
             .borrow()
             .as_ref()
             .map_or(0, |c| {
+                // #1488 v4（反例C）：E/O交集按物理L只计一次——同父Ledger内的候选、封存来源、
+                // Native保守费与状态许可都在L中；旧池至少覆盖L，否则换域必拒（L<=O）。
                 c.charge
                     .total
                     .saturating_add(native::Budget::metadata_bytes())
+                    .max(c.resources.live())
             })
             .saturating_add(
                 self.construction

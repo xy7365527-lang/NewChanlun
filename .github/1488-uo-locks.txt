@@ -20,6 +20,7 @@ v3::audit_owner::native::unified_ownership_v4_tests::observer_sponsor_counts_in_
 v3::audit_owner::native::unified_ownership_v4_tests::observer_rejects_when_sponsor_exceeds_allowance_without_mutation
 v3::audit_owner::native::unified_ownership_v4_tests::move_in_reserves_splits_and_returns_rest_without_partial_mutation
 v3::audit_owner::native::unified_ownership_v4_tests::move_in_rejects_legacy_moved_in_without_mutation
+v3::audit_owner::native::unified_ownership_v4_tests::handoff_ends_move_in_and_old_rest_never_refills_new_allowance
 v3::audit_owner::native::lifecycle_repair_v2_tests::frozen_increment_accepts_700_old_and_20_new_with_200_allowance
 v3::request_audit::handoff_domain_tests::bootstrap_grant_is_consumed_exactly_once
 v3::request_audit::handoff_domain_tests::warm_prepare_binds_real_parent_and_voids_grant

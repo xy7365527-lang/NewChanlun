@@ -570,13 +570,15 @@ impl Budget {
             };
         }
         let live = self.live();
-        if request < self.2 || d.active_scopes != 0 || d.state & MOVING != 0 || live > old_pool {
+        if request < self.2 || d.active_scopes != 0 || live > old_pool {
             return Err(BudgetExceeded);
         }
         // old_pool中剩余的独立旧池与legacy仍冻结：此父最多占L+A。
         // checked的L<=O同时证明(L+A)+(O-L)+legacy == total。
         let total_limit = live.checked_add(allowance).ok_or(BudgetExceeded)?;
         let serial = d.serial.checked_add(1).ok_or(BudgetExceeded)?;
+        // 换域即结束旧MoveIn：未拆余额仍属旧origin，此后的adopt_native记旧origin 0，只降累计占用。
+        d.state &= !MOVING;
         d.serial = serial;
         d.total_limit = total_limit;
         d.remaining = allowance;
@@ -670,11 +672,13 @@ impl Budget {
                 Err(BudgetExceeded)
             };
         }
-        if request < self.2 || d.active_scopes != 0 || d.state & MOVING != 0 {
+        if request < self.2 || d.active_scopes != 0 {
             return Err(BudgetExceeded);
         }
         let total_limit = self.live().checked_add(allowance).ok_or(BudgetExceeded)?;
         let serial = d.serial.checked_add(1).ok_or(BudgetExceeded)?;
+        // 同bind_frozen：换域结束旧MoveIn，余额返还按其旧origin只降L。
+        d.state &= !MOVING;
         d.serial = serial;
         d.total_limit = total_limit;
         // 这是新冻结域的增量读数；Ledger.live/peak及各分项历史高水位始终不重置。
@@ -926,7 +930,9 @@ impl Budget {
     pub(crate) fn move_in(&self, bytes: usize) -> Result<MoveIn, BudgetExceeded> {
         {
             let d = self.0.domain.lock().map_err(|_| BudgetExceeded)?;
-            if d.state & (BROKEN | MOVING) != 0 || u64::from(d.serial) != self.1 {
+            // 先于预留检查，拒绝时不触碰live/peak（含遗留fixture的moved_in）。
+            if d.state & (BROKEN | MOVING) != 0 || d.moved_in != 0 || u64::from(d.serial) != self.1
+            {
                 return Err(BudgetExceeded);
             }
         }
@@ -974,6 +980,8 @@ impl MoveIn {
 impl Drop for MoveIn {
     fn drop(&mut self) {
         let rest = match self.budget.0.domain.lock() {
+            // 换域后已排空且新域另起MoveIn：余额属于新移入，旧句柄不得取走。
+            Ok(d) if d.state & MOVING != 0 && u64::from(d.serial) != self.origin => return,
             Ok(mut d) => {
                 d.state &= !MOVING;
                 std::mem::take(&mut d.moved_in)
@@ -2299,7 +2307,6 @@ mod unified_ownership_v4_tests {
         assert_eq!(root.remaining(), 1024 - base - 300);
         let state = domain(&root);
         assert!(root.move_in(1).is_err(), "同一时刻只有一个MoveIn");
-        assert!(root.handoff(201, 512).is_err(), "移入中不得换域");
         assert_eq!(domain(&root), state);
         let permit = moving.take(100).unwrap();
         let state = domain(&root);
@@ -2316,6 +2323,32 @@ mod unified_ownership_v4_tests {
         assert_eq!(root.peak(), base + 300);
         let next = root.handoff(201, 512).unwrap();
         assert_eq!(next.remaining(), 512);
+    }
+
+    /// 换域结束MoveIn：旧移入不可再拆；未拆余额与其后adopt的许可返还只降L，不回补新域A。
+    #[test]
+    fn handoff_ends_move_in_and_old_rest_never_refills_new_allowance() {
+        let root = Budget::bootstrap(BootstrapGrant::new(4096))
+            .unwrap()
+            .bind_initial(210, 4096)
+            .unwrap();
+        let base = root.live();
+        let moving = root.move_in(300).unwrap();
+        let kept = moving.take(100).unwrap();
+        let adopted = root.adopt(50).unwrap();
+        let next = root.handoff(211, 1024).unwrap();
+        assert_eq!(next.0.domain.lock().unwrap().state & MOVING, 0);
+        assert!(moving.take(1).is_err(), "旧域MoveIn不可在新域拆分");
+        assert_eq!(next.remaining(), 1024);
+        let new = next.reserve(24).unwrap();
+        drop(moving);
+        drop(kept);
+        drop(adopted);
+        assert_eq!(next.live(), base + 24);
+        assert_eq!(next.remaining(), 1000, "旧origin返还不回补新域A");
+        drop(new);
+        assert_eq!(next.remaining(), 1024);
+        assert_eq!(next.live(), base);
     }
 
     /// 旧Budget::new(limit, retained)遗留的moved_in未清零时，MoveIn拒绝且不改账。
