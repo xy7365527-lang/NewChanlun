@@ -3786,6 +3786,48 @@ impl AuditCapture {
                 })?))
             })
     }
+    /// #1488 P3-α：逐节点来源合同额（多重集），供普查实测“与合同额同额、却无持有者的物理许可”张数。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[doc(hidden)]
+    pub fn native_source_claim_amounts_for_testonly(&self) -> Vec<usize> {
+        let CaptureNodes::Native(native) = &self.nodes else {
+            return Vec::new();
+        };
+        native
+            .nodes
+            .values()
+            .filter_map(|node| node.source_claim.as_ref().map(|claim| claim.bytes))
+            .collect()
+    }
+    /// #1488 P2-β：索引许可布局实测——（索引许可字节，现槽宽=size_of<(NodeDigest,NativeNode)>+1，
+    /// P2-A前槽宽：同布局镜像但`source_permit: Option<NativeReservation>`）。索引许可=槽数×槽宽，
+    /// 故P2-A的布局连带降幅=槽数×(旧槽宽−现槽宽)。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[doc(hidden)]
+    pub fn native_index_layout_for_testonly(&self) -> Option<(usize, usize, usize)> {
+        #[allow(dead_code)]
+        struct NativeNodeBeforeP2a {
+            tag: u8,
+            body: CodecVec<u8>,
+            source_permit: Option<capture_allocation::scratch::NativeReservation>,
+            proof: std::cell::RefCell<
+                Option<capture_allocation::native_owned::NativeBox<NativeFrameProof>>,
+            >,
+            owner_dirty: std::cell::Cell<bool>,
+            owner_next: std::cell::Cell<Option<NodeDigest>>,
+        }
+        let CaptureNodes::Native(native) = &self.nodes else {
+            return None;
+        };
+        Some((
+            native
+                .index_permit
+                .as_ref()
+                .map_or(0, capture_allocation::scratch::NativeReservation::bytes),
+            std::mem::size_of::<(NodeDigest, NativeNode)>() + 1,
+            std::mem::size_of::<(NodeDigest, NativeNodeBeforeP2a)>() + 1,
+        ))
+    }
     #[cfg(feature = "s_capture_native_testonly")]
     #[doc(hidden)]
     pub fn native_retention_numbers_for_testonly(&self) -> Option<NativeCaptureRetention> {

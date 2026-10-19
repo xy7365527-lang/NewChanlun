@@ -3320,7 +3320,9 @@ fn r13_optional_sql_rows_share_parent_without_changing_cells() {
 /// 和=正文+digest/tag/证书，且都指到已物理计费的正文块；析构逐张归还多重集=持有者清单多重集
 /// （#1488 P3-c：按许可对拍，不再依赖allocator released_bytes交错，结果与分配器时序无关）。
 /// 原先C5期望每节点一张同额物理来源许可（r14：803张/111,334B=node_body+97·nodes），那是同一
-/// allocation在父账的第二个物理角色；现降为合同角色，只在O的source_cost里计一次，父账live随之少111,334B。
+/// allocation在父账的第二个物理角色；现降为合同角色，只在O的source_cost里计一次。父账封存live
+/// 共少127,974B（527,048→399,074）=111,334B（上述来源许可）+16,640B（NativeNode去掉
+/// Option<NativeReservation>后索引槽变窄的布局连带，=索引槽数×槽宽差；#1488 P2-β，r14逐项锁定）。
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 fn seal_census_check(
     seal: &[native::CensusEvent],
@@ -3832,6 +3834,8 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                 let pool = keeper.take().expect("封存池存活");
                 let nodes = pool.nodes;
                 let claims = pool.originals.native_source_claims_for_testonly().unwrap();
+                let (index_bytes, slot_now, slot_before_p2a) =
+                    pool.originals.native_index_layout_for_testonly().unwrap();
                 parent.census_arm();
                 let inventory = pool.native_permit_inventory_for_testonly().unwrap();
                 drop(pool);
@@ -3859,6 +3863,30 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                 assert_eq!(census["sealed_bytes"].as_u64().unwrap() as usize, sealed);
                 assert_eq!(census["node_source_physical_permits"], 0);
                 assert_eq!(census["node_source_claims"].as_u64().unwrap() as usize, nodes);
+                // #1488 P2-β：P2-A前（b6969af4cc，R14/P24_SEAL_CENSUS实测1950张/527,048B）到现在的
+                // 封存降幅由两部分组成，逐项可复算：
+                // ①来源许可降为合同角色：803张同额物理许可消失，=来源合同额之和111,334B
+                //   （node_body 33,443B + 97·803）；
+                // ②布局连带：NativeNode的`Option<NativeReservation>`字段换成`Option<SourceClaim>`，
+                //   索引许可按槽数×槽宽计，槽宽随之变窄，降幅=索引槽数×(旧槽宽−现槽宽)=16,640B。
+                // 两项之和=127,974B；这是预期变化（索引许可仍按真实元素布局计），不是另有许可消失。
+                const SEALED_BEFORE_P2A: usize = 527_048;
+                assert_eq!(index_bytes % slot_now, 0, "索引许可=槽数×现槽宽");
+                let index_slots = index_bytes / slot_now;
+                let layout_drop = index_slots * (slot_before_p2a - slot_now);
+                eprintln!(
+                    "R14_P2B_DROP {}",
+                    json!({"sealed_before_p2a":SEALED_BEFORE_P2A,"sealed":sealed,
+                        "claims_bytes":claims.1,"index_bytes":index_bytes,"index_slots":index_slots,
+                        "slot_now":slot_now,"slot_before_p2a":slot_before_p2a,"layout_drop":layout_drop})
+                );
+                assert_eq!(claims.1, 111_334, "①来源合同额之和");
+                assert_eq!(layout_drop, 16_640, "②索引槽宽连带降幅");
+                assert_eq!(
+                    SEALED_BEFORE_P2A - sealed,
+                    claims.1 + layout_drop,
+                    "封存降幅恰为①+②"
+                );
 
                 // 负控一｜重复计费：同父对已封存对象再收一次同额费用，恒等式必须失败。
                 let held = parent.reserve(sealed).unwrap();
