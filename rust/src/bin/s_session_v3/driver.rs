@@ -3779,6 +3779,7 @@ mod tests {
                         })
                         .collect();
                     let mut extra_count = 0;
+                    let mut extra_digests = Vec::new();
                     for row in native_nodes {
                         if let Some(prepared::tests::RuntimeRootCell::Blob(digest)) = row.first() {
                             if !control_digests.contains(digest) {
@@ -3787,10 +3788,35 @@ mod tests {
                                     let hex: String = digest.iter().take(16).map(|b| format!("{:02x}", b)).collect();
                                     eprintln!("  extra[{}] digest: {}...", extra_count, hex);
                                 }
+                                extra_digests.push(digest.clone());
                             }
                         }
                     }
                     eprintln!("  total extra nodes: {}", extra_count);
+
+                    // 输出 native 的 s_content_roots 与全部 s_content_nodes 到临时文件，回本地分析可达性
+                    use std::io::Write;
+                    let roots_path = "/tmp/staged_native_roots.txt";
+                    let nodes_path = "/tmp/staged_native_nodes.txt";
+                    if let Some((_, roots_rows)) = native_tables.iter().find(|(t, _)| t == "s_content_roots") {
+                        let mut f = std::fs::File::create(roots_path).unwrap();
+                        for row in roots_rows {
+                            if let Some(prepared::tests::RuntimeRootCell::Blob(digest)) = row.first() {
+                                writeln!(f, "{}", digest.iter().map(|b| format!("{:02x}", b)).collect::<String>()).unwrap();
+                            }
+                        }
+                        eprintln!("  wrote {} roots to {}", roots_rows.len(), roots_path);
+                    }
+                    let mut f = std::fs::File::create(nodes_path).unwrap();
+                    for row in native_nodes {
+                        if let (Some(prepared::tests::RuntimeRootCell::Blob(digest)), Some(prepared::tests::RuntimeRootCell::Blob(children))) = (row.get(0), row.get(1)) {
+                            writeln!(f, "{}|{}",
+                                digest.iter().map(|b| format!("{:02x}", b)).collect::<String>(),
+                                children.iter().map(|b| format!("{:02x}", b)).collect::<String>()
+                            ).unwrap();
+                        }
+                    }
+                    eprintln!("  wrote {} nodes to {}", native_nodes.len(), nodes_path);
                 }
             }
 
