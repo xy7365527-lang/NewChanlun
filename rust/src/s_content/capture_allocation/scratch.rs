@@ -33,6 +33,8 @@ pub struct NativeReservation {
 }
 impl NativeReservation {
     /// #1488：只消费父账已有的未分配原件费；不签发新额度。
+    /// #1488 P3-a：生产父账（trait默认）恒拒且无生产调用方，只随测试/Native测试臂编译。
+    #[cfg(any(test, feature = "s_capture_native_testonly"))]
     #[doc(hidden)]
     pub fn adopt(
         parent: Arc<dyn ScratchParent>,
@@ -129,6 +131,7 @@ pub trait ScratchParent: Send + Sync {
     fn origin(&self) -> u64 {
         0
     }
+    #[cfg(any(test, feature = "s_capture_native_testonly"))]
     fn adopt_native(&self, _bytes: usize, _expected: u64) -> Result<u64, ScratchFailure> {
         Err(ScratchFailure::Ledger)
     }
@@ -450,6 +453,7 @@ impl WorkScope {
     pub fn check_current(&self) -> Result<(), CodecError> {
         self.handle.check_write()
     }
+    #[cfg(any(test, feature = "s_capture_native_testonly"))]
     pub(crate) fn adopt_native(&self, bytes: usize) -> Result<NativeReservation, CodecError> {
         self.check_current()?;
         NativeReservation::adopt(

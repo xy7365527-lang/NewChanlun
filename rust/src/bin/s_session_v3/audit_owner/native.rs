@@ -2809,6 +2809,43 @@ mod u2_exit_adopt_tests {
         assert_eq!((nodes.as_ptr(), &*nodes), (ptr, &[[2u8; 32]][..]));
         assert_eq!((tight.live(), tight.remaining()), before);
     }
+    // #1488 P3-a（复审 0026）：codec_vec_grow 的 cfg(test) 分支会改走 adopting 入口，上锁未覆盖
+    // 生产 reserve_native_work 的拒绝分支。此处直接走生产 try_reserve_native（不经 adopting）：
+    // 已分配未绑票的 Plain 块无论是否需要扩容都拒绝，容器/指针/父账不变；零容量裸块经真实预留绑票。
+    #[test]
+    fn p3a_production_reserve_native_rejects_allocated_plain_without_adopting() {
+        let budget = Budget::fresh(65536).unwrap();
+        let mut values = CodecVec::from_plain(vec![7u64, 8, 9]);
+        let ptr = values.as_ptr();
+        let before = (budget.live(), budget.remaining(), moved_in(&budget));
+        for additional in [0, 1, 8] {
+            let error = in_work(&budget, |scope| {
+                values
+                    .try_reserve_native(scope, additional)
+                    .map_err(|e| Failure::Invalid(e.to_string()))
+            })
+            .expect_err("已分配裸块不得在生产入口绑票");
+            assert!(matches!(error, Failure::Invalid(_)), "{error:?}");
+            assert!(!values.is_native_bound());
+            assert_eq!((values.as_ptr(), &*values), (ptr, &[7u64, 8, 9][..]));
+            assert_eq!(
+                (budget.live(), budget.remaining(), moved_in(&budget)),
+                before
+            );
+        }
+        let mut empty = CodecVec::<u64>::from_plain(Vec::new());
+        in_work(&budget, |scope| {
+            empty
+                .try_reserve_native(scope, 4)
+                .map_err(|e| Failure::Invalid(e.to_string()))
+        })
+        .unwrap();
+        assert!(empty.is_native_bound());
+        assert_eq!(empty.native_retained_charge(), Some(4 * size_of::<u64>()));
+        assert_eq!(budget.live(), before.0 + 4 * size_of::<u64>());
+        drop(empty);
+        assert_eq!(budget.live(), before.0);
+    }
     // #1488 P2-1（评审 0024）：生产出生入口 fresh 无 moved_in；codec_vec_grow 对已分配裸块拒绝
     // 且不改容器与账，零容量裸块只经真实预留绑票；未覆写 adopt_native 的父（生产 Ledger 形态）恒拒。
     #[test]

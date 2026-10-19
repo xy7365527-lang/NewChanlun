@@ -207,6 +207,8 @@ impl<T> CodecVec<T> {
         self.reserve_native_work(&work.budget(), additional)
     }
     /// #1488 冷原件接纳的原子入口。所有可能失败的容量/新块准入均在接纳前。
+    /// #1488 P3-a：无生产调用方（生产父账恒拒接纳），只随测试/Native测试臂编译。
+    #[cfg(any(test, feature = "s_capture_native_testonly"))]
     #[doc(hidden)]
     pub fn try_reserve_native_adopting(
         &mut self,
