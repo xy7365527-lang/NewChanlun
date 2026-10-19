@@ -491,7 +491,16 @@ impl Budget {
                 && d.low_water == d.remaining
         })
     }
+    /// #1488 P2-1：遗留 fixture 构造，retained 写入 moved_in 供测试追认；生产编译无此入口。
+    #[cfg(test)]
     pub(crate) fn new(limit: usize, retained: usize) -> Result<Self, BudgetExceeded> {
+        Self::build(limit, retained)
+    }
+    /// #1488 P2-1：生产父账唯一出生入口；moved_in 恒 0，不存在可追认的未分配余额。
+    pub(crate) fn fresh(limit: usize) -> Result<Self, BudgetExceeded> {
+        Self::build(limit, 0)
+    }
+    fn build(limit: usize, retained: usize) -> Result<Self, BudgetExceeded> {
         // 当前 Rust 1.98 ArcInner 元数据；在 Arc::new 前预留，不声称 fallible Arc。
         let metadata = Self::metadata_bytes();
         let live = retained.checked_add(metadata).ok_or(BudgetExceeded)?;
@@ -812,7 +821,7 @@ impl Budget {
         limit: usize,
         bytes: usize,
     ) -> Result<(Self, Permit), Option<BudgetExceeded>> {
-        let budget = Self::new(limit, 0).map_err(|_| None)?;
+        let budget = Self::fresh(limit).map_err(|_| None)?;
         let fee = budget.reserve(bytes).map_err(Some)?;
         Ok((budget, fee))
     }
@@ -868,9 +877,16 @@ impl Budget {
         additional: usize,
     ) -> Result<(), Failure> {
         self.preflight_codec_vec(v, additional)?;
-        // 工作域元数据先准入。Plain原件的接纳由容器在新块准入/分配成功后提交。
+        // 工作域元数据先准入。#1488 P2-1：生产只走不追认入口——未绑票 Plain 仅零容量可零字节
+        // 绑票，非空裸块拒绝；遗留 moved_in fixture 的追认通道仅测试编译。
         self.codec_work()?
-            .run(|w| v.try_reserve_native_adopting(w, additional))
+            .run(|w| {
+                #[cfg(test)]
+                if !v.is_native_bound() && v.capacity() != 0 && size_of::<T>() != 0 {
+                    return v.try_reserve_native_adopting(w, additional);
+                }
+                v.try_reserve_native(w, additional)
+            })
             .map_err(|e| match e {
                 WorkError::Resource(e) => e.into(),
                 WorkError::Operation(e) => Failure::Invalid(e.to_string()),
@@ -1017,7 +1033,7 @@ impl Budget {
         self.0.domain.lock().map_or(usize::MAX, |d| d.moved_in)
     }
     pub(crate) fn bootstrap(grant: BootstrapGrant) -> Result<Self, BudgetExceeded> {
-        Self::new(grant.limit, 0)
+        Self::fresh(grant.limit)
     }
     #[cfg(test)]
     pub(crate) fn move_in(&self, bytes: usize) -> Result<MoveIn, BudgetExceeded> {
@@ -1385,6 +1401,10 @@ impl ScratchParent for Ledger {
     fn origin(&self) -> u64 {
         self.domain.lock().map_or(u64::MAX, |d| u64::from(d.serial))
     }
+    /// #1488 P2-1：追认覆写仅测试 fixture 编译；生产 Ledger 落 trait 默认（恒拒），
+    /// 库侧 NativeReservation::adopt / WorkScope::adopt_native / try_reserve_native_adopting
+    /// 在生产父账上因此不可能把已分配字节接成许可（全仓仅本 impl 覆写 adopt_native）。
+    #[cfg(test)]
     fn adopt_native(&self, bytes: usize, expected: u64) -> Result<u64, ScratchFailure> {
         let mut d = self.domain.lock().map_err(|_| ScratchFailure::Ledger)?;
         if d.state & BROKEN != 0 || expected != u64::from(d.serial) {
@@ -2606,5 +2626,58 @@ mod u2_exit_adopt_tests {
         assert!(in_work(&other, |scope| other.rebirth_codec_vec(&mut foreign_nodes, scope, 1))
             .is_err());
         foreign.require_codec_vec_owned(&foreign_nodes).unwrap();
+    }
+    // #1488 P2-1（评审 0024）：生产出生入口 fresh 无 moved_in；codec_vec_grow 对已分配裸块拒绝
+    // 且不改容器与账，零容量裸块只经真实预留绑票；未覆写 adopt_native 的父（生产 Ledger 形态）恒拒。
+    #[test]
+    fn u2_fresh_parent_codec_vec_grow_never_adopts_allocated_plain() {
+        let budget = Budget::fresh(65536).unwrap();
+        assert_eq!(moved_in(&budget), 0);
+        let mut values = CodecVec::from_plain(vec![7u64, 8, 9]);
+        let before = ledger(&budget);
+        let ptr = values.as_ptr();
+        assert!(budget.codec_vec_grow(&mut values, 0).is_err());
+        assert!(budget.codec_vec_grow(&mut values, 8).is_err());
+        assert!(!values.is_native_bound());
+        assert_eq!((values.as_ptr(), &*values), (ptr, &[7u64, 8, 9][..]));
+        assert_eq!(ledger(&budget), before);
+        let mut empty = CodecVec::<u64>::from_plain(Vec::new());
+        budget.codec_vec_grow(&mut empty, 4).unwrap();
+        assert!(empty.is_native_bound());
+        budget.require_codec_vec_owned(&empty).unwrap();
+        assert!(budget.live() >= before.0 + 4 * size_of::<u64>());
+        assert_eq!(moved_in(&budget), 0);
+        drop(empty);
+        assert_eq!(budget.live(), before.0);
+
+        struct DefaultParent;
+        impl ScratchParent for DefaultParent {
+            fn reserve(
+                &self,
+                _: usize,
+                _: ScratchCharge,
+            ) -> Result<u64, ScratchFailure> {
+                Ok(0)
+            }
+            fn release(
+                &self,
+                _: usize,
+                _: ScratchCharge,
+                _: u64,
+            ) -> Result<(), ScratchFailure> {
+                Ok(())
+            }
+            fn health(&self) -> Result<(), ScratchFailure> {
+                Ok(())
+            }
+            fn invalidate(&self) {}
+        }
+        let parent: Arc<dyn ScratchParent> = Arc::new(DefaultParent);
+        assert!(
+            newchan_rust::s_content::capture_allocation::scratch::NativeReservation::adopt(
+                parent, 0, 0
+            )
+            .is_err()
+        );
     }
 }

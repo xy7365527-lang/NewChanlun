@@ -38,4 +38,5 @@ v3::audit_owner::effects::u2_row_owned_tests::u2_effects_row_owned_accepts_cells
 v3::audit_owner::effects::u2_row_owned_tests::u2_effects_row_owned_rejects_plain_cell_or_foreign_parent_without_adopt
 v3::audit_owner::native::u2_exit_adopt_tests::u2_history_prefix_rebirth_binds_new_block_under_parent
 v3::audit_owner::native::u2_exit_adopt_tests::u2_history_prefix_rebirth_never_draws_moved_in_or_foreign
+v3::audit_owner::native::u2_exit_adopt_tests::u2_fresh_parent_codec_vec_grow_never_adopts_allocated_plain
 v3::fixed_radix::tests::native_each_new_block_refusal_preserves_contents_and_real_layout_ledger
