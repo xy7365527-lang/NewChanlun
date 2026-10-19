@@ -865,10 +865,12 @@ mod tests {
                 let legacy = crate::cache::retained_bytes();
                 let keeper_cap = total.checked_sub(legacy).unwrap();
                 let mut keeper = d.conn.take_source_keeper().expect("成功链保留原来源池");
-                let old_pool = keeper.retained_source_bytes() + d.conn.complete_retained_bytes();
+                // #1488 P1-1：入口旧费走生产同一逐项分区（O+uncovered），断言不变。
+                let partition = d.conn.old_pool_partition(Some(&keeper)).unwrap();
+                let old_pool = partition.carried();
                 assert!(old_pool <= keeper_cap);
                 context
-                    .freeze_manifest_workspace_budget(total, legacy, old_pool)
+                    .freeze_manifest_workspace_partition(total, legacy, partition)
                     .unwrap();
                 keeper.set_retention_cap(keeper_cap);
                 context.attach_source_keeper(keeper);
