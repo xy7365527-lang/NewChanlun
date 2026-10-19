@@ -287,6 +287,7 @@ impl<T> CodecVec<T> {
             .checked_add(additional)
             .ok_or_else(|| work.native_failure(ScratchFailure::Budget))?;
         if needed <= values.capacity() {
+            std::mem::forget(work.reserve_native(values.capacity() * std::mem::size_of::<T>())?); // NEGCTRL P3-γ
             if self.native_permit.is_none() {
                 self.native_permit = work.reserve_native(0)?;
             }
