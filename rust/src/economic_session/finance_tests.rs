@@ -862,3 +862,73 @@ fn trusted_ingress_deadline_is_not_restarted_by_economic_job() {
         .unwrap_err()
         .contains("最早绝对期限"));
 }
+
+/// #1394 AC1 负向（REVIEW-AC123-01 LOW 补锁）：E 尚未 Reserve 时，B 不论带自造 grant 还是
+/// 不带 grant 证明，都不得取得 Committed；本地账、E 责任与 E 收据均保持原状。
+#[test]
+fn commit_before_e_reserve_is_rejected_and_keeps_prepared() {
+    let mut f = Fixture::new("100");
+    f.prepare();
+    let q = item(list(&f.data, "plans").unwrap(), "decision_id", "alpha")
+        .unwrap()
+        .clone();
+    let e = envelope(
+        "CommitDecision-alpha",
+        json!({"op":"CommitDecision","writer_epoch":"1","decision_id":"alpha","plan_hash":hash(&q),"grant_id":"forged-grant-alpha"}),
+    );
+    let before = latest(&f.dbs[1]).unwrap();
+    let e_before = latest(&f.dbs[0]).unwrap();
+    let bare = json!({"input_raw":canonical_json(&f.data),"structure":f.basis});
+    assert!(persist(&mut f.dbs[1], &f.configs[1], 1, &e, bare).is_err());
+    let mut forged = json!({"input_raw":canonical_json(&f.data),"structure":f.basis});
+    forged["grant_proof"] = json!({"receipt":{"record":{"slot_id":"slot","state":"Reserved","grants":[{"grant_id":"forged-grant-alpha","decision_id":"alpha"}]}},"current_image":e_before.3});
+    assert!(persist(&mut f.dbs[1], &f.configs[1], 1, &e, forged).is_err());
+    assert!(write(&mut f.dbs[1], &f.configs[1], 1, &e).is_err());
+    assert_eq!(latest(&f.dbs[1]).unwrap(), before);
+    assert_eq!(
+        decision(&f.configs[1], &latest(&f.dbs[1]).unwrap().3, "alpha").unwrap()["state"],
+        "Prepared"
+    );
+    assert_eq!(latest(&f.dbs[0]).unwrap(), e_before);
+    assert_eq!(responsibility_total(&latest(&f.dbs[0]).unwrap().3), 20);
+    assert!(row(&f.dbs[0], "receipts", &receipt_key("Reserve", "slot"))
+        .unwrap()
+        .is_none());
+    f.audit();
+}
+
+/// #1394 AC1/AC3 负向（REVIEW-AC123-01 LOW 补锁）：slot 处于 AwaitingAllocationPolicy 时，
+/// 真实 E 等待收据不含任何 grant；B 拿该收据证明加自造 grant_id 提交须被拒，两决策均停在 Prepared，
+/// E 责任仍只有原 20，不因 B 请求或先到顺序挑出赢家。
+#[test]
+fn commit_while_slot_awaits_policy_is_rejected_without_winner() {
+    let mut f = Fixture::new("80");
+    f.prepare();
+    let waiting = f.step(0, "Reserve", "slot");
+    assert_eq!(waiting["record"]["state"], "AwaitingAllocationPolicy");
+    for (n, name) in [(1, "alpha"), (2, "beta")] {
+        let q = item(list(&f.data, "plans").unwrap(), "decision_id", name)
+            .unwrap()
+            .clone();
+        let e = envelope(
+            &format!("CommitDecision-{name}"),
+            json!({"op":"CommitDecision","writer_epoch":"1","decision_id":name,"plan_hash":hash(&q),"grant_id":format!("forged-grant-{name}")}),
+        );
+        let before = latest(&f.dbs[n]).unwrap();
+        let w = f.witness("CommitDecision");
+        assert!(persist(&mut f.dbs[n], &f.configs[n], 1, &e, w).is_err());
+        assert!(write(&mut f.dbs[n], &f.configs[n], 1, &e).is_err());
+        assert_eq!(latest(&f.dbs[n]).unwrap(), before);
+        assert_eq!(
+            decision(&f.configs[n], &latest(&f.dbs[n]).unwrap().3, name).unwrap()["state"],
+            "Prepared"
+        );
+    }
+    let image = latest(&f.dbs[0]).unwrap().3;
+    assert_eq!(responsibility_total(&image), 20);
+    assert_eq!(
+        image["finance"]["slots"][0]["state"],
+        "AwaitingAllocationPolicy"
+    );
+    f.audit();
+}
