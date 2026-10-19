@@ -2201,6 +2201,11 @@ impl CompleteCandidate {
             Err(native::Failure::BudgetExceeded) => return Ok(None),
             Err(native::Failure::Invalid(e)) => return Err(e),
         }
+        #[cfg(test)]
+        {
+            use super::audit_retention::Retained;
+            eprintln!("UO1488_HR before_q audited={} charge={}", self.audited.heap_bytes(), self.charge.historical_and_raw_capacity);
+        }
         match self.q.advance(tx, &effects, &mut self.audited, &budget) {
             Ok(raw_added) => {
                 let Some(total) = self
@@ -2225,6 +2230,11 @@ impl CompleteCandidate {
             }
             Err(native::Failure::BudgetExceeded) => return Ok(None),
             Err(native::Failure::Invalid(e)) => return Err(e),
+        }
+        #[cfg(test)]
+        {
+            use super::audit_retention::Retained;
+            eprintln!("UO1488_HR after_owner_raw audited={} charge={}", self.audited.heap_bytes(), self.charge.historical_and_raw_capacity);
         }
         if effects.operation == effects::Operation::Publish {
             // #1394：成功路径借用 SQL 文本，避免复制 meta 值及动态标签。
@@ -2346,6 +2356,11 @@ impl CompleteCandidate {
                     Err(native::Failure::BudgetExceeded) => return Ok(None),
                     Err(native::Failure::Invalid(error)) => return Err(error),
                 };
+            #[cfg(test)]
+            {
+                use super::audit_retention::Retained;
+                eprintln!("UO1488_HR after_cut audited={} charge={}", self.audited.heap_bytes(), self.charge.historical_and_raw_capacity);
+            }
         }
         let effect_rows = effects.changes.len();
         let peak = match effects.apply(
