@@ -191,7 +191,8 @@ class Collector:
                 require(old_frontier >= frontier, '历史输入前沿越过后代')
         known = state['cuts'].get(fixed['cut_generation'])
         if known is not None:
-            for key in FIXED - {'history_mode', 'as_of_generation'}:
+            # 按排序键遍历：首个冲突键与 PYTHONHASHSEED 无关，observations 可逐字节复现（v9 R8-1）。
+            for key in sorted(FIXED - {'history_mode', 'as_of_generation'}):
                 require(fixed[key] == known[key], '同代完整切面冲突:'+key)
 
     def _check_projection(self, fixed, digest, ref=None):
