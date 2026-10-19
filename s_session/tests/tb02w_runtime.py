@@ -37,10 +37,10 @@ _spec.loader.exec_module(GEN)
 
 DESIGNS = {
     # s3 = FIRST 顶分型中心 b（P=40），a/b 缺口 [20,25] 未被 c(s5 低 22) 封闭 ⟹ 第二种候选。
-    # 取到 s9 为止（10 笔、44 根）：s9 补出 FIRST 顶分型即判 A；s8 已构成旧「只认分型」的复活诱饵
-    # （第二序列 (25,35)(22,45)(30,38) 在 s8 处成顶分型）。根数受正式 ingest「一事件一代」与 Q 冷校验
-    # 5s 门（#1497）共同约束，不再加长。
-    "killed": [0, 20, 10, 40, 25, 35, 22, 45, 30, 38, 26],
+    # 取到 s8 为止（9 笔、40 根）：s8 使第二序列 (25,35)(22,45)(30,38) 在 s6 处成顶分型——旧「只认分型」
+    # 下的复活诱饵。根数受正式 ingest「一事件一代」与 Q 冷校验 5s 门（#1497，实测第 43 代越门）约束；
+    # 失效后 A 由第一种情况终结（需 s9，第 43 根）由 Rust 会话测试锁定，不在本脚本。
+    "killed": [0, 20, 10, 40, 25, 35, 22, 45, 30, 38],
     "confirmed": [0, 20, 10, 40, 25, 35, 22, 30, 23, 33],
 }
 # 手算（已知笔数 n → segment:1:1 的状态）。只列判定点；其余 cut 由单调约束覆盖。
@@ -50,8 +50,9 @@ EXPECTED = {
         6: {"result": "PENDING_CASE_TWO", "semantic": "OPEN_AT_PREFIX_END"},
         # n=7：s6 22→45 先严格越过 P=40（078:52）⟹ 候选失效；原段不终结。
         7: {"result": "KILLED_CASE_TWO", "semantic": "KILLED_BY_NEW_EXTREME", "killed_stroke": 6, "killed_point": 45},
-        # n=10：FIRST 中 s7[30,45] 由 s9 补成顶分型，s5 高 35 ≥ s7 低 30 无缺口 ⟹ 第一种情况，A 终于 s6 末端。
-        10: {"result": "CASE_ONE", "end_anchor_stroke": 7},
+        # n=9：s8 补出第二序列顶分型 (25,35)(22,45)(30,38)，旧「只认分型」会在此确认；失效不复活，
+        # FIRST 尚无新分型（s7 还缺右元素）⟹ 活动候选仍是已失效者。
+        9: {"result": "KILLED_CASE_TWO", "semantic": "KILLED_BY_NEW_EXTREME"},
     },
     "confirmed": {
         6: {"result": "PENDING_CASE_TWO", "semantic": "OPEN_AT_PREFIX_END"},
