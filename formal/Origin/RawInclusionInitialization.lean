@@ -73,7 +73,7 @@ inductive Initialization where
   | established (evidence : Evidence) (groups : List Raw)
   deriving DecidableEq, Repr
 
-def initialize (raw : List Raw) : Initialization :=
+def initializeRaw (raw : List Raw) : Initialization :=
   match firstPair raw with
   | none => .undetermined raw
   | some e => .established e (foldRaw e.direction raw)
@@ -83,15 +83,15 @@ def AllAdjacentContained : List Raw → Prop
   | [_] => True
   | a :: b :: rest => Contains a b ∧ AllAdjacentContained (b :: rest)
 
-theorem empty_undetermined : initialize [] = .undetermined [] := rfl
+theorem empty_undetermined : initializeRaw [] = .undetermined [] := rfl
 
-theorem singleton_undetermined (a : Raw) : initialize [a] = .undetermined [a] := rfl
+theorem singleton_undetermined (a : Raw) : initializeRaw [a] = .undetermined [a] := rfl
 
 theorem first_strict_pair (a b : Raw) (rest : List Raw) (d : Direction)
     (hn : ¬ Contains a b) (hd : strictDirection a b = some d) :
-    initialize (a :: b :: rest) =
+    initializeRaw (a :: b :: rest) =
       .established ⟨0, a, b, d⟩ (foldRaw d (a :: b :: rest)) := by
-  simp [initialize, firstPair, hn, hd]
+  simp [initializeRaw, firstPair, hn, hd]
 
 theorem all_contained_no_pair (raw : List Raw) :
     AllAdjacentContained raw → firstPair raw = none := by
@@ -106,21 +106,21 @@ theorem all_contained_no_pair (raw : List Raw) :
       simp [firstPair, parts.1, ih parts.2]
 
 theorem all_contained_undetermined (raw : List Raw) (h : AllAdjacentContained raw) :
-    initialize raw = .undetermined raw := by
-  simp [initialize, all_contained_no_pair raw h]
+    initializeRaw raw = .undetermined raw := by
+  simp [initializeRaw, all_contained_no_pair raw h]
 
 /-- 任意延迟首对一经出现，重折仍使用整个 raw，不能从证据对才开始。 -/
 theorem established_replays_from_zero (raw : List Raw) (e : Evidence)
     (h : firstPair raw = some e) :
-    initialize raw = .established e (foldRaw e.direction raw) := by
-  simp [initialize, h]
+    initializeRaw raw = .established e (foldRaw e.direction raw) := by
+  simp [initializeRaw, h]
 
 /-- U04：相邻包含而非链式，不能偷用首尾方向。 -/
-example : initialize [⟨0,10⟩, ⟨2,8⟩, ⟨1,11⟩] =
+example : initializeRaw [⟨0,10⟩, ⟨2,8⟩, ⟨1,11⟩] =
     .undetermined [⟨0,10⟩, ⟨2,8⟩, ⟨1,11⟩] := by decide
 
 /-- U10：DOWN 初始化可重折成单组，后续仍按 DOWN。 -/
-example : initialize [⟨0,10⟩, ⟨2,8⟩, ⟨1,7⟩, ⟨2,6⟩] =
+example : initializeRaw [⟨0,10⟩, ⟨2,8⟩, ⟨1,7⟩, ⟨2,6⟩] =
     .established ⟨1, ⟨2,8⟩, ⟨1,7⟩, .down⟩ [⟨0,6⟩] := by decide
 
 end Origin.RawInclusionInitialization
