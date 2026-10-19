@@ -1198,19 +1198,24 @@ mod tests {
             crate::cache::configure(0);
             let notes = crate::v3::audit_owner::cold_root_probe::take();
             let leaked = crate::v3::audit_owner::cold_root_probe::take_leaked();
+            let reruns = crate::v3::audit_owner::cold_root_probe::take_reruns();
             assert_eq!(notes.len(), 1, "须恰经一次冷根审计失败分支：{notes:?}");
             if leak == 0 {
                 assert!(leaked.is_empty());
                 assert_eq!(notes[0].1, 0, "{notes:?}");
+                assert_eq!(reruns, 1, "残留归零才析构根后无票重跑一次");
                 assert_eq!(reply.unwrap(), expected);
             } else {
                 assert_eq!(leaked.len(), 1);
                 assert_eq!(notes[0].1, leak, "clear_handles清不掉注入许可：{notes:?}");
+                // #1488 P3-δ（主控裁定）：残留分支不得自动重试，错误须带运维处置说明。
+                assert_eq!(reruns, 0, "残留非零分支不得无票重跑");
                 let error = reply.expect_err("根残留未归零必须报错");
                 assert!(
                     error.contains("冷根审计失败清除保留后根上仍残留4096B许可"),
                     "{error}"
                 );
+                assert!(error.contains("不自动重试") && error.contains("重启writer进程"), "{error}");
             }
         }
     }

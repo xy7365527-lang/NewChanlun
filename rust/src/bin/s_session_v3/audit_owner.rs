@@ -82,6 +82,14 @@ pub(super) mod cold_root_probe {
     pub(crate) fn take() -> Vec<(usize, usize)> {
         NOTES.with(|n| std::mem::take(&mut *n.borrow_mut()))
     }
+    thread_local!(static RERUNS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) });
+    /// #1488 P3-δ：冷根失败分支析构根后无票重跑的次数（残留非零分支必须为0，不得自动重试）。
+    pub(super) fn note_rerun() {
+        RERUNS.with(|r| r.set(r.get() + 1));
+    }
+    pub(crate) fn take_reruns() -> usize {
+        RERUNS.with(|r| r.replace(0))
+    }
 }
 
 #[cfg(feature = "s_capture_native_testonly")]
@@ -1667,15 +1675,22 @@ impl AuditTxn<'_> {
                             }
                             // #1488 P3-d：清除后复核根残留归零；仍有许可即账不平，不析构根后带着
                             // 来源不明的根许可无票重跑，直接报错。
+                            // #1488 P3-δ（主控裁定接受）：本分支fail-closed，不在此处或上层自动重试；本请求在
+                            // 准入阶段被拒、未提交。运维处置：重启writer进程（重建根账、清空跨请求缓存）后重发；
+                            // 账不平属实现缺陷，重启后同请求复现即保留该错误与请求转人工检查账目。
                             let left = root.live().saturating_sub(base);
                             #[cfg(test)]
                             cold_root_probe::note(residue, left);
                             if left != 0 {
                                 return Err(format!(
-                                    "S3WriterResourcesInvalid：冷根审计失败清除保留后根上仍残留{left}B许可"
+                                    "S3WriterResourcesInvalid：冷根审计失败清除保留后根上仍残留{left}B许可\
+                                     （账不平，fail-closed，不自动重试；本请求未提交。处置：重启writer进程后重发，\
+                                     重启后复现请保留本错误与请求转人工检查账目）"
                                 ));
                             }
                             drop(root);
+                            #[cfg(test)]
+                            cold_root_probe::note_rerun();
                             (self.audit_required_in_parent(mode, context, None)?, None)
                         }
                     }
