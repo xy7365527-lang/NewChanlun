@@ -66,9 +66,10 @@ def watch_material(mode='AsKnown'):
     fixed = m[0]['fixed_cut']; cursor = cursor_for(fixed); current = copy.deepcopy(cursor)
     pages = []; bindings = {}
     for i, (frontier, count) in enumerate(zip(('139','204','269'), (1,65,65)), 140):
+        # v7 R6-1：seq_range 按 q3 连续（from=上一代 last_seq+1, to=本代输入前沿）。
         cut = dict(copy.deepcopy(fixed), cut_generation=str(i), structure_cut='cut-'+str(i),
                    input_frontier=frontier, index_frontier=str(i), as_of_generation=str(i) if mode=='AsKnown' else None,
-                   seq_range={'from':'7','to':'7'})
+                   seq_range={'from':str(int(current['last_seq'])+1),'to':frontier})
         delta = dict(generation=str(i), session_id='toy', catalog_revision=cut['catalog_revision'],
                      base_cut=current['base_cut'], next_cut=cut['structure_cut'],
                      **{k:copy.deepcopy(cut[k]) for k in ('index_frontier','input_frontier','seq_range','catalog_run_status','catalog_evidence')},
@@ -424,6 +425,32 @@ class Tests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'工作量'):c.watch(cursor,140,'client',accepted_commits=bindings)
         self.assertEqual(c._Collector__state['watch'],before)
         OBS.append(dict(case='上下文复制预准入',work=c.work_budget.used,limit=c.work_budget.limit))
+
+
+    def test_v7_seq_range_continuity_and_caught_up_empty_page(self):
+        # R6-1：seq_range.from 必须为 last_seq+1；失败不推进状态，修正后同游标可续。
+        c,ex,cursor,pages,bindings=ready(); before=c.session_state
+        bad=copy.deepcopy(pages[0]);bad['deltas'][0]['seq_range']={'from':'7','to':'7'}
+        b2=copy.deepcopy(bindings);b2['140']['accepted_cut']['seq_range']={'from':'7','to':'7'}
+        ex.pages=[bad]
+        with self.assertRaisesRegex(ValueError,'seq_range断链'):c.watch(cursor,140,'client',accepted_commits=b2)
+        self.assertEqual(c.session_state,before)
+        ex.pages=[copy.deepcopy(pages[0])];out=c.watch(cursor,140,'client',accepted_commits=bindings)
+        cur=out['next_cursor'];self.assertEqual(cur['last_seq'],'139')
+        # R6-2：已追平空页合法，调用止于当前代，游标不动。
+        empty=copy.deepcopy(pages[0]);empty['deltas']=[];empty['next_cursor']=copy.deepcopy(cur)
+        ex.pages=[empty];settled=c.session_state
+        out=c.watch(cur,142,'client',max_batches=3,accepted_commits=bindings)
+        self.assertEqual(out['deltas'],[]);self.assertEqual(out['next_cursor'],cur)
+        self.assertEqual(c.session_state['watch'],settled['watch'])
+        # 未追平却空页、或空页观测头同代变脸，均拒且不推进。
+        ahead=copy.deepcopy(pages[2]);ahead['deltas']=[];ahead['next_cursor']=copy.deepcopy(cur);ahead['has_more']=True
+        ex.pages=[ahead]
+        with self.assertRaisesRegex(ValueError,'未追平'):c.watch(cur,142,'client',accepted_commits=bindings)
+        drift=copy.deepcopy(empty);drift['observed_head']['structure_cut']='alien-cut';ex.pages=[drift]
+        with self.assertRaisesRegex(ValueError,'同代完整切面冲突'):c.watch(cur,142,'client',accepted_commits=bindings)
+        self.assertEqual(c.session_state['watch'],settled['watch'])
+        self.record('v7 seq_range连续与追平空页',c,ex)
 
 
 if __name__=='__main__': unittest.main(verbosity=2)
