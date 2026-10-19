@@ -254,6 +254,11 @@ impl<'w> StageOwner<'w> {
     fn flush_cut_inner(&self, tx: &Transaction<'_>, cut: FlushCut<'_>) -> Result<(), String> {
         self.check_transaction(tx).map_err(|e| e.to_string())?;
         self.sample_heap_phase();
+        let uo1488_kind = match &cut {
+            FlushCut::Source(_) => "Source",
+            FlushCut::Row(_) => "Row",
+            FlushCut::Final(_) => "Final",
+        };
         let mut queue = CutQueue::new(self.work);
         match cut {
             FlushCut::Source(root) => queue
@@ -331,6 +336,10 @@ impl<'w> StageOwner<'w> {
                         match tx.total_changes().checked_sub(before) {
                             Some(0) => {}
                             Some(1) if tx.changes() == 1 => {
+                                eprintln!(
+                                    "UO1488_FLUSH kind={uo1488_kind} d={}",
+                                    digest.iter().take(16).map(|b| format!("{b:02x}")).collect::<String>()
+                                );
                                 self.flushed.set(self.flushed.get() + 1)
                             }
                             _ => return Err("cut节点INSERT出现非目标实际写入".into()),

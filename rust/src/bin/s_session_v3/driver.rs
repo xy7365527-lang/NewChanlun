@@ -3924,8 +3924,8 @@ mod tests {
                     eprintln!("  native 独有且不可达: {} / {}", extra_unreachable.len(), unreachable.len());
                     if !extra_unreachable.is_empty() {
                         eprintln!("  前 10 个（native 独有 + 不可达）:");
-                        for (i, digest) in extra_unreachable.iter().take(10).enumerate() {
-                            eprintln!("    [{}] {}", i + 1, digest.iter().map(|b| format!("{:02x}", b)).collect::<String>());
+                        for (i, digest) in extra_unreachable.iter().enumerate() {
+                            eprintln!("    EXTRA[{}] {}", i + 1, digest.iter().take(16).map(|b| format!("{:02x}", b)).collect::<String>());
                         }
                     }
                     if extra_unreachable.len() != unreachable.len() {

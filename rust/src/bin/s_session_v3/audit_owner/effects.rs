@@ -1892,6 +1892,7 @@ impl StageGuard {
                         Ok(roots)
                     })
                     .map_err(invalid)?;
+                eprintln!("UO1488_ROWCUT kind={:?} rowid={rowid}", self.kind);
                 stage.flush_cut(
                     material.tx,
                     crate::staged_nodes::FlushCut::Row(&roots[..columns.len()]),
