@@ -1,29 +1,20 @@
-// Sequential Reviewer（prime-agent 版）—— #1001/#1002/#1003 裁定落地。
+// Sequential Reviewer（claudeCode 版，#1547）—— #1001/#1002/#1003 裁定落地。
 // 每票：host 侧 frontier 取票 + claim → createSandbox（确定性分支，baseBranch=main）
 //   → Phase 1 实装工蜂 → Phase 2 独立评审工蜂（直接在分支上修正）
 //   → 不合 main（人工闸，#1003 裁 3）。
 // 跑法：npx tsx .sandcastle/main.mts
 
 import * as sandcastle from "@ai-hero/sandcastle";
-import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
+// #1547：沙盒后端暂用 noSandbox（agent 直接在宿主上、于 sandcastle 自建的独立 worktree 内运行）。
+// 切回 docker 的条件：Docker daemon 在宿主常驻运行，且 `docker image inspect sandcastle:newchanlun`
+// 成功（镜像已按 .sandcastle/Dockerfile 构建）；届时 sandboxProvider() 换回
+// docker({ imageName: "sandcastle:newchanlun", env: resolveSandboxGithubEnv() })，
+// 并注意容器内 127.0.0.1:8318 不指向宿主，claude-route.ts 的 BASE_URL 要改成 host.docker.internal。
+import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
 import type { AgentProvider, Sandbox, SandboxRunResult } from "@ai-hero/sandcastle";
 import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-// #1283 Q2 nautilus/codex 切换暂停（OAuth/依赖问题），回退 deepseek primeAgent
-import { claudeCode } from "@ai-hero/sandcastle";
-// 订阅额度认证——token 文件由终端上下文提取（launchd 读不了 Keychain；过期后重跑提取命令刷新）
-// 提取命令：security find-generic-password -s "Claude Code-credentials" -w | python3 -c "import sys,json,os; d=json.loads(sys.stdin.read())['claudeAiOauth']; open(os.path.expanduser('~/.sandcastle/claude_oauth_token'),'w').write(d['accessToken'])"
-const CLAUDE_OAUTH = (() => {
-  try {
-    return readFileSync("/Users/silencehan/.sandcastle/claude_oauth_token", "utf8").trim();
-  } catch { return ""; }
-})();
-if (!CLAUDE_OAUTH) console.error("[main.mts] claude_oauth_token 文件缺失或为空——沙盒 claude 将无认证");
-// #1283 Q2 裁定 (c)+Q1：执行面全量切 Claude 订阅额度 opus-5（2026-08-29 编排者令）
-import { primeAgent } from "./prime-agent-provider.ts";
-import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
+import { claudeWorker } from "./claude-route.ts";
 
 const TOKEN_ROTATION_MARKER = "/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/GH_TOKEN_ROTATION_REQUIRED";
 if (existsSync(TOKEN_ROTATION_MARKER)) {
@@ -32,11 +23,11 @@ if (existsSync(TOKEN_ROTATION_MARKER)) {
 }
 
 // ── 顶部常量（#1002 裁 3：模型面集中在此，升档改这里重跑） ────────────────
-// 2026-08-18 升档：kimi-coding 配额耗尽（403 billing cycle）→ deepseek（宿主同款，当日验证可用）
-const IMPLEMENTER_MODEL = "deepseek-v4-pro";
-const REVIEWER_MODEL = "deepseek-v4-pro";
-const PROVIDER = "deepseek";
-// #1066：每票每阶段（implementer/reviewer）最多续跑轮数；续跑复用原 prime-agent 会话
+// #1547：实装与独审都走 Claude Code CLI → 本机 CLIProxyLocal 统一路由（无前缀模型名，自动路由）。
+const IMPLEMENTER_MODEL = "claude-opus-5-5";
+const REVIEWER_MODEL = "claude-opus-5-5";
+const EFFORT = "medium" as const;
+// #1066：每票每阶段（implementer/reviewer）最多续跑轮数；续跑复用原 agent 会话
 // （runWithResume），而非 sandcastle 内建 maxIterations 的「多轮各自全新会话」。
 const MAX_ITERATIONS = 3;
 // 每次运行认领并处理的最大票数（与每阶段续跑轮数无关；本票不扩大取票吞吐，#1066 未涉此闸）。
@@ -92,10 +83,7 @@ function resolveSandboxGithubEnv(): Record<string, string> {
 }
 
 function sandboxProvider() {
-  return docker({
-    imageName: "sandcastle:newchanlun",
-    env: resolveSandboxGithubEnv(),
-  });
+  return noSandbox({ env: resolveSandboxGithubEnv() });
 }
 
 function hasOpenBlocker(issue: number): boolean {
@@ -203,7 +191,7 @@ function repoReadyForAgentCount(): number {
   return Number(out);
 }
 
-// ── 多轮续跑（#1066）：同一票的 implementer/reviewer 续跑必须复用原 prime-agent 会话。
+// ── 多轮续跑（#1066）：同一票的 implementer/reviewer 续跑必须复用原 agent 会话。
 // sandcastle 的 maxIterations>1 是「多轮各自全新会话」，不构成续跑（#1066 评论查实）；
 // 故每轮 maxIterations=1，靠 provider 会话捕获 + resumeSession 显式续同一 session。
 // 终止：出现完成信号（<promise>COMPLETE</promise>）或拿不到可恢复的 session id。
@@ -260,7 +248,7 @@ if (REVIEW_ONLY) {
   logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
   await runWithResume(sandbox, {
     name: "reviewer",
-    agent: primeAgent(REVIEWER_MODEL, { provider: PROVIDER }),
+    agent: claudeWorker(REVIEWER_MODEL, EFFORT),
     promptFile: "./.sandcastle/review-prompt.md",
     promptArgs: { BRANCH: branch, ISSUE_NUMBER: String(issue) },
   });
@@ -306,7 +294,7 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
     logWorker({ ticket: issue, branch, phase: "implementer", status: "started" });
     const implement = await runWithResume(sandbox, {
       name: "implementer",
-      agent: primeAgent(REVIEWER_MODEL, { provider: PROVIDER }),
+      agent: claudeWorker(IMPLEMENTER_MODEL, EFFORT),
       promptFile: "./.sandcastle/implement-prompt.md",
       promptArgs: { ISSUE_NUMBER: String(issue) },
       idleTimeoutSeconds: IMPLEMENTER_IDLE_TIMEOUT_SECONDS,
@@ -323,7 +311,7 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
     logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
     await runWithResume(sandbox, {
       name: "reviewer",
-      agent: primeAgent(REVIEWER_MODEL, { provider: PROVIDER }),
+      agent: claudeWorker(REVIEWER_MODEL, EFFORT),
       promptFile: "./.sandcastle/review-prompt.md",
       promptArgs: { BRANCH: branch, ISSUE_NUMBER: String(issue) },
     });
