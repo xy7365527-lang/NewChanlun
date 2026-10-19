@@ -107,6 +107,15 @@ def prepare(args):
                                  "payload": payload})
             dump(case_dir / "clock.json", {"schema_revision": "s-clock-plan/1", "clock_plan_id": sid,
                                            "origin_utc": "2000-01-01T00:00:00Z", "unit": "ns", "events": events})
+            # C 臂：中间消息在已接纳未提交时 SIGKILL，同 tb02a_prepare 的故障时钟（重试一次 + recover-001）。
+            fault = len(rows) // 2
+            fault_events = json.loads(json.dumps(events))
+            fbase = 946684800000000000 + fault * 10000000000
+            fault_events["op-" + str(fault).zfill(4)]["attempts"].append(
+                {"begin_ns": str(fbase + 1100000000), "commit_ns": str(fbase + 1200000000)})
+            fault_events["recover-001"] = {"recover_ns": str(fbase + 1000000000)}
+            dump(case_dir / "clock-C.json", {"schema_revision": "s-clock-plan/1", "clock_plan_id": sid,
+                                             "origin_utc": "2000-01-01T00:00:00Z", "unit": "ns", "events": fault_events})
             (case_dir / "messages.jsonl").write_bytes(b"".join(canonical(m) + b"\n" for m in messages))
             dump(case_dir / "raw-rows.json", rows)
             for arm in ("A", "B", "C"):
@@ -118,11 +127,11 @@ def prepare(args):
                     "socket": "/tmp/tb1420-" + hashlib.sha256(str(case_dir / arm).encode()).hexdigest()[:16] + ".sock",
                     "binary": str(args.binary.resolve()), "python": str(args.python.resolve()),
                     "catalog": str(ROOT / "catalog/signed-catalog.json"), "profile": str(ROOT / "profiles/ohlc_integer_tb02a_v1.json"),
-                    "clock_plan": str(case_dir / "clock.json"), "browser": str(ROOT / "browser/index.html"),
+                    "clock_plan": str(case_dir / ("clock-C.json" if arm == "C" else "clock.json")), "browser": str(ROOT / "browser/index.html"),
                     "query_resource_config": str(ROOT / "tests/fixtures/tb01c/query-resources.json"), "s_resources": resources})
                 port += 1
             cases[case] = {"design": design, "direction": direction, "inputs": len(rows),
-                           "fault_index": len(rows) // 2}
+                           "fault_index": fault}
     plan = {"schema": "tb02w-runtime-plan/1", "ticket": 1420, "cases": cases,
             "binary_sha256": hashlib.sha256(args.binary.read_bytes()).hexdigest(),
             "generator_sha256": hashlib.sha256((ROOT / "tests/fixtures/tb02d/generate-input.py").read_bytes()).hexdigest(),
