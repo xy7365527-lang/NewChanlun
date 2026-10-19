@@ -6335,10 +6335,24 @@ mod tests {
             writer.execute_batch("ROLLBACK;").unwrap();
         }
         let before = tb1405_file_bytes(&image);
-        assert!(before[1].1.is_some(), "现场须带 -journal");
+        let journal = before[1].1.as_ref().expect("现场须带 -journal");
+        assert_eq!(
+            &journal[..8],
+            &[0xd9, 0xd5, 0x05, 0xf9, 0x20, 0xa1, 0x63, 0xd7],
+            "热日志头"
+        );
 
+        let opened = match open_db(&image) {
+            Ok(conn) => panic!(
+                "热日志现场不得打开：rule={:?} autocommit={} journal_now={}",
+                meta_get_opt(&conn, "rule_revision"),
+                conn.is_autocommit(),
+                std::path::PathBuf::from(format!("{}-journal", image.display())).exists()
+            ),
+            Err(err) => err,
+        };
         for err in [
-            open_db(&image).err().unwrap(),
+            opened,
             recover_core(&image, "2", None).unwrap_err(),
             cmd_advance(&image, DEFAULT_WRITER_EPOCH).unwrap_err(),
             cmd_meta(&image).unwrap_err(),
