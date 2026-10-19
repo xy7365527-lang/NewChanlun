@@ -17,7 +17,8 @@ tb01c_http_capture.cjs 用浏览器同一份 tb01c-client.js 校验，全 cut �
   截窗原因（首跑实测）：夹具前 15 笔逐根一代 64 代时，cut 41 起公共采集超过生产客户端 30s 总期限（#1497 同类
   规模问题），且正式 ingest 拒绝一消息多事件（「ingest必须一事件」）。本设计只在判定 cut 上做 AsKnown 公共读，
   末 cut 做一次 live 读（不逐 cut 读）；Q 资源配置只把 verify_deadline_ms 放宽到 120000，其余与 tb01c 冻结
-  配置相同；采集器等 S 接纳回执的观察界由 10s 放宽到 120s（第 47 条实测越过 10s）。均为调度预算，不是语义。
+  配置相同；S 资源只把 response_timeout_ms 由 10000 放宽到 120000、采集器等回执的观察界同步放宽（实测 S 单条
+  接纳回执随代数近线性增长，第 46 条 7.1s，第 47 条越过 10s 被 S 断开）。均为调度预算，不是语义。
 
 期望值全部来自本文件 EXPECTED（按笔手算，依据 xianduan.md §7.1），不调用生产 reducer。cut 约定同 tb02d：
 笔 i 在已接纳 4i+7 根时首次已知。
@@ -119,7 +120,8 @@ def prepare(args):
                 "binary": str(args.binary.resolve()), "python": str(args.python.resolve()),
                 "catalog": str(ROOT / "catalog/signed-catalog.json"), "profile": str(ROOT / "profiles/ohlc_integer_tb02a_v1.json"),
                 "clock_plan": str(case_dir / "clock.json"), "browser": str(ROOT / "browser/index.html"),
-                "query_resource_config": str(query), "s_resources": resources})
+                "query_resource_config": str(query),
+                "s_resources": dict(resources, response_timeout_ms="120000") if design == "e2_real" else resources})
             port += 1
             cases[case] = {"design": design, "direction": direction, "inputs": len(rows), "points": points,
                            "sparse_cuts": SPARSE.get(design)}
