@@ -20,6 +20,8 @@ import {
   openBlockerCount,
   buildSpecApprovalIndex,
   buildOpenChildIndex,
+  buildSpecTreeFacts,
+  recheckBeforeRelease,
   withSpecApproval,
   explainTicket,
   isImplCandidate,
@@ -291,7 +293,8 @@ test("parseSplitPlan：无标记时兜底扫全文；无票时返回 null", () =
 function ready(partial: Partial<ReadyTicket> & { number: number }): ReadyTicket {
   return {
     title: `#${partial.number} 测试票`,
-    labels: [],
+    // 旧扫描集只有 ready-for-agent，夹具默认带上；新增的 wayfinder:impl 路径由各测试显式给标签。
+    labels: ["ready-for-agent"],
     assignees: [],
     blockedBy: 0,
     specApproved: null,
@@ -409,10 +412,10 @@ test("renderStatus：五桶分明，不把 sandcastle 空误写成 ready-for-age
 // ── 图审计 2026-10-20 第 14/15 条：SPEC 子树递归、wayfinder:impl 扫描、SPEC 标题兼容 ──
 
 test("isSpecTicket：兼容「📋 SPEC：」「SPEC：」「SPEC:」与 [spec]，不误认正文提及", () => {
-  for (const t of ["📋 SPEC：完整生产程序（#1323，R2）", "SPEC：完整生产程序（#1323）", "SPEC: x", "  spec：x", "[spec] x", "📋 SPEC x"]) {
+  for (const t of ["📋 SPEC：完整生产程序（#1323，R2）", "SPEC：完整生产程序（#1323）", "SPEC: x", "  SPEC：x", "[spec] x", "📋 SPEC x"]) {
     assert.equal(isSpecTicket({ title: t }), true, t);
   }
-  for (const t of ["[impl] TB-02 落地 SPEC：x", "SPECIAL 项", "关于 SPEC：x 的讨论", "[grilling] SPEC 批准口径"]) {
+  for (const t of ["[impl] TB-02 落地 SPEC：x", "SPECIAL 项", "关于 SPEC：x 的讨论", "[grilling] SPEC 批准口径", "spec: 小写不算"]) {
     assert.equal(isSpecTicket({ title: t }), false, t);
   }
 });
@@ -465,6 +468,36 @@ test("buildSpecApprovalIndex：环与重复挂载不死循环", () => {
   assert.equal(idx.get(2), true);
 });
 
+test("buildSpecTreeFacts：嵌套 SPEC 不能绕过上层未批准 / 驳回；underSpec 只标 SPEC 子树", () => {
+  const leaf = child({ number: 911, title: "[impl] 叶", labels: ["wayfinder:impl"] });
+  const inner = child({ number: 910, title: "SPEC：内层", comments: [approvalComment()], children: [leaf] });
+  const outer = child({ number: 909, title: "📋 SPEC：外层", comments: [rejectComment()], children: [inner] });
+  const direct = child({ number: 912, title: "[impl] 直挂" });
+  const f = buildSpecTreeFacts([map({ number: 42, children: [outer, direct] })], ORCH);
+  assert.equal(f.approved.get(911), false);
+  outer.comments = [approvalComment()];
+  const g = buildSpecTreeFacts([map({ number: 42, children: [outer, direct] })], ORCH);
+  assert.equal(g.approved.get(911), true);
+  assert.equal(g.underSpec.has(911), true);
+  assert.equal(g.underSpec.has(912), false);
+  assert.equal(g.approved.get(912), true); // map 直挂继承 map 的 SPEC（外层即 map 直挂 SPEC）
+});
+
+test("buildOpenChildIndex：递归截断时用 sub_issues_summary 判汇总票", () => {
+  const truncated = child({ number: 920, title: "[impl] 深层汇总", labels: ["wayfinder:impl"], openSubIssues: 2 });
+  const idx = buildOpenChildIndex([map({ number: 42, children: [truncated] })]);
+  assert.equal(idx.get(920), 2);
+});
+
+test("recheckBeforeRelease：写前重读到负责人 / blocker / 人闸 / 已关即不挂", () => {
+  assert.equal(recheckBeforeRelease({ state: "OPEN", labels: [], assignees: [], blockedBy: { nodes: [] } }), null);
+  assert.match(recheckBeforeRelease({ state: "OPEN", assignees: [{ login: "xy7365527-lang" }] })!, /已有负责人/);
+  assert.match(recheckBeforeRelease({ state: "OPEN", blockedBy: { nodes: [{ state: "OPEN" }] } })!, /blocker/);
+  assert.match(recheckBeforeRelease({ state: "OPEN", labels: [{ name: "needs-triage" }] })!, /人闸/);
+  assert.match(recheckBeforeRelease({ state: "CLOSED" })!, /已关闭/);
+  assert.equal(recheckBeforeRelease({ state: "OPEN", blockedBy: { nodes: [{ state: "CLOSED" }] } }), null);
+});
+
 test("放行：TB 叶子只带 wayfinder:impl 也能放行；已有负责人、open blocker、汇总票、人闸标签一律不放行", () => {
   const maps = [tree1323([approvalComment()])];
   const scan: ReadyTicket[] = [
@@ -475,8 +508,10 @@ test("放行：TB 叶子只带 wayfinder:impl 也能放行；已有负责人、o
     ready({ number: 1405, title: "[impl] 直挂", labels: ["needs-approval"] }),                     // 人闸
     ready({ number: 1530, title: "[grilling] FU-08", labels: ["wayfinder:grilling", "ready-for-agent"] }), // 决策票
     ready({ number: 7777, title: "[impl] 图外", labels: ["wayfinder:impl"] }),                    // 不在 open map 子树
+    ready({ number: 1390, title: "[impl] TB-03-A", labels: ["wayfinder:impl", "needs-triage"] }), // 未分诊
   ];
-  const view = withSpecApproval(scan, buildSpecApprovalIndex(maps, ORCH), buildOpenChildIndex(maps));
+  const facts = buildSpecTreeFacts(maps, ORCH);
+  const view = withSpecApproval(scan, facts.approved, buildOpenChildIndex(maps), facts.underSpec);
   assert.deepEqual(planReleases(view), [1524]);
   const why = Object.fromEntries(view.map((t) => [t.number, explainTicket(t)]));
   assert.match(why[1394]!, /^claimed/);
@@ -485,10 +520,27 @@ test("放行：TB 叶子只带 wayfinder:impl 也能放行；已有负责人、o
   assert.match(why[1405]!, /人闸标签 needs-approval/);
   assert.match(why[1530]!, /非实装票/);
   assert.match(why[7777]!, /不在任何 open map 子树内/);
+  assert.match(why[1390]!, /人闸标签 needs-triage/);
 });
 
-test("已有负责人：不论 assignee 最近是否活跃，引擎都不放行（释放认领归人工）", () => {
-  const t = ready({ number: 1488, title: "[impl] S 写者", labels: ["wayfinder:impl"], assignees: ["xy7365527-lang"], specApproved: true });
-  assert.equal(classifyTicket(t), "claimed");
-  assert.deepEqual(planReleases([t]), []);
+test("map 直挂的 wayfinder:impl 票：未挂 ready-for-agent 不放行，挂了才放行（#1084 原口径）", () => {
+  const kid = child({ number: 931, title: "[impl] 直挂票的子票", labels: ["wayfinder:impl"] });
+  const direct = child({ number: 930, title: "[impl] 直挂", labels: ["wayfinder:impl"] });
+  const parent = child({ number: 932, title: "[impl] 直挂汇总", children: [kid] });
+  const maps = [map({ number: 42, children: [spec(500, "OPEN", [approvalComment()]), direct, parent] })];
+  const facts = buildSpecTreeFacts(maps, ORCH);
+  const view = withSpecApproval(
+    [
+      ready({ number: 930, title: "[impl] 直挂", labels: ["wayfinder:impl"] }),
+      ready({ number: 930, title: "[impl] 直挂", labels: ["wayfinder:impl", "ready-for-agent"] }),
+      ready({ number: 931, title: "[impl] 直挂票的子票", labels: ["wayfinder:impl"] }),
+    ],
+    facts.approved,
+    buildOpenChildIndex(maps),
+    facts.underSpec,
+  );
+  assert.equal(classifyTicket(view[0]!), "held");
+  assert.match(explainTicket(view[0]!), /祖先链上无 SPEC/);
+  assert.equal(classifyTicket(view[1]!), "eligible");
+  assert.equal(classifyTicket(view[2]!), "held");
 });

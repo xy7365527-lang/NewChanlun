@@ -596,25 +596,46 @@ export function loadTicket(gh: GhRunner, n: number): TicketContext {
   };
 }
 
+/** 用户批复与 resolution 只认编排者账号的评论（全仓代理与用户共用此账号，外部账号的评论不算）。 */
+export const ORCHESTRATOR = process.env.DECISION_ORCHESTRATOR ?? "xy7365527-lang";
+
+/** 去掉评论首行的 Markdown 前缀（引用、标题、加粗、列表），只留正文。 */
+function firstLine(body: string): string {
+  const line = body.trimStart().split("\n", 1)[0] ?? "";
+  return line.replace(/^(?:\s*(?:>|#{1,6}|\*\*|__|[-*]\s))+\s*/, "").replace(/^\*\*|\*\*$/g, "").trim();
+}
+
+/** 退回 / 驳回：之后的批复才作数（#1530「## 退回重写（用户 … 批复：「同意」）」）。 */
+const REOPEN_RE = /退回|驳回|打回|重写|不批准|不同意/;
+
 /**
- * 用户批复评论：首行以「用户 … 批复」开头（#1565 先例「用户 2026-10-20 批复：「同意」…」）。
- * 只认评论开头，影子评论「待用户批复」与草稿正文里泛泛提到的「需用户批复」都不算。
+ * 首行「用户 … 批复」且不是「未 / 待」批复（#1565 先例「用户 2026-10-20 批复：「同意」…」）。
+ * 影子评论「**P 类影子模式，待用户批复**」首行以「P 类」开头，不命中。
  */
-const USER_RESOLUTION_RE = /^用户[^\n]{0,40}批复/;
-/** T 类落地评论（resolutionBody）与人工落地沿用的 resolution 行首标记。 */
-const RESOLUTION_MARK_RE = /^\s*\*\*resolution\*\*\s*[：:]/im;
+function isUserResolution(line: string): boolean {
+  const m = /^用户([^\n]{0,40}?)批复/.exec(line);
+  return !!m && !/[未待]/.test(m[1]!);
+}
 
 /**
  * 已裁定 / 已关闭的票不得再进裁决面（图审计 2026-10-20 第 13 条：#1565 已按用户批复落正本，
- * claimer live 仍把它选进本轮）。返回跳过原因；null = 可处理。纯函数。
+ * claimer live 仍把它选进本轮）。按时间序扫编排者评论，最新一条有效：
+ *   - 首行是 AUTH_LINE 或「**resolution**：」→ 已裁定；
+ *   - 首行「用户 … 批复」→ 已裁定；但若同一首行或之后的评论首行带退回 / 驳回 / 重写，则重新打开。
+ * 返回跳过原因；null = 可处理。纯函数。
  */
-export function resolvedReason(t: Pick<TicketContext, "state" | "comments">): string | null {
+export function resolvedReason(t: Pick<TicketContext, "state" | "comments">, orchestrator = ORCHESTRATOR): string | null {
   if ((t.state ?? "OPEN").toUpperCase() === "CLOSED") return "票已关闭";
+  let reason: string | null = null;
   for (const c of t.comments) {
-    if (c.body.trimStart().startsWith(AUTH_LINE) || RESOLUTION_MARK_RE.test(c.body)) return "票上已有 resolution";
-    if (USER_RESOLUTION_RE.test(c.body.trimStart())) return "票上已有用户批复";
+    if (c.author !== orchestrator) continue;
+    const line = firstLine(c.body);
+    if (line.startsWith("P 类影子模式")) continue;
+    if (c.body.trimStart().startsWith(AUTH_LINE) || /^resolution\s*[：:]/i.test(line)) reason = "票上已有 resolution";
+    else if (REOPEN_RE.test(line)) reason = null;
+    else if (isUserResolution(line)) reason = "票上已有用户批复";
   }
-  return null;
+  return reason;
 }
 
 function renderTicket(t: TicketContext): string {
@@ -1067,8 +1088,11 @@ export function selectCandidates(children: RawChild[], skip: Set<number>): numbe
     .filter((n) => !skip.has(n) && !seen.has(n) && seen.add(n));
 }
 
-/** 本地已走完的终态：落地、影子待批、已跳过。带断点（stage）的一律不算，留给续做。 */
-const FINISHED_PHASES: Phase[] = ["done", "land_t", "shadow_p", "skipped"];
+/**
+ * 本地已走完的终态：落地、影子待批。带断点（stage）的一律不算，留给续做。
+ * 要重跑一张已到终态的票（例如主控退回重写），先把本地目录改名（先例 decisions/1530.returned-20261020）。
+ */
+const FINISHED_PHASES: Phase[] = ["done", "land_t", "shadow_p"];
 
 /** 本地 summary.json 已到终态的票（dry-run 与 live 都跳过）。 */
 export function finishedTickets(outRoot: string, children: Array<{ number: number }>): Set<number> {
