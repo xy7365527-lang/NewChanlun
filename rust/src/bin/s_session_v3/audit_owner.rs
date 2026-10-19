@@ -1329,18 +1329,22 @@ impl AuditTxn<'_> {
             }
             // 独立入口也沿候选真实父账；旧candidate/raw费用已持有，不能重新seed。
             let budget = candidate.resources.clone();
-            let _inline = budget
+            let mut _inline = budget
                 .reserve(sum([
                     std::mem::size_of::<construction_state::PendingRawState>(),
                     std::mem::size_of::<BoundRawAdvance<'_>>(),
                 ]))
                 .map_err(|_| construction_state::stale("raw增量工作额度不足"))?;
+            // #1488 v4（反例D）：PendingRawState部分从同一预留拆出，随状态持有；token部分在出口归还。
+            let state_fee = _inline
+                .split(std::mem::size_of::<construction_state::PendingRawState>())
+                .map_err(|_| construction_state::stale("raw状态许可拆分失配"))?;
             let work = budget
                 .codec_work()
                 .map_err(|_| construction_state::stale("raw增量分配许可不足"))?;
             work.run(|scope| {
                 let bound = BoundOriginals { _private: () };
-                let (pending, token) = construction_state::PendingRawState::advance(
+                let (mut pending, token) = construction_state::PendingRawState::advance(
                     previous,
                     candidate.audited.raw.view(),
                     seal,
@@ -1348,6 +1352,7 @@ impl AuditTxn<'_> {
                     &self.owner.construction_lease,
                     &super::audit_store::NativeAdmission(Some(scope)),
                 )?;
+                pending.attach_fee(state_fee);
                 *self.construction.borrow_mut() = Some(pending);
                 let value = consume(token)?;
                 if self.owner.construction_lease.stale.get() {
@@ -1466,6 +1471,11 @@ impl AuditTxn<'_> {
             let parent = context.request_parent_budget();
             if known {
                 if let Some(slot) = context.take() {
+                    let grant = if parent.is_none() {
+                        context.take_bootstrap_grant()
+                    } else {
+                        None
+                    };
                     match CompleteCandidate::capture(
                         self.tx(),
                         seal,
@@ -1474,6 +1484,7 @@ impl AuditTxn<'_> {
                         context.complete_workspace_limit(),
                         context.complete_entry_reserved_bytes(),
                         parent.as_ref(),
+                        grant,
                     )? {
                         Ok(mut candidate) => {
                             candidate.resources =
@@ -1641,6 +1652,8 @@ struct CompleteCandidate {
     _inline_permit: native::Permit,
     // 无父冷构造的slot归属从初始原许可移入；detach先释放slot再释放此许可。
     slot_permit: Option<native::Permit>,
+    // #1488 v4：冷出生根的移入预留；先于resources析构，未拆余额同origin归还。
+    _move_in: Option<native::MoveIn>,
     // 最后析构：冷审计时的同一父账随所有真实载荷跨事务保留。
     resources: native::Budget,
 }
@@ -1692,6 +1705,7 @@ impl CompleteCandidate {
         limit: usize,
         entry_reserved_bytes: usize,
         parent: Option<&native::Budget>,
+        grant: Option<native::BootstrapGrant>,
     ) -> Result<Result<Self, request_audit::VerifiedHistoricalSlot>, String> {
         use super::audit_retention::{sum, Retained};
         // 丢掉事务 memo，仅原件和纯 codec 成功证书移动到候选；不复制节点正文。
@@ -1747,6 +1761,31 @@ impl CompleteCandidate {
         if charge.total >= limit {
             return Ok(Err(slot));
         }
+        // #1488 v4：无请求父时，首个候选分配之前由本次冻结唯一的BootstrapGrant出生根账；
+        // 无父且无许可则不建无票父（旧Budget::new(limit, retained)+adopt通道退役）。
+        let root = match (parent, grant) {
+            (Some(parent), _) => parent.clone(),
+            (None, Some(grant)) => match native::Budget::bootstrap(grant) {
+                Ok(root) => root,
+                Err(_) => return Ok(Err(slot)),
+            },
+            (None, None) => return Ok(Err(slot)),
+        };
+        // 严格审计在根出生前已存在的载荷（节点/历史/绑定/来源池）按当前域双门一次真实移入；
+        // MoveIn随候选持有，slot许可从中拆出，未拆部分在候选析构时同origin归还。
+        let move_in = if parent.is_none() {
+            let pre = charge
+                .total
+                .checked_sub(std::mem::size_of::<Self>())
+                .ok_or_else(|| invalid("候选移入账下溢"))?;
+            match root.move_in(pre) {
+                Ok(move_in) => Some(move_in),
+                Err(_) => return Ok(Err(slot)),
+            }
+        } else {
+            None
+        };
+        let parent = Some(&root);
         let inline_permit = match parent
             .map(|b| b.reserve(std::mem::size_of::<Self>()))
             .transpose()
@@ -1888,43 +1927,25 @@ impl CompleteCandidate {
         if charge.total >= limit {
             return Ok(Err(slot));
         }
-        let budget = match parent {
-            Some(parent) => parent.clone(),
-            None => match native::Budget::new(limit, charge.total) {
-                Ok(budget) => budget,
-                Err(_) => return Ok(Err(slot)),
-            },
-        };
-        let inline_permit = match inline_permit {
-            Some(p) => p,
-            None => budget
-                .adopt(std::mem::size_of::<Self>())
-                .map_err(|_| invalid("候选初始许可不足"))?,
-        };
+        let budget = root.clone();
+        let inline_permit = inline_permit.ok_or_else(|| invalid("候选初始许可缺失"))?;
         if !originals.has_permit() {
-            originals.attach(Some(
-                budget
-                    .adopt(
-                        super::audit_retention::vec_bytes::<request_audit::ExactRows>(
-                            originals.capacity(),
-                        ),
-                    )
-                    .map_err(|_| invalid("原件容器初始许可不足"))?,
-            ));
+            return Err(invalid("原件容器缺当前根许可"));
         }
-        let slot_permit = if parent.is_none() {
-            let bytes = charge
-                .slot_result_capacity
-                .checked_add(charge.historical_binding_capacity)
-                .and_then(|n| n.checked_add(charge.source_pool_charge))
-                .ok_or_else(|| invalid("slot初始原件费溢出"))?;
-            Some(
-                budget
-                    .adopt(bytes)
-                    .map_err(|_| invalid("slot初始原件许可不足"))?,
-            )
-        } else {
-            None
+        let slot_permit = match &move_in {
+            Some(move_in) => {
+                let bytes = charge
+                    .slot_result_capacity
+                    .checked_add(charge.historical_binding_capacity)
+                    .and_then(|n| n.checked_add(charge.source_pool_charge))
+                    .ok_or_else(|| invalid("slot初始原件费溢出"))?;
+                Some(
+                    move_in
+                        .take(bytes)
+                        .map_err(|_| invalid("slot初始原件移入许可不足"))?,
+                )
+            }
+            None => None,
         };
         let q = match q::Facts::cold(tx, &originals, &audited, &budget) {
             Ok(q) => q,
@@ -1951,6 +1972,7 @@ impl CompleteCandidate {
             resources: budget,
             _inline_permit: inline_permit,
             slot_permit,
+            _move_in: move_in,
         }))
     }
 }
@@ -3050,8 +3072,11 @@ fn r13_cold_candidate_and_q_share_parent_and_preserve_complete_output() {
     );
     next.freeze_manifest_workspace_budget(total, 0, old_pool)
         .unwrap();
-    next.enable_cold_admission_for_testonly().unwrap();
-    let next_parent = next.cold_parent_budget().unwrap();
+    // #1488 v4 暖路径：选唯一真实候选父；next_parent为同父sponsor付费的只读观察句柄。
+    let preparation = next
+        .prepare_parent(Some(&owner.complete_budget_for_test()))
+        .unwrap();
+    let next_parent = preparation.observer().unwrap().clone();
     let next_start = next_parent.live();
     assert_eq!(
         next_start, start,
@@ -4512,6 +4537,41 @@ mod construction_tests {
         assert!(owner.connection.is_autocommit());
         assert!(owner.construction.borrow().is_none());
         assert!(owner.construction_lease.stale.get());
+    }
+
+    /// #1488 v4 反例A：无enable的生产冷入口由唯一BootstrapGrant出生根，既有载荷经MoveIn真实移入。
+    #[test]
+    fn owner_cold_candidate_born_from_grant_with_move_in() {
+        let f = fixture();
+        let owner = AuditConnection::open(&f.db_path()).unwrap();
+        let mut c = context();
+        let active = owner.begin(TransactionBehavior::Immediate).unwrap();
+        mint(&active, &mut c);
+        assert!(c.take_bootstrap_grant().is_none(), "出生许可只可消费一次");
+        let complete = active.complete.borrow();
+        let candidate = complete.as_ref().unwrap();
+        assert!(candidate._move_in.is_some(), "冷出生既有载荷必须经MoveIn");
+        assert!(candidate.slot_permit.is_some() || candidate.slot.is_none());
+        assert!(c.matches_complete_budget(&candidate.resources));
+        assert!(candidate.resources.live() <= c.complete_workspace_limit());
+    }
+
+    /// #1488 v4 反例D：PendingRawState自身许可随状态持有，不在签发闭包出口提前归还。
+    #[test]
+    fn owner_raw_pending_state_holds_its_fee_until_drop() {
+        let f = fixture();
+        let owner = AuditConnection::open(&f.db_path()).unwrap();
+        let mut c = context();
+        let active = owner.begin(TransactionBehavior::Immediate).unwrap();
+        mint(&active, &mut c);
+        let parent = active.complete.borrow().as_ref().unwrap().resources.clone();
+        assert!(active.construction.borrow().as_ref().unwrap().has_fee());
+        let held = parent.live();
+        drop(active.construction.borrow_mut().take());
+        assert!(
+            held - parent.live() >= std::mem::size_of::<construction_state::PendingRawState>(),
+            "状态块许可须持有到PendingRawState析构"
+        );
     }
 
     #[test]

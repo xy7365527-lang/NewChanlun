@@ -35,6 +35,22 @@ impl ManifestWorkspaceBudget {
     }
 }
 
+/// #1488 v4：唯一真实分配父与（R13兼容需要时）只读观察句柄；后者不可隐式转成Budget。
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) struct ParentPreparation {
+    parent: super::audit_owner::native::Budget,
+    observer: Option<super::audit_owner::native::BudgetObserver>,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl ParentPreparation {
+    pub(super) fn allocation_parent(&self) -> &super::audit_owner::native::Budget {
+        &self.parent
+    }
+    pub(super) fn observer(&self) -> Option<&super::audit_owner::native::BudgetObserver> {
+        self.observer.as_ref()
+    }
+}
+
 #[derive(Default)]
 pub(super) struct RequestAuditContext {
     slot: Option<VerifiedHistoricalSlot>,
@@ -49,6 +65,9 @@ pub(super) struct RequestAuditContext {
     cold_parent: std::cell::RefCell<Option<super::audit_owner::native::Budget>>,
     #[cfg(feature = "s_capture_native_testonly")]
     handoff_parent: std::cell::RefCell<Option<super::audit_owner::native::Budget>>,
+    // #1488 v4：本次冻结签发的唯一冷出生许可；prepare_parent(None)或冷候选出生时消费一次。
+    #[cfg(feature = "s_capture_native_testonly")]
+    bootstrap: Option<super::audit_owner::native::BootstrapGrant>,
     #[cfg(test)]
     binding_hook: Option<fn(&Transaction<'_>)>,
     #[cfg(test)]
@@ -132,6 +151,7 @@ impl RequestAuditContext {
             old_pool,
             allowance,
         });
+        self.bootstrap = Some(super::audit_owner::native::BootstrapGrant::new(allowance));
         Ok(())
     }
     #[cfg(feature = "s_capture_native_testonly")]
@@ -1731,18 +1751,58 @@ impl RequestAuditContext {
         }
     }
     /// 仅显式调用才将冻结额度用于强制cold审计；缺省context没有零预算合同。
+    /// #1488 v4：等价于prepare_parent(None)，消费本次冻结的唯一BootstrapGrant。
     pub(super) fn enable_cold_admission_for_testonly(&mut self) -> Result<(), String> {
+        self.prepare_parent(None).map(drop)
+    }
+    /// #1488 v4：只建立一次本请求的真实父/observer契约。
+    /// None=冷启动，仅消费一次BootstrapGrant；Some=暖路径，验证serial/父Arc/冻结合同后
+    /// 绑定该真实父，并为外借观察句柄从同父同当前origin预留sponsor M。已有绑定不得换父。
+    pub(super) fn prepare_parent(
+        &mut self,
+        existing: Option<&super::audit_owner::native::Budget>,
+    ) -> Result<ParentPreparation, String> {
         let contract = self
             .workspace_budget
             .ok_or("S3WriterResourcesInvalid：未冻结cold父预算")?;
-        if self.cold_parent.borrow().is_some() || self.slot.is_some() {
+        if self.cold_parent.borrow().is_some()
+            || self.handoff_parent.borrow().is_some()
+            || self.slot.is_some()
+        {
             return Err("S3WriterResourcesInvalid：cold父预算必须在首次审计前启用一次".into());
         }
-        *self.cold_parent.get_mut() = Some(
-            super::audit_owner::native::Budget::new(contract.allowance, 0)
-                .map_err(|_| "S3WriterResourcesInvalid：cold父预算不足")?,
-        );
-        Ok(())
+        let Some(existing) = existing else {
+            let grant = self
+                .bootstrap
+                .take()
+                .ok_or("S3WriterResourcesInvalid：冷出生许可已消费")?;
+            debug_assert_eq!(grant.limit(), contract.allowance);
+            let root = super::audit_owner::native::Budget::bootstrap(grant)
+                .map_err(|_| "S3WriterResourcesInvalid：cold父预算不足")?;
+            *self.cold_parent.get_mut() = Some(root.clone());
+            return Ok(ParentPreparation {
+                parent: root,
+                observer: None,
+            });
+        };
+        let bound = self.bind_complete_budget(existing)?;
+        // 暖路径不再出生新根；冷许可随之作废，不可留给后续换父。
+        drop(self.bootstrap.take());
+        let observer = super::audit_owner::native::BudgetObserver::new(&bound)
+            .map_err(|_| "S3WriterResourcesInvalid：观察句柄sponsor超过当前域额度")?;
+        Ok(ParentPreparation {
+            parent: bound,
+            observer: Some(observer),
+        })
+    }
+    /// 冷候选出生点使用：无请求父时取走本次冻结的唯一出生许可（最多一次）。
+    pub(super) fn take_bootstrap_grant(
+        &mut self,
+    ) -> Option<super::audit_owner::native::BootstrapGrant> {
+        if self.cold_parent.borrow().is_some() || self.handoff_parent.borrow().is_some() {
+            return None;
+        }
+        self.bootstrap.take()
     }
     pub(super) fn cold_parent_budget(&self) -> Option<super::audit_owner::native::Budget> {
         self.request_parent_budget()
@@ -2345,5 +2405,50 @@ mod handoff_domain_tests {
         assert!(context.bind_complete_budget(&candidate).is_err());
         assert_eq!((candidate.live(), candidate.peak()), before);
         drop(occupied);
+    }
+    /// #1488 v4 反例A：本次冻结只签发一张出生许可；冷出生后不可再取、不可二次出生或换父。
+    #[test]
+    fn bootstrap_grant_is_consumed_exactly_once() {
+        let mut context = RequestAuditContext::default();
+        assert!(context.prepare_parent(None).is_err(), "未冻结无出生许可");
+        context
+            .freeze_manifest_workspace_budget(1 << 20, 0, 0)
+            .unwrap();
+        let prepared = context.prepare_parent(None).unwrap();
+        assert!(prepared.observer().is_none());
+        let root = prepared.allocation_parent().clone();
+        assert_eq!(root.live(), Budget::metadata_bytes());
+        assert!(context.take_bootstrap_grant().is_none());
+        assert!(context.prepare_parent(None).is_err());
+        assert!(context.prepare_parent(Some(&root)).is_err());
+        assert_eq!(root.live(), Budget::metadata_bytes());
+    }
+    /// #1488 v4 暖路径：prepare_parent(Some)绑定真实父并作废冷许可；观察句柄sponsor同origin。
+    #[test]
+    fn warm_prepare_binds_real_parent_and_voids_grant() {
+        let mut first = RequestAuditContext::default();
+        first
+            .freeze_manifest_workspace_budget(1 << 20, 0, 0)
+            .unwrap();
+        let parent = Budget::new(1 << 20, 0).unwrap();
+        let bound = first.bind_complete_budget(&parent).unwrap();
+        let mut next = RequestAuditContext::default();
+        next.freeze_manifest_workspace_budget(1 << 20, 0, bound.live())
+            .unwrap();
+        let remaining = (1 << 20) - bound.live();
+        let prepared = next.prepare_parent(Some(&bound)).unwrap();
+        assert!(prepared.allocation_parent().same_parent(&bound));
+        let observer = prepared.observer().unwrap().clone();
+        assert!(observer.same_parent(&bound));
+        assert_eq!(
+            observer.live(),
+            super::super::audit_owner::native::BudgetObserver::sponsor_bytes()
+        );
+        assert_eq!(
+            prepared.allocation_parent().remaining(),
+            remaining - super::super::audit_owner::native::BudgetObserver::sponsor_bytes()
+        );
+        assert!(next.take_bootstrap_grant().is_none());
+        assert!(next.matches_complete_budget(prepared.allocation_parent()));
     }
 }

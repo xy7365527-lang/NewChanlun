@@ -173,6 +173,9 @@ pub(super) struct CommittedRawState {
     source: Option<super::super::source_audit::NativeSourceState>,
     #[cfg(feature = "s_capture_native_testonly")]
     source_bytes: usize,
+    // #1488 v4（反例D）：状态块自身的真实许可随状态move，最后析构。
+    #[cfg(feature = "s_capture_native_testonly")]
+    fee: Option<super::audit_owner::native::Permit>,
 }
 impl CommittedRawState {
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
@@ -216,8 +219,20 @@ pub(super) struct PendingRawState {
     // 最后析构：来源/原始事实先释放，再归还PendingSet持有的原父账许可。
     #[cfg(feature = "s_capture_native_testonly")]
     pending_set: Option<super::construction_set::PendingSet>,
+    // #1488 v4（反例D）：状态块许可由PendingRawState持有至自身析构/晋升，不在签发闭包出口提前归还。
+    #[cfg(feature = "s_capture_native_testonly")]
+    fee: Option<super::audit_owner::native::Permit>,
 }
 impl PendingRawState {
+    /// 附上状态块自身许可；旧状态带来的许可（旧origin）在替换后归还，只降累计占用。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn attach_fee(&mut self, fee: super::audit_owner::native::Permit) {
+        drop(self.fee.replace(fee));
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn has_fee(&self) -> bool {
+        self.fee.is_some()
+    }
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn has_pending_set(&self) -> bool {
         self.pending_set.is_some()
@@ -259,6 +274,8 @@ impl PendingRawState {
         let source_bytes = previous
             .as_ref()
             .map_or(0, |previous| previous.source_bytes);
+        #[cfg(feature = "s_capture_native_testonly")]
+        let fee = previous.as_mut().and_then(|previous| previous.fee.take());
         let (previous_binding, previous_prefix, mut index) = match previous {
             Some(previous) => {
                 if !previous.seal.same_snapshot(&seal) {
@@ -333,6 +350,8 @@ impl PendingRawState {
             set,
             #[cfg(feature = "s_capture_native_testonly")]
             pending_set: None,
+            #[cfg(feature = "s_capture_native_testonly")]
+            fee,
         };
         Ok((pending, token))
     }
@@ -349,35 +368,37 @@ impl PendingRawState {
         if lease.stale.get() {
             return Err(stale("Carry租约已撤销"));
         }
-        let (binding, facts, set, retained, source, source_bytes) = if let Some(previous) = previous
-        {
-            if !previous.seal.same_snapshot(&seal) || raw_len < previous.facts.prefix_len() {
-                return Err(stale("Carry前沿/输入身份或实际快照不连续"));
-            }
-            (
-                previous.binding,
-                previous.facts,
-                previous.set,
-                previous.retained,
-                previous.source,
-                previous.source_bytes,
-            )
-        } else {
-            (
-                RawAdvanceBinding {
-                    domain: RawDomain {
-                        life: seal.life,
-                        epoch: lease.serial.get(),
+        let (binding, facts, set, retained, source, source_bytes, fee) =
+            if let Some(previous) = previous {
+                if !previous.seal.same_snapshot(&seal) || raw_len < previous.facts.prefix_len() {
+                    return Err(stale("Carry前沿/输入身份或实际快照不连续"));
+                }
+                (
+                    previous.binding,
+                    previous.facts,
+                    previous.set,
+                    previous.retained,
+                    previous.source,
+                    previous.source_bytes,
+                    previous.fee,
+                )
+            } else {
+                (
+                    RawAdvanceBinding {
+                        domain: RawDomain {
+                            life: seal.life,
+                            epoch: lease.serial.get(),
+                        },
+                        step: 0,
                     },
-                    step: 0,
-                },
-                RawPrefixFacts::default(),
-                None,
-                0,
-                None,
-                0,
-            )
-        };
+                    RawPrefixFacts::default(),
+                    None,
+                    0,
+                    None,
+                    0,
+                    None,
+                )
+            };
         Ok(Self {
             seal,
             binding,
@@ -389,6 +410,7 @@ impl PendingRawState {
             source_bytes,
             raw_token_bytes: 0,
             closed_total_changes: None,
+            fee,
         })
     }
 
@@ -487,6 +509,8 @@ impl PendingRawState {
             source: self.source,
             #[cfg(feature = "s_capture_native_testonly")]
             source_bytes: self.source_bytes,
+            #[cfg(feature = "s_capture_native_testonly")]
+            fee: self.fee,
         }
     }
 }

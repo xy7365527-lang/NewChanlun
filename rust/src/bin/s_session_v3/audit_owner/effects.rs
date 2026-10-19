@@ -1227,34 +1227,20 @@ pub(super) fn audit_native_source(
             }
             // nodes集合只来自当前实际tx的受控写口；每个tuple从真实事务重新读取。
             for digest in &j.nodes {
-                // #1488：活动域读取签发的正文许可随正文移入 owner，不再走 Plain 早退。
-                let node =
-                    sc::NodeSource::read_scoped(&mut reader.inner, digest).map_err(invalid)?;
-                let sc::job::ScopedNodeRead::Found { tag, body } = node else {
+                let node = sc::NodeSource::read(&mut reader, digest).map_err(invalid)?;
+                let sc::NodeRead::Found { tag, body } = node else {
                     return Err(construction_state::stale("实际effects新增原件缺失"));
                 };
-                let appended = match body.into_parts() {
-                    (body, None) => capture.append_original_for_owner_testonly(
+                if !capture
+                    .append_original_for_owner_testonly(
                         *digest,
                         tag,
                         body,
                         j.cap,
                         Some(access.work),
-                    ),
-                    (body, Some(fee)) => {
-                        let mut body = sc::CodecVec::from_plain(body);
-                        body.attach_native_reservation(fee).and_then(|()| {
-                            capture.append_original_codec_for_owner_testonly(
-                                *digest,
-                                tag,
-                                body,
-                                j.cap,
-                                access.work,
-                            )
-                        })
-                    }
-                };
-                if !appended.map_err(invalid)? {
+                    )
+                    .map_err(invalid)?
+                {
                     return Err(construction_state::stale("原件追加预算未消费"));
                 }
             }

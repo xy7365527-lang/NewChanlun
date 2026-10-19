@@ -453,16 +453,6 @@ impl ScopedBody {
         }
         Ok(self.body)
     }
-    /// #1488：正文与同一次读取的许可一起按值移出，供 owner 原件移交绑定；不复制、不释放。
-    #[doc(hidden)]
-    pub fn into_parts(
-        self,
-    ) -> (
-        Vec<u8>,
-        Option<super::capture_allocation::scratch::NativeReservation>,
-    ) {
-        (self.body, self._permit)
-    }
 }
 impl ScopedFrame {
     /// 只借用正在持许可的帧，不转移正文或提前释放许可。

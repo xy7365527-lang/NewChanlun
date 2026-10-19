@@ -570,7 +570,7 @@ impl Budget {
             };
         }
         let live = self.live();
-        if request < self.2 || d.active_scopes != 0 || live > old_pool {
+        if request < self.2 || d.active_scopes != 0 || d.state & MOVING != 0 || live > old_pool {
             return Err(BudgetExceeded);
         }
         // old_pool中剩余的独立旧池与legacy仍冻结：此父最多占L+A。
@@ -670,7 +670,7 @@ impl Budget {
                 Err(BudgetExceeded)
             };
         }
-        if request < self.2 || d.active_scopes != 0 {
+        if request < self.2 || d.active_scopes != 0 || d.state & MOVING != 0 {
             return Err(BudgetExceeded);
         }
         let total_limit = self.live().checked_add(allowance).ok_or(BudgetExceeded)?;
@@ -898,6 +898,147 @@ impl Budget {
         node.merge(&mut key_fee)?;
         m.fees[index] = Some(node);
         Ok(())
+    }
+}
+/// #1488 v4 冷出生许可：只由本次冻结调用签发，不可Clone，只可被`Budget::bootstrap`消费一次。
+/// 根Ledger控制块M在`Arc::new`前按A与总帽检查（`new`内live=M<=limit）。
+pub(crate) struct BootstrapGrant {
+    limit: usize,
+}
+impl BootstrapGrant {
+    pub(crate) fn new(limit: usize) -> Self {
+        Self { limit }
+    }
+    pub(crate) fn limit(&self) -> usize {
+        self.limit
+    }
+}
+/// #1488 v4 移入许可：已存在载荷在一个锁事务中按当前域双门（G+x<=A、L+x<=总帽）真实预留，
+/// 再逐项拆成随字段移动的Permit/Native许可；不是无票unassigned。未拆部分在Drop时归还。
+pub(crate) struct MoveIn {
+    budget: Budget,
+    origin: u64,
+}
+impl Budget {
+    pub(crate) fn bootstrap(grant: BootstrapGrant) -> Result<Self, BudgetExceeded> {
+        Self::new(grant.limit, 0)
+    }
+    pub(crate) fn move_in(&self, bytes: usize) -> Result<MoveIn, BudgetExceeded> {
+        {
+            let d = self.0.domain.lock().map_err(|_| BudgetExceeded)?;
+            if d.state & (BROKEN | MOVING) != 0 || u64::from(d.serial) != self.1 {
+                return Err(BudgetExceeded);
+            }
+        }
+        let origin = self
+            .0
+            .reserve_total(bytes, Some(self.1))
+            .map_err(|_| BudgetExceeded)?;
+        let mut d = self.0.domain.lock().map_err(|_| BudgetExceeded)?;
+        if d.state & MOVING != 0 || d.moved_in != 0 {
+            drop(d);
+            self.0
+                .release_total(bytes, origin)
+                .map_err(|_| BudgetExceeded)?;
+            return Err(BudgetExceeded);
+        }
+        d.moved_in = bytes;
+        d.state |= MOVING;
+        Ok(MoveIn {
+            budget: self.clone(),
+            origin,
+        })
+    }
+}
+impl MoveIn {
+    /// 从本次真实移入预留中拆出同origin许可；超额或过期域拒绝且不改账。
+    pub(crate) fn take(&self, bytes: usize) -> Result<Permit, BudgetExceeded> {
+        let mut d = self.budget.0.domain.lock().map_err(|_| BudgetExceeded)?;
+        if d.state & BROKEN != 0 || d.state & MOVING == 0 || u64::from(d.serial) != self.origin {
+            return Err(BudgetExceeded);
+        }
+        d.moved_in = d.moved_in.checked_sub(bytes).ok_or(BudgetExceeded)?;
+        Ok(Permit {
+            budget: self.budget.clone(),
+            bytes,
+            origin: self.origin,
+        })
+    }
+    pub(crate) fn budget(&self) -> &Budget {
+        &self.budget
+    }
+    pub(crate) fn remaining(&self) -> usize {
+        self.budget.0.domain.lock().map_or(0, |d| d.moved_in)
+    }
+}
+impl Drop for MoveIn {
+    fn drop(&mut self) {
+        let rest = match self.budget.0.domain.lock() {
+            Ok(mut d) => {
+                d.state &= !MOVING;
+                std::mem::take(&mut d.moved_in)
+            }
+            Err(_) => return,
+        };
+        self.budget
+            .0
+            .release_total(rest, self.origin)
+            .expect("Native移入许可返还失配");
+    }
+}
+/// #1488 v4 只读观察句柄：控制块分配前从真实父同当前origin预留M；只持sponsor许可，
+/// 不能reserve/adopt/codec_work/handoff，且不可转成Budget。最后一个句柄释放时sponsor归还。
+#[derive(Clone)]
+pub(crate) struct BudgetObserver(Arc<ObserverInner>);
+struct ObserverInner {
+    budget: Budget,
+    _sponsor: Permit,
+    native_base: usize,
+}
+impl BudgetObserver {
+    /// sponsor按根Ledger元数据M计费，覆盖观察控制块的实际布局（下方断言实测）。
+    pub(crate) fn sponsor_bytes() -> usize {
+        Budget::metadata_bytes()
+    }
+    pub(crate) fn new(budget: &Budget) -> Result<Self, BudgetExceeded> {
+        let layout = Layout::new::<[AtomicUsize; 2]>()
+            .extend(Layout::new::<ObserverInner>())
+            .expect("观察句柄布局")
+            .0
+            .pad_to_align()
+            .size();
+        let bytes = Self::sponsor_bytes();
+        if layout > bytes {
+            return Err(BudgetExceeded);
+        }
+        let sponsor = budget.reserve(bytes)?;
+        Ok(Self(Arc::new(ObserverInner {
+            budget: budget.clone(),
+            native_base: budget.0.native_live.load(Ordering::Acquire),
+            _sponsor: sponsor,
+        })))
+    }
+    /// 当前冻结域增量G（含sponsor M）；旧域或过期句柄读作全额A。
+    pub(crate) fn live(&self) -> usize {
+        let b = &self.0.budget;
+        b.3.saturating_sub(b.remaining())
+    }
+    pub(crate) fn peak(&self) -> usize {
+        self.0.budget.request_peak()
+    }
+    pub(crate) fn total_live(&self) -> usize {
+        self.0.budget.live()
+    }
+    pub(crate) fn same_parent(&self, other: &Budget) -> bool {
+        self.0.budget.same_parent(other)
+    }
+    #[cfg(test)]
+    pub(super) fn native_observation(&self) -> (usize, usize) {
+        let (live, peak) = self.0.budget.native_observation();
+        (
+            live.saturating_sub(self.0.native_base),
+            peak.saturating_sub(self.0.native_base),
+        )
     }
 }
 impl<T> Reserved<T> {
@@ -1158,7 +1299,12 @@ impl ScratchParent for Ledger {
         d.moved_in = moved_in;
         self.native_live.store(native, Ordering::Release);
         self.native_peak.fetch_max(native, Ordering::Relaxed);
-        Ok(0)
+        // 活动MoveIn的字节是当前域真实预留，返还按当前origin回补A；fixture池仍是旧origin 0。
+        Ok(if d.state & MOVING != 0 {
+            u64::from(d.serial)
+        } else {
+            0
+        })
     }
     fn close_scope(&self, origin: u64) -> Result<(), ScratchFailure> {
         let mut d = self.domain.lock().map_err(|_| ScratchFailure::Ledger)?;
@@ -2074,5 +2220,110 @@ mod lifecycle_repair_v2_tests {
             })
             .unwrap();
         assert_eq!(parent.live(), base);
+    }
+}
+
+#[cfg(test)]
+// #1488 v4 统一所有权反例锁（B/D/E的账本层与MoveIn/grant）。
+mod unified_ownership_v4_tests {
+    use super::*;
+
+    fn domain(b: &Budget) -> (usize, usize, usize, usize, u8) {
+        let d = b.0.domain.lock().unwrap();
+        (b.live(), b.peak(), d.remaining, d.moved_in, d.state)
+    }
+
+    /// 反例B：T1000/E100/O700/A200/M128。new20成功总占948；new200拒绝且不改账；旧费返还不回补A。
+    #[test]
+    fn observer_sponsor_counts_in_allowance_and_old_drop_never_refills() {
+        let first = Budget::new(900, 0).unwrap().bind_initial(100, 900).unwrap();
+        let metadata = Budget::metadata_bytes();
+        let old_candidate = first
+            .reserve(650 - metadata)
+            .unwrap()
+            .hold(vec![7u8; 650 - metadata]);
+        let old_raw = first.reserve(50).unwrap().hold(vec![8u8; 50]);
+        assert_eq!(first.live(), 700);
+        let next = first.bind_frozen(101, 1000, 100, 700).unwrap();
+        assert_eq!(BudgetObserver::sponsor_bytes(), 128);
+        let observer = BudgetObserver::new(&next).unwrap();
+        assert_eq!(observer.live(), 128);
+        assert_eq!(next.remaining(), 200 - 128);
+        let new = next.reserve(20).unwrap().hold(vec![9u8; 20]);
+        assert_eq!(next.live() + 100, 948);
+        assert_eq!(observer.live(), 148);
+        assert_eq!(observer.peak(), 148);
+        let before = domain(&next);
+        assert!(next.reserve(200).is_err());
+        assert_eq!(domain(&next), before, "拒绝不得部分改账");
+        drop(old_candidate);
+        drop(old_raw);
+        assert_eq!(next.remaining(), 200 - 148, "旧来源返还不能增发当前A");
+        assert_eq!(observer.live(), 148);
+        drop(new);
+        assert_eq!(observer.live(), 128);
+        let clone = observer.clone();
+        drop(observer);
+        assert_eq!(clone.live(), 128, "sponsor随最后一个句柄释放");
+        drop(clone);
+        assert_eq!(next.remaining(), 200);
+    }
+
+    /// 观察句柄sponsor超过当前A时拒绝，且不改账。
+    #[test]
+    fn observer_rejects_when_sponsor_exceeds_allowance_without_mutation() {
+        let first = Budget::new(900, 0).unwrap().bind_initial(102, 900).unwrap();
+        let held = first.reserve(700 - Budget::metadata_bytes()).unwrap();
+        let next = first.bind_frozen(103, 900, 100, 700).unwrap();
+        assert_eq!(next.remaining(), 100);
+        let before = domain(&next);
+        assert!(BudgetObserver::new(&next).is_err());
+        assert_eq!(domain(&next), before);
+        drop(held);
+    }
+
+    /// MoveIn：双门真实预留、拆出同origin许可、超额拒绝不改账、Drop归还未拆部分并解除MOVING。
+    #[test]
+    fn move_in_reserves_splits_and_returns_rest_without_partial_mutation() {
+        let root = Budget::bootstrap(BootstrapGrant::new(1024))
+            .unwrap()
+            .bind_initial(200, 1024)
+            .unwrap();
+        let base = root.live();
+        assert_eq!(base, Budget::metadata_bytes());
+        let pristine = domain(&root);
+        assert!(root.move_in(1024).is_err());
+        assert_eq!(domain(&root), pristine, "超额移入不得部分改账");
+        let moving = root.move_in(300).unwrap();
+        assert_eq!(root.live(), base + 300);
+        assert_eq!(root.remaining(), 1024 - base - 300);
+        let state = domain(&root);
+        assert!(root.move_in(1).is_err(), "同一时刻只有一个MoveIn");
+        assert!(root.handoff(201, 512).is_err(), "移入中不得换域");
+        assert_eq!(domain(&root), state);
+        let permit = moving.take(100).unwrap();
+        let state = domain(&root);
+        assert!(moving.take(201).is_err());
+        assert_eq!(domain(&root), state);
+        assert_eq!(moving.remaining(), 200);
+        drop(moving);
+        assert_eq!(root.live(), base + 100);
+        assert_eq!(root.remaining(), 1024 - base - 100);
+        assert_eq!(root.0.domain.lock().unwrap().state & MOVING, 0);
+        drop(permit);
+        assert_eq!(root.live(), base);
+        assert_eq!(root.remaining(), 1024 - base);
+        assert_eq!(root.peak(), base + 300);
+        let next = root.handoff(201, 512).unwrap();
+        assert_eq!(next.remaining(), 512);
+    }
+
+    /// 旧Budget::new(limit, retained)遗留的moved_in未清零时，MoveIn拒绝且不改账。
+    #[test]
+    fn move_in_rejects_legacy_moved_in_without_mutation() {
+        let legacy = Budget::new(4096, 64).unwrap();
+        let before = domain(&legacy);
+        assert!(legacy.move_in(32).is_err());
+        assert_eq!(domain(&legacy), before);
     }
 }
