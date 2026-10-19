@@ -29,7 +29,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             rust/target
-          key: uo1488-${{ runner.os }}-${{ matrix.features }}-${{ hashFiles('rust/Cargo.lock') }}
+          key: uo1488-${{ runner.os }}-j${{ strategy.job-index }}-${{ hashFiles('rust/Cargo.lock') }}
       - name: build tests
         working-directory: rust
         run: |
