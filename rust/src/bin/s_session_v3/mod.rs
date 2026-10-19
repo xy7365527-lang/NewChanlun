@@ -427,7 +427,12 @@ pub(super) fn init_v3(
         session,
         &clock,
         (&profile_def, &profile_id, &profile_hash),
-        (&catalog_def, &catalog_revision, catalog_items, &catalog_hash),
+        (
+            &catalog_def,
+            &catalog_revision,
+            catalog_items,
+            &catalog_hash,
+        ),
         session_generation,
         delivery_retain,
     )?;

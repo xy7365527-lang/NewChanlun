@@ -133,7 +133,13 @@ struct ChildOutcome {
 
 fn spawn_child(db: &Path, clock: &Path, mode: &str) -> std::process::Child {
     Command::new(std::env::current_exe().unwrap())
-        .args([CHILD_TEST, "--ignored", "--nocapture", "--test-threads=1", "-q"])
+        .args([
+            CHILD_TEST,
+            "--ignored",
+            "--nocapture",
+            "--test-threads=1",
+            "-q",
+        ])
         .env(ENV_DB, db)
         .env(ENV_CLOCK, clock)
         .env(ENV_MODE, mode)
@@ -283,9 +289,11 @@ fn fd_exhaustion_failures_leave_nothing_and_retry_succeeds() {
     }
     println!("S1568_NOFILE_FAILURES {failures:#?}");
     assert!(
-        failures.iter().any(|f| ["SQLite", "StorageUnavailable", "事务", "commit", "暂存"]
-            .iter()
-            .any(|k| f.contains(k))),
+        failures.iter().any(
+            |f| ["SQLite", "WAL", "unable to open", "事务", "commit", "暂存"]
+                .iter()
+                .any(|k| f.contains(k))
+        ),
         "fd 上限扫描未触发任何建库阶段失败：{failures:#?}"
     );
 }

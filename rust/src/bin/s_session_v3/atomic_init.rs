@@ -12,9 +12,9 @@
 //! - 下一次 init 在持有同一把域进程锁之后，**只**清扫严格匹配本库名暂存格式的残留——锁保证
 //!   同库没有活着的 init 在用它们；库名不同、格式不符的文件一律不碰，更不碰目标本身。
 
-use std::ffi::{OsStr, OsString};
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 use std::ffi::CString;
+use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -31,9 +31,7 @@ fn parent_dir(db: &Path) -> &Path {
 }
 
 fn staging_prefix(db: &Path) -> Result<OsString, String> {
-    let name = db
-        .file_name()
-        .ok_or("InvalidDomain：数据库路径缺文件名")?;
+    let name = db.file_name().ok_or("InvalidDomain：数据库路径缺文件名")?;
     let mut prefix = OsString::from(".");
     prefix.push(name);
     prefix.push(STAGING_TAG);
@@ -57,7 +55,8 @@ pub(super) fn is_staging_entry(db: &Path, entry: &OsStr) -> bool {
         return false;
     };
     let mut parts = core.split(|b| *b == b'.');
-    let digits = |p: Option<&[u8]>| p.is_some_and(|p| !p.is_empty() && p.iter().all(u8::is_ascii_digit));
+    let digits =
+        |p: Option<&[u8]>| p.is_some_and(|p| !p.is_empty() && p.iter().all(u8::is_ascii_digit));
     digits(parts.next()) && digits(parts.next()) && parts.next().is_none()
 }
 
@@ -65,7 +64,9 @@ pub(super) fn is_staging_entry(db: &Path, entry: &OsStr) -> bool {
 pub(super) fn sweep_stale(db: &Path) -> Result<Vec<PathBuf>, String> {
     let dir = parent_dir(db);
     let mut removed = Vec::new();
-    for entry in std::fs::read_dir(dir).map_err(|e| format!("读目录 {} 失败：{e}", dir.display()))? {
+    for entry in
+        std::fs::read_dir(dir).map_err(|e| format!("读目录 {} 失败：{e}", dir.display()))?
+    {
         let entry = entry.map_err(|e| format!("读目录项失败：{e}"))?;
         if !is_staging_entry(db, &entry.file_name()) {
             continue;
