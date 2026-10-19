@@ -296,7 +296,7 @@ fn failed_finish_keeps_stopped_first_error_actual_wire_and_reservation_until_std
     assert_same_accounting_except_elapsed(before, receipt.job.unwrap());
     assert_eq!(receipt.actual_stderr_bytes, sink.len() as u128);
     assert_eq!(receipt.unaccepted_stderr_bytes, sink.len() as u128);
-    assert_eq!(receipt.accounting_error.as_deref(), Some(first.as_str()));
+    assert_eq!(receipt.accounting_error.as_deref(), Some(sticky.as_str()));
 }
 
 #[test]
