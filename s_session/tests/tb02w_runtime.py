@@ -140,6 +140,21 @@ def prepare(args):
     return plan
 
 
+def fault_messages(case_dir, fault):
+    """C 臂消息：故障消息之后的 ingest 以恢复后的 writer_epoch 2 发出（同 tb02a_prepare），payload_hash 随之重算。"""
+    target = case_dir / "messages-C.jsonl"
+    if not target.exists():
+        out = []
+        for index, line in enumerate((case_dir / "messages.jsonl").read_bytes().splitlines()):
+            m = json.loads(line)
+            if index > fault:
+                m["payload"]["writer_epoch"] = "2"
+                m["payload_hash"] = hashlib.sha256(canonical(m["payload"])).hexdigest()
+            out.append(canonical(m) + b"\n")
+        target.write_bytes(b"".join(out))
+    return target
+
+
 def find(snapshot, kind, entity):
     for o in snapshot["objects"]:
         if o["kind"] == kind and o["payload"]["data"].get("entity_id") == entity:
@@ -294,7 +309,8 @@ def session(args):
             if args.reuse and (output / "RESULT.json").exists():
                 result = json.loads((output / "RESULT.json").read_text())
             else:
-                run = Run(config=case_dir / f"config-{arm}.json", messages=case_dir / "messages.jsonl", output=output,
+                messages = fault_messages(case_dir, meta["fault_index"]) if arm == "C" else case_dir / "messages.jsonl"
+                run = Run(config=case_dir / f"config-{arm}.json", messages=messages, output=output,
                           node=args.node, fault_index=meta["fault_index"] if arm == "C" else None, fault_stage="after_batch")
                 if arm == "A" and args.browser:
                     want = EXPECTED[meta["design"]]
