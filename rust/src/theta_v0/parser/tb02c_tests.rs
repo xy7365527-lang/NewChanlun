@@ -82,7 +82,9 @@ fn tb02c_turn_window_stays_open() {
     let open = c.first.open_turn.as_ref().unwrap();
     assert_eq!(open.turn_hypothesis_pair, [1, 3]);
     assert_eq!(open.turn_hypothesis_state, "OPEN_AT_PREFIX_END");
-    assert!(c.waiting_reasons.contains(&"first_kind_third_stroke_within_first"));
+    assert!(c
+        .waiting_reasons
+        .contains(&"first_kind_third_stroke_within_first"));
     assert!(!c.first.checks.iter().any(|k| k.first_fractal));
     assert!(!c.first.steps.iter().any(|s| s.action == "merge"));
     assert!(facts.parse_invalid_from.is_none());
@@ -102,13 +104,19 @@ fn tb02c_geometry_failure_keeps_witness_and_does_not_emit() {
     let ss = chain(&[5, 10, 0, 5, -1, 2, -3, 3, -2, 1, -4]);
     let (_, _, prod) = segment::divide_segments_with_facts(&ss, &ThetaConfig::default().parse);
     assert!(prod.parse_invalid_from.is_none());
-    assert!(prod.candidates.iter().all(|c| c.result != "FAILED_GEOMETRY"));
+    assert!(prod
+        .candidates
+        .iter()
+        .all(|c| c.result != "FAILED_GEOMETRY"));
     let (segments, _, facts) = tb1493_seed_start(|| {
         tb1493_full_eq_incremental(&ss);
         segment::divide_segments_with_facts(&ss, &ThetaConfig::default().parse)
     });
     assert!(segments.is_empty());
-    let invalid = facts.parse_invalid_from.as_ref().expect("门失败须 fail-closed 上报");
+    let invalid = facts
+        .parse_invalid_from
+        .as_ref()
+        .expect("门失败须 fail-closed 上报");
     assert_eq!(invalid.seg_start, 0);
     assert_eq!(invalid.construction_vector, Some([true, true, false, true]));
     assert!(invalid.failed_conditions.contains(&"top_gt_bottom"));
@@ -137,7 +145,11 @@ fn tb02c_gap_does_not_hide_failed_geometry() {
         assert_eq!(prod.candidates[0].start_stroke, 4);
         assert_eq!(
             prod.candidates[0].result,
-            if last == -12 { "CASE_ONE" } else { "PENDING_CASE_TWO" }
+            if last == -12 {
+                "CASE_ONE"
+            } else {
+                "PENDING_CASE_TWO"
+            }
         );
         assert_eq!(segs.len(), usize::from(last == -12));
         let (_, _, facts) = tb1493_seed_start(|| {
@@ -356,8 +368,14 @@ fn tb1493_full_eq_incremental(strokes: &[Stroke]) {
 fn tb1493_spans(strokes: &[Stroke], segs: &[Segment]) -> Vec<(usize, usize, Direction, i64, i64)> {
     segs.iter()
         .map(|s| {
-            let a = strokes.iter().position(|x| x.start_index == s.start_index).unwrap();
-            let b = strokes.iter().rposition(|x| x.end_index == s.end_index).unwrap();
+            let a = strokes
+                .iter()
+                .position(|x| x.start_index == s.start_index)
+                .unwrap();
+            let b = strokes
+                .iter()
+                .rposition(|x| x.end_index == s.end_index)
+                .unwrap();
             (a, b, s.direction, s.start_price, s.end_price)
         })
         .collect()
@@ -374,7 +392,10 @@ fn tb1493_check(
     assert_eq!(tb1493_spans(strokes, &segs), expected, "段");
     assert_eq!(tail, pending, "未确认尾段起点");
     assert!(facts.parse_invalid_from.is_none(), "段端门不得失败");
-    assert!(facts.candidates.iter().all(|c| c.result != "FAILED_GEOMETRY"));
+    assert!(facts
+        .candidates
+        .iter()
+        .all(|c| c.result != "FAILED_GEOMETRY"));
     facts
 }
 
@@ -406,7 +427,10 @@ fn tb1493_e2_min_confirms_by_first_break() {
     let ss = tb1493_mini("e2_min");
     tb1493_check(
         &ss,
-        &[(0, 2, Direction::Up, 10, 50), (3, 5, Direction::Down, 50, 25)],
+        &[
+            (0, 2, Direction::Up, 10, 50),
+            (3, 5, Direction::Down, 50, 25),
+        ],
         Some(6),
     );
     assert_eq!(ss[6].direction, Direction::Up);
@@ -427,24 +451,40 @@ fn tb1493_e2_real_3175_six_segments() {
     assert!(facts.parse_invalid_from.is_none());
     let spans = tb1493_spans(&ss, &segs);
     assert_eq!(spans.len(), 6, "{spans:?}");
-    assert_eq!(spans[0], (0, 2, Direction::Up, 376_644_000_000, 380_753_000_000));
-    assert_eq!(spans[1], (3, 5, Direction::Down, 380_753_000_000, 377_000_000_000));
+    assert_eq!(
+        spans[0],
+        (0, 2, Direction::Up, 376_644_000_000, 380_753_000_000)
+    );
+    assert_eq!(
+        spans[1],
+        (3, 5, Direction::Down, 380_753_000_000, 377_000_000_000)
+    );
 }
 
 #[test]
 fn tb1493_window_member_does_not_forge_gap() {
     // 义务 8(c)：向下段 b=[8190,8249]、成员 [8215,8221]、下一候选 [8163,8201]。按 G-2 把成员折进 b
     // 会把 b.low 抬到 8215，伪造 8215 > 8201 的缺口；窗成员保持 b 区间不动 ⟹ 下一候选无缺口。
-    let ss = chain(&[8300, 8200, 8260, 8190, 8249, 8215, 8221, 8163, 8201, 8170, 8230]);
+    let ss = chain(&[
+        8300, 8200, 8260, 8190, 8249, 8215, 8221, 8163, 8201, 8170, 8230,
+    ]);
     tb1493_full_eq_incremental(&ss);
     let (segs, _, facts) = segment::divide_segments_with_facts(&ss, &ThetaConfig::default().parse);
     let first = &facts.candidates[0].first;
     let b = first.standard.iter().find(|e| e.stroke_idx == 3).unwrap();
     assert_eq!((b.low, b.high), (8190, 8249));
     assert_eq!(b.window_members, vec![5]);
-    let kill = first.checks.iter().find(|c| c.elements[1].stroke_idx == 3).unwrap();
+    let kill = first
+        .checks
+        .iter()
+        .find(|c| c.elements[1].stroke_idx == 3)
+        .unwrap();
     assert_eq!(kill.turn_hypothesis_state, "KILLED_BY_NEW_EXTREME");
-    let next = first.checks.iter().find(|c| c.elements[1].stroke_idx == 7).unwrap();
+    let next = first
+        .checks
+        .iter()
+        .find(|c| c.elements[1].stroke_idx == 7)
+        .unwrap();
     assert_eq!(next.gap, Some(false));
     assert_eq!(next.turn_hypothesis_state, "CONFIRMED");
     assert_eq!(
@@ -460,7 +500,12 @@ fn tb1493_tie_without_gap_confirmed_by_first_break() {
     tb1493_full_eq_incremental(&ss);
     let (segs, _, facts) = segment::divide_segments_with_facts(&ss, &ThetaConfig::default().parse);
     let c = &facts.candidates[0];
-    let tie = c.first.steps.iter().find(|s| s.action == "tie_pair").unwrap();
+    let tie = c
+        .first
+        .steps
+        .iter()
+        .find(|s| s.action == "tie_pair")
+        .unwrap();
     assert_eq!(tie.tie_with, Some(3));
     assert_eq!(tie.scope, "TURN_HYPOTHESIS");
     assert_eq!(c.result, "CASE_ONE");
@@ -502,10 +547,7 @@ fn tb1493_stream_first_segment_starts_at_extreme() {
     let (segs, pending, facts) =
         segment::divide_segments_with_facts(&ss, &ThetaConfig::default().parse);
     assert!(facts.parse_invalid_from.is_none());
-    assert_eq!(
-        tb1493_spans(&ss, &segs),
-        vec![(2, 4, Direction::Up, 5, 40)]
-    );
+    assert_eq!(tb1493_spans(&ss, &segs), vec![(2, 4, Direction::Up, 5, 40)]);
     assert_eq!(facts.candidates[0].start_stroke, 2);
     // 非流首段不适用：第二段从分型中心 b=s5 起。
     assert_eq!(pending, Some(5));
@@ -523,7 +565,10 @@ fn tb1493_gate_failure_is_fail_closed() {
         tb1493_full_eq_incremental(&ss);
         let (segs, _, facts) =
             segment::divide_segments_with_facts(&ss, &ThetaConfig::default().parse);
-        let p = facts.parse_invalid_from.as_ref().expect("须 fail-closed 上报");
+        let p = facts
+            .parse_invalid_from
+            .as_ref()
+            .expect("须 fail-closed 上报");
         assert_eq!((p.seg_start, p.end_stroke), (0, 6));
         assert!(p.construction_vector.is_some_and(|v| v != [true; 4]));
         // 不改起点重判：此后不得出现以其他起点重开的流首段。
@@ -557,7 +602,10 @@ fn tb1493_polyline(seed: u64, n: usize, distinct: bool) -> Vec<i64> {
         let _ = i;
     }
     if distinct {
-        out.iter().enumerate().map(|(i, v)| v * 1000 + i as i64).collect()
+        out.iter()
+            .enumerate()
+            .map(|(i, v)| v * 1000 + i as i64)
+            .collect()
     } else {
         out
     }

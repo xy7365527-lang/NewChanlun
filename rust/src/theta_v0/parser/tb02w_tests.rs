@@ -987,14 +987,13 @@ fn witness_chain(prices: &[i64]) -> Vec<Stroke> {
 /// 原 #1420 独审见证（`regime_prices(5004, 160)`）在 segment-turn/1 下不再产生深边界，按同一性质重搜。
 const W1_PRICES: [i64; 100] = [
     100000, 100054, 100039, 100834, 100793, 100798, 99663, 99723, 99663, 99702, 98645, 98723,
-    98483, 98592, 98467, 99629, 99493, 99563, 99559, 99601, 99409, 99477, 99468, 100856,
-    100808, 102306, 102175, 102221, 102035, 102245, 102191, 102230, 102170, 103335, 103294, 104202,
-    104183, 104210, 102829, 102842, 102769, 102836, 102807, 102842, 102202, 102219, 100895, 100960,
-    100706, 100716, 99744, 99991, 99940, 100039, 99798, 99836, 99361, 99582, 98712, 98728,
-    98690, 98931, 98881, 98886, 98158, 98165, 98135, 98173, 98150, 98216, 98021, 98055,
-    97591, 97971, 97933, 97998, 97929, 97978, 97938, 98004, 97936, 98007, 97825, 97874,
-    97869, 97887, 97711, 97939, 97884, 97937, 97872, 97885, 97872, 98991, 98986, 99178,
-    99113, 99137, 99075, 99135,
+    98483, 98592, 98467, 99629, 99493, 99563, 99559, 99601, 99409, 99477, 99468, 100856, 100808,
+    102306, 102175, 102221, 102035, 102245, 102191, 102230, 102170, 103335, 103294, 104202, 104183,
+    104210, 102829, 102842, 102769, 102836, 102807, 102842, 102202, 102219, 100895, 100960, 100706,
+    100716, 99744, 99991, 99940, 100039, 99798, 99836, 99361, 99582, 98712, 98728, 98690, 98931,
+    98881, 98886, 98158, 98165, 98135, 98173, 98150, 98216, 98021, 98055, 97591, 97971, 97933,
+    97998, 97929, 97978, 97938, 98004, 97936, 98007, 97825, 97874, 97869, 97887, 97711, 97939,
+    97884, 97937, 97872, 97885, 97872, 98991, 98986, 99178, 99113, 99137, 99075, 99135,
 ];
 
 /// W1：逐笔增量到 p = 87 存检查点（全量结果 + 安全边界 euf = 69），续扫到 q = 88…99。
@@ -1036,8 +1035,8 @@ fn tb02w_w1_checkpoint_boundary_is_necessary() {
 /// W2 价格（#1493 重搜：`tb1493_search_tb02w_witnesses` 尖峰折线种子 7、35 点，向上）：34 笔。
 const W2_PRICES: [i64; 35] = [
     100000, 100059, 100051, 100077, 100020, 100023, 99973, 99997, 99899, 99964, 99927, 99947,
-    99898, 100825, 100787, 101172, 99875, 99929, 99687, 99693, 98251, 98289, 98273, 98296,
-    98294, 98896, 98877, 98909, 98853, 98884, 98816, 98878, 97770, 97867, 97827,
+    99898, 100825, 100787, 101172, 99875, 99929, 99687, 99693, 98251, 98289, 98273, 98296, 98294,
+    98896, 98877, 98909, 98853, 98884, 98816, 98878, 97770, 97867, 97827,
 ];
 
 /// 独审 W2（#1493 重搜）：窗口 1 下第二种候选预算耗尽。须报 INCOMPLETE_RESOURCE_BOUND、留待定尾，
@@ -1121,37 +1120,38 @@ fn tb1493_search_tb02w_witnesses() {
         let ss = witness_chain(&pr);
         let n = ss.len();
         for p in (n - 12)..n {
-        let mut inc = segment::IncrSegments::default();
-        for k in 0..=p {
-            inc = inc.append(&ss[..k], &cfg);
-        }
-        let Some(euf) = inc.earliest_unsealed_from() else {
-            continue;
-        };
-        if euf + 4 > p {
-            continue;
-        }
-        let (segs, pending) = inc.to_result_vec();
-        let mut ok = true;
-        let mut diverged = vec![];
-        for q in p..=n {
-            let batch = segment::divide_segments_with_tail(&ss[..q], &cfg);
-            let bounded = segment::IncrSegments::from_checkpoint(&segs, pending, &ss[..p], Some(euf))
-                .append(&ss[..q], &cfg);
-            if bounded.to_result_vec() != batch {
-                ok = false;
+            let mut inc = segment::IncrSegments::default();
+            for k in 0..=p {
+                inc = inc.append(&ss[..k], &cfg);
             }
-            let unbounded =
-                segment::IncrSegments::from_full(&segs, pending, &ss[..p]).append(&ss[..q], &cfg);
-            if unbounded.to_result_vec() != batch {
-                diverged.push(q);
+            let Some(euf) = inc.earliest_unsealed_from() else {
+                continue;
+            };
+            if euf + 4 > p {
+                continue;
             }
-        }
-        if ok && !diverged.is_empty() {
-            w1_found += 1;
-            eprintln!("W1 case={case} p={p} euf={euf} diverged={diverged:?} prices={pr:?}");
-            break;
-        }
+            let (segs, pending) = inc.to_result_vec();
+            let mut ok = true;
+            let mut diverged = vec![];
+            for q in p..=n {
+                let batch = segment::divide_segments_with_tail(&ss[..q], &cfg);
+                let bounded =
+                    segment::IncrSegments::from_checkpoint(&segs, pending, &ss[..p], Some(euf))
+                        .append(&ss[..q], &cfg);
+                if bounded.to_result_vec() != batch {
+                    ok = false;
+                }
+                let unbounded = segment::IncrSegments::from_full(&segs, pending, &ss[..p])
+                    .append(&ss[..q], &cfg);
+                if unbounded.to_result_vec() != batch {
+                    diverged.push(q);
+                }
+            }
+            if ok && !diverged.is_empty() {
+                w1_found += 1;
+                eprintln!("W1 case={case} p={p} euf={euf} diverged={diverged:?} prices={pr:?}");
+                break;
+            }
         }
     }
     let mut w2_found = 0;

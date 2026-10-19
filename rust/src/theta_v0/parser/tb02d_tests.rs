@@ -295,8 +295,14 @@ fn tb1493_audit_tb02_fixtures() {
     };
     let config = ThetaConfig::default();
     for (label, raw_src) in [
-        ("tb02c", include_str!("../../../../s_session/tests/fixtures/tb02c/raw-ledger.json")),
-        ("tb02d", include_str!("../../../../s_session/tests/fixtures/tb02d/raw-ledger.json")),
+        (
+            "tb02c",
+            include_str!("../../../../s_session/tests/fixtures/tb02c/raw-ledger.json"),
+        ),
+        (
+            "tb02d",
+            include_str!("../../../../s_session/tests/fixtures/tb02d/raw-ledger.json"),
+        ),
     ] {
         let raw: serde_json::Value = serde_json::from_str(raw_src).unwrap();
         let oracle: serde_json::Value = serde_json::from_str(include_str!(
@@ -321,9 +327,23 @@ fn tb1493_audit_tb02_fixtures() {
                         || c.result == "PENDING_CASE_ONE"
                         || c.result == "FAILED_GEOMETRY"
                     {
-                        let acts: Vec<_> = c.first.steps.iter().map(|s| format!("{}@{}", s.action, s.incoming.stroke_idx)).collect();
-                        let std: Vec<_> = c.first.standard.iter().map(|e| (e.stroke_idx, e.low, e.high, e.window_members.clone())).collect();
-                        eprintln!("AUDITX {label}/{name}/{n} acts={acts:?} std={std:?} open={:?} wm={:?}", c.first.open_turn.as_ref().map(|o| o.turn_hypothesis_pair), c.window_members);
+                        let acts: Vec<_> = c
+                            .first
+                            .steps
+                            .iter()
+                            .map(|s| format!("{}@{}", s.action, s.incoming.stroke_idx))
+                            .collect();
+                        let std: Vec<_> = c
+                            .first
+                            .standard
+                            .iter()
+                            .map(|e| (e.stroke_idx, e.low, e.high, e.window_members.clone()))
+                            .collect();
+                        eprintln!(
+                            "AUDITX {label}/{name}/{n} acts={acts:?} std={std:?} open={:?} wm={:?}",
+                            c.first.open_turn.as_ref().map(|o| o.turn_hypothesis_pair),
+                            c.window_members
+                        );
                         eprintln!(
                             "AUDIT {label}/{name}/{n} cand{ci} start={} result={} end={:?} turn={turn:?} state={:?} segs={}",
                             c.start_stroke, c.result, c.end_stroke, c.turn_hypothesis_state, layer.segments.len()
@@ -335,7 +355,10 @@ fn tb1493_audit_tb02_fixtures() {
                         let a = serde_json::to_value(&sf.candidates[0]).unwrap();
                         for key in ["result", "trigger_stroke", "end_stroke"] {
                             if a[key] != e[key] {
-                                eprintln!("DIFF tb02d/{name}/{n} {key}: rust={} oracle={}", a[key], e[key]);
+                                eprintln!(
+                                    "DIFF tb02d/{name}/{n} {key}: rust={} oracle={}",
+                                    a[key], e[key]
+                                );
                             }
                         }
                     }

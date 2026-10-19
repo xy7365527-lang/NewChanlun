@@ -637,7 +637,14 @@ impl FeatureSeqState {
                     low,
                     stroke_idx,
                 });
-                self.record_step(incoming, before, "boundary_pair", None, "TURN_HYPOTHESIS", None);
+                self.record_step(
+                    incoming,
+                    before,
+                    "boundary_pair",
+                    None,
+                    "TURN_HYPOTHESIS",
+                    None,
+                );
             } else if right_inc && tie_extreme && !left_inc && peak && !gap_ab {
                 // 并列（无缺口）：P 侧相等不是越过，另一侧严格越过 b 终点 ⟹ 交先破判据确认。
                 self.std.push(FeatElem {
@@ -655,7 +662,14 @@ impl FeatureSeqState {
                 );
             } else if peak {
                 // R2（含有缺口的并列、与 b 完全相同）：c ⊂ b ⟹ b 的窗成员，b 区间不动（071:32）。
-                self.record_step(incoming, before, "window_member", None, "TURN_HYPOTHESIS", None);
+                self.record_step(
+                    incoming,
+                    before,
+                    "window_member",
+                    None,
+                    "TURN_HYPOTHESIS",
+                    None,
+                );
             } else {
                 // R3：末元素不是峰候选 ⟹ G-2 方向性合并。
                 let effective_up = self.dir_state != Some(Direction::Down);
@@ -812,8 +826,7 @@ impl FeatureSeqState {
                 Direction::Up => c_l <= a_h,
                 Direction::Down => c_h >= a_l,
             };
-            let case_two =
-                raw_gap && (self.extend_mode == ExtendMode::Optimized || !closed_by_c);
+            let case_two = raw_gap && (self.extend_mode == ExtendMode::Optimized || !closed_by_c);
             let (admissible, state) = if !peak {
                 (false, TURN_NOT_CASE_ONE)
             } else if case_two {
@@ -1105,7 +1118,10 @@ mod tests {
             st.frozen_first.get(&3).map(|w| w.map(|e| e.stroke_idx)),
             Some([1, 3, 7])
         );
-        assert_eq!(st.facts().checks.last().unwrap().turn_hypothesis_state, TURN_CONFIRMED);
+        assert_eq!(
+            st.facts().checks.last().unwrap().turn_hypothesis_state,
+            TURN_CONFIRMED
+        );
     }
 
     #[test]
@@ -1131,9 +1147,21 @@ mod tests {
                 through_stroke: 5,
                 gap_second: false,
                 window: [
-                    FeatElem { high: 10, low: 5, stroke_idx: 1 },
-                    FeatElem { high: 20, low: 8, stroke_idx: 3 },
-                    FeatElem { high: 8, low: 3, stroke_idx: 5 },
+                    FeatElem {
+                        high: 10,
+                        low: 5,
+                        stroke_idx: 1
+                    },
+                    FeatElem {
+                        high: 20,
+                        low: 8,
+                        stroke_idx: 3
+                    },
+                    FeatElem {
+                        high: 8,
+                        low: 3,
+                        stroke_idx: 5
+                    },
                 ],
             })
         );
