@@ -1100,6 +1100,7 @@ impl AuditTxn<'_> {
             }
         });
         if result.is_err() {
+            self.owner.clear_candidates();
             if !self.owner.connection.is_autocommit() {
                 let rollback = self.owner.connection.execute_batch("ROLLBACK");
                 if rollback.is_err() || !self.owner.connection.is_autocommit() {
@@ -1144,6 +1145,7 @@ impl Drop for AuditTxn<'_> {
                 }
                 effects::clear_node_journal(&tx);
             }
+            self.owner.clear_candidates();
             self.owner.connection.flush_prepared_statement_cache();
             // 不依赖 rusqlite 的隐式 Drop 回滚；必须核实终结结果。
             if tx.rollback().is_err() || !self.owner.connection.is_autocommit() {
