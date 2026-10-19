@@ -515,7 +515,9 @@ impl PendingRawState {
         let Some(stamp) = handoff.parent.as_ref() else {
             return Err(stale("Recover迁移缺父账交接摘要"));
         };
-        let _ = (stamp, parent);
+        if !stamp.matches(parent) || previous.fee.as_ref().is_some_and(|fee| !stamp.holds(fee)) {
+            return Err(stale("Recover迁移父账或冻结域与交接摘要不符"));
+        }
         let mut pending = Self::carry(Some(previous), seal, raw_len, lease)?;
         pending.recover = Some((handoff, false));
         Ok(pending)
