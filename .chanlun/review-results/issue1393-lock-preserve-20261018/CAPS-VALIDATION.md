@@ -39,3 +39,9 @@ review-02（新 Opus 5.5 CLI 评审者，原件 `review-02/`）对 `d75d28a4` �
 - F7（LOW，未改代码）：已扫描版本的去重集合只随文件内条目数增长，受同一 900 秒截止约束，只保留短 version 字符串（≤256B），未另设根未给的扫描条目帽；保留的版本记录仍受 items=512。
 
 返修后全量：`Ran 86 tests ... OK`。
+
+## 第三轮独审（review-03）与审后纯测试补充
+
+review-03（新 Opus 5.5 CLI 评审者，原件 `review-03/`）对 `57f41578` / tree `ba94072c` 给 **PASS_LIMITED_STATIC**：副本基线 86 项全绿，24 个真实实现/workflow 变异杀 22 个；review-02 存活的 M4/M7/M8/M10/M11 全部被杀，F1 八个变异杀 7 个；无 CRITICAL/HIGH/MEDIUM，仅 5 项 LOW（R3-3 扫描条目帽与 R3-4 上传期间变化仅事后发现属已知限制，R3-5 为可选日志）。
+
+审后仅追加测试、实现与 workflow 字节未变（runner SHA256 与 workflow SHA256 与 review-03 所审相同）：补 R3-1（完整失败值放不下时降为最小记录、最小记录也放不下则不写）与 R3-2（收据步 ACTUAL 4096 字面量锁定）。作者复核：两项存活变异 F1f、X6 现均被杀。全量 `Ran 87 tests ... OK`。

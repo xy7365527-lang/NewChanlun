@@ -1335,6 +1335,15 @@ class NewCapsRegistryTests(RegistryTests):
         self.assertFalse(json.loads((self.out / 'registry.json').read_text())['complete'])
         self.assertFalse((self.out / 'registry-failure.json').exists())
 
+    def test_bounded_save_falls_back_to_minimal_record_when_full_value_does_not_fit(self):
+        minimal = v.canonical(m.MINIMAL_REGISTRY_FAILURE)
+        big = {'status': 'FAILED', 'complete': False, 'proof_gap': [{'reason': 'x' * 400}]}
+        with patch.dict(m.RESOURCE_CAPS, files=1, total_bytes=len(minimal)):
+            self.assertTrue(m.bounded_registry_save(self.out, 'registry.json', big))
+        self.assertEqual((self.out / 'registry.json').read_bytes(), minimal)
+        with patch.dict(m.RESOURCE_CAPS, files=1, total_bytes=len(minimal) - 1):
+            self.assertFalse(m.bounded_registry_save(self.out, 'registry.json', big))
+
     def test_constraint_parent_range_and_text_unchanged_target_changed_recorded(self):
         self.preserve()
         proof = json.loads((self.out / 'registry.json').read_text())
@@ -1561,6 +1570,8 @@ class GateTests(ToyCapsTest):
             self.assertLess(archive_run.index(placeholder), gate_at)
         self.assertNotIn('write', archive_run[gate_at:])
         receipt_run = runs['receipt']
+        self.assertIn('if len(raw) > 4096:', receipt_run)
+        self.assertEqual(m.RECEIPT_LIMITS[m.RECEIPT_ACTUAL], 4096)
         self.assertLess(receipt_run.index("'issue1393-lock-UPLOAD-ACTUAL.json', 'xb'"),
                         receipt_run.index('issue1393_lock_prepare.py receipt-gate'))
         self.assertIn('issue1393_lock_prepare.py upload-gate', runs['archive'])

@@ -1,0 +1,398 @@
+[
+  {
+    "id": "BASELINE",
+    "killed": null,
+    "returncode": 0,
+    "summary": [
+      "Ran 86 tests in 1.590s",
+      "OK"
+    ],
+    "failing_tests": []
+  },
+  {
+    "id": "M4-receipt-gate-ignore-sha",
+    "target": "receipt-gate 只比名字与长度不比摘要",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "killed": true,
+    "summary": [
+      "Ran 86 tests in 1.559s",
+      "FAILED (failures=1)"
+    ],
+    "failing_tests": [
+      "test_receipt_gate_combined_cap_change_and_actual_limit (__main__.GateTests.test_receipt_gate_combined_cap_change_and_actual_limit)"
+    ]
+  },
+  {
+    "id": "M7-truncation-accepted",
+    "target": "扫描结尾不再核截断（只核 validator）",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "killed": true,
+    "summary": [
+      "Ran 86 tests in 1.544s",
+      "FAILED (failures=3)"
+    ],
+    "failing_tests": [
+      "test_truncated_unwanted_tail_after_complete_wanted_rejected (__main__.NewCapsRegistryTests.test_truncated_unwanted_tail_after_complete_wanted_rejected) (tail=b'9.9.9')",
+      "test_truncated_unwanted_tail_after_complete_wanted_rejected (__main__.NewCapsRegistryTests.test_truncated_unwanted_tail_after_complete_wanted_rejected) (tail=b'9.9.9\\x00')",
+      "test_truncated_unwanted_tail_after_complete_wanted_rejected (__main__.NewCapsRegistryTests.test_truncated_unwanted_tail_after_complete_wanted_rejected) (tail=b'9.9.9\\x00{\"name\": \"child\"')"
+    ]
+  },
+  {
+    "id": "M8-scan-no-per-chunk-deadline",
+    "target": "扫描循环内不核截止/信号（仅扫描后核）",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "killed": true,
+    "summary": [
+      "Ran 86 tests in 1.565s",
+      "FAILED (failures=2)"
+    ],
+    "failing_tests": [
+      "test_scan_deadline_and_signal_mid_stream (__main__.NewCapsRegistryTests.test_scan_deadline_and_signal_mid_stream) (fault='deadline')",
+      "test_scan_deadline_and_signal_mid_stream (__main__.NewCapsRegistryTests.test_scan_deadline_and_signal_mid_stream) (fault='signal')"
+    ]
+  },
+  {
+    "id": "M10-wf-gate-before-placeholders",
+    "target": "workflow：upload-gate 移到占位原件写入之前",
+    "file": ".github/workflows/issue1393-lock-prepare.yml",
+    "killed": true,
+    "summary": [
+      "Ran 86 tests in 1.542s",
+      "FAILED (failures=1)"
+    ],
+    "failing_tests": [
+      "test_workflow_pins_action_compression_and_gates (__main__.GateTests.test_workflow_pins_action_compression_and_gates)"
+    ]
+  },
+  {
+    "id": "M11-wf-payload-gated-on-wrong-step",
+    "target": "workflow：主包 if 引用 receipt 而非 archive",
+    "file": ".github/workflows/issue1393-lock-prepare.yml",
+    "killed": true,
+    "summary": [
+      "Ran 86 tests in 1.559s",
+      "FAILED (failures=1)"
+    ],
+    "failing_tests": [
+      "test_workflow_pins_action_compression_and_gates (__main__.GateTests.test_workflow_pins_action_compression_and_gates)"
+    ]
+  },
+  {
+    "id": "F1a-bounded-save-ignores-caps",
+    "target": "bounded_registry_save 不核 files/total 直接写",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "killed": true,
+    "summary": [
+      "Ran 86 tests in 1.542s",
+      "FAILED (failures=3)"
+    ],
+    "failing_tests": [
+      "test_complete_registry_json_downgraded_even_when_registry_caps_full (__main__.NewCapsRegistryTests.test_complete_registry_json_downgraded_even_when_registry_caps_full)",
+      "test_failure_path_never_exceeds_registry_files_or_total (__main__.NewCapsRegistryTests.test_failure_path_never_exceeds_registry_files_or_total) (key='files')",
+      "test_failure_path_never_exceeds_registry_files_or_total (__main__.NewCapsRegistryTests.test_failure_path_never_exceeds_registry_files_or_total) (key='total_bytes')"
+    ]
+  },
+  {
+    "id": "F1b-failure-record-plain-save",
+    "target": "失败路径 registry-failure.json 回退为无界 save()",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "killed": true,
+    "summary": [
+      "Ran 86 tests in 1.606s",
+      "FAILED (failures=2)"
+    ],
+    "failing_tests": [
+      "test_failure_path_never_exceeds_registry_files_or_total (__main__.NewCapsRegistryTests.test_failure_path_never_exceeds_registry_files_or_total) (key='files')",
+      "test_failure_path_never_exceeds_registry_files_or_total (__main__.NewCapsRegistryTests.test_failure_path_never_exceeds_registry_files_or_total) (key='total_bytes')"
+    ]
+  },
+  {
+    "id": "F1c-upload-gate-no-registry-recheck",
+    "target": "upload-gate 删除 registry files/total 复核",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "killed": true,
+    "summary": [
+      "Ran 86 tests in 1.633s",
+      "FAILED (failures=1)"
+    ],
+    "failing_tests": [
+      "test_gates_refuse_registry_evidence_over_caps (__main__.GateTests.test_gates_refuse_registry_evidence_over_caps)"
+    ]
+  },
+  {
+    "id": "F1d-receipt-gate-no-registry-recheck",
+    "target": "receipt-gate 删除 registry files/total 复核",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "killed": true,
+    "summary": [
+      "Ran 86 tests in 1.656s",
+      "FAILED (failures=1)"
+    ],
+    "failing_tests": [
+      "test_gates_refuse_registry_evidence_over_caps (__main__.GateTests.test_gates_refuse_registry_evidence_over_caps)"
+    ]
+  },
+  {
+    "id": "F1e-bounded-save-new-file-not-counted",
+    "target": "bounded_registry_save 新文件不计入 files（off-by-one）",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "killed": true,
+    "summary": [
+      "Ran 86 tests in 1.592s",
+      "FAILED (failures=2)"
+    ],
+    "failing_tests": [
+      "test_complete_registry_json_downgraded_even_when_registry_caps_full (__main__.NewCapsRegistryTests.test_complete_registry_json_downgraded_even_when_registry_caps_full)",
+      "test_failure_path_never_exceeds_registry_files_or_total (__main__.NewCapsRegistryTests.test_failure_path_never_exceeds_registry_files_or_total) (key='files')"
+    ]
+  },
+  {
+    "id": "F1f-no-minimal-fallback",
+    "target": "bounded_registry_save 去掉最小失败记录降级",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "killed": false,
+    "summary": [
+      "Ran 86 tests in 1.645s",
+      "OK"
+    ],
+    "failing_tests": []
+  },
+  {
+    "id": "F1g-existing-registry-json-not-overwritten",
+    "target": "失败时已存在的 registry.json 不再降级",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "killed": true,
+    "summary": [
+      "Ran 86 tests in 1.677s",
+      "FAILED (failures=2)"
+    ],
+    "failing_tests": [
+      "test_symlink_and_summary_write_expiry_never_complete (__main__.NewCapsRegistryTests.test_symlink_and_summary_write_expiry_never_complete)",
+      "test_symlink_and_summary_write_expiry_never_complete (__main__.RegistryTests.test_symlink_and_summary_write_expiry_never_complete)"
+    ]
+  },
+  {
+    "id": "F1h-gate-registry-off-by-one",
+    "target": "upload-gate registry total 用 < 代 <=（过严）",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "killed": true,
+    "summary": [
+      "Ran 86 tests in 1.551s",
+      "FAILED (failures=1)"
+    ],
+    "failing_tests": [
+      "test_gates_refuse_registry_evidence_over_caps (__main__.GateTests.test_gates_refuse_registry_evidence_over_caps)"
+    ]
+  },
+  {
+    "id": "X1-single-off-by-one",
+    "target": "single 边界放宽 1 字节",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "killed": true,
+    "summary": [
+      "Ran 86 tests in 1.562s",
+      "FAILED (failures=1)"
+    ],
+    "failing_tests": [
+      "test_single_record_equal_cap_complete_and_over_cap_proof_gap_untruncated (__main__.NewCapsRegistryTests.test_single_record_equal_cap_complete_and_over_cap_proof_gap_untruncated) (size=701)"
+    ]
+  },
+  {
+    "id": "X2-entry-overhead-underestimate",
+    "target": "每项固定开销 128→60（低于实际 92）",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "killed": true,
+    "summary": [
+      "Ran 86 tests in 1.532s",
+      "FAILED (failures=36, errors=1)"
+    ],
+    "failing_tests": [
+      "test_bound_covers_python_store_zip_and_formula_exact (__main__.UploadBoundTests.test_bound_covers_python_store_zip_and_formula_exact)",
+      "test_failed_resolution_keeps_lock_manifest_diff_and_registry (__main__.ResolutionTests.test_failed_resolution_keeps_lock_manifest_diff_and_registry)",
+      "test_main_resolves_once_in_temp_and_preserves_failure (__main__.ResolutionTests.test_main_resolves_once_in_temp_and_preserves_failure) (fail=False)",
+      "test_main_tail_monotonic_deadline (__main__.PackageTailTests.test_main_tail_monotonic_deadline) (stage='package-return')",
+      "test_main_tail_monotonic_deadline (__main__.PackageTailTests.test_main_tail_monotonic_deadline) (stage='print-after')",
+      "test_main_tail_monotonic_deadline (__main__.PackageTailTests.test_main_tail_monotonic_deadline) (stage='print-serialize')",
+      "test_main_tail_monotonic_deadline (__main__.PackageTailTests.test_main_tail_monotonic_deadline) (stage='receipt-after')",
+      "test_main_tail_monotonic_deadline (__main__.PackageTailTests.test_main_tail_monotonic_deadline) (stage='receipt-before')",
+      "test_main_tail_monotonic_deadline (__main__.PackageTailTests.test_main_tail_monotonic_deadline) (stage='zip-close')",
+      "test_main_tail_monotonic_deadline (__main__.PackageTailTests.test_main_tail_monotonic_deadline) (stage='zip-eof')",
+      "test_main_tail_monotonic_deadline (__main__.PackageTailTests.test_main_tail_monotonic_deadline) (stage='zip-hexdigest')",
+      "test_main_tail_monotonic_deadline (__main__.PackageTailTests.test_main_tail_monotonic_deadline) (stage='zip-open')",
+      "test_main_tail_monotonic_deadline (__main__.PackageTailTests.test_main_tail_monotonic_deadline) (stage='zip-read')",
+      "test_main_tail_monotonic_deadline (__main__.PackageTailTests.test_main_tail_monotonic_deadline) (stage='zip-update')",
+      "test_main_tail_sigterm (__main__.PackageTailTests.test_main_tail_sigterm) (stage='package-return')",
+      "test_main_tail_sigterm (__main__.PackageTailTests.test_main_tail_sigterm) (stage='print-after')",
+      "test_main_tail_sigterm (__main__.PackageTailTests.test_main_tail_sigterm) (stage='print-serialize')",
+      "test_main_tail_sigterm (__main__.PackageTailTests.test_main_tail_sigterm) (stage='receipt-after')",
+      "test_main_tail_sigterm (__main__.PackageTailTests.test_main_tail_sigterm) (stage='receipt-before')",
+      "test_main_tail_sigterm (__main__.PackageTailTests.test_main_tail_sigterm) (stage='zip-close')",
+      "test_main_tail_sigterm (__main__.PackageTailTests.test_main_tail_sigterm) (stage='zip-eof')",
+      "test_main_tail_sigterm (__main__.PackageTailTests.test_main_tail_sigterm) (stage='zip-hexdigest')",
+      "test_main_tail_sigterm (__main__.PackageTailTests.test_main_tail_sigterm) (stage='zip-open')",
+      "test_main_tail_sigterm (__main__.PackageTailTests.test_main_tail_sigterm) (stage='zip-read')",
+      "test_main_tail_sigterm (__main__.PackageTailTests.test_main_tail_sigterm) (stage='zip-update')",
+      "test_main_tail_wall_deadline (__main__.PackageTailTests.test_main_tail_wall_deadline) (stage='package-return')",
+      "test_main_tail_wall_deadline (__main__.PackageTailTests.test_main_tail_wall_deadline) (stage='print-after')",
+      "test_main_tail_wall_deadline (__main__.PackageTailTests.test_main_tail_wall_deadline) (stage='print-serialize')",
+      "test_main_tail_wall_deadline (__main__.PackageTailTests.test_main_tail_wall_deadline) (stage='receipt-after')",
+      "test_main_tail_wall_deadline (__main__.PackageTailTests.test_main_tail_wall_deadline) (stage='receipt-before')",
+      "test_main_tail_wall_deadline (__main__.PackageTailTests.test_main_tail_wall_deadline) (stage='zip-close')",
+      "test_main_tail_wall_deadline (__main__.PackageTailTests.test_main_tail_wall_deadline) (stage='zip-eof')",
+      "test_main_tail_wall_deadline (__main__.PackageTailTests.test_main_tail_wall_deadline) (stage='zip-hexdigest')",
+      "test_main_tail_wall_deadline (__main__.PackageTailTests.test_main_tail_wall_deadline) (stage='zip-open')",
+      "test_main_tail_wall_deadline (__main__.PackageTailTests.test_main_tail_wall_deadline) (stage='zip-read')",
+      "test_main_tail_wall_deadline (__main__.PackageTailTests.test_main_tail_wall_deadline) (stage='zip-update')",
+      "test_main_tail_within_window (__main__.PackageTailTests.test_main_tail_within_window)"
+    ]
+  },
+  {
+    "id": "X3-receipt-compression-6",
+    "target": "workflow：收据上传 compression-level 改 6",
+    "file": ".github/workflows/issue1393-lock-prepare.yml",
+    "killed": true,
+    "summary": [
+      "Ran 86 tests in 1.565s",
+      "FAILED (failures=1)"
+    ],
+    "failing_tests": [
+      "test_workflow_pins_action_compression_and_gates (__main__.GateTests.test_workflow_pins_action_compression_and_gates)"
+    ]
+  },
+  {
+    "id": "X4-strict-equal-loose",
+    "target": "strict_equal 去掉类型相同要求",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "killed": true,
+    "summary": [
+      "Ran 86 tests in 1.581s",
+      "FAILED (failures=2)"
+    ],
+    "failing_tests": [
+      "test_wrong_caps_values_types_unknown_fields_and_old_schema_rejected (__main__.NewCapsContractTests.test_wrong_caps_values_types_unknown_fields_and_old_schema_rejected) (case='network 0')",
+      "test_wrong_caps_values_types_unknown_fields_and_old_schema_rejected (__main__.NewCapsContractTests.test_wrong_caps_values_types_unknown_fields_and_old_schema_rejected) (case='single float')"
+    ]
+  },
+  {
+    "id": "X5-runner-imports-urllib",
+    "target": "runner 引入 urllib.request（网络能力）",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "killed": true,
+    "summary": [
+      "Ran 86 tests in 1.522s",
+      "FAILED (failures=1)"
+    ],
+    "failing_tests": [
+      "test_runner_has_no_network_or_http_fetch_path (__main__.NewCapsContractTests.test_runner_has_no_network_or_http_fetch_path)"
+    ]
+  },
+  {
+    "id": "X6-receipt-actual-limit-8192",
+    "target": "workflow：ACTUAL 事前上限 4096→8192",
+    "file": ".github/workflows/issue1393-lock-prepare.yml",
+    "killed": false,
+    "summary": [
+      "Ran 86 tests in 1.555s",
+      "OK"
+    ],
+    "failing_tests": []
+  },
+  {
+    "id": "X7-gate-no-deadline",
+    "target": "gate 删除剩余窗口要求",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "killed": true,
+    "summary": [
+      "Ran 86 tests in 1.506s",
+      "FAILED (failures=1)"
+    ],
+    "failing_tests": [
+      "test_false_gate_deadline_and_unknown_mode_refuse (__main__.GateTests.test_false_gate_deadline_and_unknown_mode_refuse)"
+    ]
+  },
+  {
+    "id": "X8-check-no-receipt-reserve",
+    "target": "EvidenceIO.check 不含收据预留",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "killed": true,
+    "summary": [
+      "Ran 86 tests in 1.567s",
+      "FAILED (failures=1)"
+    ],
+    "failing_tests": [
+      "test_check_refuses_existing_output_over_combined_cap_equal_passes (__main__.UploadBoundTests.test_check_refuses_existing_output_over_combined_cap_equal_passes)"
+    ]
+  },
+  {
+    "id": "X9-receipt-gate-no-isreg",
+    "target": "receipt-gate 不核收据件为普通文件且不超上限",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "killed": true,
+    "summary": [
+      "Ran 86 tests in 1.570s",
+      "FAILED (failures=1)"
+    ],
+    "failing_tests": [
+      "test_receipt_gate_combined_cap_change_and_actual_limit (__main__.GateTests.test_receipt_gate_combined_cap_change_and_actual_limit)"
+    ]
+  },
+  {
+    "id": "X10-registry-prefix-not-counted",
+    "target": "is_registry_evidence 只认 registry.json（registry-* 不计）",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "killed": true,
+    "summary": [
+      "Ran 86 tests in 1.540s",
+      "FAILED (failures=5, errors=19)"
+    ],
+    "failing_tests": [
+      "test_caps_preflight_before_read_and_registry_total_files_items (__main__.NewCapsRegistryTests.test_caps_preflight_before_read_and_registry_total_files_items)",
+      "test_caps_preflight_before_read_and_registry_total_files_items (__main__.RegistryTests.test_caps_preflight_before_read_and_registry_total_files_items)",
+      "test_complete_registry_json_downgraded_even_when_registry_caps_full (__main__.NewCapsRegistryTests.test_complete_registry_json_downgraded_even_when_registry_caps_full)",
+      "test_failure_path_never_exceeds_registry_files_or_total (__main__.NewCapsRegistryTests.test_failure_path_never_exceeds_registry_files_or_total) (key='files')",
+      "test_gates_refuse_registry_evidence_over_caps (__main__.GateTests.test_gates_refuse_registry_evidence_over_caps)",
+      "test_invalid_lock_still_keeps_raw_and_registry (__main__.ResolutionTests.test_invalid_lock_still_keeps_raw_and_registry)",
+      "test_registry_read_parse_hash_write_expiry_and_exception (__main__.NewCapsRegistryTests.test_registry_read_parse_hash_write_expiry_and_exception) (stage='hash', fault='deadline')",
+      "test_registry_read_parse_hash_write_expiry_and_exception (__main__.NewCapsRegistryTests.test_registry_read_parse_hash_write_expiry_and_exception) (stage='hash', fault='exception')",
+      "test_registry_read_parse_hash_write_expiry_and_exception (__main__.NewCapsRegistryTests.test_registry_read_parse_hash_write_expiry_and_exception) (stage='parse', fault='deadline')",
+      "test_registry_read_parse_hash_write_expiry_and_exception (__main__.NewCapsRegistryTests.test_registry_read_parse_hash_write_expiry_and_exception) (stage='parse', fault='exception')",
+      "test_registry_read_parse_hash_write_expiry_and_exception (__main__.NewCapsRegistryTests.test_registry_read_parse_hash_write_expiry_and_exception) (stage='read', fault='deadline')",
+      "test_registry_read_parse_hash_write_expiry_and_exception (__main__.NewCapsRegistryTests.test_registry_read_parse_hash_write_expiry_and_exception) (stage='read', fault='exception')",
+      "test_registry_read_parse_hash_write_expiry_and_exception (__main__.NewCapsRegistryTests.test_registry_read_parse_hash_write_expiry_and_exception) (stage='write', fault='deadline')",
+      "test_registry_read_parse_hash_write_expiry_and_exception (__main__.NewCapsRegistryTests.test_registry_read_parse_hash_write_expiry_and_exception) (stage='write', fault='exception')",
+      "test_registry_read_parse_hash_write_expiry_and_exception (__main__.RegistryTests.test_registry_read_parse_hash_write_expiry_and_exception) (stage='hash', fault='deadline')",
+      "test_registry_read_parse_hash_write_expiry_and_exception (__main__.RegistryTests.test_registry_read_parse_hash_write_expiry_and_exception) (stage='hash', fault='exception')",
+      "test_registry_read_parse_hash_write_expiry_and_exception (__main__.RegistryTests.test_registry_read_parse_hash_write_expiry_and_exception) (stage='parse', fault='deadline')",
+      "test_registry_read_parse_hash_write_expiry_and_exception (__main__.RegistryTests.test_registry_read_parse_hash_write_expiry_and_exception) (stage='parse', fault='exception')",
+      "test_registry_read_parse_hash_write_expiry_and_exception (__main__.RegistryTests.test_registry_read_parse_hash_write_expiry_and_exception) (stage='read', fault='deadline')",
+      "test_registry_read_parse_hash_write_expiry_and_exception (__main__.RegistryTests.test_registry_read_parse_hash_write_expiry_and_exception) (stage='read', fault='exception')",
+      "test_registry_read_parse_hash_write_expiry_and_exception (__main__.RegistryTests.test_registry_read_parse_hash_write_expiry_and_exception) (stage='write', fault='deadline')",
+      "test_registry_read_parse_hash_write_expiry_and_exception (__main__.RegistryTests.test_registry_read_parse_hash_write_expiry_and_exception) (stage='write', fault='exception')",
+      "test_scan_deadline_and_signal_mid_stream (__main__.NewCapsRegistryTests.test_scan_deadline_and_signal_mid_stream) (fault='deadline')",
+      "test_scan_deadline_and_signal_mid_stream (__main__.NewCapsRegistryTests.test_scan_deadline_and_signal_mid_stream) (fault='signal')"
+    ]
+  },
+  {
+    "id": "X11-workflow-unpinned-v4",
+    "target": "workflow：主包上传改用可变 @v4",
+    "file": ".github/workflows/issue1393-lock-prepare.yml",
+    "killed": true,
+    "summary": [
+      "Ran 86 tests in 1.562s",
+      "FAILED (failures=1)"
+    ],
+    "failing_tests": [
+      "test_workflow_pins_action_compression_and_gates (__main__.GateTests.test_workflow_pins_action_compression_and_gates)"
+    ]
+  },
+  {
+    "id": "BASELINE-AFTER",
+    "killed": null,
+    "returncode": 0,
+    "summary": [
+      "Ran 86 tests in 1.540s",
+      "OK"
+    ],
+    "failing_tests": []
+  }
+]
