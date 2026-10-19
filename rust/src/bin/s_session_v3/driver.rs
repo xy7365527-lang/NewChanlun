@@ -1116,7 +1116,7 @@ mod tests {
             "input-3":{"accept_ns":"30","attempts":[{"begin_ns":"31","commit_ns":"32"},{"begin_ns":"34","commit_ns":"35"}]},
             "recover-1":{"recover_ns":"13"},"recover-2":{"recover_ns":"23"},"recover-3":{"recover_ns":"26"}}}),
         );
-        let (mut native, second, _) = recover_lock_driver(&f);
+        let (mut native, second, ready) = recover_lock_driver(&f);
         let before = native.conn.recover_probe_for_test();
         let old = before.qualification.unwrap();
         let reply = native.conn.recover("2", &native.clock, "recover-2").unwrap();
@@ -1138,7 +1138,12 @@ mod tests {
         let chained = native.conn.recover_probe_for_test();
         assert!(chained.serial > after.serial);
         assert_eq!(chained.qualification.unwrap().writer_epoch, Some(3));
-        // 旧 epoch 请求被拒，且不保留任何资格。
+        // 现 epoch 的无写请求保留资格并归还来源池；随后旧 epoch 请求被拒，且不保留任何资格。
+        native.epoch = "3".into();
+        native.handle(ready).unwrap();
+        let chained = native.conn.recover_probe_for_test();
+        assert!(!chained.stale, "{chained:?}");
+        assert_eq!(chained.qualification.unwrap().writer_epoch, Some(3));
         native.epoch = "2".into();
         let mut context = recover_lock_context(&mut native);
         let error = native
@@ -1226,14 +1231,16 @@ mod tests {
         let f = Fixture::new();
         let (native, _, _) = recover_lock_driver(&f);
         let serial = native.conn.recover_probe_for_test().serial;
-        Connection::open(&f.db)
+        let dv = |c: &Connection| -> i64 { c.query_row("PRAGMA main.data_version", [], |r| r.get(0)).unwrap() };
+        let dv0 = dv(&native.conn);
+        let changed = Connection::open(&f.db)
             .unwrap()
             .execute("UPDATE meta SET value=value WHERE key='generation'", [])
             .unwrap();
-        assert!(native
-            .conn
-            .recover("2", &native.clock, "recover-2")
-            .is_err());
+        let dv1 = dv(&native.conn);
+        let outcome = native.conn.recover("2", &native.clock, "recover-2");
+        eprintln!("DIAG changed={changed} dv0={dv0} dv1={dv1} outcome={outcome:?} probe={:?}", native.conn.recover_probe_for_test());
+        assert!(outcome.is_err());
         assert_recover_revoked(&native, &f, serial, "1");
         // Recover 前读域变化（连接级 PRAGMA）：同样撤销。
         let f = Fixture::new();
