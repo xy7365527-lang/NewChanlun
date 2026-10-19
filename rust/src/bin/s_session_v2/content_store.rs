@@ -2520,15 +2520,14 @@ fn capture_originals_admitted(
             .len()
             .checked_add(97)
             .ok_or_else(|| NativeAdmission(work).native_overflow())?;
-        let source_permit = work
-            .map(|work| work.reserve_native(source_bytes))
-            .transpose()?;
+        // #1488 P2-A：来源只登记合同额，父账物理只由正文块许可计一次。
+        let source_claim = work.map(|_| source_bytes);
         let (body, body_permit) = native_body_reserved(work, bytes)?;
         nodes.insert_unchecked(digest, tag, body);
         if let Some(index) = body_permits.iter().position(|(old, _, _)| old == &digest) {
             drop(body_permits.remove(index));
         }
-        body_permits.try_push((digest, body_permit, source_permit))?;
+        body_permits.try_push((digest, body_permit, source_claim))?;
         if let Some(permit) = next_permit {
             tree_permit.try_push(permit)?;
         }

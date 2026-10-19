@@ -2028,7 +2028,7 @@ enum CaptureNodes {
 struct NativeNode {
     tag: u8,
     body: CodecVec<u8>,
-    source_permit: Option<capture_allocation::scratch::NativeReservation>,
+    source_claim: Option<SourceClaim>,
     // 成功后才分配证明；未读节点不常驻完整 CheckedFrame。
     proof:
         std::cell::RefCell<Option<capture_allocation::native_owned::NativeBox<NativeFrameProof>>>,
@@ -2045,11 +2045,36 @@ impl NativeNode {
         Self {
             tag,
             body,
-            source_permit: None,
+            source_claim: None,
             proof: Default::default(),
             owner_dirty: Default::default(),
             owner_next: Default::default(),
         }
+    }
+}
+/// #1488 P2-A（主控裁定）：S7来源合同角色（正文+digest/tag/证书=body.len()+97），只进E/O合同账，
+/// 不在父账物理reserve；父账物理只由正文块自身的Native许可计一次。只能对同一节点内已物理计费
+/// （Native绑定）的正文块签出，指不到即拒。原先这里是一张同额物理许可（r14：803张/111,334B），
+/// 与正文块许可对同一allocation双计。
+#[cfg(feature = "s_capture_native_testonly")]
+#[derive(Debug)]
+struct SourceClaim {
+    bytes: usize,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl SourceClaim {
+    fn on_body(body: &CodecVec<u8>) -> Result<Self, CodecError> {
+        if !body.is_native_bound() {
+            return Err(CodecError::new(
+                code::SOURCE,
+                "来源合同项指不到已物理计费的正文块",
+            ));
+        }
+        let bytes = body
+            .len()
+            .checked_add(97)
+            .ok_or_else(|| CodecError::new(code::SOURCE, "来源合同额溢出"))?;
+        Ok(Self { bytes })
     }
 }
 #[cfg(feature = "s_capture_native_testonly")]
@@ -3026,7 +3051,8 @@ struct OriginalFees {
     bodies: CodecVec<(
         NodeDigest,
         Option<capture_allocation::scratch::NativeReservation>,
-        Option<capture_allocation::scratch::NativeReservation>,
+        // #1488 P2-A：来源合同额（只记账，不物理reserve），须指到同条已计费正文。
+        Option<usize>,
     )>,
     table: CodecVec<capture_allocation::scratch::NativeReservation>,
 }
@@ -3253,16 +3279,9 @@ impl AuditCapture {
             }
             return Ok(true);
         }
-        // body 按值从 effects 移入，其分配已收费；S7 正文/证书归属另行全额登记。
-        let source_permit = if let Some(work) = work {
-            let bytes = body
-                .len()
-                .checked_add(97)
-                .ok_or_else(|| work.reject(capture_allocation::scratch::ScratchFailure::Budget))?;
-            Some(work.reserve_native(bytes)?)
-        } else {
-            None
-        };
+        // body 按值从 effects 移入，其分配已收费；S7 正文/证书归属只登记合同项（#1488 P2-A），
+        // 须指到这块已物理计费的正文，不再在父账同额物理reserve。
+        let source_claim = work.map(|_| SourceClaim::on_body(&body)).transpose()?;
         if native.nodes.len() == native.nodes.capacity() {
             let capacity = native.nodes.capacity().saturating_mul(2).max(4);
             let growth = capacity
@@ -3290,7 +3309,7 @@ impl AuditCapture {
             .checked_add(bytes)
             .ok_or_else(|| CodecError::new(code::SOURCE, "原件body总capacity溢出"))?;
         let mut node = NativeNode::new_codec(tag, body);
-        node.source_permit = source_permit;
+        node.source_claim = source_claim;
         native.nodes.insert(digest, node);
         let memo = native.memo.get_mut();
         memo.entry_limit = memo.entry_limit.saturating_add(1);
@@ -3424,7 +3443,7 @@ impl AuditCapture {
         mut bodies: CodecVec<(
             NodeDigest,
             Option<capture_allocation::scratch::NativeReservation>,
-            Option<capture_allocation::scratch::NativeReservation>,
+            Option<usize>,
         )>,
     ) -> Result<Self, CodecError> {
         bodies.sort_unstable_by(|a, b| b.0.cmp(&a.0));
@@ -3437,11 +3456,15 @@ impl AuditCapture {
         let fees = self.original_fees.as_ref().unwrap();
         if nodes.len() != fees.bodies.len()
             || nodes.iter().zip(fees.bodies.iter().rev()).any(
-                |((digest, (_, body)), (key, fee, _))| {
+                |((digest, (_, body)), (key, fee, source))| {
                     digest != key
                         || fee
                             .as_ref()
                             .is_some_and(|fee| fee.bytes() != body.capacity())
+                        // #1488 P2-A：来源合同项指不到已物理计费的正文块即拒。
+                        || source.is_some_and(|bytes| {
+                            fee.is_none() || body.len().checked_add(97) != Some(bytes)
+                        })
                 },
             )
         {
@@ -3525,17 +3548,25 @@ impl AuditCapture {
                 .checked_add(body.capacity())
                 .ok_or_else(|| CodecError::new(code::SOURCE, "原件capacity溢出"))?;
             let mut body = CodecVec::from_plain(body);
-            let mut source_permit = None;
+            let mut source_claim = None;
             if let Some(fees) = &mut self.original_fees {
                 let (key, fee, source) = fees.bodies.pop().expect("已核原件费用条目");
                 debug_assert_eq!(key, digest);
                 if let Some(fee) = fee {
                     body.attach_native_reservation(fee)?;
                 }
-                source_permit = source;
+                if let Some(bytes) = source {
+                    let claim = SourceClaim::on_body(&body)?;
+                    if claim.bytes != bytes {
+                        return Err(CodecError::scratch(
+                            capture_allocation::scratch::ScratchFailure::Ledger,
+                        ));
+                    }
+                    source_claim = Some(claim);
+                }
             }
             let mut node = NativeNode::new_codec(tag, body);
-            node.source_permit = source_permit;
+            node.source_claim = source_claim;
             native_nodes.insert(digest, node);
         }
         // Legacy BTree迭代器已耗尽，树节点已经释放；现在才归还旧表及费用索引容量。
@@ -3685,6 +3716,30 @@ impl AuditCapture {
             .saturating_add(certificates.template.retained_bytes())
     }
 
+    /// #1488 P2-A：逐节点复核来源合同项——每项须指到同节点已物理计费（Native绑定）的正文块，
+    /// 且合同额=正文+97；指不到即拒。返回（合同项数，合同额和）；无项的节点不计。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[doc(hidden)]
+    pub fn native_source_claims_for_testonly(&self) -> Result<(usize, usize), CodecError> {
+        let CaptureNodes::Native(native) = &self.nodes else {
+            return Ok((0, 0));
+        };
+        native
+            .nodes
+            .values()
+            .filter_map(|node| node.source_claim.as_ref().map(|claim| (node, claim)))
+            .try_fold((0usize, 0usize), |(count, sum), (node, claim)| {
+                let backed = SourceClaim::on_body(&node.body)?;
+                if backed.bytes != claim.bytes {
+                    return Err(CodecError::scratch(
+                        capture_allocation::scratch::ScratchFailure::Ledger,
+                    ));
+                }
+                Ok((count + 1, sum.checked_add(claim.bytes).ok_or_else(|| {
+                    CodecError::new(code::SOURCE, "来源合同额溢出")
+                })?))
+            })
+    }
     #[cfg(feature = "s_capture_native_testonly")]
     #[doc(hidden)]
     pub fn native_retention_numbers_for_testonly(&self) -> Option<NativeCaptureRetention> {
@@ -7905,13 +7960,19 @@ mod native_owner_codec_bridge_tests {
     fn append(capture: &mut AuditCapture, nodes: MemoryNodes) {
         let parent = Parent::new(32 << 20, capture.owner_codec_retained_bytes_for_testonly());
         run(&parent, |work| {
+            // #1488 P2-A：活动域追加的正文须已物理计费，来源合同项才指得到它。
             for (digest, (tag, body)) in nodes.nodes {
-                assert!(capture.append_original_for_owner_testonly(
+                let mut codec = CodecVec::default();
+                codec.try_reserve_native(work, body.len())?;
+                for byte in body {
+                    codec.try_push_native(byte, work)?;
+                }
+                assert!(capture.append_original_codec_for_owner_testonly(
                     digest,
                     tag,
-                    body,
+                    codec,
                     usize::MAX,
-                    Some(work)
+                    work
                 )?);
             }
             Ok(())

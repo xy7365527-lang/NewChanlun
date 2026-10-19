@@ -3251,8 +3251,10 @@ fn r13_optional_sql_rows_share_parent_without_changing_cells() {
 /// #1488 P2-4：封存池逐许可普查（独立于live差额）。`seal`=审计开始至封存后本父账全部
 /// 签发/归还事件；`released`=封存池析构期间事件，`freed0`=析构前本线程累计真实释放。
 /// C1 残余+逐张存活许可之和=封存后live；C2 无未匹配归还；C3 存活许可均为Native；
-/// C4 池析构恰好归还封存存活多重集且不签发；C5 析构时无真实释放支撑的归还恰为节点
-/// 来源许可（每节点一张、和=正文+digest/tag/证书——S7双角色的合同额），多出即重复计费。
+/// C4 池析构恰好归还封存存活多重集且不签发；C5（#1488 P2-A主控裁定后）来源合同项每节点一项、
+/// 和=正文+digest/tag/证书，且都指到已物理计费的正文块；析构时不再有任何无真实释放支撑的归还。
+/// 原先C5期望每节点一张同额物理来源许可（r14：803张/111,334B=node_body+97·nodes），那是同一
+/// allocation在父账的第二个物理角色；现降为合同角色，只在O的source_cost里计一次，父账live随之少111,334B。
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 fn seal_census_check(
     seal: &[native::CensusEvent],
@@ -3262,6 +3264,7 @@ fn seal_census_check(
     released: &[native::CensusEvent],
     breakdown: &Value,
     nodes: usize,
+    claims: (usize, usize),
 ) -> Result<Value, String> {
     let mut live: Vec<(&'static str, usize)> = Vec::new();
     let mut unmatched = Vec::new();
@@ -3320,13 +3323,18 @@ fn seal_census_check(
             .ok_or(format!("来源成本缺{name}"))
     };
     let expected = field("node_body_bytes")? + field("node_digest_tag_certificate_bytes")?;
-    if unbacked != (nodes, expected) {
+    if claims != (nodes, expected) {
         return Err(format!(
-            "C5 无释放支撑的归还{unbacked:?}不等于节点来源许可({nodes}, {expected})：重复计费"
+            "C5 来源合同项{claims:?}不等于每节点一项({nodes}, {expected})"
+        ));
+    }
+    if unbacked != (0, 0) {
+        return Err(format!(
+            "C5 无释放支撑的归还{unbacked:?}：重复计费"
         ));
     }
     Ok(
-        json!({"permits":live.len(),"sealed_bytes":sum,"node_source_permits":nodes,"node_source_bytes":expected}),
+        json!({"permits":live.len(),"sealed_bytes":sum,"node_source_claims":claims.0,"node_source_claim_bytes":claims.1,"node_source_physical_permits":0}),
     )
 }
 
@@ -3390,6 +3398,7 @@ fn p2_4_seal_census_flags_duplicate_permit_on_real_seal_path() {
             let after_seal = parent.live();
             let pool = keeper.take().expect("封存池存活");
             let nodes = pool.nodes;
+            let claims = pool.originals.native_source_claims_for_testonly().unwrap();
             parent.census_arm();
             let freed0 = allocation_probe::released_bytes();
             drop(pool);
@@ -3408,6 +3417,7 @@ fn p2_4_seal_census_flags_duplicate_permit_on_real_seal_path() {
                 &released,
                 &report["source_cost_breakdown"],
                 nodes,
+                claims,
             );
             eprintln!(
                 "P24_SEAL_CENSUS {}",
@@ -3678,6 +3688,7 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                 }
                 let pool = keeper.take().expect("封存池存活");
                 let nodes = pool.nodes;
+                let claims = pool.originals.native_source_claims_for_testonly().unwrap();
                 parent.census_arm();
                 let freed0 = allocation_probe::released_bytes();
                 drop(pool);
@@ -3691,6 +3702,7 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                     &released,
                     &report["source_cost_breakdown"],
                     nodes,
+                    claims,
                 )
                 .unwrap();
                 eprintln!("R14_SEAL_CENSUS {census}");
@@ -3699,6 +3711,11 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                     .expect("封存池析构不得让父账增长");
                 assert!(sealed > 0, "封存新增许可必须留在冷核同父账");
                 seal_identity(parent, residual, after_seal, &[(parent, sealed)]).unwrap();
+                // #1488 P2-A：父账物理只计正文块一次——封存差额=普查逐张物理许可之和，其中不含
+                // 来源合同项（原803张/111,334B同额物理来源许可已降为O内合同角色）。
+                assert_eq!(census["sealed_bytes"].as_u64().unwrap() as usize, sealed);
+                assert_eq!(census["node_source_physical_permits"], 0);
+                assert_eq!(census["node_source_claims"].as_u64().unwrap() as usize, nodes);
 
                 // 负控一｜重复计费：同父对已封存对象再收一次同额费用，恒等式必须失败。
                 let held = parent.reserve(sealed).unwrap();

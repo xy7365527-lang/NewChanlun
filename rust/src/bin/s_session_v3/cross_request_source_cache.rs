@@ -368,6 +368,10 @@ impl Pool {
         let retained = originals
             .native_retention_numbers_for_testonly()
             .ok_or("SourceCachePrototypeRetentionInvalid")?;
+        // #1488 P2-A：来源合同项只进O合同账；封存时逐项复核都指到已物理计费的正文块，指不到即拒。
+        let (claims, claimed) = originals
+            .native_source_claims_for_testonly()
+            .map_err(|e| e.to_string())?;
         let mut source_cost = SourceCost {
             node_body_bytes: retained.body_len,
             // 原tuple digest/tag和唯一原件证书；无独立children/slots，不虚加收费。
@@ -465,6 +469,16 @@ impl Pool {
         ]
         .into_iter()
         .try_fold(8, add)?;
+        if claims != 0
+            && (claims != nodes
+                || claimed
+                    != add(
+                        source_cost.node_body_bytes,
+                        source_cost.node_digest_tag_certificate_bytes,
+                    )?)
+        {
+            return Err("SourceClaimContractMismatch".into());
+        }
         // size_of<Pool>已含inline Capture/Binding/metrics；capture_owner_bytes仅披露，不重复相加。
         capacity.total_payload_bytes = [
             capacity.node_body_vec_capacity_bytes,
@@ -825,6 +839,92 @@ mod tests {
         let mut keeper = Keeper::new(usize::MAX);
         audit(&mut f, &mut keeper).unwrap();
         (f, keeper)
+    }
+
+    /// #1488 P2-A（主控裁定）锁：来源合同项（正文+97）只进O合同账、不在父账物理reserve；
+    /// 每项必须指到已物理计费的正文块，指不到（无正文许可/额不符）即拒；同一allocation在父账
+    /// 第二次物理reserve被拒（负控）。父账live只多正文块与索引许可，不多来源合同额。
+    #[test]
+    fn p2a_source_claim_points_to_charged_body_and_duplicate_reserve_rejected() {
+        use super::super::audit_owner::native::Budget;
+        use sc::capture_allocation::scratch::NativeReservation;
+        type Fees = sc::CodecVec<(sc::NodeDigest, Option<NativeReservation>, Option<usize>)>;
+        let budget = Budget::new(1024 * 1024, 0).unwrap();
+        let body = b"p2a-source-body".to_vec();
+        let tag = sc::tag::BYTES_CHUNK;
+        let digest = sc::frame(tag, &body);
+        let claim = body.len() + 97;
+        let capture = |fees: Vec<(sc::NodeDigest, Option<NativeReservation>, Option<usize>)>| {
+            let mut nodes = sc::MemoryNodes::new();
+            nodes.insert_unchecked(digest, tag, body.clone());
+            sc::AuditCapture::new(nodes)
+                .with_original_fees_for_testonly(sc::CodecVec::default(), Fees::from_plain(fees))
+        };
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let fee = || work.reserve_native(body.len()).map(Some);
+                let e = |e: sc::CodecError| e.to_string();
+                let base = budget.live();
+                // 指不到：来源合同项所在条目没有正文物理许可。
+                assert!(capture(vec![(digest, None, Some(claim))]).is_err());
+                assert_eq!(budget.live(), base, "被拒合同项不留物理账");
+                // 额不符：合同额必须恰为正文+97。
+                assert!(capture(vec![(digest, fee().map_err(e)?, Some(claim - 1))]).is_err());
+                assert_eq!(budget.live(), base);
+                // 对照：同一正文带/不带来源合同项，父账物理live相同（合同项不物理计费）。
+                let mut live = Vec::new();
+                for source in [None, Some(claim)] {
+                    let native = capture(vec![(digest, fee().map_err(e)?, source)])
+                        .and_then(|c| c.enable_native_frame_reuse_admitted_for_testonly(Some(work)))
+                        .map_err(e)?;
+                    live.push(budget.live());
+                    let claims = native.native_source_claims_for_testonly().map_err(e)?;
+                    assert_eq!(claims, if source.is_some() { (1, claim) } else { (0, 0) });
+                    if source.is_some() {
+                        // Native捕获上以无正文许可的明文正文追加，来源合同项指不到即拒。
+                        let plain = b"p2a-plain".to_vec();
+                        let mut native = native;
+                        let error = native
+                            .append_original_for_owner_testonly(
+                                sc::frame(tag, &plain),
+                                tag,
+                                plain,
+                                usize::MAX,
+                                Some(work),
+                            )
+                            .expect_err("明文正文无物理计费，来源合同项必须拒绝");
+                        assert!(error.to_string().contains("指不到已物理计费的正文块"), "{error}");
+                        assert_eq!(native.native_source_claims_for_testonly().map_err(e)?, (1, claim));
+                    }
+                }
+                assert_eq!(live[0], live[1], "来源合同项不得在父账物理reserve");
+                assert!(live[0] - base >= body.len(), "正文块物理计费一次");
+                // 负控：同一allocation重复物理reserve——已绑许可的正文块再附一张同额许可被拒，
+                // 被拒许可析构后父账回到原值。
+                let mut held = sc::CodecVec::default();
+                held.try_reserve_native(work, 16).map_err(e)?;
+                for byte in b"held" {
+                    held.try_push_native(*byte, work).map_err(e)?;
+                }
+                let charged = budget.live();
+                let duplicate = work.reserve_native(held.capacity()).map_err(e)?;
+                assert_eq!(budget.live(), charged + held.capacity());
+                assert!(held.attach_native_reservation(duplicate).is_err(), "同一allocation重复物理reserve必须被拒");
+                assert_eq!(budget.live(), charged, "被拒的重复许可已归还");
+                // 负控：同一正文条目两张物理许可（两条费用对一个节点）被拒。
+                assert!(capture(vec![
+                    (digest, fee().map_err(e)?, Some(claim)),
+                    (digest, fee().map_err(e)?, None),
+                ])
+                .is_err());
+                assert_eq!(budget.live(), charged);
+                drop(held);
+                assert_eq!(budget.live(), base);
+                Ok::<_, String>(())
+            })
+            .unwrap();
     }
 
     #[test]
