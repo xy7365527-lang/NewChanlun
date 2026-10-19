@@ -2294,7 +2294,8 @@ mod construction_coverage_tests {
             assert_eq!(parent.peak(), base + j.bytes);
             assert_eq!(parent.moved_in_for_test(), 0);
         }
-        drop(recording);
+        // hook/线程槽持 journal 共享引用；finish 卸下后 journal 析构，许可随之全额返还。
+        assert!(recording.finish(&tx, &mut [], 0).unwrap().is_none());
         assert_eq!(parent.live(), base);
     }
     // 无共享父：私有子账先出生（moved_in 恒 0），首笔许可等于 journal 实占；材料签发不再补签。
