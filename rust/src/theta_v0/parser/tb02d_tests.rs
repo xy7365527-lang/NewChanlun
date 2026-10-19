@@ -261,7 +261,7 @@ fn tb1493_strip_empty_window_members(mut v: serde_json::Value) -> serde_json::Va
         match v {
             serde_json::Value::Object(m) => {
                 if let Some(w) = m.remove("window_members") {
-                    assert_eq!(w, serde_json::json!([]), "tb02d 设计出现非空窗成员");
+                    assert_eq!(w, serde_json::json!([]), "tb02d 设计出现非空窗成员：{m:?}");
                 }
                 m.values_mut().for_each(walk);
             }
