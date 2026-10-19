@@ -475,6 +475,7 @@ impl Recording {
                 j.unexpected = true;
                 return;
             }
+            uo_diag(&format!("row_{}_{:?}", table.name(), action));
             if !j.reserve_one(false) {
                 return;
             }
@@ -505,6 +506,7 @@ impl Recording {
         tx.update_hook(None::<fn(rusqlite::hooks::Action, &str, &str, i64)>)
             .map_err(invalid)?;
         clear_node_journal(tx);
+        UO_DIAG.with(|d| { let mut d = d.borrow_mut(); eprintln!("UO_EFFECTS_DIAG {:?} distinct={} keys={} op={:?} set_required={} overflow={}", d.0, d.1.len(), self.journal.lock().map(|j| j.keys.len()).unwrap_or(0), self.journal.lock().map(|j| format!("{:?}", j.operation)).unwrap_or_default(), self.journal.lock().map(|j| j.set_required).unwrap_or(false), self.journal.lock().map(|j| j.overflow).unwrap_or(false)); *d = Default::default(); });
         let mut journal = Arc::try_unwrap(self.journal)
             .map_err(|_| invalid("效果日志仍有外借"))?
             .into_inner()
@@ -890,6 +892,10 @@ fn verify_storage(tx: &Transaction<'_>, table: Table, row: &[SqlCell]) -> Result
 }
 
 thread_local! {
+    static UO_DIAG: std::cell::RefCell<(std::collections::BTreeMap<String,u64>, std::collections::HashSet<[u8;32]>, std::collections::HashSet<[u8;32]>)> = std::cell::RefCell::new(Default::default());
+}
+fn uo_diag(k: &str) { UO_DIAG.with(|d| *d.borrow_mut().0.entry(k.to_string()).or_default() += 1); }
+thread_local! {
     static NODE_JOURNAL: std::cell::RefCell<Option<(usize,Arc<Mutex<Journal>>)>> = const { std::cell::RefCell::new(None) };
 }
 pub(super) fn clear_node_journal(tx: &Transaction<'_>) {
@@ -931,6 +937,10 @@ pub(crate) fn note_node(tx: &Transaction<'_>, digest: [u8; 32], before: u64, ins
             j.unexpected = true;
             return;
         }
+        uo_diag("node_calls");
+        uo_diag(if inserted { "node_inserted" } else { "node_noop" });
+        UO_DIAG.with(|d| { let mut d = d.borrow_mut(); if !d.1.insert(digest) { *d.0.entry("node_repeat_digest".into()).or_default() += 1; } if inserted && !d.2.insert(digest) { *d.0.entry("node_reinserted".into()).or_default() += 1; } });
+        if j.overflow { uo_diag("node_after_overflow"); }
         let existed = j.nodes.contains(&digest);
         if existed && !j.set_required {
             return;
