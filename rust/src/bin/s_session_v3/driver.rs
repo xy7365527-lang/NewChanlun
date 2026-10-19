@@ -3870,6 +3870,60 @@ mod tests {
                         }
                     }
                     eprintln!("  wrote {} nodes to {}", native_nodes.len(), nodes_path);
+
+                    // BFS 可达性分析：从所有 roots 出发，标记能到达的 nodes
+                    use std::collections::{HashMap, HashSet};
+                    let nodes_map: HashMap<Vec<u8>, Vec<u8>> = native.conn
+                        .prepare("SELECT digest,tag,body FROM s_content_nodes")
+                        .unwrap()
+                        .query_map([], |r| {
+                            Ok((r.get::<_, Vec<u8>>(0)?, r.get::<_, u8>(1)?, r.get::<_, Vec<u8>>(2)?))
+                        })
+                        .unwrap()
+                        .collect::<Result<Vec<_>, _>>()
+                        .unwrap()
+                        .into_iter()
+                        .map(|(digest, tag, body)| {
+                            let offsets: &[usize] = match tag {
+                                3 | 4 | 5 | 6 => &[8],
+                                7 | 18 => &[0],
+                                19 => &[8, 40],
+                                20 => &[0, 32],
+                                _ => &[],
+                            };
+                            let mut children = Vec::new();
+                            for &offset in offsets {
+                                if body.len() >= offset + 32 {
+                                    children.extend_from_slice(&body[offset..offset + 32]);
+                                }
+                            }
+                            (digest, children)
+                        })
+                        .collect();
+                    let mut reachable = HashSet::new();
+                    let mut todo = roots.clone();
+                    while let Some(digest) = todo.pop() {
+                        if !reachable.insert(digest.clone()) {
+                            continue;
+                        }
+                        if let Some(children_blob) = nodes_map.get(&digest) {
+                            for child_chunk in children_blob.chunks(32) {
+                                if child_chunk.len() == 32 {
+                                    todo.push(child_chunk.to_vec());
+                                }
+                            }
+                        }
+                    }
+                    let unreachable: Vec<_> = nodes_map.keys()
+                        .filter(|d| !reachable.contains(*d))
+                        .collect();
+                    eprintln!("  reachable: {}, unreachable: {}", reachable.len(), unreachable.len());
+                    if !unreachable.is_empty() {
+                        eprintln!("  前 10 个不可达节点:");
+                        for (i, digest) in unreachable.iter().take(10).enumerate() {
+                            eprintln!("    [{}] {}", i + 1, digest.iter().map(|b| format!("{:02x}", b)).collect::<String>());
+                        }
+                    }
                 }
             }
 
