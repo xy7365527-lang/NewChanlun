@@ -1,0 +1,52 @@
+{
+  "status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER",
+  "semantic_oracle": "not_evaluated",
+  "browser": "not_evaluated",
+  "input_count": 27,
+  "core_records": 154,
+  "cleanup": {
+    "outcomes": [
+      {
+        "action": "helper-close-input",
+        "result": null
+      },
+      {
+        "action": "helper-wait",
+        "result": 0
+      },
+      {
+        "action": "helper-close-output",
+        "result": null
+      },
+      {
+        "action": "helper-close-error-log",
+        "result": null
+      },
+      {
+        "action": "stop-q",
+        "result": {
+          "service": "q",
+          "state": "stopped",
+          "pid": 175,
+          "signal": "SIGTERM",
+          "exit_observation_warnings": []
+        }
+      },
+      {
+        "action": "stop-s",
+        "result": {
+          "service": "s",
+          "state": "stopped",
+          "pid": 167,
+          "signal": "SIGTERM",
+          "exit_observation_warnings": []
+        }
+      },
+      {
+        "action": "close-event-log",
+        "result": null
+      }
+    ],
+    "errors": []
+  }
+}

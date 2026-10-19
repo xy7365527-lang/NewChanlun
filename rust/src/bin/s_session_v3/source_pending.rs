@@ -568,6 +568,7 @@ mod tests {
             (crate::LEGACY_V3_RULE_REVISION, false),
             ("s2-axis-quantifiers+new-bi/1+segment-first/1", false),
             ("s2-axis-quantifiers+new-bi/1+segment-second/1", false),
+            ("s2-axis-quantifiers+new-bi/2+segment-second/1", true),
             (crate::V3_RULE_REVISION, true),
             (crate::RULE_REVISION, true),
         ] {

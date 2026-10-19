@@ -28,6 +28,7 @@ RULE_CONTRACTS = {
     "s2-axis-quantifiers+new-bi/1+segment-first/1": ("s-new-bi/1", "s-segment/1", KNOWLEDGE_DOMAIN_V1),
     "s2-axis-quantifiers+new-bi/1+segment-second/1": ("s-new-bi/1", "s-segment/2", KNOWLEDGE_DOMAIN_V1),
     "s2-axis-quantifiers+new-bi/2+segment-second/1": ("s-new-bi/2", "s-segment/2", KNOWLEDGE_DOMAIN_V2),
+    "s2-axis-quantifiers+new-bi/2+segment-second/2": ("s-new-bi/2", "s-segment/3", KNOWLEDGE_DOMAIN_V2),
 }
 
 FACT_COLUMNS = ("object_id", "object_revision", "kind", "batch_id", "fact_key", "payload_json", "input_refs_json", "source_coords_json", "first_known_generation", "first_known_cut", "published_generation", "withdrawn_generation", "withdrawal_reason", "superseded_by")
@@ -428,8 +429,10 @@ def validate_segment_links(records, axes=None):
     """#1414：核同cut内容引用和FIRST/SECOND角色，不计算段终结。"""
     by_id = {r["object_id"]: r for r in records}
     for r in records:
-        if r["kind"] != "CC-013.segment" or r["payload"]["schema_revision"] != "s-segment/2":
+        # #1420：s-segment/3 同 v2 走引用闭合；被引序列须与段同一合同版本。
+        if r["kind"] != "CC-013.segment" or r["payload"]["schema_revision"] not in ("s-segment/2", "s-segment/3"):
             continue
+        schema = r["payload"]["schema_revision"]
         d = r["payload"]["data"]
         if d["second_sequence_id"] is None and not d["fact_vector"]["scan_complete"]:
             raise ValueError("未完成扫描缺SECOND资源证据")
@@ -438,7 +441,7 @@ def validate_segment_links(records, axes=None):
             if oid is None:
                 continue
             seq = by_id.get(oid)
-            if seq is None or seq["kind"] != "CC-012.feature_sequence" or seq["payload"]["schema_revision"] != "s-segment/2":
+            if seq is None or seq["kind"] != "CC-012.feature_sequence" or seq["payload"]["schema_revision"] != schema:
                 raise ValueError("段引用缺同cut序列对象")
             q = seq["payload"]["data"]
             if q["entity_id"] != d[prefix + "_id"] or q["segment_id"] != d["entity_id"] or q["role"] != role:
@@ -454,6 +457,9 @@ def validate_segment_links(records, axes=None):
             if role == "SECOND_SEQUENCE" and d["result"] == "CASE_TWO":
                 if q["second_sequence_status"] != "CONFIRMED" or d["fact_vector"]["termination_witness"]["second_match"] != q["facts"]["matched"]:
                     raise ValueError("第二种终结证书未绑定同次SECOND命中")
+            if role == "SECOND_SEQUENCE" and schema == "s-segment/3" and d["result"] in ("KILLED_CASE_TWO", "PENDING_CASE_TWO"):
+                if q["second_sequence_status"] != ("KILLED" if d["result"] == "KILLED_CASE_TWO" else "PENDING"):
+                    raise ValueError("段结果未绑定SECOND终态")
     if axes is not None and "CC-014" in axes:
         if axes["CC-014"]["evidence"]["object_ids"] != axes["CC-013"]["evidence"]["object_ids"] or any(by_id[oid]["kind"] != "CC-013.segment" for oid in axes["CC-014"]["evidence"]["object_ids"]):
             raise ValueError("CC014未绑定CC013实际对象")
@@ -509,11 +515,153 @@ def validate_shape_refs(shape, effective=None, groups=None):
         raise ValueError("CC006 source_coords 不等于成员与构造/边界依据并集")
 
 
+SECOND_SCAN_BUDGET_POLICY = "second-seq-scan-budget/1"
+SECOND_FOLD_CURSOR_FIELDS = ("schema", "rule_revision", "budget_policy", "budget_granted", "candidate", "input_stroke_count", "from_stroke", "through_stroke", "consumed_len", "consumed_digest", "dir_state", "standard", "breach_watermark", "semantic_state", "killed_by", "matched")
+
+
+def _fold_cursor(c, element, kill, check):
+    """#1420 K1 游标线形自身：形状/枚举/整数/摘要、候选起点（b+1）与封存见证非空性；同对象相等绑定由调用方另做。"""
+    keys(c, SECOND_FOLD_CURSOR_FIELDS, "K1游标")
+    if (c["schema"], c["rule_revision"], c["budget_policy"]) != ("second-fold-cursor/1", "second-candidate-terminal/1", SECOND_SCAN_BUDGET_POLICY):
+        raise ValueError("K1游标版本不符")
+    candidate = c["candidate"]
+    keys(candidate, ("seg_dir", "b_stroke", "candidate_extreme"), "K1候选身份")
+    if candidate["seg_dir"] not in ("UP", "DOWN"):
+        raise ValueError("K1候选方向未声明")
+    integer(candidate["candidate_extreme"], "cursor.candidate_extreme")
+    start = integer(c["from_stroke"], "cursor.from_stroke", 0)
+    if integer(candidate["b_stroke"], "b_stroke", 0) + 1 != start:
+        raise ValueError("K1游标起点不是b笔之后")
+    for name in ("input_stroke_count", "through_stroke", "consumed_len"):
+        integer(c[name], "cursor." + name, 0)
+    if c["budget_granted"] is not None:
+        integer(c["budget_granted"], "cursor.budget_granted", 1)
+    if type(c["consumed_digest"]) is not str or not re.fullmatch(r"[0-9a-f]{16}", c["consumed_digest"]):
+        raise ValueError("K1游标指纹不规范")
+    direction(c["dir_state"])
+    for e in array(c["standard"], "cursor.standard"):
+        element(e)
+    if c["breach_watermark"] is not None:
+        integer(c["breach_watermark"], "cursor.breach_watermark")
+    sealed = c["semantic_state"]
+    # 游标只封存已决（CONFIRMED/KILLED）或未决（null）；OPEN 与覆盖只在出具结果时按输入末端判定。
+    if sealed not in (None, "CONFIRMED", "KILLED_BY_NEW_EXTREME"):
+        raise ValueError("K1游标封存了未决终态")
+    if (c["killed_by"] is not None) != (sealed == "KILLED_BY_NEW_EXTREME") or (c["matched"] is not None) != (sealed == "CONFIRMED"):
+        raise ValueError("K1游标见证与封存终态不符")
+    if c["killed_by"] is not None:
+        kill(c["killed_by"])
+    if c["matched"] is not None:
+        check(c["matched"])
+    return start
+
+
+def _checkpoint_element(e):
+    """CC-056 续扫检查点没有 stroke_refs：元素只验形状，笔号只验为非负整数串。"""
+    keys(e, ("high", "low", "stroke_idx", "stroke_indices"), "FIRST元素")
+    integer(e["high"], "high")
+    integer(e["low"], "low")
+    for index in array(e["stroke_indices"], "stroke_indices"):
+        integer(index, "stroke_indices", 0)
+    if e["stroke_idx"] not in e["stroke_indices"]:
+        raise ValueError("元素代表笔不属于来源")
+
+
+def _checkpoint_kill(k):
+    keys(k, ("stroke_idx", "price", "candidate_extreme", "comparison"), "失效见证")
+    integer(k["stroke_idx"], "killed_by.stroke_idx", 0)
+    integer(k["price"], "killed_by.price")
+    integer(k["candidate_extreme"], "killed_by.candidate_extreme")
+    if k["comparison"] not in (">", "<"):
+        raise ValueError("失效见证比较未声明")
+
+
+def _checkpoint_check(check):
+    keys(check, ("elements", "top_fractal", "bottom_fractal", "through_stroke"), "SECOND分型见证")
+    if len(array(check["elements"], "elements")) != 3:
+        raise ValueError("SECOND分型窗口缺元素")
+    for e in check["elements"]:
+        _checkpoint_element(e)
+    if any(type(check[name]) is not bool for name in ("top_fractal", "bottom_fractal")):
+        raise ValueError("SECOND分型错型")
+    integer(check["through_stroke"], "through_stroke", 0)
+
+
+def _scan_checkpoints(cursors, round_strokes):
+    """#1420 r2 CC-056.scan_cursors：本 cut 续扫检查点只含调度相关游标（累计预算大于每轮或本轮耗尽）；无同对象 facts 可比。"""
+    cursors = array(cursors, "scan_cursors")
+    if round_strokes == 0 and cursors:
+        raise ValueError("预算0却登记续扫检查点")
+    seen = set()
+    for c in cursors:
+        _fold_cursor(c, _checkpoint_element, _checkpoint_kill, _checkpoint_check)
+        if c["budget_granted"] is None or int(c["consumed_len"]) > int(c["budget_granted"]):
+            raise ValueError("续扫检查点预算不符")
+        identity = (c["candidate"]["seg_dir"], c["candidate"]["b_stroke"], c["candidate"]["candidate_extreme"])
+        if identity in seen:
+            raise ValueError("续扫检查点候选身份重复")
+        seen.add(identity)
+
+
+def _second_terminal(d, element, indices, second_check):
+    """#1420 s-segment/3：SECOND 语义终点、扫描覆盖、预算与 K1 游标的类型和同对象绑定；不重放折叠。"""
+    scan, f = d["scan"], d["facts"]
+    semantic = scan["semantic_state"]
+    if semantic not in (None, "CONFIRMED", "KILLED_BY_NEW_EXTREME", "OPEN_AT_PREFIX_END") or scan["coverage"] not in ("COMPLETE", "INCOMPLETE_RESOURCE_BOUND"):
+        raise ValueError("SECOND终态/覆盖未声明")
+    incomplete = scan["coverage"] == "INCOMPLETE_RESOURCE_BOUND"
+    if incomplete != scan["resource_truncated"] or (semantic is None) != incomplete:
+        raise ValueError("SECOND覆盖与语义/截断不一致")
+    if d["second_sequence_status"] != {"CONFIRMED": "CONFIRMED", "KILLED_BY_NEW_EXTREME": "KILLED"}.get(semantic, "PENDING"):
+        raise ValueError("SECOND状态未绑定语义终点")
+    if f["semantic_state"] != semantic or f["coverage"] != scan["coverage"]:
+        raise ValueError("SECOND事实终态与扫描不一致")
+    keys(scan["budget"], ("policy", "granted"), "扫描预算")
+    if scan["budget"]["policy"] != SECOND_SCAN_BUDGET_POLICY:
+        raise ValueError("扫描预算政策版本不符")
+    if scan["budget"]["granted"] is not None:
+        integer(scan["budget"]["granted"], "budget.granted", 1)
+    extreme = integer(f["candidate_extreme"], "candidate_extreme")
+    if f["breach_watermark"] is not None:
+        integer(f["breach_watermark"], "breach_watermark")
+    comparison = {"UP": ">", "DOWN": "<"}.get(d["direction"])
+
+    def kill(k):
+        keys(k, ("stroke_idx", "price", "candidate_extreme", "comparison"), "失效见证")
+        indices([k["stroke_idx"]])
+        price = integer(k["price"], "killed_by.price")
+        if comparison is None or k["comparison"] != comparison or k["candidate_extreme"] != f["candidate_extreme"] or not (price > extreme if comparison == ">" else price < extreme):
+            raise ValueError("失效见证未严格越过候选极值")
+
+    if (f["killed_by"] is not None) != (semantic == "KILLED_BY_NEW_EXTREME"):
+        raise ValueError("失效见证与语义终点不符")
+    if f["killed_by"] is not None:
+        kill(f["killed_by"])
+        if f["breach_watermark"] != f["killed_by"]["price"]:
+            raise ValueError("越界水位未绑定失效见证")
+    c = scan["cursor"]
+    start = _fold_cursor(c, element, kill, second_check)
+    if c["budget_granted"] != scan["budget"]["granted"]:
+        raise ValueError("K1游标预算未绑定扫描预算")
+    if c["candidate"]["seg_dir"] != d["direction"] or start != int(scan["from_stroke"]) or c["candidate"]["candidate_extreme"] != f["candidate_extreme"]:
+        raise ValueError("K1候选身份未绑定SECOND扫描")
+    if c["input_stroke_count"] != scan["input_stroke_count"] or int(c["consumed_len"]) > max(0, int(c["input_stroke_count"]) - start):
+        raise ValueError("K1游标消费范围越界")
+    if c["semantic_state"] is not None and c["semantic_state"] != semantic:
+        raise ValueError("K1游标封存终态与扫描不同")
+    if c["killed_by"] is not None and c["killed_by"] != f["killed_by"]:
+        raise ValueError("K1游标失效见证与事实不同")
+    if c["matched"] is not None and c["matched"] != f["matched"]:
+        raise ValueError("K1游标命中与事实不同")
+
 def validate_segment_payload(kind, p):
     """只验类型、身份、适用性与引用闭合；不另算分型/包含或 seed 谓词。"""
     keys(p, ("schema_revision", "semantic_version", "policy_version", "view_role", "object_generation", "slot", "data"), "段合同")
-    v2 = p["schema_revision"] == "s-segment/2"
-    expected_version = ("s-segment/2", "segment-second/1", "seed_closed_strict_second", "main") if v2 else ("s-segment/1", "segment-seed-first/1", "seed_closed_first_no_gap", "main")
+    # #1420：v2＝「含第二种」（s-segment/2 与 /3 共用其分支）；v3 只另管版本元组、SECOND 三态终点/K1 游标、
+    # KILLED_CASE_TWO、CC-056 范围与槽。
+    v3 = p["schema_revision"] == "s-segment/3"
+    v2 = v3 or p["schema_revision"] == "s-segment/2"
+    expected_version = ("s-segment/3", "segment-second/2", "seed_closed_strict_second", "main") if v3 else ("s-segment/2", "segment-second/1", "seed_closed_strict_second", "main") if v2 else ("s-segment/1", "segment-seed-first/1", "seed_closed_first_no_gap", "main")
     if (p["schema_revision"], p["semantic_version"], p["policy_version"], p["view_role"]) != expected_version:
         raise ValueError("段规则/范围版本不符")
     integer(p["object_generation"], "object_generation", 1)
@@ -596,13 +744,13 @@ def validate_segment_payload(kind, p):
     elif kind == SEGMENT_KINDS[1]:
         keys(d, ("entity_id", "segment_id", "role", "direction", "member_direction", "facts", "stroke_refs", "scan", "second_sequence_status"), kind)
         second = v2 and d["role"] == "SECOND_SEQUENCE"
-        statuses = ("PENDING", "CONFIRMED") if second else ("NOT_APPLICABLE", "PENDING", "CONFIRMED") if v2 else ("NOT_APPLICABLE", "WAITING_FOLLOWUP")
+        statuses = ("PENDING", "CONFIRMED") + (("KILLED",) if v3 else ()) if second else ("NOT_APPLICABLE", "PENDING", "CONFIRMED") + (("KILLED",) if v3 else ()) if v2 else ("NOT_APPLICABLE", "WAITING_FOLLOWUP")
         if d["role"] not in (("FIRST_SEQUENCE", "SECOND_SEQUENCE") if v2 else ("FIRST_SEQUENCE",)) or d["member_direction"] not in ("UP", "DOWN") or d["second_sequence_status"] not in statuses:
             raise ValueError("FIRST角色/后续片边界不符")
         direction(d["direction"])
-        keys(d["scan"], ("from_stroke", "through_stroke", "input_stroke_count", "resource_truncated", "tail_cache_window"), "扫描范围")
+        keys(d["scan"], ("from_stroke", "through_stroke", "input_stroke_count", "resource_truncated", "tail_cache_window") + (("semantic_state", "coverage", "budget", "cursor") if second and v3 else ()), "扫描范围")
         for k, v in d["scan"].items():
-            if k != "resource_truncated":
+            if k in ("from_stroke", "through_stroke", "input_stroke_count", "tail_cache_window"):
                 integer(v, k, 0)
         if type(d["scan"]["resource_truncated"]) is not bool:
             raise ValueError("资源截断状态缺失")
@@ -613,7 +761,7 @@ def validate_segment_payload(kind, p):
         if not second and d["scan"]["from_stroke"] != segment_start:
             raise ValueError("FIRST扫描起点不是段起笔")
         f = d["facts"]
-        keys(f, ("raw_elements", "standard", "steps", "checks") + (("from_stroke", "through_stroke", "input_stroke_count", "resource_truncated", "matched") if second else ()), "序列事实")
+        keys(f, ("raw_elements", "standard", "steps", "checks") + (("from_stroke", "through_stroke", "input_stroke_count", "resource_truncated", "matched") if second else ()) + (("candidate_extreme", "breach_watermark", "semantic_state", "killed_by", "coverage") if second and v3 else ()), "序列事实")
         if second:
             for name in ("from_stroke", "input_stroke_count"):
                 integer(f[name], name, 0)
@@ -643,7 +791,8 @@ def validate_segment_payload(kind, p):
                 raise ValueError("SECOND分型错型")
             indices([check["through_stroke"]])
         if second:
-            if (f["matched"] is None) != (d["second_sequence_status"] == "PENDING"):
+            # v3：未决（PENDING）与失效（KILLED）都无命中；v2 只有 PENDING 无命中。
+            if ((f["matched"] is not None) != (d["second_sequence_status"] == "CONFIRMED")) if v3 else ((f["matched"] is None) != (d["second_sequence_status"] == "PENDING")):
                 raise ValueError("SECOND命中与状态不符")
             if f["matched"] is not None:
                 second_check(f["matched"])
@@ -669,6 +818,8 @@ def validate_segment_payload(kind, p):
                     raise ValueError("gap见证错型")
             if (not check["first_fractal"] and check["gap"] is not None) or (check["gap"] is not True and check["gap_closed_by_c"] is not None):
                 raise ValueError("不适用条件虚填布尔")
+        if second and v3:
+            _second_terminal(d, element, indices, second_check)
     elif kind == SEGMENT_KINDS[2]:
         keys(d, ("entity_id", "entity_revision", "seed_id", "sequence_id", "sequence_object_id", "construction", "result", "waiting_reasons", "termination_attempts", "geometric_end", "trigger_stroke", "formed_known_at", "terminated_known_at", "stroke_refs") + (("second_sequence_id", "second_sequence_object_id", "strict", "fact_vector") if v2 else ()), kind)
         integer(d["entity_revision"], "entity_revision", 1)
@@ -682,7 +833,7 @@ def validate_segment_payload(kind, p):
             if type(attempt["minimum_count_met"]) is not bool:
                 raise ValueError("最小笔数条件错型")
             construction(attempt["construction"])
-        if d["result"] not in ("NO_FIRST", "CASE_ONE", "PENDING_CASE_TWO", "FAILED_GEOMETRY") + (("CASE_TWO",) if v2 else ()):
+        if d["result"] not in ("NO_FIRST", "CASE_ONE", "PENDING_CASE_TWO", "FAILED_GEOMETRY") + (("CASE_TWO",) if v2 else ()) + (("KILLED_CASE_TWO",) if v3 else ()):
             raise ValueError("冒称交付第二种终结")
         if d["result"] in ("CASE_ONE", "CASE_TWO"):
             known(d["terminated_known_at"])
@@ -723,7 +874,7 @@ def validate_segment_payload(kind, p):
                 if paired[0] != "second:" + d["entity_id"]:
                     raise ValueError("SECOND身份未绑定候选")
                 text(paired[1], "second_sequence_object_id")
-            if d["result"] in ("CASE_TWO", "PENDING_CASE_TWO") and paired[0] is None:
+            if d["result"] in ("CASE_TWO", "PENDING_CASE_TWO", "KILLED_CASE_TWO") and paired[0] is None:
                 raise ValueError("第二种缺SECOND引用")
             b = d["fact_vector"]
             keys(b, ("stroke_broken", "new_segment_formed", "segment_broken", "stroke_break_witness", "scan_from_stroke", "scan_through_stroke", "scan_complete", "termination_witness"), "独立破坏事实")
@@ -779,12 +930,17 @@ def validate_segment_payload(kind, p):
             if d[name] is not None:
                 validate_segment_payload(SEGMENT_KINDS[2], {**p, "slot": d[name]["entity_id"], "object_generation": d[name]["entity_id"].split(":")[1], "data": d[name]})
     else:
-        keys(d, ("input_frontier", "waiting_reasons", "known_at", "delivered_scope", "deferred_scope"), kind)
+        keys(d, ("input_frontier", "waiting_reasons", "known_at", "delivered_scope", "deferred_scope") + (("scan_budget", "scan_cursors") if v3 else ()), kind)
         integer(d["input_frontier"], "input_frontier", -1)
         known(d["known_at"])
         strings(d["waiting_reasons"], "waiting_reasons")
-        if d["delivered_scope"] != ("seed_strict_first_and_finite_second" if v2 else "seed_and_no_gap_first_kind") or d["deferred_scope"] != (["general_equal_identity", "general_scan_continuation", "global_G006_bridge"] if v2 else ["second_kind", "general_equal_identity"]):
+        if d["delivered_scope"] != ("seed_strict_first_and_second_terminal" if v3 else "seed_strict_first_and_finite_second" if v2 else "seed_and_no_gap_first_kind") or d["deferred_scope"] != (["general_equal_identity", "global_G006_bridge"] if v3 else ["general_equal_identity", "general_scan_continuation", "global_G006_bridge"] if v2 else ["second_kind", "general_equal_identity"]):
             raise ValueError("段交付范围不符")
+        if v3:
+            keys(d["scan_budget"], ("policy", "round_strokes"), "段扫描预算")
+            if d["scan_budget"]["policy"] != SECOND_SCAN_BUDGET_POLICY:
+                raise ValueError("扫描预算政策版本不符")
+            _scan_checkpoints(d["scan_cursors"], integer(d["scan_budget"]["round_strokes"], "round_strokes", 0))
     if kind in SEGMENT_KINDS[:3] + SEGMENT_KINDS[6:]:
         if kind == SEGMENT_KINDS[1]:
             expected_segment = f'segment:{p["object_generation"]}:{refs[segment_start]["start_anchor"]}'
@@ -807,7 +963,7 @@ def validate_segment_payload(kind, p):
                     r = refs[e["stroke_index"]]
                     if (e["group_anchor"], e["price"], e["extreme_roots"]) != (r["end_anchor"], r["end_price"], r["end_roots"]):
                         raise ValueError("几何段端与实际笔端不符")
-    slot = [d["source_id"], d["relation_kind"], d["target_id"]] if kind == SEGMENT_KINDS[3] else [d["known_at"]["generation"], d["entity_id"], d["change"]] if kind == SEGMENT_KINDS[4] else ("TB-02-D" if v2 else "TB-02-C") if kind == SEGMENT_KINDS[5] else d["entity_id"]
+    slot = [d["source_id"], d["relation_kind"], d["target_id"]] if kind == SEGMENT_KINDS[3] else [d["known_at"]["generation"], d["entity_id"], d["change"]] if kind == SEGMENT_KINDS[4] else ("TB-02-W" if v3 else "TB-02-D" if v2 else "TB-02-C") if kind == SEGMENT_KINDS[5] else d["entity_id"]
     if p["slot"] != slot:
         raise ValueError("段语义槽身份不符")
 

@@ -1,0 +1,53 @@
+{
+  "schema": "tb02v-runtime-plan/1",
+  "ticket": 1405,
+  "slice": "/home/hanju/nc-remote/wt/20261019-225709-c4bbdd9f8a/rust/tests/fixtures/tb02v_same_price/real_C_bars14_40_multi_root_second_gate.json",
+  "slice_sha256": "e5dff3622d8d2d42b029c62127f59b6a735170bf4f0b04f03cc3d7a5087c5779",
+  "bars": 27,
+  "slice_meta": {
+    "source": "analysis/data_cache/btc_1m_full.json",
+    "tail50k_local": [
+      14,
+      40
+    ],
+    "full_index": [
+      4563613,
+      4563639
+    ],
+    "dates": [
+      "2026-04-27 06:54:00",
+      "2026-04-27 07:20:00"
+    ]
+  },
+  "binary_sha256": "08dfc65197be2292cb16d38cd1e0906d10f42c0090a50468acd86916c1377bcb",
+  "session_command": [
+    "/usr/bin/python3.12",
+    "/home/hanju/nc-remote/wt/20261019-225709-c4bbdd9f8a/s_session/tests/tb02v_runtime.py",
+    "session",
+    "--plan",
+    "/home/hanju/tb1405-browser/20261019-225737",
+    "--node",
+    "/home/hanju/.local/share/codex-runtimes/node-v22.23.3-linux-x64/bin/node"
+  ],
+  "browser_command": [
+    "/usr/bin/python3.12",
+    "/home/hanju/nc-remote/wt/20261019-225709-c4bbdd9f8a/s_session/tests/tb02b_runtime.py",
+    "--config",
+    "/home/hanju/tb1405-browser/20261019-225737/config-browser.json",
+    "--messages",
+    "/home/hanju/tb1405-browser/20261019-225737/messages.jsonl",
+    "--output",
+    "/home/hanju/tb1405-browser/20261019-225737/browser-run",
+    "--node",
+    "/home/hanju/.local/share/codex-runtimes/node-v22.23.3-linux-x64/bin/node",
+    "--playwright-module",
+    "/home/hanju/nc-remote/pw/node_modules/playwright"
+  ],
+  "check_browser_command": [
+    "/usr/bin/python3.12",
+    "/home/hanju/nc-remote/wt/20261019-225709-c4bbdd9f8a/s_session/tests/tb02v_runtime.py",
+    "check-browser",
+    "--plan",
+    "/home/hanju/tb1405-browser/20261019-225737"
+  ]
+}

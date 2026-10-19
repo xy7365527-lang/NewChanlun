@@ -351,6 +351,13 @@ jobs:
       #   只把这条锁连同其判据（钩子不再验、重载命中重放计费、Reader 根变化必重验）单独成套执行。
       - name: Q3 v3 validate-once lock (#1394)
         run: node --test s_session/tests/test_q3_v3_validate_once.cjs
+      - name: TB-02-W terminal and cursor contract tests (#1420)
+        if: always()
+        working-directory: s_session/tests
+        run: python -B -m unittest -v test_tb02w_contract
+      - name: TB-02-W modular observer contract tests (#1420)
+        if: always()
+        run: node --test s_session/tests/test_tb02w_contract.cjs
       # #1414：TB-02-D 单元测试固定 CPython 3.14.6。s_query_integrity.py 的同次解析池只在
       #   3.14.6 / 64 位、实测 dict 布局匹配时启用；test_tb02d_parse_pool 的播种、命中与容量
       #   断言绑定该布局，其它解释器上池自动停用、断言失败而不是跳过。上面 3.11 的步骤不变，

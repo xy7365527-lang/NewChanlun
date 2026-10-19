@@ -403,6 +403,7 @@ def _published_axes(rule_revision):
         "s2-axis-quantifiers+new-bi/1+segment-first/1": tb02.FIRST_SEGMENT_AXES,
         "s2-axis-quantifiers+new-bi/1+segment-second/1": tb02.AXES,
         "s2-axis-quantifiers+new-bi/2+segment-second/1": tb02.AXES,
+        "s2-axis-quantifiers+new-bi/2+segment-second/2": tb02.AXES,
     }
     if rule_revision not in known:
         raise ValueError("cut规则修订未声明")

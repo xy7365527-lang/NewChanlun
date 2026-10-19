@@ -918,7 +918,7 @@ fn raw_bar(raw: &Value) -> Value {
 pub(super) enum CatalogAxisTable {
     /// `s2-axis-quantifiers+new-bi/2`：CC-001…010、CC-054、CC-055、CC-056（13 轴）。
     NewBi,
-    /// `s2-axis-quantifiers+new-bi/2+segment-second/1`：另加 CC-011…014（17 轴）。
+    /// `s2-axis-quantifiers+new-bi/2+segment-second/2`（及旧 v2 规则）：另加 CC-011…014（17 轴）。
     SegmentSecond,
 }
 
@@ -926,9 +926,10 @@ impl CatalogAxisTable {
     pub(super) fn for_rule_revision(rule_revision: &str) -> Option<Self> {
         match rule_revision {
             crate::LEGACY_V3_RULE_REVISION | crate::V3_RULE_REVISION => Some(Self::NewBi),
-            "s2-axis-quantifiers+new-bi/1+segment-second/1" | crate::RULE_REVISION => {
-                Some(Self::SegmentSecond)
-            }
+            // #1394 合入 #1420：上一代 v2 规则 `+new-bi/2+segment-second/1` 只读仍取 17 轴。
+            "s2-axis-quantifiers+new-bi/1+segment-second/1"
+            | "s2-axis-quantifiers+new-bi/2+segment-second/1"
+            | crate::RULE_REVISION => Some(Self::SegmentSecond),
             _ => None,
         }
     }
