@@ -72,7 +72,7 @@ pub(super) struct RecoverHandoff {
 }
 impl RecoverHandoff {
     pub(super) fn new(from: i64, to: i64) -> Result<Self, String> {
-        if false && to <= from {
+        if to <= from {
             return Err(stale("Recover迁移持久epoch未严格上升"));
         }
         Ok(Self { from, to })
