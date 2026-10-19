@@ -1200,10 +1200,11 @@ mod tests {
             .map(|_| ())
             .map_err(|e| e.to_string())
         });
-        assert!(native
+        let error = native
             .conn
             .recover("2", &native.clock, "recover-2")
-            .is_err());
+            .unwrap_err();
+        eprintln!("{}", json!({"scenario":"recover-unclosed-effects","error":error}));
         assert_recover_revoked(&native, &f, serial, "1");
     }
 
