@@ -279,13 +279,16 @@ fn failed_finish_keeps_stopped_first_error_actual_wire_and_reservation_until_std
     assert_eq!(before.wire_bytes, before_charge + u64::MAX as u128);
     assert_eq!(before.open_reservations, 1);
     assert_eq!(before.stopped, Some("job_limit_exceeded"));
-    assert_eq!(scope.finish_startup().unwrap_err(), first);
-    assert_eq!(scope.finish_startup().unwrap_err(), first);
-    assert_eq!(scope.require_admitted().unwrap_err(), first);
-    assert_eq!(require_current(&f.db).unwrap_err(), first);
+    // 原 Job 对已停止账按 job.rs `stopped_err` 复报：同码、原 detail 逐字包在「job 已停止」内。
+    let (code, detail) = first.split_once(": ").unwrap();
+    let sticky = format!("{code}: job 已停止（{code}）：{detail}");
+    assert_eq!(scope.finish_startup().unwrap_err(), sticky);
+    assert_eq!(scope.finish_startup().unwrap_err(), sticky);
+    assert_eq!(scope.require_admitted().unwrap_err(), sticky);
+    assert_eq!(require_current(&f.db).unwrap_err(), sticky);
     assert_same_accounting_except_elapsed(before.clone(), startup_snapshot(&scope));
     drop(scope);
-    assert_eq!(require_current(&f.db).unwrap_err(), first);
+    assert_eq!(require_current(&f.db).unwrap_err(), sticky);
     drop(guard);
     drop(grant); // 丢弃 token 不伪造 release，原 pending 必须留下。
     let mut sink = Vec::new();
