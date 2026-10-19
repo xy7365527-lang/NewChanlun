@@ -3,6 +3,7 @@
 //! 同一实例持有原进程锁；每次读取/写入都在当前事务调用同一完整状态审计。
 
 use super::*;
+use newchan_rust::s_content as sc;
 use newchan_rust::session_protocol::{required, validate_envelope};
 use std::fs::File;
 
