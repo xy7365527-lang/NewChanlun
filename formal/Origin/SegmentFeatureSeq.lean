@@ -727,10 +727,17 @@ def RawTurnSafe (d : Direction) (b : FeatureElem) (s : Stroke) : Prop :=
 
 theorem rawTurnObservation_open_iff (d : Direction) (b : FeatureElem) (s : Stroke) :
     rawTurnObservation d b s = .openAtPrefixEnd ↔ RawTurnSafe d b s := by
-  cases d <;> by_cases hd : s.direction = Direction.down <;>
-    by_cases hu : s.direction = Direction.up <;>
-    simp [rawTurnObservation, projectedTurnWindow, turnWindowStateUp, turnWindowStateDown,
-      RawTurnSafe, rawCrossesP, Contains, Direction.flip, hd, hu, Tick] <;> omega
+  unfold rawTurnObservation RawTurnSafe
+  by_cases hf : s.direction = d.flip
+  · rw [if_pos hf]
+    cases d <;>
+      simp only [projectedTurnWindow, turnWindowStateUp, turnWindowStateDown, rawCrossesP,
+        Contains, hf, forall_const] <;>
+      generalize FeatureElem.ofStroke s = x <;>
+      by_cases h1 : b.high < x.high <;> by_cases h2 : x.low < b.low <;>
+      simp [h1, h2] <;> (try simp only [Tick] at *) <;> omega
+  · rw [if_neg hf]
+    by_cases hc : rawCrossesP d b s <;> simp [hc, hf]
 
 theorem rawTurnWindowState_open_iff (d : Direction) (b : FeatureElem) (xs : List Stroke) :
     rawTurnWindowState d b xs = .openAtPrefixEnd ↔ ∀ s ∈ xs, RawTurnSafe d b s := by
@@ -771,8 +778,8 @@ theorem rawTurnWindowState_append_of_open (d : Direction) (b : FeatureElem)
   | nil => rfl
   | cons s rest ih =>
     cases ho : rawTurnObservation d b s <;>
-      simp only [List.cons_append, rawTurnWindowState, ho] at h ⊢
-    exact ih h
+      simp only [List.cons_append, rawTurnWindowState, ho] at h ⊢ <;>
+      first | exact ih h | cases h
 
 theorem rawTurnWindowState_open_then_kill (d : Direction) (b : FeatureElem)
     (xs : List Stroke) (s : Stroke)
@@ -797,6 +804,7 @@ theorem rawTurnWindowState_eq_projection (d : Direction) (b : FeatureElem) (xs :
         simp only [rawTurnWindowState, rawTurnObservation, projectStrokes, hd, if_pos,
           projectedTurnWindow, turnWindowStateUp, turnWindowStateDown] at hi ⊢ <;>
         split <;> simp_all <;> split <;> simp_all
+      all_goals (intro; (try simp only [Tick] at *); omega)
     · have hn := hsafe s (by simp) hd
       simpa [rawTurnWindowState, rawTurnObservation, projectStrokes, hd, hn] using hi
 
@@ -873,12 +881,12 @@ structure Element where
   deriving Repr
 
 /-- 每一原始笔推进索引，只有同向笔输出元素；strokeIdx 是笔数组索引而非 K 线索引。 -/
-def indexedProjection (d : Direction) (from : Nat) : List Stroke → List Element
+def indexedProjection (d : Direction) (start : Nat) : List Stroke → List Element
   | [] => []
   | s :: rest =>
       if s.direction = d then
-        ⟨FeatureElem.ofStroke s, from, [from]⟩ :: indexedProjection d (from + 1) rest
-      else indexedProjection d (from + 1) rest
+        ⟨FeatureElem.ofStroke s, start, [start]⟩ :: indexedProjection d (start + 1) rest
+      else indexedProjection d (start + 1) rest
 
 inductive Decision
   | confirmed
@@ -960,9 +968,11 @@ def updateWatermark (d : Direction) (old : Option Tick) (r : Tick) : Option Tick
 def consumeFeature (c : Candidate) (st : State) (i : Nat) (x : FeatureElem) : State :=
   let incoming : Element := ⟨x, i, [i]⟩
   let merged := includeElem st.dirState incoming st.standardRev
-  let next := { st with rawRev := incoming :: st.rawRev, standardRev := merged.1
-                       dirState := merged.2
-                       watermark := updateWatermark c.segDir st.watermark (reach c.segDir x) }
+  let next := { st with
+    rawRev := incoming :: st.rawRev
+    standardRev := merged.1
+    dirState := merged.2
+    watermark := updateWatermark c.segDir st.watermark (reach c.segDir x) }
   if tailFractal merged.1 then
     { next with decision := some .confirmed, matched := tailTriple merged.1 }
   else if breached c x then
@@ -1077,43 +1087,43 @@ theorem consumeFeature_open (c : Candidate) (st : State) (i : Nat) (x : FeatureE
 theorem consumeFeature_watermark (c : Candidate) (st : State) (i : Nat) (x : FeatureElem) :
     (consumeFeature c st i x).watermark =
       updateWatermark c.segDir st.watermark (reach c.segDir x) := by
-  unfold consumeFeature
+  dsimp only [consumeFeature]
   split <;> first | rfl | (split <;> rfl)
 
 theorem updateWatermark_up_bound (old : Option Tick) (r : Tick) :
     ∃ w, updateWatermark .up old r = some w ∧ r ≤ w ∧
       (∀ v, old = some v → v ≤ w) := by
   cases old with
-  | none => exact ⟨r, rfl, by omega, by simp⟩
+  | none => exact ⟨r, rfl, Int.le_refl r, by simp⟩
   | some v =>
     by_cases h : v ≥ r
-    · refine ⟨v, by simp [updateWatermark, h], by omega, ?_⟩
-      intro w hw; cases hw; omega
-    · refine ⟨r, by simp [updateWatermark, h], by omega, ?_⟩
-      intro w hw; cases hw; omega
+    · refine ⟨v, by simp [updateWatermark, h], by simp only [Tick] at *; omega, ?_⟩
+      intro w hw; cases hw; simp only [Tick] at *; omega
+    · refine ⟨r, by simp [updateWatermark, h], by simp only [Tick] at *; omega, ?_⟩
+      intro w hw; cases hw; simp only [Tick] at *; omega
 
 theorem updateWatermark_down_bound (old : Option Tick) (r : Tick) :
     ∃ w, updateWatermark .down old r = some w ∧ w ≤ r ∧
       (∀ v, old = some v → w ≤ v) := by
   cases old with
-  | none => exact ⟨r, rfl, by omega, by simp⟩
+  | none => exact ⟨r, rfl, Int.le_refl r, by simp⟩
   | some v =>
     by_cases h : v ≤ r
-    · refine ⟨v, by simp [updateWatermark, h], by omega, ?_⟩
-      intro w hw; cases hw; omega
-    · refine ⟨r, by simp [updateWatermark, h], by omega, ?_⟩
-      intro w hw; cases hw; omega
+    · refine ⟨v, by simp [updateWatermark, h], by simp only [Tick] at *; omega, ?_⟩
+      intro w hw; cases hw; simp only [Tick] at *; omega
+    · refine ⟨r, by simp [updateWatermark, h], by simp only [Tick] at *; omega, ?_⟩
+      intro w hw; cases hw; simp only [Tick] at *; omega
 
 theorem consumeFeature_position (c : Candidate) (st : State) (i : Nat) (x : FeatureElem) :
     (consumeFeature c st i x).consumedLen = st.consumedLen ∧
     (consumeFeature c st i x).fromStroke = st.fromStroke ∧
     (consumeFeature c st i x).throughStroke = st.throughStroke := by
-  unfold consumeFeature
+  dsimp only [consumeFeature]
   split <;> first | exact ⟨rfl, rfl, rfl⟩ | (split <;> exact ⟨rfl, rfl, rfl⟩)
 
 theorem consumeFeature_raw (c : Candidate) (st : State) (i : Nat) (x : FeatureElem) :
     (consumeFeature c st i x).rawRev = ⟨x, i, [i]⟩ :: st.rawRev := by
-  unfold consumeFeature
+  dsimp only [consumeFeature]
   split <;> first | rfl | (split <;> rfl)
 
 theorem step_position (c : Candidate) (st : State) (s : Stroke) (h : st.decision = none) :
@@ -1127,8 +1137,8 @@ theorem step_position (c : Candidate) (st : State) (s : Stroke) (h : st.decision
 
 theorem step_reverse (c : Candidate) (st : State) (s : Stroke)
     (h : st.decision = none) (hd : s.direction ≠ c.segDir) :
-    step c st s = { st with consumedLen := st.consumedLen + 1
-                           throughStroke := st.fromStroke + st.consumedLen } := by
+    step c st s = { st with consumedLen := st.consumedLen + 1,
+                            throughStroke := st.fromStroke + st.consumedLen } := by
   simp [step, consume, h, hd]
 
 theorem step_decided (c : Candidate) (st : State) (s : Stroke) (h : st.decision ≠ none) :
@@ -1243,7 +1253,7 @@ theorem finish_open_iff (st : State) (n budget : Nat) :
     (finish st n budget).semantic = some .openAtPrefixEnd ↔
       st.decision = none ∧ n ≤ budget := by
   cases h : st.decision with
-  | none => simp [finish, h]; omega
+  | none => by_cases hb : budget < n <;> simp [finish, h, hb] <;> omega
   | some d => cases d <;> simp [finish, h, terminal]
 
 theorem finish_decided_complete (st : State) (n budget : Nat) (d : Decision)
