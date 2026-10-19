@@ -518,6 +518,8 @@ impl PendingRawState {
         if !stamp.matches(parent) || previous.fee.as_ref().is_some_and(|fee| !stamp.holds(fee)) {
             return Err(stale("Recover迁移父账或冻结域与交接摘要不符"));
         }
+        let mut previous = previous;
+        drop(previous.fee.take());
         let mut pending = Self::carry(Some(previous), seal, raw_len, lease)?;
         pending.recover = Some((handoff, false));
         Ok(pending)
