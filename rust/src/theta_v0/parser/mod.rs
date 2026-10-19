@@ -244,6 +244,12 @@ impl<'c> ParseLayerIncr<'c> {
         }
     }
 
+    /// #1490 §7.1 第 6 条（#1493）：段端门 fail-closed 起点（与全量 `SegmentFacts::parse_invalid_from`
+    /// 同一判定）；`None` = 当前前缀无门失败。
+    pub fn segments_parse_invalid_from(&self) -> Option<usize> {
+        self.incr_segments.parse_invalid_from()
+    }
+
     /// 追加一个原始 bar；不沿用旧笔的冻结前缀证书。
     pub fn append(&mut self, bar: Bar) -> ParseLayer {
         append_incr_layer(
@@ -377,6 +383,8 @@ fn parse_layer_from_facts(
 
 #[cfg(test)]
 mod tb02c_tests;
+#[cfg(test)]
+mod tb1493_replay_tests;
 
 #[cfg(test)]
 mod tests {
