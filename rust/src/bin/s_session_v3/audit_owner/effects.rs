@@ -418,6 +418,8 @@ impl Recording {
         Ok(())
     }
     /// 无共享父：journal 私有子账（上限 cap）先出生，首笔许可先于任何 journal 分配。
+    /// #1488 P3-b：生产唯一入口是 start_on；本入口只剩测试调用方，仅测试编译。
+    #[cfg(test)]
     pub(super) fn start(
         tx: &Transaction<'_>,
         operation: Operation,
@@ -463,6 +465,12 @@ impl Recording {
         } else {
             None
         };
+        // #1488 P3-b：结果类别与旧 start+attach_parent 一致——首块超帽仍 Ok(None)（旧 reserve_one
+        // 先按帽拒、未及附接），且不先动父账。
+        let first_block = vec_bytes::<Key>(32);
+        if inline.checked_add(first_block).is_none_or(|n| n > cap) {
+            return Ok(None);
+        }
         // 先取父与首笔许可：共享父直接预留；无父则私有子账先出生再预留（不经 moved_in）。
         let (budget, parent_limit, shared_parent) = match parent {
             Some((budget, limit)) => (budget.clone(), limit, true),
@@ -473,13 +481,18 @@ impl Recording {
                 false,
             ),
         };
+        // 父账装不下 inline+首块即旧 attach_parent(j.bytes) 的“journal父账额度不足”，且父账
+        // live/峰值都不变。探测许可立即返还；成功时峰值恰为下方 inline+首块正式预留后的值。
+        // 之后首块失败只剩真实分配失败，与旧无父 reserve_one 同为 Ok(None)。
+        drop(
+            budget
+                .reserve(inline + first_block)
+                .map_err(|_| construction_state::stale("journal父账额度不足"))?,
+        );
         let journal_charge = budget
             .reserve(inline)
             .map_err(|_| construction_state::stale("journal父账额度不足"))?
             .finish(inline);
-        let first_block_fits = inline
-            .checked_add(vec_bytes::<Key>(32))
-            .is_some_and(|n| n <= cap);
         let mut journal = Journal {
             keys: Vec::new(),
             nodes: Default::default(),
@@ -512,12 +525,7 @@ impl Recording {
             material_issued: false,
         };
         if !journal.reserve_one(false) {
-            // 帽内首块却未能取得父许可/分配：与旧附接失败同口径报父账不足。
-            return if first_block_fits {
-                Err(construction_state::stale("journal父账额度不足"))
-            } else {
-                Ok(None)
-            };
+            return Ok(None);
         }
         let journal = Arc::new(Mutex::new(journal));
         let hook = journal.clone();
@@ -2297,6 +2305,48 @@ mod construction_coverage_tests {
         // hook/线程槽持 journal 共享引用；finish 卸下后 journal 析构，许可随之全额返还。
         assert!(recording.finish(&tx, &mut [], 0).unwrap().is_none());
         assert_eq!(parent.live(), base);
+    }
+    // #1488 P3-b（复审 0026）：start_on 结果类别与 P2-2 前生产 start+attach_parent 一致。
+    // 首块超帽 → Ok(None)（旧 reserve_one 先按帽拒，即使父账连 inline 都不够，也不报父账错）；
+    // 帽内但父账装不下 inline+首块 → Err("journal父账额度不足")（旧 attach_parent(j.bytes)）；
+    // 两种拒绝都不改父账 live/峰值/余额；父账恰够 inline+首块即成功且峰值不含过渡项。
+    #[test]
+    fn p3b_start_on_keeps_pre_p2_2_result_categories() {
+        let mut db = database();
+        let tx = db.transaction().unwrap();
+        let inline = std::mem::size_of::<Journal>() + 128;
+        let block = vec_bytes::<Key>(32);
+        let metadata = native::Budget::metadata_bytes();
+        let observe = |b: &native::Budget| (b.live(), b.peak(), b.remaining());
+        let starved = native::Budget::new(metadata + inline - 1, 0).unwrap();
+        let before = observe(&starved);
+        let over_cap = Recording::start_on(
+            &tx,
+            Operation::Publish,
+            inline + block - 1,
+            true,
+            &starved,
+            1 << 20,
+        )
+        .unwrap();
+        assert!(over_cap.is_none());
+        assert_eq!(observe(&starved), before);
+        let short = native::Budget::new(metadata + inline + block - 1, 0).unwrap();
+        let before = observe(&short);
+        let error = Recording::start_on(&tx, Operation::Publish, 1 << 20, true, &short, 1 << 20)
+            .err()
+            .expect("父账装不下inline+首块须报错");
+        assert!(error.contains("journal父账额度不足"), "{error}");
+        assert_eq!(observe(&short), before);
+        let exact = native::Budget::new(metadata + inline + block, 0).unwrap();
+        let base = exact.live();
+        let recording = Recording::start_on(&tx, Operation::Publish, 1 << 20, true, &exact, 1 << 20)
+            .unwrap()
+            .unwrap();
+        assert_eq!(exact.live(), base + inline + block);
+        assert_eq!(exact.peak(), base + inline + block);
+        assert!(recording.finish(&tx, &mut [], 0).unwrap().is_none());
+        assert_eq!(exact.live(), base);
     }
     // 无共享父：私有子账先出生（moved_in 恒 0），首笔许可等于 journal 实占；材料签发不再补签。
     #[test]

@@ -52,3 +52,5 @@ v3::driver::tests::p1_1_driver_warm_old_pool_partition_counts_l0_once
 v3::audit_owner::p2_4_seal_census_flags_duplicate_permit_on_real_seal_path
 v3::audit_owner::p1_2_keeper_pool_on_other_ledger_counts_physical_live_after_discard
 v3::cross_request_source_cache::tests::p2a_source_claim_points_to_charged_body_and_duplicate_reserve_rejected
+v3::audit_owner::native::u2_exit_adopt_tests::p3a_production_reserve_native_rejects_allocated_plain_without_adopting
+v3::audit_owner::effects::construction_coverage_tests::p3b_start_on_keeps_pre_p2_2_result_categories
