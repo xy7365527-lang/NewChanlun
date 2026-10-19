@@ -1203,16 +1203,6 @@ impl AuditConnection {
             // 状态许可从候选同一父账拆出；缺候选即无从证明驻留，由分区拒绝。
             partition.item("committed_raw_state", true, raw.retained_bytes())?;
         }
-        #[cfg(test)]
-        eprintln!(
-            "{}",
-            json!({"diag0027":"oldpool","complete":complete.is_some(),
-                "raw":self.construction.borrow().is_some(),
-                "keeper_bytes":keeper.map(|k|k.retained_source_bytes()),
-                "keeper_on_parent":keeper.zip(parent).map(|(k,p)|k.source_on_parent(p)),
-                "l0":parent.map(|p|p.live()),
-                "thread":format!("{:?}",std::thread::current().name())})
-        );
         if let Some(k) = keeper.filter(|k| k.retained_source_bytes() != 0) {
             let on_parent = parent.is_some_and(|p| k.source_on_parent(p));
             partition.item("source_keeper_pool", on_parent, k.retained_source_bytes())?;
