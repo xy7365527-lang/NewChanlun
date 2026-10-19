@@ -2844,7 +2844,7 @@ impl AuditTxn<'_> {
                 }
             };
             let Some(mut candidate) = self.owner.complete.borrow_mut().take() else {
-                return reject_warm();
+                return Ok(false);
             };
             let seal = SnapshotSeal {
                 life: self.owner.life,
