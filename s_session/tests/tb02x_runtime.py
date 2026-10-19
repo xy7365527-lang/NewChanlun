@@ -7,14 +7,17 @@ tb01c_http_capture.cjs 用浏览器同一份 tb01c-client.js 校验，全 cut �
 - `turn`：票面义务 7 的链补一笔确认笔，端点 [0,10,4,20,5,18,7,15,3,12]。s5 ⊂ s3 且 s3 是峰候选 ⟹ s5 是
   s3 的窗成员（s5 已知：PENDING_CASE_ONE，候选态 OPEN_AT_PREFIX_END）；s7 低 3 < b 低 5 且高 15 ≤ 20 ⟹
   先破判据成立（s7 已知：CASE_ONE，候选态 CONFIRMED，段 s0–s2）。UP/DOWN 两向。
-- `e2_real`：`rust/tests/fixtures/tb1490/e2_real_3175_40.json`（BTC 1m 真实笔 3175..3189）前 15 笔的端点价，
-  按值保序映射为整数点（稠密秩 ×3；段层只比较端点价的大小与相等，保序映射不改任何比较结果），再由 tb02d
-  固定生成器生成整数 OHLC。会话只吃 OHLC，笔级夹具不能直接接纳，这是最小可行入口；端点价本身不进会话。
-  手算：s5 确认 U s0–s2；D 候选自 s3，s6 ⊃ s4 且更极端（boundary_pair），s8／s10／s12 ⊂ s6 ⟹ 窗成员
-  （s8 已知起 PENDING_CASE_ONE），s14 高 39 > 33 且低 15 ≥ 3 ⟹ 先破判据确认（CASE_ONE，段 s3–s5）。
-  64 根逐根一代时，cut 41 起公共采集超过客户端 30s 总期限（首跑实测，#1497 同类规模问题）；本设计改为
-  一条 ingest 消息携多根（每代恰多知一笔：首代 7 根，其后每代 4 根，末代补尾 1 根），共 16 代；Q 资源配置
-  另把 verify_deadline_ms 放宽到 120000，其余与 tb01c 冻结配置相同（调度预算，不是语义）。
+- `e2_real`：`rust/tests/fixtures/tb1490/e2_real_3175_40.json`（BTC 1m 真实笔）笔 3..14（夹具内序号；即真实
+  流笔 3178..3189，#1487 DIAG「v1405 第一次长停（笔 3178）」现场）的端点价，按值保序映射为整数点（段层只比较
+  端点价的大小与相等，保序映射不改任何比较结果；向下段取负价的稠密秩 ×3、DOWN 向生成），再由 tb02d 固定生成器
+  生成整数 OHLC。会话只吃 OHLC、ingest 一消息一事件，笔级夹具不能直接接纳，这是最小可行入口；端点价本身
+  不进会话。窗口内重编号 s'j = s(j+3)。手算：流首段 D 自 s'0；FIRST 为上升笔，s'3 ⊃ s'1 且更低
+  （boundary_pair），s'5／s'7／s'9 ⊂ s'3 ⟹ 窗成员（s'5 已知起 PENDING_CASE_ONE），s'11 高越过 b 高、低不破
+  b 低 ⟹ 先破判据确认（CASE_ONE，段 s'0–s'2，即真实 D s3–s5 3807.53→3770）。
+  截窗原因（首跑实测）：夹具前 15 笔逐根一代 64 代时，cut 41 起公共采集超过生产客户端 30s 总期限（#1497 同类
+  规模问题），且正式 ingest 拒绝一消息多事件（「ingest必须一事件」）。本设计只在判定 cut 上做 AsKnown 公共读，
+  末 cut 做一次 live 读（不逐 cut 读）；Q 资源配置只把 verify_deadline_ms 放宽到 120000，其余与 tb01c 冻结
+  配置相同（调度预算，不是语义）。
 
 期望值全部来自本文件 EXPECTED（按笔手算，依据 xianduan.md §7.1），不调用生产 reducer。cut 约定同 tb02d：
 笔 i 在已接纳 4i+7 根时首次已知。
@@ -38,26 +41,21 @@ GEN = W.GEN
 E2 = ROOT.parent / "rust/tests/fixtures/tb1490/e2_real_3175_40.json"
 
 
-def e2_points(strokes=15):
-    rows = json.loads(E2.read_text())["strokes"][:strokes]
-    prices = [rows[0][3]] + [r[4] for r in rows]
+def e2_points(first=3, last=14):
+    """真实笔 first..last 的端点价 → 保序整数点。窗口首笔向下，DOWN 向生成（价 = MIRROR − f(点)），故取负价的秩。"""
+    rows = json.loads(E2.read_text())["strokes"][first:last + 1]
+    assert rows[0][0] == "Down"
+    prices = [-rows[0][3]] + [-r[4] for r in rows]
     rank = {v: i for i, v in enumerate(sorted(set(prices)))}
     return [3 * rank[p] for p in prices]
 
 
 DESIGNS = {
     "turn": ([0, 10, 4, 20, 5, 18, 7, 15, 3, 12], ("UP", "DOWN")),
-    "e2_real": (e2_points(), ("UP",)),
+    "e2_real": (e2_points(), ("DOWN",)),
 }
-BATCHED = {"e2_real"}  # 一代多知一笔（见模块头）；其余设计一根一代。
-
-
-def chunks(total, batched):
-    """每条消息携带的根数前缀界（累计）。"""
-    if not batched:
-        return list(range(1, total + 1))
-    bounds = list(range(7, total + 1, 4))
-    return bounds + ([total] if bounds[-1] != total else [])
+# 只在这些 cut 做公共读的设计（见模块头）；其余设计逐 cut live + AsKnown + 重访。
+SPARSE = {"e2_real": [19, 27, 35, 43, 51, 52]}
 # 已知笔数 n → 实体 → 期望。只列判定点。
 EXPECTED = {
     "turn": {
@@ -66,12 +64,11 @@ EXPECTED = {
         8: {"segment:1:1": {"result": "CASE_ONE", "turn": "CONFIRMED", "members": ["5"], "end_anchor_stroke": 3}},
     },
     "e2_real": {
-        6: {"segment:1:1": {"result": "CASE_ONE", "turn": "CONFIRMED", "members": [], "end_anchor_stroke": 3}},
-        9: {"segment:1:13": {"result": "PENDING_CASE_ONE", "turn": "OPEN_AT_PREFIX_END", "members": ["8"]}},
-        11: {"segment:1:13": {"result": "PENDING_CASE_ONE", "turn": "OPEN_AT_PREFIX_END", "members": ["8", "10"]}},
-        13: {"segment:1:13": {"result": "PENDING_CASE_ONE", "turn": "OPEN_AT_PREFIX_END", "members": ["8", "10", "12"]}},
-        15: {"segment:1:1": {"result": "CASE_ONE", "turn": "CONFIRMED"},
-             "segment:1:13": {"result": "CASE_ONE", "turn": "CONFIRMED", "members": ["8", "10", "12"], "end_anchor_stroke": 6}},
+        4: {"segment:1:1": {"result": "NO_FIRST", "turn": "OPEN_AT_PREFIX_END", "members": []}},
+        6: {"segment:1:1": {"result": "PENDING_CASE_ONE", "turn": "OPEN_AT_PREFIX_END", "members": ["5"]}},
+        8: {"segment:1:1": {"result": "PENDING_CASE_ONE", "turn": "OPEN_AT_PREFIX_END", "members": ["5", "7"]}},
+        10: {"segment:1:1": {"result": "PENDING_CASE_ONE", "turn": "OPEN_AT_PREFIX_END", "members": ["5", "7", "9"]}},
+        12: {"segment:1:1": {"result": "CASE_ONE", "turn": "CONFIRMED", "members": ["5", "7", "9"], "end_anchor_stroke": 3}},
     },
 }
 
@@ -93,18 +90,17 @@ def prepare(args):
             case_dir = plan_dir / case
             case_dir.mkdir()
             events, messages = {}, []
-            bounds = chunks(len(rows), design in BATCHED)
-            for index, (lo, hi) in enumerate(zip([0] + bounds, bounds)):
+            for index, bar in enumerate(rows):
                 op = "op-" + str(index).zfill(4)
                 base = 946684800000000000 + index * 10000000000
                 events[op] = {"accept_ns": str(base), "attempts": [{"begin_ns": str(base + 100000000), "commit_ns": str(base + 200000000)}]}
-                raws = [{"event_id": bar["raw_id"], "revision": "1", "seq": str(bar["raw_index"]), "received_at": "2000-01-01T00:00:00Z",
-                         "raw_text": canonical(bar).decode(), "timestamp": str(bar["raw_index"] * 60), "volume": "1",
-                         **{k: str(bar[k]) for k in ("open", "high", "low", "close")}} for bar in rows[lo:hi]]
+                raw = {"event_id": bar["raw_id"], "revision": "1", "seq": str(bar["raw_index"]), "received_at": "2000-01-01T00:00:00Z",
+                       "raw_text": canonical(bar).decode(), "timestamp": str(bar["raw_index"] * 60), "volume": "1",
+                       **{k: str(bar[k]) for k in ("open", "high", "low", "close")}}
                 payload = {"op": "ingest", "target_session_id": sid, "target_session_generation": "1", "writer_epoch": "1",
                            "clock_event_id": op,
                            "raw_input": {"schema_revision": "s-ohlc/1", "session_id": sid, "source_namespace": namespace,
-                                         "source_epoch": "1", "instrument": "TEST-OHLC", "profile": "ohlc_integer_tb02a_v1", "events": raws}}
+                                         "source_epoch": "1", "instrument": "TEST-OHLC", "profile": "ohlc_integer_tb02a_v1", "events": [raw]}}
                 messages.append({"schema_revision": "s-session/2", "session_id": sid, "session_generation": "1",
                                  "source_namespace": namespace, "source_epoch": "1", "message_id": op, "producer_id": "tb02x-input",
                                  "producer_epoch": "1", "causal_refs": [], "payload_hash": hashlib.sha256(canonical(payload)).hexdigest(),
@@ -126,7 +122,7 @@ def prepare(args):
                 "query_resource_config": str(query), "s_resources": resources})
             port += 1
             cases[case] = {"design": design, "direction": direction, "inputs": len(rows), "points": points,
-                           "inputs_by_generation": bounds, "generations": len(bounds)}
+                           "sparse_cuts": SPARSE.get(design)}
     plan = {"schema": "tb02x-runtime-plan/1", "ticket": 1493, "cases": cases,
             "binary_sha256": hashlib.sha256(args.binary.read_bytes()).hexdigest(),
             "e2_fixture_sha256": hashlib.sha256(E2.read_bytes()).hexdigest(),
@@ -140,7 +136,7 @@ def check_case(meta, known):
     want, problems, checked, timeline = EXPECTED[meta["design"]], [], {}, []
     pending_seen, confirmed_after_pending = {}, {}
     for generation in sorted(known):
-        n = W.known_strokes(meta["inputs_by_generation"][generation - 1]) if generation else 0
+        n = W.known_strokes(generation)
         row = [generation, n]
         for o in known[generation]["objects"]:
             if o["kind"] != "CC-013.segment":
@@ -178,6 +174,8 @@ def check_case(meta, known):
     missing = sorted({f"n={n}/{e}" for n, es in want.items() for e in es} - {f"n={n}/{e}" for n, e in checked})
     if missing:
         problems.append(f"未覆盖手算判定点 {missing}")
+    if meta.get("sparse_cuts") and sorted(known) != meta["sparse_cuts"]:
+        problems.append(f"公共读 cut {sorted(known)} ≠ 计划 {meta['sparse_cuts']}")
     if not confirmed_after_pending:
         problems.append("未观察到 PENDING_CASE_ONE → CASE_ONE（CONFIRMED）的候选态变化")
     return {"status": "PASS" if not problems else "FAIL", "problems": problems,
@@ -190,6 +188,40 @@ def make_run_class():
 
     class Tb02xRun(Tb02aRun):
         browser_args = None
+        sparse_cuts = None
+
+        def execute(self):
+            """逐条正式接纳；只在 sparse_cuts 上做 AsKnown 公共读并重访一次，末 cut 再做一次 live 读。"""
+            if self.sparse_cuts is None:
+                return super().execute()
+            import time
+            result = {"status": "NOT_VERIFIED", "semantic_oracle": "not_evaluated", "browser": "not_evaluated",
+                      "input_count": len(self.messages), "sparse_cuts": self.sparse_cuts}
+            try:
+                self.control("start")
+                self.after_start()
+                for index in range(len(self.messages)):
+                    if self.send(index, time.monotonic_ns())["transport"] != "Received":
+                        raise ValueError("消息未完整接收")
+                originals = {g: self.query({"id": f"known-{g - 1}", "client": "history", "op": "load", "mode": "AsKnown",
+                                            "generation": str(g)}) for g in self.sparse_cuts}
+                self.query({"id": "live-final", "client": "live", "op": "load"})
+                for g, expected in originals.items():
+                    if self.query({"id": f"revisit-{g - 1}", "client": "history", "op": "load", "mode": "AsKnown",
+                                   "generation": str(g)}) != expected:
+                        raise ValueError("后续输入改变了旧cut的完整公共候选：" + str(g))
+                result["core_records"] = self.collect_core()
+                if {p: hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in self.source_hashes} != self.source_hashes:
+                    raise ValueError("实际运行期间受测源码/构建/输入发生变化")
+                result["status"] = "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER"
+            except Exception as exc:
+                result.update(status="FAIL", error=type(exc).__name__ + ": " + str(exc))
+            finally:
+                result["cleanup"] = self.cleanup()
+                if result["cleanup"]["errors"]:
+                    result["status"] = "FAIL"
+                (self.output / "RESULT.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
+            return result
 
         def collect_core(self):
             records = super().collect_core()
@@ -216,7 +248,7 @@ def make_run_class():
 
 BROWSER_CUTS = {  # 设计 → (实体, 待定 n, 确认 n)
     "turn": ("segment:1:1", 6, 8),
-    "e2_real": ("segment:1:13", 9, 15),
+    "e2_real": ("segment:1:1", 6, 12),
 }
 
 
@@ -231,11 +263,11 @@ def session(args):
         output = case_dir / "run-A"
         run = Run(config=case_dir / "config-A.json", messages=case_dir / "messages.jsonl", output=output,
                   node=args.node, fault_index=None, fault_stage="after_batch")
+        run.sparse_cuts = meta.get("sparse_cuts")
         if args.browser:
             entity, pending, confirmed = BROWSER_CUTS[meta["design"]]
-            bounds = meta["inputs_by_generation"]
-            cut_for = lambda n: str(bounds.index(4 * (n - 1) + 7) + 1)  # noqa: E731 笔 n-1 首次已知的 cut
-            run.browser_args = {"module": args.playwright_module, "final": str(meta["generations"]), "entity": entity,
+            cut_for = lambda n: str(4 * (n - 1) + 7)  # noqa: E731 笔 n-1 首次已知的 cut
+            run.browser_args = {"module": args.playwright_module, "final": str(meta["inputs"]), "entity": entity,
                                 "pending": cut_for(pending), "confirmed": cut_for(confirmed)}
         with W.deadline(case, 7200):
             result = run.execute()
