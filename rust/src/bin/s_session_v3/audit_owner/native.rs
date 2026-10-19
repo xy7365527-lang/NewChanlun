@@ -2724,10 +2724,6 @@ mod u2_exit_adopt_tests {
         let foreign_rows = born(&foreign, vec![4u64]);
         let other = Budget::new(65536, 0).unwrap();
         let other_before = ledger(&other);
-        // scratch通道在他父账上开空WorkScope本身会抬峰值（工作域元数据，live即归还）；峰值上限取空scope实测。
-        let probe = Budget::fresh(65536).unwrap();
-        in_work(&probe, |_| Ok(())).unwrap();
-        let empty_scope_peak = probe.peak();
         assert!(other.require_codec_vec_owned(&foreign_rows).is_err());
         assert_eq!(ledger(&other), other_before);
     }
@@ -2871,6 +2867,10 @@ mod u2_exit_adopt_tests {
         let f = |e: newchan_rust::s_content::CodecError| Failure::Invalid(e.to_string());
         let other = Budget::fresh(65536).unwrap();
         let other_before = ledger(&other);
+        // scratch通道在他父账上开空WorkScope本身会抬峰值（工作域元数据，live即归还）；峰值上限取空scope实测。
+        let probe = Budget::fresh(65536).unwrap();
+        in_work(&probe, |_| Ok(())).unwrap();
+        let empty_scope_peak = probe.peak();
         type Grow = fn(&Budget, &mut CodecVec<u64>, usize) -> Result<(), Failure>;
         let via_codec_vec_grow: Grow = |b, v, n| b.codec_vec_grow(v, n);
         let via_scratch: Grow = |b, v, n| {
