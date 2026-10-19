@@ -1142,6 +1142,10 @@ impl AuditTxn<'_> {
         result?;
         if let Some(pending) = self.construction.borrow_mut().take() {
             // SQLite 已确认 COMMIT，才 move 到下一事务候选；失败绝不复原旧 facts。
+            if let Err(error) = self.owner.construction_lease.close() {
+                self.owner.invalidate_construction();
+                return Err(error);
+            }
             *self.owner.construction.borrow_mut() = Some(pending.committed());
         }
         Ok(Ended {
