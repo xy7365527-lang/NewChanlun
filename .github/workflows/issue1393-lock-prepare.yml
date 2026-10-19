@@ -13,7 +13,7 @@ concurrency:
 
 env:
   # 唯一门；根分别批准 E 的 False 预发布与 F 的单次 push。
-  ISSUE1393_LOCK_EXECUTE: 'False'
+  ISSUE1393_LOCK_EXECUTE: 'True'
   PYTHONDONTWRITEBYTECODE: '1'
 
 jobs:
