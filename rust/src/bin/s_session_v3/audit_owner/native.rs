@@ -989,14 +989,22 @@ impl BootstrapGrant {
 }
 /// #1488 v4 移入许可：已存在载荷在一个锁事务中按当前域双门（G+x<=A、L+x<=总帽）真实预留，
 /// 再逐项拆成随字段移动的Permit/Native许可；不是无票unassigned。未拆部分在Drop时归还。
+/// #1488 MoveIn已退出生产路径（ColdBuildGuard前移），仅测试 fixture 保留（编译期隔离）。
+#[cfg(test)]
 pub(crate) struct MoveIn {
     budget: Budget,
     origin: u64,
 }
 impl Budget {
+    /// #1488 测试观察：未经真实预留拆分的移入余额（生产冷出生必须恒为0）。
+    #[cfg(test)]
+    pub(crate) fn moved_in_for_test(&self) -> usize {
+        self.0.domain.lock().map_or(usize::MAX, |d| d.moved_in)
+    }
     pub(crate) fn bootstrap(grant: BootstrapGrant) -> Result<Self, BudgetExceeded> {
         Self::new(grant.limit, 0)
     }
+    #[cfg(test)]
     pub(crate) fn move_in(&self, bytes: usize) -> Result<MoveIn, BudgetExceeded> {
         {
             let d = self.0.domain.lock().map_err(|_| BudgetExceeded)?;
@@ -1026,6 +1034,7 @@ impl Budget {
         })
     }
 }
+#[cfg(test)]
 impl MoveIn {
     /// 从本次真实移入预留中拆出同origin许可；超额或过期域拒绝且不改账。
     pub(crate) fn take(&self, bytes: usize) -> Result<Permit, BudgetExceeded> {
@@ -1047,6 +1056,7 @@ impl MoveIn {
         self.budget.0.domain.lock().map_or(0, |d| d.moved_in)
     }
 }
+#[cfg(test)]
 impl Drop for MoveIn {
     fn drop(&mut self) {
         let rest = match self.budget.0.domain.lock() {

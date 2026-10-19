@@ -1470,15 +1470,31 @@ impl AuditTxn<'_> {
                     "已有增量游标丢失原件候选；禁止完整核回退",
                 ));
             }
-            let audited = self.audit_required_in_parent(mode, context)?;
-            let parent = context.request_parent_budget();
+            // #1488 v4 ColdBuildGuard前移：无请求父时，在冷候选第一分配（审计/capture/slot）之前
+            // 由本次冻结唯一BootstrapGrant出生根账；此后与请求父同路，在根账活工作域内逐项持票出生。
+            // capture不再接收已分配裸载荷后事后MoveIn。根内审计失败（含额度不足）时根账整体析构，
+            // 按旧口径无票审计且本次不留候选（与旧capture“超限不留候选”同结果）；真实校验错由重跑原样返回。
+            let cold_root = if known && context.request_parent_budget().is_none() {
+                context
+                    .take_bootstrap_grant()
+                    .and_then(|grant| native::Budget::bootstrap(grant).ok())
+            } else {
+                None
+            };
+            let (audited, cold_root) = match cold_root {
+                Some(root) => match self.audit_required_in_parent(mode, context, Some(&root)) {
+                    Ok(audited) => (audited, Some(root)),
+                    Err(_) => {
+                        drop(context.take());
+                        drop(root);
+                        (self.audit_required_in_parent(mode, context, None)?, None)
+                    }
+                },
+                None => (self.audit_required_in_parent(mode, context, None)?, None),
+            };
+            let parent = context.request_parent_budget().or(cold_root);
             if known {
                 if let Some(slot) = context.take() {
-                    let grant = if parent.is_none() {
-                        context.take_bootstrap_grant()
-                    } else {
-                        None
-                    };
                     match CompleteCandidate::capture(
                         self.tx(),
                         seal,
@@ -1487,7 +1503,6 @@ impl AuditTxn<'_> {
                         context.complete_workspace_limit(),
                         context.complete_entry_reserved_bytes(),
                         parent.as_ref(),
-                        grant,
                     )? {
                         Ok(mut candidate) => {
                             candidate.resources =
@@ -1506,7 +1521,7 @@ impl AuditTxn<'_> {
             }
             return Ok(());
         }
-        self.audit_required_in_parent(mode, context)?;
+        self.audit_required_in_parent(mode, context, None)?;
         Ok(())
     }
 
@@ -1514,9 +1529,13 @@ impl AuditTxn<'_> {
         &self,
         mode: &s_allocation::Mode,
         context: &mut request_audit::RequestAuditContext,
+        cold_root: Option<&native::Budget>,
     ) -> Result<state::AuditedState, String> {
         #[cfg(feature = "s_capture_native_testonly")]
-        if let Some(parent) = context.request_parent_budget() {
+        if let Some(parent) = context
+            .request_parent_budget()
+            .or_else(|| cold_root.cloned())
+        {
             let failure = |e: native::Failure| match e {
                 native::Failure::BudgetExceeded => {
                     "S3WriterResourcesInvalid：冷审计父预算不足".to_owned()
@@ -1653,10 +1672,6 @@ struct CompleteCandidate {
     originals: native::Tracked<Vec<request_audit::ExactRows>>,
     charge: CompleteCharge,
     _inline_permit: native::Permit,
-    // 无父冷构造的slot归属从初始原许可移入；detach先释放slot再释放此许可。
-    slot_permit: Option<native::Permit>,
-    // #1488 v4：冷出生根的移入预留；先于resources析构，未拆余额同origin归还。
-    _move_in: Option<native::MoveIn>,
     // 最后析构：冷审计时的同一父账随所有真实载荷跨事务保留。
     resources: native::Budget,
 }
@@ -1708,7 +1723,6 @@ impl CompleteCandidate {
         limit: usize,
         entry_reserved_bytes: usize,
         parent: Option<&native::Budget>,
-        grant: Option<native::BootstrapGrant>,
     ) -> Result<Result<Self, request_audit::VerifiedHistoricalSlot>, String> {
         use super::audit_retention::{sum, Retained};
         // 丢掉事务 memo，仅原件和纯 codec 成功证书移动到候选；不复制节点正文。
@@ -1764,29 +1778,10 @@ impl CompleteCandidate {
         if charge.total >= limit {
             return Ok(Err(slot));
         }
-        // #1488 v4：无请求父时，首个候选分配之前由本次冻结唯一的BootstrapGrant出生根账；
-        // 无父且无许可则不建无票父（旧Budget::new(limit, retained)+adopt通道退役）。
-        let root = match (parent, grant) {
-            (Some(parent), _) => parent.clone(),
-            (None, Some(grant)) => match native::Budget::bootstrap(grant) {
-                Ok(root) => root,
-                Err(_) => return Ok(Err(slot)),
-            },
-            (None, None) => return Ok(Err(slot)),
-        };
-        // 严格审计在根出生前已存在的载荷（节点/历史/绑定/来源池）按当前域双门一次真实移入；
-        // MoveIn随候选持有，slot许可从中拆出，未拆部分在候选析构时同origin归还。
-        let move_in = if parent.is_none() {
-            let pre = charge
-                .total
-                .checked_sub(std::mem::size_of::<Self>())
-                .ok_or_else(|| invalid("候选移入账下溢"))?;
-            match root.move_in(pre) {
-                Ok(move_in) => Some(move_in),
-                Err(_) => return Ok(Err(slot)),
-            }
-        } else {
-            None
+        // #1488 v4：根账（请求父或ColdBuildGuard前移出生的冷根）必须先于候选第一分配存在，
+        // 全部既有载荷已在其活工作域内持票出生；无父不建无票父，也不事后MoveIn追认。
+        let Some(root) = parent.cloned() else {
+            return Ok(Err(slot));
         };
         let parent = Some(&root);
         let inline_permit = match parent
@@ -1935,21 +1930,6 @@ impl CompleteCandidate {
         if !originals.has_permit() {
             return Err(invalid("原件容器缺当前根许可"));
         }
-        let slot_permit = match &move_in {
-            Some(move_in) => {
-                let bytes = charge
-                    .slot_result_capacity
-                    .checked_add(charge.historical_binding_capacity)
-                    .and_then(|n| n.checked_add(charge.source_pool_charge))
-                    .ok_or_else(|| invalid("slot初始原件费溢出"))?;
-                Some(
-                    move_in
-                        .take(bytes)
-                        .map_err(|_| invalid("slot初始原件移入许可不足"))?,
-                )
-            }
-            None => None,
-        };
         let q = match q::Facts::cold(tx, &originals, &audited, &budget) {
             Ok(q) => q,
             Err(native::Failure::BudgetExceeded) => return Ok(Err(slot)),
@@ -1974,8 +1954,6 @@ impl CompleteCandidate {
             charge,
             resources: budget,
             _inline_permit: inline_permit,
-            slot_permit,
-            _move_in: move_in,
         }))
     }
 }
@@ -2096,7 +2074,6 @@ impl CompleteCandidate {
             drop(slot.result);
             drop(slot.binding);
             drop(slot.source_pending);
-            drop(self.slot_permit.take());
             let released = self
                 .charge
                 .slot_result_capacity
@@ -4542,9 +4519,11 @@ mod construction_tests {
         assert!(owner.construction_lease.stale.get());
     }
 
-    /// #1488 v4 反例A：无enable的生产冷入口由唯一BootstrapGrant出生根，既有载荷经MoveIn真实移入。
+    /// #1488 v4 反例A：无enable的生产冷入口由唯一BootstrapGrant在候选第一分配前出生根（ColdBuildGuard前移），
+    /// 既有载荷在根账活工作域内持票出生；不经MoveIn事后预留，根账无未拆移入余额。
+    /// （0022：原名 owner_cold_candidate_born_from_grant_with_move_in，MoveIn 退役后判据随之改为“无事后移入”。）
     #[test]
-    fn owner_cold_candidate_born_from_grant_with_move_in() {
+    fn owner_cold_candidate_born_from_grant_before_first_allocation() {
         let f = fixture();
         let owner = AuditConnection::open(&f.db_path()).unwrap();
         let mut c = context();
@@ -4553,8 +4532,11 @@ mod construction_tests {
         assert!(c.take_bootstrap_grant().is_none(), "出生许可只可消费一次");
         let complete = active.complete.borrow();
         let candidate = complete.as_ref().unwrap();
-        assert!(candidate._move_in.is_some(), "冷出生既有载荷必须经MoveIn");
-        assert!(candidate.slot_permit.is_some() || candidate.slot.is_none());
+        assert_eq!(
+            candidate.resources.moved_in_for_test(),
+            0,
+            "冷出生不得留事后移入余额"
+        );
         assert!(c.matches_complete_budget(&candidate.resources));
         assert!(candidate.resources.live() <= c.complete_workspace_limit());
     }

@@ -24,7 +24,7 @@ v3::audit_owner::native::unified_ownership_v4_tests::handoff_ends_move_in_and_ol
 v3::audit_owner::native::lifecycle_repair_v2_tests::frozen_increment_accepts_700_old_and_20_new_with_200_allowance
 v3::request_audit::handoff_domain_tests::bootstrap_grant_is_consumed_exactly_once
 v3::request_audit::handoff_domain_tests::warm_prepare_binds_real_parent_and_voids_grant
-v3::audit_owner::construction_tests::owner_cold_candidate_born_from_grant_with_move_in
+v3::audit_owner::construction_tests::owner_cold_candidate_born_from_grant_before_first_allocation
 v3::audit_owner::construction_tests::owner_raw_pending_state_holds_its_fee_until_drop
 # #1488 U2 追认点退出生产路径（0022；每处正/负各一）
 v3::audit_owner::native::u2_exit_adopt_tests::u2_material_parent_born_empty_and_journal_fee_reserved
