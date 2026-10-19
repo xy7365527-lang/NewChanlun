@@ -6597,6 +6597,8 @@ pub(super) fn append_owner_cut(
         &mut retained,
     )
     .map_err(|e| format!("{e} [owner object effects g={generation}]"))?;
+    #[cfg(test)]
+    eprintln!("UO1488_H objects_update {retained:?}");
     let mut aux_facts = old
         .auxiliary_facts
         .take()
@@ -6612,9 +6614,13 @@ pub(super) fn append_owner_cut(
         &mut retained,
     )
     .map_err(|e| format!("{e} [owner aux effects g={generation}]"))?;
+    #[cfg(test)]
+    eprintln!("UO1488_H aux_update {retained:?}");
     let mut objects =
         object_index::restore_for_owner(old.objects, &store, &mut sweep, bound, &mut retained)?;
     let mut object_sweep = Some(sweep);
+    #[cfg(test)]
+    eprintln!("UO1488_H restore_objects {retained:?}");
     let mut native_aux = Some(aux_index::NativeAuxAudit::restore(
         &store,
         &old.auxiliary,
@@ -6644,6 +6650,8 @@ pub(super) fn append_owner_cut(
         &store,
     )?;
     let mut resolved = bj::new_work(None);
+    #[cfg(test)]
+    eprintln!("UO1488_H control_resume {retained:?}");
     let mut stmt=CheckedStatement::prepare(tx,c"SELECT p.generation,p.batch_id,p.manifest_root,p.snapshot_root,p.delta_root,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.catalog_run_status,d.catalog_evidence_json,d.delta_json FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation WHERE p.generation=?1").map_err(err)?;
     stmt.bind_integer(1, generation).map_err(err)?;
     let mut row = stmt
@@ -6691,12 +6699,16 @@ pub(super) fn append_owner_cut(
     store.native_codec_room(&mut old.cuts, 1).map_err(err)?;
     old.cuts.try_push(cut).map_err(err)?;
     retained.vec_capacity::<PublishedCut>(capacity, old.cuts.capacity());
+    #[cfg(test)]
+    eprintln!("UO1488_H cut_push {retained:?}");
     store
         .verify_many_ref(resolved.iter().map(RefValue::view), sc::Mode::Public)
         .map_err(err)?;
     let facts = control.into_facts()?;
     verify_current_frontiers(&store, tx, &old.cuts, frontier, None)?;
     let auxiliary_facts = native_aux.map(|aux| aux.into_facts_retained(&mut retained));
+    #[cfg(test)]
+    eprintln!("UO1488_H aux_facts {retained:?}");
     let prefixes = prefixes.unwrap();
     for (before, after) in prefix_capacities
         .into_iter()
@@ -6705,10 +6717,21 @@ pub(super) fn append_owner_cut(
         // truncate 不减容量；effective=None 真实 drop 的整栈才减费。
         retained.vec_capacity::<(u64, NodeDigest)>(before, after);
     }
+    #[cfg(test)]
+    eprintln!("UO1488_H prefixes {retained:?}");
     let ordered = ordered.unwrap().into_facts_retained(&mut retained);
+    #[cfg(test)]
+    eprintln!("UO1488_H ordered {retained:?}");
     let objects = objects.into_entries_preserving(&mut object_sweep);
     if let Some(sweep) = &mut object_sweep {
         retained.merge(sweep.take_retained_delta());
+    }
+    #[cfg(test)]
+    eprintln!("UO1488_H sweep_merge {retained:?}");
+    #[cfg(test)]
+    {
+        use super::audit_retention::Retained;
+        eprintln!("UO1488_H cuts_heap={} cut_cap={} cut_size={}", old.cuts.heap_bytes(), old.cuts.capacity(), std::mem::size_of::<PublishedCut>());
     }
     Ok((
         IndexedHistory {
