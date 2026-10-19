@@ -3322,7 +3322,7 @@ fn r13_optional_sql_rows_share_parent_without_changing_cells() {
 /// 原先C5期望每节点一张同额物理来源许可（r14：803张/111,334B=node_body+97·nodes），那是同一
 /// allocation在父账的第二个物理角色；现降为合同角色，只在O的source_cost里计一次。父账封存live
 /// 共少127,974B（527,048→399,074）=111,334B（上述来源许可）+16,640B（NativeNode去掉
-/// Option<NativeReservation>后索引槽变窄的布局连带，=索引槽数×槽宽差；#1488 P2-β，r14逐项锁定）。
+/// Option<NativeReservation>后索引槽变窄的布局连带，=1040槽×(241−225)B；#1488 P2-β，r14逐项锁定）。
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 fn seal_census_check(
     seal: &[native::CensusEvent],
@@ -3868,7 +3868,8 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                 // ①来源许可降为合同角色：803张同额物理许可消失，=来源合同额之和111,334B
                 //   （node_body 33,443B + 97·803）；
                 // ②布局连带：NativeNode的`Option<NativeReservation>`字段换成`Option<SourceClaim>`，
-                //   索引许可按槽数×槽宽计，槽宽随之变窄，降幅=索引槽数×(旧槽宽−现槽宽)=16,640B。
+                //   索引许可按槽数×槽宽计，槽宽随之变窄，降幅=索引槽数×(旧槽宽−现槽宽)=16,640B
+                //   （实测1040槽×(241−225)B，每槽窄16B；旧槽宽取同布局镜像的size_of，非手填）。
                 // 两项之和=127,974B；这是预期变化（索引许可仍按真实元素布局计），不是另有许可消失。
                 const SEALED_BEFORE_P2A: usize = 527_048;
                 assert_eq!(index_bytes % slot_now, 0, "索引许可=槽数×现槽宽");
