@@ -1437,8 +1437,9 @@ impl<'a> Reader<'a> {
             content_sha256: check.row.content_sha256,
         })
     }
-    pub(super) fn touched(&self) -> &std::collections::BTreeSet<[u8; 32]> {
-        &self.touched
+    /// 测试快照：复制成普通集合，不外借持费集合本体。
+    pub(super) fn touched(&self) -> std::collections::BTreeSet<[u8; 32]> {
+        self.touched.iter().copied().collect()
     }
 
     /// 把捕获作用域交给调用方保管：同一次根审计的后续读取继续共享同一份节点读集。
@@ -1807,9 +1808,10 @@ impl<'a> Reader<'a> {
             Some((bytes, value)) => (bytes, value),
             None => {
                 let expanded = self.expand_work(root_key, &check.row)?;
-                let bytes =
-                    crate::v3::native_shared::NativeArc::try_copy_slice(&expanded, self.work)
-                        .map_err(|e| e.to_string())?;
+                let bytes = crate::v3::native_shared::NativeArc::<[u8]>::try_copy_slice(
+                    &expanded, self.work,
+                )
+                .map_err(|e| e.to_string())?;
                 if cache::retention_enabled() {
                     // 已核闭包：把本次读到的**原件证书**保留下来（共享同一份原节点，按唯一保留量
                     // 记账），供后续捕获逐字节比较。只在成功核过长度/摘要之后才保留。
@@ -2150,9 +2152,10 @@ impl<'a> Reader<'a> {
                         c.cert_mismatched += 1;
                     }
                 });
-                let payload =
-                    crate::v3::native_shared::NativeArc::try_copy_slice(&payload, self.work)
-                        .map_err(|e| e.to_string())?;
+                let payload = crate::v3::native_shared::NativeArc::<[u8]>::try_copy_slice(
+                    &payload, self.work,
+                )
+                .map_err(|e| e.to_string())?;
                 (
                     crate::v3::native_shared::NativeArc::try_new_shallow(
                         cache::Cert {

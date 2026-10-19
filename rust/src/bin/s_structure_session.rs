@@ -745,8 +745,9 @@ fn load_batch_with(
     let blob = blob.try_into_plain().map_err(|e| e.to_string())?;
     if !graph {
         // 旧整块域：完整规范字节就在这一行。
-        let bytes = crate::v3::native_shared::NativeArc::try_copy_slice(blob.as_slice(), work)
-            .map_err(|e| e.to_string())?;
+        let bytes =
+            crate::v3::native_shared::NativeArc::<[u8]>::try_copy_slice(blob.as_slice(), work)
+                .map_err(|e| e.to_string())?;
         let digest = blob_digest(&blob);
         // 整块域也走同一句柄缓存：命中要求当前行内字节与此前核过的完全一致。
         let key = evidence_store::batch_root_key_admitted(batch_id, None, work)?;
@@ -9538,7 +9539,7 @@ mod tests {
                 let bytes = load_batch_bytes(&conn, &id).unwrap();
                 conn.execute(
                     "UPDATE batches SET canonical_bytes=?1 WHERE batch_id=?2",
-                    params![bytes, id],
+                    params![&*bytes, id],
                 )
                 .unwrap();
             }

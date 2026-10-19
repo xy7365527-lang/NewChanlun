@@ -990,7 +990,7 @@ pub(crate) fn verify_current_begin_admitted(
     if ordinal < 1
         || ordinal.checked_add(1) != Some(next_ordinal)
         || generation != m.generation
-        || message_key.as_str() != expected_key
+        || message_key.as_str() != expected_key.as_str()
         || begin_ns.as_str()
             != newchan_rust::session_protocol::clock_phase_view(
                 (&clock.value).into(),

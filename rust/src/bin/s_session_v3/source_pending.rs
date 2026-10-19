@@ -77,7 +77,7 @@ impl StepView for Step<'_> {
 
 #[cfg(feature = "s_capture_native_testonly")]
 pub(super) struct StepContribution {
-    pub(super) object: std::rc::Rc<Object>,
+    pub(super) object: super::super::native_shared::NativeRc<Object>,
     pub(super) fields: SourceFields<'static>,
     pub(super) key: bj::TextValue,
     pub(super) reasons: RefValue,
@@ -88,7 +88,7 @@ pub(super) struct StepContribution {
 impl StepContribution {
     pub(super) fn bind(
         s: &mut (impl SourceFieldStore + ?Sized),
-        object: std::rc::Rc<Object>,
+        object: super::super::native_shared::NativeRc<Object>,
         raw: &(impl RawLookup + ?Sized),
     ) -> Result<(i64, Self), String> {
         let (coord, step) = step_record(s, &object, raw)?;

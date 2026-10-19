@@ -74,7 +74,7 @@ impl Retained for source_pending::StepContribution {
 
 // 各容器只在实际修改处增减账；最终 retained_bytes 不遍历历史。
 struct Map<K, V> {
-    values: super::audit_store::NativeTree<K, V>,
+    values: super::super::audit_store::NativeTree<K, V>,
     bytes: usize,
 }
 impl<K, V> Default for Map<K, V> {
@@ -180,7 +180,7 @@ impl ShapeLookup for Map<TextValue, Shape> {
     }
 }
 struct Tree<K> {
-    values: super::audit_store::NativeSet<K>,
+    values: super::super::audit_store::NativeSet<K>,
     bytes: usize,
 }
 impl<K> Default for Tree<K> {
@@ -192,7 +192,7 @@ impl<K> Default for Tree<K> {
     }
 }
 impl<K> std::ops::Deref for Tree<K> {
-    type Target = super::audit_store::NativeSet<K>;
+    type Target = super::super::audit_store::NativeSet<K>;
     fn deref(&self) -> &Self::Target {
         &self.values
     }

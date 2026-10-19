@@ -131,6 +131,10 @@ macro_rules! shared_family {
             pub(crate) fn ptr_eq(this: &Self, other: &Self) -> bool {
                 $ptr::ptr_eq(&this.value, &other.value)
             }
+            /// 仅作身份比较用的地址；不暴露可解引用的原始句柄。
+            pub(crate) fn as_ptr(this: &Self) -> *const T {
+                $ptr::as_ptr(&this.value)
+            }
             /// 保留标准库“唯一强且无弱”的条件，不按 lease 数量推断唯一性。
             /// 调用方仅能通过受准入字段操作改变动态内容；不提供 DerefMut/make_mut。
             pub(crate) fn get_mut(this: &mut Self) -> Option<&mut T> {
@@ -222,6 +226,10 @@ macro_rules! shared_family {
             }
             pub(crate) fn ptr_eq(this: &Self, other: &Self) -> bool {
                 $weak_ptr::ptr_eq(&this.value, &other.value)
+            }
+            /// 仅作身份比较用的地址；与强句柄 as_ptr 同址。
+            pub(crate) fn as_ptr(&self) -> *const T {
+                self.value.as_ptr()
             }
         }
         impl<T: ?Sized> Clone for $weak<T> {

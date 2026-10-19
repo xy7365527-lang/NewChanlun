@@ -1958,7 +1958,7 @@ mod tests {
                             let old = m.root_certs.remove(key).unwrap();
                             let mut changed = RootCert::new(
                                 old.node,
-                                old.slots.clone(),
+                                old.slots.to_vec(),
                                 old.expanded_length,
                                 old.content_sha256.as_str().to_owned(),
                             );
@@ -2423,7 +2423,7 @@ mod tests {
             let current = originals[key].as_ref().unwrap();
             let mut rotated = RootCert::new(
                 current.node,
-                current.slots.clone(),
+                current.slots.to_vec(),
                 current.expanded_length,
                 current.content_sha256.as_str().to_owned(),
             );
@@ -2478,7 +2478,7 @@ mod tests {
             "delta/1",
             &RootCert::new(
                 wanted.node,
-                wanted.slots.clone(),
+                wanted.slots.to_vec(),
                 wanted.expanded_length,
                 wanted.content_sha256.as_str().to_owned(),
             ),
@@ -2520,7 +2520,8 @@ mod tests {
                                                                // ⑥ 子依赖原件变化：父节点 payload 逐字节不变（子引用相同），但子节点原件不同 ⟹
                                                                // 闭包门必须为假（全闭包逐字节命中才允许复用）。
         let mut parent = cert(2, 1, b"parent-refs-child", 40);
-        Arc::get_mut(&mut parent).unwrap().children = vec![[1u8; 32]];
+        Arc::get_mut(&mut parent).unwrap().children =
+            newchan_rust::s_content::CodecVec::from_plain(vec![[1u8; 32]]);
         node_put(0, parent, true);
         let closure = BTreeSet::from([[2u8; 32], [1u8; 32]]);
         cert_commit(0, &closure);
