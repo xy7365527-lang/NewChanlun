@@ -1,0 +1,82 @@
+{
+  "origin_main_parent": "0c397d20de4076dbb6f7caa62738fc04cf72322f",
+  "old_evidence_sha_checks": [
+    {
+      "path": ".chanlun/review-results/issue1495-lean-first-break-20261015/INDEPENDENT-REVIEW.md",
+      "expected": "d069047f006526aaaff828f221ff305edb13e86f05296ad2294dc505f310f3c2",
+      "actual": "d069047f006526aaaff828f221ff305edb13e86f05296ad2294dc505f310f3c2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1495-lean-first-break-20261015/REPORT.md",
+      "expected": "fab09fbb35d67c151f4fe3b9b597ef376c56d8071fb46f0d2bf33f03dd5aa972",
+      "actual": "fab09fbb35d67c151f4fe3b9b597ef376c56d8071fb46f0d2bf33f03dd5aa972"
+    },
+    {
+      "path": ".chanlun/review-results/issue1495-lean-first-break-20261015/SOURCE-MANIFEST.json",
+      "expected": "b26cd086476b9357d1ae3b68f7f83274fb1507ca158fe2ecf9f562f6c9586f09",
+      "actual": "b26cd086476b9357d1ae3b68f7f83274fb1507ca158fe2ecf9f562f6c9586f09"
+    },
+    {
+      "path": ".chanlun/review-results/issue1495-lean-first-break-20261015/TOKEN-AND-PREDICATE-CHECK.json",
+      "expected": "7fc152ee7e5cde72298edc012d92684edda9ed9653d8e8ac2912d5f5877ccd13",
+      "actual": "7fc152ee7e5cde72298edc012d92684edda9ed9653d8e8ac2912d5f5877ccd13"
+    },
+    {
+      "path": ".chanlun/review-results/issue1495-lean-first-break-20261015/VALIDATION.json",
+      "expected": "61122ddf924322e8b1a1892b04110ee538b8b0c7de0ca3b859f8f86868ea4b5c",
+      "actual": "61122ddf924322e8b1a1892b04110ee538b8b0c7de0ca3b859f8f86868ea4b5c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1495-lean-first-break-20261015/ci-exact-head-fixture.log",
+      "expected": "6ad42e8c5f856076df45ef1c12faeaf77b11e727e6e817dd5a58845a50094459",
+      "actual": "6ad42e8c5f856076df45ef1c12faeaf77b11e727e6e817dd5a58845a50094459"
+    },
+    {
+      "path": ".chanlun/review-results/issue1495-lean-first-break-20261015/fixture-drift.log",
+      "expected": "a3e763efbb33cc78bae8e72416822886dac44d60e6fbfaeaad90d1b3793569de",
+      "actual": "a3e763efbb33cc78bae8e72416822886dac44d60e6fbfaeaad90d1b3793569de"
+    },
+    {
+      "path": ".chanlun/review-results/issue1495-lean-first-break-20261015/full-build.log",
+      "expected": "59477954856bcc2be032ab25f36e992b256ce0c05262201c2b087c9d7c7f1f5a",
+      "actual": "59477954856bcc2be032ab25f36e992b256ce0c05262201c2b087c9d7c7f1f5a"
+    }
+  ],
+  "main_ci": {
+    "status": "completed",
+    "conclusion": "failure",
+    "headSha": "fdc5c6a7fd2fcb6b8d436d419984c1c826b669f6",
+    "url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/38685059094",
+    "jobs": [
+      {
+        "name": "fixture-drift",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Build formal (lake build)",
+            "conclusion": "success"
+          },
+          {
+            "name": "Fixture drift check (Lean → fixtures)",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "name": "rust-check",
+        "conclusion": "failure",
+        "steps": []
+      },
+      {
+        "name": "s-observer",
+        "conclusion": "success",
+        "steps": []
+      },
+      {
+        "name": "test",
+        "conclusion": "success",
+        "steps": []
+      }
+    ]
+  }
+}
