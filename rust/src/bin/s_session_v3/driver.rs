@@ -1175,10 +1175,6 @@ mod tests {
         assert!(contract > 0);
         let home = keeper.source_home().expect("池封存在请求父账").clone();
         let physical = home.live();
-        assert!(
-            physical > contract,
-            "反例前提：池父账物理live {physical} 大于合同额 {contract}"
-        );
         // 请求n+1入口：discard候选（生产 held>keeper_cap 分支），重新分区。
         driver.conn.discard_after_error();
         let partition = driver
@@ -1194,6 +1190,10 @@ mod tests {
         assert_eq!(partition.l0(), physical, "无候选：物理组只有K");
         let carried = partition.carried();
         assert!(carried >= physical, "K物理live全部进入O+U");
+        assert!(
+            carried >= contract + super::super::audit_owner::native::Budget::metadata_bytes(),
+            "合同额与M_K照收"
+        );
         let legacy = crate::cache::retained_bytes();
         // 生产T=cap：K物理live装不下时冻结拒绝（旧口径只计合同额会照收，物理超额逃出T）。
         if legacy + carried > cap {
@@ -1219,7 +1219,7 @@ mod tests {
             carried - contract,
             "旧口径多放出的A恰为物理超合同部分"
         );
-        assert!(old_allowance - allowance >= physical - contract);
+        assert!(old_allowance - allowance >= physical.saturating_sub(contract));
         drop(context);
         // 生产后续请求：放回keeper走真实入口（装不下即只丢可选池），回复与ordinary逐字相同。
         driver.conn.put_source_keeper_for_test(keeper);

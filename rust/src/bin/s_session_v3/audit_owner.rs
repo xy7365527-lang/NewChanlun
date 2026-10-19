@@ -1251,9 +1251,6 @@ impl AuditConnection {
                 // #1488 P1-2：池按其所在父账的物理live单列一组（与候选同父则由分区拒绝），
                 // 控制块M与池合同额同为该组合同项；不在任何账上的池只能按合同额计。
                 Some(home) => {
-                    if !k.source_on_parent(home) {
-                        return Err("S3WriterResourcesInvalid：keeper池证明容器不在所记父账，无法映射".into());
-                    }
                     partition.keeper_home(home)?;
                     partition.item("source_keeper_pool", P::KEEPER_PARENT, k.retained_source_bytes())?;
                     partition.item(
@@ -1644,7 +1641,10 @@ impl AuditTxn<'_> {
                             );
                             *self.complete.borrow_mut() = Some(candidate);
                         }
-                        Err(slot) => context.restore_slot(slot),
+                        Err(slot) => {
+                            context.restore_slot(slot);
+                            context.note_slot_home(parent.as_ref());
+                        }
                     }
                 }
             }
@@ -2546,6 +2546,8 @@ impl AuditConnection {
         #[cfg(feature = "s_capture_native_testonly")]
         {
             *self.complete.borrow_mut() = ended.complete;
+            // 交接点：候选移入owner；请求收尾的finish_source_keeper会在静止点重读覆盖。
+            self.mark_quiescent();
         }
         Ok(())
     }

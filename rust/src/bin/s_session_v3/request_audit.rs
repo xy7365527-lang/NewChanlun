@@ -317,6 +317,9 @@ pub(super) struct RequestAuditContext {
     // #1488 P1-1：old_pool映射所依据的同父账；绑定只接受同一父且L0未变。
     #[cfg(feature = "s_capture_native_testonly")]
     old_pool_parent: std::cell::RefCell<Option<super::audit_owner::native::Budget>>,
+    // #1488 P1-2：退回本context的slot其capture许可所在的父账（冷根）；只用于记下封存池的物理父账。
+    #[cfg(feature = "s_capture_native_testonly")]
+    slot_home: Option<super::audit_owner::native::Budget>,
     #[cfg(test)]
     binding_hook: Option<fn(&Transaction<'_>)>,
     #[cfg(test)]
@@ -493,6 +496,11 @@ impl RequestAuditContext {
                     }
                 } else {
                     keeper.retain_completed(slot.capture, slot.node_count, pending);
+                    // #1488 P1-2：无请求父时池不在工作域内封存，但capture许可仍挂其出生的冷根；
+                    // 记下该账，下次冻结按其物理live计，不只按合同额。
+                    if let Some(home) = self.slot_home.take() {
+                        keeper.set_source_home(&home);
+                    }
                 }
             }
         }
@@ -2014,6 +2022,11 @@ mod owner_retention {
 impl RequestAuditContext {
     pub(super) fn restore_slot(&mut self, slot: VerifiedHistoricalSlot) {
         self.slot = Some(slot);
+    }
+    /// #1488 P1-2：slot是在该父账上出生的（冷根内审计），退回后其capture许可仍挂该账。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn note_slot_home(&mut self, home: Option<&super::audit_owner::native::Budget>) {
+        self.slot_home = home.cloned();
     }
     pub(super) fn note_complete_source_work(
         &mut self,

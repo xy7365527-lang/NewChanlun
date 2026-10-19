@@ -656,11 +656,6 @@ impl Budget {
             .map(|i| census.swap_remove(i).1)
             .unwrap_or_default()
     }
-    /// #1488 P1-1：容器真实驻留在本父账（同一Ledger）上；未绑定Native的容器不在任何账上。
-    pub(crate) fn holds_codec_vec<T>(&self, v: &newchan_rust::s_content::CodecVec<T>) -> bool {
-        let parent: Arc<dyn ScratchParent> = self.0.clone();
-        v.is_native_bound() && v.native_parent_matches(&parent)
-    }
     /// 工作域和新块一起预检；预算拒绝不能先接纳原件或改变峰值。
     fn preflight_codec_vec<T>(
         &self,
