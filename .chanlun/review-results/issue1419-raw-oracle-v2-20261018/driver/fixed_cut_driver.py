@@ -547,7 +547,7 @@ class Collector:
             self.work(page)
             exact(page, set("deltas next_cursor observed_head delivery_frontier has_more gap validated_capture_digest ok".split()))
             require(page["gap"] is None, "watch发生Gap；成功证明不完整，保原件且不静默重取")
-            require(isinstance(page["deltas"], list) and 0 < len(page["deltas"]) <= requested, "watch空页/批次越界")
+            require(isinstance(page["deltas"], list) and len(page["deltas"]) <= requested, "watch批次越界")
             from content_closure import ref_check
             head_cut = page['observed_head']
             self._check_cut(head_cut, staged)
@@ -571,6 +571,9 @@ class Collector:
                 require(delta["session_id"] == cursor["session_id"] and delta["catalog_revision"] == cursor["catalog_revision"], "watch身份变化")
                 frontier=natural(delta['input_frontier'])
                 require(frontier>=previous_frontier,'watch输入前沿回退')
+                # q3-consumer.js：wire.seq_range.from 必须恰为 cursor.last_seq+1（v7 R6-1）。
+                exact(delta['seq_range'], {'from', 'to'})
+                require(delta['seq_range']['from'] == str(previous_frontier+1), 'watch seq_range断链')
                 binding=accepted_commits.get(delta['generation'])
                 require(isinstance(binding,dict),'缺具名提交代际绑定')
                 exact(binding,{'session_id','session_generation','message_id','source_epoch','accepted_events','accepted_cut'})
@@ -603,9 +606,13 @@ class Collector:
                 results.append(deepcopy(delta))
             require(page["next_cursor"] == cursor, "watch游标不符")
             require(head >= after and page['has_more'] == (head > after), 'Watch head/has_more不同')
+            # q3：空批仅在已追平（head==after）时合法，观测头须为当前同cut完整身份（下方_check_cut）。v7 R6-2。
+            require(page['deltas'] or head == after, 'watch空页但未追平')
             self._check_cut(head_cut, staged)  # 同页delta已登记，再核同代完整身份。
             require((-1 if head_cut['input_frontier']=='-1' else natural(head_cut['input_frontier'])) >= previous_frontier, '观测头输入前沿落后')
             self._stage_cut(staged, head_cut)  # 较高head的身份亦跨调用保留，不能随后同代变脸。
+            if not page['deltas']:
+                break  # 已追平：本次调用止于当前代，不空转；through_generation 是上限而非承诺。
 
         # 整次调用验证成功后才一次安装；任何失败不推进切面/游标/去重账，预算不回滚。
         self.work(prior_cut)
