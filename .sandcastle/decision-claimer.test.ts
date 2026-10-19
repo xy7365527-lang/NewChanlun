@@ -7,7 +7,8 @@ import {
   ADR_FORMAT_LINE, AUTH_LINE, MAX_ROUNDS, isCitationOnlyBlock, landingProblem, revisePrompt, CITATION_SECTION, DRAFT_SECTIONS, GH_API_WRITE_DENY, READ_TOOLS, hasCitationTable, toolArgs, FETCH_URL, MAIN_REF, MODEL_FABLE, MODEL_OPUS, DryRunWriteError,
   allocateAdr, applyReclass, draftPrompt, ensureSrc, extractFirstApiKey, guardGh, reclassSuggestion, renumberDraft, reviewPrompt, initialState, isGhWrite, landingTarget, missingDraftSections,
   nextAfterReview, parseArgs, parseClassification, parseReview, processTicket, selectCandidates,
-  type Deps, type GhRunner, type ModelCall,
+  isRetryable, makeClaudeRunner, loadResume,
+  type Deps, type GhRunner, type ModelCall, type OnceResult,
 } from "./decision-claimer.mts";
 
 const pass = (basis = "回查成立") => Object.fromEntries(["R1", "R2", "R3", "R4", "R5", "R6", "R7"].map((r) => [r, { verdict: "PASS", basis }]));
@@ -479,4 +480,144 @@ test("提示：自证表看不到原文整条删；R4 落点越界即 BLOCK；�
   assert.match(draftPrompt(t, c), /写不出亲眼看到的原文就整条删掉.*不许写「未直接看到但结构确认」/);
   assert.match(reviewPrompt(t, c, "草稿"), /R4 .*正本落点越界.*即 BLOCK/);
   assert.match(revisePrompt(t, c, "上稿", "- R1 BLOCK：x"), /正本落点保持原样/);
+});
+
+// ───────── #1547 fix4：临时错误重试与审查后断点续做 ─────────
+
+test("isRetryable：429/5xx/暂时不可用/超时算临时，参数与权限错误不算", () => {
+  for (const t of ["API Error: 模型服务暂时不可用，请稍后重试。", "API Error: 529 overloaded", "503 Service Unavailable",
+    "Rate limit exceeded", "request timed out", "ECONNRESET", "API Error: 500 Internal Server Error"]) assert.equal(isRetryable(t), true, t);
+  for (const t of ["Invalid model name", "permission denied: Write", "API Error: 400 bad request", "API Error: 401 unauthorized"]) assert.equal(isRetryable(t), false, t);
+});
+
+const okOnce = (text: string): OnceResult => ({ code: 0, stdout: JSON.stringify({ result: text, is_error: false }), stderr: "" });
+const errOnce = (msg: string): OnceResult => ({ code: 1, stdout: JSON.stringify({ result: msg, is_error: true }), stderr: "" });
+const call: ModelCall = { model: MODEL_OPUS, prompt: "p", cwd: "/", role: "land" };
+
+test("makeClaudeRunner：临时错误指数退避重试直到成功", async () => {
+  const seq = [errOnce("API Error: 模型服务暂时不可用，请稍后重试。"), errOnce("API Error: 503"), { code: 143, stdout: "", stderr: "claude 子进程超时（1800s timed out）" }, okOnce("好")];
+  const waits: number[] = [];
+  const run = makeClaudeRunner({ once: async () => seq.shift()!, token: () => "t", sleep: async (ms) => { waits.push(ms); } });
+  const r = await run(call);
+  assert.equal(r.text, "好");
+  assert.equal(r.attempts, 4);
+  assert.deepEqual(waits, [20_000, 40_000, 80_000]);
+});
+
+test("makeClaudeRunner：至少重试 4 次；非临时错误首次即失败", async () => {
+  let n = 0;
+  const flaky = makeClaudeRunner({ maxAttempts: 2, once: async () => (n++, errOnce("overloaded")), token: () => "t", sleep: async () => {} });
+  await assert.rejects(flaky(call), /第 5 次/);
+  assert.equal(n, 5);
+  let m = 0;
+  const hard = makeClaudeRunner({ once: async () => (m++, errOnce("Invalid model name")), token: () => "t", sleep: async () => {} });
+  await assert.rejects(hard(call), /Invalid model name/);
+  assert.equal(m, 1);
+});
+
+/** live 假环境：gh 维护 assignees 状态，git 按落地提示里的目标回报改动。 */
+function liveDeps(replies: Array<string | Error>, opts: { failGh?: (a: string[]) => boolean } = {}) {
+  const ghCalls: string[][] = [];
+  const modelCalls: ModelCall[] = [];
+  let assignees: string[] = [];
+  let target = "";
+  const gh: GhRunner = (args) => {
+    ghCalls.push(args);
+    if (opts.failGh?.(args)) throw new Error(`gh 失败：${args.join(" ")}`);
+    if (args[0] === "issue" && args[1] === "view") {
+      return JSON.stringify({ number: 1565, title: "FU-x", body: "票面", labels: [{ name: "wayfinder:grilling" }], assignees: assignees.map((login) => ({ login })), comments: [] });
+    }
+    if (args[0] === "issue" && args[1] === "edit" && args[3] === "--add-assignee") assignees = ["me"];
+    if (args[0] === "issue" && args[1] === "edit" && args[3] === "--remove-assignee") assignees = [];
+    if (args[0] === "api") return "[]";
+    return "";
+  };
+  const gitCalls: string[][] = [];
+  const d: Deps = {
+    mode: "live", gh, me: "me",
+    git: (_cwd, args) => {
+      gitCalls.push(args);
+      if (args[0] === "status") return `?? ${target}\n`;
+      if (args[0] === "rev-parse") return "abcdef1234567890\n";
+      return "";
+    },
+    model: async (c) => {
+      modelCalls.push(c);
+      if (c.role === "land") target = /写进正本 (\S+?)。/.exec(c.prompt)![1];
+      const r = replies.shift();
+      if (r === undefined) throw new Error("模型调用次数超出预期");
+      if (r instanceof Error) throw r;
+      return { text: r, durationMs: 5, attempts: 1 };
+    },
+    outRoot: mkdtempSync(join(tmpdir(), "decision-claimer-live-")),
+    srcDir: "/nonexistent-src",
+    repoRoot: "/nonexistent-repo",
+    now: Date.now,
+  };
+  return { d, replies, ghCalls, modelCalls, gitCalls, fail: (f: (a: string[]) => boolean) => (opts.failGh = f), stopFail: () => (opts.failGh = undefined) };
+}
+
+const writesOf = (calls: string[][]) => calls.filter(isWrite).map((a) => a.slice(0, 4).join(" "));
+
+test("live T 类：审查 PASS 后落地失败记 reviewed_pass，下一轮只做落地不重审", async () => {
+  const { d, replies, ghCalls, modelCalls, gitCalls } = liveDeps([
+    fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()),
+    new Error("land claude-opus-5-5 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
+  ]);
+  const s1 = await processTicket(1565, d);
+  assert.equal(s1.phase, "error");
+  assert.equal(s1.stage, "reviewed_pass");
+  const dir = join(d.outRoot, "1565");
+  assert.equal(JSON.parse(readFileSync(join(dir, "summary.json"), "utf8")).stage, "reviewed_pass");
+  assert.ok(loadResume(dir));
+  assert.equal(writesOf(ghCalls).at(-1), "issue edit 1565 --remove-assignee");
+
+  ghCalls.length = 0;
+  modelCalls.length = 0;
+  gitCalls.length = 0;
+  replies.push("已写入");
+  const s2 = await processTicket(1565, d);
+  assert.equal(s2.phase, "land_t");
+  assert.equal(s2.resumedFrom, "reviewed_pass");
+  assert.equal(s2.stage, undefined);
+  assert.deepEqual(modelCalls.map((c) => c.role), ["land"]);
+  assert.deepEqual(writesOf(ghCalls), ["issue edit 1565 --add-assignee", "issue comment 1565 --body-file"]);
+  assert.ok(gitCalls.some((a) => a[0] === "push"));
+  assert.equal(JSON.parse(readFileSync(join(dir, "summary.json"), "utf8")).stage, undefined);
+  assert.equal(loadResume(dir), null);
+});
+
+test("live T 类：已推送只差评论时，续做只补 resolution 评论", async () => {
+  const h = liveDeps([fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()), "已写入"]);
+  // 第一条评论是分级，第二条是 resolution：让 resolution 评论失败。
+  h.fail((a) => a[1] === "comment" && h.ghCalls.filter((x) => x[1] === "comment").length > 1);
+  const s1 = await processTicket(1565, h.d);
+  assert.equal(s1.phase, "error");
+  assert.equal(s1.landedSha, "abcdef1234567890");
+  h.stopFail();
+  h.ghCalls.length = 0;
+  h.modelCalls.length = 0;
+  h.gitCalls.length = 0;
+  const s2 = await processTicket(1565, h.d);
+  assert.equal(s2.phase, "land_t");
+  assert.deepEqual(h.modelCalls, []);
+  assert.ok(!h.gitCalls.some((a) => a[0] === "push"));
+  assert.deepEqual(writesOf(h.ghCalls), ["issue edit 1565 --add-assignee", "issue comment 1565 --body-file"]);
+});
+
+test("live P 类：贴标签失败只记断点，下一轮只补贴标签与取消认领", async () => {
+  const h = liveDeps([fence({ class: "P", reason: "资金参数" }), goodDraft, fence(pass())]);
+  h.fail((a) => a[3] === "--add-label");
+  const s1 = await processTicket(1565, h.d);
+  assert.equal(s1.phase, "error");
+  assert.equal(s1.stage, "shadow_p_pending");
+  assert.deepEqual(s1.pDone, ["comment"]);
+  h.stopFail();
+  h.ghCalls.length = 0;
+  h.modelCalls.length = 0;
+  const s2 = await processTicket(1565, h.d);
+  assert.equal(s2.phase, "shadow_p");
+  assert.equal(s2.stage, undefined);
+  assert.deepEqual(h.modelCalls, []);
+  assert.deepEqual(writesOf(h.ghCalls), ["issue edit 1565 --add-assignee", "issue edit 1565 --add-label", "issue edit 1565 --remove-assignee"]);
 });
