@@ -807,12 +807,16 @@ impl Budget {
     }
     /// #1488 U2：std Vec 不追认既有容量。先从本父取同容量新块许可、再分配，载荷移入后旧块析构；
     /// 返回的许可覆盖新块且必须随容器持有。失败时容器与账均不变。
+    /// #1488 P2-3：旧块无票，复制期新旧两块真实共存——旧块容量先按实占临时预留（计入峰值），
+    /// 旧块析构后才返还；预留失败时容器与账均不变。
     pub(crate) fn rebirth_vec<T>(&self, v: &mut Vec<T>) -> Result<Permit, BudgetExceeded> {
+        let coexist = self.reserve(vec_bytes::<T>(v.capacity()))?;
         let mut fee = self.reserve(0)?;
         let mut fresh = Vec::new();
         self.grow_vec(&mut fresh, &mut fee, v.capacity())?;
         fresh.append(v);
-        *v = fresh;
+        drop(std::mem::replace(v, fresh));
+        drop(coexist);
         Ok(fee)
     }
     /// #1488 U2：空父账出生后从父真实预留首笔费用（不经 moved_in 追认）。
@@ -856,6 +860,15 @@ impl Budget {
             return Err(Failure::Invalid("Native不接其它allocator容器".into()));
         }
         let needed = v.len().checked_add(additional).ok_or(BudgetExceeded)?;
+        // #1488 P2-3：旧 Plain 块无票；复制期新旧共存，旧块容量先按实占临时预留（计入峰值），
+        // 旧块析构后返还。预留失败时容器与账均不变。
+        let old_bytes = v
+            .capacity()
+            .checked_mul(size_of::<T>())
+            .ok_or(BudgetExceeded)?;
+        let coexist = work
+            .reserve_native(old_bytes)
+            .map_err(|e| Failure::Invalid(e.to_string()))?;
         let mut fresh = newchan_rust::s_content::CodecVec::from_plain(Vec::new());
         fresh
             .try_reserve_native(work, needed)
@@ -871,6 +884,8 @@ impl Budget {
         for x in old {
             v.try_push(x).map_err(|e| Failure::Invalid(e.to_string()))?;
         }
+        // 旧块已随 into_iter 析构完毕，临时共存许可此后返还。
+        drop(coexist);
         Ok(())
     }
     pub(crate) fn codec_vec_grow<T>(
@@ -2628,6 +2643,63 @@ mod u2_exit_adopt_tests {
         assert!(in_work(&other, |scope| other.rebirth_codec_vec(&mut foreign_nodes, scope, 1))
             .is_err());
         foreign.require_codec_vec_owned(&foreign_nodes).unwrap();
+    }
+    // #1488 P2-3（评审 0024）：rebirth 复制期新旧块共存，父账峰值必须同时含旧块与新块；
+    // 余额只够新块、不够新旧共存时拒绝且容器与 live/余额不变。
+    #[test]
+    fn p2_3_rebirth_vec_peak_counts_old_and_new_blocks() {
+        let budget = Budget::fresh(4096).unwrap();
+        let base = budget.live();
+        let mut raw = Vec::with_capacity(8);
+        raw.extend([1u64, 2, 3]);
+        let old = vec_bytes::<u64>(raw.capacity());
+        let fee = budget.rebirth_vec(&mut raw).unwrap();
+        let new = vec_bytes::<u64>(raw.capacity());
+        assert_eq!(fee.bytes, new);
+        assert!(budget.peak() >= base + old + new, "峰值漏计旧块");
+        assert_eq!(budget.live(), base + new, "旧块析构后临时共存许可必须返还");
+        drop(fee);
+        assert_eq!(budget.live(), base);
+
+        let tight = Budget::fresh(Budget::metadata_bytes() + old + old - 1).unwrap();
+        let mut raw = Vec::with_capacity(8);
+        raw.extend([4u64, 5]);
+        let (ptr, cap) = (raw.as_ptr(), raw.capacity());
+        let before = (tight.live(), tight.remaining());
+        assert!(tight.rebirth_vec(&mut raw).is_err());
+        assert_eq!((raw.as_ptr(), raw.capacity(), raw.as_slice()), (ptr, cap, &[4u64, 5][..]));
+        assert_eq!((tight.live(), tight.remaining()), before);
+    }
+    #[test]
+    fn p2_3_rebirth_codec_vec_peak_counts_old_and_new_blocks() {
+        let budget = Budget::fresh(65536).unwrap();
+        let base = budget.live();
+        let mut plain = Vec::with_capacity(4);
+        plain.push([1u8; 32]);
+        let mut nodes = CodecVec::from_plain(plain);
+        let old = nodes.capacity() * 32;
+        in_work(&budget, |scope| budget.rebirth_codec_vec(&mut nodes, scope, 0)).unwrap();
+        let new = nodes.capacity() * 32;
+        assert!(nodes.is_native_bound());
+        assert!(
+            budget.peak() >= base + CodecWork::metadata_bytes() + old + new,
+            "峰值漏计旧块"
+        );
+        assert_eq!(budget.live(), base + new, "旧块析构后临时共存许可必须返还");
+        drop(nodes);
+        assert_eq!(budget.live(), base);
+
+        let room = CodecWork::metadata_bytes() + old + old - 1;
+        let tight = Budget::fresh(Budget::metadata_bytes() + room).unwrap();
+        let mut plain = Vec::with_capacity(4);
+        plain.push([2u8; 32]);
+        let mut nodes = CodecVec::from_plain(plain);
+        let ptr = nodes.as_ptr();
+        let before = (tight.live(), tight.remaining());
+        assert!(in_work(&tight, |scope| tight.rebirth_codec_vec(&mut nodes, scope, 0)).is_err());
+        assert!(!nodes.is_native_bound());
+        assert_eq!((nodes.as_ptr(), &*nodes), (ptr, &[[2u8; 32]][..]));
+        assert_eq!((tight.live(), tight.remaining()), before);
     }
     // #1488 P2-1（评审 0024）：生产出生入口 fresh 无 moved_in；codec_vec_grow 对已分配裸块拒绝
     // 且不改容器与账，零容量裸块只经真实预留绑票；未覆写 adopt_native 的父（生产 Ledger 形态）恒拒。
