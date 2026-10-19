@@ -333,7 +333,6 @@ impl Driver {
                         .as_ref()
                         .map_or(0, |k| k.retained_source_bytes())
                         .saturating_add(self.conn.complete_retained_bytes());
-                    eprintln!("UO25_FREEZE {}", json!({"keeper":previous.as_ref().map_or(0, |k| k.retained_source_bytes()),"old_pool":old_pool,"legacy":legacy,"total":total}));
                     context.freeze_manifest_workspace_budget(total, legacy, old_pool)?;
                     if super::cross_request_source_cache::Keeper::retention_possible(keeper_cap) {
                         let mut keeper = previous.unwrap_or_else(|| {
