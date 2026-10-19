@@ -1089,6 +1089,46 @@ mod tests {
         );
     }
 
+    /// #1488 P1-1：生产暖路径入口的old_pool逐项分区——O恰为逐项合同额之和，同父L0只计一次
+    /// （parent_paid+uncovered=L0，parent_paid+external=O），项键(role,item,origin)不重；回复不变。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn p1_1_driver_warm_old_pool_partition_counts_l0_once() {
+        let warm_fixture = Fixture::new();
+        let ordinary_fixture = Fixture::new();
+        let mut warm = complete_driver(&warm_fixture);
+        let mut ordinary = ordinary_fixture.open("1").unwrap();
+        let mut seen = Vec::new();
+        for n in 1..=3 {
+            let partition = {
+                let keeper = warm.conn.source_keeper_for_test();
+                warm.conn.old_pool_partition(keeper.as_ref()).unwrap()
+            };
+            let items = partition.items();
+            let sum = items.iter().map(|i| i.contract).sum::<usize>();
+            assert_eq!(partition.old_pool(), sum, "O=逐项合同额，不含L补差");
+            assert_eq!(partition.parent_paid() + partition.uncovered(), partition.l0());
+            assert_eq!(partition.parent_paid() + partition.external(), partition.old_pool());
+            assert!(partition.carried() >= partition.l0(), "carried覆盖同父L0");
+            let mut keys = items
+                .iter()
+                .map(|i| (i.role, i.item, i.origin))
+                .collect::<Vec<_>>();
+            keys.sort();
+            keys.dedup();
+            assert_eq!(keys.len(), items.len(), "同一合同项不得重复入O");
+            if n > 1 {
+                assert!(partition.l0() > 0 && partition.old_pool() > 0, "暖入口有同父旧候选");
+            }
+            seen.push(serde_json::to_value(&partition).unwrap());
+            assert_eq!(
+                warm.handle(Fixture::ingest(n)).unwrap(),
+                ordinary.handle(Fixture::ingest(n)).unwrap()
+            );
+        }
+        eprintln!("{}", json!({"scenario":"p1-1-warm-partition","partitions":seen}));
+    }
+
     /// #1488 P3-1：冷根审计失败（1024 不足）且 legacy cache 保留开启时，根析构前根上不得残留许可；
     /// 回复与基线一致。
     #[cfg(feature = "s_capture_native_testonly")]
