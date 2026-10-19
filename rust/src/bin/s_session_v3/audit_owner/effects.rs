@@ -941,7 +941,7 @@ pub(crate) fn note_node(tx: &Transaction<'_>, digest: [u8; 32], before: u64, ins
         uo_diag("node_calls");
         uo_diag(if inserted { "node_inserted" } else { "node_noop" });
         UO_DIAG.with(|d| { let mut d = d.borrow_mut(); if !inserted && !d.1.contains(&digest) { *d.0.entry("noop_first_seen_old".into()).or_default() += 1; } if !d.1.insert(digest) { let n = d.0.entry("node_repeat_digest".into()).or_default(); *n += 1; if false { let bt = std::backtrace::Backtrace::force_capture().to_string(); let fr: Vec<&str> = bt.lines().filter(|l| l.contains("s_session_v") || l.contains("s_content")).filter(|l| !l.contains("effects.rs") && !l.contains("backtrace")).take(14).collect(); eprintln!("UO_REPEAT n={} inserted={} {:?}", n, inserted, fr); } } if inserted && !d.2.insert(digest) { *d.0.entry("node_reinserted".into()).or_default() += 1; } });
-        if j.overflow { uo_diag("node_after_overflow"); }
+        if j.overflow { uo_diag("node_after_overflow"); UO_DIAG.with(|d| { let d = d.borrow(); let c = d.0.get("node_calls").copied().unwrap_or(0); if c % 250 == 0 { eprintln!("UO_PROGRESS {:?} distinct={}", d.0, d.1.len()); } }); }
         let existed = j.nodes.contains(&digest);
         if existed && !j.set_required {
             return;
