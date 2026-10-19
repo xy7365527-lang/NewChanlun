@@ -3,7 +3,8 @@
 # 安装后 launchd KeepAlive 常驻；脚本内部 10 分钟轮询，以 --live 写 GitHub。
 # 安装前先手动跑一次 dry-run：node --import tsx .sandcastle/decision-claimer.mts --ticket <号>
 set -euo pipefail
-PLIST_SRC=/Users/silencehan/Projects/NewChanlun/.sandcastle/launchd/com.newchanlun.decision-claimer.plist
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+PLIST_SRC="$SCRIPT_DIR/launchd/com.newchanlun.decision-claimer.plist"
 PLIST_DST="$HOME/Library/LaunchAgents/com.newchanlun.decision-claimer.plist"
 
 case "${1:-install}" in
