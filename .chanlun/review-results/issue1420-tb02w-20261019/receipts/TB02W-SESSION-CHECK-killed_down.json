@@ -1,0 +1,556 @@
+{
+  "schema": "tb02w-session-check/1",
+  "cases": {
+    "killed_down": {
+      "arms": {
+        "A": {
+          "status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER",
+          "error": null,
+          "cuts": 40,
+          "structural": {
+            "1": {
+              "full": "12b755523708e038c2bfe852b52609ff3fbc75771223d7f93f23cf4ae12233ed",
+              "semantic": "f2f4afc45a68952cc2611133146a4c3e730f8dae10d857bf7b932061250fca23",
+              "semantic_without_commit_ns": "615082061d870daa5f7f8fa57dd5031e00b6e80f4b772dd7396c5f7aaf4e8637",
+              "objects": 6
+            },
+            "2": {
+              "full": "c9212cec53d9f709ecec3d2dc625b4bc24e66df6299b2ec7edc1da96ebccf475",
+              "semantic": "864e9c5a15762053cfeed63f1057c503b1f2ce053da3462f026b2536b922c18f",
+              "semantic_without_commit_ns": "cb7d17e6de996a7660371130f0830b8a41aa685e14ca9c83ae4bbc127543affe",
+              "objects": 8
+            },
+            "3": {
+              "full": "8358f68ec92f25867f740211e826924abe7661994b7918aa6e5e4fa8959ac923",
+              "semantic": "ef1f046cfc9974b39b346135203dcbea75f607248d00c56dac607e6dc60470d3",
+              "semantic_without_commit_ns": "c33483dcc9a7cdb39f661438eb574a65917131303ffdae7179e31323ee668697",
+              "objects": 13
+            },
+            "4": {
+              "full": "d0de259e0d7fa1e7899d2630bcef1184a53f42cede3fe051025b1f1a27ff8d14",
+              "semantic": "992a266950c34f442bb2c0bb00cf6e469e28bb1a9d081109e2b870a3272b4fca",
+              "semantic_without_commit_ns": "317ca7805c184d2df959a22d44f5ff3f03644666158dad383e3dc84cd47c3c57",
+              "objects": 16
+            },
+            "5": {
+              "full": "217137751da406be979a92207493218514d7140fa36cee31bc9a27a87fe58b05",
+              "semantic": "8c816cfa14bcab6ca4c8da1bceb5240548346a67a2d271a3410446eb2f76575e",
+              "semantic_without_commit_ns": "9aa705d09f99a508ad56005fa9f4b9d89f22f0d9763babbccfaad4494cf5281c",
+              "objects": 19
+            },
+            "6": {
+              "full": "62cf9d88c659009ebde63e002565a7b566d357dc61715ee92ad388383aa9d3de",
+              "semantic": "80bdb4381740c6ab931847fcc6c3601277d0289e66fb5387f93003927a5c0ed1",
+              "semantic_without_commit_ns": "815fd11d8b47a475adfd8acc83e47ca0d273c0ec837d6cf05b7cf34a4d90b0c3",
+              "objects": 22
+            },
+            "7": {
+              "full": "ef648561a52f1b646fb25a1069734c1ce61eb4e6c8c33d1bea74581fd7f071b0",
+              "semantic": "a11ee60d496e797a0c19d4a0cde95ba179649ca2a28532a5db7ebcce6ba9b677",
+              "semantic_without_commit_ns": "c4cbc40e185b1af3e1ba69077fb8ea8c9bffe29211987db2d59aa1a53285abf7",
+              "objects": 37
+            },
+            "8": {
+              "full": "2bf21d1be9f2a170b28e8807f5f31d5adb69fac5e12512636c97ad1b5085cfbd",
+              "semantic": "f52fd3c9cb556d37e0b83256c641bcb97372d489f32252c72db6c0188fff1fae",
+              "semantic_without_commit_ns": "3e87fd46314406eabe4604464212523a8fcedd6fe11a072c236050984f0535f1",
+              "objects": 40
+            },
+            "9": {
+              "full": "8c2e3244c858fdbc2fec8e11572b24db88f7a237ba18489fedf3dc4cb6ad83ac",
+              "semantic": "f096e22f8febd03315da366fd14da77ac14babb9f20535b1e180c6bda59e03f9",
+              "semantic_without_commit_ns": "f470ccbc06c99d86c4f9386238bef257012016dacfb13336809f9ff17282fe80",
+              "objects": 42
+            },
+            "10": {
+              "full": "1eab5073fa203d01ce96cf79565620dc2126535cacece30c40a2af020077426f",
+              "semantic": "bb60164b0570439487c298437b3aa4c9b652732dba19b4caa18ddf6e3d6bfe2a",
+              "semantic_without_commit_ns": "dc849253b7970b7383519eccc16c59a9a40972527ddfe478249d0000d77d7e65",
+              "objects": 45
+            },
+            "11": {
+              "full": "56d5e601a3e7d7d354cea74aade4dbf73ea52ea4bb11128a1d4636cefeefc5d2",
+              "semantic": "aab7b23df9194b879318a08d8cd5221f750b1eba6c9913deab7547b3fae4e0f0",
+              "semantic_without_commit_ns": "417ad0f4a84ed7f20bfadfbd6ceb2a2088ec15927b74efdfdb1c47926795f5d0",
+              "objects": 60
+            },
+            "12": {
+              "full": "afbd1240b48c5f6d0d0a07f0ffe8e73802658576566d9ebf70dde8e6eda0594c",
+              "semantic": "7ffe5b0554027e7ef5c27f461ebd5d8ac840db9fba659b8de1a686ff87471ed9",
+              "semantic_without_commit_ns": "74ae5bba54811d863896c48c989970791fa77d2378d5a9f70d28f457f06d494a",
+              "objects": 65
+            },
+            "13": {
+              "full": "5acfcfaeceba5e116eb749c104cdcfae7a5c975909f77493df9b53a543e226d7",
+              "semantic": "c3e1ce0cc1177b572abbca3a2476291675b460ff6de0a25b3d0244c8808bb2b5",
+              "semantic_without_commit_ns": "97a725bc77cb3e0d5ed539852c7363bcd42965ee7f287dd506cd782d5c6dd1ce",
+              "objects": 66
+            },
+            "14": {
+              "full": "034545ed88aba4ec7e68a11a072b7f65883f68bf532ea1a89ad58fa7cbcfe24b",
+              "semantic": "bb5e475fdc7e321e76fa63e3192c64c3af9c11ba14c7e17e9158f1c9871ff660",
+              "semantic_without_commit_ns": "73dd9fd25d0db741adfbc88b2ec1c0b398d750234467f797742f3899bf07016c",
+              "objects": 69
+            },
+            "15": {
+              "full": "fd9c6ee1c4891ba53e69f6977bee0a4a09b0db342da419b539d9a1e57993558e",
+              "semantic": "7071fc8ad72b3ee11d4322eacdb371163aed435d466eeb6d0a800d74a5624a25",
+              "semantic_without_commit_ns": "556fde9d39b9bb1d60dc8abf697e99fe7cd1e34b7f61f5d924a214ed405efe1a",
+              "objects": 89
+            },
+            "16": {
+              "full": "f6154082334d4b968a4390fec164cdb721777bedd68d735c7753a1d3b7a68a04",
+              "semantic": "548385469407add865ab8c5fdc6d23ca4e30768d2314d98d78264b704270afc2",
+              "semantic_without_commit_ns": "c909b7d6981c7813cf6ba67cdc1f1c23b7ecb1feec6dcb11565ce07f09d30904",
+              "objects": 94
+            },
+            "17": {
+              "full": "011791ff9f1236729ee903b5c7e73816d070e9b5d2eae62ad39132102aef8d96",
+              "semantic": "bfba32f17d61a4c697d4206e83dbf5d7841184900811f588db8b48c9b4a6899c",
+              "semantic_without_commit_ns": "31275049452dbdc8c93f4f2861cb22475d1323b75041566a75b13f12fe3f346f",
+              "objects": 94
+            },
+            "18": {
+              "full": "4c7a8e26617bc986045b605290d4cee15d9937663f570803f4553db4fca03e09",
+              "semantic": "3861f224fea641af946eecef9c638fcd37dd28218f30f5da4dce97173267df58",
+              "semantic_without_commit_ns": "f778214ee66ead53e40bc5fc6b231cd2590a9a81e795fbc2e39b09a3638c14ad",
+              "objects": 97
+            },
+            "19": {
+              "full": "0029f0f7172a4c09294e2e86a50a3ecd9ee44347eb70bb411bafe235124c65ab",
+              "semantic": "3a74a72fe160fddd85141bcd234073f3863ffa58658ab974e35def16dfe6b634",
+              "semantic_without_commit_ns": "4713fc7aaa11323a792612c59d4fea93de60fcd3d4f55a646406fef1f8840319",
+              "objects": 114
+            },
+            "20": {
+              "full": "46b594faf42304149220bfabf2eb7d2da74d6481301ea6b4c253b02616dd8203",
+              "semantic": "3d35f183d7a0be9cad2c878f4e31c2ad78e13a2520b977b4b0446bfc448199ee",
+              "semantic_without_commit_ns": "cef1df1da5eea9cd4a0ac48014a2729f5097746b7c41abefce8dc3a5e6b8dd7d",
+              "objects": 119
+            },
+            "21": {
+              "full": "305f7e63e4471bc0ea52787273b8d14a997fce7eef28ac1b2d5b7aeeba553565",
+              "semantic": "a38fa43f93a30ad769f688f2e492963eb65151797f967683ede182ed57f32f40",
+              "semantic_without_commit_ns": "7e48ccc3fedaaa2f817fdb1bf75b393dafc1f969a1d242653441fed15fbe35c1",
+              "objects": 119
+            },
+            "22": {
+              "full": "8bb2536e7b725ffd0a5a9fd96b4f3a19d2f93bcda69cf0158fc4811343e51a25",
+              "semantic": "e8dcb87a0c56934ce06f3f02b8fbc8c4de56f10eaf0a4defae6834110cfd6abd",
+              "semantic_without_commit_ns": "dafebda0eb72a3496391fc33ebe034ba0edb514ff6b706668dcc1c5ab6a81847",
+              "objects": 122
+            },
+            "23": {
+              "full": "34c5f4c886a920c8f6eb4d4fc2c1d71660746981d9848de95aec4d72216b5f0f",
+              "semantic": "0fbb95aad5297e7692119551ae4fdbe44a4403e96ef6406ac856d70d5760654f",
+              "semantic_without_commit_ns": "b8908511efde1953074704b3a1db77020883408e100eabb5c426266e418491bf",
+              "objects": 138
+            },
+            "24": {
+              "full": "e44caa66234eb7a1902f68bc0569a714ef6c6c8492d51e8b318dc9dcffddb485",
+              "semantic": "7a1a5c63b51611326ac28beb69f6847367fe030e0ed5d1b664232c3ab4c8989e",
+              "semantic_without_commit_ns": "61633a70b4c3c304de2490ac68c0284ce0b84add240e9cf03ce76cf174f7ba5c",
+              "objects": 143
+            },
+            "25": {
+              "full": "217946bab14d82ce2129ffd035159ad4abdc77a3ea49fde7c35d7539f20422f5",
+              "semantic": "ec2a6bae72959ceea89011b4406d0d4dde7ed4a32b99f9cc79b927288b179f18",
+              "semantic_without_commit_ns": "9355435befe0a987e1e11d212aa06ac2e50eab343f5e55887dca6c2f9978ba95",
+              "objects": 143
+            },
+            "26": {
+              "full": "4c0df14ec0f499b5c4dba466dc74a3870750cb612a1ae1c0e7a95c42e88c338f",
+              "semantic": "331ef57a4ef2419838f7aa5181768a63791954f42c40cba7b4193c3a9c0c8d5b",
+              "semantic_without_commit_ns": "9a286487a487ad108953d372b7b62c64075b6d0752fbbd2b64331a89c2274354",
+              "objects": 146
+            },
+            "27": {
+              "full": "8e4097ef4a75a1a70b47387cf3519a9267616e11a011e2ac8f0dfa9eee81cc58",
+              "semantic": "7c3f475eb93c16737fe1290db0c44ab61468de52228b88c6fd5cc738ac3a730b",
+              "semantic_without_commit_ns": "124ffc5cd67685ab08945f7abcad92ace786d1c210c71b4e97a47bad82c67ff5",
+              "objects": 166
+            },
+            "28": {
+              "full": "964ab35756a966fc1f5e23abbc51f25633fc857c174406ef711ad2f746aff4b9",
+              "semantic": "e11b2050bf59b8fb46a8af038b69c14a45cb8710456012c3ab5139f08912e918",
+              "semantic_without_commit_ns": "bcc249840e6be3d9acf74bdfea1716024b264a90c2313ada5be67321e093d375",
+              "objects": 171
+            },
+            "29": {
+              "full": "75ba93ca68ced14bd078eab1a69b1b5496bcdf5f11b90840d815f2212db2e4e4",
+              "semantic": "297ed05c5318ff3b00a1cf2e981123b3d46c91c1cf496e69fb1d1ca85fb01054",
+              "semantic_without_commit_ns": "a6d7d93767da2a6004bb5e26067253951923b62aea25c68ba760934d0da4cf32",
+              "objects": 171
+            },
+            "30": {
+              "full": "27cf66ea0eb84852729d96cd202a000bdbc702935979c5c4c8e937b2a60c0434",
+              "semantic": "21f211b054a0f4d6fe430e9e29056a0cea444204b0e44299c1e21d0525908bfa",
+              "semantic_without_commit_ns": "1af3085cc8b521e7aabea30efdf852920084eadb7d06351cdb2880eb956b9156",
+              "objects": 174
+            },
+            "31": {
+              "full": "af26f4f27c2eb9138ca82f335ac6aae5994ae2c73bb132e221937d8fbe5f9440",
+              "semantic": "ff490d2c123a1f7cd69add7f5469db46a806f54104a944536cfd3f78a48333c7",
+              "semantic_without_commit_ns": "8129bc1da812b97c2c098246b4c7b53097ec3f5ef861247f3a2f54dee99b5c05",
+              "objects": 191
+            },
+            "32": {
+              "full": "a8d64cf1f698c7fa2b9a76dfa0284ef73f572101e08f991b5d0375cbc722c8d1",
+              "semantic": "109b9473c91ee275075b3ba786ea62c55c8e93a794aa937dfa6c2e8b95ff7748",
+              "semantic_without_commit_ns": "074aef8a7115160307a7ef548ce5e390aa251fbd4b6982dcadaeb326917449cf",
+              "objects": 196
+            },
+            "33": {
+              "full": "0f4386a2737e39ed770181f004c5806a8c03f58b0e886a77fab7132f377c680c",
+              "semantic": "be33717a30bc31c793f1ad16cc86cec0daa8c6f628031d7e1d37f84dc81ebc1c",
+              "semantic_without_commit_ns": "5a4c00a33e850987976560e9e32a72eb013f3ace0b4e3e04cfaf945d2fcaec43",
+              "objects": 196
+            },
+            "34": {
+              "full": "506ae9a51b8e5e8c5e650d350746e6f3a349c8514be91bc0eaecc1c1b518b2ae",
+              "semantic": "61bb374841a618a28d9afe5ad6f2007e79546c88693437d375702a6bd290d4f9",
+              "semantic_without_commit_ns": "db057c4afd0ec511b0a111aad358fd52254e2a2b02093beb1fcea29a50d643e1",
+              "objects": 199
+            },
+            "35": {
+              "full": "2af7a164f35d36cd464916805b9c01ad24b8e590de5328a71b010925032e08a7",
+              "semantic": "6b4aea0b2d22e7e1846df22bc9c54cf7e1aba7ba3cf96afa5f990ad086a1c43a",
+              "semantic_without_commit_ns": "1e6e100e2058ee0cce952129643b007118aa56b1cf42c4f3da09ac9a3fdaa115",
+              "objects": 216
+            },
+            "36": {
+              "full": "b21bc76beff96dc04943bed88239605062fe15ddf3fa5b86cc6ade3eddeb5c2b",
+              "semantic": "f2286fcbf7e80714cafbcf543e65cefbf095fb5fcfb3403dc1d6d45126da8235",
+              "semantic_without_commit_ns": "198c52d846d4114235f56386a455da2c5f2d16854a16d7baf5cb946354717846",
+              "objects": 221
+            },
+            "37": {
+              "full": "4b1167237d595ff98dd4fee53f4fd4fbeda42aa061990c6c98fdab0ea99fc5c2",
+              "semantic": "9aa161dde4a7a5d386fd9344cd89d79eda4bd2239df56a48aa1489a8c8343998",
+              "semantic_without_commit_ns": "2534f044da544af3c016ea879a3dfcbf625f0afbbe4a67dc07cf0028a7676cd7",
+              "objects": 221
+            },
+            "38": {
+              "full": "319fc6e5d830002016a500e4ee2e1f390a1450ca03a1ef8b6d3c7bd76c7f515a",
+              "semantic": "db72ea8820f113dcba2d9503967228c4d5314877695c527973944a3bae04c613",
+              "semantic_without_commit_ns": "cc43d9bc56913e26064e0d05dc104d08c61d35f7a81ff4a2c77fb8c6ac83e93d",
+              "objects": 224
+            },
+            "39": {
+              "full": "3c8ea06da338358b39a814eab9966a86dd14314f83d997002ed2463679ba782f",
+              "semantic": "cea4e6b371a33732ed618fd71f58936e4c975d0923e8b83e903df585000dbf8e",
+              "semantic_without_commit_ns": "e69b52474979ed2cff67c119869474c015db43c321209d3596d5636b8a66d807",
+              "objects": 240
+            },
+            "40": {
+              "full": "37a47785887d493bc88ab5ffc3813d6cdeff31d164337dc51ada71fd2b2c743c",
+              "semantic": "5a415a76eda3cb187c66be473f00562221b5debd4c1dbaa6400d44ebd24d2ed6",
+              "semantic_without_commit_ns": "ac841fda59cec94caa0779bc896ff589721eccef642ff6c1fdc90df87634ff62",
+              "objects": 245
+            }
+          },
+          "hand_oracle": {
+            "status": "PASS",
+            "problems": [],
+            "decision_cuts": {
+              "6": 27,
+              "7": 31,
+              "9": 39
+            },
+            "timeline": [
+              [
+                1,
+                0,
+                null,
+                null
+              ],
+              [
+                2,
+                0,
+                null,
+                null
+              ],
+              [
+                3,
+                0,
+                null,
+                null
+              ],
+              [
+                4,
+                0,
+                null,
+                null
+              ],
+              [
+                5,
+                0,
+                null,
+                null
+              ],
+              [
+                6,
+                0,
+                null,
+                null
+              ],
+              [
+                7,
+                1,
+                null,
+                null
+              ],
+              [
+                8,
+                1,
+                null,
+                null
+              ],
+              [
+                9,
+                1,
+                null,
+                null
+              ],
+              [
+                10,
+                1,
+                null,
+                null
+              ],
+              [
+                11,
+                2,
+                null,
+                null
+              ],
+              [
+                12,
+                2,
+                null,
+                null
+              ],
+              [
+                13,
+                2,
+                null,
+                null
+              ],
+              [
+                14,
+                2,
+                null,
+                null
+              ],
+              [
+                15,
+                3,
+                "NO_FIRST",
+                null
+              ],
+              [
+                16,
+                3,
+                "NO_FIRST",
+                null
+              ],
+              [
+                17,
+                3,
+                "NO_FIRST",
+                null
+              ],
+              [
+                18,
+                3,
+                "NO_FIRST",
+                null
+              ],
+              [
+                19,
+                4,
+                "NO_FIRST",
+                null
+              ],
+              [
+                20,
+                4,
+                "NO_FIRST",
+                null
+              ],
+              [
+                21,
+                4,
+                "NO_FIRST",
+                null
+              ],
+              [
+                22,
+                4,
+                "NO_FIRST",
+                null
+              ],
+              [
+                23,
+                5,
+                "NO_FIRST",
+                null
+              ],
+              [
+                24,
+                5,
+                "NO_FIRST",
+                null
+              ],
+              [
+                25,
+                5,
+                "NO_FIRST",
+                null
+              ],
+              [
+                26,
+                5,
+                "NO_FIRST",
+                null
+              ],
+              [
+                27,
+                6,
+                "PENDING_CASE_TWO",
+                "OPEN_AT_PREFIX_END"
+              ],
+              [
+                28,
+                6,
+                "PENDING_CASE_TWO",
+                "OPEN_AT_PREFIX_END"
+              ],
+              [
+                29,
+                6,
+                "PENDING_CASE_TWO",
+                "OPEN_AT_PREFIX_END"
+              ],
+              [
+                30,
+                6,
+                "PENDING_CASE_TWO",
+                "OPEN_AT_PREFIX_END"
+              ],
+              [
+                31,
+                7,
+                "KILLED_CASE_TWO",
+                "KILLED_BY_NEW_EXTREME"
+              ],
+              [
+                32,
+                7,
+                "KILLED_CASE_TWO",
+                "KILLED_BY_NEW_EXTREME"
+              ],
+              [
+                33,
+                7,
+                "KILLED_CASE_TWO",
+                "KILLED_BY_NEW_EXTREME"
+              ],
+              [
+                34,
+                7,
+                "KILLED_CASE_TWO",
+                "KILLED_BY_NEW_EXTREME"
+              ],
+              [
+                35,
+                8,
+                "KILLED_CASE_TWO",
+                "KILLED_BY_NEW_EXTREME"
+              ],
+              [
+                36,
+                8,
+                "KILLED_CASE_TWO",
+                "KILLED_BY_NEW_EXTREME"
+              ],
+              [
+                37,
+                8,
+                "KILLED_CASE_TWO",
+                "KILLED_BY_NEW_EXTREME"
+              ],
+              [
+                38,
+                8,
+                "KILLED_CASE_TWO",
+                "KILLED_BY_NEW_EXTREME"
+              ],
+              [
+                39,
+                9,
+                "KILLED_CASE_TWO",
+                "KILLED_BY_NEW_EXTREME"
+              ],
+              [
+                40,
+                9,
+                "KILLED_CASE_TWO",
+                "KILLED_BY_NEW_EXTREME"
+              ]
+            ]
+          },
+          "contract_all_cuts": {
+            "status": "passed",
+            "cuts": 40,
+            "case": null,
+            "scope": "真实库的Q/前端合同定点验证；非launcher/HTTP/GUI验收"
+          },
+          "browser": {
+            "status": "passed",
+            "design": "killed",
+            "cuts": [
+              "27",
+              "31",
+              "40"
+            ],
+            "checked": {
+              "final-CC-012": [
+                "SECOND_SEQUENCE",
+                "KILLED_BY_NEW_EXTREME",
+                "semantic_state"
+              ],
+              "final-CC-013": [
+                "KILLED_CASE_TWO",
+                "second_candidate_killed_by_new_extreme"
+              ],
+              "final-CC-014": [
+                "fact_vector"
+              ],
+              "decided-CC-012": [
+                "KILLED_BY_NEW_EXTREME",
+                "killed_by"
+              ],
+              "decided-CC-013": [
+                "KILLED_CASE_TWO",
+                "second_candidate_killed_by_new_extreme"
+              ],
+              "open-CC-012": [
+                "OPEN_AT_PREFIX_END"
+              ],
+              "open-CC-013": [
+                "PENDING_CASE_TWO"
+              ]
+            },
+            "page_errors": [],
+            "browser_version": "156.0.8078.4"
+          }
+        }
+      },
+      "replay_new_process": null,
+      "sigkill_recover": null,
+      "status": "PASS"
+    }
+  },
+  "status": "PASS"
+}
