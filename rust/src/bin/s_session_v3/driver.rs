@@ -3917,12 +3917,20 @@ mod tests {
                     let unreachable: Vec<_> = nodes_map.keys()
                         .filter(|d| !reachable.contains(*d))
                         .collect();
+                    let extra_unreachable: Vec<_> = unreachable.iter()
+                        .filter(|d| !control_digests.contains(*d))
+                        .collect();
                     eprintln!("  reachable: {}, unreachable: {}", reachable.len(), unreachable.len());
-                    if !unreachable.is_empty() {
-                        eprintln!("  前 10 个不可达节点:");
-                        for (i, digest) in unreachable.iter().take(10).enumerate() {
+                    eprintln!("  native 独有且不可达: {} / {}", extra_unreachable.len(), unreachable.len());
+                    if !extra_unreachable.is_empty() {
+                        eprintln!("  前 10 个（native 独有 + 不可达）:");
+                        for (i, digest) in extra_unreachable.iter().take(10).enumerate() {
                             eprintln!("    [{}] {}", i + 1, digest.iter().map(|b| format!("{:02x}", b)).collect::<String>());
                         }
+                    }
+                    if extra_unreachable.len() != unreachable.len() {
+                        eprintln!("  其中 {} 个不可达节点 control 也有", unreachable.len() - extra_unreachable.len());
+                    }
                     }
                 }
             }
