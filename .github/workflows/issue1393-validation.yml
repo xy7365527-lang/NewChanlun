@@ -13,7 +13,7 @@ concurrency:
 
 env:
   # 唯一执行开关。根先固定 False 准备提交，再独立审核仅此一行的变化。
-  ISSUE1393_EXECUTE: 'False'
+  ISSUE1393_EXECUTE: 'True'
   CARGO_INCREMENTAL: '0'
 
 jobs:
