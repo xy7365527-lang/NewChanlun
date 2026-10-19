@@ -43,6 +43,18 @@ mod q;
 /// 只有 owner 从同快照完整候选以及固定 effects 闭合后创建；不对外开放构造。
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(super) mod allocation_probe;
+/// #1488 P3-1 TestOnly：冷根审计失败分支在根析构前记下（清除前根活许可, 清除后根活许可）。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+pub(super) mod cold_root_probe {
+    use std::cell::RefCell;
+    thread_local!(static NOTES: RefCell<Vec<(usize, usize)>> = const { RefCell::new(Vec::new()) });
+    pub(crate) fn note(before: usize, after: usize) {
+        NOTES.with(|n| n.borrow_mut().push((before, after)));
+    }
+    pub(crate) fn take() -> Vec<(usize, usize)> {
+        NOTES.with(|n| std::mem::take(&mut *n.borrow_mut()))
+    }
+}
 
 #[cfg(feature = "s_capture_native_testonly")]
 #[path = "construction_set.rs"]
@@ -1491,6 +1503,14 @@ impl AuditTxn<'_> {
                     Ok(audited) => (audited, Some(root)),
                     Err(_) => {
                         drop(context.take());
+                        // #1488 P3-1：失败首跑在根工作域内经 legacy cache 保留的 NativeArc 仍持根许可；
+                        // 根析构前整体清除跨请求保留（缓存只影响复用，不改判据），不留挂在已析构根上的许可。
+                        let residue = root.live();
+                        if residue != 0 {
+                            crate::cache::clear_handles();
+                        }
+                        #[cfg(test)]
+                        cold_root_probe::note(residue, root.live());
                         drop(root);
                         (self.audit_required_in_parent(mode, context, None)?, None)
                     }

@@ -1089,6 +1089,52 @@ mod tests {
         );
     }
 
+    /// #1488 P3-1：冷根审计失败（1024 不足）且 legacy cache 保留开启时，根析构前根上不得残留许可；
+    /// 回复与基线一致。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn p3_1_cold_root_audit_failure_leaves_no_permit_on_destroyed_root() {
+        let f = Fixture::new();
+        let mut build = f.open("1").unwrap();
+        let input = Fixture::ingest(1);
+        let committed = build.handle(input.clone()).unwrap();
+        let ready = envelope("ready-cold-root", json!({"op":"ready"}));
+        let expected = build.handle(ready.clone()).unwrap();
+        drop(build);
+        let mut bounded = Driver::open_for_serve_with_mode(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            1024,
+            s_allocation::Mode::CapturedNative,
+        )
+        .unwrap();
+        assert!(crate::cache::retention_enabled());
+        crate::v3::audit_owner::cold_root_probe::take();
+        for request in [ready.clone(), input] {
+            let reply = bounded.handle(request.clone()).unwrap();
+            assert_eq!(
+                reply,
+                if request["payload"]["op"] == "ready" {
+                    expected.clone()
+                } else {
+                    committed.clone()
+                }
+            );
+        }
+        let notes = crate::v3::audit_owner::cold_root_probe::take();
+        assert!(!notes.is_empty(), "须经冷根审计失败分支");
+        assert!(
+            notes.iter().all(|&(_, after)| after == 0),
+            "根析构前仍有残留许可：{notes:?}"
+        );
+        eprintln!(
+            "{}",
+            json!({"scenario":"p3-1-cold-root-failure","notes":notes})
+        );
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     // NOT_RUN：本轮只静态检查。

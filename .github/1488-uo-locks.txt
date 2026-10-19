@@ -9,6 +9,7 @@ v3::driver::tests::audit_owner_staged_normal_append_consumes_actual_nodes_and_su
 # 原 128B probe / 1024 不保留仍成功 / R13 观察（断言逐字保留）
 v3::audit_owner::audit_owner_q_itemized_normal_cold_growth_and_typed_limit
 v3::driver::tests::audit_owner_complete_optional_budget_releases_without_changing_reply
+v3::driver::tests::p3_1_cold_root_audit_failure_leaves_no_permit_on_destroyed_root
 v3::audit_owner::r13_cold_candidate_and_q_share_parent_and_preserve_complete_output
 v3::audit_owner::r13_optional_sql_rows_share_parent_without_changing_cells
 v3::audit_owner::r14_source_keeper_seal_and_next_request_share_explicit_parent
