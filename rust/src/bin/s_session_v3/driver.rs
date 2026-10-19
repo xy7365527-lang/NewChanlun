@@ -1421,8 +1421,7 @@ mod tests {
     #[test]
     fn recover_lock_old_raw_token_and_begin_token_rejected_after_promotion() {
         let f = Fixture::new();
-        let (mut native, second, _) = recover_lock_driver(&f);
-        let old_begin = recover_lock_meta(&f, "begin_token").unwrap();
+        let (mut native, _, _) = recover_lock_driver(&f);
         let mut context = recover_lock_context(&mut native);
         let (token, ended) = native
             .conn
@@ -1443,7 +1442,12 @@ mod tests {
             .err()
             .expect("旧serial raw token必须被拒");
         assert!(error.contains("raw token 已结束、回滚或撤销"), "{error}");
-        // 现 epoch 无写请求归还来源池，旧 Begin token 随后以真实来源上下文发起发布。
+        // 旧 Begin token：生产形态（不经测试选择器签发）晋升后，现 epoch 无写请求归还来源池，
+        // 再以真实来源上下文实际发起发布。
+        let f = Fixture::new();
+        let (mut native, second, _) = recover_lock_driver(&f);
+        let old_begin = recover_lock_meta(&f, "begin_token").unwrap();
+        native.conn.recover("2", &native.clock, "recover-2").unwrap();
         native.epoch = "2".into();
         native
             .handle(envelope("ready-recover-old-begin", json!({"op":"ready"})))
