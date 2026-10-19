@@ -524,9 +524,12 @@ fn record_candidate(
     let deferred = strict
         .as_ref()
         .is_some_and(|c| c.effective_case == "CASE_TWO");
+    // #1490 §7.1 第 6 条：段端门（构造不变式）失败才是 FAILED_GEOMETRY；最少笔数不足（流首段起点按定义
+    // 落得太近）只是该触发不成终结、段继续，不是几何失败。
     let invalid = attempts
         .last()
-        .is_some_and(|a| !a.construction.valid() || !a.minimum_count_met);
+        .is_some_and(|a| a.minimum_count_met && !a.construction.valid());
+    let min_unmet = attempts.last().is_some_and(|a| !a.minimum_count_met);
     // #1344：活动第二种候选已被越界作废时，不得写成「待第二序列分型」。
     let killed = deferred
         && second.as_ref().is_some_and(|s| {
@@ -554,7 +557,12 @@ fn record_candidate(
     };
     let turn_hypothesis_state = turn_source.map(|(s, _)| s);
     let window_members = turn_source.map_or(vec![], |(_, b)| b.window_members.clone());
-    let pending_one = first.open_turn.is_some();
+    // §7.1 第 3 条（`071:32`）：第三笔完全在第一笔范围内 ⟹ 待定。尚无第三笔的开窗候选只报候选态，
+    // 不改结果分类。
+    let pending_one = first
+        .open_turn
+        .as_ref()
+        .is_some_and(|o| !o.elements[1].window_members.is_empty());
     let result = if invalid {
         "FAILED_GEOMETRY"
     } else if end.is_some() {
@@ -586,19 +594,19 @@ fn record_candidate(
             "no_second_fractal_in_current_prefix"
         }]
     } else if pending_one {
-        vec![if window_members.is_empty() {
-            "first_kind_awaiting_third_stroke"
-        } else {
-            "first_kind_third_stroke_within_first"
-        }]
+        vec!["first_kind_third_stroke_within_first"]
     } else if first.standard.len() < 3 {
         vec!["fewer_than_three_standard_elements"]
+    } else if min_unmet {
+        vec![]
     } else {
         vec!["no_admissible_first_fractal"]
     };
     if end.is_none() {
         if let Some(a) = attempts.last() {
-            waiting_reasons.extend(&a.construction.failed_conditions);
+            if invalid {
+                waiting_reasons.extend(&a.construction.failed_conditions);
+            }
             if !a.minimum_count_met {
                 waiting_reasons.push("minimum_segment_length_not_met");
             }

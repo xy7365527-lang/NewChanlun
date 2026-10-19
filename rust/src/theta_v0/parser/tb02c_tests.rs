@@ -40,11 +40,12 @@ fn tb02c_directional_inclusion_and_no_fractal_witnesses() {
         );
         let ss = chain(&[0, 10, 4, 12, 6, 14, 8].map(|p| p * sign));
         let (_, _, facts) = segment::divide_segments_with_facts(&ss, &ThetaConfig::default().parse);
-        // #1493：末元素 [8,14] 是无缺口峰候选、尚无第三元素 ⟹ OPEN_AT_PREFIX_END（§7.1 第 1 条）。
-        assert_eq!(facts.candidates[0].result, "PENDING_CASE_ONE");
+        // #1493：末元素 [8,14] 是无缺口峰候选、尚无第三元素 ⟹ 候选态 OPEN_AT_PREFIX_END（§7.1 第 1 条）；
+        // 没有第三笔落在 b 范围内，结果分类不变。
+        assert_eq!(facts.candidates[0].result, "NO_FIRST");
         assert_eq!(
-            facts.candidates[0].waiting_reasons,
-            vec!["first_kind_awaiting_third_stroke"]
+            facts.candidates[0].turn_hypothesis_state,
+            Some("OPEN_AT_PREFIX_END")
         );
         assert_eq!(facts.candidates[0].first.checks.last().unwrap().gap, None);
         assert!(

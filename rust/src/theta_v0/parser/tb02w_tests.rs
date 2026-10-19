@@ -1108,14 +1108,15 @@ fn tb1493_search_tb02w_witnesses() {
     }
     let cfg = ThetaConfig::default().parse;
     let mut w1_found = 0;
-    for seed in 0..20_000u64 {
-        if w1_found >= 2 {
+    let mut tried = vec![W1_PRICES.to_vec()];
+    tried.extend((0..6_000u64).map(|seed| prices(seed, 100)));
+    for (case, pr) in tried.into_iter().enumerate() {
+        if w1_found >= 3 {
             break;
         }
-        let pr = prices(seed, 100);
         let ss = witness_chain(&pr);
         let n = ss.len();
-        let p = n - 2;
+        for p in (n - 12)..n {
         let mut inc = segment::IncrSegments::default();
         for k in 0..=p {
             inc = inc.append(&ss[..k], &cfg);
@@ -1123,6 +1124,9 @@ fn tb1493_search_tb02w_witnesses() {
         let Some(euf) = inc.earliest_unsealed_from() else {
             continue;
         };
+        if euf + 4 > p {
+            continue;
+        }
         let (segs, pending) = inc.to_result_vec();
         let mut ok = true;
         let mut diverged = vec![];
@@ -1141,7 +1145,9 @@ fn tb1493_search_tb02w_witnesses() {
         }
         if ok && !diverged.is_empty() {
             w1_found += 1;
-            eprintln!("W1 seed={seed} p={p} euf={euf} diverged={diverged:?} prices={pr:?}");
+            eprintln!("W1 case={case} p={p} euf={euf} diverged={diverged:?} prices={pr:?}");
+            break;
+        }
         }
     }
     let mut w2_found = 0;
