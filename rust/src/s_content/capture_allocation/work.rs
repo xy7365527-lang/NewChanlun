@@ -229,7 +229,6 @@ impl<T> CodecVec<T> {
             .checked_add(additional)
             .ok_or_else(|| work.reject(ScratchFailure::Budget))?;
         if needed <= values.capacity() {
-            std::mem::forget(work.reserve_native(values.capacity() * std::mem::size_of::<T>())?); // NEGCTRL P3-γ
             self.native_permit = Some(work.adopt_native(old_bytes)?);
             return Ok(());
         }
