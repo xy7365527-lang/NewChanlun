@@ -1562,6 +1562,10 @@ fn expand_evidence(node: &Rc<EvidenceNode>) -> InclusionDirectionEvidence {
 mod tb02u_tests;
 
 #[cfg(test)]
+#[path = "inclusion_wreview_tests.rs"]
+mod wreview_tests;
+
+#[cfg(test)]
 mod tests {
     use super::super::super::types::Tick;
     use super::*;
