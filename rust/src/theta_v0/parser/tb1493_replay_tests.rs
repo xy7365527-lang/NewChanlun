@@ -198,13 +198,19 @@ fn tb1493_replay_tail_window_ladder() {
 #[test]
 #[ignore = "重型验证窗口：btc_1m_full.json 全量"]
 fn tb1493_replay_full_history() {
-    let bars = load_full();
+    let all = load_full();
+    // 从 raw 1 起（票面口径）：raw 0/1 两根同价互含，首对包含使初始方向永久未定（#1393 范围）。
+    let bars = &all[1..];
     let n = bars.len();
-    let (r, last) = replay(&bars, &[n]);
+    let (r, last) = replay(bars, &[n]);
     let (max_zero_run, longest_gap) = report("FULL", &r, n, 250_000);
     // #1487 现场：v1405/x1420 末段现场（笔 59848）、v1405 第一次长停（笔 3178）、x1420 第一次长停（raw 70,351）。
     for raw in [70_351usize, 787_209] {
-        let k = r.emits.iter().filter(|&&e| e >= raw && e < raw + 100_000).count();
+        let k = r
+            .emits
+            .iter()
+            .filter(|&&e| e + 1 >= raw && e + 1 < raw + 100_000)
+            .count();
         eprintln!("TB1493 FULL after_raw={raw} emits_in_100k={k}");
     }
     facts_report("FULL", &last, &[3178, 59848]);
