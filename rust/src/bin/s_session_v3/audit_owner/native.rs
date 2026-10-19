@@ -308,13 +308,17 @@ struct Domain {
     remaining: usize,
     low_water: usize,
     total_limit: usize,
-    unassigned: usize,
+    // #1488 v4：只由活动MoveIn写入的已真实预留移入池；不是无票unassigned余额。
+    // 同尺寸替换原字段，保持128字节父账probe输入不变。
+    moved_in: usize,
     serial: u32,
     active_scopes: u16,
     state: u8,
 }
 const BROKEN: u8 = 1;
 const BOUND: u8 = 2;
+// 同一父账同时至多一个活动MoveIn；不参与冻结/绑定状态判定。
+const MOVING: u8 = 4;
 struct Ledger {
     domain: Mutex<Domain>,
     live: AtomicUsize,
@@ -482,7 +486,7 @@ impl Budget {
             d.serial == 0
                 && self.1 == 0
                 && d.state == 0
-                && d.unassigned == 0
+                && d.moved_in == 0
                 && d.remaining == self.3 - metadata
                 && d.low_water == d.remaining
         })
@@ -501,7 +505,7 @@ impl Budget {
                     remaining: limit - live,
                     low_water: limit - live,
                     total_limit: limit,
-                    unassigned: retained,
+                    moved_in: retained,
                     active_scopes: 0,
                     state: 0,
                 }),
@@ -552,7 +556,7 @@ impl Budget {
             return Err(BudgetExceeded);
         }
         if self.2 == 0 {
-            if d.state != 0 || self.3 != allowance {
+            if d.state & (BROKEN | BOUND) != 0 || self.3 != allowance {
                 return Err(BudgetExceeded);
             }
             d.state |= BOUND;
@@ -616,7 +620,7 @@ impl Budget {
             || (!v.is_native_bound()
                 && v.capacity()
                     .checked_mul(size_of::<T>())
-                    .filter(|n| *n <= d.unassigned)
+                    .filter(|n| *n <= d.moved_in)
                     .is_none())
         {
             return Err(BudgetExceeded.into());
@@ -643,7 +647,11 @@ impl Budget {
         allowance: usize,
     ) -> Result<Self, BudgetExceeded> {
         let mut d = self.0.domain.lock().map_err(|_| BudgetExceeded)?;
-        if u64::from(d.serial) != self.1 || d.state != 0 || self.3 != allowance || request == 0 {
+        if u64::from(d.serial) != self.1
+            || d.state & (BROKEN | BOUND) != 0
+            || self.3 != allowance
+            || request == 0
+        {
             return Err(BudgetExceeded);
         }
         d.state |= BOUND;
@@ -706,7 +714,7 @@ impl Budget {
         if u64::from(d.serial) != self.1 || d.state & BROKEN != 0 {
             return Err(BudgetExceeded);
         }
-        d.unassigned = d.unassigned.checked_sub(bytes).ok_or(BudgetExceeded)?;
+        d.moved_in = d.moved_in.checked_sub(bytes).ok_or(BudgetExceeded)?;
         Ok(Permit {
             budget: self.clone(),
             bytes,
@@ -1025,43 +1033,11 @@ impl<E: Into<Failure>> From<WorkError<E>> for Failure {
         }
     }
 }
-// #1488 诊断（临时，仅测试）：父账拒绝点打印调用栈，定位基线工作域失败来源。
-#[cfg(test)]
-fn diag_reject(what: &str, bytes: usize, detail: String) {
-    eprintln!(
-        "UO1488_DIAG {what} bytes={bytes} {detail}\n{}",
-        std::backtrace::Backtrace::force_capture()
-    );
-}
 impl Ledger {
     fn reserve_total(&self, bytes: usize, expected: Option<u64>) -> Result<u64, ScratchFailure> {
         self.reserve_account(bytes, expected, None)
     }
     fn reserve_account(
-        &self,
-        bytes: usize,
-        expected: Option<u64>,
-        kind: Option<ScratchCharge>,
-    ) -> Result<u64, ScratchFailure> {
-        let result = self.reserve_account_inner(bytes, expected, kind);
-        #[cfg(test)]
-        if let Err(e) = result {
-            let d = self.domain.lock().map(|d| {
-                format!(
-                    "serial={} expected={expected:?} remaining={} total_limit={} live={} state={} unassigned={} kind={kind:?} err={e:?}",
-                    d.serial,
-                    d.remaining,
-                    d.total_limit,
-                    self.live.load(Ordering::Acquire),
-                    d.state,
-                    d.unassigned
-                )
-            });
-            diag_reject("reserve", bytes, d.unwrap_or_default());
-        }
-        result
-    }
-    fn reserve_account_inner(
         &self,
         bytes: usize,
         expected: Option<u64>,
@@ -1168,35 +1144,18 @@ impl ScratchParent for Ledger {
     fn adopt_native(&self, bytes: usize, expected: u64) -> Result<u64, ScratchFailure> {
         let mut d = self.domain.lock().map_err(|_| ScratchFailure::Ledger)?;
         if d.state & BROKEN != 0 || expected != u64::from(d.serial) {
-            #[cfg(test)]
-            diag_reject(
-                "adopt_native_serial",
-                bytes,
-                format!("serial={} expected={expected} state={}", d.serial, d.state),
-            );
             return Err(ScratchFailure::Ledger);
         }
-        let Some(unassigned) = d.unassigned.checked_sub(bytes) else {
-            #[cfg(test)]
-            diag_reject(
-                "adopt_native",
-                bytes,
-                format!(
-                    "serial={} unassigned={} remaining={} live={}",
-                    d.serial,
-                    d.unassigned,
-                    d.remaining,
-                    self.live.load(Ordering::Acquire)
-                ),
-            );
-            return Err(ScratchFailure::Ledger);
-        };
+        let moved_in = d
+            .moved_in
+            .checked_sub(bytes)
+            .ok_or(ScratchFailure::Ledger)?;
         let native = self
             .native_live
             .load(Ordering::Acquire)
             .checked_add(bytes)
             .ok_or(ScratchFailure::Ledger)?;
-        d.unassigned = unassigned;
+        d.moved_in = moved_in;
         self.native_live.store(native, Ordering::Release);
         self.native_peak.fetch_max(native, Ordering::Relaxed);
         Ok(0)
@@ -1953,7 +1912,7 @@ mod lifecycle_repair_v2_tests {
             next.live(),
             next.peak(),
             next.remaining(),
-            next.0.domain.lock().unwrap().unassigned,
+            next.0.domain.lock().unwrap().moved_in,
         );
         let pointer = values.as_ptr();
         assert!(first.codec_vec_grow(&mut values, 0).is_err());
@@ -1966,7 +1925,7 @@ mod lifecycle_repair_v2_tests {
                 next.live(),
                 next.peak(),
                 next.remaining(),
-                next.0.domain.lock().unwrap().unassigned
+                next.0.domain.lock().unwrap().moved_in
             ),
             before
         );
@@ -1985,7 +1944,7 @@ mod lifecycle_repair_v2_tests {
             budget.live(),
             budget.peak(),
             budget.remaining(),
-            budget.0.domain.lock().unwrap().unassigned,
+            budget.0.domain.lock().unwrap().moved_in,
         );
         let pointer = values.as_ptr();
         let capacity = values.capacity();
@@ -2000,7 +1959,7 @@ mod lifecycle_repair_v2_tests {
                 budget.live(),
                 budget.peak(),
                 budget.remaining(),
-                budget.0.domain.lock().unwrap().unassigned
+                budget.0.domain.lock().unwrap().moved_in
             ),
             before
         );
