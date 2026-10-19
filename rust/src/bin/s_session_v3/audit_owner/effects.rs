@@ -143,7 +143,6 @@ impl Operation {
             (Self::Begin, Phase, I) => true,
             (Self::Begin, Message | Protocol, U) => true,
             (Self::Begin, Meta, I | U) => true,
-            (Self::Recover, _, _) => true,
             (Self::Recover, Epoch | Phase, I) => true,
             (Self::Recover, Protocol, U) => true,
             (Self::Recover, Meta, I | U) => true,
