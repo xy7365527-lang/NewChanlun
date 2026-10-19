@@ -2037,7 +2037,6 @@ impl SnapshotSeal {
             && self.life == next.life
             && self.transaction_id < next.transaction_id
             && self.write_sequence == next.write_sequence
-            && self.data_version == next.data_version
             && self.schema_version == next.schema_version
             && self.domain == next.domain
     }
