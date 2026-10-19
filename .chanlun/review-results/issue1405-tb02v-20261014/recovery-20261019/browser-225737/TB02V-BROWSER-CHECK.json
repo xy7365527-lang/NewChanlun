@@ -1,0 +1,32 @@
+{
+  "status": "PASS",
+  "runtime_status": "FAIL",
+  "browser": {
+    "status": "passed",
+    "page_errors": [],
+    "base_url": "http://127.0.0.1:18961/",
+    "generation": "27",
+    "lifecycle_assertion": null,
+    "screenshot_scope": "viewport",
+    "executable_path": "/home/hanju/.cache/ms-playwright/chromium_headless_shell-1248/chrome-headless-shell-linux64/chrome-headless-shell",
+    "browser_version": "156.0.8078.4"
+  },
+  "missing_visible_fields": {
+    "CC-008": [],
+    "CC-009": [],
+    "CC-010": [],
+    "CC-056": []
+  },
+  "retired_waiting_visible": {
+    "CC-008": [],
+    "CC-009": [],
+    "CC-010": [],
+    "CC-056": []
+  },
+  "text_sha256": {
+    "CC-008": "6a46f83cb17cdfb49089db5df4555e48882968c6259d6fd9ea73748bea7b4895",
+    "CC-009": "bdec9b13c370fe2623903531d2f104c9697e244bd0fdcd5a8ee052bfea02fbe0",
+    "CC-010": "e276493c272d8f7409209741c2c9e9ab590f897ecd035ef517583d411b82c07a",
+    "CC-056": "7d2df11dbc0ee1e89f7ceffa35294ed311d175750b44ebb913232aaddcbfb9d4"
+  }
+}

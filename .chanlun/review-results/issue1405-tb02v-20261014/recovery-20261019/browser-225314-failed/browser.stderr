@@ -1,0 +1,6 @@
+browserType.launch: Failed to launch chromium because executable doesn't exist at /home/hanju/.cache/ms-playwright/chromium-1248/chrome-linux64/chrome
+    at main (/home/hanju/nc-remote/wt/20261019-225250-c4bbdd9f8a/s_session/tests/tb02b_browser.cjs:18:34)
+    at Object.<anonymous> (/home/hanju/nc-remote/wt/20261019-225250-c4bbdd9f8a/s_session/tests/tb02b_browser.cjs:56:1) {
+  log: [],
+  name: 'Error'
+}
