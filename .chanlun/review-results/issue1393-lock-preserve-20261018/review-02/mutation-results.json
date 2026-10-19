@@ -1,0 +1,190 @@
+[
+  {
+    "id": "M1-single-off-by-one",
+    "target": "single 边界",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "exit": 1,
+    "summary": [
+      "Ran 82 tests in 1.494s",
+      "FAILED (failures=1)"
+    ],
+    "failing_tests": [
+      "test_single_record_equal_cap_complete_and_over_cap_proof_gap_untruncated (__main__.NewCapsRegistryTests.test_single_record_equal_cap_complete_and_over_cap_proof_gap_untruncated)"
+    ],
+    "killed": true
+  },
+  {
+    "id": "M2-name-once",
+    "target": "合计上界（名字只计一次）",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "exit": 1,
+    "summary": [
+      "Ran 82 tests in 1.537s",
+      "FAILED (failures=2)"
+    ],
+    "failing_tests": [
+      "test_bound_covers_python_store_zip_and_formula_exact (__main__.UploadBoundTests.test_bound_covers_python_store_zip_and_formula_exact)",
+      "test_write_refused_when_containers_would_exceed_upload_cap (__main__.UploadBoundTests.test_write_refused_when_containers_would_exceed_upload_cap)"
+    ],
+    "killed": true
+  },
+  {
+    "id": "M3-upload-gate-no-receipt-reserve",
+    "target": "upload-gate 合计不含收据预留",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "exit": 1,
+    "summary": [
+      "Ran 82 tests in 1.497s",
+      "FAILED (failures=1)"
+    ],
+    "failing_tests": [
+      "test_upload_gate_equal_and_over_cap (__main__.GateTests.test_upload_gate_equal_and_over_cap)"
+    ],
+    "killed": true
+  },
+  {
+    "id": "M4-receipt-gate-ignore-sha",
+    "target": "receipt-gate 只比名字与长度不比摘要",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "exit": 0,
+    "summary": [
+      "Ran 82 tests in 1.497s",
+      "OK"
+    ],
+    "failing_tests": [],
+    "killed": false
+  },
+  {
+    "id": "M5-receipt-gate-no-change-check",
+    "target": "receipt-gate 删除门后变化比对",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "exit": 1,
+    "summary": [
+      "Ran 82 tests in 1.577s",
+      "FAILED (failures=1)"
+    ],
+    "failing_tests": [
+      "test_receipt_gate_combined_cap_change_and_actual_limit (__main__.GateTests.test_receipt_gate_combined_cap_change_and_actual_limit)"
+    ],
+    "killed": true
+  },
+  {
+    "id": "M6-complete-despite-proof-gap",
+    "target": "proof_gap 仍称完整",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "exit": 1,
+    "summary": [
+      "Ran 82 tests in 1.481s",
+      "FAILED (failures=22)"
+    ],
+    "failing_tests": [
+      "test_duplicate_records_accumulate_across_files (__main__.NewCapsRegistryTests.test_duplicate_records_accumulate_across_files)",
+      "test_missing_cache_and_no_scan_or_network (__main__.NewCapsRegistryTests.test_missing_cache_and_no_scan_or_network)",
+      "test_missing_cache_and_no_scan_or_network (__main__.RegistryTests.test_missing_cache_and_no_scan_or_network)",
+      "test_missing_old_version_is_proof_gap (__main__.NewCapsRegistryTests.test_missing_old_version_is_proof_gap)",
+      "test_missing_old_version_is_proof_gap (__main__.RegistryTests.test_missing_old_version_is_proof_gap)",
+      "test_registry_read_parse_hash_write_expiry_and_exception (__main__.NewCapsRegistryTests.test_registry_read_parse_hash_write_expiry_and_exception)",
+      "test_registry_read_parse_hash_write_expiry_and_exception (__main__.RegistryTests.test_registry_read_parse_hash_write_expiry_and_exception)",
+      "test_registry_total_files_items_equal_and_over (__main__.NewCapsRegistryTests.test_registry_total_files_items_equal_and_over)",
+      "test_single_record_equal_cap_complete_and_over_cap_proof_gap_untruncated (__main__.NewCapsRegistryTests.test_single_record_equal_cap_complete_and_over_cap_proof_gap_untruncated)",
+      "test_symlink_and_summary_write_expiry_never_complete (__main__.NewCapsRegistryTests.test_symlink_and_summary_write_expiry_never_complete)",
+      "test_symlink_and_summary_write_expiry_never_complete (__main__.RegistryTests.test_symlink_and_summary_write_expiry_never_complete)",
+      "test_truncated_mid_segment_duplicate_unwanted_and_bad_validator (__main__.NewCapsRegistryTests.test_truncated_mid_segment_duplicate_unwanted_and_bad_validator)",
+      "test_unknown_format_source_checksum_and_missing_parent_constraint (__main__.NewCapsRegistryTests.test_unknown_format_source_checksum_and_missing_parent_constraint)",
+      "test_unknown_format_source_checksum_and_missing_parent_constraint (__main__.RegistryTests.test_unknown_format_source_checksum_and_missing_parent_constraint)"
+    ],
+    "killed": true
+  },
+  {
+    "id": "M7-truncation-accepted",
+    "target": "截断 cache 末段接受",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "exit": 0,
+    "summary": [
+      "Ran 82 tests in 1.503s",
+      "OK"
+    ],
+    "failing_tests": [],
+    "killed": false
+  },
+  {
+    "id": "M8-scan-no-per-chunk-deadline",
+    "target": "扫描循环内不核截止/信号（仅扫描后核）",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "exit": 0,
+    "summary": [
+      "Ran 82 tests in 1.479s",
+      "OK"
+    ],
+    "failing_tests": [],
+    "killed": false
+  },
+  {
+    "id": "M9-items-not-counted",
+    "target": "items 不计",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "exit": 1,
+    "summary": [
+      "Ran 82 tests in 1.506s",
+      "FAILED (failures=3)"
+    ],
+    "failing_tests": [
+      "test_constraint_parent_range_and_text_unchanged_target_changed_recorded (__main__.NewCapsRegistryTests.test_constraint_parent_range_and_text_unchanged_target_changed_recorded)",
+      "test_duplicate_records_accumulate_across_files (__main__.NewCapsRegistryTests.test_duplicate_records_accumulate_across_files)",
+      "test_registry_total_files_items_equal_and_over (__main__.NewCapsRegistryTests.test_registry_total_files_items_equal_and_over)"
+    ],
+    "killed": true
+  },
+  {
+    "id": "M10-wf-gate-before-placeholders",
+    "target": "workflow：upload-gate 移到占位原件写入之前",
+    "file": ".github/workflows/issue1393-lock-prepare.yml",
+    "exit": 0,
+    "summary": [
+      "Ran 82 tests in 1.474s",
+      "OK"
+    ],
+    "failing_tests": [],
+    "killed": false
+  },
+  {
+    "id": "M11-wf-payload-gated-on-wrong-step",
+    "target": "workflow：主包 if 引用错误步骤 id",
+    "file": ".github/workflows/issue1393-lock-prepare.yml",
+    "exit": 0,
+    "summary": [
+      "Ran 82 tests in 1.464s",
+      "OK"
+    ],
+    "failing_tests": [],
+    "killed": false
+  },
+  {
+    "id": "M12-unwanted-dup-allowed",
+    "target": "非所需重复版本放行",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "exit": 1,
+    "summary": [
+      "Ran 82 tests in 1.466s",
+      "FAILED (failures=1)"
+    ],
+    "failing_tests": [
+      "test_truncated_mid_segment_duplicate_unwanted_and_bad_validator (__main__.NewCapsRegistryTests.test_truncated_mid_segment_duplicate_unwanted_and_bad_validator)"
+    ],
+    "killed": true
+  },
+  {
+    "id": "M13-package-projection-removed",
+    "target": "package 预核删除",
+    "file": ".github/scripts/issue1393_lock_prepare.py",
+    "exit": 1,
+    "summary": [
+      "Ran 82 tests in 1.474s",
+      "FAILED (failures=1)"
+    ],
+    "failing_tests": [
+      "test_package_projection_blocks_before_any_tail_write (__main__.UploadBoundTests.test_package_projection_blocks_before_any_tail_write)"
+    ],
+    "killed": true
+  }
+]

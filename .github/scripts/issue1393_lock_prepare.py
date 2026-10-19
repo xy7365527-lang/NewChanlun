@@ -844,16 +844,40 @@ def snapshot_registry(work, output, budget, changes, io):
                    'proof_gap': [{'reason': str(exc)[:500]}], 'evidence': '已写原件保留；registry.json 若存在仅为未完成快照'}
         if not summary['proof_gap']:
             summary['proof_gap'] = failure['proof_gap']
-        save(output / 'registry-failure.json', failure)
+        # 失败路径同样守 registry files/total：先把 registry.json 改为失败（覆盖不增文件，最小记录必然更小），
+        # 再尽力写 registry-failure.json；放不下就不写，失败结论由 result.json 与日志承载。
         if (output / 'registry.json').exists():
-            save(output / 'registry.json', failure)
+            bounded_registry_save(output, 'registry.json', failure)
         else:
             try:
                 summary.update(status='FAILED', complete=False)
                 io.json('registry.json', summary)
             except Exception:
-                save(output / 'registry.json', failure)
+                bounded_registry_save(output, 'registry.json', failure)
+        bounded_registry_save(output, 'registry-failure.json', failure)
         raise
+
+MINIMAL_REGISTRY_FAILURE = {'status': 'FAILED', 'complete': False}
+
+
+def registry_usage(rows):
+    registry = [r for r in rows if is_registry_evidence(r['name'])]
+    return len(registry), sum(r['bytes'] for r in registry)
+
+
+def bounded_registry_save(output, name, value):
+    """不经 EvidenceIO 的紧急写也不越 registry files/total：放不下降为最小失败记录，仍放不下则不写。"""
+    require(is_registry_evidence(name), '只用于 registry 证据名')
+    for raw in (v.canonical(value), v.canonical(MINIMAL_REGISTRY_FAILURE)):
+        rows = [{'name': p.name, 'bytes': p.lstat().st_size} for p in output.iterdir()]
+        files, size = registry_usage(rows)
+        path = output / name
+        old = path.lstat().st_size if path.exists() else None
+        if (files + (old is None) <= RESOURCE_CAPS['files']
+                and size - (old or 0) + len(raw) <= RESOURCE_CAPS['total_bytes']):
+            path.write_bytes(raw)
+            return True
+    return False
 
 
 def preserve_resolution(work, output, budget, supervisor=None):
@@ -976,6 +1000,9 @@ def gate(mode):
         caps_bound()
         if mode == 'upload-gate':
             rows = output_entries(out, budget, None, hashes=True)
+            files, size = registry_usage(rows)
+            require(files <= RESOURCE_CAPS['files'] and size <= RESOURCE_CAPS['total_bytes'],
+                    'registry 证据正文超 files/total 帽，拒绝上传；原件保留')
             main_bound = container_bound((r['name'], r['bytes']) for r in rows)
             frozen = v.canonical({'schema': 'issue1393-lock-upload-frozen/1', 'directory': out.name,
                                   'entries': rows, 'main_bound': main_bound, 'receipt_reserve': RECEIPT_RESERVE,
@@ -996,6 +1023,9 @@ def gate(mode):
                 frozen = v.strict_json(frozen_path.read_bytes())
                 rows = output_entries(out, budget, None, hashes=True)
                 require(rows == frozen['entries'], '上传目录在门后变化；上界失效，拒绝收据上传')
+                files, size = registry_usage(rows)
+                require(files <= RESOURCE_CAPS['files'] and size <= RESOURCE_CAPS['total_bytes'],
+                        'registry 证据正文超 files/total 帽')
                 main_bound = frozen['main_bound']
             else:
                 require(outcome != 'success', '主包已上传却无冻结清单')

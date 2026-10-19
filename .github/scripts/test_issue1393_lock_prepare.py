@@ -755,8 +755,10 @@ class RegistryTests(ToyCapsTest):
         registry_files = io_guard.check()['registry_files']
         with patch.dict(m.RESOURCE_CAPS, files=registry_files), self.assertRaises(v.Refused):
             io_guard.write('registry-y.raw', b'z')
-        with patch.dict(m.RESOURCE_CAPS, files=registry_files - 1), self.assertRaises(v.Refused):
+        with patch.dict(m.RESOURCE_CAPS, files=registry_files - 1), patch.object(Path, 'open') as opened, \
+                self.assertRaises(v.Refused):
             m.EvidenceIO(self.out, self.b)
+        opened.assert_not_called()
 
     def test_non_registry_originals_not_counted_in_registry_caps(self):
         guard = m.EvidenceIO(self.out, self.b)
@@ -1271,7 +1273,7 @@ class NewCapsRegistryTests(RegistryTests):
                 guard = m.EvidenceIO(self.out, b, supervisor)
                 real_open = Path.open
                 class Reader(io.BytesIO):
-                    calls = 0
+                    calls = 0  # 每个 cache 文件新建 Reader 时不清零：只计首个被扫文件之前的累计
                     def read(inner, size=-1):
                         Reader.calls += 1
                         if Reader.calls == 2:
@@ -1288,7 +1290,50 @@ class NewCapsRegistryTests(RegistryTests):
                 with patch.object(m, 'SCAN_CHUNK_BYTES', 8), patch.object(Path, 'open', opener), \
                         self.assertRaises(v.Refused):
                     m.snapshot_registry(self.work, self.out, b, m.lock_changes(self.old, self.new), guard)
+                # 第 2 次读后即故障：必须在下一次 read 之前拒绝，不能读完整个文件后才兜底。
+                self.assertEqual(Reader.calls, 2)
                 self.assertFalse(json.loads((self.out / 'registry-failure.json').read_text())['complete'])
+
+    def test_truncated_unwanted_tail_after_complete_wanted_rejected(self):
+        good = json.dumps(cache_record('child', '1.0.0')).encode()
+        two = json.dumps(cache_record('child', '2.0.0')).encode()
+        path = self.write_raw_cache('child', [('1.0.0', good), ('2.0.0', two)])
+        for tail in (b'9.9.9\0{"name": "child"', b'9.9.9', b'9.9.9\0'):
+            with self.subTest(tail=tail):
+                for p in self.out.iterdir():
+                    if p.name not in ('Cargo.toml', 'Cargo.lock.old'):
+                        p.unlink()
+                path.write_bytes(self.write_raw_cache('child', [('1.0.0', good), ('2.0.0', two)]).read_bytes() + tail)
+                with self.assertRaises(v.Refused):
+                    self.preserve()
+                proof = json.loads((self.out / 'registry.json').read_text())
+                self.assertFalse(proof['complete'])
+
+    def test_failure_path_never_exceeds_registry_files_or_total(self):
+        for key in ('files', 'total_bytes'):
+            with self.subTest(key=key):
+                for p in self.out.iterdir():
+                    if p.name not in ('Cargo.toml', 'Cargo.lock.old'):
+                        p.unlink()
+                caps = {'files': 2} if key == 'files' else {'total_bytes': 600}
+                with patch.dict(m.RESOURCE_CAPS, caps), self.assertRaises(v.Refused):
+                    self.preserve()
+                rows = [{'name': p.name, 'bytes': p.stat().st_size} for p in self.out.iterdir()]
+                files, size = m.registry_usage(rows)
+                with patch.dict(m.RESOURCE_CAPS, caps):
+                    self.assertLessEqual(files, m.RESOURCE_CAPS['files'])
+                    self.assertLessEqual(size, m.RESOURCE_CAPS['total_bytes'])
+                if (self.out / 'registry.json').exists():
+                    self.assertFalse(json.loads((self.out / 'registry.json').read_text())['complete'])
+
+    def test_complete_registry_json_downgraded_even_when_registry_caps_full(self):
+        self.preserve()
+        files, size = m.registry_usage([{'name': p.name, 'bytes': p.stat().st_size} for p in self.out.iterdir()])
+        with patch.dict(m.RESOURCE_CAPS, files=files, total_bytes=size):
+            self.assertTrue(m.bounded_registry_save(self.out, 'registry.json', {'status': 'FAILED', 'complete': False}))
+            self.assertFalse(m.bounded_registry_save(self.out, 'registry-failure.json', {'complete': False}))
+        self.assertFalse(json.loads((self.out / 'registry.json').read_text())['complete'])
+        self.assertFalse((self.out / 'registry-failure.json').exists())
 
     def test_constraint_parent_range_and_text_unchanged_target_changed_recorded(self):
         self.preserve()
@@ -1449,6 +1494,26 @@ class GateTests(ToyCapsTest):
         (self.out / 'late.txt').unlink()
         (self.out / 'result.json').write_bytes(b'{"x": 1}\n')
         self.assertFalse(self.run_gate('receipt-gate', PAYLOAD_OUTCOME='success')[0])
+        (self.out / 'result.json').write_bytes(b'{}\n')
+        self.assertTrue(self.run_gate('receipt-gate', PAYLOAD_OUTCOME='success')[0])
+        (self.out / 'result.json').write_bytes(b'[]\n')  # 同长度、内容不同
+        self.assertFalse(self.run_gate('receipt-gate', PAYLOAD_OUTCOME='success')[0])
+
+    def test_gates_refuse_registry_evidence_over_caps(self):
+        (self.out / 'registry-a.raw').write_bytes(b'r' * 100)
+        (self.out / 'registry.json').write_bytes(b'{}')
+        with patch.dict(m.RESOURCE_CAPS, files=1):
+            self.assertFalse(self.run_gate('upload-gate')[0])
+        with patch.dict(m.RESOURCE_CAPS, total_bytes=101):
+            self.assertFalse(self.run_gate('upload-gate')[0])
+        self.assertFalse((self.temp / m.RECEIPT_FROZEN).exists())
+        self.assertEqual((self.out / 'registry-a.raw').read_bytes(), b'r' * 100)
+        (self.temp / m.RECEIPT_REQUEST).unlink()
+        with patch.dict(m.RESOURCE_CAPS, total_bytes=102, files=2):
+            self.assertTrue(self.run_gate('upload-gate')[0])
+        (self.temp / m.RECEIPT_ACTUAL).write_bytes(b'{}\n')
+        with patch.dict(m.RESOURCE_CAPS, total_bytes=101):
+            self.assertFalse(self.run_gate('receipt-gate', PAYLOAD_OUTCOME='success')[0])
 
     def test_receipt_without_frozen_only_when_main_not_uploaded(self):
         (self.temp / m.RECEIPT_ACTUAL).write_bytes(b'{}\n')
@@ -1481,7 +1546,23 @@ class GateTests(ToyCapsTest):
         self.assertEqual(uploads[0]['with']['path'], '${{ runner.temp }}/issue1393-lock-evidence/')
         archive = next(s for s in steps if s.get('id') == 'archive')['run']
         self.assertIn("Path(os.environ['RUNNER_TEMP']) / 'issue1393-lock-evidence'", archive)
+        self.assertEqual(uploads[0]['if'], "always() && env.ISSUE1393_LOCK_EXECUTE == 'True' && steps.archive.outputs.allowed == 'true'")
+        self.assertEqual(uploads[1]['if'], "always() && env.ISSUE1393_LOCK_EXECUTE == 'True' && steps.receipt.outputs.allowed == 'true'")
+        self.assertEqual(uploads[0]['timeout-minutes'], '${{ fromJSON(steps.archive.outputs.minutes) }}')
+        self.assertEqual(uploads[1]['timeout-minutes'], '${{ fromJSON(steps.receipt.outputs.minutes) }}')
+        order = [s.get('id') or s.get('name') for s in steps]
+        self.assertLess(order.index('archive'), order.index('payload'))
+        self.assertLess(order.index('payload'), order.index('receipt'))
+        self.assertLess(order.index('receipt'), steps.index(uploads[1]))
         runs = {s.get('id'): s.get('run', '') for s in steps}
+        archive_run = runs['archive']
+        gate_at = archive_run.index('issue1393_lock_prepare.py upload-gate')
+        for placeholder in ("save('result.json'", "save('steps.json'", "save('PACKAGE.json'"):
+            self.assertLess(archive_run.index(placeholder), gate_at)
+        self.assertNotIn('write', archive_run[gate_at:])
+        receipt_run = runs['receipt']
+        self.assertLess(receipt_run.index("'issue1393-lock-UPLOAD-ACTUAL.json', 'xb'"),
+                        receipt_run.index('issue1393_lock_prepare.py receipt-gate'))
         self.assertIn('issue1393_lock_prepare.py upload-gate', runs['archive'])
         self.assertIn('issue1393_lock_prepare.py receipt-gate', runs['receipt'])
         self.assertNotIn('RESOURCE_CAPS', text)

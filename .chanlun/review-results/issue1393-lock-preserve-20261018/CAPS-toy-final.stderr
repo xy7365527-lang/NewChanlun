@@ -8,6 +8,7 @@ test_push_identity_and_attempt (__main__.ContractTests.test_push_identity_and_at
 test_strict_envelope_duplicates_and_limits (__main__.ContractTests.test_strict_envelope_duplicates_and_limits) ... ok
 test_wrong_hashes_and_provenance (__main__.ContractTests.test_wrong_hashes_and_provenance) ... ok
 test_false_gate_deadline_and_unknown_mode_refuse (__main__.GateTests.test_false_gate_deadline_and_unknown_mode_refuse) ... ok
+test_gates_refuse_registry_evidence_over_caps (__main__.GateTests.test_gates_refuse_registry_evidence_over_caps) ... ok
 test_receipt_gate_combined_cap_change_and_actual_limit (__main__.GateTests.test_receipt_gate_combined_cap_change_and_actual_limit) ... ok
 test_receipt_without_frozen_only_when_main_not_uploaded (__main__.GateTests.test_receipt_without_frozen_only_when_main_not_uploaded) ... ok
 test_upload_gate_equal_and_over_cap (__main__.GateTests.test_upload_gate_equal_and_over_cap) ... ok
@@ -20,9 +21,11 @@ test_runner_has_no_network_or_http_fetch_path (__main__.NewCapsContractTests.tes
 test_wrong_caps_values_types_unknown_fields_and_old_schema_rejected (__main__.NewCapsContractTests.test_wrong_caps_values_types_unknown_fields_and_old_schema_rejected) ... ok
 test_caps_preflight_before_read_and_registry_total_files_items (__main__.NewCapsRegistryTests.test_caps_preflight_before_read_and_registry_total_files_items) ... ok
 test_complete_records_parents_features_and_retargeted_text_edge (__main__.NewCapsRegistryTests.test_complete_records_parents_features_and_retargeted_text_edge) ... ok
+test_complete_registry_json_downgraded_even_when_registry_caps_full (__main__.NewCapsRegistryTests.test_complete_registry_json_downgraded_even_when_registry_caps_full) ... ok
 test_constraint_parent_range_and_text_unchanged_target_changed_recorded (__main__.NewCapsRegistryTests.test_constraint_parent_range_and_text_unchanged_target_changed_recorded) ... ok
 test_deleted_package_requires_old_record_and_parent (__main__.NewCapsRegistryTests.test_deleted_package_requires_old_record_and_parent) ... ok
 test_duplicate_records_accumulate_across_files (__main__.NewCapsRegistryTests.test_duplicate_records_accumulate_across_files) ... ok
+test_failure_path_never_exceeds_registry_files_or_total (__main__.NewCapsRegistryTests.test_failure_path_never_exceeds_registry_files_or_total) ... ok
 test_graph_rejects_ambiguity_dangling_and_unknown_source (__main__.NewCapsRegistryTests.test_graph_rejects_ambiguity_dangling_and_unknown_source) ... ok
 test_missing_cache_and_no_scan_or_network (__main__.NewCapsRegistryTests.test_missing_cache_and_no_scan_or_network) ... ok
 test_missing_old_version_is_proof_gap (__main__.NewCapsRegistryTests.test_missing_old_version_is_proof_gap) ... ok
@@ -35,6 +38,7 @@ test_scan_deadline_and_signal_mid_stream (__main__.NewCapsRegistryTests.test_sca
 test_single_record_equal_cap_complete_and_over_cap_proof_gap_untruncated (__main__.NewCapsRegistryTests.test_single_record_equal_cap_complete_and_over_cap_proof_gap_untruncated) ... ok
 test_symlink_and_summary_write_expiry_never_complete (__main__.NewCapsRegistryTests.test_symlink_and_summary_write_expiry_never_complete) ... ok
 test_truncated_mid_segment_duplicate_unwanted_and_bad_validator (__main__.NewCapsRegistryTests.test_truncated_mid_segment_duplicate_unwanted_and_bad_validator) ... ok
+test_truncated_unwanted_tail_after_complete_wanted_rejected (__main__.NewCapsRegistryTests.test_truncated_unwanted_tail_after_complete_wanted_rejected) ... ok
 test_unknown_format_source_checksum_and_missing_parent_constraint (__main__.NewCapsRegistryTests.test_unknown_format_source_checksum_and_missing_parent_constraint) ... ok
 test_unwanted_large_versions_skipped_and_not_counted (__main__.NewCapsRegistryTests.test_unwanted_large_versions_skipped_and_not_counted) ... ok
 test_digest_streams_multiple_chunks_and_refuses_expired_before_io (__main__.PackageTailTests.test_digest_streams_multiple_chunks_and_refuses_expired_before_io) ... ok
@@ -82,6 +86,6 @@ test_receipt_reserve_is_finite_and_precomputed (__main__.UploadBoundTests.test_r
 test_write_refused_when_containers_would_exceed_upload_cap (__main__.UploadBoundTests.test_write_refused_when_containers_would_exceed_upload_cap) ... ok
 
 ----------------------------------------------------------------------
-Ran 82 tests in 1.470s
+Ran 86 tests in 1.542s
 
 OK
