@@ -6551,6 +6551,21 @@ fn verify_required_meta_admitted(
     verify_required_meta(tx)
 }
 
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+fn uo1488_prefixes(tag: &str, p: &NativeRawPrefixes) {
+    use super::audit_retention::Retained;
+    eprintln!(
+        "UO1488_P {tag} raw_nodes={}/{} wire_nodes={}/{} raw={}/{}/{} wire={}/{}/{} effective={:?} last={} ordered={}",
+        p.raw_nodes.heap_bytes(), p.raw_nodes.capacity(),
+        p.raw_wire_nodes.heap_bytes(), p.raw_wire_nodes.capacity(),
+        p.prefixes.raw.heap_bytes(), p.prefixes.raw.stack.capacity(), p.prefixes.raw.stack.len(),
+        p.prefixes.wire.heap_bytes(), p.prefixes.wire.stack.capacity(), p.prefixes.wire.stack.len(),
+        p.prefixes.effective.as_ref().map(|e| (e.heap_bytes(), e.stack.capacity(), e.stack.len())),
+        p.prefixes.last_coord.heap_bytes(),
+        p.ordered.heap_bytes()
+    );
+}
+
 /// owner 已闭合全局 Q 和共同保持前件后，只消费实际新增的一代完整历史。
 #[cfg(feature = "s_capture_native_testonly")]
 pub(super) fn append_owner_cut(
@@ -6628,6 +6643,10 @@ pub(super) fn append_owner_cut(
         aux_facts,
         bound,
     )?);
+    #[cfg(test)]
+    if let Some(p) = &old.raw_prefixes {
+        uo1488_prefixes("before", p);
+    }
     let NativeRawPrefixes {
         raw_nodes,
         raw_wire_nodes,
@@ -6733,15 +6752,18 @@ pub(super) fn append_owner_cut(
         use super::audit_retention::Retained;
         eprintln!("UO1488_H cuts_heap={} cut_cap={} cut_size={}", old.cuts.heap_bytes(), old.cuts.capacity(), std::mem::size_of::<PublishedCut>());
     }
+    let uo1488_after = NativeRawPrefixes {
+        raw_nodes,
+        raw_wire_nodes,
+        prefixes,
+        ordered,
+    };
+    #[cfg(test)]
+    uo1488_prefixes("after", &uo1488_after);
     Ok((
         IndexedHistory {
             control_facts: facts,
-            raw_prefixes: Some(NativeRawPrefixes {
-                raw_nodes,
-                raw_wire_nodes,
-                prefixes,
-                ordered,
-            }),
+            raw_prefixes: Some(uo1488_after),
             cuts: old.cuts,
             objects,
             auxiliary: old.auxiliary,
