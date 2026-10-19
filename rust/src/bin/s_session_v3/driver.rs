@@ -1118,18 +1118,19 @@ mod tests {
                 crate::v3::audit_owner::cold_root_probe::fail_next_cold_root_audit();
             }
             let reply = d.handle(ready.clone());
+            let legacy = crate::cache::retained_bytes();
             crate::cache::configure(0);
             assert_eq!(reply.unwrap(), expected);
             let notes = crate::v3::audit_owner::cold_root_probe::take();
             assert_eq!(notes.len(), 1, "须恰经一次冷根审计失败分支：{notes:?}");
             assert_eq!(notes[0].1, 0, "根析构前仍有残留许可：{notes:?}");
-            notes[0]
+            (notes[0], legacy)
         };
         // 自然失败：1024 不足，首跑在根上额度耗尽。
         let natural = probe(1024, false);
-        // 真实首跑全部副作用发生后注入失败：负控核清除前根上确有 legacy 保留许可（无本修复即悬挂）。
+        // 真实首跑全部副作用发生后注入失败（最坏时点）：根上不得残留任何许可。
         let injected = probe(16 * 1024 * 1024, true);
-        assert!(injected.0 > 0, "首跑未在根上留下保留：{injected:?}");
+        assert_eq!(injected.0, (0, 0), "{injected:?}");
         eprintln!(
             "{}",
             json!({"scenario":"p3-1-cold-root-failure","natural":natural,"injected":injected})
