@@ -349,6 +349,8 @@ def _published_axes(rule_revision):
         "s2-axis-quantifiers+new-bi/1+segment-second/1": tb02.AXES,
         "s2-axis-quantifiers+new-bi/2+segment-second/1": tb02.AXES,
         "s2-axis-quantifiers+new-bi/2+segment-second/2": tb02.AXES,
+        # #1493：segment-turn/1 不新增轴；段端门 fail-closed 由 tb02.validate_segment_links 核阻断标记。
+        "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1": tb02.AXES,
     }
     # 未识别规则保持原有的完整轴要求，不退到旧规则的较小集合。
     return known.get(rule_revision, tb02.AXES)

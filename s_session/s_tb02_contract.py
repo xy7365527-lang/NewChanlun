@@ -28,7 +28,18 @@ RULE_CONTRACTS = {
     "s2-axis-quantifiers+new-bi/1+segment-second/1": ("s-new-bi/1", "s-segment/2", KNOWLEDGE_DOMAIN_V1),
     "s2-axis-quantifiers+new-bi/2+segment-second/1": ("s-new-bi/2", "s-segment/2", KNOWLEDGE_DOMAIN_V2),
     "s2-axis-quantifiers+new-bi/2+segment-second/2": ("s-new-bi/2", "s-segment/3", KNOWLEDGE_DOMAIN_V2),
+    # #1493（xianduan.md §7.1 第 7 条）：§7.1 写的 s-segment/3 已被 #1420 占用，本代段合同用 s-segment/4。
+    "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1": ("s-new-bi/2", "s-segment/4", KNOWLEDGE_DOMAIN_V2),
 }
+# #1493 §7.1：第一种情况候选三态（检查只出已决两态与「不是第一种情况候选」；前缀末端开窗另记 open_turn）。
+TURN_CHECK_STATES = ("CONFIRMED", "KILLED_BY_NEW_EXTREME", "NOT_CASE_ONE")
+TURN_OPEN = "OPEN_AT_PREFIX_END"
+TURN_CANDIDATE_STATES = (None, "CONFIRMED", "KILLED_BY_NEW_EXTREME", TURN_OPEN)
+FIRST_TURN_ACTIONS = ("boundary_pair", "window_member", "tie_pair")
+# #1493 §7.1 第 6 条：段端门失败的阻断标记（经 CC-056 等待原因进逐轴证据，沿既有等待通道）。
+PARSE_INVALID_REASON = "segment_parse_invalid"
+PENDING_CASE_ONE_REASON = "first_kind_third_stroke_within_first"
+MIN_LENGTH_REASON = "minimum_segment_length_not_met"
 
 FACT_COLUMNS = ("object_id", "object_revision", "kind", "batch_id", "fact_key", "payload_json", "input_refs_json", "source_coords_json", "first_known_generation", "first_known_cut", "published_generation", "withdrawn_generation", "withdrawal_reason", "superseded_by")
 FACT_FIELDS = ("object_id", "object_revision", "kind", "batch_id", "fact_key", "payload", "input_refs", "source_coords", "first_known_generation", "first_known_cut", "published_generation", "withdrawn_generation", "withdrawal_reason", "superseded_by", "lifecycle")
@@ -422,12 +433,27 @@ def validate_axes(axes, object_ids=None):
         strings(evidence["waiting_reasons"], "axis.waiting_reasons")
 
 
+def _turn_links(d, f):
+    """#1493 s-segment/4：段候选的第一种情况候选态与窗成员须取自同 cut FIRST 序列的开窗候选或检查；不重判先破。"""
+    state, members = d["turn_hypothesis_state"], d["window_members"]
+    if d["result"] == "PENDING_CASE_ONE":
+        o = f["open_turn"]
+        if o is None or state != TURN_OPEN or not members or o["elements"][1]["window_members"] != members:
+            raise ValueError("PENDING_CASE_ONE未绑定FIRST开窗候选")
+    if state is None:
+        return
+    sources = [(TURN_OPEN, f["open_turn"]["elements"][1])] if f["open_turn"] is not None else []
+    sources += [(c["turn_hypothesis_state"], c["elements"][1]) for c in f["checks"]]
+    if not any(s == state and b["window_members"] == members for s, b in sources):
+        raise ValueError("段候选态/窗成员未绑定FIRST检查")
+
+
 def validate_segment_links(records, axes=None):
     """#1414：核同cut内容引用和FIRST/SECOND角色，不计算段终结。"""
     by_id = {r["object_id"]: r for r in records}
     for r in records:
-        # #1420：s-segment/3 同 v2 走引用闭合；被引序列须与段同一合同版本。
-        if r["kind"] != "CC-013.segment" or r["payload"]["schema_revision"] not in ("s-segment/2", "s-segment/3"):
+        # #1420：s-segment/3 同 v2 走引用闭合；被引序列须与段同一合同版本。#1493：s-segment/4 ⊃ /3。
+        if r["kind"] != "CC-013.segment" or r["payload"]["schema_revision"] not in ("s-segment/2", "s-segment/3", "s-segment/4"):
             continue
         schema = r["payload"]["schema_revision"]
         d = r["payload"]["data"]
@@ -454,9 +480,18 @@ def validate_segment_links(records, axes=None):
             if role == "SECOND_SEQUENCE" and d["result"] == "CASE_TWO":
                 if q["second_sequence_status"] != "CONFIRMED" or d["fact_vector"]["termination_witness"]["second_match"] != q["facts"]["matched"]:
                     raise ValueError("第二种终结证书未绑定同次SECOND命中")
-            if role == "SECOND_SEQUENCE" and schema == "s-segment/3" and d["result"] in ("KILLED_CASE_TWO", "PENDING_CASE_TWO"):
+            if role == "SECOND_SEQUENCE" and schema in ("s-segment/3", "s-segment/4") and d["result"] in ("KILLED_CASE_TWO", "PENDING_CASE_TWO"):
                 if q["second_sequence_status"] != ("KILLED" if d["result"] == "KILLED_CASE_TWO" else "PENDING"):
                     raise ValueError("段结果未绑定SECOND终态")
+            if role == "FIRST_SEQUENCE" and schema == "s-segment/4":
+                _turn_links(d, q["facts"])
+        if schema == "s-segment/4" and d["parse_invalid"] is not None:
+            # #1493 §7.1 第 6 条：段端门失败 fail-closed——同 cut 段版本与逐轴证据必须带阻断标记，不许静默。
+            versions = [v for v in records if v["kind"] == "CC-056.segment_version" and v["payload"]["schema_revision"] == schema]
+            if not versions or any(PARSE_INVALID_REASON not in v["payload"]["data"]["waiting_reasons"] for v in versions):
+                raise ValueError("段端门失败未在段版本标阻断")
+            if axes is not None and any(PARSE_INVALID_REASON not in axes[cid]["evidence"]["waiting_reasons"] for cid in ("CC-011", "CC-012", "CC-013", "CC-014") if cid in axes):
+                raise ValueError("段端门失败未在逐轴证据标阻断")
     if axes is not None and "CC-014" in axes:
         if axes["CC-014"]["evidence"]["object_ids"] != axes["CC-013"]["evidence"]["object_ids"] or any(by_id[oid]["kind"] != "CC-013.segment" for oid in axes["CC-014"]["evidence"]["object_ids"]):
             raise ValueError("CC014未绑定CC013实际对象")
@@ -553,9 +588,11 @@ def _fold_cursor(c, element, kill, check):
     return start
 
 
-def _checkpoint_element(e):
-    """CC-056 续扫检查点没有 stroke_refs：元素只验形状，笔号只验为非负整数串。"""
-    keys(e, ("high", "low", "stroke_idx", "stroke_indices"), "FIRST元素")
+def _checkpoint_element(e, v4=False):
+    """CC-056 续扫检查点没有 stroke_refs：元素只验形状，笔号只验为非负整数串。#1493 v4：元素带窗成员键，SECOND/复现元素恒空。"""
+    keys(e, ("high", "low", "stroke_idx", "stroke_indices") + (("window_members",) if v4 else ()), "FIRST元素")
+    if v4 and e["window_members"] != []:
+        raise ValueError("SECOND/复现元素不得带窗成员")
     integer(e["high"], "high")
     integer(e["low"], "low")
     for index in array(e["stroke_indices"], "stroke_indices"):
@@ -573,25 +610,25 @@ def _checkpoint_kill(k):
         raise ValueError("失效见证比较未声明")
 
 
-def _checkpoint_check(check):
+def _checkpoint_check(check, v4=False):
     keys(check, ("elements", "top_fractal", "bottom_fractal", "through_stroke"), "SECOND分型见证")
     if len(array(check["elements"], "elements")) != 3:
         raise ValueError("SECOND分型窗口缺元素")
     for e in check["elements"]:
-        _checkpoint_element(e)
+        _checkpoint_element(e, v4)
     if any(type(check[name]) is not bool for name in ("top_fractal", "bottom_fractal")):
         raise ValueError("SECOND分型错型")
     integer(check["through_stroke"], "through_stroke", 0)
 
 
-def _scan_checkpoints(cursors, round_strokes):
+def _scan_checkpoints(cursors, round_strokes, v4=False):
     """#1420 r2 CC-056.scan_cursors：本 cut 续扫检查点只含调度相关游标（累计预算大于每轮或本轮耗尽）；无同对象 facts 可比。"""
     cursors = array(cursors, "scan_cursors")
     if round_strokes == 0 and cursors:
         raise ValueError("预算0却登记续扫检查点")
     seen = set()
     for c in cursors:
-        _fold_cursor(c, _checkpoint_element, _checkpoint_kill, _checkpoint_check)
+        _fold_cursor(c, lambda e: _checkpoint_element(e, v4), _checkpoint_kill, lambda k: _checkpoint_check(k, v4))
         if c["budget_granted"] is None or int(c["consumed_len"]) > int(c["budget_granted"]):
             raise ValueError("续扫检查点预算不符")
         identity = (c["candidate"]["seg_dir"], c["candidate"]["b_stroke"], c["candidate"]["candidate_extreme"])
@@ -651,14 +688,56 @@ def _second_terminal(d, element, indices, second_check):
     if c["matched"] is not None and c["matched"] != f["matched"]:
         raise ValueError("K1游标命中与事实不同")
 
+def _turn_candidate(d, indices, element):
+    """#1493 s-segment/4 CC-013：第一种情况候选态、窗成员、PENDING_CASE_ONE、最少笔数与段端门 fail-closed 的类型与同对象配套。"""
+    state, members = d["turn_hypothesis_state"], array(d["window_members"], "window_members")
+    if state not in TURN_CANDIDATE_STATES:
+        raise ValueError("段候选态未声明")
+    if members:
+        indices(members)
+    if (state is None and members) or (d["result"] == "PENDING_CASE_ONE") != (PENDING_CASE_ONE_REASON in d["waiting_reasons"]):
+        raise ValueError("候选态/窗成员与等待原因不配套")
+    if d["result"] == "PENDING_CASE_ONE" and (state != TURN_OPEN or not members):
+        raise ValueError("PENDING_CASE_ONE缺开窗候选或窗成员")
+    if (d["result"] == "CASE_TWO" and state is not None) or (d["result"] == "CASE_ONE" and state not in (None, "CONFIRMED")):
+        raise ValueError("终结与第一种情况候选态不符")
+    attempts = d["termination_attempts"]
+    last = attempts[-1] if attempts else None
+    if d["result"] == "FAILED_GEOMETRY" and (last is None or last["minimum_count_met"] is not True or last["construction"]["vector"] == [True] * 4):
+        raise ValueError("最少笔数不足或构造完整却称几何失败")
+    if d["result"] not in ("CASE_ONE", "CASE_TWO") and (MIN_LENGTH_REASON in d["waiting_reasons"]) != (last is not None and last["minimum_count_met"] is False):
+        raise ValueError("最少笔数等待原因未绑定末次终结尝试")
+    start = d["parse_invalid_from"]
+    if start is not None:
+        integer(start, "parse_invalid_from", 0)
+    x = d["parse_invalid"]
+    if x is not None:
+        keys(x, ("seg_start", "end_stroke", "construction_vector", "failed_conditions", "elements"), "段端门失败复现")
+        if x["seg_start"] != start or integer(x["end_stroke"], "parse_invalid.end_stroke", 0) < int(start):
+            raise ValueError("段端门失败复现未绑定候选起点")
+        vector = x["construction_vector"]
+        if vector is not None and (type(vector) is not list or len(vector) != 4 or any(type(v) is not bool for v in vector)):
+            raise ValueError("段端门失败复现四条件错型")
+        if vector == [True] * 4:
+            raise ValueError("段端门失败复现构造完整")
+        strings(x["failed_conditions"], "parse_invalid.failed_conditions")
+        if len(array(x["elements"], "parse_invalid.elements")) != 3:
+            raise ValueError("段端门失败复现缺分型三元素")
+        for e in x["elements"]:
+            _checkpoint_element(e, True)
+
+
 def validate_segment_payload(kind, p):
     """只验类型、身份、适用性与引用闭合；不另算分型/包含或 seed 谓词。"""
     keys(p, ("schema_revision", "semantic_version", "policy_version", "view_role", "object_generation", "slot", "data"), "段合同")
     # #1420：v2＝「含第二种」（s-segment/2 与 /3 共用其分支）；v3 只另管版本元组、SECOND 三态终点/K1 游标、
     # KILLED_CASE_TWO、CC-056 范围与槽。
-    v3 = p["schema_revision"] == "s-segment/3"
+    # #1493：v4（s-segment/4）⊃ v3，只另管版本元组、FIRST 动作集/作用域与 tie_with、元素窗成员、
+    # 第一种情况候选态与 a/b 配套、open_turn、PENDING_CASE_ONE、CC-013 候选态/窗成员/段端门 fail-closed。
+    v4 = p["schema_revision"] == "s-segment/4"
+    v3 = v4 or p["schema_revision"] == "s-segment/3"
     v2 = v3 or p["schema_revision"] == "s-segment/2"
-    expected_version = ("s-segment/3", "segment-second/2", "seed_closed_strict_second", "main") if v3 else ("s-segment/2", "segment-second/1", "seed_closed_strict_second", "main") if v2 else ("s-segment/1", "segment-seed-first/1", "seed_closed_first_no_gap", "main")
+    expected_version = ("s-segment/4", "segment-second/2", "seed_closed_strict_second", "main") if v4 else ("s-segment/3", "segment-second/2", "seed_closed_strict_second", "main") if v3 else ("s-segment/2", "segment-second/1", "seed_closed_strict_second", "main") if v2 else ("s-segment/1", "segment-seed-first/1", "seed_closed_first_no_gap", "main")
     if (p["schema_revision"], p["semantic_version"], p["policy_version"], p["view_role"]) != expected_version:
         raise ValueError("段规则/范围版本不符")
     integer(p["object_generation"], "object_generation", 1)
@@ -725,13 +804,23 @@ def validate_segment_payload(kind, p):
             raise ValueError("失败候选冒称有效方向")
         strings(v["failed_conditions"], "failed_conditions")
 
-    def element(e):
-        keys(e, ("high", "low", "stroke_idx", "stroke_indices"), "FIRST元素")
+    def element(e, second=False):
+        keys(e, ("high", "low", "stroke_idx", "stroke_indices") + (("window_members",) if v4 else ()), "FIRST元素")
         integer(e["high"], "high")
         integer(e["low"], "low")
         indices(e["stroke_indices"])
         if e["stroke_idx"] not in e["stroke_indices"]:
             raise ValueError("元素代表笔不属于来源")
+        if v4:
+            # §7.1 第 3 条：窗成员是 b 之后、未并入 b 的同序列元素（保留身份）；SECOND 序列无窗。
+            members = array(e["window_members"], "window_members")
+            if members:
+                indices(members)
+            if second and members:
+                raise ValueError("SECOND元素不得带窗成员")
+            numbers = [int(m) for m in members]
+            if numbers != sorted(set(numbers)) or any(m <= int(e["stroke_idx"]) for m in numbers) or set(members) & set(e["stroke_indices"]):
+                raise ValueError("窗成员不在b之后或混入合并来源")
 
     if kind in (SEGMENT_KINDS[0], SEGMENT_KINDS[6]):
         keys(d, ("entity_id", "construction", "stroke_refs"), kind)
@@ -758,7 +847,7 @@ def validate_segment_payload(kind, p):
         if not second and d["scan"]["from_stroke"] != segment_start:
             raise ValueError("FIRST扫描起点不是段起笔")
         f = d["facts"]
-        keys(f, ("raw_elements", "standard", "steps", "checks") + (("from_stroke", "through_stroke", "input_stroke_count", "resource_truncated", "matched") if second else ()) + (("candidate_extreme", "breach_watermark", "semantic_state", "killed_by", "coverage") if second and v3 else ()), "序列事实")
+        keys(f, ("raw_elements", "standard", "steps", "checks") + (("open_turn",) if v4 and not second else ()) + (("from_stroke", "through_stroke", "input_stroke_count", "resource_truncated", "matched") if second else ()) + (("candidate_extreme", "breach_watermark", "semantic_state", "killed_by", "coverage") if second and v3 else ()), "序列事实")
         if second:
             for name in ("from_stroke", "input_stroke_count"):
                 integer(f[name], name, 0)
@@ -766,24 +855,45 @@ def validate_segment_payload(kind, p):
             if type(f["resource_truncated"]) is not bool or d["scan"]["tail_cache_window"] != "0" or any(f[name] != d["scan"][name] for name in ("from_stroke", "through_stroke", "input_stroke_count", "resource_truncated")) or int(d["scan"]["from_stroke"]) <= int(segment_start):
                 raise ValueError("SECOND扫描边界不符")
         for e in array(f["raw_elements"], "raw_elements") + array(f["standard"], "standard"):
-            element(e)
+            element(e, second)
+        if v4 and not second:
+            for e in f["raw_elements"]:
+                if e["window_members"]:
+                    raise ValueError("原始特征元素不得带窗成员")
+        # #1493 v4：FIRST 动作集加 boundary_pair／window_member／tie_pair（作用域 TURN_HYPOTHESIS），旧 turn_boundary 退出。
+        first_actions = ("append", "merge") + (FIRST_TURN_ACTIONS if v4 else ("turn_boundary",))
         for step in array(f["steps"], "steps"):
-            keys(step, ("incoming", "before", "after", "action", "merge_direction", "scope"), "包含步骤")
-            element(step["incoming"])
-            element(step["after"])
+            keys(step, ("incoming", "before", "after", "action", "merge_direction", "scope") + (("tie_with",) if v4 else ()), "包含步骤")
+            element(step["incoming"], second)
+            element(step["after"], second)
             if step["before"] is not None:
-                element(step["before"])
+                element(step["before"], second)
             action = step["action"]
-            if action not in (("append", "merge") if second else ("append", "merge", "turn_boundary")) or step["scope"] != ("SECOND_SEQUENCE" if second else "TURN_HYPOTHESIS" if action == "turn_boundary" else "SAME_SEQUENCE"):
+            turn = action in FIRST_TURN_ACTIONS or action == "turn_boundary"
+            if action not in (("append", "merge") if second else first_actions) or step["scope"] != ("SECOND_SEQUENCE" if second else "TURN_HYPOTHESIS" if turn else "SAME_SEQUENCE"):
                 raise ValueError("包含跨作用域或动作未声明")
             if (action == "merge" and step["merge_direction"] not in ("UP", "DOWN")) or (action != "merge" and step["merge_direction"] is not None):
                 raise ValueError("方向性包含缺见证")
+            if v4:
+                before = step["before"]
+                if (step["tie_with"] is not None) != (action == "tie_pair"):
+                    raise ValueError("tie_with只属并列对")
+                if action in FIRST_TURN_ACTIONS and before is None:
+                    raise ValueError("转折点动作缺末标准元素")
+                if action == "tie_pair":
+                    integer(step["tie_with"], "tie_with", 0)
+                    if step["tie_with"] != before["stroke_idx"]:
+                        raise ValueError("tie_with未绑定末标准元素")
+                if action == "window_member":
+                    a, b = step["after"], before
+                    if any(a[k] != b[k] for k in ("high", "low", "stroke_idx", "stroke_indices")) or a["window_members"] != b["window_members"] + [step["incoming"]["stroke_idx"]]:
+                        raise ValueError("窗成员步改写了b或未记入成员")
         def second_check(check):
             keys(check, ("elements", "top_fractal", "bottom_fractal", "through_stroke"), "SECOND分型见证")
             if len(array(check["elements"], "elements")) != 3:
                 raise ValueError("SECOND分型窗口缺元素")
             for e in check["elements"]:
-                element(e)
+                element(e, True)
             if any(type(check[name]) is not bool for name in ("top_fractal", "bottom_fractal")):
                 raise ValueError("SECOND分型错型")
             indices([check["through_stroke"]])
@@ -799,12 +909,21 @@ def validate_segment_payload(kind, p):
             if second:
                 second_check(check)
                 continue
-            keys(check, ("elements", "first_fractal", "gap", "gap_closed_by_c", "provisional", "turn_hypothesis_pair"), "分型见证")
+            keys(check, ("elements", "first_fractal", "gap", "gap_closed_by_c", "provisional", "turn_hypothesis_pair") + (("turn_hypothesis_state",) if v4 else ()), "分型见证")
             if len(array(check["elements"], "elements")) != 3:
                 raise ValueError("分型窗口缺元素")
             for e in check["elements"]:
                 element(e)
-            expected_pair = [e["stroke_idx"] for e in check["elements"][:2]] if check["first_fractal"] else None
+            if v4:
+                # §7.1 第 1/4 条：a/b 在「按适用判据成立的分型」或第一种情况候选态已出时给出；CONFIRMED 即分型成立。
+                state = check["turn_hypothesis_state"]
+                if state not in TURN_CHECK_STATES:
+                    raise ValueError("第一种情况候选态未声明")
+                if (state == "CONFIRMED" and check["first_fractal"] is not True) or (state == "KILLED_BY_NEW_EXTREME" and check["first_fractal"] is not False) or check["provisional"] is not False:
+                    raise ValueError("候选态与分型事实不配套")
+                expected_pair = [e["stroke_idx"] for e in check["elements"][:2]] if check["first_fractal"] or state != "NOT_CASE_ONE" else None
+            else:
+                expected_pair = [e["stroke_idx"] for e in check["elements"][:2]] if check["first_fractal"] else None
             if check["turn_hypothesis_pair"] != expected_pair:
                 raise ValueError("假设转折点两侧未绑定a/b元素")
             for k in ("first_fractal", "provisional"):
@@ -815,10 +934,19 @@ def validate_segment_payload(kind, p):
                     raise ValueError("gap见证错型")
             if (not check["first_fractal"] and check["gap"] is not None) or (check["gap"] is not True and check["gap_closed_by_c"] is not None):
                 raise ValueError("不适用条件虚填布尔")
+        if v4 and not second and f["open_turn"] is not None:
+            o = f["open_turn"]
+            keys(o, ("elements", "turn_hypothesis_pair", "turn_hypothesis_state"), "前缀末端开窗候选")
+            if len(array(o["elements"], "open_turn.elements")) != 2:
+                raise ValueError("开窗候选缺a/b元素")
+            for e in o["elements"]:
+                element(e)
+            if o["turn_hypothesis_state"] != TURN_OPEN or o["turn_hypothesis_pair"] != [e["stroke_idx"] for e in o["elements"]] or o["elements"] != f["standard"][-2:]:
+                raise ValueError("开窗候选未绑定末两标准元素")
         if second and v3:
-            _second_terminal(d, element, indices, second_check)
+            _second_terminal(d, lambda e: element(e, True), indices, second_check)
     elif kind == SEGMENT_KINDS[2]:
-        keys(d, ("entity_id", "entity_revision", "seed_id", "sequence_id", "sequence_object_id", "construction", "result", "waiting_reasons", "termination_attempts", "geometric_end", "trigger_stroke", "formed_known_at", "terminated_known_at", "stroke_refs") + (("second_sequence_id", "second_sequence_object_id", "strict", "fact_vector") if v2 else ()), kind)
+        keys(d, ("entity_id", "entity_revision", "seed_id", "sequence_id", "sequence_object_id", "construction", "result", "waiting_reasons", "termination_attempts", "geometric_end", "trigger_stroke", "formed_known_at", "terminated_known_at", "stroke_refs") + (("second_sequence_id", "second_sequence_object_id", "strict", "fact_vector") if v2 else ()) + (("turn_hypothesis_state", "window_members", "parse_invalid_from", "parse_invalid") if v4 else ()), kind)
         integer(d["entity_revision"], "entity_revision", 1)
         construction(d["construction"])
         strings(d["waiting_reasons"], "waiting_reasons")
@@ -830,8 +958,10 @@ def validate_segment_payload(kind, p):
             if type(attempt["minimum_count_met"]) is not bool:
                 raise ValueError("最小笔数条件错型")
             construction(attempt["construction"])
-        if d["result"] not in ("NO_FIRST", "CASE_ONE", "PENDING_CASE_TWO", "FAILED_GEOMETRY") + (("CASE_TWO",) if v2 else ()) + (("KILLED_CASE_TWO",) if v3 else ()):
+        if d["result"] not in ("NO_FIRST", "CASE_ONE", "PENDING_CASE_TWO", "FAILED_GEOMETRY") + (("CASE_TWO",) if v2 else ()) + (("KILLED_CASE_TWO",) if v3 else ()) + (("PENDING_CASE_ONE",) if v4 else ()):
             raise ValueError("冒称交付第二种终结")
+        if v4:
+            _turn_candidate(d, indices, element)
         if d["result"] in ("CASE_ONE", "CASE_TWO"):
             known(d["terminated_known_at"])
             e = d["geometric_end"]
@@ -900,7 +1030,7 @@ def validate_segment_payload(kind, p):
                     keys(match, ("elements", "top_fractal", "bottom_fractal", "through_stroke"), "SECOND终结证书")
                     if len(array(match["elements"], "elements")) != 3 or any(type(match[k]) is not bool for k in ("top_fractal", "bottom_fractal")) or not (match["top_fractal"] or match["bottom_fractal"]):
                         raise ValueError("终结证书缺任意分型见证")
-                    for e in match["elements"]: element(e)
+                    for e in match["elements"]: element(e, True)
                     indices([match["through_stroke"]])
             w = b["stroke_break_witness"]
             if (w is not None) != b["stroke_broken"]:
@@ -937,7 +1067,7 @@ def validate_segment_payload(kind, p):
             keys(d["scan_budget"], ("policy", "round_strokes"), "段扫描预算")
             if d["scan_budget"]["policy"] != SECOND_SCAN_BUDGET_POLICY:
                 raise ValueError("扫描预算政策版本不符")
-            _scan_checkpoints(d["scan_cursors"], integer(d["scan_budget"]["round_strokes"], "round_strokes", 0))
+            _scan_checkpoints(d["scan_cursors"], integer(d["scan_budget"]["round_strokes"], "round_strokes", 0), v4)
     if kind in SEGMENT_KINDS[:3] + SEGMENT_KINDS[6:]:
         if kind == SEGMENT_KINDS[1]:
             expected_segment = f'segment:{p["object_generation"]}:{refs[segment_start]["start_anchor"]}'

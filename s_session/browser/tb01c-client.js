@@ -259,32 +259,65 @@
     if (c.matched !== null) check(c.matched);
     return start;
   }
-  // CC-056 续扫检查点没有 stroke_refs：元素只验形状，笔号只验为非负整数串。
-  function checkpointElement(e) {
-    keys(e, ["high", "low", "stroke_idx", "stroke_indices"], "FIRST元素"); signed(e.high); signed(e.low);
+  // CC-056 续扫检查点没有 stroke_refs：元素只验形状，笔号只验为非负整数串。#1493 v4：元素带窗成员键，SECOND/复现元素恒空。
+  function checkpointElement(e, v4 = false) {
+    keys(e, ["high", "low", "stroke_idx", "stroke_indices", ...(v4 ? ["window_members"] : [])], "FIRST元素"); signed(e.high); signed(e.low);
     need(Array.isArray(e.stroke_indices), "要求完整坐标数组"); e.stroke_indices.forEach(i => integer(i));
     need(e.stroke_indices.includes(e.stroke_idx), "元素代表笔不属于来源");
+    if (v4) need(Array.isArray(e.window_members) && e.window_members.length === 0, "SECOND/复现元素不得带窗成员");
   }
   function checkpointKill(k) {
     keys(k, ["stroke_idx", "price", "candidate_extreme", "comparison"], "失效见证"); integer(k.stroke_idx); signed(k.price); signed(k.candidate_extreme);
     need([">", "<"].includes(k.comparison), "失效见证比较未声明");
   }
-  function checkpointCheck(c) {
+  function checkpointCheck(c, v4 = false) {
     keys(c, ["elements", "top_fractal", "bottom_fractal", "through_stroke"], "SECOND分型见证");
-    need(Array.isArray(c.elements) && c.elements.length === 3, "SECOND分型窗口缺元素"); c.elements.forEach(e => checkpointElement(e));
+    need(Array.isArray(c.elements) && c.elements.length === 3, "SECOND分型窗口缺元素"); c.elements.forEach(e => checkpointElement(e, v4));
     need(typeof c.top_fractal === "boolean" && typeof c.bottom_fractal === "boolean", "SECOND分型错型"); integer(c.through_stroke);
   }
   // #1420 r2 CC-056.scan_cursors：本 cut 续扫检查点只含调度相关游标（累计预算大于每轮或本轮耗尽）；无同对象 facts 可比。
-  function scanCheckpoints(cursors, roundStrokes) {
+  function scanCheckpoints(cursors, roundStrokes, v4 = false) {
     need(Array.isArray(cursors), "续扫检查点不是数组");
     need(roundStrokes !== 0n || cursors.length === 0, "预算0却登记续扫检查点");
     const seen = new Set();
     for (const c of cursors) {
-      foldCursor(c, checkpointElement, checkpointKill, checkpointCheck);
+      foldCursor(c, e => checkpointElement(e, v4), checkpointKill, k => checkpointCheck(k, v4));
       need(c.budget_granted !== null && BigInt(c.consumed_len) <= BigInt(c.budget_granted), "续扫检查点预算不符");
       const identity = canonical([c.candidate.seg_dir, c.candidate.b_stroke, c.candidate.candidate_extreme]);
       need(!seen.has(identity), "续扫检查点候选身份重复"); seen.add(identity);
     }
+  }
+  // #1493 s-segment/4（xianduan.md §7.1）：第一种情况候选三态、转折点窗与段端门 fail-closed（与 s_tb02_contract 对称）。
+  const TURN_CHECK_STATES = ["CONFIRMED", "KILLED_BY_NEW_EXTREME", "NOT_CASE_ONE"], TURN_OPEN = "OPEN_AT_PREFIX_END";
+  const FIRST_TURN_ACTIONS = ["boundary_pair", "window_member", "tie_pair"];
+  const PARSE_INVALID_REASON = "segment_parse_invalid", PENDING_CASE_ONE_REASON = "first_kind_third_stroke_within_first", MIN_LENGTH_REASON = "minimum_segment_length_not_met";
+  function turnCandidate(d, indices) {
+    const state = d.turn_hypothesis_state, members = d.window_members;
+    need([null, "CONFIRMED", "KILLED_BY_NEW_EXTREME", TURN_OPEN].includes(state), "段候选态未声明");
+    need(Array.isArray(members), "窗成员错型"); indices(members);
+    need(!(state === null && members.length) && (d.result === "PENDING_CASE_ONE") === d.waiting_reasons.includes(PENDING_CASE_ONE_REASON), "候选态/窗成员与等待原因不配套");
+    need(d.result !== "PENDING_CASE_ONE" || state === TURN_OPEN && members.length > 0, "PENDING_CASE_ONE缺开窗候选或窗成员");
+    need(!(d.result === "CASE_TWO" && state !== null) && !(d.result === "CASE_ONE" && ![null, "CONFIRMED"].includes(state)), "终结与第一种情况候选态不符");
+    const last = d.termination_attempts.length ? d.termination_attempts[d.termination_attempts.length - 1] : null;
+    need(d.result !== "FAILED_GEOMETRY" || last !== null && last.minimum_count_met === true && !equal(last.construction.vector, [true,true,true,true]), "最少笔数不足或构造完整却称几何失败");
+    need(["CASE_ONE", "CASE_TWO"].includes(d.result) || d.waiting_reasons.includes(MIN_LENGTH_REASON) === (last !== null && last.minimum_count_met === false), "最少笔数等待原因未绑定末次终结尝试");
+    if (d.parse_invalid_from !== null) integer(d.parse_invalid_from);
+    const x = d.parse_invalid;
+    if (x !== null) {
+      keys(x, ["seg_start", "end_stroke", "construction_vector", "failed_conditions", "elements"], "段端门失败复现");
+      need(x.seg_start === d.parse_invalid_from && integer(x.end_stroke) >= BigInt(d.parse_invalid_from), "段端门失败复现未绑定候选起点");
+      need(x.construction_vector === null || Array.isArray(x.construction_vector) && x.construction_vector.length === 4 && x.construction_vector.every(v => typeof v === "boolean"), "段端门失败复现四条件错型");
+      need(!equal(x.construction_vector, [true,true,true,true]), "段端门失败复现构造完整");
+      texts(x.failed_conditions); need(Array.isArray(x.elements) && x.elements.length === 3, "段端门失败复现缺分型三元素"); x.elements.forEach(e => checkpointElement(e, true));
+    }
+  }
+  // 段候选的候选态与窗成员须取自同 cut FIRST 序列的开窗候选或检查；不重判先破。
+  function turnLinks(d, f) {
+    const state = d.turn_hypothesis_state, members = d.window_members;
+    if (d.result === "PENDING_CASE_ONE") { const o = f.open_turn; need(o !== null && state === TURN_OPEN && members.length > 0 && equal(o.elements[1].window_members, members), "PENDING_CASE_ONE未绑定FIRST开窗候选"); }
+    if (state === null) return;
+    const sources = [...(f.open_turn !== null ? [[TURN_OPEN, f.open_turn.elements[1]]] : []), ...f.checks.map(c => [c.turn_hypothesis_state, c.elements[1]])];
+    need(sources.some(([s, b]) => s === state && equal(b.window_members, members)), "段候选态/窗成员未绑定FIRST检查");
   }
   // #1420 s-segment/3：SECOND 语义终点、扫描覆盖、预算与 K1 游标的类型和同对象绑定；不重放折叠（与 s_tb02_contract._second_terminal 对称）。
   function secondTerminal(d, element, indices, secondCheck) {
@@ -318,8 +351,9 @@
   function validateSegmentPayload(kind, p) {
     keys(p, ["schema_revision", "semantic_version", "policy_version", "view_role", "object_generation", "slot", "data"], "段合同");
     // #1420：v2＝「含第二种」（s-segment/2 与 /3 共用）；v3 只另管版本、SECOND 三态终点/K1 游标、KILLED_CASE_TWO、CC-056 范围与槽。
-    const v3 = p.schema_revision === "s-segment/3", v2 = v3 || p.schema_revision === "s-segment/2";
-    need(p.schema_revision === (v3 ? "s-segment/3" : v2 ? "s-segment/2" : "s-segment/1") && p.semantic_version === (v3 ? "segment-second/2" : v2 ? "segment-second/1" : "segment-seed-first/1") && p.policy_version === (v2 ? "seed_closed_strict_second" : "seed_closed_first_no_gap") && p.view_role === "main", "段规则/范围版本不符");
+    // #1493：v4（s-segment/4）⊃ v3，只另管版本、FIRST 动作集/作用域与 tie_with、元素窗成员、候选态与 a/b 配套、open_turn、PENDING_CASE_ONE、CC-013 段端门 fail-closed。
+    const v4 = p.schema_revision === "s-segment/4", v3 = v4 || p.schema_revision === "s-segment/3", v2 = v3 || p.schema_revision === "s-segment/2";
+    need(p.schema_revision === (v4 ? "s-segment/4" : v3 ? "s-segment/3" : v2 ? "s-segment/2" : "s-segment/1") && p.semantic_version === (v3 ? "segment-second/2" : v2 ? "segment-second/1" : "segment-seed-first/1") && p.policy_version === (v2 ? "seed_closed_strict_second" : "seed_closed_first_no_gap") && p.view_role === "main", "段规则/范围版本不符");
     integer(p.object_generation, true);
     const d = p.data, refs = new Map();
     let segmentStart = null;
@@ -350,9 +384,14 @@
       texts(v.failed_conditions);
       need(equal(v.vector, [true,true,true,true]) ? ["UP", "DOWN"].includes(v.direction) && !v.failed_conditions.length : v.direction === null, "段方向与适用性不符");
     }
-    function element(e) {
-      keys(e, ["high", "low", "stroke_idx", "stroke_indices"], "FIRST元素"); signed(e.high); signed(e.low); indices(e.stroke_indices);
+    function element(e, second = false) {
+      keys(e, ["high", "low", "stroke_idx", "stroke_indices", ...(v4 ? ["window_members"] : [])], "FIRST元素"); signed(e.high); signed(e.low); indices(e.stroke_indices);
       need(e.stroke_indices.includes(e.stroke_idx), "元素代表笔不属于来源");
+      if (v4) {
+        // §7.1 第 3 条：窗成员是 b 之后、未并入 b 的同序列元素；SECOND 序列无窗。
+        indices(e.window_members); need(!second || e.window_members.length === 0, "SECOND元素不得带窗成员");
+        need(e.window_members.every(m => BigInt(m) > BigInt(e.stroke_idx) && !e.stroke_indices.includes(m)), "窗成员不在b之后或混入合并来源");
+      }
     }
     if ([SEGMENT_KINDS[0], SEGMENT_KINDS[6]].includes(kind)) {
       keys(d, ["entity_id", "construction", "stroke_refs"], kind); construction(d.construction);
@@ -368,21 +407,31 @@
       // 身份锚＝stroke_refs 中数值最小的笔号，即段起笔；wire 整数是十进制文本，须按数值取最小。
       segmentStart = [...refs.keys()].reduce((a, b) => BigInt(b) < BigInt(a) ? b : a);
       need(second || d.scan.from_stroke === segmentStart, "FIRST扫描起点不是段起笔");
-      const f = d.facts; keys(f, ["raw_elements", "standard", "steps", "checks", ...(second ? ["from_stroke", "through_stroke", "input_stroke_count", "resource_truncated", "matched"] : []), ...(second && v3 ? ["candidate_extreme", "breach_watermark", "semantic_state", "killed_by", "coverage"] : [])], "序列事实");
+      const f = d.facts; keys(f, ["raw_elements", "standard", "steps", "checks", ...(v4 && !second ? ["open_turn"] : []), ...(second ? ["from_stroke", "through_stroke", "input_stroke_count", "resource_truncated", "matched"] : []), ...(second && v3 ? ["candidate_extreme", "breach_watermark", "semantic_state", "killed_by", "coverage"] : [])], "序列事实");
       for (const k of ["raw_elements", "standard", "steps", "checks"]) need(Array.isArray(f[k]), "序列事实集合错型");
       if (second) {
         integer(f.from_stroke); integer(f.through_stroke, false, true); integer(f.input_stroke_count);
         need(typeof f.resource_truncated === "boolean" && d.scan.tail_cache_window === "0" && ["from_stroke", "through_stroke", "input_stroke_count", "resource_truncated"].every(k => f[k] === d.scan[k]) && BigInt(d.scan.from_stroke) > BigInt(segmentStart), "SECOND扫描边界不符");
       }
-      [...f.raw_elements, ...f.standard].forEach(element);
+      [...f.raw_elements, ...f.standard].forEach(e => element(e, second));
+      need(!v4 || second || f.raw_elements.every(e => e.window_members.length === 0), "原始特征元素不得带窗成员");
+      // #1493 v4：FIRST 动作集加 boundary_pair／window_member／tie_pair（作用域 TURN_HYPOTHESIS），旧 turn_boundary 退出。
+      const firstActions = ["append", "merge", ...(v4 ? FIRST_TURN_ACTIONS : ["turn_boundary"])];
       for (const s of f.steps) {
-        keys(s, ["incoming", "before", "after", "action", "merge_direction", "scope"], "包含步骤"); element(s.incoming); element(s.after); if (s.before !== null) element(s.before);
-        need((second ? ["append", "merge"] : ["append", "merge", "turn_boundary"]).includes(s.action) && s.scope === (second ? "SECOND_SEQUENCE" : s.action === "turn_boundary" ? "TURN_HYPOTHESIS" : "SAME_SEQUENCE"), "包含跨作用域/动作未声明");
+        keys(s, ["incoming", "before", "after", "action", "merge_direction", "scope", ...(v4 ? ["tie_with"] : [])], "包含步骤"); element(s.incoming, second); element(s.after, second); if (s.before !== null) element(s.before, second);
+        const turn = FIRST_TURN_ACTIONS.includes(s.action) || s.action === "turn_boundary";
+        need((second ? ["append", "merge"] : firstActions).includes(s.action) && s.scope === (second ? "SECOND_SEQUENCE" : turn ? "TURN_HYPOTHESIS" : "SAME_SEQUENCE"), "包含跨作用域/动作未声明");
         need(s.action === "merge" ? ["UP", "DOWN"].includes(s.merge_direction) : s.merge_direction === null, "方向性包含缺见证");
+        if (v4) {
+          need((s.tie_with !== null) === (s.action === "tie_pair"), "tie_with只属并列对");
+          need(!FIRST_TURN_ACTIONS.includes(s.action) || s.before !== null, "转折点动作缺末标准元素");
+          if (s.action === "tie_pair") { integer(s.tie_with); need(s.tie_with === s.before.stroke_idx, "tie_with未绑定末标准元素"); }
+          if (s.action === "window_member") need(["high", "low", "stroke_idx", "stroke_indices"].every(k => equal(s.after[k], s.before[k])) && equal(s.after.window_members, [...s.before.window_members, s.incoming.stroke_idx]), "窗成员步改写了b或未记入成员");
+        }
       }
       function secondCheck(c) {
         keys(c, ["elements", "top_fractal", "bottom_fractal", "through_stroke"], "SECOND分型见证");
-        need(Array.isArray(c.elements) && c.elements.length === 3, "SECOND分型窗口缺元素"); c.elements.forEach(element);
+        need(Array.isArray(c.elements) && c.elements.length === 3, "SECOND分型窗口缺元素"); c.elements.forEach(e => element(e, true));
         need(typeof c.top_fractal === "boolean" && typeof c.bottom_fractal === "boolean", "SECOND分型错型"); indices([c.through_stroke]);
       }
       if (second) {
@@ -392,23 +441,35 @@
       }
       for (const c of f.checks) {
         if (second) { secondCheck(c); continue; }
-        keys(c, ["elements", "first_fractal", "gap", "gap_closed_by_c", "provisional", "turn_hypothesis_pair"], "分型见证");
-        need(Array.isArray(c.elements) && c.elements.length === 3, "分型窗口缺元素"); c.elements.forEach(element);
-        need(equal(c.turn_hypothesis_pair, c.first_fractal ? c.elements.slice(0,2).map(e => e.stroke_idx) : null), "假设转折点两侧未绑定a/b元素");
+        keys(c, ["elements", "first_fractal", "gap", "gap_closed_by_c", "provisional", "turn_hypothesis_pair", ...(v4 ? ["turn_hypothesis_state"] : [])], "分型见证");
+        need(Array.isArray(c.elements) && c.elements.length === 3, "分型窗口缺元素"); c.elements.forEach(e => element(e));
+        if (v4) {
+          // §7.1 第 1/4 条：a/b 在「按适用判据成立的分型」或第一种情况候选态已出时给出；CONFIRMED 即分型成立。
+          const state = c.turn_hypothesis_state;
+          need(TURN_CHECK_STATES.includes(state), "第一种情况候选态未声明");
+          need(!(state === "CONFIRMED" && c.first_fractal !== true) && !(state === "KILLED_BY_NEW_EXTREME" && c.first_fractal !== false) && c.provisional === false, "候选态与分型事实不配套");
+        }
+        need(equal(c.turn_hypothesis_pair, c.first_fractal || (v4 && c.turn_hypothesis_state !== "NOT_CASE_ONE") ? c.elements.slice(0,2).map(e => e.stroke_idx) : null), "假设转折点两侧未绑定a/b元素");
         need(typeof c.first_fractal === "boolean" && typeof c.provisional === "boolean", "分型事实错型");
         for (const k of ["gap", "gap_closed_by_c"]) need(c[k] === null || typeof c[k] === "boolean", "gap见证错型");
         need((c.first_fractal || c.gap === null) && (c.gap === true || c.gap_closed_by_c === null), "不适用条件虚填布尔");
       }
-      if (second && v3) secondTerminal(d, element, indices, secondCheck);
+      if (v4 && !second && f.open_turn !== null) {
+        const o = f.open_turn; keys(o, ["elements", "turn_hypothesis_pair", "turn_hypothesis_state"], "前缀末端开窗候选");
+        need(Array.isArray(o.elements) && o.elements.length === 2, "开窗候选缺a/b元素"); o.elements.forEach(e => element(e));
+        need(o.turn_hypothesis_state === TURN_OPEN && equal(o.turn_hypothesis_pair, o.elements.map(e => e.stroke_idx)) && equal(o.elements, f.standard.slice(-2)), "开窗候选未绑定末两标准元素");
+      }
+      if (second && v3) secondTerminal(d, e => element(e, true), indices, secondCheck);
     } else if (kind === SEGMENT_KINDS[2]) {
-      keys(d, ["entity_id", "entity_revision", "seed_id", "sequence_id", "sequence_object_id", "construction", "result", "waiting_reasons", "termination_attempts", "geometric_end", "trigger_stroke", "formed_known_at", "terminated_known_at", "stroke_refs", ...(v2 ? ["second_sequence_id", "second_sequence_object_id", "strict", "fact_vector"] : [])], kind);
+      keys(d, ["entity_id", "entity_revision", "seed_id", "sequence_id", "sequence_object_id", "construction", "result", "waiting_reasons", "termination_attempts", "geometric_end", "trigger_stroke", "formed_known_at", "terminated_known_at", "stroke_refs", ...(v2 ? ["second_sequence_id", "second_sequence_object_id", "strict", "fact_vector"] : []), ...(v4 ? ["turn_hypothesis_state", "window_members", "parse_invalid_from", "parse_invalid"] : [])], kind);
       integer(d.entity_revision, true); construction(d.construction); texts(d.waiting_reasons); known(d.formed_known_at);
       need(Array.isArray(d.termination_attempts), "终结准入见证错型");
       for (const a of d.termination_attempts) {
         keys(a, ["end_stroke", "trigger_stroke", "minimum_count_met", "construction"], "终结准入见证");
         indices([a.end_stroke]); indices([a.trigger_stroke]); need(typeof a.minimum_count_met === "boolean", "最小笔数条件错型"); construction(a.construction);
       }
-      need(["NO_FIRST", "CASE_ONE", "PENDING_CASE_TWO", "FAILED_GEOMETRY", ...(v2 ? ["CASE_TWO"] : []), ...(v3 ? ["KILLED_CASE_TWO"] : [])].includes(d.result), "冒称交付第二种终结");
+      need(["NO_FIRST", "CASE_ONE", "PENDING_CASE_TWO", "FAILED_GEOMETRY", ...(v2 ? ["CASE_TWO"] : []), ...(v3 ? ["KILLED_CASE_TWO"] : []), ...(v4 ? ["PENDING_CASE_ONE"] : [])].includes(d.result), "冒称交付第二种终结");
+      if (v4) turnCandidate(d, indices);
       if (["CASE_ONE", "CASE_TWO"].includes(d.result)) {
         known(d.terminated_known_at); const e = d.geometric_end;
         keys(e, ["stroke_index", "group_anchor", "extreme_roots", "price"], "几何段端"); indices([e.stroke_index]); indices([d.trigger_stroke]); coordinates(e.extreme_roots); integer(e.group_anchor); signed(e.price);
@@ -417,7 +478,7 @@
         const strict = d.strict;
         if (strict !== null) {
           keys(strict, ["elements", "raw_gap", "gap_closed_by_c", "effective_case", "closure_operator", "closure_left", "closure_right"], "strict事实");
-          need(Array.isArray(strict.elements) && strict.elements.length === 3, "strict缺FIRST窗口"); strict.elements.forEach(element);
+          need(Array.isArray(strict.elements) && strict.elements.length === 3, "strict缺FIRST窗口"); strict.elements.forEach(e => element(e));
           need(typeof strict.raw_gap === "boolean" && (strict.raw_gap ? typeof strict.gap_closed_by_c === "boolean" : strict.gap_closed_by_c === null), "strict适用性不符");
           need(["CASE_ONE", "CASE_TWO"].includes(strict.effective_case) && ["<=", ">="].includes(strict.closure_operator), "strict规则未声明"); signed(strict.closure_left); signed(strict.closure_right);
           const a = strict.elements[0], c = strict.elements[2], up = strict.closure_operator === "<=";
@@ -446,7 +507,7 @@
           if (match !== null) {
             keys(match, ["elements", "top_fractal", "bottom_fractal", "through_stroke"], "SECOND终结证书");
             need(Array.isArray(match.elements) && match.elements.length === 3 && typeof match.top_fractal === "boolean" && typeof match.bottom_fractal === "boolean" && (match.top_fractal || match.bottom_fractal), "终结证书缺任意分型见证");
-            match.elements.forEach(element); indices([match.through_stroke]);
+            match.elements.forEach(e => element(e, true)); indices([match.through_stroke]);
           }
         }
         const w = b.stroke_break_witness;
@@ -465,7 +526,7 @@
     } else {
       keys(d, ["input_frontier", "waiting_reasons", "known_at", "delivered_scope", "deferred_scope", ...(v3 ? ["scan_budget", "scan_cursors"] : [])], kind); integer(d.input_frontier, false, true); known(d.known_at); texts(d.waiting_reasons);
       need(d.delivered_scope === (v3 ? "seed_strict_first_and_second_terminal" : v2 ? "seed_strict_first_and_finite_second" : "seed_and_no_gap_first_kind") && equal(d.deferred_scope, v3 ? ["general_equal_identity", "global_G006_bridge"] : v2 ? ["general_equal_identity", "general_scan_continuation", "global_G006_bridge"] : ["second_kind", "general_equal_identity"]), "段交付范围不符");
-      if (v3) { keys(d.scan_budget, ["policy", "round_strokes"], "段扫描预算"); need(d.scan_budget.policy === "second-seq-scan-budget/1", "扫描预算政策版本不符"); scanCheckpoints(d.scan_cursors, integer(d.scan_budget.round_strokes)); }
+      if (v3) { keys(d.scan_budget, ["policy", "round_strokes"], "段扫描预算"); need(d.scan_budget.policy === "second-seq-scan-budget/1", "扫描预算政策版本不符"); scanCheckpoints(d.scan_cursors, integer(d.scan_budget.round_strokes), v4); }
     }
     if ([...SEGMENT_KINDS.slice(0,3), SEGMENT_KINDS[6]].includes(kind)) {
       if (kind === SEGMENT_KINDS[1]) {
@@ -502,6 +563,8 @@
     "s2-axis-quantifiers+new-bi/1+segment-second/1": ["s-new-bi/1", "s-segment/2", KNOWLEDGE_DOMAINS[0]],
     "s2-axis-quantifiers+new-bi/2+segment-second/1": ["s-new-bi/2", "s-segment/2", KNOWLEDGE_DOMAINS[1]],
     "s2-axis-quantifiers+new-bi/2+segment-second/2": ["s-new-bi/2", "s-segment/3", KNOWLEDGE_DOMAINS[1]],
+    // #1493（xianduan.md §7.1 第 7 条）：§7.1 写的 s-segment/3 已被 #1420 占用，本代段合同用 s-segment/4。
+    "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1": ["s-new-bi/2", "s-segment/4", KNOWLEDGE_DOMAINS[1]],
   };
   const RETIRED_SAME_PRICE_WAITING = ["raw_extreme_identity_tie", "actual_extreme_mapping_missing", "same_kind_endpoint_identity_tie", "earlier_endpoint_identity_unsettled"];
   function validateBiPayload(kind, p) {
@@ -673,13 +736,14 @@
       const byRule = {"s2-axis-quantifiers": LEGACY_TB02_AXES, "s2-axis-quantifiers+new-bi/1": BI_AXES,
         "s2-axis-quantifiers+new-bi/1+segment-first/1": FIRST_SEGMENT_AXES, "s2-axis-quantifiers+new-bi/1+segment-second/1": TB02_AXES,
         "s2-axis-quantifiers+new-bi/2+segment-second/1": TB02_AXES,
-        "s2-axis-quantifiers+new-bi/2+segment-second/2": TB02_AXES};
+        "s2-axis-quantifiers+new-bi/2+segment-second/2": TB02_AXES,
+        "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1": TB02_AXES};
       keys(fixed.catalog_evidence.axes, byRule[fixed.rule_revision] || TB02_AXES, "cut规则目录轴");
     }
     const bound = validateTB02CutSources(state.snapshot);
     const active = new Map(state.snapshot.objects.map(r => [r.object_id, r]));
     for (const r of active.values()) {
-      if (r.kind !== "CC-013.segment" || !["s-segment/2", "s-segment/3"].includes(r.payload.schema_revision)) continue;
+      if (r.kind !== "CC-013.segment" || !["s-segment/2", "s-segment/3", "s-segment/4"].includes(r.payload.schema_revision)) continue;
       const d = r.payload.data;
       need(d.second_sequence_id !== null || d.fact_vector.scan_complete, "未完成扫描缺SECOND资源证据");
       for (const [prefix, role] of [["sequence", "FIRST_SEQUENCE"], ["second_sequence", "SECOND_SEQUENCE"]]) {
@@ -692,7 +756,15 @@
         if (role === "FIRST_SEQUENCE" && d.strict !== null) need(v.facts.checks.some(c => equal(c.elements, d.strict.elements)), "strict未绑定FIRST检查");
         if (role === "SECOND_SEQUENCE") need(d.fact_vector.scan_complete !== (v.facts.resource_truncated && v.facts.matched === null), "段事实可知性未绑定SECOND扫描证据");
         if (role === "SECOND_SEQUENCE" && d.result === "CASE_TWO") need(v.second_sequence_status === "CONFIRMED" && equal(d.fact_vector.termination_witness.second_match, v.facts.matched), "第二种终结证书未绑定同次SECOND命中");
-        if (role === "SECOND_SEQUENCE" && r.payload.schema_revision === "s-segment/3" && ["KILLED_CASE_TWO", "PENDING_CASE_TWO"].includes(d.result)) need(v.second_sequence_status === (d.result === "KILLED_CASE_TWO" ? "KILLED" : "PENDING"), "段结果未绑定SECOND终态");
+        if (role === "SECOND_SEQUENCE" && ["s-segment/3", "s-segment/4"].includes(r.payload.schema_revision) && ["KILLED_CASE_TWO", "PENDING_CASE_TWO"].includes(d.result)) need(v.second_sequence_status === (d.result === "KILLED_CASE_TWO" ? "KILLED" : "PENDING"), "段结果未绑定SECOND终态");
+        if (role === "FIRST_SEQUENCE" && r.payload.schema_revision === "s-segment/4") turnLinks(d, v.facts);
+      }
+      if (r.payload.schema_revision === "s-segment/4" && d.parse_invalid !== null) {
+        // #1493 §7.1 第 6 条：段端门失败 fail-closed——同 cut 段版本与逐轴证据必须带阻断标记。
+        const versions = [...active.values()].filter(v => v.kind === "CC-056.segment_version" && v.payload.schema_revision === "s-segment/4");
+        need(versions.length > 0 && versions.every(v => v.payload.data.waiting_reasons.includes(PARSE_INVALID_REASON)), "段端门失败未在段版本标阻断");
+        const axes = fixed.catalog_evidence.axes || {};
+        need(["CC-011", "CC-012", "CC-013", "CC-014"].every(cid => !Object.hasOwn(axes, cid) || axes[cid].evidence.waiting_reasons.includes(PARSE_INVALID_REASON)), "段端门失败未在逐轴证据标阻断");
       }
     }
     for (const record of [...state.snapshot.objects, ...state.snapshot.withdrawn_objects]) {

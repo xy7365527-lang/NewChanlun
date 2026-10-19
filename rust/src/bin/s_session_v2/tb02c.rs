@@ -1,6 +1,11 @@
 //! #1404：同次段状态机事实 → typed 持久对象；本模块不重新求值段判据。
 //! #1420：段合同 s-segment/3（rule_revision `…+segment-second/2`）——第二种候选三态终点、
 //! 扫描覆盖与预算、K1 游标（跨 cut 续扫与恢复：上一 cut 的游标经已发布 SECOND 对象带入）。
+//! #1493：段合同 s-segment/4（rule_revision `…+segment-turn/1`，`xianduan.md` §7.1 第 7 条；§7.1 写的
+//! s-segment/3 已被 #1420 占用，同一 schema 不能有两种形状）——FIRST 动作集 boundary_pair／window_member／
+//! tie_pair、元素窗成员、检查与前缀末端开窗候选的第一种情况候选态；CC-013 加候选态、窗成员与段端门
+//! fail-closed（`parse_invalid_from`／`parse_invalid`）；段端门失败时 CC-056 等待原因带
+//! `segment_parse_invalid`（沿既有等待原因 → 逐轴证据通道上报阻断，不另造通道）。
 use super::*;
 use newchan_rust::theta_v0::parser::{
     feature_seq::{SecondTerminal, SECOND_SEQ_SCAN_BUDGET_POLICY},
@@ -9,7 +14,9 @@ use newchan_rust::theta_v0::parser::{
     stroke::StrokeFacts,
 };
 
-pub(super) const SCHEMA: &str = "s-segment/3";
+pub(super) const SCHEMA: &str = "s-segment/4";
+/// #1493 §7.1 第 6 条：段端门失败（「自 seg_start 起划分无效」）的阻断标记；经 CC-056 等待原因进逐轴证据。
+pub(super) const PARSE_INVALID_REASON: &str = "segment_parse_invalid";
 /// #1420 根裁定：`second-seq-scan-budget/1` 每 cut 获批预算（笔数）；0 = 无限（与 theta_v0 默认一致）。
 /// 改值即改调度政策，须随新 rule_revision 发布。
 const ROUND_BUDGET: u32 = 0;
@@ -243,6 +250,9 @@ pub(super) fn build(
             "waiting_reasons":c.waiting_reasons,"termination_attempts":c.termination_attempts,"geometric_end":geometric_end,"trigger_stroke":c.trigger_stroke,
             "formed_known_at":prior.map(|p|p["formed_known_at"].clone()).unwrap_or(known.clone()),
             "terminated_known_at":if matches!(c.result,"CASE_ONE"|"CASE_TWO") {prior.filter(|p|p["result"]==c.result && p["geometric_end"]==wire(json!(geometric_end))).map(|p|p["terminated_known_at"].clone()).unwrap_or(known.clone())}else{Value::Null},
+            "turn_hypothesis_state":c.turn_hypothesis_state,"window_members":c.window_members,
+            "parse_invalid_from":c.parse_invalid_from,
+            "parse_invalid":facts.parse_invalid_from.as_ref().filter(|p|Some(p.seg_start)==c.parse_invalid_from),
             "stroke_refs":refs}),
         );
         let changed = prior
@@ -352,6 +362,9 @@ pub(super) fn build(
                 all_sources.clone(),
             );
         }
+    }
+    if facts.parse_invalid_from.is_some() {
+        waiting.push(PARSE_INVALID_REASON);
     }
     waiting.sort_unstable();
     waiting.dedup();

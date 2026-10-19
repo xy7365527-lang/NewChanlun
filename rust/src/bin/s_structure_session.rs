@@ -62,8 +62,11 @@ use serde_json::{json, Value};
 /// CC-006 验收合同修订（SPEC-COVERAGE-INPUT.json `/classification_axes/5`）。
 /// #1405：新笔规则升 `new-bi-dual-coordinate/2`（#1343 同价裁定）⟹ 会话级规则随之升 `new-bi/2`；
 /// #1420：第二种候选三态终点与 K1 续扫（段合同 `s-segment/3`）⟹ 会话级规则升 `segment-second/2`。
+/// #1493：第一种情况候选三态、转折点窗、先破判据与段端门 fail-closed（`xianduan.md` §7.1 第 7 条）
+/// ⟹ 会话级规则加 `segment-turn/1`；段合同用 `s-segment/4`（§7.1 写的 `s-segment/3` 已被 #1420 占用），
+/// `CONSTRUCTION_RULE` 不改。
 /// 旧规则会话只读（AsKnown），同一 rule_revision 下不混两代笔/段对象。
-const RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2+segment-second/2";
+const RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1";
 
 /// S 唯一结构写者的默认 writer_epoch（可经 `--writer-epoch` / `recover` 换代）。
 const DEFAULT_WRITER_EPOCH: &str = "1";
@@ -6489,6 +6492,8 @@ mod tests {
             "s2-axis-quantifiers+new-bi/1+segment-second/1",
             "s2-axis-quantifiers+new-bi/2",
             "s2-axis-quantifiers+new-bi/1+segment-second/2",
+            // #1493：#1420 的段规则在 segment-turn/1 之后同样是旧规则。
+            "s2-axis-quantifiers+new-bi/2+segment-second/2",
             "unknown-rule",
         ] {
             let files = TestFiles::new();

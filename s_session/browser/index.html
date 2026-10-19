@@ -247,6 +247,14 @@ function renderFactValue(value) {
   if (typeof value === "object") return `<dl class="kv">${Object.entries(value).map(([key, item]) => `<dt>${esc(key)}</dt><dd>${renderFactValue(item)}</dd>`).join("")}</dl>`;
   return esc(String(value));
 }
+// #1493（xianduan.md §7.1）：段候选的第一种情况候选态与窗成员一行可见；段端门失败（fail-closed）显示阻断。
+function renderSegmentTurn(payload) {
+  const d = payload?.data;
+  if (!d || !Object.hasOwn(d, "turn_hypothesis_state")) return "";
+  const line = `<p class="segment-turn">段候选 ${esc(d.entity_id)} · 结果 <strong>${esc(d.result)}</strong> · 第一种情况候选态 <strong>${esc(d.turn_hypothesis_state ?? "—")}</strong> · 窗成员 [${esc(d.window_members.join(","))}]</p>`;
+  const block = d.parse_invalid !== null ? `<div class="err-box">段划分阻断（fail-closed）：自笔 ${esc(d.parse_invalid_from)} 起划分无效（段端门失败，止于笔 ${esc(d.parse_invalid.end_stroke)}；${esc(d.parse_invalid.failed_conditions.join(","))}），下游不得在其上构造。</div>` : "";
+  return block + line;
+}
 function renderTypedCard(object, snapshot, cls) {
   const entity = object.payload?.data?.entity_id;
   const relations = snapshot.relations.filter(row => row.subject === object.object_id || row.object === object.object_id || row.subject === entity || row.object === entity);
@@ -254,6 +262,7 @@ function renderTypedCard(object, snapshot, cls) {
   return `<details open id="${escAttr(object.object_id)}"><summary class="${escAttr(cls || "")}">${esc(labels[object.kind] || object.kind)} · ${esc(object.object_id)} · first_known=${esc(object.first_known_generation)} · published=${esc(object.published_generation)} · ${esc(object.lifecycle)}</summary>` +
     `<p>固定语义槽 ${esc(object.fact_key)} · 首次 cut ${esc(object.first_known_cut)} · 批次 ${esc(object.batch_id)}</p>` +
     (object.lifecycle === "withdrawn" ? `<p>撤回代 ${esc(object.withdrawn_generation)} · ${esc(object.withdrawal_reason)} · 替代 ${esc(object.superseded_by)}</p>` : "") +
+    (object.kind === "CC-013.segment" ? renderSegmentTurn(object.payload) : "") +
     (object.kind === "CC-010.bi" ? `<p>新笔 ${esc(object.payload.data.entity_id)} · ${esc(object.payload.data.state)} · 端点 ${esc(object.payload.data.start.extreme_roots.join(","))} → ${esc(object.payload.data.end.extreme_roots.join(","))}</p>` : "") +
     renderFactValue(object.payload) + `<details><summary>完整来源引用与原始坐标（只读 S 已封存值）</summary>${renderFactValue({source_coords:object.source_coords,input_refs:object.input_refs})}</details>` +
     `<details><summary>同 cut 关系</summary>${renderFactValue(relations)}</details></details>`;
@@ -309,7 +318,9 @@ function renderObjects(snap, catalogId = selectedCatalogId) {
     ` · 活动实例 ${objects.length} / 撤回 ${(snap.withdrawn_objects || []).length}`;
   const evidence = currentState?.catalog?.items?.find(item => item.id === catalogId)?.evidence;
   const cards = objects.map(o => renderObjectCard(o, snap, "")).join("") || `<div class="muted">该目录项在当前 cut 无活动实例；请查看目录证据与等待原因。</div>`;
-  document.getElementById("objects").innerHTML = cards + (["TB-02-A", "TB-02-C", "TB-02-D"].includes(evidence?.scope) ? `<details><summary>${esc(catalogId)} 本 cut 完整证据与等待原因</summary>${renderFactValue(evidence)}</details>` : "");
+  // #1493 §7.1 第 6 条：段端门失败的阻断标记随既有等待原因进逐轴证据；页面置顶显示，不当作普通等待。
+  const blocked = (evidence?.waiting_reasons || []).includes("segment_parse_invalid") ? `<div class="err-box">段划分阻断（fail-closed）：本 cut 段端门失败，自失败段起点的划分无效；见 CC-013 对象的 parse_invalid。</div>` : "";
+  document.getElementById("objects").innerHTML = blocked + cards + (["TB-02-A", "TB-02-C", "TB-02-D"].includes(evidence?.scope) ? `<details><summary>${esc(catalogId)} 本 cut 完整证据与等待原因</summary>${renderFactValue(evidence)}</details>` : "");
 }
 function renderWithdrawn(snap) {
   const withdrawn = snap.withdrawn_objects;
@@ -410,7 +421,7 @@ function validateExactRecords(records) {
     if (!v || typeof v !== "object") return;
     for (const [k, x] of Object.entries(v)) {
       // #1392/#1404：新笔/段 payload.slot 是逻辑身份；见证 slot 仍按整数核对。
-      const logicalSlot = k === "slot" && (["s-new-bi/1", "s-new-bi/2"].includes(v.schema_revision) || ["s-segment/1", "s-segment/2", "s-segment/3"].includes(v.schema_revision));
+      const logicalSlot = k === "slot" && (["s-new-bi/1", "s-new-bi/2"].includes(v.schema_revision) || ["s-segment/1", "s-segment/2", "s-segment/3", "s-segment/4"].includes(v.schema_revision));
       if (integerKeys.has(k) && x !== null && !logicalSlot) decimal(x);
       walk(x);
     }
