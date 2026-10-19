@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  com.newchanlun.decision-claimer.plist —— graph engineering 裁决面常驻任务（#1547）
+
+  职责：每 10 分钟扫 #1323/#1340 frontier 上的 grilling 票，分级（Fable 5.1）→ 起草（Fable 5.1）
+  → 独审（Opus 5.5）→ T 类落 decision/<票号> 分支 + resolution 评论；P 类挂 needs-approval。
+  设计正本：.sandcastle/docs/graph-engineering.md。
+
+  安装/卸载：bash .sandcastle/install-decision-claimer.sh [install|uninstall|status]
+  令牌：脚本运行时从 CLIProxyLocal config 读取，本文件不含任何凭据。
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.newchanlun.decision-claimer</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/silencehan/.local/bin/node</string>
+        <string>--import</string>
+        <string>tsx</string>
+        <string>/Users/silencehan/Projects/NewChanlun/.sandcastle/decision-claimer.mts</string>
+        <string>--live</string>
+        <string>--loop</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/silencehan/Projects/NewChanlun</string>
+
+    <!-- 常驻：脚本内部 10 分钟轮询，正常不退出；退出即拉起。 -->
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>60</integer>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/silencehan/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>GH_REPO</key>
+        <string>xy7365527-lang/NewChanlun</string>
+        <key>NO_COLOR</key>
+        <string>1</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/decision-claimer.stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/decision-claimer.stderr.log</string>
+</dict>
+</plist>
