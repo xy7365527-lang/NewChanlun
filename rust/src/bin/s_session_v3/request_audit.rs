@@ -198,8 +198,6 @@ impl RequestAuditContext {
             drop(slot.binding);
             if let Some(pending) = slot.source_pending {
                 if let Some(parent) = self.request_parent_budget() {
-                    #[cfg(test)]
-                    eprintln!("UO1488_SEAL parent_live_before={}", parent.live());
                     // 可选封存使用同一父账的独立工作域；只在域结束后处理拒绝。
                     // 强制cold已完成，不能将这里的失败重判为cold成功或重跑None。
                     let retained = match parent.codec_work() {
@@ -215,17 +213,10 @@ impl RequestAuditContext {
                             .is_ok(),
                         Err(_) => false,
                     };
-                    #[cfg(test)]
-                    eprintln!(
-                        "UO1488_SEAL retained={retained} parent_live_after={}",
-                        parent.live()
-                    );
                     if !retained {
                         keeper.reject_completed();
                     }
                 } else {
-                    #[cfg(test)]
-                    eprintln!("UO1488_SEAL no_request_parent");
                     keeper.retain_completed(slot.capture, slot.node_count, pending);
                 }
             }

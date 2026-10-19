@@ -123,11 +123,6 @@ pub struct CodecError {
 
 impl CodecError {
     fn scratch(failure: capture_allocation::scratch::ScratchFailure) -> Self {
-        // #1488 临时诊断（写集外，下一提交即回退）：定位基线工作域失败来源。
-        eprintln!(
-            "UO1488_SCRATCH {failure:?}\n{}",
-            std::backtrace::Backtrace::force_capture()
-        );
         let mut error = Self::static_detail(capture_allocation::LIMIT, "codec 工作域分配失败");
         error.scratch_failure = Some(failure);
         error

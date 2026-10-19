@@ -1362,14 +1362,6 @@ impl PublicationStageIdentity {
             ));
         }
         let j = actual.lock().map_err(invalid)?;
-        #[cfg(test)]
-        eprintln!(
-            "UO1488_PUB unexpected={} overflow={} publication={:?} want={:?}",
-            j.unexpected,
-            j.overflow,
-            j.resources.as_ref().map(|r| r.publication),
-            (self.identity, self.scope)
-        );
         if j.unexpected
             || j.overflow
             || j.resources.as_ref().and_then(|r| r.publication) != Some((self.identity, self.scope))
@@ -1764,15 +1756,6 @@ pub(super) fn begin_stage(tx: &Transaction<'_>, kind: StageKind) -> Result<Stage
         if !j.set_required {
             return Ok(guard);
         }
-        #[cfg(test)]
-        eprintln!(
-            "UO1488_STAGE overflow={} unexpected={} set_none={} active={:?} last_gt={}",
-            j.overflow,
-            j.unexpected,
-            j.set.is_none(),
-            j.active_stage,
-            j.stages.last().is_some_and(|stage| stage.kind > kind)
-        );
         if j.overflow
             || j.unexpected
             || j.set.is_none()
