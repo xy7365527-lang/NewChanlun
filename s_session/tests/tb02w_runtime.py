@@ -224,9 +224,13 @@ def check_case(case, meta, known):
             if "second_candidate_killed_by_new_extreme" not in (seg or {}).get("waiting_reasons", []):
                 problems.append(f"n={n}: 段缺 second_candidate_killed_by_new_extreme")
         if "end_anchor_stroke" in exp:
-            end = GEN.anchor(exp["end_anchor_stroke"])
-            if str((seg or {}).get("geometric_end")) != str(end):
-                problems.append(f"n={n}: geometric_end {(seg or {}).get('geometric_end')} ≠ {end}")
+            # 段终点 = 第 end_anchor_stroke 个端点：组锚 raw 序号、所属笔（其前一笔的末端）与端点价 P。
+            j = exp["end_anchor_stroke"]
+            want_end = {"group_anchor": str(GEN.anchor(j)), "stroke_index": str(j - 1),
+                        "price": str(price(DESIGNS[design][j], direction)), "extreme_roots": [str(GEN.anchor(j))]}
+            got_end = (seg or {}).get("geometric_end")
+            if got_end != want_end:
+                problems.append(f"n={n}: geometric_end {got_end} ≠ {want_end}")
     missing = sorted(set(want) - set(checked))
     if missing:
         problems.append(f"未覆盖手算判定点 n={missing}")
