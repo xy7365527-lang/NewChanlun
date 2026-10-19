@@ -37,6 +37,7 @@ use newchan_rust::s_content::{
 use newchan_rust::theta_v0::classifier::local_shape::{classify_local_shape, Cc006LocalShape};
 use newchan_rust::theta_v0::parser::inclusion::{
     CoordNode, CoordsRef, EvidenceNode, GroupEvidenceView, IncrFactsState, StepEvidenceView,
+    INITIALIZATION_POLICY,
 };
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
@@ -1384,6 +1385,7 @@ impl Cc004Producer {
         reasons: &[&'static str],
         generation: i64,
         cut: &str,
+        initial_direction_unsettled: bool,
     ) -> Result<Cc054Assembly, ProducerError> {
         let mut waiting_reasons: Vec<&'static str> = reasons.to_vec();
         waiting_reasons.sort_unstable();
@@ -1411,9 +1413,27 @@ impl Cc004Producer {
                 ]),
             ),
             ("waiting_reasons".to_string(), reasons_value()),
+            // #1419 独审 B1：S3 只写 W 后继串（`require_current_writer_rule`），来源审计按
+            // `contract_for_rule(W)` 核知识域 ⟹ 本对象取 W 合同域，并带 W 初始化知识状态
+            // （与 v2 种子写者 `tb02a_facts` CC-054 同字段同值）。
+            (
+                "initialization_policy_revision".to_string(),
+                CValue::String(INITIALIZATION_POLICY.to_string()),
+            ),
+            (
+                "direction_state".to_string(),
+                CValue::String(
+                    if initial_direction_unsettled {
+                        "Undetermined"
+                    } else {
+                        "Established"
+                    }
+                    .to_string(),
+                ),
+            ),
             (
                 "domain".to_string(),
-                CValue::String(tb02b::CURRENT_CONTRACT.knowledge_domain.to_string()),
+                CValue::String(tb02b::W_CONTRACT.knowledge_domain.to_string()),
             ),
             (
                 "requests".to_string(),
@@ -3028,27 +3048,19 @@ fn bar_value(bar: &Bar) -> CValue {
 
 /// 当前 raw 链的共享前缀句柄（继续拼接只新建 O(log n) 脊，子树沿用）。
 ///
-/// 依据（inclusion.rs seed / new_group / merge 三处 `coords` 构造）：每个 StepRecord 的
-/// `coords` 恰是「append 到该步 incoming 为止的完整 raw 前缀」——seed = single(incoming)；
-/// new_group = concat(前证据或 single(前锚), 前组 tail) 再接 incoming；merge 同形；
-/// waiting 步直接取 `raw_prefix`。故末步（step_count-1）的 `coords` 即当前前缀。
+/// #1419 独审 B3 同族：#1393 W 等待期的 waiting 步只绑定 `single(incoming)`，末步 `coords`
+/// 不再等于前缀，故直接取状态机维护的 `raw_prefix`（与全量入口的到达序 raw 坐标同值）。
 ///
 /// 有效域：非退化共享态（degraded 显式 `Err`，回落全量入口）；空态返回空集。
-/// 逐前缀等价性由测试 `raw_prefix_chain_is_last_step_coords_for_every_prefix` 对拍锁定。
+/// 逐前缀等价性由测试 `raw_prefix_chain_is_full_raw_prefix_for_every_prefix` 对拍锁定。
 pub(super) fn raw_prefix_coords(state: &IncrFactsState) -> Result<CoordsRef, ProducerError> {
     if state.step_count() == 0 {
         return Ok(CoordsRef::empty());
     }
-    let view = state
-        .shared_step(state.step_count() - 1)
-        .map_err(|error| ProducerError::Degraded(error.reason))?;
-    match view {
-        Some(view) => Ok(view.coords.clone()),
-        None => Err(ProducerError::Type {
-            what: "raw 前缀链",
-            detail: "末步索引在域内却借不出视图".to_string(),
-        }),
-    }
+    state
+        .shared_raw_prefix()
+        .cloned()
+        .ok_or_else(|| ProducerError::Degraded("raw 坐标非递增：共享前缀不可用"))
 }
 
 /// 升序去重坐标切片 → 共享链（逐项 `append_greater`：只新增 O(log n) 脊，旧前缀继续共享）。
@@ -3436,8 +3448,11 @@ mod tests {
         (9001, 9, 4),
         (12345, 9, 3),
     ];
-    /// 初始方向永久未定：首步 seed 之后全部 waiting（无方向证据、无极值快照）。
-    const CASE_WAITING: &[(usize, i64, i64)] = &[(0, 10, 5), (1, 9, 6), (2, 12, 7)];
+    /// #1419 独审 B3（W，`raw-initialization-w/1`）：raw0⊇raw1 为包含对、raw1→raw2 为严格向上
+    /// 非包含对 ⟹ 第三根建立方向，从 raw0 按 UP 重折（旧规则「seed 后永久 waiting」已删）。
+    const CASE_ESTABLISH_AT_THIRD: &[(usize, i64, i64)] = &[(0, 10, 5), (1, 9, 6), (2, 12, 7)];
+    /// 真正永不建立：相邻对 (raw0,raw1)、(raw1,raw2) 全为包含 ⟹ 全部 waiting、零正式组。
+    const CASE_NEVER_ESTABLISHED: &[(usize, i64, i64)] = &[(0, 10, 5), (1, 9, 6), (2, 11, 4)];
     /// 不足三根 merged：覆盖「已建方向前知识不足」的待决请求与原因。
     const CASE_TWO: &[(usize, i64, i64)] = &[(10, 10, 5), (20, 15, 8)];
     /// 无同价极值竞争的规则折线：三组窗口可判 CC-006（供形态/分型对拍）。
@@ -4013,7 +4028,8 @@ mod tests {
     fn cc004_record_matches_full_oracle_bytes() {
         for (label, bars) in [
             ("merge/new-group/direction", CASE_MERGE),
-            ("initial-unsettled/waiting", CASE_WAITING),
+            ("establish-at-third/refold", CASE_ESTABLISH_AT_THIRD),
+            // 永不建立样例的 S3 发布形态（CC-004.undetermined_raw/initialization）阻塞于 #1565。
         ] {
             let mut fixture = fixture(bars);
             let objects = build_all(&mut fixture);
@@ -4089,7 +4105,8 @@ mod tests {
     fn cc005_group_matches_full_oracle_bytes() {
         for (case, bars, want_equal_extreme, want_any_direction) in [
             ("merge/new-group/direction", CASE_MERGE, true, true),
-            ("initial-unsettled/waiting", CASE_WAITING, false, false),
+            ("establish-at-third/refold", CASE_ESTABLISH_AT_THIRD, false, true),
+            // 永不建立样例（零正式组、组请求 pending）的 S3 发布形态阻塞于 #1565。
         ] {
             let mut fixture = fixture(bars);
             let facts = fixture.state.materialize_facts();
@@ -4817,6 +4834,7 @@ mod tests {
                     &reasons,
                     GENERATION,
                     CUT,
+                    facts.initial_direction_unsettled,
                 )
                 .expect("构造 CC-054");
             let fact_key = canonical_json(&json!([CC054_KNOWLEDGE_KIND, "TB-02-A"]));
@@ -6068,30 +6086,45 @@ mod tests {
             .iter()
             .all(|object| object.payload.extent == Some(12)));
 
-        let mut waiting_fixture = fixture(CASE_WAITING);
-        let waiting_objects = build_all(&mut waiting_fixture);
-        let waiting_facts = waiting_fixture.state.materialize_facts();
-        assert!(waiting_facts.initial_direction_unsettled);
-        assert_eq!(waiting_facts.steps[0].action, "seed");
-        assert!(waiting_facts.steps[1..]
-            .iter()
-            .all(|step| step.action == "waiting"
-                && step.direction_evidence.is_none()
-                && step.waiting_reasons == vec!["initial_direction_unsettled"]));
-        assert_eq!(waiting_facts.steps[1].source_coords, vec![0, 1]);
-        // 未建方向的 waiting 步绑定的是**全部已见 raw 前缀**（与全量入口同形）。
-        assert_eq!(waiting_facts.steps[2].source_coords, vec![0, 1, 2]);
-        assert_eq!(waiting_objects.len(), waiting_facts.steps.len());
+        // #1419 独审 B3：W 下第三根建立方向并从 raw0 重折——无 waiting 步、无未定原因；
+        // 来源按 W 闭式 raw[..=max(k,e)]（e = 建立对右端 = 2）。
+        let mut established_fixture = fixture(CASE_ESTABLISH_AT_THIRD);
+        let established_objects = build_all(&mut established_fixture);
+        let established_facts = established_fixture.state.materialize_facts();
+        assert!(!established_facts.initial_direction_unsettled);
+        assert_eq!(established_facts.steps.len(), 3);
+        assert_eq!(established_facts.steps[0].action, "seed");
+        assert!(established_facts.steps.iter().all(|step| step.action != "waiting"
+            && !step.waiting_reasons.contains(&"initial_direction_unsettled")));
+        assert_eq!(established_facts.groups[0].members, vec![0, 1]);
+        for step in &established_facts.steps {
+            assert_eq!(step.source_coords, vec![0, 1, 2]);
+        }
+        assert_eq!(established_objects.len(), established_facts.steps.len());
+
+        // 真正永不建立：全部 waiting，各步只绑定自身 raw，零合并/零正式组。
+        // （S3 对等待期的对象发布形态阻塞于 #1565，此处不断言对象数。）
+        let unsettled_fixture = fixture(CASE_NEVER_ESTABLISHED);
+        let unsettled_facts = unsettled_fixture.state.materialize_facts();
+        assert!(unsettled_facts.initial_direction_unsettled);
+        assert!(unsettled_facts.merged.is_empty() && unsettled_facts.groups.is_empty());
+        for (index, step) in unsettled_facts.steps.iter().enumerate() {
+            assert_eq!(step.action, "waiting");
+            assert!(step.direction_evidence.is_none());
+            assert_eq!(step.waiting_reasons, vec!["initial_direction_unsettled"]);
+            assert_eq!(step.source_coords, vec![index]);
+        }
     }
 
-    /// 派生链逐前缀对拍 ①：任一前缀状态下，末步（刚追加的那一步）的 `coords` 就是该前缀的
-    /// 完整 raw 坐标链，`raw_prefix_coords` 对同一前缀返回同一集合——共享链不是近似前缀，
-    /// 也不是「最新一段」。
+    /// 派生链逐前缀对拍 ①：任一前缀状态下，`raw_prefix_coords` 返回该前缀的完整 raw 坐标链
+    /// （共享链不是近似前缀，也不是「最新一段」）；方向已建立时末步 `coords` 与之相同，
+    /// #1393 W 等待期的 waiting 末步只绑定 incoming。
     #[test]
-    fn raw_prefix_chain_is_last_step_coords_for_every_prefix() {
+    fn raw_prefix_chain_is_full_raw_prefix_for_every_prefix() {
         for (case, bars) in [
             ("merge/new-group/direction", CASE_MERGE),
-            ("waiting", CASE_WAITING),
+            ("establish-at-third/refold", CASE_ESTABLISH_AT_THIRD),
+            ("never-established", CASE_NEVER_ESTABLISHED),
             ("shape/top-bottom", CASE_SHAPE),
         ] {
             for prefix in 1..=bars.len() {
@@ -6108,9 +6141,15 @@ mod tests {
                     .shared_step(last)
                     .expect("共享态可用")
                     .expect("末步在域内");
+                // #1393 W：已建立后末步 coords 即完整前缀；等待期 waiting 步只绑定 incoming。
+                let want_last = if state.unsettled() {
+                    vec![*expect.last().unwrap()]
+                } else {
+                    expect.clone()
+                };
                 assert_eq!(
                     view.coords.materialize(),
-                    expect,
+                    want_last,
                     "{case} 前缀{prefix}: 末步 coords"
                 );
             }

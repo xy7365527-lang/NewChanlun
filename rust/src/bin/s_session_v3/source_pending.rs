@@ -25,7 +25,8 @@ const EQUAL_EXTREME: &str = "equal_extreme_identity";
 pub(super) fn equal_is_evidence(rule: &str) -> Result<bool, String> {
     let contract =
         tb02b::contract_for_rule(rule).ok_or_else(|| err("步骤知识来源审计规则修订未声明"))?;
-    Ok(contract == tb02b::CURRENT_CONTRACT)
+    // #1419 独审 B1 同族：W 后继串的合同即 /2 加 W 知识域（`..CURRENT_CONTRACT`），同价证据口径同 /2。
+    Ok(contract == tb02b::CURRENT_CONTRACT || contract == tb02b::W_CONTRACT)
 }
 
 fn is_waiting_reason(reason: &str, equal_is_evidence: bool) -> bool {

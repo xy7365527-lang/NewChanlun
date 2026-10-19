@@ -1181,6 +1181,7 @@ impl GenerationRuntime {
                 &all_reasons,
                 gen,
                 cut,
+                state.unsettled(),
             )
             .map_err(producer_error)?;
         for observation in &knowledge.observations {

@@ -1253,6 +1253,13 @@ impl IncrFactsState {
         self.steps.len()
     }
 
+    /// 当前完整 raw 前缀（到达序坐标）的共享句柄。#1393 W 等待期步只绑定 incoming，
+    /// 末步 `coords` 不再是前缀；需要「同 cut 全部生效原始账」的调用方取本句柄。
+    /// 退化态（坐标非递增）下返回 `None`，调用方回落全量入口。
+    pub fn shared_raw_prefix(&self) -> Option<&CoordsRef> {
+        (!self.degraded).then_some(&self.raw_prefix)
+    }
+
     pub fn group_count(&self) -> usize {
         self.groups.len()
     }
