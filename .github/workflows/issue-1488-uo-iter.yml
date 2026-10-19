@@ -1,0 +1,68 @@
+name: '#1488 统一所有权 编译与具名锁迭代'
+
+on:
+  push:
+    branches: ['codex/1488-uo-ci-20261019']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-1488-uo-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  uo:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        features: ['s_session', 's_session,s_capture_native_testonly']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: uo1488-${{ runner.os }}-${{ matrix.features }}-${{ hashFiles('rust/Cargo.lock') }}
+      - name: build tests
+        working-directory: rust
+        run: |
+          set -o pipefail
+          cargo -V; rustc -V
+          cargo test --locked -j 4 --features '${{ matrix.features }}' --no-run --bin s_structure_session 2>&1 | tee ../build.log
+      - name: list
+        if: always()
+        working-directory: rust
+        run: cargo test --locked --features '${{ matrix.features }}' --bin s_structure_session -- --list --format terse > ../list.txt 2>&1 || true
+      - name: named locks (each exact)
+        working-directory: rust
+        run: |
+          set +e
+          fail=0
+          : > ../locks.tsv
+          while IFS= read -r t; do
+            [ -z "$t" ] && continue
+            case "$t" in \#*) continue;; esac
+            if ! grep -qx "$t: test" ../list.txt; then echo -e "$t\tNOT_LISTED" >> ../locks.tsv; continue; fi
+            timeout 600 cargo test --locked --features '${{ matrix.features }}' --bin s_structure_session -- --exact "$t" --test-threads 1 > "../out-$(echo $t | tr ':/' '__').log" 2>&1
+            rc=$?
+            if [ $rc -eq 0 ] && grep -q "test result: ok. 1 passed" "../out-$(echo $t | tr ':/' '__').log"; then echo -e "$t\tPASS" >> ../locks.tsv; else echo -e "$t\tFAIL($rc)" >> ../locks.tsv; fail=1; fi
+          done < ../.github/1488-uo-locks.txt
+          cat ../locks.tsv
+          exit $fail
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: uo1488-${{ github.run_id }}-${{ strategy.job-index }}-${{ github.sha }}
+          path: |
+            build.log
+            list.txt
+            locks.tsv
+            out-*.log
+          if-no-files-found: warn
