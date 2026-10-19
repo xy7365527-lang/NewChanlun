@@ -32,6 +32,11 @@ pub(super) fn log_pager_handle(
 pub(super) mod effects;
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) mod native;
+/// 冷根父账类型：无native特征时不存在可出生的根，参数只能为None。
+#[cfg(feature = "s_capture_native_testonly")]
+type ColdRoot = native::Budget;
+#[cfg(not(feature = "s_capture_native_testonly"))]
+type ColdRoot = std::convert::Infallible;
 #[cfg(feature = "s_capture_native_testonly")]
 mod q;
 
@@ -1529,8 +1534,10 @@ impl AuditTxn<'_> {
         &self,
         mode: &s_allocation::Mode,
         context: &mut request_audit::RequestAuditContext,
-        cold_root: Option<&native::Budget>,
+        cold_root: Option<&ColdRoot>,
     ) -> Result<state::AuditedState, String> {
+        #[cfg(not(feature = "s_capture_native_testonly"))]
+        let _ = cold_root;
         #[cfg(feature = "s_capture_native_testonly")]
         if let Some(parent) = context
             .request_parent_budget()
