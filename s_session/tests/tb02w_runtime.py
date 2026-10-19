@@ -174,8 +174,15 @@ def structural(snapshot):
     full = {k: sorted((snapshot.get(k) or []), key=key) for k in ("objects", "withdrawn_objects", "relations", "witnesses")}
     sem = sorted(canonical([o["kind"], o["payload"] if "payload" in o else {k: v for k, v in o.items() if k not in VOLATILE}]).decode()
                  for o in snapshot["objects"])
+    def strip_commit(v):
+        if isinstance(v, dict):
+            return {k: strip_commit(x) for k, x in v.items() if k != "semantic_commit_ns"}
+        if isinstance(v, list):
+            return [strip_commit(x) for x in v]
+        return v
+    timeless = sorted(canonical(strip_commit(json.loads(x))).decode() for x in sem)
     return {"full": hashlib.sha256(canonical(full)).hexdigest(), "semantic": hashlib.sha256(canonical(sem)).hexdigest(),
-            "objects": len(snapshot["objects"])}
+            "semantic_without_commit_ns": hashlib.sha256(canonical(timeless)).hexdigest(), "objects": len(snapshot["objects"])}
 
 
 def compare_arms(a, b):
@@ -184,8 +191,10 @@ def compare_arms(a, b):
     gens = sorted(set(a) | set(b), key=int)
     full = [g for g in gens if a.get(g, {}).get("full") != b.get(g, {}).get("full")]
     sem = [g for g in gens if a.get(g, {}).get("semantic") != b.get(g, {}).get("semantic")]
+    timeless = [g for g in gens if a.get(g, {}).get("semantic_without_commit_ns") != b.get(g, {}).get("semantic_without_commit_ns")]
     return {"cuts": len(gens), "full_equal": not full, "semantic_equal": not sem,
-            "full_diff_cuts": full[:10], "semantic_diff_cuts": sem[:10]}
+            "semantic_equal_without_commit_ns": not timeless,
+            "full_diff_cuts": full[:10], "semantic_diff_cuts": sem[:10], "timeless_diff_cuts": timeless[:10]}
 
 
 def check_case(case, meta, known):
@@ -343,7 +352,12 @@ def session(args):
         same_ab = compare_arms(a, b)
         same_ac = compare_arms(a, c)
         oracle_ok = all(e.get("hand_oracle", {}).get("status") == "PASS" for e in arms.values())
-        ok = oracle_ok and all(x is None or x["semantic_equal"] for x in (same_ab, same_ac))
+        # B（新进程同输入同时钟）须语义逐 cut 相同。C 的时钟计划多一次重试与 recover 事件：批次身份随时钟计划
+        # 改变（full 不比），故障代由重试那次提交，其 known_at.semantic_commit_ns 必然不同；只允许这一处差异。
+        fault_gen = str(meta["fault_index"] + 1)
+        recover_ok = same_ac is None or (same_ac["semantic_equal_without_commit_ns"]
+                                          and set(same_ac["semantic_diff_cuts"]) <= {fault_gen})
+        ok = oracle_ok and (same_ab is None or same_ab["semantic_equal"]) and recover_ok
         report["cases"][case] = {"arms": arms, "replay_new_process": same_ab, "sigkill_recover": same_ac,
                                  "status": "PASS" if ok else "FAIL"}
     report["status"] = "PASS" if all(c["status"] == "PASS" for c in report["cases"].values()) else "FAIL"
