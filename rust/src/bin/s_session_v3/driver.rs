@@ -3749,10 +3749,51 @@ mod tests {
             native.conn.assert_complete_matches_cold();
             // staged 原语义只刷可达新节点；以独立逐次 cold 的 staged 臂比较全部节点原字节，
             // ordinary eager 臂比较全部非节点持久原件、公开根与回执。
-            assert_eq!(
-                prepared::tests::runtime_root_tables(&native.conn, true),
-                prepared::tests::runtime_root_tables(&control.conn, true)
-            );
+            let native_tables = prepared::tests::runtime_root_tables(&native.conn, true);
+            let control_tables = prepared::tests::runtime_root_tables(&control.conn, true);
+
+            // DIAG: 比较 s_content_nodes 行，找出多出的 96 行
+            if let (Some((_, native_nodes)), Some((_, control_nodes))) = (
+                native_tables.iter().find(|(t, _)| t == "s_content_nodes"),
+                control_tables.iter().find(|(t, _)| t == "s_content_nodes"),
+            ) {
+                if native_nodes.len() != control_nodes.len() {
+                    eprintln!(
+                        "STAGED_DIAG: native {} nodes, control {} nodes, diff = {}",
+                        native_nodes.len(),
+                        control_nodes.len(),
+                        native_nodes.len() as i64 - control_nodes.len() as i64
+                    );
+                    // 构建 control 的 digest 集合，找出 native 独有的
+                    use std::collections::HashSet;
+                    let control_digests: HashSet<_> = control_nodes
+                        .iter()
+                        .filter_map(|row| {
+                            row.first().and_then(|cell| {
+                                if let prepared::tests::RuntimeRootCell::Blob(b) = cell {
+                                    Some(b.clone())
+                                } else {
+                                    None
+                                }
+                            })
+                        })
+                        .collect();
+                    let mut extra_count = 0;
+                    for row in native_nodes {
+                        if let Some(prepared::tests::RuntimeRootCell::Blob(digest)) = row.first() {
+                            if !control_digests.contains(digest) {
+                                extra_count += 1;
+                                if extra_count <= 5 {
+                                    eprintln!("  extra node digest[{}]: {} bytes", extra_count, digest.len());
+                                }
+                            }
+                        }
+                    }
+                    eprintln!("  total extra nodes: {}", extra_count);
+                }
+            }
+
+            assert_eq!(native_tables, control_tables);
             assert_eq!(
                 prepared::tests::runtime_root_tables(&native.conn, false),
                 prepared::tests::runtime_root_tables(&ordinary.conn, false)
