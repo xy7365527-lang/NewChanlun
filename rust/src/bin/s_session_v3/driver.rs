@@ -3931,7 +3931,6 @@ mod tests {
                     if extra_unreachable.len() != unreachable.len() {
                         eprintln!("  其中 {} 个不可达节点 control 也有", unreachable.len() - extra_unreachable.len());
                     }
-                    }
                 }
             }
 
