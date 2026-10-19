@@ -532,7 +532,7 @@ impl PendingRawState {
             Some((handoff, confirmed))
                 if !*confirmed
                     && self.closed_total_changes.is_some()
-                    && (persisted, handoff.to).1 == handoff.to =>
+                    && persisted == Some(handoff.to) =>
             {
                 *confirmed = true;
                 Ok(())
