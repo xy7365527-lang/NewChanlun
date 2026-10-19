@@ -3305,6 +3305,7 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                     .checked_sub(parent.live())
                     .expect("封存池析构不得让父账增长");
                 assert!(sealed > 0, "封存新增许可必须留在冷核同父账");
+                eprintln!("UO25_R14 {}", json!({"sealed":sealed,"report":report,"scratch":parent.scratch_observation(),"native":parent.native_observation()}));
                 seal_identity(parent, residual, after_seal, &[(parent, sealed)]).unwrap();
 
                 // 负控一｜重复计费：同父对已封存对象再收一次同额费用，恒等式必须失败。
