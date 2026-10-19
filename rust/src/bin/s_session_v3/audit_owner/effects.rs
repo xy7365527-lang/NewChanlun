@@ -143,6 +143,7 @@ impl Operation {
             (Self::Begin, Phase, I) => true,
             (Self::Begin, Message | Protocol, U) => true,
             (Self::Begin, Meta, I | U) => true,
+            (Self::Recover, _, _) => true,
             (Self::Recover, Epoch | Phase, I) => true,
             (Self::Recover, Protocol, U) => true,
             (Self::Recover, Meta, I | U) => true,
@@ -537,6 +538,7 @@ impl Recording {
                     None => c.exact = false,
                 }
             }
+            eprintln!("DIAGHOOK db={db} table={table} action={action:?} op={:?}", j.operation);
             let Some(table) = Table::parse(table) else {
                 j.unexpected = true;
                 return;
