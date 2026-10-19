@@ -1,0 +1,197 @@
+{
+  "artifacts": {
+    "CLONE-CHECK.json": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/CLONE-CHECK.json",
+      "sha256": "0a1381bc18b7ec247d117d9a315d049b2a416bf76bc4abf6c8caea7d6a17de69"
+    },
+    "ORIGINALS-AFTER.json": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/ORIGINALS-AFTER.json",
+      "sha256": "c9c145ed8a4fa789961c87e659f209064f85b24231c20fb7b17c092a0736b274"
+    },
+    "ORIGINALS-BEFORE.json": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/ORIGINALS-BEFORE.json",
+      "sha256": "c9c145ed8a4fa789961c87e659f209064f85b24231c20fb7b17c092a0736b274"
+    },
+    "OWNED-AFTER.json": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/OWNED-AFTER.json",
+      "sha256": "c2735a497b7f1ddfd785a9a6495a8b93abf16f5b3589b8740362a46fcf1b4b8d"
+    },
+    "OWNED-BEFORE.json": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/OWNED-BEFORE.json",
+      "sha256": "cd84d8f104624a7f6b89a714f9030b09529ee06c51396c4d98dfb5f4633b4a09"
+    },
+    "PHASES.json": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/PHASES.json",
+      "sha256": "04a086cc78ba01324fddf2a8f893b00f28ef9bc63b16b3c37b07a34cdfbf2e4a"
+    },
+    "PROBE.json": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/PROBE.json",
+      "sha256": "8a4f92a5c10c24e9e809ff8f691b3766fa22c40277152c03b2e6555f1e37953e"
+    },
+    "RSS-SAMPLES.json": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/RSS-SAMPLES.json",
+      "sha256": "09458c9e7ac8232c5c55b4930205f16bba365345d060af85ab24c702360ebe43"
+    },
+    "RUN-RESULT.json": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/RUN-RESULT.json",
+      "sha256": "7b3a107358eac964d7299b6f5472aa7175a5ac04ebc64e22ac2a5074e5e7e19e"
+    },
+    "RUNNING.json": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/RUNNING.json",
+      "sha256": "c0c1b5e15e7c8d9fc7da251deb52691b7ca4550e2ae51f7b1be4a8239b9f1eda"
+    },
+    "run_once.py": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/run_once.py",
+      "sha256": "20ec522b660fc8cc872ab6ea99269fa9261a68ae9610ae76571f5b0f60c89d9e"
+    },
+    "stderr.raw": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/stderr.raw",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stdout.raw": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/stdout.raw",
+      "sha256": "c198dd13b6d1bcbea59d0caec59ca8a7129398afa9ea415e2e4c3534de37550b"
+    }
+  },
+  "audit": {
+    "counters_repeat0": {
+      "admission_reject_bytes": 0,
+      "admission_reject_capacity": 0,
+      "admission_reject_entries": 16123,
+      "parse_calls": 1,
+      "parse_event_checks": 9011,
+      "public_role_success_roots": 54,
+      "retained_capacity_peak": 3818233,
+      "retained_entries_peak": 65536,
+      "reuse_hits": 8658383,
+      "reuse_marker_calls": 8925663,
+      "reuse_mismatches": 0,
+      "reuse_misses": 133640,
+      "s_content_f_calls": 3402722,
+      "source_body_bytes": 399425545,
+      "source_framed_bytes": 671978258,
+      "source_read_calls": 8792023,
+      "stored_clock_calls": 1,
+      "template_role_success_roots": 27,
+      "unique_source_digests": 66953
+    },
+    "fingerprint_sha256": "42444317d86a03e066867bdfccfd0bb9f07010a1a2655483fdc377b7a115b8a0",
+    "fingerprints_equal": true,
+    "non_time_counters_equal": true,
+    "repeat_elapsed_ns": [
+      11468526542,
+      11495750583
+    ],
+    "returned_cut_count": [
+      27,
+      27
+    ],
+    "returned_raw_count": [
+      28,
+      28
+    ],
+    "same_material_cache_scope": "local optimization only; retained capacity bytes and entries are not total heap/RSS",
+    "source_read_scope": "found SQLite read_material reads including repeated reads; excludes control/raw SQL",
+    "timing_counters_per_repeat": [
+      {
+        "parse_ns": "14132416",
+        "reuse_marker_inner_ns_lower_bound": "171687256",
+        "stored_clock_ns": "31008125"
+      },
+      {
+        "parse_ns": "12738959",
+        "reuse_marker_inner_ns_lower_bound": "171728806",
+        "stored_clock_ns": "28182750"
+      }
+    ],
+    "top_phases_repeat0": [
+      {
+        "adjacent_elapsed_ns": 2013186963,
+        "phase": "history_object_members",
+        "s_content_f_calls_delta": 232476,
+        "source_reads_delta": 1996707
+      },
+      {
+        "adjacent_elapsed_ns": 1544439915,
+        "phase": "history_resolve_publication",
+        "s_content_f_calls_delta": 9900,
+        "source_reads_delta": 838173
+      },
+      {
+        "adjacent_elapsed_ns": 1350489379,
+        "phase": "source_shapes",
+        "s_content_f_calls_delta": 53060,
+        "source_reads_delta": 1517355
+      },
+      {
+        "adjacent_elapsed_ns": 1325270163,
+        "phase": "history_metadata_source",
+        "s_content_f_calls_delta": 1511685,
+        "source_reads_delta": 619359
+      },
+      {
+        "adjacent_elapsed_ns": 1071735878,
+        "phase": "source_observations",
+        "s_content_f_calls_delta": 0,
+        "source_reads_delta": 1124453
+      }
+    ],
+    "work_counts_equal": true,
+    "work_repeat0": {
+      "checked_frame_bytes": 0,
+      "node_checks": 0,
+      "overlay_puts": 589867,
+      "overlay_reads": 2231391,
+      "source_reads": 8792023,
+      "unique_audit_nodes": 0
+    }
+  },
+  "invocation": {
+    "argv": [
+      "/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/deps/s_structure_session-f691a9b42625f576",
+      "v3::state::readonly_reuse_pilot::readonly_audit_reuse_pilot",
+      "--exact",
+      "--ignored",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exact_test": "v3::state::readonly_reuse_pilot::readonly_audit_reuse_pilot",
+    "internal_repeats": 2,
+    "max_seconds": 180,
+    "pid": 19340,
+    "returncode": 0,
+    "same_popen_reaped": true,
+    "test_invocations": 1,
+    "timeout": false,
+    "uid": 501,
+    "whole_test_process_duration_ns": 23112637041
+  },
+  "measurement_limits": {
+    "Q_or_client_or_C": false,
+    "S_whole_handle_ns": "UNMEASURED",
+    "full9011": false,
+    "readonly_before_input28_cut27": false,
+    "rss_observed_max_gap_ns": 114356125,
+    "rss_sample_count": 213,
+    "rss_sample_target_ms": 100,
+    "sampled_rss_max_bytes_lower_bound": 112345088,
+    "time_capacity_extrapolation": false,
+    "true_rss_heap_io_peak": "UNMEASURED"
+  },
+  "preservation": {
+    "original_three_full_identity_unchanged": true,
+    "owned_file_set_exactly_db_wal_shm": true,
+    "owned_shm_mtime_after_ns": 1790877088871303050,
+    "owned_shm_mtime_before_ns": 1790875927908693250,
+    "owned_shm_mtime_changed": true,
+    "owned_three_bytes_equal_original": true,
+    "owned_three_bytes_unchanged": true
+  },
+  "scope": "A clone after message28 AcceptedPending; 27 published cuts; native state::audit only",
+  "source_binding": {
+    "diagnostic_patch_sha256": "e18ffbaefceb9c577f00c92bfed9edb8821e498afce481f9a90011f0f8d13ff3",
+    "source_binding_sha256": "308caf5053d097709a3a3ef038738751c61cbfd5b0d51843fb3dabf5cb80cd47",
+    "test_binary_sha256": "5f9ef56e7cd0ee27dd00094faaf5c73821d6501fe38b4783c238c67d80cb286f"
+  },
+  "status": "DIAGNOSTIC_COMPLETED_READONLY_AUDIT_OK"
+}

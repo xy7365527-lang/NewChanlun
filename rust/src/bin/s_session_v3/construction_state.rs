@@ -1,0 +1,630 @@
+//! #1488 / #1481：owner 私有的 raw 变化资格与 pending move 容器。
+//! 本模块不签发 state/object/witness/observation 完整变化证明；那些集合仍由独立来源核验。
+//! 原件绑定来自父 owner，不能由生成器传入 prefix/verified=true 自签。
+
+use super::super::business_json::{self as bj, RawEventsView, RawPrefixFacts, RawWinnerEdit};
+use super::SnapshotSeal;
+use newchan_rust::s_content as sc;
+use std::cell::Cell;
+use std::ops::Range;
+
+pub(super) fn stale(detail: &str) -> String {
+    format!("StaleWriter：construction资格失效：{detail}")
+}
+
+/// owner life 对应一条实际连接生涯；epoch 记录初次租约，失效后只能重建 owner。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct RawDomain {
+    life: u64,
+    epoch: u64,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct RawAdvanceBinding {
+    domain: RawDomain,
+    step: u64,
+}
+impl RawAdvanceBinding {
+    pub(super) fn owner_life(self) -> u64 {
+        self.domain.life
+    }
+    pub(crate) fn domain(self) -> RawDomain {
+        self.domain
+    }
+    pub(crate) fn is_initial(self) -> bool {
+        self.step == 0
+    }
+}
+pub(super) struct Lease {
+    pub(super) serial: Cell<u64>,
+    pub(super) stale: Cell<bool>,
+}
+impl Default for Lease {
+    fn default() -> Self {
+        Self {
+            serial: Cell::new(1),
+            stale: Cell::new(false),
+        }
+    }
+}
+impl Lease {
+    pub(super) fn invalidate(&self) {
+        self.stale.set(true);
+        self.serial.set(self.serial.get().saturating_add(1));
+    }
+    pub(super) fn close(&self) -> Result<(), String> {
+        let next = self
+            .serial
+            .get()
+            .checked_add(1)
+            .ok_or_else(|| stale("材料租约序号耗尽"))?;
+        self.serial.set(next);
+        Ok(())
+    }
+}
+
+/// 只借用当前 raw；不 Clone、不序列化，不可跨事务复用。字段与生产构造均不对消费方开放。
+pub(crate) struct BoundRawAdvance<'raw> {
+    raw: RawEventsView<'raw>,
+    previous_prefix: usize,
+    previous: RawAdvanceBinding,
+    current: RawAdvanceBinding,
+    winner_edits: sc::CodecVec<RawWinnerEdit>,
+    lease: &'raw Lease,
+    lease_serial: u64,
+    // 身份/版本在真实 main 快照建立后取值，不在 COMMIT 后重新采样。
+    seal: SnapshotSeal,
+}
+/// 写前签发后按值离开 complete 借用；字段私有，不含 caller raw 或成功标记。
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) struct IssuedRawAdvance {
+    previous_prefix: usize,
+    current_prefix: usize,
+    previous: RawAdvanceBinding,
+    current: RawAdvanceBinding,
+    winner_edits: sc::CodecVec<RawWinnerEdit>,
+    lease_serial: u64,
+    seal: SnapshotSeal,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl IssuedRawAdvance {
+    pub(super) fn bind<'raw>(
+        self,
+        raw: RawEventsView<'raw>,
+        lease: &'raw Lease,
+    ) -> Result<BoundRawAdvance<'raw>, String> {
+        if raw.len() != self.current_prefix {
+            return Err(stale("写前签发材料与同一pending原件长度不符"));
+        }
+        let token = BoundRawAdvance {
+            raw,
+            previous_prefix: self.previous_prefix,
+            previous: self.previous,
+            current: self.current,
+            winner_edits: self.winner_edits,
+            lease,
+            lease_serial: self.lease_serial,
+            seal: self.seal,
+        };
+        token.ensure_current()?;
+        Ok(token)
+    }
+}
+impl<'raw> BoundRawAdvance<'raw> {
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn into_issued(self) -> IssuedRawAdvance {
+        IssuedRawAdvance {
+            previous_prefix: self.previous_prefix,
+            current_prefix: self.raw.len(),
+            previous: self.previous,
+            current: self.current,
+            winner_edits: self.winner_edits,
+            lease_serial: self.lease_serial,
+            seal: self.seal,
+        }
+    }
+    pub(crate) fn raw(&self) -> RawEventsView<'raw> {
+        self.raw
+    }
+    pub(crate) fn previous_prefix(&self) -> usize {
+        self.previous_prefix
+    }
+    pub(crate) fn current_prefix(&self) -> usize {
+        self.raw.len()
+    }
+    pub(crate) fn append_ordinals(&self) -> Range<usize> {
+        self.previous_prefix..self.raw.len()
+    }
+    pub(crate) fn winner_edits(&self) -> &[RawWinnerEdit] {
+        &self.winner_edits
+    }
+    pub(crate) fn domain(&self) -> RawDomain {
+        self.current.domain
+    }
+    pub(crate) fn previous_binding(&self) -> RawAdvanceBinding {
+        self.previous
+    }
+    pub(crate) fn current_binding(&self) -> RawAdvanceBinding {
+        self.current
+    }
+    /// 消费者只能撤销既有租约，不能重签、换域或恢复；owner 回调 Err 仍同步撤销。
+    pub(crate) fn invalidate_after_consumer_failure(&self) {
+        self.lease.invalidate();
+    }
+    pub(crate) fn ensure_current(&self) -> Result<(), String> {
+        if self.lease.stale.get() || self.lease.serial.get() != self.lease_serial {
+            return Err(stale("raw token 已结束、回滚或撤销"));
+        }
+        if self.seal.life != self.current.domain.life || self.previous.domain != self.current.domain
+        {
+            return Err(stale("raw token 的连接域不符"));
+        }
+        Ok(())
+    }
+}
+pub(super) struct CommittedRawState {
+    pub(super) seal: SnapshotSeal,
+    binding: RawAdvanceBinding,
+    pub(super) facts: RawPrefixFacts,
+    #[cfg(feature = "s_capture_native_testonly")]
+    set: Option<super::construction_set::CommittedSet>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    retained: usize,
+    #[cfg(feature = "s_capture_native_testonly")]
+    source: Option<super::super::source_audit::NativeSourceState>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    source_bytes: usize,
+}
+impl CommittedRawState {
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn source_work(&self) -> Option<super::super::source_audit::SourceWork> {
+        self.source.as_ref().map(|s| s.work)
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn source_counts(&self) -> Option<super::super::source_audit::Counts> {
+        self.source.as_ref().map(|s| s.counts_for_test())
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn binding(&self) -> RawAdvanceBinding {
+        self.binding
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn has_set(&self) -> bool {
+        self.set.is_some()
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn retained_bytes(&self) -> usize {
+        self.retained
+            .saturating_add(std::mem::size_of::<Self>())
+            .saturating_add(self.source_bytes)
+    }
+}
+pub(super) struct PendingRawState {
+    pub(super) seal: SnapshotSeal,
+    binding: RawAdvanceBinding,
+    pub(super) facts: RawPrefixFacts,
+    #[cfg(feature = "s_capture_native_testonly")]
+    set: Option<super::construction_set::CommittedSet>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    retained: usize,
+    #[cfg(feature = "s_capture_native_testonly")]
+    source: Option<super::super::source_audit::NativeSourceState>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    source_bytes: usize,
+    #[cfg(feature = "s_capture_native_testonly")]
+    raw_token_bytes: usize,
+    closed_total_changes: Option<u64>,
+    // 最后析构：来源/原始事实先释放，再归还PendingSet持有的原父账许可。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pending_set: Option<super::construction_set::PendingSet>,
+}
+impl PendingRawState {
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn has_pending_set(&self) -> bool {
+        self.pending_set.is_some()
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn retained_bytes(&self) -> usize {
+        self.retained
+            .saturating_add(std::mem::size_of::<Self>())
+            .saturating_add(self.source_bytes)
+            .saturating_add(self.raw_token_bytes)
+            .saturating_add(self.pending_set.as_ref().map_or(0, |s| s.retained_bytes()))
+    }
+    /// 只有父 owner 从本快照已核原件调用；previous 必须 move，失败时不能还原作成功缓存。
+    pub(super) fn advance<'raw>(
+        mut previous: Option<CommittedRawState>,
+        raw: RawEventsView<'raw>,
+        seal: SnapshotSeal,
+        bound: &super::BoundOriginals,
+        lease: &'raw Lease,
+        admission: &(impl super::super::audit_store::CodecRead + ?Sized),
+    ) -> Result<(Self, BoundRawAdvance<'raw>), String> {
+        if lease.stale.get() {
+            return Err(stale("旧夹持已失效；必须显式重建 owner"));
+        }
+        if raw.budget().is_some() {
+            return Err(stale(
+                "Owned RawPrefixIndex 尚无同账实现；禁止 Plain fallback",
+            ));
+        }
+        #[cfg(feature = "s_capture_native_testonly")]
+        let retained = previous.as_ref().map_or(0, |p| p.retained);
+        #[cfg(feature = "s_capture_native_testonly")]
+        let set = previous.as_mut().and_then(|previous| previous.set.take());
+        #[cfg(feature = "s_capture_native_testonly")]
+        let source = previous
+            .as_mut()
+            .and_then(|previous| previous.source.take());
+        #[cfg(feature = "s_capture_native_testonly")]
+        let source_bytes = previous
+            .as_ref()
+            .map_or(0, |previous| previous.source_bytes);
+        let (previous_binding, previous_prefix, mut index) = match previous {
+            Some(previous) => {
+                if !previous.seal.same_snapshot(&seal) {
+                    return Err(stale("连接、快照、读域或本连接写序变化"));
+                }
+                let prefix = previous.facts.prefix_len();
+                let index = bj::RawPrefixIndex::restore(raw, previous.facts, bound)?;
+                (previous.binding, prefix, index)
+            }
+            None => (
+                RawAdvanceBinding {
+                    domain: RawDomain {
+                        life: seal.life,
+                        epoch: lease.serial.get(),
+                    },
+                    step: 0,
+                },
+                0,
+                bj::RawPrefixIndex::new(raw),
+            ),
+        };
+        let changes = index.advance_admitted(raw.len(), admission)?;
+        if changes.rewound || raw.len() < previous_prefix {
+            return Err(stale("raw 前缀倒退"));
+        }
+        let current = RawAdvanceBinding {
+            domain: previous_binding.domain,
+            step: previous_binding
+                .step
+                .checked_add(1)
+                .ok_or_else(|| stale("raw 步号耗尽"))?,
+        };
+        let token = BoundRawAdvance {
+            raw,
+            previous_prefix,
+            previous: previous_binding,
+            current,
+            winner_edits: changes.winner_edits,
+            lease,
+            lease_serial: lease.serial.get(),
+            seal,
+        };
+        #[cfg(feature = "s_capture_native_testonly")]
+        let (facts, retained) = {
+            let mut delta = super::super::audit_retention::RetainedDelta::default();
+            let facts = index.into_facts_retained(&mut delta);
+            let retained = delta
+                .apply(retained)
+                .map_err(|_| stale("raw保留账不闭合"))?;
+            (facts, retained)
+        };
+        #[cfg(not(feature = "s_capture_native_testonly"))]
+        let facts = index.into_facts();
+        #[cfg(feature = "s_capture_native_testonly")]
+        let raw_token_bytes = super::super::audit_retention::vec_bytes::<RawWinnerEdit>(
+            token.winner_edits.capacity(),
+        );
+        let pending = Self {
+            seal,
+            binding: current,
+            facts,
+            #[cfg(feature = "s_capture_native_testonly")]
+            retained,
+            #[cfg(feature = "s_capture_native_testonly")]
+            source,
+            #[cfg(feature = "s_capture_native_testonly")]
+            source_bytes,
+            closed_total_changes: None,
+            #[cfg(feature = "s_capture_native_testonly")]
+            raw_token_bytes,
+            #[cfg(feature = "s_capture_native_testonly")]
+            set,
+            #[cfg(feature = "s_capture_native_testonly")]
+            pending_set: None,
+        };
+        Ok((pending, token))
+    }
+
+    /// Accept/Begin 只携带最后发布游标。资格由同一owner原件和后续真实effects闭合，
+    /// 此处不读新raw赢家、不推进binding，不为producer制造遗漏的一步。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn carry(
+        previous: Option<CommittedRawState>,
+        seal: SnapshotSeal,
+        raw_len: usize,
+        lease: &Lease,
+    ) -> Result<Self, String> {
+        if lease.stale.get() {
+            return Err(stale("Carry租约已撤销"));
+        }
+        let (binding, facts, set, retained, source, source_bytes) = if let Some(previous) = previous
+        {
+            if !previous.seal.same_snapshot(&seal) || raw_len < previous.facts.prefix_len() {
+                return Err(stale("Carry前沿/输入身份或实际快照不连续"));
+            }
+            (
+                previous.binding,
+                previous.facts,
+                previous.set,
+                previous.retained,
+                previous.source,
+                previous.source_bytes,
+            )
+        } else {
+            (
+                RawAdvanceBinding {
+                    domain: RawDomain {
+                        life: seal.life,
+                        epoch: lease.serial.get(),
+                    },
+                    step: 0,
+                },
+                RawPrefixFacts::default(),
+                None,
+                0,
+                None,
+                0,
+            )
+        };
+        Ok(Self {
+            seal,
+            binding,
+            facts,
+            set,
+            pending_set: None,
+            retained,
+            source,
+            source_bytes,
+            raw_token_bytes: 0,
+            closed_total_changes: None,
+        })
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn take_source(&mut self) -> Option<super::super::source_audit::NativeSourceState> {
+        // 保留原信用占帽，源状态在PublishPhase唯一局部槽暂存时不洗掉旧费用。
+        self.source.take()
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn install_source(
+        &mut self,
+        source: super::super::source_audit::NativeSourceState,
+    ) -> Result<usize, String> {
+        if self.source.is_some() {
+            return Err(stale("来源状态重复回交owner"));
+        }
+        let bytes = source.retained_bytes();
+        if bytes == usize::MAX {
+            return Err(stale("来源状态保留账溢出"));
+        }
+        let growth = bytes.saturating_sub(self.source_bytes);
+        self.source_bytes = bytes;
+        self.source = Some(source);
+        Ok(growth)
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn set_seed(
+        &mut self,
+        previous: Option<super::construction_set::Declaration>,
+    ) -> Result<super::construction_set::Seed, String> {
+        super::construction_set::Seed::new(self.binding, self.seal, previous, self.set.take())
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn close_set(
+        &mut self,
+        mut set: super::construction_set::PendingSet,
+        actual_root: sc::RefView<'_>,
+    ) -> Result<(), String> {
+        if self.pending_set.is_some() {
+            return Err(stale("重复闭合集合effects"));
+        }
+        set.close_against_persisted(actual_root, self.binding)?;
+        self.pending_set = Some(set);
+        Ok(())
+    }
+
+    /// 此方法仅对父 owner 开放；真实 effects 覆盖与业务判据闭合后调用，尚未晋升。
+    pub(super) fn close_effects(
+        &mut self,
+        seal: SnapshotSeal,
+        total_changes: u64,
+    ) -> Result<(), String> {
+        if self.closed_total_changes.is_some()
+            || self.seal.life != seal.life
+            || self.seal.transaction_id != seal.transaction_id
+            || self.seal.data_version != seal.data_version
+            || self.seal.schema_version != seal.schema_version
+            || self.seal.domain != seal.domain
+            || self.seal.write_sequence.checked_add(1) != Some(seal.write_sequence)
+        {
+            return Err(stale("效果闭合不属于同一次固定写"));
+        }
+        self.seal = seal;
+        self.closed_total_changes = Some(total_changes);
+        Ok(())
+    }
+    pub(super) fn check_commit(
+        &self,
+        seal: SnapshotSeal,
+        total_changes: u64,
+    ) -> Result<(), String> {
+        if self.seal != seal || self.closed_total_changes != Some(total_changes) {
+            return Err(stale("未闭合效果或闭合后再次写入"));
+        }
+        #[cfg(feature = "s_capture_native_testonly")]
+        if let Some(set) = &self.pending_set {
+            if set.requires_source() && self.source.is_none() {
+                return Err(stale("来源成功结果未回交同owner状态"));
+            }
+            set.check_commit(seal, total_changes)?;
+        }
+        Ok(())
+    }
+    /// 仅在 SQLite COMMIT 返回成功且 owner 确认 autocommit 后 move。
+    pub(super) fn committed(self) -> CommittedRawState {
+        CommittedRawState {
+            seal: self.seal,
+            binding: self.binding,
+            facts: self.facts,
+            #[cfg(feature = "s_capture_native_testonly")]
+            set: self.pending_set.map(|set| set.committed()).or(self.set),
+            #[cfg(feature = "s_capture_native_testonly")]
+            retained: self.retained,
+            #[cfg(feature = "s_capture_native_testonly")]
+            source: self.source,
+            #[cfg(feature = "s_capture_native_testonly")]
+            source_bytes: self.source_bytes,
+        }
+    }
+}
+
+/// 只用于 A/B 的输入与失效负控；生产构建没有此构造器。
+#[cfg(test)]
+pub(crate) struct RawAdvanceFixture {
+    life: u64,
+    lease: Lease,
+    step: Cell<u64>,
+}
+#[cfg(test)]
+impl RawAdvanceFixture {
+    pub(crate) fn new() -> Self {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(1 << 63);
+        Self {
+            life: NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed),
+            lease: Lease::default(),
+            step: Cell::new(0),
+        }
+    }
+    pub(crate) fn bind<'raw>(
+        &'raw self,
+        raw: RawEventsView<'raw>,
+        previous_prefix: usize,
+        edits: &[RawWinnerEdit],
+    ) -> Result<BoundRawAdvance<'raw>, String> {
+        if previous_prefix > raw.len() || self.lease.stale.get() {
+            return Err(stale("测试前缀/租约无效"));
+        }
+        self.lease.close()?;
+        let previous = RawAdvanceBinding {
+            domain: RawDomain {
+                life: self.life,
+                epoch: 1,
+            },
+            step: self.step.get(),
+        };
+        let current = RawAdvanceBinding {
+            domain: previous.domain,
+            step: previous
+                .step
+                .checked_add(1)
+                .ok_or_else(|| stale("测试步号耗尽"))?,
+        };
+        self.step.set(current.step);
+        let mut winner_edits = bj::new_work(raw.budget());
+        for edit in edits {
+            winner_edits.try_push(*edit).map_err(|e| e.to_string())?;
+        }
+        Ok(BoundRawAdvance {
+            raw,
+            previous_prefix,
+            previous,
+            current,
+            winner_edits,
+            lease: &self.lease,
+            lease_serial: self.lease.serial.get(),
+            seal: SnapshotSeal {
+                life: self.life,
+                transaction_id: current.step,
+                write_sequence: current.step,
+                data_version: 1,
+                schema_version: 1,
+                domain: [0, 1, 1, 0, 0, 1],
+            },
+        })
+    }
+    pub(crate) fn invalidate(&self) {
+        self.lease.invalidate();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::v3::business_json::{RawPrefixIndex, RawWinner};
+    use serde_json::json;
+
+    #[test]
+    fn owner_raw_fixture_domains_and_invalidation_are_not_prefix_lengths() {
+        let raw = [json!({"identity_key":"a","revision":1,"source_coord":"0"})];
+        let a = RawAdvanceFixture::new();
+        let b = RawAdvanceFixture::new();
+        let first = a.bind((&raw).into(), 0, &[]).unwrap();
+        assert!(first.previous_binding().is_initial());
+        let foreign = b.bind((&raw).into(), 0, &[]).unwrap();
+        assert_ne!(first.domain(), foreign.domain());
+        let second = a.bind((&raw).into(), 1, &[]).unwrap();
+        assert_eq!(second.previous_binding(), first.current_binding());
+        assert!(!second.previous_binding().is_initial());
+        assert!(first.ensure_current().is_err());
+        assert!(second.ensure_current().is_ok());
+        second.invalidate_after_consumer_failure();
+        assert!(second.ensure_current().is_err());
+        a.invalidate();
+        assert!(a.bind((&raw).into(), 1, &[]).is_err());
+    }
+
+    #[test]
+    fn owner_raw_edits_are_final_identity_winners_and_allow_coordinate_swap() {
+        let raw = [
+            json!({"identity_key":"a","revision":1,"source_coord":"0"}),
+            json!({"identity_key":"b","revision":1,"source_coord":"1"}),
+            json!({"identity_key":"a","revision":2,"source_coord":"2"}),
+            json!({"identity_key":"a","revision":3,"source_coord":"1"}),
+            json!({"identity_key":"b","revision":2,"source_coord":"0"}),
+        ];
+        let mut index = RawPrefixIndex::new((&raw).into());
+        assert_eq!(index.advance(2).unwrap().winner_edits.len(), 2);
+        let changes = index.advance(5).unwrap();
+        assert_eq!(
+            &*changes.winner_edits,
+            &[
+                RawWinnerEdit {
+                    old: Some(RawWinner {
+                        coord: 0,
+                        ordinal: 0
+                    }),
+                    new: Some(RawWinner {
+                        coord: 1,
+                        ordinal: 3
+                    })
+                },
+                RawWinnerEdit {
+                    old: Some(RawWinner {
+                        coord: 1,
+                        ordinal: 1
+                    }),
+                    new: Some(RawWinner {
+                        coord: 0,
+                        ordinal: 4
+                    })
+                },
+            ]
+        );
+        assert_eq!(index.ordered().collect::<Vec<_>>(), vec![(0, 4), (1, 3)]);
+        assert!(index.advance(5).unwrap().winner_edits.is_empty());
+    }
+}

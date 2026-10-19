@@ -1,0 +1,386 @@
+{
+  "comparison_caveat": "old uninstrumented run is historical; differences include instrumentation, sampling and machine-load variance; not a clean simultaneous causal overhead estimate",
+  "last_generation_phase_summary": {
+    "fresh1": {
+      "audit_before_accept": {
+        "elapsed_ns": 3922545917,
+        "exclusive_counts": {
+          "overlay_derived_put": 179322,
+          "overlay_put": 179322,
+          "overlay_put_body_bytes": 7152166,
+          "overlay_read": 780434,
+          "overlay_read_body_bytes": 29059732,
+          "overlay_read_found": 780434,
+          "store_read": 576246,
+          "store_read_body_bytes": 28929660,
+          "store_read_found": 576246
+        },
+        "thread_F_inclusive": 6502761
+      },
+      "audit_before_begin": {
+        "elapsed_ns": 3966964417,
+        "exclusive_counts": {
+          "overlay_derived_put": 179322,
+          "overlay_put": 179322,
+          "overlay_put_body_bytes": 7152166,
+          "overlay_read": 780434,
+          "overlay_read_body_bytes": 29059732,
+          "overlay_read_found": 780434,
+          "store_read": 576246,
+          "store_read_body_bytes": 28929660,
+          "store_read_found": 576246
+        },
+        "thread_F_inclusive": 6503144
+      },
+      "audit_before_prepare": {
+        "elapsed_ns": 3977082000,
+        "exclusive_counts": {
+          "overlay_derived_put": 179322,
+          "overlay_put": 179322,
+          "overlay_put_body_bytes": 7152166,
+          "overlay_read": 780434,
+          "overlay_read_body_bytes": 29059732,
+          "overlay_read_found": 780434,
+          "store_read": 576246,
+          "store_read_body_bytes": 28929660,
+          "store_read_found": 576246
+        },
+        "thread_F_inclusive": 6503144
+      },
+      "cold_final_audit": {
+        "elapsed_ns": 4554130083,
+        "exclusive_counts": {
+          "overlay_derived_put": 210178,
+          "overlay_put": 210178,
+          "overlay_put_body_bytes": 8384299,
+          "overlay_read": 894402,
+          "overlay_read_body_bytes": 33316706,
+          "overlay_read_found": 894402,
+          "store_read": 655003,
+          "store_read_body_bytes": 33033452,
+          "store_read_found": 655003
+        },
+        "thread_F_inclusive": 7489249
+      },
+      "generate": {
+        "elapsed_ns": 354080958,
+        "exclusive_counts": {
+          "fractal_logical_full_comparisons": 216,
+          "fractal_relation_actual_comparisons": 48,
+          "generation_small_render_buffer_bytes": 272,
+          "generation_witness_stream_render_bytes": 28507,
+          "producer_unit_computed_delta": 2,
+          "producer_unit_invalidated_delta": 0,
+          "producer_unit_reused_delta": 7,
+          "store_put": 47455,
+          "store_put_body_bytes": 1788818,
+          "store_put_exists": 44934,
+          "store_put_new": 2521,
+          "store_read": 292800,
+          "store_read_body_bytes": 12539582,
+          "store_read_found": 290279,
+          "store_read_missing": 2521
+        },
+        "thread_F_inclusive": 645303
+      },
+      "handle_total": {
+        "elapsed_ns": 13418850083,
+        "exclusive_counts": {
+          "store_put": 18,
+          "store_put_body_bytes": 631,
+          "store_put_exists": 18,
+          "store_read": 18,
+          "store_read_body_bytes": 631,
+          "store_read_found": 18
+        },
+        "thread_F_inclusive": 22019063
+      },
+      "prepare_source_audit": {
+        "elapsed_ns": 196230833,
+        "exclusive_counts": {
+          "generation_witness_stream_render_bytes": 28507,
+          "store_read": 155669,
+          "store_read_body_bytes": 6790495,
+          "store_read_found": 155669
+        },
+        "thread_F_inclusive": 324159
+      },
+      "sql_final_commit": {
+        "elapsed_ns": 37358875,
+        "exclusive_counts": {},
+        "thread_F_inclusive": 0
+      },
+      "sqlite_combined_max_observed_allocated_bytes": 12713984,
+      "three_audits_observed_fraction_of_handle": 0.8843225954982151
+    },
+    "fresh2": {
+      "audit_before_accept": {
+        "elapsed_ns": 3975270084,
+        "exclusive_counts": {
+          "overlay_derived_put": 179322,
+          "overlay_put": 179322,
+          "overlay_put_body_bytes": 7152166,
+          "overlay_read": 780434,
+          "overlay_read_body_bytes": 29059732,
+          "overlay_read_found": 780434,
+          "store_read": 576246,
+          "store_read_body_bytes": 28929660,
+          "store_read_found": 576246
+        },
+        "thread_F_inclusive": 6502761
+      },
+      "audit_before_begin": {
+        "elapsed_ns": 3952913500,
+        "exclusive_counts": {
+          "overlay_derived_put": 179322,
+          "overlay_put": 179322,
+          "overlay_put_body_bytes": 7152166,
+          "overlay_read": 780434,
+          "overlay_read_body_bytes": 29059732,
+          "overlay_read_found": 780434,
+          "store_read": 576246,
+          "store_read_body_bytes": 28929660,
+          "store_read_found": 576246
+        },
+        "thread_F_inclusive": 6503144
+      },
+      "audit_before_prepare": {
+        "elapsed_ns": 3971460083,
+        "exclusive_counts": {
+          "overlay_derived_put": 179322,
+          "overlay_put": 179322,
+          "overlay_put_body_bytes": 7152166,
+          "overlay_read": 780434,
+          "overlay_read_body_bytes": 29059732,
+          "overlay_read_found": 780434,
+          "store_read": 576246,
+          "store_read_body_bytes": 28929660,
+          "store_read_found": 576246
+        },
+        "thread_F_inclusive": 6503144
+      },
+      "cold_final_audit": {
+        "elapsed_ns": 4555169375,
+        "exclusive_counts": {
+          "overlay_derived_put": 210178,
+          "overlay_put": 210178,
+          "overlay_put_body_bytes": 8384299,
+          "overlay_read": 894402,
+          "overlay_read_body_bytes": 33316706,
+          "overlay_read_found": 894402,
+          "store_read": 655003,
+          "store_read_body_bytes": 33033452,
+          "store_read_found": 655003
+        },
+        "thread_F_inclusive": 7489249
+      },
+      "generate": {
+        "elapsed_ns": 355738708,
+        "exclusive_counts": {
+          "fractal_logical_full_comparisons": 216,
+          "fractal_relation_actual_comparisons": 48,
+          "generation_small_render_buffer_bytes": 272,
+          "generation_witness_stream_render_bytes": 28507,
+          "producer_unit_computed_delta": 2,
+          "producer_unit_invalidated_delta": 0,
+          "producer_unit_reused_delta": 7,
+          "store_put": 47455,
+          "store_put_body_bytes": 1788818,
+          "store_put_exists": 44934,
+          "store_put_new": 2521,
+          "store_read": 292800,
+          "store_read_body_bytes": 12539582,
+          "store_read_found": 290279,
+          "store_read_missing": 2521
+        },
+        "thread_F_inclusive": 645303
+      },
+      "handle_total": {
+        "elapsed_ns": 13466313875,
+        "exclusive_counts": {
+          "store_put": 18,
+          "store_put_body_bytes": 631,
+          "store_put_exists": 18,
+          "store_read": 18,
+          "store_read_body_bytes": 631,
+          "store_read_found": 18
+        },
+        "thread_F_inclusive": 22019063
+      },
+      "prepare_source_audit": {
+        "elapsed_ns": 197752125,
+        "exclusive_counts": {
+          "generation_witness_stream_render_bytes": 28507,
+          "store_read": 155669,
+          "store_read_body_bytes": 6790495,
+          "store_read_found": 155669
+        },
+        "thread_F_inclusive": 324159
+      },
+      "sql_final_commit": {
+        "elapsed_ns": 40672292,
+        "exclusive_counts": {},
+        "thread_F_inclusive": 0
+      },
+      "sqlite_combined_max_observed_allocated_bytes": 12713984,
+      "three_audits_observed_fraction_of_handle": 0.883660055562161
+    }
+  },
+  "no9011_extrapolation": true,
+  "observed_historical_handle_difference_ns": [
+    5174265006,
+    5494220710
+  ],
+  "old_final_audit_ns": 4364045458,
+  "old_handle_sum_ns": 72079085789,
+  "old_last_handle_ns": 12331993958,
+  "old_test_seconds": 76.53,
+  "originals_unchanged": true,
+  "runs": [
+    {
+      "all_materialized_Value_heap_peak": "UNMEASURED",
+      "all_renderer_outputs": "UNMEASURED",
+      "binary_sha256": "09e333bbfd4dcbe6385d0c7836464eecded144c67b173b987db75553014995d8",
+      "clock_sha256": "8dc72837993ac1a78da6d58d5aeccef86e842aca5702063e3791047d2807cfe4",
+      "db_sha256": "1704c9d9ef50a822653206e0bf1136b37280814322bbb44398761a38322c154a",
+      "directory": "/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/s1394-driver-49017-1790794967903614000-0",
+      "elapsed_ns": 82519268167,
+      "exit_code": 0,
+      "final_cold_audit_ns": "4555984750",
+      "full9011": false,
+      "handle_sum_ns": 77253350795,
+      "last_handle_ns": "13418854500",
+      "logical_comparison": "all schemas and table columns/full sorted typed rows equal; no field exclusions",
+      "new_service": false,
+      "phase_rows": 2137,
+      "rss_max_observed_bytes": 69222400,
+      "run": "fresh1",
+      "sampled_peak_is_lower_bound": true,
+      "sampler_actual_max_interval_ns": 120521458,
+      "sampler_phase_tag_limit": "last emitted completed span; not exact current nested phase attribution",
+      "sampler_requested_period_ms": 100,
+      "samples": 747,
+      "sampling_coverage": "RSS from process start until reap; DB/WAL/SHM only after existing start announcement",
+      "source_sha256": "76472995cbf0825ceeeaa94e89bd60d1b1416d6c7e0a7ec3a1b0ec5a90c60087",
+      "sqlite_file_max_observed": {
+        "": {
+          "allocated_bytes": 6025216,
+          "logical_bytes": 6025216
+        },
+        "-shm": {
+          "allocated_bytes": 32768,
+          "logical_bytes": 32768
+        },
+        "-wal": {
+          "allocated_bytes": 7421952,
+          "logical_bytes": 7420152
+        }
+      }
+    },
+    {
+      "all_materialized_Value_heap_peak": "UNMEASURED",
+      "all_renderer_outputs": "UNMEASURED",
+      "binary_sha256": "09e333bbfd4dcbe6385d0c7836464eecded144c67b173b987db75553014995d8",
+      "clock_sha256": "8dc72837993ac1a78da6d58d5aeccef86e842aca5702063e3791047d2807cfe4",
+      "db_sha256": "1704c9d9ef50a822653206e0bf1136b37280814322bbb44398761a38322c154a",
+      "directory": "/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/s1394-driver-50895-1790795050228273000-0",
+      "elapsed_ns": 82244862792,
+      "exit_code": 0,
+      "final_cold_audit_ns": "4557989417",
+      "full9011": false,
+      "handle_sum_ns": 77573306499,
+      "last_handle_ns": "13466318375",
+      "logical_comparison": "all schemas and table columns/full sorted typed rows equal; no field exclusions",
+      "new_service": false,
+      "phase_rows": 2137,
+      "rss_max_observed_bytes": 70434816,
+      "run": "fresh2",
+      "sampled_peak_is_lower_bound": true,
+      "sampler_actual_max_interval_ns": 115440666,
+      "sampler_phase_tag_limit": "last emitted completed span; not exact current nested phase attribution",
+      "sampler_requested_period_ms": 100,
+      "samples": 743,
+      "sampling_coverage": "RSS from process start until reap; DB/WAL/SHM only after existing start announcement",
+      "source_sha256": "76472995cbf0825ceeeaa94e89bd60d1b1416d6c7e0a7ec3a1b0ec5a90c60087",
+      "sqlite_file_max_observed": {
+        "": {
+          "allocated_bytes": 6025216,
+          "logical_bytes": 6025216
+        },
+        "-shm": {
+          "allocated_bytes": 32768,
+          "logical_bytes": 32768
+        },
+        "-wal": {
+          "allocated_bytes": 7421952,
+          "logical_bytes": 7420152
+        }
+      }
+    }
+  ],
+  "sampling_unique_scope": "read_unique_digests/read_repeat_requests are union of SQLite and overlay digest requests in a single current phase; body/result calls separate. Nested span wall time and F inclusive; work/digest counters exclusive. Never sum inclusive parent and child durations/F.",
+  "source_difference_check": "all 8 files equal after cfg(test) lexical removal and whitespace/comment normalization; not compiler macro expansion; non-test release binary compiles",
+  "status": "PASS_BOUNDED_SHADOW_TWO_FRESH_S16",
+  "unmeasured": [
+    "global Value heap peak",
+    "all render output/materialization bytes",
+    "disk I/O bytes and kernel COMMIT write latency below sqlite COMMIT call",
+    "all unique audit-budget node accounting: writer uses no AuditBudget"
+  ],
+  "verification": [
+    {
+      "argv": [
+        "/Users/silencehan/Projects/NewChanlun-1394-s16-phase-shadow-20261001/.scratch/s16-phase-shadow-20261001/target/release/deps/s_structure_session-9427c373eb501855",
+        "content_store::tests::",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "log": "verify-0.log",
+      "pid": 54148,
+      "reaped": true
+    },
+    {
+      "argv": [
+        "/Users/silencehan/Projects/NewChanlun-1394-s16-phase-shadow-20261001/.scratch/s16-phase-shadow-20261001/target/release/deps/s_structure_session-9427c373eb501855",
+        "v3::commit::tests::prepared_commit_",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "log": "verify-1.log",
+      "pid": 54149,
+      "reaped": true
+    },
+    {
+      "argv": [
+        "/Users/silencehan/Projects/NewChanlun-1394-s16-phase-shadow-20261001/.scratch/s16-phase-shadow-20261001/target/release/deps/s_structure_session-9427c373eb501855",
+        "v3::driver::tests::cold_audit_live_driver_requests_re_read_and_reject_current_node_damage",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exit_code": 0,
+      "log": "verify-2.log",
+      "pid": 54168,
+      "reaped": true
+    },
+    {
+      "argv": [
+        "cargo",
+        "build",
+        "--manifest-path",
+        "rust/Cargo.toml",
+        "--release",
+        "--features",
+        "s_session",
+        "--bin",
+        "s_structure_session"
+      ],
+      "exit_code": 0,
+      "log": "verify-3.log",
+      "pid": 54176,
+      "reaped": true
+    }
+  ]
+}

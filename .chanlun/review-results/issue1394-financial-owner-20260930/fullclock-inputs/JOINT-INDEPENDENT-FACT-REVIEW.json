@@ -1,0 +1,154 @@
+{
+  "checks": [
+    {
+      "name": "manifest132 and preserved131",
+      "status": "PASS"
+    },
+    {
+      "name": "current root six product files six candidate changes and binary",
+      "status": "PASS"
+    },
+    {
+      "name": "originals before after live complete identity",
+      "status": "PASS"
+    },
+    {
+      "name": "natural writable source readonly flags and Q physical semantic no writes",
+      "status": "PASS"
+    },
+    {
+      "name": "formal init S Q argv nonce UID private env source and resources",
+      "status": "PASS"
+    },
+    {
+      "name": "raw S Q public payload hashes causal full identity canonical response bodies",
+      "status": "PASS"
+    },
+    {
+      "name": "same source gen0 S commit gen1 seven rows Watch cut0 asof0 and persisted roots",
+      "status": "PASS"
+    },
+    {
+      "name": "1845 persisted source frames 109 returned frames seven metadata roots and raw OHLC decode",
+      "status": "PASS"
+    },
+    {
+      "name": "real stops reaps PID cleanup recorded HTTP rebind and prior failure scope preserved",
+      "status": "PASS"
+    }
+  ],
+  "facts": {
+    "HTTP_rebind_recorded_port": 58882,
+    "Q_PID": 11194,
+    "Q_main_readonly_fd": "s_structu 11194 silencehan    5r   REG               1,16   315392           324559890 /Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-s3-q3-joint-20261001/revision1/owned.sqlite",
+    "Q_native_public_envelopes_verified": 7,
+    "Q_nonce": "0da321e1-063b-4147-a6b7-437ecf5dd981",
+    "Q_physical_and_semantic_no_writes": true,
+    "Q_private_SHA_env": null,
+    "Q_returncode": 0,
+    "Q_signal": "SIGINT",
+    "S_PID": 11179,
+    "S_canonical_LF_envelopes_verified": 4,
+    "S_nonce": "3a3dec64-53d4-4f03-94e3-5ed7d24e2229",
+    "S_returncode": -15,
+    "S_signal": "SIGTERM",
+    "binary": {
+      "bytes": 18609984,
+      "device": 16777232,
+      "exists": true,
+      "inode": 324547449,
+      "mode": "0o500",
+      "mtime_ns": 1790816195743390154,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/s_structure_session-46d183a20a",
+      "sha256": "5437fbb5d581d1b48f6a1d3405cae67327113e5a2c7fedd7ce3a1d9ce1e18e91",
+      "uid": 501
+    },
+    "candidate_changed_files_sha256": {
+      ".chanlun/agent-roster-codex-20261001-s3-formal-entry.md": "7cecfd534fde5a188bcb59c822e36854c220752a5db54a6f192dca2e02741374",
+      "rust/src/bin/s_session_v3/driver.rs": "b3945937b401cd48fd348b54ae1b8772880a2cca80d31d4f62eb83aa8508f9ec",
+      "rust/src/bin/s_session_v3/state.rs": "f2ea61ad501c797a4e6c9ed127f06adfbbd0cdfa014a78e6217aaf0cf7efbd5b",
+      "rust/src/bin/s_session_v3/writer_cli.rs": "bfc119de105273230eddce1085f39ce8d37aea8792e8883393304d05f4bc994f",
+      "s_session/s_service_control.py": "894427caa51d9d58ea32a980bb473a93ca6e9b8a3e4664aa0b1f5a985c592d69",
+      "s_session/tests/test_tb01c_s3_service_control.py": "374df554cdff015178bf79398138fb516eb12c48a078e70c9d7ee8754f515c63"
+    },
+    "clock_phases": [
+      "10",
+      "11",
+      "12"
+    ],
+    "complete_client_closure_proven": false,
+    "current_manifest_count": 132,
+    "current_service_PIDs_absent": true,
+    "cut0_and_asof0_still_empty": true,
+    "generation0_rows": 0,
+    "generation1_rows": 7,
+    "head": "ed1f184bf7513d960d87b6687c279a657c8fa481",
+    "item_root_descriptor_hash_count": 7,
+    "live_WAL_bytes": 350232,
+    "manifest_sha256": "f39b80bbcc7244245725eb770a27976903640d4d5277e0f5cc7f4116deab1aa6",
+    "natural_modes": "0644",
+    "old_manifest_count": 131,
+    "originals_before_after_live_count": 102,
+    "partial_proof_nodes": 49,
+    "prior_extra_chmod_and_failed_verification_preserved": true,
+    "raw_OHLC_record": {
+      "close": "7",
+      "event_id": "a",
+      "high": "12",
+      "identity_key": "testonly.ohlc|1|TEST.OHLC|a",
+      "input_revision": "1",
+      "instrument": "TEST.OHLC",
+      "low": "3",
+      "open": "6",
+      "payload_hash": "97489bbb2d823a10a79ea03c5bc0f3ebe8a6316b8118848602ec4160be7d7583",
+      "raw_text": "3/12",
+      "receipt_id": "rcpt-dd82deb93da29c71",
+      "received_at": "2026-09-30T00:00:00Z",
+      "revision": "1",
+      "schema_revision": "s-ohlc/1",
+      "seq": "0",
+      "source_coord": "0",
+      "source_epoch": "1",
+      "source_namespace": "testonly.ohlc",
+      "supersedes_revision": null,
+      "ts": "0",
+      "volume": "1"
+    },
+    "raw_source_root": "sc1-146ef9e11171c44c5c4e1c6223305e9b0c2445ab43582b41ec7dbcd23d7d399b",
+    "readonly_source_anchor_sha256": "22659f9ae4685b2e83669a3945e21d5defb89d4333e760099aa5667b4d9bcd1e",
+    "result_sha256": "da9abe58385530b7d875555659490e84c379ca3989aac5d9d5b18c4418614b18",
+    "returned_node_framing_count": 109,
+    "root_product_files_checked": 6,
+    "rust_tree": "5a2acd1e72c3846be38cc29689a82aeb57c68dc6",
+    "socket_directory_absent": true,
+    "source_publication": {
+      "catalog_revision": "s2-axis-quantifiers (SPEC-COVERAGE-INPUT.json sha256=76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c)",
+      "generation": "1",
+      "index_frontier": "batch3-529bec7f18eb81627c1acfd1d7d39b2391b67168e810a1684723c9a07853ca13",
+      "input_frontier": "0",
+      "structure_cut": "cut-1"
+    },
+    "stored_source_node_framing_count": 1845,
+    "watch_deltas": 1
+  },
+  "failed_check_groups": 0,
+  "limitations": [
+    "49 nodes are partial path/header proof; no complete recursive client download installation",
+    "source1845 nodes are persisted DB observations not HTTP full closure",
+    "Browser and Client actual allocation untested",
+    "full source coverage production capacity economic permissions conditional FIFO 9011 wholegraph unproven",
+    "no issue1394 or1323 closure and no main integration"
+  ],
+  "not_run": [
+    "services",
+    "build",
+    "unit tests",
+    "new matrix",
+    "SQLite open",
+    "full574 source scan"
+  ],
+  "passed_check_groups": 9,
+  "runner_exec74446_terminal0": "parent runtime evidence; raw terminal cleanup and current PIDs independently checked",
+  "scope": "normal naturally writable S source plus independently readonly Q; one original singlebar",
+  "verdict": "PASS_BOUNDED"
+}

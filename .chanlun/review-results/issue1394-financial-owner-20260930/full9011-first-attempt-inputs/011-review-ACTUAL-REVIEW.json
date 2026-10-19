@@ -1,0 +1,131 @@
+{
+  "C_complete": false,
+  "HTTP_started": false,
+  "Q_started": false,
+  "actual_status": "FAIL_OR_PARTIAL_BOUNDARY_CONFIRMED",
+  "artifact_hashes": {
+    "case_result": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-formal-runtime-20261001/A/CASE-RESULT.json",
+      "sha256": "5cd834a782039174d4e303bbdb4c9f774ae9ef84e28a392742b4c4701a680486"
+    },
+    "exchange28": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-formal-runtime-20261001/A/input-28.exchange.json",
+      "sha256": "cc8d6850eb232263875404b6e859b9ce15852a12d581af1fadbaad85d4bc3920"
+    },
+    "final_export": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-formal-runtime-20261001/A/final.fullDB.json",
+      "sha256": "14f854f8abcf66626d506e231ad83e22bf4661e6d2cbf6072408ccd253736fe1"
+    },
+    "persistent28": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-formal-runtime-20261001/A/input-28.persistent.json",
+      "sha256": "8c889563664bce5d97e3c63f82b1b3789811168e276b109e76444ac803f70d49"
+    },
+    "reply28": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-formal-runtime-20261001/A/input-28-0.reply.wire",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "request28": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-formal-runtime-20261001/A/input-28-0.request.wire",
+      "sha256": "5aabb944eb76a57c5bdaf3125e0b82a984fbbcb5bb215842bab17742ffcc2a36"
+    },
+    "run_result": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-formal-runtime-20261001/RUN-RESULT.json",
+      "sha256": "1bfde3d806c0a630339e460e5bb4e2ee12dcec4dd31a01c22c5ca22760fcdad6"
+    }
+  },
+  "audit_command_started": false,
+  "cleanup": {
+    "B_created": false,
+    "all_case_gates_true": true,
+    "both_pid_absent_at_review": true,
+    "both_same_Popen_reaped": true,
+    "init_pid": 91598,
+    "init_returncode": 0,
+    "serve_pid": 91605,
+    "serve_returncode": -15,
+    "socket_directory_removed": true
+  },
+  "client": {
+    "committed_acknowledgments": 27,
+    "exchange_28_elapsed_ns": 30007694666,
+    "progress_rows": 27,
+    "reply_28_bytes": 0,
+    "request_28": "DeliveryUnknown",
+    "request_28_bytes": 1004,
+    "request_28_sendall_returned": true,
+    "request_29_absent": true
+  },
+  "complete9011": false,
+  "durable_final": {
+    "accepted_pending_messages": 1,
+    "clock_phase_counts": {
+      "accept": 28,
+      "begin": 28,
+      "commit": 27
+    },
+    "committed_messages": 27,
+    "foreign_key_check": [],
+    "max_publication_generation": 27,
+    "message_28": {
+      "accepted_seq": 27,
+      "attempt_count": 1,
+      "clock_attempt_ordinal": 28,
+      "clock_phases": [
+        "accept",
+        "begin"
+      ],
+      "first_published_generation": null,
+      "status": "AcceptedPending"
+    },
+    "native_snapshot_hash_validation": "PASS",
+    "protocol_logical_phase_frontier": "185",
+    "protocol_next_attempt_ordinal": 29,
+    "raw_events": 28,
+    "raw_ohlc": 28,
+    "s_clock_events": 83,
+    "s_content_nodes": 104465,
+    "s_content_publications": 27,
+    "s_input_messages": 28,
+    "schema_rows": 43,
+    "sqlite_export_integrity_check": [
+      [
+        "ok"
+      ]
+    ],
+    "structure_deltas": 27,
+    "tables": 24
+  },
+  "independent_first27_validation": "冻结请求与原发送wire逐字一致；原回复wire及原生因果/hash通过；27份持久receipt/clock、进度hash和最终raw_events/raw_ohlc来源全字段一致",
+  "interpretation": "第28请求完整发送但零回复，客户端DeliveryUnknown；停机后导出库为AcceptedPending且无第28代publication/Delta/commit。不能重试、不能计为客户端Committed，也不能从27个ACK推断全9011完成或事前声称真实容量。",
+  "measurements": {
+    "full_resource_capacity": false,
+    "max_individual_process_rss_sample_bytes_lower_bound": 222101504,
+    "max_observed_sample_gap_ns": 136431333,
+    "sample_count": 2582,
+    "strict_RSS_heap_IO_stage_peaks": "UNMEASURED"
+  },
+  "preservation": {
+    "A_final_fullDB_json_exists": true,
+    "A_final_fullDB_sha256": "14f854f8abcf66626d506e231ad83e22bf4661e6d2cbf6072408ccd253736fe1",
+    "full9011_final_validation": "FAIL_EXPECTED_PARTIAL_COUNTS",
+    "input28_persistent_receipt_clock_meta_equal_final_export": true,
+    "root_originals_pre_post": {
+      "count": 27,
+      "exact": true,
+      "original_sqlite_opened": false,
+      "post_sha256": "f02feffb9cc279159710d427b6758adb1b70b3cf73fe03c688f9c5f76a6562ce",
+      "post_status": "PASS_EXACT27_ORIGINALS_AFTER_REAL_STOP",
+      "pre_sha256": "3bca89e81f1bfcf00f1614abfecd344bd439f45c98e2a8cfb3808d5728af901b"
+    },
+    "runner_originals_before_after": {
+      "count": 38,
+      "exact": true
+    }
+  },
+  "resource_sha256": "b3d8b67b723d881a98dd0f4116fdc9651cf05b207111b19dad26fa69c2c54e69",
+  "run_status": "FAIL_OR_PARTIAL",
+  "runner_helper_commit": "a1dd0a82d37915a34ae053d3ac034b402b0f169f",
+  "schema_revision": "issue1394-full9011-actual-review/1",
+  "scope": "固定S7/clock/source的S3 9011 A/B首次实跑，仅A fresh启动",
+  "wholegraph_complete": false
+}

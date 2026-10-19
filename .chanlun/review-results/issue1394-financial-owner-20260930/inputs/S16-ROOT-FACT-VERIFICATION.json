@@ -1,0 +1,45 @@
+{
+  "scope": "fixed S16 shadow independent root fact audit; not production optimization/strict peak/full9011/resources/caller acceptance",
+  "status": "PASS_BOUNDED_ROOT_FACT_AUDIT",
+  "manifest": "/Users/silencehan/Projects/NewChanlun-1394-s16-phase-shadow-20261001/.scratch/s16-phase-shadow-20261001/MANIFEST.json",
+  "manifest_sha256": "a78741be8d1d6f9133bbf571231650d9e33d940d8706b0b7eb3ff69af33a7ccd",
+  "artifact_bytes_sha_checked": 118,
+  "originals_sha_rechecked": 4,
+  "complete_explicit_schema_and_all_application_tables_directly_rederived": true,
+  "sqlite_builtin_autoindices_excluded_from_named_schema_dump": true,
+  "runs": [
+    {
+      "run": "fresh1",
+      "tables": 24,
+      "all_rows": 48403,
+      "handle_total_phase_sum_ns": 77253226918,
+      "last_handle_phase_ns": 13418850083,
+      "three_audits_ns": 11866592334,
+      "audit_fraction": 0.8843225954982151,
+      "sql_final_commit_ns": 37358875,
+      "physical_main_sha_equal": true
+    },
+    {
+      "run": "fresh2",
+      "tables": 24,
+      "all_rows": 48403,
+      "handle_total_phase_sum_ns": 77573228583,
+      "last_handle_phase_ns": 13466313875,
+      "three_audits_ns": 11899643667,
+      "audit_fraction": 0.883660055562161,
+      "sql_final_commit_ns": 40672292,
+      "physical_main_sha_equal": true
+    }
+  ],
+  "fixed_binary_sha_rechecked": true,
+  "all_named_pids_absent": true,
+  "pid_count": 10,
+  "unmeasured": [
+    "global Value heap peak",
+    "all render output/materialization bytes",
+    "disk I/O bytes and kernel COMMIT write latency below sqlite COMMIT call",
+    "all unique audit-budget node accounting: writer uses no AuditBudget"
+  ],
+  "reuse_non_test_compile_and_9_targeted_green_checks": true,
+  "no_9011_extrapolation": true
+}

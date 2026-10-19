@@ -55,10 +55,13 @@ use super::types::{Bar, Fractal, PendingTail, Segment, Stroke};
 use std::rc::Rc;
 
 pub mod canonical;
+/// #1394：完整包含证据的内部共享表示（不可变节点 + 迭代展开，无递归、无逐追加全复制）。
+pub(crate) mod evidence;
 pub mod feature_seq;
 pub mod fractal;
 /// Θ_parse 流水线分步实现（聚焦小文件，coding-style <400 行/文件）。
 pub mod inclusion;
+pub mod second_fold;
 pub mod second_kind;
 pub mod segment;
 pub mod stroke;
@@ -199,8 +202,93 @@ pub fn parse_layer_with_inclusion_facts(
     config: &ThetaConfig,
 ) -> (ParseLayer, inclusion::InclusionFacts) {
     let mut facts = inclusion::process_inclusion_with_facts(bars);
-    let layer = parse_layer_from_facts(&mut facts, &config.parse);
+    let layer = parse_layer_from_facts(&mut facts, &config.parse, &mut None);
     (layer, facts)
+}
+
+/// S 的解析消费面：完整组来源、完整新笔事实与同次线段构造事实，不冒充包含全部步骤的 InclusionFacts。
+pub struct GroupParseEvidence {
+    pub groups: Vec<inclusion::InclusionGroupFact>,
+    pub stroke_facts: stroke::StrokeFacts,
+    /// #1404/#1394 整合：与生产段划分同次产出（TB-02-C 写者消费），不是从最终 Segment 反推。
+    pub segment_facts: segment::SegmentFacts,
+}
+
+/// #1394：从当前完整共享证据读取 S 实际需要的组与新笔事实；不展开历史步骤。
+pub fn parse_layer_with_group_evidence(
+    state: &inclusion::IncrFactsState,
+    config: &ThetaConfig,
+) -> (ParseLayer, GroupParseEvidence) {
+    parse_layer_with_group_evidence_inner(state, config, &mut None)
+}
+
+/// #1420：共享包含证据路径保留同一段核，并接入跨 cut 的 K1 游标簿。
+pub fn parse_layer_with_group_evidence_store(
+    state: &inclusion::IncrFactsState,
+    config: &ThetaConfig,
+    store: second_fold::SecondFoldStore,
+) -> (ParseLayer, GroupParseEvidence, second_fold::SecondFoldStore) {
+    let mut slot = Some(store);
+    let (layer, facts) = parse_layer_with_group_evidence_inner(state, config, &mut slot);
+    (layer, facts, slot.expect("K1 段核保留游标簿"))
+}
+
+fn parse_layer_with_group_evidence_inner(
+    state: &inclusion::IncrFactsState,
+    config: &ThetaConfig,
+    store: &mut Option<second_fold::SecondFoldStore>,
+) -> (ParseLayer, GroupParseEvidence) {
+    if state.degraded() {
+        let raw: Vec<_> = state.raw_iter().copied().collect();
+        let mut facts = inclusion::process_inclusion_with_facts(&raw);
+        let layer = parse_layer_from_facts(&mut facts, &config.parse, store);
+        return (
+            layer,
+            GroupParseEvidence {
+                groups: facts.groups,
+                stroke_facts: facts.stroke_facts.expect("完整解析附带新笔事实"),
+                segment_facts: facts.segment_facts.expect("完整解析附带段构造事实"),
+            },
+        );
+    }
+    let groups = state.materialize_groups();
+    let stroke_facts = stroke::build_stroke_facts_with_positions(
+        state.merged_slice(),
+        &groups,
+        state.unsettled(),
+        state.positions(),
+        &config.parse,
+    );
+    let (layer, segment_facts) = parse_layer_from_strokes(
+        state.merged_slice(),
+        stroke_facts.production_strokes(),
+        &config.parse,
+        store,
+    );
+    (
+        layer,
+        GroupParseEvidence {
+            groups,
+            stroke_facts,
+            segment_facts,
+        },
+    )
+}
+
+/// #1420：同 [`parse_layer_with_inclusion_facts`]，第二种候选经 S 层游标簿（K1，跨轮续扫与恢复）折叠。
+pub fn parse_layer_with_inclusion_facts_store(
+    bars: &[Bar],
+    config: &ThetaConfig,
+    store: second_fold::SecondFoldStore,
+) -> (
+    ParseLayer,
+    inclusion::InclusionFacts,
+    second_fold::SecondFoldStore,
+) {
+    let mut facts = inclusion::process_inclusion_with_facts(bars);
+    let mut slot = Some(store);
+    let layer = parse_layer_from_facts(&mut facts, &config.parse, &mut slot);
+    (layer, facts, slot.unwrap_or_default())
 }
 
 // #1392：包含状态、新笔扫描 checkpoint 和分型尾部缓存共同推进。
@@ -328,14 +416,22 @@ fn parse_layer_from_compact_facts(
 fn parse_layer_from_facts(
     facts: &mut inclusion::InclusionFacts,
     config: &super::config::ParseConfig,
+    store: &mut Option<second_fold::SecondFoldStore>,
 ) -> ParseLayer {
     let merged = &facts.merged;
     let fractals = fractal::detect_fractals(merged);
     let stroke_facts = stroke::build_stroke_facts(facts, config);
     let strokes = stroke_facts.production_strokes();
     facts.stroke_facts = Some(stroke_facts);
-    let (segments, pending_start, segment_facts) =
-        segment::divide_segments_with_facts(&strokes, config);
+    let (segments, pending_start, segment_facts) = match store.take() {
+        Some(s) => {
+            let (segments, pending, f, s) =
+                segment::divide_segments_with_facts_store(&strokes, config, s);
+            *store = Some(s);
+            (segments, pending, f)
+        }
+        None => segment::divide_segments_with_facts(&strokes, config),
+    };
     facts.segment_facts = Some(segment_facts);
     let tail = tail::build_tail(merged, &fractals, &strokes, &segments, pending_start);
     ParseLayer {
@@ -350,6 +446,38 @@ fn parse_layer_from_facts(
     }
 }
 
+/// 组证据路径的装配：段划分走 `divide_segments_with_facts`（与 [`parse_layer_from_facts`] 同一同次
+/// 段事实来源；其 `.0/.1` 与 `divide_segments_with_tail` 为同一核，见 `segment::divide_segments_core`）。
+fn parse_layer_from_strokes(
+    merged: &[Bar],
+    strokes: Vec<Stroke>,
+    config: &super::config::ParseConfig,
+    store: &mut Option<second_fold::SecondFoldStore>,
+) -> (ParseLayer, segment::SegmentFacts) {
+    let fractals = fractal::detect_fractals(merged);
+    let (segments, pending_start, segment_facts) = match store.take() {
+        Some(s) => {
+            let (segments, pending, facts, s) =
+                segment::divide_segments_with_facts_store(&strokes, config, s);
+            *store = Some(s);
+            (segments, pending, facts)
+        }
+        None => segment::divide_segments_with_facts(&strokes, config),
+    };
+    let tail = tail::build_tail(merged, &fractals, &strokes, &segments, pending_start);
+    let layer = ParseLayer {
+        merged_bars: Rc::new(merged.to_vec()),
+        merged_confirmed_len: 0, // 全量构造无增量血缘 ⟹ 0 = classifier 退化全量重建（bit-exact）。
+        segments_confirmed_len: 0,
+        segments_earliest_unsealed: None,
+        fractals: Rc::new(fractals),
+        strokes: Rc::new(strokes),
+        segments: Rc::new(segments),
+        tail: Rc::new(tail),
+    };
+    (layer, segment_facts)
+}
+
 #[cfg(test)]
 mod tb02c_tests;
 
@@ -359,6 +487,53 @@ mod tb02u_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn group_evidence_matches_complete_facts_for_every_prefix() {
+        let cases = [
+            vec![(0, 0, 1), (10, 4, 8), (20, 5, 7), (30, 2, 4), (40, 6, 9)],
+            vec![(0, 1, 4), (2, 2, 6), (9, 3, 6), (15, 7, 9)],
+            vec![(0, 0, 10), (3, 2, 8), (7, 12, 15)],
+            vec![(20, 0, 1), (10, 4, 8), (30, 2, 4)],
+            vec![(0, 0, 1), (0, 4, 8), (2, 2, 4)],
+        ];
+        let config = ThetaConfig::default();
+        for source in cases {
+            let mut state = inclusion::IncrFactsState::empty();
+            let mut bars = Vec::new();
+            for (coord, low, high) in source {
+                let bar = Bar {
+                    source_index: coord,
+                    timestamp: bars.len() as i64,
+                    open: low,
+                    high,
+                    low,
+                    close: high,
+                    volume: 1.0,
+                    untradable: false,
+                };
+                bars.push(bar);
+                state.append(bar);
+                let (expected, complete) = parse_layer_with_inclusion_facts(&bars, &config);
+                let (actual, evidence) = parse_layer_with_group_evidence(&state, &config);
+                assert_eq!(actual, expected, "prefix={}", bars.len());
+                assert_eq!(evidence.groups, complete.groups, "完整组成员/方向/确认来源");
+                assert_eq!(
+                    Some(evidence.stroke_facts),
+                    complete.stroke_facts,
+                    "完整新笔事实"
+                );
+                assert_eq!(
+                    Some(evidence.segment_facts),
+                    complete.segment_facts,
+                    "同次段构造事实"
+                );
+                assert_eq!(actual.merged_confirmed_len, 0);
+                assert_eq!(actual.segments_confirmed_len, 0);
+                assert_eq!(actual.segments_earliest_unsealed, None);
+            }
+        }
+    }
 
     /// 临时交叉验证导出（#84 验证门点3）：导出 Rust OKLO 笔序列 + 线段到 JSON，
     /// 供 Python a_segment_v1.py 用**同一笔序列**跑 segments_from_strokes_v1 对比（隔离笔层）。
@@ -634,3 +809,6 @@ mod tests {
 
 #[cfg(test)]
 mod tb02d_tests;
+
+#[cfg(test)]
+mod tb02w_tests;

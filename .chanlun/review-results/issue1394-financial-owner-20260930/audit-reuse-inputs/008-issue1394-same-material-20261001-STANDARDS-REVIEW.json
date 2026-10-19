@@ -1,0 +1,93 @@
+{
+  "ticket": 1394,
+  "axis": "Standards",
+  "verdict": "PASS",
+  "concept_verdict": "PASS",
+  "candidate_head": "c6255d308fc69d94178916a1dc5534546fb77591",
+  "rust_tree": "7196a77fef56cf87cbe91dc4b135326a142e2395",
+  "baseline": "818e024fdcfacb94564bd97d0be92890f7ab649b",
+  "findings": [],
+  "severity_counts": {
+    "CRITICAL": 0,
+    "HIGH": 0,
+    "MEDIUM": 0,
+    "LOW": 0
+  },
+  "approved_source_sha256": "fab912c6ebe3613969d65fc924368a1d5c9b343f0c3f7a123241645413771d30",
+  "source_head_and_binding_match": true,
+  "git_diff_check_exit": 0,
+  "tests": [
+    {
+      "command": [
+        "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/target/release/deps/s_structure_session-f691a9b42625f576",
+        "--exact",
+        "content_store::tests::same_material_qualification_full_and_oversized_keep_strict_checks",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "stdout": "\nrunning 1 test\ntest content_store::tests::same_material_qualification_full_and_oversized_keep_strict_checks ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 421 filtered out; finished in 0.00s\n\n",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "command": [
+        "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/target/release/deps/s_structure_session-f691a9b42625f576",
+        "--exact",
+        "v3::history::tests::same_material_warm_source_keeps_budget_double_f_and_gate_order",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "stdout": "\nrunning 1 test\ntest v3::history::tests::same_material_warm_source_keeps_budget_double_f_and_gate_order ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 421 filtered out; finished in 0.04s\n\n",
+      "passed": 1,
+      "failed": 0
+    }
+  ],
+  "testbin_sha256": "fc5b2630922d8e368baaf752d51e2e243b67760db034ee1465894b9956ab35a6",
+  "reused_evidence": "Spec-reviewed original 24 tests and release build binding; not rerun by Standards.",
+  "risks": [
+    {
+      "kind": "performance_unmeasured",
+      "locations": [
+        "rust/src/bin/s_session_v2/content_store.rs:164",
+        "rust/src/s_content/job.rs:418"
+      ],
+      "detail": "Hit performs two source-level complete body comparisons; misses copy and allocate. No walltime benefit claimed."
+    },
+    {
+      "kind": "memory_boundary",
+      "locations": [
+        "rust/src/bin/s_session_v2/content_store.rs:135",
+        "rust/src/bin/s_session_v2/content_store.rs:174"
+      ],
+      "detail": "4 MiB is retained Vec capacity only; map/allocator metadata, rounding, current SQL Vec and transient copy excluded. Runtime RSS/heap UNMEASURED."
+    },
+    {
+      "kind": "test_limit",
+      "detail": "Small-cap tests do not measure 65536-entry production boundary, allocator excess capacity, OOM or fullscale peaks."
+    }
+  ],
+  "unmeasured": [
+    "fullscale RSS",
+    "allocator heap",
+    "runtime walltime benefit",
+    "hit rate",
+    "fullscale eligibility peaks"
+  ],
+  "not_run": [
+    "build",
+    "service",
+    "fullsuite",
+    "S16 pilot",
+    "full9011",
+    "full context matrix"
+  ],
+  "free_bytes_last_sample": 330145792,
+  "writes": [
+    "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/STANDARDS-REVIEW.md",
+    "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/STANDARDS-REVIEW.json"
+  ],
+  "source_edits": false,
+  "main_mutation": false,
+  "push": false,
+  "tracker_mutation": false
+}

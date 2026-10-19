@@ -167,9 +167,13 @@ mod tests {
                 let base = 1000i64 + (i as i64) * 2;
                 // 振幅/周期须使 cycle 的逐 bar 斜率能超过 base 斜率（2/bar）且波形非单一频率
                 // （否则特征序列过于规则，线段划分状态机——67课——永不出顶底分型，segments 恒空）：
-                // 双频叠加（主周期 22 + 短周期 6）打破规则性，实测末 bar strokes=85 / segments=8。
-                let cycle =
-                    ((((i as f64) / 22.0).sin() * 60.0) + (((i as f64) / 6.0).sin() * 25.0)) as i64;
+                // 主周期 22 + 短周期 6 打破规则性；慢周期 150（振幅 900，斜率可达 6/bar）给出真实回撤。
+                // #1420：第二种候选越界先到即失效、不复活（078:52，#1344），旧双频单调上行序列唯一
+                // 的一段靠「复活」而来（S8 候选 P=2901648 在 S11 被越过，旧口径在 S23 才确认），
+                // 新口径下 segments=0。三频实测末 bar strokes=47 / segments=3。
+                let cycle = ((((i as f64) / 22.0).sin() * 60.0)
+                    + (((i as f64) / 6.0).sin() * 25.0)
+                    + (((i as f64) / 150.0).sin() * 900.0)) as i64;
                 let close = base + cycle;
                 Bar {
                     source_index: i,
@@ -871,12 +875,15 @@ mod tests {
     }
 
     /// fixture2（#1404）：三笔构造有效的交替线段，簇间上移使上级外缘最终分离。
-    /// raw170 重扫产两个窗口；raw266 有三个上级输入但无中枢，触发空投影早停。
     /// 原9K随机夹具在完整段构造准入后仅剩一层，已不能承担这两项覆盖。
+    /// ★#1419 R8（#812 Z-5，续扫自 last_member+2）：突破段不再兼任下一中枢 seed 首段，每个上级
+    /// 中枢多吃一个连接单元 ⟹ 旧 12 簇 / take(267) 版的空投影早停（旧 raw266）推迟出夹具尾
+    /// （empty_break=0）。簇数 12→14、截断 267→316 后实测：raw204–207 间首个 T>1 重扫，raw314
+    /// 起「上级输入 ≥3 但无中枢」触发空投影早停（读数 T==1=239 / T>1=2 / empty_break=4）。
     #[test]
     fn a3_oracle_pop_rescan_empty() {
         let mut knots = vec![0i64];
-        for j in 0..12 {
+        for j in 0..14 {
             let base = 8 * j;
             knots.extend([base + 10, base + 4, base + 20, base + 8, base + 16, base]);
         }
@@ -890,7 +897,7 @@ mod tests {
         }
         let bars: Vec<Bar> = prices
             .into_iter()
-            .take(267)
+            .take(316)
             .enumerate()
             .map(|(i, price)| Bar {
                 source_index: i,

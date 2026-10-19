@@ -1,0 +1,67 @@
+{
+  "schema_revision": "issue1394-root-economic-observer-audit/1",
+  "ticket": 1394,
+  "status": "PASS_BOUNDED_ACTUAL_HTTP",
+  "manifest_sha256": "53fe8cda6fa5fae453ac36b1d7a24e35027994973b6dd63068fffd6f2e8b4523",
+  "result_sha256": "f5efe798bce78af95ddd442e3e5a5d8e53eb6944e425b3727649275bcb7ac596",
+  "manifest_file_records_hashed": 47,
+  "requests": [
+    {
+      "label": "snapshot-current",
+      "http_status": 200,
+      "elapsed_ms": 2722.936,
+      "response_bytes": 921564,
+      "request_sha256": "215b3b6990c13cac149d60942c04eae64f6d0d86810839527025058c47c2dcb7",
+      "response_sha256": "9f26648e3bbea9b0bd7eb636e5c256800cd2b8c87ba92445b27e1a73ba881384"
+    },
+    {
+      "label": "snapshot-token-replay",
+      "http_status": 200,
+      "elapsed_ms": 11.636,
+      "response_bytes": 921569,
+      "request_sha256": "db16f6a28a32d45e06a8f0e6bf281f43aebf9842b3dca30a1a46a696fe392574",
+      "response_sha256": "4ea92b4d56ece051dff3e075da70fd74599f934f9a6f79e439576ad796550918"
+    },
+    {
+      "label": "snapshot-fixed-latest",
+      "http_status": 200,
+      "elapsed_ms": 2677.973,
+      "response_bytes": 921569,
+      "request_sha256": "e28d1bc272d7ccf0c4ffcb74169986b2dfc8eaa4dc126d0ebdebed401e39566d",
+      "response_sha256": "a908d0c0007632abd72d496f99e325675836070f7fdb59c9a27c5a24945285b7"
+    },
+    {
+      "label": "watch-from-init",
+      "http_status": 200,
+      "elapsed_ms": 15568.529,
+      "response_bytes": 1078412,
+      "request_sha256": "c6c524479a95a7e9f7c00a52e8c362a32da621dd6ac9d4a9959942fbf228990c",
+      "response_sha256": "6915432369584c9f88df1e187348fc33eb9c2544558efeecbac99b6980d68a97"
+    },
+    {
+      "label": "original-decision-alpha",
+      "http_status": 200,
+      "elapsed_ms": 5059.297,
+      "response_bytes": 16552,
+      "request_sha256": "22783a723b797ccbbd16c1af12ae0b122760f4480b132e72efe7769b17786b4a",
+      "response_sha256": "cec2cfe17b335d60cfff38546e67c7e87fa4cbbbcb6b58f8aeaca38893aa3c73"
+    },
+    {
+      "label": "original-grant-e",
+      "http_status": 200,
+      "elapsed_ms": 2217.688,
+      "response_bytes": 5195,
+      "request_sha256": "274833f7a39766dbf11b411139b90a95a4867fcbe7be5796442df6c5cbf86678",
+      "response_sha256": "3301d8b5728596119474fdc07da7b02bb230aabf073f540366e28de894397657"
+    }
+  ],
+  "all_public_header_hash_cause_checked": true,
+  "complete_vector_latest_snapshot_checked": true,
+  "owner_state_unchanged": true,
+  "responsibility_total": "90",
+  "locked_amounts": {
+    "alpha": "30",
+    "beta": "40"
+  },
+  "scope": "new read-only-authorized finance2 economic HTTP, real E/B/Unix state; no browser/structure Q3/all resource/9011/whole graph claim"
+}

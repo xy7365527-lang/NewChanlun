@@ -1,0 +1,37 @@
+{
+  "ticket": 1394,
+  "kind": "readonly static trace, not a dynamic diagnosis",
+  "head": "ed1f184bf7513d960d87b6687c279a657c8fa481",
+  "rust_tree": "5a2acd1e72c3846be38cc29689a82aeb57c68dc6",
+  "source_report_sha256": "71bcfed063f2b85895d242504b499ceff1e580d1c47c18c0640f09c50a3eb1af",
+  "fresh_successful_handle_counts": {
+    "complete_audits": 3,
+    "clock_full_decode": 14,
+    "clock_canonicalizations": 28,
+    "clock_sha256": 14,
+    "clock_deep_clones": 8
+  },
+  "count_scope": "one successful fresh ordinary ingest, no pending resume/recover; counts are static path counts, not measured CPU durations",
+  "historical_work": {
+    "source_audits": "3g+1",
+    "historical_phase_lookups": "15g+5",
+    "total_phase_lookups_including_current_extra13": "15g+18"
+  },
+  "clock_decode_per_audit": 1,
+  "per_batch_consume_header": "compares clock hash and semantic commit only, no whole clock decode",
+  "source_audit_clock_dependency": false,
+  "confounders": [
+    "old internal S16 was earlier source release",
+    "current initial formal fullclock probes were dev opt0",
+    "full clock differs from prefix16 clock",
+    "formal socket versus direct test driver and sampling"
+  ],
+  "root_selected_next_action": "same-source release build and same fullclock/30s formal probes, already executed without production change; independent facts pending",
+  "future_candidate_only": "same-tx immutable validated clock reuse, preserving persistent binding/per-header checks/three audits",
+  "unmeasured": [
+    "clock CPU time",
+    "hash/audit/source/build/store physical phase time",
+    "strict resource peaks"
+  ],
+  "full9011_complete": false
+}

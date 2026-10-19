@@ -1,0 +1,186 @@
+{
+  "schema_revision": "issue1394-s3-entry-evidence/1",
+  "ticket": 1394,
+  "map": 1323,
+  "kind": "open-ticket working draft appendix",
+  "candidate": "46d183a20afe2c68e01e26555531663a7810f065",
+  "integration_head": "dd79cec17748f06d3dd7a2bfe398ca11c3711e31",
+  "integration_rust_tree": "5a2acd1e72c3846be38cc29689a82aeb57c68dc6",
+  "whole_candidate_tree_equal_before_appendix": true,
+  "binary": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/s_structure_session-46d183a20a",
+    "bytes": 18609984,
+    "sha256": "5437fbb5d581d1b48f6a1d3405cae67327113e5a2c7fedd7ce3a1d9ce1e18e91"
+  },
+  "reviews": {
+    "spec": "PASS",
+    "python_standards": "PASS",
+    "rust_standards": "PASS",
+    "actual_independent_facts": "PASS_BOUNDED"
+  },
+  "new_inputs": {
+    "S3-API.md": {
+      "bytes": 2530,
+      "sha256": "90f6c40f6512a5c97c17f4dab426b53ec553491b11516c75affd2bce533ed7fa",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/API.md"
+    },
+    "S3-AUTHOR-RESULT.json": {
+      "bytes": 6949,
+      "sha256": "85a96ac74bbd9b7b9fd6b2a8b901c18ab1b9109f85dacc9d44c7bd24486a8591",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/AUTHOR-RESULT.json"
+    },
+    "S3-SOURCE-MANIFEST.json": {
+      "bytes": 66151,
+      "sha256": "8a331bebd86b998090fdb8926c1dfd3c618f025e66e641eb7f2f133ae8340abc",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/SOURCE-MANIFEST.json"
+    },
+    "S3-FULL.patch": {
+      "bytes": 71443,
+      "sha256": "a32c03adb35e8e92798e0c413f325314fa8939d1aa62f27c24bbb2906f0e6b62",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/candidate.patch"
+    },
+    "S3-DELTA.patch": {
+      "bytes": 7272,
+      "sha256": "c7b3ecc587ea94e849784d31d79baa6a1dc75137a6a2c3a4fefa920a2fd6ded9",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/candidate.delta.patch"
+    },
+    "S3-SPEC.md": {
+      "bytes": 4577,
+      "sha256": "f9fcb7b923e71ad1c765bd466cae7cd6c3ef3922d5cae09dab204f684eedcf92",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/SPEC-REVIEW.md"
+    },
+    "S3-SPEC.json": {
+      "bytes": 6099,
+      "sha256": "4871213083c346138dec4a5f2b324e79ad141a2ff73b08051753639901576700",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/SPEC-REVIEW.json"
+    },
+    "S3-PYTHON-STANDARDS.md": {
+      "bytes": 2019,
+      "sha256": "5c74087bcd9231a03d54a4d15aac4f06c141d007e5cd483d12e2bab1f37b81a2",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/PYTHON-STANDARDS.md"
+    },
+    "S3-PYTHON-STANDARDS.json": {
+      "bytes": 3993,
+      "sha256": "3f2115135f6cc0b16a8a231fc2ea9f05886a04a0f79f1a68bc65dd46eb515504",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/PYTHON-STANDARDS.json"
+    },
+    "S3-RUST-STANDARDS.md": {
+      "bytes": 3756,
+      "sha256": "a6f4022fb1c48b8520aedefb53640b89fc81fa71d2d97bf707e676ba28d9ebc9",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/RUST-STANDARDS.md"
+    },
+    "S3-RUST-STANDARDS.json": {
+      "bytes": 3218,
+      "sha256": "f5401db46a0662bdbf294e4dfe8868fd26ec7cea2406cf636f9a04e2ec7f0ec9",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/RUST-STANDARDS.json"
+    },
+    "S3-ACTUAL-RESULT.md": {
+      "bytes": 1677,
+      "sha256": "222b30d56a2832a0312cc9846dba01a9e0205a36e569eeb8a89d6cf1142a2367",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-actual-lifecycle-20261001/RESULT.md"
+    },
+    "S3-ACTUAL-RESULT.json": {
+      "bytes": 11936,
+      "sha256": "1c8f40e860dbe852af3386df8bdf6d9e2660601cca7e4a0f4d8463a3b08a4256",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-actual-lifecycle-20261001/RESULT.json"
+    },
+    "S3-ACTUAL-MANIFEST.json": {
+      "bytes": 151493,
+      "sha256": "4d4c36ea248d2987212b01f728e6a7f3beee3ec60a0e31fc50c4af06383195c1",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-actual-lifecycle-20261001/MANIFEST.json"
+    },
+    "S3-ACTUAL-BINDING.json": {
+      "bytes": 1852,
+      "sha256": "5823cbc76521efb2f4bd9cdf735b80a3720e61de9d8fb54258a14029e6618d50",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-actual-lifecycle-20261001/BINDING-FINAL.json"
+    },
+    "S3-ACTUAL-FACTS.md": {
+      "bytes": 5448,
+      "sha256": "98ba578469d9247d0f607a8a14bfcabec04553f8c67d7e8a62f038ca6e174a7f",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-actual-lifecycle-20261001/INDEPENDENT-FACT-REVIEW.md"
+    },
+    "S3-ACTUAL-FACTS.json": {
+      "bytes": 11666,
+      "sha256": "a47a2812c75f577c8fb63d5ec072dbc3832df0237bcad0605efd188ff0881350",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-actual-lifecycle-20261001/INDEPENDENT-FACT-REVIEW.json"
+    },
+    "S3-RESOURCES.json": {
+      "bytes": 241,
+      "sha256": "d6abf34ee884fc318566bb36dca2d4bdda17182a68ccc2381d1eb46cbaa53dad",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-s3-named-resources-20261001/resources.json"
+    },
+    "S3-RESOURCE-PREPARATION.md": {
+      "bytes": 3724,
+      "sha256": "50b9c528fb6253d31b038e96aca220f2ad3f9620fd33138514974af375e3cf31",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-s3-named-resources-20261001/RESOURCE-PREPARATION.md"
+    },
+    "S3-RESOURCE-PREPARATION.json": {
+      "bytes": 10222,
+      "sha256": "60a7c269072ede47a3e15423064ea9216d5c7b6442ac5970ffa70645bf85cf98",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-s3-named-resources-20261001/RESOURCE-PREPARATION.json"
+    },
+    "S3-RESOURCE-MANIFEST.json": {
+      "bytes": 6686,
+      "sha256": "5854c22875e4cbf52bb0aaa1715a00816741378e058d5b30407be442640c905d",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-s3-named-resources-20261001/MANIFEST.json"
+    },
+    "S3-ROOT-RESOURCE-REVIEW.json": {
+      "bytes": 1007,
+      "sha256": "40701e9f5197a34b33df43abf8be83fd74b341269fe94152fc7d3dc096a71b0f",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-s3-named-resources-20261001/ROOT-RESOURCE-REVIEW.json"
+    },
+    "S3-LIFECYCLE-CLOCK.json": {
+      "bytes": 345,
+      "sha256": "66438b4cfa427d923eb5ad90632937cba1f1c1487821dd83ce5890f2820db4cf",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-s3-named-resources-20261001/LIFECYCLE-CLOCK-TEST-INPUT.json"
+    },
+    "S3-BASELINE-ARCHIVE-MANIFEST.json": {
+      "bytes": 1367,
+      "sha256": "77722696ddb44da1e7331287bc01ec0757785069f098da8cf6992d7991d91846",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/BASELINE-ARCHIVE-MANIFEST.json"
+    }
+  },
+  "prior_packet92_inputs_unchanged": true,
+  "actual": {
+    "manifest_files": 402,
+    "old_live_originals_checked": 95,
+    "raw_binary_children": 15,
+    "complete_wire_replies": 19,
+    "A_pid": 72576,
+    "A_exit": -15,
+    "B_pid": 72645,
+    "B_exit": -2,
+    "C_initial_failure_pid": 72679,
+    "C_initial_failure_cleanup_exit": -15,
+    "C_recover_exit": 0,
+    "C_stale_start_exit": 1,
+    "C_epoch2_pid": 77676,
+    "C_epoch2_exit": -15,
+    "resource_wrong_invalid_non_utf8": "actual exit1, exact DB/WAL/SHM byte/SHA/mtime/inode unchanged and no new writer lock/socket",
+    "frame_cap_and_cap_plus_one": [
+      4096,
+      4097
+    ],
+    "read_no_lf_deadline_ms": 1005.48,
+    "second_connection_rejected": true,
+    "failures_preserved": [
+      "observer sidecar baseline omission",
+      "C cross-clock root comparison"
+    ],
+    "scope": "ordinary TestOnly singlebar S3 and previously committed original recovery; not pending/fault/FIFO/production capacity"
+  },
+  "not_claimed": [
+    "Q or Browser",
+    "production capacity or all seven resource peaks",
+    "queue actual saturation/write backpressure/response expiry",
+    "RSS zero",
+    "conditionalFIFO/AcceptedPending fault recovery matrix",
+    "9011/S16 expansion",
+    "main/push/tracker"
+  ],
+  "main_merged": false,
+  "pushed": false,
+  "goal_complete": false,
+  "raw_runtime_evidence_location": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-actual-lifecycle-20261001",
+  "source_of_true_time": "frozen TestOnly clocks, not real market-time/live evidence"
+}

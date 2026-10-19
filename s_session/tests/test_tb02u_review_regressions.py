@@ -229,12 +229,23 @@ BAD_RULES = [
     RULE.replace("+new-bi/1", "+new-bi/1+new-bi/1"),
     "s2-axis-quantifiers+new-bi/2+segment-second/2+center-seed/1+center-pair/1",
     "s2-axis-quantifiers+new-bi/2+segment-second/2+center-seed/1+center-pair/1+raw-initialization-w/1",
+    # #1393×#1419 整合负控：错序、跨 revision 挂 W 后缀、W 版本号变体、重复后缀均不得经剥后缀放行。
+    "s2-axis-quantifiers+segment-second/1+new-bi/1+raw-initialization-w/1",
+    "s2-axis-quantifiers+new-bi/2+segment-second/1+raw-initialization-w/1",
+    "s2-axis-quantifiers+new-bi/2+segment-second/2+raw-initialization-w/1",
+    RULE.replace("raw-initialization-w/1", "raw-initialization-w/2"),
+    RULE + "+raw-initialization-w/1+raw-initialization-w/1",
 ]
 
 
 class ReviewRegressionTests(unittest.TestCase):
     def test_exact_rule_admission_preserves_signed_versions(self):
-        for rule, axes_count in zip(contract.RULE_BASES, (9, 13, 16, 17, 17)):
+        # #1393×#1419：白名单含 CF 已签全部串（逐条显式轴数），W 单域历史串映射其基规则。
+        expected_axes = {"s2-axis-quantifiers": 9, "s2-axis-quantifiers+new-bi/1": 13, "s2-axis-quantifiers+new-bi/2": 13,
+                         "s2-axis-quantifiers+new-bi/1+segment-first/1": 16}
+        self.assertEqual(set(contract.RULE_BASES), set(contract.RULE_CONTRACTS) | {RULE})
+        for rule in contract.RULE_BASES:
+            axes_count = expected_axes.get(contract.base_rule(rule), 17)
             meta = dict(META, rule_revision=rule)
             record = initialized()["objects"][1]
             if rule != RULE:
@@ -252,6 +263,23 @@ class ReviewRegressionTests(unittest.TestCase):
                     contract.validate_fact(record, meta)
                 with self.assertRaisesRegex(ValueError, "完整规则组合"):
                     integrity._published_axes(rule)
+
+    def test_unknown_cc004_kind_rejected_python_and_javascript(self):
+        # #1393×#1419：前缀 CC-004 只是证据归轴，不放行未知 kind。
+        record = pending()["objects"][1]
+        record["kind"] = "CC-004.initialization_v2"
+        record["fact_key"] = contract.canonical([record["kind"], "0"]).decode()
+        seal(record)
+        with self.assertRaises(ValueError):
+            contract.validate_fact(record, META)
+        script = r"""
+const c = require(process.argv[1]);
+const r = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+c.validateTyped(r).then(() => { process.stderr.write('未知 CC-004 kind 被放行'); process.exitCode = 1; }, () => process.stdout.write('rejected'));
+"""
+        client = Path(__file__).resolve().parents[1] / "browser/tb01c-client.js"
+        result = subprocess.run(["node", "-e", script, str(client)], input=json.dumps(record), text=True, capture_output=True)
+        self.assertEqual((result.returncode, result.stdout), (0, "rejected"), result.stderr)
 
     def test_legal_active_and_withdrawn_exact_revisions(self):
         for snapshot in valid_snapshots():
@@ -294,13 +322,13 @@ async function seal(r, meta) {
   r.object_id = 'obj-' + await c.sha256({...Object.fromEntries(['kind','fact_key','payload','input_refs'].map(k => [k,r[k]])), ...meta});
 }
 async function validate(s, meta) {
-  for (const r of all(s)) { c.validateTyped(r); await c.validateTB02Identity(r, meta); }
-  c.validateTB02CutSources(s, meta.rule_revision);
+  for (const r of all(s)) { await c.validateTyped(r); await c.validateTB02Identity(r, meta); }
+  await c.validateTB02InitializationSources({...s, rule_revision: meta.rule_revision});
 }
 (async () => {
   for (const s of cases.valid) await validate(s, cases.meta);
   for (const {record, meta, valid} of cases.schemas) {
-    c.validateTyped(record);
+    await c.validateTyped(record);
     let accepted = true;
     try { await c.validateTB02Identity(record, meta); }
     catch (e) { if (!e.message.includes('段合同与cut规则版本不符')) throw e; accepted = false; }
@@ -308,21 +336,21 @@ async function validate(s, meta) {
   }
   for (const {name, snapshot, error} of cases.invalid) {
     // 所有反例均先通过实际身份入口，再要求来源/同 cut 门拒绝。
-    for (const r of all(snapshot)) { c.validateTyped(r); await c.validateTB02Identity(r, cases.meta); }
+    for (const r of all(snapshot)) { await c.validateTyped(r); await c.validateTB02Identity(r, cases.meta); }
     let rejected = false;
-    try { c.validateTB02CutSources(snapshot, cases.meta.rule_revision); }
+    try { await c.validateTB02InitializationSources({...snapshot, rule_revision: cases.meta.rule_revision}); }
     catch (e) { if (!e.message.includes(error)) throw new Error(name + ': ' + e.message); rejected = true; }
     if (!rejected) throw new Error(name + ': 非法来源被放行');
   }
   for (const rule of cases.rules) {
     const meta = {...cases.meta, rule_revision:rule}, r = structuredClone(cases.valid[0].objects[1]);
     if (rule !== cases.meta.rule_revision) { delete r.payload.initialization_policy_revision; delete r.payload.initial_direction_evidence; }
-    await seal(r, meta); c.validateTyped(r); await c.validateTB02Identity(r, meta);
+    await seal(r, meta); await c.validateTyped(r); await c.validateTB02Identity(r, meta);
   }
   for (const rule of cases.bad_rules) {
     const meta = {...cases.meta, rule_revision:rule}, r = structuredClone(cases.valid[1].objects[1]);
-    await seal(r, meta); c.validateTyped(r);
-    for (const call of [() => c.validateTB02Identity(r, meta), () => c.validateTB02CutSources({generation:'0',objects:[],withdrawn_objects:[],raw_history:[]}, rule)]) {
+    await seal(r, meta); await c.validateTyped(r);
+    for (const call of [() => c.validateTB02Identity(r, meta), () => c.validateTB02InitializationSources({generation:'0',objects:[],withdrawn_objects:[],raw_history:[],rule_revision:rule})]) {
       let rejected = false;
       try { await call(); } catch (e) { if (!e.message.includes('完整规则组合')) throw e; rejected = true; }
       if (!rejected) throw new Error('非法完整规则被放行: ' + rule);
@@ -336,7 +364,7 @@ async function validate(s, meta) {
                                 text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout), dict(valid=len(cases["valid"]), rejected=len(cases["invalid"]),
-                                                       rules=5, bad_rules=len(BAD_RULES)))
+                                                       rules=len(contract.RULE_BASES), bad_rules=len(BAD_RULES)))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,28 @@
+{
+  "status": "PASS_BOUNDED_ROOT_RECOMPUTED_FIELD_AUDIT_PILOT",
+  "checks": [
+    {
+      "repeat": 0,
+      "SQL_old": 8090429,
+      "SQL_new": 7753079,
+      "F_each": 3400571,
+      "fingerprint": "42444317d86a03e066867bdfccfd0bb9f07010a1a2655483fdc377b7a115b8a0",
+      "marker_order_and_overlay_equal": true,
+      "all_four_member_cut_fields_equal": true
+    },
+    {
+      "repeat": 1,
+      "SQL_old": 8090429,
+      "SQL_new": 7753079,
+      "F_each": 3400571,
+      "fingerprint": "42444317d86a03e066867bdfccfd0bb9f07010a1a2655483fdc377b7a115b8a0",
+      "marker_order_and_overlay_equal": true,
+      "all_four_member_cut_fields_equal": true
+    }
+  ],
+  "source_file_sha": "aa5ee2c0261e7487446c9991559e028d87475a405c741fe5b331b74b0c11e3b5",
+  "scope": "same pending raw28/cuts27;not preinput28;not service/full9011",
+  "wall_causal_speedup": "UNMEASURED",
+  "heap_RSS_peaks": "UNMEASURED",
+  "C_complete": false
+}

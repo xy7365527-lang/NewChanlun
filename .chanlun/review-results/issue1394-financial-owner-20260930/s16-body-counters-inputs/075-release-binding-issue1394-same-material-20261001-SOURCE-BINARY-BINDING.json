@@ -1,0 +1,55 @@
+{
+  "head": "c6255d308fc69d94178916a1dc5534546fb77591",
+  "rust_tree": "7196a77fef56cf87cbe91dc4b135326a142e2395",
+  "binary": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/target/release/s_structure_session",
+    "bytes": 7180704,
+    "mtime_ns": 1790827802128201421,
+    "inode": 324585774,
+    "sha256": "c098bf76bb7870443b7564714ba2f9110f2c5593a3180ca13f9888c01ee16d17"
+  },
+  "patch": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/candidate.patch",
+    "bytes": 33313,
+    "mtime_ns": 1790827974187177972,
+    "inode": 324586318,
+    "sha256": "677164b5a0ca4e43ab325502853f3ea72d4ad01313fb43a5fe8152124f19068e"
+  },
+  "source": [
+    {
+      "path": "rust/src/s_content/job.rs",
+      "baseline_git_blob": "f4f440df5a723ff1ea437538ec5a9c19741c464f",
+      "baseline_sha256": "f1ec4f6b417f6f86f7d2e24df06cd03c313279360d2ea5181766d284940a1b1e",
+      "candidate_sha256": "e10073af1c734df9640273ba17b9e9c2b0caa2055f64b16f59ede6508a8e89d9",
+      "bytes": 51908
+    },
+    {
+      "path": "rust/src/s_content.rs",
+      "baseline_git_blob": "6f68f147b0977377e91de661874e212f25b833e2",
+      "baseline_sha256": "db7770a693bf3e8a31be1f2edec9aff600114e913bd6be6ec99fe3b732ed4561",
+      "candidate_sha256": "0d9b2aaef32ae1ba36643c7dc130cd11bd6cbf9bceb63d0391fbb4700332c013",
+      "bytes": 124251
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/content_store.rs",
+      "baseline_git_blob": "47dcf8e0db613b348c520030da7e692682c9f000",
+      "baseline_sha256": "3a0c3a6ed443541154b672a1ecb32bcf7924ca6e5d21347b80a1f2aaebaf78f1",
+      "candidate_sha256": "185799c4c832993e55980f9b4163e5e452ac57fd76a76a567bb865a2bc30509e",
+      "bytes": 27406
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/history.rs",
+      "baseline_git_blob": "25013c4fa38f5dfcd091d3824e006dc34cef0e4e",
+      "baseline_sha256": "e859176388294e368b16aa943c6b759873be2d85e26242e40546d867ee5f0a5a",
+      "candidate_sha256": "37d4b07309d1047d48540a536f03737fabce7395ba7fcb3082f464d3c477da3e",
+      "bytes": 60987
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/state.rs",
+      "baseline_git_blob": "2a9de9642c23a9e0a4d96dca0348678adc53bfb2",
+      "baseline_sha256": "f2ea61ad501c797a4e6c9ed127f06adfbbd0cdfa014a78e6217aaf0cf7efbd5b",
+      "candidate_sha256": "7c5b2bdc92e6336449d89eb6fc69df078ffbc3d0eccd9912f734bb79d31b53d0",
+      "bytes": 31803
+    }
+  ]
+}

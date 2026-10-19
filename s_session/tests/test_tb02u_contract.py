@@ -109,13 +109,16 @@ class ContractTests(unittest.TestCase):
         script = """
 const c = require(process.argv[1]);
 const cases = JSON.parse(require('fs').readFileSync(0, 'utf8'));
-for (const value of cases.valid) c.validateTyped(value);
-for (const value of cases.invalid) {
-  let rejected = false;
-  try { c.validateTyped(value); } catch (_) { rejected = true; }
-  if (!rejected) throw new Error('非法初始化对象被放行');
-}
-process.stdout.write(JSON.stringify({valid:cases.valid.length,rejected:cases.invalid.length}));
+(async () => {
+  // CF #1394 起 typed 校验为异步 Q3 入口（判据不变）。
+  for (const value of cases.valid) await c.validateTyped(value);
+  for (const value of cases.invalid) {
+    let rejected = false;
+    try { await c.validateTyped(value); } catch (_) { rejected = true; }
+    if (!rejected) throw new Error('非法初始化对象被放行');
+  }
+  process.stdout.write(JSON.stringify({valid:cases.valid.length,rejected:cases.invalid.length}));
+})().catch(e => { process.stderr.write(e.stack); process.exitCode = 1; });
 """
         result = subprocess.run(["node", "-e", script, str(client)],
                                 input=json.dumps(dict(valid=valid, invalid=invalid)),

@@ -1,0 +1,13 @@
+{
+  "target": "/Volumes/AgentStorage/local-code-workers/NewChanlun-1394-reuse-pilot-20261001",
+  "scope": "new owned directory under existing worker parent, alternate directory-lock/access check",
+  "already_exists": false,
+  "pid": 77544,
+  "timeout": true,
+  "exit": -15,
+  "elapsed_ns": 10003337791,
+  "stdout": "",
+  "stderr": "",
+  "terminal_reaped": true,
+  "exists_after": false
+}

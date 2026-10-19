@@ -1,0 +1,34 @@
+TAP version 13
+# Subtest: 失败刷新、失败Watch与取消保同committed时旧details/导出保持可用；换cut后旧闭包拒绝
+ok 1 - 失败刷新、失败Watch与取消保同committed时旧details/导出保持可用；换cut后旧闭包拒绝
+  ---
+  duration_ms: 48457.986542
+  type: 'test'
+  ...
+# Subtest: 原Q3 live控件可见、健康poll续排、busy不重入、stop与错误停止，原pollMs不扩默认
+ok 2 - 原Q3 live控件可见、健康poll续排、busy不重入、stop与错误停止，原pollMs不扩默认
+  ---
+  duration_ms: 48625.019833
+  type: 'test'
+  ...
+# Subtest: legacy load所有0..12真实微任务调度拒旧校验安装并保最新失败提示
+ok 3 - legacy load所有0..12真实微任务调度拒旧校验安装并保最新失败提示
+  ---
+  duration_ms: 13.647458
+  type: 'test'
+  ...
+# Subtest: legacy stream所有0..40真实微任务调度拒旧Delta/cursor安装，健康路径保留
+ok 4 - legacy stream所有0..40真实微任务调度拒旧Delta/cursor安装，健康路径保留
+  ---
+  duration_ms: 90.283625
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 97274.767208

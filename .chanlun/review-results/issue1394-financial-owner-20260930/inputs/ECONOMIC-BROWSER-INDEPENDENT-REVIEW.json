@@ -1,0 +1,447 @@
+{
+  "all_manifest_descriptor_unique_files_verified": 418,
+  "asset_http": [
+    {
+      "status": 200,
+      "url": "http://127.0.0.1:38794/economic.html"
+    },
+    {
+      "status": 200,
+      "url": "http://127.0.0.1:38794/tb01c-client.js"
+    },
+    {
+      "status": 200,
+      "url": "http://127.0.0.1:38794/tb03a-client.js"
+    }
+  ],
+  "boundaries": [
+    "HTTP economic /2 browser path only",
+    "No independent content node closure or seven-field text binding",
+    "No top-level economic root recomputation without predecessor",
+    "No controller/Q3/9011/#1460 completion",
+    "No production money or trade execution",
+    "No arbitrary-path or all-resource proof",
+    "No service/browser replay; no archive remount; no source/funds/main/push/comments changed",
+    "Source hashes bind executable inputs; CDP proves asset GET200 but did not retain asset wire bodies for separate wire SHA",
+    "Historic ROOT-FINAL-CLIENT-AUDIT PENDING preserved; final9f PASS report independently bound"
+  ],
+  "branch": "codex/1394-content-v3",
+  "browser_manifest_sha256": "d7881aa37db27ab206e5a8c8046c916608fde8eb78dc9a3b67783d7d193a5a82",
+  "checked_utc": "2026-09-30T15:27:18.164262+00:00",
+  "client_assets": [
+    {
+      "bytes_exact": true,
+      "fixed_commit": "9f923877e7d2dd9bb9c0a8cfe0c065bbfbda38da",
+      "path": "s_session/browser/economic.html",
+      "sha256": "946a181984ed43aa575af075fdb8e92033ea23fca1db033b67ae36f246f655a8"
+    },
+    {
+      "bytes_exact": true,
+      "fixed_commit": "9f923877e7d2dd9bb9c0a8cfe0c065bbfbda38da",
+      "path": "s_session/browser/tb03a-client.js",
+      "sha256": "0bf62a6bc55ef7908c6d6e630e0776023272f9fc34df44bac29f1f9d8e28e9d3"
+    },
+    {
+      "bytes_exact": true,
+      "fixed_commit": "9f923877e7d2dd9bb9c0a8cfe0c065bbfbda38da",
+      "path": "s_session/tests/tb03b_browser.cjs",
+      "sha256": "74eba89e9264a3a859c0dc88957a013f7b58894eeab426aac707b1c4939747ff"
+    },
+    {
+      "bytes_exact": true,
+      "fixed_commit": "9f923877e7d2dd9bb9c0a8cfe0c065bbfbda38da",
+      "path": "s_session/tests/test_tb03a_voice_client.cjs",
+      "sha256": "eecaaebe6f0aa17590c2798f1a9f407a56e450b6550adcdcd65ed99b805fd762"
+    }
+  ],
+  "commit_first_known_ns": [
+    "101",
+    "111"
+  ],
+  "decisions": [
+    {
+      "actual_quantity_unchanged": true,
+      "current": "Committed",
+      "domain": "B:alpha",
+      "execution_eligibility": "None",
+      "locked_amount": "30",
+      "prepared_commit_ns": "72",
+      "prepared_first_known_ns": "71",
+      "prepared_native_record_exact": true,
+      "prepared_no_grant_or_commit_receipt": true
+    },
+    {
+      "actual_quantity_unchanged": true,
+      "current": "Committed",
+      "domain": "B:beta",
+      "execution_eligibility": "None",
+      "locked_amount": "40",
+      "prepared_commit_ns": "82",
+      "prepared_first_known_ns": "81",
+      "prepared_native_record_exact": true,
+      "prepared_no_grant_or_commit_receipt": true
+    }
+  ],
+  "domains": [
+    {
+      "current_commit_ns": "102",
+      "current_cut": {
+        "commit_seq": "4",
+        "domain_id": "B:alpha",
+        "root_hash": "556ec074eb237a4e48d761649e23bbbd0954666c2a68dd2f652b8af24f68dc5b"
+      },
+      "current_prepared_watch_image_hash_recomputed": true,
+      "domain": "B:alpha",
+      "historical_cut": {
+        "commit_seq": "3",
+        "domain_id": "B:alpha",
+        "root_hash": "0c826131b011f713ce81607cff445d299f363f0a247f279218ac83bd78480771"
+      },
+      "native_image_cut_exact": true,
+      "watch_last_cut_image_hash_commit_ns_exact": true
+    },
+    {
+      "current_commit_ns": "112",
+      "current_cut": {
+        "commit_seq": "4",
+        "domain_id": "B:beta",
+        "root_hash": "89cc24bef22721356b5a878ce58f9b7af496c5653d4e932df972eaf39083841a"
+      },
+      "current_prepared_watch_image_hash_recomputed": true,
+      "domain": "B:beta",
+      "historical_cut": {
+        "commit_seq": "3",
+        "domain_id": "B:beta",
+        "root_hash": "ee371172c9a3f6a4d74d18a83d9694bdc3aaad075d7f18ab4abf90a67f1875c2"
+      },
+      "native_image_cut_exact": true,
+      "watch_last_cut_image_hash_commit_ns_exact": true
+    },
+    {
+      "current_commit_ns": "92",
+      "current_cut": {
+        "commit_seq": "4",
+        "domain_id": "E",
+        "root_hash": "8feb56d48b3ec1c097b55f5ac01e18de2f9015dba1190135d429bafb994184d2"
+      },
+      "current_prepared_watch_image_hash_recomputed": true,
+      "domain": "E",
+      "historical_cut": {
+        "commit_seq": "3",
+        "domain_id": "E",
+        "root_hash": "c71f259bb5583919147fc956efa4ad7ca308e7b137a01ea1639e9e6e3fc05fd4"
+      },
+      "native_image_cut_exact": true,
+      "watch_last_cut_image_hash_commit_ns_exact": true
+    }
+  ],
+  "findings": [],
+  "head": "3b53744be109aa18932bdc50d3590e10dde9b32d",
+  "historical_responsibility_total": "20",
+  "http": [
+    {
+      "cdp_exact_body_match": true,
+      "http_status": 200,
+      "request_id": "44592.6",
+      "response_bytes": 429,
+      "route": "ready"
+    },
+    {
+      "causal_refs_exact": true,
+      "cdp_exact_body_match": true,
+      "eleven_header_fields_exact": true,
+      "http_status": 200,
+      "payload_hashes_recomputed": true,
+      "reply_id_recomputed": true,
+      "request_bytes": 466,
+      "request_id": "44592.7",
+      "response_bytes": 921572,
+      "route": "snapshot"
+    },
+    {
+      "causal_refs_exact": true,
+      "cdp_exact_body_match": true,
+      "eleven_header_fields_exact": true,
+      "http_status": 200,
+      "payload_hashes_recomputed": true,
+      "reply_id_recomputed": true,
+      "request_bytes": 466,
+      "request_id": "44592.9",
+      "response_bytes": 80221,
+      "route": "snapshot"
+    },
+    {
+      "causal_refs_exact": true,
+      "cdp_exact_body_match": true,
+      "eleven_header_fields_exact": true,
+      "http_status": 200,
+      "payload_hashes_recomputed": true,
+      "reply_id_recomputed": true,
+      "request_bytes": 795,
+      "request_id": "44592.10",
+      "response_bytes": 922213,
+      "route": "watch"
+    },
+    {
+      "causal_refs_exact": true,
+      "cdp_exact_body_match": true,
+      "eleven_header_fields_exact": true,
+      "http_status": 200,
+      "payload_hashes_recomputed": true,
+      "reply_id_recomputed": true,
+      "request_bytes": 839,
+      "request_id": "44592.11",
+      "response_bytes": 424940,
+      "route": "snapshot"
+    },
+    {
+      "causal_refs_exact": true,
+      "cdp_exact_body_match": true,
+      "eleven_header_fields_exact": true,
+      "http_status": 200,
+      "payload_hashes_recomputed": true,
+      "reply_id_recomputed": true,
+      "request_bytes": 839,
+      "request_id": "44592.12",
+      "response_bytes": 424908,
+      "route": "snapshot"
+    },
+    {
+      "causal_refs_exact": true,
+      "cdp_exact_body_match": true,
+      "eleven_header_fields_exact": true,
+      "http_status": 200,
+      "payload_hashes_recomputed": true,
+      "reply_id_recomputed": true,
+      "request_bytes": 839,
+      "request_id": "44592.13",
+      "response_bytes": 232166,
+      "route": "snapshot"
+    },
+    {
+      "causal_refs_exact": true,
+      "cdp_exact_body_match": true,
+      "eleven_header_fields_exact": true,
+      "http_status": 200,
+      "payload_hashes_recomputed": true,
+      "reply_id_recomputed": true,
+      "request_bytes": 839,
+      "request_id": "44592.14",
+      "response_bytes": 921572,
+      "route": "snapshot"
+    },
+    {
+      "causal_refs_exact": true,
+      "cdp_exact_body_match": true,
+      "eleven_header_fields_exact": true,
+      "http_status": 200,
+      "payload_hashes_recomputed": true,
+      "reply_id_recomputed": true,
+      "request_bytes": 858,
+      "request_id": "44592.15",
+      "response_bytes": 16553,
+      "route": "original"
+    },
+    {
+      "causal_refs_exact": true,
+      "cdp_exact_body_match": true,
+      "eleven_header_fields_exact": true,
+      "http_status": 200,
+      "payload_hashes_recomputed": true,
+      "reply_id_recomputed": true,
+      "request_bytes": 856,
+      "request_id": "44592.16",
+      "response_bytes": 16481,
+      "route": "original"
+    },
+    {
+      "causal_refs_exact": true,
+      "cdp_exact_body_match": true,
+      "eleven_header_fields_exact": true,
+      "http_status": 200,
+      "payload_hashes_recomputed": true,
+      "reply_id_recomputed": true,
+      "request_bytes": 908,
+      "request_id": "44592.17",
+      "response_bytes": 5203,
+      "route": "original"
+    },
+    {
+      "causal_refs_exact": true,
+      "cdp_exact_body_match": true,
+      "eleven_header_fields_exact": true,
+      "http_status": 200,
+      "payload_hashes_recomputed": true,
+      "reply_id_recomputed": true,
+      "request_bytes": 908,
+      "request_id": "44592.18",
+      "response_bytes": 5198,
+      "route": "original"
+    }
+  ],
+  "http_counts": {
+    "all": 12,
+    "discovery": 1,
+    "original": 4,
+    "post": 11,
+    "snapshot": 6,
+    "watch": 1
+  },
+  "independent_client_review_binding": {
+    "/Users/silencehan/Projects/NewChanlun-1394-economic-testclient-v2-20260930/.scratch/issue1394-economic-testclient-v2-20260930/INPUT-FINAL-INDEPENDENT-REVIEW.json": "91805564dc3adc561aa9747d61c2155434b9854c753c3626715ccb7e283b9e03",
+    "/Users/silencehan/Projects/NewChanlun-1394-economic-testclient-v2-20260930/.scratch/issue1394-economic-testclient-v2-20260930/INPUT-FINAL-INDEPENDENT-REVIEW.md": "244b5617bb9381919328a820351965c4d68a22b07e85a05c92605aabdc6db5a1"
+  },
+  "issue": 1394,
+  "manifest_mismatches": [],
+  "method": "Independent Python standard library only; no product imports or verifySnapshot. UTF8 sorted-key ensure_ascii=False compact JSON plus SHA256; full object native Unix comparison; CDP request/response/body correlation; fixed git show bytes; fresh ps/lsof/hdiutil. Existing case2 acceptance reused only for original source provenance.",
+  "originals": [
+    {
+      "browser_saved_reply_matches_actual_http": true,
+      "entire_original_object_matches_native": true,
+      "native_canonical_sha256": "c66f08613ec44160694183b09fc43d79944778a1f55a5b7ab51290bbf3d76312",
+      "request": {
+        "domain": "B:alpha",
+        "id": "alpha",
+        "kind": "decision"
+      }
+    },
+    {
+      "browser_saved_reply_matches_actual_http": true,
+      "entire_original_object_matches_native": true,
+      "native_canonical_sha256": "f79f41ae822b7a37a6acfead10aac736f642afc0f2cdd71d231bb742c0425fc9",
+      "request": {
+        "domain": "B:beta",
+        "id": "beta",
+        "kind": "decision"
+      }
+    },
+    {
+      "browser_saved_reply_matches_actual_http": true,
+      "entire_original_object_matches_native": true,
+      "native_canonical_sha256": "da54a221556402e7c5c1024152e0cf786fda97aa8b1238573b3bdd76ace29fae",
+      "request": {
+        "domain": "E",
+        "id": "57e3d76efd49570b2969255c23dbcf96d4f5d6c30cce86dfb788f2b277e4b9f9",
+        "kind": "grant"
+      }
+    },
+    {
+      "browser_saved_reply_matches_actual_http": true,
+      "entire_original_object_matches_native": true,
+      "native_canonical_sha256": "9268e5c039672c9ff018bd4de5ef19e9d684b3c7421cf59b7a81aef7e7a8ee20",
+      "request": {
+        "domain": "E",
+        "id": "d8bd15a5c5465e6b1a5a248484cb9ee707190cf5aecd9fe7f9e6f4fca096d13f",
+        "kind": "grant"
+      }
+    }
+  ],
+  "profile_list_count": 324,
+  "python_sources": [
+    {
+      "bytes_exact": true,
+      "fixed_commit": "976702750dfd7e89706223216ae8e0e19f2b9c87",
+      "path": "s_session/economic_http.py",
+      "sha256": "1c88fac07338258fae1b18cf9e13e8eed5d0b6e4c38fe1393ac9f7ebc275fedd"
+    },
+    {
+      "bytes_exact": true,
+      "fixed_commit": "976702750dfd7e89706223216ae8e0e19f2b9c87",
+      "path": "s_session/economic_query.py",
+      "sha256": "b785373284ee7aac5c786dfb0acc39ce0bff5c40ddf197f4c647c1a3d5b09b1e"
+    },
+    {
+      "bytes_exact": true,
+      "fixed_commit": "976702750dfd7e89706223216ae8e0e19f2b9c87",
+      "path": "s_session/s_readonly_server.py",
+      "sha256": "0c4fc9527058b5b4c87984122cef8e7034fe0c356c39308bc463bf0b1d644545"
+    },
+    {
+      "bytes_exact": true,
+      "fixed_commit": "976702750dfd7e89706223216ae8e0e19f2b9c87",
+      "path": "s_session/s_socket_client.py",
+      "sha256": "8fb63a14d131452e09b2ab3e4aeddef1c1cbf922ca641ec5a13a7db729b4a1e2"
+    }
+  ],
+  "readonly_cleanup": {
+    "archive_three_sha_fresh_match": true,
+    "backend_exit_codes": [
+      -15,
+      -15,
+      -15,
+      -15
+    ],
+    "backend_pids": [
+      44475,
+      44456,
+      44420,
+      44414
+    ],
+    "chrome_pid": 44482,
+    "db_claim_boundary": "Saved pre/post SHA observations compared; no detached DB remount; no all DB/WAL/SHM byte equality claim",
+    "fresh_hdiutil_exit": 0,
+    "fresh_listener_check": {
+      "argv": [
+        "lsof",
+        "-nP",
+        "-iTCP:38794",
+        "-sTCP:LISTEN"
+      ],
+      "exit_code": 1,
+      "stderr": "",
+      "stdout": ""
+    },
+    "fresh_process_check": {
+      "argv": [
+        "ps",
+        "-p",
+        "44475,44456,44420,44414,44476,44482",
+        "-o",
+        "pid=,ppid=,stat=,command="
+      ],
+      "exit_code": 1,
+      "stderr": "",
+      "stdout": ""
+    },
+    "fresh_task_mounted_images": [],
+    "ordinary_three_detach_exit_zero": true,
+    "owner_logical_before_after_exact": true,
+    "replica_physical_sha_changed": true,
+    "runner_exit_code": 0,
+    "runner_pid": 44476,
+    "socket_dir_absent": true,
+    "stored_three_db_sha_before_after_exact": true
+  },
+  "reserve_first_known_ns": "91",
+  "resource_owner_binding": {
+    "configuration_caps_frozen_unchanged": true,
+    "e_b_binary_frozen_descriptor_match": true,
+    "economic_resources_count": 8,
+    "manifest_sha256": "bb44978f91d9f3086d244e166d706abcd5a4b4488b1b0cbb1cc6ff73191a0602",
+    "q19_count": 19,
+    "query_authority_exact": true,
+    "readonly_operations": [
+      "ReadView",
+      "Watch",
+      "QueryFact",
+      "QueryAllocation",
+      "QueryVoice",
+      "QueryDecision",
+      "QueryGrant"
+    ]
+  },
+  "responsibility_total": "90",
+  "reviewer_probe_correction": "Initial offline reviewer assertion used domain/id instead of actual payload domain_id/object_id; corrected field mapping, no product or run failure.",
+  "root": "/Users/silencehan/Projects/NewChanlun-1394-content-v3",
+  "run_list_count": 72,
+  "schema_revision": "testonly-1394-browser-independent-fact-review/1",
+  "status": "PASS_BOUNDED_ACTUAL_BROWSER_FACTS",
+  "visual_inspection": {
+    "cdp_screenshot_calls": 4,
+    "files": [
+      "browser-run-1/prepared-as-known.png",
+      "browser-run-1/current.png"
+    ],
+    "observed": "85 historical view shows alpha/beta Prepared, current shows alpha/beta Committed; locks30/40, responsibility20 then90; rendered Chinese controls and ledger sections"
+  }
+}

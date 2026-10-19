@@ -1,0 +1,288 @@
+{
+  "status": "DRAFT_INDEPENDENT_NODE_VECTORS_PASS",
+  "adopted": false,
+  "issue": 1394,
+  "generated_at": "2026-09-15T18:19:02.261Z",
+  "runtime": "v24.19.0",
+  "source_basis": "1394-PUBLIC-IDENTITY-PROPOSAL.md §5.1–5.2 与向量输入/预期输出；未读取 Python 实现。",
+  "vector_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1394-CONTENT-FORMAT-VECTORS.json",
+  "vector_sha256": "78984501cbb465be8251e3d212e34c0cb6fb33a5aab9a4999a3f1db592ce71f0",
+  "implementation_sha256": "643e2a11f94b828db5363a18f297d9a71eb64bfa35007fda5e9dfc98b7b980ab",
+  "exit_code": 0,
+  "counts": {
+    "positive": 23,
+    "positive_passed": 23,
+    "canonical_render_checked": 22,
+    "invalid_encoded_roots": 10,
+    "invalid_encoded_roots_rejected": 10,
+    "supplied_nodes": 123,
+    "positive_unique_reachable_nodes": 96,
+    "positive_unique_generated_nodes_compared": 96
+  },
+  "positive": [
+    {
+      "name": "null",
+      "passed": true,
+      "root": "sc1-8373191693a3a2ee636963cdfcae8775f1ca22610c77f1c11804dd3406bc5806",
+      "canonical_render_checked": true,
+      "generated_nodes": 1,
+      "reachable_nodes": 1
+    },
+    {
+      "name": "false",
+      "passed": true,
+      "root": "sc1-06a3fc4f38ff847093faa172312932a400ef03331c05f65054de2ec7dd58695a",
+      "canonical_render_checked": true,
+      "generated_nodes": 1,
+      "reachable_nodes": 1
+    },
+    {
+      "name": "true",
+      "passed": true,
+      "root": "sc1-30ab916f667794a08911044175f7ec1e841254ccc64cad85232a18cffcf2f73f",
+      "canonical_render_checked": true,
+      "generated_nodes": 1,
+      "reachable_nodes": 1
+    },
+    {
+      "name": "empty_string",
+      "passed": true,
+      "root": "sc1-7ddf9a9f1a2958cc39704fe00595ccff6ed1f27b1b35d7a0a872d296b7c20dac",
+      "canonical_render_checked": true,
+      "generated_nodes": 2,
+      "reachable_nodes": 2
+    },
+    {
+      "name": "text_one",
+      "passed": true,
+      "root": "sc1-c8868a81a0721659cf636a04d265ed7098ca1092556f47493cbff4defbea8d24",
+      "canonical_render_checked": true,
+      "generated_nodes": 3,
+      "reachable_nodes": 3
+    },
+    {
+      "name": "number_one",
+      "passed": true,
+      "root": "sc1-d0f7cc648fbd9182d7339704fac1242e451207698539b1a43f729e95085aaaf3",
+      "canonical_render_checked": true,
+      "generated_nodes": 3,
+      "reachable_nodes": 3
+    },
+    {
+      "name": "number_one_float",
+      "passed": true,
+      "root": "sc1-e65529376fd5743562c09fbee2ad06a009261af0b9d77c74cd4b9af6e041d853",
+      "canonical_render_checked": true,
+      "generated_nodes": 3,
+      "reachable_nodes": 3
+    },
+    {
+      "name": "number_one_exponent",
+      "passed": true,
+      "root": "sc1-73375af540ab4dc0b9dd86dca200c7189e0c9a1cae76eb7f4cf70d955ec7386d",
+      "canonical_render_checked": true,
+      "generated_nodes": 3,
+      "reachable_nodes": 3
+    },
+    {
+      "name": "unicode_escape",
+      "passed": true,
+      "root": "sc1-95ae6f733447d55c1619f618085bdbd45441166b5db0c8246c3e0792c9b4266e",
+      "canonical_render_checked": true,
+      "generated_nodes": 3,
+      "reachable_nodes": 3
+    },
+    {
+      "name": "chunk_4096",
+      "passed": true,
+      "root": "sc1-930897609dbe7a7a448410ee7ee5359baaaa956e0e67931d4d1f9fe5bd2df471",
+      "canonical_render_checked": true,
+      "generated_nodes": 3,
+      "reachable_nodes": 3
+    },
+    {
+      "name": "chunk_4097",
+      "passed": true,
+      "root": "sc1-d510bc1a2d7316729df8f4f73f311814a8e5812d83e19e1a24db71725d72b72c",
+      "canonical_render_checked": true,
+      "generated_nodes": 6,
+      "reachable_nodes": 6
+    },
+    {
+      "name": "utf8_cross_chunk",
+      "passed": true,
+      "root": "sc1-154322dd58665423d26a07a84683a574feda02d5aafb4abd0171dd5c1c769bc1",
+      "canonical_render_checked": true,
+      "generated_nodes": 6,
+      "reachable_nodes": 6
+    },
+    {
+      "name": "empty_object",
+      "passed": true,
+      "root": "sc1-8504729c1292c9545312671be12da85ac4500de38634df61b090e2ac4c274c78",
+      "canonical_render_checked": true,
+      "generated_nodes": 2,
+      "reachable_nodes": 2
+    },
+    {
+      "name": "object_order_a",
+      "passed": true,
+      "root": "sc1-d3a53c350f3c1293b4047a8cb29d74586f0cd58268b595457e166b269b080355",
+      "canonical_render_checked": true,
+      "generated_nodes": 27,
+      "reachable_nodes": 27
+    },
+    {
+      "name": "object_order_b",
+      "passed": true,
+      "root": "sc1-d3a53c350f3c1293b4047a8cb29d74586f0cd58268b595457e166b269b080355",
+      "canonical_render_checked": true,
+      "generated_nodes": 27,
+      "reachable_nodes": 27
+    },
+    {
+      "name": "json_text",
+      "passed": true,
+      "root": "sc1-d47049655cc4e4c907bedf60691d477bacc74234b3f27a4416e673b1b01ba487",
+      "canonical_render_checked": true,
+      "generated_nodes": 11,
+      "reachable_nodes": 11
+    },
+    {
+      "name": "batch_self",
+      "passed": true,
+      "root": "sc1-b2b28be450f5765a2b8c41127ef24c5030869107a4ec3ce33da8df8bffd3b702",
+      "canonical_render_checked": false,
+      "generated_nodes": 1,
+      "reachable_nodes": 1
+    },
+    {
+      "name": "array_0",
+      "passed": true,
+      "root": "sc1-0cbb888583ed1533282a1eb0f066cb8c28d58b0acacde146fc823f4a3662adb7",
+      "canonical_render_checked": true,
+      "generated_nodes": 2,
+      "reachable_nodes": 2
+    },
+    {
+      "name": "array_1",
+      "passed": true,
+      "root": "sc1-9313a36176e98b44370835a8875507d81f4a6774fab350eb08e7f3d165d1178b",
+      "canonical_render_checked": true,
+      "generated_nodes": 5,
+      "reachable_nodes": 5
+    },
+    {
+      "name": "array_2",
+      "passed": true,
+      "root": "sc1-5f41e1c7bdab09ad8609e7549be6087d9bf61f35203048d8558d5d9e3fd17a02",
+      "canonical_render_checked": true,
+      "generated_nodes": 10,
+      "reachable_nodes": 10
+    },
+    {
+      "name": "array_3",
+      "passed": true,
+      "root": "sc1-f3887ff3d4fccb274c34e3a55c35046c7ea1380311c7ea9e7a873eacef623e81",
+      "canonical_render_checked": true,
+      "generated_nodes": 15,
+      "reachable_nodes": 15
+    },
+    {
+      "name": "array_4",
+      "passed": true,
+      "root": "sc1-d172962d107e036f1d85a86514a905491fbfc0b2b13560e43a9c61e80b123fe2",
+      "canonical_render_checked": true,
+      "generated_nodes": 20,
+      "reachable_nodes": 20
+    },
+    {
+      "name": "array_5",
+      "passed": true,
+      "root": "sc1-9c2b60eeedad1b631d1017f40f89c03e7d7f0498bb24aa66a920dd0cc57a6607",
+      "canonical_render_checked": true,
+      "generated_nodes": 25,
+      "reachable_nodes": 25
+    }
+  ],
+  "negative": [
+    {
+      "name": "noncanonical_array_split",
+      "root": "sc1-b73ba70f820bbd946f9409cd80178dfe7ec8b62ec27c9704e7723e86f42d1b6d",
+      "rejected": true,
+      "error": "sequence_shape",
+      "visited_nodes": 3
+    },
+    {
+      "name": "wrong_string_extent",
+      "root": "sc1-f80afb4a9ed24e2c30b784098e08189e4a1afaa2fa97b462b309dd8451538151",
+      "rejected": true,
+      "error": "byte_chunk_shape",
+      "visited_nodes": 3
+    },
+    {
+      "name": "noncanonical_byte_chunks",
+      "root": "sc1-4f4e02798c6113d51db0d69dd58336e92cda035d5887148c0cc171a4106a0749",
+      "rejected": true,
+      "error": "byte_chunk_shape",
+      "visited_nodes": 5
+    },
+    {
+      "name": "invalid_utf8",
+      "root": "sc1-10098f2a88a269058357786414b6bd604a1c927f4117528f9be7d6e0ec398153",
+      "rejected": true,
+      "error": "The encoded data was not valid for encoding utf-8",
+      "visited_nodes": 3
+    },
+    {
+      "name": "noncanonical_number",
+      "root": "sc1-a1dfbb94928b6284e706f43db0eea972ecc354eb03c8347f42afe7104c93b22f",
+      "rejected": true,
+      "error": "number_token",
+      "visited_nodes": 3
+    },
+    {
+      "name": "unsorted_object_keys",
+      "root": "sc1-20a8d9f6c0a260b946c7a3cc78ce6dfbae5a60b52fc1226bd80d30fd8d078d04",
+      "rejected": true,
+      "error": "object_key_order",
+      "visited_nodes": 12
+    },
+    {
+      "name": "internal_node_as_value",
+      "root": "sc1-178f7c2dc2c990043efdda12680d4022ea4a9cdf895cb6f1a9f133d83b8bde24",
+      "rejected": true,
+      "error": "value_kind",
+      "visited_nodes": 3
+    },
+    {
+      "name": "sequence_node_digest_mismatch",
+      "root": "sc1-29ca061bf5db40829dce05994fba6805ebfd53efe118fd21eeb7a60482dd7af4",
+      "rejected": true,
+      "error": "node_digest",
+      "visited_nodes": 2
+    },
+    {
+      "name": "nested_json_text_view",
+      "root": "sc1-9a8f9f2045881050c3ea3fd376ee6a48d0b28018cada90b0995b0ec59f6eb390",
+      "rejected": true,
+      "error": "json_text_internal_kind",
+      "visited_nodes": 2
+    },
+    {
+      "name": "batch_self_inside_json_text",
+      "root": "sc1-57d63b594855488a12972b0e6e29f307cc1221bb47dc688225a0a0c4cce5790d",
+      "rejected": true,
+      "error": "json_text_internal_kind",
+      "visited_nodes": 4
+    }
+  ],
+  "duplicate_source_key_rejected": true,
+  "scope": "外部有限向量验收；每个正负根分别验证可达闭包，混合库中故意损坏的负例节点不使无关正例失败。模板占位只验证格式，未验证 §5.4 路径授权、ContentRef 服务边、迁移、生产实施、性能或协议批准。",
+  "observations": [
+    "23 个正例中 batch_self 没有 canonical_render_hex；0x08 未代换前不渲染为 JSON。其余 22 个逐字核对编码端与解码端渲染。",
+    "规范要求所有节点核 Hash；实现对 value、sequence、chunk、field 的每次可达读取都执行统一 Hash 校验。",
+    "§5.2 已明确 0x07 内部值树只允许值标签 0x00..0x06；编码和解码在所有后代递归保持此限制，内部普通 0x03 字符串不再次解析。新增嵌套文本视图及内部批次占位负例均须拒绝。",
+    "有限向量通过不等同于完整协议正确性或批准；本报告不扩大正文的业务许可。"
+  ]
+}

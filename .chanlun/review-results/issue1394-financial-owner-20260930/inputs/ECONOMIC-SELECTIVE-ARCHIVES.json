@@ -1,0 +1,21 @@
+{
+  "client_final_commit": "9f923877e7d2dd9bb9c0a8cfe0c065bbfbda38da",
+  "browser_manifest_sha256": "d7881aa37db27ab206e5a8c8046c916608fde8eb78dc9a3b67783d7d193a5a82",
+  "archives": [
+    {
+      "path": "inputs/ECONOMIC-CLIENT-RAW.zip",
+      "source": "new selective evidence archive of preserved raw files; fresh browser profile/pycache/DMG excluded",
+      "bytes": 167076,
+      "sha256": "ebbf0b6dd36f7212680d24883b33c6754cb4b583ed2f6c24762206741034287d",
+      "members": 31
+    },
+    {
+      "path": "inputs/ECONOMIC-BROWSER-RAW.zip",
+      "source": "new selective evidence archive of preserved raw files; fresh browser profile/pycache/DMG excluded",
+      "bytes": 4725189,
+      "sha256": "18535c6dd29f3876ea3dc6a7f4808f7f047f96483f9665107ca755196e6f4e77",
+      "members": 72
+    }
+  ],
+  "excluded": "Chrome fresh profile and pycache are preserved in original scratch, not入仓; original/copy DMGs also preserved outside archive"
+}

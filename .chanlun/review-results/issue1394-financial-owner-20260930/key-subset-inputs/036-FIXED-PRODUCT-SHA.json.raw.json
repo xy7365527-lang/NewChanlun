@@ -1,0 +1,7 @@
+{
+  "schema_revision": "issue1394-verbatim-utf8-artifact/1",
+  "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-manager-20261002/FIXED-PRODUCT-SHA.json",
+  "source_bytes": 621,
+  "source_sha256": "fcdc1cd46ea703a3941e4821caca295f143e98767cc79d19fafbcc4c63a6de7b",
+  "content_utf8": "{\n  \"source_root\": \"/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/source\",\n  \"diagnostic_not_inserted\": true,\n  \"files\": {\n    \"rust/src/s_content/path.rs\": \"dc88036dce9b99c19408dfcbb7e638e62e414c88cad24d1461a308573f4ee3f3\",\n    \"rust/src/bin/s_session_v3/history.rs\": \"f79127f9710341e50e187ae2bd5d886b4f8ca615531320393fc7c6d419b27663\",\n    \"rust/src/bin/s_session_v3/source_audit.rs\": \"cbbbbea3de6bbc95ac61feef8fd6efa4c425c382467ed1a7d19c2a5d9731bd1d\",\n    \"rust/tests/s_content_key_subset.rs\": \"1841d380bd4c178b7b51ef2e6937b17468b0fffa8e217cc006e731b16c4ba9a8\"\n  }\n}\n"
+}

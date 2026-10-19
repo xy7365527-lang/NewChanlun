@@ -1,0 +1,7 @@
+{
+  "schema_revision": "issue1394-verbatim-utf8-artifact/1",
+  "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/path.log",
+  "source_bytes": 931,
+  "source_sha256": "6217eec3d9c596495819208fce7b61fba2057ea058eae011af8d86021010c776",
+  "content_utf8": "\nrunning 11 tests\ntest bulk_fields_reject_hash_valid_but_noncanonical_sequence ... ok\ntest declared_count_overflow_and_shape_mismatch_are_rejected ... ok\ntest exact_field_set_matches_individual_paths_with_bounded_reads ... field reads: individual=2572, exact=140\nok\ntest json_text_inner_placeholder_and_nested_view_are_rejected ... ok\ntest large_shared_array_point_replacement_stays_bounded ... ok\ntest lookup_rejects_forged_claims_digests_and_missing_nodes ... ok\ntest lookup_rejects_missing_out_of_range_and_wrong_step_kind ... ok\ntest nested_field_index_and_json_text_lookup_follow_actual_nodes ... ok\ntest replace_rejects_bad_batch_id_and_non_placeholder_targets_without_writing ... ok\ntest replace_then_verify_and_render_match_independent_oracle ... ok\ntest replace_touches_only_the_named_path_and_keeps_old_root_readable ... ok\n\ntest result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s\n\n"
+}

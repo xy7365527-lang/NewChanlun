@@ -116,6 +116,8 @@ class RuntimeIntegrationTests(unittest.TestCase):
     def test_q_retains_explicit_economic_configuration_with_structure_query(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            (root / "resources.json").write_bytes(
+                (Path(__file__).parent / "fixtures/tb01c/query-resources.json").read_bytes())
             controller = self.controller(root)
             controller.config.update({"port": "19003", "browser": str(root / "index.html"),
                                       "query_resource_config": str(root / "resources.json"),
@@ -124,7 +126,7 @@ class RuntimeIntegrationTests(unittest.TestCase):
                 with patch.object(controller, "start_process") as start, \
                      patch.object(controller, "wait_ready", return_value={"state": "ready"}) as ready:
                     self.assertEqual(controller.start_q("3"), {"state": "ready"})
-                service, command = start.call_args.args
+                service, command = start.call_args.args[:2]
                 self.assertEqual(service, "q")
                 self.assertEqual(command[command.index("--resource-config") + 1], str(root / "resources.json"))
                 self.assertEqual(command[command.index("--economic-config") + 1], str(root / "economic-query.json"))

@@ -257,9 +257,47 @@ jobs:
       # 运行正式 S bin 的回归测试，不能只编译或以默认目标的通过代替。
       # 默认目标一步带着已登记的既有红（main 上 3 个），失败会让其后各步被跳过；
       #   本步此前因此从未在 CI 执行，照本文件既有写法加 if: always()。
+      # #1394 根裁定 A：v3::financial_session 依赖只在 macOS 实现的会话保留量读数（heap_probe）与
+      #   peer uid（getpeereid），Linux 上 Session::start 诚实地报 MissingDependency。这批用例在本步
+      #   --skip，由 .github/workflows/ci-macos.yml 的 macOS 作业在生产平台真跑（手动触发本 CI 时经
+      #   下方 macos-session 作业一并执行；push main 由该文件自身的 paths 过滤触发）。
       - name: cargo test — s_session 正式结构会话（#1370）
         if: always()
-        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --bin s_structure_session --jobs 1
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --bin s_structure_session --jobs 1 -- --skip v3::financial_session
+
+      # #1394 C：内容编码在 s_session feature 下供多个 owner 共用；只测 S bin 不会执行库测试。
+      # #1394 整合 C-1：本步与下一步不依赖「default targets」与 s_session bin 两步的结果；
+      #   已登记的默认域既有红会让这两步被跳过，故照本文件既有写法加 if: always()。
+      #   job 结论仍由失败的那一步决定，本条不掩盖它。
+      - name: cargo test — 完整内容编码与共享图校验（#1394）
+        if: always()
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --lib --jobs 1 s_content
+
+      - name: cargo test — 内容向量、持久序列与累计资源（#1394）
+        if: always()
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --test s_content_contract --test s_content_sequence --test s_content_job --test s_content_path --jobs 1
+
+      # #1394 G-1：economic_session（含 P-14 读法锁、finance、content_store、store、finance_transport）
+      #   与 session_transport / session_protocol 的库测试此前没有任何 CI 步执行。2026-10-14 在 Linux
+      #   （glibc 2.36 容器）实跑：74 过、7 忽略（需 HFS 载体或外部夹具）、0 败，无需 --skip；只在 macOS
+      #   编译的 1 条（half_close_during_large_frame_drain_observes_actual_eof）与各 macOS 专属分支由
+      #   ci-macos.yml 作业覆盖。
+      - name: cargo test — economic_session / session_transport / session_protocol 库测试（#1394 G-1）
+        if: always()
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --lib --jobs 1 -- economic_session session_transport session_protocol
+
+      # #1394/#1481：s_capture_native_testonly 特性下才编译的测试（2026-10-14 计：lib 26、S bin 174）此前从未编译、
+      #   从未执行（state.rs 测试调用漏传 cfg 参数，开特性即 E0061）。只跑「开特性后新增」的测试，其余同名同体测试
+      #   已在上面 s_session 步执行；新增集合为空即失败。本机端到端（四次编译加执行）约 9 min；CI 估 20–25 min。
+      - name: cargo test — s_capture_native_testonly 特性新增的测试（#1394）
+        if: always()
+        run: ../.github/scripts/run-cargo-with-telemetry.sh ../.github/scripts/test-feature-delta.sh s_capture_native_testonly
+
+      # #1394 整合（根裁定 A）：v3 history 的 Owned 文本/分配原型用例只在 s_allocation_json_testonly
+      #   构建编译；只编译不执行的锁按无锁计（#799），故单列一步执行。不依赖前面各步的产物。
+      - name: cargo test — v3 history Owned 分配原型（s_allocation_json_testonly，#1394）
+        if: always()
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_allocation_json_testonly --bin s_structure_session v3::history --jobs 1
 
       - name: cargo test — backtest_bin feature（econ_oddeven_diagnosis.rs 仅在此 feature 下编译）
         if: always()
@@ -268,6 +306,368 @@ jobs:
         # 本地实测 debug 全 target 55G ⟹ 14G 盘必爆）。改 --lib：backtest 模块测试（含
         # econ_oddeven_diagnosis）全在 lib 内；tests/ 与 bins 已由 default 步覆盖——零覆盖损失。
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --lib --features backtest_bin --jobs 1
+
+  # #1488：独立运行两种构建的序列与真实 memo 锁，不等待 rust-check 的完整回归。
+  # 依赖预取单列为联网步骤；后续 --offline 只约束测试阶段，不代表全程离线。
+  s-sequence-1488:
+    name: "#1488 序列与真实 memo (${{ matrix.mode }})"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: Plain
+            features: s_session
+          - mode: Owned
+            features: s_session,s_allocation_json_testonly
+    env:
+      CARGO_INCREMENTAL: "0"
+      FEATURES: ${{ matrix.features }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Cache cargo registry + git only (#1488)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-v1-
+      - name: Record source and toolchain identity (#1488)
+        run: |
+          git rev-parse HEAD 'HEAD^{tree}'
+          sha256sum src/s_content.rs src/s_content/sequence.rs tests/s_content_sequence.rs src/bin/s_session_v3/generation.rs
+          rustc -vV
+          cargo -V
+          rustup show active-toolchain
+          echo "CARGO_TARGET_DIR=$RUNNER_TEMP/1488-sequence-target" >> "$GITHUB_ENV"
+          echo "features=$FEATURES target=$RUNNER_TEMP/1488-sequence-target"
+      - name: Fetch locked dependencies (network allowed, #1488)
+        run: cargo fetch --locked
+      - name: Run sequence API, real memo, oracle and nonempty source locks (#1488)
+        run: |
+          set -euo pipefail
+          run_suite() {
+            local suite=$1
+            shift
+            set +e
+            cargo test --offline --locked -j 6 --features "$FEATURES" "$@" -- --format pretty --color never 2>&1 | tee "$RUNNER_TEMP/1488-$suite.log"
+            local statuses=("${PIPESTATUS[@]}")
+            set -e
+            echo "suite=$suite cargo_exit_code=${statuses[0]} tee_exit_code=${statuses[1]}"
+            if (( statuses[0] != 0 )); then return "${statuses[0]}"; fi
+            return "${statuses[1]}"
+          }
+          require_passed() {
+            local suite=$1 test_name
+            shift
+            for test_name in "$@"; do
+              grep -Fx "test $test_name ... ok" "$RUNNER_TEMP/1488-$suite.log" || {
+                echo "::error::Missing passed test in $suite: $test_name"
+                return 1
+              }
+            done
+          }
+          run_suite sequence --test s_content_sequence
+          require_passed sequence \
+            sequence_ops_match_approved_independent_vector \
+            sequence_ops_match_write_sequence_oracle_across_shapes \
+            sequence_empty_result_is_persisted_and_readable \
+            sequence_concat_empty_and_split_boundaries \
+            sequence_split_then_concat_restores_root \
+            sequence_ops_write_only_reachable_nodes \
+            sequence_split_at_canonical_boundary_writes_nothing \
+            sequence_rejects_wrong_nodes_and_lengths \
+            sequence_concat_rejects_length_overflow_on_repeated_subtree \
+            sequence_ops_stay_within_hard_bounds_on_repeated_subtree \
+            sequence_hard_bound_is_enforced_negative_control \
+            sequence_ops_read_and_write_scale_with_height \
+            sequence_rebuild_suffix_matches_elementwise_append_and_writes_only_reachable \
+            sequence_rebuild_suffix_rejects_keep_beyond_count
+          if [[ "$FEATURES" == s_session ]]; then
+            require_passed sequence \
+              sequence_allocation_entry_refuses_unsupported_owned_build_without_plain_fallback \
+              sequence_rebuild_suffix_allocation_entry_refuses_unsupported_owned_build_without_plain_fallback
+          else
+            require_passed sequence \
+              local_memo_allocation::owned_sequence_independent_vectors_cut_join_and_append_match_plain_bytes_and_trace \
+              local_memo_allocation::owned_sequence_compressed_noncanonical_cut_grow_and_source_errors_release_local_memo \
+              local_memo_allocation::owned_sequence_bad_nodes_preserve_first_error_and_read_order \
+              local_memo_allocation::owned_rebuild_suffix_matches_independent_vectors_plain_trace_and_reachable_nodes \
+              local_memo_allocation::owned_rebuild_suffix_matches_write_sequence_across_replacement_shapes \
+              local_memo_allocation::owned_rebuild_suffix_stack_grow_refusal_and_source_sink_errors_release_to_baseline \
+              local_memo_allocation::owned_rebuild_suffix_rejects_corrupt_deep_reused_subtrees_and_terminal
+          fi
+          run_suite memo --bin s_structure_session v3::generation::tests::sequence_
+          require_passed memo \
+            v3::generation::tests::sequence_sync_plain_matches_full_oracle_and_writes_only_reachable \
+            v3::generation::tests::sequence_sync_plain_errors_preserve_keys_and_root_without_full_fallback
+          if [[ "$FEATURES" == s_session ]]; then
+            require_passed memo v3::generation::tests::sequence_keys_some_without_owned_build_refuses_plain_fallback
+          else
+            require_passed memo \
+              v3::generation::tests::sequence_sync_owned_matches_full_oracle_and_writes_only_reachable \
+              v3::generation::tests::sequence_sync_owned_errors_release_stack_and_preserve_keys_and_root \
+              v3::generation::tests::sequence_sync_rebuild_stack_uses_keys_ledger_and_propagates_refusal_until_discard \
+              v3::generation::tests::sequence_keys_empty_sync_freezes_actual_mode_and_same_ledger_until_discard \
+              v3::generation::tests::sequence_keys_owned_growth_counts_old_and_new_blocks_preserves_failure_and_drops_on_discard \
+              v3::generation::tests::sequence_keys_first_reserve_or_node_failure_does_not_freeze_ledger_and_plain_discard_reuses_capacity
+          fi
+          run_suite oracle --bin s_structure_session v3::generation::tests::oracle_
+          require_passed oracle \
+            v3::generation::tests::oracle_prefix_parity_two_prefixes \
+            v3::generation::tests::oracle_historical_revision_parity \
+            v3::generation::tests::oracle_incremental_second_generation_parity
+          run_suite prepared --bin s_structure_session v3::prepared::tests::real_nonempty_commits_bind_history_and_revision_to_true_control_and_sources
+          require_passed prepared v3::prepared::tests::real_nonempty_commits_bind_history_and_revision_to_true_control_and_sources
+      # #1488：固定 metadata 字段增量的 20 个新锁；Plain 适用 10 个，Owned 必须全部具名执行。
+      # 与既有序列步骤独立，即使旧锁失败仍收本片证据；任何一步失败仍保留 job 红态。
+      - name: Run fixed candidate, commit rollback and shared path locks (#1488)
+        if: ${{ !cancelled() }}
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD 'HEAD^{tree}'
+          sha256sum src/s_content/path.rs src/bin/s_session_v3/object_index.rs src/bin/s_session_v3/prepared.rs src/bin/s_session_v3/generation.rs
+          case "$FEATURES" in
+            s_session|s_session,s_allocation_json_testonly) ;;
+            *) echo "::error::Unexpected fixed-field feature set: $FEATURES"; exit 1 ;;
+          esac
+          run_logged() {
+            local phase=$1
+            shift
+            set +e
+            "$@" 2>&1 | tee "$RUNNER_TEMP/1488-$phase.log"
+            local statuses=("${PIPESTATUS[@]}")
+            set -e
+            echo "phase=$phase command_exit_code=${statuses[0]} tee_exit_code=${statuses[1]}"
+            printf 'phase=%s command_exit_code=%s tee_exit_code=%s\n' "$phase" "${statuses[0]}" "${statuses[1]}" >> "$RUNNER_TEMP/1488-exit-codes.log"
+            if (( statuses[0] != 0 )); then return "${statuses[0]}"; fi
+            return "${statuses[1]}"
+          }
+          run_suite() {
+            local suite=$1 filter=$2 binary
+            shift 2
+            run_logged "$suite-build" cargo test --offline --locked -j 6 --features "$FEATURES" --no-run --message-format=json "$@"
+            binary=$(python3 - "$RUNNER_TEMP/1488-$suite-build.log" <<'PY'
+          import json, os, pathlib, sys
+          artifacts = set()
+          for line in pathlib.Path(sys.argv[1]).read_text().splitlines():
+              try:
+                  item = json.loads(line)
+              except json.JSONDecodeError:
+                  continue
+              if (item.get("reason") == "compiler-artifact"
+                      and item.get("profile", {}).get("test")
+                      and item.get("executable")):
+                  artifacts.add(item["executable"])
+          if len(artifacts) != 1:
+              raise SystemExit(f"expected one test executable, got {sorted(artifacts)}")
+          binary = pathlib.Path(artifacts.pop()).resolve()
+          target = pathlib.Path(os.environ["CARGO_TARGET_DIR"]).resolve()
+          if not binary.is_relative_to(target) or not binary.is_file() or not os.access(binary, os.X_OK):
+              raise SystemExit("test executable is absent or outside this job target")
+          print(binary)
+          PY
+            )
+            sha256sum "$binary" > "$RUNNER_TEMP/1488-$suite-binary.log"
+            cat "$RUNNER_TEMP/1488-$suite-binary.log"
+            run_logged "$suite-list" "$binary" "$filter" --list --format pretty
+            run_logged "$suite" "$binary" "$filter" --format pretty --color never --show-output
+            sha256sum --check "$RUNNER_TEMP/1488-$suite-binary.log"
+          }
+          require_passed() {
+            local suite=$1 test_name
+            shift
+            for test_name in "$@"; do
+              grep -Fx "$test_name: test" "$RUNNER_TEMP/1488-$suite-list.log" || {
+                echo "::error::Missing listed test in $suite: $test_name"
+                return 1
+              }
+              grep -Fx "test $test_name ... ok" "$RUNNER_TEMP/1488-$suite.log" || {
+                echo "::error::Missing passed test in $suite: $test_name"
+                return 1
+              }
+            done
+          }
+          run_suite fixed-bin fixed_ --bin s_structure_session
+          require_passed fixed-bin \
+            v3::object_index::tests::fixed_candidate_plain_wire_trigger_corrupts_generated_then_late_exact_refuses \
+            v3::object_index::tests::fixed_candidate_plain_second_object_failure_rolls_back_and_retries_full_plan \
+            v3::object_index::tests::fixed_candidate_plain_same_entry_full_nodes_and_actual_reads_as_legacy \
+            v3::object_index::tests::fixed_candidate_plain_reidentified_metadata_slot_schema_and_late_null_refuse \
+            v3::object_index::tests::fixed_candidate_multiple_fault_first_error_matches_legacy_before_wire \
+            v3::object_index::tests::fixed_candidate_plain_fresh_generated_deep_leaf_and_independent_internal_refuse \
+            v3::prepared::tests::fixed_fields_plain_four_real_commits_match_legacy_all_rows_nodes_receipts_and_roots \
+            v3::prepared::tests::fixed_fields_plain_real_second_commit_fk_failure_rolls_back_every_persistent_row
+          if [[ "$FEATURES" == s_session,s_allocation_json_testonly ]]; then
+            require_passed fixed-bin \
+              v3::object_index::tests::fixed_candidate_owned_wire_trigger_corrupts_generated_then_late_exact_refuses \
+              v3::object_index::tests::fixed_candidate_owned_second_object_failure_rolls_back_and_retries_full_plan \
+              v3::object_index::tests::fixed_candidate_owned_same_entry_full_nodes_actual_reads_and_release \
+              v3::object_index::tests::fixed_candidate_owned_reidentified_metadata_slot_schema_and_late_null_refuse \
+              v3::object_index::tests::fixed_candidate_owned_fresh_generated_deep_leaf_and_independent_internal_refuse \
+              v3::object_index::tests::fixed_candidate_owned_retained_text_and_clone_charge_original_not_foreign_ledger \
+              v3::object_index::tests::fixed_candidate_owned_scalar_refusal_releases_all_local_owners_without_fallback \
+              v3::prepared::tests::fixed_fields_owned_four_real_commits_match_legacy_all_rows_nodes_receipts_and_roots \
+              v3::prepared::tests::fixed_fields_owned_real_second_commit_fk_failure_rolls_back_every_persistent_row
+          fi
+          run_suite fixed-path s_content::path::fixed_fields_tests --lib
+          require_passed fixed-path \
+            s_content::path::fixed_fields_tests::fixed_fields_exact_matches_existing_refs_and_rejects_before_read_above_bound \
+            s_content::path::fixed_fields_tests::fixed_metadata_missing_errors_follow_consumption_order_not_schema_scan
+          if [[ "$FEATURES" == s_session,s_allocation_json_testonly ]]; then
+            require_passed fixed-path s_content::path::fixed_fields_tests::fixed_fields_owner_full_capacity_has_zero_global_allocations_and_zero_ledger_delta
+          fi
+      # #1488 A/B/C：独立冻结包只组合验证，不注册生产 Runtime 增量入口。
+      - name: Compile and run exact A B C locks (#1488)
+        if: ${{ !cancelled() }}
+        run: python3 ../.github/scripts/run-1488-delta-ci.py --mode "${{ matrix.mode }}" --output "$RUNNER_TEMP/1488-abc-${{ matrix.mode }}"
+      - name: Upload sequence lock logs (#1488)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 1488-sequence-${{ matrix.mode }}
+          path: |
+            ${{ runner.temp }}/1488-*.log
+            ${{ runner.temp }}/1488-abc-${{ matrix.mode }}/
+          if-no-files-found: error
+
+  # #1488：共享 path 遍历核的 Native 消费者独立回归，不依赖 rust-check 的整套 feature delta。
+  s-fields-native-1488:
+    name: "#1488 固定字段共享核 (Native)"
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+      FEATURES: s_session,s_capture_native_testonly
+    defaults:
+      run:
+        shell: bash
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Cache cargo registry + git only (#1488 Native)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-v1-
+      - name: Record source and Native toolchain identity (#1488)
+        run: |
+          git rev-parse HEAD 'HEAD^{tree}'
+          sha256sum src/s_content/path.rs src/bin/s_session_v3/object_index.rs src/bin/s_session_v3/prepared.rs src/bin/s_session_v3/generation.rs
+          rustc -vV
+          cargo -V
+          rustup show active-toolchain
+          echo "CARGO_TARGET_DIR=$RUNNER_TEMP/1488-native-target" >> "$GITHUB_ENV"
+          echo "features=$FEATURES target=$RUNNER_TEMP/1488-native-target"
+      - name: Fetch locked dependencies (network allowed, #1488 Native)
+        run: cargo fetch --locked
+      - name: Run Native candidate fields, union and shared path locks (#1488)
+        run: |
+          set -euo pipefail
+          run_logged() {
+            local phase=$1
+            shift
+            set +e
+            "$@" 2>&1 | tee "$RUNNER_TEMP/1488-$phase.log"
+            local statuses=("${PIPESTATUS[@]}")
+            set -e
+            echo "phase=$phase command_exit_code=${statuses[0]} tee_exit_code=${statuses[1]}"
+            printf 'phase=%s command_exit_code=%s tee_exit_code=%s\n' "$phase" "${statuses[0]}" "${statuses[1]}" >> "$RUNNER_TEMP/1488-exit-codes.log"
+            if (( statuses[0] != 0 )); then return "${statuses[0]}"; fi
+            return "${statuses[1]}"
+          }
+          run_suite() {
+            local suite=$1 filter=$2 binary
+            shift 2
+            run_logged "$suite-build" cargo test --offline --locked -j 6 --features "$FEATURES" --no-run --message-format=json "$@"
+            binary=$(python3 - "$RUNNER_TEMP/1488-$suite-build.log" <<'PY'
+          import json, os, pathlib, sys
+          artifacts = set()
+          for line in pathlib.Path(sys.argv[1]).read_text().splitlines():
+              try:
+                  item = json.loads(line)
+              except json.JSONDecodeError:
+                  continue
+              if (item.get("reason") == "compiler-artifact"
+                      and item.get("profile", {}).get("test")
+                      and item.get("executable")):
+                  artifacts.add(item["executable"])
+          if len(artifacts) != 1:
+              raise SystemExit(f"expected one test executable, got {sorted(artifacts)}")
+          binary = pathlib.Path(artifacts.pop()).resolve()
+          target = pathlib.Path(os.environ["CARGO_TARGET_DIR"]).resolve()
+          if not binary.is_relative_to(target) or not binary.is_file() or not os.access(binary, os.X_OK):
+              raise SystemExit("test executable is absent or outside this job target")
+          print(binary)
+          PY
+            )
+            sha256sum "$binary" > "$RUNNER_TEMP/1488-$suite-binary.log"
+            cat "$RUNNER_TEMP/1488-$suite-binary.log"
+            run_logged "$suite-list" "$binary" "$filter" --list --format pretty
+            run_logged "$suite" "$binary" "$filter" --format pretty --color never --show-output
+            sha256sum --check "$RUNNER_TEMP/1488-$suite-binary.log"
+          }
+          require_passed() {
+            local suite=$1 test_name
+            shift
+            for test_name in "$@"; do
+              grep -Fx "$test_name: test" "$RUNNER_TEMP/1488-$suite-list.log" || {
+                echo "::error::Missing listed test in $suite: $test_name"
+                return 1
+              }
+              grep -Fx "test $test_name ... ok" "$RUNNER_TEMP/1488-$suite.log" || {
+                echo "::error::Missing passed test in $suite: $test_name"
+                return 1
+              }
+            done
+          }
+          run_suite native-fields native_candidate_fields --bin s_structure_session
+          require_passed native-fields \
+            v3::object_index::tests::native_candidate_fields_component_exact_metadata_slot_and_late_null_gates \
+            v3::object_index::tests::native_candidate_fields_internal_record_json_edge_gate_and_real_wire_sql_failure
+          run_suite native-union native_candidate_union --bin s_structure_session
+          require_passed native-union \
+            v3::object_index::tests::native_candidate_union_second_root_errors_have_no_put_or_future_wire_repair_and_budget_refuses \
+            v3::object_index::tests::native_candidate_union_real_generations_match_plan_and_reduce_sql_reads \
+            v3::prepared::tests::native_candidate_union_four_real_commits_match_ordinary_roots_rows_and_revision
+          run_suite native-path s_content::path::fixed_fields_tests --lib
+          require_passed native-path \
+            s_content::path::fixed_fields_tests::fixed_fields_exact_matches_existing_refs_and_rejects_before_read_above_bound \
+            s_content::path::fixed_fields_tests::fixed_metadata_missing_errors_follow_consumption_order_not_schema_scan
+      - name: Compile and run exact Native A B C locks (#1488)
+        if: ${{ !cancelled() }}
+        run: python3 ../.github/scripts/run-1488-delta-ci.py --mode Native --output "$RUNNER_TEMP/1488-abc-Native"
+      - name: Upload Native fixed-field lock logs (#1488)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 1488-fields-Native
+          path: |
+            ${{ runner.temp }}/1488-*.log
+            ${{ runner.temp }}/1488-abc-Native/
+          if-no-files-found: error
+
+  # #1394 根裁定 A：手动触发本 CI 时一并执行 macOS 作业（financial_session 的 macOS 读数与
+  #   economic_session 等库测试），一次触发拿全套读数。push main 不经本作业，由 ci-macos.yml 自身的
+  #   paths 过滤决定是否运行，控制 macOS 计费。
+  macos-session:
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/ci-macos.yml
 
   s-observer:
     # #1372：执行只读观察、生命周期和取证边界回归；完整160输入/浏览器验收另存具名证据。
@@ -290,8 +690,27 @@ jobs:
         run: python -B -m unittest discover -s s_session/tests -p 'test_tb02c_*.py' -v
       - name: Browser protocol tests
         run: node s_session/tests/test_tb01c_browser.cjs
+      - name: TB-02-B version and root-set contracts (#1405)
+        run: |
+          python -B -m unittest discover -s s_session/tests -p 'test_tb02b_contract.py' -v
+          node --test s_session/tests/test_tb02b_contract.cjs
+          node s_session/tests/build_tb01c_browser.cjs --check
       - name: TB-02-C observer contract tests
         run: node --test s_session/tests/test_tb02c_contract.cjs
+      - name: TB-02-W terminal and cursor contract tests (#1420)
+        if: always()
+        working-directory: s_session/tests
+        run: python -B -m unittest -v test_tb02w_contract
+      - name: TB-02-W modular observer contract tests (#1420)
+        if: always()
+        run: node --test s_session/tests/test_tb02w_contract.cjs
+      - name: Browser exact-source generation check (#1420)
+        if: always()
+        run: node s_session/tests/build_tb01c_browser.cjs --check
+      # #1394 C-2 裁定 1：v3（s-session/3）validate-once 锁。完整 Q3 客户端套件约 10.5 分钟不进 CI，
+      #   只把这条锁连同其判据（钩子不再验、重载命中重放计费、Reader 根变化必重验）单独成套执行。
+      - name: Q3 v3 validate-once lock (#1394)
+        run: node --test s_session/tests/test_q3_v3_validate_once.cjs
       # #1414：TB-02-D 单元测试固定 CPython 3.14.6。s_query_integrity.py 的同次解析池只在
       #   3.14.6 / 64 位、实测 dict 布局匹配时启用；test_tb02d_parse_pool 的播种、命中与容量
       #   断言绑定该布局，其它解释器上池自动停用、断言失败而不是跳过。上面 3.11 的步骤不变，

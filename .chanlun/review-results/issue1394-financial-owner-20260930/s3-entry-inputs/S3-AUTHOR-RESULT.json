@@ -1,0 +1,136 @@
+{
+  "api": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/API.md",
+    "sha256": "90f6c40f6512a5c97c17f4dab426b53ec553491b11516c75affd2bce533ed7fa"
+  },
+  "baseline_archive_manifest": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/BASELINE-ARCHIVE-MANIFEST.json",
+    "sha256": "77722696ddb44da1e7331287bc01ec0757785069f098da8cf6992d7991d91846"
+  },
+  "baseline_candidate": "b86c0c291952879af67882e79d9687f51ce1741f",
+  "binary": {
+    "bytes": 18609984,
+    "non_test_build_exit": 0,
+    "non_test_check_exit": 0,
+    "owned_target_path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/target/debug/s_structure_session",
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/s_structure_session-46d183a20a",
+    "profile": "dev debug=0 incremental=0",
+    "rust_tree": "5a2acd1e72c3846be38cc29689a82aeb57c68dc6",
+    "sha256": "5437fbb5d581d1b48f6a1d3405cae67327113e5a2c7fedd7ce3a1d9ce1e18e91"
+  },
+  "branch": "codex/1394-s3-formal-entry-20261001",
+  "commit": "46d183a20afe2c68e01e26555531663a7810f065",
+  "delta_patch": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/candidate.delta.patch",
+    "sha256": "c7b3ecc587ea94e849784d31d79baa6a1dc75137a6a2c3a4fefa920a2fd6ded9"
+  },
+  "delta_scope": [
+    "s_session/s_service_control.py",
+    "s_session/tests/test_tb01c_s3_service_control.py",
+    "rust/src/bin/s_session_v3/writer_cli.rs"
+  ],
+  "executed": {
+    "global_setenv_in_tests": false,
+    "new_python_binding_positive_negative_and_legacy_env_lock": true,
+    "new_rust_helper_positive_invalid_and_changed_values_lock": true,
+    "non_test_build_exit": 0,
+    "non_test_check_exit": 0,
+    "python_controller": 42,
+    "rust_writer": 3
+  },
+  "fix": "私有 S_CONTROL_RESOURCE_SHA256 从已核冻结资源身份传入child并覆盖ambient；Rust资源load后、clock/profile/lock/db/listen前严格核canonical digest；未知非法声明明确拒",
+  "git_hook_commit_exit": 0,
+  "git_hook_note": "只读缓存refs提醒，不作新远端/整图/合入通过证据",
+  "independent_cli_negative_harness": {
+    "author_executed": false,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/check-resource-binding-negative.py",
+    "py_compile_exit": 0,
+    "root_action": "显式 current binary/根冻结resource file/新output-dir/timeout-ms 后运行错digest和非法声明两项真实CLI before-effects负例",
+    "sha256": "c13f5a57f692b3e4b75e9c388debb5ab64bbce7f7753ab78f605084402c263e7"
+  },
+  "logs": {
+    "commit.log": {
+      "bytes": 304,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/commit.log",
+      "sha256": "be5cc7d9345ec5a00a224818823ed11de0c8252d4a67da090ccd88ffbdfae8ad"
+    },
+    "controller-binding.log": {
+      "bytes": 7541,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/controller-binding.log",
+      "sha256": "a299efb12c2b055ed81ac54a9458af4593bf3c1d971db12e445e7cebe84c10af"
+    },
+    "rust-build.log": {
+      "bytes": 29365,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/rust-build.log",
+      "sha256": "d23f0ea25f90bba3b5b2edfdd302477119c27dff4fa1fa1aa9188759ae4c8547"
+    },
+    "rust-check-formatted.log": {
+      "bytes": 29365,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/rust-check-formatted.log",
+      "sha256": "b00f1f92e1f7cc22fb7c2351dfebd27e2d7aefb9808c5e5510251cfd93b054ad"
+    },
+    "rust-check.log": {
+      "bytes": 29365,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/rust-check.log",
+      "sha256": "317f9af3a46dd1b3f89067815d8b4ee5945e8bf25aa9fc51c0df36775a5d0b80"
+    },
+    "rust-writer-binding.log": {
+      "bytes": 22991,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/rust-writer-binding.log",
+      "sha256": "654c466f8b89e01142416c9e14ebf0bfa6d00188e382e564138e00af3063150f"
+    },
+    "rust-writer-formatted.log": {
+      "bytes": 22991,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/rust-writer-formatted.log",
+      "sha256": "458e455c072e3d03af3a487d60d582212b48aa70cb519e5a65deefea10f8057c"
+    }
+  },
+  "not_claimed": [
+    "incremental independent Spec/Python/Rust Standards review",
+    "actual CLI negative-harness execution",
+    "actual service acceptance",
+    "production capacity",
+    "main integration",
+    "push",
+    "tracker mutation"
+  ],
+  "old_binary_archive": {
+    "mode": "0500 O_EXCL copied before build",
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/baseline-ab54-s_structure_session",
+    "sha256": "ab54d7ad1734027fbe28ab7a2b7a2d38baee19a2ecb7116908ace0d67babe1be"
+  },
+  "old_failures_and_standard_warning_preserved": true,
+  "patch": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/candidate.patch",
+    "sha256": "a32c03adb35e8e92798e0c413f325314fa8939d1aa62f27c24bbb2906f0e6b62"
+  },
+  "reused_without_new_diff": {
+    "logs_from_previous_candidate_preserved": [
+      "rust-driver-verified.log",
+      "rust-state-verified.log"
+    ],
+    "rust_driver_passed": 19,
+    "rust_state_passed": 7,
+    "source_files_unchanged": [
+      "rust/src/bin/s_session_v3/driver.rs",
+      "rust/src/bin/s_session_v3/state.rs"
+    ]
+  },
+  "revision": 1,
+  "running_handles": [],
+  "schema_revision": "issue1394-author-result/1",
+  "source_manifest": {
+    "file_count": 574,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/SOURCE-MANIFEST.json",
+    "sha256": "8a331bebd86b998090fdb8926c1dfd3c618f025e66e641eb7f2f133ae8340abc"
+  },
+  "status": "LOCAL_RESOURCE_BINDING_CANDIDATE_READY_FOR_INCREMENTAL_REVIEW_NOT_SERVICE_ACCEPTANCE",
+  "tracked_clean": true,
+  "unchanged": [
+    "原七资源值",
+    "公共配置字段/API头",
+    "资源量纲",
+    "Driver/state领域判据",
+    "direct CLI无私有声明时的显式资源语义"
+  ]
+}

@@ -1,0 +1,3020 @@
+{
+  "schema_revision": "issue1394-enospc-source-binding-audit/1",
+  "root_head": "909ccff13abaed83be3c939ab7459d52ff4afee5",
+  "compiled_source_files_and_cargo_manifests": 502,
+  "all_equal_except_only_test_include": true,
+  "files": [
+    {
+      "path": "rust/Cargo.lock",
+      "root_sha256": "c591858344c1ff7c62335e10c0e2f1f5cf9e7447a8caf81cd92e556bac248b62",
+      "private_sha256": "c591858344c1ff7c62335e10c0e2f1f5cf9e7447a8caf81cd92e556bac248b62",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/Cargo.toml",
+      "root_sha256": "c27bccc2c768dee0c8c21faf46888d31cc2f37b7404cd5b948e6e163795c62cf",
+      "private_sha256": "c27bccc2c768dee0c8c21faf46888d31cc2f37b7404cd5b948e6e163795c62cf",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bi_engine.rs",
+      "root_sha256": "31ce870209a9ae803966c4032a4179eb2382188c613ea1b74ff636c78656e931",
+      "private_sha256": "31ce870209a9ae803966c4032a4179eb2382188c613ea1b74ff636c78656e931",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bi_zhongshu_bsp.rs",
+      "root_sha256": "b5d1484cf8a5eb04632ff618704ba9eff1b55576306ad43c060af5fa9de93c84",
+      "private_sha256": "b5d1484cf8a5eb04632ff618704ba9eff1b55576306ad43c060af5fa9de93c84",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/b_chong_session.rs",
+      "root_sha256": "34adfbb8456b5e81ea35c81b6cb11ebc83fe85f4aa571ea669115adf3ff56af1",
+      "private_sha256": "34adfbb8456b5e81ea35c81b6cb11ebc83fe85f4aa571ea669115adf3ff56af1",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/cp_capability_smoke.rs",
+      "root_sha256": "c733bb16a95a90ea319c019c88bc84cb9e45afcc285ead3dfb3aa114f1601c3c",
+      "private_sha256": "c733bb16a95a90ea319c019c88bc84cb9e45afcc285ead3dfb3aa114f1601c3c",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/e_economic_session.rs",
+      "root_sha256": "866dbe66d598648b5c324ad77eaa825c2a856caa37a19b41d4145f7f251e7005",
+      "private_sha256": "866dbe66d598648b5c324ad77eaa825c2a856caa37a19b41d4145f7f251e7005",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/issue550_event_battery.rs",
+      "root_sha256": "a90c1dabc7bdb4fa60e3274e31d55df77c51820b34d0da1a0a7ec27eb63f88de",
+      "private_sha256": "a90c1dabc7bdb4fa60e3274e31d55df77c51820b34d0da1a0a7ec27eb63f88de",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/lav_seal_samples.rs",
+      "root_sha256": "3bf72686fbdc1144456d267510ee40bac35ef90857cfdd60a849a9d8efda6ac1",
+      "private_sha256": "3bf72686fbdc1144456d267510ee40bac35ef90857cfdd60a849a9d8efda6ac1",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p100_cert_bsp_recon.rs",
+      "root_sha256": "5c7e6d61f86b9b2c941c6f3d363d0d0e28c408d24f753f168d4816bd14124944",
+      "private_sha256": "5c7e6d61f86b9b2c941c6f3d363d0d0e28c408d24f753f168d4816bd14124944",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p101_cert_bsp_tag.rs",
+      "root_sha256": "7534ff2d708bf151f07b53f7e88eb5ac20c2f7ccca50e6d70eeed8c3db251dbd",
+      "private_sha256": "7534ff2d708bf151f07b53f7e88eb5ac20c2f7ccca50e6d70eeed8c3db251dbd",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p102_b_long_zero_probe.rs",
+      "root_sha256": "3ee310ff25728354a5fada00275065cffc7cb3c4e18d9104dfa22c4c420c68b1",
+      "private_sha256": "3ee310ff25728354a5fada00275065cffc7cb3c4e18d9104dfa22c4c420c68b1",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p1035_type1_lead.rs",
+      "root_sha256": "d648463826f37f55680eeb8e36b45fd04b01897ed17cb06e1605a37995f59e25",
+      "private_sha256": "d648463826f37f55680eeb8e36b45fd04b01897ed17cb06e1605a37995f59e25",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p104_trend_div_funnel.rs",
+      "root_sha256": "09be7d8ad325a6786591da7bb9ca0c76dafb0e21b26a510f7ec60c7cf0481213",
+      "private_sha256": "09be7d8ad325a6786591da7bb9ca0c76dafb0e21b26a510f7ec60c7cf0481213",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p105_cert_level_spectrum.rs",
+      "root_sha256": "8479788327c10fa85f3e896d89ededbb4e8497b3c222acab7ba6cd64efccf0a7",
+      "private_sha256": "8479788327c10fa85f3e896d89ededbb4e8497b3c222acab7ba6cd64efccf0a7",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p106_cert_forward_pnl.rs",
+      "root_sha256": "36d5c4e56fbf9767a974a4e220b76e46eb4e34cb386d1f9c9bc0629b10079769",
+      "private_sha256": "36d5c4e56fbf9767a974a4e220b76e46eb4e34cb386d1f9c9bc0629b10079769",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p107_level_calib.rs",
+      "root_sha256": "20d89ce81bb71275f11a7418588016c3fbee89a8cef69f4c9c40ef52aebaf401",
+      "private_sha256": "20d89ce81bb71275f11a7418588016c3fbee89a8cef69f4c9c40ef52aebaf401",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p107_level_funnel_audit.rs",
+      "root_sha256": "620452578e746a47efa4e59b4d98e3781cba7ba233e7569db7020d8ef601c956",
+      "private_sha256": "620452578e746a47efa4e59b4d98e3781cba7ba233e7569db7020d8ef601c956",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p108_dparent_caliber_counterfactual.rs",
+      "root_sha256": "a7d729bdc7ba291ed7f91e9432e8fc0bc99306912c76b278c79924035c957e87",
+      "private_sha256": "a7d729bdc7ba291ed7f91e9432e8fc0bc99306912c76b278c79924035c957e87",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p108_interval_probe.rs",
+      "root_sha256": "f10136fae6626235677782fa8cf4c41405ed69f00582373fc1da9f937f219330",
+      "private_sha256": "f10136fae6626235677782fa8cf4c41405ed69f00582373fc1da9f937f219330",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p109_chain157_gate_attrition.rs",
+      "root_sha256": "5d76e678b28dbafb8e3bf1328ff104d60612f84b3359de4ce0c85aeff08f65c3",
+      "private_sha256": "5d76e678b28dbafb8e3bf1328ff104d60612f84b3359de4ce0c85aeff08f65c3",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p111_parent_divergence_validity.rs",
+      "root_sha256": "3ab60e3881a30c60679289a31d584429ab26b583b0f8a109b9e1962e4530bcae",
+      "private_sha256": "3ab60e3881a30c60679289a31d584429ab26b583b0f8a109b9e1962e4530bcae",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p112_trend_predicate_caseaudit.rs",
+      "root_sha256": "d5ec5f043cc16367bbd8ddf2c870df17c7a906b558c86dbfd802751d73d033f8",
+      "private_sha256": "d5ec5f043cc16367bbd8ddf2c870df17c7a906b558c86dbfd802751d73d033f8",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p113_pan_caseaudit.rs",
+      "root_sha256": "8cc79dea5c8d5668e6c5a25da9f867e48e248d52c386fd984a4c15ee20914615",
+      "private_sha256": "8cc79dea5c8d5668e6c5a25da9f867e48e248d52c386fd984a4c15ee20914615",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p116_turnpoint_anchor_existence.rs",
+      "root_sha256": "5f040bb3af673f3a3f94381c8a7531f69951645ebbff70f91e8977e97025626b",
+      "private_sha256": "5f040bb3af673f3a3f94381c8a7531f69951645ebbff70f91e8977e97025626b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p117_h4_attribution.rs",
+      "root_sha256": "7d3f0a45349fa02fe2d5f72b539a7093ab52d30cf42debe3a45135c1fe8e4d12",
+      "private_sha256": "7d3f0a45349fa02fe2d5f72b539a7093ab52d30cf42debe3a45135c1fe8e4d12",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p117_s1a_level_recheck.rs",
+      "root_sha256": "af9177056bea71f8c2c6fd42c4fd323788e8cd591751c1bdd6f6202328c8749c",
+      "private_sha256": "af9177056bea71f8c2c6fd42c4fd323788e8cd591751c1bdd6f6202328c8749c",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p119_l5_decompose.rs",
+      "root_sha256": "aa7a61434894bf5a297a04b6ed9f033c57fbbcff340f98ca2687dbb0c5d63708",
+      "private_sha256": "aa7a61434894bf5a297a04b6ed9f033c57fbbcff340f98ca2687dbb0c5d63708",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p122_replay_profile.rs",
+      "root_sha256": "55b1cdf15cc69dc2b05d56234ed3e26efff50c9cd7775e7f285ba7338cced7cb",
+      "private_sha256": "55b1cdf15cc69dc2b05d56234ed3e26efff50c9cd7775e7f285ba7338cced7cb",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p123_fast_replay.rs",
+      "root_sha256": "5acfcf39a5a90e6f4894f463598e224c3c45bd962716521e50843893c7c96eb1",
+      "private_sha256": "5acfcf39a5a90e6f4894f463598e224c3c45bd962716521e50843893c7c96eb1",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p124_merge.rs",
+      "root_sha256": "f2b381dfe4526f7db899e77ad990aaff2704e2da2f1fd320989caa237708f418",
+      "private_sha256": "f2b381dfe4526f7db899e77ad990aaff2704e2da2f1fd320989caa237708f418",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p124_shard_replay.rs",
+      "root_sha256": "36f96ec69f89804e364c2e849bd070502400c7252960d1cf147c9be99a1c09de",
+      "private_sha256": "36f96ec69f89804e364c2e849bd070502400c7252960d1cf147c9be99a1c09de",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p125_endorsement_audit.rs",
+      "root_sha256": "2a775a52d46ce206011d21eb29a858d7aaea57351dfe08b87a8f0ce926a6ad99",
+      "private_sha256": "2a775a52d46ce206011d21eb29a858d7aaea57351dfe08b87a8f0ce926a6ad99",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p126_d3_descending_clock.rs",
+      "root_sha256": "cd831a4a086557cbd02b95fcc38c157e667f9b39436c66aa5f443f119f9cc4b6",
+      "private_sha256": "cd831a4a086557cbd02b95fcc38c157e667f9b39436c66aa5f443f119f9cc4b6",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p127_skip_impact.rs",
+      "root_sha256": "f013fcbea71f7d4c6d856060dabdef49c473b6931134a9519678b28db988f92e",
+      "private_sha256": "f013fcbea71f7d4c6d856060dabdef49c473b6931134a9519678b28db988f92e",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p129_44ke_strict_skip.rs",
+      "root_sha256": "2d4bbc2c16f74c1612f8b33eb8c1a669fdda6d0c1a6ae98bf355b57247e642f2",
+      "private_sha256": "2d4bbc2c16f74c1612f8b33eb8c1a669fdda6d0c1a6ae98bf355b57247e642f2",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p409_pan_live_probe.rs",
+      "root_sha256": "a62357afd48541200331dc87f36d3e17f4d9d3128a1b2aec1cfba11c2cb7ef07",
+      "private_sha256": "a62357afd48541200331dc87f36d3e17f4d9d3128a1b2aec1cfba11c2cb7ef07",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p76_case2_replay.rs",
+      "root_sha256": "0656ea1fd46c0ddaef3744c2daf5d560e225d1d43d68583376e54591f6e8cc45",
+      "private_sha256": "0656ea1fd46c0ddaef3744c2daf5d560e225d1d43d68583376e54591f6e8cc45",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p83_yield_remeasure.rs",
+      "root_sha256": "f7abcaf59da89119e4d6cdb0d01d4b1476fd0bec9cc78938c0c974b83b3925c0",
+      "private_sha256": "f7abcaf59da89119e4d6cdb0d01d4b1476fd0bec9cc78938c0c974b83b3925c0",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p84_failclosed_audit.rs",
+      "root_sha256": "7d5553c1f61376ee2321ae7961f3b6c61dfd401d1dd76ff85ba71bab5e3c11fa",
+      "private_sha256": "7d5553c1f61376ee2321ae7961f3b6c61dfd401d1dd76ff85ba71bab5e3c11fa",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p856_ed_dominance.rs",
+      "root_sha256": "a622662721ac7a99a63f81f17503a5d51a5b23641e2f76b948dd7b7c1fb117f1",
+      "private_sha256": "a622662721ac7a99a63f81f17503a5d51a5b23641e2f76b948dd7b7c1fb117f1",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p86_anchor_hypothesis.rs",
+      "root_sha256": "7a76767f3abdaa17709627223a6696d4155fe387662de079f64f211093eb1249",
+      "private_sha256": "7a76767f3abdaa17709627223a6696d4155fe387662de079f64f211093eb1249",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p89_dual_core_audit.rs",
+      "root_sha256": "f6d7729ea6e749686c824e6afdc096390a0383c486431276051a58503772d95d",
+      "private_sha256": "f6d7729ea6e749686c824e6afdc096390a0383c486431276051a58503772d95d",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p907_cost_gate_level.rs",
+      "root_sha256": "cc01c16e60d85500bdfc2a2760b5069cbd56b09b4c92f073c70acc8c3ab716f4",
+      "private_sha256": "cc01c16e60d85500bdfc2a2760b5069cbd56b09b4c92f073c70acc8c3ab716f4",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p915_capacity_frequency.rs",
+      "root_sha256": "e860b48647fbdc22a5bd9a2e263004e668f93ed3a2320578d6d53d2420128413",
+      "private_sha256": "e860b48647fbdc22a5bd9a2e263004e668f93ed3a2320578d6d53d2420128413",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p92_nest_replay_postruling.rs",
+      "root_sha256": "f9d5bd984bb3dc5546409939194018be51649db6f079f96404c778b12c19d409",
+      "private_sha256": "f9d5bd984bb3dc5546409939194018be51649db6f079f96404c778b12c19d409",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p938_bound_center_openness.rs",
+      "root_sha256": "ae99206fe19f3c320bf190e1e3b74e7c4397fca24db6c9ca041e897993954d30",
+      "private_sha256": "ae99206fe19f3c320bf190e1e3b74e7c4397fca24db6c9ca041e897993954d30",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p938_seed_moved_composition.rs",
+      "root_sha256": "fdc62152f0c1567263294353e36f84ee8fb150d8bf49c96974da48d4376a925b",
+      "private_sha256": "fdc62152f0c1567263294353e36f84ee8fb150d8bf49c96974da48d4376a925b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p93_invalidseed_probe.rs",
+      "root_sha256": "4b02f8157594b605dad822052b8feb51800985b18ef054df65b100e960bb982a",
+      "private_sha256": "4b02f8157594b605dad822052b8feb51800985b18ef054df65b100e960bb982a",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p940_struct_input_abc.rs",
+      "root_sha256": "27b216ce9f1590c63ad0eab4173b75acb60d86eddeff48d642b6b139dae5f1cf",
+      "private_sha256": "27b216ce9f1590c63ad0eab4173b75acb60d86eddeff48d642b6b139dae5f1cf",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p944_bsp_layer_mismatch.rs",
+      "root_sha256": "b7e64c4016ede641b2d4138d05a4986c679ae42e57716c4016c006b68c98ca60",
+      "private_sha256": "b7e64c4016ede641b2d4138d05a4986c679ae42e57716c4016c006b68c98ca60",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p946_seg_structure_alignment.rs",
+      "root_sha256": "7d63dc20652fd60767f87aa32621186c84775507c80261448b7ed368e610b508",
+      "private_sha256": "7d63dc20652fd60767f87aa32621186c84775507c80261448b7ed368e610b508",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p95_carriedonly_ab.rs",
+      "root_sha256": "5740bd458bf1d0d98f05710e9cd7b3afc1daf505a741af37bf4b6a8fcc2027ef",
+      "private_sha256": "5740bd458bf1d0d98f05710e9cd7b3afc1daf505a741af37bf4b6a8fcc2027ef",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p977_force_def_validation.rs",
+      "root_sha256": "2d3217d6201016572478bcf52b254ed24897a68a3e077e17e91c1482bb82f84a",
+      "private_sha256": "2d3217d6201016572478bcf52b254ed24897a68a3e077e17e91c1482bb82f84a",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p985_s8_consume_baseline.rs",
+      "root_sha256": "f1d1aa9c2c481180d2c3b2076909c12b7d9869b65d65ad873b0c3f6e2a64cd90",
+      "private_sha256": "f1d1aa9c2c481180d2c3b2076909c12b7d9869b65d65ad873b0c3f6e2a64cd90",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p985_tv_endpoint_blunt.rs",
+      "root_sha256": "339bb2a459ff20216a990a5768ba504cb5e70e610fccf03fbd88f56154e390c9",
+      "private_sha256": "339bb2a459ff20216a990a5768ba504cb5e70e610fccf03fbd88f56154e390c9",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p992_gauge_diff.rs",
+      "root_sha256": "91f81585fa4b86737927ce9d8799c8934e2b1babe1677419f2a354ef41421e30",
+      "private_sha256": "91f81585fa4b86737927ce9d8799c8934e2b1babe1677419f2a354ef41421e30",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p_issue668_bsp_bridge_battery.rs",
+      "root_sha256": "ac8caf644e210782626a936d5bb5a4d2419073ad2a37028f52d64a4c277c3723",
+      "private_sha256": "ac8caf644e210782626a936d5bb5a4d2419073ad2a37028f52d64a4c277c3723",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/p_issue668_bsp_key_truth.rs",
+      "root_sha256": "355307c7f08b8196f51d275fffb9e259d68bdc83b0a9410bcd8404257a902616",
+      "private_sha256": "355307c7f08b8196f51d275fffb9e259d68bdc83b0a9410bcd8404257a902616",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/pi_bsp_timing.rs",
+      "root_sha256": "ed7a950b5f60da4bf0f0a079812917ff985074d3e646b10fe7e45227380015be",
+      "private_sha256": "ed7a950b5f60da4bf0f0a079812917ff985074d3e646b10fe7e45227380015be",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/pi_bsp_timing/cli_args_tests.rs",
+      "root_sha256": "0b8335db0875fe045634c3399d7cb542611c3799667e00dc99c619e9d1901401",
+      "private_sha256": "0b8335db0875fe045634c3399d7cb542611c3799667e00dc99c619e9d1901401",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/pure_bsp_timing.rs",
+      "root_sha256": "ec932d7b5d08202008f13bf145449113f91018f0c9814674777e0f5f2712f843",
+      "private_sha256": "ec932d7b5d08202008f13bf145449113f91018f0c9814674777e0f5f2712f843",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s2_lean_mirror_extract.rs",
+      "root_sha256": "b82450a2d401bd5697756d23a029a91ebd74616ff8855111d46459e94cc63e7d",
+      "private_sha256": "b82450a2d401bd5697756d23a029a91ebd74616ff8855111d46459e94cc63e7d",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/audit.rs",
+      "root_sha256": "c10d0ef6af253d8f7ff5fe9be31e94a0a845d53a4a1ef8608286533015602e6f",
+      "private_sha256": "c10d0ef6af253d8f7ff5fe9be31e94a0a845d53a4a1ef8608286533015602e6f",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/cache.rs",
+      "root_sha256": "37bb1a7b2d8c2259717a0b570e1ec63f9dc552694b0b4025d0b01f40a9235bf4",
+      "private_sha256": "37bb1a7b2d8c2259717a0b570e1ec63f9dc552694b0b4025d0b01f40a9235bf4",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/content_bi.rs",
+      "root_sha256": "512534bbfc7c62848f05b9c89be6105a3ed276a772d95d85266a32c46dc43eef",
+      "private_sha256": "512534bbfc7c62848f05b9c89be6105a3ed276a772d95d85266a32c46dc43eef",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/content_manifest.rs",
+      "root_sha256": "0521849d902f7c40df4e0a451e8bcc963408bb72e45ce16edaf0d49cecb02ab2",
+      "private_sha256": "0521849d902f7c40df4e0a451e8bcc963408bb72e45ce16edaf0d49cecb02ab2",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/content_producer.rs",
+      "root_sha256": "25a6182c2df567ab7d7bc75c68ff3b0bc11c77ecc81d0097160656974720a808",
+      "private_sha256": "25a6182c2df567ab7d7bc75c68ff3b0bc11c77ecc81d0097160656974720a808",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/content_publication.rs",
+      "root_sha256": "dcfae1254d7350271b166fb67817a25a974eb38b66497019d08ef092b96f4788",
+      "private_sha256": "dcfae1254d7350271b166fb67817a25a974eb38b66497019d08ef092b96f4788",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/content_store.rs",
+      "root_sha256": "ac0756cb7b035eca119273f5026fa49903bf53c19147ceef235ed0a074cd6375",
+      "private_sha256": "ac0756cb7b035eca119273f5026fa49903bf53c19147ceef235ed0a074cd6375",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/delta_storage.rs",
+      "root_sha256": "6a5c7ea1518aff8d35abc51a3ffe0424390e27cc580eaa63f82260aad7966fc9",
+      "private_sha256": "6a5c7ea1518aff8d35abc51a3ffe0424390e27cc580eaa63f82260aad7966fc9",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/evidence_store.rs",
+      "root_sha256": "ee3a473fafcaa611c6ee81f5b5cce9f5a996dec33b930a9a17f15b61ccecd601",
+      "private_sha256": "ee3a473fafcaa611c6ee81f5b5cce9f5a996dec33b930a9a17f15b61ccecd601",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/mod.rs",
+      "root_sha256": "e4632de7d76ba0a728543446bb21e44dc1e0d402c672a20ec650a59f6a6560f7",
+      "private_sha256": "e4632de7d76ba0a728543446bb21e44dc1e0d402c672a20ec650a59f6a6560f7",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/s_fact_cache.rs",
+      "root_sha256": "c597caacfdc556b7f92bd68851c5a1ef8eddbdfe61ced972f6a7bbb701154115",
+      "private_sha256": "c597caacfdc556b7f92bd68851c5a1ef8eddbdfe61ced972f6a7bbb701154115",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/tb02a.rs",
+      "root_sha256": "78cff6491b61ba778cb999b61ee386fe7be67de08ee1c917e8137ba029f9c8ed",
+      "private_sha256": "78cff6491b61ba778cb999b61ee386fe7be67de08ee1c917e8137ba029f9c8ed",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/tb02a_facts.rs",
+      "root_sha256": "8bc348b8075cbc920e5ee6650db482f16a1ac69e9045deb8fd4defdde78e140d",
+      "private_sha256": "8bc348b8075cbc920e5ee6650db482f16a1ac69e9045deb8fd4defdde78e140d",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/tb02b.rs",
+      "root_sha256": "1219e530619f688af85323c582b2c06f29b143a8b5926f6fbe76d82ff2b5cb99",
+      "private_sha256": "1219e530619f688af85323c582b2c06f29b143a8b5926f6fbe76d82ff2b5cb99",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/audit_budget.rs",
+      "root_sha256": "54248ef39d6e1cdbe8fee1990f872d594018ebeaa39a5d7ffb3c9e0a712a69d4",
+      "private_sha256": "54248ef39d6e1cdbe8fee1990f872d594018ebeaa39a5d7ffb3c9e0a712a69d4",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/aux_index.rs",
+      "root_sha256": "6a2f2d73c6e8d576ced4f0a9364f5dd1dc4a3611656ca5ada3de892e90464826",
+      "private_sha256": "6a2f2d73c6e8d576ced4f0a9364f5dd1dc4a3611656ca5ada3de892e90464826",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/capture.rs",
+      "root_sha256": "22659f9ae4685b2e83669a3945e21d5defb89d4333e760099aa5667b4d9bcd1e",
+      "private_sha256": "22659f9ae4685b2e83669a3945e21d5defb89d4333e760099aa5667b4d9bcd1e",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/catalog_evidence.rs",
+      "root_sha256": "42835e16d2eafc7b4da4cbc9f2bd8361698c2ccb5081f10b93966cfc08777312",
+      "private_sha256": "42835e16d2eafc7b4da4cbc9f2bd8361698c2ccb5081f10b93966cfc08777312",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/commit.rs",
+      "root_sha256": "cf7f8953ffb3453a078f3345aac1d858a8fedfeb24f0d0da17d36d2e24edda78",
+      "private_sha256": "cf7f8953ffb3453a078f3345aac1d858a8fedfeb24f0d0da17d36d2e24edda78",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/control.rs",
+      "root_sha256": "bbf1141c19763c61fcdd9a3c3e97d4a22fe6cc8f2bbf095424bd07f215212d83",
+      "private_sha256": "bbf1141c19763c61fcdd9a3c3e97d4a22fe6cc8f2bbf095424bd07f215212d83",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/control_audit.rs",
+      "root_sha256": "5255754e885607f84d56b1ef02dd4126532fdc6a429ae1c328e79837492ad416",
+      "private_sha256": "5255754e885607f84d56b1ef02dd4126532fdc6a429ae1c328e79837492ad416",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/driver.rs",
+      "root_sha256": "f65195333129a80dbd7334cd050d35b5be613f1639d1c12c18855bcad3086ee1",
+      "private_sha256": "f65195333129a80dbd7334cd050d35b5be613f1639d1c12c18855bcad3086ee1",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/financial_reader.rs",
+      "root_sha256": "1ac76606383d68376df7d7d7ddec4fe4074eedbe2b7c5d534734a4d95700bdb2",
+      "private_sha256": "1ac76606383d68376df7d7d7ddec4fe4074eedbe2b7c5d534734a4d95700bdb2",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/generation.rs",
+      "root_sha256": "d4300f1993669bc0eb39407b499cd9b2d2690b2f420437cde243a188a53c8179",
+      "private_sha256": "d4300f1993669bc0eb39407b499cd9b2d2690b2f420437cde243a188a53c8179",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/history.rs",
+      "root_sha256": "f9020f6b9542102fe0c2e80ada9efc3c4fbaf435dbc0530a992ff121520ce06f",
+      "private_sha256": "f9020f6b9542102fe0c2e80ada9efc3c4fbaf435dbc0530a992ff121520ce06f",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/mod.rs",
+      "root_sha256": "cccfeeab8cf50db7d7c62d748289efb26a6368f79c7124f1f5fbd6068c75295a",
+      "private_sha256": "cccfeeab8cf50db7d7c62d748289efb26a6368f79c7124f1f5fbd6068c75295a",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/object_diff.rs",
+      "root_sha256": "95709268b36bd066f43a568167b1f3259f07841852d6f0c9f9d5e94c56655ea6",
+      "private_sha256": "95709268b36bd066f43a568167b1f3259f07841852d6f0c9f9d5e94c56655ea6",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/object_index.rs",
+      "root_sha256": "f8fb1b0d35bfbc515c3ca2406eb26d4c302666601b167be7c54b31901465f619",
+      "private_sha256": "f8fb1b0d35bfbc515c3ca2406eb26d4c302666601b167be7c54b31901465f619",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/object_records.rs",
+      "root_sha256": "2922be718790215d74be7c37b4afe13a9d912c2cca1483b854091f9fdf29b01a",
+      "private_sha256": "2922be718790215d74be7c37b4afe13a9d912c2cca1483b854091f9fdf29b01a",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/prepared.rs",
+      "root_sha256": "27e652d91c4e99d29c3f50c848970de035f08ac7fe89e982cf8dc42919e15221",
+      "private_sha256": "27e652d91c4e99d29c3f50c848970de035f08ac7fe89e982cf8dc42919e15221",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/projection.rs",
+      "root_sha256": "bfb57b542ab3c256ddf109ec5f106693945b28091c0c05f7553aca24fc9c1a23",
+      "private_sha256": "bfb57b542ab3c256ddf109ec5f106693945b28091c0c05f7553aca24fc9c1a23",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/q_content.rs",
+      "root_sha256": "6ddeed6162864eb88f8bd62496b3938123ce0c5aa220ee8bc71e13bf5541a3ad",
+      "private_sha256": "6ddeed6162864eb88f8bd62496b3938123ce0c5aa220ee8bc71e13bf5541a3ad",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/q_delta.rs",
+      "root_sha256": "e2cbb72c301c17fb7c7ac84cb75c81cc7ec1255acd25b8499f0e67f37bd9eeb2",
+      "private_sha256": "e2cbb72c301c17fb7c7ac84cb75c81cc7ec1255acd25b8499f0e67f37bd9eeb2",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/q_executor.rs",
+      "root_sha256": "fb9b5ca7e22bd2697a4b97c0bae59dcd12628f4a304ba4bc5c86934dea980015",
+      "private_sha256": "fb9b5ca7e22bd2697a4b97c0bae59dcd12628f4a304ba4bc5c86934dea980015",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/q_http_input.rs",
+      "root_sha256": "66a3e8a9343fc019437915273446356b195e942d72584ba7b635f2f898c59264",
+      "private_sha256": "66a3e8a9343fc019437915273446356b195e942d72584ba7b635f2f898c59264",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/q_lease.rs",
+      "root_sha256": "19a18f1807b4f39c4be76adf6608a50df7e9cae715d3f2fc61bf599eea131475",
+      "private_sha256": "19a18f1807b4f39c4be76adf6608a50df7e9cae715d3f2fc61bf599eea131475",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/q_listener.rs",
+      "root_sha256": "adca4af80cb2f8b035a92f4cf8554ceb468b81ec74bfc35183fa4629b6885e2b",
+      "private_sha256": "adca4af80cb2f8b035a92f4cf8554ceb468b81ec74bfc35183fa4629b6885e2b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/q_resources.rs",
+      "root_sha256": "60790adfafff6e4c86fb451578f28f03359c69b442dc709ec00b4f1ac190777f",
+      "private_sha256": "60790adfafff6e4c86fb451578f28f03359c69b442dc709ec00b4f1ac190777f",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/q_retained.rs",
+      "root_sha256": "5c925c693cf487b538f7c85b1c2948ce045eb32b07cac813ec414de0b6cb2522",
+      "private_sha256": "5c925c693cf487b538f7c85b1c2948ce045eb32b07cac813ec414de0b6cb2522",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/q_runtime.rs",
+      "root_sha256": "72da49cf45bf02778c1694cf5c0527307bfdf478cb08cb959eb69d2aa6c4de24",
+      "private_sha256": "72da49cf45bf02778c1694cf5c0527307bfdf478cb08cb959eb69d2aa6c4de24",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/q_serve.rs",
+      "root_sha256": "d9a1d12c7f8a616735eaf3762ddeb6c70acb7f60ea2ac4ff90c5830219f98553",
+      "private_sha256": "d9a1d12c7f8a616735eaf3762ddeb6c70acb7f60ea2ac4ff90c5830219f98553",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/q_snapshot.rs",
+      "root_sha256": "19fdc9408f2b4fe3e7097a50f37b894c5f4821094f7a587446148352050d5350",
+      "private_sha256": "19fdc9408f2b4fe3e7097a50f37b894c5f4821094f7a587446148352050d5350",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/q_watch.rs",
+      "root_sha256": "ac9b166ab080f4cd1f1f74b7b49f5c7e2fd371d012fdead604f1ae992cfd2eb6",
+      "private_sha256": "ac9b166ab080f4cd1f1f74b7b49f5c7e2fd371d012fdead604f1ae992cfd2eb6",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/q_wire.rs",
+      "root_sha256": "c3e34422e6cd385e7702947494fe9997049fd8adb3eed5d1b0033c9f146a6a17",
+      "private_sha256": "c3e34422e6cd385e7702947494fe9997049fd8adb3eed5d1b0033c9f146a6a17",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/raw_input.rs",
+      "root_sha256": "3e02b40deb3341085096238d55ce2f7d9e11d6af9fadf8de8dfde83624cebe45",
+      "private_sha256": "3e02b40deb3341085096238d55ce2f7d9e11d6af9fadf8de8dfde83624cebe45",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/reader.rs",
+      "root_sha256": "f44b4e69b7e7f722058ab1192dcd4151250cf64b685814a3d0d5ad2c079f4509",
+      "private_sha256": "f44b4e69b7e7f722058ab1192dcd4151250cf64b685814a3d0d5ad2c079f4509",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/source_audit.rs",
+      "root_sha256": "00287450b1d203361f08cdad5563b6584812b8d628ab9a8a7e3c3ea42c868196",
+      "private_sha256": "00287450b1d203361f08cdad5563b6584812b8d628ab9a8a7e3c3ea42c868196",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/state.rs",
+      "root_sha256": "07ad4f5334022b92d52265cf9427e6cd8e419732b64a53213fc6960f7eeed6bb",
+      "private_sha256": "07ad4f5334022b92d52265cf9427e6cd8e419732b64a53213fc6960f7eeed6bb",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/writer_cli.rs",
+      "root_sha256": "d3a29737cff1b1c32c8fcfcef7969d931b010ab00fd8edee8657ec55e0dc2679",
+      "private_sha256": "d3a29737cff1b1c32c8fcfcef7969d931b010ab00fd8edee8657ec55e0dc2679",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/s_structure_session.rs",
+      "root_sha256": "1479ab764fb6170b208bb6dd55035604cce98fd61b85f6f8442a7cc6dd261d03",
+      "private_sha256": "1479ab764fb6170b208bb6dd55035604cce98fd61b85f6f8442a7cc6dd261d03",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/strict_nest_check.rs",
+      "root_sha256": "f313d51dc9ff60c3261730060778c2013f182e6084bb65f1ef61185339f79d4e",
+      "private_sha256": "f313d51dc9ff60c3261730060778c2013f182e6084bb65f1ef61185339f79d4e",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/tangency_probe.rs",
+      "root_sha256": "d96b795bdba2f267e563ca13a709710d598945b0f777f3e82ddb04caf20a2603",
+      "private_sha256": "d96b795bdba2f267e563ca13a709710d598945b0f777f3e82ddb04caf20a2603",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/theta_accept.rs",
+      "root_sha256": "29f6ea67036e72c1acb64cb1ca0feaefdc7fe01e633c76a79abcd52032102500",
+      "private_sha256": "29f6ea67036e72c1acb64cb1ca0feaefdc7fe01e633c76a79abcd52032102500",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/theta_backtest.rs",
+      "root_sha256": "cb228c18216a00402f81fed225833a19901ecf157cda25f9ddf9865d88a036f0",
+      "private_sha256": "cb228c18216a00402f81fed225833a19901ecf157cda25f9ddf9865d88a036f0",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/theta_m1_dual.rs",
+      "root_sha256": "429b5192eb817243a7dae9032ff301066be0cd53e6a054089e7df6f1a04470d1",
+      "private_sha256": "429b5192eb817243a7dae9032ff301066be0cd53e6a054089e7df6f1a04470d1",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/theta_overlay.rs",
+      "root_sha256": "ca28818741e2e62f66da749f2ca958e0fe6055c0e97c6da12c32352a2ff5edff",
+      "private_sha256": "ca28818741e2e62f66da749f2ca958e0fe6055c0e97c6da12c32352a2ff5edff",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/bin/theta_replay.rs",
+      "root_sha256": "a099e3c1d2ad4d757275ba567574a1df5d68404687bb43bc53158e38e4defbe4",
+      "private_sha256": "a099e3c1d2ad4d757275ba567574a1df5d68404687bb43bc53158e38e4defbe4",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/buysellpoint.rs",
+      "root_sha256": "f9001ddffe19484989b6ecd9ee376b3b6e085825996316c93d6474ff7057a247",
+      "private_sha256": "f9001ddffe19484989b6ecd9ee376b3b6e085825996316c93d6474ff7057a247",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/c_segment_verify.rs",
+      "root_sha256": "587d6e36178846f36b157ced6b6dd903969a26e19ede87567294103b7f0046c0",
+      "private_sha256": "587d6e36178846f36b157ced6b6dd903969a26e19ede87567294103b7f0046c0",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/divergence.rs",
+      "root_sha256": "ce13e7c7ebe2c062348004ffda6815c22468a78fc8512a372c253eebeb2de5f9",
+      "private_sha256": "ce13e7c7ebe2c062348004ffda6815c22468a78fc8512a372c253eebeb2de5f9",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/economic_session/book.rs",
+      "root_sha256": "e6dbd45a64c4c93f6de59c1f4362a89c2a4b134106ea2a57bc470fb020e7a09e",
+      "private_sha256": "e6dbd45a64c4c93f6de59c1f4362a89c2a4b134106ea2a57bc470fb020e7a09e",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/economic_session/content_store.rs",
+      "root_sha256": "8fa07c89710e2d41ca0e31a6ba297ada2cc73cdc60e168560b80f7108743fbce",
+      "private_sha256": "8fa07c89710e2d41ca0e31a6ba297ada2cc73cdc60e168560b80f7108743fbce",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/economic_session/evidence.rs",
+      "root_sha256": "77cac6ff99a793d142c3f3701f29d4a24c722cbdcc4b2926bd54181661f0b0ad",
+      "private_sha256": "77cac6ff99a793d142c3f3701f29d4a24c722cbdcc4b2926bd54181661f0b0ad",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/economic_session/finance.rs",
+      "root_sha256": "e0325e7f141a2ff33cb81e4ce3ba66f04f76ca0740c01b1978d29227932c804c",
+      "private_sha256": "e0325e7f141a2ff33cb81e4ce3ba66f04f76ca0740c01b1978d29227932c804c",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/economic_session/finance_tests.rs",
+      "root_sha256": "ebad3e5a811850114a3fef3baab70e7a89262408f1c982464499b6c097261ac3",
+      "private_sha256": "f615c4ee1b05cd9df0b2521dc6f308fd9d7391c8ee6cf12d32390a4e289cbf1e",
+      "allowed_test_include": true
+    },
+    {
+      "path": "rust/src/economic_session/finance_transport.rs",
+      "root_sha256": "f35af6cfe6a9c51af2d556e2edec45691953b77499aed3a79efded7c62209e46",
+      "private_sha256": "f35af6cfe6a9c51af2d556e2edec45691953b77499aed3a79efded7c62209e46",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/economic_session/financial_content.rs",
+      "root_sha256": "068f04f5edefd72daf09c269fea8e687cd498bd5fba61cef0d142d3114cb67d1",
+      "private_sha256": "068f04f5edefd72daf09c269fea8e687cd498bd5fba61cef0d142d3114cb67d1",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/economic_session/financial_reader_resources.rs",
+      "root_sha256": "74c0dd50f6d69054b449c919c5ae15385248c034eafe96bc04e73ff61cb596b1",
+      "private_sha256": "74c0dd50f6d69054b449c919c5ae15385248c034eafe96bc04e73ff61cb596b1",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/economic_session/mod.rs",
+      "root_sha256": "3e18af5d87be88040d54a5d8d463e894aa74c2581407e8347a7180c739237d2d",
+      "private_sha256": "3e18af5d87be88040d54a5d8d463e894aa74c2581407e8347a7180c739237d2d",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/economic_session/service.rs",
+      "root_sha256": "f5f685e6844544af8ee1b0bb50dc6c89122dc1fad23c9d50bb0279e5e2703413",
+      "private_sha256": "f5f685e6844544af8ee1b0bb50dc6c89122dc1fad23c9d50bb0279e5e2703413",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/economic_session/store.rs",
+      "root_sha256": "a3e066f319998f37517084c19b7e4b270873c52a4ddf03d1693f7b712a11b8e5",
+      "private_sha256": "a3e066f319998f37517084c19b7e4b270873c52a4ddf03d1693f7b712a11b8e5",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/economic_session/voice.rs",
+      "root_sha256": "47320079744485b8b6f2b229bb7441602e4a9b11a9a92eaeb9057f6fe543b218",
+      "private_sha256": "47320079744485b8b6f2b229bb7441602e4a9b11a9a92eaeb9057f6fe543b218",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/economic_session/voice_tests.rs",
+      "root_sha256": "47509489a874f37d51afef33af67ba1ce68ad652426a9b135db57bc21d1640d7",
+      "private_sha256": "47509489a874f37d51afef33af67ba1ce68ad652426a9b135db57bc21d1640d7",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/fractal.rs",
+      "root_sha256": "da8e968fea94c12d1e5e075db161c192556acc5f7865609fded301a44fadcbf7",
+      "private_sha256": "da8e968fea94c12d1e5e075db161c192556acc5f7865609fded301a44fadcbf7",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/fugue_v3/accounting.rs",
+      "root_sha256": "bd63a3c30c0ecc36330b1f16206ac8fba3421745117cb0bcc683c2a209f44276",
+      "private_sha256": "bd63a3c30c0ecc36330b1f16206ac8fba3421745117cb0bcc683c2a209f44276",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/fugue_v3/axis.rs",
+      "root_sha256": "c804ccaf9e24b280413254ad7c2e7fb9e426731250381758266c6ef48a71ab5b",
+      "private_sha256": "c804ccaf9e24b280413254ad7c2e7fb9e426731250381758266c6ef48a71ab5b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/fugue_v3/cycle.rs",
+      "root_sha256": "db42f51de264fe05fcc426feb1341c7873ce4ebbf507200fe42ddc31ba852291",
+      "private_sha256": "db42f51de264fe05fcc426feb1341c7873ce4ebbf507200fe42ddc31ba852291",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/fugue_v3/engine.rs",
+      "root_sha256": "c7366f9d21910a435aa9fa359461273bd73e513db34b6b188d9bf860f7e5fdc9",
+      "private_sha256": "c7366f9d21910a435aa9fa359461273bd73e513db34b6b188d9bf860f7e5fdc9",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/fugue_v3/ffi.rs",
+      "root_sha256": "adaf89d4fd4c61b43bded48d20dbd890937e7f6cf744a040a2815272ebce129b",
+      "private_sha256": "adaf89d4fd4c61b43bded48d20dbd890937e7f6cf744a040a2815272ebce129b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/fugue_v3/layer.rs",
+      "root_sha256": "adb1f7489019169636e60ec79272fc33f2dfaa50d40f532ac7db4ad362a4e0bf",
+      "private_sha256": "adb1f7489019169636e60ec79272fc33f2dfaa50d40f532ac7db4ad362a4e0bf",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/fugue_v3/mod.rs",
+      "root_sha256": "a4be842797c4fe77c78c373ff0dcca0fe2b668380442e4cdf603a91b85b677df",
+      "private_sha256": "a4be842797c4fe77c78c373ff0dcca0fe2b668380442e4cdf603a91b85b677df",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/fugue_v3/morphology.rs",
+      "root_sha256": "aa74ec7117892a016196abd8578c039c55a6ed5e726c10e92a7f91b86c994800",
+      "private_sha256": "aa74ec7117892a016196abd8578c039c55a6ed5e726c10e92a7f91b86c994800",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/fugue_v3/observe.rs",
+      "root_sha256": "dde286e2222d4112c741f71642ad49d67a69ad4525098148665e78dc6f4afa8d",
+      "private_sha256": "dde286e2222d4112c741f71642ad49d67a69ad4525098148665e78dc6f4afa8d",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/fugue_v3/operate.rs",
+      "root_sha256": "0bdf52b4b65a4fde253f9d7058646f2a8c2a180112f0726348a19596cb983a33",
+      "private_sha256": "0bdf52b4b65a4fde253f9d7058646f2a8c2a180112f0726348a19596cb983a33",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/fugue_v3/prove.rs",
+      "root_sha256": "024fb48ba5d25a503da609b260e4c9f8d073d51a6604165dc605343ac53dc545",
+      "private_sha256": "024fb48ba5d25a503da609b260e4c9f8d073d51a6604165dc605343ac53dc545",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/lav_seal/bundle.rs",
+      "root_sha256": "4888840adf2fd7eb6eb09e9ea51352f735caf7008d9a8395f22f34902df294d4",
+      "private_sha256": "4888840adf2fd7eb6eb09e9ea51352f735caf7008d9a8395f22f34902df294d4",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/lav_seal/comparison_set.rs",
+      "root_sha256": "af8cfca3149276b66d53419c22d0e4667900b409b206a176e4322c09a35ec3a6",
+      "private_sha256": "af8cfca3149276b66d53419c22d0e4667900b409b206a176e4322c09a35ec3a6",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/lav_seal/digest.rs",
+      "root_sha256": "3df4890115c74f3d7ac5db9ec8f5ae113fff8b2fdf09cdcc3da4a6099645c7dd",
+      "private_sha256": "3df4890115c74f3d7ac5db9ec8f5ae113fff8b2fdf09cdcc3da4a6099645c7dd",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/lav_seal/jcs.rs",
+      "root_sha256": "fa4e984ad548da4b0b87693e5fe59de9fc29dde65184e15d0f9cd4d398fc8970",
+      "private_sha256": "fa4e984ad548da4b0b87693e5fe59de9fc29dde65184e15d0f9cd4d398fc8970",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/lav_seal/lead_baseline.rs",
+      "root_sha256": "9d5cb1421cd0a959b7716d3b8f0741dbf86f6e3ce64ef3bd11a6ef31bc1d46c0",
+      "private_sha256": "9d5cb1421cd0a959b7716d3b8f0741dbf86f6e3ce64ef3bd11a6ef31bc1d46c0",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/lav_seal/mod.rs",
+      "root_sha256": "9357ae833ed0dc2e41f3ed00cdb8b738b4f6d1504656664063637628da8806c7",
+      "private_sha256": "9357ae833ed0dc2e41f3ed00cdb8b738b4f6d1504656664063637628da8806c7",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/lav_seal/samples.rs",
+      "root_sha256": "de24d9a2de0d51b87a06d8c66a37b34830578b3d28ea765227eda1b5bd82bed9",
+      "private_sha256": "de24d9a2de0d51b87a06d8c66a37b34830578b3d28ea765227eda1b5bd82bed9",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/level.rs",
+      "root_sha256": "9b9716f902973f5c01aecc9ed10a54281638acbb187ed53e3a6ba78426cf07a8",
+      "private_sha256": "9b9716f902973f5c01aecc9ed10a54281638acbb187ed53e3a6ba78426cf07a8",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/lib.rs",
+      "root_sha256": "33162f1e4256271f289afe5f5fa04f91ba1ce0793d2c6f6b2286e0eb7733e92b",
+      "private_sha256": "33162f1e4256271f289afe5f5fa04f91ba1ce0793d2c6f6b2286e0eb7733e92b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/macd.rs",
+      "root_sha256": "2802ccdf2f159c498378153696603fb5515c6db1a831e0739bd47674f88ee1f2",
+      "private_sha256": "2802ccdf2f159c498378153696603fb5515c6db1a831e0739bd47674f88ee1f2",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/moves.rs",
+      "root_sha256": "f97cd4dfaebc9d614ba1b80a5d2328bf5f6cc4fd9f3028d767f581ee76a26bd1",
+      "private_sha256": "f97cd4dfaebc9d614ba1b80a5d2328bf5f6cc4fd9f3028d767f581ee76a26bd1",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/orchestrator.rs",
+      "root_sha256": "0ef1a1391fe45a225b889cf701f95789fa6170017b5d8cb1f1c17535e563e167",
+      "private_sha256": "0ef1a1391fe45a225b889cf701f95789fa6170017b5d8cb1f1c17535e563e167",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/ph.rs",
+      "root_sha256": "0c43e0f50bbddd4582b8594cd1eae76a118748c99c7a7ae65583ba667b7d1f4e",
+      "private_sha256": "0c43e0f50bbddd4582b8594cd1eae76a118748c99c7a7ae65583ba667b7d1f4e",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/recursive_t/backtest.rs",
+      "root_sha256": "16cfd8ca72d48198639d05f5e6fb0a88b03eadfeee95e2adab3988db52b44ff4",
+      "private_sha256": "16cfd8ca72d48198639d05f5e6fb0a88b03eadfeee95e2adab3988db52b44ff4",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/recursive_t/backtest_run.rs",
+      "root_sha256": "7164ccdbf9b3ac4ad687a75439176ef7428ccd61c8f10c9cdf713007496cbfdc",
+      "private_sha256": "7164ccdbf9b3ac4ad687a75439176ef7428ccd61c8f10c9cdf713007496cbfdc",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/recursive_t/center.rs",
+      "root_sha256": "8e56ba3e54ad4bcd0a847de71ad5c96c602e2a2aa034954f66b1a2855c0d0087",
+      "private_sha256": "8e56ba3e54ad4bcd0a847de71ad5c96c602e2a2aa034954f66b1a2855c0d0087",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/recursive_t/divergence.rs",
+      "root_sha256": "245558b9203803bb865f9a93ec1fa6564a2862430b64a5906913576cdb6aa95b",
+      "private_sha256": "245558b9203803bb865f9a93ec1fa6564a2862430b64a5906913576cdb6aa95b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/recursive_t/ffi.rs",
+      "root_sha256": "75d282f181d30d7f1da75c6817eb0626270e1980113a704067152bfaef644461",
+      "private_sha256": "75d282f181d30d7f1da75c6817eb0626270e1980113a704067152bfaef644461",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/recursive_t/mod.rs",
+      "root_sha256": "90196d73b5d06d38efb9490770bbc1a4fb748bbb9070efe1cfe573e5d810c9a5",
+      "private_sha256": "90196d73b5d06d38efb9490770bbc1a4fb748bbb9070efe1cfe573e5d810c9a5",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/recursive_t/operator.rs",
+      "root_sha256": "ddbbfb73876edbc9370c37a8dc3f2dac13a2609243e98f2cbfba86c6b75f63a8",
+      "private_sha256": "ddbbfb73876edbc9370c37a8dc3f2dac13a2609243e98f2cbfba86c6b75f63a8",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/recursive_t/prove_guards.rs",
+      "root_sha256": "ffbb4e771417f6aa0796099dd3e354d68f406a7594732a676ffc328e486824c1",
+      "private_sha256": "ffbb4e771417f6aa0796099dd3e354d68f406a7594732a676ffc328e486824c1",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/recursive_t/rec_driver.rs",
+      "root_sha256": "8c829a4e465b54a4eb9ae2eae991f156806b22f9491675a06f6d3abf2cc3b410",
+      "private_sha256": "8c829a4e465b54a4eb9ae2eae991f156806b22f9491675a06f6d3abf2cc3b410",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/recursive_t/rec_engine.rs",
+      "root_sha256": "c976aa9138fb469d672331e9dc35944a402c14081691b507dd3663fca57caa37",
+      "private_sha256": "c976aa9138fb469d672331e9dc35944a402c14081691b507dd3663fca57caa37",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/recursive_t/rec_stream.rs",
+      "root_sha256": "8dd8cb1fad08b545a75520f47a23df7ad2d15a212b9b71875a963729f1760e3d",
+      "private_sha256": "8dd8cb1fad08b545a75520f47a23df7ad2d15a212b9b71875a963729f1760e3d",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/recursive_t/stream.rs",
+      "root_sha256": "99fac4c6eb5d45016414b7163803f8688fe7620ff34820e154a9130113b032b5",
+      "private_sha256": "99fac4c6eb5d45016414b7163803f8688fe7620ff34820e154a9130113b032b5",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/recursive_t/t_engine.rs",
+      "root_sha256": "5f5c5e920e498944856a309901d39b14d942824fb3978b6d4666e590507232af",
+      "private_sha256": "5f5c5e920e498944856a309901d39b14d942824fb3978b6d4666e590507232af",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/recursive_t/t_engine_run.rs",
+      "root_sha256": "b9cc91ef273c267513df4a159a2b74ff6676917dfdb22ae941a697bbff3ead9f",
+      "private_sha256": "b9cc91ef273c267513df4a159a2b74ff6676917dfdb22ae941a697bbff3ead9f",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/recursive_t/trend.rs",
+      "root_sha256": "e5b80b742c4beed4d552811141698381f933295f08d7a841006f2201646055dc",
+      "private_sha256": "e5b80b742c4beed4d552811141698381f933295f08d7a841006f2201646055dc",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/recursive_t/types.rs",
+      "root_sha256": "72c5af0108bf0cd00ad983b60a4a8af98ea61eb8206139803cd4c804ddb8658b",
+      "private_sha256": "72c5af0108bf0cd00ad983b60a4a8af98ea61eb8206139803cd4c804ddb8658b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/s_content.rs",
+      "root_sha256": "db7770a693bf3e8a31be1f2edec9aff600114e913bd6be6ec99fe3b732ed4561",
+      "private_sha256": "db7770a693bf3e8a31be1f2edec9aff600114e913bd6be6ec99fe3b732ed4561",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/s_content/access.rs",
+      "root_sha256": "1e3117f353a2828d2e4294119440b3911c0d7e49b368b2d3c4f3beb44133757e",
+      "private_sha256": "1e3117f353a2828d2e4294119440b3911c0d7e49b368b2d3c4f3beb44133757e",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/s_content/fragment.rs",
+      "root_sha256": "6a822398fd0a6c769357962467e6dcfb1bcdc422b11ce6d6c534b6db533b159e",
+      "private_sha256": "6a822398fd0a6c769357962467e6dcfb1bcdc422b11ce6d6c534b6db533b159e",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/s_content/job.rs",
+      "root_sha256": "f1ec4f6b417f6f86f7d2e24df06cd03c313279360d2ea5181766d284940a1b1e",
+      "private_sha256": "f1ec4f6b417f6f86f7d2e24df06cd03c313279360d2ea5181766d284940a1b1e",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/s_content/job_wire.rs",
+      "root_sha256": "bf5d31b3cad0b4769f9d34ecdfa3801836f52b8544b25e55ab8b8c801d1b5f63",
+      "private_sha256": "bf5d31b3cad0b4769f9d34ecdfa3801836f52b8544b25e55ab8b8c801d1b5f63",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/s_content/path.rs",
+      "root_sha256": "c7e93bc82b41356028acefca43ef0ff8824aaa6616ee9f3bffa5496ba1ae008b",
+      "private_sha256": "c7e93bc82b41356028acefca43ef0ff8824aaa6616ee9f3bffa5496ba1ae008b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/s_content/sequence.rs",
+      "root_sha256": "a7499064762fbf88cc97bee64001b745a01ce6b552948c72425b5fdcd3456a78",
+      "private_sha256": "a7499064762fbf88cc97bee64001b745a01ce6b552948c72425b5fdcd3456a78",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/segment.rs",
+      "root_sha256": "e6a39b5770e1b79cf3d7b4b5f2ac9738fb67242eb19e75b6162da75fa3050d54",
+      "private_sha256": "e6a39b5770e1b79cf3d7b4b5f2ac9738fb67242eb19e75b6162da75fa3050d54",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/segment_layers.rs",
+      "root_sha256": "4acfbcf1560744a84d4b467fd4762b948d921a40c4d8b0406a3b2a5767d54646",
+      "private_sha256": "4acfbcf1560744a84d4b467fd4762b948d921a40c4d8b0406a3b2a5767d54646",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/segment_tangency_tests.rs",
+      "root_sha256": "a94f75f271cebaa25e4b55bcc720441fab58498e43c8e4d9d6d591806d639a55",
+      "private_sha256": "a94f75f271cebaa25e4b55bcc720441fab58498e43c8e4d9d6d591806d639a55",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/session_protocol.rs",
+      "root_sha256": "87456952f5e74e7d932760b73647fbb1dad382b41098e441686a4b7ee87ffa00",
+      "private_sha256": "87456952f5e74e7d932760b73647fbb1dad382b41098e441686a4b7ee87ffa00",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/session_transport.rs",
+      "root_sha256": "48a3a985640091eb3abb81ee0c5b934f2719c641fc7732583b795ce51157857a",
+      "private_sha256": "48a3a985640091eb3abb81ee0c5b934f2719c641fc7732583b795ce51157857a",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/spiral/accounting.rs",
+      "root_sha256": "6dae31f2174e0b1660fa65eba93623ca200ce8e25cca82aadbb35944f2bd2bad",
+      "private_sha256": "6dae31f2174e0b1660fa65eba93623ca200ce8e25cca82aadbb35944f2bd2bad",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/spiral/closure.rs",
+      "root_sha256": "3749c762809f22f05038ef341402931aa6277af5b1e7245834671a5f8c2d5deb",
+      "private_sha256": "3749c762809f22f05038ef341402931aa6277af5b1e7245834671a5f8c2d5deb",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/spiral/engine.rs",
+      "root_sha256": "c15a90a07c372b56d8df4d8b92f38be7ea5b6482ee03f95227a86ecf3d36c787",
+      "private_sha256": "c15a90a07c372b56d8df4d8b92f38be7ea5b6482ee03f95227a86ecf3d36c787",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/spiral/ffi.rs",
+      "root_sha256": "e3e824cd4388179129e35d381c17048e9d24930c8c7006c005680b19b2fe603a",
+      "private_sha256": "e3e824cd4388179129e35d381c17048e9d24930c8c7006c005680b19b2fe603a",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/spiral/mod.rs",
+      "root_sha256": "f9b171991bd5458aa8be82a3d689740e73f5a79a8707ac7f21841c81838e11d2",
+      "private_sha256": "f9b171991bd5458aa8be82a3d689740e73f5a79a8707ac7f21841c81838e11d2",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/spiral/operation.rs",
+      "root_sha256": "4a5b229c5707d363971aa91f34a9a01d9d2b70f015f1dfaa669f1d2d8eb36a2d",
+      "private_sha256": "4a5b229c5707d363971aa91f34a9a01d9d2b70f015f1dfaa669f1d2d8eb36a2d",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/spiral/params.rs",
+      "root_sha256": "79843a792bebcd2b16f44cc7d08df5528dc8e333e707781bf003ccd87142779e",
+      "private_sha256": "79843a792bebcd2b16f44cc7d08df5528dc8e333e707781bf003ccd87142779e",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/spiral/prove.rs",
+      "root_sha256": "478ee3ef9c063a8b421f858f24a822a8f8151f12f3d6b6101ddc12d5549dd291",
+      "private_sha256": "478ee3ef9c063a8b421f858f24a822a8f8151f12f3d6b6101ddc12d5549dd291",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/spiral/result.rs",
+      "root_sha256": "88e6252531f353535288955a85827323812b1704d7d6eb6d1d1ea254916966f4",
+      "private_sha256": "88e6252531f353535288955a85827323812b1704d7d6eb6d1d1ea254916966f4",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/spiral/signal.rs",
+      "root_sha256": "496fee28cafbcd77dd07fcbbd1cbf262d7a58050c11ec0cdb728bf61284c232c",
+      "private_sha256": "496fee28cafbcd77dd07fcbbd1cbf262d7a58050c11ec0cdb728bf61284c232c",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/spiral/state.rs",
+      "root_sha256": "71c42c7ab91c56bc15d7e5bea57e172ae15253a49024fa58b893d050d48367c2",
+      "private_sha256": "71c42c7ab91c56bc15d7e5bea57e172ae15253a49024fa58b893d050d48367c2",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/spiral/voice.rs",
+      "root_sha256": "10f9be4f54566810ab17bc37d3b0c1afad9fb10f181dd6b67eae36f82436cd3c",
+      "private_sha256": "10f9be4f54566810ab17bc37d3b0c1afad9fb10f181dd6b67eae36f82436cd3c",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/stroke.rs",
+      "root_sha256": "6ea8f41cacc714b6cbe89528ecca9e15498125d97c2174ba47a8c0af7e396ef2",
+      "private_sha256": "6ea8f41cacc714b6cbe89528ecca9e15498125d97c2174ba47a8c0af7e396ef2",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/admission.rs",
+      "root_sha256": "762a05dced30b2e6cd89baf93f71c6536e29ff33e74ff5b4e589612ee5ae2aea",
+      "private_sha256": "762a05dced30b2e6cd89baf93f71c6536e29ff33e74ff5b4e589612ee5ae2aea",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/capture_oos.rs",
+      "root_sha256": "5166ed81da3b99d58a64aa22d4368236390d8d142537006886ac6e70092e44d5",
+      "private_sha256": "5166ed81da3b99d58a64aa22d4368236390d8d142537006886ac6e70092e44d5",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/data.rs",
+      "root_sha256": "725e76d1966bce3569544ee189d2e150b4524e507d1eb0fc1e21aecae5ce7539",
+      "private_sha256": "725e76d1966bce3569544ee189d2e150b4524e507d1eb0fc1e21aecae5ce7539",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/decontam.rs",
+      "root_sha256": "f4a4b9a295a9608bba7fdf6f34c72c42b7f5b9b7bc8e27c70371032c40f978bf",
+      "private_sha256": "f4a4b9a295a9608bba7fdf6f34c72c42b7f5b9b7bc8e27c70371032c40f978bf",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/diff_capture.rs",
+      "root_sha256": "9b87fdf0549079159ec1ea862f9e719ff51eb1c9c5acbef9fa86f0c7441e68eb",
+      "private_sha256": "9b87fdf0549079159ec1ea862f9e719ff51eb1c9c5acbef9fa86f0c7441e68eb",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/dual_ledger.rs",
+      "root_sha256": "f1385677469b7bd5747858210df2edceaa2795c8337550c1255a95a00d9f92bf",
+      "private_sha256": "f1385677469b7bd5747858210df2edceaa2795c8337550c1255a95a00d9f92bf",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/econ_positive.rs",
+      "root_sha256": "5b9509e3bf253d1d628372cff383de19c469ab56fd0773867efdb94008a32042",
+      "private_sha256": "5b9509e3bf253d1d628372cff383de19c469ab56fd0773867efdb94008a32042",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/econ_positive/cand_delta.rs",
+      "root_sha256": "33264802cd72534ff19300f4ee552eea70ce61bb27c92c4b84586ee9669d7b41",
+      "private_sha256": "33264802cd72534ff19300f4ee552eea70ce61bb27c92c4b84586ee9669d7b41",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/econ_positive/descend.rs",
+      "root_sha256": "ad1d82131e399df298b3e011550a0170662d0783910ddd5207f560ef6c806e61",
+      "private_sha256": "ad1d82131e399df298b3e011550a0170662d0783910ddd5207f560ef6c806e61",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/econ_positive/spread.rs",
+      "root_sha256": "07f4629158c9e20b799f0b201856fc9a22d81cee901811931fefe2bf7b5015d2",
+      "private_sha256": "07f4629158c9e20b799f0b201856fc9a22d81cee901811931fefe2bf7b5015d2",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/econ_positive/tests.rs",
+      "root_sha256": "e871f77fc2669020968b309781ed5d6cc0f9a82db39d8c13a790b59361f4ea9e",
+      "private_sha256": "e871f77fc2669020968b309781ed5d6cc0f9a82db39d8c13a790b59361f4ea9e",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/econ_positive/xzd.rs",
+      "root_sha256": "e6019aefdb0e5994236e5bffc260abddce01f59f1b8337df663eeeb14a1ce591",
+      "private_sha256": "e6019aefdb0e5994236e5bffc260abddce01f59f1b8337df663eeeb14a1ce591",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/fill.rs",
+      "root_sha256": "408a8b7c02c14679d3cf6660434b76eccb18985af3e9a32542bf4c421ce72c4a",
+      "private_sha256": "408a8b7c02c14679d3cf6660434b76eccb18985af3e9a32542bf4c421ce72c4a",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/gamma_dump.rs",
+      "root_sha256": "a9df6b235078c93ae942a5d3702528ed563a24afcd2669e9d0e086a9461577a8",
+      "private_sha256": "a9df6b235078c93ae942a5d3702528ed563a24afcd2669e9d0e086a9461577a8",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/highlow_mu.rs",
+      "root_sha256": "083d50d37560737cfd5b6267d07dbfb17c64610429079ae0b1fdbba3c33d6771",
+      "private_sha256": "083d50d37560737cfd5b6267d07dbfb17c64610429079ae0b1fdbba3c33d6771",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/incremental.rs",
+      "root_sha256": "b857aa69e8b36176ee600b8321e87e608f282572522cc48170fce2d4b4ae0ea6",
+      "private_sha256": "b857aa69e8b36176ee600b8321e87e608f282572522cc48170fce2d4b4ae0ea6",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/issue837_probe.rs",
+      "root_sha256": "c7b5c13c2bbd4153086e7eff677373ea9646f950c84e4866ad40bfcb422a0178",
+      "private_sha256": "c7b5c13c2bbd4153086e7eff677373ea9646f950c84e4866ad40bfcb422a0178",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/issue841_probe.rs",
+      "root_sha256": "bc8faba3f08c0e47202859b832e0917d2eca0b591922f22feafc42a392cfd9d5",
+      "private_sha256": "bc8faba3f08c0e47202859b832e0917d2eca0b591922f22feafc42a392cfd9d5",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/l3_delta_r_alpha.rs",
+      "root_sha256": "0d80672e883da8062ea8e8b66a32424e17bf0f485b971c7c6291daad8034119b",
+      "private_sha256": "0d80672e883da8062ea8e8b66a32424e17bf0f485b971c7c6291daad8034119b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/l3_fullwindow.rs",
+      "root_sha256": "6bcefc365f32676140d733e73b5148ab7f9953db7cff5f4000d2eccda0ccdaff",
+      "private_sha256": "6bcefc365f32676140d733e73b5148ab7f9953db7cff5f4000d2eccda0ccdaff",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/l3_pi_depth_diag.rs",
+      "root_sha256": "bdc498b83dbe8dabb3ce9283226a422322c00ad7e1bc9cab6bc5d41f789e251a",
+      "private_sha256": "bdc498b83dbe8dabb3ce9283226a422322c00ad7e1bc9cab6bc5d41f789e251a",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/l3_pi_falsify.rs",
+      "root_sha256": "c00558665faaa6f62f1ebdcfada6c72081f0bad50c92ee71536232681ba02a51",
+      "private_sha256": "c00558665faaa6f62f1ebdcfada6c72081f0bad50c92ee71536232681ba02a51",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/l3_pi_probe.rs",
+      "root_sha256": "ce825d7e09471f77044f36f40d3494526d831ce0562555ed6d0780297f825037",
+      "private_sha256": "ce825d7e09471f77044f36f40d3494526d831ce0562555ed6d0780297f825037",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/ledger.rs",
+      "root_sha256": "766093df32c6ee5f80aef4f110319c459319f0e182abca16eb41136cb19bd752",
+      "private_sha256": "766093df32c6ee5f80aef4f110319c459319f0e182abca16eb41136cb19bd752",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/m1_dual.rs",
+      "root_sha256": "1dd4df6a7239e554bc13167ef32aac95a0d56d7becfb5aed0664e40d5cdfa5f4",
+      "private_sha256": "1dd4df6a7239e554bc13167ef32aac95a0d56d7becfb5aed0664e40d5cdfa5f4",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/metrics.rs",
+      "root_sha256": "8302df51552768b0f8057766b0be766aaf0f27fd13b395e96e209788bf3bce4e",
+      "private_sha256": "8302df51552768b0f8057766b0be766aaf0f27fd13b395e96e209788bf3bce4e",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/mod.rs",
+      "root_sha256": "d5977f6842441fa5e2ade0a2adb4e68b072793c1c04f9dfac128aeff2d075833",
+      "private_sha256": "d5977f6842441fa5e2ade0a2adb4e68b072793c1c04f9dfac128aeff2d075833",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/mu_estimator.rs",
+      "root_sha256": "6f60208fde012864c0df5d2b4376de5072162165c9533ec942e7ca2dddc49892",
+      "private_sha256": "6f60208fde012864c0df5d2b4376de5072162165c9533ec942e7ca2dddc49892",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/open_ledger.rs",
+      "root_sha256": "91bc4553731c5e041c10f20c40c41dffc7866e191d3dc42539d2a95b1cacfd65",
+      "private_sha256": "91bc4553731c5e041c10f20c40c41dffc7866e191d3dc42539d2a95b1cacfd65",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/opsem_dump.rs",
+      "root_sha256": "fd597183b86bbcabf72e2d7c974110d4f8238f11c730c82485fc176a8667d1f2",
+      "private_sha256": "fd597183b86bbcabf72e2d7c974110d4f8238f11c730c82485fc176a8667d1f2",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/pan_div.rs",
+      "root_sha256": "41f2e699a7fe56d5405416da9b9b8253c16a8f2c9baa7bd9f401c3efc3d3b5c9",
+      "private_sha256": "41f2e699a7fe56d5405416da9b9b8253c16a8f2c9baa7bd9f401c3efc3d3b5c9",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/perm_test.rs",
+      "root_sha256": "17cd57fe630045b7621bd613ab0c28bca14e8d8b25386b12f2e29d1b3f0f4e1a",
+      "private_sha256": "17cd57fe630045b7621bd613ab0c28bca14e8d8b25386b12f2e29d1b3f0f4e1a",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/pooling_icc.rs",
+      "root_sha256": "1d9fd2cb2683e5f841d01bc480929d30e17b476169d8846bc523bcbac2be5685",
+      "private_sha256": "1d9fd2cb2683e5f841d01bc480929d30e17b476169d8846bc523bcbac2be5685",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/prereg_windows.rs",
+      "root_sha256": "5a093865e264b144804dc24c4eb623552e329d90c8ef3f00e3ff61d445fc26f9",
+      "private_sha256": "5a093865e264b144804dc24c4eb623552e329d90c8ef3f00e3ff61d445fc26f9",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/replay_dump.rs",
+      "root_sha256": "3de1fa809017b7b3a4a716b2bc704ad616167be67842f68c10f53f4dcca7040b",
+      "private_sha256": "3de1fa809017b7b3a4a716b2bc704ad616167be67842f68c10f53f4dcca7040b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/runner.rs",
+      "root_sha256": "405e18ada2a44613c7adb520674533367aab1944ccf0ec133434db4a3244db8e",
+      "private_sha256": "405e18ada2a44613c7adb520674533367aab1944ccf0ec133434db4a3244db8e",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/runner_tests.rs",
+      "root_sha256": "8052f3a236c810750a1f1347da111fd8d85ab288db71e393a39f336b30c5f113",
+      "private_sha256": "8052f3a236c810750a1f1347da111fd8d85ab288db71e393a39f336b30c5f113",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/segment_gn.rs",
+      "root_sha256": "b6b5446c1c986fbea0a5733e813ffb92b4c9a9f8bbf1b6570370b35ac9f249d9",
+      "private_sha256": "b6b5446c1c986fbea0a5733e813ffb92b4c9a9f8bbf1b6570370b35ac9f249d9",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/selector.rs",
+      "root_sha256": "a289de1df32e0a162b0244bb0715b16e5bc0ebffe479eb79051ac260a652314f",
+      "private_sha256": "a289de1df32e0a162b0244bb0715b16e5bc0ebffe479eb79051ac260a652314f",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/signal.rs",
+      "root_sha256": "8cb8c2a226fd89e356d1384823435b7dc44883bb1577b4254e089e292af1ac55",
+      "private_sha256": "8cb8c2a226fd89e356d1384823435b7dc44883bb1577b4254e089e292af1ac55",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/theta_pi_diff.rs",
+      "root_sha256": "2b32cfe9d1c869913b4eeb913d6b82b5a34e580f3304d1289e8fc316198a27d1",
+      "private_sha256": "2b32cfe9d1c869913b4eeb913d6b82b5a34e580f3304d1289e8fc316198a27d1",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/tick.rs",
+      "root_sha256": "d02e730b264f1e9b9c646f9f202139af1b2361d2a03c0364856ac6b50950fd46",
+      "private_sha256": "d02e730b264f1e9b9c646f9f202139af1b2361d2a03c0364856ac6b50950fd46",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/treasury.rs",
+      "root_sha256": "a5d444e9e871a63d1b5a64c6bff77a0b38bbd37a804ad6c1ec72fdd8457a8e9b",
+      "private_sha256": "a5d444e9e871a63d1b5a64c6bff77a0b38bbd37a804ad6c1ec72fdd8457a8e9b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/backtest/wverify_run.rs",
+      "root_sha256": "0597e850c4a03dc193bd2f236564894555120ade23e7766668cc8ac891396455",
+      "private_sha256": "0597e850c4a03dc193bd2f236564894555120ade23e7766668cc8ac891396455",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/bsp.rs",
+      "root_sha256": "c54c104b18661d0ea6b07907e63c8aa79b7e12873a91ac27f9a061295db2a671",
+      "private_sha256": "c54c104b18661d0ea6b07907e63c8aa79b7e12873a91ac27f9a061295db2a671",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/bsp_bridge.rs",
+      "root_sha256": "d079e482b33de7387cdd3d4fec25342d123768361b6164c4a2be4767f9e0dcf9",
+      "private_sha256": "d079e482b33de7387cdd3d4fec25342d123768361b6164c4a2be4767f9e0dcf9",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/bsp_bridge/tests.rs",
+      "root_sha256": "366eb2e7b2fe7a9f563f3fbe0857fa34ccbd53278406f2cf1eea23d6f4362361",
+      "private_sha256": "366eb2e7b2fe7a9f563f3fbe0857fa34ccbd53278406f2cf1eea23d6f4362361",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/cand_event/book.rs",
+      "root_sha256": "156b01c5ca72f99e6edc72cdd4665edd9d3d4f5584cdfbbbc89d5a01c0b0f2f3",
+      "private_sha256": "156b01c5ca72f99e6edc72cdd4665edd9d3d4f5584cdfbbbc89d5a01c0b0f2f3",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/cand_event/delta.rs",
+      "root_sha256": "56a60db0bada42ba44562b0ab71db0634eae645e037faee9e156d978efd8a500",
+      "private_sha256": "56a60db0bada42ba44562b0ab71db0634eae645e037faee9e156d978efd8a500",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/cand_event/fixtures.rs",
+      "root_sha256": "b072067cac8b28280b7d660fea9621570c6d81fc889fb921097d17d4190cde23",
+      "private_sha256": "b072067cac8b28280b7d660fea9621570c6d81fc889fb921097d17d4190cde23",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/cand_event/key.rs",
+      "root_sha256": "cdc175bbdf8d39d26a8712ad126efe425a8c5a372d150c0c0c9856f56554cf85",
+      "private_sha256": "cdc175bbdf8d39d26a8712ad126efe425a8c5a372d150c0c0c9856f56554cf85",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/cand_event/mod.rs",
+      "root_sha256": "38c0afe9cff5ed9cfa5fb764165e361acf86590e061c49389e6e9a778031b97d",
+      "private_sha256": "38c0afe9cff5ed9cfa5fb764165e361acf86590e061c49389e6e9a778031b97d",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/cand_event/observe.rs",
+      "root_sha256": "6198f19655fa6074b2c3c96c2488e28c3d039cc17cbdfc6083496c5701940045",
+      "private_sha256": "6198f19655fa6074b2c3c96c2488e28c3d039cc17cbdfc6083496c5701940045",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/cand_predicate.rs",
+      "root_sha256": "bbd851bbd430a48d68bf4ebc6ec73caf4ee6d4970b10f3698c02e56a602197a0",
+      "private_sha256": "bbd851bbd430a48d68bf4ebc6ec73caf4ee6d4970b10f3698c02e56a602197a0",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/cand_sub.rs",
+      "root_sha256": "c13a5fa66326125cf6ae73bceebe88a27159a7a8f6e4ada4168e89b0af0d13d5",
+      "private_sha256": "c13a5fa66326125cf6ae73bceebe88a27159a7a8f6e4ada4168e89b0af0d13d5",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/center.rs",
+      "root_sha256": "06832a4649601863778548cb840dab0de99ccf192b76cb93949ab72a0e4d6c13",
+      "private_sha256": "06832a4649601863778548cb840dab0de99ccf192b76cb93949ab72a0e4d6c13",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/center_lifecycle.rs",
+      "root_sha256": "6b16d49b2bdac4c9fac82ec4d8910859f995a8655e9529dd5711275831a0f85c",
+      "private_sha256": "6b16d49b2bdac4c9fac82ec4d8910859f995a8655e9529dd5711275831a0f85c",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/chain_cert/mod.rs",
+      "root_sha256": "748df93a112549a462c4a4678286c3cd0ac71c52965c9c79b00cd83d242de66b",
+      "private_sha256": "748df93a112549a462c4a4678286c3cd0ac71c52965c9c79b00cd83d242de66b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/chain_cert/tests.rs",
+      "root_sha256": "dad9ea558de093d485e216cc0810e27630dddeb441c58783dd88028d736a146c",
+      "private_sha256": "dad9ea558de093d485e216cc0810e27630dddeb441c58783dd88028d736a146c",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/consume_at.rs",
+      "root_sha256": "50c5e33005a3a687970d91c3307d32fad100b240d9387a82b92f4049842c27d8",
+      "private_sha256": "50c5e33005a3a687970d91c3307d32fad100b240d9387a82b92f4049842c27d8",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/decompose.rs",
+      "root_sha256": "95779daefb44ffb5883d9ff04741056be93f5c23f62acc5f94dad5d624bed0d1",
+      "private_sha256": "95779daefb44ffb5883d9ff04741056be93f5c23f62acc5f94dad5d624bed0d1",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/descend.rs",
+      "root_sha256": "3c914782557bd2d6ea16d9800eac26babbee209e065cb1284a971f429a30d197",
+      "private_sha256": "3c914782557bd2d6ea16d9800eac26babbee209e065cb1284a971f429a30d197",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/diag/cand_delta.rs",
+      "root_sha256": "c81663eb22f4d0ca18a000e90786b0cece4fc8f8a2f3a1c4b67880da29b7d702",
+      "private_sha256": "c81663eb22f4d0ca18a000e90786b0cece4fc8f8a2f3a1c4b67880da29b7d702",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/diag/cp_recall_audit.rs",
+      "root_sha256": "866ef330ee179bb04943b7e9e223ba3313a352acdfdc0c504b35b02a0bd973b9",
+      "private_sha256": "866ef330ee179bb04943b7e9e223ba3313a352acdfdc0c504b35b02a0bd973b9",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/diag/cp_replay_diagnostics.rs",
+      "root_sha256": "22ae89e694fb4b86b3b5ad65feb44976760f4b6a65ee3b727b0801a563e548b5",
+      "private_sha256": "22ae89e694fb4b86b3b5ad65feb44976760f4b6a65ee3b727b0801a563e548b5",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/diag/mod.rs",
+      "root_sha256": "a766bffbbf4eef0a1b6e67ff8ce0cc4372ed201248f1cb23680ad7813eb28164",
+      "private_sha256": "a766bffbbf4eef0a1b6e67ff8ce0cc4372ed201248f1cb23680ad7813eb28164",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/diag/oracle_probe.rs",
+      "root_sha256": "653df0927a65e1f4d8d77aabe1674dba245930edb06605974c824b2284589e7b",
+      "private_sha256": "653df0927a65e1f4d8d77aabe1674dba245930edb06605974c824b2284589e7b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/diag/s2_mirror_capture.rs",
+      "root_sha256": "25cbfbdf8272808dfb70f675563e83f5196ae5fb68c3290182688bcd1d26e65a",
+      "private_sha256": "25cbfbdf8272808dfb70f675563e83f5196ae5fb68c3290182688bcd1d26e65a",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/diag/stage_profile.rs",
+      "root_sha256": "5eea7a50b5a00225a5f9e83bc79736aee5b2bf4cc3976b5f181121f55862119d",
+      "private_sha256": "5eea7a50b5a00225a5f9e83bc79736aee5b2bf4cc3976b5f181121f55862119d",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/divergence.rs",
+      "root_sha256": "f843069254f3c2895bf79df4ad60a6229874338a208c0b3595cd3ccf1746818c",
+      "private_sha256": "f843069254f3c2895bf79df4ad60a6229874338a208c0b3595cd3ccf1746818c",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/e2eo.rs",
+      "root_sha256": "912c48b2bf26a602e7530a2ff431c10314fd8dd7aff871e6c43bca806d50b17b",
+      "private_sha256": "912c48b2bf26a602e7530a2ff431c10314fd8dd7aff871e6c43bca806d50b17b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/interval_necessity.rs",
+      "root_sha256": "34e37a4e63ad2ee1c805167fa6ffb75304ac773e977724f245c9ab14e61bb0e0",
+      "private_sha256": "34e37a4e63ad2ee1c805167fa6ffb75304ac773e977724f245c9ab14e61bb0e0",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/lean_mirror.rs",
+      "root_sha256": "1f41c88bd25b94008b276879f0b2c45a70455587d4418605a1c6904b67aaae94",
+      "private_sha256": "1f41c88bd25b94008b276879f0b2c45a70455587d4418605a1c6904b67aaae94",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/ledger_kernel/mod.rs",
+      "root_sha256": "56d6416646da123aa8886c84ba1b2688e48ab13ab3c5dd19e66d1ff7b3be3664",
+      "private_sha256": "56d6416646da123aa8886c84ba1b2688e48ab13ab3c5dd19e66d1ff7b3be3664",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/ledger_kernel/tests.rs",
+      "root_sha256": "36c50a2367d183142b20d7566ac2e3139ec0761f8a0292a5bf40cd5a5798df3e",
+      "private_sha256": "36c50a2367d183142b20d7566ac2e3139ec0761f8a0292a5bf40cd5a5798df3e",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/level_state.rs",
+      "root_sha256": "ebcfe8b6742f1e969222f000ea53c3dd27cbef9e5dbd421869f041c35e3dd08e",
+      "private_sha256": "ebcfe8b6742f1e969222f000ea53c3dd27cbef9e5dbd421869f041c35e3dd08e",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/level_view/confirm.rs",
+      "root_sha256": "8b36df933f78f22b104fe1b183429b7d8e3571dafeb75c708ac75cab82b6e2c8",
+      "private_sha256": "8b36df933f78f22b104fe1b183429b7d8e3571dafeb75c708ac75cab82b6e2c8",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/level_view/mod.rs",
+      "root_sha256": "2d3e616654f1a76bf650ec113e26ca10f5b995707dc560c35350fbf3bd3b8e4f",
+      "private_sha256": "2d3e616654f1a76bf650ec113e26ca10f5b995707dc560c35350fbf3bd3b8e4f",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/level_view/pan.rs",
+      "root_sha256": "3dc166c6973994f9e448bc76e00421fdb621eba64d3bf67e7c5413b6c7bd266e",
+      "private_sha256": "3dc166c6973994f9e448bc76e00421fdb621eba64d3bf67e7c5413b6c7bd266e",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/level_view/pan_provider.rs",
+      "root_sha256": "32d961f31bc0b3d0c4fd50676a109cfba938bc9972aa30943cf487fa2c73dbb5",
+      "private_sha256": "32d961f31bc0b3d0c4fd50676a109cfba938bc9972aa30943cf487fa2c73dbb5",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/level_view/projection.rs",
+      "root_sha256": "906e2db47af52cbd91e98f7c19544862dba0ed3bc907b8ff1155ffcb6fb2bdc7",
+      "private_sha256": "906e2db47af52cbd91e98f7c19544862dba0ed3bc907b8ff1155ffcb6fb2bdc7",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/level_view/seed_mapping.rs",
+      "root_sha256": "e7fe166c43b3f6df3f22a59e09d46e56f98de2ae12c30cf4cc4e0bfadabbda6b",
+      "private_sha256": "e7fe166c43b3f6df3f22a59e09d46e56f98de2ae12c30cf4cc4e0bfadabbda6b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/level_view/tests/confirm.rs",
+      "root_sha256": "e9f24e5cf70c012d286f0fcc6c8f2beb49b93a68a6c5b68a2c4443aaa38dc805",
+      "private_sha256": "e9f24e5cf70c012d286f0fcc6c8f2beb49b93a68a6c5b68a2c4443aaa38dc805",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/level_view/tests/feature_gating.rs",
+      "root_sha256": "517c16515aae236a4bc66cc289e1c977d41f386392cf1d65f89f5cde260892ce",
+      "private_sha256": "517c16515aae236a4bc66cc289e1c977d41f386392cf1d65f89f5cde260892ce",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/level_view/tests/fixtures.rs",
+      "root_sha256": "951314c132bb7214f1946a6cf29f94abcdeab33e8497c5ac8ae263dc936b5f38",
+      "private_sha256": "951314c132bb7214f1946a6cf29f94abcdeab33e8497c5ac8ae263dc936b5f38",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/level_view/tests/mod.rs",
+      "root_sha256": "d5766f5157fe485b6a6334d4047658593837bf83257b2b870ff01a17f47afce7",
+      "private_sha256": "d5766f5157fe485b6a6334d4047658593837bf83257b2b870ff01a17f47afce7",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/level_view/tests/pan_memo_a.rs",
+      "root_sha256": "c93cd9884ead596e3f67dd270785eb8b7dcbe3e2fd833b99ed2c3cb4ea08c398",
+      "private_sha256": "c93cd9884ead596e3f67dd270785eb8b7dcbe3e2fd833b99ed2c3cb4ea08c398",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/level_view/tests/pan_memo_b.rs",
+      "root_sha256": "b74c66071a7d378d82ca58d012106a13ab8082af7d25d82b986a37b0531c7e4f",
+      "private_sha256": "b74c66071a7d378d82ca58d012106a13ab8082af7d25d82b986a37b0531c7e4f",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/level_view/tests/pan_memo_fixtures.rs",
+      "root_sha256": "844960621b07ee001a4506441c9b496e2fde932ba67641f41fc8fcea89928af3",
+      "private_sha256": "844960621b07ee001a4506441c9b496e2fde932ba67641f41fc8fcea89928af3",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/level_view/tests/projection_pairing.rs",
+      "root_sha256": "26fc7d9ba09d87ed23857368f81b2b077030f1d8ec8267af37de1023c94bca09",
+      "private_sha256": "26fc7d9ba09d87ed23857368f81b2b077030f1d8ec8267af37de1023c94bca09",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/level_view/tests/seed_mapping.rs",
+      "root_sha256": "a64939ee038fa455a7475aa74a52a88b7d6421e4297f6c0dada03da80f763a79",
+      "private_sha256": "a64939ee038fa455a7475aa74a52a88b7d6421e4297f6c0dada03da80f763a79",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/level_view/tests/triple_anchor.rs",
+      "root_sha256": "c4f495f390cf89287c0717d33c876d21254303cbd583ea97ce1e329b4c3ec5cb",
+      "private_sha256": "c4f495f390cf89287c0717d33c876d21254303cbd583ea97ce1e329b4c3ec5cb",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/level_view_store.rs",
+      "root_sha256": "89a33979ebd73735057d40ad4881e511ab49bf6a258b682625c2530e9e7dfb14",
+      "private_sha256": "89a33979ebd73735057d40ad4881e511ab49bf6a258b682625c2530e9e7dfb14",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/local_shape.rs",
+      "root_sha256": "57537f3a90c5efc30c8f8449bba6727d0fb69e810fd2bc4ad3ad6f9834f3ae97",
+      "private_sha256": "57537f3a90c5efc30c8f8449bba6727d0fb69e810fd2bc4ad3ad6f9834f3ae97",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/mod.rs",
+      "root_sha256": "2e54837c9ab774bc6dc6b9e480bbb8106c9b74de2695fc50b09f24bf555ced53",
+      "private_sha256": "2e54837c9ab774bc6dc6b9e480bbb8106c9b74de2695fc50b09f24bf555ced53",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/nest.rs",
+      "root_sha256": "bf7ee5c7d6e0ecb918e7208273de7407fbb3fe90ed19c4469dd55408fff20300",
+      "private_sha256": "bf7ee5c7d6e0ecb918e7208273de7407fbb3fe90ed19c4469dd55408fff20300",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/nest_index.rs",
+      "root_sha256": "8406a621c9252a56a8ebfb4b15c65c3698ed976d04216d1bc543dcf8097f34ae",
+      "private_sha256": "8406a621c9252a56a8ebfb4b15c65c3698ed976d04216d1bc543dcf8097f34ae",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/nest_lifecycle.rs",
+      "root_sha256": "a070cf4f4dbcb21f0c03ef5ae52bd7c0dbdba9b9bcf0d290a54361ef035a2f10",
+      "private_sha256": "a070cf4f4dbcb21f0c03ef5ae52bd7c0dbdba9b9bcf0d290a54361ef035a2f10",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/nest_lifecycle/book.rs",
+      "root_sha256": "906296f39c03574c533e694272340f6250d2eae49727106ec88d7883afcead74",
+      "private_sha256": "906296f39c03574c533e694272340f6250d2eae49727106ec88d7883afcead74",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/nest_lifecycle/entry.rs",
+      "root_sha256": "872120193b5a510e3a639cd9b87cef72b2d4437e0055644187f099c3734a6c5f",
+      "private_sha256": "872120193b5a510e3a639cd9b87cef72b2d4437e0055644187f099c3734a6c5f",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/nest_lifecycle/feed.rs",
+      "root_sha256": "29499015f939f03a350ae0ba1a856dbfc047a5d9de4063ab13ef26081588bf5e",
+      "private_sha256": "29499015f939f03a350ae0ba1a856dbfc047a5d9de4063ab13ef26081588bf5e",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/nest_lifecycle/key.rs",
+      "root_sha256": "24b3a0fba23b04df4294ad4fe6209d153230829280b39711a0fa3c41fc55b134",
+      "private_sha256": "24b3a0fba23b04df4294ad4fe6209d153230829280b39711a0fa3c41fc55b134",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/nest_lifecycle/observation.rs",
+      "root_sha256": "8c0e5df650f7ffc5d1b157027e13686b6859d2b78bb5612f12114daef34926a1",
+      "private_sha256": "8c0e5df650f7ffc5d1b157027e13686b6859d2b78bb5612f12114daef34926a1",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/nest_lifecycle/pan.rs",
+      "root_sha256": "4b819809fb41c958bbf97e78206bfa432f80496fb3f17961aeff9905a1419e97",
+      "private_sha256": "4b819809fb41c958bbf97e78206bfa432f80496fb3f17961aeff9905a1419e97",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/nest_lifecycle/stats.rs",
+      "root_sha256": "a52a7dfea2ca1689580013fc1e6e26c92c4c99226990b3760c62ee401d499227",
+      "private_sha256": "a52a7dfea2ca1689580013fc1e6e26c92c4c99226990b3760c62ee401d499227",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/nest_lifecycle/window.rs",
+      "root_sha256": "c187e7db7c55f5b927f1784a307c046b2148c8d3bdbd7722aebe9e1587f89932",
+      "private_sha256": "c187e7db7c55f5b927f1784a307c046b2148c8d3bdbd7722aebe9e1587f89932",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/operation.rs",
+      "root_sha256": "4d076382a3adc3b61876ca60084699503b84743125411ed894c05139bd3150c6",
+      "private_sha256": "4d076382a3adc3b61876ca60084699503b84743125411ed894c05139bd3150c6",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/pipeline.rs",
+      "root_sha256": "40a1b5f490da8af491be146c438761ad21f464bada55b0f9b20f41d047947edb",
+      "private_sha256": "40a1b5f490da8af491be146c438761ad21f464bada55b0f9b20f41d047947edb",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/projection.rs",
+      "root_sha256": "f2e3b8cdd379e0c801f069e22cce43f26036aa950f052c819719e7f68602135a",
+      "private_sha256": "f2e3b8cdd379e0c801f069e22cce43f26036aa950f052c819719e7f68602135a",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/rebase_txn.rs",
+      "root_sha256": "1906bd810beb1476a11e28e09dfd6e2da4ea824a74d711ebcbf8c4030b86de9e",
+      "private_sha256": "1906bd810beb1476a11e28e09dfd6e2da4ea824a74d711ebcbf8c4030b86de9e",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/recursive_tower.rs",
+      "root_sha256": "40091399c834df9a6da4124232ff9cd5f9011bcae31a988cd5380f955fd3d286",
+      "private_sha256": "40091399c834df9a6da4124232ff9cd5f9011bcae31a988cd5380f955fd3d286",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/ref_v1.rs",
+      "root_sha256": "437d920344dd25393a64f8eadc9906057fe8d0f88192a5f0e7a080c98d891deb",
+      "private_sha256": "437d920344dd25393a64f8eadc9906057fe8d0f88192a5f0e7a080c98d891deb",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/retrace_ledger/adapter.rs",
+      "root_sha256": "5f6222ce7f778d3fa7f0269c6587c99bd5ae8d4713612ba6c05bf2f1a67ce948",
+      "private_sha256": "5f6222ce7f778d3fa7f0269c6587c99bd5ae8d4713612ba6c05bf2f1a67ce948",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/retrace_ledger/audit.rs",
+      "root_sha256": "a9507689cf8e4555cdb0f3ca999f3b9f5a405c1c50944fc18234790e5111301a",
+      "private_sha256": "a9507689cf8e4555cdb0f3ca999f3b9f5a405c1c50944fc18234790e5111301a",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/retrace_ledger/book.rs",
+      "root_sha256": "0f11f3a94489841bc24ccfff898d429fcad34921c8a05053be1f5c3984ea5ea6",
+      "private_sha256": "0f11f3a94489841bc24ccfff898d429fcad34921c8a05053be1f5c3984ea5ea6",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/retrace_ledger/established.rs",
+      "root_sha256": "92b679d43a2a4b43bf0f24cc5c8d13f29548f29c3987f49031a990388bb47584",
+      "private_sha256": "92b679d43a2a4b43bf0f24cc5c8d13f29548f29c3987f49031a990388bb47584",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/retrace_ledger/log.rs",
+      "root_sha256": "e32a57db2a148bd283cddc560a0e3d43b5d4b7c3e9cf8ef5479392a8af0fb4bb",
+      "private_sha256": "e32a57db2a148bd283cddc560a0e3d43b5d4b7c3e9cf8ef5479392a8af0fb4bb",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/retrace_ledger/mod.rs",
+      "root_sha256": "95d5c12bace46015444a426caeee10966cea71f121748442a0854fb915390ba6",
+      "private_sha256": "95d5c12bace46015444a426caeee10966cea71f121748442a0854fb915390ba6",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/retrace_ledger/portal.rs",
+      "root_sha256": "4ba7ade8e256e2fecd2bed83e07036bb54ae5d21059c6b2378a3462eba24084d",
+      "private_sha256": "4ba7ade8e256e2fecd2bed83e07036bb54ae5d21059c6b2378a3462eba24084d",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/retrace_ledger/tests/clocks.rs",
+      "root_sha256": "144c92c9528e68566fccabfed9a3312159da4c90a6d5bec1de8d3be6b2b0735a",
+      "private_sha256": "144c92c9528e68566fccabfed9a3312159da4c90a6d5bec1de8d3be6b2b0735a",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/retrace_ledger/tests/dead_center.rs",
+      "root_sha256": "183896c11cecdb06e514b9400e553fd77c0b7859b80b006cbce339e00892fda5",
+      "private_sha256": "183896c11cecdb06e514b9400e553fd77c0b7859b80b006cbce339e00892fda5",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/retrace_ledger/tests/golden_log.rs",
+      "root_sha256": "1ea9a271bc9d00d2e7c1425333a4d8390a72b0a20a34015f314653d1ef37028a",
+      "private_sha256": "1ea9a271bc9d00d2e7c1425333a4d8390a72b0a20a34015f314653d1ef37028a",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/retrace_ledger/tests/log_replay.rs",
+      "root_sha256": "db0aea6bcb78bf90747453eba948b07a6359bbba1d8a0cda31615d5143a2ad6b",
+      "private_sha256": "db0aea6bcb78bf90747453eba948b07a6359bbba1d8a0cda31615d5143a2ad6b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/retrace_ledger/tests/mod.rs",
+      "root_sha256": "5e4794da80db128e9a18cfb33fd93885e1b540bc3a31fbed0b4f16b9122ecb43",
+      "private_sha256": "5e4794da80db128e9a18cfb33fd93885e1b540bc3a31fbed0b4f16b9122ecb43",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/retrace_ledger/tests/portal.rs",
+      "root_sha256": "c9bffa56caae851e5887d809c0d9bea8b2ba8d672ea8359dc421ce845d73d363",
+      "private_sha256": "c9bffa56caae851e5887d809c0d9bea8b2ba8d672ea8359dc421ce845d73d363",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/retrace_ledger/tests/rebase.rs",
+      "root_sha256": "eb028e862d6e532f1893fd377e567df16e6b265ac912df5244b25f8d7036d81b",
+      "private_sha256": "eb028e862d6e532f1893fd377e567df16e6b265ac912df5244b25f8d7036d81b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/retrace_ledger/tests/rebase_audit.rs",
+      "root_sha256": "c2068958c0fd34be80b46faca6b06a6c8a8b96c6528c0d167bdcf64bf1734915",
+      "private_sha256": "c2068958c0fd34be80b46faca6b06a6c8a8b96c6528c0d167bdcf64bf1734915",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/retrace_ledger/tests/recovery_guard.rs",
+      "root_sha256": "0c4a1334a648ea6cf3b3ac3bf6cff39ad0378fad4eb3cc6c6209aaf7a67c805c",
+      "private_sha256": "0c4a1334a648ea6cf3b3ac3bf6cff39ad0378fad4eb3cc6c6209aaf7a67c805c",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/retrace_ledger/tests/replay_parity.rs",
+      "root_sha256": "9d0cdc1576d5b0afcd0475f5c7692d4e1e15c8743b443f2a537101ebaf43775f",
+      "private_sha256": "9d0cdc1576d5b0afcd0475f5c7692d4e1e15c8743b443f2a537101ebaf43775f",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/retrace_ledger/tests/short_retrace.rs",
+      "root_sha256": "a20768975caf4726cbd8c3bb61eee41cb01c12539b9c3b5497142cf449cd8bb6",
+      "private_sha256": "a20768975caf4726cbd8c3bb61eee41cb01c12539b9c3b5497142cf449cd8bb6",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/retrace_ledger/tests/standby.rs",
+      "root_sha256": "4a6cc870243e37436645d86c2f29579a375a7c166fa428a7129858c79cc92868",
+      "private_sha256": "4a6cc870243e37436645d86c2f29579a375a7c166fa428a7129858c79cc92868",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/retrace_ledger/tests/state_machine.rs",
+      "root_sha256": "c6f80b97566596acb08105b1e4bd049b0163d13824d3aca09d5435c2e6dd3d29",
+      "private_sha256": "c6f80b97566596acb08105b1e4bd049b0163d13824d3aca09d5435c2e6dd3d29",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/retrace_ledger/tests/two_pass_evidence.rs",
+      "root_sha256": "a72b9c4f3cc7a4caaecf0342da11e4eb56622a5475c5434ab597db5f30b8ac79",
+      "private_sha256": "a72b9c4f3cc7a4caaecf0342da11e4eb56622a5475c5434ab597db5f30b8ac79",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/rmove_compose.rs",
+      "root_sha256": "91978d1fbb30e8794676a737f2b7b5902771c55b02c1f41ebdde51ca3d441e0a",
+      "private_sha256": "91978d1fbb30e8794676a737f2b7b5902771c55b02c1f41ebdde51ca3d441e0a",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/scan.rs",
+      "root_sha256": "856288de02d9b27e4f599f3dc3ce88c13237d213bf8804b85f975cbfb2d16a12",
+      "private_sha256": "856288de02d9b27e4f599f3dc3ce88c13237d213bf8804b85f975cbfb2d16a12",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/scan/wire.rs",
+      "root_sha256": "39a443a38c255abec5b1b10773e014367927becc4a3ba576cb3adf34cc85c5c6",
+      "private_sha256": "39a443a38c255abec5b1b10773e014367927becc4a3ba576cb3adf34cc85c5c6",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/signal.rs",
+      "root_sha256": "095931a397d8308eb06e0333eb3d8853b1f03112ef62394aa0dcf716725b9e28",
+      "private_sha256": "095931a397d8308eb06e0333eb3d8853b1f03112ef62394aa0dcf716725b9e28",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/signal/cert.rs",
+      "root_sha256": "3c568f1e1b6e142159549a270c10ad83e4ec709447689e9e6167e287ac3c5baf",
+      "private_sha256": "3c568f1e1b6e142159549a270c10ad83e4ec709447689e9e6167e287ac3c5baf",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/signal/gates.rs",
+      "root_sha256": "957c236a7fbb2e7b9eddecddc965019763c515de56447d2429eb68c422e4d662",
+      "private_sha256": "957c236a7fbb2e7b9eddecddc965019763c515de56447d2429eb68c422e4d662",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/signal/pan_div_short.rs",
+      "root_sha256": "0cc0ed5074373b4a1fecf53e3eec5c5bf36308c34e61b7467041c2ca992884bf",
+      "private_sha256": "0cc0ed5074373b4a1fecf53e3eec5c5bf36308c34e61b7467041c2ca992884bf",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/six_state.rs",
+      "root_sha256": "8f172502ffc2bb743b23d893e07c5998b8ab260915eaf58fd6034b6f55b905a4",
+      "private_sha256": "8f172502ffc2bb743b23d893e07c5998b8ab260915eaf58fd6034b6f55b905a4",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/streaming.rs",
+      "root_sha256": "b6d6c70a3a1aa86a4b648a3c8088ba8f0a914289709a066b26f16c5b05fdb590",
+      "private_sha256": "b6d6c70a3a1aa86a4b648a3c8088ba8f0a914289709a066b26f16c5b05fdb590",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/tests/fixtures.rs",
+      "root_sha256": "c85875aa30be0e62fcf05b6fda4cb693c7e18b3a9b9ab41dd1dcb0a5c9791022",
+      "private_sha256": "c85875aa30be0e62fcf05b6fda4cb693c7e18b3a9b9ab41dd1dcb0a5c9791022",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/tests/incremental_parity.rs",
+      "root_sha256": "912df05be4b65a17f7555ccf07cb44406a49a00eb767e37e7ccf90976380f35e",
+      "private_sha256": "912df05be4b65a17f7555ccf07cb44406a49a00eb767e37e7ccf90976380f35e",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/tests/incremental_profile.rs",
+      "root_sha256": "a763beafbc0382b64a13dfb93312b9dadeaf4524818b7cc78a8a3f7b1037b75e",
+      "private_sha256": "a763beafbc0382b64a13dfb93312b9dadeaf4524818b7cc78a8a3f7b1037b75e",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/tests/mod.rs",
+      "root_sha256": "0d00d2022061ddbe3fabd30bd9be47ab5a6398c5503caf37ae9434c650bf3b68",
+      "private_sha256": "0d00d2022061ddbe3fabd30bd9be47ab5a6398c5503caf37ae9434c650bf3b68",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/tests/operation.rs",
+      "root_sha256": "ddfc5697c554b4364b1694272f53e7b97160047479f14684414dfb75e66c9fbc",
+      "private_sha256": "ddfc5697c554b4364b1694272f53e7b97160047479f14684414dfb75e66c9fbc",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/tests/pipeline_geometry.rs",
+      "root_sha256": "b2da1156cb3edb91366afcf00222739f5454f7d1f229d85938e5060bea82d1b4",
+      "private_sha256": "b2da1156cb3edb91366afcf00222739f5454f7d1f229d85938e5060bea82d1b4",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/tests/rebase_txn.rs",
+      "root_sha256": "c345e0afaf701a36e51dd91e327a9a5105aa7792acf510cb225d9add194434d2",
+      "private_sha256": "c345e0afaf701a36e51dd91e327a9a5105aa7792acf510cb225d9add194434d2",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/tests/third_class_anchor.rs",
+      "root_sha256": "c49f964e115ee907f782f343a4d3abf604e161bb0165e31d2a608f4ddaceec6c",
+      "private_sha256": "c49f964e115ee907f782f343a4d3abf604e161bb0165e31d2a608f4ddaceec6c",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/tower_cache.rs",
+      "root_sha256": "d4d373edfda463bc71d9041db7651a43fc0e5d5d4f9f80bfc633f7d0bd079b04",
+      "private_sha256": "d4d373edfda463bc71d9041db7651a43fc0e5d5d4f9f80bfc633f7d0bd079b04",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/turn_class.rs",
+      "root_sha256": "e4aff64b5f20dd4fc0b82080e81f07be12084d23bf819e4959385074e95837cc",
+      "private_sha256": "e4aff64b5f20dd4fc0b82080e81f07be12084d23bf819e4959385074e95837cc",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/unassigned_ledger.rs",
+      "root_sha256": "dadcfb04d6a897e25d9afe34cae24404d80f035c252049827f51f44b993c03d3",
+      "private_sha256": "dadcfb04d6a897e25d9afe34cae24404d80f035c252049827f51f44b993c03d3",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/voice_eat.rs",
+      "root_sha256": "533941297e1f9769e66e1ab7a95dc9f9d6b9826e1c46d2b5b0e00adde7346be5",
+      "private_sha256": "533941297e1f9769e66e1ab7a95dc9f9d6b9826e1c46d2b5b0e00adde7346be5",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/closed_loop/buy.rs",
+      "root_sha256": "a074c93438520ef576c490508b45c09f4a95793822f689a947560cb96845e42c",
+      "private_sha256": "a074c93438520ef576c490508b45c09f4a95793822f689a947560cb96845e42c",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/closed_loop/conformance.rs",
+      "root_sha256": "f5c310488d6dac1e8294cb8324a5e11a4c282b74807ea0a31e91b645459e34b8",
+      "private_sha256": "f5c310488d6dac1e8294cb8324a5e11a4c282b74807ea0a31e91b645459e34b8",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/closed_loop/mod.rs",
+      "root_sha256": "629f9e42b534787125e60176e103aefc08fd430d54953d99177e7590e6e6fbdd",
+      "private_sha256": "629f9e42b534787125e60176e103aefc08fd430d54953d99177e7590e6e6fbdd",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/closed_loop/state.rs",
+      "root_sha256": "cd78e3a3995298148508e4b6bd96c0d6a06c7ed1ba6202aa125d233f2a1a6af2",
+      "private_sha256": "cd78e3a3995298148508e4b6bd96c0d6a06c7ed1ba6202aa125d233f2a1a6af2",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/closed_loop/transition.rs",
+      "root_sha256": "b4ad9afa451d78c21b9eb6cff44a7ab2141f642aa83e95acf563060cc3b5d8d5",
+      "private_sha256": "b4ad9afa451d78c21b9eb6cff44a7ab2141f642aa83e95acf563060cc3b5d8d5",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/complete/event.rs",
+      "root_sha256": "67a1cc6a49619ccf4f0430b5f901f501d33082462476c2824d9310cb61fdb4cb",
+      "private_sha256": "67a1cc6a49619ccf4f0430b5f901f501d33082462476c2824d9310cb61fdb4cb",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/complete/mod.rs",
+      "root_sha256": "d82ab96c7e70235a23867d2a3ea715433f2f9a2852684c1f1341b1e53ada9ace",
+      "private_sha256": "d82ab96c7e70235a23867d2a3ea715433f2f9a2852684c1f1341b1e53ada9ace",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/complete/state.rs",
+      "root_sha256": "be0e4bf3cec1b084d7783425bbeeb43efc2151fa77085241e4f43e3d4d39ab39",
+      "private_sha256": "be0e4bf3cec1b084d7783425bbeeb43efc2151fa77085241e4f43e3d4d39ab39",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/config.rs",
+      "root_sha256": "d27274406866a9c1b04a02a7ec9948c4b38c51125317e1537c582322402cd4bb",
+      "private_sha256": "d27274406866a9c1b04a02a7ec9948c4b38c51125317e1537c582322402cd4bb",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/env_registry.rs",
+      "root_sha256": "c93bbcf557f2ee2f451ec48d49dd13267a957d77b92dfd95e41fc3a5e72737fd",
+      "private_sha256": "c93bbcf557f2ee2f451ec48d49dd13267a957d77b92dfd95e41fc3a5e72737fd",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/ffi.rs",
+      "root_sha256": "7b210e5d26952d967009311eadb56218c01de184228c5bd513433af846b06e55",
+      "private_sha256": "7b210e5d26952d967009311eadb56218c01de184228c5bd513433af846b06e55",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/ledger/mod.rs",
+      "root_sha256": "e44d60e46b017dbe9a9de4fb2827a5e8155aea45b7bbefba97a833b953cb2ac2",
+      "private_sha256": "e44d60e46b017dbe9a9de4fb2827a5e8155aea45b7bbefba97a833b953cb2ac2",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/ledger/separate.rs",
+      "root_sha256": "f6efdc3e57c0712167d08437804de01532efdf8408ef16fdd6b4dc147d32681c",
+      "private_sha256": "f6efdc3e57c0712167d08437804de01532efdf8408ef16fdd6b4dc147d32681c",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/lineage_book.rs",
+      "root_sha256": "5c0b75cf476950185a5b3ffe0092a14339bd0ac1d261150780af195a57989006",
+      "private_sha256": "5c0b75cf476950185a5b3ffe0092a14339bd0ac1d261150780af195a57989006",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/mod.rs",
+      "root_sha256": "5a525d35166b3244a65c3cdbac9de7e50b18c3f388952172a4c0398e32590c05",
+      "private_sha256": "5a525d35166b3244a65c3cdbac9de7e50b18c3f388952172a4c0398e32590c05",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/nautilus/account_adapter.rs",
+      "root_sha256": "16dfc39391e5ffff01df541226b4710cd100a49e47d3d3f15a5bc09f7f232b67",
+      "private_sha256": "16dfc39391e5ffff01df541226b4710cd100a49e47d3d3f15a5bc09f7f232b67",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/nautilus/backtest_engine.rs",
+      "root_sha256": "974e7d6a6b75de8d619741abadcadb24ded5485a050ad78b7dc4342c44e6895f",
+      "private_sha256": "974e7d6a6b75de8d619741abadcadb24ded5485a050ad78b7dc4342c44e6895f",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/nautilus/bar_adapter.rs",
+      "root_sha256": "c7a2f2b5d72ea19ec19eb71f100598c607227e61e81d986fa126ef464288eda1",
+      "private_sha256": "c7a2f2b5d72ea19ec19eb71f100598c607227e61e81d986fa126ef464288eda1",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/nautilus/mod.rs",
+      "root_sha256": "a0818a8195042afb17d366f90295ce81cb59b57af0b638e8c0dc5df075d7c3fe",
+      "private_sha256": "a0818a8195042afb17d366f90295ce81cb59b57af0b638e8c0dc5df075d7c3fe",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/nautilus/order_adapter.rs",
+      "root_sha256": "bf30683af3a48bb75cde917d52bb4559ed8e07d3f946b93b8b6abc2f7594aab6",
+      "private_sha256": "bf30683af3a48bb75cde917d52bb4559ed8e07d3f946b93b8b6abc2f7594aab6",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/nautilus/strategy.rs",
+      "root_sha256": "31425429a9c823b7b958a803a8a0520e306693383e95d13b8cab5e045b3506d8",
+      "private_sha256": "31425429a9c823b7b958a803a8a0520e306693383e95d13b8cab5e045b3506d8",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/nautilus/theta_pi_strategy.rs",
+      "root_sha256": "f6b046f148767e50273ec440cbb78f35f792115b4420b252d28cedbed0b394d7",
+      "private_sha256": "f6b046f148767e50273ec440cbb78f35f792115b4420b252d28cedbed0b394d7",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/nautilus/theta_strategy.rs",
+      "root_sha256": "927d5e9c3b12cefa72f1f740ba613631ed4fa04a3f3fbd44ee69f432a6e4d072",
+      "private_sha256": "927d5e9c3b12cefa72f1f740ba613631ed4fa04a3f3fbd44ee69f432a6e4d072",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/parser/canonical.rs",
+      "root_sha256": "24f2eac08aeb62dae7d038e8467814423a46210f82fcf311aaad2c6973e62d58",
+      "private_sha256": "24f2eac08aeb62dae7d038e8467814423a46210f82fcf311aaad2c6973e62d58",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/parser/evidence.rs",
+      "root_sha256": "8d1e1b7e21f001d481758b47ec450979239a9cc86b787136f186c82d5b873045",
+      "private_sha256": "8d1e1b7e21f001d481758b47ec450979239a9cc86b787136f186c82d5b873045",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/parser/feature_seq.rs",
+      "root_sha256": "259a17332bdc3b47b5c87b3683769f6d08205fa3aaa744cf83508266e003e145",
+      "private_sha256": "259a17332bdc3b47b5c87b3683769f6d08205fa3aaa744cf83508266e003e145",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/parser/fractal.rs",
+      "root_sha256": "3d4c7c40d74225366d7488522d795dafbf24a1149bdf8903de5dbfd11970401c",
+      "private_sha256": "3d4c7c40d74225366d7488522d795dafbf24a1149bdf8903de5dbfd11970401c",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/parser/gap_overlap_fixture.rs",
+      "root_sha256": "05973c5d7546ff77af23e61544bea7055471ada2b979daf03623649e99e96af3",
+      "private_sha256": "05973c5d7546ff77af23e61544bea7055471ada2b979daf03623649e99e96af3",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/parser/inclusion.rs",
+      "root_sha256": "155f541d89a74fc5ec8c8db502f8b9dcfdcd93831f1e890e23567e04485d725c",
+      "private_sha256": "155f541d89a74fc5ec8c8db502f8b9dcfdcd93831f1e890e23567e04485d725c",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/parser/mod.rs",
+      "root_sha256": "83d40d41f1eba43e3c80ff6f5444c7747c5abc855d1651986ff49826dbd427b9",
+      "private_sha256": "83d40d41f1eba43e3c80ff6f5444c7747c5abc855d1651986ff49826dbd427b9",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/parser/profile.rs",
+      "root_sha256": "1ccc9654bafa70408352adf0da2f9d639d934d93d99553f489e314ee7e5725a7",
+      "private_sha256": "1ccc9654bafa70408352adf0da2f9d639d934d93d99553f489e314ee7e5725a7",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/parser/second_kind.rs",
+      "root_sha256": "9582a08f3f1434539a3a0e2eb3ecf70e2bea13c8aa967a753c707d025b36362c",
+      "private_sha256": "9582a08f3f1434539a3a0e2eb3ecf70e2bea13c8aa967a753c707d025b36362c",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/parser/segment.rs",
+      "root_sha256": "0463207e8f21646fe9eacff5ae23a101e3ecb4856cdf8990ef6473d0b03e193a",
+      "private_sha256": "0463207e8f21646fe9eacff5ae23a101e3ecb4856cdf8990ef6473d0b03e193a",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/parser/stroke.rs",
+      "root_sha256": "f96a72fa786bc720e3479165b2972f51452633f640531548aa9d8978d434eee7",
+      "private_sha256": "f96a72fa786bc720e3479165b2972f51452633f640531548aa9d8978d434eee7",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/parser/tail.rs",
+      "root_sha256": "6bbf0bce124d23e48c15a2194ad5c7504aebbeed7a2fef804e9359c97181b840",
+      "private_sha256": "6bbf0bce124d23e48c15a2194ad5c7504aebbeed7a2fef804e9359c97181b840",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/account.rs",
+      "root_sha256": "da08addc531230f15dec0a5e4f82d1f4e0709196a8d113df9099dd9feea04c0b",
+      "private_sha256": "da08addc531230f15dec0a5e4f82d1f4e0709196a8d113df9099dd9feea04c0b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/campaign_book.rs",
+      "root_sha256": "2c3df885094d4ba1a489876908d86977836de2882750b7ff3c9235d7a9c7b135",
+      "private_sha256": "2c3df885094d4ba1a489876908d86977836de2882750b7ff3c9235d7a9c7b135",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/campaign_ledger.rs",
+      "root_sha256": "9f0762150a8d37c0bf7338b3eef86670baad00b241bfb1340643ec572f6059c3",
+      "private_sha256": "9f0762150a8d37c0bf7338b3eef86670baad00b241bfb1340643ec572f6059c3",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/center_oscillation_trade.rs",
+      "root_sha256": "4f6a89c13880bd973bde13f501e133f969a1ab22ce4ca3c4e652b7fef7a943de",
+      "private_sha256": "4f6a89c13880bd973bde13f501e133f969a1ab22ce4ca3c4e652b7fef7a943de",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/channel.rs",
+      "root_sha256": "c23841324126146d480fd10310235dc828c687f10c7b28a9cbb132d7036d5556",
+      "private_sha256": "c23841324126146d480fd10310235dc828c687f10c7b28a9cbb132d7036d5556",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/chong.rs",
+      "root_sha256": "10f275046901df9143548c1b400a73dc6386824ed12e86f83173e5cb2a376e4d",
+      "private_sha256": "10f275046901df9143548c1b400a73dc6386824ed12e86f83173e5cb2a376e4d",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/consume_router.rs",
+      "root_sha256": "f2d1b90f9e084c689b717a27ce82b9dfc94eaac0558605b1ef9bacdef43706cf",
+      "private_sha256": "f2d1b90f9e084c689b717a27ce82b9dfc94eaac0558605b1ef9bacdef43706cf",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/coverage/ancok.rs",
+      "root_sha256": "fb728ed1fb91ef507687fe6b625da7d8f1c03b13a0124ea97d251eb75c5e7ba8",
+      "private_sha256": "fb728ed1fb91ef507687fe6b625da7d8f1c03b13a0124ea97d251eb75c5e7ba8",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/coverage/ancok_tests.rs",
+      "root_sha256": "9f1b3882cd1aaa45e0fdfe6fa1292be1fc0a446d03d4633114c8b5530126c109",
+      "private_sha256": "9f1b3882cd1aaa45e0fdfe6fa1292be1fc0a446d03d4633114c8b5530126c109",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/coverage/compose.rs",
+      "root_sha256": "e6018e22d4aebebd91b0739f276b595d2e87cbd60f17ff8dcfd2fbaeefa140ed",
+      "private_sha256": "e6018e22d4aebebd91b0739f276b595d2e87cbd60f17ff8dcfd2fbaeefa140ed",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/coverage/compose_tests_1.rs",
+      "root_sha256": "ceba22c57950a7870e5496d1bf2c06bfca7991e436de8d4ae10dd21f5a597a41",
+      "private_sha256": "ceba22c57950a7870e5496d1bf2c06bfca7991e436de8d4ae10dd21f5a597a41",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/coverage/compose_tests_2.rs",
+      "root_sha256": "9ea4a3dcbb5b4a0c641d334a6d4bf6f9b3c7b42bcba8d7679ac7fb9a227053dd",
+      "private_sha256": "9ea4a3dcbb5b4a0c641d334a6d4bf6f9b3c7b42bcba8d7679ac7fb9a227053dd",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/coverage/element.rs",
+      "root_sha256": "e4a11ab7f0061cb55bc8db90f34ce2671a38f374efe77aaf504a235df13a2be3",
+      "private_sha256": "e4a11ab7f0061cb55bc8db90f34ce2671a38f374efe77aaf504a235df13a2be3",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/coverage/element_tests.rs",
+      "root_sha256": "0583efd1d7f10ac93d30e8c67c90bf8212c9c3867faf48deffa0160d5cdf26e4",
+      "private_sha256": "0583efd1d7f10ac93d30e8c67c90bf8212c9c3867faf48deffa0160d5cdf26e4",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/coverage/held.rs",
+      "root_sha256": "3248c93058b1f1127155a698fb0b1260fb9e6cfcc568316af8901965b058c9c0",
+      "private_sha256": "3248c93058b1f1127155a698fb0b1260fb9e6cfcc568316af8901965b058c9c0",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/coverage/held_tests_1.rs",
+      "root_sha256": "1e1ec83f1f935c530370a77add83c2fcc8c3d379a6e13c5dbf5718b05ac76f01",
+      "private_sha256": "1e1ec83f1f935c530370a77add83c2fcc8c3d379a6e13c5dbf5718b05ac76f01",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/coverage/held_tests_2.rs",
+      "root_sha256": "14f88a4371649892db6284977e555192f503c72dc8dd51db6fd7505c93bb3727",
+      "private_sha256": "14f88a4371649892db6284977e555192f503c72dc8dd51db6fd7505c93bb3727",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/coverage/leg.rs",
+      "root_sha256": "c2bd2ee715b4913d328c2096420b63da7cabe7bc6514fa60313185bf44cf31ab",
+      "private_sha256": "c2bd2ee715b4913d328c2096420b63da7cabe7bc6514fa60313185bf44cf31ab",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/coverage/leg_tests.rs",
+      "root_sha256": "73021c33f3f2c73c509528c951c1f20c3bb58736c4fcfcc62855affa36688026",
+      "private_sha256": "73021c33f3f2c73c509528c951c1f20c3bb58736c4fcfcc62855affa36688026",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/coverage/mod.rs",
+      "root_sha256": "a6639bda3cdbda589e47e18eba5a3210f63503bebb26d443ec0d577ff7520ca3",
+      "private_sha256": "a6639bda3cdbda589e47e18eba5a3210f63503bebb26d443ec0d577ff7520ca3",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/coverage/role.rs",
+      "root_sha256": "1c49d26c030eef202ab3e4948006d46455385bef19ae2514af462031d16f5136",
+      "private_sha256": "1c49d26c030eef202ab3e4948006d46455385bef19ae2514af462031d16f5136",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/coverage/role_tests.rs",
+      "root_sha256": "8d4472c87cece44c7bd6546c35e505b0687ebf10259a0a59b40d7fc0838467da",
+      "private_sha256": "8d4472c87cece44c7bd6546c35e505b0687ebf10259a0a59b40d7fc0838467da",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/coverage/sizing.rs",
+      "root_sha256": "a990f632fd13e29909fd6e0feb510bb71218eb0d5e275ea1ccc7ebf2ae70f525",
+      "private_sha256": "a990f632fd13e29909fd6e0feb510bb71218eb0d5e275ea1ccc7ebf2ae70f525",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/coverage/sizing_tests_1.rs",
+      "root_sha256": "41df93391785bc097382e8abc8b7c12ce8f345407756650a61064a5d3a461e9c",
+      "private_sha256": "41df93391785bc097382e8abc8b7c12ce8f345407756650a61064a5d3a461e9c",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/coverage/sizing_tests_2.rs",
+      "root_sha256": "a4b3b151024248db82902514e80a227da21cafabc5fd7675a4a3f72decef6c1d",
+      "private_sha256": "a4b3b151024248db82902514e80a227da21cafabc5fd7675a4a3f72decef6c1d",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/coverage/step.rs",
+      "root_sha256": "c9c9df763e274219b06da5f358d499c9aaf0540ed459d47445e817cea93fd7f9",
+      "private_sha256": "c9c9df763e274219b06da5f358d499c9aaf0540ed459d47445e817cea93fd7f9",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/coverage/step_tests.rs",
+      "root_sha256": "ceb66cceba78621fbad1d0e003dcbce4ee1ea4847f06889f2258c18bdd505bc6",
+      "private_sha256": "ceb66cceba78621fbad1d0e003dcbce4ee1ea4847f06889f2258c18bdd505bc6",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/coverage/test_support.rs",
+      "root_sha256": "e2f1d240d26747c4bf589eb42714b96882931d85d4926e5f4758b5577072d403",
+      "private_sha256": "e2f1d240d26747c4bf589eb42714b96882931d85d4926e5f4758b5577072d403",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/exec.rs",
+      "root_sha256": "aa720c1e8a2a87a610a7ab6a5adadda0a36429eb5a64d8d9bc0f9abab5dc6f70",
+      "private_sha256": "aa720c1e8a2a87a610a7ab6a5adadda0a36429eb5a64d8d9bc0f9abab5dc6f70",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/exit.rs",
+      "root_sha256": "79ef83b1110e9958028afff89d7f4403b7f010d27215c06a43c3b7fadbf8e092",
+      "private_sha256": "79ef83b1110e9958028afff89d7f4403b7f010d27215c06a43c3b7fadbf8e092",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/intent.rs",
+      "root_sha256": "1404d7ca7ca32dabc01564cdc34041791923e0cf146f961e91dbc792adc4bae0",
+      "private_sha256": "1404d7ca7ca32dabc01564cdc34041791923e0cf146f961e91dbc792adc4bae0",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/interp.rs",
+      "root_sha256": "b9b41a0252f31f788e5837bae484b467ddc1afafe25bd1116c7bc08437221a11",
+      "private_sha256": "b9b41a0252f31f788e5837bae484b467ddc1afafe25bd1116c7bc08437221a11",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/interp_cert.rs",
+      "root_sha256": "6e25815cbdd9529b963c4f61de812e3d15378b9d21f0b6026f1476d00ec01f09",
+      "private_sha256": "6e25815cbdd9529b963c4f61de812e3d15378b9d21f0b6026f1476d00ec01f09",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/ledger.rs",
+      "root_sha256": "7c218a26af9a7ad0fd2cbe5cfc51511cc3dc98a402541281ab3590280c911f24",
+      "private_sha256": "7c218a26af9a7ad0fd2cbe5cfc51511cc3dc98a402541281ab3590280c911f24",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/level_attrib.rs",
+      "root_sha256": "689afe3aa69e01a1dd2888154e31646063e2e7aaae69e19cbcf825557961048f",
+      "private_sha256": "689afe3aa69e01a1dd2888154e31646063e2e7aaae69e19cbcf825557961048f",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/level_clock.rs",
+      "root_sha256": "b6f1766cbebc9df82ecb22447e21e7463fbab7e3eb5af55c1255ca5a835c459b",
+      "private_sha256": "b6f1766cbebc9df82ecb22447e21e7463fbab7e3eb5af55c1255ca5a835c459b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/level_ledger.rs",
+      "root_sha256": "a7ee2d57a6f6be712d3e7c8339eade951ac877773927a73be43c00938c7e788d",
+      "private_sha256": "a7ee2d57a6f6be712d3e7c8339eade951ac877773927a73be43c00938c7e788d",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/level_order.rs",
+      "root_sha256": "52e1900c8f17cdd226a391baa9704f3cbbfb0039e3d00a150c474de57270744c",
+      "private_sha256": "52e1900c8f17cdd226a391baa9704f3cbbfb0039e3d00a150c474de57270744c",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/level_risk.rs",
+      "root_sha256": "98cc92f244de4a06f4d8f31e90cf9cae5dced3044b80f4e991c3b906094aba9b",
+      "private_sha256": "98cc92f244de4a06f4d8f31e90cf9cae5dced3044b80f4e991c3b906094aba9b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/mod.rs",
+      "root_sha256": "eec96eef96cbe55cd032166cfa42cfa7df1bb28399948afa6a3c5f33d84665a2",
+      "private_sha256": "eec96eef96cbe55cd032166cfa42cfa7df1bb28399948afa6a3c5f33d84665a2",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/mutex.rs",
+      "root_sha256": "885c19127f52348ef69bede467fb94fcee422e8b631d6e0b346e05bca6dd77f9",
+      "private_sha256": "885c19127f52348ef69bede467fb94fcee422e8b631d6e0b346e05bca6dd77f9",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/nest.rs",
+      "root_sha256": "7a978e644f956d50f0850152368c7605d2e08b34c49d238227c2bd44ebc84623",
+      "private_sha256": "7a978e644f956d50f0850152368c7605d2e08b34c49d238227c2bd44ebc84623",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/oscillation.rs",
+      "root_sha256": "46b45a5b0a3a1c8c7d480008af94953bb0a62040fbb905f1abe13dca87f2f8ff",
+      "private_sha256": "46b45a5b0a3a1c8c7d480008af94953bb0a62040fbb905f1abe13dca87f2f8ff",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/oscillation_campaign.rs",
+      "root_sha256": "d4fe125da343c9c028dc5446b71e2ab2a87a6b9a4a46a215311b7a5c64bdebd1",
+      "private_sha256": "d4fe125da343c9c028dc5446b71e2ab2a87a6b9a4a46a215311b7a5c64bdebd1",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/overlay_state.rs",
+      "root_sha256": "fc4195a1a279ff9ab7a54f79156ba0ca32b9bd1c38608d19d4ab413dc65a3ea5",
+      "private_sha256": "fc4195a1a279ff9ab7a54f79156ba0ca32b9bd1c38608d19d4ab413dc65a3ea5",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/persistent.rs",
+      "root_sha256": "3b41df94cd8b66636f2096fe25d938927c7002c80f971bbdcd54a403dc33e604",
+      "private_sha256": "3b41df94cd8b66636f2096fe25d938927c7002c80f971bbdcd54a403dc33e604",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/protocol.rs",
+      "root_sha256": "87802100416db0531fc887a5d196dfea393bcc3a5415084440b22fda743c5121",
+      "private_sha256": "87802100416db0531fc887a5d196dfea393bcc3a5415084440b22fda743c5121",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/risk.rs",
+      "root_sha256": "b1df1b6a9ca96dd6d3c76c529c19d567ab83d89962c3ec7bccd99be8b2d65222",
+      "private_sha256": "b1df1b6a9ca96dd6d3c76c529c19d567ab83d89962c3ec7bccd99be8b2d65222",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/shadow.rs",
+      "root_sha256": "9e5d22cba18269ec647fc70f721549508f28d914fbf67336eab37d4d9dd7c51a",
+      "private_sha256": "9e5d22cba18269ec647fc70f721549508f28d914fbf67336eab37d4d9dd7c51a",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/short_diff_bucket.rs",
+      "root_sha256": "8bb0936deec2b26c03c67338d78a42809cbf0549d0e359d007722cc9c1f36f3d",
+      "private_sha256": "8bb0936deec2b26c03c67338d78a42809cbf0549d0e359d007722cc9c1f36f3d",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/voice.rs",
+      "root_sha256": "e3b14ca4a25d0b753bc1cbbdf1e94ee26a3d2f3016e3162a5c8da1bd4aa42bd5",
+      "private_sha256": "e3b14ca4a25d0b753bc1cbbdf1e94ee26a3d2f3016e3162a5c8da1bd4aa42bd5",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/stream.rs",
+      "root_sha256": "7363d915f0908e7c25771c79ae9a5366438e5aca052f338a570103bf8d2014e1",
+      "private_sha256": "7363d915f0908e7c25771c79ae9a5366438e5aca052f338a570103bf8d2014e1",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/types.rs",
+      "root_sha256": "4370651d94e1be89d83d26c2d8ab00a7f7cd961693f071749afb10bf95f6bca0",
+      "private_sha256": "4370651d94e1be89d83d26c2d8ab00a7f7cd961693f071749afb10bf95f6bca0",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/venue_fee.rs",
+      "root_sha256": "c07ef8d7df9c32fab117731e4e783c68e2056e3b32666916ee0f94f40088ec82",
+      "private_sha256": "c07ef8d7df9c32fab117731e4e783c68e2056e3b32666916ee0f94f40088ec82",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/theta_v0/venue_fee/datum_io.rs",
+      "root_sha256": "cef7a6a133fba712d19ae0613f16721e960a0fc7ef862575ec4564ca447025b4",
+      "private_sha256": "cef7a6a133fba712d19ae0613f16721e960a0fc7ef862575ec4564ca447025b4",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/allocator.rs",
+      "root_sha256": "2e35ebf483f4de7a76d5002cf9bea44a4ca2d8fc63f98c3c22ae5856cd87a559",
+      "private_sha256": "2e35ebf483f4de7a76d5002cf9bea44a4ca2d8fc63f98c3c22ae5856cd87a559",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/axiom_voice.rs",
+      "root_sha256": "75b769f167083bdf40c03a797e53c58d7e98406b5b2859954b6195857d914310",
+      "private_sha256": "75b769f167083bdf40c03a797e53c58d7e98406b5b2859954b6195857d914310",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/center_book.rs",
+      "root_sha256": "00e1c36e48a5b417528736c63868f184dae857d0b62a7e337e0f812b55f231a2",
+      "private_sha256": "00e1c36e48a5b417528736c63868f184dae857d0b62a7e337e0f812b55f231a2",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/config.rs",
+      "root_sha256": "4eef382fdfe264b9f499c9dc38d2cdb5a6e0e5867dbe9498d89c21abed71054e",
+      "private_sha256": "4eef382fdfe264b9f499c9dc38d2cdb5a6e0e5867dbe9498d89c21abed71054e",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/consolidation_ablation.rs",
+      "root_sha256": "e0addc59627a81fd7a2bd9ae153a63fb2a2d21568ebf7b18133b7844996e2ffc",
+      "private_sha256": "e0addc59627a81fd7a2bd9ae153a63fb2a2d21568ebf7b18133b7844996e2ffc",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/depth_ref.rs",
+      "root_sha256": "75e24539dfc28702c5474a58f4d69c673745bcd23fd8dd8a8f505b6097406333",
+      "private_sha256": "75e24539dfc28702c5474a58f4d69c673745bcd23fd8dd8a8f505b6097406333",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/dual_voice.rs",
+      "root_sha256": "f9fa0684b23cb3bdbec2eb40d169242b94ea87b1bbba6737d3621cd86db9937d",
+      "private_sha256": "f9fa0684b23cb3bdbec2eb40d169242b94ea87b1bbba6737d3621cd86db9937d",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/fatigue_gate.rs",
+      "root_sha256": "317ced1e7898fb4983be9bf5370b73112e9e00f1969a488f17b1b18d000ef2d2",
+      "private_sha256": "317ced1e7898fb4983be9bf5370b73112e9e00f1969a488f17b1b18d000ef2d2",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/gate_state_dump.rs",
+      "root_sha256": "6af5ac90f39c90b1538fbf9bc600f7611a0cbebed87be13bf585c3b2727d6764",
+      "private_sha256": "6af5ac90f39c90b1538fbf9bc600f7611a0cbebed87be13bf585c3b2727d6764",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/graph_chain_destack_parity.rs",
+      "root_sha256": "2c32290f3dd262f32f6aa2b0ec8971fde4ebf1c5b346fb26d02f06756c744e50",
+      "private_sha256": "2c32290f3dd262f32f6aa2b0ec8971fde4ebf1c5b346fb26d02f06756c744e50",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/isolated_fugue.rs",
+      "root_sha256": "2b6de2ec735fb99aaef399a2fad2c3882e71f136059d58bbc6d745a91af9c544",
+      "private_sha256": "2b6de2ec735fb99aaef399a2fad2c3882e71f136059d58bbc6d745a91af9c544",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/ledger.rs",
+      "root_sha256": "60423d2234d84249e8bf7c12d64cf238608b500066caa9a502fa25d1c82b12f0",
+      "private_sha256": "60423d2234d84249e8bf7c12d64cf238608b500066caa9a502fa25d1c82b12f0",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/level_operating_unit.rs",
+      "root_sha256": "c61392edb5111acf33ff42b5d1e283205362bff91b9aa3f02b9581618e9dcec4",
+      "private_sha256": "c61392edb5111acf33ff42b5d1e283205362bff91b9aa3f02b9581618e9dcec4",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/level_operating_unit_tests.rs",
+      "root_sha256": "7e9a2b0be57a928993be620593b56474a29e23f41b72981f98214e9c10bb0de2",
+      "private_sha256": "7e9a2b0be57a928993be620593b56474a29e23f41b72981f98214e9c10bb0de2",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/level_sub_lou.rs",
+      "root_sha256": "2c2cc6ecd51b21332aab1ad1d967aab2bd6ec143bd2b12c41fd244b771eaa0a0",
+      "private_sha256": "2c2cc6ecd51b21332aab1ad1d967aab2bd6ec143bd2b12c41fd244b771eaa0a0",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/master.rs",
+      "root_sha256": "e44af71eef9db29f617bd76fc66054af0a9f26bc0af712a6a9dfa75a4976d871",
+      "private_sha256": "e44af71eef9db29f617bd76fc66054af0a9f26bc0af712a6a9dfa75a4976d871",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/mod.rs",
+      "root_sha256": "a6977d4f735b36b44857e4c80e0b6b41260370c6c48bf0179bf5ffb6bb5995eb",
+      "private_sha256": "a6977d4f735b36b44857e4c80e0b6b41260370c6c48bf0179bf5ffb6bb5995eb",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/nested_fugue.rs",
+      "root_sha256": "51b41430b8f5aba670b4162a7879844be2dcb599b6838b5f6a4c59a91bdfe93d",
+      "private_sha256": "51b41430b8f5aba670b4162a7879844be2dcb599b6838b5f6a4c59a91bdfe93d",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/nested_interval_fugue.rs",
+      "root_sha256": "047c60092cb00b7149c8a7e3351ea0350bae9802fcb15d4e114bc296be880334",
+      "private_sha256": "047c60092cb00b7149c8a7e3351ea0350bae9802fcb15d4e114bc296be880334",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/positional.rs",
+      "root_sha256": "144c1d817e7a2ab94bea24c2dabbd0df4ac3cbf68b7d338480c69a86ac95ef61",
+      "private_sha256": "144c1d817e7a2ab94bea24c2dabbd0df4ac3cbf68b7d338480c69a86ac95ef61",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/positional_fusion.rs",
+      "root_sha256": "dd54cf7f28efcc5cf8caad5f91309eb9f0018b0f611d2fdf1464cef0cd64434d",
+      "private_sha256": "dd54cf7f28efcc5cf8caad5f91309eb9f0018b0f611d2fdf1464cef0cd64434d",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/positioning_chain_fugue.rs",
+      "root_sha256": "4c5d20e390ff5695b21453991ab71a5724c898a5052a0480a58b65c2c9b41234",
+      "private_sha256": "4c5d20e390ff5695b21453991ab71a5724c898a5052a0480a58b65c2c9b41234",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/recursive_nested_fugue.rs",
+      "root_sha256": "615736baadec8bb4bfbc7c87fedb21f520a58146e83d7641e0dc6f27e3946cff",
+      "private_sha256": "615736baadec8bb4bfbc7c87fedb21f520a58146e83d7641e0dc6f27e3946cff",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/recursive_position.rs",
+      "root_sha256": "53488e40fac2f709346da742b3cc1944ed0bebad2ac9c07ef2e67cf446722f9b",
+      "private_sha256": "53488e40fac2f709346da742b3cc1944ed0bebad2ac9c07ef2e67cf446722f9b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/runner.rs",
+      "root_sha256": "5382678afbf8b1a7ab2a5434444b15254d93eba0ba83af3eae69559307eaccd3",
+      "private_sha256": "5382678afbf8b1a7ab2a5434444b15254d93eba0ba83af3eae69559307eaccd3",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/sublevel_confirmation_ablation.rs",
+      "root_sha256": "1d8351b53413164099ee99a0e56d8626e8594a44848406fac9875a7d74f9c39c",
+      "private_sha256": "1d8351b53413164099ee99a0e56d8626e8594a44848406fac9875a7d74f9c39c",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/tape.rs",
+      "root_sha256": "5fdc01ac3d1b2c8093c61b77abac1c2a802c8bc8f7cc77ee2699d2767fa389b5",
+      "private_sha256": "5fdc01ac3d1b2c8093c61b77abac1c2a802c8bc8f7cc77ee2699d2767fa389b5",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/third_point_book.rs",
+      "root_sha256": "ed9a715c44d4e79887a0732e21e440435a3ea66f5b2371303606cbed3e9ad243",
+      "private_sha256": "ed9a715c44d4e79887a0732e21e440435a3ea66f5b2371303606cbed3e9ad243",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/trade_behavior.rs",
+      "root_sha256": "806f8e998ef2c7d7733e23702aa51e4e010c5d1b584435dd3c058f416fc3ea61",
+      "private_sha256": "806f8e998ef2c7d7733e23702aa51e4e010c5d1b584435dd3c058f416fc3ea61",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/trend_exhaustion.rs",
+      "root_sha256": "c4fe60c278e1c88ae10ec05dd0232898a212906fced02c1ebe4245ee47f745dc",
+      "private_sha256": "c4fe60c278e1c88ae10ec05dd0232898a212906fced02c1ebe4245ee47f745dc",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/types.rs",
+      "root_sha256": "b372e7a8ce068f64e5089a1c28785c066cf3a4d7bd7d0f2affcbb5349e3acccb",
+      "private_sha256": "b372e7a8ce068f64e5089a1c28785c066cf3a4d7bd7d0f2affcbb5349e3acccb",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/unified_necessity.rs",
+      "root_sha256": "4dc44a067e9f994cb6f96fbb83ca7d40b3456267bc7bc50a3170e9ff1343757e",
+      "private_sha256": "4dc44a067e9f994cb6f96fbb83ca7d40b3456267bc7bc50a3170e9ff1343757e",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/unified_osc.rs",
+      "root_sha256": "3ddb150fd48c34b3057f4346feeeb0c4d78e96169664a8f9bcee1f309ceac2f3",
+      "private_sha256": "3ddb150fd48c34b3057f4346feeeb0c4d78e96169664a8f9bcee1f309ceac2f3",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/unified_recursive.rs",
+      "root_sha256": "0f67c7f9d0bdb1bf18dc8b1b7ba0632b9d97144919f39800a0f0b436f1ff4ead",
+      "private_sha256": "0f67c7f9d0bdb1bf18dc8b1b7ba0632b9d97144919f39800a0f0b436f1ff4ead",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/trading/unified_voice.rs",
+      "root_sha256": "48f187091a1ebbf150c094a31212df5e09d589d935ef09a44084fe039bcc3c6a",
+      "private_sha256": "48f187091a1ebbf150c094a31212df5e09d589d935ef09a44084fe039bcc3c6a",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/src/zhongshu.rs",
+      "root_sha256": "45970e594510e14c5f7feaaebfa21461b16ae8f17add35f925a29da8b40a1803",
+      "private_sha256": "45970e594510e14c5f7feaaebfa21461b16ae8f17add35f925a29da8b40a1803",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/tests/bsp_predicate_lean_parity.rs",
+      "root_sha256": "90daecd0a7504447c271f48b3922aa4ef06beaee5f75d833e4adc59d54432098",
+      "private_sha256": "90daecd0a7504447c271f48b3922aa4ef06beaee5f75d833e4adc59d54432098",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/tests/certificate_chain_single_source.rs",
+      "root_sha256": "7755d071393a030730a28b982bc72e67db45b54f3667962bf5a40143e0d866fe",
+      "private_sha256": "7755d071393a030730a28b982bc72e67db45b54f3667962bf5a40143e0d866fe",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/tests/econ_oddeven_diagnosis.rs",
+      "root_sha256": "d7d273632b8469db540f86223485b92a4feab189305b0e92fa701e7a984c9a3b",
+      "private_sha256": "d7d273632b8469db540f86223485b92a4feab189305b0e92fa701e7a984c9a3b",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/tests/issue1087_scan_lean_parity.rs",
+      "root_sha256": "e38c8a94a9adea19190dab7ec0d7a550423d85984eee6659fe35d44145a8737e",
+      "private_sha256": "e38c8a94a9adea19190dab7ec0d7a550423d85984eee6659fe35d44145a8737e",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/tests/issue533_p123_byte_guardrail.rs",
+      "root_sha256": "0a82bcad51a47b90388c0f308f4bf43a9bec6f396da2f18f611524ba228eac6a",
+      "private_sha256": "0a82bcad51a47b90388c0f308f4bf43a9bec6f396da2f18f611524ba228eac6a",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/tests/nest_isolation_guard.rs",
+      "root_sha256": "56d1573ad9fd0bca40c07dc6a232f3f1b208bf2de82f673f14614a723b1575dd",
+      "private_sha256": "56d1573ad9fd0bca40c07dc6a232f3f1b208bf2de82f673f14614a723b1575dd",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/tests/s_content_contract.rs",
+      "root_sha256": "b8fed14b9868ff9f85279bc58656ab4d71ef89053452426b6294e7fab7afc43d",
+      "private_sha256": "b8fed14b9868ff9f85279bc58656ab4d71ef89053452426b6294e7fab7afc43d",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/tests/s_content_fragment.rs",
+      "root_sha256": "22490baaae6a1c40ce95b20e11917420ea4962c747a70e0d9fd80fca15570352",
+      "private_sha256": "22490baaae6a1c40ce95b20e11917420ea4962c747a70e0d9fd80fca15570352",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/tests/s_content_job.rs",
+      "root_sha256": "50cd14cac8201ba6328f26f5b198103fbc6df79bc4fc3ce040c018d37005989d",
+      "private_sha256": "50cd14cac8201ba6328f26f5b198103fbc6df79bc4fc3ce040c018d37005989d",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/tests/s_content_path.rs",
+      "root_sha256": "6d5a990a7442e527fa52464efde64d0aaeec21d17e37b45468b84700957d3756",
+      "private_sha256": "6d5a990a7442e527fa52464efde64d0aaeec21d17e37b45468b84700957d3756",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/tests/s_content_sequence.rs",
+      "root_sha256": "3f62916d12293cda131276c95978ecce5609b29b2b341b2f2e8e3d940d842118",
+      "private_sha256": "3f62916d12293cda131276c95978ecce5609b29b2b341b2f2e8e3d940d842118",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/tests/s_content_wire.rs",
+      "root_sha256": "6ed8d5f7b7683e7f22dafd20cdc6cd3a4ced55e90a674bedc8e894610c116c59",
+      "private_sha256": "6ed8d5f7b7683e7f22dafd20cdc6cd3a4ced55e90a674bedc8e894610c116c59",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/tests/theta_pi_stream.rs",
+      "root_sha256": "1903ed2182db01b646274f0fe433203a9469e18338f30e783e3cf77eb214c660",
+      "private_sha256": "1903ed2182db01b646274f0fe433203a9469e18338f30e783e3cf77eb214c660",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/tests/theta_v0_07b_gating.rs",
+      "root_sha256": "a97bc7e17ada120ac20a0cdf0d520bf13640303d0a88056f700303f6ad7d1497",
+      "private_sha256": "a97bc7e17ada120ac20a0cdf0d520bf13640303d0a88056f700303f6ad7d1497",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/tests/theta_v0_buy_parity.rs",
+      "root_sha256": "96506ab1299c115d49d829360a82daa6464092d9873fd09e4d24aabbe6e724a6",
+      "private_sha256": "96506ab1299c115d49d829360a82daa6464092d9873fd09e4d24aabbe6e724a6",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/tests/theta_v0_center_parity.rs",
+      "root_sha256": "3cebd4a145eae6fd704db1f892c9a6635ee1811fc40164e8743e6a5d7f13cbf5",
+      "private_sha256": "3cebd4a145eae6fd704db1f892c9a6635ee1811fc40164e8743e6a5d7f13cbf5",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/tests/theta_v0_classifier_parity.rs",
+      "root_sha256": "a95c66b2fc557aa20122ac608f945dc0733436cbca1db7cb1d310d0a29f520d0",
+      "private_sha256": "a95c66b2fc557aa20122ac608f945dc0733436cbca1db7cb1d310d0a29f520d0",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/tests/theta_v0_fixture_drift.rs",
+      "root_sha256": "93b36937a15d29a93aff3e44a1a599f3c500952d6481ac2937e0001770b5922f",
+      "private_sha256": "93b36937a15d29a93aff3e44a1a599f3c500952d6481ac2937e0001770b5922f",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/tests/theta_v0_lean_parity.rs",
+      "root_sha256": "c0629878b394a27ba49bc0d2981cced8ed5756d8a2ead3031a98b4f6366d2fd6",
+      "private_sha256": "c0629878b394a27ba49bc0d2981cced8ed5756d8a2ead3031a98b4f6366d2fd6",
+      "allowed_test_include": false
+    },
+    {
+      "path": "rust/tests/theta_v0_perf_profile.rs",
+      "root_sha256": "eec91c2a97e9a89670a5fdf5ca54d7ada96cd753693f83a4c18e7cfb934658af",
+      "private_sha256": "eec91c2a97e9a89670a5fdf5ca54d7ada96cd753693f83a4c18e7cfb934658af",
+      "allowed_test_include": false
+    }
+  ]
+}

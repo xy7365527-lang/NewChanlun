@@ -1,0 +1,62 @@
+{
+  "scope": "READONLY_DIAGNOSTIC_ONLY; no S/Q, pending restore, 9000/9011 replay or controller acceptance",
+  "baseline_probe": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/PROBE.json",
+  "candidate_probe": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/PROBE.json",
+  "candidate_binary": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-target-20261002/release/deps/s_structure_session-9427c373eb501855",
+  "candidate_binary_sha256": "e62213072f6c095702064f34ad1a8b388d3d0aeaadbde42e36967a2d0675a97f",
+  "observer_patch_sha256": "e18ffbaefceb9c577f00c92bfed9edb8821e498afce481f9a90011f0f8d13ff3",
+  "observer_module_sha256": "bb97f4451769854603ffdba431eba36e8d2a967b3acc9558d40444db4de16d46",
+  "candidate_files_sha256": {
+    "rust/src/s_content/path.rs": "ab82fda2bbcc663d9ab78f56f71ba56964f1d33eff25af9b73a3ac0e73c1bb38",
+    "rust/src/s_content.rs": "1033f6e720487ac31fd609278ec7951a2b4c5010fae3b381eacabdc16758350a",
+    "rust/src/bin/s_session_v3/history.rs": "034295412af204e077d353be1df95230d633e4ebc3a8d10ef07890beee9f8c69",
+    "rust/src/bin/s_session_v3/source_audit.rs": "024eccf990fed89b48d65d13495465cfc6af80563bdf00c2512bc01a94470b89",
+    "rust/src/bin/s_session_v3/object_index.rs": "3809dc6205bb6249ee1e87f2bfc59a96b8058b895d84a2e3d4a6c022d39c8810",
+    "rust/tests/s_content_array_scan.rs": "a9ca4c23a6b2db8fa05354703dafd98f6d4945f881f557ccbb923cbd4fa6245f"
+  },
+  "source_three_file_sha256": {
+    "s.sqlite": "050562e2db766cc3d6d94e42bf43f0e21fe3a336d6c9d5b8adcc0e887959f9c1",
+    "s.sqlite-wal": "9b1565422a3c45c03bb068ede25c199548072d6695c1b33b01ce2a851449671b",
+    "s.sqlite-shm": "0c58b51d09bfd39725a1fc4d8d63f3713e9ce6533dd899f45fa2be7d16633aca"
+  },
+  "source_unchanged_after_run": true,
+  "owned_db_wal_sha_mtime_unchanged_after_run": true,
+  "fingerprint_sha256": "42444317d86a03e066867bdfccfd0bb9f07010a1a2655483fdc377b7a115b8a0",
+  "full_returned_state_exact_equal": true,
+  "all_963_phase_events_equal": true,
+  "overlay_reads_writes_equal": true,
+  "cuts": 27,
+  "raw": 28,
+  "pending": "AcceptedPending 1, Committed 27 in pre-run owned clone",
+  "baseline_sql_reads": [
+    8792023,
+    8792023
+  ],
+  "candidate_sql_reads": [
+    8090429,
+    8090429
+  ],
+  "baseline_f_calls": [
+    3402722,
+    3402722
+  ],
+  "candidate_f_calls": [
+    3400571,
+    3400571
+  ],
+  "baseline_elapsed_ns": [
+    "11468526542",
+    "11495750583"
+  ],
+  "candidate_elapsed_ns": [
+    "11182987417",
+    "11144998917"
+  ],
+  "sql_delta_each": 701594,
+  "sql_reduction_fraction": 0.07979892682264367,
+  "heap_peak": "UNMEASURED",
+  "rss_peak": "UNMEASURED",
+  "wall_attribution": "UNMEASURED across separate runs / OS load",
+  "probe_sha256": "ff7f7d8bf52bdf26677968efde23bef38377371099308d1137b2222bea541595",
+  "diagnostic_patch_reverse_check": "passed; diagnostic-only modifications absent from candidate"
+}

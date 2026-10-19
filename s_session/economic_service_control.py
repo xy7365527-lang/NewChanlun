@@ -13,6 +13,7 @@ import uuid
 
 from s_service_control import Controller, positive, remaining
 from s_socket_client import canonical, decode_frame, digest, exchange, validate_reply
+from economic_query import economic_revisions
 
 
 def read_config(path, domain):
@@ -27,6 +28,7 @@ def read_config(path, domain):
     manifest = decode_frame(Path(config["manifest"]).read_bytes())
     if manifest.get("schema_revision") != "economic-manifest/1" or digest(manifest) != config.get("manifest_hash"):
         raise ValueError("经济 manifest 与已配置来源不同")
+    economic_revisions(manifest)
     nodes = {"E": manifest["e"]}
     for node in manifest["chongs"]:
         key = "B:" + node["chong_id"]
@@ -72,7 +74,8 @@ class EconomicController(Controller):
 
     def probe(self):
         payload = {"op": "ReadView", "cut": None, "as_known_ns": None}
-        return {"schema_revision": "economic-session/1", "session_id": self.manifest["session_id"],
+        revision, _ = economic_revisions(self.manifest)
+        return {"schema_revision": revision, "session_id": self.manifest["session_id"],
                 "session_generation": self.manifest["session_generation"], **self.launcher["probe_source"],
                 "message_id": "control-" + uuid.uuid4().hex, "payload_hash": digest(payload),
                 "payload": payload, "causal_refs": []}
@@ -157,6 +160,9 @@ def main():
             if len(raw) > limit:
                 raise ValueError("原请求文件超过事前帧上限")
             request = decode_frame(raw)
+            revision, _ = economic_revisions(manifest)
+            if request.get("schema_revision") != revision:
+                raise ValueError("原请求版本与冻结经济 manifest 不同")
             if len(canonical(request)) + 1 > limit:
                 raise ValueError("请求超过事前帧上限")
             result = exchange(node["socket"], request, timeout_ms=int(config["startup_timeout_ms"]), max_frame_bytes=limit)

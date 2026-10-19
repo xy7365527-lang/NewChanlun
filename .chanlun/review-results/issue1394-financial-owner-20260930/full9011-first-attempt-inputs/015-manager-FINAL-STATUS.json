@@ -1,0 +1,55 @@
+{
+  "C_complete": false,
+  "S_Q": "NOT_RUN",
+  "checks": {
+    "gate": "GATE_PASSED, exit 0",
+    "offline_tests": "48 passed, exit 0",
+    "prepare": "PASS_9011/PASS_EXACT_SHA_VALUES, exit 0",
+    "runtime_path_absent": true,
+    "socket_path_absent": true,
+    "source_sample_existing_json_native_fields": "8 of 8 exact, no SQLite opened"
+  },
+  "external_worker": {
+    "external_session_id": "01a0f850-c7b0-7a91-ba74-3db637953d6b",
+    "run_id": "6ba5ae6d-8091-4ffa-a668-7c43c5681af5",
+    "status": "completed"
+  },
+  "files": {
+    "README.md": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/worker/.scratch/issue1394-full9011-runner-20261001/README.md",
+      "sha256": "222a8bf08ceed9b6a7c438ccd3428545b92a905abaeb301a6979aa3fc9106a1c"
+    },
+    "contract.schema.json": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/worker/.scratch/issue1394-full9011-runner-20261001/contract.schema.json",
+      "sha256": "3853d7ca2edc5ebf046b28ad84d87746d06f29579798ef7f9fd15cb6172b15d3"
+    },
+    "evidence.py": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/worker/.scratch/issue1394-full9011-runner-20261001/evidence.py",
+      "sha256": "8603beeeca192c2b74635b27f640dcb34332b104868a8b931ed21b1f48ad6a04"
+    },
+    "runner.py": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/worker/.scratch/issue1394-full9011-runner-20261001/runner.py",
+      "sha256": "155d22522d74471705ed6bb6c61499ea0dfb4e0ddf7403d4f48cffe60ae55335"
+    },
+    "runtime.py": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/worker/.scratch/issue1394-full9011-runner-20261001/runtime.py",
+      "sha256": "733a004e0c77b2d8164ef7779ba99ce47b07cbbb0a8d8d0aa2748544231f9191"
+    },
+    "test_offline.py": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/worker/.scratch/issue1394-full9011-runner-20261001/test_offline.py",
+      "sha256": "ac7eaebe0c7d0176af890ed0188ed7a3402c50d037af51465534921404dcb7ab"
+    }
+  },
+  "full_resource_capacity": false,
+  "helper_commit": "6890de7056d3c55cfc3506280f041b283be7b2a9",
+  "prepared": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/worker/.scratch/issue1394-full9011-runner-20261001/prepared-manager-final/PREPARED.json",
+    "sha256": "879a1aff06b6d1e3ec3052cb8b2f8682d62c8e101c103bb0d05273aa510583b8"
+  },
+  "root_production_HEAD": "3e5a5ba31dbe5c59beeee03de227fd8408eaac55",
+  "rust_tree": "7196a77fef56cf87cbe91dc4b135326a142e2395",
+  "scope": "#1394 S full9011 A/B formal runner",
+  "status": "OFFLINE_READY_FOR_ROOT_REVIEW",
+  "strict_peaks": "UNMEASURED",
+  "wholegraph_complete": false
+}

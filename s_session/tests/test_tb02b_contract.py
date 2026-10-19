@@ -179,12 +179,33 @@ class RuleBindingTest(unittest.TestCase):
         c.validate_fact(*endpoint_fact(2, RULE_NEW_BI_2))
         self.assert_bi_rule_mismatch(2, RULE_NEW_BI_1)
 
+    def test_v3_ab_contracts_and_unknown_revision(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from s_query_integrity import _published_axes
+        for version in (1, 2):
+            rule = f's2-axis-quantifiers+new-bi/{version}'
+            c.validate_fact(*endpoint_fact(version, rule))
+            self.assert_bi_rule_mismatch(3-version, rule)
+            self.assertEqual(_published_axes(rule), c.BI_AXES)
+        with self.assertRaisesRegex(ValueError, 'cut规则修订未声明'):
+            c.validate_fact(*endpoint_fact(2, 'unknown'))
+        with self.assertRaisesRegex(ValueError, '未声明的目录规则修订'):
+            _published_axes('unknown')
+
     def test_session_rule_binds_bi_and_segment_contract_generations(self):
         self.assertEqual(c.RULE_CONTRACTS['s2-axis-quantifiers+new-bi/2+segment-second/1'],
                          ('s-new-bi/2', 's-segment/2', 'established_direction_with_extreme_root_sets'))
         self.assertEqual(c.RULE_CONTRACTS['s2-axis-quantifiers+new-bi/1+segment-second/1'],
                          ('s-new-bi/1', 's-segment/2', 'established_direction_without_extreme_identity_competition'))
         self.assertEqual(c.RULE_CONTRACTS['s2-axis-quantifiers+new-bi/1'][:2], ('s-new-bi/1', None))
+
+    def test_composed_rule_binds_bi_schema(self):
+        for version in (1, 2):
+            rule = f's2-axis-quantifiers+new-bi/{version}+segment-second/2'
+            c.validate_fact(*endpoint_fact(version, rule))
+            self.assert_bi_rule_mismatch(3-version, rule)
+            self.assertEqual(c.RULE_CONTRACTS[rule][:2], (f's-new-bi/{version}', 's-segment/3'))
 
     def test_knowledge_domain_accepts_both_generations_and_rejects_others(self):
         payload = dict(scope='TB-02-A', input_frontier='0', known_facts=['raw_ohlc', 'inclusion_trace', 'group_provenance'],

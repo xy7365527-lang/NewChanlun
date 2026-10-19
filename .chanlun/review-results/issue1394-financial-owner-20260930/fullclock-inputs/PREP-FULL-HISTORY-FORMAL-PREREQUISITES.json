@@ -1,0 +1,280 @@
+{
+  "approved_choices": [
+    "C5.1-5.9 by SPEC-ADDENDUM/ADOPTION; do not rerequest adoption",
+    "fixed exactinteger OHLC profile and declared TestOnly unit volume",
+    "current ordinary S3 Controller init/serve/Ready/recover implementation with original seven gates",
+    "root accepted newly named TestOnly fullclock+prefix16 response30000ms; other six original values preserved"
+  ],
+  "binding": {
+    "build_run": false,
+    "catalog_canonical_sha256": "874c7b8d27158741d467da59731c73f8ff60070a76d908b6362818d4be5a098c",
+    "clock_canonical_sha256": "b02ac2444161e1e7e327fcf2a2bb79b294356a3dd95a59a6404c5b92deb04f01",
+    "data_path_run": false,
+    "files": [
+      {
+        "bytes": 56918,
+        "inode": 324555470,
+        "mtime_ns": 1790818398396850800,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/rust/src/bin/s_session_v3/driver.rs",
+        "sha256": "b3945937b401cd48fd348b54ae1b8772880a2cca80d31d4f62eb83aa8508f9ec"
+      },
+      {
+        "bytes": 60537,
+        "inode": 323134291,
+        "mtime_ns": 1790734949747273496,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/rust/src/bin/s_session_v3/mod.rs",
+        "sha256": "cccfeeab8cf50db7d7c62d748289efb26a6368f79c7124f1f5fbd6068c75295a"
+      },
+      {
+        "bytes": 26790,
+        "inode": 324555504,
+        "mtime_ns": 1790818399470941730,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/rust/src/bin/s_session_v3/writer_cli.rs",
+        "sha256": "bfc119de105273230eddce1085f39ce8d37aea8792e8883393304d05f4bc994f"
+      },
+      {
+        "bytes": 8227,
+        "inode": 323265008,
+        "mtime_ns": 1790738485448465537,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/rust/src/bin/s_session_v3/raw_input.rs",
+        "sha256": "3e02b40deb3341085096238d55ce2f7d9e11d6af9fadf8de8dfde83624cebe45"
+      },
+      {
+        "bytes": 19804,
+        "inode": 311218656,
+        "mtime_ns": 1789710343198674563,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/rust/src/bin/s_session_v2/tb02a.rs",
+        "sha256": "78cff6491b61ba778cb999b61ee386fe7be67de08ee1c917e8137ba029f9c8ed"
+      },
+      {
+        "bytes": 123632,
+        "inode": 311218654,
+        "mtime_ns": 1789703174396419973,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/rust/src/bin/s_session_v2/mod.rs",
+        "sha256": "e4632de7d76ba0a728543446bb21e44dc1e0d402c672a20ec650a59f6a6560f7"
+      },
+      {
+        "bytes": 438208,
+        "inode": 323265010,
+        "mtime_ns": 1790738485449741710,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/rust/src/bin/s_structure_session.rs",
+        "sha256": "1479ab764fb6170b208bb6dd55035604cce98fd61b85f6f8442a7cc6dd261d03"
+      },
+      {
+        "bytes": 13416,
+        "inode": 311218728,
+        "mtime_ns": 1789515743180015102,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/rust/src/session_protocol.rs",
+        "sha256": "87456952f5e74e7d932760b73647fbb1dad382b41098e441686a4b7ee87ffa00"
+      },
+      {
+        "bytes": 41478,
+        "inode": 324555505,
+        "mtime_ns": 1790818399471267023,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/s_session/s_service_control.py",
+        "sha256": "894427caa51d9d58ea32a980bb473a93ca6e9b8a3e4664aa0b1f5a985c592d69"
+      },
+      {
+        "bytes": 9157,
+        "inode": 324126878,
+        "mtime_ns": 1790766387489962927,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/s_session/s_socket_client.py",
+        "sha256": "8fb63a14d131452e09b2ab3e4aeddef1c1cbf922ca641ec5a13a7db729b4a1e2"
+      },
+      {
+        "bytes": 468,
+        "inode": 311219103,
+        "mtime_ns": 1789515743254691832,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/s_session/profiles/ohlc_integer_tb02a_v1.json",
+        "sha256": "482250254133ba120afdd5cd428d1a32d4e5cb40cd7876c556b7007320e599d6"
+      },
+      {
+        "bytes": 84259,
+        "inode": 311219092,
+        "mtime_ns": 1789515743253771911,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/s_session/catalog/signed-catalog.json",
+        "sha256": "938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069"
+      },
+      {
+        "bytes": 57676,
+        "inode": 311224635,
+        "mtime_ns": 1789515878671162599,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.chanlun/review-results/issue1394-content-v3-20260916/APPROVED-SOURCE.md",
+        "sha256": "fab912c6ebe3613969d65fc924368a1d5c9b343f0c3f7a123241645413771d30"
+      },
+      {
+        "bytes": 3769,
+        "inode": 311224639,
+        "mtime_ns": 1789515878673430276,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.chanlun/review-results/issue1394-content-v3-20260916/SPEC-ADDENDUM.md",
+        "sha256": "3fa9a1c958668923f11771468a2ea838abdf5b19046df9a6508bc8e3061dfa31"
+      },
+      {
+        "bytes": 1979,
+        "inode": 311224638,
+        "mtime_ns": 1789515878673316817,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.chanlun/review-results/issue1394-content-v3-20260916/ADOPTION.json",
+        "sha256": "fc9ea122c3f396f3c063f1c9dd4a3712afe4e29f19ef74e2e223f9e7705a062b"
+      }
+    ],
+    "head": "ed1f184bf7513d960d87b6687c279a657c8fa481",
+    "identities": {
+      "instrument": "TEST.LONG.TB03B",
+      "producer_epoch": "1",
+      "producer_id": "driver-fixture",
+      "profile": "ohlc_integer_tb02a_v1",
+      "protocol_revision": "s-session/3",
+      "rule_revision": "s2-axis-quantifiers+new-bi/1",
+      "scope": {
+        "economic": "not_started",
+        "structure": "CompleteCut"
+      },
+      "session_generation": "1",
+      "session_id": "s-session-testonly-001",
+      "source_epoch": "1",
+      "source_namespace": "testonly.ohlc",
+      "writer_epoch": "1"
+    },
+    "new_goals_tickets_or_tracker_writes": false,
+    "originals_modified": false,
+    "params": {
+      "bytes": 508,
+      "inode": 309402899,
+      "mtime_ns": 1789390638754236045,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-tb03b/.scratch/issue1394-long-source-search/runs/RW05_u57_l12_40_a400_2000_r25_70_d2.params.json",
+      "sha256": "ffb54d8b92867142bc34b18620af195b96a0bc59d0f2134a97f350e17e328f3f"
+    },
+    "price_values_changed": false,
+    "profile_canonical_sha256": "1c11d398cd9ac43a161bc6494b196771f131fba74c42c0bf1ccb6474a8fc4d57",
+    "resource_values_created_or_changed": false,
+    "rust_tree": "5a2acd1e72c3846be38cc29689a82aeb57c68dc6",
+    "schema_revision": "issue1394-full-history-formal-prep/1",
+    "services_started": false,
+    "source": {
+      "bytes": 1006026,
+      "inode": 309402898,
+      "mtime_ns": 1789390638754142587,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-tb03b/.scratch/issue1394-long-source-search/runs/RW05_u57_l12_40_a400_2000_r25_70_d2.bars.json",
+      "sha256": "76472995cbf0825ceeeaa94e89bd60d1b1416d6c7e0a7ec3a1b0ec5a90c60087"
+    },
+    "source_after": {
+      "bytes": 1006026,
+      "inode": 309402898,
+      "mtime_ns": 1789390638754142587,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-tb03b/.scratch/issue1394-long-source-search/runs/RW05_u57_l12_40_a400_2000_r25_70_d2.bars.json",
+      "sha256": "76472995cbf0825ceeeaa94e89bd60d1b1416d6c7e0a7ec3a1b0ec5a90c60087"
+    },
+    "status": "INPUT_DRAFT_AND_READONLY_FACTS_NOT_RUNTIME_ACCEPTANCE",
+    "ticket": 1394
+  },
+  "caller_plan_file": "inputs/formal-caller-plan.draft.json",
+  "finite_probe_resource_acceptance": {
+    "config_paths_remain_draft": true,
+    "message": "首批formal fullclock+prefix16试验response30,000ms接受为基于旧实测10.3s的显式有限探针预算，其余六值原样保留，单bar档历史不改。",
+    "resource_canonical_sha256": "b3d8b67b723d881a98dd0f4116fdc9651cf05b207111b19dad26fa69c2c54e69",
+    "runtime_required": [
+      "actual full reply cap/read/write/elapsed evidence",
+      "failure preserves frozen limits; no numerical raise to repair green"
+    ],
+    "scope": "first16 of SAME9011+fullclock, two fresh isolated formal S3 domains; no full9011 capacity claim",
+    "socket_paths_reserved_by_text_only": true,
+    "source": "parent /root steering message in current session",
+    "status": "ROOT_ACCEPTED_FINITE_PREFIX16_PROBE_SCOPE_NOT_RUNTIME_PASS"
+  },
+  "goal": 1323,
+  "goal_status": "active",
+  "input_statistics_file": "inputs/statistics.json",
+  "missing_obligations": [
+    {
+      "local_progress": "prefix16 envelope exact bytes prepared, fullsource readonly facts prepared",
+      "needed": "all9011 actual cuts, raw_text/revisions/order/source leaves, JSON text exact, directory/lifecycle/Delta; native obj/batch/witness/Q/E/B hashes each separately; old actual fullsource control not located by this bounded read",
+      "obligation": "C5.8/C5.9(2) complete old/new crosswalk",
+      "state": "not completed"
+    },
+    {
+      "needed": "same new profile/catalog/rule/binary/clock/envelopes/order in two freshly initialized physical domains; serial controlled schedule; recovery-specific schedule separately frozen",
+      "obligation": "C5.9(2) deterministic full9011 double process run",
+      "state": "not run"
+    },
+    {
+      "needed": "actual full9011 captured node closure, logical rows/source/context checks, qcut native digest, old/new content crosswalk, fragment/job totals, original capture/verify limits unchanged",
+      "obligation": "C5.5-5.6 current Q capture/verify and full consumer",
+      "state": "singlebar/S16 evidence does not establish full9011"
+    },
+    {
+      "needed": "new nodes, unique dependency reads, ALL logical comparisons, Hash/audit/build/store costs, RSS, DB/WAL, network/job, actual allocated staged/store peaks; sampled directory allocation is only lower bound",
+      "obligation": "C5.6.1/C5.9(6) resource first values and runtime accounting",
+      "state": "root accepted new formal prefix16 resource input; full9011 not frozen/measured"
+    },
+    {
+      "needed": "actual S source reference/owner local closure, Prepare Reserve Commit, original six faults, reader/job resources; no unapproved cap policy inserted",
+      "obligation": "C5.7/C5.9(5) finance fullsource consumer and fault matrix",
+      "state": "bounded singlebar domains already have separate evidence; not fullsource proof"
+    },
+    {
+      "needed": "approved RD02 object/oracle/original root/containment/stroke endpoint scope; no global tie-free claim or deletion of failing assertions",
+      "obligation": "#1405 equal price applicable object identity",
+      "state": "raw repeated exact prices exist; applicability not classified"
+    },
+    {
+      "needed": "locate fixed originals and locally applicable current native successful results; no wholegraph blocker invented",
+      "obligation": "#1392 native original / other TB / six Destinations",
+      "state": "existing native boundaries retained"
+    }
+  ],
+  "no_services_build_or_datapath": true,
+  "not_global_wait": [
+    "input/caller/oracle/crosswalk preparations continue while resource proposal decision pending",
+    "fullsource Q/capture/backend local preparation does not depend on frontend1460",
+    "front physical allocation scope pending blocks only related actual consumer allocation claim"
+  ],
+  "old_measurement_limits": [
+    {
+      "cold_audit_ns": "3500323042",
+      "formal_service": false,
+      "head": "7d6dd63aeb6bb6861a9b91d794225d93818ad317",
+      "max_handle_ns": "10259819042",
+      "name": "fresh1",
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-current-runtime-20261001/.scratch/issue1394-current-runtime-20261001/attempt1/fresh1/domain/measurements.json",
+      "resource_profile": null,
+      "rust_tree": "8f9a5c1870a0b2107cb591bcd5a26a4a2d943f67",
+      "sha256": "69dd4018e1e4825ca756583713353fc59bf2082e3acdf0021f3e20f3865100a3",
+      "sum_handle_ns": "58706013669"
+    },
+    {
+      "cold_audit_ns": "3518640375",
+      "formal_service": false,
+      "head": "7d6dd63aeb6bb6861a9b91d794225d93818ad317",
+      "max_handle_ns": "10389861625",
+      "name": "fresh2",
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-current-runtime-20261001/.scratch/issue1394-current-runtime-20261001/attempt1/fresh2/domain/measurements.json",
+      "resource_profile": null,
+      "rust_tree": "8f9a5c1870a0b2107cb591bcd5a26a4a2d943f67",
+      "sha256": "b9f8f8ae506c57b5dde41c809c039a0583bdc45584f83fc42eb82b00f1a32fb6",
+      "sum_handle_ns": "59175779374"
+    }
+  ],
+  "profile_allowed_domain": {
+    "fixture": "cfg(test) local Fixture uses init_v3 directly and Driver::open directly; retain4; no Controller/serve resource profile; not kernel::Fixture in current driver",
+    "instrument": "TEST.LONG.TB03B is text accepted by current parser; no profile instrument whitelist",
+    "price": "all9011 native JSON integer within i64; exactdecimal string mapping without scale/round",
+    "scope": "formal init stores CompleteCut/economic not_started; ordinary structure ingest allowed; not financial or arbitrary native semantic closure",
+    "volume": "all raw numeric tokens1.0; old driver explicitly volume string1; raw_text retains1.0; no changed market value"
+  },
+  "pure_facts_completed": [
+    "frozen9011 source exactSHA/size/index/timestamp/geometry/numeric types",
+    "all9011 draft raw_input/envelopes/payload/envelope hashes",
+    "two old frozen16 full envelope exactbyte comparisons",
+    "complete9011 draft semanticClock/order plan",
+    "exact repeated sameprice raw instance lists; no semantic classification"
+  ],
+  "resource_proposal_file": "inputs/finite-prefix16-resource-proposal.draft.json",
+  "schema_revision": "issue1394-full-history-formal-prerequisites/1",
+  "status": "READONLY_PREPARATION_COMPLETE_RUNTIME_NOT_RUN",
+  "ticket": 1394,
+  "true_new_choices": [
+    "runtime owner physical paths and optional accepted actual reply cap observation; not product defaults",
+    "full9011 resource values must be based on actual source scale plus measurement; no time extrapolation",
+    "ControllerA/B drafted physical DB/socket paths require fresh existence/ownership checks by runtime owner; no service started"
+  ]
+}

@@ -4,17 +4,46 @@
 //! （`raw_first`/`raw_last`），同型取舍只有 KEEP/REPLACE 并带 `evidence`，`policy_version`
 //! 并列记录 raw 间隔门与同价策略。旧 `s-new-bi/1` 对象按 AsKnown 保留，不回填。
 use super::*;
-use newchan_rust::theta_v0::parser::stroke::{StrokeFacts, RULE, SAME_PRICE_POLICY};
+use newchan_rust::theta_v0::parser::stroke::{StrokeFacts, RULE};
 
-/// #1405：新笔发布合同版本（端点/同型取舍的形状随 #1343 改变）。
-const SCHEMA_REVISION: &str = "s-new-bi/2";
-/// raw 间隔门（`new_stroke_min_gap = 3`，bi.md §7 条件 2）。
-const RAW_GAP_POLICY: &str = "standard_raw_gap_3";
-
-/// #1343 Q5：`policy_version` 两段并列——raw 间隔门 `;` 同价策略；规则版本另在
-/// `semantic_version`（= [`RULE`]）。
-fn policy_version() -> String {
-    format!("{RAW_GAP_POLICY};{SAME_PRICE_POLICY}")
+/// #1405：规则修订具名绑定合同；历史 /1 只读，不把当前事实重解释成旧端点。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct BiContract {
+    pub schema: &'static str,
+    pub semantic: &'static str,
+    pub policy: &'static str,
+    pub knowledge_domain: &'static str,
+}
+pub(super) const CURRENT_CONTRACT: BiContract = BiContract {
+    schema: "s-new-bi/2",
+    semantic: RULE,
+    policy: "standard_raw_gap_3;same-price/keep-earlier+extreme-region/1",
+    knowledge_domain: "established_direction_with_extreme_root_sets",
+};
+/// #1393：W 后继串的新笔合同同 /2，知识域随 W 初始化政策升级（旧域仅 AsKnown）。
+pub(super) const W_CONTRACT: BiContract = BiContract {
+    knowledge_domain: "raw_adjacent_W_initialization",
+    ..CURRENT_CONTRACT
+};
+const LEGACY_CONTRACT: BiContract = BiContract {
+    schema: "s-new-bi/1",
+    semantic: "new-bi-dual-coordinate/1",
+    policy: "standard_raw_gap_3",
+    knowledge_domain: "established_direction_without_extreme_identity_competition",
+};
+pub(super) fn contract_for_rule(rule: &str) -> Option<BiContract> {
+    match rule {
+        crate::LEGACY_V3_RULE_REVISION
+        | "s2-axis-quantifiers+new-bi/1+segment-first/1"
+        | "s2-axis-quantifiers+new-bi/1+segment-second/1"
+        | "s2-axis-quantifiers+new-bi/1+segment-second/2" => Some(LEGACY_CONTRACT),
+        crate::W_STRUCTURE_RULE_REVISION => Some(W_CONTRACT),
+        crate::V3_RULE_REVISION
+        | crate::V3_STRUCTURE_RULE_REVISION
+        | "s2-axis-quantifiers+new-bi/2+segment-second/1"
+        | crate::RULE_REVISION => Some(CURRENT_CONTRACT),
+        _ => None,
+    }
 }
 
 pub(super) const KINDS: &[&str] = &[
@@ -36,7 +65,7 @@ fn wire(v: Value) -> Value {
     }
 }
 fn payload(slot: Value, generation: i64, data: Value) -> Value {
-    json!({"schema_revision":SCHEMA_REVISION,"semantic_version":RULE,"policy_version":policy_version(),
+    json!({"schema_revision":CURRENT_CONTRACT.schema,"semantic_version":CURRENT_CONTRACT.semantic,"policy_version":CURRENT_CONTRACT.policy,
         "view_role":"main","object_generation":generation.to_string(),"slot":slot,"data":wire(data)})
 }
 fn add(
@@ -335,4 +364,86 @@ pub(super) fn build(
         sources,
     );
     (b.objects, relations)
+}
+
+#[cfg(test)]
+mod version_contract_tests {
+    use super::*;
+
+    #[test]
+    fn named_bi_revisions_never_fallback_or_relabel_history() {
+        let legacy = contract_for_rule(crate::LEGACY_V3_RULE_REVISION).unwrap();
+        assert_eq!(legacy.schema, "s-new-bi/1");
+        assert_eq!(legacy.semantic, "new-bi-dual-coordinate/1");
+        assert_eq!(
+            contract_for_rule(crate::V3_RULE_REVISION),
+            Some(CURRENT_CONTRACT)
+        );
+        assert_eq!(
+            contract_for_rule(crate::RULE_REVISION),
+            Some(CURRENT_CONTRACT)
+        );
+        for (rule, expected_schema, axis_count) in [
+            ("s2-axis-quantifiers+new-bi/1", "s-new-bi/1", 13),
+            ("s2-axis-quantifiers+new-bi/2", "s-new-bi/2", 13),
+            (
+                "s2-axis-quantifiers+new-bi/1+segment-second/1",
+                "s-new-bi/1",
+                17,
+            ),
+            (
+                "s2-axis-quantifiers+new-bi/1+segment-second/2",
+                "s-new-bi/1",
+                17,
+            ),
+            (
+                "s2-axis-quantifiers+new-bi/2+segment-second/1",
+                "s-new-bi/2",
+                17,
+            ),
+            (
+                "s2-axis-quantifiers+new-bi/2+segment-second/2",
+                "s-new-bi/2",
+                17,
+            ),
+        ] {
+            assert_eq!(contract_for_rule(rule).unwrap().schema, expected_schema);
+            assert_eq!(
+                tb02a_facts::CatalogAxisTable::for_rule_revision(rule)
+                    .unwrap()
+                    .axes()
+                    .len(),
+                axis_count
+            );
+        }
+        assert_eq!(
+            crate::RULE_REVISION,
+            "s2-axis-quantifiers+new-bi/2+segment-second/2"
+        );
+        assert_eq!(crate::V3_RULE_REVISION, "s2-axis-quantifiers+new-bi/2");
+        assert!(contract_for_rule("s2-axis-quantifiers+new-bi/2+segment-first/1").is_none());
+        assert!(contract_for_rule("s2-axis-quantifiers+new-bi/unknown").is_none());
+        assert_eq!(
+            CURRENT_CONTRACT.policy,
+            format!(
+                "standard_raw_gap_3;{}",
+                newchan_rust::theta_v0::parser::stroke::SAME_PRICE_POLICY
+            )
+        );
+        assert_eq!(
+            tb02a_facts::CatalogAxisTable::for_rule_revision(crate::V3_RULE_REVISION)
+                .unwrap()
+                .axes()
+                .len(),
+            13
+        );
+        assert_eq!(
+            tb02a_facts::CatalogAxisTable::for_rule_revision(crate::RULE_REVISION)
+                .unwrap()
+                .axes()
+                .len(),
+            17
+        );
+        assert!(tb02a_facts::CatalogAxisTable::for_rule_revision("unknown").is_none());
+    }
 }
