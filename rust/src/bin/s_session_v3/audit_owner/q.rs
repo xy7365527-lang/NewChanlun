@@ -542,6 +542,9 @@ impl Facts {
                 budget,
             )?;
             let old = vec_bytes::<Value>(raw.capacity());
+            // v4 例外：跨会话容量追认。Plain raw 向量在候选生产中创建（此时无 Budget），
+            // 首次增量 Q 时需将已分配容量纳入当前 session Budget 管理。
+            // 只在首次调用时 adopt，之后 raw_capacity 持久化，后续 grow_vec 直接使用。
             if self.raw_capacity.is_none() {
                 self.raw_capacity = Some(budget.adopt(vec_bytes::<Value>(raw.capacity()))?);
             }

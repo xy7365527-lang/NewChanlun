@@ -735,6 +735,11 @@ impl Effects {
             let old_manual = change.old.as_ref().map_or(0, manual_row_bytes);
             let new_payload = change.new.heap_bytes();
             let old_capacity = vec_bytes::<sc::CodecVec<SqlCell>>(rows.capacity());
+            // v4 例外：adopt 已分配的 originals.rows。
+            // - 生产路径（shared_parent=true）：originals 已在父账下读取（L543-547→L584/592），
+            //   adopt_codec_vec 只检查绑定（native.rs:L773 早返回），不做实际追认。
+            // - 测试路径（shared_parent=false）：originals 是 Plain 分配（未绑定），此处真实 adopt。
+            //   理想情况：测试应模拟生产行为，在父账下预分配（见 #1488 U2 遗留项）。
             if self.shared_parent {
                 budget.adopt_codec_vec(rows)?;
             }
@@ -1543,17 +1548,32 @@ pub(super) fn with_material_access<T>(
                     );
                     invalid(error)
                 })?;
-            let budget = native::Budget::new(j.cap, j.bytes).map_err(|_| {
+            // #1488 U2：先创建空父账（retained=0），再从父账 reserve journal 费用，
+            // 不走 adopt 追认。Budget::new(limit, j.bytes) 会把 j.bytes 放进 moved_in，
+            // 但那不是真实许可；必须显式 reserve 后随 journal 持有。
+            let budget = native::Budget::new(j.cap, 0).map_err(|_| {
                 #[cfg(test)]
                 j.observe_failure(
-                    "material-parent-create",
+                    "material-parent-create-empty",
+                    Some(0),
+                    None,
+                    Some(tx.is_autocommit()),
+                    None,
+                );
+                construction_state::stale("材料共享父账元数据不足")
+            })?;
+            let journal_permit = budget.reserve(j.bytes).map_err(|_| {
+                #[cfg(test)]
+                j.observe_failure(
+                    "material-journal-reserve",
                     Some(j.bytes),
                     None,
                     Some(tx.is_autocommit()),
                     None,
                 );
-                construction_state::stale("材料共享父账额度不足")
+                construction_state::stale("journal初始费用预留失败")
             })?;
+            let journal_charge = journal_permit.finish(j.bytes);
             j.resources = Some(MaterialResources {
                 budget: budget.clone(),
                 outer_cap,
@@ -1561,9 +1581,7 @@ pub(super) fn with_material_access<T>(
                 publication: None,
                 journal_owned_bytes: 0,
                 shared_parent: false,
-                journal_charge: budget
-                    .adopt(j.bytes)
-                    .map_err(|_| construction_state::stale("journal初始费用缺失"))?,
+                journal_charge,
             });
             Ok((budget, seal, j.material_epoch))
         })();
@@ -1755,6 +1773,8 @@ pub(super) fn begin_stage(tx: &Transaction<'_>, kind: StageKind) -> Result<Stage
     Ok(guard)
 }
 // Native行的许可跟随pop后的行移动，头部析构不退行的费用。
+// v4 例外：与 L739 同理，只在 originals 已绑定时调用（L624 前置条件 parent.is_some()），
+// 实际只检查绑定。测试路径中可能真实 adopt（见 #1488 U2 遗留项）。
 fn adopt_row(
     budget: &native::Budget,
     row: &mut sc::CodecVec<SqlCell>,

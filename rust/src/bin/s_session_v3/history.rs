@@ -251,6 +251,9 @@ impl NativeRawPrefixes {
         }
         let old = [self.raw_nodes.capacity(), self.raw_wire_nodes.capacity()];
         let append = raw.len() - self.raw_nodes.len();
+        // v4 例外：跨会话所有权转移。raw_nodes/raw_wire_nodes 在初始 audit session 中创建
+        // （hash_current_raw:L1154/1161，绑定到 store.allocation_budget()），此时转移到当前
+        // session 的 native Budget。v4 框架未涵盖跨会话场景，保留 adopt。
         native.adopt_codec_vec(&mut self.raw_nodes)?;
         native.adopt_codec_vec(&mut self.raw_wire_nodes)?;
         self.raw_nodes
