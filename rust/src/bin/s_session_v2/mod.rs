@@ -12,7 +12,9 @@ use newchan_rust::session_transport::{self, serve_unix, TransportBounds};
 use newchan_rust::sqlite_checked::{CheckedRow, CheckedStatement};
 use std::ffi::CStr;
 use std::fmt;
+#[cfg(any(test, feature = "s_v2_seed_testonly"))]
 use std::fs::File;
+#[cfg(any(test, feature = "s_v2_seed_testonly"))]
 use std::time::Duration;
 #[cfg(test)]
 use std::time::Instant;
