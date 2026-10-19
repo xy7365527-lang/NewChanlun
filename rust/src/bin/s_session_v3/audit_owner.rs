@@ -2808,7 +2808,7 @@ impl AuditTxn<'_> {
         // #1488 受控同owner Recover迁移：只在本事务尚无构造、owner 持有已提交资格时进入；
         // 预算沿用候选已冻结的父账（无 context 不重绑、不换账），保留费由下方总容量门核验。
         #[cfg(feature = "s_capture_native_testonly")]
-        if let FixedOperation::Recover(handoff) = operation {
+        if let (FixedOperation::Recover(handoff), true) = (operation, false) {
             if self.construction.borrow().is_none() && self.owner.construction.borrow().is_some()
             {
                 let complete = self.complete.borrow();
