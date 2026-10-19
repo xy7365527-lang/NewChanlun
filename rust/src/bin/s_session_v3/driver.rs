@@ -1521,11 +1521,16 @@ mod tests {
         assert_recover_revoked(&native, &f, serial, "1");
     }
 
-    /// P3-6：资格戳 ≠ 本事务持久 from 时迁移被拒。
+    /// P3-6：资格戳 ≠ 本事务持久 from 时迁移被拒。时钟含 recover-3，去掉资格戳门即迁移成功。
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn recover_lock_rejects_stale_qualification_stamp() {
-        let f = Fixture::new();
+        let f = Fixture::with_clock(
+            json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"s3-driver","origin_utc":"2026-09-18T00:00:00Z","unit":"ns","events":{
+            "input-1":{"accept_ns":"10","attempts":[{"begin_ns":"11","commit_ns":"12"},{"begin_ns":"14","commit_ns":"15"}]},
+            "input-2":{"accept_ns":"20","attempts":[{"begin_ns":"21","commit_ns":"22"},{"begin_ns":"24","commit_ns":"25"}]},
+            "recover-1":{"recover_ns":"13"},"recover-2":{"recover_ns":"23"},"recover-3":{"recover_ns":"26"}}}),
+        );
         let (native, _, _) = recover_lock_driver(&f);
         native.conn.recover("2", &native.clock, "recover-2").unwrap();
         let serial = native.conn.recover_probe_for_test().serial;
