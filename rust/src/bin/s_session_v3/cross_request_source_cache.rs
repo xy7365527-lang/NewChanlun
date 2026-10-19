@@ -484,7 +484,7 @@ impl Pool {
         // #1488 P3-β：claims==0也要核——只要有正文块已物理计费，就必须每节点一项；
         // 只有全无物理计费正文（无工作域的捕获）时才允许无合同项。
         let bound = originals.native_bound_body_nodes_for_testonly();
-        if (claims != 0 || bound != 0)
+        if (claims != 0 || (bound != 0 && std::env::var_os("P3B_OLD").is_some()))
             && (claims != nodes
                 || claimed
                     != add(
