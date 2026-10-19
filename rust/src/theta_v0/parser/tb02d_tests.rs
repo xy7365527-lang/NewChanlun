@@ -316,7 +316,14 @@ fn tb1493_audit_tb02_fixtures() {
                         .filter(|s| s.scope == "TURN_HYPOTHESIS")
                         .map(|s| format!("{}@{}", s.action, s.incoming.stroke_idx))
                         .collect();
-                    if !turn.is_empty() || c.result == "PENDING_CASE_ONE" || c.result == "FAILED_GEOMETRY" {
+                    if !turn.is_empty()
+                        || !c.window_members.is_empty()
+                        || c.result == "PENDING_CASE_ONE"
+                        || c.result == "FAILED_GEOMETRY"
+                    {
+                        let acts: Vec<_> = c.first.steps.iter().map(|s| format!("{}@{}", s.action, s.incoming.stroke_idx)).collect();
+                        let std: Vec<_> = c.first.standard.iter().map(|e| (e.stroke_idx, e.low, e.high, e.window_members.clone())).collect();
+                        eprintln!("AUDITX {label}/{name}/{n} acts={acts:?} std={std:?} open={:?} wm={:?}", c.first.open_turn.as_ref().map(|o| o.turn_hypothesis_pair), c.window_members);
                         eprintln!(
                             "AUDIT {label}/{name}/{n} cand{ci} start={} result={} end={:?} turn={turn:?} state={:?} segs={}",
                             c.start_stroke, c.result, c.end_stroke, c.turn_hypothesis_state, layer.segments.len()
