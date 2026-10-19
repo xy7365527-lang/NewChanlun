@@ -274,6 +274,12 @@ CREATE TABLE IF NOT EXISTS catalog (
 "#;
 
 fn open_db(db: &Path) -> Result<Connection, String> {
+    // #1405/#1420：先以只读连接判规则，旧规则库绝不以写连接打开。
+    if db.exists() {
+        if let Some(historical) = open_historical_readonly(db)? {
+            return Ok(historical);
+        }
+    }
     let conn = Connection::open(db).map_err(|e| format!("打开 SQLite 失败：{e}"))?;
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;")
         .map_err(|e| format!("设置 WAL/FULL 失败：{e}"))?;
@@ -281,6 +287,48 @@ fn open_db(db: &Path) -> Result<Connection, String> {
     conn.execute_batch("PRAGMA fullfsync=ON;")
         .map_err(|e| format!("设置 fullfsync 失败：{e}"))?;
     Ok(conn)
+}
+
+/// #1405/#1420 持久边界：写连接首次读取会回滚残留的 `-journal` 热日志，末次关闭会检查点并
+/// 删除 `-wal`，两者都改写库文件字节。旧规则会话只读，因此必须在任何写连接之前判规则：
+/// - 已初始化且 `rule_revision` 不是本二进制的 `RULE_REVISION` ⟹ 返回只读连接（SQLite 层拒写，
+///   不设 WAL、不检查点；只读连接最多留下空 `-wal` 与 `-shm` 索引，主库与既有 `-wal` 字节不变）；
+/// - 残留回滚热日志（`SQLITE_READONLY_ROLLBACK`）⟹ 不改写就读不出规则，拒绝打开；
+/// - 当前规则或未初始化 ⟹ `None`，交回原写连接路径。
+fn open_historical_readonly(db: &Path) -> Result<Option<Connection>, String> {
+    let ro = Connection::open_with_flags(
+        db,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY
+            | rusqlite::OpenFlags::SQLITE_OPEN_URI
+            | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX
+            | rusqlite::OpenFlags::SQLITE_OPEN_PRIVATE_CACHE,
+    )
+    .map_err(|e| format!("只读打开 SQLite 失败：{e}"))?;
+    let hot_rollback = |e: &rusqlite::Error| {
+        matches!(e, rusqlite::Error::SqliteFailure(f, _)
+            if f.extended_code == rusqlite::ffi::SQLITE_READONLY_ROLLBACK)
+    };
+    let has_meta = match ro.query_row(
+        "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='meta'",
+        [],
+        |r| r.get::<_, i64>(0),
+    ) {
+        Ok(n) => n > 0,
+        Err(e) if hot_rollback(&e) => {
+            return Err(
+                "StorageUnavailable：库带未回滚的回滚热日志（-journal）；只读连接无法在不改写原库的前提下读出 rule_revision，拒绝打开（含当前规则库：S 库自 init 起为 WAL，出现此日志须人工处置）"
+                    .into(),
+            )
+        }
+        Err(e) => return Err(format!("只读读取 SQLite 失败：{e}")),
+    };
+    if !has_meta || meta_get_opt(&ro, "session_id")?.is_none() {
+        return Ok(None);
+    }
+    if meta_get_opt(&ro, "rule_revision")?.as_deref() == Some(RULE_REVISION) {
+        return Ok(None);
+    }
+    Ok(Some(ro))
 }
 
 fn db_meta(conn: &Connection) -> Result<BTreeMap<String, String>, String> {
@@ -3815,7 +3863,8 @@ fn cmd_meta(db: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// TestOnly 诊断：用与 accept/advance/recover 相同的 open_db 连接，读回实际 PRAGMA
+/// TestOnly 诊断：用与 accept/advance/recover 相同的 open_db 连接（旧规则库上为只读连接，
+/// 读数不含写连接的 WAL/fullfsync 设置，#1405），读回实际 PRAGMA
 /// （journal_mode / synchronous / fullfsync）。供 macOS 根验从真实 writer 连接取证 fullfsync；
 /// 不是持久性自证，仅记录该连接的实际平台前件读数。
 fn cmd_pragma(db: &Path) -> Result<(), String> {
@@ -3964,8 +4013,18 @@ fn recover_core(
 ) -> Result<Value, String> {
     let new_epoch_i =
         parse_writer_epoch(new_epoch, "--new-epoch").map_err(|e| format!("InvalidDomain：{e}"))?;
+    // #1405/#1420：恢复入口不创建缺失的库；历史规则会话只读，不换代、不清未决 Begin。
+    if !db.exists() {
+        return Err(format!(
+            "StorageUnavailable：S 库不存在（{}）",
+            db.display()
+        ));
+    }
     let mut conn = open_db(db)?;
     ensure_initialized(&conn)?;
+    if meta_get_opt(&conn, "rule_revision")?.as_deref() != Some(RULE_REVISION) {
+        return Err("VersionMismatch：历史规则会话只读，禁止恢复写者或清除未决 Begin".into());
+    }
     record_connection_pragmas(&conn, "recover");
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
@@ -6121,6 +6180,309 @@ mod tests {
         assert_eq!(d2["withdrawals"].as_array().unwrap().len(), 1);
         assert_eq!(d2["replaces"].as_array().unwrap().len(), 1);
         assert_eq!(d2["upserts"].as_array().unwrap().len(), 1);
+    }
+
+    /// #1405/#1420 持久边界对拍工具：库文件族（主库、-journal、-wal）逐字节快照。
+    /// `-shm` 是可重建的共享内存索引，不是持久事实，不入比对。
+    fn tb1405_file_bytes(db: &Path) -> Vec<(String, Option<Vec<u8>>)> {
+        ["", "-journal", "-wal"]
+            .iter()
+            .map(|suffix| {
+                let path = std::path::PathBuf::from(format!("{}{suffix}", db.display()));
+                (suffix.to_string(), std::fs::read(path).ok())
+            })
+            .collect()
+    }
+
+    /// 在写连接仍持有时复制库文件族 ⟹ 得到崩溃现场（未检查点的 -wal 或未回滚的 -journal）。
+    fn tb1405_crash_image(src: &Path, dst: &Path) {
+        for suffix in ["", "-journal", "-wal", "-shm"] {
+            let from = std::path::PathBuf::from(format!("{}{suffix}", src.display()));
+            if from.exists() {
+                std::fs::copy(&from, format!("{}{suffix}", dst.display())).unwrap();
+            }
+        }
+    }
+
+    fn tb1405_accepted_store(files: &TestFiles) {
+        init_test_db(files);
+        accept(
+            files,
+            &test_input(&[
+                ev("e0", "1", "0", "10000"),
+                ev("e1", "1", "1", "11000"),
+                ev("e2", "1", "2", "10500"),
+            ]),
+            "tb1405-in.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+    }
+
+    /// 旧规则 /1 库带未检查点的 -wal（含未决 Begin）：新二进制的读、写、恢复入口全部不改写
+    /// 主库与 -wal 字节；写与恢复在版本门拒绝；读经只读连接仍看到 -wal 中已提交的事实。
+    #[test]
+    fn tb1405_old_rule_store_with_hot_wal_is_never_rewritten() {
+        for rule in [
+            "s2-axis-quantifiers",
+            "s2-axis-quantifiers+new-bi/1",
+            "s2-axis-quantifiers+new-bi/1+segment-second/1",
+            "s2-axis-quantifiers+new-bi/2",
+            "s2-axis-quantifiers+new-bi/1+segment-second/2",
+            "unknown-rule",
+        ] {
+            let files = TestFiles::new();
+            tb1405_accepted_store(&files);
+            let image = files.0.join("旧规则 hot-wal.sqlite");
+            {
+                let writer = open_db(&files.db()).unwrap();
+                writer
+                    .execute_batch("PRAGMA wal_autocheckpoint=0;")
+                    .unwrap();
+                meta_set(&writer, "rule_revision", rule).unwrap();
+                meta_set(&writer, "advance_state", "begun:dead:2:2").unwrap();
+                meta_set(&writer, "begin_token", "dead").unwrap();
+                tb1405_crash_image(&files.db(), &image);
+            }
+            let before = tb1405_file_bytes(&image);
+            assert!(
+                before[2].1.as_ref().is_some_and(|wal| !wal.is_empty()),
+                "{rule}: 现场须带 -wal"
+            );
+
+            assert!(
+                recover_core(&image, "2", None)
+                    .unwrap_err()
+                    .starts_with("VersionMismatch："),
+                "{rule}"
+            );
+            assert!(
+                cmd_advance(&image, DEFAULT_WRITER_EPOCH)
+                    .unwrap_err()
+                    .starts_with("VersionMismatch："),
+                "{rule}"
+            );
+            let input = write_input(
+                &files,
+                "tb1405-more.json",
+                &test_input(&[ev("e3", "1", "3", "12000")]),
+            );
+            assert!(
+                cmd_accept(
+                    &image,
+                    &input,
+                    &fixture("profiles/testonly_tick_1_1_ohlc.json"),
+                    DEFAULT_WRITER_EPOCH
+                )
+                .unwrap_err()
+                .starts_with("VersionMismatch："),
+                "{rule}"
+            );
+
+            let reader = open_db(&image).unwrap();
+            assert_eq!(
+                meta_get_opt(&reader, "rule_revision").unwrap().as_deref(),
+                Some(rule)
+            );
+            assert_eq!(
+                meta_get_opt(&reader, "advance_state").unwrap().as_deref(),
+                Some("begun:dead:2:2")
+            );
+            assert!(
+                meta_set(&reader, "advance_state", "idle").is_err(),
+                "{rule}: 历史库连接须在 SQLite 层拒写"
+            );
+            let tx = reader.unchecked_transaction().unwrap();
+            verify_reachable_root(&tx).unwrap();
+            assert_eq!(
+                read_snapshot_in_tx(&tx, None).unwrap()["generation"],
+                json!("1")
+            );
+            drop(tx);
+            drop(reader);
+            cmd_meta(&image).unwrap();
+            cmd_pragma(&image).unwrap();
+
+            assert_eq!(
+                tb1405_file_bytes(&image),
+                before,
+                "{rule}: 主库/-wal 字节须不变"
+            );
+        }
+    }
+
+    /// 旧规则库带未回滚的 -journal 热日志：只读判规则读不出 ⟹ 全部入口拒绝，主库与 -journal
+    /// 字节不变（写连接首读会回滚热日志，改写主库）。
+    #[test]
+    fn tb1405_old_rule_store_with_hot_rollback_journal_is_refused_unchanged() {
+        let files = TestFiles::new();
+        let db = files.0.join("旧规则 hot-journal.sqlite");
+        let image = files.0.join("旧规则 hot-journal 现场.sqlite");
+        let diag;
+        {
+            let writer = Connection::open(&db).unwrap();
+            writer
+                .execute_batch(
+                    "PRAGMA journal_mode=DELETE;
+                     CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                     INSERT INTO meta VALUES('session_id','s-session-testonly-001');
+                     INSERT INTO meta VALUES('rule_revision','s2-axis-quantifiers+new-bi/1');
+                     CREATE TABLE filler(x BLOB);
+                     WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<20000)
+                       INSERT INTO filler SELECT randomblob(500) FROM n;
+                     PRAGMA cache_size=1;
+                     BEGIN;
+                     UPDATE meta SET value='torn' WHERE key='rule_revision';
+                     UPDATE filler SET x=zeroblob(500);",
+                )
+                .unwrap();
+            let pragma = |name: &str| {
+                writer
+                    .query_row(&format!("PRAGMA {name}"), [], |r| {
+                        r.get::<_, rusqlite::types::Value>(0)
+                    })
+                    .map(|v| format!("{name}={v:?}"))
+                    .unwrap_or_else(|e| format!("{name}:{e}"))
+            };
+            diag = format!(
+                "{} autocommit={} dir={}",
+                [
+                    "journal_mode",
+                    "cache_size",
+                    "cache_spill",
+                    "synchronous",
+                    "page_size"
+                ]
+                .map(pragma)
+                .join(","),
+                writer.is_autocommit(),
+                files.0.display()
+            );
+            tb1405_crash_image(&db, &image);
+            writer.execute_batch("ROLLBACK;").unwrap();
+        }
+        let before = tb1405_file_bytes(&image);
+        let journal = before[1].1.as_ref().expect("现场须带 -journal");
+        assert_eq!(
+            &journal[..8],
+            &[0xd9, 0xd5, 0x05, 0xf9, 0x20, 0xa1, 0x63, 0xd7],
+            "热日志头 len={} {diag}",
+            journal.len()
+        );
+
+        let opened = match open_db(&image) {
+            Ok(conn) => panic!(
+                "热日志现场不得打开：rule={:?} autocommit={} journal_now={}",
+                meta_get_opt(&conn, "rule_revision"),
+                conn.is_autocommit(),
+                std::path::PathBuf::from(format!("{}-journal", image.display())).exists()
+            ),
+            Err(err) => err,
+        };
+        for err in [
+            opened,
+            recover_core(&image, "2", None).unwrap_err(),
+            cmd_advance(&image, DEFAULT_WRITER_EPOCH).unwrap_err(),
+            cmd_meta(&image).unwrap_err(),
+        ] {
+            assert!(err.starts_with("StorageUnavailable："), "{err}");
+        }
+        assert_eq!(
+            tb1405_file_bytes(&image),
+            before,
+            "主库/-journal 字节须不变"
+        );
+    }
+
+    /// 已正常关闭（无 -wal）的旧规则库：读、写、恢复入口后主库字节不变，-wal 不存在或为空。
+    #[test]
+    fn tb1405_cleanly_closed_old_rule_store_main_file_unchanged() {
+        let files = TestFiles::new();
+        tb1405_accepted_store(&files);
+        {
+            let writer = open_db(&files.db()).unwrap();
+            meta_set(&writer, "rule_revision", "s2-axis-quantifiers+new-bi/1").unwrap();
+        }
+        let wal = std::path::PathBuf::from(format!("{}-wal", files.db().display()));
+        assert!(!wal.exists(), "末次关闭须已检查点");
+        let main = std::fs::read(files.db()).unwrap();
+        assert!(recover_core(&files.db(), "2", None)
+            .unwrap_err()
+            .starts_with("VersionMismatch："));
+        assert!(cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH)
+            .unwrap_err()
+            .starts_with("VersionMismatch："));
+        cmd_meta(&files.db()).unwrap();
+        let tx_conn = open_db(&files.db()).unwrap();
+        let tx = tx_conn.unchecked_transaction().unwrap();
+        read_catalog_in_tx(&tx, None).unwrap();
+        drop(tx);
+        drop(tx_conn);
+        assert_eq!(std::fs::read(files.db()).unwrap(), main);
+        assert!(std::fs::read(&wal).map_or(true, |bytes| bytes.is_empty()));
+    }
+
+    /// 恢复入口不创建缺失的库。
+    #[test]
+    fn tb1405_recover_does_not_create_missing_store() {
+        let files = TestFiles::new();
+        let missing = files.0.join("不存在.sqlite");
+        assert!(recover_core(&missing, "2", None)
+            .unwrap_err()
+            .starts_with("StorageUnavailable："));
+        assert!(!missing.exists());
+    }
+
+    /// 新规则库：正常关闭后重开、以及写者在提交后崩溃（未检查点 -wal）的现场重开，
+    /// 公共读数（catalog/snapshot/meta）与重开前逐位相同；重开后仍可恢复换代并继续推进。
+    #[test]
+    fn tb1405_current_rule_store_reopen_reads_identical() {
+        fn reads(db: &Path) -> (Value, Value, BTreeMap<String, String>) {
+            let conn = open_db(db).unwrap();
+            let tx = conn.unchecked_transaction().unwrap();
+            verify_reachable_root(&tx).unwrap();
+            let out = (
+                read_catalog_in_tx(&tx, None).unwrap(),
+                read_snapshot_in_tx(&tx, None).unwrap(),
+                db_meta(&tx).unwrap(),
+            );
+            drop(tx);
+            out
+        }
+        let files = TestFiles::new();
+        tb1405_accepted_store(&files);
+        let image = files.0.join("新规则 hot-wal.sqlite");
+        let live = {
+            let writer = open_db(&files.db()).unwrap();
+            writer
+                .execute_batch("PRAGMA wal_autocheckpoint=0;")
+                .unwrap();
+            let live = reads(&files.db());
+            tb1405_crash_image(&files.db(), &image);
+            live
+        };
+        assert_eq!(
+            live.2.get("rule_revision").map(String::as_str),
+            Some(RULE_REVISION)
+        );
+        assert_eq!(reads(&files.db()), live, "正常关闭后重开");
+        assert_eq!(reads(&image), live, "崩溃现场重开");
+
+        recover_core(&image, "2", None).unwrap();
+        cmd_accept(
+            &image,
+            &write_input(
+                &files,
+                "tb1405-next.json",
+                &test_input(&[ev("e3", "1", "3", "12000")]),
+            ),
+            &fixture("profiles/testonly_tick_1_1_ohlc.json"),
+            "2",
+        )
+        .unwrap();
+        cmd_advance(&image, "2").unwrap();
+        let after = reads(&image);
+        assert_eq!(after.1["generation"], json!("2"));
     }
 
     #[test]
