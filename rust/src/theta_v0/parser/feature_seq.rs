@@ -1,4 +1,5 @@
-//! 增量特征序列状态机（第67/71课）——bit-exact 移植 Python `a_segment_v1._FeatureSeqState`。
+//! 增量特征序列状态机（第67/71课）。第一种情况的包含与确认按 `071:30/:32/:42` 直落（#1490，
+//! `xianduan.md` §7.1；#1493 TB-02-X）；Python v1 `a_segment_v1._FeatureSeqState` 为历史参考，非正本。
 //!
 //! ⚠口径例外（#246 裁定，supersede Lead #84 点3）：缺口谓词 `is_fractal_and_gap` 的
 //! 「相切」边界自 2026-07-25 起为**严格** `>`（相切=重合 ⟹ 无缺口），对齐 Lean
@@ -19,7 +20,7 @@
 //! 批处理找首个分型即断段」，对参考语义认证**失败**（真实数据 406 段 vs 参考 237 段，70%
 //! 过分段，前 237 段仅 2 段 bit-exact 一致）。归因证伪「inclusion 是根因」（外包络→方向性
 //! 仅 Δ=2 段，1.2%）——真因是**算法范式整体差异**：参考用增量「假设转折点」状态机，旧实装
-//! 缺此核心。本文件移植参考的增量算法以通过认证。
+//! 缺此核心。#1493 起第一种情况不再对齐该参考：互含处理与确认判据按 #1490 裁定（§7.1）直落原文。
 //!
 //! ## 静态层契约 vs 动态层有效域（无矛盾，formalization-validity-domain）
 //!
@@ -35,7 +36,9 @@
 //!
 //! 071-第71课.md:38「线段的划分，都是可以当下完成的……假设某转折点是两线段的分界点，然后
 //! 对此用线段划分的两种情况去考察是否满足」+ :42「在这假设的转折点前后那两元素，是不存在
-//! 包含关系的」——确认「假设转折点」逻辑（包含时先试不合并看是否触发分型）是正确缠论语义。
+//! 包含关系的」。#1490 裁定（§7.1 第 2/3/4 条）：转折点前后两元素 (a,b) 不做包含；c ⊂ b 记为 b 的
+//! 窗成员；第一种情况唯一的确认判据是 `071:30/:32` 的先破判据。v1「先试不合并、以当下有无分型
+//! 决定合并」在 `071:42` 两句上都做反（#1487 E1/E2），已删除。
 
 use super::super::types::{Direction, Stroke, Tick};
 use serde::Serialize;
@@ -88,11 +91,11 @@ pub fn gap_tangent_probe_snapshot() -> GapTangentProbe {
 /// ★注意（Python 移植）：用笔的 `high/low` 而非 `[lo,hi]` 几何投影。Stroke 当前类型
 /// 用 `start_price/end_price`，其极值 `max/min(start,end)` = high/low（笔端点即极值，
 /// 无 K 线包含残留时恒等；L2 OKLO 2000 笔验证 0 例外）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct FeatElem {
-    high: Tick,
-    low: Tick,
-    stroke_idx: usize,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct FeatElem {
+    pub high: Tick,
+    pub low: Tick,
+    pub stroke_idx: usize,
 }
 
 /// #1404：在原状态机求值现场记录；笔索引由同次 StrokeFacts 绑定身份。
@@ -102,6 +105,8 @@ pub struct FeatureElement {
     pub low: Tick,
     pub stroke_idx: usize,
     pub stroke_indices: Vec<usize>,
+    /// #1490 §7.1 第 3 条：c ⊂ b（或有缺口的并列）时 c 记为 b 的窗成员，b 区间不动。
+    pub window_members: Vec<usize>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct FeatureStep {
@@ -111,6 +116,8 @@ pub struct FeatureStep {
     pub action: &'static str,
     pub merge_direction: Option<&'static str>,
     pub scope: &'static str,
+    /// #1490 §7.1 第 4 条：无缺口并列（`action="tie_pair"`）时与之并列的 b 的笔序号。
+    pub tie_with: Option<usize>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct FeatureCheck {
@@ -119,9 +126,23 @@ pub struct FeatureCheck {
     /// 无分型时不适用，不填 false。
     pub gap: Option<bool>,
     pub gap_closed_by_c: Option<bool>,
+    /// #1493：「先试不合并」已删除，恒为 false；保留字段以免旧线形读者断裂。
     pub provisional: bool,
-    /// 第71课:40：假设转折点前/后的两元素是 a/b；不是包含试探时的 b/c。
+    /// 第71课:40：假设转折点前/后的两元素是 a/b。`first_fractal` 或
+    /// `turn_hypothesis_state != "NOT_CASE_ONE"` 时为 `Some([a, b])`，否则 `None`。
     pub turn_hypothesis_pair: Option<[usize; 2]>,
+    /// #1490 §7.1 第 1 条：b 作第一种情况候选时的状态（`CONFIRMED`／`KILLED_BY_NEW_EXTREME`）；
+    /// b 不是峰候选或 a、b 有缺口且未被 c 封闭（第二种情况）时为 `NOT_CASE_ONE`。
+    /// 前缀末端尚无第三元素的候选不进本表，见 [`FeatureSequenceFacts::open_turn`]。
+    pub turn_hypothesis_state: &'static str,
+}
+/// #1490 §7.1 第 1/3 条：前缀末端尚开着的第一种情况候选——末标准元素 b 是无缺口峰候选
+/// （有窗成员或尚无第三元素），状态恒为 `OPEN_AT_PREFIX_END`，不发布为段端。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct OpenTurn {
+    pub elements: [FeatureElement; 2],
+    pub turn_hypothesis_pair: [usize; 2],
+    pub turn_hypothesis_state: &'static str,
 }
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct FeatureSequenceFacts {
@@ -129,7 +150,15 @@ pub struct FeatureSequenceFacts {
     pub standard: Vec<FeatureElement>,
     pub steps: Vec<FeatureStep>,
     pub checks: Vec<FeatureCheck>,
+    /// 最近一次追加后前缀末端的开窗候选；无则 `None`。
+    pub open_turn: Option<OpenTurn>,
 }
+
+/// #1490 §7.1 第 1 条候选三态（命名沿用 #1344 §5.1）及「不是第一种情况候选」。
+pub const TURN_CONFIRMED: &str = "CONFIRMED";
+pub const TURN_KILLED: &str = "KILLED_BY_NEW_EXTREME";
+pub const TURN_OPEN: &str = "OPEN_AT_PREFIX_END";
+pub const TURN_NOT_CASE_ONE: &str = "NOT_CASE_ONE";
 
 /// #1414：SECOND 的独立包含作用域与任意分型见证。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -373,6 +402,43 @@ pub(super) fn second_sequence(
     )
 }
 
+/// 峰候选：b 比其前一标准元素 a 在段方向更极端（Up：`b.high > a.high`；Down：`b.low < a.low`）。
+fn is_peak(a: FeatElem, b: FeatElem, seg_dir: Direction) -> bool {
+    match seg_dir {
+        Direction::Up => b.high > a.high,
+        Direction::Down => b.low < a.low,
+    }
+}
+
+/// a、b 之间的缺口（`071:40`），与 `is_fractal_and_gap` 同为严格 `>`（#246）。
+fn gap_between(a: FeatElem, b: FeatElem, seg_dir: Direction) -> bool {
+    match seg_dir {
+        Direction::Up => b.low > a.high,
+        Direction::Down => a.low > b.high,
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// TestOnly（#1493 义务 8(e) 性质锁）：第一种情况改用 067 严格分型谓词作对照臂。
+    /// 不参与生产准入（#799 限定词 2/3）。
+    pub(super) static CASE_ONE_ORACLE_067: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// #1490 §7.1 第 4 条 先破判据（`071:30/:32`）：第一种情况候选 b 的唯一确认判据。
+/// Up：`b.high > a.high ∧ c.high ≤ b.high ∧ c.low < b.low`；Down 镜像。破 = 严格越过，相等不是破。
+fn case_one_confirms(w: [FeatElem; 3], seg_dir: Direction) -> bool {
+    let [a, b, c] = w;
+    #[cfg(test)]
+    if CASE_ONE_ORACLE_067.with(|o| o.get()) {
+        return is_fractal_and_gap(a.high, a.low, b.high, b.low, c.high, c.low, seg_dir).0;
+    }
+    match seg_dir {
+        Direction::Up => b.high > a.high && c.high <= b.high && c.low < b.low,
+        Direction::Down => b.low < a.low && c.low >= b.low && c.high > b.high,
+    }
+}
+
 /// 延续模式（Python `extend_mode`）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExtendMode {
@@ -390,9 +456,11 @@ pub struct TriggerHit {
     pub gap_second: bool,
     /// 实际终结证据的前沿，与几何端 k-1 分开。
     pub through_stroke: usize,
+    /// #1493：命中的分型三元素 (a,b,c)（冻结窗优先），供段端门 fail-closed 的最小复现。
+    pub window: [FeatElem; 3],
 }
 
-/// 增量特征序列状态机（bit-exact 移植 Python `_FeatureSeqState`，:269-433）。
+/// 增量特征序列状态机（第一种情况按 #1490 §7.1；Python `_FeatureSeqState` 为历史参考）。
 pub struct FeatureSeqState {
     /// 标准特征序列：每元素 `[high, low, stroke_idx]`。
     std: Vec<FeatElem>,
@@ -424,7 +492,6 @@ pub struct FeatureSeqState {
     // #1414 / 067:196：同b的首次FIRST c，不能吸收后来的封闭而倒改第一种。
     frozen_first: std::collections::BTreeMap<usize, [FeatElem; 3]>,
     frozen_first_facts: std::collections::BTreeMap<usize, [FeatureElement; 3]>,
-    provisional: bool,
 }
 
 impl FeatureSeqState {
@@ -454,7 +521,6 @@ impl FeatureSeqState {
             second: None,
             frozen_first: Default::default(),
             frozen_first_facts: Default::default(),
-            provisional: false,
         }
     }
 
@@ -476,7 +542,6 @@ impl FeatureSeqState {
         if self.facts.is_some() {
             self.facts = Some(FeatureSequenceFacts::default());
         }
-        self.provisional = false;
     }
 
     pub fn observe(&mut self) {
@@ -512,12 +577,21 @@ impl FeatureSeqState {
         self.frozen_first_facts.retain(|k, _| *k > stroke_idx);
     }
 
-    /// 增量添加一个反向笔，包含处理遵循71课"假设转折点"（bit-exact Python `append`，:303-350）。
+    /// 增量添加一个反向笔（第67/71课；#1490 裁定 `xianduan.md` §7.1 第 2/3/4 条直落，#1493）。
     ///
-    /// 检测到包含时**先尝试不合并**（push 看 scan_trigger 是否触发分型）：
-    /// - 有分型 → 不合并（转折点，两元素属不同特征序列，第71课:42）。
-    /// - 无分型 → pop 回退，按方向性 K 线包含规则合并。
+    /// 非包含 ⟹ 追加并更新方向态。与末标准元素互含时按三路分派（Up 段写法，Down 段镜像）：
+    /// - R1：入元素 ⊃ 末元素且在段方向更极端（`high > last.high`）⟹ 追加、不合并，二者是可能的
+    ///   转折点前后两元素 (a,b)（`071:42` 第一句），`action="boundary_pair"`；
+    /// - 并列：入元素 ⊃ 末元素、段方向极值相等、另一侧严格越过、末元素是峰候选：a、b 无缺口 ⟹
+    ///   追加并标 `tie_with`（由先破判据确认），`action="tie_pair"`；a、b 有缺口 ⟹ 同 R2；
+    /// - R2：入元素 ⊂ 末元素且末元素是峰候选（比其前一标准元素在段方向更极端）⟹ 记为末元素的
+    ///   窗成员（`071:32`），末元素区间与笔号不变，`action="window_member"`；
+    /// - R3：其余互含（末元素不是峰候选）⟹ G-2 方向性合并（`xianduan.md` §2）。
+    ///
+    /// 与入元素完全相同的元素既不越过 P 也不破 b 的终点，按 R2 记为窗成员（§7.1 第 1 条「相等不是破」）。
+    /// v1「先试不合并、以当下有无分型决定合并」已删除（#1487 E1/E2）；Python v1 为历史参考。
     pub fn append(&mut self, stroke_idx: usize, high: Tick, low: Tick, strokes: &[Stroke]) {
+        let _ = strokes;
         let incoming = FeatureElement {
             high,
             low,
@@ -527,6 +601,7 @@ impl FeatureSeqState {
             } else {
                 Vec::new()
             },
+            window_members: Vec::new(),
         };
         let before = self.facts.as_ref().and_then(|f| f.standard.last().cloned());
         if let Some(f) = &mut self.facts {
@@ -538,7 +613,8 @@ impl FeatureSeqState {
                 low,
                 stroke_idx,
             });
-            self.record_step(incoming, before, "append", None, "SAME_SEQUENCE");
+            self.record_step(incoming, before, "append", None, "SAME_SEQUENCE", None);
+            self.refresh_open_turn();
             return;
         }
         let last = *self.std.last().unwrap();
@@ -548,46 +624,60 @@ impl FeatureSeqState {
         let has_inclusion = left_inc || right_inc;
 
         if has_inclusion {
-            // 假设转折点：先 push 试探，看是否触发分型（第71课:42）。
-            self.std.push(FeatElem {
-                high,
-                low,
-                stroke_idx,
-            });
-            if let Some(f) = &mut self.facts {
-                f.standard.push(incoming.clone());
-            }
-            self.provisional = true;
-            let turn = self.scan_trigger(strokes).is_some();
-            self.provisional = false;
-            if let Some(f) = &mut self.facts {
-                f.standard.pop();
-            }
-            if turn {
-                self.record_step(incoming, before, "turn_boundary", None, "TURN_HYPOTHESIS");
-                return;
-            }
-            self.std.pop();
-
-            // 无分型 → 方向性合并到 last。
-            let effective_up = self.dir_state != Some(Direction::Down);
-            let last_mut = self.std.last_mut().unwrap();
-            if effective_up {
-                last_mut.high = last_h.max(high);
-                last_mut.low = last_l.max(low);
+            let up = self.seg_dir == Direction::Up;
+            // 入元素在段方向上更极端 / 相等（Up 看 high，Down 看 low）。
+            let more_extreme = if up { high > last_h } else { low < last_l };
+            let tie_extreme = if up { high == last_h } else { low == last_l };
+            let peak = self.last_is_peak();
+            let gap_ab = peak && self.last_has_gap();
+            if right_inc && more_extreme {
+                // R1：可能的转折点中元素，与末元素为 (a,b)，不合并（071:42 第一句）。
+                self.std.push(FeatElem {
+                    high,
+                    low,
+                    stroke_idx,
+                });
+                self.record_step(incoming, before, "boundary_pair", None, "TURN_HYPOTHESIS", None);
+            } else if right_inc && tie_extreme && !left_inc && peak && !gap_ab {
+                // 并列（无缺口）：P 侧相等不是越过，另一侧严格越过 b 终点 ⟹ 交先破判据确认。
+                self.std.push(FeatElem {
+                    high,
+                    low,
+                    stroke_idx,
+                });
+                self.record_step(
+                    incoming,
+                    before,
+                    "tie_pair",
+                    None,
+                    "TURN_HYPOTHESIS",
+                    Some(last.stroke_idx),
+                );
+            } else if peak {
+                // R2（含有缺口的并列、与 b 完全相同）：c ⊂ b ⟹ b 的窗成员，b 区间不动（071:32）。
+                self.record_step(incoming, before, "window_member", None, "TURN_HYPOTHESIS", None);
             } else {
-                last_mut.high = last_h.min(high);
-                last_mut.low = last_l.min(low);
+                // R3：末元素不是峰候选 ⟹ G-2 方向性合并。
+                let effective_up = self.dir_state != Some(Direction::Down);
+                let last_mut = self.std.last_mut().unwrap();
+                if effective_up {
+                    last_mut.high = last_h.max(high);
+                    last_mut.low = last_l.max(low);
+                } else {
+                    last_mut.high = last_h.min(high);
+                    last_mut.low = last_l.min(low);
+                }
+                last_mut.stroke_idx = stroke_idx;
+                self.last_checked = self.std.len().saturating_sub(3);
+                self.record_step(
+                    incoming,
+                    before,
+                    "merge",
+                    Some(if effective_up { "UP" } else { "DOWN" }),
+                    "SAME_SEQUENCE",
+                    None,
+                );
             }
-            last_mut.stroke_idx = stroke_idx;
-            self.last_checked = self.std.len().saturating_sub(3);
-            self.record_step(
-                incoming,
-                before,
-                "merge",
-                Some(if effective_up { "UP" } else { "DOWN" }),
-                "SAME_SEQUENCE",
-            );
         } else {
             if high > last_h && low > last_l {
                 self.dir_state = Some(Direction::Up);
@@ -599,7 +689,38 @@ impl FeatureSeqState {
                 low,
                 stroke_idx,
             });
-            self.record_step(incoming, before, "append", None, "SAME_SEQUENCE");
+            self.record_step(incoming, before, "append", None, "SAME_SEQUENCE", None);
+        }
+        self.refresh_open_turn();
+    }
+
+    /// 末标准元素是否峰候选：比其前一标准元素在段方向更极端（Up：high 更高；Down：low 更低）。
+    fn last_is_peak(&self) -> bool {
+        let n = self.std.len();
+        n >= 2 && is_peak(self.std[n - 2], self.std[n - 1], self.seg_dir)
+    }
+
+    /// 末两标准元素 (a,b) 之间是否有缺口（`071:40`；与 `is_fractal_and_gap` 同为严格 `>`）。
+    fn last_has_gap(&self) -> bool {
+        let n = self.std.len();
+        n >= 2 && gap_between(self.std[n - 2], self.std[n - 1], self.seg_dir)
+    }
+
+    /// #1490 §7.1 第 1 条：末标准元素 b 是无缺口峰候选（有窗成员或尚无第三元素）⟹ `OPEN_AT_PREFIX_END`。
+    fn refresh_open_turn(&mut self) {
+        let open = self.last_is_peak()
+            && !self.last_has_gap()
+            && (self.std.last().unwrap().stroke_idx as i64) > self.skip_until_stroke;
+        if let Some(f) = &mut self.facts {
+            let n = f.standard.len();
+            f.open_turn = open.then(|| {
+                let (a, b) = (f.standard[n - 2].clone(), f.standard[n - 1].clone());
+                OpenTurn {
+                    turn_hypothesis_pair: [a.stroke_idx, b.stroke_idx],
+                    elements: [a, b],
+                    turn_hypothesis_state: TURN_OPEN,
+                }
+            });
         }
     }
 
@@ -610,22 +731,32 @@ impl FeatureSeqState {
         action: &'static str,
         merge_direction: Option<&'static str>,
         scope: &'static str,
+        tie_with: Option<usize>,
     ) {
         if let Some(f) = &mut self.facts {
-            let elem = self.std.last().unwrap();
-            let mut stroke_indices = if action == "merge" {
-                f.standard.pop().unwrap().stroke_indices
+            let after = if action == "window_member" {
+                let b = f.standard.last_mut().unwrap();
+                b.window_members.push(incoming.stroke_idx);
+                b.clone()
             } else {
-                vec![]
+                let elem = self.std.last().unwrap();
+                let (mut stroke_indices, window_members) = if action == "merge" {
+                    let popped = f.standard.pop().unwrap();
+                    (popped.stroke_indices, popped.window_members)
+                } else {
+                    (vec![], vec![])
+                };
+                stroke_indices.push(incoming.stroke_idx);
+                let after = FeatureElement {
+                    high: elem.high,
+                    low: elem.low,
+                    stroke_idx: elem.stroke_idx,
+                    stroke_indices,
+                    window_members,
+                };
+                f.standard.push(after.clone());
+                after
             };
-            stroke_indices.push(incoming.stroke_idx);
-            let after = FeatureElement {
-                high: elem.high,
-                low: elem.low,
-                stroke_idx: elem.stroke_idx,
-                stroke_indices,
-            };
-            f.standard.push(after.clone());
             f.steps.push(FeatureStep {
                 incoming,
                 before,
@@ -633,14 +764,21 @@ impl FeatureSeqState {
                 action,
                 merge_direction,
                 scope,
+                tie_with,
             });
         }
     }
 
-    /// 从 last_checked 向后扫描（受尾窗限制），找第一个匹配分型（bit-exact Python `scan_trigger`）。
+    /// 从 last_checked 向后扫描（受尾窗限制），找第一个可准入的 FIRST 分型。
     ///
-    /// 向上段找顶分型，向下段找底分型。跳过 stroke_idx <= skip_until_stroke 的分型。
-    /// 缺口处理：strict 模式下缺口被 c 封闭 → 变第一种情况；有缺口须第二特征序列出现分型才确认。
+    /// 向上段看顶、向下段看底；跳过 stroke_idx <= skip_until_stroke 的候选。对每个峰候选 b（前一
+    /// 标准元素 a、后一标准元素 c）：
+    /// - a、b 无缺口，或缺口被 c 封闭（strict）⟹ 第一种情况，唯一的确认判据是 `071:30/:32` 的
+    ///   **先破判据**（Up：`b.high > a.high ∧ c.high ≤ b.high ∧ c.low < b.low`，Down 镜像；相等不是破）
+    ///   ⟹ `CONFIRMED`；c 在段方向严格越过 P ⟹ `KILLED_BY_NEW_EXTREME`（不复活，旧段延续）；
+    /// - a、b 有缺口且 c 未封闭 ⟹ 第二种情况，仍按 067 严格分型谓词 `is_fractal_and_gap` + 第二特征
+    ///   序列（#1344/#1420），一字不改；
+    /// - 末元素 b 尚无第三元素 ⟹ `OPEN_AT_PREFIX_END`，记在 `FeatureSequenceFacts.open_turn`。
     pub fn scan_trigger(&mut self, strokes: &[Stroke]) -> Option<TriggerHit> {
         let n = self.std.len();
         if n < 3 || self.budget_blocked {
@@ -666,14 +804,34 @@ impl FeatureSeqState {
             let (a_h, a_l) = (window[0].high, window[0].low);
             let (b_h, b_l) = (window[1].high, window[1].low);
             let (c_h, c_l) = (window[2].high, window[2].low);
-            let (is_fractal, mut has_gap) =
-                is_fractal_and_gap(a_h, a_l, b_h, b_l, c_h, c_l, self.seg_dir);
-            let raw_gap = has_gap;
-            let gap_closed_by_c = (is_fractal && raw_gap).then(|| match self.seg_dir {
+            // 第二种情况的 067 严格谓词（含 #246 缺口口径）一字不改。
+            let (is_fractal, _) = is_fractal_and_gap(a_h, a_l, b_h, b_l, c_h, c_l, self.seg_dir);
+            let peak = is_peak(window[0], window[1], self.seg_dir);
+            let raw_gap = peak && gap_between(window[0], window[1], self.seg_dir);
+            let closed_by_c = match self.seg_dir {
                 Direction::Up => c_l <= a_h,
                 Direction::Down => c_h >= a_l,
-            });
-            if is_fractal && raw_gap && !self.provisional {
+            };
+            let case_two =
+                raw_gap && (self.extend_mode == ExtendMode::Optimized || !closed_by_c);
+            let (admissible, state) = if !peak {
+                (false, TURN_NOT_CASE_ONE)
+            } else if case_two {
+                (is_fractal, TURN_NOT_CASE_ONE)
+            } else if case_one_confirms(window, self.seg_dir) {
+                (true, TURN_CONFIRMED)
+            } else if match self.seg_dir {
+                Direction::Up => c_h > b_h,
+                Direction::Down => c_l < b_l,
+            } {
+                (false, TURN_KILLED)
+            } else {
+                // 标准序列里峰候选之后的元素不会落在 b 范围内（R2）；冻结窗保证确认后不被改写。
+                (false, TURN_NOT_CASE_ONE)
+            };
+            let gap_closed_by_c = (admissible && raw_gap).then_some(closed_by_c);
+            // #1414 / 067:196：同 b 的首次 FIRST c 冻结；#1493：窗 OPEN 期间（尚无第三元素）不冻结，确认时才冻结。
+            if admissible {
                 self.frozen_first.entry(b_stroke).or_insert(window);
             }
             if let Some(f) = &mut self.facts {
@@ -682,38 +840,30 @@ impl FeatureSeqState {
                     f.standard[i].clone(),
                     f.standard[i + 1].clone(),
                 ]);
-                if is_fractal && raw_gap && !self.provisional {
+                if admissible {
                     self.frozen_first_facts
                         .entry(b_stroke)
                         .or_insert(elements.clone());
                 }
                 let check = FeatureCheck {
                     elements,
-                    first_fractal: is_fractal,
-                    gap: is_fractal.then_some(raw_gap),
+                    first_fractal: admissible,
+                    gap: admissible.then_some(raw_gap),
                     gap_closed_by_c,
-                    provisional: self.provisional,
-                    turn_hypothesis_pair: is_fractal
+                    provisional: false,
+                    turn_hypothesis_pair: (admissible || state != TURN_NOT_CASE_ONE)
                         .then_some([window[0].stroke_idx, window[1].stroke_idx]),
+                    turn_hypothesis_state: state,
                 };
                 if f.checks.last() != Some(&check) {
                     f.checks.push(check);
                 }
             }
-            if !is_fractal {
+            if !admissible {
                 continue;
             }
-            // 67课严格延续：缺口被 c 封闭 → 第一种情况（Python :414-422）。
-            if has_gap && self.extend_mode == ExtendMode::Strict {
-                let gap_closed_by_c = match self.seg_dir {
-                    Direction::Up => c_l <= a_h,
-                    Direction::Down => c_h >= a_l,
-                };
-                if gap_closed_by_c {
-                    has_gap = false;
-                }
-            }
-            // 有缺口须第二特征序列出现分型才确认（Python :424-427）。
+            let has_gap = case_two;
+            // 有缺口须第二特征序列出现分型才确认（#1344/#1420，不改）。
             // #1344：P = 主序列分型中心元素 b 的极值（冻结窗口优先，同上 FIRST 判定）。
             let candidate_extreme = match self.seg_dir {
                 Direction::Up => b_h,
@@ -739,9 +889,7 @@ impl FeatureSeqState {
             let through_stroke = second.as_ref().map_or(window[2].stroke_idx, |s| {
                 s.through_stroke.max(window[2].stroke_idx)
             });
-            if !self.provisional {
-                self.second = second.clone();
-            }
+            self.second = second.clone();
             match second.as_ref().map(|s| (s.semantic_state, s)) {
                 None => {}
                 Some((Some(SecondTerminal::Confirmed), s)) => {
@@ -772,9 +920,8 @@ impl FeatureSeqState {
                     continue;
                 }
                 Some((None, s)) => {
-                    // A-ST-048-01 / G-007：预算耗尽不是否定——不得把它当「无分型」跳过去判后续候选。
-                    // 假设转折点试探（provisional）同理：「不成转折、合并了事」也是据否定作的结构决定，
-                    // 故试探中遇到也封住本段，并留下该候选的扫描事实（调度锁 window 5 反例）。
+                    // A-ST-048-01 / G-007：预算耗尽不是否定——不得把它当「无分型」跳过去判后续候选，
+                    // 封住本段并留下该候选的扫描事实（调度锁 window 5 反例）。
                     self.skipped_secondkind = true;
                     self.budget_blocked = true;
                     self.second = Some(s.clone());
@@ -786,6 +933,7 @@ impl FeatureSeqState {
                 k: b_stroke,
                 gap_second: has_gap,
                 through_stroke,
+                window,
             });
         }
         None
@@ -938,6 +1086,28 @@ mod tests {
         assert_eq!(st.std.len(), 1);
     }
 
+    /// #1493 义务 3（#1414 frozen_first）：窗 OPEN 期间（b 有窗成员、尚无第三元素）不冻结以 b 为中元素的
+    /// FIRST 三元素，确认时才冻结。
+    #[test]
+    fn frozen_first_waits_for_confirmation() {
+        let mut st = FeatureSeqState::new(Direction::Up, ExtendMode::Strict, 0, 0);
+        st.observe();
+        for (i, h, l) in [(1, 10, 4), (3, 20, 5), (5, 18, 7)] {
+            st.append(i, h, l, &[]);
+            assert_eq!(st.scan_trigger(&[]), None);
+        }
+        assert!(!st.frozen_first.contains_key(&3), "窗 OPEN 期间不得冻结");
+        assert_eq!(st.facts().standard[1].window_members, vec![5]);
+        assert_eq!(st.facts().open_turn.unwrap().turn_hypothesis_pair, [1, 3]);
+        st.append(7, 15, 3, &[]);
+        assert_eq!(st.scan_trigger(&[]).map(|h| h.k), Some(3));
+        assert_eq!(
+            st.frozen_first.get(&3).map(|w| w.map(|e| e.stroke_idx)),
+            Some([1, 3, 7])
+        );
+        assert_eq!(st.facts().checks.last().unwrap().turn_hypothesis_state, TURN_CONFIRMED);
+    }
+
     #[test]
     fn scan_trigger_too_few_none() {
         let mut st = FeatureSeqState::new(Direction::Up, ExtendMode::Strict, 0, 0);
@@ -959,7 +1129,12 @@ mod tests {
             Some(TriggerHit {
                 k: 3,
                 through_stroke: 5,
-                gap_second: false
+                gap_second: false,
+                window: [
+                    FeatElem { high: 10, low: 5, stroke_idx: 1 },
+                    FeatElem { high: 20, low: 8, stroke_idx: 3 },
+                    FeatElem { high: 8, low: 3, stroke_idx: 5 },
+                ],
             })
         );
     }
