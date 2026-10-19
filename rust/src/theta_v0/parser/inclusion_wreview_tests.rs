@@ -177,7 +177,8 @@ fn wreview_random_prefix_rewind_and_witness() {
             assert_eq!(r.replayed_from_zero(), f0.replayed_from_zero(), "{label}");
             assert_eq!(r.unsettled(), f0.unsettled(), "{label}");
             let start = if cut == 0 { 0 } else { bars[cut - 1].source_index };
-            let tail = random_bars(&mut rng, start, 1 + rng.next(5) as usize, span);
+            let tl = 1 + rng.next(5) as usize;
+            let tail = random_bars(&mut rng, start, tl, span);
             let mut combined = bars[..cut].to_vec();
             for t in &tail {
                 r.append(*t);
@@ -198,7 +199,8 @@ fn wreview_confirmed_prefix_never_rewritten() {
     let mut rng = Lcg(0xfeed_0019);
     for _ in 0..800 {
         let n = 2 + rng.next(10) as usize;
-        let bars = random_bars(&mut rng, 0, n, 3 + rng.next(5));
+        let sp = 3 + rng.next(5);
+        let bars = random_bars(&mut rng, 0, n, sp);
         let mut s = IncrFactsState::empty();
         let mut issued: Vec<Bar> = vec![];
         for b in &bars {
