@@ -460,8 +460,20 @@ export interface ModelCall { model: string; prompt: string; cwd: string; role: "
 export interface ModelResult { text: string; durationMs: number; attempts: number }
 export type ModelRunner = (c: ModelCall) => Promise<ModelResult>;
 
+/**
+ * 上游临时错误：429/5xx、限流、过载、「暂时不可用」、网络超时与断连。其余错误（参数、权限、
+ * 模型不存在等）不重试。#1530/#1565 落地步就是被「模型服务暂时不可用」一次打成 error。
+ */
+const RETRYABLE = new RegExp([
+  String.raw`\b(429|500|502|503|504|529)\b`,
+  String.raw`rate[ _-]?limit`, "overloaded", "too many requests", "service unavailable", "internal server error",
+  "bad gateway", "gateway time-?out", String.raw`timed? ?out`, "ETIMEDOUT", "ECONNRESET", "ECONNREFUSED", "EAI_AGAIN",
+  "socket hang up", "network error", "fetch failed",
+  "暂时不可用", "稍后重试", "服务繁忙", "限流", "超时",
+].join("|"), "i");
+
 export function isRetryable(output: string): boolean {
-  return /\b(429|529)\b|rate[ _-]?limit|overloaded|too many requests/i.test(output);
+  return RETRYABLE.test(output);
 }
 
 export function backoffMs(attempt: number, baseMs = 20_000, capMs = 300_000): number {
@@ -488,7 +500,10 @@ export function toolArgs(allowWrite: boolean): string[] {
   ];
 }
 
-function claudeOnce(c: ModelCall, token: string, timeoutMs: number): Promise<{ code: number; stdout: string; stderr: string }> {
+export interface OnceResult { code: number; stdout: string; stderr: string }
+export type ClaudeOnce = (c: ModelCall, token: string, timeoutMs: number) => Promise<OnceResult>;
+
+function claudeOnce(c: ModelCall, token: string, timeoutMs: number): Promise<OnceResult> {
   const env: NodeJS.ProcessEnv = { ...process.env, ANTHROPIC_BASE_URL: PROXY_BASE_URL, ANTHROPIC_AUTH_TOKEN: token };
   delete env.ANTHROPIC_API_KEY;
   const args = [
@@ -499,26 +514,35 @@ function claudeOnce(c: ModelCall, token: string, timeoutMs: number): Promise<{ c
     const child = spawn("claude", args, { cwd: c.cwd, env, stdio: ["pipe", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
-    const timer = setTimeout(() => child.kill("SIGTERM"), timeoutMs);
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; child.kill("SIGTERM"); }, timeoutMs);
     child.stdout.on("data", (d) => (stdout += d));
     child.stderr.on("data", (d) => (stderr += d));
+    child.on("error", (e) => (stderr += `\nspawn error: ${e.message}`));
     child.on("close", (code) => {
       clearTimeout(timer);
-      res({ code: code ?? 1, stdout, stderr });
+      res({ code: code ?? 1, stdout, stderr: timedOut ? `${stderr}\nclaude 子进程超时（${Math.round(timeoutMs / 1000)}s timed out）` : stderr });
     });
     child.stdin.end(c.prompt);
   });
 }
 
-export function makeClaudeRunner(opts: { maxAttempts?: number; timeoutMs?: number; sleep?: (ms: number) => Promise<void> } = {}): ModelRunner {
-  const maxAttempts = opts.maxAttempts ?? 6;
+/** 临时错误的总尝试次数下限：首次 + 至少 4 次重试。 */
+export const MIN_MODEL_ATTEMPTS = 5;
+
+export function makeClaudeRunner(opts: {
+  maxAttempts?: number; timeoutMs?: number; sleep?: (ms: number) => Promise<void>;
+  once?: ClaudeOnce; token?: () => string;
+} = {}): ModelRunner {
+  const maxAttempts = Math.max(MIN_MODEL_ATTEMPTS, opts.maxAttempts ?? 6);
   const timeoutMs = opts.timeoutMs ?? 30 * 60 * 1000;
   const sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+  const once = opts.once ?? claudeOnce;
   return async (c) => {
-    const token = readProxyToken();
+    const token = (opts.token ?? readProxyToken)();
     const t0 = Date.now();
     for (let attempt = 1; ; attempt++) {
-      const r = await claudeOnce(c, token, timeoutMs);
+      const r = await once(c, token, timeoutMs);
       let parsed: { result?: string; is_error?: boolean } | undefined;
       try { parsed = JSON.parse(r.stdout); } catch { /* 非 JSON */ }
       const ok = r.code === 0 && parsed && !parsed.is_error && typeof parsed.result === "string";
@@ -526,11 +550,11 @@ export function makeClaudeRunner(opts: { maxAttempts?: number; timeoutMs?: numbe
       const blob = `${parsed?.result ?? r.stdout}\n${r.stderr}`;
       if (attempt < maxAttempts && isRetryable(blob)) {
         const wait = backoffMs(attempt);
-        log(`${c.role} ${c.model} 第 ${attempt} 次 429/限流，${Math.round(wait / 1000)}s 后重试`);
+        log(`${c.role} ${c.model} 第 ${attempt} 次临时错误，${Math.round(wait / 1000)}s 后重试：${redact(blob).trim().slice(0, 160)}`);
         await sleep(wait);
         continue;
       }
-      throw new Error(`${c.role} ${c.model} 调用失败（exit ${r.code}）：${redact(blob).slice(0, 600)}`);
+      throw new Error(`${c.role} ${c.model} 调用失败（exit ${r.code}，第 ${attempt} 次）：${redact(blob).slice(0, 600)}`);
     }
   };
 }
@@ -707,6 +731,39 @@ export interface Summary {
   landingRedrafts?: string[];
   landing?: string;
   error?: string;
+  /**
+   * 断点：审查已过、写 GitHub 前落盘，写完才清。
+   * reviewed_pass —— T 类审查全 PASS，落地未完成；下一轮跳过分级/起草/审查，从落地续做。
+   * shadow_p_pending —— P 类结论已定，评论/贴标签/取消认领未全部完成；下一轮只补没做完的写入。
+   */
+  stage?: ResumeStage;
+  /** 落地已推送的 commit；续做时只补 resolution 评论。 */
+  landedSha?: string;
+  /** shadow_p_pending 下已完成的写入步。 */
+  pDone?: PStep[];
+  /** 本次从哪个断点续做。 */
+  resumedFrom?: ResumeStage;
+}
+
+export type ResumeStage = "reviewed_pass" | "shadow_p_pending";
+export const P_STEPS = ["comment", "label", "unassign"] as const;
+export type PStep = (typeof P_STEPS)[number];
+
+/** 读上次 summary.json 的断点；草稿或审查原件缺失、审查不是 PASS 的 reviewed_pass 一律不认。 */
+export function loadResume(dir: string): { prev: Summary; draft: string; review: Review } | null {
+  const sp = join(dir, "summary.json");
+  if (!existsSync(sp)) return null;
+  let prev: Summary;
+  try { prev = JSON.parse(readFileSync(sp, "utf8")) as Summary; } catch { return null; }
+  if (prev.stage !== "reviewed_pass" && prev.stage !== "shadow_p_pending") return null;
+  const dp = join(dir, "draft.md");
+  const rp = join(dir, "review.json");
+  if (!existsSync(dp) || !existsSync(rp)) return null;
+  let rv: { verdict?: string; items?: ReviewItem[]; problems?: string[]; klass?: Klass };
+  try { rv = JSON.parse(readFileSync(rp, "utf8")); } catch { return null; }
+  if (prev.stage === "reviewed_pass" && (rv.verdict !== "PASS" || prev.klass !== "T")) return null;
+  const review: Review = { items: rv.items ?? [], verdict: rv.verdict === "PASS" ? "PASS" : "BLOCK", problems: rv.problems ?? [], parseError: false };
+  return { prev, draft: readFileSync(dp, "utf8"), review };
 }
 
 function writeJson(path: string, v: unknown) {
@@ -736,16 +793,37 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
   };
   try {
     const t = loadTicket(d.gh, n);
+    const resume = loadResume(dir);
 
-    // claim 先行防重复
+    // claim 先行防重复；续做时允许票仍挂在自己名下（上次没来得及取消认领）。
     if (d.mode === "live") {
-      if (t.assignees.length > 0) throw new Error(`票已被 ${t.assignees.join(",")} 认领`);
-      d.gh(["issue", "edit", String(n), "--add-assignee", "@me"]);
+      const mine = resume && d.me && t.assignees.length === 1 && t.assignees[0] === d.me;
+      if (t.assignees.length > 0 && !mine) throw new Error(`票已被 ${t.assignees.join(",")} 认领`);
+      if (!mine) d.gh(["issue", "edit", String(n), "--add-assignee", "@me"]);
       claimed = true;
       const after = loadTicket(d.gh, n).assignees;
       if (after.length !== 1 || (d.me && after[0] !== d.me)) throw new Error(`claim 竞争：assignees=${after.join(",")}`);
     } else summary.plannedWrites.push(`claim：assign #${n}`);
 
+    const persist = () => writeJson(join(dir, "summary.json"), summary);
+    let s: RunState;
+    let draft = "";
+    let review: Review | undefined;
+    if (resume) {
+      // 续做：沿用上次的分级、轮次与审查结论，不再调用分级/起草/审查模型。
+      const p = resume.prev;
+      Object.assign(summary, {
+        klass: p.klass, convertedToP: p.convertedToP, attempts: p.attempts, durationsMs: { ...p.durationsMs },
+        reclassNotes: p.reclassNotes, reviewCounts: p.reviewCounts, rounds: p.rounds, landingRedrafts: p.landingRedrafts,
+        stage: p.stage, landedSha: p.landedSha, pDone: p.pDone ?? [], resumedFrom: p.stage,
+      });
+      delete summary.durationsMs.total;
+      draft = resume.draft;
+      review = resume.review;
+      const klass: Klass = p.stage === "reviewed_pass" ? "T" : "P";
+      s = { ...initialState(klass), phase: p.stage === "reviewed_pass" ? "land_t" : "shadow_p", attempt: p.attempts, convertedToP: !!p.convertedToP };
+      log(`#${n} 从断点 ${p.stage} 续做${p.landedSha ? `（已推送 ${p.landedSha.slice(0, 10)}）` : ""}`);
+    } else {
     // 1. 分级
     const cr = await d.model({ model: MODEL_FABLE, prompt: classifyPrompt(t), cwd: d.srcDir, role: "classify" });
     const cls = parseClassification(cr.text);
@@ -755,10 +833,8 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
     write(`评论 #${n}：分级：${cls.klass} — ${cls.reason}`, ["issue", "comment", String(n), "--body-file", "-"], `分级：${cls.klass} — ${cls.reason}`);
 
     // 2–3. 起草 / 独审，至多两轮。分级由分级器定，起草者只能提改判建议。
-    let s = initialState(cls.klass);
+    s = initialState(cls.klass);
     let effCls: Classification = cls;
-    let draft = "";
-    let review: Review | undefined;
     const counts = { pass: 0, block: 0, parseError: 0 };
     summary.reviewCounts = counts;
     summary.reclassNotes = [];
@@ -830,6 +906,7 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
     }
     summary.klass = s.klass;
     summary.convertedToP = s.convertedToP;
+    }
 
     // 4. 落地
     if (s.phase === "land_t") {
@@ -847,18 +924,39 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
           draft = renumberDraft(draft, declared, alloc);
           writeFileSync(join(dir, "draft.md"), draft);
         }
+        // 审查已过：先落盘断点，落地任何一步失败，下一轮从这里续做。
+        summary.stage = "reviewed_pass";
+        persist();
         if (d.mode === "dry-run") {
           summary.plannedWrites.push(`分支 decision/${n}：写 ${target} 并推送`, `评论 #${n}：resolution（首行「${AUTH_LINE}」）`);
         } else {
-          await landT(t, draft, target, dir, d, summary);
+          await landT(t, draft, target, dir, d, summary, persist);
         }
+        delete summary.stage;
+        delete summary.landedSha;
       }
     }
     if (s.phase === "shadow_p") {
-      const body = shadowComment(n, draft, review!, dir, summary);
-      write(`评论 #${n}：P 类草稿与审查结论`, ["issue", "comment", String(n), "--body-file", "-"], body);
-      write(`标签 #${n}：+needs-approval`, ["issue", "edit", String(n), "--add-label", "needs-approval"]);
-      write(`取消认领 #${n}`, ["issue", "edit", String(n), "--remove-assignee", "@me"]);
+      const done = new Set<PStep>(summary.pDone ?? []);
+      summary.stage = "shadow_p_pending";
+      summary.pDone = [...done];
+      persist();
+      const steps: Record<PStep, [string, string[], string?]> = {
+        comment: [`评论 #${n}：P 类草稿与审查结论`, ["issue", "comment", String(n), "--body-file", "-"], shadowComment(n, draft, review!, dir, summary)],
+        label: [`标签 #${n}：+needs-approval`, ["issue", "edit", String(n), "--add-label", "needs-approval"]],
+        unassign: [`取消认领 #${n}`, ["issue", "edit", String(n), "--remove-assignee", "@me"]],
+      };
+      for (const step of P_STEPS) {
+        if (done.has(step)) continue;
+        const [desc, args, input] = steps[step];
+        write(desc, args, input);
+        done.add(step);
+        summary.pDone = [...done];
+        persist();
+        if (step === "unassign") claimed = false;
+      }
+      delete summary.stage;
+      delete summary.pDone;
     }
     if (s.phase === "review_parse_error") write(`取消认领 #${n}（审查解析失败，待重跑）`, ["issue", "edit", String(n), "--remove-assignee", "@me"]);
     summary.phase = s.phase === "land_t" || s.phase === "shadow_p" || s.phase === "review_parse_error" ? s.phase : "done";
@@ -883,9 +981,14 @@ function shadowComment(n: number, draft: string, r: Review, dir: string, s: Summ
     `草稿与审查原件：\`${dir}/\`\n\n<details><summary>草稿全文</summary>\n\n${draft}\n</details>`;
 }
 
-async function landT(t: TicketContext, draft: string, target: string, dir: string, d: Deps, s: Summary) {
+async function landT(t: TicketContext, draft: string, target: string, dir: string, d: Deps, s: Summary, persist: () => void) {
   const n = t.number;
   const branch = `decision/${n}`;
+  if (s.landedSha) {
+    // 上次已推送，只差 resolution 评论。
+    d.gh(["issue", "comment", String(n), "--body-file", "-"], resolutionBody(n, target, branch, s.landedSha, dir, draft));
+    return;
+  }
   const wt = join(dir, "land-wt");
   fetchMain(d.repoRoot, d.git);
   if (existsSync(wt)) d.git(d.repoRoot, ["worktree", "remove", "--force", wt]);
@@ -900,9 +1003,14 @@ async function landT(t: TicketContext, draft: string, target: string, dir: strin
   d.git(wt, ["commit", "-m", `decision(#${n}): ${t.title}\n\n${AUTH_LINE}；独审 ${MODEL_OPUS} R1–R7 PASS。`]);
   d.git(wt, ["push", FETCH_URL, `HEAD:refs/heads/${branch}`]);
   const sha = d.git(wt, ["rev-parse", "HEAD"]).trim();
-  const body = `${AUTH_LINE}\n\n**resolution**：T 类，独立审查 R1–R7 全 PASS。正本 \`${target}\` 已写入分支 \`${branch}\`（${sha.slice(0, 10)}），待按日批量 PR 合入 main 后关票。\n\n` +
+  s.landedSha = sha;
+  persist();
+  d.gh(["issue", "comment", String(n), "--body-file", "-"], resolutionBody(n, target, branch, sha, dir, draft));
+}
+
+function resolutionBody(n: number, target: string, branch: string, sha: string, dir: string, draft: string): string {
+  return `${AUTH_LINE}\n\n**resolution**：T 类，独立审查 R1–R7 全 PASS。正本 \`${target}\` 已写入分支 \`${branch}\`（${sha.slice(0, 10)}），待按日批量 PR 合入 main 后关票。\n\n` +
     `草稿：\`${dir}/draft.md\`；审查：\`${dir}/review.json\`\n\n<details><summary>草稿全文</summary>\n\n${draft}\n</details>`;
-  d.gh(["issue", "comment", String(n), "--body-file", "-"], body);
 }
 
 // ───────────────────────── 选票与并发 ─────────────────────────
