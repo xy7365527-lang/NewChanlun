@@ -1100,7 +1100,6 @@ impl AuditTxn<'_> {
             }
         });
         if result.is_err() {
-            self.owner.clear_candidates();
             if !self.owner.connection.is_autocommit() {
                 let rollback = self.owner.connection.execute_batch("ROLLBACK");
                 if rollback.is_err() || !self.owner.connection.is_autocommit() {
