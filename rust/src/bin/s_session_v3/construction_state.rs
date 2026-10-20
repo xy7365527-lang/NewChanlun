@@ -547,6 +547,9 @@ impl PendingRawState {
             return Err(stale("Recover迁移父账或冻结域与交接摘要不符"));
         }
         // 0037 P2-1：资格提交时独立记下的父账身份/冻结域须恰为事务实际父账（fee=None 也核）。
+        if !previous.parent.as_ref().is_some_and(|recorded| recorded.matches(parent)) {
+            return Err(stale("Recover迁移资格所记父账或冻结域与事务父账不符"));
+        }
         if previous.fee.as_ref().is_some_and(|fee| !stamp.holds(fee)) {
             return Err(stale("Recover迁移状态块许可不挂事务父账"));
         }
