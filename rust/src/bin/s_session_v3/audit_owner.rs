@@ -1219,7 +1219,7 @@ impl std::ops::DerefMut for AuditConnection {
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::super::prepared::tests::Fixture;
     use super::*;
 
@@ -4784,7 +4784,7 @@ mod construction_tests {
         begun.token
     }
 
-    fn b2_assert_counts_match_independent_full_source(owner: &AuditConnection) {
+    pub(in crate::v3) fn b2_assert_counts_match_independent_full_source(owner: &AuditConnection) {
         let actual = owner
             .construction
             .borrow()
