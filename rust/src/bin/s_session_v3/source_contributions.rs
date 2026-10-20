@@ -878,8 +878,16 @@ impl NativeSourceState {
                 self.raw.remove(&old.coord)?;
             }
         }
+        // S4 negctrl：暖态漏记末个新赢家
+        let s4_warm = self.raw.len() != 0;
+        let s4_new = raw.winner_edits().into_iter().filter(|c| c.new.is_some()).count();
+        let mut s4_i = 0usize;
         for change in raw.winner_edits() {
             if let Some(new) = change.new {
+                s4_i += 1;
+                if s4_warm && s4_i == s4_new {
+                    continue;
+                }
                 if self.raw.contains_key(&new.coord) {
                     return Err(err("来源raw坐标冲突"));
                 }
