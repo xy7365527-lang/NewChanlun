@@ -722,6 +722,9 @@ impl Runtime {
             }
         }
         for w in &generated.witnesses {
+            if known_witnesses.get(&w.built.digest).is_some() {
+                continue;
+            }
             let object = generated
                 .objects
                 .iter()
