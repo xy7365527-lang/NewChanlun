@@ -247,7 +247,7 @@ struct ArrayEntry {
 ///
 /// - 键：参考集指纹（6 个精确参考价/源身份/名字）；`end` 变化（右组末成员变了）即整条重建；
 /// - `sequence` 是已写出的单元值序列（每元素 = `{bar, relations[24]}` 的值根，按 raw 坐标升序），
-///   追加新 bar 只 `sequence_append` 新尾（O(log n) 节点），不重写已覆盖前缀；
+///   新 bar 整段 `sequence_rebuild_suffix` 一次接尾（只写新右脊），不重写已覆盖前缀、不落逐叶作废根；
 /// - 精确内容键仅在 prepare 处与上一份 raw 账本比较一次；实际变化的最早坐标传入
 ///   每个窗口的 `floor`。窗口内二分定位截断点再续接，不逐窗扫描或保存整份历史键；
 /// - `union_tail` 是 tail 坐标的**并集增量**链（只 `append_greater` 续接）：右组被下一组
@@ -787,7 +787,7 @@ impl Cc004Producer {
             self.shape_ref_arrays.invalidate(coord);
             // 历史 memo 不在此处整条丢弃，只记**实际变化坐标**的水位：prepare 时一次并入
             // 全部已保留窗口（见 `prepare_raw_history`），续接时坐标 ≥ 该水位的已覆盖单元
-            // 整段 `sequence_split` 截断重建；prepare 中的精确内容键比较另核 raw 内容漂移。
+            // 截断重建（`sequence_rebuild_suffix`）；prepare 中的精确内容键比较另核 raw 内容漂移。
             self.source_epoch += 1;
             self.unprepared_floor = Some(
                 self.unprepared_floor
@@ -1623,7 +1623,7 @@ impl Cc004Producer {
     ///   后续历史 = 全部坐标 > 右组末成员的原始 bar（与全量配方 `raw.range(Excluded(end),..)`
     ///   同一条），未分组的 pending raw 也算在内；
     /// - 后续历史按参考集指纹 + 源坐标 + **精确内容键**（revision/四价）续接：新 bar 只
-    ///   `sequence_append`，源修订/raw 漂移按实际坐标 `sequence_split` 截断重建；
+    ///   整段接尾，源修订/raw 漂移按实际坐标截断；二者合为一次 `sequence_rebuild_suffix`；
     /// - `Ok(None)`：四分支不是 `TOP`/`BOTTOM`（旧路径对这些分支不产 CC-007 对象）。
     pub(super) fn build_fractal(
         &mut self,
@@ -1826,7 +1826,8 @@ impl Cc004Producer {
         let union_skip_first = tail_first.is_some() && shape.sources.max() == tail_first;
         // prepare 已把实际 source/raw 变化一次传播到每个窗口；这里仅按坐标二分截断。
         let cached = self.fractal_histories.remove(&(refs_key.clone(), end));
-        let (mut sequence, mut covered, mut union_tail) = match cached {
+        // 截断不先落 split 前缀根：保留数与新尾在循环后一次 `sequence_rebuild_suffix`（#1488 S3）。
+        let (previous, mut covered, mut union_tail) = match cached {
             Some(history) if history.tail_start == tail_start && history.count <= tail_len => {
                 let count = history.count;
                 let keep = history.floor.map_or(count, |floor| {
@@ -1837,10 +1838,9 @@ impl Cc004Producer {
                             (bar.source_index as i64) < floor
                         })
                 });
-                let mut sequence = history.sequence;
+                let sequence = history.sequence;
                 let mut union_tail = history.union_tail;
                 if keep < count {
-                    (sequence, _) = sc::sequence_split(&mut *store, &sequence, keep as u64)?;
                     self.history_invalidated += count - keep;
                     // 只在实际修订时重建保留的坐标尾；普通追加保留共享链。
                     let mut kept: Vec<usize> = raw_bars
@@ -1863,6 +1863,7 @@ impl Cc004Producer {
             None => (SequenceRef::empty(), 0, CoordsRef::empty()),
         };
         let appended_from = covered;
+        let mut leaves: Vec<NodeDigest> = Vec::with_capacity(tail_len - appended_from);
         for (offset, bar) in raw_bars
             .range(tail_start + appended_from..raw_bars.len())
             .iter()
@@ -1892,17 +1893,18 @@ impl Cc004Producer {
                 let _phase = tests::emission_phase("fractal_unit_write_value");
                 sc::write_value(&mut *store, &unit)?.digest
             };
-            sequence = {
-                #[cfg(test)]
-                let _phase = tests::emission_phase("fractal_sequence_append");
-                sc::sequence_append(&mut *store, &sequence, &leaf)?
-            };
+            leaves.push(leaf);
             let coord_index = tail_start + appended_from + offset;
             if !(union_skip_first && coord_index == tail_start) {
                 union_tail = union_tail.append_greater(bar.source_index);
             }
             covered += 1;
         }
+        let sequence = {
+            #[cfg(test)]
+            let _phase = tests::emission_phase("fractal_sequence_append");
+            sc::sequence_rebuild_suffix(&mut *store, &previous, appended_from as u64, &leaves)?
+        };
         self.history_computed += covered - appended_from;
         let units_count = u64::try_from(covered)
             .map_err(|_| ProducerError::Overflow(format!("后续单元数 {covered} 超出 u64")))?;
@@ -2475,7 +2477,7 @@ impl Cc004Producer {
     /// 与全量配方 `dependency_coords`（dir ∪ conf 去掉 members 后排序去重）同值。依据同一
     /// 归纳：`conf \ members = (dir \ {锚}) ∪ {conf.incoming}`——dir 的末元素就是本组锚，
     /// conf.incoming 是关闭边界（严格大于全部成员，且不在 dir 里）。故本口只做
-    /// `sequence_split(count-1)` 取 dir 左段，必要时 `sequence_append` 单叶，不重写整段。
+    /// 一次 `sequence_rebuild_suffix(count-1, [边界叶]?)` 取 dir 左段并接单叶，不重写整段。
     ///
     /// 有效域与非退化域同 [`group_sources_coords`]；逐前缀等价性由
     /// `derived_coords_match_materialized_union_for_every_prefix` 对拍锁定。
@@ -2503,15 +2505,21 @@ impl Cc004Producer {
             encoding,
         )?;
         let keep = entry.len.saturating_sub(1);
-        let (left, _tail) = sc::sequence_split(&mut *store, &entry.seq, keep)?;
+        // 一次重建「左段 ++ 边界叶」：不落 split 的左/右段根与 append 前的作废根（#1488 S3）。
         let (seq, len) = match boundary {
             Some(coord) => {
                 let leaf = self
                     .ref_leaf_root(encoding, coord)
                     .ok_or(ProducerError::MissingSource(coord))?;
-                (sc::sequence_append(&mut *store, &left, &leaf)?, keep + 1)
+                (
+                    sc::sequence_rebuild_suffix(&mut *store, &entry.seq, keep, &[leaf])?,
+                    keep + 1,
+                )
             }
-            None => (left, keep),
+            None => (
+                sc::sequence_rebuild_suffix(&mut *store, &entry.seq, keep, &[])?,
+                keep,
+            ),
         };
         let root = put_array_node(&mut *store, len, &seq.root())?;
         Ok(Built {
@@ -5332,6 +5340,190 @@ mod tests {
                     render(&mut shared.store, actual)
                 );
             }
+        }
+    }
+
+    /// `verify` 全闭包实际读到的节点即可达集（空序列按规范不读节点，单独豁免）。
+    fn reachable_nodes(
+        nodes: &mut MemoryNodes,
+        refs: &[sc::ContentRef],
+    ) -> std::collections::BTreeSet<NodeDigest> {
+        struct Reads<'a> {
+            nodes: &'a mut MemoryNodes,
+            seen: std::collections::BTreeSet<NodeDigest>,
+        }
+        impl NodeSource for Reads<'_> {
+            fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+                self.seen.insert(*digest);
+                self.nodes.read(digest)
+            }
+        }
+        let mut reads = Reads {
+            nodes,
+            seen: std::collections::BTreeSet::new(),
+        };
+        for reference in refs {
+            verify(&mut reads, reference).expect("产出全闭包可核");
+        }
+        reads.seen.insert(SequenceRef::empty().root());
+        reads.seen
+    }
+
+    /// 一代全部 CC-007 窗口（`reuse` 选 parser session 口）；另返回**只在 fractal 构造调用内**
+    /// 新落盘的节点集（CC-006 形状对象不在本锁范围）。
+    fn fractal_generation_with_new_nodes(
+        fixture: &mut Fixture,
+        reuse: bool,
+        generation: i64,
+    ) -> (Vec<Cc007Object>, std::collections::BTreeSet<NodeDigest>) {
+        let raw: Vec<Bar> = fixture.state.raw_iter().copied().collect();
+        let prepared = fixture.producer.prepare_raw_history(&raw).unwrap();
+        let mut session = reuse.then(|| {
+            fixture
+                .producer
+                .parser_fractal_sources(&prepared, &fixture.state)
+                .unwrap()
+        });
+        let count = fixture.state.materialize_facts().groups.len();
+        let mut objects = Vec::new();
+        let mut written = std::collections::BTreeSet::new();
+        let stored = |store: &CountingStore| -> std::collections::BTreeSet<NodeDigest> {
+            store.nodes.iter().map(|(digest, _, _)| *digest).collect()
+        };
+        for start in 0..count.saturating_sub(2) {
+            let fractal = if let Some(session) = &mut session {
+                let Some(shape) = fixture
+                    .producer
+                    .build_parser_shape(
+                        &mut fixture.store,
+                        &prepared,
+                        session,
+                        start,
+                        generation,
+                        CUT,
+                    )
+                    .unwrap()
+                else {
+                    continue;
+                };
+                let before = stored(&fixture.store);
+                let fractal = fixture
+                    .producer
+                    .build_parser_fractal(
+                        &mut fixture.store,
+                        &prepared,
+                        session,
+                        &shape,
+                        generation,
+                        CUT,
+                    )
+                    .unwrap();
+                written.extend(stored(&fixture.store).difference(&before).copied());
+                fractal
+            } else {
+                let Some(shape) = fixture
+                    .producer
+                    .build_shape(&mut fixture.store, &fixture.state, start, generation, CUT)
+                    .unwrap()
+                else {
+                    continue;
+                };
+                let views = [start, start + 1, start + 2]
+                    .map(|index| fixture.state.shared_group(index).unwrap().unwrap());
+                let before = stored(&fixture.store);
+                let fractal = fixture
+                    .producer
+                    .build_fractal(
+                        &mut fixture.store,
+                        &prepared,
+                        &shape,
+                        [&views[0], &views[1], &views[2]],
+                        generation,
+                        CUT,
+                    )
+                    .unwrap();
+                written.extend(stored(&fixture.store).difference(&before).copied());
+                fractal
+            };
+            if let Some(object) = fractal {
+                objects.push(object);
+            }
+        }
+        (objects, written)
+    }
+
+    /// #1488 S3 锁：fractal 历史续接（每代追加多根 bar）一次 `sequence_rebuild_suffix` 接尾——
+    /// 逐代 fractal 调用内新写节点全部可从本代 CC-007 产出闭包到达（不可达 = 0，不落逐 bar
+    /// 作废中间根），且末代暖续接产出与冷全量逐位相同（#804）。通用口与 parser session 口各跑一遍。
+    #[test]
+    fn fractal_history_suffix_writes_no_orphans_and_matches_cold() {
+        fn row(i: usize) -> (usize, i64, i64) {
+            (
+                10 + i * 17,
+                if i % 2 == 0 { 12 } else { 24 },
+                if i % 2 == 0 { 3 } else { 15 },
+            )
+        }
+        fn append(fixture: &mut Fixture, next: (usize, i64, i64)) {
+            let (coord, high, low) = next;
+            let source = Row::new(coord as i64, 1, "r1").with_prices(low, high, low, high);
+            assert!(fixture
+                .producer
+                .bind_source(&mut fixture.store, source.coord, source.spec())
+                .unwrap());
+            fixture.raw.insert(source.coord, source.raw_json());
+            fixture.rows.push(source);
+            fixture.state.append(bar(coord, high, low));
+        }
+        let all: Vec<_> = (0..40).map(row).collect();
+        for reuse in [false, true] {
+            let mut warm = fixture_with_profile(&all[..24], tb02a::PROFILE);
+            let mut generation = GENERATION;
+            let mut last = Vec::new();
+            let mut covered = 0usize;
+            for (step, grow) in [0usize, 5, 7, 4].into_iter().enumerate() {
+                for _ in 0..grow {
+                    let next = all[warm.rows.len()];
+                    append(&mut warm, next);
+                }
+                generation = GENERATION + step as i64;
+                let (objects, written) = fractal_generation_with_new_nodes(&mut warm, reuse, generation);
+                let refs: Vec<sc::ContentRef> = objects
+                    .iter()
+                    .flat_map(|object| {
+                        [
+                            &object.record,
+                            &object.payload,
+                            &object.input_refs,
+                            &object.source_coords,
+                            &object.payload_json,
+                            &object.input_refs_json,
+                            &object.source_coords_json,
+                        ]
+                        .into_iter()
+                        .chain(&object.requests)
+                        .map(Built::content_ref)
+                    })
+                    .collect();
+                let reachable = reachable_nodes(&mut warm.store.nodes, &refs);
+                let orphans = written.difference(&reachable).count();
+                assert_eq!(
+                    orphans, 0,
+                    "reuse={reuse} 第 {step} 代 fractal 构造留下 {orphans} 个不可达节点（新写 {}）",
+                    written.len()
+                );
+                covered += objects.len();
+                last = objects;
+            }
+            assert_eq!(warm.rows.len(), all.len());
+            assert!(covered > 0 && !last.is_empty(), "逐代不可达锁不是假空");
+            assert!(
+                warm.producer.history_reused > 0,
+                "reuse={reuse}：必须真走到历史续接（否则锁测不到接尾）"
+            );
+            let mut cold = fixture_with_profile(&all, tb02a::PROFILE);
+            let (expected, _) = fractal_generation_with_new_nodes(&mut cold, reuse, generation);
+            assert_parser_fractals_equal(&mut cold, &mut warm, &expected, &last);
         }
     }
 

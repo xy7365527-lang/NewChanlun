@@ -322,7 +322,7 @@ pub(super) struct DepsArrays {
 ///   故永不失效；
 /// - `refs`：叶 = 当前源版本的八字段引用值根；`refs_leaves` 是与 `coords` 对齐的**水位索引**。
 ///   `RawCoords::sync` 逐位与 `Cc004Producer::source_root` 比对，**实际变化**的最早位置起
-///   重建尾部（`sequence_rebuild_suffix` 只构造保留前缀 + 逐叶 `sequence_append`），
+///   重建尾部（`sequence_rebuild_suffix` 保留前缀 + 整段新尾一次构造，不落逐叶中间根），
 ///   不构造被丢弃的旧右段，未变前缀的节点原样保留；
 /// - `coords` 是区间定位用的升序坐标索引（与调用方账本同量级），不是内容物化。
 struct RawCoords {
@@ -385,22 +385,21 @@ impl RawCoords {
         if first == self.coords.len() && self.coords.len() == ledger.rows.len() {
             return Ok(());
         }
-        let text_prefix = sc::sequence_rebuild_suffix(&mut *store, &self.text, first as u64, &[])?;
-        let refs_prefix = sc::sequence_rebuild_suffix(&mut *store, &self.refs, first as u64, &[])?;
-        let mut text = text_prefix;
-        let mut refs = refs_prefix;
         let mut tail: Vec<i64> = Vec::new();
+        let mut tail_text: Vec<NodeDigest> = Vec::new();
         let mut tail_refs: Vec<NodeDigest> = Vec::new();
         for (coord, _) in ledger.rows.iter().skip(first) {
             let leaf = producer.coord_text_leaf(&mut *store, coord)?;
-            text = sc::sequence_append(&mut *store, &text, &leaf)?;
             let source = producer
                 .source_root(coord)
                 .ok_or(ProducerError::MissingSource(coord))?;
-            refs = sc::sequence_append(&mut *store, &refs, &source)?;
             tail.push(coord);
+            tail_text.push(leaf);
             tail_refs.push(source);
         }
+        // 与 delta 口同一做法：一次构造最终后缀，不逐 leaf 落作废中间根（#1488 S3）。
+        let text = sc::sequence_rebuild_suffix(&mut *store, &self.text, first as u64, &tail_text)?;
+        let refs = sc::sequence_rebuild_suffix(&mut *store, &self.refs, first as u64, &tail_refs)?;
         self.coords.truncate(first);
         self.refs_leaves.truncate(first);
         self.coords.extend(tail);
@@ -3394,6 +3393,99 @@ mod tests {
             measured[1] <= measured[0] + 32,
             "账本从 64 涨到 1024 时区间写次数不得随之线性增长（实际 {measured:?}）"
         );
+    }
+
+    /// `verify` 全闭包实际读到的节点即可达集（空序列按规范不读节点，单独豁免）。
+    fn reachable_nodes(nodes: &mut MemoryNodes, refs: &[ContentRef]) -> BTreeSet<NodeDigest> {
+        struct Reads<'a> {
+            nodes: &'a mut MemoryNodes,
+            seen: BTreeSet<NodeDigest>,
+        }
+        impl NodeSource for Reads<'_> {
+            fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+                self.seen.insert(*digest);
+                self.nodes.read(digest)
+            }
+        }
+        let mut reads = Reads {
+            nodes,
+            seen: BTreeSet::new(),
+        };
+        for reference in refs {
+            sc::verify(&mut reads, reference).expect("产出全闭包可核");
+        }
+        reads.seen.insert(SequenceRef::empty().root());
+        reads.seen
+    }
+
+    /// #1488 S3 锁：非 delta `RawCoords::sync` 多代续接（追加 + 中段源修订）每代新写节点
+    /// 全部可从本代全账本数组闭包到达（不可达 = 0，不落逐叶作废中间根），且末代根与冷构建逐位相同。
+    #[test]
+    fn raw_coords_sync_writes_no_orphans_and_matches_cold() {
+        let row = |index: usize, revision: i64| Row {
+            coord: index as i64 * 10,
+            high: 100 + index as i64,
+            low: 50 + index as i64,
+            revision,
+            seq: index as i64,
+        };
+        let mut rows: Vec<Row> = (0..24).map(|index| row(index, 1)).collect();
+        let mut harness = Harness::new();
+        let mut coords = RawCoords::new();
+        let mut steps = 0usize;
+        // 0..3：每代追加 5 行；3：第 12 行源修订（截断重建尾部）；4：修订 + 再追加 7 行。
+        for step in 0..5usize {
+            match step {
+                3 => rows[12] = row(12, 2),
+                4 => {
+                    rows[20] = row(20, 2);
+                    let base = rows.len();
+                    rows.extend((base..base + 7).map(|index| row(index, 1)));
+                }
+                _ if step > 0 => {
+                    let base = rows.len();
+                    rows.extend((base..base + 5).map(|index| row(index, 1)));
+                }
+                _ => {}
+            }
+            let (_, raw, _) = ledger(&rows);
+            harness.bind(&raw);
+            let before: BTreeSet<NodeDigest> =
+                harness.store.nodes.iter().map(|(digest, _, _)| *digest).collect();
+            coords
+                .sync(&mut harness.store, &mut harness.producer, &Ledger::new(&raw))
+                .expect("对齐坐标序列");
+            let whole = coords.whole(&mut harness.store).expect("全账本数组");
+            let reachable = reachable_nodes(
+                &mut harness.store.nodes,
+                &[whole.input_refs.content_ref(), whole.source_coords.content_ref()],
+            );
+            let orphans: Vec<NodeDigest> = harness
+                .store
+                .nodes
+                .iter()
+                .map(|(digest, _, _)| *digest)
+                .filter(|digest| !before.contains(digest) && !reachable.contains(digest))
+                .collect();
+            assert!(
+                orphans.is_empty(),
+                "第 {step} 代 RawCoords::sync 留下 {} 个不可达节点",
+                orphans.len()
+            );
+            steps += 1;
+        }
+        assert_eq!(steps, 5, "逐代不可达锁不是假空");
+        let (_, raw, _) = ledger(&rows);
+        let mut cold = Harness::new();
+        cold.bind(&raw);
+        let mut cold_coords = RawCoords::new();
+        cold_coords
+            .sync(&mut cold.store, &mut cold.producer, &Ledger::new(&raw))
+            .expect("冷对齐");
+        assert_eq!(coords.coords, cold_coords.coords);
+        assert_eq!(coords.refs_leaves, cold_coords.refs_leaves);
+        assert_eq!(coords.text, cold_coords.text, "暖/冷坐标文本序列逐位相同");
+        assert_eq!(coords.refs, cold_coords.refs, "暖/冷源引用序列逐位相同");
     }
 
     /// 增量内容序列与共享 coords 树是**同一条判据**：同一逻辑坐标集必须给出同根
