@@ -1867,9 +1867,6 @@ impl AuditTxn<'_> {
                     };
                     // #1488 0041（主控裁定 (a)）：唯一合法重绑点——候选已经同父校验交接到本请求冻结域，
                     // owner 已提交资格所记冻结域随之前进（父账 id 不变）；其他任何路径不改记录。
-                    if let Some(state) = self.owner.construction.borrow_mut().as_mut() {
-                        state.advance_parent(&candidate.resources, &resources);
-                    }
                     candidate.resources = resources;
                     candidate.limit = context.complete_workspace_limit();
                     candidate.seal = seal;
