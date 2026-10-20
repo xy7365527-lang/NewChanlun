@@ -177,6 +177,7 @@ fn tb1581_injected_gate_failure_blocks_downstream() {
     );
     assert_ne!(bad, prod, "标记计入 ParseLayer 结构等价");
 
+    // 本输入注入后无已确认段，下句不证明拒读（无标记时同样无产出）；拒读的正控在热缓存测试。
     let out = classifier::classify(&bad, &cfg, &[1]);
     assert_eq!(out.classification, classifier::Classification::default());
     assert!(out.tower.is_empty());
@@ -330,6 +331,7 @@ fn tb1581_marker_reaches_incremental_and_batch_layers() {
         "正控：同一现场无标记时有 PendingSegment"
     );
     assert!(!has_pending_segment(&layer), "标记非空 ⟹ 无 PendingSegment");
+    // 命中现场无已确认段，下句只锁「不出错、无产出」；拒读的正控在热缓存测试。
     let refused = classifier::classify(&layer, &cfg, &[1]);
     assert_eq!(
         refused.classification,
