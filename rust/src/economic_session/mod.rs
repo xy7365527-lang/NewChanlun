@@ -39,3 +39,5 @@ mod tb03c_c5_frozen_tests;
 mod tb03c_c5_read_tests;
 #[cfg(test)]
 mod tb03c_c5_tests;
+#[cfg(test)]
+mod tb03c_chain_tests;
