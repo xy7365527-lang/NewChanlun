@@ -9,7 +9,6 @@ struct Fixture {
     dbs: Vec<Connection>,
     data: Value,
     basis: Value,
-    applicants: Vec<String>,
     c4a_doc: Option<Value>,
 }
 fn save(dir: &Path, name: &str, v: &Value) -> (String, String) {
@@ -278,7 +277,6 @@ impl Fixture {
             dbs,
             data,
             basis,
-            applicants: applicants.iter().map(|n| n.to_string()).collect(),
             c4a_doc,
         };
         for (i, name) in ["alpha", "beta"].iter().enumerate() {
