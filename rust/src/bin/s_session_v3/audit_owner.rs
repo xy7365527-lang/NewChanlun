@@ -1456,14 +1456,58 @@ impl AuditConnection {
             .replace_fee_for_test(fee);
         assert!(old.is_some(), "须原持有状态块许可");
     }
-    /// 0037 P2-1 负控注入（比对之前）：完整候选经同父账真实 handoff 进入下一冻结域，资格所记域不动。
+    /// 0037 P2-1 负控注入（比对之前）：完整候选绕过 audit_admission 重绑点，经同父账真实 handoff
+    /// 进入下一冻结域（0041 P3-1：沿用原额度的正额度换域），资格所记域不动。
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn advance_complete_domain_for_test(&self) {
         let mut complete = self.complete.borrow_mut();
         let candidate = complete.as_mut().expect("须持有完整候选");
-        let next = candidate.resources.handoff(u64::MAX, 0).expect("同父账换域");
+        let allowance = candidate.resources.allowance_for_test();
+        assert!(allowance > 0, "须正额度换域");
+        let next = candidate
+            .resources
+            .handoff(u64::MAX, allowance)
+            .expect("同父账换域");
         assert!(next.same_parent(&candidate.resources));
         candidate.resources = next;
+    }
+    /// 0041 P3-3 负控注入（比对之前）：抹掉已提交资格所记父账。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn clear_qualification_parent_for_test(&self) {
+        self.construction
+            .borrow_mut()
+            .as_mut()
+            .expect("须持有已提交资格")
+            .clear_parent_for_test();
+    }
+    /// 0041：已提交资格所记父账/冻结域是否恰为 owner 完整候选当前父账。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn qualification_parent_matches_complete_for_test(&self) -> bool {
+        let complete = self.complete.borrow();
+        let candidate = complete.as_ref().expect("须持有完整候选");
+        self.construction
+            .borrow()
+            .as_ref()
+            .expect("须持有已提交资格")
+            .parent_matches_for_test(&candidate.resources)
+    }
+    /// 0041：owner 完整候选当前父账的交接摘要（弱引用，不延长父账寿命）。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn complete_parent_stamp_for_test(&self) -> native::BudgetStamp {
+        self.complete
+            .borrow()
+            .as_ref()
+            .expect("须持有完整候选")
+            .resources
+            .handoff_stamp()
+            .expect("当前域")
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn complete_parent_matches_for_test(&self, stamp: &native::BudgetStamp) -> bool {
+        self.complete
+            .borrow()
+            .as_ref()
+            .is_some_and(|c| stamp.matches(&c.resources))
     }
     /// 拿走 owner 的完整候选（无候选）。
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
@@ -1821,6 +1865,11 @@ impl AuditTxn<'_> {
                             return Err(error);
                         }
                     };
+                    // #1488 0041（主控裁定 (a)）：唯一合法重绑点——候选已经同父校验交接到本请求冻结域，
+                    // owner 已提交资格所记冻结域随之前进（父账 id 不变）；其他任何路径不改记录。
+                    if let Some(state) = self.owner.construction.borrow_mut().as_mut() {
+                        state.advance_parent(&candidate.resources, &resources);
+                    }
                     candidate.resources = resources;
                     candidate.limit = context.complete_workspace_limit();
                     candidate.seal = seal;

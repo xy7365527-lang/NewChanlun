@@ -723,6 +723,11 @@ impl Budget {
             total_limit: self.total_limit()?,
         })
     }
+    /// 测试读数：本句柄冻结域额度（构造正额度真实换域用）。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(crate) fn allowance_for_test(&self) -> usize {
+        self.3
+    }
 }
 /// #1488 0034 P3-1：Recover 换代证明绑定的父账身份与冻结预算摘要；迁移时逐项比对事务实际父账。
 #[cfg(feature = "s_capture_native_testonly")]
@@ -751,6 +756,20 @@ impl BudgetStamp {
     }
     fn same_ledger(&self, ledger: &Arc<Ledger>) -> bool {
         self.ledger.strong_count() > 0 && std::ptr::eq(self.ledger.as_ptr(), Arc::as_ptr(ledger))
+    }
+    /// #1488 0041：经已校同父的合法重绑交接（from→to）推进摘要。本摘要须恰指 from 的同一 Ledger
+    /// 与同一冻结域身份（序号/请求号/额度；from 换域后已过期，不再读其总容量帽），to 须同父且为
+    /// 当前域；任一不满足返回 None，调用方保留原摘要不动。
+    pub(crate) fn advance(&self, from: &Budget, to: &Budget) -> Option<Self> {
+        if !self.same_ledger(&from.0)
+            || self.serial != from.1
+            || self.request != from.2
+            || self.allowance != from.3
+            || !from.same_parent(to)
+        {
+            return None;
+        }
+        to.handoff_stamp().ok()
     }
     /// 负控注入：摘要改指同父账的下一冻结域。
     #[cfg(test)]

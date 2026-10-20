@@ -1610,7 +1610,8 @@ mod tests {
 
     // ---- #1488 0037 返修锁（按独审 0036 P2-1）----
     /// P2-1：资格提交时独立记下父账身份与冻结域；比对前候选改挂他账（交接摘要随候选，自指比对恒真）
-    /// 或经同父账真实 handoff 进入下一冻结域，fee=None 的资格也一律拒绝。
+    /// 或绕过 audit_admission 重绑点经同父账真实 handoff 进入下一冻结域，fee=None 的资格也一律拒绝；
+    /// 经合法重绑点（新请求只读 admission）换域则记录随之前进、迁移成功（0041，主控裁定 (a)）。
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn recover_lock_rejects_qualification_recorded_on_other_parent_or_domain() {
@@ -1632,7 +1633,21 @@ mod tests {
         assert_eq!(error, expected);
         assert_recover_revoked(&native, &f, probe.serial, "1");
         drop((own, foreign));
-        // 同父账、下一冻结域：候选真实 handoff 后，资格所记域已不是事务实际域。
+        // 0041（主控裁定 (a)）同父账、下一冻结域：经合法重绑点（新请求只读 ready，audit_admission
+        // bind_complete_budget）换域 → 资格记录随之前进，迁移成功。
+        let f = Fixture::new();
+        let (mut native, _, _) = recover_lock_driver(&f);
+        let before = native.conn.complete_parent_stamp_for_test();
+        native
+            .handle(envelope("ready-rebind", json!({"op":"ready"})))
+            .unwrap();
+        assert!(!native.conn.complete_parent_matches_for_test(&before), "须真实换域");
+        native.conn.recover("2", &native.clock, "recover-2").unwrap();
+        assert_eq!(
+            native.conn.recover_probe_for_test().qualification.unwrap().writer_epoch,
+            Some(2)
+        );
+        // 绕过重绑点直接改域（正额度真实 handoff）：资格所记域已不是事务实际域 → 拒绝。
         let f = Fixture::new();
         let (native, _, _) = recover_lock_driver(&f);
         let serial = native.conn.recover_probe_for_test().serial;
@@ -1650,6 +1665,55 @@ mod tests {
         let promoted = native.conn.recover_probe_for_test().qualification.unwrap();
         assert_eq!(promoted.writer_epoch, Some(2));
         assert!(promoted.has_parent, "{promoted:?}");
+    }
+
+    // ---- #1488 0041 返修锁（按独审 0040 P2-1 与主控裁定 (a)）----
+    /// 正控：Begin（请求 B）后同 owner 新请求 C 只读 ready——候选经 audit_admission 合法重绑点
+    /// 换到 C 的冻结域，资格所记冻结域随之前进；随后同 owner Recover 成功晋升。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn recover_lock_promotes_after_new_request_readonly_rebind() {
+        let f = Fixture::new();
+        let (mut native, _, _) = recover_lock_driver(&f);
+        assert!(native.conn.qualification_parent_matches_complete_for_test());
+        let before = native.conn.complete_parent_stamp_for_test();
+        native
+            .handle(envelope("ready-after-begin", json!({"op":"ready"})))
+            .unwrap();
+        assert!(
+            !native.conn.complete_parent_matches_for_test(&before),
+            "新请求须经重绑点换到本请求冻结域"
+        );
+        assert!(
+            native.conn.qualification_parent_matches_complete_for_test(),
+            "资格所记冻结域须随合法重绑前进"
+        );
+        let probe = native.conn.recover_probe_for_test();
+        assert!(!probe.stale && probe.qualification.is_some(), "{probe:?}");
+        native.conn.recover("2", &native.clock, "recover-2").unwrap();
+        let promoted = native.conn.recover_probe_for_test().qualification.unwrap();
+        assert_eq!(promoted.writer_epoch, Some(2));
+        assert!(promoted.has_parent, "{promoted:?}");
+        assert_eq!(recover_lock_meta(&f, "writer_epoch").as_deref(), Some("2"));
+    }
+
+    /// P3-3：资格缺父账记录与记录不符分开报；缺记录同样拒绝并撤销。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn recover_lock_rejects_qualification_without_parent_record() {
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        native.conn.clear_qualification_parent_for_test();
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert_eq!(
+            error,
+            "StaleWriter：construction资格失效：Recover迁移资格缺父账记录"
+        );
+        assert_recover_revoked(&native, &f, serial, "1");
     }
 
     /// P2-1：holds 门独立负控——资格所记父账与候选一致，唯状态块许可挂他账，迁移前即拒绝。

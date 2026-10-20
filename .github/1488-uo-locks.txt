@@ -85,3 +85,6 @@ v3::driver::tests::recover_lock_rejects_qualification_recorded_on_other_parent_o
 v3::driver::tests::recover_lock_holds_gate_rejects_fee_permit_on_foreign_ledger
 # 0039 write_budget 正控（issuecomment-6280706052 第 2 条）
 v3::driver::tests::audit_owner_write_budget_retains_candidate_when_retention_margin_suffices
+# #1488 Recover 合法重绑点推进资格记录（0041，独审 0040 P2-1；主控裁定 (a)）
+v3::driver::tests::recover_lock_promotes_after_new_request_readonly_rebind
+v3::driver::tests::recover_lock_rejects_qualification_without_parent_record

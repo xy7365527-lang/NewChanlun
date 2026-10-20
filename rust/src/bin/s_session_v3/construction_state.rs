@@ -268,6 +268,28 @@ impl CommittedRawState {
     pub(super) fn has_parent(&self) -> bool {
         self.parent.is_some()
     }
+    /// 负控注入：抹掉资格所记父账（只为咬住“缺记录”门）。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn clear_parent_for_test(&mut self) {
+        self.parent = None;
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn parent_matches_for_test(&self, budget: &super::audit_owner::native::Budget) -> bool {
+        self.parent.as_ref().is_some_and(|recorded| recorded.matches(budget))
+    }
+    /// #1488 0041（主控裁定 (a)）：只由 audit_admission 的合法重绑点调用——完整候选经
+    /// bind_complete_budget（已校同父、本请求冻结域）从 from 交接到 to 时，资格所记冻结域随之前进，
+    /// 父账 id 不变。所记值须恰为 from 的同账同域，否则原值不动（Recover 照常按记录拒绝）。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn advance_parent(
+        &mut self,
+        from: &super::audit_owner::native::Budget,
+        to: &super::audit_owner::native::Budget,
+    ) {
+        if let Some(next) = self.parent.as_ref().and_then(|recorded| recorded.advance(from, to)) {
+            self.parent = Some(next);
+        }
+    }
     /// 负控注入：状态块许可换成他账许可（只为咬住 holds 门）；返回原许可。
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn replace_fee_for_test(
@@ -547,7 +569,11 @@ impl PendingRawState {
             return Err(stale("Recover迁移父账或冻结域与交接摘要不符"));
         }
         // 0037 P2-1：资格提交时独立记下的父账身份/冻结域须恰为事务实际父账（fee=None 也核）。
-        if !previous.parent.as_ref().is_some_and(|recorded| recorded.matches(parent)) {
+        // 0041 P3-3：缺记录（盖章时读不到当前域）与记录不符分开报。
+        let Some(recorded) = previous.parent.as_ref() else {
+            return Err(stale("Recover迁移资格缺父账记录"));
+        };
+        if !recorded.matches(parent) {
             return Err(stale("Recover迁移资格所记父账或冻结域与事务父账不符"));
         }
         if previous.fee.as_ref().is_some_and(|fee| !stamp.holds(fee)) {
