@@ -9,7 +9,7 @@
  *   - stateless：不建状态库，tracker 即账本。
  *
  * 自动动作边界（#1078 裁定 4）：
- *   1. 图清（子票全关、frontier 空）→ 派 rlm 子代理起草 spec 草案 → 开图内 spec 票
+ *   1. 图清（子票全关、frontier 空）→ 派 Claude 起草子代理（经 CLIProxyLocal，#1588）起草 spec 草案 → 开图内 spec 票
  *      → @编排者批【闸一】；
  *   2. spec 批准（编排者 comment 批）→ 自动拆 tracer-bullet 实装票
  *      （blocking 边 + 票面逐条挂裁定票）+ 挂 sandcastle 标签 → 工蜂拾取；
@@ -37,10 +37,11 @@
  *   npx tsx scripts/wayfinder_engine.mts --live --once      真实执行一轮
  */
 
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { cliProxyEnv } from "../.sandcastle/claude-route.mts";
 
 // ── 顶部常量（编排者 / 周期 / 起草子代理模型） ──────────────────────────────
 // 环境变量覆盖：WAYFINDER_ORCHESTRATOR / WAYFINDER_POLL_SECONDS /
@@ -48,8 +49,13 @@ import { join } from "node:path";
 // 默认 dry-run（安全默认）；真实执行须显式 --live。
 const DEFAULT_ORCHESTRATOR = "xy7365527-lang";
 const DEFAULT_POLL_SECONDS = 240; // 4 分钟（dispatcher 先例）
-const DEFAULT_SPEC_MODEL = "deepseek-v4-pro";
-const DEFAULT_SPEC_PROVIDER = "deepseek";
+// 起草子代理只用 Claude 家族（用户规定，#1588）：Claude Code CLI 经本机 CLIProxyLocal 统一路由，
+// 与 sandcastle 工蜂同一份接线（.sandcastle/claude-route.mts，#1547）。prime-agent 不走：其
+// cliproxy-local provider 只登记了带上游前缀的 mf/yd 型号、无 fable，anthropic provider 直连官方不过 CLIProxy。
+export const DEFAULT_SPEC_MODEL = "claude-opus-5-5";
+export const DEFAULT_SPEC_PROVIDER = "claude-cliproxy";
+/** WAYFINDER_SPEC_MODEL 白名单：配置值不在此列即 fail-loud，不回退默认。 */
+export const CLAUDE_FAMILY_SPEC_MODELS: readonly string[] = ["claude-opus-5-5", "claude-fable-5-1"];
 // 闸一待批的 spec 票标签：编排者需人工批，故挂 ready-for-human（三态 triage 标签之一）。
 const SPEC_AWAIT_LABEL = "ready-for-human";
 // 实装票标签：ready-for-agent（已就绪）+ sandcastle（工蜂拾取闸，main.mts 读取）。
@@ -905,13 +911,55 @@ function issueDbId(number: number): number {
   return Number(gh(`api repos/${GH_ENV.GH_REPO}/issues/${number} --jq .id`));
 }
 
-/** 起草 spec 的 rlm 子代理：无头 prime-agent，只读、无工具，输出即 spec 正文。 */
+/**
+ * 纯函数：解析并校验 spec 起草子代理配置（#1588）。
+ * provider 只认 claude-cliproxy；model 只认 Claude 家族白名单。非法值 throw，不静默回退默认。
+ */
+export function resolveSpecDrafter(env: Record<string, string | undefined>): {
+  specProvider: string;
+  specModel: string;
+} {
+  const specProvider = env.WAYFINDER_SPEC_PROVIDER ?? DEFAULT_SPEC_PROVIDER;
+  const specModel = env.WAYFINDER_SPEC_MODEL ?? DEFAULT_SPEC_MODEL;
+  if (specProvider !== DEFAULT_SPEC_PROVIDER) {
+    throw new Error(
+      `[FAIL-loud #1588] WAYFINDER_SPEC_PROVIDER=${specProvider} 不受支持：起草子代理只走 ${DEFAULT_SPEC_PROVIDER}（Claude Code CLI 经 CLIProxyLocal）`,
+    );
+  }
+  if (!CLAUDE_FAMILY_SPEC_MODELS.includes(specModel)) {
+    throw new Error(
+      `[FAIL-loud #1588] WAYFINDER_SPEC_MODEL=${specModel} 不属于 Claude 家族白名单（${CLAUDE_FAMILY_SPEC_MODELS.join(" / ")}）`,
+    );
+  }
+  return { specProvider, specModel };
+}
+
+/** 纯函数：起草子代理的 Claude Code CLI 调用（无头 -p、禁用全部工具、不落会话）。prompt 走 stdin。 */
+export function specDrafterCommand(specModel: string): { file: string; args: string[] } {
+  return {
+    file: "claude",
+    args: ["-p", "--model", specModel, "--output-format", "text", "--tools", "", "--no-session-persistence"],
+  };
+}
+
+/**
+ * 起草 spec 的子代理：Claude Code CLI 经 CLIProxyLocal，只读、无工具，输出即 spec 正文。
+ * cwd 取临时目录，不让仓内 CLAUDE.md / 项目 hooks 混进起草上下文；路由密钥只进子进程 env。
+ */
 function runSpecDrafter(prompt: string, cfg: EngineConfig): string {
-  const out = execSync(
-    `prime-agent -p --mode text --thinking off -nt --no-session ` +
-      `--provider ${shellQuote(cfg.specProvider)} --model ${shellQuote(cfg.specModel)}`,
-    { encoding: "utf8", input: prompt, env: process.env, maxBuffer: 32 * 1024 * 1024, timeout: 15 * 60 * 1000 },
-  );
+  const { specModel } = resolveSpecDrafter({
+    WAYFINDER_SPEC_PROVIDER: cfg.specProvider,
+    WAYFINDER_SPEC_MODEL: cfg.specModel,
+  });
+  const { file, args } = specDrafterCommand(specModel);
+  const out = execFileSync(file, args, {
+    encoding: "utf8",
+    input: prompt,
+    cwd: tmpdir(),
+    env: { ...process.env, ...cliProxyEnv() },
+    maxBuffer: 32 * 1024 * 1024,
+    timeout: 15 * 60 * 1000,
+  });
   return out.trim();
 }
 
@@ -1116,7 +1164,7 @@ function executeAction(action: Action, cfg: EngineConfig): void {
 function describeAction(a: Action): string {
   switch (a.kind) {
     case "draft_spec":
-      return `起草 spec 草案（rlm 子代理）→ 开图内 spec 票 → @编排者批【闸一】  (map #${a.map})`;
+      return `起草 spec 草案（Claude 起草子代理）→ 开图内 spec 票 → @编排者批【闸一】  (map #${a.map})`;
     case "split_impl_tickets":
       return `拆 tracer-bullet 实装票（blocking 边 + 逐条挂裁定票）+ sandcastle 标签  (map #${a.map}, spec #${a.spec})`;
     case "close_graph":
@@ -1213,8 +1261,8 @@ function parseArgs(argv: string[]): EngineConfig {
     orchestrator: process.env.WAYFINDER_ORCHESTRATOR ?? DEFAULT_ORCHESTRATOR,
     dryRun,
     pollSeconds,
-    specModel: process.env.WAYFINDER_SPEC_MODEL ?? DEFAULT_SPEC_MODEL,
-    specProvider: process.env.WAYFINDER_SPEC_PROVIDER ?? DEFAULT_SPEC_PROVIDER,
+    // 启动即校验（非 Claude 家族直接 fail-loud，不等到图清起草时才炸）。
+    ...resolveSpecDrafter(process.env),
     once,
     explain,
   };

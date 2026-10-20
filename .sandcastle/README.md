@@ -47,6 +47,10 @@ bash .sandcastle/install-wayfinder-engine.sh status    # 查状态
 bash .sandcastle/install-wayfinder-engine.sh uninstall # 卸载
 ```
 
+**宿主仓 = sandcastle-host**（#1588）：plist 模板指 `/Users/silencehan/Projects/NewChanlun-sandcastle-host`（专用 main worktree，与 claimer 同宿主），不指交互主 worktree——后者检出的是用户自己的分支，launchd 跑那里的引擎等于跑旧代码（#1578 修复因此从未生效）。`run-wayfinder-engine.sh` / `watcher.sh` 按脚本自身位置推导仓库根，`SANDCASTLE_HOST_REPO` 可覆盖。
+
+**spec 起草子代理**（#1588）：Claude Code CLI 经 CLIProxyLocal（`http://127.0.0.1:8318`，接线同 `claude-route.mts`），默认 `claude-opus-5-5`；`WAYFINDER_SPEC_MODEL` 只接受 Claude 家族白名单（`claude-opus-5-5` / `claude-fable-5-1`），其它值启动即 fail-loud。
+
 手工调试（仓库根，不写 tracker）：`npx tsx scripts/wayfinder_engine.mts --once --dry-run`。
 
 ## sandcastle 自动拾取 claim 循环（#1182 方向 A）
@@ -72,7 +76,7 @@ bash .sandcastle/install-sandcastle-claimer.sh uninstall # 卸载
 | 文件 | 作用 |
 |---|---|
 | `main.mts` | 管线入口。两段循环：frontier 取票+claim → 起沙盒 → Phase 1 实装 → Phase 2 评审；模型面常量（实装/评审模型、provider、迭代数）集中在文件顶部，升档改这里重跑。sandcastle 专属队列空时分开报全仓 `ready-for-agent` 数（#1084 追加，不把专属空误写成全空）。#1259 追加：claim 成功后、implementer started 之前的失败自动回滚认领（WorktreeTimeoutError 先重试一次，间隔 ≥5s）。 |
-| `run-wayfinder-engine.sh` | wayfinder_engine 控制面常驻壳（#1084 追加）：前台 exec `npx tsx scripts/wayfinder_engine.mts`，launchd KeepAlive 调用。 |
+| `run-wayfinder-engine.sh` | wayfinder_engine 控制面常驻壳（#1084 追加）：前台 exec `npx tsx scripts/wayfinder_engine.mts`，launchd KeepAlive 调用；仓库根按脚本位置推导（`SANDCASTLE_HOST_REPO` 可覆盖，#1588）。 |
 | `install-wayfinder-engine.sh` | 控制面 launchd 任务的安装/卸载/查状态（#1084 追加）。 |
 | `launchd/com.newchanlun.wayfinder-engine.plist` | 控制面 launchd 任务定义：KeepAlive + RunAtLoad + `--live`（#1084 追加）。 |
 | `claim-loop.mts` | 自动拾取 claim 循环常驻宿主（#1182 方向 A）：60s 轮询 frontier（sandcastle 标签 + 未 assign + 无 open blocker）+ 无 running 实例 guard → spawn `npx tsx .sandcastle/main.mts`；纯函数 `isRunnable`/`hasRunnableIssue` 可离线单测。#1259 追加：main.mts 收尾失败（exit≠0/被信号杀）与每轮看门狗（claim 后 >15min 无后续事件）按 workers.jsonl 判定回滚 stale-claimed 票（纯函数 `needsRollback`/`findStaleClaims`）。 |
