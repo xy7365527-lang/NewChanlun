@@ -132,12 +132,22 @@ jobs:
   #        曾被误标 `#[cfg(test)]`，产生 E0422（#452，已修复，复验不再出现）。
   #   - 因此当前本 job 预期全绿；若 required-features 面再漂移，将从
   #     "静默跳过"变成"可见地失败"，并让修复状态随复验同步更新。
+  # #1588：原 rust-check 单 job 串行全部 Rust 步，main run 39358379553 全程约 2h10m（150 分钟上限只剩 20 分钟）。
+  # 拆成下列并行 job，每个 job 独立 runner、独立磁盘（#1141 磁盘峰值随之下降），步骤与命令逐条保留：
+  #   rust-check                      编译检查 + fmt + 两个 CI 脚本自测
+  #   rust-test-default               cargo test 默认目标
+  #   rust-test-s-session (shard i)   s_session bin 测试按测试名分片（test-shard.py，并集 == 全集当场断言）
+  #   rust-test-s-session-coverage    汇总各片产物，再断言一次并集 == 全集、各片执行集 == 分配集
+  #   rust-test-s-session-extras      s_session 的 TB-02-C、库/集成测试、TestOnly 特性增量、v3 history
+  #   rust-test-backtest-bin          backtest_bin feature 的库测试
+  # 拆前 s_session bin 一步 89 分钟里，执行占 88 分钟、编译约 1 分钟；其中两条测试独占尾部
+  # （tb02w_killed_case_two_scan_budget_resume_and_recover 约 69 分钟、tb02c_persistent_first_kind_and_normal_recovery
+  # 约 49 分钟），其余 505 条在开跑 41 分钟内全部结束。分片后最长 job 的下限即最慢那条测试本身。
+  # 拆前 timeout 150（7e914f1e55，容纳单 job 全程）；拆后按各 job 实测分别设上限，仍兼作 #1406 挂死保护。
   rust-check:
     runs-on: ubuntu-latest
-    # 0c397d20de 加 60 分钟是防遥测采样进程挂死（#1406）。#1394 的 s_session / v3 / economic_session
-    # 步骤并入后，正常全程实测约 1h47m–1h49m（run 38516525815、39221888630），60 分钟会在 s_session
-    # 步骤中途被取消（run 39309747120）。放到 150 分钟：保留挂死上限，容纳正常全程。
-    timeout-minutes: 150
+    # #1406 防遥测采样进程挂死的上限；本 job 拆后只剩检查类步骤，正常约 3 分钟。
+    timeout-minutes: 30
     env:
       CARGO_INCREMENTAL: "0"
     defaults:
@@ -150,61 +160,10 @@ jobs:
       - name: Test cargo telemetry wrapper (#1141)
         run: ../.github/scripts/test-run-cargo-with-telemetry.sh
 
-      - name: Record runner, toolchain, linker, and initial resources (#1141)
-        run: |
-          set -x
-          echo "github_sha=$GITHUB_SHA"
-          echo "runner_os=$RUNNER_OS runner_arch=$RUNNER_ARCH"
-          echo "image_os=${ImageOS:-unset} image_version=${ImageVersion:-unset} image_release=${ImageRelease:-unset}"
-          cat /etc/os-release
-          uname -a
-          rustc -vV
-          cargo -V
-          rustup show active-toolchain
-          command -v cc
-          readlink -f "$(command -v cc)"
-          cc --version
-          rust_sysroot="$(rustc --print sysroot)"
-          rust_host="$(rustc -vV | awk '/^host:/ {print $2}')"
-          rust_lld="$rust_sysroot/lib/rustlib/$rust_host/bin/rust-lld"
-          if test -x "$rust_lld"; then
-            "$rust_lld" -flavor gnu --version
-          else
-            echo "bundled_rust_lld=not-found path=$rust_lld"
-          fi
-          if command -v ld.bfd; then
-            ld.bfd --version
-          fi
-          printf 'fn main() {}\n' > "$RUNNER_TEMP/rust-linker-probe.rs"
-          rustc --print link-args "$RUNNER_TEMP/rust-linker-probe.rs" -o "$RUNNER_TEMP/rust-linker-probe"
-          nproc
-          lscpu
-          free -b
-          df -B1 -T .
-          du -sx -B1 target 2>/dev/null || true
+      - name: Test s_session shard planner (#1588)
+        run: python3 ../.github/scripts/test_test_shard.py -v
 
-      # #1141：三轮都在 default-target test 链接阶段失败，且受害 bin 每轮漂移；
-      # run 32315548218 在 rust-lld signal 7 后明确报 ENOSPC。根因是磁盘耗尽，
-      # 不是已证实的固定对象损坏或 rust-lld regression。处置只压低磁盘峰值：
-      # 不恢复 target、不生成 incremental、两档测试串行；runner/toolchain/linker 不钉死。
-      - name: Cache cargo registry + git only (#1141)
-        id: cargo-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-registry-v1-
-
-      - name: Record cache result and post-cache resources (#1141)
-        run: |
-          echo "cache_primary_key=${{ runner.os }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}"
-          echo "cache_hit=${{ steps.cargo-cache.outputs.cache-hit }}"
-          free -b
-          df -B1 -T .
-          du -sx -B1 target 2>/dev/null || true
+      - uses: ./.github/actions/rust-job-setup
 
       - name: cargo check — default targets（required-features 未启用的 bin 不在内）
         run: |
@@ -240,40 +199,128 @@ jobs:
           df -B1 -T .
           du -sx -B1 target 2>/dev/null || true
 
-      # #810：`cargo check` 只保证编译、从不执行——34 个 Lean↔Rust parity 断言与
-      # `rust/tests/nest_isolation_guard.rs` 的「违规即测试红」此前只编译不运行，
-      # 锁形同虚设（成因定案见 #799 净发现①、#806）。
-      #
-      # #993 已把历史上的两条 parity 失败修绿；当前本步预期全绿，任何失败都是真回归。
-      # 本候选尚未完成两次远端 workflow_dispatch 验证，也没有当前 runner 上的可靠耗时；
-      # 须逐轮记录 rust-check job 与两档 cargo test 的实际耗时，再据此裁 timeout。
-      # 既有 #[ignore]（theta_v0_fixture_drift、profile_*、oddeven_*_diagnosis 等
-      # 需要 BTC 全量数据或 --release 的用例）维持现状，不在 #810 范围内摘除。
-      # #1404：成员来源回归先执行，避免已登记的默认域失败使本片新锁被跳过。
-      - name: cargo test — TB-02-C member source binding
-        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --bin s_structure_session tb02c_member_relations_bind_only_the_member_sources --jobs 1
+  # #810：`cargo check` 只保证编译、从不执行——34 个 Lean↔Rust parity 断言与
+  # `rust/tests/nest_isolation_guard.rs` 的「违规即测试红」此前只编译不运行，
+  # 锁形同虚设（成因定案见 #799 净发现①、#806）。
+  #
+  # #993 已把历史上的两条 parity 失败修绿；当前本步预期全绿，任何失败都是真回归。
+  # 既有 #[ignore]（theta_v0_fixture_drift、profile_*、oddeven_*_diagnosis 等
+  # 需要 BTC 全量数据或 --release 的用例）维持现状，不在 #810 范围内摘除。
+  rust-test-default:
+    runs-on: ubuntu-latest
+    # 拆前本步约 8.8 分钟（run 39358379553）。
+    timeout-minutes: 45
+    env:
+      CARGO_INCREMENTAL: "0"
+    defaults:
+      run:
+        working-directory: rust
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/rust-job-setup
 
       # #1563：--no-fail-fast——lib 目标的既有红（m3_partition_synthetic_holds，归 #1487/#1493）
       # 不再让其后的 bin / tests 目标被跳过；本步仍按任一失败判红，不掩盖。
       - name: cargo test — default targets
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --all-targets --no-fail-fast --jobs 1
 
-      # #1370：s_session 的 required-features 不在 default/backtest_bin 中启用。
-      # 运行正式 S bin 的回归测试，不能只编译或以默认目标的通过代替。
-      # 默认目标一步带着已登记的既有红（main 上 3 个），失败会让其后各步被跳过；
-      #   本步此前因此从未在 CI 执行，照本文件既有写法加 if: always()。
-      # #1394 根裁定 A：v3::financial_session 依赖只在 macOS 实现的会话保留量读数（heap_probe）与
-      #   peer uid（getpeereid），Linux 上 Session::start 诚实地报 MissingDependency。这批用例在本步
-      #   --skip，由 .github/workflows/ci-macos.yml 的 macOS 作业在生产平台真跑（手动触发本 CI 时经
-      #   下方 macos-session 作业一并执行；push main 由该文件自身的 paths 过滤触发）。
-      - name: cargo test — s_session 正式结构会话（#1370）
+  # #1370：s_session 的 required-features 不在 default/backtest_bin 中启用。
+  # 运行正式 S bin 的回归测试，不能只编译或以默认目标的通过代替。
+  # #1394 根裁定 A：v3::financial_session 依赖只在 macOS 实现的会话保留量读数（heap_probe）与
+  #   peer uid（getpeereid），Linux 上 Session::start 诚实地报 MissingDependency。这批用例在本步
+  #   --skip，由 .github/workflows/ci-macos.yml 的 macOS 作业在生产平台真跑（手动触发本 CI 时经
+  #   下方 macos-session 作业一并执行；push main 由该文件自身的 paths 过滤触发）。
+  # #1588：按测试名分片。全集每片现场 `--list` 动态生成（不维护静态清单），按
+  #   .github/scripts/s-session-test-weights.tsv 的实测耗时做 LPT 分配；权重只管均衡、不管覆盖，
+  #   表外新测试取中位数权重照常入片。改片数须同时改 matrix.shard 与 S_SESSION_SHARDS。
+  rust-test-s-session:
+    name: rust-test-s-session (shard ${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    # 最慢那片只含 tb02w 一条长测试，拆前在 4 线程争用下约 69 分钟；留出挂死上限余量。
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    env:
+      CARGO_INCREMENTAL: "0"
+      S_SESSION_SHARDS: "4"
+    defaults:
+      run:
+        working-directory: rust
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/rust-job-setup
+
+      - name: cargo test — s_session 正式结构会话 分片 ${{ matrix.shard }}（#1370、#1588）
+        run: >-
+          ../.github/scripts/run-cargo-with-telemetry.sh
+          python3 ../.github/scripts/test-shard.py run
+          --index ${{ matrix.shard }} --count "$S_SESSION_SHARDS"
+          --weights ../.github/scripts/s-session-test-weights.tsv
+          --out "$RUNNER_TEMP/s-session-shard"
+          --skip v3::financial_session
+          -- --locked --features s_session --bin s_structure_session --jobs 1
+
+      - name: Upload shard plan and results (#1588)
         if: always()
-        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --bin s_structure_session --jobs 1 -- --skip v3::financial_session
+        uses: actions/upload-artifact@v4
+        with:
+          name: s-session-shard-${{ matrix.shard }}
+          path: ${{ runner.temp }}/s-session-shard
+          if-no-files-found: error
+          retention-days: 14
+
+  # #1588：防漏测的第二道门。各片在自己 job 内已断言「分片两两不交、并集 == 全集」与「执行集 == 分配集」；
+  #   这里拿各片实际产物再核一次，并确认各片看到的全集一致、片数齐全（某片被取消或漏传产物即红）。
+  rust-test-s-session-coverage:
+    runs-on: ubuntu-latest
+    needs: rust-test-s-session
+    if: always()
+    timeout-minutes: 10
+    env:
+      S_SESSION_SHARDS: "4"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: s-session-shard-*
+          path: ${{ runner.temp }}/s-session-shards
+
+      - name: Verify shard union == full test set (#1588)
+        run: python3 .github/scripts/test-shard.py verify --count "$S_SESSION_SHARDS" "$RUNNER_TEMP"/s-session-shards/s-session-shard-*
+
+  # #1394：s_session feature 下除 S bin 主体外的各步。拆 job 后与默认目标、S bin 分片互不阻塞；
+  #   本 job 内仍照原写法加 if: always()，前一步失败不让后面各步被跳过，job 结论由失败那一步决定。
+  rust-test-s-session-extras:
+    runs-on: ubuntu-latest
+    # 拆前这六步合计约 21 分钟（run 39358379553），大头是 s_capture_native_testonly 增量 15.4 分钟。
+    timeout-minutes: 60
+    env:
+      CARGO_INCREMENTAL: "0"
+    defaults:
+      run:
+        working-directory: rust
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/rust-job-setup
+
+      # #1404：成员来源回归单列先执行，避免已登记的默认域失败使本片新锁被跳过。
+      #   #1588：该用例同时在 S bin 分片里执行（拆前即两处执行），本步保留其独立可见的信号。
+      - name: cargo test — TB-02-C member source binding
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --bin s_structure_session tb02c_member_relations_bind_only_the_member_sources --jobs 1
 
       # #1394 C：内容编码在 s_session feature 下供多个 owner 共用；只测 S bin 不会执行库测试。
-      # #1394 整合 C-1：本步与下一步不依赖「default targets」与 s_session bin 两步的结果；
-      #   已登记的默认域既有红会让这两步被跳过，故照本文件既有写法加 if: always()。
-      #   job 结论仍由失败的那一步决定，本条不掩盖它。
       - name: cargo test — 完整内容编码与共享图校验（#1394）
         if: always()
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --lib --jobs 1 s_content
@@ -293,7 +340,7 @@ jobs:
 
       # #1394/#1481：s_capture_native_testonly 特性下才编译的测试（2026-10-14 计：lib 26、S bin 174）此前从未编译、
       #   从未执行（state.rs 测试调用漏传 cfg 参数，开特性即 E0061）。只跑「开特性后新增」的测试，其余同名同体测试
-      #   已在上面 s_session 步执行；新增集合为空即失败。本机端到端（四次编译加执行）约 9 min；CI 估 20–25 min。
+      #   已在 rust-test-s-session 各分片执行；新增集合为空即失败。拆前 CI 实测 15.4 分钟（run 39358379553）。
       - name: cargo test — s_capture_native_testonly 特性新增的测试（#1394）
         if: always()
         run: ../.github/scripts/run-cargo-with-telemetry.sh ../.github/scripts/test-feature-delta.sh s_capture_native_testonly
@@ -304,8 +351,22 @@ jobs:
         if: always()
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_allocation_json_testonly --bin s_structure_session v3::history --jobs 1
 
+  rust-test-backtest-bin:
+    runs-on: ubuntu-latest
+    # 拆前本步约 9.3 分钟（run 39358379553）。
+    timeout-minutes: 45
+    env:
+      CARGO_INCREMENTAL: "0"
+    defaults:
+      run:
+        working-directory: rust
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/rust-job-setup
+
       - name: cargo test — backtest_bin feature（econ_oddeven_diagnosis.rs 仅在此 feature 下编译）
-        if: always()
         # 2026-08-16 磁盘实撞（#993 收口轮）：三轮 runner 爆盘（No space left on device）——
         # --all-targets 在 feature 下额外编 56 个探针 bin 的 test 目标（各链 nautilus 套件，
         # 本地实测 debug 全 target 55G ⟹ 14G 盘必爆）。改 --lib：backtest 模块测试（含

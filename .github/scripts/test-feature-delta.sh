@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # #1394/#1481：只执行「开某个 TestOnly 特性后才编译出来」的测试。
-# 其余同名测试与不带该特性的 s_session 步同体，已在那一步执行；这里只补特性新增的那一批。
+# 其余同名测试与不带该特性的 s_session 步同体，已在那一步执行（#1588 起为 ci.yml 的 rust-test-s-session 各分片）；
+# 这里只补特性新增的那一批。
 # 用法（在 rust/ 下）：test-feature-delta.sh <feature>
 # 门：两份 --list 都须成功；新增集合为空即失败（只编译不执行、或一个都没编出来，都按无锁计）。
 
