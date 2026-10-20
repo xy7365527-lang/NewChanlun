@@ -5678,7 +5678,10 @@ mod tests {
             &src,
         );
         assert_eq!(f.s_gate_open, 3, "C1 之后三段均过上涨局部趋势门");
-        assert_eq!(f.s_broke, 2, "leave/top 两个上涨段破 C1.zg；retest 段锚 Down 不计");
+        assert_eq!(
+            f.s_broke, 2,
+            "leave/top 两个上涨段破 C1.zg；retest 段锚 Down 不计"
+        );
         assert_eq!(f.s_mapped, 2, "两个 broke 段均配对 A 并映射到 closes");
         assert_eq!(f.s_diverge, 0, "C 段急涨强于 A ⟹ 无背驰");
     }
