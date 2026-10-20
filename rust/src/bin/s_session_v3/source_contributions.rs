@@ -1793,6 +1793,7 @@ pub(crate) fn audit_native_bound(
         if material.codec_work().is_none() {
             return Err(err("Native来源增量缺原父工作账"));
         }
+        let reused = previous.is_some(); // S4 negctrl
         let mut state = match previous {
             Some(state) => state,
             None => NativeSourceState::empty(material, raw, material.root(), rule)?,
@@ -1820,6 +1821,9 @@ pub(crate) fn audit_native_bound(
         let mut dirty_witness = Tree::default();
         let mut pending_changed = Tree::default();
         let membership = state.raw_advance(material, raw, &mut dirty_objects)?;
+        if reused {
+            dirty_objects = Tree::default(); // S4 negctrl：增量来源审计丢弃本代脏对象集
+        }
         #[cfg(test)]
         super::super::state::trace_event("source_objects", None);
         state.object_phase(
