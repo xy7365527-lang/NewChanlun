@@ -2720,6 +2720,12 @@ mod construction_coverage_tests {
             let error = validate_stage_coverage(&j).unwrap_err();
             assert!(error.contains("node多次事件序/实际写数不符"), "{error}");
             j.events.insert(noop, saved);
+            // 丢尾部 Noop（其后再无首见 key 可错位）：只靠 node 事件数==material_epoch 闭合核抓住。
+            let tail = j.events.pop().unwrap();
+            assert!(!tail.inserted());
+            let error = validate_stage_coverage(&j).unwrap_err();
+            assert!(error.contains("node多次事件序/实际写数不符"), "{error}");
+            j.events.push(tail);
             // key 下标越过首见序或指向别的 key：拒绝。
             let future = Receipt::node(j.keys.len() + 1, 0, 0, false).unwrap();
             j.events[noop] = future;
