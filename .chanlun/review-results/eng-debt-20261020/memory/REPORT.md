@@ -122,9 +122,10 @@ $P $D classifier 2000 1; $P $D classifier 20000 50; $P $D classifier 49995 50
   - 两份复跑日志各 21 组：facts 2k/5k/10k/20k；replay-drop、replay-hold、classifier 各 2k/5k/10k/20k/49,995；classifier 2k 逐 bar；classifier 20k 每 50 bar。
   - 修前复跑与 `145238-da78044035` 的 alloc_total、peak、retained、计数和摘要逐字相同。修后复跑的非 facts 组与 `150150-7775135c0f` 逐字相同，facts 组与 `152224-c262c34b73` 逐字相同。
   - 修前复跑与修后复跑的全部 layer/rolling 摘要逐字相同。
-- 复跑未包含两项，仍以窗口内原日志为准：
-  - replay-hold/replay-drop 5k 逐 bar 摘要（`7fe1cda4…`）。
-  - classifier 49,995 每 50 bar 摘要（`00658642…`）。修前一侧只有反证提交 `0265c224cd` 的日志，修后一侧有 `7775135c0f`、`c262c34b73` 两份日志，三份都在窗口内。
+- 主控复跑没覆盖两项，作者已在窗口外用 `NC_TARGET=eng1588` 补跑：
+  - **replay 5k 逐 bar 摘要**：在 `1bc3534014` 上跑 replay-drop 与 replay-hold，rolling 都是 `7fe1cda4…cd073`；replay 20k/49,995 两种持有方式的 alloc/peak 也与表格一致。日志 `/tmp/nc-remote/20261020-180238-1bc3534014.log`。
+  - **classifier 49,995 每 50 bar**：修前 `da78044035`（临时本地分支，跑完即删）alloc_total 127,944.6 MB，修后 `1bc3534014` 为 4,554.4 MB。两边 rolling 都是 `00658642…75d2`，last_out/last_l0 也相同。日志 `/tmp/nc-remote/20261020-180340-da78044035.log` 和 `/tmp/nc-remote/20261020-180411-1bc3534014.log`。原先修前侧只有反证提交上的结果，现在有了真正的修前提交。
+  - 每 50 bar 求一次摘要本身会多分配一点，所以 49,995 档比条目 1 表里 every=0 的数字高约 0.4 MB。
 
 ## 与在途分支的关系
 
