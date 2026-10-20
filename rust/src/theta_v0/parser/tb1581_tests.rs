@@ -213,7 +213,7 @@ fn tb1581_classifier_refuses_marked_layer_with_warm_cache() {
     assert!(checked_after);
 }
 
-/// 诊断：对拍摘要出现差异时，定位生产路径上首次出现标记的 bar 与路径。
+/// 诊断：生产增量路径上出现标记的 bar 区间（不与批量入口交错，排除线程态串扰）。
 #[test]
 #[ignore = "诊断探针"]
 fn tb1581_probe_marker_in_production() {
@@ -221,27 +221,16 @@ fn tb1581_probe_marker_in_production() {
     for seed in 0..6u64 {
         let bars = tb1581_bars(0x1581_0000 + seed, 4_000);
         let mut incr = ParseLayerIncr::new(&cfg);
-        let mut first_incr = None;
+        let mut runs: Vec<(usize, usize, Option<usize>)> = Vec::new();
         for (i, bar) in bars.iter().enumerate() {
             let layer = incr.append(*bar);
-            if first_incr.is_none() {
-                if let Some(p) = layer.segments_parse_invalid_from {
-                    first_incr = Some((i, p, layer.strokes.len(), layer.segments.len()));
+            if let Some(p) = layer.segments_parse_invalid_from {
+                match runs.last_mut() {
+                    Some(r) if r.1 + 1 == i && r.2 == Some(p) => r.1 = i,
+                    _ => runs.push((i, i, Some(p))),
                 }
             }
-            if i % 1_000 == 999 {
-                let full = parse_layer(&bars[..=i], &cfg);
-                let (facts_layer, f) = parse_layer_with_inclusion_facts(&bars[..=i], &cfg);
-                let sf = f.segment_facts.as_ref().unwrap();
-                eprintln!(
-                    "tb1581 probe seed={seed} bar={i} incr={:?} batch={:?} facts={:?} facts_inv={:?}",
-                    layer.segments_parse_invalid_from,
-                    full.segments_parse_invalid_from,
-                    facts_layer.segments_parse_invalid_from,
-                    sf.parse_invalid_from
-                );
-            }
         }
-        eprintln!("tb1581 probe seed={seed} first_incr={first_incr:?}");
+        eprintln!("tb1581 probe seed={seed} marker_runs(bar_from,bar_to,seg_start)={runs:?}");
     }
 }
