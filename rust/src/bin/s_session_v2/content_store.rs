@@ -2502,12 +2502,9 @@ fn capture_originals_admitted(
         let next_permit = if next > nodes.len() {
             if let Some(work) = work {
                 tree_permit.try_reserve_native(work, 1)?;
-                let depth = usize::BITS as usize - nodes.len().leading_zeros() as usize + 2;
-                let bytes = std::mem::size_of::<(NodeDigest, (u8, Vec<u8>))>()
-                    .checked_mul(11)
-                    .and_then(|n| n.checked_add(16 * std::mem::size_of::<usize>()))
-                    .and_then(|n| n.checked_mul(depth))
-                    .ok_or_else(|| NativeAdmission(Some(work)).native_overflow())?;
+                // 每个新条目在插入前追加一整节点许可：BTree 每个节点至少含一键，
+                // 累计许可恒覆盖 tree_slots(len) 线性上界（与原整树单票同额），不按深度重复计费。
+                let bytes = crate::v3::audit_retention::tree_slots::<NodeDigest, (u8, Vec<u8>)>(1);
                 Some(work.reserve_native(bytes)?)
             } else {
                 None
