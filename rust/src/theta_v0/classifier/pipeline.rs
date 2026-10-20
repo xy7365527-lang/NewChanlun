@@ -447,7 +447,10 @@ pub struct TowerPolicyStamp {
 
 impl TowerPolicyStamp {
     pub fn of(config: &ThetaConfig) -> Self {
-        TowerPolicyStamp { level_budget: config.level.budget, macd: config.macd.record }
+        TowerPolicyStamp {
+            level_budget: config.level.budget,
+            macd: config.macd.record,
+        }
     }
 }
 
@@ -683,7 +686,12 @@ fn classify_incremental_inner(
         }
         cache.clear();
         cache.candidate_book.advance(&[], as_of);
-        return (Classification::default(), Vec::new(), Vec::new(), TowerTermination::Natural);
+        return (
+            Classification::default(),
+            Vec::new(),
+            Vec::new(),
+            TowerTermination::Natural,
+        );
     }
 
     cache.last_l0_segments_len = l0.segments.len();
@@ -1725,7 +1733,12 @@ fn classify_incremental_inner(
     );
 
     debug_assert_l0_units_in_sync(cache, &tower_snapshots);
-    (Classification { levels }, tower_snapshots, operations, termination)
+    (
+        Classification { levels },
+        tower_snapshots,
+        operations,
+        termination,
+    )
 }
 
 /// ★#613（#609 F2，#712 收 #645 MED-1 随入）：[`TowerCache::level_scan_units`]（level=1，即

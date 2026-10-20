@@ -42,7 +42,11 @@ fn reaching_l_max_with_upgradable_units_marks_resource_bound() {
     let truncated = classify(&layer, &cfg, &[]);
     assert_eq!(truncated.classification.levels.len(), 1, "l_max=0 只构 L0");
     match truncated.termination {
-        TowerTermination::ResourceBound { l_max, pending_units, budget } => {
+        TowerTermination::ResourceBound {
+            l_max,
+            pending_units,
+            budget,
+        } => {
             assert_eq!(l_max, 0);
             assert!(pending_units >= 3, "下一级仍有 ≥ min_parts 个单元可升级");
             assert_eq!(budget.label(), "tower-level-budget/2");
@@ -51,7 +55,10 @@ fn reaching_l_max_with_upgradable_units_marks_resource_bound() {
     }
     assert_eq!(truncated.termination.code(), "INCOMPLETE_RESOURCE_BOUND");
     assert!(truncated.is_resource_truncated());
-    assert_eq!(truncated.policy.level_budget.label(), "tower-level-budget/2");
+    assert_eq!(
+        truncated.policy.level_budget.label(),
+        "tower-level-budget/2"
+    );
 }
 
 /// 专项验收②：改 MACD 记录版本 ⟹ 输出版本号随之变化；同版本两次运行逐位相同。
@@ -70,9 +77,14 @@ fn macd_record_version_flows_to_output_and_reruns_are_bit_identical() {
     assert_eq!(c, d, "v2 同版本两次运行逐位相同");
     assert_eq!(c.policy.macd.label(), "macd-force/2");
     assert_ne!(a.policy, c.policy, "改记录版本 ⟹ 输出戳变化");
-    assert_eq!((cfg2.macd.fast, cfg2.macd.slow, cfg2.macd.signal), (5, 35, 5));
+    assert_eq!(
+        (cfg2.macd.fast, cfg2.macd.slow, cfg2.macd.signal),
+        (5, 35, 5)
+    );
     // 计算端确实读记录参数：忽略 cfg、写死 12/26/9 的变异体在此变红。
-    let closes: Vec<f64> = (0..80).map(|i| 100.0 + 7.0 * ((i as f64) * 0.37).sin()).collect();
+    let closes: Vec<f64> = (0..80)
+        .map(|i| 100.0 + 7.0 * ((i as f64) * 0.37).sin())
+        .collect();
     let h1 = divergence::compute_macd(&closes, &base.macd).hist;
     let h2 = divergence::compute_macd(&closes, &cfg2.macd).hist;
     assert_ne!(h1, h2, "MACD v2 参数须改变力度读数");
@@ -85,5 +97,8 @@ fn research_override_is_labelled() {
     cfg.level.research_override_l_max(8);
     assert_eq!(cfg.level.budget.version, PolicyVersion::ResearchOverride);
     let out = classify(&operation_oscillating_layer(), &cfg, &[]);
-    assert_eq!(out.policy.level_budget.label(), "tower-level-budget/research-override");
+    assert_eq!(
+        out.policy.level_budget.label(),
+        "tower-level-budget/research-override"
+    );
 }

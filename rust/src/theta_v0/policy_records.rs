@@ -26,7 +26,8 @@ pub const TOWER_LEVEL_BUDGET_ID: &str = "tower-level-budget";
 pub const MACD_FORCE_ID: &str = "macd-force";
 
 /// 当前生效的级别塔资源预算记录（编进二进制）。
-pub const ACTIVE_TOWER_LEVEL_BUDGET_JSON: &str = include_str!("policy_records/tower-level-budget.json");
+pub const ACTIVE_TOWER_LEVEL_BUDGET_JSON: &str =
+    include_str!("policy_records/tower-level-budget.json");
 /// 当前生效的 MACD 力度 policy 记录（编进二进制）。
 pub const ACTIVE_MACD_FORCE_JSON: &str = include_str!("policy_records/macd-force.json");
 
@@ -69,15 +70,24 @@ pub enum PolicyError {
     /// 字段未签：字段缺失，或 `value` 为 `null` / `"AwaitingPolicy"`。
     AwaitingPolicy { id: &'static str, field: String },
     /// 记录或字段值非法。
-    Invalid { id: &'static str, field: String, reason: String },
+    Invalid {
+        id: &'static str,
+        field: String,
+        reason: String,
+    },
 }
 
 impl std::fmt::Display for PolicyError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PolicyError::RecordMissing { id } => write!(f, "RecordMissing{{{id}}}：未提供版本化记录"),
+            PolicyError::RecordMissing { id } => {
+                write!(f, "RecordMissing{{{id}}}：未提供版本化记录")
+            }
             PolicyError::AwaitingPolicy { id, field } => {
-                write!(f, "AwaitingPolicy{{{id}.{field}}}：字段未签，不回退任何备用值")
+                write!(
+                    f,
+                    "AwaitingPolicy{{{id}.{field}}}：字段未签，不回退任何备用值"
+                )
             }
             PolicyError::Invalid { id, field, reason } => {
                 write!(f, "InvalidPolicy{{{id}.{field}}}：{reason}")
@@ -89,7 +99,11 @@ impl std::fmt::Display for PolicyError {
 impl std::error::Error for PolicyError {}
 
 fn invalid(id: &'static str, field: &str, reason: impl Into<String>) -> PolicyError {
-    PolicyError::Invalid { id, field: field.to_string(), reason: reason.into() }
+    PolicyError::Invalid {
+        id,
+        field: field.to_string(),
+        reason: reason.into(),
+    }
 }
 
 /// 解析记录头：`id` 必须等于期望 id，`version` 必须是正整数。返回 (`PolicyRef`, `fields` 对象)。
@@ -98,17 +112,28 @@ fn parse_header(
     text: Option<&str>,
 ) -> Result<(PolicyRef, serde_json::Map<String, Value>), PolicyError> {
     let text = text.ok_or(PolicyError::RecordMissing { id })?;
-    let root: Value =
-        serde_json::from_str(text).map_err(|e| invalid(id, "<record>", format!("不是合法 JSON：{e}")))?;
-    let obj = root.as_object().ok_or_else(|| invalid(id, "<record>", "记录必须是 JSON 对象"))?;
+    let root: Value = serde_json::from_str(text)
+        .map_err(|e| invalid(id, "<record>", format!("不是合法 JSON：{e}")))?;
+    let obj = root
+        .as_object()
+        .ok_or_else(|| invalid(id, "<record>", "记录必须是 JSON 对象"))?;
     match obj.get("id").and_then(Value::as_str) {
         Some(got) if got == id => {}
-        Some(got) => return Err(invalid(id, "id", format!("记录 id `{got}` 与期望 `{id}` 不符"))),
+        Some(got) => {
+            return Err(invalid(
+                id,
+                "id",
+                format!("记录 id `{got}` 与期望 `{id}` 不符"),
+            ))
+        }
         None => return Err(invalid(id, "id", "缺 id")),
     }
     let version = match obj.get("version") {
         None | Some(Value::Null) => {
-            return Err(PolicyError::AwaitingPolicy { id, field: "version".to_string() })
+            return Err(PolicyError::AwaitingPolicy {
+                id,
+                field: "version".to_string(),
+            })
         }
         Some(v) => v
             .as_u64()
@@ -120,7 +145,13 @@ fn parse_header(
         .and_then(Value::as_object)
         .cloned()
         .ok_or_else(|| invalid(id, "fields", "缺 fields 对象"))?;
-    Ok((PolicyRef { id, version: PolicyVersion::Signed(version as u32) }, fields))
+    Ok((
+        PolicyRef {
+            id,
+            version: PolicyVersion::Signed(version as u32),
+        },
+        fields,
+    ))
 }
 
 /// 读一个非负整数字段（`fields.<name>.value`）。
@@ -129,7 +160,10 @@ fn read_u32(
     fields: &serde_json::Map<String, Value>,
     name: &str,
 ) -> Result<u32, PolicyError> {
-    let awaiting = || PolicyError::AwaitingPolicy { id, field: name.to_string() };
+    let awaiting = || PolicyError::AwaitingPolicy {
+        id,
+        field: name.to_string(),
+    };
     let entry = fields.get(name).ok_or_else(awaiting)?;
     // 直接写 `"l_max": null` / `"l_max": "AwaitingPolicy"` 也按未签处理（ADR 0041 裁定三：签署门默认值
     // 就是 AwaitingPolicy）；其余非对象写法判格式错。规范写法为 `{"value": …}`。
@@ -171,9 +205,18 @@ pub fn parse_macd_force(text: Option<&str>) -> Result<MacdConfig, PolicyError> {
         }
     }
     if fast >= slow {
-        return Err(invalid(MACD_FORCE_ID, "slow", format!("须 fast < slow，得 {fast} ≥ {slow}")));
+        return Err(invalid(
+            MACD_FORCE_ID,
+            "slow",
+            format!("须 fast < slow，得 {fast} ≥ {slow}"),
+        ));
     }
-    Ok(MacdConfig { fast, slow, signal, record })
+    Ok(MacdConfig {
+        fast,
+        slow,
+        signal,
+        record,
+    })
 }
 
 /// `tower-level-budget` 记录的解析结果。
@@ -195,16 +238,20 @@ pub fn active_macd_force() -> Result<MacdConfig, PolicyError> {
 
 /// 由预算记录 + 中枢三段下限组装 [`LevelConfig`]。
 pub fn level_config_from(budget: TowerLevelBudget, min_parts_per_level: u32) -> LevelConfig {
-    LevelConfig { l_max: budget.l_max, min_parts_per_level, budget: budget.record }
+    LevelConfig {
+        l_max: budget.l_max,
+        min_parts_per_level,
+        budget: budget.record,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const TOWER_V2_L3: &str = r#"{"id":"tower-level-budget","version":2,"fields":{"l_max":{"value":3}}}"#;
-    const MACD_V2: &str =
-        r#"{"id":"macd-force","version":2,"fields":{"fast":{"value":5},"slow":{"value":35},"signal":{"value":5}}}"#;
+    const TOWER_V2_L3: &str =
+        r#"{"id":"tower-level-budget","version":2,"fields":{"l_max":{"value":3}}}"#;
+    const MACD_V2: &str = r#"{"id":"macd-force","version":2,"fields":{"fast":{"value":5},"slow":{"value":35},"signal":{"value":5}}}"#;
 
     #[test]
     fn active_records_carry_current_values_and_version_1() {
@@ -219,7 +266,10 @@ mod tests {
     #[test]
     fn other_legal_versions_parse_with_their_own_version() {
         let t = parse_tower_level_budget(Some(TOWER_V2_L3)).unwrap();
-        assert_eq!((t.l_max, t.record.label().as_str()), (3, "tower-level-budget/2"));
+        assert_eq!(
+            (t.l_max, t.record.label().as_str()),
+            (3, "tower-level-budget/2")
+        );
         let m = parse_macd_force(Some(MACD_V2)).unwrap();
         assert_eq!((m.fast, m.slow, m.signal), (5, 35, 5));
         assert_eq!(m.record.label(), "macd-force/2");
@@ -266,45 +316,72 @@ mod tests {
     fn negative_controls_missing_unsigned_invalid() {
         assert_eq!(
             parse_tower_level_budget(None),
-            Err(PolicyError::RecordMissing { id: TOWER_LEVEL_BUDGET_ID })
+            Err(PolicyError::RecordMissing {
+                id: TOWER_LEVEL_BUDGET_ID
+            })
         );
-        assert_eq!(parse_macd_force(None), Err(PolicyError::RecordMissing { id: MACD_FORCE_ID }));
+        assert_eq!(
+            parse_macd_force(None),
+            Err(PolicyError::RecordMissing { id: MACD_FORCE_ID })
+        );
 
         let no_field = r#"{"id":"tower-level-budget","version":1,"fields":{}}"#;
         assert_eq!(
             parse_tower_level_budget(Some(no_field)),
-            Err(PolicyError::AwaitingPolicy { id: TOWER_LEVEL_BUDGET_ID, field: "l_max".into() })
+            Err(PolicyError::AwaitingPolicy {
+                id: TOWER_LEVEL_BUDGET_ID,
+                field: "l_max".into()
+            })
         );
         let unsigned = r#"{"id":"tower-level-budget","version":1,"fields":{"l_max":{"value":"AwaitingPolicy"}}}"#;
         assert!(matches!(
             parse_tower_level_budget(Some(unsigned)),
             Err(PolicyError::AwaitingPolicy { .. })
         ));
-        let null_signal =
-            r#"{"id":"macd-force","version":1,"fields":{"fast":{"value":12},"slow":{"value":26},"signal":{"value":null}}}"#;
+        let null_signal = r#"{"id":"macd-force","version":1,"fields":{"fast":{"value":12},"slow":{"value":26},"signal":{"value":null}}}"#;
         assert_eq!(
             parse_macd_force(Some(null_signal)),
-            Err(PolicyError::AwaitingPolicy { id: MACD_FORCE_ID, field: "signal".into() })
+            Err(PolicyError::AwaitingPolicy {
+                id: MACD_FORCE_ID,
+                field: "signal".into()
+            })
         );
 
         let negative = r#"{"id":"tower-level-budget","version":1,"fields":{"l_max":{"value":-1}}}"#;
-        assert!(matches!(parse_tower_level_budget(Some(negative)), Err(PolicyError::Invalid { .. })));
-        let fast_ge_slow =
-            r#"{"id":"macd-force","version":1,"fields":{"fast":{"value":26},"slow":{"value":12},"signal":{"value":9}}}"#;
-        assert!(matches!(parse_macd_force(Some(fast_ge_slow)), Err(PolicyError::Invalid { .. })));
-        let zero_period =
-            r#"{"id":"macd-force","version":1,"fields":{"fast":{"value":0},"slow":{"value":26},"signal":{"value":9}}}"#;
-        assert!(matches!(parse_macd_force(Some(zero_period)), Err(PolicyError::Invalid { .. })));
+        assert!(matches!(
+            parse_tower_level_budget(Some(negative)),
+            Err(PolicyError::Invalid { .. })
+        ));
+        let fast_ge_slow = r#"{"id":"macd-force","version":1,"fields":{"fast":{"value":26},"slow":{"value":12},"signal":{"value":9}}}"#;
+        assert!(matches!(
+            parse_macd_force(Some(fast_ge_slow)),
+            Err(PolicyError::Invalid { .. })
+        ));
+        let zero_period = r#"{"id":"macd-force","version":1,"fields":{"fast":{"value":0},"slow":{"value":26},"signal":{"value":9}}}"#;
+        assert!(matches!(
+            parse_macd_force(Some(zero_period)),
+            Err(PolicyError::Invalid { .. })
+        ));
         let wrong_id = r#"{"id":"macd-force","version":1,"fields":{"l_max":{"value":6}}}"#;
-        assert!(matches!(parse_tower_level_budget(Some(wrong_id)), Err(PolicyError::Invalid { .. })));
-        let bare_unsigned = r#"{"id":"tower-level-budget","version":1,"fields":{"l_max":"AwaitingPolicy"}}"#;
+        assert!(matches!(
+            parse_tower_level_budget(Some(wrong_id)),
+            Err(PolicyError::Invalid { .. })
+        ));
+        let bare_unsigned =
+            r#"{"id":"tower-level-budget","version":1,"fields":{"l_max":"AwaitingPolicy"}}"#;
         assert!(matches!(
             parse_tower_level_budget(Some(bare_unsigned)),
             Err(PolicyError::AwaitingPolicy { .. })
         ));
         let bare = r#"{"id":"tower-level-budget","version":1,"fields":{"l_max":6}}"#;
-        assert!(matches!(parse_tower_level_budget(Some(bare)), Err(PolicyError::Invalid { .. })));
+        assert!(matches!(
+            parse_tower_level_budget(Some(bare)),
+            Err(PolicyError::Invalid { .. })
+        ));
         let bad_version = r#"{"id":"macd-force","version":0,"fields":{}}"#;
-        assert!(matches!(parse_macd_force(Some(bad_version)), Err(PolicyError::Invalid { .. })));
+        assert!(matches!(
+            parse_macd_force(Some(bad_version)),
+            Err(PolicyError::Invalid { .. })
+        ));
     }
 }

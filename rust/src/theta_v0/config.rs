@@ -483,7 +483,11 @@ impl ThetaConfig {
     pub fn try_from_active_records() -> Result<Self, super::policy_records::PolicyError> {
         let level = LevelConfig::from_active_record()?;
         let macd = super::policy_records::active_macd_force()?;
-        Ok(ThetaConfig { level, macd, ..ThetaConfig::default() })
+        Ok(ThetaConfig {
+            level,
+            macd,
+            ..ThetaConfig::default()
+        })
     }
 }
 
