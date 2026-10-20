@@ -2759,6 +2759,8 @@ fn array_from_node(
     cache: &mut ArrayCache,
     leaves: &mut Leaves<'_>,
 ) -> Result<ArrayEntry, ProducerError> {
+    #[cfg(test)]
+    let _phase = tests::emission_phase("coords_array_memo");
     enum Step {
         Enter(Rc<CoordNode>),
         Exit(Rc<CoordNode>),
@@ -5496,7 +5498,13 @@ mod tests {
                     append(&mut warm, next);
                 }
                 generation = GENERATION + step as i64;
-                let (objects, written) = fractal_generation_with_new_nodes(&mut warm, reuse, generation);
+                let _phases = enable_emission_phases();
+                warm.store.emissions = Some(EmissionInventory {
+                    phase: "fractal_other",
+                    ..EmissionInventory::default()
+                });
+                let (objects, written) =
+                    fractal_generation_with_new_nodes(&mut warm, reuse, generation);
                 let refs: Vec<sc::ContentRef> = objects
                     .iter()
                     .flat_map(|object| {
@@ -5515,23 +5523,39 @@ mod tests {
                     })
                     .collect();
                 let reachable = reachable_nodes(&mut warm.store.nodes, &refs);
-                // 唯一许可的残留：coords 数组 memo 的子树条目（AVL 子树数组帧与其 concat 右脊，
-                // 留作下代命中复用，不是 append 作废根）；必须**恰好**被 memo 条目闭包覆盖。
+                // 唯一许可的残留：只在 `array_from_node`（共享 coords AVL 的数组 memo）里落的节点——
+                // ① memo 子树条目（数组帧 + 序列根，留作下代命中复用）；② 其 `sequence_concat`
+                // 内部 split 片段。二者都不是 append 作废根，逐代读数打印入报告。
                 let memo_refs = warm.producer.memo_array_refs();
                 let memo = reachable_nodes(&mut warm.store.nodes, &memo_refs);
-                let residual = written
+                let emissions = warm.store.emissions.take().expect("本代已开账");
+                let memo_only = |digest: &NodeDigest| {
+                    emissions.materials.iter().any(|((stored, _), entries)| {
+                        stored == digest
+                            && entries.iter().all(|entry| {
+                                entry.phases.keys().all(|phase| *phase == "coords_array_memo")
+                            })
+                    })
+                };
+                let unreachable: Vec<NodeDigest> = written
                     .iter()
-                    .filter(|digest| !reachable.contains(*digest) && memo.contains(*digest))
-                    .count();
-                println!(
-                    "S3_FRACTAL_ORPHANS reuse={reuse} step={step} written={} memo_residual={residual}",
-                    written.len()
-                );
-                let orphans: Vec<NodeDigest> = written
-                    .iter()
-                    .filter(|digest| !reachable.contains(*digest) && !memo.contains(*digest))
+                    .filter(|digest| !reachable.contains(*digest))
                     .copied()
                     .collect();
+                let held = unreachable.iter().filter(|digest| memo.contains(*digest)).count();
+                let orphans: Vec<NodeDigest> = unreachable
+                    .iter()
+                    .filter(|digest| !memo_only(digest))
+                    .copied()
+                    .collect();
+                println!(
+                    "S3_FRACTAL_ORPHANS reuse={reuse} step={step} written={} unreachable={} \
+                     memo_held={held} memo_concat_internal={} other={}",
+                    written.len(),
+                    unreachable.len(),
+                    unreachable.len() - held - orphans.len(),
+                    orphans.len()
+                );
                 let mut by_tag: BTreeMap<u8, usize> = BTreeMap::new();
                 let mut samples: Vec<String> = Vec::new();
                 for digest in &orphans {
