@@ -657,18 +657,8 @@ function renderTicket(t: TicketContext): string {
 // ───────────────────────── 考古（起草前） ─────────────────────────
 
 /**
- * 考古阶段（用户 2026-10-20 令「所有的裁决票都要先考古」）。不是新机制，是三条既有规矩在无人值守裁决面上的执行：
- *   - /grilling「If a *fact* can be found by exploring the environment … look it up rather than asking me.
- *     The *decisions*, though, are mine」——事实查环境，决定才问人；
- *   - /domain-modeling（/grill-with-docs = /grilling + /domain-modeling）：对照 CONTEXT.md 与 docs/adr，
- *     已裁的直接用，与代码或词汇表冲突的当场指出；
- *   - AGENTS.md「开之前先搜（两路）」与 ADR 0012 裁定一/四（推论层主张可援引但推理链须重过；
- *     代价第 4 条「每张裁定票前多一个 AFK 子代理」——本阶段就是那个子代理）。
- * 本文件只补胶水：逐点 A/B/C 归类、可机械校验的查询证据、C 类缺口去向。
- *   A 已裁（正本层或已关票 resolution）——沿用，不再列为待决；
- *   B 有先例未正式裁（推论层、票评论、代码常量/夹具）——默认候选，以「默认值，确认或否决」呈现；
- *   C 确未设计——gap 指去向：decision 交用户（附推荐答案），research 开 research 票（/research 子代理），
- *     probe 缺数字派探针票（wayfinder-workflow 反面判据③）。
+ * 考古阶段（用户 2026-10-20 令「所有的裁决票都要先考古」）。设计与所复用的 skill 条款见
+ * .sandcastle/docs/graph-engineering.md「2. 考古」；本文件只实现胶水：逐点 A/B/C、查询证据校验、C 类缺口去向。
  */
 export const ARCHAEOLOGY_FILE = "archaeology.md";
 /** 草稿须附的「考古对照」段：每个考古点号一行，写明归类与草稿里怎么处置。 */
@@ -705,15 +695,17 @@ const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 /** 解析考古 JSON：{"points":[...]}；解析不出返回 null。 */
 export function parseArchaeology(text: string): Archaeology | null {
   const j = extractJson(text) as { points?: unknown } | undefined;
-  if (!j || !Array.isArray(j.points)) return null;
-  const points = (j.points as Array<Record<string, unknown>>).map((p): ArchPoint => ({
+  if (!j || typeof j !== "object" || !Array.isArray(j.points)) return null;
+  const objs = (v: unknown): Array<Record<string, unknown>> =>
+    (Array.isArray(v) ? v : []).filter((x): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x));
+  const points = objs(j.points).map((p): ArchPoint => ({
     id: str(p.id),
     question: str(p.question),
     klass: str(p.class ?? p.klass).toUpperCase() as ArchClass,
-    queries: (Array.isArray(p.queries) ? p.queries : []).map((q: Record<string, unknown>) => ({
+    queries: objs(p.queries).map((q) => ({
       channel: str(q.channel) as ArchQuery["channel"], query: str(q.query), command: str(q.command), hits: Number(q.hits ?? 0) || 0,
     })),
-    hits: (Array.isArray(p.hits) ? p.hits : []).map((h: Record<string, unknown>) => ({ source: str(h.source), excerpt: str(h.excerpt) })),
+    hits: objs(p.hits).map((h) => ({ source: str(h.source), excerpt: str(h.excerpt) })),
     citation: str(p.citation),
     reasoning: str(p.reasoning),
     recommended: str(p.recommended ?? p.default),
@@ -726,6 +718,7 @@ export function parseArchaeology(text: string): Archaeology | null {
 
 /** tracker 那一路必须覆盖已关闭票：`--state all` 或 `gh search issues`（默认不限状态）。 */
 const TRACKER_ALL_STATES = /--state[\s=]+all|gh search issues/;
+const TRACKER_ONE_STATE = /--state[\s=]+(?:open|closed)\b/;
 
 /** 考古产物的机械校验：返回问题清单，空 = 形状合格。 */
 export function archaeologyProblems(a: Archaeology): string[] {
@@ -742,7 +735,7 @@ export function archaeologyProblems(a: Archaeology): string[] {
     const tracker = p.queries.filter((q) => q.channel === "tracker" && q.query && q.command);
     const repo = p.queries.filter((q) => q.channel === "repo" && q.query && q.command);
     if (tracker.length === 0) out.push(`${id}：缺 tracker 一路查询证据`);
-    else if (!tracker.some((q) => TRACKER_ALL_STATES.test(q.command))) out.push(`${id}：tracker 查询未覆盖已关闭票（须 --state all 或 gh search issues）`);
+    else if (!tracker.some((q) => TRACKER_ALL_STATES.test(q.command) && !TRACKER_ONE_STATE.test(q.command))) out.push(`${id}：tracker 查询未覆盖已关闭票（须 --state all 或 gh search issues）`);
     if (repo.length === 0) out.push(`${id}：缺仓内一路查询证据`);
     if (p.hits.some((h) => !h.source)) out.push(`${id}：有命中缺出处`);
     if (p.klass === "A" || p.klass === "B") {
@@ -755,6 +748,7 @@ export function archaeologyProblems(a: Archaeology): string[] {
     }
     if (p.klass === "C" && new Set(p.searchedKeywords).size < 2) out.push(`${id}：C 类须列出至少两个已搜关键词`);
     if (p.klass === "C" && !ARCH_GAPS.includes(p.gap as ArchGap)) out.push(`${id}：C 类须写 gap（decision / research / probe）`);
+    if (p.klass === "C" && p.gap === "decision" && !p.recommended) out.push(`${id}：C 类 decision 缺推荐答案（推不出就改 gap=probe）`);
     if (p.klass === "A" && p.conflict) out.push(`${id}：有冲突的点不能归 A`);
   }
   return out;
@@ -806,13 +800,13 @@ ${feedback ? `\n## 上一次考古产物没过机械校验，必须逐条补齐�
 本阶段要你交的（胶水，以上 skill 没规定的部分）：
 1. 把票面与评论里的待决点逐个列出，编号 Q1、Q2…，一点一问。
 2. 每点两路各至少一条查询，记下实际命令与命中数。tracker 路用 \`gh search issues "<词>" --repo ${GH_REPO}\` 或 \`gh issue list --repo ${GH_REPO} --state all --search "<词> in:comments"\`（覆盖已关闭票与评论）；仓内路用 rg -n 搜正本层 docs/adr/、.chanlun/definitions/、CONTEXT.md，推论层 analysis/、docs/、.chanlun/，以及代码常量与测试夹具（rust/、src/、tests/、trading_system/、scripts/）。同一概念换中文词、英文标识符、票号各搜一次。
-3. 归类：A 已裁（正本层或已关票 resolution 明写）→ citation；B 有先例未正式裁（推论层、票评论、代码常量或夹具在用）→ citation + reasoning（ADR 0012 标签开头的推理链）+ recommended 默认值；C 确未设计 → searched_keywords（至少两个）+ gap：decision（交用户决定，recommended 写推荐答案）、research（仓外事实，开 research 票）、probe（缺读数，派探针票）。先例互相冲突或与代码不符时写 conflict，该点不归 A。
+3. 归类：A 已裁（正本层或已关票 resolution 明写）→ citation；B 有先例未正式裁（推论层、票评论、代码常量或夹具在用）→ citation + reasoning（ADR 0012 标签开头的推理链）+ recommended 默认值；C 确未设计 → searched_keywords（至少两个）+ gap：decision（交用户决定，recommended 必填推荐答案及推导依据）、research（仓外事实，开 research 票）、probe（缺读数推不出推荐值，派探针票）。先例互相冲突或与代码不符时写 conflict，该点不归 A。
 
 最后只输出一个 JSON 代码块：
 {"points":[{"id":"Q1","question":"一句话待决点","class":"A|B|C",
   "queries":[{"channel":"tracker","query":"查询词","command":"实际命令","hits":3},{"channel":"repo","query":"查询词","command":"rg -n ...","hits":0}],
   "hits":[{"source":"#1348 评论 6262469214 或 docs/adr/0016-x.md:96","excerpt":"逐字摘一句"}],
-  "citation":"A/B 必填","reasoning":"B 必填","recommended":"B 必填，C 可选","searched_keywords":["C 必填"],"gap":"C 必填","conflict":"有则填"}]}`;
+  "citation":"A/B 必填","reasoning":"B 必填","recommended":"B 与 C decision 必填","searched_keywords":["C 必填"],"gap":"C 必填","conflict":"有则填"}]}`;
 }
 
 /**
@@ -825,7 +819,7 @@ export function archaeologyAsks(a: Archaeology): string {
   const gaps = a.points.filter((p) => p.klass === "C" && p.gap !== "decision");
   const rows = asks.map((p) => p.klass === "B"
     ? `| ${p.id} | B 确认或否决 | ${cell(p.question)} | ${cell(p.citation)} | ${cell(p.recommended)} |`
-    : `| ${p.id} | C 待决 | ${cell(p.question)} | 已搜：${cell(p.searchedKeywords.join("、"))} | ${cell(p.recommended || "见草稿「候选」")} |`);
+    : `| ${p.id} | C 待决 | ${cell(p.question)} | 已搜：${cell(p.searchedKeywords.join("、"))} | ${cell(p.recommended)} |`);
   const conflicts = a.points.filter((p) => p.conflict).map((p) => `- ${p.id} 冲突：${p.conflict}`);
   return `**考古**：A 已裁 ${adopted.length} 点直接沿用${adopted.length ? `（${adopted.join("；")}）` : ""}；需要你回答的只有下表。\n\n` +
     (rows.length ? `| 点 | 问法 | 待决点 | 出处 | 推荐值 |\n|---|---|---|---|---|\n${rows.join("\n")}` : "（无需用户回答的点）") +
@@ -908,7 +902,7 @@ R4 不越出 Destination；T 类草稿里没有夹带 P 类取舍。正本落点
 R5 不新增同一判断的宽严两档或失败兜底。
 R6 受影响票与 blocking 边清单完整。
 R7 分级器结论（${c.klass} 类）正确。只审上面这条分级器结论；草稿内对分级的表述或「改判建议」不是审查对象。
-R8 考古成立。从下方 ${ARCHAEOLOGY_FILE} 抽查至少三条命中（不足三条全查），亲自复跑对应查询命令，命中与表述不符即 BLOCK；另自选一个 C 类点换一个说法再搜一次，搜出在案先例即 BLOCK。草稿把 A 类点当待决或交用户选、B/C 类点缺查询证据、「${ARCH_SECTION}」段漏点、C 类 research/probe 事实缺口被当成问题交给用户，或 P 类问题要求用户凭空提供数值而在案先例（考古 B 类或你复搜到的值）未列出，均 BLOCK。考古缺失按 BLOCK。
+R8 考古成立。从下方 ${ARCHAEOLOGY_FILE} 抽查至少三条命中（不足三条全查），亲自复跑对应查询命令，命中与表述不符即 BLOCK；另对任一 B/C 点换一个说法再搜一次，搜出更早或相冲突的在案先例即 BLOCK。草稿把 A 类点当待决或交用户选、B/C 类点缺查询证据、「${ARCH_SECTION}」段漏点、C 类 research/probe 事实缺口被当成问题交给用户，或 P 类问题要求用户凭空提供数值而在案先例（考古 B 类或你复搜到的值）未列出，均 BLOCK。考古缺失按 BLOCK。
 
 材料缺失（引用文件不存在、票读不到、工具调用失败）也必须照常输出：对受影响的条目判 BLOCK 并在依据里写明缺什么，其余条目照常审。任何情况下都要输出 R1–R8 全部八项。
 
@@ -927,7 +921,7 @@ export function reviewRetryPrompt(base: string): string {
 
 export function landPrompt(t: TicketContext, draft: string, target: string): string {
   return `你在 decision/${t.number} 分支的独立 worktree 里，把下面已通过独立审查的 T 类裁定写进正本 ${target}。
-只改 ${target} 这一个文件（不存在则新建）；按 AGENTS.md 要求，若为教义正本须带三行头（正本／最后裁定 #${t.number}／受影响代码清单）。不要改其他文件，不要提交。
+只改 ${target} 这一个文件（不存在则新建）；写七段裁定内容，「${CITATION_SECTION}」「${ARCH_SECTION}」两段是流程产物，不写进正本；按 AGENTS.md 要求，若为教义正本须带三行头（正本／最后裁定 #${t.number}／受影响代码清单）。不要改其他文件，不要提交。
 
 ===== 已通过审查的草稿 =====
 ${draft}`;
@@ -1019,14 +1013,18 @@ export interface ArchRun { arch: Archaeology; md: string; problems: string[] }
  * 跑考古：解析不出或机械校验不过时带问题重跑一次；仍解析不出抛错，仍有问题照常返回
  * （问题清单交审查，草稿因此 BLOCK）。写 archaeology.md 与 archaeology.json。
  */
-export async function runArchaeology(t: TicketContext, d: Pick<Deps, "model" | "srcDir">, dir: string, summary?: Summary): Promise<ArchRun> {
-  let fb: string | undefined;
+export async function runArchaeology(
+  t: TicketContext, d: Pick<Deps, "model" | "srcDir">, dir: string, summary?: Summary,
+  o: { feedback?: string; model?: string; round?: number } = {},
+): Promise<ArchRun> {
+  let fb = o.feedback;
+  const model = o.model ?? MODEL_FABLE;
   let arch: Archaeology | null = null;
   let problems: string[] = [];
   let raw = "";
   for (let i = 1; i <= 2; i++) {
-    const r = await d.model({ model: MODEL_FABLE, prompt: archaeologyPrompt(t, fb), cwd: d.srcDir, role: "archaeology" });
-    if (summary) summary.durationsMs[`archaeology${i}`] = r.durationMs;
+    const r = await d.model({ model, prompt: archaeologyPrompt(t, fb), cwd: d.srcDir, role: "archaeology" });
+    if (summary) summary.durationsMs[`archaeology${o.round ?? 1}_${i}`] = r.durationMs;
     raw = r.text;
     arch = parseArchaeology(r.text);
     problems = arch ? archaeologyProblems(arch) : ["考古输出无可解析的 points JSON"];
@@ -1034,17 +1032,22 @@ export async function runArchaeology(t: TicketContext, d: Pick<Deps, "model" | "
     fb = problems.map((x) => `- ${x}`).join("\n");
   }
   if (!arch) {
-    writeJson(join(dir, "archaeology.json"), { ticket: t.number, model: MODEL_FABLE, parsed: false, problems, raw });
+    writeJson(join(dir, "archaeology.json"), { ticket: t.number, model, parsed: false, problems, raw });
     throw new Error("考古输出两次均无法解析为 points JSON");
   }
   const md = renderArchaeology(t, arch, problems);
   writeFileSync(join(dir, ARCHAEOLOGY_FILE), md);
-  writeJson(join(dir, "archaeology.json"), { ticket: t.number, model: MODEL_FABLE, parsed: true, problems, ...arch, raw });
+  writeJson(join(dir, "archaeology.json"), { ticket: t.number, model, parsed: true, problems, ...arch, raw });
   if (summary) {
     const c = (k: ArchClass) => arch!.points.filter((p) => p.klass === k).length;
     summary.archaeology = { A: c("A"), B: c("B"), C: c("C"), problems };
   }
   return { arch, md, problems };
+}
+
+/** C 类事实缺口（research / probe）的点号。 */
+export function factGaps(a: Archaeology): string[] {
+  return a.points.filter((p) => p.klass === "C" && (p.gap === "research" || p.gap === "probe")).map((p) => p.id);
 }
 
 /** 读本地 archaeology.json（续做时给影子评论用）。 */
@@ -1061,8 +1064,14 @@ function loadArchaeology(dir: string): Archaeology | null {
 export async function archaeologyOnly(n: number, d: Deps): Promise<{ ticket: number; dir: string; problems: string[]; counts: Record<ArchClass, number> }> {
   const dir = join(d.outRoot, String(n));
   mkdirSync(dir, { recursive: true });
-  const t = loadTicket(d.gh, n);
-  const r = await runArchaeology(t, d, dir);
+  const lock = join(dir, ".lock");
+  try { writeFileSync(lock, String(process.pid), { flag: "wx" }); } catch { throw new Error(`${lock} 已存在，另一进程正在处理`); }
+  let r: ArchRun;
+  try {
+    r = await runArchaeology(loadTicket(d.gh, n), d, dir);
+  } finally {
+    rmSync(lock, { force: true });
+  }
   const c = (k: ArchClass) => r.arch.points.filter((p) => p.klass === k).length;
   return { ticket: n, dir, problems: r.problems, counts: { A: c("A"), B: c("B"), C: c("C") } };
 }
@@ -1137,18 +1146,24 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
 
     // 1b. 考古：起草前两路搜，逐点 A/B/C。机械校验不过的问题交审查（草稿因此 BLOCK），升档重做时重跑考古。
     let ar = await runArchaeology(t, d, dir, summary);
+    // 决定等事实（/wayfinder Ticket Types「a fact a decision waits on」）：有 research/probe 缺口的 T 类票不得自动落地，转 P，由 /graph-approve 开票补事实。
+    const gapIds = factGaps(ar.arch);
+    const gapNote = cls.klass === "T" && gapIds.length ? `考古有事实缺口 ${gapIds.join("、")}（research/probe），T 类不自动落地，转 P` : "";
 
     // 2–3. 起草 / 独审，至多两轮。分级由分级器定，起草者只能提改判建议。
-    s = initialState(cls.klass);
-    let effCls: Classification = cls;
+    s = initialState(gapNote ? "P" : cls.klass);
+    if (gapNote) s.convertedToP = true;
+    let effCls: Classification = gapNote ? { ...cls, klass: "P", reason: `${cls.reason}（${gapNote}）` } : cls;
     const counts = { pass: 0, block: 0, parseError: 0 };
     summary.reviewCounts = counts;
-    summary.reclassNotes = [];
+    summary.reclassNotes = gapNote ? [gapNote] : [];
     summary.rounds = [];
     summary.landingRedrafts = [];
     while (s.phase === "draft") {
       summary.attempts = s.attempt;
-      if (s.draftMode === "redo" && ar.problems.length) ar = await runArchaeology(t, d, dir, summary);
+      if (s.draftMode === "redo" && ar.problems.length) {
+        ar = await runArchaeology(t, d, dir, summary, { feedback: ar.problems.map((x) => `- ${x}`).join("\n"), model: s.drafterModel, round: s.attempt });
+      }
       const prompt = (fb?: string) =>
         s.draftMode === "revise" ? revisePrompt(t, effCls, draft, fb ?? s.reviewFeedback ?? "", ar.md) : draftPrompt(t, effCls, fb ?? s.reviewFeedback, ar.md);
       let dr = await d.model({ model: s.drafterModel, prompt: prompt(), cwd: d.srcDir, role: "draft" });
@@ -1288,7 +1303,9 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
 export function shadowComment(n: number, draft: string, r: Review, dir: string, s: Summary, arch: Archaeology | null = null): string {
   const table = r.items.map((i) => `| ${i.rule} | ${i.verdict} | ${i.basis.replace(/\|/g, "\\|").replace(/\n/g, " ")} |`).join("\n");
   return `**P 类影子模式，待用户批复**${s.convertedToP ? `（原判 T，${s.attempts} 轮审查仍 BLOCK 后转 P）` : ""}\n\n` +
-    (arch ? `${archaeologyAsks(arch)}\n\n考古原件：\`${dir}/${ARCHAEOLOGY_FILE}\`\n\n` : "") +
+    (arch
+      ? `${archaeologyAsks(arch)}\n\n考古原件：\`${dir}/${ARCHAEOLOGY_FILE}\`\n\n`
+      : `**本票无考古**（旧流程产物）：批复前先跑 \`node --import tsx .sandcastle/decision-claimer.mts --archaeology-only --ticket ${n} --out ${dirname(dir)}\`。\n\n`) +
     `独立审查（${MODEL_OPUS}）：**${r.verdict}**\n\n| 条 | 结论 | 依据 |\n|---|---|---|\n${table}\n\n` +
     `草稿与审查原件：\`${dir}/\`\n\n<details><summary>草稿全文</summary>\n\n${draft}\n</details>`;
 }

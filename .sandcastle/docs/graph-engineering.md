@@ -37,9 +37,11 @@ Fable 5.1 读票面与关联票，判一类，并在票上评论一行分级理�
 
 - **A 已裁**：正本层或已关票 resolution 明写。写出处，直接沿用，不再列为待决。
 - **B 有先例未正式裁**：推论层、票评论、代码常量或夹具在用。写出处与推理链，作为默认候选，以「默认值，确认或否决」呈现。
-- **C 确未设计**：列出已搜关键词，标缺口去向——`decision` 交用户（附推荐答案）；`research` 是仓外事实，按 wayfinder 开 research 票由 `/research` 子代理解决；`probe` 缺读数，按 `wayfinder-workflow.md` 反面判据③派探针票。
+- **C 确未设计**：列出已搜关键词，标缺口去向——`decision` 交用户，必带推荐答案及推导依据；`research` 是仓外事实，按 wayfinder 开 research 票由 `/research` 子代理解决；`probe` 缺读数推不出推荐值，按 `wayfinder-workflow.md` 反面判据③派探针票。
 
-机械校验：两路缺一、tracker 未覆盖已关闭票、A/B 缺出处、B 缺默认值、C 缺关键词或去向，都带问题重跑一次；仍不过的问题交审查，草稿因此 BLOCK。
+决定等事实（`/wayfinder` Ticket Types：research 票「surface a fact a decision waits on」）：考古有 `research`/`probe` 缺口的 T 类票转 P，不自动落地；缺口票由 `/graph-approve` 开。
+
+机械校验：两路缺一、tracker 未覆盖已关闭票、A/B 缺出处、B 缺默认值、C 缺关键词或去向、C 类 `decision` 缺推荐答案，都带问题重跑一次（升档重做时随起草者升档重跑）；仍不过的问题交审查，草稿因此 BLOCK。
 
 完成标准：`/Volumes/AgentStorage/decisions/<票号>/archaeology.md` 与 `archaeology.json` 落盘，每个待决点有查询词、命令、命中与归类。只验考古：`node --import tsx .sandcastle/decision-claimer.mts --archaeology-only --ticket <号> --out <目录>`（不看票是否已关，不写 GitHub）。
 
@@ -64,7 +66,7 @@ Opus 5.5 审查者另起进程，只拿草稿、`archaeology.md` 和源文件，
 5. R5 不新增同一判断的宽严两档或失败兜底。
 6. R6 受影响票与 blocking 边清单完整。
 7. R7 分级正确。
-8. R8 考古成立：抽查 `archaeology.md` 至少三条命中并复跑查询，另对一个 C 类点换说法复搜。草稿把 A 类当待决、B/C 类缺查询证据、「考古对照」漏点、事实缺口交给用户，或 P 类问题要求用户凭空提供数值而在案先例未列出，判 BLOCK。
+8. R8 考古成立：抽查 `archaeology.md` 至少三条命中并复跑查询，另对任一 B/C 点换说法复搜。草稿把 A 类当待决、B/C 类缺查询证据、「考古对照」漏点、事实缺口交给用户，或 P 类问题要求用户凭空提供数值而在案先例未列出，判 BLOCK。
 
 完成标准：`review.json` 落盘，八项各有结论与依据。BLOCK 时起草者升档为 Opus 5.5 带审查意见重做一次；再 BLOCK 转 P 类。
 
