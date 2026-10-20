@@ -470,9 +470,11 @@ fn ruling2_arm(strokes: &[Stroke], arm: u8) -> (Vec<Segment>, usize, Option<usiz
                 l.min(x.start_price.min(x.end_price)),
             )
         });
+        // 段端点 = 段末笔终点价（`Segment.end_price` 是第 78 课标准化后的段内极值）。
+        let endpoint = strokes[b].end_price;
         let ok = match s.direction {
-            super::super::types::Direction::Up => s.end_price == hi,
-            super::super::types::Direction::Down => s.end_price == lo,
+            super::super::types::Direction::Up => endpoint == hi,
+            super::super::types::Direction::Down => endpoint == lo,
         };
         if !ok {
             off += 1;

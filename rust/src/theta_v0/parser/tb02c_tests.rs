@@ -737,26 +737,41 @@ fn tb1493_gap_inclusion_merges_and_keeps_b() {
     let ss = chain(&[0, 10, 4, 20, 12, 18, 14, 19, 13, 16, 15, 19]);
     tb1493_full_eq_incremental(&ss);
     let (segs, _, facts) = segment::divide_segments_with_facts(&ss, &ThetaConfig::default().parse);
-    assert_eq!(tb1493_spans(&ss, &segs), vec![(0, 2, Direction::Up, 0, 20)]);
+    assert_eq!(tb1493_spans(&ss, &segs)[0], (0, 2, Direction::Up, 0, 20));
+    assert_eq!(ss[2].end_price, 20, "段端点 = P");
     let c = &facts.candidates[0];
     assert_eq!(c.result, "CASE_TWO");
     assert_eq!(c.second.as_ref().unwrap().from_stroke, 3);
 }
 
-/// 有缺口 c ⊂ b 三臂之一下的读数：(段序列, 段端≠分型 P 的段数, 段端门失败数)。
-fn tb1493_arm_run(ss: &[Stroke], arm: u8) -> (Vec<Segment>, usize, usize) {
+/// 有缺口 c ⊂ b 三臂之一下的读数：(段序列, 段端点≠分型 P 的段数, 段端门失败数, 段端点非本段极值的段数)。
+/// 段端点 = 段末笔的终点价（`Segment.end_price` 是第 78 课标准化后的段内极值，不能用来判端点位置）。
+fn tb1493_arm_run(ss: &[Stroke], arm: u8) -> (Vec<Segment>, usize, usize, usize) {
     feature_seq::GAP_INCLUSION_ARM.with(|a| a.set(arm));
     let (segs, _, facts) = segment::divide_segments_with_facts(ss, &ThetaConfig::default().parse);
     feature_seq::GAP_INCLUSION_ARM.with(|a| a.set(0));
-    let mut off_extreme = 0usize;
+    let mut off_p = 0usize;
+    let mut not_extreme = 0usize;
     for (s, c) in segs.iter().zip(&facts.candidates) {
         let w = c.strict.as_ref().expect("已发射段须有 strict 见证");
-        let p = match s.direction {
-            Direction::Up => w.elements[1].high,
-            Direction::Down => w.elements[1].low,
+        let sp = tb1493_spans(ss, std::slice::from_ref(s))[0];
+        let (a, b) = (sp.0, sp.1);
+        let endpoint = ss[b].end_price;
+        let (p, extreme) = match s.direction {
+            Direction::Up => (
+                w.elements[1].high,
+                ss[a..=b].iter().map(|x| x.start_price.max(x.end_price)).max().unwrap(),
+            ),
+            Direction::Down => (
+                w.elements[1].low,
+                ss[a..=b].iter().map(|x| x.start_price.min(x.end_price)).min().unwrap(),
+            ),
         };
-        if s.end_price != p {
-            off_extreme += 1;
+        if endpoint != p {
+            off_p += 1;
+        }
+        if endpoint != extreme {
+            not_extreme += 1;
         }
     }
     let invalid = facts
@@ -765,7 +780,7 @@ fn tb1493_arm_run(ss: &[Stroke], arm: u8) -> (Vec<Segment>, usize, usize) {
         .filter(|c| c.parse_invalid_from.is_some() || c.result == "FAILED_GEOMETRY")
         .count()
         + usize::from(facts.parse_invalid_from.is_some());
-    (segs, off_extreme, invalid)
+    (segs, off_p, invalid, not_extreme)
 }
 
 #[test]
@@ -775,6 +790,7 @@ fn tb1493_ruling2_three_way_comparison() {
     let mut diff = [0usize; 3]; // [0 vs 1, 0 vs 2, 1 vs 2]
     let mut off = [0usize; 3];
     let mut inv = [0usize; 3];
+    let mut nx = [0usize; 3];
     let mut groups = 0usize;
     let mut shown = 0usize;
     let mut inputs: Vec<(String, Vec<Stroke>)> = Vec::new();
@@ -823,12 +839,20 @@ fn tb1493_ruling2_three_way_comparison() {
             if r[arm].2 > 0 {
                 inv[arm] += 1;
             }
+            if r[arm].3 > 0 {
+                nx[arm] += 1;
+            }
         }
-        assert_eq!(r[0].1, 0, "{tag}：本裁定段端不在分型极值 P");
+        if r[0].1 > 0 || r[0].3 > 0 {
+            let sp = tb1493_spans(ss, &r[0].0);
+            eprintln!("TB1493 RULING2 OFF {tag} off_p={} not_extreme={} spans={sp:?}", r[0].1, r[0].3);
+        }
+        assert_eq!(r[0].1, 0, "{tag}：本裁定段端点不在分型极值 P");
         assert_eq!(r[0].2, 0, "{tag}：本裁定段端门失败");
     }
     eprintln!(
         "TB1493 RULING2 groups={groups} diff[ruling~window,ruling~oldG2,window~oldG2]={diff:?} \
-         groups_off_extreme[ruling,window,oldG2]={off:?} groups_gate_fail[ruling,window,oldG2]={inv:?}"
+         groups_endpoint_ne_P[ruling,window,oldG2]={off:?} groups_gate_fail[ruling,window,oldG2]={inv:?} \
+         groups_endpoint_not_segment_extreme[ruling,window,oldG2]={nx:?}"
     );
 }
