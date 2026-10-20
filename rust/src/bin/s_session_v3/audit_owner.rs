@@ -3674,6 +3674,7 @@ fn r13_optional_sql_rows_share_parent_without_changing_cells() {
 /// allocation在父账的第二个物理角色；现降为合同角色，只在O的source_cost里计一次。父账封存live
 /// 共少127,974B（527,048→399,074）=111,334B（上述来源许可）+16,640B（NativeNode去掉
 /// Option<NativeReservation>后索引槽变窄的布局连带，=1040槽×(241−225)B；#1488 P2-β，r14逐项锁定）。
+/// 以上为#1405前合同串下的数值；#1488 0053起r14按tb02b合同串长推导①与527,048基准（#1405后+27/+54）。
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 fn seal_census_check(
     seal: &[native::CensusEvent],
@@ -4247,26 +4248,65 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                 assert_eq!(census["node_source_claims"].as_u64().unwrap() as usize, nodes);
                 // #1488 P2-β：P2-A前（b6969af4cc，R14/P24_SEAL_CENSUS实测1950张/527,048B）到现在的
                 // 封存降幅由两部分组成，逐项可复算：
-                // ①来源许可降为合同角色：803张同额物理许可消失，=来源合同额之和111,334B
-                //   （node_body 33,443B + 97·803）；
+                // ①来源许可降为合同角色：803张同额物理许可消失，=来源合同额之和
+                //   （node_body + 97·803；#1405前111,334B=33,443B+97·803）；
                 // ②布局连带：NativeNode的`Option<NativeReservation>`字段换成`Option<SourceClaim>`，
                 //   索引许可按槽数×槽宽计，槽宽随之变窄，降幅=索引槽数×(旧槽宽−现槽宽)=16,640B
                 //   （实测1040槽×(241−225)B，每槽窄16B；旧槽宽取同布局镜像的size_of，非手填）。
-                // 两项之和=127,974B；这是预期变化（索引许可仍按真实元素布局计），不是另有许可消失。
-                const SEALED_BEFORE_P2A: usize = 527_048;
+                // 两项之和（#1405前）=127,974B；这是预期变化（索引许可仍按真实元素布局计），不是另有许可消失。
+                //
+                // #1488 0053 主控裁定(b)（第五处裁改断言，
+                // https://github.com/xy7365527-lang/NewChanlun/issues/1488#issuecomment-6283672661）：
+                // ①与P2-A前封存基准随tb02b合同字符串长度推导，不再写死#1405前字面值。字符串节点内容寻址
+                // 去重，每个不同串只落一个bytes叶（原字节）+一个8B定宽帧长的STRING节点，故正文只随串长变、
+                // 节点数不变。记L=len(schema)+len(policy)+len(knowledge_domain)：
+                //   ① = (33,357 + L) + 97·803，33,357=#1405前node_body 33,443 − 旧L 86（10+18+58）；
+                //   P2-A前封存 = 526,876 + 2L（正文物理一次 + 同额来源许可一次；旧L→527,048）。
+                // #1405：policy `standard_raw_gap_3`→`…;same-price/keep-earlier+extreme-region/1`（+41），
+                // knowledge_domain `…without_extreme_identity_competition`→`…with_extreme_root_sets`（−14），
+                // schema s-new-bi/1→/2 等长：ΔL=+41−14=+27，①111,334→111,361，P2-A前封存527,048→527,102。
+                // L由合同字段len()显式相加；不读产生合同额的SourceClaim/正文计费自我对照。
+                const R14_NODES: usize = 803;
+                let contract_len = |schema: &str, policy: &str, domain: &str| {
+                    schema.len() + policy.len() + domain.len()
+                };
+                let expected_claims = |l: usize| (33_357 + l) + 97 * R14_NODES;
+                let sealed_before_p2a_for = |l: usize| 526_876 + 2 * l;
+                // 负控（独立手算基准）：两串还原为#1405前旧值，推导须回到原字面值。
+                let legacy_len = contract_len(
+                    "s-new-bi/1",
+                    "standard_raw_gap_3",
+                    "established_direction_without_extreme_identity_competition",
+                );
+                assert_eq!(legacy_len, 10 + 18 + 58, "#1405前合同串长");
+                assert_eq!(
+                    expected_claims(legacy_len),
+                    111_334,
+                    "旧串推导须回到111,334"
+                );
+                assert_eq!(
+                    sealed_before_p2a_for(legacy_len),
+                    527_048,
+                    "旧串推导须回到527,048"
+                );
+                let contract = crate::tb02b::CURRENT_CONTRACT;
+                let current_len =
+                    contract_len(contract.schema, contract.policy, contract.knowledge_domain);
+                let sealed_before_p2a = sealed_before_p2a_for(current_len);
+                assert_eq!(nodes, R14_NODES, "独立交叉核：来源节点数");
                 assert_eq!(index_bytes % slot_now, 0, "索引许可=槽数×现槽宽");
                 let index_slots = index_bytes / slot_now;
                 let layout_drop = index_slots * (slot_before_p2a - slot_now);
                 eprintln!(
                     "R14_P2B_DROP {}",
-                    json!({"sealed_before_p2a":SEALED_BEFORE_P2A,"sealed":sealed,
-                        "claims_bytes":claims.1,"index_bytes":index_bytes,"index_slots":index_slots,
+                    json!({"sealed_before_p2a":sealed_before_p2a,"sealed":sealed,
+                        "contract_len":current_len,"claims_bytes":claims.1,"index_bytes":index_bytes,"index_slots":index_slots,
                         "slot_now":slot_now,"slot_before_p2a":slot_before_p2a,"layout_drop":layout_drop})
                 );
-                assert_eq!(claims.1, 111_334, "①来源合同额之和");
+                assert_eq!(claims.1, expected_claims(current_len), "①来源合同额之和");
                 assert_eq!(layout_drop, 16_640, "②索引槽宽连带降幅");
                 assert_eq!(
-                    SEALED_BEFORE_P2A - sealed,
+                    sealed_before_p2a - sealed,
                     claims.1 + layout_drop,
                     "封存降幅恰为①+②"
                 );
