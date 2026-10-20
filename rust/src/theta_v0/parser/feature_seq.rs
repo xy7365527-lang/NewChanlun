@@ -993,7 +993,9 @@ impl FeatureSeqState {
                     continue;
                 }
                 #[cfg(test)]
-                Some((Some(SecondTerminal::OpenAtPrefixEnd), _)) if OPEN_SKIP_ARM.with(|a| a.get()) => {
+                Some((Some(SecondTerminal::OpenAtPrefixEnd), _))
+                    if OPEN_SKIP_ARM.with(|a| a.get()) =>
+                {
                     self.skipped_secondkind = true;
                     continue;
                 }

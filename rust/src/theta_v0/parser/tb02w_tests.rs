@@ -1201,11 +1201,10 @@ fn tb1493_search_tb02w_witnesses() {
 /// OPEN 封段见证价格（`tb1493_search_open_block_witness` 尖峰折线种子 1324、60 点，向上起）：59 笔。
 const OPEN_BLOCK_PRICES: [i64; 60] = [
     100000, 100067, 98908, 98919, 98870, 98930, 98923, 98980, 98916, 100307, 100146, 100165,
-    100104, 100130, 100126, 100196, 100168, 100223, 100176, 100244, 100230, 100270, 100231,
-    100251, 100186, 100198, 100193, 100396, 100360, 100408, 100241, 100306, 100265, 100325,
-    100268, 100418, 100377, 100441, 100385, 100401, 100332, 100496, 99446, 99493, 99483, 99509,
-    99501, 99674, 99669, 99727, 99711, 99898, 99894, 99926, 99746, 100394, 100363, 100422,
-    100233, 100371,
+    100104, 100130, 100126, 100196, 100168, 100223, 100176, 100244, 100230, 100270, 100231, 100251,
+    100186, 100198, 100193, 100396, 100360, 100408, 100241, 100306, 100265, 100325, 100268, 100418,
+    100377, 100441, 100385, 100401, 100332, 100496, 99446, 99493, 99483, 99509, 99501, 99674,
+    99669, 99727, 99711, 99898, 99894, 99926, 99746, 100394, 100363, 100422, 100233, 100371,
 ];
 
 /// #1493 裁定 1（§7.1 第 8 条）OPEN 封段对照见证（与 W2 预算封段成对）：末段的第二种候选 b=s42 第二序列
@@ -1224,8 +1223,16 @@ fn tb1493_open_second_candidate_blocks_later_candidates() {
     let sec = c.second.as_ref().expect("末段须有第二种候选的第二序列事实");
     assert_eq!(sec.semantic_state, Some(SecondTerminal::OpenAtPrefixEnd));
     assert_eq!(sec.from_stroke, 43, "候选 b = s42");
-    let after = c.first.standard.iter().filter(|e| e.stroke_idx > 42).count();
-    assert!(after > segment::TAIL_WINDOW as usize, "候选之后的标准元素须多于尾窗：{after}");
+    let after = c
+        .first
+        .standard
+        .iter()
+        .filter(|e| e.stroke_idx > 42)
+        .count();
+    assert!(
+        after > segment::TAIL_WINDOW as usize,
+        "候选之后的标准元素须多于尾窗：{after}"
+    );
     feature_seq::OPEN_SKIP_ARM.with(|a| a.set(true));
     let (old, _) = segment::divide_segments_with_tail(&ss, &cfg);
     feature_seq::OPEN_SKIP_ARM.with(|a| a.set(false));
@@ -1237,7 +1244,10 @@ fn tb1493_open_second_candidate_blocks_later_candidates() {
         inc = inc.append(&ss[..k], &cfg);
         let batch = segment::divide_segments_with_tail(&ss[..k], &cfg);
         assert_eq!(inc.to_result_vec(), batch, "前缀 {k}：增量 != 全量");
-        assert!(batch.0.len() >= prev.len() && batch.0[..prev.len()] == prev[..], "前缀 {k}：已发射段被改写");
+        assert!(
+            batch.0.len() >= prev.len() && batch.0[..prev.len()] == prev[..],
+            "前缀 {k}：已发射段被改写"
+        );
         prev = batch.0;
     }
 }
@@ -1284,8 +1294,12 @@ fn tb1493_search_open_block_witness() {
         if old.len() <= new.len() || old[..new.len()] != new[..] {
             continue;
         }
-        let Some(c) = facts.candidates.last() else { continue };
-        let Some(sec) = c.second.as_ref() else { continue };
+        let Some(c) = facts.candidates.last() else {
+            continue;
+        };
+        let Some(sec) = c.second.as_ref() else {
+            continue;
+        };
         if sec.semantic_state != Some(SecondTerminal::OpenAtPrefixEnd) {
             continue;
         }
@@ -1295,7 +1309,11 @@ fn tb1493_search_open_block_witness() {
             continue;
         }
         found += 1;
-        eprintln!("OPENBLOCK seed={seed} new={} old={} b={b} after={after} prices={pr:?}", new.len(), old.len());
+        eprintln!(
+            "OPENBLOCK seed={seed} new={} old={} b={b} after={after} prices={pr:?}",
+            new.len(),
+            old.len()
+        );
         if found >= 3 {
             break;
         }
