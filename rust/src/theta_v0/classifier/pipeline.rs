@@ -473,6 +473,8 @@ pub fn classify(l0: &ParseLayer, config: &ThetaConfig, operating_levels: &[u32])
 /// ## 边界
 ///
 /// - 空 ParseLayer（无线段）⟹ `Classification::default()` + 空 tower，cache 清空。
+/// - L0 带段端门 fail-closed 标记（`segments_parse_invalid_from.is_some()`，#1581 / X-37）⟹ 拒读：
+///   `Classification::default()` + 空 tower + 空 operations，可重导缓存清空，候选事件簿只读不写。
 /// - 段账本前缩（`segments.len() < last_l0_segments_len`）⟹ cache 清空 + 全量重扫（bit-exact 退化）。
 /// - merged_bars 前缀改写（inclusion 合并回退）⟹ MACD cache 局部重建（bit-exact 退化）。
 pub fn classify_incremental(

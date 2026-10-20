@@ -269,3 +269,60 @@ fn tb1581_perbar_digest_seed4() {
         );
     }
 }
+
+/// 负控（生产增量与批量装配路径，审查 must_fix）：TestOnly 种子起点在随机 K 线上逐 bar 驱动
+/// `ParseLayerIncr`，在首个带标记且段账本可分类的 bar 上断言：增量/批量/facts 三路标记同值且非空、
+/// 尾部无 PendingSegment、classifier 无产出；正控：同一层去掉标记后 classifier 有产出。
+#[test]
+fn tb1581_marker_reaches_incremental_and_batch_layers() {
+    let cfg = ThetaConfig::default();
+    let mut hit = None;
+    segment::FIRST_START_AT_SEED.with(|c| c.set(true));
+    'seeds: for seed in 0..40u64 {
+        let bars = tb1581_bars(0x1581_1000 + seed, 1_500);
+        let mut incr = ParseLayerIncr::new(&cfg);
+        for (i, bar) in bars.iter().enumerate() {
+            let layer = incr.append(*bar);
+            let Some(p) = layer.segments_parse_invalid_from else {
+                continue;
+            };
+            let mut cleared = layer.clone();
+            cleared.segments_parse_invalid_from = None;
+            if classifier::classify(&cleared, &cfg, &[])
+                .classification
+                .levels
+                .is_empty()
+            {
+                continue;
+            }
+            let batch = parse_layer(&bars[..=i], &cfg);
+            let (facts_layer, facts) = parse_layer_with_inclusion_facts(&bars[..=i], &cfg);
+            hit = Some((seed, i, p, layer, batch, facts_layer, facts, cleared));
+            break 'seeds;
+        }
+    }
+    segment::FIRST_START_AT_SEED.with(|c| c.set(false));
+    let (seed, i, p, layer, batch, facts_layer, facts, cleared) =
+        hit.expect("TestOnly 种子起点须在随机 K 线上触发门失败");
+    eprintln!("tb1581 incr marker seed={seed} bar={i} seg_start={p}");
+    let facts_marker = facts
+        .segment_facts
+        .as_ref()
+        .and_then(|f| f.parse_invalid_from.as_ref())
+        .map(|x| x.seg_start);
+    assert_eq!(facts_marker, Some(p));
+    assert_eq!(batch.segments_parse_invalid_from, Some(p));
+    assert_eq!(facts_layer.segments_parse_invalid_from, Some(p));
+    assert_eq!(batch, layer, "批量 ≡ 增量（含标记）");
+    for l in [&layer, &batch, &facts_layer] {
+        assert!(!has_pending_segment(l), "标记非空 ⟹ 无 PendingSegment");
+    }
+    let refused = classifier::classify(&layer, &cfg, &[1]);
+    assert_eq!(
+        refused.classification,
+        classifier::Classification::default()
+    );
+    assert!(refused.tower.is_empty() && refused.operations.is_empty());
+    let allowed = classifier::classify(&cleared, &cfg, &[]);
+    assert!(!allowed.classification.levels.is_empty() && !allowed.tower.is_empty());
+}
