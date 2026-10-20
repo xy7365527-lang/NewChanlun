@@ -165,6 +165,40 @@ fn join(left: Rc<CoordNode>, right: Rc<CoordNode>) -> Rc<CoordNode> {
     branch(left, right)
 }
 
+fn node_max(node: &Rc<CoordNode>) -> usize {
+    let mut node = node;
+    loop {
+        match node.as_ref() {
+            CoordNode::Leaf(coord) => return *coord,
+            CoordNode::Concat(_, right, _) => node = right,
+        }
+    }
+}
+
+/// 插入后的新子树；`None` = 已含该坐标（不新建节点）。
+fn insert_node(node: &Rc<CoordNode>, coord: usize) -> Option<Rc<CoordNode>> {
+    match node.as_ref() {
+        CoordNode::Leaf(existing) => match coord.cmp(existing) {
+            std::cmp::Ordering::Equal => None,
+            std::cmp::Ordering::Less => Some(branch(
+                Rc::new(CoordNode::Leaf(coord)),
+                node.clone(),
+            )),
+            std::cmp::Ordering::Greater => Some(branch(
+                node.clone(),
+                Rc::new(CoordNode::Leaf(coord)),
+            )),
+        },
+        CoordNode::Concat(left, right, _) => {
+            if coord <= node_max(left) {
+                insert_node(left, coord).map(|l| join(l, right.clone()))
+            } else {
+                insert_node(right, coord).map(|r| join(left.clone(), r))
+            }
+        }
+    }
+}
+
 /// 坐标集合句柄（`None` = 空集），O(1) clone。
 #[derive(Debug, Clone, Default)]
 pub struct CoordsRef(Option<Rc<CoordNode>>);
@@ -209,6 +243,18 @@ impl CoordsRef {
     /// 拼接（拼接新建节点，旧树保持原内容）。
     pub fn root_node(&self) -> Option<&Rc<CoordNode>> {
         self.0.as_ref()
+    }
+
+    /// #1597：持久插入一个坐标（已在集合内则返回原句柄）。旧版本不变；沿 O(log n) 路径新建
+    /// 节点并保持 AVL 平衡（递归深度 = 树高 O(log n)）。
+    pub fn insert(&self, coord: usize) -> Self {
+        match &self.0 {
+            None => CoordsRef::single(coord),
+            Some(root) => match insert_node(root, coord) {
+                Some(next) => CoordsRef(Some(next)),
+                None => self.clone(),
+            },
+        }
     }
 
     /// 展开为升序去重 `Vec<usize>`——显式栈迭代中序，无递归。
@@ -282,13 +328,6 @@ pub struct SourceCoords(SourceRepr);
 #[derive(Clone)]
 enum SourceRepr {
     Shared(CoordsRef),
-    /// 带完整性标记的共享树：树内含**全部**已处理 raw 中 ≤ `complete_upto` 的坐标（另可含
-    /// 若干 > `complete_upto` 的坐标）。只由 parser 内部按构造保证的地方创建
-    /// （[`SourceCoords::complete_prefix`] / [`union_prefixed`]），公开构造口不产出本形态。
-    Prefix {
-        tree: CoordsRef,
-        complete_upto: usize,
-    },
     Flat(Rc<[usize]>),
 }
 
@@ -313,31 +352,7 @@ impl SourceCoords {
     pub fn as_shared(&self) -> Option<&CoordsRef> {
         match &self.0 {
             SourceRepr::Shared(coords) => Some(coords),
-            SourceRepr::Prefix { tree, .. } => Some(tree),
             SourceRepr::Flat(_) => None,
-        }
-    }
-
-    /// parser 内部：标记一棵**完整 raw 前缀**树（含全部已处理 raw 中 ≤ 其最大值的坐标）。
-    /// 空树不标记（返回普通共享形态）。调用方对完整性负责。
-    pub(crate) fn complete_prefix(tree: CoordsRef) -> Self {
-        match tree.max() {
-            Some(complete_upto) => SourceCoords(SourceRepr::Prefix {
-                tree,
-                complete_upto,
-            }),
-            None => SourceCoords(SourceRepr::Shared(tree)),
-        }
-    }
-
-    /// parser 内部：带完整性标记的形态 ⟹ `(树, complete_upto)`。
-    pub(crate) fn prefix_parts(&self) -> Option<(&CoordsRef, usize)> {
-        match &self.0 {
-            SourceRepr::Prefix {
-                tree,
-                complete_upto,
-            } => Some((tree, *complete_upto)),
-            _ => None,
         }
     }
 
@@ -345,57 +360,25 @@ impl SourceCoords {
     pub fn iter(&self) -> SourceCoordsIter<'_> {
         match &self.0 {
             SourceRepr::Flat(items) => SourceCoordsIter::Flat(items.iter()),
-            SourceRepr::Shared(coords) | SourceRepr::Prefix { tree: coords, .. } => {
-                SourceCoordsIter::Tree(match coords.root_node() {
-                    Some(root) => vec![root.as_ref()],
-                    None => Vec::new(),
-                })
-            }
+            SourceRepr::Shared(coords) => SourceCoordsIter::Tree(match coords.root_node() {
+                Some(root) => vec![root.as_ref()],
+                None => Vec::new(),
+            }),
         }
-    }
-
-    /// 逆序遍历元素（共享形态为降序）。显式栈，惰性：`take_while` 截断时只走右侧路径。
-    pub fn iter_rev(&self) -> impl Iterator<Item = usize> + '_ {
-        let (flat, mut stack): (Option<std::iter::Rev<std::slice::Iter<'_, usize>>>, Vec<&CoordNode>) =
-            match &self.0 {
-                SourceRepr::Flat(items) => (Some(items.iter().rev()), Vec::new()),
-                SourceRepr::Shared(coords) | SourceRepr::Prefix { tree: coords, .. } => (
-                    None,
-                    coords.root_node().map(|r| vec![r.as_ref()]).unwrap_or_default(),
-                ),
-            };
-        let mut flat = flat;
-        std::iter::from_fn(move || {
-            if let Some(items) = flat.as_mut() {
-                return items.next().copied();
-            }
-            while let Some(node) = stack.pop() {
-                match node {
-                    CoordNode::Leaf(coord) => return Some(*coord),
-                    CoordNode::Concat(left, right, _) => {
-                        stack.push(left.as_ref());
-                        stack.push(right.as_ref());
-                    }
-                }
-            }
-            None
-        })
     }
 
     /// 元素个数。共享形态需遍历叶，O(len)。
     pub fn len(&self) -> usize {
         match &self.0 {
             SourceRepr::Flat(items) => items.len(),
-            SourceRepr::Shared(coords) | SourceRepr::Prefix { tree: coords, .. } => coords.count(),
+            SourceRepr::Shared(coords) => coords.count(),
         }
     }
 
     pub fn is_empty(&self) -> bool {
         match &self.0 {
             SourceRepr::Flat(items) => items.is_empty(),
-            SourceRepr::Shared(coords) | SourceRepr::Prefix { tree: coords, .. } => {
-                coords.is_empty()
-            }
+            SourceRepr::Shared(coords) => coords.is_empty(),
         }
     }
 
@@ -403,9 +386,7 @@ impl SourceCoords {
     pub fn to_vec(&self) -> Vec<usize> {
         match &self.0 {
             SourceRepr::Flat(items) => items.to_vec(),
-            SourceRepr::Shared(coords) | SourceRepr::Prefix { tree: coords, .. } => {
-                coords.materialize()
-            }
+            SourceRepr::Shared(coords) => coords.materialize(),
         }
     }
 
@@ -423,7 +404,7 @@ impl SourceCoords {
     pub fn last(&self) -> Option<usize> {
         match &self.0 {
             SourceRepr::Flat(items) => items.last().copied(),
-            SourceRepr::Shared(coords) | SourceRepr::Prefix { tree: coords, .. } => coords.max(),
+            SourceRepr::Shared(coords) => coords.max(),
         }
     }
 
@@ -508,7 +489,7 @@ impl serde::Serialize for SourceCoords {
 
 impl PartialEq for SourceCoords {
     fn eq(&self, other: &Self) -> bool {
-        if let (Some(a), Some(b)) = (self.as_shared(), other.as_shared()) {
+        if let (SourceRepr::Shared(a), SourceRepr::Shared(b)) = (&self.0, &other.0) {
             if let (Some(x), Some(y)) = (a.root_node(), b.root_node()) {
                 if Rc::ptr_eq(x, y) {
                     return true;
@@ -541,55 +522,37 @@ impl PartialEq<SourceCoords> for Vec<usize> {
     }
 }
 
-/// #1597：若干来源集合的升序去重并集，共享构造（不复制前缀）。
+/// #1597：`base ∪ others` 的共享并集（升序去重，与「拼接后排序去重」逐位相同）。
 ///
-/// `prefixed` 是带完整性标记的集合（[`SourceCoords::prefix_parts`]：树含全部已处理 raw 中
-/// ≤ `complete_upto` 的坐标），`plain` 是其余集合的元素；全部元素都必须是已处理 raw 坐标
-/// （调用方保证：组成员与证据坐标都取自已处理 raw）。
-///
-/// 取 `complete_upto` 最大的一份 `(T, c)`：并集中 ≤ c 的部分 = 全部已处理 raw ≤ c ⊆ T；
-/// > c 的部分 = 各集合 > c 的元素。后者若落在 `(c, max T]` 内必须已在 T 中，> max T 的按升序
-/// 接在 T 之后——结果与「全部拼接后排序去重」逐位相同。不满足（有元素落在 T 的缺口里）或
-/// 没有带标记的集合 ⟹ `None`，调用方回落扁平构造。只遍历各集合 > c 的尾段（逆序到界即停）。
-pub(crate) fn union_prefixed<'a>(
-    prefixed: &[&'a SourceCoords],
-    plain: impl IntoIterator<Item = &'a usize>,
-) -> Option<SourceCoords> {
-    let (best, (tree, bound)) = prefixed
-        .iter()
-        .enumerate()
-        .filter_map(|(i, c)| c.prefix_parts().map(|p| (i, p)))
-        .max_by_key(|(_, (_, c))| *c)?;
-    if prefixed.iter().any(|c| c.prefix_parts().is_none()) {
-        return None;
-    }
-    let top = tree.max().expect("带标记的树非空");
-    let above = |c: &SourceCoords| -> Vec<usize> {
-        c.iter_rev().take_while(|x| *x > bound).collect()
-    };
-    let own: std::collections::BTreeSet<usize> = above(prefixed[best]).into_iter().collect();
-    let mut extra: Vec<usize> = plain.into_iter().copied().filter(|x| *x > bound).collect();
-    for (i, c) in prefixed.iter().enumerate() {
-        if i != best {
-            extra.extend(above(c));
+/// 不对 `others` 作任何形状假设：先与 `base` 做一次有序归并找出 `base` 里没有的元素，
+/// 再逐个持久插入。`others` 须升序（调用方传入的组成员与端点来源均升序）；非升序时退化为
+/// 逐元素插入，结果仍精确。耗时 O(|base| + |others| + k log² n)，留存只新增 k 条路径。
+pub(crate) fn union_into<'a>(
+    base: &CoordsRef,
+    others: impl IntoIterator<Item = &'a usize>,
+) -> CoordsRef {
+    let base_view = SourceCoords::from_shared(base.clone());
+    let mut walk = base_view.iter().copied().peekable();
+    let mut last: Option<usize> = None;
+    let mut missing: Vec<usize> = Vec::new();
+    for &x in others {
+        if last.is_some_and(|l| x < l) {
+            // 下一段（或非升序）：归并游标从头再走，结果仍精确。
+            walk = base_view.iter().copied().peekable();
+        }
+        last = Some(x);
+        while walk.peek().is_some_and(|b| *b < x) {
+            walk.next();
+        }
+        if walk.peek() != Some(&x) {
+            missing.push(x);
         }
     }
-    extra.sort_unstable();
-    extra.dedup();
-    let mut out = tree.clone();
-    for x in extra {
-        if x <= top {
-            if !own.contains(&x) {
-                return None;
-            }
-        } else {
-            out = out.append_greater(x);
-        }
+    let mut out = base.clone();
+    for x in missing {
+        out = out.insert(x);
     }
-    Some(SourceCoords(SourceRepr::Prefix {
-        tree: out,
-        complete_upto: bound,
-    }))
+    out
 }
 
 #[cfg(test)]
@@ -624,6 +587,58 @@ mod tests {
             }
         }
         assert!(depth <= 25, "4096 次持续追加仍形成深链：depth={depth}");
+    }
+
+    /// #1597：持久插入与有序归并并集——对照 BTreeSet，含非升序输入、重复元素与旧版本不变。
+    #[test]
+    fn coords_ref_insert_and_union_into_match_set_semantics() {
+        use std::collections::BTreeSet;
+        let mut lcg: u64 = 0x5851_F42D_4C95_7F2D;
+        let mut rand = move || {
+            lcg = lcg
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            (lcg >> 33) as usize
+        };
+        let mut tree = CoordsRef::empty();
+        let mut set = BTreeSet::new();
+        let mut versions = Vec::new();
+        for _ in 0..3000 {
+            let x = rand() % 5000;
+            tree = tree.insert(x);
+            set.insert(x);
+            if set.len() % 500 == 0 {
+                versions.push((tree.clone(), set.iter().copied().collect::<Vec<_>>()));
+            }
+        }
+        assert_eq!(tree.materialize(), set.iter().copied().collect::<Vec<_>>());
+        for (old, want) in &versions {
+            assert_eq!(&old.materialize(), want, "持久插入改写了旧版本");
+        }
+        let mut depth = 0;
+        let mut pending = vec![(tree.0.as_ref().unwrap(), 1)];
+        while let Some((node, level)) = pending.pop() {
+            depth = depth.max(level);
+            if let CoordNode::Concat(left, right, ..) = node.as_ref() {
+                pending.push((left, level + 1));
+                pending.push((right, level + 1));
+            }
+        }
+        assert!(depth <= 30, "随机插入后失衡：depth={depth}");
+
+        let base: CoordsRef = (0..200usize)
+            .filter(|i| i % 3 != 0)
+            .fold(CoordsRef::empty(), |t, i| t.append_greater(i));
+        let others = vec![0usize, 3, 4, 299, 150, 151, 6, 6, 1000, 2];
+        let got = union_into(&base, others.iter());
+        let mut want: BTreeSet<usize> = base.materialize().into_iter().collect();
+        want.extend(others.iter().copied());
+        assert_eq!(got.materialize(), want.into_iter().collect::<Vec<_>>());
+        assert_eq!(
+            base.materialize().len(),
+            (0..200).filter(|i| i % 3 != 0).count(),
+            "并集改写了基底"
+        );
     }
 
     #[test]
