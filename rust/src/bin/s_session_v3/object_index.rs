@@ -2129,7 +2129,12 @@ pub(super) fn stage_in_material(
         &super::audit_owner::MaterialAccess<'_, '_, '_>,
     >,
 ) -> Result<(), String> {
-    for e in &p.births {
+    // S4 negctrl：增量（material）臂漏写末个新生对象。
+    #[cfg(feature = "s_capture_native_testonly")]
+    let s4_skip = usize::from(material.is_some() && p.births.len() > 1);
+    #[cfg(not(feature = "s_capture_native_testonly"))]
+    let s4_skip = 0;
+    for e in p.births.iter().take(p.births.len() - s4_skip) {
         if e.life.first_known_generation != p.generation || e.life.batch != BatchOwner::CurrentBatch
         {
             return Err(err("新生上下文不符"));
