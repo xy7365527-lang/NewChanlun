@@ -1380,6 +1380,15 @@ pub(super) fn audit_native_source(
             {
                 return Err(construction_state::stale("来源材料不是stage前唯一切面"));
             }
+            // 0069 真实路径锁：与 s_content 原件追加索引扩容超帽同一方式 reject 并经 invalid 上抛。
+            #[cfg(test)]
+            if super::SOURCE_APPEND_ALLOCATION_FAILURE.with(|flag| flag.replace(false)) {
+                return Err(invalid(
+                    access
+                        .work
+                        .reject(sc::capture_allocation::scratch::ScratchFailure::Allocation),
+                ));
+            }
             // nodes集合只来自当前实际tx的受控写口；每个tuple从真实事务重新读取。
             for digest in j.nodes.keys() {
                 // #1488：活动域读取签发的正文许可随正文移入 owner，不再走 Plain 早退。

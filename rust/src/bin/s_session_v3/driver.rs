@@ -5066,11 +5066,12 @@ mod tests {
     /// Allocation 失败（与 j.cap 日志/索引扩容超帽同一 BudgetExceeded 分类）。须：同请求放弃候选、
     /// 无候选发布成功，回复与运行根逐项等于 ordinary oracle，不保留候选；后续代照常接纳并与 oracle
     /// 一致（不得卡在“已有未完成Begin”或“Carry租约已撤销”）。负控：同位置注入 Ledger（真正尾检失败）仍拒绝且不降级。
+    /// 0069：`flag` 选注入点；`rejects_with=Some(片段)` 表示须拒绝、不降级且错误含该片段。
     #[cfg(feature = "s_capture_native_testonly")]
-    fn publication_candidate_shortfall_case(real_tail_failure: bool) {
-        use super::super::audit_owner::{
-            PUBLICATION_CANDIDATE_BUDGET_FAILURE, PUBLICATION_TAIL_FAILURE,
-        };
+    fn publication_candidate_shortfall_case(
+        flag: &'static std::thread::LocalKey<std::cell::Cell<bool>>,
+        rejects_with: Option<&str>,
+    ) {
         use super::super::prepared::tests::runtime_root_tables;
         let phases =
             |events: &[Value], phase: &str| events.iter().filter(|e| e["phase"] == phase).count();
@@ -5094,17 +5095,12 @@ mod tests {
             warm.conn.complete_retained_bytes() > 0,
             "第 2 代入口须带完整候选"
         );
-        let flag = if real_tail_failure {
-            &PUBLICATION_TAIL_FAILURE
-        } else {
-            &PUBLICATION_CANDIDATE_BUDGET_FAILURE
-        };
         flag.with(|f| f.set(true));
         let (reply, events, _) = state::traced(false, || warm.handle(Fixture::ingest(2)));
         assert!(!flag.with(|f| f.get()), "故障必须实际到达候选尾检");
-        if real_tail_failure {
+        if let Some(expected) = rejects_with {
             let error = reply.expect_err("真正尾检失败必须拒绝");
-            assert!(error.contains("工作账损坏"), "{error}");
+            assert!(error.contains(expected), "{error}");
             assert_eq!(phases(&events, "publication_candidate_abandoned"), 0);
             assert_eq!(meta_i64(&warm.conn, "generation").unwrap(), 1);
             return;
@@ -5135,12 +5131,36 @@ mod tests {
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn publication_candidate_budget_shortfall_degrades_and_keeps_admitting() {
-        publication_candidate_shortfall_case(false);
+        use super::super::audit_owner::PUBLICATION_CANDIDATE_BUDGET_FAILURE;
+        publication_candidate_shortfall_case(&PUBLICATION_CANDIDATE_BUDGET_FAILURE, None);
     }
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn publication_real_tail_failure_still_rejects_without_degrade() {
-        publication_candidate_shortfall_case(true);
+        use super::super::audit_owner::PUBLICATION_TAIL_FAILURE;
+        publication_candidate_shortfall_case(&PUBLICATION_TAIL_FAILURE, Some("工作账损坏"));
+    }
+    /// #1488 0069 锁（独审 0068 F1 负控，原探针 refs/r68-red/e）：尾检位置先记 Allocation，
+    /// 闭包再返回与预算无关的真实错误。改前被降级成功（reply_ok=true abandoned=1）；须拒绝、
+    /// 不降级，且拒绝原因是闭包自身的真实错误。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn publication_real_error_after_budget_failure_rejects_without_degrade() {
+        use super::super::audit_owner::PUBLICATION_REAL_ERROR_AFTER_BUDGET;
+        publication_candidate_shortfall_case(
+            &PUBLICATION_REAL_ERROR_AFTER_BUDGET,
+            Some("publication尾检身份不符（0069负控注入）"),
+        );
+    }
+    /// #1488 0069 锁：故障起点改到 audit_native_source 追加原件处（S86 message-20 / MIN12 op-0015
+    /// 的真实失败位置，b-0059 diag6），按 s_content 索引扩容超帽同一方式 reject(Allocation) 并经
+    /// `invalid` 沿真实调用链上抛。收紧后的判据须仍识别为预算不足并降级（补 0068 I3：原降级锁
+    /// 只覆盖尾检注入）。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn publication_source_append_allocation_failure_degrades() {
+        use super::super::audit_owner::SOURCE_APPEND_ALLOCATION_FAILURE;
+        publication_candidate_shortfall_case(&SOURCE_APPEND_ALLOCATION_FAILURE, None);
     }
     /// 0065：`S_MANIFEST_WORKSPACE_DIAGNOSTICS=1` 时 serve 打开即配置 pager 探针。配置后带候选的
     /// 后续代须照常 Carry 并与 ordinary oracle 一致（改前第 2 代报“Carry租约已撤销”）。
