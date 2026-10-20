@@ -1090,6 +1090,7 @@ impl GenerationRuntime {
         // ── 生成态六条数组：跨代共享序列 + 旧配方等价去重 ──
         let mut objects: CodecVec<ProducedObject> = shape_objects;
         extend_gen(&mut objects, typed, store)?;
+        p64_probe(delta.is_some(), gen, &objects); // probe-0064（随即 revert）
         let deduped = dedupe_observations(store, &observations)?;
         let (raw_events_array, effective_array) = match delta {
             Some((_, roots)) => (roots.raw_events, roots.effective_events),
@@ -1184,6 +1185,96 @@ fn push_gen<T>(values: &mut CodecVec<T>, value: T, store: &dyn NodeStore) -> Res
         values.try_reserve_native(work, 1).map_err(codec_error)?;
     }
     values.try_push(value).map_err(codec_error)
+}
+// probe-0064（随即 revert）：生成态 objects 跨代逐位/身份对齐统计。
+// norm = object_id + 内容边摘要（不含 first_known_generation/first_known_cut/published_generation）。
+type P64Row = (String, String, NodeDigest, Vec<u8>);
+thread_local! {
+    static P64_PREV: std::cell::RefCell<std::collections::HashMap<bool, Vec<P64Row>>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+fn p64_probe(arm: bool, gen: i64, objects: &CodecVec<ProducedObject>) {
+    use std::collections::{BTreeMap, HashMap};
+    let mut cur: Vec<P64Row> = Vec::new();
+    for o in objects {
+        let mut norm = o.object_id().as_bytes().to_vec();
+        let edges: [&Built; 3] = match &o.body {
+            ObjectBody::Typed(t) => [&t.payload_json, &t.input_refs_json, &t.source_coords_json],
+            ObjectBody::Fractal(t) => [&t.payload_json, &t.input_refs_json, &t.source_coords_json],
+            ObjectBody::Shape(t) => [&t.comparisons, &t.input_refs_json, &t.source_coords_json],
+        };
+        for e in edges {
+            norm.extend_from_slice(&e.digest);
+        }
+        cur.push((o.object_id().to_string(), o.kind().to_string(), o.generated.digest, norm));
+    }
+    let arm_tag = if arm { "inc" } else { "full" };
+    let mut runs: Vec<(String, usize)> = Vec::new();
+    for r in &cur {
+        match runs.last_mut() {
+            Some((k, n)) if *k == r.1 => *n += 1,
+            _ => runs.push((r.1.clone(), 1)),
+        }
+    }
+    let runs_s: Vec<String> = runs.iter().map(|(k, n)| format!("{k}x{n}")).collect();
+    P64_PREV.with(|m| {
+        let mut m = m.borrow_mut();
+        if let Some(old) = m.get(&arm) {
+            let old_pos: HashMap<&str, usize> =
+                old.iter().enumerate().map(|(i, r)| (r.0.as_str(), i)).collect();
+            let old_digests: std::collections::HashSet<NodeDigest> = old.iter().map(|r| r.2).collect();
+            let new_ids: std::collections::HashSet<&str> = cur.iter().map(|r| r.0.as_str()).collect();
+            let mn = old.len().min(cur.len());
+            let exact_pos = (0..mn).filter(|&i| old[i].2 == cur[i].2).count();
+            let exact_any = cur.iter().filter(|r| old_digests.contains(&r.2)).count();
+            let id_pos = (0..mn).filter(|&i| old[i].0 == cur[i].0).count();
+            let norm_pos = (0..mn).filter(|&i| old[i].3 == cur[i].3).count();
+            let id_lcp = (0..mn).take_while(|&i| old[i].0 == cur[i].0).count();
+            let mut id_kept = 0;
+            let mut norm_kept = 0;
+            let mut kept_digest_diff = 0;
+            let mut moved = 0;
+            let mut shifts: BTreeMap<i64, usize> = BTreeMap::new();
+            let mut born: Vec<String> = Vec::new();
+            let mut born_kind: BTreeMap<String, usize> = BTreeMap::new();
+            for (i, r) in cur.iter().enumerate() {
+                match old_pos.get(r.0.as_str()) {
+                    Some(&j) => {
+                        id_kept += 1;
+                        if old[j].3 == r.3 {
+                            norm_kept += 1;
+                        }
+                        if old[j].2 != r.2 {
+                            kept_digest_diff += 1;
+                        }
+                        if i != j {
+                            moved += 1;
+                            *shifts.entry(i as i64 - j as i64).or_default() += 1;
+                        }
+                    }
+                    None => {
+                        *born_kind.entry(r.1.clone()).or_default() += 1;
+                        if born.len() < 12 {
+                            born.push(format!("{}@{}", r.1, i));
+                        }
+                    }
+                }
+            }
+            let mut gone_kind: BTreeMap<String, usize> = BTreeMap::new();
+            for r in old.iter().filter(|r| !new_ids.contains(r.0.as_str())) {
+                *gone_kind.entry(r.1.clone()).or_default() += 1;
+            }
+            eprintln!(
+                "P64 arm={arm_tag} g={gen} old={} new={} exact_pos={exact_pos} exact_any={exact_any} id_pos={id_pos} norm_pos={norm_pos} id_lcp={id_lcp} id_kept={id_kept} norm_kept={norm_kept} kept_digest_diff={kept_digest_diff} moved={moved} shifts={shifts:?} born={born_kind:?} gone={gone_kind:?} born_at={born:?}",
+                old.len(),
+                cur.len()
+            );
+        } else {
+            eprintln!("P64 arm={arm_tag} g={gen} first new={}", cur.len());
+        }
+        eprintln!("P64RUNS arm={arm_tag} g={gen} {}", runs_s.join(","));
+        m.insert(arm, cur);
+    });
 }
 fn extend_gen<T>(
     values: &mut CodecVec<T>,
