@@ -1793,6 +1793,9 @@ pub(crate) fn audit_native_bound(
         if material.codec_work().is_none() {
             return Err(err("Native来源增量缺原父工作账"));
         }
+        if previous.is_some() {
+            return Err(err("S4 negctrl 探针：来源审计收到前代状态")); // S4 negctrl
+        }
         let mut state = match previous {
             Some(state) => state,
             None => NativeSourceState::empty(material, raw, material.root(), rule)?,
