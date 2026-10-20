@@ -11,7 +11,6 @@ const ORACLE: &str =
 const P0: &str = "P0";
 const P1: &str = "P1-hl-testnet";
 const P5M: &str = "P0-acceptance-5m";
-const AUTH_P0: &str = "#1557/funding-authorization/v1@P0";
 
 /// 黄金值：ADR 0040 签署记录 derivation-result（profile, Q_total, [(ℓ, Q, 开局批)]）。
 fn golden() -> Vec<(&'static str, i64, Vec<(&'static str, i64, i64)>)> {
@@ -291,7 +290,7 @@ fn opening_batch_negative_controls_are_typed_and_stateless() {
     let space = Space::new("c8-neg");
     let m = profile_manifest(&space, P0);
     let ok = Batch::ok(100000, P0);
-    let cases: Vec<(&str, Batch, &str)> = vec![
+    let cases: Vec<(&str, Batch, &str, &str)> = vec![
         (
             "金额少 1",
             Batch {
@@ -299,6 +298,7 @@ fn opening_batch_negative_controls_are_typed_and_stateless() {
                 ..ok.clone()
             },
             "IdentityConflict",
+            "⌈Q/L⌉ = 100000",
         ),
         (
             "金额多 1",
@@ -307,6 +307,7 @@ fn opening_batch_negative_controls_are_typed_and_stateless() {
                 ..ok.clone()
             },
             "IdentityConflict",
+            "⌈Q/L⌉ = 100000",
         ),
         (
             "错 authorization_ref",
@@ -315,6 +316,7 @@ fn opening_batch_negative_controls_are_typed_and_stateless() {
                 ..ok.clone()
             },
             "IdentityConflict",
+            "authorization_ref",
         ),
         (
             "错 version",
@@ -323,6 +325,7 @@ fn opening_batch_negative_controls_are_typed_and_stateless() {
                 ..ok.clone()
             },
             "IdentityConflict",
+            "authorization_version",
         ),
         (
             "错 currency",
@@ -331,6 +334,7 @@ fn opening_batch_negative_controls_are_typed_and_stateless() {
                 ..ok.clone()
             },
             "InvalidDomain",
+            "币种",
         ),
         (
             "过期",
@@ -339,6 +343,7 @@ fn opening_batch_negative_controls_are_typed_and_stateless() {
                 ..ok.clone()
             },
             "PolicyExpired",
+            "超过 funding-record 有效期",
         ),
         (
             "known_at 形状",
@@ -347,12 +352,14 @@ fn opening_batch_negative_controls_are_typed_and_stateless() {
                 ..ok.clone()
             },
             "InvalidDomain",
+            "YYYY-MM-DD",
         ),
     ];
-    for (name, batch, expected) in cases {
+    for (name, batch, expected, phrase) in cases {
         let image = book::empty_image();
         let r = open(&m, "0", &batch);
         assert_eq!(kind(&r), expected, "{name}: {r:?}");
+        assert!(r.as_ref().unwrap_err().contains(phrase), "{name}: {r:?}");
         // 失败不改状态（同一错误、同一输入图像）。
         assert_eq!(open(&m, "0", &batch), r, "{name}");
         assert_eq!(image, book::empty_image());
