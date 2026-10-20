@@ -40,6 +40,8 @@ def main():
     ap.add_argument("--work", required=True, type=Path)
     ap.add_argument("--port", required=True)
     ap.add_argument("--timeout-ms", type=int, default=1_800_000)
+    ap.add_argument("--query-only", action="store_true",
+                    help="复用已完成 52 条写入的 work（INGEST.jsonl 全 Committed），只重做 Q3 查询与对拍")
     a = ap.parse_args()
     root = HERE.parent
     messages, clock = root / "input/messages.jsonl", root / "input/clock.json"
@@ -48,12 +50,14 @@ def main():
         if m.sha256_file(path) != expect:
             sys.exit(f"输入哈希不符 {path}")
     work = a.work
-    work.mkdir(parents=True, exist_ok=False)
-    (work / "oracle").mkdir()
+    if not a.query_only:
+        work.mkdir(parents=True, exist_ok=False)
+        (work / "oracle").mkdir()
     binary = str(Path(a.bin).resolve())
     lines = messages.read_bytes().splitlines()
     first = json.loads(lines[0])
     config = {k: first[k] for k in ("session_id", "session_generation", "source_namespace", "source_epoch")}
+    config["port"] = a.port
     catalog = REPO / "s_session/catalog/signed-catalog.json"
     profile = REPO / "s_session/profiles/ohlc_integer_tb02a_v1.json"
     resources = work / "s-resources.json"
@@ -66,48 +70,54 @@ def main():
     env = {k: v for k, v in os.environ.items() if k in KEEP or not k.startswith(("S_", "NC_TESTONLY"))}
     run = {"schema": "1488-d65-min12-v3-direct/1", "binary": binary, "binary_sha256": m.sha256_file(binary),
            "env_testonly": {k: env.get(k) for k in KEEP}, "started_unix": time.time()}
-    init = subprocess.run([binary, "init", *common, "--db", str(db), "--session", config["session_id"],
-                           "--catalog", str(catalog), "--profile", str(profile),
-                           "--session-generation", config["session_generation"], "--clock-plan", str(clock),
-                           "--delivery-retain-generations", "4"], capture_output=True, env=env)
-    (work / "init.json").write_bytes(init.stdout)
-    if init.returncode != 0:
-        sys.exit(f"init 失败 rc={init.returncode}: {init.stderr.decode()[-2000:]}")
-    sock = work / "s.sock"
-    stderr = open(work / "serve.stderr", "wb")
-    server = subprocess.Popen([binary, "serve", *common, "--db", str(db), "--profile", str(profile),
-                               "--writer-epoch", "1", "--clock-plan", str(clock), "--socket", str(sock),
-                               "--resource-config", str(resources)], stdout=subprocess.PIPE, stderr=stderr, env=env)
-    t0 = time.monotonic()
-    while not sock.exists():
-        if server.poll() is not None or time.monotonic() - t0 > 600:
-            sys.exit(f"serve 未监听 rc={server.poll()}")
-        time.sleep(0.01)
-    ok, head = True, None
-    with (work / "INGEST.jsonl").open("w") as out:
-        for index, raw in enumerate(lines):
-            request = sc.decode_frame(raw)
-            assert request["schema_revision"] == "s-session/2"
-            request["schema_revision"] = "s-session/3"
-            begun = time.monotonic_ns()
-            result = sc.exchange(str(sock), request, timeout_ms=a.timeout_ms, max_frame_bytes=1048576)
-            elapsed = time.monotonic_ns() - begun
-            payload = (result.get("response") or {}).get("payload", {})
-            record = {"index": index, "message_id": request["message_id"], "elapsed_ns": elapsed,
-                      "reply_ms": elapsed / 1e6, "transport": result["transport"], "kind": payload.get("kind"),
-                      "publication": payload.get("publication"),
-                      "host_loadavg_1m": float(Path("/proc/loadavg").read_text().split()[0])}
-            if payload.get("kind") != "Committed":
-                record["reply_payload"] = json.dumps(result, ensure_ascii=False)[:4000]
-            out.write(json.dumps(record, ensure_ascii=False) + "\n")
-            out.flush()
-            print(f"op {index} {elapsed / 1e6:.1f}ms {record['kind']}", flush=True)
-            if result["transport"] != "Received" or payload.get("kind") != "Committed":
-                ok = False
-                break
-            head = int(payload["publication"]["generation"])
-    server.send_signal(signal.SIGTERM)
-    run["serve_returncode"] = server.wait(timeout=600)
+    if a.query_only:
+        records = [json.loads(x) for x in (work / "INGEST.jsonl").read_text().splitlines()]
+        ok = len(records) == len(lines) and all(r["kind"] == "Committed" for r in records)
+        head = int(records[-1]["publication"]["generation"]) if ok else None
+        run["query_only_rerun"] = True
+    else:
+        init = subprocess.run([binary, "init", *common, "--db", str(db), "--session", config["session_id"],
+                               "--catalog", str(catalog), "--profile", str(profile),
+                               "--session-generation", config["session_generation"], "--clock-plan", str(clock),
+                               "--delivery-retain-generations", "4"], capture_output=True, env=env)
+        (work / "init.json").write_bytes(init.stdout)
+        if init.returncode != 0:
+            sys.exit(f"init 失败 rc={init.returncode}: {init.stderr.decode()[-2000:]}")
+        sock = work / "s.sock"
+        stderr = open(work / "serve.stderr", "wb")
+        server = subprocess.Popen([binary, "serve", *common, "--db", str(db), "--profile", str(profile),
+                                   "--writer-epoch", "1", "--clock-plan", str(clock), "--socket", str(sock),
+                                   "--resource-config", str(resources)], stdout=subprocess.PIPE, stderr=stderr, env=env)
+        t0 = time.monotonic()
+        while not sock.exists():
+            if server.poll() is not None or time.monotonic() - t0 > 600:
+                sys.exit(f"serve 未监听 rc={server.poll()}")
+            time.sleep(0.01)
+        ok, head = True, None
+        with (work / "INGEST.jsonl").open("w") as out:
+            for index, raw in enumerate(lines):
+                request = sc.decode_frame(raw)
+                assert request["schema_revision"] == "s-session/2"
+                request["schema_revision"] = "s-session/3"
+                begun = time.monotonic_ns()
+                result = sc.exchange(str(sock), request, timeout_ms=a.timeout_ms, max_frame_bytes=1048576)
+                elapsed = time.monotonic_ns() - begun
+                payload = (result.get("response") or {}).get("payload", {})
+                record = {"index": index, "message_id": request["message_id"], "elapsed_ns": elapsed,
+                          "reply_ms": elapsed / 1e6, "transport": result["transport"], "kind": payload.get("kind"),
+                          "publication": payload.get("publication"),
+                          "host_loadavg_1m": float(Path("/proc/loadavg").read_text().split()[0])}
+                if payload.get("kind") != "Committed":
+                    record["reply_payload"] = json.dumps(result, ensure_ascii=False)[:4000]
+                out.write(json.dumps(record, ensure_ascii=False) + "\n")
+                out.flush()
+                print(f"op {index} {elapsed / 1e6:.1f}ms {record['kind']}", flush=True)
+                if result["transport"] != "Received" or payload.get("kind") != "Committed":
+                    ok = False
+                    break
+                head = int(payload["publication"]["generation"])
+        server.send_signal(signal.SIGTERM)
+        run["serve_returncode"] = server.wait(timeout=600)
     run.update(ingest_complete=ok, head_generation=head)
     if ok:
         qlog = open(work / "query-serve.log", "wb")
