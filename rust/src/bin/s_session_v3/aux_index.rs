@@ -708,7 +708,23 @@ impl Runtime {
             ws.insert(row.id.try_clone_admitted(s.codec_work())?, i)
                 .map_err(err)?;
         }
+        // 未变行跳过（#1488 S3）：生成态逐代给全量见证/关系/观察，但旧快照已含同内容
+        // 行时，冷口重算只得到同一行并在下方比对后丢弃。按生成记录摘要直接跳过，
+        // 读量只随本代新内容；换内容仍走完整路径并照旧报冲突。
+        let unchanged = incremental_plan();
+        let mut known_witnesses = work_map(owned_budget.as_ref());
+        if unchanged {
+            for row in snapshot.witnesses.iter() {
+                s.native_map_room(&mut known_witnesses).map_err(err)?;
+                known_witnesses
+                    .insert(digest(&row.generated)?, ())
+                    .map_err(err)?;
+            }
+        }
         for w in &generated.witnesses {
+            if known_witnesses.get(&w.built.digest).is_some() {
+                continue;
+            }
             let object = generated
                 .objects
                 .iter()
@@ -759,8 +775,20 @@ impl Runtime {
             rs.insert(row.id.try_clone_admitted(s.codec_work())?, i)
                 .map_err(err)?;
         }
+        let mut known_relations = work_map(owned_budget.as_ref());
+        if unchanged {
+            for row in snapshot.relations.iter() {
+                s.native_map_room(&mut known_relations).map_err(err)?;
+                known_relations
+                    .insert(digest(&row.generated)?, ())
+                    .map_err(err)?;
+            }
+        }
         let mut candidates = bj::new_work(owned_budget.as_ref());
         for b in &generated.relations {
+            if known_relations.get(&b.digest).is_some() {
+                continue;
+            }
             s.native_codec_room(&mut candidates, 1).map_err(err)?;
             candidates.try_push(built_ref(s, b)?).map_err(err)?;
         }
@@ -770,7 +798,14 @@ impl Runtime {
                 .try_push(replacement_relation(s, r)?)
                 .map_err(err)?;
         }
-        for event in raw.prefix(frontier as usize + 1)? {
+        // 旧前缀的 supersedes 关系已由前代出生入旧快照；只扫本代新增原始事件（Δ_R）。
+        let supersedes_from = if unchanged {
+            (previous_frontier + 1) as usize
+        } else {
+            0
+        };
+        for n in supersedes_from..=frontier as usize {
+            let event = raw.get(n).ok_or_else(|| err("原始前缀越界"))?;
             if let Some(r) = supersedes_relation(s, event)? {
                 s.native_codec_room(&mut candidates, 1).map_err(err)?;
                 candidates.try_push(r).map_err(err)?;
@@ -805,7 +840,19 @@ impl Runtime {
             obs.insert(row.id.try_clone_admitted(s.codec_work())?, i)
                 .map_err(err)?;
         }
+        let mut known_observations = work_map(owned_budget.as_ref());
+        if unchanged {
+            for row in snapshot.observations.iter() {
+                s.native_map_room(&mut known_observations).map_err(err)?;
+                known_observations
+                    .insert(digest(&row.generated)?, ())
+                    .map_err(err)?;
+            }
+        }
         for b in &generated.observations {
+            if known_observations.get(&b.digest).is_some() {
+                continue;
+            }
             let row = self.observation(s, b, g)?;
             if let Some(i) = obs.get(&row.id) {
                 // 旧非 tb02a 配方不把 detail 纳入身份：重现保留首版，绝不覆盖；
@@ -891,6 +938,24 @@ impl Runtime {
             snapshot_values,
             delta_values,
         })
+    }
+}
+
+#[cfg(test)]
+thread_local! { static FULL_PLAN_FOR_TEST: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+/// 测试离线对照臂：置位后 plan 走旧完整重算（逐行回读、全原始前缀扫 supersedes）。
+#[cfg(test)]
+pub(super) fn set_full_plan_for_test(full: bool) {
+    FULL_PLAN_FOR_TEST.with(|f| f.set(full));
+}
+fn incremental_plan() -> bool {
+    #[cfg(test)]
+    {
+        !FULL_PLAN_FOR_TEST.with(std::cell::Cell::get)
+    }
+    #[cfg(not(test))]
+    {
+        true
     }
 }
 
@@ -3951,9 +4016,11 @@ mod tests {
             let warm_sql = content_store::sql_reads_on_thread() - sql;
             let warm_frames = sc::frame_calls_on_thread() - frames;
             let sql = content_store::sql_reads_on_thread();
+            set_full_plan_for_test(true);
             let cold = Runtime::default()
-                .plan(&mut s, &old, &generated, &[], &raw, previous, frontier, g)
-                .unwrap();
+                .plan(&mut s, &old, &generated, &[], &raw, previous, frontier, g);
+            set_full_plan_for_test(false);
+            let cold = cold.unwrap();
             let cold_sql = content_store::sql_reads_on_thread() - sql;
             assert_eq!(rows_of(&warm.snapshot), rows_of(&cold.snapshot), "g={g} snapshot");
             assert_eq!(rows_of(&warm.births), rows_of(&cold.births), "g={g} births");
