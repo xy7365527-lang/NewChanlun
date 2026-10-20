@@ -34,31 +34,38 @@ struct Replay {
 }
 
 /// 逐 bar 增量回放；`ladder` 中的前缀处对拍全量（segments/strokes/tail + fail-closed 起点）。
+///
+/// 不跨 bar 持有上一层的 `Rc`：否则 `IncrSegments::append` 的 `Rc::make_mut` 每 bar 整表复制
+/// （生产调用方逐 bar 丢弃旧层）。前缀不回退只比上一层末 `TAIL` 段的拷贝。
 fn replay(bars: &[Bar], ladder: &[usize]) -> (Replay, ParseLayer) {
+    const TAIL: usize = 64;
     let theta = ThetaConfig::default();
     let mut inc = ParseLayerIncr::new(&theta);
     let mut r = Replay::default();
-    let mut prev: Option<ParseLayer> = None;
-    let mut last = ParseLayer::default();
+    // (上一层段数, 拷贝起点, 拷贝, 上一层是否有未封闭第二种候选)
+    let mut prev: Option<(usize, usize, Vec<Segment>, bool)> = None;
+    let mut deep_unverified = 0usize;
+    let n_all = bars.len();
     for (i, bar) in bars.iter().enumerate() {
         let layer = inc.append(*bar);
         if inc.segments_parse_invalid_from().is_some() {
             r.invalid_bars += 1;
         }
-        if let Some(p) = &prev {
+        if let Some((plen, off, old, unsealed)) = &prev {
             // 已发射段（除末段可随末笔改写）须是后一前缀的前缀；只比保留前缀之后的区间。
-            let end = p.segments.len().saturating_sub(1);
+            let end = plen.saturating_sub(1);
             let k = layer.segments_confirmed_len.min(end);
-            let old = &p.segments[k..end];
-            let new = layer.segments.get(k..k + old.len());
-            if new != Some(old) {
-                let j = (0..old.len())
-                    .find(|&j| layer.segments.get(k + j) != Some(&old[j]))
-                    .unwrap_or(old.len());
-                r.rewrites
-                    .push((i, k + j, p.segments_earliest_unsealed.is_some()));
+            if k < *off {
+                deep_unverified += 1;
             }
-            if layer.segments.len() > p.segments.len() {
+            let from = k.max(*off);
+            for j in from..end {
+                if layer.segments.get(j) != Some(&old[j - off]) {
+                    r.rewrites.push((i, j, *unsealed));
+                    break;
+                }
+            }
+            if layer.segments.len() > *plen {
                 r.emits.push(i);
             }
         }
@@ -78,23 +85,28 @@ fn replay(bars: &[Bar], ladder: &[usize]) -> (Replay, ParseLayer) {
                 "前缀 {n}：fail-closed 起点"
             );
             eprintln!(
-                "TB1493 LADDER n={n} strokes={} segments={} pending={:?} failed_geometry={} parse_invalid={:?}",
+                "TB1493 LADDER n={n} strokes={} segments={} failed_geometry={} parse_invalid={:?}",
                 full.strokes.len(),
                 full.segments.len(),
-                full.tail.iter().find_map(|t| match t {
-                    crate::theta_v0::types::PendingTail::PendingSegment { start_index, .. } => {
-                        Some(*start_index)
-                    }
-                    _ => None,
-                }),
                 sf.candidates.iter().filter(|c| c.result == "FAILED_GEOMETRY").count(),
                 sf.parse_invalid_from.as_ref().map(|p| p.seg_start)
             );
         }
-        prev = Some(layer.clone());
-        last = layer;
+        if n == n_all {
+            eprintln!("TB1493 REPLAY deep_unverified={deep_unverified}");
+            return (r, layer);
+        }
+        let len = layer.segments.len();
+        let off = len.saturating_sub(TAIL);
+        prev = Some((
+            len,
+            off,
+            layer.segments[off..].to_vec(),
+            layer.segments_earliest_unsealed.is_some(),
+        ));
+        drop(layer);
     }
-    (r, last)
+    (r, ParseLayer::default())
 }
 
 /// 每 `bucket` 根分桶的段数增量、最长连续零桶、最长空窗（相邻两次出段之间的 bar 数）。
