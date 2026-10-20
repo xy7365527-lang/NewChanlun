@@ -984,12 +984,7 @@ impl NativeSourceState {
             pending_changed.insert(s, handle)?;
             schedule(s, &self.object_order, &mut events, handle)?;
         }
-        let s4_skip = usize::from(self.objects.len() != 0); // S4 negctrl：暖态漏排末个新增对象
-        let s4_added = changes.added.len();
-        for (s4_i, handle) in changes.added.into_iter().enumerate() {
-            if s4_i + s4_skip == s4_added {
-                continue;
-            }
+        for handle in changes.added {
             pending_changed.insert(s, handle)?;
             schedule(s, &self.object_order, &mut events, handle)?;
         }
