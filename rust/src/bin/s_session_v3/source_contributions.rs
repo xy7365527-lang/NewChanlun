@@ -973,7 +973,6 @@ impl NativeSourceState {
             &mut self.object_order,
             &mut self.work,
         )?;
-        eprintln!("S4TRACE object_phase objects={} added={} removed={} dirty={}", self.objects.len(), changes.added.len(), changes.removed.len(), dirty.iter().count()); // S4 探针
         for (handle, _) in &changes.removed {
             dirty.remove(handle)?;
             pending_changed.insert(s, *handle)?;
@@ -1794,7 +1793,6 @@ pub(crate) fn audit_native_bound(
         if material.codec_work().is_none() {
             return Err(err("Native来源增量缺原父工作账"));
         }
-        eprintln!("S4TRACE audit_native_bound previous={}", previous.is_some()); // S4 探针
         let mut state = match previous {
             Some(state) => state,
             None => NativeSourceState::empty(material, raw, material.root(), rule)?,
