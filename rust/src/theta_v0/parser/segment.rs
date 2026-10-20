@@ -1315,7 +1315,8 @@ impl IncrSegments {
                         confirmed_len: keep,
                         last_stroke,
                         earliest_unsealed_from: euf_persisted,
-                        parse_invalid_from: invalid_persisted,
+                        // 与续扫路径同一过滤：只留续扫起点之前的门失败记录（笔数回缩时不带过期标记）。
+                        parse_invalid_from: invalid_persisted.filter(|&p| p < resume_seg_start),
                     };
                 }
                 resume_seg_dir = strokes[resume_seg_start].direction;
@@ -1331,7 +1332,8 @@ impl IncrSegments {
                         confirmed_len: keep,
                         last_stroke,
                         earliest_unsealed_from: euf_persisted,
-                        parse_invalid_from: invalid_persisted,
+                        // 无已确认段且无可扫种子：全量在同一输入上也无门失败（#804）。
+                        parse_invalid_from: None,
                     };
                 }
                 let Some(start) = find_overlap_start(strokes, 0) else {
@@ -1343,7 +1345,8 @@ impl IncrSegments {
                         confirmed_len: keep,
                         last_stroke,
                         earliest_unsealed_from: euf_persisted,
-                        parse_invalid_from: invalid_persisted,
+                        // 无已确认段且无可扫种子：全量在同一输入上也无门失败（#804）。
+                        parse_invalid_from: None,
                     };
                 };
                 resume_seg_start = start;
