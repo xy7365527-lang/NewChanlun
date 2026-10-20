@@ -139,6 +139,27 @@ class TestDevskimSarifGate(unittest.TestCase):
         self.assertNotIn("-   - `", written)
         self.assertIn("Gate conclusion:** FAIL", written)
 
+    def test_summary_cap_leading_zero_is_decimal_not_octal(self) -> None:
+        # 08 在 (( )) 里按八进制会报错；须按十进制 8 截断。
+        result = self.new_findings_run(9, "08")
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stderr, b"")
+        written = self.summary.read_bytes().decode("utf-8")
+        self.assertIn("listed the first 8 of 9 new finding(s); 1 more omitted", written)
+        self.assertIn("n007.json", written)
+        self.assertNotIn("n008.json", written)
+        self.assertIn(b"n008.json", result.stdout)
+
+    def test_summary_cap_0200_means_two_hundred(self) -> None:
+        # 0200 按八进制是 128；须按十进制 200。
+        result = self.new_findings_run(201, "0200")
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stderr, b"")
+        written = self.summary.read_bytes().decode("utf-8")
+        self.assertIn("listed the first 200 of 201 new finding(s); 1 more omitted", written)
+        self.assertIn("n199.json", written)
+        self.assertNotIn("n200.json", written)
+
     def test_invalid_summary_cap_is_a_usage_error(self) -> None:
         self.write_scan([])
         result = self.run_gate("--summary-max-new", "many")

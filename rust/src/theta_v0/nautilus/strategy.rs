@@ -311,7 +311,7 @@ impl ThetaCore {
     ///
     /// ★限价腿待办（非骨架，订正 #916）：S_Θ `Order` 不直接携带 entry 价（entry 在 `VoiceDecision`
     /// 中，plan_orders 已消费）。生产路径需让 `plan_orders` 或本适配层保留 decision→order 的 entry
-    /// 映射（TODO）。当前恒返回 `None`（市价腿）——限价腿的 entry 价回填待 plan_orders 接口扩展 // DevSkim: ignore DS176209 已登记待办（限价腿，#916 订正段），建议转票
+    /// 映射（TODO）。当前恒返回 `None`（市价腿）——限价腿的 entry 价回填待 plan_orders 接口扩展 // DevSkim: ignore DS176209 已登记待办（限价腿 entry 价回填，#916 订正段），由 #1385 OE09 承接
     /// （报 theta_v0 owner，非本工位改）。
     fn entry_tick_for(&self, _order: &Order) -> Option<crate::theta_v0::types::Tick> {
         None // TODO: 限价腿 entry 价回填（依赖 plan_orders 暴露 decision→order entry 映射）

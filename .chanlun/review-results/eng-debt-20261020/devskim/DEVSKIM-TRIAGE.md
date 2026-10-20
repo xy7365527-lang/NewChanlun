@@ -18,7 +18,7 @@
 | 源码面（含 fixtures 目录里的 1 个 `.py`） | 81 | 66 条行内抑制、4 条改写过时注释、11 条按精确键入基线（§1） |
 | step summary 超限 | — | 门禁新增 `--summary-max-new`（默认 200），摘要只列前 200 条并指向 job log 与 artifact；stdout 保持全量；判红逻辑与退出码不变（§3） |
 
-真问题：81 条源码面告警中没有安全缺陷。2 条 DS176209 是真实的待办项，已抑制并建议转票（§5）。**未发现真实凭据。**
+真问题：81 条源码面告警中没有安全缺陷。2 条 DS176209 是真实的待办项，已抑制并转票（§5：strategy.rs:314 由 #1385 承接，replay_comparator.rs:151 转 #1607）。**未发现真实凭据。**
 
 ## 1. 源码面 81 条逐条处置
 
@@ -39,7 +39,7 @@ grep -v -E '^\S+\|(\.chanlun/review-results/|s_session/tests/fixtures/.*\.jsonl?
 | DS162092（localhost/127.0.0.1） | 本地服务、测试 harness 和启动脚本里出现回环地址 | S 会话是本机只读服务，测试必须连回环；不是调试残留 | 同行抑制 |
 | DS173237（疑似密钥的长串） | 测试向量和常量中出现 64/40 位十六进制 | 内容是 SHA-256 摘要或 Git 提交号，不是凭据 | 同行抑制；字节被锁的文件入基线 |
 | DS172411（setTimeout 字符串求值） | 浏览器端和测试代码调用定时器 | 回调是函数字面量，不存在字符串求值 | 同行抑制；生成或被锁的 JS 入基线 |
-| DS176209（TODO） | 注释里含 TODO 字样 | 4 条是已兑现的过时措辞；2 条是真实待办 | 过时措辞直接改写；真实待办抑制并建议转票 |
+| DS176209（TODO） | 注释里含 TODO 字样 | 4 条是已兑现的过时措辞；2 条是真实待办 | 过时措辞直接改写；真实待办抑制并转票（#1385 / #1607） |
 | DS137138（不安全 URL） | 测试用 `http://…invalid` 代理地址 | 保留 TLD `.invalid` 不可解析，是故意构造的失败代理 | 同行抑制 |
 | DS148264（弱随机数） | 统计采样用 `random` | 固定种子，目的是可复现的统计采样，不涉及安全 | 同行抑制 |
 | DS197836（对时间取哈希） | `hashlib` 与 time 变量同行 | 实际是内容寻址摘要，没有对时间值取哈希 | 同行抑制 |
@@ -126,8 +126,8 @@ grep -v -E '^\S+\|(\.chanlun/review-results/|s_session/tests/fixtures/.*\.jsonl?
 | DS176209 | `rust/src/theta_v0/nautilus/strategy.rs:104` | 改写注释（去 TODO 字样） |
 | DS176209 | `rust/src/theta_v0/nautilus/strategy.rs:113` | 改写注释（去 TODO 字样） |
 | DS176209 | `rust/src/theta_v0/nautilus/strategy.rs:19` | 改写注释（去 TODO 字样） |
-| DS176209 | `rust/src/theta_v0/nautilus/strategy.rs:314` | 行内抑制：已登记待办（限价腿，#916 订正段），建议转票 |
-| DS176209 | `rust/src/trading/replay_comparator.rs:151` | 行内抑制：已知简化版待办（#1518/#1304），建议转票 |
+| DS176209 | `rust/src/theta_v0/nautilus/strategy.rs:314` | 行内抑制：已登记待办（限价腿 entry 价回填，#916 订正段），由 #1385 OE09 承接（第二轮改写理由） |
+| DS176209 | `rust/src/trading/replay_comparator.rs:151` | 行内抑制：已知简化版待办（#1518/#1304），已转票 #1607（第二轮改写理由） |
 | DS197836 | `rust/src/economic_session/service.rs:125` | 行内抑制：内容寻址摘要，非对时间值取哈希 |
 | DS197836 | `s_session/tests/tb02b_independent_harness.py:747` | 行内抑制：内容寻址摘要，非对时间值取哈希 |
 | DS197836 | `s_session/tests/tb02w_runtime.py:185` | 行内抑制：内容寻址摘要，非对时间值取哈希 |
@@ -180,6 +180,13 @@ python3 .chanlun/review-results/eng-debt-20261020/devskim/scan_credentials.py .
 
 #1474（OPEN）已获批的方向是「稳定告警身份」，并写明「不能只凭字段名、目录或 40/64 位形状放行」。本分片按任务书要求，对归档与测试数据用**目录级** ignore-glob。为不越过 #1474 的口径，排除前对两个目录做了全量（非抽样）凭据扫描，并在 workflow 注释里逐类写了理由。即便如此，这仍是按目录放行：今后写进这两个目录的新文件不会再被 DevSkim 扫描。建议由 #1474 的稳定身份方案接管这两个目录的长期策略（例如在提交钩子里对归档目录运行同类凭据扫描）。
 
+第二轮（主控指示）：本 PR 不改方案，由主控交用户裁定。两种选择：
+
+| 选择 | 内容 | 代价 |
+|---|---|---|
+| A：合入本 PR 的目录排除 | 两个目录按 ignore-glob 排除；排除前已全量凭据扫描 0 命中；DevSkim 在 main 立即转绿 | 今后写进 `.chanlun/review-results/**`、`s_session/tests/fixtures/**/*.json{,l}` 的新文件不再被 DevSkim 扫描（凭据类也不扫），与 #1474「不能只凭目录放行」的口径冲突，需要另设补偿控制（如提交钩子对新增归档跑 `scan_credentials.py` 同类扫描） |
+| B：等 #1474 稳定告警身份方案 | 撤掉本 PR 的两条目录 glob，保留其余改动（源码面处置、summary 截断）；归档与 fixtures 的告警按稳定身份逐条放行 | 在 #1474 落地前，main 的 DevSkim 持续红（约 55,065 个归档/测试数据键超出基线），红灯期间源码面的新增真问题会被淹没在噪声里；若临时把这些键灌进现行带行号的基线，会再制造一批随行号漂移失效的键 |
+
 ## 3. step summary 超限
 
 现象：run 39379637868 的门禁把 55,146 行新增清单全部写入 `$GITHUB_STEP_SUMMARY`，共 6.3 MB，超过 GitHub 1 MiB 上限。
@@ -203,14 +210,22 @@ python3 .chanlun/review-results/eng-debt-20261020/devskim/scan_credentials.py .
 - 新增 4 个用例：上限恰好等于新增数（摘要 == stdout）；超出 1 条（只截摘要）；上限 0（仍判红、不列行）；非法上限（exit 2）。
 - 本机（Bash 3.2）：`python3 -m pytest -q tests/test_devskim_sarif_gate.py` 结果为 9 passed。Bash 5 以 CI 为准。
 
+### 3.1 第二轮：评审 N1（前导零按八进制解析）
+
+- 现象（非作者评审 `1593-claude-fable-5.md` N1，Codex P2 同点）：校验正则 `^[0-9]+$` 放行 `08`/`0200`，但 `(( ))` 把前导零当八进制。`--summary-max-new 08` 在比较处报 `value too great for base`，截断不生效，摘要仍写入约 6.4 MB；`0200` 被当作 128 条。
+- 根因：bash 算术上下文对 `0` 前缀数字按八进制求值。
+- 处置：通过校验后立即执行 `summary_max_new=$((10#$summary_max_new))`，按十进制规范化。判红路径与退出码不变；workflow 不传此参数（默认 200），CI 行为不变。
+- 测试：新增 `test_summary_cap_leading_zero_is_decimal_not_octal`（9 条、上限 `08`：只列前 8 条，stderr 为空）和 `test_summary_cap_0200_means_two_hundred`（201 条、上限 `0200`：只列前 200 条）。对旧脚本实测这 2 例失败（旧脚本 `0200` 输出「listed the first 0200 … 73 more omitted」，即按 128 截断），新脚本 11 passed（本机 Bash 3.2）。
+- N2（`strategy.rs:314` 抑制注释位于 `///` 文档注释内，会进入 rustdoc 文本）：按主控指示维持现状。挪到普通 `//` 行要新增一行，会让行号漂移；待 #1385 清理该待办时一并去掉。
+
 ## 4. 提交前模拟
 
 本机 docker daemon 不可用，无法运行扫描镜像。所以用的是模拟方法：从真实 SARIF 中去掉排除目录与已抑制的行，按 rustfmt 后的行号修正 tb02v（580 改为 581），再用新基线重放门禁。结果只剩 4 条新增，正是 §1.3 改写的 4 处注释；模拟无法反映文字改写，扫描时这 4 条将不再命中。其余全部通过，`Fixed since baseline: 7944`。最终以 PR 上的 DevSkim run 为准（见 PR 描述）。
 
 ## 5. 遗留与建议转票
 
-1. `rust/src/theta_v0/nautilus/strategy.rs:314/317`：限价腿 entry 价回填待办（#916 订正段）。tracker 没有专票（#1385 只是宽泛命中），建议转票。314 已行内抑制，317 是原有基线键。
-2. `rust/src/trading/replay_comparator.rs:151`：完整 CERT/DIV/TERM 对拍。#1518 已关，母图 #1304 仍 OPEN，建议在 #1304 下开子票。
+1. `rust/src/theta_v0/nautilus/strategy.rs:314/317`：限价腿 entry 价回填待办（#916 订正段）。**第二轮查重订正：已有票承接，不另开。** #1385（OPEN，TB-10-B）2026-09-12 的正文补记写明「`DS176209|rust/src/theta_v0/nautilus/strategy.rs|314` 由本票 OE09 旧策略入口/订单归属核查承接」。首轮写的「#1385 只是宽泛命中」不准确。314 的抑制理由已改为引用 #1385，317 是原有基线键。
+2. `rust/src/trading/replay_comparator.rs:151`：完整 CERT/DIV/TERM 对拍，**已转票 #1607**（task）。查重：#1518 已关；#1532 把 `trading::replay_comparator` 归为冻结影子，去向归 #1304；#1528 扩展的是 `run_replay_double` 的业务对拍项，对象不同，不重复。151 的抑制理由已改为引用 #1607。
 3. 基线键带行号，会随行号漂移失效。本次模拟显示 7,944 个基线键已失效（`Fixed since baseline`），需要清理，归 #1474 的稳定身份方案。
 4. §2.3 的目录级排除口径，请主控结合 #1474 裁定。
 

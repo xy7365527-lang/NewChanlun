@@ -111,6 +111,8 @@ if [[ ! "$summary_max_new" =~ ^[0-9]+$ ]]; then
   usage >&2
   exit 2
 fi
+# 按十进制规范化：(( )) 会把前导零当八进制（08 报错、0200 变 128）。
+summary_max_new=$((10#$summary_max_new))
 
 errors=''
 error_lines=()
