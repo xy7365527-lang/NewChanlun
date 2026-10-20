@@ -106,3 +106,55 @@ chongs[i].funding:
 - `/1` 与缺省域的 manifest 如果夹带 `funding` 字段，现在会被拒绝。这是对 `/1` 行为的收紧，现有夹具中没有这种 manifest；也可以改为静默忽略，但那等于回落。
 - 开局批新增两个分量字段：`authorization_version` 与 `known_at`（日期文本）。其中 version 单独成字段，是因为任务把 authorization_ref 定成 `<policy_id>@<profile_id>`，引用本身不含版本。
 - 上面「未做项」第 1、2 条的边界。
+
+---
+
+# 返修（C8 独审 REQUEST_CHANGES，`/Volumes/AgentStorage/issue1406-owner-20261020-review/c8-review.md`）
+
+返修前先并入基线新提交：`f4961d8ae7` 是对 `origin/codex/1406-owner-20261020` 的 merge，带入 `5e7b7d9916` 和 `6c8477ff6f`。返修提交为 `52bfb7a343`，提交时按要求加了 `-c core.hooksPath=/dev/null`。
+
+## 各提交的远端证据
+
+| 提交 | 内容 | 远端证据 |
+|---|---|---|
+| `f4961d8ae7` | 并入基线 | check EXIT=0，`/tmp/nc-remote/20261020-235239-f4961d8ae7.log`（用临时分支名送 nc-remote，跑完已删分支） |
+| `52bfb7a343` | 返修 | check EXIT=0，`/tmp/nc-remote/20261020-234751-52bfb7a343.log`；`cargo test --features s_session --lib economic_session` 结果 **167 passed / 0 failed / 8 ignored**，`/tmp/nc-remote/20261020-234913-52bfb7a343.log`。8 个 ignored 与基线相同 |
+| 报告提交 | 只改报告 | 不改代码 |
+
+12 个 `tb03c_funding_tests::*` 测试全部 ok。
+
+## 逐条回应
+
+**H1（已修）**：在 `tb03c_funding.rs` 的 `check_opening` 中，funding-record 与 policy-record 都加了下界。`known_at < authorized_at` 时返回 `PolicyNotYetEffective：原件 known_at … 早于 <record> 签署生效日`，依据是 ADR 0040:56 与 :59 的「只作用于生效后」。capacity 条目本身没有 `authorized_at`，它归 policy-record 的签署管辖。该检查放在过期检查之前。新增负控：`2026-10-19` 被拒，`2026-10-20` 当日可以开局；policy-record 单独晚签（`2026-11-01`）时，`2026-10-21` 被拒、`2026-11-01` 可以开局。
+
+**M1（不绑定，两个量量纲不同，请另开票）**：`fixed_q` 是**数量单位**，`funding.Q` 是**金额（USDC 投入额）**。证据如下：
+
+- `rust/src/economic_session/finance.rs:850-858`：`worst = actual_quantity + plan.quantity`，再与 `fixed_q` 比较（「最坏量超过固定 Q」）。这是数量和数量的比较；金额另有 `locked_amount` 与 `r.amount` 的比较（`:847`）。
+- `finance.rs:859-863`：数量单位（`units.quantity.unit`）与货币（`units.money.currency`）分别核对，说明账本把两者分成两个维度。
+- `tb03c_book.rs`（`split`，约 :449-459）：拆股时 `fixed_q` 与 `actual_quantity` 用同一个整数比 num/den 重基。只有股数才会这样重基，金额不会。
+- `book.rs:230` 与 `store.rs:141` 都把它作为 `book_identity` 和路由上的正整数，`service.rs:737` 要求原件与路由相等，口径是持量上界。
+- 与此相对，`funding.Q` 按 ADR 0040 签署记录是「本重分得的总投入额」，开局批 `amount = ⌈Q/L⌉` 记入金额 `principal.batches`（ADR 0031:12，币种 USDC）。
+
+**登记的张力**：ADR 0034:23 写 `tier_quantity = ⌊Q·num/den⌋（quantum 单位）`，ADR 0034:29 有「Q + units_g」与「q_ref + cash_g」两种口径；ADR 0040 又从**金额** Q=3,200,000 推出档量 1,110,400。所以「Q（固定，动作基）」到底是数量还是金额，在正本层两处读法不一致。现码 q_rebase 改写的是数量 `fixed_q`。本片不绑定两者，夹具保持 `fixed_q:"1"` 与 `Q:100000`，等主控另开票裁定。
+
+**M2（已修）**：oracle 新增 `leverage_cases`，两组都是不整除样本：`{Q:100001, L:2 ⟹ 50001}` 和 `{Q:100000, L:3 ⟹ 33334}`。Rust 测试 `opening_batch_rounds_up_when_leverage_does_not_divide` 从 oracle 读这两组：向上取整的值通过，向下取整的值和 +1 的值都按完整文案被拒。把公式改成 floor 后，这条测试必然失败。
+
+**M3（已修）**：`tb03c_funding::pending_reason` 在 `/2` 下对开局原件判断：如果重的 C(ℓ) 缺条目或为 Unknown，E Pending 记为 `{kind:AwaitingPolicy, slot:capacity, symbol, level}`。capacity 槽原本就被 Resolve 守卫挡住（`tb03c_e.rs` 的 `capacity` 分支），B 侧的 `check_wait` 也按 capacity 拒绝。测试 `unknown_capacity_opening_waits_in_e_and_resolve_cannot_clear_it` 走真实 `service::handle`，覆盖以下几点：E 的 Pending 原因；Resolve 返回 `AwaitingPolicy：capacity；Resolve 证据不能替代用户签署的容量`，且 E 图像不变；B 返回 `AwaitingPolicy：capacity；B 不应用、不建收据，fixed_q 不变`，B 图像不变、没有收据；已签容量的开局不挂这个等待。`/1` 的 Pending 文案不变（`pending_reason` 对 `/1` 返回 None）。
+
+**M4（已修；换档门不在本片）**：`open_book` 的版本改为取自域规则，不再看是否带资金出处。测试 `v2_transfer_opened_chong_carries_v2_revision` 用 c5 的真实转移目标原件，在 `/2` 合同下开出的书账为 `tb03c-book/2`，且除版本字段外与 `/1` 结果逐字相同（也不带 `funding`）。**ADR 0034:23 要求的「换档激活时 Q ≤ C(ℓ)」在 `/2` 目前没有门，归 #1445/#1446 接**（ADR 0040「受影响票」）。转移目标不核开局批，依据是 ADR 0034 裁定六。
+
+**LOW**
+
+- L1（已修）：去掉了恒真的 `assert_eq!(image, empty_image())`。纯函数负控改为「同输入同输出（含错误）」；「失败不改持久状态」由两条服务链测试读 B/E 实际图像核对。所有负控（开局 12 条、缺件 12 条、Q>C、Unknown）都改为 `assert_eq!` 核对**完整**错误文本。
+- L2（已修）：新增开局零批、两批、S 不符、ℓ 不符的用例；新增 `each_signed_record_window_gates_alone`，分别让 policy-record 单独过期、capacity 单独过期、policy-record 单独未生效，并覆盖边界当日。
+- L3（记录在案）：`/1` 与缺省域夹带 `funding` 时拒绝。评审赞成，不改。
+- L4（已改文案）：`tb03c_allocation.rs:50` 改为「净额分配须 tb03c-book/1 或 /2」，只在非 tb03c 域出现，没有测试断言这条文案。`s_session/economic_query.py` 的 docstring 改为说明 Python 读者尚未接 `/2`、遇到会拒绝。Python 读者接 `/2` 建议另开后续票，我没有开票（按指令不在 GitHub 动作）。
+- L5（登记）：`authorization_ref = <policy_id>@<profile_id>` 加上 `authorization_version`，合起来等价于 ADR 0040:56 的「指 funding-record 的版本」。这个形状选择需要在定义正本或票里登记，由主控决定落在哪里。
+- L6（不改）：`margin_leverage` 只冻结 `{value, source}`，接入 derivation-input 记录属于 #1444。
+- L7（已加注释）：`check_opening` 中注明 `known_at` 是 TestOnly 原件自报的日期，接入真实来源时要改为绑定可审计的观察时间。注释引的是本票评审项，没有新票号；需要主控开票后补票号。
+
+## 返修后仍未做
+
+- 换档激活时的 Q ≤ C 复核（#1445/#1446）。
+- `fixed_q` 与 `funding.Q` 的口径裁定（M1，等主控开票）。
+- Python 读者接 `/2`（L4）。
