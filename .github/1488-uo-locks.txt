@@ -102,3 +102,7 @@ v3::driver::tests::publication_candidate_budget_shortfall_degrades_and_keeps_adm
 v3::driver::tests::publication_real_tail_failure_still_rejects_without_degrade
 # #1488 0065：pager 诊断探针配置不得永久撤销 Carry 租约（S_MANIFEST_WORKSPACE_DIAGNOSTICS=1 的 serve 首个 Carry）
 v3::driver::tests::pager_probe_configure_keeps_carry_lease_open
+# #1488 0069（独审 0068 F1/I3）：降级判据收紧——资源失败已记后闭包返回非预算真实错误须拒绝不降级（红证 refs/f69-red/a f15020bf76）；真实追加原件位置的 Allocation 经真实调用链仍降级（红证 b ba9336203a）；判据真值表；第二次 runtime.discard 必要性由降级锁承担（0068 红证 d 049d284e0c，0069 重建 ba722f7c9e）
+v3::driver::tests::publication_real_error_after_budget_failure_rejects_without_degrade
+v3::driver::tests::publication_source_append_allocation_failure_degrades
+v3::audit_owner::publication_degrade_verdict_tests::publication_degrade_verdict_only_for_pure_budget_shortfall
