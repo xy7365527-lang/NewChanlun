@@ -113,12 +113,11 @@ fn report(tag: &str, r: &Replay, n: usize, bucket: usize) -> (usize, usize) {
         run = if c == 0 { run + 1 } else { 0 };
         max_zero_run = max_zero_run.max(run);
     }
-    let mut gaps: Vec<(usize, usize)> = r
-        .emits
-        .windows(2)
-        .map(|w| (w[1] - w[0], w[0]))
-        .collect();
-    gaps.push((n - r.emits.last().copied().unwrap_or(0), r.emits.last().copied().unwrap_or(0)));
+    let mut gaps: Vec<(usize, usize)> = r.emits.windows(2).map(|w| (w[1] - w[0], w[0])).collect();
+    gaps.push((
+        n - r.emits.last().copied().unwrap_or(0),
+        r.emits.last().copied().unwrap_or(0),
+    ));
     gaps.sort_unstable_by(|a, b| b.cmp(a));
     eprintln!(
         "TB1493 {tag} bars={n} emits={} buckets({bucket})={buckets:?} max_zero_run={max_zero_run} top_gaps={:?} invalid_bars={} rewrites={} rewrites_without_second_kind={}",
@@ -136,7 +135,8 @@ fn report(tag: &str, r: &Replay, n: usize, bucket: usize) -> (usize, usize) {
 
 /// 全量 facts 读数：FAILED_GEOMETRY、fail-closed、流首段起点位移、指定笔所在候选。
 fn facts_report(tag: &str, layer: &ParseLayer, sites: &[usize]) {
-    let (_, _, sf) = segment::divide_segments_with_facts(&layer.strokes, &ThetaConfig::default().parse);
+    let (_, _, sf) =
+        segment::divide_segments_with_facts(&layer.strokes, &ThetaConfig::default().parse);
     let seed = sf.seeds.last().map(|s| s.start_stroke);
     let failed = sf
         .candidates
@@ -170,7 +170,10 @@ fn facts_report(tag: &str, layer: &ParseLayer, sites: &[usize]) {
         }
     }
     assert_eq!(failed, 0, "{tag}：FAILED_GEOMETRY 须为 0");
-    assert!(sf.parse_invalid_from.is_none(), "{tag}：parse_invalid_from 须为 None");
+    assert!(
+        sf.parse_invalid_from.is_none(),
+        "{tag}：parse_invalid_from 须为 None"
+    );
 }
 
 #[test]
@@ -265,7 +268,11 @@ fn tb1493_facts_memory_probe() {
             .flat_map(|s| s.steps.iter())
             .map(|st| st.after.stroke_indices.len())
             .sum();
-        let attempts: usize = sf.candidates.iter().map(|c| c.termination_attempts.len()).sum();
+        let attempts: usize = sf
+            .candidates
+            .iter()
+            .map(|c| c.termination_attempts.len())
+            .sum();
         eprintln!(
             "TB1493 MEM n={n} rss_mb={} strokes={} cands={} first_checks={first_checks} first_steps={first_steps} idx_first={idx_first} second_steps={second} idx_second={idx_second} attempts={attempts} seeds={}",
             vm_hwm_mb(),

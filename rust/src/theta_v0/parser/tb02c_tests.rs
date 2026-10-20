@@ -414,8 +414,10 @@ fn tb1493_open_turn_killed_by_trend_stroke() {
     let k = o.killed_by.as_ref().unwrap();
     assert_eq!((k.stroke_idx, k.price, k.comparison), (6, 25, ">"));
     // 相等不是越过：7→20 仍开窗。
-    let (_, _, facts) =
-        segment::divide_segments_with_facts(&chain(&[0, 10, 4, 20, 5, 18, 7, 20]), &ThetaConfig::default().parse);
+    let (_, _, facts) = segment::divide_segments_with_facts(
+        &chain(&[0, 10, 4, 20, 5, 18, 7, 20]),
+        &ThetaConfig::default().parse,
+    );
     assert_eq!(facts.candidates[0].result, "PENDING_CASE_ONE");
 }
 
