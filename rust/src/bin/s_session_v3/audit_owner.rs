@@ -1025,7 +1025,7 @@ impl AuditConnection {
 
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn configure_pager_probe(&self) -> Result<(), String> {
-        self.clear_candidates();
+        self.clear_candidates_for_pager_probe();
         sqlite_pager_probe::configure_and_log(&self.connection)
     }
 
@@ -5891,8 +5891,21 @@ impl AuditConnection {
     /// 推进序号（旧序号签发的令牌仍失配）并清除 stale；任一条件不满足则保持撤销（后续请求
     /// fail-closed）。本次发布已提交，续租与否都不改变本次回复。
     fn renew_lease_after_abandon(&self, ended: &Ended) {
-        if ended.complete.is_none()
-            && self.complete.borrow().is_none()
+        if ended.complete.is_none() {
+            self.reopen_idle_lease();
+        }
+    }
+
+    /// 0065：pager 诊断探针在打开连接后、任何请求前清候选。原先 `clear_candidates()` 把租约
+    /// 永久撤销，`S_MANIFEST_WORKSPACE_DIAGNOSTICS=1` 时首个 Carry 即报“Carry租约已撤销”
+    /// （727b3bfb45 serve 直驱同样复现）。此处清空后按续租同条件重开新租；诊断关闭时不经过这里。
+    pub(super) fn clear_candidates_for_pager_probe(&self) {
+        self.clear_candidates();
+        self.reopen_idle_lease();
+    }
+
+    fn reopen_idle_lease(&self) {
+        if self.complete.borrow().is_none()
             && self.construction.borrow().is_none()
             && !self.retired.get()
             && self.connection.is_autocommit()

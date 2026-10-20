@@ -100,3 +100,5 @@ v3::prepared::tests::assemble_manifest_reads_beyond_closure_verify_stay_constant
 # #1488 0065 P1（v4 L13）：候选 publication 父工作域预算不足→放弃候选、无候选发布成功、回复≡oracle、后续代可接纳；负控 Ledger 尾检失败仍拒绝
 v3::driver::tests::publication_candidate_budget_shortfall_degrades_and_keeps_admitting
 v3::driver::tests::publication_real_tail_failure_still_rejects_without_degrade
+# #1488 0065：pager 诊断探针配置不得永久撤销 Carry 租约（S_MANIFEST_WORKSPACE_DIAGNOSTICS=1 的 serve 首个 Carry）
+v3::driver::tests::pager_probe_configure_keeps_carry_lease_open

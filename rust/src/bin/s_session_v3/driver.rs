@@ -5142,4 +5142,35 @@ mod tests {
     fn publication_real_tail_failure_still_rejects_without_degrade() {
         publication_candidate_shortfall_case(true);
     }
+    /// 0065：`S_MANIFEST_WORKSPACE_DIAGNOSTICS=1` 时 serve 打开即配置 pager 探针。配置后带候选的
+    /// 后续代须照常 Carry 并与 ordinary oracle 一致（改前第 2 代报“Carry租约已撤销”）。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn pager_probe_configure_keeps_carry_lease_open() {
+        use super::super::prepared::tests::runtime_root_tables;
+        let native_fixture = Fixture::new();
+        let ordinary_fixture = Fixture::new();
+        let mut native = Driver::open_for_serve_with_mode(
+            &native_fixture.db,
+            &native_fixture.profile,
+            "1",
+            native_fixture.clock.clone(),
+            536_870_912,
+            s_allocation::Mode::CapturedNative,
+        )
+        .unwrap();
+        native.conn.configure_pager_probe().unwrap();
+        let mut ordinary = ordinary_fixture.open("1").unwrap();
+        for n in 1..=3 {
+            assert_eq!(
+                native.handle(Fixture::ingest(n)).unwrap(),
+                ordinary.handle(Fixture::ingest(n)).unwrap()
+            );
+            assert!(native.conn.complete_retained_bytes() > 0, "第 {n} 代后保留候选");
+            assert_eq!(
+                runtime_root_tables(&native.conn, true),
+                runtime_root_tables(&ordinary.conn, true)
+            );
+        }
+    }
 }
