@@ -222,14 +222,6 @@ impl ScratchHandle {
         }
     }
     pub(crate) fn fail(&self, failure: ScratchFailure) {
-        static PROBE67_N: AtomicUsize = AtomicUsize::new(0);
-        if self.core().failure.load(Ordering::Acquire) == 0 && PROBE67_N.fetch_add(1, Ordering::Relaxed) < 3 {
-            eprintln!(
-                "PROBE67 fail={:?} bt=\n{}",
-                failure,
-                std::backtrace::Backtrace::force_capture()
-            );
-        }
         if failure == ScratchFailure::Ledger {
             let _ = self
                 .core()
