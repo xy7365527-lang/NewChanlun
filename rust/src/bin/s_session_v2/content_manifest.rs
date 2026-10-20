@@ -1444,10 +1444,15 @@ pub(crate) fn assemble_unpublished_view_in_store(
 }
 #[cfg(test)]
 thread_local! { static ASSEMBLE_SQL_READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) }; }
-/// #1488 S3 探针：本线程 assemble_manifest_body 累计 SQL 节点读。
 #[cfg(test)]
-pub(crate) fn assemble_sql_reads_for_test() -> u64 {
-    ASSEMBLE_SQL_READS.with(std::cell::Cell::get)
+thread_local! { static ASSEMBLE_VERIFY_SQL_READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) }; }
+/// #1488 S3 探针：本线程 assemble_manifest_body 累计 SQL 节点读（总量, 其中 §5.4 三根全闭包核验）。
+#[cfg(test)]
+pub(crate) fn assemble_sql_reads_for_test() -> (u64, u64) {
+    (
+        ASSEMBLE_SQL_READS.with(std::cell::Cell::get),
+        ASSEMBLE_VERIFY_SQL_READS.with(std::cell::Cell::get),
+    )
 }
 struct ManifestBody {
     value: Built,
@@ -1463,6 +1468,8 @@ fn assemble_manifest_body(
     let frontier = Decimal::new(metadata.input_frontier);
     let attempt = Decimal::new(metadata.source_commit.attempt_index);
     // 同一次读集核完整闭包；路径算子只核触碰边界，不能替代这里的全闭包校验。
+    #[cfg(test)]
+    let sql = super::content_store::sql_reads_on_thread();
     store.verify_ref(metadata.scope, s_content::Mode::Public)?;
     require_kind(metadata.scope, Kind::Object, "scope")?;
     store.verify_ref(roots.generated_state, s_content::Mode::Public)?;
@@ -1470,6 +1477,10 @@ fn assemble_manifest_body(
         [roots.publication_template, roots.delta_template],
         s_content::Mode::Template,
     )?;
+    #[cfg(test)]
+    ASSEMBLE_VERIFY_SQL_READS.with(|reads| {
+        reads.set(reads.get() + super::content_store::sql_reads_on_thread() - sql)
+    });
     let generated_fields = exact_object(store, roots.generated_state, GENERATED_FIELDS, true)?;
     let publication_fields =
         exact_object(store, roots.publication_template, SNAPSHOT_FIELDS, false)?;

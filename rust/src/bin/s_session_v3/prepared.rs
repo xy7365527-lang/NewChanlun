@@ -2161,32 +2161,34 @@ pub(crate) mod tests {
     }
 
     /// Normal append/revision only. Does not call the older observation/fault entries.
-    /// #1488 S3 探针：逐代单行追加的真实 commit，打出 aux plan 与 assemble_manifest 的 SQL 读量。
+    /// #1488 S3 assemble_manifest 读量锁：§5.4 三根（scope/生成态/两模板）全闭包核验之外的
+    /// 组装读量是与 g 无关的常数；全闭包核验本身随状态增长，按 D6 归段 B（报告实测）。
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
-    fn s3_stage_reads_per_generation_probe() {
-        const IDS: [&str; 16] = [
-            "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10", "p11", "p12",
-            "p13", "p14", "p15",
-        ];
+    fn assemble_manifest_reads_beyond_closure_verify_stay_constant() {
         let mut f = Fixture::new();
-        for n in 1..=IDS.len() as i64 {
-            let i = (n - 1) as usize;
-            let (high, low) = if i % 2 == 0 {
-                (20 + (i % 7) as i64, 12 + (i % 5) as i64)
-            } else {
-                (14 + (i % 3) as i64, 5 + (i % 4) as i64)
-            };
-            let (e, t) = f.accept_begin(n, (IDS[i], (i * 10) as i64, low + 1, high, low, low + 1), 1);
-            let assemble = content_manifest::assemble_sql_reads_for_test();
-            let total = crate::content_store::sql_reads_on_thread();
+        let mut rest = Vec::new();
+        for (n, row, revision) in [
+            (1, ("a", 0, 6, 12, 3, 7), 1),
+            (2, ("b", 10, 8, 16, 6, 12), 1),
+            (3, ("c", 20, 8, 13, 4, 7), 1),
+            (4, ("b", 10, 8, 17, 6, 12), 2),
+        ] {
+            let (e, t) = f.accept_begin(n, row, revision);
+            let (total, verify) = content_manifest::assemble_sql_reads_for_test();
             f.publish(&e, &t).unwrap();
+            let (total_after, verify_after) = content_manifest::assemble_sql_reads_for_test();
+            let (total, verify) = (total_after - total, verify_after - verify);
             eprintln!(
-                "S3_STAGE_READS g={n} assemble_sql={} commit_sql={}",
-                content_manifest::assemble_sql_reads_for_test() - assemble,
-                crate::content_store::sql_reads_on_thread() - total,
+                "S3_ASSEMBLE_READS g={n} total={total} closure_verify={verify} rest={}",
+                total - verify
             );
+            rest.push(total - verify);
         }
+        assert!(
+            rest.iter().all(|r| *r == rest[0]),
+            "组装读量（全闭包核验之外）须与 g 无关：{rest:?}"
+        );
     }
 
     #[cfg(feature = "s_capture_native_testonly")]
