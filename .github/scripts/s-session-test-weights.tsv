@@ -1,6 +1,9 @@
-# #1588 ci-time：s_structure_session bin 测试（--skip v3::financial_session）的耗时权重，秒\t测试名。
+# #1588 ci-time：s_structure_session bin 测试（--skip v3::financial_session）的耗时权重，秒<TAB>测试名。
 # 只影响 test-shard.py 的分片均衡，不影响覆盖（表外测试取中位数权重照常入片）。
-# 来源：暂定——由 main run 39358379553 rust-check 日志的完成时间戳粗估（4 线程并行，非逐条精确）。
+# 来源：main run 39358379553 rust-check 日志的完成时间戳粗估（4 线程并行，读数含争用，不是逐条精确值；
+#   >60s 的 15 条按「has been running for over 60 seconds」起点到完成算，其余按相邻完成间隔算，ignored 记 0）。
+# 验证：PR run 39382771454 按本表分 4 片，各片 1/149/179/189 条，最长片（仅 tb02w）31 分钟。
+# 刷新：新增或改名的长测试会落到中位数权重；某片明显变长时，用该片日志的完成时间戳重估后整表替换。
 4150.1	tests::tb02w_killed_case_two_scan_budget_resume_and_recover
 2964.2	tests::tb02c_persistent_first_kind_and_normal_recovery
 1287.5	tests::evidence_graph_downgrade_is_strict
