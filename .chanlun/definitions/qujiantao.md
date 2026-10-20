@@ -1560,7 +1560,7 @@ ADR-0006 `:7` 的三合取（破中枢 ∧ A 配对 ∧ **映射成立**）与 `
 | **可选值 `Ancestor`** | 纯祖先窗口替换自层判据（`hold26_anc`，M1 主臂）。来源：`026:80` 作者补记的日线例外，加工程推广到祖先层（#1196 落法 a）。代价：自层震荡而祖先趋势上行时也停削；只在 `analysis/slow_bull_vs_bh_research.md` §4／§6 预注册的合取下合法，入口拒绝其余合取（`positional_fusion.rs:502-524`）；读数归该调研，不在本正本复述 |
 | **可选值 `SelfOrAncestor`** | 自层 ∨ 祖先（`fusion_ta`，M3 对照臂）。代价：接受集是前两值之并，停削最多；合取限制同上 |
 | **#799 判别（按 ADR 0041 判别句）** | 三值是同一判据取不同层集参数，不是两套松紧判据；取值在运行前由模式串单选（`positional.rs:873-874`），一次运行只读一个值；`SelfOrAncestor` 的 `self_up(k) \|\| anc_up(k)`（`positional_fusion.rs:1021`）是层集 `{j ≥ k}` 上同一存在量词的展开，两项在同一 bar 并行求值，不以自层判失败为触发 ⟹ 合法可调字段。**照实**：`SelfOrAncestor` 的接受集包含 `SelfLayer`，外形上像宽档；若审查认定层集扩大本身构成同一判断的宽档，该值移出值域，不影响另两值 |
-| **适用条件** | 每个 k 用同一层集规则；一次运行只读一个值；改值 ＝ 新版本。`Ancestor`（M1 主臂）与 `SelfOrAncestor`（M3 对照臂，`positional.rs:504-505`）现只在预注册研究臂下合法；作对照臂运行时不参与准入（[ADR 0005](../../docs/adr/0005-nest-import-ban-clause9-ruling.md)、#799 裁定六）；签进生产 profile 前须另有预注册与准入依据 |
+| **适用条件** | 每个 k 用同一层集规则；一次运行只读一个值；改值 ＝ 新版本。`Ancestor`（M1 主臂）与 `SelfOrAncestor`（M3 对照臂，`positional.rs:504-505`）现只在预注册研究臂下合法；作对照臂运行时不参与准入（#799 裁定六；原则落点 `docs/unified-architecture-canon.md:81`，ADR 0005 是该例外面的退役记录）；签进生产 profile 前须另有预注册与准入依据 |
 | **载体** | 持仓规则所属的 policy 版本化记录，输出带记录 id 与版本；现行模式串映射（`hold26_anc`／`fusion_ta`）改为由记录给值 |
 
 ### 14.3 `tower_base`：塔底基底（A-15）
