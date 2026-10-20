@@ -216,14 +216,16 @@ fn layer_shape(l: &ParseLayer) -> String {
 }
 
 fn run_facts(bars: &[Bar], config: &ThetaConfig) {
-    let (live0, _) = window();
+    let (live0, total0) = window();
     let t = Instant::now();
     let (layer, facts) = parse_layer_with_inclusion_facts(bars, config);
     let secs = t.elapsed().as_secs_f64();
     let peak = PEAK.load(Relaxed) - live0;
     let retained = LIVE.load(Relaxed) - live0;
+    let alloc_total = TOTAL.load(Relaxed) - total0;
     println!(
-        "facts secs={secs:.2} peak_mb={:.1} retained_mb={:.1} steps={} groups={} {}",
+        "facts secs={secs:.2} alloc_total_mb={:.1} peak_mb={:.1} retained_mb={:.1} steps={} groups={} {}",
+        mb(alloc_total),
         mb(peak),
         mb(retained),
         facts.steps.len(),
@@ -329,12 +331,18 @@ fn main() {
         .map_or(0, |s| s.parse().expect("digest_every 须为整数"));
 
     let all = load_bars(Path::new(&args[1]));
-    let tail = &all[all.len() - 50_000..];
+    // #1597：`ISSUE1588_WINDOW`（默认 50000）放大尾窗以测更大前缀；仍去掉窗首 5 根，
+    // 默认值下与 #1493 (E)／#1588 口径逐位相同。
+    let window_len: usize = std::env::var("ISSUE1588_WINDOW")
+        .ok()
+        .map_or(50_000, |s| s.parse().expect("ISSUE1588_WINDOW 须为整数"));
+    assert!(window_len <= all.len(), "窗口 {window_len} 超出全量 {}", all.len());
+    let tail = &all[all.len() - window_len..];
     let bars = &tail[5..];
     assert!(n <= bars.len(), "n={n} 超出窗口 {}", bars.len());
     let bars = &bars[..n];
     let config = ThetaConfig::default();
-    println!("== mode={mode} n={n}");
+    println!("== mode={mode} n={n} window={window_len}");
     match mode {
         "facts" => run_facts(bars, &config),
         "replay-drop" => run_replay(bars, &config, false, every),
