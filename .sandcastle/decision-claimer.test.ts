@@ -10,7 +10,7 @@ import {
   resolvedReason, pickUnresolved, finishedTickets,
   isRetryable, makeClaudeRunner, loadResume,
   RULES, ARCH_SECTION, ARCHAEOLOGY_FILE, parseArchaeology, archaeologyProblems, renderArchaeology, archaeologyCoverageProblems,
-  archaeologyPrompt, archaeologyAsks, archaeologyOnly, shadowComment,
+  archaeologyPrompt, archaeologyAsks, archaeologyOnly, shadowComment, flowSectionsIn,
   type Deps, type GhRunner, type ModelCall, type OnceResult,
 } from "./decision-claimer.mts";
 
@@ -927,6 +927,27 @@ test("考古有 research/probe 事实缺口：T 类不自动落地，转 P 起�
   assert.match(s.reclassNotes![0], /事实缺口 Q4/);
   assert.match(modelCalls.find((c) => c.role === "draft")!.prompt, /本票分级：P 类/);
   assert.ok(s.plannedWrites.includes("标签 #1531：+needs-approval"));
+  assert.ok(s.plannedWrites.some((w) => /^评论 #1531：考古有事实缺口 Q4/.test(w)));
+  const body = shadowComment(1531, draft, parseReview(fence(pass())), "/x/1531", s, parseArchaeology(fence(gapped)));
+  assert.match(body.split("\n")[0], /原判 T，考古有事实缺口 Q4/);
+  assert.doesNotMatch(body.split("\n")[0], /审查仍 BLOCK/);
+});
+
+test("升档重跑考古后新出现事实缺口：T 类同样转 P，不落地", async () => {
+  const noGap = structuredClone(goodArchObj) as { points: Array<Record<string, unknown>> };
+  noGap.points[2].gap = "";
+  const probe = structuredClone(goodArchObj) as { points: Array<Record<string, unknown>> };
+  probe.points[2].gap = "probe";
+  const { d } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()), goodDraft, fence(pass())], [fence(noGap), fence(noGap), fence(probe)]);
+  const s = await processTicket(1531, d);
+  assert.notEqual(s.phase, "land_t");
+  assert.equal(s.klass, "P");
+  assert.match(s.factGapNote ?? "", /Q3/);
+});
+
+test("flowSectionsIn：正本里混入引用自证或考古对照即报", () => {
+  assert.deepEqual(flowSectionsIn("## 裁定\n内容"), []);
+  assert.deepEqual(flowSectionsIn(goodDraft), ["引用自证", "考古对照"]);
 });
 
 test("影子评论：本地无考古时首行提示先跑 --archaeology-only", () => {

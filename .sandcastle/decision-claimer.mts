@@ -958,6 +958,8 @@ export interface Summary {
   reviewCounts?: { pass: number; block: number; parseError: number };
   /** 每轮起草方式与审查结论。 */
   rounds?: Array<{ attempt: number; mode: DraftMode; drafter: string; verdict: string; blocked: Rule[]; problems: string[] }>;
+  /** T 类因考古事实缺口转 P 的说明（影子评论首行用）。 */
+  factGapNote?: string;
   /** 考古归类计数与机械校验问题。 */
   archaeology?: { A: number; B: number; C: number; problems: string[] };
   /** 落点硬检查退回记录。 */
@@ -1146,23 +1148,33 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
 
     // 1b. 考古：起草前两路搜，逐点 A/B/C。机械校验不过的问题交审查（草稿因此 BLOCK），升档重做时重跑考古。
     let ar = await runArchaeology(t, d, dir, summary);
-    // 决定等事实（/wayfinder Ticket Types「a fact a decision waits on」）：有 research/probe 缺口的 T 类票不得自动落地，转 P，由 /graph-approve 开票补事实。
-    const gapIds = factGaps(ar.arch);
-    const gapNote = cls.klass === "T" && gapIds.length ? `考古有事实缺口 ${gapIds.join("、")}（research/probe），T 类不自动落地，转 P` : "";
 
     // 2–3. 起草 / 独审，至多两轮。分级由分级器定，起草者只能提改判建议。
-    s = initialState(gapNote ? "P" : cls.klass);
-    if (gapNote) s.convertedToP = true;
-    let effCls: Classification = gapNote ? { ...cls, klass: "P", reason: `${cls.reason}（${gapNote}）` } : cls;
+    s = initialState(cls.klass);
+    let effCls: Classification = cls;
     const counts = { pass: 0, block: 0, parseError: 0 };
     summary.reviewCounts = counts;
-    summary.reclassNotes = gapNote ? [gapNote] : [];
+    summary.reclassNotes = [];
+    // 决定等事实（/wayfinder Ticket Types「a fact a decision waits on」）：有 research/probe 缺口的 T 类票不自动落地，
+    // 转 P，由 /graph-approve 开票补事实。首轮考古与每次重跑考古之后都过这道门。
+    const gapGate = () => {
+      const ids = factGaps(ar.arch);
+      if (s.klass !== "T" || ids.length === 0) return;
+      const note = `考古有事实缺口 ${ids.join("、")}（research/probe），T 类不自动落地，转 P`;
+      s = { ...s, klass: "P", convertedToP: true };
+      effCls = { ...effCls, klass: "P", reason: `${effCls.reason}（${note}）` };
+      summary.reclassNotes!.push(note);
+      summary.factGapNote = note;
+      write(`评论 #${n}：${note}`, ["issue", "comment", String(n), "--body-file", "-"], note);
+    };
+    gapGate();
     summary.rounds = [];
     summary.landingRedrafts = [];
     while (s.phase === "draft") {
       summary.attempts = s.attempt;
       if (s.draftMode === "redo" && ar.problems.length) {
         ar = await runArchaeology(t, d, dir, summary, { feedback: ar.problems.map((x) => `- ${x}`).join("\n"), model: s.drafterModel, round: s.attempt });
+        gapGate();
       }
       const prompt = (fb?: string) =>
         s.draftMode === "revise" ? revisePrompt(t, effCls, draft, fb ?? s.reviewFeedback ?? "", ar.md) : draftPrompt(t, effCls, fb ?? s.reviewFeedback, ar.md);
@@ -1302,12 +1314,18 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
 
 export function shadowComment(n: number, draft: string, r: Review, dir: string, s: Summary, arch: Archaeology | null = null): string {
   const table = r.items.map((i) => `| ${i.rule} | ${i.verdict} | ${i.basis.replace(/\|/g, "\\|").replace(/\n/g, " ")} |`).join("\n");
-  return `**P 类影子模式，待用户批复**${s.convertedToP ? `（原判 T，${s.attempts} 轮审查仍 BLOCK 后转 P）` : ""}\n\n` +
+  const why = s.factGapNote ? `（原判 T，${s.factGapNote}）` : s.convertedToP ? `（原判 T，${s.attempts} 轮审查仍 BLOCK 后转 P）` : "";
+  return `**P 类影子模式，待用户批复**${why}\n\n` +
     (arch
       ? `${archaeologyAsks(arch)}\n\n考古原件：\`${dir}/${ARCHAEOLOGY_FILE}\`\n\n`
       : `**本票无考古**（旧流程产物）：批复前先跑 \`node --import tsx .sandcastle/decision-claimer.mts --archaeology-only --ticket ${n} --out ${dirname(dir)}\`。\n\n`) +
     `独立审查（${MODEL_OPUS}）：**${r.verdict}**\n\n| 条 | 结论 | 依据 |\n|---|---|---|\n${table}\n\n` +
     `草稿与审查原件：\`${dir}/\`\n\n<details><summary>草稿全文</summary>\n\n${draft}\n</details>`;
+}
+
+/** 正本里不该出现的流程段标题。 */
+export function flowSectionsIn(text: string): string[] {
+  return [CITATION_SECTION, ARCH_SECTION].filter((h) => new RegExp(`^#{1,6}\\s*(?:\\d+[.、]\\s*)?${h}\\s*$`, "m").test(text));
 }
 
 async function landT(t: TicketContext, draft: string, target: string, dir: string, d: Deps, s: Summary, persist: () => void) {
@@ -1328,6 +1346,9 @@ async function landT(t: TicketContext, draft: string, target: string, dir: strin
   if (changed.length === 0) throw new Error("落地工蜂未改动正本");
   const stray = changed.filter((p) => p !== target);
   if (stray.length) throw new Error(`落地越界改动：${stray.join(", ")}`);
+  const landed = join(wt, target);
+  const leaked = existsSync(landed) ? flowSectionsIn(readFileSync(landed, "utf8")) : [];
+  if (leaked.length) throw new Error(`正本混入流程段：${leaked.join("、")}`);
   d.git(wt, ["add", "--", target]);
   d.git(wt, ["commit", "-m", `decision(#${n}): ${t.title}\n\n${AUTH_LINE}；独审 ${MODEL_OPUS} R1–R8 PASS。`]);
   d.git(wt, ["push", FETCH_URL, `HEAD:refs/heads/${branch}`]);
