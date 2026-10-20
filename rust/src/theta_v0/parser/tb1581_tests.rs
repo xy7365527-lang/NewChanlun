@@ -234,3 +234,28 @@ fn tb1581_probe_marker_in_production() {
         eprintln!("tb1581 probe seed={seed} marker_runs(bar_from,bar_to,seg_start)={runs:?}");
     }
 }
+
+/// 对拍补充：seed 4 逐 bar 摘要（生产增量解析 + 增量分类），在基线与实现上各跑一次逐行比对，
+/// 定位差异是否只落在标记区间内。
+#[test]
+#[ignore = "改前/改后逐 bar 对拍"]
+fn tb1581_perbar_digest_seed4() {
+    let cfg = ThetaConfig::default();
+    let bars = tb1581_bars(0x1581_0004, 4_000);
+    let mut incr = ParseLayerIncr::new(&cfg);
+    let mut owned = OwnedIncrementalClassifier::new(cfg.clone());
+    for (i, bar) in bars.iter().enumerate() {
+        let layer = incr.append(*bar);
+        let out = owned.append_bar(*bar);
+        let mut hl = DefaultHasher::new();
+        layer_text(&layer).hash(&mut hl);
+        let mut ho = DefaultHasher::new();
+        format!("{out:?}").hash(&mut ho);
+        eprintln!(
+            "tb1581 perbar {i} layer={:016x} out={:016x} levels={}",
+            hl.finish(),
+            ho.finish(),
+            out.classification.levels.len()
+        );
+    }
+}
