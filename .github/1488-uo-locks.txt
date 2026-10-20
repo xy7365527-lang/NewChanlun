@@ -83,3 +83,5 @@ content_manifest::tests::native_manifest_recorded_body_and_puts_keep_original_pe
 # #1488 Recover 父账绑定返修（0037，独审 0036 P2-1；裁定 issuecomment-6278995984 一）
 v3::driver::tests::recover_lock_rejects_qualification_recorded_on_other_parent_or_domain
 v3::driver::tests::recover_lock_holds_gate_rejects_fee_permit_on_foreign_ledger
+# 0039 write_budget 正控（issuecomment-6280706052 第 2 条）
+v3::driver::tests::audit_owner_write_budget_retains_candidate_when_retention_margin_suffices

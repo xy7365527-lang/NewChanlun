@@ -2013,6 +2013,52 @@ mod tests {
         );
     }
 
+    /// #1488 0039 正控（issuecomment-6280706052 第 2 条）：与上锁同一夹具、同一 effects 路径，
+    /// 保留余量充足时候选按 `charge.total ≤ complete_retention_cap − raw` 被保留，父账峰值不超过 parent_limit。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn audit_owner_write_budget_retains_candidate_when_retention_margin_suffices() {
+        let f = Fixture::new();
+        let o = Fixture::new();
+        let mut native = complete_driver(&f);
+        let mut ordinary = o.open("1").unwrap();
+        assert_eq!(
+            native.handle(Fixture::ingest(1)).unwrap(),
+            ordinary.handle(Fixture::ingest(1)).unwrap()
+        );
+        let held = native.conn.complete_retained_bytes();
+        assert!(held > 0);
+        let legacy = crate::cache::retained_bytes();
+        let total = legacy + held + 8 * 1024 * 1024;
+        native.audit_cache_source_bytes = Some(total);
+        let (actual, events, _) = state::traced(true, || native.handle(Fixture::ingest(2)));
+        assert_eq!(
+            actual.unwrap(),
+            ordinary.handle(Fixture::ingest(2)).unwrap()
+        );
+        // 同一路径：写期走 effects 增量与后缀完整核，不是冷路径降级。
+        assert!(events.iter().any(|e| e["phase"] == "owner_complete_hit"));
+        assert!(events.iter().any(|e| e["phase"] == "owner_effects"));
+        assert!(events.iter().any(|e| e["phase"] == "owner_suffix_complete"));
+        let retained = native.conn.complete_retained_bytes();
+        assert!(retained > 0);
+        let report = native.conn.complete_report();
+        let charge = report["charge"]["total"].as_u64().unwrap() as usize;
+        let entry = report["charge"]["entry_reserved_bytes"].as_u64().unwrap() as usize;
+        let peak = report["charge"]["handoff_peak"].as_u64().unwrap() as usize;
+        // parent_limit = 冻结 total − (legacy + old_pool + uncovered)。
+        let parent_limit = total.checked_sub(entry).unwrap();
+        assert!(peak <= parent_limit, "{peak} > {parent_limit}");
+        let raw = retained - charge - super::super::audit_owner::native::Budget::metadata_bytes();
+        let cap = total - crate::cache::retained_bytes().max(legacy);
+        assert!(charge <= cap - raw, "{charge} > {cap} - {raw}");
+        native.conn.assert_complete_matches_cold();
+        assert_eq!(
+            prepared::tests::runtime_root_tables(&native.conn, true),
+            prepared::tests::runtime_root_tables(&ordinary.conn, true)
+        );
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn audit_owner_complete_normal_second_connection_and_new_life_are_cold() {
