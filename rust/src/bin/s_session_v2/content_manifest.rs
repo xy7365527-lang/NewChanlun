@@ -1437,6 +1437,8 @@ pub(crate) fn assemble_unpublished_view_in_store(
     ASSEMBLE_SQL_READS.with(|reads| {
         reads.set(reads.get() + super::content_store::sql_reads_on_thread() - sql)
     });
+    #[cfg(test)]
+    ASSEMBLE_CALLS.with(|calls| calls.set(calls.get() + 1));
     Ok(UnpublishedManifest {
         value: body.value,
         batch_id: TextValue::Plain(store.native_string(batch_text(&body.identity).as_str())?),
@@ -1444,6 +1446,12 @@ pub(crate) fn assemble_unpublished_view_in_store(
 }
 #[cfg(test)]
 thread_local! { static ASSEMBLE_SQL_READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) }; }
+#[cfg(test)]
+thread_local! { static ASSEMBLE_CALLS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) }; }
+#[cfg(test)]
+pub(crate) fn assemble_calls_for_test() -> u64 {
+    ASSEMBLE_CALLS.with(std::cell::Cell::get)
+}
 #[cfg(test)]
 thread_local! { static ASSEMBLE_VERIFY_SQL_READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) }; }
 /// #1488 S3 探针：本线程 assemble_manifest_body 累计 SQL 节点读（总量, 其中 §5.4 三根全闭包核验）。
