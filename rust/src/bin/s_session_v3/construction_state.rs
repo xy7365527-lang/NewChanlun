@@ -222,6 +222,10 @@ pub(super) struct CommittedRawState {
     // #1488 v4（反例D）：状态块自身的真实许可随状态move，最后析构。
     #[cfg(feature = "s_capture_native_testonly")]
     fee: Option<super::audit_owner::native::Permit>,
+    // #1488 0037 P2-1：提交本资格的事务候选父账身份与冻结域摘要（提交前盖章、COMMIT 后随资格晋升）；
+    // Recover 迁移以此独立记录值比对事务实际父账，不取自比对对象本身。
+    #[cfg(feature = "s_capture_native_testonly")]
+    parent: Option<super::audit_owner::native::BudgetStamp>,
 }
 impl CommittedRawState {
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
@@ -260,6 +264,18 @@ impl CommittedRawState {
     pub(super) fn set_writer_epoch_for_test(&mut self, epoch: Option<i64>) {
         self.writer_epoch = epoch;
     }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn has_parent(&self) -> bool {
+        self.parent.is_some()
+    }
+    /// 负控注入：状态块许可换成他账许可（只为咬住 holds 门）；返回原许可。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn replace_fee_for_test(
+        &mut self,
+        fee: super::audit_owner::native::Permit,
+    ) -> Option<super::audit_owner::native::Permit> {
+        self.fee.replace(fee)
+    }
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn retained_bytes(&self) -> usize {
         self.retained
@@ -292,12 +308,21 @@ pub(super) struct PendingRawState {
     // #1488 v4（反例D）：状态块许可由PendingRawState持有至自身析构/晋升，不在签发闭包出口提前归还。
     #[cfg(feature = "s_capture_native_testonly")]
     fee: Option<super::audit_owner::native::Permit>,
+    // #1488 0037 P2-1：本事务候选父账与冻结域摘要；由 owner 在构造点盖章，晋升时成为资格记录值。
+    #[cfg(feature = "s_capture_native_testonly")]
+    parent: Option<super::audit_owner::native::BudgetStamp>,
 }
 impl PendingRawState {
     /// 附上状态块自身许可；旧状态带来的许可（旧origin）在替换后归还，只降累计占用。
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn attach_fee(&mut self, fee: super::audit_owner::native::Permit) {
         drop(self.fee.replace(fee));
+    }
+    /// #1488 0037 P2-1：盖本事务候选父账身份与当前冻结域摘要；读不到当前域则不盖，
+    /// 晋升后的资格无记录值，Recover 迁移按缺记录拒绝。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn stamp_parent(&mut self, parent: &super::audit_owner::native::Budget) {
+        self.parent = parent.handoff_stamp().ok();
     }
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn has_fee(&self) -> bool {
@@ -427,6 +452,8 @@ impl PendingRawState {
             pending_set: None,
             #[cfg(feature = "s_capture_native_testonly")]
             fee,
+            #[cfg(feature = "s_capture_native_testonly")]
+            parent: None,
         };
         Ok((pending, token))
     }
@@ -489,6 +516,7 @@ impl PendingRawState {
             writer_epoch,
             recover: None,
             fee,
+            parent: None,
         })
     }
 
@@ -515,10 +543,18 @@ impl PendingRawState {
         let Some(stamp) = handoff.parent.as_ref() else {
             return Err(stale("Recover迁移缺父账交接摘要"));
         };
-        if !stamp.matches(parent) || previous.fee.as_ref().is_some_and(|fee| !stamp.holds(fee)) {
+        if !stamp.matches(parent) {
             return Err(stale("Recover迁移父账或冻结域与交接摘要不符"));
         }
+        // 0037 P2-1：资格提交时独立记下的父账身份/冻结域须恰为事务实际父账（fee=None 也核）。
+        if !previous.parent.as_ref().is_some_and(|recorded| recorded.matches(parent)) {
+            return Err(stale("Recover迁移资格所记父账或冻结域与事务父账不符"));
+        }
+        if previous.fee.as_ref().is_some_and(|fee| !stamp.holds(fee)) {
+            return Err(stale("Recover迁移状态块许可不挂事务父账"));
+        }
         let mut pending = Self::carry(Some(previous), seal, raw_len, lease)?;
+        pending.parent = handoff.parent.clone();
         pending.recover = Some((handoff, false));
         Ok(pending)
     }
@@ -646,6 +682,8 @@ impl PendingRawState {
             source_bytes: self.source_bytes,
             #[cfg(feature = "s_capture_native_testonly")]
             fee: self.fee,
+            #[cfg(feature = "s_capture_native_testonly")]
+            parent: self.parent,
         }
     }
 }

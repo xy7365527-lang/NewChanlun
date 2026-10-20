@@ -1377,6 +1377,7 @@ impl AuditConnection {
                 has_fee: c.has_fee(),
                 binding: c.binding(),
                 retained: c.retained_bytes(),
+                has_parent: c.has_parent(),
             }),
         }
     }
@@ -1435,6 +1436,34 @@ impl AuditConnection {
             .as_mut()
             .expect("须持有已提交资格")
             .set_writer_epoch_for_test(epoch);
+    }
+    /// 0037 P2-1 负控注入（比对之前）：完整候选改挂他账，资格所记父账不动；返回原父账句柄。
+    /// 此后 recover() 取的交接摘要与候选同为他账（自指比对恒真），只有资格记录值能拒。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn swap_complete_parent_for_test(&self, foreign: native::Budget) -> native::Budget {
+        let mut complete = self.complete.borrow_mut();
+        let candidate = complete.as_mut().expect("须持有完整候选");
+        std::mem::replace(&mut candidate.resources, foreign)
+    }
+    /// 0037 P2-1 负控注入（比对之前）：资格状态块许可换成他账许可，资格所记父账与候选不动。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn replace_qualification_fee_for_test(&self, fee: native::Permit) {
+        let old = self
+            .construction
+            .borrow_mut()
+            .as_mut()
+            .expect("须持有已提交资格")
+            .replace_fee_for_test(fee);
+        assert!(old.is_some(), "须原持有状态块许可");
+    }
+    /// 0037 P2-1 负控注入（比对之前）：完整候选经同父账真实 handoff 进入下一冻结域，资格所记域不动。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn advance_complete_domain_for_test(&self) {
+        let mut complete = self.complete.borrow_mut();
+        let candidate = complete.as_mut().expect("须持有完整候选");
+        let next = candidate.resources.handoff(u64::MAX, 0).expect("同父账换域");
+        assert!(next.same_parent(&candidate.resources));
+        candidate.resources = next;
     }
     /// 拿走 owner 的完整候选（无候选）。
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
@@ -1617,7 +1646,7 @@ impl AuditTxn<'_> {
             #[cfg(test)]
             parent.trace("raw");
             let bound = BoundOriginals { _private: () };
-            let (pending, token) = construction_state::PendingRawState::advance(
+            let (mut pending, token) = construction_state::PendingRawState::advance(
                 previous,
                 candidate.audited.raw.view(),
                 seal,
@@ -1625,6 +1654,7 @@ impl AuditTxn<'_> {
                 &self.owner.construction_lease,
                 &super::audit_store::NativeAdmission(Some(parent.work())),
             )?;
+            pending.stamp_parent(&candidate.resources);
             *self.construction.borrow_mut() = Some(pending);
             let value = consume(token)?;
             if self.owner.construction_lease.stale.get() {
@@ -1702,6 +1732,7 @@ impl AuditTxn<'_> {
                     &super::audit_store::NativeAdmission(Some(scope)),
                 )?;
                 pending.attach_fee(state_fee);
+                pending.stamp_parent(&budget);
                 *self.construction.borrow_mut() = Some(pending);
                 let value = consume(token)?;
                 if self.owner.construction_lease.stale.get() {
@@ -2020,6 +2051,7 @@ pub(super) struct RecoverQualification {
     pub(super) has_fee: bool,
     pub(super) binding: RawAdvanceBinding,
     pub(super) retained: usize,
+    pub(super) has_parent: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2963,12 +2995,13 @@ impl AuditTxn<'_> {
                     return Err(construction_state::stale("Carry缺同快照完整原件"));
                 }
                 let previous = self.owner.construction.borrow_mut().take();
-                let pending = construction_state::PendingRawState::carry(
+                let mut pending = construction_state::PendingRawState::carry(
                     previous,
                     seal,
                     candidate.audited.raw.len(),
                     &self.owner.construction_lease,
                 )?;
+                pending.stamp_parent(&candidate.resources);
                 let retained = candidate
                     .charge
                     .total

@@ -80,3 +80,6 @@ v3::audit_owner::effects::construction_coverage_tests::owner_set_receipt_events_
 v3::audit_owner::effects::native_journal_only_reserves_the_container_that_grows
 content_manifest::tests::native_manifest_originals_tree_permit_is_incremental_without_whole_tree_coexistence
 content_manifest::tests::native_manifest_recorded_body_and_puts_keep_original_permits_after_scope
+# #1488 Recover 父账绑定返修（0037，独审 0036 P2-1；裁定 issuecomment-6278995984 一）
+v3::driver::tests::recover_lock_rejects_qualification_recorded_on_other_parent_or_domain
+v3::driver::tests::recover_lock_holds_gate_rejects_fee_permit_on_foreign_ledger

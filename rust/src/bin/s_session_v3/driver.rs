@@ -1608,6 +1608,80 @@ mod tests {
         );
     }
 
+    // ---- #1488 0037 返修锁（按独审 0036 P2-1）----
+    /// P2-1：资格提交时独立记下父账身份与冻结域；比对前候选改挂他账（交接摘要随候选，自指比对恒真）
+    /// 或经同父账真实 handoff 进入下一冻结域，fee=None 的资格也一律拒绝。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn recover_lock_rejects_qualification_recorded_on_other_parent_or_domain() {
+        let expected =
+            "StaleWriter：construction资格失效：Recover迁移资格所记父账或冻结域与事务父账不符";
+        // 他账：资格与候选分属不同 Ledger。
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let probe = native.conn.recover_probe_for_test();
+        let q = probe.qualification.expect("Recover前owner持有已提交构造资格");
+        assert!(!q.has_fee, "本段须覆盖 fee=None：{q:?}");
+        assert!(q.has_parent, "资格提交时须记父账：{q:?}");
+        let foreign = super::super::audit_owner::native::Budget::fresh(1 << 30).unwrap();
+        let own = native.conn.swap_complete_parent_for_test(foreign.clone());
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert_eq!(error, expected);
+        assert_recover_revoked(&native, &f, probe.serial, "1");
+        drop((own, foreign));
+        // 同父账、下一冻结域：候选真实 handoff 后，资格所记域已不是事务实际域。
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        native.conn.advance_complete_domain_for_test();
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert_eq!(error, expected);
+        assert_recover_revoked(&native, &f, serial, "1");
+        // 正控：不注入时迁移成功，晋升资格记本事务父账。
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        native.conn.recover("2", &native.clock, "recover-2").unwrap();
+        let promoted = native.conn.recover_probe_for_test().qualification.unwrap();
+        assert_eq!(promoted.writer_epoch, Some(2));
+        assert!(promoted.has_parent, "{promoted:?}");
+    }
+
+    /// P2-1：holds 门独立负控——资格所记父账与候选一致，唯状态块许可挂他账，迁移前即拒绝。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn recover_lock_holds_gate_rejects_fee_permit_on_foreign_ledger() {
+        let f = Fixture::new();
+        let (mut native, _, _) = recover_lock_driver(&f);
+        let mut context = recover_lock_context(&mut native);
+        let (_token, ended) = native
+            .conn
+            .issue_raw_qualification_for_test(&mut context)
+            .unwrap();
+        native.conn.finish_source_keeper(context, ended);
+        let probe = native.conn.recover_probe_for_test();
+        let q = probe.qualification.expect("签发后owner持有资格");
+        assert!(q.has_fee && q.has_parent, "{q:?}");
+        let foreign = super::super::audit_owner::native::Budget::fresh(1 << 20).unwrap();
+        native
+            .conn
+            .replace_qualification_fee_for_test(foreign.reserve(64).unwrap());
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert_eq!(
+            error,
+            "StaleWriter：construction资格失效：Recover迁移状态块许可不挂事务父账"
+        );
+        assert_recover_revoked(&native, &f, probe.serial, "1");
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn audit_owner_complete_optional_budget_releases_without_changing_reply() {
