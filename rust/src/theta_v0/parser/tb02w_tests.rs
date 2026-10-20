@@ -1198,6 +1198,50 @@ fn tb1493_search_tb02w_witnesses() {
     }
 }
 
+/// OPEN 封段见证价格（`tb1493_search_open_block_witness` 尖峰折线种子 1324、60 点，向上起）：59 笔。
+const OPEN_BLOCK_PRICES: [i64; 60] = [
+    100000, 100067, 98908, 98919, 98870, 98930, 98923, 98980, 98916, 100307, 100146, 100165,
+    100104, 100130, 100126, 100196, 100168, 100223, 100176, 100244, 100230, 100270, 100231,
+    100251, 100186, 100198, 100193, 100396, 100360, 100408, 100241, 100306, 100265, 100325,
+    100268, 100418, 100377, 100441, 100385, 100401, 100332, 100496, 99446, 99493, 99483, 99509,
+    99501, 99674, 99669, 99727, 99711, 99898, 99894, 99926, 99746, 100394, 100363, 100422,
+    100233, 100371,
+];
+
+/// #1493 裁定 1（§7.1 第 8 条）OPEN 封段对照见证（与 W2 预算封段成对）：末段的第二种候选 b=s42 第二序列
+/// 到前缀末仍 OPEN，其后有 8 个标准特征元素（多于 `TAIL_WINDOW = 7`）。新规则在该候选处封段：6 段、
+/// 末段待定；TestOnly 旧规则臂（OPEN 跳过续判）在同一输入上多发射 1 段——见证非空转。逐前缀全量 ≡
+/// 增量，已发射段逐前缀单调。
+#[test]
+fn tb1493_open_second_candidate_blocks_later_candidates() {
+    let cfg = ThetaConfig::default().parse;
+    let ss = witness_chain(&OPEN_BLOCK_PRICES);
+    assert_eq!(ss.len(), 59);
+    let (new, pending, facts) = segment::divide_segments_with_facts(&ss, &cfg);
+    assert_eq!(new.len(), 6, "新规则：在 OPEN 候选处封段");
+    assert!(pending.is_some());
+    let c = facts.candidates.last().unwrap();
+    let sec = c.second.as_ref().expect("末段须有第二种候选的第二序列事实");
+    assert_eq!(sec.semantic_state, Some(SecondTerminal::OpenAtPrefixEnd));
+    assert_eq!(sec.from_stroke, 43, "候选 b = s42");
+    let after = c.first.standard.iter().filter(|e| e.stroke_idx > 42).count();
+    assert!(after > segment::TAIL_WINDOW as usize, "候选之后的标准元素须多于尾窗：{after}");
+    feature_seq::OPEN_SKIP_ARM.with(|a| a.set(true));
+    let (old, _) = segment::divide_segments_with_tail(&ss, &cfg);
+    feature_seq::OPEN_SKIP_ARM.with(|a| a.set(false));
+    assert_eq!(old.len(), 7, "旧规则臂多发射 1 段（见证非空转）");
+    assert_eq!(old[..6], new[..]);
+    let mut inc = segment::IncrSegments::default();
+    let mut prev: Vec<Segment> = Vec::new();
+    for k in 0..=ss.len() {
+        inc = inc.append(&ss[..k], &cfg);
+        let batch = segment::divide_segments_with_tail(&ss[..k], &cfg);
+        assert_eq!(inc.to_result_vec(), batch, "前缀 {k}：增量 != 全量");
+        assert!(batch.0.len() >= prev.len() && batch.0[..prev.len()] == prev[..], "前缀 {k}：已发射段被改写");
+        prev = batch.0;
+    }
+}
+
 /// #1493 裁定 1 OPEN 封段见证搜索（ignored）：旧规则（OPEN 跳过续判）在前缀末多发射段、新规则在同一处
 /// 以 OPEN 的第二种候选封段，且该候选之后的标准特征元素多于 `TAIL_WINDOW`。
 #[test]
