@@ -223,3 +223,129 @@ frontier 原建议的矩阵是 {Capture, Resolve, Apply@B1/B2/B3} × 2 × 2 = 20
 6. **“两次独立新进程”的含义。** 两次运行按顺序执行，复用同一个绝对路径（中间改名），以便 meta.manifest_hash 也逐字节一致。如果要求两次路径不同，就只能比较除 meta 外的表。
 7. **覆盖边界。** WE7 没有 Reduce 或 correction。BindVoice 的故障缝（`service.rs:1253/1256`）不属于 TB03C WE7 操作，未覆盖。
 8. 子进程入口 `tb03c_kill_child` 是 `#[ignore]` 测试，计入完整套件的 9 个 ignored 中，模式与 finance `durable_child` 相同。
+
+---
+
+# 返修（S3 独审 REQUEST_CHANGES，`/Volumes/AgentStorage/issue1406-owner-20261020-review/s3-review.md`；接手者 /root/owner_1406/impl_c8_funding）
+
+写集：只改 `rust/src/economic_session/tb03c_kill_tests.rs` 与本报告。生产代码零改动。变异只在临时分支上做，未进入本分支，也未推送远端。
+
+## 提交与可编译证据
+
+| 提交 | 内容 | 远端证据 |
+|---|---|---|
+| `a7f852c7a6` | M1/M2/M3(a)(b) 测试返修 | `cargo check --features s_session --lib --bins --tests` EXIT=0，日志 `/tmp/nc-remote/20261021-001847-a7f852c7a6.log`；`cargo test --features s_session --lib -- tb03c_kill --nocapture`：**23 passed / 0 failed / 1 ignored**（子进程入口），1149 s，日志 `/tmp/nc-remote/20261021-002009-a7f852c7a6.log` |
+| 报告提交 | 只改本报告 | 不改代码 |
+
+economic_session 全量结果见文末「全量」一节。
+
+## M1：时刻规范化逐值核对（`tb03c_kill_tests.rs:158-305`）
+
+**时钟方案**（`manifest` 与 `store.rs` `Config::clock`）：消息 m-i 在 epoch e 的时刻 = (e−1)·1 000 000 + 1000 + 10·i + offset，offset ∈ {0,1,2}，分别对应 received / first_known / commit；`init_ns = 1`；第 k 次 `recover_ns = k·1 000 000`。
+
+**规范化方法**：`normalize` 把所有 `*_ns` 值替换为 `v mod 1 000 000`，再与参照逐值比较。商由 `Clock::expected_quotient` 逐值核对，规则如下：
+
+- 余数 ≥ 1000 时，反推出消息号 i = (r−1000)/10，期望商等于「处理 m-i 的那个域当时的 epoch−1」。
+- 崩溃轨里，只有被杀域从 `from` 起处理的消息商为 1，其余为 0。提交前被杀时 `from` = 目标步，提交后被杀时 `from` = 目标步 + 1。
+- B 里抄入的 E 时刻（`e_first_known_ns`，以及 E 证明里的 `commit_ns`）归属 E 处理的那条消息，按同一规则核对。也就是说，E 被杀时，B 从目标事实起记录的 `e_first_known_ns` 商为 1。
+- 余数 1 是 init，商必须为 0；余数 0 是 recover，商必须为 1；其他余数小于 1000 的值一律判为错。
+- 参照轨所有时刻的商都必须为 0，否则直接 panic。
+
+与评审写法「商 == 该域 epoch−1」的关系：这里的「该域」精确为「产生该时刻的域」，所以 E 时刻被抄进 B 时，按 E 判定。
+
+**仍剔除的键**：`root`、`*_root`、`root_hash`、`image_hash`、`writer_epoch`。根链一致性由 `audit_all` 重放核对；`writer_epoch` 是 epoch 标记，被杀域的 epochs 表另有逐字断言。
+
+**提交前被杀后的重送回执**：断言原始字节与参照不同，同时 `compare(resent, crash_clock, reference, ref_clock) == Ok(())`，即规范化后逐字相同，只有时刻商（为 1）与根不同；`seq == kill_seq + 1`。
+
+**其余断言**：续跑每步回复、四域终态全表（除 meta/epochs）、四域公开查询，全部改用同一个 `compare`。B 被杀时，未被杀的域仍做逐字节比较。
+
+**观察结论**（对应原待裁 4、评审 L4）：84 次运行全部满足上述商规则。E 被杀时，B 的 `received_ns` 商为 0，而它抄入的 `e_first_known_ns` 商为 1。现在测试把「B 观察时刻早于 E 提交时刻」钉成了已知形状；生产代码没有跨域先后检查，是否要加，另开票。
+
+## M2：全 21 步 × 2 阶段 × 2 次新进程 = 84 次真实 SIGKILL
+
+一步一个测试（`kill_step!` 宏，`tb03c_kill_s00_…` 至 `tb03c_kill_s20_…`），日志里共 84 行 `S3-KILL`，`signal` 全部为 9。每个组合 rep-0 与 rep-1 的终态全表 sha256 逐字相同。这里的 sha256 与原报告不可比：原报告的终态全表含 meta.manifest_hash，而这个哈希依赖证据目录名，目录名已从 `capture_opening` 等改为 `stepNN`。
+
+| 步 | 操作 | 被杀域 | phase | 被杀时 seq | 重送 kind / seq | rep-0 / rep-1 终态 sha256 |
+|---|---|---|---|---|---|---|
+| 00 | CaptureExternal | E | after | 1 | Recorded / 1 | `a5379c26b1b5f51d49d711d726c380048ae029102aa33f904f40f9be72e2f9a3` ×2 |
+| 00 | CaptureExternal | E | before | 0 | Recorded / 1 | `66eca46d43505cb13fb0f38966cf7765a7789e2c3aaf366acd078d59a0251fd3` ×2 |
+| 01 | ApplyAllocation | B:chong-N1 | after | 1 | Applied / 1 | `ab60cf5dfa2c88ebf0855c33c9a53418b0396a3a999ea57129f55f1c4bd9b40d` ×2 |
+| 01 | ApplyAllocation | B:chong-N1 | before | 0 | Applied / 1 | `d7c7c6a9a3971173b006a9adb2024350c7726088c0b7ce13564ed85d9a937df5` ×2 |
+| 02 | CaptureExternal | E | after | 2 | Recorded / 2 | `59c3ed7104fb17e61a496d0156fd1580c55a7f2047c3bc85bc555ed47b96b12a` ×2 |
+| 02 | CaptureExternal | E | before | 1 | Recorded / 2 | `d3c9cb0c6413ece1e553745625121f03aeea57a8e8ed935dc0d30cc5780b281e` ×2 |
+| 03 | ApplyAllocation | B:chong-N2 | after | 1 | Applied / 1 | `1a634e5a466ee9715d29026fb6edbb14739f65a61be9edf3ae596ae6aa6ebe47` ×2 |
+| 03 | ApplyAllocation | B:chong-N2 | before | 0 | Applied / 1 | `3ae462f8d94de4404af9b5959b207c25da910240064cf7b81890028f1460a934` ×2 |
+| 04 | CaptureExternal | E | after | 3 | Recorded / 3 | `f64da88977e8e8c81b3309c044edc17072cbba853c720c6dbd7b54de02113592` ×2 |
+| 04 | CaptureExternal | E | before | 2 | Recorded / 3 | `d9b125eb9ed18acf7336df9124392589647b569e3eb3a65335e41b9b5c9e0a52` ×2 |
+| 05 | ApplyAllocation | B:chong-N3 | after | 1 | Applied / 1 | `2d40a6888109aaeb0537e566adbbfc939dcda8f19a95fc5116bc260a9f498d10` ×2 |
+| 05 | ApplyAllocation | B:chong-N3 | before | 0 | Applied / 1 | `4e57410bd3da2a89a7f524cc89ddb82ce4d788df78add6753b3f0c5bc25c6289` ×2 |
+| 06 | CaptureExternal | E | after | 4 | Recorded / 4 | `f33ffef2936047166870e0ab7aa84ddfafeeb9559214b556e90a161814af94bc` ×2 |
+| 06 | CaptureExternal | E | before | 3 | Recorded / 4 | `52ca07015ba5fdba9e2e73b9f44d5b2da4b53fc2ab7d8e3300e559d3bf54ca87` ×2 |
+| 07 | ResolveEvidence | E | after | 5 | Resolved / 5 | `b4f63c9b47a17ccf30544de624b2ea4c4368fce959f206bf095473b5acb1c7a3` ×2 |
+| 07 | ResolveEvidence | E | before | 4 | Resolved / 5 | `09119748c06bf86d3e349b4e361229dd599690642dafebd2e102002acbd67819` ×2 |
+| 08 | ApplyAllocation | B:chong-N1 | after | 2 | Applied / 2 | `cd268fae2e14fb98e7f0e59f9ab38ef26ac85bedbf0a07a5275a263415895f49` ×2 |
+| 08 | ApplyAllocation | B:chong-N1 | before | 1 | Applied / 2 | `8f3a4db49dcfa5d55e5b035ae5ce1e7406d96ac08b5dd4106e39bffd2499fa19` ×2 |
+| 09 | ApplyAllocation | B:chong-N2 | after | 2 | Applied / 2 | `0f714f05f50abdeb4514deffb2c2363a91a97cc68894ffc1ea4eae56b7195fe5` ×2 |
+| 09 | ApplyAllocation | B:chong-N2 | before | 1 | Applied / 2 | `be44302f434191479532886a2dbb010e8b3367e0a21a0192813a9ff99f6af705` ×2 |
+| 10 | ApplyAllocation | B:chong-N3 | after | 2 | Applied / 2 | `9837d1f5ad2f3d342f8e0b03799dedba3c42a4460d809355ebce2461f2ff25d9` ×2 |
+| 10 | ApplyAllocation | B:chong-N3 | before | 1 | Applied / 2 | `50ab4954ab3fb340da906c173ed7692092bcff1e98e59d5e7c0a24a23ce01481` ×2 |
+| 11 | CaptureExternal | E | after | 6 | Recorded / 6 | `467ff509ef5369d800341d8870422a76dd89ff6926cd4ede095d02fd7b43a971` ×2 |
+| 11 | CaptureExternal | E | before | 5 | Recorded / 6 | `ed115127f1a4941196aa6059673d71369de0c7e3128ded71b9573a4fb9df0100` ×2 |
+| 12 | ResolveEvidence | E | after | 7 | Resolved / 7 | `208df3cfcb6b15d3bfba99c71161d08851d94fd985b933b658cf38a297f026f2` ×2 |
+| 12 | ResolveEvidence | E | before | 6 | Resolved / 7 | `d6e339d921203ed4d89105d1f6c120dd711a099eb942e31114aa54819378a7a6` ×2 |
+| 13 | ApplyAllocation | B:chong-N1 | after | 3 | Applied / 3 | `ccafe1075538d6f8d8927890821d1f4bcd75bff4632fc7e1ed2f251a8d8b2bd4` ×2 |
+| 13 | ApplyAllocation | B:chong-N1 | before | 2 | Applied / 3 | `8cfbb6523d7fcedb16ae14d3adf7383279626853da9da686388f96a9e0953007` ×2 |
+| 14 | ApplyAllocation | B:chong-N2 | after | 3 | Applied / 3 | `19eabc34d39a71196bb9c9aab120b1060b2112ecda3163c6cb7f4e119e75db70` ×2 |
+| 14 | ApplyAllocation | B:chong-N2 | before | 2 | Applied / 3 | `5172b30449ce2555e2f73bc708f7d050319af8e2d34c2b083fff91724cca9430` ×2 |
+| 15 | ApplyAllocation | B:chong-N3 | after | 3 | Applied / 3 | `f817a2dd82060e5965c147d1cf8ae84e6f9f896e0da8019bd0ea33dfa9080c03` ×2 |
+| 15 | ApplyAllocation | B:chong-N3 | before | 2 | Applied / 3 | `dabdfbaacdbf14c51bf38639fed9e4fc9769be2e3d8e992b8f7bbacc8a9b9eea` ×2 |
+| 16 | CaptureExternal | E | after | 8 | Recorded / 8 | `e1715e5de844dc991d08e9ad813362dba3bf862ca08824ecddd90adeeca24aa9` ×2 |
+| 16 | CaptureExternal | E | before | 7 | Recorded / 8 | `c3e051d3110959bebafef2565db77d81582319770b6afc2760c80be1bc7db807` ×2 |
+| 17 | ResolveEvidence | E | after | 9 | Resolved / 9 | `3ec665055c724c5083e16adea27ba8d4bb5e932aa28cf309b92c9f0ee751c55c` ×2 |
+| 17 | ResolveEvidence | E | before | 8 | Resolved / 9 | `418bf73fbdbdc30ce1421291c969e1fed8f6d58c3e94acf7a693cece3fa80d1a` ×2 |
+| 18 | ApplyAllocation | B:chong-N1 | after | 4 | Applied / 4 | `c110c47c419ee8eccaa7eced7b3547e33c19eb53dced296d4e4518cbdf14cbd2` ×2 |
+| 18 | ApplyAllocation | B:chong-N1 | before | 3 | Applied / 4 | `2ec0ce68aeef25ae54fb34e51817dcd528201a4479cb7ad444b9ee18096af809` ×2 |
+| 19 | ApplyAllocation | B:chong-N2 | after | 4 | Applied / 4 | `942728a04ce4bbf97fd300fe4fd1206396faf78e214cfad9a7980be7ed22d415` ×2 |
+| 19 | ApplyAllocation | B:chong-N2 | before | 3 | Applied / 4 | `3de024b0fb42e269bb683a1d91d0c2401c091017cfb6f6476e462044bb5f06fe` ×2 |
+| 20 | ApplyAllocation | B:chong-N3 | after | 4 | Applied / 4 | `3a2c182264f02ffc6b62888e13f43d8b69831c1b3bd16615ec0e772e9b1e2704` ×2 |
+| 20 | ApplyAllocation | B:chong-N3 | before | 3 | Applied / 4 | `d1184e5f0f7e9c9e6198fa521ac4dea6672f63e56f6ba9f17b541cc262b803bc` ×2 |
+
+## M3(a) 常驻判据不退化（`kill_and_recover`，`:670-680`）
+
+每个目标步在杀进程前先断言 `plan.snapshots[target][owner] != plan.snapshots[target+1][owner]`，确保「提交前等于前快照」与「提交后等于后快照」不会退化成同一个判据。21 步全部通过。
+
+## M3(b) 常驻负控（`skip_resend`，`:949` 起）
+
+做法：提交前被杀并恢复后，跳过重送，直接续跑；断言 `final_diff`（与正向断言共用的比较函数）返回 `Err`。没有使用 `should_panic`。远端两例都通过，第一处差异摘录如下：
+
+- `tb03c_kill_negative_skip_resend_capture_fill1`（步 6，E）：续跑中 12 步返回 Error；`终态域 0：规范化后不同：/commits: …`
+- `tb03c_kill_negative_skip_resend_apply_fill1_n2`（步 9，B2）：续跑中 2 步返回 Error；`终态域 2：规范化后不同：/applications: …`，域 0、1 相同
+
+提交后被杀时重送不新增提交，这一点由 `resent.seq == kill_seq` 与「再次重送同回执、无新提交」常驻覆盖。
+
+## M3(c) 一次性变异（临时分支，跑完已删，远端未推送）
+
+两次变异都基于 `a7f852c7a6`。每次在 Capture（`service.rs:829/832`）、Resolve（`:890/893`）、Apply（`:1145/1161`）三处做同一种挪动，然后跑 `tb03c_kill_s00`（Capture）、`s01`（Apply）、`s07`（Resolve）三个测试。
+
+| 变异 | 临时提交 | 结果 | 失败断言（`tb03c_kill_tests.rs:733`） | 日志 |
+|---|---|---|---|---|
+| `before_commit` 挪到 `tx.commit()` 之后 | `a9c3225f5c` | 3/3 FAILED | `assertion left == right failed: before_commit 被杀后域 0 业务表`（s00、s07）；`… 域 1 业务表`（s01）。左侧已含目标提交的行 | `/tmp/nc-remote/20261021-004703-a9c3225f5c.log` |
+| `after_commit` 挪到 `tx.commit()` 之前 | `177328230f` | 3/3 FAILED（before 阶段两次 rep 均通过，共 6 行 S3-KILL，在 after 阶段失败） | `assertion left == right failed: after_commit 被杀后域 0 业务表`（s00、s07）；`… 域 1 业务表`（s01） | `/tmp/nc-remote/20261021-004919-177328230f.log` |
+
+两个临时分支 `tmp/1406-s3-mut-before` 与 `tmp/1406-s3-mut-after` 及其 worktree 已删除；`git ls-remote` 确认 origin 上没有这两个分支。
+
+## LOW 回应
+
+- **L1**：TestOnly 无限 park 钩子是 #1374 的既有设计，只由 manifest `test_only_fault` 触发；`store.rs:254-259` 在非 TestOnly 时钟下拒绝故障计划。本片不改。
+- **L2**：`SCHEMA_V2` 下 Apply 在 `commit` 与 `reconcile_final` 之间的窗口没有故障点。WE7 是 `/1`，不经过这个窗口，不在本片范围内。
+- **L3**：原始证据仍在远端临时目录（每行 `S3-KILL` 的 `raw_dir`）。本报告保留 42 组合哈希表与两例负控摘要，作为本地摘要。
+- **L4**：见 M1「观察结论」。跨域时刻先后不变式请另开票。
+- **L5**：BindVoice（`service.rs:1253/1256`）不在 WE7 操作里，未覆盖，建议另开票，在声部链路的验收里覆盖。
+
+## 全量
+
+在 `a7f852c7a6` 上跑 `cargo test --features s_session --lib economic_session`：**178 passed / 0 failed / 9 ignored**，用时 1117 s，日志 `/tmp/nc-remote/20261021-005338-a7f852c7a6.log`。
+
+- 178 = 原 163 − 原 8 个 kill 测试 + 21 个分步测试 + 2 个负控。
+- 9 个 ignored 与原报告一致：8 个是既有项，1 个是子进程入口 `tb03c_kill_child`。
+- 23 个 `tb03c_kill_*` 测试全部 ok。
