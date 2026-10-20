@@ -211,6 +211,43 @@ fn shared_endpoint_sources(
     Some(union)
 }
 
+/// 全量 facts 的 raw 序位映射：`source_index → 第几根 raw`（同坐标后者覆盖）。
+///
+/// 这是 `Endpoint.raw_first/raw_last` 的唯一来源——源坐标可以稀疏，不能拿坐标相减冒充根数。
+/// 增量热路径不物化 `steps`，改由 [`IncrFactsState::positions`] 逐 bar 维护同一映射。
+fn positions_of_steps(facts: &InclusionFacts) -> BTreeMap<usize, usize> {
+    facts
+        .steps
+        .iter()
+        .enumerate()
+        .map(|(i, s)| (s.incoming.source_index, i))
+        .collect()
+}
+
+/// 端点扫描（唯一判据）：full 与增量共享本函数，差别只在 `positions` 的来源。
+///
+/// `merged`/`groups`/`initial_direction_unsettled` 是全部结构输入；`source_coords` 只进
+/// 证据面，不进任何判据（见 [`Endpoint`]）。
+fn endpoints_from(
+    merged: &[Bar],
+    groups: &[super::inclusion::InclusionGroupFact],
+    initial_direction_unsettled: bool,
+    positions: &BTreeMap<usize, usize>,
+) -> Vec<Endpoint> {
+    (1..merged.len().saturating_sub(1))
+        .filter_map(|mid| {
+            endpoint_at(
+                merged,
+                groups,
+                initial_direction_unsettled,
+                positions,
+                mid,
+                true,
+            )
+        })
+        .collect()
+}
+
 /// #1343 Q2/Q3：极值根集在 raw 序位域上的首/末序位（集合语义：与根的到达序、与指定哪一根无关）。
 ///
 /// 根集非空且每根都登记了 raw 序位，是包含层的构造不变式（建组即以首根为极值根，归并只替换
