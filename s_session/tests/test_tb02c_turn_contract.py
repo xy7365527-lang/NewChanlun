@@ -158,6 +158,37 @@ class TB02XContractTest(unittest.TestCase):
     def reject(self, kind, p, reason):
         self.assertEqual(self.judge(kind, p), (reason, reason))
 
+    def test_result_leaf_table_covers_v4_results(self):
+        # #1493 裁定 4c（X-36）：每个 v4 result 值恰归一叶，叶 id 存在于签名目录 CC-013；Python 与 JS 归叶表同一。
+        v4_results = {"NO_FIRST", "CASE_ONE", "PENDING_CASE_TWO", "FAILED_GEOMETRY", "CASE_TWO", "KILLED_CASE_TWO", "PENDING_CASE_ONE"}
+        self.assertEqual(set(c.RESULT_SEMANTIC_BRANCH), v4_results)
+        declared = json.loads((ROOT / "catalog/signed-catalog.json").read_text(encoding="utf-8"))
+        cc013 = next(i for i in declared["items"] if i["id"] == "CC-013")
+        leaves = {b["id"] for b in cc013["branches"]["semantic_branches"]}
+        for result, leaf in c.RESULT_SEMANTIC_BRANCH.items():
+            self.assertIn(leaf, leaves, result)
+        js = subprocess.run(["node", "-e", "process.stdout.write(JSON.stringify(require(process.argv[1]).Q3.typed.RESULT_SEMANTIC_BRANCH))", str(CLIENT)],
+                            text=True, capture_output=True, check=True)
+        self.assertEqual(json.loads(js.stdout), c.RESULT_SEMANTIC_BRANCH)
+        bad = segment_pending()
+        bad["data"]["result"] = "PENDING_BUDGET"
+        with self.assertRaisesRegex(ValueError, "冒称交付第二种终结|段结果未归签名目录叶"):
+            c.validate_segment_payload(SEG, bad)
+
+    def test_merge_step_keeps_b_representative(self):
+        # #1493 裁定 2：有缺口 c ⊂ b 合并、代表笔保持 b——合同不要求 merge 步代表笔改为入元素。
+        p = first(5)
+        steps = p["data"]["facts"]["steps"]
+        member = steps[-1]
+        merged = dict(member["before"])
+        merged["low"] = member["incoming"]["low"]
+        merged["stroke_indices"] = member["before"]["stroke_indices"] + [member["incoming"]["stroke_idx"]]
+        member.update(action="merge", merge_direction="UP", scope="SAME_SEQUENCE", after=merged)
+        p["data"]["facts"]["standard"][-1] = merged
+        p["data"]["facts"]["open_turn"] = None  # 合并步只出现在有缺口的 b 上，此时不开窗（合同只核形状）。
+        self.assertEqual(member["after"]["stroke_idx"], member["before"]["stroke_idx"])
+        self.accept(SEQ, p)
+
     def test_rule_binds_v4_schema(self):
         self.assertEqual(c.RULE_CONTRACTS[RULE_V4], ("s-new-bi/2", "s-segment/4", c.KNOWLEDGE_DOMAIN_V2))
 

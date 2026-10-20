@@ -6,7 +6,6 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const vm = require('node:vm');
 const {execFileSync} = require('node:child_process');
 const API = require('../browser/tb01c-client.js');
 
@@ -17,21 +16,41 @@ print(json.dumps(dict(first5=t.first(5), first7=t.first(7), pending=t.segment_pe
   invalid=t.segment_invalid(), version=t.version(), blocked=t.version(["segment_parse_invalid", "top_not_above_bottom"]))))`], {cwd: __dirname, encoding: 'utf8'}));
 const clone = structuredClone;
 
-function privateClient() {
-  const source = fs.readFileSync(path.join(__dirname, '../browser/tb01c-client.js'), 'utf8');
-  const marker = '  return Object.freeze({TB02_KINDS:';
-  assert.equal(source.split(marker).length, 2, 'unique final export for test-only private access');
-  const context = vm.createContext({module: {exports: {}}, TextEncoder, TextDecoder, crypto: require('node:crypto').webcrypto});
-  vm.runInContext(source.replace(marker, '  globalThis.__tb02x = {validateTB02Candidate, TB02_AXES};\n' + marker), context);
-  return context.__tb02x;
+// #1394 合入：同 cut 引用闭合在 Q3 公共 validateState（q3-consumer bindSegmentSequences）执行，运行段没有
+// validateTB02Candidate 私有入口；此处照 test_tb02w_contract.cjs 补齐 validateState 所需的同 cut 包（人工合同域）。
+const AXES = ['CC-001','CC-002','CC-003','CC-004','CC-005','CC-006','CC-007','CC-008','CC-009','CC-010','CC-011','CC-012','CC-013','CC-014','CC-054','CC-055','CC-056'];
+function axisSet(objects, reasons) {
+  return Object.fromEntries(AXES.map(cid => {
+    const e = {scope:'TB-02-A',object_ids:[],waiting_reasons:[]};
+    if (['CC-011','CC-012','CC-013','CC-014'].includes(cid)) {
+      const kind = cid === 'CC-014' ? SEG : cid === 'CC-012' ? SEQ : cid === 'CC-013' ? SEG : 'CC-011.segment_seed';
+      e.object_ids = objects.filter(o => o.kind === kind).map(o => o.object_id);
+      Object.assign(e, {scope:'TB-02-D', waiting_reasons:[...reasons],
+        delivered_subobligations:['finite_complete_prefix_strict_second','independent_stroke_and_segment_break_facts'],
+        deferred_subobligations:['general_equal_identity','general_scan_continuation','global_G006_bridge']});
+    }
+    if (cid === 'CC-056') Object.assign(e,{raw_revisions:[],withdrawals:[],replaces:[]});
+    return [cid,{impl_status:'not_implemented',proof_status:'not_proved',run_status:e.object_ids.length ? 'run' : 'not_run',evidence:e}];
+  }));
 }
-function catalog() {
-  const declared = JSON.parse(fs.readFileSync(path.join(__dirname, '../catalog/signed-catalog.json'), 'utf8'));
-  const wire = v => typeof v === 'number' ? String(v) : Array.isArray(v) ? v.map(wire) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, wire(x)])) : v;
-  const items = declared.items.map(i => ({id: i.id, ...wire(Object.fromEntries(['kind', 'title', 'domain', 'branches'].map(k => [k, i[k] ?? (k === 'branches' ? [] : '')]))),
-    implementation_status: 'not_implemented', proof_status: 'not_proved', run_status: 'not_run', evidence: {}}));
-  const n = String(items.length);
-  return {catalog_revision: API.TB02_CATALOG.catalog_revision, items, counts: {implemented: '0', not_implemented: n, run: '0', not_run: n}};
+function fullState(snapshot, reasons) {
+  const scope = {structure:'CompleteCut',economic:'not_started'}, axes = axisSet(snapshot.objects, reasons);
+  const common = {session_id:'contract-only',generation:'1',structure_cut:'cut-1',catalog_revision:API.TB02_CATALOG.catalog_revision,
+    index_frontier:'batch',scope,input_frontier:'13',seq_range:{from:'0',to:'13'},catalog_run_status:'run'};
+  const profile = {profile_id:PROFILE,profile_hash:'a'.repeat(64),rule_revision:RULE_V4};
+  const evidence = {...profile,structure_cut:'cut-1',scope,batch_id:'batch',axes};
+  for (const k of ['classified_objects','windows_total','merged_bars','effective_source_positions','withdrawals','replaces','insufficient_knowledge','domain_not_satisfied']) evidence[k]='0';
+  common.catalog_evidence = evidence;
+  const declared = require('../catalog/signed-catalog.json');
+  const wire = v => typeof v === 'number' ? String(v) : Array.isArray(v) ? v.map(wire) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k,x]) => [k,wire(x)])) : v;
+  const items = declared.items.map(i => {
+    const axis = axes[i.id];
+    return {id:i.id,...wire(Object.fromEntries(['kind','title','domain','branches'].map(k => [k,i[k] ?? (k === 'branches' ? [] : '')]))),
+      implementation_status:axis?.impl_status ?? 'not_implemented',proof_status:'not_proved',run_status:axis?.run_status ?? 'not_run',evidence:axis?.evidence ?? {}};
+  });
+  const counts = {implemented:'0',not_implemented:String(items.length),run:String(items.filter(i => i.run_status === 'run').length),not_run:String(items.filter(i => i.run_status === 'not_run').length)};
+  return {snapshot:{...snapshot,...common,...profile,history_mode:'AsKnown',as_of_generation:'1',witnesses:[],relations:[],observations:[]},
+    catalog:{...common,items,counts},cut:Object.fromEntries(['session_id','generation','structure_cut','catalog_revision','index_frontier'].map(k => [k,common[k]]))};
 }
 async function typed(kind, payload) {
   const fact_key = API.canonical([kind, payload.slot]);
@@ -52,9 +71,7 @@ test('v4 单对象载荷与 Python 同构造同判定', () => {
 });
 
 test('同cut引用：PENDING_CASE_ONE 绑开窗候选、候选态绑 FIRST 检查、段端门失败须标阻断', async () => {
-  const {validateTB02Candidate, TB02_AXES} = privateClient(), state = {catalog: catalog()};
-  const axes = reasons => Object.fromEntries(TB02_AXES.map(a => [a, {evidence: {waiting_reasons: reasons}}]));
-  const run = async (snapshot, reasons = []) => validateTB02Candidate({...state, snapshot}, {cut_generation: '1', rule_revision: RULE_V4, profile_id: PROFILE, catalog_evidence: {axes: axes(reasons)}}, () => {});
+  const run = async (snapshot, reasons = []) => API.Q3.validateState(fullState(snapshot, reasons), 's-session/2');
   await run(await cut(S.first5, S.pending));
   await run(await cut(S.first7, S.confirmed));
   await assert.rejects(run(await cut(S.first7, S.pending)), {message: 'PENDING_CASE_ONE未绑定FIRST开窗候选'});

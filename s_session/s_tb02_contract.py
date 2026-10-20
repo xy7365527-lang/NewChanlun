@@ -41,6 +41,20 @@ FIRST_TURN_ACTIONS = ("boundary_pair", "window_member", "tie_pair")
 PARSE_INVALID_REASON = "segment_parse_invalid"
 PENDING_CASE_ONE_REASON = "first_kind_third_stroke_within_first"
 MIN_LENGTH_REASON = "minimum_segment_length_not_met"
+# #1493 裁定 4c（xianduan.md §7.1 第 7 条，X-36）：CC-013 段合同 result → 签名目录 CC-013 semantic_branches 叶。
+# 目录五叶按五位原始逻辑签名分区，合同 result 是叶内细分，按签名唯一归叶；签名目录不改，
+# PENDING_CASE_ONE／KILLED_CASE_TWO 补叶列 SPEC #1340 下次修订待办。
+RESULT_SEMANTIC_BRANCH = {
+    "NO_FIRST": "NO_FIRST",
+    "CASE_ONE": "CASE_ONE",
+    "CASE_TWO": "CASE_TWO",
+    "PENDING_CASE_TWO": "PENDING_CASE_TWO",
+    "FAILED_GEOMETRY": "FAILED_GEOMETRY",
+    # 开窗未确认：first_fractal=0 ⟹ 无第一序列方向要求的分型。
+    "PENDING_CASE_ONE": "NO_FIRST",
+    # 第一分型、有缺口、第二序列无分型 ⟹ 按五位签名归 PENDING_CASE_TWO；语义效果以 §5.1 为准（失效即旧段续，078:52）。
+    "KILLED_CASE_TWO": "PENDING_CASE_TWO",
+}
 
 FACT_COLUMNS = ("object_id", "object_revision", "kind", "batch_id", "fact_key", "payload_json", "input_refs_json", "source_coords_json", "first_known_generation", "first_known_cut", "published_generation", "withdrawn_generation", "withdrawal_reason", "superseded_by")
 FACT_FIELDS = ("object_id", "object_revision", "kind", "batch_id", "fact_key", "payload", "input_refs", "source_coords", "first_known_generation", "first_known_cut", "published_generation", "withdrawn_generation", "withdrawal_reason", "superseded_by", "lifecycle")
@@ -976,6 +990,8 @@ def validate_segment_payload(kind, p):
         if d["result"] not in ("NO_FIRST", "CASE_ONE", "PENDING_CASE_TWO", "FAILED_GEOMETRY") + (("CASE_TWO",) if v2 else ()) + (("KILLED_CASE_TWO",) if v3 else ()) + (("PENDING_CASE_ONE",) if v4 else ()):
             raise ValueError("冒称交付第二种终结")
         if v4:
+            if d["result"] not in RESULT_SEMANTIC_BRANCH:
+                raise ValueError("段结果未归签名目录叶")
             _turn_candidate(d, indices, element)
         if d["result"] in ("CASE_ONE", "CASE_TWO"):
             known(d["terminated_known_at"])
