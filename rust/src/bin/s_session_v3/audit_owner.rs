@@ -4784,7 +4784,9 @@ pub(super) mod construction_tests {
         begun.token
     }
 
-    pub(in crate::v3) fn b2_assert_counts_match_independent_full_source(owner: &AuditConnection) {
+    pub(in crate::v3) fn b2_assert_counts_match_independent_full_source(
+        owner: &AuditConnection,
+    ) -> source_audit::Counts {
         let actual = owner
             .construction
             .borrow()
@@ -4815,7 +4817,7 @@ pub(super) mod construction_tests {
         drop(reader);
         drop(source);
         drop(audited);
-        active.read_end().unwrap();
+        active.read_end().unwrap();        actual
     }
 
     #[test]

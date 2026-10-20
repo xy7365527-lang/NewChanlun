@@ -5300,7 +5300,7 @@ mod tests {
                 assert_eq!(full["paths"], json!(["-", "full"]), "冷臂须走完整路径");
                 native.conn.assert_complete_matches_cold();
                 // 来源审计跨代增量状态不进入产物，单独与独立全量来源审计 Counts 六字段对拍。
-                super::super::audit_owner::construction_tests::b2_assert_counts_match_independent_full_source(
+                let counts = super::super::audit_owner::construction_tests::b2_assert_counts_match_independent_full_source(
                     &native.conn,
                 );
                 assert_eq!(
@@ -5332,6 +5332,7 @@ mod tests {
                 assert_eq!(reachable, cold_reachable, "第{k}代可达节点集分叉");
                 row["stored_only_delta"] = json!(delta_nodes.difference(&cold_nodes).count());
                 row["stored_only_cold"] = json!(cold_nodes.difference(&delta_nodes).count());
+                row["source_counts"] = json!(format!("{counts:?}"));
                 drop(reader);
                 row["full"] = full;
             }
