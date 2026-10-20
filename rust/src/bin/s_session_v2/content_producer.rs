@@ -1903,7 +1903,11 @@ impl Cc004Producer {
         let sequence = {
             #[cfg(test)]
             let _phase = tests::emission_phase("fractal_sequence_append");
-            sc::sequence_rebuild_suffix(&mut *store, &previous, appended_from as u64, &leaves)?
+            let (mut sequence, _) = sc::sequence_split(&mut *store, &previous, appended_from as u64)?;
+            for leaf in &leaves {
+                sequence = sc::sequence_append(&mut *store, &sequence, leaf)?;
+            }
+            sequence
         };
         self.history_computed += covered - appended_from;
         let units_count = u64::try_from(covered)
