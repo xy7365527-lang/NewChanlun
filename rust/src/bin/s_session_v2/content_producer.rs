@@ -5521,7 +5521,7 @@ mod tests {
                 let memo = reachable_nodes(&mut warm.store.nodes, &memo_refs);
                 let residual = written
                     .iter()
-                    .filter(|digest| !reachable.contains(digest) && memo.contains(digest))
+                    .filter(|digest| !reachable.contains(*digest) && memo.contains(*digest))
                     .count();
                 println!(
                     "S3_FRACTAL_ORPHANS reuse={reuse} step={step} written={} memo_residual={residual}",
@@ -5529,7 +5529,7 @@ mod tests {
                 );
                 let orphans: Vec<NodeDigest> = written
                     .iter()
-                    .filter(|digest| !reachable.contains(digest) && !memo.contains(digest))
+                    .filter(|digest| !reachable.contains(*digest) && !memo.contains(*digest))
                     .copied()
                     .collect();
                 let mut by_tag: BTreeMap<u8, usize> = BTreeMap::new();
