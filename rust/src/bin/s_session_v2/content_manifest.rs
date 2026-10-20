@@ -819,7 +819,7 @@ impl<'lease, 'conn> NativePublicationLease<'lease, 'conn> {
                 metadata,
                 roots,
                 &manifest.batch_id,
-                previous_frontier - i64::from(equal), // S4 negctrl：复用工作区时前沿错一位
+                previous_frontier,
             )
         })();
         // Qualified bytes end here, before later raw SQL and before the new keeper exists.
