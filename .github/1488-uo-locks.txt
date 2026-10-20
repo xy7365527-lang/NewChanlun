@@ -97,3 +97,6 @@ content_bi::tests::raw_coords_sync_writes_no_orphans_and_matches_cold
 v3::aux_index::tests::aux_plan_warm_matches_cold_and_reads_track_delta
 # #1488 S3 assemble_manifest：单次组装全闭包核验外读量与 g 无关（D6；负控 N5 73f26f2e1a 核验外再核生成态）
 v3::prepared::tests::assemble_manifest_reads_beyond_closure_verify_stay_constant
+# #1488 0065 P1（v4 L13）：候选 publication 父工作域预算不足→放弃候选、无候选发布成功、回复≡oracle、后续代可接纳；负控 Ledger 尾检失败仍拒绝
+v3::driver::tests::publication_candidate_budget_shortfall_degrades_and_keeps_admitting
+v3::driver::tests::publication_real_tail_failure_still_rejects_without_degrade
