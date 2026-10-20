@@ -333,8 +333,8 @@ fn tb1493_replay_full_history_incremental_only() {
         last.segments.last().map(|s| s.end_index),
         last.strokes.last().map(|s| s.end_index)
     );
-    // 流首段起点位移：种子 vs 按定义的起点（前 3 万笔上取段事实即可，首段早已确认）。
-    let head = &last.strokes[..last.strokes.len().min(30_000)];
+    // 流首段起点位移：种子 vs 按定义的起点（前 2000 笔上取段事实；观察路径的第二序列事实随长度二次增长）。
+    let head = &last.strokes[..last.strokes.len().min(2_000)];
     let (_, _, sf) = segment::divide_segments_with_facts(head, &ThetaConfig::default().parse);
     eprintln!(
         "TB1493 FULLINC first_seed={:?} first_start={:?} head_failed_geometry={} head_parse_invalid={:?}",
@@ -343,13 +343,13 @@ fn tb1493_replay_full_history_incremental_only() {
         sf.candidates.iter().filter(|c| c.result == "FAILED_GEOMETRY").count(),
         sf.parse_invalid_from.as_ref().map(|p| p.seg_start)
     );
+    // #1487 现场（笔号）：其后 10 万根内出段数；覆盖该笔的段。
     for s in [3178usize, 59848] {
-        if let Some(c) = sf.candidates.iter().rev().find(|c| c.start_stroke <= s) {
-            eprintln!(
-                "TB1493 FULLINC SITE stroke={s} cand_start={} result={} end={:?} turn={:?}",
-                c.start_stroke, c.result, c.end_stroke, c.turn_hypothesis_state
-            );
-        }
+        let bar = last.strokes[s].start_index;
+        let k = r.emits.iter().filter(|&&e| bars[e].source_index >= bar && bars[e].source_index < bar + 100_000).count();
+        let cover = last.segments.iter().find(|g| g.start_index <= bar && g.end_index >= bar);
+        eprintln!("TB1493 FULLINC SITE stroke={s} bar={bar} emits_in_100k={k} covering_segment={cover:?}");
+        assert!(k > 0, "笔 {s} 之后段层停产");
     }
     assert_eq!(r.invalid_bars, 0);
     assert!(max_zero_run <= 1, "每 25 万根分桶不得有连续零桶");
