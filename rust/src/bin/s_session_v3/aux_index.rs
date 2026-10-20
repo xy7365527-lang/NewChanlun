@@ -800,7 +800,7 @@ impl Runtime {
         }
         // 旧前缀的 supersedes 关系已由前代出生入旧快照；只扫本代新增原始事件（Δ_R）。
         let supersedes_from = if unchanged {
-            (previous_frontier + 1) as usize
+            (previous_frontier + 2) as usize
         } else {
             0
         };
