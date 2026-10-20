@@ -2042,7 +2042,9 @@ mod tests {
         assert!(events.iter().any(|e| e["phase"] == "owner_suffix_complete"));
         let retained = native.conn.complete_retained_bytes();
         assert!(retained > 0);
+        // retained 含 construction raw；须核完整候选本身仍在。
         let report = native.conn.complete_report();
+        assert!(!report.is_null(), "完整候选未保留，retained={retained} 仅为 raw");
         let charge = report["charge"]["total"].as_u64().unwrap() as usize;
         let entry = report["charge"]["entry_reserved_bytes"].as_u64().unwrap() as usize;
         let peak = report["charge"]["handoff_peak"].as_u64().unwrap() as usize;
