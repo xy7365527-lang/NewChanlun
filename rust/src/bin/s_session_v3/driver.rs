@@ -5065,7 +5065,7 @@ mod tests {
     /// #1488 0065 P1 锁（v4 L13）：S7 serve 下第 2 代在 publication 尾检位置注入候选父工作域
     /// Allocation 失败（与 j.cap 日志/索引扩容超帽同一 BudgetExceeded 分类）。须：同请求放弃候选、
     /// 无候选发布成功，回复与运行根逐项等于 ordinary oracle，不保留候选；后续代照常接纳并与 oracle
-    /// 一致（不得卡在“已有未完成Begin”）。负控：同位置注入 Ledger（真正尾检失败）仍拒绝且不降级。
+    /// 一致（不得卡在“已有未完成Begin”或“Carry租约已撤销”）。负控：同位置注入 Ledger（真正尾检失败）仍拒绝且不降级。
     #[cfg(feature = "s_capture_native_testonly")]
     fn publication_candidate_shortfall_case(real_tail_failure: bool) {
         use super::super::audit_owner::{
@@ -5117,7 +5117,8 @@ mod tests {
             runtime_root_tables(&warm.conn, true),
             runtime_root_tables(&ordinary.conn, true)
         );
-        for n in 3..=4 {
+        // 第 3 代新写 + 同输入 repost（夹具只有三条输入）。
+        for n in [3, 3] {
             let (reply, events, _) = state::traced(false, || warm.handle(Fixture::ingest(n)));
             assert_eq!(reply.unwrap(), ordinary.handle(Fixture::ingest(n)).unwrap());
             assert_eq!(phases(&events, "publication_candidate_abandoned"), 0);
