@@ -5373,9 +5373,8 @@ mod tests {
             nodes,
             seen: std::collections::BTreeSet::new(),
         };
-        for reference in refs {
-            verify(&mut reads, reference).expect("产出全闭包可核");
-        }
+        // 同一核验器内共享子树只读一次；读集 = 全部根的公开全闭包。
+        sc::verify_many(&mut reads, refs.iter().cloned()).expect("产出全闭包可核");
         reads.seen.insert(SequenceRef::empty().root());
         reads.seen
     }
@@ -5535,12 +5534,13 @@ mod tests {
                 let memo_refs = warm.producer.memo_array_refs();
                 let memo = reachable_nodes(&mut warm.store.nodes, &memo_refs);
                 let emissions = warm.store.emissions.take().expect("本代已开账");
+                let nodes = &warm.store.nodes;
                 let memo_only = |digest: &NodeDigest| {
-                    emissions.materials.iter().any(|((stored, _), entries)| {
-                        stored == digest
-                            && entries.iter().all(|entry| {
-                                entry.phases.keys().all(|phase| *phase == "coords_array_memo")
-                            })
+                    let tag = nodes.get(digest).expect("新写节点在表").0;
+                    emissions.materials.get(&(*digest, tag)).is_some_and(|entries| {
+                        entries.iter().all(|entry| {
+                            entry.phases.keys().all(|phase| *phase == "coords_array_memo")
+                        })
                     })
                 };
                 let unreachable: Vec<NodeDigest> = written

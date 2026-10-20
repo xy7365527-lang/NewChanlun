@@ -3411,9 +3411,8 @@ mod tests {
             nodes,
             seen: BTreeSet::new(),
         };
-        for reference in refs {
-            sc::verify(&mut reads, reference).expect("产出全闭包可核");
-        }
+        // 同一核验器内共享子树只读一次；读集 = 全部根的公开全闭包。
+        sc::verify_many(&mut reads, refs.iter().cloned()).expect("产出全闭包可核");
         reads.seen.insert(SequenceRef::empty().root());
         reads.seen
     }
