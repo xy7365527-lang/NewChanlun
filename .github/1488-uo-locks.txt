@@ -95,3 +95,5 @@ content_producer::tests::fractal_history_suffix_writes_no_orphans_and_matches_co
 content_bi::tests::raw_coords_sync_writes_no_orphans_and_matches_cold
 # #1488 S3 stage_indexes/aux plan：暖口≡旧完整重算（#804）+ 读量 ≤ 1600×(出生行+Δ_R)（D6；负控 N3 读量、N4 supersedes 起点）
 v3::aux_index::tests::aux_plan_warm_matches_cold_and_reads_track_delta
+# #1488 S3 assemble_manifest：单次组装全闭包核验外读量与 g 无关（D6；负控 N5 73f26f2e1a 核验外再核生成态）
+v3::prepared::tests::assemble_manifest_reads_beyond_closure_verify_stay_constant
