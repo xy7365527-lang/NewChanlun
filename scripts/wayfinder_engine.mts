@@ -943,6 +943,19 @@ export function specDrafterCommand(specModel: string): { file: string; args: str
 }
 
 /**
+ * 纯函数：起草子代理的子进程 env = 宿主 env + CLIProxyLocal 路由变量，并剔除 ANTHROPIC_API_KEY
+ * （Claude Code 优先认它，继承下来会绕开 CLIProxyLocal；decision-claimer.mts claudeOnce 同款）。
+ */
+export function specDrafterEnv(
+  base: NodeJS.ProcessEnv,
+  proxyEnv: Record<string, string>,
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...base, ...proxyEnv };
+  delete env.ANTHROPIC_API_KEY;
+  return env;
+}
+
+/**
  * 起草 spec 的子代理：Claude Code CLI 经 CLIProxyLocal，只读、无工具，输出即 spec 正文。
  * cwd 取临时目录，不让仓内 CLAUDE.md / 项目 hooks 混进起草上下文；路由密钥只进子进程 env。
  */
@@ -956,7 +969,7 @@ function runSpecDrafter(prompt: string, cfg: EngineConfig): string {
     encoding: "utf8",
     input: prompt,
     cwd: tmpdir(),
-    env: { ...process.env, ...cliProxyEnv() },
+    env: specDrafterEnv(process.env, cliProxyEnv()),
     maxBuffer: 32 * 1024 * 1024,
     timeout: 15 * 60 * 1000,
   });

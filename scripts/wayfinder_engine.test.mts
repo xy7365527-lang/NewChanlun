@@ -31,6 +31,7 @@ import {
   renderStatus,
   resolveSpecDrafter,
   specDrafterCommand,
+  specDrafterEnv,
   DEFAULT_SPEC_MODEL,
   DEFAULT_SPEC_PROVIDER,
   CLAUDE_FAMILY_SPEC_MODELS,
@@ -610,4 +611,19 @@ test("起草子代理调用：Claude Code CLI 无头 -p、禁用全部工具、�
   assert.equal(file, "claude");
   assert.deepEqual(args, ["-p", "--model", "claude-opus-5-5", "--output-format", "text", "--tools", "", "--no-session-persistence"]);
   assert.ok(!args.includes("prime-agent") && !args.some((a) => /deepseek/.test(a)));
+});
+
+test("起草子代理 env：剔除继承的 ANTHROPIC_API_KEY（防绕开 CLIProxyLocal），路由变量覆盖宿主值，不改入参", () => {
+  const base = {
+    PATH: "/fixture/bin",
+    ANTHROPIC_API_KEY: "fixture-api-key",
+    ANTHROPIC_BASE_URL: "https://fixture-direct.invalid",
+  };
+  const proxy = { ANTHROPIC_BASE_URL: "http://127.0.0.1:8318", ANTHROPIC_AUTH_TOKEN: "fixture-proxy-token" };
+  const env = specDrafterEnv(base, proxy);
+  assert.ok(!("ANTHROPIC_API_KEY" in env));
+  assert.equal(env.ANTHROPIC_BASE_URL, "http://127.0.0.1:8318");
+  assert.equal(env.ANTHROPIC_AUTH_TOKEN, "fixture-proxy-token");
+  assert.equal(env.PATH, "/fixture/bin");
+  assert.equal(base.ANTHROPIC_API_KEY, "fixture-api-key");
 });

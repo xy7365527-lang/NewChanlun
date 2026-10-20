@@ -121,7 +121,7 @@ model=claude-opus-5-5 out="OK"
 
 | 位置 | 现状 | 性质 |
 |---|---|---|
-| `.sandcastle/main-swarm.mts:16-20` | 蜂群 planner/implementer/reviewer/merger 四角色全 `k3`，`PROVIDER = "kimi-coding"`，经 prime-agent | **默认非 Claude**（#1002 时代常量，#1547 只迁了 main.mts） |
+| `.sandcastle/main-swarm.mts:17-21` | 蜂群 planner/implementer/reviewer/merger 四角色全 `k3`，`PROVIDER = "kimi-coding"`，经 prime-agent | **默认非 Claude**（#1002 时代常量，#1547 只迁了 main.mts） |
 | `.sandcastle/image/prime-agent-settings.json` | `defaultProvider: kimi-coding`、`defaultModel: k3` | 镜像内 prime-agent 默认非 Claude |
 | `.sandcastle/agent-workflows/shared/agent.ts:88-93` + `.github/workflows/agent-implement.yml:150` / `agent-implement-pr.yml:91` / `agent-review.yml:79` | 默认 Claude；打 `agent:model:deepseek-v4-pro` 标签即改走 prime-agent deepseek（`DEEPSEEK_API_KEY`） | 非默认，但保留了非 Claude 的显式通道 |
 | `.sandcastle/agent-workflows/shared/agent.ts:41-49` | `AGENT_MODELS` 默认 `claude-sonnet-4-6` / `claude-opus-4-8` | Claude 家族但不在用户列举的 opus-5-5 / fable-5-1 内 |
@@ -141,3 +141,15 @@ model=claude-opus-5-5 out="OK"
 2. `runSpecDrafter` 的 `--tools ""` + `cwd=tmpdir()` 是否足够隔离（用户级 `~/.claude` 设置/hooks 仍会加载；未用 `--bare`，因为 `--bare` 只认 `ANTHROPIC_API_KEY`，与 #1547 验证过的 `ANTHROPIC_AUTH_TOKEN` 路由不一致）。
 3. 引擎顶层 `import "../.sandcastle/claude-route.mts"` 会连带加载 `@ai-hero/sandcastle`——宿主需有 node_modules（sandcastle-host 有）；手工从无 node_modules 的 worktree 跑引擎会在 import 处失败（此前引擎零依赖）。
 4. plist 模板 PATH 加 `~/.local/bin` 与壳内再前置一次是否冗余可接受。
+
+## 第三轮处置（非作者评审 `reviews/1614-claude-fable-5.md`，PASS-WITH-NITS）
+
+| 发现 | 处置 |
+|---|---|
+| 1 子代理 env 继承 `ANTHROPIC_API_KEY` 会绕开 CLIProxyLocal | **已修**：新增纯函数 `specDrafterEnv(base, proxyEnv)`，合并 env 后 `delete ANTHROPIC_API_KEY`（与 `decision-claimer.mts:513` 同款），`runSpecDrafter` 改用它；补夹具测试（剔除该键、路由变量覆盖宿主值、不改入参）。`npx tsx --test scripts/wayfinder_engine.test.mts` 43/43，`scripts/wayfinder_engine.shell.test.mts` 2/2。 |
+| 4 `wayfinder-workflow.md:106` / `:125` 口径过时 | **已修**：:106 改为 Claude 起草子代理（Claude Code CLI 经 CLIProxyLocal，白名单 opus-5-5 / fable-5-1）；:125 工蜂改为 Claude Code CLI 经 CLIProxyLocal，并注明 `main-swarm.mts` 仍有 prime-agent 残留、已转票。 |
+| 2 engine 顶层 import 带进 `@ai-hero/sandcastle` | 转票 #1617 §4 |
+| 3 `--bare` + `ANTHROPIC_AUTH_TOKEN` 冒烟 | 转票 #1617 §3（上文「评审重点」第 2 条里「`--bare` 只认 `ANTHROPIC_API_KEY`」的说法和 decision-claimer 的生产用法相矛盾，以冒烟结论为准） |
+| W-4 其它非 Claude 默认位置 | 转票 #1617 §1（`wayfinder-workflow.md:125` 已在本 PR 修掉，不再列入） |
+| TS 单测没进 CI | 转票 #1617 §2。核实 PR #1615 的 `sandcastle-ts` job：test glob 是 `.sandcastle/*.test.{ts,mts}`，typecheck 的 include 只有 `.sandcastle/`，**不覆盖** `scripts/wayfinder_engine*.test.mts` |
+| 5 二次校验冗余、6 PATH 两处前置冗余、7 白名单两项 | 评审判为可接受，不改 |
