@@ -14,9 +14,9 @@ import subprocess
 import sys
 import time
 
-REVIEWED_SOURCE = "9160fc9deec9bb8870c6e757583424b272cf3d69"
-REVIEWED_TREE = "660775bac826170882434c84c00e8aa4e5379aa8"
-CONTRACT_READY = True  # 两 CI 文件独审、源码绑定和尾差复核后由主控显式开启。
+REVIEWED_SOURCE = "fff166540e355fe09c03ee441894b9e82265a59c"
+REVIEWED_TREE = "6a5a3ce0ea6ad7337d63ad2cf49e8fcf345caacb"
+CONTRACT_READY = False  # 两 CI 文件独审、源码绑定和尾差复核后由主控显式开启。
 CI_FILES = {".github/scripts/run-1488-driver-ci.py", ".github/workflows/issue-1488-driver-six.yml"}
 LEGACY_RUNNER = ".github/scripts/run-1488-delta-ci.py"
 LEGACY_SHA256 = "2c94e9e8354bd3fe369067210054db903df019cf9ce8c1345a6ec6d107b297dc"
@@ -27,7 +27,7 @@ TESTS = [
     "v3::driver::tests::audit_owner_complete_normal_second_connection_and_new_life_are_cold",
     "v3::driver::tests::audit_owner_incremental_normal_writes_full_oracle_and_suffix",
     "v3::driver::tests::audit_owner_normal_append_keeps_candidate_below_old_multiplier_gate",
-    "v3::driver::tests::audit_owner_write_budget_releases_candidate_after_successful_normal_append",
+    "v3::driver::tests::audit_owner_write_budget_retains_candidate_within_retention_cap_and_parent_limit",
     "v3::driver::tests::audit_owner_staged_normal_append_consumes_actual_nodes_and_suffix",
 ]
 CANCELLATION = {"count": 0, "first_signal": None}
@@ -43,7 +43,7 @@ class Cancelled(RuntimeError):
     pass
 
 
-SOURCE_FILES = {'rust/src/bin/s_session_v3/driver.rs': 'eac29a9962608bb7ae5a2eeae01ac54e0c6b177140b1dd5c99ae23062fb2dc61', 'rust/src/bin/s_session_v3/source_contributions.rs': '55f6bcf121f042950ee36bf67bd0eac208423d35381d59929a5fa5a5f8485cc8', 'rust/src/bin/s_session_v3/audit_owner/effects.rs': '6094df399b27a1982ea781795aacef102736dc2b46c9cd0bd6f0b10ea1afde12'}
+SOURCE_FILES = {'rust/src/bin/s_session_v3/driver.rs': '37f1256209e3860b0224a2f9ab04d31487acadf828d23c67ef4e17b5827e6c1f', 'rust/src/bin/s_session_v3/source_contributions.rs': '8fecc78dddf64087d1282e50fa231a53db75f394e3126971c3a1caab75ac8421', 'rust/src/bin/s_session_v3/audit_owner/effects.rs': '5036971b242fc87091cd22074742f663c6cc151b23b04f857d248c3bee55f80b'}
 
 
 def clock_ns() -> int:
@@ -253,7 +253,7 @@ def load_legacy(root: Path):
 def gate() -> None:
     require(CONTRACT_READY, "CI 合同未独审，禁止实际运行")
     require(os.environ.get("GITHUB_ACTIONS") == "true" and platform.system() == "Linux", "仅 GitHub Linux runner")
-    require(os.environ.get("GITHUB_REF") == "refs/heads/validate/1488-driver-six", "专用分支不符")
+    require(os.environ.get("GITHUB_REF") == "refs/heads/codex/1488-driver-six-v4-20261020", "专用分支不符")
     require(os.environ.get("GITHUB_EVENT_NAME") == "push", "仅一次专用 push")
 
 
