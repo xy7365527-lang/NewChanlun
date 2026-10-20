@@ -1500,6 +1500,13 @@ impl Ledger {
         if d.state & BROKEN != 0 || expected.is_some_and(|e| e != u64::from(d.serial)) {
             return Err(ScratchFailure::Ledger);
         }
+        if d.remaining < bytes || self.live.load(Ordering::Acquire).saturating_add(bytes) > d.total_limit {
+            eprintln!(
+                "PROBE67 parent bytes={} kind={:?} remaining={} live={} total_limit={} moved_in={} native_live={} scratch_live={} metadata_live={}",
+                bytes, kind.map(|k| k as usize), d.remaining, self.live.load(Ordering::Acquire), d.total_limit, d.moved_in,
+                self.native_live.load(Ordering::Acquire), self.scratch_live.load(Ordering::Acquire), self.metadata_live.load(Ordering::Acquire)
+            );
+        }
         let next = d
             .remaining
             .checked_sub(bytes)
