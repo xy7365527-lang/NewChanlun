@@ -9,7 +9,6 @@ struct Fixture {
     dbs: Vec<Connection>,
     data: Value,
     basis: Value,
-    applicants: Vec<String>,
 }
 fn save(dir: &Path, name: &str, v: &Value) -> (String, String) {
     let p = dir.join(name);
@@ -48,7 +47,27 @@ impl Fixture {
     fn for_applicants(cap: &str, applicants: &[&str]) -> Self {
         Self::build(cap, None, applicants)
     }
+    /// #1394 REVIEW-AC123-01 L2：两个 slot 的夹具——`slot` 只收 beta（需 40），`slot-b` 只收
+    /// alpha（需 30）。既有单 slot 夹具不变。
+    fn two_slots(cap: &str) -> Self {
+        Self::build_slots(cap, None, &[("slot", &["beta"]), ("slot-b", &["alpha"])])
+    }
     fn build(cap: &str, fault: Option<(&str, &str)>, applicants: &[&str]) -> Self {
+        Self::build_slots(cap, fault, &[("slot", applicants)])
+    }
+    fn build_slots(cap: &str, fault: Option<(&str, &str)>, slot_spec: &[(&str, &[&str])]) -> Self {
+        let applicants: Vec<&str> = slot_spec
+            .iter()
+            .flat_map(|(_, a)| a.iter().copied())
+            .collect();
+        let applicants = applicants.as_slice();
+        let slot_of = |name: &str| {
+            slot_spec
+                .iter()
+                .find(|(_, a)| a.contains(&name))
+                .map(|(s, _)| *s)
+                .unwrap()
+        };
         let parent = std::env::var_os("TB03B_TEST_ROOT")
             .map(PathBuf::from)
             .unwrap_or_else(std::env::temp_dir);
@@ -115,15 +134,21 @@ impl Fixture {
             authorities.push(json!({"authority_id":name,"bundle_path":bp,"bundle_sha256":bh,"verification_path":rp,"verification_sha256":rh,"max_bytes":"1048576"}));
             rights.push(json!({"right_id":name,"owner":format!("B:{name}"),"version":"1","amount":cash,"currency":"TEST-CASH","source_ref":format!("TestOnly-privately-owned-cash-original/{name}")}));
             if applicants.contains(&name) {
-                plans.push(json!({"decision_id":name,"attempt_id":format!("attempt-{name}"),"plan_id":format!("plan-{name}"),"owner":format!("B:{name}"),"voice_binding_id":format!("voice-{name}"),"right_id":name,"expected_book_version":"2","expected_rights_version":"1","applicant_epoch":"1","applicant_generation":"1","slot_id":"slot","quantity":new_quantity,"limit_price":price,"fee_tail":fee,"quantity_source":format!("TestOnly-quantity/{name}"),"price_source":format!("TestOnly-price/{name}"),"fee_source":format!("TestOnly-tail/{name}"),"s_ref":{"object_id":"unit-S-object","object_hash":hash(&object),"profile_id":"unit"},"o_ref":{"operation_id":format!("TestOnly-operation-{name}"),"kind":"TestOnlyCashBuy","source_ref":format!("TestOnly-operation-sheet/{name}"),"s_object_id":"unit-S-object","quantity":new_quantity}}));
+                plans.push(json!({"decision_id":name,"attempt_id":format!("attempt-{name}"),"plan_id":format!("plan-{name}"),"owner":format!("B:{name}"),"voice_binding_id":format!("voice-{name}"),"right_id":name,"expected_book_version":"2","expected_rights_version":"1","applicant_epoch":"1","applicant_generation":"1","slot_id":slot_of(name),"quantity":new_quantity,"limit_price":price,"fee_tail":fee,"quantity_source":format!("TestOnly-quantity/{name}"),"price_source":format!("TestOnly-price/{name}"),"fee_source":format!("TestOnly-tail/{name}"),"s_ref":{"object_id":"unit-S-object","object_hash":hash(&object),"profile_id":"unit"},"o_ref":{"operation_id":format!("TestOnly-operation-{name}"),"kind":"TestOnlyCashBuy","source_ref":format!("TestOnly-operation-sheet/{name}"),"s_object_id":"unit-S-object","quantity":new_quantity}}));
             }
             routes.push(json!({"chong_id":name,"symbol":name,"operation_level":"2","fixed_q":fixed,"db":dir.join(format!("{name}.db")),"socket":dir.join(format!("{name}.sock"))}));
             docs.push(doc);
             bindings.push(p);
         }
-        let applicant_list = Value::Array(applicants.iter().map(|n| json!(n)).collect());
-        let request_hash = hash(&applicant_list);
-        let data = json!({"schema_revision":REV,"kind":"TestOnly","source_id":"unit-fixture","source_epoch":"1","policy":{"policy_id":format!("TestOnly-cash-cap-{cap}"),"allocation_policy_id":"#1349/atomic-slot-wait/v1","cap":cap,"currency":"TEST-CASH","money_unit":"TEST-CASH","quantity_unit":"TEST-UNIT","quantum":"1","capability_id":"TestOnly-no-leverage-no-venue","model":"TestOnlyUnleveragedCashBuy","valid_through_ns":"100000"},"baseline":{"responsibility_id":"existing20","amount":"20","source_ref":"TestOnly-existing-full-liability-original","covered_facts":covered},"rights":rights,"plans":plans,"slots":[{"slot_id":"slot","applicants":applicant_list,"input_end":{"kind":"ControlledInputEnd","source_id":"unit-fixture","source_epoch":"1","watermark":"2","complete_request_hash":request_hash}}]});
+        let slots: Vec<Value> = slot_spec
+            .iter()
+            .map(|(slot_id, members)| {
+                let applicant_list = Value::Array(members.iter().map(|n| json!(n)).collect());
+                let request_hash = hash(&applicant_list);
+                json!({"slot_id":slot_id,"applicants":applicant_list,"input_end":{"kind":"ControlledInputEnd","source_id":"unit-fixture","source_epoch":"1","watermark":"2","complete_request_hash":request_hash}})
+            })
+            .collect();
+        let data = json!({"schema_revision":REV,"kind":"TestOnly","source_id":"unit-fixture","source_epoch":"1","policy":{"policy_id":format!("TestOnly-cash-cap-{cap}"),"allocation_policy_id":"#1349/atomic-slot-wait/v1","cap":cap,"currency":"TEST-CASH","money_unit":"TEST-CASH","quantity_unit":"TEST-UNIT","quantum":"1","capability_id":"TestOnly-no-leverage-no-venue","model":"TestOnlyUnleveragedCashBuy","valid_through_ns":"100000"},"baseline":{"responsibility_id":"existing20","amount":"20","source_ref":"TestOnly-existing-full-liability-original","covered_facts":covered},"rights":rights,"plans":plans,"slots":slots});
         let (ip, ih) = save(&dir, "input.json", &data);
         let source = json!({"source_namespace":"test","source_epoch":"one","producer_id":"unit","producer_epoch":"1"});
         let mut auth = source.clone();
@@ -173,6 +198,11 @@ impl Fixture {
             json!({"received_ns":"95","first_known_ns":"96","commit_ns":"97"});
         clocks["commit-beta-late"] =
             json!({"received_ns":"110","first_known_ns":"111","commit_ns":"112"});
+        if slot_spec.len() > 1 {
+            // 第二个 slot 的 Reserve 时钟；只在双 slot 夹具里出现，单 slot 夹具的时钟表不变。
+            clocks["Reserve-slot-b"] =
+                json!({"received_ns":"93","first_known_ns":"94","commit_ns":"94"});
+        }
         let mut manifest = json!({"schema_revision":"economic-manifest/1","session_id":"tb03b-unit","session_generation":"1","e":{"db":dir.join("e.db"),"socket":dir.join("e.sock")},"chongs":routes,"authorized_sources":[auth],"resources":{"max_frame_bytes":"16777216","read_timeout_ms":"1000","write_timeout_ms":"1000","response_timeout_ms":"3000","queue_capacity":"4","max_connections":"4"},"clock":{"kind":"TestOnly","plan":{"init_ns":"1","recover_ns":["1000","2000"],"messages":clocks}},"voice_binding":{"schema_revision":"voice-binding/1","authorities":authorities},"finance":{"schema_revision":REV,"input_path":ip,"input_sha256":ih,"coordinator_source":source,"structure":{"binary":"/unit-unavailable-S-binary","binary_sha256":hash(&json!("unit")),"db":dir.join("s.db"),"session_id":"tb03b-unit","session_generation":"1","writer_epoch":"1"}}});
         if let Some((message, phase)) = fault {
             manifest["test_only_fault"] = json!({"message_id":message,"phase":phase,"marker_path":dir.join("fault-marker.json")});
@@ -194,7 +224,6 @@ impl Fixture {
             dbs,
             data,
             basis,
-            applicants: applicants.iter().map(|n| n.to_string()).collect(),
         };
         for (i, name) in ["alpha", "beta"].iter().enumerate() {
             let captured=f.handle(0,&format!("capture-{name}"),json!({"op":"CaptureExternal","raw_utf8":canonical_json(&docs[i]),"json_pointer":"/events/0","token":format!("token-{name}"),"source_event_time":null}));
@@ -226,7 +255,8 @@ impl Fixture {
             p["responsibility_id"] = json!(name);
         } else if op == "Reserve" {
             p["slot_id"] = json!(name);
-            p["request_set_hash"] = hash(&self.data["slots"][0]["applicants"]).into();
+            let slot = item(list(&self.data, "slots").unwrap(), "slot_id", name).unwrap();
+            p["request_set_hash"] = hash(&slot["applicants"]).into();
         } else if op == "CloseApplicants" {
             p["slot_id"] = json!(name);
             p["closed"] =
@@ -255,11 +285,16 @@ impl Fixture {
         envelope(&format!("{op}-{name}"), p)
     }
     fn witness(&self, op: &str) -> Value {
+        self.witness_for(op, "slot")
+    }
+    fn witness_for(&self, op: &str, slot_id: &str) -> Value {
         let mut w = json!({"input_raw":canonical_json(&self.data),"structure":self.basis});
         if op == "Reserve" {
-            let proofs: Vec<Value> = self
-                .applicants
+            let slot = item(list(&self.data, "slots").unwrap(), "slot_id", slot_id).unwrap();
+            let proofs: Vec<Value> = list(slot, "applicants")
+                .unwrap()
                 .iter()
+                .map(|name| name.as_str().unwrap())
                 .map(|name| {
                     proof(
                         &self.configs[0],
@@ -279,7 +314,11 @@ impl Fixture {
     }
     fn step(&mut self, n: usize, op: &str, name: &str) -> Value {
         let e = self.request(op, name);
-        let w = self.witness(op);
+        let w = if op == "Reserve" {
+            self.witness_for(op, name)
+        } else {
+            self.witness(op)
+        };
         persist(&mut self.dbs[n], &self.configs[n], 1, &e, w).unwrap()
     }
     fn step_as(&mut self, n: usize, op: &str, name: &str, message: &str) -> Result<Value, String> {
@@ -861,4 +900,116 @@ fn trusted_ingress_deadline_is_not_restarted_by_economic_job() {
     assert!(check_operation_deadline(Some(&mut job), Some(effective))
         .unwrap_err()
         .contains("最早绝对期限"));
+}
+
+/// #1394 AC1 负向（REVIEW-AC123-01 LOW 补锁）：E 尚未 Reserve 时，B 不论带自造 grant 还是
+/// 不带 grant 证明，都不得取得 Committed；本地账、E 责任与 E 收据均保持原状。
+#[test]
+fn commit_before_e_reserve_is_rejected_and_keeps_prepared() {
+    let mut f = Fixture::new("100");
+    f.prepare();
+    let q = item(list(&f.data, "plans").unwrap(), "decision_id", "alpha")
+        .unwrap()
+        .clone();
+    let e = envelope(
+        "CommitDecision-alpha",
+        json!({"op":"CommitDecision","writer_epoch":"1","decision_id":"alpha","plan_hash":hash(&q),"grant_id":"forged-grant-alpha"}),
+    );
+    let before = latest(&f.dbs[1]).unwrap();
+    let e_before = latest(&f.dbs[0]).unwrap();
+    let bare = json!({"input_raw":canonical_json(&f.data),"structure":f.basis});
+    assert!(persist(&mut f.dbs[1], &f.configs[1], 1, &e, bare).is_err());
+    let mut forged = json!({"input_raw":canonical_json(&f.data),"structure":f.basis});
+    forged["grant_proof"] = json!({"receipt":{"record":{"slot_id":"slot","state":"Reserved","grants":[{"grant_id":"forged-grant-alpha","decision_id":"alpha"}]}},"current_image":e_before.3});
+    assert!(persist(&mut f.dbs[1], &f.configs[1], 1, &e, forged).is_err());
+    assert!(write(&mut f.dbs[1], &f.configs[1], 1, &e).is_err());
+    assert_eq!(latest(&f.dbs[1]).unwrap(), before);
+    assert_eq!(
+        decision(&f.configs[1], &latest(&f.dbs[1]).unwrap().3, "alpha").unwrap()["state"],
+        "Prepared"
+    );
+    assert_eq!(latest(&f.dbs[0]).unwrap(), e_before);
+    assert_eq!(responsibility_total(&latest(&f.dbs[0]).unwrap().3), 20);
+    assert!(row(&f.dbs[0], "receipts", &receipt_key("Reserve", "slot"))
+        .unwrap()
+        .is_none());
+    f.audit();
+}
+
+/// #1394 AC1/AC3 负向（REVIEW-AC123-01 LOW 补锁）：slot 处于 AwaitingAllocationPolicy 时，
+/// 真实 E 等待收据不含任何 grant；B 拿该收据证明加自造 grant_id 提交须被拒，两决策均停在 Prepared，
+/// E 责任仍只有原 20，不因 B 请求或先到顺序挑出赢家。
+#[test]
+fn commit_while_slot_awaits_policy_is_rejected_without_winner() {
+    let mut f = Fixture::new("80");
+    f.prepare();
+    let waiting = f.step(0, "Reserve", "slot");
+    assert_eq!(waiting["record"]["state"], "AwaitingAllocationPolicy");
+    for (n, name) in [(1, "alpha"), (2, "beta")] {
+        let q = item(list(&f.data, "plans").unwrap(), "decision_id", name)
+            .unwrap()
+            .clone();
+        let e = envelope(
+            &format!("CommitDecision-{name}"),
+            json!({"op":"CommitDecision","writer_epoch":"1","decision_id":name,"plan_hash":hash(&q),"grant_id":format!("forged-grant-{name}")}),
+        );
+        let before = latest(&f.dbs[n]).unwrap();
+        let w = f.witness("CommitDecision");
+        assert!(persist(&mut f.dbs[n], &f.configs[n], 1, &e, w).is_err());
+        assert!(write(&mut f.dbs[n], &f.configs[n], 1, &e).is_err());
+        assert_eq!(latest(&f.dbs[n]).unwrap(), before);
+        assert_eq!(
+            decision(&f.configs[n], &latest(&f.dbs[n]).unwrap().3, name).unwrap()["state"],
+            "Prepared"
+        );
+    }
+    let image = latest(&f.dbs[0]).unwrap().3;
+    assert_eq!(responsibility_total(&image), 20);
+    assert_eq!(
+        image["finance"]["slots"][0]["state"],
+        "AwaitingAllocationPolicy"
+    );
+    f.audit();
+}
+
+/// #1394 AC3 负向（REVIEW-AC123-01 L2 补锁）：`slot` 因合计超 cap 进入 AwaitingAllocationPolicy 后，
+/// 另一个本可单独装下的 `slot-b` 的 Reserve 必须以「不得让其他 slot 插队」被拒；E 不写新 slot、
+/// 不发 grant，责任仍只有原 20，alpha 停在 Prepared。对照：同一 cap 下没有等待 slot 时 `slot-b`
+/// 正常 Reserved，证明上面的拒绝来自等待门，不是 alpha 本身装不下。
+#[test]
+fn waiting_slot_blocks_other_slot_reserve_without_queue_jump() {
+    // beta 需 40、alpha 需 30，既有责任 20，cap 55：slot（beta）20+40=60 超 cap 等待；
+    // slot-b（alpha）20+30=50 单独可装。
+    let mut f = Fixture::two_slots("55");
+    f.prepare();
+    let waiting = f.step(0, "Reserve", "slot");
+    assert_eq!(waiting["record"]["state"], "AwaitingAllocationPolicy");
+    assert_eq!(waiting["record"]["grants"], json!([]));
+    let before = latest(&f.dbs[0]).unwrap();
+    let e = f.request("Reserve", "slot-b");
+    let w = f.witness_for("Reserve", "slot-b");
+    let err = persist(&mut f.dbs[0], &f.configs[0], 1, &e, w).unwrap_err();
+    assert!(err.contains("不得让其他 slot 插队"), "{err}");
+    assert!(write(&mut f.dbs[0], &f.configs[0], 1, &e).is_err());
+    let after = latest(&f.dbs[0]).unwrap();
+    assert_eq!(after, before);
+    assert_eq!(responsibility_total(&after.3), 20);
+    let slots = after.3["finance"]["slots"].as_array().unwrap();
+    assert_eq!(slots.len(), 1);
+    assert_eq!(slots[0]["slot_id"], "slot");
+    assert_eq!(
+        decision(&f.configs[1], &latest(&f.dbs[1]).unwrap().3, "alpha").unwrap()["state"],
+        "Prepared"
+    );
+    f.audit();
+
+    let mut g = Fixture::two_slots("55");
+    g.prepare();
+    let reserved = g.step(0, "Reserve", "slot-b");
+    assert_eq!(reserved["record"]["state"], "Reserved");
+    let grants = reserved["record"]["grants"].as_array().unwrap();
+    assert_eq!(grants.len(), 1);
+    assert_eq!(grants[0]["decision_id"], "alpha");
+    assert_eq!(responsibility_total(&latest(&g.dbs[0]).unwrap().3), 50);
+    g.audit();
 }

@@ -48,15 +48,19 @@ fn run_normal(scenario: &'static str, rows: [Row; 4]) {
             "{scenario} step={step}真实组数"
         );
         // r2 两臂失败现场的生成根；修复只改变审计接收，不改变发布原件。
+        // #1394 合入 #1405 后重冻：v3 写者规则升 `s2-axis-quantifiers+new-bi/2`（mod.rs 写入
+        // meta.rule_revision），TB-02-A/B 发布内容按 #1343 同价裁定改变；三处生成根为合并后实测值，
+        // 与 `813fc75fa5`、`199caedfd0`、`dccb69793c` 三点实测逐值相同（变化来自 #1405 适配合并本身）。
+        // 旧值（new-bi/1）：乱序 2342365b…、顺序 2c0906de…、较早修订 408fd573…。
         let frozen = match (scenario, step) {
             ("乱序新身份且前三根同OHLC", 2) => {
-                Some("sc1-2342365b8de7509c2e3d2822fcc492520b26c03099b8cefb25744cf1d0856906")
+                Some("sc1-bf079f33871b67044c42e39bbf752ada90231cd4ece6a854dec2e8ef6bfd8fcd")
             }
             ("顺序新身份且前三根同OHLC", 2) => {
-                Some("sc1-2c0906dec5026f651a000a2d2dfd317b938d90b36d16dd216ec03238bd16207a")
+                Some("sc1-91761b3f75809e3629594a5c27a88e7b96070d511d049f2302b0c9593ea5b26b")
             }
             ("较早坐标修订", 4) => {
-                Some("sc1-408fd57330c482faf31e170f5e5967ce678872191b480711a3a06ab3cd445f0c")
+                Some("sc1-c3961d53fd43abfa723450dbc210c1d565039bb4c9e478eb88b2c60bdc7dc68d")
             }
             _ => None,
         };

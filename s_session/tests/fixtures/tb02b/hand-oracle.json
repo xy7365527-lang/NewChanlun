@@ -1,5 +1,8 @@
 {
-  "schema": "tb02b-hand-oracle/1",
+  "schema": "tb02b-hand-oracle/2",
+  "rule_revision": "new-bi-dual-coordinate/2",
+  "same_price_policy": "same-price/keep-earlier+extreme-region/1",
+  "as_known_v1_rule_revision": "new-bi-dual-coordinate/1",
   "cases": {
     "gap2_raw3": {
       "pair": [
@@ -116,11 +119,34 @@
         5,
         7
       ],
-      "selection": "UNDETERMINED",
+      "selection": "KEEP",
+      "comparison": "EQ",
       "retained_anchors": [
-        5,
-        7
-      ]
+        5
+      ],
+      "evidence": [
+        "same_kind_equal_price_keep_earlier"
+      ],
+      "strokes": [
+        [
+          1,
+          5
+        ]
+      ],
+      "confirmed": [
+        false
+      ],
+      "as_known_v1": {
+        "same_pair": [
+          5,
+          7
+        ],
+        "selection": "UNDETERMINED",
+        "retained_anchors": [
+          5,
+          7
+        ]
+      }
     },
     "mirror_gap2_raw3": {
       "pair": [
@@ -237,27 +263,106 @@
         5,
         7
       ],
-      "selection": "UNDETERMINED",
+      "selection": "KEEP",
+      "comparison": "EQ",
       "retained_anchors": [
-        5,
-        7
-      ]
+        5
+      ],
+      "evidence": [
+        "same_kind_equal_price_keep_earlier"
+      ],
+      "strokes": [
+        [
+          1,
+          5
+        ]
+      ],
+      "confirmed": [
+        false
+      ],
+      "as_known_v1": {
+        "same_pair": [
+          5,
+          7
+        ],
+        "selection": "UNDETERMINED",
+        "retained_anchors": [
+          5,
+          7
+        ]
+      }
     },
     "raw_root_tie": {
-      "strokes": [],
-      "ambiguous_root_anchor": 1,
-      "ambiguous_roots": [
+      "pair": [
         1,
-        2
-      ]
+        6
+      ],
+      "vector": [
+        true,
+        true,
+        true
+      ],
+      "merged_gap": 4,
+      "raw_between": 3,
+      "strokes": [
+        [
+          1,
+          6
+        ]
+      ],
+      "extreme_region": {
+        "anchor": 1,
+        "roots": [
+          1,
+          2
+        ],
+        "raw_first": 1,
+        "raw_last": 2
+      },
+      "as_known_v1": {
+        "strokes": [],
+        "ambiguous_root_anchor": 1,
+        "ambiguous_roots": [
+          1,
+          2
+        ]
+      }
     },
     "mirror_raw_root_tie": {
-      "strokes": [],
-      "ambiguous_root_anchor": 1,
-      "ambiguous_roots": [
+      "pair": [
         1,
-        2
-      ]
+        6
+      ],
+      "vector": [
+        true,
+        true,
+        true
+      ],
+      "merged_gap": 4,
+      "raw_between": 3,
+      "strokes": [
+        [
+          1,
+          6
+        ]
+      ],
+      "extreme_region": {
+        "anchor": 1,
+        "roots": [
+          1,
+          2
+        ],
+        "raw_first": 1,
+        "raw_last": 2
+      },
+      "as_known_v1": {
+        "strokes": [],
+        "ambiguous_root_anchor": 1,
+        "ambiguous_roots": [
+          1,
+          2
+        ]
+      }
     }
   }
 }

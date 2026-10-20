@@ -2504,6 +2504,11 @@ fn serve(
         return Err("IdentityConflict：serve profile绑定不同".into());
     }
     if meta_get_opt(&tx, "advance_state")?.as_deref() != Some("idle") {
+        // #1576：历史规则库的 recover 必拒（VersionMismatch），不能再把运维指向它；闭门本身不放松。
+        let rule = meta_get_opt(&tx, "rule_revision")?.unwrap_or_default();
+        if rule != RULE_REVISION {
+            return Err(stale_begin_on_historical_rule(&rule, db));
+        }
         return Err("StaleWriter：未完成Begin保持闭门，请监督器先正式recover".into());
     }
     let identity = protocol_identity(&tx)?;
@@ -2535,6 +2540,15 @@ fn serve(
             control_instance_id.as_deref(),
         )
     })
+}
+
+/// #1576：历史规则库留有未完成 Begin 时 serve 的拒绝文案。recover 对历史规则只读库必拒，
+/// 故只给实际可走的路径：CLI 只读查看，或人工以当前规则新建代际（本协议无原库迁移入口）。
+fn stale_begin_on_historical_rule(rule: &str, db: &Path) -> String {
+    format!(
+        "VersionMismatch：历史规则会话（rule_revision=`{rule}`，本二进制为 `{RULE_REVISION}`）留有未完成Begin，永久闭门：历史规则只读，recover 同样拒绝（不换代、不清未决Begin），本库不能再以 serve 提供服务。可走路径：①只读查看用 CLI `catalog`/`snapshot`/`meta --db {}`；②恢复服务须人工以当前规则走 v2 `init` 建新路径的库（`--db <新路径> --session --catalog --profile --session-generation <新代> --clock-plan --delivery-retain-generations` 缺一不可；不带后三者会建成 v1 库，serve 不收）并重新接纳原始输入——当前无旧库迁移入口（TB-10 #1368）",
+        db.display()
+    )
 }
 
 fn arg(args: &[String], key: &str) -> Result<String, String> {
@@ -3267,6 +3281,105 @@ mod tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.dir);
         }
+    }
+
+    /// #1576 负控：历史规则库留有未完成 Begin 时 serve 仍闭门，但文案不再指向必拒的 recover；
+    /// 文案给出的路径逐条实走：CLI 只读查看可用、当前规则新建代际可用，recover 确实必拒，库字节不变。
+    #[test]
+    fn v2_serve_stale_begin_on_historical_rule_points_to_walkable_paths() {
+        let f = Fixture::new(8, 2);
+        f.begin_only();
+        let clock_path = f.dir.join("clock.json");
+        let bounds = || Bounds {
+            frame: 65536,
+            read: Duration::from_millis(1000),
+            write: Duration::from_millis(1000),
+            response: Duration::from_millis(1000),
+            cache_bytes: 0,
+            queue: 4,
+            connections: 4,
+        };
+        let socket = f.dir.join("s.sock");
+        // 对照：当前规则库的未决 Begin 仍按原口径指向 recover（该路径对当前规则可走）。
+        let current = serve(&f.db, &socket, &f.profile, "1", &clock_path, bounds()).unwrap_err();
+        assert!(
+            current.starts_with("StaleWriter：") && current.contains("recover"),
+            "{current}"
+        );
+
+        {
+            let writer = open_db(&f.db).unwrap();
+            meta_set(&writer, "rule_revision", "s2-axis-quantifiers+new-bi/1").unwrap();
+        }
+        let files = |db: &Path| {
+            ["", "-journal", "-wal"]
+                .iter()
+                // 只读连接可留下空 -wal（见 open_historical_readonly 注释），空与缺失同视。
+                .map(|x| {
+                    std::fs::read(format!("{}{x}", db.display()))
+                        .ok()
+                        .filter(|b| !b.is_empty())
+                })
+                .collect::<Vec<_>>()
+        };
+        let before = files(&f.db);
+
+        let msg = serve(&f.db, &socket, &f.profile, "1", &clock_path, bounds()).unwrap_err();
+        assert!(msg.starts_with("VersionMismatch："), "{msg}");
+        assert!(!msg.contains("请监督器先正式recover"), "{msg}");
+        for path in [
+            "`catalog`",
+            "`snapshot`",
+            "`meta --db",
+            "v2 `init`",
+            "--clock-plan --delivery-retain-generations",
+            "#1368",
+        ] {
+            assert!(msg.contains(path), "缺可走路径 {path}：{msg}");
+        }
+        assert!(!socket.exists(), "拒绝须发生在绑定 socket 之前");
+
+        // 文案说 recover 不适用：实走确认必拒。
+        assert!(recover_core(&f.db, "2", Some((&f.clock, "recover-1")))
+            .unwrap_err()
+            .starts_with("VersionMismatch："));
+        // 路径①：CLI 只读查看实走可用。
+        cmd_catalog(&f.db, None).unwrap();
+        cmd_snapshot(&f.db, None).unwrap();
+        cmd_meta(&f.db).unwrap();
+        // 闭门未放松：未决 Begin 仍在，主库与 -wal 字节不变。
+        let ro = open_db(&f.db).unwrap();
+        assert!(meta_get_opt(&ro, "advance_state")
+            .unwrap()
+            .is_some_and(|s| s.starts_with("begun:")));
+        drop(ro);
+        assert_eq!(files(&f.db), before, "历史规则库字节须不变");
+
+        // 路径②：人工以当前规则新建代际，新库满足 serve 的规则与闭门前件（未实起 serve，避免绑定阻塞）。
+        let base = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("s_session");
+        let fresh = f.dir.join("s-new-generation.sqlite");
+        init_v2(
+            &fresh,
+            "test-c",
+            &base.join("catalog/signed-catalog.json"),
+            &f.profile,
+            "2",
+            &clock_path,
+            8,
+        )
+        .unwrap();
+        let conn = open_db(&fresh).unwrap();
+        assert_eq!(
+            meta_get_opt(&conn, "rule_revision").unwrap().as_deref(),
+            Some(RULE_REVISION)
+        );
+        assert_eq!(
+            meta_get_opt(&conn, "advance_state").unwrap().as_deref(),
+            Some("idle")
+        );
     }
 
     #[test]

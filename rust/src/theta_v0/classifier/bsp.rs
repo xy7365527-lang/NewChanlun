@@ -669,11 +669,14 @@ mod tests {
             // 这是 parser 事实的只读描述，不查询 `BspPoint`/买卖位，不能改调 BSP 绑定 API。
             // #1394 整合行号漂移：FIN `cabb255633`（#1394 2C）把原 237/247/273 三处同一组锚查询
             // 收成一处（窗口三组一次取出交 `cc007_add`，三种用途不变），不新增豁免。
-            "bin/s_session_v2/tb02a_facts.rs:564",
+            // #1405 整合（main 271b8e8cc6）：tb02a_facts.rs 上方行变动 ⟹ 564 → 556，同条目重登记。
+            "bin/s_session_v2/tb02a_facts.rs:556",
             // #1488 A2：raw_bar_at 在 RawBars 的原始 Bar 账中二分定位后核对精确坐标，
             // 供 CC-007 descriptive_labels.raw_ohlc 读取三组成员的原始 OHLC；不查询
             // BspPoint/买卖位，不能改调 BSP 绑定 API。只豁免此点，扫描与 stale 检查不变。
-            "bin/s_session_v2/content_producer.rs:2999",
+            // （merge-0047：冻结源锚 2999 已随冻结源自身改动漂至 3087，合并 main 及其解法改动后 ⟹ 3090；
+            // 重核内容不变，同条目重登记。）
+            "bin/s_session_v2/content_producer.rs:3090",
             // #[ignore] 死探针（已被 runner::newly_confirmed_step 取代，issue #747 条目6 登记不入
             // 18 处枚举）。（#885 S4-d：上方 slice_step 增一行 ⟹ 596→597，同条目重登记。）
             "theta_v0/backtest/l3_pi_probe.rs:603",

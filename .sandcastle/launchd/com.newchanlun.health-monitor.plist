@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  com.newchanlun.health-monitor.plist —— graph engineering 观测面（#1547）
+
+  每 300s 跑一次 health-monitor --heal：写 .sandcastle/logs/health-report.json；
+  wayfinder/claim-loop 停摆时 kickstart，>48h 僵尸认领按 claim-loop 同款回滚。
+  宿主脏树与外盘空间只报告。
+  安装/卸载：bash .sandcastle/install-health-monitor.sh [install|uninstall|status]
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.newchanlun.health-monitor</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/silencehan/.local/bin/npx</string>
+        <string>tsx</string>
+        <string>.sandcastle/health-monitor.mts</string>
+        <string>--heal</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host</string>
+
+    <key>StartInterval</key>
+    <integer>300</integer>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/silencehan/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>GH_REPO</key>
+        <string>xy7365527-lang/NewChanlun</string>
+        <key>NO_COLOR</key>
+        <string>1</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/logs/health-monitor.stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/logs/health-monitor.stderr.log</string>
+</dict>
+</plist>

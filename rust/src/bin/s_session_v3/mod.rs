@@ -119,6 +119,14 @@ const V2_INIT_FLAGS: [&str; 7] = [
     "--delivery-retain-generations",
 ];
 
+/// #1405：历史 /1 仅供 Q/AsKnown 读取；新 writer 不自动续写或恢复旧规则库。
+fn require_current_writer_rule(rule: &str) -> Result<(), String> {
+    if rule != V3_RULE_REVISION {
+        return Err(format!("VersionUnsupported：S3写者要求规则 {V3_RULE_REVISION}，库中规则 {rule} 只可按原版本读取"));
+    }
+    Ok(())
+}
+
 /// 版本选择器分派：`Ok(true)` 表示本次调用已处理，调用方直接结束；无选择器时 `Ok(false)`。
 pub(super) fn dispatch(args: &[String]) -> Result<bool, String> {
     let cmd = args.get(1).map(String::as_str).unwrap_or("");

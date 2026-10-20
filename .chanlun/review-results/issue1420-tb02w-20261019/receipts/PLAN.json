@@ -1,0 +1,33 @@
+{
+  "schema": "tb02w-runtime-plan/1",
+  "ticket": 1420,
+  "cases": {
+    "killed_up": {
+      "design": "killed",
+      "direction": "UP",
+      "inputs": 40,
+      "fault_index": 20
+    },
+    "killed_down": {
+      "design": "killed",
+      "direction": "DOWN",
+      "inputs": 40,
+      "fault_index": 20
+    },
+    "confirmed_up": {
+      "design": "confirmed",
+      "direction": "UP",
+      "inputs": 40,
+      "fault_index": 20
+    },
+    "confirmed_down": {
+      "design": "confirmed",
+      "direction": "DOWN",
+      "inputs": 40,
+      "fault_index": 20
+    }
+  },
+  "binary_sha256": "dcbe288f8894b237fce64e69b4045a519e9792189375a292be720ec2e6ab8516",
+  "generator_sha256": "a8ef0768d2f626d671f26d2e4d832d3635dbc1f708d2cbba5ee5bd416b3cdd16",
+  "script_sha256": "b050ee7ae2e3aa6ab88f15398fde1f223fab5792d7a11a58fa811463b3a364f8"
+}

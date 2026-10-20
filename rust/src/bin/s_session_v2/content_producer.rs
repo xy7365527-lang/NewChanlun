@@ -740,6 +740,11 @@ impl Cc004Producer {
         }
     }
 
+    /// 会话冻结规则修订（来源审计按它选新笔/知识域合同，#1405）。
+    pub(super) fn rule_revision(&self) -> &str {
+        &self.rule_revision
+    }
+
     /// 登记/更新一个源坐标的当前版本，返回该坐标的源引用根是否**变化**（首次登记也算）。
     ///
     /// 变化 ⟹ 依赖该坐标的源引用数组 memo 失效；普通追加（新坐标大于已登记上界）只
@@ -953,7 +958,12 @@ impl Cc004Producer {
             generation,
             cut,
         )?;
-        let mut reasons: Vec<&'static str> = view.waiting_reasons.to_vec();
+        let mut reasons: Vec<_> = view
+            .waiting_reasons
+            .iter()
+            .copied()
+            .filter(|reason| *reason != "equal_extreme_identity")
+            .collect();
         if view.evidence.is_none() && reasons.is_empty() {
             reasons.push("direction_not_yet_established");
         }
@@ -1337,9 +1347,7 @@ impl Cc004Producer {
             ("waiting_reasons".to_string(), reasons_value()),
             (
                 "domain".to_string(),
-                CValue::String(
-                    "established_direction_without_extreme_identity_competition".to_string(),
-                ),
+                CValue::String(tb02b::CURRENT_CONTRACT.knowledge_domain.to_string()),
             ),
             (
                 "requests".to_string(),
@@ -2106,8 +2114,7 @@ impl Cc004Producer {
 
     /// 从同次 parser 的共享态借出三组窗口并构造 CC-006 形态对象。
     ///
-    /// - `Ok(None)`：`start + 2` 越界（没有该窗口），或窗口内任一组的同角色极值身份仍有竞争
-    ///   （旧生成路径同样不给依赖该组的分型选根，只留待决请求）；
+    /// - `Ok(None)`：`start + 2` 越界（没有该窗口）；#1405 多根极值身份不挡形态发布。
     /// - `Err(Degraded)`：共享态退化，**先于索引判定**；
     /// - `Err(WindowNotClassified)`：窗口不在 CC-006 可判域内（不造第五分型、不回落旧 Value）。
     pub(super) fn build_shape(
@@ -2131,9 +2138,6 @@ impl Cc004Producer {
             return Ok(None);
         };
         let views = [left, mid, right];
-        if shape_window_has_competing_extremes(&views) {
-            return Ok(None);
-        }
         self.build_shape_object(
             store,
             [start, start + 1, start + 2],
@@ -2525,6 +2529,11 @@ impl Cc004Producer {
         view: &GroupEvidenceView<'_>,
         reasons: &[&'static str],
     ) -> Result<CValue, ProducerError> {
+        // #1405：标签保留在原件里，请求原因仅反映方向未建立。
+        let mut labels = reasons.to_vec();
+        if view.high_sources.len() > 1 || view.low_sources.len() > 1 {
+            labels.push("equal_extreme_identity");
+        }
         let members = self.coords_array(&mut *store, &group_members_coords(view))?;
         let high_sources = self.coord_texts_slice(&mut *store, view.high_sources)?;
         let low_sources = self.coord_texts_slice(&mut *store, view.low_sources)?;
@@ -2572,7 +2581,7 @@ impl Cc004Producer {
             (
                 "waiting_reasons".to_string(),
                 CValue::Array(
-                    reasons
+                    labels
                         .iter()
                         .map(|reason| CValue::String((*reason).to_string()))
                         .collect(),
@@ -3032,9 +3041,6 @@ pub(super) fn group_reasons(view: &GroupEvidenceView<'_>) -> Vec<&'static str> {
     if view.direction_evidence.is_none() {
         reasons.push("direction_not_yet_established");
     }
-    if view.high_sources.len() > 1 || view.low_sources.len() > 1 {
-        reasons.push("equal_extreme_identity");
-    }
     reasons
 }
 
@@ -3043,8 +3049,8 @@ pub(super) fn group_reasons_admitted(
     store: &dyn NodeStore,
     view: &GroupEvidenceView<'_>,
 ) -> Result<sc::CodecVec<&'static str>, ProducerError> {
-    let count = usize::from(view.direction_evidence.is_none())
-        + usize::from(view.high_sources.len() > 1 || view.low_sources.len() > 1);
+    // #1405：同价多根只作组原件标签，不再进请求原因（与 `group_reasons` 同步）。
+    let count = usize::from(view.direction_evidence.is_none());
     let mut reasons = if let Some(work) = store.codec_work() {
         // 当前 scope 活性独立核验；此处是空新容器，不借旧许可的同父判断。
         let _active = work.reserve_native(0)?;
@@ -3063,9 +3069,6 @@ pub(super) fn group_reasons_admitted(
     };
     if view.direction_evidence.is_none() {
         reasons.try_push("direction_not_yet_established")?;
-    }
-    if view.high_sources.len() > 1 || view.low_sources.len() > 1 {
-        reasons.try_push("equal_extreme_identity")?;
     }
     Ok(reasons)
 }
@@ -3140,13 +3143,6 @@ fn fractal_relations(bar: &Bar, references: &[(String, i64)]) -> Vec<CValue> {
         }
     }
     relations
-}
-
-/// CC-006 三组窗口里是否还有同角色极值身份竞争（旧生成路径据此不给分型选根）。
-fn shape_window_has_competing_extremes(views: &[GroupEvidenceView<'_>; 3]) -> bool {
-    views
-        .iter()
-        .any(|view| view.high_sources.len() != 1 || view.low_sources.len() != 1)
 }
 
 /// 组对象的来源集合（与全量配方 `group_sources` 同一条）：成员 ∪ 方向证据 ∪ 封口证据。
@@ -4119,9 +4115,6 @@ mod tests {
             .collect();
         let mut records = Vec::new();
         for start in 0..facts.groups.len().saturating_sub(2) {
-            if group_facts_competing(facts, start) {
-                continue;
-            }
             let input_refs = oracle_shape_input_refs(facts, &fixture.raw, start);
             let (branch, dir_ab, dir_bc, comparisons_json) = oracle_shape_parts(
                 &facts.merged[start],
@@ -4247,9 +4240,6 @@ mod tests {
             .collect();
         let mut classified = 0usize;
         for start in 0..facts.groups.len() - 2 {
-            if group_facts_competing(&facts, start) {
-                continue;
-            }
             let input_refs = oracle_shape_input_refs(&facts, &fixture.raw, start);
             let (branch, dir_ab, dir_bc, comparisons_json) = oracle_shape_parts(
                 &facts.merged[start],
@@ -4472,9 +4462,8 @@ mod tests {
     fn cc006_shape_revision_moves_both_ref_encodings_and_rebuilds_after_discard() {
         let mut fixture = fixture_with_profile(CASE_SHAPE, tb02a::PROFILE);
         let facts = fixture.state.materialize_facts();
-        let start = (0..facts.groups.len().saturating_sub(2))
-            .find(|start| !group_facts_competing(&facts, *start))
-            .expect("本夹具至少一个可判窗口");
+        assert!(facts.groups.len() >= 3, "本夹具至少一个可判窗口");
+        let start = 0;
         let before = fixture
             .producer
             .build_shape(&mut fixture.store, &fixture.state, start, GENERATION, CUT)
@@ -4629,7 +4618,13 @@ mod tests {
                     object.object_id.clone(),
                 );
                 requests.push(object.request.clone().expect("步骤请求"));
-                reasons.extend(facts.steps[index].waiting_reasons.iter().copied());
+                reasons.extend(
+                    facts.steps[index]
+                        .waiting_reasons
+                        .iter()
+                        .copied()
+                        .filter(|reason| *reason != "equal_extreme_identity"),
+                );
             }
             // 2) 组
             for index in 0..fixture.state.group_count() {
@@ -4653,45 +4648,11 @@ mod tests {
                 reasons.extend(group_reasons(&view));
                 requests.push(object.request.clone().expect("组请求"));
             }
-            // 3) 竞争极值窗的待决请求（与全量配方同序：按窗口起点）
-            let mut competing = 0usize;
-            for start in 0..facts.groups.len().saturating_sub(2) {
-                if !group_facts_competing(&facts, start) {
-                    continue;
-                }
-                competing += 1;
-                let views = [start, start + 1, start + 2].map(|index| {
-                    fixture
-                        .state
-                        .shared_group(index)
-                        .expect("共享态可用")
-                        .expect("组在域内")
-                });
-                let anchors: Vec<usize> = views.iter().map(|view| view.bar.source_index).collect();
-                let key = CValue::Array(vec![
-                    CValue::String(CC006_SHAPE_KIND.to_string()),
-                    CValue::Array(
-                        anchors
-                            .iter()
-                            .map(|anchor| CValue::String(anchor.to_string()))
-                            .collect(),
-                    ),
-                ]);
-                let sources = group_window_sources(&views);
-                requests.push(
-                    fixture
-                        .producer
-                        .pending_request(
-                            &mut fixture.store,
-                            key,
-                            &["equal_extreme_identity"],
-                            &sources,
-                        )
-                        .expect("待决形态请求"),
-                );
-                reasons.push("equal_extreme_identity");
-            }
-            assert_eq!(competing > 0, want_competing, "{case}: 竞争窗覆盖口径不符");
+            // #1405：多根极值仍覆盖，但不再生成待决形态请求。
+            let competing = (0..facts.groups.len().saturating_sub(2))
+                .filter(|start| group_facts_competing(&facts, *start))
+                .count();
+            assert_eq!(competing > 0, want_competing, "{case}: 多根窗覆盖口径不符");
             // 4) 形态请求 + 三条 CC-007 请求（同序，逐个窗口）
             for (start, shape_record) in &records {
                 let shape = fixture

@@ -198,13 +198,12 @@ pub(super) fn audit_generated_in_store(
                 return Err(err("typed obj3身份与来源/载荷原件不符"));
             }
             if tb02b::KINDS.contains(&kind.as_str()) {
+                let contract = tb02b::contract_for_rule(rule)
+                    .ok_or_else(|| err("新笔来源审计规则修订未声明"))?;
                 for (k, want) in [
-                    ("schema_revision", "s-new-bi/1"),
-                    (
-                        "semantic_version",
-                        newchan_rust::theta_v0::parser::stroke::RULE,
-                    ),
-                    ("policy_version", "standard_raw_gap_3"),
+                    ("schema_revision", contract.schema),
+                    ("semantic_version", contract.semantic),
+                    ("policy_version", contract.policy),
                     ("view_role", "main"),
                 ] {
                     if text(s, &payload, k)? != want {
@@ -222,6 +221,13 @@ pub(super) fn audit_generated_in_store(
                     )?
                 {
                     return Err(err("新笔payload槽位与fact_key不同"));
+                }
+            }
+            if kind == CC054_KNOWLEDGE_KIND {
+                let contract = tb02b::contract_for_rule(rule)
+                    .ok_or_else(|| err("知识域来源审计规则修订未声明"))?;
+                if text(s, &payload, "domain")? != contract.knowledge_domain {
+                    return Err(err("TB-02-A 知识域与cut规则版本不符"));
                 }
             }
             if kind == CC005_GROUP_KIND {
@@ -289,7 +295,7 @@ pub(super) fn audit_generated_in_store(
             .map_err(err)?;
     }
     // #1394 r3：先绑定已发布未定事实，再核组成员与 pending 的不交完备并集。
-    let pending = source_pending::audit(s, &objects, raw, &groups, deadline)?;
+    let pending = source_pending::audit(s, &objects, raw, &groups, rule, deadline)?;
     let mut partition = bj::new_map(allocation.as_ref());
     let ordered_groups = sorted_numeric_entries(s, &groups)?;
     for (expected, (index, group)) in ordered_groups.iter().enumerate() {

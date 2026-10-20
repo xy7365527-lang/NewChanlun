@@ -1,0 +1,761 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  ADR_FORMAT_LINE, AUTH_LINE, MAX_ROUNDS, isCitationOnlyBlock, landingProblem, revisePrompt, CITATION_SECTION, DRAFT_SECTIONS, GH_API_WRITE_DENY, READ_TOOLS, hasCitationTable, toolArgs, FETCH_URL, MAIN_REF, MODEL_FABLE, MODEL_OPUS, DryRunWriteError,
+  allocateAdr, applyReclass, draftPrompt, ensureSrc, extractFirstApiKey, guardGh, reclassSuggestion, renumberDraft, reviewPrompt, initialState, isGhWrite, landingTarget, missingDraftSections,
+  nextAfterReview, parseArgs, parseClassification, parseReview, processTicket, selectCandidates,
+  resolvedReason, pickUnresolved, finishedTickets,
+  isRetryable, makeClaudeRunner, loadResume,
+  type Deps, type GhRunner, type ModelCall, type OnceResult,
+} from "./decision-claimer.mts";
+
+const pass = (basis = "回查成立") => Object.fromEntries(["R1", "R2", "R3", "R4", "R5", "R6", "R7"].map((r) => [r, { verdict: "PASS", basis }]));
+const fence = (v: unknown) => "说明文字\n```json\n" + JSON.stringify(v) + "\n```\n";
+const citeTable = `## ${CITATION_SECTION}\n| 引用 | 核实命令 | 结果摘要 |\n|---|---|---|\n| AGENTS.md:1 | rg -n x AGENTS.md | 见行 |`;
+const goodDraft = DRAFT_SECTIONS.map((s) => `## ${s}\n内容${s === "裁定" ? "\n正本落点：docs/adr/0099-x.md" : ""}`).join("\n\n") + "\n\n" + citeTable + "\n";
+
+test("parseArgs 默认 dry-run，--live 才写", () => {
+  assert.equal(parseArgs([]).mode, "dry-run");
+  const a = parseArgs(["--live", "--ticket", "#1531,1532", "--concurrency", "9"]);
+  assert.equal(a.mode, "live");
+  assert.deepEqual(a.tickets, [1531, 1532]);
+  assert.equal(a.concurrency, 3);
+  assert.throws(() => parseArgs(["--bogus"]));
+});
+
+test("extractFirstApiKey 取 access.api-keys 首项，忽略其他段", () => {
+  const y = "server:\n  api-keys:\n    - wrong\naccess:\n  other: 1\n  api-keys:\n    - \"first-key\"\n    - second\nauth:\n  x: y\n";
+  assert.equal(extractFirstApiKey(y), "first-key");
+  assert.equal(extractFirstApiKey("access:\n  api-keys: [abc, def]\n"), "abc");
+  assert.equal(extractFirstApiKey("access:\n  foo: 1\n"), null);
+});
+
+test("分级解析：合法 T/P 照收，坏输出与缺理由一律判 P", () => {
+  assert.deepEqual(parseClassification(fence({ class: "T", reason: "测试锁" })), { klass: "T", reason: "测试锁", parsed: true });
+  assert.equal(parseClassification('前言 {"class":"p","reason":"资金参数"}').klass, "P");
+  assert.equal(parseClassification("我觉得是 T").klass, "P");
+  assert.equal(parseClassification(fence({ class: "T" })).klass, "P");
+  assert.equal(parseClassification(fence({ class: "X", reason: "?" })).parsed, false);
+});
+
+test("审查解析：七项全 PASS 才 PASS；缺项、缺依据、草稿缺段都 BLOCK", () => {
+  const ok = parseReview(fence(pass()));
+  assert.equal(ok.verdict, "PASS");
+  assert.equal(ok.items.length, 7);
+
+  const missing = pass() as Record<string, unknown>;
+  delete missing.R6;
+  const r1 = parseReview(fence(missing));
+  assert.equal(r1.verdict, "BLOCK");
+  assert.equal(r1.items.find((i) => i.rule === "R6")?.verdict, "BLOCK");
+
+  const noBasis = { ...pass(), R2: { verdict: "PASS", basis: "" } };
+  assert.equal(parseReview(fence(noBasis)).verdict, "BLOCK");
+
+  const arr = Object.entries(pass()).map(([rule, v]) => ({ rule, ...v }));
+  assert.equal(parseReview(fence({ rules: arr })).verdict, "PASS");
+
+  assert.equal(parseReview(fence(pass()), ["授权引用"]).verdict, "BLOCK");
+  assert.equal(parseReview("没有 JSON").verdict, "BLOCK");
+});
+
+test("草稿七段与正本落点校验", () => {
+  assert.deepEqual(missingDraftSections(goodDraft), []);
+  assert.deepEqual(missingDraftSections("## 问题\n## 裁定\n"), DRAFT_SECTIONS.filter((s) => s !== "问题" && s !== "裁定"));
+  assert.equal(landingTarget(goodDraft), "docs/adr/0099-x.md");
+  assert.equal(landingTarget("正本落点：`CONTEXT.md`"), "CONTEXT.md");
+  assert.equal(landingTarget("正本落点：**docs/adr/0041-level-isomorphism-test-lock.md**"), "docs/adr/0041-level-isomorphism-test-lock.md");
+  assert.equal(landingTarget("正本落点：rust/src/lib.rs"), null);
+  assert.equal(landingTarget("正本落点：__.chanlun/definitions/zhong_shu.md__"), ".chanlun/definitions/zhong_shu.md");
+  assert.equal(landingTarget("正本落点：docs/adr/../../etc"), null);
+});
+
+test("状态转移：PASS 落地；BLOCK 升档 Opus 重做；再 BLOCK 转 P", () => {
+  const passR = parseReview(fence(pass()));
+  const blockR = parseReview(fence({ ...pass(), R3: { verdict: "BLOCK", basis: "验收项不可执行" } }));
+  const t = initialState("T");
+  assert.equal(t.drafterModel, MODEL_FABLE);
+  assert.equal(nextAfterReview(t, passR).phase, "land_t");
+  assert.equal(nextAfterReview(initialState("P"), passR).phase, "shadow_p");
+
+  const t2 = nextAfterReview(t, blockR);
+  assert.equal(t2.phase, "draft");
+  assert.equal(t2.attempt, 2);
+  assert.equal(t2.drafterModel, MODEL_OPUS);
+  assert.match(t2.reviewFeedback ?? "", /R3 BLOCK：验收项不可执行/);
+
+  const t3 = nextAfterReview(t2, blockR);
+  assert.equal(t3.phase, "shadow_p");
+  assert.equal(t3.klass, "P");
+  assert.equal(t3.convertedToP, true);
+  assert.equal(nextAfterReview(t2, passR).phase, "land_t");
+});
+
+test("isGhWrite / guardGh：dry-run 放行只读、拒绝写", () => {
+  assert.equal(isGhWrite(["issue", "view", "1"]), false);
+  assert.equal(isGhWrite(["api", "--paginate", "repos/x/issues/1/sub_issues"]), false);
+  assert.equal(isGhWrite(["api", "repos/x/issues/1/labels", "-f", "labels[]=a"]), true);
+  assert.equal(isGhWrite(["api", "-X", "PATCH", "repos/x/issues/1"]), true);
+  for (const w of [["issue", "comment", "1"], ["issue", "edit", "1"], ["issue", "close", "1"], ["pr", "create"], ["label", "create"]]) {
+    assert.equal(isGhWrite(w), true, w.join(" "));
+  }
+  const calls: string[][] = [];
+  const g = guardGh("dry-run", (a) => (calls.push(a), "{}"));
+  g(["issue", "view", "1"]);
+  assert.throws(() => g(["issue", "comment", "1"]), DryRunWriteError);
+  assert.deepEqual(calls, [["issue", "view", "1"]]);
+});
+
+test("selectCandidates：只取 open、grilling、未认领、无 blocker、未待批的票", () => {
+  const g = [{ name: "wayfinder:grilling" }];
+  const kids = [
+    { number: 1, state: "OPEN", labels: g },
+    { number: 2, state: "OPEN", labels: g, assignees: [{ login: "x" }] },
+    { number: 3, state: "OPEN", labels: g, issue_dependencies_summary: { blocked_by: 1 } },
+    { number: 4, state: "OPEN", labels: [...g, { name: "needs-approval" }] },
+    { number: 5, state: "CLOSED", labels: g },
+    { number: 6, state: "open", labels: [{ name: "wayfinder:task" }] },
+    { number: 7, state: "open", labels: g },
+    { number: 1, state: "OPEN", labels: g },
+  ];
+  assert.deepEqual(selectCandidates(kids, new Set([7])), [1]);
+});
+
+function fakeDeps(mode: "dry-run" | "live", replies: string[]) {
+  const ghCalls: string[][] = [];
+  const modelCalls: ModelCall[] = [];
+  const raw: GhRunner = (args) => {
+    ghCalls.push(args);
+    if (args[0] === "issue" && args[1] === "view") {
+      return JSON.stringify({ number: 1531, title: "FU-09", body: "票面", labels: [{ name: "wayfinder:grilling" }], assignees: [], comments: [] });
+    }
+    if (args[0] === "api") return "[]";
+    return "";
+  };
+  const d: Deps = {
+    mode,
+    gh: guardGh(mode, raw),
+    git: () => { throw new Error("dry-run 不应调 git"); },
+    model: async (c) => {
+      modelCalls.push(c);
+      const text = replies.shift();
+      if (text === undefined) throw new Error("模型调用次数超出预期");
+      return { text, durationMs: 5, attempts: 1 };
+    },
+    outRoot: mkdtempSync(join(tmpdir(), "decision-claimer-test-")),
+    srcDir: "/nonexistent-src",
+    repoRoot: "/nonexistent-repo",
+    now: Date.now,
+  };
+  return { d, ghCalls, modelCalls };
+}
+
+const isWrite = (a: string[]) => isGhWrite(a);
+
+test("dry-run 全流程：T 类 PASS 只落本地三份文件，不调任何 gh 写命令", async () => {
+  const { d, ghCalls, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "测试锁" }), goodDraft, fence(pass())]);
+  const s = await processTicket(1531, d);
+  assert.equal(s.phase, "land_t");
+  assert.equal(s.error, undefined);
+  assert.deepEqual(modelCalls.map((c) => [c.role, c.model]), [["classify", MODEL_FABLE], ["draft", MODEL_FABLE], ["review", MODEL_OPUS]]);
+  assert.ok(modelCalls.every((c) => !c.allowWrite));
+  assert.equal(ghCalls.filter(isWrite).length, 0);
+  const dir = join(d.outRoot, "1531");
+  for (const f of ["classify.json", "draft.md", "review.json", "summary.json"]) assert.ok(existsSync(join(dir, f)), f);
+  assert.equal(existsSync(join(dir, ".lock")), false);
+  assert.equal(JSON.parse(readFileSync(join(dir, "review.json"), "utf8")).items.length, 7);
+  assert.ok(s.plannedWrites.some((w) => w.startsWith("分支 decision/1531")));
+});
+
+test("dry-run 两轮 BLOCK：第二稿由 Opus 起草并带审查意见，最终转 P，仍不写 GitHub", async () => {
+  const block = fence({ ...pass(), R1: { verdict: "BLOCK", basis: "行号漂移" }, R3: { verdict: "BLOCK", basis: "验收项不可执行" } });
+  const { d, ghCalls, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, block, goodDraft, block]);
+  const s = await processTicket(1531, d);
+  assert.equal(s.phase, "shadow_p");
+  assert.equal(s.klass, "P");
+  assert.equal(s.convertedToP, true);
+  assert.equal(modelCalls[3].model, MODEL_OPUS);
+  assert.match(modelCalls[3].prompt, /R1 BLOCK：行号漂移/);
+  assert.equal(ghCalls.filter(isWrite).length, 0);
+  assert.ok(existsSync(join(d.outRoot, "1531", "review.attempt1.json")));
+  assert.ok(s.plannedWrites.includes("标签 #1531：+needs-approval"));
+});
+
+test("live P 类：claim、分级评论、影子评论、needs-approval 依次写入", async () => {
+  const { d, ghCalls } = fakeDeps("live", [fence({ class: "P", reason: "资金参数" }), goodDraft, fence(pass())]);
+  let views = 0;
+  const base = d.gh;
+  d.gh = (args, input) => {
+    if (args[0] === "issue" && args[1] === "view" && ++views > 1) {
+      ghCalls.push(args);
+      return JSON.stringify({ number: 1531, title: "FU-09", body: "", labels: [], assignees: [{ login: "me" }], comments: [] });
+    }
+    return base(args, input);
+  };
+  d.me = "me";
+  const s = await processTicket(1531, d);
+  assert.equal(s.phase, "shadow_p");
+  const writes = ghCalls.filter(isWrite).map((a) => a.slice(0, 4).join(" "));
+  assert.deepEqual(writes, [
+    "issue edit 1531 --add-assignee",
+    "issue comment 1531 --body-file",
+    "issue comment 1531 --body-file",
+    "issue edit 1531 --add-label",
+    "issue edit 1531 --remove-assignee",
+  ]);
+});
+
+// ───────── #1547 dry-run 批测缺陷回归 ─────────
+
+/** #1536 dry-run 草稿原文节选：落点写在 ### 标题下一行。 */
+const DRAFT_1536 = `## 裁定
+
+采纳候选 B「完整域扩展」，同时补充以下约束与执行顺序：
+
+### 正本落点
+
+.chanlun/definitions/history-profile.md
+
+（新建教义正本，记录完整历史数据六族 schema、数据质量三态语义与 ModelOrderUnspecified 分支的教义归属）
+`;
+/** #1537 dry-run 草稿原文节选：粗体标签 + 反引号路径。 */
+const DRAFT_1537 = `## 裁定
+
+**正本落点**：\`docs/adr/0038-dual-run-determinism-recovery-seek-asknown.md\`
+
+### 1. 双跑确定性协议（候选 A）
+`;
+
+test("正本落点：#1536 标题下一行、#1537 粗体反引号、纯文本三种写法都能解析", () => {
+  assert.equal(landingTarget(DRAFT_1536), ".chanlun/definitions/history-profile.md");
+  assert.equal(landingTarget(DRAFT_1537), "docs/adr/0038-dual-run-determinism-recovery-seek-asknown.md");
+  assert.equal(landingTarget("x\n正本落点：docs/adr/NNNN-foo.md\n"), "docs/adr/NNNN-foo.md");
+  assert.equal(landingTarget("- 正本落点：`CONTEXT.md`。"), "CONTEXT.md");
+  assert.equal(landingTarget("### 正本落点\n\n### 下一节\n"), null);
+  assert.equal(landingTarget("### 正本落点\n\nrust/src/lib.rs\n"), null);
+});
+
+test("起草提示要求落点单独一行纯文本、ADR 写占位编号", () => {
+  const t = { number: 1, title: "x", body: "", labels: [], assignees: [], comments: [], blockers: [] };
+  const p = draftPrompt(t, { klass: "T", reason: "r", parsed: true });
+  assert.match(p, /单独一行写纯文本/);
+  assert.match(p, /docs\/adr\/NNNN-/);
+  assert.match(p, /改判建议/);
+  const pp = draftPrompt(t, { klass: "P", reason: "r", parsed: true });
+  assert.ok(!pp.includes(`写「${AUTH_LINE}」`));
+});
+
+test("改判建议：转 P 即转，转 T 忽略并记录；无建议不动", () => {
+  assert.deepEqual(reclassSuggestion("## 授权引用\n改判建议：P — 涉及真实账户"), { to: "P", reason: "涉及真实账户" });
+  assert.equal(reclassSuggestion("无"), null);
+  assert.deepEqual(applyReclass("T", { to: "P", reason: "x" }).klass, "P");
+  const keep = applyReclass("P", { to: "T", reason: "纯 schema" });
+  assert.equal(keep.klass, "P");
+  assert.equal(keep.converted, false);
+  assert.match(keep.note ?? "", /已忽略/);
+  assert.deepEqual(applyReclass("T", null), { klass: "T", converted: false });
+});
+
+test("审查提示：R7 只审分级器结论，材料缺失也必须 BLOCK 并输出 JSON", () => {
+  const t = { number: 1, title: "x", body: "", labels: [], assignees: [], comments: [], blockers: [] };
+  const p = reviewPrompt(t, { klass: "P", reason: "账户", parsed: true }, "草稿");
+  assert.match(p, /R7 分级器结论（P 类）正确/);
+  assert.match(p, /材料缺失.*BLOCK/);
+});
+
+test("审查解析：无 JSON 记 parseError，与真 BLOCK 分开", () => {
+  assert.equal(parseReview("没有 JSON").parseError, true);
+  assert.equal(parseReview(fence({ foo: 1 })).parseError, true);
+  const real = parseReview(fence({ ...pass(), R4: { verdict: "BLOCK", basis: "越界" } }));
+  assert.equal(real.parseError, false);
+  assert.equal(real.verdict, "BLOCK");
+});
+
+test("dry-run：审查首次解析失败重试一次，仍失败记 review_parse_error 不升档", async () => {
+  const { d, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, "抱歉无法完成", "还是没有"]);
+  const s = await processTicket(1531, d);
+  assert.equal(s.phase, "review_parse_error");
+  assert.deepEqual(s.reviewCounts, { pass: 0, block: 0, parseError: 1 });
+  assert.equal(modelCalls.length, 4);
+  assert.match(modelCalls[3].prompt, /无法解析/);
+  const rv = JSON.parse(readFileSync(join(d.outRoot, "1531", "review.json"), "utf8"));
+  assert.equal(rv.verdict, "review_parse_error");
+  assert.deepEqual(rv.items, []);
+});
+
+test("dry-run：解析失败后重试成功照常走 PASS", async () => {
+  const { d } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, "坏输出", fence(pass())]);
+  const s = await processTicket(1531, d);
+  assert.equal(s.phase, "land_t");
+  assert.deepEqual(s.reviewCounts, { pass: 1, block: 0, parseError: 0 });
+});
+
+test("dry-run：T 类草稿建议转 P，编排转 P，审查按 P 类审", async () => {
+  const draft = goodDraft + "\n改判建议：P — 含真实账户参数\n";
+  const { d, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), draft, fence(pass())]);
+  const s = await processTicket(1531, d);
+  assert.equal(s.phase, "shadow_p");
+  assert.equal(s.klass, "P");
+  assert.equal(s.convertedToP, true);
+  assert.match(modelCalls[2].prompt, /分级器结论：P 类/);
+  assert.match(s.reclassNotes?.[0] ?? "", /建议转 P，已转/);
+});
+
+test("dry-run：P 类草稿建议转 T 被忽略；P 类草稿自写预授权句判 BLOCK", async () => {
+  const draft = goodDraft + `\n${AUTH_LINE}\n改判建议：T — 纯技术\n`;
+  const { d } = fakeDeps("dry-run", [fence({ class: "P", reason: "账户" }), draft, fence(pass()), draft, fence(pass())]);
+  const s = await processTicket(1531, d);
+  assert.equal(s.klass, "P");
+  assert.match(s.reclassNotes?.[0] ?? "", /已忽略/);
+  assert.deepEqual(s.reviewCounts, { pass: 0, block: 2, parseError: 0 });
+});
+
+test("ADR 编号：占位与草稿自编号都按 main 最大号顺序分配，并发不撞号", async () => {
+  const root = mkdtempSync(join(tmpdir(), "adr-alloc-"));
+  const adrDir = join(root, "adr");
+  mkdirSync(adrDir);
+  for (const f of ["0036-a.md", "0037-b.md", "README.md"]) writeFileSync(join(adrDir, f), "");
+  const o = { adrDir, stateDir: join(root, "state"), reserve: true };
+  const [a, b] = await Promise.all([
+    allocateAdr("docs/adr/0038-dual-run.md", 1537, o),
+    allocateAdr("docs/adr/0038-venue.md", 1540, o),
+  ]);
+  assert.deepEqual([a.number, b.number].sort(), [38, 39]);
+  assert.equal((await allocateAdr("docs/adr/NNNN-dual-run.md", 1537, o)).number, a.number);
+  assert.equal((await allocateAdr("docs/adr/0037-b.md", 1, o)).renumbered, false);
+  assert.equal((await allocateAdr(".chanlun/definitions/x.md", 1, o)).number, null);
+  const preview = await allocateAdr("docs/adr/NNNN-z.md", 9, { ...o, reserve: false });
+  assert.equal(preview.number, 40);
+  assert.equal((await allocateAdr("docs/adr/NNNN-z.md", 9, { ...o, reserve: false })).number, 40);
+  assert.equal(renumberDraft("见 ADR NNNN；落点 docs/adr/NNNN-z.md", "docs/adr/NNNN-z.md", preview), "见 ADR 0040；落点 docs/adr/0040-z.md");
+});
+
+test("dry-run：T 类 ADR 落点按 main 顺序改号并写回草稿", async () => {
+  const draft = DRAFT_SECTIONS.map((x) => `## ${x}\n内容${x === "裁定" ? "\n正本落点：docs/adr/NNNN-x.md\n依 ADR NNNN" : ""}`).join("\n\n") + "\n\n" + citeTable;
+  const { d } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), draft, fence(pass())]);
+  d.srcDir = mkdtempSync(join(tmpdir(), "src-"));
+  mkdirSync(join(d.srcDir, "docs/adr"), { recursive: true });
+  writeFileSync(join(d.srcDir, "docs/adr/0037-b.md"), "");
+  const s = await processTicket(1531, d);
+  assert.equal(s.phase, "land_t");
+  assert.match(s.landing ?? "", /^docs\/adr\/0038-x\.md/);
+  assert.match(readFileSync(join(d.outRoot, "1531", "draft.md"), "utf8"), /ADR 0038/);
+});
+
+test("ensureSrc：在 srcDir 的库里用 ssh 地址 fetch，HEAD 与远端 main 不等即拒绝", () => {
+  const src = mkdtempSync(join(tmpdir(), "src-"));
+  const calls: Array<[string, string[]]> = [];
+  let head = "abc123";
+  const git = (cwd: string, args: string[]) => {
+    calls.push([cwd, args]);
+    if (args[0] === "status") return "";
+    if (args[0] === "rev-parse" && args[1] === MAIN_REF) return "abc123\n";
+    if (args[0] === "rev-parse") return head + "\n";
+    return "";
+  };
+  assert.equal(ensureSrc("/repo", src, git), "abc123");
+  assert.deepEqual(calls[1], [src, ["fetch", FETCH_URL, `+main:${MAIN_REF}`]]);
+  assert.deepEqual(calls.find(([, a]) => a[0] === "checkout")?.[1], ["checkout", "--detach", "abc123"]);
+  head = "stale99";
+  assert.throws(() => ensureSrc("/repo", src, git), /拒绝运行/);
+});
+
+test("取证工具：起草/审查可只读 gh api 查评论，写形态一律拒", () => {
+  assert.ok(READ_TOOLS.includes("Bash(gh api repos/xy7365527-lang/NewChanlun/issues/comments/*)"));
+  const ro = toolArgs(false);
+  const dis = ro.slice(ro.indexOf("--disallowedTools") + 1);
+  for (const w of ["Edit", "Write", ...GH_API_WRITE_DENY]) assert.ok(dis.includes(w), w);
+  assert.ok(GH_API_WRITE_DENY.some((x) => x.includes("-X")) && GH_API_WRITE_DENY.some((x) => x.includes("--input")));
+  const rw = toolArgs(true);
+  assert.ok(rw.includes("Edit") && rw.slice(rw.indexOf("--disallowedTools") + 1).every((x) => !["Edit", "Write"].includes(x)));
+});
+
+test("起草提示：先核实再引用、附引用自证表、ADR NNNN 与落点格式同一行带反例", () => {
+  const t = { number: 1, title: "x", body: "", labels: [], assignees: [], comments: [], blockers: [] };
+  const p = draftPrompt(t, { klass: "T", reason: "r", parsed: true });
+  assert.match(p, /核实不到的路径、行号、条款、评论 id 一律不引/);
+  assert.match(p, /\| 引用 \| 核实命令 \| 结果摘要 \|/);
+  assert.ok(p.includes(`## ${CITATION_SECTION}`));
+  const line = p.split("\n").find((l) => l.includes("单独一行写纯文本"));
+  assert.ok(line && line.includes(ADR_FORMAT_LINE), "ADR 编号要求须与落点格式说明同一行");
+  assert.match(ADR_FORMAT_LINE, /编号永远写 NNNN/);
+  assert.match(ADR_FORMAT_LINE, /反例（禁止）：`正本落点：docs\/adr\/0041-/);
+});
+
+test("审查提示：R1 先对照引用自证表，表缺失即 BLOCK，可 gh api 回查评论", () => {
+  const t = { number: 1, title: "x", body: "", labels: [], assignees: [], comments: [], blockers: [] };
+  const p = reviewPrompt(t, { klass: "T", reason: "r", parsed: true }, "草稿");
+  assert.match(p, /R1 .*引用自证」表：表缺失或为空，R1 直接 BLOCK/);
+  assert.match(p, /gh api repos\/xy7365527-lang\/NewChanlun\/issues\/comments\/<id>/);
+});
+
+test("引用自证表：缺段或只有表头不算；缺表的草稿即使审查全 PASS 也 BLOCK", async () => {
+  assert.equal(hasCitationTable(goodDraft), true);
+  assert.equal(hasCitationTable(goodDraft.replace(citeTable, "")), false);
+  assert.equal(hasCitationTable(`## ${CITATION_SECTION}\n| 引用 | 核实命令 | 结果摘要 |\n|---|---|---|\n`), false);
+  const noTable = goodDraft.replace(citeTable, "");
+  const { d } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), noTable, fence(pass()), noTable, fence(pass())]);
+  const r = await processTicket(1, d);
+  assert.notEqual(r.phase, "land_t");
+});
+
+// ───────── #1547 fix3：落点硬检查与只改引用的修订轮 ─────────
+
+const r1Block = (basis: string) => fence({ ...pass(), R1: { verdict: "BLOCK", basis } });
+const r3Block = fence({ ...pass(), R3: { verdict: "BLOCK", basis: "验收项不可执行" } });
+
+test("落点硬检查：缺失与越界给出原因，合法返回 null", () => {
+  assert.equal(landingProblem(goodDraft), null);
+  assert.match(landingProblem("## 裁定\n无落点")!, /未声明/);
+  assert.match(landingProblem("正本落点：rust/src/lib.rs")!, /rust\/src\/lib\.rs 越界/);
+});
+
+test("isCitationOnlyBlock：只有 R1 且依据指向具体引用才算", () => {
+  assert.equal(isCitationOnlyBlock(parseReview(r1Block("replay.rs:283 核实命令没覆盖该行"))), true);
+  assert.equal(isCitationOnlyBlock(parseReview(r1Block("CONTEXT.md 行号差一行"))), true);
+  assert.equal(isCitationOnlyBlock(parseReview(r1Block("裁定思路有问题"))), false);
+  assert.equal(isCitationOnlyBlock(parseReview(fence({ ...pass(), R1: { verdict: "BLOCK", basis: "行号差一行" }, R6: { verdict: "BLOCK", basis: "缺票" } }))), false);
+  assert.equal(isCitationOnlyBlock(parseReview(r1Block("行号差一行"), ["授权引用"])), false);
+});
+
+test("状态转移：R1 引用 BLOCK 进修订轮，其他 BLOCK 升档，总轮次上限 3", () => {
+  const cite = parseReview(r1Block("x.md:12 行号差一行"));
+  const other = parseReview(r3Block);
+  let s = nextAfterReview(initialState("T"), cite);
+  assert.deepEqual([s.phase, s.attempt, s.draftMode, s.drafterModel], ["draft", 2, "revise", MODEL_OPUS]);
+  s = nextAfterReview(s, other);
+  assert.deepEqual([s.phase, s.attempt, s.draftMode], ["draft", 3, "redo"]);
+  assert.equal(nextAfterReview(s, cite).phase, "shadow_p");
+  assert.equal(MAX_ROUNDS, 3);
+  // 升档后剩 R1 引用 BLOCK：第三轮修订；修订后仍 BLOCK 转 P
+  let u = nextAfterReview(initialState("T"), other);
+  assert.equal(u.draftMode, "redo");
+  u = nextAfterReview(u, cite);
+  assert.deepEqual([u.attempt, u.draftMode], [3, "revise"]);
+  const end = nextAfterReview(u, cite);
+  assert.deepEqual([end.phase, end.klass, end.convertedToP], ["shadow_p", "P", true]);
+  // 修订用过后再遇 R1 引用 BLOCK 不再修订，走升档
+  const v = nextAfterReview(nextAfterReview(initialState("T"), cite), cite);
+  assert.equal(v.draftMode, "redo");
+});
+
+test("dry-run 修订轮：只拿上一稿与引用意见，不改裁定，再审 PASS 落地", async () => {
+  const { d, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, r1Block("AGENTS.md:1 行号差一行"), goodDraft, fence(pass())]);
+  const s = await processTicket(7, d);
+  assert.equal(s.phase, "land_t");
+  assert.equal(s.attempts, 2);
+  const rev = modelCalls[3];
+  assert.equal(rev.model, MODEL_OPUS);
+  assert.match(rev.prompt, /只改引用」的修订轮/);
+  assert.match(rev.prompt, /===== 上一稿开始 =====/);
+  assert.match(rev.prompt, /R1 BLOCK：AGENTS\.md:1 行号差一行/);
+  assert.deepEqual(s.rounds!.map((r) => [r.mode, r.verdict]), [["initial", "BLOCK"], ["revise", "PASS"]]);
+});
+
+test("dry-run 三轮仍 BLOCK 转 P：首稿 R3→升档→R1 引用→修订→仍 BLOCK", async () => {
+  const cite = r1Block("x.md:3 转述多出内容");
+  const { d, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, r3Block, goodDraft, cite, goodDraft, cite]);
+  const s = await processTicket(8, d);
+  assert.equal(s.phase, "shadow_p");
+  assert.equal(s.convertedToP, true);
+  assert.deepEqual(s.rounds!.map((r) => r.mode), ["initial", "redo", "revise"]);
+  assert.equal(modelCalls.length, 7);
+});
+
+test("dry-run 落点越界：退回起草者重写一次，原因写进反馈", async () => {
+  const bad = goodDraft.replace("docs/adr/0099-x.md", "rust/src/lib.rs");
+  const { d, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), bad, goodDraft, fence(pass())]);
+  const s = await processTicket(9, d);
+  assert.equal(s.phase, "land_t");
+  assert.match(modelCalls[2].prompt, /正本落点退回：正本落点 rust\/src\/lib\.rs 越界/);
+  assert.equal(s.landingRedrafts!.length, 1);
+  assert.ok(existsSync(join(d.outRoot, "9", "draft.attempt1.landing-rejected.md")));
+});
+
+test("提示：自证表看不到原文整条删；R4 落点越界即 BLOCK；修订提示保留落点", () => {
+  const t = { number: 1, title: "x", body: "", labels: [], assignees: [], comments: [], blockers: [] };
+  const c = { klass: "T" as const, reason: "r", parsed: true };
+  assert.match(draftPrompt(t, c), /写不出亲眼看到的原文就整条删掉.*不许写「未直接看到但结构确认」/);
+  assert.match(reviewPrompt(t, c, "草稿"), /R4 .*正本落点越界.*即 BLOCK/);
+  assert.match(revisePrompt(t, c, "上稿", "- R1 BLOCK：x"), /正本落点保持原样/);
+});
+
+// ───────── #1547 fix4：临时错误重试与审查后断点续做 ─────────
+
+test("isRetryable：429/5xx/暂时不可用/超时算临时，参数与权限错误不算", () => {
+  for (const t of ["API Error: 模型服务暂时不可用，请稍后重试。", "API Error: 529 overloaded", "503 Service Unavailable",
+    "Rate limit exceeded", "request timed out", "ECONNRESET", "API Error: 500 Internal Server Error"]) assert.equal(isRetryable(t), true, t);
+  for (const t of ["Invalid model name", "permission denied: Write", "API Error: 400 bad request", "API Error: 401 unauthorized"]) assert.equal(isRetryable(t), false, t);
+});
+
+const okOnce = (text: string): OnceResult => ({ code: 0, stdout: JSON.stringify({ result: text, is_error: false }), stderr: "" });
+const errOnce = (msg: string): OnceResult => ({ code: 1, stdout: JSON.stringify({ result: msg, is_error: true }), stderr: "" });
+const call: ModelCall = { model: MODEL_OPUS, prompt: "p", cwd: "/", role: "land" };
+
+test("makeClaudeRunner：临时错误指数退避重试直到成功", async () => {
+  const seq = [errOnce("API Error: 模型服务暂时不可用，请稍后重试。"), errOnce("API Error: 503"), { code: 143, stdout: "", stderr: "claude 子进程超时（1800s timed out）" }, okOnce("好")];
+  const waits: number[] = [];
+  const run = makeClaudeRunner({ once: async () => seq.shift()!, token: () => "t", sleep: async (ms) => { waits.push(ms); } });
+  const r = await run(call);
+  assert.equal(r.text, "好");
+  assert.equal(r.attempts, 4);
+  assert.deepEqual(waits, [20_000, 40_000, 80_000]);
+});
+
+test("makeClaudeRunner：至少重试 4 次；非临时错误首次即失败", async () => {
+  let n = 0;
+  const flaky = makeClaudeRunner({ maxAttempts: 2, once: async () => (n++, errOnce("overloaded")), token: () => "t", sleep: async () => {} });
+  await assert.rejects(flaky(call), /第 5 次/);
+  assert.equal(n, 5);
+  let m = 0;
+  const hard = makeClaudeRunner({ once: async () => (m++, errOnce("Invalid model name")), token: () => "t", sleep: async () => {} });
+  await assert.rejects(hard(call), /Invalid model name/);
+  assert.equal(m, 1);
+});
+
+/** live 假环境：gh 维护 assignees 状态，git 按落地提示里的目标回报改动。 */
+function liveDeps(replies: Array<string | Error>, opts: { failGh?: (a: string[]) => boolean; postedThenFail?: (a: string[]) => boolean } = {}) {
+  const ghCalls: string[][] = [];
+  const modelCalls: ModelCall[] = [];
+  let assignees: string[] = [];
+  let target = "";
+  const comments: Array<{ author: { login: string }; body: string }> = [];
+  const gh: GhRunner = (args, input) => {
+    ghCalls.push(args);
+    // postedThenFail：评论已发出、gh 却报错（#1565 那轮 GraphQL EOF 的同型）。
+    if (opts.postedThenFail?.(args) && input !== undefined) comments.push({ author: { login: "xy7365527-lang" }, body: input });
+    if (opts.failGh?.(args)) throw new Error(`gh 失败：${args.join(" ")}`);
+    if (args[0] === "issue" && args[1] === "view") {
+      return JSON.stringify({ number: 1565, title: "FU-x", body: "票面", labels: [{ name: "wayfinder:grilling" }], assignees: assignees.map((login) => ({ login })), comments });
+    }
+    if (args[0] === "issue" && args[1] === "comment" && input !== undefined) comments.push({ author: { login: "xy7365527-lang" }, body: input });
+    if (args[0] === "issue" && args[1] === "edit" && args[3] === "--add-assignee") assignees = ["me"];
+    if (args[0] === "issue" && args[1] === "edit" && args[3] === "--remove-assignee") assignees = [];
+    if (args[0] === "api") return "[]";
+    return "";
+  };
+  const gitCalls: string[][] = [];
+  const d: Deps = {
+    mode: "live", gh, me: "me",
+    git: (_cwd, args) => {
+      gitCalls.push(args);
+      if (args[0] === "status") return `?? ${target}\n`;
+      if (args[0] === "rev-parse") return "abcdef1234567890\n";
+      return "";
+    },
+    model: async (c) => {
+      modelCalls.push(c);
+      if (c.role === "land") target = /写进正本 (\S+?)。/.exec(c.prompt)![1];
+      const r = replies.shift();
+      if (r === undefined) throw new Error("模型调用次数超出预期");
+      if (r instanceof Error) throw r;
+      return { text: r, durationMs: 5, attempts: 1 };
+    },
+    outRoot: mkdtempSync(join(tmpdir(), "decision-claimer-live-")),
+    srcDir: "/nonexistent-src",
+    repoRoot: "/nonexistent-repo",
+    now: Date.now,
+  };
+  return {
+    d, replies, ghCalls, modelCalls, gitCalls, comments,
+    fail: (f: (a: string[]) => boolean, posted = false) => { opts.failGh = f; if (posted) opts.postedThenFail = f; },
+    stopFail: () => { opts.failGh = undefined; opts.postedThenFail = undefined; },
+  };
+}
+
+const writesOf = (calls: string[][]) => calls.filter(isWrite).map((a) => a.slice(0, 4).join(" "));
+
+test("live T 类：审查 PASS 后落地失败记 reviewed_pass，下一轮只做落地不重审", async () => {
+  const { d, replies, ghCalls, modelCalls, gitCalls } = liveDeps([
+    fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()),
+    new Error("land claude-opus-5-5 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
+  ]);
+  const s1 = await processTicket(1565, d);
+  assert.equal(s1.phase, "error");
+  assert.equal(s1.stage, "reviewed_pass");
+  const dir = join(d.outRoot, "1565");
+  assert.equal(JSON.parse(readFileSync(join(dir, "summary.json"), "utf8")).stage, "reviewed_pass");
+  assert.ok(loadResume(dir));
+  assert.equal(writesOf(ghCalls).at(-1), "issue edit 1565 --remove-assignee");
+
+  ghCalls.length = 0;
+  modelCalls.length = 0;
+  gitCalls.length = 0;
+  replies.push("已写入");
+  const s2 = await processTicket(1565, d);
+  assert.equal(s2.phase, "land_t");
+  assert.equal(s2.resumedFrom, "reviewed_pass");
+  assert.equal(s2.stage, undefined);
+  assert.deepEqual(modelCalls.map((c) => c.role), ["land"]);
+  assert.deepEqual(writesOf(ghCalls), ["issue edit 1565 --add-assignee", "issue comment 1565 --body-file"]);
+  assert.ok(gitCalls.some((a) => a[0] === "push"));
+  assert.equal(JSON.parse(readFileSync(join(dir, "summary.json"), "utf8")).stage, undefined);
+  assert.equal(loadResume(dir), null);
+});
+
+test("live T 类：已推送只差评论时，续做只补 resolution 评论", async () => {
+  const h = liveDeps([fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()), "已写入"]);
+  // 第一条评论是分级，第二条是 resolution：让 resolution 评论失败。
+  h.fail((a) => a[1] === "comment" && h.ghCalls.filter((x) => x[1] === "comment").length > 1);
+  const s1 = await processTicket(1565, h.d);
+  assert.equal(s1.phase, "error");
+  assert.equal(s1.landedSha, "abcdef1234567890");
+  h.stopFail();
+  h.ghCalls.length = 0;
+  h.modelCalls.length = 0;
+  h.gitCalls.length = 0;
+  const s2 = await processTicket(1565, h.d);
+  assert.equal(s2.phase, "land_t");
+  assert.deepEqual(h.modelCalls, []);
+  assert.ok(!h.gitCalls.some((a) => a[0] === "push"));
+  assert.deepEqual(writesOf(h.ghCalls), ["issue edit 1565 --add-assignee", "issue comment 1565 --body-file"]);
+});
+
+test("live P 类：贴标签失败只记断点，下一轮只补贴标签与取消认领", async () => {
+  const h = liveDeps([fence({ class: "P", reason: "资金参数" }), goodDraft, fence(pass())]);
+  h.fail((a) => a[3] === "--add-label");
+  const s1 = await processTicket(1565, h.d);
+  assert.equal(s1.phase, "error");
+  assert.equal(s1.stage, "shadow_p_pending");
+  assert.deepEqual(s1.pDone, ["comment"]);
+  h.stopFail();
+  h.ghCalls.length = 0;
+  h.modelCalls.length = 0;
+  const s2 = await processTicket(1565, h.d);
+  assert.equal(s2.phase, "shadow_p");
+  assert.equal(s2.stage, undefined);
+  assert.deepEqual(h.modelCalls, []);
+  assert.deepEqual(writesOf(h.ghCalls), ["issue edit 1565 --add-assignee", "issue edit 1565 --add-label", "issue edit 1565 --remove-assignee"]);
+});
+
+// ───────── 图审计 2026-10-20 第 13 条：已裁定 / 已关闭票不再进裁决面 ─────────
+
+test("resolvedReason：已关闭、resolution 评论、用户批复都跳过；待用户批复与正文提及不算", () => {
+  const c = (body: string) => ({ author: "xy7365527-lang", body });
+  assert.equal(resolvedReason({ state: "CLOSED", comments: [] }), "票已关闭");
+  assert.equal(resolvedReason({ state: "OPEN", comments: [c(`${AUTH_LINE}\n\n**resolution**：T 类`)] }), "票上已有 resolution");
+  assert.equal(resolvedReason({ state: "OPEN", comments: [c("用户 2026-10-20 批复：「同意」——采纳方案 A")] }), "票上已有用户批复");
+  assert.equal(resolvedReason({ state: "OPEN", comments: [c("用户 2026-10-20 批复\n\n批复已落成正本")] }), "票上已有用户批复");
+  // #1565 的影子评论：首行「待用户批复」，草稿里还可能写「需用户批复」——都不是批复。
+  assert.equal(resolvedReason({ state: "OPEN", comments: [c("**P 类影子模式，待用户批复**（原判 T）\n草稿：此项需用户批复")] }), null);
+  assert.equal(resolvedReason({ state: "OPEN", comments: [c("分级：T — 理由")] }), null);
+  assert.equal(resolvedReason({ comments: [] }), null);
+  // Markdown 前缀不挡识别。
+  for (const b of ["**用户 2026-10-20 批复**：同意", "> 用户 2026-10-20 批复：同意", "## 用户 2026-10-20 批复", "- 用户批复：同意"]) {
+    assert.equal(resolvedReason({ comments: [c(b)] }), "票上已有用户批复", b);
+  }
+  // 未批复 / 待批复 / 退回重写都不算已裁定；后来的退回推翻先前批复，再批复又生效。
+  assert.equal(resolvedReason({ comments: [c("用户尚未批复，先挂着")] }), null);
+  assert.equal(resolvedReason({ comments: [c("## 退回重写（用户 2026-10-20 批复：「同意」）")] }), null);
+  assert.equal(resolvedReason({ comments: [c("用户 10-20 批复：退回重写")] }), null);
+  assert.equal(resolvedReason({ comments: [c("用户 10-19 批复：同意"), c("## 退回重写（用户 10-20 批复）")] }), null);
+  assert.equal(resolvedReason({ comments: [c("## 退回重写"), c("用户 10-21 批复：同意")] }), "票上已有用户批复");
+  // 首行中间提到「重写」、批复后的簿记评论都不重开；「还没 / 需」批复不算已批复。
+  assert.equal(resolvedReason({ comments: [c("用户 2026-10-20 批复：「同意」——按草稿重写 §3 后落地")] }), "票上已有用户批复");
+  assert.equal(resolvedReason({ comments: [c("用户 10-20 批复：同意"), c("已按用户批复重写正本 baohan.md")] }), "票上已有用户批复");
+  assert.equal(resolvedReason({ comments: [c("用户还没批复")] }), null);
+  assert.equal(resolvedReason({ comments: [c("用户需批复后再落地")] }), null);
+  assert.equal(resolvedReason({ comments: [c("用户 10-20 批复：「不同意」")] }), null);
+  assert.equal(resolvedReason({ comments: [c("用户 10-20 批复：**不同意**")] }), null);
+  assert.equal(resolvedReason({ comments: [c("用户 10-20 批复：否决")] }), null);
+  // 非编排者账号不算；影子评论草稿里夹一行 **resolution**： 也不算。
+  assert.equal(resolvedReason({ comments: [{ author: "someone", body: "用户批复：同意" }] }), null);
+  assert.equal(resolvedReason({ comments: [c("**P 类影子模式，待用户批复**\n\n<details>\n**resolution**：草稿里的一行\n</details>")] }), null);
+});
+
+test("pickUnresolved：逐张读票，跳过已裁定票不占并发槽，读票失败本轮跳过", () => {
+  const views: Record<number, unknown> = {
+    1565: { number: 1565, state: "CLOSED", title: "a", body: "", labels: [], assignees: [], comments: [] },
+    1566: { number: 1566, state: "OPEN", title: "b", body: "", labels: [], assignees: [], comments: [{ author: { login: "xy7365527-lang" }, body: "用户 2026-10-20 批复：同意" }] },
+    1567: { number: 1567, state: "OPEN", title: "c", body: "", labels: [], assignees: [], comments: [] },
+    1569: { number: 1569, state: "OPEN", title: "e", body: "", labels: [], assignees: [], comments: [] },
+  };
+  const gh: GhRunner = (args) => {
+    if (args[0] === "issue" && args[1] === "view") {
+      const v = views[Number(args[2])];
+      if (!v) throw new Error("EOF");
+      return JSON.stringify(v);
+    }
+    return "[]";
+  };
+  const skipped: number[] = [];
+  assert.deepEqual(pickUnresolved(gh, [1565, 1566, 1568, 1567, 1569], 1, (n) => skipped.push(n)), [1567]);
+  assert.deepEqual(skipped, [1565, 1566, 1568]);
+  assert.deepEqual(pickUnresolved(gh, [1565, 1567, 1569], 3, () => {}), [1567, 1569]);
+});
+
+test("finishedTickets：终态跳过，error 与带断点的不跳过", () => {
+  const root = mkdtempSync(join(tmpdir(), "decision-finished-"));
+  const put = (n: number, v: object) => { mkdirSync(join(root, String(n)), { recursive: true }); writeFileSync(join(root, String(n), "summary.json"), JSON.stringify(v)); };
+  put(1, { phase: "done" });
+  put(2, { phase: "shadow_p" });
+  put(3, { phase: "error" });
+  put(4, { phase: "land_t", stage: "reviewed_pass" });
+  put(5, { phase: "review_parse_error" });
+  assert.deepEqual([...finishedTickets(root, [1, 2, 3, 4, 5, 6].map((number) => ({ number })))].sort(), [1, 2]);
+});
+
+test("live processTicket：已有用户批复的票不 claim、不调模型、不覆盖 summary.json", async () => {
+  const { d, ghCalls, modelCalls } = fakeDeps("live", []);
+  const base = d.gh;
+  d.gh = (args, input) => {
+    if (args[0] === "issue" && args[1] === "view") {
+      ghCalls.push(args);
+      return JSON.stringify({ number: 1565, state: "OPEN", title: "W", body: "", labels: [{ name: "wayfinder:grilling" }], assignees: [], comments: [{ author: { login: "xy7365527-lang" }, body: "用户 2026-10-20 批复：「同意」" }] });
+    }
+    return base(args, input);
+  };
+  d.me = "me";
+  mkdirSync(join(d.outRoot, "1565"), { recursive: true });
+  writeFileSync(join(d.outRoot, "1565", "summary.json"), JSON.stringify({ phase: "error", error: "EOF" }));
+  const s = await processTicket(1565, d);
+  assert.equal(s.phase, "skipped");
+  assert.equal(ghCalls.filter(isWrite).length, 0);
+  assert.equal(modelCalls.length, 0);
+  assert.equal(JSON.parse(readFileSync(join(d.outRoot, "1565", "summary.json"), "utf8")).phase, "error");
+});
+
+test("live processTicket：已关闭票直接跳过", async () => {
+  const { d, ghCalls } = fakeDeps("live", []);
+  const base = d.gh;
+  d.gh = (args, input) => {
+    if (args[0] === "issue" && args[1] === "view") return JSON.stringify({ number: 9, state: "CLOSED", title: "x", body: "", labels: [], assignees: [], comments: [] });
+    return base(args, input);
+  };
+  const s = await processTicket(9, d);
+  assert.equal(s.phase, "skipped");
+  assert.equal(ghCalls.filter(isWrite).length, 0);
+});
+
+test("断点续做 × 跳过：reviewed_pass 且 resolution 评论其实已发出 → 下一轮 skipped，不调模型不写", async () => {
+  const h = liveDeps([fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()), "已写入"]);
+  // 第二条评论（resolution）发出后 gh 报错。
+  h.fail((a) => a[1] === "comment" && h.ghCalls.filter((x) => x[1] === "comment").length > 1, true);
+  const s1 = await processTicket(1565, h.d);
+  assert.equal(s1.phase, "error");
+  assert.ok(h.comments.some((c) => c.body.startsWith(AUTH_LINE)));
+  h.stopFail();
+  h.ghCalls.length = 0;
+  h.modelCalls.length = 0;
+  const s2 = await processTicket(1565, h.d);
+  assert.equal(s2.phase, "skipped");
+  assert.deepEqual(h.modelCalls, []);
+  assert.deepEqual(writesOf(h.ghCalls), []);
+  // 断点原件保留，未被 skipped 覆盖。
+  assert.equal(JSON.parse(readFileSync(join(h.d.outRoot, "1565", "summary.json"), "utf8")).stage, "reviewed_pass");
+});
+
+test("断点续做 × 跳过：shadow_p_pending 票面已有影子评论 → 照常补贴标签与取消认领", async () => {
+  const h = liveDeps([fence({ class: "P", reason: "资金参数" }), goodDraft, fence(pass())]);
+  h.fail((a) => a[3] === "--add-label");
+  await processTicket(1565, h.d);
+  assert.ok(h.comments.some((c) => c.body.startsWith("**P 类影子模式，待用户批复**")));
+  h.stopFail();
+  h.ghCalls.length = 0;
+  const s2 = await processTicket(1565, h.d);
+  assert.equal(s2.phase, "shadow_p");
+  assert.deepEqual(writesOf(h.ghCalls), ["issue edit 1565 --add-assignee", "issue edit 1565 --add-label", "issue edit 1565 --remove-assignee"]);
+});

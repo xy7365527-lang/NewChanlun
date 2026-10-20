@@ -1,0 +1,11 @@
+# TB02V_BTC_TAIL50K=btc_tail50k.json cargo test --lib -- --ignored tb02v_btc_tail50k_reading_and_prefix_ladder
+TB02V_TAIL50K bars=49995 merged=30863 fractals=14017 strokes=4016 segments=72 fingerprint=4fd87a7e429962ac events={"formed": 4016, "hetero_not_formed": 5000, "keep": 2298, "keep_eq": 53, "replace": 2649} head=[("TOP", 15, 26), ("BOTTOM", 26, 42), ("TOP", 42, 55)] last=(BOTTOM, 49979, 49996) choice_free_pairs=9016 waiting=[] policy=same-price/keep-earlier+extreme-region/1
+TB02V_LADDER 600->1000 strokes 51->80 last_end 601->604
+TB02V_LADDER 1000->2000 strokes 80->173 last_end 997->1029
+TB02V_LADDER 2000->5000 strokes 173->424 last_end 1999->2006
+TB02V_LADDER 5000->10000 strokes 424->773 last_end 5001->5001
+TB02V_LADDER 10000->20000 strokes 773->1583 last_end 9999->9999
+TB02V_LADDER 20000->30000 strokes 1583->2391 last_end 20001->20014
+TB02V_LADDER 30000->40000 strokes 2391->3221 last_end 29999->29999
+TB02V_LADDER 40000->49995 strokes 3221->4016 last_end 40002->40021
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3123 filtered out; finished in 1.18s

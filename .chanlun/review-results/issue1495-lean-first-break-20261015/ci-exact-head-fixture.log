@@ -1,0 +1,496 @@
+﻿2026-10-15T04:27:41.6806821Z Current runner version: '2.337.0'
+2026-10-15T04:27:41.6829796Z ##[group]Runner Image Provisioner
+2026-10-15T04:27:41.6830631Z Hosted Compute Agent
+2026-10-15T04:27:41.6831285Z Version: 20261012.601
+2026-10-15T04:27:41.6832058Z Commit: f3dc54e1fb89da6852db922499a0233137369e1d
+2026-10-15T04:27:41.6832788Z Build Date: 2026-10-12T17:48:21Z
+2026-10-15T04:27:41.6833486Z Worker ID: {82f2bbfa-b6f2-4bd5-89d5-a32c0580005d}
+2026-10-15T04:27:41.6834175Z Region: centralus
+2026-10-15T04:27:41.6834705Z Cloud: Azure
+2026-10-15T04:27:41.6835232Z ##[endgroup]
+2026-10-15T04:27:41.6836611Z ##[group]Operating System
+2026-10-15T04:27:41.6837239Z Ubuntu
+2026-10-15T04:27:41.6837729Z 24.04.5
+2026-10-15T04:27:41.6838213Z LTS
+2026-10-15T04:27:41.6838785Z ##[endgroup]
+2026-10-15T04:27:41.6839333Z ##[group]Runner Image
+2026-10-15T04:27:41.6839925Z Image: ubuntu-24.04
+2026-10-15T04:27:41.6840464Z Version: 20261012.334.1
+2026-10-15T04:27:41.6841689Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261012.334/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-15T04:27:41.6843289Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261012.334
+2026-10-15T04:27:41.6844216Z ##[endgroup]
+2026-10-15T04:27:41.6845332Z ##[group]GITHUB_TOKEN Permissions
+2026-10-15T04:27:41.6847742Z Contents: read
+2026-10-15T04:27:41.6848337Z Metadata: read
+2026-10-15T04:27:41.6848922Z Packages: read
+2026-10-15T04:27:41.6849511Z ##[endgroup]
+2026-10-15T04:27:41.6851812Z Secret source: Actions
+2026-10-15T04:27:41.6852864Z Cache mode: write
+2026-10-15T04:27:41.6853620Z Prepare workflow directory
+2026-10-15T04:27:41.7172888Z Prepare all required actions
+2026-10-15T04:27:41.7220338Z Getting action download info
+2026-10-15T04:27:41.9769395Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-15T04:27:42.1279733Z Download action repository 'actions/cache@v4' (SHA:0057852bfaa89a56745cba8c7296529d2fc39830)
+2026-10-15T04:27:42.5233989Z Complete job name: fixture-drift
+2026-10-15T04:27:42.5911364Z ##[group]Run actions/checkout@v4
+2026-10-15T04:27:42.5912525Z with:
+2026-10-15T04:27:42.5913059Z   repository: xy7365527-lang/NewChanlun
+2026-10-15T04:27:42.5916731Z   token: ***
+2026-10-15T04:27:42.5917265Z   ssh-strict: true
+2026-10-15T04:27:42.5917782Z   ssh-user: git
+2026-10-15T04:27:42.5918321Z   persist-credentials: true
+2026-10-15T04:27:42.5918864Z   clean: true
+2026-10-15T04:27:42.5919395Z   sparse-checkout-cone-mode: true
+2026-10-15T04:27:42.5920012Z   fetch-depth: 1
+2026-10-15T04:27:42.5920533Z   fetch-tags: false
+2026-10-15T04:27:42.5921076Z   show-progress: true
+2026-10-15T04:27:42.5921601Z   lfs: false
+2026-10-15T04:27:42.5922216Z   submodules: false
+2026-10-15T04:27:42.5922830Z   set-safe-directory: true
+2026-10-15T04:27:42.5923463Z   allow-unsafe-pr-checkout: false
+2026-10-15T04:27:42.5924255Z ##[endgroup]
+2026-10-15T04:27:42.6955891Z Syncing repository: xy7365527-lang/NewChanlun
+2026-10-15T04:27:42.6958857Z ##[group]Getting Git version info
+2026-10-15T04:27:42.6960329Z Working directory is '/home/runner/work/NewChanlun/NewChanlun'
+2026-10-15T04:27:42.6962229Z [command]/usr/bin/git version
+2026-10-15T04:27:42.7043582Z git version 2.55.0
+2026-10-15T04:27:42.7064200Z ##[endgroup]
+2026-10-15T04:27:42.7080924Z Temporarily overriding HOME='/home/runner/work/_temp/fbef2741-e9c9-4ea7-912d-a8ede2616fd6' before making global git config changes
+2026-10-15T04:27:42.7084172Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-15T04:27:42.7089061Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/NewChanlun/NewChanlun
+2026-10-15T04:27:42.7148888Z Deleting the contents of '/home/runner/work/NewChanlun/NewChanlun'
+2026-10-15T04:27:42.7157119Z ##[group]Initializing the repository
+2026-10-15T04:27:42.7162990Z [command]/usr/bin/git init /home/runner/work/NewChanlun/NewChanlun
+2026-10-15T04:27:42.7271202Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-15T04:27:42.7273439Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-15T04:27:42.7275515Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-15T04:27:42.7276804Z hint: call:
+2026-10-15T04:27:42.7278068Z hint:
+2026-10-15T04:27:42.7279031Z hint: 	git config --global init.defaultBranch <name>
+2026-10-15T04:27:42.7280078Z hint:
+2026-10-15T04:27:42.7281224Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-15T04:27:42.7283161Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-15T04:27:42.7284566Z hint:
+2026-10-15T04:27:42.7285383Z hint: 	git branch -m <name>
+2026-10-15T04:27:42.7286282Z hint:
+2026-10-15T04:27:42.7287501Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-15T04:27:42.7289274Z Initialized empty Git repository in /home/runner/work/NewChanlun/NewChanlun/.git/
+2026-10-15T04:27:42.7292696Z [command]/usr/bin/git remote add origin https://github.com/xy7365527-lang/NewChanlun
+2026-10-15T04:27:42.7368675Z ##[endgroup]
+2026-10-15T04:27:42.7370338Z ##[group]Disabling automatic garbage collection
+2026-10-15T04:27:42.7371564Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-15T04:27:42.7405370Z ##[endgroup]
+2026-10-15T04:27:42.7406737Z ##[group]Setting up auth
+2026-10-15T04:27:42.7422165Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-15T04:27:42.7459127Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-15T04:27:42.8048797Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-15T04:27:42.8079338Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-15T04:27:42.8267669Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-15T04:27:42.8298204Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-15T04:27:42.8479444Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-15T04:27:42.8518993Z ##[endgroup]
+2026-10-15T04:27:42.8520303Z ##[group]Fetching the repository
+2026-10-15T04:27:42.8529144Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +9e1b22aa8b50de9097f4ce6d0247281707f8506c:refs/remotes/origin/codex/1495-lean-recovery-20261015
+2026-10-15T04:27:59.8151481Z From https://github.com/xy7365527-lang/NewChanlun
+2026-10-15T04:27:59.8155175Z  * [new ref]         9e1b22aa8b50de9097f4ce6d0247281707f8506c -> origin/codex/1495-lean-recovery-20261015
+2026-10-15T04:27:59.8161527Z ##[endgroup]
+2026-10-15T04:27:59.8164239Z ##[group]Determining the checkout info
+2026-10-15T04:27:59.8167122Z ##[endgroup]
+2026-10-15T04:27:59.8168616Z [command]/usr/bin/git sparse-checkout disable
+2026-10-15T04:27:59.8219329Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-15T04:27:59.8251561Z ##[group]Checking out the ref
+2026-10-15T04:27:59.8255866Z [command]/usr/bin/git checkout --progress --force -B codex/1495-lean-recovery-20261015 refs/remotes/origin/codex/1495-lean-recovery-20261015
+2026-10-15T04:28:00.8364678Z Updating files:  10% (896/8180)
+2026-10-15T04:28:00.8456753Z Updating files:  11% (900/8180)
+2026-10-15T04:28:00.9331311Z Updating files:  12% (982/8180)
+2026-10-15T04:28:00.9449602Z Updating files:  13% (1064/8180)
+2026-10-15T04:28:00.9564221Z Updating files:  14% (1146/8180)
+2026-10-15T04:28:00.9734263Z Updating files:  15% (1227/8180)
+2026-10-15T04:28:00.9776682Z Updating files:  16% (1309/8180)
+2026-10-15T04:28:00.9920820Z Updating files:  17% (1391/8180)
+2026-10-15T04:28:01.0674696Z Updating files:  18% (1473/8180)
+2026-10-15T04:28:01.1380489Z Updating files:  19% (1555/8180)
+2026-10-15T04:28:01.1471386Z Updating files:  20% (1636/8180)
+2026-10-15T04:28:01.1601710Z Updating files:  21% (1718/8180)
+2026-10-15T04:28:01.1643406Z Updating files:  22% (1800/8180)
+2026-10-15T04:28:01.1746145Z Updating files:  23% (1882/8180)
+2026-10-15T04:28:01.1917350Z Updating files:  24% (1964/8180)
+2026-10-15T04:28:01.1968986Z Updating files:  25% (2045/8180)
+2026-10-15T04:28:01.1991334Z Updating files:  26% (2127/8180)
+2026-10-15T04:28:01.2055292Z Updating files:  27% (2209/8180)
+2026-10-15T04:28:01.2076993Z Updating files:  28% (2291/8180)
+2026-10-15T04:28:01.2135964Z Updating files:  29% (2373/8180)
+2026-10-15T04:28:01.2203773Z Updating files:  30% (2454/8180)
+2026-10-15T04:28:01.2270174Z Updating files:  31% (2536/8180)
+2026-10-15T04:28:01.2350627Z Updating files:  32% (2618/8180)
+2026-10-15T04:28:01.2441738Z Updating files:  33% (2700/8180)
+2026-10-15T04:28:01.2542619Z Updating files:  34% (2782/8180)
+2026-10-15T04:28:01.2628027Z Updating files:  35% (2863/8180)
+2026-10-15T04:28:01.2713471Z Updating files:  36% (2945/8180)
+2026-10-15T04:28:01.2792858Z Updating files:  37% (3027/8180)
+2026-10-15T04:28:01.2857059Z Updating files:  38% (3109/8180)
+2026-10-15T04:28:01.2922689Z Updating files:  39% (3191/8180)
+2026-10-15T04:28:01.2978260Z Updating files:  40% (3272/8180)
+2026-10-15T04:28:01.3183709Z Updating files:  41% (3354/8180)
+2026-10-15T04:28:01.3278639Z Updating files:  42% (3436/8180)
+2026-10-15T04:28:01.3352941Z Updating files:  43% (3518/8180)
+2026-10-15T04:28:01.3522444Z Updating files:  44% (3600/8180)
+2026-10-15T04:28:01.3815170Z Updating files:  45% (3681/8180)
+2026-10-15T04:28:01.4738339Z Updating files:  46% (3763/8180)
+2026-10-15T04:28:01.5270608Z Updating files:  47% (3845/8180)
+2026-10-15T04:28:01.5382922Z Updating files:  48% (3927/8180)
+2026-10-15T04:28:01.6521285Z Updating files:  49% (4009/8180)
+2026-10-15T04:28:01.8370043Z Updating files:  50% (4090/8180)
+2026-10-15T04:28:01.8375942Z Updating files:  50% (4151/8180)
+2026-10-15T04:28:01.8669754Z Updating files:  51% (4172/8180)
+2026-10-15T04:28:01.8759092Z Updating files:  52% (4254/8180)
+2026-10-15T04:28:01.8883134Z Updating files:  53% (4336/8180)
+2026-10-15T04:28:02.0660832Z Updating files:  54% (4418/8180)
+2026-10-15T04:28:02.0785497Z Updating files:  55% (4499/8180)
+2026-10-15T04:28:02.0922868Z Updating files:  56% (4581/8180)
+2026-10-15T04:28:02.1120359Z Updating files:  57% (4663/8180)
+2026-10-15T04:28:02.1268341Z Updating files:  58% (4745/8180)
+2026-10-15T04:28:02.1415284Z Updating files:  59% (4827/8180)
+2026-10-15T04:28:02.1660389Z Updating files:  60% (4908/8180)
+2026-10-15T04:28:02.1752361Z Updating files:  61% (4990/8180)
+2026-10-15T04:28:02.1807860Z Updating files:  62% (5072/8180)
+2026-10-15T04:28:02.1883610Z Updating files:  63% (5154/8180)
+2026-10-15T04:28:02.1948796Z Updating files:  64% (5236/8180)
+2026-10-15T04:28:02.2013391Z Updating files:  65% (5317/8180)
+2026-10-15T04:28:02.2052185Z Updating files:  66% (5399/8180)
+2026-10-15T04:28:02.2098373Z Updating files:  67% (5481/8180)
+2026-10-15T04:28:02.2148580Z Updating files:  68% (5563/8180)
+2026-10-15T04:28:02.2200767Z Updating files:  69% (5645/8180)
+2026-10-15T04:28:02.2248528Z Updating files:  70% (5726/8180)
+2026-10-15T04:28:02.2308770Z Updating files:  71% (5808/8180)
+2026-10-15T04:28:02.2391600Z Updating files:  72% (5890/8180)
+2026-10-15T04:28:02.2492353Z Updating files:  73% (5972/8180)
+2026-10-15T04:28:02.2557580Z Updating files:  74% (6054/8180)
+2026-10-15T04:28:02.2695221Z Updating files:  75% (6135/8180)
+2026-10-15T04:28:02.2777419Z Updating files:  76% (6217/8180)
+2026-10-15T04:28:02.2861600Z Updating files:  77% (6299/8180)
+2026-10-15T04:28:02.3137452Z Updating files:  78% (6381/8180)
+2026-10-15T04:28:02.3355116Z Updating files:  79% (6463/8180)
+2026-10-15T04:28:02.3445596Z Updating files:  80% (6544/8180)
+2026-10-15T04:28:02.3460218Z Updating files:  81% (6626/8180)
+2026-10-15T04:28:02.3473826Z Updating files:  82% (6708/8180)
+2026-10-15T04:28:02.3487718Z Updating files:  83% (6790/8180)
+2026-10-15T04:28:02.3501364Z Updating files:  84% (6872/8180)
+2026-10-15T04:28:02.3515857Z Updating files:  85% (6953/8180)
+2026-10-15T04:28:02.3529308Z Updating files:  86% (7035/8180)
+2026-10-15T04:28:02.5021706Z Updating files:  87% (7117/8180)
+2026-10-15T04:28:02.5111736Z Updating files:  88% (7199/8180)
+2026-10-15T04:28:02.5248599Z Updating files:  89% (7281/8180)
+2026-10-15T04:28:02.5293088Z Updating files:  90% (7362/8180)
+2026-10-15T04:28:02.6653844Z Updating files:  91% (7444/8180)
+2026-10-15T04:28:02.6789230Z Updating files:  92% (7526/8180)
+2026-10-15T04:28:02.8378001Z Updating files:  93% (7608/8180)
+2026-10-15T04:28:02.9501099Z Updating files:  93% (7649/8180)
+2026-10-15T04:28:03.8375600Z Updating files:  94% (7690/8180)
+2026-10-15T04:28:03.9002159Z Updating files:  94% (7751/8180)
+2026-10-15T04:28:04.2548709Z Updating files:  95% (7771/8180)
+2026-10-15T04:28:04.7986332Z Updating files:  96% (7853/8180)
+2026-10-15T04:28:04.8837277Z Updating files:  97% (7935/8180)
+2026-10-15T04:28:05.1163256Z Updating files:  97% (7959/8180)
+2026-10-15T04:28:05.1602253Z Updating files:  98% (8017/8180)
+2026-10-15T04:28:05.1975392Z Updating files:  99% (8099/8180)
+2026-10-15T04:28:05.1976090Z Updating files: 100% (8180/8180)
+2026-10-15T04:28:05.1976938Z Updating files: 100% (8180/8180), done.
+2026-10-15T04:28:05.2070974Z Switched to a new branch 'codex/1495-lean-recovery-20261015'
+2026-10-15T04:28:05.2076167Z branch 'codex/1495-lean-recovery-20261015' set up to track 'origin/codex/1495-lean-recovery-20261015'.
+2026-10-15T04:28:05.2596516Z ##[endgroup]
+2026-10-15T04:28:05.2648226Z [command]/usr/bin/git log -1 --format=%H
+2026-10-15T04:28:05.2672293Z 9e1b22aa8b50de9097f4ce6d0247281707f8506c
+2026-10-15T04:28:05.3433700Z ##[group]Run actions/cache@v4
+2026-10-15T04:28:05.3434061Z with:
+2026-10-15T04:28:05.3434351Z   path: ~/.elan
+2026-10-15T04:28:05.3434828Z   key: elan-a0371b9093c4eae338edd7cc623d94d8bc4f303d05f0ac1deddb2eacbb3f1c0a
+2026-10-15T04:28:05.3435326Z   enableCrossOsArchive: false
+2026-10-15T04:28:05.3435704Z   fail-on-cache-miss: false
+2026-10-15T04:28:05.3436069Z   lookup-only: false
+2026-10-15T04:28:05.3436382Z   save-always: false
+2026-10-15T04:28:05.3436701Z ##[endgroup]
+2026-10-15T04:28:05.4426785Z (node:2281) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-15T04:28:05.4427558Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-15T04:28:05.6087349Z Cache hit for: elan-a0371b9093c4eae338edd7cc623d94d8bc4f303d05f0ac1deddb2eacbb3f1c0a
+2026-10-15T04:28:05.6187406Z (node:2281) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-15T04:28:06.8194052Z Received 88080384 of 729135465 (12.1%), 83.9 MBs/sec
+2026-10-15T04:28:07.8198180Z Received 268435456 of 729135465 (36.8%), 127.9 MBs/sec
+2026-10-15T04:28:08.8190371Z Received 478150656 of 729135465 (65.6%), 151.9 MBs/sec
+2026-10-15T04:28:09.8205933Z Received 666894336 of 729135465 (91.5%), 158.9 MBs/sec
+2026-10-15T04:28:10.3873563Z Received 729135465 of 729135465 (100.0%), 152.2 MBs/sec
+2026-10-15T04:28:10.3875427Z Cache Size: ~695 MB (729135465 B)
+2026-10-15T04:28:10.3984010Z [command]/usr/bin/tar -xf /home/runner/work/_temp/40d54a98-75e4-4d5b-a1ae-6fdffbf99be3/cache.tzst -P -C /home/runner/work/NewChanlun/NewChanlun --use-compress-program unzstd
+2026-10-15T04:28:21.9213019Z Cache restored successfully
+2026-10-15T04:28:21.9570168Z Cache restored from key: elan-a0371b9093c4eae338edd7cc623d94d8bc4f303d05f0ac1deddb2eacbb3f1c0a
+2026-10-15T04:28:22.3848371Z ##[group]Run curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | bash -s -- -y --default-toolchain none
+2026-10-15T04:28:22.3849562Z [36;1mcurl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | bash -s -- -y --default-toolchain none[0m
+2026-10-15T04:28:22.3850284Z [36;1mecho "$HOME/.elan/bin" >> "$GITHUB_PATH"[0m
+2026-10-15T04:28:22.6912311Z shell: /usr/bin/bash -e {0}
+2026-10-15T04:28:22.6912781Z ##[endgroup]
+2026-10-15T04:28:22.7789374Z info: downloading installer
+2026-10-15T04:28:23.7007501Z ##[group]Run lake build
+2026-10-15T04:28:23.7007877Z [36;1mlake build[0m
+2026-10-15T04:28:23.7055780Z shell: /usr/bin/bash -e {0}
+2026-10-15T04:28:23.7056165Z ##[endgroup]
+2026-10-15T04:28:24.4883538Z ✔ [1/17] Built Formal.TrendTrichotomy (502ms)
+2026-10-15T04:28:24.8943748Z ✔ [2/17] Built Formal.BSPLabels (946ms)
+2026-10-15T04:28:25.0904162Z ✔ [3/17] Built Claim10_SegmentV1 (1.2s)
+2026-10-15T04:28:25.2904719Z ✔ [4/17] Built Formal.ConstitutiveLadder (836ms)
+2026-10-15T04:28:25.3906940Z ✔ [5/28] Built Claim5_ConstitutiveLadder (1.5s)
+2026-10-15T04:28:25.7939225Z ⚠ [6/28] Built Formal.CenterTrichotomy (903ms)
+2026-10-15T04:28:25.8007837Z warning: Formal/CenterTrichotomy.lean:110:50: This simp argument is unused:
+2026-10-15T04:28:25.8022851Z   h
+2026-10-15T04:28:25.8043991Z 
+2026-10-15T04:28:25.8073246Z Hint: Omit it from the simp argument list.
+2026-10-15T04:28:25.8087559Z   simp [h2,̵ ̵h̵]
+2026-10-15T04:28:25.8112607Z 
+2026-10-15T04:28:25.8143338Z Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+2026-10-15T04:28:25.8921232Z ✔ [7/28] Built Claim6_OperationalSemantics (796ms)
+2026-10-15T04:28:26.4943939Z ✔ [8/28] Built Formal.OperationalSemantics (1.2s)
+2026-10-15T04:28:26.5920668Z ✔ [9/28] Built Signal (1.2s)
+2026-10-15T04:28:26.7943568Z ✔ [10/28] Built Accounting.Ledger (969ms)
+2026-10-15T04:28:27.1943413Z ✔ [11/28] Built Accounting.Forest (1.3s)
+2026-10-15T04:28:27.2934336Z ✔ [12/28] Built Dynamics (756ms)
+2026-10-15T04:28:27.3925949Z ✔ [13/48] Built Claim9_CenterPosition (625ms)
+2026-10-15T04:28:27.8988330Z ✔ [15/48] Built Accounting.Earning (616ms)
+2026-10-15T04:28:27.9979171Z ✔ [16/48] Built Accounting.Solvency (737ms)
+2026-10-15T04:28:28.0023335Z ✔ [17/48] Built Strict.Classification (652ms)
+2026-10-15T04:28:28.1993583Z ✔ [18/48] Built Accounting (277ms)
+2026-10-15T04:28:28.5990982Z ✔ [19/48] Built Formal.RecursiveConstruction (1.9s)
+2026-10-15T04:28:28.6992441Z ✔ [20/48] Built Strict.RiskProj (664ms)
+2026-10-15T04:28:29.5024202Z ✔ [21/48] Built Strict.Nest (970ms)
+2026-10-15T04:28:29.5053802Z ✔ [22/48] Built Strict.Fugue (1.2s)
+2026-10-15T04:28:29.6053938Z ✔ [23/48] Built Origin.TotalWealth (1.7s)
+2026-10-15T04:28:30.2033652Z ✔ [24/48] Built Strict.ClassificationFamily (710ms)
+2026-10-15T04:28:30.5033504Z ✔ [25/48] Built Strict.Parse (1000ms)
+2026-10-15T04:28:30.8053798Z ✔ [26/48] Built Strict.LevelState (2.1s)
+2026-10-15T04:28:30.9032993Z ✔ [27/48] Built Strict.Op (642ms)
+2026-10-15T04:28:31.0053374Z ✔ [28/55] Built Strict.Center (1.4s)
+2026-10-15T04:28:31.3035390Z ✔ [29/55] Built Strict.OpenTail (788ms)
+2026-10-15T04:28:31.4047878Z ✔ [30/55] Built Strict.Causal (576ms)
+2026-10-15T04:28:31.8053643Z ✔ [31/55] Built Strict.Trend (515ms)
+2026-10-15T04:28:31.8083197Z ✔ [32/55] Built Strict.Recursive (800ms)
+2026-10-15T04:28:31.8112935Z ✔ [33/55] Built Strict.BSP (887ms)
+2026-10-15T04:28:32.4093904Z ✔ [34/55] Built Formal.RStarNonSpecial (631ms)
+2026-10-15T04:28:32.4173403Z ✔ [35/55] Built Formal.EvalSoundness (1.0s)
+2026-10-15T04:28:32.6066785Z ✔ [36/55] Built Payoff (788ms)
+2026-10-15T04:28:33.0095650Z ✔ [37/55] Built Formal.DivergenceNesting (1.2s)
+2026-10-15T04:28:33.2093692Z ✔ [38/60] Built Origin.SourceAxioms (776ms)
+2026-10-15T04:28:33.3103404Z ✔ [39/60] Built Spiral (780ms)
+2026-10-15T04:28:33.3163372Z ✔ [40/60] Built Strict.StrategyFamily (874ms)
+2026-10-15T04:28:33.5114878Z ✔ [41/60] Built Formal (331ms)
+2026-10-15T04:28:33.7106054Z ✔ [43/60] Built Strict.Decomp (671ms)
+2026-10-15T04:28:33.8171131Z ✔ [44/60] Built Origin.CompleteClassification (464ms)
+2026-10-15T04:28:34.5140751Z ✔ [45/60] Built Strict.Chain (736ms)
+2026-10-15T04:28:34.7183721Z ✔ [46/60] Built Operational (1.4s)
+2026-10-15T04:28:34.9155523Z ✔ [48/60] Built CompleteClassification (1.4s)
+2026-10-15T04:28:35.2173546Z ✔ [49/60] Built Strict.CThetaWiring (681ms)
+2026-10-15T04:28:35.4153571Z ✔ [50/60] Built Strict.HybridStep (501ms)
+2026-10-15T04:28:36.0203981Z ✔ [52/158] Built ChanlunInstantiation (797ms)
+2026-10-15T04:28:36.0225486Z ✔ [53/158] Built Origin.BehaviorQuotient (493ms)
+2026-10-15T04:28:36.1180881Z ✔ [54/158] Built Origin.ChanlunElements (1.4s)
+2026-10-15T04:28:36.6243661Z ✔ [55/158] Built Origin.RiskProj (678ms)
+2026-10-15T04:28:36.6273389Z ✔ [56/158] Built Origin.ClassifierFamily (569ms)
+2026-10-15T04:28:36.7240674Z ✔ [57/158] Built Origin.VoiceTree (590ms)
+2026-10-15T04:28:37.4267905Z ✔ [58/158] Built Origin.LeverageCapital (731ms)
+2026-10-15T04:28:37.7272966Z ✔ [59/158] Built Origin.IntervalNestCertificate (1.2s)
+2026-10-15T04:28:38.7313823Z ✔ [60/158] Built Origin.FineCoarseClassification (1.0s)
+2026-10-15T04:28:38.7343433Z ✔ [61/158] Built Origin.OperationRole18 (1.0s)
+2026-10-15T04:28:38.9313856Z ✔ [62/158] Built Origin.NestingCertificate (1.5s)
+2026-10-15T04:28:39.2316997Z ✔ [63/158] Built Origin.SeparateLedger (519ms)
+2026-10-15T04:28:39.5321582Z ✔ [64/158] Built Origin.NetValueImpossibility (666ms)
+2026-10-15T04:28:39.6323785Z ℹ [65/158] Built Origin.PromQual (844ms)
+2026-10-15T04:28:39.6343993Z info: Origin/PromQual.lean:548:0: 'NewChanlun.Origin.PromQual.promote_wellFormed' depends on axioms: [propext, Quot.sound]
+2026-10-15T04:28:39.6352806Z info: Origin/PromQual.lean:549:0: 'NewChanlun.Origin.PromQual.promote_function_unique' depends on axioms: [propext, Quot.sound]
+2026-10-15T04:28:39.6373588Z info: Origin/PromQual.lean:550:0: 'NewChanlun.Origin.PromQual.derivation_not_unique' depends on axioms: [propext, Quot.sound]
+2026-10-15T04:28:39.6403356Z info: Origin/PromQual.lean:551:0: 'NewChanlun.Origin.PromQual.promote_shift_commute' depends on axioms: [propext, Quot.sound]
+2026-10-15T04:28:39.6433207Z info: Origin/PromQual.lean:552:0: 'NewChanlun.Origin.PromQual.prom_total_and_single_valued' depends on axioms: [propext, Quot.sound]
+2026-10-15T04:28:39.6453001Z info: Origin/PromQual.lean:553:0: 'NewChanlun.Origin.PromQual.witness_qual' depends on axioms: [propext, Quot.sound]
+2026-10-15T04:28:39.6463808Z info: Origin/PromQual.lean:554:0: 'NewChanlun.Origin.PromQual.witness_qual_needs_overlap' depends on axioms: [propext, Quot.sound]
+2026-10-15T04:28:39.7355146Z ✔ [66/158] Built Origin.CausalEndpointImpossibility (495ms)
+2026-10-15T04:28:41.3400709Z ℹ [67/158] Built Origin.CertGatedExit (1.8s)
+2026-10-15T04:28:41.3423491Z info: Origin/CertGatedExit.lean:747:0: 'NewChanlun.Origin.CertGatedExit.index_first_wins' depends on axioms: [propext]
+2026-10-15T04:28:41.3443258Z info: Origin/CertGatedExit.lean:748:0: 'NewChanlun.Origin.CertGatedExit.index_no_level_zero' depends on axioms: [propext]
+2026-10-15T04:28:41.3473516Z info: Origin/CertGatedExit.lean:749:0: 'NewChanlun.Origin.CertGatedExit.index_stats_accounting' depends on axioms: [propext, Quot.sound]
+2026-10-15T04:28:41.3483141Z info: Origin/CertGatedExit.lean:750:0: 'NewChanlun.Origin.CertGatedExit.ident_binding_bar_invariant' does not depend on any axioms
+2026-10-15T04:28:41.3503461Z info: Origin/CertGatedExit.lean:751:0: 'NewChanlun.Origin.CertGatedExit.window_binding_not_bar_invariant' does not depend on any axioms
+2026-10-15T04:28:41.3533300Z info: Origin/CertGatedExit.lean:752:0: 'NewChanlun.Origin.CertGatedExit.window_binding_admits_without_identity' does not depend on any axioms
+2026-10-15T04:28:41.3563175Z info: Origin/CertGatedExit.lean:753:0: 'NewChanlun.Origin.CertGatedExit.gate_bar_invariant' depends on axioms: [propext]
+2026-10-15T04:28:41.3579470Z info: Origin/CertGatedExit.lean:754:0: 'NewChanlun.Origin.CertGatedExit.gate_window_variant_bar_dependent' depends on axioms: [propext]
+2026-10-15T04:28:41.3642989Z info: Origin/CertGatedExit.lean:755:0: 'NewChanlun.Origin.CertGatedExit.exit_gate_typed_only' depends on axioms: [propext]
+2026-10-15T04:28:41.3683148Z info: Origin/CertGatedExit.lean:756:0: 'NewChanlun.Origin.CertGatedExit.exit_gate_nochain_reject' depends on axioms: [propext]
+2026-10-15T04:28:41.3713118Z info: Origin/CertGatedExit.lean:757:0: 'NewChanlun.Origin.CertGatedExit.exit_gate_reject_reject' depends on axioms: [propext]
+2026-10-15T04:28:41.3738356Z info: Origin/CertGatedExit.lean:758:0: 'NewChanlun.Origin.CertGatedExit.exit_gate_flat_reject' depends on axioms: [propext]
+2026-10-15T04:28:41.3740488Z info: Origin/CertGatedExit.lean:759:0: 'NewChanlun.Origin.CertGatedExit.exit_gate_v0_irrelevant' depends on axioms: [propext]
+2026-10-15T04:28:41.3742537Z info: Origin/CertGatedExit.lean:760:0: 'NewChanlun.Origin.CertGatedExit.exit_gate_pass_all_closed' depends on axioms: [propext, Quot.sound]
+2026-10-15T04:28:41.3744318Z info: Origin/CertGatedExit.lean:761:0: 'NewChanlun.Origin.CertGatedExit.chain_causal_monotone' depends on axioms: [propext, Quot.sound]
+2026-10-15T04:28:41.3745893Z info: Origin/CertGatedExit.lean:762:0: 'NewChanlun.Origin.CertGatedExit.exit_gate_causal_monotone' depends on axioms: [propext, Quot.sound]
+2026-10-15T04:28:41.3747649Z info: Origin/CertGatedExit.lean:763:0: 'NewChanlun.Origin.CertGatedExit.levelStatus_closed_iff' depends on axioms: [propext]
+2026-10-15T04:28:41.3749233Z info: Origin/CertGatedExit.lean:764:0: 'NewChanlun.Origin.CertGatedExit.entry_gate_not_typed_only' does not depend on any axioms
+2026-10-15T04:28:41.3750844Z info: Origin/CertGatedExit.lean:765:0: 'NewChanlun.Origin.CertGatedExit.exit_rejects_where_entry_admits' depends on axioms: [propext]
+2026-10-15T04:28:41.3752878Z info: Origin/CertGatedExit.lean:766:0: 'NewChanlun.Origin.CertGatedExit.entry_gate_typed_only_iff_no_fallback' depends on axioms: [propext]
+2026-10-15T04:28:41.3754533Z info: Origin/CertGatedExit.lean:767:0: 'NewChanlun.Origin.CertGatedExit.gates_agree_when_chain_decisive' depends on axioms: [propext]
+2026-10-15T04:28:42.4424074Z ℹ [68/158] Built Origin.NestLifecycleBook (2.8s)
+2026-10-15T04:28:42.4434011Z info: Origin/NestLifecycleBook.lean:1060:0: 'NewChanlun.Origin.NestLifecycleBook.advance_legal' depends on axioms: [propext, Classical.choice, Quot.sound]
+2026-10-15T04:28:42.4443657Z info: Origin/NestLifecycleBook.lean:1061:0: 'NewChanlun.Origin.NestLifecycleBook.retrograde_no_change' depends on axioms: [propext, Classical.choice, Quot.sound]
+2026-10-15T04:28:42.4473586Z info: Origin/NestLifecycleBook.lean:1062:0: 'NewChanlun.Origin.NestLifecycleBook.confirmed_absorbing' depends on axioms: [propext, Classical.choice, Quot.sound]
+2026-10-15T04:28:42.4503444Z info: Origin/NestLifecycleBook.lean:1063:0: 'NewChanlun.Origin.NestLifecycleBook.invalidated_absorbing' depends on axioms: [propext, Classical.choice, Quot.sound]
+2026-10-15T04:28:42.4510850Z info: Origin/NestLifecycleBook.lean:1064:0: 'NewChanlun.Origin.NestLifecycleBook.confirmed_invalidated_side_empty' depends on axioms: [propext]
+2026-10-15T04:28:42.4533394Z info: Origin/NestLifecycleBook.lean:1065:0: 'NewChanlun.Origin.NestLifecycleBook.clock_discipline' does not depend on any axioms
+2026-10-15T04:28:42.4563347Z info: Origin/NestLifecycleBook.lean:1066:0: 'NewChanlun.Origin.NestLifecycleBook.first_provable_write_once' depends on axioms: [propext,
+2026-10-15T04:28:42.4592675Z  Classical.choice,
+2026-10-15T04:28:42.4602708Z  Quot.sound]
+2026-10-15T04:28:42.4623722Z info: Origin/NestLifecycleBook.lean:1067:0: 'NewChanlun.Origin.NestLifecycleBook.new_first_provable_at_current' depends on axioms: [propext,
+2026-10-15T04:28:42.4652802Z  Classical.choice,
+2026-10-15T04:28:42.4682694Z  Quot.sound]
+2026-10-15T04:28:42.4690193Z info: Origin/NestLifecycleBook.lean:1068:0: 'NewChanlun.Origin.NestLifecycleBook.force_reason_first_complement' depends on axioms: [propext, Quot.sound]
+2026-10-15T04:28:42.4713544Z info: Origin/NestLifecycleBook.lean:1069:0: 'NewChanlun.Origin.NestLifecycleBook.toClosed_some_iff_confirmed' depends on axioms: [propext, Quot.sound]
+2026-10-15T04:28:42.4743637Z info: Origin/NestLifecycleBook.lean:1070:0: 'NewChanlun.Origin.NestLifecycleBook.history_append_only' depends on axioms: [propext, Classical.choice, Quot.sound]
+2026-10-15T04:28:42.4773240Z info: Origin/NestLifecycleBook.lean:1071:0: 'NewChanlun.Origin.NestLifecycleBook.newly_invalidated_archived' depends on axioms: [propext,
+2026-10-15T04:28:42.4802529Z  Classical.choice,
+2026-10-15T04:28:42.4803010Z  Quot.sound]
+2026-10-15T04:28:42.4833398Z info: Origin/NestLifecycleBook.lean:1072:0: 'NewChanlun.Origin.NestLifecycleBook.invalidated_has_payload' depends on axioms: [propext]
+2026-10-15T04:28:42.4863611Z info: Origin/NestLifecycleBook.lean:1073:0: 'NewChanlun.Origin.NestLifecycleBook.force_overtake_evidence_in_payload' does not depend on any axioms
+2026-10-15T04:28:42.4893243Z info: Origin/NestLifecycleBook.lean:1074:0: 'NewChanlun.Origin.NestLifecycleBook.never_constituted_evidence_in_payload' does not depend on any axioms
+2026-10-15T04:28:42.4895094Z info: Origin/NestLifecycleBook.lean:1075:0: 'NewChanlun.Origin.NestLifecycleBook.identity_vanished_has_no_force_evidence' does not depend on any axioms
+2026-10-15T04:28:42.8424303Z ✔ [69/158] Built Origin.FiniteTraceQuotient (389ms)
+2026-10-15T04:28:43.3453704Z ✔ [70/158] Built Origin.SyntaxElement (554ms)
+2026-10-15T04:28:43.9456751Z ✔ [71/158] Built Origin.Divergence (577ms)
+2026-10-15T04:28:45.0509031Z ✔ [72/158] Built Origin.CenterStates (1.1s)
+2026-10-15T04:28:47.0533852Z ✔ [73/158] Built Origin.SegmentFeatureSeq (2.0s)
+2026-10-15T04:28:47.7529303Z ✔ [74/158] Built Origin.TrendCompleteClassification (756ms)
+2026-10-15T04:28:48.4563539Z ✔ [75/158] Built Origin.VoiceEat (615ms)
+2026-10-15T04:28:48.6594184Z ✔ [76/158] Built Origin.ScanAssemblyMirror (8.9s)
+2026-10-15T04:28:49.1574069Z ✔ [77/158] Built Origin.GlobalProductClassification (516ms)
+2026-10-15T04:28:49.3603837Z ✔ [78/158] Built Origin.RootSelDisambig (941ms)
+2026-10-15T04:28:50.1576612Z ✔ [79/158] Built Origin.ConstraintSystem (815ms)
+2026-10-15T04:28:50.1593642Z ✔ [80/158] Built Origin.CovariantCapital (980ms)
+2026-10-15T04:28:50.7658827Z ℹ [81/158] Built Origin.CertificateChainParity (633ms)
+2026-10-15T04:28:50.7684192Z info: Origin/CertificateChainParity.lean:92:0: {"confirmed_vectors":{"nested":[true,true],"xiaozhuanda":[false,true]},"turn_classes":{"nested":"nested_confirmed","xiaozhuanda":"xiaozhuanda_candidate","exec":"exec_evidence_only","orphan":"defer_orphan"},"strict":{"closed_adjacent":true,"closed_skip":false,"open_adjacent":false}}
+2026-10-15T04:28:51.2710911Z ✔ [82/158] Built Origin.LedgerReconciliation (1.1s)
+2026-10-15T04:28:51.5658908Z ✔ [83/158] Built Origin.CandidateSet (718ms)
+2026-10-15T04:28:51.9693707Z ✔ [84/158] Built Origin.TraceProjection (684ms)
+2026-10-15T04:28:52.0673695Z ✔ [85/158] Built Origin.MutexElement (563ms)
+2026-10-15T04:28:52.4680409Z ✔ [86/158] Built Origin.SeparateEat (493ms)
+2026-10-15T04:28:52.5663071Z ℹ [87/158] Built Origin.Turn (447ms)
+2026-10-15T04:28:52.5693402Z info: Origin/Turn.lean:145:0: false
+2026-10-15T04:28:52.5722914Z info: Origin/Turn.lean:157:0: true
+2026-10-15T04:28:52.9685683Z ✔ [88/158] Built Origin.ForceInterface (534ms)
+2026-10-15T04:28:53.0687506Z ✔ [89/158] Built Origin.BspClassification (540ms)
+2026-10-15T04:28:53.5694410Z ✔ [90/158] Built Origin.VoiceThreeLevel (548ms)
+2026-10-15T04:28:53.5713580Z ✔ [91/158] Built Origin.CenterFull (449ms)
+2026-10-15T04:28:54.0708426Z ✔ [92/158] Built Origin.SegmentConstruction (558ms)
+2026-10-15T04:28:54.1743688Z ✔ [93/158] Built Origin.CanonicalQuotientTower (685ms)
+2026-10-15T04:28:54.4753704Z ✔ [94/158] Built Origin.ClassificationGuardrail (404ms)
+2026-10-15T04:28:54.5754067Z ✔ [95/158] Built Origin.RecursiveLevelSystem (376ms)
+2026-10-15T04:28:55.4794021Z ✔ [96/158] Built Origin.UnifiedScanMirrorBridge (14s)
+2026-10-15T04:28:56.2814137Z ✔ [97/158] Built Origin.LexArgmin (811ms)
+2026-10-15T04:28:57.0853975Z ✔ [98/158] Built Origin.OperationRole (754ms)
+2026-10-15T04:28:57.5864167Z ✔ [99/158] Built HybridStateMachine (23s)
+2026-10-15T04:28:57.5893291Z ✔ [100/158] Built Origin.ForceConformance (470ms)
+2026-10-15T04:28:58.0855685Z ✔ [101/158] Built Origin.ForceVelocity (568ms)
+2026-10-15T04:28:58.3877355Z ✔ [102/158] Built Origin.TrendSixState (753ms)
+2026-10-15T04:28:58.5893871Z ✔ [103/158] Built Origin.SubLevelDescent (467ms)
+2026-10-15T04:28:59.1933863Z ✔ [104/158] Built Origin.SellPointRecog (646ms)
+2026-10-15T04:29:00.0953894Z ✔ [105/158] Built Origin.CenterConstruction (893ms)
+2026-10-15T04:29:01.0951214Z ✔ [106/158] Built Origin.SegmentFeatureComplete (975ms)
+2026-10-15T04:29:02.8013709Z ✔ [107/158] Built Origin.ScanAssemblyBridge (8.2s)
+2026-10-15T04:29:03.7024167Z ✔ [108/158] Built Origin.BuySellPredicate (5.4s)
+2026-10-15T04:29:03.9013715Z ✔ [109/158] Built Origin.RThetaInterp (1.2s)
+2026-10-15T04:29:04.3003239Z ✔ [110/158] Built Origin.MutexExhaustive (610ms)
+2026-10-15T04:29:04.4005185Z ✔ [111/158] Built CompleteClassificationLimits (443ms)
+2026-10-15T04:29:04.8056180Z ✔ [113/158] Built Origin.RMoveCompose (460ms)
+2026-10-15T04:29:05.3064353Z ✔ [114/158] Built Origin.BspConstruction (931ms)
+2026-10-15T04:29:05.3072799Z ✔ [115/158] Built Origin.WellFoundedRank (471ms)
+2026-10-15T04:29:05.4083724Z ✔ [116/158] Built Origin.UnifiedScanMirrorRunner (4.3s)
+2026-10-15T04:29:06.1133676Z ✔ [117/158] Built Origin.CenterAutoAssign (836ms)
+2026-10-15T04:29:06.5133774Z ℹ [118/158] Built Origin.CenterConstruct (1.1s)
+2026-10-15T04:29:06.5156838Z info: Origin/CenterConstruct.lean:657:0: {"five_settled_break":[{"break_index":4,"break_up":true,"count":4,"dd":10,"end":3,"gg":20,"settled":true,"start":0,"zd":12,"zg":15}],"four_extend":[{"break_index":-1,"break_up":true,"count":4,"dd":10,"end":3,"gg":20,"settled":false,"start":0,"zd":12,"zg":15}],"meta":{"epistemic_level":"L0","note":"reference v1 中枢语义 bit-exact Lean machine-checked; 非 L2 经验断言","source":"formal/Origin/CenterConstruct.lean #eval refZhongshusFromComponents (machine-exported)"},"three_unsettled":[{"break_index":-1,"break_up":true,"count":3,"dd":10,"end":2,"gg":20,"settled":false,"start":0,"zd":12,"zg":15}],"v0_v1_interval":{"fixture":"s0=[10,20],s1=[12,15],s2=[11,18]","v0_zd":11,"v0_zg":18,"v1_zd":12,"v1_zg":15}}
+2026-10-15T04:29:07.4135205Z ✔ [119/158] Built Origin.SegmentAutoConstruct (1.2s)
+2026-10-15T04:29:07.4137457Z ✔ [120/158] Built Origin.ScanAssemblyNegative (914ms)
+2026-10-15T04:29:07.8143347Z ✔ [121/158] Built Origin.CenterComplete (2.6s)
+2026-10-15T04:29:08.1140041Z ✔ [122/158] Built Origin.LiftContext (713ms)
+2026-10-15T04:29:13.6204194Z ✔ [123/158] Built Origin.FullDefinitionStrategy (19s)
+2026-10-15T04:29:13.9223831Z ✔ [124/158] Built OriginAdapters.StrictPipeline (325ms)
+2026-10-15T04:29:14.2242555Z ✔ [126/158] Built Origin.DynamicCongruence (605ms)
+2026-10-15T04:29:14.4223642Z ✔ [127/158] Built Origin.SeparateStrategyTarget (821ms)
+2026-10-15T04:29:14.7204906Z ✔ [128/158] Built Origin.StrategyFamily (845ms)
+2026-10-15T04:29:15.0208706Z ✔ [129/158] Built Origin.CompleteStateEvent (1.5s)
+2026-10-15T04:29:15.0223250Z ✔ [130/158] Built Origin.SeparateStrategyWellDefined (629ms)
+2026-10-15T04:29:15.2223936Z ✔ [131/158] Built Origin.AncestorClosure (480ms)
+2026-10-15T04:29:15.6234030Z ✔ [132/158] Built Origin.DecisionSufficiency (551ms)
+2026-10-15T04:29:15.7263712Z ✔ [133/158] Built Strict.HybridAssembly (1.6s)
+2026-10-15T04:29:15.8209699Z ✔ [135/158] Built Origin.SubVoiceOpenClose (551ms)
+2026-10-15T04:29:16.3228091Z ✔ [136/158] Built Origin.ThetaInstantiation (1.2s)
+2026-10-15T04:29:16.4253746Z ✔ [137/158] Built Origin.AncestorLifespan (592ms)
+2026-10-15T04:29:16.6233449Z ✔ [138/158] Built Origin.ActiveSet (825ms)
+2026-10-15T04:29:16.6243372Z ✔ [139/158] Built Origin.CoverFeasibleTarget (994ms)
+2026-10-15T04:29:16.8243743Z ✔ [140/158] Built Origin.EngineBridge (512ms)
+2026-10-15T04:29:16.8273643Z ✔ [141/158] Built Origin.LedgerBridge (415ms)
+2026-10-15T04:29:17.1245040Z ✔ [142/158] Built Origin.HybridBridge (580ms)
+2026-10-15T04:29:17.3244966Z ✔ [143/158] Built Origin.BspEventBridge (579ms)
+2026-10-15T04:29:17.5240680Z ✔ [144/158] Built Origin.VoiceCoverTheorem (937ms)
+2026-10-15T04:29:17.6255105Z ✔ [145/158] Built Origin.Pipeline (842ms)
+2026-10-15T04:29:17.9336724Z ✔ [146/158] Built Origin.SellClosedLoop (769ms)
+2026-10-15T04:29:18.2325761Z ✔ [147/158] Built Origin.SecondSellClosedLoop (827ms)
+2026-10-15T04:29:18.2336198Z ✔ [148/158] Built Origin.ConcreteBehaviorQuotient (718ms)
+2026-10-15T04:29:18.2372692Z ⚠ [149/158] Built Origin.SelfSimilarity (613ms)
+2026-10-15T04:29:18.2374805Z warning: Origin/SelfSimilarity.lean:414:5: Variable name `hθ` is not explicitly referenced.
+2026-10-15T04:29:18.2422926Z 
+2026-10-15T04:29:18.2426588Z The binding can be removed (if unused) or named `_` (if used implicitly).
+2026-10-15T04:29:18.2429030Z 
+2026-10-15T04:29:18.2430156Z Note: This linter can be disabled with `set_option linter.unusedVariables false`
+2026-10-15T04:29:18.5303146Z ✔ [150/158] Built Origin.SevenLinkStrategy (577ms)
+2026-10-15T04:29:18.6305387Z ✔ [151/158] Built Origin.SeparateCoverTheorem (384ms)
+2026-10-15T04:29:18.6323725Z ℹ [152/158] Built Origin.ParentDirContainer (382ms)
+2026-10-15T04:29:18.6333537Z info: Origin/ParentDirContainer.lean:135:0: 'NewChanlun.Origin.ParentDirContainer.parentDirOfContainer_none_iff_germ' depends on axioms: [propext]
+2026-10-15T04:29:18.6335452Z info: Origin/ParentDirContainer.lean:136:0: 'NewChanlun.Origin.ParentDirContainer.classifyV_ambient_iff_germ' depends on axioms: [propext]
+2026-10-15T04:29:18.6337339Z info: Origin/ParentDirContainer.lean:137:0: 'NewChanlun.Origin.ParentDirContainer.classifyV_of_directional_container' depends on axioms: [propext]
+2026-10-15T04:29:18.6339384Z info: Origin/ParentDirContainer.lean:138:0: 'NewChanlun.Origin.ParentDirContainer.parentDirOfContainer_struct_only' does not depend on any axioms
+2026-10-15T04:29:18.9306631Z ℹ [153/158] Built Origin.MainTheorem (466ms)
+2026-10-15T04:29:18.9307435Z info: Origin/MainTheorem.lean:527:0: 'NewChanlun.Origin.MainTheorem.main_central_uniqueness' depends on axioms: [propext]
+2026-10-15T04:29:18.9308494Z info: Origin/MainTheorem.lean:528:0: 'NewChanlun.Origin.MainTheorem.main_sec16_L0_assumptions_discharged' depends on axioms: [propext, Quot.sound]
+2026-10-15T04:29:18.9309441Z info: Origin/MainTheorem.lean:529:0: 'NewChanlun.Origin.MainTheorem.sec16_assump1_recursion_wellfounded' does not depend on any axioms
+2026-10-15T04:29:18.9310405Z info: Origin/MainTheorem.lean:530:0: 'NewChanlun.Origin.MainTheorem.sec16_assump10_feasible_nonempty_conditional' depends on axioms: [propext]
+2026-10-15T04:29:18.9311338Z info: Origin/MainTheorem.lean:531:0: 'NewChanlun.Origin.MainTheorem.sec16_residue_classified' depends on axioms: [propext]
+2026-10-15T04:29:19.0333856Z ✔ [154/158] Built Origin.SeparateCoverRecursive (365ms)
+2026-10-15T04:29:19.3346420Z ✔ [155/158] Built Origin.SeparateFinalTheorem (305ms)
+2026-10-15T04:29:19.3347248Z ✔ [156/158] Built Origin.MutexRecursive (368ms)
+2026-10-15T04:29:19.6349636Z ✔ [157/158] Built Origin.MutexFinalTheorem (303ms)
+2026-10-15T04:29:19.6357782Z Build completed successfully (158 jobs).
+2026-10-15T04:29:19.6418950Z ##[group]Run python3 scripts/check_fixture_drift.py
+2026-10-15T04:29:19.6419459Z [36;1mpython3 scripts/check_fixture_drift.py[0m
+2026-10-15T04:29:19.6460797Z shell: /usr/bin/bash -e {0}
+2026-10-15T04:29:19.6461221Z ##[endgroup]
+2026-10-15T04:29:21.2116933Z regen 临时目录：/tmp/fixture_drift_iwlz6b0c（保留不删，绝不写 rust/tests/fixtures/）
+2026-10-15T04:29:21.2117690Z [center] rust/tests/fixtures/theta_v0_center_parity.json  ←  Origin/CenterConstruct.lean
+2026-10-15T04:29:21.2118485Z   regen 0.6s → /tmp/fixture_drift_iwlz6b0c/theta_v0_center_parity.json
+2026-10-15T04:29:21.2119040Z   ✓ 无漂移：语义一致（0 字段差异）；字节级：一致
+2026-10-15T04:29:21.2119735Z [certificate_chain] rust/tests/fixtures/certificate_chain_parity.json  ←  Origin/CertificateChainParity.lean
+2026-10-15T04:29:21.2120467Z   regen 0.3s → /tmp/fixture_drift_iwlz6b0c/certificate_chain_parity.json
+2026-10-15T04:29:21.2120951Z   ✓ 无漂移：语义一致（0 字段差异）；字节级：一致
+2026-10-15T04:29:21.2121663Z [parity] rust/tests/fixtures/theta_v0_parity.json  ←  Origin/ParityFixtureExport.lean
+2026-10-15T04:29:21.2131528Z   regen 0.6s → /tmp/fixture_drift_iwlz6b0c/theta_v0_parity.json
+2026-10-15T04:29:21.2132496Z   ✓ 无漂移：语义一致（0 字段差异）；字节级：一致
+2026-10-15T04:29:21.2132882Z ✓ fixture 漂移检查：全部无漂移（绿）
+2026-10-15T04:29:21.2783178Z Post job cleanup.
+2026-10-15T04:29:21.3854942Z Cache hit occurred on the primary key elan-a0371b9093c4eae338edd7cc623d94d8bc4f303d05f0ac1deddb2eacbb3f1c0a, not saving cache.
+2026-10-15T04:29:21.3856530Z (node:3773) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-15T04:29:21.3857789Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-15T04:29:21.3997972Z Post job cleanup.
+2026-10-15T04:29:21.4820638Z [command]/usr/bin/git version
+2026-10-15T04:29:21.4861979Z git version 2.55.0
+2026-10-15T04:29:21.4896749Z Temporarily overriding HOME='/home/runner/work/_temp/c52e3d97-7c38-4234-a1ab-ce9e9dcdb5da' before making global git config changes
+2026-10-15T04:29:21.4898018Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-15T04:29:21.4902528Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/NewChanlun/NewChanlun
+2026-10-15T04:29:21.4938696Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-15T04:29:21.4969807Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-15T04:29:21.5189123Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-15T04:29:21.5214067Z http.https://github.com/.extraheader
+2026-10-15T04:29:21.5223829Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-15T04:29:21.5263324Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-15T04:29:21.5487020Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-15T04:29:21.5518199Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-15T04:29:21.5896850Z Cleaning up orphan processes
+2026-10-15T04:29:21.6159467Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@v4, actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

@@ -1,0 +1,122 @@
+[
+  {
+    "header": "def FirstBreakConfirmsUp (a b c : FeatureElem) : Prop :=",
+    "normalized_in_merged": true,
+    "old_lines": 4
+  },
+  {
+    "header": "def FirstBreakConfirmsDown (a b c : FeatureElem) : Prop :=",
+    "normalized_in_merged": true,
+    "old_lines": 3
+  },
+  {
+    "header": "instance (a b c : FeatureElem) : Decidable (FirstBreakConfirmsUp a b c) := by",
+    "normalized_in_merged": true,
+    "old_lines": 3
+  },
+  {
+    "header": "instance (a b c : FeatureElem) : Decidable (FirstBreakConfirmsDown a b c) := by",
+    "normalized_in_merged": true,
+    "old_lines": 4
+  },
+  {
+    "header": "inductive TurnWindowState",
+    "normalized_in_merged": true,
+    "old_lines": 7
+  },
+  {
+    "header": "def turnWindowStateUp (b : FeatureElem) : List FeatureElem → TurnWindowState",
+    "normalized_in_merged": true,
+    "old_lines": 8
+  },
+  {
+    "header": "def turnWindowStateDown (b : FeatureElem) : List FeatureElem → TurnWindowState",
+    "normalized_in_merged": true,
+    "old_lines": 7
+  },
+  {
+    "header": "theorem firstBreakUp_iff_topFractal (a b c : FeatureElem)",
+    "normalized_in_merged": true,
+    "old_lines": 12
+  },
+  {
+    "header": "theorem firstBreakDown_iff_bottomFractal (a b c : FeatureElem)",
+    "normalized_in_merged": true,
+    "old_lines": 12
+  },
+  {
+    "header": "theorem firstBreakUp_tie_confirms (a b c : FeatureElem)",
+    "normalized_in_merged": true,
+    "old_lines": 6
+  },
+  {
+    "header": "theorem firstBreakDown_tie_confirms (a b c : FeatureElem)",
+    "normalized_in_merged": true,
+    "old_lines": 6
+  },
+  {
+    "header": "theorem turnWindowStateUp_contained_skip (b x : FeatureElem) (rest : List FeatureElem)",
+    "normalized_in_merged": true,
+    "old_lines": 8
+  },
+  {
+    "header": "theorem turnWindowStateDown_contained_skip (b x : FeatureElem) (rest : List FeatureElem)",
+    "normalized_in_merged": true,
+    "old_lines": 8
+  },
+  {
+    "header": "theorem turnWindowStateUp_singleton_confirmed (b c : FeatureElem) :",
+    "normalized_in_merged": true,
+    "old_lines": 5
+  },
+  {
+    "header": "theorem turnWindowStateDown_singleton_confirmed (b c : FeatureElem) :",
+    "normalized_in_merged": true,
+    "old_lines": 5
+  },
+  {
+    "header": "theorem turnWindowStateUp_singleton_iff_firstBreak (a b c : FeatureElem)",
+    "normalized_in_merged": true,
+    "old_lines": 7
+  },
+  {
+    "header": "theorem turnWindowStateDown_singleton_iff_firstBreak (a b c : FeatureElem)",
+    "normalized_in_merged": true,
+    "old_lines": 7
+  },
+  {
+    "header": "theorem turnWindowStateUp_append_of_ne_open (b : FeatureElem) (xs ys : List FeatureElem)",
+    "normalized_in_merged": true,
+    "old_lines": 14
+  },
+  {
+    "header": "theorem turnWindowStateDown_append_of_ne_open (b : FeatureElem) (xs ys : List FeatureElem)",
+    "normalized_in_merged": true,
+    "old_lines": 14
+  },
+  {
+    "header": "theorem turnWindowState_exhaustive (s : TurnWindowState) :",
+    "normalized_in_merged": true,
+    "old_lines": 4
+  },
+  {
+    "header": "example : turnWindowStateUp ⟨0, 10, by decide⟩ [⟨2, 8, by decide⟩] = .openAtPrefixEnd := by",
+    "normalized_in_merged": true,
+    "old_lines": 3
+  },
+  {
+    "header": "example : turnWindowStateUp ⟨0, 10, by decide⟩ [⟨-2, 10, by decide⟩] = .confirmed := by",
+    "normalized_in_merged": true,
+    "old_lines": 3
+  },
+  {
+    "header": "example : turnWindowStateUp ⟨0, 10, by decide⟩ [⟨5, 12, by decide⟩] = .killedByNewExtreme := by",
+    "normalized_in_merged": true,
+    "old_lines": 3
+  },
+  {
+    "header": "example : turnWindowStateDown ⟨0, 10, by decide⟩ [⟨0, 12, by decide⟩] = .confirmed := by",
+    "normalized_in_merged": true,
+    "old_lines": 3
+  }
+]

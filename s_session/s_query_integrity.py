@@ -399,11 +399,15 @@ def _published_axes(rule_revision):
     known = {
         "s2-axis-quantifiers": tb02.LEGACY_AXES,
         "s2-axis-quantifiers+new-bi/1": tb02.BI_AXES,
+        "s2-axis-quantifiers+new-bi/2": tb02.BI_AXES,
         "s2-axis-quantifiers+new-bi/1+segment-first/1": tb02.FIRST_SEGMENT_AXES,
         "s2-axis-quantifiers+new-bi/1+segment-second/1": tb02.AXES,
+        "s2-axis-quantifiers+new-bi/2+segment-second/1": tb02.AXES,
+        "s2-axis-quantifiers+new-bi/2+segment-second/2": tb02.AXES,
     }
-    # 未识别规则保持原有的完整轴要求，不退到旧规则的较小集合。
-    return known.get(rule_revision, tb02.AXES)
+    if rule_revision not in known:
+        raise ValueError("cut规则修订未声明")
+    return known[rule_revision]
 
 
 def _validate_schema(rows, tables):
@@ -1289,6 +1293,9 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
         raise ValueError("meta.writer_epoch 与持久换代历史不闭合")
     if type(meta.get("rule_revision")) is not str or not meta["rule_revision"]:
         raise ValueError("meta.rule_revision 缺失")
+    if meta.get("profile_id") == tb02.PROFILE:
+        # 空会话也必须声明已知合同，不能等首个事实/Delta 才验证规则。
+        _published_axes(meta["rule_revision"])
     raw_rows = _raw_rows(tables, meta)
     _verify_raw(raw_rows, deadline)
     raw = [_raw_wire(row) for row in raw_rows]

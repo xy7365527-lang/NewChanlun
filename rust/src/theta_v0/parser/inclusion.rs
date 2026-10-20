@@ -792,7 +792,7 @@ pub fn process_inclusion_with_facts(bars: &[Bar]) -> InclusionFacts {
 ///   `waiting_reasons` 因此仍是同一读数，不另立判据。
 /// - `evidence`：方向证据链（仅 new_group 时换指向），与全量同一更新点。
 /// - `positions`：raw 序位映射（`source_index → 第几根 raw`，同坐标后者覆盖）。这是
-///   `Endpoint.raw_position` 的唯一来源，**不能**用源坐标相减冒充。
+///   `Endpoint.raw_first/raw_last` 的唯一来源，**不能**用源坐标相减冒充。
 ///
 /// ## 与全量入口的**唯一**差别：历史 `source_coords` 的展开时机
 ///
@@ -800,7 +800,7 @@ pub fn process_inclusion_with_facts(bars: &[Bar]) -> InclusionFacts {
 /// `confirmation_evidence` 的 `source_coords` 在热路径留空，`steps` 不物化。
 /// 全量 [`process_inclusion_with_facts`] 保持完整展开（schema 与内容不变）——这是
 /// 「观察/完整 facts 请求才展开历史」的落地，**不是**判据分档：`Endpoint` 的结构字段
-/// （`kind`/`merged_index`/`group_anchor`/`price`/`extreme_roots`/`raw_position`/`sealed_at`）
+/// （`kind`/`merged_index`/`group_anchor`/`price`/`extreme_roots`/`raw_first`/`raw_last`/`sealed_at`）
 /// 与 `waiting_reasons` 两条路径逐位相同（`source_coords` 是纯证据面字段，不进任何判据）。
 ///
 /// ## #1394：完整证据的**共享表示**

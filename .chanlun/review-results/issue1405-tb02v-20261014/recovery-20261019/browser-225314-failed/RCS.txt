@@ -1,0 +1,4 @@
+head=c4bbdd9f8a862928ad3d1dd0ce323b2c15e0abd9 session_rc=0 browser_rc=1 check_rc=1
+08dfc65197be2292cb16d38cd1e0906d10f42c0090a50468acd86916c1377bcb  /home/hanju/nc-remote/target/release/s_structure_session
+ports 18960-18961 free
+no leftover processes

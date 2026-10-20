@@ -1106,6 +1106,8 @@ impl NativeSourceState {
         raw_membership: Option<i64>,
         dirty_groups: &Tree<i64>,
     ) -> Result<(), String> {
+        // #1405：步骤等待原因按会话规则合同版本化（与全量 source_pending::audit 同口径）。
+        let equal_is_evidence = source_pending::equal_is_evidence(self.rule.as_str())?;
         let mut sequence = Tree::default();
         let mut dirty_requests = Tree::default();
         let mut old = Map::default();
@@ -1143,7 +1145,12 @@ impl NativeSourceState {
                 self.knowledge = Some(handle);
                 knowledge_changed = true;
             } else {
-                let (coord, data) = source_pending::StepContribution::bind(s, object, &self.raw)?;
+                let (coord, data) = source_pending::StepContribution::bind(
+                    s,
+                    object,
+                    &self.raw,
+                    equal_is_evidence,
+                )?;
                 self.work.step_local += 1;
                 if let Some(other) = self.steps.get(&coord).map(|step| step.handle) {
                     if other != handle {
@@ -1332,6 +1339,7 @@ impl NativeSourceState {
         knowledge: usize,
         mut dirty: Tree<Handle>,
     ) -> Result<(), String> {
+        let equal_is_evidence = source_pending::equal_is_evidence(self.rule.as_str())?;
         let stream = Stream::Requests(u64::try_from(knowledge).map_err(|_| err("知识位置溢出"))?);
         let changes = apply_order(
             s,
@@ -1376,7 +1384,13 @@ impl NativeSourceState {
                 keys: &mut self.request_keys,
                 bound: &mut self.request_bound,
             };
-            source_pending::request_record_with_slots(s, &request, &lookup, &mut keys)?;
+            source_pending::request_record_with_slots(
+                s,
+                &request,
+                &lookup,
+                &mut keys,
+                equal_is_evidence,
+            )?;
             drop(keys);
             // 成功后才记录逆依赖，不提前解码未来请求以构造索引。
             let key = text(s, &request, "request_id")?;

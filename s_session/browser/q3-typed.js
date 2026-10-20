@@ -5,6 +5,23 @@
   else root.Q3Typed = api;
 })(globalThis, function (V) {
   "use strict";
+  // #1405：旧合同 AsKnown 保留，代际由会话规则绑定，不能混用。
+  const KNOWLEDGE_DOMAINS = ["established_direction_without_extreme_identity_competition", "established_direction_with_extreme_root_sets"];
+  const BI_VERSIONS = {
+    "s-new-bi/1": ["new-bi-dual-coordinate/1", "standard_raw_gap_3"],
+    "s-new-bi/2": ["new-bi-dual-coordinate/2", "standard_raw_gap_3;same-price/keep-earlier+extreme-region/1"],
+  };
+  const RULE_CONTRACTS = {
+    "s2-axis-quantifiers": [null, null, KNOWLEDGE_DOMAINS[0]],
+    "s2-axis-quantifiers+new-bi/1": ["s-new-bi/1", null, KNOWLEDGE_DOMAINS[0]],
+    "s2-axis-quantifiers+new-bi/1+segment-first/1": ["s-new-bi/1", "s-segment/1", KNOWLEDGE_DOMAINS[0]],
+    "s2-axis-quantifiers+new-bi/1+segment-second/1": ["s-new-bi/1", "s-segment/2", KNOWLEDGE_DOMAINS[0]],
+    "s2-axis-quantifiers+new-bi/2": ["s-new-bi/2", null, KNOWLEDGE_DOMAINS[1]],
+    "s2-axis-quantifiers+new-bi/2+segment-second/1": ["s-new-bi/2", "s-segment/2", KNOWLEDGE_DOMAINS[1]],
+    "s2-axis-quantifiers+new-bi/2+segment-second/2": ["s-new-bi/2", "s-segment/3", KNOWLEDGE_DOMAINS[1]],
+  };
+  const SAME_PRICE_KEEP_EVIDENCE = "same_kind_equal_price_keep_earlier";
+  const RETIRED_SAME_PRICE_WAITING = ["raw_extreme_identity_tie", "actual_extreme_mapping_missing", "same_kind_endpoint_identity_tie", "earlier_endpoint_identity_unsettled"];
   const TB02_KINDS = ["CC-004.inclusion_step", "CC-005.inclusion_group", "CC-007.fractal_description", "CC-054.knowledge_state"];
   const BI_KINDS = ["CC-008.endpoint", "CC-008.new_bi_pair", "CC-009.same_kind", "CC-010.bi", "CC-055.relation", "CC-055.change_event", "CC-056.version"];
   TB02_KINDS.push(...BI_KINDS);
@@ -148,7 +165,7 @@
       }
     } else {
       await keys(p, ["scope", "input_frontier", "known_facts", "waiting_reasons", "domain", "requests"], "知识状态");
-      need(await eqField(p, "scope", "TB-02-A") && await eqField(p, "domain", "established_direction_without_extreme_identity_competition") && await eqField(p, "known_facts", ["raw_ohlc", "inclusion_trace", "group_provenance"]), "知识域/已知事实不符");
+      need(await eqField(p, "scope", "TB-02-A") && KNOWLEDGE_DOMAINS.includes(await S(await field(p, "domain"))) && await eqField(p, "known_facts", ["raw_ohlc", "inclusion_trace", "group_provenance"]), "知识域/已知事实不符");
       await I(await field(p, "input_frontier"), false, true); await texts(await field(p, "waiting_reasons")); const requests = await array(await field(p, "requests"), "逐请求集合不完整"), ids = new Set();
       const enums = {input_quality:["SUFFICIENT", "INSUFFICIENT", "INCONSISTENT"], applicability:["IN_DOMAIN", "OUTSIDE_DOMAIN", "DOMAIN_PROOF_MISSING"], computation:["COMPLETE", "INCOMPLETE"], validity:["CURRENT", "SUPERSEDED", "WITHDRAWN"]};
       for await (const r of requests.items()) {
@@ -160,7 +177,7 @@
     const slot = [...BI_KINDS, ...SEGMENT_KINDS].includes(kind) ? await field(p, "slot") : kind === TB02_KINDS[0] ? await field(await field(p, "incoming"), "source_coord") : kind === TB02_KINDS[1] ? await field(p, "group_anchor") : kind === TB02_KINDS[2] ? await field(p, "window") : "TB-02-A";
     need(await canonicalMatches([kind, slot], await S(await field(record, "fact_key"))), "事实语义槽未绑定 payload");
   }
-  // #1404/#1414：s-segment/1、/2 段合同沿用 main 的同步判据原文（单一实现，含其同步 helper 原文）。
+  // #1404/#1414/#1420：s-segment/1、/2、/3 段合同沿用已审同步判据（单一实现，含 K1 游标）。
   // 调用面两处：导出给既有观察器/合同测试的同步入口；validateTyped 在该 payload 的完整原件上调用（见 plain）。
   const validateSegmentPayload = (function () {
     const need = V.need;
@@ -216,10 +233,89 @@
       return "{" + Object.keys(value).sort(utf8Compare).map(k => JSON.stringify(scalar(k)) + ":" + canonical(value[k])).join(",") + "}";
     }
     const equal = (a, b) => canonical(a) === canonical(b);
+    const SECOND_FOLD_CURSOR = ["schema", "rule_revision", "budget_policy", "budget_granted", "candidate", "input_stroke_count", "from_stroke", "through_stroke", "consumed_len", "consumed_digest", "dir_state", "standard", "breach_watermark", "semantic_state", "killed_by", "matched"];
+    // #1420 K1 游标线形自身：形状/枚举/整数/摘要、候选起点（b+1）与封存见证非空性；同对象相等绑定由调用方另做（与 s_tb02_contract._fold_cursor 对称）。
+    function foldCursor(c, element, kill, check) {
+      keys(c, SECOND_FOLD_CURSOR, "K1游标");
+      need(c.schema === "second-fold-cursor/1" && c.rule_revision === "second-candidate-terminal/1" && c.budget_policy === "second-seq-scan-budget/1", "K1游标版本不符");
+      const candidate = c.candidate; keys(candidate, ["seg_dir", "b_stroke", "candidate_extreme"], "K1候选身份");
+      need(["UP", "DOWN"].includes(candidate.seg_dir), "K1候选方向未声明"); signed(candidate.candidate_extreme);
+      const start = integer(c.from_stroke);
+      need(integer(candidate.b_stroke) + 1n === start, "K1游标起点不是b笔之后");
+      for (const name of ["input_stroke_count", "through_stroke", "consumed_len"]) integer(c[name]);
+      if (c.budget_granted !== null) integer(c.budget_granted, true);
+      need(typeof c.consumed_digest === "string" && /^[0-9a-f]{16}$/.test(c.consumed_digest), "K1游标指纹不规范");
+      direction(c.dir_state); need(Array.isArray(c.standard), "K1游标标准元素错型"); c.standard.forEach(e => element(e));
+      if (c.breach_watermark !== null) signed(c.breach_watermark);
+      const sealed = c.semantic_state;
+      // 游标只封存已决（CONFIRMED/KILLED）或未决（null）；OPEN 与覆盖只在出具结果时按输入末端判定。
+      need([null, "CONFIRMED", "KILLED_BY_NEW_EXTREME"].includes(sealed), "K1游标封存了未决终态");
+      need((c.killed_by !== null) === (sealed === "KILLED_BY_NEW_EXTREME") && (c.matched !== null) === (sealed === "CONFIRMED"), "K1游标见证与封存终态不符");
+      if (c.killed_by !== null) kill(c.killed_by);
+      if (c.matched !== null) check(c.matched);
+      return start;
+    }
+    // CC-056 续扫检查点没有 stroke_refs：元素只验形状，笔号只验为非负整数串。
+    function checkpointElement(e) {
+      keys(e, ["high", "low", "stroke_idx", "stroke_indices"], "FIRST元素"); signed(e.high); signed(e.low);
+      need(Array.isArray(e.stroke_indices), "要求完整坐标数组"); e.stroke_indices.forEach(i => integer(i));
+      need(e.stroke_indices.includes(e.stroke_idx), "元素代表笔不属于来源");
+    }
+    function checkpointKill(k) {
+      keys(k, ["stroke_idx", "price", "candidate_extreme", "comparison"], "失效见证"); integer(k.stroke_idx); signed(k.price); signed(k.candidate_extreme);
+      need([">", "<"].includes(k.comparison), "失效见证比较未声明");
+    }
+    function checkpointCheck(c) {
+      keys(c, ["elements", "top_fractal", "bottom_fractal", "through_stroke"], "SECOND分型见证");
+      need(Array.isArray(c.elements) && c.elements.length === 3, "SECOND分型窗口缺元素"); c.elements.forEach(e => checkpointElement(e));
+      need(typeof c.top_fractal === "boolean" && typeof c.bottom_fractal === "boolean", "SECOND分型错型"); integer(c.through_stroke);
+    }
+    // #1420 r2 CC-056.scan_cursors：本 cut 续扫检查点只含调度相关游标（累计预算大于每轮或本轮耗尽）；无同对象 facts 可比。
+    function scanCheckpoints(cursors, roundStrokes) {
+      need(Array.isArray(cursors), "续扫检查点不是数组");
+      need(roundStrokes !== 0n || cursors.length === 0, "预算0却登记续扫检查点");
+      const seen = new Set();
+      for (const c of cursors) {
+        foldCursor(c, checkpointElement, checkpointKill, checkpointCheck);
+        need(c.budget_granted !== null && BigInt(c.consumed_len) <= BigInt(c.budget_granted), "续扫检查点预算不符");
+        const identity = canonical([c.candidate.seg_dir, c.candidate.b_stroke, c.candidate.candidate_extreme]);
+        need(!seen.has(identity), "续扫检查点候选身份重复"); seen.add(identity);
+      }
+    }
+    // #1420 s-segment/3：SECOND 语义终点、扫描覆盖、预算与 K1 游标的类型和同对象绑定；不重放折叠（与 s_tb02_contract._second_terminal 对称）。
+    function secondTerminal(d, element, indices, secondCheck) {
+      const scan = d.scan, f = d.facts, semantic = scan.semantic_state;
+      need([null, "CONFIRMED", "KILLED_BY_NEW_EXTREME", "OPEN_AT_PREFIX_END"].includes(semantic) && ["COMPLETE", "INCOMPLETE_RESOURCE_BOUND"].includes(scan.coverage), "SECOND终态/覆盖未声明");
+      const incomplete = scan.coverage === "INCOMPLETE_RESOURCE_BOUND";
+      need(incomplete === scan.resource_truncated && (semantic === null) === incomplete, "SECOND覆盖与语义/截断不一致");
+      need(d.second_sequence_status === (semantic === "CONFIRMED" ? "CONFIRMED" : semantic === "KILLED_BY_NEW_EXTREME" ? "KILLED" : "PENDING"), "SECOND状态未绑定语义终点");
+      need(f.semantic_state === semantic && f.coverage === scan.coverage, "SECOND事实终态与扫描不一致");
+      keys(scan.budget, ["policy", "granted"], "扫描预算");
+      need(scan.budget.policy === "second-seq-scan-budget/1", "扫描预算政策版本不符");
+      if (scan.budget.granted !== null) integer(scan.budget.granted, true);
+      const extreme = signed(f.candidate_extreme);
+      if (f.breach_watermark !== null) signed(f.breach_watermark);
+      const comparison = d.direction === "UP" ? ">" : d.direction === "DOWN" ? "<" : null;
+      function kill(k) {
+        keys(k, ["stroke_idx", "price", "candidate_extreme", "comparison"], "失效见证"); indices([k.stroke_idx]);
+        const price = signed(k.price);
+        need(comparison !== null && k.comparison === comparison && k.candidate_extreme === f.candidate_extreme && (comparison === ">" ? price > extreme : price < extreme), "失效见证未严格越过候选极值");
+      }
+      need((f.killed_by !== null) === (semantic === "KILLED_BY_NEW_EXTREME"), "失效见证与语义终点不符");
+      if (f.killed_by !== null) { kill(f.killed_by); need(f.breach_watermark === f.killed_by.price, "越界水位未绑定失效见证"); }
+      const c = scan.cursor, start = foldCursor(c, element, kill, secondCheck);
+      need(c.budget_granted === scan.budget.granted, "K1游标预算未绑定扫描预算");
+      need(c.candidate.seg_dir === d.direction && start === BigInt(scan.from_stroke) && c.candidate.candidate_extreme === f.candidate_extreme, "K1候选身份未绑定SECOND扫描");
+      need(c.input_stroke_count === scan.input_stroke_count && BigInt(c.consumed_len) <= (BigInt(c.input_stroke_count) > start ? BigInt(c.input_stroke_count) - start : 0n), "K1游标消费范围越界");
+      need(c.semantic_state === null || c.semantic_state === semantic, "K1游标封存终态与扫描不同");
+      need(c.killed_by === null || equal(c.killed_by, f.killed_by), "K1游标失效见证与事实不同");
+      need(c.matched === null || equal(c.matched, f.matched), "K1游标命中与事实不同");
+    }
     return function validateSegmentPayload(kind, p) {
       keys(p, ["schema_revision", "semantic_version", "policy_version", "view_role", "object_generation", "slot", "data"], "段合同");
-      const v2 = p.schema_revision === "s-segment/2";
-      need(p.schema_revision === (v2 ? "s-segment/2" : "s-segment/1") && p.semantic_version === (v2 ? "segment-second/1" : "segment-seed-first/1") && p.policy_version === (v2 ? "seed_closed_strict_second" : "seed_closed_first_no_gap") && p.view_role === "main", "段规则/范围版本不符");
+      // #1420：v2＝「含第二种」（s-segment/2 与 /3 共用）；v3 只另管版本、SECOND 三态终点/K1 游标、KILLED_CASE_TWO、CC-056 范围与槽。
+      const v3 = p.schema_revision === "s-segment/3", v2 = v3 || p.schema_revision === "s-segment/2";
+      need(p.schema_revision === (v3 ? "s-segment/3" : v2 ? "s-segment/2" : "s-segment/1") && p.semantic_version === (v3 ? "segment-second/2" : v2 ? "segment-second/1" : "segment-seed-first/1") && p.policy_version === (v2 ? "seed_closed_strict_second" : "seed_closed_first_no_gap") && p.view_role === "main", "段规则/范围版本不符");
       integer(p.object_generation, true);
       const d = p.data, refs = new Map();
       let segmentStart = null;
@@ -260,15 +356,15 @@
       } else if (kind === SEGMENT_KINDS[1]) {
         keys(d, ["entity_id", "segment_id", "role", "direction", "member_direction", "facts", "stroke_refs", "scan", "second_sequence_status"], kind);
         const second = v2 && d.role === "SECOND_SEQUENCE";
-        need((v2 ? ["FIRST_SEQUENCE", "SECOND_SEQUENCE"] : ["FIRST_SEQUENCE"]).includes(d.role) && ["UP", "DOWN"].includes(d.member_direction) && (second ? ["PENDING", "CONFIRMED"] : v2 ? ["NOT_APPLICABLE", "PENDING", "CONFIRMED"] : ["NOT_APPLICABLE", "WAITING_FOLLOWUP"]).includes(d.second_sequence_status), "序列角色/适用性不符"); direction(d.direction);
-        keys(d.scan, ["from_stroke", "through_stroke", "input_stroke_count", "resource_truncated", "tail_cache_window"], "扫描范围");
-        for (const [k,v] of Object.entries(d.scan)) if (k !== "resource_truncated") integer(v);
+        need((v2 ? ["FIRST_SEQUENCE", "SECOND_SEQUENCE"] : ["FIRST_SEQUENCE"]).includes(d.role) && ["UP", "DOWN"].includes(d.member_direction) && (second ? ["PENDING", "CONFIRMED", ...(v3 ? ["KILLED"] : [])] : v2 ? ["NOT_APPLICABLE", "PENDING", "CONFIRMED", ...(v3 ? ["KILLED"] : [])] : ["NOT_APPLICABLE", "WAITING_FOLLOWUP"]).includes(d.second_sequence_status), "序列角色/适用性不符"); direction(d.direction);
+        keys(d.scan, ["from_stroke", "through_stroke", "input_stroke_count", "resource_truncated", "tail_cache_window", ...(second && v3 ? ["semantic_state", "coverage", "budget", "cursor"] : [])], "扫描范围");
+        for (const [k,v] of Object.entries(d.scan)) if (["from_stroke", "through_stroke", "input_stroke_count", "tail_cache_window"].includes(k)) integer(v);
         need(typeof d.scan.resource_truncated === "boolean", "截断状态错型");
         need(refs.size > 0, "特征序列缺段笔引用");
         // 身份锚＝stroke_refs 中数值最小的笔号，即段起笔；wire 整数是十进制文本，须按数值取最小。
         segmentStart = [...refs.keys()].reduce((a, b) => BigInt(b) < BigInt(a) ? b : a);
         need(second || d.scan.from_stroke === segmentStart, "FIRST扫描起点不是段起笔");
-        const f = d.facts; keys(f, ["raw_elements", "standard", "steps", "checks", ...(second ? ["from_stroke", "through_stroke", "input_stroke_count", "resource_truncated", "matched"] : [])], "序列事实");
+        const f = d.facts; keys(f, ["raw_elements", "standard", "steps", "checks", ...(second ? ["from_stroke", "through_stroke", "input_stroke_count", "resource_truncated", "matched"] : []), ...(second && v3 ? ["candidate_extreme", "breach_watermark", "semantic_state", "killed_by", "coverage"] : [])], "序列事实");
         for (const k of ["raw_elements", "standard", "steps", "checks"]) need(Array.isArray(f[k]), "序列事实集合错型");
         if (second) {
           integer(f.from_stroke); integer(f.through_stroke, false, true); integer(f.input_stroke_count);
@@ -286,7 +382,8 @@
           need(typeof c.top_fractal === "boolean" && typeof c.bottom_fractal === "boolean", "SECOND分型错型"); indices([c.through_stroke]);
         }
         if (second) {
-          need((f.matched === null) === (d.second_sequence_status === "PENDING"), "SECOND命中与状态不符");
+          // v3：未决（PENDING）与失效（KILLED）都无命中；v2 只有 PENDING 无命中。
+          need(v3 ? (f.matched !== null) === (d.second_sequence_status === "CONFIRMED") : (f.matched === null) === (d.second_sequence_status === "PENDING"), "SECOND命中与状态不符");
           if (f.matched !== null) { secondCheck(f.matched); need(f.checks.some(c => equal(c, f.matched)) && (f.matched.top_fractal || f.matched.bottom_fractal), "SECOND命中未绑定检查"); }
         }
         for (const c of f.checks) {
@@ -298,6 +395,7 @@
           for (const k of ["gap", "gap_closed_by_c"]) need(c[k] === null || typeof c[k] === "boolean", "gap见证错型");
           need((c.first_fractal || c.gap === null) && (c.gap === true || c.gap_closed_by_c === null), "不适用条件虚填布尔");
         }
+        if (second && v3) secondTerminal(d, element, indices, secondCheck);
       } else if (kind === SEGMENT_KINDS[2]) {
         keys(d, ["entity_id", "entity_revision", "seed_id", "sequence_id", "sequence_object_id", "construction", "result", "waiting_reasons", "termination_attempts", "geometric_end", "trigger_stroke", "formed_known_at", "terminated_known_at", "stroke_refs", ...(v2 ? ["second_sequence_id", "second_sequence_object_id", "strict", "fact_vector"] : [])], kind);
         integer(d.entity_revision, true); construction(d.construction); texts(d.waiting_reasons); known(d.formed_known_at);
@@ -306,7 +404,7 @@
           keys(a, ["end_stroke", "trigger_stroke", "minimum_count_met", "construction"], "终结准入见证");
           indices([a.end_stroke]); indices([a.trigger_stroke]); need(typeof a.minimum_count_met === "boolean", "最小笔数条件错型"); construction(a.construction);
         }
-        need(["NO_FIRST", "CASE_ONE", "PENDING_CASE_TWO", "FAILED_GEOMETRY", ...(v2 ? ["CASE_TWO"] : [])].includes(d.result), "冒称交付第二种终结");
+        need(["NO_FIRST", "CASE_ONE", "PENDING_CASE_TWO", "FAILED_GEOMETRY", ...(v2 ? ["CASE_TWO"] : []), ...(v3 ? ["KILLED_CASE_TWO"] : [])].includes(d.result), "冒称交付第二种终结");
         if (["CASE_ONE", "CASE_TWO"].includes(d.result)) {
           known(d.terminated_known_at); const e = d.geometric_end;
           keys(e, ["stroke_index", "group_anchor", "extreme_roots", "price"], "几何段端"); indices([e.stroke_index]); indices([d.trigger_stroke]); coordinates(e.extreme_roots); integer(e.group_anchor); signed(e.price);
@@ -325,7 +423,7 @@
           need(!terminated || strict !== null && strict.effective_case === d.result, "终结缺适用strict对象");
           need((d.second_sequence_id === null) === (d.second_sequence_object_id === null), "SECOND身份/对象缺位");
           if (d.second_sequence_id !== null) { need(d.second_sequence_id === "second:" + d.entity_id, "SECOND身份未绑定候选"); text(d.second_sequence_object_id); }
-          need(!["CASE_TWO", "PENDING_CASE_TWO"].includes(d.result) || d.second_sequence_id !== null, "第二种缺SECOND引用");
+          need(!["CASE_TWO", "PENDING_CASE_TWO", "KILLED_CASE_TWO"].includes(d.result) || d.second_sequence_id !== null, "第二种缺SECOND引用");
           const b = d.fact_vector;
           keys(b, ["stroke_broken", "new_segment_formed", "segment_broken", "stroke_break_witness", "scan_from_stroke", "scan_through_stroke", "scan_complete", "termination_witness"], "独立破坏事实");
           need(["stroke_broken", "scan_complete"].every(k => typeof b[k] === "boolean") && ["new_segment_formed", "segment_broken"].every(k => b[k] === null || typeof b[k] === "boolean"), "破坏事实错型");
@@ -361,8 +459,9 @@
         need(["formed", "updated", "terminated", "withdrawn"].includes(d.change), "段变化未声明");
         for (const k of ["before", "after"]) if (d[k] !== null) validateSegmentPayload(SEGMENT_KINDS[2], {...p, slot:d[k].entity_id, object_generation:d[k].entity_id.split(":")[1], data:d[k]});
       } else {
-        keys(d, ["input_frontier", "waiting_reasons", "known_at", "delivered_scope", "deferred_scope"], kind); integer(d.input_frontier, false, true); known(d.known_at); texts(d.waiting_reasons);
-        need(d.delivered_scope === (v2 ? "seed_strict_first_and_finite_second" : "seed_and_no_gap_first_kind") && equal(d.deferred_scope, v2 ? ["general_equal_identity", "general_scan_continuation", "global_G006_bridge"] : ["second_kind", "general_equal_identity"]), "段交付范围不符");
+        keys(d, ["input_frontier", "waiting_reasons", "known_at", "delivered_scope", "deferred_scope", ...(v3 ? ["scan_budget", "scan_cursors"] : [])], kind); integer(d.input_frontier, false, true); known(d.known_at); texts(d.waiting_reasons);
+        need(d.delivered_scope === (v3 ? "seed_strict_first_and_second_terminal" : v2 ? "seed_strict_first_and_finite_second" : "seed_and_no_gap_first_kind") && equal(d.deferred_scope, v3 ? ["general_equal_identity", "global_G006_bridge"] : v2 ? ["general_equal_identity", "general_scan_continuation", "global_G006_bridge"] : ["second_kind", "general_equal_identity"]), "段交付范围不符");
+        if (v3) { keys(d.scan_budget, ["policy", "round_strokes"], "段扫描预算"); need(d.scan_budget.policy === "second-seq-scan-budget/1", "扫描预算政策版本不符"); scanCheckpoints(d.scan_cursors, integer(d.scan_budget.round_strokes)); }
       }
       if ([...SEGMENT_KINDS.slice(0,3), SEGMENT_KINDS[6]].includes(kind)) {
         if (kind === SEGMENT_KINDS[1]) {
@@ -381,7 +480,7 @@
           }
         }
       }
-      const slot = kind === SEGMENT_KINDS[3] ? [d.source_id, d.relation_kind, d.target_id] : kind === SEGMENT_KINDS[4] ? [d.known_at.generation, d.entity_id, d.change] : kind === SEGMENT_KINDS[5] ? (v2 ? "TB-02-D" : "TB-02-C") : d.entity_id;
+      const slot = kind === SEGMENT_KINDS[3] ? [d.source_id, d.relation_kind, d.target_id] : kind === SEGMENT_KINDS[4] ? [d.known_at.generation, d.entity_id, d.change] : kind === SEGMENT_KINDS[5] ? (v3 ? "TB-02-W" : v2 ? "TB-02-D" : "TB-02-C") : d.entity_id;
       need(equal(p.slot, slot), "段语义槽身份不符");
     };
   })();
@@ -407,21 +506,33 @@
   async function validateBiPayload(kind, p) {
     p = V.of(p);
     await keys(p, ["schema_revision", "semantic_version", "policy_version", "view_role", "object_generation", "slot", "data"], "新笔合同");
-    need(await eqField(p, "schema_revision", "s-new-bi/1") && await eqField(p, "semantic_version", "new-bi-dual-coordinate/1") && await eqField(p, "policy_version", "standard_raw_gap_3") && await eqField(p, "view_role", "main"), "新笔规则/政策版本不符");
+    const schema = await S(await field(p, "schema_revision"));
+    const version = Object.hasOwn(BI_VERSIONS, schema) ? BI_VERSIONS[schema] : null;
+    need(version !== null && await eqField(p, "semantic_version", version[0]) && await eqField(p, "policy_version", version[1]) && await eqField(p, "view_role", "main"), "新笔规则/政策版本不符");
+    const v2 = schema === "s-new-bi/2";
+    async function waiting(value) {
+      const reasons = await texts(value);
+      if (v2) for await (const reason of reasons.items())
+        need(!RETIRED_SAME_PRICE_WAITING.includes(await S(reason)), "同价域退役的等待态在 v2 对象复现");
+    }
     await I(await field(p, "object_generation"), true); const d = await field(p, "data");
     async function endpoint(e) {
-      await keys(e, ["kind", "merged_index", "group_anchor", "price", "extreme_roots", "raw_position", "source_coords", "sealed_at", "waiting_reasons"], "新笔端点");
+      await keys(e, ["kind", "merged_index", "group_anchor", "price", "extreme_roots", ...(v2 ? ["raw_first", "raw_last"] : ["raw_position"]), "source_coords", "sealed_at", "waiting_reasons"], "新笔端点");
       await enumValue(await field(e, "kind"), ["TOP", "BOTTOM"], "端点类型不符"); await I(await field(e, "merged_index")); await I(await field(e, "group_anchor")); await N(await field(e, "price"));
-      const roots = await coordinates(await field(e, "extreme_roots")), sources = await coordinateSet(await field(e, "source_coords")); await texts(await field(e, "waiting_reasons"));
+      const roots = await coordinates(await field(e, "extreme_roots")), sources = await coordinateSet(await field(e, "source_coords")); await waiting(await field(e, "waiting_reasons"));
       for await (const root of roots.items()) need(sources.has(await S(root)), "实际根缺原始来源");
-      for (const k of ["raw_position", "sealed_at"]) { const value = await field(e, k); if (!(isNull(value))) await I(value); }
+      if (v2) {
+        const first = await I(await field(e, "raw_first")), last = await I(await field(e, "raw_last")), count = await roots.length();
+        need(count > 0n && last >= first && last - first >= count - 1n, "极值根集与首末 raw 序位不闭合");
+      } else { const position = await field(e, "raw_position"); if (!isNull(position)) await I(position); }
+      const sealed = await field(e, "sealed_at"); if (!isNull(sealed)) await I(sealed);
     }
     async function conditions(c) {
       await keys(c, ["merged_gap", "raw_between_actual_extrema", "top_price", "bottom_price", "vector", "failed_conditions", "waiting_reasons"], "新笔完整条件");
-      await I(await field(c, "merged_gap")); const raw = await field(c, "raw_between_actual_extrema"); if (!(isNull(raw))) await I(raw); await N(await field(c, "top_price")); await N(await field(c, "bottom_price"));
+      await I(await field(c, "merged_gap")); const raw = await field(c, "raw_between_actual_extrema"); if (v2 || !isNull(raw)) await I(raw); await N(await field(c, "top_price")); await N(await field(c, "bottom_price"));
       const vector = await array(await field(c, "vector"), "条件向量缺位/错型"); need(await vector.length() === 3n, "条件向量缺位/错型");
-      for await (const value of vector.items()) need(["null", "bool"].includes(value.kind), "条件向量缺位/错型");
-      await texts(await field(c, "failed_conditions")); await texts(await field(c, "waiting_reasons"));
+      for await (const value of vector.items()) need(value.kind === "bool" || (!v2 && value.kind === "null"), "条件向量缺位/错型");
+      await texts(await field(c, "failed_conditions")); await waiting(await field(c, "waiting_reasons"));
     }
     async function known(k) {
       await keys(k, ["generation", "input_frontier", "receipt_id", "received_at", "semantic_commit_ns"], "新笔获知时点");
@@ -429,15 +540,22 @@
     }
     if (kind === BI_KINDS[0]) await endpoint(d);
     else if ([BI_KINDS[1], BI_KINDS[2]].includes(kind)) {
-      await keys(d, ["old", "new", "endpoint_kind_pair", "conditions", "comparison", "selection", "retained_anchors", "waiting_reasons"], "端点对");
+      await keys(d, ["old", "new", "endpoint_kind_pair", "conditions", "comparison", "selection", "retained_anchors", ...(v2 ? ["evidence"] : []), "waiting_reasons"], "端点对");
       const old = await field(d, "old"), fresh = await field(d, "new"); await endpoint(old); await endpoint(fresh);
       const oldKind = await S(await field(old, "kind")), newKind = await S(await field(fresh, "kind")); need(await eqField(d, "endpoint_kind_pair", oldKind + "/" + newKind), "端点分域标签不符");
-      if (kind === BI_KINDS[1]) { need(oldKind !== newKind, "异型请求实际同型"); await conditions(await field(d, "conditions")); need(await eqField(d, "comparison", null) && await eqField(d, "selection", null), "异型域混入同型选择"); }
+      if (kind === BI_KINDS[1]) { need(oldKind !== newKind, "异型请求实际同型"); await conditions(await field(d, "conditions")); need(await eqField(d, "comparison", null) && await eqField(d, "selection", null) && (!v2 || await eqField(d, "evidence", [])), "异型域混入同型选择"); }
       else {
         need(oldKind === newKind && await eqField(d, "conditions", null), "同型域混入假条件或未声明取舍");
-        await enumValue(await field(d, "comparison"), ["LT", "EQ", "GT"], "同型域混入假条件或未声明取舍"); await enumValue(await field(d, "selection"), ["KEEP", "REPLACE", "UNDETERMINED"], "同型域混入假条件或未声明取舍");
+        const comparison = await enumValue(await field(d, "comparison"), ["LT", "EQ", "GT"], "同型域混入假条件或未声明取舍");
+        await enumValue(await field(d, "selection"), v2 ? ["KEEP", "REPLACE"] : ["KEEP", "REPLACE", "UNDETERMINED"], "同型域混入假条件或未声明取舍");
+        if (v2) {
+          const stronger = comparison === (oldKind === "TOP" ? "GT" : "LT");
+          need(await eqField(d, "selection", stronger ? "REPLACE" : "KEEP"), "同型取舍与价格比较不闭合");
+          need(await eqField(d, "retained_anchors", [await field(stronger ? fresh : old, "group_anchor")]), "同型保留锚不符取舍");
+          need(await eqField(d, "evidence", comparison === "EQ" ? [SAME_PRICE_KEEP_EVIDENCE] : []), "同价保留在先者的证据缺失或混入");
+        }
       }
-      await coordinates(await field(d, "retained_anchors")); await texts(await field(d, "waiting_reasons"));
+      await coordinates(await field(d, "retained_anchors")); if (v2) await texts(await field(d, "evidence")); await waiting(await field(d, "waiting_reasons"));
     } else if (kind === BI_KINDS[3]) {
       await keys(d, ["identity_anchor", "start", "end", "formation", "confirmation", "entity_id", "entity_revision", "state", "formed_known_at", "confirmed_known_at", "formed_evidence", "version_causes"], "新笔实体");
       await I(await field(d, "identity_anchor")); await I(await field(d, "entity_revision"), true); await T(await field(d, "entity_id")); await endpoint(await field(d, "start")); await endpoint(await field(d, "end"));
@@ -459,13 +577,15 @@
       for (const k of ["before", "after"]) {
         const entity = await field(d, k); if (isNull(entity)) continue;
         const entityId = await S(await field(entity, "entity_id"));
-        const synthetic = {}; for (const header of ["schema_revision", "semantic_version", "policy_version", "view_role"]) synthetic[header] = await field(p, header);
+        // before 按其原件形状保留历史代际；after 必须与本事件同代。
+        const entitySchema = k === "after" ? schema : await (await field(entity, "start")).has("raw_first") ? "s-new-bi/2" : "s-new-bi/1";
+        const synthetic = {schema_revision:entitySchema, semantic_version:BI_VERSIONS[entitySchema][0], policy_version:BI_VERSIONS[entitySchema][1], view_role:await field(p, "view_role")};
         synthetic.slot = await field(entity, "entity_id"); synthetic.object_generation = entityId.split(":")[1]; synthetic.data = entity;
         await validateBiPayload(BI_KINDS[3], synthetic);
       }
     } else {
       await keys(d, ["input_frontier", "version_causes", "identity_basis", "classification_obligation", "waiting_reasons", "known_at"], "新笔版本");
-      await I(await field(d, "input_frontier"), false, true); await texts(await field(d, "version_causes")); await texts(await field(d, "waiting_reasons")); await known(await field(d, "known_at"));
+      await I(await field(d, "input_frontier"), false, true); await texts(await field(d, "version_causes")); await waiting(await field(d, "waiting_reasons")); await known(await field(d, "known_at"));
     }
     const generation = await field(p, "object_generation");
     const slot = kind === BI_KINDS[0] ? "fx:" + await S(generation) + ":" + await S(await field(d, "group_anchor")) :
@@ -501,6 +621,6 @@
     need(await coords.length() === BigInt(all.size), "形态来源不是成员与构造/边界依据并集");
     for await (const coord of coords.items()) need(all.has(await S(coord)), "形态来源不是成员与构造/边界依据并集");
   }
-  return Object.freeze({validateTyped, validateBiPayload, validateSegmentPayload, validateTB02ShapeRefs, plain,
+  return Object.freeze({RULE_CONTRACTS, validateTyped, validateBiPayload, validateSegmentPayload, validateTB02ShapeRefs, plain,
     TB02_KINDS: Object.freeze(TB02_KINDS), BI_KINDS, SEGMENT_KINDS: Object.freeze(SEGMENT_KINDS)});
 });

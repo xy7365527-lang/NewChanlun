@@ -409,6 +409,9 @@ impl AuditConnection {
             s_allocation::audit_startup(tx, mode)?;
         }
         verify_writer_epoch(tx, epoch)?;
+        super::require_current_writer_rule(
+            &meta_get_opt(tx, "rule_revision")?.ok_or_else(|| invalid("缺rule_revision"))?,
+        )?;
         let control = control::S3Control::attach(tx, clock)?;
         let (profile_value, profile_id, profile_hash) = load_profile(profile)?;
         if profile_id != tb02a::PROFILE {
@@ -961,6 +964,9 @@ impl AuditConnection {
         if !active.bind_existing(None)? {
             state::audit(tx)?;
         }
+        super::require_current_writer_rule(
+            &meta_get_opt(tx, "rule_revision")?.ok_or_else(|| invalid("缺rule_revision"))?,
+        )?;
         let current = meta_get_opt(tx, "writer_epoch")?.ok_or_else(|| invalid("缺writer_epoch"))?;
         let from = parse_writer_epoch(&current, "current writer_epoch")?;
         // 持久 epoch 严格上升门即换代证明构造门（原 next<=from 门并入，文案与顺序不变）。

@@ -134,6 +134,10 @@ jobs:
   #     "静默跳过"变成"可见地失败"，并让修复状态随复验同步更新。
   rust-check:
     runs-on: ubuntu-latest
+    # 0c397d20de 加 60 分钟是防遥测采样进程挂死（#1406）。#1394 的 s_session / v3 / economic_session
+    # 步骤并入后，正常全程实测约 1h47m–1h49m（run 38516525815、39221888630），60 分钟会在 s_session
+    # 步骤中途被取消（run 39309747120）。放到 150 分钟：保留挂死上限，容纳正常全程。
+    timeout-minutes: 150
     env:
       CARGO_INCREMENTAL: "0"
     defaults:
@@ -249,8 +253,10 @@ jobs:
       - name: cargo test — TB-02-C member source binding
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --bin s_structure_session tb02c_member_relations_bind_only_the_member_sources --jobs 1
 
+      # #1563：--no-fail-fast——lib 目标的既有红（m3_partition_synthetic_holds，归 #1487/#1493）
+      # 不再让其后的 bin / tests 目标被跳过；本步仍按任一失败判红，不掩盖。
       - name: cargo test — default targets
-        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --all-targets --jobs 1
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --all-targets --no-fail-fast --jobs 1
 
       # #1370：s_session 的 required-features 不在 default/backtest_bin 中启用。
       # 运行正式 S bin 的回归测试，不能只编译或以默认目标的通过代替。
@@ -689,12 +695,24 @@ jobs:
         run: python -B -m unittest discover -s s_session/tests -p 'test_tb02c_*.py' -v
       - name: Browser protocol tests
         run: node s_session/tests/test_tb01c_browser.cjs
+      - name: TB-02-B version and root-set contracts (#1405)
+        run: |
+          python -B -m unittest discover -s s_session/tests -p 'test_tb02b_contract.py' -v
+          node --test s_session/tests/test_tb02b_contract.cjs
+          node s_session/tests/build_tb01c_browser.cjs --check
       - name: TB-02-C observer contract tests
         run: node --test s_session/tests/test_tb02c_contract.cjs
       # #1394 C-2 裁定 1：v3（s-session/3）validate-once 锁。完整 Q3 客户端套件约 10.5 分钟不进 CI，
       #   只把这条锁连同其判据（钩子不再验、重载命中重放计费、Reader 根变化必重验）单独成套执行。
       - name: Q3 v3 validate-once lock (#1394)
         run: node --test s_session/tests/test_q3_v3_validate_once.cjs
+      - name: TB-02-W terminal and cursor contract tests (#1420)
+        if: always()
+        working-directory: s_session/tests
+        run: python -B -m unittest -v test_tb02w_contract
+      - name: TB-02-W modular observer contract tests (#1420)
+        if: always()
+        run: node --test s_session/tests/test_tb02w_contract.cjs
       # #1414：TB-02-D 单元测试固定 CPython 3.14.6。s_query_integrity.py 的同次解析池只在
       #   3.14.6 / 64 位、实测 dict 布局匹配时启用；test_tb02d_parse_pool 的播种、命中与容量
       #   断言绑定该布局，其它解释器上池自动停用、断言失败而不是跳过。上面 3.11 的步骤不变，
