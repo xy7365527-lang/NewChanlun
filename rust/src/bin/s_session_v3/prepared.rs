@@ -1199,6 +1199,10 @@ impl Runtime {
         #[cfg(not(feature = "s_capture_native_testonly"))]
         let manifest =
             content_manifest::assemble_unpublished(store, metadata, &roots).map_err(err)?;
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        if workspace.is_some() {
+            state::trace_event("s4_manifest_workspace", Some(generation));
+        }
         Ok(NodeProducts {
             generated,
             objects,

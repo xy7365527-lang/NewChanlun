@@ -5225,7 +5225,7 @@ mod tests {
     }
     /// 冷全量臂：每代新开普通 Driver（新 Runtime/GenerationRuntime），清线程车道并强制 oracle。
     #[cfg(feature = "s_capture_native_testonly")]
-    fn s4_cold_handle(o: &Fixture, e: &Value) -> (Value, Vec<Value>) {
+    fn s4_cold_handle(o: &Fixture, e: &Value) -> (Driver, Value, Vec<Value>) {
         s_fact_cache::warm_lane_reset();
         s_fact_cache::set_oracle(true);
         let mut cold = o.open("1").unwrap();
@@ -5234,7 +5234,7 @@ mod tests {
         drop(probe);
         s_fact_cache::set_oracle(false);
         s_fact_cache::warm_lane_reset();
-        (reply.unwrap(), events)
+        (cold, reply.unwrap(), events)
     }
     /// 跑 S4 序列；`cold` 为 false 时只跑增量臂（S5 大样本测量）。返回每代 JSON 行。
     #[cfg(feature = "s_capture_native_testonly")]
@@ -5276,29 +5276,32 @@ mod tests {
             let reachable = s4_reachable(&native.conn);
             let delta_r = reachable.difference(&prior).count();
             let new_nodes = count(&native.conn, "s_content_nodes") - nodes_before;
+            let workspace = events
+                .iter()
+                .any(|e| e["phase"] == "s4_manifest_workspace");
             let mut row = json!({"generation":generation,"kind":step.kind,"bars_in_message":step.rows.len(),
+                "manifest_workspace":workspace,
                 "raw_events":count(&native.conn, "raw_events"),"delta_r":delta_r,"reachable":reachable.len(),
                 "new_stored_nodes":new_nodes,"delta":delta,"work":work});
             if cold {
-                let (expected, cold_events) = s4_cold_handle(&o, &e);
+                let (mut reader, expected, cold_events) = s4_cold_handle(&o, &e);
                 // 回复、回执、全表（含全部节点）逐位相同；owner complete 与冷审计一致。
                 assert_eq!(actual, expected, "第{k}代回复分叉");
                 let full = state::stage_rows(&cold_events);
                 assert_eq!(full["paths"], json!(["-", "full"]), "冷臂须走完整路径");
                 native.conn.assert_complete_matches_cold();
-                let mut reader = o.open("1").unwrap();
                 assert_eq!(
                     native.handle(receipt_request(&e)).unwrap(),
                     reader.handle(receipt_request(&e)).unwrap(),
                     "第{k}代回执分叉"
                 );
-                drop(reader);
                 assert_eq!(
                     prepared::tests::runtime_root_tables(&native.conn, true),
-                    prepared::tests::runtime_root_tables(&o.open("1").unwrap().conn, true),
+                    prepared::tests::runtime_root_tables(&reader.conn, true),
                     "第{k}代({})增量≠冷全量",
                     step.kind
                 );
+                drop(reader);
                 row["full"] = full;
             }
             prior = reachable;
