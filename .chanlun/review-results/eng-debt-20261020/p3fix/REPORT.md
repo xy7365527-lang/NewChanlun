@@ -1,7 +1,8 @@
 # #1588 P3 修复分片（p3fix）证据报告
 
 - 分支：`eng-debt-1588/p3fix`，基于 origin/main `a0522447ca`
-- 范围：A1、A3、A6 三项修复，各占一个提交；另开 A5、Q1、Q2 三张票（#1608 / #1609 / #1610）
+- 范围：A1、A3、A6 三项修复，各占一个提交；另开 A5、Q1、Q2 三张票（#1608 / #1609 / #1610）。第二轮按非作者评审（`reviews/1611-claude-fable-5.md`，PASS-WITH-NITS）补了发现 1–3，见文末「第二轮：评审发现处置」。
+- A4（`content_producer.rs:3748` 过时注释）不在本分片：主控已转 #1488，由其切片 0061 处理。
 - 验证约束：本机（macOS）不跑 cargo。Rust 验证用 `nc-remote` 在 WSL 上执行（ref 为本地已提交分支，日志在本机 `/tmp/nc-remote/`，不入仓），另以 PR CI 为准。
 - 评审：本报告是作者的自述证据，**不能替代非作者独审**。独审由主控安排。
 
@@ -10,6 +11,8 @@
 | A1 | `2a4f405082` | `.sandcastle/codex-child.ts`、`.sandcastle/codex-child.test.ts`、`.sandcastle/CODEX-CHILD.md` |
 | A3 | `6958eefcb8` | `.chanlun/definitions/bi.md` |
 | A6 | `1b27e492b0` | `rust/src/theta_v0/classifier/signal.rs` |
+| 评审发现 1（A1 同类） | `7a01ee589e` | `.sandcastle/git-environment.ts`（新）、`.sandcastle/delivery-bundle.ts`、`.sandcastle/delivery-bundle.test.ts`、`.sandcastle/codex-child.ts`、`.sandcastle/codex-child.test.ts` |
+| 评审发现 2（A6 单测） | `55468c8079` | `rust/src/theta_v0/classifier/signal.rs`（tests 模块末尾） |
 
 ---
 
@@ -110,6 +113,8 @@ git ls-files | grep AFFECTED-CODE
    # test result: ok. 919 passed; 0 failed; 10 ignored; 0 measured; 2051 filtered out
    ```
 
+   日志（本机，不入仓）：作者运行 `/tmp/nc-remote/20261020-184250-1b27e492b0.log`（同一次运行还跑了下面第 3 项的全历史普查；命令头含中文被转义，按文件名检索即可）；评审复跑 `/tmp/nc-remote/20261020-213958-4de612c241.log`，结果相同（919 passed）。第二轮加单测后为 920 passed，见文末。
+
 3. **ignored 普查 `type1_funnel_census_btc`**（数据：WSL `$HOME/nc-remote/data/btc_1m_full.json`，运行前软链到 `<worktree>/analysis/data_cache/`）
 
    ```bash
@@ -169,3 +174,65 @@ A5 票正文核对后有两处补正：`fetch_update` 实为 9 处（P3 收集�
 ## 与其它在途工作的关系
 
 - PR #1593 也改了 `.sandcastle/codex-child.ts`，只改注释行尾。本 PR 没有碰那些行，新测试追加在文件末尾。若合入顺序造成文本冲突，应当是平凡冲突，由主控协调，本分支不强推覆盖。
+
+---
+
+## 第二轮：评审发现处置（主控第二轮指示）
+
+评审：`/Volumes/AgentStorage/eng-debt-20261020/reviews/1611-claude-fable-5.md`，结论 PASS-WITH-NITS；`GIT_*` 不透传的取舍评审同意，保持。
+
+### 发现 1：`delivery-bundle.ts` 的 git 子进程同样继承完整 `process.env`（`7a01ee589e`）
+
+- **现象**：`.sandcastle/delivery-bundle.ts:126`（`preflightDelivery` 内的 `git()`）仍为 `env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" }`。管理者进程环境里的 `CLIPROXY_LOCAL_KEY` 等凭据会进入 git 及其 hook、credential helper、fsmonitor，与 A1 同类。
+- **是否需要额外变量**：逐条读了该处全部 git 调用：`rev-parse`、`merge-base --is-ancestor`、`status`、`ls-files -v`、`ls-tree`、`show`、`diff`。全部是 `-C repo` 定位的本地只读操作，没有 push/fetch，不需要任何远端凭据，因此**不追加任何变量**。
+- **处置**：把 `gitEnvironment()` 从 `codex-child.ts` 移到共享模块 `.sandcastle/git-environment.ts`，`codex-child.ts` 和 `delivery-bundle.ts` 都从这里导入，函数体不变。注释补了一句：需要访问远端的调用方不得复用此函数。
+- **测试**：`delivery-bundle.test.ts` 末尾新增「交付预检的 git 子进程拿不到 CLIProxy 密钥及其他凭据变量（#1588）」。做法与 A1 集成测试相同：在 PATH 最前面放一个包装器，记录每次 git 调用的变量名；只用夹具值；`t.after` 恢复环境变量。测试断言预检结果为 `READY_FOR_APPROVAL`，git 调用 ≥ 5 次，每次都不含三个密钥名，且都含 `GIT_OPTIONAL_LOCKS`。
+- **证据**（本机）：
+  - `node --import tsx --test .sandcastle/codex-child.test.ts .sandcastle/delivery-bundle.test.ts` → `tests 72 / pass 72 / fail 0`（69 + A1 的 2 条 + 本条 1 条）。
+  - `tsc -p tsconfig.sandcastle.json` → exit 0。
+  - **修前失败**：把 `.sandcastle/` 拷到 `/tmp/p3fix/prefix/`，用 `git show 4de612c241:.sandcastle/delivery-bundle.ts` 覆盖成修前版本，跑 `--test-name-pattern="1588"`，结果 `not ok 1 … error: 'git 环境含 CLIPROXY_LOCAL_KEY'`。
+
+### 发现 2：A6 补合成夹具单测（`55468c8079`）
+
+- **测试**：`signal.rs` tests 模块末尾新增 `type1_funnel_dx_up_trend_broke_arm_reachable`。
+  - 中枢与段沿用 `first_sell_mirror_with_trend_divergence`：上涨趋势，leave 段 420、top 段 430 都高于 C1.zg=400，retest 段方向锚为 Down。
+  - closes 取「A 段缓、C 段急」，不构成背驰。
+  - 断言：`s_gate_open == 3`、`s_broke == 2`、`s_mapped == 2`、`s_diverge == 0`。retest 段落入 `_ => false`，不计入 broke。
+  - 函数尾部的 parity 断言（`s_mapped` = 生产 struct_break 候选数）同时把关。
+- **为什么选「无背驰」夹具**：第一版直接复用 1 卖夹具（有背驰）。修后运行时，函数尾部的 parity 断言 `prod_t1 == s_diverge` 失败（左 1 = 生产 sell1，右 2 = 漏斗 s_diverge），日志 `/tmp/nc-remote/20261020-221105-a4ae31418a.log`。原因是漏斗环 7 逐段计背驰，而生产经 #607/#1249 的 D2 大闸后，只给 c 窗内命中 leave+retest 的那一段置 bit，leave 段本身为 `Missing`，只记 struct_break，不置 sell1。这是探针 parity 的既有缺口，与 A6 无关：真实数据从未走到这里，因为环 2 恒为 0。所以改用无背驰夹具，让 parity 的环 6 等式作钉子。该缺口列入下方遗留。
+- **放在模块末尾的原因**：`bsp.rs` 的 `no_stray_bsp_binding_rewrites_outside_registry` 按 `signal.rs` 的行号登记白名单（`:733-745`）。插在中间会使后续行号整体下移，触发该守卫失败（`/tmp/nc-remote/20261020-221755-d9bf03d6a8.log`：919 passed 1 failed）。移到末尾后不影响任何登记行号。
+- **修前失败**：建临时本地分支 `eng-debt-1588/p3fix-a6revert`（`4f510470bc`）。它在 `55468c8079` 之上把第二臂撤回为 `(Some(Direction::Down), Direction::Down) => c.zg < end.price`。用完已删除，从未推送。
+
+  ```bash
+  NC_TARGET=eng1588 nc-remote eng-debt-1588/p3fix-a6revert rust \
+    cargo test --release --lib theta_v0::classifier::signal::tests::type1_funnel_dx_up_trend_broke_arm_reachable
+  # warning: unreachable pattern --> src/theta_v0/classifier/signal.rs:1588:13
+  # panicked at src/theta_v0/classifier/signal.rs:1654:5:
+  # assertion `left == right` failed: 漏斗环6（mapped 候选）须=生产 struct_break 候选数
+  #   left: 2
+  #  right: 0
+  # test result: FAILED. 0 passed; 1 failed
+  ```
+
+  日志：`/tmp/nc-remote/20261020-221939-4f510470bc.log`。
+- **修后**（`55468c8079`）：
+
+  ```bash
+  NC_TARGET=eng1588 nc-remote eng-debt-1588/p3fix rust cargo test --release --lib theta_v0::classifier
+  # (lib test) generated 52 warnings，无 unreachable pattern
+  # test result: ok. 920 passed; 0 failed; 10 ignored; 0 measured; 2051 filtered out
+  ```
+
+  日志：`/tmp/nc-remote/20261020-222120-55468c8079.log`。
+
+### 发现 3：919 passed 的日志出处
+
+已在上文 A6「复现命令与输出」第 2 项补上：作者日志 `20261020-184250-1b27e492b0.log`，评审复跑日志 `20261020-213958-4de612c241.log`。
+
+### 发现 4（nit）：集成测试不自验恢复
+
+未改。评审读码确认恢复正确，并注明可忽略。新增的 delivery-bundle 测试改用 `t.after` 恢复，不再依赖测试顺序。
+
+### 第二轮新增遗留（建议转票）
+
+- `type1_funnel_dx` 尾部 parity `prod_t1 == s_diverge` 没有建模 #607/#1249 的 D2 大闸（T3-in-c `Missing` 时不置 bit）。在同一 c 窗内有多个 broke 且背驰的段时，漏斗会多计。用 `first_sell_mirror_with_trend_divergence` 的夹具即可复现：漏斗 2，生产 1。该探针只被 ignored 普查消费，目前真实数据走不到这一步。建议挂在 A5 票 #1608 或普查遗留票下处理。
