@@ -71,6 +71,11 @@ fn macd_record_version_flows_to_output_and_reruns_are_bit_identical() {
     assert_eq!(c.policy.macd.label(), "macd-force/2");
     assert_ne!(a.policy, c.policy, "改记录版本 ⟹ 输出戳变化");
     assert_eq!((cfg2.macd.fast, cfg2.macd.slow, cfg2.macd.signal), (5, 35, 5));
+    // 计算端确实读记录参数：忽略 cfg、写死 12/26/9 的变异体在此变红。
+    let closes: Vec<f64> = (0..80).map(|i| 100.0 + 7.0 * ((i as f64) * 0.37).sin()).collect();
+    let h1 = divergence::compute_macd(&closes, &base.macd).hist;
+    let h2 = divergence::compute_macd(&closes, &cfg2.macd).hist;
+    assert_ne!(h1, h2, "MACD v2 参数须改变力度读数");
 }
 
 /// 研究覆写不冒充签署版本。

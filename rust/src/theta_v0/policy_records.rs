@@ -130,7 +130,11 @@ fn read_u32(
     name: &str,
 ) -> Result<u32, PolicyError> {
     let awaiting = || PolicyError::AwaitingPolicy { id, field: name.to_string() };
-    let value = fields.get(name).ok_or_else(awaiting)?.get("value").ok_or_else(awaiting)?;
+    let entry = fields.get(name).ok_or_else(awaiting)?;
+    let entry = entry
+        .as_object()
+        .ok_or_else(|| invalid(id, name, format!("字段须为带 value 的对象，得 {entry}")))?;
+    let value = entry.get("value").ok_or_else(awaiting)?;
     match value {
         Value::Null => Err(awaiting()),
         Value::String(s) if s == "AwaitingPolicy" => Err(awaiting()),
@@ -216,6 +220,42 @@ mod tests {
         assert_eq!(m.record.label(), "macd-force/2");
     }
 
+    /// 源码守卫（独审 note 1/2）：Rust 源码里不得再写这几个记录值的常数，也不得就地改写
+    /// `level.l_max` / `macd.*`（就地改写会让输出戳仍写签署版本）。研究工具须走
+    /// `LevelConfig::research_override_l_max`。
+    #[test]
+    fn source_guard_no_constants_or_in_place_writes() {
+        let config_src = include_str!("config.rs");
+        for lit in ["l_max: 6", "fast: 12", "slow: 26", "signal: 9"] {
+            assert!(!config_src.contains(lit), "config.rs 又出现常数 `{lit}`");
+        }
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut stack = vec![root];
+        let mut offenders = Vec::new();
+        while let Some(dir) = stack.pop() {
+            for entry in std::fs::read_dir(&dir).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    stack.push(path);
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    let text = std::fs::read_to_string(&path).unwrap();
+                    for (i, line) in text.lines().enumerate() {
+                        let code = line.split("//").next().unwrap_or("");
+                        for pat in [".level.l_max", ".macd.fast", ".macd.slow", ".macd.signal"] {
+                            if let Some(pos) = code.find(pat) {
+                                let rest = code[pos + pat.len()..].trim_start();
+                                if rest.starts_with('=') && !rest.starts_with("==") {
+                                    offenders.push(format!("{}:{}", path.display(), i + 1));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(offenders.is_empty(), "就地改写记录字段：{offenders:?}");
+    }
+
     /// 负控：缺记录 / 缺字段 / 字段未签 / 非法值各一例，均报错（无备用值）。
     #[test]
     fn negative_controls_missing_unsigned_invalid() {
@@ -252,6 +292,8 @@ mod tests {
         assert!(matches!(parse_macd_force(Some(zero_period)), Err(PolicyError::Invalid { .. })));
         let wrong_id = r#"{"id":"macd-force","version":1,"fields":{"l_max":{"value":6}}}"#;
         assert!(matches!(parse_tower_level_budget(Some(wrong_id)), Err(PolicyError::Invalid { .. })));
+        let bare = r#"{"id":"tower-level-budget","version":1,"fields":{"l_max":6}}"#;
+        assert!(matches!(parse_tower_level_budget(Some(bare)), Err(PolicyError::Invalid { .. })));
         let bad_version = r#"{"id":"macd-force","version":0,"fields":{}}"#;
         assert!(matches!(parse_macd_force(Some(bad_version)), Err(PolicyError::Invalid { .. })));
     }
