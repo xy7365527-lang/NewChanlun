@@ -330,6 +330,9 @@ pub(super) fn audit_native_in_request_admitted(
         })();
         // #1488 wide16-0058：冷根首跑失败后按旧口径无票重跑；首跑只借用、未改动旧来源池，
         // 交还keeper供重跑复用（否则冷根额度不足即静默丢失跨请求复用）。其余错误仍随本次丢弃。
+        // 覆盖边界（review-0060 F3）：交还只覆盖本函数内层返回Err。若本函数已Ok（池已在Ok路径
+        // drop），而外层codec_work().run尾检、s_allocation的probe::captured或cold_root_probe::
+        // inject_failure（后两者仅cfg(test)）报Err，池已消费、重跑从冷开始——与修复前同口径，非回归。
         if result.is_err() {
             context.return_source_pool_for_cold_rerun(source_prior.take());
         }

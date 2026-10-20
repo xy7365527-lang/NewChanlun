@@ -1933,6 +1933,8 @@ impl AuditTxn<'_> {
             let (audited, cold_root) = match cold_root {
                 Some(root) => {
                     let base = root.live();
+                    // #1488 wide16-0058：置位只让audit_native_in_request_admitted内层Err时旧来源池交还keeper；
+                    // 内层已Ok而外层run尾检或测试probe/inject_failure报Err时池已消费，重跑照旧冷启（非回归，review-0060 F3）。
                     context.arm_source_pool_return(true);
                     let first = self.audit_required_in_parent(mode, context, Some(&root));
                     context.arm_source_pool_return(false);
