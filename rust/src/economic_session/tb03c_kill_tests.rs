@@ -57,18 +57,54 @@ fn chong(owner: usize) -> Option<String> {
 fn domain_id(owner: usize) -> String {
     chong(owner).map_or_else(|| "E".to_owned(), |c| format!("B:{c}"))
 }
+fn db_name(owner: usize) -> String {
+    if owner == 0 {
+        "e.db".into()
+    } else {
+        format!("b{}.db", owner - 1)
+    }
+}
 fn load(dir: &Path) -> Vec<store::Config> {
     let path = dir.join("manifest.json");
     (0..4)
         .map(|owner| {
-            let db = if owner == 0 {
-                dir.join("e.db")
-            } else {
-                dir.join(format!("b{}.db", owner - 1))
-            };
-            store::Config::load(&path, &db, chong(owner).as_deref()).unwrap()
+            store::Config::load(&path, &dir.join(db_name(owner)), chong(owner).as_deref()).unwrap()
         })
         .collect()
+}
+/// 目标步的起点：复制「第 target 步之前」的四域库文件副本，代替新进程从空库逐步重放前缀（#1406 S3 降时长）。
+/// 副本来自进程内无故障生成（同一时钟计划、同一信封），复制发生在被测进程启动之前。
+/// 唯一与路径/故障计划相关的持久值是 init 写入 meta 的 `manifest_hash`：按本目录 manifest 改写后，
+/// 断言全库 = 「对本 manifest 新 init 的 meta」+「snapshots[target] 的全部业务表」，
+/// 即与旧做法（新 init 后由新进程重放前缀）在被测进程启动时的持久状态逐表逐行相同。
+fn setup_from(plan: &Plan, dir: &Path, fault: (&str, &str), target: usize) -> Vec<store::Config> {
+    std::fs::write(
+        dir.join("manifest.json"),
+        canonical_json(&manifest(dir, Some(fault))),
+    )
+    .unwrap();
+    let configs = load(dir);
+    let scratch = dir.join("init-meta");
+    std::fs::create_dir(&scratch).unwrap();
+    for (owner, c) in configs.iter().enumerate() {
+        std::fs::copy(plan.snapshot_dirs[target].join(db_name(owner)), &c.db).unwrap();
+        {
+            let (db, _) = store::open(&c.db, false).unwrap();
+            store::set_meta(&db, "manifest_hash", &c.manifest_hash).unwrap();
+            let busy: i64 = db
+                .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| r.get(0))
+                .unwrap();
+            assert_eq!(busy, 0);
+        }
+        let mut fresh = c.clone();
+        fresh.db = scratch.join(db_name(owner));
+        assert_eq!(store::init(&fresh).unwrap()["kind"], "Initialized");
+        let mut expected = plan.snapshots[target][owner].clone();
+        expected["meta"] = dump(&fresh.db)["meta"].clone();
+        assert_eq!(dump(&c.db), expected, "起点副本域 {owner} ≠ 新 init + 前缀");
+    }
+    std::fs::remove_dir_all(&scratch).unwrap();
+    configs
 }
 fn setup(dir: &Path, fault: Option<(&str, &str)>) -> Vec<store::Config> {
     std::fs::write(
@@ -209,65 +245,106 @@ fn is_root_key(k: &str) -> bool {
 /// `audit_all` 重放核；全部 `*_ns` 时刻替换为 `v mod COLUMN` 逐值比较，商按 [`Clock`] 逐值核对，
 /// 不符记入 `bad`。字符串形式的 JSON 先解析再规范化。
 fn normalize(v: &Value, clock: &Clock, path: &str, bad: &mut Vec<String>) -> Value {
-    match v {
-        Value::Object(o) => Value::Object(
-            o.iter()
-                .filter(|(k, _)| !is_root_key(k))
-                .map(|(k, x)| {
-                    let here = format!("{path}/{k}");
-                    let n = match x {
-                        Value::String(t) if k.ends_with("_ns") => t.parse::<i64>().ok(),
-                        _ => None,
-                    };
-                    let out = match n {
-                        Some(n) => {
-                            let (q, r) = (n / COLUMN, n % COLUMN);
-                            match clock.expected_quotient(r) {
-                                Ok(e) if e == q => (),
-                                Ok(e) => bad.push(format!("{here}={n}：商 {q} ≠ 期望 {e}")),
-                                Err(e) => bad.push(format!("{here}={n}：{e}")),
+    Normalizer::new(clock).value(v, path, bad)
+}
+/// 规范化器：同一次比较里内容相同的 JSON 字符串（库内图像逐提交重复嵌入同一原件/记录）只解析、规范化一次。
+/// 记忆的是「字符串 → (规范化值, 相对路径的商不合记录)」；命中时按当前路径前缀还原不合记录，
+/// 结果与逐次重算逐字相同（规范化只依赖字符串内容与本次时钟，时钟在一个 Normalizer 内不变）。
+struct Normalizer<'c> {
+    clock: &'c Clock,
+    strings: std::collections::HashMap<String, (Value, Vec<String>)>,
+}
+impl<'c> Normalizer<'c> {
+    fn new(clock: &'c Clock) -> Self {
+        Self {
+            clock,
+            strings: Default::default(),
+        }
+    }
+    fn value(&mut self, v: &Value, path: &str, bad: &mut Vec<String>) -> Value {
+        match v {
+            Value::Object(o) => Value::Object(
+                o.iter()
+                    .filter(|(k, _)| !is_root_key(k))
+                    .map(|(k, x)| {
+                        let here = format!("{path}/{k}");
+                        let n = match x {
+                            Value::String(t) if k.ends_with("_ns") => t.parse::<i64>().ok(),
+                            _ => None,
+                        };
+                        let out = match n {
+                            Some(n) => {
+                                let (q, r) = (n / COLUMN, n % COLUMN);
+                                match self.clock.expected_quotient(r) {
+                                    Ok(e) if e == q => (),
+                                    Ok(e) => bad.push(format!("{here}={n}：商 {q} ≠ 期望 {e}")),
+                                    Err(e) => bad.push(format!("{here}={n}：{e}")),
+                                }
+                                json!(r.to_string())
                             }
-                            json!(r.to_string())
-                        }
-                        None => normalize(x, clock, &here, bad),
+                            None => self.value(x, &here, bad),
+                        };
+                        (k.clone(), out)
+                    })
+                    .collect(),
+            ),
+            Value::Array(a) => Value::Array(
+                a.iter()
+                    .enumerate()
+                    .map(|(i, x)| self.value(x, &format!("{path}/{i}"), bad))
+                    .collect(),
+            ),
+            Value::String(t) if t.starts_with('{') || t.starts_with('[') => {
+                if !self.strings.contains_key(t) {
+                    let mut rel = vec![];
+                    let out = match strict_json(t.as_bytes()) {
+                        Ok(p) => self.value(&p, "", &mut rel),
+                        Err(_) => v.clone(),
                     };
-                    (k.clone(), out)
-                })
-                .collect(),
-        ),
-        Value::Array(a) => Value::Array(
-            a.iter()
-                .enumerate()
-                .map(|(i, x)| normalize(x, clock, &format!("{path}/{i}"), bad))
-                .collect(),
-        ),
-        Value::String(t) if t.starts_with('{') || t.starts_with('[') => strict_json(t.as_bytes())
-            .map(|p| normalize(&p, clock, path, bad))
-            .unwrap_or_else(|_| v.clone()),
-        _ => v.clone(),
+                    self.strings.insert(t.clone(), (out, rel));
+                }
+                let (out, rel) = &self.strings[t];
+                bad.extend(rel.iter().map(|r| format!("{path}{r}")));
+                out.clone()
+            }
+            _ => v.clone(),
+        }
     }
 }
+/// 参照值按参照时钟规范化（须全部时刻合列）。参照只算一次，存进 [`Plan`]。
+fn normalize_reference(v: &Value, reference: &Clock) -> Value {
+    let mut bad = vec![];
+    let out = normalize(v, reference, "", &mut bad);
+    assert!(bad.is_empty(), "参照时刻不合列：{bad:?}");
+    out
+}
+/// 第一处差异的路径。每个子树只走一次（原写法对两侧键各递归一遍，相同键的子树被重复比较，
+/// 代价随嵌套深度指数增长——这是 S3 矩阵时长的主因，见 S3-SPEED 报告）。
 fn first_diff(a: &Value, b: &Value, path: &str) -> Option<String> {
+    if a == b {
+        return None;
+    }
     match (a, b) {
         (Value::Object(x), Value::Object(y)) => {
-            for k in x.keys().chain(y.keys()) {
-                match (x.get(k), y.get(k)) {
-                    (Some(p), Some(q)) => {
+            for (k, p) in x {
+                match y.get(k) {
+                    Some(q) => {
                         if let Some(d) = first_diff(p, q, &format!("{path}/{k}")) {
                             return Some(d);
                         }
                     }
-                    _ => return Some(format!("{path}/{k} 只在一侧")),
+                    None => return Some(format!("{path}/{k} 只在一侧")),
                 }
             }
-            None
+            y.keys()
+                .find(|k| !x.contains_key(*k))
+                .map(|k| format!("{path}/{k} 只在一侧"))
         }
         (Value::Array(x), Value::Array(y)) if x.len() == y.len() => x
             .iter()
             .zip(y)
             .enumerate()
             .find_map(|(i, (p, q))| first_diff(p, q, &format!("{path}/{i}"))),
-        _ if a == b => None,
         _ => Some(format!(
             "{path}: {} ≠ {}",
             canonical_json(a).chars().take(160).collect::<String>(),
@@ -277,24 +354,16 @@ fn first_diff(a: &Value, b: &Value, path: &str) -> Option<String> {
 }
 /// 崩溃轨值 `actual`（时钟 `clock`）与参照值 `expected`（参照时钟）规范化后逐值相同、且全部时刻商合规。
 /// 返回 Err(差异描述)，供正向断言与负控共用（负控断言其为 Err，不用 should_panic）。
-fn compare(
-    actual: &Value,
-    clock: &Clock,
-    expected: &Value,
-    reference: &Clock,
-) -> Result<(), String> {
+fn compare(actual: &Value, clock: &Clock, expected: &Value) -> Result<(), String> {
     let mut bad = vec![];
     let a = normalize(actual, clock, "", &mut bad);
-    let mut ref_bad = vec![];
-    let b = normalize(expected, reference, "", &mut ref_bad);
-    assert!(ref_bad.is_empty(), "参照时刻不合列：{ref_bad:?}");
     if !bad.is_empty() {
         return Err(format!(
             "时刻商不合：{}",
             bad[..bad.len().min(5)].join("；")
         ));
     }
-    match first_diff(&a, &b, "") {
+    match first_diff(&a, expected, "") {
         Some(d) => Err(format!("规范化后不同：{d}")),
         None => Ok(()),
     }
@@ -443,6 +512,7 @@ fn tb03c_kill_child() {
         .map(|c| store::open(&c.db, false).unwrap().0)
         .collect::<Vec<_>>();
     for step in job["steps"].as_array().unwrap() {
+        let t0 = Instant::now();
         let owner = step["owner"].as_u64().unwrap() as usize;
         let reply = service::handle(
             &mut dbs[owner],
@@ -455,7 +525,7 @@ fn tb03c_kill_child() {
             .clone();
         let seq = store::latest(&dbs[owner]).unwrap().0;
         emit(
-            json!({"owner":owner,"message_id":step["envelope"]["message_id"],"reply":reply,"seq":seq}),
+            json!({"owner":owner,"message_id":step["envelope"]["message_id"],"reply":reply,"seq":seq,"ms":t0.elapsed().as_millis() as u64}),
         );
     }
 }
@@ -519,8 +589,19 @@ struct Plan {
     replies: Vec<Value>,
     /// snapshots[i]：第 i 步之前四域业务表；末项为终态。
     snapshots: Vec<Vec<Value>>,
-    reference: Vec<Value>,
-    reference_public: Vec<Value>,
+    /// snapshot_dirs[i]：第 i 步之前四域库文件的副本（WAL 已 checkpoint(TRUNCATE) 并入主文件）。
+    snapshot_dirs: Vec<PathBuf>,
+    /// 逐步回复按参照时钟规范化（只算一次）。
+    norm_replies: Vec<Value>,
+}
+/// 不崩溃参照终态（新进程两次重放）。只在比较终态时才需要，故与 [`Plan`] 分开、延迟计算，
+/// 不挡各目标步先开始杀进程。
+struct Reference {
+    tables: Vec<Value>,
+    public: Vec<Value>,
+    /// 按参照时钟规范化（只算一次）：终态全表（除 meta/epochs）、公开查询。
+    norm_tables: Vec<Value>,
+    norm_public: Vec<Value>,
 }
 struct Builder {
     configs: Vec<store::Config>,
@@ -528,8 +609,33 @@ struct Builder {
     steps: Vec<Value>,
     replies: Vec<Value>,
     snapshots: Vec<Vec<Value>>,
+    snapshot_dirs: Vec<PathBuf>,
 }
 impl Builder {
+    /// 把当前四域持久状态做成文件副本：先 checkpoint(TRUNCATE) 把 WAL 并入主文件（WAL 归零），再复制主文件。
+    /// 副本只供之后新建的被测进程作起点；复制发生在被测进程启动之前。
+    fn save_files(&mut self) {
+        let dir = root()
+            .join("snapshots")
+            .join(format!("before-{:02}", self.snapshots.len() - 1));
+        std::fs::create_dir_all(&dir).unwrap();
+        for (owner, (c, config)) in self.dbs.iter().zip(&self.configs).enumerate() {
+            let (busy, log, done): (i64, i64, i64) = c
+                .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| {
+                    Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+                })
+                .unwrap();
+            assert_eq!((busy, log, done), (0, 0, 0), "checkpoint 未完全并入");
+            assert_eq!(
+                std::fs::metadata(format!("{}-wal", config.db.display()))
+                    .map(|m| m.len())
+                    .unwrap_or(0),
+                0
+            );
+            std::fs::copy(&config.db, dir.join(db_name(owner))).unwrap();
+        }
+        self.snapshot_dirs.push(dir);
+    }
     fn send(&mut self, owner: usize, payload: Value) -> Value {
         let e = envelope(&format!("m-{}", self.steps.len()), payload);
         let r = service::handle(
@@ -552,12 +658,14 @@ impl Builder {
         self.replies.push(r.clone());
         self.snapshots
             .push(dumps(&self.configs).iter().map(business).collect());
+        self.save_files();
         r
     }
 }
 fn plan() -> &'static Plan {
     static PLAN: OnceLock<Plan> = OnceLock::new();
     PLAN.get_or_init(|| {
+        let plan_t0 = Instant::now();
         let space = Space::new("s3-kill-plan");
         let configs = setup(&space.0, None);
         let dbs = configs
@@ -571,7 +679,9 @@ fn plan() -> &'static Plan {
             steps: vec![],
             replies: vec![],
             snapshots,
+            snapshot_dirs: vec![],
         };
+        b.save_files();
         let hand: Value = serde_json::from_str(HAND).unwrap();
         for i in 0..3 {
             let r = b.send(0, capture_payload(i));
@@ -604,7 +714,34 @@ fn plan() -> &'static Plan {
             }
         }
         assert_eq!(b.steps.len(), 21);
-        // 无故障新进程重放：同一信封、同一路径两次，回复与业务表须与进程内生成逐字相同。
+        assert_eq!(b.snapshot_dirs.len(), 22);
+        let mut plan = Plan {
+            steps: b.steps,
+            replies: b.replies,
+            snapshots: b.snapshots,
+            snapshot_dirs: b.snapshot_dirs,
+            norm_replies: vec![],
+        };
+        let clock = Clock::reference(&plan);
+        plan.norm_replies = plan
+            .replies
+            .iter()
+            .map(|r| normalize_reference(r, &clock))
+            .collect();
+        println!(
+            "S3-TIME {}",
+            canonical_json(&json!({"plan_ms":plan_t0.elapsed().as_millis()}))
+        );
+        plan
+    })
+}
+fn reference() -> &'static Reference {
+    static REFERENCE: OnceLock<Reference> = OnceLock::new();
+    REFERENCE.get_or_init(|| {
+        let t0 = Instant::now();
+        let plan = plan();
+        // 无故障新进程重放：从空库起、同一信封、同一路径两次，回复与业务表须与进程内生成逐字相同。
+        // 这两次全程重放同时证明了各快照所代表的前缀状态可由新进程从头逐步得到。
         let base = root().join("reference");
         let work = base.join("work");
         let mut finals: Vec<(Vec<Value>, Vec<Value>)> = vec![];
@@ -615,19 +752,19 @@ fn plan() -> &'static Plan {
                 spawn(
                     &work,
                     "run",
-                    json!({"action":"run","epochs":[1,1,1,1],"steps":b.steps}),
+                    json!({"action":"run","epochs":[1,1,1,1],"steps":plan.steps}),
                 ),
                 &work,
                 "run",
             );
             let lines = progress(&work, "run");
-            assert_eq!(lines.len(), b.steps.len());
+            assert_eq!(lines.len(), plan.steps.len());
             for (i, line) in lines.iter().enumerate() {
-                assert_eq!(line["reply"], b.replies[i], "参照新进程第 {i} 步");
+                assert_eq!(line["reply"], plan.replies[i], "参照新进程第 {i} 步");
             }
             let tables = dumps(&configs);
             for d in 0..4 {
-                assert_eq!(business(&tables[d]), b.snapshots[21][d]);
+                assert_eq!(business(&tables[d]), plan.snapshots[21][d]);
             }
             audit_all(&configs);
             let queries = public(&configs);
@@ -639,16 +776,27 @@ fn plan() -> &'static Plan {
             canonical_json(&json!(finals[1].0)),
             "无故障同输入两次新进程完整终态逐字节相同"
         );
-        let (reference, reference_public) = finals.swap_remove(0);
-        let plan = Plan {
-            steps: b.steps,
-            replies: b.replies,
-            snapshots: b.snapshots,
-            reference,
-            reference_public,
-        };
-        oracle(&plan, &plan.reference);
-        plan
+        let (tables, public) = finals.swap_remove(0);
+        oracle(plan, &tables);
+        let clock = Clock::reference(plan);
+        let norm_tables = tables
+            .iter()
+            .map(|t| normalize_reference(&without(t, &["meta", "epochs"]), &clock))
+            .collect();
+        let norm_public = public
+            .iter()
+            .map(|q| normalize_reference(q, &clock))
+            .collect();
+        println!(
+            "S3-TIME {}",
+            canonical_json(&json!({"reference_ms":t0.elapsed().as_millis()}))
+        );
+        Reference {
+            tables,
+            public,
+            norm_tables,
+            norm_public,
+        }
     })
 }
 
@@ -682,11 +830,11 @@ fn kill_and_recover(plan: &Plan, target: usize, phase: &str, work: &Path) -> Kil
         .to_owned();
     std::fs::create_dir_all(work.parent().unwrap()).unwrap();
     std::fs::create_dir(work).unwrap();
-    let configs = setup(work, Some((&message, phase)));
+    let configs = setup_from(plan, work, (&message, phase), target);
     let mut a = spawn(
         work,
         "a",
-        json!({"action":"run","epochs":[1,1,1,1],"steps":plan.steps[..=target]}),
+        json!({"action":"run","epochs":[1,1,1,1],"steps":plan.steps[target..=target]}),
     );
     let pid = a.id();
     let marker_path = work.join("fault-marker.json");
@@ -720,12 +868,9 @@ fn kill_and_recover(plan: &Plan, target: usize, phase: &str, work: &Path) -> Kil
         .map(|m| m.len())
         .ok();
 
-    // 被杀进程已逐字返回目标前全部步骤，目标消息无回复。
-    let before = progress(work, "a");
-    assert_eq!(before.len(), target);
-    for (i, line) in before.iter().enumerate() {
-        assert_eq!(line["reply"], plan.replies[i], "故障前第 {i} 步");
-    }
+    // 被杀进程从目标步前的副本起只执行目标消息，且未返回任何回复。
+    // （前缀各步由 `reference()` 的两次新进程全程重放逐字核对。）
+    assert!(progress(work, "a").is_empty(), "目标消息不得有回复");
     // 持久边界：提交前被杀 = 目标前快照（事务内已写的全部行均未落盘）；提交后被杀 = 目标后快照。
     let boundary = if committed { target + 1 } else { target };
     let at_kill = dumps(&configs);
@@ -801,21 +946,20 @@ fn resume(k: &Killed, work: &Path, steps: Vec<Value>) -> Vec<Value> {
 }
 
 /// 终态四域全表（除 meta/epochs）与公开查询对不崩溃参照：规范化逐值比较（返回第一处差异）。
-fn final_diff(plan: &Plan, k: &Killed, clock: &Clock) -> Result<(Vec<Value>, Vec<Value>), String> {
-    let reference = Clock::reference(plan);
+fn final_diff(k: &Killed, clock: &Clock) -> Result<(Vec<Value>, Vec<Value>), String> {
+    let reference = reference();
     let finals = dumps(&k.configs);
     for d in 0..4 {
         compare(
             &without(&finals[d], &["meta", "epochs"]),
             clock,
-            &without(&plan.reference[d], &["meta", "epochs"]),
-            &reference,
+            &reference.norm_tables[d],
         )
         .map_err(|e| format!("终态域 {d}：{e}"))?;
     }
     let queries = public(&k.configs);
     for d in 0..4 {
-        compare(&queries[d], clock, &plan.reference_public[d], &reference)
+        compare(&queries[d], clock, &reference.norm_public[d])
             .map_err(|e| format!("公开查询域 {d}：{e}"))?;
     }
     Ok((finals, queries))
@@ -824,13 +968,20 @@ fn final_diff(plan: &Plan, k: &Killed, clock: &Clock) -> Result<(Vec<Value>, Vec
 /// 一次完整轨：kill → recover → 原样重送两次 → 续跑到终态。
 fn run_once(plan: &Plan, target: usize, phase: &str, work: &Path) -> Value {
     let committed = phase == "after_commit";
+    let t0 = Instant::now();
     let k = kill_and_recover(plan, target, phase, work);
+    let t_kill = t0.elapsed().as_millis();
     let (owner, kill_seq) = (k.owner, k.kill_seq);
     let clock = Clock::crash(plan, owner, target, committed);
-    let reference = Clock::reference(plan);
     let mut steps = vec![plan.steps[target].clone(), plan.steps[target].clone()];
     steps.extend_from_slice(&plan.steps[target + 1..]);
     let after = resume(&k, work, steps);
+    let t_resume = t0.elapsed().as_millis();
+    let a_steps: u64 = progress(work, "a")
+        .iter()
+        .map(|l| l["ms"].as_u64().unwrap_or(0))
+        .sum();
+    let c_steps: u64 = after.iter().map(|l| l["ms"].as_u64().unwrap_or(0)).sum();
     let resent = &after[0];
     if committed {
         // 提交后被杀：重送返回原持久回执，不新增提交。
@@ -840,7 +991,7 @@ fn run_once(plan: &Plan, target: usize, phase: &str, work: &Path) -> Value {
         // 提交前被杀：重送恰好新增一个提交；回执时刻取第二列（商 1），规范化后与参照回执逐字相同。
         assert_ne!(resent["reply"], plan.replies[target]);
         assert_eq!(
-            compare(&resent["reply"], &clock, &plan.replies[target], &reference),
+            compare(&resent["reply"], &clock, &plan.norm_replies[target]),
             Ok(()),
             "重送回执"
         );
@@ -851,21 +1002,28 @@ fn run_once(plan: &Plan, target: usize, phase: &str, work: &Path) -> Value {
     for (n, line) in after[2..].iter().enumerate() {
         let i = target + 1 + n;
         assert_eq!(
-            compare(&line["reply"], &clock, &plan.replies[i], &reference),
+            compare(&line["reply"], &clock, &plan.norm_replies[i]),
             Ok(()),
             "续跑第 {i} 步"
         );
     }
     audit_all(&k.configs);
-    let (finals, queries) = final_diff(plan, &k, &clock).unwrap();
+    let (finals, queries) = final_diff(&k, &clock).unwrap();
+    let reference = reference();
     for d in 0..4 {
         if owner != 0 && d != owner {
             // B 崩溃不触及 E 与其它 B：业务表与公开查询逐字相同。
-            assert_eq!(business(&finals[d]), business(&plan.reference[d]));
-            assert_eq!(queries[d], plan.reference_public[d]);
+            assert_eq!(business(&finals[d]), business(&reference.tables[d]));
+            assert_eq!(queries[d], reference.public[d]);
         }
     }
     oracle(plan, &finals);
+    println!(
+        "S3-TIME {}",
+        canonical_json(
+            &json!({"target":target,"phase":phase,"kill_and_recover_ms":t_kill,"resume_done_ms":t_resume,"total_ms":t0.elapsed().as_millis(),"a_step_ms":a_steps,"c_step_ms":c_steps})
+        )
+    );
     let mut recovered_record = k.recovered.clone();
     recovered_record.as_object_mut().unwrap().remove("runtime");
     json!({"scope":"local transaction process fault seam (Config::pause around tx.commit); not formal sockets/S/browser",
@@ -875,12 +1033,14 @@ fn run_once(plan: &Plan, target: usize, phase: &str, work: &Path) -> Value {
         "continuation_replies":after.iter().map(|l| l["reply"].clone()).collect::<Vec<_>>(),
         "final_tables_sha256":book::hash(&json!(finals)),"final_tables":finals,"public":queries})
 }
-fn matrix(target: usize, op: &str, owner: usize) {
+/// 一个（目标步, 阶段）组合：两次全新目录、全新 A/R/C 进程，终态全表与续跑回复逐字节相同。
+/// 降时长后每组合一个测试（原为每步一个测试内串行两阶段），调度粒度减半、工作量不变。
+fn matrix(target: usize, op: &str, owner: usize, phase: &str) {
     let plan = plan();
     assert_eq!(plan.steps[target]["envelope"]["payload"]["op"], op);
     assert_eq!(plan.steps[target]["owner"], owner);
     let label = format!("step{target:02}");
-    for phase in ["before_commit", "after_commit"] {
+    {
         let base = root().join(&label).join(phase);
         let work = base.join("work");
         let mut finals = vec![];
@@ -912,11 +1072,18 @@ fn matrix(target: usize, op: &str, owner: usize) {
 }
 
 /// WE7 全部 21 个持久写步（评审 M2）：步号 / 操作 / 所属域（0=E，1..3=B:chong-N1..N3）。
+/// 每步生成 `<名>::before_commit` 与 `<名>::after_commit` 两个测试（共 42 个组合 × 2 次 = 84 次 SIGKILL）。
 macro_rules! kill_step {
     ($($name:ident: $target:expr, $op:expr, $owner:expr;)*) => {$(
-        #[test]
-        fn $name() {
-            matrix($target, $op, $owner);
+        mod $name {
+            #[test]
+            fn before_commit() {
+                super::matrix($target, $op, $owner, "before_commit");
+            }
+            #[test]
+            fn after_commit() {
+                super::matrix($target, $op, $owner, "after_commit");
+            }
         }
     )*};
 }
@@ -958,8 +1125,7 @@ fn skip_resend(target: usize) -> String {
         .iter()
         .filter(|l| l["reply"]["kind"] == "Error")
         .count();
-    let diff =
-        final_diff(plan, &k, &clock).expect_err("跳过重送后终态竟与参照相同：比较函数无区分力");
+    let diff = final_diff(&k, &clock).expect_err("跳过重送后终态竟与参照相同：比较函数无区分力");
     println!(
         "S3-NEGATIVE {}",
         canonical_json(&json!({"target":target,"continuation_errors":errors,"first_diff":diff}))
