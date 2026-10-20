@@ -5562,10 +5562,15 @@ mod tests {
                     let (tag, body) = warm.store.nodes.get(digest).expect("新写节点在表");
                     *by_tag.entry(tag).or_default() += 1;
                     if samples.len() < 6 {
-                        samples.push(format!(
-                            "{tag:#04x}:{}",
-                            String::from_utf8_lossy(&body[..body.len().min(48)])
-                        ));
+                        let phases: Vec<&str> = emissions
+                            .materials
+                            .get(&(*digest, tag))
+                            .into_iter()
+                            .flatten()
+                            .flat_map(|entry| entry.phases.keys().copied())
+                            .collect();
+                        let count = body.get(..8).map(|n| u64::from_be_bytes(n.try_into().unwrap()));
+                        samples.push(format!("{tag:#04x} n={count:?} phases={phases:?}"));
                     }
                 }
                 assert!(
