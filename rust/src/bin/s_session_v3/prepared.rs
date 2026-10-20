@@ -2161,6 +2161,34 @@ pub(crate) mod tests {
     }
 
     /// Normal append/revision only. Does not call the older observation/fault entries.
+    /// #1488 S3 探针：逐代单行追加的真实 commit，打出 aux plan 与 assemble_manifest 的 SQL 读量。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn s3_stage_reads_per_generation_probe() {
+        const IDS: [&str; 16] = [
+            "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10", "p11", "p12",
+            "p13", "p14", "p15",
+        ];
+        let mut f = Fixture::new();
+        for n in 1..=IDS.len() as i64 {
+            let i = (n - 1) as usize;
+            let (high, low) = if i % 2 == 0 {
+                (20 + (i % 7) as i64, 12 + (i % 5) as i64)
+            } else {
+                (14 + (i % 3) as i64, 5 + (i % 4) as i64)
+            };
+            let (e, t) = f.accept_begin(n, (IDS[i], (i * 10) as i64, low + 1, high, low, low + 1), 1);
+            let assemble = content_manifest::assemble_sql_reads_for_test();
+            let total = crate::content_store::sql_reads_on_thread();
+            f.publish(&e, &t).unwrap();
+            eprintln!(
+                "S3_STAGE_READS g={n} assemble_sql={} commit_sql={}",
+                content_manifest::assemble_sql_reads_for_test() - assemble,
+                crate::content_store::sql_reads_on_thread() - total,
+            );
+        }
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn native_manifest_workspace_four_normal_commits_match_cold_and_ordinary_full_rows() {

@@ -1430,11 +1430,24 @@ pub(crate) fn assemble_unpublished_view_in_store(
     metadata: MetadataView<'_>,
     roots: RootsView<'_>,
 ) -> Result<UnpublishedManifest, CodecError> {
+    #[cfg(test)]
+    let sql = super::content_store::sql_reads_on_thread();
     let body = assemble_manifest_body(store, metadata, roots)?;
+    #[cfg(test)]
+    ASSEMBLE_SQL_READS.with(|reads| {
+        reads.set(reads.get() + super::content_store::sql_reads_on_thread() - sql)
+    });
     Ok(UnpublishedManifest {
         value: body.value,
         batch_id: TextValue::Plain(store.native_string(batch_text(&body.identity).as_str())?),
     })
+}
+#[cfg(test)]
+thread_local! { static ASSEMBLE_SQL_READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) }; }
+/// #1488 S3 探针：本线程 assemble_manifest_body 累计 SQL 节点读。
+#[cfg(test)]
+pub(crate) fn assemble_sql_reads_for_test() -> u64 {
+    ASSEMBLE_SQL_READS.with(std::cell::Cell::get)
 }
 struct ManifestBody {
     value: Built,
