@@ -2738,13 +2738,13 @@ mod construction_coverage_tests {
         let effects = recording.finish(&tx, &mut [], 16 << 20).unwrap().unwrap();
         assert!(effects.has_exact_coverage(tx.total_changes()));
     }
-    // #1488 0035：events 增长只为 events 付新块；触帽即 journal 溢出（Ok(None)），与 keys 溢出同语义。
+    // #1488 0035：events 增长只为 events 付新块；触帽即 journal 溢出（与 keys 溢出共用 reserve_receipt）。
     #[test]
     fn owner_set_receipt_events_grow_alone_and_overflow_like_keys() {
         let mut db = database();
         let tx = db.transaction().unwrap();
         let (recording, state) = set_recording(&tx);
-        with_material_access(&tx, None, |material| {
+        let result = with_material_access(&tx, None, |material| {
             let material = material.unwrap();
             note_source_cut(material, (&state).into())?;
             put(&tx, 45);
@@ -2774,16 +2774,25 @@ mod construction_coverage_tests {
             assert!(grown);
             let mut j = recording.journal.lock().unwrap();
             let fill = j.events.capacity() - j.events.len();
+            let keys = j.keys.len();
             j.cap = j.bytes;
             drop(j);
             for _ in 0..=fill {
                 put(&tx, 45);
             }
-            assert!(recording.journal.lock().unwrap().overflow, "events触帽须溢出");
+            let j = recording.journal.lock().unwrap();
+            assert!(j.overflow, "events触帽须溢出");
+            assert_eq!(j.keys.len(), keys, "同摘要收据不新增key");
+            assert_eq!((j.keys.capacity(), j.nodes.capacity()), (keys_cap, nodes_cap));
             Ok(())
-        })
-        .unwrap();
-        assert!(recording.finish(&tx, &mut [], 16 << 20).unwrap().is_none());
+        });
+        // 溢出是材料内首错：闭包不得吞下，effects 不得签发。
+        let error = result.unwrap_err();
+        assert!(error.contains("材料闭包未完整闭合或吞下失败"), "{error}");
+        assert!(!matches!(
+            recording.finish(&tx, &mut [], 16 << 20),
+            Ok(Some(_))
+        ));
     }
     #[test]
     fn owner_set_future_stage_cannot_repair_missing_current_original() {

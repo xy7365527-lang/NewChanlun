@@ -2026,7 +2026,7 @@ mod tests {
             .unwrap();
         assert_eq!(tree_permit.as_ref().map(|p| p.bytes()), Some(entries * per));
         drop(tree_permit);
-        assert!(budget.live() > baseline, "正文与puts仍持原许可");
+        assert_eq!(budget.live(), baseline);
     }
 
     #[cfg(feature = "s_capture_native_testonly")]
