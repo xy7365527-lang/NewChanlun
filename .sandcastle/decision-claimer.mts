@@ -978,6 +978,11 @@ export interface Summary {
   pDone?: PStep[];
   /** 本次从哪个断点续做。 */
   resumedFrom?: ResumeStage;
+  /**
+   * 本轮读票时已有的评论条数。水印之后的退回/驳回/否决作废断点
+   * （见 resumeStaleBecauseReopen）。本轮自己写下的评论也落在水印之后，但都不是退回词。
+   */
+  commentsSeen?: number;
 }
 
 export type ResumeStage = "reviewed_pass" | "shadow_p_pending";
@@ -999,6 +1004,23 @@ export function loadResume(dir: string): { prev: Summary; draft: string; review:
   if (prev.stage === "reviewed_pass" && (rv.verdict !== "PASS" || prev.klass !== "T")) return null;
   const review: Review = { items: rv.items ?? [], verdict: rv.verdict === "PASS" ? "PASS" : "BLOCK", problems: rv.problems ?? [], parseError: false };
   return { prev, draft: readFileSync(dp, "utf8"), review };
+}
+
+/**
+ * 断点之后的编排者评论若是退回 / 驳回 / 否决，旧 PASS 不再有效，必须整链重跑。
+ * 断点当时已经在票上的退回不算（那一稿是看着它写的）。没有 commentsSeen 的旧断点从第 0 条算起，宁肯重跑。
+ */
+export function resumeStaleBecauseReopen(
+  prev: Pick<Summary, "commentsSeen">,
+  comments: Array<{ author: string; body: string }>,
+  orchestrator = ORCHESTRATOR,
+): boolean {
+  const seen = prev.commentsSeen ?? 0;
+  for (const c of comments.slice(Math.max(0, seen))) {
+    if (c.author !== orchestrator) continue;
+    if (REOPEN_RE.test(firstLine(c.body))) return true;
+  }
+  return false;
 }
 
 function writeJson(path: string, v: unknown) {
@@ -1107,7 +1129,12 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
       log(`#${n} 跳过：${resolved}`);
       return summary;
     }
-    const resume = loadResume(dir);
+    let resume = loadResume(dir);
+    if (resume && resumeStaleBecauseReopen(resume.prev, t.comments)) {
+      // 人已经退回，不能拿旧 PASS 跳过独审直接落地。
+      log(`#${n} 断点作废：审查通过后出现退回/驳回/否决，整链重跑`);
+      resume = null;
+    }
 
     // claim 先行防重复；续做时允许票仍挂在自己名下（上次没来得及取消认领）。
     if (d.mode === "live") {
@@ -1263,7 +1290,9 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
           writeFileSync(join(dir, "draft.md"), draft);
         }
         // 审查已过：先落盘断点，落地任何一步失败，下一轮从这里续做。
+        // commentsSeen 是本轮读票时的条数；其后的退回作废这条断点。
         summary.stage = "reviewed_pass";
+        summary.commentsSeen = t.comments.length;
         persist();
         if (d.mode === "dry-run") {
           summary.plannedWrites.push(`分支 decision/${n}：写 ${target} 并推送`, `评论 #${n}：resolution（首行「${AUTH_LINE}」）`);
@@ -1278,6 +1307,7 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
       const done = new Set<PStep>(summary.pDone ?? []);
       summary.stage = "shadow_p_pending";
       summary.pDone = [...done];
+      summary.commentsSeen = t.comments.length;
       persist();
       const steps: Record<PStep, [string, string[], string?]> = {
         comment: [`评论 #${n}：P 类草稿与审查结论`, ["issue", "comment", String(n), "--body-file", "-"], shadowComment(n, draft, review!, dir, summary, loadArchaeology(dir))],
