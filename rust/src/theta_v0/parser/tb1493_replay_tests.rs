@@ -229,7 +229,11 @@ fn tb1493_replay_tail_window_ladder() {
     report("TAIL", &r, bars.len(), 5_000);
     facts_report("TAIL", &last, &[370, 508, 3040]);
     assert_eq!(r.invalid_bars, 0);
-    assert_eq!(r.rewrites.iter().filter(|x| !x.2).count(), 0, "前缀确认回退（非末笔可改写）");
+    assert_eq!(
+        r.rewrites.iter().filter(|x| !x.2).count(),
+        0,
+        "前缀确认回退（非末笔可改写）"
+    );
 }
 
 #[test]
@@ -256,7 +260,11 @@ fn tb1493_replay_full_history() {
         last.segments.last().map(|s| s.end_index)
     );
     assert_eq!(r.invalid_bars, 0);
-    assert_eq!(r.rewrites.iter().filter(|x| !x.2).count(), 0, "前缀确认回退（非末笔可改写）");
+    assert_eq!(
+        r.rewrites.iter().filter(|x| !x.2).count(),
+        0,
+        "前缀确认回退（非末笔可改写）"
+    );
     assert!(max_zero_run <= 1, "每 25 万根分桶不得有连续零桶");
 }
 
@@ -395,7 +403,11 @@ fn tb1493_replay_full_history_incremental_only() {
         assert!(k > 0, "笔 {s} 之后段层停产");
     }
     assert_eq!(r.invalid_bars, 0);
-    assert_eq!(r.rewrites.iter().filter(|x| !x.2).count(), 0, "前缀确认回退（非末笔可改写）");
+    assert_eq!(
+        r.rewrites.iter().filter(|x| !x.2).count(),
+        0,
+        "前缀确认回退（非末笔可改写）"
+    );
     assert!(max_zero_run <= 1, "每 25 万根分桶不得有连续零桶");
 }
 
@@ -464,12 +476,14 @@ fn ruling2_arm(strokes: &[Stroke], arm: u8) -> (Vec<Segment>, usize, Option<usiz
             .iter()
             .rposition(|x| x.end_index == s.end_index)
             .unwrap();
-        let (hi, lo) = strokes[a..=b].iter().fold((i64::MIN, i64::MAX), |(h, l), x| {
-            (
-                h.max(x.start_price.max(x.end_price)),
-                l.min(x.start_price.min(x.end_price)),
-            )
-        });
+        let (hi, lo) = strokes[a..=b]
+            .iter()
+            .fold((i64::MIN, i64::MAX), |(h, l), x| {
+                (
+                    h.max(x.start_price.max(x.end_price)),
+                    l.min(x.start_price.min(x.end_price)),
+                )
+            });
         // 段端点 = 段末笔终点价（`Segment.end_price` 是第 78 课标准化后的段内极值）。
         let endpoint = strokes[b].end_price;
         let ok = match s.direction {
@@ -491,7 +505,9 @@ fn tb1493_ruling2_three_way_real() {
     let tail = &all[all.len() - 50_000..];
     for (tag, bars) in [("TAIL", &tail[5..]), ("FULL", &all[1..])] {
         let layer = parse_layer(bars, &theta);
-        let r: Vec<_> = (0..3u8).map(|arm| ruling2_arm(&layer.strokes, arm)).collect();
+        let r: Vec<_> = (0..3u8)
+            .map(|arm| ruling2_arm(&layer.strokes, arm))
+            .collect();
         let diff = |x: usize, y: usize| {
             let (p, q) = (&r[x].0, &r[y].0);
             (0..p.len().max(q.len()))

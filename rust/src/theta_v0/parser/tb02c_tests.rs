@@ -696,8 +696,14 @@ fn tb1493_random_full_eq_incremental_and_no_gate_failure_after_first() {
             }
         }
     }
-    assert_eq!(later_failures, 0, "流首段之外段端门失败须为 0（#1493 裁定 3）");
-    assert_eq!(later_min_count, 0, "非流首段最少笔数不足须为 0（#1493 裁定 3）");
+    assert_eq!(
+        later_failures, 0,
+        "流首段之外段端门失败须为 0（#1493 裁定 3）"
+    );
+    assert_eq!(
+        later_min_count, 0,
+        "非流首段最少笔数不足须为 0（#1493 裁定 3）"
+    );
 }
 
 #[test]
@@ -761,11 +767,19 @@ fn tb1493_arm_run(ss: &[Stroke], arm: u8) -> (Vec<Segment>, usize, usize, usize)
         let (p, extreme) = match s.direction {
             Direction::Up => (
                 w.elements[1].high,
-                ss[a..=b].iter().map(|x| x.start_price.max(x.end_price)).max().unwrap(),
+                ss[a..=b]
+                    .iter()
+                    .map(|x| x.start_price.max(x.end_price))
+                    .max()
+                    .unwrap(),
             ),
             Direction::Down => (
                 w.elements[1].low,
-                ss[a..=b].iter().map(|x| x.start_price.min(x.end_price)).min().unwrap(),
+                ss[a..=b]
+                    .iter()
+                    .map(|x| x.start_price.min(x.end_price))
+                    .min()
+                    .unwrap(),
             ),
         };
         if endpoint != p {
@@ -846,7 +860,10 @@ fn tb1493_ruling2_three_way_comparison() {
         }
         if r[0].1 > 0 || r[0].3 > 0 {
             let sp = tb1493_spans(ss, &r[0].0);
-            eprintln!("TB1493 RULING2 OFF {tag} off_p={} not_extreme={} spans={sp:?}", r[0].1, r[0].3);
+            eprintln!(
+                "TB1493 RULING2 OFF {tag} off_p={} not_extreme={} spans={sp:?}",
+                r[0].1, r[0].3
+            );
         }
         assert_eq!(r[0].1, 0, "{tag}：本裁定段端点不在分型极值 P");
         assert_eq!(r[0].2, 0, "{tag}：本裁定段端门失败");
@@ -855,5 +872,64 @@ fn tb1493_ruling2_three_way_comparison() {
         "TB1493 RULING2 groups={groups} diff[ruling~window,ruling~oldG2,window~oldG2]={diff:?} \
          groups_endpoint_ne_P[ruling,window,oldG2]={off:?} groups_gate_fail[ruling,window,oldG2]={inv:?} \
          groups_endpoint_not_segment_extreme[ruling,window,oldG2]={nx:?}"
+    );
+}
+
+/// #1581 报告的合成 K 线生成器（`codex/1581-downstream-parse-invalid` 26034a0239 `tb1581_bars` 逐字复制）：
+/// 确定性随机游走 K 线（LCG），收盘价步长有正负，高低价包住开收。
+fn tb1493_synthetic_bars(seed: u64, n: usize) -> Vec<super::super::types::Bar> {
+    let mut state = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+    let mut next = move || {
+        state = state
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        (state >> 33) as i64
+    };
+    let mut close = 10_000i64;
+    let mut drift = 0i64;
+    (0..n)
+        .map(|i| {
+            if i % 9 == 0 {
+                drift = next() % 41 - 20;
+            }
+            let open = close;
+            close = open + drift + next() % 13 - 6;
+            let high = open.max(close) + next() % 15;
+            let low = open.min(close) - next() % 15;
+            super::super::types::Bar {
+                source_index: i,
+                timestamp: 60 * i as i64,
+                open,
+                high,
+                low,
+                close,
+                volume: 1.0,
+                untradable: false,
+            }
+        })
+        .collect()
+}
+
+#[test]
+fn tb1493_production_incremental_has_no_fail_closed_marker() {
+    // #1493 裁定 4b 计数锁（X-37 合入前「下游不得在其上构造」由此承担）：生产配置逐 bar 增量解析在
+    // 合成 K 线上全程无段端门 fail-closed 标记。#1581 在裁定 1 落地前的 HEAD 36adc7c7c8 上于
+    // seed=0x1581_0004 bar 1999–2035 测到 Some(100)（第二种候选 OPEN 期间更晚候选门失败）。
+    let cfg = ThetaConfig::default();
+    let mut marked = Vec::new();
+    for seed in 0..6u64 {
+        let bars = tb1493_synthetic_bars(0x1581_0000 + seed, 4_000);
+        let mut incr = ParseLayerIncr::new(&cfg);
+        for (i, bar) in bars.iter().enumerate() {
+            let _ = incr.append(*bar);
+            if let Some(p) = incr.segments_parse_invalid_from() {
+                marked.push((seed, i, p));
+            }
+        }
+    }
+    assert!(
+        marked.is_empty(),
+        "生产增量路径出现 fail-closed 标记 (seed,bar,seg_start)：{:?}",
+        &marked[..marked.len().min(10)]
     );
 }
