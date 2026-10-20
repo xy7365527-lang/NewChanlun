@@ -2043,45 +2043,24 @@ mod tests {
         );
     }
 
+    /// #1488 本票第四处裁改断言（主控裁定 (i)：
+    /// https://github.com/xy7365527-lang/NewChanlun/issues/1488#issuecomment-6281614540）。
+    /// 原锁 `audit_owner_write_budget_releases_candidate_after_successful_normal_append` 断言
+    /// 第二次正常写成功后 `complete_retained_bytes() == 0`，该断言在现设计不可达，旧绿为假绿
+    /// （冷路径降级或写失败归零），故与 0039 正控锁合并为本锁，不再保留 ==0。
+    /// 不可达依据（workers/wbfix-0039/REPORT.md §2 读数）：同一 S7 额度余量 M 同时供写期工作额度
+    /// （≈M）与保留帽（held+M）；规则释放需 M < charge + raw − held = 3,281,186 + 320,877 − 2,873,735
+    /// = 728,328B，写成功需 parent_limit 装下 handoff_peak 8,181,876B（新增 5,308,141B，实测下限
+    /// 6–7MiB），两区间不相交；16/9/8/7MiB 写成功且保留 3,602,191B，6MiB 及以下写本身 StaleWriter；
+    /// 且即使强制释放候选，construction raw 320,877B 仍计入 retained，==0 仍不成立。
+    /// 现语义：夹具不变（legacy + held + 8MiB），effects 路径写成功，完整候选按
+    /// `charge.total ≤ complete_retention_cap − raw` 保留，handoff_peak ≤ parent_limit。
+    /// 开放风险：本锁只证明 8MiB 夹具下的上述关系，并未证明“8MiB 足够”
+    /// （RUNTIME-INDEPENDENT-REVIEW【05】），随整票验收的资源读数一并报告。
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
-    fn audit_owner_write_budget_releases_candidate_after_successful_normal_append() {
+    fn audit_owner_write_budget_retains_candidate_within_retention_cap_and_parent_limit() {
         use super::super::audit_owner::allocation_probe::Window;
-        let f = Fixture::new();
-        let o = Fixture::new();
-        let mut native = complete_driver(&f);
-        let mut ordinary = o.open("1").unwrap();
-        assert_eq!(
-            native.handle(Fixture::ingest(1)).unwrap(),
-            ordinary.handle(Fixture::ingest(1)).unwrap()
-        );
-        let held = native.conn.complete_retained_bytes();
-        assert!(held > 0);
-        // 仅收紧本测试 Driver 的同一 S7 额度，不修改任何默认额度。
-        native.audit_cache_source_bytes =
-            Some(crate::cache::retained_bytes() + held + 8 * 1024 * 1024);
-        let memory = Window::start();
-        let (actual, events, work) = state::traced(true, || native.handle(Fixture::ingest(2)));
-        let memory = memory.finish();
-        let expected = ordinary.handle(Fixture::ingest(2)).unwrap();
-        assert_eq!(actual.unwrap(), expected);
-        assert_eq!(native.conn.complete_retained_bytes(), 0);
-        assert!(events.iter().any(|e| e["phase"] == "owner_complete_hit"));
-        assert_eq!(
-            prepared::tests::runtime_root_tables(&native.conn, true),
-            prepared::tests::runtime_root_tables(&ordinary.conn, true)
-        );
-        eprintln!(
-            "{}",
-            json!({"scenario":"r4-write-budget-release","old_charge":held,"allocation":memory,"events":events,"work":work,"retained":native.conn.complete_retained_bytes()})
-        );
-    }
-
-    /// #1488 0039 正控（issuecomment-6280706052 第 2 条）：与上锁同一夹具、同一 effects 路径，
-    /// 保留余量充足时候选按 `charge.total ≤ complete_retention_cap − raw` 被保留，父账峰值不超过 parent_limit。
-    #[cfg(feature = "s_capture_native_testonly")]
-    #[test]
-    fn audit_owner_write_budget_retains_candidate_when_retention_margin_suffices() {
         let f = Fixture::new();
         let o = Fixture::new();
         let mut native = complete_driver(&f);
@@ -2094,8 +2073,11 @@ mod tests {
         assert!(held > 0);
         let legacy = crate::cache::retained_bytes();
         let total = legacy + held + 8 * 1024 * 1024;
+        // 仅收紧本测试 Driver 的同一 S7 额度，不修改任何默认额度。
         native.audit_cache_source_bytes = Some(total);
-        let (actual, events, _) = state::traced(true, || native.handle(Fixture::ingest(2)));
+        let memory = Window::start();
+        let (actual, events, work) = state::traced(true, || native.handle(Fixture::ingest(2)));
+        let memory = memory.finish();
         assert_eq!(
             actual.unwrap(),
             ordinary.handle(Fixture::ingest(2)).unwrap()
@@ -2122,6 +2104,10 @@ mod tests {
         assert_eq!(
             prepared::tests::runtime_root_tables(&native.conn, true),
             prepared::tests::runtime_root_tables(&ordinary.conn, true)
+        );
+        eprintln!(
+            "{}",
+            json!({"scenario":"r4-write-budget-retain","old_charge":held,"charge":charge,"cap":cap,"raw":raw,"handoff_peak":peak,"parent_limit":parent_limit,"allocation":memory,"events":events,"work":work,"retained":retained})
         );
     }
 
