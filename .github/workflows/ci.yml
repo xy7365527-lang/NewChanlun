@@ -143,8 +143,8 @@ jobs:
   # 拆前 s_session bin 一步 89 分钟里，执行占 88 分钟、编译约 1 分钟；其中两条测试独占尾部
   # （tb02w_killed_case_two_scan_budget_resume_and_recover 约 69 分钟、tb02c_persistent_first_kind_and_normal_recovery
   # 约 49 分钟），其余 505 条在开跑 41 分钟内全部结束。分片后最长 job 的下限即最慢那条测试本身。
-  # 拆后实测（PR run 39382771454）：两条长测试各自不再与其它测试争 4 个 vCPU，tb02w 1755s、tb02c 约 1229s；
-  # 整个 workflow 约 31 分钟，最长 job 为只含 tb02w 的分片（31 分钟）。
+  # 拆后实测：最长 job 为只含 tb02w 的分片，耗时主要看 runner 机型——
+  # PR run 39382771454 落在 EPYC 9V45，tb02w 1755s、job 31 分钟；PR run 39386754336 落在 EPYC 7763，tb02w 3877s、job 67 分钟。
   # 拆前 timeout 150（7e914f1e55，容纳单 job 全程）；拆后按各 job 实测分别设上限，仍兼作 #1406 挂死保护。
   rust-check:
     runs-on: ubuntu-latest
@@ -240,8 +240,8 @@ jobs:
   rust-test-s-session:
     name: rust-test-s-session (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
-    # 最慢那片只含 tb02w 一条长测试：拆前在 4 线程争用下约 69 分钟，拆后独占 runner 实测 31 分钟（含编译）。
-    # 上限按拆前争用读数再留余量，兼作挂死保护。
+    # 最慢那片只含 tb02w 一条长测试：独占 runner 实测 31 分钟（EPYC 9V45）到 67 分钟（EPYC 7763，已见最慢机型），含编译。
+    # 上限按最慢机型读数留约三分之一余量，兼作挂死保护。
     timeout-minutes: 90
     strategy:
       fail-fast: false
