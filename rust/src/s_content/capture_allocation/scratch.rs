@@ -222,7 +222,7 @@ impl ScratchHandle {
         }
     }
     pub(crate) fn fail(&self, failure: ScratchFailure) {
-        if failure == ScratchFailure::Ledger {
+        if traced(failure) == ScratchFailure::Ledger {
             let _ = self
                 .core()
                 .failure
@@ -239,7 +239,7 @@ impl ScratchHandle {
         }
     }
     pub(crate) fn observe(&self, error: &CodecError) {
-        if error.scratch_failure().is_none() {
+        if traced_semantic(error.scratch_failure().is_none()) {
             let _ = self.core().failure.compare_exchange(
                 0,
                 SEMANTIC_FAILURE,
@@ -528,5 +528,135 @@ impl<T> std::ops::Deref for ScratchVec<T> {
     type Target = [T];
     fn deref(&self) -> &[T] {
         &self.bytes
+    }
+}
+
+// #1488 0072：类型化失败旁路挂点。挂点替换原表达式且行号中性；生产构建下均为恒等函数，
+// 不记录、不改变行为。记录只在 `failure_trace::capture` 活动期间、且仅 testonly 构建发生。
+#[inline(always)]
+pub(crate) fn traced(failure: ScratchFailure) -> ScratchFailure {
+    #[cfg(feature = "s_capture_native_testonly")]
+    failure_trace::record(failure);
+    failure
+}
+#[inline(always)]
+pub(crate) fn traced_semantic(semantic: bool) -> bool {
+    #[cfg(feature = "s_capture_native_testonly")]
+    if semantic {
+        failure_trace::record_semantic();
+    }
+    semantic
+}
+/// `CodecError` 的 Display 挂点：scratch 错误渲染进 String 即为“过桥”。
+#[inline(always)]
+pub(crate) fn shown(error: &CodecError) -> &std::borrow::Cow<'static, str> {
+    #[cfg(feature = "s_capture_native_testonly")]
+    failure_trace::record_bridge(error);
+    &error.detail
+}
+
+/// #1488 0072（独审 0070 R1/R2）：候选 publication 闭包期间全部失败的类别多重集。
+/// 降级判据只读本记录与作用域分类，不按错误文字判断资源种类：
+/// - `record`：每次 `ScratchHandle::fail` 与每次 `CodecError::scratch` 构造（含不记入任何作用域的
+///   Ledger 构造点：SourceClaim 字节不符、check_write 域已关闭等）；
+/// - `record_semantic`：工作域观察到的非 scratch codec 错误；
+/// - `record_bridge`：scratch 错误被渲染为 String（经 `invalid`/`err`/`stale` 等任意前缀包装上抛的起点）。
+///
+/// 记录是线程局部的 Copy 计数，访问不分配；`WorkScope` 不可 Send，同一闭包的 codec 工作都在本线程。
+#[cfg(feature = "s_capture_native_testonly")]
+pub mod failure_trace {
+    use super::ScratchFailure;
+    use crate::s_content::CodecError;
+    use std::borrow::Cow;
+    use std::cell::Cell;
+
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub struct FailureTrace {
+        pub budget: usize,
+        pub allocation: usize,
+        pub ledger: usize,
+        pub semantic: usize,
+        /// Budget/Allocation 种类的 scratch 错误渲染进 String 的次数。
+        pub bridged: usize,
+        /// 最近一次过桥错误的 (code, detail)，用于核对闭包错误的来源。
+        rendered: Option<(&'static str, &'static str)>,
+    }
+    impl FailureTrace {
+        /// 期间至少一次 Budget/Allocation，且没有任何 Ledger 或语义失败。
+        pub fn only_resource(&self) -> bool {
+            self.ledger == 0 && self.semantic == 0 && self.budget + self.allocation > 0
+        }
+        /// 闭包错误确由过桥的 Budget/Allocation scratch 错误上抛而来：期间确有过桥，且闭包错误
+        /// 携带该次过桥的原样渲染（任意前缀包装均可）。只收紧不放宽：种类判断不读文字。
+        pub fn bridges(&self, error: &str) -> bool {
+            self.rendered.is_some_and(|(code, detail)| {
+                self.bridged > 0
+                    && error.contains(&CodecError::static_detail(code, detail).to_string())
+            })
+        }
+        fn absorb(&mut self, other: FailureTrace) {
+            self.budget = self.budget.saturating_add(other.budget);
+            self.allocation = self.allocation.saturating_add(other.allocation);
+            self.ledger = self.ledger.saturating_add(other.ledger);
+            self.semantic = self.semantic.saturating_add(other.semantic);
+            self.bridged = self.bridged.saturating_add(other.bridged);
+            self.rendered = other.rendered.or(self.rendered);
+        }
+    }
+
+    thread_local! {
+        static ACTIVE: Cell<Option<FailureTrace>> = const { Cell::new(None) };
+    }
+    fn update(f: impl FnOnce(&mut FailureTrace)) {
+        let _ = ACTIVE.try_with(|active| {
+            if let Some(mut trace) = active.get() {
+                f(&mut trace);
+                active.set(Some(trace));
+            }
+        });
+    }
+    pub(super) fn record(failure: ScratchFailure) {
+        update(|t| match failure {
+            ScratchFailure::Budget => t.budget = t.budget.saturating_add(1),
+            ScratchFailure::Allocation => t.allocation = t.allocation.saturating_add(1),
+            ScratchFailure::Ledger => t.ledger = t.ledger.saturating_add(1),
+        });
+    }
+    pub(super) fn record_semantic() {
+        update(|t| t.semantic = t.semantic.saturating_add(1));
+    }
+    pub(super) fn record_bridge(error: &CodecError) {
+        match error.scratch_failure {
+            Some(ScratchFailure::Budget | ScratchFailure::Allocation) => update(|t| {
+                t.bridged = t.bridged.saturating_add(1);
+                // scratch 错误恒为静态文字；若将来改为 Owned，则不登记渲染，过桥核对 fail-closed。
+                if let Cow::Borrowed(detail) = error.detail {
+                    t.rendered = Some((error.code, detail));
+                }
+            }),
+            Some(ScratchFailure::Ledger) => record(ScratchFailure::Ledger),
+            None => {}
+        }
+    }
+
+    /// 在新记录下执行 `f` 并返回其全部失败；嵌套时内层记录并入外层。panic 时也恢复外层。
+    pub fn capture<T>(f: impl FnOnce() -> T) -> (T, FailureTrace) {
+        struct Restore(Option<Option<FailureTrace>>);
+        impl Drop for Restore {
+            fn drop(&mut self) {
+                if let Some(outer) = self.0.take() {
+                    let _ = ACTIVE.try_with(|active| active.set(outer));
+                }
+            }
+        }
+        let outer = ACTIVE.with(|active| active.replace(Some(FailureTrace::default())));
+        let mut restore = Restore(Some(outer));
+        let value = f();
+        let trace = ACTIVE
+            .with(|active| active.replace(restore.0.take().unwrap()))
+            .unwrap_or_default();
+        drop(restore);
+        update(|t| t.absorb(trace));
+        (value, trace)
     }
 }

@@ -124,7 +124,7 @@ pub struct CodecError {
 impl CodecError {
     fn scratch(failure: capture_allocation::scratch::ScratchFailure) -> Self {
         let mut error = Self::static_detail(capture_allocation::LIMIT, "codec 工作域分配失败");
-        error.scratch_failure = Some(failure);
+        error.scratch_failure = Some(capture_allocation::scratch::traced(failure));
         error
     }
     pub fn scratch_failure(&self) -> Option<capture_allocation::scratch::ScratchFailure> {
@@ -157,7 +157,7 @@ impl CodecError {
 
 impl fmt::Display for CodecError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.code, self.detail)
+        write!(f, "{}: {}", self.code, *self.shown())
     }
 }
 
@@ -9035,5 +9035,23 @@ mod native_owner_codec_bridge_tests {
             CaptureNodes::AllocationPrototype(_)
         ));
         assert_eq!(parent.live.load(Ordering::SeqCst), 0);
+    }
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+impl CodecError {
+    /// #1488 0072 测试面：不经任何作用域直接构造 scratch 错误，与 SourceClaim 字节不符、
+    /// check_write 域关闭等 Ledger 构造点同一入口（经类型化失败记录）。
+    #[doc(hidden)]
+    pub fn scratch_unscoped_for_test(failure: capture_allocation::scratch::ScratchFailure) -> Self {
+        Self::scratch(failure)
+    }
+}
+
+impl CodecError {
+    /// #1488 0072 Display 挂点：生产构建为 `&self.detail` 恒等，testonly 门内登记过桥渲染。
+    #[inline(always)]
+    fn shown(&self) -> &std::borrow::Cow<'static, str> {
+        capture_allocation::scratch::shown(self)
     }
 }

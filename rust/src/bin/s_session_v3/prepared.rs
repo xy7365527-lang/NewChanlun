@@ -19,7 +19,7 @@ fn publication_read_lease<'a, 'db>(
     #[cfg(test)] stage: Option<&'a staged_nodes::StageOwner<'a>>,
 ) -> Result<content_store::NativeReadLease<'a, 'db>, sc::CodecError> {
     #[cfg(test)]
-    if let Some(stage) = stage {
+    if let Some(stage) = super::audit_owner::prepare_fault(work)?.and(stage) {
         let work =
             work.ok_or_else(|| sc::CodecError::new(sc::code::SOURCE, "staged租约缺父工作域"))?;
         return content_store::NativeReadLease::new_admitted_staged(tx, work, stage);

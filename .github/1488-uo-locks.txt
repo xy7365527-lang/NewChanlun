@@ -106,3 +106,6 @@ v3::driver::tests::pager_probe_configure_keeps_carry_lease_open
 v3::driver::tests::publication_real_error_after_budget_failure_rejects_without_degrade
 v3::driver::tests::publication_source_append_allocation_failure_degrades
 v3::audit_owner::publication_degrade_verdict_tests::publication_degrade_verdict_only_for_pure_budget_shortfall
+# #1488 0072（独审 0070 R1/R2）：降级判据改为类型化失败记录——prepared 包装（S3PrepareInvalid）的真实候选 Allocation 降级；先记 Allocation 后返回别作用域 Ledger 类 scratch 错误（与桥同字）须拒绝；真值表改为真实记录驱动（同名锁）
+v3::driver::tests::publication_prepare_wrapped_allocation_failure_degrades
+v3::driver::tests::publication_ledger_after_budget_failure_rejects_without_degrade

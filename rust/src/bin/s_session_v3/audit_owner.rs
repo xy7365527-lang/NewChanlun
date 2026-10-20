@@ -5945,49 +5945,64 @@ impl AuditConnection {
             };
             // 0069（独审 0068 F1）：`CodecWork::run` 在作用域已记资源失败时丢弃闭包错误。为不把
             // “资源失败被吞后又返回的非预算真实错误”降级成功，这里另存闭包自身的 Err。
+            // 0072（独审 0070 R1/R2）：整个 run（闭包 + 关域 + 父健康）在类型化失败记录下执行，
+            // 降级判据读记录的类别多重集，不再按错误文字判断。
             let mut operation_error: Option<String> = None;
-            let run = work.run(|work| {
-                let result = (|| {
-                    let parent = PublicationScope {
-                        resources: &resources,
-                        work,
-                    };
-                    let receipt = self.publish_body(
-                        &mut active,
-                        runtime,
-                        token,
-                        envelope,
-                        context,
-                        Some(&parent),
-                    )?;
-                    let after = active.construction_seal()?;
-                    active.check_publication_transition(before, after)?;
-                    #[cfg(test)]
-                    {
-                        parent.trace("tail");
-                        if PUBLICATION_TAIL_FAILURE.with(|flag| flag.replace(false)) {
-                            let _ = parent.work().reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger);
+            let (run, trace) = failure_trace::capture(|| {
+                work.run(|work| {
+                    let result = (|| {
+                        let parent = PublicationScope {
+                            resources: &resources,
+                            work,
+                        };
+                        let receipt = self.publish_body(
+                            &mut active,
+                            runtime,
+                            token,
+                            envelope,
+                            context,
+                            Some(&parent),
+                        )?;
+                        let after = active.construction_seal()?;
+                        active.check_publication_transition(before, after)?;
+                        #[cfg(test)]
+                        {
+                            parent.trace("tail");
+                            if PUBLICATION_TAIL_FAILURE.with(|flag| flag.replace(false)) {
+                                let _ = parent.work().reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger);
+                            }
+                            // 0065 降级锁：同一尾检位置注入候选父工作域分配不足。
+                            if PUBLICATION_CANDIDATE_BUDGET_FAILURE.with(|flag| flag.replace(false)) {
+                                let _ = parent.work().reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Allocation);
+                            }
+                            // 0069 负控（独审 0068 探针 e）：先记 Allocation，再返回与预算无关的真实错误。
+                            if PUBLICATION_REAL_ERROR_AFTER_BUDGET.with(|flag| flag.replace(false)) {
+                                let _ = parent.work().reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Allocation);
+                                return Err(construction_state::stale("publication尾检身份不符（0069负控注入）"));
+                            }
+                            // 0072 锁（独审 0070 探针 g 取反）：先记 Allocation，再返回另一作用域 Ledger 类
+                            // scratch 错误经 `invalid` 的渲染（与桥同字），须拒绝。
+                            if PUBLICATION_LEDGER_AFTER_BUDGET.with(|flag| flag.replace(false)) {
+                                let _ = parent.work().reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Allocation);
+                                let mut ledger = None;
+                                let _ = native::Budget::new(4096, 0).unwrap().codec_work().unwrap().run(|w| {
+                                    ledger = Some(w.reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger).to_string());
+                                    Ok::<_, String>(())
+                                });
+                                return Err(invalid(ledger.unwrap()));
+                            }
                         }
-                        // 0065 降级锁：同一尾检位置注入候选父工作域分配不足。
-                        if PUBLICATION_CANDIDATE_BUDGET_FAILURE.with(|flag| flag.replace(false)) {
-                            let _ = parent.work().reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Allocation);
-                        }
-                        // 0069 负控（独审 0068 探针 e）：先记 Allocation，再返回与预算无关的真实错误。
-                        if PUBLICATION_REAL_ERROR_AFTER_BUDGET.with(|flag| flag.replace(false)) {
-                            let _ = parent.work().reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Allocation);
-                            return Err(construction_state::stale("publication尾检身份不符（0069负控注入）"));
-                        }
+                        Ok::<_, String>((receipt, after))
+                    })();
+                    if let Err(error) = &result {
+                        operation_error = Some(error.clone());
                     }
-                    Ok::<_, String>((receipt, after))
-                })();
-                if let Err(error) = &result {
-                    operation_error = Some(error.clone());
-                }
-                result
+                    result
+                })
             });
             let (receipt, after) = match run {
                 Ok(done) => done,
-                Err(error) => match publication_degrade_verdict(error, operation_error) {
+                Err(error) => match publication_degrade_verdict(error, operation_error, trace) {
                     Ok(()) => return Ok(None),
                     Err(e) => return Err(e),
                 },
@@ -6014,45 +6029,57 @@ impl AuditConnection {
     }
 }
 
-/// 0069（独审 0068 F1）：候选 publication 失败时的降级判据。`Ok(())` = 放弃候选（可降级），
-/// `Err` = fail-closed 返回的错误。只有同时满足以下两条才降级：
-/// - 资源失败确属可选候选预算不足：`WorkError::Resource(Budget | Allocation)`（父健康/Ledger 账损坏照旧拒绝）；
-/// - 闭包本身没有返回非预算错误：闭包 Ok（失败在尾检前被记录但未中断），或闭包 Err 恰是 scratch
-///   资源失败沿 String 桥原样上抛的那条错误（`is_scratch_resource_bridge`）。
-/// 其他闭包错误（尾检身份不符、施工消费者撤销 raw 租约等）即使作用域先记过 Budget/Allocation，
-/// 也按闭包自身错误 fail-closed。桥判定是白名单：文字若漂移只会退回 fail-closed，不会误降级。
+/// 0069/0072：候选 publication 失败时的降级判据。`Ok(())` = 放弃候选（可降级），`Err` = fail-closed
+/// 返回的错误。资源种类一律取自类型化记录（作用域分类 + 闭包期间失败多重集 `trace`），不读错误文字：
+/// - 作用域分类须为 `WorkError::Resource(Budget | Allocation)`（Ledger/父健康照旧拒绝）；
+/// - `trace.only_resource()`：闭包期间（含关域、父健康）全部失败都是 Budget/Allocation，没有任何
+///   Ledger（含不记入作用域的 `CodecError::scratch(Ledger)` 构造点、别的作用域）或语义失败；
+/// - 闭包 Ok，或闭包 Err 确由过桥的 Budget/Allocation scratch 错误上抛（`trace.bridges`，任意前缀
+///   包装均可：`S3DriverInvalid：`/`S3PrepareInvalid：`/`S3StateInvalid：`/`S3ContentReadInvalid：`/`StaleWriter：…`）。
+/// 其余一律拒绝：闭包有自身错误则原样返回（独审 0068 F1：资源失败被吞后的尾检身份不符等），
+/// 否则返回 Ledger 分类的工作账损坏。
 #[cfg(feature = "s_capture_native_testonly")]
 fn publication_degrade_verdict(
     error: newchan_rust::s_content::capture_allocation::scratch::WorkError<String>,
     operation_error: Option<String>,
+    trace: failure_trace::FailureTrace,
 ) -> Result<(), String> {
     use newchan_rust::s_content::capture_allocation::scratch::{ScratchFailure, WorkError};
+    let ledger = || match native::Failure::from(ScratchFailure::Ledger) {
+        native::Failure::Invalid(e) => e,
+        native::Failure::BudgetExceeded => unreachable!("Ledger 恒为 Invalid"),
+    };
     match error {
         WorkError::Operation(e) => Err(e),
+        WorkError::Resource(ScratchFailure::Ledger) => Err(ledger()),
         WorkError::Resource(ScratchFailure::Budget | ScratchFailure::Allocation) => {
             match operation_error {
-                None => Ok(()),
-                Some(e) if is_scratch_resource_bridge(&e) => Ok(()),
+                Some(e) if trace.only_resource() && trace.bridges(&e) => Ok(()),
                 Some(e) => Err(e),
+                None if trace.only_resource() => Ok(()),
+                None => Err(ledger()),
             }
         }
-        WorkError::Resource(ScratchFailure::Ledger) => match native::Failure::from(ScratchFailure::Ledger) {
-            native::Failure::Invalid(e) => Err(e),
-            native::Failure::BudgetExceeded => unreachable!("Ledger 恒为 Invalid"),
-        },
     }
 }
 
-/// scratch 资源失败经 `WorkScope::reject` → `CodecError`（code=LIMIT）→ String 的两种原样形态：
-/// 直接 `to_string()`，或经本文件/effects 的 `invalid()` 加 `S3DriverInvalid：` 前缀。
-/// 该 detail 只由 `CodecError::scratch` 产生（s_content.rs），资源种类仍以作用域记录为准。
 #[cfg(feature = "s_capture_native_testonly")]
-fn is_scratch_resource_bridge(error: &str) -> bool {
-    let bridge = format!(
-        "{}: codec 工作域分配失败",
-        newchan_rust::s_content::capture_allocation::LIMIT
-    );
-    error == bridge || error == invalid(&bridge)
+use newchan_rust::s_content::capture_allocation::scratch::failure_trace;
+
+/// 0072 R1 锁：prepared 发布读取租约处（`publication_read_lease` → `S3PrepareInvalid：` 包装，
+/// 独审 0070 S86 message-34 的真实包装）对候选父工作域注入 Allocation；未置位时恒等放行。
+#[cfg(test)]
+pub(super) fn prepare_fault(
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<Option<()>, newchan_rust::s_content::CodecError> {
+    #[cfg(feature = "s_capture_native_testonly")]
+    if let Some(work) = work.filter(|_| PREPARE_ALLOCATION_FAILURE.with(|f| f.replace(false))) {
+        return Err(work.reject(
+            newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Allocation,
+        ));
+    }
+    let _ = work;
+    Ok(Some(()))
 }
 
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
@@ -6064,71 +6091,168 @@ thread_local! {
     /// 0069 真实路径锁：audit_native_source 追加原件处按 s_content 索引扩容超帽同一方式
     /// `work.reject(Allocation)` 并经 `invalid` 上抛，验证真实传播链到达降级判据时仍是 scratch 桥。
     pub(super) static SOURCE_APPEND_ALLOCATION_FAILURE: Cell<bool> = const { Cell::new(false) };
+    /// 0072 R1：prepared 读取租约处注入（见 `prepare_fault`）。
+    pub(super) static PREPARE_ALLOCATION_FAILURE: Cell<bool> = const { Cell::new(false) };
+    /// 0072 R2：尾检先记 Allocation，再返回另一作用域 Ledger 类 scratch 错误的渲染（须拒绝）。
+    pub(super) static PUBLICATION_LEDGER_AFTER_BUDGET: Cell<bool> = const { Cell::new(false) };
 }
 
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 mod publication_degrade_verdict_tests {
     use super::*;
-    use newchan_rust::s_content::capture_allocation::scratch::{ScratchFailure, WorkError};
+    use newchan_rust::s_content::capture_allocation::scratch::{
+        ScratchFailure, WorkError, WorkScope,
+    };
+    use newchan_rust::s_content::CodecError;
 
-    /// 0069：判据真值表（含独审 0068 F1 反例：资源失败已记、闭包返回非预算真实错误 → 拒绝）。
-    #[test]
-    fn publication_degrade_verdict_only_for_pure_budget_shortfall() {
-        let work = || native::Budget::new(4096, 0).unwrap().codec_work().unwrap();
-        let bridge =
-            work().run(|work| Err::<(), _>(work.reject(ScratchFailure::Allocation).to_string()));
-        assert!(
-            matches!(bridge, Err(WorkError::Resource(ScratchFailure::Allocation))),
-            "真实 reject 须归为 Resource(Allocation)"
-        );
-        let bridged = work().run(|work| Err::<(), _>(invalid(work.reject(ScratchFailure::Budget))));
-        assert!(matches!(bridged, Err(WorkError::Resource(ScratchFailure::Budget))));
-        // 真实桥文字由 WorkScope::reject 现场生成，不靠手抄。
-        let real = {
-            let mut seen = None;
-            let _ = work().run(|work| {
-                seen = Some(work.reject(ScratchFailure::Allocation).to_string());
+    /// 真实 codec 工作域 + 真实类型化记录，与 publish_attempt 同构：返回判据结果。
+    fn verdict(f: impl FnOnce(&WorkScope) -> Result<(), String>) -> Result<(), String> {
+        let mut operation_error = None;
+        let (run, trace) = failure_trace::capture(|| {
+            native::Budget::new(4096, 0)
+                .unwrap()
+                .codec_work()
+                .unwrap()
+                .run(|w| {
+                    let result = f(w);
+                    if let Err(e) = &result {
+                        operation_error = Some(e.clone());
+                    }
+                    result
+                })
+        });
+        publication_degrade_verdict(run.expect_err("用例须失败"), operation_error, trace)
+    }
+    fn other_scope_ledger() -> String {
+        let mut seen = None;
+        let _ = native::Budget::new(4096, 0)
+            .unwrap()
+            .codec_work()
+            .unwrap()
+            .run(|w| {
+                seen = Some(w.reject(ScratchFailure::Ledger).to_string());
                 Ok::<_, String>(())
             });
-            seen.unwrap()
-        };
-        assert!(is_scratch_resource_bridge(&real), "{real}");
-        assert!(is_scratch_resource_bridge(&invalid(&real)));
+        seen.unwrap()
+    }
+
+    /// 0072 判据真值表（独审 0070 R1/R2 + 0068 F1）：种类只取类型化记录；任意前缀包装的真实预算
+    /// 不足降级；任何 Ledger（含别的作用域、不记入作用域的直接构造）或闭包自身真实错误一律拒绝。
+    #[test]
+    fn publication_degrade_verdict_only_for_pure_budget_shortfall() {
+        let stale = || construction_state::stale("publication尾检身份不符");
+        // R1：真实 S3 层前缀（prepared/state/reader/writer_resources/driver/StaleWriter 包装）全部降级。
+        let wrappers: [(&str, fn(&str) -> String); 7] = [
+            ("裸桥", |e| e.to_string()),
+            ("S3DriverInvalid", |e| invalid(e)),
+            ("S3PrepareInvalid", |e| format!("S3PrepareInvalid：{e}")),
+            ("S3StateInvalid", |e| format!("S3StateInvalid：{e}")),
+            ("S3ContentReadInvalid", |e| {
+                format!("S3ContentReadInvalid：{e}")
+            }),
+            ("S3WriterResourcesInvalid", |e| {
+                format!("S3WriterResourcesInvalid：{e}")
+            }),
+            ("StaleWriter", |e| construction_state::stale(e)),
+        ];
         for failure in [ScratchFailure::Budget, ScratchFailure::Allocation] {
-            assert_eq!(publication_degrade_verdict(WorkError::Resource(failure), None), Ok(()));
             assert_eq!(
-                publication_degrade_verdict(WorkError::Resource(failure), Some(real.clone())),
-                Ok(())
+                verdict(|w| {
+                    let _ = w.reject(failure);
+                    Ok(())
+                }),
+                Ok(()),
+                "闭包 Ok 的纯预算不足"
             );
+            for (name, wrap) in wrappers {
+                assert_eq!(
+                    verdict(|w| Err(wrap(&w.reject(failure).to_string()))),
+                    Ok(()),
+                    "R1：{name} 包装的真实 {failure:?} 须降级"
+                );
+                // 双层包装（prepared 内经 driver 再包一层）同样降级。
+                assert_eq!(
+                    verdict(|w| Err(invalid(wrap(&w.reject(failure).to_string())))),
+                    Ok(()),
+                    "R1：{name} 双层包装"
+                );
+            }
+            // 0068 F1：资源失败被吞（未过桥）后返回非预算真实错误 → 原样拒绝。
             assert_eq!(
-                publication_degrade_verdict(
-                    WorkError::Resource(failure),
-                    Some(invalid(&real))
-                ),
-                Ok(())
-            );
-            let stale = construction_state::stale("publication尾检身份不符");
-            assert_eq!(
-                publication_degrade_verdict(WorkError::Resource(failure), Some(stale.clone())),
-                Err(stale),
+                verdict(|w| {
+                    let _ = w.reject(failure);
+                    Err(stale())
+                }),
+                Err(stale()),
                 "F1：资源失败后闭包的非预算错误必须原样拒绝"
             );
-            let wrapped = format!("{real}（外层包装）");
+            // F1 变体：资源失败已过桥但被吞，随后返回无关真实错误 → 拒绝（过桥核对只收紧）。
+            assert_eq!(
+                verdict(|w| {
+                    let _ = invalid(w.reject(failure));
+                    Err(stale())
+                }),
+                Err(stale()),
+                "F1 变体：过桥后被吞的资源失败不能为无关错误背书"
+            );
+            // R2（独审 0070 探针 g）：先记资源失败，再返回别的作用域 Ledger 类 scratch 错误（与桥同字）。
+            let ledger_text = other_scope_ledger();
+            assert_eq!(
+                verdict(|w| {
+                    let _ = w.reject(failure);
+                    Err(invalid(other_scope_ledger()))
+                }),
+                Err(invalid(&ledger_text)),
+                "R2：Ledger 类 scratch 错误与桥同字也须拒绝"
+            );
+            // R2：不记入任何作用域的直接 Ledger 构造（SourceClaim 字节不符、check_write 域关闭等）。
             assert!(
-                publication_degrade_verdict(WorkError::Resource(failure), Some(wrapped)).is_err(),
-                "白名单外的文字一律 fail-closed"
+                verdict(|w| {
+                    let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
+                    Err(invalid(w.reject(failure)))
+                })
+                .is_err(),
+                "R2：闭包期间任何 Ledger 构造都须拒绝"
+            );
+            assert!(
+                verdict(|w| {
+                    let _ = w.reject(failure);
+                    let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
+                    Ok(())
+                })
+                .unwrap_err()
+                .contains("工作账损坏"),
+                "R2：闭包 Ok 但期间有 Ledger → 工作账损坏"
             );
         }
-        assert!(publication_degrade_verdict(WorkError::Resource(ScratchFailure::Ledger), None).is_err());
-        assert!(publication_degrade_verdict(
-            WorkError::Resource(ScratchFailure::Ledger),
-            Some(real.clone())
-        )
-        .is_err());
+        // 作用域分类 Ledger / Operation 照旧拒绝。
+        assert!(verdict(|w| {
+            let _ = w.reject(ScratchFailure::Ledger);
+            Ok(())
+        })
+        .unwrap_err()
+        .contains("工作账损坏"));
+        assert!(verdict(|w| Err(invalid(w.reject(ScratchFailure::Ledger)))).is_err());
         assert_eq!(
-            publication_degrade_verdict(WorkError::Operation(real.clone()), Some(real.clone())),
-            Err(real),
+            verdict(|_| Err(stale())),
+            Err(stale()),
             "无资源失败记录时闭包错误不降级"
+        );
+        // 记录只在 capture 内发生，嵌套时并入外层。
+        let (_, outer) = failure_trace::capture(|| {
+            let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Budget);
+            let (_, inner) = failure_trace::capture(|| {
+                let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
+            });
+            assert!(!inner.only_resource());
+        });
+        assert!(!outer.only_resource(), "内层 Ledger 须并入外层");
+        let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
+        let (_, idle) = failure_trace::capture(|| ());
+        assert_eq!(
+            idle,
+            failure_trace::FailureTrace::default(),
+            "capture 外不记录"
         );
     }
 }

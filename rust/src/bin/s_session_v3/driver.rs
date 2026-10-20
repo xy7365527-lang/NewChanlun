@@ -5162,6 +5162,26 @@ mod tests {
         use super::super::audit_owner::SOURCE_APPEND_ALLOCATION_FAILURE;
         publication_candidate_shortfall_case(&SOURCE_APPEND_ALLOCATION_FAILURE, None);
     }
+    /// #1488 0072 锁（独审 0070 R1）：故障起点改到 prepared 发布读取租约处，真实候选父工作域
+    /// Allocation 经 prepared 的 `err` 以 `S3PrepareInvalid：` 包装上抛（S86 message-34 的真实形态）。
+    /// 0069 文字白名单下此处被 fail-closed；类型化判据须降级成功，后续代照常。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn publication_prepare_wrapped_allocation_failure_degrades() {
+        use super::super::audit_owner::PREPARE_ALLOCATION_FAILURE;
+        publication_candidate_shortfall_case(&PREPARE_ALLOCATION_FAILURE, None);
+    }
+    /// #1488 0072 锁（独审 0070 R2，探针 g refs/r70-red/g 取反）：尾检先记 Allocation，再返回另一
+    /// 作用域 Ledger 类 scratch 错误经 `invalid` 的渲染（与预算桥文字逐字相同）。须拒绝、不降级。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn publication_ledger_after_budget_failure_rejects_without_degrade() {
+        use super::super::audit_owner::PUBLICATION_LEDGER_AFTER_BUDGET;
+        publication_candidate_shortfall_case(
+            &PUBLICATION_LEDGER_AFTER_BUDGET,
+            Some("S3DriverInvalid：prototype_capture_owned_payload_limit: codec 工作域分配失败"),
+        );
+    }
     /// 0065：`S_MANIFEST_WORKSPACE_DIAGNOSTICS=1` 时 serve 打开即配置 pager 探针。配置后带候选的
     /// 后续代须照常 Carry 并与 ordinary oracle 一致（改前第 2 代报“Carry租约已撤销”）。
     #[cfg(feature = "s_capture_native_testonly")]
