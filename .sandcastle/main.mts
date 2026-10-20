@@ -14,7 +14,17 @@ import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
 import type { AgentProvider, Sandbox, SandboxRunResult } from "@ai-hero/sandcastle";
 import { execSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
+import { cargoGuardEnv, installCargoGuard } from "./cargo-guard.mts";
 import { claudeWorker, cliProxyEnv } from "./claude-route.mts";
+import {
+  ghIssueFetcher,
+  ghIssueNotifier,
+  hostGit,
+  prepareReviewPrompt,
+  readReviewTemplate,
+  recordReviewerRunFailure,
+  ReviewPromptTooLargeError,
+} from "./review-context.mts";
 
 const TOKEN_ROTATION_MARKER = "/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/GH_TOKEN_ROTATION_REQUIRED";
 if (existsSync(TOKEN_ROTATION_MARKER)) {
@@ -82,9 +92,12 @@ function resolveSandboxGithubEnv(): Record<string, string> {
   }
 }
 
+// #1588 ④：本机 cargo 垫片（每次运行一份临时目录），前置到工蜂 PATH；Rust 验证走 nc-remote / CI。
+const CARGO_GUARD = installCargoGuard();
+
 function sandboxProvider() {
   // 路由变量走沙盒后端 env（理由见 claude-route.mts claudeWorker 注释）。
-  return noSandbox({ env: { ...resolveSandboxGithubEnv(), ...cliProxyEnv() } });
+  return noSandbox({ env: { ...resolveSandboxGithubEnv(), ...cliProxyEnv(), ...cargoGuardEnv(CARGO_GUARD) } });
 }
 
 function hasOpenBlocker(issue: number): boolean {
@@ -203,8 +216,8 @@ async function runWithResume(
   options: {
     name: string;
     agent: AgentProvider;
-    promptFile: string;
-    promptArgs: Record<string, string>;
+    // promptFile + promptArgs（sandcastle 展开 `!`cmd``），或宿主侧已渲染好的 inline prompt（#1588 评审面）。
+    prompt: { promptFile: string; promptArgs: Record<string, string> } | { prompt: string };
     idleTimeoutSeconds?: number;
   },
 ): Promise<SandboxRunResult> {
@@ -215,8 +228,7 @@ async function runWithResume(
       name: options.name,
       maxIterations: 1,
       agent: options.agent,
-      promptFile: options.promptFile,
-      promptArgs: options.promptArgs,
+      ...options.prompt,
       ...(options.idleTimeoutSeconds !== undefined ? { idleTimeoutSeconds: options.idleTimeoutSeconds } : {}),
       ...(resumeSession !== undefined ? { resumeSession } : {}),
     });
@@ -226,6 +238,38 @@ async function runWithResume(
   }
   if (!result) throw new Error(`runWithResume: ${options.name} 未产生运行结果`);
   return result;
+}
+
+// ── #1588 ③：评审阶段。提示在宿主侧渲染（只放变更摘要，不放整段 diff）并过体积闸；
+// 超限 / 运行失败都显式落 workers.jsonl（phase=reviewer status=failed）+ 票面评论，再原样上抛。
+// 旧形态失败时 workers.jsonl 停在 reviewer/started → sandbox/closed，票保持认领、无人知晓（#1406）。
+const REVIEW_TARGET_BRANCH = "main"; // assertHostBranchIsMain 已保证宿主分支 = main（TARGET_BRANCH 同源）
+
+async function runReviewer(sandbox: Sandbox, issue: number, branch: string): Promise<void> {
+  const channels = { logWorker, notify: ghIssueNotifier(GH_CLEAN_ENV) };
+  const { prompt, estimatedTokens } = prepareReviewPrompt(
+    {
+      template: readReviewTemplate(),
+      branch,
+      target: REVIEW_TARGET_BRANCH,
+      issue,
+      git: hostGit(),
+      fetchIssue: ghIssueFetcher(GH_CLEAN_ENV),
+    },
+    channels,
+  );
+  logWorker({ ticket: issue, branch, phase: "reviewer", status: "started", prompt_est_tokens: estimatedTokens });
+  try {
+    await runWithResume(sandbox, {
+      name: "reviewer",
+      agent: claudeWorker(REVIEWER_MODEL, EFFORT),
+      prompt: { prompt },
+    });
+  } catch (e) {
+    recordReviewerRunFailure(issue, branch, e, channels);
+    throw e;
+  }
+  logWorker({ ticket: issue, branch, phase: "reviewer", status: "completed" });
 }
 
 // ── REVIEW_ONLY 模式（#879 补派 Phase 2 引入）：env SANDCASTLE_REVIEW_ONLY="分支名:票号" 时
@@ -246,14 +290,13 @@ if (REVIEW_ONLY) {
     baseBranch: "main",
     sandbox: sandboxProvider(),
   });
-  logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
-  await runWithResume(sandbox, {
-    name: "reviewer",
-    agent: claudeWorker(REVIEWER_MODEL, EFFORT),
-    promptFile: "./.sandcastle/review-prompt.md",
-    promptArgs: { BRANCH: branch, ISSUE_NUMBER: String(issue) },
-  });
-  logWorker({ ticket: issue, branch, phase: "reviewer", status: "completed" });
+  try {
+    await runReviewer(sandbox, issue, branch);
+  } catch (e) {
+    await sandbox.close();
+    if (e instanceof ReviewPromptTooLargeError) process.exit(e.exitCode);
+    throw e;
+  }
   console.log(`REVIEW_ONLY 完成：${branch} 待验收合入（人工闸）。`);
   await sandbox.close();
   process.exit(0);
@@ -296,8 +339,7 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
     const implement = await runWithResume(sandbox, {
       name: "implementer",
       agent: claudeWorker(IMPLEMENTER_MODEL, EFFORT),
-      promptFile: "./.sandcastle/implement-prompt.md",
-      promptArgs: { ISSUE_NUMBER: String(issue) },
+      prompt: { promptFile: "./.sandcastle/implement-prompt.md", promptArgs: { ISSUE_NUMBER: String(issue) } },
       idleTimeoutSeconds: IMPLEMENTER_IDLE_TIMEOUT_SECONDS,
     });
     if (!implement.commits.length) {
@@ -309,14 +351,14 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
     console.log(`实装完成：${implement.commits.length} 个 commit`);
 
     // Phase 2：独立评审（不同子代理，#1001 裁 1；直接在分支上修正；#1066 多轮续跑）
-    logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
-    await runWithResume(sandbox, {
-      name: "reviewer",
-      agent: claudeWorker(REVIEWER_MODEL, EFFORT),
-      promptFile: "./.sandcastle/review-prompt.md",
-      promptArgs: { BRANCH: branch, ISSUE_NUMBER: String(issue) },
-    });
-    logWorker({ ticket: issue, branch, phase: "reviewer", status: "completed" });
+    // #1588：提示超限 → 已落失败记录与票面通知，以专用退出码收尾（票保持认领，不回滚重跑实装）。
+    try {
+      await runReviewer(sandbox, issue, branch);
+    } catch (e) {
+      if (!(e instanceof ReviewPromptTooLargeError)) throw e;
+      process.exitCode = e.exitCode;
+      break;
+    }
     console.log(`两段完成：${branch} 待验收合入（人工闸）。`);
   } finally {
     logWorker({ ticket: issue, branch, phase: "sandbox", status: "closed" });

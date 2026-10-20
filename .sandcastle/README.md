@@ -81,7 +81,9 @@ bash .sandcastle/install-sandcastle-claimer.sh uninstall # 卸载
 | `launchd/com.newchanlun.sandcastle-claimer.plist` | claim 循环 launchd 任务定义：KeepAlive + RunAtLoad + `--live`（#1182 追加）。 |
 | `prime-agent-provider.ts` | prime-agent 的自定义 AgentProvider。无头模式 `prime-agent -p --mode json` 输出 NDJSON 事件流，prompt 走 stdin（避开 Linux 128 KB argv 上限），事件映射到 sandcastle 的 stream 协议。 |
 | `implement-prompt.md` | Phase 1 实装工蜂的 prompt 模板（`{{ISSUE_NUMBER}}` 注入）：Explore→Plan→Execute→Verify→Commit 流程 + 硬性规则（不关票不合 main 不 push、被卡留评论收工）。 |
-| `review-prompt.md` | Phase 2 评审工蜂的 prompt 模板（`{{BRANCH}}`/`{{ISSUE_NUMBER}}` 注入）：看分支 diff 与原始 issue，保持功能语义前提下直接在分支上修正。 |
+| `review-prompt.md` | Phase 2 评审工蜂的 prompt 模板（`{{BRANCH}}`/`{{ISSUE_NUMBER}}` 注入）：看分支 diff 与原始 issue，保持功能语义前提下直接在分支上修正。#1588 起不再用 `!`git diff`` 展开整段 diff，只放变更摘要（`--stat` / 提交列表 / 文件清单），评审工蜂按文件、按提交自取 diff。 |
+| `review-context.mts` | #1588 评审提示宿主侧渲染与体积闸：`buildReviewPrompt` 渲染摘要版 review-prompt.md，估算超 `REVIEW_PROMPT_MAX_TOKENS` 抛 `ReviewPromptTooLargeError`（exit 4）；`prepareReviewPrompt` 超限时落 workers.jsonl（`phase=reviewer status=failed reason=prompt_too_large`）并在原票评论；评审运行期失败同样落 `reason=run_error`。 |
+| `cargo-guard.mts` | #1588 本机禁 cargo 垫片：在临时目录生成 `cargo`/`rustc`/`rustup`/`cargo-*` 等拦截脚本（打印 nc-remote / CI 指引，exit 87），`cargoGuardEnv` 把它前置到工蜂 PATH 并经 `CLAUDE_ENV_FILE` 在 Claude Code 每次 Bash 前重新前置（防 login shell 重排 PATH）。只挂在 main.mts 的 noSandbox 宿主路径。 |
 | `CODING_STANDARDS.md` | 本仓编码标准，两个工蜂都经 `@.sandcastle/CODING_STANDARDS.md` 加载（#1008 AC-3）：Rust 面 fmt/clippy/check 闸、commit 编号声明、引用纪律、架构口径；引用 AGENTS.md 与纪律文档，不复制全文。 |
 | `Dockerfile` | 沙盒镜像定义（`sandcastle:newchanlun`，base `node:22-bookworm`）：git/gh/python3 等系统依赖 + Rust 工具链 + prime-agent 本体（#1010 扩容）。 |
 | `image/` | 打入镜像的静态资产：`skills/`（serena / codebase-memory / cli-hub-mcp 三件套）、`prime-agent-settings.json`（prime-agent 镜像内配置）、`cli-hub-mcp/server.py`。 |
