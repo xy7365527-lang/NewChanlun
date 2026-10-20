@@ -5295,12 +5295,30 @@ mod tests {
                     reader.handle(receipt_request(&e)).unwrap(),
                     "第{k}代回执分叉"
                 );
-                assert_eq!(
-                    prepared::tests::runtime_root_tables(&native.conn, true),
-                    prepared::tests::runtime_root_tables(&reader.conn, true),
-                    "第{k}代({})增量≠冷全量",
-                    step.kind
-                );
+                // 非节点表逐表逐位；节点表按公共根可达闭包逐位（存储了但不可达的节点
+                // 不是产物，只记差集计数供诊断）。
+                let tables = prepared::tests::runtime_root_tables(&reader.conn, false);
+                for (left, right) in prepared::tests::runtime_root_tables(&native.conn, false)
+                    .iter()
+                    .zip(&tables)
+                {
+                    assert_eq!(left.0, right.0, "第{k}代表集分叉");
+                    assert!(left == right, "第{k}代({})表{}增量≠冷全量", step.kind, left.0);
+                }
+                prepared::tests::runtime_root_compare_reachable_bytes(&native.conn, &reader.conn);
+                let stored = |c: &Connection| {
+                    c.prepare("SELECT digest FROM s_content_nodes")
+                        .unwrap()
+                        .query_map([], |r| r.get::<_, Vec<u8>>(0))
+                        .unwrap()
+                        .collect::<Result<std::collections::BTreeSet<_>, _>>()
+                        .unwrap()
+                };
+                let (delta_nodes, cold_nodes) = (stored(&native.conn), stored(&reader.conn));
+                let cold_reachable = s4_reachable(&reader.conn);
+                assert_eq!(reachable, cold_reachable, "第{k}代可达节点集分叉");
+                row["stored_only_delta"] = json!(delta_nodes.difference(&cold_nodes).count());
+                row["stored_only_cold"] = json!(cold_nodes.difference(&delta_nodes).count());
                 drop(reader);
                 row["full"] = full;
             }
