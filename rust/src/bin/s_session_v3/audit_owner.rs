@@ -1219,7 +1219,7 @@ impl std::ops::DerefMut for AuditConnection {
 }
 
 #[cfg(test)]
-pub(super) mod tests {
+mod tests {
     use super::super::prepared::tests::Fixture;
     use super::*;
 
@@ -4355,7 +4355,7 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
 }
 
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
-mod construction_tests {
+pub(super) mod construction_tests {
     use super::*;
 
     include!("audit_owner/b2_source_fault_tests.rs");
