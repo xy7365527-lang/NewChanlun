@@ -1577,7 +1577,9 @@ fn expand_evidence(node: &Rc<EvidenceNode>) -> InclusionDirectionEvidence {
         direction: node.direction,
         previous_acc: node.previous_acc,
         incoming: node.incoming,
-        source_coords: SourceCoords::from_shared(node.coords.clone()),
+        // 证据坐标 = 从首根到组锚的全部已处理 raw（见 `append` new_group 分支的归纳），
+        // 按此标记完整性，供端点/确认证书的共享并集使用。
+        source_coords: SourceCoords::complete_prefix(node.coords.clone()),
     }
 }
 

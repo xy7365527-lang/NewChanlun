@@ -282,6 +282,13 @@ pub struct SourceCoords(SourceRepr);
 #[derive(Clone)]
 enum SourceRepr {
     Shared(CoordsRef),
+    /// 带完整性标记的共享树：树内含**全部**已处理 raw 中 ≤ `complete_upto` 的坐标（另可含
+    /// 若干 > `complete_upto` 的坐标）。只由 parser 内部按构造保证的地方创建
+    /// （[`SourceCoords::complete_prefix`] / [`union_prefixed`]），公开构造口不产出本形态。
+    Prefix {
+        tree: CoordsRef,
+        complete_upto: usize,
+    },
     Flat(Rc<[usize]>),
 }
 
@@ -306,7 +313,31 @@ impl SourceCoords {
     pub fn as_shared(&self) -> Option<&CoordsRef> {
         match &self.0 {
             SourceRepr::Shared(coords) => Some(coords),
+            SourceRepr::Prefix { tree, .. } => Some(tree),
             SourceRepr::Flat(_) => None,
+        }
+    }
+
+    /// parser 内部：标记一棵**完整 raw 前缀**树（含全部已处理 raw 中 ≤ 其最大值的坐标）。
+    /// 空树不标记（返回普通共享形态）。调用方对完整性负责。
+    pub(crate) fn complete_prefix(tree: CoordsRef) -> Self {
+        match tree.max() {
+            Some(complete_upto) => SourceCoords(SourceRepr::Prefix {
+                tree,
+                complete_upto,
+            }),
+            None => SourceCoords(SourceRepr::Shared(tree)),
+        }
+    }
+
+    /// parser 内部：带完整性标记的形态 ⟹ `(树, complete_upto)`。
+    pub(crate) fn prefix_parts(&self) -> Option<(&CoordsRef, usize)> {
+        match &self.0 {
+            SourceRepr::Prefix {
+                tree,
+                complete_upto,
+            } => Some((tree, *complete_upto)),
+            _ => None,
         }
     }
 
@@ -314,10 +345,12 @@ impl SourceCoords {
     pub fn iter(&self) -> SourceCoordsIter<'_> {
         match &self.0 {
             SourceRepr::Flat(items) => SourceCoordsIter::Flat(items.iter()),
-            SourceRepr::Shared(coords) => SourceCoordsIter::Tree(match coords.root_node() {
-                Some(root) => vec![root.as_ref()],
-                None => Vec::new(),
-            }),
+            SourceRepr::Shared(coords) | SourceRepr::Prefix { tree: coords, .. } => {
+                SourceCoordsIter::Tree(match coords.root_node() {
+                    Some(root) => vec![root.as_ref()],
+                    None => Vec::new(),
+                })
+            }
         }
     }
 
@@ -326,7 +359,7 @@ impl SourceCoords {
         let (flat, mut stack): (Option<std::iter::Rev<std::slice::Iter<'_, usize>>>, Vec<&CoordNode>) =
             match &self.0 {
                 SourceRepr::Flat(items) => (Some(items.iter().rev()), Vec::new()),
-                SourceRepr::Shared(coords) => (
+                SourceRepr::Shared(coords) | SourceRepr::Prefix { tree: coords, .. } => (
                     None,
                     coords.root_node().map(|r| vec![r.as_ref()]).unwrap_or_default(),
                 ),
@@ -353,14 +386,16 @@ impl SourceCoords {
     pub fn len(&self) -> usize {
         match &self.0 {
             SourceRepr::Flat(items) => items.len(),
-            SourceRepr::Shared(coords) => coords.count(),
+            SourceRepr::Shared(coords) | SourceRepr::Prefix { tree: coords, .. } => coords.count(),
         }
     }
 
     pub fn is_empty(&self) -> bool {
         match &self.0 {
             SourceRepr::Flat(items) => items.is_empty(),
-            SourceRepr::Shared(coords) => coords.is_empty(),
+            SourceRepr::Shared(coords) | SourceRepr::Prefix { tree: coords, .. } => {
+                coords.is_empty()
+            }
         }
     }
 
@@ -368,7 +403,9 @@ impl SourceCoords {
     pub fn to_vec(&self) -> Vec<usize> {
         match &self.0 {
             SourceRepr::Flat(items) => items.to_vec(),
-            SourceRepr::Shared(coords) => coords.materialize(),
+            SourceRepr::Shared(coords) | SourceRepr::Prefix { tree: coords, .. } => {
+                coords.materialize()
+            }
         }
     }
 
@@ -386,7 +423,7 @@ impl SourceCoords {
     pub fn last(&self) -> Option<usize> {
         match &self.0 {
             SourceRepr::Flat(items) => items.last().copied(),
-            SourceRepr::Shared(coords) => coords.max(),
+            SourceRepr::Shared(coords) | SourceRepr::Prefix { tree: coords, .. } => coords.max(),
         }
     }
 
@@ -471,7 +508,7 @@ impl serde::Serialize for SourceCoords {
 
 impl PartialEq for SourceCoords {
     fn eq(&self, other: &Self) -> bool {
-        if let (SourceRepr::Shared(a), SourceRepr::Shared(b)) = (&self.0, &other.0) {
+        if let (Some(a), Some(b)) = (self.as_shared(), other.as_shared()) {
             if let (Some(x), Some(y)) = (a.root_node(), b.root_node()) {
                 if Rc::ptr_eq(x, y) {
                     return true;
@@ -504,29 +541,55 @@ impl PartialEq<SourceCoords> for Vec<usize> {
     }
 }
 
-/// #1597：「完整前缀 ∪ 若干升序集合」的共享并集。
+/// #1597：若干来源集合的升序去重并集，共享构造（不复制前缀）。
 ///
-/// `prefix` 必须是**完整 raw 前缀**（已处理 raw 中所有 ≤ `prefix.max()` 的坐标都在内），
-/// `others` 的元素都是已处理 raw 坐标。在此前提下并集 = `prefix` ++ 「`others` 中 >
-/// `prefix.max()` 的元素，升序去重」，与旧的「全部拼接后排序去重」逐位相同；只新建尾段的
-/// O(k log n) 个节点，不复制前缀。前提由调用方保证（证明与调试断言见 `stroke.rs`）。
-pub(crate) fn union_over_complete_prefix<'a>(
-    prefix: &CoordsRef,
-    others: impl IntoIterator<Item = &'a usize>,
-) -> CoordsRef {
-    let bound = prefix.max();
-    let mut extra: Vec<usize> = others
-        .into_iter()
-        .copied()
-        .filter(|c| bound.is_none_or(|b| *c > b))
-        .collect();
+/// `prefixed` 是带完整性标记的集合（[`SourceCoords::prefix_parts`]：树含全部已处理 raw 中
+/// ≤ `complete_upto` 的坐标），`plain` 是其余集合的元素；全部元素都必须是已处理 raw 坐标
+/// （调用方保证：组成员与证据坐标都取自已处理 raw）。
+///
+/// 取 `complete_upto` 最大的一份 `(T, c)`：并集中 ≤ c 的部分 = 全部已处理 raw ≤ c ⊆ T；
+/// > c 的部分 = 各集合 > c 的元素。后者若落在 `(c, max T]` 内必须已在 T 中，> max T 的按升序
+/// 接在 T 之后——结果与「全部拼接后排序去重」逐位相同。不满足（有元素落在 T 的缺口里）或
+/// 没有带标记的集合 ⟹ `None`，调用方回落扁平构造。只遍历各集合 > c 的尾段（逆序到界即停）。
+pub(crate) fn union_prefixed<'a>(
+    prefixed: &[&'a SourceCoords],
+    plain: impl IntoIterator<Item = &'a usize>,
+) -> Option<SourceCoords> {
+    let (best, (tree, bound)) = prefixed
+        .iter()
+        .enumerate()
+        .filter_map(|(i, c)| c.prefix_parts().map(|p| (i, p)))
+        .max_by_key(|(_, (_, c))| *c)?;
+    if prefixed.iter().any(|c| c.prefix_parts().is_none()) {
+        return None;
+    }
+    let top = tree.max().expect("带标记的树非空");
+    let above = |c: &SourceCoords| -> Vec<usize> {
+        c.iter_rev().take_while(|x| *x > bound).collect()
+    };
+    let own: std::collections::BTreeSet<usize> = above(prefixed[best]).into_iter().collect();
+    let mut extra: Vec<usize> = plain.into_iter().copied().filter(|x| *x > bound).collect();
+    for (i, c) in prefixed.iter().enumerate() {
+        if i != best {
+            extra.extend(above(c));
+        }
+    }
     extra.sort_unstable();
     extra.dedup();
-    let mut out = prefix.clone();
-    for coord in extra {
-        out = out.append_greater(coord);
+    let mut out = tree.clone();
+    for x in extra {
+        if x <= top {
+            if !own.contains(&x) {
+                return None;
+            }
+        } else {
+            out = out.append_greater(x);
+        }
     }
-    out
+    Some(SourceCoords(SourceRepr::Prefix {
+        tree: out,
+        complete_upto: bound,
+    }))
 }
 
 #[cfg(test)]

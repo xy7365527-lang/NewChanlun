@@ -8,7 +8,7 @@ use super::super::config::ParseConfig;
 use super::super::types::{Bar, Direction, FractalKind, Stroke};
 #[cfg(test)]
 use super::inclusion::process_inclusion_with_facts;
-use super::evidence::{union_over_complete_prefix, CoordsRef, SourceCoords};
+use super::evidence::{union_prefixed, SourceCoords};
 use super::inclusion::InclusionFacts;
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -148,35 +148,25 @@ fn sorted(mut xs: Vec<usize>) -> SourceCoords {
 
 /// #1597：端点来源坐标的共享构造（与扁平「九集拼接 → 排序去重」逐位相同）。
 ///
-/// 输入是相邻三组 `g ∈ {mid-1, mid, mid+1}` 的成员、方向证据、封口证据。共享形态下
-/// （[`super::inclusion::IncrFactsState`] 构造，source 坐标严格递增）每份证据坐标都是
-/// **完整 raw 前缀**：组 k 的方向证据 = 从首根到组锚 k 的全部已处理 raw（`append` 中
-/// new_group 分支：新证据 = 旧证据 ++ 前组组锚后尾链 ++ {incoming}，归纳成立；首次建立
-/// 方向时前组只有 seed ⟹ {seed, incoming}）；封口证据 = 下一组的方向证据（同一节点）。
-/// 取六份证据里最大值最大的那份作前缀 P，其余各集的元素都是已处理 raw：≤ max(P) 的必在
-/// P 内（完整性），> max(P) 的按升序去重接在 P 之后——并集与扁平构造相同。
-///
-/// 任一证据是扁平形态（非单调回落路径或手写夹具）⟹ 返回 `None`，调用方走扁平构造。
+/// 输入是相邻三组 `g ∈ {mid-1, mid, mid+1}` 的成员、方向证据、封口证据。完整事实路径上
+/// 证据坐标来自 [`super::inclusion::IncrFactsState`] 导出的**带完整性标记**形态
+/// （组 k 的方向证据 = 从首根到组锚 k 的全部已处理 raw：`append` 的 new_group 分支
+/// 「新证据 = 旧证据 ++ 前组组锚后尾链 ++ {incoming}」归纳成立）。并集由
+/// [`union_prefixed`] 按标记构造，标记缺失（热路径空证据、非单调回落的扁平证据、手写夹具）
+/// 或并集前提不成立 ⟹ `None`，调用方走扁平构造。
 fn shared_endpoint_sources(
     window: &[super::inclusion::InclusionGroupFact],
 ) -> Option<SourceCoords> {
-    let mut prefix: Option<&CoordsRef> = None;
-    for group in window {
-        for evidence in [&group.direction_evidence, &group.confirmation_evidence]
-            .into_iter()
-            .flatten()
-        {
-            let coords = evidence.source_coords.as_shared()?;
-            if prefix.is_none_or(|p| coords.max() > p.max()) {
-                prefix = Some(coords);
-            }
-        }
-    }
-    let prefix = prefix?;
-    let union = SourceCoords::from_shared(union_over_complete_prefix(
-        prefix,
+    let evidence: Vec<&SourceCoords> = window
+        .iter()
+        .flat_map(|g| [&g.direction_evidence, &g.confirmation_evidence])
+        .flatten()
+        .map(|e| &e.source_coords)
+        .collect();
+    let union = union_prefixed(
+        &evidence,
         window.iter().flat_map(|group| group.members.iter()),
-    ));
+    )?;
     #[cfg(debug_assertions)]
     {
         let mut flat = vec![];
@@ -192,43 +182,6 @@ fn shared_endpoint_sources(
         debug_assert_eq!(union, sorted(flat), "#1597：端点共享构造与扁平构造不一致");
     }
     Some(union)
-}
-
-/// 全量 facts 的 raw 序位映射：`source_index → 第几根 raw`（同坐标后者覆盖）。
-///
-/// 这是 `Endpoint.raw_first/raw_last` 的唯一来源——源坐标可以稀疏，不能拿坐标相减冒充根数。
-/// 增量热路径不物化 `steps`，改由 [`IncrFactsState::positions`] 逐 bar 维护同一映射。
-fn positions_of_steps(facts: &InclusionFacts) -> BTreeMap<usize, usize> {
-    facts
-        .steps
-        .iter()
-        .enumerate()
-        .map(|(i, s)| (s.incoming.source_index, i))
-        .collect()
-}
-
-/// 端点扫描（唯一判据）：full 与增量共享本函数，差别只在 `positions` 的来源。
-///
-/// `merged`/`groups`/`initial_direction_unsettled` 是全部结构输入；`source_coords` 只进
-/// 证据面，不进任何判据（见 [`Endpoint`]）。
-fn endpoints_from(
-    merged: &[Bar],
-    groups: &[super::inclusion::InclusionGroupFact],
-    initial_direction_unsettled: bool,
-    positions: &BTreeMap<usize, usize>,
-) -> Vec<Endpoint> {
-    (1..merged.len().saturating_sub(1))
-        .filter_map(|mid| {
-            endpoint_at(
-                merged,
-                groups,
-                initial_direction_unsettled,
-                positions,
-                mid,
-                true,
-            )
-        })
-        .collect()
 }
 
 /// #1343 Q2/Q3：极值根集在 raw 序位域上的首/末序位（集合语义：与根的到达序、与指定哪一根无关）。
@@ -522,32 +475,21 @@ impl ScanState {
 
 /// 前笔确认证书的来源坐标 = 两端点来源坐标的升序去重并集。
 ///
-/// #1597 共享形态：后端点 `f` 的来源含完整 raw 前缀（至少到组锚 `f.mid+1`，见
-/// [`shared_endpoint_sources`]），先端点 `a`（`a.mid < f.mid`）的全部来源 < 组锚
-/// `a.mid+2` ≤ 组锚 `f.mid+1`，故 `a ⊆ f`；按「完整前缀 ∪ 尾段」构造即与扁平构造逐位相同。
-/// 两者中较大者充当前缀；只要有一侧是扁平形态，回落扁平构造。
+/// #1597：两端点都是带完整性标记的形态（由 [`shared_endpoint_sources`] 产出）时按
+/// [`union_prefixed`] 共享构造；否则回落扁平构造。
 fn confirmation_sources(a: &SourceCoords, f: &SourceCoords) -> SourceCoords {
     let flat = || {
         let mut sources = a.to_vec();
         sources.extend(f);
         sorted(sources)
     };
-    let (Some(left), Some(right)) = (a.as_shared(), f.as_shared()) else {
-        return flat();
-    };
-    if left.max() > right.max() {
-        // 先端点越过后端点：不在上述构造前提内，回落扁平构造。
-        return flat();
+    match union_prefixed(&[a, f], std::iter::empty()) {
+        Some(shared) => {
+            debug_assert_eq!(shared, flat(), "#1597：确认证书共享构造与扁平构造不一致");
+            shared
+        }
+        None => flat(),
     }
-    // 只取 a 中 > max(f) 的尾段：反向遍历到界即停（不展开整份）。
-    let bound = right.max();
-    let tail: Vec<usize> = a
-        .iter_rev()
-        .take_while(|c| bound.is_none_or(|b| *c > b))
-        .collect();
-    let shared = SourceCoords::from_shared(union_over_complete_prefix(right, tail.iter()));
-    debug_assert_eq!(shared, flat(), "#1597：确认证书共享构造与扁平构造不一致");
-    shared
 }
 
 /// 稳定端点前的扫描 checkpoint。单端点转移至多改写当时的末笔、从不弹笔，故只备份该尾，
