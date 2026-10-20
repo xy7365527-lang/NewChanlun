@@ -1,4 +1,4 @@
-APPROVE（复审 8c276a3089；首审 fc42f24f40 为 REQUEST_CHANGES，见下文）
+APPROVE（提速复审 e36a357630；返修复审 8c276a3089 为 APPROVE，首审 fc42f24f40 为 REQUEST_CHANGES，见下文）
 
 # #1406 S3 独立评审：WE7 TB03C 真实子进程 SIGKILL 矩阵（codex/1406-s3-kill @ fc42f24f40，基线 6c8477ff6f）
 
@@ -101,3 +101,37 @@ APPROVE（复审 8c276a3089；首审 fc42f24f40 为 REQUEST_CHANGES，见下文�
 - **L1**：全部 kill 测试串行累计约 1149 s。如果放进 CI 常驻门，需要评估时长；必要时可以按步分片或放进夜间任务。
 - **L2**：负控只覆盖步 6（E）和步 9（B）。由于比较函数是共用的，这已经足以证明它能区分「重送」与「漏送」，不要求扩展。
 - **L3**：首审的 L1–L5 都已在报告中回应。其中跨域时间先后不变式（L4）和 BindVoice 故障点（L5）仍需主控另开票。原始证据目录仍留在远端临时目录，本地只有日志和报告中的哈希表作为摘要。
+
+---
+
+# 提速复审（codex/1406-s3-speed @ e36a357630，代码 5a0303feca；基线 aab509ed08）
+
+**结论：APPROVE。** 没有 HIGH 或 MEDIUM。`git diff --stat aab509ed08 e36a357630 -- rust/src` 只列出 `tb03c_kill_tests.rs`，生产代码零改动。四项提速都不改变判定语义：首审要求的全部检查仍然保留，变异测试仍会落在边界断言上。
+
+**实跑**：`NC_TARGET=target-1406-c8review nc-remote codex/1406-s3-speed rust cargo test --features s_session --lib -- tb03c_kill --nocapture` 结果为 `44 passed; 0 failed; 1 ignored`，用时 327.74 s，sha e36a357630，日志 `/tmp/nc-remote/20261021-032903-e36a357630.log`。我从日志核了以下几项：
+- `^S3-KILL` 共 84 行，`"signal":9` 共 84 处；
+- 按 (label, phase) 分组得到 42 组，每组恰好两次运行，rep-0 与 rep-1 的 `final_tables_sha256` 逐字相同，42 个哈希两两不同；
+- 两行 `S3-NEGATIVE` 的差异位置与提速前一致：步 6 续跑出现 12 个 Error，差异在终态域 0 的 `/commits`；步 9 续跑出现 2 个 Error，差异在终态域 2 的 `/applications`。
+
+## 逐项
+
+**(1) `first_diff` 改写：语义等价，不会漏掉只在 y 里出现的键。** 新写法先判 `a == b`，相等直接返回 None；不等时先按 x 的键序递归，遇到 x 有而 y 没有的键就报告；全部 x 键都相等后，再用 `y.keys().find(|k| !x.contains_key(k))` 报告只在 y 里的键。两个对象不等，只可能有三种情况：某个共有键的值不同、x 多出键、y 多出键，这三种都会被找到，所以两侧不等时不可能返回 None。递归里任何子调用返回 None 都意味着子树相等，因为函数一开头就做了相等判断，长度不同的数组会落到最后的 `Some` 分支。与原写法相比，返回的第一处差异路径相同：原写法先走 x 的键，再走 `y.keys()` 时重复访问共有键，但第一处差异必然已经在 x 键序里返回过了。旧写法慢在共有子树被反复递归，这一点也成立。
+
+**(2) 从库文件副本起跑：等价性有自检断言保护。**
+- 副本的制作：每步之后在进程内对四个域执行 `wal_checkpoint(TRUNCATE)`，断言返回 `(busy, log, done) = (0,0,0)`、`-wal` 长度为 0，然后复制主文件。这样复制下来的主文件是完整的，不依赖 WAL。
+- `setup_from` 的处理：先把副本复制到本次目录，只改写 `manifest_hash`，再做一次 checkpoint 并断言 `busy == 0`。随后在 scratch 路径上用同一份 manifest 新 init 一个库，断言 `dump(副本) == snapshots[target]` 的全部表（`business()` 只去掉了 meta，所以 epochs、commits 根链、content 表、`sqlite_sequence` 都在内），meta 换成新 init 的 meta。`dump` 枚举 `sqlite_master` 里的全部表、逐行逐格比较。
+- 这条断言能否掩盖差异：它会同时核对两件事。如果前缀步骤写过 `manifest_hash` 以外的任何 meta 键，或者副本有任何业务行与快照不同，断言都会失败。因此被测进程启动时的逻辑持久状态，确实就是「新 init 的 meta + 目标步前的业务表」，也就是旧做法里 A 进程重放前缀后的状态。没有被比较的只有 SQLite 文件层面的非逻辑差异，比如页布局和空闲页，这不影响 recover 与业务语义，列为 LOW。
+- 被测进程只执行 `steps[target..=target]`，消息 id 和时钟列都没变；进度文件断言改成「为空」，与「目标消息没有回复」一致。之后的 kill、边界快照、新进程 recover 和重送都没有改。
+- 参照轨仍然从空库起，用两次新进程全程重放 21 步：逐步 `reply == plan.replies[i]`，终态业务表等于 `snapshots[21]`，然后 `audit_all`、两次终态逐字节比较，最后对拍 HAND oracle。这一段只是挪进了延迟初始化的 `reference()`，断言内容没有删减。
+- 残余（LOW）：中间各步的快照 `snapshots[target]` 现在来自进程内生成，没有再由新进程逐步到达后直接比对。提速前，提交前被杀的那条边界断言会隐含核对这一点。现在只能靠两点间接保证：全程重放的逐步回复与终态相等，以及生产是确定性的。我认为可以接受。如果要补强，成本很低：在 `reference()` 的子进程里每步之后转储一次，与 `snapshots[i+1]` 比较。
+
+**(3) 首审要求全部保留。** 84 次真实 SIGKILL，pid 核对与 `signal == 9`（`:860-866`）都还在；两次新进程逐字节比较，包括终态全表和续跑回复（`:1064-1069`）；规范化比较和商规则没有改；常驻 (a) 在 `:822` 的 `assert_ne!`，常驻 (b) 是两条跳过重送的负控。重新做的变异也核过：`b0aece0c1c`、`0ffa630c77` 相对 `5a0303feca` 都只改 `service.rs`（+6/−3）。日志 `20261021-031430-b0aece0c1c.log` 里三个 `::before_commit` FAILED、三个 `::after_commit` ok；日志 `20261021-031654-0ffa630c77.log` 正好相反。panic 位置都在 `tb03c_kill_tests.rs:878`，5a0303feca 中这一行正是 `business(&at_kill[d]) == plan.snapshots[boundary][d]` 的边界断言。拆成每个阶段一个测试后，失败能精确落到被变异的那个阶段，比原来更清楚。
+
+**(4) 缓存不会让两侧共享同一对象。** 每次 `normalize` 都新建一个 `Normalizer`，缓存只在一次规范化调用内有效，而一次调用只用一个时钟。实际值用崩溃时钟，从本次运行的数据库转储新算；期望值是 `Plan.norm_replies` 与 `Reference.norm_tables/norm_public`，用参照时钟从参照轨数据预先算好，两侧没有共用的缓存。缓存命中时把相对路径的商不合记录加上当前前缀还原，与原写法把 `path` 传入子调用的结果一致；`expected_quotient` 只依赖余数和时钟，不依赖路径，所以缓存结果正确。B 被杀时，未被杀的域仍拿本次运行的 `business(finals[d])` 与 `reference.tables[d]` 逐字比较，它们来自不同的数据库文件。
+
+## LOW
+
+- **L1**：中间快照没有由新进程逐步到达后直接核对，见 (2) 的残余项，可选补强。
+- **L2**：`setup_from` 的 checkpoint 只断言 `busy == 0`，没有像 `save_files` 那样断言 `(0,0,0)` 和 `-wal` 长度为 0。随后的整库逻辑比较已经兜住了正确性，这一条只影响一致性。
+- **L3**：子进程进度行新增的 `ms` 字段只用于计时，没有任何断言读取它，不影响判定。
+- **L4**：作者说 macOS CI 60 分钟上限未实测；我在 Linux 上实测 327.74 s，与作者的 279 s 同一量级（我这次不同测试之间有争用）。是否放进 CI，以 CI 实跑为准。
