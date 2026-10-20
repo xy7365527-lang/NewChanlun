@@ -1241,7 +1241,7 @@ impl ControlHistory {
         Ok(self.facts)
     }
     pub(super) fn finish(self) -> Result<(), String> {
-        self.into_facts().map(std::mem::forget)
+        self.into_facts().map(drop)
     }
 }
 
