@@ -2714,6 +2714,15 @@ impl Cc004Producer {
         self.clear_memos();
     }
 
+    /// #1488 S3 测试面：三张 coords 数组 memo 的全部条目数组根（跨代复用的子树条目）。
+    #[cfg(test)]
+    pub(super) fn memo_array_refs(&self) -> Vec<sc::ContentRef> {
+        [&self.text_arrays, &self.ref_arrays, &self.shape_ref_arrays]
+            .into_iter()
+            .flat_map(|cache| cache.entries.values().map(|entry| array_built(entry).content_ref()))
+            .collect()
+    }
+
     /// 测试/测量面读数（不参与任何判据）。
     #[cfg(test)]
     pub(super) fn memo_counts(&self) -> MemoCounts {
@@ -5506,7 +5515,23 @@ mod tests {
                     })
                     .collect();
                 let reachable = reachable_nodes(&mut warm.store.nodes, &refs);
-                let orphans: Vec<NodeDigest> = written.difference(&reachable).copied().collect();
+                // 唯一许可的残留：coords 数组 memo 的子树条目（AVL 子树数组帧与其 concat 右脊，
+                // 留作下代命中复用，不是 append 作废根）；必须**恰好**被 memo 条目闭包覆盖。
+                let memo_refs = warm.producer.memo_array_refs();
+                let memo = reachable_nodes(&mut warm.store.nodes, &memo_refs);
+                let residual = written
+                    .iter()
+                    .filter(|digest| !reachable.contains(digest) && memo.contains(digest))
+                    .count();
+                println!(
+                    "S3_FRACTAL_ORPHANS reuse={reuse} step={step} written={} memo_residual={residual}",
+                    written.len()
+                );
+                let orphans: Vec<NodeDigest> = written
+                    .iter()
+                    .filter(|digest| !reachable.contains(digest) && !memo.contains(digest))
+                    .copied()
+                    .collect();
                 let mut by_tag: BTreeMap<u8, usize> = BTreeMap::new();
                 let mut samples: Vec<String> = Vec::new();
                 for digest in &orphans {
