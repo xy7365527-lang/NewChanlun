@@ -282,3 +282,30 @@ fn tb1493_facts_memory_probe() {
         );
     }
 }
+
+#[test]
+#[ignore = "诊断：全量逐 bar 增量回放的耗时曲线（每 10 万根一行）"]
+fn tb1493_replay_speed_probe() {
+    let all = load_full();
+    let bars = &all[1..];
+    let theta = ThetaConfig::default();
+    let mut inc = ParseLayerIncr::new(&theta);
+    let t0 = std::time::Instant::now();
+    let mut lap = t0;
+    for (i, bar) in bars.iter().enumerate().take(1_200_000) {
+        let layer = inc.append(*bar);
+        if (i + 1) % 100_000 == 0 {
+            eprintln!(
+                "TB1493 SPEED n={} segs={} strokes={} confirmed={} euf={:?} lap_s={:.1} total_s={:.1}",
+                i + 1,
+                layer.segments.len(),
+                layer.strokes.len(),
+                layer.segments_confirmed_len,
+                layer.segments_earliest_unsealed,
+                lap.elapsed().as_secs_f64(),
+                t0.elapsed().as_secs_f64()
+            );
+            lap = std::time::Instant::now();
+        }
+    }
+}
