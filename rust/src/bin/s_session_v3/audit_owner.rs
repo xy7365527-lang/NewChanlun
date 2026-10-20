@@ -4291,7 +4291,7 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                 );
                 let contract = crate::tb02b::CURRENT_CONTRACT;
                 let current_len =
-                    contract_len(contract.schema, contract.policy, "");
+                    contract_len(contract.schema, contract.policy, contract.knowledge_domain);
                 let sealed_before_p2a = sealed_before_p2a_for(current_len);
                 assert_eq!(nodes, R14_NODES, "独立交叉核：来源节点数");
                 assert_eq!(index_bytes % slot_now, 0, "索引许可=槽数×现槽宽");
