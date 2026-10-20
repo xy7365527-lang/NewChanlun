@@ -762,7 +762,7 @@ impl BudgetStamp {
     /// 当前域；任一不满足返回 None，调用方保留原摘要不动。
     pub(crate) fn advance(&self, from: &Budget, to: &Budget) -> Option<Self> {
         if !self.same_ledger(&from.0)
-            || false
+            || self.serial != from.1
             || self.request != from.2
             || self.allowance != from.3
             || !from.same_parent(to)
