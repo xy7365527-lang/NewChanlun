@@ -1197,3 +1197,63 @@ fn tb1493_search_tb02w_witnesses() {
         }
     }
 }
+
+/// #1493 裁定 1 OPEN 封段见证搜索（ignored）：旧规则（OPEN 跳过续判）在前缀末多发射段、新规则在同一处
+/// 以 OPEN 的第二种候选封段，且该候选之后的标准特征元素多于 `TAIL_WINDOW`。
+#[test]
+#[ignore = "搜索：OPEN 封段对照见证"]
+fn tb1493_search_open_block_witness() {
+    fn mix(st: &mut u64) -> u64 {
+        *st = st.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = *st;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
+    fn prices(seed: u64, n: usize) -> Vec<i64> {
+        let mut st = seed;
+        let mut p = 100_000i64;
+        let mut out = vec![p];
+        let mut up = true;
+        for _ in 1..n {
+            let r = mix(&mut st);
+            let step = match r % 10 {
+                0 => 300 + (r >> 8) % 1200,
+                1 | 2 => 60 + (r >> 8) % 200,
+                _ => 2 + (r >> 8) % 70,
+            } as i64;
+            p += if up { step } else { -step };
+            out.push(p);
+            up = !up;
+        }
+        out
+    }
+    let cfg = ThetaConfig::default().parse;
+    let mut found = 0;
+    for seed in 0..20_000u64 {
+        let pr = prices(seed, 60);
+        let ss = witness_chain(&pr);
+        let (new, _, facts) = segment::divide_segments_with_facts(&ss, &cfg);
+        feature_seq::OPEN_SKIP_ARM.with(|a| a.set(true));
+        let (old, _) = segment::divide_segments_with_tail(&ss, &cfg);
+        feature_seq::OPEN_SKIP_ARM.with(|a| a.set(false));
+        if old.len() <= new.len() || old[..new.len()] != new[..] {
+            continue;
+        }
+        let Some(c) = facts.candidates.last() else { continue };
+        let Some(sec) = c.second.as_ref() else { continue };
+        if sec.semantic_state != Some(SecondTerminal::OpenAtPrefixEnd) {
+            continue;
+        }
+        let b = sec.from_stroke - 1;
+        let after = c.first.standard.iter().filter(|e| e.stroke_idx > b).count();
+        if after <= 7 {
+            continue;
+        }
+        found += 1;
+        eprintln!("OPENBLOCK seed={seed} new={} old={} b={b} after={after} prices={pr:?}", new.len(), old.len());
+        if found >= 3 {
+            break;
+        }
+    }
+}

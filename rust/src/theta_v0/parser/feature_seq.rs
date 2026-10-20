@@ -437,6 +437,9 @@ thread_local! {
     /// 0 = 本裁定（G-2 合并、代表笔保持 b）；1 = 窗成员（分支旧 R2）；2 = 旧 G-2（代表笔改为入元素）。
     /// 不参与生产准入（#799 限定词 3）。
     pub(super) static GAP_INCLUSION_ARM: std::cell::Cell<u8> = const { std::cell::Cell::new(0) };
+    /// TestOnly（#1493 裁定 1 对照见证）：真 = 旧规则「第二种候选 OPEN 时跳过、续判同段其后候选」。
+    /// 只用于证明 OPEN 封段见证非空转；不参与生产准入（#799 限定词 3）。
+    pub(super) static OPEN_SKIP_ARM: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// 有缺口峰候选包含入元素时的处理臂；生产恒为 0（#1493 裁定 2）。
@@ -987,6 +990,11 @@ impl FeatureSeqState {
                     {
                         self.skipped_secondkind = true;
                     }
+                    continue;
+                }
+                #[cfg(test)]
+                Some((Some(SecondTerminal::OpenAtPrefixEnd), _)) if OPEN_SKIP_ARM.with(|a| a.get()) => {
+                    self.skipped_secondkind = true;
                     continue;
                 }
                 Some((Some(SecondTerminal::OpenAtPrefixEnd) | None, s)) => {
