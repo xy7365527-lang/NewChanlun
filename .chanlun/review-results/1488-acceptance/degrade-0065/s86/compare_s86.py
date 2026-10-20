@@ -230,7 +230,9 @@ def lines(path):
 def diff_list(a, b, limit=5):
     if a == b:
         return None
-    sa, sb = set(a), set(b)
+    # 0065：元素可能是 list（逐代 stored_* 行），先规范化为可哈希的 tuple 再求差。
+    hashable = lambda x: tuple(hashable(y) for y in x) if isinstance(x, list) else x  # noqa: E731
+    sa, sb = {hashable(x) for x in a}, {hashable(x) for x in b}
     return {"len": [len(a), len(b)], "only_a": sorted(sa - sb)[:limit],
             "only_b": sorted(sb - sa)[:limit],
             "order_or_multiplicity_only": sa == sb}
