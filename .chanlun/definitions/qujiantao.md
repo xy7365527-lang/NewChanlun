@@ -524,7 +524,7 @@ ADR 0011 三格是「纵向向上 = 塔／纵向向下 = 区间套／横向 = �
 
 把塔往下延伸到**笔**、乃至**每笔成交**。**这个区别要紧**：后来人读到时可以直接干，不必重新请示。
 
-> **v1.4 冲突登记（#1600，原句不回改）**：句中「笔」若指以缠论笔为塔底构件，与 `zhongshu.md` §2.1【S-5】（[#812](https://github.com/xy7365527-lang/NewChanlun/issues/812)，2026-07-31，「缠论笔不作递归基」）及 ADR 0041 先例段（笔作底「维持排除；要翻须重开 zhongshu 裁定票」）冲突。`tower_base` 值域按后两者取，不含笔；本段的「往下延伸」在字段下的落点是 `kline3`／`trade3`（§14.3）。
+> **v1.4 冲突登记（#1600，原句不回改）**：句中「笔」若指以缠论笔为塔底构件，与 `zhongshu.md` §2.1【S-5】（[#812](https://github.com/xy7365527-lang/NewChanlun/issues/812)，2026-07-31，「缠论笔不作递归基」）及 ADR 0041 先例段（笔作底「维持排除；要翻须重开 zhongshu 裁定票」）冲突。`tower_base` 值域按后两者取，不含笔；本段的「往下延伸」在字段下的落点是 `kline3`／`trade3`（§14.3）。冲突裁决归 [#1627](https://github.com/xy7365527-lang/NewChanlun/issues/1627)。
 
 **★ 编排者对阶段二的定位（原话）**：**「这个东西是我们过渡到高频交易的途径。」**
 
@@ -1573,12 +1573,12 @@ ADR-0006 `:7` 的三合取（破中枢 ∧ A 配对 ∧ **映射成立**）与 `
 | **默认值** | **`segment`**（三个线段的重叠构成最低级别中枢）。依据：`zhongshu.md` §2.1【S-5】；§4.5.1 阶段一「塔底 ＝ 现有 L0（线段层）」；现行生产 `rust/src/theta_v0/classifier/pipeline.rs:140` `segment_to_unit`（塔 L0 单元 ＝ 线段） |
 | **可选值 `kline3`** | `017-第17课.md:40`【正文】（界 `:98`，行首无注标记、行内无娇注）「对最后不能分解的级别，其缠中说禅走势中枢就不能用“至少三个连续次级别走势类型所重叠”定义，而定义为至少三个该级别单位K线重叠部分」。代价：塔底下移到 K 线，L0 以上所有级别号与在案读数改义，全塔重建；每延伸一级仍须过 §4.5.3 的成本门复测。K 线周期（同句后文 1 分／5 分／1 秒）是另一个维度，不归本字段 |
 | **可选值 `trade3`** | `035-第35课.md:16`【正文】（界 `:38`，行首无注标记、行内无娇注）「最严格去定义，每笔的交易是最低级别的，连续三笔相同价位的交易，就构成最低级别的中枢」。此处「笔」是成交笔，不是缠论笔（`zhongshu.md` §2.3 防误用注）。代价：要逐笔成交数据，现有数据面没有，数据 profile 不具备时不可签；成本门大概率先到（§4.1「两道谁先到算谁」） |
-| **排除（违原文）** | 缠论笔作构件。`083-第83课.md:14`【正文】（界 `:36`）「但这样构造出来的系统，其稳定性极差」及 `:16` 的结构理由；`064-第64课.md:34`【正文】（界 `:44`）「站在严格意义上，线段以下是没有中枢的，所以说是类中枢」——笔上三段重叠按原文不叫中枢（审计 A-40 判 O；`zhongshu.md` §2.1；`level_recursion.md`「名分撤销」段；ADR 0041 先例段）。要翻须重开 zhongshu 裁定票。§4.5.2「延伸到笔」与此冲突，已在该段登记 |
+| **排除（违原文）** | 缠论笔作构件。`083-第83课.md:14`【正文】（界 `:36`）「但这样构造出来的系统，其稳定性极差」及 `:16` 的结构理由；`064-第64课.md:34`【正文】（界 `:44`）「站在严格意义上，线段以下是没有中枢的，所以说是类中枢」——笔上三段重叠按原文不叫中枢（审计 A-40 判 O；`zhongshu.md` §2.1；`level_recursion.md`「名分撤销」段；ADR 0041 先例段）。要翻须重开 zhongshu 裁定票。§4.5.2「延伸到笔」与此冲突，已在该段登记，归 [#1627](https://github.com/xy7365527-lang/NewChanlun/issues/1627) |
 | **适用条件** | 全塔一个基底，`f₂` 不随基底变（`084:54`）；一次运行只读一个值；改值 ＝ 新版本、全塔重建，旧读数留作 AsKnown |
 | **排除（真错）** | 运行中「线段塔判不出就降到 K 线塔再判」：#799 兜底形态 |
 | **载体** | [ADR 0035](../../docs/adr/0035-cost-stop-policy-instance-and-base-extension-evidence.md) 记录已有 `tower_base_ref`（`0035:12`，`:24` 绑定 profile）；本字段的值即该引用所指的基底，数据 profile 声明哪些基底可签 |
 
-**两处正本间不一致（登记，本票不改原句）**：① `beichi.md:459` 写「递归的底 `a₀` = 1 分钟 K 线构成的笔——`[新缠论:选择]`」，与本字段默认值 `segment` 及 `zhongshu.md` §2.1「缠论笔不作递归基」不一致；② §4.5.2「延伸到笔」与同一条冲突（该段已登记）。两件现无承接票，#1600 关票时开票（或挂 zhongshu／beichi 跟进票）并把票号回填此处。
+**两处正本间不一致（登记，本票不改原句）**：① `beichi.md:459` 写「递归的底 `a₀` = 1 分钟 K 线构成的笔——`[新缠论:选择]`」，与本字段默认值 `segment` 及 `zhongshu.md` §2.1「缠论笔不作递归基」不一致；② §4.5.2「延伸到笔」与同一条冲突（该段已登记）。两件归 [#1627](https://github.com/xy7365527-lang/NewChanlun/issues/1627)。
 
 ### 14.4 #1600 受影响代码清单（基线 main `df6e680930`）
 
@@ -1587,11 +1587,11 @@ ADR-0006 `:7` 的三合取（破中枢 ∧ A 配对 ∧ **映射成立**）与 `
 | # | 字段 | 侧 | 文件:行号 | 要改什么 | 承接 |
 |---|---|---|---|---|---|
 | Q-1 | `selector_keys` | Rust | `rust/src/theta_v0/strategy/nest.rs:46-48`（`sel_key`）、`:55-59`（`sel_order`）、`:67-72`（`select_theta`）、`:99-101`（`chosen`）；`rust/src/theta_v0/classifier/nest.rs:55-57`（`sel_key`）、`:63-67`（`sel_order`）、`:83`（`select_best`） | 键序改读字段（默认等值，对拍逐位不变）；两处同读一份记录 | TB-02-Q [#1439](https://github.com/xy7365527-lang/NewChanlun/issues/1439)（§9 第 49 条同处） |
-| Q-2 | `selector_keys` | Lean | `formal/Strict/Nest.lean:117`（`selOrder`）；`formal/Origin/IntervalNestCertificate.lean:87-90`（`selOrderB`）、`:114`（三歧性定理）、`:196`（`selectΘ`）；`formal/Origin/NestingCertificate.lean:239-240`（`SelTheta = head?`） | `selOrder` 以键表为参数并重证三歧性；`SelTheta` 按字段排序后取首 | 无承接票（#1600 关票时开 `[impl]` 或挂 Lean 跟进票，票号回填） |
+| Q-2 | `selector_keys` | Lean | `formal/Strict/Nest.lean:117`（`selOrder`）；`formal/Origin/IntervalNestCertificate.lean:87-90`（`selOrderB`）、`:114`（三歧性定理）、`:196`（`selectΘ`）；`formal/Origin/NestingCertificate.lean:239-240`（`SelTheta = head?`） | `selOrder` 以键表为参数并重证三歧性；`SelTheta` 按字段排序后取首 | [#1626](https://github.com/xy7365527-lang/NewChanlun/issues/1626) |
 | Q-3 | `selector_keys` | Python | 已查范围零处 | — | — |
-| Q-4 | `trend_scope` | Rust | `rust/src/trading/positional.rs:476-494`（docstring）、`:496-506`（枚举，`:498-499` `#[default] SelfLayer`）、`:602-607`（参数文档）、`:628`（字段）、`:873-874`（模式串 `hold26_anc`／`fusion_ta` → 取值）；`rust/src/trading/positional_fusion.rs:359`（参数）、`:502-524`（合取守卫）、`:1017-1022`（判据分派）、`:1027-1033`（驻留观测）、`:1253`（豁免归因） | 取值改由 policy 记录给出，输出带记录 id 与版本；模式串只作测试夹具 | 无承接票（原 SPEC #847 已关；#1600 关票时开 `[impl]`，票号回填） |
+| Q-4 | `trend_scope` | Rust | `rust/src/trading/positional.rs:476-494`（docstring）、`:496-506`（枚举，`:498-499` `#[default] SelfLayer`）、`:602-607`（参数文档）、`:628`（字段）、`:873-874`（模式串 `hold26_anc`／`fusion_ta` → 取值）；`rust/src/trading/positional_fusion.rs:359`（参数）、`:502-524`（合取守卫）、`:1017-1022`（判据分派）、`:1027-1033`（驻留观测）、`:1253`（豁免归因） | 取值改由 policy 记录给出，输出带记录 id 与版本；模式串只作测试夹具 | [#1626](https://github.com/xy7365527-lang/NewChanlun/issues/1626)（原 SPEC #847 已关） |
 | Q-5 | `trend_scope` | Python／Lean | 已查范围零处 | — | — |
-| Q-6 | `tower_base` | Rust | `rust/src/theta_v0/classifier/pipeline.rs:140`（`segment_to_unit`）、`:653`、`:671`（L0 单元写死为线段）；`rust/src/theta_v0/classifier/recursive_tower.rs:391-398`、`:622-641`（`compose_level`／`_resume` 的 `is_l0` 构造器分派）；`rust/src/theta_v0/backtest/econ_positive.rs:1142`、`econ_positive/cand_delta.rs:85`（「塔不从笔递归，构造选择」注释）；`rust/src/recursive_t/divergence.rs:511`（`nest_chain_complete` 的 `min_level` 含塔底级） | 塔 L0 构件改读 `tower_base`（默认 `segment` 等值）；注释改指 §14.3；非 `segment` 值在数据 profile 不具备时显式拒绝 | #847 已关、阶段二无承接票（#1600 关票时开 `[impl]`，票号回填）；与 TB-02 塔构造写集协调 |
+| Q-6 | `tower_base` | Rust | `rust/src/theta_v0/classifier/pipeline.rs:140`（`segment_to_unit`）、`:653`、`:671`（L0 单元写死为线段）；`rust/src/theta_v0/classifier/recursive_tower.rs:391-398`、`:622-641`（`compose_level`／`_resume` 的 `is_l0` 构造器分派）；`rust/src/theta_v0/backtest/econ_positive.rs:1142`、`econ_positive/cand_delta.rs:85`（「塔不从笔递归，构造选择」注释）；`rust/src/recursive_t/divergence.rs:511`（`nest_chain_complete` 的 `min_level` 含塔底级） | 塔 L0 构件改读 `tower_base`（默认 `segment` 等值）；注释改指 §14.3；非 `segment` 值在数据 profile 不具备时显式拒绝 | [#1626](https://github.com/xy7365527-lang/NewChanlun/issues/1626)（#847 已关）；与 TB-02 塔构造写集协调 |
 | Q-7 | `tower_base` | 记录 | `docs/adr/0035-cost-stop-policy-instance-and-base-extension-evidence.md:12`、`:24`（`tower_base_ref`） | `tower_base_ref` 的值域对齐本字段三值 | 随 Q-6 |
 | Q-8 | `tower_base` | Python | `src/newchan/a_nested_divergence.py:384`（`range(top_level - 1, 1, -1)`）、`:408`（`_finalize_with_level1`，递归底写死 level 1 ＝ 线段） | 递归底改读字段 | 随 Q-6 |
 | Q-9 | `tower_base` | Lean | 已查范围零处（`rg 'towerBase\|tower_base' formal` 0 命中） | — | — |
