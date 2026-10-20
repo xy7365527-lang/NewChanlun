@@ -1077,10 +1077,18 @@ mod tests {
                 let trial = Trial::new_admitted(&tx, Some(prior), true, Some(work))?;
                 assert!(trial.bound);
                 let after_new = budget.live();
-                assert!(
-                    after_new > scope_before,
-                    "新trial完整原件绑定须消费父域许可"
-                );
+                // #1488 0059 主控裁定 B8（第十三处裁改断言，
+                // https://github.com/xy7365527-lang/NewChanlun/issues/1488#issuecomment-6287615661）：
+                // 原断言（1d4d7bb6b8「fix(s): admit cold capture and exact SQL bindings in shared scope」）：
+                //   `assert!(after_new > scope_before, "新trial完整原件绑定须消费父域许可")`；闭包外
+                //   `assert!(native_retained > 0)` 与 `assert_eq!(budget.live(), before + native_retained, "Native保守费用随父Budget存活")`。
+                // v4 条款（control/1488-unified-budget-ownership-interface-contract-v4.md）：
+                //   L9「许可随对象移动，在对象析构以后返还。没有生产unassigned余额、裸字节追认或同额补签。」
+                //   L21「生产Budget::adopt(bytes)、ScratchParent::adopt_native(bytes, expected)…必须退出生产路径」。
+                // 绑定比较用的临时完整原件析构即归还，live 回到 scope_before；“确在父域计费”的原意改由 peak 保留。
+                // 封存段“封存完整原件再次消费同一父域”原断言不动。
+                assert_eq!(after_new, scope_before, "v4[B]：绑定比较的临时完整原件析构即归还");
+                assert!(budget.peak() > scope_before, "v4[B]：新trial完整原件绑定在父域计费");
                 let pending = trial.seal_admitted(&tx, prior.binding.frontier, Some(work))?;
                 assert_eq!(pending.binding, prior.binding);
                 assert!(budget.live() > after_new, "封存完整原件再次消费同一父域");
@@ -1090,12 +1098,9 @@ mod tests {
             })
             .unwrap();
         assert!(budget.peak() > before);
-        assert!(native_retained > 0);
-        assert_eq!(
-            budget.live(),
-            before + native_retained,
-            "Native保守费用随父Budget存活"
-        );
+        // B8（第十三处裁改断言，续）：pending 已析构，同父许可全部归还，无 Native 保守费用。
+        assert_eq!(native_retained, 0, "v4[B]：pending析构后无保守费用");
+        assert_eq!(budget.live(), before, "v4[B]：许可随对象析构全部归还");
         assert_eq!(budget.scratch_observation().0, 0);
         assert_eq!(budget.scratch_observation().2, 0);
         println!(
@@ -1324,7 +1329,17 @@ mod tests {
                     let mut trial = Trial::new_admitted(&tx, prior, true, Some(work))?;
                     assert_eq!(trial.bound, prior.is_some());
                     if prior.is_some() {
-                        assert!(budget.live() > scope_before, "完整绑定须消费同父域");
+                        // #1488 0059 主控裁定 B9（第十四处裁改断言，
+                        // https://github.com/xy7365527-lang/NewChanlun/issues/1488#issuecomment-6287615661）：
+                        // 原断言（1f1debe94c「fix(s): share cold admission budget and admit legacy profile reads」）：
+                        //   `assert!(budget.live() > scope_before, "完整绑定须消费同父域")`；drop(pending) 后
+                        //   `assert_eq!(budget.live(), before + native_retained, "保守费用保留在父账")`。
+                        // v4 条款（control/1488-unified-budget-ownership-interface-contract-v4.md）：
+                        //   L9「许可随对象移动，在对象析构以后返还。没有生产unassigned余额、裸字节追认或同额补签。」
+                        //   L21「生产Budget::adopt(bytes)、ScratchParent::adopt_native(bytes, expected)…必须退出生产路径」。
+                        // 绑定临时原件析构即归还；“完整绑定在同父域计费”改由 peak 保留。R13 observer 原断言不动（v4 L13）。
+                        assert_eq!(budget.live(), scope_before, "v4[B]：绑定临时原件析构即归还");
+                        assert!(budget.peak() > scope_before, "v4[B]：完整绑定在同父域计费");
                     } else {
                         assert_eq!(budget.live(), scope_before, "cold 无 prior 绑定分配");
                     }
@@ -1386,11 +1401,8 @@ mod tests {
             assert_eq!(budget.scratch_observation().0, 0);
             assert_eq!(budget.scratch_observation().2, 0);
             drop(pending);
-            assert_eq!(
-                budget.live(),
-                before + native_retained,
-                "保守费用保留在父账"
-            );
+            // B9（第十四处裁改断言，续）：pending 析构前 native_retained>0 原断言不动；析构后归零。
+            assert_eq!(budget.live(), before, "v4[B]：pending析构后同父许可全部归还，无保守费用");
             println!(
                 "R13_SOURCE_TRIAL {}",
                 serde_json::json!({

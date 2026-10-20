@@ -3021,15 +3021,26 @@ mod construction_coverage_tests {
         let before = parent.live();
         let native_before = parent.native_observation().0;
         assert!(effects.set.is_some());
-        assert!(native_before > cap, "原codec retain仍在同一个父账中");
+        // #1488 0059 主控裁定 B1（第六处裁改断言，
+        // https://github.com/xy7365527-lang/NewChanlun/issues/1488#issuecomment-6287615661）：
+        // 原断言（9d03c773ae）：`assert!(native_before > cap, "原codec retain仍在同一个父账中")`；
+        //   drop(effects) 后 `assert!(parent.native_observation().0 > 0, "不得手工扣掉原codec保守retain")`。
+        // v4 条款（control/1488-unified-budget-ownership-interface-contract-v4.md）：
+        //   L9「许可随对象移动，在对象析构以后返还。没有生产unassigned余额、裸字节追认或同额补签。」
+        //   L21「生产Budget::adopt(bytes)、ScratchParent::adopt_native(bytes, expected)…必须退出生产路径」
+        //   L34「部分构造失败后逐个Drop，仅剩明确仍存活的真实父M」。
+        // v4 下 codec 保守 retain 已退役：父账 native 只剩 effects 持有的 cap，返还后只剩根 M。
+        // 保留原意：effects 持 cap 期间许可存活，Drop 只返还自己那份（下两行原断言不动）。
+        assert_eq!(native_before, cap, "v4[B]：父账native只剩effects持有的cap许可，无codec retain");
         drop(effects);
         assert_eq!(parent.live(), before - cap);
         assert_eq!(parent.native_observation().0, native_before - cap);
-        assert!(
-            parent.native_observation().0 > 0,
-            "不得手工扣掉原codec保守retain"
+        assert_eq!(
+            parent.live(),
+            native::Budget::metadata_bytes(),
+            "v4[B]：只返还cap本身；返还后父账仅剩根M，无保守retain"
         );
-        drop(parent); // 剩余既有保守账随父账整个生命周期结束。
+        drop(parent); // 根 M 随父账整个生命周期结束。
     }
     #[test]
     fn owner_set_failed_source_drops_new_cap_without_erasing_existing_codec_retain() {
@@ -3050,9 +3061,18 @@ mod construction_coverage_tests {
         assert!(recording.finish(&tx, &mut [], 16 << 20).is_err());
         assert_eq!(parent.live(), before - cap, "错误Drop归还新增cap全部余额");
         assert_eq!(parent.native_observation().0, native_before - cap);
-        assert!(
-            parent.native_observation().0 > 0,
-            "原codec retain仍由原父账持有"
+        // #1488 0059 主控裁定 B2（第七处裁改断言，
+        // https://github.com/xy7365527-lang/NewChanlun/issues/1488#issuecomment-6287615661）：
+        // 原断言（9d03c773ae）：`assert!(parent.native_observation().0 > 0, "原codec retain仍由原父账持有")`。
+        // v4 条款（control/1488-unified-budget-ownership-interface-contract-v4.md）：
+        //   L9「许可随对象移动，在对象析构以后返还。没有生产unassigned余额、裸字节追认或同额补签。」
+        //   L34「部分构造失败后逐个Drop，仅剩明确仍存活的真实父M；禁止unassigned或已分配后adopt追认。」
+        // 失败路径的 codec 临时件已析构返还，父账不再有 codec retain 残留，仅剩根 M。
+        // 保留原意：上一行“错误Drop归还新增cap全部余额”不动，且不得多还（== M 而非 < M）。
+        assert_eq!(
+            parent.live(),
+            native::Budget::metadata_bytes(),
+            "v4[B]：失败Drop只归还新增cap；父账无codec retain残留，仅剩根M"
         );
     }
     #[test]
@@ -3091,10 +3111,17 @@ mod e_owner_move_tests {
         .unwrap()
         .unwrap();
         let row = StageOriginals { value: Some(rows) }.into_row();
-        assert_eq!(budget.live(), row.heap_bytes());
+        // #1488 0059 主控裁定 B5（第十处裁改断言，
+        // https://github.com/xy7365527-lang/NewChanlun/issues/1488#issuecomment-6287615661）：
+        // 原断言（ea41d4dfd1）：`assert_eq!(budget.live(), row.heap_bytes())`；drop(row) 后 `assert_eq!(budget.live(), 0)`。
+        // v4 条款（control/1488-unified-budget-ownership-interface-contract-v4.md）：
+        //   L10「在分配根Ledger控制块前覆盖实际metadata M并验证A/总帽。」
+        //   L34「部分构造失败后逐个Drop，仅剩明确仍存活的真实父M」。
+        // v4 根 Ledger 把自身 metadata M 计入 live，两处只多计根 M；行费精确性不降。
+        assert_eq!(budget.live(), row.heap_bytes() + native::Budget::metadata_bytes(), "v4[B]");
         assert_eq!(manual_row_bytes(&row), 0);
         drop(row);
-        assert_eq!(budget.live(), 0);
+        assert_eq!(budget.live(), native::Budget::metadata_bytes(), "v4[B]");
     }
     #[test]
     fn e_apply_native_insert_is_ordered_and_releases_only_manual_outer_charge() {
@@ -3158,10 +3185,17 @@ mod e_owner_move_tests {
                 .collect::<Vec<_>>(),
             vec![1, 2, 3]
         );
-        assert_eq!(budget.live(), originals[0].heap_bytes());
+        // #1488 0059 主控裁定 B3（第八处裁改断言，
+        // https://github.com/xy7365527-lang/NewChanlun/issues/1488#issuecomment-6287615661）：
+        // 原断言（ea41d4dfd1）：`assert_eq!(budget.live(), originals[0].heap_bytes())`；drop(originals) 后 `assert_eq!(budget.live(), 0)`。
+        // v4 条款（control/1488-unified-budget-ownership-interface-contract-v4.md）：
+        //   L10「在分配根Ledger控制块前覆盖实际metadata M并验证A/总帽。」
+        //   L34「部分构造失败后逐个Drop，仅剩明确仍存活的真实父M」。
+        // v4 根 Ledger 把自身 metadata M 计入 live，两处只多计根 M；行费精确性不降。
+        assert_eq!(budget.live(), originals[0].heap_bytes() + native::Budget::metadata_bytes(), "v4[B]");
         assert_eq!(original_charge, originals[0].heap_bytes());
         drop(originals);
-        assert_eq!(budget.live(), 0);
+        assert_eq!(budget.live(), native::Budget::metadata_bytes(), "v4[B]");
     }
     #[test]
     fn e_apply_native_replace_and_delete_keep_remaining_rows_owned() {
@@ -3224,13 +3258,20 @@ mod e_owner_move_tests {
             effects
                 .apply(&mut originals, &budget, &mut original_charge)
                 .unwrap();
-            assert_eq!(budget.live(), originals[0].heap_bytes());
+            // #1488 0059 主控裁定 B4（第九处裁改断言，
+            // https://github.com/xy7365527-lang/NewChanlun/issues/1488#issuecomment-6287615661）：
+            // 原断言（ea41d4dfd1）：`assert_eq!(budget.live(), originals[0].heap_bytes())`；drop(originals) 后 `assert_eq!(budget.live(), 0)`。
+            // v4 条款（control/1488-unified-budget-ownership-interface-contract-v4.md）：
+            //   L10「在分配根Ledger控制块前覆盖实际metadata M并验证A/总帽。」
+            //   L34「部分构造失败后逐个Drop，仅剩明确仍存活的真实父M」。
+            // v4 根 Ledger 把自身 metadata M 计入 live，两处只多计根 M；行费精确性不降。
+            assert_eq!(budget.live(), originals[0].heap_bytes() + native::Budget::metadata_bytes(), "v4[B]");
             assert_eq!(original_charge, originals[0].heap_bytes());
         }
         assert_eq!(originals[0].rows.len(), 1);
         assert_eq!(text(&originals[0].rows[0][1]).unwrap(), "updated");
         drop(originals);
-        assert_eq!(budget.live(), 0);
+        assert_eq!(budget.live(), native::Budget::metadata_bytes(), "v4[B]");
     }
 }
 

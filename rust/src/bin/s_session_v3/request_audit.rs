@@ -1343,9 +1343,20 @@ mod tests {
                         "only migrated R owners refund here; legacy capture/scan retain remains"
                     );
                     material_refunded = material_bytes;
-                    assert!(
-                        budget.live() > scope_before,
-                        "legacy retain is still explicitly present"
+                    // #1488 0059 主控裁定 B10（第十五处裁改断言，
+                    // https://github.com/xy7365527-lang/NewChanlun/issues/1488#issuecomment-6287615661）：
+                    // 原断言（main 原形 1d4d7bb6b8「context已析构，Native保守费用仍随父Budget存活」，ea41d4dfd1 改写为现形）：
+                    //   `assert!(budget.live() > scope_before, "legacy retain is still explicitly present")`；
+                    //   闭包外 `assert!(legacy_retained > 0)`。
+                    // v4 条款（control/1488-unified-budget-ownership-interface-contract-v4.md）：
+                    //   L9「许可随对象移动，在对象析构以后返还。没有生产unassigned余额、裸字节追认或同额补签。」
+                    //   L21「生产Budget::adopt(bytes)、ScratchParent::adopt_native(bytes, expected)…必须退出生产路径」。
+                    // v4 下 legacy capture/scan 保守 retain 已退役，context/capture/scan 析构即全部归还。
+                    // 保留原意：冷暖完整输出相等、R material 精确退款、peak>before 等原断言均不动。
+                    assert_eq!(
+                        budget.live(),
+                        scope_before,
+                        "v4[B]：context/capture/scan对象均已析构，许可全部归还，无legacy retain"
                     );
                     legacy_retained = budget.live() - scope_before;
                     Ok::<_, String>(())
@@ -1353,7 +1364,7 @@ mod tests {
                 .unwrap();
             assert!(budget.peak() > before);
             assert!(material_refunded > 0);
-            assert!(legacy_retained > 0);
+            assert_eq!(legacy_retained, 0, "v4[B]");
             assert_eq!(
                 budget.live(),
                 before + legacy_retained,
@@ -2547,7 +2558,15 @@ mod r_owner_move_tests {
             })
             .unwrap();
         assert!(row.is_native_bound());
-        assert_eq!(parent.live(), row.heap_bytes());
+        // #1488 0059 主控裁定 B6（第十一处裁改断言，
+        // https://github.com/xy7365527-lang/NewChanlun/issues/1488#issuecomment-6287615661）：
+        // 原断言（ea41d4dfd1）：`assert_eq!(parent.live(), row.heap_bytes())`；drop(row) 后
+        //   `assert_eq!(parent.live(), body_charge)`；drop(body) 后 `assert_eq!(parent.live(), 0)`。
+        // v4 条款（control/1488-unified-budget-ownership-interface-contract-v4.md）：
+        //   L10「在分配根Ledger控制块前覆盖实际metadata M并验证A/总帽。」
+        //   L34「部分构造失败后逐个Drop，仅剩明确仍存活的真实父M」。
+        // v4 根 Ledger 把自身 metadata M 计入 live，三处只多计根 M；行/BLOB 费精确性不降。
+        assert_eq!(parent.live(), row.heap_bytes() + Budget::metadata_bytes(), "v4[B]");
         assert_eq!(manual_cells_bytes(&row), 0);
         let before = parent.live();
         let pointer = match &row[1] {
@@ -2562,17 +2581,26 @@ mod r_owner_move_tests {
         assert_eq!(body.as_ptr(), pointer);
         let body_charge = body.capacity();
         drop(row);
-        assert_eq!(parent.live(), body_charge);
+        assert_eq!(parent.live(), body_charge + Budget::metadata_bytes(), "v4[B]");
         assert_eq!(body.as_ref(), &[1, 2, 3]);
         drop(body);
-        assert_eq!(parent.live(), 0);
+        assert_eq!(parent.live(), Budget::metadata_bytes(), "v4[B]");
     }
 
     #[test]
     fn r_optional_bad_sql_precedes_scope_and_rejected_read_refunds() {
         let mut conn = rusqlite::Connection::open_in_memory().unwrap();
         let tx = conn.transaction().unwrap();
-        let tight = Budget::new(1, 0).unwrap();
+        // #1488 0059 主控裁定 B7（第十二处裁改断言，
+        // https://github.com/xy7365527-lang/NewChanlun/issues/1488#issuecomment-6287615661）：
+        // 原断言（ea41d4dfd1）：`let tight = Budget::new(1, 0).unwrap();`，其后 `assert_eq!(tight.live(), 0)`，
+        //   以及两处 `assert_eq!(parent.live(), 0)`。
+        // v4 条款（control/1488-unified-budget-ownership-interface-contract-v4.md）：
+        //   L10「在分配根Ledger控制块前覆盖实际metadata M并验证A/总帽。」
+        //   L34「部分构造失败后逐个Drop，仅剩明确仍存活的真实父M」。
+        // 根 Ledger 须先覆盖自身 M（limit=1 时 new 即 BudgetExceeded）；“最紧”父取 M+1，
+        // 原意“比任何真实读都紧”不变；三处 ==0 改为 ==M。
+        let tight = Budget::new(Budget::metadata_bytes() + 1, 0).unwrap();
         assert!(ExactRows::read_optional_bounded_in_parent(
             &tx,
             "SELECT no_such_column",
@@ -2580,7 +2608,7 @@ mod r_owner_move_tests {
             Some(&tight)
         )
         .is_err());
-        assert_eq!(tight.live(), 0);
+        assert_eq!(tight.live(), Budget::metadata_bytes(), "v4[B]");
         let parent = Budget::new(1024 * 1024, 0).unwrap();
         assert!(ExactRows::read_optional_bounded_in_parent(
             &tx,
@@ -2590,7 +2618,7 @@ mod r_owner_move_tests {
         )
         .unwrap()
         .is_none());
-        assert_eq!(parent.live(), 0);
+        assert_eq!(parent.live(), Budget::metadata_bytes(), "v4[B]");
         let got = ExactRows::read_optional_bounded_in_parent(
             &tx,
             "SELECT X'',CAST(X'80FF' AS TEXT),-0.0,NULL",
@@ -2609,7 +2637,7 @@ mod r_owner_move_tests {
         assert_eq!(got.0, plain.0);
         assert!(got.1 <= 65536);
         drop(got);
-        assert_eq!(parent.live(), 0);
+        assert_eq!(parent.live(), Budget::metadata_bytes(), "v4[B]");
     }
     #[cfg(feature = "s_allocation_json_testonly")]
     #[test]
