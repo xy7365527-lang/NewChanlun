@@ -984,9 +984,6 @@ impl NativeSourceState {
             pending_changed.insert(s, handle)?;
             schedule(s, &self.object_order, &mut events, handle)?;
         }
-        if self.objects.len() != 0 && !changes.added.is_empty() {
-            return Err(err("S4 probe：暖态 object_phase 收到新增对象")); // S4 探针
-        }
         for handle in changes.added {
             pending_changed.insert(s, handle)?;
             schedule(s, &self.object_order, &mut events, handle)?;
