@@ -533,3 +533,103 @@ fn tb1493_ruling2_three_way_real() {
         assert!(r[0].2.is_none(), "{tag}：本裁定段端门失败");
     }
 }
+
+/// #1493 裁定 2 真实数据：段端点 = 分型极值 P 的核对（facts 路径随前缀二次增长，故按 3000 笔窗分块）。
+#[test]
+#[ignore = "重型验证窗口：#1493 裁定 2 真实数据段端点 = 分型 P"]
+fn tb1493_ruling2_real_endpoint_is_fractal_p() {
+    let all = load_full();
+    let theta = ThetaConfig::default();
+    let tail = &all[all.len() - 50_000..];
+    for (tag, bars) in [("TAIL", &tail[5..]), ("FULL", &all[1..])] {
+        let layer = parse_layer(bars, &theta);
+        let ss = &layer.strokes[..];
+        let (mut checked, mut off_p, mut invalid) = (0usize, 0usize, 0usize);
+        let mut shown = 0;
+        let mut lo = 0;
+        while lo + 50 < ss.len() {
+            let hi = (lo + 3_000).min(ss.len());
+            let w = &ss[lo..hi];
+            let (segs, _, facts) = segment::divide_segments_with_facts(w, &theta.parse);
+            if facts.parse_invalid_from.is_some() {
+                invalid += 1;
+            }
+            for (s, c) in segs.iter().zip(&facts.candidates) {
+                let b = w.iter().rposition(|x| x.end_index == s.end_index).unwrap();
+                let st = c.strict.as_ref().expect("已发射段须有 strict 见证");
+                let p = match s.direction {
+                    super::super::types::Direction::Up => st.elements[1].high,
+                    super::super::types::Direction::Down => st.elements[1].low,
+                };
+                checked += 1;
+                if w[b].end_price != p {
+                    off_p += 1;
+                    if shown < 5 {
+                        shown += 1;
+                        eprintln!(
+                            "TB1493 RULING2 P-OFF {tag} window_lo={lo} seg_end_stroke={} endpoint={} P={p} case={}",
+                            lo + b,
+                            w[b].end_price,
+                            st.effective_case
+                        );
+                    }
+                }
+            }
+            if hi == ss.len() || lo > 120_000 {
+                break;
+            }
+            lo += 3_000;
+        }
+        eprintln!("TB1493 RULING2 P {tag} segments_checked={checked} endpoint_ne_P={off_p} windows_parse_invalid={invalid}");
+    }
+}
+
+/// 诊断：全量逐 bar 增量中已发射段被改写的现场（上一前缀与本前缀的笔差异、段差异）。
+#[test]
+#[ignore = "诊断：前缀改写现场"]
+fn tb1493_replay_rewrite_sites() {
+    let all = load_full();
+    let bars = &all[1..];
+    let theta = ThetaConfig::default();
+    let mut inc = ParseLayerIncr::new(&theta);
+    let mut prev: Option<(Vec<Segment>, usize, Vec<Stroke>, usize, Option<usize>)> = None;
+    let mut shown = 0;
+    for (i, bar) in bars.iter().enumerate() {
+        let layer = inc.append(*bar);
+        if let Some((old, off, ostk, ooff, euf)) = &prev {
+            let plen = off + old.len();
+            for j in layer.segments_confirmed_len.min(plen.saturating_sub(1)).max(*off)..plen.saturating_sub(1) {
+                if layer.segments.get(j) != Some(&old[j - off]) {
+                    let first_stroke_diff = (*ooff..ooff + ostk.len())
+                        .find(|&k| layer.strokes.get(k) != Some(&ostk[k - ooff]));
+                    eprintln!(
+                        "TB1493 RW bar={i} raw={} seg={j} plen={plen} newlen={} prev_strokes={} new_strokes={} first_stroke_diff={first_stroke_diff:?} prev_euf={euf:?} old={:?} new={:?}",
+                        bar.source_index,
+                        layer.segments.len(),
+                        ooff + ostk.len(),
+                        layer.strokes.len(),
+                        old[j - off],
+                        layer.segments.get(j)
+                    );
+                    shown += 1;
+                    break;
+                }
+            }
+        }
+        if shown >= 12 {
+            return;
+        }
+        let len = layer.segments.len();
+        let off = len.saturating_sub(16);
+        let slen = layer.strokes.len();
+        let soff = slen.saturating_sub(48);
+        prev = Some((
+            layer.segments[off..].to_vec(),
+            off,
+            layer.strokes[soff..].to_vec(),
+            soff,
+            layer.segments_earliest_unsealed,
+        ));
+        drop(layer);
+    }
+}
