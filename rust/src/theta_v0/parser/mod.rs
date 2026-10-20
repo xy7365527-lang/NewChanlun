@@ -488,6 +488,8 @@ fn parse_layer_from_strokes(
 mod tb02c_tests;
 #[cfg(test)]
 mod tb1493_replay_tests;
+#[cfg(test)]
+mod tb1581_tests;
 
 #[cfg(test)]
 mod tests {
