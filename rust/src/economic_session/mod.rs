@@ -14,6 +14,7 @@ mod tb03c_allocation;
 mod tb03c_book;
 mod tb03c_corrections;
 mod tb03c_e;
+mod tb03c_funding;
 mod tb03c_per_leg;
 mod tb03c_transfer;
 mod voice;
@@ -25,6 +26,8 @@ mod tb03c_allocation_tests;
 mod tb03c_book_tests;
 #[cfg(test)]
 mod tb03c_e_tests;
+#[cfg(test)]
+mod tb03c_funding_tests;
 #[cfg(test)]
 mod voice_tests;
 

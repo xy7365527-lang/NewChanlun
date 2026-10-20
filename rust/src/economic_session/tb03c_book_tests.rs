@@ -396,8 +396,9 @@ fn book_revision_dispatch_is_explicit_and_closed() {
         book::rules(&json!({"book_revision":"tb03c-book/1"})).unwrap(),
         book::Rules::Tb03cV1
     );
+    // #1406 C8：`tb03c-book/2` 已定义（见 tb03c_funding_tests），闭集外样本改用 `/3`。
     for bad in [
-        json!("tb03c-book/2"),
+        json!("tb03c-book/3"),
         json!("tb03a-book/1"),
         json!(1),
         json!({}),

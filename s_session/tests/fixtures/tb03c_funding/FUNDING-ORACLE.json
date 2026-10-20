@@ -1,0 +1,74 @@
+{
+  "profiles": [
+    {
+      "chongs": [
+        {
+          "C": 1110000,
+          "Q": 100000,
+          "level": "L0",
+          "p0_batch": 100000,
+          "symbol": "BTC"
+        }
+      ],
+      "margin_leverage": 1,
+      "profile_id": "P0",
+      "q_total": 100000,
+      "remaining": 0,
+      "stop": {
+        "kind": "完成"
+      }
+    },
+    {
+      "chongs": [
+        {
+          "C": 1110000,
+          "Q": 500,
+          "level": "L0",
+          "p0_batch": 500,
+          "symbol": "BTC"
+        }
+      ],
+      "margin_leverage": 1,
+      "profile_id": "P1-hl-testnet",
+      "q_total": 500,
+      "remaining": 0,
+      "stop": {
+        "kind": "完成"
+      }
+    },
+    {
+      "chongs": [
+        {
+          "C": 1110000,
+          "Q": 1110000,
+          "level": "L0",
+          "p0_batch": 1110000,
+          "symbol": "BTC"
+        },
+        {
+          "C": 3200000,
+          "Q": 3200000,
+          "level": "L1",
+          "p0_batch": 3200000,
+          "symbol": "BTC",
+          "tier_quantity_d1": 1110400
+        },
+        {
+          "C": 9630000,
+          "Q": 690000,
+          "level": "L2",
+          "p0_batch": 690000,
+          "symbol": "BTC"
+        }
+      ],
+      "margin_leverage": 1,
+      "profile_id": "P0-acceptance-5m",
+      "q_total": 5000000,
+      "remaining": 0,
+      "stop": {
+        "kind": "完成"
+      }
+    }
+  ],
+  "source": "ADR 0040 裁定四；签署记录 2026-10-20；独立 oracle（不 import 产品代码）"
+}

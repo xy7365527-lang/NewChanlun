@@ -90,7 +90,11 @@ pub(super) fn pending_entry(
     super::tb03c_transfer::check_claim(recorded, record)?;
     let transfer_wait = super::tb03c_transfer::waiting_on(recorded, event)?;
     let netted = super::tb03c_allocation::is_projected(event);
-    let reason = if event.get("q_rebase").is_some() {
+    // #1406 C8：`/2` 的签署缺口（q_rebase、追加投入）先于其余等待；`/1` 返回 None、原文案不变。
+    let funding_wait = super::tb03c_funding::pending_reason(&config.manifest, event)?;
+    let reason = if let Some(wait) = funding_wait {
+        wait
+    } else if event.get("q_rebase").is_some() {
         json!({"kind":"AwaitingPolicy","slot":"capacity"})
     } else if let Some(on) = transfer_wait {
         json!({"kind":"AwaitingDependency","on":on})
@@ -195,6 +199,15 @@ pub(super) fn resolve_image(
         if p["reason"]["kind"] == "AwaitingPolicy" && p["reason"]["slot"] == "capacity" {
             return Err("AwaitingPolicy：capacity；Resolve 证据不能替代用户签署的容量".into());
         }
+        // #1406 C8（`/2`）：重基与追加投入只能由新签署版本解除，Resolve 证据不能替代。
+        if p["reason"]["kind"] == "AwaitingPolicy"
+            && (p["reason"]["slot"] == "q_rebase" || p["reason"]["slot"] == "funding_revision")
+        {
+            return Err(format!(
+                "AwaitingPolicy：{}；Resolve 证据不能替代用户签署的新版本",
+                p["reason"]["slot"].as_str().unwrap_or("")
+            ));
+        }
         super::finance::covered_pending(previous, covered, p)?;
         // C06.2/C06.3：FIN 域只认 E 已持久的完整责任界。请求自报的摘要只能绑定事实，不能替代保责。
         if let Some(finance) = previous.get("finance") {
@@ -271,7 +284,7 @@ pub(super) fn replay(
     budget: &mut super::store::ReadBudget<'_>,
 ) -> Result<Value, String> {
     use crate::session_protocol::{strict_json, validate_envelope};
-    if config.domain != "E" || config.book_rules()? != Rules::Tb03cV1 {
+    if config.domain != "E" || !config.book_rules()?.is_tb03c() {
         return Err("StorageUnavailable：Resolve 不属于本域/书账版本".into());
     }
     let origin = &event["origin_message"];

@@ -13,6 +13,8 @@
 //! - TestOnly 原件首次资格为真记 SimulatedGateReached；PostGatePolicy 全槽未签，
 //!   growth_enabled 为 AwaitingPolicy{post_gate_params}（ADR 0036 裁定七/八）。
 //! - 估值观察只记 E，B 拒收（C05.4）；拆股按整数比重基、不整除即 Unsupported（ADR 0031 裁定五）。
+//! - `tb03c-book/2`（#1406 C8）= 本规则 + manifest 冻结资金合同：开局批按 ADR 0040 裁定四第 4/5 步核，
+//!   追加批与 q_rebase 为 AwaitingPolicy{funding_revision | q_rebase}；见 `tb03c_funding`。
 use super::book::{add, array, decode, integer, push, reserve, sub, target, Rules};
 use crate::session_protocol::{nonnegative, positive, required};
 use crate::theta_v0::strategy::ledger::{ledger_step_components, LedgerEvent};
@@ -386,7 +388,12 @@ pub(crate) fn growth_eligible_of(book: &Value) -> Result<Value, String> {
     Ok(json!(Numbers::of(book)?.status()?))
 }
 
-fn open_book(doc: &Value, event: &Value, record: &Value) -> Result<Value, String> {
+fn open_book(
+    doc: &Value,
+    event: &Value,
+    record: &Value,
+    funding: Option<Value>,
+) -> Result<Value, String> {
     let transfer = super::tb03c_transfer::is_in(event);
     let transferred_income = json!({"Pi":"0","A":"0","W":"0"});
     let o = if transfer {
@@ -407,8 +414,13 @@ fn open_book(doc: &Value, event: &Value, record: &Value) -> Result<Value, String
     } else {
         positive(required(o, "units")?, "opening_units")?
     };
-    Ok(json!({
-        "book_revision": super::book::TB03C_BOOK_V1,
+    let revision = if funding.is_some() {
+        super::book::TB03C_BOOK_V2
+    } else {
+        super::book::TB03C_BOOK_V1
+    };
+    let mut book = json!({
+        "book_revision": revision,
         "chong_id": target(event)?, "symbol": id["symbol"], "operation_level": id["op_level"],
         "fixed_q": id["fixed_q"], "side": id["side"], "units": doc["units"], "family_id": event["family_id"],
         "opening_fact_ref": {"fact_key":record["fact_key"],"fact_hash":record["fact_hash"],"e_cut":record["cut"],"json_pointer":record["json_pointer"],"raw_sha256":record["raw_sha256"]},
@@ -422,7 +434,12 @@ fn open_book(doc: &Value, event: &Value, record: &Value) -> Result<Value, String
         "unknown": {"complete_historical_fees":{"status":"Unknown","reason":"only named known components available"},"target":{"status":"Unknown","reason":"not supplied"}},
         "voice": {"status":"MissingDependency","reason":"confirmed gamma binding absent","identity":null},
         "admission": "NotEvaluated"
-    }))
+    });
+    // #1406 C8：`/2` 开局把核过的资金出处记入书账；`/1` 书账形状逐字不变。
+    if let Some(f) = funding {
+        book["funding"] = f;
+    }
+    Ok(book)
 }
 
 fn split(book: &mut Value, ca: &Value) -> Result<(), String> {
@@ -641,10 +658,35 @@ pub(super) fn apply(
     seq: i64,
     ns: &str,
 ) -> Result<(Value, bool), String> {
+    apply_with(image, record, seq, ns, None)
+}
+
+/// tb03c-book/2 的 B 应用：`/1` 全部规则 + manifest 冻结资金合同（ADR 0040 裁定四第 4/5 步）。
+pub(super) fn apply_v2(
+    image: &Value,
+    record: &Value,
+    seq: i64,
+    ns: &str,
+    funding: &super::tb03c_funding::Contract,
+) -> Result<(Value, bool), String> {
+    apply_with(image, record, seq, ns, Some(funding))
+}
+
+fn apply_with(
+    image: &Value,
+    record: &Value,
+    seq: i64,
+    ns: &str,
+    funding: Option<&super::tb03c_funding::Contract>,
+) -> Result<(Value, bool), String> {
     let (doc, event) = decode(
         required(record, "raw_utf8")?,
         required(record, "json_pointer")?,
-        Rules::Tb03cV1,
+        if funding.is_some() {
+            Rules::Tb03cV2
+        } else {
+            Rules::Tb03cV1
+        },
     )?;
     if super::tb03c_allocation::is_projected(&event) {
         return apply_projected(image, record, &doc, &event, seq, ns);
@@ -653,6 +695,15 @@ pub(super) fn apply(
         return Err("SchemaUnsupported：估值观察只记 E，不进 B 成本账（C05.4）".into());
     }
     if event.get("q_rebase").is_some() {
+        if let Some(f) = funding {
+            // ADR 0040 裁定四末段：Q 变大不自动改现役 Q，输出 AwaitingPolicy{q_rebase, (S,ℓ)}。
+            let c = f.chong(target(&event)?)?;
+            return Err(format!(
+                "AwaitingPolicy：q_rebase (S,ℓ)=({},{})；现役 Q 不自动改写，须签新版本",
+                c.symbol(),
+                c.level()
+            ));
+        }
         return Err("AwaitingPolicy：capacity；C(ℓ) 未签署，fixed_q 不变".into());
     }
     // #1406 C4 / ADR 0032 五：E 已解析并不代表本 B 已应用前件。费用/更正沿因果原件等待，
@@ -679,6 +730,20 @@ pub(super) fn apply(
     if opening && !old.is_null() {
         return Err("IdentityConflict：持久重已非空，不可更换开局".into());
     }
+    // #1406 C8：`/2` 开局批按 ADR 0040 裁定四第 4 步核；追加批须先签新版本。转移目标的 P0 来自转移
+    // （ADR 0034 裁定六），不属本 profile 的 funding-record 开局批。
+    let funded = match funding {
+        Some(f) if super::tb03c_funding::is_appended_contribution(&event) => {
+            let c = f.chong(target(&event)?)?;
+            return Err(format!(
+                "AwaitingPolicy：funding_revision (S,ℓ)=({},{})；追加投入须签新版 funding-record",
+                c.symbol(),
+                c.level()
+            ));
+        }
+        Some(f) if event.get("observed_existing_book").is_some() => Some(f.check_opening(&event)?),
+        _ => None,
+    };
     // 根裁定 OQ-3：Unmatched 原因闭集 = {family 不符, per_leg 缺归属, 未声明依赖的缺开局}。
     let unmatched = if opening {
         None
@@ -703,7 +768,7 @@ pub(super) fn apply(
         );
     } else {
         let mut book = if opening {
-            open_book(&doc, &event, record)?
+            open_book(&doc, &event, record, funded.clone())?
         } else {
             old.clone()
         };

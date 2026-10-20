@@ -46,7 +46,7 @@ pub(super) fn validate_config(config: &Value) -> Result<(), String> {
     if config.get("fill_manifests").is_none() && config.get("fill_allocation_policy").is_none() {
         return Ok(());
     }
-    if super::book::rules(config)? != super::book::Rules::Tb03cV1 {
+    if !super::book::rules(config)?.is_tb03c() {
         return Err("SchemaUnsupported：净额分配须 tb03c-book/1".into());
     }
     if let Some(policy) = config.get("fill_allocation_policy") {

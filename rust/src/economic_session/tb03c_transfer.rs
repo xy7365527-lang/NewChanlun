@@ -1,6 +1,6 @@
 //! #1406 C5 / OQ-4：已完成 TestOnly 分拆原件的金额登记与一次目标应用。
 //! E.facts 中不可变 Claim 是身份占用，不是 Activated；本模块不执行 G 推导、七态托管或退款。
-use super::book::{add, array, hash, integer, target, Rules};
+use super::book::{add, array, hash, integer, target};
 use super::store::{self, Config};
 use crate::s_content::job::Job;
 use crate::session_protocol::{nonnegative, positive, required, strict_json};
@@ -501,7 +501,7 @@ pub(super) fn verify_source_proof(config: &Config, record: &Value) -> Result<(),
     {
         return Err("IdentityConflict：证明不是同 transfer 的具名源扣账".into());
     }
-    store::verify_record(original, Rules::Tb03cV1)?;
+    store::verify_record(original, source.book_rules()?)?;
     store::verify_e_copy(original, &source)?;
     let cut = store::cut(
         &source,
@@ -517,7 +517,7 @@ pub(super) fn verify_source_proof(config: &Config, record: &Value) -> Result<(),
             prior,
         )
         || original["b_observation"]["commit_ns"] != ns
-        || super::book::apply(prior, original, seq, ns, Rules::Tb03cV1)?.0 != *image
+        || super::book::apply_in(&source.manifest, prior, original, seq, ns)?.0 != *image
     {
         return Err("IdentityConflict：源扣账前后提交不等于实际金额效果".into());
     }

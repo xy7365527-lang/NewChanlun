@@ -1,4 +1,4 @@
-use super::book::{apply, decode, fact_key, hash, target};
+use super::book::{decode, fact_key, hash, target};
 use super::store::*;
 use crate::s_content::job::Job;
 use crate::session_protocol::{
@@ -716,7 +716,7 @@ fn record_from_payload(config: &Config, e: &Value) -> Result<Value, String> {
     }
     let netted = super::tb03c_allocation::is_projected(&event);
     super::tb03c_allocation::check_capture(config, &event)?;
-    if config.book_rules()? == super::book::Rules::Tb03cV1 {
+    if config.book_rules()?.is_tb03c() {
         super::tb03c_transfer::check_capture(config, &event)?;
     }
     let domain = super::tb03c_allocation::target_domain(&event)?;
@@ -725,7 +725,7 @@ fn record_from_payload(config: &Config, e: &Value) -> Result<Value, String> {
     let unrouted = json!({});
     let route = match config.route(id) {
         Ok(r) => r,
-        Err(_) if config.book_rules()? == super::book::Rules::Tb03cV1 => &unrouted,
+        Err(_) if config.book_rules()?.is_tb03c() => &unrouted,
         Err(e) => return Err(e),
     };
     if let Some(b) = event
@@ -785,7 +785,7 @@ fn capture(
     }
     check_operation_deadline(None, ingress_response_deadline)?;
     let token = required(&record, "token")?;
-    let token_table = if config.book_rules()? == super::book::Rules::Tb03cV1 {
+    let token_table = if config.book_rules()?.is_tb03c() {
         "facts"
     } else {
         "pending"
@@ -841,7 +841,7 @@ fn resolve_evidence(
     ingress_response_deadline: Option<std::time::Instant>,
 ) -> Result<Value, String> {
     use super::tb03c_e;
-    if config.book_rules()? != super::book::Rules::Tb03cV1 {
+    if !config.book_rules()?.is_tb03c() {
         return Err("SchemaUnsupported：旧书账域不支持 ResolveEvidence".into());
     }
     let p = &e["payload"];
@@ -919,7 +919,7 @@ fn authoritative_fact_inner(
     } else {
         audit(&tx, &ec)?;
     }
-    if config.book_rules()? == super::book::Rules::Tb03cV1 {
+    if config.book_rules()?.is_tb03c() {
         super::tb03c_e::check_wait(&tx, key)?;
     }
     let mut f = row(&tx, "facts", key)?.ok_or("MissingDependency：固定E权威不存在该原事实")?;
@@ -1053,9 +1053,7 @@ fn apply_allocation_inner(
         return Err("IdentityConflict：实读E事实/金额/归属与请求不匹配".into());
     }
     // #1406 C5：固定源 B 只读证明仍在目标 B 写事务之外；不跨 owner 持写锁。
-    if config.book_rules()? == super::book::Rules::Tb03cV1
-        && super::tb03c_transfer::is_in(&record["event"])
-    {
+    if config.book_rules()?.is_tb03c() && super::tb03c_transfer::is_in(&record["event"]) {
         if let Some(job) = import_job.as_mut() {
             let token = format!(
                 "stg-{}",
@@ -1109,7 +1107,7 @@ fn apply_allocation_inner(
     record["b_observation"] = json!({"received_ns":received,"first_known_ns":first,"commit_ns":ns});
     record["b_origin_message"] = json!({"source_namespace":e["source_namespace"],"source_epoch":e["source_epoch"],"message_id":e["message_id"],"payload_hash":e["payload_hash"]});
     record["b_origin_request_hash"] = json!(hash(e));
-    let (next, unmatched) = apply(&image, &record, seq, &ns, config.book_rules()?)?;
+    let (next, unmatched) = super::book::apply_in(&config.manifest, &image, &record, seq, &ns)?;
     // H1：在内容发布或任何目标行写入之前核完整包装后的读合同。
     super::store::readable_image(&next)?;
     if let Some(job) = import_job.as_mut() {

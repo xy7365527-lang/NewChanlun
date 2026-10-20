@@ -1,4 +1,4 @@
-use super::book::{apply, decode, fact_key, hash};
+use super::book::{decode, fact_key, hash};
 use crate::session_protocol::{
     canonical_json, nonnegative, positive, required, sha256_hex, strict_json,
 };
@@ -118,6 +118,7 @@ impl Config {
         super::evidence::validate_config(&manifest)?;
         super::finance::validate_config(&manifest)?;
         super::tb03c_allocation::validate_config(&manifest)?;
+        super::tb03c_funding::validate_config(&manifest)?;
         let session = required(&manifest, "session_id")?.to_owned();
         let generation = required(&manifest, "session_generation")?.to_owned();
         positive(&generation, "session_generation")?;
@@ -793,8 +794,8 @@ pub(crate) fn init(config: &Config) -> Result<Value, String> {
         set_meta(&tx, "voice_binding_revision", "voice-binding/1")?;
     }
     // #1406 / 根裁定 OQ-7：书账子合同版本只由 init 显式绑定；旧域无此行。
-    if config.book_rules()? == super::book::Rules::Tb03cV1 {
-        set_meta(&tx, "book_revision", super::book::TB03C_BOOK_V1)?;
+    if let Some(revision) = config.book_rules()?.revision() {
+        set_meta(&tx, "book_revision", revision)?;
     }
     let ns = config.clock(None, "init_ns", 0)?;
     tx.execute("INSERT INTO epochs VALUES(1,'init',?)", [&ns])
@@ -990,12 +991,7 @@ pub(super) fn audit_with_budget(
         budget.optional(c, "SELECT v FROM meta WHERE k='book_revision'", [], |r| {
             r.get(0)
         })?;
-    if book_revision.as_deref()
-        != match config.book_rules()? {
-            super::book::Rules::Tb03cV1 => Some(super::book::TB03C_BOOK_V1),
-            super::book::Rules::Legacy => None,
-        }
-    {
+    if book_revision.as_deref() != config.book_rules()?.revision() {
         return Err("IdentityConflict：书账版本未由 init 显式绑定；不得在 recover 暗迁移".into());
     }
     // 内容格式登记与 Voice 版本同一条纪律：只认 init 显式绑定，recover 不暗迁移。
@@ -1132,7 +1128,7 @@ pub(super) fn audit_with_budget(
                 x["history"].as_array_mut().unwrap().push(json!({"kind":"CaptureExternal","fact_key":record["fact_key"],"commit_seq":seq.to_string(),"commit_ns":ns}));
                 x
             } else {
-                apply(&previous_image, record, seq, &ns, config.book_rules()?)?.0
+                super::book::apply_in(&config.manifest, &previous_image, record, seq, &ns)?.0
             };
             if image != expected {
                 return Err("StorageUnavailable：域损坏：原件重放不等于提交图像".into());
@@ -1496,7 +1492,7 @@ pub(crate) fn verify_e_copy(record: &Value, config: &Config) -> Result<(), Strin
     }
     super::tb03c_allocation::verify_resolution(record, config)?;
     // E 实读阶段尚未附加源证明；凡本地已提交的 B 原件必须完整自持。
-    if config.book_rules()? == super::book::Rules::Tb03cV1
+    if config.book_rules()?.is_tb03c()
         && (record.get("b_observation").is_some() || record.get("b_source_debit_proof").is_some())
     {
         super::tb03c_transfer::verify_source_proof(config, record)?;

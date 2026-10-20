@@ -6,19 +6,40 @@ use serde_json::{json, Value};
 
 /// #1406 / 根裁定 OQ-7：书账子合同版本，冻结在 manifest 顶层 `book_revision`。
 /// 缺省（或 null）= 旧书账规则（#1374 的 `/1` 域与 #1394 的 `/2` 域逐字重放）；
-/// 显式只认 `tb03c-book/1`；其余值当场拒绝，无回落（#799）。
+/// 显式只认 `tb03c-book/1` 与 `tb03c-book/2`（C8：ADR 0040 资金签署记录接入开局批）；
+/// 其余值当场拒绝，无回落（#799）。
 pub(crate) const BOOK_REVISION_FIELD: &str = "book_revision";
 pub(crate) const TB03C_BOOK_V1: &str = "tb03c-book/1";
+pub(crate) const TB03C_BOOK_V2: &str = "tb03c-book/2";
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Rules {
     Legacy,
     Tb03cV1,
+    /// `tb03c-book/1` 全部规则 + manifest 冻结的资金三件（ADR 0040 裁定四第 4/5 步）。
+    Tb03cV2,
+}
+impl Rules {
+    /// tb03c 书账族（`/1` 与 `/2` 共用原件形状与金额主干；`/2` 只在开局批、追加批、q_rebase 上更严）。
+    pub(crate) fn is_tb03c(self) -> bool {
+        matches!(self, Rules::Tb03cV1 | Rules::Tb03cV2)
+    }
+    /// init 绑定进 meta 的版本文本；旧域无此行。
+    pub(crate) fn revision(self) -> Option<&'static str> {
+        match self {
+            Rules::Legacy => None,
+            Rules::Tb03cV1 => Some(TB03C_BOOK_V1),
+            Rules::Tb03cV2 => Some(TB03C_BOOK_V2),
+        }
+    }
 }
 pub(crate) fn rules(manifest: &Value) -> Result<Rules, String> {
     match manifest.get(BOOK_REVISION_FIELD) {
         None | Some(Value::Null) => Ok(Rules::Legacy),
         Some(Value::String(v)) if v == TB03C_BOOK_V1 => Ok(Rules::Tb03cV1),
-        Some(_) => Err("SchemaUnsupported：书账版本只有缺省（旧规则）与 tb03c-book/1".into()),
+        Some(Value::String(v)) if v == TB03C_BOOK_V2 => Ok(Rules::Tb03cV2),
+        Some(_) => Err(
+            "SchemaUnsupported：书账版本只有缺省（旧规则）、tb03c-book/1 与 tb03c-book/2".into(),
+        ),
     }
 }
 
@@ -89,7 +110,7 @@ pub(crate) fn decode(raw: &str, pointer: &str, rules: Rules) -> Result<(Value, V
         .clone();
     required(&event, "event")?;
     required(&event, "allocation_id")?;
-    let netted = rules == Rules::Tb03cV1 && super::tb03c_allocation::is_projected(&event);
+    let netted = rules.is_tb03c() && super::tb03c_allocation::is_projected(&event);
     if !netted {
         required(&event, "family_id")?;
         target(&event)?;
@@ -174,7 +195,7 @@ pub(crate) fn decode(raw: &str, pointer: &str, rules: Rules) -> Result<(Value, V
         super::tb03c_allocation::decode(&event, pointer, &check_ref)?;
         return Ok((doc, event));
     }
-    let v1 = rules == Rules::Tb03cV1;
+    let v1 = rules.is_tb03c();
     if v1 {
         super::tb03c_book::decode_extensions(&event, pointer, &check_ref)?;
         super::tb03c_transfer::check_units(&doc, &event)?;
@@ -362,6 +383,24 @@ pub(super) fn push(image: &mut Value, k: &str, v: Value) {
         .push(v);
 }
 
+/// 域内 B 应用的唯一入口：按 manifest 冻结的书账版本分派；`/2` 同时读冻结的资金合同（ADR 0040）。
+pub(crate) fn apply_in(
+    manifest: &Value,
+    image: &Value,
+    record: &Value,
+    seq: i64,
+    ns: &str,
+) -> Result<(Value, bool), String> {
+    match rules(manifest)? {
+        Rules::Tb03cV2 => {
+            let funding = super::tb03c_funding::Contract::of(manifest)?
+                .ok_or("StorageUnavailable：tb03c-book/2 缺资金合同")?;
+            super::tb03c_book::apply_v2(image, record, seq, ns, &funding)
+        }
+        r => apply(image, record, seq, ns, r),
+    }
+}
+
 /// 基于已核原件推进已知分量。同一利润算子与现有 ledger_step 共用，不构造 I0。
 pub(crate) fn apply(
     image: &Value,
@@ -370,8 +409,14 @@ pub(crate) fn apply(
     ns: &str,
     rules: Rules,
 ) -> Result<(Value, bool), String> {
-    if rules == Rules::Tb03cV1 {
-        return super::tb03c_book::apply(image, record, seq, ns);
+    match rules {
+        Rules::Tb03cV1 => return super::tb03c_book::apply(image, record, seq, ns),
+        Rules::Tb03cV2 => {
+            return Err(
+                "MissingDependency：tb03c-book/2 须经 apply_in 读 manifest 冻结的资金合同".into(),
+            )
+        }
+        Rules::Legacy => (),
     }
     let (doc, event) = decode(
         required(record, "raw_utf8")?,
