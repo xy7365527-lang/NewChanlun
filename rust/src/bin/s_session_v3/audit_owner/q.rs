@@ -985,9 +985,11 @@ fn actual_nonempty_native_q_accept_preserves_full_raw_without_manual_double_char
         assert_eq!(c.audited.raw.len(), 1);
         // #1488 wide16-0058：冷候选仍持slot双份历史费；任何固定操作入口先detach_slot（#1394 c45d39be52起）
         // 真实释放slot份。基线取detach后的唯一归属份，只观察Accept本身不给Native raw记手工费。
+        // r60fix-0061（review-0060 F2）：基线取独立oracle audited自身heap，不经charge字段推导，
+        // 避免与detach_slot被测减法同式（slot_result_capacity记错时两边同错）。
         (
             serde_json::to_value(&c.audited.raw).unwrap(),
-            c.charge.historical_and_raw_capacity - c.charge.slot_result_capacity,
+            c.audited.heap_bytes(),
         )
     };
     let raw = crate::tests::located_ohlc_input(&[("q-native-next", 10, 8, 16, 6, 12)]);
