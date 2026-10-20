@@ -2214,6 +2214,11 @@ pub(crate) mod tests {
         let total = 536_870_912;
         let mut keeper = Some(super::super::cross_request_source_cache::Keeper::new(total));
         let mut shared_old_pool_seen = false;
+        // Explicit finite prototype heap cap, independent of the S7 source allowance.
+        // v4：同一生产路径只有一个真实分配父；warm runtime 跨请求的 Native memo 已绑定该父，
+        // 每代新建父即换父（wrong-parent 拒绝），故四代共用同一父账，live/peak 连续。
+        let shared_parent = admitted
+            .then(|| super::super::audit_owner::native::Budget::new(64 * 1024 * 1024, 0).unwrap());
         let before = content_manifest::manifest_workspace_stats();
         for (n, row, revision) in [
             (1, ("a", 0, 6, 12, 3, 7), 1),
@@ -2242,9 +2247,7 @@ pub(crate) mod tests {
             let start = std::time::Instant::now();
             let mut tx = warm.conn.transaction().unwrap();
             let wr = if admitted {
-                // Explicit finite prototype heap cap, independent of the S7 source allowance.
-                let parent =
-                    super::super::audit_owner::native::Budget::new(64 * 1024 * 1024, 0).unwrap();
+                let parent = shared_parent.as_ref().unwrap();
                 let baseline = parent.live();
                 let receipt = parent
                     .codec_work()

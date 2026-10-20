@@ -4932,10 +4932,12 @@ mod tests {
                 .iter()
                 .map(|e| e.try_clone().unwrap())
                 .collect::<Vec<_>>();
-            let mut expected_withdrawals = Vec::new();
+            let mut shape_withdrawals = Vec::new();
+            let mut typed_withdrawals = Vec::new();
             let mut expected_replaces = Vec::new();
             // 旧公开顺序为 shape 在前、typed 在后。这里直接按场景构建oracle，
-            // 不经新plan或其push_raw_withdrawal辅助函数。
+            // 不经新plan或其push_raw_withdrawal辅助函数；index仍按old原序，
+            // 撤回行按 kind 分桶后 shape 桶在前拼接（夹具每桶至多一行）。
             for e in &mut expected_index {
                 let superseded = e.slot.is_shape() == shape_replacement;
                 let reason = if superseded {
@@ -4946,7 +4948,12 @@ mod tests {
                     "fact_removed"
                 };
                 let sup = superseded.then_some(fresh.id.as_str());
-                expected_withdrawals.push(raw_withdrawal(e, reason, sup));
+                if e.slot.is_shape() {
+                    &mut shape_withdrawals
+                } else {
+                    &mut typed_withdrawals
+                }
+                .push(raw_withdrawal(e, reason, sup));
                 if superseded {
                     expected_replaces.push(json!({
                         "old_object_id":e.id,
@@ -4957,6 +4964,7 @@ mod tests {
                 e.life.withdrawal_reason = Some(reason.into());
                 e.life.superseded_by = sup.map(Into::into);
             }
+            let expected_withdrawals = [shape_withdrawals, typed_withdrawals].concat();
             expected_index.push(fresh.try_clone().unwrap());
             let expected_roots = at_cut(&mut expected_nodes, &expected_index, 3).unwrap();
             let (nodes, _, _) = plan_input_fixture(shape_replacement);
