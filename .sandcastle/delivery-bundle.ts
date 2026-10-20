@@ -1,5 +1,5 @@
-import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { supervisorGit } from "./supervisor-git.ts";
 import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { z } from "zod";
@@ -121,10 +121,7 @@ export function preflightDelivery(repo: string, input: unknown): DeliveryResult 
   }
   const manifest = parsed.data;
   Object.assign(result, { ticket: manifest.ticket, base: manifest.base, head: manifest.head });
-  const git = (...args: string[]) => execFileSync("git", ["--no-replace-objects", "--literal-pathspecs", "-c", "core.filemode=true", "-c", "core.fsmonitor=false", "-C", repo, ...args], {
-    encoding: "buffer", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 64 * 1024 * 1024,
-    env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
-  });
+  const git = (...args: string[]) => supervisorGit(repo, args);
   const text = (...args: string[]) => git(...args).toString("utf8").trim();
   try {
     if (realpathSync(repo) !== realpathSync(text("rev-parse", "--show-toplevel"))) {
