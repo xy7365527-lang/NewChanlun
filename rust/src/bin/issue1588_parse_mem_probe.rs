@@ -260,7 +260,7 @@ fn run_replay(bars: &[Bar], config: &ThetaConfig, hold: bool, every: usize) {
     let mut rolling = Sha256::new();
     for (i, bar) in bars.iter().enumerate() {
         if !hold {
-            held = None;
+            drop(held.take());
         }
         let layer = incr.append(*bar);
         if every > 0 && (i + 1) % every == 0 {

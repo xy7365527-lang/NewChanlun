@@ -81,7 +81,7 @@ $P $D classifier 2000 1; $P $D classifier 20000 50; $P $D classifier 49995 50
 
 **测试**（`7775135c0f` / `c262c34b73`）：`cargo test --lib theta_v0::backtest::incremental` 9 passed / 0 failed / 24 ignored（含新测试）；`cargo test --lib theta_v0::parser` 166 passed / 0 failed / 9 ignored；`cargo fmt --all -- --check` ok；`cargo check --all-targets --features backtest_bin` 与 `cargo check --features s_session --bin s_structure_session` 通过。
 
-**反证**（`0265c224cd`，只撤回 `self.last_l0 = None;` 一行）：新测试失败，`assertion left == right failed: bar 1: merged_bars 被整表拷贝`；探针 `classifier 49995` 的 alloc_total 回到 127,944.6 MB，摘要不变。
+**反证**（`0265c224cd`，只撤回 `self.last_l0 = None;` 一行）：新测试失败，`assertion left == right failed: bar 1: merged_bars 被整表拷贝`；探针 `classifier 49995` 的 alloc_total 回到 127,944.6 MB，摘要不变。反证提交**未推送**。复现方式：撤回 `incremental.rs:101` 的 `self.last_l0 = None;` 一行，再跑 `cargo test --lib theta_v0::backtest::incremental::tests::classify_at_keeps_shared_parse_tables_in_place` 与 `issue1588_parse_mem_probe <json> classifier 49995 50`。该日志的命令行有一段中文字符串转义出错（`bash: … command not found`），尾行 `EXIT=0` 也与 `test result: FAILED` 不符（grep 管道吞了退出码），不过正文的测试结果与探针输出仍能支持结论。非作者评审（`reviews/1596-claude-fable-5.md`）用本地临时 ref `refs/review/1596-counter` 独立重做了反证，日志 `/tmp/nc-remote/20261020-173355-9755108096.log`：新测试 FAILED（`bar 1: merged_bars 被整表拷贝`），`classifier 5000` 回到 1,470.4 MB，`classifier 20000` 回到 20,511.7 MB，摘要与修后相同。
 
 **修后残余**：`replay-drop` 的 alloc_total 仍略超线性（20k 426.5 MB → 49,995 2,018.4 MB）。这是增量段状态在不可复用时重建（`parse_layer_from_compact_facts` 中 `can_reuse_segments=false` 分支）和笔尾部重扫的累计分配，存活峰值线性（约 2 KB/bar）。它不是持有问题，本分片不处理，列为遗留观察。
 
@@ -105,6 +105,26 @@ $P $D classifier 2000 1; $P $D classifier 20000 50; $P $D classifier 49995 50
 | 20,000 | 9,530.9 MB | 6,518.1 MB | `52e595c5…0236` | `21d820a0…65df7` |
 
 **主体部分，处置：转票 #1597**。理由：消掉 Θ(n²) 必须改 `InclusionFacts/InclusionStepFact/InclusionGroupFact/InclusionDirectionEvidence/stroke::Endpoint/Confirmation` 公开字段的类型或语义。消费方位于 S 会话写者（`tb02a_facts.rs`、`content_producer.rs`、`s_structure_session.rs`、`s_session_v2/*`、`s_session_v3/generation.rs`），是 #1488 的在途区域，parser/ 一带又有 #1493/#1582 在途。完整事实入口的调用方都是测试或 oracle（`s_structure_session.rs:3128` oracle 开关、:6505 测试；`content_bi.rs:2141` 测试；`tb02c.rs:398/483/558` 测试；`generation.rs:2078` oracle），不在生产回放热路径上。#1394 已有共享表示（`evidence.rs::CoordsRef`、`IncrFactsState`、`parse_layer_with_group_evidence`），#1597 的建议方案是复用它，或把剩余调用方迁到共享路径。查重：`gh issue list --search "解析入口内存二次增长"` 与 `--search "InclusionFacts source_coords 内存"` 均无重复（只命中 #1588 母票）。
+
+## 共享 target 污染窗口复跑
+
+**问题**：2026-10-20 12:00–15:38，WSL 上的 `nc-remote` 让所有调用共用同一个 `CARGO_TARGET_DIR`，并发作业可能互相覆盖二进制。主控已把 `nc-remote` 改成按作业私有 `NC_TARGET` 加 `flock`，原脚本备份在 `~/.local/bin/nc-remote.bak-20261020`。本分片上表四份日志（14:52–15:22）都落在这个窗口里，测量结果理论上可能来自别的分支构建的二进制。
+
+**复跑**：主控用 `NC_TARGET=eng1588` 私有 target 串行复跑同一组命令：
+- 修前 `da78044035`（ref `eng1588-mem-pre`）：`/tmp/nc-remote/20261020-172803-da78044035.log`
+- 修后 `e52cbb0171`（ref `eng1588-mem-post`）：`/tmp/nc-remote/20261020-173051-e52cbb0171.log`
+
+两份日志头都是 `target=/home/hanju/nc-remote/eng1588`。
+
+**结论**：测量数字不受污染窗口影响，本报告的表格无需更正。
+- 主控核对：31 组 alloc/peak 数字与本报告表格逐项一致；全部摘要修前修后逐位相同。
+- 作者另行逐行 diff（去掉 `secs=` 后比较）：
+  - 两份复跑日志各 21 组：facts 2k/5k/10k/20k；replay-drop、replay-hold、classifier 各 2k/5k/10k/20k/49,995；classifier 2k 逐 bar；classifier 20k 每 50 bar。
+  - 修前复跑与 `145238-da78044035` 的 alloc_total、peak、retained、计数和摘要逐字相同。修后复跑的非 facts 组与 `150150-7775135c0f` 逐字相同，facts 组与 `152224-c262c34b73` 逐字相同。
+  - 修前复跑与修后复跑的全部 layer/rolling 摘要逐字相同。
+- 复跑未包含两项，仍以窗口内原日志为准：
+  - replay-hold/replay-drop 5k 逐 bar 摘要（`7fe1cda4…`）。
+  - classifier 49,995 每 50 bar 摘要（`00658642…`）。修前一侧只有反证提交 `0265c224cd` 的日志，修后一侧有 `7775135c0f`、`c262c34b73` 两份日志，三份都在窗口内。
 
 ## 与在途分支的关系
 
