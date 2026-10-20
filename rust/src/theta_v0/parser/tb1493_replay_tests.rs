@@ -366,3 +366,39 @@ fn tb1493_replay_full_history_incremental_only() {
     assert_eq!(r.invalid_bars, 0);
     assert!(max_zero_run <= 1, "每 25 万根分桶不得有连续零桶");
 }
+
+#[test]
+#[ignore = "诊断：全量增量回放中段端门 fail-closed 的现场"]
+fn tb1493_replay_invalid_sites() {
+    let all = load_full();
+    let bars = &all[1..];
+    let theta = ThetaConfig::default();
+    let mut inc = ParseLayerIncr::new(&theta);
+    let mut was: Option<usize> = None;
+    let mut shown = 0;
+    for (i, bar) in bars.iter().enumerate() {
+        let layer = inc.append(*bar);
+        let now = inc.segments_parse_invalid_from();
+        if now.is_some() && now != was && shown < 8 {
+            shown += 1;
+            let p = now.unwrap();
+            let ss: Vec<Stroke> = layer.strokes[p..].to_vec();
+            let prev_seg = layer.segments.iter().rev().find(|g| g.end_index <= ss[0].start_index).copied();
+            segment::FIRST_START_AT_SEED.with(|c| c.set(true));
+            let (_, _, sf) = segment::divide_segments_with_facts(&ss, &theta.parse);
+            segment::FIRST_START_AT_SEED.with(|c| c.set(false));
+            let fmt = |s: &Stroke| format!("{:?}{}->{}@{}/{}", s.direction, s.start_index, s.end_index, s.start_price, s.end_price);
+            eprintln!(
+                "TB1493 INVALID bar_i={i} raw={} p={p} strokes_total={} prev_seg={prev_seg:?} last_stroke={} local_invalid={:?}",
+                bar.source_index,
+                layer.strokes.len(),
+                fmt(layer.strokes.last().unwrap()),
+                sf.parse_invalid_from
+            );
+            for (j, s) in ss.iter().enumerate().take(24) {
+                eprintln!("TB1493 INVALID   s{}={}", p + j, fmt(s));
+            }
+        }
+        was = now;
+    }
+}
