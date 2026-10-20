@@ -502,6 +502,17 @@ fn tb03c_chain_fin1_prepare_reserve_commit_capture_resolve_apply_same_chong_and_
     assert_eq!(b["book"]["actual_quantity"], "6", "oracle units_after");
     assert_eq!(n(&b["book"]["cost_basis"]["K"]), 80028, "oracle K_after");
     assert_eq!(b["book"]["fixed_q"], "12");
+    // 未签本金/增长政策不填默认：无授权本金批 ⟹ NotEvaluable，不当 0（ADR 0031/0036）
+    assert_eq!(
+        b["book"]["principal"]["status"], "NotEvaluable",
+        "{}",
+        b["book"]
+    );
+    assert_eq!(
+        b["book"]["phase"]["growth_enabled"]["status"],
+        "NotEvaluable"
+    );
+    assert_eq!(b["book"]["cost_remaining"]["status"], "NotEvaluable");
     // Voice 归属：被 Apply 的重上唯一 Voice 即 Prepare 计划锁定的那个
     let decision = &b["finance"]["decisions"][0];
     assert_eq!(decision["state"], "Committed");
