@@ -88,7 +88,10 @@ fn replay(bars: &[Bar], ladder: &[usize]) -> (Replay, ParseLayer) {
                 "TB1493 LADDER n={n} strokes={} segments={} failed_geometry={} parse_invalid={:?}",
                 full.strokes.len(),
                 full.segments.len(),
-                sf.candidates.iter().filter(|c| c.result == "FAILED_GEOMETRY").count(),
+                sf.candidates
+                    .iter()
+                    .filter(|c| c.result == "FAILED_GEOMETRY")
+                    .count(),
                 sf.parse_invalid_from.as_ref().map(|p| p.seg_start)
             );
         }
@@ -358,9 +361,18 @@ fn tb1493_replay_full_history_incremental_only() {
     // #1487 现场（笔号）：其后 10 万根内出段数；覆盖该笔的段。
     for s in [3178usize, 59848] {
         let bar = last.strokes[s].start_index;
-        let k = r.emits.iter().filter(|&&e| bars[e].source_index >= bar && bars[e].source_index < bar + 100_000).count();
-        let cover = last.segments.iter().find(|g| g.start_index <= bar && g.end_index >= bar);
-        eprintln!("TB1493 FULLINC SITE stroke={s} bar={bar} emits_in_100k={k} covering_segment={cover:?}");
+        let k = r
+            .emits
+            .iter()
+            .filter(|&&e| bars[e].source_index >= bar && bars[e].source_index < bar + 100_000)
+            .count();
+        let cover = last
+            .segments
+            .iter()
+            .find(|g| g.start_index <= bar && g.end_index >= bar);
+        eprintln!(
+            "TB1493 FULLINC SITE stroke={s} bar={bar} emits_in_100k={k} covering_segment={cover:?}"
+        );
         assert!(k > 0, "笔 {s} 之后段层停产");
     }
     assert_eq!(r.invalid_bars, 0);
@@ -383,11 +395,21 @@ fn tb1493_replay_invalid_sites() {
             shown += 1;
             let p = now.unwrap();
             let ss: Vec<Stroke> = layer.strokes[p..].to_vec();
-            let prev_seg = layer.segments.iter().rev().find(|g| g.end_index <= ss[0].start_index).copied();
+            let prev_seg = layer
+                .segments
+                .iter()
+                .rev()
+                .find(|g| g.end_index <= ss[0].start_index)
+                .copied();
             segment::FIRST_START_AT_SEED.with(|c| c.set(true));
             let (_, _, sf) = segment::divide_segments_with_facts(&ss, &theta.parse);
             segment::FIRST_START_AT_SEED.with(|c| c.set(false));
-            let fmt = |s: &Stroke| format!("{:?}{}->{}@{}/{}", s.direction, s.start_index, s.end_index, s.start_price, s.end_price);
+            let fmt = |s: &Stroke| {
+                format!(
+                    "{:?}{}->{}@{}/{}",
+                    s.direction, s.start_index, s.end_index, s.start_price, s.end_price
+                )
+            };
             eprintln!(
                 "TB1493 INVALID bar_i={i} raw={} p={p} strokes_total={} prev_seg={prev_seg:?} last_stroke={} local_invalid={:?}",
                 bar.source_index,
