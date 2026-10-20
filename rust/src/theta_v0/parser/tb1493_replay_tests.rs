@@ -309,3 +309,48 @@ fn tb1493_replay_speed_probe() {
         }
     }
 }
+
+#[test]
+#[ignore = "重型验证窗口：btc_1m_full.json 全量，只走逐 bar 增量（不做全量批处理对拍）"]
+fn tb1493_replay_full_history_incremental_only() {
+    let all = load_full();
+    let bars = &all[1..];
+    let n = bars.len();
+    let (r, last) = replay(bars, &[]);
+    let (max_zero_run, longest_gap) = report("FULLINC", &r, n, 250_000);
+    for raw in [70_351usize, 787_209] {
+        let k = r
+            .emits
+            .iter()
+            .filter(|&&e| e + 1 >= raw && e + 1 < raw + 100_000)
+            .count();
+        eprintln!("TB1493 FULLINC after_raw={raw} emits_in_100k={k}");
+    }
+    eprintln!(
+        "TB1493 FULLINC strokes={} segments={} last_segment_end={:?} last_stroke_end={:?} n={n} longest_gap={longest_gap}",
+        last.strokes.len(),
+        last.segments.len(),
+        last.segments.last().map(|s| s.end_index),
+        last.strokes.last().map(|s| s.end_index)
+    );
+    // 流首段起点位移：种子 vs 按定义的起点（前 3 万笔上取段事实即可，首段早已确认）。
+    let head = &last.strokes[..last.strokes.len().min(30_000)];
+    let (_, _, sf) = segment::divide_segments_with_facts(head, &ThetaConfig::default().parse);
+    eprintln!(
+        "TB1493 FULLINC first_seed={:?} first_start={:?} head_failed_geometry={} head_parse_invalid={:?}",
+        sf.seeds.last().map(|s| s.start_stroke),
+        sf.candidates.first().map(|c| c.start_stroke),
+        sf.candidates.iter().filter(|c| c.result == "FAILED_GEOMETRY").count(),
+        sf.parse_invalid_from.as_ref().map(|p| p.seg_start)
+    );
+    for s in [3178usize, 59848] {
+        if let Some(c) = sf.candidates.iter().rev().find(|c| c.start_stroke <= s) {
+            eprintln!(
+                "TB1493 FULLINC SITE stroke={s} cand_start={} result={} end={:?} turn={:?}",
+                c.start_stroke, c.result, c.end_stroke, c.turn_hypothesis_state
+            );
+        }
+    }
+    assert_eq!(r.invalid_bars, 0);
+    assert!(max_zero_run <= 1, "每 25 万根分桶不得有连续零桶");
+}
