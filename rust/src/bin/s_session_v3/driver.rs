@@ -5238,7 +5238,20 @@ mod tests {
         let plan = s4_clock(steps.len());
         let f = Fixture::with_clock(plan.clone());
         let o = Fixture::with_clock(plan);
-        let mut native = complete_driver(&f);
+        // complete_driver 的 512 MiB 源保留预算在本序列第 25 代（约 11.2 万节点）报
+        // 「publication父工作域尾检失败」(BudgetExceeded)；S4 只测对拍与读量，预算放宽为
+        // S4_CACHE_BYTES（缺省 4 GiB），预算随 N 增长本身记入 REPORT 交 S5/#1491。
+        let cache_bytes = std::env::var("S4_CACHE_BYTES")
+            .map_or(4usize << 30, |v| v.parse().expect("S4_CACHE_BYTES"));
+        let mut native = Driver::open_for_serve_with_mode(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            cache_bytes,
+            s_allocation::Mode::CapturedNative,
+        )
+        .unwrap();
         let ready = envelope("establish-q", json!({"op":"ready"}));
         let ready_reply = native.handle(ready.clone()).unwrap();
         if cold {
