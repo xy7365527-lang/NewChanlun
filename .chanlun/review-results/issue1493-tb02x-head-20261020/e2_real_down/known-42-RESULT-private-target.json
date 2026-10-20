@@ -1,0 +1,13 @@
+{
+ "id": "known-42",
+ "client": "history",
+ "op": "load",
+ "result": "not_verified",
+ "elapsed_ms": 37195.234771,
+ "requests": 80,
+ "recorded_wire_bytes": 33814038,
+ "semantic_acceptance": "not_evaluated",
+ "full_state_installed": false,
+ "sources_unchanged": true,
+ "error_first_line": "Error: 本次读取超过声明总期限，未验证"
+}

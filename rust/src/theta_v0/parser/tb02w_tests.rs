@@ -983,35 +983,40 @@ fn witness_chain(prices: &[i64]) -> Vec<Stroke> {
         .collect()
 }
 
-/// W1 价格（独审生成器 `regime_prices(5004, 160)` 前 100 个，向上）：99 笔。
+/// W1 价格（#1493 重搜：`tb1493_search_tb02w_witnesses` 尖峰折线第 2627 号，向上）：99 笔。
+/// 原 #1420 独审见证（`regime_prices(5004, 160)`）在 segment-turn/1 下不再产生深边界，按同一性质重搜。
 const W1_PRICES: [i64; 100] = [
-    100000, 100049, 99954, 100046, 99925, 100075, 99881, 100033, 99915, 99987, 99935, 99981, 99941,
-    99991, 99966, 99982, 99968, 99970, 99968, 99988, 99968, 99984, 99962, 99964, 99955, 99976,
-    99974, 99989, 99891, 99977, 99915, 99967, 99919, 99960, 99945, 99969, 99951, 99953, 99941,
-    99949, 99947, 99949, 99947, 99951, 99932, 99934, 99919, 99988, 99922, 101146, 99892, 99961,
-    99889, 99964, 98854, 98916, 98846, 98919, 98849, 98915, 98868, 98907, 98836, 98900, 98851,
-    98901, 98847, 98909, 98779, 98932, 98760, 98990, 98721, 99074, 98646, 99197, 98519, 99347,
-    98316, 99615, 99448, 99600, 99463, 99546, 99457, 99525, 99464, 99504, 99460, 99490, 99465,
-    99484, 99458, 99466, 99464, 99466, 99463, 99467, 99446, 99448,
+    100000, 100054, 100039, 100834, 100793, 100798, 99663, 99723, 99663, 99702, 98645, 98723,
+    98483, 98592, 98467, 99629, 99493, 99563, 99559, 99601, 99409, 99477, 99468, 100856, 100808,
+    102306, 102175, 102221, 102035, 102245, 102191, 102230, 102170, 103335, 103294, 104202, 104183,
+    104210, 102829, 102842, 102769, 102836, 102807, 102842, 102202, 102219, 100895, 100960, 100706,
+    100716, 99744, 99991, 99940, 100039, 99798, 99836, 99361, 99582, 98712, 98728, 98690, 98931,
+    98881, 98886, 98158, 98165, 98135, 98173, 98150, 98216, 98021, 98055, 97591, 97971, 97933,
+    97998, 97929, 97978, 97938, 98004, 97936, 98007, 97825, 97874, 97869, 97887, 97711, 97939,
+    97884, 97937, 97872, 97885, 97872, 98991, 98986, 99178, 99113, 99137, 99075, 99135,
 ];
 
-/// 独审 W1：逐笔增量到 p = 97 存检查点（全量结果 + 安全边界 euf = 62），续扫到 q = 98、99。
-/// 带边界的 `from_checkpoint` 每步与无中断全量逐位相同；无边界的 `from_full` 在 q = 99 与全量
-/// 发散。这一条锁住 euf：`from_checkpoint` 丢弃边界（退化为 `from_full`）即红。
+/// W1：逐笔增量到 p = 87 存检查点（全量结果 + 安全边界 euf = 69），续扫到 q = 88…99。带边界的
+/// `from_checkpoint` 每步与无中断全量逐位相同（锁住 euf 的读写）。
+///
+/// #1493 裁定 1（`xianduan.md` §7.1 第 8 条）改期望：未决第二种候选封住所在段，其后不再有已确认段，
+/// unsealed 起点只能落在末段（pending）——与 `from_full` 的「回退末段」重合，故无边界的 `from_full`
+/// 在此见证上不再发散（`tb1493_search_tb02w_witnesses` 在 6000 组尖峰折线上未再找到深边界见证）。
+/// 「丢弃边界」仍由 `tb02w_ast_048_01`／`_02` 的预算封段锁住。
 #[test]
 fn tb02w_w1_checkpoint_boundary_is_necessary() {
     let cfg = ThetaConfig::default().parse;
     assert_eq!(cfg.second_seq_scan_window, 0);
     let ss = witness_chain(&W1_PRICES);
     assert_eq!(ss.len(), 99);
-    let p = 97;
+    let p = 87;
     let mut inc = segment::IncrSegments::default();
     for n in 0..=p {
         inc = inc.append(&ss[..n], &cfg);
     }
     let (segs, pending) = inc.to_result_vec();
     let euf = inc.earliest_unsealed_from();
-    assert_eq!(euf, Some(62), "切点 p=97 须有未封闭第二种候选（深边界）");
+    assert_eq!(euf, Some(69), "切点 p=87 须有未封闭第二种候选");
     let mut diverged = Vec::new();
     for q in p..=ss.len() {
         let batch = segment::divide_segments_with_tail(&ss[..q], &cfg);
@@ -1024,26 +1029,26 @@ fn tb02w_w1_checkpoint_boundary_is_necessary() {
             diverged.push(q);
         }
     }
-    assert_eq!(
-        diverged,
-        [99],
-        "from_full（无边界）须恰在 q=99 发散，见证 euf 边界必要"
+    assert!(
+        diverged.is_empty(),
+        "#1493 裁定 1：未决候选只在末段，from_full 不应发散：{diverged:?}"
     );
 }
 
-/// W2 价格（独审生成器 `spiky_prices(21, 40)` 前 25 个，向上）：24 笔。
-const W2_PRICES: [i64; 25] = [
-    50000, 50070, 50024, 50068, 50033, 50049, 50038, 50133, 50074, 50233, 49515, 49523, 49472,
-    49541, 49488, 49630, 49436, 49484, 49384, 49493, 49428, 49466, 49418, 49616, 49553,
+/// W2 价格（#1493 重搜：`tb1493_search_tb02w_witnesses` 尖峰折线种子 7、35 点，向上）：34 笔。
+const W2_PRICES: [i64; 35] = [
+    100000, 100059, 100051, 100077, 100020, 100023, 99973, 99997, 99899, 99964, 99927, 99947,
+    99898, 100825, 100787, 101172, 99875, 99929, 99687, 99693, 98251, 98289, 98273, 98296, 98294,
+    98896, 98877, 98909, 98853, 98884, 98816, 98878, 97770, 97867, 97827,
 ];
 
-/// 独审 W2：窗口 1 下第二种候选的试探中途预算耗尽。须报 INCOMPLETE_RESOURCE_BOUND、留待定尾，
-/// 且已判段是窗口 0 结果的前缀（耗尽不产否定、不提前封段）。窗口 0 段终点下标为 [30, 57]；
-/// 回退「试探中耗尽也阻塞封段」的修正后，窗口 1 不报耗尽并静默把第二段终点改判为 63（即红）。
+/// 独审 W2（#1493 重搜）：窗口 1 下第二种候选预算耗尽。须报 INCOMPLETE_RESOURCE_BOUND、留待定尾，
+/// 且已判段是窗口 0 结果的真前缀（耗尽不产否定、不提前封段）。窗口 0 段终点下标为 [12, 39, 48, 63, 84]，
+/// 窗口 1 停在 [12, 39, 48]。原见证的「假设转折点试探中耗尽」路径随 #1493 删除「先试不合并」而不复存在。
 #[test]
-fn tb02w_w2_provisional_budget_exhaustion_blocks_sealing() {
+fn tb02w_w2_budget_exhaustion_blocks_sealing() {
     let ss = witness_chain(&W2_PRICES);
-    assert_eq!(ss.len(), 24);
+    assert_eq!(ss.len(), 34);
     let mut w0 = ThetaConfig::default();
     w0.parse.second_seq_scan_window = 0;
     let mut w1 = ThetaConfig::default();
@@ -1051,7 +1056,8 @@ fn tb02w_w2_provisional_budget_exhaustion_blocks_sealing() {
     let (s0, p0, f0) = segment::divide_segments_with_facts(&ss, &w0.parse);
     let (s1, p1, f1) = segment::divide_segments_with_facts(&ss, &w1.parse);
     let ends = |segs: &[Segment]| segs.iter().map(|g| g.end_index).collect::<Vec<_>>();
-    assert_eq!(ends(&s0), [30, 57], "窗口 0 基准读数");
+    assert_eq!(ends(&s0), [12, 39, 48, 63, 84], "窗口 0 基准读数");
+    assert_eq!(ends(&s1), [12, 39, 48], "窗口 1 读数");
     assert!(
         !f0.candidates.iter().any(|c| c
             .second
@@ -1074,4 +1080,242 @@ fn tb02w_w2_provisional_budget_exhaustion_blocks_sealing() {
         ends(&s1),
         ends(&s0)
     );
+}
+
+/// #1493：W1/W2 见证重搜（第一种情况口径改变后旧见证读数失效）。`cargo test -- --ignored tb1493_search`。
+#[test]
+#[ignore]
+fn tb1493_search_tb02w_witnesses() {
+    fn mix(st: &mut u64) -> u64 {
+        *st = st.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = *st;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
+    // 尖峰式交替折线：多数小幅、偶有大幅跳动。
+    fn prices(seed: u64, n: usize) -> Vec<i64> {
+        let mut st = seed;
+        let mut p = 100_000i64;
+        let mut out = vec![p];
+        let mut up = true;
+        for _ in 1..n {
+            let r = mix(&mut st);
+            let step = match r % 10 {
+                0 => 300 + (r >> 8) % 1200,
+                1 | 2 => 60 + (r >> 8) % 200,
+                _ => 2 + (r >> 8) % 70,
+            } as i64;
+            p += if up { step } else { -step };
+            out.push(p);
+            up = !up;
+        }
+        out
+    }
+    let cfg = ThetaConfig::default().parse;
+    let mut w1_found = 0;
+    let mut tried = vec![W1_PRICES.to_vec()];
+    tried.extend((0..6_000u64).map(|seed| prices(seed, 100)));
+    for (case, pr) in tried.into_iter().enumerate() {
+        if w1_found >= 3 {
+            break;
+        }
+        let ss = witness_chain(&pr);
+        let n = ss.len();
+        for p in (n - 12)..n {
+            let mut inc = segment::IncrSegments::default();
+            for k in 0..=p {
+                inc = inc.append(&ss[..k], &cfg);
+            }
+            let Some(euf) = inc.earliest_unsealed_from() else {
+                continue;
+            };
+            if euf + 4 > p {
+                continue;
+            }
+            let (segs, pending) = inc.to_result_vec();
+            let mut ok = true;
+            let mut diverged = vec![];
+            for q in p..=n {
+                let batch = segment::divide_segments_with_tail(&ss[..q], &cfg);
+                let bounded =
+                    segment::IncrSegments::from_checkpoint(&segs, pending, &ss[..p], Some(euf))
+                        .append(&ss[..q], &cfg);
+                if bounded.to_result_vec() != batch {
+                    ok = false;
+                }
+                let unbounded = segment::IncrSegments::from_full(&segs, pending, &ss[..p])
+                    .append(&ss[..q], &cfg);
+                if unbounded.to_result_vec() != batch {
+                    diverged.push(q);
+                }
+            }
+            if ok && !diverged.is_empty() {
+                w1_found += 1;
+                eprintln!("W1 case={case} p={p} euf={euf} diverged={diverged:?} prices={pr:?}");
+                break;
+            }
+        }
+    }
+    let mut w2_found = 0;
+    for seed in 0..50_000u64 {
+        if w2_found >= 2 {
+            break;
+        }
+        for len in [25usize, 30, 35, 40] {
+            let pr = prices(seed, len);
+            let ss = witness_chain(&pr);
+            let mut w0 = ThetaConfig::default();
+            w0.parse.second_seq_scan_window = 0;
+            let mut w1 = ThetaConfig::default();
+            w1.parse.second_seq_scan_window = 1;
+            let (s0, _, f0) = segment::divide_segments_with_facts(&ss, &w0.parse);
+            let (s1, p1, f1) = segment::divide_segments_with_facts(&ss, &w1.parse);
+            let exhausted = |f: &segment::SegmentFacts| {
+                f.candidates.iter().any(|c| {
+                    c.second
+                        .as_ref()
+                        .is_some_and(|s| s.coverage == ScanCoverage::IncompleteResourceBound)
+                })
+            };
+            if !exhausted(&f0)
+                && exhausted(&f1)
+                && p1.is_some()
+                && s1.len() < s0.len()
+                && s1[..] == s0[..s1.len()]
+                && s1.len() >= 1
+            {
+                w2_found += 1;
+                let ends = |segs: &[Segment]| segs.iter().map(|g| g.end_index).collect::<Vec<_>>();
+                eprintln!(
+                    "W2 seed={seed} len={len} w0={:?} w1={:?} prices={pr:?}",
+                    ends(&s0),
+                    ends(&s1)
+                );
+                break;
+            }
+        }
+    }
+}
+
+/// OPEN 封段见证价格（`tb1493_search_open_block_witness` 尖峰折线种子 1324、60 点，向上起）：59 笔。
+const OPEN_BLOCK_PRICES: [i64; 60] = [
+    100000, 100067, 98908, 98919, 98870, 98930, 98923, 98980, 98916, 100307, 100146, 100165,
+    100104, 100130, 100126, 100196, 100168, 100223, 100176, 100244, 100230, 100270, 100231, 100251,
+    100186, 100198, 100193, 100396, 100360, 100408, 100241, 100306, 100265, 100325, 100268, 100418,
+    100377, 100441, 100385, 100401, 100332, 100496, 99446, 99493, 99483, 99509, 99501, 99674,
+    99669, 99727, 99711, 99898, 99894, 99926, 99746, 100394, 100363, 100422, 100233, 100371,
+];
+
+/// #1493 裁定 1（§7.1 第 8 条）OPEN 封段对照见证（与 W2 预算封段成对）：末段的第二种候选 b=s42 第二序列
+/// 到前缀末仍 OPEN，其后有 8 个标准特征元素（多于 `TAIL_WINDOW = 7`）。新规则在该候选处封段：6 段、
+/// 末段待定；TestOnly 旧规则臂（OPEN 跳过续判）在同一输入上多发射 1 段——见证非空转。逐前缀全量 ≡
+/// 增量，已发射段逐前缀单调。
+#[test]
+fn tb1493_open_second_candidate_blocks_later_candidates() {
+    let cfg = ThetaConfig::default().parse;
+    let ss = witness_chain(&OPEN_BLOCK_PRICES);
+    assert_eq!(ss.len(), 59);
+    let (new, pending, facts) = segment::divide_segments_with_facts(&ss, &cfg);
+    assert_eq!(new.len(), 6, "新规则：在 OPEN 候选处封段");
+    assert!(pending.is_some());
+    let c = facts.candidates.last().unwrap();
+    let sec = c.second.as_ref().expect("末段须有第二种候选的第二序列事实");
+    assert_eq!(sec.semantic_state, Some(SecondTerminal::OpenAtPrefixEnd));
+    assert_eq!(sec.from_stroke, 43, "候选 b = s42");
+    let after = c
+        .first
+        .standard
+        .iter()
+        .filter(|e| e.stroke_idx > 42)
+        .count();
+    assert!(
+        after > segment::TAIL_WINDOW as usize,
+        "候选之后的标准元素须多于尾窗：{after}"
+    );
+    feature_seq::OPEN_SKIP_ARM.with(|a| a.set(true));
+    let (old, _) = segment::divide_segments_with_tail(&ss, &cfg);
+    feature_seq::OPEN_SKIP_ARM.with(|a| a.set(false));
+    assert_eq!(old.len(), 7, "旧规则臂多发射 1 段（见证非空转）");
+    assert_eq!(old[..6], new[..]);
+    let mut inc = segment::IncrSegments::default();
+    let mut prev: Vec<Segment> = Vec::new();
+    for k in 0..=ss.len() {
+        inc = inc.append(&ss[..k], &cfg);
+        let batch = segment::divide_segments_with_tail(&ss[..k], &cfg);
+        assert_eq!(inc.to_result_vec(), batch, "前缀 {k}：增量 != 全量");
+        assert!(
+            batch.0.len() >= prev.len() && batch.0[..prev.len()] == prev[..],
+            "前缀 {k}：已发射段被改写"
+        );
+        prev = batch.0;
+    }
+}
+
+/// #1493 裁定 1 OPEN 封段见证搜索（ignored）：旧规则（OPEN 跳过续判）在前缀末多发射段、新规则在同一处
+/// 以 OPEN 的第二种候选封段，且该候选之后的标准特征元素多于 `TAIL_WINDOW`。
+#[test]
+#[ignore = "搜索：OPEN 封段对照见证"]
+fn tb1493_search_open_block_witness() {
+    fn mix(st: &mut u64) -> u64 {
+        *st = st.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = *st;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
+    fn prices(seed: u64, n: usize) -> Vec<i64> {
+        let mut st = seed;
+        let mut p = 100_000i64;
+        let mut out = vec![p];
+        let mut up = true;
+        for _ in 1..n {
+            let r = mix(&mut st);
+            let step = match r % 10 {
+                0 => 300 + (r >> 8) % 1200,
+                1 | 2 => 60 + (r >> 8) % 200,
+                _ => 2 + (r >> 8) % 70,
+            } as i64;
+            p += if up { step } else { -step };
+            out.push(p);
+            up = !up;
+        }
+        out
+    }
+    let cfg = ThetaConfig::default().parse;
+    let mut found = 0;
+    for seed in 0..20_000u64 {
+        let pr = prices(seed, 60);
+        let ss = witness_chain(&pr);
+        let (new, _, facts) = segment::divide_segments_with_facts(&ss, &cfg);
+        feature_seq::OPEN_SKIP_ARM.with(|a| a.set(true));
+        let (old, _) = segment::divide_segments_with_tail(&ss, &cfg);
+        feature_seq::OPEN_SKIP_ARM.with(|a| a.set(false));
+        if old.len() <= new.len() || old[..new.len()] != new[..] {
+            continue;
+        }
+        let Some(c) = facts.candidates.last() else {
+            continue;
+        };
+        let Some(sec) = c.second.as_ref() else {
+            continue;
+        };
+        if sec.semantic_state != Some(SecondTerminal::OpenAtPrefixEnd) {
+            continue;
+        }
+        let b = sec.from_stroke - 1;
+        let after = c.first.standard.iter().filter(|e| e.stroke_idx > b).count();
+        if after <= 7 {
+            continue;
+        }
+        found += 1;
+        eprintln!(
+            "OPENBLOCK seed={seed} new={} old={} b={b} after={after} prices={pr:?}",
+            new.len(),
+            old.len()
+        );
+        if found >= 3 {
+            break;
+        }
+    }
 }
