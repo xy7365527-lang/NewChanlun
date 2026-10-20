@@ -1191,7 +1191,7 @@ impl ManifestRecordingStore<'_> {
         let mut tree_step = super::content_store::native_tree_storage::<
             NodeDigest,
             (u8, s_content::CodecVec<u8>),
-        >(self.inner.codec_work(), originals.len() + 1)?;
+        >(self.inner.codec_work(), 1)?;
         let mut owned_body = s_content::CodecVec::default();
         admission.native_codec_room(&mut owned_body, body.len())?;
         owned_body.try_extend_bytes(body)?;
@@ -1211,7 +1211,16 @@ impl ManifestRecordingStore<'_> {
         self.accepted_entries = entries;
         self.accepted_body_len = len;
         originals.insert(digest, (tag, body));
-        self.tree_permit = tree_step.take();
+        if let Some(mut step) = tree_step.take() {
+            if let Some(held) = self.tree_permit.as_mut() {
+                if let Err(failure) = held.merge(&mut step) {
+                    let work = self.inner.codec_work().expect("树许可来自当前操作域");
+                    return Err(work.reject(failure));
+                }
+            } else {
+                self.tree_permit = Some(step);
+            }
+        }
         Ok(())
     }
 }
