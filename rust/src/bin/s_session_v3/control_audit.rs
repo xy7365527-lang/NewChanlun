@@ -501,7 +501,11 @@ mod tests {
             })
             .unwrap();
         eprintln!("PROBE67 out_of_scope={}", budget.live());
-        assert!(budget.live() > 137, "离开WorkScope不提前释放父域许可");
+        assert_eq!(
+            budget.live(),
+            super::super::audit_owner::native::Budget::metadata_bytes(),
+            "v4：离开WorkScope且全部对象析构后只剩父账元数据，无滞留许可"
+        );
         assert_eq!(budget.scratch_observation().2, 0);
     }
 
