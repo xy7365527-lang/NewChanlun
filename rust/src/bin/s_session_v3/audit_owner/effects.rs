@@ -1106,7 +1106,7 @@ pub(crate) fn note_node(tx: &Transaction<'_>, digest: [u8; 32], before: u64, ins
                 node_write: Some((before, after, inserted)),
             });
         }
-        if set {
+        if set && (fresh || inserted) {
             j.events.push(receipt);
         }
     });
