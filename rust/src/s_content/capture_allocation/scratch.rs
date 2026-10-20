@@ -222,6 +222,15 @@ impl ScratchHandle {
         }
     }
     pub(crate) fn fail(&self, failure: ScratchFailure) {
+        if self.core().failure.load(Ordering::Acquire) == 0 {
+            eprintln!(
+                "PROBE67 fail={:?} live={} limit={} bt=\n{}",
+                failure,
+                self.core().live.load(Ordering::Acquire),
+                self.core().limit,
+                std::backtrace::Backtrace::force_capture()
+            );
+        }
         if failure == ScratchFailure::Ledger {
             let _ = self
                 .core()
@@ -289,6 +298,7 @@ impl ScratchHandle {
             .parent
             .reserve_in_origin(bytes, ScratchCharge::Layout, c.origin)
             .map_err(|e| {
+                eprintln!("PROBE67 parent-reject bytes={} child_live={} limit={}", bytes, c.live.load(Ordering::Acquire), c.limit);
                 self.fail(e);
                 e
             })?;
