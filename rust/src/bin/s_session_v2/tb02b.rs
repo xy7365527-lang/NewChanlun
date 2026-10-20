@@ -17,8 +17,8 @@ pub(super) struct BiContract {
 pub(super) const CURRENT_CONTRACT: BiContract = BiContract {
     schema: "s-new-bi/2",
     semantic: RULE,
-    policy: "standard_raw_gap_3",
-    knowledge_domain: "established_direction_without_extreme_identity_competition",
+    policy: "standard_raw_gap_3;same-price/keep-earlier+extreme-region/1",
+    knowledge_domain: "established_direction_with_extreme_root_sets",
 };
 const LEGACY_CONTRACT: BiContract = BiContract {
     schema: "s-new-bi/1",
