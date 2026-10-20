@@ -1630,8 +1630,14 @@ mod tests {
         let strokes = build_stroke_facts(&facts, &config);
         let mut seen = HashSet::new();
         let mut logical = 0usize;
+        // 扁平集合（回落展开）的元素按独占存储计入，非空即判失败：本夹具源坐标严格递增，
+        // 完整事实路径上不得出现任何扁平展开（#1597 独审 M-1）。
+        let mut flat_elems = 0usize;
         let mut visit = |c: &SourceCoords, seen: &mut HashSet<usize>| {
             logical += c.len();
+            if c.as_shared().is_none() {
+                flat_elems += c.len();
+            }
             walk(c, seen);
         };
         for s in &facts.steps {
@@ -1656,6 +1662,7 @@ mod tests {
                 visit(&c.source_coords, &mut seen);
             }
         }
+        assert_eq!(flat_elems, 0, "完整事实里出现扁平展开的来源坐标");
         let n = raw.len();
         assert!(logical > n * n / 4, "夹具应产生 Θ(n²) 逻辑元素：{logical}");
         // log2(4000) ≈ 12；每次追加/拼接新建 O(log n) 个节点。上限 64·n 远低于 n²/4。
