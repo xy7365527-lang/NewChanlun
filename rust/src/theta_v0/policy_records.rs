@@ -131,6 +131,11 @@ fn read_u32(
 ) -> Result<u32, PolicyError> {
     let awaiting = || PolicyError::AwaitingPolicy { id, field: name.to_string() };
     let entry = fields.get(name).ok_or_else(awaiting)?;
+    // 直接写 `"l_max": null` / `"l_max": "AwaitingPolicy"` 也按未签处理（ADR 0041 裁定三：签署门默认值
+    // 就是 AwaitingPolicy）；其余非对象写法判格式错。规范写法为 `{"value": …}`。
+    if entry.is_null() || entry.as_str() == Some("AwaitingPolicy") {
+        return Err(awaiting());
+    }
     let entry = entry
         .as_object()
         .ok_or_else(|| invalid(id, name, format!("字段须为带 value 的对象，得 {entry}")))?;
@@ -292,6 +297,11 @@ mod tests {
         assert!(matches!(parse_macd_force(Some(zero_period)), Err(PolicyError::Invalid { .. })));
         let wrong_id = r#"{"id":"macd-force","version":1,"fields":{"l_max":{"value":6}}}"#;
         assert!(matches!(parse_tower_level_budget(Some(wrong_id)), Err(PolicyError::Invalid { .. })));
+        let bare_unsigned = r#"{"id":"tower-level-budget","version":1,"fields":{"l_max":"AwaitingPolicy"}}"#;
+        assert!(matches!(
+            parse_tower_level_budget(Some(bare_unsigned)),
+            Err(PolicyError::AwaitingPolicy { .. })
+        ));
         let bare = r#"{"id":"tower-level-budget","version":1,"fields":{"l_max":6}}"#;
         assert!(matches!(parse_tower_level_budget(Some(bare)), Err(PolicyError::Invalid { .. })));
         let bad_version = r#"{"id":"macd-force","version":0,"fields":{}}"#;
