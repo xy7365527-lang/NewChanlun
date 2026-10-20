@@ -677,22 +677,19 @@ impl AuditConnection {
     /// 父工作域内跑 publish_body + 尾检。父工作域报 `BudgetExceeded`（ScratchFailure::Budget /
     /// Allocation，典型来源：audit_native_source 以 `j.cap` 追加原件时日志/索引扩容估算超帽）
     /// 说明只是“可选候选装不下”，此时：
-    /// 1. 首事务的 AuditTxn 随 `publish_attempt` 返回而析构——回滚整笔写、清日志、
-    ///    `clear_candidates()` 作废施工租约并丢弃 complete/source_keeper，`advance_state`
-    ///    回到空闲，不会留下“已有未完成Begin”；
-    /// 2. `runtime.discard()` 丢弃生成器运行态（其中可能含已被回滚的增量），下一次准备从冷态起；
-    /// 3. 同一请求只再走一次无候选发布：bind_existing 无候选即与“无候选请求”同一路径
-    ///    （publish_body(.., None)），回复与 oracle 一致，本请求后不保留候选（保留率下降，
-    ///    正确性不变）。
+    /// 1. 首事务 AuditTxn 随 `publish_attempt` 返回析构：回滚整笔写、清日志、`clear_candidates()`
+    ///    作废施工租约并丢弃 complete/source_keeper，不留下“已有未完成Begin”；
+    /// 2. `runtime.discard()` 丢弃生成器运行态（含已回滚的增量），重试从冷态准备；
+    /// 3. 同请求只再走一次无候选发布（bind_existing 无候选，与“无候选请求”同一路径），回复与
+    ///    oracle 一致，本请求后不保留候选（保留率下降，正确性不变）；
+    /// 4. 提交确认后 owner 已无 construction/complete，与重启后新开 owner 等价，续租（见文件尾
+    ///    `renew_lease_after_abandon`），否则后续 Accept 的 Carry 永久“租约已撤销”。
     ///
-    /// 不降级、照旧 fail-closed 的情形：父工作域报 `Invalid`（ScratchFailure::Ledger 即
-    /// “Native codec 工作账损坏”、尾检 seal/transition 身份不符等真正尾检失败）；第二次
-    /// （无候选）尝试的任何错误；以及 codec_work 签发本身报账损坏。第二次不会再返回 None
-    /// （无候选不签发父工作域），防御性地按尾检失败拒绝。
-    ///
+    /// 不降级、照旧 fail-closed：父工作域报 `Invalid`（ScratchFailure::Ledger 即“Native codec
+    /// 工作账损坏”、尾检 seal/transition 身份不符等真正尾检失败）；codec_work 签发报账损坏；
+    /// 第二次（无候选）尝试的任何错误（它不签发父工作域，不会再返回 None，防御性按尾检失败拒绝）。
     /// 诊断：`S_MANIFEST_WORKSPACE_DIAGNOSTICS=1` 时每次发布向 stderr 写一行
     /// NativeTestOnlyPublication（入口有无候选、是否放弃、发布后是否保留），供保留率/命中率统计。
-    ///
     /// 张力（交 #1612）：降级后同请求内走完整路径，ARCH ④.4 / #799 的“请求内不回退完整”口径
     /// 在 testonly 下由 v4 L13 让位；生产构建不含此函数。
     /// 行数纪律：publish 本段改写前后总行数相同，publish_attempt 与测试注入开关放在文件尾，
@@ -714,8 +711,11 @@ impl AuditConnection {
                 runtime.discard();
                 #[cfg(test)]
                 state::trace_event("publication_candidate_abandoned", None);
-                self.publish_attempt(runtime, token, envelope, context, false)?
-                    .ok_or_else(|| construction_state::stale("publication父工作域尾检失败"))?
+                let published = self
+                    .publish_attempt(runtime, token, envelope, context, false)?
+                    .ok_or_else(|| construction_state::stale("publication父工作域尾检失败"))?;
+                self.renew_lease_after_abandon(&published.1);
+                published
             }
         };
         if std::env::var_os("S_MANIFEST_WORKSPACE_DIAGNOSTICS").as_deref()
@@ -5887,6 +5887,22 @@ impl AuditConnection {
 
 #[cfg(feature = "s_capture_native_testonly")]
 impl AuditConnection {
+    /// 0065：降级发布提交确认后续租。只在 owner 与本次结束态都已无任何候选/资格、连接已终结时
+    /// 推进序号（旧序号签发的令牌仍失配）并清除 stale；任一条件不满足则保持撤销（后续请求
+    /// fail-closed）。本次发布已提交，续租与否都不改变本次回复。
+    fn renew_lease_after_abandon(&self, ended: &Ended) {
+        if ended.complete.is_none()
+            && self.complete.borrow().is_none()
+            && self.construction.borrow().is_none()
+            && !self.retired.get()
+            && self.connection.is_autocommit()
+            && self.construction_lease.close().is_ok()
+        {
+            self.construction_lease.stale.set(false);
+        }
+    }
+
+
     /// 返回 Ok(None) 仅当候选父工作域报 BudgetExceeded；`candidate=false` 时不签发候选资源。
     #[cfg(feature = "s_capture_native_testonly")]
     fn publish_attempt(
