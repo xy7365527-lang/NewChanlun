@@ -271,8 +271,9 @@ fn tb1581_perbar_digest_seed4() {
 }
 
 /// 负控（生产增量与批量装配路径，审查 must_fix）：TestOnly 种子起点在随机 K 线上逐 bar 驱动
-/// `ParseLayerIncr`，在首个带标记且段账本可分类的 bar 上断言：增量/批量/facts 三路标记同值且非空、
-/// 尾部无 PendingSegment、classifier 无产出；正控：同一层去掉标记后 classifier 有产出。
+/// `ParseLayerIncr`，取首个带标记的 bar 断言：增量/批量/facts 三路标记同值且非空、三层逐位相等、
+/// 尾部无 PendingSegment 而同一层去掉标记时尾部有之（正控）、classifier 无产出。
+/// （TestOnly 只改流首段起点，门失败时尚无已确认段；classifier 有产出的正控见热缓存测试。）
 #[test]
 fn tb1581_marker_reaches_incremental_and_batch_layers() {
     let cfg = ThetaConfig::default();
@@ -286,25 +287,32 @@ fn tb1581_marker_reaches_incremental_and_batch_layers() {
             let Some(p) = layer.segments_parse_invalid_from else {
                 continue;
             };
-            let mut cleared = layer.clone();
-            cleared.segments_parse_invalid_from = None;
-            if classifier::classify(&cleared, &cfg, &[])
-                .classification
-                .levels
-                .is_empty()
-            {
-                continue;
-            }
             let batch = parse_layer(&bars[..=i], &cfg);
             let (facts_layer, facts) = parse_layer_with_inclusion_facts(&bars[..=i], &cfg);
-            hit = Some((seed, i, p, layer, batch, facts_layer, facts, cleared));
+            let open_tail = {
+                let strokes = &layer.strokes;
+                let (segs, pending) = segment::divide_segments_with_tail(strokes, &cfg.parse);
+                tail::build_tail(
+                    &layer.merged_bars,
+                    &layer.fractals,
+                    strokes,
+                    &segs,
+                    pending,
+                    None,
+                )
+            };
+            hit = Some((seed, i, p, layer, batch, facts_layer, facts, open_tail));
             break 'seeds;
         }
     }
     segment::FIRST_START_AT_SEED.with(|c| c.set(false));
-    let (seed, i, p, layer, batch, facts_layer, facts, cleared) =
+    let (seed, i, p, layer, batch, facts_layer, facts, open_tail) =
         hit.expect("TestOnly 种子起点须在随机 K 线上触发门失败");
-    eprintln!("tb1581 incr marker seed={seed} bar={i} seg_start={p}");
+    eprintln!(
+        "tb1581 incr marker seed={seed} bar={i} seg_start={p} strokes={} segments={}",
+        layer.strokes.len(),
+        layer.segments.len()
+    );
     let facts_marker = facts
         .segment_facts
         .as_ref()
@@ -314,15 +322,18 @@ fn tb1581_marker_reaches_incremental_and_batch_layers() {
     assert_eq!(batch.segments_parse_invalid_from, Some(p));
     assert_eq!(facts_layer.segments_parse_invalid_from, Some(p));
     assert_eq!(batch, layer, "批量 ≡ 增量（含标记）");
-    for l in [&layer, &batch, &facts_layer] {
-        assert!(!has_pending_segment(l), "标记非空 ⟹ 无 PendingSegment");
-    }
+    assert_eq!(facts_layer, layer, "facts ≡ 增量（含标记）");
+    assert!(
+        open_tail
+            .iter()
+            .any(|pt| matches!(pt, PendingTail::PendingSegment { .. })),
+        "正控：同一现场无标记时有 PendingSegment"
+    );
+    assert!(!has_pending_segment(&layer), "标记非空 ⟹ 无 PendingSegment");
     let refused = classifier::classify(&layer, &cfg, &[1]);
     assert_eq!(
         refused.classification,
         classifier::Classification::default()
     );
     assert!(refused.tower.is_empty() && refused.operations.is_empty());
-    let allowed = classifier::classify(&cleared, &cfg, &[]);
-    assert!(!allowed.classification.levels.is_empty() && !allowed.tower.is_empty());
 }
