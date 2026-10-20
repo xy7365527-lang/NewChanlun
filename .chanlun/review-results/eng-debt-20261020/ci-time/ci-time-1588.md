@@ -5,7 +5,7 @@
 - 结论：**已达成，但余量取决于 runner 机型**。
   - 最长 job 从 2h10m35s 降到 31m00s（EPYC 9V45）到 66m57s（EPYC 7763，已见最慢机型）；
   - 整个 CI workflow 墙钟 31–67 分钟；
-  - 两轮 PR run 的测试计数都与拆前逐名一致。
+  - 四轮 PR run（39382771454、39386754336、39395041855、39409029909）的测试计数都与拆前逐名一致；第 4 轮为第二轮评审修复后的 run，见条目 7。
 
 ## 条目 1：s_session bin 测试一步 89 分钟
 
@@ -231,6 +231,25 @@ gh run view <run> --repo xy7365527-lang/NewChanlun --log-failed | grep -oE '`DS[
      - 配置：`group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}`，`cancel-in-progress: ${{ github.event_name == 'pull_request' }}`。
      - **与指示的差异**：指示的组键回落值是 `github.ref`，这里改成了 `github.run_id`。原因是 GitHub 的并发组即使不 cancel-in-progress，同组也只保留一个 pending，更新的 pending 会把旧的 pending 取消。若用 `github.ref`，连续合入 main 时，夹在中间的那次 push run 会被取消，push main 的 run 也会互相排队，违背「push main 不取消」。改用 `run_id` 后，非 PR 事件各自独占一组，PR 事件的组键与指示相同。
    - `actionlint .github/workflows/ci.yml` → 无输出（通过）。
+
+**第二轮 CI**：分支先 rebase 到 origin/main `a0522447ca`（main 新增 4 个提交，均未触及 `.github/`，无冲突），修复提交为 `54ed5be736`，PR run 39409029909 结论 success。
+
+| job | 时长 | 机型 |
+|---|---|---|
+| rust-test-s-session (shard 0)，仅 tb02w | **58m38s**（最长；tb02w `finished in 3373.34s`） | Xeon 8370C |
+| rust-test-s-session (shard 1) | 45m40s | 7763 |
+| rust-test-s-session (shard 2) | 22m57s | 7763 |
+| rust-test-s-session (shard 3) | 18m34s | 7763 |
+| rust-test-s-session-extras | 22m34s | 7763 |
+| rust-test-backtest-bin | 10m23s | 7763 |
+| rust-test-default | 9m51s | 9V74 |
+| rust-check（含 `Ran 11 tests ... OK`） | 2m50s | 7763 |
+| rust-test-s-session-coverage | 0m07s | — |
+
+- workflow 墙钟约 59 分钟（10:35:36→11:34:26）。
+- 计数：81 段，6839 passed / 0 failed / 311 ignored；「名 + 结果」多重集 7052 行，与拆前 `diff` 无输出。
+- 分片门：4 片 `shard_plan ... total=518 sizes=1 149 179 189` 一致，`shard_union total=518 ok=507 ignored=11 failed=0`。
+- DevSkim run 39409029891 仍为 main 既有红：findings 55146 条，与 main run 39380862647 逐条相同。
 
 ## 遗留与转票建议
 
