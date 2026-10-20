@@ -933,3 +933,38 @@ fn tb1493_production_incremental_has_no_fail_closed_marker() {
         &marked[..marked.len().min(10)]
     );
 }
+
+#[test]
+#[ignore = "诊断：三方对照中段端点非本段极值的段（是否与裁定 2 相关）"]
+fn tb1493_ruling2_not_extreme_probe() {
+    let cfg = ThetaConfig::default().parse;
+    for g in 0..400u64 {
+        for distinct in [true, false] {
+            let ss = chain(&tb1493_polyline(0x1493_2000 + g, 300, distinct));
+            let mut per_arm = Vec::new();
+            for arm in [0u8, 1] {
+                feature_seq::GAP_INCLUSION_ARM.with(|a| a.set(arm));
+                let (segs, _, facts) = segment::divide_segments_with_facts(&ss, &cfg);
+                feature_seq::GAP_INCLUSION_ARM.with(|a| a.set(0));
+                let mut bad = Vec::new();
+                for (j, (s, c)) in segs.iter().zip(&facts.candidates).enumerate() {
+                    let sp = tb1493_spans(&ss, std::slice::from_ref(s))[0];
+                    let up = s.direction == Direction::Up;
+                    let endpoint = ss[sp.1].end_price;
+                    let (k, ext) = (sp.0..=sp.1)
+                        .map(|k| (k, if up { ss[k].start_price.max(ss[k].end_price) } else { ss[k].start_price.min(ss[k].end_price) }))
+                        .fold((sp.0, if up { i64::MIN } else { i64::MAX }), |acc, x| {
+                            if (up && x.1 > acc.1) || (!up && x.1 < acc.1) { x } else { acc }
+                        });
+                    if endpoint != ext {
+                        bad.push((j, sp, endpoint, k, ext, c.result, c.strict.as_ref().map(|w| w.effective_case), j == 0));
+                    }
+                }
+                per_arm.push(bad);
+            }
+            if !per_arm[0].is_empty() || !per_arm[1].is_empty() {
+                eprintln!("TB1493 NX g={g}/{distinct} ruling={:?} window={:?}", per_arm[0], per_arm[1]);
+            }
+        }
+    }
+}
