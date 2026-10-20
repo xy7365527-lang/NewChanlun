@@ -292,7 +292,7 @@ fn tb1493_replay_speed_probe() {
     let mut inc = ParseLayerIncr::new(&theta);
     let t0 = std::time::Instant::now();
     let mut lap = t0;
-    for (i, bar) in bars.iter().enumerate().take(1_200_000) {
+    for (i, bar) in bars.iter().enumerate() {
         let layer = inc.append(*bar);
         if (i + 1) % 100_000 == 0 {
             eprintln!(
