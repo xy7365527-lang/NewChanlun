@@ -741,7 +741,8 @@ fn tb1493_gap_inclusion_merges_and_keeps_b() {
     assert_eq!(ss[2].end_price, 20, "段端点 = P");
     let c = &facts.candidates[0];
     assert_eq!(c.result, "CASE_TWO");
-    assert_eq!(c.second.as_ref().unwrap().from_stroke, 3);
+    // 第二序列自 b=s3 之后第一笔起扫（`from_stroke` = b+1）。
+    assert_eq!(c.second.as_ref().unwrap().from_stroke, 4);
 }
 
 /// 有缺口 c ⊂ b 三臂之一下的读数：(段序列, 段端点≠分型 P 的段数, 段端门失败数, 段端点非本段极值的段数)。

@@ -996,9 +996,13 @@ const W1_PRICES: [i64; 100] = [
     97884, 97937, 97872, 97885, 97872, 98991, 98986, 99178, 99113, 99137, 99075, 99135,
 ];
 
-/// W1：逐笔增量到 p = 87 存检查点（全量结果 + 安全边界 euf = 69），续扫到 q = 88…99。
-/// 带边界的 `from_checkpoint` 每步与无中断全量逐位相同；无边界的 `from_full` 自 q = 88 起与全量
-/// 发散。这一条锁住 euf：`from_checkpoint` 丢弃边界（退化为 `from_full`）即红。
+/// W1：逐笔增量到 p = 87 存检查点（全量结果 + 安全边界 euf = 69），续扫到 q = 88…99。带边界的
+/// `from_checkpoint` 每步与无中断全量逐位相同（锁住 euf 的读写）。
+///
+/// #1493 裁定 1（`xianduan.md` §7.1 第 8 条）改期望：未决第二种候选封住所在段，其后不再有已确认段，
+/// unsealed 起点只能落在末段（pending）——与 `from_full` 的「回退末段」重合，故无边界的 `from_full`
+/// 在此见证上不再发散（`tb1493_search_tb02w_witnesses` 在 6000 组尖峰折线上未再找到深边界见证）。
+/// 「丢弃边界」仍由 `tb02w_ast_048_01`／`_02` 的预算封段锁住。
 #[test]
 fn tb02w_w1_checkpoint_boundary_is_necessary() {
     let cfg = ThetaConfig::default().parse;
@@ -1012,7 +1016,7 @@ fn tb02w_w1_checkpoint_boundary_is_necessary() {
     }
     let (segs, pending) = inc.to_result_vec();
     let euf = inc.earliest_unsealed_from();
-    assert_eq!(euf, Some(69), "切点 p=87 须有未封闭第二种候选（深边界）");
+    assert_eq!(euf, Some(69), "切点 p=87 须有未封闭第二种候选");
     let mut diverged = Vec::new();
     for q in p..=ss.len() {
         let batch = segment::divide_segments_with_tail(&ss[..q], &cfg);
@@ -1025,10 +1029,9 @@ fn tb02w_w1_checkpoint_boundary_is_necessary() {
             diverged.push(q);
         }
     }
-    assert_eq!(
-        diverged,
-        (88..=99).collect::<Vec<_>>(),
-        "from_full（无边界）须自 q=88 起发散，见证 euf 边界必要"
+    assert!(
+        diverged.is_empty(),
+        "#1493 裁定 1：未决候选只在末段，from_full 不应发散：{diverged:?}"
     );
 }
 
