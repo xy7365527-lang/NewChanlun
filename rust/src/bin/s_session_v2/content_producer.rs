@@ -5506,10 +5506,23 @@ mod tests {
                     })
                     .collect();
                 let reachable = reachable_nodes(&mut warm.store.nodes, &refs);
-                let orphans = written.difference(&reachable).count();
-                assert_eq!(
-                    orphans, 0,
-                    "reuse={reuse} 第 {step} 代 fractal 构造留下 {orphans} 个不可达节点（新写 {}）",
+                let orphans: Vec<NodeDigest> = written.difference(&reachable).copied().collect();
+                let mut by_tag: BTreeMap<u8, usize> = BTreeMap::new();
+                let mut samples: Vec<String> = Vec::new();
+                for digest in &orphans {
+                    let (tag, body) = warm.store.nodes.get(digest).expect("新写节点在表");
+                    *by_tag.entry(tag).or_default() += 1;
+                    if samples.len() < 6 {
+                        samples.push(format!(
+                            "{tag:#04x}:{}",
+                            String::from_utf8_lossy(&body[..body.len().min(48)])
+                        ));
+                    }
+                }
+                assert!(
+                    orphans.is_empty(),
+                    "reuse={reuse} 第 {step} 代 fractal 构造留下 {} 个不可达节点（新写 {}）：按 tag {by_tag:?}，样本 {samples:?}",
+                    orphans.len(),
                     written.len()
                 );
                 covered += objects.len();
