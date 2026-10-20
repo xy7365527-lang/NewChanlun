@@ -12,6 +12,10 @@ b-0059 量化 MIN12 用的也是不带 ready 的回放。
 3. SIGTERM 停服；
 4. 起 Q3 `query-serve`，复用 min12_v3_run.query_all 逐代取 /api/v2/snapshot 并本地复算；
 5. 与 accept-s2 ORACLE.json 逐代比 cut_projection_digest。
+
+Q3 资源用 query-resources-q3-functional.json：冻结 21 项原样，只把 capture/verify 期限与客户租约放到
+600000 ms（同 q_resources::FUNCTIONAL_TEST_ONLY_DEADLINE_MS 的口径）。冻结 60 s 核验期限在宿主负载≈3–7
+时 g=1 即 VerifyDeadline（min12d-nat2 实测 503）。这是读端核验期限，不碰写端资源帽。
 """
 import argparse
 import json
@@ -122,7 +126,7 @@ def main():
     if ok:
         qlog = open(work / "query-serve.log", "wb")
         q = subprocess.Popen([binary, "query-serve", *common, "--db", str(db),
-                              "--resource-config", str(HERE / "query-resources-q3.json"),
+                              "--resource-config", str(HERE / "query-resources-q3-functional.json"),
                               "--producer-epoch", "1", "--host", "127.0.0.1", "--port", a.port],
                              stdout=qlog, stderr=qlog, env=env)
         try:
