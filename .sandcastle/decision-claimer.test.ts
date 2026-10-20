@@ -9,13 +9,26 @@ import {
   nextAfterReview, parseArgs, parseClassification, parseReview, processTicket, selectCandidates,
   resolvedReason, pickUnresolved, finishedTickets,
   isRetryable, makeClaudeRunner, loadResume,
+  RULES, ARCH_SECTION, ARCHAEOLOGY_FILE, parseArchaeology, archaeologyProblems, renderArchaeology, archaeologyCoverageProblems,
+  archaeologyPrompt, archaeologyAsks, archaeologyOnly, shadowComment, flowSectionsIn, stripFlowSections,
   type Deps, type GhRunner, type ModelCall, type OnceResult,
 } from "./decision-claimer.mts";
 
-const pass = (basis = "回查成立") => Object.fromEntries(["R1", "R2", "R3", "R4", "R5", "R6", "R7"].map((r) => [r, { verdict: "PASS", basis }]));
+const pass = (basis = "回查成立") => Object.fromEntries(RULES.map((r) => [r, { verdict: "PASS", basis }]));
 const fence = (v: unknown) => "说明文字\n```json\n" + JSON.stringify(v) + "\n```\n";
 const citeTable = `## ${CITATION_SECTION}\n| 引用 | 核实命令 | 结果摘要 |\n|---|---|---|\n| AGENTS.md:1 | rg -n x AGENTS.md | 见行 |`;
-const goodDraft = DRAFT_SECTIONS.map((s) => `## ${s}\n内容${s === "裁定" ? "\n正本落点：docs/adr/0099-x.md" : ""}`).join("\n\n") + "\n\n" + citeTable + "\n";
+const archTable = `## ${ARCH_SECTION}\n| 点 | 归类 | 出处 | 草稿处置 |\n|---|---|---|---|\n| Q1 | A | docs/adr/0016-x.md:96 | 沿用 |\n| Q2 | B | #1355 评论 1 | 默认值，确认或否决 |\n| Q3 | C | — | 待决 |`;
+const goodDraft = DRAFT_SECTIONS.map((s) => `## ${s}\n内容${s === "裁定" ? "\n正本落点：docs/adr/0099-x.md" : ""}`).join("\n\n") + "\n\n" + citeTable + "\n\n" + archTable + "\n";
+const trackerQ = { channel: "tracker", query: "共同 cap", command: "gh search issues \"共同 cap\" --repo xy7365527-lang/NewChanlun", hits: 2 };
+const repoQ = { channel: "repo", query: "cap", command: "rg -n cap docs/adr", hits: 1 };
+const goodArchObj = {
+  points: [
+    { id: "Q1", question: "重的数量由谁定", class: "A", queries: [trackerQ, repoQ], hits: [{ source: "docs/adr/0016-x.md:96", excerpt: "全部推出来" }], citation: "docs/adr/0016-x.md:96" },
+    { id: "Q2", question: "固定 Q 初值", class: "B", queries: [trackerQ, repoQ], hits: [{ source: "#1355 评论 1", excerpt: "夹具 Q=100" }], citation: "#1355 评论 1", reasoning: "夹具在用", recommended: "Q=100" },
+    { id: "Q3", question: "多空共用容量", class: "C", queries: [trackerQ, repoQ], hits: [], searched_keywords: ["多空 容量", "long short capacity"], gap: "decision", recommended: "各占一份（依 ADR 0016:70 容量按重测）" },
+  ],
+};
+const goodArch = fence(goodArchObj);
 
 test("parseArgs 默认 dry-run，--live 才写", () => {
   assert.equal(parseArgs([]).mode, "dry-run");
@@ -41,10 +54,10 @@ test("分级解析：合法 T/P 照收，坏输出与缺理由一律判 P", () =
   assert.equal(parseClassification(fence({ class: "X", reason: "?" })).parsed, false);
 });
 
-test("审查解析：七项全 PASS 才 PASS；缺项、缺依据、草稿缺段都 BLOCK", () => {
+test("审查解析：八项全 PASS 才 PASS；缺项、缺依据、草稿缺段都 BLOCK", () => {
   const ok = parseReview(fence(pass()));
   assert.equal(ok.verdict, "PASS");
-  assert.equal(ok.items.length, 7);
+  assert.equal(ok.items.length, 8);
 
   const missing = pass() as Record<string, unknown>;
   delete missing.R6;
@@ -124,9 +137,10 @@ test("selectCandidates：只取 open、grilling、未认领、无 blocker、未�
   assert.deepEqual(selectCandidates(kids, new Set([7])), [1]);
 });
 
-function fakeDeps(mode: "dry-run" | "live", replies: string[]) {
+function fakeDeps(mode: "dry-run" | "live", replies: string[], archReplies: string[] = []) {
   const ghCalls: string[][] = [];
   const modelCalls: ModelCall[] = [];
+  const archCalls: ModelCall[] = [];
   const raw: GhRunner = (args) => {
     ghCalls.push(args);
     if (args[0] === "issue" && args[1] === "view") {
@@ -140,6 +154,10 @@ function fakeDeps(mode: "dry-run" | "live", replies: string[]) {
     gh: guardGh(mode, raw),
     git: () => { throw new Error("dry-run 不应调 git"); },
     model: async (c) => {
+      if (c.role === "archaeology") {
+        archCalls.push(c);
+        return { text: archReplies.shift() ?? goodArch, durationMs: 5, attempts: 1 };
+      }
       modelCalls.push(c);
       const text = replies.shift();
       if (text === undefined) throw new Error("模型调用次数超出预期");
@@ -150,7 +168,7 @@ function fakeDeps(mode: "dry-run" | "live", replies: string[]) {
     repoRoot: "/nonexistent-repo",
     now: Date.now,
   };
-  return { d, ghCalls, modelCalls };
+  return { d, ghCalls, modelCalls, archCalls };
 }
 
 const isWrite = (a: string[]) => isGhWrite(a);
@@ -166,7 +184,7 @@ test("dry-run 全流程：T 类 PASS 只落本地三份文件，不调任何 gh 
   const dir = join(d.outRoot, "1531");
   for (const f of ["classify.json", "draft.md", "review.json", "summary.json"]) assert.ok(existsSync(join(dir, f)), f);
   assert.equal(existsSync(join(dir, ".lock")), false);
-  assert.equal(JSON.parse(readFileSync(join(dir, "review.json"), "utf8")).items.length, 7);
+  assert.equal(JSON.parse(readFileSync(join(dir, "review.json"), "utf8")).items.length, 8);
   assert.ok(s.plannedWrites.some((w) => w.startsWith("分支 decision/1531")));
 });
 
@@ -334,7 +352,7 @@ test("ADR 编号：占位与草稿自编号都按 main 最大号顺序分配，�
 });
 
 test("dry-run：T 类 ADR 落点按 main 顺序改号并写回草稿", async () => {
-  const draft = DRAFT_SECTIONS.map((x) => `## ${x}\n内容${x === "裁定" ? "\n正本落点：docs/adr/NNNN-x.md\n依 ADR NNNN" : ""}`).join("\n\n") + "\n\n" + citeTable;
+  const draft = DRAFT_SECTIONS.map((x) => `## ${x}\n内容${x === "裁定" ? "\n正本落点：docs/adr/NNNN-x.md\n依 ADR NNNN" : ""}`).join("\n\n") + "\n\n" + citeTable + "\n\n" + archTable;
   const { d } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), draft, fence(pass())]);
   d.srcDir = mkdtempSync(join(tmpdir(), "src-"));
   mkdirSync(join(d.srcDir, "docs/adr"), { recursive: true });
@@ -547,6 +565,7 @@ function liveDeps(replies: Array<string | Error>, opts: { failGh?: (a: string[])
       return "";
     },
     model: async (c) => {
+      if (c.role === "archaeology") return { text: goodArch, durationMs: 5, attempts: 1 };
       modelCalls.push(c);
       if (c.role === "land") target = /写进正本 (\S+?)。/.exec(c.prompt)![1];
       const r = replies.shift();
@@ -758,4 +777,190 @@ test("断点续做 × 跳过：shadow_p_pending 票面已有影子评论 → 照
   const s2 = await processTicket(1565, h.d);
   assert.equal(s2.phase, "shadow_p");
   assert.deepEqual(writesOf(h.ghCalls), ["issue edit 1565 --add-assignee", "issue edit 1565 --add-label", "issue edit 1565 --remove-assignee"]);
+});
+
+// ───────────────────────── 考古阶段 ─────────────────────────
+
+test("考古解析与机械校验：合格产物无问题；两路缺一、未覆盖已关票、A/B 缺出处、B 缺默认值、C 关键词不足都报", () => {
+  const a = parseArchaeology(goodArch)!;
+  assert.equal(a.points.length, 3);
+  assert.deepEqual(a.points.map((p) => p.klass), ["A", "B", "C"]);
+  assert.equal(a.points[1].recommended, "Q=100");
+  assert.deepEqual(archaeologyProblems(a), []);
+  assert.equal(parseArchaeology("没有 JSON"), null);
+  const odd = parseArchaeology(fence({ points: [null, 3, { id: "Q1", class: "A", queries: [null], hits: [null, { source: "x" }] }] }))!;
+  assert.equal(odd.points.length, 1);
+  assert.deepEqual(odd.points[0].hits, [{ source: "x", excerpt: "" }]);
+
+  const bad = structuredClone(goodArchObj) as typeof goodArchObj & { points: Array<Record<string, unknown>> };
+  bad.points[0].queries = [repoQ];
+  bad.points[1].queries = [{ ...trackerQ, command: "gh issue list --search cap" }, repoQ];
+  bad.points[1].recommended = "";
+  bad.points[2].searched_keywords = ["只搜一个"];
+  bad.points.push({ id: "Q4", question: "x", class: "A", queries: [trackerQ, repoQ], hits: [], citation: "", conflict: "ADR 与代码不符" });
+  bad.points.push({ id: "Q5", question: "y", class: "C", queries: [trackerQ, repoQ], hits: [], searched_keywords: ["a", "b"] });
+  bad.points.push({ id: "Q6", question: "z", class: "C", queries: [{ ...trackerQ, command: "gh search issues z --state open" }, repoQ], hits: [], searched_keywords: ["a", "b"], gap: "decision" });
+  const probs = archaeologyProblems(parseArchaeology(fence(bad))!);
+  for (const re of [/Q1：缺 tracker/, /Q2：tracker 查询未覆盖已关闭票/, /Q2：B 类缺默认值/, /Q3：C 类须列出至少两个/, /Q4：A 类缺出处/, /Q4：A 类缺命中/, /Q4：有冲突的点不能归 A/, /Q5：C 类须写 gap/, /Q6：tracker 查询未覆盖已关闭票/, /Q6：C 类 decision 缺推荐答案/]) {
+    assert.ok(probs.some((x) => re.test(x)), `${re} 未报：${probs.join(" / ")}`);
+  }
+});
+
+test("archaeology.md：逐点写查询词、命令、命中与归类，B 带默认值、C 带已搜关键词", () => {
+  const md = renderArchaeology({ number: 1355, title: "量档" }, parseArchaeology(goodArch)!, []);
+  assert.match(md, /A 已裁 1 · B 有先例未正式裁 1 · C 确未设计 1/);
+  assert.match(md, /## Q1 \[A\] 重的数量由谁定/);
+  assert.match(md, /\| tracker \| 共同 cap \| `gh search issues/);
+  assert.match(md, /- 默认值：Q=100/);
+  assert.match(md, /- 已搜关键词：多空 容量、long short capacity/);
+  assert.match(md, /## 机械校验\n\n通过。/);
+});
+
+test("考古提示：两路搜、tracker 含已关闭票与评论、A/B/C 归类口径、JSON 形状", () => {
+  const t = { number: 1355, title: "量档", body: "", labels: [], assignees: [], comments: [], blockers: [] };
+  const p = archaeologyPrompt(t);
+  for (const s of ["--state all", "in:comments", "gh search issues", "docs/adr/", ".chanlun/definitions/", "CONTEXT.md", "analysis/", "测试夹具", "A 已裁", "B 有先例未正式裁", "C 确未设计", "searched_keywords", ".agents/skills/grilling/SKILL.md", ".agents/skills/domain-modeling/SKILL.md", "research 票", "探针票", "adr/0012", "conflict"]) {
+    assert.ok(p.includes(s), s);
+  }
+});
+
+test("dry-run 全流程：分级后先考古，archaeology.md 落盘，起草与审查都拿到考古，审查含 R8", async () => {
+  const { d, modelCalls, archCalls, ghCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "测试锁" }), goodDraft, fence(pass())]);
+  const s = await processTicket(1531, d);
+  assert.equal(s.phase, "land_t");
+  assert.equal(archCalls.length, 1);
+  assert.equal(archCalls[0].model, MODEL_FABLE);
+  assert.ok(!archCalls[0].allowWrite);
+  assert.deepEqual(s.archaeology, { A: 1, B: 1, C: 1, problems: [] });
+  const dir = join(d.outRoot, "1531");
+  assert.ok(existsSync(join(dir, ARCHAEOLOGY_FILE)));
+  assert.ok(existsSync(join(dir, "archaeology.json")));
+  const [draftCall, reviewCall] = [modelCalls.find((c) => c.role === "draft")!, modelCalls.find((c) => c.role === "review")!];
+  assert.match(draftCall.prompt, /## Q3 \[C\] 多空共用容量/);
+  assert.match(draftCall.prompt, /只有 C 类 decision 列为真正待决/);
+  assert.match(draftCall.prompt, /不交用户填数/);
+  assert.match(reviewCall.prompt, /R8 考古成立。.*至少三条命中.*复跑/);
+  assert.match(reviewCall.prompt, /凭空提供数值/);
+  assert.match(reviewCall.prompt, /archaeology\.md 开始/);
+  assert.equal(ghCalls.filter(isWrite).length, 0);
+});
+
+test("考古不合格：带问题重跑一次；仍不合格则问题交审查，草稿即使审查全 PASS 也 BLOCK", async () => {
+  const lazy = structuredClone(goodArchObj);
+  (lazy.points[2] as Record<string, unknown>).searched_keywords = ["一个"];
+  const { d, archCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()), goodDraft, fence(pass())], [fence(lazy), fence(lazy), fence(lazy), fence(lazy)]);
+  const s = await processTicket(1531, d);
+  assert.match(archCalls[1].prompt, /上一次考古产物没过机械校验[\s\S]*Q3：C 类须列出至少两个/);
+  const rv = JSON.parse(readFileSync(join(d.outRoot, "1531", "review.attempt1.json"), "utf8"));
+  assert.equal(rv.verdict, "BLOCK");
+  assert.ok(rv.problems.some((x: string) => /^考古：Q3/.test(x)));
+  assert.equal(archCalls.length, 4, "升档重做时重跑考古");
+  assert.match(archCalls[2].prompt, /上一次考古产物没过机械校验[\s\S]*Q3：C 类须列出至少两个/, "重跑首次即带上轮问题");
+  assert.equal(archCalls[2].model, MODEL_OPUS, "随起草者升档");
+  assert.notEqual(s.phase, "land_t");
+});
+
+test("考古输出两次都解析不出：票记 error，不起草", async () => {
+  const { d, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" })], ["无", "仍无"]);
+  const s = await processTicket(1531, d);
+  assert.equal(s.phase, "error");
+  assert.match(s.error ?? "", /考古输出两次均无法解析/);
+  assert.equal(modelCalls.filter((c) => c.role === "draft").length, 0);
+});
+
+test("考古对照：草稿缺段或漏点即 BLOCK", async () => {
+  const a = parseArchaeology(goodArch)!;
+  assert.deepEqual(archaeologyCoverageProblems(goodDraft, a), []);
+  assert.match(archaeologyCoverageProblems(goodDraft.replace(archTable, ""), a)[0], /缺「考古对照」段/);
+  assert.match(archaeologyCoverageProblems(goodDraft.replace("| Q3 | C | — | 待决 |", ""), a)[0], /漏了考古点 Q3/);
+  const noArch = goodDraft.replace(archTable, "");
+  const { d } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), noArch, fence(pass()), noArch, fence(pass())]);
+  const s = await processTicket(1531, d);
+  assert.equal(s.phase, "shadow_p");
+  assert.ok(s.rounds!.every((r) => r.problems.some((x) => /考古对照/.test(x))));
+});
+
+test("影子评论：只问 C 类与 B 类确认，每问附出处与推荐值；A 类列为已沿用", () => {
+  const a = parseArchaeology(goodArch)!;
+  const asks = archaeologyAsks(a);
+  assert.match(asks, /A 已裁 1 点直接沿用（Q1（docs\/adr\/0016-x\.md:96））/);
+  assert.match(asks, /\| Q2 \| B 确认或否决 \| 固定 Q 初值 \| #1355 评论 1 \| Q=100 \|/);
+  assert.match(asks, /\| Q3 \| C 待决 \| 多空共用容量 \| 已搜：多空 容量、long short capacity \| 各占一份（依 ADR 0016:70 容量按重测） \|/);
+  assert.doesNotMatch(asks, /\| Q1 \|/);
+  const withGap = parseArchaeology(fence({ points: [...goodArchObj.points, { id: "Q4", question: "交易所费率", class: "C", queries: [trackerQ, repoQ], hits: [], searched_keywords: ["fee", "费率"], gap: "research" }] }))!;
+  const g = archaeologyAsks(withGap);
+  assert.doesNotMatch(g, /\| Q4 \|/);
+  assert.match(g, /事实缺口（不问你，开票补）：\n- Q4 交易所费率 → 开 research 票/);
+  const review = parseReview(fence(pass()));
+  const body = shadowComment(1355, goodDraft, review, "/x/1355", { ticket: 1355, mode: "dry-run", phase: "shadow_p", attempts: 1, durationsMs: {}, plannedWrites: [] }, a);
+  assert.ok(body.indexOf("需要你回答的只有下表") < body.indexOf("独立审查"));
+});
+
+test("--archaeology-only：已关闭的决策票也照跑考古，只落 archaeology 两份文件，不分级不起草不写 GitHub", async () => {
+  assert.throws(() => parseArgs(["--archaeology-only"]), /配 --ticket/);
+  assert.throws(() => parseArgs(["--archaeology-only", "--live", "--ticket", "1"]), /只能 dry-run/);
+  assert.equal(parseArgs(["--archaeology-only", "--ticket", "1355"]).archaeologyOnly, true);
+  const { d, modelCalls, archCalls, ghCalls } = fakeDeps("dry-run", []);
+  const base = d.gh;
+  d.gh = (args, input) => (args[0] === "issue" && args[1] === "view"
+    ? JSON.stringify({ number: 1355, state: "CLOSED", title: "量档", body: "票面", labels: [], assignees: [], comments: [{ author: { login: "xy7365527-lang" }, body: "用户 2026-10-13 批复：同意" }] })
+    : base(args, input));
+  const r = await archaeologyOnly(1355, d);
+  assert.deepEqual(r.counts, { A: 1, B: 1, C: 1 });
+  assert.deepEqual(r.problems, []);
+  assert.equal(archCalls.length, 1);
+  assert.equal(modelCalls.length, 0);
+  assert.equal(ghCalls.filter(isWrite).length, 0);
+  assert.ok(existsSync(join(d.outRoot, "1355", ARCHAEOLOGY_FILE)));
+  assert.equal(existsSync(join(d.outRoot, "1355", "summary.json")), false);
+});
+
+test("考古有 research/probe 事实缺口：T 类不自动落地，转 P 起草，影子评论列缺口", async () => {
+  const gapped = structuredClone(goodArchObj) as { points: Array<Record<string, unknown>> };
+  gapped.points.push({ id: "Q4", question: "交易所费率", class: "C", queries: [trackerQ, repoQ], hits: [], searched_keywords: ["fee", "费率"], gap: "research" });
+  const draft = goodDraft + "| Q4 | C research | — | 开 research 票 |\n";
+  const { d, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), draft, fence(pass())], [fence(gapped)]);
+  const s = await processTicket(1531, d);
+  assert.equal(s.phase, "shadow_p");
+  assert.equal(s.klass, "P");
+  assert.equal(s.convertedToP, true);
+  assert.match(s.reclassNotes![0], /事实缺口 Q4/);
+  assert.match(modelCalls.find((c) => c.role === "draft")!.prompt, /本票分级：P 类/);
+  assert.ok(s.plannedWrites.includes("标签 #1531：+needs-approval"));
+  assert.ok(s.plannedWrites.some((w) => /^评论 #1531：考古有事实缺口 Q4/.test(w)));
+  const body = shadowComment(1531, draft, parseReview(fence(pass())), "/x/1531", s, parseArchaeology(fence(gapped)));
+  assert.match(body.split("\n")[0], /原判 T，考古有事实缺口 Q4/);
+  assert.doesNotMatch(body.split("\n")[0], /审查仍 BLOCK/);
+});
+
+test("升档重跑考古后新出现事实缺口：T 类同样转 P，不落地", async () => {
+  const noGap = structuredClone(goodArchObj) as { points: Array<Record<string, unknown>> };
+  noGap.points[2].gap = "";
+  const probe = structuredClone(goodArchObj) as { points: Array<Record<string, unknown>> };
+  probe.points[2].gap = "probe";
+  const { d } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()), goodDraft, fence(pass())], [fence(noGap), fence(noGap), fence(probe)]);
+  const s = await processTicket(1531, d);
+  assert.notEqual(s.phase, "land_t");
+  assert.equal(s.klass, "P");
+  assert.match(s.factGapNote ?? "", /Q3/);
+});
+
+test("flowSectionsIn：正本里混入引用自证或考古对照即报", () => {
+  assert.deepEqual(flowSectionsIn("## 裁定\n内容"), []);
+  assert.deepEqual(flowSectionsIn(goodDraft), ["引用自证", "考古对照"]);
+  const stripped = stripFlowSections(goodDraft);
+  assert.deepEqual(flowSectionsIn(stripped), []);
+  assert.deepEqual(missingDraftSections(stripped), []);
+});
+
+test("影子评论：本地无考古时首行提示先跑 --archaeology-only", () => {
+  const body = shadowComment(1355, goodDraft, parseReview(fence(pass())), "/x/decisions/1355", { ticket: 1355, mode: "dry-run", phase: "shadow_p", attempts: 1, durationsMs: {}, plannedWrites: [] }, null);
+  assert.match(body, /本票无考古.*--archaeology-only --ticket 1355 --out \/x\/decisions/);
+});
+
+test("--archaeology-only 与 processTicket 共用目录锁", async () => {
+  const { d } = fakeDeps("dry-run", []);
+  mkdirSync(join(d.outRoot, "1531"), { recursive: true });
+  writeFileSync(join(d.outRoot, "1531", ".lock"), "1");
+  await assert.rejects(archaeologyOnly(1531, d), /另一进程正在处理/);
 });

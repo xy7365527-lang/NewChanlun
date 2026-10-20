@@ -110,7 +110,10 @@ def prepare(args):
                                              "origin_utc": "2000-01-01T00:00:00Z", "unit": "ns", "events": events})
             (case_dir / "messages.jsonl").write_bytes(b"".join(canonical(m) + b"\n" for m in messages))
             W.dump(case_dir / "raw-rows.json", rows)
-            query = plan_dir / "query-resources-relaxed.json" if design == "e2_real" else ROOT / "tests/fixtures/tb01c/query-resources.json"
+            # #1493 HEAD 复跑（合入 #1394 后）：冻结 Q 配置下 turn 用例在 cut 36 起每页快照约 800 ms、live 读
+            # 越过生产客户端 30 s 总期限；`--relax-query` 让 turn 用例也用同一份放宽的 Q 调度预算（不是语义）。
+            relax = design == "e2_real" or getattr(args, "relax_query", False)
+            query = plan_dir / "query-resources-relaxed.json" if relax else ROOT / "tests/fixtures/tb01c/query-resources.json"
             W.dump(case_dir / "config-A.json", {
                 "schema_revision": "s-launcher/2", "session_id": sid, "session_generation": "1", "source_namespace": namespace,
                 "source_epoch": "1", "producer_id": "tb02x-control", "producer_epoch": "1", "writer_epoch": "1", "query_epoch": "1",
@@ -304,6 +307,7 @@ def main():
     for name in ("binary", "python"):
         p.add_argument("--" + name, type=Path, required=True)
     p.add_argument("--port", type=int, default=19160)
+    p.add_argument("--relax-query", action="store_true", help="turn 用例也用放宽的 Q 调度预算（#1493 HEAD 复跑）")
     s = sub.add_parser("session")
     s.add_argument("--plan", type=Path, required=True)
     s.add_argument("--node", type=Path, required=True)
