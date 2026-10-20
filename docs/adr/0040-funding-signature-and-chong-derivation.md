@@ -302,7 +302,7 @@ stop: 完成
 authorization_ref: v1
 ```
 
-P1-hl-testnet profile 增 `margin_leverage` 字段，按 ADR 0028:28 升 v2，内容为 v1 加 `margin_leverage: 1`。
+P1-hl-testnet profile 须增 `margin_leverage` 字段，按 ADR 0028:28 升 v2（内容为 v1 加 `margin_leverage: 1`），由 #1412/#1367 落地；本 ADR 不改 ADR 0028。
 
 ## 被否方案
 
