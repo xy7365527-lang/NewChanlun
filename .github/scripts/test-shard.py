@@ -164,7 +164,11 @@ def cmd_verify(args: argparse.Namespace) -> int:
     check_partition(names, shards)
     totals: dict[str, int] = {"ok": 0, "ignored": 0, "FAILED": 0}
     for d, shard in zip(dirs, shards):
-        rows = [line.split("\t") for line in (d / "executed.tsv").read_text(encoding="utf-8").splitlines()]
+        executed_path = d / "executed.tsv"
+        # run 在 cargo 结束后才落 executed.tsv；缺它说明该片中途被杀（超时、OOM 等），没有执行记录。
+        if not executed_path.is_file():
+            fail("Shard executed.tsv missing", f"{d}: no execution record; the shard did not finish")
+        rows = [line.split("\t") for line in executed_path.read_text(encoding="utf-8").splitlines()]
         executed = {name: result for name, result in rows}
         if set(executed) != set(shard):
             fail("Shard executed != assigned", f"{d}: assigned={len(shard)} executed={len(executed)}")

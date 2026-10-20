@@ -55,21 +55,21 @@
   - `rust-test-default`
   - `rust-test-s-session (shard 0..3)`
   - `rust-test-s-session-coverage`
-  - `rust-test-s-session-extras`：TB-02-C、s_content lib、s_content tests、economic、capture_native 增量、v3 history，保留各自的 `if: always()`
+  - `rust-test-s-session-extras`：TB-02-C、s_content lib、s_content tests、economic、capture_native 增量、v3 history，保留各步「前一步失败不跳过」（原 `if: always()`，第二轮评审后改为 `if: ${{ !cancelled() }}`，见条目 7）
   - `rust-test-backtest-bin`
 - `.github/scripts/test-shard.py`（新增）：
   - 每片现场用 `cargo test ... -- --list --skip v3::financial_session` 动态生成全集，不维护静态清单；
   - 按 `.github/scripts/s-session-test-weights.tsv` 做 LPT 分片：权重降序，放进当前总权重最小的片，平局取编号小者，表外测试取中位数权重；
   - 当场断言「两两不交、并集 == 全集」，执行后断言「执行集 == 分配集」；
   - 产物 all.txt、assigned.txt、executed.tsv 上传为 artifact。
-- `rust-test-s-session-coverage`（`needs` 分片 job，`if: always()`）：下载 4 片产物，再核「各片全集一致、片数齐全、并集 == 全集、执行集 == 分配集」，并汇总 ok/ignored/failed。
-- `.github/scripts/test_test_shard.py`（新增，在 `rust-check` 里跑）：用桩 cargo 做 10 条自测，覆盖以下情形：
+- `rust-test-s-session-coverage`（`needs` 分片 job，`if: ${{ !cancelled() }}`）：下载 4 片产物，再核「各片全集一致、片数齐全、并集 == 全集、执行集 == 分配集」，并汇总 ok/ignored/failed。
+- `.github/scripts/test_test_shard.py`（新增，在 `rust-check` 里跑）：用桩 cargo 做 11 条自测（第二轮评审后由 10 条补到 11 条），覆盖以下情形：
   - 任意片数下并集 == 全集、两两不交；
   - 计划与 list 顺序无关；
   - 空权重表仍全覆盖；
   - 漏跑一条即红；
   - cargo 失败码透传；
-  - 缺片、越界 index 即红。
+  - 缺片、缺 executed.tsv、越界 index 即红（均为结构化 `::error`）。
 - `.github/actions/rust-job-setup`（新增 composite action）：各 Rust job 共用的前置，包括 #1141 记录 runner/工具链/资源、只缓存 registry + git、记录缓存结果，并预建 `rust/target`。预建的原因：遥测包装器的边界快照做 `du target`，失败即判红；拆 job 后首个 cargo 步就可能是被包装的那一步。
 - 未改的部分：
   - #1141 遥测包装 `run-cargo-with-telemetry.sh` 原样包住每个 cargo test 步，分片步包住 `test-shard.py`；
@@ -111,7 +111,7 @@
 | **workflow 墙钟** | **约 131m** | | **约 31m** | **约 67m** |
 
 - 两轮 PR run 的代码差别只有注释、分片 timeout 120→90 和证据文件，执行内容相同。时长差异全部来自机型：同在 7763 上的 rust-test-default 两轮分别为 10m37s 和 9m50s，读数稳定。
-- 已见最慢机型 7763 上，最长 job 66m57s，距 90 分钟目标和分片 `timeout-minutes: 90` 还有约 23 分钟。
+- 已见最慢机型 7763 上，最长 job 66m57s，距 90 分钟目标还有约 23 分钟。分片 `timeout-minutes` 第二轮评审后由 90 调到 110，只作挂死上限（见条目 7）。
 - runner 总分钟数：拆前约 131 分钟（9V74）；拆后第一轮约 120 分钟，第二轮约 187 分钟（多数 job 落在 7763 上）。拆后每个 job 多一份 checkout 和编译（各约 1–2 分钟），总分钟数受机型影响远大于受拆分影响，不作为结论。
 
 ### 测试计数对拍（日志全部 `test result:` 行汇总）
@@ -208,9 +208,33 @@ gh run view <run> --repo xy7365527-lang/NewChanlun --log-failed | grep -oE '`DS[
 
 **处置 = 判为既有问题，有证据**：本 PR 没有新增任何 finding。是否清理 DevSkim 存量由主控决定，不在本分片手段内。
 
+## 条目 7：第二轮（非作者评审 PASS-WITH-NITS 的 nit 1–3 + P3 A2）
+
+评审记录：`/Volumes/AgentStorage/eng-debt-20261020/reviews/1592-claude-fable-5.md`（工位外，由主控收存）。逐条处置：
+
+1. **nit1：单片 re-run 撞同名 artifact 假红**
+   - 现象：`actions/upload-artifact@v4` 默认不允许同名重传。单片「re-run failed jobs」时，首次尝试已经上传了 `s-session-shard-N`，重跑再传会冲突，把本已通过的重跑判红。
+   - 处置 = 修：分片上传步加 `overwrite: true`。
+2. **nit2：分片 timeout 余量**
+   - 现象：最慢机型 7763 上实测 66m50s–66m57s，`timeout-minutes: 90` 余量只有约 23 分钟。
+   - 处置 = 修：调到 110（约 40% 余量）。票面「有余量」看实测时长，timeout 只作挂死上限。其余 job 的 timeout 不变。
+3. **nit3：verify 缺 executed.tsv 时抛 traceback**
+   - 现象：分片中途被杀时 `executed.tsv` 不落盘，verify 抛 `FileNotFoundError` traceback 退出（结果仍红，但没有结构化提示）。
+   - 处置 = 修：缺文件时 `fail("Shard executed.tsv missing", ...)`。补自测 `test_verify_rejects_shard_without_execution_record`：删掉一片的 executed.tsv 后 verify 退出码 1，stderr 含 `::error title=Shard executed.tsv missing::`，且不含 `Traceback`。
+   - 本机 `python3 .github/scripts/test_test_shard.py` → `Ran 11 tests ... OK`。
+4. **P3 A2（出处：PR #1485 的 Codex P2）：`always()` 与并发组**
+   - 处置 = 修：`ci.yml` 里全部 10 处 `if: always()` 改为 `if: ${{ !cancelled() }}`。
+     - 涉及：test job 的覆盖率上传、分片上传、coverage job、extras 5 步、s-observer 2 步。
+     - 语义：前一步失败仍跑后续步（与原意一致）；run 被取消时不再继续跑。
+     - job 结论仍由失败那一步决定；coverage job 在分片失败时仍会跑并判红。
+   - 处置 = 修：workflow 级加 `concurrency`，PR 上同一 PR 的新推送取消旧 run，push main 不取消。
+     - 配置：`group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}`，`cancel-in-progress: ${{ github.event_name == 'pull_request' }}`。
+     - **与指示的差异**：指示的组键回落值是 `github.ref`，这里改成了 `github.run_id`。原因是 GitHub 的并发组即使不 cancel-in-progress，同组也只保留一个 pending，更新的 pending 会把旧的 pending 取消。若用 `github.ref`，连续合入 main 时，夹在中间的那次 push run 会被取消，push main 的 run 也会互相排队，违背「push main 不取消」。改用 `run_id` 后，非 PR 事件各自独占一组，PR 事件的组键与指示相同。
+   - `actionlint .github/workflows/ci.yml` → 无输出（通过）。
+
 ## 遗留与转票建议
 
-1. **最长 job 的下限是 tb02w 单条测试本身**（独占读数 1755s / 3877s，视机型）。在本分片允许的手段内已无可再压的空间。在 7763 上距 90 分钟只剩约 23 分钟；若 tb02w 再变慢约三分之一，或出现更慢的机型，分片 0 会超时。如要继续压，有两条路，都超出本分片手段限定，建议转票由主控裁定：
+1. **最长 job 的下限是 tb02w 单条测试本身**（独占读数 1755s / 3877s，视机型）。在本分片允许的手段内已无可再压的空间。在 7763 上距 90 分钟只剩约 23 分钟；若 tb02w 再变慢约三分之一，或出现更慢的机型，最长 job 会超过 90 分钟目标；分片 timeout 已放到 110，会先越过目标、后才触发挂死上限。如要继续压，有两条路，都超出本分片手段限定，建议转票由主控裁定：
    - 测试 profile 开优化（如仅 CI 设 `CARGO_PROFILE_TEST_OPT_LEVEL=1`，debug-assertions/overflow-checks 不变），未测；
    - 把 tb02w/tb02c 拆成多条测试（改测试代码，要由测试作者评估等价性）。
 2. **权重表是粗估**，读数含争用。均衡度靠 PR run 验证，覆盖与权重无关。将来某片明显变长时，用该片日志重估后整表替换（刷新口径写在表头）。

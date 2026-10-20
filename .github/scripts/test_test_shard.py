@@ -155,6 +155,15 @@ class RunAndVerifyTests(unittest.TestCase):
         self.assertNotEqual(done.returncode, 0)
         self.assertIn("Shard artifacts missing", done.stderr)
 
+    def test_verify_rejects_shard_without_execution_record(self) -> None:
+        for i in range(3):
+            self.assertEqual(self.run_shard(i, 3).returncode, 0)
+        (self.root / "shard-1" / "executed.tsv").unlink()
+        done = self.verify(3, [str(self.root / f"shard-{i}") for i in range(3)])
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("::error title=Shard executed.tsv missing::", done.stderr)
+        self.assertNotIn("Traceback", done.stderr)
+
     def test_invalid_index_is_rejected(self) -> None:
         done = self.run_shard(3, 3)
         self.assertNotEqual(done.returncode, 0)

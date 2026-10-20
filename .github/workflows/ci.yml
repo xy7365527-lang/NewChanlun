@@ -7,6 +7,14 @@ on:
   pull_request:
     branches: [main]
 
+# #1588（出处 PR #1485 的 Codex P2）：同一 PR 新推送即取消旧 run，免得过时 run 占满 runner。
+#   非 PR 事件（push main、手动触发）的组键带 run_id，各自独占一组：既不取消、也不互相排队。
+#   若组键用 github.ref，push main 虽不 cancel-in-progress，但同组只保留一个 pending，
+#   连续合入时夹在中间的那次 run 会被新 run 顶替取消。
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -102,7 +110,7 @@ jobs:
         run: pytest -m "not slow" --tb=short -q -rs --cov=newchan --cov-report=term-missing --cov-report=xml:coverage.xml
 
       - name: Upload coverage report
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
@@ -241,8 +249,8 @@ jobs:
     name: rust-test-s-session (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
     # 最慢那片只含 tb02w 一条长测试：独占 runner 实测 31 分钟（EPYC 9V45）到 67 分钟（EPYC 7763，已见最慢机型），含编译。
-    # 上限按最慢机型读数留约三分之一余量，兼作挂死保护。
-    timeout-minutes: 90
+    # 上限只作挂死保护，按最慢机型读数留约 40% 余量（「有余量」看实测时长，不看本值）。
+    timeout-minutes: 110
     strategy:
       fail-fast: false
       matrix:
@@ -270,11 +278,13 @@ jobs:
           -- --locked --features s_session --bin s_structure_session --jobs 1
 
       - name: Upload shard plan and results (#1588)
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: s-session-shard-${{ matrix.shard }}
           path: ${{ runner.temp }}/s-session-shard
+          # 单片 re-run 时替换首次尝试已传的同名产物，否则重名冲突把通过的重跑判红。
+          overwrite: true
           if-no-files-found: error
           retention-days: 14
 
@@ -283,7 +293,7 @@ jobs:
   rust-test-s-session-coverage:
     runs-on: ubuntu-latest
     needs: rust-test-s-session
-    if: always()
+    if: ${{ !cancelled() }}
     timeout-minutes: 10
     env:
       S_SESSION_SHARDS: "4"
@@ -302,7 +312,8 @@ jobs:
         run: python3 .github/scripts/test-shard.py verify --count "$S_SESSION_SHARDS" "$RUNNER_TEMP"/s-session-shards/s-session-shard-*
 
   # #1394：s_session feature 下除 S bin 主体外的各步。拆 job 后与默认目标、S bin 分片互不阻塞；
-  #   本 job 内仍照原写法加 if: always()，前一步失败不让后面各步被跳过，job 结论由失败那一步决定。
+  #   本 job 内各步加 if: ${{ !cancelled() }}，前一步失败不让后面各步被跳过，job 结论由失败那一步决定；
+  #   run 被取消时不再继续跑（原为 always()，#1588 按 PR #1485 的 Codex P2 收紧）。
   rust-test-s-session-extras:
     runs-on: ubuntu-latest
     # 拆前这六步合计约 21 分钟（run 39358379553），大头是 s_capture_native_testonly 增量 15.4 分钟。
@@ -325,11 +336,11 @@ jobs:
 
       # #1394 C：内容编码在 s_session feature 下供多个 owner 共用；只测 S bin 不会执行库测试。
       - name: cargo test — 完整内容编码与共享图校验（#1394）
-        if: always()
+        if: ${{ !cancelled() }}
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --lib --jobs 1 s_content
 
       - name: cargo test — 内容向量、持久序列与累计资源（#1394）
-        if: always()
+        if: ${{ !cancelled() }}
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --test s_content_contract --test s_content_sequence --test s_content_job --test s_content_path --jobs 1
 
       # #1394 G-1：economic_session（含 P-14 读法锁、finance、content_store、store、finance_transport）
@@ -338,20 +349,20 @@ jobs:
       #   编译的 1 条（half_close_during_large_frame_drain_observes_actual_eof）与各 macOS 专属分支由
       #   ci-macos.yml 作业覆盖。
       - name: cargo test — economic_session / session_transport / session_protocol 库测试（#1394 G-1）
-        if: always()
+        if: ${{ !cancelled() }}
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --lib --jobs 1 -- economic_session session_transport session_protocol
 
       # #1394/#1481：s_capture_native_testonly 特性下才编译的测试（2026-10-14 计：lib 26、S bin 174）此前从未编译、
       #   从未执行（state.rs 测试调用漏传 cfg 参数，开特性即 E0061）。只跑「开特性后新增」的测试，其余同名同体测试
       #   已在 rust-test-s-session 各分片执行；新增集合为空即失败。拆前 CI 实测 15.4 分钟（run 39358379553）。
       - name: cargo test — s_capture_native_testonly 特性新增的测试（#1394）
-        if: always()
+        if: ${{ !cancelled() }}
         run: ../.github/scripts/run-cargo-with-telemetry.sh ../.github/scripts/test-feature-delta.sh s_capture_native_testonly
 
       # #1394 整合（根裁定 A）：v3 history 的 Owned 文本/分配原型用例只在 s_allocation_json_testonly
       #   构建编译；只编译不执行的锁按无锁计（#799），故单列一步执行。不依赖前面各步的产物。
       - name: cargo test — v3 history Owned 分配原型（s_allocation_json_testonly，#1394）
-        if: always()
+        if: ${{ !cancelled() }}
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_allocation_json_testonly --bin s_structure_session v3::history --jobs 1
 
   rust-test-backtest-bin:
@@ -416,11 +427,11 @@ jobs:
       - name: Q3 v3 validate-once lock (#1394)
         run: node --test s_session/tests/test_q3_v3_validate_once.cjs
       - name: TB-02-W terminal and cursor contract tests (#1420)
-        if: always()
+        if: ${{ !cancelled() }}
         working-directory: s_session/tests
         run: python -B -m unittest -v test_tb02w_contract
       - name: TB-02-W modular observer contract tests (#1420)
-        if: always()
+        if: ${{ !cancelled() }}
         run: node --test s_session/tests/test_tb02w_contract.cjs
       # #1414：TB-02-D 单元测试固定 CPython 3.14.6。s_query_integrity.py 的同次解析池只在
       #   3.14.6 / 64 位、实测 dict 布局匹配时启用；test_tb02d_parse_pool 的播种、命中与容量
