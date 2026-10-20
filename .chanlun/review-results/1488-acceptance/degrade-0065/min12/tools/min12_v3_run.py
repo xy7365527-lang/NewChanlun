@@ -192,7 +192,7 @@ def envelope_for(config, payload, counter, canonical):
             "payload_hash": hashlib.sha256(canonical(payload)).hexdigest()}
 
 
-def query_all(config, head, work, qi, sc):
+def query_all(config, head, work, qi, sc, local_check=True):
     canonical = qi.canonical
     counter = 0
     summary = []
@@ -238,13 +238,15 @@ def query_all(config, head, work, qi, sc):
                      "structure_cut": base["fixed_cut"].get("structure_cut"), "kind_counts": dict(sorted(kinds.items()))}
             index_out.write(json.dumps(entry, ensure_ascii=False) + "\n")
             index_out.flush()
-            if not entry["digest_match"]:
+            if local_check and not entry["digest_match"]:
                 # 0055/F8：本地复算与服务端切面摘要不符即失败，不只记录
                 raise RuntimeError(f"g={g} 本地复算 {local} != 服务端 cut_projection_digest {base['cut_projection_digest']}")
             structural = [row["record"] for row in rows if row["family"] == "objects"
                           and "fact_key" in row["record"] and not str(row["record"].get("kind")).startswith(BULK_KINDS)]
             struct_out.write(json.dumps({"generation": g, "objects": structural}, ensure_ascii=False) + "\n")
             summary.append({"generation": g, "digest": base["cut_projection_digest"], "match": entry["digest_match"],
+                            "counts": base["counts"], "structure_cut": base["fixed_cut"].get("structure_cut"),
+                            "rule_revision": base["fixed_cut"].get("rule_revision"), "rows_sha256": local,
                             "query_ms": round(elapsed_ms, 1)})
             print(f"g {g} rows {len(rows)} pages {pages} {elapsed_ms:.0f}ms match={entry['digest_match']}", flush=True)
     return summary

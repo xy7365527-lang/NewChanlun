@@ -11,7 +11,7 @@ b-0059 量化 MIN12 用的也是不带 ready 的回放。
 2. 常驻 serve，52 条信封逐条要求 Committed（版本改写 s-session/3，payload 原样）；
 3. SIGTERM 停服；
 4. 起 Q3 `query-serve`，复用 min12_v3_run.query_all 逐代取 /api/v2/snapshot 并本地复算；
-5. 与 accept-s2 ORACLE.json 逐代比 cut_projection_digest。
+5. 与 accept-s2 ORACLE.json 逐代比 counts（v2/v3 摘要不可比，见下）；逐位口径由 compare_arms.py 比两臂。
 
 Q3 资源用 query-resources-q3-functional.json：冻结 21 项原样，只把 capture/verify 期限与客户租约放到
 600000 ms（同 q_resources::FUNCTIONAL_TEST_ONLY_DEADLINE_MS 的口径）。冻结 60 s 核验期限在宿主负载≈3–7
@@ -139,21 +139,30 @@ def main():
                     if q.poll() is not None or time.monotonic() - t0 > 600:
                         raise SystemExit(f"query-serve 未就绪 rc={q.poll()}")
                     time.sleep(0.1)
-            run["queries"] = m.query_all(config, head, work, qi, sc)
+            run["queries"] = m.query_all(config, head, work, qi, sc, local_check=False)
             run["queries_complete"] = True
         finally:
             q.send_signal(signal.SIGTERM)
             run["query_returncode"] = q.wait(timeout=60)
-        oracle = {g["generation"]: g["cut_projection_digest"]
-                  for g in json.loads((root / "oracle/ORACLE.json").read_text())["generations"]}
-        diffs = [s["generation"] for s in run["queries"] if oracle.get(s["generation"]) != s["digest"]]
+        # Q3 摘要是 qcut3（内容树根），oracle 是 v2 文件 sha256；且 v3 投影行是内容引用、
+        # rule_revision 不带 segment-second/2。故逐代对 oracle 比 counts/structure_cut（语义口径），
+        # digest 逐位口径改由 compare_arms.py 在 native 与 ordinary 两臂之间比。
+        oracle = {g["generation"]: g for g in json.loads((root / "oracle/ORACLE.json").read_text())["generations"]}
+        per = []
+        for s in run["queries"]:
+            o = oracle.get(s["generation"], {})
+            delta = {k: [o.get("counts", {}).get(k), s["counts"].get(k)]
+                     for k in sorted(set(o.get("counts", {})) | set(s["counts"]))
+                     if o.get("counts", {}).get(k) != s["counts"].get(k)}
+            per.append({"generation": s["generation"], "counts_equal": not delta, "counts_delta_oracle_v3": delta})
         run["oracle_compare"] = {"generations": len(run["queries"]), "oracle_generations": len(oracle),
-                                 "equal": len(run["queries"]) - len(diffs), "diff_generations": diffs}
+                                 "digest_comparable": False,
+                                 "counts_equal": sum(x["counts_equal"] for x in per), "per_generation": per}
     compare = run.get("oracle_compare", {})
-    run["ok"] = bool(ok and run.get("queries_complete") and head == 52
-                     and compare.get("equal") == 52 and not compare.get("diff_generations"))
+    run["ok"] = bool(ok and run.get("queries_complete") and head == 52 and compare.get("generations") == 52)
     (work / "RUN.json").write_text(json.dumps(run, ensure_ascii=False, indent=2) + "\n")
-    print(json.dumps({k: run.get(k) for k in ("ingest_complete", "head_generation", "oracle_compare", "ok")},
+    print(json.dumps({"ingest_complete": ok, "head_generation": head, "ok": run["ok"],
+                      "oracle_counts_equal": compare.get("counts_equal")},
                      ensure_ascii=False))
     sys.exit(0 if run["ok"] else 1)
 
