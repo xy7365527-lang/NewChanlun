@@ -676,18 +676,159 @@ fn tb1493_first_break_equals_067_on_distinct_prices() {
 
 #[test]
 fn tb1493_random_full_eq_incremental_and_no_gate_failure_after_first() {
-    // 义务 8(g)：随机折线上全量 ≡ 逐笔增量。附读数：首段之外门失败次数（#1490 原型为 0）。
+    // 义务 8(g)：随机折线上全量 ≡ 逐笔增量。#1493 裁定 3：流首段之外门失败计数 = 0、非流首段
+    // 最少笔数不足（MinCount）计数 = 0（`seg_min_strokes=3` 时 MinCount 只可能出现在流首段）。
     let mut later_failures = 0usize;
+    let mut later_min_count = 0usize;
     for g in 0..60u64 {
         for distinct in [true, false] {
             let ss = chain(&tb1493_polyline(0x1493_8000 + g, 120, distinct));
             tb1493_full_eq_incremental(&ss);
-            let (segs, _, facts) =
+            let (_, _, facts) =
                 segment::divide_segments_with_facts(&ss, &ThetaConfig::default().parse);
-            if facts.parse_invalid_from.is_some() && !segs.is_empty() {
-                later_failures += 1;
+            for c in facts.candidates.iter().skip(1) {
+                if c.parse_invalid_from.is_some() || c.result == "FAILED_GEOMETRY" {
+                    later_failures += 1;
+                }
+                if c.termination_attempts.iter().any(|a| !a.minimum_count_met) {
+                    later_min_count += 1;
+                }
             }
         }
     }
-    eprintln!("tb1493 随机折线：首段之后门失败组数 {later_failures}/120");
+    assert_eq!(later_failures, 0, "流首段之外段端门失败须为 0（#1493 裁定 3）");
+    assert_eq!(later_min_count, 0, "非流首段最少笔数不足须为 0（#1493 裁定 3）");
+}
+
+#[test]
+fn tb1493_gap_inclusion_merges_and_keeps_b() {
+    // #1493 裁定 2：向上段 a=[4,10]、b=[12,20] 有缺口；c=[14,18] ⊂ b ⟹ 按 G-2 方向性合并为 [14,20]，
+    // 代表笔保持 b=s3（不是窗成员，也不改成 c）。
+    let ss = chain(&[0, 10, 4, 20, 12, 18, 14]);
+    tb1493_full_eq_incremental(&ss);
+    let (_, _, facts) = segment::divide_segments_with_facts(&ss, &ThetaConfig::default().parse);
+    let first = &facts.candidates[0].first;
+    let step = first.steps.last().unwrap();
+    assert_eq!(step.action, "merge");
+    assert_eq!(step.merge_direction, Some("UP"));
+    assert_eq!(step.after.stroke_idx, 3, "合并元素代表笔须保持 b");
+    assert_eq!(step.before.as_ref().unwrap().stroke_idx, 3);
+    let b = first.standard.last().unwrap();
+    assert_eq!((b.low, b.high, b.stroke_idx), (14, 20, 3));
+    assert_eq!(b.stroke_indices, vec![3, 5]);
+    assert!(b.window_members.is_empty());
+    // d=[13,19] 落在 b 内且高于 c.high：在合并元素上成 067 严格顶分型（窗成员规则下它只是又一个成员）。
+    let ss = chain(&[0, 10, 4, 20, 12, 18, 14, 19, 13]);
+    tb1493_full_eq_incremental(&ss);
+    let (_, _, facts) = segment::divide_segments_with_facts(&ss, &ThetaConfig::default().parse);
+    let c = &facts.candidates[0];
+    let check = c
+        .first
+        .checks
+        .iter()
+        .find(|k| k.elements[1].stroke_idx == 3)
+        .expect("合并元素须参与分型检查");
+    assert!(check.first_fractal);
+    assert_eq!(check.gap, Some(true));
+    assert_eq!(check.elements[2].stroke_idx, 7);
+    assert_eq!(c.result, "PENDING_CASE_TWO");
+    // 第二序列 s4[12,18]、s6[14,19]、s8[13,16]、s10[15,19] 在 s8 成底分型 ⟹ 第二种情况确认，
+    // 段端 = b 前一笔终点 = P=20，第二序列自 b 起。
+    let ss = chain(&[0, 10, 4, 20, 12, 18, 14, 19, 13, 16, 15, 19]);
+    tb1493_full_eq_incremental(&ss);
+    let (segs, _, facts) = segment::divide_segments_with_facts(&ss, &ThetaConfig::default().parse);
+    assert_eq!(tb1493_spans(&ss, &segs), vec![(0, 2, Direction::Up, 0, 20)]);
+    let c = &facts.candidates[0];
+    assert_eq!(c.result, "CASE_TWO");
+    assert_eq!(c.second.as_ref().unwrap().from_stroke, 3);
+}
+
+/// 有缺口 c ⊂ b 三臂之一下的读数：(段序列, 段端≠分型 P 的段数, 段端门失败数)。
+fn tb1493_arm_run(ss: &[Stroke], arm: u8) -> (Vec<Segment>, usize, usize) {
+    feature_seq::GAP_INCLUSION_ARM.with(|a| a.set(arm));
+    let (segs, _, facts) = segment::divide_segments_with_facts(ss, &ThetaConfig::default().parse);
+    feature_seq::GAP_INCLUSION_ARM.with(|a| a.set(0));
+    let mut off_extreme = 0usize;
+    for (s, c) in segs.iter().zip(&facts.candidates) {
+        let w = c.strict.as_ref().expect("已发射段须有 strict 见证");
+        let p = match s.direction {
+            Direction::Up => w.elements[1].high,
+            Direction::Down => w.elements[1].low,
+        };
+        if s.end_price != p {
+            off_extreme += 1;
+        }
+    }
+    let invalid = facts
+        .candidates
+        .iter()
+        .filter(|c| c.parse_invalid_from.is_some() || c.result == "FAILED_GEOMETRY")
+        .count()
+        + usize::from(facts.parse_invalid_from.is_some());
+    (segs, off_extreme, invalid)
+}
+
+#[test]
+fn tb1493_ruling2_three_way_comparison() {
+    // #1493 裁定 2 落地前置：本裁定（0）/ 窗成员（1）/ 旧 G-2（2）三方对照。本裁定在任一组出现
+    // 段端 ≠ 分型极值 P 或段端门失败 ⟹ 退回重裁（断言）；另两臂只报读数。
+    let mut diff = [0usize; 3]; // [0 vs 1, 0 vs 2, 1 vs 2]
+    let mut off = [0usize; 3];
+    let mut inv = [0usize; 3];
+    let mut groups = 0usize;
+    let mut shown = 0usize;
+    let mut inputs: Vec<(String, Vec<Stroke>)> = Vec::new();
+    for g in 0..400u64 {
+        for distinct in [true, false] {
+            inputs.push((
+                format!("rand{g}/{distinct}"),
+                chain(&tb1493_polyline(0x1493_2000 + g, 300, distinct)),
+            ));
+        }
+    }
+    inputs.push(("e1_real".into(), tb1493_real(TB1493_E1_REAL)));
+    inputs.push(("e2_real".into(), tb1493_real(TB1493_E2_REAL)));
+    for (tag, ss) in &inputs {
+        groups += 1;
+        let r: Vec<_> = (0..3u8).map(|arm| tb1493_arm_run(ss, arm)).collect();
+        for (k, (x, y)) in [(0, 1), (0, 2), (1, 2)].into_iter().enumerate() {
+            if r[x].0 != r[y].0 {
+                diff[k] += 1;
+            }
+        }
+        // 手算核对用：前 3 组「本裁定 vs 旧 G-2」差异打印首个差异段与该处原始笔。
+        if r[0].0 != r[2].0 && shown < 3 {
+            shown += 1;
+            let j = (0..r[0].0.len().max(r[2].0.len()))
+                .find(|&j| r[0].0.get(j) != r[2].0.get(j))
+                .unwrap();
+            let sp0 = tb1493_spans(ss, &r[0].0);
+            let sp2 = tb1493_spans(ss, &r[2].0);
+            let lo = sp0.get(j).map_or(0, |x| x.0);
+            let hi = (sp0.get(j).map_or(lo, |x| x.1) + 8).min(ss.len() - 1);
+            let pts: Vec<i64> = std::iter::once(ss[lo].start_price)
+                .chain(ss[lo..=hi].iter().map(|x| x.end_price))
+                .collect();
+            eprintln!(
+                "TB1493 RULING2 HAND {tag} seg#{j} ruling={:?} window={:?} oldG2={:?} strokes s{lo}..s{hi} points={pts:?}",
+                sp0.get(j),
+                tb1493_spans(ss, &r[1].0).get(j),
+                sp2.get(j)
+            );
+        }
+        for arm in 0..3 {
+            if r[arm].1 > 0 {
+                off[arm] += 1;
+            }
+            if r[arm].2 > 0 {
+                inv[arm] += 1;
+            }
+        }
+        assert_eq!(r[0].1, 0, "{tag}：本裁定段端不在分型极值 P");
+        assert_eq!(r[0].2, 0, "{tag}：本裁定段端门失败");
+    }
+    eprintln!(
+        "TB1493 RULING2 groups={groups} diff[ruling~window,ruling~oldG2,window~oldG2]={diff:?} \
+         groups_off_extreme[ruling,window,oldG2]={off:?} groups_gate_fail[ruling,window,oldG2]={inv:?}"
+    );
 }

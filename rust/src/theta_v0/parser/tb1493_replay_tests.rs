@@ -29,7 +29,11 @@ struct Replay {
     /// 段数增加发生的 bar 下标。
     emits: Vec<usize>,
     invalid_bars: usize,
-    /// 前缀不回退违例：(bar, 首个改写段下标, 改写前一步是否有未封闭第二种候选)。
+    /// fail-closed 事件数（`parse_invalid_from` 由 None 变 Some 或起点改变的次数）。#1493 裁定 1 残余
+    /// 形态（早先第二种候选作废后再判的段端仍越过段起点）只能以门失败出现，故即其计数。
+    invalid_events: usize,
+    /// 前缀不回退违例：(bar, 首个改写段下标, 是否「末笔可改写」类)。#1493 裁定 1：只容许末笔可改写
+    /// ——上一前缀的末笔在本 bar 被改写或撤回，且被改写的是上一前缀的末个已确认段。
     rewrites: Vec<(usize, usize, bool)>,
 }
 
@@ -42,16 +46,27 @@ fn replay(bars: &[Bar], ladder: &[usize]) -> (Replay, ParseLayer) {
     let theta = ThetaConfig::default();
     let mut inc = ParseLayerIncr::new(&theta);
     let mut r = Replay::default();
-    // (上一层段数, 拷贝起点, 拷贝, 上一层是否有未封闭第二种候选)
-    let mut prev: Option<(usize, usize, Vec<Segment>, bool)> = None;
+    // (上一层段数, 拷贝起点, 拷贝, 上一层笔数, 上一层末笔)
+    let mut prev: Option<(usize, usize, Vec<Segment>, usize, Option<Stroke>)> = None;
+    let mut was_invalid: Option<usize> = None;
     let mut deep_unverified = 0usize;
     let n_all = bars.len();
     for (i, bar) in bars.iter().enumerate() {
         let layer = inc.append(*bar);
-        if inc.segments_parse_invalid_from().is_some() {
+        let invalid = inc.segments_parse_invalid_from();
+        if invalid.is_some() {
             r.invalid_bars += 1;
+            if invalid != was_invalid {
+                r.invalid_events += 1;
+            }
         }
-        if let Some((plen, off, old, unsealed)) = &prev {
+        was_invalid = invalid;
+        if let Some((plen, off, old, pstrokes, plast)) = &prev {
+            // 末笔可改写：上一前缀的末笔在本层不再原样存在（被延伸、改写或撤回）。
+            let last_rewritten = match plast {
+                Some(s) => *pstrokes == 0 || layer.strokes.get(pstrokes - 1) != Some(s),
+                None => false,
+            };
             // 已发射段（除末段可随末笔改写）须是后一前缀的前缀；只比保留前缀之后的区间。
             let end = plen.saturating_sub(1);
             let k = layer.segments_confirmed_len.min(end);
@@ -61,7 +76,7 @@ fn replay(bars: &[Bar], ladder: &[usize]) -> (Replay, ParseLayer) {
             let from = k.max(*off);
             for j in from..end {
                 if layer.segments.get(j) != Some(&old[j - off]) {
-                    r.rewrites.push((i, j, *unsealed));
+                    r.rewrites.push((i, j, last_rewritten && j + 2 >= *plen));
                     break;
                 }
             }
@@ -105,7 +120,8 @@ fn replay(bars: &[Bar], ladder: &[usize]) -> (Replay, ParseLayer) {
             len,
             off,
             layer.segments[off..].to_vec(),
-            layer.segments_earliest_unsealed.is_some(),
+            layer.strokes.len(),
+            layer.strokes.last().copied(),
         ));
         drop(layer);
     }
@@ -135,10 +151,11 @@ fn report(tag: &str, r: &Replay, n: usize, bucket: usize) -> (usize, usize) {
     ));
     gaps.sort_unstable_by(|a, b| b.cmp(a));
     eprintln!(
-        "TB1493 {tag} bars={n} emits={} buckets({bucket})={buckets:?} max_zero_run={max_zero_run} top_gaps={:?} invalid_bars={} rewrites={} rewrites_without_second_kind={}",
+        "TB1493 {tag} bars={n} emits={} buckets({bucket})={buckets:?} max_zero_run={max_zero_run} top_gaps={:?} invalid_bars={} invalid_events={} rewrites={} rewrites_not_last_stroke={}",
         r.emits.len(),
         &gaps[..gaps.len().min(5)],
         r.invalid_bars,
+        r.invalid_events,
         r.rewrites.len(),
         r.rewrites.iter().filter(|x| !x.2).count(),
     );
@@ -212,6 +229,7 @@ fn tb1493_replay_tail_window_ladder() {
     report("TAIL", &r, bars.len(), 5_000);
     facts_report("TAIL", &last, &[370, 508, 3040]);
     assert_eq!(r.invalid_bars, 0);
+    assert_eq!(r.rewrites.iter().filter(|x| !x.2).count(), 0, "前缀确认回退（非末笔可改写）");
 }
 
 #[test]
@@ -238,6 +256,7 @@ fn tb1493_replay_full_history() {
         last.segments.last().map(|s| s.end_index)
     );
     assert_eq!(r.invalid_bars, 0);
+    assert_eq!(r.rewrites.iter().filter(|x| !x.2).count(), 0, "前缀确认回退（非末笔可改写）");
     assert!(max_zero_run <= 1, "每 25 万根分桶不得有连续零桶");
 }
 
@@ -376,6 +395,7 @@ fn tb1493_replay_full_history_incremental_only() {
         assert!(k > 0, "笔 {s} 之后段层停产");
     }
     assert_eq!(r.invalid_bars, 0);
+    assert_eq!(r.rewrites.iter().filter(|x| !x.2).count(), 0, "前缀确认回退（非末笔可改写）");
     assert!(max_zero_run <= 1, "每 25 万根分桶不得有连续零桶");
 }
 
@@ -422,5 +442,76 @@ fn tb1493_replay_invalid_sites() {
             }
         }
         was = now;
+    }
+}
+
+/// #1493 裁定 2 三方对照（真实数据）：段数、两两差异段数、段端非本段极值的段数、段端门失败。
+fn ruling2_arm(strokes: &[Stroke], arm: u8) -> (Vec<Segment>, usize, Option<usize>) {
+    let cfg = &ThetaConfig::default().parse;
+    super::feature_seq::GAP_INCLUSION_ARM.with(|a| a.set(arm));
+    let (segs, _) = segment::divide_segments_with_tail(strokes, cfg);
+    let invalid = segment::IncrSegments::empty()
+        .append(strokes, cfg)
+        .parse_invalid_from();
+    super::feature_seq::GAP_INCLUSION_ARM.with(|a| a.set(0));
+    let mut off = 0usize;
+    for s in &segs {
+        let a = strokes
+            .iter()
+            .position(|x| x.start_index == s.start_index)
+            .unwrap();
+        let b = strokes
+            .iter()
+            .rposition(|x| x.end_index == s.end_index)
+            .unwrap();
+        let (hi, lo) = strokes[a..=b].iter().fold((i64::MIN, i64::MAX), |(h, l), x| {
+            (
+                h.max(x.start_price.max(x.end_price)),
+                l.min(x.start_price.min(x.end_price)),
+            )
+        });
+        let ok = match s.direction {
+            super::super::types::Direction::Up => s.end_price == hi,
+            super::super::types::Direction::Down => s.end_price == lo,
+        };
+        if !ok {
+            off += 1;
+        }
+    }
+    (segs, off, invalid)
+}
+
+#[test]
+#[ignore = "重型验证窗口：#1493 裁定 2 三方对照（全量与尾窗真实数据）"]
+fn tb1493_ruling2_three_way_real() {
+    let all = load_full();
+    let theta = ThetaConfig::default();
+    let tail = &all[all.len() - 50_000..];
+    for (tag, bars) in [("TAIL", &tail[5..]), ("FULL", &all[1..])] {
+        let layer = parse_layer(bars, &theta);
+        let r: Vec<_> = (0..3u8).map(|arm| ruling2_arm(&layer.strokes, arm)).collect();
+        let diff = |x: usize, y: usize| {
+            let (p, q) = (&r[x].0, &r[y].0);
+            (0..p.len().max(q.len()))
+                .filter(|&j| p.get(j) != q.get(j))
+                .count()
+        };
+        eprintln!(
+            "TB1493 RULING2 REAL {tag} strokes={} segs[ruling,window,oldG2]=[{},{},{}] diff_segs[r~w,r~g,w~g]=[{},{},{}] off_extreme=[{},{},{}] parse_invalid=[{:?},{:?},{:?}]",
+            layer.strokes.len(),
+            r[0].0.len(),
+            r[1].0.len(),
+            r[2].0.len(),
+            diff(0, 1),
+            diff(0, 2),
+            diff(1, 2),
+            r[0].1,
+            r[1].1,
+            r[2].1,
+            r[0].2,
+            r[1].2,
+            r[2].2
+        );
+        assert!(r[0].2.is_none(), "{tag}：本裁定段端门失败");
     }
 }

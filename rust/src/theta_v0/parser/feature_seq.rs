@@ -433,6 +433,22 @@ thread_local! {
     /// TestOnly（#1493 义务 8(e) 性质锁）：第一种情况改用 067 严格分型谓词作对照臂。
     /// 不参与生产准入（#799 限定词 2/3）。
     pub(super) static CASE_ONE_ORACLE_067: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// TestOnly（#1493 裁定 2 落地前置的三方对照）：有缺口峰候选 b 包含入元素时的对照臂。
+    /// 0 = 本裁定（G-2 合并、代表笔保持 b）；1 = 窗成员（分支旧 R2）；2 = 旧 G-2（代表笔改为入元素）。
+    /// 不参与生产准入（#799 限定词 3）。
+    pub(super) static GAP_INCLUSION_ARM: std::cell::Cell<u8> = const { std::cell::Cell::new(0) };
+}
+
+/// 有缺口峰候选包含入元素时的处理臂；生产恒为 0（#1493 裁定 2）。
+fn gap_inclusion_arm() -> u8 {
+    #[cfg(test)]
+    {
+        GAP_INCLUSION_ARM.with(|a| a.get())
+    }
+    #[cfg(not(test))]
+    {
+        0
+    }
 }
 
 /// #1490 §7.1 第 4 条 先破判据（`071:30/:32`）：第一种情况候选 b 的唯一确认判据。
@@ -492,9 +508,12 @@ pub struct FeatureSeqState {
     /// 未来可确认或失效 ⟹ 置真；`KILLED_BY_NEW_EXTREME` 不复活 ⟹ 不置真——例外是失效笔仍是
     /// 输入末笔（末笔可改写，失效尚可撤销）；`CONFIRMED` 的确认笔仍是输入末笔时同理置真（#1420）。
     skipped_secondkind: bool,
-    /// #1420 / A-ST-048-01：已遇预算耗尽的候选。预算耗尽不是否定，本段之后的候选一律不判，
-    /// 直到该候选在新输入上解出（增量层每次 append 新建状态机，故只在单次扫描内生效）。
-    budget_blocked: bool,
+    /// 未决阻断（#1420 A-ST-048-01；#1493 裁定 1 / `xianduan.md` §7.1 第 8 条）：本段已遇语义状态
+    /// 未决的第二种候选——`OPEN_AT_PREFIX_END` 或预算耗尽（二者同一路径、同一标志）。未决不是否定，
+    /// 本段其后的候选一律不判，直到该候选在新输入上确认或失效；标志粘住，故 `TAIL_WINDOW` 的扫描起点
+    /// 截断不能把它挪出去（尾窗是调度截断，不截断未决阻断）。`reset` 清零，增量层每次 append 新建
+    /// 状态机，故不跨段、不跨扫描。
+    unresolved_blocked: bool,
     /// #1420：S 层的每候选游标簿（K1，跨轮续扫）；`None` = 按 `second_seq_window` 无中断折叠。
     second_store: Option<super::second_fold::SecondFoldStore>,
     facts: Option<FeatureSequenceFacts>,
@@ -525,7 +544,7 @@ impl FeatureSeqState {
             tail_window,
             second_seq_window,
             skipped_secondkind: false,
-            budget_blocked: false,
+            unresolved_blocked: false,
             second_store: None,
             facts: None,
             second: None,
@@ -545,7 +564,7 @@ impl FeatureSeqState {
         self.skip_until_stroke = -1;
         self.seg_dir = seg_dir;
         self.skipped_secondkind = false;
-        self.budget_blocked = false;
+        self.unresolved_blocked = false;
         self.second = None;
         self.frozen_first.clear();
         self.frozen_first_facts.clear();
@@ -670,8 +689,9 @@ impl FeatureSeqState {
                     "TURN_HYPOTHESIS",
                     Some(last.stroke_idx),
                 );
-            } else if peak {
-                // R2（含有缺口的并列、与 b 完全相同）：c ⊂ b ⟹ b 的窗成员，b 区间不动（071:32）。
+            } else if peak && (!gap_ab || !left_inc || gap_inclusion_arm() == 1) {
+                // R2：第一种情况（a、b 无缺口）c ⊂ b ⟹ b 的窗成员，b 区间不动（071:32，§7.1 第 3 条）；
+                // 有缺口的并列（入元素 ⊋ b、P 侧相等）同记窗成员（§7.1 第 4 条）。
                 self.record_step(
                     incoming,
                     before,
@@ -681,7 +701,11 @@ impl FeatureSeqState {
                     None,
                 );
             } else {
-                // R3：末元素不是峰候选 ⟹ G-2 方向性合并。
+                // R3：末元素不是峰候选 ⟹ G-2 方向性合并，代表笔改为入元素。
+                // #1493 裁定 2（§7.1 第 4 条）：有缺口的峰候选 b 包含入元素（`left_inc`）⟹ 同样按 G-2
+                // 方向性合并区间（`067:20`、`071:42` 第二句），但代表笔保持 b——段端与第二序列起点须是
+                // 携带段方向极值的笔（`067:38`）；合并取 min/max 不改 b 的 P 侧极值。
+                let keep_b = peak && gap_inclusion_arm() != 2;
                 let effective_up = self.dir_state != Some(Direction::Down);
                 let last_mut = self.std.last_mut().unwrap();
                 if effective_up {
@@ -691,7 +715,9 @@ impl FeatureSeqState {
                     last_mut.high = last_h.min(high);
                     last_mut.low = last_l.min(low);
                 }
-                last_mut.stroke_idx = stroke_idx;
+                if !keep_b {
+                    last_mut.stroke_idx = stroke_idx;
+                }
                 self.last_checked = self.std.len().saturating_sub(3);
                 self.record_step(
                     incoming,
@@ -826,9 +852,13 @@ impl FeatureSeqState {
     /// - a、b 有缺口且 c 未封闭 ⟹ 第二种情况，仍按 067 严格分型谓词 `is_fractal_and_gap` + 第二特征
     ///   序列（#1344/#1420），一字不改；
     /// - 末元素 b 尚无第三元素 ⟹ `OPEN_AT_PREFIX_END`，记在 `FeatureSequenceFacts.open_turn`。
+    ///
+    /// 同段候选按序判定（#1493 裁定 1，§7.1 第 8 条）：第二种候选的第二序列未决（`OPEN_AT_PREFIX_END`
+    /// 或预算耗尽）⟹ 本段在该候选处封住（`unresolved_blocked`，粘性），其后的候选一律不判，直到它
+    /// 在新输入上确认（段终于其 P）或失效（`078:52`，扫描继续向后）。
     pub fn scan_trigger(&mut self, strokes: &[Stroke]) -> Option<TriggerHit> {
         let n = self.std.len();
-        if n < 3 || self.budget_blocked {
+        if n < 3 || self.unresolved_blocked {
             return None;
         }
         // start = max(1, last_checked, n - tail_window)。tail_window=0 → 无尾窗下限。
@@ -959,17 +989,13 @@ impl FeatureSeqState {
                     }
                     continue;
                 }
-                Some((Some(SecondTerminal::OpenAtPrefixEnd), _)) => {
-                    // #88 frontier：跳过的 SecondKind 候选未来可确认或失效 ⟹ 本段 seg_start unsealed，
-                    // 增量层必须回退到其前重扫（第二序列 scan_window=0 无限 ⟹ 任意早的候选都可改判）。
+                Some((Some(SecondTerminal::OpenAtPrefixEnd) | None, s)) => {
+                    // #1493 裁定 1（§7.1 第 8 条）：OPEN 与预算耗尽（A-ST-048-01 / G-007）都是「未决」，
+                    // 不是否定（`071:38`「不满足」才「原来的线段依然延续」）——不得跳过去判同段其后的
+                    // 候选，封住本段（粘性标志）并留下该候选的扫描事实；本段 seg_start unsealed，增量层
+                    // 回退到其前重扫。
                     self.skipped_secondkind = true;
-                    continue;
-                }
-                Some((None, s)) => {
-                    // A-ST-048-01 / G-007：预算耗尽不是否定——不得把它当「无分型」跳过去判后续候选，
-                    // 封住本段并留下该候选的扫描事实（调度锁 window 5 反例）。
-                    self.skipped_secondkind = true;
-                    self.budget_blocked = true;
+                    self.unresolved_blocked = true;
                     self.second = Some(s.clone());
                     return None;
                 }

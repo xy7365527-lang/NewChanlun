@@ -1142,6 +1142,10 @@ pub struct IncrSegments {
     /// #1344 / #1420（xianduan §5.1 检查点安全边界）：只有 `OPEN_AT_PREFIX_END` 与预算耗尽的候选
     /// 记入本字段；`KILLED_BY_NEW_EXTREME` 不复活，失效笔不再是输入末笔后即封闭，边界随之前移。
     ///
+    /// #1493 裁定 1（§7.1 第 8 条）：未决候选封住所在段，其后不再有已确认段，故 unsealed 只剩两类——
+    /// 末段（pending）里的未决候选，与「末笔可改写」（确认/失效笔是输入末笔）；不再有「后续已确认段
+    /// 被复活改写」。上文 #88 的级联改写反例在新规则下不可达，回退机制保留作末笔可改写的边界。
+    ///
     /// **advancing soundness**（codex #91 §二）：second_seq_has_fractal 一旦真则永真（构建由既定前缀
     /// 决定）+ 段连续性 ⟹ 未 resolve 的候选必在下轮重扫被重新发现；候选 resolve 后 euf 前移/清零 ⟹
     /// confirmed_bound 前移 ⟹ 退回 O(n)（#93 H2 探针 late_repro=0 坐实）。取代 #88 的历史最小值持久化
@@ -1801,49 +1805,44 @@ mod tests {
         out
     }
 
-    /// ★#88 级联复活 bit-exact（验收项3）：早期 SecondKindPending 后续被确认，改写其后已 confirm
-    /// 的段——修复前 1 段回退永不重访该段（div），修复后 earliest_unsealed_from 回退到其前重扫。
+    /// ★#88 级联复活 bit-exact（验收项3）→ #1493 裁定 1（§7.1 第 8 条）改写：未决第二种候选封住所在段，
+    /// 「早期候选后来确认、改写其后已发射段」的深回退在新规则下不可达。
     ///
-    /// 逐 strokes 长度断言增量 `IncrSegments::append` == 全量 `divide_segments_with_tail`。
-    /// **覆盖率自证**（防「always-run 但覆盖为零」）：断言运行期间 (a) `earliest_unsealed_from`
-    /// 曾被置 Some（SecondKind-skip 路径确被触发）；(b) 至少一次深回退（euf < 末段端 ⟹ confirmed_len
-    /// 比"仅丢末段"更靠前，即多段回退）——这正是修复前会 div 的结构。
+    /// 逐 strokes 长度断言增量 `IncrSegments::append` == 全量 `divide_segments_with_tail`，并断言已发射
+    /// 段序列逐前缀单调（前一前缀的段序列是后一前缀的前缀；笔前缀固定，无「末笔可改写」）。
+    /// **覆盖率自证**：断言 `earliest_unsealed_from` 曾被置 Some（未决候选路径确被触发）。
     #[test]
     fn cascade_revival_bit_exact_incr_vs_full() {
         let cfg = ParseConfig::default();
         let strokes = gappy_strokes(1200, 0xC0FF_EE12_3456_789A);
         let mut incr = IncrSegments::empty();
         let mut euf_ever_some = false;
-        let mut deep_rollback_seen = false;
+        let mut prev_segs: Vec<Segment> = Vec::new();
         for end in 3..=strokes.len() {
             incr = incr.append(&strokes[..end], &cfg);
             let (full_segs, full_pending) = divide_segments_with_tail(&strokes[..end], &cfg);
             let (incr_segs, incr_pending) = incr.to_result_vec();
             assert_eq!(
                 incr_segs, full_segs,
-                "strokes len {end}: 级联复活场景增量 != 全量（bit-exact 破裂）"
+                "strokes len {end}: 增量 != 全量（bit-exact 破裂）"
             );
             assert_eq!(
                 incr_pending, full_pending,
-                "strokes len {end}: 级联复活场景 pending != 全量"
+                "strokes len {end}: pending != 全量"
             );
-            if let Some(euf) = incr.earliest_unsealed_from() {
+            assert!(
+                full_segs.len() >= prev_segs.len() && full_segs[..prev_segs.len()] == prev_segs[..],
+                "strokes len {end}: 已发射段被改写（#1493 裁定 1：未决候选封段后不应再有级联复活）"
+            );
+            prev_segs = full_segs;
+            if incr.earliest_unsealed_from().is_some() {
                 euf_ever_some = true;
-                // 深回退：unsealed 起点落在某个已 confirm 段的端点之前（confirmed_len 因此比
-                // 「仅末段」更靠前）。用全量段数 vs confirmed_len 判定多段回退。
-                if incr.confirmed_len() + 1 < full_segs.len() && euf < end {
-                    deep_rollback_seen = true;
-                }
             }
         }
         assert!(
             euf_ever_some,
-            "覆盖为零：gappy 序列从未触发 SecondKind-skip（earliest_unsealed_from 恒 None）——\
-             本测试未实际覆盖 #88 修复路径，须调 gappy_strokes 参数"
-        );
-        assert!(
-            deep_rollback_seen,
-            "覆盖为零：从未发生深回退（euf < 末段端）——未覆盖「改写已 confirm 段」的级联路径"
+            "覆盖为零：gappy 序列从未触发未决第二种候选（earliest_unsealed_from 恒 None）——\
+             须调 gappy_strokes 参数"
         );
     }
 
