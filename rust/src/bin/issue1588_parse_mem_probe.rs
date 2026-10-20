@@ -28,7 +28,7 @@ use newchan_rust::theta_v0::backtest::incremental::IncrementalClassifier;
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::{
     inclusion::{InclusionDirectionEvidence, InclusionFacts, SourceCoords},
-    parse_layer_with_inclusion_facts,
+    parse_layer, parse_layer_with_inclusion_facts,
     stroke::Endpoint,
     ParseLayer, ParseLayerIncr,
 };
@@ -273,6 +273,23 @@ fn run_facts(bars: &[Bar], config: &ThetaConfig) {
     }
 }
 
+/// #1597：紧凑生产入口 `parse_layer` 一次全量调用（与 facts 入口的 layer 逐字段相同，测试
+/// `tb02v_six_witnesses_through_production_entry` 锁定）。大前缀时作 layer 的修前/修后对拍面。
+fn run_layer(bars: &[Bar], config: &ThetaConfig) {
+    let (live0, total0) = window();
+    let t = Instant::now();
+    let layer = parse_layer(bars, config);
+    let secs = t.elapsed().as_secs_f64();
+    println!(
+        "layer secs={secs:.2} alloc_total_mb={:.1} peak_mb={:.1} retained_mb={:.1} {}",
+        mb(TOTAL.load(Relaxed) - total0),
+        mb(PEAK.load(Relaxed) - live0),
+        mb(LIVE.load(Relaxed) - live0),
+        layer_shape(&layer)
+    );
+    println!("  digest layer={}", digest_debug(&layer));
+}
+
 fn run_replay(bars: &[Bar], config: &ThetaConfig, hold: bool, every: usize) {
     let (live0, total0) = window();
     let t = Instant::now();
@@ -368,6 +385,7 @@ fn main() {
     println!("== mode={mode} n={n} window={window_len}");
     match mode {
         "facts" => run_facts(bars, &config),
+        "layer" => run_layer(bars, &config),
         "replay-drop" => run_replay(bars, &config, false, every),
         "replay-hold" => run_replay(bars, &config, true, every),
         "classifier" => run_classifier(bars, &config, every),
