@@ -17,10 +17,10 @@ import {
   ghIssueFetcher,
   ghIssueNotifier,
   hostGit,
-  prepareReviewPrompt,
   readReviewTemplate,
-  recordReviewerRunFailure,
+  resolveReviewBase,
   ReviewPromptTooLargeError,
+  runGuardedReview,
 } from "./review-context.mts";
 // 注：蜂群走 docker 沙盒，容器内 PATH 与宿主不同、也没有 nc-remote，故不挂 cargo-guard 垫片
 // （main.mts 的 noSandbox 宿主路径才挂）；本机禁 cargo 在这里只靠提示词约束（#1588 遗留项）。
@@ -127,31 +127,28 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
             promptArgs: { ISSUE_NUMBER: issue.id },
           });
           if (!implement.commits.length) return implement;
-          // #1588：评审提示宿主侧渲染（只放变更摘要）+ 体积闸；超限落 workers.jsonl + 票面评论后抛出。
-          const reviewChannels = { logWorker, notify: ghIssueNotifier(GH_CLEAN_ENV) };
-          const { prompt: reviewPrompt } = prepareReviewPrompt(
+          // #1588：评审提示宿主侧渲染（只放变更摘要，基准 = 现 fetch 的 origin/main 提交）+ 体积闸；
+          // 渲染与运行同一失败通道：超限 / 渲染失败 / 运行失败都落 workers.jsonl + 票面评论后抛出。
+          const git = hostGit();
+          const review = await runGuardedReview(
             {
               template: readReviewTemplate(),
               branch: issue.branch,
               target: "main",
+              resolveBase: () => resolveReviewBase(git),
               issue: Number(issue.id),
-              git: hostGit(),
+              git,
               fetchIssue: ghIssueFetcher(GH_CLEAN_ENV),
             },
-            reviewChannels,
+            { logWorker, notify: ghIssueNotifier(GH_CLEAN_ENV) },
+            ({ prompt }) =>
+              sandbox.run({
+                name: "reviewer",
+                maxIterations: 1,
+                agent: primeAgent(REVIEWER_MODEL, { provider: PROVIDER }),
+                prompt,
+              }),
           );
-          let review;
-          try {
-            review = await sandbox.run({
-              name: "reviewer",
-              maxIterations: 1,
-              agent: primeAgent(REVIEWER_MODEL, { provider: PROVIDER }),
-              prompt: reviewPrompt,
-            });
-          } catch (e) {
-            recordReviewerRunFailure(Number(issue.id), issue.branch, e, reviewChannels);
-            throw e;
-          }
           return { ...review, commits: [...implement.commits, ...review.commits] };
         } finally {
           await sandbox.close();

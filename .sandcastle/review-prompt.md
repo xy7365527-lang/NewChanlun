@@ -2,24 +2,27 @@
 
 评审分支 `{{BRANCH}}` 相对 `{{TARGET_BRANCH}}` 的改动，在**保持功能语义不变**的前提下直接在该分支上修正问题。
 
+> diff 基准 = 宿主渲染本提示前刚 fetch 的 origin/{{TARGET_BRANCH}}，提交 `{{BASE}}`（下文一律写作 `{{BASE}}`）。
+> 工作区里的本地 `{{TARGET_BRANCH}}` 可能落后，读 diff **不要用本地 `{{TARGET_BRANCH}}`**，用 `{{BASE}}`，否则别线已合入的提交会混进来。
+
 # CONTEXT
 
 > 本提示由宿主侧 `.sandcastle/review-context.mts` 渲染（#1588）：**只含变更摘要，不含 diff 正文**。
 > 整段 diff 曾把提示撑爆（#1406：~39 万 token →「Prompt is too long」）。diff 请在工作区里按需读取，见「读 diff 的方法」。
 
-## 改动统计（git diff --stat {{TARGET_BRANCH}}...{{BRANCH}}）
+## 改动统计（git diff --stat {{BASE}}...{{BRANCH}}）
 
 ```
 {{DIFF_STAT}}
 ```
 
-## 本分支提交（git log --oneline {{TARGET_BRANCH}}..{{BRANCH}}）
+## 本分支提交（git log --oneline {{BASE}}..{{BRANCH}}）
 
 ```
 {{COMMITS}}
 ```
 
-## 文件清单（git diff --name-status {{TARGET_BRANCH}}...{{BRANCH}}）
+## 文件清单（git diff --name-status {{BASE}}...{{BRANCH}}）
 
 ```
 {{FILES}}
@@ -27,15 +30,15 @@
 
 ## 原始 issue
 
-```
+<issue>
 {{ISSUE}}
-```
+</issue>
 
 # 读 diff 的方法
 
-你在本分支的工作区里，git 可用。**不要一次性输出整段 `git diff {{TARGET_BRANCH}}...{{BRANCH}}`**（会撑爆上下文、截断后静默漏看）。按需分块读：
+你在本分支的工作区里，git 可用。**不要一次性输出整段 `git diff {{BASE}}...{{BRANCH}}`**（会撑爆上下文、截断后静默漏看）。按需分块读：
 
-- 逐文件：`git diff {{TARGET_BRANCH}}...{{BRANCH}} -- <路径>`；大文件再分段，如 `... -- <路径> | sed -n '1,400p'`；
+- 逐文件：`git diff {{BASE}}...{{BRANCH}} -- <路径>`；大文件再分段，如 `... -- <路径> | sed -n '1,400p'`；
 - 逐提交：`git show --stat <sha>`，再 `git show <sha> -- <路径>`；
 - 先按上面的文件清单排优先级（核心逻辑与测试先看，生成物/夹具后看），每个文件都要过到，最终答复里列出已看文件。
 

@@ -20,10 +20,10 @@ import {
   ghIssueFetcher,
   ghIssueNotifier,
   hostGit,
-  prepareReviewPrompt,
   readReviewTemplate,
-  recordReviewerRunFailure,
+  resolveReviewBase,
   ReviewPromptTooLargeError,
+  runGuardedReview,
 } from "./review-context.mts";
 
 const TOKEN_ROTATION_MARKER = "/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/GH_TOKEN_ROTATION_REQUIRED";
@@ -55,11 +55,16 @@ const GH_CLEAN_ENV = {
 };
 
 // ── #1183：宿主分支 FAIL-loud 校验（启动即查） ────────────────────────────────
-// 评审面的 TARGET_BRANCH 是 sandcastle 内置 promptArg，解析自宿主 cwd 的当前分支
-// （TROUBLESHOOTING #8：#1008 记录「内置 promptArg，不可覆盖」）。宿主 worktree
-// 常驻他人 ticket 分支时，评审基线被带偏成「别线 WIP + 本票」混合 diff——
-// #1180 实测：ticket-919-final → ~900179 tokens、评审 agent 14s 空转、实际零评审。
-// 故启动即校验宿主分支 = main，非 main 直接 FAIL-loud 退出（不取票、不起沙盒）。
+// 由来：评审面曾用 sandcastle 内置 promptArg TARGET_BRANCH（解析自宿主 cwd 当前分支，
+// TROUBLESHOOTING #8 / #1008「不可覆盖」）。宿主 worktree 常驻他人 ticket 分支时，评审基线被带偏成
+// 「别线 WIP + 本票」混合 diff——#1180 实测：ticket-919-final → ~900179 tokens、评审 agent 14s 空转。
+// #1588 起评审提示改在宿主侧渲染，不再依赖内置 TARGET_BRANCH；diff 基准也不再取宿主本地 main，
+// 而是渲染前现 fetch 的 origin/main 提交（resolveReviewBase：宿主 main 落后时别线提交会混进摘要，
+// 领先/分叉即 FAIL-loud）。本校验仍保留，理由：
+//  - 宿主 cwd 是 main 的干净检出这一前提，claim-loop refreshHostMain（reset --hard origin/main）依赖它；
+//  - 内置 TARGET_BRANCH 仍按宿主当前分支解析，任何仍走 promptFile 的模板若引用它，须与 main 同源；
+//  - .sandcastle/logs/workers.jsonl 等相对路径以宿主 cwd 为根，别线 worktree 下运行会写错地方。
+// 非 main 直接 FAIL-loud 退出（不取票、不起沙盒）。
 function assertHostBranchIsMain(): void {
   let branch: string;
   try {
@@ -72,8 +77,9 @@ function assertHostBranchIsMain(): void {
   }
   if (branch !== "main") {
     console.error(
-      `[FAIL-loud #1183] 宿主分支 = ${branch}（期望 main）。评审 TARGET_BRANCH 是 sandcastle 内置 promptArg、解析自宿主 cwd 当前分支，` +
-        `非 main 会把别线 WIP 混进评审面（#1180 实测：ticket-919-final 基线 → 评审空转）。` +
+      `[FAIL-loud #1183] 宿主分支 = ${branch}（期望 main）。编排须在 main 的干净检出下运行：` +
+        `claim-loop 刷新宿主 main、sandcastle 内置 TARGET_BRANCH、workers.jsonl 路径都以宿主 cwd 为准，` +
+        `非 main 会把别线 WIP 混进编排面（#1180 实测：ticket-919-final 基线 → 评审空转）。` +
         `请在 main 的干净 worktree（main-pstack）下重跑：npx tsx .sandcastle/main.mts`,
     );
     process.exit(2);
@@ -92,7 +98,8 @@ function resolveSandboxGithubEnv(): Record<string, string> {
   }
 }
 
-// #1588 ④：本机 cargo 垫片（每次运行一份临时目录），前置到工蜂 PATH；Rust 验证走 nc-remote / CI。
+// #1588 ④：本机 cargo 垫片（固定目录 $TMPDIR/nc-cargo-guard，每次运行原地刷新），前置到工蜂 PATH；
+// Rust 验证走 nc-remote / CI。
 const CARGO_GUARD = installCargoGuard();
 
 function sandboxProvider() {
@@ -241,34 +248,37 @@ async function runWithResume(
 }
 
 // ── #1588 ③：评审阶段。提示在宿主侧渲染（只放变更摘要，不放整段 diff）并过体积闸；
-// 超限 / 运行失败都显式落 workers.jsonl（phase=reviewer status=failed）+ 票面评论，再原样上抛。
-// 旧形态失败时 workers.jsonl 停在 reviewer/started → sandbox/closed，票保持认领、无人知晓（#1406）。
-const REVIEW_TARGET_BRANCH = "main"; // assertHostBranchIsMain 已保证宿主分支 = main（TARGET_BRANCH 同源）
+// 渲染与运行包在同一失败通道（runGuardedReview）：超限 / 渲染失败（gh、git、fetch 基准）/ 运行失败
+// 都显式落 workers.jsonl（phase=reviewer status=failed reason=prompt_too_large|prepare_error|run_error）
+// + 票面评论，再原样上抛。旧形态失败时 workers.jsonl 停在 reviewer/started → sandbox/closed，
+// 票保持认领、无人知晓（#1406）。
+// diff 基准不用宿主本地 main，而是渲染前现取的 origin/main 提交（resolveReviewBase，理由见其注释，#1588 N3）。
+const REVIEW_TARGET_BRANCH = "main";
 
 async function runReviewer(sandbox: Sandbox, issue: number, branch: string): Promise<void> {
-  const channels = { logWorker, notify: ghIssueNotifier(GH_CLEAN_ENV) };
-  const { prompt, estimatedTokens } = prepareReviewPrompt(
+  const git = hostGit();
+  await runGuardedReview(
     {
       template: readReviewTemplate(),
       branch,
       target: REVIEW_TARGET_BRANCH,
+      resolveBase: () => resolveReviewBase(git),
       issue,
-      git: hostGit(),
+      git,
       fetchIssue: ghIssueFetcher(GH_CLEAN_ENV),
     },
-    channels,
+    { logWorker, notify: ghIssueNotifier(GH_CLEAN_ENV) },
+    async ({ prompt, estimatedTokens, base }) => {
+      logWorker({
+        ticket: issue, branch, phase: "reviewer", status: "started", prompt_est_tokens: estimatedTokens, review_base: base,
+      });
+      await runWithResume(sandbox, {
+        name: "reviewer",
+        agent: claudeWorker(REVIEWER_MODEL, EFFORT),
+        prompt: { prompt },
+      });
+    },
   );
-  logWorker({ ticket: issue, branch, phase: "reviewer", status: "started", prompt_est_tokens: estimatedTokens });
-  try {
-    await runWithResume(sandbox, {
-      name: "reviewer",
-      agent: claudeWorker(REVIEWER_MODEL, EFFORT),
-      prompt: { prompt },
-    });
-  } catch (e) {
-    recordReviewerRunFailure(issue, branch, e, channels);
-    throw e;
-  }
   logWorker({ ticket: issue, branch, phase: "reviewer", status: "completed" });
 }
 

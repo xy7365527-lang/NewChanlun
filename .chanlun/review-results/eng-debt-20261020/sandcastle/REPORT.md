@@ -238,7 +238,9 @@ log: /tmp/nc-remote/20261020-232305-6021c6b668.log
   CI run 链接与结论见 PR 描述。
 - 本分支没有改 Rust 源码，所以没有用 nc-remote 跑 `cargo check`。演练 B 的 `cargo --version` 只用来验证远端通路。
 
-## 遗留与建议转票
+## 遗留与建议转票（已转 #1618）
+
+下列 5 项与非作者评审的 N5、N6 已汇总转到 **#1618**（先查重，无重复票）。
 
 1. **GitHub Actions 评审链路有同类缺陷**：`.sandcastle/agent-workflows/shared/review-context.ts:158` 把
    `git diff main...HEAD` 整段塞进 agent-review / implement-pr 的提示，没有体积闸。
@@ -261,3 +263,80 @@ log: /tmp/nc-remote/20261020-232305-6021c6b668.log
 - `cargo-guard.mts`：`CLAUDE_ENV_FILE` 会覆盖调用方可能已经设置的同名变量（宿主目前没有设置）；垫片清单是否需要补充工具。
 - `review-prompt.md`：「按需读 diff」的指令能否保证评审覆盖所有文件（提示要求在答复里列出已看文件）。
 - `ci.yml` 新增的 job 放在文件末尾。其它在途分支如果也改 ci.yml，合并时可能有文本冲突，需要主控协调。
+
+---
+
+## 第二轮：非作者评审 N1–N4 处置（评审记录 `reviews/1615-claude-fable-5.md`，PASS-WITH-NITS）
+
+### N1 渲染期非超限失败仍静默 → 修
+
+- 现象：`runReviewer` 只对 `runWithResume` 的异常调 `recordReviewerRunFailure`。`prepareReviewPrompt` 阶段的非超限异常（`gh issue view` 失败、`git diff` 失败等）会原样抛出，`workers.jsonl` 只剩 `sandbox/closed`。
+- 处置：`review-context.mts` 新增 `runGuardedReview(opts, channels, run)`，把渲染和运行包进同一个 try/catch：
+  - 超限：`prepareReviewPrompt` 已经记了 `prompt_too_large`，这里只原样上抛，不重复记；
+  - 渲染期其它异常：记 `reason=prepare_error`；
+  - `run` 回调抛错：记 `reason=run_error`。
+  
+  每种失败都写 `phase=reviewer status=failed`，原始错误串截 300 字只进 jsonl，票面评论不贴原文，然后原样上抛。`main.mts` 的 `runReviewer` 和 `main-swarm.mts` 的评审段都改用它。`reviewerRunFailureComment` / `recordReviewerRunFailure` 增加 `reason` 参数，默认值仍是 `run_error`。
+- 测试（`review-context.test.mts`，共 7 例）：
+  - mock git 抛错、mock gh（`fetchIssue`）抛错、基准解析抛错，三种情况都落 `prepare_error`、票面评论不含 `/secret/host/path`、工蜂不启动；
+  - gh 通知也失败时 `notified=false`，抛渲染期原错；
+  - 运行期失败只记一条 `run_error`；
+  - 超限只记一条 `prompt_too_large`；
+  - 成功时不写记录。
+
+### N2 `{{ISSUE}}` 在 ``` 围栏内 → 修
+
+- 模板改成 `<issue>\n{{ISSUE}}\n</issue>`。正文里字面的 `</issue` 改写成 `<\/issue`（不区分大小写），防止提前闭合。
+- 顺带修复：`gh issue view --json title,body` 输出单行 JSON，正文换行是 `\n` 转义，旧提示给评审的是一整行转义串。新增 `formatIssueJson`，还原成「标题：… + 空行 + 正文」后再进 `<issue>` 块。只有这样，正文里的 ``` 围栏才是真实的多行结构，N2 的风险才实际存在，也才需要包裹。
+- 测试：
+  - issue 正文含 ```bash 围栏、未闭合围栏、字面 `</issue>` / `</ISSUE >`、`{{BRANCH}}` 时，`<issue>` 只开闭各一次，块外 ``` 行数为偶数，`# 读 diff 的方法` 在 `</issue>` 之后，文件清单围栏完整；
+  - 模板锁断言 `<issue>` 包裹，`{{ISSUE}}` 前不是 ```；
+  - `formatIssueJson` 单测。
+
+### N3 宿主 main 过旧会混入别线提交 → 修（改用 origin/main 提交作 diff 基准）
+
+- 方案选择：渲染前先 `git fetch origin +refs/heads/main:refs/remotes/origin/main`，用 **origin/main 的提交 SHA** 作基准（模板新增 `{{BASE}}`），不 fast-forward 宿主 main。理由：
+  1. 三点 diff 取 merge-base。分支无论分自旧 main 还是新 main，与刚 fetch 的 origin/main 求出的 merge-base 都落在真实分叉点，摘要只含本分支提交。fast-forward 也能达到同样效果，但要求宿主 worktree 干净，而且会改动别的进程正在用的检出，这本是 claim-loop `refreshHostMain` 的职责。
+  2. 钉死 SHA，评审整个运行期间基准都不随 ref 移动。评审工蜂的工作区和宿主共享 refs，它看到的本地 `main` 仍是旧的，所以提示里的读 diff 命令一律用 `{{BASE}}`，模板第 5–6 行明令不要用本地 main。
+  3. 宿主 main 含 origin/main 没有的提交（本地未推或分叉）时，无法判断哪边是正确基准，直接 FAIL-loud，记为 `prepare_error`，不猜。
+  4. fetch 失败按 2s/4s/8s 指数退避，最多 4 次，之后 FAIL-loud（记 `prepare_error`）。宿主 main 落后时只打一行日志，照常用 origin/main。
+- `assertHostBranchIsMain` 的注释和报错文案已更新：评审不再依赖内置 TARGET_BRANCH，保留这个校验是因为 claim-loop 刷新宿主 main、内置 TARGET_BRANCH、`workers.jsonl` 相对路径都以宿主 cwd 为准。`REVIEW_TARGET_BRANCH` 的旧注释（「TARGET_BRANCH 同源」）已删。`main-swarm.mts` 同样接入了 `resolveReviewBase`；4 路并发 fetch 抢 ref 锁时，靠同一套重试处理。
+- 测试（临时裸仓 origin + host 克隆 + other 克隆推别线提交，共 6 例）：
+  - 复现：宿主 main 落后时，旧做法 `main...feature` 的摘要混入别线提交 B 和 other.txt；
+  - `resolveReviewBase` 返回 B 的 SHA，摘要只含本票提交，提示里读 diff 命令为 `git diff <B>...feature`；宿主本地 main 仍停在 A，worktree 干净；
+  - 分支分自旧 main 时，以新基准同样只含本票提交；
+  - main 与 origin/main 一致时不打告警；
+  - 宿主 main 领先时 FAIL-loud；
+  - 远端不可达时退避序列为 `[10, 20]`（注入的 sleep），之后 FAIL-loud，经 `runGuardedReview` 落 `prepare_error`。
+- #1406 演练（只读渲染，issue 正文用真实 `gh issue view 1406`；本工位共享仓的本地 main 落后 origin/main 400 个提交）：
+
+  ```
+  $ cd /tmp && tsx /tmp/nc-1406-render-r2.mts
+  local main=3315ed1d59
+  stale main base: ReviewPromptTooLargeError est_tokens=72243 chars=270493 exit=4
+  [#1588] 宿主 main 落后 origin/main 400 个提交；评审基准改用 origin/main df6e680930（不改宿主检出）
+  origin/main base=df6e680930: est_tokens=8184 chars=25747 limit=60000 commits=37 has_diff_body=false
+  ```
+
+### N4 垫片临时目录不清理 → 修（复用固定路径）
+
+- 方案选择：垫片目录固定为 `$TMPDIR/nc-cargo-guard`，每次运行原地重写，不再每次 mkdtemp。理由：
+  - 选「退出时删除」有风险：main.mts 异常退出时，noSandbox 工蜂子进程可能还活着，垫片目录一删，它的 `cargo` 就落回 `/opt/homebrew/bin`，拦截失效。固定路径永不删除，没有这个窗口。
+  - 垫片内容只取决于路径本身，多个 main.mts 并发写出的字节相同。每个文件先写 `<名>.<pid>.tmp`，chmod 后 rename 覆盖，运行中的工蜂不会读到写了一半的垫片。
+  - 目录是软链，或属主不是当前用户时，直接 FAIL-loud，防止 `/tmp` 共享时被人预占或劫持。
+- 测试（`cargo-guard.test.mts`，共 5 例）：
+  - 缺省路径固定，重复安装不在 `$TMPDIR` 新建目录；
+  - 同一根目录反复安装原地覆盖，没有 `.tmp` 残留；
+  - 垫片被改坏后，再次安装可恢复并继续拦截；
+  - 软链预占时 FAIL-loud；
+  - 3 个子进程各重装 40 次的同时，主进程连调 30 次 `cargo --version`，每次都返回 87。原有 4 个用例改为走缺省固定路径，跑测试本身也不再累积目录。
+- 第一轮遗留：本机 `$TMPDIR` 下还有 20 个 `nc-cargo-guard-XXXXXX` 目录，是第一轮本地测试和演练留下的，生产 main.mts 没跑过这一版。新代码不再生成这类目录。本分片没有删除它们，避免误删别的进程可能在用的目录；需要时可人工 `rm -rf "$TMPDIR"/nc-cargo-guard-??????`。
+
+### 第二轮回归
+
+- 本机 `npm run typecheck` 通过；`npx tsx --test .sandcastle/*.test.ts .sandcastle/*.test.mts` 结果为 `tests 187 / pass 187 / fail 0 / skipped 0`（第一轮 167 例，新增 20 例，没有删减或跳过）。
+- CI run 链接与结论见 PR #1615 描述。
+
+### N5 / N6 / 遗留 1–5
+
+已汇总转 **#1618**（标签 `debt`；查重关键词与结果写在票面）。

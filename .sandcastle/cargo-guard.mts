@@ -1,12 +1,13 @@
 // #1588 ④：沙盒层拦截本机 cargo / rustc。
 // 成因：#1406 实装工蜂在 macOS 宿主上直接跑了 cargo check / cargo test（违「本机禁 cargo」约定）。
-// 做法：每次运行在临时目录生成同名垫片（cargo / rustc / rustup / cargo-* 等），前置到工蜂进程 PATH；
+// 做法：每次运行在固定临时目录（$TMPDIR/nc-cargo-guard，原地刷新）生成同名垫片（cargo / rustc /
+// rustup / cargo-* 等），前置到工蜂进程 PATH；
 // 调用即打印 nc-remote 指引并以 LOCAL_CARGO_BLOCKED_EXIT 退出。nc-remote 本地只调 git/scp/ssh，
 // cargo 在远端 WSL 里由 `source ~/.cargo/env` 解析，不受本机 PATH 影响。
 // 另写一份 CLAUDE_ENV_FILE（Claude Code 每条 Bash 命令前 source），login shell 的 path_helper
 // 若把 /opt/homebrew/bin 重排到前面，这里再把垫片目录顶回最前。
 // 边界：用绝对路径（/opt/homebrew/bin/cargo）调用拦不住——那属于明知故犯，由提示词明令禁止。
-import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { chmodSync, lstatSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 
@@ -52,17 +53,47 @@ export interface CargoGuard {
   envFile: string;
 }
 
-/** 生成垫片目录（root 缺省为新建的临时目录）。 */
-export function installCargoGuard(root: string = mkdtempSync(join(tmpdir(), "nc-cargo-guard-"))): CargoGuard {
-  const binDir = join(root, "bin");
-  mkdirSync(binDir, { recursive: true });
-  for (const tool of GUARDED_TOOLS) {
-    const p = join(binDir, tool);
-    writeFileSync(p, guardScript(tool));
-    chmodSync(p, 0o755);
+// #1588 N4：垫片目录复用固定路径（每次运行原地重写），不再每次 mkdtemp 一份、长期 claim-loop 下
+// 在 $TMPDIR 越积越多。不选「退出时删除」：main.mts 异常退出时 noSandbox 工蜂子进程可能还活着，
+// 删掉垫片目录它的 cargo 就落回 /opt/homebrew/bin（拦截失效）；固定路径永不删除，无此窗口。
+// 内容只取决于路径本身，多个 main.mts 并发写出的字节相同；每个文件先写临时名再 rename，
+// 正在运行的工蜂不会读到写了一半的垫片。
+export const CARGO_GUARD_DIR_NAME = "nc-cargo-guard";
+
+export function defaultCargoGuardRoot(): string {
+  return join(tmpdir(), CARGO_GUARD_DIR_NAME);
+}
+
+/** 原子写：同目录临时名写全 + chmod 后 rename 覆盖。 */
+function writeFileAtomic(path: string, content: string, mode: number): void {
+  const tmp = `${path}.${process.pid}.tmp`;
+  writeFileSync(tmp, content, { mode });
+  chmodSync(tmp, mode);
+  renameSync(tmp, path);
+}
+
+/** 固定路径的垫片根目录须是当前用户自己的真实目录（/tmp 共享时防他人预占或软链劫持）。 */
+function assertOwnDirectory(dir: string): void {
+  const st = lstatSync(dir);
+  const uid = process.getuid?.();
+  if (!st.isDirectory() || st.isSymbolicLink() || (uid !== undefined && st.uid !== uid)) {
+    throw new Error(`[FAIL-loud #1588] cargo 垫片目录 ${dir} 不是当前用户的真实目录（软链或属主不符），拒绝使用`);
   }
+}
+
+/** 生成 / 刷新垫片目录（root 缺省为固定路径 defaultCargoGuardRoot()，重复调用原地覆盖、不新建目录）。 */
+export function installCargoGuard(root: string = defaultCargoGuardRoot()): CargoGuard {
+  const binDir = join(root, "bin");
+  mkdirSync(binDir, { recursive: true, mode: 0o700 });
+  assertOwnDirectory(root);
+  assertOwnDirectory(binDir);
+  for (const tool of GUARDED_TOOLS) writeFileAtomic(join(binDir, tool), guardScript(tool), 0o755);
   const envFile = join(root, "claude-env.sh");
-  writeFileSync(envFile, `# #1588 本机 cargo 垫片：保持垫片目录在 PATH 最前\nexport PATH=${shQuote(binDir)}:"$PATH"\n`);
+  writeFileAtomic(
+    envFile,
+    `# #1588 本机 cargo 垫片：保持垫片目录在 PATH 最前\nexport PATH=${shQuote(binDir)}:"$PATH"\n`,
+    0o644,
+  );
   return { binDir, envFile };
 }
 
