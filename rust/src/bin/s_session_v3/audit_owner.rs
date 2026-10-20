@@ -881,7 +881,6 @@ impl AuditConnection {
                 || candidate.seal.write_sequence != self.write_sequence.get()
                 || candidate.seal.transaction_id != self.next_transaction.get()
                 || candidate.charge.total > cap
-                || cap < usize::MAX
             {
                 complete = None;
             }
