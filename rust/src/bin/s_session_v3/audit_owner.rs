@@ -111,7 +111,7 @@ pub(crate) use construction_state::{BoundRawAdvance, RawAdvanceBinding, RawDomai
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 thread_local! {
     static PUBLICATION_SCOPE_TRACE: std::cell::RefCell<Vec<(&'static str, usize)>> = const { std::cell::RefCell::new(Vec::new()) };
-    static PUBLICATION_TAIL_FAILURE: Cell<bool> = const { Cell::new(false) };
+    pub(super) static PUBLICATION_TAIL_FAILURE: Cell<bool> = const { Cell::new(false) };
     // #1488 受控 Recover 迁移负控：交接失败注入点与 Recover 写后/effects 闭合前的事务回调。
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     static RECOVER_HANDOFF_FAILURE: Cell<bool> = const { Cell::new(false) };
@@ -653,73 +653,14 @@ impl AuditConnection {
         envelope: &Value,
         context: &mut request_audit::RequestAuditContext,
     ) -> Result<(commit::CommitReceipt, Ended), String> {
+        #[cfg(feature = "s_capture_native_testonly")]
+        let result = self.publish_degradable(runtime, token, envelope, context);
+        #[cfg(not(feature = "s_capture_native_testonly"))]
         let result = (|| {
             let mut active = self.begin(TransactionBehavior::Immediate)?;
             // 固定 phase 覆盖 Runtime 内全部 node/stage/非节点/发布写；无裸 SQL 能力外借。
             active.bind_existing(Some(context))?;
-            #[cfg(feature = "s_capture_native_testonly")]
-            let resources = if active.complete.borrow().is_some() && context.source_cache_enabled()
-            {
-                Some(active.issue_publication_resources(context)?)
-            } else {
-                None
-            };
-            #[cfg(feature = "s_capture_native_testonly")]
-            let (receipt, checked) = if let Some(resources) = resources {
-                let before = resources.before;
-                let work = resources
-                    .budget
-                    .codec_work()
-                    .map_err(|_| construction_state::stale("publication父工作域额度不足"))?;
-                let (receipt, after) = work
-                    .run(|work| {
-                        let parent = PublicationScope {
-                            resources: &resources,
-                            work,
-                        };
-                        let receipt = self.publish_body(
-                            &mut active,
-                            runtime,
-                            token,
-                            envelope,
-                            context,
-                            Some(&parent),
-                        )?;
-                        let after = active.construction_seal()?;
-                        active.check_publication_transition(before, after)?;
-                        #[cfg(test)]
-                        {
-                            parent.trace("tail");
-                            if PUBLICATION_TAIL_FAILURE.with(|flag| flag.replace(false)) {
-                                let _ = parent.work().reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger);
-                            }
-                        }
-                        Ok::<_, String>((receipt, after))
-                    })
-                    .map_err(|e| match native::Failure::from(e) {
-                        native::Failure::Invalid(e) => e,
-                        native::Failure::BudgetExceeded => {
-                            construction_state::stale("publication父工作域尾检失败")
-                        }
-                    })?;
-                let checked = ConstructionRun {
-                    value: (),
-                    before,
-                    after,
-                };
-                (receipt, Some(checked))
-            } else {
-                (
-                    self.publish_body(&mut active, runtime, token, envelope, context, None)?,
-                    None,
-                )
-            };
-            #[cfg(not(feature = "s_capture_native_testonly"))]
             let receipt = self.publish_body(&mut active, runtime, token, envelope, context)?;
-            #[cfg(feature = "s_capture_native_testonly")]
-            if let Some(checked) = checked {
-                active.check_publication_run(checked)?;
-            }
             let ended = active.commit_publication()?;
             Ok((receipt, ended))
         })();
@@ -728,6 +669,65 @@ impl AuditConnection {
             drop(context.take());
         }
         result
+    }
+
+    /// #1488 0065 P1（v4 L13：可选候选预算不足只放弃候选，不得让请求失败）。
+    ///
+    /// 首次尝试与改前路径相同：有完整候选且 source cache 开启时签发 publication 资源，在候选
+    /// 父工作域内跑 publish_body + 尾检。父工作域报 `BudgetExceeded`（ScratchFailure::Budget /
+    /// Allocation，典型来源：audit_native_source 以 `j.cap` 追加原件时日志/索引扩容估算超帽）
+    /// 说明只是“可选候选装不下”，此时：
+    /// 1. 首事务的 AuditTxn 随 `publish_attempt` 返回而析构——回滚整笔写、清日志、
+    ///    `clear_candidates()` 作废施工租约并丢弃 complete/source_keeper，`advance_state`
+    ///    回到空闲，不会留下“已有未完成Begin”；
+    /// 2. `runtime.discard()` 丢弃生成器运行态（其中可能含已被回滚的增量），下一次准备从冷态起；
+    /// 3. 同一请求只再走一次无候选发布：bind_existing 无候选即与“无候选请求”同一路径
+    ///    （publish_body(.., None)），回复与 oracle 一致，本请求后不保留候选（保留率下降，
+    ///    正确性不变）。
+    ///
+    /// 不降级、照旧 fail-closed 的情形：父工作域报 `Invalid`（ScratchFailure::Ledger 即
+    /// “Native codec 工作账损坏”、尾检 seal/transition 身份不符等真正尾检失败）；第二次
+    /// （无候选）尝试的任何错误；以及 codec_work 签发本身报账损坏。第二次不会再返回 None
+    /// （无候选不签发父工作域），防御性地按尾检失败拒绝。
+    ///
+    /// 诊断：`S_MANIFEST_WORKSPACE_DIAGNOSTICS=1` 时每次发布向 stderr 写一行
+    /// NativeTestOnlyPublication（入口有无候选、是否放弃、发布后是否保留），供保留率/命中率统计。
+    ///
+    /// 张力（交 #1612）：降级后同请求内走完整路径，ARCH ④.4 / #799 的“请求内不回退完整”口径
+    /// 在 testonly 下由 v4 L13 让位；生产构建不含此函数。
+    /// 行数纪律：publish 本段改写前后总行数相同，publish_attempt 与测试注入开关放在文件尾，
+    /// 使生产构建中后续代码的 panic Location 行号不漂移（生产二进制逐字节对比可验）。
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn publish_degradable(
+        &self,
+        runtime: &mut prepared::Runtime,
+        token: &str,
+        envelope: &Value,
+        context: &mut request_audit::RequestAuditContext,
+    ) -> Result<(commit::CommitReceipt, Ended), String> {
+        let entry = self.complete.borrow().is_some() && context.source_cache_enabled();
+        let first = self.publish_attempt(runtime, token, envelope, context, true)?;
+        let abandoned = first.is_none();
+        let published = match first {
+            Some(published) => published,
+            None => {
+                runtime.discard();
+                #[cfg(test)]
+                state::trace_event("publication_candidate_abandoned", None);
+                self.publish_attempt(runtime, token, envelope, context, false)?
+                    .ok_or_else(|| construction_state::stale("publication父工作域尾检失败"))?
+            }
+        };
+        if std::env::var_os("S_MANIFEST_WORKSPACE_DIAGNOSTICS").as_deref()
+            == Some(std::ffi::OsStr::new("1"))
+        {
+            use std::io::Write as _;
+            let line = json!({"diagnostic":"NativeTestOnlyPublication",
+                "message_id":envelope.get("message_id"), "candidate_entry":entry,
+                "abandoned":abandoned, "candidate_after":published.1.complete.is_some()});
+            let _ = writeln!(std::io::stderr().lock(), "{line}");
+        }
+        Ok(published)
     }
 
     fn publish_body(
@@ -5883,4 +5883,82 @@ impl AuditConnection {
             .resources
             .clone()
     }
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+impl AuditConnection {
+    /// 返回 Ok(None) 仅当候选父工作域报 BudgetExceeded；`candidate=false` 时不签发候选资源。
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn publish_attempt(
+        &self,
+        runtime: &mut prepared::Runtime,
+        token: &str,
+        envelope: &Value,
+        context: &mut request_audit::RequestAuditContext,
+        candidate: bool,
+    ) -> Result<Option<(commit::CommitReceipt, Ended)>, String> {
+        let mut active = self.begin(TransactionBehavior::Immediate)?;
+        // 固定 phase 覆盖 Runtime 内全部 node/stage/非节点/发布写；无裸 SQL 能力外借。
+        active.bind_existing(Some(context))?;
+        let resources =
+            if candidate && active.complete.borrow().is_some() && context.source_cache_enabled() {
+                Some(active.issue_publication_resources(context)?)
+            } else {
+                None
+            };
+        let (receipt, checked) = if let Some(resources) = resources {
+            let before = resources.before;
+            let work = match resources.budget.codec_work() {
+                Ok(work) => work,
+                Err(native::Failure::BudgetExceeded) => return Ok(None),
+                Err(native::Failure::Invalid(_)) => {
+                    return Err(construction_state::stale("publication父工作域额度不足"))
+                }
+            };
+            let run = work.run(|work| {
+                let parent = PublicationScope {
+                    resources: &resources,
+                    work,
+                };
+                let receipt =
+                    self.publish_body(&mut active, runtime, token, envelope, context, Some(&parent))?;
+                let after = active.construction_seal()?;
+                active.check_publication_transition(before, after)?;
+                #[cfg(test)]
+                {
+                    parent.trace("tail");
+                    if PUBLICATION_TAIL_FAILURE.with(|flag| flag.replace(false)) {
+                        let _ = parent.work().reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger);
+                    }
+                    // 0065 降级锁：同一尾检位置注入候选父工作域分配不足。
+                    if PUBLICATION_CANDIDATE_BUDGET_FAILURE.with(|flag| flag.replace(false)) {
+                        let _ = parent.work().reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Allocation);
+                    }
+                }
+                Ok::<_, String>((receipt, after))
+            });
+            let (receipt, after) = match run.map_err(native::Failure::from) {
+                Ok(done) => done,
+                Err(native::Failure::BudgetExceeded) => return Ok(None),
+                Err(native::Failure::Invalid(e)) => return Err(e),
+            };
+            (receipt, Some(ConstructionRun { value: (), before, after }))
+        } else {
+            (
+                self.publish_body(&mut active, runtime, token, envelope, context, None)?,
+                None,
+            )
+        };
+        if let Some(checked) = checked {
+            active.check_publication_run(checked)?;
+        }
+        let ended = active.commit_publication()?;
+        Ok(Some((receipt, ended)))
+    }
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+thread_local! {
+    /// 0065 降级锁：在 publication 尾检位置注入候选父工作域 Allocation 失败（BudgetExceeded）。
+    pub(super) static PUBLICATION_CANDIDATE_BUDGET_FAILURE: Cell<bool> = const { Cell::new(false) };
 }

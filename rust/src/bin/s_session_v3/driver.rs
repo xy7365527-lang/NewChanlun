@@ -5061,4 +5061,78 @@ mod tests {
             json!({"scenario":"r4-release-reopen","released_owner_charge":retained,"allocation":memory,"new_life":reopened.conn.complete_report()["life"]})
         );
     }
+
+    /// #1488 0065 P1 锁（v4 L13）：S7 serve 下第 2 代在 publication 尾检位置注入候选父工作域
+    /// Allocation 失败（与 j.cap 日志/索引扩容超帽同一 BudgetExceeded 分类）。须：同请求放弃候选、
+    /// 无候选发布成功，回复与运行根逐项等于 ordinary oracle，不保留候选；后续代照常接纳并与 oracle
+    /// 一致（不得卡在“已有未完成Begin”）。负控：同位置注入 Ledger（真正尾检失败）仍拒绝且不降级。
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn publication_candidate_shortfall_case(real_tail_failure: bool) {
+        use super::super::audit_owner::{
+            PUBLICATION_CANDIDATE_BUDGET_FAILURE, PUBLICATION_TAIL_FAILURE,
+        };
+        use super::super::prepared::tests::runtime_root_tables;
+        let phases =
+            |events: &[Value], phase: &str| events.iter().filter(|e| e["phase"] == phase).count();
+        let warm_fixture = Fixture::new();
+        let ordinary_fixture = Fixture::new();
+        let mut warm = Driver::open_for_serve_with_mode(
+            &warm_fixture.db,
+            &warm_fixture.profile,
+            "1",
+            warm_fixture.clock.clone(),
+            536_870_912,
+            s_allocation::Mode::CapturedNative,
+        )
+        .unwrap();
+        let mut ordinary = ordinary_fixture.open("1").unwrap();
+        assert_eq!(
+            warm.handle(Fixture::ingest(1)).unwrap(),
+            ordinary.handle(Fixture::ingest(1)).unwrap()
+        );
+        assert!(warm.conn.complete_retained_bytes() > 0, "第 2 代入口须带完整候选");
+        let flag = if real_tail_failure {
+            &PUBLICATION_TAIL_FAILURE
+        } else {
+            &PUBLICATION_CANDIDATE_BUDGET_FAILURE
+        };
+        flag.with(|f| f.set(true));
+        let (reply, events, _) = state::traced(false, || warm.handle(Fixture::ingest(2)));
+        assert!(!flag.with(|f| f.get()), "故障必须实际到达候选尾检");
+        if real_tail_failure {
+            let error = reply.expect_err("真正尾检失败必须拒绝");
+            assert!(error.contains("工作账损坏"), "{error}");
+            assert_eq!(phases(&events, "publication_candidate_abandoned"), 0);
+            assert_eq!(meta_i64(&warm.conn, "generation").unwrap(), 1);
+            return;
+        }
+        assert_eq!(reply.unwrap(), ordinary.handle(Fixture::ingest(2)).unwrap());
+        assert_eq!(phases(&events, "publication_candidate_abandoned"), 1);
+        assert_eq!(warm.conn.complete_retained_bytes(), 0, "放弃后不保留候选");
+        assert_eq!(meta_i64(&warm.conn, "generation").unwrap(), 2);
+        assert_eq!(
+            runtime_root_tables(&warm.conn, true),
+            runtime_root_tables(&ordinary.conn, true)
+        );
+        for n in 3..=4 {
+            let (reply, events, _) = state::traced(false, || warm.handle(Fixture::ingest(n)));
+            assert_eq!(reply.unwrap(), ordinary.handle(Fixture::ingest(n)).unwrap());
+            assert_eq!(phases(&events, "publication_candidate_abandoned"), 0);
+            assert_eq!(
+                runtime_root_tables(&warm.conn, true),
+                runtime_root_tables(&ordinary.conn, true)
+            );
+        }
+        assert!(warm.conn.complete_retained_bytes() > 0, "后续代重建并保留候选");
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn publication_candidate_budget_shortfall_degrades_and_keeps_admitting() {
+        publication_candidate_shortfall_case(false);
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn publication_real_tail_failure_still_rejects_without_degrade() {
+        publication_candidate_shortfall_case(true);
+    }
 }
