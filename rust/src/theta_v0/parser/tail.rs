@@ -241,11 +241,14 @@ pub fn build_tail(
     strokes: &[Stroke],
     _segments: &[Segment],
     pending_start: Option<usize>,
+    parse_invalid_from: Option<usize>,
 ) -> Vec<PendingTail> {
     let mut tail = Vec::new();
 
     // 1. 未确认线段（段层）：从线段划分停点读出（复用调用方结果，不重跑）。
-    if let Some(start) = pending_start {
+    // #1581（X-37，§7.1 第 6 条）：段端门 fail-closed 后，自失败段起点起的划分无效，尾段起点
+    // 必在其后（≥ 失败段 seg_start）⟹ 不构造 PendingSegment。笔/分型层尾部不建在段划分上，照常。
+    if let Some(start) = pending_start.filter(|_| parse_invalid_from.is_none()) {
         if let Some(pt) = pending_segment(strokes, start) {
             tail.push(pt);
         }
@@ -400,7 +403,7 @@ mod tests {
     fn build_tail_empty_when_all_closed() {
         // 无分型无笔无延伸 → 空 tail。
         let merged = vec![bar(0, 10, 5)];
-        assert!(build_tail(&merged, &[], &[], &[], None).is_empty());
+        assert!(build_tail(&merged, &[], &[], &[], None, None).is_empty());
     }
 
     #[test]
@@ -418,11 +421,36 @@ mod tests {
             frac(FractalKind::Top, 12, 14), // 悬挂（> 最后笔尾 8）
         ];
         let merged = vec![bar(0, 1, 0), bar(4, 10, 9), bar(8, 4, 3), bar(12, 14, 13)];
-        let tail = build_tail(&merged, &fractals, &strokes, &[], Some(0));
+        let tail = build_tail(&merged, &fractals, &strokes, &[], Some(0), None);
         // 至少含 PendingSegment（剩余笔不足成段）。
         assert!(tail
             .iter()
             .any(|pt| matches!(pt, PendingTail::PendingSegment { .. })));
+    }
+
+    /// #1581（X-37）：段端门 fail-closed 标记非空 ⟹ 不构造 PendingSegment；笔/分型层尾部与无标记时逐位相同。
+    #[test]
+    fn build_tail_parse_invalid_drops_only_pending_segment() {
+        let strokes = vec![
+            stroke(Direction::Up, 0, 4, 0, 10),
+            stroke(Direction::Down, 4, 8, 10, 3),
+        ];
+        let fractals = vec![
+            frac(FractalKind::Bottom, 0, 0),
+            frac(FractalKind::Top, 4, 10),
+            frac(FractalKind::Bottom, 8, 3),
+            frac(FractalKind::Top, 12, 14),
+        ];
+        let merged = vec![bar(0, 1, 0), bar(4, 10, 9), bar(8, 4, 3), bar(12, 14, 13)];
+        let open = build_tail(&merged, &fractals, &strokes, &[], Some(0), None);
+        let closed = build_tail(&merged, &fractals, &strokes, &[], Some(0), Some(0));
+        let without_segment: Vec<_> = open
+            .iter()
+            .filter(|pt| !matches!(pt, PendingTail::PendingSegment { .. }))
+            .cloned()
+            .collect();
+        assert!(open.len() > without_segment.len(), "正控：无标记时有 PendingSegment");
+        assert_eq!(closed, without_segment);
     }
 
     /// property：build_tail 产出的 Pending* 都不携带"最终终结"——仅当下状态字段
@@ -434,7 +462,7 @@ mod tests {
             stroke(Direction::Down, 4, 8, 10, 3),
         ];
         let merged = vec![bar(0, 1, 0), bar(4, 10, 9), bar(8, 4, 3)];
-        let tail = build_tail(&merged, &[], &strokes, &[], Some(0));
+        let tail = build_tail(&merged, &[], &strokes, &[], Some(0), None);
         // 所有变体只可能是 parser 三层（不含 AliveCenter/PendingMove——那是 classifier 层）。
         for pt in &tail {
             assert!(matches!(

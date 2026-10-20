@@ -4,7 +4,7 @@
 //! 解析与全量分类，打印 SipHash 摘要。该测试先于实现单独提交，在基线与实现两个提交上各跑一次，
 //! 摘要逐位相同 ⟹ 无门失败时下游产出与改前逐位相同。摘要只覆盖改前已有的字段。
 use super::super::classifier::{self, streaming::OwnedIncrementalClassifier};
-use super::super::types::Bar;
+use super::super::types::{Bar, PendingTail, Stroke};
 use super::*;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -89,4 +89,126 @@ fn tb1581_digest_production_paths() {
         eprintln!("tb1581 digest seed={seed} segments={segs} levels={levels} digest={d:016x}");
     }
     eprintln!("tb1581 digest ALL={:016x}", all.finish());
+}
+
+fn tb1581_chain(prices: &[i64]) -> Vec<Stroke> {
+    prices
+        .windows(2)
+        .enumerate()
+        .map(|(i, p)| Stroke {
+            direction: if p[1] > p[0] {
+                super::super::types::Direction::Up
+            } else {
+                super::super::types::Direction::Down
+            },
+            start_index: 4 * i + 1,
+            end_index: 4 * i + 5,
+            start_price: p[0],
+            end_price: p[1],
+        })
+        .collect()
+}
+
+/// 笔端点处的退化 K 线（只供分型/尾部层取数；段判定只读笔）。
+fn tb1581_merged(ss: &[Stroke]) -> Vec<Bar> {
+    let mut pts = vec![(ss[0].start_index, ss[0].start_price)];
+    pts.extend(ss.iter().map(|s| (s.end_index, s.end_price)));
+    pts.into_iter()
+        .map(|(i, p)| Bar {
+            source_index: i,
+            timestamp: i as i64,
+            open: p,
+            high: p,
+            low: p,
+            close: p,
+            volume: 1.0,
+            untradable: false,
+        })
+        .collect()
+}
+
+fn has_pending_segment(l: &ParseLayer) -> bool {
+    l.tail
+        .iter()
+        .any(|pt| matches!(pt, PendingTail::PendingSegment { .. }))
+}
+
+/// 负控：注入段端门失败（TestOnly 种子起点，#1493 `tb1493_gate_failure_is_fail_closed` 同一输入）
+/// ⟹ ParseLayer 带标记、尾部无 PendingSegment、classifier 无产出；批量入口取标记的增量核与
+/// facts 同值。正控：同一输入生产口径无失败 ⟹ 无标记、尾部照常、classifier 照常运行。
+#[test]
+fn tb1581_injected_gate_failure_blocks_downstream() {
+    let cfg = ThetaConfig::default();
+    let ss = tb1581_chain(&[
+        0, 20, 8, 10, -20, -10, -16, -6, -8, -7, -12, -2, -9, 5, -5,
+    ]);
+    let merged = tb1581_merged(&ss);
+
+    let (prod, prod_facts) = parse_layer_from_strokes(&merged, ss.clone(), &cfg.parse, &mut None);
+    assert!(prod_facts.parse_invalid_from.is_none());
+    assert_eq!(prod.segments_parse_invalid_from, None);
+    let (segs, pending) = segment::divide_segments_with_tail(&ss, &cfg.parse);
+    let fractals = fractal::detect_fractals(&merged);
+    assert_eq!(
+        *prod.tail,
+        tail::build_tail(&merged, &fractals, &ss, &segs, pending, None)
+    );
+
+    segment::FIRST_START_AT_SEED.with(|c| c.set(true));
+    let (bad, bad_facts) = parse_layer_from_strokes(&merged, ss.clone(), &cfg.parse, &mut None);
+    let incr_marker = segment::IncrSegments::empty()
+        .append(&ss, &cfg.parse)
+        .parse_invalid_from();
+    let (_, bad_pending) = segment::divide_segments_with_tail(&ss, &cfg.parse);
+    segment::FIRST_START_AT_SEED.with(|c| c.set(false));
+
+    let seg_start = bad_facts.parse_invalid_from.as_ref().map(|p| p.seg_start);
+    assert_eq!(seg_start, Some(0), "注入须触发门失败");
+    assert_eq!(bad.segments_parse_invalid_from, seg_start);
+    assert_eq!(incr_marker, seg_start, "批量入口的增量核标记须与 facts 同一判定");
+    assert!(bad_pending.is_some(), "注入现场有未确认尾段（PendingSegment 的构造素材在）");
+    assert!(!has_pending_segment(&bad), "标记非空 ⟹ 不从 seg_start 起构造尾部");
+    assert_ne!(bad, prod, "标记计入 ParseLayer 结构等价");
+
+    let out = classifier::classify(&bad, &cfg, &[1]);
+    assert_eq!(out.classification, classifier::Classification::default());
+    assert!(out.tower.is_empty());
+    assert!(out.operations.is_empty());
+}
+
+/// 负控（classifier 入口，热缓存）：生产流中途某 bar 的 L0 带标记 ⟹ 该 bar 无中枢/走势/买卖点、
+/// 无塔、无新候选事件；下一个无标记 bar 与全量 `classify` 逐位相同（缓存被清后全量重建）。
+#[test]
+fn tb1581_classifier_refuses_marked_layer_with_warm_cache() {
+    let cfg = ThetaConfig::default();
+    let bars = tb1581_bars(0x1581_0001, 2_000);
+    let mut incr = ParseLayerIncr::new(&cfg);
+    let mut cache = classifier::TowerCache::new();
+    let inject_at = 1_700;
+    let mut checked_after = false;
+    for (i, bar) in bars.iter().enumerate() {
+        let layer = incr.append(*bar);
+        assert_eq!(layer.segments_parse_invalid_from, None, "生产口径无门失败");
+        if i == inject_at {
+            let warm = classifier::classify(&layer, &cfg, &[]);
+            assert!(!warm.classification.levels.is_empty(), "正控：无标记时有产出");
+            let before = cache.candidate_streams();
+            let mut marked = layer.clone();
+            marked.segments_parse_invalid_from = Some(0);
+            let out = classifier::classify_incremental(&marked, &cfg, &mut cache, &[1]);
+            assert_eq!(out.classification, classifier::Classification::default());
+            assert!(out.tower.is_empty());
+            assert!(out.operations.is_empty());
+            assert_eq!(out.candidate_streams, before, "拒读 bar 不产新候选事件");
+            continue;
+        }
+        let out = classifier::classify_incremental(&layer, &cfg, &mut cache, &[]);
+        if i == inject_at + 1 {
+            let full = classifier::classify(&layer, &cfg, &[]);
+            assert_eq!(out.classification, full.classification);
+            assert_eq!(out.tower, full.tower);
+            checked_after = true;
+        }
+    }
+    assert!(checked_after);
 }

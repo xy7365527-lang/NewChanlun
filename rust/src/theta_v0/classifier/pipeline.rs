@@ -481,6 +481,20 @@ pub fn classify_incremental(
     cache: &mut TowerCache,
     operating_levels: &[u32],
 ) -> ClassifyOutput {
+    // #1581（xianduan §15 X-37，§7.1 第 6 条「下游不得在其上构造」，#1493 裁定 4b）：段端门
+    // fail-closed 后 L0 段账本自失败段起点起无效。入口拒读：不构造任何级别的中枢/走势/买卖点，
+    // 清空可重导塔缓存（下个无标记的 bar 全量重建）；不可回填的候选事件簿只读不写，本 bar 不产新事件。
+    // 整层拒读而非截到失败点前：各级末端判定（活中枢、末段走势、背驰）以账本末端为「当下」，截断后
+    // 仍会把失败前的结构当作当下状态输出，等于在无效划分旁构造。
+    if l0.segments_parse_invalid_from.is_some() {
+        cache.clear();
+        return ClassifyOutput {
+            classification: Classification::default(),
+            tower: Vec::new(),
+            candidate_streams: cache.candidate_book.streams(),
+            operations: Vec::new(),
+        };
+    }
     let (classification, tower, operations) =
         classify_incremental_inner(l0, config, cache, operating_levels);
     ClassifyOutput {
