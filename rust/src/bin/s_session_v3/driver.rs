@@ -5090,7 +5090,10 @@ mod tests {
             warm.handle(Fixture::ingest(1)).unwrap(),
             ordinary.handle(Fixture::ingest(1)).unwrap()
         );
-        assert!(warm.conn.complete_retained_bytes() > 0, "第 2 代入口须带完整候选");
+        assert!(
+            warm.conn.complete_retained_bytes() > 0,
+            "第 2 代入口须带完整候选"
+        );
         let flag = if real_tail_failure {
             &PUBLICATION_TAIL_FAILURE
         } else {
@@ -5123,7 +5126,10 @@ mod tests {
                 runtime_root_tables(&ordinary.conn, true)
             );
         }
-        assert!(warm.conn.complete_retained_bytes() > 0, "后续代重建并保留候选");
+        assert!(
+            warm.conn.complete_retained_bytes() > 0,
+            "后续代重建并保留候选"
+        );
     }
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]

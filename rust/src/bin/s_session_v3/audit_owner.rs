@@ -5942,7 +5942,14 @@ impl AuditConnection {
                 Err(native::Failure::BudgetExceeded) => return Ok(None),
                 Err(native::Failure::Invalid(e)) => return Err(e),
             };
-            (receipt, Some(ConstructionRun { value: (), before, after }))
+            (
+                receipt,
+                Some(ConstructionRun {
+                    value: (),
+                    before,
+                    after,
+                }),
+            )
         } else {
             (
                 self.publish_body(&mut active, runtime, token, envelope, context, None)?,
