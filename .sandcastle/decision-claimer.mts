@@ -361,7 +361,7 @@ export function renumberDraft(draft: string, from: string, a: AdrAllocation): st
 
 // ───────────────────────── 状态转移 ─────────────────────────
 
-export type Phase = "classify" | "draft" | "review" | "land_t" | "shadow_p" | "review_parse_error" | "done" | "error";
+export type Phase = "classify" | "draft" | "review" | "land_t" | "shadow_p" | "review_parse_error" | "done" | "error" | "skipped";
 /** 起草/审查总轮次上限（含升档重做与只改引用的修订轮）。 */
 export const MAX_ROUNDS = 3;
 /** 起草方式：首稿、升档重做、只改引用的修订。 */
@@ -567,6 +567,8 @@ function redact(s: string): string {
 
 export interface TicketContext {
   number: number;
+  /** OPEN / CLOSED；旧夹具可缺省，缺省按 OPEN。 */
+  state?: string;
   title: string;
   body: string;
   labels: string[];
@@ -576,8 +578,8 @@ export interface TicketContext {
 }
 
 export function loadTicket(gh: GhRunner, n: number): TicketContext {
-  const v = JSON.parse(gh(["issue", "view", String(n), "--json", "number,title,body,labels,assignees,comments"])) as {
-    number: number; title: string; body: string;
+  const v = JSON.parse(gh(["issue", "view", String(n), "--json", "number,state,title,body,labels,assignees,comments"])) as {
+    number: number; state?: string; title: string; body: string;
     labels: Array<{ name: string }>; assignees: Array<{ login: string }>;
     comments: Array<{ author?: { login?: string }; body: string }>;
   };
@@ -587,11 +589,58 @@ export function loadTicket(gh: GhRunner, n: number): TicketContext {
       .map((b) => ({ number: b.number, state: b.state, title: b.title }));
   } catch { /* 依赖接口不可用时留空 */ }
   return {
-    number: v.number, title: v.title, body: v.body ?? "",
+    number: v.number, state: v.state, title: v.title, body: v.body ?? "",
     labels: v.labels.map((l) => l.name), assignees: v.assignees.map((a) => a.login),
     comments: v.comments.map((c) => ({ author: c.author?.login ?? "?", body: c.body })),
     blockers,
   };
+}
+
+/** 用户批复与 resolution 只认编排者账号的评论（全仓代理与用户共用此账号，外部账号的评论不算）。 */
+export const ORCHESTRATOR = process.env.DECISION_ORCHESTRATOR ?? "xy7365527-lang";
+
+/** 去掉评论首行的 Markdown 前缀（引用、标题、加粗、列表），只留正文。 */
+function firstLine(body: string): string {
+  const line = body.trimStart().split("\n", 1)[0] ?? "";
+  return line.replace(/^(?:\s*(?:>|#{1,6}|\*\*|__|[-*]\s))+\s*/, "").replace(/^\*\*|\*\*$/g, "").trim();
+}
+
+/**
+ * 重开：首行以退回 / 驳回 / 打回 / 不批准 / 不同意开头（#1530「## 退回重写（用户 … 批复：「同意」）」），
+ * 或批复冒号后的内容以这些词开头（「用户 … 批复：退回重写」）。首行中间提到「重写」不算（「批复：同意——按草稿重写 §3」）。
+ */
+const REOPEN_HEAD = "(?:退回|驳回|打回|否决|不批准|不同意)";
+const REOPEN_RE = new RegExp(`^${REOPEN_HEAD}|批复\\s*[：:]\\s*(?:\\*\\*|[「“"])*\\s*${REOPEN_HEAD}`);
+
+/**
+ * 首行「用户 … 批复」且不是「未 / 待」批复（#1565 先例「用户 2026-10-20 批复：「同意」…」）。
+ * 影子评论「**P 类影子模式，待用户批复**」首行以「P 类」开头，不命中。
+ */
+function isUserResolution(line: string): boolean {
+  const m = /^用户([^\n]{0,40}?)批复/.exec(line);
+  return !!m && !/[未待没需]/.test(m[1]!);
+}
+
+/**
+ * 已裁定 / 已关闭的票不得再进裁决面（图审计 2026-10-20 第 13 条：#1565 已按用户批复落正本，
+ * claimer live 仍把它选进本轮）。按时间序扫编排者评论，最新一条有效：
+ *   - 首行是 AUTH_LINE 或「**resolution**：」→ 已裁定；
+ *   - 首行「用户 … 批复」→ 已裁定；但若同一首行或之后的评论首行带退回 / 驳回 / 重写，则重新打开。
+ * 返回跳过原因；null = 可处理。纯函数。
+ */
+export function resolvedReason(t: Pick<TicketContext, "state" | "comments">, orchestrator = ORCHESTRATOR): string | null {
+  if ((t.state ?? "OPEN").toUpperCase() === "CLOSED") return "票已关闭";
+  let reason: string | null = null;
+  for (const c of t.comments) {
+    if (c.author !== orchestrator) continue;
+    const line = firstLine(c.body);
+    if (line.startsWith("P 类影子模式")) continue;
+    if (c.body.trimStart().startsWith(AUTH_LINE) || /^resolution\s*[：:]/i.test(line)) reason = "票上已有 resolution";
+    else if (REOPEN_RE.test(line)) reason = null;
+    else if (isUserResolution(line)) reason = "票上已有用户批复";
+    // 其余评论（簿记、进度）不改变结论。
+  }
+  return reason;
 }
 
 function renderTicket(t: TicketContext): string {
@@ -786,6 +835,7 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
   }
   const t0 = d.now();
   let claimed = false;
+  let skipPersist = false;
   // live 写 GitHub；dry-run 只登记意图，不触 gh 写命令。
   const write = (desc: string, args: string[], input?: string) => {
     if (d.mode === "dry-run") summary.plannedWrites.push(desc);
@@ -793,6 +843,15 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
   };
   try {
     const t = loadTicket(d.gh, n);
+    const resolved = resolvedReason(t);
+    if (resolved) {
+      // 不覆盖既有 summary.json（它记录的是上次真实处理的结局）。
+      skipPersist = true;
+      summary.phase = "skipped";
+      summary.error = resolved;
+      log(`#${n} 跳过：${resolved}`);
+      return summary;
+    }
     const resume = loadResume(dir);
 
     // claim 先行防重复；续做时允许票仍挂在自己名下（上次没来得及取消认领）。
@@ -968,7 +1027,7 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
     }
   } finally {
     summary.durationsMs.total = d.now() - t0;
-    writeJson(join(dir, "summary.json"), summary);
+    if (!skipPersist) writeJson(join(dir, "summary.json"), summary);
     rmSync(lock, { force: true });
   }
   return summary;
@@ -1034,17 +1093,40 @@ export function selectCandidates(children: RawChild[], skip: Set<number>): numbe
     .filter((n) => !skip.has(n) && !seen.has(n) && seen.add(n));
 }
 
-function finishedTickets(outRoot: string, children: RawChild[]): Set<number> {
+/**
+ * 本地已走完的终态：落地、影子待批。带断点（stage）的一律不算，留给续做。
+ * 要重跑一张已到终态的票（例如主控退回重写），先把本地目录改名（先例 decisions/1530.returned-20261020）。
+ */
+const FINISHED_PHASES: Phase[] = ["done", "land_t", "shadow_p"];
+
+/** 本地 summary.json 已到终态的票（dry-run 与 live 都跳过）。 */
+export function finishedTickets(outRoot: string, children: Array<{ number: number }>): Set<number> {
   const done = new Set<number>();
   for (const c of children) {
     const p = join(outRoot, String(c.number), "summary.json");
     if (!existsSync(p)) continue;
     try {
       const s = JSON.parse(readFileSync(p, "utf8")) as Summary;
-      if (s.phase !== "error" && s.phase !== "review_parse_error") done.add(c.number);
+      if (FINISHED_PHASES.includes(s.phase) && !s.stage) done.add(c.number);
     } catch { /* 坏文件视为未完成 */ }
   }
   return done;
+}
+
+/**
+ * 从候选里逐张读票面，跳过已关闭 / 已有 resolution 或用户批复的票，凑满 limit 张。
+ * 读票失败的候选本轮跳过（下一轮重试），不占并发槽。
+ */
+export function pickUnresolved(gh: GhRunner, candidates: number[], limit: number, onSkip: (n: number, why: string) => void): number[] {
+  const out: number[] = [];
+  for (const n of candidates) {
+    if (out.length >= limit) break;
+    let why: string | null;
+    try { why = resolvedReason(loadTicket(gh, n)); } catch (e) { why = `读票失败：${e instanceof Error ? e.message.split("\n")[0] : String(e)}`; }
+    if (why) onSkip(n, why);
+    else out.push(n);
+  }
+  return out;
 }
 
 export async function runPool<T, R>(items: T[], limit: number, fn: (x: T) => Promise<R>): Promise<R[]> {
@@ -1090,7 +1172,9 @@ async function round(a: Args, d: Deps) {
   let tickets = a.tickets;
   if (tickets.length === 0) {
     const children = a.maps.flatMap((m) => JSON.parse(d.gh(["api", "--paginate", `repos/${GH_REPO}/issues/${m}/sub_issues`])) as RawChild[]);
-    tickets = selectCandidates(children, d.mode === "dry-run" ? finishedTickets(a.outRoot, children) : new Set()).slice(0, a.concurrency);
+    // live 与 dry-run 同口径：本地已到终态的票、已关闭或已有 resolution/用户批复的票都不再选。
+    const candidates = selectCandidates(children, finishedTickets(a.outRoot, children));
+    tickets = pickUnresolved(d.gh, candidates, a.concurrency, (n, why) => log(`#${n} 跳过：${why}`));
   }
   if (tickets.length === 0) {
     log("frontier 上没有可裁决的 grilling 票");

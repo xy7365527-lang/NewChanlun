@@ -77,6 +77,6 @@ test("壳：注入一次 gh timeout → 重试后自动恢复并走完一轮", (
 test("壳：空队列无 timeout → 正常走完一轮（不退出）", () => {
   const out = runEngine(0, 3);
   assert.equal(out.includes("gh 查询失败"), false);
-  assert.equal(out.includes("全仓 ready-for-agent 0 张"), true);
+  assert.equal(out.includes("扫描集（ready-for-agent ∪ wayfinder:impl）0 张"), true);
   assert.equal(out.includes("一轮结束"), true);
 });
