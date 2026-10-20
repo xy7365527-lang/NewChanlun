@@ -3850,6 +3850,135 @@ mod tests {
         assert!(count(&conn, "s_content_witnesses") > 0);
     }
 
+    /// #1488 S3：plan 的暖口（跨代 Runtime 记忆）与冷口（每代新 Runtime）逐位相同，
+    /// 并打出每代暖口 SQL 读量，供 D6「读量 ∝ 本代重建后缀与 Δ_R」核对。
+    #[test]
+    fn aux_plan_warm_matches_cold_and_reads_track_delta() {
+        fn rows_of(index: &Index) -> Value {
+            json!({
+                "witnesses": index.witnesses.iter().map(|r| json!([r.id.as_str(), r.object_id.as_str(), r.slot, r.merged_index, r.generated.digest().unwrap().to_vec(), r.wire.digest().unwrap().to_vec(), r.first])).collect::<Vec<_>>(),
+                "relations": index.relations.iter().map(|r| json!([r.id.as_str(), r.subject.as_str(), r.relation_type.as_str(), r.object.as_str(), r.generated.digest().unwrap().to_vec(), r.first])).collect::<Vec<_>>(),
+                "observations": index.observations.iter().map(|r| json!([r.id.as_str(), r.kind.as_str(), r.window_start, r.generated.digest().unwrap().to_vec(), r.wire.digest().unwrap().to_vec(), r.batch.as_ref().map(|b| b.as_str().to_owned()), r.first])).collect::<Vec<_>>(),
+            })
+        }
+        fn sets_of(p: &PublicSets) -> [NodeDigest; 4] {
+            [
+                p.witnesses.digest,
+                p.relations.digest,
+                p.observations.digest,
+                p.raw_history.digest,
+            ]
+        }
+        fn bar(i: usize) -> (String, i64, i64, i64, i64, i64) {
+            let (high, low) = if i % 2 == 0 {
+                (20 + (i % 7) as i64, 12 + (i % 5) as i64)
+            } else {
+                (14 + (i % 3) as i64, 5 + (i % 4) as i64)
+            };
+            (format!("x{i}"), (i * 10) as i64, low + 1, high, low, low + 1)
+        }
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let mut conn = database();
+        let mut runtime = Runtime::default();
+        let mut previous = -1;
+        let mut next = 0usize;
+        for g in 1..=10i64 {
+            let grow = if g == 1 { 8 } else { 3 };
+            let mut rows = (next..next + grow).map(bar).collect::<Vec<_>>();
+            next += grow;
+            let mut input = {
+                let borrowed = rows
+                    .iter()
+                    .map(|(id, c, o, h, l, cl)| (id.as_str(), *c, *o, *h, *l, *cl))
+                    .collect::<Vec<_>>();
+                located_ohlc_input(&borrowed)
+            };
+            if g == 5 || g == 8 {
+                let at = if g == 5 { 3 } else { 10 };
+                let (id, c, o, h, l, cl) = bar(at);
+                rows = vec![(id, c, o, h + 2, l, cl)];
+                let borrowed = rows
+                    .iter()
+                    .map(|(id, c, o, h, l, cl)| (id.as_str(), *c, *o, *h, *l, *cl))
+                    .collect::<Vec<_>>();
+                let mut revision = located_ohlc_input(&borrowed);
+                revision["events"][0]["revision"] = json!("2");
+                accept_ohlc(&files, &revision);
+            }
+            accept_ohlc(&files, &input.take());
+            let source = open_db(&files.db()).unwrap();
+            let raw = read_raw_events(&source).unwrap();
+            let effective = read_effective_events(&raw).unwrap();
+            let profile_hash = meta_get_opt(&source, "profile_hash").unwrap().unwrap();
+            let rule = meta_get_opt(&source, "rule_revision").unwrap().unwrap();
+            let catalog = meta_get_opt(&source, "catalog_revision").unwrap().unwrap();
+            let scope =
+                serde_json::from_str(&meta_get_opt(&source, "scope").unwrap().unwrap()).unwrap();
+            let cut = format!("cut-{g}");
+            let frontier = raw.len() as i64 - 1;
+            let tx = conn.transaction().unwrap();
+            let mut s = content_store::TxStore::new(&tx).unwrap();
+            let old = load(&tx, &mut s, g - 1).unwrap();
+            let mut generator = GenerationRuntime::new(
+                format!("aux-s3/{}/{g}", files.db().display()),
+                tb02a::PROFILE,
+                &rule,
+            );
+            let input = GenerationInput {
+                all_events: (&raw).into(),
+                effective: (&effective).into(),
+                generation: g,
+                structure_cut: &cut,
+                input_frontier: frontier,
+                profile_id: tb02a::PROFILE,
+                profile_hash: &profile_hash,
+                rule_revision: &rule,
+                catalog_revision: &catalog,
+                scope: &scope,
+                semantic_commit_ns: None,
+                prior: PriorState {
+                    bi_records: vec![],
+                    version_record: None,
+                },
+            };
+            let generated = generator.generate(&mut s, &input).unwrap();
+            let sql = content_store::sql_reads_on_thread();
+            let frames = sc::frame_calls_on_thread();
+            let warm = runtime
+                .plan(&mut s, &old, &generated, &[], &raw, previous, frontier, g)
+                .unwrap();
+            let warm_sql = content_store::sql_reads_on_thread() - sql;
+            let warm_frames = sc::frame_calls_on_thread() - frames;
+            let sql = content_store::sql_reads_on_thread();
+            let cold = Runtime::default()
+                .plan(&mut s, &old, &generated, &[], &raw, previous, frontier, g)
+                .unwrap();
+            let cold_sql = content_store::sql_reads_on_thread() - sql;
+            assert_eq!(rows_of(&warm.snapshot), rows_of(&cold.snapshot), "g={g} snapshot");
+            assert_eq!(rows_of(&warm.births), rows_of(&cold.births), "g={g} births");
+            assert_eq!(sets_of(&warm.snapshot_values), sets_of(&cold.snapshot_values), "g={g}");
+            assert_eq!(sets_of(&warm.delta_values), sets_of(&cold.delta_values), "g={g}");
+            let state = warm.snapshot.witnesses.len()
+                + warm.snapshot.relations.len()
+                + warm.snapshot.observations.len();
+            let births = warm.births.witnesses.len()
+                + warm.births.relations.len()
+                + warm.births.observations.len();
+            eprintln!(
+                "S3_AUX_PLAN g={g} raw={} delta_raw={} state_rows={state} birth_rows={births} generated_witnesses={} warm_sql={warm_sql} warm_frames={warm_frames} cold_sql={cold_sql}",
+                raw.len(),
+                frontier - previous,
+                generated.witnesses.len(),
+            );
+            let batch = format!("batch3-{}", (g % 10).to_string().repeat(64));
+            stage(&tx, &mut s, &warm, &batch).unwrap();
+            drop(s);
+            tx.commit().unwrap();
+            previous = frontier;
+        }
+    }
+
     #[test]
     fn observation_detail_remains_a_shared_edge_and_identity_matches_both_old_recipes() {
         let mut conn = database();
