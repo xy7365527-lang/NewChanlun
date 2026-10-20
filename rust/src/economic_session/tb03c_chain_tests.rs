@@ -1,5 +1,7 @@
 //! #1406 S1（TB-03-C AC1/AC2）：同一重 alpha 在 FIN/1（tb03b-finance/1）+ tb03c-book/1 域上
-//! 走完 Prepare → Reserve → Commit → Capture(该 Commit 对应成交) → Resolve → ApplyAllocation，
+//! 走完 Prepare → Reserve → Commit → Capture → Resolve → ApplyAllocation。被 Capture 的成交预列于冻结
+//! FIN baseline、command_id 由夹具填为 plan-alpha：Commit 与成交的对应由夹具构造（成交预列于冻结
+//! baseline），产品不强制，见 S1-REPORT F1/F2，归 TB04-F #1425。
 //! 全部经正式 `service::handle` 分派（财务三步经 `finance::write_with_ingress`，不直调 persist/reduce）。
 //!
 //! 信任边界：S 是 TestOnly 桩（只输出固定 FinancialBasis 的脚本，经正式 S reader 运输读取），γ/Voice
@@ -314,6 +316,10 @@ fn err(v: &Value, prefix: &str) {
     assert_eq!(v["kind"], "Error", "{v}");
     assert!(v["error"].as_str().unwrap().starts_with(prefix), "{v}");
 }
+fn err_exact(v: &Value, text: &str) {
+    assert_eq!(v["kind"], "Error", "{v}");
+    assert_eq!(v["error"], text, "{v}");
+}
 fn err_has(v: &Value, prefix: &str, text: &str) {
     err(v, prefix);
     assert!(v["error"].as_str().unwrap().contains(text), "{v}");
@@ -399,10 +405,11 @@ fn tb03c_chain_fin1_prepare_reserve_commit_capture_resolve_apply_same_chong_and_
         "缺前件 Resolve 无提交"
     );
     let b_before = store::latest(&c.dbs[A]).unwrap();
-    err(&c.send(A, json!({"op":"ApplyAllocation","fact_key":gap["fact_key"],"allocation_id":"not-resolved","expected_fact_hash":gap["fact_hash"]})), "AwaitingDependency");
+    err_exact(&c.send(A, json!({"op":"ApplyAllocation","fact_key":gap["fact_key"],"allocation_id":"not-resolved","expected_fact_hash":gap["fact_hash"]})), "AwaitingDependency：净额事实尚无 E 持久分配");
     assert_eq!(store::latest(&c.dbs[A]).unwrap(), b_before);
 
-    // ---- 该 Commit 对应的成交：E.Capture ----
+    // ---- E.Capture 一笔成交：Commit 与成交的对应由夹具构造（成交预列于冻结 baseline、command_id 由
+    //      夹具填为 plan-alpha），产品不强制，见 S1-REPORT F1/F2，归 TB04-F #1425 ----
     let fill_doc = c.fill.clone();
     let fill = c.capture(&fill_doc, "token-s1-fill");
     assert_eq!(fill["kind"], "Recorded", "{fill}");
@@ -419,7 +426,7 @@ fn tb03c_chain_fin1_prepare_reserve_commit_capture_resolve_apply_same_chong_and_
     );
     assert_eq!(store::latest(&c.dbs[E]).unwrap(), e_before, "异内容无提交");
     let b_before = store::latest(&c.dbs[A]).unwrap();
-    err(&c.send(A, json!({"op":"ApplyAllocation","fact_key":fill["fact_key"],"allocation_id":"not-resolved","expected_fact_hash":fill["fact_hash"]})), "AwaitingDependency");
+    err_exact(&c.send(A, json!({"op":"ApplyAllocation","fact_key":fill["fact_key"],"allocation_id":"not-resolved","expected_fact_hash":fill["fact_hash"]})), "AwaitingDependency：净额事实尚无 E 持久分配");
     assert_eq!(
         store::latest(&c.dbs[A]).unwrap(),
         b_before,
@@ -449,7 +456,8 @@ fn tb03c_chain_fin1_prepare_reserve_commit_capture_resolve_apply_same_chong_and_
     assert_eq!(rows[0]["fact_key"], fill["fact_key"]);
     let allocation = rows[0]["allocations"][0].clone();
     assert_eq!(rows[0]["allocations"].as_array().unwrap().len(), 1);
-    // 归属：唯一分配落 alpha，command_id 即被 Prepare/Commit 的计划身份
+    // 归属：唯一分配落 alpha。下一条 command_id == plan_id 断言只核夹具值经 Resolve 原样传递不变
+    // （夹具自洽检查，非产品绑定；产品不校验 command_id 与决定/grant，见 F2，归 TB04-F #1425）
     assert_eq!(allocation["chong_id"], "alpha");
     assert_eq!(
         allocation["command_id"],
@@ -479,7 +487,7 @@ fn tb03c_chain_fin1_prepare_reserve_commit_capture_resolve_apply_same_chong_and_
     bad["expected_fact_hash"] = json!("0".repeat(64));
     let b_before = store::latest(&c.dbs[A]).unwrap();
     let bad_r = c.send(A, bad);
-    assert_eq!(bad_r["kind"], "Error", "{bad_r}");
+    err_exact(&bad_r, "IdentityConflict：实读E事实/金额/归属与请求不匹配");
     assert_eq!(
         store::latest(&c.dbs[A]).unwrap(),
         b_before,

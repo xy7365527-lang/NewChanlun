@@ -39,7 +39,7 @@
 
 **成交与 Resolve**：Capture 的成交为 netted，from 0 → to 2，单价 13，佣金 2。之后经 FIN 的已保留责任界完成 Resolve。
 
-**归属**：
+**归属**（限定：Commit 与成交的对应由夹具构造（成交预列于冻结 baseline），产品不强制，见 F1/F2，归 TB04-F #1425；`command_id == plan_id` 一条只核夹具值经 Resolve 原样传递不变，不是产品绑定）：
 - 唯一分配为 `chong_id=alpha`；
 - `command_id` 等于被 Commit 决定的 `prepared.plan.plan_id`；
 - B 端 `QueryFact` 的 `resolved_allocation` 回指 alpha / plan-alpha；
@@ -64,9 +64,9 @@
 | 同分配重送 Apply | 原收据；`applied` 只多 1 条 |
 | 异内容冲突：同来源身份改价重送 Capture | `IdentityConflict`，无提交 |
 | 另一 `evidence_id` 覆盖已分配事实 | `IdentityConflict` |
-| 错 `expected_fact_hash` 的 Apply | Error，无提交 |
-| 缺前件：累计前沿缺口成交（2 → 3） | Resolve 得 `MissingDependency`（含「前沿缺口」），无提交；B Apply 得 `AwaitingDependency`；该成交 Pending 保留，无分配行 |
-| Resolve 之前 Apply | `AwaitingDependency`，B 不变 |
+| 错 `expected_fact_hash` 的 Apply | 完整文案 `IdentityConflict：实读E事实/金额/归属与请求不匹配`，无提交 |
+| 缺前件：累计前沿缺口成交（2 → 3） | Resolve 得 `MissingDependency`（含「前沿缺口」），无提交；B Apply 得完整文案 `AwaitingDependency：净额事实尚无 E 持久分配`；该成交 Pending 保留，无分配行 |
+| Resolve 之前 Apply | 完整文案 `AwaitingDependency：净额事实尚无 E 持久分配`，B 不变 |
 | 估值观察（14 → 9） | E 记 Recorded；B Apply 得 `SchemaUnsupported`，B 不变，K 仍为 80028 |
 
 **重开**：
