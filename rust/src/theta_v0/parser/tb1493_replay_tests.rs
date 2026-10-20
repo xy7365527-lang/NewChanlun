@@ -33,7 +33,8 @@ struct Replay {
     /// 形态（早先第二种候选作废后再判的段端仍越过段起点）只能以门失败出现，故即其计数。
     invalid_events: usize,
     /// 前缀不回退违例：(bar, 首个改写段下标, 是否「末笔可改写」类)。#1493 裁定 1：只容许末笔可改写
-    /// ——上一前缀的末笔在本 bar 被改写或撤回，且被改写的是上一前缀的末个已确认段。
+    /// ——上一前缀只有末笔在本 bar 被改写或撤回（其前各笔原样），且被改写段起于上一前缀的 unsealed
+    /// 起点（确认笔是末笔的段自此起；一根长末笔可连续确认数段，故不限于末个已确认段）。
     rewrites: Vec<(usize, usize, bool)>,
 }
 
@@ -46,8 +47,8 @@ fn replay(bars: &[Bar], ladder: &[usize]) -> (Replay, ParseLayer) {
     let theta = ThetaConfig::default();
     let mut inc = ParseLayerIncr::new(&theta);
     let mut r = Replay::default();
-    // (上一层段数, 拷贝起点, 拷贝, 上一层笔数, 上一层末笔)
-    let mut prev: Option<(usize, usize, Vec<Segment>, usize, Option<Stroke>)> = None;
+    // (上一层段数, 拷贝起点, 拷贝, 上一层笔数, 上一层末 8 笔, 上一层 unsealed 起点)
+    let mut prev: Option<(usize, usize, Vec<Segment>, usize, Vec<Stroke>, Option<usize>)> = None;
     let mut was_invalid: Option<usize> = None;
     let mut deep_unverified = 0usize;
     let n_all = bars.len();
@@ -61,12 +62,15 @@ fn replay(bars: &[Bar], ladder: &[usize]) -> (Replay, ParseLayer) {
             }
         }
         was_invalid = invalid;
-        if let Some((plen, off, old, pstrokes, plast)) = &prev {
-            // 末笔可改写：上一前缀的末笔在本层不再原样存在（被延伸、改写或撤回）。
-            let last_rewritten = match plast {
-                Some(s) => *pstrokes == 0 || layer.strokes.get(pstrokes - 1) != Some(s),
-                None => false,
-            };
+        if let Some((plen, off, old, pstrokes, ptail, peuf)) = &prev {
+            // 末笔可改写：上一前缀只有末笔在本层不再原样存在（被延伸、改写或撤回），其前各笔原样。
+            let base = pstrokes - ptail.len();
+            let only_last = !ptail.is_empty()
+                && ptail[..ptail.len() - 1]
+                    .iter()
+                    .enumerate()
+                    .all(|(t, s)| layer.strokes.get(base + t) == Some(s))
+                && layer.strokes.get(pstrokes - 1) != ptail.last();
             // 已发射段（除末段可随末笔改写）须是后一前缀的前缀；只比保留前缀之后的区间。
             let end = plen.saturating_sub(1);
             let k = layer.segments_confirmed_len.min(end);
@@ -76,7 +80,12 @@ fn replay(bars: &[Bar], ladder: &[usize]) -> (Replay, ParseLayer) {
             let from = k.max(*off);
             for j in from..end {
                 if layer.segments.get(j) != Some(&old[j - off]) {
-                    r.rewrites.push((i, j, last_rewritten && j + 2 >= *plen));
+                    let seg_start_stroke = layer
+                        .strokes
+                        .iter()
+                        .position(|s| s.start_index == old[j - off].start_index);
+                    let in_unsealed = matches!((peuf, seg_start_stroke), (Some(e), Some(k)) if k >= *e);
+                    r.rewrites.push((i, j, only_last && in_unsealed));
                     break;
                 }
             }
@@ -116,12 +125,14 @@ fn replay(bars: &[Bar], ladder: &[usize]) -> (Replay, ParseLayer) {
         }
         let len = layer.segments.len();
         let off = len.saturating_sub(TAIL);
+        let slen = layer.strokes.len();
         prev = Some((
             len,
             off,
             layer.segments[off..].to_vec(),
-            layer.strokes.len(),
-            layer.strokes.last().copied(),
+            slen,
+            layer.strokes[slen.saturating_sub(8)..].to_vec(),
+            layer.segments_earliest_unsealed,
         ));
         drop(layer);
     }
