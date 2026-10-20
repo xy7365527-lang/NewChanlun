@@ -683,8 +683,7 @@ impl AuditConnection {
     /// 3. 同请求只再走一次无候选发布（bind_existing 无候选，与“无候选请求”同一路径），回复与
     ///    oracle 一致，本请求后不保留候选（保留率下降，正确性不变）；
     /// 4. 提交确认后 owner 已无 construction/complete，与重启后新开 owner 等价，续租（见文件尾
-    ///    `renew_lease_after_abandon`），否则后续 Accept 的 Carry 永久“租约已撤销”。
-    ///
+    ///    `renew_lease_after_abandon`），并再丢弃运行态（无 raw 资格的完整态不得续作 delta 车道）。
     /// 不降级、照旧 fail-closed：父工作域报 `Invalid`（ScratchFailure::Ledger 即“Native codec
     /// 工作账损坏”、尾检 seal/transition 身份不符等真正尾检失败）；codec_work 签发报账损坏；
     /// 第二次（无候选）尝试的任何错误（它不签发父工作域，不会再返回 None，防御性按尾检失败拒绝）。
@@ -715,6 +714,7 @@ impl AuditConnection {
                     .publish_attempt(runtime, token, envelope, context, false)?
                     .ok_or_else(|| construction_state::stale("publication父工作域尾检失败"))?;
                 self.renew_lease_after_abandon(&published.1);
+                runtime.discard();
                 published
             }
         };
@@ -5901,7 +5901,6 @@ impl AuditConnection {
             self.construction_lease.stale.set(false);
         }
     }
-
 
     /// 返回 Ok(None) 仅当候选父工作域报 BudgetExceeded；`candidate=false` 时不签发候选资源。
     #[cfg(feature = "s_capture_native_testonly")]
