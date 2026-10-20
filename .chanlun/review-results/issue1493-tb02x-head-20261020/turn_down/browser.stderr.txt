@@ -1,0 +1,10 @@
+AggregateError: Browser validation or cleanup failed
+    at main (/home/hanju/nc-remote/wt/20261020-140311-8f86b657e6/s_session/tests/tb02x_browser.cjs:105:11) {
+  [errors]: [
+    page.waitForFunction: Timeout 600000ms exceeded.
+        at main (/home/hanju/nc-remote/wt/20261020-140311-8f86b657e6/s_session/tests/tb02x_browser.cjs:76:18) {
+      log: [],
+      name: 'TimeoutError'
+    }
+  ]
+}
