@@ -27,7 +27,7 @@ use newchan_rust::theta_v0::backtest::data::load_symbol;
 use newchan_rust::theta_v0::backtest::incremental::IncrementalClassifier;
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::{
-    inclusion::{InclusionDirectionEvidence, InclusionFacts},
+    inclusion::{InclusionDirectionEvidence, InclusionFacts, SourceCoords},
     parse_layer_with_inclusion_facts,
     stroke::Endpoint,
     ParseLayer, ParseLayerIncr,
@@ -146,13 +146,21 @@ impl CoordCount {
         self.elems += v.len() as u64;
         self.cap += cap as u64;
     }
+    /// #1597：来源坐标是共享表示；`elems` 计逻辑元素数（展开后的长度），`cap` 只计扁平
+    /// 形态的独占元素（共享树节点的实际字节由分配器 `retained` 反映，不在此重复计）。
+    fn coords(&mut self, c: &SourceCoords) {
+        self.elems += c.len() as u64;
+        if c.as_shared().is_none() {
+            self.cap += c.len() as u64;
+        }
+    }
     fn ev(&mut self, e: &Option<InclusionDirectionEvidence>) {
         if let Some(e) = e {
-            self.vec(&e.source_coords, e.source_coords.capacity());
+            self.coords(&e.source_coords);
         }
     }
     fn endpoint(&mut self, e: &Endpoint) {
-        self.vec(&e.source_coords, e.source_coords.capacity());
+        self.coords(&e.source_coords);
         self.vec(&e.extreme_roots, e.extreme_roots.capacity());
     }
 }
@@ -172,7 +180,7 @@ fn facts_counts(f: &InclusionFacts) -> [(&'static str, CoordCount); 7] {
             sf_strokes.endpoint(&b.start);
             sf_strokes.endpoint(&b.end);
             if let Some(c) = &b.confirmation {
-                sf_strokes.vec(&c.source_coords, c.source_coords.capacity());
+                sf_strokes.coords(&c.source_coords);
             }
         }
     }
@@ -181,7 +189,7 @@ fn facts_counts(f: &InclusionFacts) -> [(&'static str, CoordCount); 7] {
     let mut group_src = CoordCount::default();
     let mut group_ev = CoordCount::default();
     for s in &f.steps {
-        step_src.vec(&s.source_coords, s.source_coords.capacity());
+        step_src.coords(&s.source_coords);
         step_src.vec(&s.high_sources, s.high_sources.capacity());
         step_src.vec(&s.low_sources, s.low_sources.capacity());
         step_ev.ev(&s.direction_evidence);

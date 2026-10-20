@@ -262,6 +262,273 @@ impl CoordsRef {
     }
 }
 
+/// #1597：完整事实里来源坐标集合的**公开**表示（取代展开的 `Vec<usize>`）。
+///
+/// 两种内部形态，对外只暴露同一个逻辑序列：
+///
+/// - 共享：[`CoordsRef`] 平衡拼接树（升序去重）。完整事实入口在 source 坐标严格递增时
+///   用它——第 i 步的证据坐标与前一步共享前缀，单步只新建 O(log n) 个节点，整份事实的
+///   留存从 Θ(n²) 降到 O(n log n)。
+/// - 扁平：`Rc<[usize]>`，原样保存元素顺序（含非升序）。非单调输入的回落路径、
+///   手写夹具与 `From<Vec<usize>>` 用它。
+///
+/// **对外合同**（与旧 `Vec<usize>` 字段逐位相同的部分）：`Debug`（含 `{:#?}`）、
+/// `serde::Serialize`（带长度的序列）、`PartialEq`/`Eq`（按元素序列比较，与内部形态无关）。
+/// 克隆 O(1)（共享句柄）。不实现 `Deref<Target=[usize]>`：展开须显式调用
+/// [`SourceCoords::to_vec`] 或按 [`SourceCoords::iter`] 遍历，避免隐式缓存把 Θ(n²) 带回来。
+#[derive(Clone)]
+pub struct SourceCoords(SourceRepr);
+
+#[derive(Clone)]
+enum SourceRepr {
+    Shared(CoordsRef),
+    Flat(Rc<[usize]>),
+}
+
+impl Default for SourceCoords {
+    fn default() -> Self {
+        SourceCoords(SourceRepr::Shared(CoordsRef::empty()))
+    }
+}
+
+impl SourceCoords {
+    /// 空集合。
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// 包装共享坐标树（升序去重由 [`CoordsRef`] 的构造口保证）。
+    pub fn from_shared(coords: CoordsRef) -> Self {
+        SourceCoords(SourceRepr::Shared(coords))
+    }
+
+    /// 共享坐标树句柄；扁平形态返回 `None`。
+    pub fn as_shared(&self) -> Option<&CoordsRef> {
+        match &self.0 {
+            SourceRepr::Shared(coords) => Some(coords),
+            SourceRepr::Flat(_) => None,
+        }
+    }
+
+    /// 按存储顺序遍历元素（共享形态为升序）。显式栈，无递归，不分配展开副本。
+    pub fn iter(&self) -> SourceCoordsIter<'_> {
+        match &self.0 {
+            SourceRepr::Flat(items) => SourceCoordsIter::Flat(items.iter()),
+            SourceRepr::Shared(coords) => SourceCoordsIter::Tree(match coords.root_node() {
+                Some(root) => vec![root.as_ref()],
+                None => Vec::new(),
+            }),
+        }
+    }
+
+    /// 逆序遍历元素（共享形态为降序）。显式栈，惰性：`take_while` 截断时只走右侧路径。
+    pub fn iter_rev(&self) -> impl Iterator<Item = usize> + '_ {
+        let (flat, mut stack): (Option<std::iter::Rev<std::slice::Iter<'_, usize>>>, Vec<&CoordNode>) =
+            match &self.0 {
+                SourceRepr::Flat(items) => (Some(items.iter().rev()), Vec::new()),
+                SourceRepr::Shared(coords) => (
+                    None,
+                    coords.root_node().map(|r| vec![r.as_ref()]).unwrap_or_default(),
+                ),
+            };
+        let mut flat = flat;
+        std::iter::from_fn(move || {
+            if let Some(items) = flat.as_mut() {
+                return items.next().copied();
+            }
+            while let Some(node) = stack.pop() {
+                match node {
+                    CoordNode::Leaf(coord) => return Some(*coord),
+                    CoordNode::Concat(left, right, _) => {
+                        stack.push(left.as_ref());
+                        stack.push(right.as_ref());
+                    }
+                }
+            }
+            None
+        })
+    }
+
+    /// 元素个数。共享形态需遍历叶，O(len)。
+    pub fn len(&self) -> usize {
+        match &self.0 {
+            SourceRepr::Flat(items) => items.len(),
+            SourceRepr::Shared(coords) => coords.count(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        match &self.0 {
+            SourceRepr::Flat(items) => items.is_empty(),
+            SourceRepr::Shared(coords) => coords.is_empty(),
+        }
+    }
+
+    /// 展开为 `Vec<usize>`（与旧字段同值）。
+    pub fn to_vec(&self) -> Vec<usize> {
+        match &self.0 {
+            SourceRepr::Flat(items) => items.to_vec(),
+            SourceRepr::Shared(coords) => coords.materialize(),
+        }
+    }
+
+    /// 是否含 `coord`（线性扫描）。
+    pub fn contains(&self, coord: &usize) -> bool {
+        self.iter().any(|c| c == coord)
+    }
+
+    /// 首元素。
+    pub fn first(&self) -> Option<usize> {
+        self.iter().next().copied()
+    }
+
+    /// 末元素（共享形态沿最右路径下行，O(log n)）。
+    pub fn last(&self) -> Option<usize> {
+        match &self.0 {
+            SourceRepr::Flat(items) => items.last().copied(),
+            SourceRepr::Shared(coords) => coords.max(),
+        }
+    }
+
+    /// 置空（只改本句柄，不影响共享同一棵树的其他句柄）。
+    pub fn clear(&mut self) {
+        *self = Self::default();
+    }
+}
+
+impl From<Vec<usize>> for SourceCoords {
+    fn from(items: Vec<usize>) -> Self {
+        SourceCoords(SourceRepr::Flat(Rc::from(items)))
+    }
+}
+
+impl From<&[usize]> for SourceCoords {
+    fn from(items: &[usize]) -> Self {
+        SourceCoords(SourceRepr::Flat(Rc::from(items)))
+    }
+}
+
+impl FromIterator<usize> for SourceCoords {
+    fn from_iter<I: IntoIterator<Item = usize>>(iter: I) -> Self {
+        SourceCoords::from(iter.into_iter().collect::<Vec<_>>())
+    }
+}
+
+/// [`SourceCoords::iter`] 的迭代器。
+pub enum SourceCoordsIter<'a> {
+    Flat(std::slice::Iter<'a, usize>),
+    Tree(Vec<&'a CoordNode>),
+}
+
+impl<'a> Iterator for SourceCoordsIter<'a> {
+    type Item = &'a usize;
+    fn next(&mut self) -> Option<&'a usize> {
+        match self {
+            SourceCoordsIter::Flat(items) => items.next(),
+            SourceCoordsIter::Tree(stack) => {
+                while let Some(node) = stack.pop() {
+                    match node {
+                        CoordNode::Leaf(coord) => return Some(coord),
+                        // 先压右后压左：左子树整体先于右子树产出（LIFO）。
+                        CoordNode::Concat(left, right, _) => {
+                            stack.push(right.as_ref());
+                            stack.push(left.as_ref());
+                        }
+                    }
+                }
+                None
+            }
+        }
+    }
+}
+
+impl<'a> IntoIterator for &'a SourceCoords {
+    type Item = &'a usize;
+    type IntoIter = SourceCoordsIter<'a>;
+    fn into_iter(self) -> SourceCoordsIter<'a> {
+        self.iter()
+    }
+}
+
+impl std::fmt::Debug for SourceCoords {
+    /// 与 `Vec<usize>` 的 `Debug` 逐字相同（`debug_list`，含 `{:#?}` 换行缩进）。
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list().entries(self.iter()).finish()
+    }
+}
+
+impl serde::Serialize for SourceCoords {
+    /// 与 `Vec<usize>` 的序列化同形：带长度的序列。
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeSeq;
+        let mut seq = serializer.serialize_seq(Some(self.len()))?;
+        for coord in self.iter() {
+            seq.serialize_element(coord)?;
+        }
+        seq.end()
+    }
+}
+
+impl PartialEq for SourceCoords {
+    fn eq(&self, other: &Self) -> bool {
+        if let (SourceRepr::Shared(a), SourceRepr::Shared(b)) = (&self.0, &other.0) {
+            if let (Some(x), Some(y)) = (a.root_node(), b.root_node()) {
+                if Rc::ptr_eq(x, y) {
+                    return true;
+                }
+            }
+        }
+        self.iter().eq(other.iter())
+    }
+}
+impl Eq for SourceCoords {}
+
+impl PartialEq<[usize]> for SourceCoords {
+    fn eq(&self, other: &[usize]) -> bool {
+        self.iter().eq(other.iter())
+    }
+}
+impl PartialEq<Vec<usize>> for SourceCoords {
+    fn eq(&self, other: &Vec<usize>) -> bool {
+        self.iter().eq(other.iter())
+    }
+}
+impl<const N: usize> PartialEq<[usize; N]> for SourceCoords {
+    fn eq(&self, other: &[usize; N]) -> bool {
+        self.iter().eq(other.iter())
+    }
+}
+impl PartialEq<SourceCoords> for Vec<usize> {
+    fn eq(&self, other: &SourceCoords) -> bool {
+        other == self
+    }
+}
+
+/// #1597：「完整前缀 ∪ 若干升序集合」的共享并集。
+///
+/// `prefix` 必须是**完整 raw 前缀**（已处理 raw 中所有 ≤ `prefix.max()` 的坐标都在内），
+/// `others` 的元素都是已处理 raw 坐标。在此前提下并集 = `prefix` ++ 「`others` 中 >
+/// `prefix.max()` 的元素，升序去重」，与旧的「全部拼接后排序去重」逐位相同；只新建尾段的
+/// O(k log n) 个节点，不复制前缀。前提由调用方保证（证明与调试断言见 `stroke.rs`）。
+pub(crate) fn union_over_complete_prefix<'a>(
+    prefix: &CoordsRef,
+    others: impl IntoIterator<Item = &'a usize>,
+) -> CoordsRef {
+    let bound = prefix.max();
+    let mut extra: Vec<usize> = others
+        .into_iter()
+        .copied()
+        .filter(|c| bound.is_none_or(|b| *c > b))
+        .collect();
+    extra.sort_unstable();
+    extra.dedup();
+    let mut out = prefix.clone();
+    for coord in extra {
+        out = out.append_greater(coord);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

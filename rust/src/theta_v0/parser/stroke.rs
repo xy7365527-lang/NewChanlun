@@ -8,6 +8,7 @@ use super::super::config::ParseConfig;
 use super::super::types::{Bar, Direction, FractalKind, Stroke};
 #[cfg(test)]
 use super::inclusion::process_inclusion_with_facts;
+use super::evidence::{union_over_complete_prefix, CoordsRef, SourceCoords};
 use super::inclusion::InclusionFacts;
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -34,7 +35,8 @@ pub struct Endpoint {
     /// 只进条件 2（极值区 raw 间隔）与追溯，不作笔坐标、不作身份。
     pub raw_first: usize,
     pub raw_last: usize,
-    pub source_coords: Vec<usize>,
+    /// #1597：共享表示（见 [`SourceCoords`]）；逻辑内容、`Debug`、序列化与旧 `Vec<usize>` 逐位相同。
+    pub source_coords: SourceCoords,
     pub sealed_at: Option<usize>,
     pub waiting_reasons: Vec<&'static str>,
 }
@@ -78,7 +80,8 @@ pub struct Confirmation {
     pub successor_end: usize,
     pub successor_conditions: Conditions,
     pub right_group_sealed_at: usize,
-    pub source_coords: Vec<usize>,
+    /// #1597：共享表示（见 [`SourceCoords`]）；逻辑内容、`Debug`、序列化与旧 `Vec<usize>` 逐位相同。
+    pub source_coords: SourceCoords,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -137,13 +140,58 @@ impl StrokeFacts {
     }
 }
 
-fn sorted(mut xs: Vec<usize>) -> Vec<usize> {
+fn sorted(mut xs: Vec<usize>) -> SourceCoords {
     xs.sort_unstable();
     xs.dedup();
-    // #1588：端点来源是相邻三组证据的拼接，去重后常只剩约 1/8；不收缩则完整事实入口
-    // 留存的多半是空闲容量（2 万根时约 2.9 GB）。只改容量，不改内容。
-    xs.shrink_to_fit();
-    xs
+    SourceCoords::from(xs)
+}
+
+/// #1597：端点来源坐标的共享构造（与扁平「九集拼接 → 排序去重」逐位相同）。
+///
+/// 输入是相邻三组 `g ∈ {mid-1, mid, mid+1}` 的成员、方向证据、封口证据。共享形态下
+/// （[`super::inclusion::IncrFactsState`] 构造，source 坐标严格递增）每份证据坐标都是
+/// **完整 raw 前缀**：组 k 的方向证据 = 从首根到组锚 k 的全部已处理 raw（`append` 中
+/// new_group 分支：新证据 = 旧证据 ++ 前组组锚后尾链 ++ {incoming}，归纳成立；首次建立
+/// 方向时前组只有 seed ⟹ {seed, incoming}）；封口证据 = 下一组的方向证据（同一节点）。
+/// 取六份证据里最大值最大的那份作前缀 P，其余各集的元素都是已处理 raw：≤ max(P) 的必在
+/// P 内（完整性），> max(P) 的按升序去重接在 P 之后——并集与扁平构造相同。
+///
+/// 任一证据是扁平形态（非单调回落路径或手写夹具）⟹ 返回 `None`，调用方走扁平构造。
+fn shared_endpoint_sources(
+    window: &[super::inclusion::InclusionGroupFact],
+) -> Option<SourceCoords> {
+    let mut prefix: Option<&CoordsRef> = None;
+    for group in window {
+        for evidence in [&group.direction_evidence, &group.confirmation_evidence]
+            .into_iter()
+            .flatten()
+        {
+            let coords = evidence.source_coords.as_shared()?;
+            if prefix.is_none_or(|p| coords.max() > p.max()) {
+                prefix = Some(coords);
+            }
+        }
+    }
+    let prefix = prefix?;
+    let union = SourceCoords::from_shared(union_over_complete_prefix(
+        prefix,
+        window.iter().flat_map(|group| group.members.iter()),
+    ));
+    #[cfg(debug_assertions)]
+    {
+        let mut flat = vec![];
+        for group in window {
+            flat.extend(&group.members);
+            for e in [&group.direction_evidence, &group.confirmation_evidence]
+                .into_iter()
+                .flatten()
+            {
+                flat.extend(&e.source_coords);
+            }
+        }
+        debug_assert_eq!(union, sorted(flat), "#1597：端点共享构造与扁平构造不一致");
+    }
+    Some(union)
 }
 
 /// 全量 facts 的 raw 序位映射：`source_index → 第几根 raw`（同坐标后者覆盖）。
@@ -221,8 +269,14 @@ fn endpoint_at(
     };
     let mut waiting = vec![];
     let mut sources = vec![];
-    for group in &groups[mid - 1..=mid + 1] {
-        if expand_sources {
+    let window = &groups[mid - 1..=mid + 1];
+    let shared = if expand_sources {
+        shared_endpoint_sources(window)
+    } else {
+        None
+    };
+    for group in window {
+        if expand_sources && shared.is_none() {
             sources.extend(&group.members);
             if let Some(e) = &group.direction_evidence {
                 sources.extend(&e.source_coords);
@@ -249,7 +303,7 @@ fn endpoint_at(
         extreme_roots: roots.clone(),
         raw_first,
         raw_last,
-        source_coords: sorted(sources),
+        source_coords: shared.unwrap_or_else(|| sorted(sources)),
         sealed_at: groups[mid + 1]
             .confirmation_evidence
             .as_ref()
@@ -444,14 +498,12 @@ impl ScanState {
             // #1392：在已选中后继笔的首次封口见证处冻结前笔证书。
             // 后继尾笔以后可延伸到尚未封口的新端点，不能因此丢掉既有前缀证据。
             if let (Some(sealed), Some(previous)) = (f.sealed_at, self.out.strokes.last_mut()) {
-                let mut sources = a.source_coords.clone();
-                sources.extend(&f.source_coords);
                 previous.confirmation = Some(Confirmation {
                     successor_start: a.group_anchor,
                     successor_end: f.group_anchor,
                     successor_conditions: p.conditions.clone().unwrap(),
                     right_group_sealed_at: sealed,
-                    source_coords: sorted(sources),
+                    source_coords: confirmation_sources(&a.source_coords, &f.source_coords),
                 });
             }
             self.out.strokes.push(BiFact {
@@ -466,6 +518,36 @@ impl ScanState {
         // 异型不成笔（合取含 false）：确定不成笔，略过，不冻结后续候选（#1392）。
         self.out.pairs.push(p);
     }
+}
+
+/// 前笔确认证书的来源坐标 = 两端点来源坐标的升序去重并集。
+///
+/// #1597 共享形态：后端点 `f` 的来源含完整 raw 前缀（至少到组锚 `f.mid+1`，见
+/// [`shared_endpoint_sources`]），先端点 `a`（`a.mid < f.mid`）的全部来源 < 组锚
+/// `a.mid+2` ≤ 组锚 `f.mid+1`，故 `a ⊆ f`；按「完整前缀 ∪ 尾段」构造即与扁平构造逐位相同。
+/// 两者中较大者充当前缀；只要有一侧是扁平形态，回落扁平构造。
+fn confirmation_sources(a: &SourceCoords, f: &SourceCoords) -> SourceCoords {
+    let flat = || {
+        let mut sources = a.to_vec();
+        sources.extend(f);
+        sorted(sources)
+    };
+    let (Some(left), Some(right)) = (a.as_shared(), f.as_shared()) else {
+        return flat();
+    };
+    if left.max() > right.max() {
+        // 先端点越过后端点：不在上述构造前提内，回落扁平构造。
+        return flat();
+    }
+    // 只取 a 中 > max(f) 的尾段：反向遍历到界即停（不展开整份）。
+    let bound = right.max();
+    let tail: Vec<usize> = a
+        .iter_rev()
+        .take_while(|c| bound.is_none_or(|b| *c > b))
+        .collect();
+    let shared = SourceCoords::from_shared(union_over_complete_prefix(right, tail.iter()));
+    debug_assert_eq!(shared, flat(), "#1597：确认证书共享构造与扁平构造不一致");
+    shared
 }
 
 /// 稳定端点前的扫描 checkpoint。单端点转移至多改写当时的末笔、从不弹笔，故只备份该尾，
