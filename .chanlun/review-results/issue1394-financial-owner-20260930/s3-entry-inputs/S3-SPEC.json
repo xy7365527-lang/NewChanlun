@@ -1,0 +1,115 @@
+{
+  "schema_revision": "issue1394-s3-formal-entry-spec-review/1",
+  "revision": 1,
+  "verdict": "PASS",
+  "blocking_counterexamples": 0,
+  "findings": [],
+  "scope": "私有资源SHA通道、声明拒绝次序、旧2/Q/Economic兼容的增量Spec复核；非真实服务验收",
+  "candidate": "46d183a20afe2c68e01e26555531663a7810f065",
+  "delta_base": "b86c0c291952879af67882e79d9687f51ce1741f",
+  "full_base": "7d6dd63aeb6bb6861a9b91d794225d93818ad317",
+  "tree": "0c261fb81f8d45acb2442453f75c40f2edc1c09c",
+  "rust_tree": "5a2acd1e72c3846be38cc29689a82aeb57c68dc6",
+  "delta_patch_sha256": "c7b3ecc587ea94e849784d31d79baa6a1dc75137a6a2c3a4fefa920a2fd6ded9",
+  "full_patch_sha256": "a32c03adb35e8e92798e0c413f325314fa8939d1aa62f27c24bbb2906f0e6b62",
+  "actual_git_diff_bytes_match_both_patches": true,
+  "author_result_sha256": "85a96ac74bbd9b7b9fd6b2a8b901c18ab1b9109f85dacc9d44c7bd24486a8591",
+  "source_manifest_sha256": "8a331bebd86b998090fdb8926c1dfd3c618f025e66e641eb7f2f133ae8340abc",
+  "manifest_incremental_check": {
+    "added": [],
+    "removed": [],
+    "changed": [
+      "s_session/s_service_control.py",
+      "s_session/tests/test_tb01c_s3_service_control.py",
+      "rust/src/bin/s_session_v3/writer_cli.rs"
+    ],
+    "all_3_hashes_recomputed_match": true,
+    "unchanged_571_entries_same_as_prior_manifest": true,
+    "full_tree_not_rehashed_this_round": true
+  },
+  "binary": {
+    "bytes": 18609984,
+    "non_test_build_exit": 0,
+    "non_test_check_exit": 0,
+    "owned_target_path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/target/debug/s_structure_session",
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/s_structure_session-46d183a20a",
+    "profile": "dev debug=0 incremental=0",
+    "rust_tree": "5a2acd1e72c3846be38cc29689a82aeb57c68dc6",
+    "sha256": "5437fbb5d581d1b48f6a1d3405cae67327113e5a2c7fedd7ce3a1d9ce1e18e91"
+  },
+  "old_binary_archive_sha256_verified": "ab54d7ad1734027fbe28ab7a2b7a2d38baee19a2ecb7116908ace0d67babe1be",
+  "prior_spec_report": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/SPEC-REVIEW.md",
+    "sha256": "fa0622e352dcc6da279bbd2014ab7393b90a5a634ca3a4fbcb704ab0c4e36291",
+    "untouched": true
+  },
+  "approved_source_sha256": "fab912c6ebe3613969d65fc924368a1d5c9b343f0c3f7a123241645413771d30",
+  "approved_source_unchanged_in_diff": true,
+  "checks": [
+    {
+      "contract": "只由本次已核身份生成私有声明",
+      "result": "PASS",
+      "evidence": "s_service_control.py:408–427：先拒绝活旧PID，再 validate_resource_identity(...require_current=True)，复制环境，清除 ambient S_CONTROL_RESOURCE_SHA256，仅有资源身份时注入其 SHA。原环境 dict 不修改；原 nonce/argv/deadline 保持。"
+    },
+    {
+      "contract": "实际加载值与声明绑定",
+      "result": "PASS",
+      "evidence": "writer_cli.rs:437–474：SResources::load 生成规范 digest；比较同一个 SResources 后，transport_bounds 与 audit cap 均从该对象获取。文件在 child load 后恢复原值不能改变内存值；被换成不同七值时规范 SHA 不同，明确拒绝。"
+    },
+    {
+      "contract": "非法/缺失声明的精确语义",
+      "result": "PASS",
+      "evidence": "expected=None 仅保留 standalone CLI 原显式资源文件合同，不默认任何值。有声明则严格 64 bytes lowerhex，空串、长度错误、非十六进制、大写拒绝；std::env::VarError::NotUnicode 明确拒绝，未以 .ok() 吞掉。规范 JSON 等价格式共用 digest。"
+    },
+    {
+      "contract": "拒绝先于服务副作用",
+      "result": "PASS",
+      "evidence": "serve 内顺序为资源 load→读取/核私有声明→ClockPlan load→checked_profile→原七门→Driver open→identity→serve_unix。ServeOptions::parse 先做原有路径/flag只读校验；声明错误不会到持锁、DB open/write 或 listen。此项为源码与 helper 证据，本工位未运行真实 CLI 负例。"
+    },
+    {
+      "contract": "旧2/Q/Economic兼容",
+      "result": "PASS",
+      "evidence": "start_s 旧2分支、start_q、economic_service_control.py:92 的 start_owner 都不传 resource_identity，共同清除该私有键；Economic 继续使用 SESSION_CONTROL_INSTANCE_ID，原命令/配置/nonce字段不变。不要求其配置具有 S3 七字段。"
+    },
+    {
+      "contract": "无公共或资源扩域",
+      "result": "PASS",
+      "evidence": "增量仅3文件95行；没有新公开JSON字段、CLI flag、端点、默认数字、量纲或业务条件。Driver/state/原七门映射不变，保留上一轮复核射程。"
+    }
+  ],
+  "independent_test": {
+    "framework": "unittest",
+    "name": "S3LifecycleTests.test_private_resource_digest_comes_only_from_verified_s3_identity_and_never_old_launcher",
+    "passed": 1,
+    "exit": 0,
+    "seconds": 0.003,
+    "uses_mock_child": true
+  },
+  "log_verification": {
+    "all_author_log_hashes_match": true,
+    "controller_tests": 42,
+    "writer_tests": 3,
+    "writer_failed": 0,
+    "writer_ignored": 0,
+    "non_test_build_and_check": "Finished lines observed; author exit0; not rerun here",
+    "previous_driver19_state7": "unchanged source, scope retained; not rerun or counted as new execution"
+  },
+  "not_executed_here": [
+    "真实CLI错误SHA/非法声明负例",
+    "服务启动",
+    "build",
+    "全suite",
+    "tracker/main/push变更"
+  ],
+  "not_claimed": [
+    "真实S3生命周期通过",
+    "socket七门实测通过",
+    "生产容量",
+    "9011/S16/整图",
+    "C09/FIFO/条件执行",
+    "Python/Rust Standards替代",
+    "main合入/push"
+  ],
+  "graph_lookup": "候选工位未索引，search_graph 返回 project not found；按指定文件与有限fallback核验",
+  "old_warning_and_attempts": "上一轮Spec及作者失败历史不覆盖；本轮以精确delta修复Python Standards MEDIUM改值又恢复窗口。"
+}

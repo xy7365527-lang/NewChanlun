@@ -1,6 +1,7 @@
 """#1372：生命周期边界；仅本测试创建的空闲进程，不计为正式 S/Q 故障验收。"""
 
 import json
+import os
 import signal
 import socket
 import threading
@@ -105,10 +106,12 @@ class LifecycleTests(unittest.TestCase):
             with self.subTest(service=service), tempfile.TemporaryDirectory(prefix="tb01c-start-budget-") as directory:
                 db = Path(directory) / "owned"
                 db.touch()
+                resource_config = Path(directory) / "query-resources.json"
+                resource_config.write_bytes((Path(__file__).parent / "fixtures/tb01c/query-resources.json").read_bytes())
                 config = {"db": str(db), "startup_timeout_ms": "25", "binary": "/owned/python3.14",
                           "python": "/owned/python3.14", "socket": "unused", "port": "12345",
                           "profile": "unused", "clock_plan": "unused", "browser": "unused",
-                          "query_resource_config": "unused", "s_resources": {field: "1" for field in (
+                          "query_resource_config": str(resource_config), "s_resources": {field: "1" for field in (
                               "max_frame_bytes", "read_timeout_ms", "write_timeout_ms", "queue_capacity",
                               "max_connections", "response_timeout_ms", "audit_cache_source_bytes")}}
                 controller = control.Controller(config, Path(directory))
@@ -121,6 +124,7 @@ class LifecycleTests(unittest.TestCase):
                     clock[0] += duration
                 try:
                     with patch.object(controller, "runtime_environment", return_value={}), \
+                         patch.object(controller, "query_resource_revision", return_value="legacy/2"), \
                          patch.object(controller, "prepare_socket", return_value=None), \
                          patch.object(controller, "wait_ready") as ready, \
                          patch.object(control.subprocess, "Popen", side_effect=spawn), \
@@ -138,6 +142,167 @@ class LifecycleTests(unittest.TestCase):
                     child.wait.assert_called_once()
                 finally:
                     controller.close()
+
+    def test_start_q_selects_explicit_v3_resources_and_preserves_original_deadline(self):
+        with tempfile.TemporaryDirectory(prefix="tb01c-q3-entry-") as directory:
+            resources = Path(directory) / "resources.json"
+            resources.write_text(json.dumps({"schema_revision": "s-query-resources/3", "limits": {}}))
+            config = {"db": str(Path(directory) / "owned"), "startup_timeout_ms": "25",
+                      "binary": "/owned/s_structure_session", "python": "/owned/python3.12",
+                      "browser": "/owned/browser", "port": "12345", "query_resource_config": str(resources)}
+            controller = control.Controller(config, Path(directory))
+            clock = [0.0]
+            def environment(deadline):
+                self.assertEqual(deadline, 0.025)
+                clock[0] = 0.020
+                return {"PYO3_PYTHON": config["python"]}
+            expected = {"service": "q", "state": "ready"}
+            try:
+                with patch.object(control.time, "monotonic", side_effect=lambda: clock[0]), \
+                     patch.object(controller, "query_resource_revision", return_value=json.loads(resources.read_text()).get("schema_revision", "legacy/2")), \
+                     patch.object(controller, "runtime_environment", side_effect=environment) as env, \
+                     patch.object(controller, "start_process") as start, \
+                     patch.object(controller, "wait_ready", return_value=expected) as ready:
+                    self.assertEqual(controller.start_q("7"), expected)
+                env.assert_called_once_with(0.025)
+                start.assert_called_once_with("q", [config["binary"], "query-serve", "--protocol-revision",
+                    "s-session/3", "--db", config["db"], "--resource-config", str(resources),
+                    "--producer-epoch", "7", "--host", "127.0.0.1", "--port", "12345"],
+                    {"PYO3_PYTHON": config["python"]}, deadline=0.025)
+                ready.assert_called_once_with("q", query_epoch="7", deadline=0.025)
+            finally:
+                controller.close()
+
+    def test_start_q_legacy_resources_keep_python_browser_and_economic_entry(self):
+        with tempfile.TemporaryDirectory(prefix="tb01c-q2-entry-") as directory:
+            resources = Path(directory) / "resources.json"
+            resources.write_bytes((Path(__file__).parent / "fixtures/tb01c/query-resources.json").read_bytes())
+            config = {"db": str(Path(directory) / "owned"), "startup_timeout_ms": "25",
+                      "binary": "/owned/s_structure_session", "python": "/owned/python3.12",
+                      "browser": "/owned/browser", "port": "12345", "query_resource_config": str(resources),
+                      "economic_query_config": "/owned/economic.json"}
+            controller = control.Controller(config, Path(directory))
+            try:
+                with patch.object(controller, "runtime_environment") as env, \
+                     patch.object(controller, "query_resource_revision", return_value=json.loads(resources.read_text()).get("schema_revision", "legacy/2")), \
+                     patch.object(controller, "start_process") as start, \
+                     patch.object(controller, "wait_ready", return_value={"state": "ready"}):
+                    controller.start_q("7")
+                env.assert_not_called()
+                command = start.call_args.args[1]
+                self.assertEqual(command[:2], [config["python"], str(Path(control.__file__).with_name("s_readonly_server.py"))])
+                self.assertEqual(command[-2:], ["--economic-config", config["economic_query_config"]])
+                self.assertIn("--browser", command)
+                self.assertNotIn("query-serve", command)
+            finally:
+                controller.close()
+
+    def test_start_q_rejects_unknown_schema_and_v3_economic_configuration_before_spawn(self):
+        cases = [("s-query-resources/4", False), ("s-query-resources/2", False),
+                 ("s-query-resources/3", True)]
+        for schema, economic in cases:
+            with self.subTest(schema=schema, economic=economic), tempfile.TemporaryDirectory(prefix="tb01c-q-reject-") as directory:
+                resources = Path(directory) / "resources.json"
+                resources.write_text(json.dumps({"schema_revision": schema, "limits": {}}))
+                config = {"db": str(Path(directory) / "owned"), "startup_timeout_ms": "25",
+                          "binary": "/owned/s_structure_session", "python": "/owned/python3.12",
+                          "browser": "/owned/browser", "port": "12345", "query_resource_config": str(resources)}
+                if economic:
+                    config["economic_query_config"] = "/owned/economic.json"
+                controller = control.Controller(config, Path(directory))
+                original = b'{"preserved":"earlier service receipt"}\n'
+                controller.record_path("q").write_bytes(original)
+                try:
+                    with patch.object(controller, "runtime_environment") as env, \
+                         patch.object(controller, "query_resource_revision", return_value=json.loads(resources.read_text()).get("schema_revision", "legacy/2")), \
+                         patch.object(controller, "start_process") as start, \
+                         patch.object(controller, "wait_ready") as ready:
+                        with self.assertRaises(ValueError):
+                            controller.start_q("7")
+                    env.assert_not_called()
+                    start.assert_not_called()
+                    ready.assert_not_called()
+                    self.assertEqual(controller.record_path("q").read_bytes(), original)
+                finally:
+                    controller.close()
+
+    def test_start_q_v3_environment_cannot_reset_or_outlive_startup_budget(self):
+        with tempfile.TemporaryDirectory(prefix="tb01c-q3-budget-") as directory:
+            resources = Path(directory) / "resources.json"
+            resources.write_text(json.dumps({"schema_revision": "s-query-resources/3", "limits": {}}))
+            config = {"db": str(Path(directory) / "owned"), "startup_timeout_ms": "25",
+                      "binary": "/owned/s_structure_session", "python": "/owned/python3.12",
+                      "browser": "/owned/browser", "port": "12345", "query_resource_config": str(resources)}
+            controller = control.Controller(config, Path(directory))
+            clock = [0.0]
+            def environment(deadline):
+                self.assertEqual(deadline, 0.025)
+                clock[0] = deadline
+                return {}
+            try:
+                with patch.object(control.time, "monotonic", side_effect=lambda: clock[0]), \
+                     patch.object(controller, "query_resource_revision", return_value=json.loads(resources.read_text()).get("schema_revision", "legacy/2")), \
+                     patch.object(controller, "runtime_environment", side_effect=environment), \
+                     patch.object(controller, "start_process") as start, \
+                     patch.object(controller, "wait_ready") as ready:
+                    with self.assertRaises(TimeoutError):
+                        controller.start_q("7")
+                start.assert_not_called()
+                ready.assert_not_called()
+            finally:
+                controller.close()
+
+    def test_query_resource_fifo_is_rejected_without_waiting_for_a_writer(self):
+        with tempfile.TemporaryDirectory(prefix="tb01c-resource-fifo-") as directory:
+            resources = Path(directory) / "resources.fifo"
+            os.mkfifo(resources)
+            controller = control.Controller({"db": str(Path(directory) / "owned"),
+                "startup_timeout_ms": "200", "query_resource_config": str(resources)}, Path(directory))
+            children = []
+            original_popen = control.subprocess.Popen
+            def observe(*args, **kwargs):
+                child = original_popen(*args, **kwargs)
+                children.append(child)
+                return child
+            try:
+                started = time.monotonic()
+                with patch.object(control.subprocess, "Popen", side_effect=observe):
+                    with self.assertRaisesRegex(ValueError, "普通文件"):
+                        controller.query_resource_revision(started + 0.2)
+                self.assertLess(time.monotonic() - started, 0.3)
+                self.assertEqual(len(children), 1)
+                self.assertIsNotNone(children[0].poll())
+            finally:
+                controller.close()
+
+    def test_slow_resource_reader_is_killed_and_reaped_at_original_deadline(self):
+        with tempfile.TemporaryDirectory(prefix="tb01c-resource-deadline-") as directory:
+            resources = Path(directory) / "resources.json"
+            resources.write_text('{"schema_revision":"s-query-resources/3","limits":{}}')
+            controller = control.Controller({"db": str(Path(directory) / "owned"),
+                "startup_timeout_ms": "200", "query_resource_config": str(resources)}, Path(directory))
+            children = []
+            original_popen = control.subprocess.Popen
+            def slow(*args, **kwargs):
+                command = list(args[0])
+                command[2] = "import time; time.sleep(1); " + command[2]
+                child = original_popen(command, **kwargs)
+                children.append(child)
+                return child
+            try:
+                started = time.monotonic()
+                with patch.object(control.subprocess, "Popen", side_effect=slow), \
+                     patch.object(controller, "start_process") as start, \
+                     patch.object(controller, "runtime_environment") as env:
+                    with self.assertRaises(control.subprocess.TimeoutExpired):
+                        controller.start_q("1")
+                self.assertLess(time.monotonic() - started, 0.4)
+                self.assertEqual(len(children), 1)
+                self.assertEqual(children[0].returncode, -signal.SIGKILL)
+                start.assert_not_called()
+                env.assert_not_called()
+            finally:
+                controller.close()
 
     def test_initial_identity_cannot_outlive_child_or_change_start_time(self):
         for failure in ("exited", "changed_start"):

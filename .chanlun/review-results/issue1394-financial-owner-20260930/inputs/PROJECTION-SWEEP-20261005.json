@@ -1,0 +1,402 @@
+{
+  "state": "NORMAL_CORRECTNESS_PASS_PERFORMANCE_INCOMPLETE",
+  "code_commit": "a4699cf603b193dab406fcd4d8904790f4e00a61",
+  "projection": {
+    "state": "PASS_NORMAL_CORRECTNESS_ONLY",
+    "code_commit": "a4699cf603b193dab406fcd4d8904790f4e00a61",
+    "build_source_parent": "964670a0307e3b5d3a0e2cd5a8b878466ec8e507",
+    "source_aggregate_sha256": "e06e38cbcabff4432336ea9d53aaa41039993926f10fc4454f28d1aaa33edef6",
+    "service_sha256": "668957848e582768740ad86d1045f7cdae5d3a8911b6c0901538b0c5977989d1",
+    "positive_projection_test": {
+      "passed": 1,
+      "seconds": 8.89,
+      "file": "TEST-positive.txt"
+    },
+    "driver_positive_tests": {
+      "passed": 2,
+      "seconds": 1.55,
+      "file": "TEST-driver-positive.txt"
+    },
+    "native_non_test_build_passed": true,
+    "feature_off_check_passed": true,
+    "independent_static_review": "projection_sweep_review revision2 PASS; applied source byte-identical to reviewed staged file",
+    "normal_window": "../issue1394-projection-sweep-window150-151-20261005/ROOT-RESULT.json",
+    "no_fault_injection": true,
+    "performance_conclusion": "two requests show small reductions only; no robust speedup or 9011 capacity claim",
+    "full9011_complete": false,
+    "whole_resources_qualified": false,
+    "goal_complete": false
+  },
+  "normal_window": {
+    "state": "PASS_NORMAL_PROJECTION_SWEEP_WINDOW",
+    "scope": "同CopyQualified149来源、正常150..151、512MiB；仅历史投影事件扫描不同",
+    "received": [
+      150,
+      151
+    ],
+    "whole_exchange_seconds": {
+      "150": 24.649966042,
+      "151": 23.370007625
+    },
+    "baseline_whole_exchange_seconds": {
+      "150": 25.398280166,
+      "151": 23.49061825
+    },
+    "elapsed_reduction_percent": {
+      "150": 2.9463180936233124,
+      "151": 0.5134416800630648
+    },
+    "reply_and_persistent_oracle_identical_to_baseline": true,
+    "runtime_binary": {
+      "path": "/Users/silencehan/.codex/worktrees/issue1394-audit-prefix/NewChanlun/.scratch/issue1394-projection-sweep-20261005/frozen-service",
+      "sha256": "668957848e582768740ad86d1045f7cdae5d3a8911b6c0901538b0c5977989d1"
+    },
+    "source_aggregate_sha256": "e06e38cbcabff4432336ea9d53aaa41039993926f10fc4454f28d1aaa33edef6",
+    "audit_cache_source_bytes": 536870912,
+    "no_fault_injection": true,
+    "source_and_owned_seals_revalidated": true,
+    "same_Popen_reaped": true,
+    "controller_closed": true,
+    "socket_removed": true,
+    "terminal": {
+      "generation": "151",
+      "advance_state": "idle",
+      "messages_by_status": {
+        "Committed": 151
+      },
+      "published": 151,
+      "clocks": 453,
+      "next_attempt_ordinal": 152
+    },
+    "limits": [
+      "两请求单次实测，改善较小，不能据此断言稳定提速或完整9011可通过",
+      "S7仅来源缓存成本，整体heap/RSS/IO峰值未资格化",
+      "历史独立窗口不能拼接为完整9011"
+    ],
+    "full9011_complete": false,
+    "whole_resources_qualified": false,
+    "goal_complete": false
+  },
+  "passive_profile": {
+    "state": "PASS_COMPLETE_WINDOW",
+    "scope": "当前投影优化后CopyQualified149正常150..151；只对151被动采样",
+    "validated_received": [
+      150,
+      151
+    ],
+    "whole_exchange_seconds": {
+      "150": 24.865828916,
+      "151": 25.456907791
+    },
+    "failure_ordinal": null,
+    "startup_failed_before_any_input": false,
+    "errors": [],
+    "terminal": {
+      "generation": "151",
+      "advance_state": "idle",
+      "messages_by_status": {
+        "Committed": 151
+      },
+      "published": 151,
+      "clocks": 453,
+      "next_attempt_ordinal": 152
+    },
+    "unsent": [],
+    "original_files_live_stat_sha_verified": true,
+    "source_and_all_bindings_revalidated": true,
+    "same_Popen_reaped_controller_closed": true,
+    "socket_removed": true,
+    "cleanup_complete": true,
+    "service_pid": 19056,
+    "service_exit_code": -15,
+    "original105_source126_source142_source149_Unknown_preserved": true,
+    "full9011_complete": false,
+    "whole_resources_qualified": false,
+    "diagnostic_only": true,
+    "timing_polluted_ordinal": 151,
+    "sampler_reaped": true,
+    "sample_sha256": "3460326afc65b5f0c400814e6b053dabeace1937d5a4363bf64eadfb67294826",
+    "reply_and_persistent_oracle_identical_to_unsampled_window": true,
+    "verifier_source": {
+      "path": "/Users/silencehan/.codex/worktrees/issue1394-audit-prefix/NewChanlun/.scratch/issue1394-warm151-profile-20261004/verify.py",
+      "sha256": "8391ca863a0b70dc3530255d35e78e74bc057f8d036b01fc55852b509e51762b",
+      "scope_text_changed_only": true
+    }
+  },
+  "profile_summary": {
+    "state": "PASS_PASSIVE_PROFILE",
+    "main_samples": 17856,
+    "sampled_pid": 19056,
+    "sample_sha256": "3460326afc65b5f0c400814e6b053dabeace1937d5a4363bf64eadfb67294826",
+    "inclusive_counts_do_not_add": {
+      "handle": 17822,
+      "audit_native": 7912,
+      "cold_history": 5519,
+      "indexed_history": 5241,
+      "source_audit": 767,
+      "prepare": 6845,
+      "generation": 5230,
+      "material_SQL_reads": 6874,
+      "catalog": 120,
+      "publish": 3928,
+      "verifier": 6408,
+      "SQL_commit": 862,
+      "generated_member_check": 1558
+    },
+    "percent_of_main": {
+      "handle": 99.81,
+      "audit_native": 44.31,
+      "cold_history": 30.91,
+      "indexed_history": 29.35,
+      "source_audit": 4.3,
+      "prepare": 38.33,
+      "generation": 29.29,
+      "material_SQL_reads": 38.5,
+      "catalog": 0.67,
+      "publish": 22.0,
+      "verifier": 35.89,
+      "SQL_commit": 4.83,
+      "generated_member_check": 8.73
+    },
+    "direct_children": {
+      "handle": [
+        [
+          "_RNvMNtNtCsdUCKOWs3SFb_19s_structure_session2v36driverNtB2_6Driver7advance",
+          11839
+        ],
+        [
+          "_RNvNtNtCsdUCKOWs3SFb_19s_structure_session2v312s_allocation10audit_impl",
+          5850
+        ],
+        [
+          "_RNvMs1_NtNtCsdUCKOWs3SFb_19s_structure_session2v326cross_request_source_cacheNtB5_6Keeper16retain_completed",
+          108
+        ],
+        [
+          "_RNvMs0_NtNtCsdUCKOWs3SFb_19s_structure_session2v37controlNtB5_9S3Control6attach",
+          9
+        ],
+        [
+          "_RNvNtCsdUCKOWs3SFb_19s_structure_session2v221record_accept_context",
+          7
+        ],
+        [
+          "_RNvMNtCs3oitcs70wPf_8rusqlite11transactionNtB2_11Transaction6commit",
+          3
+        ],
+        [
+          "_RNvMs0_NtNtCsdUCKOWs3SFb_19s_structure_session2v37controlNtB5_9S3Control14inspect_ingest",
+          2
+        ],
+        [
+          "_RNvMs6_NtCs8FVZETqzQuY_5alloc2rcINtB5_2RcNtNtNtCsdUCKOWs3SFb_19s_structure_session2v35state24ImmutableHistoricalAuditE9drop_slowBJ_",
+          1
+        ]
+      ],
+      "audit_core": [
+        [
+          "_RNvNtNtCsdUCKOWs3SFb_19s_structure_session2v37history26read_indexed_history_inner",
+          5241
+        ],
+        [
+          "_RINvMsc_NtNtCsdUCKOWs3SFb_19s_structure_session2v312source_auditNtB6_17NativeSourceAudit5auditRNtNtB8_11audit_store8RefValueEBa_",
+          123
+        ],
+        [
+          "_RINvNtNtCsdUCKOWs3SFb_19s_structure_session2v316catalog_evidence20verify_cut_for_auditRNtNtB4_11audit_store8RefValueB1m_NtNtB4_13business_json13RawEventsViewEB6_",
+          113
+        ],
+        [
+          "_RINvNtCsf0LoT3TAtAe_4core3ptr9drop_glueINtNtB4_6option6OptionNtNtNtCsdUCKOWs3SFb_19s_structure_session2v312source_audit17NativeSourceAuditEEB13_",
+          35
+        ],
+        [
+          "_RNvNtNtCsdUCKOWs3SFb_19s_structure_session2v312object_index19changes_at_budgeted",
+          3
+        ],
+        [
+          "_RNvMsc_NtNtCsdUCKOWs3SFb_19s_structure_session2v312source_auditNtB5_17NativeSourceAudit16new_with_records",
+          3
+        ],
+        [
+          "_RINvNtNtCsdUCKOWs3SFb_19s_structure_session2v316catalog_evidence23verify_current_in_storeNtNtNtCs5inCf9qWswW_12newchan_rust9s_content9ref_owner7RefViewEB6_",
+          1
+        ]
+      ],
+      "prepare": [
+        [
+          "_RINvMs2_NtNtCsdUCKOWs3SFb_19s_structure_session2v38preparedNtB6_7Runtime22generate_node_productsNtNtBa_13content_store15NativeReadLeaseEBa_",
+          5230
+        ],
+        [
+          "_RNvNtNtCsdUCKOWs3SFb_19s_structure_session2v312s_allocation10audit_impl",
+          1020
+        ],
+        [
+          "_RINvNtNtCsdUCKOWs3SFb_19s_structure_session2v312object_index5stageINtNtB4_8prepared15BusinessTxStoreNtNtB6_13content_store7TxStoreEEB6_",
+          544
+        ],
+        [
+          "_RNvNtCsdUCKOWs3SFb_19s_structure_session19content_publication20verify_current_begin",
+          15
+        ],
+        [
+          "_RNvMs0_NtNtCsdUCKOWs3SFb_19s_structure_session2v37controlNtB5_9S3Control6attach",
+          13
+        ],
+        [
+          "_RNvNtCsdUCKOWs3SFb_19s_structure_session2v212stored_clock",
+          6
+        ],
+        [
+          "_RNvNtNtCsdUCKOWs3SFb_19s_structure_session2v316catalog_evidence13stage_current",
+          5
+        ],
+        [
+          "_RINvNtNtCsdUCKOWs3SFb_19s_structure_session2v39aux_index5stageINtNtB4_8prepared15BusinessTxStoreNtNtB6_13content_store7TxStoreEEB6_",
+          4
+        ]
+      ],
+      "generation": [
+        [
+          "_RINvNtNtCsdUCKOWs3SFb_19s_structure_session2v312object_index30plan_native_union_for_testonlyINtNtB4_8prepared15BusinessTxStoreNtNtB6_13content_store15NativeReadLeaseEEB6_",
+          1790
+        ],
+        [
+          "_RNvMs1_NtNtCsdUCKOWs3SFb_19s_structure_session2v310generationNtB5_17GenerationRuntime13generate_impl",
+          1231
+        ],
+        [
+          "_RNvNtCsdUCKOWs3SFb_19s_structure_session16content_manifest20assemble_unpublished",
+          1010
+        ],
+        [
+          "_RINvNtNtCsdUCKOWs3SFb_19s_structure_session2v312source_audit15audit_generatedRNtNtCs5inCf9qWswW_12newchan_rust9s_content10ContentRefRNtNtB4_13business_json9RawEventsEB6_",
+          644
+        ],
+        [
+          "_RINvMs7_NtNtCsdUCKOWs3SFb_19s_structure_session2v39aux_indexNtB6_7Runtime4planINtNtB8_8prepared15BusinessTxStoreNtNtBa_13content_store15NativeReadLeaseERINtNtCs8FVZETqzQuY_5alloc3vec3VecNtNtCskNIaWwgt0oT_10serde_json5value5ValueERNtNtB8_13business_json9RawEventsEBa_",
+          478
+        ],
+        [
+          "_RNvMs0_NtNtCsdUCKOWs3SFb_19s_structure_session2v310generationNtB5_9Generated11finish_axes",
+          74
+        ],
+        [
+          "_RNvNtNtCsdUCKOWs3SFb_19s_structure_session2v38prepared9templates",
+          2
+        ],
+        [
+          "_RNvNtNtCsdUCKOWs3SFb_19s_structure_session2v316catalog_evidence14build_template",
+          1
+        ]
+      ],
+      "publication": [
+        [
+          "_RNvNtCsdUCKOWs3SFb_19s_structure_session19content_publication22resolve_current_births",
+          3041
+        ],
+        [
+          "_RNvMNtCs3oitcs70wPf_8rusqlite11transactionNtB2_11Transaction6commit",
+          857
+        ],
+        [
+          "_RNvMs0_NtNtCsdUCKOWs3SFb_19s_structure_session2v37controlNtB5_9S3Control6attach",
+          9
+        ],
+        [
+          "_RNvNtCsdUCKOWs3SFb_19s_structure_session2v221record_commit_context",
+          8
+        ],
+        [
+          "_RNvNtCsdUCKOWs3SFb_19s_structure_session2v212stored_clock",
+          7
+        ],
+        [
+          "_RNvMs0_NtNtCsdUCKOWs3SFb_19s_structure_session2v37controlNtB5_9S3Control12load_pending",
+          2
+        ],
+        [
+          "_RNvNtNtCsdUCKOWs3SFb_19s_structure_session2v36commit11small_field",
+          1
+        ],
+        [
+          "_RINvNtCsf0LoT3TAtAe_4core3ptr9drop_glueNtNtNtCsdUCKOWs3SFb_19s_structure_session2v37control10IngestViewEBH_",
+          1
+        ]
+      ]
+    },
+    "top_self": [
+      [
+        "pread",
+        4405
+      ],
+      [
+        "sqlite3VdbeExec",
+        1032
+      ],
+      [
+        "_RNvXs3_NtNtCsf0LoT3TAtAe_4core4hash3sipINtB5_6HasherNtB5_11Sip13RoundsENtB7_6Hasher5writeCs5inCf9qWswW_12newchan_rust",
+        828
+      ],
+      [
+        "_RNvNtNtCsbDoC4zYOwx3_4sha26sha2567aarch648compress",
+        744
+      ],
+      [
+        "__fcntl",
+        725
+      ],
+      [
+        "sqlite3BtreeIndexMoveto",
+        637
+      ],
+      [
+        "_xzm_free",
+        523
+      ],
+      [
+        "_platform_memcmp",
+        515
+      ],
+      [
+        "_platform_memmove",
+        473
+      ],
+      [
+        "_RNvMs_NtCsdUCKOWs3SFb_19s_structure_session13content_storeNtB4_15NativeReadLease15current_checked",
+        438
+      ],
+      [
+        "walFindFrame",
+        353
+      ],
+      [
+        "_RNvXs6_NtNtCsdUCKOWs3SFb_19s_structure_session2v37historyNtB5_10HashReaderNtNtCs5inCf9qWswW_12newchan_rust9s_content10NodeSource12checked_read",
+        294
+      ]
+    ],
+    "negative_selfcount_nodes": 0,
+    "limit": "主线程采样占比而非精确阶段耗时；仅151采样，耗时受扰动；不可推断严格峰值、完整9011或缓存逐出",
+    "unresolved_in_optimized_symbols": [
+      "object_dual projection cost",
+      "exact node-binding cost"
+    ]
+  },
+  "full9011_previous_attempt": {
+    "received_and_validated": 165,
+    "ordinal166": "DeliveryUnknown after 30.041357375s; persisted Committed",
+    "B_created": false,
+    "processes_reaped": true,
+    "full_final_snapshot_verification": false
+  },
+  "archive": {
+    "path": "PROJECTION-SWEEP-20261005-RAW.zip",
+    "files": 1371,
+    "bytes": 1551674,
+    "sha256": "cd91887759fc37c820b7844a1522d305e475d142765f51957fc4f03cb92fe965"
+  },
+  "full9011_complete": false,
+  "whole_resources_qualified": false,
+  "goal_complete": false
+}

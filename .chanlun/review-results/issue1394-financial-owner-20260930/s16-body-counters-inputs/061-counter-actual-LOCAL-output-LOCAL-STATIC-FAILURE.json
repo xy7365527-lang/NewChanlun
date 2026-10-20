@@ -1,0 +1,60 @@
+{
+  "audit_child_started": false,
+  "new": [
+    {
+      "bytes": 6848512,
+      "dev": 16777232,
+      "inode": 324668626,
+      "mtime_ns": 1790821508030101353,
+      "path": ".scratch/issue1394-reuse-pilot-20261001/LOCAL-output/baseline-source/s.sqlite",
+      "sha256": "1bb9fb2c1660501bc570a52ccb61aa4c89cbe806fd9fc3bea0cfb550de5423fb"
+    },
+    {
+      "bytes": 7370712,
+      "dev": 16777232,
+      "inode": 324668624,
+      "mtime_ns": 1790821508007136361,
+      "path": ".scratch/issue1394-reuse-pilot-20261001/LOCAL-output/baseline-source/s.sqlite-wal",
+      "sha256": "89032325fe6a2dbf4b3b97e2f335072ce0d7cc5a634c81e0411ebc4dfefe843b"
+    },
+    {
+      "bytes": 32768,
+      "dev": 16777232,
+      "inode": 324668625,
+      "mtime_ns": 1790865174852418251,
+      "path": ".scratch/issue1394-reuse-pilot-20261001/LOCAL-output/baseline-source/s.sqlite-shm",
+      "sha256": "757d2d7f80f325accd4a68f0a776bef0d31db8f1ecf0d7ce486bfefb5d616193"
+    }
+  ],
+  "old": [
+    {
+      "bytes": 6848512,
+      "dev": 16777232,
+      "inode": 324668626,
+      "mtime_ns": 1790821508030101353,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/LOCAL-output/baseline-source/s.sqlite",
+      "sha256": "1bb9fb2c1660501bc570a52ccb61aa4c89cbe806fd9fc3bea0cfb550de5423fb"
+    },
+    {
+      "bytes": 7370712,
+      "dev": 16777232,
+      "inode": 324668624,
+      "mtime_ns": 1790821508007136361,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/LOCAL-output/baseline-source/s.sqlite-wal",
+      "sha256": "89032325fe6a2dbf4b3b97e2f335072ce0d7cc5a634c81e0411ebc4dfefe843b"
+    },
+    {
+      "bytes": 32768,
+      "dev": 16777232,
+      "inode": 324668625,
+      "mtime_ns": 1790825538841679788,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/LOCAL-output/baseline-source/s.sqlite-shm",
+      "sha256": "757d2d7f80f325accd4a68f0a776bef0d31db8f1ecf0d7ce486bfefb5d616193"
+    }
+  ],
+  "original_source_and_589_target_unchanged": true,
+  "reason": "SQLite read-only open changed owned SHM mtime only",
+  "stage": "baseline owned-clone canonical DB read",
+  "status": "FAIL_PRE_AUDIT",
+  "wrapper_sha256": "3dc51dc03f7383c1575d350fa40a23dcfd18f5f7b5fd8c8c5dc5b736dfee8f13"
+}

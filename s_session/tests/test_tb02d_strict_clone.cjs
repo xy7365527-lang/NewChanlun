@@ -1,4 +1,8 @@
 // #1414：私有 clone 的真实旧新实现对照，仅纯内存与可选归档 cut40。
+// #1394 整合（根裁定）：客户端是 FIN 的 Q3 结构，本探针只改载入方式——私有出口注入点改为
+// `  const publicAPI = {`，vm 里给客户端按其自身路径的 require（它要载 q3-* 依赖）；--baseline-client
+// 须是同一结构的旧客户端。clone 输出的原型断言随 FIN parse 取所在 realm 的 Object.prototype
+// （根已接受「严格 clone 产普通对象」，#1414 守的是 clone ≡ parse∘canonical），其余断言不变。
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
@@ -6,6 +10,7 @@ const vm = require('node:vm');
 const crypto = require('node:crypto');
 const assert = require('node:assert/strict');
 const {performance} = require('node:perf_hooks');
+const {createRequire} = require('node:module');
 const args = Object.fromEntries(process.argv.slice(2).reduce((pairs, value, i, values) => {
   if (i % 2 === 0) pairs.push([value.replace(/^--/, ''), values[i + 1]]); return pairs;
 }, []));
@@ -17,9 +22,10 @@ const hashes = () => Object.fromEntries(paths.map(p => [p, hash(fs.readFileSync(
 const before = hashes();
 function load(filename) {
   const source = fs.readFileSync(filename, 'utf8');
-  const marker = '  return Object.freeze({TB02_KINDS:';
+  const marker = '  const publicAPI = {';
   assert.equal(source.split(marker).length, 2, 'unique final export for test-only private access');
-  const context = vm.createContext({module: {exports: {}}, TextEncoder, TextDecoder, performance});
+  const context = vm.createContext({module: {exports: {}}, require: createRequire(filename), TextEncoder, TextDecoder, performance,
+    crypto: globalThis.crypto, AbortController, setTimeout, clearTimeout});
   vm.runInContext(source.replace(marker, '  globalThis.__cloneTest = {clone, stateOf, arrayPrototype: Array.prototype};\n' + marker), context);
   return context.__cloneTest;
 }
@@ -37,6 +43,8 @@ function equivalent(a, b) {
   if (Array.isArray(a)) assert.equal(a.length, b.length);
   for (const k of aa) equivalent(a[k], b[k]);
 }
+// vm 内对象的 Object.prototype 属于该 vm realm；按 realm 取同一个原型。
+function contextObjectPrototype(value) { let p = Object.getPrototypeOf(value); while (p && Object.getPrototypeOf(p)) p = Object.getPrototypeOf(p); return p; }
 function sourceObjects(value, seen = new WeakSet()) {
   if (value && typeof value === 'object' && !seen.has(value)) {
     seen.add(value); for (const child of Object.values(value)) sourceObjects(child, seen);
@@ -47,7 +55,7 @@ function independent(value, source, seen = new WeakSet(), strictPrototype = true
   if (!value || typeof value !== 'object') return;
   assert.ok(!source.has(value), 'output shares mutable tree with input');
   assert.ok(!seen.has(value), 'output reuses a mutable subtree'); seen.add(value);
-  if (strictPrototype && !Array.isArray(value)) assert.equal(Object.getPrototypeOf(value), null);
+  if (strictPrototype && !Array.isArray(value)) assert.equal(Object.getPrototypeOf(value), contextObjectPrototype(value));
   for (const child of Object.values(value)) independent(child, source, seen, strictPrototype);
 }
 function outcome(clone, value) {

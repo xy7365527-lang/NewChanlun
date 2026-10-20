@@ -1,0 +1,9 @@
+{
+  "original_db_sha256": "1704c9d9ef50a822653206e0bf1136b37280814322bbb44398761a38322c154a",
+  "byte_identical_to_original": true,
+  "clock_hash": "8dc72837993ac1a78da6d58d5aeccef86e842aca5702063e3791047d2807cfe4",
+  "source_hash": "76472995cbf0825ceeeaa94e89bd60d1b1416d6c7e0a7ec3a1b0ec5a90c60087",
+  "source_temporary_directory": "/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/s1394-driver-78031-1790722324229277000-0",
+  "resource_config_sha256": "50ea5bf865de8a37d8187069d70bee85ca4caac9c759a60ad2e3c717743d4eb1",
+  "resource_profile": null
+}

@@ -24,6 +24,7 @@ KNOWLEDGE_DOMAIN_V2 = "established_direction_with_extreme_root_sets"
 RULE_CONTRACTS = {
     "s2-axis-quantifiers": (None, None, KNOWLEDGE_DOMAIN_V1),
     "s2-axis-quantifiers+new-bi/1": ("s-new-bi/1", None, KNOWLEDGE_DOMAIN_V1),
+    "s2-axis-quantifiers+new-bi/2": ("s-new-bi/2", None, KNOWLEDGE_DOMAIN_V2),
     "s2-axis-quantifiers+new-bi/1+segment-first/1": ("s-new-bi/1", "s-segment/1", KNOWLEDGE_DOMAIN_V1),
     "s2-axis-quantifiers+new-bi/1+segment-second/1": ("s-new-bi/1", "s-segment/2", KNOWLEDGE_DOMAIN_V1),
     "s2-axis-quantifiers+new-bi/2+segment-second/1": ("s-new-bi/2", "s-segment/2", KNOWLEDGE_DOMAIN_V2),
@@ -348,7 +349,9 @@ def _validate_fact(value, meta=None, raw=None, *, _identity_hash=None):
     if value["fact_key"] != canonical([kind, slot]).decode():
         raise ValueError("fact_key 与真实语义槽不符")
     if meta is not None:
-        bi_schema, segment_schema, domain = RULE_CONTRACTS.get(meta["rule_revision"], (None, None, None))
+        if meta["rule_revision"] not in RULE_CONTRACTS:
+            raise ValueError("cut规则修订未声明")
+        bi_schema, segment_schema, domain = RULE_CONTRACTS[meta["rule_revision"]]
         if kind in SEGMENT_KINDS and p["schema_revision"] != segment_schema:
             raise ValueError("段合同与cut规则版本不符")
         if kind in BI_KINDS and p["schema_revision"] != bi_schema:

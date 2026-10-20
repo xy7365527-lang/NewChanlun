@@ -1,0 +1,133 @@
+{
+  "schema": "independent-spec-review/1",
+  "revision": 3,
+  "candidate": "00b15b08bcd8d8e33406e29b8c7136bdef6b8513",
+  "base": "54a6e5fd3df4e14a5e38edc9da39cfb6359ffc15",
+  "verdict": "PASS",
+  "findings": [],
+  "tracked_clean": true,
+  "scope": "fixed existing page two-state preservation, complete retained graph access/export, Watch scheduling and legacy late validation guards",
+  "inputs": [
+    {
+      "path": "s_session/browser/index.html",
+      "sha256": "5ccad5409e57420f3a5313432ced67ca58810fa6dc20f7d307aef64d7c978770"
+    },
+    {
+      "path": "s_session/tests/test_q3_page_revision2.cjs",
+      "sha256": "9caeb17e018037ce42c4d064ca1f5f4f605cf0d0d5e88bd38a2a118ee46aab82"
+    }
+  ],
+  "independent_probe": {
+    "candidate": "00b15b08bcd8d8e33406e29b8c7136bdef6b8513",
+    "status": "PASS",
+    "scope": "actual unchanged Browser bundle/Client and frozen onebar replay; simulated DOM/allocator/file sink, no real Browser",
+    "initial_epoch": 1,
+    "after_epoch": 3,
+    "retained_committed_after_failure": true,
+    "root_fields_after_failure": 7,
+    "stream_export_root": "sc1-25bf56f161e22afb27f420ef0dadd3b70964bbca49604d31061ecd0622a57108",
+    "original_projection_root": "sc1-25bf56f161e22afb27f420ef0dadd3b70964bbca49604d31061ecd0622a57108",
+    "stream_export_bytes": 78963,
+    "stream_export_sha256": "32a78f3af812ea7210628be9a9cbba3c65c4c4d740bab92d59b39c313b83a298",
+    "extra_content_requests_during_export": 0,
+    "new_committed_invalidates_old_export": true,
+    "pickers": 1,
+    "closes": 1
+  },
+  "probe_files": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-q3-complete-client-20261001/.scratch/issue1394-q3-complete-client-20261001/revision3/SPEC-probes-retained-export.cjs",
+      "sha256": "6f12e04013954f2b71783e7f036c510ccc33f50f0bdbf0915d505b39f18ad21d"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-q3-complete-client-20261001/.scratch/issue1394-q3-complete-client-20261001/revision3/SPEC-probes-retained-export.json",
+      "sha256": "759bc63ce2dcad35b13d0f3715b502652b6e9c3c2ef38435fc3a596b61bb5ec7"
+    }
+  ],
+  "author_evidence": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-q3-complete-client-20261001/.scratch/issue1394-q3-complete-client-20261001/revision3/AUTHOR-RESULT.json",
+      "sha256": "e63703f98f963fb555833662d6b4c4d3bec6ed469ea69339a1606c8237824541"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-q3-complete-client-20261001/.scratch/issue1394-q3-complete-client-20261001/revision3/AUTHOR-API-ADDENDUM.md",
+      "sha256": "8b844a1de94158c6820bd822b90ac3ff8808d3a034e9fea884ca8eab54bf7646"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-q3-complete-client-20261001/.scratch/issue1394-q3-complete-client-20261001/revision3/AUTHOR-PAGE-FIX.patch",
+      "sha256": "abb93663b028ad61b95ada77350ce5696633e5ffd4f3cc41862993b369e72ca5"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-q3-complete-client-20261001/.scratch/issue1394-q3-complete-client-20261001/revision3/AUTHOR-PAGE-TESTS.txt",
+      "sha256": "e0ae0a457a66f5db34494b141e1c386e80d5b6731253fe97de793b7b05ee65d4"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-q3-complete-client-20261001/.scratch/issue1394-q3-complete-client-20261001/revision3/AUTHOR-LEGACY-SCHEDULES.txt",
+      "sha256": "c38e84d8be1429f511540729f504ffe8f31c046c0f8d58a3b3a37738b2f7e1e1"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-q3-complete-client-20261001/.scratch/issue1394-q3-complete-client-20261001/revision3/AUTHOR-BROWSER-42.json",
+      "sha256": "d13ca0d40a0760c775378073ac31083cde45d3ef0a07b64a6993661e51c31030"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-q3-complete-client-20261001/.scratch/issue1394-q3-complete-client-20261001/revision3/AUTHOR-R12.json",
+      "sha256": "bed23e3729e69e40311db2768c4500e9da679d6edc8f3eb1dbf9344292661abd"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-q3-complete-client-20261001/.scratch/issue1394-q3-complete-client-20261001/revision3/AUTHOR-VIEW-GUARDS.txt",
+      "sha256": "73c34e0d63e6b1a39e39758e0392282c3a1da062992a091f14c74cad0de813dc"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-q3-complete-client-20261001/.scratch/issue1394-q3-complete-client-20261001/revision3/AUTHOR-BUNDLE-CHECK.json",
+      "sha256": "2d9e809b569a94383016af3e192e120cb475d829f590e61898cff400cc92f9d8"
+    }
+  ],
+  "manifest_verification": {
+    "product_hashes_with_revision3_override": 18,
+    "current_receipts": 6,
+    "patches": 1,
+    "mismatches": []
+  },
+  "bundle_sha256": "19bad6e5dd7d9c06f68f288e212afc82d8976fdc612d30622165ff7879f8c6ed",
+  "unchanged": [
+    "s-content-v3.js",
+    "s-content-job-v3.js",
+    "q3-consumer.js",
+    "q3-values.js",
+    "q3-typed.js",
+    "tb01c-client.js"
+  ],
+  "reused_author_terminal_checks": {
+    "actual_bundle_client_page_transition": {
+      "passed": 4,
+      "failed": 0,
+      "elapsed_ms": 94894.212292
+    },
+    "legacy_real_microtask_schedules": {
+      "load": 13,
+      "stream": 41,
+      "stale_installations": 0,
+      "validator_replaced": false
+    },
+    "legacy_browser": {
+      "passed": 42,
+      "failed": 0
+    },
+    "r12": "all passed",
+    "prior_q3_selection_and_single_script_guard": {
+      "passed": 2,
+      "failed": 0
+    },
+    "bundle_input_drift": "passed unchanged inputs"
+  },
+  "report_sha256": "0e66a24dbb4e4347870cad1f19eae301de7e611ae54b1f0a338c972a4c35b193",
+  "limits": [
+    "engineering reviewer recheck pending",
+    "not real Browser",
+    "TestOnly allocation and file sink",
+    "not physical resources",
+    "not formal S16 Q",
+    "not 9011",
+    "not #1323 or #1460 completion"
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "schema": "newchanlun-1394-q16-cost-evidence/1",
+  "base_commit": "c516cda4676c0f983ff8dfe8ca36f9a9f981c040",
+  "reviewed_product_patch_sha256": "9e1925df5aa742f7127c23c9e580eacbc52c003b85f674210b1e4db767bb4b71",
+  "final_product_sha256": {
+    "rust/src/bin/s_session_v2/content_manifest.rs": "0521849d902f7c40df4e0a451e8bcc963408bb72e45ce16edaf0d49cecb02ab2",
+    "rust/src/bin/s_session_v2/content_publication.rs": "dcfae1254d7350271b166fb67817a25a974eb38b66497019d08ef092b96f4788",
+    "rust/src/bin/s_session_v3/history.rs": "2f664f6d090576f3638b5a61a05cec1581337d9376de2f46d46a583ed093bae3",
+    "rust/src/bin/s_session_v3/object_index.rs": "f8fb1b0d35bfbc515c3ca2406eb26d4c302666601b167be7c54b31901465f619",
+    "rust/src/bin/s_session_v3/object_records.rs": "2922be718790215d74be7c37b4afe13a9d912c2cca1483b854091f9fdf29b01a",
+    "rust/src/bin/s_session_v3/source_audit.rs": "00287450b1d203361f08cdad5563b6584812b8d628ab9a8a7e3c3ea42c868196",
+    "rust/src/bin/s_session_v3/state.rs": "07ad4f5334022b92d52265cf9427e6cd8e419732b64a53213fc6960f7eeed6bb",
+    "rust/src/s_content.rs": "481c67b84f18e77875f1696a26d6681cdcd5a8a703fddb5d527f382aed3bd0ba",
+    "rust/src/s_content/path.rs": "175b950bc6b6d40d037f5e86129aa63836793ca2b87f3c3b1ba42b541074d436",
+    "rust/tests/s_content_contract.rs": "16e00718330524fac65827025e97d153a32bd5c6d35aa04712f59ac70b29faed",
+    "rust/tests/s_content_path.rs": "6d5a990a7442e527fa52464efde64d0aaeec21d17e37b45468b84700957d3756"
+  },
+  "post_review_delta": "one equivalent needless_borrow removal at object_index::scalar_value; final cargo check exit0",
+  "baseline_same_turn": {
+    "s16_test_seconds": 164.79,
+    "cold_audit_seconds": 9.802736041,
+    "last_commit_seconds": 27.3910105
+  },
+  "after": {
+    "generation_count": 16,
+    "db_sha256": "1704c9d9ef50a822653206e0bf1136b37280814322bbb44398761a38322c154a",
+    "identical_to_original_frozen_db": true,
+    "clock_sha256": "8dc72837993ac1a78da6d58d5aeccef86e842aca5702063e3791047d2807cfe4",
+    "final_unbounded_audit_seconds": 4.364045458,
+    "last_commit_seconds": 12.331993958,
+    "full_test_seconds": 76.53,
+    "scope": "S16 internal generation and final query-only audit without Q deadline; Q5s remains false; not full9011 or graph acceptance"
+  },
+  "checks": {
+    "s3_passed": 167,
+    "s3_ignored": 2,
+    "manifest_publication_passed": 12,
+    "codec_passed": 9,
+    "path_passed": 11,
+    "clippy_exit": 0,
+    "final_check_exit": 0,
+    "warnings_remain": true
+  },
+  "q5s": {
+    "passed": false,
+    "sample": "source-cost-phases.json",
+    "elapsed_seconds": 5.052028583,
+    "last_generation": 16,
+    "verified_capture": null,
+    "warm_result": false
+  },
+  "scope": "reviewed bounded performance progress, not issue1394/9011/full graph acceptance",
+  "not_measured": [
+    "temporary heap peak",
+    "RSS",
+    "full9011",
+    "E/B joint financial/fault acceptance",
+    "formal Q startup/stop"
+  ],
+  "pushed": false,
+  "main_merged": false,
+  "goal_complete": false
+}

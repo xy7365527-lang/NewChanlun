@@ -1,0 +1,7 @@
+{
+  "schema_revision": "issue1394-verbatim-utf8-artifact/1",
+  "source_path": "/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/LOCAL-output/candidate.log",
+  "source_bytes": 322,
+  "source_sha256": "5670a60d73c452143590385ec77390711c46e428f9fcf0923ade8ab15a7a4d9a",
+  "content_utf8": "\nrunning 1 test\ntest v3::state::readonly_reuse_pilot::readonly_audit_reuse_pilot ... READONLY_AUDIT_REPEAT repeat=0 elapsed_ns=3803846416 cuts=16 raw=16\nREADONLY_AUDIT_REPEAT repeat=1 elapsed_ns=3769924541 cuts=16 raw=16\nok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 422 filtered out; finished in 7.60s\n\n"
+}

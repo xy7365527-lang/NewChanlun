@@ -1,0 +1,29 @@
+{
+  "status": "PASS_BOUNDED_ROOT_RECOMPUTED_PENDING28_AUDIT_FACTS",
+  "scope": "own byte-identical finalA pending28 clone, readonly two state::audit repeats; no production handle attribution",
+  "checks": [
+    {
+      "repeat": 0,
+      "fingerprint_recomputed": true,
+      "all_phase_deltas_recomputed": true,
+      "audit_elapsed_ns": 11468526542,
+      "events": 963,
+      "source_reads": 8792023
+    },
+    {
+      "repeat": 1,
+      "fingerprint_recomputed": true,
+      "all_phase_deltas_recomputed": true,
+      "audit_elapsed_ns": 11495750583,
+      "events": 963,
+      "source_reads": 8792023
+    }
+  ],
+  "test_exit0_same_popen_reaped": true,
+  "originals_three_unchanged": true,
+  "owned_three_bytes_unchanged": true,
+  "source_snapshot_not_pre28_cut27": true,
+  "full9011": false,
+  "C_complete": false,
+  "S_whole_handle_time": "UNMEASURED"
+}

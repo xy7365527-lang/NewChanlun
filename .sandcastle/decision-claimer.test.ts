@@ -7,6 +7,7 @@ import {
   ADR_FORMAT_LINE, AUTH_LINE, MAX_ROUNDS, isCitationOnlyBlock, landingProblem, revisePrompt, CITATION_SECTION, DRAFT_SECTIONS, GH_API_WRITE_DENY, READ_TOOLS, hasCitationTable, toolArgs, FETCH_URL, MAIN_REF, MODEL_FABLE, MODEL_OPUS, DryRunWriteError,
   allocateAdr, applyReclass, draftPrompt, ensureSrc, extractFirstApiKey, guardGh, reclassSuggestion, renumberDraft, reviewPrompt, initialState, isGhWrite, landingTarget, missingDraftSections,
   nextAfterReview, parseArgs, parseClassification, parseReview, processTicket, selectCandidates,
+  resolvedReason, pickUnresolved, finishedTickets,
   isRetryable, makeClaudeRunner, loadResume,
   type Deps, type GhRunner, type ModelCall, type OnceResult,
 } from "./decision-claimer.mts";
@@ -516,17 +517,21 @@ test("makeClaudeRunner：至少重试 4 次；非临时错误首次即失败", a
 });
 
 /** live 假环境：gh 维护 assignees 状态，git 按落地提示里的目标回报改动。 */
-function liveDeps(replies: Array<string | Error>, opts: { failGh?: (a: string[]) => boolean } = {}) {
+function liveDeps(replies: Array<string | Error>, opts: { failGh?: (a: string[]) => boolean; postedThenFail?: (a: string[]) => boolean } = {}) {
   const ghCalls: string[][] = [];
   const modelCalls: ModelCall[] = [];
   let assignees: string[] = [];
   let target = "";
-  const gh: GhRunner = (args) => {
+  const comments: Array<{ author: { login: string }; body: string }> = [];
+  const gh: GhRunner = (args, input) => {
     ghCalls.push(args);
+    // postedThenFail：评论已发出、gh 却报错（#1565 那轮 GraphQL EOF 的同型）。
+    if (opts.postedThenFail?.(args) && input !== undefined) comments.push({ author: { login: "xy7365527-lang" }, body: input });
     if (opts.failGh?.(args)) throw new Error(`gh 失败：${args.join(" ")}`);
     if (args[0] === "issue" && args[1] === "view") {
-      return JSON.stringify({ number: 1565, title: "FU-x", body: "票面", labels: [{ name: "wayfinder:grilling" }], assignees: assignees.map((login) => ({ login })), comments: [] });
+      return JSON.stringify({ number: 1565, title: "FU-x", body: "票面", labels: [{ name: "wayfinder:grilling" }], assignees: assignees.map((login) => ({ login })), comments });
     }
+    if (args[0] === "issue" && args[1] === "comment" && input !== undefined) comments.push({ author: { login: "xy7365527-lang" }, body: input });
     if (args[0] === "issue" && args[1] === "edit" && args[3] === "--add-assignee") assignees = ["me"];
     if (args[0] === "issue" && args[1] === "edit" && args[3] === "--remove-assignee") assignees = [];
     if (args[0] === "api") return "[]";
@@ -554,7 +559,11 @@ function liveDeps(replies: Array<string | Error>, opts: { failGh?: (a: string[])
     repoRoot: "/nonexistent-repo",
     now: Date.now,
   };
-  return { d, replies, ghCalls, modelCalls, gitCalls, fail: (f: (a: string[]) => boolean) => (opts.failGh = f), stopFail: () => (opts.failGh = undefined) };
+  return {
+    d, replies, ghCalls, modelCalls, gitCalls, comments,
+    fail: (f: (a: string[]) => boolean, posted = false) => { opts.failGh = f; if (posted) opts.postedThenFail = f; },
+    stopFail: () => { opts.failGh = undefined; opts.postedThenFail = undefined; },
+  };
 }
 
 const writesOf = (calls: string[][]) => calls.filter(isWrite).map((a) => a.slice(0, 4).join(" "));
@@ -619,5 +628,134 @@ test("live P 类：贴标签失败只记断点，下一轮只补贴标签与取�
   assert.equal(s2.phase, "shadow_p");
   assert.equal(s2.stage, undefined);
   assert.deepEqual(h.modelCalls, []);
+  assert.deepEqual(writesOf(h.ghCalls), ["issue edit 1565 --add-assignee", "issue edit 1565 --add-label", "issue edit 1565 --remove-assignee"]);
+});
+
+// ───────── 图审计 2026-10-20 第 13 条：已裁定 / 已关闭票不再进裁决面 ─────────
+
+test("resolvedReason：已关闭、resolution 评论、用户批复都跳过；待用户批复与正文提及不算", () => {
+  const c = (body: string) => ({ author: "xy7365527-lang", body });
+  assert.equal(resolvedReason({ state: "CLOSED", comments: [] }), "票已关闭");
+  assert.equal(resolvedReason({ state: "OPEN", comments: [c(`${AUTH_LINE}\n\n**resolution**：T 类`)] }), "票上已有 resolution");
+  assert.equal(resolvedReason({ state: "OPEN", comments: [c("用户 2026-10-20 批复：「同意」——采纳方案 A")] }), "票上已有用户批复");
+  assert.equal(resolvedReason({ state: "OPEN", comments: [c("用户 2026-10-20 批复\n\n批复已落成正本")] }), "票上已有用户批复");
+  // #1565 的影子评论：首行「待用户批复」，草稿里还可能写「需用户批复」——都不是批复。
+  assert.equal(resolvedReason({ state: "OPEN", comments: [c("**P 类影子模式，待用户批复**（原判 T）\n草稿：此项需用户批复")] }), null);
+  assert.equal(resolvedReason({ state: "OPEN", comments: [c("分级：T — 理由")] }), null);
+  assert.equal(resolvedReason({ comments: [] }), null);
+  // Markdown 前缀不挡识别。
+  for (const b of ["**用户 2026-10-20 批复**：同意", "> 用户 2026-10-20 批复：同意", "## 用户 2026-10-20 批复", "- 用户批复：同意"]) {
+    assert.equal(resolvedReason({ comments: [c(b)] }), "票上已有用户批复", b);
+  }
+  // 未批复 / 待批复 / 退回重写都不算已裁定；后来的退回推翻先前批复，再批复又生效。
+  assert.equal(resolvedReason({ comments: [c("用户尚未批复，先挂着")] }), null);
+  assert.equal(resolvedReason({ comments: [c("## 退回重写（用户 2026-10-20 批复：「同意」）")] }), null);
+  assert.equal(resolvedReason({ comments: [c("用户 10-20 批复：退回重写")] }), null);
+  assert.equal(resolvedReason({ comments: [c("用户 10-19 批复：同意"), c("## 退回重写（用户 10-20 批复）")] }), null);
+  assert.equal(resolvedReason({ comments: [c("## 退回重写"), c("用户 10-21 批复：同意")] }), "票上已有用户批复");
+  // 首行中间提到「重写」、批复后的簿记评论都不重开；「还没 / 需」批复不算已批复。
+  assert.equal(resolvedReason({ comments: [c("用户 2026-10-20 批复：「同意」——按草稿重写 §3 后落地")] }), "票上已有用户批复");
+  assert.equal(resolvedReason({ comments: [c("用户 10-20 批复：同意"), c("已按用户批复重写正本 baohan.md")] }), "票上已有用户批复");
+  assert.equal(resolvedReason({ comments: [c("用户还没批复")] }), null);
+  assert.equal(resolvedReason({ comments: [c("用户需批复后再落地")] }), null);
+  assert.equal(resolvedReason({ comments: [c("用户 10-20 批复：「不同意」")] }), null);
+  assert.equal(resolvedReason({ comments: [c("用户 10-20 批复：**不同意**")] }), null);
+  assert.equal(resolvedReason({ comments: [c("用户 10-20 批复：否决")] }), null);
+  // 非编排者账号不算；影子评论草稿里夹一行 **resolution**： 也不算。
+  assert.equal(resolvedReason({ comments: [{ author: "someone", body: "用户批复：同意" }] }), null);
+  assert.equal(resolvedReason({ comments: [c("**P 类影子模式，待用户批复**\n\n<details>\n**resolution**：草稿里的一行\n</details>")] }), null);
+});
+
+test("pickUnresolved：逐张读票，跳过已裁定票不占并发槽，读票失败本轮跳过", () => {
+  const views: Record<number, unknown> = {
+    1565: { number: 1565, state: "CLOSED", title: "a", body: "", labels: [], assignees: [], comments: [] },
+    1566: { number: 1566, state: "OPEN", title: "b", body: "", labels: [], assignees: [], comments: [{ author: { login: "xy7365527-lang" }, body: "用户 2026-10-20 批复：同意" }] },
+    1567: { number: 1567, state: "OPEN", title: "c", body: "", labels: [], assignees: [], comments: [] },
+    1569: { number: 1569, state: "OPEN", title: "e", body: "", labels: [], assignees: [], comments: [] },
+  };
+  const gh: GhRunner = (args) => {
+    if (args[0] === "issue" && args[1] === "view") {
+      const v = views[Number(args[2])];
+      if (!v) throw new Error("EOF");
+      return JSON.stringify(v);
+    }
+    return "[]";
+  };
+  const skipped: number[] = [];
+  assert.deepEqual(pickUnresolved(gh, [1565, 1566, 1568, 1567, 1569], 1, (n) => skipped.push(n)), [1567]);
+  assert.deepEqual(skipped, [1565, 1566, 1568]);
+  assert.deepEqual(pickUnresolved(gh, [1565, 1567, 1569], 3, () => {}), [1567, 1569]);
+});
+
+test("finishedTickets：终态跳过，error 与带断点的不跳过", () => {
+  const root = mkdtempSync(join(tmpdir(), "decision-finished-"));
+  const put = (n: number, v: object) => { mkdirSync(join(root, String(n)), { recursive: true }); writeFileSync(join(root, String(n), "summary.json"), JSON.stringify(v)); };
+  put(1, { phase: "done" });
+  put(2, { phase: "shadow_p" });
+  put(3, { phase: "error" });
+  put(4, { phase: "land_t", stage: "reviewed_pass" });
+  put(5, { phase: "review_parse_error" });
+  assert.deepEqual([...finishedTickets(root, [1, 2, 3, 4, 5, 6].map((number) => ({ number })))].sort(), [1, 2]);
+});
+
+test("live processTicket：已有用户批复的票不 claim、不调模型、不覆盖 summary.json", async () => {
+  const { d, ghCalls, modelCalls } = fakeDeps("live", []);
+  const base = d.gh;
+  d.gh = (args, input) => {
+    if (args[0] === "issue" && args[1] === "view") {
+      ghCalls.push(args);
+      return JSON.stringify({ number: 1565, state: "OPEN", title: "W", body: "", labels: [{ name: "wayfinder:grilling" }], assignees: [], comments: [{ author: { login: "xy7365527-lang" }, body: "用户 2026-10-20 批复：「同意」" }] });
+    }
+    return base(args, input);
+  };
+  d.me = "me";
+  mkdirSync(join(d.outRoot, "1565"), { recursive: true });
+  writeFileSync(join(d.outRoot, "1565", "summary.json"), JSON.stringify({ phase: "error", error: "EOF" }));
+  const s = await processTicket(1565, d);
+  assert.equal(s.phase, "skipped");
+  assert.equal(ghCalls.filter(isWrite).length, 0);
+  assert.equal(modelCalls.length, 0);
+  assert.equal(JSON.parse(readFileSync(join(d.outRoot, "1565", "summary.json"), "utf8")).phase, "error");
+});
+
+test("live processTicket：已关闭票直接跳过", async () => {
+  const { d, ghCalls } = fakeDeps("live", []);
+  const base = d.gh;
+  d.gh = (args, input) => {
+    if (args[0] === "issue" && args[1] === "view") return JSON.stringify({ number: 9, state: "CLOSED", title: "x", body: "", labels: [], assignees: [], comments: [] });
+    return base(args, input);
+  };
+  const s = await processTicket(9, d);
+  assert.equal(s.phase, "skipped");
+  assert.equal(ghCalls.filter(isWrite).length, 0);
+});
+
+test("断点续做 × 跳过：reviewed_pass 且 resolution 评论其实已发出 → 下一轮 skipped，不调模型不写", async () => {
+  const h = liveDeps([fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()), "已写入"]);
+  // 第二条评论（resolution）发出后 gh 报错。
+  h.fail((a) => a[1] === "comment" && h.ghCalls.filter((x) => x[1] === "comment").length > 1, true);
+  const s1 = await processTicket(1565, h.d);
+  assert.equal(s1.phase, "error");
+  assert.ok(h.comments.some((c) => c.body.startsWith(AUTH_LINE)));
+  h.stopFail();
+  h.ghCalls.length = 0;
+  h.modelCalls.length = 0;
+  const s2 = await processTicket(1565, h.d);
+  assert.equal(s2.phase, "skipped");
+  assert.deepEqual(h.modelCalls, []);
+  assert.deepEqual(writesOf(h.ghCalls), []);
+  // 断点原件保留，未被 skipped 覆盖。
+  assert.equal(JSON.parse(readFileSync(join(h.d.outRoot, "1565", "summary.json"), "utf8")).stage, "reviewed_pass");
+});
+
+test("断点续做 × 跳过：shadow_p_pending 票面已有影子评论 → 照常补贴标签与取消认领", async () => {
+  const h = liveDeps([fence({ class: "P", reason: "资金参数" }), goodDraft, fence(pass())]);
+  h.fail((a) => a[3] === "--add-label");
+  await processTicket(1565, h.d);
+  assert.ok(h.comments.some((c) => c.body.startsWith("**P 类影子模式，待用户批复**")));
+  h.stopFail();
+  h.ghCalls.length = 0;
+  const s2 = await processTicket(1565, h.d);
+  assert.equal(s2.phase, "shadow_p");
   assert.deepEqual(writesOf(h.ghCalls), ["issue edit 1565 --add-assignee", "issue edit 1565 --add-label", "issue edit 1565 --remove-assignee"]);
 });

@@ -1,0 +1,32 @@
+{
+  "binary": "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/target/release/s_structure_session",
+  "browser": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/s_session/browser/index.html",
+  "catalog": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/s_session/catalog/signed-catalog.json",
+  "clock_plan": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full-history-formal-prep-20261001/inputs/clock-plan.full9011.draft.json",
+  "db": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-formal-runtime-20261001/B/s.sqlite",
+  "delivery_retain_generations": "4",
+  "port": "1",
+  "producer_epoch": "1",
+  "producer_id": "driver-fixture",
+  "profile": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/s_session/profiles/ohlc_integer_tb02a_v1.json",
+  "python": "/Users/silencehan/.local/bin/python3.12",
+  "query_epoch": "1",
+  "query_resource_config": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-root-inputs-20261001/query-resources.original-Q21.json",
+  "s_resources": {
+    "audit_cache_source_bytes": "1",
+    "max_connections": "1",
+    "max_frame_bytes": "4096",
+    "queue_capacity": "1",
+    "read_timeout_ms": "1000",
+    "response_timeout_ms": "30000",
+    "write_timeout_ms": "1000"
+  },
+  "schema_revision": "s-launcher/3",
+  "session_generation": "1",
+  "session_id": "s-session-testonly-001",
+  "socket": "/private/tmp/nc1394-f9011-20261001/B.sock",
+  "source_epoch": "1",
+  "source_namespace": "testonly.ohlc",
+  "startup_timeout_ms": "30000",
+  "writer_epoch": "1"
+}

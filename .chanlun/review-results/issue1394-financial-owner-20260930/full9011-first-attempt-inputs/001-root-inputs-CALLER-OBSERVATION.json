@@ -1,0 +1,31 @@
+{
+  "Q_and_Client_and_E_B": "NOT_STARTED_BY_THIS_S_RUNNER",
+  "all9011_or_preserve_real_failure": "No shortened target, no fallback, no timeout raise to turn green",
+  "case_order": [
+    "A",
+    "B"
+  ],
+  "cleanup_timeout_ms": "30000",
+  "exchange_timeout_ms": "30000",
+  "kind": "private execution owner schedule, not public service/job schema or production admission policy",
+  "max_owned_artifact_allocated_bytes": "4294967296",
+  "minimum_host_free_bytes_before_start": "6442450944",
+  "no_retries": true,
+  "observed_host_free_bytes_at_prepare": 10419773440,
+  "operation_timeout_uses_original_S_response_value": true,
+  "partial_or_unknown_or_cleanup_failure_cannot_PASS": true,
+  "per_case_observation_deadline_ms": "3600000",
+  "private_observation_budget_not_capacity_proof": true,
+  "resource_values_and_dimensions_unchanged": true,
+  "retained_generation_window": "4",
+  "same_exact_source_clock_schedule_and_controller_semantics": true,
+  "sampling_period_ms": "100",
+  "schema_revision": "issue1394-full9011-caller-observation/1",
+  "serial_exchange_only": true,
+  "socket_directory": "/private/tmp/nc1394-f9011-20261001",
+  "source_count": "9011",
+  "startup_timeout_ms": "30000",
+  "stop_after_failed_case": true,
+  "strict_RSS_heap_IO_stage_peaks": "UNMEASURED_UNLESS_SEPARATE_VALIDATED_INSTRUMENT",
+  "window_not_fullhistory_delivery_claim": true
+}

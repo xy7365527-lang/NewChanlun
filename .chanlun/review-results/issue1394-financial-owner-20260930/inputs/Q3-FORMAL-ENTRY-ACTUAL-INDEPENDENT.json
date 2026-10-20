@@ -1,0 +1,66 @@
+{
+  "ticket": 1394,
+  "axis": "independent actual evidence verification",
+  "verdict": "PASS_BOUNDED",
+  "findings": [],
+  "controller_head": "71e473bd54f46c31159a742a2b3ac706ac04a7da",
+  "binary_head": "08241aa12fa429245ba5132e6b6c2480f40029e4",
+  "final_manifest_sha256": "c54ed3301e1c141c17d640deccea5cf2e63442303f02b56d5e2333f5d9f60506",
+  "initial_manifest_sha256": "585015ca5ef54be08fe0d0710ee2e80d1563539cec46a3443aba70bce906ec13",
+  "checks_sha256": "89294b1057e96a4aacdc950244bfd40a28257617f5d3f50facad1dc22602f85b",
+  "checks_passed": 36,
+  "checks_total": 36,
+  "evidence_files_verified": 67,
+  "instances": [
+    {
+      "instance": "sigterm",
+      "pid": 26584,
+      "nonce": "01222dcd-9abe-4934-90f7-18f48219b35c",
+      "port": 50299,
+      "rows": 7,
+      "epoch": "1",
+      "session_id": "issue1394-financial-small-20260930",
+      "signal": "SIGTERM"
+    },
+    {
+      "instance": "sigint",
+      "pid": 26648,
+      "nonce": "881b73cf-2bdf-41c2-9b51-2f13528095b4",
+      "port": 50341,
+      "rows": 7,
+      "epoch": "1",
+      "session_id": "issue1394-financial-small-20260930",
+      "signal": "SIGINT"
+    }
+  ],
+  "controller_sha256": "bac0956929d861b8a359ac187e2fd1d2dbd6adb96f2271701f9eaca860c6f1f9",
+  "binary_sha256": "991dd18dd0239b4d234a1f607cf72b405b79ec2a75ee7a3350c33d7a7cfca5b4",
+  "q_resource_sha256": "50ea5bf865de8a37d8187069d70bee85ca4caac9c759a60ad2e3c717743d4eb1",
+  "whole_rust_tree_oid": "a1743b5626629d7dfe9ef2ebf2ef3281b8190ad8",
+  "raw_http_offline_validation": "HTTP status/length/body; schema3; session/generation; Q producer/epoch; payload hash; causal references; seven rows per instance",
+  "current_source_main_wal_shm_matches_before_and_after": true,
+  "current_pids_absent": true,
+  "initial_index_caveat": "initial events entry excludes terminal complete event; final index verified after terminal; complete binds preserved initial manifest",
+  "rebind_evidence": "original script lines217-223 and result receipts; no independent rebind attempted",
+  "binary_build_evidence": "existing dev build log, clean fixed source tree, source blob equality, built output hash equals saved actual binary; no rebuild by reviewer",
+  "no_rerun": true,
+  "new_http_requests": 0,
+  "new_signals": 0,
+  "new_services": 0,
+  "limits": [
+    "single-bar named Q21 only",
+    "not complete Consumer",
+    "not Browser",
+    "not full S3/S16",
+    "not full resource domain",
+    "not 9011",
+    "not whole graph",
+    "not merge approval"
+  ],
+  "evidence_paths": {
+    "manifest": "FORMAL-ACTUAL-MANIFEST.json",
+    "harness": "run_formal_actual.py",
+    "checks": "INDEPENDENT-ACTUAL-CHECKS.json",
+    "report": "INDEPENDENT-ACTUAL-REVIEW.md"
+  }
+}

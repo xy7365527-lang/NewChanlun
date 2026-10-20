@@ -134,7 +134,10 @@ jobs:
   #     "静默跳过"变成"可见地失败"，并让修复状态随复验同步更新。
   rust-check:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # 0c397d20de 加 60 分钟是防遥测采样进程挂死（#1406）。#1394 的 s_session / v3 / economic_session
+    # 步骤并入后，正常全程实测约 1h47m–1h49m（run 38516525815、39221888630），60 分钟会在 s_session
+    # 步骤中途被取消（run 39309747120）。放到 150 分钟：保留挂死上限，容纳正常全程。
+    timeout-minutes: 150
     env:
       CARGO_INCREMENTAL: "0"
     defaults:
@@ -259,9 +262,47 @@ jobs:
       # 运行正式 S bin 的回归测试，不能只编译或以默认目标的通过代替。
       # 默认目标一步带着已登记的既有红（main 上 3 个），失败会让其后各步被跳过；
       #   本步此前因此从未在 CI 执行，照本文件既有写法加 if: always()。
+      # #1394 根裁定 A：v3::financial_session 依赖只在 macOS 实现的会话保留量读数（heap_probe）与
+      #   peer uid（getpeereid），Linux 上 Session::start 诚实地报 MissingDependency。这批用例在本步
+      #   --skip，由 .github/workflows/ci-macos.yml 的 macOS 作业在生产平台真跑（手动触发本 CI 时经
+      #   下方 macos-session 作业一并执行；push main 由该文件自身的 paths 过滤触发）。
       - name: cargo test — s_session 正式结构会话（#1370）
         if: always()
-        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --bin s_structure_session --jobs 1
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --bin s_structure_session --jobs 1 -- --skip v3::financial_session
+
+      # #1394 C：内容编码在 s_session feature 下供多个 owner 共用；只测 S bin 不会执行库测试。
+      # #1394 整合 C-1：本步与下一步不依赖「default targets」与 s_session bin 两步的结果；
+      #   已登记的默认域既有红会让这两步被跳过，故照本文件既有写法加 if: always()。
+      #   job 结论仍由失败的那一步决定，本条不掩盖它。
+      - name: cargo test — 完整内容编码与共享图校验（#1394）
+        if: always()
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --lib --jobs 1 s_content
+
+      - name: cargo test — 内容向量、持久序列与累计资源（#1394）
+        if: always()
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --test s_content_contract --test s_content_sequence --test s_content_job --test s_content_path --jobs 1
+
+      # #1394 G-1：economic_session（含 P-14 读法锁、finance、content_store、store、finance_transport）
+      #   与 session_transport / session_protocol 的库测试此前没有任何 CI 步执行。2026-10-14 在 Linux
+      #   （glibc 2.36 容器）实跑：74 过、7 忽略（需 HFS 载体或外部夹具）、0 败，无需 --skip；只在 macOS
+      #   编译的 1 条（half_close_during_large_frame_drain_observes_actual_eof）与各 macOS 专属分支由
+      #   ci-macos.yml 作业覆盖。
+      - name: cargo test — economic_session / session_transport / session_protocol 库测试（#1394 G-1）
+        if: always()
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --lib --jobs 1 -- economic_session session_transport session_protocol
+
+      # #1394/#1481：s_capture_native_testonly 特性下才编译的测试（2026-10-14 计：lib 26、S bin 174）此前从未编译、
+      #   从未执行（state.rs 测试调用漏传 cfg 参数，开特性即 E0061）。只跑「开特性后新增」的测试，其余同名同体测试
+      #   已在上面 s_session 步执行；新增集合为空即失败。本机端到端（四次编译加执行）约 9 min；CI 估 20–25 min。
+      - name: cargo test — s_capture_native_testonly 特性新增的测试（#1394）
+        if: always()
+        run: ../.github/scripts/run-cargo-with-telemetry.sh ../.github/scripts/test-feature-delta.sh s_capture_native_testonly
+
+      # #1394 整合（根裁定 A）：v3 history 的 Owned 文本/分配原型用例只在 s_allocation_json_testonly
+      #   构建编译；只编译不执行的锁按无锁计（#799），故单列一步执行。不依赖前面各步的产物。
+      - name: cargo test — v3 history Owned 分配原型（s_allocation_json_testonly，#1394）
+        if: always()
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_allocation_json_testonly --bin s_structure_session v3::history --jobs 1
 
       - name: cargo test — backtest_bin feature（econ_oddeven_diagnosis.rs 仅在此 feature 下编译）
         if: always()
@@ -270,6 +311,13 @@ jobs:
         # 本地实测 debug 全 target 55G ⟹ 14G 盘必爆）。改 --lib：backtest 模块测试（含
         # econ_oddeven_diagnosis）全在 lib 内；tests/ 与 bins 已由 default 步覆盖——零覆盖损失。
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --lib --features backtest_bin --jobs 1
+
+  # #1394 根裁定 A：手动触发本 CI 时一并执行 macOS 作业（financial_session 的 macOS 读数与
+  #   economic_session 等库测试），一次触发拿全套读数。push main 不经本作业，由 ci-macos.yml 自身的
+  #   paths 过滤决定是否运行，控制 macOS 计费。
+  macos-session:
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/ci-macos.yml
 
   s-observer:
     # #1372：执行只读观察、生命周期和取证边界回归；完整160输入/浏览器验收另存具名证据。
@@ -292,8 +340,17 @@ jobs:
         run: python -B -m unittest discover -s s_session/tests -p 'test_tb02c_*.py' -v
       - name: Browser protocol tests
         run: node s_session/tests/test_tb01c_browser.cjs
+      - name: TB-02-B version and root-set contracts (#1405)
+        run: |
+          python -B -m unittest discover -s s_session/tests -p 'test_tb02b_contract.py' -v
+          node --test s_session/tests/test_tb02b_contract.cjs
+          node s_session/tests/build_tb01c_browser.cjs --check
       - name: TB-02-C observer contract tests
         run: node --test s_session/tests/test_tb02c_contract.cjs
+      # #1394 C-2 裁定 1：v3（s-session/3）validate-once 锁。完整 Q3 客户端套件约 10.5 分钟不进 CI，
+      #   只把这条锁连同其判据（钩子不再验、重载命中重放计费、Reader 根变化必重验）单独成套执行。
+      - name: Q3 v3 validate-once lock (#1394)
+        run: node --test s_session/tests/test_q3_v3_validate_once.cjs
       - name: TB-02-W terminal and cursor contract tests (#1420)
         if: always()
         working-directory: s_session/tests

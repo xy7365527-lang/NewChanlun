@@ -179,6 +179,20 @@ class RuleBindingTest(unittest.TestCase):
         c.validate_fact(*endpoint_fact(2, RULE_NEW_BI_2))
         self.assert_bi_rule_mismatch(2, RULE_NEW_BI_1)
 
+    def test_v3_ab_contracts_and_unknown_revision(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from s_query_integrity import _published_axes
+        for version in (1, 2):
+            rule = f's2-axis-quantifiers+new-bi/{version}'
+            c.validate_fact(*endpoint_fact(version, rule))
+            self.assert_bi_rule_mismatch(3-version, rule)
+            self.assertEqual(_published_axes(rule), c.BI_AXES)
+        with self.assertRaisesRegex(ValueError, 'cut规则修订未声明'):
+            c.validate_fact(*endpoint_fact(2, 'unknown'))
+        with self.assertRaisesRegex(ValueError, 'cut规则修订未声明'):
+            _published_axes('unknown')
+
     def test_session_rule_binds_bi_and_segment_contract_generations(self):
         self.assertEqual(c.RULE_CONTRACTS['s2-axis-quantifiers+new-bi/2+segment-second/1'],
                          ('s-new-bi/2', 's-segment/2', 'established_direction_with_extreme_root_sets'))

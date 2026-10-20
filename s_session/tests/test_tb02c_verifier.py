@@ -1,7 +1,10 @@
 """#1404：验收在优化模式下仍拒绝不属于该工作例的合法镜像结果。"""
+from contextlib import closing
+import hashlib
 import json
 from pathlib import Path
 import subprocess
+import sqlite3
 import sys
 import unittest
 
@@ -9,6 +12,7 @@ TESTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(TESTS))
 sys.path.insert(0, str(TESTS.parent))
 import s_query_integrity as audit
+import s_readonly_server as server
 import s_tb02_contract as contract
 from tb02c_verify import check
 
@@ -65,7 +69,35 @@ else:
         self.assertNotIn('CC-011', audit._published_axes('s2-axis-quantifiers+new-bi/1'))
         self.assertEqual(audit._published_axes('s2-axis-quantifiers+new-bi/1+segment-first/1'), contract.FIRST_SEGMENT_AXES)
         self.assertEqual(audit._published_axes('s2-axis-quantifiers+new-bi/2+segment-second/1'), contract.AXES)
-        self.assertEqual(audit._published_axes('unrecognized-rule'), contract.AXES)
+        with self.assertRaisesRegex(ValueError, 'cut规则修订未声明'):
+            audit._published_axes('unrecognized-rule')
+
+    def test_empty_session_rejects_unknown_rule_before_any_publication(self):
+        profile = json.loads((TESTS.parent / 'profiles/ohlc_integer_tb02a_v1.json').read_text())
+        meta = dict(session_id='empty-rule-contract', catalog_revision='testonly',
+                    writer_epoch='1', generation='0', structure_cut='cut-0', index_frontier='',
+                    last_advance_frontier='-1', scope='{"economic":"not_started","structure":"CompleteCut"}',
+                    profile_id=contract.PROFILE, input_profile=contract.PROFILE,
+                    profile_definition=audit.canonical(profile).decode(),
+                    profile_hash=hashlib.sha256(audit.canonical(profile)).hexdigest())
+        rules = ('s2-axis-quantifiers', 's2-axis-quantifiers+new-bi/1',
+                 's2-axis-quantifiers+new-bi/2',
+                 's2-axis-quantifiers+new-bi/1+segment-first/1',
+                 's2-axis-quantifiers+new-bi/1+segment-second/1',
+                 's2-axis-quantifiers+new-bi/2+segment-second/1', 'unrecognized-rule')
+        for rule in rules:
+            with self.subTest(rule=rule), closing(sqlite3.connect(':memory:')) as conn:
+                conn.executescript(audit.LEGACY_SCHEMA + contract.SCHEMA)
+                conn.executemany('INSERT INTO meta(key,value) VALUES (?,?)',
+                                 dict(meta, rule_revision=rule).items())
+                conn.commit()
+                conn.execute('BEGIN')
+                image = audit.capture(conn)
+                if rule == 'unrecognized-rule':
+                    with self.assertRaisesRegex(ValueError, 'cut规则修订未声明'):
+                        audit.verify(image, vars(server))
+                else:
+                    self.assertEqual(audit.verify(image, vars(server))['generation'], 0)
 
 
 if __name__ == '__main__':

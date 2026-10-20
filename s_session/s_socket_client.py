@@ -54,9 +54,14 @@ def _reject_number(value):
     raise ValueError("协议不接受非精确数值：" + value)
 
 
+def decode_json_value(raw):
+    """精确 JSON 值；调用方另核其文件或协议容器形状。"""
+    return json.loads(raw.decode("utf-8"), object_pairs_hook=_unique_object,
+                      parse_float=_reject_number, parse_constant=_reject_number)
+
+
 def decode_frame(raw):
-    result = json.loads(raw.decode("utf-8"), object_pairs_hook=_unique_object,
-                        parse_float=_reject_number, parse_constant=_reject_number)
+    result = decode_json_value(raw)
     if type(result) is not dict or not result:
         raise ValueError("协议帧必须为非空 JSON 对象")
     return result
@@ -74,7 +79,10 @@ def validate_reply(request, response, *, producer, producer_epoch, allow_control
     for key in ("schema_revision", "session_id", "session_generation"):
         if response[key] != request[key]:
             raise ValueError("响应身份不属于原请求：" + key)
-    economic = request.get("schema_revision") == "economic-session/1"
+    revision = request.get("schema_revision")
+    economic = revision in ("economic-session/1", "economic-session/2")
+    if not economic and revision not in ("s-session/2", "s-session/3"):
+        raise ValueError("未知响应协议版本")
     economic_book = (type(producer) is str and producer.startswith("B:")
                      and bool(producer[2:]) and not any(c.isspace() for c in producer))
     allowed = ((producer in ("E", "Q") or economic_book)

@@ -1,0 +1,171 @@
+{
+  "state": "PASS_NORMAL_PUBLICATION_MATERIAL_REUSE",
+  "code_commit": "5d2f19e393369d4375c1adc08580740fc65cff25",
+  "rust_tree": "7048783cb8241cc22cb33f25fabc428ce0eba8dc",
+  "source_aggregate_sha256": "b2608e9d2b3b83fc50fa18bf40fe32a1f55247454350e5b1ec329a70f83ef9df",
+  "service_sha256": "e6e63bca8cc2eee21fbb60839e86e7e783cd27834586286528268c48576b5f0e",
+  "independent_review": "publication_material_owner_review final patch f3bb534e PASS",
+  "normal_tests_passed": 5,
+  "native_non_test_build_passed": true,
+  "feature_off_check_passed": true,
+  "source_budget_bytes": 536870912,
+  "no_fault_injection": true,
+  "normal_window": {
+    "state": "PASS_NORMAL_PUBLICATION_MATERIAL_OWNER",
+    "scope": "同CopyQualified149正常150..151的发布材料owner复用实测，非完整重放",
+    "validated_received": [
+      150,
+      151
+    ],
+    "whole_exchange_seconds": {
+      "150": 21.117401416,
+      "151": 20.086794334
+    },
+    "failure_ordinal": null,
+    "startup_failed_before_any_input": false,
+    "errors": [],
+    "terminal": {
+      "generation": "151",
+      "advance_state": "idle",
+      "messages_by_status": {
+        "Committed": 151
+      },
+      "published": 151,
+      "clocks": 453,
+      "next_attempt_ordinal": 152
+    },
+    "unsent": [],
+    "original_files_live_stat_sha_verified": true,
+    "source_and_all_bindings_revalidated": true,
+    "same_Popen_reaped_controller_closed": true,
+    "socket_removed": true,
+    "cleanup_complete": true,
+    "service_pid": 7215,
+    "service_exit_code": -15,
+    "original105_source126_source142_source149_Unknown_preserved": true,
+    "full9011_complete": false,
+    "whole_resources_qualified": false,
+    "reply_and_persistent_oracle_identical_to_baseline": true,
+    "baseline_whole_exchange_seconds": {
+      "150": 23.112771583,
+      "151": 22.044895291
+    },
+    "elapsed_reduction_percent": {
+      "150": 8.633192950635326,
+      "151": 8.882332762993029
+    },
+    "qualification": [
+      {
+        "generation": 150,
+        "budget": {
+          "allowance": 154465630,
+          "legacy": 0,
+          "old_pool": 382405282,
+          "total": 536870912
+        },
+        "workspace_source_cost": 42874531,
+        "source_sum": 425279813,
+        "owner": {
+          "scope_bound_originals": 280213,
+          "scope_fallback_sql_reads": 308129,
+          "scope_owner_body_capacity": 15650293,
+          "scope_owner_drops": 1,
+          "scope_put_sql_checks": 1382,
+          "scope_rebind_sql_rows": 280452,
+          "scope_remaining_originals": 280213,
+          "scope_reused_original_reads": 1273104,
+          "scope_unknown_write_invalidations": 0
+        },
+        "stats_after_publish": {
+          "issued": 1,
+          "last_workspace_source_cost": 42874531,
+          "max_recording_body_capacity": 15659658,
+          "max_recording_body_len": 15659658,
+          "max_recording_entries": 280452,
+          "max_recording_put_capacity": 16384,
+          "max_recording_source_cost": 42874531,
+          "overflow": 0,
+          "publication_fallback_sql_reads": 308129,
+          "publication_owner_drops": 1,
+          "publication_owner_scopes": 1,
+          "publication_put_sql_checks": 1382,
+          "publication_reused_reads": 1273104,
+          "publication_unknown_write_invalidations": 0,
+          "rebind_rows": 280452,
+          "rebound": 1,
+          "recorded_body_capacity": 15659658,
+          "recorded_body_len": 15659658,
+          "recorded_entries": 280452,
+          "recorded_put_capacity": 16384,
+          "replay_puts": 306
+        }
+      },
+      {
+        "generation": 151,
+        "budget": {
+          "allowance": 154655198,
+          "legacy": 0,
+          "old_pool": 382215714,
+          "total": 536870912
+        },
+        "workspace_source_cost": 43267617,
+        "source_sum": 425483331,
+        "owner": {
+          "scope_bound_originals": 282789,
+          "scope_fallback_sql_reads": 310686,
+          "scope_owner_body_capacity": 15793507,
+          "scope_owner_drops": 1,
+          "scope_put_sql_checks": 1381,
+          "scope_rebind_sql_rows": 283028,
+          "scope_remaining_originals": 282789,
+          "scope_reused_original_reads": 1283045,
+          "scope_unknown_write_invalidations": 0
+        },
+        "stats_after_publish": {
+          "issued": 2,
+          "last_workspace_source_cost": 43267617,
+          "max_recording_body_capacity": 15802872,
+          "max_recording_body_len": 15802872,
+          "max_recording_entries": 283028,
+          "max_recording_put_capacity": 16384,
+          "max_recording_source_cost": 43267617,
+          "overflow": 0,
+          "publication_fallback_sql_reads": 618815,
+          "publication_owner_drops": 2,
+          "publication_owner_scopes": 2,
+          "publication_put_sql_checks": 2763,
+          "publication_reused_reads": 2556149,
+          "publication_unknown_write_invalidations": 0,
+          "rebind_rows": 563480,
+          "rebound": 2,
+          "recorded_body_capacity": 31462530,
+          "recorded_body_len": 31462530,
+          "recorded_entries": 563480,
+          "recorded_put_capacity": 32768,
+          "replay_puts": 612
+        }
+      }
+    ],
+    "shared_source_budget_held_for_both": true,
+    "owner_reuse_and_drop_observed_for_both": true,
+    "source_budget_is_not_whole_heap": true,
+    "no_fault_injection": true,
+    "diagnostic_log_sha256": "b55d46b71f1e313820e5f7336808a6df2821b32ce4fea807d33b0b39485d2750",
+    "goal_complete": false,
+    "limits": [
+      "单次两请求窗口，不能外推完整9011或全部历史规模",
+      "命中次数不是唯一节点数，fallback包括rebind实际SQL",
+      "来源费用与actual capacity分开，整体heap/RSS/IO严格峰值未资格化",
+      "独立窗口不能拼接成完整9011"
+    ]
+  },
+  "full9011_complete": false,
+  "whole_resources_qualified": false,
+  "goal_complete": false,
+  "archive": {
+    "path": "PUBLICATION-MATERIAL-OWNER-20261005-RAW.zip",
+    "files": 766,
+    "bytes": 671237,
+    "sha256": "9a72e3db7c0c658585e6679db774cbaac9fe204bef20c7ceeef15edae570d3af"
+  }
+}

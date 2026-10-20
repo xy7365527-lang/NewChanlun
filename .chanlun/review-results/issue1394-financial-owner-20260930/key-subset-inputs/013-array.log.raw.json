@@ -1,0 +1,7 @@
+{
+  "schema_revision": "issue1394-verbatim-utf8-artifact/1",
+  "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/array.log",
+  "source_bytes": 667,
+  "source_sha256": "038c118c7e11b6c5b748fab69382ffdc0d51c765a1bc91be0e727e2b91e08af9",
+  "content_utf8": "\nrunning 4 tests\ntest complete_array_checks_root_and_empty_originals ... ok\ntest complete_array_matches_every_ref_and_reads_each_logical_position_linearly ... ARRAY_READS n=16 old=256 linear=48\nARRAY_READS n=0 old=0 linear=2\nARRAY_READS n=1 old=4 linear=3\nARRAY_READS n=3 old=27 linear=9\nARRAY_READS n=7 old=88 linear=21\nARRAY_READS n=65 old=1607 linear=195\nARRAY_READS n=257 old=7943 linear=771\nok\ntest complete_array_rejects_actual_bad_sequence_headers_roles_and_child_extents ... ok\ntest root_array_value_mode_preserves_json_text_and_public_template_boundaries ... ok\n\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s\n\n"
+}

@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "run_id": "3ca72ef1-58ba-4f9e-ad92-28e8b9859c10",
+  "ticket": 1394,
+  "parent_thread_id": "root",
+  "manager_agent_id": "/root/linear_audit_sandcastle_manager",
+  "manager_kind": "codex_native_subagent",
+  "worker_kind": "sandcastle_external_codex",
+  "native_subagent": false,
+  "status": "completed",
+  "mode": "execute",
+  "model": "gpt-6.1-sol",
+  "effort": "high",
+  "sandbox_backend": "no-sandbox",
+  "codex_sandbox": "workspace-write",
+  "approval_policy": "never",
+  "automatic_claim": false,
+  "automatic_push": false,
+  "automatic_merge": false,
+  "checkout_preserved": true,
+  "expected_head": "dc425df7b7bbe98d16fe3bb963a7b3e530e5f6f9",
+  "checkout_before": {
+    "root": "/Users/silencehan/Projects/NewChanlun-1394-field-audit-20261002",
+    "branch": "codex/1394-field-audit-20261002",
+    "head": "dc425df7b7bbe98d16fe3bb963a7b3e530e5f6f9",
+    "status": ""
+  },
+  "checkout_after": {
+    "root": "/Users/silencehan/Projects/NewChanlun-1394-field-audit-20261002",
+    "branch": "codex/1394-field-audit-20261002",
+    "head": "dc425df7b7bbe98d16fe3bb963a7b3e530e5f6f9",
+    "status": "M rust/src/bin/s_session_v3/source_audit.rs"
+  },
+  "started_at": "2026-10-01T19:46:39.273Z",
+  "ended_at": "2026-10-01T20:02:29.841Z",
+  "process_pid": 31200,
+  "process_exit": {
+    "code": 0,
+    "signal": null
+  },
+  "external_session_id": "01a0f901-31ec-7080-8782-5c48cc8cd9ae",
+  "external_session_log": "/Users/silencehan/.codex/sessions/2026/10/02/rollout-2026-10-02T03-46-43-01a0f901-31ec-7080-8782-5c48cc8cd9ae.jsonl",
+  "output_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-manager-20261002/run-2",
+  "stdout_log": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-manager-20261002/run-2/codex.stdout.jsonl",
+  "stderr_log": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-manager-20261002/run-2/codex.stderr.log",
+  "events_log": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-manager-20261002/run-2/events.jsonl",
+  "prompt_sha256": "2d67165b3eb135577f8f70924ac9c60f009361dbb656343f1399596a89b2a01b",
+  "result": {
+    "status": "completed",
+    "summary": "完成单文件 None 局部批读实施及定向验证，差异已留给管理者收包。",
+    "findings": [
+      "仅修改 rust/src/bin/s_session_v3/source_audit.rs：增加私有 local_fields、scalar_value、text_value；无需修改 object_index.rs 接口。",
+      "None 对 shape part 三字段、shape payload 两字段、witness payload 四字段分别一次 read_subset；Some 保留旧即时 lookup_path 顺序，业务判据与完整核验保留。",
+      "真实 SQLite fixture 的局部 SQL/F：三字段 118→50，两字段 227→174，四字段 400→175；根寻路分别从 3/2/4 次降为 1 次。",
+      "源码 SHA256：aa5ee2c0261e7487446c9991559e028d87475a405c741fe5b331b74b0c11e3b5。",
+      "补丁：/tmp/1394-field-audit-20261002.patch；SHA256：f5d9348d991adf0b9b17635596537a9299b27ec0d91504ff599bb7936eed2f31。",
+      "工作树仅上述文件有修改；自建 release target 已移至 /tmp/1394-field-audit-target-7dP4w9/release-target。"
+    ],
+    "validation": [
+      "先确认 None 读取计数红测试失败；最终来源审计 9 项及既有门序测试 2 项全部通过：11 通过、0 失败、0 忽略。",
+      "Some 局部 SQL、F、每道预算前门及错误顺序与旧路径一致；期限门先于 SQL，错误 high 类型先于缺失 low 拒绝。",
+      "完整 Some fixture 保持 151351 次真实节点读取、170797 次 F，读取及预算轨迹 SHA 与固定基线一致。",
+      "合法 Merkle 下伪造 dependency_refs、重算 typed ID 后伪造 group high 均被原业务判据拒绝；原 forged merged_high 测试保留并通过。",
+      "rustfmt、git diff --check 通过。Release Clippy 因未修改的 state.rs:60 既有 absurd_extreme_comparisons deny 失败，未改动该限制。",
+      "未验证 pending 当前材料的完整对拍及 9k/wall 性能门；未触碰 pending 原件，未运行实际 S/Q、HTTP/Driver、恢复或 9011 重跑。"
+    ]
+  },
+  "failure_reason": null
+}

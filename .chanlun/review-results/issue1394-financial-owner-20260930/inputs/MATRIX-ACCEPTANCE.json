@@ -1,0 +1,3422 @@
+{
+  "schema_revision": "testonly-1394-cache-fault-matrix-acceptance/1",
+  "root_product_commit": "6dcee4da72873ab323132cf2fd64271702a1d8c3",
+  "reviewed_source_commit": "d8b4b713e4645d4b7833aca0705b4e35f22ab198",
+  "runtime_binding": {
+    "acceptance_worktree_delta": "finance_tests.rs only three-line comment/include; no product edit",
+    "case_ids": [
+      "PrepareDecision-before_commit-1",
+      "PrepareDecision-after_commit-0",
+      "PrepareDecision-after_commit-1",
+      "Reserve-before_commit-0",
+      "Reserve-before_commit-1",
+      "Reserve-after_commit-0",
+      "Reserve-after_commit-1",
+      "CommitDecision-before_commit-0",
+      "CommitDecision-before_commit-1",
+      "CommitDecision-after_commit-0",
+      "CommitDecision-after_commit-1",
+      "ImportResponsibility-before_commit-0",
+      "ImportResponsibility-before_commit-1",
+      "ImportResponsibility-after_commit-0",
+      "ImportResponsibility-after_commit-1",
+      "AbortDecision-before_commit-0",
+      "AbortDecision-before_commit-1",
+      "AbortDecision-after_commit-0",
+      "AbortDecision-after_commit-1",
+      "CloseApplicants-before_commit-0",
+      "CloseApplicants-before_commit-1",
+      "CloseApplicants-after_commit-0",
+      "CloseApplicants-after_commit-1"
+    ],
+    "created_utc": "2026-09-30T08:06:26.325108+00:00",
+    "executable": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/accepted-test-executable",
+    "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+    "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+    "input_pins": {
+      "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/FAULT-ACCEPTANCE-source.rs": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+      "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/acceptance-raw/published-cache.json": "6219f3af68b78ac9eed0e314d1aeacb984c0a61556c59ce0fee39261ceda7efa",
+      "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-financial-reader-small-20260930/INPUTS.json": "5a7280178e45f6728c3d4afa9d313b98664af8c4141cccac10c99df639dfa82f",
+      "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-financial-reader-small-20260930/RESOURCES.json": "f8e9e3ca737b3c232c0c62bf748f524badeed575646c53338dca35b1804953dc"
+    },
+    "original_executable": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/worktree/rust/target/debug/deps/newchan_rust-959aa50d9c32faa1",
+    "reviewed_source_commit": "d8b4b713e4645d4b7833aca0705b4e35f22ab198",
+    "root_and_reviewed_product_paths_git_diff_exit": 0,
+    "root_product_commit": "6dcee4da72873ab323132cf2fd64271702a1d8c3",
+    "scope": "cache reused actual S3 process-kill persistent boundary only; no cold import/half import/formalCLI/fullgoal claim",
+    "source_acceptance_worktree": "/Users/silencehan/Projects/NewChanlun-1394-eb-acceptance-20260930"
+  },
+  "actual_case_count": 24,
+  "parent_first_case_count": 1,
+  "this_agent_remaining_case_count": 23,
+  "case_run_failures": 0,
+  "comparison_pairs": [
+    {
+      "op": "PrepareDecision",
+      "phase": "before_commit",
+      "fresh_cases": [
+        "PrepareDecision-before_commit-0",
+        "PrepareDecision-before_commit-1"
+      ],
+      "comparison_equal": true,
+      "full_original_comparison": {
+        "commit_delta": "0",
+        "op": "PrepareDecision",
+        "original_receipt_exists": false,
+        "phase": "before_commit",
+        "restored_writer_epoch": "2",
+        "retained_liability": "20"
+      }
+    },
+    {
+      "op": "PrepareDecision",
+      "phase": "after_commit",
+      "fresh_cases": [
+        "PrepareDecision-after_commit-0",
+        "PrepareDecision-after_commit-1"
+      ],
+      "comparison_equal": true,
+      "full_original_comparison": {
+        "commit_delta": "1",
+        "op": "PrepareDecision",
+        "original_receipt_exists": true,
+        "phase": "after_commit",
+        "restored_writer_epoch": "2",
+        "retained_liability": "20"
+      }
+    },
+    {
+      "op": "Reserve",
+      "phase": "before_commit",
+      "fresh_cases": [
+        "Reserve-before_commit-0",
+        "Reserve-before_commit-1"
+      ],
+      "comparison_equal": true,
+      "full_original_comparison": {
+        "commit_delta": "0",
+        "op": "Reserve",
+        "original_receipt_exists": false,
+        "phase": "before_commit",
+        "restored_writer_epoch": "2",
+        "retained_liability": "20"
+      }
+    },
+    {
+      "op": "Reserve",
+      "phase": "after_commit",
+      "fresh_cases": [
+        "Reserve-after_commit-0",
+        "Reserve-after_commit-1"
+      ],
+      "comparison_equal": true,
+      "full_original_comparison": {
+        "commit_delta": "1",
+        "op": "Reserve",
+        "original_receipt_exists": true,
+        "phase": "after_commit",
+        "restored_writer_epoch": "2",
+        "retained_liability": "90"
+      }
+    },
+    {
+      "op": "CommitDecision",
+      "phase": "before_commit",
+      "fresh_cases": [
+        "CommitDecision-before_commit-0",
+        "CommitDecision-before_commit-1"
+      ],
+      "comparison_equal": true,
+      "full_original_comparison": {
+        "commit_delta": "0",
+        "op": "CommitDecision",
+        "original_receipt_exists": false,
+        "phase": "before_commit",
+        "restored_writer_epoch": "2",
+        "retained_liability": "90"
+      }
+    },
+    {
+      "op": "CommitDecision",
+      "phase": "after_commit",
+      "fresh_cases": [
+        "CommitDecision-after_commit-0",
+        "CommitDecision-after_commit-1"
+      ],
+      "comparison_equal": true,
+      "full_original_comparison": {
+        "commit_delta": "1",
+        "op": "CommitDecision",
+        "original_receipt_exists": true,
+        "phase": "after_commit",
+        "restored_writer_epoch": "2",
+        "retained_liability": "90"
+      }
+    },
+    {
+      "op": "ImportResponsibility",
+      "phase": "before_commit",
+      "fresh_cases": [
+        "ImportResponsibility-before_commit-0",
+        "ImportResponsibility-before_commit-1"
+      ],
+      "comparison_equal": true,
+      "full_original_comparison": {
+        "commit_delta": "0",
+        "op": "ImportResponsibility",
+        "original_receipt_exists": false,
+        "phase": "before_commit",
+        "restored_writer_epoch": "2",
+        "retained_liability": "0"
+      }
+    },
+    {
+      "op": "ImportResponsibility",
+      "phase": "after_commit",
+      "fresh_cases": [
+        "ImportResponsibility-after_commit-0",
+        "ImportResponsibility-after_commit-1"
+      ],
+      "comparison_equal": true,
+      "full_original_comparison": {
+        "commit_delta": "1",
+        "op": "ImportResponsibility",
+        "original_receipt_exists": true,
+        "phase": "after_commit",
+        "restored_writer_epoch": "2",
+        "retained_liability": "20"
+      }
+    },
+    {
+      "op": "AbortDecision",
+      "phase": "before_commit",
+      "fresh_cases": [
+        "AbortDecision-before_commit-0",
+        "AbortDecision-before_commit-1"
+      ],
+      "comparison_equal": true,
+      "full_original_comparison": {
+        "commit_delta": "0",
+        "op": "AbortDecision",
+        "original_receipt_exists": false,
+        "phase": "before_commit",
+        "restored_writer_epoch": "2",
+        "retained_liability": "90"
+      }
+    },
+    {
+      "op": "AbortDecision",
+      "phase": "after_commit",
+      "fresh_cases": [
+        "AbortDecision-after_commit-0",
+        "AbortDecision-after_commit-1"
+      ],
+      "comparison_equal": true,
+      "full_original_comparison": {
+        "commit_delta": "1",
+        "op": "AbortDecision",
+        "original_receipt_exists": true,
+        "phase": "after_commit",
+        "restored_writer_epoch": "2",
+        "retained_liability": "90"
+      }
+    },
+    {
+      "op": "CloseApplicants",
+      "phase": "before_commit",
+      "fresh_cases": [
+        "CloseApplicants-before_commit-0",
+        "CloseApplicants-before_commit-1"
+      ],
+      "comparison_equal": true,
+      "full_original_comparison": {
+        "commit_delta": "0",
+        "op": "CloseApplicants",
+        "original_receipt_exists": false,
+        "phase": "before_commit",
+        "restored_writer_epoch": "2",
+        "retained_liability": "90"
+      }
+    },
+    {
+      "op": "CloseApplicants",
+      "phase": "after_commit",
+      "fresh_cases": [
+        "CloseApplicants-after_commit-0",
+        "CloseApplicants-after_commit-1"
+      ],
+      "comparison_equal": true,
+      "full_original_comparison": {
+        "commit_delta": "1",
+        "op": "CloseApplicants",
+        "original_receipt_exists": true,
+        "phase": "after_commit",
+        "restored_writer_epoch": "2",
+        "retained_liability": "90"
+      }
+    }
+  ],
+  "comparison_pair_count": 12,
+  "all_original_comparison_fields_preserved": true,
+  "cases": [
+    {
+      "case_id": "PrepareDecision-before_commit-0",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-case-PrepareDecision-before_commit-0-attempt2/evidence",
+      "fault_result_sha256": "41cabb5a4097608aedfc133cec3e77970f8a4cb35fc66c2175f7548c6b344674",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-case-PrepareDecision-before_commit-0-attempt2/binding.json",
+        "binding_sha256": "757fc84158f486ce6742907f754f5357618fb7efdbdac62e71c4573cc65f40a4",
+        "cache_count": "1307",
+        "case_id": "PrepareDecision-before_commit-0",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "0",
+          "op": "PrepareDecision",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "20"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-case-PrepareDecision-before_commit-0-attempt2/evidence/manifest.json",
+        "manifest_sha256": "73cac197c7a3d28493c5643f72fc99657c62bb17a402a7e6290ae808d01fcfd7",
+        "original_receipt": null,
+        "phase_marker": {
+          "domain_id": "B:alpha",
+          "message_id": "PrepareDecision-alpha",
+          "phase": "before_commit",
+          "pid": 86787,
+          "test_only": true
+        },
+        "pid": 86787,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 86808,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "root_reported_run_exit_code": 0,
+        "root_reported_elapsed_seconds": 2.28,
+        "evidence_domain": "parent-owned first successful attempt, preserved"
+      }
+    },
+    {
+      "case_id": "PrepareDecision-before_commit-1",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/PrepareDecision-before_commit-1/evidence",
+      "fault_result_sha256": "f511d55db23f847a1063134e0beef5dca92d986fde942fa622efc05c0135e9f1",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/PrepareDecision-before_commit-1/binding.json",
+        "binding_sha256": "54f871d9fc945b2db84e00068d2b02037286544ea4deff95e633c70043f933ee",
+        "cache_count": "1307",
+        "case_id": "PrepareDecision-before_commit-1",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "0",
+          "op": "PrepareDecision",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "20"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/PrepareDecision-before_commit-1/evidence/manifest.json",
+        "manifest_sha256": "708bc9a0140d325bb0d6688898a5052fc0395655330158e905e24f4473049958",
+        "original_receipt": null,
+        "phase_marker": {
+          "domain_id": "B:alpha",
+          "message_id": "PrepareDecision-alpha",
+          "phase": "before_commit",
+          "pid": 95723,
+          "test_only": true
+        },
+        "pid": 95723,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 95737,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "54f871d9fc945b2db84e00068d2b02037286544ea4deff95e633c70043f933ee",
+        "case_id": "PrepareDecision-before_commit-1",
+        "comparison": {
+          "commit_delta": "0",
+          "op": "PrepareDecision",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "20"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "f511d55db23f847a1063134e0beef5dca92d986fde942fa622efc05c0135e9f1",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "708bc9a0140d325bb0d6688898a5052fc0395655330158e905e24f4473049958",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 95737,
+        "run": {
+          "elapsed_seconds": 3.2000566669739783,
+          "end_utc": "2026-09-30T08:06:34.168460+00:00",
+          "exit_code": 0,
+          "pid": 95696,
+          "start_utc": "2026-09-30T08:06:30.968409+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "a5940713f4916daac73a736a47562c4058f70d0be3d8dacf661061f135b61f4b"
+        },
+        "sigkill_pid": 95723,
+        "signal": 9
+      }
+    },
+    {
+      "case_id": "PrepareDecision-after_commit-0",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/PrepareDecision-after_commit-0/evidence",
+      "fault_result_sha256": "3701a92a7346f93371776c822167c03d13247a9defbcd8b24124ece4c2e7ceef",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/PrepareDecision-after_commit-0/binding.json",
+        "binding_sha256": "66907b57a5edf4f386dab6c912e86b81cb7ace6afd0bc0e11fdd81bb726aa08f",
+        "cache_count": "1307",
+        "case_id": "PrepareDecision-after_commit-0",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "1",
+          "op": "PrepareDecision",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "20"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/PrepareDecision-after_commit-0/evidence/manifest.json",
+        "manifest_sha256": "09c68cbb42fd7b2c8aeec463a16e1968f708ff7525746493dacca443fd9f7693",
+        "original_receipt": {
+          "commit_ns": "72",
+          "cut": {
+            "commit_seq": "3",
+            "domain_id": "B:alpha",
+            "root_hash": "b78d75f280ac1a1fee64d2ec2b4d07ca0bee4c0fad95bc880158117f5b681ad0"
+          },
+          "domain_id": "B:alpha",
+          "first_known_ns": "71",
+          "kind": "PreparedReceipt",
+          "receipt_key": "tb03b-finance/2:PrepareDecision:902cf2b465fb076229183b408aad4014266eb9eb72d448754227adc1eeac49b9",
+          "record": {
+            "decision_id": "alpha",
+            "execution_eligibility": "None",
+            "grant": null,
+            "local_commit_receipt": null,
+            "prepared": {
+              "actual_quantity": "4",
+              "book_version_after": "3",
+              "book_version_before": "2",
+              "fixed_q": "12",
+              "locked_amount": "30",
+              "plan": {
+                "applicant_epoch": "1",
+                "applicant_generation": "1",
+                "attempt_id": "attempt-alpha",
+                "decision_id": "alpha",
+                "expected_book_version": "2",
+                "expected_rights_version": "1",
+                "fee_source": "TestOnly-tail/alpha",
+                "fee_tail": "2",
+                "limit_price": "14",
+                "o_ref": {
+                  "kind": "TestOnlyCashBuy",
+                  "operation_id": "TestOnly-operation-alpha",
+                  "quantity": "2",
+                  "s_object_id": "obj3-59219edd1c9e54cbb105f308177a3f495946cdc81efffdbddfc7c05f59e79cf9",
+                  "source_ref": "TestOnly-operation-sheet/alpha"
+                },
+                "owner": "B:alpha",
+                "plan_id": "plan-alpha",
+                "price_source": "TestOnly-price/alpha",
+                "quantity": "2",
+                "quantity_source": "TestOnly-quantity/alpha",
+                "right_id": "alpha",
+                "s_ref": {
+                  "object_hash": "ac45fa2252898929523a432c7c5ca7f44b61225c1ac08b0681c52774b7f9f1ea",
+                  "object_id": "obj3-59219edd1c9e54cbb105f308177a3f495946cdc81efffdbddfc7c05f59e79cf9",
+                  "profile_id": "ohlc_integer_tb02a_v1",
+                  "schema_revision": "s-object-ref/2"
+                },
+                "slot_id": "slot",
+                "voice_binding_id": "voice-alpha"
+              },
+              "plan_hash": "10af5ff9073c45fe674da52cf30c65a769be81e1b6526d5788be260f70a478ff",
+              "prepared_ns": "72",
+              "right_source": {
+                "amount": "40",
+                "currency": "TEST-CASH",
+                "owner": "B:alpha",
+                "right_id": "alpha",
+                "source_ref": "TestOnly-privately-owned-cash-original/alpha",
+                "version": "1"
+              },
+              "rights_version_after": "2",
+              "rights_version_before": "1",
+              "units": {
+                "money": {
+                  "currency": "TEST-CASH",
+                  "quantum": "1",
+                  "unit": "TEST-CASH"
+                },
+                "numeric_encoding": "exact_decimal_integer_text",
+                "quantity": {
+                  "quantum": "1",
+                  "unit": "TEST-UNIT"
+                }
+              },
+              "voice": {
+                "binding_id": "voice-alpha",
+                "business_lifecycle": {
+                  "status": "NotRecorded"
+                },
+                "commit_ns": "52",
+                "commit_seq": "2",
+                "evidence": {
+                  "authority_id": "alpha",
+                  "bundle_sha256": "58c88246de55b479016a4c1c59c8a9644af2a5e1abe5b3bb288eaabcdf8d94e1",
+                  "verification_sha256": "1d21bb4de1a1eac312e5fc6b454d7f40fa273a9cbc915eb6eab0e092bd6a83d4"
+                },
+                "first_known_ns": "51",
+                "identity": {
+                  "carrier_ref": {
+                    "authority_id": "alpha",
+                    "content_hash": "142e9601552afbc8aa8208c4721ec90aaf3ac97bd502f599631c45c37e0047d7",
+                    "object_id": "unit-carrier",
+                    "revision": "0"
+                  },
+                  "gamma_ref": {
+                    "authority_id": "alpha",
+                    "content_hash": "67718ec24afb685c8297431e1baf4d27eb21b2c962e950899a49be1c33c5940d",
+                    "object_id": "unit-gamma",
+                    "revision": "0"
+                  },
+                  "n": "0",
+                  "sigma": "Long"
+                },
+                "instrument": "alpha",
+                "opening_basis": {
+                  "allocation_id": "allocation-alpha",
+                  "e_cut": {
+                    "commit_seq": "1",
+                    "domain_id": "E",
+                    "root_hash": "109090f4823140f3735c547cd451c5a95bb0adba8eafe2d7100907f244a74161"
+                  },
+                  "fact_hash": "f2df8ee3c4bbb9347c688a88fda6265962f59c5c58e6384685a1ddd00868807a",
+                  "fact_key": "aab5064f676c8887a3aa3b5ba69e4e7c6af32d3bf9454b7ec743e14b4e5782b4",
+                  "json_pointer": "/events/0",
+                  "quantity": "4",
+                  "raw_sha256": "dc784ed89a15d7d75d771ccf991957aaccff93f78d40784e69ecd496be527448",
+                  "units": {
+                    "money": {
+                      "currency": "TEST-CASH",
+                      "quantum": "1",
+                      "unit": "TEST-CASH"
+                    },
+                    "numeric_encoding": "exact_decimal_integer_text",
+                    "quantity": {
+                      "quantum": "1",
+                      "unit": "TEST-UNIT"
+                    }
+                  }
+                },
+                "operation_level": "2",
+                "parent_voice_id": null,
+                "responsibility_tail": {
+                  "reason": "no authoritative responsibility-retirement event",
+                  "status": "Unknown"
+                },
+                "structure_view": {
+                  "confirmation_level": "3",
+                  "execution_level": "2",
+                  "nest_depth": "1",
+                  "profile_id": "unit"
+                },
+                "voice_id": "8275b8c7285f9e5424a383e1a1ecf5c2fc854f04c10207a4b2a72bc807d32a78"
+              },
+              "worst_quantity": "6"
+            },
+            "state": "Prepared",
+            "structure_evidence": {
+              "basis_ref": {
+                "extent": "7",
+                "format": "s-content/1",
+                "kind": "object",
+                "root": "sc1-cf22f3c661e807af4c5fa78ab3fa6d89c16770255f652d7ee695dae7d3c24689"
+              },
+              "commit_ns": "12",
+              "content_format": "s-content/1",
+              "kind": "FinancialBasisEvidence",
+              "pending_revision": false,
+              "schema_revision": "s-financial-evidence/1",
+              "session_generation": "1",
+              "session_id": "issue1394-financial-small-20260930",
+              "writer_epoch": "1"
+            }
+          }
+        },
+        "phase_marker": {
+          "domain_id": "B:alpha",
+          "message_id": "PrepareDecision-alpha",
+          "phase": "after_commit",
+          "pid": 96726,
+          "test_only": true
+        },
+        "pid": 96726,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 96750,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "66907b57a5edf4f386dab6c912e86b81cb7ace6afd0bc0e11fdd81bb726aa08f",
+        "case_id": "PrepareDecision-after_commit-0",
+        "comparison": {
+          "commit_delta": "1",
+          "op": "PrepareDecision",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "20"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "3701a92a7346f93371776c822167c03d13247a9defbcd8b24124ece4c2e7ceef",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "09c68cbb42fd7b2c8aeec463a16e1968f708ff7525746493dacca443fd9f7693",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 96750,
+        "run": {
+          "elapsed_seconds": 4.138804292073473,
+          "end_utc": "2026-09-30T08:07:52.625564+00:00",
+          "exit_code": 0,
+          "pid": 96721,
+          "start_utc": "2026-09-30T08:07:48.486774+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "cc21016b082f98eeb5d64974622c0559c0c880969ca6e2d50f8dc25d7ba22303"
+        },
+        "sigkill_pid": 96726,
+        "signal": 9
+      }
+    },
+    {
+      "case_id": "PrepareDecision-after_commit-1",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/PrepareDecision-after_commit-1/evidence",
+      "fault_result_sha256": "1314e2d6338f9e3b1bdceb7f1e1dd83ad3b1fb1cb7533a5fdc5f08d70b8b0ae3",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/PrepareDecision-after_commit-1/binding.json",
+        "binding_sha256": "9e6a23690bfe0baf87f05857c8af6450ccd404922d4be433e62302509596e9f5",
+        "cache_count": "1307",
+        "case_id": "PrepareDecision-after_commit-1",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "1",
+          "op": "PrepareDecision",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "20"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/PrepareDecision-after_commit-1/evidence/manifest.json",
+        "manifest_sha256": "81ab192e4453689a0ac881ad55016b2ff00ad15f357c2eab0a248dda474b241c",
+        "original_receipt": {
+          "commit_ns": "72",
+          "cut": {
+            "commit_seq": "3",
+            "domain_id": "B:alpha",
+            "root_hash": "585dba7d309949e11020efd6fd5928d99e5aa23785267829c888eb3ab0cf083c"
+          },
+          "domain_id": "B:alpha",
+          "first_known_ns": "71",
+          "kind": "PreparedReceipt",
+          "receipt_key": "tb03b-finance/2:PrepareDecision:902cf2b465fb076229183b408aad4014266eb9eb72d448754227adc1eeac49b9",
+          "record": {
+            "decision_id": "alpha",
+            "execution_eligibility": "None",
+            "grant": null,
+            "local_commit_receipt": null,
+            "prepared": {
+              "actual_quantity": "4",
+              "book_version_after": "3",
+              "book_version_before": "2",
+              "fixed_q": "12",
+              "locked_amount": "30",
+              "plan": {
+                "applicant_epoch": "1",
+                "applicant_generation": "1",
+                "attempt_id": "attempt-alpha",
+                "decision_id": "alpha",
+                "expected_book_version": "2",
+                "expected_rights_version": "1",
+                "fee_source": "TestOnly-tail/alpha",
+                "fee_tail": "2",
+                "limit_price": "14",
+                "o_ref": {
+                  "kind": "TestOnlyCashBuy",
+                  "operation_id": "TestOnly-operation-alpha",
+                  "quantity": "2",
+                  "s_object_id": "obj3-59219edd1c9e54cbb105f308177a3f495946cdc81efffdbddfc7c05f59e79cf9",
+                  "source_ref": "TestOnly-operation-sheet/alpha"
+                },
+                "owner": "B:alpha",
+                "plan_id": "plan-alpha",
+                "price_source": "TestOnly-price/alpha",
+                "quantity": "2",
+                "quantity_source": "TestOnly-quantity/alpha",
+                "right_id": "alpha",
+                "s_ref": {
+                  "object_hash": "ac45fa2252898929523a432c7c5ca7f44b61225c1ac08b0681c52774b7f9f1ea",
+                  "object_id": "obj3-59219edd1c9e54cbb105f308177a3f495946cdc81efffdbddfc7c05f59e79cf9",
+                  "profile_id": "ohlc_integer_tb02a_v1",
+                  "schema_revision": "s-object-ref/2"
+                },
+                "slot_id": "slot",
+                "voice_binding_id": "voice-alpha"
+              },
+              "plan_hash": "10af5ff9073c45fe674da52cf30c65a769be81e1b6526d5788be260f70a478ff",
+              "prepared_ns": "72",
+              "right_source": {
+                "amount": "40",
+                "currency": "TEST-CASH",
+                "owner": "B:alpha",
+                "right_id": "alpha",
+                "source_ref": "TestOnly-privately-owned-cash-original/alpha",
+                "version": "1"
+              },
+              "rights_version_after": "2",
+              "rights_version_before": "1",
+              "units": {
+                "money": {
+                  "currency": "TEST-CASH",
+                  "quantum": "1",
+                  "unit": "TEST-CASH"
+                },
+                "numeric_encoding": "exact_decimal_integer_text",
+                "quantity": {
+                  "quantum": "1",
+                  "unit": "TEST-UNIT"
+                }
+              },
+              "voice": {
+                "binding_id": "voice-alpha",
+                "business_lifecycle": {
+                  "status": "NotRecorded"
+                },
+                "commit_ns": "52",
+                "commit_seq": "2",
+                "evidence": {
+                  "authority_id": "alpha",
+                  "bundle_sha256": "caf917842f3131dcf3435f6dbb01ab101087f64857938df6800e176e6c4c43fa",
+                  "verification_sha256": "4406c22bd8b22736daefaac366dece59cab168507c10ca0d6e9794c554db1034"
+                },
+                "first_known_ns": "51",
+                "identity": {
+                  "carrier_ref": {
+                    "authority_id": "alpha",
+                    "content_hash": "142e9601552afbc8aa8208c4721ec90aaf3ac97bd502f599631c45c37e0047d7",
+                    "object_id": "unit-carrier",
+                    "revision": "0"
+                  },
+                  "gamma_ref": {
+                    "authority_id": "alpha",
+                    "content_hash": "67718ec24afb685c8297431e1baf4d27eb21b2c962e950899a49be1c33c5940d",
+                    "object_id": "unit-gamma",
+                    "revision": "0"
+                  },
+                  "n": "0",
+                  "sigma": "Long"
+                },
+                "instrument": "alpha",
+                "opening_basis": {
+                  "allocation_id": "allocation-alpha",
+                  "e_cut": {
+                    "commit_seq": "1",
+                    "domain_id": "E",
+                    "root_hash": "109090f4823140f3735c547cd451c5a95bb0adba8eafe2d7100907f244a74161"
+                  },
+                  "fact_hash": "f2df8ee3c4bbb9347c688a88fda6265962f59c5c58e6384685a1ddd00868807a",
+                  "fact_key": "aab5064f676c8887a3aa3b5ba69e4e7c6af32d3bf9454b7ec743e14b4e5782b4",
+                  "json_pointer": "/events/0",
+                  "quantity": "4",
+                  "raw_sha256": "dc784ed89a15d7d75d771ccf991957aaccff93f78d40784e69ecd496be527448",
+                  "units": {
+                    "money": {
+                      "currency": "TEST-CASH",
+                      "quantum": "1",
+                      "unit": "TEST-CASH"
+                    },
+                    "numeric_encoding": "exact_decimal_integer_text",
+                    "quantity": {
+                      "quantum": "1",
+                      "unit": "TEST-UNIT"
+                    }
+                  }
+                },
+                "operation_level": "2",
+                "parent_voice_id": null,
+                "responsibility_tail": {
+                  "reason": "no authoritative responsibility-retirement event",
+                  "status": "Unknown"
+                },
+                "structure_view": {
+                  "confirmation_level": "3",
+                  "execution_level": "2",
+                  "nest_depth": "1",
+                  "profile_id": "unit"
+                },
+                "voice_id": "8275b8c7285f9e5424a383e1a1ecf5c2fc854f04c10207a4b2a72bc807d32a78"
+              },
+              "worst_quantity": "6"
+            },
+            "state": "Prepared",
+            "structure_evidence": {
+              "basis_ref": {
+                "extent": "7",
+                "format": "s-content/1",
+                "kind": "object",
+                "root": "sc1-cf22f3c661e807af4c5fa78ab3fa6d89c16770255f652d7ee695dae7d3c24689"
+              },
+              "commit_ns": "12",
+              "content_format": "s-content/1",
+              "kind": "FinancialBasisEvidence",
+              "pending_revision": false,
+              "schema_revision": "s-financial-evidence/1",
+              "session_generation": "1",
+              "session_id": "issue1394-financial-small-20260930",
+              "writer_epoch": "1"
+            }
+          }
+        },
+        "phase_marker": {
+          "domain_id": "B:alpha",
+          "message_id": "PrepareDecision-alpha",
+          "phase": "after_commit",
+          "pid": 97603,
+          "test_only": true
+        },
+        "pid": 97603,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 97621,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "9e6a23690bfe0baf87f05857c8af6450ccd404922d4be433e62302509596e9f5",
+        "case_id": "PrepareDecision-after_commit-1",
+        "comparison": {
+          "commit_delta": "1",
+          "op": "PrepareDecision",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "20"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "1314e2d6338f9e3b1bdceb7f1e1dd83ad3b1fb1cb7533a5fdc5f08d70b8b0ae3",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "81ab192e4453689a0ac881ad55016b2ff00ad15f357c2eab0a248dda474b241c",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 97621,
+        "run": {
+          "elapsed_seconds": 4.182192458072677,
+          "end_utc": "2026-09-30T08:08:51.029035+00:00",
+          "exit_code": 0,
+          "pid": 97598,
+          "start_utc": "2026-09-30T08:08:46.846835+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "118b369742088562580edcb31d2dbc769fe1000b75ca978b0a615797bcff389a"
+        },
+        "sigkill_pid": 97603,
+        "signal": 9
+      }
+    },
+    {
+      "case_id": "Reserve-before_commit-0",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/Reserve-before_commit-0/evidence",
+      "fault_result_sha256": "b6f0b666837a8b767c2f34936fbc2e5cae29e3d1bcbf8882e5acd2518264d35c",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/Reserve-before_commit-0/binding.json",
+        "binding_sha256": "7cccb3722e6d6d00240f6fd7bfd1f550899db58ffd97da8766ed5d2bf2b858d6",
+        "cache_count": "1307",
+        "case_id": "Reserve-before_commit-0",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "0",
+          "op": "Reserve",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "20"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/Reserve-before_commit-0/evidence/manifest.json",
+        "manifest_sha256": "2bb1ce7ed7595ec8cc3ebafbfbccd0aff910916fbd42162cd7e7438d8238559b",
+        "original_receipt": null,
+        "phase_marker": {
+          "domain_id": "E",
+          "message_id": "Reserve-slot",
+          "phase": "before_commit",
+          "pid": 98497,
+          "test_only": true
+        },
+        "pid": 98497,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 98538,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "7cccb3722e6d6d00240f6fd7bfd1f550899db58ffd97da8766ed5d2bf2b858d6",
+        "case_id": "Reserve-before_commit-0",
+        "comparison": {
+          "commit_delta": "0",
+          "op": "Reserve",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "20"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "b6f0b666837a8b767c2f34936fbc2e5cae29e3d1bcbf8882e5acd2518264d35c",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "2bb1ce7ed7595ec8cc3ebafbfbccd0aff910916fbd42162cd7e7438d8238559b",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 98538,
+        "run": {
+          "elapsed_seconds": 4.495859707938507,
+          "end_utc": "2026-09-30T08:09:57.059476+00:00",
+          "exit_code": 0,
+          "pid": 98474,
+          "start_utc": "2026-09-30T08:09:52.563607+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "5dd6943647aba8d81a76bfa5df42700c003223152d80f40e6833bdc4bdba674e"
+        },
+        "sigkill_pid": 98497,
+        "signal": 9
+      }
+    },
+    {
+      "case_id": "Reserve-before_commit-1",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/Reserve-before_commit-1/evidence",
+      "fault_result_sha256": "dc38f4f93aaa0d674116dd792b1f6116dd79e45bfe436184b1d4e5ccf46265ea",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/Reserve-before_commit-1/binding.json",
+        "binding_sha256": "1f8fa02c6ed9ad233f6acc41e47fde545bcc1de452d5edee14625139198610fd",
+        "cache_count": "1307",
+        "case_id": "Reserve-before_commit-1",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "0",
+          "op": "Reserve",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "20"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/Reserve-before_commit-1/evidence/manifest.json",
+        "manifest_sha256": "bde0f49eff2781e5dbeffa9b5572d64ab9b93120dfe6d1a40d62343f4c167ae4",
+        "original_receipt": null,
+        "phase_marker": {
+          "domain_id": "E",
+          "message_id": "Reserve-slot",
+          "phase": "before_commit",
+          "pid": 99617,
+          "test_only": true
+        },
+        "pid": 99617,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 99633,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "1f8fa02c6ed9ad233f6acc41e47fde545bcc1de452d5edee14625139198610fd",
+        "case_id": "Reserve-before_commit-1",
+        "comparison": {
+          "commit_delta": "0",
+          "op": "Reserve",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "20"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "dc38f4f93aaa0d674116dd792b1f6116dd79e45bfe436184b1d4e5ccf46265ea",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "bde0f49eff2781e5dbeffa9b5572d64ab9b93120dfe6d1a40d62343f4c167ae4",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 99633,
+        "run": {
+          "elapsed_seconds": 5.282026167027652,
+          "end_utc": "2026-09-30T08:11:20.617614+00:00",
+          "exit_code": 0,
+          "pid": 99562,
+          "start_utc": "2026-09-30T08:11:15.335582+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "4e68de74d1709c650210b257218883d6fb6829831783fbd7eb3e30da8aa138c8"
+        },
+        "sigkill_pid": 99617,
+        "signal": 9
+      }
+    },
+    {
+      "case_id": "Reserve-after_commit-0",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/Reserve-after_commit-0/evidence",
+      "fault_result_sha256": "ea9e9b97f9f6a9be4428116d7901101eccf1ea9fea734e6e0a0461f774172b1b",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/Reserve-after_commit-0/binding.json",
+        "binding_sha256": "b23336bae7f5fd7a89179c144be1a78e7f0a1161d01bc37153f8acf5c204b004",
+        "cache_count": "1307",
+        "case_id": "Reserve-after_commit-0",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "1",
+          "op": "Reserve",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/Reserve-after_commit-0/evidence/manifest.json",
+        "manifest_sha256": "b03009ccc9cb91a041b76b0049786b9eaf93ff138c446344d85050e793948e1b",
+        "original_receipt": {
+          "commit_ns": "92",
+          "cut": {
+            "commit_seq": "4",
+            "domain_id": "E",
+            "root_hash": "6fc4f6ddec3086c5faf471c08bf5caf8e81d31204bd336bf668068b5b7a2bb59"
+          },
+          "domain_id": "E",
+          "first_known_ns": "91",
+          "kind": "ReserveReceipt",
+          "receipt_key": "tb03b-finance/2:Reserve:b2433561056753a375e18fe1c2acad4c4817f8b7c231422842c356ed25a96732",
+          "record": {
+            "closed_applicants": [],
+            "grants": [
+              {
+                "amount": "30",
+                "applicant_epoch": "1",
+                "applicant_generation": "1",
+                "attempt_id": "attempt-alpha",
+                "decision_id": "alpha",
+                "e_epoch": "1",
+                "execution_eligibility": "None",
+                "grant_id": "57e3d76efd49570b2969255c23dbcf96d4f5d6c30cce86dfb788f2b277e4b9f9",
+                "owner": "B:alpha",
+                "plan_hash": "10af5ff9073c45fe674da52cf30c65a769be81e1b6526d5788be260f70a478ff",
+                "plan_id": "plan-alpha",
+                "policy": {
+                  "allocation_policy_id": "#1349/unresolved-common-cap-allocation",
+                  "cap": "100",
+                  "capability_id": "TestOnly-no-leverage-no-venue",
+                  "currency": "TEST-CASH",
+                  "model": "TestOnlyUnleveragedCashBuy",
+                  "money_unit": "TEST-CASH",
+                  "policy_id": "TestOnly-cash-cap-100",
+                  "quantity_unit": "TEST-UNIT",
+                  "quantum": "1",
+                  "valid_through_ns": "100000"
+                },
+                "prepared_cut": {
+                  "commit_seq": "3",
+                  "domain_id": "B:alpha",
+                  "root_hash": "59e7fb18a56e500ff0ca21e158d1f35ecb1f638551997ddfb4d9228db6229e0e"
+                },
+                "quantity": "2",
+                "reserved_ns": "92",
+                "reserved_seq": "4",
+                "units": {
+                  "money": {
+                    "currency": "TEST-CASH",
+                    "quantum": "1",
+                    "unit": "TEST-CASH"
+                  },
+                  "numeric_encoding": "exact_decimal_integer_text",
+                  "quantity": {
+                    "quantum": "1",
+                    "unit": "TEST-UNIT"
+                  }
+                }
+              },
+              {
+                "amount": "40",
+                "applicant_epoch": "1",
+                "applicant_generation": "1",
+                "attempt_id": "attempt-beta",
+                "decision_id": "beta",
+                "e_epoch": "1",
+                "execution_eligibility": "None",
+                "grant_id": "d8bd15a5c5465e6b1a5a248484cb9ee707190cf5aecd9fe7f9e6f4fca096d13f",
+                "owner": "B:beta",
+                "plan_hash": "c82618bd42773b65a6ed1e9b1035bcc3c30b296cc45a819ab5bab483f490495e",
+                "plan_id": "plan-beta",
+                "policy": {
+                  "allocation_policy_id": "#1349/unresolved-common-cap-allocation",
+                  "cap": "100",
+                  "capability_id": "TestOnly-no-leverage-no-venue",
+                  "currency": "TEST-CASH",
+                  "model": "TestOnlyUnleveragedCashBuy",
+                  "money_unit": "TEST-CASH",
+                  "policy_id": "TestOnly-cash-cap-100",
+                  "quantity_unit": "TEST-UNIT",
+                  "quantum": "1",
+                  "valid_through_ns": "100000"
+                },
+                "prepared_cut": {
+                  "commit_seq": "3",
+                  "domain_id": "B:beta",
+                  "root_hash": "8dd8816bcda070a2081286c9f80eb7a1f4cd8911c49cebe9d1c5f2cc999ddb38"
+                },
+                "quantity": "3",
+                "reserved_ns": "92",
+                "reserved_seq": "4",
+                "units": {
+                  "money": {
+                    "currency": "TEST-CASH",
+                    "quantum": "1",
+                    "unit": "TEST-CASH"
+                  },
+                  "numeric_encoding": "exact_decimal_integer_text",
+                  "quantity": {
+                    "quantum": "1",
+                    "unit": "TEST-UNIT"
+                  }
+                }
+              }
+            ],
+            "policy_id": "TestOnly-cash-cap-100",
+            "required_total": "90",
+            "reserve_ns": "92",
+            "reserve_seq": "4",
+            "retained_total": "90",
+            "slot": {
+              "applicants": [
+                "alpha",
+                "beta"
+              ],
+              "input_end": {
+                "complete_request_hash": "138bf4722f7ae17122c7282d0eb156499d349940e129bd4cdf27c8ffdcbb3d25",
+                "kind": "ControlledInputEnd",
+                "source_epoch": "1",
+                "source_id": "unit-fixture",
+                "watermark": "2"
+              },
+              "slot_id": "slot"
+            },
+            "slot_id": "slot",
+            "state": "Reserved",
+            "waiting_for": null
+          }
+        },
+        "phase_marker": {
+          "domain_id": "E",
+          "message_id": "Reserve-slot",
+          "phase": "after_commit",
+          "pid": 798,
+          "test_only": true
+        },
+        "pid": 798,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 830,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "b23336bae7f5fd7a89179c144be1a78e7f0a1161d01bc37153f8acf5c204b004",
+        "case_id": "Reserve-after_commit-0",
+        "comparison": {
+          "commit_delta": "1",
+          "op": "Reserve",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "ea9e9b97f9f6a9be4428116d7901101eccf1ea9fea734e6e0a0461f774172b1b",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "b03009ccc9cb91a041b76b0049786b9eaf93ff138c446344d85050e793948e1b",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 830,
+        "run": {
+          "elapsed_seconds": 11.313772999914363,
+          "end_utc": "2026-09-30T08:12:40.921840+00:00",
+          "exit_code": 0,
+          "pid": 751,
+          "start_utc": "2026-09-30T08:12:29.608024+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "ada5e93eb8c216074f0f46c4fe0f784ab9e9ccb5b4aabf8ea083113f73c024f7"
+        },
+        "sigkill_pid": 798,
+        "signal": 9
+      }
+    },
+    {
+      "case_id": "Reserve-after_commit-1",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/Reserve-after_commit-1/evidence",
+      "fault_result_sha256": "82723eb12f17eaa4f7bd3b54570450ac3d8e4b4f9836754258485022b604e998",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/Reserve-after_commit-1/binding.json",
+        "binding_sha256": "80f26abaf72377a6b4126b008b79a4802b41f8868f8ad33a2aebefaf75ed87e7",
+        "cache_count": "1307",
+        "case_id": "Reserve-after_commit-1",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "1",
+          "op": "Reserve",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/Reserve-after_commit-1/evidence/manifest.json",
+        "manifest_sha256": "88994aaf59474b05879854c150c629ff9ae090d4d485663ed0162a59034e7ba3",
+        "original_receipt": {
+          "commit_ns": "92",
+          "cut": {
+            "commit_seq": "4",
+            "domain_id": "E",
+            "root_hash": "2181db3e5056acf0c5c02155591ba53600c1a016bd4df680fcbad4125f1143b5"
+          },
+          "domain_id": "E",
+          "first_known_ns": "91",
+          "kind": "ReserveReceipt",
+          "receipt_key": "tb03b-finance/2:Reserve:b2433561056753a375e18fe1c2acad4c4817f8b7c231422842c356ed25a96732",
+          "record": {
+            "closed_applicants": [],
+            "grants": [
+              {
+                "amount": "30",
+                "applicant_epoch": "1",
+                "applicant_generation": "1",
+                "attempt_id": "attempt-alpha",
+                "decision_id": "alpha",
+                "e_epoch": "1",
+                "execution_eligibility": "None",
+                "grant_id": "57e3d76efd49570b2969255c23dbcf96d4f5d6c30cce86dfb788f2b277e4b9f9",
+                "owner": "B:alpha",
+                "plan_hash": "10af5ff9073c45fe674da52cf30c65a769be81e1b6526d5788be260f70a478ff",
+                "plan_id": "plan-alpha",
+                "policy": {
+                  "allocation_policy_id": "#1349/unresolved-common-cap-allocation",
+                  "cap": "100",
+                  "capability_id": "TestOnly-no-leverage-no-venue",
+                  "currency": "TEST-CASH",
+                  "model": "TestOnlyUnleveragedCashBuy",
+                  "money_unit": "TEST-CASH",
+                  "policy_id": "TestOnly-cash-cap-100",
+                  "quantity_unit": "TEST-UNIT",
+                  "quantum": "1",
+                  "valid_through_ns": "100000"
+                },
+                "prepared_cut": {
+                  "commit_seq": "3",
+                  "domain_id": "B:alpha",
+                  "root_hash": "daae44139c76779a75fbe37ece1da240c3b89c918c2ad4dae4ae6de5581bd571"
+                },
+                "quantity": "2",
+                "reserved_ns": "92",
+                "reserved_seq": "4",
+                "units": {
+                  "money": {
+                    "currency": "TEST-CASH",
+                    "quantum": "1",
+                    "unit": "TEST-CASH"
+                  },
+                  "numeric_encoding": "exact_decimal_integer_text",
+                  "quantity": {
+                    "quantum": "1",
+                    "unit": "TEST-UNIT"
+                  }
+                }
+              },
+              {
+                "amount": "40",
+                "applicant_epoch": "1",
+                "applicant_generation": "1",
+                "attempt_id": "attempt-beta",
+                "decision_id": "beta",
+                "e_epoch": "1",
+                "execution_eligibility": "None",
+                "grant_id": "d8bd15a5c5465e6b1a5a248484cb9ee707190cf5aecd9fe7f9e6f4fca096d13f",
+                "owner": "B:beta",
+                "plan_hash": "c82618bd42773b65a6ed1e9b1035bcc3c30b296cc45a819ab5bab483f490495e",
+                "plan_id": "plan-beta",
+                "policy": {
+                  "allocation_policy_id": "#1349/unresolved-common-cap-allocation",
+                  "cap": "100",
+                  "capability_id": "TestOnly-no-leverage-no-venue",
+                  "currency": "TEST-CASH",
+                  "model": "TestOnlyUnleveragedCashBuy",
+                  "money_unit": "TEST-CASH",
+                  "policy_id": "TestOnly-cash-cap-100",
+                  "quantity_unit": "TEST-UNIT",
+                  "quantum": "1",
+                  "valid_through_ns": "100000"
+                },
+                "prepared_cut": {
+                  "commit_seq": "3",
+                  "domain_id": "B:beta",
+                  "root_hash": "a55a1d28062bc9c9ca005f2b33777447dccd8cf6dc5c1158ae8e5c980fb0e7c3"
+                },
+                "quantity": "3",
+                "reserved_ns": "92",
+                "reserved_seq": "4",
+                "units": {
+                  "money": {
+                    "currency": "TEST-CASH",
+                    "quantum": "1",
+                    "unit": "TEST-CASH"
+                  },
+                  "numeric_encoding": "exact_decimal_integer_text",
+                  "quantity": {
+                    "quantum": "1",
+                    "unit": "TEST-UNIT"
+                  }
+                }
+              }
+            ],
+            "policy_id": "TestOnly-cash-cap-100",
+            "required_total": "90",
+            "reserve_ns": "92",
+            "reserve_seq": "4",
+            "retained_total": "90",
+            "slot": {
+              "applicants": [
+                "alpha",
+                "beta"
+              ],
+              "input_end": {
+                "complete_request_hash": "138bf4722f7ae17122c7282d0eb156499d349940e129bd4cdf27c8ffdcbb3d25",
+                "kind": "ControlledInputEnd",
+                "source_epoch": "1",
+                "source_id": "unit-fixture",
+                "watermark": "2"
+              },
+              "slot_id": "slot"
+            },
+            "slot_id": "slot",
+            "state": "Reserved",
+            "waiting_for": null
+          }
+        },
+        "phase_marker": {
+          "domain_id": "E",
+          "message_id": "Reserve-slot",
+          "phase": "after_commit",
+          "pid": 2904,
+          "test_only": true
+        },
+        "pid": 2904,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 2954,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "80f26abaf72377a6b4126b008b79a4802b41f8868f8ad33a2aebefaf75ed87e7",
+        "case_id": "Reserve-after_commit-1",
+        "comparison": {
+          "commit_delta": "1",
+          "op": "Reserve",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "82723eb12f17eaa4f7bd3b54570450ac3d8e4b4f9836754258485022b604e998",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "88994aaf59474b05879854c150c629ff9ae090d4d485663ed0162a59034e7ba3",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 2954,
+        "run": {
+          "elapsed_seconds": 11.178371041081846,
+          "end_utc": "2026-09-30T08:15:01.832711+00:00",
+          "exit_code": 0,
+          "pid": 2857,
+          "start_utc": "2026-09-30T08:14:50.654301+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "cf82672a1810de12d478231cf9f24db5d0d68f0e4c25bcd468e8389c2a640f60"
+        },
+        "sigkill_pid": 2904,
+        "signal": 9
+      }
+    },
+    {
+      "case_id": "CommitDecision-before_commit-0",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CommitDecision-before_commit-0/evidence",
+      "fault_result_sha256": "802ba6b7de675687d1b848756b5a0804e7229354489e84e4a10df1df4d4c71b6",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CommitDecision-before_commit-0/binding.json",
+        "binding_sha256": "d248265295a32420a7cabec00470f1e455b6705cf5c1c3508f5dbc14a487c9a4",
+        "cache_count": "1307",
+        "case_id": "CommitDecision-before_commit-0",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "0",
+          "op": "CommitDecision",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CommitDecision-before_commit-0/evidence/manifest.json",
+        "manifest_sha256": "2434f8ac73b86bd8b4dd2640f59062ec2f382eca1288afc7214e6f6fe3b37ce5",
+        "original_receipt": null,
+        "phase_marker": {
+          "domain_id": "B:alpha",
+          "message_id": "CommitDecision-alpha",
+          "phase": "before_commit",
+          "pid": 4094,
+          "test_only": true
+        },
+        "pid": 4094,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 4155,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "d248265295a32420a7cabec00470f1e455b6705cf5c1c3508f5dbc14a487c9a4",
+        "case_id": "CommitDecision-before_commit-0",
+        "comparison": {
+          "commit_delta": "0",
+          "op": "CommitDecision",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "802ba6b7de675687d1b848756b5a0804e7229354489e84e4a10df1df4d4c71b6",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "2434f8ac73b86bd8b4dd2640f59062ec2f382eca1288afc7214e6f6fe3b37ce5",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 4155,
+        "run": {
+          "elapsed_seconds": 9.16073483391665,
+          "end_utc": "2026-09-30T08:16:23.208970+00:00",
+          "exit_code": 0,
+          "pid": 4034,
+          "start_utc": "2026-09-30T08:16:14.048205+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "58552866dc553d11d706ae645db3018b9dbc0f23e805b1c459a90ad55206db42"
+        },
+        "sigkill_pid": 4094,
+        "signal": 9
+      }
+    },
+    {
+      "case_id": "CommitDecision-before_commit-1",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CommitDecision-before_commit-1/evidence",
+      "fault_result_sha256": "2e6b97a0dc99efa82e0a3821cb0029f81c3a2471c8e59976d3dcdc8b1b5f1497",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CommitDecision-before_commit-1/binding.json",
+        "binding_sha256": "d5029d2ee02c93b7face578351281894e83c0ba0ba0994536face29c4e1204ec",
+        "cache_count": "1307",
+        "case_id": "CommitDecision-before_commit-1",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "0",
+          "op": "CommitDecision",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CommitDecision-before_commit-1/evidence/manifest.json",
+        "manifest_sha256": "92df60b870a0015c777e77ec4113dcdf5c691c655e76208e4d27a933f30c4730",
+        "original_receipt": null,
+        "phase_marker": {
+          "domain_id": "B:alpha",
+          "message_id": "CommitDecision-alpha",
+          "phase": "before_commit",
+          "pid": 7522,
+          "test_only": true
+        },
+        "pid": 7522,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 7566,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "d5029d2ee02c93b7face578351281894e83c0ba0ba0994536face29c4e1204ec",
+        "case_id": "CommitDecision-before_commit-1",
+        "comparison": {
+          "commit_delta": "0",
+          "op": "CommitDecision",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "2e6b97a0dc99efa82e0a3821cb0029f81c3a2471c8e59976d3dcdc8b1b5f1497",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "92df60b870a0015c777e77ec4113dcdf5c691c655e76208e4d27a933f30c4730",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 7566,
+        "run": {
+          "elapsed_seconds": 9.497626499971375,
+          "end_utc": "2026-09-30T08:20:23.952893+00:00",
+          "exit_code": 0,
+          "pid": 7464,
+          "start_utc": "2026-09-30T08:20:14.455238+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "4d4aaa970e2042ff8d2bbc9b0a79b3362591c0c4851d8a4284e6b7bbbd1d6a0d"
+        },
+        "sigkill_pid": 7522,
+        "signal": 9
+      }
+    },
+    {
+      "case_id": "CommitDecision-after_commit-0",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CommitDecision-after_commit-0/evidence",
+      "fault_result_sha256": "c57315a7fc9d40763f3ad9f6e963d3d03728053f6d948e4a3801742a7327dad1",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CommitDecision-after_commit-0/binding.json",
+        "binding_sha256": "f59e9b00ccff4ead34c3e625a314de8df283c6bad176c0ea6ce9481d12da4029",
+        "cache_count": "1307",
+        "case_id": "CommitDecision-after_commit-0",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "1",
+          "op": "CommitDecision",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CommitDecision-after_commit-0/evidence/manifest.json",
+        "manifest_sha256": "1690a201c5f9ae2176c85c1bf22b0d8de762fedb88cb869293318c52e06d383e",
+        "original_receipt": {
+          "commit_ns": "102",
+          "cut": {
+            "commit_seq": "4",
+            "domain_id": "B:alpha",
+            "root_hash": "03ea91b5fed4da0073008a37aca5585c6ed9134bda5cd44b057995d21a8d40f8"
+          },
+          "domain_id": "B:alpha",
+          "first_known_ns": "101",
+          "kind": "LocalCommitReceipt",
+          "receipt_key": "tb03b-finance/2:CommitDecision:902cf2b465fb076229183b408aad4014266eb9eb72d448754227adc1eeac49b9",
+          "record": {
+            "decision_id": "alpha",
+            "execution_eligibility": "None",
+            "grant": {
+              "e_cut": {
+                "commit_seq": "4",
+                "domain_id": "E",
+                "root_hash": "0c833985351f1275ab3280c402325afecc5c3dbbf284db6658c70f9a2a13d688"
+              },
+              "original": {
+                "amount": "30",
+                "applicant_epoch": "1",
+                "applicant_generation": "1",
+                "attempt_id": "attempt-alpha",
+                "decision_id": "alpha",
+                "e_epoch": "1",
+                "execution_eligibility": "None",
+                "grant_id": "57e3d76efd49570b2969255c23dbcf96d4f5d6c30cce86dfb788f2b277e4b9f9",
+                "owner": "B:alpha",
+                "plan_hash": "10af5ff9073c45fe674da52cf30c65a769be81e1b6526d5788be260f70a478ff",
+                "plan_id": "plan-alpha",
+                "policy": {
+                  "allocation_policy_id": "#1349/unresolved-common-cap-allocation",
+                  "cap": "100",
+                  "capability_id": "TestOnly-no-leverage-no-venue",
+                  "currency": "TEST-CASH",
+                  "model": "TestOnlyUnleveragedCashBuy",
+                  "money_unit": "TEST-CASH",
+                  "policy_id": "TestOnly-cash-cap-100",
+                  "quantity_unit": "TEST-UNIT",
+                  "quantum": "1",
+                  "valid_through_ns": "100000"
+                },
+                "prepared_cut": {
+                  "commit_seq": "3",
+                  "domain_id": "B:alpha",
+                  "root_hash": "8130a3b2d83cda0dd838a7ab59643ebe0fbee19f0b3d6a56325f930999d98cab"
+                },
+                "quantity": "2",
+                "reserved_ns": "92",
+                "reserved_seq": "4",
+                "units": {
+                  "money": {
+                    "currency": "TEST-CASH",
+                    "quantum": "1",
+                    "unit": "TEST-CASH"
+                  },
+                  "numeric_encoding": "exact_decimal_integer_text",
+                  "quantity": {
+                    "quantum": "1",
+                    "unit": "TEST-UNIT"
+                  }
+                }
+              }
+            },
+            "local_commit_receipt": {
+              "book_version_after": "4",
+              "book_version_before": "3",
+              "commit_hash": "0ea2c696925ce5c0dfda3d874e0d82337a947deb53d59f0de110b99fe2146404",
+              "commit_ns": "102",
+              "decision_id": "alpha",
+              "e_cut": {
+                "commit_seq": "4",
+                "domain_id": "E",
+                "root_hash": "0c833985351f1275ab3280c402325afecc5c3dbbf284db6658c70f9a2a13d688"
+              },
+              "execution_eligibility": "None",
+              "grant_id": "57e3d76efd49570b2969255c23dbcf96d4f5d6c30cce86dfb788f2b277e4b9f9",
+              "plan_hash": "10af5ff9073c45fe674da52cf30c65a769be81e1b6526d5788be260f70a478ff"
+            },
+            "prepared": {
+              "actual_quantity": "4",
+              "book_version_after": "3",
+              "book_version_before": "2",
+              "fixed_q": "12",
+              "locked_amount": "30",
+              "plan": {
+                "applicant_epoch": "1",
+                "applicant_generation": "1",
+                "attempt_id": "attempt-alpha",
+                "decision_id": "alpha",
+                "expected_book_version": "2",
+                "expected_rights_version": "1",
+                "fee_source": "TestOnly-tail/alpha",
+                "fee_tail": "2",
+                "limit_price": "14",
+                "o_ref": {
+                  "kind": "TestOnlyCashBuy",
+                  "operation_id": "TestOnly-operation-alpha",
+                  "quantity": "2",
+                  "s_object_id": "obj3-59219edd1c9e54cbb105f308177a3f495946cdc81efffdbddfc7c05f59e79cf9",
+                  "source_ref": "TestOnly-operation-sheet/alpha"
+                },
+                "owner": "B:alpha",
+                "plan_id": "plan-alpha",
+                "price_source": "TestOnly-price/alpha",
+                "quantity": "2",
+                "quantity_source": "TestOnly-quantity/alpha",
+                "right_id": "alpha",
+                "s_ref": {
+                  "object_hash": "ac45fa2252898929523a432c7c5ca7f44b61225c1ac08b0681c52774b7f9f1ea",
+                  "object_id": "obj3-59219edd1c9e54cbb105f308177a3f495946cdc81efffdbddfc7c05f59e79cf9",
+                  "profile_id": "ohlc_integer_tb02a_v1",
+                  "schema_revision": "s-object-ref/2"
+                },
+                "slot_id": "slot",
+                "voice_binding_id": "voice-alpha"
+              },
+              "plan_hash": "10af5ff9073c45fe674da52cf30c65a769be81e1b6526d5788be260f70a478ff",
+              "prepared_ns": "72",
+              "right_source": {
+                "amount": "40",
+                "currency": "TEST-CASH",
+                "owner": "B:alpha",
+                "right_id": "alpha",
+                "source_ref": "TestOnly-privately-owned-cash-original/alpha",
+                "version": "1"
+              },
+              "rights_version_after": "2",
+              "rights_version_before": "1",
+              "units": {
+                "money": {
+                  "currency": "TEST-CASH",
+                  "quantum": "1",
+                  "unit": "TEST-CASH"
+                },
+                "numeric_encoding": "exact_decimal_integer_text",
+                "quantity": {
+                  "quantum": "1",
+                  "unit": "TEST-UNIT"
+                }
+              },
+              "voice": {
+                "binding_id": "voice-alpha",
+                "business_lifecycle": {
+                  "status": "NotRecorded"
+                },
+                "commit_ns": "52",
+                "commit_seq": "2",
+                "evidence": {
+                  "authority_id": "alpha",
+                  "bundle_sha256": "a634bc477d9fbbac04a4b3ce739662d7bede58c75dd798f3d4e8b8e60225b158",
+                  "verification_sha256": "5b5049c8faa00889cba3c486985d5167724df53b8fbdc9c201fba4f35c7b95d5"
+                },
+                "first_known_ns": "51",
+                "identity": {
+                  "carrier_ref": {
+                    "authority_id": "alpha",
+                    "content_hash": "142e9601552afbc8aa8208c4721ec90aaf3ac97bd502f599631c45c37e0047d7",
+                    "object_id": "unit-carrier",
+                    "revision": "0"
+                  },
+                  "gamma_ref": {
+                    "authority_id": "alpha",
+                    "content_hash": "67718ec24afb685c8297431e1baf4d27eb21b2c962e950899a49be1c33c5940d",
+                    "object_id": "unit-gamma",
+                    "revision": "0"
+                  },
+                  "n": "0",
+                  "sigma": "Long"
+                },
+                "instrument": "alpha",
+                "opening_basis": {
+                  "allocation_id": "allocation-alpha",
+                  "e_cut": {
+                    "commit_seq": "1",
+                    "domain_id": "E",
+                    "root_hash": "109090f4823140f3735c547cd451c5a95bb0adba8eafe2d7100907f244a74161"
+                  },
+                  "fact_hash": "f2df8ee3c4bbb9347c688a88fda6265962f59c5c58e6384685a1ddd00868807a",
+                  "fact_key": "aab5064f676c8887a3aa3b5ba69e4e7c6af32d3bf9454b7ec743e14b4e5782b4",
+                  "json_pointer": "/events/0",
+                  "quantity": "4",
+                  "raw_sha256": "dc784ed89a15d7d75d771ccf991957aaccff93f78d40784e69ecd496be527448",
+                  "units": {
+                    "money": {
+                      "currency": "TEST-CASH",
+                      "quantum": "1",
+                      "unit": "TEST-CASH"
+                    },
+                    "numeric_encoding": "exact_decimal_integer_text",
+                    "quantity": {
+                      "quantum": "1",
+                      "unit": "TEST-UNIT"
+                    }
+                  }
+                },
+                "operation_level": "2",
+                "parent_voice_id": null,
+                "responsibility_tail": {
+                  "reason": "no authoritative responsibility-retirement event",
+                  "status": "Unknown"
+                },
+                "structure_view": {
+                  "confirmation_level": "3",
+                  "execution_level": "2",
+                  "nest_depth": "1",
+                  "profile_id": "unit"
+                },
+                "voice_id": "8275b8c7285f9e5424a383e1a1ecf5c2fc854f04c10207a4b2a72bc807d32a78"
+              },
+              "worst_quantity": "6"
+            },
+            "state": "Committed",
+            "structure_evidence": {
+              "basis_ref": {
+                "extent": "7",
+                "format": "s-content/1",
+                "kind": "object",
+                "root": "sc1-cf22f3c661e807af4c5fa78ab3fa6d89c16770255f652d7ee695dae7d3c24689"
+              },
+              "commit_ns": "12",
+              "content_format": "s-content/1",
+              "kind": "FinancialBasisEvidence",
+              "pending_revision": false,
+              "schema_revision": "s-financial-evidence/1",
+              "session_generation": "1",
+              "session_id": "issue1394-financial-small-20260930",
+              "writer_epoch": "1"
+            }
+          }
+        },
+        "phase_marker": {
+          "domain_id": "B:alpha",
+          "message_id": "CommitDecision-alpha",
+          "phase": "after_commit",
+          "pid": 7994,
+          "test_only": true
+        },
+        "pid": 7994,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 8086,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "f59e9b00ccff4ead34c3e625a314de8df283c6bad176c0ea6ce9481d12da4029",
+        "case_id": "CommitDecision-after_commit-0",
+        "comparison": {
+          "commit_delta": "1",
+          "op": "CommitDecision",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "c57315a7fc9d40763f3ad9f6e963d3d03728053f6d948e4a3801742a7327dad1",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "1690a201c5f9ae2176c85c1bf22b0d8de762fedb88cb869293318c52e06d383e",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 8086,
+        "run": {
+          "elapsed_seconds": 22.45666854106821,
+          "end_utc": "2026-09-30T08:21:08.914873+00:00",
+          "exit_code": 0,
+          "pid": 7957,
+          "start_utc": "2026-09-30T08:20:46.458107+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "d8ddc6362591c1597cf13a1b8454fcb81d94f3f8e05576c596a419fe4fc1bbb3"
+        },
+        "sigkill_pid": 7994,
+        "signal": 9
+      }
+    },
+    {
+      "case_id": "CommitDecision-after_commit-1",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CommitDecision-after_commit-1/evidence",
+      "fault_result_sha256": "9b8b19c76e4798d8fb4a73eca2265df4b26cfe6207e7526a3279b376eeb4718d",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CommitDecision-after_commit-1/binding.json",
+        "binding_sha256": "cf389c3a05161a74fa89913f7813dfbc3cb062c30946ff9b6491e889c7247173",
+        "cache_count": "1307",
+        "case_id": "CommitDecision-after_commit-1",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "1",
+          "op": "CommitDecision",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CommitDecision-after_commit-1/evidence/manifest.json",
+        "manifest_sha256": "7eb5803ac402fa4db16d7e61ab0dbd4cd2a16d8445a61986b0912e01b248f37e",
+        "original_receipt": {
+          "commit_ns": "102",
+          "cut": {
+            "commit_seq": "4",
+            "domain_id": "B:alpha",
+            "root_hash": "5fec776f9caf58fc474f386a3bd6c4ded6432b41a5af983aeaf22ea61614dcbc"
+          },
+          "domain_id": "B:alpha",
+          "first_known_ns": "101",
+          "kind": "LocalCommitReceipt",
+          "receipt_key": "tb03b-finance/2:CommitDecision:902cf2b465fb076229183b408aad4014266eb9eb72d448754227adc1eeac49b9",
+          "record": {
+            "decision_id": "alpha",
+            "execution_eligibility": "None",
+            "grant": {
+              "e_cut": {
+                "commit_seq": "4",
+                "domain_id": "E",
+                "root_hash": "2f2cd31354464273c60bffd12b5f79108a2623c175efd942ac64cdbb2d134dea"
+              },
+              "original": {
+                "amount": "30",
+                "applicant_epoch": "1",
+                "applicant_generation": "1",
+                "attempt_id": "attempt-alpha",
+                "decision_id": "alpha",
+                "e_epoch": "1",
+                "execution_eligibility": "None",
+                "grant_id": "57e3d76efd49570b2969255c23dbcf96d4f5d6c30cce86dfb788f2b277e4b9f9",
+                "owner": "B:alpha",
+                "plan_hash": "10af5ff9073c45fe674da52cf30c65a769be81e1b6526d5788be260f70a478ff",
+                "plan_id": "plan-alpha",
+                "policy": {
+                  "allocation_policy_id": "#1349/unresolved-common-cap-allocation",
+                  "cap": "100",
+                  "capability_id": "TestOnly-no-leverage-no-venue",
+                  "currency": "TEST-CASH",
+                  "model": "TestOnlyUnleveragedCashBuy",
+                  "money_unit": "TEST-CASH",
+                  "policy_id": "TestOnly-cash-cap-100",
+                  "quantity_unit": "TEST-UNIT",
+                  "quantum": "1",
+                  "valid_through_ns": "100000"
+                },
+                "prepared_cut": {
+                  "commit_seq": "3",
+                  "domain_id": "B:alpha",
+                  "root_hash": "1f9a74ec7f60d82248da2aa436c85b7e4d0528df1108cedd09491860101656a9"
+                },
+                "quantity": "2",
+                "reserved_ns": "92",
+                "reserved_seq": "4",
+                "units": {
+                  "money": {
+                    "currency": "TEST-CASH",
+                    "quantum": "1",
+                    "unit": "TEST-CASH"
+                  },
+                  "numeric_encoding": "exact_decimal_integer_text",
+                  "quantity": {
+                    "quantum": "1",
+                    "unit": "TEST-UNIT"
+                  }
+                }
+              }
+            },
+            "local_commit_receipt": {
+              "book_version_after": "4",
+              "book_version_before": "3",
+              "commit_hash": "b92d79be09cd40af4f5e09f5aa528ae44214b771fd656f93817292251d7887d7",
+              "commit_ns": "102",
+              "decision_id": "alpha",
+              "e_cut": {
+                "commit_seq": "4",
+                "domain_id": "E",
+                "root_hash": "2f2cd31354464273c60bffd12b5f79108a2623c175efd942ac64cdbb2d134dea"
+              },
+              "execution_eligibility": "None",
+              "grant_id": "57e3d76efd49570b2969255c23dbcf96d4f5d6c30cce86dfb788f2b277e4b9f9",
+              "plan_hash": "10af5ff9073c45fe674da52cf30c65a769be81e1b6526d5788be260f70a478ff"
+            },
+            "prepared": {
+              "actual_quantity": "4",
+              "book_version_after": "3",
+              "book_version_before": "2",
+              "fixed_q": "12",
+              "locked_amount": "30",
+              "plan": {
+                "applicant_epoch": "1",
+                "applicant_generation": "1",
+                "attempt_id": "attempt-alpha",
+                "decision_id": "alpha",
+                "expected_book_version": "2",
+                "expected_rights_version": "1",
+                "fee_source": "TestOnly-tail/alpha",
+                "fee_tail": "2",
+                "limit_price": "14",
+                "o_ref": {
+                  "kind": "TestOnlyCashBuy",
+                  "operation_id": "TestOnly-operation-alpha",
+                  "quantity": "2",
+                  "s_object_id": "obj3-59219edd1c9e54cbb105f308177a3f495946cdc81efffdbddfc7c05f59e79cf9",
+                  "source_ref": "TestOnly-operation-sheet/alpha"
+                },
+                "owner": "B:alpha",
+                "plan_id": "plan-alpha",
+                "price_source": "TestOnly-price/alpha",
+                "quantity": "2",
+                "quantity_source": "TestOnly-quantity/alpha",
+                "right_id": "alpha",
+                "s_ref": {
+                  "object_hash": "ac45fa2252898929523a432c7c5ca7f44b61225c1ac08b0681c52774b7f9f1ea",
+                  "object_id": "obj3-59219edd1c9e54cbb105f308177a3f495946cdc81efffdbddfc7c05f59e79cf9",
+                  "profile_id": "ohlc_integer_tb02a_v1",
+                  "schema_revision": "s-object-ref/2"
+                },
+                "slot_id": "slot",
+                "voice_binding_id": "voice-alpha"
+              },
+              "plan_hash": "10af5ff9073c45fe674da52cf30c65a769be81e1b6526d5788be260f70a478ff",
+              "prepared_ns": "72",
+              "right_source": {
+                "amount": "40",
+                "currency": "TEST-CASH",
+                "owner": "B:alpha",
+                "right_id": "alpha",
+                "source_ref": "TestOnly-privately-owned-cash-original/alpha",
+                "version": "1"
+              },
+              "rights_version_after": "2",
+              "rights_version_before": "1",
+              "units": {
+                "money": {
+                  "currency": "TEST-CASH",
+                  "quantum": "1",
+                  "unit": "TEST-CASH"
+                },
+                "numeric_encoding": "exact_decimal_integer_text",
+                "quantity": {
+                  "quantum": "1",
+                  "unit": "TEST-UNIT"
+                }
+              },
+              "voice": {
+                "binding_id": "voice-alpha",
+                "business_lifecycle": {
+                  "status": "NotRecorded"
+                },
+                "commit_ns": "52",
+                "commit_seq": "2",
+                "evidence": {
+                  "authority_id": "alpha",
+                  "bundle_sha256": "206ddfa50dd1790bb37bcb41d1644b632650852903ed5b97f8b7769fd2d28a62",
+                  "verification_sha256": "235bf9b84f72ca855ec50f0a6e4820766e709371c41fb83e59d4f3e212077e00"
+                },
+                "first_known_ns": "51",
+                "identity": {
+                  "carrier_ref": {
+                    "authority_id": "alpha",
+                    "content_hash": "142e9601552afbc8aa8208c4721ec90aaf3ac97bd502f599631c45c37e0047d7",
+                    "object_id": "unit-carrier",
+                    "revision": "0"
+                  },
+                  "gamma_ref": {
+                    "authority_id": "alpha",
+                    "content_hash": "67718ec24afb685c8297431e1baf4d27eb21b2c962e950899a49be1c33c5940d",
+                    "object_id": "unit-gamma",
+                    "revision": "0"
+                  },
+                  "n": "0",
+                  "sigma": "Long"
+                },
+                "instrument": "alpha",
+                "opening_basis": {
+                  "allocation_id": "allocation-alpha",
+                  "e_cut": {
+                    "commit_seq": "1",
+                    "domain_id": "E",
+                    "root_hash": "109090f4823140f3735c547cd451c5a95bb0adba8eafe2d7100907f244a74161"
+                  },
+                  "fact_hash": "f2df8ee3c4bbb9347c688a88fda6265962f59c5c58e6384685a1ddd00868807a",
+                  "fact_key": "aab5064f676c8887a3aa3b5ba69e4e7c6af32d3bf9454b7ec743e14b4e5782b4",
+                  "json_pointer": "/events/0",
+                  "quantity": "4",
+                  "raw_sha256": "dc784ed89a15d7d75d771ccf991957aaccff93f78d40784e69ecd496be527448",
+                  "units": {
+                    "money": {
+                      "currency": "TEST-CASH",
+                      "quantum": "1",
+                      "unit": "TEST-CASH"
+                    },
+                    "numeric_encoding": "exact_decimal_integer_text",
+                    "quantity": {
+                      "quantum": "1",
+                      "unit": "TEST-UNIT"
+                    }
+                  }
+                },
+                "operation_level": "2",
+                "parent_voice_id": null,
+                "responsibility_tail": {
+                  "reason": "no authoritative responsibility-retirement event",
+                  "status": "Unknown"
+                },
+                "structure_view": {
+                  "confirmation_level": "3",
+                  "execution_level": "2",
+                  "nest_depth": "1",
+                  "profile_id": "unit"
+                },
+                "voice_id": "8275b8c7285f9e5424a383e1a1ecf5c2fc854f04c10207a4b2a72bc807d32a78"
+              },
+              "worst_quantity": "6"
+            },
+            "state": "Committed",
+            "structure_evidence": {
+              "basis_ref": {
+                "extent": "7",
+                "format": "s-content/1",
+                "kind": "object",
+                "root": "sc1-cf22f3c661e807af4c5fa78ab3fa6d89c16770255f652d7ee695dae7d3c24689"
+              },
+              "commit_ns": "12",
+              "content_format": "s-content/1",
+              "kind": "FinancialBasisEvidence",
+              "pending_revision": false,
+              "schema_revision": "s-financial-evidence/1",
+              "session_generation": "1",
+              "session_id": "issue1394-financial-small-20260930",
+              "writer_epoch": "1"
+            }
+          }
+        },
+        "phase_marker": {
+          "domain_id": "B:alpha",
+          "message_id": "CommitDecision-alpha",
+          "phase": "after_commit",
+          "pid": 8874,
+          "test_only": true
+        },
+        "pid": 8874,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 8936,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "cf389c3a05161a74fa89913f7813dfbc3cb062c30946ff9b6491e889c7247173",
+        "case_id": "CommitDecision-after_commit-1",
+        "comparison": {
+          "commit_delta": "1",
+          "op": "CommitDecision",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "9b8b19c76e4798d8fb4a73eca2265df4b26cfe6207e7526a3279b376eeb4718d",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "7eb5803ac402fa4db16d7e61ab0dbd4cd2a16d8445a61986b0912e01b248f37e",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 8936,
+        "run": {
+          "elapsed_seconds": 22.279137291945517,
+          "end_utc": "2026-09-30T08:22:11.355331+00:00",
+          "exit_code": 0,
+          "pid": 8816,
+          "start_utc": "2026-09-30T08:21:49.076127+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "4c008acca32246192cc7702bf7412c5e8a4198fb83ce5a34a84ff2a3331437ab"
+        },
+        "sigkill_pid": 8874,
+        "signal": 9
+      }
+    },
+    {
+      "case_id": "ImportResponsibility-before_commit-0",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/ImportResponsibility-before_commit-0/evidence",
+      "fault_result_sha256": "72d73e389d964c1403b4dd93a06897420be21ff2003bff73563f0ec7b5c95a61",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/ImportResponsibility-before_commit-0/binding.json",
+        "binding_sha256": "9145d84c8f5371cce245a8b1e86d607f6383d6450ee92f5bb026545ad5193b3e",
+        "cache_count": "1307",
+        "case_id": "ImportResponsibility-before_commit-0",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "0",
+          "op": "ImportResponsibility",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "0"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/ImportResponsibility-before_commit-0/evidence/manifest.json",
+        "manifest_sha256": "eda0577db7109cb07862088e197e110ab0792a41f7766fef403d465dbfca3f67",
+        "original_receipt": null,
+        "phase_marker": {
+          "domain_id": "E",
+          "message_id": "ImportResponsibility-existing20",
+          "phase": "before_commit",
+          "pid": 9971,
+          "test_only": true
+        },
+        "pid": 9971,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 9972,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "9145d84c8f5371cce245a8b1e86d607f6383d6450ee92f5bb026545ad5193b3e",
+        "case_id": "ImportResponsibility-before_commit-0",
+        "comparison": {
+          "commit_delta": "0",
+          "op": "ImportResponsibility",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "0"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "72d73e389d964c1403b4dd93a06897420be21ff2003bff73563f0ec7b5c95a61",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "eda0577db7109cb07862088e197e110ab0792a41f7766fef403d465dbfca3f67",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 9972,
+        "run": {
+          "elapsed_seconds": 1.1217380000744015,
+          "end_utc": "2026-09-30T08:23:15.285819+00:00",
+          "exit_code": 0,
+          "pid": 9966,
+          "start_utc": "2026-09-30T08:23:14.164118+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "ba3886b71c3650ad33a49791748f3d4d65de3aec980ecee0f0303914ecd11ec0"
+        },
+        "sigkill_pid": 9971,
+        "signal": 9
+      }
+    },
+    {
+      "case_id": "ImportResponsibility-before_commit-1",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/ImportResponsibility-before_commit-1/evidence",
+      "fault_result_sha256": "8d9e8155c1a02768c5d61307a662dd1e115e9962bed233e8037dad7987f1bc95",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/ImportResponsibility-before_commit-1/binding.json",
+        "binding_sha256": "beffc646fa0ed9c2dd39013384c58120fee645220b879638d861884e8406d968",
+        "cache_count": "1307",
+        "case_id": "ImportResponsibility-before_commit-1",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "0",
+          "op": "ImportResponsibility",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "0"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/ImportResponsibility-before_commit-1/evidence/manifest.json",
+        "manifest_sha256": "f6774f0727cb87d78a85f892a7287a89738cc44f992cec7d2e15123c80489976",
+        "original_receipt": null,
+        "phase_marker": {
+          "domain_id": "E",
+          "message_id": "ImportResponsibility-existing20",
+          "phase": "before_commit",
+          "pid": 10574,
+          "test_only": true
+        },
+        "pid": 10574,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 10575,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "beffc646fa0ed9c2dd39013384c58120fee645220b879638d861884e8406d968",
+        "case_id": "ImportResponsibility-before_commit-1",
+        "comparison": {
+          "commit_delta": "0",
+          "op": "ImportResponsibility",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "0"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "8d9e8155c1a02768c5d61307a662dd1e115e9962bed233e8037dad7987f1bc95",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "f6774f0727cb87d78a85f892a7287a89738cc44f992cec7d2e15123c80489976",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 10575,
+        "run": {
+          "elapsed_seconds": 1.1333749168552458,
+          "end_utc": "2026-09-30T08:23:50.269494+00:00",
+          "exit_code": 0,
+          "pid": 10569,
+          "start_utc": "2026-09-30T08:23:49.136174+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "721edc86886d6357e3c8544cac04ea79422a93f6db53c285a21850feb9113c5b"
+        },
+        "sigkill_pid": 10574,
+        "signal": 9
+      }
+    },
+    {
+      "case_id": "ImportResponsibility-after_commit-0",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/ImportResponsibility-after_commit-0/evidence",
+      "fault_result_sha256": "ed4b6cf56e2db2cdb0ef37b88e1ecda2b31505431e85dcd2ea39b075ff21cc90",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/ImportResponsibility-after_commit-0/binding.json",
+        "binding_sha256": "a4e58e82d31c2f792a4e9faa29097b27f267999bbbddd9df31212dbe0074d46f",
+        "cache_count": "1307",
+        "case_id": "ImportResponsibility-after_commit-0",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "1",
+          "op": "ImportResponsibility",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "20"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/ImportResponsibility-after_commit-0/evidence/manifest.json",
+        "manifest_sha256": "83c785272e1be5bbea17c8596e80299235436cc51d3448f6548642875fbe6c5a",
+        "original_receipt": {
+          "commit_ns": "65",
+          "cut": {
+            "commit_seq": "3",
+            "domain_id": "E",
+            "root_hash": "c71f259bb5583919147fc956efa4ad7ca308e7b137a01ea1639e9e6e3fc05fd4"
+          },
+          "domain_id": "E",
+          "first_known_ns": "64",
+          "kind": "ResponsibilityImportedReceipt",
+          "receipt_key": "tb03b-finance/2:ImportResponsibility:af238bfa3a50e81332340bbe20fbb4aa5fa29a7c5ef8ac3f643d249fd6ba58aa",
+          "record": {
+            "original": {
+              "amount": "20",
+              "owner": "E:baseline",
+              "policy": {
+                "allocation_policy_id": "#1349/unresolved-common-cap-allocation",
+                "cap": "100",
+                "capability_id": "TestOnly-no-leverage-no-venue",
+                "currency": "TEST-CASH",
+                "model": "TestOnlyUnleveragedCashBuy",
+                "money_unit": "TEST-CASH",
+                "policy_id": "TestOnly-cash-cap-100",
+                "quantity_unit": "TEST-UNIT",
+                "quantum": "1",
+                "valid_through_ns": "100000"
+              },
+              "responsibility_id": "existing20",
+              "source": {
+                "amount": "20",
+                "covered_facts": [
+                  {
+                    "fact_hash": "f2df8ee3c4bbb9347c688a88fda6265962f59c5c58e6384685a1ddd00868807a",
+                    "fact_key": "aab5064f676c8887a3aa3b5ba69e4e7c6af32d3bf9454b7ec743e14b4e5782b4",
+                    "token": "token-alpha"
+                  },
+                  {
+                    "fact_hash": "ae8b718b87f6692fdb75932f2a28bbc03f26bccd9970f8351e0627403d8d0117",
+                    "fact_key": "372ab7baf3baa51f19f85a444be06bf6308e566e391ba403ded0eebf8b517934",
+                    "token": "token-beta"
+                  }
+                ],
+                "responsibility_id": "existing20",
+                "source_ref": "TestOnly-existing-full-liability-original"
+              }
+            },
+            "responsibility_id": "existing20",
+            "state": "ResponsibilityImported"
+          }
+        },
+        "phase_marker": {
+          "domain_id": "E",
+          "message_id": "ImportResponsibility-existing20",
+          "phase": "after_commit",
+          "pid": 11014,
+          "test_only": true
+        },
+        "pid": 11014,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 11015,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "a4e58e82d31c2f792a4e9faa29097b27f267999bbbddd9df31212dbe0074d46f",
+        "case_id": "ImportResponsibility-after_commit-0",
+        "comparison": {
+          "commit_delta": "1",
+          "op": "ImportResponsibility",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "20"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "ed4b6cf56e2db2cdb0ef37b88e1ecda2b31505431e85dcd2ea39b075ff21cc90",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "83c785272e1be5bbea17c8596e80299235436cc51d3448f6548642875fbe6c5a",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 11015,
+        "run": {
+          "elapsed_seconds": 1.1469412078149617,
+          "end_utc": "2026-09-30T08:24:19.236485+00:00",
+          "exit_code": 0,
+          "pid": 11001,
+          "start_utc": "2026-09-30T08:24:18.089561+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "8c5a67ac64f5108b91b981e0c9ebc89c2191200a246e3c70b010d30c831639c9"
+        },
+        "sigkill_pid": 11014,
+        "signal": 9
+      }
+    },
+    {
+      "case_id": "ImportResponsibility-after_commit-1",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/ImportResponsibility-after_commit-1/evidence",
+      "fault_result_sha256": "ed8850cd27485688c0fccfc7e9cfcce2a011c9e91e25c1b4ffbcb66f27f452a7",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/ImportResponsibility-after_commit-1/binding.json",
+        "binding_sha256": "b24e44065950b4f61a46e545c1f2c4bbafe4e28de950c8ef1b56677268a050aa",
+        "cache_count": "1307",
+        "case_id": "ImportResponsibility-after_commit-1",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "1",
+          "op": "ImportResponsibility",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "20"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/ImportResponsibility-after_commit-1/evidence/manifest.json",
+        "manifest_sha256": "307a7c718a0acf3b81fc5a4ec177d392f0bdeef33eec60d7ac26a1fd1f436be7",
+        "original_receipt": {
+          "commit_ns": "65",
+          "cut": {
+            "commit_seq": "3",
+            "domain_id": "E",
+            "root_hash": "c71f259bb5583919147fc956efa4ad7ca308e7b137a01ea1639e9e6e3fc05fd4"
+          },
+          "domain_id": "E",
+          "first_known_ns": "64",
+          "kind": "ResponsibilityImportedReceipt",
+          "receipt_key": "tb03b-finance/2:ImportResponsibility:af238bfa3a50e81332340bbe20fbb4aa5fa29a7c5ef8ac3f643d249fd6ba58aa",
+          "record": {
+            "original": {
+              "amount": "20",
+              "owner": "E:baseline",
+              "policy": {
+                "allocation_policy_id": "#1349/unresolved-common-cap-allocation",
+                "cap": "100",
+                "capability_id": "TestOnly-no-leverage-no-venue",
+                "currency": "TEST-CASH",
+                "model": "TestOnlyUnleveragedCashBuy",
+                "money_unit": "TEST-CASH",
+                "policy_id": "TestOnly-cash-cap-100",
+                "quantity_unit": "TEST-UNIT",
+                "quantum": "1",
+                "valid_through_ns": "100000"
+              },
+              "responsibility_id": "existing20",
+              "source": {
+                "amount": "20",
+                "covered_facts": [
+                  {
+                    "fact_hash": "f2df8ee3c4bbb9347c688a88fda6265962f59c5c58e6384685a1ddd00868807a",
+                    "fact_key": "aab5064f676c8887a3aa3b5ba69e4e7c6af32d3bf9454b7ec743e14b4e5782b4",
+                    "token": "token-alpha"
+                  },
+                  {
+                    "fact_hash": "ae8b718b87f6692fdb75932f2a28bbc03f26bccd9970f8351e0627403d8d0117",
+                    "fact_key": "372ab7baf3baa51f19f85a444be06bf6308e566e391ba403ded0eebf8b517934",
+                    "token": "token-beta"
+                  }
+                ],
+                "responsibility_id": "existing20",
+                "source_ref": "TestOnly-existing-full-liability-original"
+              }
+            },
+            "responsibility_id": "existing20",
+            "state": "ResponsibilityImported"
+          }
+        },
+        "phase_marker": {
+          "domain_id": "E",
+          "message_id": "ImportResponsibility-existing20",
+          "phase": "after_commit",
+          "pid": 11466,
+          "test_only": true
+        },
+        "pid": 11466,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 11467,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "b24e44065950b4f61a46e545c1f2c4bbafe4e28de950c8ef1b56677268a050aa",
+        "case_id": "ImportResponsibility-after_commit-1",
+        "comparison": {
+          "commit_delta": "1",
+          "op": "ImportResponsibility",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "20"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "ed8850cd27485688c0fccfc7e9cfcce2a011c9e91e25c1b4ffbcb66f27f452a7",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "307a7c718a0acf3b81fc5a4ec177d392f0bdeef33eec60d7ac26a1fd1f436be7",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 11467,
+        "run": {
+          "elapsed_seconds": 1.1377932920586318,
+          "end_utc": "2026-09-30T08:24:48.711125+00:00",
+          "exit_code": 0,
+          "pid": 11445,
+          "start_utc": "2026-09-30T08:24:47.573346+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e9a03452145556e61c53161df57f8f12b5cdba6dc20d6e72bb5cd1886b4c4a16"
+        },
+        "sigkill_pid": 11466,
+        "signal": 9
+      }
+    },
+    {
+      "case_id": "AbortDecision-before_commit-0",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/AbortDecision-before_commit-0/evidence",
+      "fault_result_sha256": "745bae528d1883315ff40991745a237efab681b7cf6ae24a8910bd140002f6ed",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/AbortDecision-before_commit-0/binding.json",
+        "binding_sha256": "243a0f291f18f392183c8b82e4905b88b0250599d2e251374bddc7856f4c4f08",
+        "cache_count": "1307",
+        "case_id": "AbortDecision-before_commit-0",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "0",
+          "op": "AbortDecision",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/AbortDecision-before_commit-0/evidence/manifest.json",
+        "manifest_sha256": "de931e42702b6d79a4f207c10e3fd7a702457ed3f026bdbaf9a26b7e1987aa6b",
+        "original_receipt": null,
+        "phase_marker": {
+          "domain_id": "B:alpha",
+          "message_id": "AbortDecision-alpha",
+          "phase": "before_commit",
+          "pid": 12751,
+          "test_only": true
+        },
+        "pid": 12751,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 12762,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "243a0f291f18f392183c8b82e4905b88b0250599d2e251374bddc7856f4c4f08",
+        "case_id": "AbortDecision-before_commit-0",
+        "comparison": {
+          "commit_delta": "0",
+          "op": "AbortDecision",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "745bae528d1883315ff40991745a237efab681b7cf6ae24a8910bd140002f6ed",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "de931e42702b6d79a4f207c10e3fd7a702457ed3f026bdbaf9a26b7e1987aa6b",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 12762,
+        "run": {
+          "elapsed_seconds": 7.564785624854267,
+          "end_utc": "2026-09-30T08:26:23.978979+00:00",
+          "exit_code": 0,
+          "pid": 12688,
+          "start_utc": "2026-09-30T08:26:16.414174+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "0e08133026da7f91612f3067660214bdd00fd92a371febfc3ca43920e1911065"
+        },
+        "sigkill_pid": 12751,
+        "signal": 9
+      }
+    },
+    {
+      "case_id": "AbortDecision-before_commit-1",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/AbortDecision-before_commit-1/evidence",
+      "fault_result_sha256": "6f071fdadcb4c431e1a88d51a89669ae47759baddb6470a04285792d62c4a91d",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/AbortDecision-before_commit-1/binding.json",
+        "binding_sha256": "83f1a79819bc192cdf7e17a3f25d2fdaf0991e948ac2ce8dede3ec28471f59b5",
+        "cache_count": "1307",
+        "case_id": "AbortDecision-before_commit-1",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "0",
+          "op": "AbortDecision",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/AbortDecision-before_commit-1/evidence/manifest.json",
+        "manifest_sha256": "00f179c3e33f41af154c5da52b887907c2ece01ae13f922014f07d07a862668e",
+        "original_receipt": null,
+        "phase_marker": {
+          "domain_id": "B:alpha",
+          "message_id": "AbortDecision-alpha",
+          "phase": "before_commit",
+          "pid": 13239,
+          "test_only": true
+        },
+        "pid": 13239,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 13252,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "83f1a79819bc192cdf7e17a3f25d2fdaf0991e948ac2ce8dede3ec28471f59b5",
+        "case_id": "AbortDecision-before_commit-1",
+        "comparison": {
+          "commit_delta": "0",
+          "op": "AbortDecision",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "6f071fdadcb4c431e1a88d51a89669ae47759baddb6470a04285792d62c4a91d",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "00f179c3e33f41af154c5da52b887907c2ece01ae13f922014f07d07a862668e",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 13252,
+        "run": {
+          "elapsed_seconds": 7.377324916888028,
+          "end_utc": "2026-09-30T08:26:55.239084+00:00",
+          "exit_code": 0,
+          "pid": 13156,
+          "start_utc": "2026-09-30T08:26:47.861738+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "8198bccd812423fa7a8e10c17a05c5f9dc08171d06ae593a6a4851c4b60f0253"
+        },
+        "sigkill_pid": 13239,
+        "signal": 9
+      }
+    },
+    {
+      "case_id": "AbortDecision-after_commit-0",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/AbortDecision-after_commit-0/evidence",
+      "fault_result_sha256": "d6a79f6b7804ffbc0919d385f272c63b5abd32782ec495cc9986038b5785f31e",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/AbortDecision-after_commit-0/binding.json",
+        "binding_sha256": "5c78f9f06babba8671cf03e7b43dc89850aafd84b6ee0f9b3f38a89da5768ee7",
+        "cache_count": "1307",
+        "case_id": "AbortDecision-after_commit-0",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "1",
+          "op": "AbortDecision",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/AbortDecision-after_commit-0/evidence/manifest.json",
+        "manifest_sha256": "b2bae66005c3cba987829fba3bd55c5f621e69cde9ca1f79c2312f699e47fabd",
+        "original_receipt": {
+          "commit_ns": "122",
+          "cut": {
+            "commit_seq": "4",
+            "domain_id": "B:alpha",
+            "root_hash": "b6ecca3396650710f4a35408ee64d777b6c980c6852ac55223b477a2e59ba3f6"
+          },
+          "domain_id": "B:alpha",
+          "first_known_ns": "121",
+          "kind": "AbortReceipt",
+          "receipt_key": "tb03b-finance/2:AbortDecision:902cf2b465fb076229183b408aad4014266eb9eb72d448754227adc1eeac49b9",
+          "record": {
+            "abort_ns": "122",
+            "abort_reason": "unit abort no release",
+            "decision_id": "alpha",
+            "execution_eligibility": "None",
+            "grant": null,
+            "local_commit_receipt": null,
+            "prepared": {
+              "actual_quantity": "4",
+              "book_version_after": "3",
+              "book_version_before": "2",
+              "fixed_q": "12",
+              "locked_amount": "30",
+              "plan": {
+                "applicant_epoch": "1",
+                "applicant_generation": "1",
+                "attempt_id": "attempt-alpha",
+                "decision_id": "alpha",
+                "expected_book_version": "2",
+                "expected_rights_version": "1",
+                "fee_source": "TestOnly-tail/alpha",
+                "fee_tail": "2",
+                "limit_price": "14",
+                "o_ref": {
+                  "kind": "TestOnlyCashBuy",
+                  "operation_id": "TestOnly-operation-alpha",
+                  "quantity": "2",
+                  "s_object_id": "obj3-59219edd1c9e54cbb105f308177a3f495946cdc81efffdbddfc7c05f59e79cf9",
+                  "source_ref": "TestOnly-operation-sheet/alpha"
+                },
+                "owner": "B:alpha",
+                "plan_id": "plan-alpha",
+                "price_source": "TestOnly-price/alpha",
+                "quantity": "2",
+                "quantity_source": "TestOnly-quantity/alpha",
+                "right_id": "alpha",
+                "s_ref": {
+                  "object_hash": "ac45fa2252898929523a432c7c5ca7f44b61225c1ac08b0681c52774b7f9f1ea",
+                  "object_id": "obj3-59219edd1c9e54cbb105f308177a3f495946cdc81efffdbddfc7c05f59e79cf9",
+                  "profile_id": "ohlc_integer_tb02a_v1",
+                  "schema_revision": "s-object-ref/2"
+                },
+                "slot_id": "slot",
+                "voice_binding_id": "voice-alpha"
+              },
+              "plan_hash": "10af5ff9073c45fe674da52cf30c65a769be81e1b6526d5788be260f70a478ff",
+              "prepared_ns": "72",
+              "right_source": {
+                "amount": "40",
+                "currency": "TEST-CASH",
+                "owner": "B:alpha",
+                "right_id": "alpha",
+                "source_ref": "TestOnly-privately-owned-cash-original/alpha",
+                "version": "1"
+              },
+              "rights_version_after": "2",
+              "rights_version_before": "1",
+              "units": {
+                "money": {
+                  "currency": "TEST-CASH",
+                  "quantum": "1",
+                  "unit": "TEST-CASH"
+                },
+                "numeric_encoding": "exact_decimal_integer_text",
+                "quantity": {
+                  "quantum": "1",
+                  "unit": "TEST-UNIT"
+                }
+              },
+              "voice": {
+                "binding_id": "voice-alpha",
+                "business_lifecycle": {
+                  "status": "NotRecorded"
+                },
+                "commit_ns": "52",
+                "commit_seq": "2",
+                "evidence": {
+                  "authority_id": "alpha",
+                  "bundle_sha256": "f95be6883e33fefb7fdba978fe01b309ff433415944da56c8e13bce7b12ef46e",
+                  "verification_sha256": "83d5950fd30a1acbc79d2a4ab8b230a853c61a51bacfd95608519ddf4374726e"
+                },
+                "first_known_ns": "51",
+                "identity": {
+                  "carrier_ref": {
+                    "authority_id": "alpha",
+                    "content_hash": "142e9601552afbc8aa8208c4721ec90aaf3ac97bd502f599631c45c37e0047d7",
+                    "object_id": "unit-carrier",
+                    "revision": "0"
+                  },
+                  "gamma_ref": {
+                    "authority_id": "alpha",
+                    "content_hash": "67718ec24afb685c8297431e1baf4d27eb21b2c962e950899a49be1c33c5940d",
+                    "object_id": "unit-gamma",
+                    "revision": "0"
+                  },
+                  "n": "0",
+                  "sigma": "Long"
+                },
+                "instrument": "alpha",
+                "opening_basis": {
+                  "allocation_id": "allocation-alpha",
+                  "e_cut": {
+                    "commit_seq": "1",
+                    "domain_id": "E",
+                    "root_hash": "109090f4823140f3735c547cd451c5a95bb0adba8eafe2d7100907f244a74161"
+                  },
+                  "fact_hash": "f2df8ee3c4bbb9347c688a88fda6265962f59c5c58e6384685a1ddd00868807a",
+                  "fact_key": "aab5064f676c8887a3aa3b5ba69e4e7c6af32d3bf9454b7ec743e14b4e5782b4",
+                  "json_pointer": "/events/0",
+                  "quantity": "4",
+                  "raw_sha256": "dc784ed89a15d7d75d771ccf991957aaccff93f78d40784e69ecd496be527448",
+                  "units": {
+                    "money": {
+                      "currency": "TEST-CASH",
+                      "quantum": "1",
+                      "unit": "TEST-CASH"
+                    },
+                    "numeric_encoding": "exact_decimal_integer_text",
+                    "quantity": {
+                      "quantum": "1",
+                      "unit": "TEST-UNIT"
+                    }
+                  }
+                },
+                "operation_level": "2",
+                "parent_voice_id": null,
+                "responsibility_tail": {
+                  "reason": "no authoritative responsibility-retirement event",
+                  "status": "Unknown"
+                },
+                "structure_view": {
+                  "confirmation_level": "3",
+                  "execution_level": "2",
+                  "nest_depth": "1",
+                  "profile_id": "unit"
+                },
+                "voice_id": "8275b8c7285f9e5424a383e1a1ecf5c2fc854f04c10207a4b2a72bc807d32a78"
+              },
+              "worst_quantity": "6"
+            },
+            "state": "AbortedBeforeCommit",
+            "structure_evidence": {
+              "basis_ref": {
+                "extent": "7",
+                "format": "s-content/1",
+                "kind": "object",
+                "root": "sc1-cf22f3c661e807af4c5fa78ab3fa6d89c16770255f652d7ee695dae7d3c24689"
+              },
+              "commit_ns": "12",
+              "content_format": "s-content/1",
+              "kind": "FinancialBasisEvidence",
+              "pending_revision": false,
+              "schema_revision": "s-financial-evidence/1",
+              "session_generation": "1",
+              "session_id": "issue1394-financial-small-20260930",
+              "writer_epoch": "1"
+            }
+          }
+        },
+        "phase_marker": {
+          "domain_id": "B:alpha",
+          "message_id": "AbortDecision-alpha",
+          "phase": "after_commit",
+          "pid": 13883,
+          "test_only": true
+        },
+        "pid": 13883,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 13896,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "5c78f9f06babba8671cf03e7b43dc89850aafd84b6ee0f9b3f38a89da5768ee7",
+        "case_id": "AbortDecision-after_commit-0",
+        "comparison": {
+          "commit_delta": "1",
+          "op": "AbortDecision",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "d6a79f6b7804ffbc0919d385f272c63b5abd32782ec495cc9986038b5785f31e",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "b2bae66005c3cba987829fba3bd55c5f621e69cde9ca1f79c2312f699e47fabd",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 13896,
+        "run": {
+          "elapsed_seconds": 9.338119166903198,
+          "end_utc": "2026-09-30T08:27:40.904726+00:00",
+          "exit_code": 0,
+          "pid": 13830,
+          "start_utc": "2026-09-30T08:27:31.566586+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "291aba2897548773b2b67f2116f23f9b0fa8fd8934916d4e0dc9e69a780a5942"
+        },
+        "sigkill_pid": 13883,
+        "signal": 9
+      }
+    },
+    {
+      "case_id": "AbortDecision-after_commit-1",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/AbortDecision-after_commit-1/evidence",
+      "fault_result_sha256": "e019158ed8b1f84525c015a84e0b15ccc42a81a6f79c11eb293cd99e32da557f",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/AbortDecision-after_commit-1/binding.json",
+        "binding_sha256": "9835700f6711900757e6f9f63dd9b65e136fb334e86d3a8768cd2ccd7240e731",
+        "cache_count": "1307",
+        "case_id": "AbortDecision-after_commit-1",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "1",
+          "op": "AbortDecision",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/AbortDecision-after_commit-1/evidence/manifest.json",
+        "manifest_sha256": "a0a8f013f85afed8464a96832792cdf45e274d18e2ea66074ceac35b1f33a2ed",
+        "original_receipt": {
+          "commit_ns": "122",
+          "cut": {
+            "commit_seq": "4",
+            "domain_id": "B:alpha",
+            "root_hash": "a9690209d17a4cd24bd098964d13cb73c031e9dc0e0175a9ee691a0794d15d3c"
+          },
+          "domain_id": "B:alpha",
+          "first_known_ns": "121",
+          "kind": "AbortReceipt",
+          "receipt_key": "tb03b-finance/2:AbortDecision:902cf2b465fb076229183b408aad4014266eb9eb72d448754227adc1eeac49b9",
+          "record": {
+            "abort_ns": "122",
+            "abort_reason": "unit abort no release",
+            "decision_id": "alpha",
+            "execution_eligibility": "None",
+            "grant": null,
+            "local_commit_receipt": null,
+            "prepared": {
+              "actual_quantity": "4",
+              "book_version_after": "3",
+              "book_version_before": "2",
+              "fixed_q": "12",
+              "locked_amount": "30",
+              "plan": {
+                "applicant_epoch": "1",
+                "applicant_generation": "1",
+                "attempt_id": "attempt-alpha",
+                "decision_id": "alpha",
+                "expected_book_version": "2",
+                "expected_rights_version": "1",
+                "fee_source": "TestOnly-tail/alpha",
+                "fee_tail": "2",
+                "limit_price": "14",
+                "o_ref": {
+                  "kind": "TestOnlyCashBuy",
+                  "operation_id": "TestOnly-operation-alpha",
+                  "quantity": "2",
+                  "s_object_id": "obj3-59219edd1c9e54cbb105f308177a3f495946cdc81efffdbddfc7c05f59e79cf9",
+                  "source_ref": "TestOnly-operation-sheet/alpha"
+                },
+                "owner": "B:alpha",
+                "plan_id": "plan-alpha",
+                "price_source": "TestOnly-price/alpha",
+                "quantity": "2",
+                "quantity_source": "TestOnly-quantity/alpha",
+                "right_id": "alpha",
+                "s_ref": {
+                  "object_hash": "ac45fa2252898929523a432c7c5ca7f44b61225c1ac08b0681c52774b7f9f1ea",
+                  "object_id": "obj3-59219edd1c9e54cbb105f308177a3f495946cdc81efffdbddfc7c05f59e79cf9",
+                  "profile_id": "ohlc_integer_tb02a_v1",
+                  "schema_revision": "s-object-ref/2"
+                },
+                "slot_id": "slot",
+                "voice_binding_id": "voice-alpha"
+              },
+              "plan_hash": "10af5ff9073c45fe674da52cf30c65a769be81e1b6526d5788be260f70a478ff",
+              "prepared_ns": "72",
+              "right_source": {
+                "amount": "40",
+                "currency": "TEST-CASH",
+                "owner": "B:alpha",
+                "right_id": "alpha",
+                "source_ref": "TestOnly-privately-owned-cash-original/alpha",
+                "version": "1"
+              },
+              "rights_version_after": "2",
+              "rights_version_before": "1",
+              "units": {
+                "money": {
+                  "currency": "TEST-CASH",
+                  "quantum": "1",
+                  "unit": "TEST-CASH"
+                },
+                "numeric_encoding": "exact_decimal_integer_text",
+                "quantity": {
+                  "quantum": "1",
+                  "unit": "TEST-UNIT"
+                }
+              },
+              "voice": {
+                "binding_id": "voice-alpha",
+                "business_lifecycle": {
+                  "status": "NotRecorded"
+                },
+                "commit_ns": "52",
+                "commit_seq": "2",
+                "evidence": {
+                  "authority_id": "alpha",
+                  "bundle_sha256": "fa84b0f4fd87038f03eca85359cd9af8d1b221b632ffd365df20617e23cc6c30",
+                  "verification_sha256": "cc2db3eeb3d2147843e32a16a5231137d9df6530be89321656cb762c85c8f73a"
+                },
+                "first_known_ns": "51",
+                "identity": {
+                  "carrier_ref": {
+                    "authority_id": "alpha",
+                    "content_hash": "142e9601552afbc8aa8208c4721ec90aaf3ac97bd502f599631c45c37e0047d7",
+                    "object_id": "unit-carrier",
+                    "revision": "0"
+                  },
+                  "gamma_ref": {
+                    "authority_id": "alpha",
+                    "content_hash": "67718ec24afb685c8297431e1baf4d27eb21b2c962e950899a49be1c33c5940d",
+                    "object_id": "unit-gamma",
+                    "revision": "0"
+                  },
+                  "n": "0",
+                  "sigma": "Long"
+                },
+                "instrument": "alpha",
+                "opening_basis": {
+                  "allocation_id": "allocation-alpha",
+                  "e_cut": {
+                    "commit_seq": "1",
+                    "domain_id": "E",
+                    "root_hash": "109090f4823140f3735c547cd451c5a95bb0adba8eafe2d7100907f244a74161"
+                  },
+                  "fact_hash": "f2df8ee3c4bbb9347c688a88fda6265962f59c5c58e6384685a1ddd00868807a",
+                  "fact_key": "aab5064f676c8887a3aa3b5ba69e4e7c6af32d3bf9454b7ec743e14b4e5782b4",
+                  "json_pointer": "/events/0",
+                  "quantity": "4",
+                  "raw_sha256": "dc784ed89a15d7d75d771ccf991957aaccff93f78d40784e69ecd496be527448",
+                  "units": {
+                    "money": {
+                      "currency": "TEST-CASH",
+                      "quantum": "1",
+                      "unit": "TEST-CASH"
+                    },
+                    "numeric_encoding": "exact_decimal_integer_text",
+                    "quantity": {
+                      "quantum": "1",
+                      "unit": "TEST-UNIT"
+                    }
+                  }
+                },
+                "operation_level": "2",
+                "parent_voice_id": null,
+                "responsibility_tail": {
+                  "reason": "no authoritative responsibility-retirement event",
+                  "status": "Unknown"
+                },
+                "structure_view": {
+                  "confirmation_level": "3",
+                  "execution_level": "2",
+                  "nest_depth": "1",
+                  "profile_id": "unit"
+                },
+                "voice_id": "8275b8c7285f9e5424a383e1a1ecf5c2fc854f04c10207a4b2a72bc807d32a78"
+              },
+              "worst_quantity": "6"
+            },
+            "state": "AbortedBeforeCommit",
+            "structure_evidence": {
+              "basis_ref": {
+                "extent": "7",
+                "format": "s-content/1",
+                "kind": "object",
+                "root": "sc1-cf22f3c661e807af4c5fa78ab3fa6d89c16770255f652d7ee695dae7d3c24689"
+              },
+              "commit_ns": "12",
+              "content_format": "s-content/1",
+              "kind": "FinancialBasisEvidence",
+              "pending_revision": false,
+              "schema_revision": "s-financial-evidence/1",
+              "session_generation": "1",
+              "session_id": "issue1394-financial-small-20260930",
+              "writer_epoch": "1"
+            }
+          }
+        },
+        "phase_marker": {
+          "domain_id": "B:alpha",
+          "message_id": "AbortDecision-alpha",
+          "phase": "after_commit",
+          "pid": 14385,
+          "test_only": true
+        },
+        "pid": 14385,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 14420,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "9835700f6711900757e6f9f63dd9b65e136fb334e86d3a8768cd2ccd7240e731",
+        "case_id": "AbortDecision-after_commit-1",
+        "comparison": {
+          "commit_delta": "1",
+          "op": "AbortDecision",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "e019158ed8b1f84525c015a84e0b15ccc42a81a6f79c11eb293cd99e32da557f",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "a0a8f013f85afed8464a96832792cdf45e274d18e2ea66074ceac35b1f33a2ed",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 14420,
+        "run": {
+          "elapsed_seconds": 9.239322416950017,
+          "end_utc": "2026-09-30T08:28:15.175816+00:00",
+          "exit_code": 0,
+          "pid": 14313,
+          "start_utc": "2026-09-30T08:28:05.936463+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "eaf57a4b043799bf2b48feb01dcdd94afed7cecf258aec7811405bf4ab8ef373"
+        },
+        "sigkill_pid": 14385,
+        "signal": 9
+      }
+    },
+    {
+      "case_id": "CloseApplicants-before_commit-0",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CloseApplicants-before_commit-0/evidence",
+      "fault_result_sha256": "09d8ba0e3b1893d177448b49ed4f5a542c831ea458e6f22bf01ef18348b6d7aa",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CloseApplicants-before_commit-0/binding.json",
+        "binding_sha256": "dbfb7201854096bf162e871c6bde7b24d8d9b73a4da83c5665ba3d426e42ea50",
+        "cache_count": "1307",
+        "case_id": "CloseApplicants-before_commit-0",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "0",
+          "op": "CloseApplicants",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CloseApplicants-before_commit-0/evidence/manifest.json",
+        "manifest_sha256": "c1cfe9b18ecc963dbef2f96517af7e07c088bf5f97f5ce878eb5f4d8194f4818",
+        "original_receipt": null,
+        "phase_marker": {
+          "domain_id": "E",
+          "message_id": "CloseApplicants-slot",
+          "phase": "before_commit",
+          "pid": 15402,
+          "test_only": true
+        },
+        "pid": 15402,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 15451,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "dbfb7201854096bf162e871c6bde7b24d8d9b73a4da83c5665ba3d426e42ea50",
+        "case_id": "CloseApplicants-before_commit-0",
+        "comparison": {
+          "commit_delta": "0",
+          "op": "CloseApplicants",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "09d8ba0e3b1893d177448b49ed4f5a542c831ea458e6f22bf01ef18348b6d7aa",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "c1cfe9b18ecc963dbef2f96517af7e07c088bf5f97f5ce878eb5f4d8194f4818",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 15451,
+        "run": {
+          "elapsed_seconds": 13.537627959158272,
+          "end_utc": "2026-09-30T08:29:24.220379+00:00",
+          "exit_code": 0,
+          "pid": 15339,
+          "start_utc": "2026-09-30T08:29:10.682703+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e660adb08c0ed178f516b1ecd2422225721b33359fdd71c1c8d8236f12102188"
+        },
+        "sigkill_pid": 15402,
+        "signal": 9
+      }
+    },
+    {
+      "case_id": "CloseApplicants-before_commit-1",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CloseApplicants-before_commit-1/evidence",
+      "fault_result_sha256": "cf979e80b0e077166fb591ba77bcf2482c86a663cae62876865a2f513dc2bdfe",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CloseApplicants-before_commit-1/binding.json",
+        "binding_sha256": "34431bbf93c674300eaf3621b620663362e263ddf4091b606ff06ef9fcedb70f",
+        "cache_count": "1307",
+        "case_id": "CloseApplicants-before_commit-1",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "0",
+          "op": "CloseApplicants",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CloseApplicants-before_commit-1/evidence/manifest.json",
+        "manifest_sha256": "8b970222d9fd3602fb9655395480cdfc88757d6e8051c7aff928dfad633b008b",
+        "original_receipt": null,
+        "phase_marker": {
+          "domain_id": "E",
+          "message_id": "CloseApplicants-slot",
+          "phase": "before_commit",
+          "pid": 16072,
+          "test_only": true
+        },
+        "pid": 16072,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 16108,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "34431bbf93c674300eaf3621b620663362e263ddf4091b606ff06ef9fcedb70f",
+        "case_id": "CloseApplicants-before_commit-1",
+        "comparison": {
+          "commit_delta": "0",
+          "op": "CloseApplicants",
+          "original_receipt_exists": false,
+          "phase": "before_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "cf979e80b0e077166fb591ba77bcf2482c86a663cae62876865a2f513dc2bdfe",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "8b970222d9fd3602fb9655395480cdfc88757d6e8051c7aff928dfad633b008b",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 16108,
+        "run": {
+          "elapsed_seconds": 14.169747583102435,
+          "end_utc": "2026-09-30T08:30:10.346394+00:00",
+          "exit_code": 0,
+          "pid": 16012,
+          "start_utc": "2026-09-30T08:29:56.176591+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "8863c83813652f7dabea9f6c371be757fc949436fab7fbac80ff2a810ff27bb3"
+        },
+        "sigkill_pid": 16072,
+        "signal": 9
+      }
+    },
+    {
+      "case_id": "CloseApplicants-after_commit-0",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CloseApplicants-after_commit-0/evidence",
+      "fault_result_sha256": "d5bda02ca3a7c5cd09cc0e74a83777c8554344923aa8979b11bbe2252f85223a",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CloseApplicants-after_commit-0/binding.json",
+        "binding_sha256": "662dbb6f93d647cf3a5ea28b278ba66909f0d0a92a2a69d45373f97a9e68b4bc",
+        "cache_count": "1307",
+        "case_id": "CloseApplicants-after_commit-0",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "1",
+          "op": "CloseApplicants",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CloseApplicants-after_commit-0/evidence/manifest.json",
+        "manifest_sha256": "b9d3c607e17aa69f2eefe923124dab6752eb7c209be531badee8700f9e75aadf",
+        "original_receipt": {
+          "commit_ns": "132",
+          "cut": {
+            "commit_seq": "5",
+            "domain_id": "E",
+            "root_hash": "025e2e1dff969d9dc2ca7f635fda0964a676c38ee5e9921a8e346dc1a77ab005"
+          },
+          "domain_id": "E",
+          "first_known_ns": "131",
+          "kind": "ApplicantsClosedReceipt",
+          "receipt_key": "tb03b-finance/2:CloseApplicants:b2433561056753a375e18fe1c2acad4c4817f8b7c231422842c356ed25a96732",
+          "record": {
+            "closed": [
+              {
+                "applicant_epoch": "1",
+                "applicant_generation": "1",
+                "owner": "B:alpha"
+              }
+            ],
+            "commit_ns": "132",
+            "reason": "unit explicit supervised closure",
+            "responsibility_release": "None",
+            "slot_id": "slot",
+            "state": "ApplicantsClosed"
+          }
+        },
+        "phase_marker": {
+          "domain_id": "E",
+          "message_id": "CloseApplicants-slot",
+          "phase": "after_commit",
+          "pid": 16652,
+          "test_only": true
+        },
+        "pid": 16652,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 16710,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "662dbb6f93d647cf3a5ea28b278ba66909f0d0a92a2a69d45373f97a9e68b4bc",
+        "case_id": "CloseApplicants-after_commit-0",
+        "comparison": {
+          "commit_delta": "1",
+          "op": "CloseApplicants",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "d5bda02ca3a7c5cd09cc0e74a83777c8554344923aa8979b11bbe2252f85223a",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "b9d3c607e17aa69f2eefe923124dab6752eb7c209be531badee8700f9e75aadf",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 16710,
+        "run": {
+          "elapsed_seconds": 18.640129666076973,
+          "end_utc": "2026-09-30T08:30:54.597616+00:00",
+          "exit_code": 0,
+          "pid": 16592,
+          "start_utc": "2026-09-30T08:30:35.957413+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "79f292b0095e6d43010939db1f53de1e4b90f6f868be5f3e8a409abeada1a10a"
+        },
+        "sigkill_pid": 16652,
+        "signal": 9
+      }
+    },
+    {
+      "case_id": "CloseApplicants-after_commit-1",
+      "evidence_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CloseApplicants-after_commit-1/evidence",
+      "fault_result_sha256": "1e624d7563d446def17aee2759725de341abb0fadf62889e34605f8700b26fb9",
+      "fault_result": {
+        "actual_kill_stage_rows": 0,
+        "binding_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CloseApplicants-after_commit-1/binding.json",
+        "binding_sha256": "46b539dc16f1f3e210b514fa32ed2c6ba281206b3c6b544b938b282af51c658c",
+        "cache_count": "1307",
+        "case_id": "CloseApplicants-after_commit-1",
+        "cold_import_claim": false,
+        "comparison": {
+          "commit_delta": "1",
+          "op": "CloseApplicants",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "half_import_cleanup_claim": false,
+        "manifest_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CloseApplicants-after_commit-1/evidence/manifest.json",
+        "manifest_sha256": "8708248558de8131b86fed2f4601fb7858e5701cd6bab48856a2ff2814f4eaf5",
+        "original_receipt": {
+          "commit_ns": "132",
+          "cut": {
+            "commit_seq": "5",
+            "domain_id": "E",
+            "root_hash": "4dbadaf15547c8c69218bf1c007991b5303fa542197b26ba7dc0cba0fea3e118"
+          },
+          "domain_id": "E",
+          "first_known_ns": "131",
+          "kind": "ApplicantsClosedReceipt",
+          "receipt_key": "tb03b-finance/2:CloseApplicants:b2433561056753a375e18fe1c2acad4c4817f8b7c231422842c356ed25a96732",
+          "record": {
+            "closed": [
+              {
+                "applicant_epoch": "1",
+                "applicant_generation": "1",
+                "owner": "B:alpha"
+              }
+            ],
+            "commit_ns": "132",
+            "reason": "unit explicit supervised closure",
+            "responsibility_release": "None",
+            "slot_id": "slot",
+            "state": "ApplicantsClosed"
+          }
+        },
+        "phase_marker": {
+          "domain_id": "E",
+          "message_id": "CloseApplicants-slot",
+          "phase": "after_commit",
+          "pid": 17334,
+          "test_only": true
+        },
+        "pid": 17334,
+        "proof_domain": "Rust test-child with real S3, fixed new owners; formal E/B CLI + Unix transport still separate",
+        "recovered_stage_rows": "0",
+        "recovery_pid": 17357,
+        "signal": 9
+      },
+      "run_acceptance": {
+        "actual_kill_stage_rows": 0,
+        "binding_sha256": "46b539dc16f1f3e210b514fa32ed2c6ba281206b3c6b544b938b282af51c658c",
+        "case_id": "CloseApplicants-after_commit-1",
+        "comparison": {
+          "commit_delta": "1",
+          "op": "CloseApplicants",
+          "original_receipt_exists": true,
+          "phase": "after_commit",
+          "restored_writer_epoch": "2",
+          "retained_liability": "90"
+        },
+        "executable_sha256": "6fa812943fb3d67dbcabb264d5211ed89884ae405bd4d57013eec1c6994f2d07",
+        "fault_result_sha256": "1e624d7563d446def17aee2759725de341abb0fadf62889e34605f8700b26fb9",
+        "fixture_sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8",
+        "manifest_sha256": "8708248558de8131b86fed2f4601fb7858e5701cd6bab48856a2ff2814f4eaf5",
+        "pids_and_open_handles_clear": true,
+        "recovered_stage_rows": "0",
+        "recovery_pid": 17357,
+        "run": {
+          "elapsed_seconds": 18.706559291807935,
+          "end_utc": "2026-09-30T08:31:40.610669+00:00",
+          "exit_code": 0,
+          "pid": 17268,
+          "start_utc": "2026-09-30T08:31:21.904030+00:00",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "2383fd2e8e799a701025608cdbb8239eeed9d95eee549588fdbcfbdb3b93884b"
+        },
+        "sigkill_pid": 17334,
+        "signal": 9
+      }
+    }
+  ],
+  "this_agent_image_count": 69,
+  "this_agent_image_logical_bytes": 1736441856,
+  "this_agent_image_allocated_bytes": 1736441856,
+  "this_agent_active_images": [],
+  "this_agent_case_pids_remaining": false,
+  "all_own_image_detach_commands_succeeded": true,
+  "final_hdiutil_sha256": "0ee9d0fda293d720a90b2dbe67a1bb5a34b65fc077186eec254e8f84fa8fd3bd",
+  "scope": "Real S3, cache-reuse /2 test-child SIGKILL before/after persistence matrix only",
+  "cold_import_claim": false,
+  "half_import_cleanup_claim": false,
+  "formal_cli_claim": false,
+  "full_goal_claim": false,
+  "finished_utc": "2026-09-30T08:32:34.818642+00:00"
+}

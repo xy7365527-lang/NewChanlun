@@ -1,0 +1,7 @@
+{
+  "schema_revision": "issue1394-verbatim-utf8-artifact/1",
+  "source_path": "/Users/silencehan/Projects/NewChanlun-1394-field-audit-20261002/.scratch/field-release-owned-20261002/stdout.raw",
+  "source_bytes": 325,
+  "source_sha256": "ac574574637a25e75b9c9460ef82b42b75c85a88d9a6370c5aa89f132998c601",
+  "content_utf8": "\nrunning 1 test\ntest v3::state::readonly_reuse_pilot::readonly_audit_reuse_pilot ... READONLY_AUDIT_REPEAT repeat=0 elapsed_ns=10671285250 cuts=27 raw=28\nREADONLY_AUDIT_REPEAT repeat=1 elapsed_ns=10631571042 cuts=27 raw=28\nok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 429 filtered out; finished in 21.35s\n\n"
+}

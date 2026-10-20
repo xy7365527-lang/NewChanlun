@@ -1,0 +1,18 @@
+{
+  "commit": "b86c0c291952879af67882e79d9687f51ce1741f",
+  "files": {
+    "API.md": "0eaaf1a1db6df7f59dd59ac09dda23c647af03520bd72f8049588a54767b367f",
+    "AUTHOR-RESULT.json": "7ecfe4f6ac8fb32cc23166e6d321e7b37f25309c8902a92f621cdb6a47e8bde2",
+    "PYTHON-STANDARDS.json": "49a5de9ec47ad966304879cbbc6e65d79f0a364f1d97e1a616424d1a4546258f",
+    "PYTHON-STANDARDS.md": "b2eb509eef241692cf3b398636fa980f9258298a472188a9eb5af813986bc7a3",
+    "RUST-STANDARDS.json": "72f2fa695dd258fdcf089067eda550746d0f04525ee08102340437578456143f",
+    "RUST-STANDARDS.md": "f7c9e6f54b80edf21f120b1989846360b7644fe6e801dd97339b52cd32689974",
+    "SOURCE-MANIFEST.json": "bbb84e6c5c3d72b7713cfe10afae4f44cdbd01b2a46e0ac010bd43aeaff34829",
+    "SPEC-REVIEW.json": "acb6efeb863ee3d43fd9ff7aebc774bfb297fbbd5d58f757a9c14ad5f1c9ca87",
+    "SPEC-REVIEW.md": "fa0622e352dcc6da279bbd2014ab7393b90a5a634ca3a4fbcb704ab0c4e36291",
+    "candidate.patch": "cf1671832c1ff123c8d7104c0e088430eabf724b69b63676fc176f18ba32e01d",
+    "source/rust/src/bin/s_session_v3/writer_cli.rs": "ffca54ca44798a45ef320b86323b1f7fa0d95c26ee1fb7825ed276cc4b17d3de",
+    "source/s_session/s_service_control.py": "2d966bfba0702394c966837b11f7dc7603ea30ec50ee88b10fb83d469e410d50",
+    "source/s_session/tests/test_tb01c_s3_service_control.py": "661a5faf886918694ba49e7485d896ca0c72d49e84bd427378288c94875ca7bc"
+  }
+}

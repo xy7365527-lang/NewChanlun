@@ -1,0 +1,87 @@
+{
+  "state": "PASS_NORMAL_CODEC_ROOT_CORRECTNESS",
+  "code_commit": "857e76459bb9609127ee13dc9e099879b1257812",
+  "rust_tree": "539677a0329d418def126900e7c38daaeb5d06c7",
+  "source_aggregate_sha256": "508de546473df055f9805055331f6ddbfe8a971a4b9baaad7b0816d152948648",
+  "service_sha256": "9b09fc209ef614aa5d856a6ec9b334f3ef5077bbbd391e80c0863381867026ee",
+  "independent_review": "codec_root_certificate_review r2 PASS; r1 fixture writer fixed before any execution",
+  "normal_tests": {
+    "library": 3,
+    "handler_growth": 1,
+    "driver": 2,
+    "failed": 0
+  },
+  "small_fixture_work": {
+    "same_material_warm_reads": 2,
+    "same_material_cold_reads": 74,
+    "same_material_warm_F": 2,
+    "same_material_cold_F": 53,
+    "legal_append_warm_F": 16,
+    "legal_append_cold_F": 67
+  },
+  "native_non_test_build_passed": true,
+  "feature_off_check_passed": true,
+  "source_cost_increment": "43 + 32*(public_root_count+template_root_count); original+Counts costs retained; capacity separate",
+  "source_budget_bytes": 536870912,
+  "no_fault_injection": true,
+  "normal_window": {
+    "state": "PASS_NORMAL_CODEC_ROOT_WINDOW",
+    "scope": "同CopyQualified149来源、正常150..151、512MiB；新增codec成功根证书复用",
+    "received": [
+      150,
+      151
+    ],
+    "whole_exchange_seconds": {
+      "150": 23.759416459,
+      "151": 22.815395542
+    },
+    "baseline_whole_exchange_seconds": {
+      "150": 24.649966042,
+      "151": 23.370007625
+    },
+    "elapsed_reduction_percent": {
+      "150": 3.6127821899739287,
+      "151": 2.3731788705396273
+    },
+    "reply_and_persistent_oracle_identical_to_baseline": true,
+    "runtime_binary": {
+      "path": "/Users/silencehan/.codex/worktrees/issue1394-audit-prefix/NewChanlun/.scratch/issue1394-codec-root-cache-20261005/frozen-service",
+      "sha256": "9b09fc209ef614aa5d856a6ec9b334f3ef5077bbbd391e80c0863381867026ee"
+    },
+    "source_aggregate_sha256": "508de546473df055f9805055331f6ddbfe8a971a4b9baaad7b0816d152948648",
+    "audit_cache_source_bytes": 536870912,
+    "no_fault_injection": true,
+    "source_and_owned_seals_revalidated": true,
+    "same_Popen_reaped": true,
+    "controller_closed": true,
+    "socket_removed": true,
+    "terminal": {
+      "generation": "151",
+      "advance_state": "idle",
+      "messages_by_status": {
+        "Committed": 151
+      },
+      "published": 151,
+      "clocks": 453,
+      "next_attempt_ordinal": 152
+    },
+    "limits": [
+      "两请求单次实测，仅小幅改善，不能据此断言稳定提速或完整9011可通过",
+      "小fixture中codec工作量下降不等于整请求同幅下降",
+      "S7仅来源缓存成本，整体heap/RSS/IO峰值未资格化",
+      "历史独立窗口不能拼接为完整9011"
+    ],
+    "full9011_complete": false,
+    "whole_resources_qualified": false,
+    "goal_complete": false
+  },
+  "full9011_complete": false,
+  "whole_resources_qualified": false,
+  "goal_complete": false,
+  "archive": {
+    "path": "CODEC-ROOT-CACHE-20261005-RAW.zip",
+    "files": 707,
+    "bytes": 700070,
+    "sha256": "43b7d95e053a3d6147d218234017ba67a630c0ed700bb1ebb9ca632bc99ecdfb"
+  }
+}

@@ -1,8 +1,15 @@
 //! #1372：本地单写者传输、语义时钟和独立普通投递保留；结构判断仍由父模块唯一核心完成。
 use super::*;
+use crate::v3::audit_store::{CodecRead, NativeAdmission};
+use crate::v3::business_json::{self as control_json, BusinessMap, JsonOwner, TextValue};
+use newchan_rust::s_content::capture_allocation::audit_json::{self as control_aj, JsonView};
+use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
+use newchan_rust::s_content::{capture_allocation::OwnedBudget, CodecVec};
 pub use newchan_rust::session_protocol::strict_json;
 use newchan_rust::session_protocol::{nonnegative, positive, required, validate_envelope};
 use newchan_rust::session_transport::{self, serve_unix, TransportBounds};
+use newchan_rust::sqlite_checked::{CheckedRow, CheckedStatement};
+use std::ffi::CStr;
 use std::fmt;
 use std::fs::File;
 use std::time::Duration;
@@ -61,95 +68,27 @@ CREATE TABLE s_delivery_refs (
 fn err(e: impl fmt::Display) -> String {
     format!("StorageUnavailable：{e}")
 }
+
+/// `s-clock-plan/1` 是全仓唯一的 clock 规则（严格 JSON + 非负/不倒退 attempt 校验 + 规范 JSON hash）。
+/// #1394 C：`s-session/3` 新域复用本类型，不再写第二份 clock 解析（同一判断不得有宽严两档）；
+/// 因此 `value/hash/parse/load/phase` 对同 harness 的兄弟模块开放 `pub(super)`，语义不变。
 #[derive(Clone)]
 pub struct ClockPlan {
-    value: Value,
-    hash: String,
+    pub(super) value: Value,
+    pub(super) hash: String,
 }
 impl ClockPlan {
-    fn parse(value: Value) -> Result<Self, String> {
-        let keys = [
-            "schema_revision",
-            "clock_plan_id",
-            "origin_utc",
-            "unit",
-            "events",
-        ];
-        if value.as_object().map(|m| m.len()) != Some(keys.len())
-            || value
-                .as_object()
-                .unwrap()
-                .keys()
-                .any(|k| !keys.contains(&k.as_str()))
-        {
-            return Err("SchemaUnsupported：clock计划字段不完整/多余".into());
-        }
-        if required(&value, "schema_revision")? != "s-clock-plan/1"
-            || required(&value, "unit")? != "ns"
-        {
-            return Err("SchemaUnsupported：需要 s-clock-plan/1 与 ns 单位".into());
-        }
-        required(&value, "clock_plan_id")?;
-        required(&value, "origin_utc")?;
-        let events = value["events"]
-            .as_object()
-            .ok_or("SchemaUnsupported：clock events必须对象")?;
-        for (id, e) in events {
-            if id.is_empty() {
-                return Err("InvalidDomain：空clock_event_id".into());
-            }
-            if let Some(t) = e.get("recover_ns") {
-                nonnegative(
-                    t.as_str().ok_or("InvalidDomain：recover_ns非文本")?,
-                    "recover_ns",
-                )?;
-                if e.as_object().map(|m| m.len()) != Some(1) {
-                    return Err("InvalidDomain：recover事件字段不唯一".into());
-                }
-            } else {
-                let accept = nonnegative(required(e, "accept_ns")?, "accept_ns")?;
-                let a = e["attempts"]
-                    .as_array()
-                    .filter(|a| !a.is_empty())
-                    .ok_or("MissingDependency：clock缺非空attempts")?;
-                if e.as_object().map(|m| m.len()) != Some(2) {
-                    return Err("InvalidDomain：输入clock事件字段不完整/多余".into());
-                }
-                let mut prev = accept;
-                for phase in a {
-                    let b = nonnegative(required(phase, "begin_ns")?, "begin_ns")?;
-                    let c = nonnegative(required(phase, "commit_ns")?, "commit_ns")?;
-                    if b < prev || c < b || phase.as_object().map(|m| m.len()) != Some(2) {
-                        return Err("InvalidDomain：clock attempt时间倒退或字段错误".into());
-                    }
-                    prev = c;
-                }
-            }
-        }
-        let hash = sha256_hex(canonical_json(&value).as_bytes());
+    pub(super) fn parse(value: Value) -> Result<Self, String> {
+        let parsed = newchan_rust::session_protocol::ClockView::parse((&value).into())?;
+        let hash = parsed.hash_fixed()?.as_str().to_owned();
         Ok(Self { value, hash })
     }
-    fn load(path: &Path) -> Result<Self, String> {
+    pub(super) fn load(path: &Path) -> Result<Self, String> {
         Self::parse(strict_json(&std::fs::read(path).map_err(err)?)?)
     }
-    fn phase(&self, id: &str, phase: &str, attempt: i64) -> Result<String, String> {
-        let event = self.value["events"]
-            .get(id)
-            .ok_or_else(|| format!("MissingDependency：clock事件 {id}"))?;
-        let k = format!("{phase}_ns");
-        let v = if attempt < 0 {
-            event.get(&k)
-        } else {
-            event["attempts"]
-                .as_array()
-                .and_then(|a| a.get(attempt as usize))
-                .and_then(|a| a.get(&k))
-        };
-        let t = v
-            .and_then(Value::as_str)
-            .ok_or_else(|| format!("MissingDependency：clock {id}/{phase}/{attempt}"))?;
-        nonnegative(t, &k)?;
-        Ok(t.to_string())
+    pub(super) fn phase(&self, id: &str, phase: &str, attempt: i64) -> Result<String, String> {
+        newchan_rust::session_protocol::clock_phase_view((&self.value).into(), id, phase, attempt)
+            .map(str::to_owned)
     }
 }
 
@@ -159,6 +98,11 @@ pub struct InputContext {
     clock: ClockPlan,
 }
 impl InputContext {
+    /// #1394 C：S3（`s-session/3`）在自核域与自身业务形状后复用同一上下文类型与同一批机械规则；
+    /// 只最小开放构造，字段语义不变。
+    pub(super) fn new(envelope: Value, clock: ClockPlan) -> Self {
+        Self { envelope, clock }
+    }
     fn id(&self) -> &str {
         self.envelope["payload"]["clock_event_id"].as_str().unwrap()
     }
@@ -179,21 +123,195 @@ fn active(conn: &Connection) -> Result<bool, String> {
         _ => Err(err("协议标记/控制表缺失或不支持")),
     }
 }
-fn stored_clock(conn: &Connection) -> Result<ClockPlan, String> {
-    let (raw, hash): (String, String) = conn
-        .query_row(
-            "SELECT clock_plan_json,clock_plan_hash FROM s_protocol_meta WHERE singleton=1",
-            [],
-            |r| Ok((r.get(0)?, r.get(1)?)),
-        )
-        .map_err(err)?;
-    let clock = ClockPlan::parse(strict_json(raw.as_bytes()).map_err(err)?).map_err(err)?;
-    if clock.hash != hash || canonical_json(&clock.value) != raw {
+/// 从 `s_protocol_meta` 回读并重算 clock 计划（唯一解析入口；v2 与 S3 共用）。
+pub(super) fn stored_clock(conn: &Connection) -> Result<ClockPlan, String> {
+    let clock = stored_control_clock(conn, None)?;
+    match (clock.value, clock.hash) {
+        (JsonOwner::Plain(value), TextValue::Plain(hash)) => Ok(ClockPlan { value, hash }),
+        _ => Err(err("normal ClockPlan不可擦除Owned结果")),
+    }
+}
+struct ControlClock {
+    value: JsonOwner,
+    hash: TextValue,
+}
+impl ControlClock {
+    fn phase(&self, id: &str, phase: &str, index: i64) -> Result<&str, String> {
+        newchan_rust::session_protocol::clock_phase_view(self.value.view(), id, phase, index)
+    }
+}
+fn control_decode(
+    raw: &str,
+    owner: Option<&OwnedBudget>,
+    legacy: bool,
+) -> Result<JsonOwner, String> {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    if let Some(b) = owner {
+        return if legacy {
+            control_aj::OwnedJson::parse_legacy_shape(raw.as_bytes(), b)
+        } else {
+            control_aj::OwnedJson::parse(raw.as_bytes(), b)
+        }
+        .map(JsonOwner::Owned)
+        .map_err(|e| e.to_string());
+    }
+    if owner.is_some() {
+        return Err("prototype_audit_allocation_incomplete：owned控制JSON未启用".into());
+    }
+    if legacy {
+        serde_json::from_str(raw)
+            .map(JsonOwner::Plain)
+            .map_err(|e| e.to_string())
+    } else {
+        strict_json(raw.as_bytes()).map(JsonOwner::Plain)
+    }
+}
+fn control_native_owner(
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    if let Some(work) = work {
+        if owner.is_some() {
+            return Err(work
+                .reject(
+                    newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger,
+                )
+                .to_string());
+        }
+    }
+    Ok(())
+}
+// 每次实际增长前从同一个候选父域申请；None 保留原容器操作和错误类型。
+fn control_push<T>(
+    values: &mut CodecVec<T>,
+    value: T,
+    work: Option<&WorkScope>,
+) -> Result<(), newchan_rust::s_content::CodecError> {
+    NativeAdmission(work).native_codec_room(values, 1)?;
+    values.try_push(value)
+}
+fn control_extend(
+    values: &mut CodecVec<u8>,
+    bytes: &[u8],
+    work: Option<&WorkScope>,
+) -> Result<(), newchan_rust::s_content::CodecError> {
+    NativeAdmission(work).native_codec_room(values, bytes.len())?;
+    values.try_extend_bytes(bytes)
+}
+fn control_insert<K: Eq + std::hash::Hash, V>(
+    map: &mut BusinessMap<K, V>,
+    key: K,
+    value: V,
+    work: Option<&WorkScope>,
+) -> Result<Option<V>, newchan_rust::s_content::CodecError> {
+    NativeAdmission(work).native_map_room(map)?;
+    map.insert(key, value)
+}
+fn control_decode_admitted(
+    raw: &str,
+    owner: Option<&OwnedBudget>,
+    legacy: bool,
+    work: Option<&WorkScope>,
+) -> Result<JsonOwner, String> {
+    control_native_owner(owner, work)?;
+    if work.is_some() {
+        #[cfg(feature = "s_capture_native_testonly")]
+        NativeAdmission(work)
+            .native_admit(
+                crate::v3::audit_owner::native::JsonShape::scan(raw.as_bytes()).parse_peak(),
+            )
+            .map_err(err)?;
+        #[cfg(not(feature = "s_capture_native_testonly"))]
+        return Err("prototype_audit_allocation_incomplete：Native控制JSON未启用".into());
+    }
+    control_decode(raw, owner, legacy)
+}
+fn control_canonical_equal(
+    value: JsonView<'_>,
+    raw: &str,
+    owner: Option<&OwnedBudget>,
+) -> Result<bool, String> {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    if let Some(b) = owner {
+        let encoded = control_aj::canonical_bytes(value, b).map_err(|e| e.to_string())?;
+        return Ok(&*encoded == raw.as_bytes());
+    }
+    if owner.is_some() {
+        return Err("prototype_audit_allocation_incomplete：owned规范JSON未启用".into());
+    }
+    // A byte-comparing writer avoids the old canonical String/parts Vec while retaining serde formatter and sorted view keys.
+    struct Compare<'a> {
+        expected: &'a [u8],
+        at: usize,
+        equal: bool,
+    }
+    impl std::io::Write for Compare<'_> {
+        fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+            let end = self.at.saturating_add(b.len());
+            if self.expected.get(self.at..end) != Some(b) {
+                self.equal = false;
+            }
+            self.at = end;
+            Ok(b.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut compare = Compare {
+        expected: raw.as_bytes(),
+        at: 0,
+        equal: true,
+    };
+    serde_json::to_writer(&mut compare, &value).map_err(|e| e.to_string())?;
+    Ok(compare.equal && compare.at == raw.len())
+}
+fn stored_control_clock(
+    conn: &Connection,
+    owner: Option<&OwnedBudget>,
+) -> Result<ControlClock, String> {
+    stored_control_clock_admitted(conn, owner, None)
+}
+fn stored_control_clock_admitted(
+    conn: &Connection,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<ControlClock, String> {
+    control_native_owner(owner, work)?;
+    #[cfg(test)]
+    let clock_start = std::time::Instant::now();
+    #[cfg(not(feature = "s_allocation_json_testonly"))]
+    if owner.is_some() {
+        return Err("prototype_audit_allocation_incomplete：owned控制clock未启用".into());
+    }
+    let mut stmt = CheckedStatement::prepare(
+        conn,
+        c"SELECT clock_plan_json,clock_plan_hash FROM s_protocol_meta WHERE singleton=1",
+    )
+    .map_err(err)?;
+    let mut row = stmt
+        .next()
+        .map_err(err)?
+        .ok_or_else(|| err(rusqlite::Error::QueryReturnedNoRows))?;
+    let raw = TextValue::from_sql_admitted(&mut row, 0, owner, work).map_err(err)?;
+    let stored_hash = TextValue::from_sql_admitted(&mut row, 1, owner, work).map_err(err)?;
+    drop(row);
+    stmt.finalize().map_err(err)?;
+    let value = control_decode_admitted(raw.as_str(), owner, false, work).map_err(err)?;
+    let view = newchan_rust::session_protocol::ClockView::parse(value.view()).map_err(err)?;
+    let hash = view.hash_fixed_with_owner(owner).map_err(err)?;
+    if hash.as_str() != stored_hash.as_str()
+        || !control_canonical_equal(value.view(), raw.as_str(), owner)?
+    {
         return Err(err("clock计划/hash不一致"));
     }
-    Ok(clock)
+    let hash = TextValue::from_str_admitted(hash.as_str(), owner, work)?;
+    #[cfg(test)]
+    crate::v3::trace_request_clock(raw.as_str().len(), clock_start.elapsed());
+    Ok(ControlClock { value, hash })
 }
-fn check_clock(conn: &Connection, clock: &ClockPlan) -> Result<(), String> {
+/// 持久 clock 计划绑定核验（唯一判据；v2 与 S3 共用，不另立第二份）。
+pub(super) fn check_clock(conn: &Connection, clock: &ClockPlan) -> Result<(), String> {
     if stored_clock(conn)?.hash != clock.hash {
         return Err("IdentityConflict：clock计划与持久绑定不同".into());
     }
@@ -211,13 +329,12 @@ fn record_phase(
 ) -> Result<String, String> {
     check_clock(conn, clock)?;
     let ns = clock.phase(id, phase, index)?;
-    let old: String = conn
-        .query_row(
-            "SELECT logical_phase_frontier FROM s_protocol_meta WHERE singleton=1",
-            [],
-            |r| r.get(0),
-        )
-        .map_err(err)?;
+    let old = control_query_row(
+        conn,
+        c"SELECT logical_phase_frontier FROM s_protocol_meta WHERE singleton=1",
+        &[],
+        |r| r.text(0).map(str::to_owned).map_err(|e| e.to_string()),
+    )?;
     if parse_canonical_i64(&ns, "clock")? < parse_canonical_i64(&old, "clock frontier")? {
         return Err("InvalidDomain：实际语义clock倒退".into());
     }
@@ -239,6 +356,16 @@ pub fn record_accept(
         return Ok(());
     }
     let c = c.ok_or("MissingDependency：v2接纳必须带持久message身份和clock")?;
+    record_accept_context(conn, c, results)
+}
+
+/// #1394 C：v2 与 S3 共用的**接纳机械规则**（调用方已核自身域、身份与 clock 上下文）。
+/// 只写接纳控制行与 accept clock 事件；不核根状态、不代做完整 state 审计。
+pub(super) fn record_accept_context(
+    conn: &Connection,
+    c: &InputContext,
+    results: &[Value],
+) -> Result<(), String> {
     if results.len() != 1 {
         return Err("InvalidDomain：v2每次只接纳单事件".into());
     }
@@ -279,14 +406,30 @@ pub fn record_begin(
         return Ok(make_token());
     }
     let c = c.ok_or("MissingDependency：v2推进缺message/clock上下文")?;
+    record_begin_context(conn, c, gen, frontier, base, epoch)
+}
+
+/// #1394 C：v2 与 S3 共用的 **Begin 机械规则**：真实持久 attempt/ordinal、同一 token 配方、
+/// begin clock 事件与相位前沿一并入调用方事务；不核根状态。
+pub(super) fn record_begin_context(
+    conn: &Connection,
+    c: &InputContext,
+    gen: i64,
+    frontier: i64,
+    base: &str,
+    epoch: &str,
+) -> Result<String, String> {
     let index:i64=conn.query_row("SELECT attempt_count FROM s_input_messages WHERE clock_event_id=?1 AND status='AcceptedPending'",params![c.id()],|r|r.get(0)).map_err(err)?;
-    let (ordinal, inc): (i64, String) = conn
-        .query_row(
-            "SELECT next_attempt_ordinal,session_generation FROM s_protocol_meta WHERE singleton=1",
-            [],
-            |r| Ok((r.get(0)?, r.get(1)?)),
-        )
-        .map_err(err)?;
+    let (ordinal, inc) = control_query_row(
+        conn,
+        c"SELECT next_attempt_ordinal,session_generation FROM s_protocol_meta WHERE singleton=1",
+        &[],
+        |r| {
+            let ordinal = r.integer(0).map_err(|e| e.to_string())?;
+            let inc = r.text(1).map_err(|e| e.to_string())?.to_owned();
+            Ok((ordinal, inc))
+        },
+    )?;
     let next = ordinal
         .checked_add(1)
         .ok_or("InvalidDomain：attempt ordinal溢出")?;
@@ -334,6 +477,14 @@ pub fn commit_time(conn: &Connection, c: Option<&InputContext>) -> Result<Option
         return Ok(None);
     }
     let c = c.ok_or("MissingDependency：新笔获知时点缺本次上下文")?;
+    commit_time_context(conn, c)
+}
+
+/// #1394 C：v2 与 S3 共用的提交时刻读取（只读本次已持久 Begin 对应的 attempt）。
+pub(super) fn commit_time_context(
+    conn: &Connection,
+    c: &InputContext,
+) -> Result<Option<String>, String> {
     let index: i64 = conn
         .query_row(
             "SELECT attempt_count-1 FROM s_input_messages WHERE clock_event_id=?1",
@@ -353,7 +504,7 @@ pub fn seal_batch(
         return Ok(());
     }
     let c = c.ok_or("MissingDependency：缺v2上下文")?;
-    let (inc,index):(String,i64)=conn.query_row("SELECT p.session_generation,m.attempt_count-1 FROM s_protocol_meta p JOIN s_input_messages m ON m.clock_event_id=?1 WHERE p.singleton=1",params![c.id()],|r|Ok((r.get(0)?,r.get(1)?))).map_err(err)?;
+    let (inc,index)=control_query_row(conn,c"SELECT p.session_generation,m.attempt_count-1 FROM s_protocol_meta p JOIN s_input_messages m ON m.clock_event_id=?1 WHERE p.singleton=1",&[ControlBind::Text(c.id())],|r|{let inc=r.text(0).map_err(|e|e.to_string())?.to_owned();let index=r.integer(1).map_err(|e|e.to_string())?;Ok((inc,index))})?;
     batch["protocol_revision"] = json!("s-session/2");
     batch["session_generation"] = json!(inc);
     batch["clock_plan_hash"] = json!(c.clock.hash);
@@ -370,6 +521,17 @@ pub fn record_commit(
         return Ok(());
     }
     let c = c.ok_or("MissingDependency：缺v2提交上下文")?;
+    record_commit_context(conn, c, gen, frontier)
+}
+
+/// #1394 C：v2 与 S3 共用的 **Commit 机械规则**：commit clock 事件、status/first_published_generation
+/// 推进与 delivery refs/policy（含保留窗口）在调用方同一事务内完成；不核根状态。
+pub(super) fn record_commit_context(
+    conn: &Connection,
+    c: &InputContext,
+    gen: i64,
+    frontier: i64,
+) -> Result<(), String> {
     let (index,ordinal):(i64,i64)=conn.query_row("SELECT m.attempt_count-1,e.attempt_ordinal FROM s_input_messages m JOIN s_clock_events e ON e.clock_event_id=m.clock_event_id AND e.phase='begin' AND e.attempt_index=m.attempt_count-1 WHERE m.clock_event_id=?1",params![c.id()],|r|Ok((r.get(0)?,r.get(1)?))).map_err(err)?;
     record_phase(
         conn,
@@ -412,6 +574,17 @@ pub fn record_recover(
         return Ok(now_nanos());
     }
     let (clock, id) = clock.ok_or("MissingDependency：v2 recover需要clock-plan及clock-event-id")?;
+    record_recover_context(conn, clock, id, generation)
+}
+
+/// #1394 C：v2 与 S3 共用的 **recover 机械规则**（只写 recover clock 事件与相位前沿；
+/// writer 换代/历史等自身状态由调用方在同一事务内完成）。
+pub(super) fn record_recover_context(
+    conn: &Connection,
+    clock: &ClockPlan,
+    id: &str,
+    generation: &str,
+) -> Result<String, String> {
     record_phase(
         conn,
         clock,
@@ -428,154 +601,1206 @@ fn envelope(value: Value) -> Result<Value, String> {
     validate_envelope(value, "s-session/2")
 }
 fn normalize_schema(s: &str) -> String {
-    s.replace("IF NOT EXISTS", "")
-        .chars()
-        .filter(|c| !c.is_ascii_whitespace())
-        .collect()
+    let mut out = String::new();
+    normalize_schema_chunks(s, |v| {
+        out.push_str(v);
+        Ok(())
+    })
+    .expect("normal String sink");
+    out
 }
-fn verify_schema(conn: &Connection, v2: bool) -> Result<(), String> {
-    let all = format!(
-        "{}{}{}",
-        SCHEMA,
-        if v2 { SCHEMA_V2 } else { "" },
-        if tb02a::enabled(conn)? {
-            tb02a::SCHEMA
-        } else {
-            ""
+fn normalize_schema_chunks(
+    s: &str,
+    mut emit: impl FnMut(&str) -> Result<(), String>,
+) -> Result<(), String> {
+    // Original global replace then ASCII-only whitespace filtering; no SQL reinterpretation.
+    for part in s.split("IF NOT EXISTS") {
+        for ch in part.chars().filter(|c| !c.is_ascii_whitespace()) {
+            let mut bytes = [0; 4];
+            emit(ch.encode_utf8(&mut bytes))?;
         }
-    );
-    let mut expected = BTreeMap::new();
-    for stmt in all.split(';').map(str::trim).filter(|s| !s.is_empty()) {
+    }
+    Ok(())
+}
+fn control_normalized(s: &str, b: Option<&OwnedBudget>) -> Result<TextValue, String> {
+    control_normalized_admitted(s, b, None)
+}
+fn control_normalized_admitted(
+    s: &str,
+    b: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<TextValue, String> {
+    control_native_owner(b, work)?;
+    #[cfg(not(feature = "s_allocation_json_testonly"))]
+    if b.is_some() {
+        return Err("prototype_audit_allocation_incomplete：owned控制文本未启用".into());
+    }
+    let mut bytes = control_json::new_work(b);
+    normalize_schema_chunks(s, |v| {
+        control_extend(&mut bytes, v.as_bytes(), work).map_err(err)
+    })?;
+    TextValue::from_bytes(bytes).map_err(err)
+}
+pub(super) fn control_meta_text(
+    conn: &Connection,
+    key: &str,
+    owner: Option<&OwnedBudget>,
+) -> Result<Option<TextValue>, String> {
+    control_meta_text_admitted(conn, key, owner, None)
+}
+pub(super) fn control_meta_text_admitted(
+    conn: &Connection,
+    key: &str,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<Option<TextValue>, String> {
+    control_native_owner(owner, work)?;
+    #[cfg(not(feature = "s_allocation_json_testonly"))]
+    if owner.is_some() {
+        return Err("prototype_audit_allocation_incomplete：owned控制文本未启用".into());
+    }
+    let mut stmt = CheckedStatement::prepare(conn, c"SELECT value FROM meta WHERE key = ?1")
+        .map_err(|e| format!("读 meta.{key} 失败：{e}"))?;
+    stmt.bind_text(1, key)
+        .map_err(|e| format!("读 meta.{key} 失败：{e}"))?;
+    let value = match stmt
+        .next()
+        .map_err(|e| format!("读 meta.{key} 失败：{e}"))?
+    {
+        Some(mut row) => Some(
+            TextValue::from_sql_admitted(&mut row, 0, owner, work)
+                .map_err(|e| format!("读 meta.{key} 失败：{e}"))?,
+        ),
+        None => None,
+    };
+    stmt.finalize()
+        .map_err(|e| format!("读 meta.{key} 失败：{e}"))?;
+    Ok(value)
+}
+pub(super) fn control_meta_i64(
+    conn: &Connection,
+    key: &str,
+    owner: Option<&OwnedBudget>,
+) -> Result<i64, String> {
+    control_meta_i64_admitted(conn, key, owner, None)
+}
+pub(super) fn control_meta_i64_admitted(
+    conn: &Connection,
+    key: &str,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<i64, String> {
+    control_native_owner(owner, work)?;
+    let v = control_meta_text_admitted(conn, key, owner, work)?
+        .ok_or_else(|| format!("StorageUnavailable：meta.{key} 缺失"))?;
+    let mut label = control_json::new_work(owner);
+    control_extend(&mut label, b"meta.", work).map_err(err)?;
+    control_extend(&mut label, key.as_bytes(), work).map_err(err)?;
+    let label = TextValue::from_bytes(label).map_err(err)?;
+    parse_canonical_i64(v.as_str(), &label).map_err(|e| format!("StorageUnavailable：{e}"))
+}
+pub(super) struct ControlSchema {
+    tables: BusinessMap<TextValue, TextValue>,
+    owner: Option<OwnedBudget>,
+}
+impl ControlSchema {
+    pub(super) fn new(owner: Option<&OwnedBudget>) -> Self {
+        Self {
+            tables: control_json::new_map(owner),
+            owner: owner.cloned(),
+        }
+    }
+    pub(super) fn add_ddl(&mut self, label: &str, ddl: &str) -> Result<(), String> {
+        self.add_ddl_admitted(label, ddl, None)
+    }
+    pub(super) fn add_ddl_admitted(
+        &mut self,
+        label: &str,
+        ddl: &str,
+        work: Option<&WorkScope>,
+    ) -> Result<(), String> {
+        control_native_owner(self.owner.as_ref(), work)?;
+        ddl_table_entries(label, ddl, |name, stmt| {
+            let key = TextValue::from_str_admitted(name, self.owner.as_ref(), work)?;
+            let value = control_normalized_admitted(stmt, self.owner.as_ref(), work)?;
+            control_insert(&mut self.tables, key, value, work).map_err(err)?;
+            Ok(())
+        })
+    }
+}
+fn ddl_table_entries(
+    label: &str,
+    ddl: &str,
+    mut emit: impl FnMut(&str, &str) -> Result<(), String>,
+) -> Result<(), String> {
+    for stmt in ddl.split(';').map(str::trim).filter(|s| !s.is_empty()) {
         let rest = stmt
             .strip_prefix("CREATE TABLE ")
-            .ok_or("schema常量不是建表")?
+            .ok_or_else(|| format!("{label}不是建表"))?
             .strip_prefix("IF NOT EXISTS ")
             .unwrap_or_else(|| stmt.strip_prefix("CREATE TABLE ").unwrap());
         let name = rest
             .split(|c: char| c == '(' || c.is_whitespace())
             .next()
             .unwrap();
-        expected.insert(name.to_string(), normalize_schema(stmt));
+        emit(name, stmt)?;
     }
-    let mut q = conn
-        .prepare(
-            "SELECT type,name,sql FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY name",
-        )
-        .map_err(err)?;
-    let mut rows = q.query([]).map_err(err)?;
-    let mut seen = BTreeMap::new();
-    while let Some(r) = rows.next().map_err(err)? {
-        let kind: String = r.get(0).map_err(err)?;
-        let name: String = r.get(1).map_err(err)?;
-        let sql: String = r.get(2).map_err(err)?;
-        if kind != "table" || expected.get(&name) != Some(&normalize_schema(&sql)) {
+    Ok(())
+}
+pub(super) fn expect_ddl_tables(
+    label: &str,
+    ddl: &str,
+    expected: &mut BTreeMap<String, String>,
+) -> Result<(), String> {
+    ddl_table_entries(label, ddl, |name, stmt| {
+        expected.insert(name.to_string(), normalize_schema(stmt));
+        Ok(())
+    })
+}
+enum SchemaRead<'a> {
+    Normal(&'a BTreeMap<String, String>),
+    Owned(&'a ControlSchema),
+}
+impl SchemaRead<'_> {
+    fn owner(&self) -> Option<&OwnedBudget> {
+        match self {
+            Self::Normal(_) => None,
+            Self::Owned(s) => s.owner.as_ref(),
+        }
+    }
+    fn len(&self) -> usize {
+        match self {
+            Self::Normal(s) => s.len(),
+            Self::Owned(s) => s.tables.len(),
+        }
+    }
+    fn get(&self, k: &str) -> Option<&str> {
+        match self {
+            Self::Normal(s) => s.get(k).map(String::as_str),
+            Self::Owned(s) => s.tables.get(k).map(TextValue::as_str),
+        }
+    }
+    fn sorted_names(&self) -> Result<CodecVec<&str>, String> {
+        self.sorted_names_admitted(None)
+    }
+    fn sorted_names_admitted(&self, work: Option<&WorkScope>) -> Result<CodecVec<&str>, String> {
+        let mut names = control_json::new_work(self.owner());
+        match self {
+            Self::Normal(s) => {
+                for k in s.keys() {
+                    control_push(&mut names, k.as_str(), work).map_err(err)?;
+                }
+            }
+            Self::Owned(s) => {
+                for (k, _) in s.tables.iter() {
+                    control_push(&mut names, k.as_str(), work).map_err(err)?;
+                }
+            }
+        }
+        names.sort_unstable();
+        Ok(names)
+    }
+}
+pub(super) fn verify_expected_schema(
+    conn: &Connection,
+    expected: &BTreeMap<String, String>,
+) -> Result<(), String> {
+    verify_schema_read(conn, SchemaRead::Normal(expected))
+}
+pub(super) fn verify_control_schema(
+    conn: &Connection,
+    expected: &ControlSchema,
+) -> Result<(), String> {
+    verify_control_schema_admitted(conn, expected, None)
+}
+pub(super) fn verify_control_schema_admitted(
+    conn: &Connection,
+    expected: &ControlSchema,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    verify_schema_read_admitted(conn, SchemaRead::Owned(expected), work)
+}
+fn verify_schema_read(conn: &Connection, expected: SchemaRead<'_>) -> Result<(), String> {
+    verify_schema_read_admitted(conn, expected, None)
+}
+fn verify_schema_read_admitted(
+    conn: &Connection,
+    expected: SchemaRead<'_>,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    let owner = expected.owner();
+    control_native_owner(owner, work)?;
+    let mut q = CheckedStatement::prepare(
+        conn,
+        c"SELECT type,name,sql FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY name",
+    )
+    .map_err(err)?;
+    let mut seen = control_json::new_map::<TextValue, bool>(owner);
+    while let Some(mut r) = q.next().map_err(err)? {
+        let kind = TextValue::from_sql_admitted(&mut r, 0, owner, work).map_err(err)?;
+        let name = TextValue::from_sql_admitted(&mut r, 1, owner, work).map_err(err)?;
+        let sql = TextValue::from_sql_admitted(&mut r, 2, owner, work).map_err(err)?;
+        if kind != "table" {
             return Err(err(format!("模式/约束不匹配 {kind}/{name}")));
         }
-        seen.insert(name, true);
+        let normalized = control_normalized_admitted(sql.as_str(), owner, work)?;
+        if expected.get(name.as_str()) != Some(normalized.as_str()) {
+            return Err(err(format!("模式/约束不匹配 {kind}/{name}")));
+        }
+        control_insert(&mut seen, name, true, work).map_err(err)?;
     }
+    q.finalize().map_err(err)?;
     if seen.len() != expected.len() {
         return Err(err("缺必需表/约束"));
     }
-    // SQLite 的模式声明不证明存量行满足声明：CHECK 可被另一连接关闭，TEXT PK 可为 NULL。
-    // 对当前所有表逐列核实际类型；表名来自上方固定 DDL 的精确白名单。
-    for table in expected.keys() {
-        let mut columns = conn
-            .prepare("SELECT type,\"notnull\",pk FROM pragma_table_info(?1) ORDER BY cid")
+    for table in &expected.sorted_names_admitted(work)? {
+        let mut columns = CheckedStatement::prepare(
+            conn,
+            c"SELECT type,\"notnull\",pk FROM pragma_table_info(?1) ORDER BY cid",
+        )
+        .map_err(err)?;
+        columns.bind_text(1, table).map_err(err)?;
+        let mut declarations = control_json::new_work(owner);
+        while let Some(mut r) = columns.next().map_err(err)? {
+            control_push(
+                &mut declarations,
+                (
+                    TextValue::from_sql_admitted(&mut r, 0, owner, work).map_err(err)?,
+                    r.integer(1).map_err(err)?,
+                    r.integer(2).map_err(err)?,
+                ),
+                work,
+            )
             .map_err(err)?;
-        let declarations = columns
-            .query_map(params![table], |r| {
-                Ok((
-                    r.get::<_, String>(0)?,
-                    r.get::<_, i64>(1)?,
-                    r.get::<_, i64>(2)?,
-                ))
-            })
-            .map_err(err)?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(err)?;
-        let mut query = conn
-            .prepare(&format!("SELECT * FROM {table}"))
-            .map_err(err)?;
-        let mut values = query.query([]).map_err(err)?;
-        while let Some(row) = values.next().map_err(err)? {
+        }
+        columns.finalize().map_err(err)?;
+        let mut sql = control_json::new_work(owner);
+        control_extend(&mut sql, b"SELECT * FROM ", work).map_err(err)?;
+        control_extend(&mut sql, table.as_bytes(), work).map_err(err)?;
+        // Only the C ABI terminator is added; the SQL text and its bindings are unchanged.
+        control_push(&mut sql, 0, work).map_err(err)?;
+        let sql = CStr::from_bytes_with_nul(&sql).map_err(err)?;
+        let mut query = CheckedStatement::prepare(conn, sql).map_err(err)?;
+        while let Some(mut row) = query.next().map_err(err)? {
             for (i, (kind, notnull, pk)) in declarations.iter().enumerate() {
-                use rusqlite::types::ValueRef;
-                let value = row.get_ref(i).map_err(err)?;
-                let valid = match value {
-                    ValueRef::Null => *notnull == 0 && *pk == 0,
-                    ValueRef::Integer(_) => kind == "INTEGER",
-                    ValueRef::Text(bytes) => kind == "TEXT" && std::str::from_utf8(bytes).is_ok(),
-                    ValueRef::Blob(_) => kind == "BLOB",
-                    ValueRef::Real(_) => false,
+                let storage = row.column_type(i).map_err(err)?;
+                if storage == rusqlite::types::Type::Blob {
+                    row.blob(i).map_err(err)?;
+                }
+                let text = if storage == rusqlite::types::Type::Text {
+                    Some(row.text_bytes(i).map_err(err)?)
+                } else {
+                    None
                 };
+                let valid = valid_storage_cell(kind, *notnull, *pk, storage, text);
                 if !valid {
                     return Err(err(format!("{table} 第{i}列实际类型/非空约束损坏")));
                 }
             }
         }
+        query.finalize().map_err(err)?;
     }
     Ok(())
 }
 
-fn verify_epoch_history(conn: &Connection, v2: bool) -> Result<Vec<(String, i64)>, String> {
-    let generation = meta_i64(conn, "generation")?;
+/// 两条审计路径逐列运行相同的实际 storage-class/UTF-8 判据。
+pub(super) fn valid_storage_cell(
+    kind: &str,
+    notnull: i64,
+    pk: i64,
+    storage: rusqlite::types::Type,
+    text: Option<&[u8]>,
+) -> bool {
+    use rusqlite::types::Type;
+    match storage {
+        Type::Null => notnull == 0 && pk == 0,
+        Type::Integer => kind == "INTEGER",
+        Type::Text => kind == "TEXT" && text.is_some_and(|b| std::str::from_utf8(b).is_ok()),
+        Type::Blob => kind == "BLOB",
+        Type::Real => false,
+    }
+}
+
+fn verify_schema(conn: &Connection, v2: bool) -> Result<(), String> {
+    let mut expected = BTreeMap::new();
+    expect_ddl_tables(
+        "schema常量",
+        &format!(
+            "{}{}{}",
+            SCHEMA,
+            if v2 { SCHEMA_V2 } else { "" },
+            if tb02a::enabled(conn)? {
+                tb02a::SCHEMA
+            } else {
+                ""
+            }
+        ),
+        &mut expected,
+    )?;
+    // #1394：存在私有格式登记表时严格核其结构与声明；无表则按旧库的完整 Delta 判据验证。
+    // 删除新库登记表不在此处硬拒：若各代稀疏 Delta 恰等于完整活动集，字节上无法与旧库区分。
+    let has_format_table: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name=?1",
+            params![delta_storage::TABLE],
+            |r| r.get(0),
+        )
+        .map_err(err)?;
+    if has_format_table == 1 {
+        expected.insert(
+            delta_storage::TABLE.to_string(),
+            normalize_schema(delta_storage::DDL),
+        );
+    }
+    // #1394 第二段：存在私有证据图表时严格核其三表结构；无表则按旧库整块域验证。
+    // 三表同生同灭（由 `evidence_store::DDL` 一次建出），缺一即模式门拒绝。
+    let has_evidence_tables: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name IN (?1,?2,?3)",
+            params![
+                evidence_store::FORMAT_TABLE,
+                evidence_store::NODES_TABLE,
+                evidence_store::ROOTS_TABLE
+            ],
+            |r| r.get(0),
+        )
+        .map_err(err)?;
+    if has_evidence_tables != 0 {
+        if has_evidence_tables != 3 {
+            return Err(err("私有证据图表不齐全（三表必须同生）"));
+        }
+        expect_ddl_tables("证据图 DDL", evidence_store::DDL, &mut expected)?;
+    }
+    verify_expected_schema(conn, &expected)?;
+    // 表在而登记行缺/多/未声明值：与模式损坏同门，读取与写入前一律拒绝。
+    delta_storage::read_mode(conn)?;
+    evidence_store::read_format(conn)?;
+    Ok(())
+}
+
+pub(super) fn verify_epoch_history(
+    conn: &Connection,
+    v2: bool,
+) -> Result<Vec<(String, i64)>, String> {
+    verify_epoch_history_with_owner(conn, v2, None)?
+        .into_iter()
+        .map(|(s, g)| match s {
+            TextValue::Plain(s) => Ok((s, g)),
+            TextValue::Owned(_) => Err(err("normal epoch结果不可擦除Owned文本")),
+        })
+        .collect()
+}
+pub(super) fn verify_epoch_history_with_owner(
+    conn: &Connection,
+    v2: bool,
+    owner: Option<&OwnedBudget>,
+) -> Result<CodecVec<(TextValue, i64)>, String> {
+    verify_epoch_history_admitted(conn, v2, owner, None)
+}
+pub(super) fn verify_epoch_history_admitted(
+    conn: &Connection,
+    v2: bool,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<CodecVec<(TextValue, i64)>, String> {
+    control_native_owner(owner, work)?;
+    let generation = control_meta_i64_admitted(conn, "generation", owner, work)?;
     let current = parse_writer_epoch(
-        &meta_get_opt(conn, "writer_epoch")?.ok_or_else(|| err("缺writer_epoch"))?,
+        &control_meta_text_admitted(conn, "writer_epoch", owner, work)?
+            .ok_or_else(|| err("缺writer_epoch"))?,
         "meta.writer_epoch",
     )
     .map_err(err)?;
-    let mut query=conn.prepare("SELECT ordinal,from_epoch,to_epoch,generation_at_transition,advance_state_at_transition,transitioned_at FROM writer_epoch_history ORDER BY ordinal").map_err(err)?;
-    let mut rows = query.query([]).map_err(err)?;
+    let mut query=CheckedStatement::prepare(conn,c"SELECT ordinal,from_epoch,to_epoch,generation_at_transition,advance_state_at_transition,transitioned_at FROM writer_epoch_history ORDER BY ordinal").map_err(err)?;
     let (mut previous_epoch, mut previous_generation, mut ordinal) = (None, 0, 0i64);
-    let mut facts = Vec::new();
-    while let Some(r) = rows.next().map_err(err)? {
+    let mut facts = control_json::new_work(owner);
+    while let Some(mut r) = query.next().map_err(err)? {
         ordinal += 1;
-        let actual: i64 = r.get(0).map_err(err)?;
-        let from =
-            parse_writer_epoch(&r.get::<_, String>(1).map_err(err)?, "epoch.from").map_err(err)?;
-        let to =
-            parse_writer_epoch(&r.get::<_, String>(2).map_err(err)?, "epoch.to").map_err(err)?;
-        let at =
-            nonnegative(&r.get::<_, String>(3).map_err(err)?, "epoch.generation").map_err(err)?;
-        let state: String = r.get(4).map_err(err)?;
-        let ns: String = r.get(5).map_err(err)?;
+        let actual: i64 = r.integer(0).map_err(err)?;
+        let from = parse_writer_epoch(
+            &TextValue::from_sql_admitted(&mut r, 1, owner, work).map_err(err)?,
+            "epoch.from",
+        )
+        .map_err(err)?;
+        let to = parse_writer_epoch(
+            &TextValue::from_sql_admitted(&mut r, 2, owner, work).map_err(err)?,
+            "epoch.to",
+        )
+        .map_err(err)?;
+        let at = nonnegative(
+            &TextValue::from_sql_admitted(&mut r, 3, owner, work).map_err(err)?,
+            "epoch.generation",
+        )
+        .map_err(err)?;
+        let state = TextValue::from_sql_admitted(&mut r, 4, owner, work).map_err(err)?;
+        let ns = TextValue::from_sql_admitted(&mut r, 5, owner, work).map_err(err)?;
         nonnegative(&ns, "epoch.transitioned_at").map_err(err)?;
-        if actual != ordinal
-            || previous_epoch.is_some_and(|p| p != from)
-            || to <= from
-            || at < previous_generation
-            || at > generation
-            || (v2 && state != "idle")
-        {
-            return Err(err("writer换代历史序号/接续/代际/状态不一致"));
-        }
+        validate_epoch_step(
+            actual,
+            ordinal,
+            from,
+            to,
+            at,
+            &state,
+            previous_epoch,
+            previous_generation,
+            generation,
+            v2,
+        )?;
         previous_epoch = Some(to);
         previous_generation = at;
-        facts.push((ns, at));
+        control_push(&mut facts, (ns, at), work).map_err(err)?;
     }
+    query.finalize().map_err(err)?;
     if previous_epoch.is_some_and(|last| last != current) {
         return Err(err("writer_epoch与最后换代结果不一致"));
     }
     Ok(facts)
 }
 
-/// 所有当前控制行都新鲜检查，不能按generation过滤未来/同代损坏或信任自报摘要。
-pub fn verify_control(
-    conn: &Connection,
-    batches: &BTreeMap<String, std::sync::Arc<Value>>,
+pub(super) fn validate_epoch_step(
+    actual: i64,
+    ordinal: i64,
+    from: i64,
+    to: i64,
+    at: i64,
+    state: &str,
+    previous_epoch: Option<i64>,
+    previous_generation: i64,
+    generation: i64,
+    v2: bool,
 ) -> Result<(), String> {
+    if actual != ordinal
+        || previous_epoch.is_some_and(|p| p != from)
+        || to <= from
+        || at < previous_generation
+        || at > generation
+        || (v2 && state != "idle")
+    {
+        return Err(err("writer换代历史序号/接续/代际/状态不一致"));
+    }
+    Ok(())
+}
+
+/// 全局控制行核验通过后的逐代期望（v2 与 S3 共用**同一份**消费逻辑）。
+///
+/// 这一层不判协议版本：显式 `s-session/2` / `s-session/3` 由各入口在调用
+/// [`ControlHistory::consume_header`] 之前逐字核验（`ExpectedControl::observe_batch` 与
+/// S3 控制审计入口），版本不混进共用判据，也不存在「严格入口判不出来就换一档重判」。
+// 借用查询与真实 tuple 逐项同 Hash；查询不复制文本或脱离账本。
+#[derive(Hash)]
+struct GenerationKey<'a>(i64, &'a str);
+impl hashbrown::Equivalent<(i64, TextValue)> for GenerationKey<'_> {
+    fn equivalent(&self, key: &(i64, TextValue)) -> bool {
+        self.0 == key.0 && self.1 == key.1.as_str()
+    }
+}
+#[derive(Hash)]
+struct PhaseKey<'a>(&'a str, &'a str, i64);
+impl hashbrown::Equivalent<(TextValue, TextValue, i64)> for PhaseKey<'_> {
+    fn equivalent(&self, key: &(TextValue, TextValue, i64)) -> bool {
+        self.0 == key.0.as_str() && self.1 == key.1.as_str() && self.2 == key.2
+    }
+}
+/// 全控制谓词产生的独立发布头事实；不包含 SQL 连接或可继续查询的能力。
+/// 原始控制行的所有权和跨事务当前性必须另由 audit owner 保证。
+pub(super) struct ControlFacts {
+    session_generation: TextValue,
+    clock_plan_hash: TextValue,
+    headers: BusinessMap<(i64, TextValue), ControlHeader>,
+}
+struct ControlHeader {
+    commit_ns: TextValue,
+    consumed: bool,
+}
+pub(super) struct ControlHistory {
+    facts: ControlFacts,
+    pending: usize,
+}
+impl ControlFacts {
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn resume_owner(
+        mut self,
+        generation: i64,
+        batch: &str,
+        commit_ns: &str,
+        _bound: &crate::v3::audit_owner::BoundOriginals,
+        retained: &mut crate::v3::audit_retention::RetainedDelta,
+        admission: &(impl crate::v3::audit_store::CodecRead + ?Sized),
+    ) -> Result<ControlHistory, String> {
+        if generation != self.headers.len() as i64 + 1 {
+            return Err(err("owner 新控制头非连续尾"));
+        }
+        admission
+            .native_admit(
+                batch
+                    .len()
+                    .checked_add(commit_ns.len())
+                    .ok_or_else(|| err(admission.native_overflow()))?,
+            )
+            .map_err(err)?;
+        let key = (generation, TextValue::Plain(batch.into()));
+        let header = ControlHeader {
+            commit_ns: TextValue::Plain(commit_ns.into()),
+            consumed: false,
+        };
+        retained.add(&key);
+        retained.add(&header);
+        let capacity = self.headers.capacity();
+        admission.native_map_room(&mut self.headers).map_err(err)?;
+        if self.headers.insert(key, header).map_err(err)?.is_some() {
+            return Err(err("重复发布控制头"));
+        }
+        retained
+            .hash_capacity::<(i64, TextValue), ControlHeader>(capacity, self.headers.capacity());
+        Ok(ControlHistory {
+            facts: self,
+            pending: 1,
+        })
+    }
+    pub(super) fn len(&self) -> usize {
+        self.headers.len()
+    }
+    pub(super) fn verify_header(
+        &self,
+        generation: i64,
+        batch_id: &str,
+        session_generation: Option<&str>,
+        clock_plan_hash: Option<&str>,
+        commit_ns: Option<&str>,
+    ) -> Result<(), String> {
+        let expected = self
+            .headers
+            .get(&GenerationKey(generation, batch_id))
+            .ok_or_else(|| err("v2批次控制头缺待验证期望或重复消费"))?;
+        if session_generation != Some(self.session_generation.as_str())
+            || clock_plan_hash != Some(self.clock_plan_hash.as_str())
+            || commit_ns != Some(expected.commit_ns.as_str())
+        {
+            return Err(err("发布batch与真实语义clock/session不一致"));
+        }
+        Ok(())
+    }
+}
+impl ControlHistory {
+    pub(super) fn session_generation(&self) -> &str {
+        self.facts.session_generation.as_str()
+    }
+    pub(super) fn clock_plan_hash(&self) -> &str {
+        self.facts.clock_plan_hash.as_str()
+    }
+    pub(super) fn pending_count(&self) -> usize {
+        self.pending
+    }
+    pub(super) fn remaining_commit(&self, generation: i64, batch_id: &str) -> Option<&str> {
+        self.facts
+            .headers
+            .get(&GenerationKey(generation, batch_id))
+            .filter(|header| !header.consumed)
+            .map(|header| header.commit_ns.as_str())
+    }
+    /// 校验失败不消费；成功只改同一分配内的消费标记，不复制或丢失原头。
+    pub(super) fn consume_header(
+        &mut self,
+        generation: i64,
+        batch_id: &str,
+        session_generation: Option<&str>,
+        clock_plan_hash: Option<&str>,
+        commit_ns: Option<&str>,
+    ) -> Result<(), String> {
+        if self.remaining_commit(generation, batch_id).is_none() {
+            return Err(err("v2批次控制头缺待验证期望或重复消费"));
+        }
+        self.facts.verify_header(
+            generation,
+            batch_id,
+            session_generation,
+            clock_plan_hash,
+            commit_ns,
+        )?;
+        self.facts
+            .headers
+            .get_mut(&GenerationKey(generation, batch_id))
+            .unwrap()
+            .consumed = true;
+        self.pending -= 1;
+        Ok(())
+    }
+    /// 只有全部 pending 头闭合后才可移交纯所有权事实；不签发跨事务资格。
+    pub(super) fn into_facts(self) -> Result<ControlFacts, String> {
+        if self.pending != 0 {
+            return Err(err("v2发布批次控制头未全部验证"));
+        }
+        Ok(self.facts)
+    }
+    pub(super) fn finish(self) -> Result<(), String> {
+        self.into_facts().map(drop)
+    }
+}
+
+/// 全局控制行通过后留下的逐代期望；结构核验必须逐项消费并检查闭合。
+pub(super) enum ExpectedControl {
+    Legacy,
+    V2 { history: ControlHistory },
+}
+
+impl ExpectedControl {
+    /// 旧 v2 发布入口：**先逐字核 `s-session/2` 标记**，再走 v2/S3 共用的消费核心。
+    /// 标记不是 `s-session/2`（例如新域 manifest 的 `s-session/3`）一律拒绝，不放宽。
+    pub(super) fn observe_batch(
+        &mut self,
+        generation: i64,
+        batch_id: &str,
+        header: &BatchControlHeader,
+    ) -> Result<(), String> {
+        let Self::V2 { history } = self else {
+            return Ok(());
+        };
+        if header.protocol_revision.as_deref() != Some("s-session/2") {
+            return Err(err("发布batch协议标记不是 s-session/2"));
+        }
+        history.consume_header(
+            generation,
+            batch_id,
+            header.session_generation.as_deref(),
+            header.clock_plan_hash.as_deref(),
+            header.semantic_commit_ns.as_deref(),
+        )
+    }
+
+    /// 既有调用点的一行别名（`s_structure_session.rs` 仍调 `verify_header`）。
+    pub(super) fn verify_header(
+        &mut self,
+        generation: i64,
+        batch_id: &str,
+        header: &BatchControlHeader,
+    ) -> Result<(), String> {
+        self.observe_batch(generation, batch_id, header)
+    }
+
+    pub(super) fn finish(self) -> Result<(), String> {
+        match self {
+            Self::Legacy => Ok(()),
+            Self::V2 { history } => history.finish(),
+        }
+    }
+}
+
+/// 新鲜检查所有全局控制行，再准备逐代控制头期望；返回不代表批次控制审计通过。
+/// 不能按generation过滤未来/同代损坏或信任自报摘要。
+pub(super) fn prepare_control(conn: &Connection) -> Result<ExpectedControl, String> {
     let enabled = active(conn)?;
     verify_schema(conn, enabled)?;
-    let mut epoch_facts = verify_epoch_history(conn, enabled)?;
+    let epoch_facts = verify_epoch_history(conn, enabled)?;
     if !enabled {
-        return Ok(());
+        return Ok(ExpectedControl::Legacy);
     }
-    for table in ["s_protocol_meta", "s_delivery_policy"] {
-        let count: i64 = conn
-            .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))
-            .map_err(err)?;
+    Ok(ExpectedControl::V2 {
+        history: validate_control_history(conn, "s-session/2", epoch_facts)?,
+    })
+}
+
+/// v2 与 S3 共用的**唯一一份**控制历史判断（原 `prepare_control` 主体，逐字保留）。
+///
+/// `protocol_revision` 由入口显式传 `s-session/2` 或 `s-session/3`：它同时用于
+/// `s_protocol_meta.protocol_revision` 的逐字比对与每条持久消息 `canonical_envelope` 的
+/// 公共头校验；其它取值一律拒绝，不提供默认值、不从库内自称反推。
+pub(super) fn validate_control_history(
+    conn: &Connection,
+    protocol_revision: &str,
+    epoch_facts: Vec<(String, i64)>,
+) -> Result<ControlHistory, String> {
+    let mut facts = control_json::new_work(None);
+    for (ns, g) in epoch_facts {
+        facts.try_push((TextValue::Plain(ns), g)).map_err(err)?;
+    }
+    validate_control_history_with_owner(conn, protocol_revision, facts, None)
+}
+
+enum ControlBind<'a> {
+    Text(&'a str),
+    Integer(i64),
+}
+fn control_query_row<T>(
+    conn: &Connection,
+    sql: &CStr,
+    params: &[ControlBind<'_>],
+    read: impl FnOnce(&mut CheckedRow<'_>) -> Result<T, String>,
+) -> Result<T, String> {
+    let mut stmt = CheckedStatement::prepare(conn, sql).map_err(err)?;
+    for (i, p) in params.iter().enumerate() {
+        match p {
+            ControlBind::Text(v) => stmt.bind_text(i as i32 + 1, v),
+            ControlBind::Integer(v) => stmt.bind_integer(i as i32 + 1, *v),
+        }
+        .map_err(err)?;
+    }
+    let mut row = stmt
+        .next()
+        .map_err(err)?
+        .ok_or_else(|| err(rusqlite::Error::QueryReturnedNoRows))?;
+    let value = read(&mut row).map_err(err)?;
+    drop(row);
+    stmt.finalize().map_err(err)?;
+    Ok(value)
+}
+fn control_canonical_text(
+    v: JsonView<'_>,
+    owner: Option<&OwnedBudget>,
+) -> Result<TextValue, String> {
+    control_canonical_text_admitted(v, owner, None)
+}
+fn control_canonical_text_admitted(
+    v: JsonView<'_>,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<TextValue, String> {
+    control_native_owner(owner, work)?;
+    #[cfg(feature = "s_allocation_json_testonly")]
+    if let Some(owner) = owner {
+        return TextValue::from_bytes(control_aj::canonical_bytes(v, owner).map_err(err)?);
+    }
+    if owner.is_some() {
+        return Err("prototype_audit_allocation_incomplete：owned规范文本未启用".into());
+    }
+    if work.is_none() {
+        return serde_json::to_string(&v).map(TextValue::Plain).map_err(err);
+    }
+    struct AdmittedWriter<'a> {
+        bytes: CodecVec<u8>,
+        work: Option<&'a WorkScope>,
+        failure: Option<String>,
+    }
+    impl std::io::Write for AdmittedWriter<'_> {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            if let Err(error) = control_extend(&mut self.bytes, bytes, self.work) {
+                self.failure = Some(err(error));
+                return Err(std::io::Error::other("Native canonical text admission"));
+            }
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut writer = AdmittedWriter {
+        bytes: control_json::new_work(None),
+        work,
+        failure: None,
+    };
+    let result = serde_json::to_writer(&mut writer, &v);
+    if let Some(error) = writer.failure {
+        return Err(error);
+    }
+    result.map_err(err)?;
+    TextValue::from_bytes(writer.bytes).map_err(err)
+}
+fn control_identity(
+    input: &tb02a::RawInputView<'_>,
+    ev: tb02a::RawEventView<'_>,
+    owner: Option<&OwnedBudget>,
+) -> Result<TextValue, String> {
+    control_identity_admitted(input, ev, owner, None)
+}
+fn control_identity_admitted(
+    input: &tb02a::RawInputView<'_>,
+    ev: tb02a::RawEventView<'_>,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<TextValue, String> {
+    control_native_owner(owner, work)?;
+    let mut bytes = control_json::new_work(owner);
+    for (i, s) in [
+        input.source_namespace,
+        input.source_epoch,
+        input.instrument,
+        ev.event_id,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        if i > 0 {
+            control_push(&mut bytes, b'|', work).map_err(err)?;
+        }
+        control_extend(&mut bytes, s.as_bytes(), work).map_err(err)?;
+    }
+    TextValue::from_bytes(bytes).map_err(err)
+}
+// 固定字段直接借用原事件；与 canonical_event_content 的 tick/OHLC 两种字节形状一致。
+fn control_event_hash(
+    ev: tb02a::RawEventView<'_>,
+    owner: Option<&OwnedBudget>,
+) -> Result<newchan_rust::session_protocol::FixedHash, String> {
+    let base = [
+        ("event_id", JsonView::String(ev.event_id)),
+        ("revision", JsonView::String(ev.revision)),
+        ("seq", JsonView::String(ev.seq)),
+        ("received_at", JsonView::String(ev.received_at)),
+        ("raw_text", JsonView::String(ev.raw_text)),
+        ("timestamp", JsonView::String(ev.timestamp)),
+        ("volume", JsonView::String(ev.volume)),
+    ];
+    if let Some(p) = ev.ohlc {
+        let fields = [
+            base[0],
+            base[1],
+            base[2],
+            base[3],
+            base[4],
+            base[5],
+            base[6],
+            ("open", JsonView::String(p.open)),
+            ("high", JsonView::String(p.high)),
+            ("low", JsonView::String(p.low)),
+            ("close", JsonView::String(p.close)),
+        ];
+        newchan_rust::session_protocol::canonical_hash_view_with_owner(
+            JsonView::object_fields(&fields).map_err(err)?,
+            owner,
+        )
+    } else {
+        let fields = [
+            base[0],
+            base[1],
+            base[2],
+            base[3],
+            base[4],
+            base[5],
+            base[6],
+            ("price", JsonView::String(ev.price)),
+        ];
+        newchan_rust::session_protocol::canonical_hash_view_with_owner(
+            JsonView::object_fields(&fields).map_err(err)?,
+            owner,
+        )
+    }
+}
+fn control_sorted_keys<'a, K: Eq + std::hash::Hash + Ord, V>(
+    map: &'a BusinessMap<K, V>,
+    owner: Option<&OwnedBudget>,
+) -> Result<CodecVec<&'a K>, String> {
+    control_sorted_keys_admitted(map, owner, None)
+}
+fn control_sorted_keys_admitted<'a, K: Eq + std::hash::Hash + Ord, V>(
+    map: &'a BusinessMap<K, V>,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<CodecVec<&'a K>, String> {
+    control_native_owner(owner, work)?;
+    let mut keys = control_json::new_work(owner);
+    for (key, _) in map.iter() {
+        control_push(&mut keys, key, work).map_err(err)?;
+    }
+    keys.sort_unstable();
+    Ok(keys)
+}
+/// 持久 message 的行解码与业务谓词，由 cold 和固定写口回读共用。
+pub(super) struct AuditMessage {
+    pub(super) ns: TextValue,
+    pub(super) se: TextValue,
+    pub(super) id: TextValue,
+    pub(super) hash: TextValue,
+    pub(super) raw: TextValue,
+    pub(super) receipt: TextValue,
+    pub(super) seq: i64,
+    pub(super) status: TextValue,
+    pub(super) published: Option<i64>,
+    pub(super) event: TextValue,
+    pub(super) count: i64,
+}
+pub(super) fn read_audit_message(
+    r: &mut CheckedRow<'_>,
+    owner: Option<&OwnedBudget>,
+) -> Result<AuditMessage, String> {
+    read_audit_message_admitted(r, owner, None)
+}
+pub(super) fn read_audit_message_admitted(
+    r: &mut CheckedRow<'_>,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<AuditMessage, String> {
+    control_native_owner(owner, work)?;
+    let ns = TextValue::from_sql_admitted(r, 0, owner, work).map_err(err)?;
+    let se = TextValue::from_sql_admitted(r, 1, owner, work).map_err(err)?;
+    let id = TextValue::from_sql_admitted(r, 2, owner, work).map_err(err)?;
+    let hash = TextValue::from_sql_admitted(r, 3, owner, work).map_err(err)?;
+    let raw = TextValue::from_sql_admitted(r, 4, owner, work).map_err(err)?;
+    let receipt = TextValue::from_sql_admitted(r, 5, owner, work).map_err(err)?;
+    let seq = r.integer(6).map_err(err)?;
+    let status = TextValue::from_sql_admitted(r, 7, owner, work).map_err(err)?;
+    let published = r.optional_integer(8).map_err(err)?;
+    let event = TextValue::from_sql_admitted(r, 9, owner, work).map_err(err)?;
+    let count = r.integer(10).map_err(err)?;
+    Ok(AuditMessage {
+        ns,
+        se,
+        id,
+        hash,
+        raw,
+        receipt,
+        seq,
+        status,
+        published,
+        event,
+        count,
+    })
+}
+pub(super) fn validate_audit_message(
+    conn: &Connection,
+    m: &AuditMessage,
+    protocol_revision: &str,
+    sid: &str,
+    inc: &str,
+    clock: JsonView<'_>,
+    first_pub: Option<i64>,
+    owner: Option<&OwnedBudget>,
+) -> Result<TextValue, String> {
+    validate_audit_message_admitted(
+        conn,
+        m,
+        protocol_revision,
+        sid,
+        inc,
+        clock,
+        first_pub,
+        owner,
+        None,
+    )
+}
+pub(super) fn validate_audit_message_admitted(
+    conn: &Connection,
+    m: &AuditMessage,
+    protocol_revision: &str,
+    sid: &str,
+    inc: &str,
+    clock: JsonView<'_>,
+    first_pub: Option<i64>,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<TextValue, String> {
+    control_native_owner(owner, work)?;
+    use control_json::field;
+    use newchan_rust::session_protocol::validate_envelope_view_with_owner;
+    let AuditMessage {
+        ns,
+        se,
+        id,
+        hash,
+        raw,
+        receipt,
+        seq,
+        status,
+        published,
+        event,
+        count,
+    } = m;
+    let (seq, count, published) = (*seq, *count, *published);
+    let envelope = control_decode_admitted(&raw, owner, false, work).map_err(err)?;
+    let e = validate_envelope_view_with_owner(envelope.view(), protocol_revision, owner)
+        .map_err(err)?;
+    if !control_canonical_equal(e, &raw, owner)?
+        || field(e, "source_namespace").as_str() != Some(ns.as_str())
+        || field(e, "source_epoch").as_str() != Some(se.as_str())
+        || field(e, "message_id").as_str() != Some(id.as_str())
+        || field(e, "payload_hash").as_str() != Some(hash.as_str())
+        || field(e, "session_id").as_str() != Some(sid)
+        || field(e, "session_generation").as_str() != Some(inc)
+        || field(field(e, "payload"), "clock_event_id").as_str() != Some(event.as_str())
+        || count < 0
+        || seq < 0
+    {
+        return Err(err("消息独立列/规范原件不一致"));
+    }
+    validate_ingest_view(e).map_err(err)?;
+    let input = tb02a::parse_input_view(field(field(e, "payload"), "raw_input")).map_err(err)?;
+    if input.events_len() != 1 {
+        return Err(err("持久输入消息非单事件"));
+    }
+    let ev = input.event(0).map_err(err)?;
+    let ik = control_identity_admitted(&input, ev, owner, work)?;
+    let actual = control_query_row(
+        conn,
+        c"SELECT receipt_id,payload_hash,identity_key,revision FROM raw_events WHERE seq=?1",
+        &[ControlBind::Integer(seq)],
+        |mut r| {
+            Ok((
+                TextValue::from_sql_admitted(&mut r, 0, owner, work)?,
+                TextValue::from_sql_admitted(&mut r, 1, owner, work)?,
+                TextValue::from_sql_admitted(&mut r, 2, owner, work)?,
+                r.integer(3).map_err(|e| e.to_string())?,
+            ))
+        },
+    )?;
+    if &actual.0 != receipt
+        || actual.1.as_str() != control_event_hash(ev, owner).map_err(err)?.as_str()
+        || actual.2 != ik
+        || actual.3 != parse_canonical_i64(ev.revision, "revision").map_err(err)?
+    {
+        return Err(err("消息/raw receipt内容或身份不一致"));
+    }
+    if published != first_pub
+        || status.as_str()
+            != if published.is_some() {
+                "Committed"
+            } else {
+                "AcceptedPending"
+            }
+    {
+        return Err(err("消息持久结果与最早已发布前沿不符"));
+    }
+    newchan_rust::session_protocol::clock_phase_view(clock, &event, "accept", -1).map_err(err)?;
+    let key_fields = [
+        JsonView::String(&ns),
+        JsonView::String(&se),
+        JsonView::String(&id),
+    ];
+    return control_canonical_text_admitted(JsonView::ArraySlice(&key_fields), owner, work);
+}
+
+/// 单 phase 与实际消息/根/clock 的关系核；唯一性与连续性由各自完整索引闭合。
+pub(super) fn validate_audit_phase(
+    id: &str,
+    phase: &str,
+    index: i64,
+    ns: &str,
+    key: &str,
+    ord: Option<i64>,
+    g: i64,
+    root_g: i64,
+    next: i64,
+    clock: JsonView<'_>,
+    message: Option<(&str, i64, Option<i64>)>,
+) -> Result<(), String> {
+    let next_g = root_g.checked_add(1).ok_or_else(|| err("generation溢出"))?;
+    if newchan_rust::session_protocol::clock_phase_view(clock, id, phase, index).map_err(err)? != ns
+        || g < 0
+        || g > next_g
+    {
+        return Err(err("phase时间/代际与计划不一致"));
+    }
+    if phase == "recover" {
+        if index != -1 || ord.is_some() || !key.is_empty() || g > root_g {
+            return Err(err("recover phase归属错误"));
+        }
+    } else {
+        let (expected_key, count, published) = message.ok_or_else(|| err("phase没有原消息"))?;
+        if key != expected_key {
+            return Err(err("phase消息归属错误"));
+        }
+        if phase == "accept" {
+            if index != -1 || ord.is_some() || g > root_g {
+                return Err(err("accept phase域错误"));
+            }
+        } else if (phase != "begin" && phase != "commit")
+            || index < 0
+            || index >= count
+            || ord.is_none_or(|o| o < 1 || o >= next)
+        {
+            return Err(err("attempt phase域错误"));
+        }
+        if phase == "begin" && g != published.unwrap_or(next_g) {
+            return Err(err("Begin代际与消息推进目标不同"));
+        }
+        if phase == "commit" && published != Some(g) {
+            return Err(err("commit phase与实际首次发布不一致"));
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn validate_delivery_policy(
+    ps: &str,
+    pi: &str,
+    pr: &str,
+    keep: i64,
+    first: i64,
+    head: i64,
+    sid: &str,
+    inc: &str,
+    root: i64,
+) -> Result<(), String> {
+    if ps != sid
+        || pi != inc
+        || pr != "generation-window/1"
+        || keep < 1
+        || head != root
+        || first != 1.max(head - keep + 1)
+    {
+        return Err(err("普通投递frontier/policy与根不一致"));
+    }
+    Ok(())
+}
+pub(super) fn validate_attempt_summary(
+    count: i64,
+    published: Option<i64>,
+    has_accept: bool,
+    indexes: &[i64],
+    same_pairs: bool,
+    last_commit: bool,
+) -> Result<(), String> {
+    if !has_accept {
+        return Err(err("消息缺接纳phase"));
+    }
+    if indexes.len() as i128 != count as i128
+        || indexes
+            .iter()
+            .enumerate()
+            .any(|(i, n)| i as i128 != *n as i128)
+    {
+        return Err(err("消息attempt_count与实际Begin集合不闭合"));
+    }
+    if !same_pairs {
+        return Err(err("Begin/Commit ordinal/generation不一致"));
+    }
+    if count > 0 && published.is_some() && !last_commit {
+        return Err(err("已发布消息缺最后Commit phase"));
+    }
+    Ok(())
+}
+
+pub(super) fn validate_control_history_with_owner(
+    conn: &Connection,
+    protocol_revision: &str,
+    epoch_facts: CodecVec<(TextValue, i64)>,
+    owner: Option<&OwnedBudget>,
+) -> Result<ControlHistory, String> {
+    validate_control_history_admitted(conn, protocol_revision, epoch_facts, owner, None)
+}
+pub(super) fn validate_control_history_admitted(
+    conn: &Connection,
+    protocol_revision: &str,
+    mut epoch_facts: CodecVec<(TextValue, i64)>,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<ControlHistory, String> {
+    control_native_owner(owner, work)?;
+    use control_json::field;
+    use newchan_rust::session_protocol::{canonical_hash_view_with_owner, required_view};
+    if !matches!(protocol_revision, "s-session/2" | "s-session/3") {
+        return Err(err(format!(
+            "协议版本参数只允许 s-session/2 或 s-session/3，收到 `{protocol_revision}`"
+        )));
+    }
+    // 拒绝未启用Owned入口，不允许在空集合路径上退回普通存储。
+    #[cfg(not(feature = "s_allocation_json_testonly"))]
+    if owner.is_some() {
+        return Err("prototype_audit_allocation_incomplete：owned控制历史未启用".into());
+    }
+    for (table, count_sql, singleton_sql) in [
+        (
+            "s_protocol_meta",
+            "SELECT COUNT(*) FROM s_protocol_meta",
+            "SELECT singleton FROM s_protocol_meta",
+        ),
+        (
+            "s_delivery_policy",
+            "SELECT COUNT(*) FROM s_delivery_policy",
+            "SELECT singleton FROM s_delivery_policy",
+        ),
+    ] {
+        let count: i64 = conn.query_row(count_sql, [], |r| r.get(0)).map_err(err)?;
         let singleton: i64 = conn
-            .query_row(&format!("SELECT singleton FROM {table}"), [], |r| r.get(0))
+            .query_row(singleton_sql, [], |r| r.get(0))
             .map_err(err)?;
         if count != 1 || singleton != 1 {
             return Err(err(format!("{table}必须全表唯一且singleton=1")));
@@ -587,39 +1812,42 @@ pub fn verify_control(
         "profile_definition",
         "input_profile",
     ] {
-        if meta_get_opt(conn, key)?.is_none_or(|s| s.is_empty()) {
+        if control_meta_text_admitted(conn, key, owner, work)?.is_none_or(|s| s.is_empty()) {
             return Err(err(format!("v2初始化缺完整{key}绑定")));
         }
     }
-    // v1 持久 epoch 保留既有非负域；v2 的 S 公共回复 producer_epoch 是正数。
-    // 该协议没有 v1→v2 原库迁移，正式 v2 init 从 1 开始且 recover 只增大。
     positive(
-        &meta_get_opt(conn, "writer_epoch")?.ok_or_else(|| err("缺writer_epoch"))?,
+        &control_meta_text_admitted(conn, "writer_epoch", owner, work)?
+            .ok_or_else(|| err("缺writer_epoch"))?,
         "v2 writer_epoch",
     )
     .map_err(err)?;
-    let clock = stored_clock(conn)?;
-    let (protocol,inc,next,frontier):(String,String,i64,String)=conn.query_row("SELECT protocol_revision,session_generation,next_attempt_ordinal,logical_phase_frontier FROM s_protocol_meta WHERE singleton=1",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).map_err(err)?;
-    if protocol != "s-session/2" || next < 1 {
+    let clock = stored_control_clock_admitted(conn, owner, work)?;
+    let (protocol, inc, next, frontier) = control_query_row(conn,c"SELECT protocol_revision,session_generation,next_attempt_ordinal,logical_phase_frontier FROM s_protocol_meta WHERE singleton=1", &[], |r| Ok((TextValue::from_sql_admitted(r,0,owner, work)?,TextValue::from_sql_admitted(r,1,owner, work)?,r.integer(2).map_err(|e|e.to_string())?,TextValue::from_sql_admitted(r,3,owner, work)?)))?;
+    if protocol != protocol_revision || next < 1 {
         return Err(err("协议版本/attempt域错误"));
     }
     positive(&inc, "session_generation").map_err(err)?;
-    let root_g = meta_i64(conn, "generation")?;
-    let next_g = root_g.checked_add(1).ok_or_else(|| err("generation溢出"))?;
-    let sid = meta_get_opt(conn, "session_id")?.ok_or_else(|| err("缺session"))?;
-    let catalog_raw =
-        meta_get_opt(conn, "catalog_definition")?.ok_or_else(|| err("v2缺catalog来源"))?;
-    let catalog_hash =
-        meta_get_opt(conn, "catalog_hash")?.ok_or_else(|| err("v2缺catalog hash"))?;
-    let catalog = strict_json(catalog_raw.as_bytes()).map_err(err)?;
-    if canonical_json(&catalog) != catalog_raw
-        || sha256_hex(catalog_raw.as_bytes()) != catalog_hash
-        || catalog["catalog_revision"].as_str()
-            != meta_get_opt(conn, "catalog_revision")?.as_deref()
+    let root_g = control_meta_i64_admitted(conn, "generation", owner, work)?;
+    let sid = control_meta_text_admitted(conn, "session_id", owner, work)?
+        .ok_or_else(|| err("缺session"))?;
+    let catalog_raw = control_meta_text_admitted(conn, "catalog_definition", owner, work)?
+        .ok_or_else(|| err("v2缺catalog来源"))?;
+    let catalog_hash = control_meta_text_admitted(conn, "catalog_hash", owner, work)?
+        .ok_or_else(|| err("v2缺catalog hash"))?;
+    let catalog = control_decode_admitted(&catalog_raw, owner, false, work).map_err(err)?;
+    let catalog_view = catalog.view();
+    if !control_canonical_equal(catalog_view, &catalog_raw, owner)?
+        || canonical_hash_view_with_owner(catalog_view, owner)
+            .map_err(err)?
+            .as_str()
+            != catalog_hash.as_str()
+        || field(catalog_view, "catalog_revision").as_str()
+            != control_meta_text_admitted(conn, "catalog_revision", owner, work)?.as_deref()
     {
         return Err(err("目录来源/hash/revision不一致"));
     }
-    let items = catalog["items"]
+    let items = field(catalog_view, "items")
         .as_array()
         .ok_or_else(|| err("目录源items缺失"))?;
     let actual_count: i64 = conn
@@ -628,40 +1856,41 @@ pub fn verify_control(
     if actual_count as usize != items.len() {
         return Err(err("目录静态行数不同"));
     }
-    for item in items {
-        let actual: (String, String, String, String) = conn
-            .query_row(
-                "SELECT kind,title,domain,branches_json FROM catalog WHERE catalog_id=?1",
-                params![required(item, "id").map_err(err)?],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
-            )
-            .map_err(err)?;
-        if item["kind"] != actual.0
-            || item["title"] != actual.1
-            || item["domain"] != actual.2
-            || item["branches"] != strict_json(actual.3.as_bytes()).map_err(err)?
+    for item in items.iter() {
+        let actual = control_query_row(
+            conn,
+            c"SELECT kind,title,domain,branches_json FROM catalog WHERE catalog_id=?1",
+            &[ControlBind::Text(required_view(item, "id").map_err(err)?)],
+            |r| {
+                Ok((
+                    TextValue::from_sql_admitted(r, 0, owner, work)?,
+                    TextValue::from_sql_admitted(r, 1, owner, work)?,
+                    TextValue::from_sql_admitted(r, 2, owner, work)?,
+                    TextValue::from_sql_admitted(r, 3, owner, work)?,
+                ))
+            },
+        )?;
+        if field(item, "kind").as_str() != Some(actual.0.as_str())
+            || field(item, "title").as_str() != Some(actual.1.as_str())
+            || field(item, "domain").as_str() != Some(actual.2.as_str())
+            || field(item, "branches")
+                != control_decode_admitted(&actual.3, owner, false, work)
+                    .map_err(err)?
+                    .view()
         {
             return Err(err("目录静态内容与来源不同"));
         }
     }
-    let (ps,pi,pr,keep,first,head):(String,String,String,i64,i64,i64)=conn.query_row("SELECT session_id,session_generation,policy_revision,retain_generations,first_available_generation,head_generation FROM s_delivery_policy WHERE singleton=1",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?))).map_err(err)?;
-    if ps != sid
-        || pi != inc
-        || pr != "generation-window/1"
-        || keep < 1
-        || head != root_g
-        || first != 1.max(head - keep + 1)
-    {
-        return Err(err("普通投递frontier/policy与根不一致"));
-    }
+    let (ps,pi,pr,keep,first,head) = control_query_row(conn,c"SELECT session_id,session_generation,policy_revision,retain_generations,first_available_generation,head_generation FROM s_delivery_policy WHERE singleton=1", &[], |r| Ok((TextValue::from_sql_admitted(r,0,owner, work)?,TextValue::from_sql_admitted(r,1,owner, work)?,TextValue::from_sql_admitted(r,2,owner, work)?,r.integer(3).map_err(|e|e.to_string())?,r.integer(4).map_err(|e|e.to_string())?,r.integer(5).map_err(|e|e.to_string())?)))?;
+    validate_delivery_policy(&ps, &pi, &pr, keep, first, head, &sid, &inc, root_g)?;
     let mut stmt = conn
         .prepare("SELECT generation FROM s_delivery_refs ORDER BY generation")
         .map_err(err)?;
-    let refs = stmt
-        .query_map([], |r| r.get::<_, i64>(0))
-        .map_err(err)?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(err)?;
+    let mut rows = stmt.query([]).map_err(err)?;
+    let mut refs = control_json::new_work(owner);
+    while let Some(r) = rows.next().map_err(err)? {
+        control_push(&mut refs, r.get::<_, i64>(0).map_err(err)?, work).map_err(err)?;
+    }
     if refs.len() as i128 != (head as i128 - first as i128 + 1).max(0)
         || refs
             .iter()
@@ -670,270 +1899,244 @@ pub fn verify_control(
     {
         return Err(err("普通投递引用缺失/未来/越保留界"));
     }
-    let publication_frontiers: Vec<(i64, i64)> = {
+    let mut publication_frontiers = control_json::new_work(owner);
+    {
         let mut q = conn
             .prepare("SELECT generation,input_frontier FROM structure_deltas ORDER BY generation")
             .map_err(err)?;
-        let out = q
-            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
-            .map_err(err)?
-            .collect::<Result<Vec<_>, _>>()
+        let mut rows = q.query([]).map_err(err)?;
+        while let Some(r) = rows.next().map_err(err)? {
+            control_push(
+                &mut publication_frontiers,
+                (
+                    r.get::<_, i64>(0).map_err(err)?,
+                    r.get::<_, i64>(1).map_err(err)?,
+                ),
+                work,
+            )
             .map_err(err)?;
-        out
-    };
+        }
+    }
     if publication_frontiers.windows(2).any(|w| w[0].1 > w[1].1) {
         return Err(err("发布前沿倒退"));
     }
-    let mut stmt=conn.prepare("SELECT source_namespace,source_epoch,message_id,payload_hash,canonical_envelope,receipt_id,accepted_seq,status,first_published_generation,clock_event_id,attempt_count FROM s_input_messages ORDER BY accepted_seq,message_id").map_err(err)?;
-    let mut rows = stmt.query([]).map_err(err)?;
-    let mut messages = BTreeMap::new();
-    let mut message_sequences = std::collections::BTreeSet::new();
-    while let Some(r) = rows.next().map_err(err)? {
-        let (ns, se, id, hash, raw, receipt, seq, status, published, event, count): (
-            String,
-            String,
-            String,
-            String,
-            String,
-            String,
-            i64,
-            String,
-            Option<i64>,
-            String,
-            i64,
-        ) = (
-            r.get(0).map_err(err)?,
-            r.get(1).map_err(err)?,
-            r.get(2).map_err(err)?,
-            r.get(3).map_err(err)?,
-            r.get(4).map_err(err)?,
-            r.get(5).map_err(err)?,
-            r.get(6).map_err(err)?,
-            r.get(7).map_err(err)?,
-            r.get(8).map_err(err)?,
-            r.get(9).map_err(err)?,
-            r.get(10).map_err(err)?,
-        );
-        let e = envelope(strict_json(raw.as_bytes()).map_err(err)?).map_err(err)?;
-        if canonical_json(&e) != raw
-            || e["source_namespace"] != ns
-            || e["source_epoch"] != se
-            || e["message_id"] != id
-            || e["payload_hash"] != hash
-            || e["session_id"] != sid
-            || e["session_generation"] != inc
-            || e["payload"]["clock_event_id"] != event
-            || count < 0
-            || seq < 0
-        {
-            return Err(err("消息独立列/规范原件不一致"));
-        }
-        validate_ingest(&e).map_err(err)?;
-        let input = tb02a::parse_input(&e["payload"]["raw_input"]).map_err(err)?;
-        if input.events.len() != 1 {
-            return Err(err("持久输入消息非单事件"));
-        }
-        let ev = &input.events[0];
-        let ik = identity_key(
-            &input.source_namespace,
-            &input.source_epoch,
-            &input.instrument,
-            &ev.event_id,
-        );
-        let actual: (String, String, String, i64) = conn
-            .query_row(
-                "SELECT receipt_id,payload_hash,identity_key,revision FROM raw_events WHERE seq=?1",
-                params![seq],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
-            )
-            .map_err(err)?;
-        if actual.0 != receipt
-            || actual.1 != sha256_hex(canonical_event_content(ev).as_bytes())
-            || actual.2 != ik
-            || actual.3 != parse_canonical_i64(&ev.revision, "revision").map_err(err)?
-        {
-            return Err(err("消息/raw receipt内容或身份不一致"));
-        }
+    let mut stmt=CheckedStatement::prepare(conn,c"SELECT source_namespace,source_epoch,message_id,payload_hash,canonical_envelope,receipt_id,accepted_seq,status,first_published_generation,clock_event_id,attempt_count FROM s_input_messages ORDER BY accepted_seq,message_id").map_err(err)?;
+    let mut messages = control_json::new_map(owner);
+    let mut message_sequences = control_json::new_map::<i64, ()>(owner);
+    while let Some(mut r) = stmt.next().map_err(err)? {
+        let m = read_audit_message_admitted(&mut r, owner, work)?;
         let first_pub = publication_frontiers
-            .get(publication_frontiers.partition_point(|(_, frontier)| *frontier < seq))
+            .get(publication_frontiers.partition_point(|(_, frontier)| *frontier < m.seq))
             .map(|(g, _)| *g);
-        if published != first_pub
-            || status
-                != if published.is_some() {
-                    "Committed"
-                } else {
-                    "AcceptedPending"
-                }
-        {
-            return Err(err("消息持久结果与最早已发布前沿不符"));
-        }
-        clock.phase(&event, "accept", -1).map_err(err)?;
-        message_sequences.insert(seq);
-        if messages
-            .insert(
-                event,
-                (canonical_json(&json!([ns, se, id])), count, published),
-            )
+        let key = validate_audit_message_admitted(
+            conn,
+            &m,
+            protocol_revision,
+            &sid,
+            &inc,
+            clock.value.view(),
+            first_pub,
+            owner,
+            work,
+        )?;
+        let AuditMessage {
+            seq,
+            event,
+            count,
+            published,
+            ..
+        } = m;
+        control_insert(&mut message_sequences, seq, (), work).map_err(err)?;
+        if control_insert(&mut messages, event, (key, count, published), work)
+            .map_err(err)?
             .is_some()
         {
             return Err(err("重复clock消息身份"));
         }
     }
+    stmt.finalize().map_err(err)?;
     let raw_count: i64 = conn
         .query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0))
         .map_err(err)?;
     if message_sequences.len() as i128 != raw_count as i128
-        || message_sequences
+        || control_sorted_keys_admitted(&message_sequences, owner, work)?
             .iter()
             .enumerate()
-            .any(|(i, seq)| *seq as i128 != i as i128)
+            .any(|(i, seq)| **seq as i128 != i as i128)
     {
         return Err(err("v2原始接纳序缺持久消息承接"));
     }
-    let mut stmt=conn.prepare("SELECT clock_event_id,phase,attempt_index,semantic_ns,message_key,attempt_ordinal,generation FROM s_clock_events ORDER BY semantic_ns,clock_event_id,phase,attempt_index").map_err(err)?;
-    let mut rows = stmt.query([]).map_err(err)?;
-    let mut seen = BTreeMap::new();
-    let mut ordinals = BTreeMap::new();
-    let mut commits_by_generation = BTreeMap::new();
-    let mut begins_by_message: BTreeMap<String, std::collections::BTreeSet<i64>> = BTreeMap::new();
-    let mut recover_facts = Vec::new();
+    let mut stmt=CheckedStatement::prepare(conn,c"SELECT clock_event_id,phase,attempt_index,semantic_ns,message_key,attempt_ordinal,generation FROM s_clock_events ORDER BY semantic_ns,clock_event_id,phase,attempt_index").map_err(err)?;
+    let mut seen = control_json::new_map(owner);
+    let mut ordinals = control_json::new_map(owner);
+    let mut commits_by_generation = control_json::new_map(owner);
+    let mut begins_by_message: BusinessMap<TextValue, BusinessMap<i64, ()>> =
+        control_json::new_map(owner);
+    let mut recover_facts = control_json::new_work(owner);
     let mut max_ns = -1;
-    while let Some(r) = rows.next().map_err(err)? {
-        let (id, phase, index, ns, key, ord, g): (
-            String,
-            String,
-            i64,
-            String,
-            String,
-            Option<i64>,
-            i64,
-        ) = (
-            r.get(0).map_err(err)?,
-            r.get(1).map_err(err)?,
-            r.get(2).map_err(err)?,
-            r.get(3).map_err(err)?,
-            r.get(4).map_err(err)?,
-            r.get(5).map_err(err)?,
-            r.get(6).map_err(err)?,
-        );
-        if clock.phase(&id, &phase, index).map_err(err)? != ns || g < 0 || g > next_g {
-            return Err(err("phase时间/代际与计划不一致"));
-        }
+    while let Some(mut r) = stmt.next().map_err(err)? {
+        let id = TextValue::from_sql_admitted(&mut r, 0, owner, work).map_err(err)?;
+        let phase = TextValue::from_sql_admitted(&mut r, 1, owner, work).map_err(err)?;
+        let index = r.integer(2).map_err(err)?;
+        let ns = TextValue::from_sql_admitted(&mut r, 3, owner, work).map_err(err)?;
+        let key = TextValue::from_sql_admitted(&mut r, 4, owner, work).map_err(err)?;
+        let ord = r.optional_integer(5).map_err(err)?;
+        let g = r.integer(6).map_err(err)?;
+        validate_audit_phase(
+            &id,
+            &phase,
+            index,
+            &ns,
+            &key,
+            ord,
+            g,
+            root_g,
+            next,
+            clock.value.view(),
+            messages
+                .get(id.as_str())
+                .map(|(k, c, p)| (k.as_str(), *c, *p)),
+        )?;
         max_ns = max_ns.max(nonnegative(&ns, "semantic_ns").map_err(err)?);
         if phase == "recover" {
-            if index != -1 || ord.is_some() || !key.is_empty() || g > root_g {
-                return Err(err("recover phase归属错误"));
-            }
-            recover_facts.push((ns.clone(), g));
+            control_push(
+                &mut recover_facts,
+                (ns.try_clone_admitted(work).map_err(err)?, g),
+                work,
+            )
+            .map_err(err)?;
         } else {
-            let (expected_key, count, published) =
-                messages.get(&id).ok_or_else(|| err("phase没有原消息"))?;
-            if &key != expected_key {
-                return Err(err("phase消息归属错误"));
-            }
-            if phase == "accept" {
-                if index != -1 || ord.is_some() || g > root_g {
-                    return Err(err("accept phase域错误"));
-                }
-            } else if (phase != "begin" && phase != "commit")
-                || index < 0
-                || index >= *count
-                || ord.is_none_or(|o| o < 1 || o >= next)
+            let (expected_key, count, published) = messages
+                .get(id.as_str())
+                .ok_or_else(|| err("phase没有原消息"))?;
+            if phase == "begin"
+                && control_insert(
+                    &mut ordinals,
+                    ord.unwrap(),
+                    (id.try_clone_admitted(work).map_err(err)?, index),
+                    work,
+                )
+                .map_err(err)?
+                .is_some()
             {
-                return Err(err("attempt phase域错误"));
-            }
-            if phase == "begin" && ordinals.insert(ord.unwrap(), (id.clone(), index)).is_some() {
                 return Err(err("重复全局attempt"));
             }
             if phase == "begin" {
-                begins_by_message
-                    .entry(id.clone())
-                    .or_default()
-                    .insert(index);
-            }
-            if phase == "begin" && g != published.unwrap_or(next_g) {
-                return Err(err("Begin代际与消息推进目标不同"));
-            }
-            if phase == "commit" && *published != Some(g) {
-                return Err(err("commit phase与实际首次发布不一致"));
+                if !begins_by_message.contains_key(id.as_str()) {
+                    control_insert(
+                        &mut begins_by_message,
+                        id.try_clone_admitted(work).map_err(err)?,
+                        control_json::new_map(owner),
+                        work,
+                    )
+                    .map_err(err)?;
+                }
+                control_insert(
+                    begins_by_message.get_mut(id.as_str()).unwrap(),
+                    index,
+                    (),
+                    work,
+                )
+                .map_err(err)?;
             }
         }
         if phase == "commit"
-            && commits_by_generation
-                .insert(g, (id.clone(), index))
-                .is_some()
+            && control_insert(
+                &mut commits_by_generation,
+                g,
+                (id.try_clone_admitted(work).map_err(err)?, index),
+                work,
+            )
+            .map_err(err)?
+            .is_some()
         {
             return Err(err("每代重复Commit phase"));
         }
-        if seen.insert((id, phase, index), (ord, g)).is_some() {
+        if control_insert(&mut seen, (id, phase, index), (ord, g), work)
+            .map_err(err)?
+            .is_some()
+        {
             return Err(err("重复phase"));
         }
     }
+    stmt.finalize().map_err(err)?;
     if parse_canonical_i64(&frontier, "logical_phase_frontier").map_err(err)? != max_ns
         || next as i128 != ordinals.len() as i128 + 1
-        || ordinals
-            .keys()
+        || control_sorted_keys_admitted(&ordinals, owner, work)?
+            .iter()
             .enumerate()
-            .any(|(i, o)| *o as i128 != i as i128 + 1)
+            .any(|(i, o)| **o as i128 != i as i128 + 1)
     {
         return Err(err("phase frontier/attempt序列断裂"));
     }
-    for (id, (_, count, published)) in &messages {
-        if !seen.contains_key(&(id.clone(), "accept".into(), -1)) {
-            return Err(err("消息缺接纳phase"));
-        }
-        let indexes = begins_by_message.get(id);
-        if indexes.map_or(0, |v| v.len()) as i128 != *count as i128
-            || indexes.is_some_and(|v| {
-                v.iter()
-                    .enumerate()
-                    .any(|(i, actual)| i as i128 != *actual as i128)
-            })
-        {
-            return Err(err("消息attempt_count与实际Begin集合不闭合"));
-        }
-        for &i in indexes.into_iter().flatten() {
-            let begin = seen
-                .get(&(id.clone(), "begin".into(), i))
-                .ok_or_else(|| err("attempt缺Begin"))?;
-            if let Some(commit) = seen.get(&(id.clone(), "commit".into(), i)) {
-                if begin != commit {
-                    return Err(err("Begin/Commit ordinal/generation不一致"));
-                }
+    for id in &control_sorted_keys_admitted(&messages, owner, work)? {
+        let (_, count, published) = messages.get(id.as_str()).unwrap();
+        let indexes = begins_by_message.get(id.as_str());
+        let mut sorted_indexes = control_json::new_work(owner);
+        if let Some(indexes) = indexes {
+            for (i, _) in indexes.iter() {
+                control_push(&mut sorted_indexes, *i, work).map_err(err)?;
             }
         }
-        if *count > 0
-            && published.is_some()
-            && !seen.contains_key(&(id.clone(), "commit".into(), count - 1))
-        {
-            return Err(err("已发布消息缺最后Commit phase"));
-        }
+        sorted_indexes.sort_unstable();
+        let same_pairs = sorted_indexes.iter().all(|i| {
+            let begin = seen.get(&PhaseKey(id.as_str(), "begin", *i));
+            begin.is_some()
+                && seen
+                    .get(&PhaseKey(id.as_str(), "commit", *i))
+                    .is_none_or(|commit| Some(commit) == begin)
+        });
+        validate_attempt_summary(
+            *count,
+            *published,
+            seen.contains_key(&PhaseKey(id.as_str(), "accept", -1)),
+            &sorted_indexes,
+            same_pairs,
+            seen.contains_key(&PhaseKey(id.as_str(), "commit", count - 1)),
+        )?;
     }
-    epoch_facts.sort();
-    recover_facts.sort();
-    if epoch_facts != recover_facts {
+    epoch_facts.sort_unstable();
+    recover_facts.sort_unstable();
+    if *epoch_facts != *recover_facts {
         return Err(err("recover phase与writer换代时间/代际不闭合"));
     }
-    let mut q = conn
-        .prepare("SELECT generation,index_frontier FROM structure_deltas ORDER BY generation")
-        .map_err(err)?;
-    let mut rows = q.query([]).map_err(err)?;
-    while let Some(r) = rows.next().map_err(err)? {
-        let g: i64 = r.get(0).map_err(err)?;
-        let id: String = r.get(1).map_err(err)?;
-        let batch = batches.get(&id).ok_or_else(|| err("v2缺可达批次"))?;
+    let mut q = CheckedStatement::prepare(
+        conn,
+        c"SELECT generation,index_frontier FROM structure_deltas ORDER BY generation",
+    )
+    .map_err(err)?;
+    let mut remaining = control_json::new_map(owner);
+    while let Some(mut r) = q.next().map_err(err)? {
+        let g = r.integer(0).map_err(err)?;
+        let batch_id = TextValue::from_sql_admitted(&mut r, 1, owner, work).map_err(err)?;
         let (id, index) = commits_by_generation
             .get(&g)
             .ok_or_else(|| err("v2发布缺真实Commit phase"))?;
-        if batch["protocol_revision"] != "s-session/2"
-            || batch["session_generation"] != inc
-            || batch["clock_plan_hash"] != clock.hash
-            || batch["semantic_commit_ns"] != clock.phase(id, "commit", *index).map_err(err)?
-        {
-            return Err(err("发布batch与真实语义clock/session不一致"));
-        }
+        control_insert(
+            &mut remaining,
+            (g, batch_id),
+            ControlHeader {
+                commit_ns: TextValue::from_str_admitted(
+                    clock.phase(id, "commit", *index).map_err(err)?,
+                    owner,
+                    work,
+                )
+                .map_err(err)?,
+                consumed: false,
+            },
+            work,
+        )
+        .map_err(err)?;
     }
-    Ok(())
+    q.finalize().map_err(err)?;
+    Ok(ControlHistory {
+        pending: remaining.len(),
+        facts: ControlFacts {
+            session_generation: inc,
+            clock_plan_hash: clock.hash,
+            headers: remaining,
+        },
+    })
 }
 
 fn process_lock(db: &Path) -> Result<File, String> {
@@ -995,21 +2198,70 @@ fn init_v2(
     result["profile_hash"] = json!(profile_hash);
     Ok(result)
 }
-fn protocol_identity(conn: &Connection) -> Result<(String, String, String), String> {
+pub(super) fn protocol_identity(conn: &Connection) -> Result<(String, String, String), String> {
+    let (session, generation, epoch) = protocol_identity_with_owner(conn, None)?;
     Ok((
-        meta_get_opt(conn, "session_id")?.ok_or_else(|| err("缺session"))?,
-        conn.query_row(
-            "SELECT session_generation FROM s_protocol_meta WHERE singleton=1",
-            [],
-            |r| r.get(0),
-        )
-        .map_err(err)?,
-        meta_get_opt(conn, "writer_epoch")?.ok_or_else(|| err("缺epoch"))?,
+        session.to_string(),
+        generation.to_string(),
+        epoch.to_string(),
     ))
 }
-fn lookup(conn: &Connection, ns: &str, se: &str, id: &str, hash: &str) -> Result<Value, String> {
-    let row:Option<(String,String,i64,String,Option<i64>)>=conn.query_row("SELECT payload_hash,receipt_id,accepted_seq,status,first_published_generation FROM s_input_messages WHERE source_namespace=?1 AND source_epoch=?2 AND message_id=?3",params![ns,se,id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).optional().map_err(err)?;
-    let Some((stored, receipt, seq, status, g)) = row else {
+pub(crate) fn protocol_identity_with_owner(
+    conn: &Connection,
+    allocation: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+) -> Result<
+    (
+        crate::v3::business_json::TextValue,
+        crate::v3::business_json::TextValue,
+        crate::v3::business_json::TextValue,
+    ),
+    String,
+> {
+    Ok((
+        control_meta_text(conn, "session_id", allocation)?.ok_or_else(|| err("缺session"))?,
+        control_query_row(
+            conn,
+            c"SELECT session_generation FROM s_protocol_meta WHERE singleton=1",
+            &[],
+            |row| crate::v3::business_json::TextValue::from_sql(row, 0, allocation),
+        )?,
+        control_meta_text(conn, "writer_epoch", allocation)?.ok_or_else(|| err("缺epoch"))?,
+    ))
+}
+/// 持久 message 行的机械读取（唯一查询/状态口径；v2 的 `lookup` 与 S3 域核验共用）。
+pub(super) struct MessageRow {
+    pub(super) payload_hash: String,
+    pub(super) receipt_id: String,
+    pub(super) accepted_seq: i64,
+    pub(super) status: String,
+    pub(super) first_published_generation: Option<i64>,
+    pub(super) clock_event_id: String,
+}
+pub(super) fn message_row(
+    conn: &Connection,
+    ns: &str,
+    se: &str,
+    id: &str,
+) -> Result<Option<MessageRow>, String> {
+    conn.query_row("SELECT payload_hash,receipt_id,accepted_seq,status,first_published_generation,clock_event_id FROM s_input_messages WHERE source_namespace=?1 AND source_epoch=?2 AND message_id=?3",params![ns,se,id],|r|Ok(MessageRow{payload_hash:r.get(0)?,receipt_id:r.get(1)?,accepted_seq:r.get(2)?,status:r.get(3)?,first_published_generation:r.get(4)?,clock_event_id:r.get(5)?})).optional().map_err(err)
+}
+/// 持久回执视图（唯一形状与 hash 判据；v2 `handle` 与 S3 域共用）。
+pub(super) fn lookup(
+    conn: &Connection,
+    ns: &str,
+    se: &str,
+    id: &str,
+    hash: &str,
+) -> Result<Value, String> {
+    let Some(MessageRow {
+        payload_hash: stored,
+        receipt_id: receipt,
+        accepted_seq: seq,
+        status,
+        first_published_generation: g,
+        ..
+    }) = message_row(conn, ns, se, id)?
+    else {
         return Ok(json!({"ok":true,"kind":"Unknown","original_message_id":id}));
     };
     if stored != hash {
@@ -1025,15 +2277,30 @@ fn lookup(conn: &Connection, ns: &str, se: &str, id: &str, hash: &str) -> Result
     )
 }
 fn ready(conn: &Connection) -> Result<Value, String> {
+    ready_for_protocol(conn, "s-session/2")
+}
+/// 控制就绪头共用机械字段；调用方已完成相应版本的完整状态核验。
+pub(super) fn ready_for_protocol(conn: &Connection, protocol: &str) -> Result<Value, String> {
+    if !matches!(protocol, "s-session/2" | "s-session/3")
+        || meta_get_opt(conn, "protocol_revision")?.as_deref() != Some(protocol)
+    {
+        return Err("SchemaUnsupported：Ready协议与持久域不同".into());
+    }
     let (sid, inc, epoch) = protocol_identity(conn)?;
     let clock = stored_clock(conn)?;
     let (first,head,keep):(i64,i64,i64)=conn.query_row("SELECT first_available_generation,head_generation,retain_generations FROM s_delivery_policy WHERE singleton=1",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).map_err(err)?;
     Ok(
-        json!({"ok":true,"kind":"Ready","schema_revision":"s-session/2","session_id":sid,"session_generation":inc,"writer_epoch":epoch,"profile_id":meta_get_opt(conn,"profile_id")?,"profile_hash":meta_get_opt(conn,"profile_hash")?,"clock_plan_hash":clock.hash,"advance_state":meta_get_opt(conn,"advance_state")?,"generation":meta_get_opt(conn,"generation")?,"structure_cut":meta_get_opt(conn,"structure_cut")?,"index_frontier":meta_get_opt(conn,"index_frontier")?,"delivery_frontier":{"first_available_generation":first.to_string(),"head_generation":head.to_string(),"min_valid_after_generation":(first-1).to_string(),"retain_generations":keep.to_string()}}),
+        json!({"ok":true,"kind":"Ready","schema_revision":protocol,"session_id":sid,"session_generation":inc,"writer_epoch":epoch,"profile_id":meta_get_opt(conn,"profile_id")?,"profile_hash":meta_get_opt(conn,"profile_hash")?,"clock_plan_hash":clock.hash,"advance_state":meta_get_opt(conn,"advance_state")?,"generation":meta_get_opt(conn,"generation")?,"structure_cut":meta_get_opt(conn,"structure_cut")?,"index_frontier":meta_get_opt(conn,"index_frontier")?,"delivery_frontier":{"first_available_generation":first.to_string(),"head_generation":head.to_string(),"min_valid_after_generation":(first-1).to_string(),"retain_generations":keep.to_string()}}),
     )
 }
-fn validate_ingest(e: &Value) -> Result<(), String> {
-    let p = &e["payload"];
+/// `ingest` payload 的业务形状（唯一判据；v2 `handle` 与 S3 域共用，不另写第二份宽/严副本）。
+pub(super) fn validate_ingest(e: &Value) -> Result<(), String> {
+    validate_ingest_view(e.into())
+}
+pub(super) fn validate_ingest_view(e: JsonView<'_>) -> Result<(), String> {
+    use control_json::field;
+    use newchan_rust::session_protocol::required_view;
+    let p = field(e, "payload");
     let keys = [
         "op",
         "target_session_id",
@@ -1043,33 +2310,31 @@ fn validate_ingest(e: &Value) -> Result<(), String> {
         "raw_input",
     ];
     if p.as_object().map(|m| m.len()) != Some(keys.len())
-        || p.as_object()
-            .unwrap()
-            .keys()
-            .any(|k| !keys.contains(&k.as_str()))
+        || p.as_object().unwrap().keys().any(|k| !keys.contains(&k))
     {
         return Err("SchemaUnsupported：ingest字段不完整/多余".into());
     }
-    if p["target_session_id"] != e["session_id"]
-        || p["target_session_generation"] != e["session_generation"]
+    if field(p, "target_session_id") != field(e, "session_id")
+        || field(p, "target_session_generation") != field(e, "session_generation")
     {
         return Err("IdentityConflict：target与公共头不同".into());
     }
-    required(p, "clock_event_id")?;
-    positive(required(p, "writer_epoch")?, "writer_epoch")?;
-    let raw = &p["raw_input"];
-    tb02a::parse_input(raw)?;
-    if raw["session_id"] != e["session_id"]
-        || raw["source_namespace"] != e["source_namespace"]
-        || raw["source_epoch"] != e["source_epoch"]
+    required_view(p, "clock_event_id")?;
+    positive(required_view(p, "writer_epoch")?, "writer_epoch")?;
+    let raw = field(p, "raw_input");
+    tb02a::parse_input_view(raw)?;
+    if field(raw, "session_id") != field(e, "session_id")
+        || field(raw, "source_namespace") != field(e, "source_namespace")
+        || field(raw, "source_epoch") != field(e, "source_epoch")
     {
         return Err("IdentityConflict：原始输入与公共头不同".into());
     }
-    if raw["events"].as_array().map(Vec::len) != Some(1) {
+    if field(raw, "events").as_array().map(|a| a.len()) != Some(1) {
         return Err("InvalidDomain：ingest必须一事件".into());
     }
     Ok(())
 }
+
 fn handle(
     db: &Path,
     profile: &Path,
@@ -1132,16 +2397,19 @@ fn handle(
                 )?;
             }
             advance_core(db, epoch, Some(&c))?;
+            let started = s_fact_cache::phase::begin();
             let conn = open_db(db)?;
             let tx = conn.unchecked_transaction().map_err(err)?;
             verify_reachable_root(&tx)?;
-            lookup(
+            let out = lookup(
                 &tx,
                 required(e, "source_namespace")?,
                 required(e, "source_epoch")?,
                 required(e, "message_id")?,
                 required(e, "payload_hash")?,
-            )
+            );
+            s_fact_cache::phase::record("post_advance_root_audit", started.elapsed().as_nanos());
+            out
         }
         _ => Err("SchemaUnsupported：未知op，恢复只允许正式监督器CLI".into()),
     }
@@ -1222,6 +2490,11 @@ fn serve(
         return Err("IdentityConflict：serve profile绑定不同".into());
     }
     if meta_get_opt(&tx, "advance_state")?.as_deref() != Some("idle") {
+        // #1576：历史规则库的 recover 必拒（VersionMismatch），不能再把运维指向它；闭门本身不放松。
+        let rule = meta_get_opt(&tx, "rule_revision")?.unwrap_or_default();
+        if rule != RULE_REVISION {
+            return Err(stale_begin_on_historical_rule(&rule, db));
+        }
         return Err("StaleWriter：未完成Begin保持闭门，请监督器先正式recover".into());
     }
     let identity = protocol_identity(&tx)?;
@@ -1253,6 +2526,15 @@ fn serve(
             control_instance_id.as_deref(),
         )
     })
+}
+
+/// #1576：历史规则库留有未完成 Begin 时 serve 的拒绝文案。recover 对历史规则只读库必拒，
+/// 故只给实际可走的路径：CLI 只读查看，或人工以当前规则新建代际（本协议无原库迁移入口）。
+fn stale_begin_on_historical_rule(rule: &str, db: &Path) -> String {
+    format!(
+        "VersionMismatch：历史规则会话（rule_revision=`{rule}`，本二进制为 `{RULE_REVISION}`）留有未完成Begin，永久闭门：历史规则只读，recover 同样拒绝（不换代、不清未决Begin），本库不能再以 serve 提供服务。可走路径：①只读查看用 CLI `catalog`/`snapshot`/`meta --db {}`；②恢复服务须人工以当前规则走 v2 `init` 建新路径的库（`--db <新路径> --session --catalog --profile --session-generation <新代> --clock-plan --delivery-retain-generations` 缺一不可；不带后三者会建成 v1 库，serve 不收）并重新接纳原始输入——当前无旧库迁移入口（TB-10 #1368）",
+        db.display()
+    )
 }
 
 fn arg(args: &[String], key: &str) -> Result<String, String> {
@@ -1346,6 +2628,8 @@ pub fn legacy_write_lock(args: &[String]) -> Result<Option<File>, String> {
 
 /// v2普通Watch只能走独立保留引用；旧v1数据仍由原命令实现读取。
 pub fn retained_watch(conn: &Connection, after: i64) -> Result<Option<Value>, String> {
+    // #1394 第二段（2D）：一次投递读取共享一个捕获作用域（Delta 原件同次只读一次）。
+    let _capture = cache::begin_capture(crate::EVIDENCE_READ_BUDGET);
     if !active(conn)? {
         return Ok(None);
     }
@@ -1360,13 +2644,13 @@ pub fn retained_watch(conn: &Connection, after: i64) -> Result<Option<Value>, St
         Value::Null
     };
     let deltas = if gap.is_null() {
-        let mut q=conn.prepare("SELECT d.generation,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.delta_json FROM s_delivery_refs r JOIN structure_deltas d ON d.generation=r.generation WHERE d.generation>?1 ORDER BY d.generation").map_err(err)?;
-        let values = q
-            .query_map(params![after], project_delta_row)
-            .map_err(err)?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(err)?;
-        values
+        // #1394 第二段：Delta 原件在图域由 `delta/<generation>` 私有根承载，读取必须走同一入口。
+        crate::delta_wire_rows(
+            conn,
+            "SELECT d.generation,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.delta_json FROM s_delivery_refs r JOIN structure_deltas d ON d.generation=r.generation WHERE d.generation>?1 ORDER BY d.generation",
+            after,
+        )
+        .map_err(err)?
     } else {
         Vec::new()
     };
@@ -1378,6 +2662,448 @@ pub fn retained_watch(conn: &Connection, after: i64) -> Result<Option<Value>, St
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn expected_control_test_state(publications: &[(i64, &str, &str)]) -> ExpectedControl {
+        let mut remaining = control_json::new_map(None);
+        for (generation, batch_id, commit_ns) in publications {
+            remaining
+                .insert(
+                    (*generation, TextValue::from_str(batch_id, None).unwrap()),
+                    ControlHeader {
+                        commit_ns: TextValue::from_str(commit_ns, None).unwrap(),
+                        consumed: false,
+                    },
+                )
+                .unwrap();
+        }
+        ExpectedControl::V2 {
+            history: ControlHistory {
+                pending: remaining.len(),
+                facts: ControlFacts {
+                    session_generation: TextValue::from_str("1", None).unwrap(),
+                    clock_plan_hash: TextValue::from_str("test-clock-hash", None).unwrap(),
+                    headers: remaining,
+                },
+            },
+        }
+    }
+
+    fn expected_control_test_header(commit_ns: &str) -> BatchControlHeader {
+        BatchControlHeader {
+            protocol_revision: Some("s-session/2".into()),
+            session_generation: Some("1".into()),
+            clock_plan_hash: Some("test-clock-hash".into()),
+            semantic_commit_ns: Some(commit_ns.into()),
+        }
+    }
+
+    #[test]
+    fn expected_control_requires_every_publication_before_finish() {
+        let mut expected =
+            expected_control_test_state(&[(1, "batch-a", "1020"), (2, "batch-b", "2020")]);
+        expected
+            .verify_header(1, "batch-a", &expected_control_test_header("1020"))
+            .unwrap();
+        assert!(
+            expected.finish().is_err(),
+            "仍有未消费发布时不得完成控制审计"
+        );
+    }
+
+    #[test]
+    fn expected_control_rejects_missing_and_repeated_consumption() {
+        let mut expected = expected_control_test_state(&[(1, "batch-a", "1020")]);
+        let header = expected_control_test_header("1020");
+        assert!(expected.verify_header(2, "batch-a", &header).is_err());
+        assert!(expected.verify_header(1, "batch-other", &header).is_err());
+        expected.verify_header(1, "batch-a", &header).unwrap();
+        assert!(expected.verify_header(1, "batch-a", &header).is_err());
+        expected.finish().unwrap();
+    }
+
+    #[test]
+    fn expected_control_consumes_reused_batch_id_by_generation() {
+        let mut expected =
+            expected_control_test_state(&[(1, "batch-a", "1020"), (2, "batch-a", "2020")]);
+        expected
+            .verify_header(1, "batch-a", &expected_control_test_header("1020"))
+            .unwrap();
+        expected
+            .verify_header(2, "batch-a", &expected_control_test_header("2020"))
+            .unwrap();
+        expected.finish().unwrap();
+    }
+
+    /// v2 入口必须只认自己的协议标记：新域 manifest（`s-session/3`）不能借共用消费核心
+    /// 混入旧域，也不能因为共用而放宽旧入口。
+    #[test]
+    fn v2_observe_batch_rejects_s3_marker_and_keeps_shared_consumption() {
+        let mut expected = expected_control_test_state(&[(1, "batch-a", "1020")]);
+        let mut s3 = expected_control_test_header("1020");
+        s3.protocol_revision = Some("s-session/3".into());
+        assert!(expected.observe_batch(1, "batch-a", &s3).is_err());
+        // 拒绝不消费：换成真实 v2 头仍必须逐字通过并闭合。
+        expected
+            .observe_batch(1, "batch-a", &expected_control_test_header("1020"))
+            .unwrap();
+        expected.finish().unwrap();
+        // Legacy 域没有逐代期望，旧行为保持。
+        let mut legacy = ExpectedControl::Legacy;
+        assert!(legacy.observe_batch(1, "batch-a", &s3).is_ok());
+    }
+
+    #[test]
+    fn expected_control_rejects_missing_fields_and_changed_clock_without_consuming() {
+        for field in 0..6 {
+            let mut expected = expected_control_test_state(&[(1, "batch-a", "1020")]);
+            let correct = expected_control_test_header("1020");
+            let mut bad = correct.clone();
+            match field {
+                0 => bad.protocol_revision = None,
+                1 => bad.session_generation = None,
+                2 => bad.clock_plan_hash = None,
+                3 => bad.semantic_commit_ns = None,
+                4 => bad.clock_plan_hash = Some("other-clock-hash".into()),
+                _ => bad.semantic_commit_ns = Some("01020".into()),
+            }
+            assert!(expected.verify_header(1, "batch-a", &bad).is_err());
+            expected.verify_header(1, "batch-a", &correct).unwrap();
+            expected.finish().unwrap();
+        }
+    }
+
+    /// #1394 第二段成本测量：用**冻结 9011 根来源**的前 N 根、与基线同一时钟计划
+    /// （`ns = 100 + 3*i`、`long-s-%05d`、一源一代）跑真实 v2 会话，逐代记时并收集库统计。
+    ///
+    /// 默认不跑（`S_EVIDENCE_MEASURE=<N>` 显式驱动），因为它按定义是长跑而不是单测；
+    /// 但它走的是与生产完全相同的 `handle/advance_core` 入口与真实 context，不另写旁路。
+    #[test]
+    #[ignore = "#1394 显式同源成本测量；须设置 S_EVIDENCE_MEASURE 并提供冻结原件"]
+    fn issue1394_prefix_cost_measurement() {
+        let spec =
+            std::env::var("S_EVIDENCE_MEASURE").expect("显式成本测量须设置 S_EVIDENCE_MEASURE");
+        let prefix: usize = spec.trim().parse().expect("S_EVIDENCE_MEASURE=<N>");
+        // 与正式启动器同档：`s_resources.audit_cache_source_bytes` 默认 268435456；
+        // 不设这一段就等于关掉审计前缀复用，会污染可比成本。
+        cache::configure(268_435_456);
+        const BAR_PATH: &str = "/Users/silencehan/Projects/NewChanlun-1394-tb03b/.scratch/issue1394-long-source-search/runs/RW05_u57_l12_40_a400_2000_r25_70_d2.bars.json";
+        let text = std::fs::read_to_string(BAR_PATH).expect("冻结来源可读");
+        assert_eq!(
+            sha256_hex(text.as_bytes()),
+            "76472995cbf0825ceeeaa94e89bd60d1b1416d6c7e0a7ec3a1b0ec5a90c60087"
+        );
+        let bars: Vec<Value> = serde_json::from_str(&text).expect("冻结来源是 JSON");
+        assert_eq!(bars.len(), 9011);
+        let base = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("s_session");
+        let dir = std::env::temp_dir().join(format!(
+            "issue1394-measure-{}-{}-{prefix}",
+            std::process::id(),
+            now_nanos()
+        ));
+        std::fs::create_dir(&dir).unwrap();
+        let db = dir.join("s.sqlite");
+        let profile = base.join("profiles/ohlc_integer_tb02a_v1.json");
+        let mut events = serde_json::Map::new();
+        for i in 0..prefix {
+            let ns = 100 + 3 * i as i64;
+            events.insert(
+                format!("long-s-{i:05}"),
+                json!({"accept_ns": ns.to_string(),
+                       "attempts": [{"begin_ns": (ns + 1).to_string(), "commit_ns": (ns + 2).to_string()}]}),
+            );
+        }
+        let clock = ClockPlan::parse(json!({
+            "schema_revision": "s-clock-plan/1",
+            "clock_plan_id": "tb03b-long-s-full-source-v1",
+            "origin_utc": "2026-09-14T00:00:00Z",
+            "unit": "ns",
+            "events": events,
+        }))
+        .unwrap();
+        let clock_path = dir.join("clock.json");
+        std::fs::write(&clock_path, canonical_json(&clock.value)).unwrap();
+        const SID: &str = "tb03b-long-financial-v1";
+        const SOURCE: &str = "testonly.ohlc.tb03b-long-financial-v1";
+        init_v2(
+            &db,
+            SID,
+            &base.join("catalog/signed-catalog.json"),
+            &profile,
+            "1",
+            &clock_path,
+            4,
+        )
+        .unwrap();
+        let mut per_generation = Vec::with_capacity(prefix);
+        // #1394 第二段：逐代记录阶段计数增量（唯一节点读、历史 batch 展开/复用、根审计/stage/commit）。
+        let mut per_generation_audit_ms = Vec::with_capacity(prefix);
+        let mut per_generation_stage_ms = Vec::with_capacity(prefix);
+        let mut per_generation_commit_ms = Vec::with_capacity(prefix);
+        let mut per_generation_node_rows = Vec::with_capacity(prefix);
+        let mut per_generation_batch_expansions = Vec::with_capacity(prefix);
+        let mut per_generation_batch_hits = Vec::with_capacity(prefix);
+        let mut total = std::time::Duration::ZERO;
+        cache::counters_reset();
+        for (i, bar) in bars[..prefix].iter().enumerate() {
+            let ns = 100 + 3 * i as i64;
+            let op = format!("long-s-{i:05}");
+            let event = json!({
+                "event_id": format!("long-raw-{i}"),
+                "revision": "1",
+                "seq": bar["source_index"].to_string(),
+                "received_at": "2026-09-14T00:00:00Z",
+                "raw_text": canonical_json(bar),
+                "open": bar["open"].to_string(),
+                "high": bar["high"].to_string(),
+                "low": bar["low"].to_string(),
+                "close": bar["close"].to_string(),
+                "timestamp": bar["timestamp"].to_string(),
+                "volume": "1",
+            });
+            let payload = json!({
+                "op": "ingest",
+                "target_session_id": SID,
+                "target_session_generation": "1",
+                "writer_epoch": "1",
+                "clock_event_id": op,
+                "raw_input": {"schema_revision": "s-ohlc/1", "session_id": SID,
+                              "source_namespace": SOURCE, "source_epoch": "1",
+                              "instrument": "TEST.LONG.TB03B", "profile": "ohlc_integer_tb02a_v1",
+                              "events": [event]},
+            });
+            let message = json!({
+                "schema_revision": "s-session/2", "session_id": SID, "session_generation": "1",
+                "source_namespace": SOURCE, "source_epoch": "1",
+                "producer_id": "tb03b-long-input", "producer_epoch": "1",
+                "message_id": format!("long-s-{i:05}"), "causal_refs": [],
+                "payload_hash": sha256_hex(canonical_json(&payload).as_bytes()),
+                "payload": payload,
+            });
+            let started = Instant::now();
+            let before = cache::counters_snapshot();
+            handle(&db, &profile, "1", &clock, &envelope(message).unwrap()).unwrap();
+            let spent = started.elapsed();
+            let after = cache::counters_snapshot();
+            per_generation_audit_ms.push(format!(
+                "{:.3}",
+                (after.audit_ns - before.audit_ns) as f64 / 1e6
+            ));
+            per_generation_stage_ms.push(format!(
+                "{:.3}",
+                (after.stage_ns - before.stage_ns) as f64 / 1e6
+            ));
+            per_generation_commit_ms.push(format!(
+                "{:.3}",
+                (after.commit_ns - before.commit_ns) as f64 / 1e6
+            ));
+            per_generation_node_rows
+                .push((after.node_rows_read - before.node_rows_read).to_string());
+            per_generation_batch_expansions
+                .push((after.batch_expansions - before.batch_expansions).to_string());
+            per_generation_batch_hits
+                .push((after.batch_handle_hits - before.batch_handle_hits).to_string());
+            total += spent;
+            per_generation.push(spent.as_secs_f64());
+            let _ = ns;
+        }
+        let write_phase = cache::counters_snapshot();
+        let conn = open_db(&db).unwrap();
+        let page_count: i64 = conn
+            .query_row("PRAGMA page_count", [], |r| r.get(0))
+            .unwrap();
+        let page_size: i64 = conn
+            .query_row("PRAGMA page_size", [], |r| r.get(0))
+            .unwrap();
+        let (nodes, node_payload) = evidence_store::stats(&conn).unwrap();
+        let node_rows: i64 = conn
+            .query_row("SELECT COUNT(*) FROM s_evidence_nodes", [], |r| r.get(0))
+            .unwrap();
+        let roots: i64 = conn
+            .query_row("SELECT COUNT(*) FROM s_evidence_roots", [], |r| r.get(0))
+            .unwrap();
+        let batch_sum: i64 = conn
+            .query_row("SELECT COALESCE(SUM(byte_len),0) FROM batches", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        let blob_sum: i64 = conn
+            .query_row(
+                "SELECT COALESCE(SUM(length(canonical_bytes)),0) FROM batches",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let delta_sum: i64 = conn
+            .query_row(
+                "SELECT COALESCE(SUM(length(delta_json)),0) FROM structure_deltas",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        // 图域里 delta_json 列是空占位，故另按私有根展开计 Delta 逻辑原件字节。
+        let delta_origin_total: i64 = {
+            let format = evidence_store::format(&conn).unwrap();
+            let mut reader = evidence_store::Reader::new(&conn, crate::EVIDENCE_READ_BUDGET);
+            let mut stmt = conn
+                .prepare("SELECT generation, delta_json FROM structure_deltas ORDER BY generation")
+                .unwrap();
+            let rows = stmt
+                .query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+            let mut total = 0i64;
+            for (generation, column) in rows {
+                let text = crate::read_record_original_text(
+                    &conn,
+                    &mut reader,
+                    format,
+                    &evidence_store::delta_root_key(generation),
+                    &column,
+                    &format!("delta[{generation}]"),
+                )
+                .unwrap();
+                total += text.len() as i64;
+            }
+            total
+        };
+        // 公开读路径的完整展开成本：先丢弃跨请求持久句柄（真正的冷读集），再逐代展开，
+        // 逐字节核内容寻址与公开批次身份。
+        cache::clear_handles();
+        cache::counters_reset();
+        let read_counters_before = cache::counters_snapshot();
+        let read_started = Instant::now();
+        let mut expanded = 0u64;
+        {
+            let mut stmt = conn
+                .prepare("SELECT batch_id FROM batches ORDER BY batch_id")
+                .unwrap();
+            let ids = stmt
+                .query_map([], |r| r.get::<_, String>(0))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+            for id in ids {
+                expanded += load_batch_bytes(&conn, &id).unwrap().len() as u64;
+            }
+        }
+        let read_seconds = read_started.elapsed().as_secs_f64();
+        let read_counters_after = cache::counters_snapshot();
+        // 与基线逐代对拍（同一时钟计划 → 逐代 batch_id 必须逐字节相同）。
+        let mut comparison = Value::Null;
+        if let Ok(baseline) = Connection::open_with_flags(
+            "/private/tmp/tb1394-s-prefix64-20260915/s.db",
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        ) {
+            let base_hash: String = baseline
+                .query_row("SELECT clock_plan_hash FROM s_protocol_meta", [], |r| {
+                    r.get(0)
+                })
+                .unwrap();
+            let mine: String = conn
+                .query_row("SELECT clock_plan_hash FROM s_protocol_meta", [], |r| {
+                    r.get(0)
+                })
+                .unwrap();
+            let mut same = mine == base_hash;
+            let mut checked = 0i64;
+            if same {
+                let mut stmt = conn
+                    .prepare("SELECT d.generation,b.batch_id,b.byte_len FROM structure_deltas d JOIN batches b ON b.batch_id=d.index_frontier ORDER BY d.generation")
+                    .unwrap();
+                let mine_rows = stmt
+                    .query_map([], |r| {
+                        Ok((
+                            r.get::<_, i64>(0)?,
+                            r.get::<_, String>(1)?,
+                            r.get::<_, i64>(2)?,
+                        ))
+                    })
+                    .unwrap()
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap();
+                let mut stmt = baseline
+                    .prepare("SELECT d.generation,b.batch_id,b.byte_len FROM structure_deltas d JOIN batches b ON b.batch_id=d.index_frontier ORDER BY d.generation")
+                    .unwrap();
+                let base_rows = stmt
+                    .query_map([], |r| {
+                        Ok((
+                            r.get::<_, i64>(0)?,
+                            r.get::<_, String>(1)?,
+                            r.get::<_, i64>(2)?,
+                        ))
+                    })
+                    .unwrap()
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap();
+                same = mine_rows.len() <= base_rows.len()
+                    && mine_rows.iter().zip(base_rows.iter()).all(|(a, b)| a == b);
+                checked = mine_rows.len().min(base_rows.len()) as i64;
+            }
+            comparison = json!({"same_clock_plan": mine == base_hash,
+                                "identical_generations": same, "checked": checked.to_string(),
+                                "baseline_db": "/private/tmp/tb1394-s-prefix64-20260915/s.db"});
+        }
+        println!(
+            "{}",
+            json!({
+                "schema": "issue1394-prefix-cost/1",
+                "prefix": prefix.to_string(),
+                "clock_plan_hash": conn.query_row("SELECT clock_plan_hash FROM s_protocol_meta", [], |r| r.get::<_, String>(0)).unwrap(),
+                "wall_seconds_total": format!("{:.3}", total.as_secs_f64()),
+                "wall_seconds_per_generation": per_generation.iter().map(|v| format!("{v:.4}")).collect::<Vec<_>>(),
+                "db_files": {"sqlite_pages": page_count.to_string(), "page_size": page_size.to_string(),
+                              "sqlite_bytes": (page_count * page_size).to_string()},
+                "batches": {"rows": roots.to_string(), "expanded_bytes_total": batch_sum.to_string(),
+                             "stored_blob_bytes": blob_sum.to_string()},
+                "graph": {"nodes": nodes.to_string(), "node_rows": node_rows.to_string(),
+                           "node_payload_bytes": node_payload.to_string(),
+                           "roots": roots.to_string()},
+                "delta_json_bytes_total": delta_sum.to_string(),
+                "full_expansion_seconds": format!("{read_seconds:.3}"),
+                "full_expansion_bytes": expanded.to_string(),
+                "delta_origin_bytes_total": delta_origin_total.to_string(),
+                "stages": {
+                    "units": "毫秒与计数均为逐代增量；cache 命中/失效为同一捕获内的句柄/节点粒度",
+                    "wall_ms_per_generation": per_generation.iter().map(|v| format!("{:.3}", v * 1000.0)).collect::<Vec<_>>(),
+                    "audit_ms_per_generation": per_generation_audit_ms,
+                    "stage_ms_per_generation": per_generation_stage_ms,
+                    "commit_ms_per_generation": per_generation_commit_ms,
+                    "unique_node_rows_read_per_generation": per_generation_node_rows,
+                    "historical_batch_expansions_per_generation": per_generation_batch_expansions,
+                    "historical_batch_handle_hits_per_generation": per_generation_batch_hits,
+                    "write_phase_totals": {
+                        "node_rows_read": write_phase.node_rows_read.to_string(),
+                        "node_payload_bytes_read": write_phase.node_payload_bytes_read.to_string(),
+                        "node_reused_in_capture": write_phase.node_reused_in_capture.to_string(),
+                        "root_reads": write_phase.root_reads.to_string(),
+                        "root_handle_hits": write_phase.root_handle_hits.to_string(),
+                        "root_expansions": write_phase.root_expansions.to_string(),
+                        "root_parses": write_phase.root_parses.to_string(),
+                        "batch_handle_hits": write_phase.batch_handle_hits.to_string(),
+                        "batch_expansions": write_phase.batch_expansions.to_string(),
+                        "audit_ms_total": format!("{:.3}", write_phase.audit_ns as f64 / 1e6),
+                        "stage_ms_total": format!("{:.3}", write_phase.stage_ns as f64 / 1e6),
+                        "commit_ms_total": format!("{:.3}", write_phase.commit_ns as f64 / 1e6),
+                    },
+                    "cold_public_read_phase": {
+                        "seconds": format!("{read_seconds:.3}"),
+                        "bytes": expanded.to_string(),
+                        "node_rows_read": (read_counters_after.node_rows_read - read_counters_before.node_rows_read).to_string(),
+                        "root_expansions": (read_counters_after.root_expansions - read_counters_before.root_expansions).to_string(),
+                        "root_handle_hits": (read_counters_after.root_handle_hits - read_counters_before.root_handle_hits).to_string(),
+                        "cache_budget_bytes": "268435456",
+                    },
+                },
+                "baseline_comparison": comparison,
+                "db_dir": dir.display().to_string(),
+            })
+        );
+    }
+
     use newchan_rust::session_transport::{
         enqueue_before_deadline, io_connection, read_frame, Job,
     };
@@ -1464,6 +3190,7 @@ mod tests {
                 "relations",
                 "observations",
                 "structure_deltas",
+                "s_storage_format",
                 "writer_epoch_history",
                 "catalog",
                 "s_protocol_meta",
@@ -1536,6 +3263,156 @@ mod tests {
         }
     }
 
+    /// #1576 负控：历史规则库留有未完成 Begin 时 serve 仍闭门，但文案不再指向必拒的 recover；
+    /// 文案给出的路径逐条实走：CLI 只读查看可用、当前规则新建代际可用，recover 确实必拒，库字节不变。
+    #[test]
+    fn v2_serve_stale_begin_on_historical_rule_points_to_walkable_paths() {
+        let f = Fixture::new(8, 2);
+        f.begin_only();
+        let clock_path = f.dir.join("clock.json");
+        let bounds = || Bounds {
+            frame: 65536,
+            read: Duration::from_millis(1000),
+            write: Duration::from_millis(1000),
+            response: Duration::from_millis(1000),
+            cache_bytes: 0,
+            queue: 4,
+            connections: 4,
+        };
+        let socket = f.dir.join("s.sock");
+        // 对照：当前规则库的未决 Begin 仍按原口径指向 recover（该路径对当前规则可走）。
+        let current = serve(&f.db, &socket, &f.profile, "1", &clock_path, bounds()).unwrap_err();
+        assert!(
+            current.starts_with("StaleWriter：") && current.contains("recover"),
+            "{current}"
+        );
+
+        {
+            let writer = open_db(&f.db).unwrap();
+            meta_set(&writer, "rule_revision", "s2-axis-quantifiers+new-bi/1").unwrap();
+        }
+        let files = |db: &Path| {
+            ["", "-journal", "-wal"]
+                .iter()
+                // 只读连接可留下空 -wal（见 open_historical_readonly 注释），空与缺失同视。
+                .map(|x| {
+                    std::fs::read(format!("{}{x}", db.display()))
+                        .ok()
+                        .filter(|b| !b.is_empty())
+                })
+                .collect::<Vec<_>>()
+        };
+        let before = files(&f.db);
+
+        let msg = serve(&f.db, &socket, &f.profile, "1", &clock_path, bounds()).unwrap_err();
+        assert!(msg.starts_with("VersionMismatch："), "{msg}");
+        assert!(!msg.contains("请监督器先正式recover"), "{msg}");
+        for path in [
+            "`catalog`",
+            "`snapshot`",
+            "`meta --db",
+            "v2 `init`",
+            "--clock-plan --delivery-retain-generations",
+            "#1368",
+        ] {
+            assert!(msg.contains(path), "缺可走路径 {path}：{msg}");
+        }
+        assert!(!socket.exists(), "拒绝须发生在绑定 socket 之前");
+
+        // 文案说 recover 不适用：实走确认必拒。
+        assert!(recover_core(&f.db, "2", Some((&f.clock, "recover-1")))
+            .unwrap_err()
+            .starts_with("VersionMismatch："));
+        // 路径①：CLI 只读查看实走可用。
+        cmd_catalog(&f.db, None).unwrap();
+        cmd_snapshot(&f.db, None).unwrap();
+        cmd_meta(&f.db).unwrap();
+        // 闭门未放松：未决 Begin 仍在，主库与 -wal 字节不变。
+        let ro = open_db(&f.db).unwrap();
+        assert!(meta_get_opt(&ro, "advance_state")
+            .unwrap()
+            .is_some_and(|s| s.starts_with("begun:")));
+        drop(ro);
+        assert_eq!(files(&f.db), before, "历史规则库字节须不变");
+
+        // 路径②：人工以当前规则新建代际，新库满足 serve 的规则与闭门前件（未实起 serve，避免绑定阻塞）。
+        let base = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("s_session");
+        let fresh = f.dir.join("s-new-generation.sqlite");
+        init_v2(
+            &fresh,
+            "test-c",
+            &base.join("catalog/signed-catalog.json"),
+            &f.profile,
+            "2",
+            &clock_path,
+            8,
+        )
+        .unwrap();
+        let conn = open_db(&fresh).unwrap();
+        assert_eq!(
+            meta_get_opt(&conn, "rule_revision").unwrap().as_deref(),
+            Some(RULE_REVISION)
+        );
+        assert_eq!(
+            meta_get_opt(&conn, "advance_state").unwrap().as_deref(),
+            Some("idle")
+        );
+    }
+
+    #[test]
+    fn v2_header_capture_survives_full_handle_eviction() {
+        cache::configure(268435456);
+        let f = Fixture::new(8, 2);
+        for i in 0..4 {
+            f.ingest(i);
+        }
+        let conn = open_db(&f.db).unwrap();
+        cache::configure(268435456);
+        cache::counters_reset();
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(cache::counters_snapshot().batch_header_full_fallbacks, 4);
+        assert_eq!(cache::counters_snapshot().batch_full_reads, 4);
+        assert_eq!(cache::counters_snapshot().batch_suffix_full_reads, 4);
+        cache::evict_full_handles_for_test();
+        cache::counters_reset();
+        let tx = conn.unchecked_transaction().unwrap();
+        let mut reachable = capture_reachable_batches(&tx).unwrap();
+        let expected = prepare_control(&tx).unwrap();
+        assert_eq!(cache::counters_snapshot().batch_header_hits, 4);
+        assert_eq!(cache::counters_snapshot().batch_full_reads, 0);
+        assert_eq!(
+            cache::counters_snapshot().batch_expansions,
+            0,
+            "完整原件证明尚存时，控制头捕获不得因大句柄驱逐而展开历史batch"
+        );
+        verify_reachable_root_in_tx(&tx, &reachable, expected).unwrap();
+        assert_eq!(cache::last_resumed(), 4);
+        assert_eq!(cache::counters_snapshot().batch_suffix_full_reads, 0);
+        for field in 0..4 {
+            let mut bad = reachable.batches.clone();
+            let BatchRef::CertifiedHeader(header) = bad.values_mut().next().unwrap() else {
+                panic!("暖缓存应捕获已认证控制头");
+            };
+            match field {
+                0 => header.protocol_revision = None,
+                1 => header.session_generation = None,
+                2 => header.clock_plan_hash = None,
+                _ => header.semantic_commit_ns = Some("01020".into()),
+            }
+            std::mem::swap(&mut reachable.batches, &mut bad);
+            let expected = prepare_control(&tx).unwrap();
+            assert!(
+                verify_reachable_root_in_tx(&tx, &reachable, expected).is_err(),
+                "控制头不得暗补或数字归一化"
+            );
+            std::mem::swap(&mut reachable.batches, &mut bad);
+        }
+        cache::configure(0);
+    }
+
     #[test]
     fn v2_bounded_cache_reuses_only_fresh_equal_dependencies() {
         cache::configure(268435456);
@@ -1562,8 +3439,13 @@ mod tests {
         verify_reachable_root(&conn).unwrap();
         // 缓存极小须回完整门，既不拒合法库也不留下前缀健康标签。
         cache::configure(1);
+        cache::counters_reset();
         verify_reachable_root(&conn).unwrap();
         assert_eq!(cache::last_resumed(), 0);
+        assert_eq!(cache::counters_snapshot().batch_header_hits, 0);
+        assert!(cache::counters_snapshot().batch_header_full_fallbacks >= 5);
+        assert!(cache::counters_snapshot().batch_full_reads >= 5);
+        assert!(cache::counters_snapshot().batch_suffix_full_reads >= 5);
         verify_reachable_root(&conn).unwrap();
         assert_eq!(cache::last_resumed(), 0);
         cache::configure(0);
@@ -1589,6 +3471,10 @@ mod tests {
             "UPDATE structure_deltas SET delta_json='{}' WHERE generation=1",
             "UPDATE structure_deltas SET catalog_evidence_json='{}' WHERE generation=1",
             "UPDATE batches SET canonical_bytes=x'7b7d',byte_len=2",
+            "UPDATE batches SET byte_len=byte_len+1",
+            "UPDATE s_evidence_nodes SET payload=CAST(payload||x'00' AS BLOB) WHERE node_id=(SELECT node_id FROM s_evidence_roots WHERE root_key LIKE 'batch/%' LIMIT 1)",
+            "UPDATE s_evidence_roots SET slot_ids=zeroblob(32) WHERE root_key LIKE 'batch/%'",
+            "UPDATE s_evidence_roots SET content_sha256=lower(hex(zeroblob(32))) WHERE root_key LIKE 'batch/%'",
             "DELETE FROM meta WHERE key='profile_definition'",
             "UPDATE meta SET value='foreign' WHERE key='catalog_hash'",
             "UPDATE meta SET value='-1' WHERE key='writer_epoch'",
@@ -1598,6 +3484,10 @@ mod tests {
             "DELETE FROM s_delivery_refs",
             "UPDATE s_delivery_policy SET first_available_generation=3",
             "CREATE TABLE foreign_schema(value TEXT)",
+            // #1394：私有存储格式登记损坏（未知值 / 缺行）必须与其它根损坏同门拒绝。
+            "UPDATE s_storage_format SET storage_format='changes-only/9'",
+            "UPDATE s_storage_format SET storage_format='legacy-full/0'",
+            "DELETE FROM s_storage_format",
             "INSERT INTO writer_epoch_history VALUES(1,'bad','2',4,'idle','bad')",
         ] {
             cache::configure(268435456);
@@ -1608,6 +3498,7 @@ mod tests {
             let healthy = open_db(&f.db).unwrap();
             verify_reachable_root(&healthy).unwrap();
             assert_eq!(cache::last_resumed(), 4);
+            cache::evict_full_handles_for_test();
             let other = open_db(&f.db).unwrap();
             other.execute_batch(sql).unwrap();
             drop(other);
@@ -2018,6 +3909,12 @@ mod tests {
     #[test]
     fn v2_ready_nonce_is_only_transport_diagnostics() {
         let f = Fixture::new(8, 2);
+        assert_eq!(
+            ready(&open_db(&f.db).unwrap()).unwrap()["schema_revision"],
+            "s-session/2"
+        );
+        assert!(ready_for_protocol(&open_db(&f.db).unwrap(), "s-session/3").is_err());
+        assert!(ready_for_protocol(&open_db(&f.db).unwrap(), "s-session/4").is_err());
         let e = f.wrap(json!({"op":"ready"}), "ready-1");
         let identity = ("test-c".to_string(), "1".to_string(), "1".to_string());
         let a = response(
@@ -2051,21 +3948,124 @@ mod tests {
 #[test]
 #[ignore = "explicit isolated database diagnostic"]
 fn testonly_audit_cost_breakdown() {
+    fn retained_sample() -> Value {
+        let (root, handles, originals) = cache::retained_breakdown();
+        json!({
+            "retained_breakdown": {"root_walk_bytes":root,"handle_bytes":handles,"original_cert_bytes":originals,"batch_header_bytes":cache::batch_header_bytes()},
+            "capture_bytes_now":cache::capture_bytes_now()
+        })
+    }
+    fn counter_delta(after: &Value, before: &Value) -> Value {
+        if let Some(fields) = after.as_object() {
+            return Value::Object(
+                fields
+                    .iter()
+                    .map(|(key, value)| (key.clone(), counter_delta(value, &before[key])))
+                    .collect(),
+            );
+        }
+        json!(after
+            .as_u64()
+            .unwrap()
+            .checked_sub(before.as_u64().unwrap())
+            .unwrap())
+    }
     let path = std::env::var("S_AUDIT_COST_DB").expect("isolated copy path required");
+    let expected_text = std::env::var("S_AUDIT_COST_EXPECT_GENERATION")
+        .expect("explicit actual persistent generation required; not the requested prefix length");
+    let expected_generation =
+        parse_canonical_i64(&expected_text, "expected persistent generation").unwrap();
+    assert!(expected_generation >= 0);
+    assert!(
+        Path::new(&path).is_file(),
+        "existing stopped database copy required"
+    );
+    let _lock =
+        process_lock(Path::new(&path)).expect("database copy must not have an active S writer");
     let conn = open_db(Path::new(&path)).unwrap();
     let tx = conn.unchecked_transaction().unwrap();
+    let generation = meta_i64(&tx, "generation").unwrap();
+    assert_eq!(
+        generation, expected_generation,
+        "persistent generation differs from the explicit declaration"
+    );
     cache::configure(268435456);
     for iteration in 0..3 {
+        cache::counters_reset();
+        let before = retained_sample();
         let t = Instant::now();
         let batches = capture_reachable_batches(&tx).unwrap();
         let b = t.elapsed();
-        verify_control(&tx, &batches).unwrap();
+        let captured = retained_sample();
+        let capture_counters = serde_json::to_value(cache::counters_snapshot()).unwrap();
+        let expected = prepare_control(&tx).unwrap();
         let c = t.elapsed();
-        verify_reachable_root_in_tx(&tx, &batches).unwrap();
+        let control_counters = serde_json::to_value(cache::counters_snapshot()).unwrap();
+        verify_reachable_root_in_tx(&tx, &batches, expected).unwrap();
         let r = t.elapsed();
+        let verified = retained_sample();
+        let last_resumed = cache::last_resumed();
+        let verified_counters = serde_json::to_value(cache::counters_snapshot()).unwrap();
+        drop(batches);
+        let released = retained_sample();
+        assert_eq!(
+            cache::capture_bytes_now(),
+            0,
+            "capture must end after releasing batches"
+        );
+        assert_eq!(meta_i64(&tx, "generation").unwrap(), expected_generation);
+        let total_counters = serde_json::to_value(cache::counters_snapshot()).unwrap();
         eprintln!(
             "AUDIT_COST {}",
-            json!({"iteration":iteration,"generation":meta_i64(&tx,"generation").unwrap(),"batches_ms":b.as_secs_f64()*1000.0,"control_ms":(c-b).as_secs_f64()*1000.0,"structure_ms":(r-c).as_secs_f64()*1000.0,"total_ms":r.as_secs_f64()*1000.0})
+            json!({
+                "iteration":iteration,"cache_state":if iteration == 0 {"cold"} else {"warm"},
+                "generation":generation,"expected_generation":expected_generation,
+                "cache_source_byte_limit":268435456,"last_resumed":last_resumed,
+                "retention":{"before":before,"captured":captured,"verified":verified,"released":released},
+                "counters":{"capture":capture_counters,
+                    "control":counter_delta(&control_counters, &capture_counters),
+                    "structure":counter_delta(&verified_counters, &control_counters),"total":total_counters},
+                "batches_ms":b.as_secs_f64()*1000.0,"control_ms":(c-b).as_secs_f64()*1000.0,
+                "structure_ms":(r-c).as_secs_f64()*1000.0,"total_ms":r.as_secs_f64()*1000.0,
+                "timing_note":"control_ms 仅含全局控制检查与逐代期望准备，逐批控制头核对计入 structure_ms。沿原累积 Instant 分段；测试采样开销含在墙钟内。内部 audit_ns 与墙钟重叠，不相加。",
+                "storage_note":"保留量是源字节账，非 RSS；只验证显式实际代号，不代表目标前缀已全部完成。"
+            })
         );
+    }
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+mod owner_retention {
+    use super::*;
+    use crate::v3::audit_retention::retained_struct;
+
+    retained_struct!(ControlFacts {
+        session_generation,
+        clock_plan_hash,
+        headers
+    });
+    retained_struct!(ControlHeader {
+        commit_ns,
+        consumed
+    });
+}
+
+#[cfg(test)]
+impl ControlFacts {
+    pub(super) fn overlay_ab_control_signature(&self) -> serde_json::Value {
+        let mut headers = self
+            .headers
+            .iter()
+            .map(|((generation, batch), h)| {
+                (
+                    *generation,
+                    batch.as_str(),
+                    h.commit_ns.as_str(),
+                    h.consumed,
+                )
+            })
+            .collect::<Vec<_>>();
+        headers.sort();
+        serde_json::json!({"session_generation":self.session_generation.as_str(),"clock_plan_hash":self.clock_plan_hash.as_str(),"headers":headers})
     }
 }

@@ -19,6 +19,28 @@ from pathlib import Path
 
 from s_socket_client import decode_frame, exchange, validate_reply
 
+S_RESOURCE_FIELDS = {"max_frame_bytes", "read_timeout_ms", "write_timeout_ms", "response_timeout_ms",
+                     "audit_cache_source_bytes", "queue_capacity", "max_connections"}
+
+
+def launcher_revision(config):
+    # 直接构造 Controller 的旧内部调用没有版本字段；具名文件仍须显式给版本。
+    revision = config.get("schema_revision", "s-launcher/2")
+    if revision not in ("s-launcher/2", "s-launcher/3"):
+        raise ValueError("未知启动配置版本")
+    return revision
+
+
+def validate_s_resources(config):
+    resources = config.get("s_resources")
+    if type(resources) is not dict:
+        raise ValueError("s_resources 必须为资源对象")
+    if launcher_revision(config) == "s-launcher/3" and set(resources) != S_RESOURCE_FIELDS:
+        raise ValueError("s-launcher/3 s_resources 必须 exact 原七字段")
+    for field in S_RESOURCE_FIELDS:
+        positive(resources.get(field), "s_resources." + field)
+    return resources
+
 
 def canonical(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
@@ -36,8 +58,8 @@ def positive(value, field):
 
 def read_config(path):
     config = decode_frame(path.read_bytes())
-    if config.get("schema_revision") != "s-launcher/2":
-        raise ValueError("启动配置必须显式为 s-launcher/2")
+    if config.get("schema_revision") not in ("s-launcher/2", "s-launcher/3"):
+        raise ValueError("启动配置必须显式为 s-launcher/2 或 s-launcher/3")
     for field in ("session_id", "session_generation", "source_namespace", "source_epoch",
                   "producer_id", "producer_epoch", "writer_epoch"):
         if type(config.get(field)) is not str or not config[field]:
@@ -59,11 +81,7 @@ def read_config(path):
         config["economic_query_config"] = str((path.parent / value).resolve())
     if len(os.fsencode(config["socket"])) > 100:
         raise ValueError("Unix socket 路径超过本 launcher 的跨平台 100 字节上限")
-    for field in ("max_frame_bytes", "read_timeout_ms", "write_timeout_ms", "response_timeout_ms",
-                  "audit_cache_source_bytes", "queue_capacity", "max_connections"):
-        if type(config.get("s_resources")) is not dict:
-            raise ValueError("s_resources 必须为资源对象")
-        positive(config["s_resources"].get(field), "s_resources." + field)
+    validate_s_resources(config)
     return config
 
 
@@ -151,6 +169,10 @@ def process_identity(pid, command=None, *, deadline=None):
         return None
     # stat 会随正常运行在 S/R 间变化，不属于进程身份。
     identity = columns[0] + " " + columns[2]
+    if command and not re.fullmatch(r"[Pp]ython(?:[0-9]+(?:\.[0-9]+)*)?", Path(command[0]).name):
+        timestamp_and_command = columns[2].split(None, 5)
+        if len(timestamp_and_command) != 6 or timestamp_and_command[5] != " ".join(command):
+            raise ValueError("服务完整参数与本次启动命令不符")
     if command and re.fullmatch(r"[Pp]ython(?:[0-9]+(?:\.[0-9]+)*)?", Path(command[0]).name):
         timestamp_and_command = columns[2].split(None, 5)
         if len(timestamp_and_command) != 6:
@@ -171,6 +193,7 @@ def process_identity(pid, command=None, *, deadline=None):
 class Controller:
     def __init__(self, config, state_dir):
         self.config = config
+        launcher_revision(config)
         self.socket_service = config.get("socket_service", "s")
         if self.socket_service not in ("s", "owner"):
             raise ValueError("未知 socket 服务类型")
@@ -211,19 +234,27 @@ class Controller:
     def record_path(self, service):
         return self.state_dir / (service + ".process.json")
 
-    def status(self, service):
+    def status(self, service, *, deadline=None):
+        if deadline is not None:
+            remaining(deadline)
         path = self.record_path(service)
         if not path.exists():
             return {"service": service, "state": "not_started"}
         record = decode_frame(path.read_bytes())
         fields = {"service", "pid", "db", "process_identity", "command", "control_instance_id"}
-        if (not fields.issubset(record) or not set(record).issubset(fields | {"socket_identity"})
+        if (not fields.issubset(record) or not set(record).issubset(fields | {"socket_identity", "resource_identity"})
                 or type(record.get("pid")) is not int or record["pid"] <= 1
                 or any(type(record.get(k)) is not str or not record[k]
                        for k in ("service", "db", "process_identity", "control_instance_id"))
                 or type(record.get("command")) is not list or not record["command"]
                 or any(type(arg) is not str or not arg for arg in record["command"])):
             raise ValueError("进程记录字段不完整或类型无效，状态未知")
+        if "resource_identity" in record:
+            if service != "s" or launcher_revision(self.config) != "s-launcher/3":
+                raise ValueError("资源冻结身份不属于本次 S3 服务")
+            self.validate_resource_identity(record["resource_identity"], record["command"], deadline)
+        elif service == "s" and launcher_revision(self.config) == "s-launcher/3":
+            raise ValueError("S3 进程记录缺少本次资源冻结身份")
         if "socket_identity" in record:
             identity = record["socket_identity"]
             if (service != self.socket_service or type(identity) is not dict
@@ -233,14 +264,14 @@ class Controller:
                 raise ValueError("已登记 socket 身份无效或不属于本次配置")
         if record.get("db") != self.config["db"] or record.get("service") != service:
             raise ValueError("进程记录不属于本次启动配置")
-        identity = process_identity(record.get("pid"), record.get("command"))
+        identity = process_identity(record.get("pid"), record.get("command"), deadline=deadline)
         if identity is None:
             return {**record, "state": "stopped"}
         if identity != record.get("process_identity"):
             raise ValueError("PID 已复用或进程命令改变，拒绝采用旧记录")
         return {**record, "state": "running"}
 
-    def record(self, service, pid, command, instance_id, *, child=None, deadline=None):
+    def record(self, service, pid, command, instance_id, *, child=None, deadline=None, resource_identity=None):
         if child is not None and (pid != child.pid or deadline is None):
             raise ValueError("初始登记必须绑定本次直接子进程及启动总期限")
         observed_start = None
@@ -271,7 +302,70 @@ class Controller:
             break
         record = {"service": service, "pid": pid, "db": self.config["db"],
                   "process_identity": identity, "command": command, "control_instance_id": instance_id}
+        if resource_identity is not None:
+            self.validate_resource_identity(resource_identity, command, deadline, require_current=True)
+            record["resource_identity"] = resource_identity
         self.save_record(service, record)
+
+    def freeze_s_resources(self, deadline):
+        """仅复制显式七值；私有冻结文件随本次启动具名，不采用任何已有文件。"""
+        remaining(deadline)
+        body = canonical({"schema_revision": "s-structure-resources/1",
+                          "s_resources": validate_s_resources(self.config)})
+        nonce = str(uuid.uuid4())
+        path = self.state_dir / ("s-resources-" + nonce + ".json")
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(descriptor, "wb") as output:
+            output.write(body)
+            output.flush()
+            os.fsync(output.fileno())
+            identity = os.fstat(output.fileno())
+        remaining(deadline)
+        return {"path": str(path), "nonce": nonce, "sha256": hashlib.sha256(body).hexdigest(),
+                "device": identity.st_dev, "inode": identity.st_ino, "uid": identity.st_uid}
+
+    def validate_resource_identity(self, identity, command, deadline=None, *, require_current=False):
+        fields = {"path", "nonce", "sha256", "device", "inode", "uid"}
+        if (type(identity) is not dict or set(identity) != fields
+                or any(type(identity[k]) is not str for k in ("path", "nonce", "sha256"))
+                or any(type(identity[k]) is not int for k in ("device", "inode", "uid"))):
+            raise ValueError("S3 资源冻结身份字段无效")
+        nonce = identity["nonce"]
+        if str(uuid.UUID(nonce)) != nonce:
+            raise ValueError("S3 资源冻结 nonce 无效")
+        path = self.state_dir / ("s-resources-" + nonce + ".json")
+        if (identity["path"] != str(path) or command.count("--resource-config") != 1
+                or command[command.index("--resource-config") + 1:] == []
+                or command[command.index("--resource-config") + 1] != str(path)
+                or command.count("--protocol-revision") != 1
+                or command[command.index("--protocol-revision") + 1:] == []
+                or command[command.index("--protocol-revision") + 1] != "s-session/3"):
+            raise ValueError("S3 资源冻结文件未绑定本次完整启动参数")
+        if deadline is not None:
+            remaining(deadline)
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(descriptor, "rb") as source:
+            current = os.fstat(source.fileno())
+            if (not stat.S_ISREG(current.st_mode) or stat.S_IMODE(current.st_mode) != 0o600
+                    or current.st_uid != os.getuid()
+                    or (current.st_dev, current.st_ino, current.st_uid)
+                    != (identity["device"], identity["inode"], identity["uid"])):
+                raise ValueError("S3 资源冻结文件身份或私有权限改变")
+            body = source.read(65537)
+        if len(body) > 65536 or hashlib.sha256(body).hexdigest() != identity["sha256"]:
+            raise ValueError("S3 资源冻结内容或 hash 改变")
+        frozen = decode_frame(body)
+        if set(frozen) != {"schema_revision", "s_resources"} or frozen["schema_revision"] != "s-structure-resources/1":
+            raise ValueError("S3 资源冻结外壳无效")
+        validate_s_resources({"schema_revision": "s-launcher/3", "s_resources": frozen["s_resources"]})
+        if body != canonical(frozen):
+            raise ValueError("S3 资源冻结内容不是原规范字节")
+        # 旧进程按自己的冻结原件核身份，允许停止后用新的显式预算再次启动。
+        # 只有本次新 child 必须绑定当前配置，不能把旧预算偷偷用作新启动预算。
+        if require_current and frozen["s_resources"] != validate_s_resources(self.config):
+            raise ValueError("S3 资源冻结预算不属于本次显式启动配置")
+        if deadline is not None:
+            remaining(deadline)
 
     def save_record(self, service, record):
         target = self.record_path(service)
@@ -290,7 +384,7 @@ class Controller:
         path = Path(self.config["socket"])
         if not os.path.lexists(path):
             return None
-        record = self.status(self.socket_service)
+        record = self.status(self.socket_service, deadline=deadline)
         if record["state"] != "stopped" or record.get("socket_identity") is None:
             raise ValueError("已有 socket 缺少已确认停止的原 owner 及其就绪时身份，不接管未知路径")
         expected = record["socket_identity"]
@@ -311,14 +405,20 @@ class Controller:
         path.unlink()
         return {"removed_stopped_service_socket": expected, "old_pid": record["pid"]}
 
-    def start_process(self, service, command, environment=None, *, deadline=None):
+    def start_process(self, service, command, environment=None, *, deadline=None, resource_identity=None):
         if deadline is None:
             deadline = time.monotonic() + int(self.config["startup_timeout_ms"]) / 1000
         remaining(deadline)
-        if self.status(service)["state"] == "running":
+        if self.status(service, deadline=deadline)["state"] == "running":
             raise ValueError(service + " 已在运行，不覆盖 PID 记录")
+        if resource_identity is not None:
+            self.validate_resource_identity(resource_identity, command, deadline, require_current=True)
         instance_id = str(uuid.uuid4())
         environment = dict(os.environ if environment is None else environment)
+        # 私有声明只由本次已核冻结原件产生，ambient 值不能替代它或串到旧服务/Q。
+        environment.pop("S_CONTROL_RESOURCE_SHA256", None)
+        if resource_identity is not None:
+            environment["S_CONTROL_RESOURCE_SHA256"] = resource_identity["sha256"]
         instance_key = "SESSION_CONTROL_INSTANCE_ID" if self.socket_service == "owner" else "S_CONTROL_INSTANCE_ID"
         environment[instance_key] = instance_id
         with (self.state_dir / (service + ".log")).open("ab") as log:
@@ -326,7 +426,8 @@ class Controller:
             process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
                                        start_new_session=True, env=environment)
         try:
-            self.record(service, process.pid, command, instance_id, child=process, deadline=deadline)
+            self.record(service, process.pid, command, instance_id, child=process, deadline=deadline,
+                        resource_identity=resource_identity)
         except Exception as exc:
             # 仅善后本次尚未登记的直接子进程，不触碰其他已运行服务。
             if process.poll() is None:
@@ -347,6 +448,7 @@ class Controller:
         )
         result = subprocess.run([python, "-c", probe],
                                 capture_output=True, check=True, timeout=remaining(deadline))
+        remaining(deadline)
         library_dir, library_name, framework, framework_prefix = json.loads(result.stdout)
         # #1373：同一显式 Python 声明的两种安装布局，各自核真实文件。
         # Framework 的 LDLIBRARY 相对于 PYTHONFRAMEWORKPREFIX，而不是 LIBDIR。
@@ -368,10 +470,14 @@ class Controller:
 
     def ready_request(self, writer_epoch):
         config = self.config
+        revision = launcher_revision(config)
         payload = {"op": "ready", "target_session_id": config["session_id"],
                    "target_session_generation": config["session_generation"],
                    "writer_epoch": writer_epoch}
-        return {"schema_revision": "s-session/2", "session_id": config["session_id"],
+        if revision == "s-launcher/3":
+            payload = {"op": "ready"}
+        return {"schema_revision": "s-session/3" if revision == "s-launcher/3" else "s-session/2",
+                "session_id": config["session_id"],
                 "session_generation": config["session_generation"],
                 "source_namespace": config["source_namespace"], "source_epoch": config["source_epoch"],
                 "message_id": "launcher-ready-" + writer_epoch,
@@ -382,10 +488,10 @@ class Controller:
     def wait_ready(self, service, writer_epoch=None, query_epoch=None, deadline=None):
         if deadline is None:
             deadline = time.monotonic() + int(self.config["startup_timeout_ms"]) / 1000
-        expected = self.status(service)
+        expected = self.status(service, deadline=deadline)
         detail = "启动尚无健康回执"
         while time.monotonic() < deadline:
-            if self.status(service)["state"] != "running":
+            if self.status(service, deadline=deadline)["state"] != "running":
                 raise ValueError(service + " 已退出；请查 " + str(self.state_dir / (service + ".log")))
             remaining_ms = max(1, int((deadline - time.monotonic()) * 1000))
             if service == "s":
@@ -397,16 +503,18 @@ class Controller:
                 response = response if type(response) is dict else {}
                 payload = response.get("payload")
                 payload = payload if type(payload) is dict else {}
+                s3 = launcher_revision(self.config) == "s-launcher/3"
+                nonce = payload.get("control_instance_id") if s3 else response.get("control_instance_id")
                 # 字段与 S v2 正式响应一致后才将进程文件存在提升为 ready。
                 if (reply["transport"] == "Received" and payload.get("kind") == "Ready"
                         and response.get("session_id") == self.config["session_id"]
                         and response.get("session_generation") == self.config["session_generation"]
-                        and response.get("control_instance_id") == expected.get("control_instance_id")):
+                        and nonce == expected.get("control_instance_id")):
                     validate_reply(request, response, producer="S", producer_epoch=writer_epoch,
-                                   allow_control_instance=True)
+                                   allow_control_instance=not s3)
                     self.confirm_ready_process(service, expected, deadline)
                     # 只有正式Ready nonce与本次活PID同时成立，才登记此路径的清理资格。
-                    record = {k: v for k, v in self.status("s").items() if k != "state"}
+                    record = {k: v for k, v in self.status("s", deadline=deadline).items() if k != "state"}
                     record["socket_identity"] = self.socket_identity()
                     self.save_record("s", record)
                     remaining(deadline)
@@ -433,7 +541,7 @@ class Controller:
 
     def confirm_ready_process(self, service, expected, deadline):
         remaining(deadline)
-        current = self.status(service)
+        current = self.status(service, deadline=deadline)
         if (current["state"] != "running" or current.get("pid") != expected.get("pid")
                 or current.get("process_identity") != expected.get("process_identity")
                 or not expected.get("control_instance_id")):
@@ -443,39 +551,102 @@ class Controller:
     def start_s(self, writer_epoch):
         config = self.config
         deadline = time.monotonic() + int(config["startup_timeout_ms"]) / 1000
+        s3 = launcher_revision(config) == "s-launcher/3"
+        validate_s_resources(config)
+        positive(writer_epoch, "writer_epoch")
         environment = self.runtime_environment(deadline)
+        remaining(deadline)
+        resource_identity = self.freeze_s_resources(deadline) if s3 else None
         cleanup = self.prepare_socket(deadline)
         initialization = None
         if not Path(config["db"]).exists():
-            init = subprocess.run([config["binary"], "init", "--db", config["db"], "--session", config["session_id"],
+            init_command = [config["binary"], "init", "--db", config["db"], "--session", config["session_id"],
                                    "--catalog", config["catalog"], "--profile", config["profile"],
                                    "--session-generation", config["session_generation"], "--clock-plan", config["clock_plan"],
-                                   "--delivery-retain-generations", config["delivery_retain_generations"]],
+                                   "--delivery-retain-generations", config["delivery_retain_generations"]]
+            if s3:
+                init_command += ["--protocol-revision", "s-session/3"]
+            init = subprocess.run(init_command,
                                   capture_output=True, check=True, env=environment, timeout=remaining(deadline))
             initialization = decode_frame(init.stdout)
             remaining(deadline)
         command = [config["binary"], "serve", "--db", config["db"], "--socket", config["socket"],
                    "--writer-epoch", writer_epoch, "--profile", config["profile"], "--clock-plan", config["clock_plan"]]
-        for option, field in (("max-frame-bytes", "max_frame_bytes"), ("read-timeout-ms", "read_timeout_ms"),
+        if s3:
+            command += ["--protocol-revision", "s-session/3", "--resource-config", resource_identity["path"]]
+        else:
+            for option, field in (("max-frame-bytes", "max_frame_bytes"), ("read-timeout-ms", "read_timeout_ms"),
                               ("write-timeout-ms", "write_timeout_ms"), ("queue-capacity", "queue_capacity"),
                               ("max-connections", "max_connections"), ("response-timeout-ms", "response_timeout_ms"),
                               ("audit-cache-source-bytes", "audit_cache_source_bytes")):
-            command += ["--" + option, config["s_resources"][field]]
+                command += ["--" + option, config["s_resources"][field]]
         remaining(deadline)
-        self.start_process("s", command, environment, deadline=deadline)
+        if s3:
+            self.start_process("s", command, environment, deadline=deadline, resource_identity=resource_identity)
+        else:
+            self.start_process("s", command, environment, deadline=deadline)
         return {**self.wait_ready("s", writer_epoch, deadline=deadline), "initialization": initialization,
                 "socket_cleanup": cleanup}
+
+    def query_resource_revision(self, deadline):
+        # 读取和严格解码均在本次直接子进程内完成；父进程只收固定的小型分派标记。
+        reader = (
+            "import os,stat,sys\n"
+            "fd=os.open(sys.argv[1],os.O_RDONLY|os.O_NONBLOCK)\n"
+            "if not stat.S_ISREG(os.fstat(fd).st_mode):\n"
+            "    os.close(fd)\n"
+            "    sys.exit(2)\n"
+            "sys.path.insert(0,sys.argv[2])\n"
+            "from s_socket_client import decode_frame\n"
+            "with os.fdopen(fd,'rb') as source:\n"
+            "    resources=decode_frame(source.read())\n"
+            "if type(resources) is not dict:\n"
+            "    sys.exit(3)\n"
+            "revision=('s-query-resources/3' if resources.get('schema_revision')=='s-query-resources/3'\n"
+            "          else 'unsupported' if 'schema_revision' in resources else 'legacy/2')\n"
+            "sys.stdout.write(revision)\n"
+        )
+        try:
+            result = subprocess.run([sys.executable, "-c", reader, self.config["query_resource_config"],
+                                     str(Path(__file__).resolve().parent)],
+                                    capture_output=True, check=True, timeout=remaining(deadline))
+        except subprocess.CalledProcessError as exc:
+            if exc.returncode == 2:
+                raise ValueError("查询资源必须是可读取的普通文件") from exc
+            raise ValueError("查询资源读取或严格解码失败") from exc
+        remaining(deadline)
+        if result.stdout not in (b"s-query-resources/3", b"legacy/2", b"unsupported"):
+            raise ValueError("查询资源分派回执无效")
+        return result.stdout.decode("ascii")
 
     def start_q(self, query_epoch):
         config = self.config
         deadline = time.monotonic() + int(config["startup_timeout_ms"]) / 1000
-        script = Path(__file__).with_name("s_readonly_server.py")
-        command = [config["python"], str(script), "--db", config["db"], "--port", config["port"],
-                   "--browser", config["browser"], "--resource-config", config["query_resource_config"],
-                   "--producer-epoch", query_epoch]
-        if config.get("economic_query_config"):
-            command += ["--economic-config", config["economic_query_config"]]
-        self.start_process("q", command, deadline=deadline)
+        remaining(deadline)
+        revision = self.query_resource_revision(deadline)
+        if launcher_revision(config) == "s-launcher/3" and revision != "s-query-resources/3":
+            raise ValueError("S3 启动配置须显式提供 Q3 查询资源，拒绝版本错配")
+        environment = None
+        if revision == "s-query-resources/3":
+            # #1394：由已有资源文件的显式版本选择正式入口；21项限额仍由Q3冻结并校验。
+            if config.get("economic_query_config"):
+                raise ValueError("Q3结构入口不承载economic_query_config，不得静默丢弃")
+            command = [config["binary"], "query-serve", "--protocol-revision", "s-session/3",
+                       "--db", config["db"], "--resource-config", config["query_resource_config"],
+                       "--producer-epoch", query_epoch, "--host", "127.0.0.1", "--port", config["port"]]
+            environment = self.runtime_environment(deadline)
+        elif revision == "legacy/2":
+            # 旧十九字段文件保留Python入口及其严格验证，不接纳新版值或token。
+            script = Path(__file__).with_name("s_readonly_server.py")
+            command = [config["python"], str(script), "--db", config["db"], "--port", config["port"],
+                       "--browser", config["browser"], "--resource-config", config["query_resource_config"],
+                       "--producer-epoch", query_epoch]
+            if config.get("economic_query_config"):
+                command += ["--economic-config", config["economic_query_config"]]
+        else:
+            raise ValueError("查询资源版本未实现，拒绝换旧入口重试")
+        remaining(deadline)
+        self.start_process("q", command, environment, deadline=deadline)
         return self.wait_ready("q", query_epoch=query_epoch, deadline=deadline)
 
     def stop(self, service, requested_signal):
@@ -511,8 +682,11 @@ class Controller:
         config = self.config
         deadline = time.monotonic() + int(config["startup_timeout_ms"]) / 1000
         environment = self.runtime_environment(deadline)
-        recovery = subprocess.run([config["binary"], "recover", "--db", config["db"], "--new-epoch", new_epoch,
-                                   "--clock-plan", config["clock_plan"], "--clock-event-id", clock_event_id],
+        command = [config["binary"], "recover", "--db", config["db"], "--new-epoch", new_epoch,
+                   "--clock-plan", config["clock_plan"], "--clock-event-id", clock_event_id]
+        if launcher_revision(config) == "s-launcher/3":
+            command += ["--protocol-revision", "s-session/3"]
+        recovery = subprocess.run(command,
                                   capture_output=True, check=True, env=environment, timeout=remaining(deadline))
         reply = decode_frame(recovery.stdout)
         remaining(deadline)

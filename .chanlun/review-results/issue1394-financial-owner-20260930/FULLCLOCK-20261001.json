@@ -1,0 +1,232 @@
+{
+  "schema_revision": "issue1394-fullclock-evidence/1",
+  "ticket": 1394,
+  "map": 1323,
+  "kind": "open-ticket working draft appendix",
+  "source_head": "ed1f184bf7513d960d87b6687c279a657c8fa481",
+  "rust_tree": "5a2acd1e72c3846be38cc29689a82aeb57c68dc6",
+  "inputs": {
+    "JOINT-RESULT.md": {
+      "bytes": 1495,
+      "sha256": "98fefa5d8a589376b2aefabb843fedbfd4c61a26344c21a4346347d59b1fa2ef",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-s3-q3-joint-20261001/revision1/RESULT.md"
+    },
+    "JOINT-RESULT.json": {
+      "bytes": 7918,
+      "sha256": "da9abe58385530b7d875555659490e84c379ca3989aac5d9d5b18c4418614b18",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-s3-q3-joint-20261001/revision1/RESULT.json"
+    },
+    "JOINT-MANIFEST.json": {
+      "bytes": 16313,
+      "sha256": "f39b80bbcc7244245725eb770a27976903640d4d5277e0f5cc7f4116deab1aa6",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-s3-q3-joint-20261001/revision1/MANIFEST.json"
+    },
+    "JOINT-INDEPENDENT-FACT-REVIEW.md": {
+      "bytes": 5010,
+      "sha256": "419b8d2302c7c0d4662dde4dde0eaff281be2138cd3b92ff6642f15e96cde1c3",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-s3-q3-joint-20261001/revision1/INDEPENDENT-FACT-REVIEW.md"
+    },
+    "JOINT-INDEPENDENT-FACT-REVIEW.json": {
+      "bytes": 6180,
+      "sha256": "ad549aa0107b0400bc1a759948daed6c29c5da96dc758f2a86ef4ffe39475214",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-s3-q3-joint-20261001/revision1/INDEPENDENT-FACT-REVIEW.json"
+    },
+    "DEV16-RESULT.md": {
+      "bytes": 1572,
+      "sha256": "0011d4695cb50c9469ae6c2de7559a6d76e3b59ccc93be47464192a834c7a564",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-formal-fullclock-prefix16-20261001/RESULT.md"
+    },
+    "DEV16-RESULT.json": {
+      "bytes": 4982,
+      "sha256": "3833ff9dc4fcfbe8adfe968849e412a28e13039ef34515387a911366c4ebbc39",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-formal-fullclock-prefix16-20261001/RESULT.json"
+    },
+    "DEV16-MANIFEST.json": {
+      "bytes": 37937,
+      "sha256": "8e8ac71c78ab51602221869a4b43a3d8bf1582fcc740519eed1bb7c84580f351",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-formal-fullclock-prefix16-20261001/MANIFEST.json"
+    },
+    "DEV16-INDEPENDENT-FACT-REVIEW.md": {
+      "bytes": 4813,
+      "sha256": "ff74013f3ca1ab29192fac5985da9bbb871591a485c21454241a07e0290b2583",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-formal-fullclock-prefix16-20261001/INDEPENDENT-FACT-REVIEW.md"
+    },
+    "DEV16-INDEPENDENT-FACT-REVIEW.json": {
+      "bytes": 9722,
+      "sha256": "ed962b2ad13a4ee00bba58601a73dfee6f884c1989fd83a2b75be0829203ab13",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-formal-fullclock-prefix16-20261001/INDEPENDENT-FACT-REVIEW.json"
+    },
+    "DEV16-MEASUREMENT-SUMMARY.json": {
+      "bytes": 9866,
+      "sha256": "e4b4ad0cb98a12fffa14a18c2528294f5720e876953f04edfb38df3a37bafc37",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-formal-fullclock-prefix16-20261001/MEASUREMENT-SUMMARY.json"
+    },
+    "RELEASE16-RESULT.md": {
+      "bytes": 1571,
+      "sha256": "7f5b1e172fec03fe71268e4a7958c8d2efa91c04c77191feb706392f31a82829",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-formal-fullclock-prefix16-20261001/release1/RESULT.md"
+    },
+    "RELEASE16-RESULT.json": {
+      "bytes": 3616,
+      "sha256": "6122feb186aa0d35e794e36da394082e9ca5204bef4c15a64f554396a45d32eb",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-formal-fullclock-prefix16-20261001/release1/RESULT.json"
+    },
+    "RELEASE16-MANIFEST.json": {
+      "bytes": 156656,
+      "sha256": "b5a9cc1c576cc813acb53aceeadd89ddca097ed04d5a0882104647593467f78e",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-formal-fullclock-prefix16-20261001/release1/MANIFEST.json"
+    },
+    "RELEASE16-INDEPENDENT-FACT-REVIEW.md": {
+      "bytes": 4717,
+      "sha256": "bdf0fba9466a9c2eaab36f377fcb46e74531fa3013ce18489074f38470ec2775",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-formal-fullclock-prefix16-20261001/release1/INDEPENDENT-FACT-REVIEW.md"
+    },
+    "RELEASE16-INDEPENDENT-FACT-REVIEW.json": {
+      "bytes": 6116,
+      "sha256": "a03e2b0407b7d8472209f39c8eef25542ae086b260bddf87ab8e958efd8ee84e",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-formal-fullclock-prefix16-20261001/release1/INDEPENDENT-FACT-REVIEW.json"
+    },
+    "RELEASE16-MEASUREMENT-SUMMARY.json": {
+      "bytes": 8193,
+      "sha256": "4eb0f4e0ed72b63a23029f43e58ba18cc06cd8c70291976e81299540eb7d67e9",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-formal-fullclock-prefix16-20261001/release1/MEASUREMENT-SUMMARY.json"
+    },
+    "Q16-RESULT.md": {
+      "bytes": 1705,
+      "sha256": "93bb90857f5db6f42a30ed164fce56a249b90257330d120d01a8e863ddc4cb75",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-fullclock-s16-q3-probe-20261001/RESULT.md"
+    },
+    "Q16-RESULT.json": {
+      "bytes": 4210,
+      "sha256": "026b115f647ac6870f9790eac224c6b1b46d73873e3ce877822836ee2d024b03",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-fullclock-s16-q3-probe-20261001/RESULT.json"
+    },
+    "Q16-MANIFEST.json": {
+      "bytes": 47123,
+      "sha256": "7febd5197c74979d31ffeefbe8a23d59d1aeb5bfcdecee6e443a433901922422",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-fullclock-s16-q3-probe-20261001/MANIFEST.json"
+    },
+    "Q16-INDEPENDENT-FACT-REVIEW.md": {
+      "bytes": 4421,
+      "sha256": "abc7ffeec95518014672e8e67fc5c4eadd61597226420892f8118d16f1042cab",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-fullclock-s16-q3-probe-20261001/INDEPENDENT-FACT-REVIEW.md"
+    },
+    "Q16-INDEPENDENT-FACT-REVIEW.json": {
+      "bytes": 6587,
+      "sha256": "5fa148d97a11ba41a6354557ded2bf6db455f17054c7f7a99768cdd5dde7d4d5",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-fullclock-s16-q3-probe-20261001/INDEPENDENT-FACT-REVIEW.json"
+    },
+    "Q16-MEASUREMENT-SUMMARY.json": {
+      "bytes": 9991,
+      "sha256": "28b4dab6a9b492e9a922411e6c5319893ff63dace7f60c84b66290e8d8ea97e5",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-fullclock-s16-q3-probe-20261001/MEASUREMENT-SUMMARY.json"
+    },
+    "PREP-FULL-HISTORY-FORMAL-PREREQUISITES.md": {
+      "bytes": 8525,
+      "sha256": "2b290f21f23fde1f4da437eaa79fe380478f93d17ed1c7bfcbbfb8fc4921621d",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full-history-formal-prep-20261001/FULL-HISTORY-FORMAL-PREREQUISITES.md"
+    },
+    "PREP-FULL-HISTORY-FORMAL-PREREQUISITES.json": {
+      "bytes": 14239,
+      "sha256": "5151ecded9f1b168280f29efc1c3458d8448c322c4361ac233cc423a9d40a1ee",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full-history-formal-prep-20261001/FULL-HISTORY-FORMAL-PREREQUISITES.json"
+    },
+    "PREP-MANIFEST.json": {
+      "bytes": 5104,
+      "sha256": "c4e7d97cca3a7bad2baddc85368bf766cdf5609cce0d32a849d069b8f251fea0",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full-history-formal-prep-20261001/MANIFEST.json"
+    },
+    "PREP-ROOT-PROBE-INPUT-REVIEW.json": {
+      "bytes": 882,
+      "sha256": "1a20cfc80fde34c13fefd0c8d43db2a25cc6e891d5c76994d4c7a7c10b47a22a",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full-history-formal-prep-20261001/ROOT-PROBE-INPUT-REVIEW.json"
+    },
+    "FULLCLOCK.json": {
+      "bytes": 790213,
+      "sha256": "b02ac2444161e1e7e327fcf2a2bb79b294356a3dd95a59a6404c5b92deb04f01",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full-history-formal-prep-20261001/inputs/clock-plan.full9011.draft.json"
+    },
+    "S16-RESOURCES.json": {
+      "bytes": 241,
+      "sha256": "b3d8b67b723d881a98dd0f4116fdc9651cf05b207111b19dad26fa69c2c54e69",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full-history-formal-prep-20261001/inputs/TestOnly-frozen9011-fullclock-prefix16-serial.s-resources.json"
+    },
+    "CODE-TRACE.md": {
+      "bytes": 14576,
+      "sha256": "71bcfed063f2b85895d242504b499ceff1e580d1c47c18c0640f09c50a3eb1af",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-fullclock-cost-diagnosis-20261001/CODE-TRACE.md"
+    },
+    "CODE-TRACE.json": {
+      "bytes": 1650,
+      "sha256": "75fa36eac2a685eceaab518de2d53abc11292944861a17516763ea54616bd0b8",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-fullclock-cost-diagnosis-20261001/CODE-TRACE.json"
+    },
+    "RELEASE16-DEV-RELEASE-FACT-COMPARISON.json": {
+      "bytes": 1633,
+      "sha256": "d6e18d148cd1ab181f563e018f816827c1365af29c4aa4cb8797d6c6b7054b33",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-formal-fullclock-prefix16-20261001/release1/DEV-RELEASE-FACT-COMPARISON.json"
+    },
+    "RELEASE16-BUILD-PLAN.json": {
+      "bytes": 1739,
+      "sha256": "c5e8915a7c8a2930951b5c0d028e5b945ee292142d85d0aac75fe8780c6b2c96",
+      "original": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-formal-fullclock-prefix16-20261001/release1/BUILD-PLAN.json"
+    }
+  },
+  "source_total_bars": 9011,
+  "executed_source_prefix": 16,
+  "price_mapping_exact_no_round": true,
+  "fullclock_sha256": "b02ac2444161e1e7e327fcf2a2bb79b294356a3dd95a59a6404c5b92deb04f01",
+  "resources_sha256": "b3d8b67b723d881a98dd0f4116fdc9651cf05b207111b19dad26fa69c2c54e69",
+  "release_binary": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-formal-fullclock-prefix16-20261001/release1/s_structure_session-release-ed1f184",
+    "bytes": 7176304,
+    "sha256": "b4c81c9468be1d1911eecbd48deb1be9e9a2f3a0d082fd8f7474cf9e30efc7f5",
+    "build_profile": "release opt-level3"
+  },
+  "dev_status": "FAIL AcceptedPending, both raw failure contexts preserved",
+  "release_status": "PASS_BOUNDED twofresh16 same complete24table/48403row/BLOB",
+  "release_independent_facts": "PASS_BOUNDED",
+  "release_runtime_max_whole_exchange_seconds": [
+    10.536168292,
+    10.500176125
+  ],
+  "joint_singlebar_normal_source": "PASS_BOUNDED independent",
+  "q16": {
+    "status": "PASS_BOUNDED_FORMAL_FULLCLOCK_S16_Q21",
+    "pages": 16,
+    "rows": 472,
+    "content_range": [
+      0,
+      7
+    ],
+    "proof_nodes": 63,
+    "retention": {
+      "first_available_generation": "13",
+      "head_generation": "16",
+      "policy_revision": "generation-window/1",
+      "retain_generations": "4"
+    },
+    "gap": {
+      "from_generation": "1",
+      "to_generation": "12"
+    },
+    "readonly_owned_shm_mtime_changes_observed": true,
+    "original_source_and_business_semantics_unchanged": true,
+    "complete_client_body_and_installation": false
+  },
+  "resources_not_changed_between_dev_and_release": true,
+  "unmeasured_internal_phases_and_strict_peaks": true,
+  "not_causal_speedup_proof": true,
+  "raw_paths": {
+    "JOINT": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-s3-q3-joint-20261001/revision1",
+    "DEV16": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-formal-fullclock-prefix16-20261001",
+    "RELEASE16": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-formal-fullclock-prefix16-20261001/release1",
+    "Q16": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-fullclock-s16-q3-probe-20261001"
+  },
+  "all_owned_services_reaped": true,
+  "complete9011": false,
+  "wholegoal_complete": false,
+  "main_merged": false,
+  "pushed": false,
+  "previous_packet_inputs_unchanged": true
+}
