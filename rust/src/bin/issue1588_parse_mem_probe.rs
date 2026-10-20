@@ -28,7 +28,8 @@ use newchan_rust::theta_v0::backtest::incremental::IncrementalClassifier;
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::{
     inclusion::{InclusionDirectionEvidence, InclusionFacts, SourceCoords},
-    parse_layer, parse_layer_with_inclusion_facts,
+    inclusion::IncrFactsState,
+    parse_layer, parse_layer_with_group_evidence, parse_layer_with_inclusion_facts,
     stroke::Endpoint,
     ParseLayer, ParseLayerIncr,
 };
@@ -290,6 +291,42 @@ fn run_layer(bars: &[Bar], config: &ThetaConfig) {
     println!("  digest layer={}", digest_debug(&layer));
 }
 
+/// #1597：S 生产解析入口 `parse_layer_with_group_evidence`（组证据 + 新笔事实 + 段事实）。
+/// 逐 bar 追加 `IncrFactsState`，每 `every` 根调用一次入口（0 = 只在末根调用），结果用完即丢；
+/// 报告累计分配、峰值、耗时与末次结果三件事实的 Debug 摘要。修前/修后同命令对拍。
+fn run_group_evidence(bars: &[Bar], config: &ThetaConfig, every: usize) {
+    let (live0, total0) = window();
+    let t = Instant::now();
+    let mut state = IncrFactsState::empty();
+    let mut calls = 0usize;
+    let mut rolling = Sha256::new();
+    for (i, bar) in bars.iter().enumerate() {
+        state.append(*bar);
+        if every > 0 && (i + 1) % every == 0 && i + 1 < bars.len() {
+            let (layer, ev) = parse_layer_with_group_evidence(&state, config);
+            rolling.update(digest_debug(&(&layer, &ev.groups, &ev.stroke_facts, &ev.segment_facts)).as_bytes());
+            calls += 1;
+        }
+    }
+    let (layer, ev) = parse_layer_with_group_evidence(&state, config);
+    calls += 1;
+    let secs = t.elapsed().as_secs_f64();
+    println!(
+        "group-evidence secs={secs:.2} calls={calls} alloc_total_mb={:.1} peak_mb={:.1} {}",
+        mb(TOTAL.load(Relaxed) - total0),
+        mb(PEAK.load(Relaxed) - live0),
+        layer_shape(&layer)
+    );
+    println!(
+        "  digest every={every} rolling={} layer={} groups={} stroke_facts={} segment_facts={}",
+        hex(rolling),
+        digest_debug(&layer),
+        digest_debug(&ev.groups),
+        digest_debug(&ev.stroke_facts),
+        digest_debug(&ev.segment_facts)
+    );
+}
+
 fn run_replay(bars: &[Bar], config: &ThetaConfig, hold: bool, every: usize) {
     let (live0, total0) = window();
     let t = Instant::now();
@@ -386,6 +423,7 @@ fn main() {
     match mode {
         "facts" => run_facts(bars, &config),
         "layer" => run_layer(bars, &config),
+        "group-evidence" => run_group_evidence(bars, &config, every),
         "replay-drop" => run_replay(bars, &config, false, every),
         "replay-hold" => run_replay(bars, &config, true, every),
         "classifier" => run_classifier(bars, &config, every),
