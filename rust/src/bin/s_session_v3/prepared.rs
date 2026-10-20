@@ -2175,20 +2175,14 @@ pub(crate) mod tests {
             (4, ("b", 10, 8, 17, 6, 12), 2),
         ] {
             let (e, t) = f.accept_begin(n, row, revision);
-            let calls = content_manifest::assemble_calls_for_test();
-            let (total, verify) = content_manifest::assemble_sql_reads_for_test();
+            content_manifest::take_assemble_call_reads_for_test();
             f.publish(&e, &t).unwrap();
-            let calls = content_manifest::assemble_calls_for_test() - calls;
-            let (total_after, verify_after) = content_manifest::assemble_sql_reads_for_test();
-            let (total, verify) = (total_after - total, verify_after - verify);
-            eprintln!(
-                "S3_ASSEMBLE_READS g={n} calls={calls} total={total} closure_verify={verify} rest={}",
-                total - verify
-            );
-            rest.push(total - verify);
+            let calls = content_manifest::take_assemble_call_reads_for_test();
+            eprintln!("S3_ASSEMBLE_READS g={n} calls(total,closure_verify)={calls:?}");
+            rest.push(calls.iter().map(|(total, verify)| total - verify).collect::<Vec<_>>());
         }
         assert!(
-            rest.iter().all(|r| *r == rest[0]),
+            rest.iter().flatten().all(|r| *r == rest[0][0]),
             "组装读量（全闭包核验之外）须与 g 无关：{rest:?}"
         );
     }
