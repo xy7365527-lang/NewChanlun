@@ -475,7 +475,6 @@ impl GenerationRuntime {
         }
         let prefix = changes
             .effective_dirty_from
-            .map(|d| d + usize::from(d + 1 < lane.rows().len())) // S4 negctrl：漏重建首个脏行
             .unwrap_or(lane.rows().len())
             .min(lane.rows().len());
         let mut effective_suffix = sc::CodecVec::new_with_allocation(budget);
