@@ -4117,7 +4117,10 @@ mod tests {
         }
     }
 
-    /// 旧生成路径的同一条件：三组里任一组的同角色极值身份有竞争就不给分型选根。
+    /// 多根窗判定：三组里任一组的同角色极值身份有竞争（high/low 来源不唯一）即为多根窗。
+    ///
+    /// 自 #1405 起不再参与生成（多根极值不再生成待决形态请求），只作测试侧覆盖断言用：
+    /// 统计多根窗数量，核对用例的多根窗覆盖口径（见下方「#1405：多根极值仍覆盖」处）。
     fn group_facts_competing(
         facts: &newchan_rust::theta_v0::parser::inclusion::InclusionFacts,
         start: usize,
