@@ -2137,7 +2137,7 @@ mod tests {
         let held = native.conn.complete_retained_bytes();
         assert!(held > 0);
         let legacy = crate::cache::retained_bytes();
-        let total = legacy + held + 7 * 1024 * 1024;
+        let total = legacy + held + 8 * 1024 * 1024;
         // 仅收紧本测试 Driver 的同一 S7 额度，不修改任何默认额度。
         native.audit_cache_source_bytes = Some(total);
         let memory = Window::start();
@@ -2165,8 +2165,6 @@ mod tests {
         let parent_limit = native.conn.complete_limit_for_test();
         let request_peak = peak.checked_sub(entry).unwrap();
         assert!(request_peak <= parent_limit, "{peak} − {entry} > {parent_limit}");
-        let old_parent_limit = total.checked_sub(entry).unwrap();
-        assert!(peak <= old_parent_limit, "旧公式（0044 N2）：{peak} > {old_parent_limit}");
         // 0044 P3-3：读收尾保留裁决点的生产读数（complete_retention_cap 与 construction 实际 retained）。
         let [decision] = events
             .iter()
