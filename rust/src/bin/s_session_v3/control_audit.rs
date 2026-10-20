@@ -487,17 +487,27 @@ mod tests {
                         Some(COMMIT_NS),
                     )?;
                 }
+                // 第十七处裁改断言（主控裁定 https://github.com/xy7365527-lang/NewChanlun/issues/1488#issuecomment-6298532692）。
+                // 原断言（162d6b7b30，随 PR #1573 入 main）：finish 后 `live == after`「消费已有事实不再复制文本，Native许可留在原父域」，
+                // 离域后 `live > 137`「离开WorkScope不提前释放父域许可」——依赖 main 的 NativeReservation::retain「保守留在父账到父作用域结束」模型。
+                // v4 合同 :9「许可随对象移动，在对象析构以后返还」：finish 析构事实对象后许可回到 before，离域后只剩父账元数据。
+                // 原意图中仍成立的“消费已有事实不再复制文本”保留为 finish 前的 `== after`。
+                assert_eq!(budget.live(), after, "消费已有事实不再复制文本");
                 plain.finish()?;
                 native.finish()?;
                 assert_eq!(
                     budget.live(),
-                    after,
-                    "消费已有事实不再复制文本，Native许可留在原父域"
+                    before,
+                    "v4：Native许可随事实对象析构返还原父域，回到调用方已持有工作"
                 );
                 Ok::<_, String>(())
             })
             .unwrap();
-        assert!(budget.live() > 137, "离开WorkScope不提前释放父域许可");
+        assert_eq!(
+            budget.live(),
+            super::super::audit_owner::native::Budget::metadata_bytes(),
+            "v4：离开WorkScope且全部对象析构后只剩父账元数据，无滞留许可"
+        );
         assert_eq!(budget.scratch_observation().2, 0);
     }
 
