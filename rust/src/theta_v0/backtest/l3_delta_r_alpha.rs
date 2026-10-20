@@ -2566,6 +2566,29 @@ mod tests {
         );
     }
 
+    /// #1493 段层连续性锁（#1588 tests 分片 REPORT §C 建议）：`m3_partition_synthetic_holds` 只要求 ledger 非空，
+    /// 锁不住段层停产（main `6badaa6049` 上该种子停在 14 段，m3 照样绿）。本锁在同一合成鞅（3000 bar，种子
+    /// 20260704）上直接断言段层：段数下限与末段终点贴近笔流右缘。读数（segment-turn/1）：TB1493_M3_SEGS。
+    #[test]
+    fn m3_synthetic_segment_layer_does_not_stall() {
+        let cfg = ThetaConfig::default();
+        let ds = synthetic_martingale(3000, 20260704, 100);
+        let layer = crate::theta_v0::parser::parse_layer(&ds.bars, &cfg);
+        let segs = layer.segments.len();
+        let last_seg_end = layer.segments.last().map_or(0, |s| s.end_index);
+        let last_stroke_end = layer.strokes.last().map_or(0, |s| s.end_index);
+        eprintln!(
+            "TB1493_M3_SEGS segments={segs} strokes={} last_segment_end={last_seg_end} last_stroke_end={last_stroke_end} bars={}",
+            layer.strokes.len(),
+            ds.bars.len()
+        );
+        assert!(segs >= 30, "合成鞅段层停产：{segs} 段（segment-turn/1 读数 32；main 6badaa6049 为 14）");
+        assert!(
+            last_stroke_end - last_seg_end <= 300,
+            "末段终点离笔流右缘过远：{last_seg_end} vs {last_stroke_end}"
+        );
+    }
+
     /// M3 值域越界必 panic（L1，assert 的否定性见证——防「恒真占位」）：手工造 parent_dir 越界
     /// （=5，声明域 {-1,0,1} 外）的 ResidualTrade，空 ledger 喂 [`assert_m3_partition`]，
     /// catch_unwind 断言值域封闭 assert 真实触发。若不 panic ⟹ 值域断言是死代码。
