@@ -1,0 +1,14 @@
+{
+  "ticket": 1394,
+  "status": "ROOT_VERIFIED_NAMED_TEST_INPUTS",
+  "old_source_live_files_checked": 27,
+  "resource_sha256": "d6abf34ee884fc318566bb36dca2d4bdda17182a68ccc2381d1eb46cbaa53dad",
+  "resource_manifest_sha256": "5854c22875e4cbf52bb0aaa1715a00816741378e058d5b30407be442640c905d",
+  "resource_scope": "singlebar serial TestOnly; measured CLI/derived frames; transport latency and enforcement require actual service",
+  "lifecycle_clock": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-s3-named-resources-20261001/LIFECYCLE-CLOCK-TEST-INPUT.json",
+  "lifecycle_clock_sha256": "66438b4cfa427d923eb5ad90632937cba1f1c1487821dd83ce5890f2820db4cf",
+  "lifecycle_scope": "new owned DB only from init; preserves original input events, adds fixture-equivalent recover-1 at13 after input1 commit12; not pending/fault/conditionalFIFO acceptance",
+  "old_clock_untouched": true,
+  "new_resource_units_or_host_api": false,
+  "actual_serve_requires_independent_code_review": true
+}

@@ -1,0 +1,188 @@
+{
+  "verdict": "PASS",
+  "scope": "固定候选Spec合同审查，不是收益或C/full9011验收",
+  "base": "818e024fdcfacb94564bd97d0be92890f7ab649b",
+  "candidate": "c6255d308fc69d94178916a1dc5534546fb77591",
+  "tree": "eaa252e03f0e292cc594178fcc1fc24f27f437d0",
+  "rust_tree": "7196a77fef56cf87cbe91dc4b135326a142e2395",
+  "tracked_clean": true,
+  "reviewed_files": [
+    {
+      "path": "rust/src/s_content/job.rs",
+      "baseline_git_blob": "f4f440df5a723ff1ea437538ec5a9c19741c464f",
+      "baseline_sha256": "f1ec4f6b417f6f86f7d2e24df06cd03c313279360d2ea5181766d284940a1b1e",
+      "candidate_sha256": "e10073af1c734df9640273ba17b9e9c2b0caa2055f64b16f59ede6508a8e89d9",
+      "bytes": 51908
+    },
+    {
+      "path": "rust/src/s_content.rs",
+      "baseline_git_blob": "6f68f147b0977377e91de661874e212f25b833e2",
+      "baseline_sha256": "db7770a693bf3e8a31be1f2edec9aff600114e913bd6be6ec99fe3b732ed4561",
+      "candidate_sha256": "0d9b2aaef32ae1ba36643c7dc130cd11bd6cbf9bceb63d0391fbb4700332c013",
+      "bytes": 124251
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/content_store.rs",
+      "baseline_git_blob": "47dcf8e0db613b348c520030da7e692682c9f000",
+      "baseline_sha256": "3a0c3a6ed443541154b672a1ecb32bcf7924ca6e5d21347b80a1f2aaebaf78f1",
+      "candidate_sha256": "185799c4c832993e55980f9b4163e5e452ac57fd76a76a567bb865a2bc30509e",
+      "bytes": 27406
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/history.rs",
+      "baseline_git_blob": "25013c4fa38f5dfcd091d3824e006dc34cef0e4e",
+      "baseline_sha256": "e859176388294e368b16aa943c6b759873be2d85e26242e40546d867ee5f0a5a",
+      "candidate_sha256": "37d4b07309d1047d48540a536f03737fabce7395ba7fcb3082f464d3c477da3e",
+      "bytes": 60987
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/state.rs",
+      "baseline_git_blob": "2a9de9642c23a9e0a4d96dca0348678adc53bfb2",
+      "baseline_sha256": "f2ea61ad501c797a4e6c9ed127f06adfbbd0cdfa014a78e6217aaf0cf7efbd5b",
+      "candidate_sha256": "7c5b2bdc92e6336449d89eb6fc69df078ffbc3d0eccd9912f734bb79d31b53d0",
+      "bytes": 31803
+    }
+  ],
+  "contracts": [
+    {
+      "contract": "逐次SQL与当前错误优先",
+      "result": "PASS",
+      "evidence": "content_store.rs:91-109,265-275；实际读取和u8转换先于SameMaterial，None/error直接返回。"
+    },
+    {
+      "contract": "纯F精确证明重绑定与当前Vec所有权",
+      "result": "PASS",
+      "evidence": "job.rs:379-425；digest/tag/完整Vec相等后才Copy私有usage并移动当前body，任一不同checked当前原件。"
+    },
+    {
+      "contract": "audit-only、BudgetNone、默认关闭",
+      "result": "PASS",
+      "evidence": "content_store.rs:246-256；history.rs:60-107；state.rs:127,142-145。旧read_history_metered始终走false，新audit入口仅None开启。"
+    },
+    {
+      "contract": "Some预算、deadline、overlay原门序",
+      "result": "PASS",
+      "evidence": "history.rs:803-855逻辑未改；Some调用source.read，先SQL核F再prepare/checked/accept/precheck；None仍两次deadline门及requestedDigest检查。"
+    },
+    {
+      "contract": "上下文、角色、闭包、Object/Root、来源及业务门",
+      "result": "PASS",
+      "evidence": "s_content.rs仅注释改动；history.rs与state.rs仅私有接线；Template/Public、JsonInner及当前header反例独立实跑，其他原源/索引/逐代/目录判据保留。"
+    },
+    {
+      "contract": "有界素材资格和原严格公式",
+      "result": "PASS",
+      "evidence": "content_store.rs:130-182；生产entry<=65536、保留Vec capacity总和<=4194304，容量不足仍checked，变化先remove与回减，不以旧帧兜底。"
+    },
+    {
+      "contract": "生命周期、无新资源/公开协议/持久成功缓存",
+      "result": "PASS",
+      "evidence": "SameMaterial由每个ReadStore独占，两个audit局部reader不共享；五文件差异没有改Driver/keeper、审计调用次数、wire/config、原跨请求资源量纲。"
+    },
+    {
+      "contract": "固定源码与实际构建产物绑定",
+      "result": "PASS",
+      "evidence": "当前五源码等于HEAD blob与binding；candidate.patch等于git diff --binary；release/testbin及全部既有manifest条目重新验SHA一致。"
+    }
+  ],
+  "findings": [],
+  "independent_tests": [
+    {
+      "command": [
+        "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/target/release/deps/s_structure_session-f691a9b42625f576",
+        "content_store::tests::same_material_actual_transaction_changes_recheck_and_remove_stale_proof",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "passed": 1,
+      "failed": 0,
+      "filtered_out": 421,
+      "stdout": "\nrunning 1 test\ntest content_store::tests::same_material_actual_transaction_changes_recheck_and_remove_stale_proof ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 421 filtered out; finished in 0.00s\n\n",
+      "stderr": "",
+      "free_bytes_after": 329216000,
+      "evidence": "独立exec实跑回执 4d2de4，本报告逐字保存stdout，不是再次执行"
+    },
+    {
+      "command": [
+        "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/target/release/deps/s_structure_session-f691a9b42625f576",
+        "v3::history::tests::same_read_frame_keeps_template_public_and_json_inner_rules",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "passed": 1,
+      "failed": 0,
+      "filtered_out": 421,
+      "stdout": "\nrunning 1 test\ntest v3::history::tests::same_read_frame_keeps_template_public_and_json_inner_rules ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 421 filtered out; finished in 0.05s\n\n",
+      "stderr": "",
+      "free_bytes_after": 328855552,
+      "evidence": "独立exec实跑回执 4d2de4，本报告逐字保存stdout，不是再次执行"
+    }
+  ],
+  "independent_passed": 2,
+  "reused_author_distinct_passed": 24,
+  "reused_author_test_names": [
+    "content_store::tests::checked_sqlite_read_hashes_once_and_rechecks_current_row",
+    "content_store::tests::checked_txstore_read_hashes_once_without_retaining_a_frame",
+    "content_store::tests::content_store_refuses_legacy_domain_and_does_not_create_tables",
+    "content_store::tests::content_store_rejects_forged_write_and_corrupt_existing_bytes",
+    "content_store::tests::content_store_rollback_does_not_leave_an_imported_node",
+    "content_store::tests::content_store_roundtrip_uses_same_transaction_and_survives_commit",
+    "content_store::tests::same_material_actual_transaction_changes_recheck_and_remove_stale_proof",
+    "content_store::tests::same_material_changed_root_and_node_role_still_use_current_verifier",
+    "content_store::tests::same_material_current_missing_sql_error_and_tag_error_never_fall_back",
+    "content_store::tests::same_material_external_commit_visible_between_short_reads",
+    "content_store::tests::same_material_qualification_full_and_oversized_keep_strict_checks",
+    "content_store::tests::same_material_reads_sql_twice_hashes_once_and_owns_current_bytes",
+    "s_content::job::same_material_tests::checked_same_material_requires_exact_digest_tag_body_and_moves_current_vec",
+    "v3::history::tests::metered_sqlite_and_memory_bad_frames_keep_the_original_prepare_order",
+    "v3::history::tests::same_material_warm_source_keeps_budget_double_f_and_gate_order",
+    "v3::history::tests::same_material_warm_sql_reader_keeps_deadline_before_and_after_read",
+    "v3::history::tests::same_read_frame_keeps_template_public_and_json_inner_rules",
+    "v3::history::tests::unbudgeted_hash_reader_does_not_reuse_a_previous_success_on_source_error",
+    "v3::history::tests::unbudgeted_hash_reader_enforces_deadline_before_and_after_the_real_read",
+    "v3::history::tests::unbudgeted_hash_reader_rejects_a_valid_frame_for_another_requested_digest",
+    "v3::history::tests::unbudgeted_sqlite_hash_reader_passes_the_same_read_frame_once",
+    "v3::state::tests::cold_audit_re_reads_after_drop_reopen_and_node_damage",
+    "v3::state::tests::generation_zero_empty_state_is_audited_and_still_checks_control_raw_and_catalog",
+    "v3::state::tests::published_state_audits_on_query_only_connection"
+  ],
+  "zero_test_first_pass_not_counted": [
+    "bin-store",
+    "bin-history"
+  ],
+  "manifest_entries_verified": 57,
+  "artifact_sha256": {
+    "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.chanlun/review-results/issue1394-content-v3-20260916/APPROVED-SOURCE.md": "fab912c6ebe3613969d65fc924368a1d5c9b343f0c3f7a123241645413771d30",
+    "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-same-frame-reuse-20261001/DESIGN.md": "dffdc795ea8aeca105e3aede549d0e6dabd52bd804ea7d67d78a9b52b9a79e37",
+    "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/API.md": "385bf595e90d4f39a3b8bba5f310253591cdc1b7fa9d0851bf73a4e0d719e105",
+    "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/AUTHOR-RESULT.md": "f58b5b1883451566111e43dfe5243ac756ec40c6f9a188ad21d8c21279cea189",
+    "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/AUTHOR-RESULT.json": "b11cbcf20f203e5c6033eacab14fff66e8e0d8bc42b2845655f43692129ed54f",
+    "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/SOURCE-BINARY-BINDING.json": "0d8594699b519d318b074ee66fd28d21d2057b20a3bc76165990917e421c781f",
+    "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/EVIDENCE-MANIFEST.json": "2ac9ab44fc073a7f0a1b06de112f064411928e30b2ff9853e921e4bc5fbc9647",
+    "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/ACTUAL-NONTEST-RUSTC.json": "e3847b62db6208d88027efedbd9ae5a2cc8985caf68b868532693da864ac00a0",
+    "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/PASS2-BUILD-RESULTS.json": "b02917db4d1d7e7f6cf198df026a15f838eea82cad9747dfe99b3ff413447e33",
+    "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/candidate.patch": "677164b5a0ca4e43ab325502853f3ea72d4ad01313fb43a5fe8152124f19068e",
+    "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/target/release/deps/s_structure_session-f691a9b42625f576": "fc5b2630922d8e368baaf752d51e2e243b67760db034ee1465894b9956ab35a6",
+    "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/target/release/s_structure_session": "c098bf76bb7870443b7564714ba2f9110f2c5593a3180ca13f9888c01ee16d17"
+  },
+  "report_md_sha256": "0cc522686fe6c09c1c1b64c0ae7cd90535de11202514708a430988cb934aa16f",
+  "unmeasured": [
+    "full_scale_runtime_heap",
+    "full_scale_runtime_rss",
+    "map_and_allocator_overhead",
+    "transient_first_copy_peak",
+    "candidate_walltime_benefit"
+  ],
+  "pending": [
+    "independent Standards review",
+    "same-source full DB S16 pilot and original invariant comparison",
+    "ScopeRoot actual runtime acceptance",
+    "C/full9011 acceptance"
+  ],
+  "no_build": true,
+  "no_fullsuite": true,
+  "no_product_mutation": true,
+  "review_finished_utc": "2026-10-01T04:21:01.428742+00:00"
+}

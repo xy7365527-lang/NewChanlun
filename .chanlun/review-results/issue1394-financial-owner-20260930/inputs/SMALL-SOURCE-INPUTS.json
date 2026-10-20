@@ -1,0 +1,100 @@
+{
+  "schema_revision": "testonly-financial-small-measurement/1",
+  "product_base": "7ec958012401acd0515f8be558ae13e925473685",
+  "binary": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-financial-reader-cost-20260930/target/release/s_structure_session",
+  "binary_sha256": "257f8193f94ea5ab81bd69d4a6e41de8239e2527ffc7c3c671917dded5d7f78b",
+  "source_db": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-financial-reader-small-20260930/s.sqlite",
+  "session_id": "issue1394-financial-small-20260930",
+  "session_generation": "1",
+  "writer_epoch": "1",
+  "source_db_sha256": "08c9d59456cc3eeede74650fad8597ad2743b5acbdf198c7b0b43b64537ec4ad",
+  "clock_sha256": "cd65fa6caa3d33591ba331bed0e6491555db2732c7c8c1155ecd5457fcd1f31d",
+  "input_sha256": "1c3a1867502258b603af2cdf8ac473c27f03400f24f76339215b425482c97d2f",
+  "request_sha256": "96fe6fb67f6804833304d66e39ff30157ac3e537b5e247296ebfb0e3dd7f6162",
+  "basis_ref": {
+    "extent": "7",
+    "format": "s-content/1",
+    "kind": "object",
+    "root": "sc1-cf22f3c661e807af4c5fa78ab3fa6d89c16770255f652d7ee695dae7d3c24689"
+  },
+  "snapshot_ref": {
+    "extent": "20",
+    "format": "s-content/1",
+    "kind": "object",
+    "root": "sc1-51ec369455d8f57839cbec593b3e2156ac59d0acaf288bd5eec7c8e350616abf"
+  },
+  "commit_ns": "12",
+  "commands": [
+    {
+      "label": "init",
+      "argv": [
+        "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-financial-reader-cost-20260930/target/release/s_structure_session",
+        "init",
+        "--protocol-revision",
+        "s-session/3",
+        "--db",
+        "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-financial-reader-small-20260930/s.sqlite",
+        "--session",
+        "issue1394-financial-small-20260930",
+        "--catalog",
+        "/Users/silencehan/Projects/NewChanlun-1394-content-v3/s_session/catalog/signed-catalog.json",
+        "--profile",
+        "/Users/silencehan/Projects/NewChanlun-1394-content-v3/s_session/profiles/ohlc_integer_tb02a_v1.json",
+        "--session-generation",
+        "1",
+        "--clock-plan",
+        "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-financial-reader-small-20260930/clock.json",
+        "--delivery-retain-generations",
+        "2"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.03237887495197356,
+      "stdout_bytes": 821,
+      "stderr_bytes": 0
+    },
+    {
+      "label": "advance",
+      "argv": [
+        "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-financial-reader-cost-20260930/target/release/s_structure_session",
+        "advance",
+        "--protocol-revision",
+        "s-session/3",
+        "--db",
+        "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-financial-reader-small-20260930/s.sqlite",
+        "--profile",
+        "/Users/silencehan/Projects/NewChanlun-1394-content-v3/s_session/profiles/ohlc_integer_tb02a_v1.json",
+        "--writer-epoch",
+        "1",
+        "--clock-plan",
+        "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-financial-reader-small-20260930/clock.json",
+        "--input",
+        "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-financial-reader-small-20260930/input-1.json",
+        "--max-input-bytes",
+        "890"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.11373079102486372,
+      "stdout_bytes": 430,
+      "stderr_bytes": 0
+    },
+    {
+      "label": "basis-empty",
+      "argv": [
+        "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-financial-reader-cost-20260930/target/release/s_structure_session",
+        "financial-basis-ref",
+        "--protocol-revision",
+        "s-session/3",
+        "--db",
+        "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-financial-reader-small-20260930/s.sqlite"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.0982552501372993,
+      "stdout_bytes": 37886,
+      "stderr_bytes": 0
+    }
+  ],
+  "scope": "实际S3单bar具名小源，不是财务三阶段或部署资源验收",
+  "object_id": "obj3-59219edd1c9e54cbb105f308177a3f495946cdc81efffdbddfc7c05f59e79cf9",
+  "reader_resources": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-financial-reader-small-20260930/RESOURCES.json",
+  "reader_resources_sha256": "f8e9e3ca737b3c232c0c62bf748f524badeed575646c53338dca35b1804953dc"
+}

@@ -1,0 +1,7 @@
+{
+  "schema_revision": "issue1394-verbatim-utf8-artifact/1",
+  "source_path": "/Users/silencehan/Projects/NewChanlun-1394-field-audit-20261002/.scratch/field-release-owned-20261002/array-gates.log",
+  "source_bytes": 213,
+  "source_sha256": "d6f4e3721ef59fcb3ca38577b143c04feeb8d7d80b799a775775ee5e1c31fbf8",
+  "content_utf8": "\nrunning 1 test\ntest v3::history::tests::full_array_some_keeps_old_sql_reads_double_f_and_budget_gate_order ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 428 filtered out; finished in 0.09s\n\n"
+}

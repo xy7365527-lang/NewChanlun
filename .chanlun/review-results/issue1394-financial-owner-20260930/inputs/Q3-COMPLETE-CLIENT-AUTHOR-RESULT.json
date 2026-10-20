@@ -1,0 +1,122 @@
+{
+  "ticket": "#1394 approved C complete existing consumer",
+  "author_status": "frozen local candidate and verified targeted fixes; whole Spec/Standards verdict belongs to root",
+  "worktree": "/Users/silencehan/Projects/NewChanlun-1394-q3-complete-client-20261001",
+  "base": "b1a8d8d45c5dacd1245e2f33f20f7d514ae2446e",
+  "foundation_07_cherry_pick": "9b595454f9",
+  "first_candidate": "1feac8148da25981cd2f93f90d08d19a766c55d6",
+  "confirmed_red_parent": "1cdc8b0f113c740c0362795148b54e5139ac284e",
+  "final_candidate": "54a6e5fd3df4e14a5e38edc9da39cfb6359ffc15",
+  "patch_sha256": "75775b2999add5a896370125aef06d6b1156e85dc6559bc10e649269a2fa492e",
+  "fix_group_patch_sha256": "dd4e5d2b2892113f04ef53ada207ed3160100efa0bb24738c145f005e482cbb6",
+  "tracked_clean": true,
+  "main_or_push": false,
+  "product_sha256": {
+    "rust/src/s_content/path.rs": "97ec675189fd9ac493265f8411c54ae0e3e094704f86907b0bd3cb36c67da2b7",
+    "rust/tests/s_content_fragment.rs": "4e1b757f128674d6e14a03c7823b5ff1a229b27930658aada59c150035e45836",
+    "s_session/browser/index.html": "c9edc78bef794101a8b841e0a95e82846335de74e928897cd07bf0a6fe0d2a1b",
+    "s_session/browser/q3-consumer.js": "2a1da2a7b9d9dde7791f89df91ef396abe9b8e96dd23b76343ac8c2afe5a1cd3",
+    "s_session/browser/q3-typed.js": "e68003024b1ed85761394cc0a6e283b424afabc4349a626cd697e10a0aa51b49",
+    "s_session/browser/q3-values.js": "fc270895062e3f28f92da1534f44642d59801980b12efb3f811382bfddc06bb1",
+    "s_session/browser/s-content-v3.js": "fb21d3467a189ac1d09cd585b07ca927083bee550fdd2c50419eac82b20ba926",
+    "s_session/browser/tb01c-client.js": "19bad6e5dd7d9c06f68f288e212afc82d8976fdc612d30622165ff7879f8c6ed",
+    "s_session/tests/build_tb01c_browser.cjs": "023f305ed6fc0453bd16f2e58ab0f8d1df92bbbdba5c58a64187a6255348d261",
+    "s_session/tests/fixtures/q3-complete-onebar.json": "ce4efe9dcaac287abebdf1bd4c647d5c1a264482faaa86f05c087b22c17af9c2",
+    "s_session/tests/fixtures/q3-complete-s16-cuts345.json": "0ad66776f85000abdbbe8d3e8d12965f053545496a9e1f517210c2ce022c8338",
+    "s_session/tests/r12_consumer.cjs": "a797e947350f9cc11d2a1adb7bbb2b566bf1ca1ff34106ecb3f94d1de8eda2d1",
+    "s_session/tests/r9_consumer.cjs": "833c1c5a7950742200bb3b0cff6cec1560bb157b67557b9cff99271ca25b5593",
+    "s_session/tests/tb02b_verify.py": "69542e76d87bd1f12f67903e96556a03f72b5b5f1d4adb1b19d17a62b7b0aa5b",
+    "s_session/tests/test_q3_complete_client.cjs": "e7a7e3fbd855619f5cf3621f4ec784cadb221b93fa4acd8adab32bd33b7a3679",
+    "s_session/tests/test_s_content_v3.cjs": "2a9361196d30489e03f4c02700e63351e4a46659335e313f5d54e56c8ae679fa",
+    "s_session/tests/test_tb01c_browser.cjs": "1fa6f4752e1e1318d49bd1923802b21003e6911892aee7a8be35a079c559f55c"
+  },
+  "bundle_inputs": {
+    "status": "passed",
+    "inputs": {
+      "s-content-v3.js": "fb21d3467a189ac1d09cd585b07ca927083bee550fdd2c50419eac82b20ba926",
+      "s-content-job-v3.js": "df8c2a3c9864fd2290e1c929dfb5d9cdad799539cca585e424440d29776b402c",
+      "q3-values.js": "fc270895062e3f28f92da1534f44642d59801980b12efb3f811382bfddc06bb1",
+      "q3-typed.js": "e68003024b1ed85761394cc0a6e283b424afabc4349a626cd697e10a0aa51b49",
+      "q3-consumer.js": "2a1da2a7b9d9dde7791f89df91ef396abe9b8e96dd23b76343ac8c2afe5a1cd3"
+    },
+    "runtime_sha256": "f5216f56c7f5f625232a8d59ba3e0958185343a4206470665eacb481ef36f8a7",
+    "bundle_sha256": "19bad6e5dd7d9c06f68f288e212afc82d8976fdc612d30622165ff7879f8c6ed"
+  },
+  "raw_receipts": {
+    "BASELINE-tests-complete-16.txt": "0710bf09c5134438b7d30fb744c7825370ddc7db3d77f26dc4f9b47b0f95e949",
+    "TESTS-fix-group.txt": "82311fcf1930303dca8315c15e549e1ee1762e6cf10a14b9cb58a3bcd0fe41de",
+    "TESTS-fixed-ledger.txt": "1077d8a1cba51b3f56280cb4850189bc59b4f4259eb9cfdb0feba481f54e7a04",
+    "TESTS-fixed-positive.txt": "58286dce9b909c4a9cbd3874b65d7c1d849f539ec16ded0bef55c71f36c02673",
+    "TESTS-final-cancel-admission.txt": "36dc909ce04b407a830d63bb40df60b5fe33e8f7a033c6abb1e04af586683b95",
+    "TESTS-old-browser.json": "fa1c38c4cc7f02a03012c80d5faf3b28fcbf841a32c52a1c771f12a5a5e480b4",
+    "TESTS-r12.json": "a4ef3691f402f6ad0f9aa3829a54a10e4b153d015ec935e08fc74c8d39a875d2",
+    "TESTS-core-job.txt": "58844a00b94a4c963940e41c2e94b36d4a8b8e9c3d4c96ffb9e0b183cd9d4f18",
+    "TESTS-economic-default.txt": "d73a86752d659d607531234b921640a71acf273c24de9e73bb6f0ceb2872a4dd",
+    "BUNDLE-INPUTS.json": "2d9e809b569a94383016af3e192e120cb475d829f590e61898cff400cc92f9d8"
+  },
+  "tests": {
+    "baseline_1fe_complete_suite": {
+      "passed": 16,
+      "failed": 0,
+      "elapsed_seconds": 387.161657209
+    },
+    "fix_group_1cdc": {
+      "passed": 6,
+      "failed": 0
+    },
+    "fixed_live_positive_1cdc": {
+      "passed": 4,
+      "failed": 0,
+      "elapsed_seconds": 101.800688792
+    },
+    "final_cancel_hash_and_cap_clock_tail": {
+      "passed": 6,
+      "failed": 0,
+      "elapsed_seconds": 13.161891
+    },
+    "legacy_browser": {
+      "passed": 42,
+      "failed": 0
+    },
+    "r12": "all cases passed",
+    "core_job": {
+      "passed": 56,
+      "failed": 0
+    },
+    "economic_default": {
+      "passed": 32,
+      "failed": 0,
+      "skipped": 238
+    },
+    "r9": "node syntax check only: historical seven-cut capture input absent; no live service opened",
+    "python_helper": "AUTHOR-PYTHON-REVIEW.md + AUTHOR-PYTHON-RECEIPT.json, 0 findings / 6 actual probes"
+  },
+  "oracle": {
+    "onebar_fixture": {
+      "path": "s_session/tests/fixtures/q3-complete-onebar.json",
+      "sha256": "ce4efe9dcaac287abebdf1bd4c647d5c1a264482faaa86f05c087b22c17af9c2",
+      "scope": "old source-backed seven HTTP pages + actual Controller two fresh page31 roots from fixed new binary; replay transport and allocation remain TestOnly"
+    },
+    "s16_fixture": {
+      "path": "s_session/tests/fixtures/q3-complete-s16-cuts345.json",
+      "sha256": "0ad66776f85000abdbbe8d3e8d12965f053545496a9e1f517210c2ce022c8338",
+      "source_db_sha256": "1704c9d9ef50a822653206e0bf1136b37280814322bbb44398761a38322c154a",
+      "source_nodes": 6446,
+      "scope": "read-only native sealed cuts3/4/5, actual manifest batch3 and snapshots/deltas; source-root oracle, no new S16 service or classification"
+    }
+  },
+  "limitations": [
+    "No real Browser/GUI/9011 validation",
+    "Browser storage allocation scope awaits operator; no physical adapter supplied",
+    "Named TestOnly allocation units are simulation, never Browser physical allocation",
+    "Author did not declare independent Spec/Standards PASS",
+    "No new product page/navigation/visual design or host IPC/API; existing single script route only",
+    "No new resource defaults; exact /3 config required",
+    "No s-content/core/job source edits beyond approved inherited 07 repair"
+  ],
+  "api_document_sha256": "a52a32c6ab19411917dc20ccae594ed4b0f90382899f7c2ceac6c6f1611b18a9",
+  "python_review_paths": [
+    "/Users/silencehan/Projects/NewChanlun-1394-q3-complete-client-20261001/.scratch/issue1394-q3-complete-client-20261001/AUTHOR-PYTHON-REVIEW.md",
+    "/Users/silencehan/Projects/NewChanlun-1394-q3-complete-client-20261001/.scratch/issue1394-q3-complete-client-20261001/AUTHOR-PYTHON-RECEIPT.json"
+  ]
+}

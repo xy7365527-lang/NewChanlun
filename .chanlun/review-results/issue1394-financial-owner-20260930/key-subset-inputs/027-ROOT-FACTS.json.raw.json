@@ -1,0 +1,7 @@
+{
+  "schema_revision": "issue1394-verbatim-utf8-artifact/1",
+  "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-review-20261002/ROOT-FACTS.json",
+  "source_bytes": 760,
+  "source_sha256": "49e4976a92a093a00f9efd7094d4a4837a328d45a8d78cdc3da2584870e4134b",
+  "content_utf8": "{\n  \"status\": \"PASS_ROOT_RECOMPUTED_READONLY_KEY_SUBSET\",\n  \"scope\": \"same raw28/cut27/pending1;not service/Driver/full9011\",\n  \"checks\": [\n    {\n      \"repeat\": 0,\n      \"old_SQL\": 7753079,\n      \"new_SQL\": 6977348,\n      \"F\": 3400571,\n      \"typed_all_four_members_equal\": true,\n      \"all963_phase_order_each_overlay_equal\": true\n    },\n    {\n      \"repeat\": 1,\n      \"old_SQL\": 7753079,\n      \"new_SQL\": 6977348,\n      \"F\": 3400571,\n      \"typed_all_four_members_equal\": true,\n      \"all963_phase_order_each_overlay_equal\": true\n    }\n  ],\n  \"new_probe_sha256\": \"b3ceb0d50ab0c5c5092bb7123d8d1f182ac5af7b024d5f5749a000601baa2272\",\n  \"wall_causal_speedup\": \"UNMEASURED\",\n  \"true_heap_RSS_IO_peaks\": \"UNMEASURED\",\n  \"full9011\": false,\n  \"C_complete\": false\n}\n"
+}

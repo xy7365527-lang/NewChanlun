@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "#1394 Root 原件派生的私有运行计划（不要求新契约）",
+  "type": "object",
+  "required": [
+    "schema_revision",
+    "ticket",
+    "scope",
+    "root_acceptance_sha256",
+    "caller_observation_sha256",
+    "resource_sha256",
+    "s_resources",
+    "caller_observation",
+    "domains",
+    "output_dir",
+    "socket_dir",
+    "q21_sha256",
+    "source_sha256",
+    "clock_sha256",
+    "envelopes_sha256",
+    "schedule_sha256",
+    "original_checkpoint_every"
+  ],
+  "properties": {
+    "schema_revision": {
+      "const": "issue1394-root-bound-run/1"
+    },
+    "ticket": {
+      "const": 1394
+    },
+    "s_resources": {
+      "$ref": "#/$defs/resources"
+    }
+  },
+  "$defs": {
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_frame_bytes",
+        "read_timeout_ms",
+        "write_timeout_ms",
+        "response_timeout_ms",
+        "audit_cache_source_bytes",
+        "queue_capacity",
+        "max_connections"
+      ],
+      "properties": {
+        "max_frame_bytes": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "read_timeout_ms": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "write_timeout_ms": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "response_timeout_ms": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "audit_cache_source_bytes": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "queue_capacity": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "max_connections": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        }
+      }
+    }
+  },
+  "description": "实际 gate 从固定路径和 SHA 加载 ROOT-ACCEPTANCE / CALLER-OBSERVATION / S7 / Controller-A/B / 原 Q21，完整逐值比较。此 schema 仅描述内部计划，不替代 SHA/value gate。容量与严格未测峰值不作为首试门。"
+}

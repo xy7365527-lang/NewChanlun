@@ -1,0 +1,52 @@
+{
+  "C_complete": false,
+  "S_Q": "NOT_RUN",
+  "checks": {
+    "A_final_validate_before_VERIFIED": "validate_final within single cleanup deadline; failure retains final.fullDB and PARTIAL",
+    "B_after_A_partial": "mock run_ab called only A",
+    "gate": "GATE_PASSED, exit 0",
+    "offline_tests": "50 passed, exit 0",
+    "prepare": "PASS_9011/PASS_EXACT_SHA_VALUES, exit 0",
+    "runtime_path_absent": true,
+    "socket_path_absent": true
+  },
+  "files": {
+    "README.md": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/worker/.scratch/issue1394-full9011-runner-20261001/README.md",
+      "sha256": "222a8bf08ceed9b6a7c438ccd3428545b92a905abaeb301a6979aa3fc9106a1c"
+    },
+    "contract.schema.json": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/worker/.scratch/issue1394-full9011-runner-20261001/contract.schema.json",
+      "sha256": "3853d7ca2edc5ebf046b28ad84d87746d06f29579798ef7f9fd15cb6172b15d3"
+    },
+    "evidence.py": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/worker/.scratch/issue1394-full9011-runner-20261001/evidence.py",
+      "sha256": "8603beeeca192c2b74635b27f640dcb34332b104868a8b931ed21b1f48ad6a04"
+    },
+    "runner.py": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/worker/.scratch/issue1394-full9011-runner-20261001/runner.py",
+      "sha256": "155d22522d74471705ed6bb6c61499ea0dfb4e0ddf7403d4f48cffe60ae55335"
+    },
+    "runtime.py": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/worker/.scratch/issue1394-full9011-runner-20261001/runtime.py",
+      "sha256": "1bcae2f7dfedcf7e83fef406840b07fe6250b56433d379f497a2fb62f35d67b6"
+    },
+    "test_offline.py": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/worker/.scratch/issue1394-full9011-runner-20261001/test_offline.py",
+      "sha256": "992a18f1439cee178a52ede9e4b8aca40cc02c2900935a615a96c6eccb8dae4d"
+    }
+  },
+  "full_resource_capacity": false,
+  "helper_commit": "a1dd0a82d37915a34ae053d3ac034b402b0f169f",
+  "prepared": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/worker/.scratch/issue1394-full9011-runner-20261001/prepared-manager-v2/PREPARED.json",
+    "sha256": "24dd300a31c8ae8beb78c842185664e39b9584f6712be42ec6581843284c28ff"
+  },
+  "prior_status_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/manager/FINAL-STATUS.json",
+  "root_production_HEAD": "3e5a5ba31dbe5c59beeee03de227fd8408eaac55",
+  "rust_tree": "7196a77fef56cf87cbe91dc4b135326a142e2395",
+  "scope": "#1394 S full9011 A/B formal runner",
+  "status": "OFFLINE_READY_FOR_ROOT_REVIEW",
+  "strict_peaks": "UNMEASURED",
+  "wholegraph_complete": false
+}

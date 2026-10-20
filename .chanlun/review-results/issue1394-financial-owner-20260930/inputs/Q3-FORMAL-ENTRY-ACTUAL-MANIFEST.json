@@ -1,0 +1,466 @@
+{
+  "binary": "/Users/silencehan/Projects/NewChanlun-1394-q3-controller-entry-20261001/.scratch/issue1394-q3-controller-entry-20261001/actual1/originals/s_structure_session",
+  "binary_head": "08241aa12fa429245ba5132e6b6c2480f40029e4",
+  "binary_sha256": "991dd18dd0239b4d234a1f607cf72b405b79ec2a75ee7a3350c33d7a7cfca5b4",
+  "controller_head": "71e473bd54f46c31159a742a2b3ac706ac04a7da",
+  "controller_sha256": "bac0956929d861b8a359ac187e2fd1d2dbd6adb96f2271701f9eaca860c6f1f9",
+  "evidence": {
+    "actual1/events.jsonl": {
+      "bytes": 910,
+      "sha256": "50c66ccc1d23f0a6b5a4f0a34cce247d32e26fab6a7d1ec3409bce165e26b826"
+    },
+    "actual1/originals/OLD-BINDING.json": {
+      "bytes": 1441,
+      "sha256": "1c9d2ce663bf52a8d6aaae5a158b115578c3b3f9d0b0ba2e9c971fa55a8ec4b5"
+    },
+    "actual1/originals/S-RESOURCE-PLAN.json": {
+      "bytes": 4104,
+      "sha256": "18e9b3cd6cb5f17ba715b09405995b68b627bcd696ba457de790dfa9a51125c3"
+    },
+    "actual1/originals/SMALL-INPUTS.json": {
+      "bytes": 4504,
+      "sha256": "5a7280178e45f6728c3d4afa9d313b98664af8c4141cccac10c99df639dfa82f"
+    },
+    "actual1/originals/catalog.json": {
+      "bytes": 84259,
+      "sha256": "938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069"
+    },
+    "actual1/originals/clock.json": {
+      "bytes": 290,
+      "sha256": "cd65fa6caa3d33591ba331bed0e6491555db2732c7c8c1155ecd5457fcd1f31d"
+    },
+    "actual1/originals/input-1.json": {
+      "bytes": 890,
+      "sha256": "1c3a1867502258b603af2cdf8ac473c27f03400f24f76339215b425482c97d2f"
+    },
+    "actual1/originals/profile.json": {
+      "bytes": 468,
+      "sha256": "482250254133ba120afdd5cd428d1a32d4e5cb40cd7876c556b7007320e599d6"
+    },
+    "actual1/originals/q_runtime.rs": {
+      "bytes": 44935,
+      "sha256": "72da49cf45bf02778c1694cf5c0527307bfdf478cb08cb959eb69d2aa6c4de24"
+    },
+    "actual1/originals/q_serve.rs": {
+      "bytes": 9342,
+      "sha256": "d9a1d12c7f8a616735eaf3762ddeb6c70acb7f60ea2ac4ff90c5830219f98553"
+    },
+    "actual1/originals/query-resources.json": {
+      "bytes": 657,
+      "sha256": "50ea5bf865de8a37d8187069d70bee85ca4caac9c759a60ad2e3c717743d4eb1"
+    },
+    "actual1/originals/s_service_control.py": {
+      "bytes": 33722,
+      "sha256": "bac0956929d861b8a359ac187e2fd1d2dbd6adb96f2271701f9eaca860c6f1f9"
+    },
+    "actual1/originals/s_socket_client.py": {
+      "bytes": 9157,
+      "sha256": "8fb63a14d131452e09b2ab3e4aeddef1c1cbf922ca641ec5a13a7db729b4a1e2"
+    },
+    "actual1/originals/s_structure_session": {
+      "bytes": 21991192,
+      "sha256": "991dd18dd0239b4d234a1f607cf72b405b79ec2a75ee7a3350c33d7a7cfca5b4"
+    },
+    "actual1/originals/s_structure_session.rs": {
+      "bytes": 438208,
+      "sha256": "1479ab764fb6170b208bb6dd55035604cce98fd61b85f6f8442a7cc6dd261d03"
+    },
+    "actual1/python-probe.json": {
+      "bytes": 448,
+      "sha256": "af1b00471c4072c16a8d88ff2756d1f899a5f5d769d3a8dd2a29f8f7af8e09ee"
+    },
+    "actual1/python-probe.stdout": {
+      "bytes": 115,
+      "sha256": "9e044d9fcd6041cb44219967cafffb6c286889759fd9ef98e0f5e3c27c1311fa"
+    },
+    "actual1/sigint/RESULT.json": {
+      "bytes": 2372,
+      "sha256": "cd875c658b46edc10c338b91b64c17da11867a34dfe65108971a0e7cff388745"
+    },
+    "actual1/sigint/config.json": {
+      "bytes": 1937,
+      "sha256": "fcf386a13986a4b935a4bfff8e2fce662c5054965e7e4a549df15fd86e779c35"
+    },
+    "actual1/sigint/controller-ready.json": {
+      "bytes": 582,
+      "sha256": "c3476643c95ce114d91671d09aca6460670b7e4ff8a4de24878c9cea12f26aa9"
+    },
+    "actual1/sigint/controller-stop.json": {
+      "bytes": 116,
+      "sha256": "a478b9ebd1066512bf42fb192416436ad226ff973799884940c082fec1599eae"
+    },
+    "actual1/sigint/environment-declaration.json": {
+      "bytes": 303,
+      "sha256": "37946e5e43047c5a272c5b08e9d80a8738be8c993e18c84b0e410602b6c0bea9"
+    },
+    "actual1/sigint/listen-after-stop.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "actual1/sigint/listen-after-stop.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "actual1/sigint/ready.request.http": {
+      "bytes": 63,
+      "sha256": "f566fcee998856b2703f34ce8369a104c6a029b0eb7c3073de8792edfdcbc528"
+    },
+    "actual1/sigint/ready.response.body": {
+      "bytes": 448,
+      "sha256": "3722a6734bb7c72214df69c4b6dc9508b8c19aad5db293dfc5638a21f1d853b5"
+    },
+    "actual1/sigint/ready.response.http": {
+      "bytes": 579,
+      "sha256": "546a6d02c67de0cf9ec7bae789e90f6a8eedf32d49f2d12ae59c8ef2a19d63b6"
+    },
+    "actual1/sigint/resolved-config.json": {
+      "bytes": 1937,
+      "sha256": "fcf386a13986a4b935a4bfff8e2fce662c5054965e7e4a549df15fd86e779c35"
+    },
+    "actual1/sigint/s.sqlite": {
+      "bytes": 499712,
+      "sha256": "08c9d59456cc3eeede74650fad8597ad2743b5acbdf198c7b0b43b64537ec4ad"
+    },
+    "actual1/sigint/s.sqlite.control-owner.json": {
+      "bytes": 310,
+      "sha256": "2420c24a0c64af62091400a2316b9cdcfa4f8fa416ca54de3f0a7fd5d69946c9"
+    },
+    "actual1/sigint/snapshot.envelope.json": {
+      "bytes": 5208,
+      "sha256": "ede694a919201b7fdc194b605cb004579a5a4795e25a1fa5bf09ea040a348c58"
+    },
+    "actual1/sigint/snapshot.request.http": {
+      "bytes": 769,
+      "sha256": "c1ba0f5db0243d4bf6fe726ce6413ee32a3feda7f6cde2171e3351c94311a125"
+    },
+    "actual1/sigint/snapshot.response.body": {
+      "bytes": 3820,
+      "sha256": "2afed785bb5a7a0221ca53b96054b110907b9973e6edd92146420004bdba4823"
+    },
+    "actual1/sigint/snapshot.response.http": {
+      "bytes": 3952,
+      "sha256": "23518e5434099203329a1eb4748af687f4f212c823a89603bf7c40a073a397e4"
+    },
+    "actual1/sigint/start-args.json": {
+      "bytes": 810,
+      "sha256": "3e9e38fd00139eee7d834e3a03e6b0c365078da481624ee5c66b4d2642c6e9f8"
+    },
+    "actual1/sigint/state/q.log": {
+      "bytes": 974,
+      "sha256": "3519b389438cfaf59ede68c732729416b8c74a888602253a7f2fbb568c0c5d70"
+    },
+    "actual1/sigint/state/q.process.json": {
+      "bytes": 1585,
+      "sha256": "bcab4d2207677f62dee5802a2b795b1033dcd6e0bc0c96585a7560310696f018"
+    },
+    "actual1/sigint/status-after-reap.json": {
+      "bytes": 1608,
+      "sha256": "5343728cf440a24e7f399d762e0e9090cb80eb4aafc749d6e36811606a920c71"
+    },
+    "actual1/sigint/status-after-start.json": {
+      "bytes": 1608,
+      "sha256": "457ae94670427303df6fff1b46597afb1fc27a505557d75dd74f4f7024474d0d"
+    },
+    "actual1/sigint/status-ready.json": {
+      "bytes": 1608,
+      "sha256": "457ae94670427303df6fff1b46597afb1fc27a505557d75dd74f4f7024474d0d"
+    },
+    "actual1/sigterm/RESULT.json": {
+      "bytes": 2375,
+      "sha256": "6e3d08c40059df9115174c8fe481d5dba8634f86acfd8edef601ab3078d6ce30"
+    },
+    "actual1/sigterm/config.json": {
+      "bytes": 1938,
+      "sha256": "95e6fc21369dad4be5f1a0bca914acf7476fd00145151e6fd7be3a4677f39269"
+    },
+    "actual1/sigterm/controller-ready.json": {
+      "bytes": 582,
+      "sha256": "dd476cc42dc0852b653e0da54344c0e1e20e9556117c811d1f041d36843c9cab"
+    },
+    "actual1/sigterm/controller-stop.json": {
+      "bytes": 117,
+      "sha256": "f373e2b61767737899e4223af3d4e96a5e58fdc1941977cf1e31c1a02e5c84af"
+    },
+    "actual1/sigterm/environment-declaration.json": {
+      "bytes": 303,
+      "sha256": "37946e5e43047c5a272c5b08e9d80a8738be8c993e18c84b0e410602b6c0bea9"
+    },
+    "actual1/sigterm/listen-after-stop.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "actual1/sigterm/listen-after-stop.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "actual1/sigterm/ready.request.http": {
+      "bytes": 63,
+      "sha256": "f566fcee998856b2703f34ce8369a104c6a029b0eb7c3073de8792edfdcbc528"
+    },
+    "actual1/sigterm/ready.response.body": {
+      "bytes": 448,
+      "sha256": "07a814a86948dee21cfbc414bcf50bf807f726f293709a71558e12dd31b1b489"
+    },
+    "actual1/sigterm/ready.response.http": {
+      "bytes": 579,
+      "sha256": "7736f6056d549f2aedb3754df14a4edab429674fdd2b85ef688b2aafa4c9e4e7"
+    },
+    "actual1/sigterm/resolved-config.json": {
+      "bytes": 1938,
+      "sha256": "95e6fc21369dad4be5f1a0bca914acf7476fd00145151e6fd7be3a4677f39269"
+    },
+    "actual1/sigterm/s.sqlite": {
+      "bytes": 499712,
+      "sha256": "08c9d59456cc3eeede74650fad8597ad2743b5acbdf198c7b0b43b64537ec4ad"
+    },
+    "actual1/sigterm/s.sqlite.control-owner.json": {
+      "bytes": 312,
+      "sha256": "037c40eb890b73cee66a18908a561d300a9c77ccd5671dbe436af210bcf67ca8"
+    },
+    "actual1/sigterm/snapshot.envelope.json": {
+      "bytes": 5209,
+      "sha256": "eda99417cb8dc4f9304946c577dfa88a5d6829b2d4aa24c7b688f66f6bf20354"
+    },
+    "actual1/sigterm/snapshot.request.http": {
+      "bytes": 770,
+      "sha256": "7babfee18fdc67cd84f680f5f9890aea3490f1d8d108d0aca0809859fb689576"
+    },
+    "actual1/sigterm/snapshot.response.body": {
+      "bytes": 3821,
+      "sha256": "98df51d4564db372ef24b06fb2c42fa9cd81275a23b04343dce8a9a4ac922073"
+    },
+    "actual1/sigterm/snapshot.response.http": {
+      "bytes": 3953,
+      "sha256": "c5f318c978d02fc02409e1f5ef9a503645b36bef302cc8c624e771f315389b66"
+    },
+    "actual1/sigterm/start-args.json": {
+      "bytes": 813,
+      "sha256": "68f9a24cdc68fbbeb030d7dc67797575228846c934f59120aca735d4f1156397"
+    },
+    "actual1/sigterm/state/q.log": {
+      "bytes": 975,
+      "sha256": "18b46e122b1df4fb5821be0f88b94423ed5f738bb9e16170c6f17f90e14b9f2a"
+    },
+    "actual1/sigterm/state/q.process.json": {
+      "bytes": 1588,
+      "sha256": "b7177317886aaa8652944708289309011e941c435a6f5308ad08d57147b70d1d"
+    },
+    "actual1/sigterm/status-after-reap.json": {
+      "bytes": 1611,
+      "sha256": "a421cfd1560ec60de7578b07dbd1fe721d5359fc14286b57cfa8ed4941d24c8e"
+    },
+    "actual1/sigterm/status-after-start.json": {
+      "bytes": 1611,
+      "sha256": "d50e6c3746c13a5f7fe6f8d1e60ed244040838b0003e0edf037deda2b3b8ed69"
+    },
+    "actual1/sigterm/status-ready.json": {
+      "bytes": 1611,
+      "sha256": "d50e6c3746c13a5f7fe6f8d1e60ed244040838b0003e0edf037deda2b3b8ed69"
+    },
+    "actual1/source-after.json": {
+      "bytes": 521,
+      "sha256": "ca748abded9e265d5632118d6ee9c9eccbf17cec800ae22422bd58534ea18b79"
+    },
+    "actual1/source-lsof.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "actual1/source-lsof.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "actual1/source-preflight.json": {
+      "bytes": 1314,
+      "sha256": "03b1f6f50b714b2c01b29f018cc6cee0db5fffacb770dd41237af8ec7b472564"
+    }
+  },
+  "formal_start_q_used": true,
+  "harness_sha256": "fa5155ca0b7d926428380b576c9031dad5bd16af21034346a7c04ce3827c1ab6",
+  "instances": [
+    {
+      "actual_v3_snapshot_projection_digest": "qcut3-adfa0dcc367656116f51819244758dbcedd4068c154a5bbaa442b78cdc931589",
+      "actual_v3_snapshot_reply_bytes": 3821,
+      "actual_v3_snapshot_rows": 7,
+      "control_instance_id": "01222dcd-9abe-4934-90f7-18f48219b35c",
+      "db_after": {
+        "": {
+          "bytes": 499712,
+          "exists": true,
+          "mtime_ns": 1790800124209105917,
+          "sha256": "08c9d59456cc3eeede74650fad8597ad2743b5acbdf198c7b0b43b64537ec4ad"
+        },
+        "-shm": {
+          "bytes": 32768,
+          "exists": true,
+          "mtime_ns": 1790800124993603748,
+          "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+        },
+        "-wal": {
+          "bytes": 0,
+          "exists": true,
+          "mtime_ns": 1790800124993337747,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "db_before": {
+        "": {
+          "bytes": 499712,
+          "exists": true,
+          "mtime_ns": 1790800124209105917,
+          "sha256": "08c9d59456cc3eeede74650fad8597ad2743b5acbdf198c7b0b43b64537ec4ad"
+        },
+        "-shm": {
+          "exists": false
+        },
+        "-wal": {
+          "exists": false
+        }
+      },
+      "db_main_bytes_unchanged": true,
+      "db_wal_no_structure_write": true,
+      "exit_code": 0,
+      "negative": {
+        "reused": "unchanged lifecycle methods, author30 and independentSpec/Standards evidence; no new synthetic rerun"
+      },
+      "no_listen_after_stop": true,
+      "pid": 26584,
+      "port": 50299,
+      "process_identity": "501 Thu Oct  1 04:28:44 2026     /Users/silencehan/Projects/NewChanlun-1394-q3-controller-entry-20261001/.scratch/issue1394-q3-controller-entry-20261001/actual1/originals/s_structure_session query-serve --protocol-revision s-session/3 --db /Users/silencehan/Projects/NewChanlun-1394-q3-controller-entry-20261001/.scratch/issue1394-q3-controller-entry-20261001/actual1/sigterm/s.sqlite --resource-config /Users/silencehan/Projects/NewChanlun-1394-q3-controller-entry-20261001/.scratch/issue1394-q3-controller-entry-20261001/actual1/originals/query-resources.json --producer-epoch 1 --host 127.0.0.1 --port 50299",
+      "raw_ready_equals_controller_reply": true,
+      "ready_state": "ready",
+      "reaped": true,
+      "rebind_after_reap": true,
+      "signal": "SIGTERM",
+      "status": "PASS",
+      "stop_receipt": {
+        "exit_observation_warnings": [],
+        "pid": 26584,
+        "service": "q",
+        "signal": "SIGTERM",
+        "state": "stopped"
+      },
+      "uid": 501
+    },
+    {
+      "actual_v3_snapshot_projection_digest": "qcut3-adfa0dcc367656116f51819244758dbcedd4068c154a5bbaa442b78cdc931589",
+      "actual_v3_snapshot_reply_bytes": 3820,
+      "actual_v3_snapshot_rows": 7,
+      "control_instance_id": "881b73cf-2bdf-41c2-9b51-2f13528095b4",
+      "db_after": {
+        "": {
+          "bytes": 499712,
+          "exists": true,
+          "mtime_ns": 1790800126370039472,
+          "sha256": "08c9d59456cc3eeede74650fad8597ad2743b5acbdf198c7b0b43b64537ec4ad"
+        },
+        "-shm": {
+          "bytes": 32768,
+          "exists": true,
+          "mtime_ns": 1790800126427918600,
+          "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+        },
+        "-wal": {
+          "bytes": 0,
+          "exists": true,
+          "mtime_ns": 1790800126427669140,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "db_before": {
+        "": {
+          "bytes": 499712,
+          "exists": true,
+          "mtime_ns": 1790800126370039472,
+          "sha256": "08c9d59456cc3eeede74650fad8597ad2743b5acbdf198c7b0b43b64537ec4ad"
+        },
+        "-shm": {
+          "exists": false
+        },
+        "-wal": {
+          "exists": false
+        }
+      },
+      "db_main_bytes_unchanged": true,
+      "db_wal_no_structure_write": true,
+      "exit_code": 0,
+      "negative": {
+        "reused": "unchanged lifecycle methods, author30 and independentSpec/Standards evidence; no new synthetic rerun"
+      },
+      "no_listen_after_stop": true,
+      "pid": 26648,
+      "port": 50341,
+      "process_identity": "501 Thu Oct  1 04:28:46 2026     /Users/silencehan/Projects/NewChanlun-1394-q3-controller-entry-20261001/.scratch/issue1394-q3-controller-entry-20261001/actual1/originals/s_structure_session query-serve --protocol-revision s-session/3 --db /Users/silencehan/Projects/NewChanlun-1394-q3-controller-entry-20261001/.scratch/issue1394-q3-controller-entry-20261001/actual1/sigint/s.sqlite --resource-config /Users/silencehan/Projects/NewChanlun-1394-q3-controller-entry-20261001/.scratch/issue1394-q3-controller-entry-20261001/actual1/originals/query-resources.json --producer-epoch 1 --host 127.0.0.1 --port 50341",
+      "raw_ready_equals_controller_reply": true,
+      "ready_state": "ready",
+      "reaped": true,
+      "rebind_after_reap": true,
+      "signal": "SIGINT",
+      "status": "PASS",
+      "stop_receipt": {
+        "exit_observation_warnings": [],
+        "pid": 26648,
+        "service": "q",
+        "signal": "SIGINT",
+        "state": "stopped"
+      },
+      "uid": 501
+    }
+  ],
+  "main_merged": false,
+  "pushed": false,
+  "q_resource_domain": "same previously accepted single-bar Q21; no numeric changes or S16 widening",
+  "q_resource_sha256": "50ea5bf865de8a37d8187069d70bee85ca4caac9c759a60ad2e3c717743d4eb1",
+  "receipt_finalization": {
+    "complete_event_bound_to_initial_manifest": true,
+    "initial_manifest": ".scratch/issue1394-q3-controller-entry-20261001/FORMAL-ACTUAL-MANIFEST-initial.json",
+    "initial_manifest_sha256": "585015ca5ef54be08fe0d0710ee2e80d1563539cec46a3443aba70bce906ec13",
+    "no_rerun": true,
+    "reason": "initial receipt was written before final complete event appended; raw event/source/process/API files preserved, final index frozen after terminal"
+  },
+  "schema_revision": "issue1394-formal-q3-controller-actual/1",
+  "scope": "two fresh formal start_q -> Ready/nonce/PID/status -> actual v3 snapshot -> SIGTERM/SIGINT -> reap/rebind; source original unchanged, not client/Browser/S3/resources/9011/graph",
+  "source_after": {
+    "": {
+      "bytes": 499712,
+      "exists": true,
+      "mtime_ns": 1790741515931692057,
+      "sha256": "08c9d59456cc3eeede74650fad8597ad2743b5acbdf198c7b0b43b64537ec4ad"
+    },
+    "-shm": {
+      "bytes": 32768,
+      "exists": true,
+      "mtime_ns": 1790762701418236246,
+      "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+    },
+    "-wal": {
+      "bytes": 0,
+      "exists": true,
+      "mtime_ns": 1790741515943737246,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "source_before": {
+    "": {
+      "bytes": 499712,
+      "exists": true,
+      "mtime_ns": 1790741515931692057,
+      "sha256": "08c9d59456cc3eeede74650fad8597ad2743b5acbdf198c7b0b43b64537ec4ad"
+    },
+    "-shm": {
+      "bytes": 32768,
+      "exists": true,
+      "mtime_ns": 1790762701418236246,
+      "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+    },
+    "-wal": {
+      "bytes": 0,
+      "exists": true,
+      "mtime_ns": 1790741515943737246,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "source_db": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-financial-reader-small-20260930/s.sqlite",
+  "status": "PASS_BOUNDED_FORMAL_START_Q3_SINGLE_BAR",
+  "ticket": 1394,
+  "whole_rust_tree_equal": true
+}

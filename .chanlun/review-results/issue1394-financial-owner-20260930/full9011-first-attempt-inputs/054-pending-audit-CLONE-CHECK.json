@@ -1,0 +1,38 @@
+[
+  {
+    "clone_byte_equal_to_original": true,
+    "clone_initial_byte_equal": true,
+    "clone_inode_after": 324736682,
+    "clone_inode_before": 324736682,
+    "clone_mtime_after_ns": 1790875897695701998,
+    "clone_mtime_before_ns": 1790875897695701998,
+    "clone_sha_after": "050562e2db766cc3d6d94e42bf43f0e21fe3a336d6c9d5b8adcc0e887959f9c1",
+    "clone_sha_before": "050562e2db766cc3d6d94e42bf43f0e21fe3a336d6c9d5b8adcc0e887959f9c1",
+    "name": "s.sqlite",
+    "original_identity_unchanged": true
+  },
+  {
+    "clone_byte_equal_to_original": true,
+    "clone_initial_byte_equal": true,
+    "clone_inode_after": 324736683,
+    "clone_inode_before": 324736683,
+    "clone_mtime_after_ns": 1790875927783211011,
+    "clone_mtime_before_ns": 1790875927783211011,
+    "clone_sha_after": "9b1565422a3c45c03bb068ede25c199548072d6695c1b33b01ce2a851449671b",
+    "clone_sha_before": "9b1565422a3c45c03bb068ede25c199548072d6695c1b33b01ce2a851449671b",
+    "name": "s.sqlite-wal",
+    "original_identity_unchanged": true
+  },
+  {
+    "clone_byte_equal_to_original": true,
+    "clone_initial_byte_equal": true,
+    "clone_inode_after": 324736684,
+    "clone_inode_before": 324736684,
+    "clone_mtime_after_ns": 1790877088871303050,
+    "clone_mtime_before_ns": 1790875927908693250,
+    "clone_sha_after": "0c58b51d09bfd39725a1fc4d8d63f3713e9ce6533dd899f45fa2be7d16633aca",
+    "clone_sha_before": "0c58b51d09bfd39725a1fc4d8d63f3713e9ce6533dd899f45fa2be7d16633aca",
+    "name": "s.sqlite-shm",
+    "original_identity_unchanged": true
+  }
+]

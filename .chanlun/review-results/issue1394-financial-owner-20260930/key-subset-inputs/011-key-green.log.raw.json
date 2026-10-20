@@ -1,0 +1,7 @@
+{
+  "schema_revision": "issue1394-verbatim-utf8-artifact/1",
+  "source_path": "/Users/silencehan/Projects/NewChanlun-1394-key-subset-20261002/.scratch/key-subset-owned-20261002/key-green.log",
+  "source_bytes": 801,
+  "source_sha256": "cda29939891ca5340de20675f8f4564fea7e62b4100dde1db188844ba3b88308",
+  "content_utf8": "\nrunning 7 tests\ntest exact_and_ordinary_path_ignore_opt_in_and_default_subset_trace_is_frozen ... ok\ntest repeated_logical_keys_and_new_calls_never_fallback_to_saved_success ... ok\ntest short_boundaries_unicode_mixed_long_unknown_and_shared_digests_return_same_refs ... ok\ntest short_key_rejects_branch_extra_blocks_wrong_lengths_and_all_utf8 ... ok\ntest subset_keeps_count_k_root_and_detached_value_context_boundaries ... ok\ntest subset_short_keys_reduce_actual_merkle_reads_15_and_20_take_10 ... SUBSET_READS fields=15 take=10 legacy=199 actual=100 F=100\nSUBSET_READS fields=20 take=10 legacy=244 actual=130 F=130\nok\ntest unknown_order_duplicates_missing_and_selected_value_headers_still_reject ... ok\n\ntest result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s\n\n"
+}

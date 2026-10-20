@@ -1,0 +1,38 @@
+[
+  {
+    "bytes": 13697024,
+    "ctime_ns": 1790876901864222008,
+    "device": 16777232,
+    "gid": 20,
+    "inode": 324736682,
+    "mode": "0o644",
+    "mtime_ns": 1790875897695701998,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/owned/s.sqlite",
+    "sha256": "050562e2db766cc3d6d94e42bf43f0e21fe3a336d6c9d5b8adcc0e887959f9c1",
+    "uid": 501
+  },
+  {
+    "bytes": 11680232,
+    "ctime_ns": 1790876901871304501,
+    "device": 16777232,
+    "gid": 20,
+    "inode": 324736683,
+    "mode": "0o644",
+    "mtime_ns": 1790875927783211011,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/owned/s.sqlite-wal",
+    "sha256": "9b1565422a3c45c03bb068ede25c199548072d6695c1b33b01ce2a851449671b",
+    "uid": 501
+  },
+  {
+    "bytes": 32768,
+    "ctime_ns": 1790877111874878164,
+    "device": 16777232,
+    "gid": 20,
+    "inode": 324736684,
+    "mode": "0o644",
+    "mtime_ns": 1790877088871303050,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/owned/s.sqlite-shm",
+    "sha256": "0c58b51d09bfd39725a1fc4d8d63f3713e9ce6533dd899f45fa2be7d16633aca",
+    "uid": 501
+  }
+]

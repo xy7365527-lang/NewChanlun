@@ -1,0 +1,59 @@
+{
+  "schema": "issue1394-checked-frame-evidence/1",
+  "product_head": "c15eeb351f66687225bef80301aadea261e4220c",
+  "base": "b7eebc905a0f7848e0b83aa3e348950d3866e64f",
+  "product_sha256": {
+    "rust/src/bin/s_session_v3/audit_budget.rs": "54248ef39d6e1cdbe8fee1990f872d594018ebeaa39a5d7ffb3c9e0a712a69d4",
+    "rust/src/bin/s_session_v3/history.rs": "f9020f6b9542102fe0c2e80ada9efc3c4fbaf435dbc0530a992ff121520ce06f",
+    "rust/src/s_content.rs": "34f336eeb6665c33ee39dc048ac5153e3555dac9e08f4cb43e48ea2df3c55e2d",
+    "rust/src/s_content/access.rs": "1e3117f353a2828d2e4294119440b3911c0d7e49b368b2d3c4f3beb44133757e",
+    "rust/src/s_content/fragment.rs": "2e44e8505413b7d3aee811b2b802914939c67be6c0b9fa006c2adef755e5569a",
+    "rust/src/s_content/job.rs": "f1ec4f6b417f6f86f7d2e24df06cd03c313279360d2ea5181766d284940a1b1e",
+    "rust/tests/s_content_contract.rs": "b8fed14b9868ff9f85279bc58656ab4d71ef89053452426b6294e7fab7afc43d",
+    "rust/tests/s_content_job.rs": "50cd14cac8201ba6328f26f5b198103fbc6df79bc4fc3ce040c018d37005989d"
+  },
+  "origin": "Sandcastle run8c82a80e output idle timeout/failed; partial2files then native manager gpt-6-sol completed e0a, independent HIGH caught, c15 restored old pre-F accounting",
+  "checks": {
+    "root_s3_serial": {
+      "passed": 169,
+      "failed": 0,
+      "ignored": 2,
+      "seconds": 61.46
+    },
+    "root_codec_unit": 22,
+    "root_content_groups": [
+      10,
+      8,
+      18,
+      11,
+      12,
+      9
+    ],
+    "root_clippy_exit": 0,
+    "warnings_remain": true
+  },
+  "q16": {
+    "cold_seconds": 4.570188209,
+    "warm_seconds": 0.000374292,
+    "all_passes_ok": true,
+    "capture_digest": "013f65580042bb05da3ee8c066a4312cb8268c798cbc763b1188eef371a624d1",
+    "db_sha256": "1704c9d9ef50a822653206e0bf1136b37280814322bbb44398761a38322c154a",
+    "resource_sha256": "50ea5bf865de8a37d8187069d70bee85ca4caac9c759a60ad2e3c717743d4eb1",
+    "binary_sha256": "965ebce5425188eb25186b4ca9e764a7d5c61020c5966f0f8aee89ef5ae5f2bf",
+    "resource_profile": null,
+    "server_started": false,
+    "db_unchanged": true
+  },
+  "review": {
+    "initial_e0a": "HIGH/Spec FAIL old gate/accounting non-equivalence, not final deadline bypass",
+    "final_c15": "Standards PASS/Spec PASS, original HIGH closed",
+    "agent": "/root/q16_checked_frame_review",
+    "ran_tests": false
+  },
+  "parallel_v3_failures": "initial164pass/5deadlinefail/2ignored retained; five isolated singlethread runs passed; root final serial169pass",
+  "limits": "same-read checked frame transfer, no body cache or extra clone; physical ReadStore F remains; single Q16 sample not arbitrary-scale or peak guarantee",
+  "main_merged": false,
+  "pushed": false,
+  "issue1394_complete": false,
+  "goal1323_complete": false
+}

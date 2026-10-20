@@ -1,0 +1,1587 @@
+warning: unexpected `cfg` condition value: `rust_1_40`
+  --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.12.16/src/data_model.rs:43:12
+   |
+43 | #[cfg_attr(feature = "rust_1_40", non_exhaustive)]
+   |            ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: expected values for `feature` are: `arch_zkasm`, `default`, `serde`, `serde_support`, and `std`
+   = help: consider adding `rust_1_40` as a feature in `Cargo.toml`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+   = note: `#[warn(unexpected_cfgs)]` on by default
+
+warning: unexpected `cfg` condition value: `rust_1_40`
+  --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.12.16/src/triple.rs:55:12
+   |
+55 | #[cfg_attr(feature = "rust_1_40", non_exhaustive)]
+   |            ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: expected values for `feature` are: `arch_zkasm`, `default`, `serde`, `serde_support`, and `std`
+   = help: consider adding `rust_1_40` as a feature in `Cargo.toml`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition value: `rust_1_40`
+  --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.12.16/src/targets.rs:14:12
+   |
+14 | #[cfg_attr(feature = "rust_1_40", non_exhaustive)]
+   |            ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: expected values for `feature` are: `arch_zkasm`, `default`, `serde`, `serde_support`, and `std`
+   = help: consider adding `rust_1_40` as a feature in `Cargo.toml`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition value: `rust_1_40`
+  --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.12.16/src/targets.rs:59:12
+   |
+59 | #[cfg_attr(feature = "rust_1_40", non_exhaustive)]
+   |            ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: expected values for `feature` are: `arch_zkasm`, `default`, `serde`, `serde_support`, and `std`
+   = help: consider adding `rust_1_40` as a feature in `Cargo.toml`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition value: `rust_1_40`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.12.16/src/targets.rs:109:12
+    |
+109 | #[cfg_attr(feature = "rust_1_40", non_exhaustive)]
+    |            ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: expected values for `feature` are: `arch_zkasm`, `default`, `serde`, `serde_support`, and `std`
+    = help: consider adding `rust_1_40` as a feature in `Cargo.toml`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition value: `rust_1_40`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.12.16/src/targets.rs:388:12
+    |
+388 | #[cfg_attr(feature = "rust_1_40", non_exhaustive)]
+    |            ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: expected values for `feature` are: `arch_zkasm`, `default`, `serde`, `serde_support`, and `std`
+    = help: consider adding `rust_1_40` as a feature in `Cargo.toml`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition value: `rust_1_40`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.12.16/src/targets.rs:409:12
+    |
+409 | #[cfg_attr(feature = "rust_1_40", non_exhaustive)]
+    |            ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: expected values for `feature` are: `arch_zkasm`, `default`, `serde`, `serde_support`, and `std`
+    = help: consider adding `rust_1_40` as a feature in `Cargo.toml`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition value: `rust_1_40`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.12.16/src/targets.rs:442:12
+    |
+442 | #[cfg_attr(feature = "rust_1_40", non_exhaustive)]
+    |            ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: expected values for `feature` are: `arch_zkasm`, `default`, `serde`, `serde_support`, and `std`
+    = help: consider adding `rust_1_40` as a feature in `Cargo.toml`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition value: `rust_1_40`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.12.16/src/targets.rs:465:12
+    |
+465 | #[cfg_attr(feature = "rust_1_40", non_exhaustive)]
+    |            ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: expected values for `feature` are: `arch_zkasm`, `default`, `serde`, `serde_support`, and `std`
+    = help: consider adding `rust_1_40` as a feature in `Cargo.toml`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition value: `rust_1_40`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.12.16/src/targets.rs:488:12
+    |
+488 | #[cfg_attr(feature = "rust_1_40", non_exhaustive)]
+    |            ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: expected values for `feature` are: `arch_zkasm`, `default`, `serde`, `serde_support`, and `std`
+    = help: consider adding `rust_1_40` as a feature in `Cargo.toml`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition value: `rust_1_40`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.12.16/src/targets.rs:513:12
+    |
+513 | #[cfg_attr(feature = "rust_1_40", non_exhaustive)]
+    |            ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: expected values for `feature` are: `arch_zkasm`, `default`, `serde`, `serde_support`, and `std`
+    = help: consider adding `rust_1_40` as a feature in `Cargo.toml`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition value: `rust_1_40`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.12.16/src/targets.rs:572:12
+    |
+572 | #[cfg_attr(feature = "rust_1_40", non_exhaustive)]
+    |            ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: expected values for `feature` are: `arch_zkasm`, `default`, `serde`, `serde_support`, and `std`
+    = help: consider adding `rust_1_40` as a feature in `Cargo.toml`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition value: `rust_1_40`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.12.16/src/targets.rs:630:12
+    |
+630 | #[cfg_attr(feature = "rust_1_40", non_exhaustive)]
+    |            ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: expected values for `feature` are: `arch_zkasm`, `default`, `serde`, `serde_support`, and `std`
+    = help: consider adding `rust_1_40` as a feature in `Cargo.toml`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition value: `rust_1_40`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.12.16/src/targets.rs:729:12
+    |
+729 | #[cfg_attr(feature = "rust_1_40", non_exhaustive)]
+    |            ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: expected values for `feature` are: `arch_zkasm`, `default`, `serde`, `serde_support`, and `std`
+    = help: consider adding `rust_1_40` as a feature in `Cargo.toml`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition value: `rust_1_40`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.12.16/src/targets.rs:817:12
+    |
+817 | #[cfg_attr(feature = "rust_1_40", non_exhaustive)]
+    |            ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: expected values for `feature` are: `arch_zkasm`, `default`, `serde`, `serde_support`, and `std`
+    = help: consider adding `rust_1_40` as a feature in `Cargo.toml`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: `target-lexicon` (build script) generated 15 warnings
+       Fresh unicode-ident v1.0.24
+       Fresh version_check v0.9.5
+       Fresh find-msvc-tools v0.1.9
+       Fresh typenum v1.20.1
+       Fresh shlex v2.0.1
+       Fresh autocfg v1.5.1
+       Fresh vcpkg v0.2.15
+       Fresh pkg-config v0.3.34
+       Fresh heck v0.5.0
+       Fresh foldhash v0.2.0
+warning: direct cast of function item into an integer
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/foldhash-0.2.0/src/seed.rs:152:35
+    |
+152 |         seed = mix(seed, func_ptr as usize as u64);
+    |                                   ^^^^^^^^
+    |
+    = note: `#[warn(function_casts_as_integer)]` on by default
+help: first cast to a pointer `as *const ()`
+    |
+152 |         seed = mix(seed, func_ptr as *const () as usize as u64);
+    |                                   ++++++++++++
+
+       Fresh cfg-if v1.0.4
+       Fresh once_cell v1.21.4
+       Fresh memchr v2.8.2
+warning: struct `SensibleMoveMask` is never constructed
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memchr-2.8.2/src/vector.rs:118:19
+    |
+118 | pub(crate) struct SensibleMoveMask(u32);
+    |                   ^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `get_for_offset` is never used
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memchr-2.8.2/src/vector.rs:126:8
+    |
+120 | impl SensibleMoveMask {
+    | --------------------- method in this implementation
+...
+126 |     fn get_for_offset(self) -> u32 {
+    |        ^^^^^^^^^^^^^^
+
+       Fresh itoa v1.0.18
+       Fresh bitflags v2.13.0
+       Fresh unindent v0.2.4
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unindent-0.2.4/src/unindent.rs:103:14
+    |
+103 |     fn lines(&self) -> Split<u8, fn(&u8) -> bool>;
+    |              ^^^^^     ^^^^^^^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+    |              |
+    |              the lifetime is elided here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+    = note: `#[warn(mismatched_lifetime_syntaxes)]` on by default
+help: use `'_` for type paths
+    |
+103 |     fn lines(&self) -> Split<'_, u8, fn(&u8) -> bool>;
+    |                              +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unindent-0.2.4/src/unindent.rs:107:14
+    |
+107 |     fn lines(&self) -> Split<u8, fn(&u8) -> bool> {
+    |              ^^^^^     ^^^^^^^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+    |              |
+    |              the lifetime is elided here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+    |
+107 |     fn lines(&self) -> Split<'_, u8, fn(&u8) -> bool> {
+    |                              +++
+
+       Fresh indoc v2.0.7
+       Fresh fallible-streaming-iterator v0.1.9
+       Fresh smallvec v1.15.2
+warning: `foldhash` (lib) generated 1 warning
+warning: `memchr` (lib) generated 2 warnings
+warning: `unindent` (lib) generated 2 warnings
+       Fresh target-lexicon v0.12.16
+warning: unexpected `cfg` condition value: `cargo-clippy`
+ --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.12.16/src/lib.rs:6:5
+  |
+6 |     feature = "cargo-clippy",
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: expected values for `feature` are: `arch_zkasm`, `default`, `serde`, `serde_support`, and `std`
+  = help: consider adding `cargo-clippy` as a feature in `Cargo.toml`
+  = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+  = note: `#[warn(unexpected_cfgs)]` on by default
+
+warning: unexpected `cfg` condition value: `rust_1_40`
+  --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/target-lexicon-0.12.16/src/data_model.rs:43:12
+   |
+43 | #[cfg_attr(feature = "rust_1_40", non_exhaustive)]
+   |            ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: expected values for `feature` are: `arch_zkasm`, `default`, `serde`, `serde_support`, and `std`
+   = help: consider adding `rust_1_40` as a feature in `Cargo.toml`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+       Fresh cc v1.2.65
+       Fresh hashbrown v0.17.1
+       Fresh fallible-iterator v0.3.0
+warning: `target-lexicon` (lib) generated 16 warnings (14 duplicates)
+       Fresh proc-macro2 v1.0.106
+       Fresh libc v0.2.189
+       Fresh serde_core v1.0.229
+       Fresh zmij v1.0.21
+       Fresh hashlink v0.12.2
+       Fresh quote v1.0.45
+       Fresh generic-array v0.14.7
+warning: unexpected `cfg` condition name: `relaxed_coherence`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/generic-array-0.14.7/src/impls.rs:136:19
+    |
+136 |               #[cfg(relaxed_coherence)]
+    |                     ^^^^^^^^^^^^^^^^^
+...
+183 | / impl_from! {
+184 | |     1  => ::typenum::U1,
+185 | |     2  => ::typenum::U2,
+186 | |     3  => ::typenum::U3,
+...   |
+215 | |     32 => ::typenum::U32
+216 | | }
+    | |_- in this macro invocation
+    |
+    = help: expected names are: `docsrs`, `feature`, and `test` and 32 more
+    = help: consider using a Cargo feature instead
+    = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+             [lints.rust]
+             unexpected_cfgs = { level = "warn", check-cfg = ['cfg(relaxed_coherence)'] }
+    = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(relaxed_coherence)");` to the top of the `build.rs`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+    = note: `#[warn(unexpected_cfgs)]` on by default
+    = note: this warning originates in the macro `impl_from` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unexpected `cfg` condition name: `relaxed_coherence`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/generic-array-0.14.7/src/impls.rs:158:23
+    |
+158 |               #[cfg(not(relaxed_coherence))]
+    |                         ^^^^^^^^^^^^^^^^^
+...
+183 | / impl_from! {
+184 | |     1  => ::typenum::U1,
+185 | |     2  => ::typenum::U2,
+186 | |     3  => ::typenum::U3,
+...   |
+215 | |     32 => ::typenum::U32
+216 | | }
+    | |_- in this macro invocation
+    |
+    = help: consider using a Cargo feature instead
+    = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+             [lints.rust]
+             unexpected_cfgs = { level = "warn", check-cfg = ['cfg(relaxed_coherence)'] }
+    = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(relaxed_coherence)");` to the top of the `build.rs`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+    = note: this warning originates in the macro `impl_from` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unexpected `cfg` condition name: `relaxed_coherence`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/generic-array-0.14.7/src/impls.rs:136:19
+    |
+136 |               #[cfg(relaxed_coherence)]
+    |                     ^^^^^^^^^^^^^^^^^
+...
+219 | / impl_from! {
+220 | |     33 => ::typenum::U33,
+221 | |     34 => ::typenum::U34,
+222 | |     35 => ::typenum::U35,
+...   |
+268 | |     1024 => ::typenum::U1024
+269 | | }
+    | |_- in this macro invocation
+    |
+    = help: consider using a Cargo feature instead
+    = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+             [lints.rust]
+             unexpected_cfgs = { level = "warn", check-cfg = ['cfg(relaxed_coherence)'] }
+    = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(relaxed_coherence)");` to the top of the `build.rs`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+    = note: this warning originates in the macro `impl_from` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unexpected `cfg` condition name: `relaxed_coherence`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/generic-array-0.14.7/src/impls.rs:158:23
+    |
+158 |               #[cfg(not(relaxed_coherence))]
+    |                         ^^^^^^^^^^^^^^^^^
+...
+219 | / impl_from! {
+220 | |     33 => ::typenum::U33,
+221 | |     34 => ::typenum::U34,
+222 | |     35 => ::typenum::U35,
+...   |
+268 | |     1024 => ::typenum::U1024
+269 | | }
+    | |_- in this macro invocation
+    |
+    = help: consider using a Cargo feature instead
+    = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+             [lints.rust]
+             unexpected_cfgs = { level = "warn", check-cfg = ['cfg(relaxed_coherence)'] }
+    = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(relaxed_coherence)");` to the top of the `build.rs`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+    = note: this warning originates in the macro `impl_from` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/generic-array-0.14.7/src/lib.rs:235:33
+    |
+235 |     pub unsafe fn iter_position(&mut self) -> (slice::IterMut<T>, &mut usize) {
+    |                                 ^^^^^^^^^      ^^^^^^^^^^^^^^^^^  ^^^^^^^^^^ the same lifetime is elided here
+    |                                 |              |
+    |                                 |              the same lifetime is hidden here
+    |                                 the lifetime is elided here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+    = note: `#[warn(mismatched_lifetime_syntaxes)]` on by default
+help: use `'_` for type paths
+    |
+235 |     pub unsafe fn iter_position(&mut self) -> (slice::IterMut<'_, T>, &mut usize) {
+    |                                                               +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/generic-array-0.14.7/src/lib.rs:290:33
+    |
+290 |     pub unsafe fn iter_position(&mut self) -> (slice::Iter<T>, &mut usize) {
+    |                                 ^^^^^^^^^      ^^^^^^^^^^^^^^  ^^^^^^^^^^ the same lifetime is elided here
+    |                                 |              |
+    |                                 |              the same lifetime is hidden here
+    |                                 the lifetime is elided here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+    |
+290 |     pub unsafe fn iter_position(&mut self) -> (slice::Iter<'_, T>, &mut usize) {
+    |                                                            +++
+
+       Fresh memoffset v0.9.1
+warning: unexpected `cfg` condition name: `doctests`
+  --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/lib.rs:59:7
+   |
+59 | #[cfg(doctests)]
+   |       ^^^^^^^^ help: there is a config with a similar name: `doctest`
+   |
+   = help: consider using a Cargo feature instead
+   = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+            [lints.rust]
+            unexpected_cfgs = { level = "warn", check-cfg = ['cfg(doctests)'] }
+   = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(doctests)");` to the top of the `build.rs`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+   = note: `#[warn(unexpected_cfgs)]` on by default
+
+warning: unexpected `cfg` condition name: `doctests`
+  --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/lib.rs:62:7
+   |
+62 | #[cfg(doctests)]
+   |       ^^^^^^^^ help: there is a config with a similar name: `doctest`
+   |
+   = help: consider using a Cargo feature instead
+   = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+            [lints.rust]
+            unexpected_cfgs = { level = "warn", check-cfg = ['cfg(doctests)'] }
+   = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(doctests)");` to the top of the `build.rs`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition name: `raw_ref_macros`
+  --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/raw_field.rs:22:7
+   |
+22 | #[cfg(raw_ref_macros)]
+   |       ^^^^^^^^^^^^^^
+   |
+   = help: expected names are: `docsrs`, `feature`, and `test` and 32 more
+   = help: consider using a Cargo feature instead
+   = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+            [lints.rust]
+            unexpected_cfgs = { level = "warn", check-cfg = ['cfg(raw_ref_macros)'] }
+   = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(raw_ref_macros)");` to the top of the `build.rs`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition name: `raw_ref_macros`
+  --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/raw_field.rs:30:11
+   |
+30 | #[cfg(not(raw_ref_macros))]
+   |           ^^^^^^^^^^^^^^
+   |
+   = help: consider using a Cargo feature instead
+   = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+            [lints.rust]
+            unexpected_cfgs = { level = "warn", check-cfg = ['cfg(raw_ref_macros)'] }
+   = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(raw_ref_macros)");` to the top of the `build.rs`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition name: `allow_clippy`
+  --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/raw_field.rs:57:7
+   |
+57 | #[cfg(allow_clippy)]
+   |       ^^^^^^^^^^^^
+   |
+   = help: consider using a Cargo feature instead
+   = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+            [lints.rust]
+            unexpected_cfgs = { level = "warn", check-cfg = ['cfg(allow_clippy)'] }
+   = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(allow_clippy)");` to the top of the `build.rs`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition name: `allow_clippy`
+  --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/raw_field.rs:69:11
+   |
+69 | #[cfg(not(allow_clippy))]
+   |           ^^^^^^^^^^^^
+   |
+   = help: consider using a Cargo feature instead
+   = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+            [lints.rust]
+            unexpected_cfgs = { level = "warn", check-cfg = ['cfg(allow_clippy)'] }
+   = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(allow_clippy)");` to the top of the `build.rs`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition name: `allow_clippy`
+  --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/raw_field.rs:90:7
+   |
+90 | #[cfg(allow_clippy)]
+   |       ^^^^^^^^^^^^
+   |
+   = help: consider using a Cargo feature instead
+   = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+            [lints.rust]
+            unexpected_cfgs = { level = "warn", check-cfg = ['cfg(allow_clippy)'] }
+   = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(allow_clippy)");` to the top of the `build.rs`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition name: `allow_clippy`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/raw_field.rs:100:11
+    |
+100 | #[cfg(not(allow_clippy))]
+    |           ^^^^^^^^^^^^
+    |
+    = help: consider using a Cargo feature instead
+    = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+             [lints.rust]
+             unexpected_cfgs = { level = "warn", check-cfg = ['cfg(allow_clippy)'] }
+    = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(allow_clippy)");` to the top of the `build.rs`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition name: `allow_clippy`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/raw_field.rs:125:7
+    |
+125 | #[cfg(allow_clippy)]
+    |       ^^^^^^^^^^^^
+    |
+    = help: consider using a Cargo feature instead
+    = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+             [lints.rust]
+             unexpected_cfgs = { level = "warn", check-cfg = ['cfg(allow_clippy)'] }
+    = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(allow_clippy)");` to the top of the `build.rs`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition name: `allow_clippy`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/raw_field.rs:141:11
+    |
+141 | #[cfg(not(allow_clippy))]
+    |           ^^^^^^^^^^^^
+    |
+    = help: consider using a Cargo feature instead
+    = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+             [lints.rust]
+             unexpected_cfgs = { level = "warn", check-cfg = ['cfg(allow_clippy)'] }
+    = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(allow_clippy)");` to the top of the `build.rs`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition name: `tuple_ty`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/raw_field.rs:183:7
+    |
+183 | #[cfg(tuple_ty)]
+    |       ^^^^^^^^
+    |
+    = help: consider using a Cargo feature instead
+    = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+             [lints.rust]
+             unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tuple_ty)'] }
+    = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(tuple_ty)");` to the top of the `build.rs`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition name: `maybe_uninit`
+  --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/offset_of.rs:23:7
+   |
+23 | #[cfg(maybe_uninit)]
+   |       ^^^^^^^^^^^^
+   |
+   = help: consider using a Cargo feature instead
+   = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+            [lints.rust]
+            unexpected_cfgs = { level = "warn", check-cfg = ['cfg(maybe_uninit)'] }
+   = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(maybe_uninit)");` to the top of the `build.rs`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition name: `maybe_uninit`
+  --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/offset_of.rs:37:11
+   |
+37 | #[cfg(not(maybe_uninit))]
+   |           ^^^^^^^^^^^^
+   |
+   = help: consider using a Cargo feature instead
+   = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+            [lints.rust]
+            unexpected_cfgs = { level = "warn", check-cfg = ['cfg(maybe_uninit)'] }
+   = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(maybe_uninit)");` to the top of the `build.rs`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition name: `stable_const`
+  --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/offset_of.rs:49:7
+   |
+49 | #[cfg(stable_const)]
+   |       ^^^^^^^^^^^^
+   |
+   = help: consider using a Cargo feature instead
+   = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+            [lints.rust]
+            unexpected_cfgs = { level = "warn", check-cfg = ['cfg(stable_const)'] }
+   = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(stable_const)");` to the top of the `build.rs`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition name: `stable_const`
+  --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/offset_of.rs:61:11
+   |
+61 | #[cfg(not(stable_const))]
+   |           ^^^^^^^^^^^^
+   |
+   = help: consider using a Cargo feature instead
+   = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+            [lints.rust]
+            unexpected_cfgs = { level = "warn", check-cfg = ['cfg(stable_const)'] }
+   = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(stable_const)");` to the top of the `build.rs`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition name: `stable_offset_of`
+  --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/offset_of.rs:70:11
+   |
+70 | #[cfg(not(stable_offset_of))]
+   |           ^^^^^^^^^^^^^^^^
+   |
+   = help: consider using a Cargo feature instead
+   = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+            [lints.rust]
+            unexpected_cfgs = { level = "warn", check-cfg = ['cfg(stable_offset_of)'] }
+   = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(stable_offset_of)");` to the top of the `build.rs`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition name: `stable_offset_of`
+  --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/offset_of.rs:83:7
+   |
+83 | #[cfg(stable_offset_of)]
+   |       ^^^^^^^^^^^^^^^^
+   |
+   = help: consider using a Cargo feature instead
+   = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+            [lints.rust]
+            unexpected_cfgs = { level = "warn", check-cfg = ['cfg(stable_offset_of)'] }
+   = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(stable_offset_of)");` to the top of the `build.rs`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition name: `tuple_ty`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/offset_of.rs:127:7
+    |
+127 | #[cfg(tuple_ty)]
+    |       ^^^^^^^^
+    |
+    = help: consider using a Cargo feature instead
+    = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+             [lints.rust]
+             unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tuple_ty)'] }
+    = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(tuple_ty)");` to the top of the `build.rs`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition name: `stable_offset_of`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/offset_of.rs:128:11
+    |
+128 | #[cfg(not(stable_offset_of))]
+    |           ^^^^^^^^^^^^^^^^
+    |
+    = help: consider using a Cargo feature instead
+    = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+             [lints.rust]
+             unexpected_cfgs = { level = "warn", check-cfg = ['cfg(stable_offset_of)'] }
+    = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(stable_offset_of)");` to the top of the `build.rs`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition name: `tuple_ty`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/offset_of.rs:142:7
+    |
+142 | #[cfg(tuple_ty)]
+    |       ^^^^^^^^
+    |
+    = help: consider using a Cargo feature instead
+    = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+             [lints.rust]
+             unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tuple_ty)'] }
+    = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(tuple_ty)");` to the top of the `build.rs`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition name: `stable_offset_of`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/offset_of.rs:143:7
+    |
+143 | #[cfg(stable_offset_of)]
+    |       ^^^^^^^^^^^^^^^^
+    |
+    = help: consider using a Cargo feature instead
+    = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+             [lints.rust]
+             unexpected_cfgs = { level = "warn", check-cfg = ['cfg(stable_offset_of)'] }
+    = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(stable_offset_of)");` to the top of the `build.rs`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition name: `tuple_ty`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/offset_of.rs:160:7
+    |
+160 | #[cfg(tuple_ty)]
+    |       ^^^^^^^^
+    |
+    = help: consider using a Cargo feature instead
+    = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+             [lints.rust]
+             unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tuple_ty)'] }
+    = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(tuple_ty)");` to the top of the `build.rs`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition name: `stable_offset_of`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/offset_of.rs:170:11
+    |
+170 | #[cfg(not(stable_offset_of))]
+    |           ^^^^^^^^^^^^^^^^
+    |
+    = help: consider using a Cargo feature instead
+    = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+             [lints.rust]
+             unexpected_cfgs = { level = "warn", check-cfg = ['cfg(stable_offset_of)'] }
+    = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(stable_offset_of)");` to the top of the `build.rs`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unexpected `cfg` condition name: `stable_offset_of`
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/memoffset-0.9.1/src/offset_of.rs:184:7
+    |
+184 | #[cfg(stable_offset_of)]
+    |       ^^^^^^^^^^^^^^^^
+    |
+    = help: consider using a Cargo feature instead
+    = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+             [lints.rust]
+             unexpected_cfgs = { level = "warn", check-cfg = ['cfg(stable_offset_of)'] }
+    = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(stable_offset_of)");` to the top of the `build.rs`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+       Fresh cpufeatures v0.2.17
+       Fresh serde_json v1.0.151
+warning: `generic-array` (lib) generated 6 warnings
+warning: `memoffset` (lib) generated 24 warnings
+       Fresh pyo3-build-config v0.23.5
+       Fresh syn v2.0.117
+warning: lint `repr_transparent_non_zst_fields` has been removed: converted into hard error, see <https://github.com/rust-lang/rust/issues/78586> for more information
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/syn-2.0.117/src/token.rs:146:28
+    |
+146 |     #[allow(unknown_lints, repr_transparent_non_zst_fields)] // False positive: https://github.com/rust-lang/rust/issues/115922
+    |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(renamed_and_removed_lints)]` on by default
+
+warning: lint `repr_transparent_non_zst_fields` has been removed: converted into hard error, see <https://github.com/rust-lang/rust/issues/78586> for more information
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/syn-2.0.117/src/token.rs:327:36
+    |
+327 |               #[allow(unknown_lints, repr_transparent_non_zst_fields)] // False positive: https://github.com/rust-lang/rust/issues/...
+    |                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+521 | / define_punctuation_structs! {
+522 | |     "_" pub struct Underscore/1 /// wildcard patterns, inferred types, unnamed items in constants, extern crates, use declaration...
+523 | | }
+    | |_- in this macro invocation
+    |
+    = note: this warning originates in the macro `define_punctuation_structs` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: lint `repr_transparent_non_zst_fields` has been removed: converted into hard error, see <https://github.com/rust-lang/rust/issues/78586> for more information
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/syn-2.0.117/src/token.rs:327:36
+    |
+327 |               #[allow(unknown_lints, repr_transparent_non_zst_fields)] // False positive: https://github.com/rust-lang/rust/issues/...
+    |                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+748 | / define_punctuation! {
+749 | |     "&"           pub struct And/1        /// bitwise and logical AND, borrow, references, reference patterns
+750 | |     "&&"          pub struct AndAnd/2     /// lazy AND, borrow, references, reference patterns
+751 | |     "&="          pub struct AndEq/2      /// bitwise AND assignment
+...   |
+794 | |     "~"           pub struct Tilde/1      /// unused since before Rust 1.0
+795 | | }
+    | |_- in this macro invocation
+    |
+    = note: this warning originates in the macro `define_punctuation_structs` which comes from the expansion of the macro `define_punctuation` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+       Fresh block-buffer v0.10.4
+       Fresh crypto-common v0.1.7
+       Fresh syn v3.0.4
+       Fresh libsqlite3-sys v0.38.2
+warning: `syn` (lib) generated 48 warnings (45 duplicates)
+       Fresh digest v0.10.7
+       Fresh serde_derive v1.0.229
+       Fresh rusqlite v0.40.2
+       Fresh sha2 v0.10.9
+       Fresh serde v1.0.229
+       Fresh pyo3-macros-backend v0.23.5
+       Fresh pyo3-ffi v0.23.5
+warning: function pointer comparisons do not produce meaningful results since their addresses are not guaranteed to be unique
+  --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-ffi-0.23.5/src/descrobject.rs:20:5
+   |
+17 | #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+   |                                  --------- in this derive macro expansion
+...
+20 |     pub get: Option<getter>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: the address of the same function can vary between different codegen units
+   = note: furthermore, different functions could have the same address after being merged together
+   = note: for more information visit <https://doc.rust-lang.org/nightly/core/ptr/fn.fn_addr_eq.html>
+   = note: `#[warn(unpredictable_function_pointer_comparisons)]` on by default
+
+warning: function pointer comparisons do not produce meaningful results since their addresses are not guaranteed to be unique
+  --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-ffi-0.23.5/src/descrobject.rs:21:5
+   |
+17 | #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+   |                                  --------- in this derive macro expansion
+...
+21 |     pub set: Option<setter>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: the address of the same function can vary between different codegen units
+   = note: furthermore, different functions could have the same address after being merged together
+   = note: for more information visit <https://doc.rust-lang.org/nightly/core/ptr/fn.fn_addr_eq.html>
+
+warning: `pyo3-ffi` (lib) generated 2 warnings
+       Fresh pyo3-macros v0.23.5
+       Fresh pyo3 v0.23.5
+warning: negative impls are experimental
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-0.23.5/src/marker.rs:278:10
+    |
+278 |     impl !Ungil for crate::Python<'_> {}
+    |          ^
+    |
+    = note: see issue #68318 <https://github.com/rust-lang/rust/issues/68318> for more information
+    = warning: unstable syntax can change at any point in the future, causing a hard error!
+    = note: for more information, see issue #154045 <https://github.com/rust-lang/rust/issues/154045>
+
+warning: negative impls are experimental
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-0.23.5/src/marker.rs:281:10
+    |
+281 |     impl !Ungil for crate::PyAny {}
+    |          ^
+    |
+    = note: see issue #68318 <https://github.com/rust-lang/rust/issues/68318> for more information
+    = warning: unstable syntax can change at any point in the future, causing a hard error!
+    = note: for more information, see issue #154045 <https://github.com/rust-lang/rust/issues/154045>
+
+warning: negative impls are experimental
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-0.23.5/src/marker.rs:283:13
+    |
+283 |     impl<T> !Ungil for crate::PyRef<'_, T> {}
+    |             ^
+    |
+    = note: see issue #68318 <https://github.com/rust-lang/rust/issues/68318> for more information
+    = warning: unstable syntax can change at any point in the future, causing a hard error!
+    = note: for more information, see issue #154045 <https://github.com/rust-lang/rust/issues/154045>
+
+warning: negative impls are experimental
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-0.23.5/src/marker.rs:284:13
+    |
+284 |     impl<T> !Ungil for crate::PyRefMut<'_, T> {}
+    |             ^
+    |
+    = note: see issue #68318 <https://github.com/rust-lang/rust/issues/68318> for more information
+    = warning: unstable syntax can change at any point in the future, causing a hard error!
+    = note: for more information, see issue #154045 <https://github.com/rust-lang/rust/issues/154045>
+
+warning: negative impls are experimental
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-0.23.5/src/marker.rs:287:10
+    |
+287 |     impl !Ungil for crate::ffi::PyObject {}
+    |          ^
+    |
+    = note: see issue #68318 <https://github.com/rust-lang/rust/issues/68318> for more information
+    = warning: unstable syntax can change at any point in the future, causing a hard error!
+    = note: for more information, see issue #154045 <https://github.com/rust-lang/rust/issues/154045>
+
+warning: negative impls are experimental
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-0.23.5/src/marker.rs:288:10
+    |
+288 |     impl !Ungil for crate::ffi::PyLongObject {}
+    |          ^
+    |
+    = note: see issue #68318 <https://github.com/rust-lang/rust/issues/68318> for more information
+    = warning: unstable syntax can change at any point in the future, causing a hard error!
+    = note: for more information, see issue #154045 <https://github.com/rust-lang/rust/issues/154045>
+
+warning: negative impls are experimental
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-0.23.5/src/marker.rs:290:10
+    |
+290 |     impl !Ungil for crate::ffi::PyThreadState {}
+    |          ^
+    |
+    = note: see issue #68318 <https://github.com/rust-lang/rust/issues/68318> for more information
+    = warning: unstable syntax can change at any point in the future, causing a hard error!
+    = note: for more information, see issue #154045 <https://github.com/rust-lang/rust/issues/154045>
+
+warning: negative impls are experimental
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-0.23.5/src/marker.rs:291:10
+    |
+291 |     impl !Ungil for crate::ffi::PyInterpreterState {}
+    |          ^
+    |
+    = note: see issue #68318 <https://github.com/rust-lang/rust/issues/68318> for more information
+    = warning: unstable syntax can change at any point in the future, causing a hard error!
+    = note: for more information, see issue #154045 <https://github.com/rust-lang/rust/issues/154045>
+
+warning: negative impls are experimental
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-0.23.5/src/marker.rs:292:10
+    |
+292 |     impl !Ungil for crate::ffi::PyWeakReference {}
+    |          ^
+    |
+    = note: see issue #68318 <https://github.com/rust-lang/rust/issues/68318> for more information
+    = warning: unstable syntax can change at any point in the future, causing a hard error!
+    = note: for more information, see issue #154045 <https://github.com/rust-lang/rust/issues/154045>
+
+warning: negative impls are experimental
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-0.23.5/src/marker.rs:293:10
+    |
+293 |     impl !Ungil for crate::ffi::PyFrameObject {}
+    |          ^
+    |
+    = note: see issue #68318 <https://github.com/rust-lang/rust/issues/68318> for more information
+    = warning: unstable syntax can change at any point in the future, causing a hard error!
+    = note: for more information, see issue #154045 <https://github.com/rust-lang/rust/issues/154045>
+
+warning: negative impls are experimental
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-0.23.5/src/marker.rs:294:10
+    |
+294 |     impl !Ungil for crate::ffi::PyCodeObject {}
+    |          ^
+    |
+    = note: see issue #68318 <https://github.com/rust-lang/rust/issues/68318> for more information
+    = warning: unstable syntax can change at any point in the future, causing a hard error!
+    = note: for more information, see issue #154045 <https://github.com/rust-lang/rust/issues/154045>
+
+warning: negative impls are experimental
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-0.23.5/src/marker.rs:296:10
+    |
+296 |     impl !Ungil for crate::ffi::PyDictKeysObject {}
+    |          ^
+    |
+    = note: see issue #68318 <https://github.com/rust-lang/rust/issues/68318> for more information
+    = warning: unstable syntax can change at any point in the future, causing a hard error!
+    = note: for more information, see issue #154045 <https://github.com/rust-lang/rust/issues/154045>
+
+warning: negative impls are experimental
+   --> /Users/silencehan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pyo3-0.23.5/src/marker.rs:298:10
+    |
+298 |     impl !Ungil for crate::ffi::PyArena {}
+    |          ^
+    |
+    = note: see issue #68318 <https://github.com/rust-lang/rust/issues/68318> for more information
+    = warning: unstable syntax can change at any point in the future, causing a hard error!
+    = note: for more information, see issue #154045 <https://github.com/rust-lang/rust/issues/154045>
+
+warning: `pyo3` (lib) generated 13 warnings
+       Dirty newchan_rust v0.1.0 (/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/rust): the file `src/theta_v0/types.rs` has changed (1790828724.497507050s, 15m 44s after last build at 1790827780.804698914s)
+   Compiling newchan_rust v0.1.0 (/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/rust)
+     Running `CARGO=/opt/homebrew/bin/cargo CARGO_CRATE_NAME=newchan_rust CARGO_MANIFEST_DIR=/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/rust CARGO_MANIFEST_PATH=/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/rust/Cargo.toml CARGO_PKG_AUTHORS='' CARGO_PKG_DESCRIPTION='缠论核心引擎的 Rust 重写（逐位等价于 Python 版）' CARGO_PKG_HOMEPAGE='' CARGO_PKG_LICENSE='' CARGO_PKG_LICENSE_FILE='' CARGO_PKG_NAME=newchan_rust CARGO_PKG_README='' CARGO_PKG_REPOSITORY='' CARGO_PKG_RUST_VERSION='' CARGO_PKG_VERSION=0.1.0 CARGO_PKG_VERSION_MAJOR=0 CARGO_PKG_VERSION_MINOR=1 CARGO_PKG_VERSION_PATCH=0 CARGO_PKG_VERSION_PRE='' CARGO_PRIMARY_PACKAGE=1 DYLD_FALLBACK_LIBRARY_PATH='/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/deps:/Users/silencehan/lib:/usr/local/lib:/usr/lib' rustc --crate-name newchan_rust --edition=2021 src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type cdylib --crate-type rlib --emit=dep-info,link -C opt-level=3 -C embed-bitcode=no -C codegen-units=16 --cfg 'feature="default"' --cfg 'feature="s_session"' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("backtest_bin", "default", "extension-module", "issue1087_parity", "lav_seal", "nautilus", "s_session"))' -C metadata=f7eaddfc63a56d9b --out-dir /Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/deps -C strip=debuginfo -L dependency=/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/deps --extern libc=/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/deps/liblibc-7b00bca2d5cf290a.rlib --extern pyo3=/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/deps/libpyo3-23ef4c4d7dae2bab.rlib --extern rusqlite=/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/deps/librusqlite-dfe2e4b9a0e7d0bb.rlib --extern serde=/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/deps/libserde-0b6a08906571fbb4.rlib --extern serde_json=/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/deps/libserde_json-bcbe68b141bf0b55.rlib --extern sha2=/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/deps/libsha2-8e1e4cae87636aa7.rlib -L native=/Users/silencehan/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib -L native=/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/build/libsqlite3-sys-3b7e3a54692a0e38/out -L native=/Users/silencehan/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib`
+warning: the usage of Script Group `Greek` in this crate consists solely of mixed script confusables
+    --> src/recursive_t/rec_engine.rs:3495:8
+     |
+3495 |     fn add_short_τ镜像_父空卖回对称() {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: the usage includes 'τ' (U+03C4)
+     = note: please recheck to make sure their usages are indeed what you want
+     = note: `#[warn(mixed_script_confusables)]` on by default
+
+warning: unused imports: `PanDivShortRetraceObservation`, `drain_pan_div_short_retrace_observations`, `pan_div_subtype_channel_reason`, and `t3_in_c_grade_reason_to_pan_div_subtype`
+   --> src/theta_v0/classifier/signal.rs:127:5
+    |
+127 |     drain_pan_div_short_retrace_observations, pan_div_subtype_channel_reason,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+128 |     t3_in_c_grade_reason_to_pan_div_subtype, PanDivShortRetraceObservation,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `step::coverage_step_from_buckets_sep`
+   --> src/theta_v0/strategy/coverage/mod.rs:129:5
+    |
+129 | use step::coverage_step_from_buckets_sep;
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `c`
+   --> src/theta_v0/classifier/recursive_tower.rs:409:20
+    |
+409 |         .map(|(i, (c, win))| {
+    |                    ^ help: if this is intentional, prefix it with an underscore: `_c`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `c`
+   --> src/theta_v0/classifier/recursive_tower.rs:676:24
+    |
+676 |             .map(|(i, (c, win))| {
+    |                        ^ help: if this is intentional, prefix it with an underscore: `_c`
+
+warning: variable does not need to be mutable
+    --> src/theta_v0/classifier/signal.rs:1246:9
+     |
+1246 |     let mut judge_range = |from: usize,
+     |         ----^^^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> src/theta_v0/classifier/pipeline.rs:850:17
+    |
+850 |             let mut p = lc.win_meta.partition_point(|w| w.read_end_src < dirty_e);
+    |                 ----^
+    |                 |
+    |                 help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> src/trading/axiom_voice.rs:367:17
+    |
+367 |             let mut restore = |reason: &'static str,
+    |                 ----^^^^^^^
+    |                 |
+    |                 help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/trading/positional_fusion.rs:1506:25
+     |
+1506 |                     let mut cover =
+     |                         ----^^^^^
+     |                         |
+     |                         help: remove this `mut`
+
+warning: unused variable: `stage_token`
+    --> src/economic_session/finance.rs:1565:5
+     |
+1565 |     stage_token: Option<&str>,
+     |     ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_stage_token`
+
+warning: field `dbg_sink_ok` is never read
+   --> src/fugue_v3/operate.rs:101:5
+    |
+ 70 | pub struct OperateEngine {
+    |            ------------- field in this struct
+...
+101 |     dbg_sink_ok: [u64; MAX_LADDER],
+    |     ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `buysellpoints` is never read
+   --> src/orchestrator.rs:473:9
+    |
+466 | pub struct LevelSnapshot {
+    |            ------------- field in this struct
+...
+473 |     pub buysellpoints: Vec<BuySellPoint>,
+    |         ^^^^^^^^^^^^^
+    |
+    = note: `LevelSnapshot` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: field `reading_b_diverge` is never read
+   --> src/recursive_t/rec_engine.rs:996:5
+    |
+960 | pub struct TRoot {
+    |            ----- field in this struct
+...
+996 |     reading_b_diverge: bool,
+    |     ^^^^^^^^^^^^^^^^^
+
+warning: method `sink` is never used
+    --> src/recursive_t/rec_engine.rs:1687:8
+     |
+1169 | impl TRoot {
+     | ---------- method in this implementation
+...
+1687 |     fn sink(&mut self, parent: usize, sub: usize, sub_node: TrendNode, c: f64) {
+     |        ^^^^
+
+warning: method `cost_basis` is never used
+   --> src/recursive_t/t_engine.rs:340:8
+    |
+276 | impl TPositionEngine {
+    | -------------------- method in this implementation
+...
+340 |     fn cost_basis(&self) -> f64 {
+    |        ^^^^^^^^^^
+
+warning: associated function `new` is never used
+   --> src/theta_v0/classifier/nest.rs:174:19
+    |
+170 | impl NestRung {
+    | ------------- associated function in this implementation
+...
+174 |     pub(crate) fn new(interval: NestInterval, cand: bool) -> Self {
+    |                   ^^^
+
+warning: associated function `from_parts` is never used
+   --> src/theta_v0/classifier/nest.rs:268:19
+    |
+257 | impl NestCertificate {
+    | -------------------- associated function in this implementation
+...
+268 |     pub(crate) fn from_parts(
+    |                   ^^^^^^^^^^
+
+warning: function `detect_centers_windowed` is never used
+   --> src/theta_v0/classifier/recursive_tower.rs:341:4
+    |
+341 | fn detect_centers_windowed(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `trend_confirm_time` is never used
+   --> src/theta_v0/classifier/level_view/confirm.rs:379:15
+    |
+379 | pub(super) fn trend_confirm_time(
+    |               ^^^^^^^^^^^^^^^^^^
+
+warning: function `nearest_confirmed_center` is never used
+   --> src/theta_v0/classifier/signal.rs:211:4
+    |
+211 | fn nearest_confirmed_center(centers: &[Center], seg_start: usize) -> Option<&Center> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `t3_in_c_fixed_first_pair` is never used
+   --> src/theta_v0/classifier/signal.rs:447:15
+    |
+447 | pub(crate) fn t3_in_c_fixed_first_pair(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `otherwise_domain_sidecar_begin` is never used
+   --> src/theta_v0/classifier/signal.rs:574:15
+    |
+574 | pub(crate) fn otherwise_domain_sidecar_begin() {
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `otherwise_domain_sidecar_take` is never used
+   --> src/theta_v0/classifier/signal.rs:580:15
+    |
+580 | pub(crate) fn otherwise_domain_sidecar_take() -> Vec<FirstClassGradeRecord> {
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `t3_in_c_grade_reason_to_pan_div_subtype` is never used
+  --> src/theta_v0/classifier/signal/pan_div_short.rs:38:15
+   |
+38 | pub(crate) fn t3_in_c_grade_reason_to_pan_div_subtype(
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `pan_div_subtype_channel_reason` is never used
+  --> src/theta_v0/classifier/signal/pan_div_short.rs:54:15
+   |
+54 | pub(crate) fn pan_div_subtype_channel_reason(subtype: PanDivSubtype) -> T3InCGradeReason {
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `PanDivShortRetraceObservation` is never constructed
+  --> src/theta_v0/classifier/signal/pan_div_short.rs:66:19
+   |
+66 | pub(crate) struct PanDivShortRetraceObservation {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `from_record` is never used
+  --> src/theta_v0/classifier/signal/pan_div_short.rs:77:8
+   |
+76 | impl PanDivShortRetraceObservation {
+   | ---------------------------------- associated function in this implementation
+77 |     fn from_record(record: &ShortRetraceRecord) -> Self {
+   |        ^^^^^^^^^^^
+
+warning: function `drain_pan_div_short_retrace_observations` is never used
+   --> src/theta_v0/classifier/signal/pan_div_short.rs:124:15
+    |
+124 | pub(crate) fn drain_pan_div_short_retrace_observations(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `historical_bound_third_cert` is never used
+   --> src/theta_v0/classifier/pipeline.rs:194:15
+    |
+194 | pub(crate) fn historical_bound_third_cert(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `historical_bound_segment` is never used
+   --> src/theta_v0/classifier/pipeline.rs:215:4
+    |
+215 | fn historical_bound_segment(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `has_any_fractal` is never used
+   --> src/theta_v0/parser/feature_seq.rs:164:4
+    |
+164 | fn has_any_fractal(elements: &[(Tick, Tick)]) -> bool {
+    |    ^^^^^^^^^^^^^^^
+
+warning: multiple fields are never read
+   --> src/theta_v0/strategy/coverage/compose.rs:107:9
+    |
+ 98 | pub(crate) struct StepTrace {
+    |                   --------- fields in this struct
+...
+107 |     pub closed: Vec<(ActiveLeg, Candidate, interp::ExitType)>,
+    |         ^^^^^^
+108 |     pub silent_drops: Vec<ActiveLeg>,
+    |         ^^^^^^^^^^^^
+109 |     pub opened: Vec<(Candidate, ActiveLeg)>,
+    |         ^^^^^^
+...
+117 |     pub risk_exits: Vec<ActiveLeg>,
+    |         ^^^^^^^^^^
+...
+121 |     pub overlay_closes: Vec<ActiveLeg>,
+    |         ^^^^^^^^^^^^^^
+...
+125 |     pub tw_event: Option<TwEvent>,
+    |         ^^^^^^^^
+...
+136 |     pub verdicts: Vec<VoiceVerdict>,
+    |         ^^^^^^^^
+...
+142 |     pub lex_top3: Vec<(JThetaKey, f64)>,
+    |         ^^^^^^^^
+    |
+    = note: `StepTrace` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: function `pi_theta_step_traced` is never used
+   --> src/theta_v0/strategy/coverage/compose.rs:202:15
+    |
+202 | pub(crate) fn pi_theta_step_traced(
+    |               ^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `overlay`, `position`, `iter`, and `as_contiguous` are never used
+   --> src/theta_v0/strategy/coverage/element.rs:112:19
+    |
+ 67 | impl<'a> ElementView<'a> {
+    | ------------------------ methods in this implementation
+...
+112 |     pub(crate) fn overlay(&self) -> &[CoverageElement] {
+    |                   ^^^^^^^
+...
+146 |     pub(crate) fn position(&self, mut pred: impl FnMut(&CoverageElement) -> bool) -> Option<usize> {
+    |                   ^^^^^^^^
+...
+156 |     pub(crate) fn iter(&self) -> impl Iterator<Item = &CoverageElement> {
+    |                   ^^^^
+...
+167 |     pub(crate) fn as_contiguous(&self) -> std::borrow::Cow<'_, [CoverageElement]> {
+    |                   ^^^^^^^^^^^^^
+
+warning: function `held_leg_tree_index` is never used
+  --> src/theta_v0/strategy/coverage/held.rs:34:4
+   |
+34 | fn held_leg_tree_index(
+   |    ^^^^^^^^^^^^^^^^^^^
+
+warning: function `operation_role_indexed` is never used
+   --> src/theta_v0/strategy/coverage/role.rs:212:4
+    |
+212 | fn operation_role_indexed(
+    |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `position_bounds`, `delta_capacity_units`, and `clamp_position` are never used
+   --> src/theta_v0/strategy/coverage/sizing.rs:382:19
+    |
+338 | impl KThetaRiskGate {
+    | ------------------- methods in this implementation
+...
+382 |     pub(crate) fn position_bounds(&self, cap: f64) -> (f64, f64) {
+    |                   ^^^^^^^^^^^^^^^
+...
+388 |     pub(crate) fn delta_capacity_units(&self, cap: f64, anchor: f64, side: VoiceSide) -> u64 {
+    |                   ^^^^^^^^^^^^^^^^^^^^
+...
+398 |     pub(crate) fn clamp_position(&self, cap: f64, position: f64) -> f64 {
+    |                   ^^^^^^^^^^^^^^
+
+warning: function `pi_theta_step_prebuilt` is never used
+   --> src/theta_v0/strategy/coverage/sizing.rs:675:15
+    |
+675 | pub(super) fn pi_theta_step_prebuilt(
+    |               ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated items `fp_len` and `of` are never used
+   --> src/theta_v0/strategy/interp.rs:452:19
+    |
+450 | impl TreeKey {
+    | ------------ associated items in this implementation
+451 |     /// 指纹长度（诊断用：≈tree 节点数，量化 `of` 的 O(tree) 工作量标度）。
+452 |     pub(crate) fn fp_len(&self) -> usize {
+    |                   ^^^^^^
+...
+456 |     pub(crate) fn of(tower: &[Rc<Vec<LeveledMove>>]) -> TreeKey {
+    |                   ^^
+
+warning: struct `VoiceKey` is never constructed
+  --> src/theta_v0/strategy/shadow.rs:64:8
+   |
+64 | struct VoiceKey {
+   |        ^^^^^^^^
+
+warning: enum `ProductionFact` is never used
+  --> src/theta_v0/strategy/shadow.rs:72:17
+   |
+72 | pub(crate) enum ProductionFact {
+   |                 ^^^^^^^^^^^^^^
+
+warning: enum `DivergenceKind` is never used
+  --> src/theta_v0/strategy/shadow.rs:91:17
+   |
+91 | pub(crate) enum DivergenceKind {
+   |                 ^^^^^^^^^^^^^^
+
+warning: struct `ShadowStepRecord` is never constructed
+   --> src/theta_v0/strategy/shadow.rs:117:19
+    |
+117 | pub(crate) struct ShadowStepRecord {
+    |                   ^^^^^^^^^^^^^^^^
+
+warning: struct `ShadowStats` is never constructed
+   --> src/theta_v0/strategy/shadow.rs:136:19
+    |
+136 | pub(crate) struct ShadowStats {
+    |                   ^^^^^^^^^^^
+
+warning: methods `bump` and `divergences` are never used
+   --> src/theta_v0/strategy/shadow.rs:151:8
+    |
+150 | impl ShadowStats {
+    | ---------------- methods in this implementation
+151 |     fn bump(&mut self, kind: DivergenceKind) {
+    |        ^^^^
+...
+166 |     pub fn divergences(&self) -> u64 {
+    |            ^^^^^^^^^^^
+
+warning: struct `ShadowVoiceBook` is never constructed
+   --> src/theta_v0/strategy/shadow.rs:174:19
+    |
+174 | pub(crate) struct ShadowVoiceBook {
+    |                   ^^^^^^^^^^^^^^^
+
+warning: methods `observe_and_compare`, `records`, `stats`, and `render_report` are never used
+   --> src/theta_v0/strategy/shadow.rs:184:19
+    |
+180 | impl ShadowVoiceBook {
+    | -------------------- methods in this implementation
+...
+184 |     pub(crate) fn observe_and_compare(
+    |                   ^^^^^^^^^^^^^^^^^^^
+...
+297 |     pub(crate) fn records(&self) -> &[ShadowStepRecord] {
+    |                   ^^^^^^^
+...
+302 |     pub(crate) fn stats(&self) -> &ShadowStats {
+    |                   ^^^^^
+...
+307 |     pub(crate) fn render_report(&self) -> String {
+    |                   ^^^^^^^^^^^^^
+
+warning: function `production_fact` is never used
+   --> src/theta_v0/strategy/shadow.rs:371:4
+    |
+371 | fn production_fact(
+    |    ^^^^^^^^^^^^^^^
+
+warning: function `classify` is never used
+   --> src/theta_v0/strategy/shadow.rs:399:4
+    |
+399 | fn classify(dec: ChannelDecision, fact: ProductionFact) -> DivergenceKind {
+    |    ^^^^^^^^
+
+warning: struct `ShortBook` is never constructed
+   --> src/trading/ledger.rs:393:12
+    |
+393 | pub struct ShortBook {
+    |            ^^^^^^^^^
+
+warning: associated items `new`, `open_slot`, `open_keys`, `open_sub`, and `close_diff` are never used
+   --> src/trading/ledger.rs:408:12
+    |
+407 | impl ShortBook {
+    | -------------- associated items in this implementation
+408 |     pub fn new(open_price: f64, units: f64) -> Self {
+    |            ^^^
+...
+419 |     pub fn open_slot(&self, key: SlotKey) -> Option<&OpenLeg> {
+    |            ^^^^^^^^^
+...
+426 |     pub fn open_keys(&self) -> Vec<SlotKey> {
+    |            ^^^^^^^^^
+...
+433 |     pub fn open_sub(
+    |            ^^^^^^^^
+...
+464 |     pub fn close_diff(&mut self, key: SlotKey, sell_price: f64) {
+    |            ^^^^^^^^^^
+
+warning: enum `DirectionalBook` is never used
+   --> src/trading/ledger.rs:498:10
+    |
+498 | pub enum DirectionalBook {
+    |          ^^^^^^^^^^^^^^^
+
+warning: enum `ThirdPointRegistration` is never used
+   --> src/trading/third_point_book.rs:161:10
+    |
+161 | pub enum ThirdPointRegistration {
+    |          ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: enum `ThirdPointConflict` is never used
+   --> src/trading/third_point_book.rs:170:10
+    |
+170 | pub enum ThirdPointConflict {
+    |          ^^^^^^^^^^^^^^^^^^
+
+warning: struct `ThirdPointBook` is never constructed
+   --> src/trading/third_point_book.rs:181:12
+    |
+181 | pub struct ThirdPointBook {
+    |            ^^^^^^^^^^^^^^
+
+warning: multiple associated items are never used
+   --> src/trading/third_point_book.rs:192:12
+    |
+191 | impl ThirdPointBook {
+    | ------------------- associated items in this implementation
+192 |     pub fn new() -> Self {
+    |            ^^^
+...
+212 |     pub fn register<S>(&mut self, signal: S) -> Result<ThirdPointRegistration, ThirdPointConflict>
+    |            ^^^^^^^^
+...
+248 |     pub fn sync_from_ledger(
+    |            ^^^^^^^^^^^^^^^^
+...
+265 |     pub fn register_from_ledger(
+    |            ^^^^^^^^^^^^^^^^^^^^
+...
+279 |     pub fn established(&self) -> Vec<ThirdPointPack> {
+    |            ^^^^^^^^^^^
+...
+284 |     pub fn pack(&self, key: &RetraceKey) -> Option<ThirdPointPack> {
+    |            ^^^^
+...
+288 |     pub fn contains(&self, key: &RetraceKey) -> bool {
+    |            ^^^^^^^^
+...
+292 |     pub fn len(&self) -> usize {
+    |            ^^^
+...
+296 |     pub fn is_empty(&self) -> bool {
+    |            ^^^^^^^^
+
+warning: multiple fields are never read
+   --> src/trading/types.rs:725:9
+    |
+724 | pub struct RevOpenLog {
+    |            ---------- fields in this struct
+725 |     pub ladder: u8,
+    |         ^^^^^^
+726 |     pub bar: i64,
+    |         ^^^
+727 |     /// 0 = 震荡型（Oscillation），1 = 逃逸型（Escape）。
+728 |     pub kind: u8,
+    |         ^^^^
+...
+732 |     pub trigger: u8,
+    |         ^^^^^^^
+733 |     /// 锚中枢 seg_start（震荡型=存活中枢快照；逃逸型=被终结中枢）。
+734 |     pub anchor_cs: Option<i64>,
+    |         ^^^^^^^^^
+...
+737 |     pub zd: Option<f64>,
+    |         ^^
+738 |     pub zg: Option<f64>,
+    |         ^^
+739 |     pub price: f64,
+    |         ^^^^^
+    |
+    = note: `RevOpenLog` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: fields `ladder`, `open_bar`, `bar`, `reason`, and `price` are never read
+   --> src/trading/types.rs:750:9
+    |
+749 | pub struct RevCloseLog {
+    |            ----------- fields in this struct
+750 |     pub ladder: u8,
+    |         ^^^^^^
+751 |     pub open_bar: i64,
+    |         ^^^^^^^^
+752 |     pub bar: i64,
+    |         ^^^
+753 |     pub reason: u8,
+    |         ^^^^^^
+754 |     pub price: f64,
+    |         ^^^^^
+    |
+    = note: `RevCloseLog` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: function `io_connection_with_deadline` is never used
+   --> src/session_transport.rs:518:4
+    |
+518 | fn io_connection_with_deadline(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `apply_allocation` is never used
+   --> src/economic_session/service.rs:261:4
+    |
+261 | fn apply_allocation(
+    |    ^^^^^^^^^^^^^^^^
+
+warning: `newchan_rust` (lib) generated 60 warnings (run `cargo fix --lib -p newchan_rust` to apply 9 suggestions)
+     Running `CARGO=/opt/homebrew/bin/cargo CARGO_BIN_NAME=s_structure_session CARGO_CRATE_NAME=s_structure_session CARGO_MANIFEST_DIR=/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/rust CARGO_MANIFEST_PATH=/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/rust/Cargo.toml CARGO_PKG_AUTHORS='' CARGO_PKG_DESCRIPTION='缠论核心引擎的 Rust 重写（逐位等价于 Python 版）' CARGO_PKG_HOMEPAGE='' CARGO_PKG_LICENSE='' CARGO_PKG_LICENSE_FILE='' CARGO_PKG_NAME=newchan_rust CARGO_PKG_README='' CARGO_PKG_REPOSITORY='' CARGO_PKG_RUST_VERSION='' CARGO_PKG_VERSION=0.1.0 CARGO_PKG_VERSION_MAJOR=0 CARGO_PKG_VERSION_MINOR=1 CARGO_PKG_VERSION_PATCH=0 CARGO_PKG_VERSION_PRE='' CARGO_PRIMARY_PACKAGE=1 DYLD_FALLBACK_LIBRARY_PATH='/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/deps:/Users/silencehan/lib:/usr/local/lib:/usr/lib' rustc --crate-name s_structure_session --edition=2021 src/bin/s_structure_session.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C opt-level=3 -C embed-bitcode=no -C codegen-units=16 --test --cfg 'feature="default"' --cfg 'feature="s_session"' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("backtest_bin", "default", "extension-module", "issue1087_parity", "lav_seal", "nautilus", "s_session"))' -C metadata=2b7eb9901f8cb04b -C extra-filename=-f691a9b42625f576 --out-dir /Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/deps -C strip=debuginfo -L dependency=/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/deps --extern libc=/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/deps/liblibc-7b00bca2d5cf290a.rlib --extern newchan_rust=/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/deps/libnewchan_rust.rlib --extern pyo3=/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/deps/libpyo3-23ef4c4d7dae2bab.rlib --extern rusqlite=/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/deps/librusqlite-dfe2e4b9a0e7d0bb.rlib --extern serde=/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/deps/libserde-0b6a08906571fbb4.rlib --extern serde_json=/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/deps/libserde_json-bcbe68b141bf0b55.rlib --extern sha2=/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/deps/libsha2-8e1e4cae87636aa7.rlib -L native=/Users/silencehan/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib -L native=/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/build/libsqlite3-sys-3b7e3a54692a0e38/out -L native=/Users/silencehan/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib`
+warning: function `hash_json` is never used
+   --> src/bin/s_session_v3/history.rs:667:4
+    |
+667 | fn hash_json(v: &Value) -> Result<NodeDigest, String> {
+    |    ^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `hash_array` is never used
+   --> src/bin/s_session_v3/history.rs:686:4
+    |
+686 | fn hash_array(nodes: &[NodeDigest]) -> Result<NodeDigest, String> {
+    |    ^^^^^^^^^^
+
+warning: function `hash_array_until` is never used
+   --> src/bin/s_session_v3/history.rs:689:4
+    |
+689 | fn hash_array_until(
+    |    ^^^^^^^^^^^^^^^^
+
+warning: variant `PollMs` is never constructed
+  --> src/bin/s_session_v3/q_resources.rs:47:5
+   |
+34 | pub(super) enum Limit {
+   |                 ----- variant in this enum
+...
+47 |     PollMs,
+   |     ^^^^^^
+   |
+   = note: `Limit` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: field `index` is never read
+   --> src/bin/s_session_v3/object_index.rs:211:9
+    |
+209 | pub(super) struct Plan {
+    |                   ---- field in this struct
+210 |     pub generation: i64,
+211 |     pub index: Vec<Entry>,
+    |         ^^^^^
+
+warning: function `cv` is never used
+  --> src/bin/s_session_v3/source_audit.rs:63:4
+   |
+63 | fn cv(v: &Value) -> Result<V, String> {
+   |    ^^
+
+warning: struct `HashOnly` is never constructed
+  --> src/bin/s_session_v3/source_audit.rs:77:8
+   |
+77 | struct HashOnly;
+   |        ^^^^^^^^
+
+warning: function `hash` is never used
+  --> src/bin/s_session_v3/source_audit.rs:83:4
+   |
+83 | fn hash(v: &Value) -> Result<NodeDigest, String> {
+   |    ^^^^
+
+warning: function `audit_generated_until` is never used
+   --> src/bin/s_session_v3/source_audit.rs:196:15
+    |
+196 | pub(super) fn audit_generated_until(
+    |               ^^^^^^^^^^^^^^^^^^^^^
+
+warning: fields `staged_nodes` and `staged_bytes` are never read
+   --> src/bin/s_session_v2/evidence_store.rs:358:16
+    |
+351 | pub(super) struct Staged {
+    |                   ------ fields in this struct
+...
+358 |     pub(super) staged_nodes: usize,
+    |                ^^^^^^^^^^^^
+359 |     pub(super) staged_bytes: u64,
+    |                ^^^^^^^^^^^^
+
+warning: method `param_bytes` is never used
+   --> src/bin/s_session_v2/evidence_store.rs:397:19
+    |
+371 | impl Stager {
+    | ----------- method in this implementation
+...
+397 |     pub(super) fn param_bytes(&self) -> &[Vec<u8>] {
+    |                   ^^^^^^^^^^^
+
+warning: method `read_fixed_cut_value` is never used
+    --> src/bin/s_session_v2/evidence_store.rs:1461:19
+     |
+1021 | impl<'a> Reader<'a> {
+     | ------------------- method in this implementation
+...
+1461 |     pub(super) fn read_fixed_cut_value(
+     |                   ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `describe` is never used
+    --> src/bin/s_session_v2/evidence_store.rs:1855:15
+     |
+1855 | pub(super) fn describe(conn: &Connection, root_key: &str) -> Result<Value, String> {
+     |               ^^^^^^^^
+
+warning: method `last_outcome` is never used
+  --> src/bin/s_session_v2/s_fact_cache.rs:93:19
+   |
+75 | impl Lane {
+   | --------- method in this implementation
+...
+93 |     pub(super) fn last_outcome(&self) -> AdvanceOutcome {
+   |                   ^^^^^^^^^^^^
+
+warning: `newchan_rust` (bin "s_structure_session" test) generated 14 warnings
+    Finished `release` profile [optimized] target(s) in 30.44s
+  Executable `/Users/silencehan/Projects/NewChanlun-1394-reuse-pilot-20261001/.scratch/issue1394-reuse-pilot-20261001/target/release/deps/s_structure_session-f691a9b42625f576`

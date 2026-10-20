@@ -1,0 +1,181 @@
+{
+  "checks": [
+    {
+      "name": "all265 manifest bytes SHA mtime inode",
+      "status": "PASS"
+    },
+    {
+      "name": "current source frozen release binary unchanged original Q21 and live originals",
+      "status": "PASS"
+    },
+    {
+      "name": "two formal Q actual PID argv UID nonce readonlyfd same owned state continuation",
+      "status": "PASS"
+    },
+    {
+      "name": "source stable3file bytecopy liveWAL and semantic no-write explicit SHMmtime",
+      "status": "PASS"
+    },
+    {
+      "name": "all executed HTTP public hash causal identity and bare Ready nonce",
+      "status": "PASS"
+    },
+    {
+      "name": "sixteen pages472 unique rows exact tokens independent projection nativeS roots",
+      "status": "PASS"
+    },
+    {
+      "name": "63 partialproof node hashes 7item refEdge and 472array target",
+      "status": "PASS"
+    },
+    {
+      "name": "authorized sameowner newQ AsKnown0 empty and real retention Gap preserving rawFAIL",
+      "status": "PASS"
+    },
+    {
+      "name": "both real SIGINT graceful0 samePopen reaps absentPID port rebind records",
+      "status": "PASS"
+    }
+  ],
+  "exec94568_94704_terminal0": "parent runtime evidence; raw samePopen reaps currentPID verified",
+  "facts": {
+    "AsKnown0_empty": true,
+    "HTTP_port_rebind_records": [
+      51472,
+      53838
+    ],
+    "Q21_SHA": "50ea5bf865de8a37d8187069d70bee85ca4caac9c759a60ad2e3c717743d4eb1",
+    "Q_readonly_source_anchor_SHA": "22659f9ae4685b2e83669a3945e21d5defb89d4333e760099aa5667b4d9bcd1e",
+    "actual_Q_SIGINT_exit0_samePopen": true,
+    "all24semantic48403rows_no_write": true,
+    "all_executed_HTTP_200": true,
+    "array472_target_verified": true,
+    "binary_SHA": "b4c81c9468be1d1911eecbd48deb1be9e9a2f3a0d082fd8f7474cf9e30efc7f5",
+    "complete_HTTP_body_closure": false,
+    "content_range": [
+      0,
+      7
+    ],
+    "continuation_scope_only_necessaryReady_AsKnown0_Watch": true,
+    "current_Q_PIDs_absent": true,
+    "current_only_necessary_source_files": "six current Controller/socket/q_serve/q_runtime/q_resources/q_capture files in originals; no574/846 rescan",
+    "delivery_frontier": {
+      "first_available_generation": "13",
+      "head_generation": "16",
+      "policy_revision": "generation-window/1",
+      "retain_generations": "4"
+    },
+    "exact_token_forwarding_no_skip_duplicate": true,
+    "first7_Edge_metadata_refs_verified": true,
+    "head": "ed1f184bf7513d960d87b6687c279a657c8fa481",
+    "independent_projection_digest": "qcut3-f596c3489e144f4fedbb83257039f89ccaff3e9b36bf7f7f1389746d7c4ea177",
+    "independent_projection_root": "sc1-460b659a1fd449f701c5c6f30e20a1a6b07343661d54443dd01f03298918b314",
+    "legal_Gap_missing": {
+      "from_generation": "1",
+      "to_generation": "12"
+    },
+    "legal_continuation_same_owned_state": true,
+    "manifest_file_count": 265,
+    "manifest_sha256": "7febd5197c74979d31ffeefbe8a23d59d1aeb5bfcdecee6e443a433901922422",
+    "nativeS_frontier": "batch3-0ab93b96c35b6bafb99975f33a51e62b04d487fb359a391999d18ad4acd073e2",
+    "no_Q21_numeric_change": true,
+    "no_actual_Q_resource_error": true,
+    "nonzero_source_WAL_bytes": 7370712,
+    "ownedcopy_Q_and_closed_observer_SHMmtime_changes": {
+      "after-Q.physical-before-observer.json→after-Q.physical-after-observer.json": {
+        "-shm": {
+          "mtime_ns": {
+            "after": 1790822737278971229,
+            "before": 1790822729293490222
+          }
+        }
+      },
+      "baseline.physical-after-observer.json→after-Q.physical-after-observer.json": {
+        "-shm": {
+          "mtime_ns": {
+            "after": 1790822737278971229,
+            "before": 1790822728806113047
+          }
+        }
+      },
+      "baseline.physical-before-observer.json→baseline.physical-after-observer.json": {
+        "-shm": {
+          "mtime_ns": {
+            "after": 1790822728806113047,
+            "before": 1790822728727026021
+          }
+        }
+      },
+      "continuation1/after-Q.physical-before-observer.json→after-Q.physical-after-observer.json": {
+        "-shm": {
+          "mtime_ns": {
+            "after": 1790823098928129445,
+            "before": 1790823094170107772
+          }
+        }
+      },
+      "continuation1/baseline.physical-after-observer.json→after-Q.physical-after-observer.json": {
+        "-shm": {
+          "mtime_ns": {
+            "after": 1790823098928129445,
+            "before": 1790823093774155392
+          }
+        }
+      },
+      "continuation1/baseline.physical-before-observer.json→baseline.physical-after-observer.json": {
+        "-shm": {
+          "mtime_ns": {
+            "after": 1790823093774155392,
+            "before": 1790822737278971229
+          }
+        }
+      }
+    },
+    "ownedcopy_all_physical_metadata_zero": false,
+    "partial_path_header_proof_nodes": 63,
+    "processes": {
+      "continuation1/": {
+        "main_fd": "s_structu 60820 silencehan    5r   REG               1,16  6848512           324571094 /Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-fullclock-s16-q3-probe-20261001/owned-s16.sqlite",
+        "nonce": "01d2b644-b135-4203-8435-e89e7d15af71",
+        "pid": 60820,
+        "port": 53838
+      },
+      "primary": {
+        "main_fd": "s_structu 55893 silencehan    5r   REG              1,16  6848512           324571094 /Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-fullclock-s16-q3-probe-20261001/owned-s16.sqlite",
+        "nonce": "47a7b8aa-0186-46fc-ba86-51897126b3a4",
+        "pid": 55893,
+        "port": 51472
+      }
+    },
+    "public_native_Q_envelopes": 19,
+    "raw_observer_FAIL_preserved": true,
+    "result_sha256": "026b115f647ac6870f9790eac224c6b1b46d73873e3ce877822836ee2d024b03",
+    "rust_tree": "5a2acd1e72c3846be38cc29689a82aeb57c68dc6",
+    "snapshot_pages": 16,
+    "snapshot_rows": 472,
+    "source_stable_three_bytecopies": true,
+    "stored_source_node_frames": 47671,
+    "unchanged_originals_counts": [
+      20,
+      20
+    ]
+  },
+  "failed_check_groups": 0,
+  "limits": [
+    "actual16Snapshot472rows content0to7 AsKnown0 Gap only",
+    "63nodes path/header not complete body Client sourceclosure installation allocation",
+    "ownedSHMmtime Q observer coordination; semantic no-write and original3file unchanged",
+    "finite Q21 availability not throughput production9011 fullresources Goal"
+  ],
+  "not_run": [
+    "services",
+    "build",
+    "unit",
+    "newprobes",
+    "newmatrix",
+    "SQLite-open",
+    "574or846-sourcefullscan"
+  ],
+  "passed_check_groups": 9,
+  "verdict": "PASS_BOUNDED"
+}

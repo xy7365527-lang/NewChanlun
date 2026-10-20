@@ -1,0 +1,19 @@
+{
+  "status": "RUNNER_REVIEWED_AND_ROOT_ORIGINALS_VERIFIED_BEFORE_EXEC",
+  "goal_active": true,
+  "ticket": 1394,
+  "candidate": "a1dd0a82d37915a34ae053d3ac034b402b0f169f",
+  "production_head": "3e5a5ba31dbe5c59beeee03de227fd8408eaac55",
+  "runner_SHA": "155d22522d74471705ed6bb6c61499ea0dfb4e0ddf7403d4f48cffe60ae55335",
+  "runtime_SHA": "1bcae2f7dfedcf7e83fef406840b07fe6250b56433d379f497a2fb62f35d67b6",
+  "review_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-root-review-20261002/FINAL-REVIEW.json",
+  "review_SHA": "2b4e3e42fe8aff6e952943af6a58da7c20314f5540d03a1a9292b11b6e48a893",
+  "baseline_SHA": "3bca89e81f1bfcf00f1614abfecd344bd439f45c98e2a8cfb3808d5728af901b",
+  "prepared": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/worker/.scratch/issue1394-full9011-runner-20261001/prepared-manager-v2/PREPARED.json",
+    "sha256": "24dd300a31c8ae8beb78c842185664e39b9584f6712be42ec6581843284c28ff"
+  },
+  "monotonic_ns": 1753482382895083,
+  "wall_utc": "2026-10-01T17:26:53Z",
+  "start_is_not_actual_PASS": true
+}

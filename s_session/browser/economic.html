@@ -45,6 +45,40 @@ function voiceDetails(voice) {
     detail("载体、证书、数量来源与完整开局记录",voice));
   return section;
 }
+function financialDetails(card, state, domain, finance) {
+  if(!finance)return;
+  const section=el("section");section.dataset.finance=domain;
+  if(domain==="E") {
+    const total=finance.responsibilities.reduce((sum,r)=>sum+BigInt(r.amount),0n);
+    section.append(el("h3","公共最大责任"),metric("保留总额",total.toString()));
+    for(const slot of finance.slots) {
+      section.append(el("p",slot.slot_id+" · "+slot.state+(slot.waiting_for?" · 等待 "+slot.waiting_for:"")));
+      for(const grant of slot.grants)originalButton(section,state,domain,"grant",grant.grant_id);
+    }
+  } else {
+    section.append(el("h3","私有权利与决定"));
+    for(const right of finance.rights)section.append(el("p",right.right_id+" · 自有 "+right.amount+" · 已锁 "+right.locked_amount+" · 权利版本 "+right.current_version));
+    for(const decision of finance.decisions) {
+      const row=el("section");row.dataset.decision=decision.decision_id;
+      row.append(el("h4",decision.decision_id+" · "+decision.state),
+        el("p","锁定 "+decision.prepared.locked_amount+" · 最坏数量 "+decision.prepared.worst_quantity),
+        detail("原计划、S/O 依据与私有权利",decision.prepared),
+        detail("原 grant 与本地提交收据",{grant:decision.grant,receipt:decision.local_commit_receipt}));
+      originalButton(row,state,domain,"decision",decision.decision_id);section.append(row);
+    }
+  }
+  section.append(el("p","Prepared / Reserved / Committed 均无场所调用资格，实际持量与成本未因准备而变化。","muted"),detail("完整财务证据",finance));card.append(section);
+}
+function originalButton(parent,state,domain,kind,id) {
+  if(state.completeness!=="CompleteVector")return;
+  const button=el("button","查询原件 · "+id),result=el("pre");result.hidden=true;
+  button.dataset.originalKind=kind;button.dataset.originalDomain=domain;button.dataset.originalId=id;
+  button.onclick=async()=>{button.disabled=true;try{
+    const reply=await client.original(state,domain,kind,id);
+    result.textContent=JSON.stringify(reply,null,2);result.hidden=false;
+  }catch(error){result.textContent=error.message;result.hidden=false;}finally{button.disabled=false;}};
+  parent.append(button,result);
+}
 function render(state) {
   document.getElementById("status").textContent=(state.mode==="AsKnown"?"历史切面":"当前已知")+" · "+(state.completeness==="CompleteVector"?"各域已核对":"部分域不可用，见具体原因");
   document.getElementById("status").className="status";
@@ -54,6 +88,7 @@ function render(state) {
     cuts.append(el("div",domain+" · "+(view.status==="Available"?"提交 "+view.cut.commit_seq+" · "+view.cut.root_hash:"不可用")));
     const card=el("article");card.dataset.domain=domain;
     if(view.status!=="Available"){card.append(el("h2",domain),el("div",view.error,"error"));books.append(card);continue;}
+    financialDetails(card,state,domain,view.image.finance);
     if(domain==="E"){
       card.append(el("h2","外部原始事实"),el("p","已记录 "+view.image.recorded.length+" 件；仍保留待核责任 "+view.image.pending.length+" 项。"),detail("原始字节、来源与待核记录",view.image));external.append(card);continue;
     }

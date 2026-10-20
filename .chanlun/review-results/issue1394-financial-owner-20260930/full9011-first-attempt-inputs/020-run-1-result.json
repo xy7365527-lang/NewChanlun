@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "run_id": "fafb011f-203a-4bc9-b6c4-3b4d3f36ecc3",
+  "ticket": 1394,
+  "parent_thread_id": "root-1394-full9011",
+  "manager_agent_id": "/root/full9011_sandcastle_runner_manager",
+  "manager_kind": "codex_native_subagent",
+  "worker_kind": "sandcastle_external_codex",
+  "native_subagent": false,
+  "status": "failed",
+  "mode": "execute",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "effort": "max",
+  "sandbox_backend": "no-sandbox",
+  "codex_sandbox": "workspace-write",
+  "approval_policy": "never",
+  "automatic_claim": false,
+  "automatic_push": false,
+  "automatic_merge": false,
+  "checkout_preserved": true,
+  "expected_head": "3e5a5ba31dbe5c59beeee03de227fd8408eaac55",
+  "checkout_before": {
+    "root": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/worker",
+    "branch": "codex/issue1394-full9011-runner-20261001",
+    "head": "3e5a5ba31dbe5c59beeee03de227fd8408eaac55",
+    "status": ""
+  },
+  "checkout_after": {
+    "root": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/worker",
+    "branch": "codex/issue1394-full9011-runner-20261001",
+    "head": "3e5a5ba31dbe5c59beeee03de227fd8408eaac55",
+    "status": ""
+  },
+  "started_at": "2026-10-01T15:45:39.190Z",
+  "ended_at": "2026-10-01T15:45:55.722Z",
+  "process_pid": 98696,
+  "process_exit": {
+    "code": 1,
+    "signal": null
+  },
+  "external_session_id": "01a0f824-8ce8-7661-b007-2dbe831863ae",
+  "external_session_log": "/Users/silencehan/.codex/sessions/2026/10/01/rollout-2026-10-01T23-45-44-01a0f824-8ce8-7661-b007-2dbe831863ae.jsonl",
+  "output_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/manager/run-1",
+  "stdout_log": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/manager/run-1/codex.stdout.jsonl",
+  "stderr_log": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/manager/run-1/codex.stderr.log",
+  "events_log": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/manager/run-1/events.jsonl",
+  "prompt_sha256": "77ddc78859382963e49b21cd8cd6c9ae55685f8c67b1e5a46a588c20245e251a",
+  "result": null,
+  "failure_reason": "Codex 非成功退出：code=1, signal=null"
+}

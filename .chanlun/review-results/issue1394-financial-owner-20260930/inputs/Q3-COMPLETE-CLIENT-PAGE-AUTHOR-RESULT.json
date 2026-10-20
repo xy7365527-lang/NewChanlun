@@ -1,0 +1,61 @@
+{
+  "ticket": "#1394 C existing page engineering revision",
+  "base": "54a6e5fd3df4e14a5e38edc9da39cfb6359ffc15",
+  "candidate": "00b15b08bcd8d8e33406e29b8c7136bdef6b8513",
+  "author_status": "local frozen fix; independent Spec then Standards recheck remains root-owned",
+  "worktree": "/Users/silencehan/Projects/NewChanlun-1394-q3-complete-client-20261001",
+  "product_files": {
+    "s_session/browser/index.html": "5ccad5409e57420f3a5313432ced67ca58810fa6dc20f7d307aef64d7c978770",
+    "s_session/tests/test_q3_page_revision2.cjs": "9caeb17e018037ce42c4d064ca1f5f4f605cf0d0d5e88bd38a2a118ee46aab82"
+  },
+  "patch_sha256": "abb93663b028ad61b95ada77350ce5696633e5ffd4f3cc41862993b369e72ca5",
+  "tracked_clean": true,
+  "receipts": {
+    "AUTHOR-PAGE-TESTS.txt": "e0ae0a457a66f5db34494b141e1c386e80d5b6731253fe97de793b7b05ee65d4",
+    "AUTHOR-LEGACY-SCHEDULES.txt": "c38e84d8be1429f511540729f504ffe8f31c046c0f8d58a3b3a37738b2f7e1e1",
+    "AUTHOR-BROWSER-42.json": "d13ca0d40a0760c775378073ac31083cde45d3ef0a07b64a6993661e51c31030",
+    "AUTHOR-R12.json": "bed23e3729e69e40311db2768c4500e9da679d6edc8f3eb1dbf9344292661abd",
+    "AUTHOR-VIEW-GUARDS.txt": "73c34e0d63e6b1a39e39758e0392282c3a1da062992a091f14c74cad0de813dc",
+    "AUTHOR-BUNDLE-CHECK.json": "2d9e809b569a94383016af3e192e120cb475d829f590e61898cff400cc92f9d8"
+  },
+  "tests": {
+    "actual_bundle_client_page_transition": {
+      "passed": 4,
+      "failed": 0,
+      "elapsed_ms": 94894.212292
+    },
+    "legacy_real_microtask_schedules": {
+      "load": 13,
+      "stream": 41,
+      "stale_installations": 0,
+      "validator_replaced": false
+    },
+    "legacy_browser": {
+      "passed": 42,
+      "failed": 0
+    },
+    "r12": "all passed",
+    "prior_q3_selection_and_single_script_guard": {
+      "passed": 2,
+      "failed": 0
+    },
+    "bundle_input_drift": "passed unchanged inputs"
+  },
+  "fixed_findings": [
+    "E1 committed presentation token remains stable across failed load/Watch/cancel; new committed invalidates old detail/export callbacks",
+    "E2 original live button visible and busy/finally polling loop uses exact existing pollMs; stop/error/stale timer prevents new requests",
+    "E3 legacy caller checks request epoch after validators/axes/publication awaits and inside nested failure feedback before installation"
+  ],
+  "unchanged_scope": [
+    "pure Job/core",
+    "all Q3 content/protocol/business semantics",
+    "resources/host API/physical allocation scope",
+    "page layout/navigation"
+  ],
+  "limits": [
+    "TestOnly DOM, timer, transport and allocator only; no true Browser/9011/physical storage success",
+    "No unneeded 387-second suite rerun",
+    "Original revision2 STANDARDS red and all previous candidates retained",
+    "No main merge or push"
+  ]
+}

@@ -1,0 +1,246 @@
+{
+  "state": "PASS_NORMAL_SHARED_BUDGET_MANIFEST_REUSE",
+  "code_commit": "feb63fc972097cbfe89ef0db272208662c9c3a34",
+  "rust_tree": "5080d1e0706bcaf800b6d71a00270c3bbaaa9c79",
+  "source_aggregate_sha256": "047825708159e6c671390807f9c7a88ffda2f5037577560ea66c2ed10cd21f08",
+  "service_sha256": "4881f0f8845405f2e205e5a0a043c73561e2791ee1f4365cee645659eb585c69",
+  "independent_review": "prepare_publish_workspace_review r2 plus shared budget increment PASS",
+  "normal_tests_passed": 4,
+  "native_non_test_build_passed": true,
+  "feature_off_check_passed": true,
+  "source_budget_bytes": 536870912,
+  "no_fault_injection": true,
+  "normal_window": {
+    "state": "PASS_NORMAL_SHARED_SOURCE_BUDGET_WORKSPACE",
+    "scope": "同CopyQualified149正常150..151的manifest共享来源预算实测，非完整重放",
+    "validated_received": [
+      150,
+      151
+    ],
+    "whole_exchange_seconds": {
+      "150": 23.112771583,
+      "151": 22.044895291
+    },
+    "failure_ordinal": null,
+    "startup_failed_before_any_input": false,
+    "errors": [],
+    "terminal": {
+      "generation": "151",
+      "advance_state": "idle",
+      "messages_by_status": {
+        "Committed": 151
+      },
+      "published": 151,
+      "clocks": 453,
+      "next_attempt_ordinal": 152
+    },
+    "unsent": [],
+    "original_files_live_stat_sha_verified": true,
+    "source_and_all_bindings_revalidated": true,
+    "same_Popen_reaped_controller_closed": true,
+    "socket_removed": true,
+    "cleanup_complete": true,
+    "service_pid": 84788,
+    "service_exit_code": -15,
+    "original105_source126_source142_source149_Unknown_preserved": true,
+    "full9011_complete": false,
+    "whole_resources_qualified": false,
+    "reply_and_persistent_oracle_identical_to_baseline": true,
+    "baseline_whole_exchange_seconds": {
+      "150": 23.759416459,
+      "151": 22.815395542
+    },
+    "elapsed_reduction_percent": {
+      "150": 2.7216361862921645,
+      "151": 3.377106697894483
+    },
+    "qualification": [
+      {
+        "generation": 150,
+        "budget": {
+          "allowance": 154465630,
+          "legacy": 0,
+          "old_pool": 382405282,
+          "total": 536870912
+        },
+        "workspace_source_cost": 42874531,
+        "recording_peak_source_cost": 42874531,
+        "source_sum": 425279813,
+        "stats_after_publish": {
+          "issued": 1,
+          "last_workspace_source_cost": 42874531,
+          "max_recording_body_capacity": 15659658,
+          "max_recording_body_len": 15659658,
+          "max_recording_entries": 280452,
+          "max_recording_put_capacity": 16384,
+          "max_recording_source_cost": 42874531,
+          "overflow": 0,
+          "rebind_rows": 280452,
+          "rebound": 1,
+          "recorded_body_capacity": 15659658,
+          "recorded_body_len": 15659658,
+          "recorded_entries": 280452,
+          "recorded_put_capacity": 16384,
+          "replay_puts": 306
+        }
+      },
+      {
+        "generation": 151,
+        "budget": {
+          "allowance": 154655198,
+          "legacy": 0,
+          "old_pool": 382215714,
+          "total": 536870912
+        },
+        "workspace_source_cost": 43267617,
+        "recording_peak_source_cost": 43267617,
+        "source_sum": 425483331,
+        "stats_after_publish": {
+          "issued": 2,
+          "last_workspace_source_cost": 43267617,
+          "max_recording_body_capacity": 15802872,
+          "max_recording_body_len": 15802872,
+          "max_recording_entries": 283028,
+          "max_recording_put_capacity": 16384,
+          "max_recording_source_cost": 43267617,
+          "overflow": 0,
+          "rebind_rows": 563480,
+          "rebound": 2,
+          "recorded_body_capacity": 31462530,
+          "recorded_body_len": 31462530,
+          "recorded_entries": 563480,
+          "recorded_put_capacity": 32768,
+          "replay_puts": 612
+        }
+      }
+    ],
+    "workspace_issued_and_rebound_for_both": true,
+    "shared_source_budget_held_for_both": true,
+    "source_budget_is_not_whole_heap": true,
+    "no_fault_injection": true,
+    "diagnostic_log_sha256": "cd46784de3c28650a01bf4d6625c02216d4c3be5f2889837274231dbbf0c7ed8",
+    "goal_complete": false,
+    "limits": [
+      "单次两请求窗口，仅小幅改善；未解决完整9011性能问题",
+      "源费用与actual capacity分开，严格heap/RSS/IO峰值未资格化",
+      "独立窗口不拼接为完整9011"
+    ]
+  },
+  "previous_fixed_entry_attempt": {
+    "state": "CORRECTNESS_PASS_REAL_WORKSPACE_NOT_ISSUED",
+    "source_aggregate_sha256": "44d3af3645bea55f75020997579ada85ee83e2165cfcbfdacf120685fb8d452e",
+    "service_sha256": "168bf3b6b0e926a89833e51074b90bf4611ae994c62e3c2c07d7bafcab7ec77f",
+    "normal_tests_passed": 3,
+    "native_non_test_build_passed": true,
+    "feature_off_check_passed": true,
+    "small_fixture": {
+      "issued": 4,
+      "rebound": 4,
+      "rebind_rows": 12129,
+      "replay_puts": 1224,
+      "max_body_capacity": 230122,
+      "max_entries": 4616
+    },
+    "real_window": {
+      "state": "PASS_NORMAL_CORRECTNESS_WORKSPACE_NOT_QUALIFIED",
+      "scope": "同CopyQualified149正常150..151的manifest workspace实测，非完整重放",
+      "validated_received": [
+        150,
+        151
+      ],
+      "whole_exchange_seconds": {
+        "150": 24.461397125,
+        "151": 23.817610208
+      },
+      "failure_ordinal": null,
+      "startup_failed_before_any_input": false,
+      "errors": [],
+      "terminal": {
+        "generation": "151",
+        "advance_state": "idle",
+        "messages_by_status": {
+          "Committed": 151
+        },
+        "published": 151,
+        "clocks": 453,
+        "next_attempt_ordinal": 152
+      },
+      "unsent": [],
+      "original_files_live_stat_sha_verified": true,
+      "source_and_all_bindings_revalidated": true,
+      "same_Popen_reaped_controller_closed": true,
+      "socket_removed": true,
+      "cleanup_complete": true,
+      "service_pid": 62671,
+      "service_exit_code": -15,
+      "original105_source126_source142_source149_Unknown_preserved": true,
+      "full9011_complete": false,
+      "whole_resources_qualified": false,
+      "reply_and_persistent_oracle_identical_to_baseline": true,
+      "qualification_events": [
+        {
+          "diagnostic": "NativeTestOnlyManifestWorkspace",
+          "generation": 150,
+          "stage": "prepare-overflow",
+          "stats": {
+            "issued": 0,
+            "max_recording_body_capacity": 3407328,
+            "max_recording_body_len": 3407328,
+            "max_recording_entries": 65536,
+            "max_recording_put_capacity": 0,
+            "overflow": 1,
+            "rebind_rows": 0,
+            "rebound": 0,
+            "recorded_body_capacity": 0,
+            "recorded_body_len": 0,
+            "recorded_entries": 0,
+            "recorded_put_capacity": 0,
+            "replay_puts": 0
+          },
+          "stats_scope": "thread_cumulative_sums_and_maxima"
+        },
+        {
+          "diagnostic": "NativeTestOnlyManifestWorkspace",
+          "generation": 151,
+          "stage": "prepare-overflow",
+          "stats": {
+            "issued": 0,
+            "max_recording_body_capacity": 3407328,
+            "max_recording_body_len": 3407328,
+            "max_recording_entries": 65536,
+            "max_recording_put_capacity": 0,
+            "overflow": 2,
+            "rebind_rows": 0,
+            "rebound": 0,
+            "recorded_body_capacity": 0,
+            "recorded_body_len": 0,
+            "recorded_entries": 0,
+            "recorded_put_capacity": 0,
+            "replay_puts": 0
+          },
+          "stats_scope": "thread_cumulative_sums_and_maxima"
+        }
+      ],
+      "workspace_issued": false,
+      "workspace_rebound": false,
+      "optimization_gain_claimed": false,
+      "limiting_entry_count": 65536,
+      "body_capacity_at_entry_limit": 3407328,
+      "diagnostic_log_sha256": "9420c80cc52ef0a028a2bc8b3036145b0bb6d2a6fd42e58d16d1e96e9612eefe",
+      "conclusion": "正常真实域触及原件条数上限，未发行workspace；不能把耗时波动解释为重构收益"
+    },
+    "disposition": "未作为有效优化提交；保留完整实测；下一具名原型改为已批准S7内固定余量，不再借用旧帧缓存65536上限",
+    "full9011_complete": false,
+    "whole_resources_qualified": false,
+    "goal_complete": false
+  },
+  "full9011_complete": false,
+  "whole_resources_qualified": false,
+  "goal_complete": false,
+  "archive": {
+    "path": "MANIFEST-WORKSPACE-20261005-RAW.zip",
+    "files": 1511,
+    "bytes": 1320220,
+    "sha256": "7a6dbf3e3d071753f15b05bcda67a572e622571179b0e38a91d383f4bcc12d73"
+  }
+}

@@ -1,0 +1,647 @@
+{
+  "controller_source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/s_session/s_service_control.py",
+  "environment_proof_limit": "runtime_environment executed from bound Controller against named explicit Python; keys-only fingerprint and probe preserved, inherited secret values not exported and no complete env-value fingerprint recorded",
+  "evidence": {
+    "attempt1/events.jsonl": {
+      "bytes": 235,
+      "sha256": "20f7890a6af51c17e6214b60d6b142763defe76c83fe4a18a51402ef731251f6"
+    },
+    "attempt1/harness.py": {
+      "bytes": 17475,
+      "sha256": "c2d03db53ab9d849335c98e5789c021744c602dd31dfd0d43ebcd66c5918826d"
+    },
+    "attempt1/originals/OLD-BINDING.json": {
+      "bytes": 1441,
+      "sha256": "1c9d2ce663bf52a8d6aaae5a158b115578c3b3f9d0b0ba2e9c971fa55a8ec4b5"
+    },
+    "attempt1/originals/S-RESOURCE-PLAN.json": {
+      "bytes": 4104,
+      "sha256": "18e9b3cd6cb5f17ba715b09405995b68b627bcd696ba457de790dfa9a51125c3"
+    },
+    "attempt1/originals/SMALL-INPUTS.json": {
+      "bytes": 4504,
+      "sha256": "5a7280178e45f6728c3d4afa9d313b98664af8c4141cccac10c99df639dfa82f"
+    },
+    "attempt1/originals/catalog.json": {
+      "bytes": 84259,
+      "sha256": "938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069"
+    },
+    "attempt1/originals/clock.json": {
+      "bytes": 290,
+      "sha256": "cd65fa6caa3d33591ba331bed0e6491555db2732c7c8c1155ecd5457fcd1f31d"
+    },
+    "attempt1/originals/input-1.json": {
+      "bytes": 890,
+      "sha256": "1c3a1867502258b603af2cdf8ac473c27f03400f24f76339215b425482c97d2f"
+    },
+    "attempt1/originals/profile.json": {
+      "bytes": 468,
+      "sha256": "482250254133ba120afdd5cd428d1a32d4e5cb40cd7876c556b7007320e599d6"
+    },
+    "attempt1/originals/q_runtime.rs": {
+      "bytes": 44935,
+      "sha256": "72da49cf45bf02778c1694cf5c0527307bfdf478cb08cb959eb69d2aa6c4de24"
+    },
+    "attempt1/originals/q_serve.rs": {
+      "bytes": 9342,
+      "sha256": "d9a1d12c7f8a616735eaf3762ddeb6c70acb7f60ea2ac4ff90c5830219f98553"
+    },
+    "attempt1/originals/query-resources.json": {
+      "bytes": 657,
+      "sha256": "50ea5bf865de8a37d8187069d70bee85ca4caac9c759a60ad2e3c717743d4eb1"
+    },
+    "attempt1/originals/s_service_control.py": {
+      "bytes": 30891,
+      "sha256": "512c113b56e76acb0a8ad075cddefe6e90db755fc13948cb1382c5223f04b73e"
+    },
+    "attempt1/originals/s_socket_client.py": {
+      "bytes": 9157,
+      "sha256": "8fb63a14d131452e09b2ab3e4aeddef1c1cbf922ca641ec5a13a7db729b4a1e2"
+    },
+    "attempt1/originals/s_structure_session": {
+      "bytes": 7177296,
+      "sha256": "388288c875f7b3ccfe7411943182602f78d7d3a437d34d9f2df283e2ae629275"
+    },
+    "attempt1/originals/s_structure_session.rs": {
+      "bytes": 438208,
+      "sha256": "1479ab764fb6170b208bb6dd55035604cce98fd61b85f6f8442a7cc6dd261d03"
+    },
+    "attempt1/python-probe.json": {
+      "bytes": 475,
+      "sha256": "40f39476d7f6ed79d7ef42bf7f23285d62ff9107b2e373923abf0e6c15652cc7"
+    },
+    "attempt1/python-probe.stdout": {
+      "bytes": 175,
+      "sha256": "eb9266aea9396482c58698d9c70b7da79a6e6b9f4517105be7a9cdaeb850059a"
+    },
+    "attempt1/run.stderr": {
+      "bytes": 1794,
+      "sha256": "0d8835bc2f341806e41951625c7e40374d9c84d67d55f119ed40ae30ce4e20ad"
+    },
+    "attempt1/run.stdout": {
+      "bytes": 235,
+      "sha256": "20f7890a6af51c17e6214b60d6b142763defe76c83fe4a18a51402ef731251f6"
+    },
+    "attempt1/sigterm/NEGATIVE.json": {
+      "bytes": 512,
+      "sha256": "30b3f9a83f8e688a056cbfc989339dc42a3a3afb7b6dfe659bdd9347518142ec"
+    },
+    "attempt1/sigterm/RESULT.json": {
+      "bytes": 948,
+      "sha256": "ecd15c868719a924c8c3f4cf30924bb6b85b5ca2ce5c68b852b18ea471e5f279"
+    },
+    "attempt1/sigterm/config.json": {
+      "bytes": 1830,
+      "sha256": "c16ad750a6c811e41aa5ac7ef57c0c821d807abca23d04182d498febc080a690"
+    },
+    "attempt1/sigterm/environment-declaration.json": {
+      "bytes": 431,
+      "sha256": "05df0d84c2922bd1269e87be5bebd40c7a6af2392180fcefda5ab2fb2ced64c0"
+    },
+    "attempt1/sigterm/resolved-config.json": {
+      "bytes": 1830,
+      "sha256": "c16ad750a6c811e41aa5ac7ef57c0c821d807abca23d04182d498febc080a690"
+    },
+    "attempt1/sigterm/s.sqlite": {
+      "bytes": 499712,
+      "sha256": "08c9d59456cc3eeede74650fad8597ad2743b5acbdf198c7b0b43b64537ec4ad"
+    },
+    "attempt1/sigterm/s.sqlite.control-owner.json": {
+      "bytes": 280,
+      "sha256": "b5b03df395a29969230a8ec34060263f3f8f5ed3fda7d039ebf761c07240f0a8"
+    },
+    "attempt1/sigterm/start-args.json": {
+      "bytes": 738,
+      "sha256": "7fb7fc456212bf88f3cdb5a146f703ecd323ac09b55094c6864ed54876ae8400"
+    },
+    "attempt1/sigterm/state/q.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "attempt1/source-after.json": {
+      "bytes": 521,
+      "sha256": "ca748abded9e265d5632118d6ee9c9eccbf17cec800ae22422bd58534ea18b79"
+    },
+    "attempt1/source-lsof.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "attempt1/source-lsof.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "attempt1/source-preflight.json": {
+      "bytes": 1314,
+      "sha256": "03b1f6f50b714b2c01b29f018cc6cee0db5fffacb770dd41237af8ec7b472564"
+    },
+    "attempt2/events.jsonl": {
+      "bytes": 1097,
+      "sha256": "502171232154a56b21fbc8f233e63dda13089a8b7af1e81fef8ef1a987b2bede"
+    },
+    "attempt2/harness.py": {
+      "bytes": 17472,
+      "sha256": "964189a38e4218567093d00f00de8737ba66f8e5c54a7b2d05ab396ff42910df"
+    },
+    "attempt2/originals/OLD-BINDING.json": {
+      "bytes": 1441,
+      "sha256": "1c9d2ce663bf52a8d6aaae5a158b115578c3b3f9d0b0ba2e9c971fa55a8ec4b5"
+    },
+    "attempt2/originals/S-RESOURCE-PLAN.json": {
+      "bytes": 4104,
+      "sha256": "18e9b3cd6cb5f17ba715b09405995b68b627bcd696ba457de790dfa9a51125c3"
+    },
+    "attempt2/originals/SMALL-INPUTS.json": {
+      "bytes": 4504,
+      "sha256": "5a7280178e45f6728c3d4afa9d313b98664af8c4141cccac10c99df639dfa82f"
+    },
+    "attempt2/originals/catalog.json": {
+      "bytes": 84259,
+      "sha256": "938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069"
+    },
+    "attempt2/originals/clock.json": {
+      "bytes": 290,
+      "sha256": "cd65fa6caa3d33591ba331bed0e6491555db2732c7c8c1155ecd5457fcd1f31d"
+    },
+    "attempt2/originals/input-1.json": {
+      "bytes": 890,
+      "sha256": "1c3a1867502258b603af2cdf8ac473c27f03400f24f76339215b425482c97d2f"
+    },
+    "attempt2/originals/profile.json": {
+      "bytes": 468,
+      "sha256": "482250254133ba120afdd5cd428d1a32d4e5cb40cd7876c556b7007320e599d6"
+    },
+    "attempt2/originals/q_runtime.rs": {
+      "bytes": 44935,
+      "sha256": "72da49cf45bf02778c1694cf5c0527307bfdf478cb08cb959eb69d2aa6c4de24"
+    },
+    "attempt2/originals/q_serve.rs": {
+      "bytes": 9342,
+      "sha256": "d9a1d12c7f8a616735eaf3762ddeb6c70acb7f60ea2ac4ff90c5830219f98553"
+    },
+    "attempt2/originals/query-resources.json": {
+      "bytes": 657,
+      "sha256": "50ea5bf865de8a37d8187069d70bee85ca4caac9c759a60ad2e3c717743d4eb1"
+    },
+    "attempt2/originals/s_service_control.py": {
+      "bytes": 30891,
+      "sha256": "512c113b56e76acb0a8ad075cddefe6e90db755fc13948cb1382c5223f04b73e"
+    },
+    "attempt2/originals/s_socket_client.py": {
+      "bytes": 9157,
+      "sha256": "8fb63a14d131452e09b2ab3e4aeddef1c1cbf922ca641ec5a13a7db729b4a1e2"
+    },
+    "attempt2/originals/s_structure_session": {
+      "bytes": 7177296,
+      "sha256": "388288c875f7b3ccfe7411943182602f78d7d3a437d34d9f2df283e2ae629275"
+    },
+    "attempt2/originals/s_structure_session.rs": {
+      "bytes": 438208,
+      "sha256": "1479ab764fb6170b208bb6dd55035604cce98fd61b85f6f8442a7cc6dd261d03"
+    },
+    "attempt2/python-probe.json": {
+      "bytes": 475,
+      "sha256": "40f39476d7f6ed79d7ef42bf7f23285d62ff9107b2e373923abf0e6c15652cc7"
+    },
+    "attempt2/python-probe.stdout": {
+      "bytes": 175,
+      "sha256": "eb9266aea9396482c58698d9c70b7da79a6e6b9f4517105be7a9cdaeb850059a"
+    },
+    "attempt2/run.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "attempt2/run.stdout": {
+      "bytes": 1097,
+      "sha256": "502171232154a56b21fbc8f233e63dda13089a8b7af1e81fef8ef1a987b2bede"
+    },
+    "attempt2/sigint/NEGATIVE.json": {
+      "bytes": 512,
+      "sha256": "30b3f9a83f8e688a056cbfc989339dc42a3a3afb7b6dfe659bdd9347518142ec"
+    },
+    "attempt2/sigint/RESULT.json": {
+      "bytes": 2535,
+      "sha256": "9b13ac086ac21780bc872f4a6f76d568bd833d9796d19dd586ad247e245ead29"
+    },
+    "attempt2/sigint/config.json": {
+      "bytes": 1829,
+      "sha256": "a2e451ad3a03389d19ab55aae182b8434a678494b532798e5a9338b98720b4d5"
+    },
+    "attempt2/sigint/controller-ready.json": {
+      "bytes": 582,
+      "sha256": "63a053148b95cffdfaf7c4367ccfa4cdc3d77bfc05f3b55377846b0980cf216a"
+    },
+    "attempt2/sigint/controller-stop.json": {
+      "bytes": 116,
+      "sha256": "27e66d85e927df1b36138226f55ce955a7ac228afbca816720d8992899843bab"
+    },
+    "attempt2/sigint/environment-declaration.json": {
+      "bytes": 431,
+      "sha256": "05df0d84c2922bd1269e87be5bebd40c7a6af2392180fcefda5ab2fb2ced64c0"
+    },
+    "attempt2/sigint/listen-after-stop.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "attempt2/sigint/listen-after-stop.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "attempt2/sigint/ready.request.http": {
+      "bytes": 63,
+      "sha256": "f566fcee998856b2703f34ce8369a104c6a029b0eb7c3073de8792edfdcbc528"
+    },
+    "attempt2/sigint/ready.response.body": {
+      "bytes": 448,
+      "sha256": "3be4caf78c84b567a151fe02add7d95f009ebc1b8fa1aca3fc7d4662aabb3905"
+    },
+    "attempt2/sigint/ready.response.http": {
+      "bytes": 579,
+      "sha256": "f4e52e63b83fb79b01a1a328b1a738caf7b234cc8c89f5c3146b4398cb8bdcc9"
+    },
+    "attempt2/sigint/resolved-config.json": {
+      "bytes": 1829,
+      "sha256": "a2e451ad3a03389d19ab55aae182b8434a678494b532798e5a9338b98720b4d5"
+    },
+    "attempt2/sigint/s.sqlite": {
+      "bytes": 499712,
+      "sha256": "08c9d59456cc3eeede74650fad8597ad2743b5acbdf198c7b0b43b64537ec4ad"
+    },
+    "attempt2/sigint/s.sqlite.control-owner.json": {
+      "bytes": 278,
+      "sha256": "90383dd2695ad54c067ee5167b33ce5ff1636adba014b4b4834ebdb883ed9ba3"
+    },
+    "attempt2/sigint/start-args.json": {
+      "bytes": 736,
+      "sha256": "7facb1d3d7ed168f5c8e9a58d9593b1eb85899c1e5d64ac7c59ffa12a0b92dc4"
+    },
+    "attempt2/sigint/state/q.log": {
+      "bytes": 958,
+      "sha256": "8683bc7c8820fe9231dc4baaea55de32c062fb34ea4bae1152bf69b046cf4bc7"
+    },
+    "attempt2/sigint/state/q.process.json": {
+      "bytes": 1473,
+      "sha256": "5cb35c48e567cb8c177083bb008aa2ca44dd0fd66a72425276ce64952f815110"
+    },
+    "attempt2/sigint/status-after-reap.json": {
+      "bytes": 1496,
+      "sha256": "a936a858aa48ba47528417bdfab555741a1ba794ebb4a71577f702bcc6d588c9"
+    },
+    "attempt2/sigint/status-after-start.json": {
+      "bytes": 1496,
+      "sha256": "c4375221bdc70f9f498409210053c12427130d8beb51ae658246745be68b2899"
+    },
+    "attempt2/sigint/status-ready.json": {
+      "bytes": 1496,
+      "sha256": "c4375221bdc70f9f498409210053c12427130d8beb51ae658246745be68b2899"
+    },
+    "attempt2/sigterm/NEGATIVE.json": {
+      "bytes": 512,
+      "sha256": "30b3f9a83f8e688a056cbfc989339dc42a3a3afb7b6dfe659bdd9347518142ec"
+    },
+    "attempt2/sigterm/RESULT.json": {
+      "bytes": 2538,
+      "sha256": "80e7306815a39c882bddaa79d4fcc400da8647eddf47e8a8c168def0abe515c8"
+    },
+    "attempt2/sigterm/config.json": {
+      "bytes": 1830,
+      "sha256": "1724b6d3b3672a5d80aa1febc10cd8fe0d0da72cd2c4a2debd2b9e76b4149b7e"
+    },
+    "attempt2/sigterm/controller-ready.json": {
+      "bytes": 582,
+      "sha256": "39269f9e313d8daf91d812b6fd4b6338599d901b6cd0c2c5f56c88c204bcf7eb"
+    },
+    "attempt2/sigterm/controller-stop.json": {
+      "bytes": 117,
+      "sha256": "3a5a4a545c0dfca026beecbea024aa30cce929bf999f58e2680ac3267322f0b9"
+    },
+    "attempt2/sigterm/environment-declaration.json": {
+      "bytes": 431,
+      "sha256": "05df0d84c2922bd1269e87be5bebd40c7a6af2392180fcefda5ab2fb2ced64c0"
+    },
+    "attempt2/sigterm/listen-after-stop.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "attempt2/sigterm/listen-after-stop.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "attempt2/sigterm/ready.request.http": {
+      "bytes": 63,
+      "sha256": "f566fcee998856b2703f34ce8369a104c6a029b0eb7c3073de8792edfdcbc528"
+    },
+    "attempt2/sigterm/ready.response.body": {
+      "bytes": 448,
+      "sha256": "9571a0a23560730e9b981e532571481fb867fb4f07f2d2ba73902e7831932873"
+    },
+    "attempt2/sigterm/ready.response.http": {
+      "bytes": 579,
+      "sha256": "a027fc41494f15e23b7da76bb69667be143bcc61d20a8e82c331bbf78775a8e5"
+    },
+    "attempt2/sigterm/resolved-config.json": {
+      "bytes": 1830,
+      "sha256": "1724b6d3b3672a5d80aa1febc10cd8fe0d0da72cd2c4a2debd2b9e76b4149b7e"
+    },
+    "attempt2/sigterm/s.sqlite": {
+      "bytes": 499712,
+      "sha256": "08c9d59456cc3eeede74650fad8597ad2743b5acbdf198c7b0b43b64537ec4ad"
+    },
+    "attempt2/sigterm/s.sqlite.control-owner.json": {
+      "bytes": 280,
+      "sha256": "70b9482304df139cbe7e0ecdbfb16ab1184c559945dc8b73ea4c89d3a5c18729"
+    },
+    "attempt2/sigterm/start-args.json": {
+      "bytes": 738,
+      "sha256": "fd0097ff46d633d5ad260faf6763f52372682e3e2d8a7b5b7c6ca336870e55e0"
+    },
+    "attempt2/sigterm/state/q.log": {
+      "bytes": 959,
+      "sha256": "8cf0164c0741ef816e627dc55c4c6d929a1f6ceb3c7dc477fb6c6a2fe5740fdd"
+    },
+    "attempt2/sigterm/state/q.process.json": {
+      "bytes": 1476,
+      "sha256": "e4c3366ca88d719439516baf7fc9da15faa64ffd72b516392e8e389a6e9904a8"
+    },
+    "attempt2/sigterm/status-after-reap.json": {
+      "bytes": 1499,
+      "sha256": "bb5947f24340bbce6d26a297dd948221d43f5f4d7f4e844902b7a4209688b922"
+    },
+    "attempt2/sigterm/status-after-start.json": {
+      "bytes": 1499,
+      "sha256": "4ec49cd73e7196e24e3cdace95cf16ec215bf16ce4279efc8e9b9a563a73a9fb"
+    },
+    "attempt2/sigterm/status-ready.json": {
+      "bytes": 1499,
+      "sha256": "4ec49cd73e7196e24e3cdace95cf16ec215bf16ce4279efc8e9b9a563a73a9fb"
+    },
+    "attempt2/source-after.json": {
+      "bytes": 521,
+      "sha256": "ca748abded9e265d5632118d6ee9c9eccbf17cec800ae22422bd58534ea18b79"
+    },
+    "attempt2/source-compatibility.diff": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "attempt2/source-lsof.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "attempt2/source-lsof.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "attempt2/source-preflight.json": {
+      "bytes": 1314,
+      "sha256": "03b1f6f50b714b2c01b29f018cc6cee0db5fffacb770dd41237af8ec7b472564"
+    }
+  },
+  "failed_attempts": [
+    {
+      "attempt": "attempt1",
+      "cause": "scratch binary copyfile did not preserve executable mode; Popen PermissionError before Q PID creation",
+      "exit_code": 1,
+      "harness_fix": "copy2 preserve mode; new attempt2",
+      "product_change": false,
+      "terminal_chunk_id": "17aa27"
+    }
+  ],
+  "fresh_instances": [
+    {
+      "control_instance_id": "f08e23f7-f7f1-49bb-9aef-91b0bfd8dcaa",
+      "db_after": {
+        "": {
+          "bytes": 499712,
+          "exists": true,
+          "mtime_ns": 1790783793239673707,
+          "sha256": "08c9d59456cc3eeede74650fad8597ad2743b5acbdf198c7b0b43b64537ec4ad"
+        },
+        "-shm": {
+          "bytes": 32768,
+          "exists": true,
+          "mtime_ns": 1790783793942570788,
+          "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+        },
+        "-wal": {
+          "bytes": 0,
+          "exists": true,
+          "mtime_ns": 1790783793942314662,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "db_before": {
+        "": {
+          "bytes": 499712,
+          "exists": true,
+          "mtime_ns": 1790783793239673707,
+          "sha256": "08c9d59456cc3eeede74650fad8597ad2743b5acbdf198c7b0b43b64537ec4ad"
+        },
+        "-shm": {
+          "exists": false
+        },
+        "-wal": {
+          "exists": false
+        }
+      },
+      "db_main_bytes_unchanged": true,
+      "db_wal_no_structure_write": true,
+      "exit_code": 0,
+      "negative": {
+        "foreign_identity_rejected": "PID 已复用或进程命令改变，拒绝采用旧记录",
+        "kill_calls": 0,
+        "nonce_rejected": "q 未在声明期限内就绪：{'ok': True, 'cut': {'session_id': 'issue1394-financial-small-20260930', 'session_generation': '1'}, 'producer_epoch': '1', 'control_instance_id': 'synthetic-foreign-nonce'}",
+        "ready_confirm_calls": 0,
+        "scope": "pure validation of existing Controller using explicit synthetic PID/HTTP observations; no real foreign process and no signals"
+      },
+      "no_listen_after_stop": true,
+      "pid": 90778,
+      "port": 50221,
+      "process_identity": "501 Wed Sep 30 23:56:33 2026     /Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-q3-controller-actual-20260930/attempt2/originals/s_structure_session query-serve --protocol-revision s-session/3 --db /Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-q3-controller-actual-20260930/attempt2/sigterm/s.sqlite --resource-config /Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-q3-controller-actual-20260930/attempt2/originals/query-resources.json --producer-epoch 1 --host 127.0.0.1 --port 50221",
+      "raw_ready_equals_controller_reply": true,
+      "ready_state": "ready",
+      "reaped": true,
+      "rebind_after_reap": true,
+      "signal": "SIGTERM",
+      "status": "PASS",
+      "stop_receipt": {
+        "exit_observation_warnings": [],
+        "pid": 90778,
+        "service": "q",
+        "signal": "SIGTERM",
+        "state": "stopped"
+      },
+      "uid": 501
+    },
+    {
+      "control_instance_id": "6c8c7e85-e839-4101-aa33-05a6e1f3cb34",
+      "db_after": {
+        "": {
+          "bytes": 499712,
+          "exists": true,
+          "mtime_ns": 1790783794190536274,
+          "sha256": "08c9d59456cc3eeede74650fad8597ad2743b5acbdf198c7b0b43b64537ec4ad"
+        },
+        "-shm": {
+          "bytes": 32768,
+          "exists": true,
+          "mtime_ns": 1790783794323901878,
+          "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+        },
+        "-wal": {
+          "bytes": 0,
+          "exists": true,
+          "mtime_ns": 1790783794323636335,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "db_before": {
+        "": {
+          "bytes": 499712,
+          "exists": true,
+          "mtime_ns": 1790783794190536274,
+          "sha256": "08c9d59456cc3eeede74650fad8597ad2743b5acbdf198c7b0b43b64537ec4ad"
+        },
+        "-shm": {
+          "exists": false
+        },
+        "-wal": {
+          "exists": false
+        }
+      },
+      "db_main_bytes_unchanged": true,
+      "db_wal_no_structure_write": true,
+      "exit_code": 0,
+      "negative": {
+        "foreign_identity_rejected": "PID 已复用或进程命令改变，拒绝采用旧记录",
+        "kill_calls": 0,
+        "nonce_rejected": "q 未在声明期限内就绪：{'ok': True, 'cut': {'session_id': 'issue1394-financial-small-20260930', 'session_generation': '1'}, 'producer_epoch': '1', 'control_instance_id': 'synthetic-foreign-nonce'}",
+        "ready_confirm_calls": 0,
+        "scope": "pure validation of existing Controller using explicit synthetic PID/HTTP observations; no real foreign process and no signals"
+      },
+      "no_listen_after_stop": true,
+      "pid": 90812,
+      "port": 50242,
+      "process_identity": "501 Wed Sep 30 23:56:34 2026     /Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-q3-controller-actual-20260930/attempt2/originals/s_structure_session query-serve --protocol-revision s-session/3 --db /Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-q3-controller-actual-20260930/attempt2/sigint/s.sqlite --resource-config /Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-q3-controller-actual-20260930/attempt2/originals/query-resources.json --producer-epoch 1 --host 127.0.0.1 --port 50242",
+      "raw_ready_equals_controller_reply": true,
+      "ready_state": "ready",
+      "reaped": true,
+      "rebind_after_reap": true,
+      "signal": "SIGINT",
+      "status": "PASS",
+      "stop_receipt": {
+        "exit_observation_warnings": [],
+        "pid": 90812,
+        "service": "q",
+        "signal": "SIGINT",
+        "state": "stopped"
+      },
+      "uid": 501
+    }
+  ],
+  "harness_sha256": "964189a38e4218567093d00f00de8737ba66f8e5c54a7b2d05ab396ff42910df",
+  "not_claimed": [
+    "formal start_q /3 or s-launcher/3 support",
+    "S3 serve/fifo qualification or seven-field gate execution",
+    "complete browser consumer or client installation",
+    "full9011",
+    "all resources/production capacity",
+    "M1/#1323 completion",
+    "main integration/push"
+  ],
+  "original_source_bytes_unchanged": true,
+  "python": {
+    "path": "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+    "sha256": "b502cb4c5b46b8d4192ec6bcb600ce8922f1afc396fcf646e8765c6eba74a0bf"
+  },
+  "q_resource_sha256": "50ea5bf865de8a37d8187069d70bee85ca4caac9c759a60ad2e3c717743d4eb1",
+  "reused_content_evidence": {
+    "executed_in_this_attempt": false,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-q3-http-runtime-20260930/attempt3/RESULTS.json",
+    "sha256": "0c056197ad72616120db658b7519b4fa2b1fc92bc9d0bb233b4781fbc0b5d66c"
+  },
+  "rust_binary": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-q3-controller-actual-20260930/attempt2/originals/s_structure_session",
+    "sha256": "388288c875f7b3ccfe7411943182602f78d7d3a437d34d9f2df283e2ae629275"
+  },
+  "s_resource_gate_executed": false,
+  "s_seven_resource_fields": {
+    "audit_cache_source_bytes": "268435456",
+    "max_connections": "48",
+    "max_frame_bytes": "1048576",
+    "queue_capacity": "32",
+    "read_timeout_ms": "2000",
+    "response_timeout_ms": "10000",
+    "write_timeout_ms": "1000"
+  },
+  "schema_revision": "issue1394-actual-controller-manifest/1",
+  "scope": "existing typed Controller.start_process(q,Rust argv) -> wait_ready -> status -> stop -> reap; frozen original single-bar S3 DB readonly byte copies; two fresh Q processes",
+  "source_after": {
+    "": {
+      "bytes": 499712,
+      "exists": true,
+      "mtime_ns": 1790741515931692057,
+      "sha256": "08c9d59456cc3eeede74650fad8597ad2743b5acbdf198c7b0b43b64537ec4ad"
+    },
+    "-shm": {
+      "bytes": 32768,
+      "exists": true,
+      "mtime_ns": 1790762701418236246,
+      "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+    },
+    "-wal": {
+      "bytes": 0,
+      "exists": true,
+      "mtime_ns": 1790741515943737246,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "source_before": {
+    "": {
+      "bytes": 499712,
+      "exists": true,
+      "mtime_ns": 1790741515931692057,
+      "sha256": "08c9d59456cc3eeede74650fad8597ad2743b5acbdf198c7b0b43b64537ec4ad"
+    },
+    "-shm": {
+      "bytes": 32768,
+      "exists": true,
+      "mtime_ns": 1790762701418236246,
+      "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+    },
+    "-wal": {
+      "bytes": 0,
+      "exists": true,
+      "mtime_ns": 1790741515943737246,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "source_compatibility": "git diff old binding head to current HEAD for q_serve.rs/q_runtime.rs/s_service_control.py empty; preserved original binding, not whole-current-HEAD claim",
+  "source_db": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-financial-reader-small-20260930/s.sqlite",
+  "source_revision_hashes": {
+    "rust/src/bin/s_session_v3/q_runtime.rs": {
+      "current_file_sha256": "72da49cf45bf02778c1694cf5c0527307bfdf478cb08cb959eb69d2aa6c4de24",
+      "identical": true,
+      "old_binding_commit_sha256": "72da49cf45bf02778c1694cf5c0527307bfdf478cb08cb959eb69d2aa6c4de24"
+    },
+    "rust/src/bin/s_session_v3/q_serve.rs": {
+      "current_file_sha256": "d9a1d12c7f8a616735eaf3762ddeb6c70acb7f60ea2ac4ff90c5830219f98553",
+      "identical": true,
+      "old_binding_commit_sha256": "d9a1d12c7f8a616735eaf3762ddeb6c70acb7f60ea2ac4ff90c5830219f98553"
+    },
+    "s_session/s_service_control.py": {
+      "current_file_sha256": "512c113b56e76acb0a8ad075cddefe6e90db755fc13948cb1382c5223f04b73e",
+      "identical": true,
+      "old_binding_commit_sha256": "512c113b56e76acb0a8ad075cddefe6e90db755fc13948cb1382c5223f04b73e"
+    }
+  },
+  "status": "PASS_BOUNDED_EXISTING_CONTROLLER_Q3",
+  "terminal_tool_handle": {
+    "exit_code": 0,
+    "initial_chunk_id": "72d05f",
+    "session_id": 32325,
+    "terminal_chunk_id": "f5eab1"
+  },
+  "ticket": 1394,
+  "whole_binary_binding_head": "909ccff13abaed83be3c939ab7459d52ff4afee5",
+  "whole_binary_current_head_bound": false,
+  "worktree_head": "c7e9827cd0b861cb051008b4d7967d22fc5ee48c"
+}

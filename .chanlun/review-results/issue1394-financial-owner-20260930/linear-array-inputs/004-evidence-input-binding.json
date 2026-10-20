@@ -1,0 +1,19 @@
+{
+  "source_readonly_copy": "/Users/silencehan/Projects/NewChanlun-1394-audit-shadow-20261001/.scratch/issue1394-audit-readonly-stage-probe-20261001/source-A",
+  "source_sha256_before": {
+    "s.sqlite": "1bb9fb2c1660501bc570a52ccb61aa4c89cbe806fd9fc3bea0cfb550de5423fb",
+    "s.sqlite-wal": "89032325fe6a2dbf4b3b97e2f335072ce0d7cc5a634c81e0411ebc4dfefe843b",
+    "s.sqlite-shm": "757d2d7f80f325accd4a68f0a776bef0d31db8f1ecf0d7ce486bfefb5d616193"
+  },
+  "source_sha256_after": {
+    "s.sqlite": "1bb9fb2c1660501bc570a52ccb61aa4c89cbe806fd9fc3bea0cfb550de5423fb",
+    "s.sqlite-wal": "89032325fe6a2dbf4b3b97e2f335072ce0d7cc5a634c81e0411ebc4dfefe843b",
+    "s.sqlite-shm": "757d2d7f80f325accd4a68f0a776bef0d31db8f1ecf0d7ce486bfefb5d616193"
+  },
+  "unchanged": true,
+  "owned_input_sha256": "4d9d1d2e67a208a38cf611a209b09c92a10dbf58e84c3fa412652978e20f101a",
+  "generation": "16",
+  "raw_events": 16,
+  "publications": 16,
+  "pending": 0
+}

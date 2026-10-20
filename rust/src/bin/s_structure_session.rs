@@ -30,6 +30,14 @@
 
 #[path = "s_session_v2/mod.rs"]
 mod v2;
+// #1394 C §5.1/5.8：S3 新域（s-session/3）的隔离初始化与版本分派；本文件只挂模块与入口选择。
+#[path = "s_session_v3/raw_input.rs"]
+mod raw_input;
+#[path = "s_session_v3/mod.rs"]
+mod v3;
+// #1394 C：对象集对拍判据的共用纯函数（旧 S2 adapter 与 S3 新域共用一份，见 `compute_diff`）。
+#[path = "s_session_v3/object_diff.rs"]
+mod object_diff;
 
 use std::collections::BTreeMap;
 
@@ -37,6 +45,30 @@ use std::collections::BTreeMap;
 mod audit;
 #[path = "s_session_v2/cache.rs"]
 mod cache;
+// #1394：新库的显式私有存储格式登记（changes-only/1）；旧库无该表即旧 full 域。
+#[path = "s_session_v2/delta_storage.rs"]
+mod delta_storage;
+// #1394 第二段：完整证据的私有内容寻址共享表示（evidence-graph/2）；旧库无该表即旧整块域。
+#[path = "s_session_v2/content_store.rs"]
+mod content_store;
+#[path = "s_session_v2/evidence_store.rs"]
+mod evidence_store;
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[path = "s_session_v2/staged_nodes.rs"]
+mod staged_nodes;
+// #1394 采纳 C §5.2/5.3：S 生产侧从同核共享证据直接构造 CC-004 内容对象（生产构造器，
+// 供正式 S3 入口调用；本文件不接 S3Commit）。
+#[path = "s_session_v2/content_bi.rs"]
+mod content_bi;
+#[path = "s_session_v2/content_manifest.rs"]
+mod content_manifest;
+#[path = "s_session_v2/content_producer.rs"]
+mod content_producer;
+#[path = "s_session_v2/content_publication.rs"]
+mod content_publication;
+// #1394 2A-S：正式 S 的同代增量状态与稳定对象复用（进程内缓存；性能结构，不充任准入权威）。
+#[path = "s_session_v2/s_fact_cache.rs"]
+mod s_fact_cache;
 #[path = "s_session_v2/tb02a.rs"]
 mod tb02a;
 #[path = "s_session_v2/tb02a_facts.rs"]
@@ -60,10 +92,17 @@ use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde_json::{json, Value};
 
 /// CC-006 验收合同修订（SPEC-COVERAGE-INPUT.json `/classification_axes/5`）。
-/// #1405：新笔规则升 `new-bi-dual-coordinate/2`（#1343 同价裁定）⟹ 会话级规则随之升 `new-bi/2`；
-/// #1420：第二种候选三态终点与 K1 续扫（段合同 `s-segment/3`）⟹ 会话级规则升 `segment-second/2`。
-/// 旧规则会话只读（AsKnown），同一 rule_revision 下不混两代笔/段对象。
+///
+/// v2 结构写者（本文件 `init_core`/`accept_core`/`advance_core`）的规则修订：它发布 TB-02-A…D/W。
+/// #1405：同价/极值区裁定采用 new-bi/2；#1420：第二种候选三态终点与 K1 续扫（段合同
+/// `s-segment/3`）⟹ 会话级规则升 `segment-second/2`。旧规则会话 AsKnown，不混两代笔/段对象。
 const RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2+segment-second/2";
+
+/// #1405：v3 只发布 TB-02-A/B（13 轴），新写者显式迁至新笔 /2。
+/// 历史 /1 规则仅用于读取/验证，不由新 parser 续写或回填。
+/// v2 的 TB-02-C/D（17 轴）仍由 [`RULE_REVISION`] 独立声明；按修订精确选表。
+const V3_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2";
+const LEGACY_V3_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/1";
 
 /// S 唯一结构写者的默认 writer_epoch（可经 `--writer-epoch` / `recover` 换代）。
 const DEFAULT_WRITER_EPOCH: &str = "1";
@@ -281,7 +320,11 @@ fn open_db(db: &Path) -> Result<Connection, String> {
             return Ok(historical);
         }
     }
-    let conn = Connection::open(db).map_err(|e| format!("打开 SQLite 失败：{e}"))?;
+    let conn = Connection::open_with_flags(
+        db,
+        rusqlite::OpenFlags::default() | rusqlite::OpenFlags::SQLITE_OPEN_PRIVATE_CACHE,
+    )
+    .map_err(|e| format!("打开 SQLite 失败：{e}"))?;
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;")
         .map_err(|e| format!("设置 WAL/FULL 失败：{e}"))?;
     #[cfg(target_os = "macos")]
@@ -295,7 +338,7 @@ fn open_db(db: &Path) -> Result<Connection, String> {
 /// - 已初始化且 `rule_revision` 不是本二进制的 `RULE_REVISION` ⟹ 返回只读连接（SQLite 层拒写，
 ///   不设 WAL、不检查点；只读连接最多留下空 `-wal` 与 `-shm` 索引，主库与既有 `-wal` 字节不变）；
 /// - 残留回滚热日志（`SQLITE_READONLY_ROLLBACK`）⟹ 不改写就读不出规则，拒绝打开；
-/// - 当前规则或未初始化 ⟹ `None`，交回原写连接路径。
+/// - 当前规则（v2 `RULE_REVISION` 或 v3 `V3_RULE_REVISION`）或未初始化 ⟹ `None`，交回原写连接路径。
 fn open_historical_readonly(db: &Path) -> Result<Option<Connection>, String> {
     let ro = Connection::open_with_flags(
         db,
@@ -326,7 +369,13 @@ fn open_historical_readonly(db: &Path) -> Result<Option<Connection>, String> {
     if !has_meta || meta_get_opt(&ro, "session_id")?.is_none() {
         return Ok(None);
     }
-    if meta_get_opt(&ro, "rule_revision")?.as_deref() == Some(RULE_REVISION) {
+    // #1394 合入：两个写者各有当前规则——v2 的 `RULE_REVISION` 与 v3（s-session/3）的
+    // `V3_RULE_REVISION`；二者之外（含 `LEGACY_V3_RULE_REVISION` 等旧规则）一律只读。
+    let rule = meta_get_opt(&ro, "rule_revision")?;
+    if matches!(
+        rule.as_deref(),
+        Some(RULE_REVISION) | Some(V3_RULE_REVISION)
+    ) {
         return Ok(None);
     }
     Ok(Some(ro))
@@ -386,35 +435,446 @@ fn verify_writer_epoch(conn: &Connection, configured: &str) -> Result<(), String
 
 /// 核已发布可达根（index_frontier 指向的不可变 batch 必须仍存在）。所有正式写入入口（accept/advance/
 /// recover）在同一序边界核此前件：自身存储坏（悬空根）不得被当作成功或用新 cut 掩盖。
-/// 核单个不可变 batch 的规范内容寻址完整性：batch_id = "batch-" + sha256(canonical_bytes)，
-/// byte_len == canonical_bytes.len()。缺失/坏字节/坏长度均 StorageUnavailable。
-fn verify_stored_batch(conn: &Connection, batch_id: &str) -> Result<(), String> {
-    let row: Option<(Vec<u8>, i64)> = conn
-        .query_row(
-            "SELECT canonical_bytes, byte_len FROM batches WHERE batch_id=?1",
-            params![batch_id],
-            |r| Ok((r.get(0)?, r.get(1)?)),
+/// 历史入参：预算由 `cache::configure` 的**单一预算**唯一决定，容量满只失去复用，不改判据。
+const EVIDENCE_READ_BUDGET: usize = 268_435_456;
+
+/// 整块域的句柄指纹：只由当前读到的行内原字节决定（与图域闭包指纹域分离，两者不得互相命中）。
+fn blob_digest(bytes: &[u8]) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    let mut h = Sha256::new();
+    h.update(b"batch-blob/1");
+    h.update(bytes);
+    h.finalize().into()
+}
+
+/// #1394：批次规范字节的**唯一**读取入口。
+///
+/// 物理域由私有登记表唯一决定（旧整块 / 新节点图），两者都按同一内容寻址判据核验；
+/// 不提供「一种失败再试另一种」的降级通道：图域见到整块字节即拒绝，整块域见不到字节即拒绝。
+fn load_batch_bytes(conn: &Connection, batch_id: &str) -> Result<std::sync::Arc<[u8]>, String> {
+    let mut reader = evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET);
+    load_batch_with(conn, &mut reader, batch_id, false).map(|(bytes, _, _)| bytes)
+}
+
+fn load_batch_bytes_with(
+    conn: &Connection,
+    reader: &mut evidence_store::Reader<'_>,
+    batch_id: &str,
+) -> Result<std::sync::Arc<[u8]>, String> {
+    load_batch_with(conn, reader, batch_id, false).map(|(bytes, _, _)| bytes)
+}
+
+/// 只从已完整严格解析且公开内容身份核验通过的 batch 投影；不补字段、不从控制表反推。
+/// 旧 v1 忽略这四字段；v2 对每个 Some 字符串继续逐字比较，缺失/非字符串均不能通过。
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct BatchControlHeader {
+    protocol_revision: Option<String>,
+    session_generation: Option<String>,
+    clock_plan_hash: Option<String>,
+    semantic_commit_ns: Option<String>,
+}
+impl BatchControlHeader {
+    fn from_verified_batch(batch: &Value) -> Self {
+        Self::from_verified_batch_admitted(batch, None).expect("None admission cannot fail")
+    }
+    fn from_verified_batch_admitted(
+        batch: &Value,
+        work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+    ) -> Result<Self, String> {
+        use v3::audit_store::{CodecRead, NativeAdmission};
+        let string = |key| {
+            batch
+                .get(key)
+                .and_then(Value::as_str)
+                .map(|text| {
+                    NativeAdmission(work)
+                        .native_string(text)
+                        .map_err(|e| e.to_string())
+                })
+                .transpose()
+        };
+        Ok(Self {
+            protocol_revision: string("protocol_revision")?,
+            session_generation: string("session_generation")?,
+            clock_plan_hash: string("clock_plan_hash")?,
+            semantic_commit_ns: string("semantic_commit_ns")?,
+        })
+    }
+    fn source_bytes(&self) -> usize {
+        [
+            &self.protocol_revision,
+            &self.session_generation,
+            &self.clock_plan_hash,
+            &self.semantic_commit_ns,
+        ]
+        .iter()
+        .fold(4usize, |n, value| {
+            n.saturating_add(value.as_ref().map_or(0, String::len))
+        })
+    }
+}
+
+fn batch_content_hash(batch_id: &str) -> Result<&str, String> {
+    match batch_id.strip_prefix("batch-") {
+        Some(h) if h.len() == 64 => Ok(h),
+        _ => Err(format!(
+            "StorageUnavailable：batch_id `{batch_id}` 非规范内容寻址形态"
+        )),
+    }
+}
+
+/// 全文/控制头共用同一条当前批次行与公开身份读取门。
+fn read_batch_row(conn: &Connection, batch_id: &str) -> Result<(Vec<u8>, usize), String> {
+    let (blob, len) = read_batch_row_with_owner(conn, batch_id, None)?;
+    Ok((blob.try_into_plain().map_err(|e| e.to_string())?, len))
+}
+fn read_batch_row_with_owner(
+    conn: &Connection,
+    batch_id: &str,
+    owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+) -> Result<(newchan_rust::s_content::CodecVec<u8>, usize), String> {
+    read_batch_row_admitted(conn, batch_id, owner, None)
+}
+fn read_batch_row_admitted(
+    conn: &Connection,
+    batch_id: &str,
+    owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<(newchan_rust::s_content::CodecVec<u8>, usize), String> {
+    use v3::audit_store::{CodecRead, NativeAdmission};
+    let err = |e| {
+        format!(
+            "读 batch {batch_id} 失败：{}",
+            evidence_store::sql_columns(e, &["canonical_bytes", "byte_len"])
         )
-        .optional()
-        .map_err(|e| format!("读 batch {batch_id} 失败：{e}"))?;
-    let (bytes, byte_len) = row.ok_or_else(|| {
+    };
+    let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
+        conn,
+        c"SELECT canonical_bytes, byte_len FROM batches WHERE batch_id=?1",
+    )
+    .map_err(err)?;
+    stmt.bind_text(1, batch_id).map_err(err)?;
+    let mut row = stmt.next().map_err(err)?.ok_or_else(|| {
         format!("StorageUnavailable：可达 batch `{batch_id}` 不存在（引用不完整，拒绝写入）")
     })?;
-    let expect_hash = match batch_id.strip_prefix("batch-") {
-        Some(h) if h.len() == 64 => h,
-        _ => {
-            return Err(format!(
-                "StorageUnavailable：batch_id `{batch_id}` 非规范内容寻址形态"
-            ))
+    let mut blob = v3::business_json::new_work(owner);
+    let source = row.blob(0).map_err(err)?;
+    NativeAdmission(work)
+        .native_codec_room(&mut blob, source.len())
+        .map_err(|e| e.to_string())?;
+    blob.try_extend_bytes(source).map_err(|e| e.to_string())?;
+    let byte_len = row.integer(1).map_err(err)?;
+    drop(row);
+    stmt.finalize().map_err(err)?;
+    batch_content_hash(batch_id)?;
+    let byte_len = usize::try_from(byte_len)
+        .map_err(|_| format!("StorageUnavailable：batch `{batch_id}` byte_len 非负越界"))?;
+    Ok((blob, byte_len))
+}
+/// 行、公开身份与物理域的共用判定门；Owned不从失败切回普通读取。
+fn read_batch_storage(
+    conn: &Connection,
+    batch_id: &str,
+    owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+) -> Result<(newchan_rust::s_content::CodecVec<u8>, usize, bool), String> {
+    read_batch_storage_admitted(conn, batch_id, owner, None)
+}
+fn read_batch_storage_admitted(
+    conn: &Connection,
+    batch_id: &str,
+    owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<(newchan_rust::s_content::CodecVec<u8>, usize, bool), String> {
+    let (blob, byte_len) = read_batch_row_admitted(conn, batch_id, owner, work)?;
+    let expect_hash = batch_content_hash(batch_id)?;
+    let graph = match owner {
+        Some(_) => evidence_store::read_format_admitted(conn, owner, work)?,
+        None => evidence_store::format_admitted(conn, work)?,
+    }
+    .graph();
+    if !graph {
+        if blob.is_empty()
+            || blob.len() != byte_len
+            || !evidence_store::hash_matches(&blob, expect_hash)
+        {
+            return Err(format!("StorageUnavailable：batch `{batch_id}` 规范字节/长度与内容寻址不符（坏 bytes/byte_len），拒绝写入"));
         }
-    };
-    let actual_hash = sha256_hex(&bytes);
-    if actual_hash != expect_hash || usize::try_from(byte_len).ok() != Some(bytes.len()) {
+    } else if !blob.is_empty() {
         return Err(format!(
-            "StorageUnavailable：batch `{batch_id}` 规范字节/长度与内容寻址不符（坏 bytes/byte_len），拒绝写入"
+            "StorageUnavailable：图域 batch `{batch_id}` 仍带整块字节（与私有根混写），拒绝写入"
+        ));
+    }
+    Ok((blob, byte_len, graph))
+}
+enum ProfileBatchBytes {
+    Plain(std::sync::Arc<[u8]>),
+    Owned(newchan_rust::s_content::CodecVec<u8>),
+}
+impl std::ops::Deref for ProfileBatchBytes {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        match self {
+            Self::Plain(b) => b,
+            Self::Owned(b) => b,
+        }
+    }
+}
+fn load_profile_batch_bytes(
+    conn: &Connection,
+    reader: &mut evidence_store::Reader<'_>,
+    batch_id: &str,
+    owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+) -> Result<ProfileBatchBytes, String> {
+    let Some(owner) = owner else {
+        return load_batch_bytes_with(conn, reader, batch_id).map(ProfileBatchBytes::Plain);
+    };
+    #[cfg(test)]
+    cache::counter(|c| c.batch_full_reads += 1);
+    let (blob, byte_len, graph) = read_batch_storage(conn, batch_id, Some(owner))?;
+    if !graph {
+        return Ok(ProfileBatchBytes::Owned(blob));
+    }
+    let root_key = evidence_store::batch_root_key_with_owner(batch_id, Some(owner))?;
+    let root = reader.read_root_owned(root_key.as_str())?;
+    #[cfg(test)]
+    cache::counter(|c| c.batch_expansions += 1);
+    verify_batch_root_binding(
+        batch_id,
+        byte_len,
+        root.declared_length,
+        root.content_sha256.as_str(),
+    )?;
+    Ok(ProfileBatchBytes::Owned(root.bytes))
+}
+
+fn verify_batch_root_binding(
+    batch_id: &str,
+    byte_len: usize,
+    declared_length: u64,
+    hash: &str,
+) -> Result<(), String> {
+    if declared_length as usize != byte_len {
+        return Err(format!(
+            "StorageUnavailable：图域 batch `{batch_id}` 根展开长度与 byte_len 不符"
+        ));
+    }
+    if hash != batch_content_hash(batch_id)? {
+        return Err(format!(
+            "StorageUnavailable：batch `{batch_id}` 私有根展开内容与公开身份不符，拒绝写入"
         ));
     }
     Ok(())
+}
+
+/// 捕获状态不冒充已验控制头；PendingFull 必须在本次完整根审计中解决。
+#[derive(Clone)]
+enum BatchRef {
+    CertifiedHeader(BatchControlHeader),
+    PendingFull,
+}
+
+fn capture_batch_ref_with(
+    conn: &Connection,
+    reader: &mut evidence_store::Reader<'_>,
+    batch_id: &str,
+) -> Result<(BatchRef, Option<std::sync::Arc<cache::RootCert>>), String> {
+    if evidence_store::format(conn)?.graph() {
+        let (blob, byte_len) = read_batch_row(conn, batch_id)?;
+        if !blob.is_empty() {
+            return Err(format!("StorageUnavailable：图域 batch `{batch_id}` 仍带整块字节（与私有根混写），拒绝写入"));
+        }
+        let key = evidence_store::batch_root_key(batch_id);
+        if let Some(proof) = reader.prove_root(&key)? {
+            verify_batch_root_binding(
+                batch_id,
+                byte_len,
+                proof.declared_length,
+                &proof.content_sha256,
+            )?;
+            if let Some(header) =
+                cache::batch_header_get(&key, batch_id, byte_len, &proof.root_cert, &proof.closure)
+            {
+                return Ok((BatchRef::CertifiedHeader(header), Some(proof.root_cert)));
+            }
+            return Ok((BatchRef::PendingFull, Some(proof.root_cert)));
+        }
+    }
+    // 缺缓存不等于核验成功；只延后全文到逐代控制/结构共用的同一份读取。
+    Ok((BatchRef::PendingFull, None))
+}
+
+/// 批次规范字节的**唯一**读取内核：整块域取行内字节，图域由私有根无损展开（可带解码值）。
+///
+/// 图域的公开身份绑定是**廉价且完整**的：根行 `content_sha256` 在完整展开时与展开字节逐字节
+/// 对拍过，而闭包指纹又把当前 `content_sha256` 钉死，故 `content_sha256 == batch-<hex>` 与
+/// `sha256(展开字节) == batch-<hex>` 等价；命中已核句柄时不必重新哈希全部展开字节。
+fn load_batch_with(
+    conn: &Connection,
+    reader: &mut evidence_store::Reader<'_>,
+    batch_id: &str,
+    with_value: bool,
+) -> Result<
+    (
+        std::sync::Arc<[u8]>,
+        Option<std::sync::Arc<Value>>,
+        Option<std::sync::Arc<cache::RootCert>>,
+    ),
+    String,
+> {
+    let work = reader.work();
+    #[cfg(test)]
+    cache::counter(|c| c.batch_full_reads += 1);
+    let (blob, byte_len, graph) = read_batch_storage_admitted(conn, batch_id, None, work)?;
+    let blob = blob.try_into_plain().map_err(|e| e.to_string())?;
+    if !graph {
+        // 旧整块域：完整规范字节就在这一行。
+        evidence_store::admit_byte_arc(blob.len(), work)?;
+        let bytes: std::sync::Arc<[u8]> = std::sync::Arc::from(blob.as_slice());
+        let digest = blob_digest(&blob);
+        // 整块域也走同一句柄缓存：命中要求当前行内字节与此前核过的完全一致。
+        let key = evidence_store::batch_root_key_admitted(batch_id, None, work)?;
+        let value = if with_value {
+            match cache::handle_get_blob(&key, &blob, &digest).and_then(|(_, v)| v) {
+                Some(value) => Some(value),
+                None => {
+                    let parsed = parse_batch_value_admitted(&bytes, batch_id, work)?;
+                    cache::handle_put_blob_admitted(
+                        &key,
+                        digest,
+                        bytes.clone(),
+                        Some(parsed.clone()),
+                        work,
+                    )?;
+                    Some(parsed)
+                }
+            }
+        } else {
+            cache::handle_put_blob_admitted(&key, digest, bytes.clone(), None, work)?;
+            None
+        };
+        return Ok((bytes, value, None));
+    }
+    // 图域：共用物理域门已拒绝整块混写。
+    let root_key = evidence_store::batch_root_key_admitted(batch_id, None, work)?;
+    let root = reader.read_root(&root_key, with_value)?;
+    #[cfg(test)]
+    cache::counter(|c| {
+        if root.reused {
+            c.batch_handle_hits += 1;
+        } else {
+            c.batch_expansions += 1;
+        }
+    });
+    verify_batch_root_binding(
+        batch_id,
+        byte_len,
+        root.declared_length,
+        &root.content_sha256,
+    )?;
+    if let (Some(value), Some(cert)) = (&root.value, &root.root_cert) {
+        cache::batch_header_put_admitted(
+            &root_key,
+            batch_id,
+            byte_len,
+            cert,
+            root.closure,
+            BatchControlHeader::from_verified_batch_admitted(value, work)?,
+            work,
+        )?;
+    }
+    Ok((root.bytes, root.value, root.root_cert))
+}
+
+fn parse_batch_value(bytes: &[u8], batch_id: &str) -> Result<std::sync::Arc<Value>, String> {
+    parse_batch_value_admitted(bytes, batch_id, None)
+}
+fn parse_batch_value_admitted(
+    bytes: &[u8],
+    batch_id: &str,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<std::sync::Arc<Value>, String> {
+    use v3::audit_store::{CodecRead, NativeAdmission};
+    let parsed = v3::business_json::strict_json_owner_admitted(bytes, None, work)
+        .map(|parsed| match parsed {
+            v3::business_json::JsonOwner::Plain(value) => value,
+            #[cfg(feature = "s_allocation_json_testonly")]
+            v3::business_json::JsonOwner::Owned(_) => {
+                unreachable!("ordinary batch keeps plain JSON")
+            }
+        })
+        .map_err(|e| match e {
+            v3::business_json::StrictOwnerError::Syntax(cause) => {
+                format!("StorageUnavailable：batch {batch_id} 规范字节非严格 JSON：{cause}")
+            }
+            #[cfg(feature = "s_allocation_json_testonly")]
+            v3::business_json::StrictOwnerError::OwnedSyntax(cause) => {
+                format!("StorageUnavailable：batch {batch_id} 规范字节非严格 JSON：{cause}")
+            }
+            v3::business_json::StrictOwnerError::Allocation(cause) => cause.to_string(),
+        })?;
+    if !parsed.is_object() {
+        return Err(format!(
+            "StorageUnavailable：batch {batch_id} 规范字节非 JSON 对象"
+        ));
+    }
+    NativeAdmission(work)
+        .native_admit(std::mem::size_of::<Value>() + 2 * std::mem::size_of::<usize>())
+        .map_err(|e| e.to_string())?;
+    Ok(std::sync::Arc::new(parsed))
+}
+
+/// #1394 第二段：逻辑记录大原件的**唯一**读取入口（Delta 原件与结构事实三列原件共用）。
+///
+/// - 无登记表的旧整块域与 `evidence-graph/2`：原件就是行内列的原文，逐字节不动；
+/// - `evidence-graph/3`：行内列必须是空占位，完整原件由该逻辑记录的私有根无损展开；
+///   不提供「一种失败再试另一种」的降级通道（列非空即拒绝，根缺失即拒绝）。
+fn read_record_original(
+    _conn: &Connection,
+    reader: &mut evidence_store::Reader<'_>,
+    format: evidence_store::Format,
+    root_key: &str,
+    column: &str,
+    label: &str,
+) -> Result<std::sync::Arc<[u8]>, String> {
+    if !format.records_in_graph() {
+        return Ok(std::sync::Arc::from(column.as_bytes()));
+    }
+    if !column.is_empty() {
+        return Err(format!(
+            "StorageUnavailable：图域 {label} 行内仍带整块原文（与私有根混写），拒绝"
+        ));
+    }
+    Ok(reader.read_fixed_cut(root_key)?)
+}
+
+/// 同上的文本形态（Delta 原件与结构事实三列都是 JSON 文本列）。
+fn read_record_original_text(
+    conn: &Connection,
+    reader: &mut evidence_store::Reader<'_>,
+    format: evidence_store::Format,
+    root_key: &str,
+    column: &str,
+    label: &str,
+) -> Result<String, String> {
+    let bytes = read_record_original(conn, reader, format, root_key, column, label)?;
+    String::from_utf8(bytes.to_vec())
+        .map_err(|e| format!("StorageUnavailable：{label} 非 UTF-8：{e}"))
+}
+
+fn load_batch_value_with(
+    conn: &Connection,
+    reader: &mut evidence_store::Reader<'_>,
+    batch_id: &str,
+) -> Result<
+    (
+        std::sync::Arc<Value>,
+        Option<std::sync::Arc<cache::RootCert>>,
+    ),
+    String,
+> {
+    let (_, value, root_cert) = load_batch_with(conn, reader, batch_id, true)?;
+    let value = value.ok_or("StorageUnavailable：batch 解码值缺失（实现缺陷）")?;
+    Ok((value, root_cert))
 }
 
 /// 核已发布可达根与全部历史可达引用（ROOT-B-R2-01）：
@@ -590,31 +1050,73 @@ fn legacy_payload_projection(value: &Value) -> Value {
     }
 }
 
-fn same_records(actual: &Value, expected: &Value, field: &str) -> Result<(), String> {
-    let normalize = |v: &Value| -> Result<Vec<String>, String> {
-        let mut records = v
-            .as_array()
-            .ok_or("StorageUnavailable：集合非数组")?
-            .iter()
-            .map(|r| {
-                if !r.is_object() {
-                    return Err("StorageUnavailable：集合成员非对象".to_string());
-                }
-                Ok(canonical_json(&legacy_payload_projection(r)))
-            })
-            .collect::<Result<Vec<_>, String>>()?;
-        records.sort();
-        if records.windows(2).any(|w| w[0] == w[1]) {
-            return Err(format!("StorageUnavailable：{field} 重复成员"));
-        }
-        Ok(records)
-    };
-    if normalize(actual)? != normalize(expected)? {
+/// 借用记录，只省去调用方的临时 Value 数组；投影、完整规范字符串、排序与查重逐项保留。
+fn normalize_record_iter<'a>(
+    records: impl IntoIterator<Item = &'a Value>,
+    field: &str,
+) -> Result<Vec<String>, String> {
+    let mut records = records
+        .into_iter()
+        .map(|r| {
+            if !r.is_object() {
+                return Err("StorageUnavailable：集合成员非对象".to_string());
+            }
+            Ok(canonical_json(&legacy_payload_projection(r)))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    records.sort();
+    if records.windows(2).any(|w| w[0] == w[1]) {
+        return Err(format!("StorageUnavailable：{field} 重复成员"));
+    }
+    Ok(records)
+}
+
+fn normalize_record_array(records: &Value, field: &str) -> Result<Vec<String>, String> {
+    normalize_record_iter(
+        records.as_array().ok_or("StorageUnavailable：集合非数组")?,
+        field,
+    )
+}
+
+/// 两侧必须已完整规范化并查重；比较全部字符串，不使用 Value 相等或摘要替代。
+fn compare_normalized_records(
+    actual: &[String],
+    expected: &[String],
+    field: &str,
+) -> Result<(), String> {
+    if actual != expected {
         return Err(format!(
             "StorageUnavailable：{field} 与封存批次/同 cut 持久快照不一致"
         ));
     }
     Ok(())
+}
+
+fn same_record_iters<'a, 'b>(
+    actual: impl IntoIterator<Item = &'a Value>,
+    expected: impl IntoIterator<Item = &'b Value>,
+    field: &str,
+) -> Result<(), String> {
+    let actual = normalize_record_iter(actual, field)?;
+    let expected = normalize_record_iter(expected, field)?;
+    compare_normalized_records(&actual, &expected, field)
+}
+
+fn same_records_against_iter<'a>(
+    actual: &Value,
+    expected: impl IntoIterator<Item = &'a Value>,
+    field: &str,
+) -> Result<(), String> {
+    let actual = normalize_record_array(actual, field)?;
+    let expected = normalize_record_iter(expected, field)?;
+    compare_normalized_records(&actual, &expected, field)
+}
+
+fn same_records(actual: &Value, expected: &Value, field: &str) -> Result<(), String> {
+    // 必须先完成 actual 的全部规范化/查重，再检查 expected 的数组形状和内容。
+    let actual = normalize_record_array(actual, field)?;
+    let expected = normalize_record_array(expected, field)?;
+    compare_normalized_records(&actual, &expected, field)
 }
 
 // #1371 R9：七集合均为必需。以不可变 batch 的本次结果和独立历史索引对拍；
@@ -725,15 +1227,44 @@ fn observation_id(ob: &Value) -> String {
 
 // #1371 R10：输入profile是固定身份。未发布的已接纳输入也必须有独立内容绑定。
 fn verify_profile_binding(conn: &Connection) -> Result<(String, String), String> {
-    let id = meta_get_opt(conn, "profile_id")?;
-    let hash = meta_get_opt(conn, "profile_hash")?;
-    let input = meta_get_opt(conn, "input_profile")?;
-    let definition = meta_get_opt(conn, "profile_definition")?;
+    let (id, hash) = verify_profile_binding_with_owner(conn, None)?;
+    match (id, hash) {
+        (v3::business_json::TextValue::Plain(id), v3::business_json::TextValue::Plain(hash)) => {
+            Ok((id, hash))
+        }
+        _ => Err("prototype_audit_allocation_incomplete：normal profile不可擦除Owned".into()),
+    }
+}
+fn verify_profile_binding_with_owner(
+    conn: &Connection,
+    owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+) -> Result<(v3::business_json::TextValue, v3::business_json::TextValue), String> {
+    verify_profile_binding_admitted(conn, owner, None)
+}
+fn verify_profile_binding_admitted(
+    conn: &Connection,
+    owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<(v3::business_json::TextValue, v3::business_json::TextValue), String> {
+    use v3::audit_store::{CodecRead, NativeAdmission};
+    use v3::business_json::TextValue;
+    let admission = NativeAdmission(work);
+    if work.is_some() && owner.is_some() {
+        return Err("Native profile父域不得混入Owned存储".into());
+    }
+
+    let id = v2::control_meta_text_admitted(conn, "profile_id", owner, work)?;
+    let hash = v2::control_meta_text_admitted(conn, "profile_hash", owner, work)?;
+    let input = v2::control_meta_text_admitted(conn, "input_profile", owner, work)?;
+    let definition = v2::control_meta_text_admitted(conn, "profile_definition", owner, work)?;
     let raw_count: i64 = conn
         .query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0))
         .map_err(|e| e.to_string())?;
     if id.is_none() && hash.is_none() && input.is_none() && definition.is_none() && raw_count == 0 {
-        return Ok((String::new(), String::new()));
+        return Ok((
+            TextValue::from_str_admitted("", owner, work)?,
+            TextValue::from_str_admitted("", owner, work)?,
+        ));
     }
     let id = id
         .filter(|v| !v.is_empty())
@@ -749,33 +1280,69 @@ fn verify_profile_binding(conn: &Connection) -> Result<(String, String), String>
         return Err("StorageUnavailable：input_profile与固定profile_id不一致".to_string());
     }
     if let Some(definition) = definition {
-        let profile = json_shape(&definition, JsonShape::Object)?;
-        if profile["profile_id"].as_str() != Some(id.as_str())
-            || sha256_hex(&canonical_bytes_of_value(&profile)) != hash
+        let profile =
+            json_shape_with_owner_admitted(definition.as_str(), JsonShape::Object, owner, work)?;
+        let view = profile.view();
+        if view.get("profile_id").and_then(|v| v.as_str()) != Some(id.as_str())
+            || newchan_rust::session_protocol::canonical_hash_view_with_owner(view, owner)?.as_str()
+                != hash.as_str()
         {
             return Err("StorageUnavailable：profile定义与固定id/hash不一致".to_string());
         }
     } else {
         // 旧版本没有profile_definition：只接受独立已封存来源；没有批次的旧TestOnly接纳
         // 以同一声明档案核规范hash。这是旧格式取证，不在失败后换宽松判据。
-        let sealed: Option<(String,Vec<u8>)> = conn.query_row(
-            "SELECT b.batch_id,b.canonical_bytes FROM batches b JOIN structure_deltas d ON d.index_frontier=b.batch_id WHERE json_extract(b.canonical_bytes,'$.profile_id')<>'' ORDER BY d.generation LIMIT 1",
-            [],|r|Ok((r.get(0)?,r.get(1)?))).optional().map_err(|e|e.to_string())?;
-        if let Some((batch_id, bytes)) = sealed {
-            verify_stored_batch(conn, &batch_id)?;
-            let batch: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
-            if batch["profile_id"].as_str() != Some(id.as_str())
-                || batch["profile_hash"].as_str() != Some(hash.as_str())
+        // #1394：物理域可能是旧整块也可能是新节点图，故按已发布代序逐代展开选取首个带
+        // profile 的可达批次；不再用 SQL 直接读整块列（图域该列为长度占位）。
+        let mut stmt=newchan_rust::sqlite_checked::CheckedStatement::prepare(conn,c"SELECT b.batch_id FROM batches b JOIN structure_deltas d ON d.index_frontier=b.batch_id ORDER BY d.generation ASC").map_err(|e|e.to_string())?;
+        let mut sealed_ids = v3::business_json::new_work(owner);
+        while let Some(mut row) = stmt.next().map_err(|e| e.to_string())? {
+            admission
+                .native_codec_room(&mut sealed_ids, 1)
+                .map_err(|e| e.to_string())?;
+            sealed_ids
+                .try_push(TextValue::from_sql_admitted(&mut row, 0, owner, work)?)
+                .map_err(|e| e.to_string())?;
+        }
+        stmt.finalize().map_err(|e| e.to_string())?;
+        let mut sealed_found = false;
+        let mut reader = match owner {
+            Some(b) => evidence_store::Reader::with_owner(conn, b),
+            None => evidence_store::Reader::new_admitted(conn, EVIDENCE_READ_BUDGET, work)?,
+        };
+        for batch_id in &sealed_ids {
+            let bytes = load_profile_batch_bytes(conn, &mut reader, batch_id, owner)?;
+            // #1394：同一 Reader 显式携带 Native 工作域；旧 blob / 图源核仍走各自原判据。
+            let batch = v3::business_json::legacy_json_owner_admitted(&bytes, owner, work)?;
+            let batch = batch.view();
+            if batch
+                .get("profile_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .is_empty()
+            {
+                continue;
+            }
+            if batch.get("profile_id").and_then(|v| v.as_str()) != Some(id.as_str())
+                || batch.get("profile_hash").and_then(|v| v.as_str()) != Some(hash.as_str())
             {
                 return Err("StorageUnavailable：旧profile绑定与可达封存批次不一致".to_string());
             }
-        } else {
-            let declared: Value = serde_json::from_str(include_str!(
-                "../../../s_session/profiles/testonly_tick_1_1_ohlc.json"
-            ))
-            .map_err(|e| e.to_string())?;
-            if declared["profile_id"].as_str() != Some(id.as_str())
-                || sha256_hex(&canonical_bytes_of_value(&declared)) != hash
+            sealed_found = true;
+            break;
+        }
+        if !sealed_found {
+            let declared = json_shape_with_owner_admitted(
+                include_str!("../../../s_session/profiles/testonly_tick_1_1_ohlc.json"),
+                JsonShape::Object,
+                owner,
+                work,
+            )?;
+            let declared = declared.view();
+            if declared.get("profile_id").and_then(|v| v.as_str()) != Some(id.as_str())
+                || newchan_rust::session_protocol::canonical_hash_view_with_owner(declared, owner)?
+                    .as_str()
+                    != hash.as_str()
             {
                 return Err("StorageUnavailable：旧未发布profile缺可核独立来源".to_string());
             }
@@ -805,7 +1372,8 @@ fn profile_at_cut(conn: &Connection, generation: i64) -> Result<(String, String)
     if generation == 0 {
         return Ok((String::new(), String::new()));
     }
-    let bytes: Vec<u8>=conn.query_row("SELECT b.canonical_bytes FROM batches b JOIN structure_deltas d ON d.index_frontier=b.batch_id WHERE d.generation=?1",params![generation],|r|r.get(0)).map_err(|e|format!("StorageUnavailable：cut来源不存在：{e}"))?;
+    let batch_id:String=conn.query_row("SELECT b.batch_id FROM batches b JOIN structure_deltas d ON d.index_frontier=b.batch_id WHERE d.generation=?1",params![generation],|r|r.get(0)).map_err(|e|format!("StorageUnavailable：cut来源不存在：{e}"))?;
+    let bytes = load_batch_bytes(conn, &batch_id)?;
     let batch: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
     Ok((
         batch["profile_id"]
@@ -819,47 +1387,148 @@ fn profile_at_cut(conn: &Connection, generation: i64) -> Result<(String, String)
     ))
 }
 
-// 每次读取同一事务的全部可达原字节；只复用逐字节相同原件的严格解码。
-fn capture_reachable_batches(
-    conn: &Connection,
-) -> Result<BTreeMap<String, std::sync::Arc<Value>>, String> {
-    let mut q=conn.prepare("SELECT d.index_frontier,b.canonical_bytes,b.byte_len FROM structure_deltas d LEFT JOIN batches b ON b.batch_id=d.index_frontier").map_err(|e|e.to_string())?;
-    let mut rows = q.query([]).map_err(|e| e.to_string())?;
-    let mut batches = BTreeMap::new();
-    let mut captured = BTreeMap::new();
-    while let Some(r) = rows.next().map_err(|e| e.to_string())? {
-        let id: String = r.get(0).map_err(|e| e.to_string())?;
-        let bytes = r
-            .get_ref(1)
+/// 一次新鲜捕获：小批次控制头/引用 + 每个私有根的完整原件证明；不持全部历史解码值。
+///
+/// 捕获作用域（`_capture`）**活到调用方释放为止**：同一次根审计里批次、Delta 原件与结构事实
+/// 共用同一份节点读集，任一唯一节点原行只读一次。
+struct Reachable {
+    batches: BTreeMap<String, BatchRef>,
+    /// 私有根 key → 本次新鲜行算出的闭包指纹（节点/根/槽任一变化都改它）。
+    roots: BTreeMap<String, [u8; 32]>,
+    /// 私有根 key → 该根**当前保留的原件证书**（本次新鲜行已逐字节比较过）。
+    /// 覆盖 batch、Delta、fact；无法保留时显式记 `None`，不得漏键放行旧前缀。
+    originals: cache::Originals,
+    _capture: cache::CaptureGuard,
+}
+
+/// 本次捕获读到的全部根与独立索引（供根审计与失败前拒绝共用）。
+fn capture_reachable_batches(conn: &Connection) -> Result<Reachable, String> {
+    // #1394 第二段（2D）：每次仍在当前一致性读集中取得**全部可达根**（批次、Delta 原件、结构
+    // 事实三列原件）、全部独立索引行与每个**唯一节点的当前原行**；同一捕获内共享依赖只读一次。
+    // 历史重复内容以「闭包指纹 + 已核句柄」复用（指纹由本次新鲜行算出），故不再逐代全量展开、
+    // 不再逐代重新解析。容量超限只失去复用，判据不变。
+    let ids = {
+        let mut q = conn
+            .prepare("SELECT d.index_frontier FROM structure_deltas d")
+            .map_err(|e| e.to_string())?;
+        let rows = q
+            .query_map([], |r| r.get::<_, String>(0))
             .map_err(|e| e.to_string())?
-            .as_blob()
-            .map_err(|e| format!("StorageUnavailable：可达批次缺失/非BLOB：{e}"))?;
-        let len: i64 = r.get(2).map_err(|e| e.to_string())?;
-        if usize::try_from(len).ok() != Some(bytes.len()) {
-            return Err("StorageUnavailable：可达 batch 长度不符".into());
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        rows
+    };
+    let format = evidence_store::format(conn)?;
+    let mut reader = evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET);
+    let mut batches = BTreeMap::new();
+    let mut originals = cache::Originals::new();
+    for id in ids {
+        let (reference, root_cert) = capture_batch_ref_with(conn, &mut reader, &id)?;
+        if format.graph() {
+            originals.insert(evidence_store::batch_root_key(&id), root_cert);
         }
-        let (original, value) = match cache::decoded(&id, bytes) {
-            Some(value) => value,
-            None => {
-                if id != format!("batch-{}", sha256_hex(&bytes)) {
-                    return Err("StorageUnavailable：可达 batch 内容寻址不符".into());
-                }
-                let value = v2::strict_json(&bytes)
-                    .map_err(|e| format!("StorageUnavailable：batch JSON：{e}"))?;
-                if !value.is_object() {
-                    return Err("StorageUnavailable：batch 非对象".into());
-                }
-                (
-                    std::sync::Arc::<[u8]>::from(bytes),
-                    std::sync::Arc::new(value),
-                )
-            }
-        };
-        captured.insert(id.clone(), (original, value.clone()));
-        batches.insert(id, value);
+        batches.insert(id, reference);
     }
-    cache::store_batches(captured);
-    Ok(batches)
+    let mut roots: BTreeMap<String, [u8; 32]> = BTreeMap::new();
+    // 不可达残留不得发布：每个私有根都必须有**唯一对应逻辑记录**（批次行 / Delta 行 / 结构事实行）、
+    // 闭包完整（缺节点/坏字节/坏长度、未 Commit 的 after_batch 批次都在此核验），且库内每个节点
+    // 都落在某个根的闭包内。命名空间与物理域必须一致：graph/2 只声明 batch 域。
+    if format.graph() {
+        for key in evidence_store::root_keys(conn)? {
+            let (kind, record) = evidence_store::root_kind(&key)?;
+            match kind {
+                evidence_store::RootKind::Batch => {
+                    let present: i64 = conn
+                        .query_row(
+                            "SELECT COUNT(*) FROM batches WHERE batch_id=?1",
+                            params![record],
+                            |r| r.get(0),
+                        )
+                        .map_err(|e| format!("StorageUnavailable：核私有根批次行失败：{e}"))?;
+                    if present != 1 {
+                        return Err(format!(
+                            "StorageUnavailable：私有根 `{key}` 没有对应批次行（不可达残留），拒绝写入"
+                        ));
+                    }
+                    if !batches.contains_key(record) {
+                        // 尚未 Commit 的根也须核公开 batch_id/长度，不能只核私有根的自述摘要。
+                        let (_, _, root_cert) = load_batch_with(conn, &mut reader, record, false)?;
+                        originals.insert(key.clone(), root_cert);
+                    }
+                }
+                evidence_store::RootKind::Delta => {
+                    if !format.records_in_graph() {
+                        return Err(format!(
+                            "StorageUnavailable：格式 `{}` 未声明 Delta 根 `{key}`（不得混代）",
+                            format.tag()
+                        ));
+                    }
+                    let generation = record.parse::<i64>().map_err(|_| {
+                        format!("StorageUnavailable：Delta 根 `{key}` 代数非规范十进制")
+                    })?;
+                    let present: i64 = conn
+                        .query_row(
+                            "SELECT COUNT(*) FROM structure_deltas WHERE generation=?1",
+                            params![generation],
+                            |r| r.get(0),
+                        )
+                        .map_err(|e| format!("StorageUnavailable：核 Delta 根行失败：{e}"))?;
+                    if present != 1 {
+                        return Err(format!(
+                            "StorageUnavailable：私有根 `{key}` 没有对应 Delta 行（不可达残留），拒绝写入"
+                        ));
+                    }
+                    let verified = reader.read_root(&key, false)?;
+                    roots.insert(key.clone(), verified.closure);
+                    originals.insert(key.clone(), verified.root_cert);
+                }
+                evidence_store::RootKind::Fact => {
+                    if !format.records_in_graph() {
+                        return Err(format!(
+                            "StorageUnavailable：格式 `{}` 未声明结构事实根 `{key}`（不得混代）",
+                            format.tag()
+                        ));
+                    }
+                    let present: i64 = conn
+                        .query_row(
+                            "SELECT COUNT(*) FROM structure_facts WHERE object_id=?1",
+                            params![record],
+                            |r| r.get(0),
+                        )
+                        .map_err(|e| format!("StorageUnavailable：核结构事实根行失败：{e}"))?;
+                    if present != 1 {
+                        return Err(format!(
+                            "StorageUnavailable：私有根 `{key}` 没有对应结构事实行（不可达残留），拒绝写入"
+                        ));
+                    }
+                    let verified = reader.read_root(&key, false)?;
+                    roots.insert(key.clone(), verified.closure);
+                    originals.insert(key.clone(), verified.root_cert);
+                }
+            }
+        }
+        // 不可达残留：表内行数必须等于**本次捕获**（覆盖全部根闭包，跨读取器合并）读到的可达节点数。
+        evidence_store::ensure_all_nodes_reachable(
+            conn,
+            cache::capture_reachable_len(reader.conn_id()),
+        )?;
+    } else if evidence_store::graph_tables_present(conn)? {
+        // 整块域不得出现任何私有根/节点（半降级一律拒绝，不提供降级通道）。
+        let roots = evidence_store::root_keys(conn)?;
+        let (nodes, _) = evidence_store::stats(conn)?;
+        if !roots.is_empty() || nodes != 0 {
+            return Err(format!(
+                "StorageUnavailable：整块域出现私有根/节点 {} 根 / {nodes} 节点，拒绝写入",
+                roots.len()
+            ));
+        }
+    }
+    Ok(Reachable {
+        batches,
+        roots,
+        originals,
+        _capture: reader.into_capture(),
+    })
 }
 
 fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
@@ -867,9 +1536,32 @@ fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
 }
 
 fn verified_root_raw_events(conn: &Connection) -> Result<Vec<Value>, String> {
-    let batches = capture_reachable_batches(conn)?;
-    v2::verify_control(conn, &batches)?;
-    verify_reachable_root_in_tx(conn, &batches).map_err(|e| format!("StorageUnavailable：{e}"))
+    #[cfg(test)]
+    let started = std::time::Instant::now();
+    let out = verified_root_raw_events_inner(conn);
+    #[cfg(test)]
+    cache::counter(|c| c.audit_ns += started.elapsed().as_nanos() as u64);
+    out
+}
+
+fn verified_root_raw_events_inner(conn: &Connection) -> Result<Vec<Value>, String> {
+    // #1394 第二段（2D）：整次根审计共享**一个**捕获作用域——根清单、Delta 原件与结构事实
+    // 共用同一份节点读集，同一唯一节点原行只读一次（写入路径会显式作废该读集）。
+    let _capture = cache::begin_capture(EVIDENCE_READ_BUDGET);
+    if conn.is_autocommit() {
+        // 所有节点、根和独立索引必须来自同一个读集，包括直接调用本入口的读者。
+        let tx = conn
+            .unchecked_transaction()
+            .map_err(|e| format!("开根审计读事务失败：{e}"))?;
+        let raw = verified_root_raw_events_inner(&tx)?;
+        tx.commit()
+            .map_err(|e| format!("结束根审计读事务失败：{e}"))?;
+        return Ok(raw);
+    }
+    let reachable = capture_reachable_batches(conn)?;
+    let control = v2::prepare_control(conn)?;
+    verify_reachable_root_in_tx(conn, &reachable, control)
+        .map_err(|e| format!("StorageUnavailable：{e}"))
 }
 
 fn verify_published_index_generations(conn: &Connection, generation: i64) -> Result<(), String> {
@@ -894,8 +1586,14 @@ fn verify_published_index_generations(conn: &Connection, generation: i64) -> Res
 
 fn verify_reachable_root_in_tx(
     conn: &Connection,
-    batches: &BTreeMap<String, std::sync::Arc<Value>>,
+    reachable: &Reachable,
+    mut control: v2::ExpectedControl,
 ) -> Result<Vec<Value>, String> {
+    let batches = &reachable.batches;
+    // #1394：库的 Delta 域（旧 full / changes-only）由私有登记表唯一决定；模式损坏在读取与
+    // 任何写入之前拒绝，不提供「旧全量核验失败再试稀疏」的降级通道。
+    let mode = delta_storage::read_mode(conn)?;
+    let format = evidence_store::format(conn)?;
     let generation = verify_required_meta(conn)?;
     verify_published_index_generations(conn, generation)?;
     // #1371 AC7：已接纳但未发布的原始事实也是持久前件；所有结构读写共用坐标完整性门。
@@ -932,6 +1630,29 @@ fn verify_reachable_root_in_tx(
         .map_err(|e| format!("query 可达根失败：{e}"))?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("collect 可达根失败：{e}"))?;
+    // 末列：该代 Delta 原件的**当前内容指纹**。整块域就是行内原文；图域是由本次新鲜读入的
+    // 节点/根算出的闭包指纹——节点/长度/根/槽任一变化都改它，从而作废已核前缀并严格重核。
+    let rows: Vec<cache::DeltaRow> = rows
+        .into_iter()
+        .map(|row| {
+            let digest = if format.records_in_graph() {
+                let key = evidence_store::delta_root_key(row.0);
+                match reachable.roots.get(&key) {
+                    Some(d) => evidence_store::hex_bytes(d),
+                    None => "missing".to_string(),
+                }
+            } else {
+                row.10.clone()
+            };
+            // 行内列**原样**参与前缀比较：图域它必须是空占位，非空（被塞回整块原文）即改前缀、
+            // 即作废复用并进入严格重核。
+            let delta_json = row.10;
+            (
+                row.0, row.1, row.2, row.3, row.4, row.5, row.6, row.7, row.8, row.9, delta_json,
+                digest,
+            )
+        })
+        .collect();
 
     if generation == 0 {
         if !rows.is_empty() {
@@ -939,6 +1660,7 @@ fn verify_reachable_root_in_tx(
                 "StorageUnavailable：初态 generation=0 却存在持久 Delta（不一致）".to_string(),
             );
         }
+        control.finish()?;
         return Ok(raw_events);
     }
 
@@ -949,14 +1671,29 @@ fn verify_reachable_root_in_tx(
         ));
     }
 
-    let mut audit = audit::AuditWalk::capture(conn)?;
+    // 审计的原始历史与同 cut 快照逐字段同形：只取**已发布前沿**的前缀并做同一 wire 投影。
+    let published_frontier: i64 = meta_get_opt(conn, "last_advance_frontier")?
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(-1);
+    let audit_raw: Vec<Value> = raw_events
+        .iter()
+        .filter(|e| e["seq"].as_i64().is_some_and(|n| n <= published_frontier))
+        .map(project_raw_event_wire)
+        .collect::<Result<_, _>>()?;
+    let mut audit = audit::AuditWalk::capture(conn, &audit_raw)?;
     let identity = (
         meta_session.clone(),
         meta_cat.clone(),
         profile_binding.clone(),
+        mode.tag().to_string(),
+        format.tag().to_string(),
     );
-    let resume = cache::resume(&rows, &identity, &mut audit);
+    // 同一次捕获的全部私有根原件共同绑定前缀；行内原件仍由 rows/AuditWalk 逐字节核对。
+    let mut originals = reachable.originals.clone();
+    let resume = cache::resume(&rows, &identity, &mut audit, &originals);
     let mut prev_frontier: i64 = if resume == 0 { -1 } else { rows[resume - 1].7 };
+    // 后缀核验共用一个读取器：与批次/事实共用本次捕获的节点读集与已核句柄。
+    let mut reader = evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET);
     for (
         i,
         (
@@ -971,9 +1708,45 @@ fn verify_reachable_root_in_tx(
             run_status,
             evidence_json,
             delta_json,
+            _delta_root_digest,
         ),
-    ) in rows.iter().enumerate().skip(resume)
+    ) in rows.iter().enumerate()
     {
+        let reference = batches.get(idx).ok_or("StorageUnavailable：缺可达批次")?;
+        if i < resume {
+            if let BatchRef::CertifiedHeader(header) = reference {
+                control.verify_header(*g, idx, header)?;
+                continue;
+            }
+        }
+        // 每代至多一份完整 Value：先核控制头，再将同一 Value 交给原结构判据。
+        // 前缀 PendingFull 也不能省略控制核验；原定 resume 在本轮内不得重新提升。
+        #[cfg(test)]
+        cache::counter(|c| {
+            if matches!(reference, BatchRef::PendingFull) {
+                c.batch_header_full_fallbacks += 1;
+            }
+            if i >= resume {
+                c.batch_suffix_full_reads += 1;
+            }
+        });
+        let (batch, root_cert) = load_batch_value_with(conn, &mut reader, idx)?;
+        if format.graph() {
+            originals.insert(evidence_store::batch_root_key(idx), root_cert);
+        }
+        control.verify_header(*g, idx, &BatchControlHeader::from_verified_batch(&batch))?;
+        if i < resume {
+            continue;
+        }
+        // Delta 原件：图域由 `delta/<generation>` 私有根无损展开（列必须是空占位），整块域取列。
+        let delta_json = read_record_original_text(
+            conn,
+            &mut reader,
+            format,
+            &evidence_store::delta_root_key(*g),
+            delta_json,
+            &format!("delta[{g}]"),
+        )?;
         let expect = (i + 1) as i64;
         if *g != expect {
             return Err(format!(
@@ -1013,8 +1786,7 @@ fn verify_reachable_root_in_tx(
                 "StorageUnavailable：delta[{g}].index_frontier 为空（已发布 cut 缺批次引用）"
             ));
         }
-        let batch = batches.get(idx).ok_or("StorageUnavailable：缺可达批次")?;
-        verify_batch_coordinates(batch, idx, *g, next, *frontier, cat)?;
+        verify_batch_coordinates(&batch, idx, *g, next, *frontier, cat)?;
         // seq_range 连续：from = 上一已发布 frontier + 1，to = 本代 frontier。
         let sr: Value = json_shape(seq_range_json, JsonShape::Object)?;
         let sr_from = sr["from"]
@@ -1034,7 +1806,7 @@ fn verify_reachable_root_in_tx(
         }
         prev_frontier = *frontier;
         // 内层 payload 头与外层列同一身份（11 列逐一对应）。
-        let dj: Value = json_shape(delta_json, JsonShape::Object)?;
+        let dj: Value = json_shape(&delta_json, JsonShape::Object)?;
         if dj["session_id"].as_str() != Some(sid.as_str())
             || dj["generation"].as_str() != Some(g.to_string().as_str())
             || dj["catalog_revision"].as_str() != Some(cat.as_str())
@@ -1060,9 +1832,10 @@ fn verify_reachable_root_in_tx(
                 "StorageUnavailable：delta[{g}] 内层 catalog_evidence 与外层 catalog_evidence_json 不一致"
             ));
         }
-        verify_batch_profile(batch, &profile_binding)?;
-        audit.verify(&dj, *g, batch)?;
+        verify_batch_profile(&batch, &profile_binding)?;
+        audit.verify(&dj, *g, &batch, mode)?;
     }
+    control.finish()?;
     audit.finish()?;
     // meta 与最末已发布 Delta 的根元组对应关系。
     let last = rows.last().unwrap();
@@ -1105,7 +1878,7 @@ fn verify_reachable_root_in_tx(
             last.4
         ));
     }
-    cache::store_root(rows, identity, audit);
+    cache::store_root(rows, identity, audit, &originals);
     Ok(raw_events)
 }
 
@@ -1118,6 +1891,12 @@ fn ensure_initialized(conn: &Connection) -> Result<(), String> {
                 .to_string(),
         )
     }
+}
+
+/// #1394 第二段：写入域门。只有旧整块域与 `evidence-graph/3` 可写；`evidence-graph/2` 只读兼容——
+/// 本 writer 不在同一个格式名下换存储含义，也不原地迁移。
+fn ensure_writable(conn: &Connection) -> Result<(), String> {
+    evidence_store::format(conn)?.writable()
 }
 
 fn load_profile(path: &Path) -> Result<(Value, String, String), String> {
@@ -1218,6 +1997,16 @@ fn cmd_init(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String>
     Ok(())
 }
 
+/// 旧 reset（先删后建 v1）语义不变；#1394 独评 F1 只加一道门：已有 `s-session/3` 域在任何删除
+/// 之前 fail closed（旧 reset 只懂 v1/v2 合同，本切片不提供新迁移/重置功能）。
+fn cmd_reset(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String> {
+    // 与新域 init / 正式 writer 同一把锁覆盖「判域 → 删除 → 重建」，避免检查后换域。
+    let _writer = newchan_rust::session_transport::process_lock(db, "S")?;
+    v3::refuse_reset_of_new_domain(db)?;
+    remove_db_files(db);
+    cmd_init(db, session, catalog_path)
+}
+
 fn init_core(db: &Path, session: &str, catalog_path: &Path) -> Result<Value, String> {
     // H4：init 只允许不存在的目标——拒绝覆盖既有库（既有持久事实可恢复）。
     if db.exists() {
@@ -1229,6 +2018,10 @@ fn init_core(db: &Path, session: &str, catalog_path: &Path) -> Result<Value, Str
     let conn = open_db(db)?;
     conn.execute_batch(SCHEMA)
         .map_err(|e| format!("建 schema 失败：{e}"))?;
+    // #1394：新库固定私有 changes-only/1 登记（显式单行）。旧库无此表，继续旧 full 域，不迁移。
+    delta_storage::declare_new(&conn)?;
+    // #1394 第二段：新库固定私有 evidence-graph/2 登记（显式单行）。旧库无此表，继续旧整块域，不迁移。
+    evidence_store::declare_new(&conn)?;
     let sqlite_version: String = conn
         .query_row("SELECT sqlite_version()", [], |r| r.get(0))
         .map_err(|e| format!("读 sqlite_version 失败：{e}"))?;
@@ -1360,17 +2153,11 @@ fn accept_core(
     configured_epoch: &str,
     context: Option<&v2::InputContext>,
 ) -> Result<Value, String> {
+    // #1394 第二段（2D）：一次 accept 共享一个捕获作用域（写入前会显式作废）。
+    let _capture = cache::begin_capture(EVIDENCE_READ_BUDGET);
     let input = tb02a::parse_input(&v2::strict_json(text.as_bytes())?)?;
     let (profile, profile_id, profile_hash) = load_profile(profile_path)?;
-    if (input.schema_revision == tb02a::RAW_SCHEMA) != (profile_id == tb02a::PROFILE) {
-        return Err("SchemaUnsupported：绑定profile/schema不一致".into());
-    }
-    if input.profile != profile_id {
-        return Err(format!(
-            "InvalidDomain：输入 profile=`{}` 与 --profile 的 profile_id=`{profile_id}` 不一致",
-            input.profile
-        ));
-    }
+    raw_input::validate_profile_binding(&input, &profile_id)?;
     let volume_unit = profile
         .get("volume_unit")
         .and_then(Value::as_str)
@@ -1378,6 +2165,7 @@ fn accept_core(
 
     let mut conn = open_db(db)?;
     ensure_initialized(&conn)?;
+    ensure_writable(&conn)?;
     if meta_get_opt(&conn, "rule_revision")?.as_deref() != Some(RULE_REVISION) {
         return Err("VersionMismatch：历史规则会话仅可读，禁止接纳新规则输入".into());
     }
@@ -1393,7 +2181,7 @@ fn accept_core(
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|e| format!("开 accept 事务失败：{e}"))?;
-    let mut results = Vec::new();
+    let results;
     {
         verify_writer_epoch(&tx, configured_epoch)?;
         verify_reachable_root(&tx)?;
@@ -1419,178 +2207,7 @@ fn accept_core(
             }
         }
 
-        let mut qrev = tx
-            .prepare("SELECT receipt_id, payload_hash, source_coord, seq FROM raw_events WHERE identity_key=?1 AND revision=?2")
-            .map_err(|e| format!("prepare 查询失败：{e}"))?;
-        let mut qmax = tx
-            .prepare("SELECT COALESCE(MAX(revision), 0) FROM raw_events WHERE identity_key=?1")
-            .map_err(|e| format!("prepare 查询失败：{e}"))?;
-        let mut insert = tx
-            .prepare(
-                "INSERT INTO raw_events(identity_key, revision, input_revision, payload_hash, receipt_id, seq,
-                   source_namespace, source_epoch, instrument, event_id, received_at,
-                   raw_text, price, ts, volume, source_coord, supersedes_revision)
-                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
-            )
-            .map_err(|e| format!("prepare insert 失败：{e}"))?;
-
-        let mut next_seq: i64 = tx
-            .query_row("SELECT COALESCE(MAX(seq), -1) FROM raw_events", [], |r| {
-                r.get(0)
-            })
-            .map_err(|e| format!("读 max seq 失败：{e}"))?;
-
-        for e in &input.events {
-            parse_source_coord(&e.seq).map_err(|e| format!("InvalidDomain：{e}"))?;
-            parse_canonical_i64(&e.price, "price")?;
-            parse_canonical_i64(&e.timestamp, "timestamp")?;
-            parse_canonical_i64(&e.volume, "volume")?;
-            let rev = parse_canonical_i64(&e.revision, "revision")?;
-            if let Some(vu) = &volume_unit {
-                if e.volume != *vu {
-                    return Err(format!(
-                        "InvalidDomain：profile volume_unit=`{vu}`，事件 `{}` volume=`{}` 不在单位成交量域（本片不擅自改成交量类型）",
-                        e.event_id, e.volume
-                    ));
-                }
-            }
-            let ikey = identity_key(
-                &input.source_namespace,
-                &input.source_epoch,
-                &input.instrument,
-                &e.event_id,
-            );
-            // 同一计算序的坐标只能归一个业务身份；该身份的历史 revision 可共享坐标。
-            let occupied: bool = tx
-                .query_row(
-                    "SELECT EXISTS(SELECT 1 FROM raw_events WHERE source_coord=?1 AND identity_key<>?2)",
-                    params![e.seq, ikey],
-                    |row| row.get(0),
-                )
-                .map_err(|e| format!("查询源坐标归属失败：{e}"))?;
-            if occupied {
-                return Err(format!(
-                    "IdentityConflict：source_coord `{}` 已属于另一业务身份（不覆盖原始事件或见证）",
-                    e.seq
-                ));
-            }
-            let content = canonical_event_content(e);
-            let payload_hash = sha256_hex(content.as_bytes());
-
-            let existing = qrev
-                .query_row(params![ikey, rev], |r| {
-                    Ok((
-                        r.get::<_, String>(0)?,
-                        r.get::<_, String>(1)?,
-                        r.get::<_, String>(2)?,
-                        r.get::<_, i64>(3)?,
-                    ))
-                })
-                .optional()
-                .map_err(|e| format!("查询 identity 失败：{e}"))?;
-
-            if let Some((rec, ph, coord, seq)) = existing {
-                if ph == payload_hash {
-                    results.push(json!({
-                        "status": "replay",
-                        "identity_key": ikey,
-                        "event_id": e.event_id,
-                        "revision": rev.to_string(),
-                        "receipt_id": rec,
-                        "payload_hash": payload_hash,
-                        "seq": seq.to_string(),
-                        "source_coord": coord,
-                    }));
-                } else {
-                    results.push(json!({
-                        "status": "IdentityConflict",
-                        "identity_key": ikey,
-                        "event_id": e.event_id,
-                        "revision": rev.to_string(),
-                        "existing_receipt_id": rec,
-                        "existing_payload_hash": ph,
-                        "new_payload_hash": payload_hash,
-                    }));
-                }
-                continue;
-            }
-
-            // 该 (identity, revision) 未见过。
-            let max_rev: i64 = qmax
-                .query_row(params![ikey], |r| r.get(0))
-                .map_err(|e| format!("读 max revision 失败：{e}"))?;
-            if rev <= max_rev {
-                // 旧版（已有更高 revision）且该 revision 无记录：晚到/跳号旧版不复活、不新接纳。
-                results.push(json!({
-                    "status": "InvalidDomain",
-                    "identity_key": ikey,
-                    "event_id": e.event_id,
-                    "revision": rev.to_string(),
-                    "max_revision": max_rev.to_string(),
-                    "reason": "out_of_order_revision_after_later_accepted",
-                }));
-                continue;
-            }
-            // 新 revision：supersedes = 上一 revision（如有）。
-            let supersedes = if max_rev == 0 { None } else { Some(max_rev) };
-            // 源坐标一致性：同一业务身份的新 revision 必须落在同一源坐标。
-            if let Some(prev_rev) = supersedes {
-                let prev_coord: String = tx
-                    .query_row(
-                        "SELECT source_coord FROM raw_events WHERE identity_key=?1 AND revision=?2",
-                        params![ikey, prev_rev],
-                        |r| r.get(0),
-                    )
-                    .map_err(|e| format!("读前一 revision 源坐标失败：{e}"))?;
-                if prev_coord != e.seq {
-                    return Err(format!(
-                        "IdentityConflict：事件 `{}` 新 revision=`{rev}` 源坐标 `{}` 与已接纳 revision=`{prev_rev}` 源坐标 `{prev_coord}` 不一致（同一业务身份不得换源位置）",
-                        e.event_id, e.seq
-                    ));
-                }
-            }
-
-            next_seq += 1;
-            let receipt_id = format!(
-                "rcpt-{}",
-                &sha256_hex(format!("{ikey}|{payload_hash}").as_bytes())[..16]
-            );
-            insert
-                .execute(params![
-                    ikey,
-                    rev,
-                    e.revision,
-                    payload_hash,
-                    receipt_id,
-                    next_seq,
-                    input.source_namespace,
-                    input.source_epoch,
-                    input.instrument,
-                    e.event_id,
-                    e.received_at,
-                    e.raw_text,
-                    e.price,
-                    e.timestamp,
-                    e.volume,
-                    e.seq,
-                    supersedes,
-                ])
-                .map_err(|e| format!("insert raw_events 失败：{e}"))?;
-            if let Some(prices) = &e.ohlc {
-                tb02a::save_raw(&tx, &ikey, rev, prices)?;
-            }
-            results.push(json!({
-                "status": "accepted",
-                "identity_key": ikey,
-                "event_id": e.event_id,
-                "revision": rev.to_string(),
-                "receipt_id": receipt_id,
-                "payload_hash": payload_hash,
-                "seq": next_seq.to_string(),
-                "source_coord": e.seq,
-                "supersedes_revision": supersedes.map(|v| v.to_string()),
-            }));
-        }
+        results = raw_input::accept_events(&tx, &input, volume_unit.as_deref())?;
 
         v2::record_accept(&tx, context, &results)?;
         meta_set(&tx, "input_profile", &input.profile)?;
@@ -1613,6 +2230,22 @@ fn accept_core(
 // ────────────────────────────────────────────────────────────────────────────
 
 fn read_raw_events(conn: &Connection) -> Result<Vec<Value>, String> {
+    read_raw_events_until(conn, None)
+}
+
+fn check_read_deadline(deadline: Option<std::time::Instant>) -> Result<(), String> {
+    if deadline.is_some_and(|d| std::time::Instant::now() >= d) {
+        Err("Incomplete/VerifyDeadline：完整核验超过绝对期限".into())
+    } else {
+        Ok(())
+    }
+}
+
+fn read_raw_events_until(
+    conn: &Connection,
+    deadline: Option<std::time::Instant>,
+) -> Result<Vec<Value>, String> {
+    check_read_deadline(deadline)?;
     let mut stmt = conn
         .prepare(
             "SELECT identity_key, revision, input_revision, payload_hash, receipt_id, seq, source_namespace,
@@ -1622,129 +2255,131 @@ fn read_raw_events(conn: &Connection) -> Result<Vec<Value>, String> {
         )
         .map_err(|e| format!("prepare 读取失败：{e}"))?;
     let mut rows = stmt
-        .query_map([], |r| {
-            Ok(json!({
-                "identity_key": r.get::<_, String>(0)?,
-                "revision": r.get::<_, i64>(1)?,
-                "input_revision": r.get::<_, String>(2)?,
-                "payload_hash": r.get::<_, String>(3)?,
-                "receipt_id": r.get::<_, String>(4)?,
-                "seq": r.get::<_, i64>(5)?,
-                "source_namespace": r.get::<_, String>(6)?,
-                "source_epoch": r.get::<_, String>(7)?,
-                "instrument": r.get::<_, String>(8)?,
-                "event_id": r.get::<_, String>(9)?,
-                "received_at": r.get::<_, String>(10)?,
-                "raw_text": r.get::<_, String>(11)?,
-                "price": r.get::<_, String>(12)?,
-                "ts": r.get::<_, String>(13)?,
-                "volume": r.get::<_, String>(14)?,
-                "source_coord": r.get::<_, String>(15)?,
-                "supersedes_revision": r.get::<_, Option<i64>>(16)?,
-            }))
-        })
+        .query_map([], decode_raw_row)
         .map_err(|e| format!("query 失败：{e}"))?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| format!("collect 失败：{e}"))?;
-    tb02a::enrich_raw(conn, &mut rows)?;
-    let mut owners = BTreeMap::new();
-    let mut positions = BTreeMap::new();
-    let mut prior_revisions = BTreeMap::new();
-    for (expected_seq, event) in rows.iter().enumerate() {
-        let coord = stored_source_coord(event)?;
-        let identity = event["identity_key"]
-            .as_str()
-            .ok_or("StorageUnavailable：raw.identity_key 不是字符串")?;
-        if owners
-            .insert(coord, identity)
-            .is_some_and(|old| old != identity)
-            || positions
-                .insert(identity, coord)
-                .is_some_and(|old| old != coord)
-        {
-            return Err("StorageUnavailable：原始源坐标与业务身份的唯一归属被破坏".to_string());
-        }
-        let raw = RawEvent {
-            ohlc: tb02a::stored_prices(event)?,
-            event_id: event["event_id"]
-                .as_str()
-                .ok_or("StorageUnavailable：event_id非文本")?
-                .to_owned(),
-            revision: event["input_revision"]
-                .as_str()
-                .ok_or("StorageUnavailable：input_revision非文本")?
-                .to_owned(),
-            seq: event["source_coord"].as_str().unwrap().to_owned(),
-            received_at: event["received_at"]
-                .as_str()
-                .ok_or("StorageUnavailable：received_at非文本")?
-                .to_owned(),
-            raw_text: event["raw_text"]
-                .as_str()
-                .ok_or("StorageUnavailable：raw_text非文本")?
-                .to_owned(),
-            price: event["price"]
-                .as_str()
-                .ok_or("StorageUnavailable：price非文本")?
-                .to_owned(),
-            timestamp: event["ts"]
-                .as_str()
-                .ok_or("StorageUnavailable：ts非文本")?
-                .to_owned(),
-            volume: event["volume"]
-                .as_str()
-                .ok_or("StorageUnavailable：volume非文本")?
-                .to_owned(),
-        };
-        tb02a::validate_prices(&raw).map_err(|e| format!("StorageUnavailable：{e}"))?;
-        let revision = parse_canonical_i64(&raw.revision, "input_revision")
-            .map_err(|e| format!("StorageUnavailable：{e}"))?;
-        let previous = prior_revisions.insert(identity, revision);
-        let expected_identity = identity_key(
-            event["source_namespace"]
-                .as_str()
-                .ok_or("StorageUnavailable：namespace非文本")?,
-            event["source_epoch"]
-                .as_str()
-                .ok_or("StorageUnavailable：source_epoch非文本")?,
-            event["instrument"]
-                .as_str()
-                .ok_or("StorageUnavailable：instrument非文本")?,
-            &raw.event_id,
-        );
-        let payload_hash = sha256_hex(canonical_event_content(&raw).as_bytes());
-        let receipt = format!(
-            "rcpt-{}",
-            &sha256_hex(format!("{identity}|{payload_hash}").as_bytes())[..16]
-        );
-        if event["seq"].as_i64() != i64::try_from(expected_seq).ok()
-            || revision < 1
-            || event["revision"].as_i64() != Some(revision)
-            || previous.is_some_and(|p| p >= revision)
-            || event["supersedes_revision"] != json!(previous)
-            || identity != expected_identity
-            || event["payload_hash"] != payload_hash
-            || event["receipt_id"] != receipt
-        {
-            return Err(
-                "StorageUnavailable：原始身份/接纳序/修订链/内容hash/receipt矛盾".to_owned(),
-            );
-        }
-        for (name, value) in [
-            ("price", &raw.price),
-            ("timestamp", &raw.timestamp),
-            ("volume", &raw.volume),
-        ] {
-            parse_canonical_i64(value, name).map_err(|e| format!("StorageUnavailable：{e}"))?;
-        }
-    }
+        .map(|row| {
+            check_read_deadline(deadline)?;
+            row.map_err(|e| format!("collect 失败：{e}"))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    tb02a::enrich_raw_until(conn, &mut rows, deadline)?;
+    v3::business_json::validate_raw(v3::business_json::RawEventsView::plain(&rows), deadline)?;
+    check_read_deadline(deadline)?;
     Ok(rows)
+}
+
+/// Native cold原始账沿相同SQL顺序、列类型及唯一验证核，在借用后准入再复制。
+fn read_raw_events_until_admitted(
+    conn: &Connection,
+    deadline: Option<std::time::Instant>,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<Vec<Value>, String> {
+    use v3::audit_store::CodecRead;
+    if work.is_none() {
+        return read_raw_events_until(conn, deadline);
+    }
+    check_read_deadline(deadline)?;
+    let admission = v3::audit_store::NativeAdmission(work);
+    let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
+        conn, c"SELECT identity_key, revision, input_revision, payload_hash, receipt_id, seq, source_namespace, source_epoch, instrument, event_id, received_at, raw_text, price, ts, volume, source_coord, supersedes_revision FROM raw_events ORDER BY seq ASC",
+    ).map_err(|e| format!("prepare 读取失败：{e}"))?;
+    let mut rows = Vec::new();
+    while let Some(mut row) = stmt.next().map_err(|e| format!("collect 失败：{e}"))? {
+        check_read_deadline(deadline)?;
+        let mut fields = serde_json::Map::new();
+        for (column, key) in [
+            (0, "identity_key"),
+            (2, "input_revision"),
+            (3, "payload_hash"),
+            (4, "receipt_id"),
+            (6, "source_namespace"),
+            (7, "source_epoch"),
+            (8, "instrument"),
+            (9, "event_id"),
+            (10, "received_at"),
+            (11, "raw_text"),
+            (12, "price"),
+            (13, "ts"),
+            (14, "volume"),
+            (15, "source_coord"),
+        ] {
+            let text = row.text(column).map_err(|e| format!("collect 失败：{e}"))?;
+            let value = Value::String(admission.native_string(text).map_err(|e| e.to_string())?);
+            tb02a::raw_insert_admitted(&mut fields, key, value, &admission)?;
+        }
+        for (column, key) in [(1, "revision"), (5, "seq")] {
+            let value = Value::from(
+                row.integer(column)
+                    .map_err(|e| format!("collect 失败：{e}"))?,
+            );
+            tb02a::raw_insert_admitted(&mut fields, key, value, &admission)?;
+        }
+        let value = row
+            .optional_integer(16)
+            .map_err(|e| format!("collect 失败：{e}"))?
+            .map(Value::from)
+            .unwrap_or(Value::Null);
+        tb02a::raw_insert_admitted(&mut fields, "supersedes_revision", value, &admission)?;
+        admission
+            .native_vec_room(&mut rows, 1)
+            .map_err(|e| e.to_string())?;
+        rows.push(Value::Object(fields));
+    }
+    stmt.finalize()
+        .map_err(|e| format!("finalize 读取失败：{e}"))?;
+    tb02a::enrich_raw_until_admitted(conn, &mut rows, deadline, work)?;
+    v3::business_json::validate_raw_admitted(
+        v3::business_json::RawEventsView::plain(&rows),
+        deadline,
+        work,
+    )?;
+    check_read_deadline(deadline)?;
+    Ok(rows)
+}
+
+fn decode_raw_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Value> {
+    Ok(json!({
+        "identity_key": r.get::<_, String>(0)?,
+        "revision": r.get::<_, i64>(1)?,
+        "input_revision": r.get::<_, String>(2)?,
+        "payload_hash": r.get::<_, String>(3)?,
+        "receipt_id": r.get::<_, String>(4)?,
+        "seq": r.get::<_, i64>(5)?,
+        "source_namespace": r.get::<_, String>(6)?,
+        "source_epoch": r.get::<_, String>(7)?,
+        "instrument": r.get::<_, String>(8)?,
+        "event_id": r.get::<_, String>(9)?,
+        "received_at": r.get::<_, String>(10)?,
+        "raw_text": r.get::<_, String>(11)?,
+        "price": r.get::<_, String>(12)?,
+        "ts": r.get::<_, String>(13)?,
+        "volume": r.get::<_, String>(14)?,
+        "source_coord": r.get::<_, String>(15)?,
+        "supersedes_revision": r.get::<_, Option<i64>>(16)?,
+    }))
+}
+/// 固定 Accept 的实际 seq 回读；沿完整读取相同解码，不构造旧 raw 副本。
+#[cfg(feature = "s_capture_native_testonly")]
+fn read_raw_event_at(conn: &Connection, seq: i64) -> Result<Value, String> {
+    let mut value = conn.query_row(
+        "SELECT identity_key,revision,input_revision,payload_hash,receipt_id,seq,source_namespace,source_epoch,instrument,event_id,received_at,raw_text,price,ts,volume,source_coord,supersedes_revision FROM raw_events WHERE seq=?1", [seq], decode_raw_row).map_err(|e| format!("StorageUnavailable：{e}"))?;
+    tb02a::enrich_raw_row(conn, &mut value)?;
+    Ok(value)
 }
 
 /// 有效源位置：每个业务身份取最新 revision，按源坐标升序（晚到新版不当作追加 tick）。
 fn read_effective_events(all: &[Value]) -> Result<Vec<Value>, String> {
+    read_effective_events_until(all, None)
+}
+
+fn read_effective_events_until(
+    all: &[Value],
+    deadline: Option<std::time::Instant>,
+) -> Result<Vec<Value>, String> {
+    check_read_deadline(deadline)?;
     let mut latest: BTreeMap<String, Value> = BTreeMap::new();
     for ev in all {
+        check_read_deadline(deadline)?;
         let ikey = ev["identity_key"].as_str().unwrap_or("").to_string();
         let rev = ev["revision"].as_i64().unwrap_or(0);
         match latest.get(&ikey) {
@@ -1760,6 +2395,7 @@ fn read_effective_events(all: &[Value]) -> Result<Vec<Value>, String> {
     }
     let mut ordered = BTreeMap::new();
     for event in latest.into_values() {
+        check_read_deadline(deadline)?;
         let coord = stored_source_coord(&event)?;
         if ordered.insert(coord, event).is_some() {
             return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖业务身份".to_string());
@@ -1901,76 +2537,271 @@ fn build_object_and_witnesses(
     (object, witnesses, relations)
 }
 
-/// 读当前活动对象（withdrawn_generation IS NULL），供 diff 使用（在提交事务内调用）。
-fn read_active_objects(conn: &Connection) -> Result<Vec<Value>, String> {
-    let mut stmt = conn
-        .prepare(
-            "SELECT object_id, branch, window_start, window_mid, window_end, first_known_generation, first_known_cut, batch_id, published_generation FROM objects WHERE withdrawn_generation IS NULL ORDER BY window_start",
-        )
-        .map_err(|e| format!("prepare 读活动对象失败：{e}"))?;
-    let mut rows = stmt
-        .query_map([], |r| {
-            Ok(json!({
-                "object_id": r.get::<_, String>(0)?,
-                "branch": r.get::<_, String>(1)?,
-                "window_start": r.get::<_, i64>(2)?,
-                "window_mid": r.get::<_, i64>(3)?,
-                "window_end": r.get::<_, i64>(4)?,
-                "first_known_generation": r.get::<_, i64>(5)?,
-                "first_known_cut": r.get::<_, String>(6)?,
-                "batch_id": r.get::<_, String>(7)?,
-                "published_generation": r.get::<_, i64>(8)?,
-            }))
-        })
-        .map_err(|e| format!("query 活动对象失败：{e}"))?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| format!("collect 活动对象失败：{e}"))?;
-    rows.extend(tb02a::read_facts(conn, None)?.0);
-    Ok(rows)
+/// 已存对象的完整不可变内容读集（**含已撤回历史身份**），供 diff 逐字段对拍；提交事务内调用。
+struct StoredObjects {
+    /// 当前活动对象（`withdrawn_generation IS NULL`），保持既有排序（objects → facts）。
+    active: Vec<Value>,
+    /// 全部已存身份（活动 + 已撤回）的不可变内容，按 object_id。
+    identities: BTreeMap<String, Value>,
 }
 
-/// 新对象集与既有活动对象对拍，产出 (upserts, withdrawals, replaces)。同一发生区间同一内容 = 无变化；
-/// 同一发生区间内容变 = 撤旧 + 替代；新区间 = upsert；旧区间消失 = 撤（防御性，append-only 域不触发）。
+fn stored_object_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Value> {
+    Ok(json!({
+        "object_id": r.get::<_, String>(0)?,
+        "object_revision": r.get::<_, i64>(1)?,
+        "kind": r.get::<_, String>(2)?,
+        "branch": r.get::<_, String>(3)?,
+        "dir_ab": r.get::<_, String>(4)?,
+        "dir_bc": r.get::<_, String>(5)?,
+        "window_start": r.get::<_, i64>(6)?,
+        "window_mid": r.get::<_, i64>(7)?,
+        "window_end": r.get::<_, i64>(8)?,
+        "comparisons_json": r.get::<_, String>(9)?,
+        "input_refs_json": r.get::<_, String>(10)?,
+        "source_coords_json": r.get::<_, String>(11)?,
+        "first_known_generation": r.get::<_, i64>(12)?,
+        "first_known_cut": r.get::<_, String>(13)?,
+        "batch_id": r.get::<_, String>(14)?,
+        "published_generation": r.get::<_, i64>(15)?,
+        "withdrawn_generation": r.get::<_, Option<i64>>(16)?,
+    }))
+}
+
+/// 读全部已存对象身份：不可变内容 + 四个可沿用元数据 + 撤回状态。
+/// 只读 ID 不足以宣称「同 ID 相等」——同 ID 异内容必须在此暴露，不得被后面的 DO NOTHING 吞掉。
+fn read_stored_objects(conn: &Connection) -> Result<StoredObjects, String> {
+    // 一次读对象集只读一次全域图原件（调用方若已有外层捕获则复用）。
+    let _capture = cache::begin_capture(EVIDENCE_READ_BUDGET);
+    let mut stmt = conn
+        .prepare(
+            "SELECT object_id, object_revision, kind, branch, dir_ab, dir_bc,
+                    window_start, window_mid, window_end,
+                    comparisons_json, input_refs_json, source_coords_json,
+                    first_known_generation, first_known_cut, batch_id, published_generation,
+                    withdrawn_generation
+             FROM objects ORDER BY window_start",
+        )
+        .map_err(|e| format!("prepare 读已存对象失败：{e}"))?;
+    let rows = stmt
+        .query_map([], stored_object_row)
+        .map_err(|e| format!("query 已存对象失败：{e}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("collect 已存对象失败：{e}"))?;
+    let (facts_active, facts_withdrawn) = tb02a::read_facts(conn, None)?;
+    let mut active: Vec<Value> = Vec::new();
+    let mut identities: BTreeMap<String, Value> = BTreeMap::new();
+    let mut insert = |o: &Value| -> Result<(), String> {
+        let id = o["object_id"]
+            .as_str()
+            .ok_or("StorageUnavailable：已存身份缺 object_id")?
+            .to_string();
+        if identities.insert(id, o.clone()).is_some() {
+            return Err("StorageUnavailable：两份事实表公开对象身份重复".into());
+        }
+        Ok(())
+    };
+    for o in rows
+        .iter()
+        .chain(facts_active.iter())
+        .chain(facts_withdrawn.iter())
+    {
+        insert(o)?;
+    }
+    for o in rows.iter().chain(facts_active.iter()) {
+        if o["withdrawn_generation"].is_null() {
+            active.push(o.clone());
+        }
+    }
+    Ok(StoredObjects { active, identities })
+}
+
+/// 活动对象读集（供既有调用方沿用）+ 完整身份读集。
+fn read_active_objects(conn: &Connection) -> Result<Vec<Value>, String> {
+    Ok(read_stored_objects(conn)?.active)
+}
+
+/// 同 ID 必须逐字段等价的不可变内容；四个可沿用元数据（first_known/batch/published）不在其中。
+fn immutable_content(o: &Value, what: &str) -> Result<String, String> {
+    let keys: &[&str] = if tb02a::typed(o) {
+        &[
+            "object_revision",
+            "kind",
+            "fact_key",
+            "payload_json",
+            "input_refs_json",
+            "source_coords_json",
+        ]
+    } else {
+        &[
+            "object_revision",
+            "kind",
+            "branch",
+            "dir_ab",
+            "dir_bc",
+            "window_start",
+            "window_mid",
+            "window_end",
+            "comparisons_json",
+            "input_refs_json",
+            "source_coords_json",
+        ]
+    };
+    let map = o
+        .as_object()
+        .ok_or_else(|| format!("StorageUnavailable：{what} 非对象"))?;
+    let mut out = serde_json::Map::new();
+    for key in keys {
+        let value = map
+            .get(*key)
+            .filter(|v| !v.is_null())
+            .ok_or_else(|| format!("StorageUnavailable：{what} 缺不可变字段 {key}"))?;
+        out.insert((*key).to_string(), value.clone());
+    }
+    Ok(canonical_json(&Value::Object(out)))
+}
+
+/// 旧域取值适配：对象 → 共用键。只用 `tb02a::slot` 定槽位，不可变内容留到真正的对拍点才读
+/// （`object_diff::plan` 按同 ID 命中顺序调用 `Content::read`，与旧实现同一求值点位）。
+struct JsonContent<'a> {
+    object: &'a Value,
+    what: &'static str,
+}
+
+impl object_diff::Content for JsonContent<'_> {
+    type Value = String;
+    fn read(&self) -> Result<String, String> {
+        immutable_content(self.object, self.what)
+    }
+}
+
+fn diff_key<'a>(
+    object: &'a Value,
+    object_id: &str,
+    what: &'static str,
+) -> object_diff::Key<JsonContent<'a>> {
+    object_diff::Key {
+        object_id: object_id.to_string(),
+        slot: tb02a::slot(object),
+        immutable: JsonContent { object, what },
+    }
+}
+
+/// 新对象集与既有持久身份对拍，产出 (upserts, withdrawals, replaces)。
+///
+/// 判据主体（同 ID 不可变内容一致 / 已撤回不得复活 / 同槽位替换 / 移除 / 真实出生）已提取到
+/// `object_diff::plan`，S2 旧域与 S3 新域共用一份，不再各写一套同义判据；本函数只做旧域的取值
+/// 与落字适配：
+///
+/// - 同一发生区间同一 ID：先核不可变内容等价 → 等价即「未变化」，不重发，元数据仍沿用既有首次值；
+///   异内容 → `IdentityConflict`（不吞掉、不静默改内容、不借 `DO NOTHING` 掩盖）。
+/// - 同一发生区间异 ID：撤旧 + 替代 + 新生；新区间 = 新生；旧区间消失 = 撤（防御性，append-only 域不触发）。
+/// - 已撤回历史身份不得借本次发布复活。
+/// - `LegacyFull`（无登记表的旧库）保持旧语义：upserts 仍是完整活动集，既有对象沿用原首次元数据。
 fn compute_diff(
     new_objects: &[Value],
-    existing_active: &[Value],
-) -> (Vec<Value>, Vec<Value>, Vec<Value>) {
-    let mut upserts: Vec<Value> = Vec::new();
-    let mut withdrawals: Vec<Value> = Vec::new();
-    let mut replaces: Vec<Value> = Vec::new();
+    stored: &StoredObjects,
+    mode: delta_storage::Mode,
+) -> Result<(Vec<Value>, Vec<Value>, Vec<Value>), String> {
+    // 既有身份：活动集按原主序在前（撤回/替代扫描主序），撤回身份在后；两者都进同 ID 对拍。
+    // 活动表同时留作旧 full 域的首次元数据沿用（不是第二套判据，只做取值）。
+    let mut active_by_id: BTreeMap<&str, &Value> = BTreeMap::new();
+    let mut old_values: Vec<&Value> = Vec::with_capacity(stored.identities.len());
+    let mut old_keys: Vec<object_diff::Existing<JsonContent<'_>>> =
+        Vec::with_capacity(stored.identities.len());
+    for old in &stored.active {
+        let id = old["object_id"]
+            .as_str()
+            .ok_or("StorageUnavailable：活动对象缺 object_id")?;
+        active_by_id.insert(id, old);
+        old_values.push(old);
+        old_keys.push(object_diff::Existing {
+            key: diff_key(old, id, "已存身份"),
+            active: true,
+        });
+    }
+    for (id, old) in &stored.identities {
+        if active_by_id.contains_key(id.as_str()) {
+            continue;
+        }
+        old_values.push(old);
+        old_keys.push(object_diff::Existing {
+            key: diff_key(old, id, "已存身份"),
+            active: false,
+        });
+    }
+    let mut new_keys: Vec<object_diff::Key<JsonContent<'_>>> =
+        Vec::with_capacity(new_objects.len());
+    for candidate in new_objects {
+        let id = candidate["object_id"]
+            .as_str()
+            .ok_or("StorageUnavailable：本次对象缺 object_id")?;
+        new_keys.push(diff_key(candidate, id, "本次对象"));
+    }
+    let changes = object_diff::plan(&new_keys, &old_keys)?;
 
-    let new_by_slot: BTreeMap<String, &Value> =
-        new_objects.iter().map(|o| (tb02a::slot(o), o)).collect();
-    for old in existing_active {
-        match new_by_slot.get(&tb02a::slot(old)) {
-            None => withdrawals.push(tb02a::withdrawal(
-                old,
+    // 落字：撤回（理由文本 + 替代指针）与替换对，顺序即 `plan` 给的索引顺序。
+    let mut withdrawals: Vec<Value> = Vec::with_capacity(changes.withdrawals.len());
+    let mut replaces: Vec<Value> = Vec::with_capacity(changes.replaces.len());
+    for w in &changes.withdrawals {
+        let old = old_values[w.old_index];
+        let (reason, superseded_by) = match w.removal {
+            object_diff::Removal::Removed => (
                 if tb02a::typed(old) {
                     "fact_removed"
                 } else {
                     "window_removed"
                 },
                 Value::Null,
-            )),
-            Some(new) if new["object_id"] != old["object_id"] => {
-                withdrawals.push(tb02a::withdrawal(
-                    old,
+            ),
+            object_diff::Removal::Superseded => match w.new_index {
+                Some(new_index) => (
                     "superseded_by_revision",
-                    new["object_id"].clone(),
-                ));
-                replaces.push(
-                    json!({"new_object_id":new["object_id"],"old_object_id":old["object_id"]}),
-                );
-            }
-            _ => {}
-        }
+                    new_objects[new_index]["object_id"].clone(),
+                ),
+                // `plan` 的替代项必带新索引；本条为不可达防御，不 panic。
+                None => {
+                    return Err(
+                        "StorageUnavailable：替代撤回缺候选索引（共用对拍不可达）".to_string()
+                    )
+                }
+            },
+        };
+        withdrawals.push(tb02a::withdrawal(old, reason, superseded_by));
+    }
+    for r in &changes.replaces {
+        replaces.push(json!({
+            "new_object_id": new_objects[r.new_index]["object_id"],
+            "old_object_id": old_values[r.old_index]["object_id"],
+        }));
     }
 
-    // upsert = 全部新对象（含无变化者，供同 cut 对拍与幂等重投）。
-    for o in new_objects {
-        upserts.push(o.clone());
+    if mode.changes_only() {
+        // 真实变化：只有真实出生进 upserts（未变化对象不重发）。
+        let births: Vec<Value> = changes
+            .births
+            .iter()
+            .map(|index| new_objects[*index].clone())
+            .collect();
+        return Ok((births, withdrawals, replaces));
     }
-    (upserts, withdrawals, replaces)
+    // 旧 full 域：Delta 仍是完整活动集；既有对象沿用既有首次元数据/批次（逐字节同旧实现）。
+    let mut upserts: Vec<Value> = Vec::with_capacity(new_objects.len());
+    for candidate in new_objects {
+        let oid = candidate["object_id"].as_str().unwrap_or("");
+        let mut obj = candidate.clone();
+        if let Some(ex) = active_by_id.get(oid) {
+            for key in [
+                "first_known_generation",
+                "first_known_cut",
+                "batch_id",
+                "published_generation",
+            ] {
+                obj[key] = ex[key].clone();
+            }
+        }
+        upserts.push(obj);
+    }
+    Ok((upserts, withdrawals, replaces))
 }
 
 /// DUR-H01：已知失败的正常收尾——仅当仍持有本 attempt 的 Begin（token/gen/frontier 精确匹配、
@@ -2021,6 +2852,23 @@ fn cancel_own_begin(
 }
 
 /// 同一 attempt 的阶段写入共用同一所有权判据，不现读新 epoch 自授予权限。
+/// 两代协议共用 Begin 占用的持久元数据；调用方持有写事务并已核写者/前沿。
+fn persist_begin_state(
+    conn: &Connection,
+    token: &str,
+    gen: i64,
+    frontier: i64,
+) -> Result<(), String> {
+    meta_set(
+        conn,
+        "advance_state",
+        &format!("begun:{token}:{gen}:{frontier}"),
+    )?;
+    meta_set(conn, "begin_generation", &gen.to_string())?;
+    meta_set(conn, "begin_input_frontier", &frontier.to_string())?;
+    meta_set(conn, "begin_token", token)
+}
+
 fn verify_begin_owner(
     conn: &Connection,
     token: &str,
@@ -2041,14 +2889,9 @@ fn verify_begin_owner(
 }
 
 fn verify_batch_bytes(conn: &Connection, batch_id: &str, bytes: &[u8]) -> Result<(), String> {
-    let (stored, byte_len): (Vec<u8>, i64) = conn
-        .query_row(
-            "SELECT canonical_bytes, byte_len FROM batches WHERE batch_id=?1",
-            params![batch_id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
-        .map_err(|e| format!("完整不可变批次不可读：{e}"))?;
-    if stored != bytes || usize::try_from(byte_len).ok() != Some(bytes.len()) {
+    let stored =
+        load_batch_bytes(conn, batch_id).map_err(|e| format!("完整不可变批次不可读：{e}"))?;
+    if stored.as_ref() != bytes {
         return Err(
             "IdentityConflict：不可变 batch 的规范字节或长度不符，拒绝覆写和发布".to_string(),
         );
@@ -2057,6 +2900,7 @@ fn verify_batch_bytes(conn: &Connection, batch_id: &str, bytes: &[u8]) -> Result
 }
 
 /// C09.4 / AC4：完整对象先独立持久；此事务不发布任何对象表或结构根。
+#[allow(clippy::too_many_arguments)]
 fn persist_batch_before_publish(
     conn: &mut Connection,
     token: &str,
@@ -2064,6 +2908,38 @@ fn persist_batch_before_publish(
     frontier: i64,
     batch_id: &str,
     bytes: &[u8],
+    batch_value: &Value,
+    slots: &[evidence_store::SlotSpec],
+    configured_epoch: &str,
+) -> Result<(), String> {
+    #[cfg(test)]
+    let started = std::time::Instant::now();
+    let out = persist_batch_before_publish_inner(
+        conn,
+        token,
+        gen,
+        frontier,
+        batch_id,
+        bytes,
+        batch_value,
+        slots,
+        configured_epoch,
+    );
+    #[cfg(test)]
+    cache::counter(|c| c.stage_ns += started.elapsed().as_nanos() as u64);
+    out
+}
+
+#[allow(clippy::too_many_arguments)]
+fn persist_batch_before_publish_inner(
+    conn: &mut Connection,
+    token: &str,
+    gen: i64,
+    frontier: i64,
+    batch_id: &str,
+    bytes: &[u8],
+    batch_value: &Value,
+    slots: &[evidence_store::SlotSpec],
     configured_epoch: &str,
 ) -> Result<(), String> {
     if batch_id != format!("batch-{}", sha256_hex(bytes)) {
@@ -2074,9 +2950,18 @@ fn persist_batch_before_publish(
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|e| format!("开批次持久事务失败：{e}"))?;
     verify_begin_owner(&tx, token, gen, frontier, configured_epoch)?;
+    // #1394：物理域由登记表唯一决定；图域在**同一事务**内先落不可变节点与根，再落批次行。
+    let graph = evidence_store::format(&tx)?.graph();
+    let stored_blob: Vec<u8> = if graph {
+        let staged = evidence_store::stage_complete(batch_value, slots)?;
+        evidence_store::publish_refs(&tx, &evidence_store::batch_root_key(batch_id), &staged)?;
+        Vec::new()
+    } else {
+        bytes.to_vec()
+    };
     tx.execute(
         "INSERT OR IGNORE INTO batches(batch_id, canonical_bytes, byte_len) VALUES(?1, ?2, ?3)",
-        params![batch_id, bytes, byte_len],
+        params![batch_id, stored_blob, byte_len],
     )
     .map_err(|e| format!("持久 batch 失败：{e}"))?;
     verify_batch_bytes(&tx, batch_id, bytes)?;
@@ -2094,8 +2979,11 @@ fn advance_core(
     configured_epoch: &str,
     context: Option<&v2::InputContext>,
 ) -> Result<Value, String> {
+    // #1394 第二段（2D）：一次 advance 共享一个捕获作用域（写入前会显式作废）。
+    let _capture = cache::begin_capture(EVIDENCE_READ_BUDGET);
     let mut conn = open_db(db)?;
     ensure_initialized(&conn)?;
+    ensure_writable(&conn)?;
     if meta_get_opt(&conn, "rule_revision")?.as_deref() != Some(RULE_REVISION) {
         return Err(
             "VersionMismatch：历史规则会话只读；新笔规则须新建代际，不复用旧 Open 缓存".into(),
@@ -2103,12 +2991,24 @@ fn advance_core(
     }
     record_connection_pragmas(&conn, "advance");
     // ── Begin：判定前先由短写事务核 writer_epoch、取得唯一推进权、持久 Begin/门/输入前沿 ──
-    let (token, gen, frontier, base_cut, profile_id, profile_hash, catalog_revision, all_events) = {
+    let (
+        token,
+        gen,
+        frontier,
+        base_cut,
+        profile_id,
+        profile_hash,
+        catalog_revision,
+        all_events,
+        mode,
+    ) = {
         let tx = conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|e| format!("Begin 事务失败：{e}"))?;
         verify_writer_epoch(&tx, configured_epoch)?;
         let all_events = verified_root_raw_events(&tx)?;
+        // 模式由登记表唯一决定：损坏（缺行/多行/未声明值）在本次任何写入之前即拒绝。
+        let mode = delta_storage::read_mode(&tx)?;
         let (profile_id, profile_hash) = verify_profile_binding(&tx)?;
         let catalog_revision = meta_get_opt(&tx, "catalog_revision")?.unwrap_or_default();
         let state = meta_get_opt(&tx, "advance_state")?.unwrap_or_else(|| "idle".to_string());
@@ -2145,14 +3045,7 @@ fn advance_core(
         let gen = cur_gen + 1;
         let base_cut = meta_get_opt(&tx, "structure_cut")?.unwrap_or_else(|| "cut-0".to_string());
         let token = v2::record_begin(&tx, context, gen, frontier, &base_cut, configured_epoch)?;
-        meta_set(
-            &tx,
-            "advance_state",
-            &format!("begun:{token}:{gen}:{frontier}"),
-        )?;
-        meta_set(&tx, "begin_generation", &gen.to_string())?;
-        meta_set(&tx, "begin_input_frontier", &frontier.to_string())?;
-        meta_set(&tx, "begin_token", &token)?;
+        persist_begin_state(&tx, &token, gen, frontier)?;
         tx.commit().map_err(|e| format!("Begin commit 失败：{e}"))?;
         (
             token,
@@ -2163,6 +3056,7 @@ fn advance_core(
             profile_hash,
             catalog_revision,
             all_events,
+            mode,
         )
     };
 
@@ -2181,6 +3075,17 @@ fn advance_core(
 
     let config = ThetaConfig::default();
     let is_ohlc = profile_id == tb02a::PROFILE;
+    // #1394 2A-S：同代增量车道（库/会话/规则/档案/目录身份键；身份不符即丢弃旧车道）。
+    let session_id = meta_get_opt(&conn, "session_id")?.unwrap_or_default();
+    let lane_key = s_fact_cache::lane_key(
+        db,
+        &session_id,
+        &profile_hash,
+        RULE_REVISION,
+        &profile_id,
+        &catalog_revision,
+    );
+    let mut lane_guard = s_fact_cache::LaneGuard::take(&lane_key);
     let mut incr = ParseLayerIncr::new(&config);
     let mut layer = None;
     let mut raw_bars: Vec<Bar> = Vec::new();
@@ -2208,15 +3113,50 @@ fn advance_core(
             layer = Some(incr.append(bar));
         }
     }
-    // #1420：第二种候选经每 cut 的游标簿折叠；上一 cut 的 K1 游标经已发布对象带入（续扫与恢复同一路径）。
-    let mut second_store =
-        newchan_rust::theta_v0::parser::second_fold::SecondFoldStore::new(tb02c::round_budget());
-    let (layer, inclusion_facts) = if is_ohlc {
+    // #1420：同一 K1 游标簿跨 cut/恢复续扫，oracle 与共享证据路径消费同一检查点；上一 cut 的 K1 游标
+    // 经已发布对象带入（续扫与恢复同一路径）。
+    let mut second_store = parser::second_fold::SecondFoldStore::new(tb02c::round_budget());
+    if is_ohlc {
         tb02c::restore_cursors(&read_active_objects(&conn)?, &mut second_store);
-        let (layer, facts, store) =
-            parser::parse_layer_with_inclusion_facts_store(&raw_bars, &config, second_store);
-        second_store = store;
-        (layer, Some(facts))
+    }
+    let mut oracle_facts = None;
+    let (layer, group_evidence) = if is_ohlc {
+        if s_fact_cache::oracle_enabled() {
+            // 测试开关：全量 oracle（与增量路径逐代对拍用）。
+            let started = s_fact_cache::phase::begin();
+            let (layer, facts, store) =
+                parser::parse_layer_with_inclusion_facts_store(&raw_bars, &config, second_store);
+            second_store = store;
+            s_fact_cache::phase::record("parse_oracle", started.elapsed().as_nanos());
+            let groups = parser::GroupParseEvidence {
+                groups: facts.groups.clone(),
+                stroke_facts: facts
+                    .stroke_facts
+                    .as_ref()
+                    .expect("完整解析附带新笔事实")
+                    .clone(),
+                segment_facts: facts
+                    .segment_facts
+                    .as_ref()
+                    .expect("完整解析附带段构造事实")
+                    .clone(),
+            };
+            oracle_facts = Some(facts);
+            (layer, Some(groups))
+        } else {
+            // 从**真实生效输入**的已证稳定前缀追加；前缀内变化即从最早受影响坐标失效并保守重放。
+            let started = s_fact_cache::phase::begin();
+            let outcome = lane_guard.lane(&lane_key).advance(&raw_bars);
+            let (layer, facts, store) = parser::parse_layer_with_group_evidence_store(
+                lane_guard.lane(&lane_key).state(),
+                &config,
+                second_store,
+            );
+            second_store = store;
+            s_fact_cache::phase::record("parse", started.elapsed().as_nanos());
+            let _ = outcome;
+            (layer, Some(facts))
+        }
     } else {
         (
             layer.unwrap_or_else(|| parser::parse_layer(&[], &config)),
@@ -2230,7 +3170,7 @@ fn advance_core(
 
     // 同次包含 trace 提供完整成员；旧 tick 保留原映射。
     let mut merged_raws: Vec<Vec<i64>> = vec![Vec::new(); merged.len()];
-    if let Some(facts) = &inclusion_facts {
+    if let Some(facts) = &group_evidence {
         for (i, group) in facts.groups.iter().enumerate() {
             merged_raws[i] = group.members.iter().map(|x| *x as i64).collect();
         }
@@ -2291,8 +3231,7 @@ fn advance_core(
 
     for (start, shape) in &wins {
         let start = *start;
-        // #1405（#1343 Q2）：组内多根同极值时，分型的极值身份是根集合，形态只读组价——
-        // 多根窗口照常发布，不再等待「选根」（原 #1373 门已退役）。
+        // #1405（#1343 Q2）：极值身份是根集合，形态只读组价，多根窗口照常发布。
         match shape {
             Cc006LocalShape::Classified {
                 branch,
@@ -2335,7 +3274,7 @@ fn advance_core(
                             })
                             .collect();
                         let mut group_refs=json!({ "merged_index": mi, "raw_refs": refs });
-                        if let Some(facts)=&inclusion_facts {
+                        if let Some(facts)=&group_evidence {
                             let group=&facts.groups[*mi];
                             let mut dependency_coords=group.direction_evidence.as_ref().map(|e|e.source_coords.clone()).unwrap_or_default();
                             // #1373：三组当前划分还依赖关闭边界的真实后继，不能只绑定价格算式。
@@ -2396,22 +3335,26 @@ fn advance_core(
     }
 
     let structure_cut = format!("cut-{gen}");
-    if let Some(facts) = &inclusion_facts {
-        let (typed, waiting) = tb02a_facts::build(
-            facts,
-            &raw_by_coord,
-            &objects,
-            gen,
-            &structure_cut,
-            frontier,
-        );
+    if let Some(facts) = &group_evidence {
+        // #1394 2A-S/2C：同代增量状态 + 稳定对象原件复用 + 比较单元缓存（与全量路径逐字段相同）。
+        let started = s_fact_cache::phase::begin();
+        let (typed, waiting) = if let Some(full) = &oracle_facts {
+            tb02a_facts::build(full, &raw_by_coord, &objects, gen, &structure_cut, frontier)
+        } else {
+            lane_guard.lane(&lane_key).build_typed(
+                &facts.groups,
+                &raw_by_coord,
+                &objects,
+                gen,
+                &structure_cut,
+                frontier,
+            )
+        };
+        s_fact_cache::phase::record("facts", started.elapsed().as_nanos());
         objects.extend(typed);
         observations.extend(waiting);
         let (new_bi, edges) = tb02b::build(
-            facts
-                .stroke_facts
-                .as_ref()
-                .expect("同次 parser 必须携生产新笔事实"),
+            &facts.stroke_facts,
             &raw_by_coord,
             &all_events,
             &read_active_objects(&conn)?,
@@ -2423,11 +3366,8 @@ fn advance_core(
         objects.extend(new_bi);
         relations.extend(edges);
         let (segments, edges) = tb02c::build(
-            facts
-                .segment_facts
-                .as_ref()
-                .expect("同次 parser 必须携段构造事实"),
-            facts.stroke_facts.as_ref().unwrap(),
+            &facts.segment_facts,
+            &facts.stroke_facts,
             &raw_by_coord,
             &all_events,
             &read_active_objects(&conn)?,
@@ -2483,22 +3423,41 @@ fn advance_core(
         let previous_frontier = meta_get_opt(&conn, "last_advance_frontier")?
             .and_then(|v| v.parse::<i64>().ok())
             .unwrap_or(-1);
-        let (_, withdrawals, replaces) = compute_diff(&objects, &read_active_objects(&conn)?);
+        let started = s_fact_cache::phase::begin();
+        let (_, withdrawals, replaces) =
+            compute_diff(&objects, &read_stored_objects(&conn)?, mode)?;
         batch_json["catalog_axes"] = tb02a_facts::catalog_axes(
+            tb02a_facts::CatalogAxisTable::for_rule_revision(RULE_REVISION)
+                .expect("v2 写者的规则修订必有目录轴表"),
             &objects,
             &all_events,
             previous_frontier,
             &withdrawals,
             &replaces,
         );
+        s_fact_cache::phase::record("catalog_axes", started.elapsed().as_nanos());
     }
+    let started = s_fact_cache::phase::begin();
     v2::seal_batch(&conn, context, &mut batch_json)?;
     let batch_bytes = canonical_bytes_of_value(&batch_json);
     let batch_id = format!("batch-{}", sha256_hex(&batch_bytes));
+    s_fact_cache::phase::record("batch_materialize", started.elapsed().as_nanos());
     for o in &mut objects {
         o["batch_id"] = json!(batch_id);
     }
 
+    // #1394 第二段：代际参数槽只含**本代生成态**标量（数值按规范十进制、字符串按同一
+    // serializer 的带引号字节双匹配）。同代全部对象共用同一批槽值，故同一模板跨代共享。
+    let mut evidence_slots = vec![
+        evidence_store::SlotSpec::number(&gen.to_string()),
+        evidence_store::SlotSpec::number(&frontier.to_string()),
+        evidence_store::SlotSpec::string(&structure_cut),
+    ];
+    if let Some(ns) = batch_json["semantic_commit_ns"].as_str() {
+        evidence_slots.push(evidence_store::SlotSpec::string(ns));
+    }
+
+    let started = s_fact_cache::phase::begin();
     persist_batch_before_publish(
         &mut conn,
         &token,
@@ -2506,8 +3465,12 @@ fn advance_core(
         frontier,
         &batch_id,
         &batch_bytes,
+        &batch_json,
+        &evidence_slots,
         configured_epoch,
     )?;
+    s_fact_cache::phase::record("persist_batch", started.elapsed().as_nanos());
+    let started_commit = s_fact_cache::phase::begin();
 
     // ★测试暂停点 2：完整不可变批次已独立持久、Commit 尚未发生（供 SIGKILL）。
     testonly_pause("after_batch");
@@ -2515,6 +3478,8 @@ fn advance_core(
     // ── Commit：核 Begin/epoch/前沿仍有效后，同一事务原子应用对象/边/端点 + 撤回/替代 + delta ──
     let classified_count = objects.len();
     let mut frontier_moved = false;
+    #[cfg(test)]
+    let commit_started = std::time::Instant::now();
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|e| format!("开 commit 事务失败：{e}"))?;
@@ -2529,27 +3494,10 @@ fn advance_core(
         if cur_frontier != frontier {
             frontier_moved = true;
         } else {
-            // 与既有活动对象对拍（提交事务内，原子）。
-            let existing_active = read_active_objects(&tx)?;
-            let (_upserts, withdrawals, replaces) = compute_diff(&objects, &existing_active);
+            // 与既有持久身份对拍（提交事务内，原子）：同 ID 先核不可变内容，异内容即 IdentityConflict。
             // 未变化对象沿用既有 first_known（不把重发布当新获知）；新对象 first_known = 本 gen。
-            let existing_by_id: BTreeMap<String, Value> = existing_active
-                .iter()
-                .map(|o| (o["object_id"].as_str().unwrap_or("").to_string(), o.clone()))
-                .collect();
-            let mut delta_upserts: Vec<Value> = Vec::new();
-            for o in &objects {
-                let oid = o["object_id"].as_str().unwrap_or("").to_string();
-                let mut obj = o.clone();
-                if let Some(ex) = existing_by_id.get(&oid) {
-                    // 未变对象沿用既有 first_known / batch / published（首发布即历史稳定值，不因重发布前移）。
-                    obj["first_known_generation"] = ex["first_known_generation"].clone();
-                    obj["first_known_cut"] = ex["first_known_cut"].clone();
-                    obj["batch_id"] = ex["batch_id"].clone();
-                    obj["published_generation"] = ex["published_generation"].clone();
-                }
-                delta_upserts.push(obj);
-            }
+            let (delta_upserts, withdrawals, replaces) =
+                compute_diff(&objects, &read_stored_objects(&tx)?, mode)?;
 
             // 1) 撤回：当前视图移除，历史不删（UPDATE 生命周期，保留原身份/first_known/发生区间）。
             {
@@ -2585,7 +3533,8 @@ fn advance_core(
                      ON CONFLICT(object_id) DO NOTHING",
                 )
                 .map_err(|e| format!("prepare objects 失败：{e}"))?;
-                for o in &objects {
+                // 只写真正新生/替代的对象（旧 full 域下 delta_upserts 仍是完整活动集，逐字节同旧实现）。
+                for o in &delta_upserts {
                     if tb02a::typed(o) {
                         tb02a::save_fact(&tx, o, &batch_id)?;
                         continue;
@@ -2611,6 +3560,8 @@ fn advance_core(
             }
 
             // 3) 见证 / 关系 / 观察（内容寻址，幂等插入）。
+            // changes-only 域：各族 Delta 只含本代首次发布成员；旧 full 域保持完整集（与旧实现逐字节相同）。
+            let mut first_witnesses: Vec<Value> = Vec::new();
             {
                 let mut stmt = tx
                 .prepare(
@@ -2620,19 +3571,24 @@ fn advance_core(
                 )
                 .map_err(|e| format!("prepare witnesses 失败：{e}"))?;
                 for w in &witnesses {
-                    stmt.execute(params![
-                        w["witness_id"].as_str().unwrap_or(""),
-                        w["object_id"].as_str().unwrap_or(""),
-                        w["slot"].as_i64().unwrap_or(0),
-                        w["merged_source_index"].as_i64().unwrap_or(0),
-                        w["merged_high"].as_str().unwrap_or(""),
-                        w["merged_low"].as_str().unwrap_or(""),
-                        w["merged_open"].as_str().unwrap_or(""),
-                        w["merged_close"].as_str().unwrap_or(""),
-                        serde_json::to_string(&w["raw_bars"]).unwrap_or_else(|_| "[]".to_string()),
-                        gen,
-                    ])
-                    .map_err(|e| format!("insert witnesses 失败：{e}"))?;
+                    let inserted = stmt
+                        .execute(params![
+                            w["witness_id"].as_str().unwrap_or(""),
+                            w["object_id"].as_str().unwrap_or(""),
+                            w["slot"].as_i64().unwrap_or(0),
+                            w["merged_source_index"].as_i64().unwrap_or(0),
+                            w["merged_high"].as_str().unwrap_or(""),
+                            w["merged_low"].as_str().unwrap_or(""),
+                            w["merged_open"].as_str().unwrap_or(""),
+                            w["merged_close"].as_str().unwrap_or(""),
+                            serde_json::to_string(&w["raw_bars"])
+                                .unwrap_or_else(|_| "[]".to_string()),
+                            gen,
+                        ])
+                        .map_err(|e| format!("insert witnesses 失败：{e}"))?;
+                    if inserted == 1 {
+                        first_witnesses.push(w.clone());
+                    }
                 }
             }
             // 关系集合：has_witness / classified_as + replaces（替代边）+ raw supersedes（源修订链）。
@@ -2660,6 +3616,7 @@ fn advance_core(
                         "INSERT OR IGNORE INTO relations(relation_id, subject, relation_type, object, published_generation) VALUES(?1, ?2, ?3, ?4, ?5)",
                     )
                     .map_err(|e| format!("prepare relations 失败：{e}"))?;
+                let mut first_relations: Vec<Value> = Vec::new();
                 for r in &rels {
                     let rid = format!(
                         "rel-{}",
@@ -2669,18 +3626,28 @@ fn advance_core(
                             "o": r["object"],
                         })))[..16]
                     );
-                    stmt.execute(params![
-                        rid,
-                        r["subject"].as_str().unwrap_or(""),
-                        r["relation_type"].as_str().unwrap_or(""),
-                        r["object"].as_str().unwrap_or(""),
-                        gen,
-                    ])
-                    .map_err(|e| format!("insert relations 失败：{e}"))?;
+                    let inserted = stmt
+                        .execute(params![
+                            rid,
+                            r["subject"].as_str().unwrap_or(""),
+                            r["relation_type"].as_str().unwrap_or(""),
+                            r["object"].as_str().unwrap_or(""),
+                            gen,
+                        ])
+                        .map_err(|e| format!("insert relations 失败：{e}"))?;
+                    if inserted == 1 {
+                        first_relations.push(r.clone());
+                    }
                 }
+                rels = if mode.changes_only() {
+                    first_relations
+                } else {
+                    rels
+                };
             }
             // 观察：补 identity/batch，供 delta 与同 cut Snapshot 逐字段对齐（INSERT OR IGNORE：首获知固定）。
             let mut obs_with_id: Vec<Value> = Vec::with_capacity(observations.len());
+            let mut first_observations: Vec<Value> = Vec::new();
             for ob in &observations {
                 let oid = observation_id(ob);
                 let stored: Option<Value> = tx.query_row(
@@ -2691,6 +3658,7 @@ fn advance_core(
                         "window_mid":r.get::<_,Option<i64>>(4)?, "window_end":r.get::<_,Option<i64>>(5)?,
                         "reason":r.get::<_,String>(6)?, "detail":json_column(r,7,JsonShape::Object)?,
                     }))).optional().map_err(|e| format!("读观察首版失败：{e}"))?;
+                let first = stored.is_none();
                 let o = if let Some(stored) = stored {
                     stored
                 } else {
@@ -2699,6 +3667,9 @@ fn advance_core(
                     fresh["batch_id"] = json!(batch_id);
                     fresh
                 };
+                if first {
+                    first_observations.push(o.clone());
+                }
                 obs_with_id.push(o);
             }
             {
@@ -2770,14 +3741,31 @@ fn advance_core(
                 .iter()
                 .map(project_withdrawal_wire)
                 .collect::<Result<_, _>>()?;
-            let wire_witnesses: Vec<Value> = witnesses
-                .iter()
-                .map(project_witness_wire)
-                .collect::<Result<_, _>>()?;
-            let wire_observations: Vec<Value> = obs_with_id
-                .iter()
-                .map(project_observation_wire)
-                .collect::<Result<_, _>>()?;
+            // changes-only 域：三族 Delta 只含本代首次发布（与独立索引 born[gen] 强相等）；
+            // 旧 full 域仍是完整集。封存 full batch 自身保持完整（本段不改 batch 形态）。
+            let (wire_witnesses, wire_observations) = if mode.changes_only() {
+                (
+                    first_witnesses
+                        .iter()
+                        .map(project_witness_wire)
+                        .collect::<Result<Vec<_>, _>>()?,
+                    first_observations
+                        .iter()
+                        .map(project_observation_wire)
+                        .collect::<Result<Vec<_>, _>>()?,
+                )
+            } else {
+                (
+                    witnesses
+                        .iter()
+                        .map(project_witness_wire)
+                        .collect::<Result<Vec<_>, _>>()?,
+                    obs_with_id
+                        .iter()
+                        .map(project_observation_wire)
+                        .collect::<Result<Vec<_>, _>>()?,
+                )
+            };
             // 本代新接纳的源事件（seq ∈ seq_range），供 Watch 消费者重建 raw_history（不另轮询）。
             let wire_raw_history_added: Vec<Value> = all_events
                 .iter()
@@ -2803,6 +3791,23 @@ fn advance_core(
                 "observations": wire_observations,
                 "raw_history_added": wire_raw_history_added,
             });
+            // #1394 第二段：Delta 原件与批次同图。图域先落不可变节点与 `delta/<generation>` 根
+            // （同一事务），行内 delta_json 只留空占位；整块域保持原逐字节行为。
+            let delta_text = canonical_json(&delta_json);
+            let stored_delta = if evidence_store::format(&tx)?.records_in_graph() {
+                let delta_slots = vec![
+                    evidence_store::SlotSpec::string(&gen.to_string()),
+                    evidence_store::SlotSpec::string(&frontier.to_string()),
+                    evidence_store::SlotSpec::string(&base_cut),
+                    evidence_store::SlotSpec::string(&structure_cut),
+                    evidence_store::SlotSpec::string(&batch_id),
+                ];
+                let staged = evidence_store::stage_complete(&delta_json, &delta_slots)?;
+                evidence_store::publish_refs(&tx, &evidence_store::delta_root_key(gen), &staged)?;
+                String::new()
+            } else {
+                delta_text.clone()
+            };
             tx.execute(
                 "INSERT OR REPLACE INTO structure_deltas(generation, session_id, catalog_revision, base_cut, next_cut, seq_range_json, index_frontier, input_frontier, catalog_run_status, catalog_evidence_json, delta_json)
                  VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
@@ -2817,10 +3822,30 @@ fn advance_core(
                     frontier,
                     run_status,
                     evidence.to_string(),
-                    canonical_json(&delta_json),
+                    stored_delta,
                 ],
             )
             .map_err(|e| format!("持久 delta 失败：{e}"))?;
+            if evidence_store::format(&tx)?.records_in_graph() {
+                // 写后立刻重读核：行内必须是空占位，私有根必须无损展开成同一份原件。
+                let row: String = tx
+                    .query_row(
+                        "SELECT delta_json FROM structure_deltas WHERE generation=?1",
+                        params![gen],
+                        |r| r.get(0),
+                    )
+                    .map_err(|e| format!("读回 delta 失败：{e}"))?;
+                if !row.is_empty() {
+                    return Err("StorageUnavailable：图域 delta 行仍带整块原文，拒绝发布".into());
+                }
+                let mut reader = evidence_store::Reader::new(&tx, EVIDENCE_READ_BUDGET);
+                let bytes = reader.read_fixed_cut(&evidence_store::delta_root_key(gen))?;
+                if bytes.as_ref() != delta_text.as_bytes() {
+                    return Err(format!(
+                        "IdentityConflict：delta[{gen}] 私有根展开与本次原件不符，拒绝发布"
+                    ));
+                }
+            }
 
             // 5) 索引可达根：generation / structure_cut / index_frontier（与对象同事务生效）。
             meta_set(&tx, "generation", &gen.to_string())?;
@@ -2858,6 +3883,9 @@ fn advance_core(
         tx.commit()
             .map_err(|e| format!("advance commit 失败：{e}"))?;
     }
+    s_fact_cache::phase::record("commit", started_commit.elapsed().as_nanos());
+    #[cfg(test)]
+    cache::counter(|c| c.commit_ns += commit_started.elapsed().as_nanos() as u64);
 
     if frontier_moved {
         let released = cancel_own_begin(&mut conn, &token, gen, frontier, configured_epoch)?;
@@ -2905,25 +3933,12 @@ fn canonical_bytes_of_value(v: &Value) -> Vec<u8> {
 /// bool 仍 bool、null 仍 null、浮点/非整数原值保持。用于已发布历史/Delta/Catalog 的读取输出，
 /// 不改变内部存储/已发布 DB/BLOB/hash/cut/first_known。
 fn project_wire_integers(v: &Value) -> Value {
-    match v {
-        Value::Number(n) => {
-            if let Some(i) = n.as_i64() {
-                Value::String(i.to_string())
-            } else if let Some(u) = n.as_u64() {
-                Value::String(u.to_string())
-            } else {
-                Value::Number(n.clone())
-            }
-        }
-        Value::Array(arr) => Value::Array(arr.iter().map(project_wire_integers).collect()),
-        Value::Object(map) => {
-            let mut out = serde_json::Map::new();
-            for (k, val) in map {
-                out.insert(k.clone(), project_wire_integers(val));
-            }
-            Value::Object(out)
-        }
-        other => other.clone(),
+    match v3::business_json::project_wire_integers_with_owner(v.into(), None)
+        .expect("普通 wire 整数投影")
+    {
+        v3::business_json::JsonOwner::Plain(v) => v,
+        #[cfg(feature = "s_allocation_json_testonly")]
+        v3::business_json::JsonOwner::Owned(_) => unreachable!("None入口不返回owned"),
     }
 }
 
@@ -3052,17 +4067,8 @@ fn project_object_wire(o: &Value) -> Result<Value, String> {
 }
 
 fn project_withdrawal_wire(w: &Value) -> Result<Value, String> {
-    if tb02a::typed(w) {
-        return Ok(w.clone());
-    }
-    Ok(json!({
-        "object_id": w["object_id"].clone(),
-        "window_start": num_to_str(&w["window_start"])?,
-        "window_mid": num_to_str(&w["window_mid"])?,
-        "window_end": num_to_str(&w["window_end"])?,
-        "reason": w["reason"].clone(),
-        "superseded_by": w["superseded_by"].clone(),
-    }))
+    let wire = v3::business_json::WithdrawalWire::new(w.into())?;
+    serde_json::to_value(wire.view()).map_err(|cause| cause.to_string())
 }
 
 fn project_witness_wire(w: &Value) -> Result<Value, String> {
@@ -3136,17 +4142,79 @@ enum JsonShape {
 }
 
 fn json_shape(text: &str, shape: JsonShape) -> Result<Value, String> {
-    let value: Value =
-        serde_json::from_str(text).map_err(|e| format!("持久 JSON 解析失败：{e}"))?;
+    match json_shape_with_owner(text, shape, None)? {
+        v3::business_json::JsonOwner::Plain(v) => Ok(v),
+        #[cfg(feature = "s_allocation_json_testonly")]
+        v3::business_json::JsonOwner::Owned(_) => {
+            Err("prototype_audit_allocation_incomplete：normal JSON shape不可擦除Owned".into())
+        }
+    }
+}
+fn json_shape_with_owner_admitted(
+    text: &str,
+    shape: JsonShape,
+    owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<v3::business_json::JsonOwner, String> {
+    #[cfg(feature = "s_capture_native_testonly")]
+    if let Some(work) = work {
+        if owner.is_some() {
+            return Err(work
+                .reject(
+                    newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger,
+                )
+                .to_string());
+        }
+        work.reserve_native(v3::audit_owner::native::JsonShape::scan(text.as_bytes()).parse_peak())
+            .map_err(|e| e.to_string())?
+            .retain();
+    }
+    #[cfg(not(feature = "s_capture_native_testonly"))]
+    if let Some(work) = work {
+        return Err(work
+            .reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger)
+            .to_string());
+    }
+    json_shape_with_owner(text, shape, owner)
+}
+
+fn json_shape_with_owner(
+    text: &str,
+    shape: JsonShape,
+    owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+) -> Result<v3::business_json::JsonOwner, String> {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    let value = if let Some(b) = owner {
+        newchan_rust::s_content::capture_allocation::audit_json::OwnedJson::parse_legacy_shape(
+            text.as_bytes(),
+            b,
+        )
+        .map(v3::business_json::JsonOwner::Owned)
+        .map_err(|e| format!("持久 JSON 解析失败：{e}"))?
+    } else {
+        serde_json::from_str(text)
+            .map(v3::business_json::JsonOwner::Plain)
+            .map_err(|e| format!("持久 JSON 解析失败：{e}"))?
+    };
+    #[cfg(not(feature = "s_allocation_json_testonly"))]
+    let value = {
+        if owner.is_some() {
+            return Err("prototype_audit_allocation_incomplete：owned legacy JSON未启用".into());
+        }
+        serde_json::from_str(text)
+            .map(v3::business_json::JsonOwner::Plain)
+            .map_err(|e| format!("持久 JSON 解析失败：{e}"))?
+    };
+    let view = value.view();
     let valid = match shape {
-        JsonShape::Array => value.is_array(),
-        JsonShape::Object => value.is_object(),
-        JsonShape::CatalogBranches => value.is_array() || value.is_object(),
+        JsonShape::Array => view.is_array(),
+        JsonShape::Object => view.is_object(),
+        JsonShape::CatalogBranches => view.is_array() || view.is_object(),
     };
     if valid {
         Ok(value)
     } else {
-        Err("持久 JSON 形状不符".to_string())
+        Err("持久 JSON 形状不符".into())
     }
 }
 
@@ -3567,6 +4635,8 @@ fn read_raw_history(conn: &Connection, max_seq: Option<i64>) -> Result<Vec<Value
 }
 
 fn read_snapshot_in_tx(conn: &Connection, as_of: Option<i64>) -> Result<Value, String> {
+    // #1394 第二段（2D）：一次快照读共享一个捕获作用域（对象、事实、批次 profile 共用读集）。
+    let _capture = cache::begin_capture(EVIDENCE_READ_BUDGET);
     let meta = db_meta(conn)?;
     let (objects, withdrawn) = read_objects_view(conn, as_of)?;
     // 历史/当前切面头：AsKnown 取该代持久头（不可变）；current 用当前已提交头。
@@ -3863,6 +4933,41 @@ fn cmd_query(db: &Path, identity_key: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// #1394：普通财务准备读取 S 原结构证据，S 不参加经济事务或经营轮。
+fn financial_basis_pending(conn: &Connection) -> Result<bool, String> {
+    // begin_token 在 Commit 后保留为历史证据；只有当前 Begin 门或未发布输入才未完成。
+    let state = meta_get_opt(conn, "advance_state")?.ok_or("MissingDependency：S 缺推进状态")?;
+    let published = meta_i64(conn, "last_advance_frontier")?;
+    let accepted: i64 = conn
+        .query_row("SELECT COALESCE(MAX(seq), -1) FROM raw_events", [], |r| {
+            r.get(0)
+        })
+        .map_err(|e| format!("读 S 已接纳前沿失败：{e}"))?;
+    Ok(state != "idle" || accepted != published)
+}
+
+fn cmd_financial_basis(db: &Path) -> Result<(), String> {
+    let conn = open_db(db)?;
+    ensure_initialized(&conn)?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    verify_reachable_root(&tx)?;
+    let meta = db_meta(&tx)?;
+    let (sid, generation, _) = v2::protocol_identity(&tx)?;
+    let pending = financial_basis_pending(&tx)?;
+    let snapshot = read_snapshot_in_tx(&tx, None)?;
+    let commit_ns: Option<String> = tx.query_row(
+        "SELECT semantic_ns FROM s_clock_events WHERE phase='commit' AND generation=? ORDER BY attempt_index DESC LIMIT 1",
+        [snapshot["generation"].as_str().ok_or("MissingDependency：S 发布代缺失")?], |r|r.get(0)
+    ).optional().map_err(|e|e.to_string())?;
+    println!(
+        "{}",
+        project_wire_integers(&json!({"kind":"FinancialBasis", "session_id":sid,
+        "session_generation":generation, "writer_epoch":meta.get("writer_epoch"),
+        "pending_revision":pending, "commit_ns":commit_ns, "snapshot":snapshot}))
+    );
+    Ok(())
+}
+
 fn cmd_meta(db: &Path) -> Result<(), String> {
     let conn = open_db(db)?;
     ensure_initialized(&conn)?;
@@ -3909,19 +5014,86 @@ fn cmd_pragma(db: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// 读 structure_deltas 一行并投影为 wire 形式（整数坐标 → 规范十进制字符串）。
-fn project_delta_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Value> {
-    Ok(json!({
-        "generation": row.get::<_, i64>(0)?.to_string(),
-        "session_id": row.get::<_, String>(1)?,
-        "catalog_revision": row.get::<_, String>(2)?,
-        "base_cut": row.get::<_, String>(3)?,
-        "next_cut": row.get::<_, String>(4)?,
-        "seq_range": json_column(row, 5, JsonShape::Object)?,
-        "index_frontier": row.get::<_, String>(6)?,
-        "input_frontier": row.get::<_, i64>(7)?.to_string(),
-        "delta": json_column(row, 8, JsonShape::Object)?,
-    }))
+/// 读一批 StructureDelta 行并投影为 wire 形式（整数坐标 → 规范十进制字符串）。
+///
+/// 行内 `delta_json` 只是**物理列**：图域里它必须是空占位，完整原件由 `delta/<generation>`
+/// 私有根无损展开（同一捕获共用节点读集与已核句柄）；整块域取行内原文。返回顺序与 SQL 一致。
+fn delta_wire_rows(
+    conn: &Connection,
+    sql: &str,
+    after_generation: i64,
+) -> Result<Vec<Value>, String> {
+    let raw: Vec<(
+        i64,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        i64,
+        String,
+    )> = {
+        let mut stmt = conn
+            .prepare(sql)
+            .map_err(|e| format!("prepare 读 Delta 行失败：{e}"))?;
+        let rows = stmt
+            .query_map(params![after_generation], |r| {
+                Ok((
+                    r.get(0)?,
+                    r.get(1)?,
+                    r.get(2)?,
+                    r.get(3)?,
+                    r.get(4)?,
+                    r.get(5)?,
+                    r.get(6)?,
+                    r.get(7)?,
+                    r.get(8)?,
+                ))
+            })
+            .map_err(|e| format!("query 读 Delta 行失败：{e}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("collect 读 Delta 行失败：{e}"))?;
+        rows
+    };
+    let format = evidence_store::format(conn)?;
+    let mut reader = evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET);
+    let mut out = Vec::with_capacity(raw.len());
+    for (
+        generation,
+        session_id,
+        catalog_revision,
+        base_cut,
+        next_cut,
+        seq_range,
+        index_frontier,
+        input_frontier,
+        column,
+    ) in raw
+    {
+        let text = read_record_original_text(
+            conn,
+            &mut reader,
+            format,
+            &evidence_store::delta_root_key(generation),
+            &column,
+            &format!("delta[{generation}]"),
+        )?;
+        out.push(json!({
+            "generation": generation.to_string(),
+            "session_id": session_id,
+            "catalog_revision": catalog_revision,
+            "base_cut": base_cut,
+            "next_cut": next_cut,
+            "seq_range": json_shape(&seq_range, JsonShape::Object)
+                .map_err(|e| format!("读取 delta[{generation}] seq_range 失败：{e}"))?,
+            "index_frontier": index_frontier,
+            "input_frontier": input_frontier.to_string(),
+            "delta": json_shape(&text, JsonShape::Object)
+                .map_err(|e| format!("读取 delta[{generation}] 失败：{e}"))?,
+        }));
+    }
+    Ok(out)
 }
 
 fn now_nanos() -> String {
@@ -3935,6 +5107,8 @@ fn now_nanos() -> String {
 /// S.Watch：同源读取 S 自己持久化的 StructureDelta（base_cut/next_cut/seq_range/upsert/撤回/替代/
 /// 关系/见证/index_frontier）。重复（generation ≤ cursor）不回放；缺口显式 Gap 并给重建 cut。
 fn cmd_watch(db: &Path, after_generation: i64) -> Result<(), String> {
+    // #1394 第二段（2D）：一次 watch 共享一个捕获作用域（根审计 + Delta 原件展开）。
+    let _capture = cache::begin_capture(EVIDENCE_READ_BUDGET);
     let conn = open_db(db)?;
     ensure_initialized(&conn)?;
     let tx = conn
@@ -3950,21 +5124,12 @@ fn cmd_watch(db: &Path, after_generation: i64) -> Result<(), String> {
     let current_gen: i64 = meta_i64(&tx, "generation")?;
     let current_cut = meta.get("structure_cut").cloned().unwrap_or_default();
 
-    let rows: Vec<Value> = {
-        let mut stmt = tx
-            .prepare(
-                "SELECT generation, session_id, catalog_revision, base_cut, next_cut, seq_range_json, index_frontier, input_frontier, delta_json FROM structure_deltas WHERE generation > ?1 ORDER BY generation ASC",
-            )
-            .map_err(|e| format!("prepare watch 失败：{e}"))?;
-        let mut q = stmt
-            .query(params![after_generation])
-            .map_err(|e| format!("query watch 失败：{e}"))?;
-        let mut out: Vec<Value> = Vec::new();
-        while let Some(row) = q.next().map_err(|e| format!("query watch 失败：{e}"))? {
-            out.push(project_delta_row(row).map_err(|e| format!("读取 delta 失败：{e}"))?);
-        }
-        out
-    };
+    let rows: Vec<Value> = delta_wire_rows(
+        &tx,
+        "SELECT generation, session_id, catalog_revision, base_cut, next_cut, seq_range_json, index_frontier, input_frontier, delta_json FROM structure_deltas WHERE generation > ?1 ORDER BY generation ASC",
+        after_generation,
+    )
+    .map_err(|e| format!("读取 delta 失败：{e}"))?;
 
     // 缺口检测：cursor 落后时核完整连续序列与末端抵达 current；游标超前（重建会话）显式 Gap。
     let mut gap: Value = Value::Null;
@@ -4019,6 +5184,8 @@ fn recover_core(
     new_epoch: &str,
     clock: Option<(&v2::ClockPlan, &str)>,
 ) -> Result<Value, String> {
+    // #1394 第二段（2D）：一次 recover 共享一个捕获作用域（写入前会显式作废）。
+    let _capture = cache::begin_capture(EVIDENCE_READ_BUDGET);
     let new_epoch_i =
         parse_writer_epoch(new_epoch, "--new-epoch").map_err(|e| format!("InvalidDomain：{e}"))?;
     // #1405/#1420：恢复入口不创建缺失的库；历史规则会话只读，不换代、不清未决 Begin。
@@ -4033,6 +5200,7 @@ fn recover_core(
     if meta_get_opt(&conn, "rule_revision")?.as_deref() != Some(RULE_REVISION) {
         return Err("VersionMismatch：历史规则会话只读，禁止恢复写者或清除未决 Begin".into());
     }
+    ensure_writable(&conn)?;
     record_connection_pragmas(&conn, "recover");
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
@@ -4101,7 +5269,7 @@ fn recover_core(
 // ────────────────────────────────────────────────────────────────────────────
 
 fn usage() -> String {
-    "用法：s_structure_session <init|accept|advance|catalog|snapshot|meta|watch|recover|reset> [参数]\n\
+    "用法：s_structure_session <init|accept|advance|catalog|snapshot|meta|watch|recover|reset|serve|query-serve> [参数]\n\
      \x20 init      --db <路径> --session <id> --catalog <catalog.json>      （只允许不存在的目标）\n\
      \x20 accept    --db <路径> --input <输入.json> --profile <profile.json> [--writer-epoch <n>]\n\
      \x20 advance   --db <路径> [--writer-epoch <n>]\n\
@@ -4110,6 +5278,10 @@ fn usage() -> String {
      \x20 meta      --db <路径>\n\
      \x20 pragma    --db <路径>\n\
      \x20 query     --db <路径> --identity-key <k>\n\
+     \x20 query-serve --protocol-revision s-session/3 --db <已有库> --resource-config <Q21.json> --producer-epoch <n> [--host <IPv4主机>] [--port <n>]（Unix；启用前须具名实测资源）\n\
+     \x20 serve --protocol-revision s-session/3 --db <已有库> --profile <profile.json> --writer-epoch <n> --clock-plan <clock.json> --socket <路径> --resource-config <S资源.json>（资源及C09条件队列资格未满足时拒绝监听）\n\
+     \x20 advance --protocol-revision s-session/3 --db <已有库> --profile <profile.json> --writer-epoch <n> --clock-plan <clock.json> [--input <单份envelope.json> --max-input-bytes <显式上限>]（无input仅恢复已持久接纳的原消息）\n\
+     \x20 recover --protocol-revision s-session/3 --db <已有库> --new-epoch <n> --clock-plan <clock.json> --clock-event-id <id>（监督器换代）\n\
      \x20 watch     --db <路径> --after-generation <n>\n\
      \x20 recover   --db <路径> --new-epoch <n>\n\
      \x20 reset     --db <路径> --session <id> --catalog <catalog.json>      （一次性试验：删除并重建）\n"
@@ -4132,6 +5304,9 @@ fn run() -> Result<(), String> {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
         return Err(usage());
+    }
+    if v3::dispatch(&args)? {
+        return Ok(());
     }
     if v2::dispatch(&args)? {
         return Ok(());
@@ -4168,8 +5343,7 @@ fn run() -> Result<(), String> {
         "reset" => {
             let d = db.ok_or("缺 --db".to_string())?;
             let c = catalog.ok_or("缺 --catalog".to_string())?;
-            remove_db_files(&d);
-            cmd_init(&d, &session, &c)
+            cmd_reset(&d, &session, &c)
         }
         "accept" => {
             let d = db.ok_or("缺 --db".to_string())?;
@@ -4180,6 +5354,7 @@ fn run() -> Result<(), String> {
         "advance" => cmd_advance(&db.ok_or("缺 --db".to_string())?, &configured_epoch),
         "catalog" => cmd_catalog(&db.ok_or("缺 --db".to_string())?, as_of),
         "snapshot" => cmd_snapshot(&db.ok_or("缺 --db".to_string())?, as_of),
+        "financial-basis" => cmd_financial_basis(&db.ok_or("缺 --db".to_string())?),
         "meta" => cmd_meta(&db.ok_or("缺 --db".to_string())?),
         "pragma" => cmd_pragma(&db.ok_or("缺 --db".to_string())?),
         "query" => {
@@ -4219,10 +5394,10 @@ mod tests {
 
     static NEXT_TEST_DIR: AtomicU64 = AtomicU64::new(0);
 
-    struct TestFiles(std::path::PathBuf);
+    pub(super) struct TestFiles(std::path::PathBuf);
 
     impl TestFiles {
-        fn new() -> Self {
+        pub(super) fn new() -> Self {
             let stamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
@@ -4234,7 +5409,7 @@ mod tests {
             Self(path)
         }
 
-        fn db(&self) -> std::path::PathBuf {
+        pub(super) fn db(&self) -> std::path::PathBuf {
             self.0.join("结构 ?#%.sqlite")
         }
     }
@@ -4245,7 +5420,7 @@ mod tests {
         }
     }
 
-    fn fixture(path: &str) -> std::path::PathBuf {
+    pub(super) fn fixture(path: &str) -> std::path::PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .unwrap()
@@ -4253,7 +5428,7 @@ mod tests {
             .join(path)
     }
 
-    fn init_test_db(files: &TestFiles) {
+    pub(super) fn init_test_db(files: &TestFiles) {
         cmd_init(
             &files.db(),
             "s-session-testonly-001",
@@ -4294,7 +5469,7 @@ mod tests {
         })
     }
 
-    fn write_input(files: &TestFiles, name: &str, value: &Value) -> std::path::PathBuf {
+    pub(super) fn write_input(files: &TestFiles, name: &str, value: &Value) -> std::path::PathBuf {
         let p = files.0.join(name);
         std::fs::write(&p, value.to_string()).unwrap();
         p
@@ -4328,7 +5503,7 @@ mod tests {
         json!({"schema_revision":"s-ohlc/1","session_id":"s-session-testonly-001","source_namespace":"testonly.ohlc",
             "source_epoch":"1","instrument":"TEST.OHLC","profile":tb02a::PROFILE,"events":events})
     }
-    fn accept_ohlc(files: &TestFiles, input: &Value) {
+    pub(super) fn accept_ohlc(files: &TestFiles, input: &Value) {
         accept_core(
             &files.db(),
             &canonical_json(input),
@@ -4342,7 +5517,7 @@ mod tests {
     /// #1392 独立 oracle 的具名 OHLC（A_STRICT_HIGHER_TOP + OPPOSITE_FORMATION_COMPONENT +
     /// RIGHT_GROUP_SEALED_COMPONENT，逐根 H/L 抄自 ORACLE.json），`source_coord` ×10 以留出
     /// 70 与 80 之间的历史插入位。O=C=floor((H+L)/2)。
-    fn tb02b_oracle_rows() -> Vec<(&'static str, i64, i64, i64, i64, i64)> {
+    pub(super) fn tb02b_oracle_rows() -> Vec<(&'static str, i64, i64, i64, i64, i64)> {
         vec![
             ("b0", 0, 8, 10, 7, 8),
             ("b1", 10, 6, 8, 5, 6),
@@ -4677,7 +5852,7 @@ mod tests {
 
     /// 显式 (event_id, source_coord, open, high, low, close) 的 OHLC 输入；业务身份由 event_id
     /// 固定，历史插入不改旧身份，故不得按数组下标命名。
-    fn located_ohlc_input(rows: &[(&str, i64, i64, i64, i64, i64)]) -> Value {
+    pub(super) fn located_ohlc_input(rows: &[(&str, i64, i64, i64, i64, i64)]) -> Value {
         let events: Vec<Value> = rows
             .iter()
             .map(|(id, coord, open, high, low, close)| {
@@ -5087,14 +6262,7 @@ mod tests {
             .unwrap()
             .iter()
             .any(|o| o["kind"] == "CC-005.inclusion_group"));
-        let delta: String = conn
-            .query_row(
-                "SELECT delta_json FROM structure_deltas WHERE generation=2",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        let delta: Value = serde_json::from_str(&delta).unwrap();
+        let delta: Value = delta_of(&conn, 2);
         assert_eq!(
             delta["catalog_evidence"]["axes"]["CC-056"]["run_status"],
             "run"
@@ -5443,15 +6611,37 @@ mod tests {
         cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let conn = open_db(&files.db()).unwrap();
         verify_reachable_root(&conn).unwrap();
-        let delta: String = conn
-            .query_row(
-                "SELECT delta_json FROM structure_deltas WHERE generation=2",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        let delta: Value = serde_json::from_str(&delta).unwrap();
-        assert_eq!(delta["observations"], before["observations"]);
+        let delta: Value = delta_of(&conn, 2);
+        // #1394 changes-only 域：Delta 只含本代首次封存的观察。首次版本仍完整保留在持久索引与
+        // 同 cut 快照里（含首次 batch），只是不再逐代重发——这正是「未变对象不重发」的收益面。
+        let before_ids: std::collections::BTreeSet<String> = before["observations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|o| o["observation_id"].as_str().unwrap().to_string())
+            .collect();
+        for ob in delta["observations"].as_array().unwrap() {
+            assert!(
+                !before_ids.contains(ob["observation_id"].as_str().unwrap()),
+                "旧观察不得重发到本代 Delta：{ob}"
+            );
+        }
+        let after = snapshot_of(&files, None);
+        let find = |snap: &Value, oid: &str| {
+            snap["observations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|o| o["observation_id"].as_str() == Some(oid))
+                .cloned()
+        };
+        for oid in &before_ids {
+            assert_eq!(
+                find(&after, oid),
+                find(&before, oid),
+                "旧观察必须逐字段保留首次封存版本（含首次 batch_id）"
+            );
+        }
         assert_eq!(snapshot_of(&files, Some(1)), before);
     }
 
@@ -5485,11 +6675,15 @@ mod tests {
                 conn.execute("DELETE FROM meta WHERE key='scope'", [])
                     .unwrap();
             } else {
-                conn.execute(
-                    "UPDATE structure_deltas SET delta_json=json_remove(delta_json,?1)",
-                    params![format!("$.{key}")],
-                )
-                .unwrap();
+                // #1394 第二段：缺必需集合的 Delta 原件必须整体替换该代私有根（图域）/
+                // 行内原文（整块域），两种物理表示下都构成同一处语义缺陷。
+                let mut broken = delta_of(&conn, 1);
+                broken
+                    .as_object_mut()
+                    .unwrap()
+                    .remove(&key.to_string())
+                    .unwrap();
+                set_delta(&conn, 1, &broken);
             }
             assert!(cmd_snapshot(&files.db(), None).is_err(), "{key}");
             assert!(cmd_catalog(&files.db(), Some(0)).is_err(), "{key}");
@@ -5620,8 +6814,20 @@ mod tests {
         set_test_begin(&conn);
         let bytes = br#"{"objects":[],"raw_events":[],"scope":"test-phase-boundary"}"#;
         let id = format!("batch-{}", sha256_hex(bytes));
-        persist_batch_before_publish(&mut conn, "owned", 1, 6, &id, bytes, DEFAULT_WRITER_EPOCH)
-            .unwrap();
+        let value: Value = serde_json::from_slice(bytes).expect("测试批次是可解析 JSON");
+        assert_eq!(canonical_bytes_of_value(&value), bytes.as_slice());
+        persist_batch_before_publish(
+            &mut conn,
+            "owned",
+            1,
+            6,
+            &id,
+            bytes,
+            &value,
+            &[],
+            DEFAULT_WRITER_EPOCH,
+        )
+        .unwrap();
         let reader =
             Connection::open_with_flags(&files.db(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
                 .unwrap();
@@ -5645,6 +6851,8 @@ mod tests {
             6,
             &id,
             b"changed",
+            &value,
+            &[],
             DEFAULT_WRITER_EPOCH
         )
         .is_err());
@@ -5661,6 +6869,8 @@ mod tests {
             6,
             &id,
             bytes,
+            &value,
+            &[],
             DEFAULT_WRITER_EPOCH
         )
         .is_err());
@@ -6223,6 +7433,86 @@ mod tests {
         assert!(rels.iter().any(|r| r["relation_type"] == "supersedes"));
     }
 
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn assert_native_raw_matches_plain(conn: &Connection, expected_len: usize, ohlc: bool) {
+        let expected = read_raw_events_until_admitted(conn, None, None).unwrap();
+        assert_eq!(expected.len(), expected_len);
+        assert!(expected
+            .iter()
+            .any(|row| row["supersedes_revision"].as_i64() == Some(1)));
+        let budget = v3::audit_owner::native::Budget::new(8 * 1024 * 1024, 0).unwrap();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let actual = read_raw_events_until_admitted(conn, None, Some(work))?;
+                assert_eq!(
+                    actual, expected,
+                    "完整SQL JSON、payload hash和receipt逐字段对照"
+                );
+                for (seq, row) in actual.iter().enumerate() {
+                    v3::business_json::validate_raw_row_admitted(
+                        row.into(),
+                        seq,
+                        row["supersedes_revision"].as_i64(),
+                        Some(work),
+                    )?;
+                    assert_eq!(row["payload_hash"].as_str().unwrap().len(), 64);
+                    assert_eq!(row["receipt_id"].as_str().unwrap().len(), 21);
+                    assert_eq!(row.get("schema_revision").is_some(), ohlc);
+                    if ohlc {
+                        assert_eq!(row["schema_revision"], tb02a::RAW_SCHEMA);
+                        assert_eq!(row["price"], row["close"]);
+                        for field in ["open", "high", "low", "close"] {
+                            assert!(row[field].is_string());
+                        }
+                    }
+                }
+                let held = budget.live();
+                drop(actual);
+                assert_eq!(budget.live(), held, "Native保守账随父Budget持有");
+                Ok::<_, String>(())
+            })
+            .unwrap();
+        assert!(budget.live() > 0);
+        assert_eq!(budget.scratch_observation().0, 0);
+        assert_eq!(budget.scratch_observation().2, 0);
+    }
+
+    #[test]
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn native_cold_raw_sql_json_hash_receipt_revision_matches_plain() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let mut first = test_input(&[ev("e0", "1", "0", "10000"), ev("e1", "1", "1", "10500")]);
+        first["events"][0]["raw_text"] = json!("汉😀\n\"原始账\"");
+        accept(
+            &files,
+            &first,
+            "native-raw-first.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        accept(
+            &files,
+            &test_input(&[ev("e1", "2", "1", "11500")]),
+            "native-raw-revision.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        let conn = open_db(&files.db()).unwrap();
+        assert_native_raw_matches_plain(&conn, 3, false);
+    }
+
+    #[test]
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn native_cold_raw_ohlc_and_revision_matches_plain() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept_ohlc(&files, &ohlc_input(&[(0, 4), (2, 5), (1, 6)], false));
+        accept_ohlc(&files, &ohlc_input(&[(0, 4), (2, 5), (1, 7)], true));
+        let conn = open_db(&files.db()).unwrap();
+        assert_native_raw_matches_plain(&conn, 4, true);
+    }
+
     #[test]
     fn revision_replay_conflict_and_old_version_no_revive() {
         let files = TestFiles::new();
@@ -6424,14 +7714,19 @@ mod tests {
 
         let conn = open_db(&files.db()).unwrap();
         // 从 0 起读全部 delta。
-        let mut stmt = conn
-            .prepare("SELECT delta_json FROM structure_deltas WHERE generation > 0 ORDER BY generation ASC")
-            .unwrap();
-        let rows: Vec<String> = stmt
-            .query_map([], |r| r.get::<_, String>(0))
-            .unwrap()
-            .collect::<Result<_, _>>()
-            .unwrap();
+        let generations: Vec<i64> = {
+            let mut stmt = conn
+                .prepare("SELECT generation FROM structure_deltas WHERE generation > 0 ORDER BY generation ASC")
+                .unwrap();
+            stmt.query_map([], |r| r.get::<_, i64>(0))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap()
+        };
+        let rows: Vec<String> = generations
+            .iter()
+            .map(|g| delta_text_of(&conn, *g))
+            .collect();
         assert_eq!(rows.len(), 2);
         let d2: Value = serde_json::from_str(&rows[1]).unwrap();
         assert_eq!(d2["generation"], json!("2"));
@@ -6487,7 +7782,9 @@ mod tests {
             "s2-axis-quantifiers",
             "s2-axis-quantifiers+new-bi/1",
             "s2-axis-quantifiers+new-bi/1+segment-second/1",
-            "s2-axis-quantifiers+new-bi/2",
+            // #1394 合入：`+new-bi/2` 是 v3 写者的当前规则（不是旧规则），换成真正的上一代
+            // v2 规则 `+new-bi/2+segment-second/1`。
+            "s2-axis-quantifiers+new-bi/2+segment-second/1",
             "s2-axis-quantifiers+new-bi/1+segment-second/2",
             "unknown-rule",
         ] {
@@ -6743,6 +8040,72 @@ mod tests {
         cmd_advance(&image, "2").unwrap();
         let after = reads(&image);
         assert_eq!(after.1["generation"], json!("2"));
+    }
+
+    #[test]
+    fn financial_basis_pending_distinguishes_commit_history_and_unpublished_revision() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let conn = open_db(&files.db()).unwrap();
+        assert!(!financial_basis_pending(&conn).unwrap());
+        drop(conn);
+        accept(
+            &files,
+            &test_input(&[ev("e0", "1", "0", "10000")]),
+            "first.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        assert!(financial_basis_pending(&open_db(&files.db()).unwrap()).unwrap());
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let conn = open_db(&files.db()).unwrap();
+        assert_eq!(
+            meta_get_opt(&conn, "advance_state").unwrap().as_deref(),
+            Some("idle")
+        );
+        assert!(meta_get_opt(&conn, "begin_token")
+            .unwrap()
+            .is_some_and(|t| !t.is_empty()));
+        assert!(
+            !financial_basis_pending(&conn).unwrap(),
+            "历史 Begin 标记不是未完成修订"
+        );
+        drop(conn);
+        accept(
+            &files,
+            &test_input(&[ev("e0", "2", "0", "10001")]),
+            "revision.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        let conn = open_db(&files.db()).unwrap();
+        assert_eq!(
+            meta_get_opt(&conn, "advance_state").unwrap().as_deref(),
+            Some("idle")
+        );
+        assert!(
+            financial_basis_pending(&conn).unwrap(),
+            "修订已接纳但未 Begin/发布也必须等待"
+        );
+        drop(conn);
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        assert!(!financial_basis_pending(&open_db(&files.db()).unwrap()).unwrap());
+    }
+
+    #[test]
+    fn financial_basis_pending_detects_active_begin_without_new_raw_input() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let mut conn = open_db(&files.db()).unwrap();
+        let tx = conn.transaction().unwrap();
+        let token = v2::record_begin(&tx, None, 1, -1, "cut-0", DEFAULT_WRITER_EPOCH).unwrap();
+        meta_set(&tx, "advance_state", &format!("begun:{token}:1:-1")).unwrap();
+        meta_set(&tx, "begin_token", &token).unwrap();
+        meta_set(&tx, "begin_generation", "1").unwrap();
+        meta_set(&tx, "begin_input_frontier", "-1").unwrap();
+        tx.commit().unwrap();
+        assert!(financial_basis_pending(&conn).unwrap());
+        drop(conn);
+        cmd_recover(&files.db(), "2").unwrap();
+        assert!(!financial_basis_pending(&open_db(&files.db()).unwrap()).unwrap());
     }
 
     #[test]
@@ -7507,11 +8870,9 @@ mod tests {
             let files = TestFiles::new();
             build(&files);
             let conn = open_db(&files.db()).unwrap();
-            conn.execute(
-                "UPDATE structure_deltas SET delta_json=json_set(delta_json,'$.seq_range.from','99') WHERE generation=2",
-                [],
-            )
-            .unwrap();
+            let mut broken = delta_of(&conn, 2);
+            broken["seq_range"]["from"] = json!("99");
+            set_delta(&conn, 2, &broken);
             drop(conn);
             assert_reject(&files);
         }
@@ -7520,11 +8881,9 @@ mod tests {
             let files = TestFiles::new();
             build(&files);
             let conn = open_db(&files.db()).unwrap();
-            conn.execute(
-                "UPDATE structure_deltas SET delta_json=json_set(delta_json,'$.catalog_run_status','not_run') WHERE generation=2",
-                [],
-            )
-            .unwrap();
+            let mut broken = delta_of(&conn, 2);
+            broken["catalog_run_status"] = json!("not_run");
+            set_delta(&conn, 2, &broken);
             drop(conn);
             assert_reject(&files);
         }
@@ -7533,11 +8892,9 @@ mod tests {
             let files = TestFiles::new();
             build(&files);
             let conn = open_db(&files.db()).unwrap();
-            conn.execute(
-                "UPDATE structure_deltas SET delta_json=json_set(delta_json,'$.catalog_evidence',json('{\"bogus\":true}')) WHERE generation=2",
-                [],
-            )
-            .unwrap();
+            let mut broken = delta_of(&conn, 2);
+            broken["catalog_evidence"] = json!({"bogus": true});
+            set_delta(&conn, 2, &broken);
             drop(conn);
             assert_reject(&files);
         }
@@ -7721,5 +9078,2574 @@ mod tests {
                 }
             }
         }
+    }
+
+    // ── #1394：私有 changes-only/1 域的真实变化 Delta、撤回历史与三方对拍 ──
+
+    fn delta_of(conn: &Connection, generation: i64) -> Value {
+        let text = delta_text_of(conn, generation);
+        serde_json::from_str(&text).unwrap()
+    }
+
+    /// 逻辑 Delta 原件的当前文本：整块域取列，图域取 `delta/<generation>` 私有根的无损展开。
+    fn delta_text_of(conn: &Connection, generation: i64) -> String {
+        if evidence_store::format(conn).unwrap().records_in_graph() {
+            let mut reader = evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET);
+            let bytes = reader
+                .read_fixed_cut(&evidence_store::delta_root_key(generation))
+                .unwrap();
+            String::from_utf8(bytes.to_vec()).unwrap()
+        } else {
+            conn.query_row(
+                "SELECT delta_json FROM structure_deltas WHERE generation=?1",
+                params![generation],
+                |r| r.get(0),
+            )
+            .unwrap()
+        }
+    }
+
+    /// 注入「错的 Delta 原件」：整块域改列；图域**整体替换**该代私有根（模拟发布方写错原件）。
+    fn set_delta(conn: &Connection, generation: i64, delta: &Value) {
+        if evidence_store::format(conn).unwrap().records_in_graph() {
+            evidence_store::force_replace_root(
+                conn,
+                &evidence_store::delta_root_key(generation),
+                delta,
+            )
+            .unwrap();
+        } else {
+            conn.execute(
+                "UPDATE structure_deltas SET delta_json=?1 WHERE generation=?2",
+                params![canonical_json(delta), generation],
+            )
+            .unwrap();
+        }
+    }
+
+    fn sorted_records(v: &Value) -> Vec<String> {
+        let mut out: Vec<String> = v.as_array().unwrap().iter().map(canonical_json).collect();
+        out.sort();
+        out
+    }
+
+    /// 消费端重放：base 快照 + 本代 Delta。upsert 按身份覆盖、撤回移入 withdrawn_objects，
+    /// 发布头取自 Delta 自身（与 read_snapshot 的公开字段一一对应）。
+    fn apply_delta(base: &Value, delta: &Value) -> Value {
+        let mut out = base.clone();
+        let mut objects: Vec<Value> = base["objects"].as_array().unwrap().clone();
+        let mut withdrawn: Vec<Value> = base["withdrawn_objects"].as_array().unwrap().clone();
+        for u in delta["upserts"].as_array().unwrap() {
+            let id = u["object_id"].as_str().unwrap().to_string();
+            objects.retain(|o| o["object_id"].as_str() != Some(id.as_str()));
+            withdrawn.retain(|o| o["object_id"].as_str() != Some(id.as_str()));
+            objects.push(u.clone());
+        }
+        for w in delta["withdrawals"].as_array().unwrap() {
+            let id = w["object_id"].as_str().unwrap().to_string();
+            if let Some(pos) = objects
+                .iter()
+                .position(|o| o["object_id"].as_str() == Some(id.as_str()))
+            {
+                let mut moved = objects.remove(pos);
+                moved["lifecycle"] = json!("withdrawn");
+                moved["withdrawn_generation"] = delta["generation"].clone();
+                moved["withdrawal_reason"] = w["reason"].clone();
+                moved["superseded_by"] = w["superseded_by"].clone();
+                withdrawn.push(moved);
+            }
+        }
+        for (field, key) in [
+            ("witnesses", "witness_id"),
+            ("relations", ""),
+            ("observations", "observation_id"),
+        ] {
+            let mut list: Vec<Value> = out[field].as_array().unwrap().clone();
+            for rec in delta[field].as_array().unwrap() {
+                let fresh = canonical_json(rec);
+                if list.iter().any(|old| {
+                    if key.is_empty() {
+                        canonical_json(old) == fresh
+                    } else {
+                        old[key] == rec[key]
+                    }
+                }) {
+                    continue;
+                }
+                list.push(rec.clone());
+            }
+            out[field] = json!(list);
+        }
+        out["objects"] = json!(objects);
+        out["withdrawn_objects"] = json!(withdrawn);
+        for rec in delta["raw_history_added"].as_array().unwrap() {
+            out["raw_history"].as_array_mut().unwrap().push(rec.clone());
+        }
+        out["generation"] = delta["generation"].clone();
+        out["structure_cut"] = delta["next_cut"].clone();
+        out["index_frontier"] = delta["index_frontier"].clone();
+        for key in [
+            "input_frontier",
+            "seq_range",
+            "catalog_run_status",
+            "catalog_evidence",
+        ] {
+            out[key] = delta[key].clone();
+        }
+        out
+    }
+
+    /// #1394：新域下真正未变的对象不重发；四个首次元数据与批次列在跨代保持首发布值。
+    #[test]
+    fn changes_only_delta_omits_unchanged_objects_and_keeps_first_metadata() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let rows = tb02b_oracle_rows();
+        for n in 1..=rows.len() {
+            accept_ohlc(&files, &located_ohlc_input(&rows[..n]));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        }
+        let conn = open_db(&files.db()).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        let gen: i64 = meta_get_opt(&conn, "generation")
+            .unwrap()
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert!(gen >= 2);
+        let delta = delta_of(&conn, gen);
+        let prev = snapshot_of(&files, Some(gen - 1));
+        let next = snapshot_of(&files, None);
+        let by_id = |snap: &Value| -> BTreeMap<String, Value> {
+            snap["objects"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|o| (o["object_id"].as_str().unwrap().to_string(), o.clone()))
+                .collect()
+        };
+        let (old, new) = (by_id(&prev), by_id(&next));
+        let upsert_ids: std::collections::BTreeSet<String> = delta["upserts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|o| o["object_id"].as_str().unwrap().to_string())
+            .collect();
+        let mut unchanged = 0;
+        for (id, before) in &old {
+            let Some(after) = new.get(id) else { continue };
+            unchanged += 1;
+            assert_eq!(
+                canonical_json(before),
+                canonical_json(after),
+                "未变对象必须逐字段保持"
+            );
+            for key in [
+                "first_known_generation",
+                "first_known_cut",
+                "batch_id",
+                "published_generation",
+            ] {
+                assert_eq!(before[key], after[key], "首次元数据不得漂移：{id}.{key}");
+            }
+            assert!(
+                !upsert_ids.contains(id),
+                "未变对象不得出现在本代 upserts：{id}"
+            );
+        }
+        assert!(unchanged >= 1, "该场景必须存在跨代未变对象");
+        assert!(
+            delta["upserts"].as_array().unwrap().len() < next["objects"].as_array().unwrap().len(),
+            "本代 upsert 必须是完整活动集的真子集"
+        );
+        for u in delta["upserts"].as_array().unwrap() {
+            assert_eq!(
+                u["first_known_generation"],
+                json!(gen.to_string()),
+                "本代 upsert 只能是本代新生/替代目标：{u}"
+            );
+            assert_eq!(u["batch_id"], delta["index_frontier"]);
+        }
+    }
+
+    /// #1394：替换/撤回历史完整；三族 Delta 精确等于本代首次发布（首次 batch 不外移）。
+    #[test]
+    fn changes_only_replacement_keeps_withdrawn_history_and_first_published_families() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept(
+            &files,
+            &test_input(&[
+                ev("e0", "1", "0", "10000"),
+                ev("e1", "1", "1", "11000"),
+                ev("e2", "1", "2", "10500"),
+            ]),
+            "in1.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        accept(
+            &files,
+            &test_input(&[ev("e2", "2", "2", "11500")]),
+            "in2.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let conn = open_db(&files.db()).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        let delta = delta_of(&conn, 2);
+        assert_eq!(delta["withdrawals"].as_array().unwrap().len(), 1);
+        assert_eq!(delta["replaces"].as_array().unwrap().len(), 1);
+        let old_id = delta["withdrawals"][0]["object_id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let new_id = delta["replaces"][0]["new_object_id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        // 撤回历史完整：旧身份仍以原发生区间在库，撤回代/理由/替代指针闭合。
+        let (wg, reason, sup): (Option<i64>, Option<String>, Option<String>) = conn
+            .query_row(
+                "SELECT withdrawn_generation,withdrawal_reason,superseded_by FROM objects WHERE object_id=?1",
+                params![old_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(wg, Some(2));
+        assert_eq!(reason.as_deref(), Some("superseded_by_revision"));
+        assert_eq!(sup.as_deref(), Some(new_id.as_str()));
+        // 替代目标：first_known 本代、批次本代，且被撤对象不得复活。
+        let (fk, batch): (i64, String) = conn
+            .query_row(
+                "SELECT first_known_generation,batch_id FROM objects WHERE object_id=?1",
+                params![new_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            (fk, batch.as_str()),
+            (2, delta["index_frontier"].as_str().unwrap())
+        );
+        assert!(!delta["upserts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|o| o["object_id"].as_str() == Some(old_id.as_str())));
+        let snapshot = snapshot_of(&files, None);
+        let withdrawn = snapshot["withdrawn_objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|o| o["object_id"].as_str() == Some(old_id.as_str()))
+            .unwrap();
+        assert_eq!(withdrawn["lifecycle"], json!("withdrawn"));
+        assert_eq!(withdrawn["withdrawn_generation"], json!("2"));
+        // 三族 Delta 精确等于本代首次发布（published_generation=2），不是完整累计集。
+        let count = |sql: &str| -> i64 { conn.query_row(sql, [], |r| r.get(0)).unwrap() };
+        assert_eq!(
+            delta["witnesses"].as_array().unwrap().len() as i64,
+            count("SELECT COUNT(*) FROM witnesses WHERE published_generation=2")
+        );
+        assert_eq!(
+            delta["relations"].as_array().unwrap().len() as i64,
+            count("SELECT COUNT(*) FROM relations WHERE published_generation=2")
+        );
+        assert_eq!(
+            delta["observations"].as_array().unwrap().len() as i64,
+            count("SELECT COUNT(*) FROM observations WHERE published_generation=2")
+        );
+        assert!(
+            (delta["witnesses"].as_array().unwrap().len() as i64)
+                < count("SELECT COUNT(*) FROM witnesses"),
+            "本代见证必须是完整见证集的真子集"
+        );
+        // 旧观察（若有）保留首次 batch：不重发，也不改持久行。
+        let gen1_batch: String = conn
+            .query_row(
+                "SELECT index_frontier FROM structure_deltas WHERE generation=1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let mut stmt = conn
+            .prepare("SELECT observation_id,batch_id FROM observations ORDER BY observation_id")
+            .unwrap();
+        let rows: Vec<(String, String)> = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        for (oid, batch) in rows {
+            let resent = delta["observations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|o| o["observation_id"].as_str() == Some(oid.as_str()));
+            if resent {
+                assert_eq!(batch, delta["index_frontier"].as_str().unwrap());
+            } else {
+                assert_eq!(batch, gen1_batch, "旧观察必须保留首次 batch");
+            }
+        }
+    }
+
+    /// #1394：base Snapshot + Delta = next Snapshot（含发布头）；重复应用同一 Delta 不再生效。
+    #[test]
+    fn changes_only_base_snapshot_plus_delta_replays_next_snapshot() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let prices = [10, 5, 8, 11, 14, 17, 13, 18, 15];
+        let bars: Vec<_> = prices.iter().map(|h| (h - 2, *h)).collect();
+        for n in 1..=bars.len() {
+            accept_ohlc(&files, &ohlc_input(&bars[..n], false));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        }
+        let mut revised = ohlc_input(&bars, false);
+        revised["events"][5]["revision"] = json!("2");
+        revised["events"][5]["high"] = json!("18");
+        revised["events"][5]["close"] = json!("18");
+        revised["events"][5]["raw_text"] = json!("15/18 revision");
+        accept_ohlc(&files, &revised);
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let conn = open_db(&files.db()).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        let gen: i64 = meta_get_opt(&conn, "generation")
+            .unwrap()
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert_eq!(gen, bars.len() as i64 + 1);
+        let mut replayed = snapshot_of(&files, Some(1));
+        for g in 2..=gen {
+            let delta = delta_of(&conn, g);
+            let next = snapshot_of(&files, Some(g));
+            replayed = apply_delta(&replayed, &delta);
+            let twice = apply_delta(&replayed, &delta);
+            for field in [
+                "objects",
+                "withdrawn_objects",
+                "witnesses",
+                "relations",
+                "observations",
+            ] {
+                assert_eq!(
+                    sorted_records(&replayed[field]),
+                    sorted_records(&next[field]),
+                    "base+Delta 必须逐字段等于 next Snapshot：{field} @ cut-{g}"
+                );
+                assert_eq!(
+                    sorted_records(&twice[field]),
+                    sorted_records(&replayed[field]),
+                    "重复应用同一 Delta 不再生效：{field} @ cut-{g}"
+                );
+            }
+            assert_eq!(
+                sorted_records(&replayed["raw_history"]),
+                sorted_records(&next["raw_history"]),
+                "raw_history 必须完整续接 @ cut-{g}"
+            );
+            // 发布头（generation/cut/frontier/seq_range/catalog_evidence）也须等价，不能只比六族。
+            for key in [
+                "generation",
+                "structure_cut",
+                "index_frontier",
+                "input_frontier",
+                "seq_range",
+                "catalog_run_status",
+                "catalog_evidence",
+            ] {
+                assert_eq!(
+                    canonical_json(&replayed[key]),
+                    canonical_json(&next[key]),
+                    "发布头 {key} 必须与 next Snapshot 一致 @ cut-{g}"
+                );
+            }
+        }
+    }
+
+    /// #1394：新域漏 birth / 伪旧 member 都必须拒绝（不做降级重判）。
+    #[test]
+    fn changes_only_audit_rejects_missing_birth_and_fake_old_member() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let prices = [10, 5, 8, 11, 14, 17, 13, 18];
+        let bars: Vec<_> = prices.iter().map(|h| (h - 2, *h)).collect();
+        for n in 1..=bars.len() {
+            accept_ohlc(&files, &ohlc_input(&bars[..n], false));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        }
+        let conn = open_db(&files.db()).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        let gen: i64 = meta_get_opt(&conn, "generation")
+            .unwrap()
+            .unwrap()
+            .parse()
+            .unwrap();
+        let delta = delta_of(&conn, gen);
+        assert!(!delta["upserts"].as_array().unwrap().is_empty());
+        // ① 漏 birth：抹掉本代新生 → 独立索引出生不再出现在 Delta。
+        let mut missing = delta.clone();
+        missing["upserts"] = json!([]);
+        set_delta(&conn, gen, &missing);
+        assert!(verify_reachable_root(&conn)
+            .unwrap_err()
+            .contains("StorageUnavailable"));
+        // ② 伪旧 member：把一个未变对象当本代 upsert 重新发布 → 它没有本代出生。
+        set_delta(&conn, gen, &delta);
+        verify_reachable_root(&conn).unwrap();
+        let prev = snapshot_of(&files, Some(gen - 1));
+        let fresh: std::collections::BTreeSet<String> = delta["upserts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|o| o["object_id"].as_str().unwrap().to_string())
+            .collect();
+        let old = prev["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|o| !fresh.contains(o["object_id"].as_str().unwrap()))
+            .unwrap()
+            .clone();
+        let mut fake = delta.clone();
+        fake["upserts"].as_array_mut().unwrap().push(old);
+        set_delta(&conn, gen, &fake);
+        assert!(verify_reachable_root(&conn)
+            .unwrap_err()
+            .contains("StorageUnavailable"));
+        set_delta(&conn, gen, &delta);
+        verify_reachable_root(&conn).unwrap();
+    }
+
+    /// #1394：索引和 Delta 一起被改时，仍须由完整封存原件揭露漂移。
+    #[test]
+    fn changes_only_rejects_witness_index_and_delta_drift_from_sealed_source() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        for (i, price) in ["10000", "11000", "10500"].iter().enumerate() {
+            accept(
+                &files,
+                &test_input(&[ev(&format!("e{i}"), "1", &i.to_string(), price)]),
+                &format!("input-{i}.json"),
+                DEFAULT_WRITER_EPOCH,
+            );
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        }
+        let conn = open_db(&files.db()).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        let (id, old_high, born): (String, String, i64) = conn
+            .query_row(
+                "SELECT witness_id,merged_high,published_generation FROM witnesses ORDER BY witness_id LIMIT 1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        let changed_high = (old_high.parse::<i64>().unwrap() + 1).to_string();
+        let mut delta = delta_of(&conn, born);
+        let witness = delta["witnesses"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|w| w["witness_id"] == id)
+            .unwrap();
+        witness["merged_high"] = json!(changed_high);
+        conn.execute(
+            "UPDATE witnesses SET merged_high=?1 WHERE witness_id=?2",
+            params![changed_high, id],
+        )
+        .unwrap();
+        set_delta(&conn, born, &delta);
+        assert!(verify_reachable_root(&conn)
+            .unwrap_err()
+            .contains("封存批次内容/发布代与独立索引不一致"));
+        let output = std::process::Command::new("python3")
+            .arg(fixture("tests/tb02b_verify.py"))
+            .arg("--database")
+            .arg(files.db())
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("封存原件内容/发布代与独立索引不一致")
+        );
+    }
+
+    /// #1394：旧 full 域（无登记表）保持旧判据——删掉冗余的未变对象 upsert 仍当损坏拒绝。
+    #[test]
+    fn legacy_full_domain_rejects_dropped_redundant_upsert() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        // 模拟旧库：无私有登记表 → 旧 full 域（本测试的全部代都由新 writer 按旧域语义写入）。
+        {
+            let conn = open_db(&files.db()).unwrap();
+            conn.execute("DROP TABLE s_storage_format", []).unwrap();
+            verify_reachable_root(&conn).unwrap();
+        }
+        let prices = [10, 5, 8, 11, 14, 17, 13, 18];
+        let bars: Vec<_> = prices.iter().map(|h| (h - 2, *h)).collect();
+        for n in 1..=bars.len() {
+            accept_ohlc(&files, &ohlc_input(&bars[..n], false));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        }
+        let conn = open_db(&files.db()).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        let gen: i64 = meta_get_opt(&conn, "generation")
+            .unwrap()
+            .unwrap()
+            .parse()
+            .unwrap();
+        let delta = delta_of(&conn, gen);
+        assert_eq!(
+            delta["upserts"].as_array().unwrap().len(),
+            snapshot_of(&files, None)["objects"]
+                .as_array()
+                .unwrap()
+                .len(),
+            "旧 full 域的 Delta upserts 仍是完整活动集"
+        );
+        let mut broken = delta.clone();
+        broken["upserts"].as_array_mut().unwrap().pop();
+        set_delta(&conn, gen, &broken);
+        assert!(verify_reachable_root(&conn)
+            .unwrap_err()
+            .contains("StorageUnavailable"));
+        set_delta(&conn, gen, &delta);
+        verify_reachable_root(&conn).unwrap();
+    }
+
+    /// #1394：私有格式登记的未知值/缺行/多行/结构不符与暖 cache 后改模式，都在写入前拒绝。
+    #[test]
+    fn storage_format_registry_corruption_is_rejected_before_any_write() {
+        // 先放对照：同一输入链在新旧两域必须得到同一 batch 字节/hash（见下一个测试）。
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept(
+            &files,
+            &test_input(&[
+                ev("e0", "1", "0", "10000"),
+                ev("e1", "1", "1", "11000"),
+                ev("e2", "1", "2", "10500"),
+            ]),
+            "in1.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let conn = open_db(&files.db()).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        let before = db_meta(&conn).unwrap();
+        // ① 未知模式值。
+        conn.execute(
+            "UPDATE s_storage_format SET storage_format='changes-only/9'",
+            [],
+        )
+        .unwrap();
+        assert!(verify_reachable_root(&conn)
+            .unwrap_err()
+            .contains("SchemaUnsupported"));
+        for refused in [
+            cmd_snapshot(&files.db(), None),
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH),
+            cmd_recover(&files.db(), "2"),
+        ] {
+            assert!(refused.is_err());
+        }
+        assert_eq!(db_meta(&conn).unwrap(), before);
+        // ② 缺行（表在而登记行没了）。
+        conn.execute(
+            "UPDATE s_storage_format SET storage_format='changes-only/1'",
+            [],
+        )
+        .unwrap();
+        verify_reachable_root(&conn).unwrap();
+        conn.execute("DELETE FROM s_storage_format", []).unwrap();
+        assert!(verify_reachable_root(&conn)
+            .unwrap_err()
+            .contains("StorageUnavailable"));
+        // ③ 多行（换掉 CHECK 的 DDL）：结构不符即拒绝，不按「最后一行」猜。
+        conn.execute_batch(
+            "DROP TABLE s_storage_format;
+             CREATE TABLE s_storage_format(singleton INTEGER, storage_format TEXT);
+             INSERT INTO s_storage_format VALUES(1,'changes-only/1'),(2,'changes-only/1');",
+        )
+        .unwrap();
+        assert!(verify_reachable_root(&conn)
+            .unwrap_err()
+            .contains("StorageUnavailable"));
+        drop(conn);
+        // ④ 暖 cache 后改模式：已核前缀/证书身份含模式标签，改模式即失效且写前拒绝，库不变。
+        let warm = TestFiles::new();
+        init_test_db(&warm);
+        accept(
+            &warm,
+            &test_input(&[
+                ev("e0", "1", "0", "10000"),
+                ev("e1", "1", "1", "11000"),
+                ev("e2", "1", "2", "10500"),
+            ]),
+            "in1.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&warm.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        cache::configure(268435456);
+        let healthy = open_db(&warm.db()).unwrap();
+        verify_reachable_root(&healthy).unwrap(); // 首次装入，尚无已核前缀可复用
+        verify_reachable_root(&healthy).unwrap();
+        assert_eq!(cache::last_resumed(), 1);
+        let other = open_db(&warm.db()).unwrap();
+        other
+            .execute(
+                "UPDATE s_storage_format SET storage_format='legacy-full/0'",
+                [],
+            )
+            .unwrap();
+        drop(other);
+        let before = db_meta(&healthy).unwrap();
+        assert!(verify_reachable_root(&healthy).is_err());
+        for refused in [
+            cmd_snapshot(&warm.db(), None),
+            cmd_advance(&warm.db(), DEFAULT_WRITER_EPOCH),
+            cmd_recover(&warm.db(), "2"),
+        ] {
+            assert!(refused.is_err());
+        }
+        assert_eq!(db_meta(&healthy).unwrap(), before);
+        // ⑤ 暖 cache 后整表消失（退化为旧 full 域）：模式标签进缓存身份，已核前缀不得复用；
+        //    稀疏 Delta 也不满足旧 full 判据，故仍在写入前拒绝（不是「旧全量失败了再试稀疏」）。
+        let dropped = TestFiles::new();
+        init_test_db(&dropped);
+        let rows = tb02b_oracle_rows();
+        for n in 1..=rows.len() {
+            accept_ohlc(&dropped, &located_ohlc_input(&rows[..n]));
+            cmd_advance(&dropped.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        }
+        cache::configure(268435456);
+        let healthy = open_db(&dropped.db()).unwrap();
+        verify_reachable_root(&healthy).unwrap(); // 首次装入
+        verify_reachable_root(&healthy).unwrap();
+        assert_eq!(cache::last_resumed(), rows.len());
+        let other = open_db(&dropped.db()).unwrap();
+        other.execute("DROP TABLE s_storage_format", []).unwrap();
+        drop(other);
+        let before = db_meta(&healthy).unwrap();
+        assert!(verify_reachable_root(&healthy).is_err());
+        assert_eq!(cache::last_resumed(), 0, "模式变化不得复用旧前缀/证书");
+        for refused in [
+            cmd_snapshot(&dropped.db(), None),
+            cmd_advance(&dropped.db(), DEFAULT_WRITER_EPOCH),
+            cmd_recover(&dropped.db(), "2"),
+        ] {
+            assert!(refused.is_err());
+        }
+        assert_eq!(db_meta(&healthy).unwrap(), before);
+        cache::configure(0);
+    }
+
+    /// #1394：封存 batch 的字节/内容寻址 hash 不得随 Delta 域变化。
+    /// #1394 第二段：图域每一代仍按**完整展开字节**核公开身份，且跨代共享必须真实发生。
+    #[test]
+    fn evidence_graph_is_lossless_public_identical_and_shared() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let rows = tb02b_oracle_rows();
+        for n in 1..=rows.len() {
+            accept_ohlc(&files, &located_ohlc_input(&rows[..n]));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        }
+        let conn = open_db(&files.db()).unwrap();
+        let format: String = conn
+            .query_row("SELECT graph_format FROM s_evidence_format", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(format, evidence_store::GRAPH_FORMAT);
+        let mut total = 0i64;
+        let mut count = 0i64;
+        {
+            let mut stmt = conn
+                .prepare("SELECT batch_id,canonical_bytes,byte_len FROM batches ORDER BY batch_id")
+                .unwrap();
+            let mut q = stmt.query([]).unwrap();
+            while let Some(r) = q.next().unwrap() {
+                let id: String = r.get(0).unwrap();
+                let blob: Vec<u8> = r.get(1).unwrap();
+                let len: i64 = r.get(2).unwrap();
+                // 图域批次行只留长度占位；完整字节必须由私有根无损展开。
+                assert!(blob.is_empty(), "图域不得再存整块字节：{id}");
+                let bytes = load_batch_bytes(&conn, &id).unwrap();
+                assert_eq!(bytes.len() as i64, len, "展开长度必须等于 byte_len");
+                assert_eq!(format!("batch-{}", sha256_hex(&bytes)), id, "公开身份不变");
+                total += len;
+                count += 1;
+            }
+        }
+        assert_eq!(count, rows.len() as i64);
+        let (_, payload) = evidence_store::stats(&conn).unwrap();
+        // #1394 第二段：三处大原件（批次 / Delta / 结构事实）同图，故共享率按**逻辑原件总量**
+        // 计：节点负载必须显著小于「批次累计 + Delta 累计 + 事实三列累计」。
+        let mut logical = total;
+        let generations: Vec<i64> = {
+            let mut stmt = conn
+                .prepare("SELECT generation FROM structure_deltas ORDER BY generation")
+                .unwrap();
+            stmt.query_map([], |r| r.get::<_, i64>(0))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap()
+        };
+        for g in &generations {
+            logical += delta_text_of(&conn, *g).len() as i64;
+        }
+        let fact_ids: Vec<String> = {
+            let mut stmt = conn
+                .prepare("SELECT object_id FROM structure_facts ORDER BY object_id")
+                .unwrap();
+            stmt.query_map([], |r| r.get::<_, String>(0))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap()
+        };
+        let mut reader = evidence_store::Reader::new(&conn, EVIDENCE_READ_BUDGET);
+        for id in &fact_ids {
+            let bytes = reader
+                .read_fixed_cut(&evidence_store::fact_root_key(id))
+                .unwrap();
+            logical += bytes.len() as i64;
+        }
+        assert!(
+            payload * 2 < logical,
+            "跨代共享必须真实发生：节点负载 {payload} 字节 vs 逻辑原件累计 {logical} 字节"
+        );
+        // 公开读取路径（固定 cut 快照/根审计）在图上必须照常成立。
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(
+            snapshot_of(&files, None)["generation"],
+            json!(rows.len().to_string())
+        );
+    }
+
+    /// #1394 第二段：当前读集下改历史叶/长度/引用/根/登记，任何写入之前一律拒绝且不留痕。
+    #[test]
+    fn evidence_graph_damage_blocks_every_write_before_it_happens() {
+        for sql in [
+            // 改叶字节但保 node ID（内容寻址不符）。
+            "UPDATE s_evidence_nodes SET payload=x'00' WHERE node_id=(SELECT node_id FROM s_evidence_nodes WHERE node_kind=0 AND length(payload)>8 LIMIT 1)",
+            // 改拼接节点声明长度。
+            "UPDATE s_evidence_nodes SET expanded_length=0 WHERE node_id=(SELECT node_id FROM s_evidence_nodes WHERE node_kind=1 LIMIT 1)",
+            // 改叶声明长度。
+            "UPDATE s_evidence_nodes SET expanded_length=expanded_length+3 WHERE node_id=(SELECT node_id FROM s_evidence_nodes WHERE node_kind=0 LIMIT 1)",
+            // 删中间节点（闭包缺项）。
+            "DELETE FROM s_evidence_nodes WHERE node_id=(SELECT node_id FROM s_evidence_nodes WHERE node_kind=1 LIMIT 1)",
+            // 换根指针（指向另一个存在的叶）。
+            "UPDATE s_evidence_roots SET node_id=(SELECT node_id FROM s_evidence_nodes WHERE node_kind=0 LIMIT 1)",
+            // 改根长度 / 摘要 / 参数槽。
+            "UPDATE s_evidence_roots SET expanded_length=expanded_length+1",
+            "UPDATE s_evidence_roots SET content_sha256='0'||substr(content_sha256,2)",
+            "UPDATE s_evidence_roots SET slot_ids=x''",
+            // 删根 / 删批次行（不可达根与悬空根）。
+            "DELETE FROM s_evidence_roots WHERE root_key=(SELECT root_key FROM s_evidence_roots ORDER BY root_key LIMIT 1)",
+            "DELETE FROM batches WHERE batch_id=(SELECT batch_id FROM batches ORDER BY batch_id LIMIT 1)",
+            // 伪造不可达残留节点 / 未声明种类 / 未声明格式。
+            "INSERT INTO s_evidence_nodes(node_id,node_kind,payload,expanded_length) VALUES(zeroblob(32),0,x'00',1)",
+            "UPDATE s_evidence_nodes SET node_kind=7 WHERE node_id=(SELECT node_id FROM s_evidence_nodes WHERE node_kind=0 LIMIT 1)",
+            "UPDATE s_evidence_format SET graph_format='evidence-graph/9'",
+            // 图域批次行仍带整块字节（与私有根混写）。
+            "UPDATE batches SET canonical_bytes=x'7b7d' WHERE batch_id=(SELECT batch_id FROM batches ORDER BY batch_id LIMIT 1)",
+        ] {
+            cache::configure(268435456);
+            let files = TestFiles::new();
+            init_test_db(&files);
+            // 4 代足以覆盖「同一节点跨代被复用后受损」的冷/暖两条读集，避免逐例跑满全链。
+            let oracle = tb02b_oracle_rows();
+            let rows = &oracle[..4];
+            for n in 1..=rows.len() {
+                accept_ohlc(&files, &located_ohlc_input(&rows[..n]));
+                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            }
+            // 先暖一次当前读集，确保损坏不被旧证书掩盖。
+            let healthy = open_db(&files.db()).unwrap();
+            verify_reachable_root(&healthy).unwrap();
+            verify_reachable_root(&healthy).unwrap();
+            assert_eq!(cache::last_resumed(), rows.len());
+            let other = open_db(&files.db()).unwrap();
+            other.execute_batch(sql).unwrap();
+            drop(other);
+            let before = graph_digest(&healthy);
+            assert!(verify_reachable_root(&healthy).is_err(), "{sql}");
+            for refused in [
+                cmd_snapshot(&files.db(), None),
+                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH),
+                cmd_recover(&files.db(), "2"),
+            ] {
+                assert!(refused.is_err(), "{sql}");
+            }
+            assert_eq!(graph_digest(&healthy), before, "拒绝前不得留下任何写入：{sql}");
+            cache::configure(0);
+        }
+    }
+
+    /// #1394 第二段：同 ID 异内容必须在**发布入口**拒绝，不能吞掉等将来读审计发现。
+    #[test]
+    fn evidence_graph_publish_rejects_same_id_different_content() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let conn = open_db(&files.db()).unwrap();
+        let value = json!({"a":[1,2,3,4],"b":"x","c":{"d":"y"}});
+        assert_eq!(
+            canonical_bytes_of_value(&value),
+            br#"{"a":[1,2,3,4],"b":"x","c":{"d":"y"}}"#
+        );
+        let staged = evidence_store::stage_complete(&value, &[]).unwrap();
+        let key = evidence_store::batch_root_key("batch-unit-test");
+        evidence_store::publish_refs(&conn, &key, &staged).unwrap();
+        // 节点同 ID 异内容：保留 node_id 改负载，再发布同一份 staging。
+        conn.execute(
+            "UPDATE s_evidence_nodes SET payload=x'00' WHERE node_id=(SELECT node_id FROM s_evidence_nodes WHERE length(payload)>1 LIMIT 1)",
+            [],
+        )
+        .unwrap();
+        let err = evidence_store::publish_refs(&conn, &key, &staged).unwrap_err();
+        assert!(err.contains("IdentityConflict"), "{err}");
+        // 根同 key 异内容：换根指针后重新发布必须拒绝覆写。
+        conn.execute(
+            "UPDATE s_evidence_roots SET node_id=(SELECT node_id FROM s_evidence_nodes WHERE node_id<>s_evidence_roots.node_id LIMIT 1)",
+            [],
+        )
+        .unwrap();
+        let err = evidence_store::publish_refs(&conn, &key, &staged).unwrap_err();
+        assert!(err.contains("IdentityConflict"), "{err}");
+    }
+
+    /// #1394 第二段：旧库整块域继续严格可读；半降级/混写一律拒绝，不提供降级通道。
+    #[test]
+    fn evidence_graph_downgrade_is_strict() {
+        let build = |files: &TestFiles| {
+            init_test_db(files);
+            let rows = tb02b_oracle_rows();
+            for n in 1..=rows.len() {
+                accept_ohlc(files, &located_ohlc_input(&rows[..n]));
+                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            }
+        };
+        // ① 完整降级为旧库：整块字节写回批次行并撤掉三表 → 旧整块判据仍必须严格可读。
+        let legacy = TestFiles::new();
+        build(&legacy);
+        {
+            let conn = open_db(&legacy.db()).unwrap();
+            let ids: Vec<String> = {
+                let mut stmt = conn
+                    .prepare("SELECT batch_id FROM batches ORDER BY batch_id")
+                    .unwrap();
+                stmt.query_map([], |r| r.get::<_, String>(0))
+                    .unwrap()
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap()
+            };
+            for id in ids {
+                let bytes = load_batch_bytes(&conn, &id).unwrap();
+                conn.execute(
+                    "UPDATE batches SET canonical_bytes=?1 WHERE batch_id=?2",
+                    params![bytes, id],
+                )
+                .unwrap();
+            }
+            // #1394 第二段：三处大原件都要写回行内整块列，降级后的旧库才与旧 writer 的产物同形。
+            let generations: Vec<i64> = {
+                let mut stmt = conn
+                    .prepare("SELECT generation FROM structure_deltas ORDER BY generation")
+                    .unwrap();
+                stmt.query_map([], |r| r.get::<_, i64>(0))
+                    .unwrap()
+                    .collect::<Result<_, _>>()
+                    .unwrap()
+            };
+            for g in generations {
+                let text = delta_text_of(&conn, g);
+                conn.execute(
+                    "UPDATE structure_deltas SET delta_json=?1 WHERE generation=?2",
+                    params![text, g],
+                )
+                .unwrap();
+            }
+            let fact_ids: Vec<String> = {
+                let mut stmt = conn
+                    .prepare("SELECT object_id FROM structure_facts ORDER BY object_id")
+                    .unwrap();
+                stmt.query_map([], |r| r.get::<_, String>(0))
+                    .unwrap()
+                    .collect::<Result<_, _>>()
+                    .unwrap()
+            };
+            let mut reader = evidence_store::Reader::new(&conn, EVIDENCE_READ_BUDGET);
+            for id in fact_ids {
+                let bytes = reader
+                    .read_fixed_cut(&evidence_store::fact_root_key(&id))
+                    .unwrap();
+                let (payload, refs, coords) =
+                    evidence_store::split_fact_root(&bytes, &format!("事实 `{id}`")).unwrap();
+                conn.execute(
+                    "UPDATE structure_facts SET payload_json=?1,input_refs_json=?2,source_coords_json=?3 WHERE object_id=?4",
+                    params![payload, refs, coords, id],
+                )
+                .unwrap();
+            }
+            conn.execute_batch("DELETE FROM s_evidence_roots; DELETE FROM s_evidence_nodes; DROP TABLE s_evidence_roots; DROP TABLE s_evidence_nodes; DROP TABLE s_evidence_format;")
+                .unwrap();
+        }
+        let conn = open_db(&legacy.db()).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        cmd_snapshot(&legacy.db(), None).unwrap();
+        drop(conn);
+        // ② 半降级（缺一张表）仍按已知协议模式拒绝。
+        for drop_sql in [
+            "DROP TABLE s_evidence_roots",
+            "DROP TABLE s_evidence_nodes",
+            "DROP TABLE s_evidence_format",
+        ] {
+            let half = TestFiles::new();
+            build(&half);
+            let conn = open_db(&half.db()).unwrap();
+            conn.execute(drop_sql, []).unwrap();
+            drop(conn);
+            assert!(cmd_snapshot(&half.db(), None).is_err(), "{drop_sql}");
+            assert!(
+                cmd_advance(&half.db(), DEFAULT_WRITER_EPOCH).is_err(),
+                "{drop_sql}"
+            );
+        }
+        // ③ 三表齐全但未声明/坏声明：与模式损坏同门。
+        for sql in [
+            "DELETE FROM s_evidence_format",
+            "UPDATE s_evidence_format SET graph_format='evidence-graph/9'",
+            "UPDATE s_evidence_format SET graph_format='evidence-graph/1'",
+        ] {
+            let bad = TestFiles::new();
+            build(&bad);
+            let conn = open_db(&bad.db()).unwrap();
+            conn.execute(sql, []).unwrap();
+            drop(conn);
+            assert!(cmd_snapshot(&bad.db(), None).is_err(), "{sql}");
+        }
+    }
+
+    /// 库的持久摘要：拒绝路径必须逐字节原地不动（含 meta 与图三表）。
+    #[cfg(test)]
+    pub(super) fn graph_digest(conn: &Connection) -> String {
+        let mut parts: Vec<String> = Vec::new();
+        for sql in [
+            "SELECT key||'='||value FROM meta ORDER BY key",
+            "SELECT batch_id||':'||byte_len||':'||hex(canonical_bytes) FROM batches ORDER BY batch_id",
+            "SELECT hex(node_id)||':'||node_kind||':'||expanded_length||':'||hex(payload) FROM s_evidence_nodes ORDER BY node_id",
+            "SELECT root_key||':'||hex(node_id)||':'||hex(slot_ids)||':'||expanded_length||':'||content_sha256 FROM s_evidence_roots ORDER BY root_key",
+            "SELECT graph_format FROM s_evidence_format ORDER BY singleton",
+        ] {
+            let mut stmt = conn.prepare(sql).unwrap();
+            let rows = stmt
+                .query_map([], |r| r.get::<_, String>(0))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+            parts.extend(rows);
+        }
+        sha256_hex(parts.join("|").as_bytes())
+    }
+
+    /// 同一条输入链分别只改「有没有私有登记表」，逐代 batch_id 与 byte_len 必须完全相同；
+    /// 变化只能落在 Delta 的 upserts 上（新域少发未变对象）。
+    #[test]
+    fn batch_bytes_and_hash_do_not_depend_on_delta_domain() {
+        let build = |legacy: bool| -> (TestFiles, Vec<(i64, String, i64)>, Vec<usize>) {
+            let files = TestFiles::new();
+            init_test_db(&files);
+            if legacy {
+                let conn = open_db(&files.db()).unwrap();
+                conn.execute("DROP TABLE s_storage_format", []).unwrap();
+            }
+            let prices = [10, 5, 8, 11, 14, 17, 13, 18];
+            let bars: Vec<_> = prices.iter().map(|h| (h - 2, *h)).collect();
+            for n in 1..=bars.len() {
+                accept_ohlc(&files, &ohlc_input(&bars[..n], false));
+                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            }
+            let conn = open_db(&files.db()).unwrap();
+            let batches: Vec<(i64, String, i64)> = {
+                let mut stmt = conn
+                    .prepare(
+                        "SELECT d.generation,b.batch_id,b.byte_len FROM structure_deltas d
+                         JOIN batches b ON b.batch_id=d.index_frontier ORDER BY d.generation",
+                    )
+                    .unwrap();
+                stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+                    .unwrap()
+                    .collect::<Result<_, _>>()
+                    .unwrap()
+            };
+            let upserts: Vec<usize> = (1..=batches.len() as i64)
+                .map(|g| delta_of(&conn, g)["upserts"].as_array().unwrap().len())
+                .collect();
+            (files, batches, upserts)
+        };
+        let (_new_files, new_batches, new_upserts) = build(false);
+        let (_old_files, old_batches, old_upserts) = build(true);
+        assert_eq!(
+            new_batches, old_batches,
+            "batch 字节长度与内容寻址 hash 必须与 Delta 域无关"
+        );
+        assert_eq!(new_upserts.len(), old_upserts.len());
+        assert!(
+            new_upserts
+                .iter()
+                .zip(&old_upserts)
+                .all(|(new, old)| new <= old),
+            "新域的 upserts 不得多于旧 full 域"
+        );
+        assert!(
+            new_upserts
+                .iter()
+                .zip(&old_upserts)
+                .any(|(new, old)| new < old),
+            "新域必须在至少一代真正少发未变对象"
+        );
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // #1394 2A-S/2C：增量路径 vs 全量 oracle 的逐代对拍与测量入口（显式 ignored）。
+    //
+    // 对拍面：同一输入逐代 Advance 的 batch_id（= 每代完整快照的内容寻址身份）必须逐代相同。
+    // 测量面：parse / facts 阶段 wall time、稳定对象命中/未命中、CC-007 比较单元实算/复用。
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// 同源 OHLC 输入：`bars[i] = (low, high)`，逐根一代。
+    fn incremental_bars(n: usize) -> Vec<(i64, i64)> {
+        (0..n)
+            .map(|i| {
+                let base = 1000 + (i as i64) * 3 + ((i as i64 * 37) % 47) - 23;
+                let span = 1 + (i as i64 % 5);
+                (base, base + span)
+            })
+            .collect()
+    }
+
+    /// 逐根 Advance，返回每代的 (batch_id, batch 字节数)。`lane_cold` 为真时每代先清空车道。
+    fn drive_prefix(bars: &[(i64, i64)], lane_cold: bool) -> Vec<(String, usize)> {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let mut out = Vec::new();
+        for n in 1..=bars.len() {
+            if lane_cold {
+                s_fact_cache::cold_lane();
+            }
+            accept_ohlc(&files, &ohlc_input(&bars[..n], false));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            let conn = open_db(&files.db()).unwrap();
+            let (batch_id, byte_len): (String, i64) = conn
+                .query_row(
+                    "SELECT d.index_frontier, b.byte_len FROM structure_deltas d
+                     JOIN batches b ON b.batch_id=d.index_frontier ORDER BY d.generation DESC LIMIT 1",
+                    [],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .unwrap();
+            out.push((batch_id, usize::try_from(byte_len).unwrap()));
+        }
+        out
+    }
+
+    #[test]
+    #[ignore = "#1394 显式测量入口（逐代增量状态 + 稳定对象复用 + 比较单元缓存）"]
+    fn issue1394_incremental_prefix_measurement() {
+        let prefix: usize = std::env::var("ISSUE1394_MEASURE_PREFIX")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(64);
+        let bars = incremental_bars(prefix);
+        // 1) 增量路径（暖车道）
+        s_fact_cache::phase::reset();
+        s_fact_cache::phase::enable(true);
+        s_fact_cache::warm_lane_reset();
+        let started = std::time::Instant::now();
+        let warm = drive_prefix(&bars, false);
+        let warm_total = started.elapsed();
+        let phases = s_fact_cache::phase::summary();
+        let counts = s_fact_cache::lane_counts();
+        s_fact_cache::phase::enable(false);
+        // 2) 全量 oracle（同输入，另一个库）
+        s_fact_cache::set_oracle(true);
+        let started = std::time::Instant::now();
+        let oracle = drive_prefix(&bars, false);
+        let oracle_total = started.elapsed();
+        s_fact_cache::set_oracle(false);
+        assert_eq!(
+            warm, oracle,
+            "增量路径与全量 oracle 的逐代 batch_id/字节数必须逐项相同"
+        );
+        // 3) 冷车道（每代清空）必须同样一致
+        let cold = drive_prefix(&bars, true);
+        assert_eq!(cold, warm, "冷车道与暖车道输出必须一致");
+        let report = serde_json::json!({
+            "schema": "issue1394-incremental-prefix/1",
+            "prefix": prefix.to_string(),
+            "generations": warm.len().to_string(),
+            "warm_wall_seconds": format!("{:.6}", warm_total.as_secs_f64()),
+            "oracle_wall_seconds": format!("{:.6}", oracle_total.as_secs_f64()),
+            "warm_vs_oracle_ratio": format!("{:.4}", warm_total.as_secs_f64() / oracle_total.as_secs_f64()),
+            "batch_bytes_last": warm.last().map(|(_, b)| b.to_string()).unwrap_or_default(),
+            "batch_bytes_total": warm.iter().map(|(_, b)| *b as u64).sum::<u64>().to_string(),
+            "phases": phases.iter().map(|(name, nanos, count)| serde_json::json!({
+                "phase": name, "total_ms": format!("{:.3}", *nanos as f64 / 1e6), "calls": count.to_string()})).collect::<Vec<_>>(),
+            "fact_cache": {
+                "hits": counts.0.to_string(), "misses": counts.1.to_string(),
+                "units_computed": counts.2.to_string(), "units_reused": counts.3.to_string(),
+            },
+            "batch_hashes": warm.iter().map(|(id, _)| id.clone()).collect::<Vec<_>>(),
+        });
+        println!("{report}");
+    }
+
+    #[test]
+    fn issue1394_same_price_revision_preserves_exact_current_source() {
+        let bars = [(0, 1), (4, 8), (5, 7), (2, 4), (6, 9)];
+        let run = |oracle: bool| {
+            s_fact_cache::warm_lane_reset();
+            s_fact_cache::set_oracle(oracle);
+            let files = TestFiles::new();
+            init_test_db(&files);
+            let mut published = Vec::new();
+            for revision in 1..=3 {
+                let mut input = ohlc_input(&bars, false);
+                // 价格与坐标均不变，只有真实事件版本变更；来源原件仍须更换。
+                input["events"][0]["revision"] = json!(revision.to_string());
+                accept_ohlc(&files, &input);
+                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+                let conn = open_db(&files.db()).unwrap();
+                verify_reachable_root(&conn).unwrap();
+                let batch_id: String = conn
+                    .query_row(
+                        "SELECT index_frontier FROM structure_deltas WHERE generation=?1",
+                        params![revision],
+                        |row| row.get(0),
+                    )
+                    .unwrap();
+                let bytes = load_batch_bytes(&conn, &batch_id).unwrap();
+                for (old, (_, snapshot)) in published.iter().enumerate() {
+                    assert!(
+                        &snapshot_of(&files, Some(old as i64 + 1)) == snapshot,
+                        "真实 revision 后旧 cut {} 改变",
+                        old + 1
+                    );
+                }
+                published.push((bytes, snapshot_of(&files, Some(revision))));
+            }
+            s_fact_cache::set_oracle(false);
+            published
+        };
+        let warm = run(false);
+        let oracle = run(true);
+        assert_ne!(oracle[0].0, oracle[1].0, "真实 revision 必须改变原件身份");
+        for (index, (actual, expected)) in warm.iter().zip(&oracle).enumerate() {
+            assert!(
+                actual == expected,
+                "同价 revision 第 {} 代的完整 batch 字节/快照不一致：warm={} oracle={}",
+                index + 1,
+                sha256_hex(&actual.0),
+                sha256_hex(&expected.0)
+            );
+        }
+    }
+
+    #[test]
+    fn issue1394_incremental_matches_oracle_on_revision_return() {
+        // 真实修订（消失/返回）+ 追加：增量路径与 oracle 逐代 batch_id 必须相同。
+        let bars = incremental_bars(12);
+        // 与 ohlc_input 同形，但把 events[index] 的 revision 设为给定值（真实 late revision）。
+        let revision_input = |bars: &[(i64, i64)], index: usize, revision: &str| -> Value {
+            let events: Vec<Value> = bars
+                .iter()
+                .enumerate()
+                .map(|(i, (low, high))| {
+                    json!({
+                        "event_id":format!("o{i}"),
+                        "revision":if i == index { revision } else { "1" },
+                        "seq":i.to_string(),
+                        "received_at":"2026-09-13T00:00:00Z",
+                        "raw_text":format!("{low}/{high}"),
+                        "open":low.to_string(),"high":high.to_string(),"low":low.to_string(),"close":high.to_string(),
+                        "timestamp":i.to_string(),"volume":"1"
+                    })
+                })
+                .collect();
+            json!({"schema_revision":"s-ohlc/1","session_id":"s-session-testonly-001","source_namespace":"testonly.ohlc",
+                "source_epoch":"1","instrument":"TEST.OHLC","profile":tb02a::PROFILE,"events":events})
+        };
+        let mut revised = bars.clone();
+        revised[2] = (bars[2].0 + 7, bars[2].1 + 7);
+        let steps: Vec<Vec<(i64, i64)>> = vec![
+            bars.clone(),
+            revised.clone(),
+            bars.clone(), // 返回原价（revision 3）
+        ];
+        let run = |oracle: bool| -> Vec<(i64, String)> {
+            s_fact_cache::warm_lane_reset();
+            s_fact_cache::set_oracle(oracle);
+            let files = TestFiles::new();
+            init_test_db(&files);
+            for n in 1..=bars.len() {
+                accept_ohlc(&files, &ohlc_input(&bars[..n], false));
+                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            }
+            accept_ohlc(&files, &revision_input(&steps[1], 2, "2"));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            accept_ohlc(&files, &revision_input(&steps[2], 2, "3"));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            s_fact_cache::set_oracle(false);
+            let conn = open_db(&files.db()).unwrap();
+            let mut stmt = conn
+                .prepare("SELECT d.generation, d.index_frontier FROM structure_deltas d ORDER BY d.generation")
+                .unwrap();
+            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap()
+        };
+        let warm_ids = run(false);
+        let oracle_ids = run(true);
+        assert_eq!(
+            warm_ids, oracle_ids,
+            "真实修订（消失/返回）下增量与 oracle 的逐代 batch_id 必须相同"
+        );
+        assert_eq!(warm_ids.len(), bars.len() + 2);
+    }
+}
+
+#[cfg(test)]
+mod staged_graph_audit_regressions {
+    use super::*;
+    use crate::tests::{
+        accept_ohlc, fixture, graph_digest, init_test_db, located_ohlc_input, tb02b_oracle_rows,
+        write_input, TestFiles,
+    };
+
+    /// 把库从 `evidence-graph/3` 退成**真正的** `evidence-graph/2`：Delta 与结构事实三列大原件
+    /// 写回行内整块列，撤掉 delta/fact 根（节点按不可达清理），再把登记行改成 v2。
+    fn downgrade_to_graph2(conn: &Connection) {
+        let generations: Vec<i64> = {
+            let mut stmt = conn
+                .prepare("SELECT generation FROM structure_deltas ORDER BY generation")
+                .unwrap();
+            stmt.query_map([], |r| r.get::<_, i64>(0))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap()
+        };
+        for g in generations {
+            let text = delta_text_of_test(conn, g);
+            conn.execute(
+                "UPDATE structure_deltas SET delta_json=?1 WHERE generation=?2",
+                params![text, g],
+            )
+            .unwrap();
+        }
+        let fact_ids: Vec<String> = {
+            let mut stmt = conn
+                .prepare("SELECT object_id FROM structure_facts ORDER BY object_id")
+                .unwrap();
+            stmt.query_map([], |r| r.get::<_, String>(0))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap()
+        };
+        let mut reader = evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET);
+        for id in fact_ids {
+            let bytes = reader
+                .read_fixed_cut(&evidence_store::fact_root_key(&id))
+                .unwrap();
+            let (payload, refs, coords) =
+                evidence_store::split_fact_root(&bytes, &format!("事实 `{id}`")).unwrap();
+            conn.execute(
+                "UPDATE structure_facts SET payload_json=?1,input_refs_json=?2,source_coords_json=?3 WHERE object_id=?4",
+                params![payload, refs, coords, id],
+            )
+            .unwrap();
+        }
+        drop(reader);
+        conn.execute(
+            "DELETE FROM s_evidence_roots WHERE root_key LIKE 'delta/%' OR root_key LIKE 'fact/%'",
+            [],
+        )
+        .unwrap();
+        evidence_store::prune_unreachable_nodes(conn).unwrap();
+        conn.execute(
+            "UPDATE s_evidence_format SET graph_format=?1",
+            params![evidence_store::GRAPH_FORMAT_V2],
+        )
+        .unwrap();
+    }
+
+    fn delta_text_of_test(conn: &Connection, generation: i64) -> String {
+        if evidence_store::format(conn).unwrap().records_in_graph() {
+            let mut reader = evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET);
+            let bytes = reader
+                .read_fixed_cut(&evidence_store::delta_root_key(generation))
+                .unwrap();
+            String::from_utf8(bytes.to_vec()).unwrap()
+        } else {
+            conn.query_row(
+                "SELECT delta_json FROM structure_deltas WHERE generation=?1",
+                params![generation],
+                |r| r.get(0),
+            )
+            .unwrap()
+        }
+    }
+
+    fn build_oracle(files: &TestFiles, generations: usize) {
+        init_test_db(files);
+        let rows = tb02b_oracle_rows();
+        for n in 1..=generations.min(rows.len()) {
+            accept_ohlc(files, &located_ohlc_input(&rows[..n]));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        }
+    }
+
+    fn all_batch_ids(conn: &Connection) -> Vec<String> {
+        let mut stmt = conn
+            .prepare("SELECT batch_id FROM batches ORDER BY batch_id")
+            .unwrap();
+        stmt.query_map([], |r| r.get::<_, String>(0))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+    }
+
+    fn read_all_batches(conn: &Connection) -> Vec<(String, Vec<u8>)> {
+        all_batch_ids(conn)
+            .into_iter()
+            .map(|id| {
+                let bytes = load_batch_bytes(conn, &id).unwrap();
+                (id, bytes.to_vec())
+            })
+            .collect()
+    }
+
+    /// 同 cut 快照（用于「缓存不得改变查询结果」的逐字段对拍）。
+    fn snapshot_here(files: &TestFiles) -> Value {
+        let conn = open_db(&files.db()).unwrap();
+        let tx = conn.unchecked_transaction().unwrap();
+        read_snapshot_in_tx(&tx, None).unwrap()
+    }
+
+    /// 图域读路径的「查询结果」：逐代 Delta 原件 + 每条结构事实三列原件。
+    /// （批次原件由 `read_all_batches` 单独对拍。）
+    fn graph_record_texts(conn: &Connection) -> Vec<(String, Vec<u8>)> {
+        let mut out: Vec<(String, Vec<u8>)> = Vec::new();
+        let generations: Vec<i64> = {
+            let mut stmt = conn
+                .prepare("SELECT generation FROM structure_deltas ORDER BY generation")
+                .unwrap();
+            stmt.query_map([], |r| r.get::<_, i64>(0))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap()
+        };
+        for g in generations {
+            out.push((
+                format!("delta/{g}"),
+                delta_text_of_test(conn, g).into_bytes(),
+            ));
+        }
+        let fact_ids: Vec<String> = {
+            let mut stmt = conn
+                .prepare("SELECT object_id FROM structure_facts ORDER BY object_id")
+                .unwrap();
+            stmt.query_map([], |r| r.get::<_, String>(0))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap()
+        };
+        let mut reader = evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET);
+        for id in fact_ids {
+            let bytes = reader
+                .read_fixed_cut(&evidence_store::fact_root_key(&id))
+                .unwrap();
+            out.push((format!("fact/{id}"), bytes.to_vec()));
+        }
+        out
+    }
+
+    /// #1394 第三段（exact-originals）：同一数据下**冷 / 暖 / 零预算 / 不足预算 / 足预算**读出的
+    /// 完整原始 bytes 必须逐字节一致；单一 source-byte 预算（保留量 + 本次捕获瞬时读集）在每一处
+    /// 都实际满足。暖读必须真的命中已核句柄——原件逐字节比较通过才复用，不是摘要相等。
+    #[test]
+    fn graph3_cold_warm_and_budgeted_reads_are_byte_identical_and_budget_bounded() {
+        let files = TestFiles::new();
+        build_oracle(&files, 3);
+        let conn = open_db(&files.db()).unwrap();
+        let ample = 1usize << 30;
+
+        // ① 冷（丢掉跨请求持有）：真的完整展开，且不留任何命中。
+        cache::configure(ample);
+        cache::clear_handles();
+        cache::counters_reset();
+        let cold = read_all_batches(&conn);
+        let counters = cache::counters_snapshot();
+        assert!(counters.batch_expansions > 0, "冷读必须真的展开");
+        assert_eq!(counters.batch_handle_hits, 0, "冷读不得命中句柄");
+        let cold_records = graph_record_texts(&conn);
+        let cold_snapshot = snapshot_here(&files);
+        assert!(cache::retained_bytes() <= ample);
+        assert_eq!(cache::capture_bytes_now(), 0, "捕获结束必须释放瞬时读集");
+
+        // ② 暖（同一配置）：逐字节一致，且真的复用（命中 > 0、重新展开 == 0）。
+        cache::counters_reset();
+        let warm = read_all_batches(&conn);
+        let counters = cache::counters_snapshot();
+        assert_eq!(cold, warm, "冷/暖完整原始 bytes 必须逐字节一致");
+        assert_eq!(
+            cold_records,
+            graph_record_texts(&conn),
+            "冷/暖查询结果必须一致"
+        );
+        assert_eq!(cold_snapshot, snapshot_here(&files), "冷/暖快照必须一致");
+        assert!(counters.batch_handle_hits > 0, "暖读必须复用已核句柄");
+        assert_eq!(counters.batch_expansions, 0, "暖读不得重新展开");
+        assert!(counters.cert_compared > 0, "暖读必须逐字节比较原件证书");
+        assert!(cache::retained_bytes() <= ample);
+
+        // ③ 零预算：不留任何跨请求持有，结果仍必须逐字节一致。
+        cache::configure(0);
+        let zero = read_all_batches(&conn);
+        assert_eq!(cold, zero, "零预算读出的 bytes 必须一致");
+        assert_eq!(
+            cold_records,
+            graph_record_texts(&conn),
+            "零预算查询结果必须一致"
+        );
+        assert_eq!(cache::retained_bytes(), 0, "零预算不得保留任何跨请求持有");
+
+        // ④ 不足预算：装不下的只失去复用，bytes 与自有预算仍必须成立。
+        let tight = 64 * 1024;
+        cache::configure(tight);
+        cache::clear_handles();
+        let limited = read_all_batches(&conn);
+        assert_eq!(cold, limited, "不足预算读出的 bytes 必须一致");
+        assert_eq!(
+            cold_records,
+            graph_record_texts(&conn),
+            "不足预算查询结果必须一致"
+        );
+        assert!(
+            cache::retained_bytes() <= tight,
+            "不足预算下保留量必须在预算内：{}",
+            cache::retained_bytes()
+        );
+
+        // ⑤ 预算重回足额：仍必须逐字节一致，并重新出现复用。
+        cache::configure(ample);
+        cache::clear_handles();
+        let _ = read_all_batches(&conn);
+        cache::counters_reset();
+        let amply = read_all_batches(&conn);
+        assert_eq!(cold, amply, "足预算读出的 bytes 必须一致");
+        assert_eq!(
+            cold_records,
+            graph_record_texts(&conn),
+            "足预算查询结果必须一致"
+        );
+        assert_eq!(cold_snapshot, snapshot_here(&files), "足预算快照必须一致");
+        assert!(cache::counters_snapshot().batch_handle_hits > 0);
+        cache::configure(268_435_456);
+    }
+
+    /// #1394 第三段：单一 source-byte 预算在**捕获进行中**（节点加入 / 句柄加入）、捕获结束、
+    /// 以及 root 替换（前缀变长）之后都实际满足；超限只失去复用。
+    #[test]
+    fn graph3_source_byte_budget_holds_inside_and_after_captures() {
+        let files = TestFiles::new();
+        build_oracle(&files, 2);
+        let conn = open_db(&files.db()).unwrap();
+        for limit in [1usize << 30, 1 << 20, 4096] {
+            cache::configure(limit);
+            {
+                // 捕获进行中：每读一个根，保留量 + 瞬时读集都必须在同一上限内。
+                let mut reader = evidence_store::Reader::new(&conn, EVIDENCE_READ_BUDGET);
+                for id in all_batch_ids(&conn) {
+                    let _ = reader
+                        .read_fixed_cut(&evidence_store::batch_root_key(&id))
+                        .unwrap();
+                    assert!(
+                        cache::retained_bytes().saturating_add(cache::capture_bytes_now()) <= limit,
+                        "捕获中预算必须满足（limit={limit}）"
+                    );
+                }
+            }
+            // 捕获结束：瞬时读集释放；保留量仍在预算内。
+            assert_eq!(cache::capture_bytes_now(), 0, "捕获结束必须释放瞬时读集");
+            assert!(
+                cache::retained_bytes() <= limit,
+                "捕获结束后保留量必须在预算内（limit={limit}）"
+            );
+            // 暖读与完整根审计在不足预算下同样必须通过（超限只失去复用，不改判据）。
+            verify_reachable_root(&conn).unwrap();
+            assert!(
+                cache::retained_bytes() <= limit,
+                "根审计后保留量必须在预算内（limit={limit}）"
+            );
+        }
+        drop(conn);
+        // root 替换（新增一代 → 前缀变长）：新 root 装入并驱逐后仍必须在同一预算内。
+        let tight = 64 * 1024;
+        cache::configure(tight);
+        let rows = tb02b_oracle_rows();
+        accept_ohlc(&files, &located_ohlc_input(&rows[..3]));
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        assert!(
+            cache::retained_bytes() <= tight,
+            "root 替换后保留量必须在预算内：{} 分解(root,handles,certs)={:?}",
+            cache::retained_bytes(),
+            cache::retained_breakdown()
+        );
+        cache::configure(268_435_456);
+    }
+
+    /// #1394 第三段：审计前缀复用必须是「同一份已核 Delta 原件」——末列摘要逐字节相同也不够。
+    /// 丢掉原件证书后（同一个摘要、另一份证书对象）不得复用前缀，而查询结果必须完全一致。
+    #[test]
+    fn graph3_audit_prefix_reuse_requires_same_originals_and_keeps_results_identical() {
+        let files = TestFiles::new();
+        build_oracle(&files, 3);
+        cache::configure(1 << 30);
+        cache::clear_handles();
+        let conn = open_db(&files.db()).unwrap();
+        let cold_snapshot = snapshot_here(&files);
+        // 冷：完整核验一次，保留已核原件证书与审计前缀。
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(cache::last_resumed(), 0, "冷捕获不得复用前缀");
+        let digest = graph_digest(&conn);
+        // 暖：前缀行逐字节相同 **且**每代 Delta 原件是同一份已核证书 ⟹ 前缀复用。
+        cache::counters_reset();
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(cache::last_resumed(), 3, "暖捕获必须复用已核前缀（3 代）");
+        assert!(
+            cache::counters_snapshot().cert_compared > 0,
+            "复用前必须逐字节比较原件证书"
+        );
+        assert_eq!(graph_digest(&conn), digest, "缓存不得改变任何持久事实");
+        assert_eq!(snapshot_here(&files), cold_snapshot, "查询结果必须一致");
+
+        // 丢掉跨请求持有：末列摘要逐字节不变，但原件证书是**另一份**对象（指针不同）
+        // ⟹ 不得冒充同一原件、不得复用前缀。
+        cache::clear_handles();
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(cache::last_resumed(), 0, "另一份证书对象不得冒充同一原件");
+        assert_eq!(graph_digest(&conn), digest);
+        assert_eq!(snapshot_here(&files), cold_snapshot, "查询结果必须一致");
+        cache::configure(268_435_456);
+    }
+
+    /// #1394：合法包装只改变原件根指针，保留公开 bytes、槽和所有旧节点的可达性。
+    fn wrap_root_with_single_ref(conn: &Connection, key: &str) {
+        use sha2::{Digest, Sha256};
+        let (node, _, _, _) = evidence_store::Reader::root_row(conn, key)
+            .unwrap()
+            .unwrap();
+        let length: i64 = conn
+            .query_row(
+                "SELECT expanded_length FROM s_evidence_nodes WHERE node_id=?1",
+                params![node.as_slice()],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let mut payload = vec![1u8]; // TAG_REF
+        payload.extend_from_slice(&node);
+        let wrapped: [u8; 32] = Sha256::digest([&[1u8][..], &payload].concat()).into();
+        conn.execute(
+            "INSERT INTO s_evidence_nodes(node_id,node_kind,payload,expanded_length) VALUES(?1,1,?2,?3)",
+            params![wrapped.as_slice(), payload, length],
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE s_evidence_roots SET node_id=?1 WHERE root_key=?2",
+            params![wrapped.as_slice(), key],
+        )
+        .unwrap();
+    }
+
+    fn assert_wrapped_root_rechecks_prefix(kind: &str, graph2: bool) {
+        let files = TestFiles::new();
+        build_oracle(&files, 3);
+        let conn = open_db(&files.db()).unwrap();
+        if graph2 {
+            downgrade_to_graph2(&conn);
+        }
+        cache::configure(1 << 30);
+        cache::clear_handles();
+        let key: String = conn
+            .query_row(
+                "SELECT root_key FROM s_evidence_roots WHERE root_key LIKE ?1 ORDER BY root_key LIMIT 1",
+                params![format!("{kind}/%")],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let original = evidence_store::Reader::new(&conn, EVIDENCE_READ_BUDGET)
+            .read_root(&key, false)
+            .unwrap();
+        let snapshot = snapshot_here(&files);
+        verify_reachable_root(&conn).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(cache::last_resumed(), 3, "变更前须已复用暖前缀");
+
+        wrap_root_with_single_ref(&conn, &key);
+        // 先验证包装是合法的内容等价原件，且确实旋转了根证明。
+        let wrapped = evidence_store::Reader::new(&conn, EVIDENCE_READ_BUDGET)
+            .read_root(&key, false)
+            .unwrap();
+        assert_eq!(wrapped.bytes, original.bytes);
+        assert!(!wrapped.originals_verified && !wrapped.reused);
+        assert!(!std::sync::Arc::ptr_eq(
+            original.root_cert.as_ref().unwrap(),
+            wrapped.root_cert.as_ref().unwrap()
+        ));
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(cache::last_resumed(), 0, "{key} 原件变化必须重核旧前缀");
+        assert_eq!(snapshot_here(&files), snapshot);
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(cache::last_resumed(), 3, "下一次未改原件须恢复暖前缀复用");
+        cache::configure(268_435_456);
+    }
+
+    #[test]
+    fn graph3_batch_original_wrapper_rechecks_prefix() {
+        assert_wrapped_root_rechecks_prefix("batch", false);
+    }
+
+    #[test]
+    fn graph3_fact_original_wrapper_rechecks_prefix() {
+        assert_wrapped_root_rechecks_prefix("fact", false);
+    }
+
+    #[test]
+    fn graph2_batch_original_wrapper_rechecks_prefix() {
+        assert_wrapped_root_rechecks_prefix("batch", true);
+    }
+
+    /// #1394 第二段：`evidence-graph/2`（只有 batch 走私有图）继续**只读**兼容；本 writer 明确
+    /// 拒绝在 v2 域写入（不原地迁移、不降级猜测），且混代根（v2 名下出现 delta/fact 根）一律拒绝。
+    #[test]
+    fn graph2_domain_stays_read_only_and_mixed_roots_are_rejected() {
+        // ① 真正的 v2 库：读全部通过，写一律 SchemaUnsupported。
+        let files = TestFiles::new();
+        build_oracle(&files, 3);
+        {
+            let conn = open_db(&files.db()).unwrap();
+            verify_reachable_root(&conn).unwrap();
+            downgrade_to_graph2(&conn);
+            assert_eq!(
+                evidence_store::format(&conn).unwrap(),
+                evidence_store::Format::GraphV2
+            );
+            verify_reachable_root(&conn).unwrap();
+        }
+        cmd_snapshot(&files.db(), None).unwrap();
+        cmd_catalog(&files.db(), None).unwrap();
+        cmd_watch(&files.db(), 1).unwrap();
+        // 三个正式写入入口（accept / advance / recover）都在**第一笔写入之前**按写域门拒绝。
+        for refusal in [
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap_err(),
+            cmd_recover(&files.db(), "2").unwrap_err(),
+        ] {
+            assert!(
+                refusal.contains("SchemaUnsupported")
+                    && refusal.contains(evidence_store::GRAPH_FORMAT_V2),
+                "{refusal}"
+            );
+        }
+        let accept_refusal = {
+            let input = located_ohlc_input(&tb02b_oracle_rows()[..1]);
+            let path = write_input(&files, "v2-accept.json", &input);
+            cmd_accept(
+                &files.db(),
+                &path,
+                &fixture("profiles/ohlc_integer_tb02a_v1.json"),
+                DEFAULT_WRITER_EPOCH,
+            )
+            .unwrap_err()
+        };
+        assert!(
+            accept_refusal.contains("SchemaUnsupported"),
+            "{accept_refusal}"
+        );
+        // ② 混代：v3 产物把登记行改成 v2，delta/fact 根仍在 → 读写都必须拒绝。
+        let mixed = TestFiles::new();
+        build_oracle(&mixed, 3);
+        {
+            let conn = open_db(&mixed.db()).unwrap();
+            conn.execute(
+                "UPDATE s_evidence_format SET graph_format=?1",
+                params![evidence_store::GRAPH_FORMAT_V2],
+            )
+            .unwrap();
+            let err = verify_reachable_root(&conn).unwrap_err();
+            assert!(err.contains("未声明"), "{err}");
+        }
+        assert!(cmd_snapshot(&mixed.db(), None).is_err());
+        assert!(cmd_advance(&mixed.db(), DEFAULT_WRITER_EPOCH).is_err());
+    }
+
+    /// #1394 第二段：Delta 原件与结构事实三列原件的根/节点/行任一变化，都在**任何写入之前**拒绝，
+    /// 且拒绝前后库摘要逐字节不变（热缓存与冷缓存都执行）。
+    #[test]
+    fn graph3_delta_and_fact_damage_blocks_every_write_before_it_happens() {
+        for (sql, warm) in [
+            (
+                "INSERT INTO s_evidence_roots SELECT 'delta/01',node_id,slot_ids,expanded_length,content_sha256 FROM s_evidence_roots WHERE root_key='delta/1'",
+                true,
+            ),
+            (
+                "INSERT INTO s_evidence_roots SELECT 'delta/+1',node_id,slot_ids,expanded_length,content_sha256 FROM s_evidence_roots WHERE root_key='delta/1'",
+                false,
+            ),
+            ("UPDATE structure_deltas SET delta_json='{}' WHERE generation=1", true),
+            ("DELETE FROM structure_deltas WHERE generation=1", true),
+            ("UPDATE structure_deltas SET catalog_evidence_json='{}' WHERE generation=1", true),
+            ("UPDATE structure_deltas SET input_frontier=99 WHERE generation=1", true),
+            (
+                "UPDATE structure_facts SET payload_json='{}' WHERE object_id=(SELECT object_id FROM structure_facts ORDER BY object_id LIMIT 1)",
+                true,
+            ),
+            (
+                "UPDATE structure_facts SET input_refs_json='[]' WHERE object_id=(SELECT object_id FROM structure_facts ORDER BY object_id LIMIT 1)",
+                true,
+            ),
+            (
+                "UPDATE structure_facts SET first_known_generation=first_known_generation+1 WHERE object_id=(SELECT object_id FROM structure_facts ORDER BY object_id LIMIT 1)",
+                true,
+            ),
+            (
+                "DELETE FROM structure_facts WHERE object_id=(SELECT object_id FROM structure_facts ORDER BY object_id LIMIT 1)",
+                true,
+            ),
+            (
+                "DELETE FROM s_evidence_nodes WHERE node_id=(SELECT node_id FROM s_evidence_roots WHERE root_key LIKE 'delta/%' ORDER BY root_key LIMIT 1)",
+                true,
+            ),
+            (
+                "DELETE FROM s_evidence_nodes WHERE node_id=(SELECT node_id FROM s_evidence_roots WHERE root_key LIKE 'fact/%' ORDER BY root_key LIMIT 1)",
+                false,
+            ),
+            (
+                "DELETE FROM s_evidence_roots WHERE root_key=(SELECT root_key FROM s_evidence_roots WHERE root_key LIKE 'delta/%' ORDER BY root_key LIMIT 1)",
+                true,
+            ),
+            (
+                "DELETE FROM s_evidence_roots WHERE root_key=(SELECT root_key FROM s_evidence_roots WHERE root_key LIKE 'fact/%' ORDER BY root_key LIMIT 1)",
+                false,
+            ),
+            (
+                "UPDATE s_evidence_roots SET expanded_length=expanded_length+1 WHERE root_key=(SELECT root_key FROM s_evidence_roots WHERE root_key LIKE 'fact/%' ORDER BY root_key LIMIT 1)",
+                true,
+            ),
+            (
+                "UPDATE s_evidence_roots SET slot_ids=x'' WHERE root_key=(SELECT root_key FROM s_evidence_roots WHERE root_key LIKE 'delta/%' ORDER BY root_key LIMIT 1)",
+                true,
+            ),
+            (
+                "UPDATE s_evidence_roots SET content_sha256='0'||substr(content_sha256,2) WHERE root_key=(SELECT root_key FROM s_evidence_roots WHERE root_key LIKE 'delta/%' ORDER BY root_key LIMIT 1)",
+                true,
+            ),
+            (
+                "UPDATE s_evidence_nodes SET node_kind=7 WHERE node_id=(SELECT node_id FROM s_evidence_roots WHERE root_key LIKE 'fact/%' ORDER BY root_key LIMIT 1)",
+                true,
+            ),
+        ] {
+            cache::configure(268435456);
+            let files = TestFiles::new();
+            build_oracle(&files, 3);
+            let healthy = open_db(&files.db()).unwrap();
+            if warm {
+                verify_reachable_root(&healthy).unwrap();
+                verify_reachable_root(&healthy).unwrap();
+            }
+            let other = open_db(&files.db()).unwrap();
+            other.execute_batch(sql).unwrap();
+            drop(other);
+            let before = graph_digest(&healthy);
+            let error = verify_reachable_root(&healthy).unwrap_err();
+            assert!(error.contains("StorageUnavailable"), "{sql} -> {error}");
+            for refused in [
+                cmd_snapshot(&files.db(), None),
+                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH),
+                cmd_recover(&files.db(), "2"),
+            ] {
+                assert!(refused.is_err(), "{sql}");
+            }
+            assert_eq!(graph_digest(&healthy), before, "拒绝前不得留下任何写入：{sql}");
+            cache::configure(0);
+        }
+    }
+
+    /// #1394 第二段：结构事实的同 ID 重复写只有**不可变内容逐字节一致**才幂等；异内容直接
+    /// `IdentityConflict`（不得 `ON CONFLICT DO NOTHING` 吞掉、留待将来的读审计发现）。
+    #[test]
+    fn graph3_fact_same_id_different_content_is_refused_at_publish() {
+        let files = TestFiles::new();
+        build_oracle(&files, 2);
+        let conn = open_db(&files.db()).unwrap();
+        let (active, _) = tb02a::read_facts(&conn, None).unwrap();
+        assert!(!active.is_empty());
+        let fact = active[0].clone();
+        let object_id = fact["object_id"].as_str().unwrap().to_string();
+        let batch = fact["batch_id"].as_str().unwrap().to_string();
+        // ① 同内容重复写：幂等。
+        tb02a::save_fact(&conn, &fact, &batch).unwrap();
+        assert_eq!(
+            tb02a::read_facts(&conn, None).unwrap().0.len(),
+            active.len()
+        );
+        // ② 同 ID 异内容：发布入口直接拒绝。
+        let payload = fact["payload_json"].as_str().unwrap().to_string();
+        let mut parsed: Value = serde_json::from_str(&payload).unwrap();
+        parsed["payload_injected"] = json!("x");
+        let mut tampered = fact.clone();
+        tampered["payload_json"] = json!(canonical_json(&parsed));
+        let error = tb02a::save_fact(&conn, &tampered, &batch).unwrap_err();
+        assert!(error.contains("IdentityConflict"), "{error}");
+        // ③ 既有根的指针必须与本次原件不同（同 ID 异内容不可能同根）。
+        let staged = evidence_store::stage_complete(
+            &evidence_store::fact_root_value(
+                tampered["payload_json"].as_str().unwrap(),
+                tampered["input_refs_json"].as_str().unwrap(),
+                tampered["source_coords_json"].as_str().unwrap(),
+            ),
+            &[],
+        )
+        .unwrap();
+        let row =
+            evidence_store::Reader::root_row(&conn, &evidence_store::fact_root_key(&object_id))
+                .unwrap()
+                .unwrap();
+        assert_ne!(row.0, staged.root, "异内容不可能得到同一根指针");
+        // 事实行仍逐字段不变，且读取路径不受影响。
+        let (after, _) = tb02a::read_facts(&conn, None).unwrap();
+        assert_eq!(after[0], fact);
+        verify_reachable_root(&conn).unwrap();
+    }
+
+    #[test]
+    fn graph_cold_audit_reads_each_published_batch_once() {
+        let files = TestFiles::new();
+        build_oracle(&files, 3);
+        let conn = open_db(&files.db()).unwrap();
+        for limit in [0, 268435456] {
+            cache::configure(limit);
+            cache::counters_reset();
+            verify_reachable_root(&conn).unwrap();
+            assert_eq!(
+                cache::counters_snapshot().batch_full_reads,
+                3,
+                "cold limit={limit}: 每已发布代只处理一份完整批次"
+            );
+            assert_eq!(cache::counters_snapshot().batch_suffix_full_reads, 3);
+            assert_eq!(cache::last_resumed(), 0);
+            if limit != 0 {
+                cache::evict_full_handles_for_test();
+                cache::counters_reset();
+                verify_reachable_root(&conn).unwrap();
+                assert_eq!(
+                    cache::last_resumed(),
+                    3,
+                    "冷核得到的新证明须进入最终审计前缀"
+                );
+                assert_eq!(cache::counters_snapshot().batch_full_reads, 0);
+                // 小头单独丢失时，原前缀证明仍可成立，但不能跳过这些 PendingFull 的控制核。
+                cache::evict_batch_headers_for_test();
+                cache::counters_reset();
+                verify_reachable_root(&conn).unwrap();
+                assert_eq!(cache::last_resumed(), 3);
+                assert_eq!(cache::counters_snapshot().batch_full_reads, 3);
+                assert_eq!(cache::counters_snapshot().batch_suffix_full_reads, 0);
+                assert_eq!(cache::counters_snapshot().batch_header_full_fallbacks, 3);
+            }
+        }
+        cache::configure(0);
+    }
+
+    #[test]
+    fn batch_header_preserves_legacy_fields_and_strict_full_parse() {
+        cache::configure(0);
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        for field in [
+            Value::Null,
+            json!(3),
+            json!([]),
+            json!({}),
+            json!("unchanged"),
+        ] {
+            let value = json!({"protocol_revision":field,"session_generation":field,
+                "clock_plan_hash":field,"semantic_commit_ns":field});
+            let bytes = canonical_json(&value).into_bytes();
+            let id = format!("batch-{}", sha256_hex(&bytes));
+            conn.execute(
+                "INSERT INTO batches(batch_id,canonical_bytes,byte_len) VALUES(?1,?2,?3)",
+                params![id, bytes, bytes.len() as i64],
+            )
+            .unwrap();
+            let (batch, _) = load_batch_value_with(
+                &conn,
+                &mut evidence_store::Reader::new(&conn, EVIDENCE_READ_BUDGET),
+                &id,
+            )
+            .unwrap();
+            let header = BatchControlHeader::from_verified_batch(&batch);
+            assert_eq!(header.protocol_revision.as_deref(), field.as_str());
+            assert_eq!(load_batch_bytes(&conn, &id).unwrap().as_ref(), bytes);
+        }
+        let duplicate = br#"{"protocol_revision":"s-session/2","nested":{"x":1,"x":2}}"#;
+        let id = format!("batch-{}", sha256_hex(duplicate));
+        conn.execute(
+            "INSERT INTO batches(batch_id,canonical_bytes,byte_len) VALUES(?1,?2,?3)",
+            params![id, duplicate.as_slice(), duplicate.len() as i64],
+        )
+        .unwrap();
+        assert!(load_batch_value_with(
+            &conn,
+            &mut evidence_store::Reader::new(&conn, EVIDENCE_READ_BUDGET),
+            &id
+        )
+        .is_err());
+        assert_eq!(cache::retained_bytes(), 0);
+    }
+
+    #[test]
+    fn batch_header_never_promotes_before_public_identity_validation() {
+        cache::configure(1 << 20);
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        evidence_store::declare_new(&conn).unwrap();
+        let value = json!({"protocol_revision":"s-session/2","session_generation":"1",
+            "clock_plan_hash":"hash","semantic_commit_ns":"20"});
+        let staged = evidence_store::stage_complete(&value, &[]).unwrap();
+        let wrong_id = format!("batch-{}", "0".repeat(64));
+        evidence_store::publish_refs(&conn, &evidence_store::batch_root_key(&wrong_id), &staged)
+            .unwrap();
+        conn.execute(
+            "INSERT INTO batches(batch_id,canonical_bytes,byte_len) VALUES(?1,x'',?2)",
+            params![wrong_id, canonical_json(&value).len() as i64],
+        )
+        .unwrap();
+        for _ in 0..2 {
+            assert!(load_batch_value_with(
+                &conn,
+                &mut evidence_store::Reader::new(&conn, EVIDENCE_READ_BUDGET),
+                &wrong_id
+            )
+            .is_err());
+            assert_eq!(cache::batch_header_bytes(), 0);
+        }
+        cache::configure(0);
+    }
+
+    #[test]
+    fn graph_unpublished_batch_still_requires_its_full_public_hash() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        evidence_store::declare_new(&conn).unwrap();
+        let value = json!({"phase": "staged"});
+        let staged = evidence_store::stage_complete(&value, &[]).unwrap();
+        let id = format!("batch-{}", sha256_hex(&canonical_bytes_of_value(&value)));
+        conn.execute(
+            "INSERT INTO batches VALUES(?1,x'',?2)",
+            params![id, staged.expanded_length as i64],
+        )
+        .unwrap();
+        evidence_store::publish_refs(&conn, &evidence_store::batch_root_key(&id), &staged).unwrap();
+        assert!(capture_reachable_batches(&conn).unwrap().batches.is_empty());
+        // 尚未发布的合法暂存根允许存在，但批次身份仍须绑定完整字节。
+        let bad = format!("batch-{}", "0".repeat(64));
+        conn.execute("UPDATE batches SET batch_id=?1", params![bad])
+            .unwrap();
+        conn.execute(
+            "UPDATE s_evidence_roots SET root_key=?1",
+            params![evidence_store::batch_root_key(&bad)],
+        )
+        .unwrap();
+        assert!(
+            capture_reachable_batches(&conn).is_err(),
+            "私有根摘要正确不能代替公开批次身份核验"
+        );
+    }
+}
+
+#[cfg(test)]
+mod record_borrow_regressions {
+    use super::*;
+
+    // #1394：从 b8d423be 原样保留旧判据，仅更名；不调用新的规范化/比较帮助函数。
+    fn old_same_records(actual: &Value, expected: &Value, field: &str) -> Result<(), String> {
+        let normalize = |v: &Value| -> Result<Vec<String>, String> {
+            let mut records = v
+                .as_array()
+                .ok_or("StorageUnavailable：集合非数组")?
+                .iter()
+                .map(|r| {
+                    if !r.is_object() {
+                        return Err("StorageUnavailable：集合成员非对象".to_string());
+                    }
+                    Ok(canonical_json(&legacy_payload_projection(r)))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            records.sort();
+            if records.windows(2).any(|w| w[0] == w[1]) {
+                return Err(format!("StorageUnavailable：{field} 重复成员"));
+            }
+            Ok(records)
+        };
+        if normalize(actual)? != normalize(expected)? {
+            return Err(format!(
+                "StorageUnavailable：{field} 与封存批次/同 cut 持久快照不一致"
+            ));
+        }
+        Ok(())
+    }
+
+    fn rejected(message: &str) -> Result<(), String> {
+        Err(message.to_string())
+    }
+
+    fn check_case(
+        name: &str,
+        actual_json: &str,
+        expected_json: &str,
+        field: &str,
+        wanted: Result<(), String>,
+    ) {
+        // from_str 保留 -0.0、0.0、1.0 的浮点表示。
+        let actual: Value = serde_json::from_str(actual_json).unwrap();
+        let expected: Value = serde_json::from_str(expected_json).unwrap();
+        let oracle = old_same_records(&actual, &expected, field);
+        assert_eq!(oracle, wanted, "旧判据明确预期：{name}");
+        assert_eq!(
+            same_records(&actual, &expected, field),
+            oracle,
+            "数组入口：{name}"
+        );
+        if let Some(expected) = expected.as_array() {
+            // 旧 Audit 经 Vec<&Value> + json! 物化；必须保留浮点规范字节。
+            let materialized_expected = json!(expected.iter().collect::<Vec<&Value>>());
+            let materialized_oracle = old_same_records(&actual, &materialized_expected, field);
+            assert_eq!(materialized_oracle, oracle, "旧 expected 物化路径：{name}");
+            assert_eq!(
+                same_records_against_iter(&actual, expected.iter(), field),
+                materialized_oracle,
+                "借用 expected：{name}"
+            );
+            if let Some(actual) = actual.as_array() {
+                let materialized_actual = json!(actual.iter().collect::<Vec<&Value>>());
+                let materialized_oracle =
+                    old_same_records(&materialized_actual, &materialized_expected, field);
+                assert_eq!(materialized_oracle, oracle, "旧双侧物化路径：{name}");
+                assert_eq!(
+                    same_record_iters(actual.iter(), expected.iter(), field),
+                    materialized_oracle,
+                    "双侧借用：{name}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn borrowed_records_preserve_complete_canonical_set_semantics() {
+        let mismatch = || rejected("StorageUnavailable：records 与封存批次/同 cut 持久快照不一致");
+        let duplicate = || rejected("StorageUnavailable：records 重复成员");
+        for (name, actual, expected, wanted) in [
+            ("空集合", "[]", "[]", Ok(())),
+            (
+                "集合排列与对象键序",
+                r#"[{"id":"b","v":2},{"id":"a","v":1}]"#,
+                r#"[{"v":1,"id":"a"},{"v":2,"id":"b"}]"#,
+                Ok(()),
+            ),
+            (
+                "actual 完整重复",
+                r#"[{"id":"a"},{"id":"a"}]"#,
+                r#"[{"id":"a"}]"#,
+                duplicate(),
+            ),
+            (
+                "expected 完整重复",
+                r#"[{"id":"a"}]"#,
+                r#"[{"id":"a"},{"id":"a"}]"#,
+                duplicate(),
+            ),
+            (
+                "detail 递归整数投影",
+                r#"[{"id":"a","detail":{"n":[1,{"v":2}]}}]"#,
+                r#"[{"id":"a","detail":{"n":["1",{"v":"2"}]}}]"#,
+                Ok(()),
+            ),
+            (
+                "detail 投影后 actual 重复",
+                r#"[{"detail":{"n":1}},{"detail":{"n":"1"}}]"#,
+                r#"[{"detail":{"n":"1"}}]"#,
+                duplicate(),
+            ),
+            (
+                "detail 投影后 expected 重复",
+                r#"[{"detail":{"n":"1"}}]"#,
+                r#"[{"detail":{"n":1}},{"detail":{"n":"1"}}]"#,
+                duplicate(),
+            ),
+            (
+                "raw_bars 修订投影",
+                r#"[{"raw_bars":[{"supersedes_revision":2,"seq":7}]}]"#,
+                r#"[{"raw_bars":[{"supersedes_revision":"2","seq":7}]}]"#,
+                Ok(()),
+            ),
+            (
+                "raw_bars 投影后重复",
+                r#"[{"raw_bars":[{"supersedes_revision":2}]},{"raw_bars":[{"supersedes_revision":"2"}]}]"#,
+                r#"[{"raw_bars":[{"supersedes_revision":"2"}]}]"#,
+                duplicate(),
+            ),
+            (
+                "raw_bars 其它整数不投影",
+                r#"[{"raw_bars":[{"supersedes_revision":2,"seq":7}]}]"#,
+                r#"[{"raw_bars":[{"supersedes_revision":"2","seq":"7"}]}]"#,
+                mismatch(),
+            ),
+            (
+                "嵌套数组顺序",
+                r#"[{"id":"a","nested":[{"v":1},{"v":2}]}]"#,
+                r#"[{"id":"a","nested":[{"v":2},{"v":1}]}]"#,
+                mismatch(),
+            ),
+            (
+                "正负浮点零有别",
+                r#"[{"v":-0.0}]"#,
+                r#"[{"v":0.0}]"#,
+                mismatch(),
+            ),
+            (
+                "正负浮点零不去重",
+                r#"[{"v":-0.0},{"v":0.0}]"#,
+                r#"[{"v":0.0},{"v":-0.0}]"#,
+                Ok(()),
+            ),
+            (
+                "整数与浮点有别",
+                r#"[{"v":1}]"#,
+                r#"[{"v":1.0}]"#,
+                mismatch(),
+            ),
+            (
+                "整数与浮点不去重",
+                r#"[{"v":1},{"v":1.0}]"#,
+                r#"[{"v":1.0},{"v":1}]"#,
+                Ok(()),
+            ),
+            (
+                "detail 浮点不转整数 wire",
+                r#"[{"detail":{"v":1.0}}]"#,
+                r#"[{"detail":{"v":"1"}}]"#,
+                mismatch(),
+            ),
+            (
+                "同 identity 异内容不一致",
+                r#"[{"id":"a","v":1}]"#,
+                r#"[{"id":"a","v":2}]"#,
+                mismatch(),
+            ),
+            (
+                "同 identity 异内容不算重复",
+                r#"[{"id":"a","v":1},{"id":"a","v":2}]"#,
+                r#"[{"id":"a","v":2},{"id":"a","v":1}]"#,
+                Ok(()),
+            ),
+        ] {
+            check_case(name, actual, expected, "records", wanted);
+        }
+    }
+
+    #[test]
+    fn borrowed_records_preserve_actual_first_error_priority() {
+        let array = || rejected("StorageUnavailable：集合非数组");
+        let member = || rejected("StorageUnavailable：集合成员非对象");
+        let duplicate = || rejected("StorageUnavailable：priority 重复成员");
+        for (name, actual, expected, wanted) in [
+            ("双侧非数组", "null", "false", array()),
+            (
+                "actual 非数组先于 expected 坏成员",
+                "null",
+                "[false]",
+                array(),
+            ),
+            (
+                "actual 非数组先于 expected 重复",
+                "null",
+                "[{},{}]",
+                array(),
+            ),
+            (
+                "actual 坏成员先于 expected 非数组",
+                "[false]",
+                "null",
+                member(),
+            ),
+            ("双侧坏成员", "[false]", "[null]", member()),
+            (
+                "actual 坏成员先于 expected 重复",
+                "[false]",
+                "[{},{}]",
+                member(),
+            ),
+            (
+                "actual 重复先于 expected 非数组",
+                "[{},{}]",
+                "null",
+                duplicate(),
+            ),
+            (
+                "actual 重复先于 expected 坏成员",
+                "[{},{}]",
+                "[false]",
+                duplicate(),
+            ),
+            ("双侧重复", "[{},{}]", "[{},{}]", duplicate()),
+            ("actual 扫完成员才查重复", "[{},{},false]", "null", member()),
+            ("expected 非数组先于集合差异", "[]", "null", array()),
+            ("expected 坏成员先于集合差异", "[]", "[false]", member()),
+            ("expected 重复先于集合差异", "[]", "[{},{}]", duplicate()),
+            ("expected 扫完成员才查重复", "[]", "[{},{},false]", member()),
+        ] {
+            check_case(name, actual, expected, "priority", wanted);
+        }
+    }
+
+    #[test]
+    fn normalized_batch_reuse_matches_oracle_after_successful_index_comparison() {
+        let index: Value = serde_json::from_str(r#"[
+            {"id":"a","detail":{"count":"1"},"raw_bars":[{"supersedes_revision":"2","seq":7}],"nested":[0.0,-0.0]},
+            {"id":"b","detail":{"count":"2"},"raw_bars":[],"nested":[1,1.0]}
+        ]"#).unwrap();
+        let batch: Value = serde_json::from_str(r#"[
+            {"id":"b","detail":{"count":2},"raw_bars":[],"nested":[1,1.0]},
+            {"id":"a","detail":{"count":1},"raw_bars":[{"supersedes_revision":2,"seq":7}],"nested":[0.0,-0.0]}
+        ]"#).unwrap();
+        for key in ["objects", "witnesses", "relations", "observations"] {
+            let initial_field = format!("index.{key}");
+            assert_eq!(old_same_records(&index, &batch, &initial_field), Ok(()));
+            let actual = normalize_record_array(&index, &initial_field).unwrap();
+            let expected =
+                normalize_record_iter(batch.as_array().unwrap().iter(), &initial_field).unwrap();
+            assert_eq!(
+                compare_normalized_records(&actual, &expected, &initial_field),
+                Ok(())
+            );
+            // 初次 index/batch 完整比较成功后，才把已排序、查重的全文向量用于后续比较。
+            assert_eq!(expected, vec![
+                r#"{"detail":{"count":"1"},"id":"a","nested":[0.0,-0.0],"raw_bars":[{"seq":7,"supersedes_revision":"2"}]}"#.to_string(),
+                r#"{"detail":{"count":"2"},"id":"b","nested":[1,1.0],"raw_bars":[]}"#.to_string(),
+            ]);
+            let mut changed = index.clone();
+            changed[0]["detail"]["count"] = json!("99");
+            for (name, actual, error) in [
+                ("delta.upserts", index.clone(), None),
+                ("full.upserts", batch.clone(), None),
+                ("delta.changed", changed, Some("mismatch")),
+                ("full.missing", json!([index[0]]), Some("mismatch")),
+                (
+                    "delta.duplicate",
+                    json!([index[0], index[0]]),
+                    Some("duplicate"),
+                ),
+                ("full.member", json!([false]), Some("member")),
+                ("delta.array", Value::Null, Some("array")),
+            ] {
+                let field = format!("{name}.{key}");
+                let wanted = match error {
+                    None => Ok(()),
+                    Some("mismatch") => Err(format!(
+                        "StorageUnavailable：{field} 与封存批次/同 cut 持久快照不一致"
+                    )),
+                    Some("duplicate") => Err(format!("StorageUnavailable：{field} 重复成员")),
+                    Some("member") => rejected("StorageUnavailable：集合成员非对象"),
+                    Some("array") => rejected("StorageUnavailable：集合非数组"),
+                    _ => unreachable!(),
+                };
+                let oracle = old_same_records(&actual, &batch, &field);
+                assert_eq!(oracle, wanted, "旧判据明确预期：{field}");
+                let reused = normalize_record_array(&actual, &field)
+                    .and_then(|actual| compare_normalized_records(&actual, &expected, &field));
+                assert_eq!(reused, oracle, "复用 batch 全文：{field}");
+            }
+        }
+    }
+}
+
+#[cfg(all(test, feature = "s_allocation_json_testonly"))]
+mod legacy_profile_owner_regressions {
+    use super::*;
+    use newchan_rust::s_content::capture_allocation::{audit_json as aj, OwnedBudget, LIMIT};
+
+    fn old_profile_fixture() -> (Connection, String) {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE batches(batch_id TEXT PRIMARY KEY,canonical_bytes BLOB NOT NULL,byte_len INTEGER NOT NULL); CREATE TABLE structure_deltas(generation INTEGER,index_frontier TEXT); CREATE TABLE meta(key TEXT PRIMARY KEY,value TEXT); CREATE TABLE raw_events(seq INTEGER)").unwrap();
+        let hash = "a".repeat(64);
+        for (key, value) in [
+            ("profile_id", "fixed"),
+            ("profile_hash", hash.as_str()),
+            ("input_profile", "fixed"),
+        ] {
+            conn.execute("INSERT INTO meta VALUES(?1,?2)", params![key, value])
+                .unwrap();
+        }
+        (conn, hash)
+    }
+    fn seal_blob(conn: &Connection, bytes: &[u8]) -> String {
+        let id = format!("batch-{}", sha256_hex(bytes));
+        conn.execute(
+            "INSERT INTO batches VALUES(?1,?2,?3)",
+            params![id, bytes, bytes.len() as i64],
+        )
+        .unwrap();
+        conn.execute("INSERT INTO structure_deltas VALUES(1,?1)", params![id])
+            .unwrap();
+        id
+    }
+    fn seal_graph(conn: &Connection, generation: i64, value: &Value) {
+        let bytes = canonical_bytes_of_value(value);
+        let id = format!("batch-{}", sha256_hex(&bytes));
+        let staged =
+            evidence_store::stage_complete(value, &[evidence_store::SlotSpec::number("9")])
+                .unwrap();
+        evidence_store::publish_refs(conn, &evidence_store::batch_root_key(&id), &staged).unwrap();
+        conn.execute(
+            "INSERT INTO batches VALUES(?1,?2,?3)",
+            params![id, Vec::<u8>::new(), bytes.len() as i64],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO structure_deltas VALUES(?1,?2)",
+            params![generation, id],
+        )
+        .unwrap();
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn r13_native_legacy_profile_blob_matches_none_on_parent_scope() {
+        use v3::audit_store::{CodecRead, NativeAdmission};
+        cache::configure(0);
+        // 既有旧版本存档夹具从建库起就没有 profile_definition；没有删改元数据造分支。
+        let (conn, hash) = old_profile_fixture();
+        let value = json!({"profile_id":"fixed","profile_hash":hash,"detail":{"text":"完整旧批次","values":[1,2,3]}});
+        let expected = canonical_bytes_of_value(&value);
+        let id = seal_blob(&conn, &expected);
+        let plain_binding = verify_profile_binding(&conn).unwrap();
+        let mut plain_reader = evidence_store::Reader::new(&conn, EVIDENCE_READ_BUDGET);
+        let plain = load_profile_batch_bytes(&conn, &mut plain_reader, &id, None).unwrap();
+        assert_eq!(&plain[..], &expected);
+        drop(plain_reader);
+        let budget = v3::audit_owner::native::Budget::new(8 * 1024 * 1024, 0).unwrap();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                NativeAdmission(Some(scope))
+                    .native_admit(137)
+                    .map_err(|e| e.to_string())?;
+                let before = budget.live();
+                let mut reader =
+                    evidence_store::Reader::new_admitted(&conn, EVIDENCE_READ_BUDGET, Some(scope))?;
+                let bytes = load_profile_batch_bytes(&conn, &mut reader, &id, None)?;
+                assert!(matches!(&bytes, ProfileBatchBytes::Plain(_)));
+                assert_eq!(&bytes[..], &plain[..]);
+                assert!(evidence_store::hash_matches(
+                    &bytes,
+                    batch_content_hash(&id)?
+                ));
+                assert_eq!(bytes.len(), expected.len());
+                drop(reader);
+                let binding = verify_profile_binding_admitted(&conn, None, Some(scope))?;
+                assert!(matches!(&binding.0, v3::business_json::TextValue::Plain(_)));
+                assert_eq!(binding.0.as_str(), plain_binding.0);
+                assert_eq!(binding.1.as_str(), plain_binding.1);
+                assert!(budget.live() > before);
+                Ok::<_, String>(())
+            })
+            .unwrap();
+        assert!(budget.live() > 137, "Native许可留在调用方原父域");
+        assert_eq!(budget.scratch_observation().2, 0);
+        assert_eq!(cache::retained_bytes(), 0);
+        cache::configure(0);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn r13_native_legacy_profile_graph_roots_match_none_and_keep_cache_gates() {
+        use v3::audit_store::{CodecRead, NativeAdmission};
+        for graph_format in [
+            evidence_store::GRAPH_FORMAT,
+            evidence_store::GRAPH_FORMAT_V2,
+        ] {
+            for cache_limit in [0, 1024 * 1024] {
+                cache::configure(cache_limit);
+                let (conn, hash) = old_profile_fixture();
+                evidence_store::declare_new(&conn).unwrap();
+                seal_graph(&conn, 1, &json!({"profile_id":"","v":9}));
+                let repeated = json!({"v":9,"text":"正常封存证据".repeat(40)});
+                let value = json!({"profile_id":"fixed","profile_hash":hash,"a":repeated,"b":repeated,
+                    "protocol_revision":"s-session/2","session_generation":"2","clock_plan_hash":"clock","semantic_commit_ns":"9"});
+                seal_graph(&conn, 2, &value);
+                // 这份存档只含 batch 根，符合 graph/2 的已发布布局；声明变体不改变任何原件或元数据。
+                if graph_format == evidence_store::GRAPH_FORMAT_V2 {
+                    conn.execute(
+                        "UPDATE s_evidence_format SET graph_format=?1",
+                        params![graph_format],
+                    )
+                    .unwrap();
+                }
+                let expected = canonical_bytes_of_value(&value);
+                let id = format!("batch-{}", sha256_hex(&expected));
+                let key = evidence_store::batch_root_key(&id);
+                let plain_binding = verify_profile_binding(&conn).unwrap();
+                let mut plain_reader = evidence_store::Reader::new(&conn, EVIDENCE_READ_BUDGET);
+                let plain = plain_reader.read_root(&key, true).unwrap();
+                assert_eq!(plain.bytes.as_ref(), &expected);
+                assert_eq!(plain.declared_length as usize, expected.len());
+                assert_eq!(plain.content_sha256, batch_content_hash(&id).unwrap());
+                assert_eq!(plain.value.as_deref(), Some(&value));
+                drop(plain_reader);
+                cache::configure(cache_limit);
+                let budget = v3::audit_owner::native::Budget::new(16 * 1024 * 1024, 0).unwrap();
+                let tx = conn.unchecked_transaction().unwrap();
+                budget
+                    .codec_work()
+                    .unwrap()
+                    .run(|scope| {
+                        NativeAdmission(Some(scope))
+                            .native_admit(137)
+                            .map_err(|e| e.to_string())?;
+                        let before = budget.live();
+                        let mut reader = evidence_store::Reader::new_admitted(
+                            &tx,
+                            EVIDENCE_READ_BUDGET,
+                            Some(scope),
+                        )?;
+                        for pass in 0..2 {
+                            let root = reader.read_root(&key, true)?;
+                            assert_eq!(root.bytes.as_ref(), plain.bytes.as_ref());
+                            assert_eq!(root.declared_length, plain.declared_length);
+                            assert_eq!(root.content_sha256, plain.content_sha256);
+                            assert_eq!(root.closure, plain.closure);
+                            assert_eq!(root.value.as_deref(), Some(&value));
+                            assert_eq!(root.reused, cache_limit > 0 && pass == 1);
+                        }
+                        // 第二次命中含已解析Value，仍会真实投影控制头并走其缓存准入。
+                        let bytes = load_profile_batch_bytes(&tx, &mut reader, &id, None)?;
+                        assert!(matches!(&bytes, ProfileBatchBytes::Plain(_)));
+                        assert_eq!(&bytes[..], &expected);
+                        drop(reader);
+                        let binding = verify_profile_binding_admitted(&tx, None, Some(scope))?;
+                        assert_eq!(binding.0.as_str(), plain_binding.0);
+                        assert_eq!(binding.1.as_str(), plain_binding.1);
+                        assert!(budget.live() > before);
+                        Ok::<_, String>(())
+                    })
+                    .unwrap();
+                assert!(budget.live() > 137);
+                assert_eq!(budget.scratch_observation().2, 0);
+                if cache_limit == 0 {
+                    assert_eq!(cache::retained_bytes(), 0);
+                    assert_eq!(cache::capture_bytes_now(), 0);
+                } else {
+                    assert!(cache::retained_bytes() > 0);
+                    assert!(cache::retained_bytes() <= cache_limit);
+                }
+                drop(tx);
+                cache::configure(0);
+            }
+        }
+    }
+
+    #[test]
+    fn owned_legacy_profile_fallback_blob_keeps_duplicate_policy_and_bytes_decode_peak() {
+        let (conn, hash) = old_profile_fixture();
+        let blob =
+            format!(r#"{{"profile_id":"old","profile_id":"fixed","profile_hash":"{hash}"}}"#);
+        let id = seal_blob(&conn, blob.as_bytes());
+        let budget = OwnedBudget::new(1 << 20);
+        let binding = verify_profile_binding_with_owner(&conn, Some(&budget)).unwrap();
+        assert_eq!(binding.0.as_str(), "fixed");
+        assert_eq!(binding.1.as_str(), hash);
+        assert!(matches!(binding.0, v3::business_json::TextValue::Owned(_)));
+        drop(binding);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        let mut reader = evidence_store::Reader::with_owner(&conn, &budget);
+        let bytes = load_profile_batch_bytes(&conn, &mut reader, &id, Some(&budget)).unwrap();
+        assert_eq!(&bytes[..], blob.as_bytes());
+        let byte_live = budget.snapshot().live_requested_layout_bytes;
+        let json = aj::OwnedJson::parse_legacy_shape(&bytes, &budget).unwrap();
+        assert_eq!(
+            json.view().get("profile_id").and_then(|v| v.as_str()),
+            Some("fixed")
+        );
+        assert!(budget.snapshot().live_requested_layout_bytes > byte_live);
+        drop(json);
+        drop(bytes);
+        drop(reader);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[test]
+    fn owned_legacy_profile_fallback_graph_checks_slots_skips_empty_and_refuses_budget() {
+        let (conn, hash) = old_profile_fixture();
+        evidence_store::declare_new(&conn).unwrap();
+        seal_graph(&conn, 1, &json!({"profile_id":"","v":9}));
+        seal_graph(
+            &conn,
+            2,
+            &json!({"profile_id":"fixed","profile_hash":hash,"a":{"v":9},"b":{"v":9}}),
+        );
+        let budget = OwnedBudget::new(1 << 20);
+        let binding = verify_profile_binding_with_owner(&conn, Some(&budget)).unwrap();
+        assert_eq!(binding.0.as_str(), "fixed");
+        assert_eq!(binding.1.as_str(), hash);
+        drop(binding);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        let low = OwnedBudget::new(budget.snapshot().peak_requested_layout_bytes - 1);
+        let error = verify_profile_binding_with_owner(&conn, Some(&low))
+            .err()
+            .unwrap();
+        assert!(error.starts_with(LIMIT), "{error}");
+        assert!(low.snapshot().rejected_layouts > 0);
+        assert_eq!(low.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[test]
+    fn owned_legacy_profile_fallback_keeps_bad_source_first_error_and_definition_gate() {
+        let (conn, hash) = old_profile_fixture();
+        let bytes = canonical_bytes_of_value(&json!({"profile_id":"fixed","profile_hash":hash}));
+        seal_blob(&conn, &bytes);
+        conn.execute("UPDATE batches SET byte_len=-1", []).unwrap();
+        let plain = verify_profile_binding_with_owner(&conn, None)
+            .err()
+            .unwrap();
+        let budget = OwnedBudget::new(1 << 20);
+        let owned = verify_profile_binding_with_owner(&conn, Some(&budget))
+            .err()
+            .unwrap();
+        assert_eq!(plain, owned);
+        assert!(owned.contains("byte_len 非负越界"));
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        conn.execute(
+            "UPDATE batches SET byte_len=?1",
+            params![bytes.len() as i64],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO meta VALUES('profile_definition','{broken')",
+            [],
+        )
+        .unwrap();
+        assert!(verify_profile_binding_with_owner(&conn, Some(&budget)).is_err());
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
 }

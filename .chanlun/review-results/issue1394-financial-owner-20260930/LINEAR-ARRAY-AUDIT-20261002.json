@@ -1,0 +1,2488 @@
+{
+  "schema_revision": "issue1394-linear-array-audit-evidence/1",
+  "ticket": 1394,
+  "map": 1323,
+  "kind": "open-ticket working draft appendix",
+  "base_head": "e4ea36fbd16c3784b846092b6c28b976ff6343a5",
+  "base_rust_tree": "7196a77fef56cf87cbe91dc4b135326a142e2395",
+  "integrated_code_commit": "f57015506656bb32eebd5987a9996ded7a95280b",
+  "integrated_rust_tree": "c60452f606202ed6b4754ce29bd17698d115ed32",
+  "frozen6_files": {
+    "rust/src/s_content/path.rs": "ab82fda2bbcc663d9ab78f56f71ba56964f1d33eff25af9b73a3ac0e73c1bb38",
+    "rust/src/s_content.rs": "1033f6e720487ac31fd609278ec7951a2b4c5010fae3b381eacabdc16758350a",
+    "rust/src/bin/s_session_v3/history.rs": "034295412af204e077d353be1df95230d633e4ebc3a8d10ef07890beee9f8c69",
+    "rust/src/bin/s_session_v3/source_audit.rs": "024eccf990fed89b48d65d13495465cfc6af80563bdf00c2512bc01a94470b89",
+    "rust/src/bin/s_session_v3/object_index.rs": "3809dc6205bb6249ee1e87f2bfc59a96b8058b895d84a2e3d4a6c022d39c8810",
+    "rust/tests/s_content_array_scan.rs": "a9ca4c23a6b2db8fa05354703dafd98f6d4945f881f557ccbb923cbd4fa6245f"
+  },
+  "candidate_patch_sha256": "8e67ee4fe48625e61e83a6bb56fe18743774784df40c908db7cfe554222034c9",
+  "code_scope": "complete root[] array DFS only; NodeSource default off; audit explicit BudgetNone on; Some original path and billing/logic interleaving unchanged; no fragment/public wire changes or body/proof carried cross-read/cut/transaction",
+  "semantic_obligations_kept": [
+    "all original three complete audits",
+    "shape/type/source/clock/independent indexes",
+    "every actual node read through checked read and current F",
+    "per logical position, duplicates preserved",
+    "ordinary lookup/Some/default off",
+    "unchanged local 4MiB/65536 qualification",
+    "all original S7/Q21 and request30s"
+  ],
+  "reviews": {
+    "scope": "#1394 C frozen six-file S-content full-array audit performance patch",
+    "base_head": "e4ea36fbd16c3784b846092b6c28b976ff6343a5",
+    "base_rust_tree": "7196a77fef56cf87cbe91dc4b135326a142e2395",
+    "candidate_rust_tree_virtual": "c60452f606202ed6b4754ce29bd17698d115ed32",
+    "patch_sha256": "8e67ee4fe48625e61e83a6bb56fe18743774784df40c908db7cfe554222034c9",
+    "frozen_file_sha256_match": true,
+    "concept": "PASS",
+    "spec": "PASS_LOCAL_PATCH",
+    "standards": "PASS_PATCH_WITH_PREEXISTING_CLIPPY_GATE",
+    "findings": [],
+    "severity_counts": {
+      "CRITICAL": 0,
+      "HIGH": 0,
+      "MEDIUM": 0,
+      "LOW": 0
+    },
+    "conclusion": "PASS_LOCAL_CODE_REVIEW",
+    "evidence": {
+      "targeted_tests_reported": {
+        "passed": 58,
+        "failed": 0,
+        "independent_rerun": false
+      },
+      "pending_pilot": {
+        "published_cuts": 27,
+        "raw_events": 28,
+        "accepted_pending": 1,
+        "baseline_node_selects": 8792023,
+        "candidate_node_selects": 8090429,
+        "baseline_and_candidate_repetitions": 3,
+        "result_sha256_equal": true
+      },
+      "git_diff_check": "PASS",
+      "clippy_default": "BLOCKED_BY_PREEXISTING_UNMODIFIED_STATE_RS_60"
+    },
+    "not_established": [
+      "service",
+      "9011_full_replay",
+      "S_Q",
+      "pending_recovery",
+      "rss_heap_peak",
+      "main_merge",
+      "1323_whole_graph"
+    ]
+  },
+  "targeted_checks": {
+    "reported_passed": 58,
+    "new_array_suite": 4,
+    "existing_path_suite": 11,
+    "Some_checks": "Refs/errors/SQL/F/budget_events including deadline beforeSQL exact old path",
+    "red_count_test": "n16 old256, wanted48 failure then48; raw first failure preserved",
+    "linear_counts": [
+      {
+        "n": 16,
+        "old": 256,
+        "candidate": 48
+      },
+      {
+        "n": 65,
+        "old": 1607,
+        "candidate": 195
+      },
+      {
+        "n": 257,
+        "old": 7943,
+        "candidate": 771
+      }
+    ],
+    "cargo_check_reported": "PASS",
+    "changed_file_rustfmt_reported": "PASS",
+    "original_clippy_gate": "FAIL_PREEXISTING_UNCHANGED_STATE_RS60_ABSURD_EXTREME_COMPARISONS;no allow/no deletion/no test-ignore fix"
+  },
+  "exact_release_pilot_acceptance": {
+    "scope": "READONLY_DIAGNOSTIC_ONLY; no S/Q, pending restore, 9000/9011 replay or controller acceptance",
+    "baseline_probe": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/PROBE.json",
+    "candidate_probe": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/PROBE.json",
+    "candidate_binary": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-target-20261002/release/deps/s_structure_session-9427c373eb501855",
+    "candidate_binary_sha256": "e62213072f6c095702064f34ad1a8b388d3d0aeaadbde42e36967a2d0675a97f",
+    "observer_patch_sha256": "e18ffbaefceb9c577f00c92bfed9edb8821e498afce481f9a90011f0f8d13ff3",
+    "observer_module_sha256": "bb97f4451769854603ffdba431eba36e8d2a967b3acc9558d40444db4de16d46",
+    "candidate_files_sha256": {
+      "rust/src/s_content/path.rs": "ab82fda2bbcc663d9ab78f56f71ba56964f1d33eff25af9b73a3ac0e73c1bb38",
+      "rust/src/s_content.rs": "1033f6e720487ac31fd609278ec7951a2b4c5010fae3b381eacabdc16758350a",
+      "rust/src/bin/s_session_v3/history.rs": "034295412af204e077d353be1df95230d633e4ebc3a8d10ef07890beee9f8c69",
+      "rust/src/bin/s_session_v3/source_audit.rs": "024eccf990fed89b48d65d13495465cfc6af80563bdf00c2512bc01a94470b89",
+      "rust/src/bin/s_session_v3/object_index.rs": "3809dc6205bb6249ee1e87f2bfc59a96b8058b895d84a2e3d4a6c022d39c8810",
+      "rust/tests/s_content_array_scan.rs": "a9ca4c23a6b2db8fa05354703dafd98f6d4945f881f557ccbb923cbd4fa6245f"
+    },
+    "source_three_file_sha256": {
+      "s.sqlite": "050562e2db766cc3d6d94e42bf43f0e21fe3a336d6c9d5b8adcc0e887959f9c1",
+      "s.sqlite-wal": "9b1565422a3c45c03bb068ede25c199548072d6695c1b33b01ce2a851449671b",
+      "s.sqlite-shm": "0c58b51d09bfd39725a1fc4d8d63f3713e9ce6533dd899f45fa2be7d16633aca"
+    },
+    "source_unchanged_after_run": true,
+    "owned_db_wal_sha_mtime_unchanged_after_run": true,
+    "fingerprint_sha256": "42444317d86a03e066867bdfccfd0bb9f07010a1a2655483fdc377b7a115b8a0",
+    "full_returned_state_exact_equal": true,
+    "all_963_phase_events_equal": true,
+    "overlay_reads_writes_equal": true,
+    "cuts": 27,
+    "raw": 28,
+    "pending": "AcceptedPending 1, Committed 27 in pre-run owned clone",
+    "baseline_sql_reads": [
+      8792023,
+      8792023
+    ],
+    "candidate_sql_reads": [
+      8090429,
+      8090429
+    ],
+    "baseline_f_calls": [
+      3402722,
+      3402722
+    ],
+    "candidate_f_calls": [
+      3400571,
+      3400571
+    ],
+    "baseline_elapsed_ns": [
+      "11468526542",
+      "11495750583"
+    ],
+    "candidate_elapsed_ns": [
+      "11182987417",
+      "11144998917"
+    ],
+    "sql_delta_each": 701594,
+    "sql_reduction_fraction": 0.07979892682264367,
+    "heap_peak": "UNMEASURED",
+    "rss_peak": "UNMEASURED",
+    "wall_attribution": "UNMEASURED across separate runs / OS load",
+    "probe_sha256": "ff7f7d8bf52bdf26677968efde23bef38377371099308d1137b2222bea541595",
+    "diagnostic_patch_reverse_check": "passed; diagnostic-only modifications absent from candidate"
+  },
+  "Root_independent_full_return_phase_fact_check": {
+    "status": "PASS_BOUNDED_ROOT_RECOMPUTED_LINEAR_ARRAY_PILOT",
+    "integration_commit": "f57015506656bb32eebd5987a9996ded7a95280b",
+    "integration_rust_tree": "c60452f606202ed6b4754ce29bd17698d115ed32",
+    "fixed6_production_test_files_equal_reviewed": true,
+    "checks": [
+      {
+        "repeat": 0,
+        "all_four_members_and_all_cut_fields_equal": true,
+        "fingerprint": "42444317d86a03e066867bdfccfd0bb9f07010a1a2655483fdc377b7a115b8a0",
+        "markers_equal": 963,
+        "candidate_audit_ns": 11182987417,
+        "baseline_audit_ns": 11468526542,
+        "SQL_baseline": 8792023,
+        "SQL_candidate": 8090429,
+        "SQL_reduction": 701594,
+        "F_baseline": 3402722,
+        "F_candidate": 3400571
+      },
+      {
+        "repeat": 1,
+        "all_four_members_and_all_cut_fields_equal": true,
+        "fingerprint": "42444317d86a03e066867bdfccfd0bb9f07010a1a2655483fdc377b7a115b8a0",
+        "markers_equal": 963,
+        "candidate_audit_ns": 11144998917,
+        "baseline_audit_ns": 11495750583,
+        "SQL_baseline": 8792023,
+        "SQL_candidate": 8090429,
+        "SQL_reduction": 701594,
+        "F_baseline": 3402722,
+        "F_candidate": 3400571
+      }
+    ],
+    "retained_candidate_binary_actual_path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/candidate-release-testbin",
+    "retained_candidate_binary_SHA": "e62213072f6c095702064f34ad1a8b388d3d0aeaadbde42e36967a2d0675a97f",
+    "old_acceptance_binary_path_removed_only_owned_generated": true,
+    "full_source_clone_state": "raw28/cuts27/AcceptedPending1; not pre-input28cut27",
+    "stages_data_same_semantics": true,
+    "cross_time_wall_causality": "UNMEASURED",
+    "heap_RSS_peaks": "UNMEASURED",
+    "physical_S_handle": "UNMEASURED",
+    "complete9011": false,
+    "C_complete": false,
+    "main_merged": false,
+    "pushed": false
+  },
+  "retained_candidate_test_binary": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/candidate-release-testbin",
+    "bytes": 12403200,
+    "sha256": "e62213072f6c095702064f34ad1a8b388d3d0aeaadbde42e36967a2d0675a97f"
+  },
+  "old_release_acceptance_path_stale_after_owned_target_cleanup": true,
+  "reconstruction": {
+    "baseline_head": "e4ea36fbd16c3784b846092b6c28b976ff6343a5",
+    "candidate_patch_sha256": "8e67ee4fe48625e61e83a6bb56fe18743774784df40c908db7cfe554222034c9",
+    "diagnostic_patch_sha256": "e18ffbaefceb9c577f00c92bfed9edb8821e498afce481f9a90011f0f8d13ff3",
+    "observer_sha256": "bb97f4451769854603ffdba431eba36e8d2a967b3acc9558d40444db4de16d46",
+    "release_testbin_sha256": "e62213072f6c095702064f34ad1a8b388d3d0aeaadbde42e36967a2d0675a97f",
+    "build_command": "CARGO_TARGET_DIR=<owned target> cargo test --release --manifest-path rust/Cargo.toml --features s_session --bin s_structure_session --no-run",
+    "recipe": "git archive baseline HEAD; apply CANDIDATE.patch; apply DIAGNOSTIC.patch; copy audit_shadow_probe.rs; build release test binary; run readonly_audit_reuse_pilot on owned exact three-file clone",
+    "debug_targets_cleaned_by_worker": true
+  },
+  "input_scope": "raw28/cuts27/AcceptedPending1 exact original triple clone; no recovery or pending delete; not preinput28cut27",
+  "not_a_full_service_or_9011_timing_claim": true,
+  "SQL_reduction_each": 701594,
+  "SQL_reduction_fraction": 0.07979892682264367,
+  "unchanged_complete_return_fingerprint": "42444317d86a03e066867bdfccfd0bb9f07010a1a2655483fdc377b7a115b8a0",
+  "C_complete": false,
+  "complete9011": false,
+  "full_resource_capacity": false,
+  "physical_S_handle": "UNMEASURED",
+  "strict_RSS_heap_IO_peaks": "UNMEASURED",
+  "main_merged": false,
+  "pushed": false,
+  "wholegoal_complete": false,
+  "prior349_tracked_packet": [
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/AUDIT-REUSE-20261001.json",
+      "bytes": 62117,
+      "sha256": "022002652cdcd5fb25e6705278c957a83d3ca72c0e3e8f01971f58ef7fd7d28a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/AUDIT-REUSE-20261001.md",
+      "bytes": 3477,
+      "sha256": "c1ee7964b213e4abfb776f84192c0427715ce28c2a4035aabbca1a8759bbc1f8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/EVIDENCE.md",
+      "bytes": 15942,
+      "sha256": "0fb7280060f65ba21ba7c5502ea6085e50ffdcd59bebca702d28256ca85e33cb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/FULL9011-FIRST-ATTEMPT-20261002.json",
+      "bytes": 221913,
+      "sha256": "5753c97a77e96ec8e43c5e2e0ba1c5345fd17b42db78f4c7b0ba5006fe519e1d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/FULL9011-FIRST-ATTEMPT-20261002.md",
+      "bytes": 5804,
+      "sha256": "f990154bd5ff7ce60203c408b9f188dc50e0b78261ad5b415eae3d070fb7092f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/FULLCLOCK-20261001.json",
+      "bytes": 12571,
+      "sha256": "190cd4472918e8e6d31f82b15ebc3ad5a96c8384810c4d6ab0c5781244416f43"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/FULLCLOCK-20261001.md",
+      "bytes": 3453,
+      "sha256": "df397547dfdc3d695ca86b8341ae39a1ed30faf518a729f6cc5e25675ab83558"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/RESULTS.json",
+      "bytes": 47072,
+      "sha256": "da072db1149fc93d0d0e33bb2db94a3fb35bb227aee576237969560f741abe72"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/REVIEW.md",
+      "bytes": 7012,
+      "sha256": "51ca35355f446407b75e376fd1dc7d1814ba1fbe04aa67aa3c25539cf9765574"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/S16-BODY-COUNTERS-20261001.json",
+      "bytes": 266594,
+      "sha256": "0bea76407bf9ded17321f8f98978fff0c45c0f5498e210a78b24e6b36bb558ee"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/S16-BODY-COUNTERS-20261001.md",
+      "bytes": 5892,
+      "sha256": "8534c17067dde502fc59a811a2712c5076a73602c022f09ea71c5b1917bd0278"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/S3-ENTRY-20261001.json",
+      "bytes": 9583,
+      "sha256": "9671db774c70d08736c1098c382bf2c5c9ca83eb2b06e20601851befea2db51d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/S3-ENTRY-20261001.md",
+      "bytes": 2797,
+      "sha256": "3816e487902a7f632371ff7b76871b64560e18b8790157e046248bb19d09e4d6"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/001-issue1394-same-material-20261001-AUTHOR-RESULT.md",
+      "bytes": 2775,
+      "sha256": "f58b5b1883451566111e43dfe5243ac756ec40c6f9a188ad21d8c21279cea189"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/002-issue1394-same-material-20261001-AUTHOR-RESULT.json",
+      "bytes": 12473,
+      "sha256": "b11cbcf20f203e5c6033eacab14fff66e8e0d8bc42b2845655f43692129ed54f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/003-issue1394-same-material-20261001-SOURCE-BINARY-BINDING.json",
+      "bytes": 2502,
+      "sha256": "0d8594699b519d318b074ee66fd28d21d2057b20a3bc76165990917e421c781f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/004-issue1394-same-material-20261001-API.md",
+      "bytes": 1671,
+      "sha256": "385bf595e90d4f39a3b8bba5f310253591cdc1b7fa9d0851bf73a4e0d719e105"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/005-issue1394-same-material-20261001-SPEC-REVIEW.md",
+      "bytes": 6187,
+      "sha256": "0cc522686fe6c09c1c1b64c0ae7cd90535de11202514708a430988cb934aa16f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/006-issue1394-same-material-20261001-SPEC-REVIEW.json",
+      "bytes": 11563,
+      "sha256": "3c1cac51607a5e19f402037650119ff186f37c4bd0933d67f06a7c0d12a32619"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/007-issue1394-same-material-20261001-STANDARDS-REVIEW.md.raw.json",
+      "bytes": 6194,
+      "sha256": "779ec9fe0fab39160d405537f4ea7c135c29b80b43116333ccdccbe212a9f783"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/008-issue1394-same-material-20261001-STANDARDS-REVIEW.json",
+      "bytes": 3618,
+      "sha256": "940b2f631e98af17e278182c138535982dab3e5fbae0ab0f581f562265e63e96"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/009-issue1394-same-frame-reuse-20261001-ROOT-CANDIDATE-SPEC-CHECK.json",
+      "bytes": 2052,
+      "sha256": "3c6ec181ec9a4f93cfb1f1a73fd8387eb0376ef236b11e4f975a53d50e103d97"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/010-formal-resume-pilot-cli_pilot.py",
+      "bytes": 10931,
+      "sha256": "7b3a888adc66239bc041be6f4024cfb31f0f754a6835db2130531719ef31bb9f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/011-formal-resume-pilot-BINDING-BEFORE.json",
+      "bytes": 2659,
+      "sha256": "39b91495312d2fdb62781717756bc761ad56a5b37db7516d68751648e2bbde2f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/012-formal-resume-pilot-RESULT.json",
+      "bytes": 27326,
+      "sha256": "b442ca18ebe4e9279e8bec74e3f799c4ecc47c9ee1a42cb76f677433ce49e4cc"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/013-formal-resume-pilot-observer.stdout",
+      "bytes": 728,
+      "sha256": "dc90a2e25474455a2c5cfe4e0fd50af81613733df4bc60c00b62a6e5797e46db"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/014-formal-resume-pilot-observer.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/015-formal-resume-pilot-PYTHON-REVIEW.md.raw.json",
+      "bytes": 3474,
+      "sha256": "691cf1f6ba47c52bc6738e53248cd219b4b290b3d802d03b670e590fc990c1cc"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/016-formal-resume-pilot-PYTHON-REVIEW.json",
+      "bytes": 875,
+      "sha256": "2b6be05f09322849c5cc556daed9aa4a0ac676ad00a8cc05b707a4b3758f5449"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/017-formal-resume-pilot-INDEPENDENT-FACTS.md",
+      "bytes": 3117,
+      "sha256": "25791d8f81be65a476e6777a0ef9c939aafcfb8f3b8fd68b7af7c6d5bc8f0c85"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/018-formal-resume-pilot-INDEPENDENT-FACTS.json",
+      "bytes": 2319,
+      "sha256": "3adbeabb6764939a8189ef3d070908935ba94dae704294fd075b0b56a0d067d8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/019-formal-resume-pilot-WRAPPER-REREVIEW.md.raw.json",
+      "bytes": 3570,
+      "sha256": "158603e812e7a9cb2b1d520be72dbc920b271c9c87cb77dfe29e07e5c0fed5cb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/020-formal-resume-pilot-WRAPPER-REREVIEW.json",
+      "bytes": 1405,
+      "sha256": "fe017f31db0191e17974a004706248e826f0c9c5e685789fa748ab346fcfa61d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/021-formal-resume-pilot-EXTERNAL-NESTED-DIRECTORY-PROBE.json",
+      "bytes": 388,
+      "sha256": "a598a33444d4be8b232ef4509dd545fec41e1cdc1a99671d972e02d0b8cdacec"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/022-issue1394-reuse-pilot-20261001-EXTERNAL-BLOCKER.md",
+      "bytes": 2368,
+      "sha256": "9385a2f2e7a14c8ba2d9d68182ff7cc558f0fd7412e2e0ec3e95d4fca1b3b40c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/023-issue1394-reuse-pilot-20261001-DIAGNOSTIC.patch.raw.json",
+      "bytes": 15285,
+      "sha256": "0b5e09046b430e9adcf8ed25451b0befb17aa7841a28ca24a477b5c1c6711be5"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/024-A-baseline-PLAN.json",
+      "bytes": 7218,
+      "sha256": "46572764a874d70cde46a8d311facbce188fb51a7e9ac00507c5b77a23239922"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/025-A-baseline-RESULT.json",
+      "bytes": 6720,
+      "sha256": "1fe96f370cef3d1560e8b8cd9dba6f5d0d9e87d68b1fb8a48d469a060757ec15"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/026-A-baseline-SAMPLES.json",
+      "bytes": 8311,
+      "sha256": "c1589cbdffc5dc34ad055b227cc764e4dba1793c1d7827e6a82fc07c4b57668e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/027-A-baseline-stdout.json",
+      "bytes": 271,
+      "sha256": "b3c1f5fe97afc22711df51e7c95ac7cb60f5ba4b9ed5c91db9087502094097cc"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/028-A-baseline-stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/029-B-candidate-PLAN.json",
+      "bytes": 7213,
+      "sha256": "82e3a5631f04eed9f16897c50fdf03cfdb58678578cb4b19ba2bec1f45bd9887"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/030-B-candidate-RESULT.json",
+      "bytes": 6724,
+      "sha256": "a86fc73fe2d14b61a46a3273eafa044a913041ec5a21df2b6db12979ac13c49c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/031-B-candidate-SAMPLES.json",
+      "bytes": 7939,
+      "sha256": "4f3cd3a747784870de38e63a81e58cc840d106d0d962731081fa7deb016608a7"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/032-B-candidate-stdout.json",
+      "bytes": 271,
+      "sha256": "b3c1f5fe97afc22711df51e7c95ac7cb60f5ba4b9ed5c91db9087502094097cc"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/033-B-candidate-stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/034-C-candidate-PLAN.json",
+      "bytes": 7213,
+      "sha256": "3b160a475787d755b33a458bde79697468eeeaa1cd81a451f65127578fa94d16"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/035-C-candidate-RESULT.json",
+      "bytes": 6724,
+      "sha256": "3f7ea47d9fae1608df4609bc583460f46e040bc37fdb16e5f6e5c0f129c79546"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/036-C-candidate-SAMPLES.json",
+      "bytes": 7191,
+      "sha256": "d85dcf793424777354a63315ab6d83d4cc0e5379449a7246bfc62319bc4eb770"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/037-C-candidate-stdout.json",
+      "bytes": 271,
+      "sha256": "b3c1f5fe97afc22711df51e7c95ac7cb60f5ba4b9ed5c91db9087502094097cc"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/038-C-candidate-stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/039-D-baseline-PLAN.json",
+      "bytes": 7218,
+      "sha256": "13912daaf561330bf13efdeb223a9478c73310653e4a4a43409881203bd55ddb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/040-D-baseline-RESULT.json",
+      "bytes": 6720,
+      "sha256": "d491e29b3f2de45c5a329883dd988b0a05705ab2b5c6ede0aa648bfc5a6df8c6"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/041-D-baseline-SAMPLES.json",
+      "bytes": 8381,
+      "sha256": "e5f45611f9c93ef73619ee9974934dba32756f7d3e937dab859abe182ae1c1f6"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/042-D-baseline-stdout.json",
+      "bytes": 271,
+      "sha256": "b3c1f5fe97afc22711df51e7c95ac7cb60f5ba4b9ed5c91db9087502094097cc"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/audit-reuse-inputs/043-D-baseline-stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/001-root-inputs-CALLER-OBSERVATION.json",
+      "bytes": 1369,
+      "sha256": "145874d694753b248c18cd199da6b8d5aa3cff145d1344df7f090c22fbf79378"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/002-root-inputs-Controller-A.json",
+      "bytes": 1661,
+      "sha256": "cf418b17554308595517f7b1a5a612deb1a719c9fad311673df5445db0cc7d40"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/003-root-inputs-Controller-B.json",
+      "bytes": 1661,
+      "sha256": "30e2471ea36276e7fddb55781777ad15782caa2be4f3c11601eb635e579af28c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/004-root-inputs-POST-RUN-PRESERVATION.json",
+      "bytes": 10730,
+      "sha256": "f02feffb9cc279159710d427b6758adb1b70b3cf73fe03c688f9c5f76a6562ce"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/005-root-inputs-PRE-RUN-PRESERVATION.json",
+      "bytes": 11077,
+      "sha256": "3bca89e81f1bfcf00f1614abfecd344bd439f45c98e2a8cfb3808d5728af901b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/006-root-inputs-ROOT-ACCEPTANCE.json",
+      "bytes": 4601,
+      "sha256": "2f1753a4aed09c4fa28163354107a7891241649294813b96bc6ba2d99b0a8de4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/007-root-inputs-ROOT-PENDING-AUDIT-FACTS.json",
+      "bytes": 860,
+      "sha256": "dced63a8e12d1dbf9f4f68ba7efa2ac38612b7afc02b6a0990506cc7d23a617d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/008-root-inputs-ROOT-REAL-START.json",
+      "bytes": 1129,
+      "sha256": "56d4cd4317c543aa32014e218a7b11421f0ffbab92e9ac2974e9ce948618fc73"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/009-root-inputs-TestOnly-frozen9011-fullclock-serial-first-attempt.s-resources.json",
+      "bytes": 241,
+      "sha256": "b3d8b67b723d881a98dd0f4116fdc9651cf05b207111b19dad26fa69c2c54e69"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/010-root-inputs-query-resources.original-Q21.json",
+      "bytes": 657,
+      "sha256": "50ea5bf865de8a37d8187069d70bee85ca4caac9c759a60ad2e3c717743d4eb1"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/011-review-ACTUAL-REVIEW.json",
+      "bytes": 5383,
+      "sha256": "172167126c57c42ba8d0bad72e53b7812288217bbc9cb01fed281b89289bfe59"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/012-review-ACTUAL-REVIEW.md",
+      "bytes": 3086,
+      "sha256": "f80094d0eac282de23291b37ca3659a32cb037f3376d8adbdbff4e99e0e908e2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/013-review-FINAL-REVIEW.json",
+      "bytes": 2257,
+      "sha256": "2b4e3e42fe8aff6e952943af6a58da7c20314f5540d03a1a9292b11b6e48a893"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/014-review-FINAL-REVIEW.md",
+      "bytes": 2077,
+      "sha256": "03a1817d16f3041e9eab00261f60ccc7f95f10cb19990bae630093fb3fe7ef39"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/015-manager-FINAL-STATUS.json",
+      "bytes": 2977,
+      "sha256": "ce8f43fe2eb9801f4d0c2c56483f2b2a2bfa9d98e15732477719119297b1fee1"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/016-manager-FINAL-STATUS-v2.json",
+      "bytes": 3051,
+      "sha256": "478d2b18c286ddaf858f328118d2ab075a8c2a2c64d969db777775db346566b8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/017-manager-FOLLOWUP-DRAFT.md",
+      "bytes": 5166,
+      "sha256": "c0f8bf334e906d7848698e5de042069d7ec2b5e300e9b4e71dc29af78e47b1cc"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/018-manager-WORKER-PROMPT.md",
+      "bytes": 3505,
+      "sha256": "dbe780c3899d4dd82f970485bc43d1c6ed2d442d9c17c048a1f7450c2d10df1d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/019-run-1-state.json",
+      "bytes": 2388,
+      "sha256": "bbc86001c26798964b6acf4ffda1cbdec131ddfe628f6db5f1ccbb4520bfa862"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/020-run-1-result.json",
+      "bytes": 2388,
+      "sha256": "bbc86001c26798964b6acf4ffda1cbdec131ddfe628f6db5f1ccbb4520bfa862"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/021-run-1-output.schema.json",
+      "bytes": 322,
+      "sha256": "9433b5a74a8d18bfeeedc52771fb08dd8b6df922e2a7bae7c8a45cd61815b713"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/022-run-2-state.json",
+      "bytes": 3131,
+      "sha256": "1d337fa29c67f4cb95a14a640a0a307e57a032448532e036a07d2e157829e434"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/023-run-2-result.json",
+      "bytes": 3131,
+      "sha256": "1d337fa29c67f4cb95a14a640a0a307e57a032448532e036a07d2e157829e434"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/024-run-2-output.schema.json",
+      "bytes": 322,
+      "sha256": "9433b5a74a8d18bfeeedc52771fb08dd8b6df922e2a7bae7c8a45cd61815b713"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/025-run-3-state.json",
+      "bytes": 4643,
+      "sha256": "a8005db52d7e47d34380367fbddda2a9e91595241b605340f1bacb75e077ea6a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/026-run-3-result.json",
+      "bytes": 4643,
+      "sha256": "a8005db52d7e47d34380367fbddda2a9e91595241b605340f1bacb75e077ea6a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/027-run-3-output.schema.json",
+      "bytes": 322,
+      "sha256": "9433b5a74a8d18bfeeedc52771fb08dd8b6df922e2a7bae7c8a45cd61815b713"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/028-fixed-runner-README.md",
+      "bytes": 4040,
+      "sha256": "222a8bf08ceed9b6a7c438ccd3428545b92a905abaeb301a6979aa3fc9106a1c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/029-fixed-runner-contract.schema.json",
+      "bytes": 2137,
+      "sha256": "3853d7ca2edc5ebf046b28ad84d87746d06f29579798ef7f9fd15cb6172b15d3"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/030-fixed-runner-evidence.py",
+      "bytes": 24595,
+      "sha256": "8603beeeca192c2b74635b27f640dcb34332b104868a8b931ed21b1f48ad6a04"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/031-fixed-runner-runner.py",
+      "bytes": 36611,
+      "sha256": "155d22522d74471705ed6bb6c61499ea0dfb4e0ddf7403d4f48cffe60ae55335"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/032-fixed-runner-runtime.py",
+      "bytes": 38046,
+      "sha256": "1bcae2f7dfedcf7e83fef406840b07fe6250b56433d379f497a2fb62f35d67b6"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/033-fixed-runner-test_offline.py",
+      "bytes": 51071,
+      "sha256": "992a18f1439cee178a52ede9e4b8aca40cc02c2900935a615a96c6eccb8dae4d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/034-actual-PREPARED.json",
+      "bytes": 623651,
+      "sha256": "24dd300a31c8ae8beb78c842185664e39b9584f6712be42ec6581843284c28ff"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/035-actual-RESOURCE.json",
+      "bytes": 241,
+      "sha256": "b3d8b67b723d881a98dd0f4116fdc9651cf05b207111b19dad26fa69c2c54e69"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/036-actual-CONTRACT.json",
+      "bytes": 3128,
+      "sha256": "bb176cbc896fd695ea4f81fc5d1066900c969bda32a613f86a484fde5be3efbb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/037-actual-RUN-PLAN.json",
+      "bytes": 749,
+      "sha256": "4239c8b5aa3230f0d824ce52aed1e6e34480a2ab3ad7be8998be5c606fe3b20c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/038-actual-RUN-RESULT.json",
+      "bytes": 6934,
+      "sha256": "1bfde3d806c0a630339e460e5bb4e2ee12dcec4dd31a01c22c5ca22760fcdad6"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/039-actual-MEASUREMENT-GAPS.json",
+      "bytes": 117,
+      "sha256": "c906bd454bc0e7db83cef7a488f1f5bd0773f9ee253d4af7deec0fdaf5d32753"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/040-actual-ORIGINALS-BEFORE.json",
+      "bytes": 12536,
+      "sha256": "d7b4535517551da4ffb5fcdec1ab6baf35d6f95be92f1cbe984bd424b0d86af8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/041-actual-ORIGINALS-AFTER.json",
+      "bytes": 12536,
+      "sha256": "d7b4535517551da4ffb5fcdec1ab6baf35d6f95be92f1cbe984bd424b0d86af8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/042-actual-SOCKET-DIRECTORY-CLEANUP.json",
+      "bytes": 33,
+      "sha256": "b2814e9a2aa356838021ba915f0e40a4cca33a6d971bee9fcd87667cc2d1402a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/043-actual-A-Controller.json",
+      "bytes": 1661,
+      "sha256": "cf418b17554308595517f7b1a5a612deb1a719c9fad311673df5445db0cc7d40"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/044-actual-A-CASE-RESULT.json",
+      "bytes": 5867,
+      "sha256": "5cd834a782039174d4e303bbdb4c9f774ae9ef84e28a392742b4c4701a680486"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/045-actual-A-PROGRESS.jsonl",
+      "bytes": 9333,
+      "sha256": "636cf2b5391bb5030236c369067b79655cecf9184711797423d71cf0b93ebc6b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/046-actual-A-START-RESULT.json",
+      "bytes": 2094,
+      "sha256": "03c6ff122d0b2acc8001207c2a5dcb49b8489494350c5fcd2b7a38b7049845cf"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/047-actual-A-RUNNING-IDENTITY.json",
+      "bytes": 2479,
+      "sha256": "39f38e9d130d03dce9e9f97b96f1ee2b73f604c614afecf0990ab59373586e3d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/048-actual-A-LIFECYCLE.json",
+      "bytes": 3497,
+      "sha256": "e8bee249524adad6c3ddb01389cd5e76e3d2c0245fe93e50e169082b59774f03"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/049-actual-A-OWNED-DB-FILES-AFTER.json",
+      "bytes": 946,
+      "sha256": "93122a41b27e38b3331f79372cf0fd23a41cd5fdea2cc8e7f6f3f5b5729a37f1"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/050-actual-A-input-28.exchange.json",
+      "bytes": 302,
+      "sha256": "cc8d6850eb232263875404b6e859b9ce15852a12d581af1fadbaad85d4bc3920"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/051-actual-A-input-28-0.wire.json",
+      "bytes": 607,
+      "sha256": "913d4c32af68766599be1ac6c324f1e296b2c977cd53825c70af59293055ef4f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/052-actual-A-input-28-0.request.wire",
+      "bytes": 1004,
+      "sha256": "5aabb944eb76a57c5bdaf3125e0b82a984fbbcb5bb215842bab17742ffcc2a36"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/053-actual-A-input-28-0.reply.wire",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/054-pending-audit-CLONE-CHECK.json",
+      "bytes": 1535,
+      "sha256": "0a1381bc18b7ec247d117d9a315d049b2a416bf76bc4abf6c8caea7d6a17de69"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/055-pending-audit-ORIGINALS-AFTER-COPY.json",
+      "bytes": 1265,
+      "sha256": "c9c145ed8a4fa789961c87e659f209064f85b24231c20fb7b17c092a0736b274"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/056-pending-audit-ORIGINALS-AFTER.json",
+      "bytes": 1265,
+      "sha256": "c9c145ed8a4fa789961c87e659f209064f85b24231c20fb7b17c092a0736b274"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/057-pending-audit-ORIGINALS-BEFORE.json",
+      "bytes": 1265,
+      "sha256": "c9c145ed8a4fa789961c87e659f209064f85b24231c20fb7b17c092a0736b274"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/058-pending-audit-OWNED-AFTER.json",
+      "bytes": 1274,
+      "sha256": "c2735a497b7f1ddfd785a9a6495a8b93abf16f5b3589b8740362a46fcf1b4b8d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/059-pending-audit-OWNED-BEFORE.json",
+      "bytes": 1274,
+      "sha256": "cd84d8f104624a7f6b89a714f9030b09529ee06c51396c4d98dfb5f4633b4a09"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/060-pending-audit-PHASES.json",
+      "bytes": 69040,
+      "sha256": "04a086cc78ba01324fddf2a8f893b00f28ef9bc63b16b3c37b07a34cdfbf2e4a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/061-pending-audit-RESULT.json",
+      "bytes": 8014,
+      "sha256": "2ecc80095c1371f09660e0e9103407c0dc55329648ae94cd5b4c97c6088f9315"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/062-pending-audit-RSS-SAMPLES.json",
+      "bytes": 21387,
+      "sha256": "09458c9e7ac8232c5c55b4930205f16bba365345d060af85ab24c702360ebe43"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/063-pending-audit-RUN-RESULT.json",
+      "bytes": 889,
+      "sha256": "7b3a107358eac964d7299b6f5472aa7175a5ac04ebc64e22ac2a5074e5e7e19e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/064-pending-audit-RUNNING.json",
+      "bytes": 1124,
+      "sha256": "c0c1b5e15e7c8d9fc7da251deb52691b7ca4550e2ae51f7b1be4a8239b9f1eda"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/065-pending-audit-run_once.py",
+      "bytes": 7411,
+      "sha256": "20ec522b660fc8cc872ab6ea99269fa9261a68ae9610ae76571f5b0f60c89d9e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/066-pending-audit-stderr.raw",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/067-pending-audit-stdout.raw.raw.json",
+      "bytes": 663,
+      "sha256": "b686f1431e33a5bf38e971fbd4199666f21d8f02c73994f00c3c2be8a75a7cf7"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/full9011-first-attempt-inputs/068-prepared-v2-PREPARED.json",
+      "bytes": 623651,
+      "sha256": "24dd300a31c8ae8beb78c842185664e39b9584f6712be42ec6581843284c28ff"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/CODE-TRACE.json",
+      "bytes": 1650,
+      "sha256": "75fa36eac2a685eceaab518de2d53abc11292944861a17516763ea54616bd0b8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/CODE-TRACE.md",
+      "bytes": 14576,
+      "sha256": "71bcfed063f2b85895d242504b499ceff1e580d1c47c18c0640f09c50a3eb1af"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/DEV16-INDEPENDENT-FACT-REVIEW.json",
+      "bytes": 9722,
+      "sha256": "ed962b2ad13a4ee00bba58601a73dfee6f884c1989fd83a2b75be0829203ab13"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/DEV16-INDEPENDENT-FACT-REVIEW.md",
+      "bytes": 4813,
+      "sha256": "ff74013f3ca1ab29192fac5985da9bbb871591a485c21454241a07e0290b2583"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/DEV16-MANIFEST.json",
+      "bytes": 37937,
+      "sha256": "8e8ac71c78ab51602221869a4b43a3d8bf1582fcc740519eed1bb7c84580f351"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/DEV16-MEASUREMENT-SUMMARY.json",
+      "bytes": 9866,
+      "sha256": "e4b4ad0cb98a12fffa14a18c2528294f5720e876953f04edfb38df3a37bafc37"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/DEV16-RESULT.json",
+      "bytes": 4982,
+      "sha256": "3833ff9dc4fcfbe8adfe968849e412a28e13039ef34515387a911366c4ebbc39"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/DEV16-RESULT.md",
+      "bytes": 1572,
+      "sha256": "0011d4695cb50c9469ae6c2de7559a6d76e3b59ccc93be47464192a834c7a564"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/FULLCLOCK.json",
+      "bytes": 790213,
+      "sha256": "b02ac2444161e1e7e327fcf2a2bb79b294356a3dd95a59a6404c5b92deb04f01"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/JOINT-INDEPENDENT-FACT-REVIEW.json",
+      "bytes": 6180,
+      "sha256": "ad549aa0107b0400bc1a759948daed6c29c5da96dc758f2a86ef4ffe39475214"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/JOINT-INDEPENDENT-FACT-REVIEW.md",
+      "bytes": 5010,
+      "sha256": "419b8d2302c7c0d4662dde4dde0eaff281be2138cd3b92ff6642f15e96cde1c3"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/JOINT-MANIFEST.json",
+      "bytes": 16313,
+      "sha256": "f39b80bbcc7244245725eb770a27976903640d4d5277e0f5cc7f4116deab1aa6"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/JOINT-RESULT.json",
+      "bytes": 7918,
+      "sha256": "da9abe58385530b7d875555659490e84c379ca3989aac5d9d5b18c4418614b18"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/JOINT-RESULT.md",
+      "bytes": 1495,
+      "sha256": "98fefa5d8a589376b2aefabb843fedbfd4c61a26344c21a4346347d59b1fa2ef"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/PREP-FULL-HISTORY-FORMAL-PREREQUISITES.json",
+      "bytes": 14239,
+      "sha256": "5151ecded9f1b168280f29efc1c3458d8448c322c4361ac233cc423a9d40a1ee"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/PREP-FULL-HISTORY-FORMAL-PREREQUISITES.md",
+      "bytes": 8525,
+      "sha256": "2b290f21f23fde1f4da437eaa79fe380478f93d17ed1c7bfcbbfb8fc4921621d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/PREP-MANIFEST.json",
+      "bytes": 5104,
+      "sha256": "c4e7d97cca3a7bad2baddc85368bf766cdf5609cce0d32a849d069b8f251fea0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/PREP-ROOT-PROBE-INPUT-REVIEW.json",
+      "bytes": 882,
+      "sha256": "1a20cfc80fde34c13fefd0c8d43db2a25cc6e891d5c76994d4c7a7c10b47a22a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/Q16-INDEPENDENT-FACT-REVIEW.json",
+      "bytes": 6587,
+      "sha256": "5fa148d97a11ba41a6354557ded2bf6db455f17054c7f7a99768cdd5dde7d4d5"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/Q16-INDEPENDENT-FACT-REVIEW.md",
+      "bytes": 4421,
+      "sha256": "abc7ffeec95518014672e8e67fc5c4eadd61597226420892f8118d16f1042cab"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/Q16-MANIFEST.json",
+      "bytes": 47123,
+      "sha256": "7febd5197c74979d31ffeefbe8a23d59d1aeb5bfcdecee6e443a433901922422"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/Q16-MEASUREMENT-SUMMARY.json",
+      "bytes": 9991,
+      "sha256": "28b4dab6a9b492e9a922411e6c5319893ff63dace7f60c84b66290e8d8ea97e5"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/Q16-RESULT.json",
+      "bytes": 4210,
+      "sha256": "026b115f647ac6870f9790eac224c6b1b46d73873e3ce877822836ee2d024b03"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/Q16-RESULT.md",
+      "bytes": 1705,
+      "sha256": "93bb90857f5db6f42a30ed164fce56a249b90257330d120d01a8e863ddc4cb75"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/RELEASE16-BUILD-PLAN.json",
+      "bytes": 1739,
+      "sha256": "c5e8915a7c8a2930951b5c0d028e5b945ee292142d85d0aac75fe8780c6b2c96"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/RELEASE16-DEV-RELEASE-FACT-COMPARISON.json",
+      "bytes": 1633,
+      "sha256": "d6e18d148cd1ab181f563e018f816827c1365af29c4aa4cb8797d6c6b7054b33"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/RELEASE16-INDEPENDENT-FACT-REVIEW.json",
+      "bytes": 6116,
+      "sha256": "a03e2b0407b7d8472209f39c8eef25542ae086b260bddf87ab8e958efd8ee84e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/RELEASE16-INDEPENDENT-FACT-REVIEW.md",
+      "bytes": 4717,
+      "sha256": "bdf0fba9466a9c2eaab36f377fcb46e74531fa3013ce18489074f38470ec2775"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/RELEASE16-MANIFEST.json",
+      "bytes": 156656,
+      "sha256": "b5a9cc1c576cc813acb53aceeadd89ddca097ed04d5a0882104647593467f78e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/RELEASE16-MEASUREMENT-SUMMARY.json",
+      "bytes": 8193,
+      "sha256": "4eb0f4e0ed72b63a23029f43e58ba18cc06cd8c70291976e81299540eb7d67e9"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/RELEASE16-RESULT.json",
+      "bytes": 3616,
+      "sha256": "6122feb186aa0d35e794e36da394082e9ca5204bef4c15a64f554396a45d32eb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/RELEASE16-RESULT.md",
+      "bytes": 1571,
+      "sha256": "7f5b1e172fec03fe71268e4a7958c8d2efa91c04c77191feb706392f31a82829"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/fullclock-inputs/S16-RESOURCES.json",
+      "bytes": 241,
+      "sha256": "b3d8b67b723d881a98dd0f4116fdc9651cf05b207111b19dad26fa69c2c54e69"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/COLD-AUDIT-RAW.zip",
+      "bytes": 712931,
+      "sha256": "3d7efec7f5be88b1b78926d41ff7fbbf09eb2b60b5ba7aec20eaef1bbac31e6e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ECONOMIC-BROWSER-FACT-CHECK.json",
+      "bytes": 3867,
+      "sha256": "bf3877a980c84e9b52619c2e0561d74924786fbeecd0d6ca94800104f6aff4f7"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ECONOMIC-BROWSER-INDEPENDENT-REVIEW.json",
+      "bytes": 14704,
+      "sha256": "dbac5dca3bb7ddca87968ca9089768fd055e51d9f7871023fe305c5bf12de16a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ECONOMIC-BROWSER-INDEPENDENT-REVIEW.md",
+      "bytes": 7954,
+      "sha256": "4d0b4a1b0bddf26bb263e965559df31f6f3dedd9dabb4e8fb767d9d4a75abd10"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ECONOMIC-BROWSER-MANIFEST.json",
+      "bytes": 141791,
+      "sha256": "d7881aa37db27ab206e5a8c8046c916608fde8eb78dc9a3b67783d7d193a5a82"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ECONOMIC-BROWSER-RAW.zip",
+      "bytes": 4725189,
+      "sha256": "18535c6dd29f3876ea3dc6a7f4808f7f047f96483f9665107ca755196e6f4e77"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ECONOMIC-BROWSER-RESULTS.md",
+      "bytes": 2420,
+      "sha256": "1c33e23d67efedbd0092719b75838544af48b65ac4b66e143a7d6b1d9052aa07"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ECONOMIC-CLIENT-ARTIFACTS.json",
+      "bytes": 4196,
+      "sha256": "139841ca16cfd3d8f0b950e75428191ac7f4549884af14b966471c73178d0504"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ECONOMIC-CLIENT-DELIVERY.md",
+      "bytes": 1525,
+      "sha256": "80ca94c7160b8a910e3e1b639cdbef505ed2c7ad6604f695102f2523d73a4fd5"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ECONOMIC-CLIENT-INDEPENDENT-REVIEW.json",
+      "bytes": 2785,
+      "sha256": "91805564dc3adc561aa9747d61c2155434b9854c753c3626715ccb7e283b9e03"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ECONOMIC-CLIENT-INDEPENDENT-REVIEW.md",
+      "bytes": 4863,
+      "sha256": "244b5617bb9381919328a820351965c4d68a22b07e85a05c92605aabdc6db5a1"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ECONOMIC-CLIENT-INPUT-CHECKLIST.json",
+      "bytes": 6290,
+      "sha256": "885886ff86a020d83ef8f666712ee9510b726f6a1b1451c9a4dcad8312429f95"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ECONOMIC-CLIENT-RAW.zip",
+      "bytes": 167076,
+      "sha256": "ebbf0b6dd36f7212680d24883b33c6754cb4b583ed2f6c24762206741034287d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ECONOMIC-HTTP-INDEPENDENT-REVIEW.md",
+      "bytes": 8018,
+      "sha256": "8ead0753a9f01049a99ba38e585afab0762a2c0e6cb26adf5b1dbfeceb8c5466"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ECONOMIC-HTTP-MANIFEST.json",
+      "bytes": 19193,
+      "sha256": "53fe8cda6fa5fae453ac36b1d7a24e35027994973b6dd63068fffd6f2e8b4523"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ECONOMIC-HTTP-RAW.zip",
+      "bytes": 458893,
+      "sha256": "cb7d27a9fcdc9da3d7b5d1f683ee73aee7d3d55ca9e8d3fd275951893dd38edf"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ECONOMIC-HTTP-RESULT.json",
+      "bytes": 5982,
+      "sha256": "f5efe798bce78af95ddd442e3e5a5d8e53eb6944e425b3727649275bcb7ac596"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ECONOMIC-SELECTIVE-ARCHIVES.json",
+      "bytes": 947,
+      "sha256": "6e4627e63e5a69b2701031543cea7e7518bf55c743a262bfbb6c0b8f11451653"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/FAULT-ACCEPTANCE-source.rs",
+      "bytes": 36842,
+      "sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/FINAL-ENOSPC-ACCEPTANCE-insert.rs",
+      "bytes": 11997,
+      "sha256": "7bc005707a9fd347998a751ba6cdf152fbe7f2b14da2f59c0a1a22bf056c247e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/FINAL-ENOSPC-BEFORE.json",
+      "bytes": 33634,
+      "sha256": "ebbfa16db913c0b3246550d5f759af2186e319631eb57d2512a370dce9509f35"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/FINAL-ENOSPC-CHECK.json",
+      "bytes": 6175,
+      "sha256": "dc5b38c570689f9bee072502c9f0b826ceb41854b067d119ea421b21d5e4d448"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/FINAL-ENOSPC-DETACHED.json",
+      "bytes": 1626,
+      "sha256": "d26f54c117c6156aa41914ab597b12d72e6789d46ce7b0ac520b249926906752"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/FINAL-ENOSPC-OBSERVED.json",
+      "bytes": 21322,
+      "sha256": "c52fe98ea8168b3f8dc3f8a6aee6b2ceab2ba79f547f1ae572edcba3e9f19355"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/FINAL-ENOSPC-PROCESS-CLEAR.json",
+      "bytes": 77,
+      "sha256": "2f8ba80130133a63a71eac5b910c9cab31daf9b2ac51fa6cbaf26dbb7e46784e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/FINAL-ENOSPC-RESULT.json",
+      "bytes": 1337,
+      "sha256": "374b234edbd4a4106f43e81c874f73fe2ba32239ad64f7fd7c5ecca697cf110a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/FINAL-ENOSPC-RUN.json",
+      "bytes": 251,
+      "sha256": "bbb832040a85cf0a46a1ee69cf7bc7c7dc346f0af05e29202eb4299e77e5bdcb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/FINAL-ENOSPC-RUNTIME.json",
+      "bytes": 863,
+      "sha256": "e984358fc42f89b6ddedacaef46a2cd3d1840b20fa6e4a0500ea38bdccdd7903"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/FORMAL-CLI-ACCEPTANCE-insert.rs",
+      "bytes": 15929,
+      "sha256": "69bca03208f1a0e0c6d6c88348c060ccaa862d948c9a2289019a2b145caed3f0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/FORMAL-CLI-OFFLINE-RECOVERY.json",
+      "bytes": 4605,
+      "sha256": "5e9a5b302498a00a0c827de698e6069ec1fbb50c96ac17f7587c3d4cb876ff3a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/FORMAL-CLI-PROCESSES.json",
+      "bytes": 2273,
+      "sha256": "02b8299c6fea361c49bc28773ae3dc5e2b42bee1285d9af79a128851f19793d7"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/FORMAL-CLI-RESULTS.json",
+      "bytes": 2110071,
+      "sha256": "00c22e8281ee54f23ffb5ab663ae80865fc0c88fb3f8f1164e625c4c6ac772d5"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/FORMAL-CLI-RUNTIME.json",
+      "bytes": 581,
+      "sha256": "5e6dbe52390922878c2b61b4852d5ff010ccbee3174ecbb21ec8cda28bb30b3c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/HALF-IMPORT-ACCEPTANCE-insert.rs",
+      "bytes": 14512,
+      "sha256": "6d81cf0e62e62f7d2d08c4da811d9f459e4a4f96d291be44383d84eca386e5b8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/HALF-IMPORT-RESULT.json",
+      "bytes": 1067,
+      "sha256": "be6baa36af3f768171723982a19516278355e9d3d350e3ffe6c0a5a081f5697b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/INDEPENDENT-SUPPLEMENT-REVIEW.md",
+      "bytes": 5705,
+      "sha256": "12044f6224fe53a96dcd8d3ef01dc0c146466672a22ea6fcd4f61b18bd13c8f0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/MATRIX-ACCEPTANCE.json",
+      "bytes": 153720,
+      "sha256": "b3544cbdf6e42152c5bce2df72ff1f0fc2018f56bfa7aefe576133e35cec4a6e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/PUBLISHED-CACHE-PROVENANCE.json",
+      "bytes": 1175,
+      "sha256": "a82c44725c4599d84261e2fa9253b5f49c2e7358538dab2b96d4c372cf2ed2c6"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-COMPLETE-CLIENT-AUTHOR-API.md",
+      "bytes": 4898,
+      "sha256": "a52a32c6ab19411917dc20ccae594ed4b0f90382899f7c2ceac6c6f1611b18a9"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-COMPLETE-CLIENT-AUTHOR-RESULT.json",
+      "bytes": 7141,
+      "sha256": "473f819819d7216d112f274e0cd16f012c0204e80e2050911010084e92e39876"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-COMPLETE-CLIENT-BUNDLE-INPUTS.json",
+      "bytes": 669,
+      "sha256": "2d9e809b569a94383016af3e192e120cb475d829f590e61898cff400cc92f9d8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-COMPLETE-CLIENT-PAGE-API.md",
+      "bytes": 1790,
+      "sha256": "8b844a1de94158c6820bd822b90ac3ff8808d3a034e9fea884ca8eab54bf7646"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-COMPLETE-CLIENT-PAGE-AUTHOR-RESULT.json",
+      "bytes": 2762,
+      "sha256": "e63703f98f963fb555833662d6b4c4d3bec6ed469ea69339a1606c8237824541"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-COMPLETE-CLIENT-SPEC.json",
+      "bytes": 5778,
+      "sha256": "6179144525b2b35886bc4648ebceeb6d7c626a1b7f12f9ddc5ca8ea3c1b204d2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-COMPLETE-CLIENT-SPEC.md",
+      "bytes": 5640,
+      "sha256": "0e66a24dbb4e4347870cad1f19eae301de7e611ae54b1f0a338c972a4c35b193"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-COMPLETE-CLIENT-STANDARDS.json",
+      "bytes": 2355,
+      "sha256": "effbefb9560303cbbea1ef6bb010ab655c6efb9daa54bbe3756890e7178aa188"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-COMPLETE-CLIENT-STANDARDS.md",
+      "bytes": 5256,
+      "sha256": "bbce45029d21c595702741df9f93020ad02c7a18e79c24f902d4d757a9715800"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-COMPLETE-ROOT-LEGACY-GREEN.txt",
+      "bytes": 6023,
+      "sha256": "706585fbae1770ecb69ff4bb837fdb43edc241c9b10820d6a4c2837639f05819"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-COMPLETE-ROOT-PAGE-GREEN.txt",
+      "bytes": 1189,
+      "sha256": "4b6ed93a10fb628293e3349067e5b7157c3610326e46700d863d3cc492581015"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-CONTROLLER-INDEPENDENT-REVIEW.json",
+      "bytes": 50115,
+      "sha256": "eb912d74455279fbbecf78263f1e7ca72c47a1cab3fb23257c6c513af8101b93"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-CONTROLLER-INDEPENDENT-REVIEW.md",
+      "bytes": 5560,
+      "sha256": "7b06a68746cdf706e689c8349f2477df44442330f04e4cd1e8243f2cee95eb79"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-CONTROLLER-MANIFEST.json",
+      "bytes": 25907,
+      "sha256": "1c5a1018b76dc4fbdb1b896862f837ea09217f6acdfbe946daa7cd4d74c8ba2d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-CONTROLLER-RAW.zip",
+      "bytes": 354001,
+      "sha256": "f2f135abb0637f2f8ce96bb1b16d85a7e73ada16644dd0dce8c84d923718f829"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-CONTROLLER-RESULTS.md",
+      "bytes": 2421,
+      "sha256": "9d8a45983e51f4daf869f34541c3b312e395060dd1a1a3dd6f720c69156643f7"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-FORMAL-ENTRY-ACTUAL-INDEPENDENT.json",
+      "bytes": 2691,
+      "sha256": "49cedba14532cab9a09586b50316a308dd785973a6a1ae65a60daf18826b11d7"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-FORMAL-ENTRY-ACTUAL-INDEPENDENT.md",
+      "bytes": 3861,
+      "sha256": "a718b7fd34f4a1246430a85aaa36280d52e255e9bb9643be0fd0ac4ddc66e7bc"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-FORMAL-ENTRY-ACTUAL-MANIFEST.json",
+      "bytes": 18593,
+      "sha256": "c54ed3301e1c141c17d640deccea5cf2e63442303f02b56d5e2333f5d9f60506"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-FORMAL-ENTRY-SPEC.md",
+      "bytes": 3604,
+      "sha256": "957b0dafcbe7ef2fa8da371251984356a69bd31e6d8f41baa9039fc8f8681af4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-FORMAL-ENTRY-STANDARDS.md",
+      "bytes": 3212,
+      "sha256": "0245ad50d4a321fda2713ce2287076343927d74f7cf121512c4aff37c4ce0e8d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-HTTP-EVIDENCE.json",
+      "bytes": 25073,
+      "sha256": "b3a4fdab4a8549560e6597ae4a67da964751f6ece6d9918a9593ecde7bf56dde"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-HTTP-RAW.zip",
+      "bytes": 75117,
+      "sha256": "9d259b7626be874e0216458ea41320432d0cfe1b6cba3a5a07eb02bbc6200d2e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-JOB-SPEC.md",
+      "bytes": 5885,
+      "sha256": "3e1b3e01ee4b0dfbba3ae88ccf19cb19d349d2c1bea64667204711c939fd182e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-JOB-STANDARDS.md",
+      "bytes": 5352,
+      "sha256": "9064f687b3b6881c8bf17a969cf7bdcae7a08e1b8b954636cad7ca55961238a7"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-JSONTEXT-SPEC.md",
+      "bytes": 4571,
+      "sha256": "f2c0cc474f63555052d93e6ed6dd6147aeab4adc6ef1f1a8e44c431a4d7e5fb5"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/Q3-JSONTEXT-STANDARDS.md",
+      "bytes": 3113,
+      "sha256": "9d8d525a7da38bce21d164c7ad6bb781d70e1e253d182b2e5c226437c967c00d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/READER-RESOURCES.json",
+      "bytes": 415,
+      "sha256": "f8e9e3ca737b3c232c0c62bf748f524badeed575646c53338dca35b1804953dc"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/READONLY-V2-FINAL-RESULTS.json",
+      "bytes": 1607,
+      "sha256": "7d12880c01ecbcc6b0c11b70b39b3fbb89b6f61a87428c58a304a32e5948df09"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/READONLY-V2-PYTHON-REVIEW.md",
+      "bytes": 5062,
+      "sha256": "89be7d7cb6e13222fb6c9712ad947913b703970f1a80cc906054ccab0bbe679c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/READONLY-V2-RAW.zip",
+      "bytes": 27342,
+      "sha256": "4b52173378eb6e93440e3237d9a771053deb2dd06f81839f269c244cc73a943c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/READONLY-V2-TYPE-FIX-REVIEW.md",
+      "bytes": 3560,
+      "sha256": "96d51b482f0e9a1d9cbf0f88c24ea7b358940d955e5c12520009828af336166d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ROOT-ECONOMIC-CLIENT-AUDIT.json",
+      "bytes": 9335,
+      "sha256": "4c8b2215153a73dfedf3cdb5cd04edec96629565e20fa2029041e5d1e73d46e6"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ROOT-ECONOMIC-HTTP-AUDIT.json",
+      "bytes": 2664,
+      "sha256": "4e729c3e5d107dccfb7943a99e7e120bf601e147ef9dab9f36ec66543ed24d99"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ROOT-FINAL-ENOSPC-AUDIT.json",
+      "bytes": 4924,
+      "sha256": "c8347fd4edf979e38c5cabc8d5fb551db827cdcf2a579d8d3005e4bd5bbf9e40"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ROOT-FINAL-ENOSPC-SOURCE-BINDING.json",
+      "bytes": 144303,
+      "sha256": "c8145128abb4c760fe36cb457d62cfc4041fe76a5b38d0ec772e84cb52a667d1"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ROOT-MATRIX-AUDIT.json",
+      "bytes": 6095,
+      "sha256": "1affbdc09732c6852503c541a09451a4cc5dd36c96cfde7368305ea99311bc27"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/ROOT-SOURCE-DRIFT-AUDIT.json",
+      "bytes": 1623,
+      "sha256": "723b5a74f995f65068bc302c799edf95e507ac1958b1f89c8e368ba0fd4695c0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/S16-AUDIT-REUSE-DIAGNOSIS.json",
+      "bytes": 9243,
+      "sha256": "51139036dabd746fbf85ee82c7a738d36cdc48bf394cc9a0efb405bcf605de2c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/S16-AUDIT-REUSE-DIAGNOSIS.md",
+      "bytes": 10135,
+      "sha256": "6aa05bac0f1eb6b8e2a93a6594e498fec1e619b81a35b9fe5169a7b6f6364a96"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/S16-PHASE-SHADOW-MANIFEST.json",
+      "bytes": 26183,
+      "sha256": "a78741be8d1d6f9133bbf571231650d9e33d940d8706b0b7eb3ff69af33a7ccd"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/S16-PHASE-SHADOW-RESULT.json",
+      "bytes": 13941,
+      "sha256": "b194d8ab71f27ffbdf6cf0e520090374217a6895dbfd97ff2a5d52bd2b303d0b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/S16-PHASE-SHADOW-RESULT.md",
+      "bytes": 5436,
+      "sha256": "89e0e7b2d48e73034fe727aa13b8ef59d6c329cd69bc601043aa1af119df8669"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/S16-ROOT-FACT-VERIFICATION.json",
+      "bytes": 1744,
+      "sha256": "155a9e180ccc69026fed234a3f04c3b54625377a16c957e40f01252b08325482"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/SAME-READ-FRAME-API.md",
+      "bytes": 1340,
+      "sha256": "84e5c1f3ad03939d77c21ebda658496eb19369efd6c492c6d6dda33a86242e40"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/SAME-READ-FRAME-AUTHOR-RESULT.json",
+      "bytes": 2810,
+      "sha256": "809f8b8984f735d0747e892737e7e49b72517791026833bc349b5ae5771b82b2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/SAME-READ-FRAME-SPEC.json",
+      "bytes": 1785,
+      "sha256": "2874af936cd4205aa993b438b22288715ba14c4e297c39d89f8f4d36233a742a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/SAME-READ-FRAME-SPEC.md",
+      "bytes": 3231,
+      "sha256": "3314ac3dc767f809a15142642b758d813991f4e091bb767638a33b12d2ef1ec3"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/SAME-READ-FRAME-STANDARDS.json",
+      "bytes": 1467,
+      "sha256": "1412c2cbe59f789ce2bd079a3b3282507d7d93dc2becbf17ded411593d6dd67c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/SAME-READ-FRAME-STANDARDS.md",
+      "bytes": 5015,
+      "sha256": "d8c590b51c20b0ef5b248f53ce07512b0f437e2aa1449c02b6efa10b95a0472c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/SMALL-SOURCE-INPUTS.json",
+      "bytes": 4504,
+      "sha256": "5a7280178e45f6728c3d4afa9d313b98664af8c4141cccac10c99df639dfa82f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/SOURCE-DRIFT-MANIFEST.json",
+      "bytes": 10667,
+      "sha256": "6e4264ba8a6b682794ca5445dcef111c3c0d77be5b742f3850a832835e34e2e1"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/SOURCE-DRIFT-RESULT.json",
+      "bytes": 5316,
+      "sha256": "0bda820fbf3eefe6fd7145f0acbb75f0b2e2909406bae99cdbee3dc660a5b9d7"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/inputs/TASK-MOUNTS-FINAL.json",
+      "bytes": 150,
+      "sha256": "00625ebadc8e29d84275fd197d80dc77c8c0da85f56377e05c8ea827df1abde2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/001-body-v2-issue1394-q3-full-body-v2-20261001-run.py",
+      "bytes": 25457,
+      "sha256": "ba98fed85f49597e3d9bb75fe9b4ac4dd27e867589998c1a74bf3ec5fcd363e8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/002-body-v2-issue1394-q3-full-body-v2-20261001-collect.js",
+      "bytes": 18917,
+      "sha256": "672fcba484d257bd41079c21af17329519d51a9d910d008c61baf11885886691"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/003-body-v2-issue1394-q3-full-body-v2-20261001-archive_v2.py",
+      "bytes": 7299,
+      "sha256": "e19c40890697765174b126b6e0db14d03745e27e8e1d2670efdc6db41d65418e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/004-body-v2-issue1394-q3-full-body-v2-20261001-independent_oracle_v2.py",
+      "bytes": 57851,
+      "sha256": "c8fd1838f7745e5494d84e47c86b165623cf1aeb00db3dc75e39f34b2e840f7d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/005-body-v2-issue1394-q3-full-body-v2-20261001-selftest_matrix.py",
+      "bytes": 6296,
+      "sha256": "f73e02c68145dab4794e64f42048f85646c82e709aaf2d6c376baa17ad16dcee"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/006-body-v2-issue1394-q3-full-body-v2-20261001-FORMAT.md",
+      "bytes": 2155,
+      "sha256": "7f66e7155b00827206eb41592ccdfe0bafd995714fa227f70d15af3e33fc85ee"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/007-body-v2-issue1394-q3-full-body-v2-20261001-PREFLIGHT-REVIEW-V2.md",
+      "bytes": 4066,
+      "sha256": "4c47b5ba034f856637d57c1278d7df390faa7fe4d0f74f2b214105c8a049aa30"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/008-body-v2-issue1394-q3-full-body-v2-20261001-PREFLIGHT-REVIEW-V2.json",
+      "bytes": 1920,
+      "sha256": "f7decfbf112b8f2e7dd63da0e4d1b4575cd654f4fcd889b2c978531bdb53c477"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/009-body-v2-issue1394-q3-full-body-v2-20261001-BINDING.json",
+      "bytes": 11351,
+      "sha256": "a804ee6aa67552633d6a12f8db05b78af4fabea80a672dba24096985b94e3ef8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/010-body-v2-issue1394-q3-full-body-v2-20261001-RESULT.json",
+      "bytes": 2897,
+      "sha256": "441b26f330027b23b1a806714c070f7f46bf789aea5be7e060f8a62e1ee9c133"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/011-body-v2-issue1394-q3-full-body-v2-20261001-CLEANUP.json",
+      "bytes": 385,
+      "sha256": "39e3b1bbd3b424642770f3340efedf46c3c398c0f8163fa647065f743f60aa96"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/012-body-v2-issue1394-q3-full-body-v2-20261001-body-summary.json",
+      "bytes": 1042,
+      "sha256": "dfd5df1b45415dd8173852f7e7f97af4db9acf5f7b8626a37e21830de0933c71"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/013-body-v2-issue1394-q3-full-body-v2-20261001-ARCHIVE-CHECK.json",
+      "bytes": 300,
+      "sha256": "7fb47d18d0d1d51d514ccbc8f9e195ce716052f6c71437a032ca4ca67432d59b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/014-body-v2-issue1394-q3-full-body-v2-20261001-collector-process.json",
+      "bytes": 260,
+      "sha256": "5fe2d44769745e24ca160ec8ad63cb8d95773e1d98a79796346ab7e6d729d088"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/015-body-v2-issue1394-q3-full-body-v2-20261001-collector-terminal.json",
+      "bytes": 126,
+      "sha256": "54852aa0a624dffddba05b05b75261c3c2dbf12a2dfbff1952596e10ccbd37bc"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/016-body-v2-issue1394-q3-full-body-v2-20261001-q-process.json",
+      "bytes": 632,
+      "sha256": "db5ee407035ed22b4ca45e868495b83806b59d755035105e54b717520d5d844f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/017-body-v2-issue1394-q3-full-body-v2-20261001-q-ready.json",
+      "bytes": 479,
+      "sha256": "cd4ccf65ea7994430f1bf7cc66ce8fa6e54b7a2fd74c32d6a2381d661223a970"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/018-body-v2-issue1394-q3-full-body-v2-20261001-clone-preflight.json",
+      "bytes": 2231,
+      "sha256": "afd013c462645fa450785b8ac5c631b1874c9444a49c9ee1c7d8705320ade4e8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/019-body-v2-issue1394-q3-full-body-v2-20261001-source-preflight.json",
+      "bytes": 2194,
+      "sha256": "e6112a2808ff1ecf8531094f58237e12e286caff07e684d2847ab5b5ef710241"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/020-body-v2-issue1394-q3-full-body-v2-20261001-source-fulltable-check.json",
+      "bytes": 2637,
+      "sha256": "b18981f0fc8a34a1917bace33745b715bb53d9c4f47ac53e7e2e22b9205ac97d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/021-body-v2-issue1394-q3-full-body-v2-20261001-source-lsof.json",
+      "bytes": 41,
+      "sha256": "04e012ac514cc2d7d1c30fe9af0ec1181f4de0eac004258ec33d8c3edb7843bd"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/022-body-v2-issue1394-q3-full-body-v2-20261001-oracle-v2-actual-report.md",
+      "bytes": 692,
+      "sha256": "c6cc1c7348c8eeb1a2fa5a5e3e8271e243f5626aeca490e62b8a1689d48c00ea"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/023-body-v2-issue1394-q3-full-body-v2-20261001-oracle-v2-actual-report.json",
+      "bytes": 1935,
+      "sha256": "bde31973e06a24faa5cc0cf6f77b9fb9a8b0219bbc1ccf3b3261755fefe8d6ec"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/024-body-v2-issue1394-q3-full-body-v2-20261001-oracle-v2-native-report.json",
+      "bytes": 953,
+      "sha256": "aaf3f19312a7a49ee5d92172f8c6f310cfa0c32a23ab7f857b299c83c72df751"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/025-body-v2-issue1394-q3-full-body-v2-20261001-oracle-v2-prefix-report.json",
+      "bytes": 968,
+      "sha256": "d0cd037e5b7ef60ff45ab4f3bc020188000743e53537a4f20320fbae35e30c8a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/026-body-v2-issue1394-q3-full-body-v2-20261001-oracle-v2-row-report.jsonl",
+      "bytes": 178827,
+      "sha256": "977e242370689fded9e6d9851b3c72739c7a41905dbae9d87804dd730c9345e8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/027-body-v2-issue1394-q3-full-body-v2-20261001-archive-manifest.jsonl",
+      "bytes": 9075,
+      "sha256": "ccfe0b225d5c1f2d0fddac84927c0a2d2901b1fe9c85a6fd8669fe3eabfbf746"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/028-body-v2-selftest-negative-v3-RESULT.json",
+      "bytes": 996,
+      "sha256": "ed5f729f50af083b4fb62b778e3f8a39430a6ceae8db77bfe0964a68dc51db41"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/029-body-v2-selftest-parent-v4-SELFTEST.json",
+      "bytes": 684,
+      "sha256": "3e26a3b94758f9164e1361f1e87ec4304a4e36f234efe25043eb90057e7dc0c8"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/030-body-v1-failed-issue1394-q3-full-body-20261001-run.py",
+      "bytes": 20593,
+      "sha256": "c69fd8ba741e77fc56abb32576b3487ce70372275d5a9b762d83247d2bd1ce63"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/031-body-v1-failed-issue1394-q3-full-body-20261001-collect.js",
+      "bytes": 10829,
+      "sha256": "9ed938af7d220dbffe242abd5f213a20362cb12d53ed26073ed1713c8e76b8fb"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/032-body-v1-failed-issue1394-q3-full-body-20261001-independent_oracle.py",
+      "bytes": 48177,
+      "sha256": "bb3a6655adab81f97c66491fde964b1e4b117b6f532842e8f82c95efda3e9c4f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/033-body-v1-failed-issue1394-q3-full-body-20261001-BINDING.json",
+      "bytes": 10667,
+      "sha256": "300482e8b007b8ba52fac1bfe80001032cc1c8c7463027ddb3aa3dc3ff331d71"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/034-body-v1-failed-issue1394-q3-full-body-20261001-RESULT.json",
+      "bytes": 2275,
+      "sha256": "9b0ada7c07434e7958165fe08308e7a6873652c54daff5537dad4e07a8efd200"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/035-body-v1-failed-issue1394-q3-full-body-20261001-CLEANUP.json",
+      "bytes": 388,
+      "sha256": "43b271b6c87f05fa5bfd2da443141e1d9089eb093412888bb2b846962f628d22"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/036-body-v1-failed-issue1394-q3-full-body-20261001-PREFLIGHT-REVIEW.md",
+      "bytes": 3557,
+      "sha256": "0094225475c3546f9c29c4b2e37b6c2fdcebd3e4e5b59ff4160cc20e31f4c59e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/037-body-v1-failed-issue1394-q3-full-body-20261001-PREFLIGHT-REVIEW.json",
+      "bytes": 1306,
+      "sha256": "24fe47445c3d8e2c19fc880bf7a0374c0fffadd8499115aedcfce244c141f658"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/038-body-v1-failed-issue1394-q3-full-body-20261001-oracle-native.json",
+      "bytes": 718,
+      "sha256": "297589429c7a0950917929e4d28138099eaa03ed3d71daaac63b760cde5d5600"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/039-body-v1-failed-issue1394-q3-full-body-20261001-source-fulltable-check.json",
+      "bytes": 2637,
+      "sha256": "b18981f0fc8a34a1917bace33745b715bb53d9c4f47ac53e7e2e22b9205ac97d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/040-counter-issue1394-reuse-pilot-20261001-LOCAL-audit.py",
+      "bytes": 40466,
+      "sha256": "1222ffcd766d91a599ad2c7ecc199d57cb8f3f2edd72d265cc95d16f7f34009c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/041-counter-issue1394-reuse-pilot-20261001-LOCAL-selftest.py",
+      "bytes": 4632,
+      "sha256": "9fc1e14cb909945ffdcc1539225a60283eb2d8fc716f93cc4481a1174ecd833e"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/042-counter-issue1394-reuse-pilot-20261001-DIAGNOSTIC.patch.raw.json",
+      "bytes": 15285,
+      "sha256": "0b5e09046b430e9adcf8ed25451b0befb17aa7841a28ca24a477b5c1c6711be5"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/043-counter-issue1394-reuse-pilot-20261001-SOURCE-BINDING.json",
+      "bytes": 2634,
+      "sha256": "308caf5053d097709a3a3ef038738751c61cbfd5b0d51843fb3dabf5cb80cd47"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/044-counter-issue1394-reuse-pilot-20261001-LOCAL-WRAPPER-REVIEW.md",
+      "bytes": 3712,
+      "sha256": "5e8d7a6e26cbb8e268564c4adc897133230bc2ad4094242ba175d8063bf1cde1"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/045-counter-issue1394-reuse-pilot-20261001-LOCAL-WRAPPER-REVIEW.json",
+      "bytes": 1638,
+      "sha256": "22770ddc96e0bb757d8c130441f683c3e6fe11f775e593d4277d3dedfa70e283"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/046-counter-issue1394-reuse-pilot-20261001-LOCAL-WRAPPER-REREVIEW.md",
+      "bytes": 2295,
+      "sha256": "7d7fedb15636fc60b49a3b3f1e882f65c25513536ca81fa7d5899731f9564d80"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/047-counter-issue1394-reuse-pilot-20261001-LOCAL-WRAPPER-REREVIEW.json",
+      "bytes": 1001,
+      "sha256": "e8d18271c7a974ef42152ee293fe3cac8e20dd3c5fe5eb3250d1062c3caa3846"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/048-counter-issue1394-reuse-pilot-20261001-LOCAL-WRAPPER-FINAL-REVIEW.md",
+      "bytes": 1653,
+      "sha256": "d7fd954a5a9ec13c62b601143c3e41b4ed08d2067f9a62251b81796a6678ea1f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/049-counter-issue1394-reuse-pilot-20261001-LOCAL-WRAPPER-FINAL-REVIEW.json",
+      "bytes": 1093,
+      "sha256": "4368f6ada29d11e919a9b8906f7e9fac459f51ae788c1fc60d64e3f13256de73"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/050-counter-issue1394-reuse-pilot-20261001-LOCAL-WRAPPER-SHM-REVIEW.md",
+      "bytes": 2863,
+      "sha256": "5e46901ea255d1550df76a29f0c8d54c5e2897ea915a3213315bcc81b4eaae2a"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/051-counter-issue1394-reuse-pilot-20261001-LOCAL-WRAPPER-SHM-REVIEW.json",
+      "bytes": 1296,
+      "sha256": "ae47eb54f3fefd035085fdfb03b0aa98b0e31082dab56ff773e114d4ce26d8f0"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/052-counter-actual-LOCAL-output-BUILD-PLAN.json",
+      "bytes": 897,
+      "sha256": "4cd1e6c182c43bdde51a08ad6c1b396224d97f6377444546eff4135effb6b0fa"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/053-counter-actual-LOCAL-output-BUILD-SAMPLES.json",
+      "bytes": 6145,
+      "sha256": "a7fb54ce7f5aa83bd14025851504956f67f134d71161803b7fefaafd49ec3126"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/054-counter-actual-LOCAL-output-BUILD.json",
+      "bytes": 713,
+      "sha256": "7dbfec993dda5b8320de15e6017abce1d0ef1445ad11a5192e3d9d5a6cfe39a9"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/055-counter-actual-LOCAL-output-COMPARISON.json",
+      "bytes": 2342,
+      "sha256": "869f96fa5944f452de14fdd4122a2c7ff18972716fc0a4bfc2c5e270156bbd7d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/056-counter-actual-LOCAL-output-INDEPENDENT-FACT-REVIEW.json",
+      "bytes": 3644,
+      "sha256": "cbb0825f6a1c0d82fbb9b6d93acd70727df06f87415b649116d2826b83891c68"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/057-counter-actual-LOCAL-output-INDEPENDENT-FACT-REVIEW.md",
+      "bytes": 5017,
+      "sha256": "fa4d76ec8b9ec054a01e509b563fdc27a5dd179a9c041cf9cf7de3918bd1959c"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/058-counter-actual-LOCAL-output-LOCAL-REPORT.json",
+      "bytes": 5609,
+      "sha256": "8d02859b50aa5db816dfcaec2879e8c6560130f20f850f7d4d27131faf96f026"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/059-counter-actual-LOCAL-output-LOCAL-REPORT.md",
+      "bytes": 1376,
+      "sha256": "d5d06a96778bae87c5ea6aa583164e10aebf5058bd5c620ce10cf064c92643f5"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/060-counter-actual-LOCAL-output-LOCAL-SELFTEST.json",
+      "bytes": 465,
+      "sha256": "b5f97aa939462e3eb05e355f81e6d9736a34a5b0b33e1938a4d8aec3a23380c1"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/061-counter-actual-LOCAL-output-LOCAL-STATIC-FAILURE.json",
+      "bytes": 2376,
+      "sha256": "6768816525aa033ed6b159af95aa39002ec72c33007273dddae34744c7eaf9d1"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/062-counter-actual-LOCAL-output-ORIGINALS-AFTER.json",
+      "bytes": 201554,
+      "sha256": "2fcb426152536360506d3be2c6cba1bee22224df2a630ebc4a44b8909702c146"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/063-counter-actual-LOCAL-output-PREPARE.json",
+      "bytes": 202143,
+      "sha256": "d533b90f97b235d01b289420486fd9149d899d689c3840d97a148e2aed759c67"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/064-counter-actual-LOCAL-output-REBOUND-2.json",
+      "bytes": 744,
+      "sha256": "98e0f0069e78db4a8fa75e707e047850a745071095d82be6ad4c91edf6f2859f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/065-counter-actual-LOCAL-output-REBOUND.json",
+      "bytes": 475,
+      "sha256": "6a75211db0d0347de21e2861741435b3b2ca7db7971bd016989cc244ef94eb5b"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/066-counter-actual-LOCAL-output-baseline-PLAN.json",
+      "bytes": 3137,
+      "sha256": "6cdafac05c2041938de045e16c657e3848df656336cbfccdd1438f701fe7ad54"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/067-counter-actual-LOCAL-output-baseline-RESULT.json",
+      "bytes": 3615,
+      "sha256": "4519f5917c7f8a6e25edd72bf116e452017f4d873dc5070b4b50758728c6d637"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/068-counter-actual-LOCAL-output-baseline-SAMPLES.json",
+      "bytes": 5873,
+      "sha256": "c5fd1531f3fea08b29de2be1a7757e4505c52e14d60800cdecb925f52251f7ab"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/069-counter-actual-LOCAL-output-baseline.log.txt.raw.json",
+      "bytes": 669,
+      "sha256": "2f2d27a94cb7a32f42abee0d0d36b48f715244369e6c64db664e37b4f28b1ae4"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/070-counter-actual-LOCAL-output-build.log.txt",
+      "bytes": 80118,
+      "sha256": "6afe38f4419016ceeaebed7132dcb1b7868806aef131977f016a9436eafaa3ec"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/071-counter-actual-LOCAL-output-candidate-PLAN.json",
+      "bytes": 3155,
+      "sha256": "12d9b1030053848331715201e2dc4d9d23aa6c36e20d80b01365ef8251214cfe"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/072-counter-actual-LOCAL-output-candidate-RESULT.json",
+      "bytes": 3624,
+      "sha256": "15a0d35f71b5fc841dc10a64366c18399630db55cf6b98a69cb6a4a9e51d6a93"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/073-counter-actual-LOCAL-output-candidate-SAMPLES.json",
+      "bytes": 5304,
+      "sha256": "5fe50e1c9e008f59b32d7976ca4de4636f9a843271e474c3be85892ae70319c2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/074-counter-actual-LOCAL-output-candidate.log.txt.raw.json",
+      "bytes": 675,
+      "sha256": "335516ecf4ba10783877ff89c8012dc79191ec3e45a289446f4e72a9cda55a08"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/075-release-binding-issue1394-same-material-20261001-SOURCE-BINARY-BINDING.json",
+      "bytes": 2502,
+      "sha256": "0d8594699b519d318b074ee66fd28d21d2057b20a3bc76165990917e421c781f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s16-body-counters-inputs/076-counter-probe-source-bin-audit_shadow_probe.rs",
+      "bytes": 4588,
+      "sha256": "bb97f4451769854603ffdba431eba36e8d2a967b3acc9558d40444db4de16d46"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-ACTUAL-BINDING.json",
+      "bytes": 1852,
+      "sha256": "5823cbc76521efb2f4bd9cdf735b80a3720e61de9d8fb54258a14029e6618d50"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-ACTUAL-FACTS.json",
+      "bytes": 11666,
+      "sha256": "a47a2812c75f577c8fb63d5ec072dbc3832df0237bcad0605efd188ff0881350"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-ACTUAL-FACTS.md",
+      "bytes": 5448,
+      "sha256": "98ba578469d9247d0f607a8a14bfcabec04553f8c67d7e8a62f038ca6e174a7f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-ACTUAL-MANIFEST.json",
+      "bytes": 151493,
+      "sha256": "4d4c36ea248d2987212b01f728e6a7f3beee3ec60a0e31fc50c4af06383195c1"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-ACTUAL-RESULT.json",
+      "bytes": 11936,
+      "sha256": "1c8f40e860dbe852af3386df8bdf6d9e2660601cca7e4a0f4d8463a3b08a4256"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-ACTUAL-RESULT.md",
+      "bytes": 1677,
+      "sha256": "222b30d56a2832a0312cc9846dba01a9e0205a36e569eeb8a89d6cf1142a2367"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-API.md",
+      "bytes": 2530,
+      "sha256": "90f6c40f6512a5c97c17f4dab426b53ec553491b11516c75affd2bce533ed7fa"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-AUTHOR-RESULT.json",
+      "bytes": 6949,
+      "sha256": "85a96ac74bbd9b7b9fd6b2a8b901c18ab1b9109f85dacc9d44c7bd24486a8591"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-BASELINE-ARCHIVE-MANIFEST.json",
+      "bytes": 1367,
+      "sha256": "77722696ddb44da1e7331287bc01ec0757785069f098da8cf6992d7991d91846"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-DELTA.patch",
+      "bytes": 7272,
+      "sha256": "c7b3ecc587ea94e849784d31d79baa6a1dc75137a6a2c3a4fefa920a2fd6ded9"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-FULL.patch",
+      "bytes": 71443,
+      "sha256": "a32c03adb35e8e92798e0c413f325314fa8939d1aa62f27c24bbb2906f0e6b62"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-LIFECYCLE-CLOCK.json",
+      "bytes": 345,
+      "sha256": "66438b4cfa427d923eb5ad90632937cba1f1c1487821dd83ce5890f2820db4cf"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-PYTHON-STANDARDS.json",
+      "bytes": 3993,
+      "sha256": "3f2115135f6cc0b16a8a231fc2ea9f05886a04a0f79f1a68bc65dd46eb515504"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-PYTHON-STANDARDS.md",
+      "bytes": 2019,
+      "sha256": "5c74087bcd9231a03d54a4d15aac4f06c141d007e5cd483d12e2bab1f37b81a2"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-RESOURCE-MANIFEST.json",
+      "bytes": 6686,
+      "sha256": "5854c22875e4cbf52bb0aaa1715a00816741378e058d5b30407be442640c905d"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-RESOURCE-PREPARATION.json",
+      "bytes": 10222,
+      "sha256": "60a7c269072ede47a3e15423064ea9216d5c7b6442ac5970ffa70645bf85cf98"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-RESOURCE-PREPARATION.md",
+      "bytes": 3724,
+      "sha256": "50b9c528fb6253d31b038e96aca220f2ad3f9620fd33138514974af375e3cf31"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-RESOURCES.json",
+      "bytes": 241,
+      "sha256": "d6abf34ee884fc318566bb36dca2d4bdda17182a68ccc2381d1eb46cbaa53dad"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-ROOT-RESOURCE-REVIEW.json",
+      "bytes": 1007,
+      "sha256": "40701e9f5197a34b33df43abf8be83fd74b341269fe94152fc7d3dc096a71b0f"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-RUST-STANDARDS.json",
+      "bytes": 3218,
+      "sha256": "f5401db46a0662bdbf294e4dfe8868fd26ec7cea2406cf636f9a04e2ec7f0ec9"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-RUST-STANDARDS.md",
+      "bytes": 3756,
+      "sha256": "a6f4022fb1c48b8520aedefb53640b89fc81fa71d2d97bf707e676ba28d9ebc9"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-SOURCE-MANIFEST.json",
+      "bytes": 66151,
+      "sha256": "8a331bebd86b998090fdb8926c1dfd3c618f025e66e641eb7f2f133ae8340abc"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-SPEC.json",
+      "bytes": 6099,
+      "sha256": "4871213083c346138dec4a5f2b324e79ad141a2ff73b08051753639901576700"
+    },
+    {
+      "path": ".chanlun/review-results/issue1394-financial-owner-20260930/s3-entry-inputs/S3-SPEC.md",
+      "bytes": 4577,
+      "sha256": "f9fcb7b923e71ad1c765bd466cae7cd6c3ef3922d5cae09dab204f684eedcf92"
+    }
+  ],
+  "inputs": [
+    {
+      "path": "linear-array-inputs/001-evidence-CANDIDATE-BINDING.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/CANDIDATE-BINDING.json",
+      "source_bytes": 1539,
+      "source_sha256": "807cb09b46090e2c34452298cbab1dd2918827f000d5b442ea311f265875fbdb",
+      "encoding": "verbatim_bytes",
+      "bytes": 1539,
+      "sha256": "807cb09b46090e2c34452298cbab1dd2918827f000d5b442ea311f265875fbdb"
+    },
+    {
+      "path": "linear-array-inputs/002-evidence-DELIVERY.md",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/DELIVERY.md",
+      "source_bytes": 4058,
+      "source_sha256": "92ac9da063d8f194c5f26bdded4326f45e28d4f29d2b0822f5269a45093ea266",
+      "encoding": "verbatim_bytes",
+      "bytes": 4058,
+      "sha256": "92ac9da063d8f194c5f26bdded4326f45e28d4f29d2b0822f5269a45093ea266"
+    },
+    {
+      "path": "linear-array-inputs/003-evidence-CANDIDATE.patch.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/CANDIDATE.patch",
+      "source_bytes": 26207,
+      "source_sha256": "8e67ee4fe48625e61e83a6bb56fe18743774784df40c908db7cfe554222034c9",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 27245,
+      "sha256": "d349f44b25a44972d028bd5132222b5ec358e2fe79e92f22be27947bbeb972f9"
+    },
+    {
+      "path": "linear-array-inputs/004-evidence-input-binding.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/input-binding.json",
+      "source_bytes": 936,
+      "source_sha256": "cff97f72eb15e7a5792c3b90aee25621f886fd2618a83fa45b2e6f012506d2dd",
+      "encoding": "verbatim_bytes",
+      "bytes": 936,
+      "sha256": "cff97f72eb15e7a5792c3b90aee25621f886fd2618a83fa45b2e6f012506d2dd"
+    },
+    {
+      "path": "linear-array-inputs/005-evidence-ACCEPTANCE.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/ACCEPTANCE.json",
+      "source_bytes": 3001,
+      "source_sha256": "8596d0434eb58ad8b25d9d6b881b2c801d64249167f803a56f4193d6ac30402f",
+      "encoding": "verbatim_bytes",
+      "bytes": 3001,
+      "sha256": "8596d0434eb58ad8b25d9d6b881b2c801d64249167f803a56f4193d6ac30402f"
+    },
+    {
+      "path": "linear-array-inputs/006-evidence-RECONSTRUCT.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/RECONSTRUCT.json",
+      "source_bytes": 857,
+      "source_sha256": "9512873f3a5c98eb3cf73f130b136266d5a7aea133942b55f04aa9ed1b128dc0",
+      "encoding": "verbatim_bytes",
+      "bytes": 857,
+      "sha256": "9512873f3a5c98eb3cf73f130b136266d5a7aea133942b55f04aa9ed1b128dc0"
+    },
+    {
+      "path": "linear-array-inputs/007-evidence-binding.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/binding.json",
+      "source_bytes": 2408,
+      "source_sha256": "636f0d1e2cca81debe2dcc6d0da846aaf1ccabdb2947886d21e54c5848b67d10",
+      "encoding": "verbatim_bytes",
+      "bytes": 2408,
+      "sha256": "636f0d1e2cca81debe2dcc6d0da846aaf1ccabdb2947886d21e54c5848b67d10"
+    },
+    {
+      "path": "linear-array-inputs/008-evidence-DIAGNOSTIC.patch.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/DIAGNOSTIC.patch",
+      "source_bytes": 14492,
+      "source_sha256": "e18ffbaefceb9c577f00c92bfed9edb8821e498afce481f9a90011f0f8d13ff3",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 15291,
+      "sha256": "ad4e17d693d998ae0493391d9b9ced725c9a395987348eb89939a2cbe7436572"
+    },
+    {
+      "path": "linear-array-inputs/009-evidence-audit_shadow_probe.rs",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/audit_shadow_probe.rs",
+      "source_bytes": 4588,
+      "source_sha256": "bb97f4451769854603ffdba431eba36e8d2a967b3acc9558d40444db4de16d46",
+      "encoding": "verbatim_bytes",
+      "bytes": 4588,
+      "sha256": "bb97f4451769854603ffdba431eba36e8d2a967b3acc9558d40444db4de16d46"
+    },
+    {
+      "path": "linear-array-inputs/010-evidence-stdout.raw.raw.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/stdout.raw",
+      "source_bytes": 325,
+      "source_sha256": "6e79b636658e82c654a49954de17206e5f3eb1e7d107ebebd956153d725d7891",
+      "encoding": "verbatim_utf8_container",
+      "bytes": 668,
+      "sha256": "5330468808ea6687e3e582a8f6d8e7a939109c3a7ffae36afdd28161011c09ca"
+    },
+    {
+      "path": "linear-array-inputs/011-evidence-stderr.raw",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/stderr.raw",
+      "source_bytes": 0,
+      "source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "encoding": "verbatim_bytes",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "linear-array-inputs/012-evidence-FINAL-REVIEW.md",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-review-20261002/FINAL-REVIEW.md",
+      "source_bytes": 4254,
+      "source_sha256": "30e6d6beb1ea6accc22d129f01c2f31f4aa83a7646d9b17bf883a9bfcf2ec1ab",
+      "encoding": "verbatim_bytes",
+      "bytes": 4254,
+      "sha256": "30e6d6beb1ea6accc22d129f01c2f31f4aa83a7646d9b17bf883a9bfcf2ec1ab"
+    },
+    {
+      "path": "linear-array-inputs/013-evidence-FINAL-REVIEW.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-review-20261002/FINAL-REVIEW.json",
+      "source_bytes": 1215,
+      "source_sha256": "b19b12485ceb881238783a204734b1039309979b45da6d537cf67b6bd0e98fca",
+      "encoding": "verbatim_bytes",
+      "bytes": 1215,
+      "sha256": "b19b12485ceb881238783a204734b1039309979b45da6d537cf67b6bd0e98fca"
+    },
+    {
+      "path": "linear-array-inputs/014-evidence-ROOT-FACTS.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-review-20261002/ROOT-FACTS.json",
+      "source_bytes": 1837,
+      "source_sha256": "259f010337d0638029388dd25f050bcca22944d7a7eea22bd12bf9aef3d35117",
+      "encoding": "verbatim_bytes",
+      "bytes": 1837,
+      "sha256": "259f010337d0638029388dd25f050bcca22944d7a7eea22bd12bf9aef3d35117"
+    },
+    {
+      "path": "linear-array-inputs/015-worker-state.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-manager-20261002/run-1/state.json",
+      "source_bytes": 6406,
+      "source_sha256": "9fe1c6114b858dc62eb2640a4e8c52eef9c40ffa4c8407a021b9c74d4371fdf4",
+      "encoding": "verbatim_bytes",
+      "bytes": 6406,
+      "sha256": "9fe1c6114b858dc62eb2640a4e8c52eef9c40ffa4c8407a021b9c74d4371fdf4"
+    },
+    {
+      "path": "linear-array-inputs/016-worker-result.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-manager-20261002/run-1/result.json",
+      "source_bytes": 6406,
+      "source_sha256": "9fe1c6114b858dc62eb2640a4e8c52eef9c40ffa4c8407a021b9c74d4371fdf4",
+      "encoding": "verbatim_bytes",
+      "bytes": 6406,
+      "sha256": "9fe1c6114b858dc62eb2640a4e8c52eef9c40ffa4c8407a021b9c74d4371fdf4"
+    },
+    {
+      "path": "linear-array-inputs/017-worker-output.schema.json",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-manager-20261002/run-1/output.schema.json",
+      "source_bytes": 322,
+      "source_sha256": "9433b5a74a8d18bfeeedc52771fb08dd8b6df922e2a7bae7c8a45cd61815b713",
+      "encoding": "verbatim_bytes",
+      "bytes": 322,
+      "sha256": "9433b5a74a8d18bfeeedc52771fb08dd8b6df922e2a7bae7c8a45cd61815b713"
+    },
+    {
+      "path": "linear-array-inputs/018-source-s_content-path.rs",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/rust/src/s_content/path.rs",
+      "source_bytes": 45119,
+      "source_sha256": "ab82fda2bbcc663d9ab78f56f71ba56964f1d33eff25af9b73a3ac0e73c1bb38",
+      "encoding": "verbatim_bytes",
+      "bytes": 45119,
+      "sha256": "ab82fda2bbcc663d9ab78f56f71ba56964f1d33eff25af9b73a3ac0e73c1bb38"
+    },
+    {
+      "path": "linear-array-inputs/019-source-src-s_content.rs",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/rust/src/s_content.rs",
+      "source_bytes": 124515,
+      "source_sha256": "1033f6e720487ac31fd609278ec7951a2b4c5010fae3b381eacabdc16758350a",
+      "encoding": "verbatim_bytes",
+      "bytes": 124515,
+      "sha256": "1033f6e720487ac31fd609278ec7951a2b4c5010fae3b381eacabdc16758350a"
+    },
+    {
+      "path": "linear-array-inputs/020-source-s_session_v3-history.rs",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/rust/src/bin/s_session_v3/history.rs",
+      "source_bytes": 67328,
+      "source_sha256": "034295412af204e077d353be1df95230d633e4ebc3a8d10ef07890beee9f8c69",
+      "encoding": "verbatim_bytes",
+      "bytes": 67328,
+      "sha256": "034295412af204e077d353be1df95230d633e4ebc3a8d10ef07890beee9f8c69"
+    },
+    {
+      "path": "linear-array-inputs/021-source-s_session_v3-source_audit.rs",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/rust/src/bin/s_session_v3/source_audit.rs",
+      "source_bytes": 32090,
+      "source_sha256": "024eccf990fed89b48d65d13495465cfc6af80563bdf00c2512bc01a94470b89",
+      "encoding": "verbatim_bytes",
+      "bytes": 32090,
+      "sha256": "024eccf990fed89b48d65d13495465cfc6af80563bdf00c2512bc01a94470b89"
+    },
+    {
+      "path": "linear-array-inputs/022-source-s_session_v3-object_index.rs",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/rust/src/bin/s_session_v3/object_index.rs",
+      "source_bytes": 49266,
+      "source_sha256": "3809dc6205bb6249ee1e87f2bfc59a96b8058b895d84a2e3d4a6c022d39c8810",
+      "encoding": "verbatim_bytes",
+      "bytes": 49266,
+      "sha256": "3809dc6205bb6249ee1e87f2bfc59a96b8058b895d84a2e3d4a6c022d39c8810"
+    },
+    {
+      "path": "linear-array-inputs/023-source-tests-s_content_array_scan.rs",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/rust/tests/s_content_array_scan.rs",
+      "source_bytes": 7772,
+      "source_sha256": "a9ca4c23a6b2db8fa05354703dafd98f6d4945f881f557ccbb923cbd4fa6245f",
+      "encoding": "verbatim_bytes",
+      "bytes": 7772,
+      "sha256": "a9ca4c23a6b2db8fa05354703dafd98f6d4945f881f557ccbb923cbd4fa6245f"
+    }
+  ],
+  "caller_owned_external_files": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/PHASES.json",
+      "bytes": 69040,
+      "sha256": "04a086cc78ba01324fddf2a8f893b00f28ef9bc63b16b3c37b07a34cdfbf2e4a"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/PROBE.json",
+      "bytes": 2905301,
+      "sha256": "8a4f92a5c10c24e9e809ff8f691b3766fa22c40277152c03b2e6555f1e37953e"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-manager-20261002/codex-child.mts",
+      "bytes": 3193,
+      "sha256": "03f261b77cf325f882213450a98754c9958cc431579b3d16edc79730bcead5b8"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-manager-20261002/codex-child.ts",
+      "bytes": 30089,
+      "sha256": "b6b2ccf522363b3fb44ef2740d8409f7f06dabc8e5945169853bb0f5aea55c2a"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-manager-20261002/run-1/codex.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-manager-20261002/run-1/codex.stdout.jsonl",
+      "bytes": 753572,
+      "sha256": "69df9cebcbacda937894a04fb66ee3fadc9effcb3217d95dbbd1245c58cd930c"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-manager-20261002/run-1/events.jsonl",
+      "bytes": 10769,
+      "sha256": "770fc55991c779c7d5317ccc020b64fdf8845c0dbc1947ed2a89aafbbadbe54a"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-manager-20261002/run-1/output.schema.json",
+      "bytes": 322,
+      "sha256": "9433b5a74a8d18bfeeedc52771fb08dd8b6df922e2a7bae7c8a45cd61815b713"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-manager-20261002/run-1/prompt.md",
+      "bytes": 5530,
+      "sha256": "fe0d743f89bf1f03f2ffad2c6f94245426fbe6f7499065257ad4007361e078c1"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-manager-20261002/run-1/result.json",
+      "bytes": 6406,
+      "sha256": "9fe1c6114b858dc62eb2640a4e8c52eef9c40ffa4c8407a021b9c74d4371fdf4"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-manager-20261002/run-1/state.json",
+      "bytes": 6406,
+      "sha256": "9fe1c6114b858dc62eb2640a4e8c52eef9c40ffa4c8407a021b9c74d4371fdf4"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-manager-20261002/task.md",
+      "bytes": 4505,
+      "sha256": "c128c5db45fe1ee370be8c9f376591f36e2eb6d07d819e08c8bef51b0d5f051d"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-review-20261002/FINAL-REVIEW.json",
+      "bytes": 1215,
+      "sha256": "b19b12485ceb881238783a204734b1039309979b45da6d537cf67b6bd0e98fca"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-review-20261002/FINAL-REVIEW.md",
+      "bytes": 4254,
+      "sha256": "30e6d6beb1ea6accc22d129f01c2f31f4aa83a7646d9b17bf883a9bfcf2ec1ab"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-linear-audit-review-20261002/ROOT-FACTS.json",
+      "bytes": 1837,
+      "sha256": "259f010337d0638029388dd25f050bcca22944d7a7eea22bd12bf9aef3d35117"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/CANDIDATE-BINDING.json",
+      "bytes": 1539,
+      "sha256": "807cb09b46090e2c34452298cbab1dd2918827f000d5b442ea311f265875fbdb"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/CANDIDATE.patch",
+      "bytes": 26207,
+      "sha256": "8e67ee4fe48625e61e83a6bb56fe18743774784df40c908db7cfe554222034c9"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/DELIVERY.md",
+      "bytes": 4058,
+      "sha256": "92ac9da063d8f194c5f26bdded4326f45e28d4f29d2b0822f5269a45093ea266"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/SUMMARY.json",
+      "bytes": 1309204,
+      "sha256": "88e0d08d375ffbd322366c2177bb3a499e90d66335007ecb232dba6fb4d2b99f"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/baseline-build-2.log",
+      "bytes": 22521,
+      "sha256": "2c2c0f8dd9c6cbd9015599e7351d7c857e92c77f20bd82bba46e3b8a2383213c"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/baseline-build.log",
+      "bytes": 23141,
+      "sha256": "b7e8ddad4d9585179c8917f44b366842ed1e9a8d9935d6a6c5e2b8f9429df4a3"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/baseline.log",
+      "bytes": 374347,
+      "sha256": "7f24ee69b42ead57bd3dbc0461767502338f61792f9a6ce0087660864ad9e3f8"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/candidate.log",
+      "bytes": 374355,
+      "sha256": "23bb02535eccf3676d3632876d1b3468ec370eb49d0ac1af359282d1cebe3517"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/input-binding.json",
+      "bytes": 936,
+      "sha256": "cff97f72eb15e7a5792c3b90aee25621f886fd2618a83fa45b2e6f012506d2dd"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/input.sqlite",
+      "bytes": 6848512,
+      "sha256": "4d9d1d2e67a208a38cf611a209b09c92a10dbf58e84c3fa412652978e20f101a"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/input.sqlite-shm",
+      "bytes": 32768,
+      "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/input.sqlite-wal",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/pending/SUMMARY.json",
+      "bytes": 2184493,
+      "sha256": "98f23acbf20be2e907b2d778c06a63e3171ee06549a78c199e6c054d74747c10"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/pending/baseline-build.log",
+      "bytes": 22520,
+      "sha256": "99229b9e6185fcde835fb812625ab0626dede0519f74452fd551cab3159e503e"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/pending/baseline.log",
+      "bytes": 625461,
+      "sha256": "4b1adb3f9a08e0a3e42c3c98aad70c5a6464e779da8f3e8f470c9e8ce62fe06b"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/pending/build-binding.json",
+      "bytes": 617,
+      "sha256": "708b86c45ba4ff3e4d0687ad612d6c4e412c72829acae686d2cba1dbfb7d48d5"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/pending/candidate-build.log",
+      "bytes": 22519,
+      "sha256": "be5d3ef06fae487d83864eee25b5bd76dbd4c8776bb8c8f10644135ef1dde1bc"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/pending/candidate.log",
+      "bytes": 625415,
+      "sha256": "6038698221eb4df7f654e22d27381b799322ffb0b2ef551f5647a8054dc914b5"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/pending/input-binding.json",
+      "bytes": 810,
+      "sha256": "c50b1d7e5ac885dce6e4e79712ca1d2ea43d98edc143437a42c35f92c67817d5"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/pending/input.sqlite",
+      "bytes": 13701120,
+      "sha256": "6dc4a8972400368e70413c161f26e587f7c4aea8500d53c554022b9381c54ffd"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/pending/input.sqlite-shm",
+      "bytes": 32768,
+      "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/pending/input.sqlite-wal",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/pending/probe.rs.txt",
+      "bytes": 2397,
+      "sha256": "4fbb7ebb750e45e241ef54dc49ed9d9bba1819209e79ef9d6e13a27e18594d2c"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/pending/s.sqlite",
+      "bytes": 13697024,
+      "sha256": "050562e2db766cc3d6d94e42bf43f0e21fe3a336d6c9d5b8adcc0e887959f9c1"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/pending/s.sqlite-shm",
+      "bytes": 32768,
+      "sha256": "0c58b51d09bfd39725a1fc4d8d63f3713e9ce6533dd899f45fa2be7d16633aca"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/pending/s.sqlite-wal",
+      "bytes": 11680232,
+      "sha256": "9b1565422a3c45c03bb068ede25c199548072d6695c1b33b01ce2a851449671b"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/pilot-test.rs.txt",
+      "bytes": 2496,
+      "sha256": "fcf2df8d5bdad1194ffe5c3a0e373dd18fd8e99c244db81da03769eace182470"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/s.sqlite",
+      "bytes": 6848512,
+      "sha256": "1bb9fb2c1660501bc570a52ccb61aa4c89cbe806fd9fc3bea0cfb550de5423fb"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/s.sqlite-shm",
+      "bytes": 32768,
+      "sha256": "757d2d7f80f325accd4a68f0a776bef0d31db8f1ecf0d7ce486bfefb5d616193"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-pilot/s.sqlite-wal",
+      "bytes": 7370712,
+      "sha256": "89032325fe6a2dbf4b3b97e2f335072ce0d7cc5a634c81e0411ebc4dfefe843b"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/ACCEPTANCE.json",
+      "bytes": 3001,
+      "sha256": "8596d0434eb58ad8b25d9d6b881b2c801d64249167f803a56f4193d6ac30402f"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/CANDIDATE.patch",
+      "bytes": 26207,
+      "sha256": "8e67ee4fe48625e61e83a6bb56fe18743774784df40c908db7cfe554222034c9"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/DIAGNOSTIC.patch",
+      "bytes": 14492,
+      "sha256": "e18ffbaefceb9c577f00c92bfed9edb8821e498afce481f9a90011f0f8d13ff3"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/PROBE.json",
+      "bytes": 2905193,
+      "sha256": "ff7f7d8bf52bdf26677968efde23bef38377371099308d1137b2222bea541595"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/RECONSTRUCT.json",
+      "bytes": 857,
+      "sha256": "9512873f3a5c98eb3cf73f130b136266d5a7aea133942b55f04aa9ed1b128dc0"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/audit_shadow_probe.rs",
+      "bytes": 4588,
+      "sha256": "bb97f4451769854603ffdba431eba36e8d2a967b3acc9558d40444db4de16d46"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/binding.json",
+      "bytes": 2408,
+      "sha256": "636f0d1e2cca81debe2dcc6d0da846aaf1ccabdb2947886d21e54c5848b67d10"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/candidate-release-testbin",
+      "bytes": 12403200,
+      "sha256": "e62213072f6c095702064f34ad1a8b388d3d0aeaadbde42e36967a2d0675a97f"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/s.sqlite",
+      "bytes": 13697024,
+      "sha256": "050562e2db766cc3d6d94e42bf43f0e21fe3a336d6c9d5b8adcc0e887959f9c1"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/s.sqlite-shm",
+      "bytes": 32768,
+      "sha256": "0c58b51d09bfd39725a1fc4d8d63f3713e9ce6533dd899f45fa2be7d16633aca"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/s.sqlite-wal",
+      "bytes": 11680232,
+      "sha256": "9b1565422a3c45c03bb068ede25c199548072d6695c1b33b01ce2a851449671b"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/stderr.raw",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-linear-audit-20261002/.scratch/linear-array-release-owned-20261002/stdout.raw",
+      "bytes": 325,
+      "sha256": "6e79b636658e82c654a49954de17206e5f3eb1e7d107ebebd956153d725d7891"
+    }
+  ],
+  "next": "benchmark/repair remaining large repeated historical/field/source work under original contract; latest non-test CLI binary and full9011 service run still required before service success"
+}

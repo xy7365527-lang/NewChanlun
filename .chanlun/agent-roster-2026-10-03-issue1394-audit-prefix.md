@@ -1,0 +1,40 @@
+# #1394 历史审计与暂存验证隔离工位
+
+- 状态：在跑，承接 #1394 TB-03-B 与已批准 #1340 C 5.1–5.9。
+- 工作区：`/Users/silencehan/.codex/worktrees/issue1394-audit-prefix/NewChanlun`。
+- 分支：`codex/1394-audit-prefix-20261003`；起点：`713e680d33c38de3d8f1f5272982c40d7f1bd4c5`。
+- 当前职责：已完成请求内历史复用、Native新节点暂存及有限冷105→106对照；继续按完整历史增长和实际分配边界推进。没有跨请求keeper，不凭闭包外计数删除旧节点。
+- 硬约束：每次写前仍取得当前完整原件、独立索引与负依赖，实际读取失败立即拒绝。跨请求保留必须按 S7 原源成本计量和驱逐，缓存不携带提交许可；普通/Owned 路径与公开资源定义保持。
+- 隔离：history-sweep 的713e完整9011尝试已失败封存（104回执/105持久提交，第105条DeliveryUnknown），进程已回收，B未启动。本工位仅在新具名自有副本诊断，原件只bytes-copy/hash，不改旧源、输入、参数或运行域。
+- 验收方向：冷/暖完整结果对拍、追加与修订失效、原件损坏拒绝、资源驱逐和实际成本；不预先声称 9011、容量资格或生产放行。
+- 已验观测：现成真实 S3 四代夹具（3 次 append、1 次 revision2）及 after_prepare 真实错误回滚/正常 discard；Ordinary/Native 全持久 typed 行和声明根闭包实际字节对拍通过，revision 产生 10 次撤回。单次 Native release 构建、1 项靶向通过、独评 PASS。
+- 观测结果：四个提交阶段的持久根与存活缓存根联合闭包外分别为 108/268/570/889 节点；第三代检索过上阶段 runtime-only 闭包内 11 节点。检索日志不单独证明缓存复用因果，也不给删除资格。
+- 观测证据：`.scratch/issue1394-runtime-roots-20261003/ROOT-ACCEPTANCE.json`；测试专用代码入仓，scratch 证据不入仓。105 完整运行态、inflight 局部和其他进程缓存未覆盖。
+- Native 测试专用暂存原型：prepare/resolve/publish 显式共享本事务 owner；原审计和原 SQL 错误拒绝保留，最终仅 flush 持久根与存活缓存根闭包所需的新节点，旧节点不删。默认关闭，生产/Ordinary/Owned 路径不启用。
+- 暂存原型验收：2 项靶向通过、独评 PASS；四代完整非节点 typed 行、根及其原 bytes 一致，最终节点 7847→6960。after_prepare 及已 INSERT 两条后第三次失败均完整回滚、正常 discard 并可重试。物理 INSERT 错误时点不声明与 eager 等价；heap/Job/max_store 资格未成立。证据为 `.scratch/issue1394-staged-new-nodes-20261004/ROOT-ACCEPTANCE.json`。
+- 下一验证：可用两个新自有105副本，经原 Driver/profile/clock 输入冻结第106条作冷重启对照；不从零重建105，不据直接 handle 诊断宣称30秒网络或完整9011通过。
+- 105→106 首次诊断已封存为失败：eager/staged 分别约180.011/180.007秒停于 `OPEN_RUNNING`，同一 Popen 终止并回收，未进入 handle 或激活暂存；两副本仍为105代 idle，原件 stat/SHA 不变。证据 `.scratch/issue1394-staged-next106-20261004/ROOT-RESULT.json`；静态和保全合规，Commit 对拍为 NOT_RUN，不能 PASS。
+- 已定位独立启动瓶颈：`open_with_request_and_mode` 无条件走普通 `state::audit`，Native 模式此前只影响三个写前入口。下一步单独适配显式 Native TestOnly 的启动同核完整捕获，不跳审计或改默认/Owned，旧失败域不重试、不放大观察上限。
+- Native 启动适配有限验收通过：3项靶向与独评 PASS；仅 CapturedNative 改同核完整现场捕获，普通/Owned及恢复顺序不变。新105→106两臂启动约13.5秒完成；eager handle 32.353秒提交106，staged在180.033秒停于HANDLE_RUNNING并终止回收。完整对拍 NOT_RUN，30秒网络及整体资源资格未成立，结果包 `.scratch/issue1394-native-startup-20261004/ROOT-RESULT.json` 保留 FAILURE_PRESERVED。
+- 下一限定修复：去掉暂存诊断的每put全map容量扫描、每put malloc采样与每INSERT全表COUNT；保留准确容量/实际插入计数、完整审计、全部持久及runtime联合根、全闭包SQL读取、旧节点和Job口径。有限验证与独评后，仅在新自有105副本重做一次同上限对照，不恢复旧失败域或直接启动9011。
+- 暂存计量修复完成：unique实际Vec容量增量累加、malloc仅阶段采样、flush前后各一次COUNT（含真实错误），4项靶向及独评PASS；第三次INSERT故障前计数2、全持久表/节点回滚和正常discard通过。一次Native release构建，640项源码前后及app/lib/binary冻结绑定一致。
+- 新冷105→106对照COMPLETE：两臂均106代、106 Committed、106 publication、318 clocks、idle；全非节点typed原bytes、回执、持久根原bytes、旧105节点保留与新缺失节点位于联合闭包外全部PASS。eager/staged handle分别32.606/30.768秒；少7167节点、477288 body bytes。原件stat/SHA不变，两个进程均回收。单样本不建立吞吐资格，两臂仍超过30秒；未重启9011、未取得整体资源或生产资格。证据 `.scratch/issue1394-staging-metrics-20261004/ROOT-RESULT.json`；旧失败包保持。
+- handle初段OS采样已完成：两臂各约5秒，测试线程3757/3761样本，harness等待排除；SHA树样本336/334，其中HashReader直接核帧215/213。完整两臂对拍及原件保全通过，4个进程均回收；采样耗时不计性能验收。证据 `.scratch/issue1394-handle-profile-20261004/ROOT-RESULT.json`。
+- 同原件overlay省除有限验收通过：仅实际Native owner、无门full-audit、Dynamic尚无该entry时，capture同tag/body逐字相同的put不再遮蔽source memo；put trace、首次F/冲突/角色拒绝及全部排除路径保留。7项靶向与独评PASS，一次Native构建，640项源码和app/lib/binary绑定一致。
+- 省除后新冷105→106完整对照PASS：eager/staged handle30.970/29.173秒，两个终态均106代idle；修复前后同臂DB/WAL/SHM的实际byte SHA全部相同、回执相同、14214项运行态owner/root多重集相同（诊断枚举顺序不声称相同）。少节点/正文仍7167/477288，原件保全与回收通过。staged仅内部handle低于30秒，正式网络、完整9011、整体资源与生产资格仍未成立。证据 `.scratch/issue1394-overlay-source-reuse-20261004/ROOT-RESULT.json`。
+- 全handle采样：第一轮因主进程结束时过早终止符号处理而未出报告，失败包保留；r2先回收主进程，再在sampler原45秒截止前等待自然落盘，已独审并实际取得两臂有效报告。初始轮询/启动缺口未测、harness等待排除、耗时受污染。object_index::plan占handle样本约18–21%，其中candidate逐个完整Public闭包核验形成重复；批量联合核验仍待源变化/多错首报边界裁定，尚未实施。全部业务对拍、原件保全及4进程回收通过；证据 `.scratch/issue1394-handle-full-profile-r2-20261004/ROOT-RESULT.json`。
+- 14份SequenceMemo持久keys完成局部Owned接线（6生成+8aux），统一取本次原账，首次成功含空同步才冻结模式/账，首次失败不暗绑定；真实扩容同时占旧新块、拒绝保keys/seq、discard实际释放后可重绑，Plain容量复用保持。独评PASS；dual 11项独立验收（r1无关7项复用、修复统一错误文本后4项复验）及Native-only缺JSON支持拒绝1项实际通过，共12项。额度与测试未放宽，失败原件保留，两构建feature的640源码/app/lib/binary均绑定。
+- keys证据 `.scratch/issue1394-sequence-keys-owned-20261004/ROOT-RESULT.json`；仅关闭这14个持久数组。内部sequence HashMap、节点/数组Vec、写栈、其他生成容器/ArrayCache、诊断字符串和整体Job/heap/max_store仍未闭合；这不是Native正式9011的新前置，也不是完整资源资格。
+- Native候选Public联合核验已实施：只在实际CapturedNative模式，把纯根迭代的完整Public核验放在candidate写入之前；每根声明/header仍核、共享内部闭包去重。元数据/身份/slot/wire/immutable全部保留，混预算入口前拒绝；默认/Owned/Job不变。接受仅Native多错首报和wire故障触达顺序差异，不声称错误顺序完全等价。
+- 联合核验7项靶向与独评PASS：三代SQL读取223773→197081、469185→395391、361261→314024，完整plan不变；Native四代修订全行/节点对Ordinary逐字相同。坏第二root、坏声明/缺失/损坏/角色/未来补子均在candidate put前拒绝，真实SQL/commit故障回滚discard及重试通过。首编测试签名Serialize错误保留，r2仅改3个测试RefValue包装；640源码/app/lib/binary绑定有效。
+- 新105→106联合核验对照COMPLETE：eager/staged handle27.387/25.425秒，均106代idle；全字节/闭包/旧105/原件保全与回收PASS。同臂与前轮overlay版本的实际DB/WAL/SHM SHA、回执及runtime owner/root多重集完全一致。证据 `.scratch/issue1394-candidate-union-20261004/ROOT-RESULT.json`。两臂仅内部handle低于30秒，下一步为正式入口有限增长验证的准备；不直接重启9011、不加超时，整体资源和生产资格仍未成立。
+- 正式S独立复制105窗口已实际启动并失败保全：使用非test服务binary a33635c5…、真实Controller及原启动30秒，期限内无socket/Ready，106–112均未发送；新库仍105代idle，PID35869已由Controller停止并同Popen回收，原件stat/SHA保持。原104回执/105持久及第105DeliveryUnknown不改。窗口脚本独评后执行，未重试/延时；证据 `.scratch/issue1394-formal-window106-112-20261004/ROOT-RESULT.json`。
+- 新启动定位：serve在Native open后、bind前还调用ordinary `Driver::identity`完整审计；Ready本身亦走新请求审计。无阶段采样，不能声称进程被终止的准确PC。下一候选是仅Native bootstrap局部复用open纯历史，identity仍在新事务读取完整当前capture/binding/control/raw，pending变化则重审；返回前drop且Driver不持keeper，Ready仍冷审计。只读可行性已核，尚未实施，不能预保证30秒启动。
+- Native bootstrap已局部实现并独评PASS：open/identity每事务fresh全材料，idle cold1/hit1，返回前drop；取到实际pending后、恢复advance前take/drop首审slot，恢复独立ctx，identity随后cold。identity任意Err含BEGIN失败均清slot，Ready新ctx冷审，Driver/Runtime无keeper。默认/Owned/旧wrapper/state_summary/preflight不变。8项独立验收成立（r1无关5项复用、修复frontier字段类型断言及BEGIN失败清理后3项复验），失败原件保留；证据 `.scratch/issue1394-native-bootstrap-20261004/ROOT-RESULT.json`。
+- 新真实非test服务bootstrap窗口LIMITED_WINDOW_PASS：原startup30秒内实际Ready；106–112逐条真实Received/Committed，exchange秒为27.488、25.452、26.093、26.347、26.798、27.455、28.410。原LF、reply、compact持久收据和完整clock已独立复验；终态112Committed/112pub/336clock/idle/next113。PID47444由Controller正常停止、同Popen回收，socket移除、controller关闭；原件stat/SHA、640源码和service/Python绑定保持。证据 `.scratch/issue1394-formal-bootstrap-window106-112-20261004/ROOT-RESULT.json`。
+- 窗口仅证明新复制105域这7条；原运行仍104received/105persistent且第105条DeliveryUnknown，不并成全历史成功。112条exchange仅余约1.590秒，继续核历史增长与真实分配缺口，不据此重启9011或宣布网络全域、整体资源/生产资格。
+- 两并行半片实现完成且独评PASS：Native候选union后对generated一次exact Fields绑定，actual kind选SHAPE15/TYPED10，标量仍当前读取，metadata/slot→internal wire→immutable顺序及默认/预算路径保持；三代SQL读取197081→174334、395391→349622、314024→282780，plan/节点原bytes一致。字段负例明确组件级lookup注入，不冒充S坏输入端到端；真实SQL wire故障与回滚另有证据。
+- sequence调用内concat/split两张memo复用原WorkMap/RandomState/LedgerAllocator，同budget贯穿互递归，顶层成功/错误即释放，None仍std HashMap与原core；14实例sync原账接线延伸至三种序列算子。两表真实Layout old/new/coexist为492/976/1468与524/1040/1564，拒绝保旧表、错误释放通过；可能已写中间node，回滚仍靠事务/discard。95/96只保留为persistent keys组件锁。
+- 统一验收19项：app13、lib2、integration3、Native-only缺Owned支持拒绝1。初次integration故障点早于memo分配的失败保留；r2仅改测试到真实n/3互递归并按成功trace活表时点注入，未改算法/额度。明确分离Cargo产出的非test服务与profile.test=true三个harness，640源码及r2不可变测试覆盖绑定可查；证据 `.scratch/issue1394-fields-and-memo-20261004/ROOT-RESULT.json`。节点Vec/写栈/其他容器/错误箱/SQLite与整体Job仍未闭合。
+- 新复制112的正式113–128窗口失败保全：Ready真通过，冷启动首113在30.004203秒DeliveryUnknown，reply wire0B，114–128未发送；新库113Committed/113pub/339clock/idle/next114不计received。PID69400已停止同Popen回收、socket清理、Controller关闭，旧112源fullstat/SHA不变；独立失败复核PASS。证据 `.scratch/issue1394-formal-fields-window113-128-20261004/ROOT-RESULT.json`；这是cold113，不能当作warm113测量，不覆盖原105未知交付和上一窗口7条成功，9011/资源资格仍未成立。
+- 禁止：旧未授权原件、main 合入/推送、GOAL 事件修改、新公共资源数值、前端 #1460、K4。

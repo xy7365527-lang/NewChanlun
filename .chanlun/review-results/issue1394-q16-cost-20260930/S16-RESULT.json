@@ -1,0 +1,10 @@
+{
+  "generation_count": 16,
+  "db_sha256": "1704c9d9ef50a822653206e0bf1136b37280814322bbb44398761a38322c154a",
+  "identical_to_original_frozen_db": true,
+  "clock_sha256": "8dc72837993ac1a78da6d58d5aeccef86e842aca5702063e3791047d2807cfe4",
+  "final_unbounded_audit_seconds": 4.364045458,
+  "last_commit_seconds": 12.331993958,
+  "full_test_seconds": 76.53,
+  "scope": "S16 internal generation and final query-only audit without Q deadline; Q5s remains false; not full9011 or graph acceptance"
+}

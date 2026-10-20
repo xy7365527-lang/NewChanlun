@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "run_id": "29addbf8-c1ae-4d2c-b283-4363a7ba1206",
+  "ticket": 1394,
+  "parent_thread_id": "01a07fb3-9da9-7ca0-9be2-e15de6eac7b3",
+  "manager_agent_id": "/root/tb03b_long_sandcastle_manager",
+  "manager_kind": "codex_native_subagent",
+  "worker_kind": "sandcastle_external_codex",
+  "native_subagent": false,
+  "status": "completed",
+  "mode": "execute",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "effort": "max",
+  "sandbox_backend": "no-sandbox",
+  "codex_sandbox": "workspace-write",
+  "approval_policy": "never",
+  "automatic_claim": false,
+  "automatic_push": false,
+  "automatic_merge": false,
+  "checkout_preserved": true,
+  "expected_head": "a6a83440e418016c575d1f6d75bfcd8da72debd7",
+  "checkout_before": {
+    "root": "/Users/silencehan/Projects/NewChanlun-1394-s-cache",
+    "branch": "codex/1394-s-cache",
+    "head": "a6a83440e418016c575d1f6d75bfcd8da72debd7",
+    "status": ""
+  },
+  "checkout_after": {
+    "root": "/Users/silencehan/Projects/NewChanlun-1394-s-cache",
+    "branch": "codex/1394-s-cache",
+    "head": "a6a83440e418016c575d1f6d75bfcd8da72debd7",
+    "status": "M rust/src/bin/s_session_v2/cache.rs\n?? .scratch/issue1394-s-cache/report.md"
+  },
+  "started_at": "2026-09-14T14:14:18.228Z",
+  "ended_at": "2026-09-14T14:21:13.512Z",
+  "process_pid": 73291,
+  "process_exit": {
+    "code": 0,
+    "signal": null
+  },
+  "external_session_id": "01a0a044-cde1-7090-a466-4ee00c3a39b4",
+  "external_session_log": "/Users/silencehan/.codex/sessions/2026/09/14/rollout-2026-09-14T22-14-18-01a0a044-cde1-7090-a466-4ee00c3a39b4.jsonl",
+  "output_dir": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1394-cache-sandcastle-run",
+  "stdout_log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1394-cache-sandcastle-run/codex.stdout.jsonl",
+  "stderr_log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1394-cache-sandcastle-run/codex.stderr.log",
+  "events_log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1394-cache-sandcastle-run/events.jsonl",
+  "prompt_sha256": "816dc31b99a6f16930029514f5d8b171afc86c48a1877a8636922b8df911391a",
+  "result": {
+    "status": "completed",
+    "summary": "在固定基线 a6a83440 的 codex/1394-s-cache checkout 内只改 rust/src/bin/s_session_v2/cache.rs（blob 877df29252f5357c8a542fb000d2a2ccef3f16fc），把审计缓存从「超限即整块清空 Memo」改为单一总量上限下 root 优先、decoded 只填剩余预算，并新增 6 条定向测试；靶向 release 测试 8 passed / 0 failed，cargo fmt --check 与生产 release 构建均 exit 0；详细报告在 .scratch/issue1394-s-cache/report.md。",
+    "findings": [
+      "总量口径与授权一致：全程只有一个 limit，总量 = root.bytes（行字符串+每行16B+walk.source_bytes()+identity）+ batch_bytes（Σ id+原字节+等额解码规范源字节），store_batches 预算为 limit-root.bytes，未给两个池各发一份上限；注释明写该数不是 allocator/RSS 上限，不声称 RSS 受其限制。",
+      "root 优先且不再整块清空：装入新 root 后按剩余预算驱逐 decoded（先丢最大条目、同大小按 id 降序，尽量保留更多条目）；新 root 单独超限时保留「仍在 limit 内+identity 相同+仍是当前行前缀」的旧前缀与 decoded 缓存（resume 仍可复用该已核前缀），判不出仍有用时只丢 root。",
+      "store_batches 只以本次 capture 传入集合为成员来源，旧条目仅参与排序优先（warm），因此移出可达集的旧缓存不会复活；单条装不下则跳过并继续试后续条目，不清空其他缓存；limit=0 进入即整块置为 disabled。",
+      "安全前提未改：decoded 仍逐字比较当前读取 bytes；resume 仍比较完整 identity 与全部当前行前缀并调用 walk.resume_from；fresh 全域 capture/audit、损坏/ghost/index/Begin 验证与内容寻址门均未触碰，未引入 mtime/generation/data_version 信任。",
+      "改动面仅一个文件、无接口变化：diff 无任何 pub(super) fn 签名增删，新增内容全为该文件私有 helper（batch_cost/batches_cost/root_cost/select_batches/trim_batches/Memo::disabled）与 #[cfg(test)] mod tests；未改 Cargo.toml 或其他生产模块，该文件不写库、不生成 JSON、不触碰 canonical_bytes/schema/持久事实。",
+      "未验项（照实）：本 checkout 无隔离 gen58 库副本且不得启服务/Prime，故未在真实 268MB 临界复现、未跑需 S_AUDIT_COST_DB 的 testonly_audit_cost_breakdown，真实库上的命中率收益未实测；未做 RSS 实测；未跑库级全量 cargo test 与 s_session/tests 服务端 Python 测试。",
+      "工作区状态：仅 rust/src/bin/s_session_v2/cache.rs 为 M，报告为未跟踪文件；HEAD 仍为固定基线 a6a83440e418016c575d1f6d75bfcd8da72debd7，未 commit/push/切分支/改 Git 配置。",
+      "验证限界：除上述靶向外未执行其他检查；本报告不宣称 9011 完整源或全仓验证已通过。"
+    ],
+    "validation": [
+      "cd rust && cargo fmt --check → exit 0，无输出（rustfmt 1.9.0）。",
+      "CARGO_TARGET_DIR=<checkout>/rust/target cargo build --release --offline --features s_session --bin s_structure_session → exit 0（Finished release profile；lib 既有 57 warnings，无 error）。",
+      "CARGO_TARGET_DIR=<checkout>/rust/target cargo test --release --offline --features s_session --bin s_structure_session cache → exit 0；8 passed; 0 failed; 0 ignored; 77 filtered out（13.70s），含 6 条新增 cache::tests 与 2 条既有 v2 缓存/篡改门测试。",
+      "CARGO_TARGET_DIR=<checkout>/rust/target cargo test --release --offline --features s_session --bin s_structure_session v2_bounded_cache → exit 0；1 passed; 0 failed（既有 #1372 缓存复用回归）。",
+      "CARGO_TARGET_DIR=<checkout>/rust/target cargo test --release --offline --features s_session --bin s_structure_session v2_warm_cache_cross_connection_damage_stops_all_writes → exit 0；1 passed; 0 failed（既有跨连接篡改门）。",
+      "新增测试覆盖授权要求的六点：小容量下 root 保留+decoded 按共享预算填充且过大条目跳过、root 变大时 decoded 部分驱逐、新 root 超限时旧合法前缀仍可 resume 且前缀变动归 0、总量 ≤ limit、limit=0 全空、同 id 不同 bytes 不命中、identity/前缀变动不 resume、离集条目不复活；未执行项已在上方 findings 列明。"
+    ]
+  },
+  "failure_reason": null
+}

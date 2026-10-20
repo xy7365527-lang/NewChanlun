@@ -1,0 +1,8 @@
+{"case": "A-baseline", "pid": 51902, "stage": "RUNNING", "free_bytes": 253988864}
+{"case": "A-baseline", "exit": 0, "wall_seconds": 7.157963834, "rss_sampled_peak_bytes": 74022912}
+{"case": "B-candidate", "pid": 52104, "stage": "RUNNING", "free_bytes": 247951360}
+{"case": "B-candidate", "exit": 0, "wall_seconds": 6.926671875, "rss_sampled_peak_bytes": 84787200}
+{"case": "C-candidate", "pid": 52332, "stage": "RUNNING", "free_bytes": 241709056}
+{"case": "C-candidate", "exit": 0, "wall_seconds": 6.231108375, "rss_sampled_peak_bytes": 84869120}
+{"case": "D-baseline", "pid": 52541, "stage": "RUNNING", "free_bytes": 235552768}
+{"case": "D-baseline", "exit": 0, "wall_seconds": 7.276960042, "rss_sampled_peak_bytes": 76578816}

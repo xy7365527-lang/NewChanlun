@@ -1,0 +1,22 @@
+{
+  "binary": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-q16-checked-frame-20260930/worker/worktree/rust/target/release/deps/s_structure_session-9427c373eb501855",
+  "binary_sha256": "965ebce5425188eb25186b4ca9e764a7d5c61020c5966f0f8aee89ef5ae5f2bf",
+  "db_sha256": "1704c9d9ef50a822653206e0bf1136b37280814322bbb44398761a38322c154a",
+  "resource_config_sha256": "50ea5bf865de8a37d8187069d70bee85ca4caac9c759a60ad2e3c717743d4eb1",
+  "process_exit": 0,
+  "result_exists": true,
+  "passes": [
+    {
+      "pass": "cold_reader",
+      "ok": true,
+      "elapsed_ns": "4570188209",
+      "error": null
+    },
+    {
+      "pass": "warm_reader",
+      "ok": true,
+      "elapsed_ns": "374292",
+      "error": null
+    }
+  ]
+}

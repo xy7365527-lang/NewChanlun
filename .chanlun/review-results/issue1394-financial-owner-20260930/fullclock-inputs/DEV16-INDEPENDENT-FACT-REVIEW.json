@@ -1,0 +1,309 @@
+{
+  "business_result": "FAIL",
+  "checks": [
+    {
+      "name": "244 package original bytes SHA mtime",
+      "status": "PASS"
+    },
+    {
+      "name": "current source dev binary fullclock and finite frozen resource binding",
+      "status": "PASS"
+    },
+    {
+      "name": "old original identities before after live unchanged",
+      "status": "PASS"
+    },
+    {
+      "name": "9011 index first16 and old32 original envelope byte provenance",
+      "status": "PASS"
+    },
+    {
+      "name": "durable pending Begin absent publication clock raw original native frame invariants",
+      "status": "PASS"
+    },
+    {
+      "name": "initial24 exact final24 divergent common1to8 receipts clocks native BLOB exact",
+      "status": "PASS"
+    },
+    {
+      "name": "real dev process fullclock resource public envelopes and DeliveryUnknown actual wire",
+      "status": "PASS"
+    },
+    {
+      "name": "100ms raw sampler maxima gaps first last observation coverage no fake zero",
+      "status": "PASS"
+    },
+    {
+      "name": "actual signal exits reaps no services prepare failure and business FAIL separation",
+      "status": "PASS"
+    }
+  ],
+  "fact_review": "PASS",
+  "facts": {
+    "actual_max_request_reply_frame_bytes": [
+      1001,
+      1206
+    ],
+    "actual_stops": {
+      "A": {
+        "pid": 19956,
+        "returncode": -15,
+        "same_Popen_reaped": true
+      },
+      "B": {
+        "pid": 23439,
+        "returncode": -2,
+        "same_Popen_reaped": true
+      }
+    },
+    "binary": {
+      "bytes": 18609984,
+      "device": 16777232,
+      "inode": 324547449,
+      "mode": "0o500",
+      "mtime_ns": 1790816195743390154,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001/.scratch/issue1394-s3-formal-entry-20261001/revision1/s_structure_session-46d183a20a",
+      "sha256": "5437fbb5d581d1b48f6a1d3405cae67327113e5a2c7fedd7ce3a1d9ce1e18e91",
+      "uid": 501
+    },
+    "business_result": "FAIL",
+    "clock": {
+      "bytes": 790213,
+      "device": 16777232,
+      "inode": 324558973,
+      "mode": "0o644",
+      "mtime_ns": 1790819379478291830,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full-history-formal-prep-20261001/inputs/clock-plan.full9011.draft.json",
+      "sha256": "b02ac2444161e1e7e327fcf2a2bb79b294356a3dd95a59a6404c5b92deb04f01",
+      "uid": 501
+    },
+    "common_committed_generations_exact": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "complete_public_S_envelopes": 19,
+    "empty_reply_artifact_count": 24,
+    "failures": {
+      "A": {
+        "DeliveryUnknown": true,
+        "actual_reply_bytes": 0,
+        "message": "message-10",
+        "pid": 19956,
+        "whole_exchange_seconds": 30.0027035,
+        "zero_is_missing_reply_not_peak": true
+      },
+      "B": {
+        "DeliveryUnknown": true,
+        "actual_reply_bytes": 0,
+        "message": "message-9",
+        "pid": 23439,
+        "whole_exchange_seconds": 30.002664625,
+        "zero_is_missing_reply_not_peak": true
+      }
+    },
+    "final_all24_equal": false,
+    "final_differing_tables": [
+      "catalog",
+      "meta",
+      "raw_events",
+      "raw_ohlc",
+      "s_clock_events",
+      "s_content_nodes",
+      "s_content_objects",
+      "s_content_observations",
+      "s_content_publications",
+      "s_content_relations",
+      "s_content_witnesses",
+      "s_delivery_policy",
+      "s_delivery_refs",
+      "s_input_messages",
+      "s_protocol_meta",
+      "structure_deltas"
+    ],
+    "harness_runner_exit": 0,
+    "head": "ed1f184bf7513d960d87b6687c279a657c8fa481",
+    "initialized_all24_tables_equal": true,
+    "integer_OHLC_without_rounding": true,
+    "manifest_files": 244,
+    "manifest_sha256": "8e8ac71c78ab51602221869a4b43a3d8bf1582fcc740519eed1bb7c84580f351",
+    "no_Q_browser_recover_retry": true,
+    "no_recover_or_pending_retry_recorded": true,
+    "old_two_prefix16_byte_matches": 32,
+    "originals_before_after_live_count": 52,
+    "owned_socket_directory_absent": true,
+    "persistent_failures": {
+      "A": {
+        "Begin_durable": true,
+        "accepted_pending_count": 1,
+        "advance_state": "begun:begin-b3cf178f71b0c0665e320acf2ef326a4a1a93816c68295bd5fd9513e69fc1d9e:10:9",
+        "attempt_count": 1,
+        "committed_count": 9,
+        "generation": "9",
+        "no_commit_clock_event_for_pending": true,
+        "no_pending_publication_delta": true,
+        "pending_clock_events": [
+          [
+            "input-10",
+            "accept",
+            -1,
+            "130",
+            "[\"testonly.ohlc\",\"1\",\"message-10\"]",
+            null,
+            9
+          ],
+          [
+            "input-10",
+            "begin",
+            0,
+            "131",
+            "[\"testonly.ohlc\",\"1\",\"message-10\"]",
+            10,
+            10
+          ]
+        ],
+        "pending_message": "message-10",
+        "pending_original_sha256": "60570556675e0e8609f75425c1278fba095a25013fe69620941ced2195f2ae5c"
+      },
+      "B": {
+        "Begin_durable": true,
+        "accepted_pending_count": 1,
+        "advance_state": "begun:begin-d2bba9e638d6d0c5aaea497011e4bc3f707cef8d574cf7bb86fb5e4ccaf9dd1d:9:8",
+        "attempt_count": 1,
+        "committed_count": 8,
+        "generation": "8",
+        "no_commit_clock_event_for_pending": true,
+        "no_pending_publication_delta": true,
+        "pending_clock_events": [
+          [
+            "input-9",
+            "accept",
+            -1,
+            "127",
+            "[\"testonly.ohlc\",\"1\",\"message-9\"]",
+            null,
+            8
+          ],
+          [
+            "input-9",
+            "begin",
+            0,
+            "128",
+            "[\"testonly.ohlc\",\"1\",\"message-9\"]",
+            9,
+            9
+          ]
+        ],
+        "pending_message": "message-9",
+        "pending_original_sha256": "a4ea87f744bbf425272486bcbb724b0f1fdb16f353c24138678ad97b7a364ad5"
+      }
+    },
+    "prefix16_bytes_match_9011_index": true,
+    "preserved_prepare_failure": {
+      "config_or_resource_modified": false,
+      "error": "assert parsed==draft failed because read_config resolves python symlink",
+      "services_started": false,
+      "socket_directory_removed": "/private/tmp/nc1394f-qkolt0do",
+      "stage": "prepare/read_config comparison"
+    },
+    "raw_volume_1_point_0_preserved": true,
+    "resource": {
+      "bytes": 241,
+      "device": 16777232,
+      "inode": 324559476,
+      "mode": "0o644",
+      "mtime_ns": 1790819714643758777,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full-history-formal-prep-20261001/inputs/TestOnly-frozen9011-fullclock-prefix16-serial.s-resources.json",
+      "sha256": "b3d8b67b723d881a98dd0f4116fdc9651cf05b207111b19dad26fa69c2c54e69",
+      "uid": 501
+    },
+    "result_sha256": "3833ff9dc4fcfbe8adfe968849e412a28e13039ef34515387a911366c4ebbc39",
+    "review_input_schema": "failed exchange transport is nested under result; independent review parser corrected before conclusion",
+    "runner_handle": 33698,
+    "runtime_build_profile": "dev debug=0 incremental=0 frozen 46d binary; not older8f9 release",
+    "rust_tree": "5a2acd1e72c3846be38cc29689a82aeb57c68dc6",
+    "samecut8_fullDB_captured": false,
+    "sampler_maxima_scope": "100ms observed lower bounds; launch-to-reap observations not actual complete process lifetime; CPU/internal phases unmeasured",
+    "sampler_recomputed": {
+      "A": {
+        "disk_free_min_sample_bytes": 1073242112,
+        "files": {
+          "s.sqlite": {
+            "allocated": 3424256,
+            "logical": 3424256
+          },
+          "s.sqlite-shm": {
+            "allocated": 32768,
+            "logical": 32768
+          },
+          "s.sqlite-wal": {
+            "allocated": 4513792,
+            "logical": 4511432
+          }
+        },
+        "first_ns": 1698328794136041,
+        "last_ns": 1698482954983583,
+        "observed_max_gap_ns": 114840834,
+        "period_target_ns": 100000000,
+        "rss_max_sample_bytes": 171163648,
+        "sample_count": 1397,
+        "sample_maxima_are_lower_bounds": true
+      },
+      "B": {
+        "disk_free_min_sample_bytes": 1054781440,
+        "files": {
+          "s.sqlite": {
+            "allocated": 2666496,
+            "logical": 2666496
+          },
+          "s.sqlite-shm": {
+            "allocated": 32768,
+            "logical": 32768
+          },
+          "s.sqlite-wal": {
+            "allocated": 4288512,
+            "logical": 4284832
+          }
+        },
+        "first_ns": 1698483050224416,
+        "last_ns": 1698607798922291,
+        "observed_max_gap_ns": 115584625,
+        "period_target_ns": 100000000,
+        "rss_max_sample_bytes": 167903232,
+        "sample_count": 1127,
+        "sample_maxima_are_lower_bounds": true
+      }
+    },
+    "source_files_checked": 15,
+    "stored_node_frames_verified": {
+      "A": 19726,
+      "B": 16568
+    }
+  },
+  "failed_check_groups": 0,
+  "limits": [
+    "16 and9011 incomplete",
+    "no recovery or replay of AcceptedPending",
+    "samecut8 fullDB not captured",
+    "all resource peaks Q client production wholegoal unproved",
+    "wholeexchange not SQLCOMMIT or handle exclusive time",
+    "older8f9 release has different build code clock interface; no causal attribution or extrapolation"
+  ],
+  "not_run": [
+    "service",
+    "build",
+    "new probes",
+    "new matrix",
+    "SQLite opens",
+    "release1 target or processes",
+    "source574 rescan"
+  ],
+  "passed_check_groups": 9,
+  "runner_exit_evidence": "parent handle33698 terminal0 plus frozen run.stdout; business FAIL retained",
+  "verdict": "VERIFIED_BOUNDED_FAILURE"
+}

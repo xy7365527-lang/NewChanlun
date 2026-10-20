@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "run_id": "34cb6356-8c49-4400-840f-f05714f1d422",
+  "ticket": 1394,
+  "parent_thread_id": "root-1394-full9011",
+  "manager_agent_id": "/root/full9011_sandcastle_runner_manager",
+  "manager_kind": "codex_native_subagent",
+  "worker_kind": "sandcastle_external_codex",
+  "native_subagent": false,
+  "status": "cancelled",
+  "mode": "execute",
+  "model": "gpt-6.1-sol",
+  "effort": "ultra",
+  "sandbox_backend": "no-sandbox",
+  "codex_sandbox": "workspace-write",
+  "approval_policy": "never",
+  "automatic_claim": false,
+  "automatic_push": false,
+  "automatic_merge": false,
+  "checkout_preserved": true,
+  "expected_head": "3e5a5ba31dbe5c59beeee03de227fd8408eaac55",
+  "checkout_before": {
+    "root": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/worker",
+    "branch": "codex/issue1394-full9011-runner-20261001",
+    "head": "3e5a5ba31dbe5c59beeee03de227fd8408eaac55",
+    "status": ""
+  },
+  "checkout_after": {
+    "root": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/worker",
+    "branch": "codex/issue1394-full9011-runner-20261001",
+    "head": "3e5a5ba31dbe5c59beeee03de227fd8408eaac55",
+    "status": "?? .scratch/issue1394-full9011-runner-20261001/README.md\n?? .scratch/issue1394-full9011-runner-20261001/contract.schema.json\n?? .scratch/issue1394-full9011-runner-20261001/evidence.py\n?? .scratch/issue1394-full9011-runner-20261001/prepared-final/ORIGINALS-AFTER.json\n?? .scratch/issue1394-full9011-runner-20261001/prepared-final/ORIGINALS-BEFORE.json\n?? .scratch/issue1394-full9011-runner-20261001/prepared-final/PREPARED.json\n?? .scratch/issue1394-full9011-runner-20261001/prepared-offline/ORIGINALS-BEFORE.json\n?? .scratch/issue1394-full9011-runner-20261001/prepared-offline/PREPARED.json\n?? .scratch/issue1394-full9011-runner-20261001/runner.py\n?? .scratch/issue1394-full9011-runner-20261001/runtime.py\n?? .scratch/issue1394-full9011-runner-20261001/test_offline.py"
+  },
+  "started_at": "2026-10-01T15:47:33.245Z",
+  "ended_at": "2026-10-01T16:32:08.526Z",
+  "process_pid": 1190,
+  "process_exit": {
+    "code": 0,
+    "signal": null
+  },
+  "external_session_id": "01a0f826-4914-7d42-87ab-ed70db29f790",
+  "external_session_log": "/Users/silencehan/.codex/sessions/2026/10/01/rollout-2026-10-01T23-47-36-01a0f826-4914-7d42-87ab-ed70db29f790.jsonl",
+  "output_dir": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/manager/run-2",
+  "stdout_log": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/manager/run-2/codex.stdout.jsonl",
+  "stderr_log": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/manager/run-2/codex.stderr.log",
+  "events_log": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-runner-20261001/manager/run-2/events.jsonl",
+  "prompt_sha256": "77ddc78859382963e49b21cd8cd6c9ae55685f8c67b1e5a46a588c20245e251a",
+  "result": null,
+  "failure_reason": "管理者取消工蜂"
+}

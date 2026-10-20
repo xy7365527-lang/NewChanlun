@@ -1,0 +1,447 @@
+{
+ "schema": "issue1394-old-tb03b-finance-v2-manifests/1",
+ "scan": "rg --hidden --no-ignore -g *.json \"\\\"tb03b-finance/2\\\"\" 于 /private/tmp/goal1323-native-20261012、/Users/silencehan/Projects、/Users/silencehan/.codex/worktrees（排除 target/node_modules/.git，单文件 ≤2M），2026-10-14 扫描；再解析 finance.schema_revision==tb03b-finance/2 且 structure 为对象者",
+ "counts": {
+  "total": 48,
+  "nine_field": 44,
+  "ten_field": 4,
+  "clock_kind": [
+   "TestOnly"
+  ]
+ },
+ "root_ruling": "44 份九字段旧件是实验件，不属生产或验收证据，无审计义务，不保留旧读法（#799）；在 #1394 交付报告登记",
+ "manifests": [
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-case-PrepareDecision-before_commit-0-attempt2/evidence/manifest.json",
+   "sha256": "73cac197c7a3d28493c5643f72fc99657c62bb17a402a7e6290ae808d01fcfd7",
+   "bytes": 6446,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-case-PrepareDecision-before_commit-0/evidence/manifest.json",
+   "sha256": "72f740603c101cf02b9a1653c52a2bbfee1d0004336de990ba59d21ae04763a3",
+   "bytes": 6320,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/AbortDecision-after_commit-0/evidence/manifest.json",
+   "sha256": "b2bae66005c3cba987829fba3bd55c5f621e69cde9ca1f79c2312f699e47fabd",
+   "bytes": 6569,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/AbortDecision-after_commit-1/evidence/manifest.json",
+   "sha256": "a0a8f013f85afed8464a96832792cdf45e274d18e2ea66074ceac35b1f33a2ed",
+   "bytes": 6569,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/AbortDecision-before_commit-0/evidence/manifest.json",
+   "sha256": "de931e42702b6d79a4f207c10e3fd7a702457ed3f026bdbaf9a26b7e1987aa6b",
+   "bytes": 6584,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/AbortDecision-before_commit-1/evidence/manifest.json",
+   "sha256": "00f179c3e33f41af154c5da52b887907c2ece01ae13f922014f07d07a862668e",
+   "bytes": 6584,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CloseApplicants-after_commit-0/evidence/manifest.json",
+   "sha256": "b9d3c607e17aa69f2eefe923124dab6752eb7c209be531badee8700f9e75aadf",
+   "bytes": 6598,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CloseApplicants-after_commit-1/evidence/manifest.json",
+   "sha256": "8708248558de8131b86fed2f4601fb7858e5701cd6bab48856a2ff2814f4eaf5",
+   "bytes": 6598,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CloseApplicants-before_commit-0/evidence/manifest.json",
+   "sha256": "c1cfe9b18ecc963dbef2f96517af7e07c088bf5f97f5ce878eb5f4d8194f4818",
+   "bytes": 6613,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CloseApplicants-before_commit-1/evidence/manifest.json",
+   "sha256": "8b970222d9fd3602fb9655395480cdfc88757d6e8051c7aff928dfad633b008b",
+   "bytes": 6613,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CommitDecision-after_commit-0/evidence/manifest.json",
+   "sha256": "1690a201c5f9ae2176c85c1bf22b0d8de762fedb88cb869293318c52e06d383e",
+   "bytes": 6580,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CommitDecision-after_commit-1/evidence/manifest.json",
+   "sha256": "7eb5803ac402fa4db16d7e61ab0dbd4cd2a16d8445a61986b0912e01b248f37e",
+   "bytes": 6580,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CommitDecision-before_commit-0/evidence/manifest.json",
+   "sha256": "2434f8ac73b86bd8b4dd2640f59062ec2f382eca1288afc7214e6f6fe3b37ce5",
+   "bytes": 6595,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/CommitDecision-before_commit-1/evidence/manifest.json",
+   "sha256": "92df60b870a0015c777e77ec4113dcdf5c691c655e76208e4d27a933f30c4730",
+   "bytes": 6595,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/ImportResponsibility-after_commit-0/evidence/manifest.json",
+   "sha256": "83c785272e1be5bbea17c8596e80299235436cc51d3448f6548642875fbe6c5a",
+   "bytes": 6679,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/ImportResponsibility-after_commit-1/evidence/manifest.json",
+   "sha256": "307a7c718a0acf3b81fc5a4ec177d392f0bdeef33eec60d7ac26a1fd1f436be7",
+   "bytes": 6679,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/ImportResponsibility-before_commit-0/evidence/manifest.json",
+   "sha256": "eda0577db7109cb07862088e197e110ab0792a41f7766fef403d465dbfca3f67",
+   "bytes": 6690,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/ImportResponsibility-before_commit-1/evidence/manifest.json",
+   "sha256": "f6774f0727cb87d78a85f892a7287a89738cc44f992cec7d2e15123c80489976",
+   "bytes": 6694,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/PrepareDecision-after_commit-0/evidence/manifest.json",
+   "sha256": "09c68cbb42fd7b2c8aeec463a16e1968f708ff7525746493dacca443fd9f7693",
+   "bytes": 6599,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/PrepareDecision-after_commit-1/evidence/manifest.json",
+   "sha256": "81ab192e4453689a0ac881ad55016b2ff00ad15f357c2eab0a248dda474b241c",
+   "bytes": 6599,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/PrepareDecision-before_commit-1/evidence/manifest.json",
+   "sha256": "708bc9a0140d325bb0d6688898a5052fc0395655330158e905e24f4473049958",
+   "bytes": 6614,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/Reserve-after_commit-0/evidence/manifest.json",
+   "sha256": "b03009ccc9cb91a041b76b0049786b9eaf93ff138c446344d85050e793948e1b",
+   "bytes": 6470,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/Reserve-after_commit-1/evidence/manifest.json",
+   "sha256": "88994aaf59474b05879854c150c629ff9ae090d4d485663ed0162a59034e7ba3",
+   "bytes": 6474,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/Reserve-before_commit-0/evidence/manifest.json",
+   "sha256": "2bb1ce7ed7595ec8cc3ebafbfbccd0aff910916fbd42162cd7e7438d8238559b",
+   "bytes": 6493,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/Reserve-before_commit-1/evidence/manifest.json",
+   "sha256": "bde0f49eff2781e5dbeffa9b5572d64ab9b93120dfe6d1a40d62343f4c167ae4",
+   "bytes": 6493,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/evidence/manifest.json",
+   "sha256": "6a0da010ef1c112a0da6b9be13754106aa75b042ae8470d340de2b4fd8422de4",
+   "bytes": 6136,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/formal-cli-actual-20260930-attempt2/evidence/manifest.json",
+   "sha256": "9545db62d2d26de869d992bef3753eab7cd192466244561ad9131f429a825796",
+   "bytes": 5464,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/formal-cli-actual-20260930/evidence/manifest.json",
+   "sha256": "508258d61fef38f8d8fb6aad1088784a14e8d14a94d76b73633a92ab2ade4e9b",
+   "bytes": 6094,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/half-import-actual-20260930/evidence/manifest.json",
+   "sha256": "2035ccbd4faaa0a2b7a6303a8594f43f1a73689b2722dd7bf9ffb9ff813e736a",
+   "bytes": 6121,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930-attempt2/economic/manifest.json",
+   "sha256": "f2108d8d9a59e2ea7afb91c9ab22c5a3f71c7ff0dafe11334323fe17b822db7f",
+   "bytes": 5851,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930-attempt3/economic/manifest.json",
+   "sha256": "181763a5fbe9620d6b33fa11f051cc00663d1b9e12f8b1faa961ad00a8378448",
+   "bytes": 5851,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930-attempt4/economic/manifest.json",
+   "sha256": "21344252634ef654ba86f88fb8ba907152c162d0cb59793c6e0592abdeb37107",
+   "bytes": 5847,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930-attempt4/same-job/manifest.json",
+   "sha256": "fa27a52314b0fc315c37df24841c040bb1adb28468b268b52aacaac92acfa6de",
+   "bytes": 5847,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930/economic/manifest.json",
+   "sha256": "e739fd8fc4a480a3fca7fd6f776dbefc8380a253a2737c45baacb9e27e876e45",
+   "bytes": 5765,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930/economic/source-drift-manifest.json",
+   "sha256": "b2f3277f92fa128ff92c7972d82224a0cb26588ce5782558e0d6bf6d3637f1dd",
+   "bytes": 5514,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-1/evidence/manifest.json",
+   "sha256": "8699548e817781aa1c85292e8d498803925525d4ad0b5ef0b1d6634036656ebf",
+   "bytes": 5532,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/evidence/manifest.json",
+   "sha256": "bb44978f91d9f3086d244e166d706abcd5a4b4488b1b0cbb1cc6ff73191a0602",
+   "bytes": 5532,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/private/tmp/goal1323-native-20261012/finance/archive-readonly/manifest.json",
+   "sha256": "b7272d25d62b46fce0c58d48c74080f0c9d4c17586af16d3cd6634a2047a6d4f",
+   "bytes": 5883,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/private/tmp/goal1323-native-20261012/finance/cap80-driver-draft/manifest.json",
+   "sha256": "264148a7ceca407326149d46900623b011c85df47fe660ac8bacc108bcaaa8fa",
+   "bytes": 5763,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/private/tmp/goal1323-native-20261012/finance/cap80-driver-draft/revision-fixed-cap80/manifest.json",
+   "sha256": "6c2956a294dcc3f775a29f66223c83f64f4fb63ec3f8f1371f28b4da2ce8f9dc",
+   "bytes": 6012,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/private/tmp/goal1323-native-20261012/finance/cap80-driver-draft/revision-fixed-cap80/run-1/manifest.json",
+   "sha256": "6c2956a294dcc3f775a29f66223c83f64f4fb63ec3f8f1371f28b4da2ce8f9dc",
+   "bytes": 6012,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/private/tmp/goal1323-native-20261012/finance/cap80-driver-draft/run-1/manifest.json",
+   "sha256": "264148a7ceca407326149d46900623b011c85df47fe660ac8bacc108bcaaa8fa",
+   "bytes": 5763,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/private/tmp/goal1323-native-20261012/finance/long-r4-financial-r3-candidate/r3/p8/dry/new/fresh-a/manifest.json",
+   "sha256": "00b5842643e68c76f4fe937248b2cbaca733ffaa95780f060f5c81ddc7741bed",
+   "bytes": 4757,
+   "structure_fields": 10,
+   "reader_session_present": true,
+   "clock_kind": "TestOnly",
+   "origin": "P-8 干冻结产物（r3/p8/dry，十字段，非旧库）"
+  },
+  {
+   "path": "/private/tmp/goal1323-native-20261012/finance/long-r4-financial-r3-candidate/r3/p8/dry/new/fresh-b/manifest.json",
+   "sha256": "8f34fd9298b3af59fdf842963f387fa4ba0aa5e626d8933e0fffdc525ec17cb9",
+   "bytes": 4757,
+   "structure_fields": 10,
+   "reader_session_present": true,
+   "clock_kind": "TestOnly",
+   "origin": "P-8 干冻结产物（r3/p8/dry，十字段，非旧库）"
+  },
+  {
+   "path": "/private/tmp/goal1323-native-20261012/finance/long-r4-financial-r3-candidate/r3/p8/dry/old/fresh-a/manifest.json",
+   "sha256": "b54eed15594c6394f083198f466ea003de2d4f13b738baaf02da60870a546a37",
+   "bytes": 4757,
+   "structure_fields": 10,
+   "reader_session_present": true,
+   "clock_kind": "TestOnly",
+   "origin": "P-8 干冻结产物（r3/p8/dry，十字段，非旧库）"
+  },
+  {
+   "path": "/private/tmp/goal1323-native-20261012/finance/long-r4-financial-r3-candidate/r3/p8/dry/old/fresh-b/manifest.json",
+   "sha256": "cec00e9bd21a0781959f1b766c0e3451cc26f58f07718430939d5dadba15eb53",
+   "bytes": 4757,
+   "structure_fields": 10,
+   "reader_session_present": true,
+   "clock_kind": "TestOnly",
+   "origin": "P-8 干冻结产物（r3/p8/dry，十字段，非旧库）"
+  },
+  {
+   "path": "/private/tmp/goal1323-native-20261012/finance/reusable-inputs/old-manifest.json",
+   "sha256": "bb44978f91d9f3086d244e166d706abcd5a4b4488b1b0cbb1cc6ff73191a0602",
+   "bytes": 5532,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  },
+  {
+   "path": "/private/tmp/goal1323-native-20261012/finance/run-1/manifest.json",
+   "sha256": "e4a442b65d4ac124263f2f39cb1be3684fdc8a33880ed8697193a8d4c72b7b1f",
+   "bytes": 5130,
+   "structure_fields": 9,
+   "reader_session_present": false,
+   "clock_kind": "TestOnly",
+   "origin": "旧 tb03b-finance/2 实验件"
+  }
+ ]
+}

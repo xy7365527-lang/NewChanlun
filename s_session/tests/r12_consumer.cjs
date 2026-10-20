@@ -25,7 +25,7 @@ assert.equal(gapB.session_id, b1.snapshot.session_id);
 const delta4 = {...watch3, generation:'4', structure_cut:'cut-4', deltas:watch3.deltas.filter(d => d.generation === '4')};
 assert.equal(delta4.deltas.length, 1);
 assert(delta4.deltas[0].delta.replaces.length > 0);
-function context() {
+async function context() {
   const elements = new Map();
   function element() { return {innerHTML:'', textContent:'', value:'3', placeholder:'', checked:false,
     classList:{toggle() {}}, addEventListener() {}, focus() {}, scrollIntoView() {}}; }
@@ -34,10 +34,11 @@ function context() {
     querySelector(q) { return this.getElementById(q); },
     createElement() { const e = element(); Object.defineProperty(e, 'innerHTML', {get() { return this.textContent; }}); return e; }
   };
-  const c = vm.createContext({document, structuredClone, console});
+  // 页面类型清单直接引用客户端 TB01C.TB02_KINDS（#1404/#1414）；与正式页面同样先载入同一客户端。
+  const c = vm.createContext({document, TB01C: require(path.join(root, 's_session/browser/tb01c-client.js')), structuredClone, console});
   vm.runInContext(source, c);
   c.seed = structuredClone(a3);
-  vm.runInContext('validateState(seed); rebuildCommittedFromState(seed); syncModeUI("asof",seed.snapshot); renderAllFromState(seed)', c);
+  await vm.runInContext('validateState(seed)',c); vm.runInContext(' rebuildCommittedFromState(seed); syncModeUI("asof",seed.snapshot); renderAllFromState(seed)',c);
   return {c, elements};
 }
 function state(c) {
@@ -61,7 +62,7 @@ async function test(name, fn) {
 }
 (async () => {
   await test('健康更正流提交第四代', async () => {
-    const {c, elements} = context(); await deliver(c, delta4, a4);
+    const {c, elements} = await context(); await deliver(c, delta4, a4);
     assert.deepEqual(state(c).currentState, a4); assert.equal(state(c).lastAppliedGen, '4');
     assert(elements.get('stream-result').innerHTML.includes('ok-box'));
   });
@@ -74,7 +75,7 @@ async function test(name, fn) {
     '替代成员多字段': d => { d.delta.replaces[0].unexpected_semantic_field = 'wrong'; }
   };
   for (const [name, mutate] of Object.entries(mutations)) await test(name + '拒绝并同页重试', async () => {
-    const {c, elements} = context(), before = state(c), bad = structuredClone(delta4);
+    const {c, elements} = await context(), before = state(c), bad = structuredClone(delta4);
     mutate(bad.deltas[0]); await deliver(c, bad, a4);
     assert.deepEqual(state(c), before, '失败后全部逻辑状态必须保持');
     assert(!elements.get('stream-result').innerHTML.includes('ok-box'));
@@ -83,12 +84,12 @@ async function test(name, fn) {
     assert.deepEqual(state(c).currentState, a4); assert.equal(state(c).lastAppliedGen, '4');
   });
   await test('合法新会话Gap允许重建', async () => {
-    const {c} = context(); await deliver(c, gapB, b1);
+    const {c} = await context(); await deliver(c, gapB, b1);
     assert.deepEqual(state(c).currentState, b1); assert.equal(state(c).sessionBinding.session_id, gapB.session_id);
     assert.equal(state(c).lastAppliedGen, '1');
   });
   for (const kind of ['另一会话快照', '缺少Gap会话身份']) await test('Gap' + kind + '拒绝并同页重试', async () => {
-    const {c} = context(), before = state(c), gap = structuredClone(gapB);
+    const {c} = await context(), before = state(c), gap = structuredClone(gapB);
     if (kind === '缺少Gap会话身份') delete gap.session_id;
     await deliver(c, gap, kind === '另一会话快照' ? a1 : b1);
     assert.deepEqual(state(c), before, 'Gap声明与快照未绑定时不可提交');

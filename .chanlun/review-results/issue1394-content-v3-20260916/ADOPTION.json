@@ -1,0 +1,32 @@
+{
+  "schema": "newchanlun-interface-adoption/1",
+  "issue": 1394,
+  "parent_spec": 1340,
+  "parent_goal": 1323,
+  "recorded_at_utc": "2026-09-15T23:44:38.672575+00:00",
+  "user_approval_quote": "照办 批准",
+  "approved_action": "采纳方案C第5节、统一补入SPEC并依所批准流程推进同范围实施；保留明确合入及真实外效权限门。",
+  "source_proposal_sha256": "fab912c6ebe3613969d65fc924368a1d5c9b343f0c3f7a123241645413771d30",
+  "normative_sections": "5.1–5.9",
+  "normative_text_sha256": "436e3110466550ce6e53957aba86ad554be202d96e2e2a08cd7103a56295c895",
+  "original_spec_commit": "efc1ddc4d6c015f4f8c6d44f904d704a88308b46",
+  "original_spec_manifest_sha256": "38e3176b6dfff456b8e3704410401c3bedddf0671751464bb9ea5b829e460260",
+  "source_implementation_commit": "b7734b70995533c88f4df5f88e3b514a8d46325d",
+  "main_checked": "6f99b36c64e0560febdb08e5d1f8e781d2af9299",
+  "branch": "codex/1394-content-v3",
+  "new_worktree": "/Users/silencehan/Projects/NewChanlun-1394-content-v3",
+  "main_merge_authorized": false,
+  "pr1458_merge_authorized": false,
+  "pr1459_merge_authorized": false,
+  "real_effects_authorized": false,
+  "production_files_changed": false,
+  "frontend_steering_quote": "问题是我们还没有开图做前端啊",
+  "frontend_boundary": "C包含引用读取/完整核验所需客户端合同；产品页面、信息架构、交互和整体用户旅程由拟前端图显式承接，未发布新图，未把已有页面定性为纯探针。",
+  "frontend_map_relation": "待用户选择#1323子图或独立产品图；默认建议子图",
+  "fresh_blocked_audit_count": 0,
+  "artifacts": {
+    "APPROVED-SOURCE.md": "fab912c6ebe3613969d65fc924368a1d5c9b343f0c3f7a123241645413771d30",
+    "inputs/content-format-vectors.json": "78984501cbb465be8251e3d212e34c0cb6fb33a5aab9a4999a3f1db592ce71f0",
+    "inputs/historical-independent-vector-result.json": "46247552b2d16fe4526104e84eb8a51c1452a8db2356e79b7f67a7d69cff8818"
+  }
+}

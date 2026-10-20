@@ -1,0 +1,38 @@
+{
+  "C_complete": false,
+  "S_Q": "NOT_RUN",
+  "blocking_findings": [],
+  "checks": {
+    "formal_runtime_path_absent": true,
+    "formal_socket_path_absent": true,
+    "independent_targeted_tests": "A final raw/source failure retains snapshot and PARTIAL; partial A never invokes B: 2 passed",
+    "manager_reported_gate": "GATE_PASSED, exit 0",
+    "manager_reported_offline_tests": "50 passed, exit 0",
+    "manager_reported_prepare": "PASS_9011/PASS_EXACT_SHA_VALUES, exit 0",
+    "python_ast": "runner.py, evidence.py, runtime.py, test_offline.py parsed"
+  },
+  "files_sha256": {
+    "README.md": "222a8bf08ceed9b6a7c438ccd3428545b92a905abaeb301a6979aa3fc9106a1c",
+    "contract.schema.json": "3853d7ca2edc5ebf046b28ad84d87746d06f29579798ef7f9fd15cb6172b15d3",
+    "evidence.py": "8603beeeca192c2b74635b27f640dcb34332b104868a8b931ed21b1f48ad6a04",
+    "runner.py": "155d22522d74471705ed6bb6c61499ea0dfb4e0ddf7403d4f48cffe60ae55335",
+    "runtime.py": "1bcae2f7dfedcf7e83fef406840b07fe6250b56433d379f497a2fb62f35d67b6",
+    "test_offline.py": "992a18f1439cee178a52ede9e4b8aca40cc02c2900935a615a96c6eccb8dae4d"
+  },
+  "full_resource_capacity": false,
+  "guard_evidence": {
+    "run_ab": "A status must be VERIFIED before B is invoked",
+    "runtime_py": "final.fullDB.json is saved then validate_final runs under the shared cleanup deadline before VERIFIED; failure is recorded by preserve()"
+  },
+  "helper_commit": "a1dd0a82d37915a34ae053d3ac034b402b0f169f",
+  "manager_status_sha256": "478d2b18c286ddaf858f328118d2ab075a8c2a2c64d969db777775db346566b8",
+  "prepared_sha256": "24dd300a31c8ae8beb78c842185664e39b9584f6712be42ec6581843284c28ff",
+  "root_head": "3e5a5ba31dbe5c59beeee03de227fd8408eaac55",
+  "root_outer_obligation": "Root separately checks 27 originals against PRE-RUN-PRESERVATION.json before and after actual run; baseline SHA256 3bca89e81f1bfcf00f1614abfecd344bd439f45c98e2a8cfb3808d5728af901b",
+  "rust_tree": "7196a77fef56cf87cbe91dc4b135326a142e2395",
+  "schema_revision": "issue1394-full9011-python-review/1",
+  "strict_peaks": "UNMEASURED",
+  "verdict": "PASS",
+  "verdict_scope": "离线 runner 运行门：可供 Root 按冻结输入做 S full9011 A/B 首试；不构成真实 S/C/整图通过",
+  "wholegraph_complete": false
+}

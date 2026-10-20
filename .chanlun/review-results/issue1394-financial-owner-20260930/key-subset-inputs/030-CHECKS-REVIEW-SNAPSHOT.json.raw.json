@@ -1,0 +1,7 @@
+{
+  "schema_revision": "issue1394-verbatim-utf8-artifact/1",
+  "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-key-subset-review-20261002/CHECKS-REVIEW-SNAPSHOT.json",
+  "source_bytes": 934,
+  "source_sha256": "468fc7164ad0cf2de8b1ed73472f1d84339bcef2771042d6a5c991ecdaa70cc1",
+  "content_utf8": "{\n  \"check\": {\n    \"command\": [\n      \"cargo\",\n      \"check\",\n      \"--offline\",\n      \"--release\",\n      \"--manifest-path\",\n      \"rust/Cargo.toml\",\n      \"--features\",\n      \"s_session\",\n      \"--bin\",\n      \"s_structure_session\"\n    ],\n    \"exit_code\": 0\n  },\n  \"clippy\": {\n    \"command\": [\n      \"cargo\",\n      \"clippy\",\n      \"--offline\",\n      \"--release\",\n      \"--manifest-path\",\n      \"rust/Cargo.toml\",\n      \"--features\",\n      \"s_session\",\n      \"--bin\",\n      \"s_structure_session\"\n    ],\n    \"exit_code\": 101\n  },\n  \"fmt\": {\n    \"command\": [\n      \"rustfmt\",\n      \"--edition\",\n      \"2021\",\n      \"--check\",\n      \"rust/src/s_content/path.rs\",\n      \"rust/src/bin/s_session_v3/history.rs\",\n      \"rust/src/bin/s_session_v3/source_audit.rs\",\n      \"rust/tests/s_content_key_subset.rs\"\n    ],\n    \"exit_code\": 0\n  },\n  \"diff\": {\n    \"command\": [\n      \"git\",\n      \"diff\",\n      \"--check\"\n    ],\n    \"exit_code\": 0\n  }\n}\n"
+}
