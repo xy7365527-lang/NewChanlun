@@ -10,7 +10,7 @@ import {
   resolvedReason, pickUnresolved, finishedTickets,
   isRetryable, makeClaudeRunner, loadResume,
   RULES, ARCH_SECTION, ARCHAEOLOGY_FILE, parseArchaeology, archaeologyProblems, renderArchaeology, archaeologyCoverageProblems,
-  archaeologyPrompt, archaeologyAsks, archaeologyOnly, shadowComment, flowSectionsIn,
+  archaeologyPrompt, archaeologyAsks, archaeologyOnly, shadowComment, flowSectionsIn, stripFlowSections,
   type Deps, type GhRunner, type ModelCall, type OnceResult,
 } from "./decision-claimer.mts";
 
@@ -948,6 +948,9 @@ test("升档重跑考古后新出现事实缺口：T 类同样转 P，不落地"
 test("flowSectionsIn：正本里混入引用自证或考古对照即报", () => {
   assert.deepEqual(flowSectionsIn("## 裁定\n内容"), []);
   assert.deepEqual(flowSectionsIn(goodDraft), ["引用自证", "考古对照"]);
+  const stripped = stripFlowSections(goodDraft);
+  assert.deepEqual(flowSectionsIn(stripped), []);
+  assert.deepEqual(missingDraftSections(stripped), []);
 });
 
 test("影子评论：本地无考古时首行提示先跑 --archaeology-only", () => {

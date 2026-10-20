@@ -1129,7 +1129,7 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
       Object.assign(summary, {
         klass: p.klass, convertedToP: p.convertedToP, attempts: p.attempts, durationsMs: { ...p.durationsMs },
         reclassNotes: p.reclassNotes, reviewCounts: p.reviewCounts, rounds: p.rounds, landingRedrafts: p.landingRedrafts,
-        stage: p.stage, landedSha: p.landedSha, pDone: p.pDone ?? [], resumedFrom: p.stage,
+        stage: p.stage, landedSha: p.landedSha, pDone: p.pDone ?? [], resumedFrom: p.stage, factGapNote: p.factGapNote,
       });
       delete summary.durationsMs.total;
       draft = resume.draft;
@@ -1323,6 +1323,13 @@ export function shadowComment(n: number, draft: string, r: Review, dir: string, 
     `草稿与审查原件：\`${dir}/\`\n\n<details><summary>草稿全文</summary>\n\n${draft}\n</details>`;
 }
 
+/** 去掉草稿里的流程段（引用自证、考古对照），只留给落地工蜂写正本的内容。 */
+export function stripFlowSections(draft: string): string {
+  return draft.split(/(?=^#{1,3}\s)/m)
+    .filter((part) => flowSectionsIn(part.split("\n", 1)[0] ?? "").length === 0)
+    .join("").trimEnd() + "\n";
+}
+
 /** 正本里不该出现的流程段标题。 */
 export function flowSectionsIn(text: string): string[] {
   return [CITATION_SECTION, ARCH_SECTION].filter((h) => new RegExp(`^#{1,6}\\s*(?:\\d+[.、]\\s*)?${h}\\s*$`, "m").test(text));
@@ -1340,7 +1347,7 @@ async function landT(t: TicketContext, draft: string, target: string, dir: strin
   fetchMain(d.repoRoot, d.git);
   if (existsSync(wt)) d.git(d.repoRoot, ["worktree", "remove", "--force", wt]);
   d.git(d.repoRoot, ["worktree", "add", "-B", branch, wt, MAIN_REF]);
-  const lr = await d.model({ model: MODEL_OPUS, prompt: landPrompt(t, draft, target), cwd: wt, role: "land", allowWrite: true });
+  const lr = await d.model({ model: MODEL_OPUS, prompt: landPrompt(t, stripFlowSections(draft), target), cwd: wt, role: "land", allowWrite: true });
   s.durationsMs.land = lr.durationMs;
   const changed = d.git(wt, ["status", "--porcelain"]).split("\n").filter(Boolean).map((l) => l.slice(3));
   if (changed.length === 0) throw new Error("落地工蜂未改动正本");
