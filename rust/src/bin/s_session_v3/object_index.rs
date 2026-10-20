@@ -1240,8 +1240,7 @@ pub(super) fn plan_native_union_for_testonly(
     for object in objects {
         new.try_push(candidate_fields(s, object, g)?).map_err(err)?;
     }
-    // S4 negctrl：增量臂对象计划漏看旧集末项。
-    plan_from_candidates(s, new, &old[..old.len().saturating_sub(usize::from(g >= 3))], g)
+    plan_from_candidates(s, new, old, g)
 }
 fn plan_from_candidates(
     s: &mut (impl CodecStore + ?Sized),
