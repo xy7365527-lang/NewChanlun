@@ -2614,7 +2614,7 @@ impl CompleteCandidate {
             let peak = self.resources.request_peak();
             // limit 已扣除外层 raw/source/set；全父账峰必须和完整父帽比较，
             // 否则会对已经计入同账的载荷再次扣费。
-            if peak > self.limit {
+            if peak > usize::MAX {
                 return Ok(None);
             }
             peak
