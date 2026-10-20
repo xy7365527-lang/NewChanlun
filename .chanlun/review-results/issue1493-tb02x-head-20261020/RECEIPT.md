@@ -9,11 +9,11 @@
 `index.html` 在 cut 27 显示「结果 PENDING_CASE_ONE · 第一种情况候选态 OPEN_AT_PREFIX_END · 窗成员 [5]」、cut 35 显示
 「结果 CASE_ONE · 第一种情况候选态 CONFIRMED · 窗成员 [5]」，页面无错误、无阻断框。
 
-**未全过的部分（照实）**：脚本判定为 FAIL，原因都是合入 #1394 后公共读的规模界，与段语义无关：
+**未全过的部分（照实）**：脚本判定为 FAIL，原因都是合入 #1394 后公共读的规模界，与段语义无关；按主控裁定（#1493 评论），读超时并入 #1497，验收按「cut 27/35 页面正确 + 40 cut 离线全量校验 + Q 审计通过」接受，放宽的 Q 调度预算只用于本测试夹具：
 
-1. 两例页面的第三个视图（末 cut 40 的 RecomputedWithRevision live 读）10 分钟内未完成提交，readiness 记录显示快照请求反复被客户端期限取消（turn_up 失败 74 次、turn_down 66 次）；
+1. 两例页面的第三个视图（末 cut 40 的 RecomputedWithRevision live 读）10 分钟内未完成提交，readiness 记录显示快照请求反复被客户端期限取消（复跑 turn_up 失败 65 次、turn_down 59 次；首跑为 74／66）；
 2. 冻结 Q 配置下，两例在 live-36 越过生产客户端 30 s 总期限（每页快照约 800 ms）；因此本次用 `--relax-query` 让 turn 用例也用 e2 已有的放宽 Q 调度预算（`verify_deadline_ms` 120000、捕获/缓存 2/4 GiB），此后 40 cut 全部采完；
-3. `tb02b_verify` 的全 cut 前端合同校验有 30 s 子进程界，40 cut 实际 106–108 s（离线去界复跑：两例 `validated_cuts=40`、退出码 0；Python Q 审计通过）；
+3. `tb02b_verify` 的全 cut 前端合同校验有 30 s 子进程界，40 cut 实际约 105.5 s（复跑；首跑 106–108 s。离线去界校验：两例 `validated_cuts=40`、退出码 0；Python Q 审计通过）；
 4. e2_real_down（52 根真实笔保序映射）的 AsKnown 读超过生产客户端 30 s 总期限，未进页面阶段：首轮（共用 target）在 known-51 用 32.1 s（HTTP 约 5.9 s，其余为客户端校验），私有 target 复跑在 known-42 用 37.2 s（机器同时有他人负载）。合入前（前任 `034124c8aa`，旧客户端）同一用例通过。
 
 ## 运行
