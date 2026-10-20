@@ -9,6 +9,7 @@ import {
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
 import { StringDecoder } from "node:string_decoder";
+import { gitEnvironment } from "./git-environment.ts";
 
 /** 经本机 CLIProxyLocal 的 OAuth 订阅路由；不带 mf/、yd/ 等中转前缀（用户 2026-10-13 指示）。 */
 export const MODEL = "claude-opus-5-5";
@@ -119,17 +120,6 @@ function shellQuote(value: string): string {
 function inside(path: string, root: string): boolean {
   const suffix = relative(root, path);
   return suffix === "" || (!isAbsolute(suffix) && suffix !== ".." && !suffix.startsWith(".." + sep));
-}
-
-/** #1588：预检 git 只拿定位与本地化所需的白名单变量。CLIProxy 密钥等凭据不进 git 及其 hook、credential helper、fsmonitor；
- * 宿主的 GIT_DIR/GIT_INDEX_FILE 等 GIT_* 也不透传，免得把预检引到 -C 指定之外的仓库或索引。 */
-export function gitEnvironment(source: NodeJS.ProcessEnv = process.env): Record<string, string> {
-  const result: Record<string, string> = {};
-  for (const key of ["PATH", "HOME", "USER", "LOGNAME", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "LC_MESSAGES", "XDG_CONFIG_HOME"]) {
-    if (source[key]) result[key] = source[key]!;
-  }
-  result.GIT_OPTIONAL_LOCKS = "0";
-  return result;
 }
 
 function git(root: string, args: string[]): string {

@@ -6,10 +6,11 @@ import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFile
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
-  assertRoute, boundedCodex, CodexTranscript, gitEnvironment, MODEL, MODEL_PROVIDER, preflightCheckout, providerEnvironment,
+  assertRoute, boundedCodex, CodexTranscript, MODEL, MODEL_PROVIDER, preflightCheckout, providerEnvironment,
   providerOverrides, PROVIDER_KEY_ENV, runCodexChild, workerEnvironment,
   type ChildOptions,
 } from "./codex-child.ts";
+import { gitEnvironment } from "./git-environment.ts";
 
 const goodResult = { status: "completed", summary: "已完成限定审阅", findings: [], validation: ["只读检查"] };
 const sessionId = "12345678-1234-1234-1234-123456789abc";
