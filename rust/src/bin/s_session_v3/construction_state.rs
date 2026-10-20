@@ -550,9 +550,6 @@ impl PendingRawState {
         if !previous.parent.as_ref().is_some_and(|recorded| recorded.matches(parent)) {
             return Err(stale("Recover迁移资格所记父账或冻结域与事务父账不符"));
         }
-        if previous.fee.as_ref().is_some_and(|fee| !stamp.holds(fee)) {
-            return Err(stale("Recover迁移状态块许可不挂事务父账"));
-        }
         let mut pending = Self::carry(Some(previous), seal, raw_len, lease)?;
         pending.parent = handoff.parent.clone();
         pending.recover = Some((handoff, false));
