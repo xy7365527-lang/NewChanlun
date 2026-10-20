@@ -1139,7 +1139,7 @@ mod tests {
             extreme_roots: vec![mid * 7],
             raw_first: mid,
             raw_last: mid,
-            source_coords: vec![],
+            source_coords: SourceCoords::new(),
             sealed_at: Some((mid + 2) * 7),
             waiting_reasons: vec![],
         };
@@ -1533,6 +1533,131 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// #1597：确定性 LCG 合成稀疏坐标行情（混合包含/方向翻转/同价）。
+    fn lcg_bars(n: usize, seed: u64, stride: usize) -> Vec<Bar> {
+        let mut lcg = seed;
+        let mut rand = move || {
+            lcg = lcg
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            (lcg >> 33) as i64
+        };
+        let mut high = 1_000i64;
+        (0..n)
+            .map(|i| {
+                high = (high + rand() % 41 - 20).clamp(100, 4_000);
+                let span = 1 + rand() % 15;
+                let h = if rand() % 6 == 0 { high } else { high + rand() % 4 };
+                Bar {
+                    source_index: i * stride + 3,
+                    timestamp: i as i64,
+                    open: h,
+                    high: h,
+                    low: h - span,
+                    close: h - span / 2,
+                    volume: 1.0,
+                    untradable: false,
+                }
+            })
+            .collect()
+    }
+
+    /// #1597：完整事实入口的共享导出与扁平参照构造逐位相同——包含层、新笔事实（端点、配对、
+    /// 笔与确认证书）的 `PartialEq`、`Debug`（紧凑与美化）与 JSON 序列化全部对拍。
+    #[test]
+    fn shared_full_facts_match_flat_reference_for_every_prefix() {
+        let config = ParseConfig::default();
+        for (seed, stride) in [(0x2545_F491_4F6C_DD1D_u64, 1usize), (0x9E37_79B9_7F4A_7C15, 5)] {
+            let raw = lcg_bars(900, seed, stride);
+            for n in (1..=raw.len()).filter(|n| n % 29 == 0 || *n == raw.len() || *n < 12) {
+                let shared = process_inclusion_with_facts(&raw[..n]);
+                let flat = super::super::inclusion::process_inclusion_with_facts_flat(&raw[..n]);
+                assert_eq!(shared, flat, "seed {seed:x} 前缀 {n}：包含事实");
+                assert!(
+                    shared.steps.iter().all(|s| s.source_coords.as_shared().is_some()),
+                    "seed {seed:x} 前缀 {n}：严格递增输入的步骤坐标应为共享形态"
+                );
+                let got = build_stroke_facts(&shared, &config);
+                let want = build_stroke_facts(&flat, &config);
+                assert_eq!(got, want, "seed {seed:x} 前缀 {n}：新笔事实");
+                assert_eq!(format!("{got:?}"), format!("{want:?}"));
+                assert_eq!(format!("{got:#?}"), format!("{want:#?}"));
+                assert_eq!(
+                    serde_json::to_string(&got).unwrap(),
+                    serde_json::to_string(&want).unwrap(),
+                    "seed {seed:x} 前缀 {n}：JSON"
+                );
+                assert!(
+                    got.endpoints
+                        .iter()
+                        .all(|e| e.source_coords.as_shared().is_some() || e.source_coords.is_empty()),
+                    "seed {seed:x} 前缀 {n}：端点坐标应走共享构造"
+                );
+            }
+        }
+    }
+
+    /// #1597 留存形状锁：完整事实里全部来源坐标集合的**不同共享节点数**近线性
+    /// （O(n log n)），而逻辑元素数是 Θ(n²)。回到逐步展开（或每步新建整棵树）即失败。
+    #[test]
+    fn shared_full_facts_retain_subquadratic_nodes() {
+        use super::super::evidence::CoordNode;
+        use std::collections::HashSet;
+        fn walk(c: &SourceCoords, seen: &mut HashSet<usize>) {
+            let Some(root) = c.as_shared().and_then(|r| r.root_node()) else {
+                return;
+            };
+            let mut stack = vec![root];
+            while let Some(node) = stack.pop() {
+                if !seen.insert(Rc::as_ptr(node) as *const () as usize) {
+                    continue;
+                }
+                if let CoordNode::Concat(l, r, _) = node.as_ref() {
+                    stack.push(l);
+                    stack.push(r);
+                }
+            }
+        }
+        let raw = lcg_bars(4_000, 0xD1B5_4A32_D192_ED03, 2);
+        let config = ParseConfig::default();
+        let facts = process_inclusion_with_facts(&raw);
+        let strokes = build_stroke_facts(&facts, &config);
+        let mut seen = HashSet::new();
+        let mut logical = 0usize;
+        let mut visit = |c: &SourceCoords, seen: &mut HashSet<usize>| {
+            logical += c.len();
+            walk(c, seen);
+        };
+        for s in &facts.steps {
+            visit(&s.source_coords, &mut seen);
+            if let Some(e) = &s.direction_evidence {
+                visit(&e.source_coords, &mut seen);
+            }
+        }
+        for g in &facts.groups {
+            for e in [&g.direction_evidence, &g.confirmation_evidence].into_iter().flatten() {
+                visit(&e.source_coords, &mut seen);
+            }
+        }
+        for e in &strokes.endpoints {
+            visit(&e.source_coords, &mut seen);
+        }
+        for b in &strokes.strokes {
+            if let Some(c) = &b.confirmation {
+                visit(&c.source_coords, &mut seen);
+            }
+        }
+        let n = raw.len();
+        assert!(logical > n * n / 4, "夹具应产生 Θ(n²) 逻辑元素：{logical}");
+        // log2(4000) ≈ 12；每次追加/拼接新建 O(log n) 个节点。上限 64·n 远低于 n²/4。
+        assert!(
+            seen.len() < 64 * n,
+            "共享节点数 {} 超出近线性上限 {}（逻辑元素 {logical}）",
+            seen.len(),
+            64 * n
+        );
     }
 }
 

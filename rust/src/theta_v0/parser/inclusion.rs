@@ -2086,8 +2086,22 @@ mod tests {
                 );
                 continue;
             }
-            let want = process_inclusion_with_facts(&bars[..=i]);
+            // #1597：参照 = 扁平构造（#1597 前的唯一实现）；公开入口（共享导出）须与之
+            // 全字段相等，且 `Debug`（紧凑与 `{:#?}`）逐字相同。
+            let want = process_inclusion_with_facts_flat(&bars[..=i]);
             let got = state.materialize_facts();
+            let public = process_inclusion_with_facts(&bars[..=i]);
+            assert_eq!(public, want, "{label} 前缀 {i} 公开入口与扁平参照不匹配");
+            assert_eq!(
+                format!("{public:?}"),
+                format!("{want:?}"),
+                "{label} 前缀 {i} Debug 不逐字相同"
+            );
+            assert_eq!(
+                format!("{public:#?}"),
+                format!("{want:#?}"),
+                "{label} 前缀 {i} 美化 Debug 不逐字相同"
+            );
             assert_eq!(got, want, "{label} 前缀 {i} 全字段不匹配");
             assert_eq!(got.merged, want.merged, "{label} 前缀 {i} merged");
             for (k, want_group) in want.groups.iter().enumerate() {
