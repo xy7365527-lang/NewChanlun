@@ -31,6 +31,8 @@ PROFILES = [
 ]
 SYMBOL = "BTC"
 W1 = (347, 1000)  # ADR 0040 裁定三 w(1)，只用于操作级别 L1 的重
+# 非签署的取整探针（#1406 C8 评审 M2）：L > 1 且不整除时 P0 保证金向上取整（ADR 0040:52）。
+LEVERAGE_CASES = [{"Q": 100001, "margin_leverage": 2}, {"Q": 100000, "margin_leverage": 3}]
 
 
 def ceil_div(a, b):
@@ -70,7 +72,9 @@ def derive(p):
 
 def render():
     doc = {"source": "ADR 0040 裁定四；签署记录 2026-10-20；独立 oracle（不 import 产品代码）",
-           "profiles": [derive(p) for p in PROFILES]}
+           "profiles": [derive(p) for p in PROFILES],
+           "leverage_cases": [dict(c, p0_batch=ceil_div(c["Q"], c["margin_leverage"]),
+                                   floor_batch=c["Q"] // c["margin_leverage"]) for c in LEVERAGE_CASES]}
     return (json.dumps(doc, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode()
 
 

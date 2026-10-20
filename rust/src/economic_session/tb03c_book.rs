@@ -392,6 +392,7 @@ fn open_book(
     doc: &Value,
     event: &Value,
     record: &Value,
+    v2: bool,
     funding: Option<Value>,
 ) -> Result<Value, String> {
     let transfer = super::tb03c_transfer::is_in(event);
@@ -414,7 +415,8 @@ fn open_book(
     } else {
         positive(required(o, "units")?, "opening_units")?
     };
-    let revision = if funding.is_some() {
+    // 书账版本取自域规则（评审 M4）：`/2` 域里转移开出的重同样盖 `/2`。
+    let revision = if v2 {
         super::book::TB03C_BOOK_V2
     } else {
         super::book::TB03C_BOOK_V1
@@ -768,7 +770,7 @@ fn apply_with(
         );
     } else {
         let mut book = if opening {
-            open_book(&doc, &event, record, funded.clone())?
+            open_book(&doc, &event, record, funding.is_some(), funded.clone())?
         } else {
             old.clone()
         };

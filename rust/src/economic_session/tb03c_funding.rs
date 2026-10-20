@@ -10,7 +10,8 @@
 //!   amount = ⌈Q / L⌉，authorization_ref = `<funding policy_id>@<profile_id>`，
 //!   authorization_version = funding-record.version，currency = funding-record.currency。
 //! - 开重复核 Q ≤ C(ℓ)（ADR 0034 裁定四；ADR 0040 裁定四第 5 步）；C(ℓ) = Unknown ⟹
-//!   AwaitingPolicy{capacity, level:ℓ}，未知不是无限。原件 known_at 超过任一签署有效期 ⟹ PolicyExpired。
+//!   AwaitingPolicy{capacity, level:ℓ}，未知不是无限（E Pending 同口径）。原件 known_at 早于签署生效日
+//!   ⟹ PolicyNotYetEffective，超过任一签署有效期 ⟹ PolicyExpired。
 //! - 非开局追加批：ADR 0040 裁定四末段「改总投入……都签新版本」⟹ AwaitingPolicy{funding_revision}。
 //! - q_rebase：「Q 变大不自动改现役 Q（输出 AwaitingPolicy{q_rebase, (S,ℓ)}）」。
 use super::book::{rules, target, Rules};
@@ -120,6 +121,18 @@ impl Chong {
     }
     pub(crate) fn level(&self) -> &str {
         &self.level
+    }
+    /// policy-record 里本级（ℓ）的容量条目。
+    fn capacity(&self) -> Option<&Value> {
+        self.policy["capacities"]
+            .as_array()
+            .and_then(|a| a.iter().find(|x| x["level"] == self.level.as_str()))
+    }
+    /// 已签的 C(ℓ)；缺条目或 Unknown ⟹ None（未知不是无限，ADR 0034 裁定四）。
+    fn signed_capacity(&self) -> Option<&str> {
+        self.capacity()
+            .and_then(|x| x["C"].as_str())
+            .filter(|c| *c != "Unknown")
     }
 }
 
@@ -305,11 +318,21 @@ impl Contract {
         if batch["currency"] != self.record["currency"] {
             return Err("InvalidDomain：开局批币种与 funding-record 不符".into());
         }
+        // TestOnly：known_at 为原件自报日期；真实来源接入时须改绑可审计的观察时间（#1406 C8 评审 L7）。
         let known_at = date(batch, "known_at")?;
         let level = &c.level;
-        let capacity = c.policy["capacities"]
-            .as_array()
-            .and_then(|a| a.iter().find(|x| x["level"] == level.as_str()));
+        let capacity = c.capacity();
+        // ADR 0040:56/:59：批次只能引用已生效的签署（「只作用于生效后」）——下界。
+        for (what, from) in [
+            ("funding-record", self.record["authorized_at"].as_str()),
+            ("policy-record", c.policy["authorized_at"].as_str()),
+        ] {
+            if from.is_some_and(|f| known_at < f) {
+                return Err(format!(
+                    "PolicyNotYetEffective：原件 known_at {known_at} 早于 {what} 签署生效日"
+                ));
+            }
+        }
         for (what, through) in [
             ("funding-record", self.record["valid_through"].as_str()),
             ("policy-record", c.policy["valid_through"].as_str()),
@@ -324,11 +347,13 @@ impl Contract {
                 ));
             }
         }
-        let cap = match capacity.map(|x| &x["C"]) {
-            Some(v) if v != "Unknown" => positive(v.as_str().unwrap_or(""), "C(ℓ)")?,
-            _ => return Err(format!(
+        let cap = match c.signed_capacity() {
+            Some(v) => positive(v, "C(ℓ)")?,
+            None => {
+                return Err(format!(
                 "AwaitingPolicy：capacity level={level}；C(ℓ) 未签署（Unknown 不是无限），不建收据"
-            )),
+            ))
+            }
         };
         if c.q > cap {
             return Err(format!(
@@ -361,10 +386,25 @@ pub(super) fn pending_reason(manifest: &Value, event: &Value) -> Result<Option<V
     if rules(manifest)? != Rules::Tb03cV2 {
         return Ok(None);
     }
+    let opening_without_capacity = || -> Result<bool, String> {
+        if event.get("observed_existing_book").is_none() {
+            return Ok(false);
+        }
+        let Some(contract) = Contract::of(manifest)? else {
+            return Ok(false);
+        };
+        Ok(target(event)
+            .ok()
+            .and_then(|id| contract.chong(id).ok())
+            .is_some_and(|c| c.signed_capacity().is_none()))
+    };
     let slot = if event.get("q_rebase").is_some() {
         "q_rebase"
     } else if is_appended_contribution(event) {
         "funding_revision"
+    } else if opening_without_capacity()? {
+        // 评审 M3 / 根裁定 OQ-3：C(ℓ) 未签署是 E 侧 typed 等待，与 B 拒绝同口径。
+        "capacity"
     } else {
         return Ok(None);
     };

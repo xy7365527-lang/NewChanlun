@@ -1,4 +1,18 @@
 {
+  "leverage_cases": [
+    {
+      "Q": 100001,
+      "floor_batch": 50000,
+      "margin_leverage": 2,
+      "p0_batch": 50001
+    },
+    {
+      "Q": 100000,
+      "floor_batch": 33333,
+      "margin_leverage": 3,
+      "p0_batch": 33334
+    }
+  ],
   "profiles": [
     {
       "chongs": [

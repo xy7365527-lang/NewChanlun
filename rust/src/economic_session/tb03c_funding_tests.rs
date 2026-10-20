@@ -58,6 +58,15 @@ fn chong_id(level: &str) -> String {
 }
 /// `/2` manifest：路由 + 资金三件（funding-record、每重 ⟨Q, policy-record⟩、margin_leverage）。
 fn manifest(space: &Space, profile: &str, cap: i64, chongs: &[(&str, i64)]) -> Value {
+    manifest_l(space, profile, cap, chongs, 1)
+}
+fn manifest_l(
+    space: &Space,
+    profile: &str,
+    cap: i64,
+    chongs: &[(&str, i64)],
+    leverage: i64,
+) -> Value {
     let routes: Vec<Value> = chongs
         .iter()
         .map(|(level, q)| {
@@ -68,7 +77,7 @@ fn manifest(space: &Space, profile: &str, cap: i64, chongs: &[(&str, i64)]) -> V
         .collect();
     let mut messages = serde_json::Map::new();
     for i in 0..16 {
-        for (tag, base) in [("cap", 1000), ("app", 5000)] {
+        for (tag, base) in [("cap", 1000), ("app", 5000), ("res", 9000)] {
             let t = base + 10 * i as i64;
             messages.insert(
                 format!("{tag}-{i}"),
@@ -77,7 +86,7 @@ fn manifest(space: &Space, profile: &str, cap: i64, chongs: &[(&str, i64)]) -> V
         }
     }
     json!({"schema_revision":"economic-manifest/1","session_id":"tb1406-c8","session_generation":"1","book_revision":"tb03c-book/2",
-        "funding":{"funding_record":funding_record(profile, cap),"margin_leverage":{"value":"1","source":"ADR 0040 裁定三（#842 R-10；γ = 1.0 先例）"}},
+        "funding":{"funding_record":funding_record(profile, cap),"margin_leverage":{"value":leverage.to_string(),"source":"ADR 0040 裁定三（#842 R-10；γ = 1.0 先例）"}},
         "e":{"db":space.0.join("e.db"),"socket":space.0.join("e.sock")},
         "chongs":routes,
         "authorized_sources":[{"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","producer_id":"tb1406-c8","producer_epoch":"1",
@@ -99,6 +108,10 @@ struct Batch {
     version: String,
     currency: String,
     known_at: String,
+    /// 开局批笔数（合规 = 1）。
+    copies: usize,
+    symbol: String,
+    op_level: Option<String>,
 }
 impl Batch {
     fn ok(amount: i64, profile: &str) -> Self {
@@ -108,6 +121,9 @@ impl Batch {
             version: "v1".into(),
             currency: "USDC".into(),
             known_at: "2026-10-21".into(),
+            copies: 1,
+            symbol: "BTC".into(),
+            op_level: None,
         }
     }
 }
@@ -129,7 +145,7 @@ fn raw(level: &str, batch: &Batch) -> String {
                      frag: &mut dyn FnMut(String, String) -> String,
                      b: &Batch| {
         json!({"kind":"principal_contribution","amount_text":b.amount.to_string(),"canonical_amount":b.amount.to_string(),
-            "currency":b.currency,"quantum":"1","batch_id":format!("{chong}-p{i}"),"authorization_ref":b.auth,
+            "currency":b.currency,"quantum":"1","batch_id":format!("{chong}-p{i}-{j}"),"authorization_ref":b.auth,
             "authorization_version":b.version,"known_at":b.known_at,
             "source_ref":frag(format!("{chong}-{i}:c{j}"),format!("/events/{i}/known_cost_components/{j}"))})
     };
@@ -153,11 +169,12 @@ fn raw(level: &str, batch: &Batch) -> String {
         .collect();
     events.push(json!({"event":"c8-open","allocation_id":format!("alloc-{chong}-0"),"family_id":format!("fam-{chong}"),"source":source(0),
         "stable_point":sp(0,&mut frag),
-        "book_identity":{"chong_id":chong,"symbol":"BTC","op_level":level,"fixed_q":"1","side":"long"},
+        "book_identity":{"chong_id":chong,"symbol":batch.symbol,"op_level":batch.op_level.as_deref().unwrap_or(level),"fixed_q":"1","side":"long"},
         "observed_existing_book":{"units":"1","Pi":"0","A":"0","W":"0","witness_refs":refs},
-        "known_cost_components":[principal(0,0,&mut frag,batch)]}));
+        "known_cost_components":(0..batch.copies).map(|j| principal(0,j,&mut frag,batch)).collect::<Vec<_>>()}));
     let append = Batch {
         amount: 1,
+        copies: 1,
         ..batch.clone()
     };
     events.push(json!({"event":"c8-append","allocation_id":format!("alloc-{chong}-1"),"family_id":format!("fam-{chong}"),"chong_id":chong,"source":source(1),
@@ -286,97 +303,150 @@ fn signed_profiles_open_every_derived_chong() {
 }
 
 #[test]
-fn opening_batch_negative_controls_are_typed_and_stateless() {
+fn opening_batch_negative_controls_are_typed_and_deterministic() {
     let space = Space::new("c8-neg");
     let m = profile_manifest(&space, P0);
     let ok = Batch::ok(100000, P0);
-    let cases: Vec<(&str, Batch, &str, &str)> = vec![
+    let with = |f: &dyn Fn(&mut Batch)| {
+        let mut b = ok.clone();
+        f(&mut b);
+        b
+    };
+    let cases: Vec<(&str, Batch, &str)> = vec![
         (
             "金额少 1",
-            Batch {
-                amount: 99999,
-                ..ok.clone()
-            },
-            "IdentityConflict",
-            "⌈Q/L⌉ = 100000",
+            with(&|b| b.amount = 99999),
+            "IdentityConflict：开局批金额 ≠ ⌈Q/L⌉ = 100000（ADR 0040 裁定四第 4 步）",
         ),
         (
             "金额多 1",
-            Batch {
-                amount: 100001,
-                ..ok.clone()
-            },
-            "IdentityConflict",
-            "⌈Q/L⌉ = 100000",
+            with(&|b| b.amount = 100001),
+            "IdentityConflict：开局批金额 ≠ ⌈Q/L⌉ = 100000（ADR 0040 裁定四第 4 步）",
         ),
         (
             "错 authorization_ref",
-            Batch {
-                auth: "#1557/funding-authorization/v1@P1-hl-testnet".into(),
-                ..ok.clone()
-            },
-            "IdentityConflict",
-            "authorization_ref",
+            with(&|b| b.auth = "#1557/funding-authorization/v1@P1-hl-testnet".into()),
+            "IdentityConflict：开局批 authorization_ref 不指向冻结的 funding-record",
         ),
         (
             "错 version",
-            Batch {
-                version: "v2".into(),
-                ..ok.clone()
-            },
-            "IdentityConflict",
-            "authorization_version",
+            with(&|b| b.version = "v2".into()),
+            "IdentityConflict：开局批 authorization_version 与冻结的 funding-record 版本不符",
         ),
         (
             "错 currency",
-            Batch {
-                currency: "USD".into(),
-                ..ok.clone()
-            },
-            "InvalidDomain",
-            "币种",
+            with(&|b| b.currency = "USD".into()),
+            "InvalidDomain：开局批币种与 funding-record 不符",
         ),
         (
             "过期",
-            Batch {
-                known_at: "2027-10-21".into(),
-                ..ok.clone()
-            },
-            "PolicyExpired",
-            "超过 funding-record 有效期",
+            with(&|b| b.known_at = "2027-10-21".into()),
+            "PolicyExpired：原件 known_at 2027-10-21 超过 funding-record 有效期",
+        ),
+        (
+            "早于签署生效日",
+            with(&|b| b.known_at = "2026-10-19".into()),
+            "PolicyNotYetEffective：原件 known_at 2026-10-19 早于 funding-record 签署生效日",
         ),
         (
             "known_at 形状",
-            Batch {
-                known_at: "20261021".into(),
-                ..ok.clone()
-            },
-            "InvalidDomain",
-            "YYYY-MM-DD",
+            with(&|b| b.known_at = "20261021".into()),
+            "InvalidDomain：known_at 须为 YYYY-MM-DD",
+        ),
+        (
+            "开局零批",
+            with(&|b| b.copies = 0),
+            "MissingDependency：tb03c-book/2 开局须带本重开局批（ADR 0040 裁定四第 4 步）",
+        ),
+        (
+            "开局两批",
+            with(&|b| b.copies = 2),
+            "IdentityConflict：tb03c-book/2 开局只收一笔开局批",
+        ),
+        (
+            "S 不符",
+            with(&|b| b.symbol = "ETH".into()),
+            "IdentityConflict：开局 (S,ℓ) 与资金合同冻结的重不符",
+        ),
+        (
+            "ℓ 不符",
+            with(&|b| b.op_level = Some("1".into())),
+            "IdentityConflict：开局 (S,ℓ) 与资金合同冻结的重不符",
         ),
     ];
-    for (name, batch, expected, phrase) in cases {
-        let image = book::empty_image();
+    for (name, batch, expected) in cases {
         let r = open(&m, "0", &batch);
-        assert_eq!(kind(&r), expected, "{name}: {r:?}");
-        assert!(r.as_ref().unwrap_err().contains(phrase), "{name}: {r:?}");
-        // 失败不改状态（同一错误、同一输入图像）。
+        assert_eq!(r.as_ref().unwrap_err(), expected, "{name}");
+        // 同输入同输出（含错误）。失败不改持久状态由服务链测试核 B 实际图像。
         assert_eq!(open(&m, "0", &batch), r, "{name}");
-        assert_eq!(image, book::empty_image());
     }
     assert_eq!(kind(&open(&m, "0", &ok)), "Applied");
-    // 有效期当日仍可开局。
+    // 生效日当日与有效期当日都可开局（两端闭区间）。
+    for day in ["2026-10-20", "2027-10-20"] {
+        assert_eq!(
+            kind(&open(&m, "0", &with(&|b| b.known_at = day.into()))),
+            "Applied",
+            "{day}"
+        );
+    }
+}
+
+#[test]
+fn each_signed_record_window_gates_alone() {
+    let space = Space::new("c8-window");
+    let base = profile_manifest(&space, P0);
+    let at = |d: &str| Batch {
+        known_at: d.into(),
+        ..Batch::ok(100000, P0)
+    };
+    let mut m = base.clone();
+    m["chongs"][0]["funding"]["policy_record"]["authorized_at"] = json!("2026-11-01");
     assert_eq!(
-        kind(&open(
-            &m,
-            "0",
-            &Batch {
-                known_at: "2027-10-20".into(),
-                ..ok.clone()
-            }
-        )),
-        "Applied"
+        open(&m, "0", &at("2026-10-21")).unwrap_err(),
+        "PolicyNotYetEffective：原件 known_at 2026-10-21 早于 policy-record 签署生效日"
     );
+    assert_eq!(kind(&open(&m, "0", &at("2026-11-01"))), "Applied");
+    let mut m = base.clone();
+    m["chongs"][0]["funding"]["policy_record"]["valid_through"] = json!("2027-01-01");
+    assert_eq!(
+        open(&m, "0", &at("2027-01-02")).unwrap_err(),
+        "PolicyExpired：原件 known_at 2027-01-02 超过 policy-record 有效期"
+    );
+    let mut m = base.clone();
+    m["chongs"][0]["funding"]["policy_record"]["capacities"][0]["valid_through"] =
+        json!("2027-01-01");
+    assert_eq!(
+        open(&m, "0", &at("2027-01-02")).unwrap_err(),
+        "PolicyExpired：原件 known_at 2027-01-02 超过 capacity 有效期"
+    );
+    assert_eq!(kind(&open(&m, "0", &at("2027-01-01"))), "Applied");
+}
+
+#[test]
+fn opening_batch_rounds_up_when_leverage_does_not_divide() {
+    let oracle: Value = serde_json::from_str(ORACLE).unwrap();
+    let cases = oracle["leverage_cases"].as_array().unwrap();
+    assert_eq!(cases[0]["Q"], 100001);
+    assert_eq!(cases[0]["margin_leverage"], 2);
+    assert_eq!(cases[0]["p0_batch"], 50001);
+    for c in cases {
+        let q = c["Q"].as_i64().unwrap();
+        let l = c["margin_leverage"].as_i64().unwrap();
+        let ceil = c["p0_batch"].as_i64().unwrap();
+        let floor = c["floor_batch"].as_i64().unwrap();
+        assert_eq!(ceil, floor + 1, "不整除样本");
+        let space = Space::new("c8-lev");
+        let m = manifest_l(&space, P0, 1110000, &[("0", q)], l);
+        let image = open(&m, "0", &Batch::ok(ceil, P0)).unwrap();
+        assert_eq!(image["book"]["funding"]["opening_batch"], ceil.to_string());
+        assert_eq!(image["book"]["funding"]["margin_leverage"], l.to_string());
+        for wrong in [floor, ceil + 1] {
+            assert_eq!(
+                open(&m, "0", &Batch::ok(wrong, P0)).unwrap_err(),
+                format!("IdentityConflict：开局批金额 ≠ ⌈Q/L⌉ = {ceil}（ADR 0040 裁定四第 4 步）")
+            );
+        }
+    }
 }
 
 #[test]
@@ -384,16 +454,19 @@ fn capacity_gate_q_over_c_and_unknown() {
     let space = Space::new("c8-cap");
     // Q > C(L0)：1110001 > 1110000 ⟹ InvalidDomain。
     let m = manifest(&space, P0, 2000000, &[("0", 1110001)]);
-    let r = open(&m, "0", &Batch::ok(1110001, P0));
-    assert_eq!(kind(&r), "InvalidDomain", "{r:?}");
+    assert_eq!(
+        open(&m, "0", &Batch::ok(1110001, P0)).unwrap_err(),
+        "InvalidDomain：Q 1110001 超过已签 C(L0) 1110000（ADR 0034 裁定四）"
+    );
     // Q = C(L0) 恰好可开。
     let m = manifest(&space, P0, 2000000, &[("0", 1110000)]);
     assert_eq!(kind(&open(&m, "0", &Batch::ok(1110000, P0))), "Applied");
     // C(L3) = Unknown ⟹ AwaitingPolicy{capacity, level:L3}，不建收据。
     let m = manifest(&space, P0, 2000000, &[("3", 1)]);
-    let r = open(&m, "3", &Batch::ok(1, P0));
-    let e = r.unwrap_err();
-    assert!(e.starts_with("AwaitingPolicy：capacity level=L3"), "{e}");
+    assert_eq!(
+        open(&m, "3", &Batch::ok(1, P0)).unwrap_err(),
+        "AwaitingPolicy：capacity level=L3；C(ℓ) 未签署（Unknown 不是无限），不建收据"
+    );
 }
 
 #[test]
@@ -412,51 +485,91 @@ fn missing_funding_pieces_are_typed_rejections() {
         .as_object_mut()
         .unwrap()
         .remove("funding_record");
-    cases.push(("缺 funding-record", m, "MissingDependency"));
+    cases.push((
+        "缺 funding-record",
+        m,
+        "MissingDependency：tb03c-book/2 缺 funding-record（ADR 0040 签署记录）",
+    ));
     let mut m = base.clone();
     m["funding"]
         .as_object_mut()
         .unwrap()
         .remove("margin_leverage");
-    cases.push(("缺 margin_leverage", m, "MissingDependency"));
+    cases.push((
+        "缺 margin_leverage",
+        m,
+        "MissingDependency：tb03c-book/2 缺 margin_leverage（值+出处，ADR 0040 裁定三）",
+    ));
     let mut m = base.clone();
     m.as_object_mut().unwrap().remove("funding");
-    cases.push(("缺 funding", m, "MissingDependency"));
+    cases.push((
+        "缺 funding",
+        m,
+        "MissingDependency：tb03c-book/2 缺资金签署 funding（ADR 0040 签署记录）",
+    ));
     let mut m = base.clone();
     m["chongs"][0].as_object_mut().unwrap().remove("funding");
-    cases.push(("缺 ⟨Q, policy-record⟩", m, "MissingDependency"));
+    cases.push((
+        "缺 ⟨Q, policy-record⟩",
+        m,
+        "MissingDependency：tb03c-book/2 重 chong-BTC-L0 缺 ⟨Q, policy-record⟩",
+    ));
     let mut m = base.clone();
     m["chongs"][0]["funding"]["policy_record"]["q_ref"] =
         json!("#1557/funding-authorization/v1@P1-hl-testnet");
-    cases.push(("q_ref 不指向同一 funding-record", m, "IdentityConflict"));
+    cases.push(("q_ref 不指向同一 funding-record", m, "IdentityConflict：重 chong-BTC-L0 的 q_ref 不指向本 funding-record（ADR 0040 裁定四第 5 步）"));
     let mut m = base.clone();
     m["chongs"][0]["funding"]["policy_record"]["operation_level"] = json!("L1");
-    cases.push(("policy-record 级别错", m, "IdentityConflict"));
+    cases.push((
+        "policy-record 级别错",
+        m,
+        "IdentityConflict：重 chong-BTC-L0 的 policy-record 不属本 profile 的 (S,ℓ)",
+    ));
     let mut m = base.clone();
     m["funding"]["funding_record"]["policy_id"] = json!("#1557/funding-authorization/v2");
-    cases.push(("funding 政策族错", m, "IdentityConflict"));
+    cases.push((
+        "funding 政策族错",
+        m,
+        "IdentityConflict：funding-record 政策族须为 #1557/funding-authorization/v1",
+    ));
     let mut m = base.clone();
     m["funding"]["funding_record"]
         .as_object_mut()
         .unwrap()
         .remove("valid_through");
-    cases.push(("funding-record 缺字段", m, "SchemaUnsupported"));
+    cases.push((
+        "funding-record 缺字段",
+        m,
+        "SchemaUnsupported：funding-record 字段不完整或多余",
+    ));
     let mut m = base.clone();
     m["funding"]["margin_leverage"]["value"] = json!("0");
-    cases.push(("杠杆非正", m, "InvalidDomain"));
+    cases.push(("杠杆非正", m, "InvalidDomain：margin_leverage 必须大于0"));
     let mut m = base.clone();
     m["chongs"][0]["funding"]["Q"] = json!("100001");
-    cases.push(("ΣQ 超过总投入", m, "InvalidDomain"));
+    cases.push((
+        "ΣQ 超过总投入",
+        m,
+        "InvalidDomain：各重 Q 之和超过 funding-record 总投入",
+    ));
     // `/1` 与缺省域夹带资金合同 ⟹ 拒（不静默忽略）。
     let mut m = base.clone();
     m["book_revision"] = json!("tb03c-book/1");
-    cases.push(("/1 夹带资金合同", m, "SchemaUnsupported"));
+    cases.push((
+        "/1 夹带资金合同",
+        m,
+        "SchemaUnsupported：资金合同只属 tb03c-book/2 域；本域版本不读它（#799 无回落）",
+    ));
     let mut m = base.clone();
     m.as_object_mut().unwrap().remove("book_revision");
-    cases.push(("缺省夹带资金合同", m, "SchemaUnsupported"));
+    cases.push((
+        "缺省夹带资金合同",
+        m,
+        "SchemaUnsupported：资金合同只属 tb03c-book/2 域；本域版本不读它（#799 无回落）",
+    ));
     for (name, m, expected) in cases {
         let direct = tb03c_funding::Contract::of(&m).map(|_| ()).unwrap_err();
-        assert!(direct.starts_with(expected), "{name}: {direct}");
+        assert_eq!(direct, expected, "{name}");
         assert_eq!(load(&m).unwrap_err(), direct, "{name}");
     }
 }
@@ -562,4 +675,109 @@ fn v2_domain_binds_revision_waits_in_e_and_replays() {
     store::recover(&bc).unwrap();
     let (b, _) = store::open(&bc.db, true).unwrap();
     assert_eq!(store::latest(&b).unwrap().3, image);
+}
+
+fn wire(space: &Space, m: &Value, chong: &str) -> (store::Config, store::Config) {
+    let path = space.0.join("manifest.json");
+    std::fs::write(&path, canonical_json(m)).unwrap();
+    let ec = store::Config::load(&path, &space.0.join("e.db"), None).unwrap();
+    let route = m["chongs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["chong_id"] == chong)
+        .unwrap();
+    let bc = store::Config::load(
+        &path,
+        std::path::Path::new(route["db"].as_str().unwrap()),
+        Some(chong),
+    )
+    .unwrap();
+    store::init(&ec).unwrap();
+    store::init(&bc).unwrap();
+    (ec, bc)
+}
+
+/// 评审 M3 / 根裁定 OQ-3：开局遇 C(ℓ)=Unknown，E 侧 Pending 即 typed 等待，Resolve 证据不能解除，B 不建收据。
+#[test]
+fn unknown_capacity_opening_waits_in_e_and_resolve_cannot_clear_it() {
+    let space = Space::new("c8-e-capacity");
+    let m = manifest(&space, P0, 2000000, &[("3", 1)]);
+    let chong = chong_id("3");
+    let (ec, bc) = wire(&space, &m, &chong);
+    let (mut e, _) = store::open(&ec.db, false).unwrap();
+    let (mut b, _) = store::open(&bc.db, false).unwrap();
+    let raw = raw("3", &Batch::ok(1, P0));
+    let doc: Value = serde_json::from_str(&raw).unwrap();
+    let event = &doc["events"][0];
+    let captured = service::handle(&mut e, &ec, 1, 1, &json!({}), &envelope("cap-0",
+        json!({"op":"CaptureExternal","raw_utf8":raw,"json_pointer":"/events/0","token":"tok-0","source_event_time":event["source"]["source_event_time"]})))["payload"].clone();
+    assert_eq!(captured["kind"], "Recorded", "{captured}");
+    let e_image = store::latest(&e).unwrap().3;
+    assert_eq!(
+        e_image["pending"][0]["reason"],
+        json!({"kind":"AwaitingPolicy","slot":"capacity","symbol":"BTC","level":"L3"})
+    );
+    let resolve = service::handle(&mut e, &ec, 1, 1, &json!({}), &envelope("res-0",
+        json!({"op":"ResolveEvidence","evidence_id":"c8-capacity",
+            "covered":[{"fact_key":captured["fact_key"],"fact_hash":captured["fact_hash"],"token":captured["token"]}],
+            "frontier":{"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","cursor":"1"},
+            "dependency_version":"testonly-deps/1"})))["payload"].clone();
+    assert_eq!(
+        resolve["error"], "AwaitingPolicy：capacity；Resolve 证据不能替代用户签署的容量",
+        "{resolve}"
+    );
+    assert_eq!(store::latest(&e).unwrap().3, e_image);
+    let before = store::latest(&b).unwrap().3;
+    let applied = service::handle(&mut b, &bc, 1, 1, &json!({}), &envelope("app-0",
+        json!({"op":"ApplyAllocation","fact_key":captured["fact_key"],"allocation_id":event["allocation_id"],"expected_fact_hash":captured["fact_hash"]})))["payload"].clone();
+    assert_eq!(
+        applied["error"], "AwaitingPolicy：capacity；B 不应用、不建收据，fixed_q 不变",
+        "{applied}"
+    );
+    assert_eq!(store::latest(&b).unwrap().3, before);
+    assert!(store::rows(&b, "receipts").unwrap().is_empty());
+    // `/2` 下已签容量的开局不挂 capacity 等待（P0 的 L0）。
+    let reason = tb03c_funding::pending_reason(
+        &profile_manifest(&space, P0),
+        &serde_json::from_str::<Value>(&raw_for("0")).unwrap()["events"][0],
+    )
+    .unwrap();
+    assert_eq!(reason, None);
+}
+fn raw_for(level: &str) -> String {
+    raw(level, &Batch::ok(100000, P0))
+}
+
+/// 评审 M4：`/2` 域里转移开出的重同样盖 `tb03c-book/2`；除版本外与 `/1` 同一原件的书账逐字相同。
+/// 转移目标不核开局批（ADR 0034 裁定六：P0 来自转移）；换档激活的 Q ≤ C 复核归 #1445/#1446。
+#[test]
+fn v2_transfer_opened_chong_carries_v2_revision() {
+    let (_, _, u) = super::tb03c_c5_tests::transfer_documents();
+    let space = Space::new("c8-transfer");
+    let mut m = json!({"book_revision":"tb03c-book/2",
+        "funding":{"funding_record":funding_record(P0, 2000000),"margin_leverage":{"value":"1","source":"test"}},
+        "chongs":[]});
+    for (id, level) in [("S", "1"), ("T", "2"), ("U", "3")] {
+        let mut p = policy_record(P0, level);
+        p["symbol"] = json!("TEST-R");
+        m["chongs"].as_array_mut().unwrap().push(json!({"chong_id":id,"symbol":"TEST-R","operation_level":level,
+            "fixed_q":"3","db":space.0.join(format!("{id}.db")),"socket":space.0.join(format!("{id}.sock")),
+            "funding":{"Q":"1","policy_record":p}}));
+    }
+    let mut rec = record_for_raw(&canonical_json(&u), "/events/0");
+    rec["b_source_debit_proof"] = json!({"testonly":"presence only; verified by store/service"});
+    rec["b_observation"] = json!({"first_known_ns":"7"});
+    let v2 = book::apply_in(&m, &book::empty_image(), &rec, 1, "10")
+        .unwrap()
+        .0;
+    let v1 = book::apply(&book::empty_image(), &rec, 1, "10", book::Rules::Tb03cV1)
+        .unwrap()
+        .0;
+    assert_eq!(v2["book"]["book_revision"], "tb03c-book/2");
+    assert_eq!(v1["book"]["book_revision"], "tb03c-book/1");
+    assert!(v2["book"].get("funding").is_none());
+    let mut same = v2.clone();
+    same["book"]["book_revision"] = json!("tb03c-book/1");
+    assert_eq!(same, v1);
 }

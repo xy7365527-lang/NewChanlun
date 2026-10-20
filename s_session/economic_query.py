@@ -65,7 +65,7 @@ def economic_revisions(manifest: Mapping[str, object]) -> tuple[str, str]:
 
 
 def book_revision(manifest):
-    """#1406：与 Rust book::rules 同义；null/缺省仍属旧书账。"""
+    """#1406：null/缺省仍属旧书账。Rust book::rules 另认 tb03c-book/2（C8），本读者尚未接 /2、遇之拒绝。"""
     revision = manifest.get("book_revision")
     if revision is not None and (type(revision) is not str or revision != "tb03c-book/1"):
         raise EconomicQueryError("未知书账版本")
