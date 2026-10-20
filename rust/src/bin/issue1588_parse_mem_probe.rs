@@ -28,7 +28,9 @@ use newchan_rust::theta_v0::backtest::incremental::IncrementalClassifier;
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::{
     inclusion::{InclusionDirectionEvidence, InclusionFacts},
-    parse_layer_with_inclusion_facts, ParseLayer, ParseLayerIncr,
+    parse_layer_with_inclusion_facts,
+    stroke::Endpoint,
+    ParseLayer, ParseLayerIncr,
 };
 use newchan_rust::theta_v0::types::Bar;
 use sha2::{Digest, Sha256};
@@ -149,9 +151,31 @@ impl CoordCount {
             self.vec(&e.source_coords, e.source_coords.capacity());
         }
     }
+    fn endpoint(&mut self, e: &Endpoint) {
+        self.vec(&e.source_coords, e.source_coords.capacity());
+        self.vec(&e.extreme_roots, e.extreme_roots.capacity());
+    }
 }
 
-fn facts_counts(f: &InclusionFacts) -> [(&'static str, CoordCount); 4] {
+fn facts_counts(f: &InclusionFacts) -> [(&'static str, CoordCount); 7] {
+    let mut sf_endpoints = CoordCount::default();
+    let mut sf_pairs = CoordCount::default();
+    let mut sf_strokes = CoordCount::default();
+    if let Some(sf) = &f.stroke_facts {
+        sf.endpoints.iter().for_each(|e| sf_endpoints.endpoint(e));
+        for p in &sf.pairs {
+            sf_pairs.endpoint(&p.old);
+            sf_pairs.endpoint(&p.new);
+            sf_pairs.vec(&p.retained_anchors, p.retained_anchors.capacity());
+        }
+        for b in &sf.strokes {
+            sf_strokes.endpoint(&b.start);
+            sf_strokes.endpoint(&b.end);
+            if let Some(c) = &b.confirmation {
+                sf_strokes.vec(&c.source_coords, c.source_coords.capacity());
+            }
+        }
+    }
     let mut step_src = CoordCount::default();
     let mut step_ev = CoordCount::default();
     let mut group_src = CoordCount::default();
@@ -174,6 +198,9 @@ fn facts_counts(f: &InclusionFacts) -> [(&'static str, CoordCount); 4] {
         ("steps.direction_evidence", step_ev),
         ("groups.members/high/low", group_src),
         ("groups.direction+confirmation_evidence", group_ev),
+        ("stroke_facts.endpoints", sf_endpoints),
+        ("stroke_facts.pairs(old/new/anchors)", sf_pairs),
+        ("stroke_facts.strokes(start/end/confirmation)", sf_strokes),
     ]
 }
 
