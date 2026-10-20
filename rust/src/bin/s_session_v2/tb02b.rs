@@ -188,7 +188,11 @@ pub(super) fn build(
             ]),
             generation,
             serde_json::to_value(p).unwrap(),
-            interval_sources(raw, &p.old.source_coords.to_vec(), &p.new.source_coords.to_vec()),
+            interval_sources(
+                raw,
+                &p.old.source_coords.to_vec(),
+                &p.new.source_coords.to_vec(),
+            ),
         );
     }
     let mut relations = vec![];
@@ -253,7 +257,11 @@ pub(super) fn build(
         } else {
             json!(changes)
         };
-        let mut deps = interval_sources(raw, &bi.start.source_coords.to_vec(), &bi.end.source_coords.to_vec());
+        let mut deps = interval_sources(
+            raw,
+            &bi.start.source_coords.to_vec(),
+            &bi.end.source_coords.to_vec(),
+        );
         // 延续的确认原证据也必须随对象保留。
         if let Some(cs) = data["confirmation"]["source_coords"].as_array() {
             deps = union(

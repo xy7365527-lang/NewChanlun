@@ -180,14 +180,10 @@ fn insert_node(node: &Rc<CoordNode>, coord: usize) -> Option<Rc<CoordNode>> {
     match node.as_ref() {
         CoordNode::Leaf(existing) => match coord.cmp(existing) {
             std::cmp::Ordering::Equal => None,
-            std::cmp::Ordering::Less => Some(branch(
-                Rc::new(CoordNode::Leaf(coord)),
-                node.clone(),
-            )),
-            std::cmp::Ordering::Greater => Some(branch(
-                node.clone(),
-                Rc::new(CoordNode::Leaf(coord)),
-            )),
+            std::cmp::Ordering::Less => Some(branch(Rc::new(CoordNode::Leaf(coord)), node.clone())),
+            std::cmp::Ordering::Greater => {
+                Some(branch(node.clone(), Rc::new(CoordNode::Leaf(coord))))
+            }
         },
         CoordNode::Concat(left, right, _) => {
             if coord <= node_max(left) {

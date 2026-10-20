@@ -255,11 +255,22 @@ fn run_facts(bars: &[Bar], config: &ThetaConfig) {
         mb(cap_total * 8),
         100.0 * (cap_total * 8) as f64 / retained.max(1) as f64
     );
-    println!(
-        "  digest layer={} facts={}",
-        digest_debug(&layer),
-        digest_debug(&facts)
-    );
+    // #1597：facts 的 Debug 是 Θ(n²) 文本（逻辑元素数），大前缀时可用
+    // `ISSUE1588_SKIP_FACTS_DIGEST=1` 只摘 layer 与新笔事实（stroke_facts）。
+    if std::env::var_os("ISSUE1588_SKIP_FACTS_DIGEST").is_some() {
+        println!(
+            "  digest layer={} stroke_facts={} facts=skipped",
+            digest_debug(&layer),
+            digest_debug(&facts.stroke_facts)
+        );
+    } else {
+        println!(
+            "  digest layer={} stroke_facts={} facts={}",
+            digest_debug(&layer),
+            digest_debug(&facts.stroke_facts),
+            digest_debug(&facts)
+        );
+    }
 }
 
 fn run_replay(bars: &[Bar], config: &ThetaConfig, hold: bool, every: usize) {
@@ -344,7 +355,11 @@ fn main() {
     let window_len: usize = std::env::var("ISSUE1588_WINDOW")
         .ok()
         .map_or(50_000, |s| s.parse().expect("ISSUE1588_WINDOW 须为整数"));
-    assert!(window_len <= all.len(), "窗口 {window_len} 超出全量 {}", all.len());
+    assert!(
+        window_len <= all.len(),
+        "窗口 {window_len} 超出全量 {}",
+        all.len()
+    );
     let tail = &all[all.len() - window_len..];
     let bars = &tail[5..];
     assert!(n <= bars.len(), "n={n} 超出窗口 {}", bars.len());

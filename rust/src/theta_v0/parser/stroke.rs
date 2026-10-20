@@ -6,9 +6,9 @@
 //! 同价域不再有任何未定或冻结态，扫描从不弹出已成立的笔。
 use super::super::config::ParseConfig;
 use super::super::types::{Bar, Direction, FractalKind, Stroke};
+use super::evidence::{union_into, SourceCoords};
 #[cfg(test)]
 use super::inclusion::process_inclusion_with_facts;
-use super::evidence::{union_into, SourceCoords};
 use super::inclusion::InclusionFacts;
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -194,20 +194,6 @@ fn shared_endpoint_sources(
         .flat_map(|c| c.iter())
         .chain(window.iter().flat_map(|group| group.members.iter()));
     let union = SourceCoords::from_shared(union_into(base, others));
-    #[cfg(debug_assertions)]
-    {
-        let mut flat = vec![];
-        for group in window {
-            flat.extend(&group.members);
-            for e in [&group.direction_evidence, &group.confirmation_evidence]
-                .into_iter()
-                .flatten()
-            {
-                flat.extend(&e.source_coords);
-            }
-        }
-        debug_assert_eq!(union, sorted(flat), "#1597：端点共享构造与扁平构造不一致");
-    }
     Some(union)
 }
 
@@ -555,9 +541,7 @@ fn confirmation_sources(a: &SourceCoords, f: &SourceCoords) -> SourceCoords {
     } else {
         (left, f)
     };
-    let shared = SourceCoords::from_shared(union_into(base, other.iter()));
-    debug_assert_eq!(shared, flat(), "#1597：确认证书共享构造与扁平构造不一致");
-    shared
+    SourceCoords::from_shared(union_into(base, other.iter()))
 }
 
 /// 稳定端点前的扫描 checkpoint。单端点转移至多改写当时的末笔、从不弹笔，故只备份该尾，
@@ -1559,7 +1543,11 @@ mod tests {
             .map(|i| {
                 high = (high + rand() % 41 - 20).clamp(100, 4_000);
                 let span = 1 + rand() % 15;
-                let h = if rand() % 6 == 0 { high } else { high + rand() % 4 };
+                let h = if rand() % 6 == 0 {
+                    high
+                } else {
+                    high + rand() % 4
+                };
                 Bar {
                     source_index: i * stride + 3,
                     timestamp: i as i64,
@@ -1579,14 +1567,20 @@ mod tests {
     #[test]
     fn shared_full_facts_match_flat_reference_for_every_prefix() {
         let config = ParseConfig::default();
-        for (seed, stride) in [(0x2545_F491_4F6C_DD1D_u64, 1usize), (0x9E37_79B9_7F4A_7C15, 5)] {
+        for (seed, stride) in [
+            (0x2545_F491_4F6C_DD1D_u64, 1usize),
+            (0x9E37_79B9_7F4A_7C15, 5),
+        ] {
             let raw = lcg_bars(900, seed, stride);
             for n in (1..=raw.len()).filter(|n| n % 29 == 0 || *n == raw.len() || *n < 12) {
                 let shared = process_inclusion_with_facts(&raw[..n]);
                 let flat = super::super::inclusion::process_inclusion_with_facts_flat(&raw[..n]);
                 assert_eq!(shared, flat, "seed {seed:x} 前缀 {n}：包含事实");
                 assert!(
-                    shared.steps.iter().all(|s| s.source_coords.as_shared().is_some()),
+                    shared
+                        .steps
+                        .iter()
+                        .all(|s| s.source_coords.as_shared().is_some()),
                     "seed {seed:x} 前缀 {n}：严格递增输入的步骤坐标应为共享形态"
                 );
                 let got = build_stroke_facts(&shared, &config);
@@ -1600,9 +1594,9 @@ mod tests {
                     "seed {seed:x} 前缀 {n}：JSON"
                 );
                 assert!(
-                    got.endpoints
-                        .iter()
-                        .all(|e| e.source_coords.as_shared().is_some() || e.source_coords.is_empty()),
+                    got.endpoints.iter().all(
+                        |e| e.source_coords.as_shared().is_some() || e.source_coords.is_empty()
+                    ),
                     "seed {seed:x} 前缀 {n}：端点坐标应走共享构造"
                 );
             }
@@ -1647,7 +1641,10 @@ mod tests {
             }
         }
         for g in &facts.groups {
-            for e in [&g.direction_evidence, &g.confirmation_evidence].into_iter().flatten() {
+            for e in [&g.direction_evidence, &g.confirmation_evidence]
+                .into_iter()
+                .flatten()
+            {
                 visit(&e.source_coords, &mut seen);
             }
         }
