@@ -5166,7 +5166,10 @@ mod tests {
                 native.handle(Fixture::ingest(n)).unwrap(),
                 ordinary.handle(Fixture::ingest(n)).unwrap()
             );
-            assert!(native.conn.complete_retained_bytes() > 0, "第 {n} 代后保留候选");
+            assert!(
+                native.conn.complete_retained_bytes() > 0,
+                "第 {n} 代后保留候选"
+            );
             assert_eq!(
                 runtime_root_tables(&native.conn, true),
                 runtime_root_tables(&ordinary.conn, true)
