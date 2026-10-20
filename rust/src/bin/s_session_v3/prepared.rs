@@ -422,6 +422,8 @@ impl Runtime {
                 parent,
             )?;
             #[cfg(test)]
+            state::trace_stage("publish_borrowed", "-", prepared.metadata.generation);
+            #[cfg(test)]
             if let Some(inject) = self.after_prepare {
                 inject(&tx)?;
             }
@@ -483,6 +485,8 @@ impl Runtime {
                 &prepared.manifest,
             )
         })();
+        #[cfg(test)]
+        state::trace_stage("publish_end", "-", -1);
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
         {
             self.last_stage_report = stage.as_ref().map(|owner| owner.report());
@@ -674,6 +678,8 @@ impl Runtime {
                 };
                 sc::write_value(&mut store, &scope_value).map_err(err)?;
                 let generator = self.generator.as_mut().ok_or_else(|| err("生成器未绑定"))?;
+                #[cfg(test)]
+                state::trace_stage("generate", "delta", generation);
                 let mut generated = generator.generate_bound(
                     &mut store,
                     raw,
@@ -693,6 +699,8 @@ impl Runtime {
                         },
                     },
                 )?;
+                #[cfg(test)]
+                state::trace_stage("object_plan", "delta", generation);
                 let objects = object_index::plan_native_union_for_testonly(
                     &mut store,
                     &generated.objects,
@@ -742,6 +750,8 @@ impl Runtime {
                 stage,
                 |material| {
                     let material = material.ok_or_else(|| err("owner增量缺实际材料能力"))?;
+                    #[cfg(test)]
+                    state::trace_stage("prepare_source_audit", "delta", generation);
                     let (counts, source) = super::audit_owner::audit_native_source_cut(
                         material,
                         capture,
@@ -776,6 +786,8 @@ impl Runtime {
                         frontier,
                         generation,
                     )?;
+                    #[cfg(test)]
+                    state::trace_stage("stage_indexes", "delta", generation);
                     object_index::stage_in_material(
                         tx,
                         &mut store,
@@ -877,6 +889,8 @@ impl Runtime {
                     frontier,
                 )?
             }; // The lease ends before raw SQL; the frozen workspace is inert until row rebinding.
+            #[cfg(test)]
+            state::trace_stage("stage_indexes", "full_lease", generation);
             let NodeProducts {
                 generated: _generated,
                 objects,
@@ -982,6 +996,8 @@ impl Runtime {
             generation,
             frontier,
         )?;
+        #[cfg(test)]
+        state::trace_stage("stage_indexes", "full", generation);
         #[cfg(feature = "s_capture_native_testonly")]
         publication_material(
             tx,
@@ -1043,10 +1059,16 @@ impl Runtime {
     ) -> Result<NodeProducts<'raw>, String> {
         sc::write_value(store, scope_value).map_err(err)?;
         let generator = self.generator.as_mut().ok_or_else(|| err("生成器未绑定"))?;
+        #[cfg(test)]
+        let path = if native.is_some() { "full_lease" } else { "full" };
+        #[cfg(test)]
+        state::trace_stage("generate", path, generation);
         let mut generated = match native {
             Some(native) => generator.generate_native_lease(store, input, native)?,
             None => generator.generate_with_allocation(store, input, audited.budget.as_ref())?,
         };
+        #[cfg(test)]
+        state::trace_stage("object_plan", path, generation);
         #[cfg(feature = "s_capture_native_testonly")]
         let objects = if matches!(self.mode, s_allocation::Mode::CapturedNative) {
             object_index::plan_native_union_for_testonly(
@@ -1070,6 +1092,8 @@ impl Runtime {
                     .into(),
             )
             .map_err(err)?;
+        #[cfg(test)]
+        state::trace_stage("prepare_source_audit", path, generation);
         let counts = source_audit::audit_generated(
             store,
             &generated.generated_state,
@@ -1110,6 +1134,8 @@ impl Runtime {
         frontier: i64,
         generation: i64,
     ) -> Result<NodeProducts<'raw>, String> {
+        #[cfg(test)]
+        state::trace_stage("assemble_manifest", "-", generation);
         let auxiliary = self.auxiliary.plan(
             store,
             &audited.auxiliary,

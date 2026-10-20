@@ -5061,4 +5061,302 @@ mod tests {
             json!({"scenario":"r4-release-reopen","released_owner_charge":retained,"allocation":memory,"new_life":reopened.conn.complete_report()["life"]})
         );
     }
+
+    // ── #1488 S4（主控 D4/D6，#799/#804）：整代六阶段读量/Δ_R 与 增量≡冷全量 对拍 ──
+
+    /// 全部持久根（与 prepared::tests::runtime_root_compare_reachable_bytes 同口径）的可达节点集。
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn s4_reachable(c: &Connection) -> std::collections::BTreeSet<Vec<u8>> {
+        let nodes = c
+            .prepare("SELECT digest,tag,body FROM s_content_nodes")
+            .unwrap()
+            .query_map([], |r| {
+                Ok((
+                    r.get::<_, Vec<u8>>(0)?,
+                    (r.get::<_, u8>(1)?, r.get::<_, Vec<u8>>(2)?),
+                ))
+            })
+            .unwrap()
+            .collect::<Result<std::collections::BTreeMap<_, _>, _>>()
+            .unwrap();
+        let mut todo = Vec::new();
+        for (table, columns) in [
+            (
+                "s_content_publications",
+                &["manifest_root", "snapshot_root", "delta_root"][..],
+            ),
+            (
+                "s_content_objects",
+                &[
+                    "generated_root",
+                    "internal_root",
+                    "immutable_root",
+                    "birth_wire_root",
+                ][..],
+            ),
+            ("s_content_witnesses", &["generated_root", "wire_root"][..]),
+            ("s_content_relations", &["generated_root"][..]),
+            (
+                "s_content_observations",
+                &["generated_root", "birth_wire_root"][..],
+            ),
+        ] {
+            for column in columns {
+                todo.extend(
+                    c.prepare(&format!("SELECT {column} FROM {table}"))
+                        .unwrap()
+                        .query_map([], |r| r.get::<_, Vec<u8>>(0))
+                        .unwrap()
+                        .collect::<Result<Vec<_>, _>>()
+                        .unwrap(),
+                );
+            }
+        }
+        for (table, column) in [
+            ("structure_deltas", "delta_json"),
+            ("structure_deltas", "catalog_evidence_json"),
+            ("catalog", "evidence_json"),
+        ] {
+            for raw in c
+                .prepare(&format!("SELECT {column} FROM {table}"))
+                .unwrap()
+                .query_map([], |r| r.get::<_, String>(0))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+            {
+                let value = strict_json(raw.as_bytes()).unwrap();
+                if value != json!({}) {
+                    let r = newchan_rust::s_content::TransportRef::from_json_view((&value).into())
+                        .unwrap();
+                    todo.push(r.digest().unwrap().to_vec());
+                }
+            }
+        }
+        let mut seen = std::collections::BTreeSet::new();
+        while let Some(root) = todo.pop() {
+            if !seen.insert(root.clone()) {
+                continue;
+            }
+            let (tag, body) = nodes.get(&root).expect("持久根可达节点缺失");
+            let offsets: &[usize] = match tag {
+                3 | 4 | 5 | 6 => &[8],
+                7 | 18 => &[0],
+                19 => &[8, 40],
+                20 => &[0, 32],
+                _ => &[],
+            };
+            for &offset in offsets {
+                todo.push(body[offset..offset + 32].to_vec());
+            }
+        }
+        seen
+    }
+
+    /// S4 输入一步：`rows` 为 (event_id, seq, open, high, low, close)，`revision` 覆盖全部事件修订号。
+    #[cfg(feature = "s_capture_native_testonly")]
+    struct S4Step {
+        kind: &'static str,
+        rows: Vec<(String, i64, i64, i64, i64, i64)>,
+        revision: &'static str,
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn s4_message(k: usize, step: &S4Step) -> Value {
+        let rows: Vec<_> = step
+            .rows
+            .iter()
+            .map(|(id, seq, o, h, l, c)| (id.as_str(), *seq, *o, *h, *l, *c))
+            .collect();
+        let mut raw = located_ohlc_input(&rows);
+        for event in raw["events"].as_array_mut().unwrap() {
+            event["revision"] = json!(step.revision);
+        }
+        envelope(
+            &format!("s4-message-{k}"),
+            json!({"op":"ingest","target_session_id":"s-session-testonly-001","target_session_generation":"1","writer_epoch":"1","clock_event_id":format!("s4-input-{k}"),"raw_input":raw}),
+        )
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn s4_clock(steps: usize) -> Value {
+        let mut plan = Fixture::new().clock.value.clone();
+        for k in 1..=steps {
+            let t = (k as i64) * 100;
+            plan["events"][format!("s4-input-{k}")] = json!({"accept_ns":t.to_string(),"attempts":[{"begin_ns":(t+1).to_string(),"commit_ns":(t+2).to_string()}]});
+        }
+        plan
+    }
+    /// 三角波 + 抖动：足以产生分型/笔的合法 OHLC（low < open,close < high）。
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn s4_bar(n: i64, bump: i64) -> (String, i64, i64, i64, i64, i64) {
+        let phase = n % 10;
+        let high = 30 + 4 * phase.min(10 - phase) + (n % 3) + bump;
+        (format!("b{n}"), n * 10, high - 2, high, high - 5, high - 3)
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn s4_default_steps() -> Vec<S4Step> {
+        let one = |kind, bar| S4Step {
+            kind,
+            rows: vec![bar],
+            revision: "1",
+        };
+        let mut steps: Vec<S4Step> = (1..=20).map(|n| one("append", s4_bar(n, 0))).collect();
+        // 中段修订（同 event_id/seq，revision 2）：生效账从第 8 根起脏。
+        steps.push(S4Step {
+            kind: "revision_mid",
+            rows: vec![s4_bar(8, 7)],
+            revision: "2",
+        });
+        // 中段插入（seq 落在 120 与 130 之间）。
+        steps.push(one("insert_mid", ("i1".into(), 125, 40, 43, 37, 41)));
+        // 多根一包。
+        steps.push(S4Step {
+            kind: "multi_append",
+            rows: (21..=23).map(|n| s4_bar(n, 0)).collect(),
+            revision: "1",
+        });
+        // 末根修订。
+        steps.push(S4Step {
+            kind: "revision_tail",
+            rows: vec![s4_bar(23, -6)],
+            revision: "2",
+        });
+        steps.extend((24..=27).map(|n| one("append", s4_bar(n, 0))));
+        steps
+    }
+    /// 冷全量臂：每代新开普通 Driver（新 Runtime/GenerationRuntime），清线程车道并强制 oracle。
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn s4_cold_handle(o: &Fixture, e: &Value) -> (Value, Vec<Value>) {
+        s_fact_cache::warm_lane_reset();
+        s_fact_cache::set_oracle(true);
+        let mut cold = o.open("1").unwrap();
+        let probe = cold.conn.sql_read_probe();
+        let (reply, events, _) = state::traced(true, || cold.handle(e.clone()));
+        drop(probe);
+        s_fact_cache::set_oracle(false);
+        s_fact_cache::warm_lane_reset();
+        (reply.unwrap(), events)
+    }
+    /// 跑 S4 序列；`cold` 为 false 时只跑增量臂（S5 大样本测量）。返回每代 JSON 行。
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn s4_run(steps: &[S4Step], cold: bool) -> Vec<Value> {
+        let plan = s4_clock(steps.len());
+        let f = Fixture::with_clock(plan.clone());
+        let o = Fixture::with_clock(plan);
+        let mut native = complete_driver(&f);
+        let ready = envelope("establish-q", json!({"op":"ready"}));
+        let ready_reply = native.handle(ready.clone()).unwrap();
+        if cold {
+            let mut ordinary = o.open("1").unwrap();
+            assert_eq!(ordinary.handle(ready).unwrap(), ready_reply);
+        }
+        let mut prior = s4_reachable(&native.conn);
+        let mut rows = Vec::new();
+        for (index, step) in steps.iter().enumerate() {
+            let k = index + 1;
+            let e = s4_message(k, step);
+            let nodes_before = count(&native.conn, "s_content_nodes");
+            let probe = native.conn.sql_read_probe();
+            let (actual, events, work) = state::traced(true, || native.handle(e.clone()));
+            drop(probe);
+            let actual = actual.unwrap();
+            let generation = meta_i64(&native.conn, "generation").unwrap();
+            assert_eq!(generation, k as i64, "每步须恰好新发布一代：{actual}");
+            let delta = state::stage_rows(&events);
+            assert_eq!(
+                delta["paths"],
+                json!(["-", "delta"]),
+                "warm owner 第{k}代必须走 delta 增量车道：{delta}"
+            );
+            for name in state::S4_STAGES {
+                assert_eq!(
+                    delta["stages"][name]["segments"], 1,
+                    "第{k}代阶段{name}缺标记：{delta}"
+                );
+            }
+            let reachable = s4_reachable(&native.conn);
+            let delta_r = reachable.difference(&prior).count();
+            let new_nodes = count(&native.conn, "s_content_nodes") - nodes_before;
+            let mut row = json!({"generation":generation,"kind":step.kind,"bars_in_message":step.rows.len(),
+                "raw_events":count(&native.conn, "raw_events"),"delta_r":delta_r,"reachable":reachable.len(),
+                "new_stored_nodes":new_nodes,"delta":delta,"work":work});
+            if cold {
+                let (expected, cold_events) = s4_cold_handle(&o, &e);
+                // 回复、回执、全表（含全部节点）逐位相同；owner complete 与冷审计一致。
+                assert_eq!(actual, expected, "第{k}代回复分叉");
+                let full = state::stage_rows(&cold_events);
+                assert_eq!(full["paths"], json!(["-", "full"]), "冷臂须走完整路径");
+                native.conn.assert_complete_matches_cold();
+                let mut reader = o.open("1").unwrap();
+                assert_eq!(
+                    native.handle(receipt_request(&e)).unwrap(),
+                    reader.handle(receipt_request(&e)).unwrap(),
+                    "第{k}代回执分叉"
+                );
+                drop(reader);
+                assert_eq!(
+                    prepared::tests::runtime_root_tables(&native.conn, true),
+                    prepared::tests::runtime_root_tables(&o.open("1").unwrap().conn, true),
+                    "第{k}代({})增量≠冷全量",
+                    step.kind
+                );
+                row["full"] = full;
+            }
+            prior = reachable;
+            eprintln!("S4_STAGE_ROW {row}");
+            rows.push(row);
+        }
+        rows
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn s4_write_rows(rows: &[Value]) {
+        if let Ok(path) = std::env::var("S4_STAGE_JSON") {
+            std::fs::write(&path, serde_json::to_string_pretty(&rows).unwrap()).unwrap();
+            eprintln!("S4_STAGE_JSON written {path}");
+        }
+    }
+
+    /// S4 锁：同输入多代（追加/中段修订/中段插入/多根包/末根修订），每代 warm owner delta 产物
+    /// 与「新 Runtime + 清车道 + oracle」冷全量重算逐位相同；六阶段标记逐代齐全。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn s4_generation_incremental_matches_cold_full_six_stages() {
+        let rows = s4_run(&s4_default_steps(), true);
+        assert_eq!(rows.len(), 27);
+        // Δ_R 为本代全根可达集新增；新写节点只可能多于（未被根引用的不计）而非少于它。
+        for row in &rows {
+            assert!(row["delta_r"].as_u64().unwrap() > 0, "{row}");
+            assert!(
+                row["new_stored_nodes"].as_i64().unwrap() >= row["delta_r"].as_i64().unwrap(),
+                "{row}"
+            );
+        }
+        s4_write_rows(&rows);
+    }
+
+    /// S5 测量面（ignored）：`S4_BARS` 指向 [[open,high,low,close],…] JSON，`S4_GENERATIONS`
+    /// 取前 n 根（默认全部），每根一代只跑增量臂；`S4_COLD=1` 时逐代同跑冷全量对拍。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    #[ignore]
+    fn s4_stage_measurement_from_bars() {
+        let path = std::env::var("S4_BARS").expect("S4_BARS");
+        let bars: Vec<[i64; 4]> =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        let n = std::env::var("S4_GENERATIONS")
+            .ok()
+            .map(|v| v.parse::<usize>().unwrap())
+            .unwrap_or(bars.len())
+            .min(bars.len());
+        let steps: Vec<S4Step> = bars[..n]
+            .iter()
+            .enumerate()
+            .map(|(i, [o, h, l, c])| S4Step {
+                kind: "append",
+                rows: vec![(format!("m{i}"), (i as i64 + 1) * 10, *o, *h, *l, *c)],
+                revision: "1",
+            })
+            .collect();
+        let rows = s4_run(&steps, std::env::var("S4_COLD").as_deref() == Ok("1"));
+        s4_write_rows(&rows);
+    }
 }
