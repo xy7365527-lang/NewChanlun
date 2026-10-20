@@ -4038,6 +4038,14 @@ mod tests {
                 frontier - previous,
                 generated.witnesses.len(),
             );
+            // 读量锁（D6）：暖口 SQL 读 ≤ 常数 ×（本代出生行 + Δ_R），常数与 g 无关。
+            // 实测每行约 1.0–1.3k（g=1..10）；旧完整重算到 g=4 即超 2k/行并随状态线性增长。
+            let delta = births as u64 + (frontier - previous) as u64;
+            assert!(
+                warm_sql <= 1600 * delta,
+                "g={g} 暖口读量 {warm_sql} 超出 1600×(出生行{births}+Δ_R{})",
+                frontier - previous
+            );
             let batch = format!("batch3-{}", (g % 10).to_string().repeat(64));
             stage(&tx, &mut s, &warm, &batch).unwrap();
             drop(s);
