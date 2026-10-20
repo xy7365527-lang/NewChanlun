@@ -5349,23 +5349,38 @@ mod construction_tests {
         let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
         let mut active = owner.begin(TransactionBehavior::Immediate).unwrap();
         mint(&active, &mut context);
+        // #1488 wide16-0058：同生产publish，完整候选在场时经写前签发的唯一publication父域发布；
+        // 不再以无父域PublishPhase深复制Native原件。
+        let resources = active.issue_publication_resources(&context).unwrap();
         active
             .before_fixed_write(FixedOperation::Publish, Some(&context))
             .unwrap();
-        let pending = active.pending.borrow();
-        let phase = PublishPhase {
-            publication: None,
-            transaction: active.transaction.as_mut().unwrap(),
-            audited: pending.as_ref().map(|candidate| &candidate.audited),
-            raw: None,
-            capture: None,
-            source: None,
-        };
-        let receipt = runtime
-            .publish_in_owner(phase, &token, &envelope, &mut context)
+        let receipt = resources
+            .budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let parent = PublicationScope {
+                    resources: &resources,
+                    work,
+                };
+                effects::attach_recording_resources(
+                    active.transaction.as_ref().unwrap(),
+                    &parent,
+                )?;
+                let pending = active.pending.borrow();
+                let phase = PublishPhase {
+                    publication: Some(&parent),
+                    transaction: active.transaction.as_mut().unwrap(),
+                    audited: pending.as_ref().map(|candidate| &candidate.audited),
+                    raw: None,
+                    capture: None,
+                    source: None,
+                };
+                runtime.publish_in_owner(phase, &token, &envelope, &mut context)
+            })
             .unwrap();
         assert_eq!(receipt.generation, 2);
-        drop(pending);
         if unscoped_update {
             active.tx().execute("UPDATE s_content_objects SET object_revision=object_revision WHERE rowid=(SELECT min(rowid) FROM s_content_objects)", []).unwrap();
             assert!(
