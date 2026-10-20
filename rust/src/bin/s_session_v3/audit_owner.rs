@@ -1933,7 +1933,9 @@ impl AuditTxn<'_> {
             let (audited, cold_root) = match cold_root {
                 Some(root) => {
                     let base = root.live();
+                    context.arm_source_pool_return(true);
                     let first = self.audit_required_in_parent(mode, context, Some(&root));
+                    context.arm_source_pool_return(false);
                     #[cfg(test)]
                     let first = first.and_then(|a| cold_root_probe::inject_failure().map(|()| a));
                     match first {

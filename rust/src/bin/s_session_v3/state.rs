@@ -171,161 +171,170 @@ pub(super) fn audit_native_in_request_admitted(
         // take保证任何读取/校验错误都不留下可继续使用的旧slot。
         let prior = context.take();
         let source_enabled = context.source_cache_enabled();
-        let source_prior = context.take_source_pool();
-        let capture_fresh = || {
-            let (capture, count, source_same) = if source_enabled {
-                content_store::capture_with_original_subset_for_source_cache_admitted(
-                    tx,
-                    source_prior
-                        .as_ref()
-                        .map(|pool| (&pool.originals, pool.nodes)),
-                    work,
-                )
-                .map_err(err)?
-            } else {
-                let (capture, count) =
-                    content_store::capture_for_request_prototype_admitted(tx, work).map_err(err)?;
-                (capture, count, false)
-            };
-            let capture = capture
-                .enable_native_frame_reuse_admitted_for_testonly(work)
-                .map_err(err)?;
-            if source_same {
-                if let Some(pool) = source_prior.as_ref() {
-                    // source_same只减少无谓尝试；封闭API仍自行逐tuple比较完整原件。
-                    capture
-                        .seed_codec_roots_admitted_for_testonly(&pool.originals, work)
-                        .map_err(err)?;
-                }
-            }
-            Ok::<_, String>((capture, count, source_same))
-        };
-        let (capture, node_count, prior, same_nodes, source_same) = match prior {
-            Some(prior) => {
-                let same_nodes =
-                    content_store::current_originals_equal_for_request_with_scratch_admitted(
+        let mut source_prior = context.take_source_pool();
+        let result = (|| {
+            let capture_fresh = || {
+                let (capture, count, source_same) = if source_enabled {
+                    content_store::capture_with_original_subset_for_source_cache_admitted(
                         tx,
-                        &prior.capture,
-                        prior.node_count,
-                        context.original_scan_scratch(),
+                        source_prior
+                            .as_ref()
+                            .map(|pool| (&pool.originals, pool.nodes)),
                         work,
                     )
-                    .map_err(err)?;
-                let (capture, count, source_same) = if same_nodes {
-                    (prior.capture, prior.node_count, false)
+                    .map_err(err)?
                 } else {
-                    // 合法材料变化才在同一事务第二次全扫描建新capture；任何Err都已直接返回。
-                    let (capture, count, source_same) = capture_fresh()?;
-                    // 同handler合法追加也只复用纯codec根；完整history结果仍走fresh审计。
-                    capture
-                        .seed_codec_roots_admitted_for_testonly(&prior.capture, work)
-                        .map_err(err)?;
-                    (capture, count, source_same)
+                    let (capture, count) =
+                        content_store::capture_for_request_prototype_admitted(tx, work).map_err(err)?;
+                    (capture, count, false)
                 };
-                (
-                    capture,
-                    count,
-                    Some((prior.binding, prior.result, prior.source_pending)),
-                    same_nodes,
-                    source_same,
-                )
-            }
-            None => {
-                let (capture, count, source_same) = capture_fresh()?;
-                (capture, count, None, false, source_same)
-            }
-        };
-        let control = control_audit::prepare_s3_control_history_admitted(tx, None, work)?;
-        let raw = super::business_json::RawEvents::from_json_owner(
-            read_raw_events_until_admitted(tx, None, work)?,
-        )?;
-        if let Some((prior_binding, prior_result, source_pending)) = prior {
-            #[cfg(test)]
-            context.before_binding(tx);
-            let binding = super::request_audit::HistoricalDependencyBinding::read_admitted(
-                tx,
-                &prior_result,
-                work,
+                let capture = capture
+                    .enable_native_frame_reuse_admitted_for_testonly(work)
+                    .map_err(err)?;
+                if source_same {
+                    if let Some(pool) = source_prior.as_ref() {
+                        // source_same只减少无谓尝试；封闭API仍自行逐tuple比较完整原件。
+                        capture
+                            .seed_codec_roots_admitted_for_testonly(&pool.originals, work)
+                            .map_err(err)?;
+                    }
+                }
+                Ok::<_, String>((capture, count, source_same))
+            };
+            let (capture, node_count, prior, same_nodes, source_same) = match prior {
+                Some(prior) => {
+                    let same_nodes =
+                        content_store::current_originals_equal_for_request_with_scratch_admitted(
+                            tx,
+                            &prior.capture,
+                            prior.node_count,
+                            context.original_scan_scratch(),
+                            work,
+                        )
+                        .map_err(err)?;
+                    let (capture, count, source_same) = if same_nodes {
+                        (prior.capture, prior.node_count, false)
+                    } else {
+                        // 合法材料变化才在同一事务第二次全扫描建新capture；任何Err都已直接返回。
+                        let (capture, count, source_same) = capture_fresh()?;
+                        // 同handler合法追加也只复用纯codec根；完整history结果仍走fresh审计。
+                        capture
+                            .seed_codec_roots_admitted_for_testonly(&prior.capture, work)
+                            .map_err(err)?;
+                        (capture, count, source_same)
+                    };
+                    (
+                        capture,
+                        count,
+                        Some((prior.binding, prior.result, prior.source_pending)),
+                        same_nodes,
+                        source_same,
+                    )
+                }
+                None => {
+                    let (capture, count, source_same) = capture_fresh()?;
+                    (capture, count, None, false, source_same)
+                }
+            };
+            let control = control_audit::prepare_s3_control_history_admitted(tx, None, work)?;
+            let raw = super::business_json::RawEvents::from_json_owner(
+                read_raw_events_until_admitted(tx, None, work)?,
             )?;
-            if binding == prior_binding && same_nodes {
-                history::revalidate_current_for_reuse_admitted(
+            if let Some((prior_binding, prior_result, source_pending)) = prior {
+                #[cfg(test)]
+                context.before_binding(tx);
+                let binding = super::request_audit::HistoricalDependencyBinding::read_admitted(
                     tx,
-                    raw.view(),
-                    control,
-                    &capture,
-                    &prior_result.cuts,
+                    &prior_result,
                     work,
                 )?;
-                #[cfg(test)]
-                trace_event("request_history_hit", None);
-                let result = prior_result;
-                context.retain(
-                    binding,
-                    capture,
-                    node_count,
-                    result.clone(),
-                    true,
-                    source_pending,
-                );
-                return Ok(AuditedState {
-                    budget: None,
-                    raw,
-                    historical: HistoricalOwner::Shared(result),
-                });
+                if binding == prior_binding && same_nodes {
+                    history::revalidate_current_for_reuse_admitted(
+                        tx,
+                        raw.view(),
+                        control,
+                        &capture,
+                        &prior_result.cuts,
+                        work,
+                    )?;
+                    #[cfg(test)]
+                    trace_event("request_history_hit", None);
+                    let result = prior_result;
+                    context.retain(
+                        binding,
+                        capture,
+                        node_count,
+                        result.clone(),
+                        true,
+                        source_pending,
+                    );
+                    return Ok(AuditedState {
+                        budget: None,
+                        raw,
+                        historical: HistoricalOwner::Shared(result),
+                    });
+                }
             }
-        }
-        #[cfg(test)]
-        trace_event("request_history_cold", None);
-        let mut source_trial = if source_enabled {
-            Some(super::cross_request_source_cache::Trial::new_admitted(
+            #[cfg(test)]
+            trace_event("request_history_cold", None);
+            let mut source_trial = if source_enabled {
+                Some(super::cross_request_source_cache::Trial::new_admitted(
+                    tx,
+                    source_prior.as_ref(),
+                    source_same,
+                    work,
+                )?)
+            } else {
+                None
+            };
+            let (audited, _) = audit_core_fresh_inner(
                 tx,
-                source_prior.as_ref(),
-                source_same,
+                None,
+                None,
+                None,
+                false,
+                None,
+                Some(&capture),
+                Some((control, raw)),
+                RetentionReport::Skip,
+                source_trial.as_mut(),
                 work,
-            )?)
-        } else {
-            None
-        };
-        let (audited, _) = audit_core_fresh_inner(
-            tx,
-            None,
-            None,
-            None,
-            false,
-            None,
-            Some(&capture),
-            Some((control, raw)),
-            RetentionReport::Skip,
-            source_trial.as_mut(),
-            work,
-        )?;
-        let HistoricalOwner::Unique(result) = audited.historical else {
-            unreachable!()
-        };
-        let result = super::native_shared::NativeRc::try_new_shallow(result, work).map_err(err)?;
-        let binding =
-            super::request_audit::HistoricalDependencyBinding::read_admitted(tx, &result, work)?;
-        let frontier = result
-            .cuts
-            .last()
-            .map_or(-1, |cut| cut.metadata.input_frontier);
-        let source_pending = source_trial
-            .map(|trial| trial.seal_admitted(tx, frontier, work))
-            .transpose()?;
+            )?;
+            let HistoricalOwner::Unique(result) = audited.historical else {
+                unreachable!()
+            };
+            let result = super::native_shared::NativeRc::try_new_shallow(result, work).map_err(err)?;
+            let binding =
+                super::request_audit::HistoricalDependencyBinding::read_admitted(tx, &result, work)?;
+            let frontier = result
+                .cuts
+                .last()
+                .map_or(-1, |cut| cut.metadata.input_frontier);
+            let source_pending = source_trial
+                .map(|trial| trial.seal_admitted(tx, frontier, work))
+                .transpose()?;
+            drop(source_prior.take());
+            context.retain(
+                binding,
+                capture,
+                node_count,
+                result.clone(),
+                false,
+                source_pending,
+            );
+            Ok(AuditedState {
+                budget: audited.budget,
+                raw: audited.raw,
+                historical: HistoricalOwner::Shared(result),
+            })
+        })();
+        // #1488 wide16-0058：冷根首跑失败后按旧口径无票重跑；首跑只借用、未改动旧来源池，
+        // 交还keeper供重跑复用（否则冷根额度不足即静默丢失跨请求复用）。其余错误仍随本次丢弃。
+        if result.is_err() {
+            context.return_source_pool_for_cold_rerun(source_prior.take());
+        }
         drop(source_prior);
-        context.retain(
-            binding,
-            capture,
-            node_count,
-            result.clone(),
-            false,
-            source_pending,
-        );
-        Ok(AuditedState {
-            budget: audited.budget,
-            raw: audited.raw,
-            historical: HistoricalOwner::Shared(result),
-        })
+        result
     }
     #[cfg(not(feature = "s_capture_native_testonly"))]
     {

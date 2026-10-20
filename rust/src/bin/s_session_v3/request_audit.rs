@@ -320,6 +320,9 @@ pub(super) struct RequestAuditContext {
     // #1488 P1-2：退回本context的slot其capture许可所在的父账（冷根）；只用于记下封存池的物理父账。
     #[cfg(feature = "s_capture_native_testonly")]
     slot_home: Option<super::audit_owner::native::Budget>,
+    // #1488 wide16-0058：仅冷根首跑期间置位；首跑失败时旧来源池交还keeper供无票重跑。
+    #[cfg(feature = "s_capture_native_testonly")]
+    source_pool_return_armed: bool,
     #[cfg(test)]
     binding_hook: Option<fn(&Transaction<'_>)>,
     #[cfg(test)]
@@ -442,6 +445,23 @@ impl RequestAuditContext {
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn take_source_pool(&mut self) -> Option<super::cross_request_source_cache::Pool> {
         self.source_keeper.as_mut()?.take()
+    }
+    /// #1488 wide16-0058：冷根首跑前后置位/复位；只影响首跑失败时旧来源池的去向。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn arm_source_pool_return(&mut self, armed: bool) {
+        self.source_pool_return_armed = armed;
+    }
+    /// 未置位（非冷根首跑）时按原口径丢弃：任一错误不留可继续使用的旧池。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn return_source_pool_for_cold_rerun(
+        &mut self,
+        pool: Option<super::cross_request_source_cache::Pool>,
+    ) {
+        if let (true, Some(pool), Some(keeper)) =
+            (self.source_pool_return_armed, pool, self.source_keeper.as_mut())
+        {
+            keeper.restore(pool);
+        }
     }
     pub(super) fn retained_source_bytes(&self) -> usize {
         #[cfg(feature = "s_capture_native_testonly")]

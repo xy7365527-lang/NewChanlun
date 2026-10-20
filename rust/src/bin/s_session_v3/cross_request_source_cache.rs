@@ -612,6 +612,12 @@ impl Keeper {
     pub(super) fn take(&mut self) -> Option<Pool> {
         self.pool.take()
     }
+    /// #1488 wide16-0058：交还同一请求内take出、未被改动的旧池（仅冷根首跑失败后的无票重跑）。
+    pub(super) fn restore(&mut self, pool: Pool) {
+        if self.pool.is_none() {
+            self.pool = Some(pool);
+        }
+    }
     pub(super) fn retention_cap(&self) -> usize {
         self.cap
     }
