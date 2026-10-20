@@ -176,8 +176,7 @@ impl Drop for ScratchHandle {
                 parent.invalidate();
             }
             drop(core);
-            // MUT67-M-c：工作域关闭不返还元数据位
-            if charge == usize::MAX && parent
+            if parent
                 .release(charge, ScratchCharge::Metadata, origin)
                 .is_err()
             {
