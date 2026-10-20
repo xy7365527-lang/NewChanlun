@@ -176,7 +176,7 @@ def main():
 def post(port, envelope, canonical):
     body = canonical(envelope)
     conn = http.client.HTTPConnection("127.0.0.1", int(port), timeout=120)
-    conn.request("POST", "/api/v2/snapshot", body=body, headers={"Content-Type": "application/json",
+    conn.request("POST", "/api/v3/snapshot", body=body, headers={"Content-Type": "application/json",
                                                                  "Content-Length": str(len(body))})
     resp = conn.getresponse()
     data = resp.read()
