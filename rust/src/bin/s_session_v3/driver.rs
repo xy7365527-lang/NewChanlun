@@ -5208,19 +5208,15 @@ mod tests {
         });
         // 中段插入（seq 落在 120 与 130 之间）。
         steps.push(one("insert_mid", ("i1".into(), 125, 40, 43, 37, 41)));
-        // 多根一包。
-        steps.push(S4Step {
-            kind: "multi_append",
-            rows: (21..=23).map(|n| s4_bar(n, 0)).collect(),
-            revision: "1",
-        });
+        // ingest 协议一事件一包（多根包被 InvalidDomain 拒绝），故中段扰动后接连续单根追加。
+        steps.extend((21..=23).map(|n| one("append", s4_bar(n, 0))));
         // 末根修订。
         steps.push(S4Step {
             kind: "revision_tail",
             rows: vec![s4_bar(23, -6)],
             revision: "2",
         });
-        steps.extend((24..=27).map(|n| one("append", s4_bar(n, 0))));
+        steps.extend((24..=25).map(|n| one("append", s4_bar(n, 0))));
         steps
     }
     /// 冷全量臂：每代新开普通 Driver（新 Runtime/GenerationRuntime），清线程车道并强制 oracle。
@@ -5336,13 +5332,13 @@ mod tests {
         }
     }
 
-    /// S4 锁：同输入多代（追加/中段修订/中段插入/多根包/末根修订），每代 warm owner delta 产物
+    /// S4 锁：同输入 28 代（追加/中段修订/中段插入/末根修订），每代 warm owner delta 产物（回复、回执、非节点表、根可达节点闭包）
     /// 与「新 Runtime + 清车道 + oracle」冷全量重算逐位相同；六阶段标记逐代齐全。
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn s4_generation_incremental_matches_cold_full_six_stages() {
         let rows = s4_run(&s4_default_steps(), true);
-        assert_eq!(rows.len(), 27);
+        assert_eq!(rows.len(), 28);
         // Δ_R 为本代全根可达集新增；新写节点只可能多于（未被根引用的不计）而非少于它。
         for row in &rows {
             assert!(row["delta_r"].as_u64().unwrap() > 0, "{row}");
