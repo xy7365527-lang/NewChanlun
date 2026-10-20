@@ -3414,6 +3414,8 @@ mod tests {
         array_puts: usize,
         branch_puts: usize,
         emissions: Option<EmissionInventory>,
+        /// `Some`：记下此后首次落表的节点摘要（#1488 S3 不可达锁用）。
+        fresh: Option<std::collections::BTreeSet<NodeDigest>>,
     }
 
     impl NodeSource for CountingStore {
@@ -3436,6 +3438,11 @@ mod tests {
                             stored_tag == tag && stored_body == body
                         });
                 emissions.observe(digest, tag, body, already_stored);
+            }
+            if let Some(fresh) = &mut self.fresh {
+                if !self.nodes.contains(&digest) {
+                    fresh.insert(digest);
+                }
             }
             NodeSink::put(&mut self.nodes, digest, tag, body)
         }
@@ -5397,9 +5404,6 @@ mod tests {
         let count = fixture.state.materialize_facts().groups.len();
         let mut objects = Vec::new();
         let mut written = std::collections::BTreeSet::new();
-        let stored = |store: &CountingStore| -> std::collections::BTreeSet<NodeDigest> {
-            store.nodes.iter().map(|(digest, _, _)| *digest).collect()
-        };
         for start in 0..count.saturating_sub(2) {
             // 发射账只记 fractal 调用：CC-006 形状构造期间暂停（其写入不在本锁范围）。
             let paused = fixture.store.emissions.take();
@@ -5420,7 +5424,7 @@ mod tests {
                     continue;
                 };
                 fixture.store.emissions = paused;
-                let before = stored(&fixture.store);
+                fixture.store.fresh = Some(std::collections::BTreeSet::new());
                 let fractal = fixture
                     .producer
                     .build_parser_fractal(
@@ -5432,7 +5436,7 @@ mod tests {
                         CUT,
                     )
                     .unwrap();
-                written.extend(stored(&fixture.store).difference(&before).copied());
+                written.extend(fixture.store.fresh.take().expect("本窗已开记"));
                 fractal
             } else {
                 let Some(shape) = fixture
@@ -5446,7 +5450,7 @@ mod tests {
                 fixture.store.emissions = paused;
                 let views = [start, start + 1, start + 2]
                     .map(|index| fixture.state.shared_group(index).unwrap().unwrap());
-                let before = stored(&fixture.store);
+                fixture.store.fresh = Some(std::collections::BTreeSet::new());
                 let fractal = fixture
                     .producer
                     .build_fractal(
@@ -5458,7 +5462,7 @@ mod tests {
                         CUT,
                     )
                     .unwrap();
-                written.extend(stored(&fixture.store).difference(&before).copied());
+                written.extend(fixture.store.fresh.take().expect("本窗已开记"));
                 fractal
             };
             if let Some(object) = fractal {
