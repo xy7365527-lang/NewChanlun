@@ -95,7 +95,7 @@ class Tb02dRun(Tb02aRun):
                 stream.write(json.dumps({'kind': 'normal_recovery_cut', 'generation': str(n), 'before': a, 'after': b}, ensure_ascii=False, sort_keys=True) + '\n')
         with bounded_operation('frozen_oracle', 180):
             write_json(self.output / 'query-oracle.json', verify(Path(self.config['db']), self.case, Path(self.node)))
-        command = [self.node, str(self.root / 'tests/tb02d_browser.cjs'), '--base-url', 'http://127.0.0.1:' + self.config['port'],
+        command = [self.node, str(self.root / 'tests/tb02d_browser.cjs'), '--base-url', 'http://127.0.0.1:' + self.config['port'],  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
                    '--output', str(self.output / 'browser'), '--playwright-module', str(self.playwright_module),
                    '--final-cut', str(self.recovery_cuts[1]), '--pending-cut', str(self.recovery_cuts[0])]
         write_json(self.output / 'browser-command.json', command)

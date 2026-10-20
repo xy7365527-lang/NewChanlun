@@ -2112,7 +2112,7 @@ mod tests {
             .collect::<String>();
         assert_eq!(
             hash,
-            "257f8193f94ea5ab81bd69d4a6e41de8239e2527ffc7c3c671917dded5d7f78b"
+            "257f8193f94ea5ab81bd69d4a6e41de8239e2527ffc7c3c671917dded5d7f78b" // DevSkim: ignore DS173237 SHA-256 摘要/测试向量，非凭据
         );
         let pins = structure(&binary, &db, &hash);
         let conn = Connection::open_with_flags(&db, OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();

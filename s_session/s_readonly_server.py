@@ -1231,7 +1231,7 @@ def main():
     ap.add_argument("--db", required=True)
     ap.add_argument("--port", type=int, default=8787)
     ap.add_argument("--browser", required=True)
-    ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--host", default="127.0.0.1")  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
     ap.add_argument("--resource-config", required=True)
     ap.add_argument("--producer-epoch", required=True)
     ap.add_argument("--economic-config")

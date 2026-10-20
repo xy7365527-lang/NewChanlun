@@ -196,7 +196,7 @@ class Tb02bRun(Tb02aRun):
             raise ValueError('版本不匹配 cursor 被接受')
         write_json(self.output / 'cursor-checks.json', {'old_cursor': stale, 'wrong_version': rejected})
         write_json(self.output / 'query-oracle.json', verify(Path(self.config['db']), self.oracle_case, Path(self.node)))
-        command = [self.node, str(self.root / 'tests/tb02b_browser.cjs'), '--base-url', 'http://127.0.0.1:' + self.config['port'],
+        command = [self.node, str(self.root / 'tests/tb02b_browser.cjs'), '--base-url', 'http://127.0.0.1:' + self.config['port'],  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
                    '--output', str(self.output / 'browser'), '--playwright-module', str(self.playwright_module),
                    '--generation', str(len(self.messages))]
         if self.browser_lifecycle_asof is not None:

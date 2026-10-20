@@ -8204,7 +8204,18 @@
     "DS173237|.chanlun/review-results/issue1370-tb01-a/review-incremental.json|6",
     "DS173237|.chanlun/review-results/issue1370-tb01-a/review-incremental.json|8",
     "DS173237|.chanlun/review-results/issue1370-tb01-a/review.json|5",
-    "DS173237|s_session/catalog/signed-catalog.json|4"
+    "DS173237|s_session/catalog/signed-catalog.json|4",
+    "DS172411|s_session/browser/q3-consumer.js|1739",
+    "DS172411|s_session/browser/q3-consumer.js|1838",
+    "DS172411|s_session/browser/q3-consumer.js|2378",
+    "DS172411|s_session/browser/tb01c-client.js|4970",
+    "DS172411|s_session/browser/tb01c-client.js|5069",
+    "DS172411|s_session/browser/tb01c-client.js|5609",
+    "DS172411|s_session/browser/tb01c-client.js|6617",
+    "DS172411|s_session/browser/tb01c-client.js|6855",
+    "DS173237|s_session/browser/tb01c-client.js|6431",
+    "DS173237|s_session/browser/tb01c-client.js|6551",
+    "DS173237|s_session/tests/fixtures/tb02d/generate-input.py|282"
   ],
   "updates": [
     {
@@ -8245,6 +8256,31 @@
         "s_session/catalog/signed-catalog.json"
       ],
       "reason": "真实扫描产物逐规则、文件、行号核实；本票验收文字、来源摘要和本地只读观察边界登记。原有八条基线外告警保留；原有清单顺序不变，新键仅追加。"
+    },
+    {
+      "issue": 1588,
+      "source_head": "1d70db893f",
+      "actions_run": 39379637868,
+      "added_findings": 11,
+      "scope": [
+        "s_session/browser/q3-consumer.js",
+        "s_session/browser/tb01c-client.js",
+        "s_session/tests/fixtures/tb02d/generate-input.py"
+      ],
+      "reason": "源码面误报中字节受锁或属在途改动面的 11 条，逐键核实后按精确键追加；其余源码面误报改为行内抑制或改写注释，归档与测试数据目录改由 ignore-glob 排除。原有清单顺序不变，新键仅追加。证据：.chanlun/review-results/eng-debt-20261020/devskim/DEVSKIM-TRIAGE.md",
+      "entries": {
+        "DS172411|s_session/browser/q3-consumer.js|1739": "浏览器定时器回调为函数字面量，非字符串求值，无注入面。q3-consumer.js 是 tb01c-client.js 生成段的输入，由 s_session/tests/build_tb01c_browser.cjs 按逐字节摘要锁漂移；行内加注须连带重生成打包产物，且该目录正被 #1394/#1488 线改动，故按精确键入基线而不改字节。",
+        "DS172411|s_session/browser/q3-consumer.js|1838": "浏览器定时器回调为函数字面量，非字符串求值，无注入面。q3-consumer.js 是 tb01c-client.js 生成段的输入，由 s_session/tests/build_tb01c_browser.cjs 按逐字节摘要锁漂移；行内加注须连带重生成打包产物，且该目录正被 #1394/#1488 线改动，故按精确键入基线而不改字节。",
+        "DS172411|s_session/browser/q3-consumer.js|2378": "浏览器定时器回调为函数字面量，非字符串求值，无注入面。q3-consumer.js 是 tb01c-client.js 生成段的输入，由 s_session/tests/build_tb01c_browser.cjs 按逐字节摘要锁漂移；行内加注须连带重生成打包产物，且该目录正被 #1394/#1488 线改动，故按精确键入基线而不改字节。",
+        "DS172411|s_session/browser/tb01c-client.js|4970": "tb01c-client.js 运行段的浏览器定时器回调为函数字面量，非字符串求值，无注入面；该文件含生成段且正被 #1394/#1488 线改动，按精确键入基线而不改字节。",
+        "DS172411|s_session/browser/tb01c-client.js|5069": "tb01c-client.js 运行段的浏览器定时器回调为函数字面量，非字符串求值，无注入面；该文件含生成段且正被 #1394/#1488 线改动，按精确键入基线而不改字节。",
+        "DS172411|s_session/browser/tb01c-client.js|5609": "tb01c-client.js 运行段的浏览器定时器回调为函数字面量，非字符串求值，无注入面；该文件含生成段且正被 #1394/#1488 线改动，按精确键入基线而不改字节。",
+        "DS172411|s_session/browser/tb01c-client.js|6617": "tb01c-client.js 运行段的浏览器定时器回调为函数字面量，非字符串求值，无注入面；该文件含生成段且正被 #1394/#1488 线改动，按精确键入基线而不改字节。",
+        "DS172411|s_session/browser/tb01c-client.js|6855": "tb01c-client.js 运行段的浏览器定时器回调为函数字面量，非字符串求值，无注入面；该文件含生成段且正被 #1394/#1488 线改动，按精确键入基线而不改字节。",
+        "DS173237|s_session/browser/tb01c-client.js|6431": "64 位十六进制为浏览器入口的内容摘要常量（source/public static 摘要），非凭据；同文件理由同上，按精确键入基线。",
+        "DS173237|s_session/browser/tb01c-client.js|6551": "64 位十六进制为浏览器入口的内容摘要常量（source/public static 摘要），非凭据；同文件理由同上，按精确键入基线。",
+        "DS173237|s_session/tests/fixtures/tb02d/generate-input.py|282": "40 位十六进制为本仓 Git 提交号（git log 可解析），非凭据；该文件字节被 s_session/tests/fixtures/tb02d/MANIFEST.json 以摘要锁定，行内加注会破坏锁，故按精确键入基线。"
+      }
     }
   ]
 }

@@ -35,7 +35,7 @@ class Tb02cRun(Tb02aRun):
             for n, a, b in zip((16, 28), before, after):
                 stream.write(json.dumps({'kind': 'normal_recovery_cut', 'generation': str(n), 'before': a, 'after': b}, ensure_ascii=False, sort_keys=True) + '\n')
         write_json(self.output / 'query-oracle.json', verify(Path(self.config['db']), self.case, Path(self.node)))
-        command = [self.node, str(self.root / 'tests/tb02c_browser.cjs'), '--base-url', 'http://127.0.0.1:' + self.config['port'],
+        command = [self.node, str(self.root / 'tests/tb02c_browser.cjs'), '--base-url', 'http://127.0.0.1:' + self.config['port'],  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
                    '--output', str(self.output / 'browser'), '--playwright-module', str(self.playwright_module)]
         write_json(self.output / 'browser-command.json', command)
         with (self.output / 'browser.stdout').open('x') as out, (self.output / 'browser.stderr').open('x') as err:

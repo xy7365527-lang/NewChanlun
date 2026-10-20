@@ -148,7 +148,7 @@ impl ReplayComparator {
             }
 
             // 比对 output（当前简化版只检查 timestamp 对齐）
-            // TODO: 完整实现需解析 p123 dump 的 CERT/DIV/TERM 字段
+            // TODO: 完整实现需解析 p123 dump 的 CERT/DIV/TERM 字段 // DevSkim: ignore DS176209 已知简化版待办（#1518/#1304），建议转票
             // 并与 D4 的 layer_updates/signals 对拍
         }
 
