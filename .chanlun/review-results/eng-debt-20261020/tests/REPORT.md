@@ -55,6 +55,8 @@
 - **根因层级**：16 条的红都来自 #1488 自己的「预算/所有权统一」重构线（WIP `959d860065` 起），不是 main 的缺陷。main 上 5 条同名测试是绿的，另 11 条在 main 上根本不存在。名单把这条线的起点叫「基线」，相对 #1488 的增量来说没错；但相对 main 来说，这 16 条是 **#1488 分支内的未完成项**。
 - **为什么不在本分片修**：① 修改面全在 #1488 未合入的分支上（`audit_owner*`、`cross_request_source_cache.rs`、`request_audit.rs`、`driver.rs` 的所有权/父账重构）。本分片若在该分支上改码，就会覆盖在途工作，违反「不得回退或覆盖他人改动」。② #1488 票面已把这件事列为自己的剩余项（comment 第 1174 行：「宽对拍里 20 条基线既有失败的归属」）。③ 测试和实现谁错要按 #1488 那条线的已批合同判（父账、WorkScope、retain 的语义是 #1488 的设计面，不归 `.chanlun/definitions/` 缠论教义管）。这个判断只能由 #1488 的负责人做。
 - **查重**：`gh issue list --state all --search` 搜 `r11_source_binding_new_and_seal_use_shared_scope`、`r14_source_pool_normal_growth`、`owner_set_real_publish`、`source_keeper_driver_append_repost_restart`、`r11_request_native_shared_scope`，结果均为空。搜 panic 文案「Native文本复制需要当前WorkScope」命中 #1488、#1323（均 open；#1323 是「完整生产程序接线总单」图，不是这 16 条的独立票）。归属已在 #1488 票面在案，**不另开票**。
+- **与主控追加指示的关系**（评审 F1）：名单文件末尾的主控指示要求从 #1488 合并面另起 `eng-debt-1588/tests-1488` 修这 16 条。本分片未照做，理由：指示点名的基分支 `codex/1488-budget-full-chain-fix-v2-20261018` 远端不存在；#1488 头在运行期间仍在移动；16 条的「测试对还是实现对」属 #1488 预算/所有权合同的裁定面，走指示中的「需裁定则转票」出口；A 组无代码改动，「A 与 B/C 分开 PR」的目的（依赖 #1488 先合）不成立。主控已接受该偏离。
+- **交接已落地**（评审 F2，主控 2026-10-20）：#1488 负责人已核实并接手（切片 0058 逐条 bisect 首红、分类为生产回归/语义改变/夹具问题，合入 main 前清零）。
 - **给 #1488 的一句话**：这 16 条在合入 main 之前必须清零，或者逐条裁「测试过时」后改写。不能以「基线既有」为由带进 main：对 main 而言它们是新增红，其中 5 条是把 main 上的绿锁打红。
 
 ---
@@ -95,7 +97,7 @@ test result: FAILED. 4 passed; 22 failed; 3 ignored; 0 measured; 518 filtered ou
 考虑过、未采纳的两条路：
 
 1. `#[cfg_attr(not(target_os="macos"), ignore)]`：任务禁止（等价于加 ignore）。
-2. `#[cfg(target_os = "macos")]` 编译门控 22 条：macOS CI 全集不受影响，所以覆盖不降。但收益只是「Linux 本地全量跑不出 22 条红」，代价有三：① 要在 1634 行的测试文件里给 22 个测试和只被它们用到的约 10 个辅助函数逐个加门，否则 Linux 下会出 dead_code 告警；② 改动后测试在 Linux 上**不出现**，而现状是**诚实地红并写明原因**。前者更容易让人误以为 Linux 上测过；③ Linux CI 已经用 `--skip` 加注释显式记账，加门后这条 `--skip` 变成冗余，ci.yml 与源码要双改（ci-time 分片也在动 ci.yml，有冲突面）。
+2. `#[cfg(target_os = "macos")]` 编译门控 22 条：macOS CI 全集不受影响，所以覆盖不降。但收益只是「Linux 本地全量跑不出 22 条红」，代价有三：①（评审 F3 订正：此条不成立——测试模块经 `financial_session.rs` 的 `#[path] mod tests` 挂载，一层 `#[cfg(target_os = "macos")] mod` 即可门控，无 dead_code 问题，故删去此论据）；② 改动后测试在 Linux 上**不出现**，而现状是**诚实地红并写明原因**。前者更容易让人误以为 Linux 上测过；③ Linux CI 已经用 `--skip` 加注释显式记账，加门后这条 `--skip` 变成冗余，ci.yml 与源码要双改（ci-time 分片也在动 ci.yml，有冲突面）。
 
 所以最诚实的处置是：**判平台限定的预期行为**，证据为 B-1（22 条失败点都是 MissingDependency）+ B-2（源码 cfg 分支）+ B-3（macOS 同批 26/0/3 绿，Linux CI 显式 skip）。在 Linux/WSL 上做全量验证时，照 ci.yml 加 `-- --skip v3::financial_session`，并以 macOS 作业为该批的唯一判据。
 
@@ -146,7 +148,7 @@ test theta_v0::backtest::l3_delta_r_alpha::tests::m3_partition_synthetic_holds .
 
 ### C-4 但这份绿是偶然的：它已经锁不住线段停产
 
-#1563 关票时（#1564）明写「m3 保持红，作为线段停产的回归锁，修复归 #1493」。#1420 独审（`.chanlun/review-results/issue1420-tb02w-20261019/review-20261019/REVIEW.md` §4）查明转绿始于 `279b7c8708`，属于段划分改变后的副产物：该种子 n=3000 上段数 24→14，自第 160 笔起卡在 `FAILED_GEOMETRY/top_gt_bottom` 吸收态。ledger 从 0 变 1 只是塔结构变化的连带结果。
+#1563 关票时 PR #1564 写明 m3 是生产行为问题、不改测试、归 #1487/#1493，换 seed 或加长输入让 m3 变绿会掩盖缺陷（转述，评审 F4 订正引号）。#1420 独审（`.chanlun/review-results/issue1420-tb02w-20261019/review-20261019/REVIEW.md` §4）查明转绿始于 `279b7c8708`，属于段划分改变后的副产物：该种子 n=3000 上段数 24→14，自第 160 笔起卡在 `FAILED_GEOMETRY/top_gt_bottom` 吸收态。ledger 从 0 变 1 只是塔结构变化的连带结果。
 
 本分片用同一探针（`probe1420.sh` 的 `probe1420_segments`，打在本地临时提交上，**未推送**：main 探针 `645d66de23`、#1582 探针 `05c3cadd3d`）重测：
 
@@ -185,3 +187,15 @@ nc-remote eng-debt-1588/tests rust cargo test --locked --features s_session --bi
 nc-remote eng-debt-1588/tests rust cargo test --locked --lib m3_partition_synthetic_holds -- --nocapture   # ×10，见 C-2
 cd /tmp && gh run view <run-id> --repo xy7365527-lang/NewChanlun --log | grep m3_partition_synthetic_holds
 ```
+
+## G. 共享 target 污染窗口后的复跑（主控，2026-10-20）
+
+2026-10-20 12:00–15:38 WSL nc-remote 各运行共用 `CARGO_TARGET_DIR`，并发会互相覆盖测试二进制（#1488 通报；nc-remote 已改私有 `NC_TARGET` + flock，备份 `~/.local/bin/nc-remote.bak-20261020`）。本报告 A/B/C 的远端读数全在该窗口内，故用新 nc-remote（`NC_TARGET=eng1588`）在 `1d70db893f` 上串行复跑：
+
+| 组 | 复跑日志 | 读数 | 与原读数 |
+|---|---|---|---|
+| B | `20261020-160510-1d70db893f` | 4 passed; 22 failed; 3 ignored | 一致 |
+| C | `20261020-160635-1d70db893f` | 6 次 ok，每次 `\|ledger\|=1 kept=1 same_bar=0 nonpos=0 \|records\|=1` | 一致 |
+| A-main | `20261020-160727-1d70db893f` | 103 passed; 0 failed; 5 ignored | 一致 |
+
+#1488 头一侧的 236/16 读数未复跑（属 #1488 自证范围，其切片 0058 正在重做）。C 组另有 main CI 9 次「default targets」步绿为不受该窗口影响的独立证据。#1493 已据 C-4 在 PR #1582 加段层停产锁 `m3_synthetic_segment_layer_does_not_stall`（提交 `9f3b5281eb`，段数≥30、末段终点距末笔≤150 根）。
