@@ -2234,7 +2234,7 @@ fn validate_stage_coverage(j: &Journal) -> Result<(), String> {
         previous_material = stage.material_after;
     }
     // 闭合：每个 key 至少被一个事件引用；node 事件数恰为 material_epoch（无 occurrence 丢失）。
-    if introduced != j.keys.len() {
+    if introduced != j.keys.len() || node_epoch != j.material_epoch {
         return Err(construction_state::stale("node多次事件序/实际写数不符"));
     }
     Ok(())
