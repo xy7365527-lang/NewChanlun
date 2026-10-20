@@ -4932,10 +4932,12 @@ mod tests {
                 .iter()
                 .map(|e| e.try_clone().unwrap())
                 .collect::<Vec<_>>();
-            let mut expected_withdrawals = Vec::new();
+            let mut shape_withdrawals = Vec::new();
+            let mut typed_withdrawals = Vec::new();
             let mut expected_replaces = Vec::new();
             // 旧公开顺序为 shape 在前、typed 在后。这里直接按场景构建oracle，
-            // 不经新plan或其push_raw_withdrawal辅助函数。
+            // 不经新plan或其push_raw_withdrawal辅助函数；index仍按old原序，
+            // 撤回行按 kind 分桶后 shape 桶在前拼接（夹具每桶至多一行）。
             for e in &mut expected_index {
                 let superseded = e.slot.is_shape() == shape_replacement;
                 let reason = if superseded {
@@ -4946,7 +4948,12 @@ mod tests {
                     "fact_removed"
                 };
                 let sup = superseded.then_some(fresh.id.as_str());
-                expected_withdrawals.push(raw_withdrawal(e, reason, sup));
+                if e.slot.is_shape() {
+                    &mut shape_withdrawals
+                } else {
+                    &mut typed_withdrawals
+                }
+                .push(raw_withdrawal(e, reason, sup));
                 if superseded {
                     expected_replaces.push(json!({
                         "old_object_id":e.id,
@@ -4957,6 +4964,7 @@ mod tests {
                 e.life.withdrawal_reason = Some(reason.into());
                 e.life.superseded_by = sup.map(Into::into);
             }
+            let expected_withdrawals = [shape_withdrawals, typed_withdrawals].concat();
             expected_index.push(fresh.try_clone().unwrap());
             let expected_roots = at_cut(&mut expected_nodes, &expected_index, 3).unwrap();
             let (nodes, _, _) = plan_input_fixture(shape_replacement);
@@ -5006,25 +5014,6 @@ mod tests {
             assert!(budget.live() < retained, "撤回JSON owner独立释放");
             drop(plan.replaces);
             assert_eq!(budget.live(), baseline, "末个返回owner销毁后回到原基线");
-        }
-    }
-
-    #[test]
-    fn probe67_plain_plan_withdrawal_order() {
-        for shape_replacement in [false, true] {
-            let (nodes, old, fresh) = plan_input_fixture(shape_replacement);
-            let capture = sc::AuditCapture::new(nodes);
-            let mut reader =
-                super::super::history::HashReader::captured_for_audit(&capture, None).unwrap();
-            let mut new = bj::new_work(None);
-            reader.native_codec_room(&mut new, 1).unwrap();
-            new.try_push(fresh.try_clone().unwrap()).unwrap();
-            let plan = plan_from_candidates(&mut reader, new, &old, 3).unwrap();
-            eprintln!("PROBE67 shape_replacement={shape_replacement} old_order={:?}", old.iter().map(|e| e.id.as_str().to_string()).collect::<Vec<_>>());
-            eprintln!("PROBE67 plain_plan withdrawals={:?}", plan.withdrawals.view());
-            let index: Vec<Entry> = plan.index.iter().map(|e| e.try_clone().unwrap()).collect();
-            let (w, _) = changes_at(&index, 3).unwrap();
-            eprintln!("PROBE67 changes_at withdrawals={:?}", w);
         }
     }
 
