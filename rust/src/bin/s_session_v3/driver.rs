@@ -2015,6 +2015,54 @@ mod tests {
 
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
+    fn diag0039_write_budget_margin_sweep() {
+        for margin in [
+            16 * 1024 * 1024usize,
+            9 * 1024 * 1024,
+            8 * 1024 * 1024,
+            7 * 1024 * 1024,
+            6 * 1024 * 1024,
+            5 * 1024 * 1024,
+            4 * 1024 * 1024,
+            3_281_187,
+            2 * 1024 * 1024,
+            1024 * 1024,
+            512 * 1024,
+            0,
+        ] {
+            let f = Fixture::new();
+            let o = Fixture::new();
+            let mut native = complete_driver(&f);
+            let mut ordinary = o.open("1").unwrap();
+            assert_eq!(
+                native.handle(Fixture::ingest(1)).unwrap(),
+                ordinary.handle(Fixture::ingest(1)).unwrap()
+            );
+            let held = native.conn.complete_retained_bytes();
+            let legacy = crate::cache::retained_bytes();
+            native.audit_cache_source_bytes = Some(legacy + held + margin);
+            let (actual, events, _) = state::traced(true, || native.handle(Fixture::ingest(2)));
+            let expected = ordinary.handle(Fixture::ingest(2)).unwrap();
+            let phases: Vec<Value> = events.iter().map(|e| e["phase"].clone()).collect();
+            eprintln!(
+                "DIAG0039 {}",
+                json!({"margin":margin,"held":held,"legacy":legacy,
+                    "legacy_after":crate::cache::retained_bytes(),
+                    "ok":actual.as_ref().is_ok(),
+                    "same":actual.as_ref().ok() == Some(&expected),
+                    "err":actual.as_ref().err(),
+                    "retained":native.conn.complete_retained_bytes(),
+                    "report":native.conn.complete_report(),
+                    "owner_effects":phases.iter().filter(|p| *p == "owner_effects").count(),
+                    "owner_suffix_complete":phases.iter().any(|p| p == "owner_suffix_complete"),
+                    "cold":phases.iter().any(|p| p.as_str().is_some_and(|s| s.starts_with("request_history_cold"))),
+                    "phases":phases})
+            );
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
     fn audit_owner_complete_normal_second_connection_and_new_life_are_cold() {
         let f = Fixture::new();
         let o = Fixture::new();
