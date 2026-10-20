@@ -7,7 +7,7 @@
 | 面 | 组件 | 节奏 | 管什么 |
 |---|---|---|---|
 | 控制面 | `scripts/wayfinder_engine.mts`（已有） | 4 分钟 | 扫图、给合格实施票挂 `sandcastle` |
-| 裁决面 | `.sandcastle/decision-claimer.mts`（新） | 10 分钟 | grilling 票：分级 → 起草 → 独审 → 落地或待批 |
+| 裁决面 | `.sandcastle/decision-claimer.mts`（新） | 10 分钟 | grilling 票：分级 → 考古 → 起草 → 独审 → 落地或待批 |
 | 执行面 | `claim-loop.mts` + `main.mts`（已有） | 60 秒 | 实施票：实装工蜂 + 独审工蜂 |
 | 验收面 | `harvest.sh`（已有）+ main 合入人闸 | 定时 | 封包验收、批量 PR |
 | 观测面 | `health-monitor` + 进度页（新） | 5 分钟 / 1 分钟 | 停摆即 _red_、自愈、进度 |
@@ -25,17 +25,37 @@ Fable 5.1 读票面与关联票，判一类，并在票上评论一行分级理�
 
 拿不准一律判 P。完成标准：票上有 `分级：T|P — 理由` 评论。
 
-### 2. 起草
+### 2. 考古
+
+用户 2026-10-20 令：「所有的裁决票都要先考古」。考古是三条既有规矩在无人值守裁决面上的执行，不另立机制：
+
+- `/grilling`：「If a *fact* can be found by exploring the environment … look it up rather than asking me. The *decisions*, though, are mine」——事实由代理查完，决定才问人，每问附推荐答案。
+- `/grill-with-docs`（= `/grilling` + `/domain-modeling`）：对照 `CONTEXT.md` 与 `docs/adr/`，已裁的直接用，与词汇表或代码冲突的当场指出。
+- AGENTS.md「开之前先搜（两路）」与 ADR 0012 裁定一、四：tracker 含已关闭票与评论，仓内含推论层；推论层主张可援引，推理链搬进票内重过。ADR 0012 代价第 4 条「每张裁定票前多一个 AFK 子代理」即本步。
+
+无人值守下没有人能当场纠正「这个早定过了」，所以胶水只补一件事：把查过的证据落成可复核的文件。Fable 5.1 只读取证，逐个待决点（Q1、Q2…）两路各至少一条查询，归一类：
+
+- **A 已裁**：正本层或已关票 resolution 明写。写出处，直接沿用，不再列为待决。
+- **B 有先例未正式裁**：推论层、票评论、代码常量或夹具在用。写出处与推理链，作为默认候选，以「默认值，确认或否决」呈现。
+- **C 确未设计**：列出已搜关键词，标缺口去向——`decision` 交用户（附推荐答案）；`research` 是仓外事实，按 wayfinder 开 research 票由 `/research` 子代理解决；`probe` 缺读数，按 `wayfinder-workflow.md` 反面判据③派探针票。
+
+机械校验：两路缺一、tracker 未覆盖已关闭票、A/B 缺出处、B 缺默认值、C 缺关键词或去向，都带问题重跑一次；仍不过的问题交审查，草稿因此 BLOCK。
+
+完成标准：`/Volumes/AgentStorage/decisions/<票号>/archaeology.md` 与 `archaeology.json` 落盘，每个待决点有查询词、命令、命中与归类。只验考古：`node --import tsx .sandcastle/decision-claimer.mts --archaeology-only --ticket <号> --out <目录>`（不看票是否已关，不写 GitHub）。
+
+### 3. 起草
 
 Fable 5.1 起草者在独立 worktree 里只读取证，产出固定结构的 resolution 草稿：问题、权威依据、候选、裁定、验收清单、受影响票与 blocking 边变化、授权引用。
 
 权威依据逐条带可回查位置：`docs/chanlun/text/blog/<课>.md:<行>`、ADR 路径、票评论链接。引原文按 AGENTS.md 四步核行号、逐字、作者归属、行内注。验收清单每项必须是命令、测试名、文件存在或票状态之一。
 
-完成标准：草稿文件落 `/Volumes/AgentStorage/decisions/<票号>/draft.md`，七段齐全。
+起草按考古处置待决点：只有 C 类 `decision` 列为真正待决；B 类写成默认值待确认；C 类 `research`/`probe` 写成要开的票。草稿末尾附「考古对照」表，每个考古点号一行。
 
-### 3. 独审
+完成标准：草稿文件落 `/Volumes/AgentStorage/decisions/<票号>/draft.md`，七段与「引用自证」「考古对照」齐全。
 
-Opus 5.5 审查者另起进程，只拿草稿和源文件，看不到起草推理。按 R1–R7 逐条给 PASS 或 BLOCK：
+### 4. 独审
+
+Opus 5.5 审查者另起进程，只拿草稿、`archaeology.md` 和源文件，看不到起草推理。按 R1–R8 逐条给 PASS 或 BLOCK：
 
 1. R1 每条引用回查成立。
 2. R2 不与 `.chanlun/definitions/`、`docs/adr/`、#799 收敛通则、#804 总缝规则冲突。
@@ -44,15 +64,16 @@ Opus 5.5 审查者另起进程，只拿草稿和源文件，看不到起草推�
 5. R5 不新增同一判断的宽严两档或失败兜底。
 6. R6 受影响票与 blocking 边清单完整。
 7. R7 分级正确。
+8. R8 考古成立：抽查 `archaeology.md` 至少三条命中并复跑查询，另对一个 C 类点换说法复搜。草稿把 A 类当待决、B/C 类缺查询证据、「考古对照」漏点、事实缺口交给用户，或 P 类问题要求用户凭空提供数值而在案先例未列出，判 BLOCK。
 
-完成标准：`review.json` 落盘，七项各有结论与依据。BLOCK 时起草者升档为 Opus 5.5 带审查意见重做一次；再 BLOCK 转 P 类。
+完成标准：`review.json` 落盘，八项各有结论与依据。BLOCK 时起草者升档为 Opus 5.5 带审查意见重做一次；再 BLOCK 转 P 类。
 
-### 4. 落地
+### 5. 落地
 
 - **T 类 PASS**：正本写进 `decision/<票号>` 分支（`.chanlun/definitions/`、`docs/adr/` 或 `CONTEXT.md`），票上发 resolution 评论，首行写「本条依 #1323 Notes N-1 预授权判定」，并附草稿、审查路径。决策文档按日批量开 PR；PR 合入后关票，map 的 Decisions so far 加一行，接新 blocking 边。
-- **P 类**：票上发草稿与审查结论，挂 `needs-approval`，不关票。用户批量批复后按 T 类落地。
+- **P 类**：票上发草稿与审查结论，挂 `needs-approval`，不关票。影子评论开头是考古问表：只列 B 类确认与 C 类 `decision`，每问附出处与推荐值；A 类列为已沿用，事实缺口列为要开的票。用户批量批复后按 T 类落地。
 
-### 5. 解锁
+### 6. 解锁
 
 wayfinder_engine 下一轮重扫；FU blocker 全关的实施票被挂 `sandcastle`，进执行面。
 
