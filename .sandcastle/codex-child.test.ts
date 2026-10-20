@@ -6,7 +6,7 @@ import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFile
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
-  assertRoute, boundedCodex, CodexTranscript, MODEL, MODEL_PROVIDER, preflightCheckout, providerEnvironment,
+  assertRoute, boundedCodex, CodexTranscript, gitEnvironment, MODEL, MODEL_PROVIDER, preflightCheckout, providerEnvironment,
   providerOverrides, PROVIDER_KEY_ENV, runCodexChild, workerEnvironment,
   type ChildOptions,
 } from "./codex-child.ts";
@@ -571,3 +571,46 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     } finally { f.clean(); }
   });
 }
+
+test("git 环境只留白名单：不含 CLIProxy 密钥、API/GitHub 密钥与宿主 GIT_*（#1588 A1）", () => {
+  const env = gitEnvironment({
+    PATH: "/bin", HOME: "/home/u", LANG: "C.UTF-8", [PROVIDER_KEY_ENV]: fixtureKey, GH_TOKEN: "fixture",
+    OPENAI_API_KEY: "fixture", CODEX_HOME: "/auth-location", GIT_DIR: "/elsewhere/.git", GIT_INDEX_FILE: "/elsewhere/index",
+  });
+  assert.deepEqual(env, { PATH: "/bin", HOME: "/home/u", LANG: "C.UTF-8", GIT_OPTIONAL_LOCKS: "0" });
+});
+
+test("预检 git 子进程拿不到 CLIProxy 密钥及其他凭据变量（#1588 A1）", () => {
+  const f = fixture();
+  const names = [PROVIDER_KEY_ENV, "GH_TOKEN", "OPENAI_API_KEY", "PATH"] as const;
+  const saved = Object.fromEntries(names.map((name) => [name, process.env[name]]));
+  try {
+    // 包一层 git：只记录收到的变量名（不记值），再转交真实 git。
+    const realGit = execFileSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).trim();
+    const gitBin = join(f.dir, "git-bin");
+    const log = join(f.dir, "git-env.jsonl");
+    mkdirSync(gitBin);
+    writeFileSync(join(gitBin, "git"), `#!${process.execPath}\n`
+      + `require('node:fs').appendFileSync(${JSON.stringify(log)}, JSON.stringify(Object.keys(process.env)) + '\\n');\n`
+      + `const r = require('node:child_process').spawnSync(${JSON.stringify(realGit)}, process.argv.slice(2), { stdio: 'inherit' });\n`
+      + `process.exit(r.status ?? 1);\n`);
+    chmodSync(join(gitBin, "git"), 0o700);
+    process.env.PATH = gitBin + ":" + saved.PATH;
+    process.env[PROVIDER_KEY_ENV] = fixtureKey;
+    process.env.GH_TOKEN = "fixture";
+    process.env.OPENAI_API_KEY = "fixture";
+    preflightCheckout(f.options);
+    const calls = readFileSync(log, "utf8").trim().split("\n").map((line) => JSON.parse(line) as string[]);
+    assert.ok(calls.length >= 5, `预检应至少调用 5 次 git，实际 ${calls.length}`);
+    for (const keys of calls) {
+      for (const name of [PROVIDER_KEY_ENV, "GH_TOKEN", "OPENAI_API_KEY"]) assert.ok(!keys.includes(name), `git 环境含 ${name}`);
+      assert.ok(keys.includes("GIT_OPTIONAL_LOCKS"));
+    }
+  } finally {
+    for (const name of names) {
+      if (saved[name] === undefined) delete process.env[name];
+      else process.env[name] = saved[name];
+    }
+    f.clean();
+  }
+});
