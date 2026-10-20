@@ -1500,17 +1500,6 @@ impl Ledger {
         if d.state & BROKEN != 0 || expected.is_some_and(|e| e != u64::from(d.serial)) {
             return Err(ScratchFailure::Ledger);
         }
-        static PROBE67_N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-        if bytes > (1 << 20) && PROBE67_N.fetch_add(1, Ordering::Relaxed) < 3 {
-            eprintln!("PROBE67 big bytes={} kind={:?} live={} bt=\n{}", bytes, kind, self.live.load(Ordering::Acquire), std::backtrace::Backtrace::force_capture());
-        }
-        if d.remaining < bytes || self.live.load(Ordering::Acquire).saturating_add(bytes) > d.total_limit {
-            eprintln!(
-                "PROBE67 parent bytes={} kind={:?} remaining={} live={} total_limit={} moved_in={} native_live={} scratch_live={} metadata_live={}",
-                bytes, kind.map(|k| k as usize), d.remaining, self.live.load(Ordering::Acquire), d.total_limit, d.moved_in,
-                self.native_live.load(Ordering::Acquire), self.scratch_live.load(Ordering::Acquire), self.metadata_live.load(Ordering::Acquire)
-            );
-        }
         let next = d
             .remaining
             .checked_sub(bytes)
