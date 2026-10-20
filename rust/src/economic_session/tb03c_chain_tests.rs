@@ -314,6 +314,10 @@ fn err(v: &Value, prefix: &str) {
     assert_eq!(v["kind"], "Error", "{v}");
     assert!(v["error"].as_str().unwrap().starts_with(prefix), "{v}");
 }
+fn err_has(v: &Value, prefix: &str, text: &str) {
+    err(v, prefix);
+    assert!(v["error"].as_str().unwrap().contains(text), "{v}");
+}
 fn n(v: &Value) -> i64 {
     v.as_str().unwrap().parse().unwrap()
 }
@@ -384,7 +388,11 @@ fn tb03c_chain_fin1_prepare_reserve_commit_capture_resolve_apply_same_chong_and_
     let gap = c.capture(&gap_doc, "token-s1-gap");
     assert_eq!(gap["kind"], "Recorded", "{gap}");
     let e_before = store::latest(&c.dbs[E]).unwrap();
-    err(&c.resolve(&gap, "s1-resolve-gap", "4"), "MissingDependency");
+    err_has(
+        &c.resolve(&gap, "s1-resolve-gap", "4"),
+        "MissingDependency",
+        "前沿缺口",
+    );
     assert_eq!(
         store::latest(&c.dbs[E]).unwrap(),
         e_before,
@@ -594,7 +602,11 @@ fn tb03c_chain_fin1_grant_responsibility_alone_does_not_cover_post_commit_fill()
     let fill = c.capture(&fill_doc, "token-s1-fill");
     assert_eq!(fill["kind"], "Recorded", "{fill}");
     let before = store::latest(&c.dbs[E]).unwrap();
-    err(&c.resolve(&fill, "s1-resolve", "3"), "MissingDependency");
+    err_has(
+        &c.resolve(&fill, "s1-resolve", "3"),
+        "MissingDependency",
+        "未被已核责任界覆盖",
+    );
     assert_eq!(store::latest(&c.dbs[E]).unwrap(), before);
     assert_eq!(
         responsibility_total(&before.3),
