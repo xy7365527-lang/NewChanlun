@@ -2568,7 +2568,7 @@ mod tests {
 
     /// #1493 段层连续性锁（#1588 tests 分片 REPORT §C 建议）：`m3_partition_synthetic_holds` 只要求 ledger 非空，
     /// 锁不住段层停产（main `6badaa6049` 上该种子停在 14 段，m3 照样绿）。本锁在同一合成鞅（3000 bar，种子
-    /// 20260704）上直接断言段层：段数下限与末段终点贴近笔流右缘。读数（segment-turn/1）：TB1493_M3_SEGS。
+    /// 20260704）上直接断言段层：段数下限与末段终点贴近笔流右缘。
     #[test]
     fn m3_synthetic_segment_layer_does_not_stall() {
         let cfg = ThetaConfig::default();
@@ -2582,9 +2582,13 @@ mod tests {
             layer.strokes.len(),
             ds.bars.len()
         );
-        assert!(segs >= 30, "合成鞅段层停产：{segs} 段（segment-turn/1 读数 32；main 6badaa6049 为 14）");
         assert!(
-            last_stroke_end - last_seg_end <= 300,
+            segs >= 30,
+            "合成鞅段层停产：{segs} 段（segment-turn/1 读数 32；main 6badaa6049 为 14）"
+        );
+        // segment-turn/1 读数：末段终点 2958、末笔终点 2997（差 39 根）。
+        assert!(
+            last_stroke_end - last_seg_end <= 150,
             "末段终点离笔流右缘过远：{last_seg_end} vs {last_stroke_end}"
         );
     }
