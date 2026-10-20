@@ -32,6 +32,8 @@
 """
 # 冻结声明：本模块判定面已冻结退役（#1286，2026-08-27）：名分=历史对照，不参生产准入、
 # 不同拍对齐（#1276 为末次同拍）；消费仅限 analysis/ 分析脚本。
+# #1493（#1490 裁定，xianduan.md §7.1）：本模块为历史参考；#1490 后 `_FeatureSeqState.append`（:322-369，
+# 「先试不合并」）与 `_try_trigger_segment`（:459-491，其中 L78 后置 :480-491）非正本，正本为 Rust feature_seq.rs/segment.rs。
 
 from __future__ import annotations
 

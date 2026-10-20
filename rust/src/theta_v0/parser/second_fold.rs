@@ -210,6 +210,7 @@ impl SecondFoldState {
             low,
             stroke_idx: i,
             stroke_indices: vec![i],
+            window_members: vec![],
         };
         let before = facts.standard.last().cloned();
         facts.raw_elements.push(incoming.clone());
@@ -237,6 +238,7 @@ impl SecondFoldState {
             low,
             stroke_idx: i,
             stroke_indices,
+            window_members: vec![],
         };
         facts.standard.push(after.clone());
         facts.steps.push(FeatureStep {
@@ -246,6 +248,7 @@ impl SecondFoldState {
             action: if merge { "merge" } else { "append" },
             merge_direction: merge.then_some(merge_direction),
             scope: "SECOND_SEQUENCE",
+            tie_with: None,
         });
         let n = facts.standard.len();
         if n >= 3 {

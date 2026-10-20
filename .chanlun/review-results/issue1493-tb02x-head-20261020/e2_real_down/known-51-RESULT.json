@@ -1,0 +1,14 @@
+{
+ "id": "known-51",
+ "client": "history",
+ "op": "load",
+ "result": "not_verified",
+ "elapsed_ms": 32070.150131000002,
+ "requests": 104,
+ "recorded_wire_bytes": 56947199,
+ "semantic_acceptance": "not_evaluated",
+ "full_state_installed": false,
+ "sources_unchanged": true,
+ "error_first_line": "Error: 本次读取超过声明总期限，未验证",
+ "http_request_count": 104
+}
