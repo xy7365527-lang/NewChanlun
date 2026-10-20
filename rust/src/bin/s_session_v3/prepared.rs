@@ -2162,7 +2162,8 @@ pub(crate) mod tests {
 
     /// Normal append/revision only. Does not call the older observation/fault entries.
     /// #1488 S3 assemble_manifest 读量锁：§5.4 三根（scope/生成态/两模板）全闭包核验之外的
-    /// 组装读量是与 g 无关的常数；全闭包核验本身随状态增长，按 D6 归段 B（报告实测）。
+    /// 单次组装读量是与 g 无关的常数；全闭包核验本身随状态增长、请求审计逐 cut 重组随历史增长，
+    /// 按 D6 归段 B（报告实测）。
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn assemble_manifest_reads_beyond_closure_verify_stay_constant() {
@@ -2181,10 +2182,14 @@ pub(crate) mod tests {
             eprintln!("S3_ASSEMBLE_READS g={n} calls(total,closure_verify)={calls:?}");
             rest.push(calls.iter().map(|(total, verify)| total - verify).collect::<Vec<_>>());
         }
-        assert!(
-            rest.iter().flatten().all(|r| *r == rest[0][0]),
-            "组装读量（全闭包核验之外）须与 g 无关：{rest:?}"
-        );
+        // 每次 publish：请求审计逐个重组已发布 cut（g-1 次）+ 本代组装与发布核对（2 次）。
+        // 单次调用的核验外读量只分两档（本代首读 / 历史 cut 复读），各自与 g 无关。
+        for (g, calls) in rest.iter().enumerate() {
+            assert_eq!(calls.len(), g + 2, "g={} 组装调用次数", g + 1);
+            let (history, current) = calls.split_at(g);
+            assert!(current.iter().all(|r| *r == rest[0][0]), "本代组装核验外读量须与 g 无关：{rest:?}");
+            assert!(history.iter().all(|r| *r == rest[1][0]), "历史 cut 组装核验外读量须与 g 无关：{rest:?}");
+        }
     }
 
     #[cfg(feature = "s_capture_native_testonly")]
