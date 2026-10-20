@@ -1500,6 +1500,9 @@ impl Ledger {
         if d.state & BROKEN != 0 || expected.is_some_and(|e| e != u64::from(d.serial)) {
             return Err(ScratchFailure::Ledger);
         }
+        if bytes > (1 << 20) {
+            eprintln!("PROBE67 big bytes={} kind={:?} live={} bt=\n{}", bytes, kind, self.live.load(Ordering::Acquire), std::backtrace::Backtrace::force_capture());
+        }
         if d.remaining < bytes || self.live.load(Ordering::Acquire).saturating_add(bytes) > d.total_limit {
             eprintln!(
                 "PROBE67 parent bytes={} kind={:?} remaining={} live={} total_limit={} moved_in={} native_live={} scratch_live={} metadata_live={}",
