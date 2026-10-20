@@ -442,7 +442,7 @@ def _turn_links(d, f):
             raise ValueError("PENDING_CASE_ONE未绑定FIRST开窗候选")
     if state is None:
         return
-    sources = [(TURN_OPEN, f["open_turn"]["elements"][1])] if f["open_turn"] is not None else []
+    sources = [(f["open_turn"]["turn_hypothesis_state"], f["open_turn"]["elements"][1])] if f["open_turn"] is not None else []
     sources += [(c["turn_hypothesis_state"], c["elements"][1]) for c in f["checks"]]
     if not any(s == state and b["window_members"] == members for s, b in sources):
         raise ValueError("段候选态/窗成员未绑定FIRST检查")
@@ -936,13 +936,25 @@ def validate_segment_payload(kind, p):
                 raise ValueError("不适用条件虚填布尔")
         if v4 and not second and f["open_turn"] is not None:
             o = f["open_turn"]
-            keys(o, ("elements", "turn_hypothesis_pair", "turn_hypothesis_state"), "前缀末端开窗候选")
+            keys(o, ("elements", "turn_hypothesis_pair", "turn_hypothesis_state", "killed_by"), "前缀末端开窗候选")
             if len(array(o["elements"], "open_turn.elements")) != 2:
                 raise ValueError("开窗候选缺a/b元素")
             for e in o["elements"]:
                 element(e)
-            if o["turn_hypothesis_state"] != TURN_OPEN or o["turn_hypothesis_pair"] != [e["stroke_idx"] for e in o["elements"]] or o["elements"] != f["standard"][-2:]:
+            if o["turn_hypothesis_state"] not in (TURN_OPEN, "KILLED_BY_NEW_EXTREME") or o["turn_hypothesis_pair"] != [e["stroke_idx"] for e in o["elements"]] or o["elements"] != f["standard"][-2:]:
                 raise ValueError("开窗候选未绑定末两标准元素")
+            # 段方向笔严格越过 P ⟹ 作废见证（§7.1 第 1 条）；只验类型与比较，不重判。
+            k = o["killed_by"]
+            if (k is None) != (o["turn_hypothesis_state"] == TURN_OPEN):
+                raise ValueError("开窗候选作废见证与状态不符")
+            if k is not None:
+                keys(k, ("stroke_idx", "price", "comparison"), "开窗作废见证")
+                indices([k["stroke_idx"]])
+                b = o["elements"][1]
+                up = d["direction"] == "UP"
+                price = integer(k["price"], "killed_by.price")
+                if k["comparison"] != (">" if up else "<") or not (price > int(b["high"]) if up else price < int(b["low"])) or int(k["stroke_idx"]) <= int(b["stroke_idx"]):
+                    raise ValueError("开窗作废见证未严格越过P")
         if second and v3:
             _second_terminal(d, lambda e: element(e, True), indices, second_check)
     elif kind == SEGMENT_KINDS[2]:

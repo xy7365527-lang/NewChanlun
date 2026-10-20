@@ -51,7 +51,7 @@ def first(through):
              step(el(5), el(3), el(3, [5]), "window_member", "TURN_HYPOTHESIS")]
     standard, checks, open_turn = [s1, el(3, [5])], [], None
     if through == 5:
-        open_turn = dict(elements=[s1, el(3, [5])], turn_hypothesis_pair=["1", "3"], turn_hypothesis_state="OPEN_AT_PREFIX_END")
+        open_turn = dict(elements=[s1, el(3, [5])], turn_hypothesis_pair=["1", "3"], turn_hypothesis_state="OPEN_AT_PREFIX_END", killed_by=None)
     else:
         steps.append(step(el(7), el(3, [5]), el(7), "append"))
         standard.append(el(7))
@@ -242,6 +242,17 @@ class TB02XContractTest(unittest.TestCase):
         self.reject(SEQ, mutated(first(5), lambda d: d["facts"]["open_turn"].update(turn_hypothesis_state="CONFIRMED")), "开窗候选未绑定末两标准元素")
         self.reject(SEQ, mutated(first(5), lambda d: d["facts"]["open_turn"].update(turn_hypothesis_pair=["1", "5"])), "开窗候选未绑定末两标准元素")
         self.reject(SEQ, mutated(first(5), lambda d: d["facts"]["open_turn"]["elements"][1].update(window_members=[])), "开窗候选未绑定末两标准元素")
+
+    def test_open_turn_kill_witness(self):
+        # 审查发现：段方向笔越过 P 而下一反向笔未进序列时，开窗候选即作废并带见证。
+        def kill(price, comparison=">", idx="4", state="KILLED_BY_NEW_EXTREME"):
+            return lambda d: d["facts"]["open_turn"].update(turn_hypothesis_state=state, killed_by=dict(stroke_idx=idx, price=price, comparison=comparison))
+        self.accept(SEQ, mutated(first(5), kill("21")))
+        self.reject(SEQ, mutated(first(5), kill("20")), "开窗作废见证未严格越过P")
+        self.reject(SEQ, mutated(first(5), kill("21", "<")), "开窗作废见证未严格越过P")
+        self.reject(SEQ, mutated(first(5), kill("21", idx="2")), "开窗作废见证未严格越过P")
+        self.reject(SEQ, mutated(first(5), kill("21", state="OPEN_AT_PREFIX_END")), "开窗候选作废见证与状态不符")
+        self.reject(SEQ, mutated(first(5), lambda d: d["facts"]["open_turn"].update(turn_hypothesis_state="KILLED_BY_NEW_EXTREME")), "开窗候选作废见证与状态不符")
 
     def test_pending_case_one_requires_window(self):
         self.reject(SEG, mutated(segment_pending(), lambda d: d.update(window_members=[])), "PENDING_CASE_ONE缺开窗候选或窗成员")

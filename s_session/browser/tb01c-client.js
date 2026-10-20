@@ -316,7 +316,7 @@
     const state = d.turn_hypothesis_state, members = d.window_members;
     if (d.result === "PENDING_CASE_ONE") { const o = f.open_turn; need(o !== null && state === TURN_OPEN && members.length > 0 && equal(o.elements[1].window_members, members), "PENDING_CASE_ONE未绑定FIRST开窗候选"); }
     if (state === null) return;
-    const sources = [...(f.open_turn !== null ? [[TURN_OPEN, f.open_turn.elements[1]]] : []), ...f.checks.map(c => [c.turn_hypothesis_state, c.elements[1]])];
+    const sources = [...(f.open_turn !== null ? [[f.open_turn.turn_hypothesis_state, f.open_turn.elements[1]]] : []), ...f.checks.map(c => [c.turn_hypothesis_state, c.elements[1]])];
     need(sources.some(([s, b]) => s === state && equal(b.window_members, members)), "段候选态/窗成员未绑定FIRST检查");
   }
   // #1420 s-segment/3：SECOND 语义终点、扫描覆盖、预算与 K1 游标的类型和同对象绑定；不重放折叠（与 s_tb02_contract._second_terminal 对称）。
@@ -455,9 +455,15 @@
         need((c.first_fractal || c.gap === null) && (c.gap === true || c.gap_closed_by_c === null), "不适用条件虚填布尔");
       }
       if (v4 && !second && f.open_turn !== null) {
-        const o = f.open_turn; keys(o, ["elements", "turn_hypothesis_pair", "turn_hypothesis_state"], "前缀末端开窗候选");
+        const o = f.open_turn; keys(o, ["elements", "turn_hypothesis_pair", "turn_hypothesis_state", "killed_by"], "前缀末端开窗候选");
         need(Array.isArray(o.elements) && o.elements.length === 2, "开窗候选缺a/b元素"); o.elements.forEach(e => element(e));
-        need(o.turn_hypothesis_state === TURN_OPEN && equal(o.turn_hypothesis_pair, o.elements.map(e => e.stroke_idx)) && equal(o.elements, f.standard.slice(-2)), "开窗候选未绑定末两标准元素");
+        need([TURN_OPEN, "KILLED_BY_NEW_EXTREME"].includes(o.turn_hypothesis_state) && equal(o.turn_hypothesis_pair, o.elements.map(e => e.stroke_idx)) && equal(o.elements, f.standard.slice(-2)), "开窗候选未绑定末两标准元素");
+        const k = o.killed_by; need((k === null) === (o.turn_hypothesis_state === TURN_OPEN), "开窗候选作废见证与状态不符");
+        if (k !== null) {
+          keys(k, ["stroke_idx", "price", "comparison"], "开窗作废见证"); indices([k.stroke_idx]);
+          const b = o.elements[1], up = d.direction === "UP"; signed(k.price); const price = BigInt(k.price);
+          need(k.comparison === (up ? ">" : "<") && (up ? price > BigInt(b.high) : price < BigInt(b.low)) && BigInt(k.stroke_idx) > BigInt(b.stroke_idx), "开窗作废见证未严格越过P");
+        }
       }
       if (second && v3) secondTerminal(d, e => element(e, true), indices, secondCheck);
     } else if (kind === SEGMENT_KINDS[2]) {

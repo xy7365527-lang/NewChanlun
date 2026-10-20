@@ -559,10 +559,10 @@ fn record_candidate(
     let window_members = turn_source.map_or(vec![], |(_, b)| b.window_members.clone());
     // §7.1 第 3 条（`071:32`）：第三笔完全在第一笔范围内 ⟹ 待定。尚无第三笔的开窗候选只报候选态，
     // 不改结果分类。
-    let pending_one = first
-        .open_turn
-        .as_ref()
-        .is_some_and(|o| !o.elements[1].window_members.is_empty());
+    let pending_one = first.open_turn.as_ref().is_some_and(|o| {
+        o.turn_hypothesis_state == super::feature_seq::TURN_OPEN
+            && !o.elements[1].window_members.is_empty()
+    });
     let result = if invalid {
         "FAILED_GEOMETRY"
     } else if end.is_some() {
@@ -973,6 +973,10 @@ fn divide_segments_core(
         let sk = &strokes[cursor];
         let opposite = seg_dir.flip();
         if sk.direction != opposite {
+            if observe {
+                let (h, l) = super::feature_seq::stroke_high_low(sk);
+                feat.observe_trend_stroke(cursor, h, l);
+            }
             cursor += 1;
             continue;
         }

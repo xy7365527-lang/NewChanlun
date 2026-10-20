@@ -400,6 +400,26 @@ fn tb1493_check(
 }
 
 #[test]
+fn tb1493_open_turn_killed_by_trend_stroke() {
+    // 审查发现：向上笔 7→25 已越过 P=20，下一根向下笔尚未进序列时候选即作废（§7.1 第 1 条）。
+    let ss = chain(&[0, 10, 4, 20, 5, 18, 7, 25]);
+    tb1493_full_eq_incremental(&ss);
+    let (segs, _, facts) = segment::divide_segments_with_facts(&ss, &ThetaConfig::default().parse);
+    assert!(segs.is_empty());
+    let c = &facts.candidates[0];
+    assert_eq!(c.result, "NO_FIRST");
+    assert_eq!(c.turn_hypothesis_state, Some("KILLED_BY_NEW_EXTREME"));
+    let o = c.first.open_turn.as_ref().unwrap();
+    assert_eq!(o.turn_hypothesis_state, "KILLED_BY_NEW_EXTREME");
+    let k = o.killed_by.as_ref().unwrap();
+    assert_eq!((k.stroke_idx, k.price, k.comparison), (6, 25, ">"));
+    // 相等不是越过：7→20 仍开窗。
+    let (_, _, facts) =
+        segment::divide_segments_with_facts(&chain(&[0, 10, 4, 20, 5, 18, 7, 20]), &ThetaConfig::default().parse);
+    assert_eq!(facts.candidates[0].result, "PENDING_CASE_ONE");
+}
+
+#[test]
 fn tb1493_e1_min_old_segment_continues() {
     let ss = tb1493_mini("e1_min");
     let facts = tb1493_check(&ss, &[], Some(0));

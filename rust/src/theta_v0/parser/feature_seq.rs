@@ -142,7 +142,17 @@ pub struct FeatureCheck {
 pub struct OpenTurn {
     pub elements: [FeatureElement; 2],
     pub turn_hypothesis_pair: [usize; 2],
+    /// `OPEN_AT_PREFIX_END`；b 之后某根段方向笔已严格越过 P 而下一反向笔尚未进序列时为
+    /// `KILLED_BY_NEW_EXTREME`（§7.1 第 1 条「某后续笔的高点 > b.high」），见证在 `killed_by`。
     pub turn_hypothesis_state: &'static str,
+    pub killed_by: Option<TurnKill>,
+}
+/// 开窗候选作废见证：哪根段方向笔以哪个原始极值严格越过 P。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TurnKill {
+    pub stroke_idx: usize,
+    pub price: Tick,
+    pub comparison: &'static str,
 }
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct FeatureSequenceFacts {
@@ -733,8 +743,31 @@ impl FeatureSeqState {
                     turn_hypothesis_pair: [a.stroke_idx, b.stroke_idx],
                     elements: [a, b],
                     turn_hypothesis_state: TURN_OPEN,
+                    killed_by: None,
                 }
             });
+        }
+    }
+
+    /// 段方向笔（不进 FIRST 序列）只用于开窗候选的作废见证：严格越过 P ⟹ `KILLED_BY_NEW_EXTREME`。
+    /// 只改事实，不改准入（下一反向笔进序列时 R1/追加即作废同一候选）。
+    pub fn observe_trend_stroke(&mut self, stroke_idx: usize, high: Tick, low: Tick) {
+        let up = self.seg_dir == Direction::Up;
+        if let Some(o) = self.facts.as_mut().and_then(|f| f.open_turn.as_mut()) {
+            let b = &o.elements[1];
+            let (beyond, price) = if up {
+                (high > b.high, high)
+            } else {
+                (low < b.low, low)
+            };
+            if o.killed_by.is_none() && stroke_idx > b.stroke_idx && beyond {
+                o.turn_hypothesis_state = TURN_KILLED;
+                o.killed_by = Some(TurnKill {
+                    stroke_idx,
+                    price,
+                    comparison: if up { ">" } else { "<" },
+                });
+            }
         }
     }
 
