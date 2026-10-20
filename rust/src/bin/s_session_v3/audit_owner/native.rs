@@ -745,6 +745,9 @@ impl BudgetStamp {
             && self.allowance == budget.3
             && budget.total_limit().ok() == Some(self.total_limit)
     }
+    pub(crate) fn same_ledger_only_for_neg(&self, budget: &Budget) -> bool {
+        self.same_ledger(&budget.0)
+    }
     /// 许可（可来自旧冻结域）仍挂本摘要所指同一Ledger。
     pub(crate) fn holds(&self, permit: &Permit) -> bool {
         self.same_ledger(&permit.budget.0)
