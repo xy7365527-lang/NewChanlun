@@ -973,15 +973,6 @@ impl NativeSourceState {
             &mut self.object_order,
             &mut self.work,
         )?;
-        if self.objects.len() != 0 || changes.added.len() != 0 || dirty.iter().next().is_some() {
-            return Err(format!(
-                "S4 probe：object_phase objects={} added={} removed={} dirty={}",
-                self.objects.len(),
-                changes.added.len(),
-                changes.removed.len(),
-                dirty.iter().count()
-            )); // S4 探针
-        }
         for (handle, _) in &changes.removed {
             dirty.remove(handle)?;
             pending_changed.insert(s, *handle)?;
