@@ -48,7 +48,14 @@ fn replay(bars: &[Bar], ladder: &[usize]) -> (Replay, ParseLayer) {
     let mut inc = ParseLayerIncr::new(&theta);
     let mut r = Replay::default();
     // (上一层段数, 拷贝起点, 拷贝, 上一层笔数, 上一层末 8 笔, 上一层 unsealed 起点)
-    let mut prev: Option<(usize, usize, Vec<Segment>, usize, Vec<Stroke>, Option<usize>)> = None;
+    let mut prev: Option<(
+        usize,
+        usize,
+        Vec<Segment>,
+        usize,
+        Vec<Stroke>,
+        Option<usize>,
+    )> = None;
     let mut was_invalid: Option<usize> = None;
     let mut deep_unverified = 0usize;
     let n_all = bars.len();
@@ -84,7 +91,8 @@ fn replay(bars: &[Bar], ladder: &[usize]) -> (Replay, ParseLayer) {
                         .strokes
                         .iter()
                         .position(|s| s.start_index == old[j - off].start_index);
-                    let in_unsealed = matches!((peuf, seg_start_stroke), (Some(e), Some(k)) if k >= *e);
+                    let in_unsealed =
+                        matches!((peuf, seg_start_stroke), (Some(e), Some(k)) if k >= *e);
                     r.rewrites.push((i, j, only_last && in_unsealed));
                     break;
                 }
@@ -609,7 +617,11 @@ fn tb1493_replay_rewrite_sites() {
         let layer = inc.append(*bar);
         if let Some((old, off, ostk, ooff, euf)) = &prev {
             let plen = off + old.len();
-            for j in layer.segments_confirmed_len.min(plen.saturating_sub(1)).max(*off)..plen.saturating_sub(1) {
+            for j in layer
+                .segments_confirmed_len
+                .min(plen.saturating_sub(1))
+                .max(*off)..plen.saturating_sub(1)
+            {
                 if layer.segments.get(j) != Some(&old[j - off]) {
                     let first_stroke_diff = (*ooff..ooff + ostk.len())
                         .find(|&k| layer.strokes.get(k) != Some(&ostk[k - ooff]));

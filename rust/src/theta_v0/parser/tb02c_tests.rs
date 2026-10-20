@@ -952,18 +952,43 @@ fn tb1493_ruling2_not_extreme_probe() {
                     let up = s.direction == Direction::Up;
                     let endpoint = ss[sp.1].end_price;
                     let (k, ext) = (sp.0..=sp.1)
-                        .map(|k| (k, if up { ss[k].start_price.max(ss[k].end_price) } else { ss[k].start_price.min(ss[k].end_price) }))
+                        .map(|k| {
+                            (
+                                k,
+                                if up {
+                                    ss[k].start_price.max(ss[k].end_price)
+                                } else {
+                                    ss[k].start_price.min(ss[k].end_price)
+                                },
+                            )
+                        })
                         .fold((sp.0, if up { i64::MIN } else { i64::MAX }), |acc, x| {
-                            if (up && x.1 > acc.1) || (!up && x.1 < acc.1) { x } else { acc }
+                            if (up && x.1 > acc.1) || (!up && x.1 < acc.1) {
+                                x
+                            } else {
+                                acc
+                            }
                         });
                     if endpoint != ext {
-                        bad.push((j, sp, endpoint, k, ext, c.result, c.strict.as_ref().map(|w| w.effective_case), j == 0));
+                        bad.push((
+                            j,
+                            sp,
+                            endpoint,
+                            k,
+                            ext,
+                            c.result,
+                            c.strict.as_ref().map(|w| w.effective_case),
+                            j == 0,
+                        ));
                     }
                 }
                 per_arm.push(bad);
             }
             if !per_arm[0].is_empty() || !per_arm[1].is_empty() {
-                eprintln!("TB1493 NX g={g}/{distinct} ruling={:?} window={:?}", per_arm[0], per_arm[1]);
+                eprintln!(
+                    "TB1493 NX g={g}/{distinct} ruling={:?} window={:?}",
+                    per_arm[0], per_arm[1]
+                );
             }
         }
     }
