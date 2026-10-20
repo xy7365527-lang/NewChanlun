@@ -449,7 +449,10 @@ mod tests {
             .filter(|pt| !matches!(pt, PendingTail::PendingSegment { .. }))
             .cloned()
             .collect();
-        assert!(open.len() > without_segment.len(), "正控：无标记时有 PendingSegment");
+        assert!(
+            open.len() > without_segment.len(),
+            "正控：无标记时有 PendingSegment"
+        );
         assert_eq!(closed, without_segment);
     }
 

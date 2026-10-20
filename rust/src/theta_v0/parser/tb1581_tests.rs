@@ -139,9 +139,7 @@ fn has_pending_segment(l: &ParseLayer) -> bool {
 #[test]
 fn tb1581_injected_gate_failure_blocks_downstream() {
     let cfg = ThetaConfig::default();
-    let ss = tb1581_chain(&[
-        0, 20, 8, 10, -20, -10, -16, -6, -8, -7, -12, -2, -9, 5, -5,
-    ]);
+    let ss = tb1581_chain(&[0, 20, 8, 10, -20, -10, -16, -6, -8, -7, -12, -2, -9, 5, -5]);
     let merged = tb1581_merged(&ss);
 
     let (prod, prod_facts) = parse_layer_from_strokes(&merged, ss.clone(), &cfg.parse, &mut None);
@@ -165,9 +163,18 @@ fn tb1581_injected_gate_failure_blocks_downstream() {
     let seg_start = bad_facts.parse_invalid_from.as_ref().map(|p| p.seg_start);
     assert_eq!(seg_start, Some(0), "注入须触发门失败");
     assert_eq!(bad.segments_parse_invalid_from, seg_start);
-    assert_eq!(incr_marker, seg_start, "批量入口的增量核标记须与 facts 同一判定");
-    assert!(bad_pending.is_some(), "注入现场有未确认尾段（PendingSegment 的构造素材在）");
-    assert!(!has_pending_segment(&bad), "标记非空 ⟹ 不从 seg_start 起构造尾部");
+    assert_eq!(
+        incr_marker, seg_start,
+        "批量入口的增量核标记须与 facts 同一判定"
+    );
+    assert!(
+        bad_pending.is_some(),
+        "注入现场有未确认尾段（PendingSegment 的构造素材在）"
+    );
+    assert!(
+        !has_pending_segment(&bad),
+        "标记非空 ⟹ 不从 seg_start 起构造尾部"
+    );
     assert_ne!(bad, prod, "标记计入 ParseLayer 结构等价");
 
     let out = classifier::classify(&bad, &cfg, &[1]);
@@ -191,7 +198,10 @@ fn tb1581_classifier_refuses_marked_layer_with_warm_cache() {
         assert_eq!(layer.segments_parse_invalid_from, None, "生产口径无门失败");
         if i == inject_at {
             let warm = classifier::classify(&layer, &cfg, &[]);
-            assert!(!warm.classification.levels.is_empty(), "正控：无标记时有产出");
+            assert!(
+                !warm.classification.levels.is_empty(),
+                "正控：无标记时有产出"
+            );
             let before = cache.candidate_streams();
             let mut marked = layer.clone();
             marked.segments_parse_invalid_from = Some(0);

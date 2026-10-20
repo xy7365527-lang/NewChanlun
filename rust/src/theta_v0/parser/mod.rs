@@ -467,7 +467,10 @@ fn parse_layer_from_facts(
         }
         None => segment::divide_segments_with_facts(&strokes, config),
     };
-    let invalid_from = segment_facts.parse_invalid_from.as_ref().map(|p| p.seg_start);
+    let invalid_from = segment_facts
+        .parse_invalid_from
+        .as_ref()
+        .map(|p| p.seg_start);
     facts.segment_facts = Some(segment_facts);
     let tail = tail::build_tail(
         merged,
@@ -508,7 +511,10 @@ fn parse_layer_from_strokes(
         }
         None => segment::divide_segments_with_facts(&strokes, config),
     };
-    let invalid_from = segment_facts.parse_invalid_from.as_ref().map(|p| p.seg_start);
+    let invalid_from = segment_facts
+        .parse_invalid_from
+        .as_ref()
+        .map(|p| p.seg_start);
     let tail = tail::build_tail(
         merged,
         &fractals,
