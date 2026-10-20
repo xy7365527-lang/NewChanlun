@@ -96,8 +96,7 @@ impl NativeReservation {
 }
 impl Drop for NativeReservation {
     fn drop(&mut self) {
-        // MUT67-M-b：旧 retain 模型，许可不随对象析构返还
-        if self.bytes == usize::MAX && self
+        if self
             .parent
             .release(self.bytes, ScratchCharge::Native, self.origin)
             .is_err()
@@ -177,7 +176,8 @@ impl Drop for ScratchHandle {
                 parent.invalidate();
             }
             drop(core);
-            if parent
+            // MUT67-M-c：工作域关闭不返还元数据位
+            if charge == usize::MAX && parent
                 .release(charge, ScratchCharge::Metadata, origin)
                 .is_err()
             {
