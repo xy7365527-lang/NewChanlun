@@ -5402,6 +5402,8 @@ mod tests {
             store.nodes.iter().map(|(digest, _, _)| *digest).collect()
         };
         for start in 0..count.saturating_sub(2) {
+            // 发射账只记 fractal 调用：CC-006 形状构造期间暂停（其写入不在本锁范围）。
+            let paused = fixture.store.emissions.take();
             let fractal = if let Some(session) = &mut session {
                 let Some(shape) = fixture
                     .producer
@@ -5415,8 +5417,10 @@ mod tests {
                     )
                     .unwrap()
                 else {
+                    fixture.store.emissions = paused;
                     continue;
                 };
+                fixture.store.emissions = paused;
                 let before = stored(&fixture.store);
                 let fractal = fixture
                     .producer
@@ -5437,8 +5441,10 @@ mod tests {
                     .build_shape(&mut fixture.store, &fixture.state, start, generation, CUT)
                     .unwrap()
                 else {
+                    fixture.store.emissions = paused;
                     continue;
                 };
+                fixture.store.emissions = paused;
                 let views = [start, start + 1, start + 2]
                     .map(|index| fixture.state.shared_group(index).unwrap().unwrap());
                 let before = stored(&fixture.store);
