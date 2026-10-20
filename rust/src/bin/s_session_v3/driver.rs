@@ -1926,7 +1926,6 @@ mod tests {
         let (actual, events, work) = state::traced(true, || native.handle(Fixture::ingest(2)));
         let memory = memory.finish();
         let expected = ordinary.handle(Fixture::ingest(2)).unwrap();
-        eprintln!("DIAG0035 {}", json!({"held":held,"retained":native.conn.complete_retained_bytes(),"report":native.conn.complete_report(),"phases":events.iter().map(|e| e["phase"].clone()).collect::<Vec<_>>(),"work":work,"allocation":memory}));
         assert_eq!(actual.unwrap(), expected);
         assert_eq!(native.conn.complete_retained_bytes(), 0);
         assert!(events.iter().any(|e| e["phase"] == "owner_complete_hit"));
