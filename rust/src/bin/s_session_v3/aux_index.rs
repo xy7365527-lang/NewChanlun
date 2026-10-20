@@ -2583,7 +2583,10 @@ mod tests {
         let limit = 1 << 20;
         let budget = super::super::audit_owner::native::Budget::new(limit, 0).unwrap();
         let baseline = budget.live();
-        let occupied = budget.reserve(limit - baseline).unwrap();
+        // 只给工作域元数据留位：开域本身须计父账，父满时连 codec_work 都开不成，到不了被测表构造。
+        let work_metadata =
+            newchan_rust::s_content::capture_allocation::scratch::CodecWork::metadata_bytes();
+        let occupied = budget.reserve(limit - baseline - work_metadata).unwrap();
         let before = budget.live();
         let result = budget.codec_work().unwrap().run(|scope| {
             let store = super::super::audit_store::NativeAdmission(Some(scope));

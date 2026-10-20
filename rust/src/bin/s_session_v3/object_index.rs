@@ -5009,6 +5009,25 @@ mod tests {
         }
     }
 
+    #[test]
+    fn probe67_plain_plan_withdrawal_order() {
+        for shape_replacement in [false, true] {
+            let (nodes, old, fresh) = plan_input_fixture(shape_replacement);
+            let capture = sc::AuditCapture::new(nodes);
+            let mut reader =
+                super::super::history::HashReader::captured_for_audit(&capture, None).unwrap();
+            let mut new = bj::new_work(None);
+            reader.native_codec_room(&mut new, 1).unwrap();
+            new.try_push(fresh.try_clone().unwrap()).unwrap();
+            let plan = plan_from_candidates(&mut reader, new, &old, 3).unwrap();
+            eprintln!("PROBE67 shape_replacement={shape_replacement} old_order={:?}", old.iter().map(|e| e.id.as_str().to_string()).collect::<Vec<_>>());
+            eprintln!("PROBE67 plain_plan withdrawals={:?}", plan.withdrawals.view());
+            let index: Vec<Entry> = plan.index.iter().map(|e| e.try_clone().unwrap()).collect();
+            let (w, _) = changes_at(&index, 3).unwrap();
+            eprintln!("PROBE67 changes_at withdrawals={:?}", w);
+        }
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn native_plan_late_missing_wire_releases_partial_plan_without_mutating_input() {
