@@ -431,7 +431,11 @@ fn bound(p: &Value) -> Result<i64, String> {
 }
 /// C06.3/C06.5：核 Pending 是否由固定 E 保守完整界（covered_facts）覆盖，并对应 E 实存原事实与 token。
 /// 只认 E 已独立保存的界与原件，不读坏 B、不用缓存余额、不伪造 Applied。
-fn covered_pending(previous: &Value, coverage: &[Value], pending: &Value) -> Result<(), String> {
+pub(super) fn covered_pending(
+    previous: &Value,
+    coverage: &[Value],
+    pending: &Value,
+) -> Result<(), String> {
     let covered = coverage
         .iter()
         .find(|x| x["fact_key"] == pending["fact_key"] && x["token"] == pending["token"])
@@ -443,6 +447,39 @@ fn covered_pending(previous: &Value, coverage: &[Value], pending: &Value) -> Res
     )?;
     if fact["fact_hash"] != covered["fact_hash"] {
         return Err("IdentityConflict：共同责任原件覆盖的事实内容不同".into());
+    }
+    // #1406 OQ-3：新书账域的显式等待不能由 Reserve 的风险覆盖旁路清掉。
+    // 旧域 Pending.reason 为字符串，保持原有判据。
+    if pending["scope"] == "account:*" {
+        return Err("MissingDependency：账户范围 Pending 尚缺归属与影响范围证明".into());
+    }
+    if pending["reason"].is_object() {
+        super::tb03c_e::check_fill_predecessor(&fact["event"], list(previous, "recorded")?)?;
+    }
+    match pending["reason"]["kind"].as_str() {
+        Some("AwaitingPolicy") => {
+            return Err("AwaitingPolicy：分配政策未配置，证据不能解除".into());
+        }
+        Some("AwaitingDependency") => {
+            let dependency = required(&pending["reason"], "on")?;
+            let original = list(previous, "recorded")?
+                .iter()
+                .find(|f| f["fact_key"] == dependency)
+                .ok_or("AwaitingDependency：前件尚未 Recorded")?;
+            if let Some(p) = list(previous, "pending")?
+                .iter()
+                .find(|p| p["fact_key"] == dependency)
+            {
+                if !coverage.iter().any(|c| {
+                    c["fact_key"] == dependency
+                        && c["token"] == p["token"]
+                        && c["fact_hash"] == original["fact_hash"]
+                }) {
+                    return Err("AwaitingDependency：前件尚未由同批证据覆盖".into());
+                }
+            }
+        }
+        _ => (),
     }
     Ok(())
 }
@@ -583,7 +620,7 @@ fn proof_inner(
             super::content_store::image_refs(&result["current_image"])
                 .map_err(|e| e.to_string())?,
         );
-        super::content_store::import_peer_refs(&tx, &refs, stage, job)
+        super::content_store::import_peer_refs_with_deadline(&tx, &refs, stage, job, deadline)
             .map_err(|e| format!("MissingDependency：peer closed refs 导入失败：{e}"))?;
     }
     tx.commit().map_err(err)?;
@@ -717,23 +754,33 @@ fn verify_structure(config: &Config, v: &Value, p: Option<&Value>) -> Result<(),
 fn verify_structure_for_domain(
     c: &Connection,
     config: &Config,
-    job: Option<&mut Job>,
+    budget: &mut super::store::ReadBudget<'_>,
     evidence: &Value,
     plan: Option<&Value>,
 ) -> Result<(), String> {
     if revision(&config.manifest)? == REV {
         return verify_structure(config, evidence, plan);
     }
-    let job = job.ok_or("MissingDependency：新域缺统一证据 job")?;
-    let mut source = super::content_store::LocalSource { c };
-    super::financial_content::verify_evidence(
+    let deadline = budget.deadline;
+    let job = budget
+        .job
+        .as_deref_mut()
+        .ok_or("MissingDependency：新域缺统一证据 job")?;
+    let mut read = |digest: &crate::s_content::NodeDigest, job: &mut Job| {
+        super::content_store::read_any_metered(
+            c,
+            digest,
+            &mut super::store::ReadBudget::new(Some(job), deadline),
+        )
+    };
+    super::financial_content::verify_evidence_with_read(
         &config.manifest["finance"]["structure"],
         evidence,
-        &mut source,
+        &mut read,
         job,
         plan.map(|p| &p["s_ref"]),
     )?;
-    Ok(())
+    budget.before()
 }
 fn knowledge_floor(witness: &Value, first: &str) -> Result<(), String> {
     let known = nonnegative(first, "first_known_ns")?;
@@ -821,6 +868,7 @@ fn own_lock(
     )
 }
 /// 生产写与离线审计共用本地转换。oracle 在测试侧独立计算，不调用本函数。
+#[cfg(test)]
 fn reduce(
     c: &Connection,
     config: &Config,
@@ -829,7 +877,28 @@ fn reduce(
     w: &Value,
     seq: i64,
     ns: &str,
-    mut job: Option<&mut Job>,
+    job: Option<&mut Job>,
+) -> Result<(Value, Value), String> {
+    reduce_with_budget(
+        c,
+        config,
+        previous,
+        request,
+        w,
+        seq,
+        ns,
+        &mut super::store::ReadBudget::new(job, None),
+    )
+}
+fn reduce_with_budget(
+    c: &Connection,
+    config: &Config,
+    previous: &Value,
+    request: &Value,
+    w: &Value,
+    seq: i64,
+    ns: &str,
+    budget: &mut super::store::ReadBudget<'_>,
 ) -> Result<(Value, Value), String> {
     let p = &request["payload"];
     validate_request(p)?;
@@ -872,13 +941,7 @@ fn reduce(
             {
                 return Err("IdentityConflict：决定或 attempt 已使用".into());
             }
-            verify_structure_for_domain(
-                c,
-                config,
-                job.as_deref_mut(),
-                &w["structure"],
-                Some(plan),
-            )?;
+            verify_structure_for_domain(c, config, budget, &w["structure"], Some(plan))?;
             let prepared = own_lock(config, previous, &d, plan, seq, ns)?;
             let r = json!({"decision_id":p["decision_id"],"state":"Prepared","prepared":prepared,"structure_evidence":w["structure"],"grant":null,"local_commit_receipt":null,"execution_eligibility":"None"});
             let f = &mut next["finance"];
@@ -987,13 +1050,7 @@ fn reduce(
                 if latest_proof_seq(pf)? != expected_version {
                     return Err("InvalidDomain：Prepared 后本地账本版本已改变".into());
                 }
-                verify_structure_for_domain(
-                    c,
-                    config,
-                    job.as_deref_mut(),
-                    &w["structure"],
-                    Some(q),
-                )?;
+                verify_structure_for_domain(c, config, budget, &w["structure"], Some(q))?;
                 if bound(q)? != number(&original["prepared"], "locked_amount")? {
                     return Err("IdentityConflict：私有锁不是原计划全额".into());
                 }
@@ -1107,7 +1164,7 @@ fn reduce(
             if number(slot, "reserve_ns")? > nonnegative(ns, "commit_ns")? {
                 return Err("InvalidDomain：B Commit 早于 E 增责".into());
             }
-            verify_structure_for_domain(c, config, job.as_deref_mut(), &w["structure"], Some(q))?;
+            verify_structure_for_domain(c, config, budget, &w["structure"], Some(q))?;
             let mut r = old.clone();
             r["state"] = json!("Committed");
             r["grant"] = json!({"original":g,"e_cut":gp["receipt"]["cut"]});
@@ -1196,11 +1253,16 @@ pub(super) fn receipt(config: &Config, event: &Value, cut: Value) -> Result<Valu
         json!({"kind":kind,"domain_id":config.domain,"record":event["record"],"first_known_ns":event["first_known_ns"],"commit_ns":event["commit_ns"],"cut":cut,"receipt_key":key_for(config, &event["request"]["payload"])?}),
     )
 }
-fn original(c: &Connection, event: &Value, config: &Config) -> Result<Value, String> {
+fn original(
+    c: &Connection,
+    event: &Value,
+    config: &Config,
+    budget: &mut super::store::ReadBudget<'_>,
+) -> Result<Value, String> {
     let e = validate_envelope(event["request"].clone(), config.revision()?)?;
     config.authorized(&e)?;
-    let r =
-        super::service::previous_message(c, &e)?.ok_or("StorageUnavailable：财务原消息绑定缺失")?;
+    let r = super::service::previous_message_metered(c, &e, budget)?
+        .ok_or("StorageUnavailable：财务原消息绑定缺失")?;
     if r["receipt_key"] != key_for(config, &e["payload"])? {
         return Err("IdentityConflict：财务原身份/回执绑定不同".into());
     }
@@ -1213,7 +1275,7 @@ pub(super) fn replay(
     event: &Value,
     seq: i64,
     ns: &str,
-    job: Option<&mut Job>,
+    budget: &mut super::store::ReadBudget<'_>,
 ) -> Result<Value, String> {
     exact(
         event,
@@ -1228,7 +1290,7 @@ pub(super) fn replay(
             "commit_seq",
         ],
     )?;
-    let e = original(c, event, config)?;
+    let e = original(c, event, config, budget)?;
     if event["kind"] != e["payload"]["op"]
         || event["commit_seq"] != seq.to_string()
         || event["commit_ns"] != ns
@@ -1238,11 +1300,9 @@ pub(super) fn replay(
         return Err("StorageUnavailable：财务事件阶段/时刻/身份不符".into());
     }
     let epoch = positive(required(&e["payload"], "writer_epoch")?, "event epoch")?;
-    let at: String = c
-        .query_row("SELECT at_ns FROM epochs WHERE epoch=?", [epoch], |r| {
-            r.get(0)
-        })
-        .map_err(err)?;
+    let at: String = budget.one(c, "SELECT at_ns FROM epochs WHERE epoch=?", [epoch], |r| {
+        r.get(0)
+    })?;
     if number(event, "first_known_ns")? < nonnegative(&at, "epoch at_ns")?
         || list(previous, "history")?.last().is_some_and(|last| {
             number(last, "commit_ns")
@@ -1252,20 +1312,27 @@ pub(super) fn replay(
         return Err("StorageUnavailable：财务事件早于 writer/原账前沿".into());
     }
     knowledge_floor(&event["witness"], required(event, "first_known_ns")?)?;
-    let (mut next, r) = reduce(c, config, previous, &e, &event["witness"], seq, ns, job)?;
+    let (mut next, r) =
+        reduce_with_budget(c, config, previous, &e, &event["witness"], seq, ns, budget)?;
     if r != event["record"] {
         return Err("StorageUnavailable：原财务事件重放不同".into());
     }
     push(&mut next, "history", event.clone());
     Ok(next)
 }
-pub(super) fn audit_receipt(c: &Connection, config: &Config, r: &Value) -> Result<(), String> {
+pub(super) fn audit_receipt(
+    c: &Connection,
+    config: &Config,
+    r: &Value,
+    budget: &mut super::store::ReadBudget<'_>,
+) -> Result<(), String> {
     let seq = positive(required(&r["cut"], "commit_seq")?, "receipt seq")?;
-    let (h, raw): (String, String) = c
-        .query_row("SELECT root,image FROM commits WHERE seq=?", [seq], |r| {
-            Ok((r.get(0)?, r.get(1)?))
-        })
-        .map_err(err)?;
+    let (h, raw): (String, String) = budget.one(
+        c,
+        "SELECT root,image FROM commits WHERE seq=?",
+        [seq],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
     let image = strict_json(raw.as_bytes())?;
     let e = list(&image, "history")?
         .last()
@@ -1280,15 +1347,16 @@ pub(super) fn audit_message(
     config: &Config,
     request: &Value,
     r: &Value,
+    budget: &mut super::store::ReadBudget<'_>,
 ) -> Result<(), String> {
     validate_request(&request["payload"])?;
     if r["receipt_key"] != key_for(config, &request["payload"])? {
         return Err("StorageUnavailable：财务消息/回执键不符".into());
     }
     let seq = positive(required(&r["cut"], "commit_seq")?, "receipt seq")?;
-    let raw: String = c
-        .query_row("SELECT image FROM commits WHERE seq=?", [seq], |r| r.get(0))
-        .map_err(err)?;
+    let raw: String = budget.one(c, "SELECT image FROM commits WHERE seq=?", [seq], |r| {
+        r.get(0)
+    })?;
     let i = strict_json(raw.as_bytes())?;
     let e = list(&i, "history")?
         .last()
@@ -1339,7 +1407,13 @@ pub(super) fn write_with_ingress(
             return Ok(r);
         }
         if let Some(r) = row(&tx, "receipts", &k)? {
-            audit_message(&tx, config, e, &r)?;
+            audit_message(
+                &tx,
+                config,
+                e,
+                &r,
+                &mut super::store::ReadBudget::new(shared_job.as_mut(), None),
+            )?;
             super::service::bind_message(&tx, e, &k)?;
             tx.commit().map_err(err)?;
             return Ok(r);
@@ -1604,7 +1678,16 @@ fn persist_with_job(
         .to_string();
     let (received, first, ns) = super::service::clocks(config, e, &floor, epoch)?;
     knowledge_floor(&w, &first)?;
-    let (mut next, record) = reduce(&tx, config, &image, e, &w, seq, &ns, job.as_deref_mut())?;
+    let (mut next, record) = reduce_with_budget(
+        &tx,
+        config,
+        &image,
+        e,
+        &w,
+        seq,
+        &ns,
+        &mut super::store::ReadBudget::new(job.as_deref_mut(), deadline),
+    )?;
     // C06.5：已核覆盖 token 的清除须与 E 本事务持久状态一致，不能只改返回 JSON。
     super::store::sync_pending(&tx, &next)?;
     let event = json!({"kind":e["payload"]["op"],"record":record,"request":e,"witness":w,"received_ns":received,"first_known_ns":first,"commit_ns":ns,"commit_seq":seq.to_string()});

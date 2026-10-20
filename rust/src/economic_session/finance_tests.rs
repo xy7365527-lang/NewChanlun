@@ -9,6 +9,8 @@ struct Fixture {
     dbs: Vec<Connection>,
     data: Value,
     basis: Value,
+    applicants: Vec<String>,
+    c4a_doc: Option<Value>,
 }
 fn save(dir: &Path, name: &str, v: &Value) -> (String, String) {
     let p = dir.join(name);
@@ -53,9 +55,26 @@ impl Fixture {
         Self::build_slots(cap, None, &[("slot", &["beta"]), ("slot-b", &["alpha"])])
     }
     fn build(cap: &str, fault: Option<(&str, &str)>, applicants: &[&str]) -> Self {
-        Self::build_slots(cap, fault, &[("slot", applicants)])
+        Self::build_slots_config(cap, fault, &[("slot", applicants)], None)
     }
     fn build_slots(cap: &str, fault: Option<(&str, &str)>, slot_spec: &[(&str, &[&str])]) -> Self {
+        Self::build_slots_config(cap, fault, slot_spec, None)
+    }
+    // #1406 C4a：保留既有 TestOnly S/γ 信任缝，只扩真实 E/B 持久事务场景。
+    fn build_config(
+        cap: &str,
+        fault: Option<(&str, &str)>,
+        applicants: &[&str],
+        c4a: Option<(bool, bool)>,
+    ) -> Self {
+        Self::build_slots_config(cap, fault, &[("slot", applicants)], c4a)
+    }
+    fn build_slots_config(
+        cap: &str,
+        fault: Option<(&str, &str)>,
+        slot_spec: &[(&str, &[&str])],
+        c4a: Option<(bool, bool)>,
+    ) -> Self {
         let applicants: Vec<&str> = slot_spec
             .iter()
             .flat_map(|(_, a)| a.iter().copied())
@@ -98,6 +117,13 @@ impl Fixture {
             event["observed_existing_book"]["units"] = json!(quantity);
             event["source"]["external_fact_id"] = json!(format!("opening-{name}"));
             event["allocation_id"] = json!(format!("allocation-{name}"));
+            if c4a.is_some() {
+                event["book_identity"]["side"] = json!("long");
+                event["stable_point"] =
+                    json!({"profile":"TestOnly","seq":"1","source_ref":"c4a-sp"});
+                doc["evidence_index"]["fragments"]["c4a-sp"] =
+                    json!([{"json_pointer":"/events/0/stable_point"}]);
+            }
             let raw_hash = sha256_hex(canonical_json(&doc).as_bytes());
             let event = &doc["events"][0];
             let fk = book::fact_key(event).unwrap();
@@ -140,6 +166,16 @@ impl Fixture {
             docs.push(doc);
             bindings.push(p);
         }
+        let mut fill_manifest = json!({"projection_kind":"netted","symbol":"alpha","participants":[{"chong_id":"alpha","command_id":"c4a-alpha","family_id":docs[0]["events"][0]["family_id"],"revision":"1","requested_q":"1"}],"tie_break_order":["alpha"]});
+        fill_manifest["manifest_hash"] = json!(hash(&fill_manifest));
+        let c4a_doc=c4a.map(|(_,cover)|{
+            let doc=json!({"format":docs[0]["format"],"units":docs[0]["units"],"events":[{"event":"c4a-fill","allocation_id":"c4a-fill","source":{"source_namespace":"test","source_epoch":"one","external_fact_id":"c4a-fill","source_cursor":"3","received_time":"source-3","claimed_origin":"TestOnly FIN C4a","source_event_time":null},"stable_point":{"profile":"TestOnly","seq":"2","source_ref":"sp"},"netted_fill":{"manifest_hash":fill_manifest["manifest_hash"],"symbol":"alpha","report_kind":"incremental","reported_quantity":"1","from":"0","to":"1","unit_price":"14","commission":"2","cash_kind":"acquisition_cash","income_changes":{"Pi":"0","A":"0","W":"0"},"source_ref":"fill"}}],"evidence_index":{"fragments":{"sp":[{"json_pointer":"/events/0/stable_point"}],"fill":[{"json_pointer":"/events/0/netted_fill"}]}}});
+            if cover {
+                let event=&doc["events"][0];let raw_hash=sha256_hex(canonical_json(&doc).as_bytes());
+                covered.push(json!({"fact_key":book::fact_key(event).unwrap(),"fact_hash":hash(&json!({"raw_sha256":raw_hash,"json_pointer":"/events/0","event":event,"units":doc["units"]})),"token":"c4a-token"}));
+            }
+            doc
+        });
         let slots: Vec<Value> = slot_spec
             .iter()
             .map(|(slot_id, members)| {
@@ -204,6 +240,24 @@ impl Fixture {
                 json!({"received_ns":"93","first_known_ns":"94","commit_ns":"94"});
         }
         let mut manifest = json!({"schema_revision":"economic-manifest/1","session_id":"tb03b-unit","session_generation":"1","e":{"db":dir.join("e.db"),"socket":dir.join("e.sock")},"chongs":routes,"authorized_sources":[auth],"resources":{"max_frame_bytes":"16777216","read_timeout_ms":"1000","write_timeout_ms":"1000","response_timeout_ms":"3000","queue_capacity":"4","max_connections":"4"},"clock":{"kind":"TestOnly","plan":{"init_ns":"1","recover_ns":["1000","2000"],"messages":clocks}},"voice_binding":{"schema_revision":"voice-binding/1","authorities":authorities},"finance":{"schema_revision":REV,"input_path":ip,"input_sha256":ih,"coordinator_source":source,"structure":{"binary":"/unit-unavailable-S-binary","binary_sha256":hash(&json!("unit")),"db":dir.join("s.db"),"session_id":"tb03b-unit","session_generation":"1","writer_epoch":"1"}}});
+        if let Some((resolve_first, _)) = c4a {
+            manifest["book_revision"] = json!(book::TB03C_BOOK_V1);
+            manifest["fill_manifests"] = json!([fill_manifest]);
+            manifest["fill_allocation_policy"] = json!({"fill_allocation_policy_id":super::super::allocation::FILL_ALLOCATION_POLICY_ID,"policy_revision":"c4a-fin-1"});
+            manifest["authorized_sources"][0]["operations"]
+                .as_array_mut()
+                .unwrap()
+                .push(json!("ResolveEvidence"));
+            let clocks = &mut manifest["clock"]["plan"]["messages"];
+            for (message, t) in [
+                ("c4a-capture", 85),
+                ("c4a-resolve", if resolve_first { 88 } else { 1100 }),
+                ("Reserve-slot", if resolve_first { 1100 } else { 90 }),
+                ("c4a-apply", 1200),
+            ] {
+                clocks[message] = json!({"received_ns":t.to_string(),"first_known_ns":(t+1).to_string(),"commit_ns":(t+2).to_string()});
+            }
+        }
         if let Some((message, phase)) = fault {
             manifest["test_only_fault"] = json!({"message_id":message,"phase":phase,"marker_path":dir.join("fault-marker.json")});
         }
@@ -224,6 +278,8 @@ impl Fixture {
             dbs,
             data,
             basis,
+            applicants: applicants.iter().map(|n| n.to_string()).collect(),
+            c4a_doc,
         };
         for (i, name) in ["alpha", "beta"].iter().enumerate() {
             let captured=f.handle(0,&format!("capture-{name}"),json!({"op":"CaptureExternal","raw_utf8":canonical_json(&docs[i]),"json_pointer":"/events/0","token":format!("token-{name}"),"source_event_time":null}));
@@ -1012,4 +1068,177 @@ fn waiting_slot_blocks_other_slot_reserve_without_queue_jump() {
     assert_eq!(grants[0]["decision_id"], "alpha");
     assert_eq!(responsibility_total(&latest(&g.dbs[0]).unwrap().3), 50);
     g.audit();
+}
+
+// #1406 H2：真实 SQLite Capture/Resolve/B 入口 + 既有 FIN persist 事务缝。
+// S/γ 是明确的 TestOnly 信任夹具，不能计完整真实 S 或 /2 载体验收。
+fn c4a_handle(f: &mut Fixture, owner: usize, id: &str, payload: Value) -> Value {
+    let epoch = positive(&meta(&f.dbs[owner], "writer_epoch").unwrap(), "epoch").unwrap();
+    let e_epoch = positive(&meta(&f.dbs[0], "writer_epoch").unwrap(), "E epoch").unwrap();
+    service::handle(
+        &mut f.dbs[owner],
+        &f.configs[owner],
+        epoch,
+        e_epoch,
+        &json!({}),
+        &envelope(id, payload),
+    )["payload"]
+        .clone()
+}
+fn c4a_capture(f: &mut Fixture) -> Value {
+    let raw = canonical_json(f.c4a_doc.as_ref().unwrap());
+    c4a_handle(
+        f,
+        0,
+        "c4a-capture",
+        json!({"op":"CaptureExternal","raw_utf8":raw,"json_pointer":"/events/0","token":"c4a-token","source_event_time":null}),
+    )
+}
+fn c4a_resolve_payload(r: &Value) -> Value {
+    json!({"op":"ResolveEvidence","evidence_id":"c4a-resolve","covered":[{"fact_key":r["fact_key"],"fact_hash":r["fact_hash"],"token":r["token"]}],"frontier":{"source_namespace":"test","source_epoch":"one","cursor":"3"},"dependency_version":"c4a-deps/1"})
+}
+fn c4a_reserve(f: &mut Fixture) -> Value {
+    let epoch = positive(&meta(&f.dbs[0], "writer_epoch").unwrap(), "epoch").unwrap();
+    let mut request = f.request("Reserve", "slot");
+    request["payload"]["writer_epoch"] = json!(epoch.to_string());
+    request["payload_hash"] = json!(hash(&request["payload"]));
+    let witness = f.witness("Reserve");
+    persist(&mut f.dbs[0], &f.configs[0], epoch, &request, witness).unwrap()
+}
+fn c4a_error(value: &Value, kind: &str) {
+    assert_eq!(value["kind"], "Error", "{value}");
+    assert!(
+        value["error"].as_str().unwrap().starts_with(kind),
+        "{value}"
+    );
+}
+#[test]
+fn c4a_fin1_reserve_and_resolve_both_orders_survive_restart_without_releasing_responsibility() {
+    for resolve_first in [false, true] {
+        let mut f = Fixture::build_config("100", None, &["beta"], Some((resolve_first, true)));
+        f.step(2, "PrepareDecision", "beta");
+        let before = latest(&f.dbs[1]).unwrap().3;
+        let captured = c4a_capture(&mut f);
+        assert_eq!(captured["kind"], "Recorded", "{captured}");
+        let payload = c4a_resolve_payload(&captured);
+        let first = if resolve_first {
+            let r = c4a_handle(&mut f, 0, "c4a-resolve", payload.clone());
+            assert_eq!(r["kind"], "Resolved", "{r}");
+            r
+        } else {
+            let r = c4a_reserve(&mut f);
+            assert_eq!(r["record"]["state"], "Reserved", "{r}");
+            r
+        };
+        let interim = latest(&f.dbs[0]).unwrap().3;
+        assert_eq!(
+            responsibility_total(&interim),
+            if resolve_first { 20 } else { 60 }
+        );
+        // Reserve-first 后风险 Pending 已清，净额原件仍持久且未分配。
+        if !resolve_first {
+            assert!(interim["pending"].as_array().unwrap().is_empty());
+            assert!(interim.get("fill_allocations").is_none());
+        }
+        drop(f.dbs.remove(0));
+        assert_eq!(recover(&f.configs[0]).unwrap()["writer_epoch"], "2");
+        f.dbs.insert(0, open(&f.configs[0].db, false).unwrap().0);
+        assert_eq!(latest(&f.dbs[0]).unwrap().3, interim);
+        assert_eq!(c4a_capture(&mut f), captured, "重启后同原事实只返原收据");
+        let second = if resolve_first {
+            let r = c4a_reserve(&mut f);
+            assert_eq!(r["record"]["state"], "Reserved", "{r}");
+            r
+        } else {
+            // 持久待办不能接受错 token/hash；无新提交、无账变。
+            for field in ["token", "fact_hash"] {
+                let mut bad = payload.clone();
+                bad["covered"][0][field] = json!("wrong");
+                let before_e = latest(&f.dbs[0]).unwrap();
+                assert_eq!(
+                    c4a_handle(&mut f, 0, &format!("bad-{field}"), bad)["kind"],
+                    "Error"
+                );
+                assert_eq!(latest(&f.dbs[0]).unwrap(), before_e);
+            }
+            // 非净额风险项清除后不得借该入口复活。
+            let opening = interim["recorded"][0].clone();
+            let mut nonnet = payload.clone();
+            nonnet["covered"] = json!([{"fact_key":opening["fact_key"],"fact_hash":opening["fact_hash"],"token":opening["token"]}]);
+            c4a_error(
+                &c4a_handle(&mut f, 0, "nonnet", nonnet),
+                "MissingDependency",
+            );
+            let r = c4a_handle(&mut f, 0, "c4a-resolve", payload.clone());
+            assert_eq!(r["kind"], "Resolved", "{r}");
+            r
+        };
+        let resolved = if resolve_first { &first } else { &second };
+        assert_eq!(
+            c4a_handle(&mut f, 0, "resolve-alias", payload.clone()),
+            *resolved
+        );
+        let mut another = payload;
+        another["evidence_id"] = json!("other-resolve");
+        c4a_error(
+            &c4a_handle(&mut f, 0, "already-allocated", another),
+            "IdentityConflict",
+        );
+        let e_image = latest(&f.dbs[0]).unwrap().3;
+        assert_eq!(responsibility_total(&e_image), 60);
+        assert_eq!(e_image["fill_allocations"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            e_image["finance"]["responsibilities"][0],
+            interim["finance"]["responsibilities"][0]
+        );
+        let allocation = &e_image["fill_allocations"][0]["allocations"][0];
+        let apply = json!({"op":"ApplyAllocation","fact_key":captured["fact_key"],"allocation_id":allocation["allocation_id"],"expected_fact_hash":captured["fact_hash"]});
+        let applied = c4a_handle(&mut f, 1, "c4a-apply", apply.clone());
+        assert_eq!(applied["kind"], "Applied", "{applied}");
+        assert_eq!(c4a_handle(&mut f, 1, "apply-alias", apply), applied);
+        let after = latest(&f.dbs[1]).unwrap().3;
+        assert_eq!(
+            number(&after["book"], "actual_quantity").unwrap(),
+            number(&before["book"], "actual_quantity").unwrap() + 1
+        );
+        assert_eq!(
+            number(&after["book"]["cost_basis"], "K").unwrap(),
+            number(&before["book"]["cost_basis"], "K").unwrap() + 16
+        );
+        assert_eq!(
+            after["applied"].as_array().unwrap().len(),
+            before["applied"].as_array().unwrap().len() + 1
+        );
+        let reserve = if resolve_first { &second } else { &first };
+        let mut duplicate = f.request("Reserve", "slot")["payload"].clone();
+        duplicate["writer_epoch"] = json!(if resolve_first { "2" } else { "1" });
+        assert_eq!(c4a_handle(&mut f, 0, "reserve-alias", duplicate), *reserve);
+        assert_eq!(responsibility_total(&latest(&f.dbs[0]).unwrap().3), 60);
+        f.audit();
+    }
+}
+
+#[test]
+fn c4a_fin1_uncovered_fact_cannot_reserve_or_resolve_and_keeps_all_state() {
+    let mut f = Fixture::build_config("100", None, &["beta"], Some((false, false)));
+    f.step(2, "PrepareDecision", "beta");
+    let r = c4a_capture(&mut f);
+    assert_eq!(r["kind"], "Recorded");
+    let before = latest(&f.dbs[0]).unwrap();
+    c4a_error(
+        &c4a_handle(&mut f, 0, "c4a-resolve", c4a_resolve_payload(&r)),
+        "MissingDependency",
+    );
+    let request = f.request("Reserve", "slot");
+    let witness = f.witness("Reserve");
+    assert!(persist(&mut f.dbs[0], &f.configs[0], 1, &request, witness)
+        .unwrap_err()
+        .starts_with("MissingDependency"));
+    assert_eq!(latest(&f.dbs[0]).unwrap(), before);
+    assert_eq!(responsibility_total(&before.3), 20);
+    assert!(row(&f.dbs[0], "receipts", &receipt_key("Reserve", "slot"))
+        .unwrap()
+        .is_none());
+    assert!(before.3.get("fill_allocations").is_none());
+    f.audit();
 }

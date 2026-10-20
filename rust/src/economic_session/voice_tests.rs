@@ -54,7 +54,9 @@ fn state() -> (Value, Value, Value) {
         &json!({"raw_sha256":raw_sha,"json_pointer":"/events/0","event":event,"units":doc["units"]}),
     );
     let fact = json!({"raw_utf8":raw,"json_pointer":"/events/0","fact_key":key,"fact_hash":fact_hash,"raw_sha256":raw_sha,"event":event,"target_domain":"B:opaque-one","cut":{"domain_id":"E","commit_seq":"1","root_hash":"unit"}});
-    let image = book::apply(&book::empty_image(), &fact, 1, "20").unwrap().0;
+    let image = book::apply(&book::empty_image(), &fact, 1, "20", book::Rules::Legacy)
+        .unwrap()
+        .0;
     let reference = |name| json!({"authority_id":"unit","object_id":name,"revision":"0","content_hash":book::hash(&json!(name))});
     let request = json!({"op":"BindVoice","binding_id":"first","evidence_id":"unit-first","carrier_ref":reference("carrier"),"gamma_ref":reference("gamma"),"parent_voice_id":null,"sigma":"Short","n":"0","opening_basis":{"fact_key":key,"expected_fact_hash":fact_hash,"allocation_id":"allocation-one"}});
     let binding = json!({"evidence_id":"unit-first","instrument":"TEST","chong_id":"opaque-one","operation_level":"2","carrier_ref":request["carrier_ref"],"gamma_ref":request["gamma_ref"],"sigma":"Short","n":"0","parent_voice_id":null,"structure_view":{"profile_id":"unit","execution_level":"2","confirmation_level":"3","nest_depth":"1"},"opening_source":{"fact_key":key,"fact_hash":fact_hash,"allocation_id":"allocation-one","raw_sha256":raw_sha,"json_pointer":"/events/0","quantity":"8","units":doc["units"]}});
