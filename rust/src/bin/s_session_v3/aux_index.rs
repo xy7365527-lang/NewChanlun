@@ -699,7 +699,6 @@ impl Runtime {
         {
             return Err(err("代号/原始前沿非法"));
         }
-        let s4_warm = self.raw_wires.map.is_some(); // S4 negctrl
         let owned_budget = s.allocation_budget();
         let mut snapshot = old.clone_in_admitted(owned_budget.clone(), s)?;
         let mut births = Index::new(owned_budget.clone());
@@ -878,13 +877,7 @@ impl Runtime {
             };
             raw_nodes.try_push(wire).map_err(err)?;
         }
-        // S4 negctrl：暖态快照公共集漏掉末个 raw 线。
-        let snapshot_values = public_sets(
-            s,
-            &snapshot,
-            &raw_nodes[..raw_nodes.len() - usize::from(s4_warm)],
-            &mut self.sequences[..4],
-        )?;
+        let snapshot_values = public_sets(s, &snapshot, &raw_nodes, &mut self.sequences[..4])?;
         let delta_values = public_sets(
             s,
             &births,
