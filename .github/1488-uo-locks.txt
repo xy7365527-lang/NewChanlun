@@ -90,3 +90,6 @@ v3::driver::tests::recover_lock_rejects_qualification_without_parent_record
 # #1488 0044 返修锁（复审 0043 P3-1/P3-2）
 v3::driver::tests::recover_lock_rebind_does_not_advance_foreign_or_stale_qualification_record
 v3::driver::tests::recover_lock_promotes_after_new_request_receipt_rebind
+# #1488 S3 fractal/bi 批量后缀：不可达节点计数 + 暖冷逐位（D5；负控 c6cec75372/03334fc9d0）
+content_producer::tests::fractal_history_suffix_writes_no_orphans_and_matches_cold
+content_bi::tests::raw_coords_sync_writes_no_orphans_and_matches_cold
