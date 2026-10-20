@@ -87,3 +87,6 @@ v3::driver::tests::audit_owner_write_budget_retains_candidate_within_retention_c
 # #1488 Recover 合法重绑点推进资格记录（0041，独审 0040 P2-1；主控裁定 (a)）
 v3::driver::tests::recover_lock_promotes_after_new_request_readonly_rebind
 v3::driver::tests::recover_lock_rejects_qualification_without_parent_record
+# #1488 0044 返修锁（复审 0043 P3-1/P3-2）
+v3::driver::tests::recover_lock_rebind_does_not_advance_foreign_or_stale_qualification_record
+v3::driver::tests::recover_lock_promotes_after_new_request_receipt_rebind

@@ -867,6 +867,8 @@ impl AuditConnection {
             .get_mut()
             .as_ref()
             .map_or(0, |c| c.retained_bytes());
+        #[cfg(test)]
+        state::trace_owner_retention(cap, raw_retained);
         let cap = match cap.checked_sub(raw_retained) {
             Some(cap) => cap,
             None => {
@@ -1508,6 +1510,21 @@ impl AuditConnection {
             .borrow()
             .as_ref()
             .is_some_and(|c| stamp.matches(&c.resources))
+    }
+    /// 0044 P2-1：完整候选的工作额度 `limit`——effects 路径请求峰实比之值（`recording_peak`
+    /// 处 `peak > self.limit` 即放弃增量），与冻结域 allowance 同源（重绑时取 complete_workspace_limit）。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn complete_limit_for_test(&self) -> usize {
+        self.complete.borrow().as_ref().expect("须持有完整候选").limit
+    }
+    /// 0044 P3-1 负控注入（重绑之前）：资格所记父账/冻结域改指 stamp，候选不动。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn set_qualification_parent_for_test(&self, stamp: native::BudgetStamp) {
+        self.construction
+            .borrow_mut()
+            .as_mut()
+            .expect("须持有已提交资格")
+            .set_parent_for_test(stamp);
     }
     /// 拿走 owner 的完整候选（无候选）。
     #[cfg(all(test, feature = "s_capture_native_testonly"))]

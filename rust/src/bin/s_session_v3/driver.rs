@@ -1716,6 +1716,70 @@ mod tests {
         assert_recover_revoked(&native, &f, serial, "1");
     }
 
+    // ---- #1488 0044 返修锁（按复审 0043 P3-1/P3-2）----
+    /// P3-1：资格记录先改指他账或同账旧域，再经合法 ready 重绑——`BudgetStamp::advance` 的身份链核
+    /// 不认 from，记录不前进；Recover 按记录拒绝并撤销。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn recover_lock_rebind_does_not_advance_foreign_or_stale_qualification_record() {
+        let expected =
+            "StaleWriter：construction资格失效：Recover迁移资格所记父账或冻结域与事务父账不符";
+        for case in ["foreign", "stale-domain"] {
+            let f = Fixture::new();
+            let (mut native, _, _) = recover_lock_driver(&f);
+            let before = native.conn.complete_parent_stamp_for_test();
+            let foreign = super::super::audit_owner::native::Budget::fresh(1 << 30).unwrap();
+            let stamp = match case {
+                "foreign" => foreign.handoff_stamp().unwrap(),
+                _ => before.clone().rewind_domain_for_test(),
+            };
+            native.conn.set_qualification_parent_for_test(stamp);
+            assert!(!native.conn.qualification_parent_matches_complete_for_test(), "{case}");
+            native
+                .handle(envelope("ready-rebind", json!({"op":"ready"})))
+                .unwrap();
+            assert!(
+                !native.conn.complete_parent_matches_for_test(&before),
+                "{case}：须经合法重绑点真实换域"
+            );
+            assert!(
+                !native.conn.qualification_parent_matches_complete_for_test(),
+                "{case}：记录不得随重绑前进"
+            );
+            let serial = native.conn.recover_probe_for_test().serial;
+            let error = native
+                .conn
+                .recover("2", &native.clock, "recover-2")
+                .unwrap_err();
+            assert_eq!(error, expected, "{case}");
+            assert_recover_revoked(&native, &f, serial, "1");
+            drop(foreign);
+        }
+    }
+
+    /// P3-2：receipt 轮询与 ready 同走 audit_admission 合法重绑点；Begin → receipt → Recover 成功晋升。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn recover_lock_promotes_after_new_request_receipt_rebind() {
+        let f = Fixture::new();
+        let (mut native, _, _) = recover_lock_driver(&f);
+        let before = native.conn.complete_parent_stamp_for_test();
+        native.handle(receipt_request(&Fixture::ingest(1))).unwrap();
+        assert!(
+            !native.conn.complete_parent_matches_for_test(&before),
+            "receipt 须经重绑点换到本请求冻结域"
+        );
+        assert!(
+            native.conn.qualification_parent_matches_complete_for_test(),
+            "资格所记冻结域须随合法重绑前进"
+        );
+        native.conn.recover("2", &native.clock, "recover-2").unwrap();
+        let promoted = native.conn.recover_probe_for_test().qualification.unwrap();
+        assert_eq!(promoted.writer_epoch, Some(2));
+        assert!(promoted.has_parent, "{promoted:?}");
+        assert_eq!(recover_lock_meta(&f, "writer_epoch").as_deref(), Some("2"));
+    }
+
     /// P2-1：holds 门独立负控——资格所记父账与候选一致，唯状态块许可挂他账，迁移前即拒绝。
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
@@ -2050,11 +2114,12 @@ mod tests {
     /// （冷路径降级或写失败归零），故与 0039 正控锁合并为本锁，不再保留 ==0。
     /// 不可达依据（workers/wbfix-0039/REPORT.md §2 读数）：同一 S7 额度余量 M 同时供写期工作额度
     /// （≈M）与保留帽（held+M）；规则释放需 M < charge + raw − held = 3,281,186 + 320,877 − 2,873,735
-    /// = 728,328B，写成功需 parent_limit 装下 handoff_peak 8,181,876B（新增 5,308,141B，实测下限
-    /// 6–7MiB），两区间不相交；16/9/8/7MiB 写成功且保留 3,602,191B，6MiB 及以下写本身 StaleWriter；
+    /// = 728,328B，而实测写成功下限在 6–7MiB（门槛机理未定位，不是 handoff_peak，见复审 0043 §9），
+    /// 两区间不相交；16/9/8/7MiB 写成功且保留 3,602,191B，6MiB 及以下写本身 StaleWriter；
     /// 且即使强制释放候选，construction raw 320,877B 仍计入 retained，==0 仍不成立。
-    /// 现语义：夹具不变（legacy + held + 8MiB），effects 路径写成功，完整候选按
-    /// `charge.total ≤ complete_retention_cap − raw` 保留，handoff_peak ≤ parent_limit。
+    /// 现语义：夹具不变（legacy + held + 8MiB），effects 路径写成功，完整候选按生产保留裁决点读数
+    /// `charge.total ≤ complete_retention_cap − raw` 保留，本请求域峰 handoff_peak − entry ≤ 候选
+    /// 工作额度 limit（生产实比之值，0044 按复审 0043 P2-1/P3-3 订正，不在测试里复述公式）。
     /// 开放风险：本锁只证明 8MiB 夹具下的上述关系，并未证明“8MiB 足够”
     /// （RUNTIME-INDEPENDENT-REVIEW【05】），随整票验收的资源读数一并报告。
     #[cfg(feature = "s_capture_native_testonly")]
@@ -2094,11 +2159,26 @@ mod tests {
         let charge = report["charge"]["total"].as_u64().unwrap() as usize;
         let entry = report["charge"]["entry_reserved_bytes"].as_u64().unwrap() as usize;
         let peak = report["charge"]["handoff_peak"].as_u64().unwrap() as usize;
-        // parent_limit = 冻结 total − (legacy + old_pool + uncovered)。
-        let parent_limit = total.checked_sub(entry).unwrap();
-        assert!(peak <= parent_limit, "{peak} > {parent_limit}");
-        let raw = retained - charge - super::super::audit_owner::native::Budget::metadata_bytes();
-        let cap = total - crate::cache::retained_bytes().max(legacy);
+        // 0044 P2-1：handoff_peak = entry + 本请求域峰（audit_owner.rs `recording_peak`/effects 收尾），
+        // 生产只对后者设门：effects 路径 `peak > self.limit` 即放弃增量，Ledger 预留从同一 allowance
+        // checked_sub。故读候选实际 limit，与生产同一口径比较本请求域峰；entry 不再计两次。
+        let parent_limit = native.conn.complete_limit_for_test();
+        let request_peak = peak.checked_sub(entry).unwrap();
+        assert!(request_peak <= parent_limit, "{peak} − {entry} > {parent_limit}");
+        // 0044 P3-3：读收尾保留裁决点的生产读数（complete_retention_cap 与 construction 实际 retained）。
+        let [decision] = events
+            .iter()
+            .filter(|e| e["phase"] == "owner_retention")
+            .collect::<Vec<_>>()[..]
+        else {
+            panic!("保留裁决点须恰执行一次：{events:?}")
+        };
+        let cap = decision["cap"].as_u64().unwrap() as usize;
+        let raw = decision["raw"].as_u64().unwrap() as usize;
+        assert_eq!(
+            retained,
+            charge + super::super::audit_owner::native::Budget::metadata_bytes() + raw
+        );
         assert!(charge <= cap - raw, "{charge} > {cap} - {raw}");
         native.conn.assert_complete_matches_cold();
         assert_eq!(

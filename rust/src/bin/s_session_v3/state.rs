@@ -2688,6 +2688,13 @@ pub(super) fn trace_owner_effects(rows: usize, peak: usize, raw: usize, cuts: us
         t.events.push(json!({"phase":"owner_effects","actual_rows":rows,"effects_peak":peak,"raw":raw,"cuts":cuts}));
     });
 }
+/// #1488 0044 P3-3：请求收尾保留裁决点的生产读数（complete_retention_cap 与 construction 实际 retained）。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+pub(super) fn trace_owner_retention(cap: usize, raw: usize) {
+    AUDIT_TRACE.with(|t| if let Some(t)=t.borrow_mut().as_mut() {
+        t.events.push(json!({"phase":"owner_retention","cap":cap,"raw":raw}));
+    });
+}
 
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(super) fn trace_sql_row(class: usize, bytes: usize) {

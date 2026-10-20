@@ -777,6 +777,12 @@ impl BudgetStamp {
         self.serial += 1;
         self
     }
+    /// 负控注入：摘要改指同父账的上一冻结域（旧域）。
+    #[cfg(test)]
+    pub(crate) fn rewind_domain_for_test(mut self) -> Self {
+        self.serial = self.serial.checked_sub(1).expect("须已换过域");
+        self
+    }
 }
 /// #1488 P1-1/P1-2：某父账在请求收尾静止点（请求局部持有者已析构）的live；只认同一Ledger。
 #[cfg(feature = "s_capture_native_testonly")]

@@ -273,6 +273,11 @@ impl CommittedRawState {
     pub(super) fn clear_parent_for_test(&mut self) {
         self.parent = None;
     }
+    /// 负控注入：资格所记父账改指 stamp（他账或旧域；只为咬住 advance 的身份链核）。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn set_parent_for_test(&mut self, stamp: super::audit_owner::native::BudgetStamp) {
+        self.parent = Some(stamp);
+    }
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn parent_matches_for_test(&self, budget: &super::audit_owner::native::Budget) -> bool {
         self.parent.as_ref().is_some_and(|recorded| recorded.matches(budget))
