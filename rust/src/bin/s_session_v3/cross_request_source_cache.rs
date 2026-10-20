@@ -1164,20 +1164,52 @@ mod tests {
             .as_ref()
             .unwrap()
             .first_admitted_source_bytes;
+        // #1488 0059 B11（第十六处裁改断言；主控裁定
+        // https://github.com/xy7365527-lang/NewChanlun/issues/1488#issuecomment-6287615661 对 B11
+        // 暂不批，本处按 control/1488-b-0059.md 第 2 项「不可达→账目恒等式+三负控」分支执行，
+        // 可达性证明见 workers/b-0059/REPORT.md）：
+        // 原断言（f77fbfd6d9「fix(s): admit sparse source cache sealing on request budget」）：
+        //   夹具在父外 `Budget::new(32 * 1024 * 1024, 0)` 上封存无父出生的 pending；闭包内
+        //   `assert!(budget.live() > before, "封存Plain容器许可须进入同父账")`；闭包外
+        //   `assert!(budget.peak() > before && budget.peak() <= 32 * 1024 * 1024)`。
+        // v4 条款（control/1488-unified-budget-ownership-interface-contract-v4.md）：
+        //   L9「许可随对象移动，在对象析构以后返还。没有生产unassigned余额、裸字节追认或同额补签。」
+        //   L21 生产 adopt/无父先构造后追认退出生产路径；L42 wrong-parent 拒绝且无部分mutation。
+        // 新：pending 在将封存它的同一父账内持票出生（同生产 finish_source_keeper）；账目恒等式
+        //   封存后live = 残余M + 封存池逐张许可之和，池析构后父账回到M；三负控（重复计费、
+        //   事后追认、挂错父账）见 REPORT。父帽取最小必要值：实测同父完整审计峰 149,307,139B
+        //   （峰值点 Native 149,306,915 + metadata_live 96 + 根控制块 M 128，Layout 0；峰由
+        //   enable_native_frame_reuse_admitted_for_testonly 一笔 14,749,200B 推上），⌈峰/1MiB⌉=143MiB；
+        //   142MiB=148,897,792B 小于峰，负界复跑 BudgetExceeded。此帽是夹具 Budget，不是生产资源帽。
+        const R14_PARENT_CAP: usize = 143 * 1024 * 1024;
         for cap in [usize::MAX, first_group_cap] {
-            let prepare = || {
+            let prepare = |work: Option<&WorkScope>| {
                 let mut context = RequestAuditContext::with_source_keeper(Keeper::new(usize::MAX));
-                let audited = state::audit_native_in_request(&tx, &mut context).unwrap();
+                let audited =
+                    state::audit_native_in_request_admitted(&tx, &mut context, work).unwrap();
                 assert_eq!(complete(&audited), complete(&baseline));
                 context.take().unwrap()
             };
-            let oracle = prepare();
+            let oracle = prepare(None);
             let pending = oracle.source_pending.unwrap();
             let oracle =
                 Pool::build_bounded_counts(oracle.capture, pending.binding, pending.proofs, cap)
                     .unwrap();
-            let actual = prepare();
-            let pending = actual.source_pending.unwrap();
+            let budget = Budget::new(R14_PARENT_CAP, 0).unwrap();
+            let residual = budget.live();
+            assert_eq!(residual, Budget::metadata_bytes(), "B11：审计前父账残余只有根控制块M");
+            let super::super::request_audit::VerifiedHistoricalSlot {
+                binding: history_binding,
+                capture,
+                result: history_result,
+                source_pending,
+                ..
+            } = budget
+                .codec_work()
+                .unwrap()
+                .run(|work| Ok::<_, String>(prepare(Some(work))))
+                .unwrap();
+            let pending = source_pending.unwrap();
             let pointers = pending
                 .proofs
                 .iter()
@@ -1185,19 +1217,20 @@ mod tests {
                     let digest = proof.key.state.digest().unwrap();
                     (
                         digest,
-                        actual.capture.original(&digest).unwrap().1.as_ptr() as usize,
+                        capture.original(&digest).unwrap().1.as_ptr() as usize,
                     )
                 })
                 .collect::<Vec<_>>();
-            let budget = Budget::new(32 * 1024 * 1024, 0).unwrap();
             let before = budget.live();
+            // B11（第十六处，挂错父账）：pending 的许可须记在本父账，不能挂在他账或无父出生。
+            assert!(before > residual, "v4 L42：pending须在将封存它的同一父账内持票出生");
             let mut layout_peak = 0;
             let actual = budget
                 .codec_work()
                 .unwrap()
                 .run(|work| {
                     let pool = Pool::build_bounded_counts_admitted(
-                        actual.capture,
+                        capture,
                         pending.binding,
                         pending.proofs,
                         cap,
@@ -1210,10 +1243,14 @@ mod tests {
                         "导航与完整三闭包须使用同scope真实Layout"
                     );
                     assert_eq!(snapshot.live, 0, "封存后不带走codec临时工作集");
-                    assert!(budget.live() > before, "封存Plain容器许可须进入同父账");
+                    // B11（第十六处，事后追认）：封存只移动已持票对象，不得在封存时补签新增。
+                    assert!(budget.live() <= before, "v4 L9：封存只移动已持票对象，父账不再追认新增");
                     Ok::<_, String>(pool)
                 })
                 .unwrap();
+            // 同父出生的历史绑定与结果不属封存池；先析构，恒等式只看池。
+            drop((history_binding, history_result));
+            let after_seal = budget.live();
             assert_eq!(actual.binding, oracle.binding);
             assert_eq!(actual.nodes, oracle.nodes);
             assert!(actual
@@ -1265,13 +1302,33 @@ mod tests {
             assert_eq!(actual_retention.template_roots, 0);
             assert_eq!(budget.scratch_observation().0, 0);
             assert_eq!(budget.scratch_observation().2, 0);
-            assert!(budget.peak() > before && budget.peak() <= 32 * 1024 * 1024);
+            // B11（第十六处，峰值）：同父完整审计连同封存的峰不越最小必要夹具帽。
+            assert!(budget.peak() > before && budget.peak() <= R14_PARENT_CAP, "B11：同父峰须在夹具帽内");
+            let groups = actual.proofs.len();
+            let source_bytes = actual.source_cost.total;
+            // B11（第十六处，账目恒等式/重复计费）：封存后live = 残余M + 封存池逐张许可之和；
+            // 池析构后父账回到M。重复计费的许可不属任何持有者，不在清单内，差额即露出。
+            let inventory = actual
+                .native_permit_inventory_for_testonly()
+                .unwrap()
+                .into_iter()
+                .try_fold(0usize, |sum, bytes| sum.checked_add(bytes))
+                .unwrap();
+            drop(actual);
+            assert_eq!(budget.live(), residual, "v4 L9：封存池析构须把许可全部还回同一父账");
+            assert_eq!(
+                after_seal,
+                residual + inventory,
+                "B11 恒等式：封存后live = 残余M + 封存池逐张许可之和"
+            );
             println!(
                 "R14_SOURCE_POOL {}",
                 serde_json::json!({
-                    "groups":actual.proofs.len(),"limit_bytes":32*1024*1024,
+                    "groups":groups,"limit_bytes":R14_PARENT_CAP,
                     "parent_peak_bytes":budget.peak(),"codec_layout_peak_bytes":layout_peak,
-                    "source_cap":cap,"source_bytes":actual.source_cost.total,
+                    "residual_bytes":residual,"before_seal_bytes":before,"after_seal_bytes":after_seal,
+                    "sealed_inventory_bytes":inventory,
+                    "source_cap":cap,"source_bytes":source_bytes,
                     "all_original_tuples_binding_key_counts_equal":true,"whole_heap_qualified":false
                 })
             );
