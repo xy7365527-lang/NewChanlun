@@ -512,7 +512,11 @@ fn tb03c_chain_fin1_prepare_reserve_commit_capture_resolve_apply_same_chong_and_
         b["book"]["phase"]["growth_enabled"]["status"],
         "NotEvaluable"
     );
-    assert_eq!(b["book"]["cost_remaining"]["status"], "NotEvaluable");
+    // 多头 cost_remaining = K（ADR 0036 裁定五），与本金是否已知无关
+    assert_eq!(
+        b["book"]["cost_remaining"],
+        json!({"status":"Known","value":"80028"})
+    );
     // Voice 归属：被 Apply 的重上唯一 Voice 即 Prepare 计划锁定的那个
     let decision = &b["finance"]["decisions"][0];
     assert_eq!(decision["state"], "Committed");
