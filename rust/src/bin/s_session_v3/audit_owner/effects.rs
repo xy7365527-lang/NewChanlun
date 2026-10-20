@@ -168,6 +168,38 @@ struct Key {
     material_epoch: u64,
     node_write: Option<(u64, u64, bool)>,
 }
+/// #1488 0035：逐收据事件（8B）。key 表按“同一 publication journal + 节点摘要”合并，
+/// 每条实际收据（行写或 node put，含 Noop）仍按发生序各占一个事件：
+/// 高 32 位 = key 下标；位 1..=31 = 该次 put 的 after−before（行事件为 0，溢出存哨兵）；位 0 = inserted。
+/// node 事件的 material_epoch 即其在 node 事件中的序数（稠密，由 validate 闭合核对）。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(transparent)]
+struct Receipt(u64);
+impl Receipt {
+    const DELTA_LIMIT: u64 = (1 << 31) - 1;
+    fn row(key: usize) -> Option<Self> {
+        Some(Self(u64::from(u32::try_from(key).ok()?) << 32))
+    }
+    fn node(key: usize, before: u64, after: u64, inserted: bool) -> Option<Self> {
+        let delta = after
+            .checked_sub(before)
+            .filter(|d| *d < Self::DELTA_LIMIT)
+            .unwrap_or(Self::DELTA_LIMIT);
+        Some(Self(
+            u64::from(u32::try_from(key).ok()?) << 32 | delta << 1 | u64::from(inserted),
+        ))
+    }
+    fn key(self) -> usize {
+        (self.0 >> 32) as usize
+    }
+    fn inserted(self) -> bool {
+        self.0 & 1 == 1
+    }
+    /// 该次实际写数；溢出哨兵返回 None。
+    fn write_delta(self) -> Option<u64> {
+        Some((self.0 >> 1) & Self::DELTA_LIMIT).filter(|d| *d != Self::DELTA_LIMIT)
+    }
+}
 /// #1488：覆盖收据只证明实际写效果均被解释，不证明业务集合变化完整。
 struct Coverage {
     start: u64,
@@ -177,7 +209,10 @@ struct Coverage {
 }
 struct Journal {
     keys: Vec<Key>,
-    nodes: std::collections::HashSet<[u8; 32]>,
+    // 摘要 → 首次 occurrence 的 key 下标（#1488 0035 合并 key）。
+    nodes: std::collections::HashMap<[u8; 32], u32>,
+    // 仅 set_required 时逐收据登记；stage start/end 与 ordered_events 以它为坐标。
+    events: Vec<Receipt>,
     operation: Operation,
     overflow: bool,
     unexpected: bool,
@@ -231,7 +266,7 @@ impl Journal {
                 "life":seed.seal.life,"transaction":seed.seal.transaction_id,
                 "write_sequence":seed.seal.write_sequence})),
             "cap":self.cap,"bytes":self.bytes,"peak":self.peak,
-            "keys":self.keys.len(),"nodes":self.nodes.len(),
+            "keys":self.keys.len(),"nodes":self.nodes.len(),"events":self.events.len(),
             "material_epoch":self.material_epoch,
             "flags":{"unexpected":self.unexpected,"overflow":self.overflow,
                 "resources":self.resources.is_some(),"set":self.set.is_some(),
@@ -248,20 +283,37 @@ impl Journal {
     fn layout(keys: usize, node_capacity: usize) -> usize {
         sum([
             vec_bytes::<Key>(keys),
-            super::super::audit_retention::hash_slots::<[u8; 32], ()>(node_capacity),
+            node_slots(node_capacity),
             std::mem::size_of::<Self>(),
             128,
         ])
     }
+    /// keys/nodes/inline 之外再计逐收据事件容器。
+    fn container_bytes(&self) -> usize {
+        sum([
+            Self::layout(self.keys.capacity(), self.nodes.capacity()),
+            vec_bytes::<Receipt>(self.events.capacity()),
+        ])
+    }
     fn reserve_one(&mut self, node: bool) -> bool {
+        self.reserve_receipt(true, node, false)
+    }
+    /// #1488 0035：一条收据至多让 keys/nodes/events 各增长一次；只为实际增长的容器预留新块。
+    fn reserve_receipt(&mut self, key: bool, node: bool, event: bool) -> bool {
         if self.overflow {
             return false;
         }
-        let grow_keys = self.keys.len() == self.keys.capacity();
+        let grow_keys = key && self.keys.len() == self.keys.capacity();
         let grow_nodes = node && self.nodes.len() == self.nodes.capacity();
-        if !grow_keys && !grow_nodes {
+        let grow_events = event && self.events.len() == self.events.capacity();
+        if !grow_keys && !grow_nodes && !grow_events {
             return true;
         }
+        let events = if grow_events {
+            self.events.capacity().saturating_mul(2).max(32)
+        } else {
+            self.events.capacity()
+        };
         let keys = if grow_keys {
             self.keys.capacity().saturating_mul(2).max(32)
         } else {
@@ -289,11 +341,8 @@ impl Journal {
         };
         let new_blocks = sum([
             if grow_keys { vec_bytes::<Key>(keys) } else { 0 },
-            if grow_nodes {
-                super::super::audit_retention::hash_slots::<[u8; 32], ()>(node_capacity)
-            } else {
-                0
-            },
+            if grow_nodes { node_slots(node_capacity) } else { 0 },
+            if grow_events { vec_bytes::<Receipt>(events) } else { 0 },
         ]);
         let coexist = sum([self.bytes, new_blocks]);
         if coexist > self.cap {
@@ -319,24 +368,32 @@ impl Journal {
         };
         let old_keys = self.keys.capacity();
         let old_nodes = self.nodes.capacity();
+        let old_events = self.events.capacity();
         let succeeded = (!grow_keys || self.keys.try_reserve_exact(keys - self.keys.len()).is_ok())
-            && (!grow_nodes || self.nodes.try_reserve(nodes - self.nodes.len()).is_ok());
+            && (!grow_nodes || self.nodes.try_reserve(nodes - self.nodes.len()).is_ok())
+            && (!grow_events
+                || self
+                    .events
+                    .try_reserve_exact(events - self.events.len())
+                    .is_ok());
         if let Some(permit) = permit {
-            // 包括第二个容器分配失败的出口；首个实际新块不能提前返还许可。
+            // 包括后一个容器分配失败的出口；先前实际新块不能提前返还许可。
             let changed_keys = old_keys != self.keys.capacity();
             let changed_nodes = old_nodes != self.nodes.capacity();
-            let block = |k, n| {
+            let changed_events = old_events != self.events.capacity();
+            let block = |k, n, e| {
                 sum([
                     if changed_keys { vec_bytes::<Key>(k) } else { 0 },
-                    if changed_nodes {
-                        super::super::audit_retention::hash_slots::<[u8; 32], ()>(n)
-                    } else {
-                        0
-                    },
+                    if changed_nodes { node_slots(n) } else { 0 },
+                    if changed_events { vec_bytes::<Receipt>(e) } else { 0 },
                 ])
             };
-            let old = block(old_keys, old_nodes);
-            let actual = block(self.keys.capacity(), self.nodes.capacity());
+            let old = block(old_keys, old_nodes, old_events);
+            let actual = block(
+                self.keys.capacity(),
+                self.nodes.capacity(),
+                self.events.capacity(),
+            );
             self.resources
                 .as_mut()
                 .unwrap()
@@ -351,10 +408,7 @@ impl Journal {
                     .expect("journal独立保留账");
             }
         }
-        self.bytes = sum([
-            Self::layout(self.keys.capacity(), self.nodes.capacity()),
-            self.extra_bytes,
-        ]);
+        self.bytes = sum([self.container_bytes(), self.extra_bytes]);
         self.overflow |= !succeeded;
         #[cfg(test)]
         if !succeeded {
@@ -368,6 +422,9 @@ impl Journal {
         }
         succeeded
     }
+}
+fn node_slots(capacity: usize) -> usize {
+    super::super::audit_retention::hash_slots::<[u8; 32], u32>(capacity)
 }
 pub(super) struct Recording {
     journal: Arc<Mutex<Journal>>,
@@ -496,6 +553,7 @@ impl Recording {
         let mut journal = Journal {
             keys: Vec::new(),
             nodes: Default::default(),
+            events: Vec::new(),
             operation,
             overflow: false,
             unexpected: false,
@@ -545,7 +603,12 @@ impl Recording {
                 j.unexpected = true;
                 return;
             }
-            if !j.reserve_one(false) {
+            let set = j.set_required;
+            let Some(receipt) = Receipt::row(j.keys.len()) else {
+                j.overflow = true;
+                return;
+            };
+            if !j.reserve_receipt(true, false, set) {
                 return;
             }
             let material_epoch = j.material_epoch;
@@ -557,6 +620,9 @@ impl Recording {
                 material_epoch,
                 node_write: None,
             });
+            if set {
+                j.events.push(receipt);
+            }
         }))
         .map_err(invalid)?;
         NODE_JOURNAL.with(|slot| {
@@ -601,7 +667,7 @@ impl Recording {
             validate_stage_coverage(&journal)?;
             journal.set.as_mut().unwrap().close_stages(
                 journal.material_epoch,
-                journal.keys.len(),
+                journal.events.len(),
                 journal.stages.len(),
                 covered_total.ok_or_else(|| construction_state::stale("集合缺完整实际写覆盖"))?,
             )?;
@@ -733,6 +799,7 @@ impl Recording {
         if let Some(resources) = journal.resources.as_ref().filter(|r| r.shared_parent) {
             let owned = resources.journal_owned_bytes;
             drop(journal.nodes);
+            drop(journal.events);
             drop(journal.stages);
             drop(journal.consumed);
             let _ = (resources, owned); // resources在真实journal载荷之后析构，消费唯一许可。
@@ -1001,8 +1068,8 @@ pub(crate) fn note_node(tx: &Transaction<'_>, digest: [u8; 32], before: u64, ins
             j.unexpected = true;
             return;
         }
-        let existed = j.nodes.contains(&digest);
-        if existed && !j.set_required {
+        let existed = j.nodes.get(&digest).map(|&index| index as usize);
+        if existed.is_some() && !j.set_required {
             return;
         }
         if j.set_required {
@@ -1012,19 +1079,36 @@ pub(crate) fn note_node(tx: &Transaction<'_>, digest: [u8; 32], before: u64, ins
             };
             j.material_epoch = next;
         }
-        if !j.reserve_one(!existed) {
+        // #1488 0035：同摘要只留首次 occurrence 的 key；每条收据（含 Noop）另记一个事件。
+        let index = existed.unwrap_or(j.keys.len());
+        let after = tx.total_changes();
+        let (Ok(slot), Some(receipt)) = (
+            u32::try_from(index),
+            Receipt::node(index, before, after, inserted),
+        ) else {
+            j.overflow = true;
+            return;
+        };
+        let fresh = existed.is_none();
+        let set = j.set_required;
+        if !j.reserve_receipt(fresh, fresh, set) {
             return;
         }
-        j.nodes.insert(digest);
-        let material_epoch = j.material_epoch;
-        j.keys.push(Key {
-            table: Table::Node,
-            rowid: 0,
-            digest,
-            action: None,
-            material_epoch,
-            node_write: Some((before, tx.total_changes(), inserted)),
-        });
+        if fresh {
+            j.nodes.insert(digest, slot);
+            let material_epoch = j.material_epoch;
+            j.keys.push(Key {
+                table: Table::Node,
+                rowid: 0,
+                digest,
+                action: None,
+                material_epoch,
+                node_write: Some((before, after, inserted)),
+            });
+        }
+        if set {
+            j.events.push(receipt);
+        }
     });
 }
 
@@ -1297,7 +1381,7 @@ pub(super) fn audit_native_source(
                 return Err(construction_state::stale("来源材料不是stage前唯一切面"));
             }
             // nodes集合只来自当前实际tx的受控写口；每个tuple从真实事务重新读取。
-            for digest in &j.nodes {
+            for digest in j.nodes.keys() {
                 // #1488：活动域读取签发的正文许可随正文移入 owner，不再走 Plain 早退。
                 let node =
                     sc::NodeSource::read_scoped(&mut reader.inner, digest).map_err(invalid)?;
@@ -1384,7 +1468,7 @@ pub(super) fn audit_native_source(
             });
         j.extra_bytes = sum([j.extra_bytes, set.retained_bytes()]);
         j.bytes = sum([
-            Journal::layout(j.keys.capacity(), j.nodes.capacity()),
+            j.container_bytes(),
             j.extra_bytes,
         ]);
         if j.bytes > j.cap {
@@ -1741,7 +1825,7 @@ pub(super) fn note_source_cut(
             });
         j.extra_bytes = sum([j.extra_bytes, set.retained_bytes()]);
         j.bytes = sum([
-            Journal::layout(j.keys.capacity(), j.nodes.capacity()),
+            j.container_bytes(),
             j.extra_bytes,
         ]);
         if j.bytes > j.cap {
@@ -1802,7 +1886,7 @@ pub(super) fn begin_stage(tx: &Transaction<'_>, kind: StageKind) -> Result<Stage
             j.unexpected = true;
             return Err(construction_state::stale("stage缺材料cut、重入或顺序倒退"));
         }
-        guard.start = j.keys.len();
+        guard.start = j.events.len();
         guard.material_before = j.material_epoch;
         j.active_stage = Some(guard.start);
     }
@@ -1889,8 +1973,9 @@ impl StageGuard {
                 let rowid = {
                     let j = journal.lock().map_err(invalid)?;
                     material.check(&j)?;
-                    let mut rows = j.keys[self.start..]
+                    let mut rows = j.events[self.start..]
                         .iter()
+                        .map(|e| &j.keys[e.key()])
                         .filter(|k| k.table != Table::Node);
                     let row = rows
                         .next()
@@ -1949,8 +2034,9 @@ impl StageGuard {
             {
                 return Err(construction_state::stale("stage失效或跨连接"));
             }
-            let mut rows = j.keys[self.start..]
+            let mut rows = j.events[self.start..]
                 .iter()
+                .map(|event| &j.keys[event.key()])
                 .filter(|key| key.table != Table::Node);
             let row = rows
                 .next()
@@ -2039,7 +2125,7 @@ impl StageGuard {
             if let Some(resources) = j.resources.as_mut().filter(|r| r.shared_parent) {
                 resources.journal_owned_bytes += manual_row_bytes(&row);
             }
-            let end = j.keys.len();
+            let end = j.events.len();
             let material_after = j.material_epoch;
             j.consumed.insert(identity);
             j.stages.push(StageReceipt {
@@ -2058,7 +2144,7 @@ impl StageGuard {
                 consumed_bytes(j.consumed.capacity()),
             ]);
             j.bytes = sum([
-                Journal::layout(j.keys.capacity(), j.nodes.capacity()),
+                j.container_bytes(),
                 j.extra_bytes,
             ]);
             j.peak = j.peak.max(j.bytes);
@@ -2089,7 +2175,20 @@ fn validate_stage_coverage(j: &Journal) -> Result<(), String> {
     let mut cursor = 0usize;
     let mut previous_material = set.material_epoch;
     let mut node_epoch = 0u64;
-    for (ordinal, key) in j.keys.iter().enumerate() {
+    // #1488 0035：逐收据核对读 events（发生序）；key 只在首次 occurrence 出现，且出现序即 keys 序。
+    let mut introduced = 0usize;
+    for (ordinal, receipt) in j.events.iter().enumerate() {
+        let index = receipt.key();
+        let key = j
+            .keys
+            .get(index)
+            .ok_or_else(|| construction_state::stale("收据事件key序/归属不符"))?;
+        let fresh = index == introduced;
+        if fresh {
+            introduced += 1;
+        } else if index > introduced || key.table != Table::Node {
+            return Err(construction_state::stale("收据事件key序/归属不符"));
+        }
         if key.table == Table::Node {
             let Some((before, after, inserted)) = key.node_write else {
                 return Err(construction_state::stale("node缺实际put收据"));
@@ -2097,12 +2196,18 @@ fn validate_stage_coverage(j: &Journal) -> Result<(), String> {
             node_epoch = node_epoch
                 .checked_add(1)
                 .ok_or_else(|| construction_state::stale("node事件序耗尽"))?;
-            if key.material_epoch != node_epoch
-                || after.checked_sub(before) != Some(u64::from(inserted))
+            if receipt.write_delta() != Some(u64::from(receipt.inserted()))
+                || (fresh
+                    && (key.material_epoch != node_epoch
+                        || receipt.inserted() != inserted
+                        || after.checked_sub(before) != Some(u64::from(inserted))))
             {
                 return Err(construction_state::stale("node多次事件序/实际写数不符"));
             }
             continue;
+        }
+        if receipt.inserted() || receipt.write_delta() != Some(0) {
+            return Err(construction_state::stale("收据事件key序/归属不符"));
         }
         if matches!(
             key.table,
@@ -2128,7 +2233,43 @@ fn validate_stage_coverage(j: &Journal) -> Result<(), String> {
         }
         previous_material = stage.material_after;
     }
+    // 闭合：每个 key 至少被一个事件引用；node 事件数恰为 material_epoch（无 occurrence 丢失）。
+    if introduced != j.keys.len() || node_epoch != j.material_epoch {
+        return Err(construction_state::stale("node多次事件序/实际写数不符"));
+    }
     Ok(())
+}
+
+#[cfg(test)]
+struct ReceiptView {
+    digest: [u8; 32],
+    inserted: bool,
+    material_epoch: u64,
+}
+#[cfg(test)]
+impl Journal {
+    /// 把 events 按发生序展开为逐收据视图；node 的 material_epoch 为 node 事件序数。
+    fn receipts_for_test(&self) -> Vec<ReceiptView> {
+        let mut epoch = 0;
+        self.events
+            .iter()
+            .map(|event| {
+                let key = &self.keys[event.key()];
+                if key.table == Table::Node {
+                    epoch += 1;
+                }
+                ReceiptView {
+                    digest: key.digest,
+                    inserted: event.inserted(),
+                    material_epoch: if key.table == Table::Node {
+                        epoch
+                    } else {
+                        key.material_epoch
+                    },
+                }
+            })
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -2138,6 +2279,7 @@ fn native_journal_only_reserves_the_container_that_grows() {
     let mut j = Journal {
         keys: Vec::new(),
         nodes: Default::default(),
+        events: Vec::new(),
         operation: Operation::Publish,
         overflow: false,
         unexpected: false,
@@ -2521,23 +2663,127 @@ mod construction_coverage_tests {
         with_material_access(&tx, None, |material| {
             let material = material.unwrap();
             note_source_cut(material, (&state).into())?;
-            let before = recording.journal.lock().unwrap().keys.len();
+            // #1488 0035（裁定 issuecomment-6278995984）：逐收据载体由 keys 改为 events，语义不变。
+            let (before, keys_before) = {
+                let j = recording.journal.lock().unwrap();
+                (j.events.len(), j.keys.len())
+            };
             put(&tx, 45);
             put(&tx, 45);
             put(&tx, 46);
             let j = recording.journal.lock().unwrap();
-            let tail = &j.keys[before..];
+            let receipts = j.receipts_for_test();
+            let tail = &receipts[before..];
             assert_eq!(tail.len(), 3, "不可因摘要相同丢Noop occurrence");
             assert_eq!(tail[0].digest, tail[1].digest);
-            assert!(tail[0].node_write.unwrap().2);
-            assert!(!tail[1].node_write.unwrap().2);
+            assert!(tail[0].inserted);
+            assert!(!tail[1].inserted);
             assert!(tail[1].material_epoch > tail[0].material_epoch);
+            assert_eq!(j.keys.len() - keys_before, 2, "同摘要收据只合并key，不合并事件");
             Ok(())
         })
         .unwrap();
         let effects = recording.finish(&tx, &mut [], 16 << 20).unwrap().unwrap();
         assert!(effects.set.is_some());
         assert!(effects.has_exact_coverage(tx.total_changes()));
+    }
+    // #1488 0035：合并 key 后逐收据核对仍读 events；丢 Noop 事件、key 下标错位、写数不符都拒绝。
+    #[test]
+    fn owner_set_merged_receipts_reject_dropped_misplaced_or_miscounted_event() {
+        let mut db = database();
+        let tx = db.transaction().unwrap();
+        let (recording, state) = set_recording(&tx);
+        with_material_access(&tx, None, |material| {
+            let material = material.unwrap();
+            note_source_cut(material, (&state).into())?;
+            let before = recording.journal.lock().unwrap().events.len();
+            put(&tx, 45);
+            put(&tx, 45);
+            put(&tx, 46);
+            put(&tx, 45);
+            let mut j = recording.journal.lock().unwrap();
+            assert!(validate_stage_coverage(&j).is_ok());
+            let noop = before + 1;
+            assert!(!j.events[noop].inserted());
+            let receipts = j.receipts_for_test();
+            let tail = &receipts[before..];
+            assert_eq!(tail.len(), 4, "四条收据逐条可还原");
+            assert_eq!(
+                tail.iter().map(|r| r.inserted).collect::<Vec<_>>(),
+                [true, false, true, false]
+            );
+            assert_eq!(tail[0].digest, tail[3].digest);
+            assert!(tail.windows(2).all(|w| w[1].material_epoch == w[0].material_epoch + 1));
+            drop(receipts);
+            // 丢一条 Noop 事件：node 事件数与 material_epoch 不闭合。
+            let saved = j.events.remove(noop);
+            let error = validate_stage_coverage(&j).unwrap_err();
+            assert!(error.contains("node多次事件序/实际写数不符"), "{error}");
+            j.events.insert(noop, saved);
+            // key 下标越过首见序或指向别的 key：拒绝。
+            let future = Receipt::node(j.keys.len() + 1, 0, 0, false).unwrap();
+            j.events[noop] = future;
+            let error = validate_stage_coverage(&j).unwrap_err();
+            assert!(error.contains("收据事件key序/归属不符"), "{error}");
+            // inserted 与实际写数不符：拒绝。
+            let forged = Receipt::node(saved.key(), 0, 0, true).unwrap();
+            j.events[noop] = forged;
+            let error = validate_stage_coverage(&j).unwrap_err();
+            assert!(error.contains("node多次事件序/实际写数不符"), "{error}");
+            j.events[noop] = saved;
+            assert!(validate_stage_coverage(&j).is_ok());
+            Ok(())
+        })
+        .unwrap();
+        let effects = recording.finish(&tx, &mut [], 16 << 20).unwrap().unwrap();
+        assert!(effects.has_exact_coverage(tx.total_changes()));
+    }
+    // #1488 0035：events 增长只为 events 付新块；触帽即 journal 溢出（Ok(None)），与 keys 溢出同语义。
+    #[test]
+    fn owner_set_receipt_events_grow_alone_and_overflow_like_keys() {
+        let mut db = database();
+        let tx = db.transaction().unwrap();
+        let (recording, state) = set_recording(&tx);
+        with_material_access(&tx, None, |material| {
+            let material = material.unwrap();
+            note_source_cut(material, (&state).into())?;
+            put(&tx, 45);
+            let (keys_cap, nodes_cap) = {
+                let j = recording.journal.lock().unwrap();
+                (j.keys.capacity(), j.nodes.capacity())
+            };
+            let mut grown = false;
+            for _ in 0..64 {
+                let (bytes, events_cap) = {
+                    let j = recording.journal.lock().unwrap();
+                    (j.bytes, j.events.capacity())
+                };
+                put(&tx, 45);
+                let j = recording.journal.lock().unwrap();
+                if j.events.capacity() != events_cap {
+                    assert_eq!(
+                        j.bytes - bytes,
+                        vec_bytes::<Receipt>(j.events.capacity()) - vec_bytes::<Receipt>(events_cap),
+                        "只为增长的events付新块"
+                    );
+                    assert!(j.peak >= bytes + vec_bytes::<Receipt>(j.events.capacity()));
+                    grown = true;
+                }
+                assert_eq!((j.keys.capacity(), j.nodes.capacity()), (keys_cap, nodes_cap));
+            }
+            assert!(grown);
+            let mut j = recording.journal.lock().unwrap();
+            let fill = j.events.capacity() - j.events.len();
+            j.cap = j.bytes;
+            drop(j);
+            for _ in 0..=fill {
+                put(&tx, 45);
+            }
+            assert!(recording.journal.lock().unwrap().overflow, "events触帽须溢出");
+            Ok(())
+        })
+        .unwrap();
+        assert!(recording.finish(&tx, &mut [], 16 << 20).unwrap().is_none());
     }
     #[test]
     fn owner_set_future_stage_cannot_repair_missing_current_original() {

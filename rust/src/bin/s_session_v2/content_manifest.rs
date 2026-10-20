@@ -1182,14 +1182,16 @@ impl ManifestRecordingStore<'_> {
             return Ok(());
         };
         let admission = crate::v3::audit_store::NativeAdmission(self.inner.codec_work());
-        let next_len = originals
+        originals
             .len()
             .checked_add(1)
             .ok_or_else(|| admission.native_overflow())?;
-        let tree_permit = super::content_store::native_tree_storage::<
+        // #1488 0035：增量许可——只为新增条目取一份树槽上界并入已持许可；
+        // 不再整树重许可，旧许可不与整树新许可并存（单条上界与整树上界逐条相加相等）。
+        let mut tree_step = super::content_store::native_tree_storage::<
             NodeDigest,
             (u8, s_content::CodecVec<u8>),
-        >(self.inner.codec_work(), next_len)?;
+        >(self.inner.codec_work(), 1)?;
         let mut owned_body = s_content::CodecVec::default();
         admission.native_codec_room(&mut owned_body, body.len())?;
         owned_body.try_extend_bytes(body)?;
@@ -1209,7 +1211,16 @@ impl ManifestRecordingStore<'_> {
         self.accepted_entries = entries;
         self.accepted_body_len = len;
         originals.insert(digest, (tag, body));
-        self.tree_permit = tree_permit;
+        if let Some(mut step) = tree_step.take() {
+            if let Some(held) = self.tree_permit.as_mut() {
+                if let Err(failure) = held.merge(&mut step) {
+                    let work = self.inner.codec_work().expect("树许可来自当前操作域");
+                    return Err(work.reject(failure));
+                }
+            } else {
+                self.tree_permit = Some(step);
+            }
+        }
         Ok(())
     }
 }
@@ -1960,6 +1971,62 @@ mod tests {
         assert!(budget.live() > baseline, "移出原件的正文仍持原许可");
         drop(body);
         assert_eq!(budget.live(), baseline);
+    }
+
+    // #1488 0035：originals 树增量许可——每个新条目只并入一份单条上界，峰值不含整树重复许可。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_manifest_originals_tree_permit_is_incremental_without_whole_tree_coexistence() {
+        use s_content::NodeSink;
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE s_protocol_meta(singleton INTEGER PRIMARY KEY,protocol_revision TEXT NOT NULL); INSERT INTO s_protocol_meta VALUES(1,'s-session/3');").unwrap();
+        let tx = conn.transaction().unwrap();
+        super::super::content_store::init_schema(&tx).unwrap();
+        let budget = crate::v3::audit_owner::native::Budget::new(4 * 1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let tag = s_content::tag::BYTES_CHUNK;
+        let per = crate::v3::audit_retention::tree_slots::<
+            NodeDigest,
+            (u8, s_content::CodecVec<u8>),
+        >(1);
+        let entries = 8usize;
+        let tree_permit = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let mut inner =
+                    super::super::content_store::TxStore::new(&tx)?.with_work(Some(work));
+                let mut recording = ManifestRecordingStore {
+                    inner: &mut inner,
+                    allowance: 1024 * 1024,
+                    certificate_cost: 0,
+                    source_cost: 0,
+                    originals: Some(Default::default()),
+                    retained_capacity: 0,
+                    accepted_entries: 0,
+                    accepted_body_len: 0,
+                    puts: Default::default(),
+                    tree_permit: None,
+                };
+                for index in 0..entries {
+                    let body = [index as u8 + 10, 1, 2];
+                    recording.put(s_content::frame(tag, &body), tag, &body)?;
+                    let held = recording.tree_permit.as_ref().map_or(0, |p| p.bytes());
+                    assert_eq!(held, (index + 1) * per, "树许可逐条累加");
+                    assert!(
+                        budget.peak() - budget.live() < per,
+                        "峰值不得含整树重复许可：peak={} live={} per={per}",
+                        budget.peak(),
+                        budget.live()
+                    );
+                }
+                assert_eq!(recording.originals.as_ref().unwrap().len(), entries);
+                Ok::<_, CodecError>(recording.tree_permit.take())
+            })
+            .unwrap();
+        assert_eq!(tree_permit.as_ref().map(|p| p.bytes()), Some(entries * per));
+        drop(tree_permit);
+        assert!(budget.live() > baseline, "正文与puts仍持原许可");
     }
 
     #[cfg(feature = "s_capture_native_testonly")]

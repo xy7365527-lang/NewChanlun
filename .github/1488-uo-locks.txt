@@ -73,3 +73,10 @@ v3::driver::tests::recover_lock_schema_and_material_change_revoke
 v3::driver::tests::recover_lock_rejects_stale_qualification_stamp
 v3::driver::tests::recover_lock_rejects_confirm_epoch_mismatch
 v3::driver::tests::recover_lock_rejects_foreign_ledger_budget_handoff
+# #1488 收据 key 合并 + originals 增量许可（0035，裁定 issuecomment-6278995984 二、三）
+v3::audit_owner::effects::construction_coverage_tests::owner_set_ordered_node_receipts_keep_repeated_noop_and_unreachable_nodes
+v3::audit_owner::effects::construction_coverage_tests::owner_set_merged_receipts_reject_dropped_misplaced_or_miscounted_event
+v3::audit_owner::effects::construction_coverage_tests::owner_set_receipt_events_grow_alone_and_overflow_like_keys
+v3::audit_owner::effects::native_journal_only_reserves_the_container_that_grows
+content_manifest::tests::native_manifest_originals_tree_permit_is_incremental_without_whole_tree_coexistence
+content_manifest::tests::native_manifest_recorded_body_and_puts_keep_original_permits_after_scope
