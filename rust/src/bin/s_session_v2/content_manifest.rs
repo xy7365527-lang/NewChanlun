@@ -1488,7 +1488,6 @@ fn assemble_manifest_body(
     let publication_fields =
         exact_object(store, roots.publication_template, SNAPSHOT_FIELDS, false)?;
     let delta_fields = exact_object(store, roots.delta_template, DELTA_FIELDS, false)?;
-    store.verify_ref(roots.generated_state, s_content::Mode::Public)?;
 
     let generated = &generated_fields;
     let publication = &publication_fields;
