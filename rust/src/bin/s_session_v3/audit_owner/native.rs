@@ -771,6 +771,9 @@ impl BudgetStamp {
         }
         to.handoff_stamp().ok()
     }
+    pub(crate) fn same_ledger_for_neg(&self, budget: &Budget) -> bool {
+        self.same_ledger(&budget.0)
+    }
     /// 负控注入：摘要改指同父账的下一冻结域。
     #[cfg(test)]
     pub(crate) fn skew_domain_for_test(mut self) -> Self {

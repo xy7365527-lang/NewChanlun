@@ -277,6 +277,12 @@ impl CommittedRawState {
     pub(super) fn parent_matches_for_test(&self, budget: &super::audit_owner::native::Budget) -> bool {
         self.parent.as_ref().is_some_and(|recorded| recorded.matches(budget))
     }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn advance_any_path_for_neg(&mut self, to: &super::audit_owner::native::Budget) {
+        if self.parent.as_ref().is_some_and(|r| r.same_ledger_for_neg(to)) {
+            self.parent = to.handoff_stamp().ok();
+        }
+    }
     /// #1488 0041（主控裁定 (a)）：只由 audit_admission 的合法重绑点调用——完整候选经
     /// bind_complete_budget（已校同父、本请求冻结域）从 from 交接到 to 时，资格所记冻结域随之前进，
     /// 父账 id 不变。所记值须恰为 from 的同账同域，否则原值不动（Recover 照常按记录拒绝）。

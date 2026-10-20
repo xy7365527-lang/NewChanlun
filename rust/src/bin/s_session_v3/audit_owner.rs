@@ -3014,6 +3014,9 @@ impl AuditTxn<'_> {
                 let Some(candidate) = complete.as_ref().filter(|c| c.seal == seal) else {
                     return Err(construction_state::stale("Recover迁移缺同快照完整原件"));
                 };
+                if let Some(state) = self.owner.construction.borrow_mut().as_mut() {
+                    state.advance_any_path_for_neg(&candidate.resources);
+                }
                 let previous = self.owner.construction.borrow_mut().take();
                 // 负控注入：原资格已离开 owner、尚未成为事务构造时交接失败。
                 #[cfg(test)]
