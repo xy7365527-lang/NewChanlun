@@ -131,6 +131,8 @@ def main():
                     record.update(kind=payload.get("kind"), ok=payload.get("ok"),
                                   accepted_seq=payload.get("accepted_seq"),
                                   publication=payload.get("publication"), receipt_id=payload.get("receipt_id"))
+                    if payload.get("kind") != "Committed":
+                        record["reply_payload"] = json.dumps(payload, ensure_ascii=False)[:4000]  # degrade-0065：留失败回执
                 else:
                     record["detail"] = result.get("detail")
                 out.write(json.dumps(record, ensure_ascii=False) + "\n")
