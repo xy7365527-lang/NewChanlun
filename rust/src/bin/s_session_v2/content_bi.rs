@@ -398,14 +398,8 @@ impl RawCoords {
             tail_refs.push(source);
         }
         // 与 delta 口同一做法：一次构造最终后缀，不逐 leaf 落作废中间根（#1488 S3）。
-        let (mut text, _) = sc::sequence_split(&mut *store, &self.text, first as u64)?;
-        for leaf in &tail_text {
-            text = sc::sequence_append(&mut *store, &text, leaf)?;
-        }
-        let (mut refs, _) = sc::sequence_split(&mut *store, &self.refs, first as u64)?;
-        for leaf in &tail_refs {
-            refs = sc::sequence_append(&mut *store, &refs, leaf)?;
-        }
+        let text = sc::sequence_rebuild_suffix(&mut *store, &self.text, first as u64, &tail_text)?;
+        let refs = sc::sequence_rebuild_suffix(&mut *store, &self.refs, first as u64, &tail_refs)?;
         self.coords.truncate(first);
         self.refs_leaves.truncate(first);
         self.coords.extend(tail);
