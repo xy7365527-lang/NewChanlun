@@ -761,7 +761,6 @@ impl BudgetStamp {
     /// 与同一冻结域身份（序号/请求号/额度；from 换域后已过期，不再读其总容量帽），to 须同父且为
     /// 当前域；任一不满足返回 None，调用方保留原摘要不动。
     pub(crate) fn advance(&self, from: &Budget, to: &Budget) -> Option<Self> {
-        let _ = from; return to.handoff_stamp().ok();
         if !self.same_ledger(&from.0)
             || self.serial != from.1
             || self.request != from.2
