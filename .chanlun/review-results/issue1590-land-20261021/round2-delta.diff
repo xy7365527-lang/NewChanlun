@@ -1,0 +1,84 @@
+diff --git a/.chanlun/definitions/sanjieduan.md b/.chanlun/definitions/sanjieduan.md
+index ac3198c2d7..7cf99c6617 100644
+--- a/.chanlun/definitions/sanjieduan.md
++++ b/.chanlun/definitions/sanjieduan.md
+@@ -87,5 +87,6 @@
+ 
+ ## 更新日志
+ 
++- 2026-10-21：同步 #1590（ADR 0043）：§2 空头蕴含订正为 `latch.rank ≥ CapitalRecovered`、开多求值点补发 `enterEarning`，新增「换向与开局资金」小节；§3 订正指针；§5 加 `voice.rs:169`、`book.rs:442` 两行；无代码行为变更。
+ - 2026-10-15：同步 #1406 OQ-2a（2026-10-14 补裁），资格与 latch 关系分方向写为单向蕴含，订正 §5 并明确 Lean/Rust 验证覆盖义务；无代码行为变更。
+ - 2026-10-13：v1.0 新建（#1348 裁定落正本层）。
+diff --git a/docs/adr/0043-chong-reversal-account-continuity.md b/docs/adr/0043-chong-reversal-account-continuity.md
+index 44ee31c484..780e5a5f0e 100644
+--- a/docs/adr/0043-chong-reversal-account-continuity.md
++++ b/docs/adr/0043-chong-reversal-account-continuity.md
+@@ -32,7 +32,7 @@
+ 
+ > 空头 `growth_eligible ⇒ latch.rank ≥ CapitalRecovered`；空头事件不把 latch 推进到 `EarningShares`。
+ 
+-**多头蕴含原文不变，由补发规则维持**：K 跨方向连续会让多头蕴含出现缺口——多头声部退完本金（latch = CapitalRecovered）但 K 仍 > 0 时换空，空头利润把 K 压到 ≤ 0，回 0 后再开多，开多求值点多头谓词立即为真，latch 却仍是 CapitalRecovered。补法：开多声部的求值点若多头谓词为真且 `latch.rank < EarningShares`，在该求值点追加**既有**的 `enterEarning` 阶段事件（`formal/Origin/TotalWealth.lean:121`），known_at ＝ 求值点，append-only，AsKnown 不回填。该事件须走 legal 层：Lean 合法进入的前件是 `LegalEnterEarning s ⟺ openLegacyLegs = 0`（`TotalWealth.lean:256`，`LegalTransition` `:260`），回 0 开多时重内无未闭合腿，前件成立；实现（[#1378](https://github.com/xy7365527-lang/NewChanlun/issues/1378)）须按 `LegalTransition` 校验后发事件，不得走无守卫的 raw `twStep`。本条不新增事件。
++**多头蕴含原文不变，由补发规则维持**：K 跨方向连续会让多头蕴含出现缺口——多头声部退完本金（latch = CapitalRecovered）但 K 仍 > 0 时换空，空头利润把 K 压到 ≤ 0，回 0 后再开多，开多求值点多头谓词立即为真，latch 却仍是 CapitalRecovered。补法：开多声部的求值点若多头谓词为真且 `latch.rank < EarningShares`，在该求值点追加**既有**的 `enterEarning` 阶段事件（`formal/Origin/TotalWealth.lean:121`），known_at ＝ 求值点，append-only，AsKnown 不回填。该事件须走 legal 层：Lean 合法进入的前件是 `LegalEnterEarning s ⟺ openLegacyLegs = 0`（`TotalWealth.lean:256`，`LegalTransition` 定义 `:268`），回 0 开多时重内无未闭合腿，前件成立；实现（[#1378](https://github.com/xy7365527-lang/NewChanlun/issues/1378)）须按 `LegalTransition` 校验后发事件，不得走无守卫的 raw `twStep`。本条不新增事件。
+ 
+ ### 四、声部开局资金 policy 记录 `#1590/voice-open-funding/v1` `[新缠论:选择]`
+ 
+@@ -44,6 +44,41 @@
+ 
+ v1 为 `P0`、`P1-hl-testnet`、`P0-acceptance-5m` 三个 profile（ADR 0040）各签一条：`reversal_principal_exposure: profit_only`、`voice_open_shortfall: open_available`。
+ 
++签署记录（`valid_through` 取同 profile funding-record 的有效期，ADR 0040「签署记录」，不另立数值）：
++
++```voice-open-funding-record
++profile_id: P0
++policy_id: #1590/voice-open-funding/v1
++version: v1
++supersedes: none
++reversal_principal_exposure: profit_only
++voice_open_shortfall: open_available
++authorizer: 用户（#1590 2026-10-21 批复，评论 6309984967）
++authorized_at: 2026-10-21
++valid_through: 2027-10-20
++
++profile_id: P1-hl-testnet
++policy_id: #1590/voice-open-funding/v1
++version: v1
++supersedes: none
++reversal_principal_exposure: profit_only
++voice_open_shortfall: open_available
++authorizer: 用户（#1590 2026-10-21 批复，评论 6309984967）
++authorized_at: 2026-10-21
++valid_through: 2027-10-20
++
++profile_id: P0-acceptance-5m
++policy_id: #1590/voice-open-funding/v1
++version: v1
++supersedes: none
++scope: evidence_only
++reversal_principal_exposure: profit_only
++voice_open_shortfall: open_available
++authorizer: 用户（#1590 2026-10-21 批复，评论 6309984967）
++authorized_at: 2026-10-21
++valid_through: 2027-10-20
++```
++
+ **不放进 funding-record**：funding-record 形状由 [ADR 0029](0029-common-cap-contention-policy.md) 定为八字段 ⟨policy_id, version, cap, currency, valid_through, authorizer, authorized_at, profile_id⟩、ADR 0040 沿用，塞政策字段会改另一份正本的形状；ADR 0041 裁定三允许落在 policy 记录。
+ 
+ #### 字段 `reversal_principal_exposure`：开新声部时已退本金是否回到在险池
+@@ -101,7 +136,7 @@ v1 为 `P0`、`P1-hl-testnet`、`P0-acceptance-5m` 三个 profile（ADR 0040）
+ 
+ **新增 blocking 边**：#1590 blocks [#1378](https://github.com/xy7365527-lang/NewChanlun/issues/1378)、[#1406](https://github.com/xy7365527-lang/NewChanlun/issues/1406)、[#1415](https://github.com/xy7365527-lang/NewChanlun/issues/1415)、#1421。
+ 
+-- **#1378**（TB-06-B）：裁定一、二、三的直接实现者。验收须含负控：多头退本金 → K > 0 换空 → 空头利润使 K ≤ 0 → 回 0 开多，断言开多求值点经 `LegalTransition` 追加 `enterEarning` 且多头蕴含成立。
++- **#1378**（TB-06-B）：裁定一、二、三的直接实现者。验收须含负控：多头退本金 → K > 0 换空 → 空头利润使 K ≤ 0 → 回 0 开多，断言开多求值点经 `LegalTransition` 追加 `enterEarning` 且多头蕴含成立。实现时另核：`LegalTransition` 要求 `openShareLeg` 前 `stage.rank < EarningShares`（`TotalWealth.lean:270`），latch 到 `EarningShares` 后的任何声部（含空头）都不能再开 legacy ShareConserving 腿，空头声部是否依赖它由 #1378／#1406 核对。
+ - **#1406**（TB-03-C）：`sanjieduan.md` §2 OQ-2a 蕴含及证明与对拍义务归它；空头蕴含按裁定三订正。默认取值下 ledger 不新增回流事件。
+ - **#1415**（TB-03-D）：满仓 ＝ 本声部开局量、档量不缩放、截断后同量回补写进验收；开局量由记录与账本算出，不是新数量默认。
+ - **#1421**（TB-03-E）：`#1590/voice-open-funding` 唯一读取点与签署校验。验收须含：缺记录、缺字段、非法值、签成未实装值各一例负控，断言输出 `AwaitingPolicy{voice_open_funding}` 且不产生订单；`profit_only` 下 withdrawn > 0 时开局量 ＝ min(Q, free) 的正例；数量为零输出 `NotComputable{reason: quantity_zero}`；把读取改成常数的变异体须让测试变红。
+@@ -117,7 +152,7 @@ v1 为 `P0`、`P1-hl-testnet`、`P0-acceptance-5m` 三个 profile（ADR 0040）
+ | Rust | `rust/src/economic_session/voice.rs:169` | 开局量 > 0 不变；开局量改读 `#1590/voice-open-funding` 记录按 min(Q, 可用资金) 计算，缺记录 `AwaitingPolicy{voice_open_funding}`（#1421） |
+ | Rust | `rust/src/theta_v0/strategy/ledger.rs:97`／`:146` | 默认取值下不改；可选值的回流事件归 #1651 |
+ | Lean | `formal/Origin/TotalWealth.lean:125`／`:178` | 默认取值下不改；可选值的回流事件归 #1651 |
+-| Lean | `formal/Origin/TotalWealth.lean:256`／`:260` | `LegalEnterEarning`／`LegalTransition` 不改，补发 `enterEarning` 须满足 |
++| Lean | `formal/Origin/TotalWealth.lean:256`／`:268` | `LegalEnterEarning`／`LegalTransition` 不改，补发 `enterEarning` 须满足 |
+ 
+ **正本订正指针**（原文不删）：`sanjieduan.md` §2／§3、`CONTEXT.md`「重内单向」「cost_remaining」「本金批次」、ADR 0013 裁定四闸门两侧段与空头扩量段、ADR 0017 裁定二、ADR 0031 裁定一／三、ADR 0040 未裁项。
+ 

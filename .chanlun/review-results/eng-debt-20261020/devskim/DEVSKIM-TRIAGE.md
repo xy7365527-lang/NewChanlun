@@ -267,7 +267,7 @@ outside baseline, elsewhere: 46
 
 `exact_baseline.py write` 将这些键排序后追加到 `findings` 末尾，并新开一条 `updates` 记录：issue 1588，PR 1593，`source_head` 49d33f0fc7，`actions_run` 39540955835，`added_findings` 55101，`rule_counts` 同上，reason 写明用户裁定，并指向本文件、`classify-excluded-output.txt`、`credential-scan-output.txt`。原有条目未重排；`git diff --numstat` 只有新增行，外加 1 行（原末元素补逗号）。
 
-这批键覆盖本目录本轮新写入的文件（本台账和 `exact_baseline.py`）。它们是扫描时已存在的文件，因此一并纳入。
+本目录本轮新写入的文件（本台账和 `exact_baseline.py`）在本轮扫描中没有告警，基线中不含这两个文件的条目。（订正：原句称这批键覆盖了它们，与事实不符，见 `reviews/1593-tail-b3b1a7707c.md` N3。）
 
 ### 7.3 目录外的 46 键（rebase 带来，非裁定范围，单独一条 updates 记录）
 

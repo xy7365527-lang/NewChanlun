@@ -2,7 +2,9 @@
 use super::*;
 use crate::v3::audit_store::{CodecRead, NativeAdmission};
 use crate::v3::business_json::{self as control_json, BusinessMap, JsonOwner, TextValue};
-use newchan_rust::s_content::capture_allocation::audit_json::{self as control_aj, JsonView};
+#[cfg(feature = "s_allocation_json_testonly")]
+use newchan_rust::s_content::capture_allocation::audit_json as control_aj;
+use newchan_rust::s_content::capture_allocation::audit_json::JsonView;
 use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
 use newchan_rust::s_content::{capture_allocation::OwnedBudget, CodecVec};
 pub use newchan_rust::session_protocol::strict_json;
@@ -622,9 +624,6 @@ fn normalize_schema_chunks(
     }
     Ok(())
 }
-fn control_normalized(s: &str, b: Option<&OwnedBudget>) -> Result<TextValue, String> {
-    control_normalized_admitted(s, b, None)
-}
 fn control_normalized_admitted(
     s: &str,
     b: Option<&OwnedBudget>,
@@ -710,9 +709,6 @@ impl ControlSchema {
             owner: owner.cloned(),
         }
     }
-    pub(super) fn add_ddl(&mut self, label: &str, ddl: &str) -> Result<(), String> {
-        self.add_ddl_admitted(label, ddl, None)
-    }
     pub(super) fn add_ddl_admitted(
         &mut self,
         label: &str,
@@ -780,9 +776,6 @@ impl SchemaRead<'_> {
             Self::Owned(s) => s.tables.get(k).map(TextValue::as_str),
         }
     }
-    fn sorted_names(&self) -> Result<CodecVec<&str>, String> {
-        self.sorted_names_admitted(None)
-    }
     fn sorted_names_admitted(&self, work: Option<&WorkScope>) -> Result<CodecVec<&str>, String> {
         let mut names = control_json::new_work(self.owner());
         match self {
@@ -806,12 +799,6 @@ pub(super) fn verify_expected_schema(
     expected: &BTreeMap<String, String>,
 ) -> Result<(), String> {
     verify_schema_read(conn, SchemaRead::Normal(expected))
-}
-pub(super) fn verify_control_schema(
-    conn: &Connection,
-    expected: &ControlSchema,
-) -> Result<(), String> {
-    verify_control_schema_admitted(conn, expected, None)
 }
 pub(super) fn verify_control_schema_admitted(
     conn: &Connection,
@@ -1158,6 +1145,7 @@ impl ControlFacts {
             pending: 1,
         })
     }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn len(&self) -> usize {
         self.headers.len()
     }
@@ -1183,12 +1171,15 @@ impl ControlFacts {
     }
 }
 impl ControlHistory {
+    #[cfg(test)]
     pub(super) fn session_generation(&self) -> &str {
         self.facts.session_generation.as_str()
     }
+    #[cfg(test)]
     pub(super) fn clock_plan_hash(&self) -> &str {
         self.facts.clock_plan_hash.as_str()
     }
+    #[cfg(test)]
     pub(super) fn pending_count(&self) -> usize {
         self.pending
     }
@@ -1344,12 +1335,6 @@ fn control_query_row<T>(
     stmt.finalize().map_err(err)?;
     Ok(value)
 }
-fn control_canonical_text(
-    v: JsonView<'_>,
-    owner: Option<&OwnedBudget>,
-) -> Result<TextValue, String> {
-    control_canonical_text_admitted(v, owner, None)
-}
 fn control_canonical_text_admitted(
     v: JsonView<'_>,
     owner: Option<&OwnedBudget>,
@@ -1394,13 +1379,6 @@ fn control_canonical_text_admitted(
     }
     result.map_err(err)?;
     TextValue::from_bytes(writer.bytes).map_err(err)
-}
-fn control_identity(
-    input: &tb02a::RawInputView<'_>,
-    ev: tb02a::RawEventView<'_>,
-    owner: Option<&OwnedBudget>,
-) -> Result<TextValue, String> {
-    control_identity_admitted(input, ev, owner, None)
 }
 fn control_identity_admitted(
     input: &tb02a::RawInputView<'_>,
@@ -1475,12 +1453,6 @@ fn control_event_hash(
         )
     }
 }
-fn control_sorted_keys<'a, K: Eq + std::hash::Hash + Ord, V>(
-    map: &'a BusinessMap<K, V>,
-    owner: Option<&OwnedBudget>,
-) -> Result<CodecVec<&'a K>, String> {
-    control_sorted_keys_admitted(map, owner, None)
-}
 fn control_sorted_keys_admitted<'a, K: Eq + std::hash::Hash + Ord, V>(
     map: &'a BusinessMap<K, V>,
     owner: Option<&OwnedBudget>,
@@ -1508,6 +1480,7 @@ pub(super) struct AuditMessage {
     pub(super) event: TextValue,
     pub(super) count: i64,
 }
+#[cfg(feature = "s_capture_native_testonly")]
 pub(super) fn read_audit_message(
     r: &mut CheckedRow<'_>,
     owner: Option<&OwnedBudget>,
@@ -1545,6 +1518,7 @@ pub(super) fn read_audit_message_admitted(
         count,
     })
 }
+#[cfg(feature = "s_capture_native_testonly")]
 pub(super) fn validate_audit_message(
     conn: &Connection,
     m: &AuditMessage,
@@ -2006,7 +1980,7 @@ pub(super) fn validate_control_history_admitted(
             )
             .map_err(err)?;
         } else {
-            let (expected_key, count, published) = messages
+            messages
                 .get(id.as_str())
                 .ok_or_else(|| err("phase没有原消息"))?;
             if phase == "begin"
@@ -2491,9 +2465,9 @@ fn serve(
     }
     if meta_get_opt(&tx, "advance_state")?.as_deref() != Some("idle") {
         // #1576：历史规则库的 recover 必拒（VersionMismatch），不能再把运维指向它；闭门本身不放松。
-        let rule = meta_get_opt(&tx, "rule_revision")?.unwrap_or_default();
-        if rule != RULE_REVISION {
-            return Err(stale_begin_on_historical_rule(&rule, db));
+        let rule = meta_get_opt(&tx, "rule_revision")?;
+        if rule.as_deref() != Some(RULE_REVISION) {
+            return Err(stale_begin_on_historical_rule(rule.as_deref(), db));
         }
         return Err("StaleWriter：未完成Begin保持闭门，请监督器先正式recover".into());
     }
@@ -2530,9 +2504,14 @@ fn serve(
 
 /// #1576：历史规则库留有未完成 Begin 时 serve 的拒绝文案。recover 对历史规则只读库必拒，
 /// 故只给实际可走的路径：CLI 只读查看，或人工以当前规则新建代际（本协议无原库迁移入口）。
-fn stale_begin_on_historical_rule(rule: &str, db: &Path) -> String {
+/// `rule_revision` 键缺失时明示缺失，不显示空值（#1653，#1576 独审 INFO-3）。
+fn stale_begin_on_historical_rule(rule: Option<&str>, db: &Path) -> String {
+    let rule = match rule {
+        Some(r) => format!("rule_revision=`{r}`"),
+        None => "meta 缺 rule_revision 键".to_string(),
+    };
     format!(
-        "VersionMismatch：历史规则会话（rule_revision=`{rule}`，本二进制为 `{RULE_REVISION}`）留有未完成Begin，永久闭门：历史规则只读，recover 同样拒绝（不换代、不清未决Begin），本库不能再以 serve 提供服务。可走路径：①只读查看用 CLI `catalog`/`snapshot`/`meta --db {}`；②恢复服务须人工以当前规则走 v2 `init` 建新路径的库（`--db <新路径> --session --catalog --profile --session-generation <新代> --clock-plan --delivery-retain-generations` 缺一不可；不带后三者会建成 v1 库，serve 不收）并重新接纳原始输入——当前无旧库迁移入口（TB-10 #1368）",
+        "VersionMismatch：历史规则会话（{rule}，本二进制为 `{RULE_REVISION}`）留有未完成Begin，永久闭门：历史规则只读，recover 同样拒绝（不换代、不清未决Begin），本库不能再以 serve 提供服务。可走路径：①只读查看用 CLI `catalog`/`snapshot`/`meta --db {}`；②恢复服务须人工以当前规则走 v2 `init` 建新路径的库（`--db <新路径> --session --catalog --profile --session-generation <新代> --clock-plan --delivery-retain-generations` 缺一不可；不带后三者会建成 v1 库，serve 不收）并重新接纳原始输入——当前无旧库迁移入口（TB-10 #1368）",
         db.display()
     )
 }
@@ -3360,6 +3339,42 @@ mod tests {
             meta_get_opt(&conn, "advance_state").unwrap().as_deref(),
             Some("idle")
         );
+    }
+
+    /// #1653（#1576 独审 INFO-3）：`rule_revision` 键缺失时文案明示缺失，不显示空值；拒绝不放松。
+    #[test]
+    fn v2_serve_stale_begin_with_missing_rule_revision_says_missing() {
+        let f = Fixture::new(8, 2);
+        f.begin_only();
+        {
+            let writer = open_db(&f.db).unwrap();
+            writer
+                .execute("DELETE FROM meta WHERE key='rule_revision'", [])
+                .unwrap();
+        }
+        let socket = f.dir.join("s.sock");
+        let bounds = Bounds {
+            frame: 65536,
+            read: Duration::from_millis(1000),
+            write: Duration::from_millis(1000),
+            response: Duration::from_millis(1000),
+            cache_bytes: 0,
+            queue: 4,
+            connections: 4,
+        };
+        let msg = serve(
+            &f.db,
+            &socket,
+            &f.profile,
+            "1",
+            &f.dir.join("clock.json"),
+            bounds,
+        )
+        .unwrap_err();
+        assert!(msg.starts_with("VersionMismatch："), "{msg}");
+        assert!(msg.contains("meta 缺 rule_revision 键"), "{msg}");
+        assert!(!msg.contains("rule_revision=``"), "{msg}");
+        assert!(!socket.exists(), "拒绝须发生在绑定 socket 之前");
     }
 
     #[test]

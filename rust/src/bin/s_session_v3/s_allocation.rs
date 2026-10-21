@@ -320,6 +320,13 @@ pub(super) mod probe {
 
     #[derive(Clone, Copy)]
     pub(in super::super) enum Fault {
+        #[cfg_attr(
+            not(feature = "s_allocation_json_testonly"),
+            allow(
+                dead_code,
+                reason = "#1608：仅 s_allocation_json_testonly 的 driver.rs 测试构造"
+            )
+        )]
         Budget,
         SqlPrepare,
         SqlStep,
@@ -401,7 +408,8 @@ pub(super) mod probe {
                 Ok(None)
             }
             Some(Fault::SqlStep) => {
-                tx.progress_handler(1, Some(|| true));
+                tx.progress_handler(1, Some(|| true))
+                    .map_err(|e| e.to_string())?;
                 Ok(None)
             }
             None => Ok(None),
