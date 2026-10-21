@@ -13,10 +13,15 @@ import pytest
 import newchan.a_segment_v0 as v0
 import newchan.a_segment_v1 as v1
 from newchan.a_stroke import Stroke
+import newchan.ab_bridge_newchan as ab_bridge
 from newchan.segment_policy import (
     RECORD_PATH,
+    SCAN_BUDGET_PATH,
+    ScanBudget,
     SegmentPolicyError,
+    active_scan_budget,
     active_segment_construction,
+    parse_scan_budget,
     parse_segment_construction,
 )
 
@@ -89,3 +94,55 @@ def test_v1_gap_reads_record(monkeypatch, tangency, expect):
 def test_v0_overlap_reads_record(monkeypatch, tangency, expect):
     monkeypatch.setattr(v0, "active_segment_construction", lambda: _rec(tangency))
     assert len(v0.segments_from_strokes_v0(TANGENT)) == expect
+
+
+def test_v0_signed_record_counts_tangency_as_overlap():
+    """#1604 M2：v0 不再写死严格 `<`，按签署记录 `segment-second/2`（tangency=closed，xianduan §6.3）
+    读值——相切的三笔起一段。#1604 前 v0 对同一输入给 0 段（相切不算重合，即写死了 `open`）。
+    不打桩，直接读仓库里的生效记录；`ab_bridge_newchan` 的 `segment_algo="v0"` 路径调用的就是这一个函数。"""
+    assert active_segment_construction().tangency == "closed"
+    segs = v0.segments_from_strokes_v0(TANGENT)
+    assert [(s.s0, s.s1, s.direction, s.high, s.low) for s in segs] == [(0, 2, "up", 10, 0)]
+    assert ab_bridge.segments_from_strokes_v0 is v0.segments_from_strokes_v0
+
+
+def test_active_scan_budget_matches_rust_record():
+    b = active_scan_budget()
+    assert (b.label, b.second_seq_window, b.tail_window) == ("second-seq-scan-budget/2", 0, 7)
+    assert json.loads(SCAN_BUDGET_PATH.read_text(encoding="utf-8"))["fields"]["tail_window"]["value"] \
+        == b.tail_window
+
+
+@pytest.mark.parametrize("text", [
+    None,
+    '{"id":"second-seq-scan-budget","version":1,"fields":{"second_seq_window":{"value":0},"tail_window":{"value":7}}}',
+    '{"id":"second-seq-scan-budget","version":2,"fields":{"second_seq_window":{"value":0}}}',
+    '{"id":"second-seq-scan-budget","version":2,"fields":{"second_seq_window":{"value":0},"tail_window":{"value":null}}}',
+    '{"id":"second-seq-scan-budget","version":2,"fields":{"second_seq_window":{"value":0},"tail_window":{"value":-1}}}',
+    '{"id":"second-seq-scan-budget","version":2,"fields":{"second_seq_window":{"value":0},"tail_window":7}}',
+    '{"id":"second-seq-scan-budget","version":2,"fields":{"second_seq_window":{"value":0},"tail_window":{"value":true}}}',
+    '{"id":"segment-second","version":2,"fields":{"second_seq_window":{"value":0},"tail_window":{"value":7}}}',
+])
+def test_scan_budget_negative_controls_raise_without_fallback(text):
+    with pytest.raises(SegmentPolicyError):
+        parse_scan_budget(text)
+
+
+def _budget(tw):
+    return ScanBudget(record_id="second-seq-scan-budget", version=3, second_seq_window=0, tail_window=tw)
+
+
+def test_v1_tail_window_reads_record(monkeypatch):
+    """L1：v1 的尾窗读记录（类常数已删）；改回常数的变异体会让 tw=0/11 两档不随记录变。"""
+    assert not hasattr(v1._FeatureSeqState, "TAIL_WINDOW")
+    assert v1._FeatureSeqState("up").tail_window == 7
+    for tw in (0, 3, 11):
+        monkeypatch.setattr(v1, "active_scan_budget", lambda tw=tw: _budget(tw))
+        assert v1._FeatureSeqState("up").tail_window == tw
+
+
+@pytest.mark.parametrize("tw", [1, 2])
+def test_v1_rejects_tail_window_without_truncation_marker(monkeypatch, tw):
+    monkeypatch.setattr(v1, "active_scan_budget", lambda: _budget(tw))
+    with pytest.raises(SegmentPolicyError):
+        v1._FeatureSeqState("up")

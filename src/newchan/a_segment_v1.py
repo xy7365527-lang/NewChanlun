@@ -42,7 +42,11 @@ from typing import Literal
 
 from newchan.a_segment_v0 import BreakEvidence, Segment
 from newchan.a_stroke import Stroke
-from newchan.segment_policy import active_segment_construction
+from newchan.segment_policy import (
+    SegmentPolicyError,
+    active_scan_budget,
+    active_segment_construction,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -290,11 +294,22 @@ def _is_fractal_and_gap(
     return is_fractal, has_gap
 
 
+def _tail_window() -> int:
+    """记录给的尾窗。Python v1 没有 Rust 侧的尾窗截断标记（`INCOMPLETE_RESOURCE_BOUND`）；尾窗 1、2
+    会把未判过的候选挤出窗外（见记录 `tail_window.options`），这里拒绝而不是静默截断。"""
+    tw = active_scan_budget().tail_window
+    if tw in (1, 2):
+        raise SegmentPolicyError(
+            f"`second-seq-scan-budget.tail_window`={tw}：Python v1 未实现尾窗截断标记，只接受 0 或 ≥ 3"
+        )
+    return tw
+
+
 class _FeatureSeqState:
     """增量维护标准特征序列的状态。"""
 
-    # 尾窗扫描大小：分型检测只在最近 N 个元素内进行
-    TAIL_WINDOW: int = 7
+    # #1604（#1586 C-04 / L1）：尾窗大小不再是类常数，构造时读记录 `second-seq-scan-budget` 的
+    # `tail_window`（与 Rust 同读一值，#804）；0 = 不设上限。
 
     def __init__(
         self,
@@ -309,6 +324,7 @@ class _FeatureSeqState:
         self.last_checked: int = 0  # 上次分型检查的起始位置
         self._skip_until_stroke: int = -1  # 跳过 stroke_idx <= 此值的分型
         self._extend_mode: str = extend_mode
+        self.tail_window: int = _tail_window()
 
     def reset(self, seg_direction: str = "up") -> None:
         self.std = []
@@ -419,7 +435,7 @@ class _FeatureSeqState:
         if n < 3:
             return None
 
-        start = max(1, self.last_checked, n - self.TAIL_WINDOW)
+        start = max(1, self.last_checked, n - self.tail_window if self.tail_window else 0)
         for i in range(start, n - 1):
             b_stroke = int(self.std[i][2])
             if b_stroke <= self._skip_until_stroke:
