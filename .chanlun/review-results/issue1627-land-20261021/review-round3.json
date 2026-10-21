@@ -8,6 +8,6 @@
   "blocking": [],
   "nonblocking": [
     "zhongshu §9.6 C2 新补的 stream.rs:205 插在 :73 与 :85 之间，行号顺序未排序",
-    "证据文件 review-round1.md:19、review-round2.md:7 仍含本地路径 /tmp/rv1627/pr.diff（非回环地址，不影响本项检查）"
+    "证据文件 review-round1.md:19、review-round2.md:7 仍含本地路径 临时 PR diff 文件（非回环地址，不影响本项检查）"
   ]
 }
