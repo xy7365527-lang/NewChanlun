@@ -51,7 +51,7 @@
   "model_usage": [
    "claude-fable-5-1"
   ],
-  "route": "claude-proxy -> CLIProxyLocal 127.0.0.1:8318",
+  "route": "claude-proxy -> CLIProxyLocal（本机回环地址，端口 8318）",
   "reviewed_head": "39be558263"
  }
 }
