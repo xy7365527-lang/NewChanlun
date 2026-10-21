@@ -45,19 +45,21 @@
 //!
 //! ## 需要的 producer 最小公开口（一行，root 裁定）
 //!
-//! CC-005 请求的等待原因复用 `content_producer::group_reasons`。
+//! CC-005 请求的等待原因复用 `content_producer::group_reasons`（#1488 经
+//! `group_reasons_admitted` 先准入容量，原因同序同值）。
 //! #1405：同价标签只作证据，极值身份为根集合，多根窗口照常发布。
 
 #![allow(dead_code)]
 
-use super::audit_store::CodecRead;
-use super::business_json::{self as bj, RawEventsView};
+use super::audit_store::{CodecRead, CodecStore};
+use super::business_json::{self as bj, JsonOwner, RawEventsView, TextValue};
+use super::fixed_radix::FixedRadix;
 use super::object_records;
 use crate::content_bi::{BiBuildInputView, BiLedgerView, ContentBi, PriorState};
 use crate::content_producer::{
-    array_from_sequence, group_reasons, raw_prefix_coords, Cc004Producer, Cc006Object, Cc007Object,
-    ParserFractalShape, ProducerError, RawRefSpec, TypedObject, CC004_STEP_KIND, CC005_GROUP_KIND,
-    CC006_SHAPE_KIND, CC007_FRACTAL_KIND, CC054_KNOWLEDGE_KIND,
+    array_from_sequence, group_reasons_admitted, raw_prefix_coords, Cc004Producer, Cc006Object,
+    Cc007Object, ParserFractalShape, ProducerError, RawRefSpec, TypedObject, CC004_STEP_KIND,
+    CC005_GROUP_KIND, CC006_SHAPE_KIND, CC007_FRACTAL_KIND, CC054_KNOWLEDGE_KIND,
 };
 use crate::s_fact_cache;
 use newchan_rust::s_content::path::PathStep;
@@ -65,18 +67,21 @@ use newchan_rust::s_content::{
     self as sc, Built, ContentRef, Kind, NodeDigest, NodeStore, NumberToken, SequenceRef,
     Value as CValue,
 };
+#[allow(
+    unused_imports,
+    reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删"
+)]
 use newchan_rust::session_protocol::parse_canonical_i64;
-use newchan_rust::theta_v0::classifier::local_shape::{
-    classify_local_shape_sliding, Cc006LocalShape,
-};
+use newchan_rust::theta_v0::classifier::local_shape::{classify_local_shape, Cc006LocalShape};
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser;
 use newchan_rust::theta_v0::parser::inclusion::{GroupEvidenceView, IncrFactsState};
 use newchan_rust::theta_v0::types::Bar;
 use sc::capture_allocation::audit_json::JsonView;
+use sc::capture_allocation::native_owned::NativeValue;
+use sc::{CodecVec, ValueView as VV};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
 
 /// 生成输入：全部取调用方**同一读集**的真实值；本文不读库、不重排、不补默认。
 pub(super) struct GenerationInput<'a> {
@@ -102,14 +107,28 @@ pub(super) struct GenerationInput<'a> {
     pub prior: PriorState<'a>,
 }
 
+/// #1488：raw/effective 不可由调用者另给；仅含当前元数据与已核 prior。
+pub(super) struct BoundGenerationInput<'a> {
+    pub generation: i64,
+    pub structure_cut: &'a str,
+    pub input_frontier: i64,
+    pub profile_id: &'a str,
+    pub profile_hash: &'a str,
+    pub rule_revision: &'a str,
+    pub catalog_revision: &'a str,
+    pub scope: &'a Value,
+    pub semantic_commit_ns: Option<&'a str>,
+    pub prior: PriorState<'a>,
+}
+
 /// 一条已构造对象：身份 + 生成态记录 + 可复用的构造结果。
 ///
 /// 顺序（生成态 `objects` 数组）＝旧 sealed 批次：CC-006 形态（窗序）→ 已按
 /// `(kind, fact_key, object_id)` 排序的泛型事实 → TB-02-B 对象（线序）。
 pub(super) struct ProducedObject {
-    kind: String,
-    fact_key: Option<String>,
-    object_id: String,
+    kind: NativeValue<String>,
+    fact_key: Option<NativeValue<String>>,
+    object_id: NativeValue<String>,
     generated: Built,
     body: ObjectBody,
 }
@@ -153,12 +172,17 @@ impl ProducedObject {
 
     /// 泛型六字段对象的槽位规范文本；CC-006 的旧配方没有该字段（返回 `None`）。
     pub(super) fn fact_key(&self) -> Option<&str> {
-        self.fact_key.as_deref()
+        self.fact_key.as_ref().map(|v| v.as_str())
     }
 
     /// 生成态记录值根（原 sealed `generated_state.objects[i]` 的逻辑字段）。
     pub(super) fn generated(&self) -> &Built {
         &self.generated
+    }
+
+    #[cfg(test)]
+    pub(super) fn set_generated_for_test(&mut self, generated: Built) {
+        self.generated = generated;
     }
 
     /// 公开 wire 模板：`life` 由调用方的独立索引给出；本批新生对象写 0x08 占位。
@@ -169,6 +193,15 @@ impl ProducedObject {
         current_generation: i64,
     ) -> Result<Built, object_records::RecordError> {
         object_records::wire_template(store, self.borrowed(), life, current_generation)
+    }
+
+    pub(super) fn wire_template_view(
+        &self,
+        store: &mut (impl crate::v3::audit_store::CodecStore + ?Sized),
+        life: object_records::LifeView<'_>,
+        current_generation: i64,
+    ) -> Result<Built, object_records::RecordError> {
+        object_records::wire_template_view(store, self.borrowed(), life, current_generation)
     }
 
     /// 内部构造记录借用视图：根接线在同一批产物内直接消费（`content_bi::PriorState` 的
@@ -193,28 +226,28 @@ impl ProducedObject {
 
 /// 一条 CC-006 见证（生成态字段与旧配方同名同型；身份由真实新 `obj3-` 派生）。
 pub(super) struct WitnessRecord {
-    pub witness_id: String,
-    pub object_id: String,
+    pub witness_id: NativeValue<String>,
+    pub object_id: NativeValue<String>,
     pub slot: usize,
     pub built: Built,
 }
 
 /// 跨代共享的两条原始账数组根。
 pub(super) struct RawRoots {
-    pub raw_events: ContentRef,
-    pub effective_events: ContentRef,
+    pub raw_events: NativeValue<ContentRef>,
+    pub effective_events: NativeValue<ContentRef>,
 }
 
 /// 生成态标量（`emit_state` 的输入；OHLC 两段 finish 时复用，不重造对象）。
 struct StateMeta {
     generation: i64,
-    structure_cut: String,
+    structure_cut: TextValue,
     input_frontier: i64,
-    catalog_revision: String,
-    profile_id: String,
-    profile_hash: String,
-    rule_revision: String,
-    scope: CValue,
+    catalog_revision: TextValue,
+    profile_id: TextValue,
+    profile_hash: TextValue,
+    rule_revision: TextValue,
+    scope: Built,
 }
 
 /// 生成态六条数组根（数组节点；其序列在 [`SequenceMemo`] 里跨代续接）。
@@ -232,25 +265,25 @@ struct StateRoots {
 /// 生命周期参数只借调用方的 `all_events`（目录轴需要真实 seq/revision 投影，不复制整份历史）。
 pub(super) struct Generated<'a> {
     /// 顺序 = 旧 sealed 批次（见 [`ProducedObject`]）。
-    pub objects: Vec<ProducedObject>,
+    pub objects: CodecVec<ProducedObject>,
     /// 顺序 = 形态序 × 槽位 0..3（旧配方逐字同序）。
-    pub witnesses: Vec<WitnessRecord>,
+    pub witnesses: CodecVec<WitnessRecord>,
     /// 生成态 `relations` 值边：has_witness/classified_as + 新笔关系。
     /// `supersedes`/`replaces` 属发布期，由 root 追加，不在本集合内。
-    pub relations: Vec<Built>,
+    pub relations: CodecVec<Built>,
     /// 生成态 `observations` 值边（已按旧配方去重）。
-    pub observations: Vec<Built>,
+    pub observations: CodecVec<Built>,
     pub raw: RawRoots,
     /// OHLC 的真实目录轴（`finish_axes` 之前恒 `None`，绝不假空）。
-    pub catalog_axes: Option<ContentRef>,
+    pub catalog_axes: Option<NativeValue<ContentRef>>,
     /// 14 字段草案根；OHLC 时必须经 [`Generated::finish_axes`] 才是最终根。
-    pub state_without_axes: ContentRef,
+    pub state_without_axes: NativeValue<ContentRef>,
     /// 当前最终生成态根（OHLC 在 `finish_axes` 成功后更新）。
-    pub generated_state: ContentRef,
+    pub generated_state: NativeValue<ContentRef>,
     meta: StateMeta,
     roots: StateRoots,
     /// 本代知识请求线序（仅供目录轴最小投影消费，不进生成态对象）。
-    requests: Vec<Built>,
+    requests: CodecVec<Built>,
     all_events: RawEventsView<'a>,
     is_ohlc: bool,
 }
@@ -267,30 +300,31 @@ impl<'a> Generated<'a> {
     ///
     /// 只改生成态对象节点与 `catalog_axes`，不展开任何大字段；对象/见证/关系/观察的内容根
     /// 都不变。非 OHLC 域没有该字段，调用即拒绝（不假空）。
-    pub(super) fn finish_axes(
+    pub(super) fn finish_axes<'changes>(
         &mut self,
         store: &mut dyn NodeStore,
         previous_frontier: i64,
-        withdrawals: &[Value],
-        replaces: &[Value],
-    ) -> Result<ContentRef, String> {
+        withdrawals: impl Into<RawEventsView<'changes>>,
+        replaces: impl Into<RawEventsView<'changes>>,
+    ) -> Result<NativeValue<ContentRef>, String> {
+        let withdrawals = withdrawals.into();
+        let replaces = replaces.into();
         if !self.is_ohlc {
             return Err(
                 "VersionUnsupported：目录轴只存在于 OHLC 档案；非 OHLC 生成态没有该字段，拒绝假空"
                     .to_string(),
             );
         }
-        let mut projection: Vec<Value> = Vec::with_capacity(self.objects.len());
+        let mut rows = CodecVec::default();
         for object in &self.objects {
-            projection.push(catalog_projection_entry(
-                &mut *store,
-                object,
-                &self.requests,
-            )?);
+            let row = catalog_projection_entry(&mut *store, object, &self.requests)?;
+            push_gen(&mut rows, row, store)?;
         }
-        // #1394 整合 W-3：v3 只发布 TB-02-A/B，目录轴表取它自己规则修订的那张（13 轴）。
-        // 不按输入的 `rule_revision` 选：身份配方里的修订是参数，目录覆盖面是 v3 写者的属性。
-        let axes_value = crate::tb02a_facts::catalog_axes(
+        let rows = JsonOwners(&rows);
+        let projection = bj::json_from_view_admitted(store, JsonView::BorrowedArray(&rows))?;
+        // 与原目录轴函数同一判据；借入实际 owner，不擦成裸 Value 数组。
+        let axes_owner = crate::tb02a_facts::catalog_axes_admitted(
+            &*store,
             crate::tb02a_facts::CatalogAxisTable::for_rule_revision(crate::V3_RULE_REVISION)
                 .expect("v3 写者的规则修订必有目录轴表"),
             &projection,
@@ -298,14 +332,18 @@ impl<'a> Generated<'a> {
             previous_frontier,
             withdrawals,
             replaces,
-        );
-        let axes = sc::write_value(&mut *store, &json_to_cvalue(&axes_value)?)
+        )?;
+        // #1488：producer owner持续存活至同核整数检查和codec写出完成。
+        let axes = write_json_view(&mut *store, axes_owner.view())
             .map_err(|error| format!("GenError：目录轴写入失败：{error}"))?;
-        let reference = axes.content_ref();
+        let reference = native_ref(store, &axes)?;
         let state = emit_state(store, &self.meta, &self.roots, Some(&reference))?;
+        let returned =
+            NativeValue::<ContentRef>::try_from_view((&state).into(), store.codec_work())
+                .map_err(codec_error)?;
         self.catalog_axes = Some(reference);
-        self.generated_state = state.clone();
-        Ok(state)
+        self.generated_state = state;
+        Ok(returned)
     }
 }
 
@@ -318,7 +356,9 @@ pub(super) struct GenerationRuntime {
     profile_id: String,
     rule_revision: String,
     /// `(source_coord, revision)` → 已写事件节点摘要（原件不可变；见模块文档）。
-    event_nodes: BTreeMap<(i64, i64), NodeDigest>,
+    event_nodes: FixedRadix<(i64, i64), NodeDigest>,
+    /// #1488：owner 绑定的 raw/parser pending 状态；不混用旧线程 Lane 的全指纹路径。
+    delta_lane: Option<s_fact_cache::DeltaLane>,
     raw_events_seq: SequenceMemo,
     effective_events_seq: SequenceMemo,
     objects_seq: SequenceMemo,
@@ -358,7 +398,8 @@ impl GenerationRuntime {
             bi: ContentBi::new(),
             profile_id: profile_id.to_string(),
             rule_revision: rule_revision.to_string(),
-            event_nodes: BTreeMap::new(),
+            event_nodes: FixedRadix::default(),
+            delta_lane: None,
             raw_events_seq: SequenceMemo::default(),
             effective_events_seq: SequenceMemo::default(),
             objects_seq: SequenceMemo::default(),
@@ -370,17 +411,126 @@ impl GenerationRuntime {
 
     /// 事务回滚 / 换库 / 换来源域之后必须调用：清掉同核运行态与全部跨代序列记忆。
     ///
-    /// 车道（`IncrFactsState`）按持久身份键隔离且 `advance` 对同一输入幂等，这里不重建；
-    /// 键不符时 `LaneGuard::take` 自然丢弃旧车道。
+    /// 旧线程车道仍由完整输入比较恢复；新 delta 车道没有这道全扫，必须与根一起丢弃。
     pub(super) fn discard_runtime_state(&mut self) {
         self.bi.discard_runtime_state(&mut self.producer);
-        self.event_nodes.clear();
+        self.event_nodes = FixedRadix::default();
+        self.delta_lane = None;
         self.raw_events_seq.discard();
         self.effective_events_seq.discard();
         self.objects_seq.discard();
         self.witnesses_seq.discard();
         self.relations_seq.discard();
         self.observations_seq.discard();
+    }
+
+    /// #1488 原账片：消费 owner 当前资格，只构造新 raw 尾与生效账受影响后缀。
+    /// 这是完整 generate_delta 的内部前段，不发布 Generated，不替代六阶段接线/验收。
+    pub(super) fn advance_raw_bound(
+        &mut self,
+        store: &mut dyn NodeStore,
+        bound: &super::audit_owner::BoundRawAdvance<'_>,
+    ) -> Result<RawGenerationDelta, String> {
+        let result = self.advance_raw_bound_inner(store, bound);
+        if result.is_err() {
+            bound.invalidate_after_consumer_failure();
+            self.discard_runtime_state();
+        }
+        result
+    }
+
+    fn advance_raw_bound_inner(
+        &mut self,
+        store: &mut dyn NodeStore,
+        bound: &super::audit_owner::BoundRawAdvance<'_>,
+    ) -> Result<RawGenerationDelta, String> {
+        bound.ensure_current()?;
+        if self.delta_lane.is_none() {
+            if self.raw_events_seq.bound || self.effective_events_seq.bound {
+                return Err("GenError：旧生成态不可无 raw 资格转为 delta 车道，须丢弃".into());
+            }
+            self.delta_lane = Some(s_fact_cache::DeltaLane::new(bound.raw().budget())?);
+        }
+        if self.raw_events_seq.keys.as_slice().len() != bound.previous_prefix() {
+            return Err("GenError：raw sequence 与 owner 前代 prefix 不一致".into());
+        }
+        let raw = bound.raw();
+        let lane = self.delta_lane.as_mut().expect("刚建立");
+        let changes = lane.advance_owner_bound(bound)?;
+        let budget = raw.budget();
+        let mut appended = sc::CodecVec::new_with_allocation(budget);
+        let append_ordinals = bound.append_ordinals();
+        if let Some(work) = store.codec_work() {
+            appended
+                .try_reserve_native(work, append_ordinals.len())
+                .map_err(codec_error)?;
+        } else {
+            appended
+                .try_reserve_exact(append_ordinals.len())
+                .map_err(codec_error)?;
+        }
+        for ordinal in append_ordinals {
+            let event = raw
+                .get(ordinal)
+                .ok_or_else(|| "GenError：raw append ordinal 缺失".to_string())?;
+            appended
+                .try_push(event_node(&mut self.event_nodes, store, event)?)
+                .map_err(codec_error)?;
+        }
+        let prefix = changes
+            .effective_dirty_from
+            .unwrap_or(lane.rows().len())
+            .min(lane.rows().len());
+        let mut effective_suffix = sc::CodecVec::new_with_allocation(budget);
+        if let Some(work) = store.codec_work() {
+            effective_suffix
+                .try_reserve_native(work, lane.rows().len() - prefix)
+                .map_err(codec_error)?;
+        } else {
+            effective_suffix
+                .try_reserve_exact(lane.rows().len() - prefix)
+                .map_err(codec_error)?;
+        }
+        for row in &lane.rows()[prefix..] {
+            // 所有赢家原件都已在 raw append 路径写过；旧尾只查节点，不再读/解码其 raw。
+            // 初期没有 ordinal→node 索引时不能按(coord,revision)回读旧 raw 冒充 Δ。
+            let node = if row.ordinal < bound.previous_prefix() {
+                self.raw_events_seq
+                    .keys
+                    .as_slice()
+                    .get(row.ordinal)
+                    .copied()
+            } else {
+                appended.get(row.ordinal - bound.previous_prefix()).copied()
+            }
+            .ok_or_else(|| "GenError：生效 winner 对应的 raw 节点缺失".to_string())?;
+            effective_suffix.try_push(node).map_err(codec_error)?;
+        }
+        let raw_events = self.raw_events_seq.sync_splice(
+            store,
+            SequenceSplice {
+                expected_previous: self.raw_events_seq.seq,
+                unchanged_prefix: bound.previous_prefix(),
+                replacement_suffix: &appended,
+            },
+            "raw_events",
+            budget,
+        )?;
+        let effective_events = self.effective_events_seq.sync_splice(
+            store,
+            SequenceSplice {
+                expected_previous: self.effective_events_seq.seq,
+                unchanged_prefix: prefix,
+                replacement_suffix: &effective_suffix,
+            },
+            "effective_events",
+            budget,
+        )?;
+        Ok(RawGenerationDelta {
+            raw_events,
+            effective_events,
+            changes,
+        })
     }
     #[cfg(all(test, feature = "s_allocation_json_testonly"))]
     pub(super) fn sequence_keys_bound_to_for_test(
@@ -420,7 +570,11 @@ impl GenerationRuntime {
         input: &GenerationInput<'b>,
         budget: Option<&sc::capture_allocation::OwnedBudget>,
     ) -> Result<Generated<'b>, String> {
-        self.generate_impl(store, input, budget, None)
+        let result = self.generate_impl(store, input, budget, None, None);
+        if result.is_err() {
+            self.discard_runtime_state();
+        }
+        result
     }
 
     /// 仅受控 NativeReadLease 分支可提供 token；外部调用方不能用 bool 开启资格。
@@ -430,7 +584,79 @@ impl GenerationRuntime {
         input: &GenerationInput<'b>,
         native: &super::prepared::NativeGeneration,
     ) -> Result<Generated<'b>, String> {
-        self.generate_impl(store, input, None, Some(native))
+        let result = self.generate_impl(store, input, None, Some(native), None);
+        if result.is_err() {
+            self.discard_runtime_state();
+        }
+        result
+    }
+
+    /// 完整生成消费同一 owner raw 资格；结果仍不是 C 的完整集合 seal 或提交回执。
+    pub(super) fn generate_bound<'b>(
+        &mut self,
+        store: &mut dyn NodeStore,
+        bound: &super::audit_owner::BoundRawAdvance<'b>,
+        input: BoundGenerationInput<'b>,
+    ) -> Result<Generated<'b>, String> {
+        let result = (|| {
+            bound.ensure_current()?;
+            self.check_generation_identity(input.profile_id, input.rule_revision)?;
+            if bound.raw().budget().is_some() {
+                return Err("prototype_audit_allocation_incomplete：完整 delta producer/bi/output 尚非 Owned；禁止 Plain fallback".into());
+            }
+            let raw_delta = self.advance_raw_bound_inner(store, bound)?;
+            // 借用独立持有的车道，生成期间不能推进 parser。只有成功才归还运行态。
+            let lane = self
+                .delta_lane
+                .take()
+                .ok_or_else(|| "GenError：delta 车道缺失".to_string())?;
+            let view = lane.effective_view(bound)?;
+            let full_input = GenerationInput {
+                all_events: bound.raw(),
+                effective: RawEventsView::plain(&[]),
+                generation: input.generation,
+                structure_cut: input.structure_cut,
+                input_frontier: input.input_frontier,
+                profile_id: input.profile_id,
+                profile_hash: input.profile_hash,
+                rule_revision: input.rule_revision,
+                catalog_revision: input.catalog_revision,
+                scope: input.scope,
+                semantic_commit_ns: input.semantic_commit_ns,
+                prior: input.prior,
+            };
+            let generated =
+                self.generate_impl(store, &full_input, None, None, Some((view, raw_delta)))?;
+            bound.ensure_current()?;
+            self.delta_lane = Some(lane);
+            Ok(generated)
+        })();
+        if result.is_err() {
+            bound.invalidate_after_consumer_failure();
+            self.discard_runtime_state();
+        }
+        result
+    }
+
+    /// full/delta 共用原身份与档案前置判据；成功不分配，不触及 parser/store。
+    fn check_generation_identity(
+        &self,
+        profile_id: &str,
+        rule_revision: &str,
+    ) -> Result<(), String> {
+        if profile_id != self.profile_id || rule_revision != self.rule_revision {
+            return Err(format!(
+                "IdentityConflict：生成运行态的档案/规则修订（{}/{}）与本次输入（{}/{}）不一致",
+                self.profile_id, self.rule_revision, profile_id, rule_revision
+            ));
+        }
+        if profile_id != crate::tb02a::PROFILE {
+            return Err(format!(
+                "VersionUnsupported：S3 同核生成只接线 OHLC 档案 `{}`（CC-006 来源集合配方按档案分派，非 OHLC 支未接线；不静默降级）",
+                crate::tb02a::PROFILE
+            ));
+        }
+        Ok(())
     }
 
     fn generate_impl<'b>(
@@ -439,64 +665,91 @@ impl GenerationRuntime {
         input: &GenerationInput<'b>,
         budget: Option<&sc::capture_allocation::OwnedBudget>,
         native: Option<&super::prepared::NativeGeneration>,
+        delta: Option<(s_fact_cache::EffectiveRawView<'_>, RawGenerationDelta)>,
     ) -> Result<Generated<'b>, String> {
-        if input.profile_id != self.profile_id || input.rule_revision != self.rule_revision {
-            return Err(format!(
-                "IdentityConflict：生成运行态的档案/规则修订（{}/{}）与本次输入（{}/{}）不一致",
-                self.profile_id, self.rule_revision, input.profile_id, input.rule_revision
-            ));
+        if budget.is_some() && store.codec_work().is_some() {
+            return Err(
+                "prototype_audit_allocation_incomplete：生成入口不能混用Owned keys账与Native父账"
+                    .into(),
+            );
         }
-        if input.profile_id != crate::tb02a::PROFILE {
-            return Err(format!(
-                "VersionUnsupported：S3 同核生成只接线 OHLC 档案 `{}`（CC-006 来源集合配方按档案分派，非 OHLC 支未接线；不静默降级）",
-                crate::tb02a::PROFILE
-            ));
+        if self.delta_lane.is_some() {
+            return Err("GenError：delta 车道不能切回完整 generate 重判，须显式丢弃".into());
         }
+        self.check_generation_identity(input.profile_id, input.rule_revision)?;
         let gen = input.generation;
         let cut = input.structure_cut;
         let frontier = input.input_frontier;
         let config = ThetaConfig::default();
 
         // ── 原始账：生效账 → coord 表 + Bar 序列 + 事件节点；全修订史 → 事件节点 ──
-        let mut raw_by_coord: BTreeMap<i64, JsonView<'_>> = BTreeMap::new();
-        let mut raw_bars: Vec<Bar> = Vec::with_capacity(input.effective.len());
-        let mut effective_nodes: Vec<NodeDigest> = Vec::with_capacity(input.effective.len());
-        let mut coord_nodes: BTreeMap<i64, NodeDigest> = BTreeMap::new();
-        for event in input.effective {
-            let coord = bj::coord(event)?;
-            if raw_by_coord.insert(coord, event).is_some() {
-                return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖见证".to_string());
+        let mut raw_by_coord: FixedRadix<i64, JsonView<'_>> = FixedRadix::default();
+        let mut raw_bars: CodecVec<Bar> = CodecVec::default();
+        let mut effective_nodes: CodecVec<NodeDigest> = CodecVec::default();
+        let mut coord_nodes: FixedRadix<i64, NodeDigest> = FixedRadix::default();
+        let mut all_nodes: CodecVec<NodeDigest> = CodecVec::default();
+        let delta_view = delta.as_ref().map(|(view, _)| *view);
+        if delta_view.is_none() {
+            for event in input.effective {
+                let coord = bj::coord(event)?;
+                if raw_by_coord
+                    .insert_admitted(coord, event, &*store)
+                    .map_err(codec_error)?
+                    .is_some()
+                {
+                    return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖见证".to_string());
+                }
+                push_gen(&mut raw_bars, bar_of(event)?, store)?;
+                let node = event_node(&mut self.event_nodes, store, event)?;
+                coord_nodes
+                    .insert_admitted(coord, node, &*store)
+                    .map_err(codec_error)?;
+                push_gen(&mut effective_nodes, node, store)?;
             }
-            raw_bars.push(bar_of(event)?);
-            let node = event_node(&mut self.event_nodes, store, event)?;
-            coord_nodes.insert(coord, node);
-            effective_nodes.push(node);
+            for event in input.all_events {
+                push_gen(
+                    &mut all_nodes,
+                    event_node(&mut self.event_nodes, store, event)?,
+                    store,
+                )?;
+            }
+            for (coord, event) in raw_by_coord.iter() {
+                self.producer
+                    .bind_source(store, *coord, raw_ref_spec(*event)?)
+                    .map_err(producer_error)?;
+            }
         }
-        let mut all_nodes: Vec<NodeDigest> = Vec::with_capacity(input.all_events.len());
-        for event in input.all_events {
-            all_nodes.push(event_node(&mut self.event_nodes, store, event)?);
-        }
-        for (coord, event) in &raw_by_coord {
-            self.producer
-                .bind_source(store, *coord, raw_ref_spec(*event)?)
-                .map_err(producer_error)?;
-        }
-
-        // ── 同核解析：与旧入口同款「本代取用车道、用完归还线程槽位」──
-        let mut lane_guard = s_fact_cache::LaneGuard::take(&self.lane_key);
-        let lane = lane_guard.lane(&self.lane_key);
-        lane.advance(&raw_bars);
-        let state: &IncrFactsState = lane.state();
+        let raw_ledger = match delta_view {
+            Some(view) => BiLedgerView::Delta(view),
+            None => BiLedgerView::RadixViews(&raw_by_coord),
+        };
+        // full oracle 与 delta 共用下方生成核，只有原账/parser 取得方式不同。
+        let mut lane_guard = if delta_view.is_none() {
+            Some(s_fact_cache::LaneGuard::take(&self.lane_key))
+        } else {
+            None
+        };
+        let state: &IncrFactsState = match delta_view {
+            Some(view) => view.state(),
+            None => {
+                let lane = lane_guard
+                    .as_mut()
+                    .expect("完整入口车道")
+                    .lane(&self.lane_key);
+                lane.advance(&raw_bars);
+                lane.state()
+            }
+        };
         let (layer, evidence) = parser::parse_layer_with_group_evidence(state, &config);
-        let merged_rc = layer.merged_bars.clone();
-        let merged: &[Bar] = merged_rc.as_ref();
-        let prepared = self
-            .producer
-            .prepare_raw_history(&raw_bars)
-            .map_err(producer_error)?;
+        let merged: &[Bar] = layer.merged_bars.as_ref();
+        let prepared = match delta_view {
+            Some(view) => self.producer.prepare_raw_history_delta(store, view),
+            None => self.producer.prepare_raw_history(&raw_bars),
+        }
+        .map_err(producer_error)?;
 
         // 只活在本次 generate 调用里，任何 Err/rollback 都不进入跨请求运行缓存。
-        let mut fractal_sources = if native.is_some() {
+        let mut fractal_sources = if native.is_some() || delta_view.is_some() {
             Some(
                 self.producer
                     .parser_fractal_sources(&prepared, state)
@@ -507,17 +760,21 @@ impl GenerationRuntime {
         };
 
         // ── 形态窗：多根极值身份按 #1405 根集合语义发布──
-        let wins = classify_local_shape_sliding(merged);
-        let mut shape_objects: Vec<ProducedObject> = Vec::new();
-        let mut witnesses: Vec<WitnessRecord> = Vec::new();
-        let mut relations: Vec<Built> = Vec::new();
-        let mut observations: Vec<(bool, Built)> = Vec::new();
+        let wins = (0..merged.len().saturating_sub(2)).map(|start| {
+            (
+                start,
+                classify_local_shape(&merged[start], &merged[start + 1], &merged[start + 2]),
+            )
+        });
+        let mut shape_objects: CodecVec<ProducedObject> = CodecVec::default();
+        let mut witnesses: CodecVec<WitnessRecord> = CodecVec::default();
+        let mut relations: CodecVec<Built> = CodecVec::default();
+        let mut observations: CodecVec<(bool, Built)> = CodecVec::default();
         // 逐形态的请求组（旧配方线序：形态请求 → 该形态的 CC-007 三条请求）。
-        let mut shape_requests: Vec<(Built, Vec<Built>)> = Vec::new();
-        let mut fractals: Vec<ProducedObject> = Vec::new();
-        let mut fractal_reasons: Vec<&'static str> = Vec::new();
-        for (start, shape) in &wins {
-            let start = *start;
+        let mut shape_requests: CodecVec<(Built, CodecVec<Built>)> = CodecVec::default();
+        let mut fractals: CodecVec<ProducedObject> = CodecVec::default();
+        let mut fractal_reasons: CodecVec<&'static str> = CodecVec::default();
+        for (start, shape) in wins {
             let built_shape = match &fractal_sources {
                 Some(sources) => self
                     .producer
@@ -536,14 +793,14 @@ impl GenerationRuntime {
                     let (wits, rels) = shape_witnesses(
                         store,
                         &mut self.event_nodes,
-                        &raw_by_coord,
+                        raw_ledger,
                         &coord_nodes,
                         &views,
                         start,
                         &object,
                     )?;
-                    witnesses.extend(wits);
-                    relations.extend(rels);
+                    extend_gen(&mut witnesses, wits, store)?;
+                    extend_gen(&mut relations, rels, store)?;
                     let request = object.request.clone();
                     let fractal = match (&built_shape, &mut fractal_sources) {
                         (ShapeBuild::Native(shape), Some(sources)) => self
@@ -559,64 +816,76 @@ impl GenerationRuntime {
                         ),
                     }
                     .map_err(producer_error)?;
-                    let mut fractal_requests: Vec<Built> = Vec::new();
+                    let mut fractal_requests: CodecVec<Built> = CodecVec::default();
                     if let Some(fractal_object) = fractal {
-                        fractal_reasons.extend(fractal_object.knowledge_reasons.iter().copied());
-                        fractal_requests.extend(fractal_object.requests.iter().cloned());
+                        extend_gen(
+                            &mut fractal_reasons,
+                            fractal_object.knowledge_reasons.iter().copied(),
+                            store,
+                        )?;
+                        extend_gen(
+                            &mut fractal_requests,
+                            fractal_object.requests.iter().cloned(),
+                            store,
+                        )?;
                         let generated = object_records::generated(
                             store,
                             object_records::BorrowedObject::Fractal(&fractal_object),
                         )
                         .map_err(record_error)?;
-                        fractals.push(ProducedObject {
-                            kind: CC007_FRACTAL_KIND.to_string(),
-                            fact_key: Some(fractal_object.fact_key.clone()),
-                            object_id: fractal_object.object_id.clone(),
-                            generated,
-                            body: ObjectBody::Fractal(fractal_object),
-                        });
+                        push_gen(
+                            &mut fractals,
+                            ProducedObject {
+                                kind: native_text(store, CC007_FRACTAL_KIND)?,
+                                fact_key: Some(native_text(store, &fractal_object.fact_key)?),
+                                object_id: native_text(store, &fractal_object.object_id)?,
+                                generated,
+                                body: ObjectBody::Fractal(fractal_object),
+                            },
+                            store,
+                        )?;
                     }
-                    shape_requests.push((request, fractal_requests));
+                    push_gen(&mut shape_requests, (request, fractal_requests), store)?;
                     let generated = object_records::generated(
                         store,
                         object_records::BorrowedObject::Shape(&object),
                     )
                     .map_err(record_error)?;
-                    shape_objects.push(ProducedObject {
-                        kind: CC006_SHAPE_KIND.to_string(),
-                        fact_key: None,
-                        object_id: object.object_id.clone(),
-                        generated,
-                        body: ObjectBody::Shape(built_shape.into_object()),
-                    });
+                    push_gen(
+                        &mut shape_objects,
+                        ProducedObject {
+                            kind: native_text(store, CC006_SHAPE_KIND)?,
+                            fact_key: None,
+                            object_id: native_text(store, &object.object_id)?,
+                            generated,
+                            body: ObjectBody::Shape(built_shape.into_object()),
+                        },
+                        store,
+                    )?;
                 }
                 (
                     Cc006LocalShape::DomainNotSatisfied { reason },
                     Err(ProducerError::WindowNotClassified(_)),
                 ) => {
-                    let value = serde_json::json!({
-                        "kind": "domain_not_satisfied",
-                        "reason": reason.as_str(),
-                        "window_start": start,
-                        "window_mid": start + 1,
-                        "window_end": start + 2,
-                        "detail": {},
-                    });
-                    observations.push((false, write_json(store, &value)?));
+                    let value = shape_observation(
+                        store,
+                        "domain_not_satisfied",
+                        reason.as_str(),
+                        [Some(start), Some(start + 1), Some(start + 2)],
+                    )?;
+                    push_gen(&mut observations, (false, value), store)?;
                 }
                 (
                     Cc006LocalShape::InsufficientKnowledge,
                     Err(ProducerError::WindowNotClassified(_)),
                 ) => {
-                    let value = serde_json::json!({
-                        "kind": "insufficient_knowledge",
-                        "reason": "fewer_than_three_bars",
-                        "window_start": start,
-                        "window_mid": Value::Null,
-                        "window_end": Value::Null,
-                        "detail": {},
-                    });
-                    observations.push((false, write_json(store, &value)?));
+                    let value = shape_observation(
+                        store,
+                        "insufficient_knowledge",
+                        "fewer_than_three_bars",
+                        [Some(start), None, None],
+                    )?;
+                    push_gen(&mut observations, (false, value), store)?;
                 }
                 (classified, Err(error)) => {
                     return Err(format!(
@@ -628,103 +897,119 @@ impl GenerationRuntime {
         }
 
         // ── 泛型事实：步骤 → 组 → 形态/分型请求 → 不足三根待决请求 ──
-        let mut typed: Vec<ProducedObject> = Vec::new();
-        let mut step_requests: Vec<Built> = Vec::new();
-        let mut group_requests: Vec<Built> = Vec::new();
-        let mut all_reasons: Vec<&'static str> = Vec::new();
+        let mut typed: CodecVec<ProducedObject> = CodecVec::default();
+        let mut step_requests: CodecVec<Built> = CodecVec::default();
+        let mut group_requests: CodecVec<Built> = CodecVec::default();
+        let mut all_reasons: CodecVec<&'static str> = CodecVec::default();
         for index in 0..state.step_count() {
             let view = state
                 .shared_step(index)
                 .map_err(|error| format!("GenError：共享步骤证据不可用：{}", error.reason))?
                 .ok_or_else(|| format!("GenError：步骤 {index} 缺共享证据"))?;
-            all_reasons.extend(
+            extend_gen(
+                &mut all_reasons,
                 view.waiting_reasons
                     .iter()
                     .copied()
                     .filter(|reason| *reason != "equal_extreme_identity"),
-            );
+                store,
+            )?;
             let object = self
                 .producer
                 .build_step_object(store, &view, gen, cut)
                 .map_err(producer_error)?;
-            step_requests.push(object.request.clone().ok_or_else(|| {
-                format!("GenError：CC-004 步骤 {index} 缺知识请求（旧配方必须有）")
-            })?);
+            push_gen(
+                &mut step_requests,
+                object.request.clone().ok_or_else(|| {
+                    format!("GenError：CC-004 步骤 {index} 缺知识请求（旧配方必须有）")
+                })?,
+                store,
+            )?;
             let generated =
                 object_records::generated(store, object_records::BorrowedObject::Typed(&object))
                     .map_err(record_error)?;
-            typed.push(ProducedObject {
-                kind: CC004_STEP_KIND.to_string(),
-                fact_key: Some(object.fact_key.clone()),
-                object_id: object.object_id.clone(),
-                generated,
-                body: ObjectBody::Typed(object),
-            });
+            push_gen(
+                &mut typed,
+                ProducedObject {
+                    kind: native_text(store, CC004_STEP_KIND)?,
+                    fact_key: Some(native_text(store, &object.fact_key)?),
+                    object_id: native_text(store, &object.object_id)?,
+                    generated,
+                    body: ObjectBody::Typed(object),
+                },
+                store,
+            )?;
         }
         for index in 0..state.group_count() {
             let view = state
                 .shared_group(index)
                 .map_err(|error| format!("GenError：共享组证据不可用：{}", error.reason))?
                 .ok_or_else(|| format!("GenError：组 {index} 缺共享证据"))?;
-            all_reasons.extend_from_slice(&group_reasons(&view));
+            extend_gen(
+                &mut all_reasons,
+                group_reasons_admitted(store, &view)
+                    .map_err(producer_error)?
+                    .iter()
+                    .copied(),
+                store,
+            )?;
             let object = self
                 .producer
                 .build_group_object(store, index, &view, gen, cut)
                 .map_err(producer_error)?;
-            group_requests.push(object.request.clone().ok_or_else(|| {
-                format!("GenError：CC-005 组 {index} 缺知识请求（旧配方必须有）")
-            })?);
+            push_gen(
+                &mut group_requests,
+                object.request.clone().ok_or_else(|| {
+                    format!("GenError：CC-005 组 {index} 缺知识请求（旧配方必须有）")
+                })?,
+                store,
+            )?;
             let generated =
                 object_records::generated(store, object_records::BorrowedObject::Typed(&object))
                     .map_err(record_error)?;
-            typed.push(ProducedObject {
-                kind: CC005_GROUP_KIND.to_string(),
-                fact_key: Some(object.fact_key.clone()),
-                object_id: object.object_id.clone(),
-                generated,
-                body: ObjectBody::Typed(object),
-            });
+            push_gen(
+                &mut typed,
+                ProducedObject {
+                    kind: native_text(store, CC005_GROUP_KIND)?,
+                    fact_key: Some(native_text(store, &object.fact_key)?),
+                    object_id: native_text(store, &object.object_id)?,
+                    generated,
+                    body: ObjectBody::Typed(object),
+                },
+                store,
+            )?;
         }
-        let mut requests: Vec<Built> = Vec::new();
-        requests.extend(step_requests);
-        requests.extend(group_requests);
+        let mut requests: CodecVec<Built> = CodecVec::default();
+        extend_gen(&mut requests, step_requests, store)?;
+        extend_gen(&mut requests, group_requests, store)?;
         for (shape_request, fractal_requests) in &shape_requests {
-            requests.push(shape_request.clone());
-            requests.extend(fractal_requests.iter().cloned());
+            push_gen(&mut requests, shape_request.clone(), store)?;
+            extend_gen(&mut requests, fractal_requests.iter().cloned(), store)?;
         }
         if merged.len() < 3 {
-            all_reasons.push("fewer_than_three_merged_bars");
+            push_gen(&mut all_reasons, "fewer_than_three_merged_bars", store)?;
             let key = CValue::Array(vec![
                 CValue::String(CC006_SHAPE_KIND.to_string()),
                 CValue::String("pending".to_string()),
             ]);
             let sources = raw_prefix_coords(state).map_err(producer_error)?;
-            requests.push(
+            push_gen(
+                &mut requests,
                 self.producer
                     .pending_request(store, key, &["fewer_than_three_merged_bars"], &sources)
                     .map_err(producer_error)?,
-            );
+                store,
+            )?;
         }
         if !state.has_direction_evidence() {
-            all_reasons.push("direction_not_yet_established");
+            push_gen(&mut all_reasons, "direction_not_yet_established", store)?;
         }
         if state.unsettled() {
-            all_reasons.push("initial_direction_unsettled");
+            push_gen(&mut all_reasons, "initial_direction_unsettled", store)?;
         }
-        all_reasons.extend(fractal_reasons);
-        typed.extend(fractals);
-        typed.sort_by(|left, right| {
-            (
-                left.kind.as_str(),
-                left.fact_key.as_deref(),
-                left.object_id.as_str(),
-            )
-                .cmp(&(
-                    right.kind.as_str(),
-                    right.fact_key.as_deref(),
-                    right.object_id.as_str(),
-                ))
-        });
+        extend_gen(&mut all_reasons, fractal_reasons, store)?;
+        extend_gen(&mut typed, fractals, store)?;
+        stable_sort_typed_admitted(&mut typed, store)?;
 
         // ── CC-054 知识状态（旧配方在泛型事实之后、TB-02-B 之前）──
         let raw_coords = raw_prefix_coords(state).map_err(producer_error)?;
@@ -741,20 +1026,24 @@ impl GenerationRuntime {
             )
             .map_err(producer_error)?;
         for observation in &knowledge.observations {
-            observations.push((true, observation.clone()));
+            push_gen(&mut observations, (true, observation.clone()), store)?;
         }
         let generated = object_records::generated(
             store,
             object_records::BorrowedObject::Typed(&knowledge.object),
         )
         .map_err(record_error)?;
-        typed.push(ProducedObject {
-            kind: CC054_KNOWLEDGE_KIND.to_string(),
-            fact_key: Some(knowledge.object.fact_key.clone()),
-            object_id: knowledge.object.object_id.clone(),
-            generated,
-            body: ObjectBody::Typed(knowledge.object),
-        });
+        push_gen(
+            &mut typed,
+            ProducedObject {
+                kind: native_text(store, CC054_KNOWLEDGE_KIND)?,
+                fact_key: Some(native_text(store, &knowledge.object.fact_key)?),
+                object_id: native_text(store, &knowledge.object.object_id)?,
+                generated,
+                body: ObjectBody::Typed(knowledge.object),
+            },
+            store,
+        )?;
 
         // ── TB-02-B：七个 kind 的新笔证据（上一代记录由调用方给根）──
         let bi = self
@@ -764,7 +1053,7 @@ impl GenerationRuntime {
                 store,
                 &BiBuildInputView {
                     facts: &evidence.stroke_facts,
-                    raw: BiLedgerView::Views(&raw_by_coord),
+                    raw: raw_ledger,
                     all_events: JsonView::BorrowedArray(&input.all_events)
                         .as_array()
                         .unwrap(),
@@ -781,45 +1070,48 @@ impl GenerationRuntime {
             let generated =
                 object_records::generated(store, object_records::BorrowedObject::Typed(&object))
                     .map_err(record_error)?;
-            typed.push(ProducedObject {
-                kind,
-                fact_key: Some(object.fact_key.clone()),
-                object_id: object.object_id.clone(),
-                generated,
-                body: ObjectBody::Typed(object),
-            });
+            push_gen(
+                &mut typed,
+                ProducedObject {
+                    kind,
+                    fact_key: Some(native_text(store, &object.fact_key)?),
+                    object_id: native_text(store, &object.object_id)?,
+                    generated,
+                    body: ObjectBody::Typed(object),
+                },
+                store,
+            )?;
         }
         for relation in &bi.relations {
-            relations.push(
+            push_gen(
+                &mut relations,
                 sc::write_value(&mut *store, relation)
                     .map_err(|error| format!("GenError：关系值写入失败：{error}"))?,
-            );
+                store,
+            )?;
         }
 
         // ── 生成态六条数组：跨代共享序列 + 旧配方等价去重 ──
-        let mut objects: Vec<ProducedObject> = shape_objects;
-        objects.extend(typed);
+        let mut objects: CodecVec<ProducedObject> = shape_objects;
+        extend_gen(&mut objects, typed, store)?;
         let deduped = dedupe_observations(store, &observations)?;
-        let raw_events_array = self
-            .raw_events_seq
-            .sync(store, &all_nodes, "raw_events", budget)?;
-        let effective_array =
-            self.effective_events_seq
-                .sync(store, &effective_nodes, "effective_events", budget)?;
-        let object_nodes: Vec<NodeDigest> = objects
-            .iter()
-            .map(|object| object.generated.digest)
-            .collect();
-        let witness_nodes: Vec<NodeDigest> = witnesses
-            .iter()
-            .map(|witness| witness.built.digest)
-            .collect();
-        let relation_nodes: Vec<NodeDigest> =
-            relations.iter().map(|relation| relation.digest).collect();
-        let observation_nodes: Vec<NodeDigest> = deduped
-            .iter()
-            .map(|observation| observation.digest)
-            .collect();
+        let (raw_events_array, effective_array) = match delta {
+            Some((_, roots)) => (roots.raw_events, roots.effective_events),
+            None => (
+                self.raw_events_seq
+                    .sync(store, &all_nodes, "raw_events", budget)?,
+                self.effective_events_seq.sync(
+                    store,
+                    &effective_nodes,
+                    "effective_events",
+                    budget,
+                )?,
+            ),
+        };
+        let object_nodes = collect_gen(objects.iter().map(|o| o.generated.digest), store)?;
+        let witness_nodes = collect_gen(witnesses.iter().map(|w| w.built.digest), store)?;
+        let relation_nodes = collect_gen(relations.iter().map(|r| r.digest), store)?;
+        let observation_nodes = collect_gen(deduped.iter().map(|o| o.digest), store)?;
         let objects_array = self
             .objects_seq
             .sync(store, &object_nodes, "objects", budget)?;
@@ -835,13 +1127,13 @@ impl GenerationRuntime {
 
         let meta = StateMeta {
             generation: gen,
-            structure_cut: cut.to_string(),
+            structure_cut: TextValue::Plain(native_text(store, cut)?),
             input_frontier: frontier,
-            catalog_revision: input.catalog_revision.to_string(),
-            profile_id: input.profile_id.to_string(),
-            profile_hash: input.profile_hash.to_string(),
-            rule_revision: input.rule_revision.to_string(),
-            scope: json_to_cvalue(input.scope)?,
+            catalog_revision: TextValue::Plain(native_text(store, input.catalog_revision)?),
+            profile_id: TextValue::Plain(native_text(store, input.profile_id)?),
+            profile_hash: TextValue::Plain(native_text(store, input.profile_hash)?),
+            rule_revision: TextValue::Plain(native_text(store, input.rule_revision)?),
+            scope: write_json(store, input.scope)?,
         };
         let roots = StateRoots {
             raw_events: raw_events_array,
@@ -858,11 +1150,15 @@ impl GenerationRuntime {
             relations,
             observations: deduped,
             raw: RawRoots {
-                raw_events: roots.raw_events.content_ref(),
-                effective_events: roots.effective_events.content_ref(),
+                raw_events: native_ref(store, &roots.raw_events)?,
+                effective_events: native_ref(store, &roots.effective_events)?,
             },
             catalog_axes: None,
-            state_without_axes: state_without_axes.clone(),
+            state_without_axes: NativeValue::<ContentRef>::try_from_view(
+                (&state_without_axes).into(),
+                store.codec_work(),
+            )
+            .map_err(codec_error)?,
             generated_state: state_without_axes,
             meta,
             roots,
@@ -873,67 +1169,158 @@ impl GenerationRuntime {
     }
 }
 
+/// 仅原账两根与 parser 变化，不是完整 Generated/Manifest/提交回执。
+#[derive(Debug)]
+pub(super) struct RawGenerationDelta {
+    pub raw_events: Built,
+    pub effective_events: Built,
+    pub changes: s_fact_cache::ParserChanges,
+}
+
+fn native_text(store: &dyn NodeStore, text: &str) -> Result<NativeValue<String>, String> {
+    NativeValue::<String>::try_from_str(text, store.codec_work()).map_err(codec_error)
+}
+fn native_ref(store: &dyn NodeStore, built: &Built) -> Result<NativeValue<ContentRef>, String> {
+    NativeValue::<ContentRef>::try_from_built(built, store.codec_work()).map_err(codec_error)
+}
+fn push_gen<T>(values: &mut CodecVec<T>, value: T, store: &dyn NodeStore) -> Result<(), String> {
+    if let Some(work) = store.codec_work() {
+        values.try_reserve_native(work, 1).map_err(codec_error)?;
+    }
+    values.try_push(value).map_err(codec_error)
+}
+fn extend_gen<T>(
+    values: &mut CodecVec<T>,
+    items: impl IntoIterator<Item = T>,
+    store: &dyn NodeStore,
+) -> Result<(), String> {
+    for value in items {
+        push_gen(values, value, store)?;
+    }
+    Ok(())
+}
+/// #1488：与旧stable sort同序；两份真实持费索引工作区，unstable核以原ordinal破平局。
+fn shape_observation(
+    store: &mut dyn NodeStore,
+    kind: &str,
+    reason: &str,
+    positions: [Option<usize>; 3],
+) -> Result<Built, String> {
+    let window = positions.map(|position| position.map(Value::from).unwrap_or(Value::Null));
+    let empty = [];
+    let fields = [
+        ("kind", JsonView::String(kind)),
+        ("reason", JsonView::String(reason)),
+        ("window_start", JsonView::Plain(&window[0])),
+        ("window_mid", JsonView::Plain(&window[1])),
+        ("window_end", JsonView::Plain(&window[2])),
+        (
+            "detail",
+            JsonView::object_fields(&empty).map_err(codec_error)?,
+        ),
+    ];
+    write_json_view(
+        store,
+        JsonView::object_fields(&fields).map_err(codec_error)?,
+    )
+}
+
+fn stable_sort_typed_admitted(
+    values: &mut [ProducedObject],
+    store: &dyn NodeStore,
+) -> Result<(), String> {
+    stable_sort_admitted(values, store, |a, b| {
+        (a.kind.as_str(), a.fact_key.as_deref(), a.object_id.as_str()).cmp(&(
+            b.kind.as_str(),
+            b.fact_key.as_deref(),
+            b.object_id.as_str(),
+        ))
+    })
+}
+fn stable_sort_admitted<T>(
+    values: &mut [T],
+    store: &dyn NodeStore,
+    mut compare: impl FnMut(&T, &T) -> std::cmp::Ordering,
+) -> Result<(), String> {
+    let mut order = collect_gen(0..values.len(), store)?;
+    order.sort_unstable_by(|left, right| {
+        compare(&values[*left], &values[*right]).then_with(|| left.cmp(right))
+    });
+    let mut destination = collect_gen((0..values.len()).map(|_| 0usize), store)?;
+    for (target, original) in order.iter().enumerate() {
+        destination[*original] = target;
+    }
+    for index in 0..values.len() {
+        while destination[index] != index {
+            let target = destination[index];
+            values.swap(index, target);
+            destination.swap(index, target);
+        }
+    }
+    Ok(())
+}
+
+fn collect_gen<T>(
+    items: impl IntoIterator<Item = T>,
+    store: &dyn NodeStore,
+) -> Result<CodecVec<T>, String> {
+    let mut values = CodecVec::default();
+    extend_gen(&mut values, items, store)?;
+    Ok(values)
+}
+
 /// 生成态对象（14 字段 + 可选 `catalog_axes`）：只写对象节点，六条数组借既有根。
 fn emit_state(
     store: &mut dyn NodeStore,
     meta: &StateMeta,
     roots: &StateRoots,
     axes: Option<&ContentRef>,
-) -> Result<ContentRef, String> {
-    let mut fields: Vec<(String, CValue)> = vec![
-        ("generation".into(), number(meta.generation)?),
+) -> Result<NativeValue<ContentRef>, String> {
+    let generation = super::super::content_manifest::Decimal::new(meta.generation);
+    let frontier = super::super::content_manifest::Decimal::new(meta.input_frontier);
+    let generation = sc::BorrowedNumberToken::parse(generation.as_str()).map_err(codec_error)?;
+    let frontier = sc::BorrowedNumberToken::parse(frontier.as_str()).map_err(codec_error)?;
+    let axes_digest = axes
+        .map(ContentRef::digest)
+        .transpose()
+        .map_err(codec_error)?;
+    let fields = [
+        ("generation", VV::Number(generation)),
+        ("structure_cut", VV::String(&meta.structure_cut)),
+        ("input_frontier", VV::Number(frontier)),
+        ("catalog_revision", VV::String(&meta.catalog_revision)),
+        ("profile_id", VV::String(&meta.profile_id)),
+        ("profile_hash", VV::String(&meta.profile_hash)),
+        ("rule_revision", VV::String(&meta.rule_revision)),
+        ("raw_events", VV::Edge(roots.raw_events.digest)),
+        ("effective_events", VV::Edge(roots.effective_events.digest)),
+        ("objects", VV::Edge(roots.objects.digest)),
+        ("witnesses", VV::Edge(roots.witnesses.digest)),
+        ("relations", VV::Edge(roots.relations.digest)),
+        ("observations", VV::Edge(roots.observations.digest)),
+        ("scope", VV::Edge(meta.scope.digest)),
         (
-            "structure_cut".into(),
-            CValue::String(meta.structure_cut.clone()),
+            "catalog_axes",
+            axes_digest.map_or(VV::Json(JsonView::Null), VV::Edge),
         ),
-        ("input_frontier".into(), number(meta.input_frontier)?),
-        (
-            "catalog_revision".into(),
-            CValue::String(meta.catalog_revision.clone()),
-        ),
-        ("profile_id".into(), CValue::String(meta.profile_id.clone())),
-        (
-            "profile_hash".into(),
-            CValue::String(meta.profile_hash.clone()),
-        ),
-        (
-            "rule_revision".into(),
-            CValue::String(meta.rule_revision.clone()),
-        ),
-        ("raw_events".into(), CValue::Edge(roots.raw_events.digest)),
-        (
-            "effective_events".into(),
-            CValue::Edge(roots.effective_events.digest),
-        ),
-        ("objects".into(), CValue::Edge(roots.objects.digest)),
-        ("witnesses".into(), CValue::Edge(roots.witnesses.digest)),
-        ("relations".into(), CValue::Edge(roots.relations.digest)),
-        (
-            "observations".into(),
-            CValue::Edge(roots.observations.digest),
-        ),
-        ("scope".into(), meta.scope.clone()),
     ];
-    if let Some(axes) = axes {
-        fields.push((
-            "catalog_axes".into(),
-            CValue::Edge(axes.digest().map_err(codec_error)?),
-        ));
-    }
-    let built = sc::write_value(&mut *store, &CValue::Object(fields))
-        .map_err(|error| format!("GenError：生成态写入失败：{error}"))?;
-    Ok(built.content_ref())
+    let built = sc::write_value_view(
+        &mut *store,
+        VV::Object(&fields[..if axes.is_some() { 15 } else { 14 }]),
+    )
+    .map_err(|error| format!("GenError：生成态写入失败：{error}"))?;
+    native_ref(store, &built)
 }
 
 /// #1394：Plain维持bulk extend与clear容量复用，Owned仅由实际CodecVec allocator持账。
 enum SequenceKeys {
-    Plain(Vec<NodeDigest>),
+    Plain(CodecVec<NodeDigest>),
     #[cfg(feature = "s_allocation_json_testonly")]
     Owned(sc::CodecVec<NodeDigest>),
 }
 impl Default for SequenceKeys {
     fn default() -> Self {
-        Self::Plain(Vec::new())
+        Self::Plain(CodecVec::default())
     }
 }
 impl SequenceKeys {
@@ -965,10 +1352,16 @@ impl SequenceKeys {
             )
         }
     }
-    fn reserve_owned(&mut self, length: usize) -> Result<(), String> {
+    fn reserve_admitted(&mut self, store: &dyn NodeStore, length: usize) -> Result<(), String> {
         match self {
-            Self::Plain(_) => {
-                let _ = length;
+            Self::Plain(keys) => {
+                let additional = length.saturating_sub(keys.len());
+                if let Some(work) = store.codec_work() {
+                    keys.try_reserve_native(work, additional)
+                        .map_err(codec_error)?;
+                } else {
+                    keys.try_reserve_exact(additional).map_err(codec_error)?;
+                }
                 Ok(())
             }
             #[cfg(feature = "s_allocation_json_testonly")]
@@ -977,17 +1370,40 @@ impl SequenceKeys {
                 .map_err(codec_error),
         }
     }
+
     fn replace_reserved(&mut self, elements: &[NodeDigest]) -> Result<(), String> {
         match self {
             Self::Plain(keys) => {
                 keys.clear();
-                keys.extend_from_slice(elements);
+                for digest in elements {
+                    keys.try_push(*digest).map_err(codec_error)?;
+                }
             }
             #[cfg(feature = "s_allocation_json_testonly")]
             Self::Owned(keys) => {
                 keys.clear();
-                // reserve_owned已在改变原keys/seq前保证容量，try_push不会另作增长。
+                // reserve_admitted已在改变原keys/seq前保证容量，try_push不会另作增长。
                 for digest in elements {
+                    keys.try_push(*digest).map_err(codec_error)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// 容量已在改 keys/root 前预留；只截变化后缀，不复制未变前缀。
+    fn splice_reserved(&mut self, prefix: usize, suffix: &[NodeDigest]) -> Result<(), String> {
+        match self {
+            Self::Plain(keys) => {
+                keys.truncate(prefix);
+                for digest in suffix {
+                    keys.try_push(*digest).map_err(codec_error)?;
+                }
+            }
+            #[cfg(feature = "s_allocation_json_testonly")]
+            Self::Owned(keys) => {
+                keys.truncate(prefix);
+                for digest in suffix {
                     keys.try_push(*digest).map_err(codec_error)?;
                 }
             }
@@ -996,7 +1412,17 @@ impl SequenceKeys {
     }
 }
 
-/// 跨代共享序列记忆：未变前缀不重写，真变化处 `sequence_split` + 尾部续接。
+/// 私有工作描述，**不是** owner 签发的原件资格。
+///
+/// 只能由本模块在消费真实 owner/raw/parser 变化之后派生；不对 prepared/外部调用者暴露
+/// unchecked prefix。当前生产仍走旧 sync，接线前仅测试消费，不能称完整 delta 已上线。
+struct SequenceSplice<'a> {
+    expected_previous: Option<SequenceRef>,
+    unchanged_prefix: usize,
+    replacement_suffix: &'a [NodeDigest],
+}
+
+/// 跨代共享序列记忆：未变前缀不重写，真变化处一次重建后缀（#1488）。
 #[derive(Default)]
 pub(super) struct SequenceMemo {
     keys: SequenceKeys,
@@ -1023,12 +1449,95 @@ impl SequenceMemo {
     }
     fn discard(&mut self) {
         match &mut self.keys {
-            SequenceKeys::Plain(keys) => keys.clear(),
-            #[cfg(feature = "s_allocation_json_testonly")]
-            SequenceKeys::Owned(_) => self.keys = SequenceKeys::default(),
+            SequenceKeys::Plain(keys) if !keys.is_native_bound() => keys.clear(),
+            _ => self.keys = SequenceKeys::default(),
         }
         self.seq = None;
         self.bound = false;
+    }
+    fn check_native_scope(&mut self, store: &dyn NodeStore) -> Result<(), String> {
+        let keys = match &mut self.keys {
+            SequenceKeys::Plain(keys) => keys,
+            #[cfg(feature = "s_allocation_json_testonly")]
+            SequenceKeys::Owned(_) => return Ok(()),
+        };
+        match store.codec_work() {
+            Some(work) if self.bound => keys.try_reserve_native(work, 0).map_err(codec_error),
+            None if keys.is_native_bound() => Err(
+                "prototype_audit_allocation_incomplete：Native sequence缓存需要当前scope".into(),
+            ),
+            _ => Ok(()),
+        }
+    }
+
+    /// 消费本模块由已核变化导出的 splice；不读取或比较任何未变 keys。
+    /// 旧根/长度、原账身份在写前核对；失败不推进 root/keys，不回全量 sync 重判。
+    fn sync_splice(
+        &mut self,
+        store: &mut dyn NodeStore,
+        edit: SequenceSplice<'_>,
+        what: &'static str,
+        budget: Option<&sc::capture_allocation::OwnedBudget>,
+    ) -> Result<Built, String> {
+        self.check_native_scope(store)?;
+        if self.bound
+            && !match (self.allocation_budget(), budget) {
+                (None, None) => true,
+                (Some(a), Some(b)) => a.same_ledger(b),
+                _ => false,
+            }
+        {
+            return Err("prototype_audit_allocation_incomplete：缓存账本改变，须discard".into());
+        }
+        let previous_len = self.keys.as_slice().len();
+        if self.seq != edit.expected_previous
+            || self.bound != self.seq.is_some()
+            || edit.unchanged_prefix > previous_len
+        {
+            return Err(format!(
+                "GenError：{what} splice 旧根或前缀不匹配，须discard"
+            ));
+        }
+        let previous = match self.seq {
+            Some(seq) if seq.count() == previous_len as u64 => seq,
+            None if previous_len == 0 => SequenceRef::empty(),
+            _ => return Err(format!("GenError：{what} 序列缓存计数不一致，须discard")),
+        };
+        let length = edit
+            .unchanged_prefix
+            .checked_add(edit.replacement_suffix.len())
+            .ok_or_else(|| format!("GenError：{what} splice 长度溢出"))?;
+        let mut next_keys = if !self.bound && (budget.is_some() || store.codec_work().is_some()) {
+            Some(match budget {
+                Some(b) => SequenceKeys::owned(b)?,
+                None => SequenceKeys::default(),
+            })
+        } else {
+            None
+        };
+        next_keys
+            .as_mut()
+            .unwrap_or(&mut self.keys)
+            .reserve_admitted(store, length)?;
+        let seq = sc::sequence_rebuild_suffix_with_allocation(
+            &mut *store,
+            &previous,
+            edit.unchanged_prefix as u64,
+            edit.replacement_suffix,
+            budget,
+        )
+        .map_err(|error| format!("GenError：{what} 序列后缀重建失败：{error}"))?;
+        let built = array_from_sequence(&mut *store, &seq).map_err(producer_error)?;
+        next_keys
+            .as_mut()
+            .unwrap_or(&mut self.keys)
+            .splice_reserved(edit.unchanged_prefix, edit.replacement_suffix)?;
+        if let Some(keys) = next_keys {
+            self.keys = keys;
+        }
+        self.seq = Some(seq);
+        self.bound = true;
+        Ok(built)
     }
 
     pub(super) fn sync(
@@ -1038,6 +1547,7 @@ impl SequenceMemo {
         what: &'static str,
         budget: Option<&sc::capture_allocation::OwnedBudget>,
     ) -> Result<Built, String> {
+        self.check_native_scope(store)?;
         if self.bound
             && !match (self.allocation_budget(), budget) {
                 (None, None) => true,
@@ -1048,50 +1558,37 @@ impl SequenceMemo {
             return Err("prototype_audit_allocation_incomplete：缓存账本改变，须discard".into());
         }
         // 初次Owned绑定暂留局部，失败不冻结模式；现有Owned真实扩容先同时留账旧新块。
-        let mut next_keys = if !self.bound {
-            budget.map(SequenceKeys::owned).transpose()?
+        let mut next_keys = if !self.bound && (budget.is_some() || store.codec_work().is_some()) {
+            Some(match budget {
+                Some(b) => SequenceKeys::owned(b)?,
+                None => SequenceKeys::default(),
+            })
         } else {
             None
         };
         next_keys
             .as_mut()
             .unwrap_or(&mut self.keys)
-            .reserve_owned(elements.len())?;
+            .reserve_admitted(store, elements.len())?;
         let keys = self.keys.as_slice();
         let common = keys
             .iter()
             .zip(elements.iter())
             .take_while(|(left, right)| left == right)
             .count();
-        let consistent = self
-            .seq
-            .as_ref()
-            .is_some_and(|seq| seq.count() == keys.len() as u64);
-        let seq = match (self.seq, consistent) {
-            (Some(seq), true) if common == keys.len() => {
-                let mut seq = seq;
-                for element in &elements[common..] {
-                    seq = sc::sequence_append_with_allocation(&mut *store, &seq, element, budget)
-                        .map_err(|error| format!("GenError：{what} 序列续接失败：{error}"))?;
-                }
-                seq
-            }
-            (Some(seq), true) if common > 0 => {
-                let (mut left, _right) =
-                    sc::sequence_split_with_allocation(&mut *store, &seq, common as u64, budget)
-                        .map_err(|error| format!("GenError：{what} 序列截断失败：{error}"))?;
-                for element in &elements[common..] {
-                    left = sc::sequence_append_with_allocation(&mut *store, &left, element, budget)
-                        .map_err(|error| format!("GenError：{what} 序列续接失败：{error}"))?;
-                }
-                left
-            }
-            _ => {
-                let root = sc::write_sequence(&mut *store, elements)
-                    .map_err(|error| format!("GenError：{what} 序列写入失败：{error}"))?;
-                SequenceRef::from_parts_unchecked(root, elements.len() as u64)
-            }
+        let previous = match self.seq {
+            Some(seq) if seq.count() == keys.len() as u64 => seq,
+            None if keys.is_empty() => SequenceRef::empty(),
+            _ => return Err(format!("GenError：{what} 序列缓存计数不一致，须discard")),
         };
+        let seq = sc::sequence_rebuild_suffix_with_allocation(
+            &mut *store,
+            &previous,
+            common as u64,
+            &elements[common..],
+            budget,
+        )
+        .map_err(|error| format!("GenError：{what} 序列后缀重建失败：{error}"))?;
         let built = array_from_sequence(&mut *store, &seq).map_err(producer_error)?;
         next_keys
             .as_mut()
@@ -1112,28 +1609,46 @@ impl SequenceMemo {
 fn dedupe_observations(
     store: &mut dyn NodeStore,
     observations: &[(bool, Built)],
-) -> Result<Vec<Built>, String> {
-    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut out: Vec<Built> = Vec::with_capacity(observations.len());
+) -> Result<CodecVec<Built>, String> {
+    let mut seen = bj::new_map::<NativeValue<String>, ()>(None);
+    let mut out = CodecVec::default();
     for (from_knowledge, built) in observations {
+        let root = native_ref(store, built)?;
         let key = if *from_knowledge {
-            format!("\u{1}tb02a\u{1}{}", built.root())
+            store
+                .native_format(format_args!("\u{1}tb02a\u{1}{}", root.root))
+                .map_err(codec_error)?
         } else {
-            let root = built.content_ref();
-            format!(
-                "{}\u{1}{}\u{1}{}\u{1}{}\u{1}{}",
-                field_text(store, &root, "kind")?,
-                field_text(store, &root, "window_start")?,
-                field_text(store, &root, "window_mid")?,
-                field_text(store, &root, "window_end")?,
-                field_text(store, &root, "reason")?,
-            )
+            let kind = field_text_admitted(store, &root, "kind")?;
+            let start = field_text_admitted(store, &root, "window_start")?;
+            let mid = field_text_admitted(store, &root, "window_mid")?;
+            let end = field_text_admitted(store, &root, "window_end")?;
+            let reason = field_text_admitted(store, &root, "reason")?;
+            store
+                .native_format(format_args!(
+                    "{}\u{1}{}\u{1}{}\u{1}{}\u{1}{}",
+                    kind, start, mid, end, reason
+                ))
+                .map_err(codec_error)?
         };
-        if seen.insert(key) {
-            out.push(built.clone());
+        if !seen.contains_key(key.as_str()) {
+            store.native_map_room(&mut seen).map_err(codec_error)?;
+            seen.insert(key, ()).map_err(codec_error)?;
+            push_gen(&mut out, built.clone(), store)?;
         }
     }
     Ok(out)
+}
+fn field_text_admitted(
+    store: &mut dyn NodeStore,
+    root: &ContentRef,
+    name: &str,
+) -> Result<TextValue, String> {
+    let reference = store
+        .lookup_field_ref(root.into(), name)
+        .map_err(|error| format!("GenError：小路径定位失败：{error}"))?;
+    let value = bj::render_json(store, reference.view())?;
+    json_text(store, value.view())
 }
 
 /// 目录轴的**最小消费投影**：每项只给 `object_id`/`kind` 与目录函数真正读取的小路径值。
@@ -1147,78 +1662,123 @@ fn dedupe_observations(
 /// - 其余 kind：空对象（旧函数对这些 kind 从不解析 `payload_json`）。
 ///
 /// 不读 `source_coords`/`input_refs` 等大边，也不重造整份 payload。
+struct JsonOwners<'a>(&'a [JsonOwner]);
+impl sc::capture_allocation::audit_json::JsonArray for JsonOwners<'_> {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+    fn get(&self, index: usize) -> Option<JsonView<'_>> {
+        self.0.get(index).map(JsonOwner::view)
+    }
+}
+fn json_text(store: &dyn NodeStore, view: JsonView<'_>) -> Result<TextValue, String> {
+    struct Output<'a> {
+        bytes: CodecVec<u8>,
+        source: &'a dyn NodeStore,
+    }
+    impl std::io::Write for Output<'_> {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            if let Some(work) = self.source.codec_work() {
+                self.bytes
+                    .try_reserve_native(work, bytes.len())
+                    .map_err(std::io::Error::other)?;
+            }
+            self.bytes
+                .try_extend_bytes(bytes)
+                .map_err(std::io::Error::other)?;
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut output = Output {
+        bytes: CodecVec::default(),
+        source: store,
+    };
+    serde_json::to_writer(&mut output, &view)
+        .map_err(|e| format!("GenError：小字段渲染失败：{e}"))?;
+    TextValue::from_bytes(output.bytes)
+}
+fn projection_field(
+    store: &mut dyn NodeStore,
+    root: &Built,
+    path: &[&str],
+) -> Result<JsonOwner, String> {
+    let mut reference = store.native_built_ref(root).map_err(codec_error)?;
+    for field in path {
+        reference = store
+            .lookup_field_ref(reference.view(), field)
+            .map_err(|e| format!("GenError：小路径定位失败：{e}"))?;
+    }
+    bj::render_json(store, reference.view())
+}
 fn catalog_projection_entry(
     store: &mut dyn NodeStore,
     object: &ProducedObject,
     requests: &[Built],
-) -> Result<Value, String> {
-    let mut entry = serde_json::Map::new();
-    entry.insert(
-        "object_id".to_string(),
-        Value::String(object.object_id().to_string()),
-    );
-    entry.insert("kind".to_string(), Value::String(object.kind().to_string()));
-    let projection = if object.kind() == CC004_STEP_KIND {
-        let payload = object.payload().ok_or_else(|| {
+) -> Result<JsonOwner, String> {
+    let payload = || {
+        object.payload().ok_or_else(|| {
             format!(
-                "GenError：CC-004 对象 {} 缺 payload 值根",
+                "GenError：{} 对象 {} 缺 payload 值根",
+                object.kind(),
                 object.object_id()
             )
-        })?;
-        let comparisons = path_of(store, &payload.content_ref(), &[step_field("comparisons")])?;
-        format!("{{\"comparisons\":{}}}", render_text(store, &comparisons)?)
-    } else if object.kind() == CC054_KNOWLEDGE_KIND {
-        let payload = object.payload().ok_or_else(|| {
-            format!(
-                "GenError：CC-054 对象 {} 缺 payload 值根",
-                object.object_id()
-            )
-        })?;
-        let root = payload.content_ref();
-        let waiting_path = path_of(store, &root, &[step_field("waiting_reasons")])?;
-        let waiting = render_text(store, &waiting_path)?;
-        let mut request_items: Vec<Value> = Vec::with_capacity(requests.len());
-        for request in requests {
-            let request_root = request.content_ref();
-            let request_id_path = path_of(store, &request_root, &[step_field("request_id")])?;
-            // `request_id` 在载荷里是**文本字段**，其内容才是规范键 JSON；投影必须还原成
-            // 同一个字符串值（旧目录函数随后 `from_str` 得到键数组），不能带渲染外层引号。
-            let request_id = parse_small_json(
-                &render_text(store, &request_id_path)?,
-                "知识请求 request_id",
-            )?;
-            let reasons_path = path_of(store, &request_root, &[step_field("reasons")])?;
-            let reasons = render_text(store, &reasons_path)?;
-            request_items.push(serde_json::json!({
-                "request_id": request_id,
-                "reasons": parse_small_json(&reasons, "知识请求 reasons")?,
-            }));
-        }
-        serde_json::json!({
-            "waiting_reasons": parse_small_json(&waiting, "知识状态 waiting_reasons")?,
-            "requests": request_items,
         })
-        .to_string()
-    } else if object.kind() == "CC-056.version" {
-        let payload = object.payload().ok_or_else(|| {
-            format!(
-                "GenError：CC-056 对象 {} 缺 payload 值根",
-                object.object_id()
-            )
-        })?;
-        let root = payload.content_ref();
-        let waiting_path = path_of(
-            store,
-            &root,
-            &[step_field("data"), step_field("waiting_reasons")],
-        )?;
-        let waiting = render_text(store, &waiting_path)?;
-        format!("{{\"data\":{{\"waiting_reasons\":{waiting}}}}}")
-    } else {
-        String::from("{}")
     };
-    entry.insert("payload_json".to_string(), Value::String(projection));
-    Ok(Value::Object(entry))
+    let projection = if object.kind() == CC004_STEP_KIND {
+        let comparisons = projection_field(store, payload()?, &["comparisons"])?;
+        let fields = [("comparisons", comparisons.view())];
+        json_text(
+            store,
+            JsonView::object_fields(&fields).map_err(codec_error)?,
+        )?
+    } else if object.kind() == CC054_KNOWLEDGE_KIND {
+        let waiting = projection_field(store, payload()?, &["waiting_reasons"])?;
+        let mut request_items = CodecVec::default();
+        for request in requests {
+            let request_id = projection_field(store, request, &["request_id"])?;
+            let reasons = projection_field(store, request, &["reasons"])?;
+            let fields = [
+                ("request_id", request_id.view()),
+                ("reasons", reasons.view()),
+            ];
+            let row = bj::json_from_view_admitted(
+                store,
+                JsonView::object_fields(&fields).map_err(codec_error)?,
+            )?;
+            push_gen(&mut request_items, row, store)?;
+        }
+        let items = JsonOwners(&request_items);
+        let fields = [
+            ("waiting_reasons", waiting.view()),
+            ("requests", JsonView::BorrowedArray(&items)),
+        ];
+        json_text(
+            store,
+            JsonView::object_fields(&fields).map_err(codec_error)?,
+        )?
+    } else if object.kind() == "CC-056.version" {
+        let waiting = projection_field(store, payload()?, &["data", "waiting_reasons"])?;
+        let inner = [("waiting_reasons", waiting.view())];
+        let outer = [(
+            "data",
+            JsonView::object_fields(&inner).map_err(codec_error)?,
+        )];
+        json_text(store, JsonView::object_fields(&outer).map_err(codec_error)?)?
+    } else {
+        TextValue::Plain(native_text(store, "{}")?)
+    };
+    let fields = [
+        ("object_id", JsonView::String(object.object_id())),
+        ("kind", JsonView::String(object.kind())),
+        ("payload_json", JsonView::String(&projection)),
+    ];
+    bj::json_from_view_admitted(
+        store,
+        JsonView::object_fields(&fields).map_err(codec_error)?,
+    )
 }
 
 fn step_field(name: &str) -> PathStep {
@@ -1254,106 +1814,103 @@ fn parse_small_json(text: &str, what: &'static str) -> Result<Value, String> {
 /// CC-006 三组窗口的见证与关系（配方与旧生成段逐字相同，只换真实新 `obj3-` 身份）。
 fn shape_witnesses(
     store: &mut dyn NodeStore,
-    event_nodes: &mut BTreeMap<(i64, i64), NodeDigest>,
-    raw_by_coord: &BTreeMap<i64, JsonView<'_>>,
-    coord_nodes: &BTreeMap<i64, NodeDigest>,
+    event_nodes: &mut FixedRadix<(i64, i64), NodeDigest>,
+    raw_by_coord: BiLedgerView<'_>,
+    coord_nodes: &FixedRadix<i64, NodeDigest>,
     views: &[GroupEvidenceView<'_>; 3],
     start: usize,
     object: &Cc006Object,
-) -> Result<(Vec<WitnessRecord>, Vec<Built>), String> {
-    let mut witnesses: Vec<WitnessRecord> = Vec::with_capacity(3);
-    let mut relations: Vec<Built> = Vec::with_capacity(4);
+) -> Result<(CodecVec<WitnessRecord>, CodecVec<Built>), String> {
+    let mut witnesses = CodecVec::default();
+    let mut relations = CodecVec::default();
     for (slot, view) in views.iter().enumerate() {
         let mi = start + slot;
-        let mut bar_nodes: Vec<NodeDigest> = Vec::with_capacity(view.members.len());
+        let mut bar_nodes = CodecVec::default();
         for coord in view.members {
             let coord = *coord as i64;
-            let event = raw_by_coord.get(&coord).ok_or_else(|| {
+            let event = raw_by_coord.get(coord).ok_or_else(|| {
                 format!("StorageUnavailable：见证成员坐标 {coord} 不在本次生效账内")
             })?;
-            match coord_nodes.get(&coord) {
-                Some(node) => bar_nodes.push(*node),
-                None => bar_nodes.push(event_node(event_nodes, store, *event)?),
-            }
+            let node = match coord_nodes.get(&coord) {
+                Some(node) => *node,
+                None => event_node(event_nodes, store, event)?,
+            };
+            push_gen(&mut bar_nodes, VV::Edge(node), store)?;
         }
-        let bar_array = sc::write_value(
-            &mut *store,
-            &CValue::Array(bar_nodes.into_iter().map(CValue::Edge).collect()),
-        )
-        .map_err(|error| format!("GenError：见证 raw_bars 写入失败：{error}"))?;
-        let witness_id = witness_identity(store, &object.object_id, slot, mi, &bar_array)?;
-        let record = CValue::Object(vec![
+        let bar_array = sc::write_value_view(&mut *store, VV::Array(&bar_nodes))
+            .map_err(|error| format!("GenError：见证 raw_bars 写入失败：{error}"))?;
+        let witness_id = witness_identity_native(store, &object.object_id, slot, mi, &bar_array)?;
+        let source_index =
+            super::super::content_manifest::Decimal::new(view.bar.source_index as i64);
+        let slot_text = super::super::content_manifest::Decimal::new(slot as i64);
+        let close = store
+            .native_format(format_args!("{}", view.bar.close))
+            .map_err(codec_error)?;
+        let high = store
+            .native_format(format_args!("{}", view.bar.high))
+            .map_err(codec_error)?;
+        let low = store
+            .native_format(format_args!("{}", view.bar.low))
+            .map_err(codec_error)?;
+        let open = store
+            .native_format(format_args!("{}", view.bar.open))
+            .map_err(codec_error)?;
+        let fields = [
+            ("merged_close", VV::String(&close)),
+            ("merged_high", VV::String(&high)),
+            ("merged_low", VV::String(&low)),
+            ("merged_open", VV::String(&open)),
             (
-                "merged_close".to_string(),
-                CValue::String(view.bar.close.to_string()),
+                "merged_source_index",
+                VV::Number(
+                    sc::BorrowedNumberToken::parse(source_index.as_str()).map_err(codec_error)?,
+                ),
             ),
+            ("object_id", VV::String(&object.object_id)),
+            ("raw_bars", VV::Edge(bar_array.digest)),
             (
-                "merged_high".to_string(),
-                CValue::String(view.bar.high.to_string()),
+                "slot",
+                VV::Number(
+                    sc::BorrowedNumberToken::parse(slot_text.as_str()).map_err(codec_error)?,
+                ),
             ),
-            (
-                "merged_low".to_string(),
-                CValue::String(view.bar.low.to_string()),
-            ),
-            (
-                "merged_open".to_string(),
-                CValue::String(view.bar.open.to_string()),
-            ),
-            (
-                "merged_source_index".to_string(),
-                number(view.bar.source_index as i64)?,
-            ),
-            (
-                "object_id".to_string(),
-                CValue::String(object.object_id.clone()),
-            ),
-            ("raw_bars".to_string(), CValue::Edge(bar_array.digest)),
-            ("slot".to_string(), number(slot as i64)?),
-            ("witness_id".to_string(), CValue::String(witness_id.clone())),
-        ]);
-        let built = sc::write_value(&mut *store, &record)
+            ("witness_id", VV::String(&witness_id)),
+        ];
+        let built = sc::write_value_view(&mut *store, VV::Object(&fields))
             .map_err(|error| format!("GenError：见证记录写入失败：{error}"))?;
-        witnesses.push(WitnessRecord {
-            witness_id: witness_id.clone(),
-            object_id: object.object_id.clone(),
-            slot,
-            built,
-        });
-        let relation = CValue::Object(vec![
-            ("object".to_string(), CValue::String(witness_id)),
-            (
-                "relation_type".to_string(),
-                CValue::String("has_witness".to_string()),
-            ),
-            (
-                "subject".to_string(),
-                CValue::String(object.object_id.clone()),
-            ),
-        ]);
-        relations.push(
-            sc::write_value(&mut *store, &relation)
-                .map_err(|error| format!("GenError：关系值写入失败：{error}"))?,
-        );
+        let fields = [
+            ("object", VV::String(&witness_id)),
+            ("relation_type", VV::String("has_witness")),
+            ("subject", VV::String(&object.object_id)),
+        ];
+        let relation = sc::write_value_view(&mut *store, VV::Object(&fields))
+            .map_err(|error| format!("GenError：关系值写入失败：{error}"))?;
+        push_gen(
+            &mut witnesses,
+            WitnessRecord {
+                witness_id,
+                object_id: native_text(store, &object.object_id)?,
+                slot,
+                built,
+            },
+            store,
+        )?;
+        push_gen(&mut relations, relation, store)?;
     }
-    let window = format!(
-        "window-{}-{}-{}",
-        object.window[0], object.window[1], object.window[2]
-    );
-    let classified = CValue::Object(vec![
-        (
-            "object".to_string(),
-            CValue::String(object.object_id.clone()),
-        ),
-        (
-            "relation_type".to_string(),
-            CValue::String("classified_as".to_string()),
-        ),
-        ("subject".to_string(), CValue::String(window)),
-    ]);
-    relations.push(
-        sc::write_value(&mut *store, &classified)
-            .map_err(|error| format!("GenError：关系值写入失败：{error}"))?,
-    );
+    let window = store
+        .native_format(format_args!(
+            "window-{}-{}-{}",
+            object.window[0], object.window[1], object.window[2]
+        ))
+        .map_err(codec_error)?;
+    let fields = [
+        ("object", VV::String(&object.object_id)),
+        ("relation_type", VV::String("classified_as")),
+        ("subject", VV::String(&window)),
+    ];
+    let classified = sc::write_value_view(&mut *store, VV::Object(&fields))
+        .map_err(|error| format!("GenError：关系值写入失败：{error}"))?;
+    push_gen(&mut relations, classified, store)?;
     Ok((witnesses, relations))
 }
 
@@ -1368,6 +1925,35 @@ pub(super) fn witness_identity(
     mi: usize,
     raw_bars: &Built,
 ) -> Result<String, String> {
+    let bytes = witness_identity_bytes(store, object_id, slot, mi, raw_bars)?;
+    // 旧裸 String 接口；Native 来源核改走下方携原许可的输出。
+    if store.codec_work().is_some() {
+        return Err("Native witness身份必须使用witness_identity_native持有原许可".into());
+    }
+    let mut result = String::with_capacity(bytes.len());
+    result.extend(bytes.into_iter().map(char::from));
+    Ok(result)
+}
+
+pub(super) fn witness_identity_native(
+    store: &mut (impl CodecRead + ?Sized),
+    object_id: &str,
+    slot: usize,
+    mi: usize,
+    raw_bars: &Built,
+) -> Result<sc::capture_allocation::native_owned::NativeValue<String>, String> {
+    let bytes = witness_identity_bytes(store, object_id, slot, mi, raw_bars)?;
+    let text = std::str::from_utf8(&bytes).expect("固定 ASCII witness 身份");
+    store.native_string(text).map_err(codec_error)
+}
+
+fn witness_identity_bytes(
+    store: &mut (impl CodecRead + ?Sized),
+    object_id: &str,
+    slot: usize,
+    mi: usize,
+    raw_bars: &Built,
+) -> Result<[u8; 20], String> {
     if object_id.contains('"') || object_id.contains('\\') {
         return Err(format!(
             "GenError：对象身份 `{object_id}` 含需转义字符，拒绝拼入规范输入"
@@ -1390,14 +1976,13 @@ pub(super) fn witness_identity(
             .map_err(|e| format!("GenError：见证输入失败：{e}"))?;
     }
     let digest = hasher.finalize();
-    // 输出固定为 wit- + 16 个十六进制字符；许可早于唯一的 String 分配。
-    store.native_admit(20).map_err(codec_error)?;
-    let mut result = String::with_capacity(20);
-    result.push_str("wit-");
+    // 两种输出所有权共用同一个配方；固定 ASCII 暂存不分配堆内存。
+    let mut result = [0u8; 20];
+    result[..4].copy_from_slice(b"wit-");
     const HEX: &[u8; 16] = b"0123456789abcdef";
-    for byte in &digest[..8] {
-        result.push(HEX[(byte >> 4) as usize] as char);
-        result.push(HEX[(byte & 15) as usize] as char);
+    for (i, byte) in digest[..8].iter().enumerate() {
+        result[4 + i * 2] = HEX[(byte >> 4) as usize];
+        result[5 + i * 2] = HEX[(byte & 15) as usize];
     }
     Ok(result)
 }
@@ -1418,7 +2003,7 @@ impl std::io::Write for DigestWriter<'_> {
 
 /// 事件节点：`(source_coord, revision)` memo + 逐字段写节点（小原件，非大数组）。
 fn event_node(
-    memo: &mut BTreeMap<(i64, i64), NodeDigest>,
+    memo: &mut FixedRadix<(i64, i64), NodeDigest>,
     store: &mut dyn NodeStore,
     event: JsonView<'_>,
 ) -> Result<NodeDigest, String> {
@@ -1426,60 +2011,25 @@ fn event_node(
     let revision = bj::field(event, "revision")
         .as_i64()
         .ok_or("StorageUnavailable：raw.revision 不是 i64")?;
+    memo.check_admission(&*store).map_err(codec_error)?;
     if let Some(node) = memo.get(&(coord, revision)) {
         return Ok(*node);
     }
     let built = sc::write_json_view(&mut *store, event)
         .map_err(|error| format!("GenError：原始事件节点写入失败：{error}"))?;
-    memo.insert((coord, revision), built.digest);
+    memo.insert_admitted((coord, revision), built.digest, &*store)
+        .map_err(codec_error)?;
     Ok(built.digest)
 }
 
 /// 生效账事件 → `Bar`（与旧生成段同一取法：OHLC 档案取 open/high/low/close）。
 fn bar_of(event: JsonView<'_>) -> Result<Bar, String> {
-    let price = |key: &str| -> Result<i64, String> {
-        parse_canonical_i64(
-            bj::field(event, key)
-                .as_str()
-                .ok_or_else(|| format!("StorageUnavailable：OHLC价 `{key}` 缺失"))?,
-            key,
-        )
-    };
-    Ok(Bar {
-        source_index: usize::try_from(bj::coord(event)?)
-            .map_err(|_| "StorageUnavailable：源坐标不能无损转换为 source_index".to_string())?,
-        timestamp: parse_canonical_i64(bj::field(event, "ts").as_str().unwrap_or(""), "timestamp")?,
-        open: price("open")?,
-        high: price("high")?,
-        low: price("low")?,
-        close: price("close")?,
-        volume: 1.0,
-        untradable: false,
-    })
+    s_fact_cache::bar_of(event)
 }
 
 /// 生效账事件 → producer 的八字段源引用登记（字段只从原行取，不另判）。
 fn raw_ref_spec(event: JsonView<'_>) -> Result<RawRefSpec, String> {
-    let text = |key: &str| -> Result<String, String> {
-        bj::field(event, key)
-            .as_str()
-            .map(str::to_string)
-            .ok_or_else(|| format!("StorageUnavailable：raw.{key} 不是字符串"))
-    };
-    Ok(RawRefSpec {
-        identity_key: text("identity_key")?,
-        payload_hash: text("payload_hash")?,
-        receipt_id: text("receipt_id")?,
-        event_id: text("event_id")?,
-        input_revision: text("input_revision")?,
-        revision: bj::field(event, "revision")
-            .as_i64()
-            .ok_or("StorageUnavailable：raw.revision 不是 i64")?,
-        seq: bj::field(event, "seq")
-            .as_i64()
-            .ok_or("StorageUnavailable：raw.seq 不是 i64")?,
-        source_coord: text("source_coord")?,
-    })
+    RawRefSpec::from_event(event)
 }
 
 fn group_views(state: &IncrFactsState, start: usize) -> Result<[GroupEvidenceView<'_>; 3], String> {
@@ -1499,20 +2049,27 @@ fn group_views(state: &IncrFactsState, start: usize) -> Result<[GroupEvidenceVie
 }
 
 /// TB-02-B 对象的 kind：从记录读回（不重算判据，不猜默认）。
-fn typed_kind(store: &mut dyn NodeStore, object: &TypedObject) -> Result<String, String> {
-    let root = object.record.content_ref();
-    let kind = path_of(store, &root, &[step_field("kind")])?;
-    if kind.kind != Kind::String {
+fn typed_kind(
+    store: &mut dyn NodeStore,
+    object: &TypedObject,
+) -> Result<NativeValue<String>, String> {
+    let root = native_ref(store, &object.record)?;
+    let kind = store
+        .lookup_field_ref((&root).into(), "kind")
+        .map_err(codec_error)?;
+    if kind.kind() != Kind::String {
         return Err(format!(
             "GenError：对象 {} 记录 kind 不是字符串（{:?}）",
-            object.object_id, kind.kind
+            object.object_id,
+            kind.kind()
         ));
     }
-    let text = render_text(store, &kind)?;
-    parse_small_json(&text, "记录 kind")?
+    let value = bj::render_json(store, kind.view())?;
+    let text = value
+        .view()
         .as_str()
-        .map(str::to_string)
-        .ok_or_else(|| format!("GenError：对象 {} 记录 kind 不是文本", object.object_id))
+        .ok_or_else(|| format!("GenError：对象 {} 记录 kind 不是文本", object.object_id))?;
+    native_text(store, text)
 }
 
 /// 规范 JSON 数字节点（精确整数）。
@@ -1559,7 +2116,34 @@ fn json_to_cvalue(value: &Value) -> Result<CValue, String> {
 }
 
 fn write_json(store: &mut dyn NodeStore, value: &Value) -> Result<Built, String> {
-    sc::write_value(&mut *store, &json_to_cvalue(value)?)
+    write_json_view(store, value.into())
+}
+
+fn write_json_view(
+    store: &mut (impl CodecStore + ?Sized),
+    value: JsonView<'_>,
+) -> Result<Built, String> {
+    fn check(value: JsonView<'_>) -> Result<(), String> {
+        if let Some(n) = value.number() {
+            if n.as_i64().is_none() && n.as_u64().is_none() {
+                return Err(format!(
+                    "GenError：原始行出现非整数 JSON 数字 `{n}`（不把 token 静默改写）"
+                ));
+            }
+        } else if let Some(items) = value.as_array() {
+            for item in items {
+                check(item)?;
+            }
+        } else if let Some(fields) = value.as_object() {
+            for (_, item) in fields.iter() {
+                check(item)?;
+            }
+        }
+        Ok(())
+    }
+    check(value)?;
+    store
+        .write_json_view(value)
         .map_err(|error| format!("GenError：值写入失败：{error}"))
 }
 
@@ -1577,6 +2161,42 @@ fn codec_error(error: sc::CodecError) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn borrowed_json_write_keeps_old_integer_oracle_and_rejects_before_put() {
+        let original = serde_json::json!({"items": [i64::MIN, u64::MAX], "text": "1.5"});
+        let mut expected_nodes = sc::MemoryNodes::new();
+        let expected =
+            sc::write_value(&mut expected_nodes, &json_to_cvalue(&original).unwrap()).unwrap();
+        let mut actual_nodes = sc::MemoryNodes::new();
+        let actual = write_json_view(&mut actual_nodes, (&original).into()).unwrap();
+        assert_eq!(actual.digest, expected.digest);
+        let bad = serde_json::json!({"outer": [1, {"float": 1.5}]});
+        let mut refused = sc::MemoryNodes::new();
+        let error = write_json_view(&mut refused, (&bad).into()).unwrap_err();
+        assert_eq!(
+            error,
+            "GenError：原始行出现非整数 JSON 数字 `1.5`（不把 token 静默改写）"
+        );
+        assert_eq!(refused.iter().count(), 0, "完整整数预检先于任何节点写出");
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_axis_view_uses_same_integer_guard_and_codec_root() {
+        let original = serde_json::json!({"CC-004": {"count": 2, "ids": ["a", "b"]}});
+        let budget = sc::capture_allocation::OwnedBudget::new(1 << 20);
+        let owner =
+            sc::capture_allocation::audit_json::OwnedJson::from_view((&original).into(), &budget)
+                .unwrap();
+        let mut plain_nodes = sc::MemoryNodes::new();
+        let expected = write_json(&mut plain_nodes, &original).unwrap();
+        let mut owned_nodes = sc::MemoryNodes::new();
+        let actual = write_json_view(&mut owned_nodes, owner.view()).unwrap();
+        assert_eq!(actual.digest, expected.digest);
+        drop(owner);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+
     use super::*;
     use crate::tests::{
         accept_ohlc, init_test_db, located_ohlc_input, tb02b_oracle_rows, TestFiles,
@@ -1588,6 +2208,1207 @@ mod tests {
     };
     use newchan_rust::s_content::{render_canonical, MemoryNodes};
     use serde_json::json;
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    struct NativeFixture<'a> {
+        inner: &'a mut MemoryNodes,
+        work: &'a sc::capture_allocation::scratch::WorkScope,
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    impl sc::NodeSource for NativeFixture<'_> {
+        fn read(&mut self, digest: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+            self.inner.read(digest)
+        }
+        fn codec_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
+            Some(self.work)
+        }
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    impl sc::NodeSink for NativeFixture<'_> {
+        fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
+            self.inner.put(digest, tag, body)
+        }
+        fn codec_sink_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
+            Some(self.work)
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn event_radix_memo_hit_requires_current_native_scope_and_keeps_root_recipe() {
+        let event = serde_json::json!({"source_coord":"0","revision":1,"value":7});
+        let mut oracle = MemoryNodes::new();
+        let expected = sc::write_json_view(&mut oracle, (&event).into())
+            .unwrap()
+            .digest;
+        let budget = super::super::audit_owner::native::Budget::new(1 << 20, 0).unwrap();
+        let baseline = budget.live();
+        let mut memo = FixedRadix::default();
+        let mut nodes = MemoryNodes::new();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let mut store = NativeFixture {
+                    inner: &mut nodes,
+                    work,
+                };
+                let actual = event_node(&mut memo, &mut store, (&event).into())?;
+                assert_eq!(actual, expected);
+                let count = store.inner.iter().count();
+                assert_eq!(
+                    event_node(&mut memo, &mut store, (&event).into())?,
+                    expected
+                );
+                assert_eq!(store.inner.iter().count(), count);
+                Ok::<_, String>(())
+            })
+            .unwrap();
+        let mut plain = MemoryNodes::new();
+        assert!(event_node(&mut memo, &mut plain, (&event).into()).is_err());
+        assert_eq!(
+            plain.iter().count(),
+            0,
+            "no memo hit may silently bypass current domain"
+        );
+        drop(memo);
+        assert_eq!(budget.live(), baseline);
+    }
+
+    #[test]
+    fn fixed_shape_observations_match_old_json_roots() {
+        // Oracles copy the frozen pre-G1 JSON recipes, independently of helper inputs.
+        let start = 7usize;
+        let cases = [
+            (
+                "domain_not_satisfied",
+                "adjacent_inclusion",
+                [Some(start), Some(start + 1), Some(start + 2)],
+                serde_json::json!({
+                    "kind": "domain_not_satisfied",
+                    "reason": "adjacent_inclusion",
+                    "window_start": start,
+                    "window_mid": start + 1,
+                    "window_end": start + 2,
+                    "detail": {},
+                }),
+            ),
+            (
+                "insufficient_knowledge",
+                "fewer_than_three_bars",
+                [Some(start), None, None],
+                serde_json::json!({
+                    "kind": "insufficient_knowledge",
+                    "reason": "fewer_than_three_bars",
+                    "window_start": start,
+                    "window_mid": Value::Null,
+                    "window_end": Value::Null,
+                    "detail": {},
+                }),
+            ),
+        ];
+        for (kind, reason, positions, old) in cases {
+            let mut oracle = MemoryNodes::new();
+            let expected = write_json(&mut oracle, &old).unwrap();
+            let mut actual = MemoryNodes::new();
+            let got = shape_observation(&mut actual, kind, reason, positions).unwrap();
+            assert_eq!(got.digest, expected.digest);
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_stable_sort_matches_old_equal_key_order_and_refuses_atomically() {
+        let input = (0..128usize).map(|i| ((i * 37) % 9, i)).collect::<Vec<_>>();
+        let mut expected = input.clone();
+        expected.sort_by(|a, b| a.0.cmp(&b.0));
+        let budget = super::super::audit_owner::native::Budget::new(1 << 20, 0).unwrap();
+        let baseline = budget.live();
+        let mut actual = input.clone();
+        let mut nodes = MemoryNodes::new();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let store = NativeFixture {
+                    inner: &mut nodes,
+                    work,
+                };
+                stable_sort_admitted(&mut actual, &store, |a, b| a.0.cmp(&b.0))
+            })
+            .unwrap();
+        assert_eq!(actual, expected, "与旧稳定排序逐项同序，等键原ordinal不变");
+        assert_eq!(budget.live(), baseline, "排序临时工作区已经真实释放");
+        let tiny = super::super::audit_owner::native::Budget::new(
+            baseline + sc::capture_allocation::scratch::CodecWork::metadata_bytes() + 8,
+            0,
+        )
+        .unwrap();
+        let tiny_baseline = tiny.live();
+        let mut refused = input.clone();
+        let result = tiny.codec_work().unwrap().run(|work| {
+            let store = NativeFixture {
+                inner: &mut nodes,
+                work,
+            };
+            stable_sort_admitted(&mut refused, &store, |a, b| a.0.cmp(&b.0))
+        });
+        assert!(matches!(
+            result,
+            Err(sc::capture_allocation::scratch::WorkError::Resource(_))
+        ));
+        assert_eq!(refused, input, "全部工作区准入完成前不改原顺序");
+        assert_eq!(tiny.live(), tiny_baseline);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_sequence_cross_generation_same_parent_foreign_refusal_and_discard() {
+        let mut nodes = MemoryNodes::new();
+        let a = sc::write_value(&mut nodes, &CValue::Bool(true))
+            .unwrap()
+            .digest;
+        let b = sc::write_value(&mut nodes, &CValue::Bool(false))
+            .unwrap()
+            .digest;
+        let c = sc::write_value(&mut nodes, &CValue::Null).unwrap().digest;
+        let mut oracle = SequenceMemo::default();
+        let first = oracle.sync(&mut nodes, &[a, b], "oracle-1", None).unwrap();
+        let second = oracle
+            .sync(&mut nodes, &[a, c, b], "oracle-2", None)
+            .unwrap();
+        let budget = super::super::audit_owner::native::Budget::new(1 << 20, 0).unwrap();
+        let baseline = budget.live();
+        let mut memo = SequenceMemo::default();
+        let got = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let mut store = NativeFixture {
+                    inner: &mut nodes,
+                    work,
+                };
+                memo.sync(&mut store, &[a, b], "native-1", None)
+            })
+            .unwrap();
+        assert_eq!(got.digest, first.digest);
+        assert!(budget.live() > baseline, "离域后真实keys容量仍持费");
+        let got = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let mut store = NativeFixture {
+                    inner: &mut nodes,
+                    work,
+                };
+                memo.sync(&mut store, &[a, c, b], "native-2", None)
+            })
+            .unwrap();
+        assert_eq!(got.digest, second.digest);
+        let before = memo.seq;
+        let foreign = super::super::audit_owner::native::Budget::new(1 << 20, 0).unwrap();
+        let foreign_baseline = foreign.live();
+        let result = foreign.codec_work().unwrap().run(|work| {
+            let mut store = NativeFixture {
+                inner: &mut nodes,
+                work,
+            };
+            memo.sync(&mut store, &[a, c, b], "foreign-zero-growth", None)
+        });
+        assert!(matches!(
+            result,
+            Err(sc::capture_allocation::scratch::WorkError::Resource(_))
+        ));
+        assert_eq!(memo.seq, before);
+        assert_eq!(memo.keys.as_slice(), &[a, c, b]);
+        assert_eq!(foreign.live(), foreign_baseline);
+        assert!(memo.sync(&mut nodes, &[a], "no-scope", None).is_err());
+        assert_eq!(memo.seq, before);
+        memo.discard();
+        assert_eq!(
+            budget.live(),
+            baseline,
+            "Native discard释放keys真实buffer及绑定"
+        );
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_generated_results_match_plain_and_keep_permits_until_drop() {
+        let events = delta_raw_fixture();
+        let effective = bj::effective(events.as_slice().into(), None).unwrap();
+        let scope = json!({"instrument":"native-generation", "exchange":"fixture"});
+        let input = GenerationInput {
+            all_events: events.as_slice().into(),
+            effective: effective.raw_view(),
+            generation: 1,
+            structure_cut: "cut-1",
+            input_frontier: events.len() as i64,
+            profile_id: crate::tb02a::PROFILE,
+            profile_hash: "profile-hash",
+            rule_revision: "r",
+            catalog_revision: "catalog",
+            scope: &scope,
+            semantic_commit_ns: None,
+            prior: PriorState {
+                bi_records: Vec::new(),
+                version_record: None,
+            },
+        };
+        let mut plain_nodes = MemoryNodes::new();
+        let mut plain_runtime =
+            GenerationRuntime::new("native-parity/plain".into(), crate::tb02a::PROFILE, "r");
+        let mut plain = plain_runtime.generate(&mut plain_nodes, &input).unwrap();
+        plain.finish_axes(&mut plain_nodes, -1, &[], &[]).unwrap();
+        let budget = super::super::audit_owner::native::Budget::new(16 * 1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let mut native_nodes = MemoryNodes::new();
+        let mut runtime =
+            GenerationRuntime::new("native-parity/native".into(), crate::tb02a::PROFILE, "r");
+        let generated = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| -> Result<_, String> {
+                let mut store = NativeFixture {
+                    inner: &mut native_nodes,
+                    work,
+                };
+                let mut generated = runtime.generate(&mut store, &input)?;
+                generated.finish_axes(&mut store, -1, &[], &[])?;
+                assert!(generated.generated_state.is_native_admitted());
+                assert!(generated.raw.raw_events.is_native_admitted());
+                assert!(generated
+                    .objects
+                    .iter()
+                    .all(|o| o.object_id.is_native_admitted()));
+                assert!(generated
+                    .witnesses
+                    .iter()
+                    .all(|w| w.witness_id.is_native_admitted()));
+                Ok(generated)
+            })
+            .unwrap();
+        assert_eq!(generated.generated_state, plain.generated_state);
+        assert_eq!(
+            generated
+                .objects
+                .iter()
+                .map(|o| (o.kind(), o.fact_key(), o.object_id()))
+                .collect::<Vec<_>>(),
+            plain
+                .objects
+                .iter()
+                .map(|o| (o.kind(), o.fact_key(), o.object_id()))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            generated
+                .witnesses
+                .iter()
+                .map(|w| (&w.witness_id, &w.object_id, w.slot, &w.built))
+                .collect::<Vec<_>>(),
+            plain
+                .witnesses
+                .iter()
+                .map(|w| (&w.witness_id, &w.object_id, w.slot, &w.built))
+                .collect::<Vec<_>>()
+        );
+        assert!(budget.live() > baseline, "离开工作域后结果仍持有原许可");
+        drop(generated);
+        drop(runtime);
+        assert_eq!(budget.live(), baseline, "实际持有者析构后归还原账");
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn finish_axes_resource_rejection_preserves_published_roots() {
+        let events = delta_raw_fixture();
+        let effective = bj::effective(events.as_slice().into(), None).unwrap();
+        let scope = json!({"instrument":"native-finish-reject", "exchange":"fixture"});
+        let input = GenerationInput {
+            all_events: events.as_slice().into(),
+            effective: effective.raw_view(),
+            generation: 1,
+            structure_cut: "cut-1",
+            input_frontier: events.len() as i64,
+            profile_id: crate::tb02a::PROFILE,
+            profile_hash: "profile-hash",
+            rule_revision: "r",
+            catalog_revision: "catalog",
+            scope: &scope,
+            semantic_commit_ns: None,
+            prior: PriorState {
+                bi_records: Vec::new(),
+                version_record: None,
+            },
+        };
+        let mut nodes = MemoryNodes::new();
+        let mut runtime =
+            GenerationRuntime::new("native-finish-reject".into(), crate::tb02a::PROFILE, "r");
+        let mut generated = runtime.generate(&mut nodes, &input).unwrap();
+        generated.finish_axes(&mut nodes, -1, &[], &[]).unwrap();
+        let state = generated.generated_state.as_ref().clone();
+        let axes = generated.catalog_axes.as_ref().unwrap().as_ref().clone();
+        const LIMIT: usize = 16 * 1024 * 1024;
+        let budget = super::super::audit_owner::native::Budget::new(LIMIT, 0).unwrap();
+        let baseline = budget.live();
+        let result = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| -> Result<(), String> {
+                let _occupy = budget.reserve(LIMIT - budget.live() - 1).unwrap();
+                let mut store = NativeFixture {
+                    inner: &mut nodes,
+                    work,
+                };
+                let result = generated.finish_axes(&mut store, -1, &[], &[]);
+                assert!(result.is_err());
+                assert_eq!(generated.generated_state.as_ref(), &state);
+                assert_eq!(generated.catalog_axes.as_ref().unwrap().as_ref(), &axes);
+                result.map(|_| ())
+            });
+        assert!(matches!(
+            result,
+            Err(sc::capture_allocation::scratch::WorkError::Resource(_))
+        ));
+        assert_eq!(budget.live(), baseline, "拒绝后释放全部暂存许可");
+    }
+
+    fn delta_raw_fixture() -> Vec<Value> {
+        [
+            ("a", 2, 10, 5, 1), ("b", 7, 12, 7, 1),
+            ("c", 12, 11, 8, 2), ("d", 17, 16, 12, 1),
+            ("b", 7, 12, 7, 2), // OHLC 不变，真实来源版本变化。
+            ("c", 12, 14, 9, 4), ("e", 22, 20, 16, 1),
+            ("c", 12, 13, 8, 3), // 迟到较低修订不改变最终赢家。
+            ("f", 5, 11, 6, 1), // 中段插入。
+            ("a", 17, 17, 12, 2), ("d", 2, 9, 4, 2), // 同 cut 坐标互换。
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(ordinal, (identity, coord, high, low, revision))| json!({
+            "identity_key": identity, "source_coord": coord.to_string(),
+            "revision": revision, "seq": ordinal + 1, "ts": coord.to_string(),
+            "open": low.to_string(), "high": high.to_string(), "low": low.to_string(),
+            "close": high.to_string(), "input_revision": revision.to_string(),
+            "payload_hash": format!("payload-{ordinal}"), "receipt_id": format!("receipt-{ordinal}"),
+            "event_id": format!("event-{identity}"),
+        }))
+        .collect()
+    }
+
+    fn delta_bound_input<'a>(
+        scope: &'a Value,
+        cut: &'a str,
+        gen: i64,
+        frontier: i64,
+        prior: PriorState<'a>,
+    ) -> BoundGenerationInput<'a> {
+        BoundGenerationInput {
+            generation: gen,
+            structure_cut: cut,
+            input_frontier: frontier,
+            profile_id: crate::tb02a::PROFILE,
+            profile_hash: "profile-hash",
+            rule_revision: "r",
+            catalog_revision: "catalog",
+            scope,
+            semantic_commit_ns: Some("123456789"),
+            prior,
+        }
+    }
+
+    fn clone_prior(generated: &Generated<'_>) -> (Vec<Built>, Option<Built>) {
+        let (bis, version) = prior_roots(generated);
+        (bis.into_iter().cloned().collect(), version.cloned())
+    }
+
+    fn bound_full_generation_parity(events: &[Value], cuts: &[usize]) -> (usize, usize) {
+        use super::super::audit_owner::RawAdvanceFixture;
+        let fixture = RawAdvanceFixture::new();
+        let mut index = bj::RawPrefixIndex::new(events.into());
+        let mut delta = GenerationRuntime::new("A2 delta".into(), crate::tb02a::PROFILE, "r");
+        let mut full = GenerationRuntime::new(
+            "A2 full independent raw/parser".into(),
+            crate::tb02a::PROFILE,
+            "r",
+        );
+        let mut ds = MemoryNodes::new();
+        let mut fs = MemoryNodes::new();
+        let scope = json!({"instrument":"A2", "exchange":"fixture"});
+        let (mut dp, mut fp) = (
+            (Vec::<Built>::new(), None::<Built>),
+            (Vec::<Built>::new(), None::<Built>),
+        );
+        let mut previous = 0;
+        let mut witness_total = 0;
+        let mut bi_total = 0;
+        for (turn, &prefix) in cuts.iter().enumerate() {
+            let gen = turn as i64 + 1;
+            let cut = format!("cut-{gen}");
+            let changes = index.advance(prefix).unwrap();
+            let raw = RawEventsView::plain(events).prefix(prefix).unwrap();
+            let bound = fixture.bind(raw, previous, &changes.winner_edits).unwrap();
+            let effective = bj::effective(raw, None).unwrap();
+            let mut actual = delta
+                .generate_bound(
+                    &mut ds,
+                    &bound,
+                    delta_bound_input(
+                        &scope,
+                        &cut,
+                        gen,
+                        prefix as i64,
+                        PriorState {
+                            bi_records: dp.0.iter().collect(),
+                            version_record: dp.1.as_ref(),
+                        },
+                    ),
+                )
+                .unwrap();
+            let mut expected = full
+                .generate(
+                    &mut fs,
+                    &GenerationInput {
+                        all_events: raw,
+                        effective: effective.raw_view(),
+                        generation: gen,
+                        structure_cut: &cut,
+                        input_frontier: prefix as i64,
+                        profile_id: crate::tb02a::PROFILE,
+                        profile_hash: "profile-hash",
+                        rule_revision: "r",
+                        catalog_revision: "catalog",
+                        scope: &scope,
+                        semantic_commit_ns: Some("123456789"),
+                        prior: PriorState {
+                            bi_records: fp.0.iter().collect(),
+                            version_record: fp.1.as_ref(),
+                        },
+                    },
+                )
+                .unwrap();
+            // 六数组摘要与完整规范字节分别对拍；对象序和当前包装随全部数组一并核。
+            let roots = |g: &Generated<'_>| {
+                [
+                    g.roots.raw_events.clone(),
+                    g.roots.effective_events.clone(),
+                    g.roots.objects.clone(),
+                    g.roots.witnesses.clone(),
+                    g.roots.relations.clone(),
+                    g.roots.observations.clone(),
+                ]
+            };
+            assert_eq!(roots(&actual), roots(&expected), "A2 第 {gen} 代六根");
+            assert_eq!(actual.state_without_axes, expected.state_without_axes);
+            assert_eq!(
+                actual
+                    .objects
+                    .iter()
+                    .map(|o| (o.kind(), o.fact_key(), o.object_id()))
+                    .collect::<Vec<_>>(),
+                expected
+                    .objects
+                    .iter()
+                    .map(|o| (o.kind(), o.fact_key(), o.object_id()))
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(
+                actual
+                    .witnesses
+                    .iter()
+                    .map(|w| (&w.witness_id, &w.object_id, w.slot, &w.built))
+                    .collect::<Vec<_>>(),
+                expected
+                    .witnesses
+                    .iter()
+                    .map(|w| (&w.witness_id, &w.object_id, w.slot, &w.built))
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(actual.relations, expected.relations);
+            assert_eq!(actual.observations, expected.observations);
+            actual
+                .finish_axes(&mut ds, previous as i64, &[], &[])
+                .unwrap();
+            expected
+                .finish_axes(&mut fs, previous as i64, &[], &[])
+                .unwrap();
+            assert_eq!(actual.generated_state, expected.generated_state);
+            assert_eq!(actual.catalog_axes, expected.catalog_axes);
+            let (a_text, value) = state_value(&mut ds, &actual);
+            let (e_text, _) = state_value(&mut fs, &expected);
+            assert_eq!(a_text, e_text, "A2 第 {gen} 代完整规范字节");
+            assert_eq!(value["generation"], gen);
+            assert_eq!(value["structure_cut"], cut);
+            assert_eq!(value["raw_events"].as_array().unwrap().len(), prefix);
+            actual.verify_new_closure(&mut ds).unwrap();
+            expected.verify_new_closure(&mut fs).unwrap();
+            witness_total += actual.witnesses.len();
+            bi_total += actual
+                .objects
+                .iter()
+                .filter(|o| o.kind() == "CC-010.bi")
+                .count();
+            for event in raw {
+                let coord = bj::coord(event).unwrap();
+                let is_current = effective.iter().any(|e| bj::coord(e).unwrap() == coord);
+                assert_eq!(
+                    delta.producer.source_root(coord).is_some(),
+                    is_current,
+                    "移走坐标必须撤来源登记：{coord}"
+                );
+            }
+            let next_dp = clone_prior(&actual);
+            let next_fp = clone_prior(&expected);
+            drop(actual);
+            drop(expected);
+            dp = next_dp;
+            fp = next_fp;
+            previous = prefix;
+        }
+        (witness_total, bi_total)
+    }
+
+    #[test]
+    fn delta_full_six_roots_revision_swap_insertion_and_metadata_match_full() {
+        let events = delta_raw_fixture();
+        let (witnesses, _) =
+            bound_full_generation_parity(&events, &[0, 1, 2, 4, 5, 6, 8, 8, 9, 11]);
+        assert!(witnesses > 0, "完整对拍必须实际产三槽见证");
+    }
+
+    fn delta_long_fixture() -> Vec<Value> {
+        tb02b_oracle_rows().into_iter().enumerate().map(|(i, (id, coord, open, high, low, close))| json!({
+            "identity_key": id, "event_id": id, "source_coord": coord.to_string(), "ts": coord.to_string(),
+            "open": open.to_string(), "high": high.to_string(), "low": low.to_string(), "close": close.to_string(),
+            "revision": 1, "seq": i + 1, "input_revision": "1", "payload_hash": format!("hash-{i}"),
+            "receipt_id": format!("receipt-{i}"),
+        })).collect()
+    }
+
+    #[test]
+    fn delta_full_bi_prior_tail_revision_and_reactivated_windows_match_full() {
+        let mut events = delta_long_fixture();
+        assert!(events.len() >= 14);
+        events.truncate(14);
+        let mut revised = events[2].clone();
+        revised["revision"] = json!(2);
+        revised["input_revision"] = json!("2");
+        revised["seq"] = json!(15);
+        revised["high"] = json!("13");
+        revised["low"] = json!("9");
+        revised["open"] = json!("11");
+        revised["close"] = json!("11");
+        revised["payload_hash"] = json!("revision-2");
+        revised["receipt_id"] = json!("receipt-15");
+        events.push(revised);
+        let mut restored = events[2].clone();
+        restored["revision"] = json!(3);
+        restored["input_revision"] = json!("3");
+        restored["seq"] = json!(16);
+        restored["payload_hash"] = json!("restored-3");
+        restored["receipt_id"] = json!("receipt-16");
+        events.push(restored);
+        let mut moved = events[13].clone();
+        moved["revision"] = json!(2);
+        moved["input_revision"] = json!("2");
+        moved["seq"] = json!(17);
+        moved["source_coord"] = json!("1000");
+        moved["ts"] = json!("1000");
+        moved["payload_hash"] = json!("tail-moved");
+        moved["receipt_id"] = json!("receipt-17");
+        events.push(moved);
+        let (witnesses, bis) =
+            bound_full_generation_parity(&events, &[1, 2, 8, 14, 15, 16, 17, 17]);
+        assert!(witnesses > 0 && bis > 0, "实际包含三槽见证及跨代 bi prior");
+    }
+
+    #[test]
+    fn delta_full_direction_correction_competing_extremes_and_coordinate_removal_match_full() {
+        let mut events: Vec<Value> = [(10,10,5),(11,15,8),(37,15,6),(900,12,6),(9001,9,4),(12345,9,3)]
+            .into_iter().enumerate().map(|(i,(coord,high,low))| json!({
+                "identity_key": format!("id-{i}"), "event_id": format!("event-{i}"),
+                "source_coord": coord.to_string(), "ts": coord.to_string(), "revision":1,
+                "seq":i+1, "input_revision":"1", "payload_hash":format!("hash-{i}"),
+                "receipt_id":format!("receipt-{i}"), "open":low.to_string(), "close":high.to_string(),
+                "high":high.to_string(), "low":low.to_string(),
+            })).collect();
+        let mut first = events[0].clone();
+        first["revision"] = json!(2);
+        first["input_revision"] = json!("2");
+        first["seq"] = json!(7);
+        first["high"] = json!("20");
+        first["low"] = json!("10");
+        first["open"] = json!("10");
+        first["close"] = json!("20");
+        first["payload_hash"] = json!("direction-corrected");
+        first["receipt_id"] = json!("receipt-7");
+        events.push(first);
+        let mut moved = events[5].clone();
+        moved["revision"] = json!(2);
+        moved["input_revision"] = json!("2");
+        moved["seq"] = json!(8);
+        moved["source_coord"] = json!("20000");
+        moved["ts"] = json!("20000");
+        moved["payload_hash"] = json!("moved");
+        moved["receipt_id"] = json!("receipt-8");
+        events.push(moved);
+        bound_full_generation_parity(&events, &[1, 2, 3, 4, 5, 6, 7, 8]);
+    }
+
+    #[test]
+    fn delta_full_cold_matches_independent_sealed_v2_oracle() {
+        use super::super::audit_owner::RawAdvanceFixture;
+        let oracle_db = OracleDb::new();
+        oracle_db.accept(&tb02b_oracle_rows()[..14]);
+        let previous_frontier = oracle_db.advance();
+        let mut oracle = oracle_db.read();
+        restrict_oracle_to_tb02ab(&mut oracle, previous_frontier, &[], &[]);
+        let mut index = bj::RawPrefixIndex::new((&oracle.all_events).into());
+        let edits = index.advance(oracle.all_events.len()).unwrap();
+        let fixture = RawAdvanceFixture::new();
+        let bound = fixture
+            .bind((&oracle.all_events).into(), 0, &edits.winner_edits)
+            .unwrap();
+        let mut store = MemoryNodes::new();
+        let mut runtime = GenerationRuntime::new(
+            "A2 sealed oracle".into(),
+            crate::tb02a::PROFILE,
+            oracle.batch["rule_revision"].as_str().unwrap(),
+        );
+        let cut = format!("cut-{}", oracle.generation);
+        let mut generated = runtime
+            .generate_bound(
+                &mut store,
+                &bound,
+                BoundGenerationInput {
+                    generation: oracle.generation,
+                    structure_cut: &cut,
+                    input_frontier: oracle.batch["input_frontier"].as_i64().unwrap(),
+                    profile_id: oracle.batch["profile_id"].as_str().unwrap(),
+                    profile_hash: oracle.batch["profile_hash"].as_str().unwrap(),
+                    rule_revision: oracle.batch["rule_revision"].as_str().unwrap(),
+                    catalog_revision: oracle.batch["catalog_revision"].as_str().unwrap(),
+                    scope: &oracle.batch["scope"],
+                    semantic_commit_ns: None,
+                    prior: PriorState {
+                        bi_records: vec![],
+                        version_record: None,
+                    },
+                },
+            )
+            .unwrap();
+        generated
+            .finish_axes(&mut store, previous_frontier, &[], &[])
+            .unwrap();
+        let (mine, _) =
+            assert_state_matches_oracle("A2 独立封存 oracle", &mut store, &generated, &oracle, &[]);
+        assert_non_vacuous_evidence("A2 独立封存 oracle", &mine);
+    }
+
+    #[test]
+    fn delta_full_foreign_expired_and_consumer_failure_revoke_without_fallback() {
+        use super::super::audit_owner::RawAdvanceFixture;
+        let events = delta_raw_fixture();
+        let raw = RawEventsView::plain(&events).prefix(4).unwrap();
+        let mut index = bj::RawPrefixIndex::new(raw);
+        let edits = index.advance(4).unwrap();
+        let fixture = RawAdvanceFixture::new();
+        let bound = fixture.bind(raw, 0, &edits.winner_edits).unwrap();
+        let mut runtime = GenerationRuntime::new("A2 failure".into(), crate::tb02a::PROFILE, "r");
+        let mut store = MemoryNodes::new();
+        let scope = json!({});
+        runtime
+            .generate_bound(
+                &mut store,
+                &bound,
+                delta_bound_input(
+                    &scope,
+                    "cut-1",
+                    1,
+                    4,
+                    PriorState {
+                        bi_records: vec![],
+                        version_record: None,
+                    },
+                ),
+            )
+            .unwrap();
+        let foreign = RawAdvanceFixture::new();
+        let wrong = foreign.bind(raw, 0, &edits.winner_edits).unwrap();
+        assert!(runtime
+            .generate_bound(
+                &mut store,
+                &wrong,
+                delta_bound_input(
+                    &scope,
+                    "cut-2",
+                    2,
+                    4,
+                    PriorState {
+                        bi_records: vec![],
+                        version_record: None
+                    }
+                )
+            )
+            .is_err());
+        assert!(wrong.ensure_current().is_err());
+        assert!(runtime.delta_lane.is_none() && runtime.raw_events_seq.seq.is_none());
+        fixture.invalidate();
+        assert!(runtime
+            .generate_bound(
+                &mut store,
+                &bound,
+                delta_bound_input(
+                    &scope,
+                    "cut-3",
+                    3,
+                    4,
+                    PriorState {
+                        bi_records: vec![],
+                        version_record: None
+                    }
+                )
+            )
+            .is_err());
+        // 错规则由共用身份前置核拒绝，不能留下 raw 推进或回退旧 generate。
+        let fresh = RawAdvanceFixture::new();
+        let next = fresh.bind(raw, 0, &edits.winner_edits).unwrap();
+        let mut input = delta_bound_input(
+            &scope,
+            "cut-4",
+            4,
+            4,
+            PriorState {
+                bi_records: vec![],
+                version_record: None,
+            },
+        );
+        input.rule_revision = "foreign-rule";
+        assert!(runtime.generate_bound(&mut store, &next, input).is_err());
+        assert!(next.ensure_current().is_err());
+        assert!(
+            runtime.delta_lane.is_none()
+                && runtime.raw_events_seq.seq.is_none()
+                && runtime.objects_seq.seq.is_none()
+        );
+        assert_eq!(runtime.producer.source_root(2), None);
+    }
+
+    #[test]
+    fn delta_full_identity_preflight_preserves_full_first_error_and_zero_write_attempts() {
+        use super::super::audit_owner::RawAdvanceFixture;
+        for (runtime_profile, input_profile, rule, prefix) in [
+            (
+                crate::tb02a::PROFILE,
+                crate::tb02a::PROFILE,
+                "wrong-rule",
+                "IdentityConflict",
+            ),
+            (
+                crate::tb02a::PROFILE,
+                "wrong-profile",
+                "r",
+                "IdentityConflict",
+            ),
+            (
+                "unsupported-profile",
+                "unsupported-profile",
+                "r",
+                "VersionUnsupported",
+            ),
+        ] {
+            for malformed_price in [false, true] {
+                let mut events = delta_raw_fixture();
+                events.truncate(4);
+                if malformed_price {
+                    events[0]["high"] = json!("not-a-price");
+                }
+                let raw = RawEventsView::plain(&events);
+                let mut index = bj::RawPrefixIndex::new(raw);
+                let edits = index.advance(events.len()).unwrap();
+                let fixture = RawAdvanceFixture::new();
+                let bound = fixture.bind(raw, 0, &edits.winner_edits).unwrap();
+                let scope = json!({});
+                let effective = bj::effective(raw, None).unwrap();
+                let mut full =
+                    GenerationRuntime::new("A2 identity full".into(), runtime_profile, "r");
+                let mut delta =
+                    GenerationRuntime::new("A2 identity delta".into(), runtime_profile, "r");
+                let mut full_store = SequenceTestStore {
+                    writes_left: Some(0),
+                    ..Default::default()
+                };
+                let mut delta_store = SequenceTestStore {
+                    writes_left: Some(0),
+                    ..Default::default()
+                };
+                let expected = full
+                    .generate(
+                        &mut full_store,
+                        &GenerationInput {
+                            all_events: raw,
+                            effective: effective.raw_view(),
+                            generation: 1,
+                            structure_cut: "cut-1",
+                            input_frontier: 4,
+                            profile_id: input_profile,
+                            profile_hash: "profile-hash",
+                            rule_revision: rule,
+                            catalog_revision: "catalog",
+                            scope: &scope,
+                            semantic_commit_ns: None,
+                            prior: PriorState {
+                                bi_records: vec![],
+                                version_record: None,
+                            },
+                        },
+                    )
+                    .err()
+                    .unwrap();
+                let actual = delta
+                    .generate_bound(
+                        &mut delta_store,
+                        &bound,
+                        BoundGenerationInput {
+                            generation: 1,
+                            structure_cut: "cut-1",
+                            input_frontier: 4,
+                            profile_id: input_profile,
+                            profile_hash: "profile-hash",
+                            rule_revision: rule,
+                            catalog_revision: "catalog",
+                            scope: &scope,
+                            semantic_commit_ns: None,
+                            prior: PriorState {
+                                bi_records: vec![],
+                                version_record: None,
+                            },
+                        },
+                    )
+                    .err()
+                    .unwrap();
+                assert_eq!(actual, expected, "身份首错不受坏价格或首写失败替代");
+                assert!(actual.starts_with(prefix));
+                assert!(full_store.writes.is_empty() && delta_store.writes.is_empty());
+                assert_eq!(
+                    full_store.failures + delta_store.failures,
+                    0,
+                    "连首写尝试都不能发生"
+                );
+                assert!(delta.delta_lane.is_none() && delta.raw_events_seq.seq.is_none());
+                assert!(bound.ensure_current().is_err());
+            }
+        }
+    }
+
+    #[test]
+    fn delta_full_node_write_failures_revoke_pending_generation_and_all_six_memos() {
+        use super::super::audit_owner::RawAdvanceFixture;
+        let events = delta_raw_fixture();
+        let raw = RawEventsView::plain(&events).prefix(4).unwrap();
+        let mut index = bj::RawPrefixIndex::new(raw);
+        let edits = index.advance(4).unwrap();
+        let scope = json!({});
+        let owner = RawAdvanceFixture::new();
+        let bound = owner.bind(raw, 0, &edits.winner_edits).unwrap();
+        let mut counted = SequenceTestStore::default();
+        let mut successful =
+            GenerationRuntime::new("A2 write count".into(), crate::tb02a::PROFILE, "r");
+        successful
+            .generate_bound(
+                &mut counted,
+                &bound,
+                delta_bound_input(
+                    &scope,
+                    "cut-1",
+                    1,
+                    4,
+                    PriorState {
+                        bi_records: vec![],
+                        version_record: None,
+                    },
+                ),
+            )
+            .unwrap();
+        let total = counted.writes.len();
+        assert!(total > 3);
+        for fail_at in [0, total / 2, total - 1] {
+            let owner = RawAdvanceFixture::new();
+            let bound = owner.bind(raw, 0, &edits.winner_edits).unwrap();
+            let mut store = SequenceTestStore {
+                writes_left: Some(fail_at),
+                ..Default::default()
+            };
+            let mut runtime =
+                GenerationRuntime::new("A2 write refusal".into(), crate::tb02a::PROFILE, "r");
+            assert!(runtime
+                .generate_bound(
+                    &mut store,
+                    &bound,
+                    delta_bound_input(
+                        &scope,
+                        "cut-1",
+                        1,
+                        4,
+                        PriorState {
+                            bi_records: vec![],
+                            version_record: None
+                        }
+                    )
+                )
+                .is_err());
+            assert_eq!(store.failures, 1);
+            assert!(bound.ensure_current().is_err());
+            assert!(runtime.delta_lane.is_none());
+            assert!([
+                &runtime.raw_events_seq,
+                &runtime.effective_events_seq,
+                &runtime.objects_seq,
+                &runtime.witnesses_seq,
+                &runtime.relations_seq,
+                &runtime.observations_seq
+            ]
+            .iter()
+            .all(|memo| memo.seq.is_none() && !memo.bound));
+            assert_eq!(runtime.producer.source_root(2), None);
+        }
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn delta_full_owned_is_explicitly_rejected_and_lease_revoked() {
+        use super::super::audit_owner::RawAdvanceFixture;
+        let events = delta_raw_fixture();
+        let budget = sc::capture_allocation::OwnedBudget::new(1 << 20);
+        let originals = bj::RawEvents::Owned(
+            sc::capture_allocation::audit_json::OwnedJson::from_view(
+                (&Value::Array(events[..4].to_vec())).into(),
+                &budget,
+            )
+            .unwrap(),
+        );
+        let mut index = bj::RawPrefixIndex::new(RawEventsView::plain(&events));
+        let edits = index.advance(4).unwrap();
+        let fixture = RawAdvanceFixture::new();
+        let bound = fixture
+            .bind(originals.view(), 0, &edits.winner_edits)
+            .unwrap();
+        let mut runtime =
+            GenerationRuntime::new("A2 Owned rejection".into(), crate::tb02a::PROFILE, "r");
+        let mut store = SequenceTestStore::default();
+        let scope = json!({});
+        let error = runtime
+            .generate_bound(
+                &mut store,
+                &bound,
+                delta_bound_input(
+                    &scope,
+                    "cut-1",
+                    1,
+                    4,
+                    PriorState {
+                        bi_records: vec![],
+                        version_record: None,
+                    },
+                ),
+            )
+            .err()
+            .unwrap();
+        assert!(error.contains("prototype_audit_allocation_incomplete"));
+        assert!(bound.ensure_current().is_err());
+        assert!(store.writes.is_empty() && runtime.delta_lane.is_none());
+        drop(bound);
+        drop(originals);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+
+    fn delta_raw_four_paths(budget: Option<&sc::capture_allocation::OwnedBudget>) {
+        use super::super::audit_owner::RawAdvanceFixture;
+        let events = delta_raw_fixture();
+        let originals = match budget {
+            None => bj::RawEvents::Plain(events.clone()),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            Some(budget) => bj::RawEvents::Owned(
+                sc::capture_allocation::audit_json::OwnedJson::from_view(
+                    (&Value::Array(events.clone())).into(),
+                    budget,
+                )
+                .unwrap(),
+            ),
+            #[cfg(not(feature = "s_allocation_json_testonly"))]
+            Some(_) => unreachable!("无 Owned 构建不调用该分支"),
+        };
+        // winner edits 来自真实既有算法；Owned 只由 test fixture 把同一变化绑定原账。
+        // 这不声称 Owned RawPrefixIndex / owner 生产签发已经接通。
+        let mut index = bj::RawPrefixIndex::new(RawEventsView::plain(&events));
+        let fixture = RawAdvanceFixture::new();
+        let mut runtime =
+            GenerationRuntime::new("delta raw fixture".into(), crate::tb02a::PROFILE, "r");
+        let mut store = MemoryNodes::new();
+        let mut previous = 0;
+        for prefix in [0, 1, 2, 4, 5, 6, 8, 8, 9, 11] {
+            let edits = index.advance(prefix).unwrap();
+            let raw = originals.view().prefix(prefix).unwrap();
+            let bound = fixture.bind(raw, previous, &edits.winner_edits).unwrap();
+            let result = runtime.advance_raw_bound(&mut store, &bound).unwrap();
+            // 独立 full effective 排序路径 + full JSON writer，不借 delta roots 或 parser。
+            let effective = bj::effective(raw, None).unwrap();
+            let mut full = MemoryNodes::new();
+            let raw_root = sc::write_json_view(&mut full, JsonView::BorrowedArray(&raw)).unwrap();
+            let effective_root = sc::write_json_view(&mut full, effective.view()).unwrap();
+            assert_eq!(result.raw_events, raw_root);
+            assert_eq!(result.effective_events, effective_root);
+            let bars: Vec<Bar> = effective
+                .iter()
+                .map(|event| bar_of(event).unwrap())
+                .collect();
+            let lane = runtime.delta_lane.as_ref().unwrap();
+            assert_eq!(
+                lane.state().materialize_facts(),
+                parser::inclusion::process_inclusion_with_facts(&bars)
+            );
+            assert_eq!(
+                lane.rows().iter().map(|row| row.bar).collect::<Vec<_>>(),
+                bars
+            );
+            if prefix == 5 {
+                assert_eq!(result.changes.source_revision_from, Some(7));
+                assert_eq!(
+                    result.changes.parsed_bars, 0,
+                    "同 OHLC 修订不能假称数值重放"
+                );
+                assert_eq!(result.changes.replayed_from, None);
+            }
+            if prefix == 6 {
+                assert_eq!(result.changes.replayed_from, Some(2));
+                assert_eq!(result.changes.parsed_bars, 2, "旧数值修订只重放变化后缀");
+            }
+            if prefix == 8 && previous == 8 {
+                assert_eq!(result.changes.parsed_bars, 0);
+                assert_eq!(result.changes.effective_dirty_from, None);
+            }
+            if prefix == 9 {
+                assert_eq!(result.changes.replayed_from, Some(1));
+                assert_eq!(result.changes.parsed_bars, 5);
+            }
+            if let Some(budget) = budget {
+                assert!(runtime
+                    .raw_events_seq
+                    .allocation_budget()
+                    .unwrap()
+                    .same_ledger(budget));
+                assert!(runtime
+                    .effective_events_seq
+                    .allocation_budget()
+                    .unwrap()
+                    .same_ledger(budget));
+            }
+            previous = prefix;
+        }
+        runtime.discard_runtime_state();
+        assert!(runtime.delta_lane.is_none());
+        drop(originals);
+        if let Some(budget) = budget {
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+            assert!(!budget.ledger_health().invariant_broken);
+        }
+    }
+
+    #[test]
+    fn delta_raw_plain_append_revision_swap_and_roots_match_full_oracle() {
+        delta_raw_four_paths(None);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn delta_raw_owned_append_revision_swap_and_roots_match_full_oracle() {
+        let budget = sc::capture_allocation::OwnedBudget::new(1 << 24);
+        delta_raw_four_paths(Some(&budget));
+    }
+
+    #[test]
+    fn delta_raw_expired_foreign_domain_and_rollback_cannot_reuse_pending_state() {
+        use super::super::audit_owner::RawAdvanceFixture;
+        let events = delta_raw_fixture();
+        let mut index = bj::RawPrefixIndex::new(RawEventsView::plain(&events));
+        let first = index.advance(2).unwrap();
+        let fixture = RawAdvanceFixture::new();
+        let mut runtime =
+            GenerationRuntime::new("delta invalidation".into(), crate::tb02a::PROFILE, "r");
+        let mut store = MemoryNodes::new();
+        let bound = fixture
+            .bind(RawEventsView::plain(&events[..2]), 0, &first.winner_edits)
+            .unwrap();
+        runtime.advance_raw_bound(&mut store, &bound).unwrap();
+        fixture.invalidate();
+        assert!(runtime.advance_raw_bound(&mut store, &bound).is_err());
+        assert!(runtime.delta_lane.is_none());
+        assert!(!runtime.raw_events_seq.bound && !runtime.effective_events_seq.bound);
+
+        let fixture = RawAdvanceFixture::new();
+        let bound = fixture
+            .bind(RawEventsView::plain(&events[..2]), 0, &first.winner_edits)
+            .unwrap();
+        runtime.advance_raw_bound(&mut store, &bound).unwrap();
+        let second = index.advance(4).unwrap();
+        let foreign = RawAdvanceFixture::new();
+        let wrong = foreign
+            .bind(RawEventsView::plain(&events[..4]), 2, &second.winner_edits)
+            .unwrap();
+        assert!(runtime
+            .advance_raw_bound(&mut store, &wrong)
+            .unwrap_err()
+            .contains("binding"));
+        assert!(runtime.delta_lane.is_none());
+        // 回滚后必须冷建且发新域；旧 fixture 下一步不能借 previous_prefix=0 假装初始。
+        let stale_step = fixture
+            .bind(RawEventsView::plain(&events[..2]), 0, &first.winner_edits)
+            .unwrap();
+        assert!(runtime.advance_raw_bound(&mut store, &stale_step).is_err());
+        let cold = RawAdvanceFixture::new();
+        let rebound = cold
+            .bind(RawEventsView::plain(&events[..2]), 0, &first.winner_edits)
+            .unwrap();
+        let got = runtime.advance_raw_bound(&mut store, &rebound).unwrap();
+        let mut full = MemoryNodes::new();
+        let want =
+            sc::write_json_view(&mut full, (&Value::Array(events[..2].to_vec())).into()).unwrap();
+        assert_eq!(got.raw_events, want);
+    }
+
+    #[test]
+    fn delta_raw_initial_write_failure_revokes_token_and_requires_new_owner_domain() {
+        use super::super::audit_owner::RawAdvanceFixture;
+        let events = delta_raw_fixture();
+        let mut index = bj::RawPrefixIndex::new(RawEventsView::plain(&events));
+        let changes = index.advance(2).unwrap();
+        let owner = RawAdvanceFixture::new();
+        let bound = owner
+            .bind(RawEventsView::plain(&events[..2]), 0, &changes.winner_edits)
+            .unwrap();
+        let mut runtime =
+            GenerationRuntime::new("delta failure".into(), crate::tb02a::PROFILE, "r");
+        let mut store = SequenceTestStore::default();
+        store.writes_left = Some(0);
+        assert!(runtime
+            .advance_raw_bound(&mut store, &bound)
+            .unwrap_err()
+            .contains("test_sequence_write"));
+        assert!(bound.ensure_current().is_err());
+        assert!(runtime.delta_lane.is_none());
+        assert!(!runtime.raw_events_seq.bound && !runtime.effective_events_seq.bound);
+        store.writes_left = None;
+        let writes = store.writes.len();
+        assert!(runtime.advance_raw_bound(&mut store, &bound).is_err());
+        assert_eq!(store.writes.len(), writes, "故障旧 token 不能重入构造");
+        let new_owner = RawAdvanceFixture::new();
+        let cold = new_owner
+            .bind(RawEventsView::plain(&events[..2]), 0, &changes.winner_edits)
+            .unwrap();
+        assert_ne!(bound.domain(), cold.domain());
+        runtime.advance_raw_bound(&mut store, &cold).unwrap();
+    }
 
     #[test]
     fn streamed_witness_identity_matches_normal_recipe_at_decimal_boundaries() {
@@ -1652,16 +3473,18 @@ mod tests {
     #[test]
     fn sequence_keys_owned_growth_counts_old_and_new_blocks_preserves_failure_and_drops_on_discard()
     {
-        // 95/96 只锁 keys allocator 组件；sync 的调用内 memo 另有真实分配。
+        // 95/96 只锁 keys allocator 组件；sync 的调用内右脊栈另有真实分配。
         let budget = sc::capture_allocation::OwnedBudget::new(95);
         let other = sc::capture_allocation::OwnedBudget::new(96);
         let first = [1; 32];
         let second = [2; 32];
+        // Owned 臂不读 store；空 MemoryNodes 只为满足 reserve_admitted 签名。
+        let scratch = MemoryNodes::new();
         let mut keys = SequenceKeys::owned(&budget).unwrap();
-        keys.reserve_owned(1).unwrap();
+        keys.reserve_admitted(&scratch, 1).unwrap();
         keys.replace_reserved(&[first]).unwrap();
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 32);
-        let error = keys.reserve_owned(2).unwrap_err();
+        let error = keys.reserve_admitted(&scratch, 2).unwrap_err();
         assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
         let probe = budget.allocation_request_probe();
         assert_eq!(probe.refused_bytes, 64);
@@ -1672,9 +3495,9 @@ mod tests {
         drop(keys);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
         let mut keys = SequenceKeys::owned(&other).unwrap();
-        keys.reserve_owned(1).unwrap();
+        keys.reserve_admitted(&scratch, 1).unwrap();
         keys.replace_reserved(&[first]).unwrap();
-        keys.reserve_owned(2).unwrap();
+        keys.reserve_admitted(&scratch, 2).unwrap();
         keys.replace_reserved(&[first, second]).unwrap();
         assert_eq!(other.snapshot().live_requested_layout_bytes, 64);
         assert_eq!(other.snapshot().peak_requested_layout_bytes, 96);
@@ -1696,15 +3519,15 @@ mod tests {
 
     #[cfg(feature = "s_allocation_json_testonly")]
     #[test]
-    fn sequence_sync_local_memo_uses_keys_ledger_and_propagates_refusal_until_discard() {
+    fn sequence_sync_rebuild_stack_uses_keys_ledger_and_propagates_refusal_until_discard() {
         let budget = sc::capture_allocation::OwnedBudget::new(96);
         let first = [1; 32];
         let second = [2; 32];
         let mut store = MemoryNodes::new();
         let root = sc::write_sequence(&mut store, &[first]).unwrap();
         let mut keys = SequenceKeys::owned(&budget).unwrap();
-        // 预留两项，隔离调用内 memo 拒绝，避免先卡在 keys 增长。
-        keys.reserve_owned(2).unwrap();
+        // 预留两项，隔离调用内右脊栈拒绝，避免先卡在 keys 增长。
+        keys.reserve_admitted(&store, 2).unwrap();
         keys.replace_reserved(&[first]).unwrap();
         let original = SequenceRef::from_parts_unchecked(root, 1);
         let mut memo = SequenceMemo {
@@ -1717,7 +3540,10 @@ mod tests {
             .unwrap_err();
         assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
         let probe = budget.allocation_request_probe();
-        assert!(probe.refused_kind.contains("SequenceRef"));
+        assert_eq!(
+            probe.refused_kind,
+            std::any::type_name::<(NodeDigest, u64)>()
+        );
         assert_eq!(probe.live_before_refusal, 64);
         assert!(probe.refused_bytes > 32);
         assert_eq!(memo.seq, Some(original));
@@ -1767,8 +3593,8 @@ mod tests {
             .unwrap()
             .digest;
         let short = sc::capture_allocation::OwnedBudget::new(31);
-        let budget = sc::capture_allocation::OwnedBudget::new(32);
-        let other = sc::capture_allocation::OwnedBudget::new(32);
+        let budget = sc::capture_allocation::OwnedBudget::new(1 << 20);
+        let other = sc::capture_allocation::OwnedBudget::new(1 << 20);
         let mut memo = SequenceMemo::default();
         assert!(memo
             .sync(&mut store, &[digest], "首次keys", Some(&short))
@@ -1809,6 +3635,422 @@ mod tests {
             .unwrap_err();
         assert!(error.contains("拒绝Plain兜底"));
         assert!(!memo.bound && memo.seq.is_none());
+    }
+
+    #[derive(Default)]
+    struct SequenceTestStore {
+        nodes: MemoryNodes,
+        writes: Vec<NodeDigest>,
+        reject_reads: bool,
+        writes_left: Option<usize>,
+        failures: usize,
+    }
+    impl sc::NodeSource for SequenceTestStore {
+        fn read(&mut self, digest: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+            if self.reject_reads {
+                self.failures += 1;
+                return Err(sc::CodecError::new(
+                    "test_sequence_read",
+                    "真实 memo 读故障",
+                ));
+            }
+            sc::NodeSource::read(&mut self.nodes, digest)
+        }
+    }
+    impl sc::NodeSink for SequenceTestStore {
+        fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
+            if let Some(left) = &mut self.writes_left {
+                if *left == 0 {
+                    self.failures += 1;
+                    return Err(sc::CodecError::new(
+                        "test_sequence_write",
+                        "真实 memo 写故障",
+                    ));
+                }
+                *left -= 1;
+            }
+            sc::NodeSink::put(&mut self.nodes, digest, tag, body)?;
+            self.writes.push(digest);
+            Ok(())
+        }
+    }
+
+    // 只沿数组与 M 树边遍历，叶值摘要仍按内容序列 API 的不透明值口径。
+    fn sequence_array_closure(
+        nodes: &MemoryNodes,
+        root: NodeDigest,
+    ) -> std::collections::HashSet<NodeDigest> {
+        let mut seen = std::collections::HashSet::new();
+        let mut todo = vec![root];
+        while let Some(digest) = todo.pop() {
+            if !seen.insert(digest) {
+                continue;
+            }
+            let (tag, body) = nodes.get(&digest).expect("结果闭包不能缺节点");
+            match tag {
+                sc::tag::ARRAY => todo.push(body[8..40].try_into().unwrap()),
+                sc::tag::SEQ_BRANCH => {
+                    todo.push(body[8..40].try_into().unwrap());
+                    todo.push(body[40..72].try_into().unwrap());
+                }
+                sc::tag::SEQ_LEAF | sc::tag::SEQ_EMPTY => {}
+                _ => panic!("数组序列闭包出现非序列节点"),
+            }
+        }
+        seen
+    }
+
+    fn sequence_memo_full_oracle_transitions(budget: Option<&sc::capture_allocation::OwnedBudget>) {
+        let base: Vec<NodeDigest> = (1..=31).map(|n| [n; 32]).collect();
+        let mut middle = base.clone();
+        middle[9..].fill([101; 32]);
+        let mut tail = middle.clone();
+        tail[28..].fill([102; 32]);
+        let all_new = vec![[201; 32]; 6];
+        // 首次空/非空、追加、原样、中段/近尾替换、截短、全替换、清空、清空后重建。
+        let stages = [
+            vec![],
+            base[..1].to_vec(),
+            base[..5].to_vec(),
+            base.clone(),
+            base.clone(),
+            middle,
+            tail.clone(),
+            tail[..17].to_vec(),
+            all_new,
+            vec![],
+            base[..8].to_vec(),
+        ];
+        let mut memo = SequenceMemo::default();
+        let mut store = SequenceTestStore::default();
+        for elements in stages {
+            let before: std::collections::HashSet<_> =
+                store.nodes.iter().map(|(d, _, _)| *d).collect();
+            let previous_keys = memo.keys.as_slice().to_vec();
+            let old_sequence = memo.seq;
+            let unchanged = memo.bound && previous_keys == elements;
+            store.writes.clear();
+            let got = memo
+                .sync(&mut store, &elements, "真实 memo 转换", budget)
+                .unwrap();
+            // 独立全量 writer 不经过 SequenceMemo/rebuild，锁住 layout/1 的旧编码。
+            let mut oracle = MemoryNodes::new();
+            let root = sc::write_sequence(&mut oracle, &elements).unwrap();
+            let expected_seq = SequenceRef::from_parts_unchecked(root, elements.len() as u64);
+            let expected = array_from_sequence(&mut oracle, &expected_seq).unwrap();
+            assert_eq!(got, expected);
+            assert_eq!(memo.seq, Some(expected_seq));
+            assert_eq!(memo.keys.as_slice(), elements.as_slice());
+            let closure = sequence_array_closure(&store.nodes, got.digest);
+            for digest in &store.writes {
+                assert!(closure.contains(digest), "本次写入不准留下作废中间根");
+            }
+            for (digest, _, _) in store.nodes.iter().filter(|(d, _, _)| !before.contains(*d)) {
+                assert!(closure.contains(digest), "新增节点须全部可达");
+            }
+            if unchanged {
+                assert_eq!(memo.seq, old_sequence);
+                assert!(store.nodes.iter().all(|(d, _, _)| before.contains(d)));
+            }
+            if let Some(budget) = budget {
+                assert!(memo.allocation_budget().unwrap().same_ledger(budget));
+                let capacity = match &memo.keys {
+                    SequenceKeys::Plain(keys) => keys.capacity(),
+                    #[cfg(feature = "s_allocation_json_testonly")]
+                    SequenceKeys::Owned(keys) => keys.capacity(),
+                };
+                assert_eq!(
+                    budget.snapshot().live_requested_layout_bytes,
+                    capacity * std::mem::size_of::<NodeDigest>()
+                );
+            }
+        }
+        memo.discard();
+        assert!(!memo.bound && memo.seq.is_none() && memo.keys.as_slice().is_empty());
+        if let Some(budget) = budget {
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+            assert!(!budget.ledger_health().invariant_broken);
+        }
+    }
+
+    #[test]
+    fn sequence_sync_plain_matches_full_oracle_and_writes_only_reachable() {
+        sequence_memo_full_oracle_transitions(None);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn sequence_sync_owned_matches_full_oracle_and_writes_only_reachable() {
+        let budget = sc::capture_allocation::OwnedBudget::new(1 << 20);
+        sequence_memo_full_oracle_transitions(Some(&budget));
+        assert!(budget.snapshot().allocated_layouts > 0);
+    }
+
+    fn sequence_memo_failure_preserves_state(budget: Option<&sc::capture_allocation::OwnedBudget>) {
+        let base: Vec<NodeDigest> = (1..=9).map(|n| [n; 32]).collect();
+        let mut changed = base.clone();
+        changed[3..].fill([200; 32]);
+        let mut memo = SequenceMemo::default();
+        let mut store = SequenceTestStore::default();
+        memo.sync(&mut store, &base, "故障前", budget).unwrap();
+        let seq = memo.seq;
+        let live = budget.map(|b| b.snapshot().live_requested_layout_bytes);
+        // 首读拒绝、已写一个叶后拒绝、最后数组节点拒绝三种实际边界。
+        let mut probe = SequenceTestStore::default();
+        let mut probe_memo = SequenceMemo::default();
+        probe_memo.sync(&mut probe, &base, "计写", None).unwrap();
+        probe.writes.clear();
+        probe_memo.sync(&mut probe, &changed, "计写", None).unwrap();
+        let before_array = probe.writes.len() - 1;
+        for (reject_reads, writes_left, error_code) in [
+            (true, None, "test_sequence_read"),
+            (false, Some(1), "test_sequence_write"),
+            (false, Some(before_array), "test_sequence_write"),
+        ] {
+            store.reject_reads = reject_reads;
+            store.writes_left = writes_left;
+            store.failures = 0;
+            let error = memo
+                .sync(&mut store, &changed, "故障代", budget)
+                .unwrap_err();
+            assert!(error.contains(error_code), "{error}");
+            assert_eq!(store.failures, 1, "第一次错误直接返回，不重试全量");
+            assert!(memo.bound);
+            assert_eq!(memo.seq, seq);
+            assert_eq!(memo.keys.as_slice(), base.as_slice());
+            assert_eq!(
+                budget.map(|b| b.snapshot().live_requested_layout_bytes),
+                live
+            );
+        }
+        store.reject_reads = false;
+        store.writes_left = None;
+        // 缓存损坏同样拒绝，不能全量重建掩盖旧状态失配。
+        memo.seq = Some(SequenceRef::from_parts_unchecked(seq.unwrap().root(), 1));
+        store.writes.clear();
+        assert!(memo
+            .sync(&mut store, &changed, "失配", budget)
+            .unwrap_err()
+            .contains("计数不一致"));
+        assert!(store.writes.is_empty());
+        assert_eq!(memo.keys.as_slice(), base.as_slice());
+        memo.discard();
+        if let Some(budget) = budget {
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        }
+    }
+
+    #[test]
+    fn sequence_sync_plain_errors_preserve_keys_and_root_without_full_fallback() {
+        sequence_memo_failure_preserves_state(None);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn sequence_sync_owned_errors_release_stack_and_preserve_keys_and_root() {
+        let budget = sc::capture_allocation::OwnedBudget::new(1 << 20);
+        sequence_memo_failure_preserves_state(Some(&budget));
+    }
+
+    fn delta_splice_matches_full_writer(budget: Option<&sc::capture_allocation::OwnedBudget>) {
+        let values: Vec<NodeDigest> = (1..=40).map(|n| [n; 32]).collect();
+        let mut memo = SequenceMemo::default();
+        let mut store = SequenceTestStore::default();
+        let mut expected = Vec::new();
+        // 外部输入是明确 rank edit，不先建完整 next keys 去找公共前缀。
+        let mut edits: Vec<(usize, Vec<NodeDigest>)> = vec![(0, vec![])];
+        let mut length = 0;
+        for next in [1, 2, 3, 4, 7, 8, 9, 15, 16, 17, 31, 32, 33] {
+            edits.push((length, values[length..next].to_vec()));
+            length = next;
+        }
+        edits.extend([
+            (33, vec![]),
+            (9, vec![[101; 32]; 12]),    // 中段替换/缩短。
+            (5, values[5..17].to_vec()), // 旧子树再激活。
+            (7, vec![[102; 32]; 20]),    // 中段插入导致后缀重新布局。
+            (4, vec![]),
+            (0, vec![]),
+            (0, values[..9].to_vec()),
+        ]);
+        for (prefix, suffix) in edits {
+            let previous = memo.seq;
+            let got = memo
+                .sync_splice(
+                    &mut store,
+                    SequenceSplice {
+                        expected_previous: previous,
+                        unchanged_prefix: prefix,
+                        replacement_suffix: &suffix,
+                    },
+                    "delta rank edit",
+                    budget,
+                )
+                .unwrap();
+            expected.truncate(prefix);
+            expected.extend_from_slice(&suffix);
+            let mut full = MemoryNodes::new();
+            let root = sc::write_sequence(&mut full, &expected).unwrap();
+            let sequence = SequenceRef::from_parts_unchecked(root, expected.len() as u64);
+            let oracle = array_from_sequence(&mut full, &sequence).unwrap();
+            assert_eq!(got, oracle, "splice 必须保留 layout/1 完整根");
+            assert_eq!(memo.seq, Some(sequence));
+            assert_eq!(memo.keys.as_slice(), expected.as_slice());
+            if let Some(budget) = budget {
+                assert!(memo.allocation_budget().unwrap().same_ledger(budget));
+            }
+        }
+        memo.discard();
+        if let Some(budget) = budget {
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+            assert!(!budget.ledger_health().invariant_broken);
+        }
+    }
+
+    #[test]
+    fn delta_sequence_plain_rank_splice_matches_independent_full_writer() {
+        delta_splice_matches_full_writer(None);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn delta_sequence_owned_rank_splice_matches_independent_full_writer() {
+        let budget = sc::capture_allocation::OwnedBudget::new(1 << 20);
+        delta_splice_matches_full_writer(Some(&budget));
+    }
+
+    fn delta_splice_failures(budget: Option<&sc::capture_allocation::OwnedBudget>) {
+        let base: Vec<NodeDigest> = (1..=17).map(|n| [n; 32]).collect();
+        let suffix = [[201; 32]; 12];
+        let mut memo = SequenceMemo::default();
+        let mut store = SequenceTestStore::default();
+        memo.sync(&mut store, &base, "初始化", budget).unwrap();
+        let previous = memo.seq;
+        let mut probe = SequenceMemo::default();
+        let mut probe_store = SequenceTestStore::default();
+        probe.sync(&mut probe_store, &base, "计写", None).unwrap();
+        probe_store.writes.clear();
+        probe
+            .sync_splice(
+                &mut probe_store,
+                SequenceSplice {
+                    expected_previous: previous,
+                    unchanged_prefix: 5,
+                    replacement_suffix: &suffix,
+                },
+                "计写",
+                None,
+            )
+            .unwrap();
+        // 从第一节点到最后 ARRAY 的每个真实写点，以及共享前缀读取失败。
+        for reject in 0..=probe_store.writes.len() {
+            store.reject_reads = reject == probe_store.writes.len();
+            store.writes_left = (!store.reject_reads).then_some(reject);
+            store.failures = 0;
+            let error = memo
+                .sync_splice(
+                    &mut store,
+                    SequenceSplice {
+                        expected_previous: previous,
+                        unchanged_prefix: 5,
+                        replacement_suffix: &suffix,
+                    },
+                    "故障",
+                    budget,
+                )
+                .unwrap_err();
+            assert!(error.contains("test_sequence_"), "{error}");
+            assert_eq!(store.failures, 1, "失败直接返回，不能全量 fallback");
+            assert_eq!(memo.seq, previous);
+            assert_eq!(memo.keys.as_slice(), base.as_slice());
+        }
+        store.reject_reads = false;
+        store.writes_left = None;
+        // 旧根/旧长度/越界前缀拒绝在任何写入之前。
+        for (old, prefix) in [(None, 5), (previous, 18)] {
+            store.writes.clear();
+            assert!(memo
+                .sync_splice(
+                    &mut store,
+                    SequenceSplice {
+                        expected_previous: old,
+                        unchanged_prefix: prefix,
+                        replacement_suffix: &[],
+                    },
+                    "错旧态",
+                    budget,
+                )
+                .is_err());
+            assert!(store.writes.is_empty());
+            assert_eq!(memo.seq, previous);
+            assert_eq!(memo.keys.as_slice(), base.as_slice());
+        }
+        memo.discard();
+        if let Some(budget) = budget {
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        }
+    }
+
+    #[test]
+    fn delta_sequence_plain_failures_do_not_advance_keys_or_root() {
+        delta_splice_failures(None);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn delta_sequence_owned_failures_do_not_advance_keys_or_root() {
+        let budget = sc::capture_allocation::OwnedBudget::new(1 << 20);
+        delta_splice_failures(Some(&budget));
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn delta_sequence_foreign_budget_and_allocation_failure_preserve_binding() {
+        let budget = sc::capture_allocation::OwnedBudget::new(1 << 20);
+        let foreign = sc::capture_allocation::OwnedBudget::new(1 << 20);
+        let empty = sc::capture_allocation::OwnedBudget::new(0);
+        let mut memo = SequenceMemo::default();
+        let mut store = SequenceTestStore::default();
+        let suffix = [[8; 32]; 8];
+        assert!(memo
+            .sync_splice(
+                &mut store,
+                SequenceSplice {
+                    expected_previous: None,
+                    unchanged_prefix: 0,
+                    replacement_suffix: &suffix,
+                },
+                "零预算",
+                Some(&empty),
+            )
+            .is_err());
+        assert!(!memo.bound && memo.seq.is_none() && memo.keys.as_slice().is_empty());
+        assert_eq!(empty.snapshot().live_requested_layout_bytes, 0);
+        memo.sync(&mut store, &suffix, "绑定", Some(&budget))
+            .unwrap();
+        let previous = memo.seq;
+        for wrong in [None, Some(&foreign)] {
+            store.writes.clear();
+            assert!(memo
+                .sync_splice(
+                    &mut store,
+                    SequenceSplice {
+                        expected_previous: previous,
+                        unchanged_prefix: 8,
+                        replacement_suffix: &[],
+                    },
+                    "错账本",
+                    wrong,
+                )
+                .unwrap_err()
+                .contains("缓存账本改变"));
+            assert_eq!(memo.seq, previous);
+            assert_eq!(memo.keys.as_slice(), suffix.as_slice());
+            assert!(store.writes.is_empty());
+        }
+        memo.discard();
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        assert_eq!(foreign.snapshot().live_requested_layout_bytes, 0);
     }
 
     /// #1394 整合 W-3：合并后 oracle 是 main 的 v2 写者，它在 TB-02-A/B 之外另发布 TB-02-C/D
@@ -2154,7 +4396,7 @@ mod tests {
             assert!(
                 old_id.starts_with("wit-") && new.witness_id.starts_with("wit-"),
                 "{label}: 见证{index} 身份族（旧 `{old_id}` / 新 `{}`）",
-                new.witness_id
+                new.witness_id.as_str()
             );
             // 配方锁：旧配方在测试内独立复算；本域必须是同一配方、只把输入换成真实新 `obj3-`。
             let owner = oracle_objects
@@ -2201,14 +4443,14 @@ mod tests {
             );
             assert_eq!(
                 witness_recipe_id(new.object_id.as_str(), slot, mi, &mine_witness["raw_bars"]),
-                new.witness_id,
+                new.witness_id.as_str(),
                 "{label}: 见证{index} 同配方 + 新 obj3 输入"
             );
             assert_eq!(
                 old["raw_bars"], mine_witness["raw_bars"],
                 "{label}: 见证{index} 完整 raw_bars"
             );
-            map.push((old_id.to_string(), new.witness_id.clone()));
+            map.push((old_id.to_string(), new.witness_id.as_str().to_owned()));
         }
         let mapped = map_ids(&oracle.batch, &map);
         const FIELDS: [&str; 15] = [

@@ -8,12 +8,13 @@ use super::{
 };
 use newchan_rust::s_content::{self as sc, capture_allocation::scratch::WorkScope};
 use rusqlite::Transaction;
+use sc::capture_allocation::native_owned::NativeValue;
 use serde::Serialize;
 
 #[derive(Debug, PartialEq, Eq)]
 struct Binding {
     frontier: i64,
-    rows: Vec<ExactRows>,
+    rows: sc::CodecVec<ExactRows>,
 }
 impl Binding {
     #[allow(
@@ -36,68 +37,73 @@ impl Binding {
             work,
         )?;
         // 已知动态控制字段只由本次完整control/history审计消费；未知字段不悄悄排除。
-        meta.rows.retain(|row| !matches!(row.get(1), Some(SqlCell::Text(key)) if [
-            b"generation".as_slice(), b"structure_cut", b"index_frontier", b"last_advance_frontier",
-            b"writer_epoch", b"begin_generation", b"begin_input_frontier", b"begin_token", b"advance_state",
-        ].contains(&key.as_slice())));
-        let mut rows = Vec::new();
+        for i in (0..meta.rows.len()).rev() {
+            if matches!(meta.rows[i].get(1), Some(SqlCell::Text(key)) if [
+                b"generation".as_slice(), b"structure_cut", b"index_frontier", b"last_advance_frontier",
+                b"writer_epoch", b"begin_generation", b"begin_input_frontier", b"begin_token", b"advance_state",
+            ].contains(&key.as_ref()))
+            {
+                meta.rows.remove(i);
+            }
+        }
+        let mut rows = sc::CodecVec::default();
         NativeAdmission(work)
-            .native_vec_room(&mut rows, 6)
+            .native_codec_room(&mut rows, 6)
             .map_err(|e| e.to_string())?;
-        rows.push(ExactRows::read_admitted(
-            tx,
-            c"SELECT rowid,* FROM sqlite_schema ORDER BY rowid",
-            &[],
-            &[],
+        super::request_audit::push_cell(
+            &mut rows,
+            ExactRows::read_admitted(
+                tx,
+                c"SELECT rowid,* FROM sqlite_schema ORDER BY rowid",
+                &[],
+                &[],
+                work,
+            )?,
             work,
-        )?);
-        rows.push(meta);
-        rows.push(ExactRows::read_admitted(
-            tx,
-            c"SELECT rowid,* FROM s_content_meta ORDER BY rowid",
-            &[],
-            &[],
+        )?;
+        super::request_audit::push_cell(&mut rows, meta, work)?;
+        super::request_audit::push_cell(
+            &mut rows,
+            ExactRows::read_admitted(
+                tx,
+                c"SELECT rowid,* FROM s_content_meta ORDER BY rowid",
+                &[],
+                &[],
+                work,
+            )?,
             work,
-        )?);
-        rows.push(ExactRows::read_admitted(tx, c"SELECT rowid,singleton,protocol_revision,session_generation,clock_plan_hash,clock_plan_json FROM s_protocol_meta ORDER BY rowid", &[], &[], work)?);
+        )?;
+        super::request_audit::push_cell(&mut rows, ExactRows::read_admitted(tx, c"SELECT rowid,singleton,protocol_revision,session_generation,clock_plan_hash,clock_plan_json FROM s_protocol_meta ORDER BY rowid", &[], &[], work)?, work)?;
         let frontier_scope = [SqlCellView::Integer(frontier)];
-        rows.push(ExactRows::read_admitted(
-            tx,
-            c"SELECT rowid,* FROM raw_events WHERE seq<=?1 ORDER BY seq,rowid",
-            &frontier_scope,
-            &frontier_scope,
+        super::request_audit::push_cell(
+            &mut rows,
+            ExactRows::read_admitted(
+                tx,
+                c"SELECT rowid,* FROM raw_events WHERE seq<=?1 ORDER BY seq,rowid",
+                &frontier_scope,
+                &frontier_scope,
+                work,
+            )?,
             work,
-        )?);
+        )?;
         // 保留独立OHLC负依赖；当前全账enrich/cardinality仍由原入口fresh核验。
-        rows.push(ExactRows::read_admitted(tx, c"SELECT o.rowid,o.* FROM raw_ohlc o WHERE NOT EXISTS(SELECT 1 FROM raw_events r WHERE r.identity_key=o.identity_key AND r.revision=o.revision AND r.seq>?1) ORDER BY o.rowid", &frontier_scope, &frontier_scope, work)?);
+        super::request_audit::push_cell(&mut rows, ExactRows::read_admitted(tx, c"SELECT o.rowid,o.* FROM raw_ohlc o WHERE NOT EXISTS(SELECT 1 FROM raw_events r WHERE r.identity_key=o.identity_key AND r.revision=o.revision AND r.seq>?1) ORDER BY o.rowid", &frontier_scope, &frontier_scope, work)?, work)?;
         Ok(Self { frontier, rows })
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 struct Key {
     generation: i64,
     frontier: i64,
-    state: sc::ContentRef,
-    profile: String,
-    rule: String,
+    state: NativeValue<sc::ContentRef>,
+    profile: NativeValue<String>,
+    rule: NativeValue<String>,
 }
 impl Key {
     #[cfg(test)]
     fn of(cut: &PublishedCut) -> Self {
-        let r = cut.roots.generated_state.view();
-        Self {
-            generation: cut.metadata.generation,
-            frontier: cut.metadata.input_frontier,
-            state: sc::ContentRef {
-                format: r.format().into(),
-                root: r.root().into(),
-                kind: r.kind(),
-                extent: r.extent(),
-            },
-            profile: cut.metadata.profile_id.as_str().into(),
-            rule: cut.metadata.rule_revision.as_str().into(),
-        }
+        Self::of_admitted(cut, None).unwrap()
     }
     fn of_admitted(cut: &PublishedCut, work: Option<&WorkScope>) -> Result<Self, String> {
         let admission = NativeAdmission(work);
@@ -123,8 +129,8 @@ impl Key {
             && self.state.root == state.root()
             && self.state.kind == state.kind()
             && self.state.extent == state.extent()
-            && self.profile == cut.metadata.profile_id.as_str()
-            && self.rule == cut.metadata.rule_revision.as_str()
+            && self.profile.as_str() == cut.metadata.profile_id.as_str()
+            && self.rule.as_str() == cut.metadata.rule_revision.as_str()
     }
 }
 struct Proof {
@@ -133,15 +139,40 @@ struct Proof {
     dependency: Option<sc::NativeCountsSubsetCertificate>,
 }
 pub(super) struct Pool {
+    // #1488 P2-4负控：真实封存路径上注入的重复许可；首字段，析构时最先返还。
+    #[cfg(test)]
+    seal_fault_duplicate: Option<sc::capture_allocation::scratch::NativeReservation>,
+    // #1488 P3-α负控：P2-A前的形态——每节点一张与来源合同额同额的物理许可。
+    #[cfg(test)]
+    seal_fault_node_source: Vec<sc::capture_allocation::scratch::NativeReservation>,
     pub(super) originals: sc::AuditCapture,
     pub(super) nodes: usize,
     binding: Binding,
-    proofs: Vec<Proof>,
+    proofs: sc::CodecVec<Proof>,
     source_cost: SourceCost,
     capacity: RetainedCapacity,
     subset_selection: Option<sc::NativeCountsSubsetReport>,
+    // #1488 P1-2：池在其中封存的父账（只读live；池的许可本就持有该Ledger，不额外延长寿命）。
+    #[cfg(feature = "s_capture_native_testonly")]
+    home: Option<super::audit_owner::native::Budget>,
 }
 
+/// #1488 P2-4负控：下一次带工作域的封存额外签一张重复许可（一次性）。
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum SealFault {
+    /// 对已收费的来源成本同额再签。
+    SourceCostResign,
+    /// 对已收费的proofs块按容量再签。
+    ProofsBlockDuplicate,
+    /// #1488 P3-α：复现P2-A前每节点同额物理来源许可（逐节点按来源合同额签）。
+    NodeSourcePermits,
+}
+#[cfg(test)]
+thread_local! {
+    pub(super) static SEAL_FAULT: std::cell::Cell<Option<SealFault>> =
+        const { std::cell::Cell::new(None) };
+}
 #[derive(Default, Clone, Debug, Serialize)]
 pub(super) struct SourceCost {
     node_body_bytes: usize,
@@ -187,7 +218,7 @@ fn cells_cost(cells: &[SqlCell]) -> Result<usize, String> {
         .iter()
         .try_fold(8, |sum, cell| add(sum, cell_cost(cell)?))
 }
-fn cells_capacity(cells: &Vec<SqlCell>) -> Result<usize, String> {
+fn cells_capacity(cells: &sc::CodecVec<SqlCell>) -> Result<usize, String> {
     cells.iter().try_fold(
         mul(cells.capacity(), std::mem::size_of::<SqlCell>())?,
         |sum, cell| {
@@ -220,8 +251,8 @@ fn proof_source_bytes(proof: &Proof) -> Result<usize, String> {
     [
         &proof.key.state.format,
         &proof.key.state.root,
-        &proof.key.profile,
-        &proof.key.rule,
+        proof.key.profile.as_ref(),
+        proof.key.rule.as_ref(),
     ]
     .into_iter()
     .try_fold(
@@ -246,7 +277,7 @@ impl Pool {
     fn build_bounded_counts(
         originals: sc::AuditCapture,
         binding: Binding,
-        proofs: Vec<Proof>,
+        proofs: sc::CodecVec<Proof>,
         cap: usize,
     ) -> Result<Self, String> {
         Self::build_bounded_counts_admitted(originals, binding, proofs, cap, None)
@@ -254,7 +285,7 @@ impl Pool {
     fn build_bounded_counts_admitted(
         originals: sc::AuditCapture,
         binding: Binding,
-        mut proofs: Vec<Proof>,
+        mut proofs: sc::CodecVec<Proof>,
         cap: usize,
         work: Option<&WorkScope>,
     ) -> Result<Self, String> {
@@ -284,17 +315,19 @@ impl Pool {
             codec_root_source_bytes(0)?,
         )?;
         // history原严格升序；只反向尝试一次，接纳后仍恢复原binary_search代序。
-        let mut groups = Vec::new();
+        let mut groups = sc::CodecVec::default();
         admission
-            .native_vec_room(&mut groups, proofs.len())
+            .native_codec_room(&mut groups, proofs.len())
             .map_err(|e| e.to_string())?;
         for proof in proofs.iter().rev() {
-            groups.push((
-                admission
-                    .native_plain_ref((&proof.key.state).into())
-                    .map_err(|e| e.to_string())?,
-                proof_source_bytes(proof)?,
-            ));
+            groups
+                .try_push((
+                    admission
+                        .native_plain_ref(proof.key.state.as_ref().into())
+                        .map_err(|e| e.to_string())?,
+                    proof_source_bytes(proof)?,
+                ))
+                .map_err(|e| e.to_string())?;
         }
         let (originals, certificates, selection) = originals
             .into_counts_original_subset_admitted_for_testonly(groups, fixed, cap, work)
@@ -303,36 +336,14 @@ impl Pool {
             .len()
             .checked_sub(certificates.len())
             .ok_or("CountsSubsetProofCountInvalid")?;
-        proofs.drain(..remove);
+        proofs.remove_prefix(remove);
         for (proof, certificate) in proofs.iter_mut().rev().zip(certificates) {
             if !certificate.matches_state(&proof.key.state) {
                 return Err("CountsSubsetStateCertificateInvalid".into());
             }
             proof.dependency = Some(certificate);
         }
-        if let Some(work) = work {
-            if proofs.len() < proofs.capacity() {
-                // 缩容也可能分配：旧块仍在时先许可完整新块，再只移动Proof。
-                let bytes = proofs
-                    .len()
-                    .checked_mul(std::mem::size_of::<Proof>())
-                    .ok_or_else(|| {
-                        work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget)
-                            .to_string()
-                    })?;
-                let permit = work.reserve_native(bytes).map_err(|e| e.to_string())?;
-                let mut compact = Vec::new();
-                compact.try_reserve_exact(proofs.len()).map_err(|_| {
-                    work.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
-                        .to_string()
-                })?;
-                compact.append(&mut proofs);
-                proofs = compact;
-                permit.retain();
-            }
-        } else {
-            proofs.shrink_to_fit();
-        }
+        proofs.try_compact_native(work).map_err(|e| e.to_string())?;
         let nodes = originals
             .native_retention_numbers_for_testonly()
             .ok_or("CountsSubsetNodeCountInvalid")?
@@ -345,13 +356,33 @@ impl Pool {
             return Err("CountsSubsetExactFeeMismatch".into());
         }
         pool.subset_selection = Some(selection);
+        #[cfg(test)]
+        if let Some(work) = work {
+            if let Some(fault) = SEAL_FAULT.with(|f| f.take()) {
+                let bytes = match fault {
+                    SealFault::SourceCostResign => pool.source_cost.total,
+                    SealFault::ProofsBlockDuplicate => {
+                        mul(pool.proofs.capacity(), std::mem::size_of::<Proof>())?
+                    }
+                    SealFault::NodeSourcePermits => {
+                        for bytes in pool.originals.native_source_claim_amounts_for_testonly() {
+                            pool.seal_fault_node_source
+                                .push(work.reserve_native(bytes).map_err(|e| e.to_string())?);
+                        }
+                        return Ok(pool);
+                    }
+                };
+                pool.seal_fault_duplicate =
+                    Some(work.reserve_native(bytes).map_err(|e| e.to_string())?);
+            }
+        }
         Ok(pool)
     }
     fn build(
         originals: sc::AuditCapture,
         nodes: usize,
         binding: Binding,
-        proofs: Vec<Proof>,
+        proofs: sc::CodecVec<Proof>,
     ) -> Result<Self, String> {
         // Drop全部Public/Template/Frame memo，保留原件owner及两份纯codec成功根集合。
         let originals = originals
@@ -360,6 +391,10 @@ impl Pool {
         let retained = originals
             .native_retention_numbers_for_testonly()
             .ok_or("SourceCachePrototypeRetentionInvalid")?;
+        // #1488 P2-A：来源合同项只进O合同账；封存时逐项复核都指到已物理计费的正文块，指不到即拒。
+        let (claims, claimed) = originals
+            .native_source_claims_for_testonly()
+            .map_err(|e| e.to_string())?;
         let mut source_cost = SourceCost {
             node_body_bytes: retained.body_len,
             // 原tuple digest/tag和唯一原件证书；无独立children/slots，不虚加收费。
@@ -400,14 +435,20 @@ impl Pool {
             let mut bytes = add(row.sql.capacity(), cells_capacity(&row.scope)?)?;
             bytes = add(
                 bytes,
-                mul(row.columns.capacity(), std::mem::size_of::<String>())?,
+                mul(
+                    row.columns.capacity(),
+                    std::mem::size_of::<super::business_json::TextValue>(),
+                )?,
             )?;
             for column in &row.columns {
                 bytes = add(bytes, column.capacity())?;
             }
             bytes = add(
                 bytes,
-                mul(row.rows.capacity(), std::mem::size_of::<Vec<SqlCell>>())?,
+                mul(
+                    row.rows.capacity(),
+                    std::mem::size_of::<sc::CodecVec<SqlCell>>(),
+                )?,
             )?;
             for cells in &row.rows {
                 bytes = add(bytes, cells_capacity(cells)?)?;
@@ -419,8 +460,8 @@ impl Pool {
             let strings = [
                 &proof.key.state.format,
                 &proof.key.state.root,
-                &proof.key.profile,
-                &proof.key.rule,
+                proof.key.profile.as_ref(),
+                proof.key.rule.as_ref(),
             ];
             let mut bytes = 16 + 1 + 9 + 64 + 6 * std::mem::size_of::<usize>();
             for text in strings {
@@ -451,6 +492,19 @@ impl Pool {
         ]
         .into_iter()
         .try_fold(8, add)?;
+        // #1488 P3-β：claims==0也要核——只要有正文块已物理计费，就必须每节点一项；
+        // 只有全无物理计费正文（无工作域的捕获）时才允许无合同项。
+        let bound = originals.native_bound_body_nodes_for_testonly();
+        if (claims != 0 || bound != 0)
+            && (claims != nodes
+                || claimed
+                    != add(
+                        source_cost.node_body_bytes,
+                        source_cost.node_digest_tag_certificate_bytes,
+                    )?)
+        {
+            return Err("SourceClaimContractMismatch".into());
+        }
         // size_of<Pool>已含inline Capture/Binding/metrics；capture_owner_bytes仅披露，不重复相加。
         capacity.total_payload_bytes = [
             capacity.node_body_vec_capacity_bytes,
@@ -464,6 +518,10 @@ impl Pool {
         .into_iter()
         .try_fold(std::mem::size_of::<Self>(), add)?;
         Ok(Self {
+            #[cfg(test)]
+            seal_fault_duplicate: None,
+            #[cfg(test)]
+            seal_fault_node_source: Vec::new(),
             originals,
             nodes,
             binding,
@@ -471,7 +529,56 @@ impl Pool {
             source_cost,
             capacity,
             subset_selection: None,
+            #[cfg(feature = "s_capture_native_testonly")]
+            home: None,
         })
+    }
+    /// #1488 P3-c：按持有者逐张列出池实际持有的Native许可字节（原件capture、binding各层
+    /// CodecVec/文本/单元、proofs块与Key/证书值）。负控注入的 seal_fault_duplicate 不属任何
+    /// 持有者，故不在清单内；普查以清单对拍逐张归还，确定地识别多签。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn native_permit_inventory_for_testonly(&self) -> Result<Vec<usize>, String> {
+        use super::business_json::TextValue;
+        let mut out = Vec::new();
+        self.originals
+            .native_permit_inventory_for_testonly(&mut out)
+            .map_err(|e| e.to_string())?;
+        let text = |out: &mut Vec<usize>, value: &TextValue| match value {
+            TextValue::Plain(v) => out.extend(v.retained_charge()),
+            // Owned文本走Owned Layout账，不持Native许可（普查C3另核封存存活全为Native）。
+            TextValue::Owned(_) => {}
+        };
+        let cells = |out: &mut Vec<usize>, cells: &sc::CodecVec<SqlCell>| {
+            out.extend(cells.native_retained_charge());
+            for cell in cells.iter() {
+                if let SqlCell::Text(v) | SqlCell::Blob(v) = cell {
+                    out.extend(v.native_retained_charge());
+                }
+            }
+        };
+        out.extend(self.binding.rows.native_retained_charge());
+        for rows in self.binding.rows.iter() {
+            text(&mut out, &rows.sql);
+            cells(&mut out, &rows.scope);
+            out.extend(rows.columns.native_retained_charge());
+            for column in rows.columns.iter() {
+                text(&mut out, column);
+            }
+            out.extend(rows.rows.native_retained_charge());
+            for row in rows.rows.iter() {
+                cells(&mut out, row);
+            }
+        }
+        out.extend(self.proofs.native_retained_charge());
+        for proof in self.proofs.iter() {
+            out.extend(proof.key.state.retained_charge());
+            out.extend(proof.key.profile.retained_charge());
+            out.extend(proof.key.rule.retained_charge());
+            if let Some(certificate) = &proof.dependency {
+                certificate.native_permit_inventory(&mut out);
+            }
+        }
+        Ok(out)
     }
 }
 
@@ -516,18 +623,32 @@ impl Keeper {
     pub(super) fn take(&mut self) -> Option<Pool> {
         self.pool.take()
     }
-    #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
-        )
-    )]
+    /// #1488 wide16-0058：交还同一请求内take出、未被改动的旧池（仅冷根首跑失败后的无票重跑）。
+    pub(super) fn restore(&mut self, pool: Pool) {
+        if self.pool.is_none() {
+            self.pool = Some(pool);
+        }
+    }
     pub(super) fn retention_cap(&self) -> usize {
         self.cap
     }
     pub(super) fn retained_source_bytes(&self) -> usize {
         self.pool.as_ref().map_or(0, |pool| pool.source_cost.total)
+    }
+    /// #1488 P1-2：池原件许可所在的父账（无工作域封存时由context记下的冷根）。
+    pub(super) fn set_source_home(&mut self, home: &super::audit_owner::native::Budget) {
+        if let Some(pool) = self.pool.as_mut() {
+            pool.home = Some(home.clone());
+        }
+    }
+    /// #1488 P1-2：保留池所在的物理父账；分区按该账live计，不只按合同额。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn source_home(&self) -> Option<&super::audit_owner::native::Budget> {
+        self.pool.as_ref().and_then(|pool| pool.home.as_ref())
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn has_pool(&self) -> bool {
+        self.pool.is_some()
     }
     pub(super) fn finish(
         &mut self,
@@ -580,7 +701,7 @@ impl Keeper {
         pending: PendingPool,
     ) {
         if self
-            .retain_completed_admitted(capture, nodes, pending, None)
+            .retain_completed_admitted(capture, nodes, pending, None, None)
             .is_err()
         {
             self.reject_completed();
@@ -593,17 +714,19 @@ impl Keeper {
         nodes: usize,
         pending: PendingPool,
         work: Option<&WorkScope>,
+        home: Option<&super::audit_owner::native::Budget>,
     ) -> Result<(), String> {
         self.clear();
         // slot.node_count仍为全capture数；稀疏池nodes由裁剪后的owner单独计数。
         let _ = nodes;
-        let next = Pool::build_bounded_counts_admitted(
+        let mut next = Pool::build_bounded_counts_admitted(
             capture,
             pending.binding,
             pending.proofs,
             self.cap,
             work,
         )?;
+        next.home = home.cloned();
         self.finish(None, next, pending.hits, pending.cold)
     }
     pub(super) fn reject_completed(&mut self) {
@@ -632,14 +755,14 @@ impl Keeper {
 /// 与请求slot共存的候选证书；SQL原件只在完整审计的同一事务中封存。
 pub(super) struct PendingPool {
     binding: Binding,
-    proofs: Vec<Proof>,
+    proofs: sc::CodecVec<Proof>,
     hits: usize,
     cold: usize,
 }
 pub(super) struct Trial<'a> {
     prior: Option<&'a Pool>,
     bound: bool,
-    proofs: Vec<Proof>,
+    proofs: sc::CodecVec<Proof>,
     pub(super) hits: usize,
     pub(super) cold: usize,
 }
@@ -675,7 +798,7 @@ impl<'a> Trial<'a> {
         Ok(Self {
             prior,
             bound,
-            proofs: Vec::new(),
+            proofs: sc::CodecVec::default(),
             hits: 0,
             cold: 0,
         })
@@ -723,11 +846,13 @@ impl<'a> Trial<'a> {
         NativeAdmission(work)
             .native_vec_room(&mut self.proofs, 1)
             .map_err(|e| e.to_string())?;
-        self.proofs.push(Proof {
-            key,
-            counts: counts.clone(),
-            dependency: None,
-        });
+        self.proofs
+            .try_push(Proof {
+                key,
+                counts: counts.clone(),
+                dependency: None,
+            })
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
     #[cfg_attr(
@@ -839,6 +964,175 @@ mod tests {
         (f, keeper)
     }
 
+    /// #1488 P2-A（主控裁定）锁：来源合同项（正文+97）只进O合同账、不在父账物理reserve；
+    /// 每项必须指到已物理计费的正文块，指不到（无正文许可/额不符）即拒；同一allocation在父账
+    /// 第二次物理reserve被拒（负控）。父账live只多正文块与索引许可，不多来源合同额。
+    #[test]
+    fn p2a_source_claim_points_to_charged_body_and_duplicate_reserve_rejected() {
+        use super::super::audit_owner::native::Budget;
+        use sc::capture_allocation::scratch::NativeReservation;
+        type Fees = sc::CodecVec<(sc::NodeDigest, Option<NativeReservation>, Option<usize>)>;
+        let budget = Budget::new(1024 * 1024, 0).unwrap();
+        let body = b"p2a-source-body".to_vec();
+        let tag = sc::tag::BYTES_CHUNK;
+        let digest = sc::frame(tag, &body);
+        let claim = body.len() + 97;
+        let capture = |fees: Vec<(sc::NodeDigest, Option<NativeReservation>, Option<usize>)>| {
+            let mut nodes = sc::MemoryNodes::new();
+            nodes.insert_unchecked(digest, tag, body.clone());
+            sc::AuditCapture::new(nodes)
+                .with_original_fees_for_testonly(sc::CodecVec::default(), Fees::from_plain(fees))
+        };
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let fee = || work.reserve_native(body.len()).map(Some);
+                let e = |e: sc::CodecError| e.to_string();
+                let base = budget.live();
+                // 指不到：来源合同项所在条目没有正文物理许可。
+                assert!(capture(vec![(digest, None, Some(claim))]).is_err());
+                assert_eq!(budget.live(), base, "被拒合同项不留物理账");
+                // 额不符：合同额必须恰为正文+97。
+                assert!(capture(vec![(digest, fee().map_err(e)?, Some(claim - 1))]).is_err());
+                assert_eq!(budget.live(), base);
+                // 对照：同一正文带/不带来源合同项，父账物理live相同（合同项不物理计费）。
+                let mut live = Vec::new();
+                for source in [None, Some(claim)] {
+                    let native = capture(vec![(digest, fee().map_err(e)?, source)])
+                        .and_then(|c| c.enable_native_frame_reuse_admitted_for_testonly(Some(work)))
+                        .map_err(e)?;
+                    live.push(budget.live());
+                    let claims = native.native_source_claims_for_testonly().map_err(e)?;
+                    assert_eq!(claims, if source.is_some() { (1, claim) } else { (0, 0) });
+                    if source.is_some() {
+                        // Native捕获上以无正文许可的明文正文追加，来源合同项指不到即拒。
+                        let plain = b"p2a-plain".to_vec();
+                        let mut native = native;
+                        let error = native
+                            .append_original_for_owner_testonly(
+                                sc::frame(tag, &plain),
+                                tag,
+                                plain,
+                                usize::MAX,
+                                Some(work),
+                            )
+                            .expect_err("明文正文无物理计费，来源合同项必须拒绝");
+                        assert!(
+                            error.to_string().contains("指不到已物理计费的正文块"),
+                            "{error}"
+                        );
+                        assert_eq!(
+                            native.native_source_claims_for_testonly().map_err(e)?,
+                            (1, claim)
+                        );
+                    }
+                }
+                assert_eq!(live[0], live[1], "来源合同项不得在父账物理reserve");
+                assert!(live[0] - base >= body.len(), "正文块物理计费一次");
+                // 负控：同一allocation重复物理reserve——已绑许可的正文块再附一张同额许可被拒，
+                // 被拒许可析构后父账回到原值。
+                let mut held = sc::CodecVec::default();
+                held.try_reserve_native(work, 16).map_err(e)?;
+                for byte in b"held" {
+                    held.try_push_native(*byte, work).map_err(e)?;
+                }
+                let charged = budget.live();
+                let duplicate = work.reserve_native(held.capacity()).map_err(e)?;
+                assert_eq!(budget.live(), charged + held.capacity());
+                assert!(
+                    held.attach_native_reservation(duplicate).is_err(),
+                    "同一allocation重复物理reserve必须被拒"
+                );
+                assert_eq!(budget.live(), charged, "被拒的重复许可已归还");
+                // 负控：同一正文条目两张物理许可（两条费用对一个节点）被拒。
+                assert!(capture(vec![
+                    (digest, fee().map_err(e)?, Some(claim)),
+                    (digest, fee().map_err(e)?, None),
+                ])
+                .is_err());
+                assert_eq!(budget.live(), charged);
+                drop(held);
+                assert_eq!(budget.live(), base);
+                Ok::<_, String>(())
+            })
+            .unwrap();
+    }
+
+    /// #1488 P3-β锁：封存核对来源合同项在claims==0时也执行。正文块已物理计费却漏签claim
+    /// （claims=0）必须报SourceClaimContractMismatch（负控）；每节点一项（正控）与全无物理计费
+    /// 正文的无工作域捕获（claims=0、bound=0，对照）照常封存。
+    #[test]
+    fn p3b_seal_rejects_missing_source_claim_on_charged_body() {
+        use super::super::audit_owner::native::Budget;
+        use sc::capture_allocation::scratch::NativeReservation;
+        type Fees = sc::CodecVec<(sc::NodeDigest, Option<NativeReservation>, Option<usize>)>;
+        let budget = Budget::new(1024 * 1024, 0).unwrap();
+        let body = b"p3b-source-body".to_vec();
+        let tag = sc::tag::BYTES_CHUNK;
+        let digest = sc::frame(tag, &body);
+        let claim = body.len() + 97;
+        let seal = |capture: sc::AuditCapture| {
+            Pool::build(
+                capture,
+                1,
+                Binding {
+                    frontier: 0,
+                    rows: sc::CodecVec::default(),
+                },
+                sc::CodecVec::default(),
+            )
+            .map(drop)
+        };
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let e = |e: sc::CodecError| e.to_string();
+                let base = budget.live();
+                let native = |fee: Option<NativeReservation>, source: Option<usize>| {
+                    let mut nodes = sc::MemoryNodes::new();
+                    nodes.insert_unchecked(digest, tag, body.clone());
+                    sc::AuditCapture::new(nodes)
+                        .with_original_fees_for_testonly(
+                            sc::CodecVec::default(),
+                            Fees::from_plain(vec![(digest, fee, source)]),
+                        )
+                        .and_then(|c| c.enable_native_frame_reuse_admitted_for_testonly(Some(work)))
+                        .map_err(e)
+                };
+                // 负控：正文块已物理计费、漏签claim。
+                let missing = native(Some(work.reserve_native(body.len()).map_err(e)?), None)?;
+                assert_eq!(
+                    missing.native_source_claims_for_testonly().map_err(e)?,
+                    (0, 0)
+                );
+                assert_eq!(missing.native_bound_body_nodes_for_testonly(), 1);
+                assert_eq!(
+                    seal(missing),
+                    Err("SourceClaimContractMismatch".to_string())
+                );
+                assert_eq!(budget.live(), base, "被拒封存不留物理账");
+                // 正控：每节点一项。
+                let signed = native(
+                    Some(work.reserve_native(body.len()).map_err(e)?),
+                    Some(claim),
+                )?;
+                assert_eq!(
+                    signed.native_source_claims_for_testonly().map_err(e)?,
+                    (1, claim)
+                );
+                seal(signed).unwrap();
+                // 对照：全无物理计费正文的捕获（无许可、无claim）仍可封存。
+                let plain = native(None, None)?;
+                assert_eq!(plain.native_bound_body_nodes_for_testonly(), 0);
+                seal(plain).unwrap();
+                assert_eq!(budget.live(), base);
+                Ok::<_, String>(())
+            })
+            .unwrap();
+    }
+
     #[test]
     fn r11_source_binding_new_and_seal_use_shared_scope() {
         use super::super::audit_owner::native::Budget;
@@ -856,9 +1150,23 @@ mod tests {
                 let trial = Trial::new_admitted(&tx, Some(prior), true, Some(work))?;
                 assert!(trial.bound);
                 let after_new = budget.live();
+                // #1488 0059 主控裁定 B8（第十三处裁改断言，
+                // https://github.com/xy7365527-lang/NewChanlun/issues/1488#issuecomment-6287615661）：
+                // 原断言（1d4d7bb6b8「fix(s): admit cold capture and exact SQL bindings in shared scope」）：
+                //   `assert!(after_new > scope_before, "新trial完整原件绑定须消费父域许可")`；闭包外
+                //   `assert!(native_retained > 0)` 与 `assert_eq!(budget.live(), before + native_retained, "Native保守费用随父Budget存活")`。
+                // v4 条款（control/1488-unified-budget-ownership-interface-contract-v4.md）：
+                //   L9「许可随对象移动，在对象析构以后返还。没有生产unassigned余额、裸字节追认或同额补签。」
+                //   L21「生产Budget::adopt(bytes)、ScratchParent::adopt_native(bytes, expected)…必须退出生产路径」。
+                // 绑定比较用的临时完整原件析构即归还，live 回到 scope_before；“确在父域计费”的原意改由 peak 保留。
+                // 封存段“封存完整原件再次消费同一父域”原断言不动。
+                assert_eq!(
+                    after_new, scope_before,
+                    "v4[B]：绑定比较的临时完整原件析构即归还"
+                );
                 assert!(
-                    after_new > scope_before,
-                    "新trial完整原件绑定须消费父域许可"
+                    budget.peak() > scope_before,
+                    "v4[B]：新trial完整原件绑定在父域计费"
                 );
                 let pending = trial.seal_admitted(&tx, prior.binding.frontier, Some(work))?;
                 assert_eq!(pending.binding, prior.binding);
@@ -869,12 +1177,9 @@ mod tests {
             })
             .unwrap();
         assert!(budget.peak() > before);
-        assert!(native_retained > 0);
-        assert_eq!(
-            budget.live(),
-            before + native_retained,
-            "Native保守费用随父Budget存活"
-        );
+        // B8（第十三处裁改断言，续）：pending 已析构，同父许可全部归还，无 Native 保守费用。
+        assert_eq!(native_retained, 0, "v4[B]：pending析构后无保守费用");
+        assert_eq!(budget.live(), before, "v4[B]：许可随对象析构全部归还");
         assert_eq!(budget.scratch_observation().0, 0);
         assert_eq!(budget.scratch_observation().2, 0);
         println!(
@@ -938,20 +1243,56 @@ mod tests {
             .as_ref()
             .unwrap()
             .first_admitted_source_bytes;
+        // #1488 0059 B11（第十六处裁改断言；主控裁定
+        // https://github.com/xy7365527-lang/NewChanlun/issues/1488#issuecomment-6287615661 对 B11
+        // 暂不批，本处按 control/1488-b-0059.md 第 2 项「不可达→账目恒等式+三负控」分支执行，
+        // 可达性证明见 workers/b-0059/REPORT.md）：
+        // 原断言（f77fbfd6d9「fix(s): admit sparse source cache sealing on request budget」）：
+        //   夹具在父外 `Budget::new(32 * 1024 * 1024, 0)` 上封存无父出生的 pending；闭包内
+        //   `assert!(budget.live() > before, "封存Plain容器许可须进入同父账")`；闭包外
+        //   `assert!(budget.peak() > before && budget.peak() <= 32 * 1024 * 1024)`。
+        // v4 条款（control/1488-unified-budget-ownership-interface-contract-v4.md）：
+        //   L9「许可随对象移动，在对象析构以后返还。没有生产unassigned余额、裸字节追认或同额补签。」
+        //   L21 生产 adopt/无父先构造后追认退出生产路径；L42 wrong-parent 拒绝且无部分mutation。
+        // 新：pending 在将封存它的同一父账内持票出生（同生产 finish_source_keeper）；账目恒等式
+        //   封存后live = 残余M + 封存池逐张许可之和，池析构后父账回到M；三负控（重复计费、
+        //   事后追认、挂错父账）见 REPORT。父帽取最小必要值：实测同父完整审计峰 149,307,139B
+        //   （峰值点 Native 149,306,915 + metadata_live 96 + 根控制块 M 128，Layout 0；峰由
+        //   enable_native_frame_reuse_admitted_for_testonly 一笔 14,749,200B 推上），⌈峰/1MiB⌉=143MiB；
+        //   142MiB=148,897,792B 小于峰，负界复跑 BudgetExceeded。此帽是夹具 Budget，不是生产资源帽。
+        const R14_PARENT_CAP: usize = 143 * 1024 * 1024;
         for cap in [usize::MAX, first_group_cap] {
-            let prepare = || {
+            let prepare = |work: Option<&WorkScope>| {
                 let mut context = RequestAuditContext::with_source_keeper(Keeper::new(usize::MAX));
-                let audited = state::audit_native_in_request(&tx, &mut context).unwrap();
+                let audited =
+                    state::audit_native_in_request_admitted(&tx, &mut context, work).unwrap();
                 assert_eq!(complete(&audited), complete(&baseline));
                 context.take().unwrap()
             };
-            let oracle = prepare();
+            let oracle = prepare(None);
             let pending = oracle.source_pending.unwrap();
             let oracle =
                 Pool::build_bounded_counts(oracle.capture, pending.binding, pending.proofs, cap)
                     .unwrap();
-            let actual = prepare();
-            let pending = actual.source_pending.unwrap();
+            let budget = Budget::new(R14_PARENT_CAP, 0).unwrap();
+            let residual = budget.live();
+            assert_eq!(
+                residual,
+                Budget::metadata_bytes(),
+                "B11：审计前父账残余只有根控制块M"
+            );
+            let super::super::request_audit::VerifiedHistoricalSlot {
+                binding: history_binding,
+                capture,
+                result: history_result,
+                source_pending,
+                ..
+            } = budget
+                .codec_work()
+                .unwrap()
+                .run(|work| Ok::<_, String>(prepare(Some(work))))
+                .unwrap();
+            let pending = source_pending.unwrap();
             let pointers = pending
                 .proofs
                 .iter()
@@ -959,19 +1300,23 @@ mod tests {
                     let digest = proof.key.state.digest().unwrap();
                     (
                         digest,
-                        actual.capture.original(&digest).unwrap().1.as_ptr() as usize,
+                        capture.original(&digest).unwrap().1.as_ptr() as usize,
                     )
                 })
                 .collect::<Vec<_>>();
-            let budget = Budget::new(32 * 1024 * 1024, 0).unwrap();
             let before = budget.live();
+            // B11（第十六处，挂错父账）：pending 的许可须记在本父账，不能挂在他账或无父出生。
+            assert!(
+                before > residual,
+                "v4 L42：pending须在将封存它的同一父账内持票出生"
+            );
             let mut layout_peak = 0;
             let actual = budget
                 .codec_work()
                 .unwrap()
                 .run(|work| {
                     let pool = Pool::build_bounded_counts_admitted(
-                        actual.capture,
+                        capture,
                         pending.binding,
                         pending.proofs,
                         cap,
@@ -984,10 +1329,17 @@ mod tests {
                         "导航与完整三闭包须使用同scope真实Layout"
                     );
                     assert_eq!(snapshot.live, 0, "封存后不带走codec临时工作集");
-                    assert!(budget.live() > before, "封存Plain容器许可须进入同父账");
+                    // B11（第十六处，事后追认）：封存只移动已持票对象，不得在封存时补签新增。
+                    assert!(
+                        budget.live() <= before,
+                        "v4 L9：封存只移动已持票对象，父账不再追认新增"
+                    );
                     Ok::<_, String>(pool)
                 })
                 .unwrap();
+            // 同父出生的历史绑定与结果不属封存池；先析构，恒等式只看池。
+            drop((history_binding, history_result));
+            let after_seal = budget.live();
             assert_eq!(actual.binding, oracle.binding);
             assert_eq!(actual.nodes, oracle.nodes);
             assert!(actual
@@ -1039,13 +1391,40 @@ mod tests {
             assert_eq!(actual_retention.template_roots, 0);
             assert_eq!(budget.scratch_observation().0, 0);
             assert_eq!(budget.scratch_observation().2, 0);
-            assert!(budget.peak() > before && budget.peak() <= 32 * 1024 * 1024);
+            // B11（第十六处，峰值）：同父完整审计连同封存的峰不越最小必要夹具帽。
+            assert!(
+                budget.peak() > before && budget.peak() <= R14_PARENT_CAP,
+                "B11：同父峰须在夹具帽内"
+            );
+            let groups = actual.proofs.len();
+            let source_bytes = actual.source_cost.total;
+            // B11（第十六处，账目恒等式/重复计费）：封存后live = 残余M + 封存池逐张许可之和；
+            // 池析构后父账回到M。重复计费的许可不属任何持有者，不在清单内，差额即露出。
+            let inventory = actual
+                .native_permit_inventory_for_testonly()
+                .unwrap()
+                .into_iter()
+                .try_fold(0usize, |sum, bytes| sum.checked_add(bytes))
+                .unwrap();
+            drop(actual);
+            assert_eq!(
+                budget.live(),
+                residual,
+                "v4 L9：封存池析构须把许可全部还回同一父账"
+            );
+            assert_eq!(
+                after_seal,
+                residual + inventory,
+                "B11 恒等式：封存后live = 残余M + 封存池逐张许可之和"
+            );
             println!(
                 "R14_SOURCE_POOL {}",
                 serde_json::json!({
-                    "groups":actual.proofs.len(),"limit_bytes":32*1024*1024,
+                    "groups":groups,"limit_bytes":R14_PARENT_CAP,
                     "parent_peak_bytes":budget.peak(),"codec_layout_peak_bytes":layout_peak,
-                    "source_cap":cap,"source_bytes":actual.source_cost.total,
+                    "residual_bytes":residual,"before_seal_bytes":before,"after_seal_bytes":after_seal,
+                    "sealed_inventory_bytes":inventory,
+                    "source_cap":cap,"source_bytes":source_bytes,
                     "all_original_tuples_binding_key_counts_equal":true,"whole_heap_qualified":false
                 })
             );
@@ -1103,7 +1482,17 @@ mod tests {
                     let mut trial = Trial::new_admitted(&tx, prior, true, Some(work))?;
                     assert_eq!(trial.bound, prior.is_some());
                     if prior.is_some() {
-                        assert!(budget.live() > scope_before, "完整绑定须消费同父域");
+                        // #1488 0059 主控裁定 B9（第十四处裁改断言，
+                        // https://github.com/xy7365527-lang/NewChanlun/issues/1488#issuecomment-6287615661）：
+                        // 原断言（1f1debe94c「fix(s): share cold admission budget and admit legacy profile reads」）：
+                        //   `assert!(budget.live() > scope_before, "完整绑定须消费同父域")`；drop(pending) 后
+                        //   `assert_eq!(budget.live(), before + native_retained, "保守费用保留在父账")`。
+                        // v4 条款（control/1488-unified-budget-ownership-interface-contract-v4.md）：
+                        //   L9「许可随对象移动，在对象析构以后返还。没有生产unassigned余额、裸字节追认或同额补签。」
+                        //   L21「生产Budget::adopt(bytes)、ScratchParent::adopt_native(bytes, expected)…必须退出生产路径」。
+                        // 绑定临时原件析构即归还；“完整绑定在同父域计费”改由 peak 保留。R13 observer 原断言不动（v4 L13）。
+                        assert_eq!(budget.live(), scope_before, "v4[B]：绑定临时原件析构即归还");
+                        assert!(budget.peak() > scope_before, "v4[B]：完整绑定在同父域计费");
                     } else {
                         assert_eq!(budget.live(), scope_before, "cold 无 prior 绑定分配");
                     }
@@ -1165,10 +1554,11 @@ mod tests {
             assert_eq!(budget.scratch_observation().0, 0);
             assert_eq!(budget.scratch_observation().2, 0);
             drop(pending);
+            // B9（第十四处裁改断言，续）：pending 析构前 native_retained>0 原断言不动；析构后归零。
             assert_eq!(
                 budget.live(),
-                before + native_retained,
-                "保守费用保留在父账"
+                before,
+                "v4[B]：pending析构后同父许可全部归还，无保守费用"
             );
             println!(
                 "R13_SOURCE_TRIAL {}",
@@ -1345,7 +1735,7 @@ mod tests {
             };
             let fields = sc::path::lookup_fields_refview(
                 &mut recorder,
-                sc::RefView::from(&proof.key.state),
+                sc::RefView::from(proof.key.state.as_ref()),
                 &["objects", "witnesses", "observations"],
                 true,
             )
@@ -1531,16 +1921,24 @@ mod tests {
         for mutation in 0..8 {
             let (mut f, mut keeper) = seeded();
             let key = &mut keeper.pool.as_mut().unwrap().proofs[0].key;
+            let mut state = key.state.as_ref().clone(); // 测试坏原件，非Native生产复制入口。
             match mutation {
                 0 => key.generation += 1,
                 1 => key.frontier += 1,
-                2 => key.state.root.push('0'),
-                3 => key.state.format.push('0'),
-                4 => key.state.kind = sc::Kind::Array,
-                5 => key.state.extent = Some(999),
-                6 => key.profile.push('0'),
-                _ => key.rule.push('0'),
+                2 => state.root.push('0'),
+                3 => state.format.push('0'),
+                4 => state.kind = sc::Kind::Array,
+                5 => state.extent = Some(999),
+                6 => {
+                    key.profile =
+                        NativeValue::<String>::from_unscoped(format!("{}0", key.profile.as_str()))
+                }
+                _ => {
+                    key.rule =
+                        NativeValue::<String>::from_unscoped(format!("{}0", key.rule.as_str()))
+                }
             }
+            key.state = NativeValue::<sc::ContentRef>::from_unscoped(state);
             audit(&mut f, &mut keeper).unwrap();
             assert_eq!((keeper.cold, keeper.hits), (2, 0), "mutation={mutation}");
         }
@@ -1554,9 +1952,18 @@ mod tests {
             audit(&mut f, &mut keeper).unwrap();
             assert_eq!((keeper.cold, keeper.hits), (2, 0), "{sql}");
         }
-        assert_ne!(SqlCell::Text(b"1".to_vec()), SqlCell::Blob(b"1".to_vec()));
-        assert_ne!(SqlCell::Text(b"1".to_vec()), SqlCell::Integer(1));
-        assert_ne!(SqlCell::Null, SqlCell::Text(Vec::new()));
+        assert_ne!(
+            SqlCell::Text(newchan_rust::s_content::CodecVec::from_plain(b"1".to_vec())),
+            SqlCell::Blob(newchan_rust::s_content::CodecVec::from_plain(b"1".to_vec()))
+        );
+        assert_ne!(
+            SqlCell::Text(newchan_rust::s_content::CodecVec::from_plain(b"1".to_vec())),
+            SqlCell::Integer(1)
+        );
+        assert_ne!(
+            SqlCell::Null,
+            SqlCell::Text(newchan_rust::s_content::CodecVec::from_plain(Vec::new()))
+        );
     }
 
     #[test]

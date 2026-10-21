@@ -57,12 +57,18 @@ fn native_reference<R: RefOutput>(
     digest: NodeDigest,
     extent: Option<u64>,
 ) -> Result<R, CodecError> {
-    let permit = source.reserve_native(R::NATIVE_HEAP)?;
-    let reference = R::from_checked(kind, digest, extent);
-    if let Some(permit) = permit {
-        permit.retain();
+    let permit = if R::NATIVE_HEAP == 0 {
+        None
+    } else {
+        source.reserve_native(R::NATIVE_HEAP)?
+    };
+    if permit.is_some() && !R::RETAINS_NATIVE {
+        return Err(CodecError::scratch(
+            super::capture_allocation::scratch::ScratchFailure::Ledger,
+        ));
     }
-    Ok(reference)
+    let reference = R::from_checked(kind, digest, extent);
+    reference.with_native_permit(permit)
 }
 
 /// 本模块的稳定拒绝码（与 §5.1–5.3 的 content codec 码互不冲突）。
@@ -317,7 +323,11 @@ fn lookup_array_output_inner<R: RefOutput>(
                 }
                 let kind = Kind::from_tag(t).ok_or_else(|| unsupported_value_tag_error(t))?;
                 let extent = header_extent(t, &body)?;
-                source.plain_vec_room(&mut result, 1)?;
+                if R::RETAINS_NATIVE {
+                    source.native_vec_room(&mut result, 1)?;
+                } else {
+                    source.plain_vec_room(&mut result, 1)?;
+                }
                 result.push(native_reference(source, kind, value, extent)?)?;
             }
         }
@@ -355,10 +365,143 @@ pub(super) fn lookup_object_fields_owned_ctx<'names>(
 ) -> Result<OwnedRefFields<'names>, CodecError> {
     object_fields_output(&mut CodecContext::Closed(source), reference, names, exact)
 }
+/// 固定业务 schema 的调用局部结果；字段名借用，引用为无堆 RefOwner。
+/// 仅改变结果表示，不携带闭包/事务资格，不得作为跨代成功缓存。
+#[doc(hidden)]
+pub struct FixedFields<'names> {
+    entries: [Option<(&'names str, RefOwner)>; 15],
+    len: usize,
+}
+impl FixedFields<'_> {
+    pub fn get(&self, name: &str) -> Option<&RefOwner> {
+        self.entries[..self.len].iter().find_map(|entry| {
+            entry
+                .as_ref()
+                .filter(|(key, _)| *key == name)
+                .map(|(_, r)| r)
+        })
+    }
+    pub fn get_required(&self, name: &str) -> Result<&RefOwner, CodecError> {
+        self.get(name).ok_or_else(|| field_missing_error(name))
+    }
+    pub fn len(&self) -> usize {
+        self.len
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+}
+impl<'names> FieldOutput<'names> for FixedFields<'names> {
+    type Reference = RefOwner;
+    fn new(_: Option<&super::capture_allocation::OwnedBudget>) -> Result<Self, CodecError> {
+        Ok(Self {
+            entries: [None; 15],
+            len: 0,
+        })
+    }
+    fn append(&mut self, name: &'names str, reference: RefOwner) -> Result<(), CodecError> {
+        if self.len == self.entries.len() {
+            return Err(sequence_shape_error("固定字段结果超过15字段"));
+        }
+        if self.len > 0 && self.entries[self.len - 1].as_ref().unwrap().0 >= name {
+            return Err(CodecError::static_detail(
+                code::OBJECT_KEY_ORDER,
+                "codec字段结果追加必须严格既有canonical序",
+            ));
+        }
+        self.entries[self.len] = Some((name, reference));
+        self.len += 1;
+        Ok(())
+    }
+}
+/// 复用同一个 exact 字段判据，只把结果保存于最多15个栈槽。
+/// 上界在任何来源读取前检查；既有 keys/DFS 瞬态工作集未更换或冒称 Owned。
+#[doc(hidden)]
+pub fn lookup_object_fields_fixed<'names>(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+    names: &[&'names str],
+) -> Result<FixedFields<'names>, CodecError> {
+    if names.len() > 15 {
+        return Err(sequence_shape_error("固定字段结果超过15字段"));
+    }
+    object_fields_output(&mut CodecContext::Source(source), reference, names, true)
+}
+
+/// 仅用于按调用方原有顺序读取metadata：缺字段不在扫描顺序提前报错。
+/// 不授予exact schema资格；调用方仍须在原晚核验点另跑exact入口。
+struct MetadataFixedFields<'names>(FixedFields<'names>);
+impl<'names> FieldOutput<'names> for MetadataFixedFields<'names> {
+    const DEFER_MISSING: bool = true;
+    type Reference = RefOwner;
+    fn new(budget: Option<&super::capture_allocation::OwnedBudget>) -> Result<Self, CodecError> {
+        FixedFields::new(budget).map(Self)
+    }
+    fn append(&mut self, name: &'names str, reference: RefOwner) -> Result<(), CodecError> {
+        self.0.append(name, reference)
+    }
+}
+/// 单次收集最多15个metadata字段，缺失项由get_required按消费顺序拒绝。
+/// 只改变查找结果表示；不代替fresh闭包、exact schema或wire后重新读取。
+#[doc(hidden)]
+pub fn lookup_object_metadata_fixed<'names>(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+    names: &[&'names str],
+) -> Result<FixedFields<'names>, CodecError> {
+    if names.len() > 15 {
+        return Err(sequence_shape_error("固定字段结果超过15字段"));
+    }
+    object_fields_output::<MetadataFixedFields<'names>>(
+        &mut CodecContext::Source(source),
+        reference,
+        names,
+        false,
+    )
+    .map(|fields| fields.0)
+}
+
 pub(super) trait FieldOutput<'names>: Sized {
+    const DEFER_MISSING: bool = false;
+    const NATIVE_VECTOR_FIELDS: bool = false;
     type Reference: RefOutput;
     fn new(budget: Option<&super::capture_allocation::OwnedBudget>) -> Result<Self, CodecError>;
     fn append(&mut self, name: &'names str, reference: Self::Reference) -> Result<(), CodecError>;
+    fn append_reserved(
+        &mut self,
+        name: &'names str,
+        reference: Self::Reference,
+        permit: Option<super::capture_allocation::scratch::NativeReservation>,
+        _work: Option<&super::WorkBudget>,
+    ) -> Result<(), CodecError> {
+        if permit.is_some() {
+            return Err(CodecError::scratch(
+                super::capture_allocation::scratch::ScratchFailure::Ledger,
+            ));
+        }
+        self.append(name, reference)
+    }
+}
+impl<'names> FieldOutput<'names> for super::capture_allocation::native_owned::NativeRefFields {
+    const NATIVE_VECTOR_FIELDS: bool = true;
+    type Reference = super::capture_allocation::native_owned::NativeValue<ContentRef>;
+    fn new(_budget: Option<&super::capture_allocation::OwnedBudget>) -> Result<Self, CodecError> {
+        Ok(Self::default())
+    }
+    fn append(&mut self, name: &'names str, reference: Self::Reference) -> Result<(), CodecError> {
+        self.append_reserved(name, reference, None, None)
+    }
+    fn append_reserved(
+        &mut self,
+        name: &'names str,
+        reference: Self::Reference,
+        permit: Option<super::capture_allocation::scratch::NativeReservation>,
+        work: Option<&super::WorkBudget>,
+    ) -> Result<(), CodecError> {
+        super::capture_allocation::native_owned::NativeRefFields::append_reserved(
+            self, name, reference, permit, work,
+        )
+    }
 }
 impl<'names> FieldOutput<'names> for CodecFields {
     type Reference = ContentRef;
@@ -470,13 +613,22 @@ fn object_fields_output_inner<'names, O: FieldOutput<'names>>(
                 previous_key = Some(key);
                 previous_bytes = current_bytes;
                 if !exact {
-                    let Some(expected) = keys.get(at) else {
+                    // Metadata输出仅延迟缺失诊断；原Subset仍在相同第一处失败。
+                    // 不复制字段/键判据，也不在任何失败后走另一条查找路径。
+                    let mut matched = false;
+                    while let Some(expected) = keys.get(at) {
+                        match cmp_field_key(source, &key, previous_bytes.as_deref(), expected)? {
+                            Ordering::Less => break,
+                            Ordering::Greater if O::DEFER_MISSING => at += 1,
+                            Ordering::Greater => return Err(field_missing_error(expected)),
+                            Ordering::Equal => {
+                                matched = true;
+                                break;
+                            }
+                        }
+                    }
+                    if !matched {
                         continue;
-                    };
-                    match cmp_field_key(source, &key, previous_bytes.as_deref(), expected)? {
-                        Ordering::Less => continue,
-                        Ordering::Greater => return Err(field_missing_error(expected)),
-                        Ordering::Equal => {}
                     }
                 }
                 let expected = keys
@@ -507,16 +659,22 @@ fn object_fields_output_inner<'names, O: FieldOutput<'names>>(
                             },
                         )
                     })?;
-                let permit = source.reserve_native(field_bytes)?;
-                result.append(expected, reference)?;
-                if let Some(permit) = permit {
-                    permit.retain();
-                }
+                let permit = source.reserve_native(if O::NATIVE_VECTOR_FIELDS {
+                    expected.len()
+                } else {
+                    field_bytes
+                })?;
+                result.append_reserved(
+                    expected,
+                    reference,
+                    permit,
+                    source.work_budget().as_ref(),
+                )?;
                 at += 1;
             }
         }
     }
-    if at != keys.len() {
+    if at != keys.len() && !O::DEFER_MISSING {
         return Err(sequence_shape_error("字段序列长度与清单不符"));
     }
     Ok(result)
@@ -989,6 +1147,65 @@ enum SeqNode {
         left: NodeDigest,
         right: NodeDigest,
     },
+}
+
+/// 只读结构片段；它不是完整闭包或跨快照资格。形状、摘要及资源门复用路径核。
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SequenceFragment {
+    Empty,
+    Leaf(NodeDigest),
+    Branch {
+        left: super::SequenceRef,
+        right: super::SequenceRef,
+    },
+}
+
+/// 获取真实数组头中的规范序列声明，不枚举成员。
+#[doc(hidden)]
+pub fn array_sequence_refview(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+) -> Result<super::SequenceRef, CodecError> {
+    let mut source = CodecContext::Source(source);
+    let work = source.work_budget();
+    let result = (|| {
+        let node = navigate_view(&mut source, reference, &[], false)?;
+        if node.tag != tag::ARRAY {
+            return Err(step_kind_error("数组片段", "0x05 数组", node.tag));
+        }
+        Ok(super::SequenceRef::from_parts_unchecked(
+            digest_at(&node.body, 8),
+            framed_len(&node.body, "数组")?,
+        ))
+    })();
+    if let Some(work) = work {
+        work.observe(&result);
+    }
+    result
+}
+
+/// 只读一个 M 节点；调用方必须另有同材料完整闭包资格才能跳过未访问子树。
+#[doc(hidden)]
+pub fn sequence_fragment(
+    source: &mut dyn NodeSource,
+    reference: super::SequenceRef,
+) -> Result<SequenceFragment, CodecError> {
+    let mut source = CodecContext::Source(source);
+    let work = source.work_budget();
+    let result =
+        read_seq_node(&mut source, &reference.root(), reference.count()).map(|node| match node {
+            SeqNode::Empty => SequenceFragment::Empty,
+            SeqNode::Leaf(value) => SequenceFragment::Leaf(value),
+            SeqNode::Branch { k, left, right } => SequenceFragment::Branch {
+                left: super::SequenceRef::from_parts_unchecked(left, k),
+                right: super::SequenceRef::from_parts_unchecked(right, reference.count() - k),
+            },
+        });
+    if let Some(work) = work {
+        work.observe(&result);
+    }
+    result
 }
 
 /// 单节点核验：摘要↔(tag, body) 重算、tag/长度与期望叶数、分支声明 n 等于期望叶数。
@@ -1646,4 +1863,192 @@ pub fn lookup_array_items_refview(
     reference: RefView<'_>,
 ) -> Result<Vec<ContentRef>, CodecError> {
     lookup_array_output(&mut CodecContext::Source(source), reference)?.into_plain()
+}
+
+#[cfg(test)]
+mod fixed_fields_tests {
+    use super::*;
+    use crate::s_content::{write_value, MemoryNodes, Value};
+
+    #[test]
+    fn fixed_fields_exact_matches_existing_refs_and_rejects_before_read_above_bound() {
+        struct Reads {
+            nodes: MemoryNodes,
+            reads: usize,
+        }
+        impl NodeSource for Reads {
+            fn read(&mut self, d: &NodeDigest) -> Result<super::super::NodeRead, CodecError> {
+                self.reads += 1;
+                self.nodes.read(d)
+            }
+        }
+        let mut source = Reads {
+            nodes: MemoryNodes::new(),
+            reads: 0,
+        };
+        let root = write_value(
+            &mut source.nodes,
+            &Value::Object(vec![
+                (
+                    "a".into(),
+                    Value::Number(super::super::NumberToken::parse("7").unwrap()),
+                ),
+                ("b".into(), Value::Null),
+            ]),
+        )
+        .unwrap()
+        .content_ref();
+        let old = lookup_object_fields(&mut source, &root, &["b", "a"]).unwrap();
+        let new = lookup_object_fields_fixed(&mut source, (&root).into(), &["b", "a"]).unwrap();
+        assert_eq!(new.len(), 2);
+        for key in ["a", "b"] {
+            let current = new.get(key).unwrap();
+            assert_eq!(current.digest(), old[key].digest().unwrap());
+            assert_eq!(current.kind(), old[key].kind);
+            assert_eq!(current.extent(), old[key].extent);
+            assert_eq!(current.format(), old[key].format);
+            assert_eq!(current.root(), old[key].root);
+        }
+        let reads = source.reads;
+        assert!(lookup_object_fields_fixed(&mut source, (&root).into(), &["a"; 16]).is_err());
+        assert_eq!(source.reads, reads, "上界先于来源读取");
+        for names in [&["a"][..], &["a", "b", "c"][..], &["a", "a"][..]] {
+            let old = lookup_object_fields(&mut source, &root, names)
+                .err()
+                .unwrap();
+            let new = lookup_object_fields_fixed(&mut source, (&root).into(), names)
+                .err()
+                .unwrap();
+            assert_eq!(new, old, "固定输出复用相同exact判据");
+        }
+    }
+
+    #[test]
+    fn fixed_metadata_missing_errors_follow_consumption_order_not_schema_scan() {
+        let mut nodes = MemoryNodes::new();
+        let root = write_value(
+            &mut nodes,
+            &Value::Object(vec![("middle".into(), Value::Null)]),
+        )
+        .unwrap()
+        .content_ref();
+        let fields = lookup_object_metadata_fixed(
+            &mut nodes,
+            (&root).into(),
+            &["after", "middle", "before"],
+        )
+        .unwrap();
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields.get_required("middle").unwrap().kind(), Kind::Null);
+        for key in ["before", "after"] {
+            assert_eq!(
+                fields.get_required(key).unwrap_err(),
+                field_missing_error(key)
+            );
+        }
+        assert!(lookup_object_fields_fixed(
+            &mut nodes,
+            (&root).into(),
+            &["after", "middle", "before"]
+        )
+        .is_err());
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn fixed_fields_owner_full_capacity_has_zero_global_allocations_and_zero_ledger_delta() {
+        use crate::s_content::capture_allocation::{audit_json::tests::observed, OwnedBudget};
+        let original = OwnedBudget::new(0);
+        let foreign = OwnedBudget::new(0);
+        assert!(!original.same_ledger(&foreign));
+        let names = [
+            "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o",
+        ];
+        let before = original.snapshot();
+        let ((), calls) = observed(|| {
+            let mut fields = FixedFields::new(Some(&original)).unwrap();
+            for (i, name) in names.iter().enumerate() {
+                fields
+                    .append(name, RefOwner::new(Kind::Null, [i as u8; 32], None))
+                    .unwrap();
+            }
+            for (i, name) in names.iter().enumerate() {
+                assert_eq!(fields.get(name).unwrap().digest(), [i as u8; 32]);
+            }
+            let moved = fields;
+            assert_eq!(moved.len(), 15);
+            drop(moved);
+        });
+        assert_eq!(calls, 0, "结果owner构造/满容量/读取/移动/释放均无堆分配");
+        let after = original.snapshot();
+        assert_eq!(after.allocation_attempts, before.allocation_attempts);
+        assert_eq!(
+            after.live_requested_layout_bytes,
+            before.live_requested_layout_bytes
+        );
+        assert_eq!(
+            after.peak_requested_layout_bytes,
+            before.peak_requested_layout_bytes
+        );
+        assert_eq!(foreign.snapshot().allocation_attempts, 0);
+        eprintln!("fixed_fields owner actual_global_allocations={calls} ledger_before={before:?} ledger_after={after:?}");
+    }
+}
+
+/// #1488 与旧 path/refview 共核；原 reserve token 直接随 Plain 引用返回。
+pub fn lookup_path_native(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+    path: &[PathStep],
+) -> Result<super::capture_allocation::native_owned::NativeValue<ContentRef>, CodecError> {
+    lookup_path_output(&mut CodecContext::Source(source), reference, path)
+}
+pub fn lookup_path_view_native(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+    path: &dyn PathView,
+) -> Result<super::capture_allocation::native_owned::NativeValue<ContentRef>, CodecError> {
+    lookup_path_view_output(&mut CodecContext::Source(source), reference, path, false)
+}
+pub fn lookup_optional_field_native(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+    name: &str,
+) -> Result<Option<super::capture_allocation::native_owned::NativeValue<ContentRef>>, CodecError> {
+    lookup_optional_field_output(&mut CodecContext::Source(source), reference, name)
+}
+pub fn lookup_array_items_native(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+) -> Result<
+    super::CodecVec<super::capture_allocation::native_owned::NativeValue<ContentRef>>,
+    CodecError,
+> {
+    lookup_array_output(&mut CodecContext::Source(source), reference)
+}
+pub fn replace_batch_placeholder_native(
+    store: &mut dyn NodeStore,
+    reference: RefView<'_>,
+    path: &[PathStep],
+    batch: &str,
+) -> Result<super::capture_allocation::native_owned::NativeValue<ContentRef>, CodecError> {
+    replace_output(&mut CodecContext::Store(store), reference, path, batch)
+}
+
+pub fn lookup_fields_native(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+    names: &[&str],
+    subset: bool,
+) -> Result<super::capture_allocation::native_owned::NativeRefFields, CodecError> {
+    object_fields_output(&mut CodecContext::Source(source), reference, names, !subset)
+}
+
+/// #1488 原 content_ref_ctx 共核；不经过擦除许可的旧 ContentRef 返回口。
+pub fn content_ref_of_native(
+    source: &mut dyn NodeSource,
+    root: &str,
+) -> Result<super::capture_allocation::native_owned::NativeValue<ContentRef>, CodecError> {
+    let (reference, permit) = super::content_ref_reserved(&mut CodecContext::Source(source), root)?;
+    Ok(super::capture_allocation::native_owned::NativeValue::from_reserved(reference, permit))
 }

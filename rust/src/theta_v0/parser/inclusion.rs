@@ -977,6 +977,51 @@ pub struct SharedEvidenceUnavailable {
 /// 类型；不得据此把物理树形状当成规范 M 结构（见 `CoordsRef::root_node` 文档）。
 pub use super::evidence::{CoordNode, CoordsRef, SourceCoords, SourceCoordsIter};
 
+/// #1488：同一次 append 的实际写入范围；不是 raw 原件或事务资格。
+///
+/// 前缀由本核的写入点给出，不比较旧 bars、不猜尾部长度。组的范围还包括前组封口，
+/// merged 范围只含数值序列的写入；waiting 不改两者，但会追加 step/未映射来源。
+/// 字段只读，调用者不能把自己猜的边界包装成本核见证。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InclusionAppendChanges {
+    old_steps: usize,
+    new_steps: usize,
+    old_groups: usize,
+    new_groups: usize,
+    old_merged: usize,
+    new_merged: usize,
+    group_dirty_from: Option<usize>,
+    merged_dirty_from: Option<usize>,
+    was_unsettled: bool,
+    is_unsettled: bool,
+    shared_available: bool,
+}
+
+impl InclusionAppendChanges {
+    pub fn step_counts(&self) -> (usize, usize) {
+        (self.old_steps, self.new_steps)
+    }
+    pub fn group_counts(&self) -> (usize, usize) {
+        (self.old_groups, self.new_groups)
+    }
+    pub fn merged_counts(&self) -> (usize, usize) {
+        (self.old_merged, self.new_merged)
+    }
+    pub fn group_dirty_from(&self) -> Option<usize> {
+        self.group_dirty_from
+    }
+    pub fn merged_dirty_from(&self) -> Option<usize> {
+        self.merged_dirty_from
+    }
+    pub fn unsettled_transition(&self) -> (bool, bool) {
+        (self.was_unsettled, self.is_unsettled)
+    }
+    /// false 时不准消费共享证据；不是触发另一套判据的开关。
+    pub fn shared_available(&self) -> bool {
+        self.shared_available
+    }
+}
+
 impl IncrFactsState {
     pub fn empty() -> Self {
         Self::default()
@@ -987,6 +1032,25 @@ impl IncrFactsState {
     /// #1394：同一次调用同时写完整证据的共享节点（步骤日志、证据坐标链、组尾链、极值快照）；
     /// 坐标前缀沿 O(log n) 平衡路径共享，展开留给 [`IncrFactsState::materialize_facts`]。
     pub fn append(&mut self, incoming: Bar) {
+        self.append_with_changes(incoming);
+    }
+
+    /// #1488：在同一 append 核的写入点产变化见证；旧 append 只丢弃该定长值。
+    /// 不增加判断、不持有历史快照、不另建变化日志。
+    pub fn append_with_changes(&mut self, incoming: Bar) -> InclusionAppendChanges {
+        let mut changes = InclusionAppendChanges {
+            old_steps: self.steps.len(),
+            new_steps: self.steps.len() + 1,
+            old_groups: self.groups.len(),
+            new_groups: self.groups.len(),
+            old_merged: self.merged.len(),
+            new_merged: self.merged.len(),
+            group_dirty_from: None,
+            merged_dirty_from: None,
+            was_unsettled: self.unsettled,
+            is_unsettled: self.unsettled,
+            shared_available: !self.degraded,
+        };
         self.positions.insert(incoming.source_index, self.ordinal);
         self.ordinal += 1;
         // 共享拼接前提：坐标严格递增。违反即降级（展开回落全量入口），不静默近似。
@@ -996,6 +1060,7 @@ impl IncrFactsState {
         {
             self.degraded = true;
         }
+        changes.shared_available = !self.degraded;
         self.last_source_index = Some(incoming.source_index);
         self.raw.push(incoming);
         self.raw_prefix = self.raw_prefix.append_greater(incoming.source_index);
@@ -1014,7 +1079,7 @@ impl IncrFactsState {
                 low: None,
                 waiting_reasons: vec!["initial_direction_unsettled"],
             });
-            return;
+            return changes;
         }
         let Some(acc) = self.merged.last().copied() else {
             // seed：首根 raw 原样入 merged 与 groups。
@@ -1048,11 +1113,16 @@ impl IncrFactsState {
                 waiting_reasons: vec![],
             });
             self.processed += 1;
-            return;
+            changes.group_dirty_from = Some(0);
+            changes.merged_dirty_from = Some(0);
+            changes.new_groups = 1;
+            changes.new_merged = 1;
+            return changes;
         };
         // 未建方向前的包含 —— 不借未来方向回折，转「永久未定」（#1392 语义保留）。
         if self.evidence.is_none() && contains(&acc, &incoming) {
             self.unsettled = true;
+            changes.is_unsettled = true;
             self.unmapped.push(incoming.source_index);
             self.steps.push(StepRecord {
                 action: "waiting",
@@ -1070,7 +1140,7 @@ impl IncrFactsState {
                 low: None,
                 waiting_reasons: vec!["initial_direction_unsettled"],
             });
-            return;
+            return changes;
         }
         let direction = self
             .evidence
@@ -1089,6 +1159,14 @@ impl IncrFactsState {
         let (after, new_direction) = fold_step(&acc, incoming, direction, merged);
         let included = merged.len() == prefix_len;
         merged.push(after);
+        // fold_step 在非包含分支原样保留旧 acc，仅追加 after；包含分支改旧末根。
+        changes.merged_dirty_from = Some(if included {
+            changes.old_merged - 1
+        } else {
+            changes.old_merged
+        });
+        changes.group_dirty_from = Some(changes.old_groups - 1);
+        changes.new_merged = merged.len();
         if !included {
             // new_group：改前一组的封口证据，追加新组。证据链只在此处换指向。
             //
@@ -1242,6 +1320,99 @@ impl IncrFactsState {
             });
         }
         self.processed += 1;
+        changes.new_groups = self.groups.len();
+        changes
+    }
+
+    /// #1488：按既有单步快照撤回到给定 raw rank，再由 append 重算变化后缀。
+    ///
+    /// 不扫未变 raw、不克隆完整状态、不重新判断包含关系。封口只会改前一末组；merge
+    /// 只会改当前末组，acc_before 与前一步 high/low 共享快照给出全部逆操作。
+    /// 极值未换值时只截来源尾；换值时恢复被替换的那一组来源，不展开其他历史。
+    ///
+    /// 正式 S 的有效账由坐标唯一且升序的 raw winner 索引给出，属于本口的严格递增域。
+    /// 非递增的通用 parser 降级域仍可由旧全量入口处理，但不能取得可回退的共享资格。
+    pub fn rewind_to(&mut self, steps: usize) -> Result<(), SharedEvidenceUnavailable> {
+        if self.degraded || steps > self.steps.len() {
+            return Err(SharedEvidenceUnavailable {
+                reason: if self.degraded {
+                    "non_increasing_source_coordinates"
+                } else {
+                    "rewind_rank_out_of_range"
+                },
+            });
+        }
+        while self.steps.len() > steps {
+            let step = self.steps.pop().expect("已核非空");
+            let incoming = self.raw.pop().expect("每步对应一条 raw");
+            debug_assert_eq!(incoming.source_index, step.incoming.source_index);
+            self.positions.remove(&incoming.source_index);
+            self.ordinal -= 1;
+            self.last_source_index = self.steps.last().map(|s| s.incoming.source_index);
+            self.raw_prefix = self.raw_prefix.without_last();
+            if step.action == "waiting" {
+                let unmapped = self.unmapped.pop();
+                debug_assert_eq!(unmapped, Some(incoming.source_index));
+                // 只有第一次 waiting 带 contains=true；其后 continue 的 contains=None。
+                if step.contains == Some(true) {
+                    self.unsettled = false;
+                }
+                continue;
+            }
+            self.processed -= 1;
+            if step.action == "merge" {
+                let before = step.acc_before.expect("merge 有旧 acc");
+                let after = step.acc_after.expect("merge 有新 acc");
+                let previous = self.steps.last().expect("merge 前有 seed");
+                let high = previous.high.as_ref().expect("非 waiting 前驱有极值快照");
+                let low = previous.low.as_ref().expect("非 waiting 前驱有极值快照");
+                *Rc::make_mut(&mut self.merged).last_mut().unwrap() = before;
+                let group = self.groups.last_mut().unwrap();
+                group.bar = before;
+                let member = group.members.pop();
+                debug_assert_eq!(member, Some(incoming.source_index));
+                if before.high == after.high {
+                    group.high_sources.truncate(high.len());
+                } else {
+                    group.high_sources = high.as_ref().clone();
+                }
+                if before.low == after.low {
+                    group.low_sources.truncate(low.len());
+                } else {
+                    group.low_sources = low.as_ref().clone();
+                }
+                *self.group_high.last_mut().unwrap() = Rc::clone(high);
+                *self.group_low.last_mut().unwrap() = Rc::clone(low);
+                let tail = self.group_tail.last_mut().unwrap();
+                *tail = tail.without_last();
+                *self.group_versions.last_mut().unwrap() -= 1;
+                continue;
+            }
+            debug_assert!(matches!(
+                step.action,
+                "seed" | "establish_direction" | "new_group"
+            ));
+            Rc::make_mut(&mut self.merged).pop();
+            self.groups.pop();
+            self.group_tail.pop();
+            self.group_direction.pop();
+            self.group_confirmation.pop();
+            self.group_high.pop();
+            self.group_low.pop();
+            self.group_versions.pop();
+            if let Some(group) = self.groups.last_mut() {
+                group.confirmed = false;
+                group.confirmation_evidence = None;
+                *self.group_confirmation.last_mut().unwrap() = None;
+                *self.group_versions.last_mut().unwrap() -= 1;
+                self.evidence = group.direction_evidence.clone();
+                self.current_evidence = self.group_direction.last().unwrap().clone();
+            } else {
+                self.evidence = None;
+                self.current_evidence = None;
+            }
+        }
+        Ok(())
     }
 
     pub fn merged_slice(&self) -> &[Bar] {
@@ -1597,6 +1768,236 @@ mod tests {
             volume: 1.0,
             untradable: false,
         }
+    }
+
+    fn assert_delta_prefixes(bars: &[Bar]) {
+        let mut state = IncrFactsState::empty();
+        for (index, incoming) in bars.iter().enumerate() {
+            let before = state.materialize_facts();
+            let changes = state.append_with_changes(*incoming);
+            let after = state.materialize_facts();
+            // 独立旧全量核，不经 append_with_changes 计算 expected。
+            assert_eq!(after, process_inclusion_with_facts(&bars[..=index]));
+            assert_eq!(changes.step_counts(), (index, index + 1));
+            assert_eq!(
+                changes.group_counts(),
+                (before.groups.len(), after.groups.len())
+            );
+            assert_eq!(
+                changes.merged_counts(),
+                (before.merged.len(), after.merged.len())
+            );
+            let groups = changes.group_dirty_from().unwrap_or(before.groups.len());
+            let merged = changes.merged_dirty_from().unwrap_or(before.merged.len());
+            assert_eq!(&before.groups[..groups], &after.groups[..groups]);
+            assert_eq!(&before.merged[..merged], &after.merged[..merged]);
+            assert_eq!(&before.steps[..], &after.steps[..index]);
+            if changes.group_dirty_from().is_none() {
+                assert_eq!(before.groups, after.groups);
+            }
+            if changes.merged_dirty_from().is_none() {
+                assert_eq!(before.merged, after.merged);
+            }
+            assert!(changes.shared_available());
+        }
+    }
+
+    #[test]
+    fn delta_append_frontiers_match_full_kernel_and_preserve_untouched_prefixes() {
+        // 已建方向、包含合并、同极值、转向与再封口；216 个三步延续，每步对完整旧核。
+        let ranges = [(12, 7), (11, 8), (14, 6), (9, 4), (16, 11), (10, 5)];
+        for a in ranges {
+            for b in ranges {
+                for c in ranges {
+                    assert_delta_prefixes(&[
+                        bar(2, 10, 5),
+                        bar(7, 12, 7),
+                        bar(12, a.0, a.1),
+                        bar(17, b.0, b.1),
+                        bar(22, c.0, c.1),
+                    ]);
+                }
+            }
+        }
+        // 首次包含进入永久 waiting，随后方向不能回折修复；两条也对独立全量核。
+        assert_delta_prefixes(&[bar(2, 10, 5), bar(7, 9, 6), bar(12, 14, 11)]);
+        assert_delta_prefixes(&[bar(2, 10, 5), bar(7, 12, 4), bar(12, 14, 11)]);
+    }
+
+    #[test]
+    fn delta_append_distinguishes_group_confirmation_merge_and_waiting() {
+        let mut state = IncrFactsState::empty();
+        let seed = state.append_with_changes(bar(2, 10, 5));
+        assert_eq!(seed.group_dirty_from(), Some(0));
+        assert_eq!(seed.merged_dirty_from(), Some(0));
+        let establish = state.append_with_changes(bar(7, 12, 7));
+        assert_eq!(establish.group_dirty_from(), Some(0), "前组封口必须脏");
+        assert_eq!(
+            establish.merged_dirty_from(),
+            Some(1),
+            "旧 acc 数值原样定稿"
+        );
+        let merge = state.append_with_changes(bar(12, 11, 8));
+        assert_eq!(merge.group_dirty_from(), Some(1));
+        assert_eq!(merge.merged_dirty_from(), Some(1));
+
+        let mut waiting = IncrFactsState::empty();
+        waiting.append(bar(2, 10, 5));
+        let first = waiting.append_with_changes(bar(7, 9, 6));
+        assert_eq!(first.unsettled_transition(), (false, true));
+        assert_eq!(first.group_dirty_from(), None);
+        assert_eq!(first.merged_dirty_from(), None);
+        let later = waiting.append_with_changes(bar(12, 20, 15));
+        assert_eq!(later.unsettled_transition(), (true, true));
+        assert_eq!(later.step_counts(), (2, 3));
+        assert_eq!(later.group_dirty_from(), None);
+    }
+
+    #[test]
+    fn delta_append_nonincreasing_coordinate_cannot_issue_shared_frontier() {
+        let mut state = IncrFactsState::empty();
+        state.append(bar(7, 10, 5));
+        let changes = state.append_with_changes(bar(7, 12, 7));
+        assert!(!changes.shared_available());
+        assert!(state.shared_step(0).is_err());
+        assert!(!state.append_with_changes(bar(12, 14, 9)).shared_available());
+    }
+
+    fn assert_rewind_and_reappend(bars: &[Bar]) {
+        for cut in 0..=bars.len() {
+            let mut state = IncrFactsState::empty();
+            for incoming in bars {
+                state.append(*incoming);
+            }
+            let retained_merged = state.merged_rc();
+            let original_merged = retained_merged.as_ref().clone();
+            state.rewind_to(cut).unwrap();
+            assert_eq!(
+                state.materialize_facts(),
+                process_inclusion_with_facts(&bars[..cut])
+            );
+            assert_eq!(state.raw_iter().copied().collect::<Vec<_>>(), bars[..cut]);
+            assert_eq!(state.ordinal, cut);
+            assert_eq!(state.positions.len(), cut);
+            assert_eq!(
+                state.raw_prefix.materialize(),
+                bars[..cut]
+                    .iter()
+                    .map(|bar| bar.source_index)
+                    .collect::<Vec<_>>()
+            );
+            let mut prefix = IncrFactsState::empty();
+            for incoming in &bars[..cut] {
+                prefix.append(*incoming);
+            }
+            assert_eq!(state.group_versions, prefix.group_versions);
+            assert_eq!(state.processed(), prefix.processed());
+            assert_eq!(state.unmapped_sources(), prefix.unmapped_sources());
+            for (offset, incoming) in bars[cut..].iter().enumerate() {
+                state.append_with_changes(*incoming);
+                assert_eq!(
+                    state.materialize_facts(),
+                    process_inclusion_with_facts(&bars[..=cut + offset])
+                );
+            }
+            assert_eq!(
+                *retained_merged, original_merged,
+                "已借旧 merged 快照不能被撤回改写"
+            );
+        }
+    }
+
+    #[test]
+    fn delta_rewind_every_cut_restores_metadata_and_matches_full_kernel() {
+        for bars in [
+            vec![
+                bar(2, 10, 5),
+                bar(7, 12, 7),
+                bar(12, 12, 8),
+                bar(17, 13, 8),
+                bar(22, 16, 12),
+                bar(27, 14, 10),
+                bar(32, 13, 11),
+            ],
+            vec![
+                bar(2, 12, 7),
+                bar(7, 10, 5),
+                bar(12, 9, 5),
+                bar(17, 9, 4),
+                bar(22, 12, 6),
+                bar(27, 11, 7),
+            ],
+            vec![
+                bar(2, 10, 5),
+                bar(7, 9, 6),
+                bar(12, 14, 11),
+                bar(17, 15, 12),
+            ],
+            vec![bar(2, 10, 5)],
+            vec![],
+        ] {
+            assert_rewind_and_reappend(&bars);
+        }
+    }
+
+    #[test]
+    fn delta_rewind_revision_can_change_initial_direction_and_equal_extreme_sources() {
+        let original = [
+            bar(2, 10, 5),
+            bar(7, 9, 6),
+            bar(12, 14, 11),
+            bar(17, 15, 12),
+        ];
+        for replacement in [bar(7, 12, 7), bar(7, 8, 3), bar(7, 10, 5)] {
+            let mut state = IncrFactsState::empty();
+            for incoming in original {
+                state.append(incoming);
+            }
+            state.rewind_to(1).unwrap();
+            let revised = [original[0], replacement, original[2], original[3]];
+            for (index, incoming) in revised.iter().enumerate().skip(1) {
+                state.append_with_changes(*incoming);
+                assert_eq!(
+                    state.materialize_facts(),
+                    process_inclusion_with_facts(&revised[..=index])
+                );
+            }
+        }
+        // 极值重合后真正换高/低值，撤回须恢复旧来源快照，而非只恢复数量。
+        assert_rewind_and_reappend(&[
+            bar(2, 10, 5),
+            bar(7, 12, 7),
+            bar(12, 12, 8),
+            bar(17, 12, 9),
+            bar(22, 13, 8),
+            bar(27, 13, 10),
+        ]);
+    }
+
+    #[test]
+    fn delta_rewind_releases_removed_evidence_and_rejects_invalid_rank_atomically() {
+        let mut state = IncrFactsState::empty();
+        for incoming in [bar(2, 10, 5), bar(7, 12, 7), bar(12, 14, 9)] {
+            state.append(incoming);
+        }
+        let node = state.current_evidence.as_ref().unwrap().clone();
+        let weak = Rc::downgrade(&node);
+        let contents = node.coords.materialize();
+        let before = state.materialize_facts();
+        assert!(state.rewind_to(4).is_err());
+        assert_eq!(state.materialize_facts(), before);
+        state.rewind_to(0).unwrap();
+        assert_eq!(node.coords.materialize(), contents);
+        assert_eq!(weak.strong_count(), 1, "只剩测试显式保留的快照");
+        drop(node);
+        assert!(weak.upgrade().is_none());
+        assert_eq!(state.materialize_facts(), process_inclusion_with_facts(&[]));
+
+        state.append(bar(7, 10, 5));
+        state.append(bar(7, 12, 7));
+        let degraded = state.materialize_facts();
+        assert!(state.rewind_to(0).is_err());
+        assert_eq!(state.materialize_facts(), degraded);
     }
 
     #[test]

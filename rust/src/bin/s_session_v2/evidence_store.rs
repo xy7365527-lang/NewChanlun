@@ -88,25 +88,6 @@ pub(super) fn hash_matches(bytes: &[u8], expected: &str) -> bool {
         .flat_map(|b| [hex[(b >> 4) as usize], hex[(b & 15) as usize]]))
 }
 
-/// Arc<[u8]> 的动态布局包含两个引用计数及尾部对齐；许可在 Arc 构造前取得。
-/// 不扫描或再次收费已保留池；只覆盖本次新建 Arc 的请求布局。
-pub(super) fn admit_byte_arc(len: usize, work: Option<&WorkScope>) -> Result<(), String> {
-    if work.is_none() {
-        return Ok(());
-    }
-    let admission = NativeAdmission(work);
-    let payload = std::alloc::Layout::array::<u8>(len)
-        .map_err(|_| admission.native_overflow().to_string())?;
-    let layout = std::alloc::Layout::new::<[usize; 2]>()
-        .extend(payload)
-        .map_err(|_| admission.native_overflow().to_string())?
-        .0
-        .pad_to_align();
-    admission
-        .native_admit(layout.size())
-        .map_err(|e| e.to_string())
-}
-
 /// 私有格式登记表（不在公共协议里，也不参与公开对象/批次身份）。
 pub(super) const FORMAT_TABLE: &str = "s_evidence_format";
 /// 不可变节点表。
@@ -1182,10 +1163,10 @@ struct RootRow {
 
 /// 一次根读取的结果：展开字节、根声明长度与内容摘要、以及按需解码的规范 JSON。
 pub(super) struct VerifiedRoot {
-    pub(super) bytes: std::sync::Arc<[u8]>,
+    pub(super) bytes: crate::v3::native_shared::NativeArc<[u8]>,
     pub(super) declared_length: u64,
-    pub(super) content_sha256: String,
-    pub(super) value: Option<std::sync::Arc<Value>>,
+    pub(super) content_sha256: TextValue,
+    pub(super) value: Option<crate::v3::native_shared::NativeArc<crate::SharedPlainJson>>,
     /// 本次用新鲜行算出的闭包指纹（供「对原件内容敏感」的前缀/复用判据）。
     pub(super) closure: [u8; 32],
     /// 本次是否命中已核句柄（true = 未重新展开；false = 本次完整展开并核过）。
@@ -1197,15 +1178,15 @@ pub(super) struct VerifiedRoot {
     pub(super) originals_verified: bool,
     /// 该根当前保留的原件证书（审计前缀的原件证据；`None` = 本次无法保留）。
     #[cfg_attr(not(test), allow(dead_code))]
-    pub(super) root_cert: Option<std::sync::Arc<cache::RootCert>>,
+    pub(super) root_cert: Option<crate::v3::native_shared::NativeArc<cache::RootCert>>,
 }
 
 /// 只有当前完整闭包逐字节命中已核原件才成立；没有展开字节或解码值。
 pub(super) struct VerifiedRootProof {
     pub(super) declared_length: u64,
-    pub(super) content_sha256: String,
+    pub(super) content_sha256: TextValue,
     pub(super) closure: [u8; 32],
-    pub(super) root_cert: std::sync::Arc<cache::RootCert>,
+    pub(super) root_cert: crate::v3::native_shared::NativeArc<cache::RootCert>,
 }
 
 /// 一次根闭包核验的结果：根行 + 派生量 + 指纹 + 原件门 + 闭包内唯一节点集。
@@ -1270,7 +1251,7 @@ impl OwnedNode {
     }
 }
 enum ReadNode {
-    Plain(std::sync::Arc<cache::Cert>),
+    Plain(crate::v3::native_shared::NativeArc<cache::Cert>),
     Owned(OwnedNode),
 }
 impl ReadNode {
@@ -1338,7 +1319,7 @@ pub(super) struct Reader<'a> {
     _capture: Option<cache::CaptureGuard>,
     owned: Option<OwnedReadState>,
     /// 本次读取实际读到过的节点 id（供「不可达残留」核对）。
-    touched: std::collections::BTreeSet<[u8; 32]>,
+    touched: crate::v3::audit_store::NativeSet<[u8; 32]>,
 }
 
 impl<'a> Reader<'a> {
@@ -1358,7 +1339,7 @@ impl<'a> Reader<'a> {
             work,
             _capture: Some(cache::begin_capture_admitted(budget_bytes, work)?),
             owned: None,
-            touched: std::collections::BTreeSet::new(),
+            touched: Default::default(),
         })
     }
 
@@ -1368,7 +1349,7 @@ impl<'a> Reader<'a> {
             conn_id: conn as *const Connection as usize,
             work: None,
             _capture: None,
-            touched: std::collections::BTreeSet::new(),
+            touched: Default::default(),
             owned: Some(OwnedReadState {
                 budget: budget.clone(),
                 nodes: new_map(Some(budget)),
@@ -1383,11 +1364,10 @@ impl<'a> Reader<'a> {
         self.owned.as_ref().map(|o| &o.budget)
     }
     fn mark_touched(&mut self, id: [u8; 32]) -> Result<(), String> {
-        if self.owned.is_none() && !self.touched.contains(&id) {
-            NativeAdmission(self.work)
-                .native_tree_room::<[u8; 32], ()>(self.touched.len())
+        if self.owned.is_none() {
+            self.touched
+                .insert_admitted(id, &NativeAdmission(self.work))
                 .map_err(|e| e.to_string())?;
-            self.touched.insert(id);
         }
         Ok(())
     }
@@ -1407,7 +1387,7 @@ impl<'a> Reader<'a> {
             None => Ok(
                 cache::derived_get_admitted(self.conn_id, id, self.work)?.map(|v| ReadDerived {
                     length: v.length,
-                    slot_counts: CodecVec::from_plain(v.slot_counts),
+                    slot_counts: v.slot_counts,
                     digest: v.digest,
                 }),
             ),
@@ -1423,7 +1403,7 @@ impl<'a> Reader<'a> {
                 id,
                 cache::NodeDerived {
                     length: v.length,
-                    slot_counts: v.slot_counts.try_into_plain().map_err(|e| e.to_string())?,
+                    slot_counts: v.slot_counts,
                     digest: v.digest,
                 },
                 self.work,
@@ -1468,9 +1448,10 @@ impl<'a> Reader<'a> {
             content_sha256: check.row.content_sha256,
         })
     }
-    #[cfg(test)]
-    pub(super) fn touched(&self) -> &std::collections::BTreeSet<[u8; 32]> {
-        &self.touched
+    /// 测试快照：复制成普通集合，不外借持费集合本体。
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
+    pub(super) fn touched(&self) -> std::collections::BTreeSet<[u8; 32]> {
+        self.touched.iter().copied().collect()
     }
 
     /// 把捕获作用域交给调用方保管：同一次根审计的后续读取继续共享同一份节点读集。
@@ -1780,7 +1761,7 @@ impl<'a> Reader<'a> {
         Ok(Some(VerifiedRootProof {
             declared_length: check.row.expanded_length,
             content_sha256: NativeAdmission(self.work)
-                .native_string(check.row.content_sha256.as_str())
+                .native_text(check.row.content_sha256.as_str())
                 .map_err(|e| e.to_string())?,
             closure: check.digest,
             root_cert,
@@ -1838,27 +1819,30 @@ impl<'a> Reader<'a> {
         let (bytes, mut value) = match cached {
             Some((bytes, value)) => (bytes, value),
             None => {
-                let expanded = self.expand(root_key, &check.row)?;
-                admit_byte_arc(expanded.len(), self.work)?;
-                let bytes: std::sync::Arc<[u8]> = std::sync::Arc::from(expanded.as_slice());
+                let expanded = self.expand_work(root_key, &check.row)?;
+                let bytes = crate::v3::native_shared::NativeArc::<[u8]>::try_copy_slice(
+                    &expanded, self.work,
+                )
+                .map_err(|e| e.to_string())?;
                 if cache::retention_enabled() {
                     // 已核闭包：把本次读到的**原件证书**保留下来（共享同一份原节点，按唯一保留量
                     // 记账），供后续捕获逐字节比较。只在成功核过长度/摘要之后才保留。
-                    let mut ids: std::collections::BTreeSet<[u8; 32]> =
-                        std::collections::BTreeSet::new();
-                    let mut frontier = Vec::new();
+                    let mut ids = crate::v3::audit_store::NativeSet::default();
+                    let mut frontier = newchan_rust::s_content::CodecVec::default();
                     admission
                         .native_vec_room(&mut frontier, check.row.slots.len() + 1)
                         .map_err(|e| e.to_string())?;
-                    frontier.extend_from_slice(&check.row.slots);
-                    frontier.push(check.row.node);
+                    for id in &check.row.slots {
+                        frontier.try_push(*id).map_err(|e| e.to_string())?;
+                    }
+                    frontier
+                        .try_push(check.row.node)
+                        .map_err(|e| e.to_string())?;
                     while let Some(id) = frontier.pop() {
-                        if !ids.contains(&id) {
-                            admission
-                                .native_tree_room::<[u8; 32], ()>(ids.len())
-                                .map_err(|e| e.to_string())?;
-                        }
-                        if !ids.insert(id) {
+                        if !ids
+                            .insert_admitted(id, &admission)
+                            .map_err(|e| e.to_string())?
+                        {
                             continue;
                         }
                         // 命中本捕获读集时不再读 SQLite；读集被逐出时按新鲜行重读。
@@ -1866,22 +1850,21 @@ impl<'a> Reader<'a> {
                         admission
                             .native_vec_room(&mut frontier, node.children.len())
                             .map_err(|e| e.to_string())?;
-                        frontier.extend(node.children.iter().copied());
+                        for id in &node.children {
+                            frontier.try_push(*id).map_err(|e| e.to_string())?;
+                        }
                     }
                     cache::cert_commit_admitted(self.conn_id, &ids, self.work)?;
+                    let mut slots = CodecVec::default();
                     admission
-                        .native_admit(
-                            check
-                                .row
-                                .slots
-                                .len()
-                                .checked_mul(32)
-                                .ok_or_else(|| admission.native_overflow().to_string())?,
-                        )
+                        .native_vec_room(&mut slots, check.row.slots.len())
                         .map_err(|e| e.to_string())?;
-                    let cert = cache::RootCert::new(
+                    for slot in &check.row.slots {
+                        slots.try_push(*slot).map_err(|e| e.to_string())?;
+                    }
+                    let cert = cache::RootCert::new_admitted(
                         check.row.node,
-                        check.row.slots.to_vec(),
+                        slots,
                         check.row.expanded_length,
                         admission
                             .native_string(check.row.content_sha256.as_str())
@@ -1936,10 +1919,7 @@ impl<'a> Reader<'a> {
                     "StorageUnavailable：私有根 `{root_key}` 非 JSON 对象"
                 ));
             }
-            admission
-                .native_admit(std::mem::size_of::<Value>() + 2 * std::mem::size_of::<usize>())
-                .map_err(|e| e.to_string())?;
-            let parsed = std::sync::Arc::new(parsed);
+            let parsed = crate::share_plain_json_admitted(parsed, self.work)?;
             if let Some(cert) = retained.clone() {
                 retained = cache::handle_put_certified_admitted(
                     root_key,
@@ -1958,7 +1938,7 @@ impl<'a> Reader<'a> {
             bytes,
             declared_length: check.row.expanded_length,
             content_sha256: NativeAdmission(self.work)
-                .native_string(check.row.content_sha256.as_str())
+                .native_text(check.row.content_sha256.as_str())
                 .map_err(|e| e.to_string())?,
             value,
             closure: check.digest,
@@ -1972,7 +1952,7 @@ impl<'a> Reader<'a> {
     pub(super) fn read_fixed_cut(
         &mut self,
         root_key: &str,
-    ) -> Result<std::sync::Arc<[u8]>, String> {
+    ) -> Result<crate::v3::native_shared::NativeArc<[u8]>, String> {
         Ok(self.read_root(root_key, false)?.bytes)
     }
 
@@ -1984,7 +1964,13 @@ impl<'a> Reader<'a> {
     pub(super) fn read_fixed_cut_value(
         &mut self,
         root_key: &str,
-    ) -> Result<(std::sync::Arc<[u8]>, std::sync::Arc<Value>), String> {
+    ) -> Result<
+        (
+            crate::v3::native_shared::NativeArc<[u8]>,
+            crate::v3::native_shared::NativeArc<crate::SharedPlainJson>,
+        ),
+        String,
+    > {
         let root = self.read_root(root_key, true)?;
         let value = root
             .value
@@ -1993,6 +1979,7 @@ impl<'a> Reader<'a> {
     }
 
     /// 完整展开（冷路径）：返回前核根声明的长度与摘要，长度增长受根声明上界约束。
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     fn expand(&mut self, root_key: &str, row: &RootRow) -> Result<Vec<u8>, String> {
         self.expand_work(root_key, row)?
             .try_into_plain()
@@ -2130,7 +2117,14 @@ impl<'a> Reader<'a> {
     /// 按 id 取节点**原件证书**：本次捕获已读过就直接复用；否则从**新鲜行**读入，先核内容寻址与
     /// 长度自洽，再与保留证书**逐字节**比较（命中才打上原件门标记），最后记入本次捕获的临时读集
     /// （超预算只失去复用，当次读照常返回）。
-    fn load(&mut self, id: &[u8; 32]) -> Result<std::sync::Arc<cache::Cert>, String> {
+    fn load(
+        &mut self,
+        id: &[u8; 32],
+    ) -> Result<crate::v3::native_shared::NativeArc<cache::Cert>, String> {
+        #[allow(
+            unused_variables,
+            reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删"
+        )]
         let admission = NativeAdmission(self.work);
         self.mark_touched(*id)?;
         cache::mark_reachable_admitted(self.conn_id, *id, self.work)?;
@@ -2141,11 +2135,7 @@ impl<'a> Reader<'a> {
         }
         let (kind, payload, declared) = if self.work.is_some() {
             let (kind, payload, declared) = read_node_row_admitted(self.conn, id, None, self.work)?;
-            (
-                kind,
-                payload.try_into_plain().map_err(|e| e.to_string())?,
-                declared,
-            )
+            (kind, payload, declared)
         } else {
             // None 保留普通读取适配器作为独立对照；Native 借 SQL 原件后才许可复制。
             let mut statement = self.conn.prepare_cached("SELECT node_kind,payload,expanded_length FROM s_evidence_nodes WHERE node_id=?1")
@@ -2157,11 +2147,9 @@ impl<'a> Reader<'a> {
                 .ok_or_else(|| format!("StorageUnavailable：私有节点 {} 缺失", hex(id)))?;
             drop(statement);
             let declared = verify_node_row(id, kind, &payload, len)?;
-            (kind, payload, declared)
+            (kind, CodecVec::from_plain(payload), declared)
         };
-        let children = node_children_admitted(kind, &payload, None, self.work)?
-            .try_into_plain()
-            .map_err(|e| e.to_string())?;
+        let children = node_children_admitted(kind, &payload, None, self.work)?;
         #[cfg(test)]
         cache::counter(|c| {
             c.node_rows_read += 1;
@@ -2185,20 +2173,22 @@ impl<'a> Reader<'a> {
                         c.cert_mismatched += 1;
                     }
                 });
-                admit_byte_arc(payload.len(), self.work)?;
-                admission
-                    .native_admit(
-                        std::mem::size_of::<cache::Cert>() + 2 * std::mem::size_of::<usize>(),
-                    )
-                    .map_err(|e| e.to_string())?;
+                let payload = crate::v3::native_shared::NativeArc::<[u8]>::try_copy_slice(
+                    &payload, self.work,
+                )
+                .map_err(|e| e.to_string())?;
                 (
-                    std::sync::Arc::new(cache::Cert {
-                        id: *id,
-                        kind,
-                        payload: std::sync::Arc::from(payload),
-                        expanded_length: declared,
-                        children,
-                    }),
+                    crate::v3::native_shared::NativeArc::try_new_shallow(
+                        cache::Cert {
+                            id: *id,
+                            kind,
+                            payload,
+                            expanded_length: declared,
+                            children,
+                        },
+                        self.work,
+                    )
+                    .map_err(|e| e.to_string())?,
                     true,
                 )
             }
@@ -2583,7 +2573,7 @@ mod metadata_regressions {
                 node,
                 slots: CodecVec::from_plain(slots),
                 expanded_length,
-                content_sha256: TextValue::Plain(content_sha256),
+                content_sha256: TextValue::from_str(&content_sha256, None).unwrap(),
             },
             canonical_bytes_of_value(&value),
         )
@@ -2662,7 +2652,7 @@ mod metadata_regressions {
         let full = reader.read_root("batch/shared", true).unwrap();
         assert_eq!(full.bytes.as_ref(), expected);
         assert_eq!(
-            full.value.as_deref(),
+            full.value.as_deref().map(|v| v.as_ref()),
             Some(&v2::strict_json(&expected).unwrap())
         );
         assert_eq!(cache::retained_bytes(), 0);
@@ -2795,7 +2785,7 @@ mod metadata_regressions {
                 node,
                 slots: CodecVec::from_plain(slots),
                 expanded_length,
-                content_sha256: TextValue::Plain(content_sha256),
+                content_sha256: TextValue::from_str(&content_sha256, None).unwrap(),
             };
             let mut reader = Reader::new(&tx, 0);
             let error = reader.expand("batch/damaged", &current).unwrap_err();
@@ -2822,7 +2812,7 @@ mod metadata_regressions {
                 node,
                 slots: CodecVec::from_plain(slots),
                 expanded_length,
-                content_sha256: TextValue::Plain(content_sha256),
+                content_sha256: TextValue::from_str(&content_sha256, None).unwrap(),
             },
             canonical_bytes_of_value(&value),
         )
