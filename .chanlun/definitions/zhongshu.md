@@ -6,7 +6,7 @@
 
 **版本**: v2.2（2026-10-21 落 #1627；v2.1 为 2026-10-13 落 #1478；v2.0 为 #812 全量重写，覆盖 v1.4）
 **状态**: 已裁定（Z-1…Z-8 八组 + 附①附② + S-1…S-7，共 17 条；#1478 补 S-7 落码与 §4.1 端点条款）
-**最后更新**: 2026-10-13
+**最后更新**: 2026-10-21
 **原文依据**: 第 17、18、19、20、21、24、27、28、29、30、32、33、34、35、37、38、43、49、57、59、63、64、69、83、84、92、101、102 课（博文，`docs/chanlun/text/blog/`）
 
 **引用纪律**：本文件所有承重引文均标 `文件:行号`，出处一律为 `docs/chanlun/text/blog/` 下的缠师原始博文（一级权威）。《市场天道》**只在它改动过的地方**有信息量，不作独立佐证（[#825](https://github.com/xy7365527-lang/NewChanlun/issues/825)）。
@@ -628,11 +628,11 @@ ZD < ZG（严格，Z-2）
 | # | 侧 | 文件:行号 | 现状 | 改法 | 承接 |
 |---|---|---|---|---|---|
 | C1 | Rust | `rust/src/theta_v0/backtest/econ_positive.rs:1142-1143`；`rust/src/theta_v0/backtest/econ_positive/cand_delta.rs:85-87` | 「塔不从笔递归……构造选择」 | 改为指向 §2.1.1 并带 #1627：塔不从笔递归是原文否决，塔底基底取什么才是选择 | [#1626](https://github.com/xy7365527-lang/NewChanlun/issues/1626) Q-6（已在其清单内，本票只补口径） |
-| C2 | Rust | `rust/src/recursive_t/types.rs:70-87`（`A0Source::Stroke`，doc「递归底座下移」）、`:92`、`:95`、`:110`、`:130`、`:353`；`rust/src/recursive_t/stream.rs:73`、`:85`、`:156-158`、`:232`、`:266`、`:338-351`；`rust/src/recursive_t/rec_stream.rs:124`、`:229`、`:1270-1273`、`:1556-1578`（环境变量 `T_A0=stroke`）；`rust/src/recursive_t/ffi.rs:39-46`（`parse_a0` 接受 `"stroke"`／`"bi"`）；`rust/src/recursive_t/mod.rs:22`、`:81`；`rust/src/recursive_t/divergence.rs:508` | 笔可切为 `a₀`（谱系 526 号的 A/B 实验自变量），文档称「a₀ = 笔序列」 | `Stroke` 档名分改为「已否证的对照臂，不是 `a₀` 合法值」（§2.1.1 第 2 条），不得进入任何准入路径；随 recursive_t 退场（[#808](https://github.com/xy7365527-lang/NewChanlun/issues/808)／[#951](https://github.com/xy7365527-lang/NewChanlun/issues/951) B3）一并处置 | [#1654](https://github.com/xy7365527-lang/NewChanlun/issues/1654) |
+| C2 | Rust | `rust/src/recursive_t/types.rs:70-87`（`A0Source::Stroke`，doc「递归底座下移」）、`:92`、`:95`、`:110`、`:130`、`:353`；`rust/src/recursive_t/stream.rs:73`、`:85`、`:156-158`、`:232`、`:266`、`:338-351`；`rust/src/recursive_t/rec_stream.rs:124`、`:229`、`:1270-1273`、`:1556-1578`（环境变量 `T_A0=stroke`）；`rust/src/recursive_t/ffi.rs:39-46`（`parse_a0` 接受 `"stroke"`／`"bi"`）、`:229-232`（pyo3 把 `a0` 参数暴露给 Python）；测试 `stream.rs:466`、`:540-554`、`:565-600`、`:614-615`、`rec_stream.rs:1270-1273`（a0=笔 A/B 断言）；`rust/src/recursive_t/mod.rs:22`、`:81`；`rust/src/recursive_t/divergence.rs:508` | 笔可切为 `a₀`（谱系 526 号的 A/B 实验自变量），文档称「a₀ = 笔序列」 | `Stroke` 档名分改为「已否证的对照臂，不是 `a₀` 合法值」（§2.1.1 第 2 条），不得进入任何准入路径；随 recursive_t 退场（[#808](https://github.com/xy7365527-lang/NewChanlun/issues/808)／[#951](https://github.com/xy7365527-lang/NewChanlun/issues/951) B3）一并处置 | [#1654](https://github.com/xy7365527-lang/NewChanlun/issues/1654) |
 | C3 | Rust | `rust/src/trading/positional_fusion.rs:32`、`:1341`；`rust/src/trading/unified_osc.rs:229`；`rust/src/trading/nested_fugue.rs:149`、`:915`；`rust/src/trading/positional.rs:340`；`rust/src/trading/config.rs:636`；`rust/src/trading/level_sub_lou.rs:547` | 注释「笔 = a0（77/78课）」：把交易阶梯的下限（`FIRST_BSP_LADDER = 2`，`trading/types.rs:30`）说成笔是 `a₀` | 改称「阶梯下限（笔层不开一类点）」，不再用 `a₀` 指笔；常量与判据不动 | [#1654](https://github.com/xy7365527-lang/NewChanlun/issues/1654) |
 | C4 | Rust | `rust/src/theta_v0/classifier/pipeline.rs:140`（`segment_to_unit`） | 塔 L0 单元 ＝ 线段 | **不改**（与默认值 `segment` 一致） | — |
 | C5 | Python | `src/newchan/a_nested_divergence.py:408`（`_finalize_with_level1`） | 递归底写死 level 1 ＝ 线段 | **不改**（与默认值一致；改读字段归 #1626 Q-8） | #1626 |
-| C6 | Python | `src/newchan/a_zhongshu_v1.py:181`（`zhongshu_from_strokes`） | 三笔重叠 | 已由 §9.3 P5 处置（改名类中枢、不得作 `a₀`），本票不重复 | §9.3 P5 |
+| C6 | Python | `src/newchan/a_zhongshu_v1.py:183`（`zhongshu_from_strokes`；§9.3 P5 旧记 `:181`） | 三笔重叠 | 已由 §9.3 P5 处置（改名类中枢、不得作 `a₀`），本票不重复 | §9.3 P5 |
 | C7 | Lean | `rg -n "towerBase\|tower_base\|A0Source" formal` 0 命中；`formal/` 中无以笔为递归基的定义式 | — | 无受影响处 | — |
 
 ## 10. 本次推翻的旧结算（订正表）
