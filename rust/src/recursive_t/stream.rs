@@ -545,7 +545,11 @@ mod tests {
         let a0 = build_a0_fast(segs, strokes, m2r, &pp, &pn, A0Source::Stroke, false);
 
         let n_confirmed = strokes.iter().filter(|s| s.confirmed).count();
-        assert_eq!(a0.len(), n_confirmed, "Stroke 对照臂单元数 = confirmed 笔数");
+        assert_eq!(
+            a0.len(),
+            n_confirmed,
+            "Stroke 对照臂单元数 = confirmed 笔数"
+        );
         assert!(strokes.iter().any(|s| !s.confirmed), "应存在最后未确认笔");
         assert!(a0.len() < strokes.len(), "最后未确认笔被排除 ⟹ a₀ < 总笔数");
 
