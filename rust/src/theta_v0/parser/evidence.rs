@@ -100,8 +100,9 @@ impl<T: Clone> ChunkedSeq<T> {
 /// 升序去重坐标集合的不可变共享节点。
 ///
 /// 不变量：每个节点自成一个**升序、无重复**的坐标序列；[`CoordNode::Concat`] 额外保证
-/// 左段全部坐标 < 右段全部坐标。构造口只有 [`CoordsRef::concat`] 与
-/// [`CoordsRef::append_greater`]（均要求该前提），保证不变量不被破坏。
+/// 左段全部坐标 < 右段全部坐标。构造口：[`CoordsRef::concat`] 与
+/// [`CoordsRef::append_greater`]（均要求该前提）、[`CoordsRef::insert`]（#1597）与
+/// [`CoordsRef::union`]（#1629），均保持该不变量与 AVL 平衡。
 #[derive(Debug)]
 pub enum CoordNode {
     Leaf(usize),
@@ -175,7 +176,12 @@ fn node_max(node: &Rc<CoordNode>) -> usize {
     }
 }
 
-/// #1629 成本锁的计数口（仅测试构建）：树操作步数与共享树逐节点遍历步数。
+/// #1629 成本锁的计数口（仅测试构建）。
+///
+/// - `TREE_OPS`：`union_nodes`/`split_node`/`insert_node` 的**递归调用次数**（不含每层
+///   `node_max`/`node_min` 下行与 `join` 再平衡，实际指针跳转约为其 10–30 倍，同为 polylog）。
+/// - `TREE_ITER_STEPS`：逐节点遍历共享树的步数（`SourceCoords::iter`、`CoordsRef::materialize`、
+///   `CoordsRef::count`，即 `len`/`to_vec`/`contains` 等一切 Θ(集合大小) 的展开口）。
 #[cfg(test)]
 pub(crate) mod cost_probe {
     use std::cell::Cell;
@@ -187,7 +193,7 @@ pub(crate) mod cost_probe {
         TREE_OPS.with(|c| c.set(0));
         TREE_ITER_STEPS.with(|c| c.set(0));
     }
-    /// `(树操作步数, 遍历步数)`。
+    /// `(递归调用次数, 遍历步数)`。
     pub(crate) fn read() -> (u64, u64) {
         (TREE_OPS.with(Cell::get), TREE_ITER_STEPS.with(Cell::get))
     }
@@ -251,10 +257,13 @@ fn split_node(node: &Rc<CoordNode>, key: usize) -> (Option<Rc<CoordNode>>, Optio
 /// - `a`、`b` 指向同一节点 ⟹ 直接返回 `a`（整棵子树一步跳过，不看元素）；
 /// - 值域不相交 ⟹ 一次 AVL 拼接；
 /// - 否则按 `a` 的左子树最大值切分 `b`，左右分别递归。左右结果与 `a` 的原子树指针相同
-///   ⟹ 原样返回 `a`（`b ⊆ a` 时零分配）。
+///   ⟹ 原样返回 `a`。可归纳证明「返回 `a` 的指针」⟺ `b ⊆ a`，故不新建留存节点
+///   （切分路径上的临时节点随即丢弃）。
 ///
-/// 成本只取决于两棵树**不共享**的部分（差异点数 × O(log² n)），与集合大小无关：
-/// 完整事实路径上，相邻组的证据树沿持久追加共享绝大部分子树，单次并集与前缀长度解耦。
+/// 成本：`a` 取同一持久谱系里较新、较大的一侧时，只在两树不共享的接缝处下潜，每处接缝
+/// polylog（按指针跳转约 O(log³ n)），与集合大小解耦——完整事实路径上的证据树都来自同一条
+/// 持久追加链，两处调用都以最大值较大者为 `a`。**退化**：两棵树内容重叠但不共享指针（独立
+/// 谱系、不同插入顺序）时为 Θ(min(|a|,|b|))·polylog，慢于有序归并。
 /// 结果是升序去重集合 `a ∪ b`（内容与「拼接→排序→去重」相同，树形状不对外承诺）。
 fn union_nodes(a: &Rc<CoordNode>, b: &Rc<CoordNode>) -> Rc<CoordNode> {
     bump_ops();
@@ -370,8 +379,11 @@ impl CoordsRef {
         }
     }
 
-    /// #1629：持久并集 `self ∪ other`（升序去重）。两棵树共享的子树按指针相等整棵跳过，
-    /// 成本只随不共享部分增长；`other ⊆ self` 且结构共享时返回原句柄、零分配。
+    /// #1629：持久并集 `self ∪ other`（升序去重）。两棵树共享的子树按指针相等整棵跳过。
+    ///
+    /// - `other ⊆ self` ⟹ 返回原句柄（不新建留存节点）。
+    /// - `self` 应取同一持久谱系里较新、较大的一侧：此时成本 polylog、与集合大小解耦。
+    /// - 两树内容重叠但不共享指针时退化为 Θ(min(|self|,|other|))·polylog（见 `union_nodes`）。
     pub fn union(&self, other: &CoordsRef) -> Self {
         match (&self.0, &other.0) {
             (None, _) => other.clone(),
@@ -388,6 +400,7 @@ impl CoordsRef {
         let mut out: Vec<usize> = Vec::new();
         let mut stack: Vec<&Rc<CoordNode>> = vec![root];
         while let Some(node) = stack.pop() {
+            bump_iter();
             match node.as_ref() {
                 CoordNode::Leaf(coord) => out.push(*coord),
                 // 先压右后压左：左子树整体先于右子树展开（LIFO）。
@@ -419,6 +432,7 @@ impl CoordsRef {
         let mut total = 0usize;
         let mut stack: Vec<&Rc<CoordNode>> = vec![root];
         while let Some(node) = stack.pop() {
+            bump_iter();
             match node.as_ref() {
                 CoordNode::Leaf(_) => total += 1,
                 CoordNode::Concat(left, right, _) => {
@@ -828,21 +842,30 @@ mod tests {
         let mut per_size = Vec::new();
         for n in [1_000usize, 8_000, 64_000] {
             let mut tree = CoordsRef::empty();
-            let mut older = CoordsRef::empty();
+            let mut near = CoordsRef::empty();
+            let mut half = CoordsRef::empty();
             for i in 0..n {
                 tree = tree.append_greater(i * 3);
                 if i == n - 20 {
-                    older = tree.clone();
+                    near = tree.clone();
+                }
+                if i == n / 2 {
+                    half = tree.clone();
                 }
             }
-            let other = older.insert(1).insert(n * 3 + 7).insert(n * 3 / 2 + 1);
-            cost_probe::reset();
-            let got = union_into(&tree.union(&other), [5usize, 3 * n + 11].iter());
-            let (ops, iters) = cost_probe::read();
-            // tree 的 n 个 + other 新增 3 个（1、3n/2+1、3n+7）+ 逐元素插入 2 个。
-            assert_eq!(got.count(), n + 5);
-            assert_eq!(iters, 0, "并集不得逐元素遍历共享树");
-            per_size.push(ops);
+            // 近版本（相隔 20 次追加）与远版本（相隔 n/2 次追加，对应确认证书两端点相隔整笔）。
+            let mut ops_max = 0;
+            for older in [&near, &half] {
+                let other = older.insert(1).insert(n * 3 + 7).insert(n * 3 / 4 + 1);
+                cost_probe::reset();
+                let got = union_into(&tree.union(&other), [5usize, 3 * n + 11].iter());
+                let (ops, iters) = cost_probe::read();
+                assert_eq!(iters, 0, "并集不得逐元素遍历共享树");
+                ops_max = ops_max.max(ops);
+                // tree 的 n 个 + other 新增 3 个（1、3n/4+1、3n+7）+ 逐元素插入 2 个。
+                assert_eq!(got.count(), n + 5);
+            }
+            per_size.push(ops_max);
         }
         eprintln!("#1629 union cost per size {per_size:?}");
         assert!(
