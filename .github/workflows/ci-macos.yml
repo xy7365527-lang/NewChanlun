@@ -70,6 +70,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-cargo-registry-v1-
 
+      # #1635 第 7 项：ci.yml 的 -D warnings 门只在 ubuntu 上，macOS 专属分支（financial_session 的
+      #   sqlite_memory_used、finance_tests 的 macOS 分支等）此前未经告警门。与 ci.yml「s_session feature」
+      #   档同一条命令，在 macOS 上再过一遍。
+      - name: cargo check — s_session feature，-D warnings（macOS 专属路径告警门，#1635）
+        env:
+          RUSTFLAGS: "-D warnings"
+        run: cargo check --locked --all-targets --features s_session
+
       - name: cargo test — v3::financial_session（macOS 保留量读数与 peer uid，#1394 根裁定 A）
         run: cargo test --locked --features s_session --bin s_structure_session v3::financial_session
 

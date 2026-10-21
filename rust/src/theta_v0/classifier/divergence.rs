@@ -1537,10 +1537,6 @@ mod tests {
 
     /// 三口径 D 判定（A2 #163，prereg-a2-thetadom-oos-20260704 冻结判据的 L1 验证）。
     #[test]
-    #[allow(
-        unnameable_test_items,
-        reason = "#1608 疑点：函数体内嵌 #[test] confirm_divergence_forcel_semantics 从未执行；按票面不改行为，跟进见 #1635"
-    )]
     fn confirm_divergence_three_gauges() {
         let fp = |a, c| ForceProxies { seg_a: a, seg_c: c };
         let strong = ff(10.0, 8.0, 100, 20.0);
@@ -1590,66 +1586,71 @@ mod tests {
         ));
         // #990 I-2：默认口径 = ForceL（教义判据 L(C)<L(B)，#873）；MacdArea 降为显式对照档（ADR-0005）。
         assert_eq!(DivergenceGauge::default(), DivergenceGauge::ForceL);
+    }
 
-        /// ★#990 ForceL 专项锁：教义判据 `L(C)<L(B)`（Some）生效、无数据（None）不判、
-        /// 与面积档可给相反判定（口径切换的语义见证）。
-        #[allow(
-            dead_code,
-            reason = "#1608 疑点：此测试嵌在外层测试函数体内，从未被测试框架收集执行；按票面不改行为，跟进见 #1635"
-        )]
-        #[test]
-        fn confirm_divergence_forcel_semantics() {
-            use crate::theta_v0::parser::segment::{segment_force_l, stroke_velocity};
-            // 构造笔：b 首笔速度 10、末笔 2；c 首笔 2、末笔 -1 ⟹ L(b)=-8 < L(c)=-3 ⟹ L(c)>L(b) 不判；
-            // 交换后 L(c)<L(b) 判。用反查原语直接验算。
-            let mk = |d: Direction, s: usize, e: usize, p0: Tick, p1: Tick| Stroke {
-                direction: d,
-                start_index: s,
-                end_index: e,
-                start_price: p0,
-                end_price: p1,
-            };
-            let strokes_b = vec![
-                mk(Direction::Up, 0, 9, 0, 100),     // v=+10
-                mk(Direction::Down, 9, 19, 100, 80), // v=-2
-            ];
-            let strokes_c = vec![
-                mk(Direction::Up, 20, 29, 0, 20),    // v=+2
-                mk(Direction::Down, 30, 39, 20, 10), // v=-1
-            ];
-            assert_eq!(stroke_velocity(&strokes_b[0]), 10.0);
-            // L(b) = v(末)-v(首) = -2-10 = -12；L(c) = -1-2 = -3 ⟹ L(c) > L(b)。
-            let lb = segment_force_l(&strokes_b, 0, 19).unwrap();
-            let lc = segment_force_l(&strokes_c, 20, 39).unwrap();
-            assert!((lb - (-12.0)).abs() < 1e-9);
-            assert!((lc - (-3.0)).abs() < 1e-9);
-            // gauge 语义：ForceL + L(c)<L(b)=false ⟹ 不判；true ⟹ 判；None ⟹ 不判。
-            assert!(!confirm_divergence_l(
-                DivergenceGauge::ForceL,
-                true,
-                None,
-                Some(false)
-            ));
-            assert!(confirm_divergence_l(
-                DivergenceGauge::ForceL,
-                false,
-                None,
-                Some(true)
-            ));
-            assert!(!confirm_divergence_l(
-                DivergenceGauge::ForceL,
-                true,
-                None,
-                None
-            ));
-            // MacdArea 档不受 l 参与影响（对照臂独立性）。
-            assert!(confirm_divergence_l(
-                DivergenceGauge::MacdArea,
-                true,
-                None,
-                Some(false)
-            ));
-        }
+    /// ★#990 ForceL 专项锁：教义判据 `L(C)<L(B)`（Some）生效、无数据（None）不判、
+    /// 与面积档可给相反判定（口径切换的语义见证）。
+    ///
+    /// #1635：本锁原嵌在 `confirm_divergence_three_gauges` 函数体内，测试框架从未收集执行；
+    /// 移出后原样在 main 上为红（`lb` 实测 −90/11 ≠ −12）。断言按生产 `stroke_velocity`
+    /// 的口径订正——笔速度 = 沿笔方向的速率，恒正（同口径见 `cand_predicate.rs` 的
+    /// `cond4_forcel_compares_stroke_velocity_increment` 手工验算与 `recursive_t::divergence`
+    /// 的 `unit_velocity` 对拍锁），bar 数含两端点。原注释按带号斜率、按 bar 差计数，二者皆误。
+    #[test]
+    fn confirm_divergence_forcel_semantics() {
+        use crate::theta_v0::parser::segment::{segment_force_l, stroke_velocity};
+        // 构造笔：b 首笔速度 10、末笔 20/11；c 首笔 2、末笔 1
+        // ⟹ L(b)=20/11−10=−90/11≈−8.18 < L(c)=1−2=−1 ⟹ L(c)<L(b) 不成立、不判；
+        // 两段交换后成立、判。用反查原语直接验算，判据输入取自算出的 L 而非手填常量。
+        let mk = |d: Direction, s: usize, e: usize, p0: Tick, p1: Tick| Stroke {
+            direction: d,
+            start_index: s,
+            end_index: e,
+            start_price: p0,
+            end_price: p1,
+        };
+        let strokes_b = vec![
+            mk(Direction::Up, 0, 9, 0, 100),     // 10 根 bar：v = 100/10 = 10
+            mk(Direction::Down, 9, 19, 100, 80), // 11 根 bar：v = 20/11（向下笔速率恒正）
+        ];
+        let strokes_c = vec![
+            mk(Direction::Up, 20, 29, 0, 20),    // 10 根 bar：v = 2
+            mk(Direction::Down, 30, 39, 20, 10), // 10 根 bar：v = 1
+        ];
+        assert_eq!(stroke_velocity(&strokes_b[0]), 10.0);
+        assert!((stroke_velocity(&strokes_b[1]) - 20.0 / 11.0).abs() < 1e-12);
+        assert_eq!(stroke_velocity(&strokes_c[1]), 1.0);
+        let lb = segment_force_l(&strokes_b, 0, 19).unwrap();
+        let lc = segment_force_l(&strokes_c, 20, 39).unwrap();
+        assert!((lb - (-90.0 / 11.0)).abs() < 1e-9, "L(b)={lb}");
+        assert!((lc - (-1.0)).abs() < 1e-9, "L(c)={lc}");
+        // gauge 语义：ForceL 只看 L(c)<L(b)；macd_c_lt_a 与之相反时也不改判（口径切换见证）。
+        assert!(!confirm_divergence_l(
+            DivergenceGauge::ForceL,
+            true,
+            None,
+            Some(lc < lb)
+        ));
+        assert!(confirm_divergence_l(
+            DivergenceGauge::ForceL,
+            false,
+            None,
+            Some(lb < lc)
+        ));
+        // 无 L 数据 ⟹ 不判（不降级到面积档）。
+        assert!(!confirm_divergence_l(
+            DivergenceGauge::ForceL,
+            true,
+            None,
+            None
+        ));
+        // MacdArea 档不受 l 参与影响（对照臂独立性）：同一输入与 ForceL 给相反判定。
+        assert!(confirm_divergence_l(
+            DivergenceGauge::MacdArea,
+            true,
+            None,
+            Some(lc < lb)
+        ));
     }
 
     /// G4 ThetaLex（Θ_LEX 词典序 D 判定，A3 #164，关于背驰.pdf §9.2）：judge 层 `weak_theta(Lex)`
