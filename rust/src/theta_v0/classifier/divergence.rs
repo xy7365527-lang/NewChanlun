@@ -1852,6 +1852,10 @@ mod tests {
             fast: 5,
             slow: 20,
             signal: 5,
+            record: crate::theta_v0::policy_records::PolicyRef {
+                id: crate::theta_v0::policy_records::MACD_FORCE_ID,
+                version: crate::theta_v0::policy_records::PolicyVersion::ResearchOverride,
+            },
         };
         let full = compute_macd(&closes, &cfg);
         let mut state = MacdState::init(closes[0], &cfg);

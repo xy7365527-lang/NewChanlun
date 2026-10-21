@@ -3051,8 +3051,9 @@ struct C327Arm {
 ///
 /// 复刻 `classify_impl` 的中枢级联（见本节模块注释「复算路径」）：逐级
 /// `detect_centers_windowed_resume(units, build, 0)` → `decompose` → `LeveledMove::compose`
-/// → `project_to_units` → 下一级 units；自然终止条件（`units.len() < min_parts` / `units` 空 /
-/// `l_max` 上界）与生产同源读 `config.level`。
+/// → `project_to_units` → 下一级 units；停止条件（`units.len() < min_parts` / `units` 空 /
+/// `l_max` 上界）与生产同源读 `config.level`。注：本对照副本不区分资源截断；生产口径自 #1603 起
+/// 把「到 `l_max` 仍可升级」记为 `TowerTermination::ResourceBound`（`INCOMPLETE_RESOURCE_BOUND`）。
 fn cascade_dual(l0: &ParseLayer, config: &ThetaConfig, weak: bool) -> C327Arm {
     use super::super::classifier::decompose::decompose;
     use super::super::classifier::recursive_tower::{

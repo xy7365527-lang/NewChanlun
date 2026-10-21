@@ -271,3 +271,9 @@ required-features = ["s_session"]
 name = "b_chong_session"
 path = "src/bin/b_chong_session.rs"
 required-features = ["s_session"]
+
+# #1588 memory 分片：解析入口内存/持有拷贝增长探针（只读诊断）。
+[[bin]]
+name = "issue1588_parse_mem_probe"
+path = "src/bin/issue1588_parse_mem_probe.rs"
+required-features = ["backtest_bin"]

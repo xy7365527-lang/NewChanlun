@@ -47,6 +47,10 @@ bash .sandcastle/install-wayfinder-engine.sh status    # 查状态
 bash .sandcastle/install-wayfinder-engine.sh uninstall # 卸载
 ```
 
+**宿主仓 = sandcastle-host**（#1588）：plist 模板指 `/Users/silencehan/Projects/NewChanlun-sandcastle-host`（专用 main worktree，与 claimer 同宿主），不指交互主 worktree——后者检出的是用户自己的分支，launchd 跑那里的引擎等于跑旧代码（#1578 修复因此从未生效）。`run-wayfinder-engine.sh` / `watcher.sh` 按脚本自身位置推导仓库根，`SANDCASTLE_HOST_REPO` 可覆盖。
+
+**spec 起草子代理**（#1588）：Claude Code CLI 经 CLIProxyLocal（`http://127.0.0.1:8318`，接线同 `claude-route.mts`），默认 `claude-opus-5-5`；`WAYFINDER_SPEC_MODEL` 只接受 Claude 家族白名单（`claude-opus-5-5` / `claude-fable-5-1`），其它值启动即 fail-loud。
+
 手工调试（仓库根，不写 tracker）：`npx tsx scripts/wayfinder_engine.mts --once --dry-run`。
 
 ## sandcastle 自动拾取 claim 循环（#1182 方向 A）
@@ -72,7 +76,7 @@ bash .sandcastle/install-sandcastle-claimer.sh uninstall # 卸载
 | 文件 | 作用 |
 |---|---|
 | `main.mts` | 管线入口。两段循环：frontier 取票+claim → 起沙盒 → Phase 1 实装 → Phase 2 评审；模型面常量（实装/评审模型、provider、迭代数）集中在文件顶部，升档改这里重跑。sandcastle 专属队列空时分开报全仓 `ready-for-agent` 数（#1084 追加，不把专属空误写成全空）。#1259 追加：claim 成功后、implementer started 之前的失败自动回滚认领（WorktreeTimeoutError 先重试一次，间隔 ≥5s）。 |
-| `run-wayfinder-engine.sh` | wayfinder_engine 控制面常驻壳（#1084 追加）：前台 exec `npx tsx scripts/wayfinder_engine.mts`，launchd KeepAlive 调用。 |
+| `run-wayfinder-engine.sh` | wayfinder_engine 控制面常驻壳（#1084 追加）：前台 exec `npx tsx scripts/wayfinder_engine.mts`，launchd KeepAlive 调用；仓库根按脚本位置推导（`SANDCASTLE_HOST_REPO` 可覆盖，#1588）。 |
 | `install-wayfinder-engine.sh` | 控制面 launchd 任务的安装/卸载/查状态（#1084 追加）。 |
 | `launchd/com.newchanlun.wayfinder-engine.plist` | 控制面 launchd 任务定义：KeepAlive + RunAtLoad + `--live`（#1084 追加）。 |
 | `claim-loop.mts` | 自动拾取 claim 循环常驻宿主（#1182 方向 A）：60s 轮询 frontier（sandcastle 标签 + 未 assign + 无 open blocker）+ 无 running 实例 guard → spawn `npx tsx .sandcastle/main.mts`；纯函数 `isRunnable`/`hasRunnableIssue` 可离线单测。#1259 追加：main.mts 收尾失败（exit≠0/被信号杀）与每轮看门狗（claim 后 >15min 无后续事件）按 workers.jsonl 判定回滚 stale-claimed 票（纯函数 `needsRollback`/`findStaleClaims`）。 |
@@ -81,7 +85,9 @@ bash .sandcastle/install-sandcastle-claimer.sh uninstall # 卸载
 | `launchd/com.newchanlun.sandcastle-claimer.plist` | claim 循环 launchd 任务定义：KeepAlive + RunAtLoad + `--live`（#1182 追加）。 |
 | `prime-agent-provider.ts` | prime-agent 的自定义 AgentProvider。无头模式 `prime-agent -p --mode json` 输出 NDJSON 事件流，prompt 走 stdin（避开 Linux 128 KB argv 上限），事件映射到 sandcastle 的 stream 协议。 |
 | `implement-prompt.md` | Phase 1 实装工蜂的 prompt 模板（`{{ISSUE_NUMBER}}` 注入）：Explore→Plan→Execute→Verify→Commit 流程 + 硬性规则（不关票不合 main 不 push、被卡留评论收工）。 |
-| `review-prompt.md` | Phase 2 评审工蜂的 prompt 模板（`{{BRANCH}}`/`{{ISSUE_NUMBER}}` 注入）：看分支 diff 与原始 issue，保持功能语义前提下直接在分支上修正。 |
+| `review-prompt.md` | Phase 2 评审工蜂的 prompt 模板（`{{BRANCH}}`/`{{ISSUE_NUMBER}}` 注入）：看分支 diff 与原始 issue，保持功能语义前提下直接在分支上修正。#1588 起不再用 `!`git diff`` 展开整段 diff，只放变更摘要（`--stat` / 提交列表 / 文件清单），评审工蜂按文件、按提交自取 diff；diff 基准 `{{BASE}}` = 渲染前现 fetch 的 origin/main 提交；原始 issue 放 `<issue>…</issue>` 块。 |
+| `review-context.mts` | #1588 评审提示宿主侧渲染与体积闸：`buildReviewPrompt` 渲染摘要版 review-prompt.md，估算超 `REVIEW_PROMPT_MAX_TOKENS` 抛 `ReviewPromptTooLargeError`（exit 4）；`prepareReviewPrompt` 超限时落 workers.jsonl（`phase=reviewer status=failed reason=prompt_too_large`）并在原票评论；`runGuardedReview` 把渲染与运行包进同一失败通道，渲染期 git / gh / 基准解析失败落 `reason=prepare_error`、运行期失败落 `reason=run_error`；`resolveReviewBase` fetch origin main 取其 SHA 作 diff 基准（宿主 main 落后时不混入别线提交，领先/分叉即 FAIL-loud）。 |
+| `cargo-guard.mts` | #1588 本机禁 cargo 垫片：在固定目录 `$TMPDIR/nc-cargo-guard`（每次运行原子重写，不累积）生成 `cargo`/`rustc`/`rustup`/`cargo-*` 等拦截脚本（打印 nc-remote / CI 指引，exit 87），`cargoGuardEnv` 把它前置到工蜂 PATH 并经 `CLAUDE_ENV_FILE` 在 Claude Code 每次 Bash 前重新前置（防 login shell 重排 PATH）。只挂在 main.mts 的 noSandbox 宿主路径。 |
 | `CODING_STANDARDS.md` | 本仓编码标准，两个工蜂都经 `@.sandcastle/CODING_STANDARDS.md` 加载（#1008 AC-3）：Rust 面 fmt/clippy/check 闸、commit 编号声明、引用纪律、架构口径；引用 AGENTS.md 与纪律文档，不复制全文。 |
 | `Dockerfile` | 沙盒镜像定义（`sandcastle:newchanlun`，base `node:22-bookworm`）：git/gh/python3 等系统依赖 + Rust 工具链 + prime-agent 本体（#1010 扩容）。 |
 | `image/` | 打入镜像的静态资产：`skills/`（serena / codebase-memory / cli-hub-mcp 三件套）、`prime-agent-settings.json`（prime-agent 镜像内配置）、`cli-hub-mcp/server.py`。 |
