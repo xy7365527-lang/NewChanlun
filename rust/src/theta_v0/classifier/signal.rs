@@ -123,9 +123,10 @@ pub use cert::{PanDivCert, QuasiSecondCert};
 pub(crate) use gates::{
     first_structural_gates, judge_first_cached, judge_first_from_gates, FirstStructuralGates,
 };
+#[cfg(test)]
 pub(crate) use pan_div_short::{
     drain_pan_div_short_retrace_observations, pan_div_subtype_channel_reason,
-    t3_in_c_grade_reason_to_pan_div_subtype, PanDivShortRetraceObservation,
+    t3_in_c_grade_reason_to_pan_div_subtype,
 };
 // ★P2-R2（codex-review-20260701-2251 护栏7）：`StructBreakFeature` sidecar 已删除。
 // 它从未接通生产（mod.rs 全走 `extract_signals(...).0` / `extract_signals_with_hist(...).0` 丢弃
@@ -208,6 +209,7 @@ fn map_src_range_to_close_idx(
 /// `centers` 按 `end_index` 升序（`detect_centers_with` 非重叠扫描保证，mod.rs:136）。返回 `end_index
 /// <= seg_start` 的**最后一个**中枢（该线段离开/回试时「当下之前最后一个中枢」）。无满足者 ⟹ None
 /// （线段在所有中枢之前 ⟹ 无可离开/回试的中枢 ⟹ 非第一/三类）。
+#[cfg(test)]
 fn nearest_confirmed_center(centers: &[Center], seg_start: usize) -> Option<&Center> {
     // 升序 centers 上，end_index <= seg_start 的是一个前缀；取该前缀末元素 = 最近中枢。
     let hi = centers.partition_point(|c| c.end_index <= seg_start);
@@ -444,6 +446,7 @@ pub enum T3InCGrade {
 /// 紧邻）——**不是** `λ_C`/`c_start`。leave = 该锚之后固定第一条段，retest = 紧随一条；方向
 /// 互反；价格严格对该框 `ZG`/`ZD`（Up：`leave.end_price > zg ∧ retest.end_price > zg`；Down
 /// 镜像 `< zd`）。任一失败即 `Missing`，**不后扫**。
+#[cfg(test)]
 pub(crate) fn t3_in_c_fixed_first_pair(
     segments: &[Segment],
     last_center: &Center,
@@ -571,12 +574,20 @@ thread_local! {
 }
 
 /// 打开一类点分级 sidecar 捕获（诊断专用，调用方负责 env 门控）。
+#[cfg_attr(
+    not(feature = "backtest_bin"),
+    allow(dead_code, reason = "#1608：仅 backtest_bin 下的 backtest 模块消费")
+)]
 pub(crate) fn otherwise_domain_sidecar_begin() {
     GRADE_SIDECAR.with(|c| *c.borrow_mut() = Some(Vec::new()));
 }
 
 /// 关闭并取走已捕获记录（每条记录的 `level` 是捕获时真实调用级别，非占位）。未 `begin` 时
 /// 返回空 Vec。
+#[cfg_attr(
+    not(feature = "backtest_bin"),
+    allow(dead_code, reason = "#1608：仅 backtest_bin 下的 backtest 模块消费")
+)]
 pub(crate) fn otherwise_domain_sidecar_take() -> Vec<FirstClassGradeRecord> {
     GRADE_SIDECAR.with(|c| c.borrow_mut().take().unwrap_or_default())
 }
@@ -1243,12 +1254,12 @@ pub fn extract_first_third_resume(
     // 逐段判定核（advance 与 tail 共享）：pointwise 解析门/类别后调 [`judge_segment`]。
     let mut a_seg_cache: std::collections::HashMap<usize, Option<((usize, usize), (Tick, Tick))>> =
         std::collections::HashMap::new();
-    let mut judge_range = |from: usize,
-                           to: usize,
-                           pts: &mut Vec<BspPoint>,
-                           pans: &mut Vec<PanDivCert>,
-                           grades: &mut Vec<FirstClassGradeRecord>,
-                           a_cache: &mut std::collections::HashMap<
+    let judge_range = |from: usize,
+                       to: usize,
+                       pts: &mut Vec<BspPoint>,
+                       pans: &mut Vec<PanDivCert>,
+                       grades: &mut Vec<FirstClassGradeRecord>,
+                       a_cache: &mut std::collections::HashMap<
         usize,
         Option<((usize, usize), (Tick, Tick))>,
     >| {
@@ -1585,6 +1596,10 @@ pub(crate) fn type1_funnel_dx(
         // 结构方向锚（行程方向=τ 等式 veto）；provenance None 只保留直调判据契约。
         let broke = match (anchors_owned[si], dir) {
             (Some(Direction::Down), Direction::Down) => end.price < c.zd,
+            #[allow(
+                unreachable_patterns,
+                reason = "#1608 疑点：此臂应为 (Some(Up), Up)，1592bf05ca(#988) 误改；按票面不改行为，已上报"
+            )]
             (Some(Direction::Down), Direction::Down) => c.zg < end.price,
             _ => false,
         };
@@ -4781,7 +4796,7 @@ mod tests {
         println!("blocks = {:?}", decompose(&[c0, c1]));
         let prices: Vec<Tick> = vec![300, 300, 300, 300, 200, 400, 250, 280, 260, 150, 145, 155];
         let closes: Vec<f64> = prices.iter().map(|&v| v as f64).collect();
-        let src: Vec<usize> = (0..prices.len()).collect();
+        let _src: Vec<usize> = (0..prices.len()).collect();
         let hist = compute_macd(&closes, &MacdConfig::default()).hist;
         let segs = vec![
             Segment {

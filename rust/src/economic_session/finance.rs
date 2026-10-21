@@ -1567,7 +1567,7 @@ fn persist_with_job(
     e: &Value,
     w: Value,
     mut job: Option<&mut Job>,
-    stage_token: Option<&str>,
+    _stage_token: Option<&str>,
     deadline: Option<std::time::Instant>,
 ) -> Result<Value, String> {
     let final_budget = if revision(&config.manifest)? == REV_V2 {

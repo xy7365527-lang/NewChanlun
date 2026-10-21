@@ -113,7 +113,7 @@ fn attach_ordinal_identity_not_rmove_struct_equal() {
 fn carrier_forest_all_levels_dedup_unique_id() {
     // two_parent_tower：L1 有 compose_a/compose_b（各 3 个 L0 sub），L0 级为空（sub 由 Compose 带出）。
     let tower = two_parent_tower();
-    let t_i = extract_elements(&tower); // T_i：只展开最高非空级（L1）根 → 2 根 + 6 子 = 8
+    let _t_i = extract_elements(&tower); // T_i：只展开最高非空级（L1）根 → 2 根 + 6 子 = 8
     let k_i = extract_carrier_forest(&tower); // K_i：所有级别（L1 同上；L0 空 ⟹ 无额外根）
                                               // 本塔 L0 级为空（sub_moves 携子），故 K_i 与 T_i 元素数相同（dedup 后），但 ElementId 必唯一。
     let mut ids: Vec<_> = k_i.iter().map(|e| (e.id.level, e.id.ordinal)).collect();

@@ -1537,6 +1537,10 @@ mod tests {
 
     /// 三口径 D 判定（A2 #163，prereg-a2-thetadom-oos-20260704 冻结判据的 L1 验证）。
     #[test]
+    #[allow(
+        unnameable_test_items,
+        reason = "#1608 疑点：函数体内嵌 #[test] confirm_divergence_forcel_semantics 从未执行；按票面不改行为，已上报"
+    )]
     fn confirm_divergence_three_gauges() {
         let fp = |a, c| ForceProxies { seg_a: a, seg_c: c };
         let strong = ff(10.0, 8.0, 100, 20.0);
@@ -1589,6 +1593,10 @@ mod tests {
 
         /// ★#990 ForceL 专项锁：教义判据 `L(C)<L(B)`（Some）生效、无数据（None）不判、
         /// 与面积档可给相反判定（口径切换的语义见证）。
+        #[allow(
+            dead_code,
+            reason = "#1608 疑点：此测试嵌在外层测试函数体内，从未被测试框架收集执行；按票面不改行为，已上报"
+        )]
         #[test]
         fn confirm_divergence_forcel_semantics() {
             use crate::theta_v0::parser::segment::{segment_force_l, stroke_velocity};

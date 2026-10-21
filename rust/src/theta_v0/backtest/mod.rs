@@ -75,6 +75,7 @@ pub mod dual_ledger;
 mod fill;
 mod gamma_dump;
 mod ledger;
+#[cfg(test)] // #1608：全模块仅被自身测试消费（runner 未接线）
 mod open_ledger;
 mod opsem_dump;
 mod pan_div;
@@ -99,14 +100,17 @@ pub mod treasury;
 /// 定论缠论择时 alpha。整个 `backtest` 已被 `#[cfg(test)]` 门控（theta_v0/mod.rs:88），本子模块
 /// 继承门控——只在 `cargo test --lib` 编译，不污染 cdylib；integration test（独立 crate）看不到
 /// （故全窗测试只能挂此处，见文件头机器坐实 E0433）。
+#[cfg(test)] // #1608：test 专用模块（backtest 改挂 backtest_bin 后补回 test 门）
 mod l3_fullwindow;
 
 /// Phase-1 可行性探针（pi 七链生产 runner 的 O(n²) substrate 时标 + 信号/交易计数）。
 /// 决定 L2/L3 用全窗还是可行子集。继承 backtest cfg(test) 门控。
+#[cfg(test)] // #1608：test 专用模块（backtest 改挂 backtest_bin 后补回 test 门）
 mod l3_pi_probe;
 
 /// Phase-2 L2/L3 pi 否证（驱动 run_theta_v0_pi 七链生产 runner；双口径门 + 分层诊断）。
 /// 镜像 [`l3_fullwindow`] 口径但驱动 pi（非 v1 recognize）；O(n²) 致用可行子集截断窗。
+#[cfg(test)] // #1608：test 专用模块（backtest 改挂 backtest_bin 后补回 test 门）
 mod l3_pi_falsify;
 
 /// #5 多声部对冲深度贡献根因诊断（231 诊断非 alpha）——instrument 计数区分 (a) ρ漂移剪枝
@@ -116,6 +120,7 @@ mod l3_pi_depth_diag;
 /// Phase-3 ΔR 净额增量 alpha 否证（task #42 delta-r-alpha）——χ_t 选择器是否产生正净额增量
 /// alpha。walk-forward μ（OOS-split）+ ΔR 序列（codex Q2：非两条 equity 的 Sharpe 差）+ 三层
 /// 判定（codex Q4：跨品种符号检验）。O(n²) 截断窗，继承 backtest cfg(test) 门控。
+#[cfg(test)] // #1608：test 专用模块（backtest 改挂 backtest_bin 后补回 test 门）
 mod l3_delta_r_alpha;
 
 /// ★issue #837 探针（map #787，喂 #834）：跨级别反向动作的真实频次 D1/D2/D3。

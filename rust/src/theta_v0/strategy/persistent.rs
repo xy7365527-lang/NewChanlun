@@ -575,14 +575,6 @@ mod tests {
     use crate::theta_v0::strategy::coverage::CoverageElement;
     use crate::theta_v0::strategy::interp::ActiveLeg;
 
-    fn voice_side(up: bool) -> VoiceSide {
-        if up {
-            VoiceSide::Long
-        } else {
-            VoiceSide::Short
-        }
-    }
-
     fn cov_elem(
         level: u32,
         ordinal: u64,

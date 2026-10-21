@@ -2521,7 +2521,7 @@ mod fresh_small_tests {
 #[cfg(test)]
 mod scalar_regression_tests {
     use super::*;
-    use crate::s_content::{MemoryNodes, NodeSink};
+    use crate::s_content::MemoryNodes;
 
     #[test]
     fn legitimate_session_scalar_over_4096_bytes_is_accepted() {

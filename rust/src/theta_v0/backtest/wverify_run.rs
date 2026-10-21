@@ -724,7 +724,9 @@ struct BucketStat {
     n_eff: f64,
     mean: f64,
     lcb: f64,
+    #[allow(dead_code, reason = "#1608：分桶统计结果字段，计算后当前无读出点")]
     ucb: f64,
+    #[allow(dead_code, reason = "#1608：分桶统计结果字段，计算后当前无读出点")]
     cv: f64,
     perm_p: f64,
     state: decontam::AlphaState,
@@ -3116,7 +3118,7 @@ fn cascade_dual(l0: &ParseLayer, config: &ThetaConfig, weak: bool) -> C327Arm {
         let upper: Vec<LeveledMove> = windowed
             .iter()
             .enumerate()
-            .map(|(i, (c, win))| {
+            .map(|(i, (_c, win))| {
                 // #897：与生产 compose_level 同款 run 载荷（replay 对照路径同构义务）。
                 let run_start = trend_run_start(&centers, i);
                 LeveledMove::compose(

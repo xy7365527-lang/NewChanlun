@@ -48,18 +48,25 @@
 //!    （把「中枢对上了但离开方向不同」与「中枢根本没对上」分开）。
 //! 3. **零假设对照**：A 臂中枢环形平移 29/57/89/113/151 天后再对齐（逐字沿用 #944 方法）。
 
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../bi_engine.rs"]
 mod bi_engine;
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../fractal.rs"]
 mod fractal;
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../moves.rs"]
 mod moves;
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../ph.rs"]
 mod ph;
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../segment.rs"]
 mod segment;
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../stroke.rs"]
 mod stroke;
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../zhongshu.rs"]
 mod zhongshu;
 

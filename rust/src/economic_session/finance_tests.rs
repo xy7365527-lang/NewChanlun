@@ -852,6 +852,13 @@ fn versioned_new_domain_is_explicit_and_does_not_rewrite_old_tables() {
     assert!(validate_config(&m).is_ok());
     let new_db = f.dir.join("new-e.db");
     m["e"]["db"] = json!(new_db);
+    #[cfg_attr(
+        not(target_os = "macos"),
+        allow(
+            unused_variables,
+            reason = "#1608：manifest_path 只在下方 macOS 分支读取"
+        )
+    )]
     let (manifest_path, _) = save(&f.dir, "new-manifest.json", &m);
     #[cfg(target_os = "macos")]
     {

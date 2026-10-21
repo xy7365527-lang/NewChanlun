@@ -376,6 +376,7 @@ fn scan_confirm_cursor(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 pub(super) fn trend_confirm_time(
     segments: &[Segment],
     last: &Center,

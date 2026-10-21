@@ -33,6 +33,7 @@ use super::super::types::{Bar, Order, StrictAction};
 ///
 /// **边界条件**：`orders` 为空（当前阻塞态）⇒ 现金不动，权益曲线 = 持平（全 1.0），
 /// trade_pnls 为空。这正确反映"无 Θ 决策"，**不是** bug。
+#[cfg(test)]
 pub(super) fn simulate_fills(
     bars: &[Bar],
     orders: &[Order],
@@ -325,28 +326,21 @@ pub(super) fn bar_returns(equity: &[f64]) -> Vec<f64> {
 // L2-P5/P6 opsem 富化）；ours 独有探针/镜像/shadow 辅助区随 loop 同迁（见下方合并节）。
 
 use super::super::classifier;
-use super::super::closed_loop::state::AssemblyState;
-use super::super::closed_loop::transition::{hybrid_step, AssemblyEvent};
-use super::super::parser;
 use super::super::strategy;
-use super::super::strategy::ledger::{TwEvent, TwState};
+use super::super::strategy::ledger::TwState;
 use super::admission::ChiFilterCtx;
 use super::admission::{
     exit_candidate_would_close, k_theta_risk_gate, kappa_policy_resolved, nest_cert_gate_enabled,
-    voice_exec_gate, NestChainGate, NestGateStats,
+    NestChainGate, NestGateStats,
 };
-#[cfg(test)]
-use super::admission::{NEST_CERT_GATE_OVERRIDE, VOICE_EXEC_OVERRIDE};
-use super::data::Dataset;
 use super::ledger::{
     track_position_transition, LedgerOpen, OpsemEntrySnapshot, TwLedgerThread, TypedTrade,
-    VoiceVerdictRec, TYPED_TRADE_SCHEMA_VERSION,
+    VoiceVerdictRec,
 };
-use super::metrics::{self, Metrics};
+use super::metrics;
 use super::opsem_dump::{
-    eta_bucket_str, force_state_str, operation_role_str, risk_mode_str,
-    strict_nest_sidecar_enabled, summarize_strict_nest_certificates, t_stage_str, voice_side_str,
-    OpsemDump, RebaseObservationInput, StrictNestSidecarCollector,
+    eta_bucket_str, force_state_str, operation_role_str, risk_mode_str, t_stage_str,
+    voice_side_str, OpsemDump, RebaseObservationInput,
 };
 use super::signal::{entry_structural_stop, newly_confirmed_step};
 use std::rc::Rc;
@@ -369,11 +363,13 @@ fn reverse_open_isolation_probe_bump() {
 
 /// 归零首开反向隔离探针（见证测试 run 前调用；仅本模块测试消费，比照 coverage.rs
 /// ancok_probe 三件套但无跨模块消费者 ⟹ 不 pub）。
+#[cfg(test)]
 pub(super) fn reverse_open_isolation_probe_reset() {
     REVERSE_OPEN_ISOLATION_PROBE.with(|c| c.set(0));
 }
 
 /// 读取首开反向隔离探针快照（ReverseOpen fill 隔离断言在生产路径的触发笔数）。
+#[cfg(test)]
 pub(super) fn reverse_open_isolation_probe_count() -> u64 {
     REVERSE_OPEN_ISOLATION_PROBE.with(std::cell::Cell::get)
 }
@@ -454,12 +450,14 @@ fn t1_core_zero_probe_bump() {
 
 /// 归零断言②两枚探针（评估 zero + 违例 residual；见证测试 run 前调用；
 /// 仅本模块测试消费 ⟹ 不 pub）。
+#[cfg(test)]
 pub(super) fn t1_core_zero_probe_reset() {
     T1_CORE_ZERO_PROBE.with(|c| c.set(0));
     T1_CORE_RESIDUAL_PROBE.with(|c| c.set(0));
 }
 
 /// 读取断言②探针快照（一类 Core 平仓评估笔数）。
+#[cfg(test)]
 pub(super) fn t1_core_zero_probe_count() -> u64 {
     T1_CORE_ZERO_PROBE.with(std::cell::Cell::get)
 }
@@ -474,6 +472,7 @@ fn t1_core_residual_probe_bump() {
 
 /// 读取级余额违例探针快照（#209 终态见证材料：一类批末批次方向侧 balance(Core{L})≠0
 /// 笔数——#237 拆查口径，验收口径 = 全窗 0）。
+#[cfg(test)]
 pub(super) fn t1_core_residual_probe_count() -> u64 {
     T1_CORE_RESIDUAL_PROBE.with(std::cell::Cell::get)
 }
@@ -485,12 +484,14 @@ fn type2_sell_guard_probe_bump() {
 
 /// 归零断言③前半两枚探针（身份 guard + 歧义测量 with_core_residual；
 /// 见证测试 run 前调用；仅本模块测试消费 ⟹ 不 pub）。
+#[cfg(test)]
 pub(super) fn type2_sell_guard_probe_reset() {
     TYPE2_SELL_GUARD_PROBE.with(|c| c.set(0));
     TYPE2_WITH_CORE_RESIDUAL_PROBE.with(|c| c.set(0));
 }
 
 /// 读取断言③前半探针快照（ReverseType2 账户约束断言在生产路径的触发笔数）。
+#[cfg(test)]
 pub(super) fn type2_sell_guard_probe_count() -> u64 {
     TYPE2_SELL_GUARD_PROBE.with(std::cell::Cell::get)
 }
@@ -506,6 +507,7 @@ fn type2_with_core_residual_probe_bump() {
 }
 
 /// 读取歧义测量探针快照（二类卖时同级 Core 残余非零笔数）。
+#[cfg(test)]
 pub(super) fn type2_with_core_residual_probe_count() -> u64 {
     TYPE2_WITH_CORE_RESIDUAL_PROBE.with(std::cell::Cell::get)
 }
@@ -516,11 +518,13 @@ fn residual_correction_probe_bump() {
 }
 
 /// 归零残余纠错硬门探针（见证测试 run 前调用；仅本模块测试消费 ⟹ 不 pub）。
+#[cfg(test)]
 pub(super) fn residual_correction_probe_reset() {
     RESIDUAL_CORRECTION_PROBE.with(|c| c.set(0));
 }
 
 /// 读取残余纠错硬门探针快照（CoreResidualCorrection 残余实测断言在生产路径的触发笔数）。
+#[cfg(test)]
 pub(super) fn residual_correction_probe_count() -> u64 {
     RESIDUAL_CORRECTION_PROBE.with(std::cell::Cell::get)
 }
@@ -838,6 +842,7 @@ where
 /// 逐挂起终结来源（挂起归宿）+ 逐触发构造结果（`CenterNotAlive` 丢弃率分母/分子）落账，
 /// 纯观测不改变本函数既有决策（动作产出逻辑逐字节不变，同 `CenterOscillationActionRecord`
 /// 既有先例）。
+#[cfg(test)]
 fn step_center_oscillation(
     bar: usize,
     classification_i: &classifier::Classification,
@@ -861,6 +866,7 @@ fn step_center_oscillation(
 
 /// ★#466 D0：仅供 `OPSEM_DUMP_DIR` 已启用的生产循环与事务落盘测试使用。状态推进与
 /// [`step_center_oscillation`] 共用同一实现；增量只有 Rebased 时复制旧/新身份链和核销前挂起表。
+#[cfg(test)]
 fn step_center_oscillation_observed(
     bar: usize,
     classification_i: &classifier::Classification,
@@ -4522,11 +4528,13 @@ thread_local! {
 }
 
 /// 归零入场止损逆侧探针（wf8 run 前调用）。
+#[cfg(test)]
 pub(super) fn entry_stop_reverse_probe_reset() {
     ENTRY_STOP_REVERSE_PROBE.with(|c| c.set(EntryStopReverseProbe::default()));
 }
 
 /// 读取入场止损逆侧探针快照（wf8 run 后调用）。
+#[cfg(test)]
 pub(super) fn entry_stop_reverse_probe_snapshot() -> EntryStopReverseProbe {
     ENTRY_STOP_REVERSE_PROBE.with(std::cell::Cell::get)
 }
@@ -4687,11 +4695,13 @@ thread_local! {
 }
 
 /// 归零入场结构复检拒单计数（run 前调用）。
+#[cfg(test)]
 pub(super) fn entry_stop_recheck_probe_reset() {
     ENTRY_STOP_RECHECK_PROBE.with(|c| *c.borrow_mut() = EntryStopRecheckProbe::default());
 }
 
 /// 读取入场结构复检拒单计数快照（run 后调用）。
+#[cfg(test)]
 pub(super) fn entry_stop_recheck_probe_snapshot() -> EntryStopRecheckProbe {
     ENTRY_STOP_RECHECK_PROBE.with(|c| c.borrow().clone())
 }
@@ -5591,7 +5601,7 @@ where
                 );
                 osc_actions.extend(new_osc_actions);
             }
-            let (next_active, standard_p_star, (mut order, _protocol_event), step_trace) =
+            let (next_active, standard_p_star, (order, _protocol_event), step_trace) =
                 coverage::pi_theta_step_traced_with_risk_seeds(
                     step_work,
                     &step_gamma_trade,
@@ -6775,6 +6785,10 @@ pub(super) struct FillOutput {
     /// #201 阶段 B 裁决账本轨：π 路径逐 bar 消费的显式 per-voice 裁决序列（含显式 Hold，
     /// schema 冻结见 [`VoiceVerdictRec`]）；v1/dual 路径无腿级裁决 ⟹ 恒空（诚实不伪造，
     /// 同 `typed_ledger` 先例）。加轨不减轨——不进 μ estimand、不改任何既有轨。
+    #[cfg_attr(
+        not(test),
+        allow(dead_code, reason = "#1608：FillOutput 旁路读出字段，仅测试读取")
+    )]
     pub(super) voice_verdicts: Vec<VoiceVerdictRec>,
     /// TW 账本终态（#124 裁定4：TwState 生产真值源在 π fill loop；TStage/ηBucket「生产者已
     /// 就位」的可观测物证——G3 ZExt 桥/诊断消费）。v1 路径无 TW 接线 ⟹ `None`（诚实不伪造）。
@@ -6786,11 +6800,19 @@ pub(super) struct FillOutput {
     /// #197 并行记账视图（expand 只读旁路）：π 路径逐腿镜像开/关生命周期事件过账的
     /// （账户, 级别, 仓位节点）分实例账本；v1/dual 路径无腿级生命周期事件 ⟹ 恒空
     /// （诚实不伪造，同 `typed_ledger` 先例）。不改净额路径任何语义。
+    #[cfg_attr(
+        not(test),
+        allow(dead_code, reason = "#1608：FillOutput 旁路读出字段，仅测试读取")
+    )]
     pub(super) account_view: strategy::account::ParallelAccountLedger,
     /// #292（T2 门控接线可见性证据）：逐条「触发→减补动作」记录。π overlay 路径
     /// [`pi_theta_fill_loop_overlay`] 在 `config.center_oscillation.enabled` 时产出；v1/dual
     /// 路径未接线 ⟹ 恒空（诚实不伪造，同 `typed_ledger` 先例）。真实记账是 T3（#293）职责，
     /// 本轨不改任何既有订单/账本语义。
+    #[cfg_attr(
+        not(test),
+        allow(dead_code, reason = "#1608：FillOutput 旁路读出字段，仅测试读取")
+    )]
     pub(super) center_oscillation_actions:
         Vec<super::super::strategy::center_oscillation_trade::CenterOscillationActionRecord>,
     /// issue #357（T4/#294 生产实例化）：每重 campaign 账簿终态（★#880 键 = (标的, 操作级别)）
@@ -6823,6 +6845,7 @@ pub(super) struct FillOutput {
 /// 故 **Buy/Add/Sell = 开仓侧（绝对手数增）**，**Close/Reduce = 平仓侧（绝对手数减）**。
 /// 修复前 long-only 把 Sell 当减仓 ⟹ Short 根开空后 voice_qty 恒 0 ⟹ act_state 恒 Open ⟹ 重复
 /// 开空不止（v1 缺陷根因之一）。
+#[cfg(test)]
 pub(super) fn apply_voice_fill(voice_qty: &mut [u32], depth: usize, fill: FillOutcome) {
     if let Some(slot) = voice_qty.get_mut(depth) {
         // 订单可“先平后开”，且开仓余量可能因现金不足被拒；声部账必须按两个真实成交段
