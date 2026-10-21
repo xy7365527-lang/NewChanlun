@@ -1582,7 +1582,10 @@ mod tests {
             cost_probe::reset();
             let strokes = build_stroke_facts(&facts, &config);
             let (ops, iters) = cost_probe::read();
-            assert_eq!(iters, 0, "前缀 {n}：新笔事实构造逐元素遍历了共享坐标树 {iters} 步");
+            assert_eq!(
+                iters, 0,
+                "前缀 {n}：新笔事实构造逐元素遍历了共享坐标树 {iters} 步"
+            );
             let endpoints = strokes.endpoints.len().max(1) as f64;
             per_endpoint.push(ops as f64 / endpoints);
             eprintln!("#1629 cost n={n} endpoints={endpoints} ops={ops}");
