@@ -408,9 +408,15 @@ impl ClassifyOutput {
 /// 自然终止 ＝ 某级可用单元数 < `min_parts_per_level`（含空 ParseLayer、某级投影为空），塔已到顶；
 /// 资源截断 ＝ 跑完 `l_max` 级后，下一级仍有 ≥ `min_parts_per_level` 个单元可升级——塔被预算截住，
 /// 更高级别的覆盖不完整。两者不得混为一类（旧口径把后者也记作「自然终止」）。
+/// 段账本拒读 ＝ L0 带段端门 fail-closed 标记（#1581 / X-37），整层不构造（#1653：与「输入为空、
+/// 塔已到顶」的自然终止分开，下游可区分「无结构」与「结构无效」）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TowerTermination {
     Natural,
+    ParseInvalid {
+        /// 失败段起点笔号（同 `ParseLayer::segments_parse_invalid_from`）。
+        from: usize,
+    },
     ResourceBound {
         /// 截断时生效的上界。
         l_max: u32,
@@ -426,11 +432,14 @@ impl TowerTermination {
     pub const INCOMPLETE_RESOURCE_BOUND: &'static str = "INCOMPLETE_RESOURCE_BOUND";
     /// 自然终止的标记。
     pub const NATURAL: &'static str = "NATURAL";
+    /// 段账本拒读的标记（#1653）。
+    pub const PARSE_INVALID: &'static str = "PARSE_INVALID";
 
     /// 输出/报告用的标记串。
     pub fn code(&self) -> &'static str {
         match self {
             TowerTermination::Natural => Self::NATURAL,
+            TowerTermination::ParseInvalid { .. } => Self::PARSE_INVALID,
             TowerTermination::ResourceBound { .. } => Self::INCOMPLETE_RESOURCE_BOUND,
         }
     }
@@ -537,7 +546,8 @@ pub fn classify(l0: &ParseLayer, config: &ThetaConfig, operating_levels: &[u32])
 ///
 /// - 空 ParseLayer（无线段）⟹ `Classification::default()` + 空 tower，cache 清空。
 /// - L0 带段端门 fail-closed 标记（`segments_parse_invalid_from.is_some()`，#1581 / X-37）⟹ 拒读：
-///   `Classification::default()` + 空 tower + 空 operations，可重导缓存清空，候选事件簿只读不写。
+///   `Classification::default()` + 空 tower + 空 operations，可重导缓存清空，候选事件簿只读不写；
+///   `termination` 记 [`TowerTermination::ParseInvalid`]（#1653）。
 /// - 段账本前缩（`segments.len() < last_l0_segments_len`）⟹ cache 清空 + 全量重扫（bit-exact 退化）。
 /// - merged_bars 前缀改写（inclusion 合并回退）⟹ MACD cache 局部重建（bit-exact 退化）。
 pub fn classify_incremental(
@@ -551,15 +561,15 @@ pub fn classify_incremental(
     // 清空可重导塔缓存（下个无标记的 bar 全量重建）；不可回填的候选事件簿只读不写，本 bar 不产新事件。
     // 整层拒读而非截到失败点前：各级末端判定（活中枢、末段走势、背驰）以账本末端为「当下」，截断后
     // 仍会把失败前的结构当作当下状态输出，等于在无效划分旁构造。
-    if l0.segments_parse_invalid_from.is_some() {
+    if let Some(from) = l0.segments_parse_invalid_from {
         cache.clear();
         return ClassifyOutput {
             classification: Classification::default(),
             tower: Vec::new(),
             candidate_streams: cache.candidate_book.streams(),
             operations: Vec::new(),
-            // 拒读不是资源截断：与空 ParseLayer 同口径记自然终止（无可构造级别）。
-            termination: TowerTermination::Natural,
+            // #1653：拒读既非资源截断也非自然终止（空输入/到顶），单列 ParseInvalid。
+            termination: TowerTermination::ParseInvalid { from },
             policy: TowerPolicyStamp::of(config),
         };
     }
