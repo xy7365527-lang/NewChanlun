@@ -37,7 +37,7 @@ Prepare → Reserve → Commit → Capture → Resolve → Apply（含缺口、�
 
 ## 未覆盖事实（uncovered）
 
-Resolve 经已保留责任 `covered_facts` 核对：未覆盖事实被拒（`MissingDependency…未被已核责任界覆盖`），E/B 状态不变。
+Resolve 经已保留责任 `covered_facts` 核对：未覆盖事实被拒（`MissingDependency…未被已核责任界覆盖`），E 持久表逐表不变（`resolve.uncovered_unchanged`；Resolve 只写 E，本场景未另比 B 表）。
 
 ## 信任边界（如实声明）
 
@@ -52,4 +52,4 @@ Resolve 经已保留责任 `covered_facts` 核对：未覆盖事实被拒（`Mis
 ## 证据清单
 
 - `run/`：完整归档中 <100KB 的文件（RESULT.json、provenance.json、commands.jsonl、各请求/响应、manifest、FIN 输入、S 启动/basis）；回环地址已脱敏为 `<loopback-v4>`。
-- `ARCHIVE-SHA256SUMS`：完整归档（144 个文件，约 19MB）全部文件的 sha256；未入库的大件为 `covered/messages.jsonl`（约 9.9MB）、分页页响应（约 350KB/页）与分页汇总文档（0.6–1MB），可按上述命令复现。
+- `ARCHIVE-SHA256SUMS`：完整归档（144 个文件，约 19MB）全部文件的 sha256（路径相对 `run/`：`cd run && shasum -a 256 -c ../ARCHIVE-SHA256SUMS`，入库的 116 个文件应全部 OK）；未入库的大件为 `covered/messages.jsonl`（约 9.9MB）、分页页响应（约 350KB/页）与分页汇总文档（0.6–1MB），可按上述命令复现。
