@@ -43,7 +43,9 @@
 //! 的同源声明自 G4 起失效，已随本标注移除。
 
 use super::super::classifier::bsp::BspPoint;
+#[cfg(test)]
 use super::super::classifier::center::{center_from_segments, UnitRange};
+#[cfg(test)]
 use super::super::classifier::descend::RMove;
 use super::super::classifier::divergence::compute_macd;
 use super::super::classifier::nest::{is_sub, NestCertificate, NestInterval, NestRung};

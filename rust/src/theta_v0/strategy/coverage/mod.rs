@@ -144,7 +144,9 @@ pub(crate) use sizing::clamp_levels_to_weighted_cap;
 
 #[cfg(test)]
 pub(crate) use compose::pi_theta_step_traced;
-pub(crate) use compose::{pi_theta_step_traced_with_risk_seeds, StepTrace};
+pub(crate) use compose::pi_theta_step_traced_with_risk_seeds;
+#[cfg(any(test, feature = "backtest_bin"))]
+pub(crate) use compose::StepTrace;
 pub use compose::{
     t1_target_residual_probe_bump, t1_target_residual_probe_count, t1_target_zero_probe_bump,
     t1_target_zero_probe_count, t1_target_zero_probe_reset,
