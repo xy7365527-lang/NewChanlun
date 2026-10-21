@@ -1,10 +1,10 @@
 # 中枢（Zhongshu / Center / 缠中说禅走势中枢）
 
 > 正本：本文件是 中枢 的教义正本。
-> 最后裁定：[#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478)（2026-10-13，S-7 落码补齐与 §4.1 端点）；此前 [#812](https://github.com/xy7365527-lang/NewChanlun/issues/812)（2026-07-31）
-> 受影响代码清单：本文件 §9（Rust / Lean / Python 三侧，点名到行号；#1478 补齐 R21–R27、L9–L11、P14–P16 与 §9.0 行号订正，工作草稿副本 `.chanlun/review-results/issue1323-grilling-20261013/1478-AFFECTED-CODE.md`，票关后随归档出仓）
+> 最后裁定：[#1627](https://github.com/xy7365527-lang/NewChanlun/issues/1627)（2026-10-21，§2.1 新增「a₀ 构件值域」段：`a₀` 构件值域的全仓唯一正本，其余各处改指针；不改判 S-5）；此前 [#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478)（2026-10-13，S-7 落码补齐与 §4.1 端点）；此前 [#812](https://github.com/xy7365527-lang/NewChanlun/issues/812)（2026-07-31）
+> 受影响代码清单：本文件 §9（#1627 见 §9.6；Rust / Lean / Python 三侧，点名到行号；#1478 补齐 R21–R27、L9–L11、P14–P16 与 §9.0 行号订正，工作草稿副本 `.chanlun/review-results/issue1323-grilling-20261013/1478-AFFECTED-CODE.md`，票关后随归档出仓）
 
-**版本**: v2.1（2026-10-13 落 #1478；v2.0 为 #812 全量重写，覆盖 v1.4）
+**版本**: v2.2（2026-10-21 落 #1627；v2.1 为 2026-10-13 落 #1478；v2.0 为 #812 全量重写，覆盖 v1.4）
 **状态**: 已裁定（Z-1…Z-8 八组 + 附①附② + S-1…S-7，共 17 条；#1478 补 S-7 落码与 §4.1 端点条款）
 **最后更新**: 2026-10-13
 **原文依据**: 第 17、18、19、20、21、24、27、28、29、30、32、33、34、35、37、38、43、49、57、59、63、64、69、83、84、92、101、102 课（博文，`docs/chanlun/text/blog/`）
@@ -135,7 +135,7 @@ ZD < ZG（严格，Z-2）
 >
 > **缠论笔不作递归基**——缠师明文否决，且给的是**工程理由**而非命名理由。
 >
-> **「三根该级别单位 K 线重叠」（`017-第17课.md:40`）与「连续三笔相同价位的交易」（`035-第35课.md:16`）保留为合法备选 `a₀`**，依第 84 课授权，本仓不选用。
+> **「三根该级别单位 K 线重叠」（`017-第17课.md:40`）与「连续三笔相同价位的交易」（`035-第35课.md:16`）保留为合法备选 `a₀`**，依第 84 课授权，默认不选，作为 `tower_base` 可选值保留（ADR 0041 第四条；值域见本节末「a₀ 构件值域」段）。
 >
 > **`a₀` 之上的递归步 `f₂` 与 `a₀` 的取法无关**——这是缠师本人的分层。
 
@@ -156,6 +156,22 @@ ZD < ZG（严格，Z-2）
 **这条比 `064:34`（命名层）更硬**：它承认笔层可实现，但判其系统稳定性不合格。
 
 **③ 线段是后期操作正本** —— `057-第57课.md:26`；`063-第63课.md:22`「有了线段，就可以定义 1 分钟的中枢」，其后逐级递归。
+
+#### 2.1.1 a₀ 构件值域（[#1627](https://github.com/xy7365527-lang/NewChanlun/issues/1627)，2026-10-21）
+
+**本段是 `a₀` 构件值域的全仓唯一正本。** 递归第一步 `f₁` 产出的最低级别中枢用什么构件，只在这里列；字段 `tower_base`（[ADR 0041](../../docs/adr/0041-degrees-of-freedom-configurable-not-excluded.md) 版本化字段，载体见 `qujiantao.md` §14.3）的取值就是下表三项。
+
+| 取值 | 构件 | 原文出处 | 地位 |
+|---|---|---|---|
+| `segment` | 三个线段的重叠 | `057-第57课.md:26`【正文】「三个线段重合部分就构成最小分析级别的中枢」 | **默认值**（本仓后期操作正本，生产 Rust 塔 L0 建在线段上） |
+| `kline3` | 三根该级别单位 K 线的重叠 | `017-第17课.md:40`【正文】「定义为至少三个该级别单位K线重叠部分」 | 合法基底，默认不选 |
+| `trade3` | 连续三笔相同价位的成交 | `035-第35课.md:16`【正文】「连续三笔相同价位的交易，就构成最低级别的中枢」（成交笔，见 §2.3 防误用注） | 合法基底，默认不选 |
+
+1. **值域不封闭，但只能在本节扩。** `084-第84课.md:54`【正文】授权基底自由（「关于第一条，其实，可以随意设置任何的」），所以上表不是封闭集；新增一项须先核原文出处（四步：行号、逐字、作者归属、行内注），再改本节，**不得在别处另写一份值域**。
+2. **缠论笔不在值域内。** 依据是 `083-第83课.md:14`／`:16`（「这样构造出来的系统，其稳定性极差」及结构理由，见上文②）与 `064-第64课.md:34`（线段以下按原文只叫类中枢，§2.2）；在案受控 A/B 也已否证（`.chanlun/roadmap.yaml:970-972`：唯一变量 a0 段→笔，策略收益 +68.3%→−100.0%，编排者 2026-06-30 判 falsified）。按 ADR 0041 第四条这是「违反缠师原文」的真错，不是可选值。**要翻须重开本文件的裁定票**。
+3. **往下延伸的终点是成交，不是缠论笔。** `060-第60课.md:42`【正文】「根据严格的理论，用每笔成交当成最低级别」——`qujiantao.md` §4.5.2 阶段二的「往下延伸」沿本表的合法基底走（`kline3` → `trade3`）。
+4. **从属声明。** 以下各处只是指针，不另列值域：`qujiantao.md` §14.3（字段 `tower_base` 的载体：代价、适用条件、#799 排除、载体）、§4.1.2、§4.5；`level_recursion.md`「现行裁定」；`beichi.md`「唯一仍属「选择」的那一样」节。[ADR 0013](../../docs/adr/0013-partition-machine-bidirectional-form.md) `:289` 与 ADR 0041 先例段是决策记录，所列值与本节一致；**有冲突时以本节为准**。
+5. **构件与数据周期是两件事。** 本表管的是「最低级别中枢用什么构件」；喂给塔底的最低数据周期（现行 1 分钟 K 线）是另一个维度（`017-第17课.md:40` 同句后文：1 分／5 分／1 秒皆可），不归本表，见 `beichi.md`「唯一仍属「选择」的那一样」节。挂单／订单事件能否作基底由 map [#1465](https://github.com/xy7365527-lang/NewChanlun/issues/1465) 研究，结论成立后按 ADR 0041 另增可选值，须重开本文件裁定票；**在此之前不进本表**。
 
 ### 2.2 【S-2】类中枢：名分独立，且**不绑定构件**
 
@@ -605,6 +621,20 @@ ZD < ZG（严格，Z-2）
 - **退场条件**：#1429 落 R22（子窗 `Zn` 聚合）时消失，同拍改 Lean；
 - **配额**：占全仓 #804 例外配额 1/3。
 
+### 9.6 #1627 受影响代码清单（基线 main `02b5b571eb`）
+
+本票只收敛文本、不改判据：§2.1.1 的值域与现行生产语义一致（Rust 塔 L0 ＝ 线段）。下列各处是代码里**把缠论笔说成 `a₀`／可作塔底、或把笔的排除说成「选择」**的位置，改法只动注释与非生产实验开关的名分，判据不变。行号本轮逐条 `rg`／`sed` 核实；检索覆盖 `rust/src/`、`src/`、`s_session/`、`formal/`。
+
+| # | 侧 | 文件:行号 | 现状 | 改法 | 承接 |
+|---|---|---|---|---|---|
+| C1 | Rust | `rust/src/theta_v0/backtest/econ_positive.rs:1142-1143`；`rust/src/theta_v0/backtest/econ_positive/cand_delta.rs:85-87` | 「塔不从笔递归……构造选择」 | 改为指向 §2.1.1 并带 #1627：塔不从笔递归是原文否决，塔底基底取什么才是选择 | [#1626](https://github.com/xy7365527-lang/NewChanlun/issues/1626) Q-6（已在其清单内，本票只补口径） |
+| C2 | Rust | `rust/src/recursive_t/types.rs:70-87`（`A0Source::Stroke`，doc「递归底座下移」）、`:92`、`:95`、`:110`、`:130`、`:353`；`rust/src/recursive_t/stream.rs:73`、`:85`、`:156-158`、`:232`、`:266`、`:338-351`；`rust/src/recursive_t/rec_stream.rs:124`、`:229`、`:1270-1273`、`:1556-1578`（环境变量 `T_A0=stroke`）；`rust/src/recursive_t/ffi.rs:39-46`（`parse_a0` 接受 `"stroke"`／`"bi"`）；`rust/src/recursive_t/mod.rs:22`、`:81`；`rust/src/recursive_t/divergence.rs:508` | 笔可切为 `a₀`（谱系 526 号的 A/B 实验自变量），文档称「a₀ = 笔序列」 | `Stroke` 档名分改为「已否证的对照臂，不是 `a₀` 合法值」（§2.1.1 第 2 条），不得进入任何准入路径；随 recursive_t 退场（[#808](https://github.com/xy7365527-lang/NewChanlun/issues/808)／[#951](https://github.com/xy7365527-lang/NewChanlun/issues/951) B3）一并处置 | [#1654](https://github.com/xy7365527-lang/NewChanlun/issues/1654) |
+| C3 | Rust | `rust/src/trading/positional_fusion.rs:32`、`:1341`；`rust/src/trading/unified_osc.rs:229`；`rust/src/trading/nested_fugue.rs:149`、`:915`；`rust/src/trading/positional.rs:340`；`rust/src/trading/config.rs:636`；`rust/src/trading/level_sub_lou.rs:547` | 注释「笔 = a0（77/78课）」：把交易阶梯的下限（`FIRST_BSP_LADDER = 2`，`trading/types.rs:30`）说成笔是 `a₀` | 改称「阶梯下限（笔层不开一类点）」，不再用 `a₀` 指笔；常量与判据不动 | [#1654](https://github.com/xy7365527-lang/NewChanlun/issues/1654) |
+| C4 | Rust | `rust/src/theta_v0/classifier/pipeline.rs:140`（`segment_to_unit`） | 塔 L0 单元 ＝ 线段 | **不改**（与默认值 `segment` 一致） | — |
+| C5 | Python | `src/newchan/a_nested_divergence.py:408`（`_finalize_with_level1`） | 递归底写死 level 1 ＝ 线段 | **不改**（与默认值一致；改读字段归 #1626 Q-8） | #1626 |
+| C6 | Python | `src/newchan/a_zhongshu_v1.py:181`（`zhongshu_from_strokes`） | 三笔重叠 | 已由 §9.3 P5 处置（改名类中枢、不得作 `a₀`），本票不重复 | §9.3 P5 |
+| C7 | Lean | `rg -n "towerBase\|tower_base\|A0Source" formal` 0 命中；`formal/` 中无以笔为递归基的定义式 | — | 无受影响处 | — |
+
 ## 10. 本次推翻的旧结算（订正表）
 
 | 旧结算（v1.4 及以前） | 裁定 | 现状 |
@@ -638,6 +668,10 @@ ZD < ZG（严格，Z-2）
 
 **更新日志**
 
+- 2026-10-21: **v2.2 [#1627](https://github.com/xy7365527-lang/NewChanlun/issues/1627) a₀ 构件值域收敛为一处**（用户 2026-10-21 确认属已裁：#830／ADR 0013 裁定七、#812 S-5、ADR 0041 先例段）
+  - §2.1 新增 §2.1.1「a₀ 构件值域」：默认 `segment`、合法基底 `kline3`／`trade3`、缠论笔排除及依据、从属声明；`kline3`／`trade3` 由「本仓不选用」改为「默认不选，作为 `tower_base` 可选值保留」
+  - §9 新增 §9.6 受影响代码清单（C1–C7）
+  - `qujiantao.md`、`level_recursion.md`、`beichi.md` 同步改为指针
 - 2026-10-13: **v2.1 [#1478](https://github.com/xy7365527-lang/NewChanlun/issues/1478) S-7 落码补齐与 §4.1 端点**（#1323 grilling，代理依用户授权裁定、根复核）
   - §3：G/D 行改为 S 事实层按 `Zn` 实现、`Center`／`CenterFull` 不加字段；§3 末加「落码补齐」
   - §4.1：加端点条款（回抽段为连接段，Lean 管边界）与退场条件；§5.4 加一句 `Zn` 落码后结论不变

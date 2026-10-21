@@ -1,13 +1,14 @@
 # 区间套（Qujiantao / Interval Nesting）
 
 > 正本：本文件是**区间套**的教义正本。
-> 最后裁定：[#1600](https://github.com/xy7365527-lang/NewChanlun/issues/1600)（2026-10-21，三处 `[新缠论:选择]` 落为可调字段：`selector_keys`／`trend_scope`／`tower_base`，§14；默认值 ＝ 现行取值，不改判既有裁定）；此前 [#1354](https://github.com/xy7365527-lang/NewChanlun/issues/1354)（2026-10-14，成本停止 policy 实例，§4.5.3 第 1 条）；[#1345](https://github.com/xy7365527-lang/NewChanlun/issues/1345)、[#1347](https://github.com/xy7365527-lang/NewChanlun/issues/1347)（2026-10-13，NestInterval 价格挂法；整链 NA 的递归合成）；此前 [#817](https://github.com/xy7365527-lang/NewChanlun/issues/817)（[grilling] 区间套的教义正本，map [#787](https://github.com/xy7365527-lang/NewChanlun/issues/787) 第三批）
-> 受影响代码清单：#1600 见 §14.4「#1600 受影响代码清单」；#817 六组见 §9「#817 受影响代码清单」（六组共用这一份）；#1345／#1347 见 §9.1「#1345／#1347 受影响代码清单」（工作草稿副本 `.chanlun/review-results/issue1323-grilling-20261013/1345-AFFECTED-CODE.md`、`1347-AFFECTED-CODE.md`，票关后随归档出仓）
+> 最后裁定：[#1627](https://github.com/xy7365527-lang/NewChanlun/issues/1627)（2026-10-21，`a₀` 构件值域收敛到 `zhongshu.md` §2.1.1：§14.3 降为字段载体、§4.5.2 构件词订正、复述处对齐；方向与状态不变）；此前 [#1600](https://github.com/xy7365527-lang/NewChanlun/issues/1600)（2026-10-21，三处 `[新缠论:选择]` 落为可调字段：`selector_keys`／`trend_scope`／`tower_base`，§14；默认值 ＝ 现行取值，不改判既有裁定）；此前 [#1354](https://github.com/xy7365527-lang/NewChanlun/issues/1354)（2026-10-14，成本停止 policy 实例，§4.5.3 第 1 条）；[#1345](https://github.com/xy7365527-lang/NewChanlun/issues/1345)、[#1347](https://github.com/xy7365527-lang/NewChanlun/issues/1347)（2026-10-13，NestInterval 价格挂法；整链 NA 的递归合成）；此前 [#817](https://github.com/xy7365527-lang/NewChanlun/issues/817)（[grilling] 区间套的教义正本，map [#787](https://github.com/xy7365527-lang/NewChanlun/issues/787) 第三批）
+> 受影响代码清单：#1627 见 `zhongshu.md` §9.6；#1600 见 §14.4「#1600 受影响代码清单」；#817 六组见 §9「#817 受影响代码清单」（六组共用这一份）；#1345／#1347 见 §9.1「#1345／#1347 受影响代码清单」（工作草稿副本 `.chanlun/review-results/issue1323-grilling-20261013/1345-AFFECTED-CODE.md`、`1347-AFFECTED-CODE.md`，票关后随归档出仓）
 
-**版本**: v1.4
+**版本**: v1.5
 **状态**: **完整正本 —— 6 组全裁**（N-1／N-2／N-3／N-4／N-5／N-6 全部已裁，另含「两件上游归此的」）。**「未裁」段为空**（§10.1）；仍未闭的只有 §10.2 的未测表。
 **最后更新**: 2026-10-21
 **版本沿革**:
+- **v1.5（2026-10-21）**：落 [#1627](https://github.com/xy7365527-lang/NewChanlun/issues/1627)：`a₀` 构件值域的唯一正本定在 `zhongshu.md` §2.1.1；§14.3 字段行、默认值行、可选值行、排除行改为指针，删去已失效的登记段；§4.1.2、§4.5.1 指路注改指 §14.3 与 zhongshu；§4.5.2 方向句的构件词按 zhongshu 订正（终点「每笔成交」、状态、编排者原话不变），原冲突注换为订正注；§4.2.1、§9 第 35 条、§10.2 第 38 条、§12、§13 的复述同步对齐。
 - **v1.4（2026-10-21）**：落 [#1600](https://github.com/xy7365527-lang/NewChanlun/issues/1600)（ADR 0041 自由度通则，审计 #1586 A-13／A-14／A-15）：新增 §14 三个可调字段——`selector_keys`（Sel_Θ 键序，§6.5）、`trend_scope`（停削时钟层级作用域，§8.1.3）、`tower_base`（塔底基底，§4.1.2）——各附默认值与出处、可选值与代价、排除项与载体，§14.4 受影响代码清单；§4.1.2、§4.5.1、§4.5.2、§6.5、§8.1.3 加指路注（原裁定句不回改）。三处名分考古均确认 `[新缠论:选择]`。
 - **v1.3+（2026-10-14，[#1346](https://github.com/xy7365527-lang/NewChanlun/issues/1346) task 同步，非裁定）**：§6.5 补 Comparable／Sel_Θ／C(J,t) 同一对象域说明；§9 第 46、49 条落点转指 TB-02-Q #1439，第 49 条补 Lean `SelTheta` 同改。
 - **v1.3（2026-10-14）**：§4.5.3 第 1 条同步 [#907](https://github.com/xy7365527-lang/NewChanlun/issues/907) 后裁与 [#1354](https://github.com/xy7365527-lang/NewChanlun/issues/1354)／[ADR 0035](../../docs/adr/0035-cost-stop-policy-instance-and-base-extension-evidence.md)：第一层由「事前算上限」改为「当前 L0 余量 + 延伸后立即复测」；v1.1 下界收紧段保留。
@@ -449,11 +450,11 @@ ADR 0011 三格是「纵向向上 = 塔／纵向向下 = 区间套／横向 = �
     }
 ```
 
-「**塔不从笔递归，构造选择，非客观无次级别**」——代码自己说了这是选择。配套原文根据 = `084:54`【正文】基底自由（`f1` 可随意设置）＋ `017:40`【正文】（最低级别是**设定**的，1分/5分/1秒皆可）。
+「**塔不从笔递归，构造选择，非客观无次级别**」——代码自己说了这是选择。（[#1627](https://github.com/xy7365527-lang/NewChanlun/issues/1627) 订正口径：「塔不从笔递归」本身是缠师原文否决，见 `zhongshu.md` §2.1.1 第 2 条；属选择的是在合法基底中取哪一个。）配套原文根据 = `084:54`【正文】基底自由（`f1` 可随意设置）＋ `017:40`【正文】（最低级别是**设定**的，1分/5分/1秒皆可）。
 
 **⟹ 本条裁定是两半名分不同的合取**：成本门 `[旧缠论]` ∧ 塔底 `[新缠论:选择]`。**引用时不许把整条统称 `[旧缠论]`。**
 
-> **v1.4 指路（#1600）**：塔底这一半已落为可调字段 `tower_base ∈ {segment, kline3, trade3}`，默认 `segment`，见 §14.3。
+> **v1.4 指路（#1600；#1627 订正）**：塔底这一半已落为可调字段 `tower_base`，见 §14.3；值域、默认值与排除见 `zhongshu.md` §2.1.1。
 
 ### 4.2 裁定二：正本**不钉死级别**，写成「判据 + 参数」
 
@@ -474,7 +475,7 @@ ADR 0011 三格是「纵向向上 = 塔／纵向向下 = 区间套／横向 = �
 - **`035:36`**「**在最规范的走势中**，该大级别的买卖点刚好是下面**所有**级别的买卖点」——⟹ 「每级都有」**只在最规范走势里成立，非普遍要求**。（同一条约束的第二处出处 = `017:72`，[#852](https://github.com/xy7365527-lang/NewChanlun/issues/852) 已引。）
 - **`084:54`／`084:60`／`017:40`** 基底自由。
 
-**★ 更根本的一条：「必须降到 a0」连确定含义都没有。** `084:54`【正文】的记号里 **`a0` 是 `f1` 的输入**（原始素材），**`a1` 才是塔底元素**；而 `084:52`【正文】明说 `f1`「**完全可以用别的定义去取代**」⟹ 「a0」不是一个固定的级别。`recursive_t` 里的 `a0` 实际指「塔的底座单元（segment 或 stroke，**可配置**）」（`.chanlun/roadmap.yaml:972` 逐字「E1 受控 A/B（唯一变量=a0 来源）：BTC a0=段→笔」）。
+**★ 更根本的一条：「必须降到 a0」连确定含义都没有。** `084:54`【正文】的记号里 **`a0` 是 `f1` 的输入**（原始素材），**`a1` 才是塔底元素**；而 `084:52`【正文】明说 `f1`「**完全可以用别的定义去取代**」⟹ 「a0」不是一个固定的级别。`recursive_t` 里的 `a0` 实际指「塔的底座单元（segment 或 stroke，**可配置**）」（`.chanlun/roadmap.yaml:972` 逐字「E1 受控 A/B（唯一变量=a0 来源）：BTC a0=段→笔」）（stroke 不在 `a₀` 值域，见 `zhongshu.md` §2.1.1；[#1627](https://github.com/xy7365527-lang/NewChanlun/issues/1627)）。
 
 **⟹ 说法③ 的 `a0` ≡ 说法⑥ 的「塔底」；两条的真差异不在「底在哪」，而在「中途断链算不算失败」。**
 
@@ -518,13 +519,13 @@ ADR 0011 三格是「纵向向上 = 塔／纵向向下 = 区间套／横向 = �
 
 **终止 ＝ 成本门 ∧ 塔底；塔底 ＝ 现有 L0（线段层）；不设人为提前停。**
 
-> **v1.4 指路（#1600）**：「现有 L0（线段层）」即字段 `tower_base` 的默认值 `segment`（§14.3）。
+> **v1.4 指路（#1600；#1627 订正）**：「现有 L0（线段层）」即字段 `tower_base` 的默认值 `segment`（§14.3；值域见 `zhongshu.md` §2.1.1）。
 
 #### 4.5.2 阶段二 —— 状态「**已批准方向，待条件**」，**不是「待讨论」**
 
-把塔往下延伸到**笔**、乃至**每笔成交**。**这个区别要紧**：后来人读到时可以直接干，不必重新请示。
+把塔底沿 `zhongshu.md` §2.1.1 的合法基底往下延伸，乃至**每笔成交**。**这个区别要紧**：后来人读到时可以直接干，不必重新请示。
 
-> **v1.4 冲突登记（#1600，原句不回改）**：句中「笔」若指以缠论笔为塔底构件，与 `zhongshu.md` §2.1【S-5】（[#812](https://github.com/xy7365527-lang/NewChanlun/issues/812)，2026-07-31，「缠论笔不作递归基」）及 ADR 0041 先例段（笔作底「维持排除；要翻须重开 zhongshu 裁定票」）冲突。`tower_base` 值域按后两者取，不含笔；本段的「往下延伸」在字段下的落点是 `kline3`／`trade3`（§14.3）。冲突裁决归 [#1627](https://github.com/xy7365527-lang/NewChanlun/issues/1627)。
+> **[#1627](https://github.com/xy7365527-lang/NewChanlun/issues/1627) 订正**：构件词按 `zhongshu.md` §2.1.1 订正（原记录者措辞「延伸到」后的构件词是缠论笔，不在 `a₀` 值域）；方向、终点「每笔成交」与状态不变。
 
 **★ 编排者对阶段二的定位（原话）**：**「这个东西是我们过渡到高频交易的途径。」**
 
@@ -1247,7 +1248,7 @@ ADR-0006 `:7` 的三合取（破中枢 ∧ A 配对 ∧ **映射成立**）与 `
 | **32**<br>（说法③ 的判据） | `rust/src/recursive_t/divergence.rs:547`（`pub fn nest_chain_complete(`）／`:567`（`for k in (0..cc).rev()`）／`:570`／`:581`（两处 `None => return false`）／`:585-586` | **#1073 S10-a-1 已落改**：`(0..cc).rev()` → `(min_level..cc).rev()`，`min_level` 为参数（成本门 ∧ 塔底先到者；塔底 = a₀ = 0，成本门据 [#907](https://github.com/xy7365527-lang/NewChanlun/issues/907) 不咬现役级别 ⟹ 阶段一 = 0）；说法③ 已判违规（§4.2.1）⟹ 底不得钉在常数 `0` | 「必须降到 a0」被三条【正文】反对，且 `a0` 在 `084` 记号里**无确定含义**；形式化侧**零背书** | SPEC #847 | ✅ 五处行号逐字复核成立。**改动会翻在案读数**：`.chanlun/genealogy/settled/552-anchor-resolves-zombie-core-deadlock.md:130` 的 L3 否证前提（链坍缩 21/24=0 **是因为**必须到 k=0）⟹ **那条 L3 否证的有效域须重述**。**#1073 S10-a-1 已落改**（`cargo check` 过） |
 | **33**<br>（说法② ＝ 生产唯一载体） | `rust/src/theta_v0/strategy/nest.rs:126`（`pub fn chi_bool(ev: u32, chain: &[NestLevel]) -> bool {`）／`:128`（`[] => false`）／`:129`（`[last] => last.lvl == ev && last.chosen().is_some() && last.confirm_ok`）／`:131-133`（到 ev 还有下级链 ⟹ false） | **判据本身不改**（它与阶段一裁定不冲突：底浮动、由调用方给）；**要改的是喂它的那条链**（第 28 条） | 它是**六条载体里唯一真在生产 π 上**的一条，但被单元素链塌缩成一个 bit ⟹ 「末级是哪级」从未被求值 | **N-6**（链长）／SPEC #847（验收线） | ✅ 逐字复核成立。**票面给的 `:120` 是 docstring 的 bullet，判据在 `:129`** —— 原票 `issue809:107` 写的 `:129` 是对的，是本票转述时用了 docstring 行号 |
 | **34**<br>（说法⑤ ＝ 票面未列） | `rust/src/theta_v0/classifier/nest.rs:340`（`fn n_delta_rec(`）／`:346`（`match rungs.split_first() {`）／`:347-348`（`// 基例 ℓ=e：N^δ_{e↓e} = Conf^δ_e.` + `None => terminal.confirm_side(side),`） | **登记，不改**：它是 `NestingCertificate.lean` 的 Rust 对偶（docstring `:328` 自陈「Lean 端对应 (ℓ-e):Nat 结构递归」），底 ＝ 执行级 e，与 ①② 同侧 | 票面四说法漏了它；同一构造入口随 ① 一起生产不可达 | 本票 #817（登记）／SPEC #847 | ✅ `:340`／`:346-348` 逐字复核成立 |
-| **35**<br>（说法⑥ ＝ 阶段一「塔底」的现成实装） | `rust/src/theta_v0/backtest/econ_positive.rs:822`（`let subs = s.sub_moves.as_slice();`）／`:823-825`（`if subs.is_empty() { return None; // 递归底（…塔不从笔递归，构造选择，非客观无次级别，订正 #520）…}`）／`:840-843`（`None => Some(1)`） | **不改**：它已是**阶段一「塔底」那一半的现成实装**（§4.1.2 引它自陈「构造选择」）。**阶段二**（塔往下延伸到笔／成交）改的是**塔怎么建**，不是这个判据 | 「塔底 ＝ `[新缠论:选择]`」这条名分的**承重自陈就在 `:824`** | SPEC #847（阶段二）／本票 #817（名分承重） | ✅ 逐字复核成立。**`:842` `None => Some(1)` 把「深层钻不动」记为「本级即最低可用锚」** ⟹ ⑥ 的失败语义与③ **相反**（③ 断即 false） |
+| **35**<br>（说法⑥ ＝ 阶段一「塔底」的现成实装） | `rust/src/theta_v0/backtest/econ_positive.rs:822`（`let subs = s.sub_moves.as_slice();`）／`:823-825`（`if subs.is_empty() { return None; // 递归底（…塔不从笔递归，构造选择，非客观无次级别，订正 #520）…}`）／`:840-843`（`None => Some(1)`） | **不改**：它已是**阶段一「塔底」那一半的现成实装**（§4.1.2 引它自陈「构造选择」）。**阶段二**（塔往下延伸到 K 线／成交）改的是**塔怎么建**，不是这个判据 | 「塔底 ＝ `[新缠论:选择]`」这条名分的**承重自陈就在 `:824`** | SPEC #847（阶段二）／本票 #817（名分承重） | ✅ 逐字复核成立。**`:842` `None => Some(1)` 把「深层钻不动」记为「本级即最低可用锚」** ⟹ ⑥ 的失败语义与③ **相反**（③ 断即 false） |
 | **36**<br>（Lean 三套 + 同构物；**＋N-4 有效域声明与行号反向订正，两来源合并**） | `formal/Origin/NestingCertificate.lean:185-190`（Nat 差，基例 `\| 0 => Conf δ (f e)`）／`formal/Origin/IntervalNestCertificate.lean:416-431`（列表链两基例）／`formal/Strict/Nest.lean:218-222`（第三套）／`formal/Origin/SubLevelDescent.lean:105-107`（⑥ 的同构物） | **本轮不改**（若后续因 ③④ 违规修复而改，**不须重落 fixture**——三套皆不在两个导出器 import 闭包内；**但仍须跑 gate，预期 exit=0，见 §5.6**）。**★ v1.0 追加**：三套须**各自在文件头声明有效域**（见第 39 条），且套二行号按 **`:416-431`**（见第 41 条，裁定的 `:432` 订正过冲一行） | ③④ **与三套一条都不同构** ⟹ 形式化侧零背书，是判它们违规的第二条依据 | 本票 #817（登记）／**N-4**（三套并存与等价性）／SPEC #847 | ✅ 四处逐字复核成立（`NestingCertificate.lean:185-190`、`Strict/Nest.lean:218-222`、`SubLevelDescent.lean:105-107` 本轮直读；`IntervalNestCertificate.lean:361` 见第 25 条）。**`NestingCertificate.lean:426` 自标 `[需人工确认]`「是否后续需证两骨架等价」** |
 | **37**<br>**★ 本轮 grep 新发现的行号冲突** | `rust/src/recursive_t/rec_engine.rs:364-366`（`off()` 基线里 `c.enable_reading_b = false; c.reading_b_diverge = false; c.enable_reading_b_pair = false;`）**＋ `:308-310`**（**默认构造走 env**：`enable_reading_b: std::env::var("T_READING_B").is_ok(),` 等三行） | **行号订正 + 结论收窄**：裁定 comment 与考据报告都写「`rec_engine.rs:361-363` 在 `off()` 基线里」——**实测 `:361-363` 是 `enable_nest`／`enable_nest_consume`／`enable_nest_strict`，`enable_reading_b*` 三行在 `:364-366`**。更要紧的是：**`off()` 只是其中一条构造路径；非 `off()` 的默认构造在 `:308-310` 由环境变量 `T_READING_B`／`T_READING_B_DIVERGE`／`T_READING_B_PAIR` 的「是否已设」决定** ⟹ 「说法③ 默认关」这个结论**只在 `off()` 基线上成立**，在 env 路径上是「**未设即关**」 | 说法③ 的可达性判定（§4.8）依赖「门控默认 false」。**结论方向不变**（`grep -rn "T_READING_B" .github/ scripts/ analysis/ trading_system/` **零命中** ⟹ 无人在仓内置它），**但依据要换成 `:308-310` + 那次零命中，不能只引 `off()`** | 本票 #817（登记）／SPEC #847 | **⚠️ 与裁定 comment／考据报告冲突，照实登记，未替其圆场** |
 | **38**<br>**★ 本轮 grep 新发现（部分关闭未测项）；＋N-6 路径 B 订正，两来源合并** | `scripts/check_armR_trades_digest.py:17`（逐字 `M8_WIN_FILTER=$tag VOICE_EXEC=1 THETA_NEST_CERT_GATE=1 \`）／`:355`（`"_note": "臂R（VOICE_EXEC=1 THETA_NEST_CERT_GATE=1，…）"`） | **登记**：`THETA_NEST_CERT_GATE` 这道门在**仓内脚本层被显式置 1**（臂 R 口径）。**★ v1.0 追加（N-6）**：因此 **`n_delta` 路径 B（`admission.rs:1017` ← `fill.rs:4941`）在臂 R 口径下是开着的** ⟹ **凡引 armR 读数，`n_delta` 都开着**（见第 56 条，订正 N-2 的「唯一入口」表述） | 说法⑥ 的「三条链默认全关」是**代码内默认**；scripts 层**有一条覆写在案** ⟹ 「生产从不走这条链」须限定为「默认配置下」，臂 R 那条路是走的 | 本票 #817（登记）／SPEC #847 | **⚠️ 这条部分关闭考据未测第 3 条（「CI/scripts 门控默认值未查」）**：`.github/` 与 `trading_system/` 对 `THETA_NEST_CERT_GATE` **零命中**，`scripts/` **两处置 1**；`T_READING_B*` 在三处**全零命中**。**CI workflow 层仍未逐条通读**（见 §6.2） |
@@ -1389,7 +1390,7 @@ ADR-0006 `:7` 的三合取（破中枢 ∧ A 配对 ∧ **映射成立**）与 `
 | **35** | **《天道》`ch04.md:2825` 编者转述「缠师说过不能由笔构成最小中枢」在 110 课博文里查不到对应原句**；ADR 0013`:284` 引 `083:14`「稳定性极差」作「笔被否决」的依据，**两者是否同一出处未核**。 | N-2 | **无人跟进** |
 | **36** | **同义词检索未做（N-2 侧）**：只查了 13 组词。缠师有没有用别的词讲下钻终止（「够了」「不必再」「到此为止」）**未查**。（`级别`＋`停` 共句 9 条已全查，全部无关。） | N-2 | **无人跟进** |
 | **37** | **`027:32` 的「大资金/小资金」是否在别处被量化 —— 未查**（成本门若要标定需要这个）。 | N-2 | [#907](https://github.com/xy7365527-lang/NewChanlun/issues/907) |
-| **38** | **阶段二（塔往下延伸到笔／成交）的代价未量。** `083:14` 已在案否决「笔」；**改基底后笔层塔的稳定性、以及下游笔／段／中枢／背驰全链的重算代价，零测算。** | N-2 | SPEC #847（阶段二）／[#907](https://github.com/xy7365527-lang/NewChanlun/issues/907) |
+| **38** | **阶段二（塔往下延伸到 K 线／成交）的代价未量。** `083:14` 已在案否决「笔」；**下移基底后的塔的稳定性、以及下游笔／段／中枢／背驰全链的重算代价，零测算。** | N-2 | SPEC #847（阶段二）／[#907](https://github.com/xy7365527-lang/NewChanlun/issues/907) |
 | **39** | **两处「死代码？」本票不裁，只报事实**：`nesting_operator`（除两个测试文件外零引用）／`recursive_t`（`trading_system/` 零引用 + 实验预设默认关）。按 [#799](https://github.com/xy7365527-lang/NewChanlun/issues/799) 裁定六可能属「对照臂／只读观测器／验证装置」类不适用骨架，**无证据判定**。 | N-3／N-2 | **无人跟进** |
 | **40**<br>**★ v1.1 新增；★ §3.4.1 的唯一翻盘口** | ✅ **已闭（[#1345](https://github.com/xy7365527-lang/NewChanlun/issues/1345)，2026-10-13）**：挂法已裁为 R（§3.4.4），前提成立时 price-subset 恒真；下文是 v1.1 登记原文，保留在案。 **`NestInterval` 那条链的价格包含率仍未测，而测它必须先定价格挂法。** 两种挂法的处置是**推导非实测**：① 同序列同级取 min/max ⟹ **恒真（可证）**；② 但本链 child/parent **跨级**，且 `classifier/divergence.rs:894` 的「**段须整支落入**」过滤（`.filter(\|segment\| segment.start_index >= span.0 && segment.end_index <= span.1)`，函数头 `:888`）另加一道 ⟹ **跨级下子集单调性不闭合，未证也未测**；③ 端点价挂法不恒真且**无载体**（第 70 条：`NestCandidateEvent` 全字段索引域）。**⟹ 「价格挂法怎么定」是本正本的教义选择，不是探针能测的事 —— 当前未裁，明写。** **★ 翻盘后果**：若日后裁定「**价格挂法跨级共用同一根价格序列**」，单调性立刻闭合、恒真恢复，**§3.4.1（v1.1 第 2 件订正）整个退回「与 §3.4 同构」** ⟹ 胜负在挂法怎么定，不在读数。 | N-1（#908 问一遗留） | ~~教义选择归本票 #817（未裁）~~ **教义选择已裁（[#1345](https://github.com/xy7365527-lang/NewChanlun/issues/1345)）**；真实对象正反例归 TB-02-P [#1438](https://github.com/xy7365527-lang/NewChanlun/issues/1438)；§9 清单第 74 条 |
 | **41**<br>**★ v1.1 新增；真缺口** | **同批性自检做不了 —— 两批读数不严格可比。** [#908](https://github.com/xy7365527-lang/NewChanlun/issues/908) 用 **m8 日期窗**（wf8 2023-08-17→2024-02-16／wf7 2023-02-17→2023-08-16／p3fold 2023-01-01→2023-06-30），而 [#846](https://github.com/xy7365527-lang/NewChanlun/issues/846)／[#848](https://github.com/xy7365527-lang/NewChanlun/issues/848)／[#851](https://github.com/xy7365527-lang/NewChanlun/issues/851)／[#852](https://github.com/xy7365527-lang/NewChanlun/issues/852) 用 **bar 计数窗**（#852 ＝ 1.2M bar / 26%）⟹ **无一窗相同，`n_sig` 逐级对表不适用。** **这不是「查不到」，是「口径不同所以测不出来」** —— 要同批须另跑 bar 计数窗一臂（#908 未跑）。**⟹ 凡把 #908 的读数与那四票的读数并排引用，必须带这条限定。** | N-6（#908 自陈） | 归 [#911](https://github.com/xy7365527-lang/NewChanlun/issues/911) 重测时一并落 bar 计数窗一臂（**票面已含 ≥3 互不重叠窗要求，同批性可顺带闭**） |
@@ -1479,7 +1480,7 @@ ADR-0006 `:7` 的三合取（破中枢 ∧ A 配对 ∧ **映射成立**）与 `
 - `docs/adr/0011-operation-decomposition-layer.md:19-21/:85/:86/:95` —— 三格坐标系；横向无递归、本仓无实现；一重四要件。
 - `docs/adr/0013-partition-machine-bidirectional-form.md:119/:127/:129/:143/:147/:245/:261/:270/:284-285/:305/:323` —— 「向下定位器」定名；「主动调用的定位工具」；R-3 硬约束的「交易误差」项；三条链默认全关；「向下下钻有实现有测试锁无生产消费」定名；区间套定理四条命题拆分；单边收缩；终止性登记；**终止 ＝ 成本门 + L0 天花板（§4.6 判其名分过谨，须升 `[旧缠论]`）**；「次级别」两用途；裁定七名分。
 - `.chanlun/genealogy/settled/552-anchor-resolves-zombie-core-deadlock.md:130` —— **说法③ 的实测代价**（A 路 D_TOP 区间套精确切换 L3 否证 @ a0=segment，`n_a_path_switches` 21/24=0）。
-- `.chanlun/roadmap.yaml:972` —— 「E1 受控 A/B（唯一变量=a0 来源）：BTC a0=段→笔」⟹ `a0` 是**可配置的塔底座单元**（§4.2.1 的记号依据）。
+- `.chanlun/roadmap.yaml:972` —— 「E1 受控 A/B（唯一变量=a0 来源）：BTC a0=段→笔」⟹ `a0` 是**可配置的塔底座单元**（§4.2.1 的记号依据）（stroke 不在 `a₀` 值域，见 `zhongshu.md` §2.1.1；[#1627](https://github.com/xy7365527-lang/NewChanlun/issues/1627)）。
 - [#830](https://github.com/xy7365527-lang/NewChanlun/issues/830)／[#850](https://github.com/xy7365527-lang/NewChanlun/issues/850)（基底自由；终止=塔触底非遇一类点即停）、[#792](https://github.com/xy7365527-lang/NewChanlun/issues/792)（实测：目前无任何一条路拿缠论信号实盘下单 ⟹ §4.5.4 次序护栏的承重）、[#907](https://github.com/xy7365527-lang/NewChanlun/issues/907)（成本门咬在哪一级，N-2 参数的载体）。
 - `docs/adr/0010-chong-persistent-operating-unit.md:23` —— 重 ＝ ⟨标的，操作级别，专属筹码⟩。
 - `docs/adr/0012-inference-layer-document-naming.md` 裁定二 —— 三段式名分（正本层 / 推论层 / 无名分散件）。
@@ -1510,7 +1511,7 @@ ADR-0006 `:7` 的三合取（破中枢 ∧ A 配对 ∧ **映射成立**）与 `
   - **★ 承重的是那六行可达性举证，不是 [#852](https://github.com/xy7365527-lang/NewChanlun/issues/852) 的 d≥2=0**（后者量的是「开了会怎样」，且邻域口径未测，一改口径分歧就变真）。
   - **本条依 map [#787](https://github.com/xy7365527-lang/NewChanlun/issues/787) Notes N-1 预授权判定。**
 - **§4 的实施侧被 N-5／N-6 挡着，教义侧不受影响**（§4.9）：要让停止判据在生产上真起作用，先得有长度 > 1 的链（N-6），且每级要算 `Cand^δ_ℓ` 而它无定义式（N-5）。
-- **§4.5 的阶段二（塔往下延伸到笔／成交，定位「过渡到高频交易的途径」）状态 ＝「已批准方向，待条件」，不是「待讨论」**；但**次序护栏不变**——「打扫干净屋子再请客，接实盘排在统一之后」，在案实测（[#792](https://github.com/xy7365527-lang/NewChanlun/issues/792)）目前无任何一条路拿缠论信号实盘下单 ⟹ **高频是终点定位不是下一步，本裁定不得被引作「现在就该接实盘」的依据**。
+- **§4.5 的阶段二（塔往下延伸到 K 线／成交，定位「过渡到高频交易的途径」）状态 ＝「已批准方向，待条件」，不是「待讨论」**；但**次序护栏不变**——「打扫干净屋子再请客，接实盘排在统一之后」，在案实测（[#792](https://github.com/xy7365527-lang/NewChanlun/issues/792)）目前无任何一条路拿缠论信号实盘下单 ⟹ **高频是终点定位不是下一步，本裁定不得被引作「现在就该接实盘」的依据**。
 - **Lean 侧不动、fixture 漂移门不触**（§3.1 末 + §4.7.1：N-2 涉及的三套骨架皆不在两个导出器的 import 闭包内）。**本轮零 `.rs`／`.py`／`.lean` 改动**（含零行为变更的注释订正也未做，只登记进 §9 清单）。
 - **§5（N-4）零行为改动**：三套 Lean 骨架**并存 + 各自声明有效域 + 退场条款**；改的是文件头注释与一句译注（`lvl ≡ e`）。**空链「相反」判伪分歧**（生产零可达），真修点是「`Confirm` 摆证书内还是外」，那要等生产真产出长度 > 1 的链。**「刻意不合并」定性为工程理由，但 `Prop`/`Bool` 分家在 Lean 生态是正当分工这条反驳一并在案，不单方面定罪。**
   - **fixture 门**：三套皆不在两个导出器 import 闭包内 ⟹ **不须重落 fixture，但仍须跑 gate（预期 exit=0）**；**照实：闭包是自写正则算的，lake 真闭包未跑。**
@@ -1540,7 +1541,7 @@ ADR-0006 `:7` 的三合取（破中枢 ∧ A 配对 ∧ **映射成立**）与 `
 | 项 | 内容 |
 |---|---|
 | **字段** | `selector_keys`：在已过滤的同级 Closed 候选集（`DivCand ∧ J_{k−1} ⊆ I(c)`）上取最优者所用的字典序键表 |
-| **默认值** | **`[end_time 降序, start_time 降序, idx 升序]`**（结束最新 → 开始最新 → 编号最小）。依据 #778（§6.5 #1346 同步段）；现行 Rust `strategy/nest.rs:55-59`、`classifier/nest.rs:63-67` 与 Lean `Strict/Nest.lean:117`、`IntervalNestCertificate.lean:87-90` 同此序 |
+| **默认值** | **`segment`**（见 `zhongshu.md` §2.1.1）。代价：无，即现行生产塔 L0（`rust/src/theta_v0/classifier/pipeline.rs:140` `segment_to_unit`）；§4.5.1 阶段一「塔底 ＝ 现有 L0（线段层）」 |
 | **可选值 (a)** | **`[end_time 降序, start_time 升序, idx 升序]`**：同终点时取起点最早、即区间最长者。来源：本仓选择，无原文。代价：`J_k` 变宽，上一级包含门 `J_k ⊆ I(c_{k+1})` 更难过，链变短、定位变粗；无在案读数，签此值须先测链长分布 |
 | **可选值 (b)** | 末键改 **`idx 降序`**（可与默认或 (a) 组合）：只在起止都相同的候选之间起作用，改的是选中哪个编号（身份归因），不改区间，因此不改 `J` 与 χ 读数。代价：身份归因与在案对象不可逐位比较 |
 | **待裁（暂不入值域）** | 主键「`end_time` 升序」（结束最早优先）。它与 `027:38` 这条 §6.5 认定的唯一近似原文规则方向相反；`027:38` 对同级候选选择有无约束力尚未裁，本字段从严不收，要放入须先开裁定票裁定 `027:38` 的约束力 |
@@ -1565,20 +1566,18 @@ ADR-0006 `:7` 的三合取（破中枢 ∧ A 配对 ∧ **映射成立**）与 `
 
 ### 14.3 `tower_base`：塔底基底（A-15）
 
-**名分考古**：§4.1.2 已裁塔底 `[新缠论:选择]`，本轮复核成立。`084-第84课.md:54`【正文】（界 `:68`，行首无注标记、行内无娇注）「关于第二条的中枢过程规则，是一直没有任何改变的，而关于第一条，其实，可以随意设置任何的，都不会改变中枢定义的递归性」；[#830](https://github.com/xy7365527-lang/NewChanlun/issues/830) 基底自由（ADR 0013 裁定七）；`zhongshu.md` §2.1【S-5】（#812）定 `a₀` 为线段中枢并保留两项合法备选。
+**名分考古**：§4.1.2 已裁塔底 `[新缠论:选择]`，本轮复核成立。`084-第84课.md:54`【正文】（界 `:68`，行首无注标记、行内无娇注）「关于第二条的中枢过程规则，是一直没有任何改变的，而关于第一条，其实，可以随意设置任何的，都不会改变中枢定义的递归性」；[#830](https://github.com/xy7365527-lang/NewChanlun/issues/830) 基底自由（ADR 0013 裁定七）；`zhongshu.md` §2.1【S-5】（#812）定 `a₀` 为线段中枢并保留两项合法备选；值域唯一正本为 `zhongshu.md` §2.1.1（[#1627](https://github.com/xy7365527-lang/NewChanlun/issues/1627)）。
 
 | 项 | 内容 |
 |---|---|
-| **字段** | `tower_base ∈ {segment, kline3, trade3}`：递归第一步 `f₁` 产出的最低级别中枢用什么构件 |
+| **字段** | `tower_base`：递归第一步 `f₁` 产出的最低级别中枢用什么构件。取值集合、默认值与排除见 `zhongshu.md` §2.1.1（[#1627](https://github.com/xy7365527-lang/NewChanlun/issues/1627)），本节不另列 |
 | **默认值** | **`segment`**（三个线段的重叠构成最低级别中枢）。依据：`zhongshu.md` §2.1【S-5】；§4.5.1 阶段一「塔底 ＝ 现有 L0（线段层）」；现行生产 `rust/src/theta_v0/classifier/pipeline.rs:140` `segment_to_unit`（塔 L0 单元 ＝ 线段） |
-| **可选值 `kline3`** | `017-第17课.md:40`【正文】（界 `:98`，行首无注标记、行内无娇注）「对最后不能分解的级别，其缠中说禅走势中枢就不能用“至少三个连续次级别走势类型所重叠”定义，而定义为至少三个该级别单位K线重叠部分」。代价：塔底下移到 K 线，L0 以上所有级别号与在案读数改义，全塔重建；每延伸一级仍须过 §4.5.3 的成本门复测。K 线周期（同句后文 1 分／5 分／1 秒）是另一个维度，不归本字段 |
-| **可选值 `trade3`** | `035-第35课.md:16`【正文】（界 `:38`，行首无注标记、行内无娇注）「最严格去定义，每笔的交易是最低级别的，连续三笔相同价位的交易，就构成最低级别的中枢」。此处「笔」是成交笔，不是缠论笔（`zhongshu.md` §2.3 防误用注）。代价：要逐笔成交数据，现有数据面没有，数据 profile 不具备时不可签；成本门大概率先到（§4.1「两道谁先到算谁」） |
-| **排除（违原文）** | 缠论笔作构件。`083-第83课.md:14`【正文】（界 `:36`）「但这样构造出来的系统，其稳定性极差」及 `:16` 的结构理由；`064-第64课.md:34`【正文】（界 `:44`）「站在严格意义上，线段以下是没有中枢的，所以说是类中枢」——笔上三段重叠按原文不叫中枢（审计 A-40 判 O；`zhongshu.md` §2.1；`level_recursion.md`「名分撤销」段；ADR 0041 先例段）。要翻须重开 zhongshu 裁定票。§4.5.2「延伸到笔」与此冲突，已在该段登记，归 [#1627](https://github.com/xy7365527-lang/NewChanlun/issues/1627) |
+| **可选值 `kline3`** | 出处见 `zhongshu.md` §2.1.1。代价：塔底下移到 K 线，L0 以上所有级别号与在案读数改义，全塔重建；每延伸一级仍须过 §4.5.3 的成本门复测。K 线周期（1 分／5 分／1 秒）是另一个维度，不归本字段 |
+| **可选值 `trade3`** | 出处见 `zhongshu.md` §2.1.1（成交笔，不是缠论笔）。代价：要逐笔成交数据，现有数据面没有，数据 profile 不具备时不可签；成本门大概率先到（§4.1「两道谁先到算谁」） |
+| **排除（违原文）** | 见 `zhongshu.md` §2.1.1 第 2 条（缠论笔不作构件；要翻须重开 zhongshu 裁定票） |
 | **适用条件** | 全塔一个基底，`f₂` 不随基底变（`084:54`）；一次运行只读一个值；改值 ＝ 新版本、全塔重建，旧读数留作 AsKnown |
 | **排除（真错）** | 运行中「线段塔判不出就降到 K 线塔再判」：#799 兜底形态 |
 | **载体** | [ADR 0035](../../docs/adr/0035-cost-stop-policy-instance-and-base-extension-evidence.md) 记录已有 `tower_base_ref`（`0035:12`，`:24` 绑定 profile）；本字段的值即该引用所指的基底，数据 profile 声明哪些基底可签 |
-
-**两处正本间不一致（登记，本票不改原句）**：① `beichi.md:459` 写「递归的底 `a₀` = 1 分钟 K 线构成的笔——`[新缠论:选择]`」，与本字段默认值 `segment` 及 `zhongshu.md` §2.1「缠论笔不作递归基」不一致；② §4.5.2「延伸到笔」与同一条冲突（该段已登记）。两件归 [#1627](https://github.com/xy7365527-lang/NewChanlun/issues/1627)。
 
 ### 14.4 #1600 受影响代码清单（基线 main `df6e680930`）
 
@@ -1592,6 +1591,6 @@ ADR-0006 `:7` 的三合取（破中枢 ∧ A 配对 ∧ **映射成立**）与 `
 | Q-4 | `trend_scope` | Rust | `rust/src/trading/positional.rs:476-494`（docstring）、`:496-506`（枚举，`:498-499` `#[default] SelfLayer`）、`:602-607`（参数文档）、`:628`（字段）、`:873-874`（模式串 `hold26_anc`／`fusion_ta` → 取值）；`rust/src/trading/positional_fusion.rs:359`（参数）、`:502-524`（合取守卫）、`:1017-1022`（判据分派）、`:1027-1033`（驻留观测）、`:1253`（豁免归因） | 取值改由 policy 记录给出，输出带记录 id 与版本；模式串只作测试夹具 | [#1626](https://github.com/xy7365527-lang/NewChanlun/issues/1626)（原 SPEC #847 已关） |
 | Q-5 | `trend_scope` | Python／Lean | 已查范围零处 | — | — |
 | Q-6 | `tower_base` | Rust | `rust/src/theta_v0/classifier/pipeline.rs:140`（`segment_to_unit`）、`:653`、`:671`（L0 单元写死为线段）；`rust/src/theta_v0/classifier/recursive_tower.rs:391-398`、`:622-641`（`compose_level`／`_resume` 的 `is_l0` 构造器分派）；`rust/src/theta_v0/backtest/econ_positive.rs:1142`、`econ_positive/cand_delta.rs:85`（「塔不从笔递归，构造选择」注释）；`rust/src/recursive_t/divergence.rs:511`（`nest_chain_complete` 的 `min_level` 含塔底级） | 塔 L0 构件改读 `tower_base`（默认 `segment` 等值）；注释改指 §14.3；非 `segment` 值在数据 profile 不具备时显式拒绝 | [#1626](https://github.com/xy7365527-lang/NewChanlun/issues/1626)（#847 已关）；与 TB-02 塔构造写集协调 |
-| Q-7 | `tower_base` | 记录 | `docs/adr/0035-cost-stop-policy-instance-and-base-extension-evidence.md:12`、`:24`（`tower_base_ref`） | `tower_base_ref` 的值域对齐本字段三值 | 随 Q-6 |
+| Q-7 | `tower_base` | 记录 | `docs/adr/0035-cost-stop-policy-instance-and-base-extension-evidence.md:12`、`:24`（`tower_base_ref`） | `tower_base_ref` 的值域对齐 `zhongshu.md` §2.1.1 | 随 Q-6 |
 | Q-8 | `tower_base` | Python | `src/newchan/a_nested_divergence.py:384`（`range(top_level - 1, 1, -1)`）、`:408`（`_finalize_with_level1`，递归底写死 level 1 ＝ 线段） | 递归底改读字段 | 随 Q-6 |
 | Q-9 | `tower_base` | Lean | 已查范围零处（`rg 'towerBase\|tower_base' formal` 0 命中） | — | — |
