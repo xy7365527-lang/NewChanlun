@@ -1,0 +1,546 @@
+{
+  "authority": [
+    "PREP-R2 R09-R15/R22/R23, WE3/WE6",
+    "ROOT-RULINGS OQ4",
+    "C5 design 3.5/3.6"
+  ],
+  "formulas": {
+    "G7": "A=0+300=300; R=2000-300-0=1700; K=-500; P=1000; q=15",
+    "Q12": "capacity 未签; fixed_q 仍10; 所有 B 金额和阶段字段不变",
+    "T1-in": "P0=0+0=0 (具名批); K=0; q=5; 0<=0 and 0>=0",
+    "T1-out": "q=15-5=10; K=-500-0=-500; P=1000; fixed_q=10",
+    "T2-in": "P0=300+0=300; K=0; q=0; 0<300; 不过闸",
+    "T2-out": "cash lot=300-300=0; A=300; P=1000; K=-500; q=10"
+  },
+  "nonzero_carrying_cost": {
+    "input": {
+      "carrying_cost": 10,
+      "cash": 0,
+      "units": 5
+    },
+    "target": {
+      "K": 10,
+      "P": 10,
+      "P_recovered": 0,
+      "growth_eligible": "NotEligible",
+      "q": 5
+    }
+  },
+  "q_rebase_protocol": {
+    "apply": {
+      "receipt": null,
+      "slot": "capacity",
+      "status": "AwaitingPolicy"
+    },
+    "capture": {
+      "pending": {
+        "kind": "AwaitingPolicy",
+        "slot": "capacity"
+      },
+      "status": "Recorded"
+    },
+    "resolve": {
+      "slot": "capacity",
+      "status": "AwaitingPolicy"
+    }
+  },
+  "scope": "TestOnly 手算，非生产准入；R 单独手填；原始期望未调用 reducer",
+  "snapshots": {
+    "G1": {
+      "A": 0,
+      "K": 1000,
+      "P": 1000,
+      "P_recovered": 0,
+      "Pi": 0,
+      "R": 0,
+      "W": 0,
+      "available_growth_lots": {},
+      "fixed_q": 10,
+      "gate_events": [],
+      "growth_eligible": "NotEligible",
+      "growth_enabled": {
+        "kind": "NotEligible"
+      },
+      "phase_history": [],
+      "phase_latch": "CostReduction",
+      "principal_batch_count": 1,
+      "q": 10,
+      "unit_cost": {
+        "K": 1000,
+        "q": 10
+      }
+    },
+    "G2": {
+      "A": 0,
+      "K": -1000,
+      "P": 1000,
+      "P_recovered": 0,
+      "Pi": 1500,
+      "R": 1500,
+      "W": 0,
+      "available_growth_lots": {},
+      "fixed_q": 10,
+      "gate_events": [],
+      "growth_eligible": "NotEligible",
+      "growth_enabled": {
+        "kind": "NotEligible"
+      },
+      "phase_history": [
+        "G2:cost_remaining_nonpositive"
+      ],
+      "phase_latch": "CostReduction",
+      "principal_batch_count": 1,
+      "q": 5,
+      "unit_cost": {
+        "K": -1000,
+        "q": 5
+      }
+    },
+    "G3": {
+      "A": 0,
+      "K": -500,
+      "P": 1000,
+      "P_recovered": 0,
+      "Pi": 1500,
+      "R": 1500,
+      "W": 0,
+      "available_growth_lots": {},
+      "fixed_q": 10,
+      "gate_events": [],
+      "growth_eligible": "NotEligible",
+      "growth_enabled": {
+        "kind": "NotEligible"
+      },
+      "phase_history": [
+        "G2:cost_remaining_nonpositive"
+      ],
+      "phase_latch": "CostReduction",
+      "principal_batch_count": 1,
+      "q": 10,
+      "unit_cost": {
+        "K": -500,
+        "q": 10
+      }
+    },
+    "G4": {
+      "A": 0,
+      "K": -500,
+      "P": 1000,
+      "P_recovered": 1000,
+      "Pi": 1500,
+      "R": 1500,
+      "W": 0,
+      "available_growth_lots": {},
+      "fixed_q": 10,
+      "gate_events": [
+        "G4:SimulatedGateReached"
+      ],
+      "growth_eligible": "Eligible",
+      "growth_enabled": {
+        "kind": "AwaitingPolicy",
+        "slot": "post_gate_params"
+      },
+      "phase_history": [
+        "G2:cost_remaining_nonpositive",
+        "G4:growth_eligible:NotEligible->Eligible"
+      ],
+      "phase_latch": "EarningShares",
+      "principal_batch_count": 1,
+      "q": 10,
+      "unit_cost": {
+        "K": -500,
+        "q": 10
+      }
+    },
+    "G5": {
+      "A": 0,
+      "K": -1000,
+      "P": 1000,
+      "P_recovered": 1000,
+      "Pi": 2000,
+      "R": 2000,
+      "W": 0,
+      "available_growth_lots": {},
+      "fixed_q": 10,
+      "gate_events": [
+        "G4:SimulatedGateReached"
+      ],
+      "growth_eligible": "Eligible",
+      "growth_enabled": {
+        "kind": "AwaitingPolicy",
+        "slot": "post_gate_params"
+      },
+      "phase_history": [
+        "G2:cost_remaining_nonpositive",
+        "G4:growth_eligible:NotEligible->Eligible"
+      ],
+      "phase_latch": "EarningShares",
+      "principal_batch_count": 1,
+      "q": 5,
+      "unit_cost": {
+        "K": -1000,
+        "q": 5
+      }
+    },
+    "G6": {
+      "A": 0,
+      "K": -500,
+      "P": 1000,
+      "P_recovered": 1000,
+      "Pi": 2000,
+      "R": 2000,
+      "W": 0,
+      "available_growth_lots": {
+        "WE3-units-5": {
+          "carrying_cost": 0,
+          "cash": 0,
+          "units": 5
+        }
+      },
+      "fixed_q": 10,
+      "gate_events": [
+        "G4:SimulatedGateReached"
+      ],
+      "growth_eligible": "Eligible",
+      "growth_enabled": {
+        "kind": "AwaitingPolicy",
+        "slot": "post_gate_params"
+      },
+      "phase_history": [
+        "G2:cost_remaining_nonpositive",
+        "G4:growth_eligible:NotEligible->Eligible"
+      ],
+      "phase_latch": "EarningShares",
+      "principal_batch_count": 1,
+      "q": 15,
+      "unit_cost": {
+        "K": -500,
+        "q": 15
+      }
+    },
+    "G7": {
+      "A": 300,
+      "K": -500,
+      "P": 1000,
+      "P_recovered": 1000,
+      "Pi": 2000,
+      "R": 1700,
+      "W": 0,
+      "available_growth_lots": {
+        "WE3-cash-300": {
+          "carrying_cost": 0,
+          "cash": 300,
+          "units": 0
+        },
+        "WE3-units-5": {
+          "carrying_cost": 0,
+          "cash": 0,
+          "units": 5
+        }
+      },
+      "fixed_q": 10,
+      "gate_events": [
+        "G4:SimulatedGateReached"
+      ],
+      "growth_eligible": "Eligible",
+      "growth_enabled": {
+        "kind": "AwaitingPolicy",
+        "slot": "post_gate_params"
+      },
+      "phase_history": [
+        "G2:cost_remaining_nonpositive",
+        "G4:growth_eligible:NotEligible->Eligible"
+      ],
+      "phase_latch": "EarningShares",
+      "principal_batch_count": 1,
+      "q": 15,
+      "unit_cost": {
+        "K": -500,
+        "q": 15
+      }
+    },
+    "LATCH-buy": {
+      "A": 300,
+      "K": 100,
+      "P": 1000,
+      "P_recovered": 1000,
+      "Pi": 2000,
+      "R": 1700,
+      "W": 0,
+      "available_growth_lots": {
+        "WE3-cash-300": {
+          "carrying_cost": 0,
+          "cash": 0,
+          "units": 0
+        },
+        "WE3-units-5": {
+          "carrying_cost": 0,
+          "cash": 0,
+          "units": 0
+        }
+      },
+      "fixed_q": 10,
+      "gate_events": [
+        "G4:SimulatedGateReached"
+      ],
+      "growth_eligible": "NotEligible",
+      "growth_enabled": {
+        "kind": "NotEligible"
+      },
+      "phase_history": [
+        "G2:cost_remaining_nonpositive",
+        "G4:growth_eligible:NotEligible->Eligible",
+        "LATCH-buy:growth_eligible:Eligible->NotEligible",
+        "LATCH-buy:cost_remaining_positive"
+      ],
+      "phase_latch": "EarningShares",
+      "principal_batch_count": 1,
+      "q": 10,
+      "unit_cost": {
+        "K": 100,
+        "q": 10
+      }
+    },
+    "LATCH-sell": {
+      "A": 300,
+      "K": -600,
+      "P": 1000,
+      "P_recovered": 1000,
+      "Pi": 2000,
+      "R": 1700,
+      "W": 0,
+      "available_growth_lots": {
+        "WE3-cash-300": {
+          "carrying_cost": 0,
+          "cash": 0,
+          "units": 0
+        },
+        "WE3-units-5": {
+          "carrying_cost": 0,
+          "cash": 0,
+          "units": 0
+        }
+      },
+      "fixed_q": 10,
+      "gate_events": [
+        "G4:SimulatedGateReached"
+      ],
+      "growth_eligible": "Eligible",
+      "growth_enabled": {
+        "kind": "AwaitingPolicy",
+        "slot": "post_gate_params"
+      },
+      "phase_history": [
+        "G2:cost_remaining_nonpositive",
+        "G4:growth_eligible:NotEligible->Eligible"
+      ],
+      "phase_latch": "EarningShares",
+      "principal_batch_count": 1,
+      "q": 9,
+      "unit_cost": {
+        "K": -600,
+        "q": 9
+      }
+    },
+    "Q12": {
+      "A": 300,
+      "K": -500,
+      "P": 1000,
+      "P_recovered": 1000,
+      "Pi": 2000,
+      "R": 1700,
+      "W": 0,
+      "available_growth_lots": {
+        "WE3-cash-300": {
+          "carrying_cost": 0,
+          "cash": 0,
+          "units": 0
+        },
+        "WE3-units-5": {
+          "carrying_cost": 0,
+          "cash": 0,
+          "units": 0
+        }
+      },
+      "fixed_q": 10,
+      "gate_events": [
+        "G4:SimulatedGateReached"
+      ],
+      "growth_eligible": "Eligible",
+      "growth_enabled": {
+        "kind": "AwaitingPolicy",
+        "slot": "post_gate_params"
+      },
+      "phase_history": [
+        "G2:cost_remaining_nonpositive",
+        "G4:growth_eligible:NotEligible->Eligible"
+      ],
+      "phase_latch": "EarningShares",
+      "principal_batch_count": 1,
+      "q": 10,
+      "unit_cost": {
+        "K": -500,
+        "q": 10
+      }
+    },
+    "T1-in": {
+      "A": 0,
+      "K": 0,
+      "P": 0,
+      "P_recovered": 0,
+      "Pi": 0,
+      "R": 0,
+      "W": 0,
+      "available_growth_lots": {},
+      "fixed_q": 5,
+      "gate_events": [
+        "T1-in:SimulatedGateReached"
+      ],
+      "growth_eligible": "Eligible",
+      "growth_enabled": {
+        "kind": "AwaitingPolicy",
+        "slot": "post_gate_params"
+      },
+      "phase_history": [],
+      "phase_latch": "EarningShares",
+      "principal_batch_count": 1,
+      "q": 5,
+      "unit_cost": {
+        "K": 0,
+        "q": 5
+      }
+    },
+    "T1-out": {
+      "A": 300,
+      "K": -500,
+      "P": 1000,
+      "P_recovered": 1000,
+      "Pi": 2000,
+      "R": 1700,
+      "W": 0,
+      "available_growth_lots": {
+        "WE3-cash-300": {
+          "carrying_cost": 0,
+          "cash": 300,
+          "units": 0
+        },
+        "WE3-units-5": {
+          "carrying_cost": 0,
+          "cash": 0,
+          "units": 0
+        }
+      },
+      "fixed_q": 10,
+      "gate_events": [
+        "G4:SimulatedGateReached"
+      ],
+      "growth_eligible": "Eligible",
+      "growth_enabled": {
+        "kind": "AwaitingPolicy",
+        "slot": "post_gate_params"
+      },
+      "phase_history": [
+        "G2:cost_remaining_nonpositive",
+        "G4:growth_eligible:NotEligible->Eligible"
+      ],
+      "phase_latch": "EarningShares",
+      "principal_batch_count": 1,
+      "q": 10,
+      "unit_cost": {
+        "K": -500,
+        "q": 10
+      }
+    },
+    "T2-in": {
+      "A": 0,
+      "K": 0,
+      "P": 300,
+      "P_recovered": 0,
+      "Pi": 0,
+      "R": 0,
+      "W": 0,
+      "available_growth_lots": {},
+      "fixed_q": 3,
+      "gate_events": [],
+      "growth_eligible": "NotEligible",
+      "growth_enabled": {
+        "kind": "NotEligible"
+      },
+      "phase_history": [],
+      "phase_latch": "CostReduction",
+      "principal_batch_count": 1,
+      "q": 0,
+      "unit_cost": {
+        "K": 0,
+        "q": 0,
+        "reason": "quantity_zero",
+        "status": "NotComputable"
+      }
+    },
+    "T2-out": {
+      "A": 300,
+      "K": -500,
+      "P": 1000,
+      "P_recovered": 1000,
+      "Pi": 2000,
+      "R": 1700,
+      "W": 0,
+      "available_growth_lots": {
+        "WE3-cash-300": {
+          "carrying_cost": 0,
+          "cash": 0,
+          "units": 0
+        },
+        "WE3-units-5": {
+          "carrying_cost": 0,
+          "cash": 0,
+          "units": 0
+        }
+      },
+      "fixed_q": 10,
+      "gate_events": [
+        "G4:SimulatedGateReached"
+      ],
+      "growth_eligible": "Eligible",
+      "growth_enabled": {
+        "kind": "AwaitingPolicy",
+        "slot": "post_gate_params"
+      },
+      "phase_history": [
+        "G2:cost_remaining_nonpositive",
+        "G4:growth_eligible:NotEligible->Eligible"
+      ],
+      "phase_latch": "EarningShares",
+      "principal_batch_count": 1,
+      "q": 10,
+      "unit_cost": {
+        "K": -500,
+        "q": 10
+      }
+    },
+    "W1": {
+      "A": 0,
+      "K": 300,
+      "P": null,
+      "P_recovered": 0,
+      "Pi": 0,
+      "R": 0,
+      "W": 0,
+      "available_growth_lots": {},
+      "fixed_q": 3,
+      "gate_events": [],
+      "growth_eligible": "NotEvaluable",
+      "growth_enabled": {
+        "kind": "NotEvaluable"
+      },
+      "phase_history": [],
+      "phase_latch": "CostReduction",
+      "principal_batch_count": 0,
+      "q": 3,
+      "unit_cost": {
+        "K": 300,
+        "q": 3
+      }
+    }
+  }
+}
