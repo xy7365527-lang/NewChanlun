@@ -11,6 +11,8 @@
 
 `P = Σ_b P_b`，每批记 `(batch_id, source_ref, amount: i64, currency, money_unit, quantum, known_at, authorization_ref)`。开局批 P0 为开局锁定的自有现金/保证金；空头重为投入保证金 M（[ADR 0013](0013-partition-machine-bidirectional-form.md) 裁定三）。income-book 的 A（资本化）与 W（提取）不改 P；退本金走既有 `RecoverCapital`（free→withdrawn）并记 `P_recovered`。新增批次只能由显式授权事件 `principal_contribution` 形成。本金已收回 ⟺ `P_recovered ≥ P`（多头）／`累计费后已实现利润 ≥ Σ M_b`（空头）。P 与 #1394 E 侧 `baseline.amount`（共同责任界，FIN `finance.rs:234-239`）是不同量，禁止互代。
 
+> **★ 2026-10-21 订正指针（[#1590](https://github.com/xy7365527-lang/NewChanlun/issues/1590)，[ADR 0043](0043-chong-reversal-account-continuity.md) 裁定一／二，用户批复）**：「多头／空头」读作在世声部为多／为空；P、K、`phase_events` 跨方向连续，不重置、不分账；换向不开新批，`Σ M_b ≔ Σ P_b`。原文不删。
+
 ### 二、金额账属重、归属属 Voice；零数量期间单位量 NotComputable（第二问 A）
 
 K、P、R、费用跨 Voice 连续；迟到费用 f 进该重 K，归属指针留在原 command/family/Voice（SPEC C05.1、C07.10）。`du = 0` 且带已声明费用分量的原件合法（新 kind `fee_only`），只改 K；`du = 0` 且无费用分量仍拒。单位量输出只有两种形态：q = 0 ⟹ `{status:"NotComputable", reason:"quantity_zero", K, q:"0"}`；q > 0 ⟹ 整数对 `{K, q}`，不做除法。新 Voice 开局不改写旧尾账。整重终结归 FU-07。
@@ -18,6 +20,8 @@ K、P、R、费用跨 Voice 连续；迟到费用 f 进该重 K，归属指针�
 ### 三、阶段事件史保留，扩量资格按真实状态重核（第三问 A）
 
 `phase_events` append-only，AsKnown 不回填；更正类按 C08.6 以 RecomputedWithRevision 另列。唯一准入谓词 `growth_eligible ⟺ K ≤ 0 ∧ P_recovered ≥ P`（多头）／`费后已实现利润 ≥ Σ M_b ∧ 负债仍列`（空头）。
+
+> **★ 2026-10-21 订正指针（[#1590](https://github.com/xy7365527-lang/NewChanlun/issues/1590)，[ADR 0043](0043-chong-reversal-account-continuity.md) 裁定二／三）**：两侧原式保留，按在世声部方向取侧；重处于 0 时只在开新声部的求值点按拟开方向取侧。空头蕴含订正为 `latch.rank ≥ CapitalRecovered`，开多求值点补发既有 `enterEarning`（见 `sanjieduan.md` §2）。原文不删。
 
 `TStage` latch（`rust/src/theta_v0/strategy/ledger.rs:94`、`:121`；`formal/Origin/TotalWealth.lean:140`、`:194`、`:208`）只记阶段事件史，不改、不读作准入（根确认）。本 ADR 不改 Lean，本轮不另开 Lean 事件集；「TStage 直接回退」未被采纳，将来若要改须另开改裁票并重述 `:194`/`:208` 的前件。K 取有符号 i64，不 clamp；跨零不削减任何目标。
 

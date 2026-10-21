@@ -19,9 +19,10 @@
 //! 缺口保持启动前拒绝，one-shot 和监督恢复可用；reader 仍未注册。旧命令打到本域会被既有控制行核验
 //! （`v2::prepare_control` → 协议标记/控制表不支持）在任何写入之前拒绝，不冒充可用。
 //!
-//! ⚠️ 边界如实（独评 F2）：输入预验证保证坏输入不落盘，事务保证建表/登记同成同败；但**「创建 db
-//! 文件」与「事务提交」不是同一个原子动作**——`open` 之后、`commit` 之前中断会留下不完整库文件。
-//! 此时本模块不自动清理、不覆盖：拒绝已存在路径本身就是 fail-closed，重试要换新路径。
+//! 原子发布（#1568，取代独评 F2 的「中断留半成品库、重试换新路径」边界）：建库、提交、回读全在同目录
+//! 暂存文件上进行，核对通过并关闭连接后才以不覆盖的原子 rename 出现在目标路径（`atomic_init`）。
+//! 目标路径只有「不存在」与「完整已核对库」两态；中断只留可识别暂存文件，下次 init 在锁内清扫，
+//! 原路径可直接重试。既有目标仍一律拒绝、不改动。
 //!
 //! ⚠️ 旧 `reset` 路由（独评 F1，含二次收紧）：无 selector 的旧 `reset` 是「先删后建 v1」，只懂
 //! v1/v2 合同。`refuse_reset_of_new_domain` 在任何删除之前**只读**判定域：读不出/锁冲突/非 SQLite/
@@ -35,6 +36,9 @@ use newchan_rust::session_transport;
 use rusqlite::OpenFlags;
 use std::collections::BTreeSet;
 
+mod atomic_init;
+#[cfg(test)]
+mod atomic_init_tests;
 mod audit_budget;
 mod audit_header;
 pub(super) mod audit_owner;
@@ -414,6 +418,43 @@ pub(super) fn init_v3(
     if db.exists() {
         return Err(existing_db_error(db));
     }
+    // #1568：锁内清扫本库名下死去 init 的暂存残留，再在新暂存文件上建库；目标只在完整核对后
+    // 以不覆盖的原子 rename 出现。失败时守卫删暂存，目标保持不存在，可原样重试。
+    atomic_init::refuse_foreign_sides(db)?;
+    atomic_init::sweep_stale(db)?;
+    let staging = atomic_init::Staging::new(db)?;
+    let out = build_domain(
+        staging.path(),
+        session,
+        &clock,
+        (&profile_def, &profile_id, &profile_hash),
+        (
+            &catalog_def,
+            &catalog_revision,
+            catalog_items,
+            &catalog_hash,
+        ),
+        session_generation,
+        delivery_retain,
+    )?;
+    staging.publish()?;
+    Ok(out)
+}
+
+/// 在暂存路径上建库、提交并逐项回读核对；返回前关闭连接（WAL 检查点合并），供原子发布。
+fn build_domain(
+    db: &Path,
+    session: &str,
+    clock: &v2::ClockPlan,
+    profile: (&Value, &str, &str),
+    catalog: (&Value, &str, usize, &str),
+    session_generation: &str,
+    delivery_retain: i64,
+) -> Result<Value, String> {
+    let (profile_def, profile_id, profile_hash) = profile;
+    let (profile_id, profile_hash) = (profile_id.to_string(), profile_hash.to_string());
+    let (catalog_def, catalog_revision, catalog_items, catalog_hash) = catalog;
+    let (catalog_revision, catalog_hash) = (catalog_revision.to_string(), catalog_hash.to_string());
     let mut conn = open_db(db)?;
     let sqlite_version: String = conn
         .query_row("SELECT sqlite_version()", [], |r| r.get(0))
@@ -460,9 +501,9 @@ pub(super) fn init_v3(
     meta_set(&tx, "profile_id", &profile_id)?;
     meta_set(&tx, "profile_hash", &profile_hash)?;
     meta_set(&tx, "input_profile", &profile_id)?;
-    meta_set(&tx, "profile_definition", &canonical_json(&profile_def))?;
+    meta_set(&tx, "profile_definition", &canonical_json(profile_def))?;
     meta_set(&tx, "catalog_revision", &catalog_revision)?;
-    meta_set(&tx, "catalog_definition", &canonical_json(&catalog_def))?;
+    meta_set(&tx, "catalog_definition", &canonical_json(catalog_def))?;
     meta_set(&tx, "catalog_hash", &catalog_hash)?;
     tx.execute(
         "INSERT INTO s_protocol_meta(singleton, protocol_revision, session_generation, clock_plan_hash,
@@ -646,6 +687,8 @@ pub(super) fn init_v3(
             "StorageUnavailable：回读 catalog 行数={stored_catalog_items} 与 items 定义={catalog_items} 不符"
         ));
     }
+    conn.close()
+        .map_err(|(_, e)| format!("StorageUnavailable：关闭暂存库失败：{e}"))?;
     Ok(json!({
         "ok": true,
         "session_id": session_id,
