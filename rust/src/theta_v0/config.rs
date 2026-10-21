@@ -73,43 +73,68 @@ impl Default for ParseConfig {
 }
 
 /// Θ_level 参数（reference-theta-v0.md:27-30）。
+///
+/// #1603（#1586 C-09）：`l_max` 是资源预算，只从版本化记录 `tower-level-budget` 读取
+/// （[`super::policy_records`]），`budget` 记下所用记录版本。塔到 `l_max` 仍可升级时输出标
+/// `INCOMPLETE_RESOURCE_BOUND`（`classifier::pipeline::TowerTermination`），不作自然终止。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LevelConfig {
-    /// 最高研究级别 Lmax（reference-theta-v0.md:30）。[设计选择,默认值] default 6。
+    /// 最高研究级别 Lmax（reference-theta-v0.md:30）。值来自 `tower-level-budget` 记录。
     pub l_max: u32,
     /// 某层产生 ≥N 完成部件才不自然终止（reference-theta-v0.md:30）。default 3。
+    /// 中枢三段下限属定义（#1586 C-13 判 O），不进资源预算记录。
     pub min_parts_per_level: u32,
+    /// `l_max` 所出自的记录版本（输出随 `ClassifyOutput::policy` 写出）。
+    pub budget: super::policy_records::PolicyRef,
 }
 
+impl LevelConfig {
+    /// 由当前生效的 `tower-level-budget` 记录构造；记录缺失、未签或非法 ⟹ 报错（不回退）。
+    pub fn from_active_record() -> Result<Self, super::policy_records::PolicyError> {
+        Ok(super::policy_records::level_config_from(
+            super::policy_records::active_tower_level_budget()?,
+            3,
+        ))
+    }
+
+    /// 研究/镜像工具在代码里改塔高时用：值照改，记录版本标 `research-override`，输出不冒充签署版本。
+    pub fn research_override_l_max(&mut self, l_max: u32) {
+        self.l_max = l_max;
+        self.budget.version = super::policy_records::PolicyVersion::ResearchOverride;
+    }
+}
+
+/// 读当前生效记录；记录损坏是构建期错误（`policy_records` 单测锁定可解析），此处显式 panic 停止，
+/// 不给备用值。需要可恢复错误的入口用 [`ThetaConfig::try_from_active_records`]。
 impl Default for LevelConfig {
     fn default() -> Self {
-        LevelConfig {
-            l_max: 6,
-            min_parts_per_level: 3,
-        }
+        LevelConfig::from_active_record().unwrap_or_else(|e| panic!("{e}"))
     }
 }
 
 /// Θ_signal 背驰 MACD 参数（reference-theta-v0.md:37）。
 ///
-/// 结构前提优先；MACD(12,26,9) 是 v0 辅助度量。EMA/面积规则标 `[L3经验待标定]`。
+/// 结构前提优先；MACD 是辅助度量。EMA/面积规则标 `[L3经验待标定]`。
+///
+/// #1603（#1586 C-10）：三参数只从版本化记录 `macd-force` 读取（[`super::policy_records`]），
+/// 默认 12/26/9，出处 `025-第25课.md:16`【正文】「一般都取用12、26、9为参数，这对付一般的走势就
+/// 可以了，但一个太快速的走势，1分钟图的反应也太慢了」——代价：太快速的走势上力度读数滞后。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MacdConfig {
-    /// 快线 EMA 周期。default 12。[MACD辅助缠论可导]
+    /// 快线 EMA 周期（记录 `macd-force.fast`）。
     pub fast: u32,
-    /// 慢线 EMA 周期。default 26。
+    /// 慢线 EMA 周期（记录 `macd-force.slow`）。
     pub slow: u32,
-    /// 信号线 EMA 周期。default 9。
+    /// 信号线 EMA 周期（记录 `macd-force.signal`）。
     pub signal: u32,
+    /// 三参数所出自的记录版本（输出随 `ClassifyOutput::policy` 写出）。
+    pub record: super::policy_records::PolicyRef,
 }
 
+/// 读当前生效记录；同 [`LevelConfig`] 的 `Default`：记录损坏即 panic 停止，不给备用值。
 impl Default for MacdConfig {
     fn default() -> Self {
-        MacdConfig {
-            fast: 12,
-            slow: 26,
-            signal: 9,
-        }
+        super::policy_records::active_macd_force().unwrap_or_else(|e| panic!("{e}"))
     }
 }
 
@@ -452,6 +477,20 @@ pub struct ThetaConfig {
     pub level_projection: super::classifier::projection::LevelProjectionConfig,
 }
 
+impl ThetaConfig {
+    /// 可恢复错误版的默认构造：`level`/`macd` 从当前生效记录读取，记录缺失、未签或非法 ⟹ `Err`
+    /// （#1603 缺值行为：不回退旧常数）。其余组件同 `Default`。
+    pub fn try_from_active_records() -> Result<Self, super::policy_records::PolicyError> {
+        let level = LevelConfig::from_active_record()?;
+        let macd = super::policy_records::active_macd_force()?;
+        Ok(ThetaConfig {
+            level,
+            macd,
+            ..ThetaConfig::default()
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -466,6 +505,9 @@ mod tests {
         assert_eq!(c.level.l_max, 6);
         assert_eq!(c.level.min_parts_per_level, 3);
         assert_eq!((c.macd.fast, c.macd.slow, c.macd.signal), (12, 26, 9));
+        // #1603：上两组值来自版本化记录 v1（等值对拍：与改前常数逐位相同）。
+        assert_eq!(c.level.budget.label(), "tower-level-budget/1");
+        assert_eq!(c.macd.record.label(), "macd-force/1");
         assert_eq!(c.voice.max_depth, 3);
         assert_eq!(c.voice.depth_weights, vec![0.60, 0.30, 0.10]);
         assert_eq!(c.risk.rho, 0.005);
