@@ -2,7 +2,7 @@
 //! 只从本 B 已持久的固定 cut 图像派生：Voice、Prepared/Committed 决定、事实应用各自所用的
 //! 结构/操作/经营依据身份，及本重的实际量与未决潜量。不读 S、不写任何域，结果不回写 S。
 //! 结构级别、操作级别、Voice 代际、下钻深度与方向分字段原样转出，不合并成单一“级别”。
-use super::book::{add, hash, integer};
+use super::book::{add, hash, integer, sub};
 use super::store::Config;
 use serde_json::{json, Value};
 
@@ -109,7 +109,7 @@ pub(super) fn view(
         let actual = integer(book, "actual_quantity")?;
         let fixed = integer(book, "fixed_q")?;
         let worst = add(actual, potential)?;
-        json!({"status":"Known","chong_id":book["chong_id"],"side":book["side"],"units":book["units"]["quantity"],"actual_quantity":actual.to_string(),"unresolved_potential":potential.to_string(),"worst_quantity":worst.to_string(),"fixed_q":fixed.to_string(),"headroom":fixed.checked_sub(worst).ok_or("InvalidDomain：余量溢出")?.to_string(),"scope":"本重独立；不同重的方向与潜量互不抵消"})
+        json!({"status":"Known","chong_id":book["chong_id"],"side":book["side"],"units":book["units"]["quantity"],"actual_quantity":actual.to_string(),"unresolved_potential":potential.to_string(),"worst_quantity":worst.to_string(),"fixed_q":fixed.to_string(),"headroom":sub(fixed, worst)?.to_string(),"scope":"本重独立；不同重的方向与潜量互不抵消"})
     };
     let book_ref = if book.is_null() {
         Value::Null
