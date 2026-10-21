@@ -36,7 +36,7 @@
 //!    可交易 close 强制平仓，窗 k 统计不吸收窗 k+1 时段路径；计数如实报告。
 //! 6. 训练窗 λ 标定的段特征路径截断至 train_end 当日末根 bar（bughunt F-08 修复口径），
 //!    杜绝特征读取越界；段身份仍来自终局解析（见上，量级 = 确认滞后，如实声明）。
-//! 7. 段解析无效（#1585 / X-38，承接 #1581）：增量层带段端门 fail-closed 标记的 bar 上拒读段账本——
+//! 7. 段解析无效（#1585 / X-39，承接 #1581）：增量层带段端门 fail-closed 标记的 bar 上拒读段账本——
 //!    不按段确认开平仓、高水位不动（价格止损/窗界强平/顺延出场照常，不读段结构）；持仓期间
 //!    遇标记的交易记为受污染，剔出全部聚合，只计数并报出标记 bar 区间。终局批量解析带标记时，
 //!    λ 定参与理论分母只读失败段起点前的可读前缀。本回测只产内存报告，不写任何生产账。
@@ -45,7 +45,7 @@
 mod tests {
     use super::super::super::config::ThetaConfig;
     use super::super::super::parser::{parse_layer, ParseLayer, ParseLayerIncr};
-    use super::super::super::types::Direction;
+    use super::super::super::types::{Bar, Direction, Segment};
     use super::super::data;
     use super::super::prereg_windows::{OOS_START, PREREG_WINDOWS};
     use super::super::segment_gn::tests::parse_invalid_note;
@@ -166,12 +166,162 @@ mod tests {
         }
     }
 
-    /// #1585（X-38）：本 bar 段账本能否读来按段确认开平仓。带段端门 fail-closed 标记 ⟹ 拒读
+    /// #1585（X-39）：本 bar 段账本能否读来按段确认开平仓。带段端门 fail-closed 标记 ⟹ 拒读
     /// （`Err(失败笔号)`：本 bar 不按段确认开平仓，高水位不动）；否则 `Ok(confirmed 前缀长度)`。
     fn readable_confirmed_len(layer: &ParseLayer) -> Result<usize, usize> {
         match layer.segments_parse_invalid_from {
             Some(from) => Err(from),
             None => Ok(layer.segments_confirmed_len),
+        }
+    }
+
+    /// #1585（X-39）：交易 `seg_idx` 对应的终局段（理论分母与方向对拍）。终局账本带标记 ⟹ 只在
+    /// 失败段起点前的可读前缀里找，越过前缀 ⟹ `None`（计入「无理论分母」）。
+    fn final_seg(fin: &ParseLayer, seg_idx: usize) -> Option<&Segment> {
+        fin.segments_valid_prefix().get(seg_idx)
+    }
+
+    /// #1585（X-39）：λ 定参的段 gap 样本——终局账本可读前缀里起点落在训练窗（`in_train(start_index)`）
+    /// 的段，段内逆向穿越深度（相对入场价分数，gap 口径与 S2 逐字一致）。F-08：特征路径截断至
+    /// `cap`（train_end 当日末根 bar，含）——训练段的 end_index 可越过 train_end，λ 标定不得读取
+    /// 其后的 test 期路径 bar。
+    fn train_gaps(
+        fin: &ParseLayer,
+        bars: &[Bar],
+        in_train: impl Fn(usize) -> bool,
+        cap: usize,
+    ) -> Vec<f64> {
+        fin.segments_valid_prefix()
+            .iter()
+            .filter(|s| in_train(s.start_index))
+            .map(|s| {
+                let entry = s.start_price as f64;
+                let path = &bars[s.start_index..=s.end_index.min(cap)];
+                let g = match s.direction {
+                    Direction::Up => {
+                        (entry - path.iter().map(|b| b.low).min().unwrap() as f64) / entry
+                    }
+                    Direction::Down => {
+                        (path.iter().map(|b| b.high).max().unwrap() as f64 - entry) / entry
+                    }
+                };
+                g.max(0.0)
+            })
+            .collect()
+    }
+
+    /// 因果重放的逐 bar 状态（主回测循环与 #1585 负控共用同一份）。
+    struct Replay {
+        hw: usize, // segments_confirmed_len 高水位
+        retreats: usize,
+        open: Option<OpenTrade>,
+        trades: Vec<TradeRec>,
+        last_tradable_close: Option<f64>, // F-09/F-10：最近可交易 close
+        invalid_runs: Vec<(usize, usize, usize)>, // #1585：(bar 起, bar 止, 失败笔)
+        deferred_exits: usize,            // F-10：出场被 untradable bar 顺延计数
+        untradable_entry_skips: usize,    // F-10：入场被 untradable bar 跳过计数
+    }
+
+    impl Replay {
+        fn new() -> Self {
+            Replay {
+                hw: 0,
+                retreats: 0,
+                open: None,
+                trades: Vec::new(),
+                last_tradable_close: None,
+                invalid_runs: Vec::new(),
+                deferred_exits: 0,
+                untradable_entry_skips: 0,
+            }
+        }
+
+        /// 逐 bar 的「#1585 闸 + 段确认开平仓」，在价格侧出场（窗界强平/顺延出场/止损）之后调用。
+        /// `entry_ctx(t)` 给开仓所需的 (窗, λ)。段解析无效 ⟹ 拒读段账本：记标记区间、污染当前持仓、
+        /// 跳过按段确认开平仓（高水位不动），只补最近可交易 close。
+        fn seg_step(
+            &mut self,
+            t: usize,
+            bar: &Bar,
+            layer: &ParseLayer,
+            entry_ctx: impl Fn(usize) -> (Option<(u32, bool)>, Option<f64>),
+        ) {
+            let c = match readable_confirmed_len(layer) {
+                Ok(c) => c,
+                Err(from) => {
+                    match self.invalid_runs.last_mut() {
+                        Some(r) if r.1 + 1 == t && r.2 == from => r.1 = t,
+                        _ => self.invalid_runs.push((t, t, from)),
+                    }
+                    if let Some(ot) = &mut self.open {
+                        ot.parse_invalid = true;
+                    }
+                    if !bar.untradable {
+                        self.last_tradable_close = Some(bar.close as f64);
+                    }
+                    return;
+                }
+            };
+            if c < self.hw {
+                self.retreats += 1; // #88 复活级联回退——因果决策照留，如实计数
+            }
+            if c > self.hw {
+                for j in self.hw..c {
+                    // 段 j 确认于 bar t
+                    if let Some(ot) = &self.open {
+                        // F-10：出场被顺延的持仓可落后于确认进度，不算生命周期破缺。
+                        assert!(
+                            ot.seg_idx >= j || ot.pending.is_some(),
+                            "开仓段 {} 早于确认段 {}，生命周期破缺",
+                            ot.seg_idx,
+                            j
+                        );
+                    }
+                    if self
+                        .open
+                        .as_ref()
+                        .is_some_and(|ot| ot.seg_idx == j && ot.pending.is_none())
+                    {
+                        if bar.untradable {
+                            // F-10：untradable bar 不成交——段确认出场挂起，顺延 close 成交。
+                            self.open.as_mut().unwrap().pending = Some(Pending::Seg);
+                            self.deferred_exits += 1;
+                        } else {
+                            let ot = self.open.take().unwrap();
+                            self.trades.push(TradeRec {
+                                seg_idx: ot.seg_idx,
+                                entry_bar: ot.entry_bar,
+                                entry: ot.entry,
+                                exit: bar.close as f64,
+                                dir: ot.dir,
+                                stopped: false,
+                                win: ot.win,
+                                parse_invalid: ot.parse_invalid,
+                            });
+                        }
+                    }
+                    if self.open.is_none() && !bar.untradable {
+                        let (win, lambda) = entry_ctx(t);
+                        self.open = Some(OpenTrade {
+                            seg_idx: j + 1,
+                            entry_bar: t,
+                            entry: bar.close as f64,
+                            dir: opposite(layer.segments[j].direction),
+                            lambda,
+                            win,
+                            pending: None,
+                            parse_invalid: false,
+                        });
+                    } else if self.open.is_none() {
+                        // F-10：untradable bar 不成交——该入场机会跳过（不顺延，保守口径）。
+                        self.untradable_entry_skips += 1;
+                    }
+                }
+                self.hw = c;
+            }
+            if !bar.untradable {
+                self.last_tradable_close = Some(bar.close as f64);
+            }
         }
     }
 
@@ -200,24 +350,9 @@ mod tests {
         let fin = parse_layer(&ds.bars, &cfg);
         // #1585：终局账本带标记 ⟹ λ 定参与理论分母只读失败段起点前的可读前缀。
         let fin_note = parse_invalid_note(&fin);
-        let fin_segs = fin.segments_valid_prefix();
         let day = |bar: usize| ds.dates[bar].get(..10).unwrap_or("");
 
-        // λ_w = clamp(train 段 gap p95, [LO, HI])；gap 口径与 S2 逐字一致。
-        // F-08：特征路径截断至 cap（train_end 当日末根 bar，含）——训练段的 end_index
-        // 可越过 train_end，λ 标定不得读取其后的 test 期路径 bar。
-        let seg_gap = |si: usize, cap: usize| -> f64 {
-            let s = &fin_segs[si];
-            let entry = s.start_price as f64;
-            let path = &ds.bars[s.start_index..=s.end_index.min(cap)];
-            let g = match s.direction {
-                Direction::Up => (entry - path.iter().map(|b| b.low).min().unwrap() as f64) / entry,
-                Direction::Down => {
-                    (path.iter().map(|b| b.high).max().unwrap() as f64 - entry) / entry
-                }
-            };
-            g.max(0.0)
-        };
+        // λ_w = clamp(train 段 gap p95, [LO, HI])；gap 口径与 S2 逐字一致（`train_gaps`）。
         let mut lambda_of_win: Vec<Option<f64>> = Vec::with_capacity(windows.len());
         for w in windows {
             // F-08：train_end 当日末根 bar 下标（dates 升序，partition_point = 首个越界位）。
@@ -225,13 +360,11 @@ mod tests {
                 .dates
                 .partition_point(|d| d.get(..10).unwrap_or("") <= w.train_end);
             let cap = n_train_bars.saturating_sub(1);
-            let mut gaps: Vec<f64> = (0..fin_segs.len())
-                .filter(|&si| {
-                    let d = day(fin_segs[si].start_index);
-                    d >= w.train_start && d <= w.train_end
-                })
-                .map(|si| seg_gap(si, cap))
-                .collect();
+            let in_train = |start: usize| {
+                let d = day(start);
+                d >= w.train_start && d <= w.train_end
+            };
+            let mut gaps = train_gaps(&fin, &ds.bars, in_train, cap);
             gaps.sort_by(|a, b| a.partial_cmp(b).unwrap());
             lambda_of_win.push(if gaps.is_empty() {
                 None
@@ -248,16 +381,13 @@ mod tests {
 
         // ── 因果重放 ──
         let mut incr = ParseLayerIncr::new(&cfg);
-        let mut hw = 0usize; // segments_confirmed_len 高水位
-        let mut retreats = 0usize;
-        let mut open: Option<OpenTrade> = None;
-        let mut trades: Vec<TradeRec> = Vec::new();
-        let mut last_tradable_close: Option<f64> = None; // F-09/F-10：最近可交易 close
+        let mut rp = Replay::new();
         let mut boundary_closes = 0usize; // F-09：窗界强平计数
-        let mut invalid_runs: Vec<(usize, usize, usize)> = Vec::new(); // #1585：(bar 起, bar 止, 失败笔)
-        let mut deferred_exits = 0usize; // F-10：出场被 untradable bar 顺延计数
-        let mut untradable_entry_skips = 0usize; // F-10：入场被 untradable bar 跳过计数
-                                                 // 劣侧成交价：多头出场取低者，空头出场取高者。
+        let entry_ctx = |t: usize| {
+            let win = win_of_day(day(t));
+            (win, win.and_then(|(wi, _)| lambda_of_win[wi as usize]))
+        };
+        // 劣侧成交价：多头出场取低者，空头出场取高者。
         let worse = |dir: Direction, a: f64, b: f64| -> f64 {
             match dir {
                 Direction::Up => a.min(b),
@@ -269,18 +399,19 @@ mod tests {
             // F-09：窗界平仓——持仓所属 test 窗结束后的首根 bar 上，按最近可交易 close
             // 强平（挂起止损则按劣侧），窗 k 统计不吸收窗 k+1 时段路径。窗外交易
             // （win=None）不受窗界约束，仅进逐年描述表。
-            if let Some(ot) = &open {
+            if let Some(ot) = &rp.open {
                 if let Some((wi, _)) = ot.win {
                     if day(t) > windows[wi as usize].test_end {
-                        let ot = open.take().unwrap();
-                        let ltc = last_tradable_close
+                        let ot = rp.open.take().unwrap();
+                        let ltc = rp
+                            .last_tradable_close
                             .expect("入场 bar 必可交易（F-10），窗界强平必有可交易 close");
                         let (exit, stopped) = match ot.pending {
                             Some(Pending::Stop(px)) => (worse(ot.dir, px, ltc), true),
                             _ => (ltc, false),
                         };
                         boundary_closes += 1;
-                        trades.push(TradeRec {
+                        rp.trades.push(TradeRec {
                             seg_idx: ot.seg_idx,
                             entry_bar: ot.entry_bar,
                             entry: ot.entry,
@@ -295,14 +426,14 @@ mod tests {
             }
             // F-10：挂起出场在下一可交易 bar 成交（段确认出场按 close，止损按劣侧）。
             if !bar.untradable {
-                if open.as_ref().is_some_and(|ot| ot.pending.is_some()) {
-                    let ot = open.take().unwrap();
+                if rp.open.as_ref().is_some_and(|ot| ot.pending.is_some()) {
+                    let ot = rp.open.take().unwrap();
                     let (exit, stopped) = match ot.pending {
                         Some(Pending::Seg) => (bar.close as f64, false),
                         Some(Pending::Stop(px)) => (worse(ot.dir, px, bar.open as f64), true),
                         None => unreachable!(),
                     };
-                    trades.push(TradeRec {
+                    rp.trades.push(TradeRec {
                         seg_idx: ot.seg_idx,
                         entry_bar: ot.entry_bar,
                         entry: ot.entry,
@@ -315,7 +446,7 @@ mod tests {
                 }
             }
             // 止损（intrabar，入场 bar 当根不查——入场在收盘之后）
-            if let Some(ot) = &mut open {
+            if let Some(ot) = &mut rp.open {
                 if let (Some(lam), true, true) = (ot.lambda, ot.entry_bar < t, ot.pending.is_none())
                 {
                     let stop_px = match ot.dir {
@@ -329,12 +460,12 @@ mod tests {
                     if hit && bar.untradable {
                         // F-10：untradable bar 不成交——止损挂起，顺延劣侧成交。
                         ot.pending = Some(Pending::Stop(stop_px));
-                        deferred_exits += 1;
+                        rp.deferred_exits += 1;
                     } else if hit {
                         // F-10：劣侧成交——跳空穿越时按当根 open（更劣者）成交。
                         let fill = worse(ot.dir, stop_px, bar.open as f64);
-                        let ot = open.take().unwrap();
-                        trades.push(TradeRec {
+                        let ot = rp.open.take().unwrap();
+                        rp.trades.push(TradeRec {
                             seg_idx: ot.seg_idx,
                             entry_bar: ot.entry_bar,
                             entry: ot.entry,
@@ -347,95 +478,27 @@ mod tests {
                     }
                 }
             }
-            // #1585：段解析无效 ⟹ 拒读段账本，记标记区间、污染当前持仓，跳过按段确认开平仓。
-            let c = match readable_confirmed_len(&layer) {
-                Ok(c) => c,
-                Err(from) => {
-                    match invalid_runs.last_mut() {
-                        Some(r) if r.1 + 1 == t && r.2 == from => r.1 = t,
-                        _ => invalid_runs.push((t, t, from)),
-                    }
-                    if let Some(ot) = &mut open {
-                        ot.parse_invalid = true;
-                    }
-                    if !bar.untradable {
-                        last_tradable_close = Some(bar.close as f64);
-                    }
-                    continue;
-                }
-            };
-            if c < hw {
-                retreats += 1; // #88 复活级联回退——因果决策照留，如实计数
-            }
-            if c > hw {
-                for j in hw..c {
-                    // 段 j 确认于 bar t
-                    if let Some(ot) = &open {
-                        // F-10：出场被顺延的持仓可落后于确认进度，不算生命周期破缺。
-                        assert!(
-                            ot.seg_idx >= j || ot.pending.is_some(),
-                            "开仓段 {} 早于确认段 {}，生命周期破缺",
-                            ot.seg_idx,
-                            j
-                        );
-                    }
-                    if open
-                        .as_ref()
-                        .is_some_and(|ot| ot.seg_idx == j && ot.pending.is_none())
-                    {
-                        if bar.untradable {
-                            // F-10：untradable bar 不成交——段确认出场挂起，顺延 close 成交。
-                            open.as_mut().unwrap().pending = Some(Pending::Seg);
-                            deferred_exits += 1;
-                        } else {
-                            let ot = open.take().unwrap();
-                            trades.push(TradeRec {
-                                seg_idx: ot.seg_idx,
-                                entry_bar: ot.entry_bar,
-                                entry: ot.entry,
-                                exit: bar.close as f64,
-                                dir: ot.dir,
-                                stopped: false,
-                                win: ot.win,
-                                parse_invalid: ot.parse_invalid,
-                            });
-                        }
-                    }
-                    if open.is_none() && !bar.untradable {
-                        let win = win_of_day(day(t));
-                        open = Some(OpenTrade {
-                            seg_idx: j + 1,
-                            entry_bar: t,
-                            entry: bar.close as f64,
-                            dir: opposite(layer.segments[j].direction),
-                            lambda: win.and_then(|(wi, _)| lambda_of_win[wi as usize]),
-                            win,
-                            pending: None,
-                            parse_invalid: false,
-                        });
-                    } else if open.is_none() {
-                        // F-10：untradable bar 不成交——该入场机会跳过（不顺延，保守口径）。
-                        untradable_entry_skips += 1;
-                    }
-                }
-                hw = c;
-            }
-            if !bar.untradable {
-                last_tradable_close = Some(bar.close as f64);
-            }
+            rp.seg_step(t, bar, &layer, &entry_ctx);
         }
-        let dropped_open = open.is_some() as usize;
+        let dropped_open = rp.open.is_some() as usize;
+        let Replay {
+            retreats,
+            trades,
+            invalid_runs,
+            deferred_exits,
+            untradable_entry_skips,
+            ..
+        } = rp;
 
         // ── 理论分母连接 + 方向对拍 ──
         let mut dir_mismatch = 0usize;
         let mut no_theory = 0usize;
         let theory = |tr: &TradeRec| -> Option<f64> {
-            fin_segs
-                .get(tr.seg_idx)
+            final_seg(&fin, tr.seg_idx)
                 .map(|s| (s.start_price.max(s.end_price) - s.start_price.min(s.end_price)) as f64)
         };
         for tr in &trades {
-            match fin_segs.get(tr.seg_idx) {
+            match final_seg(&fin, tr.seg_idx) {
                 Some(s) if s.direction != tr.dir => dir_mismatch += 1,
                 None => no_theory += 1,
                 _ => {}
@@ -507,32 +570,101 @@ mod tests {
         }
     }
 
-    /// #1585（X-38）负控：生产增量层注入段端门 fail-closed 标记 ⟹ 开平仓闸拒读（不给 confirmed
-    /// 前缀，本 bar 无按段确认的交易），终局账本可读前缀截在失败段之前并出报告行。正控：同一层无标记
-    /// 时闸给出 confirmed 前缀（> 0）、整本账可读。
+    /// #1585（X-39）负控：锁主回测接线（`Replay::seg_step`／`final_seg`／`train_gaps` 即主循环所调）。
+    /// 生产增量逐 bar 重放到一根「有新确认段且有持仓」的 bar，给该 bar 的层注入段端门 fail-closed
+    /// 标记 ⟹ 本 bar 不按段确认开平仓（高水位、交易、持仓不动）、持仓打污染、标记区间入报告；终局账本
+    /// 标记于中间某段起点笔 ⟹ 理论分母与 λ 样本只到该段之前。正控：同一层无标记时照常确认开平仓、
+    /// 整本账可读。
     #[test]
     fn tb1585_s3_refuses_segment_confirmation_under_marker() {
         let cfg = ThetaConfig::default();
         let bars = crate::theta_v0::parser::tb1581_tests::tb1581_bars(0x1581_0000, 4_000);
-        let mut incr = ParseLayerIncr::new(&cfg);
-        let layer = bars
-            .iter()
-            .map(|b| incr.append(*b))
-            .last()
-            .expect("K 线非空");
-        assert_eq!(layer.segments_parse_invalid_from, None, "生产口径无门失败");
-        let c = readable_confirmed_len(&layer).expect("正控：无标记可读");
-        assert!(c > 0, "正控：随机 K 线须有已确认段");
-        assert!(parse_invalid_note(&layer).is_none());
+        let no_win = |_: usize| (None, None);
 
+        // ── 逐 bar 增量：主循环同一个 seg_step ──
+        let mut incr = ParseLayerIncr::new(&cfg);
+        let mut rp = Replay::new();
+        let mut probe = None;
+        for (t, bar) in bars.iter().enumerate() {
+            let layer = incr.append(*bar);
+            assert_eq!(layer.segments_parse_invalid_from, None, "生产口径无门失败");
+            if probe.is_none()
+                && rp.open.is_some()
+                && rp.trades.len() >= 2
+                && layer.segments_confirmed_len > rp.hw
+            {
+                probe = Some((t, *bar, layer.clone(), rp.hw, rp.trades.len()));
+            }
+            rp.seg_step(t, bar, &layer, no_win);
+        }
+        assert!(
+            rp.trades.len() > 2 && rp.hw > 0,
+            "正控：无标记时按段确认开平仓"
+        );
+        assert!(rp.trades.iter().all(|tr| !tr.parse_invalid));
+        assert!(rp.invalid_runs.is_empty());
+
+        let (t, bar, layer, hw0, n0) = probe.expect("随机 K 线须有持仓中的确认 bar");
+        // 同一 bar 回到注入前的状态重放：先正控（无标记）再负控（有标记）。
+        let replay_to = |stop: usize| {
+            let mut incr = ParseLayerIncr::new(&cfg);
+            let mut rp = Replay::new();
+            for (u, b) in bars[..stop].iter().enumerate() {
+                let l = incr.append(*b);
+                rp.seg_step(u, b, &l, no_win);
+            }
+            rp
+        };
+        let mut pos = replay_to(t);
+        assert_eq!((pos.hw, pos.trades.len()), (hw0, n0));
+        pos.seg_step(t, &bar, &layer, no_win);
+        assert!(pos.hw > hw0, "正控：该 bar 无标记时确认新段");
+
+        let mut neg = replay_to(t);
+        let open_seg = neg.open.as_ref().map(|ot| ot.seg_idx);
         let mut marked = layer.clone();
         marked.segments_parse_invalid_from = Some(0);
+        neg.seg_step(t, &bar, &marked, no_win);
+        assert_eq!(neg.hw, hw0, "标记 bar 高水位不动");
+        assert_eq!(neg.trades.len(), n0, "标记 bar 不按段确认平仓");
         assert_eq!(
-            readable_confirmed_len(&marked),
-            Err(0),
-            "标记 bar 拒读段账本"
+            neg.open.as_ref().map(|ot| ot.seg_idx),
+            open_seg,
+            "标记 bar 不开新仓"
         );
-        assert!(marked.segments_valid_prefix().is_empty());
-        assert!(parse_invalid_note(&marked).is_some_and(|n| n.contains("segment_parse_invalid")));
+        assert!(
+            neg.open.as_ref().is_some_and(|ot| ot.parse_invalid),
+            "持仓打污染"
+        );
+        assert_eq!(neg.invalid_runs, vec![(t, t, 0)], "标记区间入报告");
+
+        // ── 终局账本：理论分母与 λ 样本只读可读前缀 ──
+        let fin = parse_layer(&bars, &cfg);
+        let cap = bars.len() - 1;
+        let k = fin.segments.len() / 2;
+        assert!(k > 0, "正控：随机 K 线须有段");
+        assert!(final_seg(&fin, k).is_some());
+        assert_eq!(
+            train_gaps(&fin, &bars, |_| true, cap).len(),
+            fin.segments.len()
+        );
+        assert!(parse_invalid_note(&fin).is_none());
+        let from = fin
+            .strokes
+            .iter()
+            .position(|s| s.start_index == fin.segments[k].start_index)
+            .expect("段起点必为某笔起点");
+        let mut fin_marked = fin.clone();
+        fin_marked.segments_parse_invalid_from = Some(from);
+        assert!(
+            parse_invalid_note(&fin_marked).is_some_and(|n| n.contains("segment_parse_invalid"))
+        );
+        assert!(final_seg(&fin_marked, k - 1).is_some());
+        assert!(final_seg(&fin_marked, k).is_none(), "失败段起无理论分母");
+        assert_eq!(
+            train_gaps(&fin_marked, &bars, |_| true, cap).len(),
+            k,
+            "λ 样本只到失败段之前"
+        );
     }
 }

@@ -17,14 +17,14 @@
 //! - 幅比用段端点价（confirmed 段）；段内路径用**原始 bars** 高低——段的
 //!   `start_index/end_index` 是原始 K 的 `source_index`（stroke.rs:15「按原始 K 计数」），
 //!   非 merged 序号。
-//! - #1585（X-38）：段账本带段端门 fail-closed 标记时只统计失败段起点前的可读前缀，报告首行
+//! - #1585（X-39）：段账本带段端门 fail-closed 标记时只统计失败段起点前的可读前缀，报告首行
 //!   标出「段解析无效」与被拒读段数（`ParseLayer::segments_valid_prefix`）。
 
 #[cfg(test)]
 pub(super) mod tests {
     use super::super::super::config::ThetaConfig;
     use super::super::super::parser::{parse_layer, ParseLayer};
-    use super::super::super::types::Direction;
+    use super::super::super::types::{Bar, Direction};
     use super::super::data;
 
     const FEE: f64 = 3e-4; // 与 R3 §1 / config.rs:228-230 同口径，单边 3 bps
@@ -35,7 +35,7 @@ pub(super) mod tests {
         sorted[idx]
     }
 
-    /// #1585（X-38）：段账本带 fail-closed 标记时的报告行（失败起点 + 可读/拒读段数）；无标记 ⟹ `None`。
+    /// #1585（X-39）：段账本带 fail-closed 标记时的报告行（失败起点 + 可读/拒读段数）；无标记 ⟹ `None`。
     /// S2/S3 两个直读段账本的对照臂共用。
     pub(in crate::theta_v0::backtest) fn parse_invalid_note(layer: &ParseLayer) -> Option<String> {
         let from = layer.segments_parse_invalid_from?;
@@ -45,6 +45,38 @@ pub(super) mod tests {
             layer.segments.len(),
             layer.segments.len() - valid
         ))
+    }
+
+    /// #1585（X-39）：S2 的段样本——段账本可读前缀上逐段的 (幅比 (H−L)/(H+L), λ_gap 段内逆向穿越深度)，
+    /// 带标记时附报告行。主统计与负控共用同一份取数。
+    fn s2_samples(layer: &ParseLayer, bars: &[Bar]) -> (Option<String>, Vec<f64>, Vec<f64>) {
+        let note = parse_invalid_note(layer);
+        let segs = layer.segments_valid_prefix();
+        // ── R3 同款：幅比 (H−L)/(H+L) 分布 ──
+        let mut ratios: Vec<f64> = Vec::with_capacity(segs.len());
+        // ── λ_gap：段内逆向穿越深度（相对入场价分数）──
+        let mut gaps: Vec<f64> = Vec::with_capacity(segs.len());
+        for s in segs.iter() {
+            let (h, l) = (
+                s.start_price.max(s.end_price) as f64,
+                s.start_price.min(s.end_price) as f64,
+            );
+            ratios.push((h - l) / (h + l));
+            let entry = s.start_price as f64;
+            let path = &bars[s.start_index..=s.end_index];
+            let gap = match s.direction {
+                Direction::Up => {
+                    let min_low = path.iter().map(|b| b.low).min().unwrap() as f64;
+                    (entry - min_low) / entry
+                }
+                Direction::Down => {
+                    let max_high = path.iter().map(|b| b.high).max().unwrap() as f64;
+                    (max_high - entry) / entry
+                }
+            };
+            gaps.push(gap.max(0.0));
+        }
+        (note, ratios, gaps)
     }
 
     /// S2 主统计：`cargo test --release --lib -- --ignored --nocapture s2_segment_gn_stats_real_btc`
@@ -62,36 +94,11 @@ pub(super) mod tests {
             ds.bars.truncate(k);
         }
         let layer = parse_layer(&ds.bars, &config);
-        if let Some(note) = parse_invalid_note(&layer) {
+        let (note, ratios, gaps) = s2_samples(&layer, &ds.bars);
+        if let Some(note) = note {
             println!("⚠ {note}");
         }
-        let segs = layer.segments_valid_prefix();
-        assert!(!segs.is_empty(), "全史上可读段不可能为空");
-
-        // ── R3 同款：幅比 (H−L)/(H+L) 分布 ──
-        let mut ratios: Vec<f64> = Vec::with_capacity(segs.len());
-        // ── λ_gap：段内逆向穿越深度（相对入场价分数）──
-        let mut gaps: Vec<f64> = Vec::with_capacity(segs.len());
-        for s in segs.iter() {
-            let (h, l) = (
-                s.start_price.max(s.end_price) as f64,
-                s.start_price.min(s.end_price) as f64,
-            );
-            ratios.push((h - l) / (h + l));
-            let entry = s.start_price as f64;
-            let path = &ds.bars[s.start_index..=s.end_index];
-            let gap = match s.direction {
-                Direction::Up => {
-                    let min_low = path.iter().map(|b| b.low).min().unwrap() as f64;
-                    (entry - min_low) / entry
-                }
-                Direction::Down => {
-                    let max_high = path.iter().map(|b| b.high).max().unwrap() as f64;
-                    (max_high - entry) / entry
-                }
-            };
-            gaps.push(gap.max(0.0));
-        }
+        assert!(!ratios.is_empty(), "全史上可读段不可能为空");
         let n = ratios.len();
         let pass = ratios.iter().filter(|&&r| r > FEE).count();
         let mut rs = ratios.clone();
@@ -127,16 +134,20 @@ pub(super) mod tests {
         }
     }
 
-    /// #1585（X-38）负控：注入标记（失败起点 = 中间某段起点笔）⟹ S2 读的段只到该段之前、报告行
-    /// 标出段解析无效。正控：无标记 ⟹ 整本账可读、无报告行。
+    /// #1585（X-39）负控：锁主统计接线（`s2_samples` 即主统计所调）。注入标记（失败起点 = 中间某段
+    /// 起点笔）⟹ 样本只到该段之前、报告行标出段解析无效。正控：无标记 ⟹ 整本账入样本、无报告行。
     #[test]
     fn tb1585_s2_reads_only_valid_prefix_under_marker() {
         let cfg = ThetaConfig::default();
         let bars = crate::theta_v0::parser::tb1581_tests::tb1581_bars(0x1581_0000, 4_000);
         let layer = parse_layer(&bars, &cfg);
         assert_eq!(layer.segments_parse_invalid_from, None);
-        assert_eq!(layer.segments_valid_prefix(), &layer.segments[..]);
-        assert!(parse_invalid_note(&layer).is_none());
+        let (note, ratios, gaps) = s2_samples(&layer, &bars);
+        assert!(note.is_none());
+        assert_eq!(
+            (ratios.len(), gaps.len()),
+            (layer.segments.len(), layer.segments.len())
+        );
 
         let k = layer.segments.len() / 2;
         assert!(k > 0, "正控：随机 K 线须有段");
@@ -147,9 +158,14 @@ pub(super) mod tests {
             .expect("段起点必为某笔起点");
         let mut marked = layer.clone();
         marked.segments_parse_invalid_from = Some(from);
-        assert_eq!(marked.segments_valid_prefix(), &layer.segments[..k]);
-        let note = parse_invalid_note(&marked).expect("标记非空须出报告行");
+        let (note, m_ratios, m_gaps) = s2_samples(&marked, &bars);
+        let note = note.expect("标记非空须出报告行");
         assert!(note.contains("segment_parse_invalid"), "{note}");
         assert!(note.contains(&format!("仅前 {k} 段可读")), "{note}");
+        assert_eq!(
+            (m_ratios.as_slice(), m_gaps.as_slice()),
+            (&ratios[..k], &gaps[..k]),
+            "样本只到失败段之前"
+        );
     }
 }

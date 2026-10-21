@@ -137,7 +137,7 @@ impl PartialEq for ParseLayer {
 }
 
 impl ParseLayer {
-    /// #1585（X-38）：段账本在段端门 fail-closed 标记下仍可读的前缀——起点（原始 K 序）早于失败段
+    /// #1585（X-39）：段账本在段端门 fail-closed 标记下仍可读的前缀——起点（原始 K 序）早于失败段
     /// 起点笔 `strokes[segments_parse_invalid_from].start_index` 的段；无标记 ⟹ 整本账。给绕过
     /// classifier 入口直读段账本的对照臂/诊断件用，读标记与 #1581 同一字段（不另起判定）。
     /// 标记笔号越界（不应发生）⟹ 空前缀（fail-closed）。

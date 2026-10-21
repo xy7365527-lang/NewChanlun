@@ -3059,7 +3059,7 @@ fn cascade_dual(l0: &ParseLayer, config: &ThetaConfig, weak: bool) -> C327Arm {
     };
 
     let mut arm = C327Arm::default();
-    // #1585（X-38）：L0 带段端门 fail-closed 标记 ⟹ 与生产 classifier 入口（#1581）同口径整层拒读，
+    // #1585（X-39）：L0 带段端门 fail-closed 标记 ⟹ 与生产 classifier 入口（#1581）同口径整层拒读，
     // 两臂均不构造中枢（复刻忠实性守恒对拒读层照样成立：生产 classify 亦无级别）。
     if l0.segments_parse_invalid_from.is_some() {
         return arm;
@@ -3229,6 +3229,17 @@ const C327_CASCADE_REARRANGE_323: [usize; 5] = [26, 18, 8, 3, 2];
 /// #321 commit message 自旗「BTC L0 23 次 / L1 2 次」——本锁独立复现同读数（L2+ 为 0）。
 const C327_FULL_BTC_HITS: [usize; 6] = [23, 2, 0, 0, 0, 0];
 
+/// #1585（X-39）：段解析无效 ⟹ 显式拒读并报出失败起点，不让其后的数据身份/GOLDEN 断言把拒读层
+/// 误报成「数据换版」或「口径回归」。见证锁在任何读数断言之前先调。
+fn c327_assert_readable(tag: &str, layer: &ParseLayer) {
+    assert!(
+        layer.segments_parse_invalid_from.is_none(),
+        "[#327/{tag}] 段解析无效（segment_parse_invalid，段端门 fail-closed 自笔 {:?} 起）：\
+         拒读，本窗读数不构成证据",
+        layer.segments_parse_invalid_from
+    );
+}
+
 /// 一把见证锁的公共主体：双臂级联 → 复刻忠实性守恒 → 逐级读数对 GOLDEN → 逐命中点单点见证
 /// → 真覆盖硬门。返回逐级（严格臂）命中点，供窗专属断言（如「命中确实落在 2022-02」）。
 fn c327_run_witness(
@@ -3247,14 +3258,7 @@ fn c327_run_witness(
         ds.dates.first().map(String::as_str).unwrap_or(""),
         ds.dates.last().map(String::as_str).unwrap_or(""),
     );
-    // #1585（X-38）：段解析无效 ⟹ 显式拒读并报出失败起点，不让下方 GOLDEN 断言把拒读的空级联
-    // 误报成「口径回归」。
-    assert!(
-        layer.segments_parse_invalid_from.is_none(),
-        "[#327/{tag}] 段解析无效（segment_parse_invalid，段端门 fail-closed 自笔 {:?} 起）：\
-         拒读，本窗读数不构成证据",
-        layer.segments_parse_invalid_from
-    );
+    c327_assert_readable(tag, &layer);
 
     let strict = cascade_dual(&layer, cfg, false);
     let weak = cascade_dual(&layer, cfg, true);
@@ -3353,6 +3357,7 @@ fn center_strict_zd_eq_zg_full_btc_cascade_witness() {
     let cfg = ThetaConfig::default();
     let ds = data::load_by_symbol("BTC", &cfg).expect("BTC 数据加载（btc_1m_full.json）");
     let layer = super::super::parser::parse_layer(&ds.bars, &cfg);
+    c327_assert_readable("full", &layer);
     assert_eq!(
         (ds.bars.len(), layer.merged_bars.len(), layer.segments.len()),
         C327_FULL_BTC_DATA_ID,
@@ -3438,6 +3443,7 @@ fn center_strict_zd_eq_zg_change_block_witness() {
     let ds = full.slice_date_window(C327_BLOCK_WINDOW.0, C327_BLOCK_WINDOW.1);
     assert!(!ds.bars.is_empty(), "变动块窗非空（否则测试空转）");
     let layer = super::super::parser::parse_layer(&ds.bars, &cfg);
+    c327_assert_readable("block", &layer);
     assert_eq!(
         (ds.bars.len(), layer.merged_bars.len(), layer.segments.len()),
         C327_BLOCK_DATA_ID,
@@ -3653,7 +3659,7 @@ fn m3_partition_btc_fullhistory() {
 mod tests {
     use super::*;
 
-    /// #1585（X-38）负控：L0 注入段端门 fail-closed 标记 ⟹ `cascade_dual` 两臂拒读（无级别、无命中），
+    /// #1585（X-39）负控：L0 注入段端门 fail-closed 标记 ⟹ `cascade_dual` 两臂拒读（无级别、无命中），
     /// 与生产 classify 拒读同口径（复刻忠实性守恒对拒读层照样成立）。正控：同一层无标记时有中枢。
     #[test]
     fn tb1585_cascade_dual_refuses_parse_invalid_layer() {
