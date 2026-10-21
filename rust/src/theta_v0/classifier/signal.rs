@@ -1596,11 +1596,7 @@ pub(crate) fn type1_funnel_dx(
         // 结构方向锚（行程方向=τ 等式 veto）；provenance None 只保留直调判据契约。
         let broke = match (anchors_owned[si], dir) {
             (Some(Direction::Down), Direction::Down) => end.price < c.zd,
-            #[allow(
-                unreachable_patterns,
-                reason = "#1608 疑点：此臂应为 (Some(Up), Up)，1592bf05ca(#988) 误改；按票面不改行为，已上报"
-            )]
-            (Some(Direction::Down), Direction::Down) => c.zg < end.price,
+            (Some(Direction::Up), Direction::Up) => c.zg < end.price,
             _ => false,
         };
         if !broke {
