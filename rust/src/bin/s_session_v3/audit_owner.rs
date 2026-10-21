@@ -705,7 +705,7 @@ impl AuditConnection {
         let first = self.publish_attempt(runtime, token, envelope, context, true)?;
         let abandoned = first.is_none();
         let published = match first {
-            Some(published) => self.renew_lease_after_cold_root_rerun(context, published),
+            Some(published) => self.renew_after_cold_root_rerun(runtime, context, published),
             None => {
                 runtime.discard();
                 #[cfg(test)]
@@ -5921,9 +5921,12 @@ impl AuditConnection {
     /// - 重跑前租约未撤销：前序请求的真实撤销（外写/读域变化/rollback/提交或交接失败）不由本处清除；
     /// - 本次结束态无完整候选，且 `reopen_idle_lease` 的 owner 无候选/资格、未退役、autocommit、
     ///   `construction_lease.close()` 成功。
+    /// 续租后与降级放弃同样再丢弃运行态：本次无候选发布以完整态提交，无 raw 资格的旧生成态
+    /// 不得续作 delta 车道（否则下一 Carry 报“旧生成态不可无 raw 资格转为 delta 车道”）。
     /// 本次发布已提交，续租与否都不改变本次回复。原 `Some(published) => published` 同行改调。
-    fn renew_lease_after_cold_root_rerun(
+    fn renew_after_cold_root_rerun(
         &self,
+        runtime: &mut prepared::Runtime,
         context: &request_audit::RequestAuditContext,
         published: (commit::CommitReceipt, Ended),
     ) -> (commit::CommitReceipt, Ended) {
@@ -5936,6 +5939,7 @@ impl AuditConnection {
                 && published.1.complete.is_none()
             {
                 self.reopen_idle_lease();
+                runtime.discard();
             }
         }
         published

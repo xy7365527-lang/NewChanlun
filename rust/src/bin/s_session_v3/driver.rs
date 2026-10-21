@@ -2111,7 +2111,7 @@ mod tests {
 
     /// #1488 0079（P24-adj，0078 探针 H 形态）：同一 writer 内冷根自然失败（1M）后无票重跑提交，
     /// 之后 allowance 变大（改 16M）使候选重新出生；后续 ingest 必须走 Carry 提交且与 ordinary 一致。
-    /// 负控：去掉 `renew_lease_after_cold_root_rerun` 的续租 → ingest-2 报“Carry租约已撤销”。
+    /// 负控：去掉 `renew_after_cold_root_rerun` 的续租 → ingest-2 报“Carry租约已撤销”。
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn p24adj_cold_root_rerun_renews_lease_and_larger_cap_ingest_commits() {
