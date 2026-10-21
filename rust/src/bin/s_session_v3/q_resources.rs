@@ -44,6 +44,7 @@ pub(super) enum Limit {
     ReplyBytes,
     CachedImages,
     CacheBytes,
+    #[allow(dead_code, reason = "#1608：资源表槽位（values 按变体序号索引），当前无读取方；删除会移动后续槽位")]
     PollMs,
     ClientLeases,
     ClientLeaseMs,

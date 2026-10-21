@@ -50,6 +50,7 @@ impl Projection {
             reference: TransportView::new(self.root.view()),
         }
     }
+    #[cfg(test)]
     pub(super) fn anchor_with_budget(
         &self,
         allocation: Option<&OwnedBudget>,
@@ -63,6 +64,7 @@ impl Projection {
         bj::json_from_view(self.anchor_view().view(), allocation)
     }
     /// 旧Value接口只属于实际None构造；Owned调用必须使用anchor_with_budget或借用anchor_view。
+    #[cfg(test)]
     pub(super) fn anchor(&self) -> Value {
         match self
             .anchor_with_budget(None)

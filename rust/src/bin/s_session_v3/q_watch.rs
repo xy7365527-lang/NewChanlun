@@ -52,9 +52,11 @@ pub(super) struct Request {
     bytes: usize,
 }
 impl Request {
+    #[cfg(test)]
     pub(super) fn parse(bytes: &[u8], resources: &QResources) -> Result<Self, String> {
         Self::parse_with_allocation(bytes, resources, None)
     }
+    #[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
     pub(super) fn parse_owned(
         bytes: &[u8],
         resources: &QResources,
@@ -62,6 +64,7 @@ impl Request {
     ) -> Result<Self, String> {
         Self::parse_with_allocation(bytes, resources, Some(budget))
     }
+    #[cfg(test)]
     fn parse_with_allocation(
         bytes: &[u8],
         resources: &QResources,
@@ -190,6 +193,7 @@ pub(super) fn cursor_at_with_budget(
     ];
     bj::json_from_view(JsonView::object_fields(&fields).map_err(err)?, allocation)
 }
+#[allow(dead_code, reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删")]
 pub(super) fn cursor_at(
     current: &Projection,
     cuts: &[PublishedCut],
@@ -818,6 +822,7 @@ fn set_timeout<W: TimedWrite>(writer: &mut W, deadline: Instant) -> Result<(), S
     }
     writer.set_timeout(left).map_err(err)
 }
+#[allow(dead_code, reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删")]
 fn exact(value: JsonView<'_>, fields: &[&str]) -> Result<(), String> {
     exact_typed(value, fields).map_err(|e| e.to_string())
 }

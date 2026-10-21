@@ -405,6 +405,7 @@ impl Budget {
         // Arc coercion 复用已有控制块，不 new 包装适配器。
         CodecWork::new(self.0.clone(), self.0.limit).map_err(Failure::from)
     }
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"))]
     pub(crate) fn scratch_observation(&self) -> (usize, usize, usize, usize) {
         (
             self.0.scratch_live.load(Ordering::Acquire),

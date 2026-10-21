@@ -85,10 +85,12 @@ pub(super) struct Runtime {
 }
 
 impl Runtime {
+    #[cfg(test)]
     pub(super) fn new() -> Self {
         Self::with_allocation(None)
     }
 
+    #[cfg(test)]
     pub(super) fn with_allocation(allocation: Option<q_allocation::Profile>) -> Self {
         Self::with_mode(allocation.into())
     }
@@ -113,6 +115,7 @@ impl Runtime {
     }
 
     #[cfg(test)]
+    #[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根，仅 s_capture_native_testonly 测试触达"))]
     pub(super) fn set_after_prepare_for_request_test(
         &mut self,
         hook: Option<fn(&Transaction<'_>) -> Result<(), String>>,
@@ -184,6 +187,7 @@ impl Runtime {
         result
     }
     #[cfg(test)]
+    #[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根，仅 s_capture_native_testonly 测试触达"))]
     pub(super) fn commit_in_request(
         &mut self,
         mut tx: Transaction<'_>,
@@ -1367,7 +1371,9 @@ pub(crate) mod tests {
     #[test]
     fn generic_business_store_keeps_legacy_owned_layout() {
         struct Before<'a, 'c> {
+            #[cfg_attr(test, allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根"))]
             inner: content_store::TxStore<'a, 'c>,
+            #[cfg_attr(test, allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根"))]
             budget: Option<sc::capture_allocation::OwnedBudget>,
         }
         assert_eq!(
