@@ -989,6 +989,13 @@ fn verify_local_metered(
 
 /// Offline recovery has no S or peer I/O. The frozen structure supplies identity;
 /// the caller supplies a consistent local node source and the same operation Job.
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "#1608：#1616 合入后非测试构建无调用方，现仅 economic_session 的闭包/恢复测试使用；去留见 #1635"
+    )
+)]
 pub(super) fn verify_evidence(
     structure: &Value,
     evidence: &Value,
