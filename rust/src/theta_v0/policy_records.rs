@@ -12,8 +12,8 @@
 //!
 //! ## 缺值行为（ADR 0041 裁定二推论、#799）
 //!
-//! 记录缺失 ⟹ [`PolicyError::RecordMissing`]；字段缺失、`value` 为 `null` 或 `"AwaitingPolicy"`
-//! ⟹ [`PolicyError::AwaitingPolicy`]；值非法 ⟹ [`PolicyError::Invalid`]。三者都是错误、
+//! 记录缺失 ⟹ [`PolicyError::RecordMissing`]；字段缺失、字段直写或 `value` 为 `null` /
+//! `"AwaitingPolicy"` ⟹ [`PolicyError::AwaitingPolicy`]；值非法 ⟹ [`PolicyError::Invalid`]。三者都是错误、
 //! 调用方必须停止；本模块**没有**备用值，也不回退到任何旧常数。
 
 use serde_json::Value;
@@ -67,7 +67,8 @@ impl std::fmt::Display for PolicyRef {
 pub enum PolicyError {
     /// 记录不存在（未提供记录文本）。
     RecordMissing { id: &'static str },
-    /// 字段未签：字段缺失，或 `value` 为 `null` / `"AwaitingPolicy"`。
+    /// 字段未签：字段缺失；字段直写为 `null` / `"AwaitingPolicy"`；或 `value` 缺失、为 `null` /
+    /// `"AwaitingPolicy"`。记录头 `version` 缺失或为 `null` 同判此类（`field = "version"`）。
     AwaitingPolicy { id: &'static str, field: String },
     /// 记录或字段值非法。
     Invalid {
@@ -373,6 +374,15 @@ mod tests {
             parse_tower_level_budget(Some(bare_unsigned)),
             Err(PolicyError::AwaitingPolicy { .. })
         ));
+        // #1653（#1603 尾审 LOW-1）：直写 `null` 独立负控——只删 `entry.is_null()` 分支会退成 Invalid。
+        let bare_null = r#"{"id":"tower-level-budget","version":1,"fields":{"l_max":null}}"#;
+        assert_eq!(
+            parse_tower_level_budget(Some(bare_null)),
+            Err(PolicyError::AwaitingPolicy {
+                id: TOWER_LEVEL_BUDGET_ID,
+                field: "l_max".into()
+            })
+        );
         let bare = r#"{"id":"tower-level-budget","version":1,"fields":{"l_max":6}}"#;
         assert!(matches!(
             parse_tower_level_budget(Some(bare)),

@@ -2478,9 +2478,9 @@ fn serve(
     }
     if meta_get_opt(&tx, "advance_state")?.as_deref() != Some("idle") {
         // #1576：历史规则库的 recover 必拒（VersionMismatch），不能再把运维指向它；闭门本身不放松。
-        let rule = meta_get_opt(&tx, "rule_revision")?.unwrap_or_default();
-        if rule != RULE_REVISION {
-            return Err(stale_begin_on_historical_rule(&rule, db));
+        let rule = meta_get_opt(&tx, "rule_revision")?;
+        if rule.as_deref() != Some(RULE_REVISION) {
+            return Err(stale_begin_on_historical_rule(rule.as_deref(), db));
         }
         return Err("StaleWriter：未完成Begin保持闭门，请监督器先正式recover".into());
     }
@@ -2517,9 +2517,14 @@ fn serve(
 
 /// #1576：历史规则库留有未完成 Begin 时 serve 的拒绝文案。recover 对历史规则只读库必拒，
 /// 故只给实际可走的路径：CLI 只读查看，或人工以当前规则新建代际（本协议无原库迁移入口）。
-fn stale_begin_on_historical_rule(rule: &str, db: &Path) -> String {
+/// `rule_revision` 键缺失时明示缺失，不显示空值（#1653，#1576 独审 INFO-3）。
+fn stale_begin_on_historical_rule(rule: Option<&str>, db: &Path) -> String {
+    let rule = match rule {
+        Some(r) => format!("rule_revision=`{r}`"),
+        None => "meta 缺 rule_revision 键".to_string(),
+    };
     format!(
-        "VersionMismatch：历史规则会话（rule_revision=`{rule}`，本二进制为 `{RULE_REVISION}`）留有未完成Begin，永久闭门：历史规则只读，recover 同样拒绝（不换代、不清未决Begin），本库不能再以 serve 提供服务。可走路径：①只读查看用 CLI `catalog`/`snapshot`/`meta --db {}`；②恢复服务须人工以当前规则走 v2 `init` 建新路径的库（`--db <新路径> --session --catalog --profile --session-generation <新代> --clock-plan --delivery-retain-generations` 缺一不可；不带后三者会建成 v1 库，serve 不收）并重新接纳原始输入——当前无旧库迁移入口（TB-10 #1368）",
+        "VersionMismatch：历史规则会话（{rule}，本二进制为 `{RULE_REVISION}`）留有未完成Begin，永久闭门：历史规则只读，recover 同样拒绝（不换代、不清未决Begin），本库不能再以 serve 提供服务。可走路径：①只读查看用 CLI `catalog`/`snapshot`/`meta --db {}`；②恢复服务须人工以当前规则走 v2 `init` 建新路径的库（`--db <新路径> --session --catalog --profile --session-generation <新代> --clock-plan --delivery-retain-generations` 缺一不可；不带后三者会建成 v1 库，serve 不收）并重新接纳原始输入——当前无旧库迁移入口（TB-10 #1368）",
         db.display()
     )
 }
@@ -3353,6 +3358,42 @@ mod tests {
             meta_get_opt(&conn, "advance_state").unwrap().as_deref(),
             Some("idle")
         );
+    }
+
+    /// #1653（#1576 独审 INFO-3）：`rule_revision` 键缺失时文案明示缺失，不显示空值；拒绝不放松。
+    #[test]
+    fn v2_serve_stale_begin_with_missing_rule_revision_says_missing() {
+        let f = Fixture::new(8, 2);
+        f.begin_only();
+        {
+            let writer = open_db(&f.db).unwrap();
+            writer
+                .execute("DELETE FROM meta WHERE key='rule_revision'", [])
+                .unwrap();
+        }
+        let socket = f.dir.join("s.sock");
+        let bounds = Bounds {
+            frame: 65536,
+            read: Duration::from_millis(1000),
+            write: Duration::from_millis(1000),
+            response: Duration::from_millis(1000),
+            cache_bytes: 0,
+            queue: 4,
+            connections: 4,
+        };
+        let msg = serve(
+            &f.db,
+            &socket,
+            &f.profile,
+            "1",
+            &f.dir.join("clock.json"),
+            bounds,
+        )
+        .unwrap_err();
+        assert!(msg.starts_with("VersionMismatch："), "{msg}");
+        assert!(msg.contains("meta 缺 rule_revision 键"), "{msg}");
+        assert!(!msg.contains("rule_revision=``"), "{msg}");
+        assert!(!socket.exists(), "拒绝须发生在绑定 socket 之前");
     }
 
     #[test]
