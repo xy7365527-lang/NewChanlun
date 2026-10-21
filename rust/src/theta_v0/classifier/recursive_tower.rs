@@ -338,6 +338,7 @@ impl LeveledMove {
 /// `build`：中枢构造函数（L0=完整判据 `center_from_segments`；上级=几何 `center_from_window`）。
 /// 返回 `Vec<(Center, (usize, usize))>`：每个中枢 + 构成它的单元闭区间 `[start, end]`（seed 三段 +
 /// 延伸段，`end - start + 1 >= 3`）。
+#[cfg(test)]
 fn detect_centers_windowed(
     units: &[UnitRange],
     build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center>,
@@ -406,7 +407,7 @@ pub fn compose_level(
     let upper: Vec<LeveledMove> = windowed
         .iter()
         .enumerate()
-        .map(|(i, (c, win))| {
+        .map(|(i, (_c, win))| {
             // ★task#40 fix A：win 是连续闭区间 ⟹ 直接借用连续切片，无临时数组 clone。
             // ★task#142：窗口变长（seed 三段 + 延伸段），subs = 中枢吸收的全部次级别走势。
             let subs = &subs_moves[win.0..=win.1];
@@ -673,7 +674,7 @@ pub fn compose_level_resume(
         windowed
             .iter()
             .enumerate()
-            .map(|(i, (c, win))| {
+            .map(|(i, (_c, win))| {
                 // win 是连续闭区间（seed 三段 + 延伸段，task #142）——直接借用切片，不 clone 临时数组。
                 let subs = &subs_moves[win.0..=win.1];
                 // ★确定性 ID：tail ordinal 接续前缀（全量/增量产同 ID）。

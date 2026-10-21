@@ -579,6 +579,10 @@ pub mod overlay;
 // #1394 有界键比较局部原型。此类型不提供 Vec 逃逸或隐式 clone。
 pub(crate) mod body;
 impl CaptureSlab {
+    #[allow(
+        dead_code,
+        reason = "#1608：#1394 有界键比较局部原型的正文复制入口，原型尚无调用方"
+    )]
     pub(super) fn copy_body(&self, bytes: &[u8]) -> Result<body::MeteredBody, CodecError> {
         body::MeteredBody::copy_from(bytes, &self.body.budget)
     }

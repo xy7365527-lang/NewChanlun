@@ -116,6 +116,10 @@ impl Lane {
 
     /// 最近一次推进结果（稳定前缀长度 / 追加数 / 是否重放 / 最早受影响坐标）。
     #[cfg(test)]
+    #[allow(
+        dead_code,
+        reason = "#1608：推进结果诊断读数，现无测试断言调用；保留供诊断"
+    )]
     pub(super) fn last_outcome(&self) -> AdvanceOutcome {
         self.last
     }
@@ -380,6 +384,7 @@ impl<'a> RawBars<'a> {
 pub(super) struct ParserChanges {
     pub old_steps: usize,
     pub new_steps: usize,
+    #[allow(dead_code, reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删")]
     pub old_groups: usize,
     pub new_groups: usize,
     pub group_dirty_from: Option<usize>,
@@ -412,6 +417,7 @@ impl DeltaLane {
         })
     }
 
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     pub(super) fn state(&self) -> &IncrFactsState {
         &self.state
     }
@@ -471,6 +477,7 @@ impl DeltaLane {
     /// parse 只收到 owner 提供的最终新 winner；旧 bars 直接借本车道，不重新解码/建 fps。
     /// 调用即永久撤销此实例的 owner 资格；历史须通过新建车道从原件重新解析。
     /// 任一错误丢弃 pending 车道的资格，调用者必须丢弃整个实例，不能失败后转旧 advance。
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     pub(super) fn advance_bound(
         &mut self,
         bound: &crate::v3::audit_owner::BoundRawAdvance<'_>,

@@ -860,6 +860,7 @@ fn load_batch_with(
     Ok((root.bytes, root.value, root.root_cert))
 }
 
+#[allow(dead_code, reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删")]
 fn parse_batch_value(
     bytes: &[u8],
     batch_id: &str,
@@ -871,6 +872,7 @@ fn parse_batch_value_admitted(
     batch_id: &str,
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
 ) -> Result<crate::v3::native_shared::NativeArc<SharedPlainJson>, String> {
+    #[allow(unused_imports, reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删")]
     use v3::audit_store::{CodecRead, NativeAdmission};
     let parsed = v3::business_json::strict_json_owner_admitted(bytes, None, work)
         .map(|parsed| match parsed {

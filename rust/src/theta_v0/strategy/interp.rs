@@ -449,10 +449,12 @@ pub struct TreeKey(Vec<(u32, u32, u64, usize, usize, u8, i64, i64, usize)>);
 
 impl TreeKey {
     /// 指纹长度（诊断用：≈tree 节点数，量化 `of` 的 O(tree) 工作量标度）。
+    #[cfg(test)]
     pub(crate) fn fp_len(&self) -> usize {
         self.0.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn of(tower: &[Rc<Vec<LeveledMove>>]) -> TreeKey {
         for lvl in tower.iter().rev() {
             if !lvl.is_empty() {

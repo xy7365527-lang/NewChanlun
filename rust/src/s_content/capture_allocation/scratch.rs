@@ -226,7 +226,7 @@ impl ScratchHandle {
             let _ = self
                 .core()
                 .failure
-                .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+                .try_update(Ordering::AcqRel, Ordering::Acquire, |n| {
                     (n != SEMANTIC_FAILURE).then_some(failure as usize)
                 });
         } else {
@@ -298,7 +298,7 @@ impl ScratchHandle {
             return Err(ScratchFailure::Ledger);
         }
         if c.live
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |n| {
                 n.checked_add(bytes).filter(|n| *n <= c.limit)
             })
             .is_err()
@@ -312,7 +312,7 @@ impl ScratchHandle {
         c.peak
             .fetch_max(c.live.load(Ordering::Acquire), Ordering::Relaxed);
         if c.attempts
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_add(1))
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_add(1))
             .is_err()
         {
             self.fail(ScratchFailure::Ledger);
@@ -327,7 +327,7 @@ impl ScratchHandle {
         }
         let c = self.core();
         if c.live
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |n| {
                 n.checked_sub(layout.size())
             })
             .is_err()

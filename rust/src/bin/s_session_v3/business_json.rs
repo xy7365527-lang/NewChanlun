@@ -3,6 +3,7 @@ use super::audit_store::{CodecRead, NativeAdmission, NativeTree};
 use super::*;
 use aj::{ArrayIter, ArrayView, JsonView};
 use newchan_rust::s_content as sc;
+#[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(unused_imports, reason = "#1488 再合 #1608：native 非测试、s_session 非测试、s_session 测试 构建不触达"))]
 use newchan_rust::sqlite_checked::{CheckedRow, CheckedStatement};
 use sc::capture_allocation::native_owned::NativeValue;
 use sc::capture_allocation::scratch::{NativeReservation, WorkScope};
@@ -53,6 +54,7 @@ impl RawEvents {
             }
         }
     }
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"))]
     pub(crate) fn push_native(
         &mut self,
         value: JsonView<'_>,
@@ -81,12 +83,17 @@ impl RawEvents {
     pub fn len(&self) -> usize {
         self.view().len()
     }
+    #[cfg(test)]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
     pub fn iter(&self) -> RawIter<'_> {
         self.view().iter()
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub fn plain(&self) -> Result<&[Value], String> {
         match self {
             Self::Plain(v) => Ok(v),
@@ -118,6 +125,10 @@ impl std::fmt::Debug for RawEvents {
 #[derive(Clone, Copy)]
 enum RawStorage<'a> {
     Plain(&'a [Value]),
+    #[cfg_attr(
+        not(feature = "s_allocation_json_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 下使用")
+    )]
     Arena(ArrayView<'a>),
     Borrowed(&'a [JsonView<'a>]),
 }
@@ -138,6 +149,7 @@ impl<'a> RawEventsView<'a> {
     pub fn len(self) -> usize {
         self.len
     }
+    #[allow(dead_code, reason = "#1608：类型配套访问器，当前无调用方；保留不删")]
     pub fn is_empty(self) -> bool {
         self.len == 0
     }
@@ -260,7 +272,7 @@ pub(crate) fn new_work<T>(b: Option<&OwnedBudget>) -> sc::CodecVec<T> {
     let _ = b;
     sc::CodecVec::from_plain(Vec::new())
 }
-pub(crate) use aj::{BusinessIter, BusinessMap};
+pub(crate) use aj::BusinessMap;
 pub(crate) fn new_map<K: Eq + std::hash::Hash, V>(b: Option<&OwnedBudget>) -> BusinessMap<K, V> {
     #[cfg(feature = "s_allocation_json_testonly")]
     if let Some(b) = b {
@@ -272,6 +284,10 @@ pub(crate) fn new_map<K: Eq + std::hash::Hash, V>(b: Option<&OwnedBudget>) -> Bu
 fn workmap<K: Eq + std::hash::Hash, V>(b: Option<&OwnedBudget>) -> BusinessMap<K, V> {
     new_map(b)
 }
+#[cfg_attr(
+    not(all(test, feature = "s_allocation_json_testonly")),
+    allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用")
+)]
 pub(crate) fn bytes_extend(bytes: &mut sc::CodecVec<u8>, value: &[u8]) -> Result<(), String> {
     bytes.try_extend_bytes(value).map_err(|e| e.to_string())
 }
@@ -287,12 +303,14 @@ impl<'a> Effective<'a> {
             budget: self.budget,
         }
     }
+    #[allow(dead_code, reason = "#1608：类型配套访问器，当前无调用方；保留不删")]
     pub fn len(&self) -> usize {
         self.values.len()
     }
     pub fn iter(&self) -> impl Iterator<Item = JsonView<'a>> + '_ {
         self.values.iter().copied()
     }
+    #[allow(dead_code, reason = "#1608：类型配套访问器，当前无调用方；保留不删")]
     pub fn view(&self) -> JsonView<'_> {
         JsonView::ArraySlice(&self.values)
     }
@@ -381,6 +399,10 @@ impl Default for RawPrefixFacts {
     }
 }
 impl RawPrefixFacts {
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn prefix_len(&self) -> usize {
         self.prefix
     }
@@ -412,6 +434,7 @@ pub(super) struct RawPrefixChanges {
     pub added: sc::CodecVec<(i64, usize)>,
     /// 按 identity 排序，每个 identity 只含最终赢家；消费时先撤全部 old 再加全部 new。
     pub winner_edits: sc::CodecVec<RawWinnerEdit>,
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     pub raw_visits: usize,
     pub coord_decodes: usize,
     pub rewound: bool,
@@ -452,6 +475,10 @@ impl<'raw> RawPrefixIndex<'raw> {
             retained: Default::default(),
         }
     }
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     pub(super) fn restore(
         raw: RawEventsView<'raw>,
         facts: RawPrefixFacts,
@@ -502,6 +529,10 @@ impl<'raw> RawPrefixIndex<'raw> {
         }
     }
 
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn is_empty(&self) -> bool {
         self.winners.is_empty()
     }
@@ -509,6 +540,13 @@ impl<'raw> RawPrefixIndex<'raw> {
         self.ordered.iter().map(|(c, i)| (*c, *i))
     }
     #[cfg(test)]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     pub(super) fn retained_slots(&self) -> [usize; 3] {
         // HashMap 实际 capacity；BTreeMap 只报条目，不冒充节点布局/allocator开销。
         [
@@ -522,6 +560,10 @@ impl<'raw> RawPrefixIndex<'raw> {
         self.clear_winners();
         self.facts.coordinates.retain(|_, _| false);
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn advance(&mut self, prefix: usize) -> Result<RawPrefixChanges, String> {
         self.advance_admitted(prefix, &super::audit_store::NativeAdmission(None))
     }
@@ -786,6 +828,10 @@ pub(super) fn validate_raw_coordinate(
     Ok(())
 }
 /// cold 与 owner 增量账共用：seq/修订前件由同一已核索引提供，内容谓词不另写一份。
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+)]
 pub(super) fn validate_raw_row(
     event: JsonView<'_>,
     expected_seq: usize,
@@ -794,6 +840,10 @@ pub(super) fn validate_raw_row(
 ) -> Result<(), String> {
     validate_raw_row_core(event, expected_seq, previous, budget, None)
 }
+#[cfg_attr(
+    not(all(test, feature = "s_capture_native_testonly")),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+)]
 pub(crate) fn validate_raw_row_admitted(
     event: JsonView<'_>,
     expected_seq: usize,
@@ -1215,6 +1265,7 @@ impl aj::JsonArray for ReferenceArray<'_> {
         self.0.get(index).map(RawReference::view)
     }
 }
+#[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
 pub(crate) struct ValuesArray<'a>(pub &'a [Value]);
 impl aj::JsonArray for ValuesArray<'_> {
     fn len(&self) -> usize {
@@ -1243,6 +1294,7 @@ impl serde::Serialize for RawReference<'_> {
 /// 新业务返回文本的入口存储选择。Owned实际字节持续持账；Clone只开放fallible深复制。
 pub(crate) enum TextValue {
     Plain(NativeValue<String>),
+    #[allow(dead_code, reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删")]
     Owned(aj::TextOwner),
 }
 impl TextValue {
@@ -1389,6 +1441,7 @@ impl TextValue {
         let value = row.text(i).map_err(|e| e.to_string())?;
         Self::from_str(value, b)
     }
+    #[allow(dead_code, reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删")]
     pub fn optional_sql(
         row: &mut CheckedRow<'_>,
         i: usize,
@@ -1524,6 +1577,7 @@ impl PlainJson {
             child_permits: sc::CodecVec::default(),
         }
     }
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"))]
     pub(crate) fn with_reservation(mut self, permit: Option<NativeReservation>) -> Self {
         assert!(self.permit.is_none());
         self.permit = permit;
@@ -1749,6 +1803,7 @@ impl<'work> ScopedJsonArray<'work> {
         let Some(work) = self.work else {
             return self.owner.push(value);
         };
+        #[allow(irrefutable_let_patterns, reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删")]
         let JsonOwner::Plain(parent) = &mut self.owner else {
             return Err(work
                 .reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)
@@ -1822,6 +1877,7 @@ fn push_native_array(
         None
     };
     let child = json_from_view_admitted(&NativeAdmission(Some(work)), value)?;
+    #[allow(irrefutable_let_patterns, reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删")]
     let JsonOwner::Plain(mut child) = child else {
         return Err(work
             .reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)
@@ -2454,6 +2510,7 @@ pub(crate) fn strict_json_owner_admitted(
 ) -> Result<JsonOwner, StrictOwnerError> {
     let permit = admit_json_parse(bytes, owner, work).map_err(StrictOwnerError::Allocation)?;
     let mut parsed = strict_json_owner(bytes, owner)?;
+    #[allow(irrefutable_let_patterns, reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删")]
     if let JsonOwner::Plain(value) = &mut parsed {
         value.permit = permit;
     }
@@ -2551,6 +2608,7 @@ impl StrictOwnerSeed {
                     .push(child.into_unscoped().map_err(E::custom)?);
                 Ok(())
             }
+            #[allow(unreachable_patterns, reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删")]
             _ => Err(E::custom("Q owner representation mismatch")),
         }
     }
@@ -2570,6 +2628,7 @@ impl StrictOwnerSeed {
                     .insert(key, child.into_unscoped().map_err(E::custom)?);
                 Ok(())
             }
+            #[allow(unreachable_patterns, reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删")]
             _ => Err(E::custom("Q owner representation mismatch")),
         }
     }
@@ -2651,6 +2710,13 @@ impl<'de> serde::de::Visitor<'de> for StrictKeySeed {
 }
 
 #[cfg(test)]
+#[cfg_attr(
+    not(feature = "s_allocation_json_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：测试辅助，仅 s_allocation_json_testonly 测试使用"
+    )
+)]
 pub(crate) fn strict_owner_protocol_matrix() -> Vec<Vec<u8>> {
     let mut cases: Vec<Vec<u8>> = [
         r#"{"x":1,"x":2}"#,

@@ -29,45 +29,53 @@ use super::super::closed_loop::state::{AssemblyState, ChongAssembly, MicroEvent}
 use super::super::closed_loop::transition::{hybrid_step, AssemblyEvent};
 use super::super::config::ThetaConfig;
 use super::super::strategy::chong::{ChongBook, ChongKey};
-use super::super::strategy::ledger::{RiskPolicy, TwState};
-use super::super::types::{Bar, Order, StrictAction};
+use super::super::strategy::ledger::RiskPolicy;
+use super::super::types::Bar;
+#[cfg(test)]
+use super::super::types::{Order, StrictAction};
+#[cfg(test)]
 use super::super::{classifier, parser};
 use super::data::Dataset;
-pub(crate) use super::fill::{apply_order, FillOutcome};
-use super::fill::{bar_returns, simulate_fills};
-pub(super) use super::ledger::TwLedgerThread;
-pub(super) use super::ledger::{track_position_transition, LedgerOpen, OpsemEntrySnapshot};
+#[cfg(test)]
+pub(crate) use super::fill::apply_order;
+#[cfg(test)]
+use super::fill::simulate_fills;
+pub(super) use super::ledger::LedgerOpen;
+#[cfg(test)]
+pub(super) use super::ledger::{track_position_transition, OpsemEntrySnapshot};
 pub use super::ledger::{TypedTrade, VoiceVerdictRec, TYPED_TRADE_SCHEMA_VERSION};
 use super::metrics::{self, Metrics};
 pub use super::opsem_dump::{StrictNestCertificateRecord, StrictNestSidecarSummary};
-use super::signal::{entry_structural_stop, newly_confirmed_step};
+#[cfg(test)]
 use std::rc::Rc;
 // ★B-M3b-contract（#91）fill loop seam：fill loop 本体 + FillOutput(Family)
 // 自 runner.rs 纯移动；对外经 `pub use` 门面保持原路径。
-pub(super) use super::fill::{apply_voice_fill, pi_theta_fill_loop, pi_theta_fill_loop_overlay};
+#[cfg(test)]
+pub(super) use super::fill::apply_voice_fill;
+pub(super) use super::fill::{pi_theta_fill_loop, pi_theta_fill_loop_overlay};
 // ★#295：声部独立执行臂 wrapper 本体在 fill.rs 即 #[cfg(test)]（生产接入走
 // run_theta_v0_pi_overlay 的 VOICE_EXEC=1 gate 直调 pi_theta_fill_loop_overlay）——
 // re-export 同门控，bin（非 test）构建不引 test-only 符号。
 #[cfg(test)]
 pub(super) use super::fill::pi_theta_fill_loop_voice;
 pub(crate) use super::opsem_dump::OtherwiseDomainSidecarSummary;
-use super::opsem_dump::{
-    eta_bucket_str, force_state_str, operation_role_str, risk_mode_str,
-    strict_nest_sidecar_enabled, summarize_strict_nest_certificates, t_stage_str, voice_side_str,
-    OpsemDump, StrictNestSidecarCollector,
-};
 use super::opsem_dump::{otherwise_domain_sidecar_enabled, OtherwiseDomainSidecarCollector};
+use super::opsem_dump::{strict_nest_sidecar_enabled, StrictNestSidecarCollector};
+#[cfg(test)]
+use super::opsem_dump::{summarize_strict_nest_certificates, OpsemDump};
 // ★#295：OPSEM_DUMP_DIR_OVERRIDE 为 #[cfg(test)] thread_local 注入点（opsem_dump.rs:180，
 // 消费面仅 tests::opsem_dump_env_gated_bit_exact）——import 同门控，同 VOICE_EXEC_OVERRIDE 惯例。
 #[cfg(test)]
 use super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE;
 // ★B-M2（#89）准入门 seam：χ/nest/k_Θ 三门 + κ 解析自 runner.rs 纯移动。
+use super::admission::voice_exec_gate;
+#[cfg(test)]
 use super::admission::{
-    k_theta_risk_gate, kappa_policy_resolved, kappa_priority_resolve, nest_cert_gate_enabled,
-    nest_gate_admit, voice_exec_gate, LevelFingerprint, NestChainGate, NestGateObs, NestGateStats,
+    k_theta_risk_gate, kappa_priority_resolve, nest_gate_admit, NestChainGate, NestGateStats,
 };
 // T3 (#172) 链类型（测试与并门派生消费）。
 pub use super::admission::ChiFilterCtx;
+#[cfg(test)]
 use super::admission::{ChainGapKind, ChainLevelStatus, ChainVerdict};
 // 测试经原路径访问 thread_local override（admission 内 pub(super) 可见）。
 #[cfg(test)]
@@ -170,6 +178,10 @@ pub struct RunResult {
     /// D4（#606 S1）：37:18 否则域亚型记录 sidecar 汇总。默认 `None`；仅
     /// `THETA_OTHERWISE_DOMAIN_SIDECAR=1/true/yes/on` 时在生产 π 重放同帧旁路产出（同
     /// `strict_nest_sidecar` 先例，观测面，不参与订单、候选、风控、账本、任何 bit 判据）。
+    #[cfg_attr(
+        not(test),
+        allow(dead_code, reason = "#1608：S1 otherwise 域旁路汇总，仅测试读取")
+    )]
     pub(crate) otherwise_domain_sidecar: Option<OtherwiseDomainSidecarSummary>,
 }
 
@@ -723,6 +735,7 @@ pub fn run_theta_v0_pi_overlay(
 ///
 /// nav 口径与 L3 harness 同（首可交易价×1000，下限 1e6）——腿级生命周期事件（interpret/
 /// AncOK）不依赖 nav 绝对值；nav 只进 base_units/风控门（equity>0 常态下门全开）。
+#[cfg(test)]
 pub(super) fn typed_ledger_from_bars(bars: &[Bar], config: &ThetaConfig) -> Vec<TypedTrade> {
     let first_px = bars
         .iter()

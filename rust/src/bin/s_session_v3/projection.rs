@@ -6,9 +6,9 @@ use super::*;
 use newchan_rust::s_content::access::Access;
 #[cfg(test)]
 use newchan_rust::s_content::job::Job;
-use newchan_rust::s_content::{
-    self as sc, ContentRef, Kind, NodeDigest, NodeRead, NodeSink, NodeSource,
-};
+#[cfg(test)]
+use newchan_rust::s_content::ContentRef;
+use newchan_rust::s_content::{self as sc, Kind, NodeDigest, NodeRead, NodeSink, NodeSource};
 use newchan_rust::session_protocol::parse_canonical_i64;
 use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::Transaction;
@@ -50,6 +50,7 @@ impl Projection {
             reference: TransportView::new(self.root.view()),
         }
     }
+    #[cfg(test)]
     pub(super) fn anchor_with_budget(
         &self,
         allocation: Option<&OwnedBudget>,
@@ -63,6 +64,7 @@ impl Projection {
         bj::json_from_view(self.anchor_view().view(), allocation)
     }
     /// 旧Value接口只属于实际None构造；Owned调用必须使用anchor_with_budget或借用anchor_view。
+    #[cfg(test)]
     pub(super) fn anchor(&self) -> Value {
         match self
             .anchor_with_budget(None)
@@ -447,7 +449,6 @@ enum OrderPart {
 struct PublicKey(sc::CodecVec<TextValue>);
 impl std::hash::Hash for PublicKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        use std::hash::Hash;
         self.0.len().hash(state);
         for value in &self.0 {
             value.hash(state);

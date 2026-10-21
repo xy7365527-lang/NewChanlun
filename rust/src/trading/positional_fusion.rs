@@ -1503,30 +1503,29 @@ pub(crate) fn run_fusion(
                 } => {
                     res.short_held_bars_by_ladder[k] += 1;
                     let equity_k = margin + units * (entry_price - c);
-                    let mut cover =
-                        |exit_price: f64,
-                         exit_reason: &'static str,
-                         pool: &mut f64,
-                         res: &mut PositionalResult| {
-                            // 1x 逐仓：损失上界 = margin（强平价记账 ⇒ 现金
-                            // 流出恰为全部 margin，逐 trade 重建零渗漏）。
-                            *pool += margin + units * (entry_price - exit_price);
-                            res.short_net_cash_by_ladder[k] += units * (entry_price - exit_price);
-                            res.trades.push(LayerTrade {
-                                ladder: k as u8,
-                                entry_bar,
-                                entry_price,
-                                exit_bar: i as i64,
-                                exit_price,
-                                shares: units,
-                                weight_at_entry: weight,
-                                deferred_bars: 0,
-                                partial: false,
-                                exit_reason,
-                                polarity: Polarity::Short,
-                            });
-                            res.n_exits_by_ladder[k] += 1;
-                        };
+                    let cover = |exit_price: f64,
+                                 exit_reason: &'static str,
+                                 pool: &mut f64,
+                                 res: &mut PositionalResult| {
+                        // 1x 逐仓：损失上界 = margin（强平价记账 ⇒ 现金
+                        // 流出恰为全部 margin，逐 trade 重建零渗漏）。
+                        *pool += margin + units * (entry_price - exit_price);
+                        res.short_net_cash_by_ladder[k] += units * (entry_price - exit_price);
+                        res.trades.push(LayerTrade {
+                            ladder: k as u8,
+                            entry_bar,
+                            entry_price,
+                            exit_bar: i as i64,
+                            exit_price,
+                            shares: units,
+                            weight_at_entry: weight,
+                            deferred_bars: 0,
+                            partial: false,
+                            exit_reason,
+                            polarity: Polarity::Short,
+                        });
+                        res.n_exits_by_ladder[k] += 1;
+                    };
                     if equity_k <= 0.0 {
                         // 虚拟逐仓强平：1x 解析强平价 = 2×entry_price
                         // （margin = units×entry_price 的 equity=0 解）。

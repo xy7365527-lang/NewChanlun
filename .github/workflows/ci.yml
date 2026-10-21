@@ -175,7 +175,12 @@ jobs:
 
       - uses: ./.github/actions/rust-job-setup
 
+      # #1608：告警清零后防回潮——三档 cargo check 以 -D warnings 运行，任何新告警即红。
+      #   依赖由 cargo 以 --cap-lints 处理，不受影响。工具链未钉死：stable 新增 lint 也会在此暴露，
+      #   届时按真信号修，不得回退为整体 allow。
       - name: cargo check — default targets（required-features 未启用的 bin 不在内）
+        env:
+          RUSTFLAGS: "-D warnings"
         run: |
           set -x
           free -b
@@ -187,12 +192,27 @@ jobs:
           du -sx -B1 target 2>/dev/null || true
 
       - name: cargo check — backtest_bin feature（#438：闭合 required-features 盲区）
+        env:
+          RUSTFLAGS: "-D warnings"
         run: |
           set -x
           free -b
           df -B1 -T .
           du -sx -B1 target 2>/dev/null || true
           cargo check --all-targets --features backtest_bin
+          free -b
+          df -B1 -T .
+          du -sx -B1 target 2>/dev/null || true
+
+      - name: cargo check — s_session feature（#1608：S 会话面告警此前只在 test 步骤编译、不设门）
+        env:
+          RUSTFLAGS: "-D warnings"
+        run: |
+          set -x
+          free -b
+          df -B1 -T .
+          du -sx -B1 target 2>/dev/null || true
+          cargo check --all-targets --features s_session
           free -b
           df -B1 -T .
           du -sx -B1 target 2>/dev/null || true
@@ -333,6 +353,12 @@ jobs:
       #   #1588：该用例同时在 S bin 分片里执行（拆前即两处执行），本步保留其独立可见的信号。
       - name: cargo test — TB-02-C member source binding
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --bin s_structure_session tb02c_member_relations_bind_only_the_member_sources --jobs 1
+
+      # #1608：#1394 的两个编译负例只在 --cfg 下编译；此处断言它们仍被类型边界拒绝（E0308 落在负例块内）。
+      #   放在 TB-02-C 单测之后复用已编好的 s_session 依赖；负例在类型检查阶段即失败，不做代码生成。
+      - name: 编译负例 — #1394 类型边界仍拒绝旧写法（#1608）
+        if: ${{ !cancelled() }}
+        run: ../.github/scripts/check-compile-negatives-1394.sh
 
       # #1394 C：内容编码在 s_session feature 下供多个 owner 共用；只测 S bin 不会执行库测试。
       - name: cargo test — 完整内容编码与共享图校验（#1394）

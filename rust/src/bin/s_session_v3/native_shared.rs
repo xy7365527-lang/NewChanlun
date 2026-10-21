@@ -87,12 +87,14 @@ macro_rules! shared_family {
             value: $ptr<T>,
             lease: $lease,
         }
+        #[cfg_attr(all(not(test), not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1488 再合 #1608：s_session 非测试 构建不触达"))]
         pub(crate) struct $weak<T: ?Sized> {
             value: $weak_ptr<T>,
             lease: $lease,
         }
         impl<T> $strong<T> {
             /// 原无工作域入口；Native消费者使用try_new_shallow并显式传当前scope。
+            #[allow(dead_code, reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删")]
             pub(crate) fn new(value: T) -> Self {
                 Self::try_new_shallow(value, None).expect("unscoped shared layout")
             }
@@ -110,6 +112,7 @@ macro_rules! shared_family {
             }
         }
         impl<T> $strong<T> {
+            #[allow(dead_code, reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删")]
             pub(crate) fn try_unwrap(this: Self) -> Result<T, Self> {
                 let Self { value, lease } = this;
                 match $ptr::try_unwrap(value) {
@@ -122,6 +125,7 @@ macro_rules! shared_family {
             }
         }
         impl<T: ?Sized> $strong<T> {
+            #[cfg_attr(all(not(test), not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1488 再合 #1608：s_session 非测试 构建不触达"))]
             pub(crate) fn downgrade(this: &Self) -> $weak<T> {
                 $weak {
                     value: $ptr::downgrade(&this.value),
@@ -132,19 +136,23 @@ macro_rules! shared_family {
                 $ptr::ptr_eq(&this.value, &other.value)
             }
             /// 仅作身份比较用的地址；不暴露可解引用的原始句柄。
+            #[allow(dead_code, reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删")]
             pub(crate) fn as_ptr(this: &Self) -> *const T {
                 $ptr::as_ptr(&this.value)
             }
             /// 保留标准库“唯一强且无弱”的条件，不按 lease 数量推断唯一性。
             /// 调用方仅能通过受准入字段操作改变动态内容；不提供 DerefMut/make_mut。
+            #[cfg_attr(all(not(test), not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1488 再合 #1608：s_session 非测试 构建不触达"))]
             pub(crate) fn get_mut(this: &mut Self) -> Option<&mut T> {
                 $ptr::get_mut(&mut this.value)
             }
+            #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
             pub(crate) fn is_native_admitted(&self) -> bool {
                 self.lease.0.is_some()
             }
             /// 共享块的结构预算；不含 T 动态子分配，不是退款额度或 RSS 读数。
             /// 按归属统计时每个拥有者可保守全计，不能据此重复签发父账许可。
+            #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"))]
             pub(crate) fn allocation_bytes(&self) -> usize {
                 let payload = Layout::for_value(self.value.as_ref());
                 if self.lease.0.is_some() {
@@ -205,6 +213,7 @@ macro_rules! shared_family {
             }
         }
         impl<T> $weak<T> {
+            #[cfg_attr(all(not(test), not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1488 再合 #1608：s_session 非测试 构建不触达"))]
             pub(crate) fn new() -> Self {
                 Self {
                     value: $weak_ptr::new(),
@@ -218,16 +227,19 @@ macro_rules! shared_family {
             }
         }
         impl<T: ?Sized> $weak<T> {
+            #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
             pub(crate) fn upgrade(&self) -> Option<$strong<T>> {
                 self.value.upgrade().map(|value| $strong {
                     value,
                     lease: self.lease.clone(),
                 })
             }
+            #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
             pub(crate) fn ptr_eq(this: &Self, other: &Self) -> bool {
                 $weak_ptr::ptr_eq(&this.value, &other.value)
             }
             /// 仅作身份比较用的地址；与强句柄 as_ptr 同址。
+            #[allow(dead_code, reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删")]
             pub(crate) fn as_ptr(&self) -> *const T {
                 self.value.as_ptr()
             }
@@ -255,6 +267,7 @@ shared_family!(NativeArc, NativeWeakArc, Arc, ArcWeak, ArcLease);
 macro_rules! slice_copy {
     ($strong:ident, $ptr:ident, $lease:ident, $element:ty) => {
         impl $strong<[$element]> {
+            #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
             pub(crate) fn try_copy_slice(
                 values: &[$element],
                 work: Option<&WorkScope>,

@@ -46,8 +46,7 @@ use super::{
     digest_at, frame, framed_len, header_extent, is_sequence_tag, length_overflow_error,
     root_string, sequence_shape_error, split_index, tag, unsupported_value_tag_error,
     write_string_node, CodecContext, CodecError, CodecFields, ContentRef, Kind, LeafIter,
-    NodeDigest, NodeSource, NodeStore, VerifierBody, WorkVec, CHUNK_BYTES, CONTENT_FORMAT,
-    MAX_FRAME_LEN,
+    NodeDigest, NodeSource, NodeStore, VerifierBody, WorkVec, CHUNK_BYTES, MAX_FRAME_LEN,
 };
 use super::{OwnedRefFields, RefOwner, RefView};
 use std::cmp::Ordering;
@@ -720,12 +719,6 @@ fn cmp_field_key(
 }
 
 /// 片段读取共用的序列头检查；不把未读取的子图当作已完整验证。
-pub(super) fn check_range_root_ctx(
-    source: &mut CodecContext<'_, '_>,
-    reference: &ContentRef,
-) -> Result<(), CodecError> {
-    check_range_root_view_ctx(source, reference.into())
-}
 pub(super) fn check_range_root_view_ctx(
     source: &mut CodecContext<'_, '_>,
     reference: RefView<'_>,
@@ -753,13 +746,6 @@ pub(super) fn check_range_root_view_ctx(
 }
 
 /// 按原规范序列位置定位对象键；调用方须有界展开键，值仍按完整路径核上下文。
-pub(super) fn object_key_at_ctx(
-    source: &mut CodecContext<'_, '_>,
-    reference: &ContentRef,
-    index: u64,
-) -> Result<ContentRef, CodecError> {
-    object_key_at_view_ctx(source, reference.into(), index)
-}
 pub(super) fn object_key_at_view_ctx<R: RefOutput>(
     source: &mut CodecContext<'_, '_>,
     reference: RefView<'_>,
@@ -801,14 +787,6 @@ pub(super) fn object_key_at_view_ctx<R: RefOutput>(
 }
 
 /// 只读取覆盖所求区间的规范字节块；不会线性扫描 offset 之前的叶。
-pub(super) fn bytes_between_ctx(
-    source: &mut CodecContext<'_, '_>,
-    reference: &ContentRef,
-    offset: u64,
-    end: u64,
-) -> Result<WorkVec<u8>, CodecError> {
-    bytes_between_view_ctx(source, reference.into(), offset, end)
-}
 pub(super) fn bytes_between_view_ctx(
     source: &mut CodecContext<'_, '_>,
     reference: RefView<'_>,
@@ -985,14 +963,6 @@ struct Descent<'capture> {
 }
 
 /// 沿 path 下行。`forbid_json_text` 为真时（替换）当场拒绝 json_text 步骤。
-fn navigate<'capture>(
-    source: &mut CodecContext<'_, 'capture>,
-    reference: &ContentRef,
-    path: &[PathStep],
-    forbid_json_text: bool,
-) -> Result<Descent<'capture>, CodecError> {
-    navigate_view(source, reference.into(), path, forbid_json_text)
-}
 fn navigate_view<'capture>(
     source: &mut CodecContext<'_, 'capture>,
     reference: RefView<'_>,
@@ -1754,24 +1724,6 @@ pub fn replace_batch_placeholder(
     b: &str,
 ) -> Result<ContentRef, CodecError> {
     replace_batch_placeholder_ctx(&mut CodecContext::Store(s), r, p, b)
-}
-pub(super) fn check_range_root(s: &mut dyn NodeSource, r: &ContentRef) -> Result<(), CodecError> {
-    check_range_root_ctx(&mut CodecContext::Source(s), r)
-}
-pub(super) fn object_key_at(
-    s: &mut dyn NodeSource,
-    r: &ContentRef,
-    i: u64,
-) -> Result<ContentRef, CodecError> {
-    object_key_at_ctx(&mut CodecContext::Source(s), r, i)
-}
-pub(super) fn bytes_between(
-    s: &mut dyn NodeSource,
-    r: &ContentRef,
-    o: u64,
-    e: u64,
-) -> Result<Vec<u8>, CodecError> {
-    bytes_between_ctx(&mut CodecContext::Source(s), r, o, e)?.into_plain()
 }
 
 /// Root node role/header kernel, also used by content_ref_ctx through the worker's adapter.

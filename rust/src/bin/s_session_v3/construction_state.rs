@@ -24,9 +24,11 @@ pub(crate) struct RawAdvanceBinding {
     step: u64,
 }
 impl RawAdvanceBinding {
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"))]
     pub(super) fn owner_life(self) -> u64 {
         self.domain.life
     }
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"))]
     pub(crate) fn domain(self) -> RawDomain {
         self.domain
     }
@@ -180,6 +182,7 @@ impl<'raw> BoundRawAdvance<'raw> {
     pub(crate) fn winner_edits(&self) -> &[RawWinnerEdit] {
         &self.winner_edits
     }
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     pub(crate) fn domain(&self) -> RawDomain {
         self.current.domain
     }
@@ -205,8 +208,11 @@ impl<'raw> BoundRawAdvance<'raw> {
     }
 }
 pub(super) struct CommittedRawState {
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"))]
     pub(super) seal: SnapshotSeal,
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"))]
     binding: RawAdvanceBinding,
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"))]
     pub(super) facts: RawPrefixFacts,
     // 资格所属持久 writer_epoch；只由已提交的受控 Recover 迁移盖章，下一次 Recover 须从此 epoch 出发。
     #[cfg(feature = "s_capture_native_testonly")]
@@ -368,7 +374,9 @@ impl PendingRawState {
             .saturating_add(self.pending_set.as_ref().map_or(0, |s| s.retained_bytes()))
     }
     /// 只有父 owner 从本快照已核原件调用；previous 必须 move，失败时不能还原作成功缓存。
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"))]
     pub(super) fn advance<'raw>(
+        #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(unused_mut, reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"))]
         mut previous: Option<CommittedRawState>,
         raw: RawEventsView<'raw>,
         seal: SnapshotSeal,
@@ -653,6 +661,7 @@ impl PendingRawState {
     }
 
     /// 此方法仅对父 owner 开放；真实 effects 覆盖与业务判据闭合后调用，尚未晋升。
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"))]
     pub(super) fn close_effects(
         &mut self,
         seal: SnapshotSeal,

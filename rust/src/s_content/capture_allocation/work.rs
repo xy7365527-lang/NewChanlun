@@ -81,6 +81,7 @@ pub(crate) struct LedgerAllocator {
     kind: &'static str,
 }
 impl LedgerAllocator {
+    #[cfg(test)]
     pub(crate) fn new(budget: &OwnedBudget) -> Self {
         Self::new_tag(budget, "codec Layout")
     }
@@ -405,6 +406,7 @@ impl<T> CodecVec<T> {
             native_permit: None,
         }
     }
+    #[cfg(test)]
     pub(crate) fn with_capacity(n: usize, b: Option<&OwnedBudget>) -> Result<Self, CodecError> {
         Self::with_work_capacity(n, b.map(|b| WorkBudget::Owned(b.clone())).as_ref())
     }
@@ -791,6 +793,7 @@ impl<K, V> Default for WorkMap<K, V> {
     }
 }
 impl<K: Eq + Hash, V> WorkMap<K, V> {
+    #[cfg(feature = "s_capture_native_testonly")]
     pub(crate) fn try_reserve(&mut self, additional: usize) -> Result<(), CodecError> {
         match self {
             Self::Plain(m) => m.try_reserve(additional).map_err(|_| allocation_error()),
@@ -921,6 +924,10 @@ impl<T> Default for WorkSet<T> {
     }
 }
 impl<T: Eq + Hash> WorkSet<T> {
+    #[allow(
+        dead_code,
+        reason = "#1608：与 WorkMap::new/CodecVec::new 对称的 OwnedBudget 入口，现调用方都走 new_work；保留待接线"
+    )]
     pub(crate) fn new(b: Option<&OwnedBudget>) -> Self {
         Self::new_work(b.map(|b| WorkBudget::Owned(b.clone())).as_ref())
     }
@@ -963,6 +970,7 @@ impl<T: Eq + Hash> WorkSet<T> {
             }
         }
     }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(crate) fn contains(&self, v: &T) -> bool {
         match self {
             Self::Plain(m) => m.contains(v),
@@ -1200,7 +1208,13 @@ mod allocator_tests {
         drop(c);
         drop(v);
         assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
-        struct Panics(u8);
+        struct Panics(
+            #[allow(
+                dead_code,
+                reason = "#1608：非零尺寸载荷，使 drop 时 panic 的元素真占 Layout 字节"
+            )]
+            u8,
+        );
         impl Drop for Panics {
             fn drop(&mut self) {
                 panic!("intentional element drop")

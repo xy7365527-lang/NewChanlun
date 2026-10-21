@@ -1641,6 +1641,10 @@ fn persist_with_job(
     e: &Value,
     w: Value,
     mut job: Option<&mut Job>,
+    #[allow(
+        unused_variables,
+        reason = "#1608 疑点：调用方传入暂存 token 但函数体从不读取；有意废弃还是漏接线待 #1635 裁定"
+    )]
     stage_token: Option<&str>,
     deadline: Option<std::time::Instant>,
 ) -> Result<Value, String> {

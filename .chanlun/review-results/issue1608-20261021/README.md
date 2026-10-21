@@ -1,0 +1,8 @@
+# #1608 告警清零：证据与评审原件
+
+- 实施：主控 owner_1608_1609 做票面三类真信号与 CI 门（`ed337f26f3`、`d071f3d022`）；三个实施工蜂（claude-opus-5-5，本机 claude CLI 经 CLIProxyLocal）按文件分区清理其余告警：w1 lib/theta_v0/探针 bin，w2 `s_session_v3/**`，w3 `s_session_v2/**`、`s_structure_session.rs`、`s_content/**`、`session_*.rs`。报告：`worker-w{1,2,3}-report.md`（其中 /tmp 路径为当时远端日志，未入仓）。
+- 测量：`measure.sh` 在远端 Linux（cargo 1.99.1）`rust/` 下执行；`measure-e96f60f884.txt` 为最终读数——十档 feature 组合 `cargo check --all-targets` 均 0 error、0 warning，`cargo fmt --check` 0 diff，两个 #1394 编译负例 PASS。基线 `ed337f26f3` 前五档去重告警 164/261/451/414/451。
+- 评审（claude-fable-5-1，非作者）：`review-A-lib-ci-*.md`（lib/探针/CI 面）与 `review-B-s-session-*.md`（S 会话面）审 `64b8bc5e35`，均 PASS-WITH-NITS；nits 在 `e96f60f884` 处理或转 #1635；`review-tail-e96f60f884.md` 尾部补审 PASS-WITH-NITS（余下两条簿记已在 #1635 票面订正，一条为日志可读性）。
+- 补丁轮：首轮 PR CI（`52f879d0cf`）的 `cargo test — default targets` 红在 `bsp::tests::no_stray_bsp_binding_rewrites_outside_registry`（按 file:line 登记的白名单锁，属性插入致 16 条行移）。`b18fd50318` 按内容逐行映射重登记；`review-tail-b18fd50318.md` 尾部补审 PASS（逐条逐字核对、grep 命中集 ≡ 白名单、与 origin/main 试合并无冲突）。
+- 测试读数：`alltests.sh` 在远端 Linux 跑 CI 的全部 cargo test 命令，`alltests-b18fd50318.txt` 合计 6876 passed / 0 failed / 337 ignored；加上 CI 单独跑的 TB-02-C 单测 1 例，与 main `df6e680930` 的 CI（run 39437436010）6877 / 0 / 337 一致，说明门控与删除没有丢测试。
+- 并入 main（`ec3da8ccd4`，含 #1592 CI 拆分、#1611、#1616）后：#1616 带来 7 条新告警（恰是本票门要拦的回潮），`1729222465` 以带理由的 allow 留证并转 #1635；负例步骤随 #1592 落到 extras job，条件改 `!cancelled()`（`851ed8bda2`）。`measure-1729222465.txt`：十档 0 warning、fmt 0 diff、负例 PASS、bsp 白名单锁通过。`review-tail-1729222465.md` 尾审 PASS-WITH-NITS（余一条写法一致性 nit：`pragma_i64` 可改 `cfg(target_os = "macos")`；因本机无法编 macOS，保留 cfg_attr 写法）。

@@ -103,9 +103,11 @@ pub(crate) use effects::{
 };
 #[path = "construction_state.rs"]
 mod construction_state;
+#[cfg_attr(not(test), allow(unused_imports, reason = "#1488 再合 #1608：仅测试使用"))]
 pub(crate) use super::business_json::{RawWinner, RawWinnerEdit};
 #[cfg(test)]
 pub(crate) use construction_state::RawAdvanceFixture;
+#[allow(unused_imports, reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删")]
 pub(crate) use construction_state::{BoundRawAdvance, RawAdvanceBinding, RawDomain};
 
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
@@ -185,6 +187,10 @@ struct ConstructionRun<T> {
     after: SnapshotSeal,
 }
 
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+)]
 pub(crate) struct BoundOriginals {
     _private: (),
 }
@@ -296,7 +302,7 @@ impl AuditConnection {
 
     fn new(connection: Connection) -> Result<Self, String> {
         let life = NEXT_LIFE
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
             .map_err(|_| invalid("连接生涯编号耗尽"))?;
         if !connection.is_autocommit() {
             return Err(invalid("不能接管已有活动事务的连接"));
@@ -1264,6 +1270,10 @@ mod tests {
 }
 
 impl AuditConnection {
+    #[allow(
+        dead_code,
+        reason = "#1608：完成态清理钩子，当前无调用方（等待接线）；保留不删"
+    )]
     fn clear_complete(&self) {
         #[cfg(feature = "s_capture_native_testonly")]
         drop(self.complete.borrow_mut().take());
@@ -1819,6 +1829,7 @@ impl AuditTxn<'_> {
         result
     }
 
+    #[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1488 再合 #1608：native 非测试、s_session 非测试、s_session 测试 构建不触达"))]
     fn before_write(&self) -> Result<(), String> {
         self.before_write_inner(false)
     }
@@ -1847,6 +1858,13 @@ impl AuditTxn<'_> {
 
     fn audit_admission(
         &self,
+        #[cfg_attr(
+            not(feature = "s_capture_native_testonly"),
+            allow(
+                unused_variables,
+                reason = "#1608：仅 s_capture_native_testonly 分支读取"
+            )
+        )]
         envelope: &Value,
         mode: &s_allocation::Mode,
         context: &mut request_audit::RequestAuditContext,
@@ -2140,6 +2158,7 @@ struct SnapshotSeal {
     domain: [i64; 6],
 }
 impl SnapshotSeal {
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"))]
     fn same_snapshot(&self, next: &Self) -> bool {
         self.life != 0
             && self.life == next.life
@@ -2834,6 +2853,7 @@ impl CompleteCandidate {
                     Err(native::Failure::Invalid(error)) => return Err(error),
                 };
         }
+        #[cfg(test)]
         let effect_rows = effects.changes.len();
         let peak = match effects.apply(
             &mut self.originals,
@@ -6116,6 +6136,7 @@ use newchan_rust::s_content::capture_allocation::scratch::failure_trace;
 /// 0072 R1 锁：prepared 发布读取租约处（`publication_read_lease` → `S3PrepareInvalid：` 包装，
 /// 独审 0070 S86 message-34 的真实包装）对候选父工作域注入 Allocation；未置位时恒等放行。
 #[cfg(test)]
+#[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达"))]
 pub(super) fn prepare_fault(
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
 ) -> Result<Option<()>, newchan_rust::s_content::CodecError> {

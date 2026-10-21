@@ -137,10 +137,12 @@ pub(super) struct Runtime {
 }
 
 impl Runtime {
+    #[cfg(test)]
     pub(super) fn new() -> Self {
         Self::with_allocation(None)
     }
 
+    #[cfg(test)]
     pub(super) fn with_allocation(allocation: Option<q_allocation::Profile>) -> Self {
         Self::with_mode(allocation.into())
     }
@@ -167,6 +169,13 @@ impl Runtime {
     }
 
     #[cfg(test)]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     pub(super) fn set_after_prepare_for_request_test(
         &mut self,
         hook: Option<fn(&Transaction<'_>) -> Result<(), String>>,
@@ -248,6 +257,13 @@ impl Runtime {
         result
     }
     #[cfg(test)]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     pub(super) fn commit_in_request(
         &mut self,
         mut tx: Transaction<'_>,
@@ -1120,6 +1136,7 @@ impl Runtime {
     fn finish_node_products<'raw, S: NodeStore>(
         &mut self,
         store: &mut BusinessTxStore<S>,
+        #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(unused_variables, reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"))]
         workspace_eligible: bool,
         #[cfg(feature = "s_capture_native_testonly")] workspace_budget: Option<
             request_audit::ManifestWorkspaceBudget,
@@ -1275,6 +1292,7 @@ fn cv(v: &Value) -> Result<V, String> {
         ),
     })
 }
+#[allow(dead_code, reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删")]
 fn edge(r: &ContentRef) -> Result<V, String> {
     Ok(V::Edge(r.digest().map_err(err)?))
 }
@@ -2093,6 +2111,10 @@ pub(crate) mod tests {
     }
     #[test]
     fn generic_business_store_keeps_legacy_owned_layout() {
+        #[allow(
+            dead_code,
+            reason = "#1608：布局对照结构，只用于 size_of/align_of 测量，字段不读"
+        )]
         struct Before<'a, 'c> {
             inner: content_store::TxStore<'a, 'c>,
             budget: Option<sc::capture_allocation::OwnedBudget>,
@@ -2468,13 +2490,15 @@ pub(crate) mod tests {
             // Arc计数不受随后SQL回滚影响，表本身则必须一起回滚。
             let fired = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
             let observed = fired.clone();
-            f.conn.update_hook(Some(
-                move |_: rusqlite::hooks::Action, _: &str, table: &str, _: i64| {
-                    if table == "native_local_fault_seen" {
-                        observed.fetch_add(1, Ordering::SeqCst);
-                    }
-                },
-            ));
+            f.conn
+                .update_hook(Some(
+                    move |_: rusqlite::hooks::Action, _: &str, table: &str, _: i64| {
+                        if table == "native_local_fault_seen" {
+                            observed.fetch_add(1, Ordering::SeqCst);
+                        }
+                    },
+                ))
+                .expect("安装故障观察 update_hook");
             let hex = sc::root_string(&target);
             let hex = hex.strip_prefix("sc1-").unwrap();
             let damage = if delete {

@@ -243,18 +243,6 @@ pub(super) fn parse_input(value: &Value) -> Result<RawInputFile, String> {
     })
 }
 
-pub(super) fn validate_prices(event: &RawEvent) -> Result<(), String> {
-    validate_prices_view(
-        &event.price,
-        &event.volume,
-        event.ohlc.as_ref().map(|p| OhlcView {
-            open: &p.open,
-            high: &p.high,
-            low: &p.low,
-            close: &p.close,
-        }),
-    )
-}
 pub(super) fn canonical(event: &RawEvent, p: &Ohlc) -> String {
     canonical_json(
         &json!({"event_id":event.event_id,"revision":event.revision,"seq":event.seq,
@@ -428,14 +416,6 @@ pub(super) fn enrich_raw_view_admitted(
     Ok(owner)
 }
 
-pub(super) fn stored_prices(row: &Value) -> Result<Option<Ohlc>, String> {
-    Ok(stored_prices_view(row.into())?.map(|p| Ohlc {
-        open: p.open.into(),
-        high: p.high.into(),
-        low: p.low.into(),
-        close: p.close.into(),
-    }))
-}
 pub(super) fn raw_wire(wire: &mut Value, raw: &Value) {
     if raw["schema_revision"] == RAW_SCHEMA {
         wire.as_object_mut().unwrap().remove("price");

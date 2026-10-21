@@ -942,6 +942,13 @@ impl Budget {
         drop(d);
         CodecWork::new_in_origin(self.0.clone(), allowance, self.1).map_err(Failure::from)
     }
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
+        )
+    )]
     pub(crate) fn scratch_observation(&self) -> (usize, usize, usize, usize) {
         (
             self.0.scratch_live.load(Ordering::Acquire),

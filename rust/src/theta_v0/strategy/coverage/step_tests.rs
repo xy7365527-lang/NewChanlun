@@ -141,7 +141,7 @@ fn buckets_ancok_identity_on_flat_roots() {
         3,
         "扁平根全保留（AncOK 恒等——无父子可剔孤儿）"
     );
-    let reg = super::super::super::persistent::PersistentRegistry::new();
+    let _reg = super::super::super::persistent::PersistentRegistry::new();
 }
 
 /// ★环6 immutable：coverage_step_from_buckets 不 mutate prev_active。

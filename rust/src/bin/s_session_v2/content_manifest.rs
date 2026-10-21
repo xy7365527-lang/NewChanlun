@@ -8,9 +8,11 @@
 use crate::v3::audit_store::{CodecRead, CodecStore};
 use crate::v3::audit_store::{RefFields, RefValue};
 use crate::v3::business_json::TextValue;
+#[cfg_attr(not(feature = "s_capture_native_testonly"), allow(unused_imports, reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"))]
 use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
 #[cfg(feature = "s_capture_native_testonly")]
 use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
+#[allow(unused_imports, reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删")]
 use newchan_rust::s_content::{
     self, Built, CodecError, ContentRef, Kind, NodeDigest, NodeStore, NumberToken, Value as V,
 };
@@ -2376,7 +2378,7 @@ mod tests {
     #[cfg(feature = "s_allocation_json_testonly")]
     #[test]
     fn owned_manifest_real_capture_body_matches_normal_identity_and_f() {
-        let (mut nodes, metadata, roots, _, _, _) = fixture();
+        let (nodes, metadata, roots, _, _, _) = fixture();
         let legacy = s_content::AuditCapture::new(nodes.clone());
         let legacy_budget = OwnedBudget::new(512 * 1024);
         let (ordinary, normal_f) = crate::v3::audit_store::with_owned_store_probe(

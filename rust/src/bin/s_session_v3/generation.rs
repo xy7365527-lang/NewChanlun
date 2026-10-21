@@ -67,6 +67,7 @@ use newchan_rust::s_content::{
     self as sc, Built, ContentRef, Kind, NodeDigest, NodeStore, NumberToken, SequenceRef,
     Value as CValue,
 };
+#[allow(unused_imports, reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删")]
 use newchan_rust::session_protocol::parse_canonical_i64;
 use newchan_rust::theta_v0::classifier::local_shape::{classify_local_shape, Cc006LocalShape};
 use newchan_rust::theta_v0::config::ThetaConfig;

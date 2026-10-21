@@ -209,12 +209,14 @@ impl<K: FixedKey, V> Default for FixedRadix<K, V> {
     }
 }
 impl<K: FixedKey, V> FixedRadix<K, V> {
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     pub(crate) fn new() -> Self {
         Self::default()
     }
     pub(crate) fn len(&self) -> usize {
         self.len
     }
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     pub(crate) fn is_empty(&self) -> bool {
         self.len == 0
     }
@@ -371,6 +373,7 @@ impl<K: FixedKey, V> FixedRadix<K, V> {
             }
         }
     }
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     pub(crate) fn clear_admitted(
         &mut self,
         admission: &(impl CodecRead + ?Sized),
@@ -385,6 +388,7 @@ impl<K: FixedKey, V> FixedRadix<K, V> {
     pub(crate) fn iter(&self) -> Iter<'_, K, V> {
         self.range(..)
     }
+    #[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1488 再合 #1608：native 非测试、s_session 非测试、s_session 测试 构建不触达"))]
     pub(crate) fn values(&self) -> impl DoubleEndedIterator<Item = &V> {
         self.iter().map(|(_, v)| v)
     }

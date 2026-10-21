@@ -2355,6 +2355,13 @@ pub(crate) struct OriginalScanScratch {
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl OriginalScanScratch {
+    #[cfg_attr(
+        not(test),
+        allow(
+            dead_code,
+            reason = "#1608：scratch 容量测量出口，经 v3 request_audit 只由测试读取"
+        )
+    )]
     pub(crate) fn capacity_nodes(&self) -> usize {
         self.seen.capacity()
     }
@@ -2604,7 +2611,7 @@ pub(crate) fn capture_for_request_prototype(
 
 /// 原SQL全扫描、原解码次序、原始digest/tag/body逐字节绑定；不创建第二份body owner。
 /// 普通材料变化仍读到末尾，不能吞掉后行的SQL/type错误；只有完整扫描成功才能失去复用资格。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(crate) fn current_originals_equal_for_request(
     tx: &Transaction<'_>,
     capture: &s_content::AuditCapture,
@@ -2729,7 +2736,7 @@ fn record_prototype_row(body_bytes: usize) {
         work.body_bytes += body_bytes as u64;
     });
 }
-#[cfg(test)]
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(crate) fn prototype_capture_work_on_thread() -> PrototypeCaptureWork {
     PROTOTYPE_CAPTURE_WORK.with(|work| *work.borrow())
 }
@@ -2743,6 +2750,7 @@ pub(crate) struct CaptureCancellation {
 }
 #[cfg(any(test, feature = "s_allocation_json_testonly"))]
 impl CaptureCancellation {
+    #[cfg(test)]
     pub(crate) fn never() -> Self {
         Self {
             checks: std::cell::Cell::new(0),
@@ -2750,6 +2758,7 @@ impl CaptureCancellation {
             deadline: None,
         }
     }
+    #[cfg(test)]
     fn at_check(check: usize) -> Self {
         Self {
             checks: std::cell::Cell::new(0),
@@ -2757,6 +2766,7 @@ impl CaptureCancellation {
             deadline: None,
         }
     }
+    #[cfg(feature = "s_allocation_json_testonly")]
     pub(crate) fn until(deadline: Option<std::time::Instant>) -> Self {
         Self {
             checks: std::cell::Cell::new(0),

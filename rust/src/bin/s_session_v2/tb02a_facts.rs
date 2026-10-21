@@ -1547,10 +1547,13 @@ fn catalog_axes_oracle<'a, 'objects, 'changes>(
 #[cfg(test)]
 mod catalog_axis_owner_tests {
     use super::*;
+    #[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(unused_imports, reason = "#1488 再合 #1608：s_session 测试 构建不触达"))]
     use newchan_rust::s_content::capture_allocation::scratch::{
         CodecWork, ScratchCharge, ScratchFailure, ScratchParent,
     };
+    #[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(unused_imports, reason = "#1488 再合 #1608：s_session 测试 构建不触达"))]
     use std::sync::{Arc, Mutex};
+    #[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达"))]
     struct Parent {
         live: Mutex<usize>,
         limit: usize,

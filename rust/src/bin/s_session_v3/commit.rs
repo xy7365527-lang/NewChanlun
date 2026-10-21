@@ -38,10 +38,15 @@ pub(super) fn init_schema(tx: &Transaction<'_>) -> Result<(), String> {
 
 #[derive(Debug)]
 pub(super) struct CommitReceipt {
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用"))]
     pub generation: i64,
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     pub structure_cut: TextValue,
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     pub batch_id: TextValue,
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     pub snapshot: NativeValue<ContentRef>,
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     pub delta: NativeValue<ContentRef>,
     pub message_receipt: Value,
 }
@@ -60,6 +65,13 @@ pub(super) fn publish_prepared(
     Ok(receipt)
 }
 
+#[cfg_attr(
+    all(not(test), feature = "s_capture_native_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
+    )
+)]
 pub(super) fn publish_borrowed(
     tx: &mut Transaction<'_>,
     begin_token: &str,
@@ -107,6 +119,10 @@ pub(super) fn publish_borrowed_staged(
     )
 }
 #[cfg(feature = "s_capture_native_testonly")]
+#[allow(
+    dead_code,
+    reason = "#1608：旧包装入口，全仓无调用方（prepared.rs 直接调 _admitted 版本）；去留见 #1635"
+)]
 pub(super) fn publish_borrowed_with_workspace(
     tx: &mut Transaction<'_>,
     token: &str,

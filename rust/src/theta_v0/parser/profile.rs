@@ -120,7 +120,7 @@ fn diag_segment_window_effect() {
         }
         let bars = &ds.bars[..n];
         let incl = inclusion::process_inclusion_with_facts(bars);
-        let fractals = fractal::detect_fractals(&incl.merged);
+        let _fractals = fractal::detect_fractals(&incl.merged);
         let strokes = stroke::build_strokes(&incl, &cfg.parse);
         let iters = if n <= 16000 { 10 } else { 3 };
 
@@ -230,7 +230,7 @@ fn profile_parse_layer_incr_scaling() {
             }
         });
         let incl = inclusion::process_inclusion_with_facts(bars);
-        let fractals = fractal::detect_fractals(&incl.merged);
+        let _fractals = fractal::detect_fractals(&incl.merged);
         let strokes = stroke::build_strokes(&incl, &cfg.parse);
         let t_fractal = bench(5, || {
             let _ = fractal::detect_fractals(&incl.merged);
@@ -363,7 +363,7 @@ fn diag_incr_strokes_scaling() {
         let bars = &ds.bars[..n];
         let incl = inclusion::process_inclusion_with_facts(bars);
         let merged = &incl.merged;
-        let fractals_all = fractal::detect_fractals(merged);
+        let _fractals_all = fractal::detect_fractals(merged);
 
         // 逐 fractals 长度 append，测总耗时。
         let t = bench(1, || {

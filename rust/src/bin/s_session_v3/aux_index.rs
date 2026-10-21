@@ -8,6 +8,7 @@ use crate::{content_store, meta_get_opt};
 use aj::JsonView;
 use bj::TextValue;
 use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
+#[cfg_attr(not(test), allow(unused_imports, reason = "#1488 再合 #1608：仅测试使用"))]
 use newchan_rust::s_content::{
     self as sc, path::PathStep, Built, ContentRef, Kind, NodeDigest, NodeStore,
 };
@@ -15,6 +16,7 @@ use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::{params, Transaction};
 use sc::capture_allocation::{audit_json as aj, OwnedBudget};
 use sc::{CodecVec, ValueView as VV};
+#[cfg(test)]
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
@@ -269,6 +271,7 @@ pub(super) struct Witness {
     pub first: i64,
 }
 impl Witness {
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     fn try_clone(&self) -> Result<Self, String> {
         self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
     }
@@ -294,6 +297,7 @@ pub(super) struct Relation {
     pub first: i64,
 }
 impl Relation {
+    #[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1488 再合 #1608：native 非测试、s_session 非测试、s_session 测试 构建不触达"))]
     fn try_clone(&self) -> Result<Self, String> {
         self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
     }
@@ -319,6 +323,7 @@ pub(super) struct Observation {
     pub first: i64,
 }
 impl Observation {
+    #[allow(dead_code, reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删")]
     fn try_clone(&self) -> Result<Self, String> {
         self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
     }
@@ -354,9 +359,11 @@ impl Index {
             budget,
         }
     }
+    #[cfg(test)]
     pub(super) fn try_clone(&self) -> Result<Self, String> {
         self.clone_in(self.budget.clone())
     }
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     fn clone_in(&self, budget: Option<OwnedBudget>) -> Result<Self, String> {
         self.clone_in_admitted(budget, &super::audit_store::NativeAdmission(None))
     }
@@ -419,6 +426,7 @@ pub(super) struct PublicSets {
 }
 pub(super) struct Plan {
     pub generation: i64,
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用"))]
     pub snapshot: Index,
     pub births: Index,
     pub snapshot_values: PublicSets,
@@ -1285,10 +1293,24 @@ fn state_members(
 #[cfg(test)]
 thread_local! {static AUX_AUDIT_STATS:std::cell::Cell<[u64;6]>=const{std::cell::Cell::new([0;6])};}
 #[cfg(test)]
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+    )
+)]
 pub(super) fn reset_aux_audit_stats() {
     AUX_AUDIT_STATS.with(|s| s.set([0; 6]));
 }
 #[cfg(test)]
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+    )
+)]
 pub(super) fn aux_audit_stats() -> [u64; 6] {
     AUX_AUDIT_STATS.with(std::cell::Cell::get)
 }
@@ -1422,6 +1444,10 @@ fn same_birth_order<'a>(
     generated.len() == actual.len() && generated.iter().zip(actual).all(|(a, b)| a.as_str() == b)
 }
 impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn from_loaded(
         s: &super::history::HashReader<'capture>,
         index: &'index Index,
@@ -1665,6 +1691,7 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
 /// 这里只消费调用方已核过的原始前缀；不重跑结构分类，也不展开观察 detail 或 raw_bars
 /// 的整段 JSON。生成态当前成员必须能在独立索引找到并逐根相等；本代首次成员则另核
 /// 独立索引的首次插入顺序，避免只凭索引自洽放过出生漏项、幽灵行或错绑原件。
+#[cfg(test)]
 pub(super) fn verify_generated_members<'a>(
     s: &mut (impl CodecStore + ?Sized),
     index: &Index,
@@ -2222,6 +2249,7 @@ fn check_generation(first: i64, latest: i64) -> Result<(), String> {
 
 /// 历史 cut 的独立成员方程：Snapshot 全历史按旧公开顺序；Delta 仅本代首次、按插入序。
 /// load 按 rowid 返回，保留首次插入顺序。
+#[cfg(test)]
 pub(super) fn cut_members(
     index: &Index,
     generation: i64,
@@ -2603,6 +2631,7 @@ mod tests {
             .native_ref_clone(value)
             .unwrap()
     }
+    #[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达"))]
     fn clone_refs(values: &[RefValue]) -> Vec<RefValue> {
         values.iter().map(clone_ref).collect()
     }
