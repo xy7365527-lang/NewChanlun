@@ -6,7 +6,9 @@ use super::*;
 use newchan_rust::s_content as sc;
 use newchan_rust::s_content::{capture_allocation::OwnedBudget, CodecVec};
 use newchan_rust::sqlite_checked::{CheckedRow, CheckedStatement};
-use rusqlite::{limits::Limit, types::Value as Cell, Transaction};
+use rusqlite::{limits::Limit, Transaction};
+#[cfg(test)]
+use rusqlite::types::Value as Cell;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{
@@ -67,6 +69,7 @@ enum CellView<'a> {
     Integer(i64),
     Text(&'a str),
     Blob(&'a [u8]),
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用"))]
     Real,
 }
 struct Table {
@@ -92,6 +95,7 @@ pub(super) struct VerifiedCapture {
     digest: CaptureDigest,
     pub captured_bytes: u64,
     pub source_versions: [i64; 3],
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用"))]
     verify_deadline: Instant,
     audit_receipt: Option<audit_budget::Receipt>,
     q_source: Option<newchan_rust::s_content::AuditCapture>,
@@ -183,9 +187,11 @@ impl VerifiedCapture {
     }
 }
 
+#[cfg(test)]
 pub(super) fn capture_verified(path: &Path, limits: Limits) -> Result<VerifiedCapture, String> {
     capture_verified_with_allocation(path, limits, None)
 }
+#[cfg(test)]
 pub(super) fn capture_verified_with_allocation(
     path: &Path,
     limits: Limits,
@@ -198,6 +204,7 @@ pub(super) struct ConfiguredCapture<'a> {
     capture: VerifiedCapture,
     resources: &'a q_resources::QResources,
 }
+#[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用"))]
 pub(super) struct DeltaReferences {
     pub anchors: CodecVec<bj::JsonOwner>,
     pub usage: CodecVec<q_delta::Usage>,
@@ -491,6 +498,7 @@ impl ConfiguredCapture<'_> {
     }
     /// 为Watch组装准备一段连续候选；任一完整Delta超限则整个调用失败，没有可交付前缀。
     /// 不是Watch wire响应：实际回复字节、cursor身份、lease和发送后推进仍由服务层承担。
+    #[cfg(test)]
     pub(super) fn delta_references(
         &mut self,
         after: i64,
@@ -564,6 +572,7 @@ impl ConfiguredCapture<'_> {
     }
 }
 
+#[cfg(test)]
 pub(super) fn capture_configured<'a>(
     path: &Path,
     resources: &'a q_resources::QResources,
@@ -592,6 +601,7 @@ pub(super) fn capture_configured<'a>(
     job.pre_io_check().map_err(err)?;
     Ok(ConfiguredCapture { capture, resources })
 }
+#[cfg(test)]
 fn capture_with(
     path: &Path,
     limits: Limits,
@@ -599,6 +609,7 @@ fn capture_with(
 ) -> Result<VerifiedCapture, String> {
     capture_with_deadline(path, limits, None, seam)
 }
+#[cfg(test)]
 fn capture_with_deadline(
     path: &Path,
     limits: Limits,
@@ -607,6 +618,7 @@ fn capture_with_deadline(
 ) -> Result<VerifiedCapture, String> {
     capture_with_deadline_and_access(path, limits, hard_deadline, seam, None, None)
 }
+#[cfg(test)]
 fn capture_with_deadline_and_access(
     path: &Path,
     limits: Limits,
@@ -1321,6 +1333,7 @@ fn decimal_bytes(n: i64, out: &mut [u8; 20]) -> &[u8] {
     }
     &out[i..]
 }
+#[cfg(test)]
 fn hash_cell(hash: &mut Sha256, cell: &Cell) -> Result<(), String> {
     let view = match cell {
         Cell::Null => CellView::Null,
@@ -1381,6 +1394,7 @@ fn hash_cell_view(hash: &mut Sha256, cell: CellView<'_>) -> Result<(), String> {
     }
     Ok(())
 }
+#[cfg(test)]
 fn verify_image(
     image: Image,
     deadline: Instant,
@@ -1525,6 +1539,7 @@ fn import_image(image: &Image, deadline: Instant) -> Result<Connection, String> 
 /// 每个worker独占的长期连接与至多一份完整缓存；data_version不跨连接比较。
 /// 缓存无公开裸摘要入口；只有本次同连接版本/文件身份夹持成功才可借出。
 enum ReaderPath {
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用"))]
     Plain(std::path::PathBuf),
     Shared(
         newchan_rust::s_content::capture_allocation::dispatch::DispatchArc<
@@ -1557,9 +1572,11 @@ pub(super) struct ReaderStats {
     pub cached_bytes: u64,
 }
 impl AuditReader {
+    #[cfg(test)]
     pub(super) fn new(path: std::path::PathBuf, resources: &q_resources::QResources) -> Self {
         Self::new_with_allocation(path, resources, None)
     }
+    #[cfg(test)]
     pub(super) fn new_with_allocation(
         path: std::path::PathBuf,
         resources: &q_resources::QResources,
@@ -1602,6 +1619,7 @@ impl AuditReader {
         self.identity = None;
         self.stats.cached_bytes = 0;
     }
+    #[cfg(test)]
     pub(super) fn stats(&self) -> ReaderStats {
         self.stats
     }

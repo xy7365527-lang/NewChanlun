@@ -16,6 +16,7 @@ struct Binding {
     rows: Vec<ExactRows>,
 }
 impl Binding {
+    #[cfg_attr(feature = "s_capture_native_testonly", allow(dead_code, reason = "#1608：s_capture_native_testonly 构建不触达此项"))]
     fn read(tx: &Transaction<'_>, frontier: i64) -> Result<Self, String> {
         Self::read_admitted(tx, frontier, None)
     }
@@ -232,6 +233,7 @@ fn codec_root_source_bytes(roots: usize) -> Result<usize, String> {
     )
 }
 impl Pool {
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"))]
     fn build_bounded_counts(
         originals: sc::AuditCapture,
         binding: Binding,
@@ -505,6 +507,7 @@ impl Keeper {
     pub(super) fn take(&mut self) -> Option<Pool> {
         self.pool.take()
     }
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"))]
     pub(super) fn retention_cap(&self) -> usize {
         self.cap
     }
@@ -592,6 +595,7 @@ impl Keeper {
         self.clear();
         self.rejected = self.rejected.saturating_add(1);
     }
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"))]
     pub(super) fn report(&self) -> serde_json::Value {
         serde_json::json!({"cap":self.cap,"hits":self.hits,"cold":self.cold,"rejected":self.rejected,"last_required":self.last_required,
             "retained_source_cost":self.pool.as_ref().map_or(0,|p|p.source_cost.total),
@@ -619,6 +623,7 @@ pub(super) struct Trial<'a> {
     pub(super) cold: usize,
 }
 impl<'a> Trial<'a> {
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"))]
     pub(super) fn new(
         tx: &Transaction<'_>,
         prior: Option<&'a Pool>,
@@ -671,6 +676,7 @@ impl<'a> Trial<'a> {
             None
         }
     }
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"))]
     pub(super) fn record(&mut self, cut: &PublishedCut, counts: &Counts) -> Result<(), String> {
         self.record_admitted(cut, counts, None)
     }
@@ -691,6 +697,7 @@ impl<'a> Trial<'a> {
         });
         Ok(())
     }
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"))]
     pub(super) fn complete(
         self,
         tx: &Transaction<'_>,
@@ -701,6 +708,7 @@ impl<'a> Trial<'a> {
     ) -> Result<(Pool, usize, usize), String> {
         self.complete_admitted(tx, capture, nodes, frontier, cap, None)
     }
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"))]
     pub(super) fn complete_admitted(
         self,
         tx: &Transaction<'_>,
@@ -723,6 +731,7 @@ impl<'a> Trial<'a> {
             self.cold,
         ))
     }
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"))]
     pub(super) fn seal(self, tx: &Transaction<'_>, frontier: i64) -> Result<PendingPool, String> {
         self.seal_admitted(tx, frontier, None)
     }

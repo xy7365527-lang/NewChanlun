@@ -32,7 +32,9 @@
 //! - 本模块只读：不写任何 SQLite 行，也不把 overlay 当写入通道。
 
 use super::*;
-use newchan_rust::s_content::{self as sc, ContentRef, NodeStore};
+use newchan_rust::s_content as sc;
+#[cfg(test)]
+use newchan_rust::s_content::ContentRef;
 use rusqlite::Transaction;
 
 /// #1394 仅本模块可签发；不是公开事务或跨请求缓存许可。
@@ -51,11 +53,16 @@ pub(super) struct AuditedState {
 /// 全部旧历史判据成功后的纯结果；保留控制头与 Native 前缀状态，不含当前事务或提交许可。
 pub(super) struct ImmutableHistoricalAudit {
     /// 全局控制已通过且全部发布头已逐代消费后的原头事实。
+    #[cfg_attr(all(not(test), not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_capture_native_testonly 构建使用"))]
     pub control_facts: v2::ControlFacts,
+    #[cfg_attr(all(not(test), not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_capture_native_testonly 构建使用"))]
     pub raw_prefixes: Option<history::NativeRawPrefixes>,
+    #[cfg_attr(all(not(test), not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_capture_native_testonly 构建使用"))]
     pub raw_sources: Option<source_audit::NativeRawFacts>,
+    #[cfg_attr(all(not(test), not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_capture_native_testonly 构建使用"))]
     pub auxiliary_facts: Option<aux_index::NativeAuxFacts>,
     /// 当前 cold 的完整身份事件表；其静态排序 rank 尚不构成追加资格。
+    #[cfg_attr(all(not(test), not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_capture_native_testonly 构建使用"))]
     pub object_facts: Option<object_index::HistorySweep>,
     /// 逐代已发布闭包（manifest、实际根、批次身份与快照/Delta 根）。
     pub cuts: sc::CodecVec<history::PublishedCut>,
@@ -66,6 +73,7 @@ pub(super) struct ImmutableHistoricalAudit {
 }
 enum HistoricalOwner {
     Unique(ImmutableHistoricalAudit),
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用"))]
     Shared(std::rc::Rc<ImmutableHistoricalAudit>),
 }
 impl std::ops::Deref for AuditedState {
@@ -566,6 +574,7 @@ fn audit_with_capture_impl(
 // #1394：具名捕获诊断才生成普通 JSON；正式 Owned/native 审计不构造后再丢弃。
 #[derive(Clone, Copy)]
 enum RetentionReport {
+    #[cfg_attr(all(not(test), not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_capture_native_testonly 构建使用"))]
     Skip,
     Collect,
 }
@@ -846,7 +855,9 @@ fn audit_core_fresh_inner(
         .map(|c| {
             #[cfg(test)]
             RETENTION_REPORT_CALLS.with(|calls| calls.set(calls.get() + 1));
-            let mut value = c.retention();
+            let value = c.retention();
+            #[cfg(test)]
+            let mut value = value;
             #[cfg(test)]
             {
                 value["capture_ns"] = json!(capture_ns.to_string());
@@ -1073,6 +1084,7 @@ pub(super) fn traced<T>(count_nodes: bool, action: impl FnOnce() -> T) -> (T, Ve
 }
 
 /// 与共享控制层相同的 SQL 文本所有者；返回值在本次完整审计活期内持账。
+#[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
 fn audit_profile_id(
     tx: &Transaction<'_>,
     allocation: Option<&sc::capture_allocation::OwnedBudget>,
@@ -1096,6 +1108,7 @@ fn audit_profile_id_admitted(
 }
 
 /// 静态列/冻结原件由共享控制审计核验；本层补核从未运行的动态列。
+#[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
 fn verify_unrun_catalog(
     tx: &Transaction<'_>,
     initial: bool,
@@ -2298,6 +2311,7 @@ mod audit_capture_gate_tests {
 
 /// 仅测试真实audit入口，资格仍由同一完整body判据给出；外层显式配置同账overlay。
 #[cfg(all(test, feature = "s_allocation_json_testonly"))]
+#[allow(dead_code, reason = "#1608：仅测试真实 audit 入口，当前无调用方；保留不删")]
 pub(super) fn audit_owned_capture_for_testonly(
     tx: &Transaction<'_>,
     budget: &sc::capture_allocation::OwnedBudget,

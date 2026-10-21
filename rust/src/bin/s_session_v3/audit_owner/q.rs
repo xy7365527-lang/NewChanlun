@@ -395,9 +395,12 @@ impl Facts {
         let pairs = effects.rows(Table::Ohlc).count();
         let _paired_permit = budget.reserve(tree_slots::<i64, ()>(pairs))?;
         let mut paired = BTreeSet::new();
+        #[cfg(feature = "s_allocation_json_testonly")]
         let bj::RawEvents::Plain(raw) = &mut audited.raw else {
             return Err(invalid("增量 Q 不接受 Owned 原始账"));
         };
+        #[cfg(not(feature = "s_allocation_json_testonly"))]
+        let bj::RawEvents::Plain(raw) = &mut audited.raw;
         let mut raw_added = 0usize;
         for change in effects.rows(Table::Raw) {
             let r = new(change)?;

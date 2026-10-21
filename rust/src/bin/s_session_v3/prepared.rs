@@ -85,10 +85,12 @@ pub(super) struct Runtime {
 }
 
 impl Runtime {
+    #[cfg(test)]
     pub(super) fn new() -> Self {
         Self::with_allocation(None)
     }
 
+    #[cfg(test)]
     pub(super) fn with_allocation(allocation: Option<q_allocation::Profile>) -> Self {
         Self::with_mode(allocation.into())
     }
@@ -113,6 +115,7 @@ impl Runtime {
     }
 
     #[cfg(test)]
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
     pub(super) fn set_after_prepare_for_request_test(
         &mut self,
         hook: Option<fn(&Transaction<'_>) -> Result<(), String>>,
@@ -184,6 +187,7 @@ impl Runtime {
         result
     }
     #[cfg(test)]
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
     pub(super) fn commit_in_request(
         &mut self,
         mut tx: Transaction<'_>,
@@ -1366,6 +1370,7 @@ pub(crate) mod tests {
     }
     #[test]
     fn generic_business_store_keeps_legacy_owned_layout() {
+        #[allow(dead_code, reason = "#1608：布局对照结构，只用于 size_of/align_of 测量，字段不读")]
         struct Before<'a, 'c> {
             inner: content_store::TxStore<'a, 'c>,
             budget: Option<sc::capture_allocation::OwnedBudget>,

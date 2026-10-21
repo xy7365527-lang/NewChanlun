@@ -16,8 +16,6 @@ use newchan_rust::{
     s_content::{access::Access, job::Job},
     session_protocol::positive,
 };
-#[cfg(test)]
-use serde_json::{json, Value};
 use std::{
     io,
     net::TcpStream,
@@ -33,6 +31,7 @@ struct ServerAccess<'a> {
     allocation: Option<&'a newchan_rust::s_content::capture_allocation::OwnedBudget>,
 }
 impl<'a> ServerAccess<'a> {
+    #[cfg(test)]
     fn new(resources: &'a QResources) -> Self {
         Self::with_allocation(resources, None)
     }
@@ -244,6 +243,7 @@ impl Runtime {
     }
 }
 
+#[cfg(test)]
 fn parse_request_with_allocation(
     path: &str,
     body: &[u8],

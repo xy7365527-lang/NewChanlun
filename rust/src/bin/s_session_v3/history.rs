@@ -11,23 +11,25 @@ use super::business_json::{self as bj, RawEventsView};
 use super::business_json::{BusinessMap, JsonOwner};
 use super::*;
 use crate::v3::audit_store::{CodecRead, CodecStore};
-use content_manifest::{ManifestMetadata, ManifestRoots, SourceCommit};
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+use content_manifest::ManifestRoots;
+#[cfg(test)]
+use newchan_rust::s_content::path::lookup_path;
 use newchan_rust::s_content::{
     self as sc,
-    path::{lookup_path, PathStep},
+    path::PathStep,
     ContentRef, Kind, NodeDigest, NodeRead, NodeSink, NodeSource, Value as V,
 };
 use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::Transaction;
-use sc::capture_allocation::{
-    audit_json::{JsonView, OwnedJson},
-    OwnedBudget,
-};
+#[cfg(feature = "s_allocation_json_testonly")]
+use sc::capture_allocation::audit_json::OwnedJson;
+use sc::capture_allocation::{audit_json::JsonView, OwnedBudget};
 
 #[path = "native_record_fields.rs"]
 mod native_record_fields;
 pub(super) use native_record_fields::NativeRecordFields;
-#[cfg(test)]
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(super) use native_record_fields::{native_record_field_stats, reset_native_record_field_stats};
 
 /// Opaque per-cut proof: constructed only in this module's complete-load read-only chain.
@@ -207,9 +209,13 @@ pub(super) struct IndexedHistory {
 /// R 是已取得并核 raw/wire 摘要的行数；F 是最后已发布 cut 真正消费的前缀。
 /// 两者不能混为一个进度，未发布尾不会进入旧 cut 的前缀树。
 pub(super) struct NativeRawPrefixes {
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用"))]
     raw_nodes: sc::CodecVec<NodeDigest>,
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用"))]
     raw_wire_nodes: sc::CodecVec<NodeDigest>,
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用"))]
     prefixes: NativeHistoryPrefixes,
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用"))]
     ordered: bj::RawPrefixFacts,
 }
 impl NativeRawPrefixes {
@@ -262,15 +268,18 @@ impl NativeRawPrefixes {
         retained.vec_capacity::<NodeDigest>(old[1], self.raw_wire_nodes.capacity());
         retained.apply(0)
     }
+    #[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
     pub(super) fn checked_len(&self) -> usize {
         self.raw_nodes.len()
     }
+    #[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
     pub(super) fn published_len(&self) -> u64 {
         self.prefixes.raw.count
     }
 }
 
 /// 全局控制史和原始账必须先由相应正本检查取得；本口消费每代控制头并验证完整闭包。
+#[cfg(test)]
 pub(super) fn read_history(
     tx: &Transaction<'_>,
     raw: &[Value],
@@ -279,6 +288,7 @@ pub(super) fn read_history(
     read_history_until(tx, raw, control, None)
 }
 
+#[cfg(test)]
 pub(super) fn read_history_until(
     tx: &Transaction<'_>,
     raw: &[Value],
@@ -288,6 +298,7 @@ pub(super) fn read_history_until(
     read_history_bounded(tx, raw, control, deadline, None)
 }
 
+#[cfg(test)]
 pub(super) fn read_history_bounded(
     tx: &Transaction<'_>,
     raw: &[Value],
@@ -297,6 +308,7 @@ pub(super) fn read_history_bounded(
 ) -> Result<sc::CodecVec<PublishedCut>, String> {
     read_history_metered(tx, raw, control, deadline, max_render_bytes, None)
 }
+#[cfg(test)]
 pub(super) fn read_history_metered(
     tx: &Transaction<'_>,
     raw: &[Value],
@@ -310,6 +322,7 @@ pub(super) fn read_history_metered(
 }
 
 /// 完整状态审计复用这里已核的同代索引，避免在相同SQLite事务中第二次加载及绑定原件。
+#[cfg(test)]
 pub(super) fn read_indexed_history(
     tx: &Transaction<'_>,
     raw: &[Value],
@@ -333,6 +346,7 @@ pub(super) fn read_indexed_history(
     )
 }
 
+#[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
 pub(super) fn read_indexed_history_for_audit(
     tx: &Transaction<'_>,
     raw: &[Value],
@@ -356,6 +370,7 @@ pub(super) fn read_indexed_history_for_audit(
     )
 }
 
+#[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
 pub(super) fn read_indexed_history_for_audit_captured<'a>(
     tx: &Transaction<'_>,
     raw: impl Into<RawEventsView<'a>>,
@@ -377,6 +392,7 @@ pub(super) fn read_indexed_history_for_audit_captured<'a>(
     )
 }
 
+#[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
 pub(super) fn read_indexed_history_for_audit_captured_with_records<'a>(
     tx: &Transaction<'_>,
     raw: impl Into<RawEventsView<'a>>,
@@ -400,6 +416,7 @@ pub(super) fn read_indexed_history_for_audit_captured_with_records<'a>(
     )
 }
 
+#[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
 pub(super) fn read_indexed_history_for_audit_captured_with_records_admitted<'a>(
     tx: &Transaction<'_>,
     raw: impl Into<RawEventsView<'a>>,
@@ -1182,6 +1199,7 @@ fn verify_current_frontiers(
     Ok(())
 }
 /// 当前事务重新消费控制头；缓存没有已消费ControlHistory或提交许可。
+#[allow(dead_code, reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删")]
 pub(super) fn revalidate_current_for_reuse(
     tx: &Transaction<'_>,
     raw: RawEventsView<'_>,
@@ -1192,6 +1210,7 @@ pub(super) fn revalidate_current_for_reuse(
     revalidate_current_for_reuse_admitted(tx, raw, control, capture, cuts, None)
 }
 
+#[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用"))]
 pub(super) fn revalidate_current_for_reuse_admitted(
     tx: &Transaction<'_>,
     raw: RawEventsView<'_>,
@@ -1534,6 +1553,7 @@ fn decode_manifest(
     ))
 }
 
+#[cfg(test)]
 fn root(s: &mut (impl CodecRead + ?Sized), bytes: Vec<u8>) -> Result<ContentRef, String> {
     let digest: NodeDigest = bytes.try_into().map_err(|_| err("根不是32字节"))?;
     s.content_ref_of(&sc::root_string(&digest)).map_err(err)
@@ -1545,6 +1565,7 @@ fn field<'a>(
 ) -> Result<RefValue, String> {
     field_meta(s, r.into(), k)
 }
+#[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
 fn text<'a>(
     s: &mut (impl CodecRead + ?Sized),
     r: impl Into<sc::RefView<'a>>,
@@ -1552,6 +1573,7 @@ fn text<'a>(
 ) -> Result<TextValue, String> {
     text_meta(s, r.into(), k)
 }
+#[allow(dead_code, reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删")]
 fn integer<'a>(
     s: &mut (impl CodecRead + ?Sized),
     r: impl Into<sc::RefView<'a>>,
@@ -1585,9 +1607,11 @@ fn same_json<'r, 'j>(
     same_digest(s, r, k, expected)
 }
 
+#[cfg(test)]
 fn cv(v: &Value) -> Result<V, String> {
     cv_until(v, None)
 }
+#[cfg(test)]
 fn cv_until(v: &Value, deadline: Option<std::time::Instant>) -> Result<V, String> {
     check_deadline(deadline)?;
     Ok(match v {
@@ -1624,15 +1648,18 @@ impl NodeSink for Discard<'_> {
         Ok(())
     }
 }
+#[allow(dead_code, reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删")]
 fn hash_json(v: &Value) -> Result<NodeDigest, String> {
     hash_json_until(v, None)
 }
+#[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用（非测试构建中只被已豁免的未用项调用）"))]
 pub(super) fn hash_json_until(
     v: &Value,
     deadline: Option<std::time::Instant>,
 ) -> Result<NodeDigest, String> {
     hash_json_metered(v, deadline, None)
 }
+#[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用（非测试构建中只被已豁免的未用项调用）"))]
 pub(super) fn hash_json_metered<'a>(
     v: impl Into<sc::capture_allocation::audit_json::JsonView<'a>>,
     deadline: Option<std::time::Instant>,
@@ -1682,15 +1709,18 @@ fn hash_json_with_owner(
         .map_err(err)
 }
 
+#[cfg(test)]
 fn hash_array(nodes: &[NodeDigest]) -> Result<NodeDigest, String> {
     hash_array_until(nodes, None)
 }
+#[cfg(test)]
 fn hash_array_until(
     nodes: &[NodeDigest],
     deadline: Option<std::time::Instant>,
 ) -> Result<NodeDigest, String> {
     hash_array_metered(nodes, deadline, None, false)
 }
+#[cfg(test)]
 fn hash_array_metered(
     nodes: &[NodeDigest],
     deadline: Option<std::time::Instant>,
@@ -1699,6 +1729,7 @@ fn hash_array_metered(
 ) -> Result<NodeDigest, String> {
     hash_array_metered_with_owner(nodes, deadline, budget, records, None)
 }
+#[cfg(test)]
 fn hash_array_metered_with_owner(
     nodes: &[NodeDigest],
     deadline: Option<std::time::Instant>,
@@ -1909,10 +1940,12 @@ fn record_history_prefix_leaves(index: usize, count: u64) {
     });
 }
 #[cfg(test)]
+#[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
 fn reset_history_prefix_leaves() {
     HISTORY_PREFIX_LEAVES.with(|stats| stats.set([0; 6]));
 }
 #[cfg(test)]
+#[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
 fn history_prefix_leaves() -> [u64; 6] {
     HISTORY_PREFIX_LEAVES.with(std::cell::Cell::get)
 }
@@ -2015,7 +2048,9 @@ impl OverlayOwner {
 pub(super) struct OverlayPrototype {
     pub slots: usize,
     pub bytes: usize,
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"))]
     pub budget: sc::capture_allocation::OwnedBudget,
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"))]
     pub peaks: std::rc::Rc<std::cell::Cell<(usize, usize)>>,
 }
 #[cfg(any(test, feature = "s_allocation_json_testonly"))]
@@ -2174,7 +2209,7 @@ impl<'a> HashReader<'a> {
     ) -> Self {
         self.with_audit_gate(None, Some(deadline))
     }
-    pub(crate) fn with_audit_gate(
+    pub(super) fn with_audit_gate(
         mut self,
         budget: Option<&'a dyn super::audit_budget::Budget>,
         deadline: Option<std::time::Instant>,
@@ -2189,7 +2224,7 @@ impl<'a> HashReader<'a> {
         self.sync_owned();
         self
     }
-    pub(crate) fn for_audited(
+    pub(super) fn for_audited(
         source: &'a mut dyn NodeSource,
         audited: &super::state::AuditedState,
         capture: Option<&'a sc::AuditCapture>,
@@ -2324,11 +2359,13 @@ impl<'a> HashReader<'a> {
             #[cfg(any(test, feature = "s_allocation_json_testonly"))]
             if let Some(c) = OVERLAY_PROTOTYPE.with(|v| v.borrow().clone()) {
                 let mut reader = Self::captured(capture, max_render_bytes);
-                let mut owned = capture.closed_codec_for_allocation_prototype(
+                let owned = capture.closed_codec_for_allocation_prototype(
                     c.slots,
                     c.bytes,
                     max_render_bytes,
                 )?;
+                #[cfg(test)]
+                let mut owned = owned;
                 #[cfg(test)]
                 owned.set_trace_callbacks(
                     Some(super::state::trace_read),
@@ -2408,9 +2445,11 @@ impl<'a> HashReader<'a> {
             self.overlay.clear();
         }
     }
+    #[cfg(test)]
     pub(crate) fn verify_public(&mut self, r: &ContentRef) -> Result<(), sc::CodecError> {
         self.verify_mode(r, sc::Mode::Public)
     }
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用（非测试构建中只被已豁免的未用项调用）"))]
     fn verify_mode(&mut self, r: &ContentRef, mode: sc::Mode) -> Result<(), sc::CodecError> {
         self.sync_owned();
         if let Some(owner) = &mut self.owned {
@@ -2425,6 +2464,7 @@ impl<'a> HashReader<'a> {
         }
         sc::audit_verify(self, r, mode)
     }
+    #[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
     pub(crate) fn verify_many(
         &mut self,
         refs: impl IntoIterator<Item = ContentRef>,
@@ -2462,6 +2502,7 @@ impl<'a> HashReader<'a> {
             audit_full_arrays: false,
         }
     }
+    #[cfg(test)]
     pub(super) fn until(
         source: &'a mut dyn NodeSource,
         deadline: Option<std::time::Instant>,
@@ -2479,6 +2520,7 @@ impl<'a> HashReader<'a> {
             audit_full_arrays: false,
         }
     }
+    #[cfg(test)]
     pub(super) fn bounded(
         source: &'a mut dyn NodeSource,
         deadline: Option<std::time::Instant>,

@@ -10,14 +10,18 @@ use crate::{
         self, Cc004Producer, ShapeIdentityView, CC004_STEP_KIND, CC005_GROUP_KIND,
         CC006_SHAPE_KIND, CC007_FRACTAL_KIND, CC054_KNOWLEDGE_KIND,
     },
-    read_effective_events, stored_source_coord, tb02a, tb02a_facts, tb02b,
+    tb02a, tb02b,
 };
+#[cfg(test)]
+use super::read_effective_events;
 use newchan_rust::s_content::{
     self as sc,
     path::{lookup_path, PathStep},
     Built, ContentRef, Kind, NodeDigest, NodeSink, NodeSource, NodeStore, Value as V,
 };
-use serde_json::{json, Value};
+use serde_json::Value;
+#[cfg(test)]
+use serde_json::json;
 #[path = "source_pending.rs"]
 mod source_pending;
 #[path = "source_prefix.rs"]
@@ -35,6 +39,7 @@ fn err(e: impl std::fmt::Display) -> String {
     format!("SourceAuditInvalid：{e}")
 }
 #[cfg(test)]
+#[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
 fn f(k: &str) -> PathStep {
     PathStep::Field(k.into())
 }
@@ -77,6 +82,7 @@ struct NativeFieldMemo<'capture> {
     field_hits: u64,
 }
 impl<'capture> NativeFieldMemo<'capture> {
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用"))]
     fn new(capture: &'capture sc::AuditCapture) -> Self {
         Self {
             capture,
@@ -129,6 +135,7 @@ impl<'names> SourceFields<'names> {
     ) -> Result<Self, String> {
         s.lookup_subset_ref(r, names).map(Self).map_err(err)
     }
+    #[cfg(test)]
     fn get(&self, k: &str) -> Result<RefValue, String> {
         self.0.get(k).ok_or_else(|| err(format!("原件缺字段{k}")))
     }
@@ -248,6 +255,7 @@ fn built<'a>(r: impl Into<sc::RefView<'a>>) -> Result<Built, String> {
         extent: r.extent(),
     })
 }
+#[cfg(test)]
 fn cv(v: &Value) -> Result<V, String> {
     Ok(match v {
         Value::Null => V::Null,
@@ -262,12 +270,14 @@ fn cv(v: &Value) -> Result<V, String> {
         ),
     })
 }
+#[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
 struct HashOnly;
 impl NodeSink for HashOnly {
     fn put(&mut self, _: NodeDigest, _: u8, _: &[u8]) -> Result<(), sc::CodecError> {
         Ok(())
     }
 }
+#[allow(dead_code, reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删")]
 fn hash(v: &Value) -> Result<NodeDigest, String> {
     Ok(sc::write_json_view(&mut HashOnly, v.into())
         .map_err(err)?
@@ -1101,14 +1111,19 @@ pub(super) struct NativeRawLedgerStats {
 /// 单代来源核完成后的纯所有权账；保留已访问 seq 的四类摘要、身份赢家和有序坐标。
 /// 不包含 capture/reader/RawEventsView，不能单独授予新事务的来源资格。
 pub(super) struct NativeRawFacts {
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用"))]
     winners: bj::RawPrefixFacts,
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用"))]
     sources: BusinessMap<i64, Source>,
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用"))]
     originals: std::collections::HashMap<usize, (i64, Source)>,
 }
 impl NativeRawFacts {
+    #[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
     pub(super) fn prefix_len(&self) -> usize {
         self.winners.prefix_len()
     }
+    #[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
     pub(super) fn hashed_rows(&self) -> usize {
         self.originals.len()
     }
@@ -1146,6 +1161,7 @@ impl<'raw> NativeRawLedger<'raw> {
         }
     }
 
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用"))]
     fn new(raw: RawEventsView<'raw>) -> Self {
         Self {
             raw,
@@ -1158,6 +1174,7 @@ impl<'raw> NativeRawLedger<'raw> {
             stats: Default::default(),
         }
     }
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用"))]
     fn restore(
         raw: RawEventsView<'raw>,
         facts: NativeRawFacts,
@@ -1352,6 +1369,7 @@ impl<'capture> NativeSourceAudit<'capture> {
         Ok(result)
     }
     #[cfg(test)]
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
     pub(super) fn raw_ledger_stats(&self) -> NativeRawLedgerStats {
         self.ledger.stats
     }
@@ -1396,6 +1414,7 @@ pub(super) fn audit_generated<'a>(
 ) -> Result<Counts, String> {
     audit_generated_metered(s, state, raw_prefix, profile, rule, None, None)
 }
+#[allow(dead_code, reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删")]
 pub(super) fn audit_generated_until<'a>(
     s: &mut dyn NodeStore,
     state: impl Into<sc::RefView<'a>>,

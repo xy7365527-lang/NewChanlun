@@ -120,6 +120,7 @@ impl Failure {
         }
     }
 
+    #[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
     pub(super) fn cause_code(&self) -> Option<&'static str> {
         match &self.detail {
             FailureDetail::Allocation(e) => Some(e.code()),
@@ -166,6 +167,7 @@ pub(super) struct Head {
 }
 
 impl Head {
+    #[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
     pub(super) fn allocation_budget(&self) -> Option<&OwnedBudget> {
         self.content_lengths.allocation_budget()
     }
@@ -184,6 +186,7 @@ pub(super) struct Input<'a, R: TimedRead> {
 }
 
 impl<'a, R: TimedRead> Input<'a, R> {
+    #[cfg(test)]
     pub(super) fn new(reader: &'a mut R, resources: &QResources) -> Result<Self, Failure> {
         Self::with_allocation(reader, resources, None)
     }

@@ -94,6 +94,7 @@ pub(super) struct Driver {
 }
 
 impl Driver {
+    #[cfg(test)]
     pub(super) fn open_for_serve(
         db: &Path,
         profile: &Path,
@@ -111,6 +112,7 @@ impl Driver {
         )
     }
 
+    #[cfg(test)]
     pub(super) fn open_for_serve_with_allocation(
         db: &Path,
         profile: &Path,
@@ -194,6 +196,7 @@ impl Driver {
         self.conn.summary(command, &self.epoch, &self.clock)
     }
 
+    #[cfg(test)]
     pub(super) fn open(
         db: &Path,
         profile: &Path,
@@ -204,6 +207,7 @@ impl Driver {
     }
 
     /// 输入请求在同一写者进程锁内、任何 pending 自动恢复之前再核一次。
+    #[cfg(test)]
     pub(super) fn open_with_request(
         db: &Path,
         profile: &Path,
@@ -215,6 +219,7 @@ impl Driver {
     }
 
     /// 在恢复 pending 之前冻结私有 TestOnly 档；启动身份审计仍走原入口。
+    #[cfg(test)]
     pub(super) fn open_with_request_and_allocation(
         db: &Path,
         profile: &Path,
@@ -467,6 +472,7 @@ pub(super) fn recover(
     let conn = super::audit_owner::AuditConnection::open(db)?;
     conn.recover(new_epoch, clock, clock_event)
 }
+#[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
 fn err(e: impl std::fmt::Display) -> String {
     format!("S3DriverInvalid：{e}")
 }
@@ -1621,7 +1627,7 @@ mod tests {
     }
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
-    fn native_startup_SQL_errors_propagate_without_ordinary_fallback() {
+    fn native_startup_sql_errors_propagate_without_ordinary_fallback() {
         let fixture = Fixture::new();
         let mut c = Connection::open(&fixture.db).unwrap();
         let tx = c.transaction().unwrap();

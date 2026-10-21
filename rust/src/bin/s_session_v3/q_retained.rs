@@ -284,6 +284,7 @@ mod isolated_sqlite_owned_cache_tests {
 
 impl Packed {
     #[cfg(test)]
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
     pub(super) fn page_digest_for_testonly(&self) -> [u8; 32] {
         use sha2::{Digest, Sha256};
         Sha256::digest(&self.bytes).into()

@@ -1,10 +1,11 @@
 //! #1394：Q v3共用的完整请求校验与完整回复编码；不执行HTTP或虚构wire账。
 use super::q_resources::{Limit, QResources};
 use newchan_rust::s_content::access::Access;
-use newchan_rust::session_protocol::{positive, reply_envelope, strict_json, validate_envelope};
+use newchan_rust::session_protocol::{positive, strict_json, validate_envelope};
 use serde_json::Value;
 use std::io::{self, Write};
 
+#[allow(dead_code, reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删")]
 pub(super) fn parse(bytes: &[u8], resources: &QResources) -> Result<Value, String> {
     if bytes.len() as u128 > u128::from(resources.limit(Limit::FrameBytes)) {
         return Err(err("Incomplete：完整请求超过max_frame_bytes"));
@@ -61,6 +62,7 @@ pub(crate) fn decode_owner(
     })
 }
 /// 兼容String入口；HTTP直接分别调用decode与typed公共核以持住失败的来源owner。
+#[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用（非测试构建中只被已豁免的未用项调用）"))]
 pub(crate) fn parse_owner(
     bytes: &[u8],
     resources: &QResources,
@@ -210,6 +212,7 @@ pub(crate) fn legacy_budget(detail: &dyn std::fmt::Display) -> bool {
     })
 }
 /// payload必须由已核切面生成；源namespace/消息ID/因果回引沿共同Q配方。
+#[cfg(test)]
 pub(super) fn reply(
     request: &Value,
     payload: Value,
@@ -232,6 +235,7 @@ pub(super) fn reply(
     .try_into_plain()
     .map_err(|e| e.to_string())
 }
+#[allow(dead_code, reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删")]
 pub(super) fn try_reply(
     request: &Value,
     payload: Value,
@@ -263,6 +267,7 @@ use newchan_rust::s_content::{
     self as sc,
     capture_allocation::{audit_json::JsonView, OwnedBudget},
 };
+#[allow(dead_code, reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删")]
 pub(super) fn encode(
     value: &Value,
     limit: u64,
