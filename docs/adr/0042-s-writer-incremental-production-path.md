@@ -57,7 +57,7 @@ main 的 `s_session` 生产构建只有完整重算一条生成路径。增量�
 
 1. **成本随 Δ_R**：每代构造成本与本代可达新节点数 Δ_R(g) 成正比，与历史长度无关。判据沿 #1488 评论 6283355919 的 D4：g=10 与 g=86 的 Δ_R 归一系数偏差 ≤20%，且对 g 的斜率 95% CI 含 0。
 2. **单事件延迟有界**：单 bar、单事件的回复延迟有与 g 无关的上界。切片 2、3a、3b 各自给出单事件延迟（p50、p99、最大值）与持续吞吐（事件/秒）读数，覆盖 S86 g=10..86、MIN12 52 条和一段长前缀样本，并据读数提出延迟与吞吐预算。
-3. **预算签署**：预算由用户签署，签署前取 `AwaitingPolicy`。切片 5 的验收是在已签预算内跑完 S86、MIN12 与 G_L，且全程在 10 s 回复帽内。
+3. **预算签署**：预算由用户签署，签署前取 `AwaitingPolicy`。切片 5 的验收：S86、MIN12 与 G_L 的非审计路径回复延迟（扣除归 #1481 的每请求完整 `state::audit`）在已签预算内；MIN12 52 条全程在 10 s 回复帽内（承接 #1488 第 27 行 A③）。S86 与 G_L 的整体 10 s 帽在 #1481 Δ 化落地后由 #1481 验收，切片 5 不锁，否则在 #1481 被切片 5 阻塞、完整审计 g=86 约 141 s（FACTS-1612 §2.5）的在案读数下必红。
 4. **不吸收他票的成本**：每请求的完整 `state::audit` 归 #1481，非审计路径的段 B 后缀有界归 #1491；切片读数须分列这两部分，避免把他票的成本记成本票不达标，或反过来掩盖。
 
 ## 对拍基准：冻结基线
@@ -90,11 +90,11 @@ main 的 `s_session` 生产构建只有完整重算一条生成路径。增量�
 
 | 切片 | 内容 | WU | 被谁挡 | 挡谁 |
 |---|---|---|---|---|
-| 0 错位探针 | 已完成：#1488 probe-0064 证伪「S4 全量置换来自 layout/1」，主因是对象记录每代写入代戳；按 object_id 差分每代变化量降到 O(Δ)（#1612 评论 6292137641） | ≈0.5 | 无 | 3 |
-| 1 最小先行片 | 0065 降级修复（v4 L13）从 testonly 门迁入生产构建；迁移开关（默认关闭）；publish 闭包错误改为携带来源的类型化错误，替换 `bridges()` 文本 contains 判定（#1612 评论 6306642903）；S4 锁在 `s_session` 生产构建下运行；MIN12 正式入口两路对 main v3 臂 oracle 逐位 | ≈3–4 | #1488 | 2、3 |
+| 0 错位探针 | 已完成：#1488 probe-0064 证伪「S4 全量置换来自 layout/1」，主因是对象记录每代写入代戳；按 object_id 差分每代变化量降到 O(Δ)（#1612 评论 6292137641） | ≈0.5 | 无 | 3a |
+| 1 最小先行片 | 0065 降级修复（v4 L13）从 testonly 门迁入生产构建；迁移开关（默认关闭）；publish 闭包错误改为携带来源的类型化错误，替换 `bridges()` 文本 contains 判定（#1612 评论 6306642903）；S4 锁在 `s_session` 生产构建下运行；MIN12 正式入口两路对 main v3 臂 oracle 逐位 | ≈3–4 | #1488 | 2、3a、3b |
 | 2 恢复、资源与布局无关 Δ | 持久态重建恢复；`s-structure-resources/2` 及 launcher/tb01c 同步；租约检查常驻；候选保留 W_g 与逐请求换底；同型 ×depth 重复计费（#1488 线 audit_store.rs:63、business_json.rs:1903，#1612 评论 6298533501）改为线性计费；候选保留帽实测并交签；单事件延迟与吞吐读数及预算 | ≈6 | 1 | 5 |
-| 3a 六阶段 Δ_R 化（段 B 前） | 按 object_id 键做 generate①②、object_plan①②③、prepare_source_audit①②、stage_indexes①②、publish_borrowed①③ 与 ② 的逐对象解析、assemble②；object_plan、stage_indexes 两份实现合并或入锁；D4 判据；单事件延迟与吞吐读数及预算 | ≈4–6 | 0、1 | 5 |
-| 3b 六阶段 Δ_R 化（段 B 后） | assemble①③、publish_borrowed② 快照拼接、CC-007 脏下标；段 B 后重测单事件延迟与吞吐 | ≈1–2 | 1、#1491 | 5 |
+| 3a 六阶段 Δ_R 化（段 B 前） | 按 object_id 键做 generate①②、object_plan①②③、prepare_source_audit①②、stage_indexes①②、publish_borrowed①③ 与 ② 的逐对象解析、assemble②；object_plan、stage_indexes 两份实现合并或入锁；D4 判据；单事件延迟与吞吐读数及预算 | ≈4–6 | 0、1 | 3b、5 |
+| 3b 六阶段 Δ_R 化（段 B 后） | assemble①③、publish_borrowed② 快照拼接、CC-007 脏下标；段 B 后重测单事件延迟与吞吐 | ≈1–2 | 1、3a、#1491 | 5 |
 | 4 P6 规格 | 来源审计持久台账与清单全闭包核验，与 #1481 方案三合审，按 object_id 坐标写；须含「台账可丢弃、冷启动可重建」论证；裁定后自开实施票并挂为切片 5 的 blocker | 3–4（实施） | 无 | 5 |
 | 5 生产切换与退役 | 删除前用届时的完整路径生成 S86/MIN12/G_L 冻结基线并双跑入仓；默认开启、同提交删除迁移开关；删除完整重算路径（逐依赖验收）；S86/MIN12/G_L 对冻结基线逐位；在已签预算内跑完；承接 #1488 第 15、27、28 行 | ≈1–2 | 2、3a、3b、4 | #1481 |
 
@@ -127,15 +127,16 @@ main 的 `s_session` 生产构建只有完整重算一条生成路径。增量�
 ## 授权引用
 
 - 用户 2026-10-21 批复：[#1612 评论 6307519196](https://github.com/xy7365527-lang/NewChanlun/issues/1612#issuecomment-6307519196)。
+- 对主控落地口径 1 的一处偏离：口径 1 把 S1 r8、MIN12 main v3 臂与 #1634 Python 折叠列为冻结基线。独审（review4）指出前两者早于 #1491 段 B，到切片 5 时与增量输出按设计不逐位相等，#1634 只覆盖包含层；故三份冻结基线改在切片 5 删除前用届时完整路径生成，这正落在口径 1「退役前用现有完整路径一次性生成并入仓」的字面内，r8、v3 臂降为段 B 前参照，#1634 限包含层。
 - 落地程序：`.sandcastle/docs/graph-engineering.md:78`「用户批量批复后按 T 类落地」。
 
 ## 验收清单
 
-在 /tmp 下执行，先定义 `R=xy7365527-lang/NewChanlun`、`n(){ gh issue list --repo $R --state all --limit 500 --json number,title --jq "[.[]|select(.title|contains(\"#1612 切片 $1（\"))][0].number"; }`、`bb(){ gh api graphql -f query="query{repository(owner:\"xy7365527-lang\",name:\"NewChanlun\"){issue(number:$1){blockedBy(first:50){nodes{number}}}}}" --jq '[.data.repository.issue.blockedBy.nodes[].number]'; }`、`body(){ gh issue view "$1" --repo $R --json body --jq .body; }`。
+在 /tmp 下执行，先定义 `R=xy7365527-lang/NewChanlun`、`n(){ gh issue list --repo $R --state all --limit 500 --json number,title --jq "[.[]|select(.title|contains(\"#1612 切片 $1）\"))][0].number"; }`、`bb(){ gh api graphql -f query="query{repository(owner:\"xy7365527-lang\",name:\"NewChanlun\"){issue(number:$1){blockedBy(first:50){nodes{number}}}}}" --jq '[.data.repository.issue.blockedBy.nodes[].number]'; }`、`body(){ gh issue view "$1" --repo $R --json body --jq .body; }`。
 
 1. 本文件入 main：`rg -l '^# ADR [0-9]{4}：S 写者增量路径为唯一生产生成路径' docs/adr | wc -l` 等于 1；`rg -c '^## (恢复与冷启动|迁移开关|退场条件|性能硬约束)$'` 等于 4。
-2. 七张切片票存在：对 K ∈ {0,1,2,3a,3b,4,5}，`n K` 非空且唯一（`n` 按「#1612 切片 K（」匹配）；`gh issue view $(n 0) --repo $R --json state,stateReason` 为 CLOSED/COMPLETED。
-3. 边：`bb $(n 1)` 含 1488；`bb $(n 2)` 含 `$(n 1)`；`bb $(n 3a)` 含 `$(n 0)`、`$(n 1)`；`bb $(n 3b)` 含 `$(n 1)`、1491；`bb $(n 5)` 含 `$(n 2)`、`$(n 3a)`、`$(n 3b)`、`$(n 4)`；`bb 1481` 含 `$(n 5)`；`bb $(n 0)` 与 `bb $(n 4)` 为空。
+2. 七张切片票存在：对 K ∈ {0,1,2,3a,3b,4,5}，切片票标题一律以「（#1612 切片 K）」收尾；`n K` 非空，且 `gh issue list --repo $R --state all --limit 500 --json title --jq "[.[]|select(.title|contains(\"#1612 切片 K）\"))]|length"` 等于 1；`gh issue view $(n 0) --repo $R --json state,stateReason` 为 CLOSED/COMPLETED。
+3. 边：`bb $(n 1)` 含 1488；`bb $(n 2)` 含 `$(n 1)`；`bb $(n 3a)` 含 `$(n 0)`、`$(n 1)`；`bb $(n 3b)` 含 `$(n 1)`、`$(n 3a)`、1491；`bb $(n 5)` 含 `$(n 2)`、`$(n 3a)`、`$(n 3b)`、`$(n 4)`；`bb 1481` 含 `$(n 5)`；`bb $(n 0)` 与 `bb $(n 4)` 为空。
 4. 未加的边：`bb` 1419、1424、1552、1572 都不含任何切片票号。
 5. #1488 转出注：`body 1488 | grep -cF '〔#1612 转出→#'` 等于 5，原句「全程在 10 s 回复帽内」与「只能作离线对照臂，不参与准入」仍在。
 6. 性能硬约束进验收：`body $(n 2)`、`body $(n 3a)`、`body $(n 3b)`、`body $(n 5)` 各含「单事件延迟」；`body $(n 3a)` 含「归一系数偏差 ≤20% 且斜率 95% CI 含 0」；`body $(n 5)` 含「冻结基线」「删除完整重算路径」「删除迁移开关」「具名前缀 G_L」。
