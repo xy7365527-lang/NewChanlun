@@ -123,9 +123,6 @@ thread_local! {
     // #1488 0034 P3-1：交接摘要负控注入——Some(他账)改指他账，None改指同账下一冻结域。
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     static RECOVER_PARENT_SKEW: std::cell::RefCell<Option<Option<native::Budget>>> = const { std::cell::RefCell::new(None) };
-    // #1488 0077 P08（独审 0036 P3-3）：迁移查同快照原件时以错位事务 seal 查找，模拟候选不属本快照。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
-    static RECOVER_SNAPSHOT_MISS: Cell<bool> = const { Cell::new(false) };
 }
 /// #1488：唯一 publication 父资源。绝不持有 journal 强引用。
 #[cfg(feature = "s_capture_native_testonly")]
@@ -1418,10 +1415,6 @@ impl AuditConnection {
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn inject_recover_handoff_failure_for_test(&self) {
         RECOVER_HANDOFF_FAILURE.with(|flag| flag.set(true));
-    }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
-    pub(super) fn inject_recover_snapshot_miss_for_test(&self) {
-        RECOVER_SNAPSHOT_MISS.with(|flag| flag.set(true));
     }
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn inject_recover_confirm_skew_for_test(&self) {
@@ -3044,18 +3037,7 @@ impl AuditTxn<'_> {
             if self.construction.borrow().is_none() && self.owner.construction.borrow().is_some()
             {
                 let complete = self.complete.borrow();
-                let seal = self.construction_seal()?;
-                // 0077 P08 负控注入：生产不可达（bind_existing 命中即改记本事务 seal，未命中先被
-                // reject_warm 拦下），故以错位 seal 查找来锁定本分支 fail-closed。
-                #[cfg(test)]
-                let seal = if RECOVER_SNAPSHOT_MISS.with(|flag| flag.replace(false)) {
-                    SnapshotSeal {
-                        transaction_id: seal.transaction_id.wrapping_add(1),
-                        ..seal
-                    }
-                } else {
-                    seal
-                };
+                let seal = self.construction_seal()?; #[cfg(all(test, feature = "s_capture_native_testonly"))] let seal = p08_snapshot_miss(seal);
                 let Some(candidate) = complete.as_ref().filter(|c| c.seal == seal) else {
                     return Err(construction_state::stale("Recover迁移缺同快照完整原件"));
                 };
@@ -6299,5 +6281,30 @@ mod publication_degrade_verdict_tests {
             failure_trace::FailureTrace::default(),
             "capture 外不记录"
         );
+    }
+}
+
+// ---- #1488 0077 P08（独审 0036 P3-3）：Recover 迁移「同快照缺完整原件」分支的测试注入 ----
+// 该分支生产不可达（bind_existing 命中即改记本事务 seal，未命中先被 reject_warm 拦下），以错位事务
+// seal 查找来锁定其 fail-closed。全部置于文件末尾，生产代码行号（panic 位置）不动。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+thread_local! {
+    static RECOVER_SNAPSHOT_MISS: Cell<bool> = const { Cell::new(false) };
+}
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+fn p08_snapshot_miss(seal: SnapshotSeal) -> SnapshotSeal {
+    if RECOVER_SNAPSHOT_MISS.with(|flag| flag.replace(false)) {
+        SnapshotSeal {
+            transaction_id: seal.transaction_id.wrapping_add(1),
+            ..seal
+        }
+    } else {
+        seal
+    }
+}
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+impl AuditConnection {
+    pub(super) fn inject_recover_snapshot_miss_for_test(&self) {
+        RECOVER_SNAPSHOT_MISS.with(|flag| flag.set(true));
     }
 }

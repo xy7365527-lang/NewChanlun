@@ -467,13 +467,6 @@ impl WorkScope {
     pub fn reserve_native(&self, bytes: usize) -> Result<NativeReservation, CodecError> {
         self.handle.reserve_native(bytes)
     }
-    /// #1488 0077 P55：测试面——以真实 `observe` 挂点（`traced_semantic`）登记一次非 scratch codec
-    /// 错误，供 bin 侧降级判据真值表构造“语义失败”行。生产构建无此方法。
-    #[cfg(feature = "s_capture_native_testonly")]
-    #[doc(hidden)]
-    pub fn observe_for_test(&self, error: &CodecError) {
-        self.handle.observe(error);
-    }
     /// 父 Native 解析许可等同域资源拒绝，分类不穿过错误文字。
     pub fn reject(&self, failure: ScratchFailure) -> CodecError {
         self.handle.fail(failure);
@@ -665,5 +658,15 @@ pub mod failure_trace {
         drop(restore);
         update(|t| t.absorb(trace));
         (value, trace)
+    }
+}
+
+/// #1488 0077 P55：测试面——以真实 `observe` 挂点（`traced_semantic`）登记一次非 scratch codec
+/// 错误，供 bin 侧降级判据真值表构造“语义失败”行。生产构建无此方法；置于文件末尾，生产行号不动。
+#[cfg(feature = "s_capture_native_testonly")]
+impl WorkScope {
+    #[doc(hidden)]
+    pub fn observe_for_test(&self, error: &CodecError) {
+        self.handle.observe(error);
     }
 }
