@@ -223,6 +223,7 @@ impl Config {
                     "CloseApplicants",
                     "QueryDecision",
                     "QueryGrant",
+                    "QueryBasisUsage",
                 ]
                 .contains(&op)
                     || !unique.insert(op)
