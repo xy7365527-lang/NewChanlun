@@ -483,3 +483,19 @@ jobs:
       - name: Fixture drift check (Lean → fixtures)
         # 红时脚本自身打出字段级 diff + 每个漂移 fixture 的再生（重落盘）命令
         run: python3 scripts/check_fixture_drift.py
+
+  sandcastle-ts:
+    # #1588：Sandcastle 编排层（.sandcastle/*.ts|mts）类型检查与 node:test 单测。
+    # 含评审提示体积闸（review-context）与本机 cargo 垫片（cargo-guard）回归；
+    # 此前这些测试只在本机跑，CI 不覆盖。nc-remote 静态核在 runner 上无该脚本时 skip。
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+      - name: typecheck (tsconfig.sandcastle.json)
+        run: npm run typecheck
+      - name: node:test — .sandcastle/*.test.{ts,mts}
+        run: npx tsx --test .sandcastle/*.test.ts .sandcastle/*.test.mts
