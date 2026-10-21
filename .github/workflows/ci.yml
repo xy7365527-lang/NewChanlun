@@ -355,9 +355,9 @@ jobs:
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --bin s_structure_session tb02c_member_relations_bind_only_the_member_sources --jobs 1
 
       # #1608：#1394 的两个编译负例只在 --cfg 下编译；此处断言它们仍被类型边界拒绝（E0308 落在负例块内）。
-      #   放在 s_session 测试之后复用已编好的依赖；负例在类型检查阶段即失败，不做代码生成。
+      #   放在 TB-02-C 单测之后复用已编好的 s_session 依赖；负例在类型检查阶段即失败，不做代码生成。
       - name: 编译负例 — #1394 类型边界仍拒绝旧写法（#1608）
-        if: always()
+        if: ${{ !cancelled() }}
         run: ../.github/scripts/check-compile-negatives-1394.sh
 
       # #1394 C：内容编码在 s_session feature 下供多个 owner 共用；只测 S bin 不会执行库测试。
