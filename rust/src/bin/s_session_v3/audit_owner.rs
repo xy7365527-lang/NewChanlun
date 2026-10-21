@@ -705,7 +705,7 @@ impl AuditConnection {
         let first = self.publish_attempt(runtime, token, envelope, context, true)?;
         let abandoned = first.is_none();
         let published = match first {
-            Some(published) => published,
+            Some(published) => self.renew_lease_after_cold_root_rerun(context, published),
             None => {
                 runtime.discard();
                 #[cfg(test)]
@@ -1967,7 +1967,7 @@ impl AuditTxn<'_> {
                                      重启后复现请保留本错误与请求转人工检查账目）"
                                 ));
                             }
-                            drop(root);
+                            self.owner.note_cold_root_rerun(context, root);
                             #[cfg(test)]
                             cold_root_probe::note_rerun();
                             (self.audit_required_in_parent(mode, context, None)?, None)
@@ -5904,6 +5904,43 @@ impl AuditConnection {
         self.reopen_idle_lease();
     }
 
+    /// 0079（P24-adj）：冷根审计失败、根残留已归零并析构根、即将无票重跑时记下（owner 生涯,
+    /// 本次冻结域, 重跑前租约是否已撤销），供本请求发布提交后续租判定。原 `drop(root)` 同行改调。
+    fn note_cold_root_rerun(&self, context: &request_audit::RequestAuditContext, root: ColdRoot) {
+        drop(root);
+        let domain = context.manifest_workspace_budget().map(|b| b.freeze_domain());
+        let stale = self.construction_lease.stale.get();
+        COLD_ROOT_RERUN.with(|n| n.set(domain.map(|d| (self.life, d, stale))));
+    }
+
+    /// 0079（P24-adj）：冷根失败无票重跑的请求不留候选，其 Accept/Begin/Publish 都是非 strict
+    /// 写口，`before_write` 撤销 Carry 租约且原先不续租；候选之后重新出生时每个 ingest 恒报
+    /// “Carry租约已撤销”。发布真实提交后，只在以下条件全部成立时续租（与降级放弃同一组条件，
+    /// 等价于重启后新开 owner，旧序号令牌仍失配）：
+    /// - 标记属于本 owner 生涯与本请求冻结域（前序请求残留标记不生效，取用即清）；
+    /// - 重跑前租约未撤销：前序请求的真实撤销（外写/读域变化/rollback/提交或交接失败）不由本处清除；
+    /// - 本次结束态无完整候选，且 `reopen_idle_lease` 的 owner 无候选/资格、未退役、autocommit、
+    ///   `construction_lease.close()` 成功。
+    /// 本次发布已提交，续租与否都不改变本次回复。原 `Some(published) => published` 同行改调。
+    fn renew_lease_after_cold_root_rerun(
+        &self,
+        context: &request_audit::RequestAuditContext,
+        published: (commit::CommitReceipt, Ended),
+    ) -> (commit::CommitReceipt, Ended) {
+        let noted = COLD_ROOT_RERUN.with(|n| n.take());
+        let domain = context.manifest_workspace_budget().map(|b| b.freeze_domain());
+        if let (Some((life, noted_domain, false)), Some(domain)) = (noted, domain) {
+            if life == self.life
+                && published.1.life == self.life
+                && noted_domain == domain
+                && published.1.complete.is_none()
+            {
+                self.reopen_idle_lease();
+            }
+        }
+        published
+    }
+
     fn reopen_idle_lease(&self) {
         if self.complete.borrow().is_none()
             && self.construction.borrow().is_none()
@@ -6307,4 +6344,12 @@ impl AuditConnection {
     pub(super) fn inject_recover_snapshot_miss_for_test(&self) {
         RECOVER_SNAPSHOT_MISS.with(|flag| flag.set(true));
     }
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+thread_local! {
+    /// 0079（P24-adj）：本线程最近一次冷根失败无票重跑记下的（owner 生涯, 冻结域, 重跑前租约已撤销）；
+    /// 本请求发布时取用即清。writer 单线程串行处理请求，冻结域每请求唯一。
+    static COLD_ROOT_RERUN: std::cell::Cell<Option<(u64, u64, bool)>> =
+        const { std::cell::Cell::new(None) };
 }

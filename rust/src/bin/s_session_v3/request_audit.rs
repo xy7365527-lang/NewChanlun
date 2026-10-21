@@ -3018,3 +3018,12 @@ mod handoff_domain_tests {
         assert!(next.matches_complete_budget(prepared.allocation_parent()));
     }
 }
+
+/// #1488 0079（P24-adj）：冷根失败无票重跑的续租标记按本次冻结域编号对齐（每请求唯一），
+/// 防止前序请求残留的标记被本请求的发布误用。放在文件尾，不移动生产代码行号。
+#[cfg(feature = "s_capture_native_testonly")]
+impl ManifestWorkspaceBudget {
+    pub(crate) fn freeze_domain(self) -> u64 {
+        self.domain
+    }
+}

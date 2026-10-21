@@ -2097,8 +2097,169 @@ mod tests {
                     "{error}"
                 );
                 assert!(error.contains("不自动重试") && error.contains("重启writer进程"), "{error}");
+                // #1488 0079（0078 optional_lock）：残留分支只拒触发它的请求，不退役 writer；
+                // 同一 driver 再发 ready 必须成功且与基线一致。
+                crate::cache::configure(268_435_456);
+                let again = d.handle(ready.clone());
+                crate::cache::configure(0);
+                crate::v3::audit_owner::cold_root_probe::take();
+                crate::v3::audit_owner::cold_root_probe::take_reruns();
+                assert_eq!(again.expect("残留分支报错后同一 writer 须继续服务"), expected);
             }
         }
+    }
+
+    /// #1488 0079（P24-adj，0078 探针 H 形态）：同一 writer 内冷根自然失败（1M）后无票重跑提交，
+    /// 之后 allowance 变大（改 16M）使候选重新出生；后续 ingest 必须走 Carry 提交且与 ordinary 一致。
+    /// 负控：去掉 `renew_lease_after_cold_root_rerun` 的续租 → ingest-2 报“Carry租约已撤销”。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn p24adj_cold_root_rerun_renews_lease_and_larger_cap_ingest_commits() {
+        use crate::v3::audit_owner::cold_root_probe as probe;
+        let f = Fixture::new();
+        let o = Fixture::new();
+        let mut ordinary = o.open("1").unwrap();
+        let mut d = Driver::open_for_serve_with_mode(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            1 << 20,
+            s_allocation::Mode::CapturedNative,
+        )
+        .unwrap();
+        crate::cache::configure(268_435_456);
+        probe::take();
+        probe::take_reruns();
+        drop(probe::take_leaked());
+        let first = d.handle(Fixture::ingest(1));
+        let notes = probe::take();
+        let reruns = probe::take_reruns();
+        let renewed = d.conn.recover_probe_for_test();
+        let expected = ordinary.handle(Fixture::ingest(1)).unwrap();
+        assert_eq!(first.unwrap(), expected);
+        assert_eq!(notes, [(0, 0)], "1M 下须恰经一次冷根自然失败且残留归零");
+        assert_eq!(reruns, 1, "残留归零后无票重跑一次");
+        assert!(
+            !renewed.stale && !renewed.retired && renewed.qualification.is_none(),
+            "冷根失败无票重跑提交后须续租：{renewed:?}"
+        );
+        d.audit_cache_source_bytes = Some(16 << 20);
+        let steps = [
+            ("ready-a", envelope("p24adj-ready-a", json!({"op":"ready"}))),
+            ("ingest-2", Fixture::ingest(2)),
+            ("ready-b", envelope("p24adj-ready-b", json!({"op":"ready"}))),
+            ("ingest-3", Fixture::ingest(3)),
+            ("ready-c", envelope("p24adj-ready-c", json!({"op":"ready"}))),
+        ];
+        let mut carried = Vec::new();
+        let mut outcome = Vec::new();
+        for (id, request) in steps {
+            let (actual, events, _) = state::traced(true, || d.handle(request.clone()));
+            let probe_after = d.conn.recover_probe_for_test();
+            if id.starts_with("ingest") {
+                carried.push((
+                    id,
+                    events.iter().any(|e| e["phase"] == "owner_complete_hit"),
+                    probe_after.qualification.is_some(),
+                    probe_after.stale,
+                ));
+            }
+            outcome.push((id, actual, ordinary.handle(request).unwrap()));
+        }
+        crate::cache::configure(0);
+        assert!(probe::take().is_empty(), "16M 下冷根不应再失败");
+        for (id, actual, oracle) in outcome {
+            assert_eq!(actual.unwrap_or_else(|e| panic!("{id}: {e}")), oracle, "{id}");
+        }
+        assert_eq!(
+            carried,
+            [("ingest-2", true, true, false), ("ingest-3", true, true, false)],
+            "候选重新出生后 ingest 须命中完整候选、经 Carry 提交资格且租约有效"
+        );
+        assert_eq!(
+            prepared::tests::runtime_root_tables(&d.conn, true),
+            prepared::tests::runtime_root_tables(&ordinary.conn, true)
+        );
+    }
+
+    /// #1488 0079（P24-adj 负控锁）：冷根失败续租不清除真实撤销。
+    /// (a) 续租并经 Carry 建立资格后发生真实外写：下一 ingest 仍被拒、租约撤销、资格离开 owner；
+    /// (b) 前序请求回滚（IdentityConflict 准入事务析构）已撤销租约：其后的冷根失败无票重跑提交不续租，
+    ///     allowance 变大、候选重新出生后 ingest 照旧报“Carry租约已撤销”。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn p24adj_cold_root_renewal_keeps_real_revocations() {
+        use crate::v3::audit_owner::cold_root_probe as probe;
+        let open = |f: &Fixture| {
+            Driver::open_for_serve_with_mode(
+                &f.db,
+                &f.profile,
+                "1",
+                f.clock.clone(),
+                1 << 20,
+                s_allocation::Mode::CapturedNative,
+            )
+            .unwrap()
+        };
+        let ready = |id: &str| envelope(id, json!({"op":"ready"}));
+        crate::cache::configure(268_435_456);
+        probe::take();
+        probe::take_reruns();
+        // (a) 外写。
+        let f = Fixture::new();
+        let mut d = open(&f);
+        let a1 = d.handle(Fixture::ingest(1)).map(|_| ());
+        let a_notes = probe::take();
+        d.audit_cache_source_bytes = Some(16 << 20);
+        let a2 = d.handle(ready("p24adj-neg-ready-a")).map(|_| ());
+        let a3 = d.handle(Fixture::ingest(2)).map(|_| ());
+        let carried = d.conn.recover_probe_for_test();
+        let a4 = d.handle(ready("p24adj-neg-ready-b")).map(|_| ());
+        recover_lock_external_write(&f);
+        let a5 = d.handle(Fixture::ingest(3));
+        let revoked = d.conn.recover_probe_for_test();
+        // (b) 前序回滚。
+        let g = Fixture::new();
+        let mut e = open(&g);
+        let mut foreign = ready("p24adj-neg-foreign");
+        foreign["session_generation"] = json!("2");
+        let b1 = e.handle(foreign);
+        let pre_stale = e.conn.recover_probe_for_test();
+        probe::take();
+        let b2 = e.handle(Fixture::ingest(1)).map(|_| ());
+        let b_notes = probe::take();
+        let not_renewed = e.conn.recover_probe_for_test();
+        e.audit_cache_source_bytes = Some(16 << 20);
+        let b3 = e.handle(ready("p24adj-neg-ready-c")).map(|_| ());
+        let b4 = e.handle(Fixture::ingest(2));
+        crate::cache::configure(0);
+        probe::take();
+        probe::take_reruns();
+        assert_eq!((a1, a2, a3, a4), (Ok(()), Ok(()), Ok(()), Ok(())));
+        assert_eq!(a_notes, [(0, 0)], "(a) 须经冷根自然失败");
+        assert!(
+            !carried.stale && carried.qualification.is_some(),
+            "(a) 续租后 Carry 须建立资格：{carried:?}"
+        );
+        assert!(a5.is_err(), "(a) 外写后 ingest 必须被拒：{a5:?}");
+        assert!(
+            revoked.stale && revoked.serial > carried.serial && revoked.qualification.is_none(),
+            "(a) 外写后租约须撤销、资格离开 owner：{revoked:?}"
+        );
+        assert!(
+            b1.as_ref().is_err_and(|e| e.contains("IdentityConflict")),
+            "{b1:?}"
+        );
+        assert_eq!(b2, Ok(()));
+        assert!(pre_stale.stale, "(b) 回滚须先撤销租约：{pre_stale:?}");
+        assert_eq!(b_notes, [(0, 0)], "(b) ingest 须经冷根自然失败并无票重跑");
+        assert!(not_renewed.stale, "(b) 前序回滚撤销不得被续租清除：{not_renewed:?}");
+        assert_eq!(b3, Ok(()));
+        assert!(
+            b4.as_ref().is_err_and(|e| e.contains("Carry租约已撤销")),
+            "(b) 前序真实撤销后照旧 fail-closed：{b4:?}"
+        );
     }
 
 

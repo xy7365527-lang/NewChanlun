@@ -113,3 +113,6 @@ v3::driver::tests::publication_ledger_after_budget_failure_rejects_without_degra
 v3::driver::tests::recover_lock_rejects_missing_same_snapshot_complete
 v3::driver::tests::recover_lock_promotes_after_duplicate_ingest_and_chained_rebinds
 v3::aux_index::tests::p50_legacy_to_native_index_permit_counts_control_byte_per_slot
+# #1488 0079 P24-adj：冷根失败（left==0）无票重跑提交后按 renew_lease_after_abandon 同组条件续租，allowance 变大后 ingest 经 Carry 提交且与 ordinary 一致（负控：去续租→红）；续租不清真实撤销（续租后外写仍撤销、前序回滚撤销不被清除）；p3_d 扩展（0078 optional_lock：残留报错后同一 driver ready 须 Ok=expected，负控：该分支 retired→红，同名锁）
+v3::driver::tests::p24adj_cold_root_rerun_renews_lease_and_larger_cap_ingest_commits
+v3::driver::tests::p24adj_cold_root_renewal_keeps_real_revocations
