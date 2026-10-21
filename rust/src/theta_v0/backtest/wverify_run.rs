@@ -3058,10 +3058,15 @@ fn cascade_dual(l0: &ParseLayer, config: &ThetaConfig, weak: bool) -> C327Arm {
         detect_centers_windowed_resume, project_to_units, trend_run_start, ElementId, LeveledMove,
     };
 
+    let mut arm = C327Arm::default();
+    // #1585（X-38）：L0 带段端门 fail-closed 标记 ⟹ 与生产 classifier 入口（#1581）同口径整层拒读，
+    // 两臂均不构造中枢（复刻忠实性守恒对拒读层照样成立：生产 classify 亦无级别）。
+    if l0.segments_parse_invalid_from.is_some() {
+        return arm;
+    }
     let min_parts = config.level.min_parts_per_level as usize;
     let l_max = config.level.l_max as usize;
     let mut units: Vec<UnitRange> = l0.segments.iter().map(c327_seg_to_unit).collect();
-    let mut arm = C327Arm::default();
     if units.is_empty() {
         return arm;
     }
@@ -3241,6 +3246,14 @@ fn c327_run_witness(
         layer.segments.len(),
         ds.dates.first().map(String::as_str).unwrap_or(""),
         ds.dates.last().map(String::as_str).unwrap_or(""),
+    );
+    // #1585（X-38）：段解析无效 ⟹ 显式拒读并报出失败起点，不让下方 GOLDEN 断言把拒读的空级联
+    // 误报成「口径回归」。
+    assert!(
+        layer.segments_parse_invalid_from.is_none(),
+        "[#327/{tag}] 段解析无效（segment_parse_invalid，段端门 fail-closed 自笔 {:?} 起）：\
+         拒读，本窗读数不构成证据",
+        layer.segments_parse_invalid_from
     );
 
     let strict = cascade_dual(&layer, cfg, false);
@@ -3639,6 +3652,31 @@ fn m3_partition_btc_fullhistory() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #1585（X-38）负控：L0 注入段端门 fail-closed 标记 ⟹ `cascade_dual` 两臂拒读（无级别、无命中），
+    /// 与生产 classify 拒读同口径（复刻忠实性守恒对拒读层照样成立）。正控：同一层无标记时有中枢。
+    #[test]
+    fn tb1585_cascade_dual_refuses_parse_invalid_layer() {
+        let cfg = ThetaConfig::default();
+        let bars = crate::theta_v0::parser::tb1581_tests::tb1581_bars(0x1581_0000, 4_000);
+        let layer = crate::theta_v0::parser::parse_layer(&bars, &cfg);
+        assert_eq!(layer.segments_parse_invalid_from, None, "生产口径无门失败");
+        let open = cascade_dual(&layer, &cfg, false);
+        assert!(
+            open.centers.iter().any(|c| !c.is_empty()),
+            "正控：无标记时有中枢"
+        );
+        assert_cascade_faithful(&open, &layer, &cfg);
+
+        let mut marked = layer.clone();
+        marked.segments_parse_invalid_from = Some(0);
+        for weak in [false, true] {
+            let arm = cascade_dual(&marked, &cfg, weak);
+            assert!(arm.centers.is_empty(), "weak={weak}：拒读层不构造中枢");
+            assert!(arm.hits.is_empty(), "weak={weak}：拒读层无判据命中");
+        }
+        assert_cascade_faithful(&cascade_dual(&marked, &cfg, false), &marked, &cfg);
+    }
 
     /// δ-free 精确重算自检（Task #186，L1 管线正确性）：round-trip dump→load bit-exact + δ-free
     /// perm_p 池化正确性。合成 records（level0/bsp3/σ+1 两 δ 同号高残差 = beta 漂移签名）：δ-free

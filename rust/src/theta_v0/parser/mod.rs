@@ -136,6 +136,21 @@ impl PartialEq for ParseLayer {
     }
 }
 
+impl ParseLayer {
+    /// #1585（X-38）：段账本在段端门 fail-closed 标记下仍可读的前缀——起点（原始 K 序）早于失败段
+    /// 起点笔 `strokes[segments_parse_invalid_from].start_index` 的段；无标记 ⟹ 整本账。给绕过
+    /// classifier 入口直读段账本的对照臂/诊断件用，读标记与 #1581 同一字段（不另起判定）。
+    /// 标记笔号越界（不应发生）⟹ 空前缀（fail-closed）。
+    pub fn segments_valid_prefix(&self) -> &[Segment] {
+        let Some(from) = self.segments_parse_invalid_from else {
+            return &self.segments;
+        };
+        let cut = self.strokes.get(from).map_or(0, |s| s.start_index);
+        let n = self.segments.partition_point(|s| s.start_index < cut);
+        &self.segments[..n]
+    }
+}
+
 /// Θ_parse 顶层入口（L0=1分钟线段账本的解析）。
 ///
 /// 七步流水线（步骤5 中枢移交 classifier，见模块头），bit-exact 实装 `Origin.ChanlunElements.
@@ -547,7 +562,7 @@ mod tb02c_tests;
 #[cfg(test)]
 mod tb1493_replay_tests;
 #[cfg(test)]
-mod tb1581_tests;
+pub(crate) mod tb1581_tests;
 
 #[cfg(test)]
 mod tests {

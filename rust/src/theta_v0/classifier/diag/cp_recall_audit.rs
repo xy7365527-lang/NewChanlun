@@ -346,6 +346,11 @@ pub fn cp_recall_upper_bound_audit(
     tower_snapshots: &[Rc<Vec<LeveledMove>>],
 ) -> Vec<CpRecallAuditCase> {
     let mut out = Vec::new();
+    // #1585（X-38）：L0 带段端门 fail-closed 标记 ⟹ 与 classifier 入口（#1581）同口径整层拒读，
+    // 不产任何审计行（L0 units 直读 `l0.segments`；错配的非空 classification 同样拒读）。
+    if l0.segments_parse_invalid_from.is_some() {
+        return out;
+    }
     for (level, state) in classification.levels.iter().enumerate() {
         let Some(unit_moves) = tower_snapshots.get(level) else {
             continue;

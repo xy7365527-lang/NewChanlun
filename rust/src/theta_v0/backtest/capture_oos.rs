@@ -36,14 +36,19 @@
 //!    可交易 close 强制平仓，窗 k 统计不吸收窗 k+1 时段路径；计数如实报告。
 //! 6. 训练窗 λ 标定的段特征路径截断至 train_end 当日末根 bar（bughunt F-08 修复口径），
 //!    杜绝特征读取越界；段身份仍来自终局解析（见上，量级 = 确认滞后，如实声明）。
+//! 7. 段解析无效（#1585 / X-38，承接 #1581）：增量层带段端门 fail-closed 标记的 bar 上拒读段账本——
+//!    不按段确认开平仓、高水位不动（价格止损/窗界强平/顺延出场照常，不读段结构）；持仓期间
+//!    遇标记的交易记为受污染，剔出全部聚合，只计数并报出标记 bar 区间。终局批量解析带标记时，
+//!    λ 定参与理论分母只读失败段起点前的可读前缀。本回测只产内存报告，不写任何生产账。
 
 #[cfg(test)]
 mod tests {
     use super::super::super::config::ThetaConfig;
-    use super::super::super::parser::{parse_layer, ParseLayerIncr};
+    use super::super::super::parser::{parse_layer, ParseLayer, ParseLayerIncr};
     use super::super::super::types::Direction;
     use super::super::data;
     use super::super::prereg_windows::{OOS_START, PREREG_WINDOWS};
+    use super::super::segment_gn::tests::parse_invalid_note;
 
     const FEE: f64 = 3e-4; // 单边，config.rs:228-230 冻结口径
     const LAMBDA_LO: f64 = 5e-4; // S2 建议域下沿 0.05%
@@ -78,6 +83,7 @@ mod tests {
         lambda: Option<f64>,
         win: Option<(u32, bool)>, // (窗序号, clipped)
         pending: Option<Pending>, // F-10：被 untradable bar 阻塞的出场
+        parse_invalid: bool,      // #1585：持仓期间遇段解析无效标记
     }
 
     struct TradeRec {
@@ -88,6 +94,7 @@ mod tests {
         dir: Direction,
         stopped: bool,
         win: Option<(u32, bool)>,
+        parse_invalid: bool, // #1585：受段解析无效污染 ⟹ 不入任何聚合
     }
 
     impl TradeRec {
@@ -159,6 +166,15 @@ mod tests {
         }
     }
 
+    /// #1585（X-38）：本 bar 段账本能否读来按段确认开平仓。带段端门 fail-closed 标记 ⟹ 拒读
+    /// （`None`：本 bar 不按段确认开平仓，高水位不动）；否则给出 confirmed 前缀长度。
+    fn readable_confirmed_len(layer: &ParseLayer) -> Option<usize> {
+        layer
+            .segments_parse_invalid_from
+            .is_none()
+            .then_some(layer.segments_confirmed_len)
+    }
+
     /// S3 主回测：`cargo test --release --lib -- --ignored --nocapture s3_capture_oos_real_btc`
     /// 可选 `S3_BARS=<n>` 截断冒烟。
     #[test]
@@ -182,13 +198,16 @@ mod tests {
 
         // ── 终局批量解析：理论价差分母 + 训练窗 λ 定参（与增量终态 bit-exact）──
         let fin = parse_layer(&ds.bars, &cfg);
+        // #1585：终局账本带标记 ⟹ λ 定参与理论分母只读失败段起点前的可读前缀。
+        let fin_note = parse_invalid_note(&fin);
+        let fin_segs = fin.segments_valid_prefix();
         let day = |bar: usize| ds.dates[bar].get(..10).unwrap_or("");
 
         // λ_w = clamp(train 段 gap p95, [LO, HI])；gap 口径与 S2 逐字一致。
         // F-08：特征路径截断至 cap（train_end 当日末根 bar，含）——训练段的 end_index
         // 可越过 train_end，λ 标定不得读取其后的 test 期路径 bar。
         let seg_gap = |si: usize, cap: usize| -> f64 {
-            let s = &fin.segments[si];
+            let s = &fin_segs[si];
             let entry = s.start_price as f64;
             let path = &ds.bars[s.start_index..=s.end_index.min(cap)];
             let g = match s.direction {
@@ -206,9 +225,9 @@ mod tests {
                 .dates
                 .partition_point(|d| d.get(..10).unwrap_or("") <= w.train_end);
             let cap = n_train_bars.saturating_sub(1);
-            let mut gaps: Vec<f64> = (0..fin.segments.len())
+            let mut gaps: Vec<f64> = (0..fin_segs.len())
                 .filter(|&si| {
-                    let d = day(fin.segments[si].start_index);
+                    let d = day(fin_segs[si].start_index);
                     d >= w.train_start && d <= w.train_end
                 })
                 .map(|si| seg_gap(si, cap))
@@ -235,6 +254,7 @@ mod tests {
         let mut trades: Vec<TradeRec> = Vec::new();
         let mut last_tradable_close: Option<f64> = None; // F-09/F-10：最近可交易 close
         let mut boundary_closes = 0usize; // F-09：窗界强平计数
+        let mut invalid_runs: Vec<(usize, usize, usize)> = Vec::new(); // #1585：(bar 起, bar 止, 失败笔)
         let mut deferred_exits = 0usize; // F-10：出场被 untradable bar 顺延计数
         let mut untradable_entry_skips = 0usize; // F-10：入场被 untradable bar 跳过计数
                                                  // 劣侧成交价：多头出场取低者，空头出场取高者。
@@ -268,6 +288,7 @@ mod tests {
                             dir: ot.dir,
                             stopped,
                             win: ot.win,
+                            parse_invalid: ot.parse_invalid,
                         });
                     }
                 }
@@ -289,6 +310,7 @@ mod tests {
                         dir: ot.dir,
                         stopped,
                         win: ot.win,
+                        parse_invalid: ot.parse_invalid,
                     });
                 }
             }
@@ -320,11 +342,26 @@ mod tests {
                             dir: ot.dir,
                             stopped: true,
                             win: ot.win,
+                            parse_invalid: ot.parse_invalid,
                         });
                     }
                 }
             }
-            let c = layer.segments_confirmed_len;
+            // #1585：段解析无效 ⟹ 拒读段账本，记标记区间、污染当前持仓，跳过按段确认开平仓。
+            let Some(c) = readable_confirmed_len(&layer) else {
+                let from = layer.segments_parse_invalid_from.unwrap_or_default();
+                match invalid_runs.last_mut() {
+                    Some(r) if r.1 + 1 == t && r.2 == from => r.1 = t,
+                    _ => invalid_runs.push((t, t, from)),
+                }
+                if let Some(ot) = &mut open {
+                    ot.parse_invalid = true;
+                }
+                if !bar.untradable {
+                    last_tradable_close = Some(bar.close as f64);
+                }
+                continue;
+            };
             if c < hw {
                 retreats += 1; // #88 复活级联回退——因果决策照留，如实计数
             }
@@ -358,6 +395,7 @@ mod tests {
                                 dir: ot.dir,
                                 stopped: false,
                                 win: ot.win,
+                                parse_invalid: ot.parse_invalid,
                             });
                         }
                     }
@@ -371,6 +409,7 @@ mod tests {
                             lambda: win.and_then(|(wi, _)| lambda_of_win[wi as usize]),
                             win,
                             pending: None,
+                            parse_invalid: false,
                         });
                     } else if open.is_none() {
                         // F-10：untradable bar 不成交——该入场机会跳过（不顺延，保守口径）。
@@ -389,12 +428,12 @@ mod tests {
         let mut dir_mismatch = 0usize;
         let mut no_theory = 0usize;
         let theory = |tr: &TradeRec| -> Option<f64> {
-            fin.segments
+            fin_segs
                 .get(tr.seg_idx)
                 .map(|s| (s.start_price.max(s.end_price) - s.start_price.min(s.end_price)) as f64)
         };
         for tr in &trades {
-            match fin.segments.get(tr.seg_idx) {
+            match fin_segs.get(tr.seg_idx) {
                 Some(s) if s.direction != tr.dir => dir_mismatch += 1,
                 None => no_theory += 1,
                 _ => {}
@@ -406,7 +445,9 @@ mod tests {
         let mut pooled_wf = Agg::new(); // 非 clipped 全 wf 窗
         let mut pooled_oos = Agg::new(); // 非 clipped 且 test_start ≥ OOS_START
         let mut yearly: std::collections::BTreeMap<String, Agg> = Default::default();
-        for tr in &trades {
+        // #1585：受段解析无效污染的交易不入任何聚合（只计数）。
+        let tainted = trades.iter().filter(|tr| tr.parse_invalid).count();
+        for tr in trades.iter().filter(|tr| !tr.parse_invalid) {
             let th = theory(tr);
             if let Some((wi, clipped)) = tr.win {
                 per_win[wi as usize].push(tr, th);
@@ -434,6 +475,13 @@ mod tests {
             trades.len(), retreats, dir_mismatch, no_theory, dropped_open,
             boundary_closes, deferred_exits, untradable_entry_skips,
         );
+        if let Some(note) = &fin_note {
+            println!("⚠ 终局账本 {note}（λ 定参/理论分母只读可读前缀）");
+        }
+        println!(
+            "段解析无效（segment_parse_invalid）：增量标记 bar 区间(起,止,失败笔)={:?} 受污染交易={}（不入聚合）",
+            invalid_runs, tainted
+        );
         println!("-- 逐窗（λ 由各自 train p95 定，clipped 不入主判据）--");
         for (w, agg) in windows.iter().zip(&per_win) {
             println!(
@@ -455,5 +503,30 @@ mod tests {
         for (y, agg) in &yearly {
             println!("{} {}", y, agg.line());
         }
+    }
+
+    /// #1585（X-38）负控：生产增量层注入段端门 fail-closed 标记 ⟹ 开平仓闸拒读（不给 confirmed
+    /// 前缀，本 bar 无按段确认的交易），终局账本可读前缀截在失败段之前并出报告行。正控：同一层无标记
+    /// 时闸给出 confirmed 前缀（> 0）、整本账可读。
+    #[test]
+    fn tb1585_s3_refuses_segment_confirmation_under_marker() {
+        let cfg = ThetaConfig::default();
+        let bars = crate::theta_v0::parser::tb1581_tests::tb1581_bars(0x1581_0000, 4_000);
+        let mut incr = ParseLayerIncr::new(&cfg);
+        let layer = bars
+            .iter()
+            .map(|b| incr.append(*b))
+            .last()
+            .expect("K 线非空");
+        assert_eq!(layer.segments_parse_invalid_from, None, "生产口径无门失败");
+        let c = readable_confirmed_len(&layer).expect("正控：无标记可读");
+        assert!(c > 0, "正控：随机 K 线须有已确认段");
+        assert!(parse_invalid_note(&layer).is_none());
+
+        let mut marked = layer.clone();
+        marked.segments_parse_invalid_from = Some(0);
+        assert_eq!(readable_confirmed_len(&marked), None, "标记 bar 拒读段账本");
+        assert!(marked.segments_valid_prefix().is_empty());
+        assert!(parse_invalid_note(&marked).is_some_and(|n| n.contains("segment_parse_invalid")));
     }
 }
