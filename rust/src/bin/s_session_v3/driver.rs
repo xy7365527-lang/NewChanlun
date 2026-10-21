@@ -1801,6 +1801,64 @@ mod tests {
         assert_eq!(recover_lock_meta(&f, "writer_epoch").as_deref(), Some("2"));
     }
 
+    // ---- #1488 0077 P3 本票修（P3-REGISTER P08/P12）----
+    /// P12（0043 P3-2 余项）：Begin 后同 owner 已提交重复 ingest，再连续两个新只读请求 C、D——
+    /// 每一步都经 audit_admission 重绑点换到本请求冻结域（stamp 逐步互异），资格所记冻结域逐步
+    /// 跟随；链尾 Recover 成功晋升。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn recover_lock_promotes_after_duplicate_ingest_and_chained_rebinds() {
+        let f = Fixture::new();
+        let (mut native, _, _) = recover_lock_driver(&f);
+        let mut seen = vec![native.conn.complete_parent_stamp_for_test()];
+        let steps = [
+            ("duplicate-ingest", Fixture::ingest(1)),
+            ("ready-c", envelope("ready-chain-c", json!({"op":"ready"}))),
+            ("ready-d", envelope("ready-chain-d", json!({"op":"ready"}))),
+        ];
+        for (step, request) in steps {
+            native.handle(request).unwrap();
+            for earlier in &seen {
+                assert!(
+                    !native.conn.complete_parent_matches_for_test(earlier),
+                    "{step}：须经重绑点换到本请求冻结域，且不回到链上任一旧域"
+                );
+            }
+            assert!(
+                native.conn.qualification_parent_matches_complete_for_test(),
+                "{step}：资格所记冻结域须随合法重绑前进"
+            );
+            let probe = native.conn.recover_probe_for_test();
+            assert!(!probe.stale && probe.qualification.is_some(), "{step}：{probe:?}");
+            seen.push(native.conn.complete_parent_stamp_for_test());
+        }
+        native.conn.recover("2", &native.clock, "recover-2").unwrap();
+        let promoted = native.conn.recover_probe_for_test().qualification.unwrap();
+        assert_eq!(promoted.writer_epoch, Some(2));
+        assert!(promoted.has_parent, "{promoted:?}");
+        assert_eq!(recover_lock_meta(&f, "writer_epoch").as_deref(), Some("2"));
+    }
+
+    /// P08（0036 P3-3）：迁移时 complete 候选不属本事务快照（seal 不等）——生产不可达分支以注入
+    /// 锁定：精确拒绝、不迁移、资格撤销、持久 epoch 不动。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn recover_lock_rejects_missing_same_snapshot_complete() {
+        let f = Fixture::new();
+        let (native, _, _) = recover_lock_driver(&f);
+        let serial = native.conn.recover_probe_for_test().serial;
+        native.conn.inject_recover_snapshot_miss_for_test();
+        let error = native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap_err();
+        assert_eq!(
+            error,
+            "StaleWriter：construction资格失效：Recover迁移缺同快照完整原件"
+        );
+        assert_recover_revoked(&native, &f, serial, "1");
+    }
+
     /// P2-1：holds 门独立负控——资格所记父账与候选一致，唯状态块许可挂他账，迁移前即拒绝。
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]

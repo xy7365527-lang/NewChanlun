@@ -2749,6 +2749,64 @@ mod tests {
             .unwrap();
     }
 
+    /// #1488 0077 P50（mut-0057 M2a 盲区）：Legacy→Native 转换期的索引许可须按「槽数×(size_of+1)」
+    /// 全额计入本请求 scope；漏计控制字节（M2a）或不经 scope 预留都变红。槽数按转换前 Legacy 节点数
+    /// 独立推得（next_pow2(n)×4+16），不读被测实现的中间值。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn p50_legacy_to_native_index_permit_counts_control_byte_per_slot() {
+        use super::super::audit_owner::native::Budget;
+        let mut fixture = super::super::prepared::tests::Fixture::new();
+        for (n, row, revision) in [
+            (1, ("a", 0, 6, 12, 3, 7), 1),
+            (2, ("b", 10, 8, 16, 6, 12), 1),
+            (3, ("c", 20, 8, 13, 4, 7), 1),
+        ] {
+            let (event, token) = fixture.accept_begin(n, row, revision);
+            fixture.publish(&event, &token).unwrap();
+        }
+        let tx = fixture.conn.transaction().unwrap();
+        let stored: usize = tx
+            .query_row("SELECT COUNT(*) FROM s_content_nodes", [], |row| row.get(0))
+            .unwrap();
+        let budget = Budget::new(64 * 1024 * 1024, 0).unwrap();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let (legacy, node_count) =
+                    content_store::capture_for_request_prototype_admitted(&tx, Some(scope))
+                        .map_err(err)?;
+                assert!(node_count > 0 && node_count <= stored, "{node_count}/{stored}");
+                assert!(legacy.native_index_layout_for_testonly().is_none(), "转换前须为 Legacy");
+                let before = budget.live();
+                let native = legacy
+                    .enable_native_frame_reuse_admitted_for_testonly(Some(scope))
+                    .map_err(err)?;
+                let (index_bytes, slot_now, _) = native
+                    .native_index_layout_for_testonly()
+                    .expect("转换后须为 Native");
+                let slots = node_count.next_power_of_two() * 4 + 16;
+                assert_eq!(
+                    index_bytes,
+                    slots * slot_now,
+                    "索引许可须为槽数×(size_of+1)：slots={slots} slot={slot_now}"
+                );
+                assert!(
+                    budget.live() - before >= index_bytes,
+                    "索引许可须计入本 scope：live {} → {}，许可 {index_bytes}",
+                    before,
+                    budget.live()
+                );
+                eprintln!(
+                    "P50_INDEX nodes={node_count} stored={stored} slots={slots} slot={slot_now} index={index_bytes} live_delta={}",
+                    budget.live() - before
+                );
+                Ok::<_, String>(())
+            })
+            .unwrap();
+    }
+
     // 此夹具只验证真实生成器→辅助索引→SQLite，不声称完整 S3 控制/对象发布已接线。
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]

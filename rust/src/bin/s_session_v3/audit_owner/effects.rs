@@ -2673,9 +2673,9 @@ mod construction_coverage_tests {
             let material = material.unwrap();
             note_source_cut(material, (&state).into())?;
             // #1488 0035（裁定 issuecomment-6278995984）：逐收据载体由 keys 改为 events，语义不变。
-            let (before, keys_before) = {
+            let (before, keys_before, epoch_before) = {
                 let j = recording.journal.lock().unwrap();
-                (j.events.len(), j.keys.len())
+                (j.events.len(), j.keys.len(), j.material_epoch)
             };
             put(&tx, 45);
             put(&tx, 45);
@@ -2687,7 +2687,12 @@ mod construction_coverage_tests {
             assert_eq!(tail[0].digest, tail[1].digest);
             assert!(tail[0].inserted);
             assert!(!tail[1].inserted);
-            assert!(tail[1].material_epoch > tail[0].material_epoch);
+            // #1488 0077 P13（0038 P3-1）：原 `tail[1] > tail[0]` 读 receipts_for_test 现算序数，恒真；
+            // 改核 journal 真实计数器——三条收据（含 Noop）各推进一次，首见 key 记其发生时的读数。
+            assert_eq!(j.material_epoch - epoch_before, 3, "Noop occurrence 也须推进 material_epoch");
+            let keys = &j.keys[keys_before..];
+            assert_eq!(keys[0].material_epoch, epoch_before + 1);
+            assert_eq!(keys[1].material_epoch, epoch_before + 3, "46 首见于第三条收据");
             assert_eq!(j.keys.len() - keys_before, 2, "同摘要收据只合并key，不合并事件");
             Ok(())
         })
@@ -2735,7 +2740,8 @@ mod construction_coverage_tests {
             let error = validate_stage_coverage(&j).unwrap_err();
             assert!(error.contains("node多次事件序/实际写数不符"), "{error}");
             j.events.push(tail);
-            // key 下标越过首见序或指向别的 key：拒绝。
+            // key 下标越过首见序（future index，尚无对应 key）：拒绝。（0077 P15 订正：此处只测越序；
+            // 「指向别的既有 key」未在本锁单独构造。）
             let future = Receipt::node(j.keys.len() + 1, 0, 0, false).unwrap();
             j.events[noop] = future;
             let error = validate_stage_coverage(&j).unwrap_err();
