@@ -1,0 +1,34 @@
+{
+ "pr": 1652,
+ "round": 2,
+ "reviewer": "claude-fable-5-1",
+ "verdict": "PASS",
+ "items": [
+  {
+   "rule": "R1",
+   "verdict": "PASS",
+   "basis": "形状：draft.md:119 定九字段 ⟨policy_id, version, supersedes, profile_id, reversal_principal_exposure, voice_open_shortfall, authorizer, authorized_at, valid_through⟩，新块三条记录九字段齐全；P0-acceptance-5m 多一行 `scope: evidence_only`，草稿形状未含此字段（draft.md 中 scope/evidence_only 零命中），但与 ADR 0040 同 profile 的 cap-record（:92）与 funding-record（:127）完全同款——那两份也声称沿用 ADR 0029 八字段形状却带 scope，属仓库既有先例，非新裁定。取值：三条均 `profit_only`／`open_available`，与草稿 v1 及批复评论问 2/问 3 一致；policy_id `#1590/voice-open-funding/v1`、version v1、supersedes none 符合草稿「改值签新版本、supersedes 指向旧版本」口径（首版 none）。valid_through：ADR 0040「## 签署记录」(:65) 下 cap-record 与 funding-record 三 profile 的 valid_through 实核均为 2027-10-20（:76/:86/:97、:111/:121/:132），新块三条 2027-10-20 与之相同，「取同 profile funding-record 的有效期」属实；该值是沿用已签数值而非另立数值，ADR 内明写「不另立数值」，不构成未经用户签署的新数值（见 notes 对绑定本身的提醒）。authorizer／authorized_at：gh api 实查评论 6309984967 作者 xy7365527-lang（仓库所有者即「用户」）、created_at 2026-10-21T06:53:27Z、issue_url 指向 #1590、正文为「用户批复（#1590 P 类草稿批准）：同意」并逐条给出问 1/2/3 口径——与「用户（#1590 2026-10-21 批复，评论 6309984967）」「authorized_at: 2026-10-21」相符。round2-delta.diff 与工作区 `git diff` 逐字一致。",
+   "problems": []
+  },
+  {
+   "rule": "R2",
+   "verdict": "PASS",
+   "basis": "TotalWealth.lean 实核：:256 `def LegalEnterEarning (s : TWState) : Prop := s.openLegacyLegs = 0`；:258-267 为 LegalTransition 文档注释；:268 `def LegalTransition (s : TWState) : TWEvent → Prop`；:269 enterEarning 分支 `=> LegalEnterEarning s`；:270 `| TWEvent.openShareLeg => s.stage.rank < TStage.earningShares.rank`。ADR 0043 裁定三「`LegalTransition` 定义 `:268`」、受影响代码表「:256／:268」、#1378 条目「`openShareLeg` 前 `stage.rank < EarningShares`（`TotalWealth.lean:270`）」三处行号与前件描述均准确；新增的 #1378 提醒措辞为「实现时另核…由 #1378／#1406 核对」，是转交实现核对而非新裁定。",
+   "problems": []
+  },
+  {
+   "rule": "R3",
+   "verdict": "PASS",
+   "basis": "对照 `git diff 02b5b571eb HEAD -- sanjieduan.md`：§2 新增订正块含「空头 growth_eligible ⇒ latch.rank ≥ CapitalRecovered」与「开多声部…经 LegalTransition 追加既有 enterEarning」✓；新增「### 换向与开局资金（#1590）」小节位于 §3 标题之前、属 §2 ✓；§3 新增「订正指针（#1590，ADR 0043 裁定二）」✓；§5 新增 `voice.rs:169`、`book.rs:442` 两行 ✓；PR 文件清单（7 个文件全为 .md）无代码改动，「无代码行为变更」属实 ✓。条目未提及的改动：文件头「最后裁定」加 #1590、「最后更新」改 2026-10-21、§5 `TotalWealth.lean:194` 行尾加「（#1590 订正为 latch.rank ≥ CapitalRecovered，见 §2）」注记——均为同一订正的附带注记，条目所述无不实，仅不完整；与既有 2026-10-15 条目的粒度相当，不构成问题。",
+   "problems": []
+  }
+ ],
+ "notes": "非阻断：(a) 新块 P0-acceptance-5m 的 `scope: evidence_only` 不在草稿九字段形状内，沿用 ADR 0040 同 profile 记录先例；若 #1421 实装记录解析器按严格九字段校验，需与 ADR 0040 的处理方式一致（当作 profile 标记而非形状字段）。(b) valid_through 沿用 funding-record 有效期本身不是新数值，但「政策记录有效期与资金记录有效期绑定」是作者在落地时做出的选择，用户批复评论未明示；ADR 已在块前一句明写出处，建议关票评论里让用户知悉这一绑定，日后 funding-record 续签时 voice-open-funding 记录需同步续签或签新版本。(c) sanjieduan.md 更新日志条目可补「§5 `:194` 行加订正注记、文件头最后裁定加 #1590」，非必须。(d) 第一轮 notes (2)（#1323 Decisions-so-far 加行）与 (6)（删「或扩量」已记录）属票面动作，本轮增量未涉及、无需处理。",
+ "_meta": {
+  "model_usage": [
+   "claude-fable-5-1"
+  ],
+  "route": "claude-proxy -> CLIProxyLocal 127.0.0.1:8318",
+  "reviewed": "39be558263 + round2-delta.diff"
+ }
+}
