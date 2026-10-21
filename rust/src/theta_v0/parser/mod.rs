@@ -322,6 +322,11 @@ impl<'c> ParseLayerIncr<'c> {
     }
 
     /// 追加一个原始 bar；不沿用旧笔的冻结前缀证书。
+    ///
+    /// #1588 持有合同：返回的 ParseLayer 与本适配器共享 merged/fractals/strokes/segments 缓冲。
+    /// 调用方须在下次 `append` **之前**丢弃上一轮 ParseLayer（`l = parser.append(b)` 的旧值在
+    /// 右侧求值期间仍存活，不算丢弃）；否则各子模块 `Rc::make_mut` 每次整表深拷贝，逐 bar 回放
+    /// 退化为 O(n²) 时间与分配量。结果不受影响，只影响开销。
     pub fn append(&mut self, bar: Bar) -> ParseLayer {
         append_incr_layer(
             &mut self.incr_inclusion,

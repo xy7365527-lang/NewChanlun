@@ -3114,6 +3114,8 @@ fn advance_core(
         };
         raw_bars.push(bar);
         if !is_ohlc {
+            // #1588：先丢上一轮 layer 再 append，免各共享表 Rc::make_mut 每根整表拷贝。
+            drop(layer.take());
             layer = Some(incr.append(bar));
         }
     }
