@@ -96,7 +96,7 @@ fn main() -> std::process::ExitCode {
     let mut trades: Vec<TradeRecord> = Vec::new();
 
     // 平/开一笔（close 成交口径，与 metrics::significance trade_abs_pnl 一致）。
-    let mut close_trade = |trades: &mut Vec<TradeRecord>, entry: usize, exit: usize, long: bool| {
+    let close_trade = |trades: &mut Vec<TradeRecord>, entry: usize, exit: usize, long: bool| {
         if exit > entry {
             trades.push(TradeRecord {
                 entry_bar: entry,

@@ -1,0 +1,18 @@
+{
+  "ticket": 1627,
+  "pr": 1655,
+  "round": 2,
+  "reviewer_model": "claude-opus-5-5",
+  "route": "本机 CLIProxyLocal 代理（地址按 DevSkim 口径不入证据）",
+  "reviewed_commit": "5050a5d4e4",
+  "verdict": "PASS",
+  "blocking": [],
+  "nonblocking": [
+    "zhongshu §9.6 C2 漏列 rust/src/recursive_t/stream.rs:205 与 rec_stream.rs:46（a0_source 字段 doc『笔=递归底座下移』）；rec_stream.rs:1270-1273 正文与测试处重复列出",
+    "beichi.md:461 括号内另列 segment／kline3／trade3，与同句『本文件不另列』措辞冲突（内容与 §2.1.1 一致，属主控要求的原话）",
+    "beichi.md v1.4 changelog 追加 #1627 订正注，偏离草稿『:1019 历史 changelog 不改』（无害）",
+    "qujiantao.md:1251 第 35 行仍引代码『塔不从笔递归，构造选择』并称 §4.1.2 引其自陈，未附 #1627 订正指针",
+    "zhongshu §9.6 C2 改法栏以已 CLOSED 的 #808／#951 作处置载体，与承接 #1654 并列易混",
+    "zhongshu.md:138『保留为合法备选…作为 tower_base 可选值保留』重复『保留』措辞"
+  ]
+}

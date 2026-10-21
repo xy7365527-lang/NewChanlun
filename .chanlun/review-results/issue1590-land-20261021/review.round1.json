@@ -1,0 +1,57 @@
+{
+ "pr": 1652,
+ "reviewer": "claude-fable-5-1",
+ "verdict": "PASS",
+ "items": [
+  {
+   "rule": "R1",
+   "verdict": "PASS",
+   "basis": "worktree HEAD 39be558263 对 02b5b571eb 的 diff 与 pr1652.diff 逐字节相同（diff 退出 0）。ADR 0043 逐条对草稿「裁定」：一（单账延续、K 单一有符号 i64、空头利润按 ADR 0013:52 统一公式进同一 K、两被排除项）、二（两侧原式保留、按在世声部取侧、换向不开新批 Σ M_b ≔ Σ P_b、profit_only 下多头已回本而空头侧资格为假的一致性复核、D2 合成谓词排除）、三（latch 不回退、空头不走白赚通道、G 只剩 cash_g、空头蕴含订正为 latch.rank ≥ CapitalRecovered、开多求值点补发既有 enterEarning 且 known_at＝求值点/append-only/AsKnown 不回填）、四（记录形状九字段、三 profile 各签一条、不放进 funding-record、两字段各两值含出处与代价、四种真错排除、唯一读取点、开局量＝min(Q,可用)、数量为零 NotComputable{quantity_zero}、满仓＝开局量与档量不缩放、缺值/非法值/未实装值统一 AwaitingPolicy{voice_open_funding} 不回退默认、改值签新版本、两字段非准入门）、五（默认不新增事件、可选值须实施票）、六（附带改动清单）与溯源标签全部落实；正本落点 docs/adr/0043（main 最大 0042，编号正确）。sanjieduan.md：三行头加 #1590、:30 订正块、§2 新增「换向与开局资金」小节、§3 订正指针、§5 加 voice.rs:169/book.rs:442 两行并订正 :194 行；CONTEXT.md「重内单向」「cost_remaining」「本金批次」三词条各加一句（diff 中三行均为原文保留＋尾部追加）；ADR 0013:79/:83、0017 裁定二、0031:12/:20、0040:313 指针均已加。相对草稿的增量只有六条非阻断建议的处理（见 R2），其中裁定二删去「或扩量」是措辞收窄：持仓为 0 时没有在世声部也没有扩量求值点，「拟开方向」只在开局求值点有定义，草稿裁定四本身也把 q_rebase/溢出放在开局之后，语义等价；用户批复评论 6309984967 原话「按当前声部方向取侧」与之相容。未发现偷加裁定。",
+   "problems": []
+  },
+  {
+   "rule": "R2",
+   "verdict": "PASS",
+   "basis": "(1) 承重理由：ADR 0043「读取点与计算」首条写明 ADR 0040 裁定一方向非重属性、回 0 后换向与同向重开在读取点不可区分，并明写可选值下同向重开同样回流——已处理且与 0040:19 原文一致。(2) LegalTransition：裁定三写明 LegalEnterEarning s ⟺ openLegacyLegs = 0（TotalWealth.lean:256 实核为该 def）、#1378 须经 LegalTransition 不得走 raw twStep；sanjieduan.md §2 订正块、ADR 0031 指针、受影响代码清单（:256/:260 行）与 #1378 验收均同步——已处理。(3) ADR 0034 裁定一「tier_quantity 整数版本内冻结」已并引（0034:14 实核含此句），裁定三/四/五层级正确。(4)「或扩量」已在 ADR 0043、sanjieduan.md 小节、ADR 0031 指针、CONTEXT.md cost_remaining 四处统一删除。(5) 签署校验落点点名 #1421，并写明 #1651 交付后由其撤销拒收；#1651 票正文同样写「本票交付前由 #1421 的签署校验拒收」。(6) 退化组合：裁定四写明 topup_from_withdrawn 是 chong_full 的部分版本、(chong_full, topup) 与 (chong_full, open_available) 等价、合成三值字段也合法、按用户批复分写两字段、退化组合等价处理不拒收——与草稿「此值与默认等价」一致。六条均处理且未引入新裁定。",
+   "problems": []
+  },
+  {
+   "rule": "R3",
+   "verdict": "PASS",
+   "basis": "打开文件逐项核：ADR 0034 ### 一(:13)量档记录含「tier_quantity 整数版本内冻结」、### 三(:19-20)版本冻结与「回本前同量回补按原卖出冻结的版本与数量」、### 四(:22-23)「取整 tier_quantity = ⌊Q·num/den⌋」、### 五(:25-26)cash_g/「Q 只能由 q_rebase 政策版本改写」/「G 不是本金」、### 六溢出——与 ADR 0043 所引裁定一/三/四/五/六一致。ADR 0013 ### 三(:48)空头两相、### 四(:74)扩量闸门，:79「闸门在两侧的表现不同、判据一致」、:83「空头扩量不设风险门…逐仓分开」、:85「通道数不同…会计结构自带的偏斜」均在裁定四内；:33「一重＝一份专属筹码＝一个成本＝一个三阶段状态」、:52 统一公式。ADR 0040 ### 一(:17-21)「每开一个声部，方向由本级结构证书决定」「换向须先回到 0」「同一 (S, ℓ) 只有一个重」；### 四(:49-60)第 4 步 :56「每重开局批…声部为空时就是投入保证金 M」、:59 溢出与 AwaitingPolicy{q_rebase}；:100 八字段沿用。ADR 0031 ### 一(:10-12)principal_contribution、### 二(:16)跨 Voice 连续与 NotComputable{quantity_zero}、### 三(:20-22)两侧原式/「本 ADR 不改 Lean，本轮不另开 Lean 事件集」/「TStage 直接回退未被采纳」。ADR 0017 ### 一(:52-54)「先一次性买够，再做短差」、### 二(:65-77)「d = 0…满仓基线本身，w(0) ≡ 1.0」「w(0) = 1.0 是『满仓』的另一种写法」，指针插在 :77 属裁定二段内。ADR 0041 一(:9)适用范围、二(:11-15)含判别句与「不得有备用值」、三(:17-25)落法含 policy 记录、四(:27-30)合法候选保留/真错排除。ADR 0014 ### 一(:17-21)[0, 满仓] 不穿零；ADR 0010:23 三要件、:52「声部死而重不死」；ADR 0029:31 八字段。Lean/Rust：TotalWealth.lean:121「enterEarning：本金全退后切 EarningShares」、:125 clearCampaign withdrawn→free、:178 free := s.free + s.withdrawn…、:256 def LegalEnterEarning、:260 LegalTransition 文档中 enterEarning 一行（def 本体在 :268）；ledger.rs:97 free→withdrawn、:146 clear 时归还 free、:989「已退本金是历史事实，不被后续亏损否定」；voice.rs:169 positive(…,\"Voice opening quantity\")、:165 为旧行号已漂移；book.rs 唯一 capital_phase 命中在 :442 且 status Unknown。缠师原文四步核：031 课界 :32，:26 行末「投入以后就不能再增加」（同行括注以「（注意，」起头、属缠师自述、不在摘引段内）、:28「这样，原来投入的资金就全部收回来了」、:30「操作资金不会增加」；035 界 :38，:32 含「只有当成本为0时，才算真正脱离风险」；026 界 :40，:34 逐字含「本ID的仓位是一直不变的…绝对不加仓，一开始就买够」；040 界 :24，:20「每一重都对应着一定的资金与筹码」；六行行首「（注：」「(娇注：」命中均 0，摘引段内无行内注。票评论：6309984967 作者 xy7365527-lang、属 #1590、2026-10-21T06:53:27Z、原话「同意」；6309950579 同作者属 #1590、06:51 为被批草稿；6309459846 同作者属 #1590、为 /grill-with-docs 记录。",
+   "problems": []
+  },
+  {
+   "rule": "R4",
+   "verdict": "PASS",
+   "basis": "两字段均有默认值（profit_only／open_available）并附原文锚、ADR 与用户口径出处（ADR 0041 裁定三.2/.3）；可选值 chong_full／topup_from_withdrawn 保留在字段表并写代价与适用条件（本金再暴露、须 #1651 交付、chong_full 下 topup 与默认等价），符合裁定四「不删除、不写成被否」；四种真错各给排除依据（CONTEXT.md:417 无额外门、ADR 0034 裁定五、026:34＋ADR 0017 裁定一、ADR 0041 判别句）属 :30 所列类型。无备用值路径：缺记录、缺字段、值不在可选集、签成未实装值四种情形统一 AwaitingPolicy{voice_open_funding} 并停在开局点、不产生订单、明写「不回退到默认值」且代码不得有常数默认（裁定二 :15）；AwaitingPolicy 是等待签署状态而非第二取值（:21）。#799：两字段是不同合法取值而非同一判断的宽严两档，运行前单选、一次运行只读一个值；D2 合成谓词正确识别为「一条不过就看另一条」兜底形态并排除；latch 与资格仍是历史事实与当前准入两个对象。数量为零 NotComputable 与政策拦截的区别明写，不是宽松档接管。退化组合等价处理是取值等价，不构成兜底。",
+   "problems": []
+  },
+  {
+   "rule": "R5",
+   "verdict": "PASS",
+   "basis": "ADR 0013/0017/0031/0040 四份的 diff 全为新增行（无删除），指针均为「> ★ 2026-10-21 订正指针（#1590，ADR 0043 …）… 原文不删」形态并带票号链接；sanjieduan.md :30 原句保留并在其后加订正块、§3 指针注明「原文不删」、§5 旧行 :165/:194 保留并加注；CONTEXT.md 三个词条 diff 显示原句逐字保留、句尾追加带 #1590 与 ADR 0043 链接的一句。sanjieduan.md 三行头「> 正本／> 最后裁定／> 受影响代码清单」格式保持，「最后裁定」按既有分号续写惯例加 #1590（2026-10-21，ADR 0043）。",
+   "problems": []
+  },
+  {
+   "rule": "R6",
+   "verdict": "PASS",
+   "basis": "acceptance-run.txt 九项逐条与草稿验收清单命令一致（第六项 rg -q 1590 与 rg -q '1590' 等价）。本人在 worktree 复跑：docs/adr 中 -chong-reversal-account-continuity.md 计数 1；八个固定串在 ADR 0043 命中数分别 5/4/6/6/3/5/2/3；ADR 0029 八字段串命中 1（形状未改）；'1590' 在 sanjieduan.md 8、CONTEXT.md 3、ADR 0013 2、0017 1、0031 2、0040 1；'latch.rank ≥ CapitalRecovered' 在 sanjieduan.md 命中 2；gh 实查 #1590 blocking 排序为 [1378,1406,1415,1421]、blocked_by 为空、labels 含 needs-approval（index 2 非 null）、state OPEN。第 9 项 CLOSED 按规定在合入前为 OPEN，不算失败。",
+   "problems": []
+  },
+  {
+   "rule": "R7",
+   "verdict": "PASS",
+   "basis": "gh issue view 1651：标题「[impl] 已退本金 withdrawn→free typed 回流事件（Rust＋Lean），解锁 chong_full／topup_from_withdrawn（承接 #1590 ADR 0043）」，label wayfinder:impl，正文 Part of #1323、挂 SPEC #1340，交付项为 typed 回流事件（withdrawn→free、P_recovered 同额减少、phase_events 追加、AsKnown 不回填、与 clearCampaign 区分）、Rust ledger.rs:97/:146 附近、Lean TWEvent/twStep/LegalTransition、声明 Lean 覆盖面并由 Rust 同输入同输出锁（#804）兜空头、交付后撤销 #1421 拒收，验收含默认 profit_only 不发事件负控与常数变异体——与草稿裁定四/五「须另开实施票新增 Rust 与 Lean 回流事件并与 clearCampaign 区分、声明 Lean 覆盖面」及 ADR 0043 对 #1651 的描述一致。边：#1590 blocks [1378,1406,1415,1421] 与草稿「新增边」完全一致；#1590 blocked_by 为空，与草稿撤回「#1557 blocks #1590」一致；#1651 blocked_by [1421]、blocking 为空，与 ADR 0043「读取点与签署校验在 #1421」相符，草稿未对新票规定边，ADR 0043「新增 blocking 边」行也未把 #1651 计入，不与验收第 7 项冲突。",
+   "problems": []
+  }
+ ],
+ "notes": "非阻断：(1) ADR 0043 裁定四写「v1 为三个 profile 各签一条」，但 ADR 内未像 ADR 0040 签署记录那样实例化记录体（authorizer／authorized_at／valid_through），草稿本身也未给记录体，故不算不符；在 #1421 落记录存储前读取点将一直输出 AwaitingPolicy{voice_open_funding}，这与 ADR 0041 裁定三.2 口径一致，建议在 #1421 或 ADR 0043 补记录体时明写签署时间。(2) 草稿「受影响但不增边」中「#1323：Decisions so far 加一行」尚未落（#1323 正文 Decisions-so-far 无 #1590 条目，ADR 0040/0041 对应票也未加），属票面动作非 PR 范围，建议关票时补。(3) sanjieduan.md「更新日志」节未加 2026-10-21 条目（§5 基线头仍为 465174240b，新行各自标 02b5b571eb，可读）。(4) ADR 0043 引「LegalTransition :260」指向的是文档注释中 enterEarning 一行，def 本体在 :268，建议写作 :268 或「:258-273」。(5) 实现侧提醒（非本 PR 问题）：TotalWealth.lean:270 openShareLeg 要求 stage.rank < earningShares，latch 已到 EarningShares 后任何后续声部（含空头）都不能再开 legacy ShareConserving 腿；空头声部是否依赖 openShareLeg 归 #1378/#1406 在实现时核对。(6) ADR 0043 删除草稿裁定二「或扩量」三字是本 PR 唯一改动已批裁定正文的地方，理由成立且语义等价（见 R1），记录在此供用户知悉。",
+ "_meta": {
+  "model_usage": [
+   "claude-fable-5-1"
+  ],
+  "route": "claude-proxy -> CLIProxyLocal（本机回环地址，端口 8318）",
+  "reviewed_head": "39be558263"
+ }
+}

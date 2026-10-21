@@ -38,20 +38,28 @@
 //! `RecursiveOrchestrator` 的 pyo3 默认值至今仍是 `"wide"`（**实装未跟裁定**）。三套输入的
 //! 对比在**同一档**内进行，跨档数字不混用。
 
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../bi_engine.rs"]
 mod bi_engine;
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../fractal.rs"]
 mod fractal;
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../level.rs"]
 mod level;
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../moves.rs"]
 mod moves;
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../ph.rs"]
 mod ph;
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../segment.rs"]
 mod segment;
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../stroke.rs"]
 mod stroke;
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../zhongshu.rs"]
 mod zhongshu;
 
@@ -148,6 +156,10 @@ struct Endpoint {
     /// 该端点所在 merged bar 覆盖的挂钟区间 [t0, t1)（t1 = 末根 raw bar 的收盘时刻）。
     t0: i64,
     t1: i64,
+    #[allow(
+        dead_code,
+        reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）"
+    )]
     price: f64,
     /// merged bar 覆盖的 raw bar 的时段名分归并（见 `class_of_span`）。
     cls: &'static str,
@@ -160,6 +172,10 @@ struct CenterSpan {
     t1: i64,
     zd: f64,
     zg: f64,
+    #[allow(
+        dead_code,
+        reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）"
+    )]
     settled: bool,
 }
 

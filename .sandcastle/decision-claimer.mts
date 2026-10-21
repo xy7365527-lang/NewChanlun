@@ -604,10 +604,13 @@ export function loadTicket(gh: GhRunner, n: number): TicketContext {
 /** 用户批复与 resolution 只认编排者账号的评论（全仓代理与用户共用此账号，外部账号的评论不算）。 */
 export const ORCHESTRATOR = process.env.DECISION_ORCHESTRATOR ?? "xy7365527-lang";
 
-/** 去掉评论首行的 Markdown 前缀（引用、标题、加粗、列表），只留正文。 */
+/**
+ * 去掉评论首行的 Markdown 前缀（引用、标题、强调、列表），只留正文。
+ * 强调符号 `*` / `_` 取 1–3 个（斜体、加粗、粗斜体）；列表符须后跟空白，与斜体 `*用户…*` 区分。
+ */
 function firstLine(body: string): string {
   const line = body.trimStart().split("\n", 1)[0] ?? "";
-  return line.replace(/^(?:\s*(?:>|#{1,6}|\*\*|__|[-*]\s))+\s*/, "").replace(/^\*\*|\*\*$/g, "").trim();
+  return line.replace(/^(?:\s*(?:>|#{1,6}|[-*]\s|\*{1,3}|_{1,3}))+\s*/, "").replace(/(?:\*{1,3}|_{1,3})$/, "").trim();
 }
 
 /**
@@ -615,7 +618,7 @@ function firstLine(body: string): string {
  * 或批复冒号后的内容以这些词开头（「用户 … 批复：退回重写」）。首行中间提到「重写」不算（「批复：同意——按草稿重写 §3」）。
  */
 const REOPEN_HEAD = "(?:退回|驳回|打回|否决|不批准|不同意)";
-const REOPEN_RE = new RegExp(`^${REOPEN_HEAD}|批复\\s*[：:]\\s*(?:\\*\\*|[「“"])*\\s*${REOPEN_HEAD}`);
+const REOPEN_RE = new RegExp(`^${REOPEN_HEAD}|批复(?:\\*{1,3}|_{1,3})?\\s*[：:]\\s*(?:\\*{1,3}|_{1,3}|[「“"])*\\s*${REOPEN_HEAD}`);
 
 /**
  * 首行「用户 … 批复」且不是「未 / 待」批复（#1565 先例「用户 2026-10-20 批复：「同意」…」）。
@@ -640,7 +643,7 @@ export function resolvedReason(t: Pick<TicketContext, "state" | "comments">, orc
     if (c.author !== orchestrator) continue;
     const line = firstLine(c.body);
     if (line.startsWith("P 类影子模式")) continue;
-    if (c.body.trimStart().startsWith(AUTH_LINE) || /^resolution\s*[：:]/i.test(line)) reason = "票上已有 resolution";
+    if (c.body.trimStart().startsWith(AUTH_LINE) || /^resolution(?:\*{1,3}|_{1,3})?\s*[：:]/i.test(line)) reason = "票上已有 resolution";
     else if (REOPEN_RE.test(line)) reason = null;
     else if (isUserResolution(line)) reason = "票上已有用户批复";
     // 其余评论（簿记、进度）不改变结论。

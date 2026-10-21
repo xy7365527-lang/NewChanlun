@@ -329,10 +329,6 @@ impl Memo {
         Ok(())
     }
     /// 单一预算下先丢大句柄、再丢小控制头；不为准入旋转原件池。
-    fn make_room(&mut self, cost: usize) -> bool {
-        self.make_room_admitted(cost, None)
-            .expect("None admission cannot fail")
-    }
     fn make_room_admitted(
         &mut self,
         cost: usize,
@@ -522,9 +518,6 @@ impl Memo {
     }
 }
 /// 保留一份根原件证书（指针稳定：内容相同则复用既有 Arc，不换原件）。
-fn put_root_cert(memo: &mut Memo, root_key: &str, mut cert: RootCert) -> Option<Arc<RootCert>> {
-    put_root_cert_admitted(memo, root_key, cert, None).expect("None admission cannot fail")
-}
 fn put_root_cert_admitted(
     memo: &mut Memo,
     root_key: &str,
@@ -703,6 +696,7 @@ pub(super) fn counters_snapshot() -> EvidenceCounters {
 
 /// #1394：丢掉**跨请求的持久持有**（句柄 + 控制头 + 原件证书 + root walk），保留配置与临时读集。
 /// 用于测量真正的冷展开成本，也用于「冷/暖结果必须一致」的对照。
+#[cfg(test)]
 pub(super) fn clear_handles() {
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
@@ -829,6 +823,7 @@ pub(super) fn node_get(conn_id: usize, id: &[u8; 32]) -> Option<Arc<Cert>> {
 /// 其字节按唯一保留量记账并在提交时转记为持久证书。
 ///
 /// 单一预算下超限先驱逐可丢弃句柄；仍装不下只失去这次复用（当次读照常返回该节点）。
+#[cfg(test)]
 pub(super) fn node_put(conn_id: usize, cert: Arc<Cert>, owned: bool) {
     node_put_admitted(conn_id, cert, owned, None).expect("None admission cannot fail")
 }
@@ -895,9 +890,6 @@ pub(super) fn capture_len() -> usize {
 }
 
 /// 本捕获已算出的节点派生量（同一连接、同一次捕获内复用；跨捕获必然重算）。
-pub(super) fn derived_get(conn_id: usize, id: &[u8; 32]) -> Option<NodeDerived> {
-    derived_get_admitted(conn_id, id, None).expect("None admission cannot fail")
-}
 pub(super) fn derived_get_admitted(
     conn_id: usize,
     id: &[u8; 32],
@@ -933,9 +925,6 @@ pub(super) fn derived_has(conn_id: usize, id: &[u8; 32]) -> bool {
             .is_some_and(|c| c.derived.contains_key(&(conn_id, *id)))
     })
 }
-pub(super) fn derived_put(conn_id: usize, id: [u8; 32], derived: NodeDerived) {
-    derived_put_admitted(conn_id, id, derived, None).expect("None admission cannot fail")
-}
 pub(super) fn derived_put_admitted(
     conn_id: usize,
     id: [u8; 32],
@@ -957,9 +946,6 @@ pub(super) fn derived_put_admitted(
 }
 
 /// 记下「本捕获从 SQLite 读入过该节点」——跨同一次捕获里的全部读取器合并。
-pub(super) fn mark_reachable(conn_id: usize, id: [u8; 32]) {
-    mark_reachable_admitted(conn_id, id, None).expect("None admission cannot fail")
-}
 pub(super) fn mark_reachable_admitted(
     conn_id: usize,
     id: [u8; 32],
@@ -1010,6 +996,7 @@ pub(super) fn cert_get(id: &[u8; 32]) -> Option<Arc<Cert>> {
     MEMO.with(|m| m.borrow().certs.get(id).cloned())
 }
 /// 记下「本次捕获已把该节点的当前原行与保留证书逐字节比较且相同」。
+#[cfg(test)]
 pub(super) fn cert_matched_mark(conn_id: usize, id: [u8; 32]) {
     cert_matched_mark_admitted(conn_id, id, None).expect("None admission cannot fail")
 }
@@ -1032,6 +1019,7 @@ pub(super) fn cert_matched_mark_admitted(
     })
 }
 /// 该根闭包内每个唯一节点都在**本次捕获**逐字节命中原件证书（复用门的闭包那一半）。
+#[cfg(test)]
 pub(super) fn certs_all_matched(conn_id: usize, ids: &BTreeSet<[u8; 32]>) -> bool {
     MEMO.with(|m| {
         let m = m.borrow();
@@ -1059,6 +1047,7 @@ pub(super) fn cert_marked(conn_id: usize, id: [u8; 32]) -> bool {
 }
 /// 记下「该节点的整棵子树本次都逐字节命中原件证书」。认证**搭在既有后序遍历上**，
 /// 不另开一次遍历：调用方在子节点全部结算完之后才调用（故成本为零）。
+#[cfg(test)]
 pub(super) fn cert_certify(conn_id: usize, id: [u8; 32]) {
     cert_certify_admitted(conn_id, id, None).expect("None admission cannot fail")
 }
@@ -1093,6 +1082,7 @@ pub(super) fn cert_is_certified(conn_id: usize, id: [u8; 32]) -> bool {
 ///
 /// 只允许在该根**已完整展开并核过公开长度/摘要**（或本次已逐字节命中原证书）之后调用：
 /// 保留证书的内容必须来自一次成功核验的原件，绝不能来自未核验的读。
+#[cfg(test)]
 pub(super) fn cert_commit(conn_id: usize, ids: &BTreeSet<[u8; 32]>) {
     cert_commit_admitted(conn_id, ids, None).expect("None admission cannot fail")
 }
@@ -1154,9 +1144,6 @@ pub(super) fn cert_commit_admitted(
     })
 }
 /// 冷展开后，只有全部当前原件仍在池里且与本次读集为同一不可变原件，才能建立新根证明。
-pub(super) fn certify_retained_originals(conn_id: usize, ids: &BTreeSet<[u8; 32]>) -> bool {
-    certify_retained_originals_admitted(conn_id, ids, None).expect("None admission cannot fail")
-}
 pub(super) fn certify_retained_originals_admitted(
     conn_id: usize,
     ids: &BTreeSet<[u8; 32]>,
@@ -1289,6 +1276,7 @@ pub(super) fn batch_header_get(
 }
 
 /// 只由外层完整读取、严格解析及公开身份通过后的路径晋升；预算不足只放弃小头。
+#[cfg(test)]
 pub(super) fn batch_header_put(
     root_key: &str,
     batch_id: &str,
@@ -1417,6 +1405,7 @@ pub(super) fn handle_get_blob(
 /// 只有在本次已完整展开并核过公开长度/摘要、或本次已逐字节命中原证书之后才可调用。
 /// 装不下只失去这次复用，不改任何判据；也不整块清空其他仍可复用的句柄。
 /// 返回保留下来的根原件证书（审计前缀的原件证据）；`None` 表示本次无法保留。
+#[cfg(test)]
 pub(super) fn handle_put_certified(
     root_key: &str,
     root_cert: &RootCert,
@@ -1502,6 +1491,7 @@ pub(super) fn handle_put_certified_admitted(
     })
 }
 /// 记入整块域已核句柄（原件就是行内字节，无需根证书）。
+#[cfg(test)]
 pub(super) fn handle_put_blob(
     root_key: &str,
     closure: [u8; 32],

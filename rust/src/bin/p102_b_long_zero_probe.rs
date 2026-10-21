@@ -376,6 +376,10 @@ fn terminal_bits_new(
 }
 
 struct TerminalState {
+    #[allow(
+        dead_code,
+        reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）"
+    )]
     l0: ParseLayer,
     classification: classifier::Classification,
     tower: Vec<Rc<Vec<LeveledMove>>>,
