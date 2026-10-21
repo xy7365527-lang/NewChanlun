@@ -50,19 +50,19 @@ pub use super::opsem_dump::{StrictNestCertificateRecord, StrictNestSidecarSummar
 use std::rc::Rc;
 // ★B-M3b-contract（#91）fill loop seam：fill loop 本体 + FillOutput(Family)
 // 自 runner.rs 纯移动；对外经 `pub use` 门面保持原路径。
-pub(super) use super::fill::{pi_theta_fill_loop, pi_theta_fill_loop_overlay};
 #[cfg(test)]
 pub(super) use super::fill::apply_voice_fill;
+pub(super) use super::fill::{pi_theta_fill_loop, pi_theta_fill_loop_overlay};
 // ★#295：声部独立执行臂 wrapper 本体在 fill.rs 即 #[cfg(test)]（生产接入走
 // run_theta_v0_pi_overlay 的 VOICE_EXEC=1 gate 直调 pi_theta_fill_loop_overlay）——
 // re-export 同门控，bin（非 test）构建不引 test-only 符号。
 #[cfg(test)]
 pub(super) use super::fill::pi_theta_fill_loop_voice;
 pub(crate) use super::opsem_dump::OtherwiseDomainSidecarSummary;
+use super::opsem_dump::{otherwise_domain_sidecar_enabled, OtherwiseDomainSidecarCollector};
 use super::opsem_dump::{strict_nest_sidecar_enabled, StrictNestSidecarCollector};
 #[cfg(test)]
 use super::opsem_dump::{summarize_strict_nest_certificates, OpsemDump};
-use super::opsem_dump::{otherwise_domain_sidecar_enabled, OtherwiseDomainSidecarCollector};
 // ★#295：OPSEM_DUMP_DIR_OVERRIDE 为 #[cfg(test)] thread_local 注入点（opsem_dump.rs:180，
 // 消费面仅 tests::opsem_dump_env_gated_bit_exact）——import 同门控，同 VOICE_EXEC_OVERRIDE 惯例。
 #[cfg(test)]
@@ -178,7 +178,10 @@ pub struct RunResult {
     /// D4（#606 S1）：37:18 否则域亚型记录 sidecar 汇总。默认 `None`；仅
     /// `THETA_OTHERWISE_DOMAIN_SIDECAR=1/true/yes/on` 时在生产 π 重放同帧旁路产出（同
     /// `strict_nest_sidecar` 先例，观测面，不参与订单、候选、风控、账本、任何 bit 判据）。
-    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：S1 otherwise 域旁路汇总，仅测试读取"))]
+    #[cfg_attr(
+        not(test),
+        allow(dead_code, reason = "#1608：S1 otherwise 域旁路汇总，仅测试读取")
+    )]
     pub(crate) otherwise_domain_sidecar: Option<OtherwiseDomainSidecarSummary>,
 }
 

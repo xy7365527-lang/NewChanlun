@@ -6785,7 +6785,10 @@ pub(super) struct FillOutput {
     /// #201 阶段 B 裁决账本轨：π 路径逐 bar 消费的显式 per-voice 裁决序列（含显式 Hold，
     /// schema 冻结见 [`VoiceVerdictRec`]）；v1/dual 路径无腿级裁决 ⟹ 恒空（诚实不伪造，
     /// 同 `typed_ledger` 先例）。加轨不减轨——不进 μ estimand、不改任何既有轨。
-    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：FillOutput 旁路读出字段，仅测试读取"))]
+    #[cfg_attr(
+        not(test),
+        allow(dead_code, reason = "#1608：FillOutput 旁路读出字段，仅测试读取")
+    )]
     pub(super) voice_verdicts: Vec<VoiceVerdictRec>,
     /// TW 账本终态（#124 裁定4：TwState 生产真值源在 π fill loop；TStage/ηBucket「生产者已
     /// 就位」的可观测物证——G3 ZExt 桥/诊断消费）。v1 路径无 TW 接线 ⟹ `None`（诚实不伪造）。
@@ -6797,13 +6800,19 @@ pub(super) struct FillOutput {
     /// #197 并行记账视图（expand 只读旁路）：π 路径逐腿镜像开/关生命周期事件过账的
     /// （账户, 级别, 仓位节点）分实例账本；v1/dual 路径无腿级生命周期事件 ⟹ 恒空
     /// （诚实不伪造，同 `typed_ledger` 先例）。不改净额路径任何语义。
-    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：FillOutput 旁路读出字段，仅测试读取"))]
+    #[cfg_attr(
+        not(test),
+        allow(dead_code, reason = "#1608：FillOutput 旁路读出字段，仅测试读取")
+    )]
     pub(super) account_view: strategy::account::ParallelAccountLedger,
     /// #292（T2 门控接线可见性证据）：逐条「触发→减补动作」记录。π overlay 路径
     /// [`pi_theta_fill_loop_overlay`] 在 `config.center_oscillation.enabled` 时产出；v1/dual
     /// 路径未接线 ⟹ 恒空（诚实不伪造，同 `typed_ledger` 先例）。真实记账是 T3（#293）职责，
     /// 本轨不改任何既有订单/账本语义。
-    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：FillOutput 旁路读出字段，仅测试读取"))]
+    #[cfg_attr(
+        not(test),
+        allow(dead_code, reason = "#1608：FillOutput 旁路读出字段，仅测试读取")
+    )]
     pub(super) center_oscillation_actions:
         Vec<super::super::strategy::center_oscillation_trade::CenterOscillationActionRecord>,
     /// issue #357（T4/#294 生产实例化）：每重 campaign 账簿终态（★#880 键 = (标的, 操作级别)）

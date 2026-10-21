@@ -31,7 +31,10 @@ use super::*;
 /// 旧值比较 `(level,λ,eps)` 的"λ 漂移"归因错误——λ=start_index 在 confirmed 前缀不回写时不变。
 /// 真因 = `extract_elements` 每 bar 重建 Vec + 更高级新出现时根结构重构索引重映射 + 值比较非 spec §13
 /// 结构映射。Q4 修复：确定性 ElementId 跨 bar 稳定（全量/增量产同 ID），按 ID 匹配非值比较。
-#[allow(dead_code, reason = "#1608：held_leg_tree_index_indexed 的自建索引便捷入口，现有调用方均直接用预建索引变体")]
+#[allow(
+    dead_code,
+    reason = "#1608：held_leg_tree_index_indexed 的自建索引便捷入口，现有调用方均直接用预建索引变体"
+)]
 fn held_leg_tree_index(
     elements: &[CoverageElement],
     candidate_start: usize,

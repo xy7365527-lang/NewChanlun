@@ -95,7 +95,13 @@ pub(crate) struct VoiceVerdict {
 /// `ExitType::RiskExit`、next_active=∅（幽灵腿堵口，映射设计 §6.7）。RiskExit 无触发候选（非反向
 /// 信号），故独立于 `closed`（后者携触发候选喂 [`interp::reverse_exit_type`]）。
 #[derive(Debug, Clone, Default)]
-#[cfg_attr(not(feature = "backtest_bin"), allow(dead_code, reason = "#1608：trace 字段仅 backtest_bin 下的 backtest 模块消费"))]
+#[cfg_attr(
+    not(feature = "backtest_bin"),
+    allow(
+        dead_code,
+        reason = "#1608：trace 字段仅 backtest_bin 下的 backtest 模块消费"
+    )
+)]
 pub(crate) struct StepTrace {
     /// 反向关闭三元组 `(被关腿, 同级别已确认触发证书, typed 裁决)`（#145 T1 / #146 T2）。裁决 =
     /// [`interp::reverse_exit_type`]

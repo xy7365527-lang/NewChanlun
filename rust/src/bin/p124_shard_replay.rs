@@ -292,7 +292,10 @@ struct ProviderAudit {
     projection_invalid_seed: usize,
     projection_missing_carried_center: usize,
     projection_other: usize,
-    #[allow(dead_code, reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）")]
+    #[allow(
+        dead_code,
+        reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）"
+    )]
     snapshot_future_violations: usize,
 }
 

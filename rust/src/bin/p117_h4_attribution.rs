@@ -114,7 +114,10 @@ const CASES: [CaseCoord; 37] = [
     CaseCoord { turn: 4324005, side: Side::Long,  seg_a: (4323446, 4323756), seg_c: (4323850, 4324005) }, // #37
 ];
 
-#[allow(dead_code, reason = "#1608：探针方向换算辅助（Direction→Side），当前版本未调用")]
+#[allow(
+    dead_code,
+    reason = "#1608：探针方向换算辅助（Direction→Side），当前版本未调用"
+)]
 fn side_of_dir(direction: Direction) -> Side {
     match direction {
         Direction::Up => Side::Short,

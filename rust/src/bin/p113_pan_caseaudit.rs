@@ -140,10 +140,16 @@ enum LocateFail {
 /// 复刻 `signal.rs:560-566 PanDivStructure` 的判定相关字段。
 #[derive(Debug, Clone, Copy)]
 struct PanStructure {
-    #[allow(dead_code, reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）")]
+    #[allow(
+        dead_code,
+        reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）"
+    )]
     source_index: usize,
     side: Side,
-    #[allow(dead_code, reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）")]
+    #[allow(
+        dead_code,
+        reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）"
+    )]
     dir: Direction,
     seg_a: (usize, usize),
     seg_c: (usize, usize),
@@ -307,7 +313,10 @@ struct WideA {
 
 #[derive(Debug, Clone, Copy)]
 struct PanAttempt {
-    #[allow(dead_code, reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）")]
+    #[allow(
+        dead_code,
+        reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）"
+    )]
     center_idx: usize,
     block_span: (usize, usize),
     seg: (usize, usize),
@@ -324,11 +333,20 @@ struct PairRec {
     start: usize,
     end: usize,
     leave_kind: MoveKind,
-    #[allow(dead_code, reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）")]
+    #[allow(
+        dead_code,
+        reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）"
+    )]
     leave_dir: Option<Direction>,
-    #[allow(dead_code, reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）")]
+    #[allow(
+        dead_code,
+        reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）"
+    )]
     leave_via_divergence: bool,
-    #[allow(dead_code, reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）")]
+    #[allow(
+        dead_code,
+        reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）"
+    )]
     retest_kind: MoveKind,
     leave_span: (usize, usize),
 }
@@ -345,7 +363,10 @@ impl PairRec {
 
 #[derive(Debug, Default)]
 struct LevelData {
-    #[allow(dead_code, reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）")]
+    #[allow(
+        dead_code,
+        reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）"
+    )]
     tower_windows: usize,
     runs: usize,
     invalid_windows: usize,
@@ -1438,7 +1459,10 @@ fn main() -> Result<(), String> {
     // ═══════════════════════════════════════════════════════════════════
     // 收集 kill=Identity && leave==Consolidation 的链 → (kill_level, leave pair)。
     struct LeaveCase {
-        #[allow(dead_code, reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）")]
+        #[allow(
+            dead_code,
+            reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）"
+        )]
         chain_id: usize,
         level: usize,
         pair: PairRec,

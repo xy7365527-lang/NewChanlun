@@ -191,7 +191,10 @@ pub(crate) fn unit_to_segment(u: &UnitRange) -> Segment {
 /// 因此同向续行后的配对、同一价格带的晚框穿越、或首个 leave/retest 已失败后出现的远期
 /// 相邻对，均不能回填旧框。
 /// 九段升级同核心不设分支：接线层给出首次绑定时冻结的完整框，天然按该框四边判定。
-#[cfg_attr(not(feature = "backtest_bin"), allow(dead_code, reason = "#1608：仅 backtest_bin 下的 backtest 模块消费"))]
+#[cfg_attr(
+    not(feature = "backtest_bin"),
+    allow(dead_code, reason = "#1608：仅 backtest_bin 下的 backtest 模块消费")
+)]
 pub(crate) fn historical_bound_third_cert(
     classification: &Classification,
     tower: &[Rc<Vec<LeveledMove>>],
@@ -213,7 +216,10 @@ pub(crate) fn historical_bound_third_cert(
 }
 
 /// 把 `tower[level][idx]` 按该级生产投影的同一方向/外缘口径还原成 `Segment`。
-#[cfg_attr(not(feature = "backtest_bin"), allow(dead_code, reason = "#1608：仅 backtest_bin 下的 backtest 模块消费"))]
+#[cfg_attr(
+    not(feature = "backtest_bin"),
+    allow(dead_code, reason = "#1608：仅 backtest_bin 下的 backtest 模块消费")
+)]
 fn historical_bound_segment(
     classification: &Classification,
     level_moves: &[LeveledMove],
@@ -849,7 +855,13 @@ fn classify_incremental_inner(
             // ★增量失效边界（设计 §1.2/§3.4）：保留 `read_end_src < e` 的前缀 P（读域上界含停止哨兵，
             // 覆盖 codex §1.2.1 反例）。win_meta 与 centers 1:1 对齐、read_end_src 升序（源单调 S1）⟹
             // partition_point 定位 P。升级子中枢共享父窗口 read_end_src ⟹ 整窗保留或整窗失效（§3.5）。
-            #[cfg_attr(not(test), allow(unused_mut, reason = "#1608：p 仅在 test 构建的全清对照分支（CASCADE_FULLCLEAR）被改写"))]
+            #[cfg_attr(
+                not(test),
+                allow(
+                    unused_mut,
+                    reason = "#1608：p 仅在 test 构建的全清对照分支（CASCADE_FULLCLEAR）被改写"
+                )
+            )]
             let mut p = lc.win_meta.partition_point(|w| w.read_end_src < dirty_e);
             // ★放行条件3 keep_frac 探针（test+eprobe，release 剥离）：真实 P/len（不再用 end_index 代理）。
             #[cfg(test)]

@@ -119,7 +119,10 @@ struct T1Emission {
     level: u8,
     iv_start: usize,
     iv_end: usize,
-    #[allow(dead_code, reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）")]
+    #[allow(
+        dead_code,
+        reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）"
+    )]
     iv_kind: u8,
 }
 
@@ -793,7 +796,10 @@ fn first_zero_cause(funnel_levels: &[FunnelLevel]) -> Option<FirstZeroCause> {
 }
 
 #[derive(Debug, Clone, Copy)]
-#[allow(dead_code, reason = "#1608：漏斗近失诊断（#33 插桩），报告输出段已不调用，保留待复用")]
+#[allow(
+    dead_code,
+    reason = "#1608：漏斗近失诊断（#33 插桩），报告输出段已不调用，保留待复用"
+)]
 struct NearMiss {
     parent_level: usize,
     parent_idx: usize,
@@ -805,7 +811,10 @@ struct NearMiss {
 }
 
 impl NearMiss {
-    #[allow(dead_code, reason = "#1608：漏斗近失诊断（#33 插桩），报告输出段已不调用，保留待复用")]
+    #[allow(
+        dead_code,
+        reason = "#1608：漏斗近失诊断（#33 插桩），报告输出段已不调用，保留待复用"
+    )]
     fn rank_key(self) -> (usize, usize, usize, usize, usize) {
         (
             self.diag.failed_conditions(),
@@ -1137,7 +1146,10 @@ fn c_start_mapping_ok(event: &CandDeltaEvent) -> bool {
     }
 }
 
-#[allow(dead_code, reason = "#1608：漏斗近失诊断（#33 插桩），报告输出段已不调用，保留待复用")]
+#[allow(
+    dead_code,
+    reason = "#1608：漏斗近失诊断（#33 插桩），报告输出段已不调用，保留待复用"
+)]
 fn closest_pair_misses(
     events_by_level: &[Vec<CandDeltaEvent>],
     reachable: &[Vec<bool>],
@@ -1183,7 +1195,10 @@ fn closest_pair_misses(
     misses
 }
 
-#[allow(dead_code, reason = "#1608：漏斗近失诊断（#33 插桩），报告输出段已不调用，保留待复用")]
+#[allow(
+    dead_code,
+    reason = "#1608：漏斗近失诊断（#33 插桩），报告输出段已不调用，保留待复用"
+)]
 fn failed_condition_text(miss: NearMiss) -> String {
     let mut failed = Vec::new();
     if !miss.diag.same_side {

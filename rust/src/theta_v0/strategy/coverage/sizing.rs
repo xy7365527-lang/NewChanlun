@@ -396,7 +396,10 @@ impl KThetaRiskGate {
         room.max(0.0).floor() as u64
     }
 
-    #[allow(dead_code, reason = "#1608：𝒦_Θ 边界夹取工具（与 position_bounds 同源），待 DC-E 接线，当前无调用点")]
+    #[allow(
+        dead_code,
+        reason = "#1608：𝒦_Θ 边界夹取工具（与 position_bounds 同源），待 DC-E 接线，当前无调用点"
+    )]
     pub(crate) fn clamp_position(&self, cap: f64, position: f64) -> f64 {
         let (lo, hi) = self.position_bounds(cap);
         position.max(lo).min(hi)

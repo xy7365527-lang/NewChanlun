@@ -10,9 +10,9 @@
 //! 段内逐单元速度跳变绝对值之和（笔粒度总变差的塔内忠实读法）。只读，不改生产判据。
 
 use newchan_rust::theta_v0::backtest::data::load_by_symbol;
+use newchan_rust::theta_v0::classifier::classify;
 use newchan_rust::theta_v0::classifier::descend::RMove;
 use newchan_rust::theta_v0::classifier::recursive_tower::LeveledMove;
-use newchan_rust::theta_v0::classifier::classify;
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::parse_layer;
 use newchan_rust::theta_v0::types::{Center, Direction};

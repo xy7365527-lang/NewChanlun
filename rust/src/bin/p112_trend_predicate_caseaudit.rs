@@ -65,9 +65,15 @@ use std::path::Path;
 struct PairRec {
     start: usize,
     end: usize,
-    #[allow(dead_code, reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）")]
+    #[allow(
+        dead_code,
+        reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）"
+    )]
     leave_kind: MoveKind,
-    #[allow(dead_code, reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）")]
+    #[allow(
+        dead_code,
+        reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）"
+    )]
     leave_via_divergence: bool,
 }
 
@@ -93,10 +99,16 @@ struct LevelData {
 #[derive(Debug, Clone, Copy)]
 struct PairAuditCtx {
     direction: Direction,
-    #[allow(dead_code, reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）")]
+    #[allow(
+        dead_code,
+        reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）"
+    )]
     move_start: usize,
     n_block_centers: usize,
-    #[allow(dead_code, reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）")]
+    #[allow(
+        dead_code,
+        reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）"
+    )]
     prev: Center,
     last: Center,
 }

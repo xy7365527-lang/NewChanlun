@@ -574,14 +574,20 @@ thread_local! {
 }
 
 /// 打开一类点分级 sidecar 捕获（诊断专用，调用方负责 env 门控）。
-#[cfg_attr(not(feature = "backtest_bin"), allow(dead_code, reason = "#1608：仅 backtest_bin 下的 backtest 模块消费"))]
+#[cfg_attr(
+    not(feature = "backtest_bin"),
+    allow(dead_code, reason = "#1608：仅 backtest_bin 下的 backtest 模块消费")
+)]
 pub(crate) fn otherwise_domain_sidecar_begin() {
     GRADE_SIDECAR.with(|c| *c.borrow_mut() = Some(Vec::new()));
 }
 
 /// 关闭并取走已捕获记录（每条记录的 `level` 是捕获时真实调用级别，非占位）。未 `begin` 时
 /// 返回空 Vec。
-#[cfg_attr(not(feature = "backtest_bin"), allow(dead_code, reason = "#1608：仅 backtest_bin 下的 backtest 模块消费"))]
+#[cfg_attr(
+    not(feature = "backtest_bin"),
+    allow(dead_code, reason = "#1608：仅 backtest_bin 下的 backtest 模块消费")
+)]
 pub(crate) fn otherwise_domain_sidecar_take() -> Vec<FirstClassGradeRecord> {
     GRADE_SIDECAR.with(|c| c.borrow_mut().take().unwrap_or_default())
 }
@@ -1249,11 +1255,11 @@ pub fn extract_first_third_resume(
     let mut a_seg_cache: std::collections::HashMap<usize, Option<((usize, usize), (Tick, Tick))>> =
         std::collections::HashMap::new();
     let judge_range = |from: usize,
-                           to: usize,
-                           pts: &mut Vec<BspPoint>,
-                           pans: &mut Vec<PanDivCert>,
-                           grades: &mut Vec<FirstClassGradeRecord>,
-                           a_cache: &mut std::collections::HashMap<
+                       to: usize,
+                       pts: &mut Vec<BspPoint>,
+                       pans: &mut Vec<PanDivCert>,
+                       grades: &mut Vec<FirstClassGradeRecord>,
+                       a_cache: &mut std::collections::HashMap<
         usize,
         Option<((usize, usize), (Tick, Tick))>,
     >| {
@@ -1590,7 +1596,10 @@ pub(crate) fn type1_funnel_dx(
         // 结构方向锚（行程方向=τ 等式 veto）；provenance None 只保留直调判据契约。
         let broke = match (anchors_owned[si], dir) {
             (Some(Direction::Down), Direction::Down) => end.price < c.zd,
-            #[allow(unreachable_patterns, reason = "#1608 疑点：此臂应为 (Some(Up), Up)，1592bf05ca(#988) 误改；按票面不改行为，已上报")]
+            #[allow(
+                unreachable_patterns,
+                reason = "#1608 疑点：此臂应为 (Some(Up), Up)，1592bf05ca(#988) 误改；按票面不改行为，已上报"
+            )]
             (Some(Direction::Down), Direction::Down) => c.zg < end.price,
             _ => false,
         };

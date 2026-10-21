@@ -273,7 +273,10 @@ struct Trade {
     entry_bar: usize,
     entry: i64,
     dir: i8,
-    #[allow(dead_code, reason = "#1608：trades.jsonl 反序列化 schema 字段，探针当前不读")]
+    #[allow(
+        dead_code,
+        reason = "#1608：trades.jsonl 反序列化 schema 字段，探针当前不读"
+    )]
     exit_bar: usize,
     exit: i64,
     mfe: Option<f64>,

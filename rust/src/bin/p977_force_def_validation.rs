@@ -28,10 +28,10 @@
 //! **只读**：不改任何生产判据，只调生产入口 `parse_layer` + `classify` + `compute_macd`。
 
 use newchan_rust::theta_v0::backtest::data::load_by_symbol;
+use newchan_rust::theta_v0::classifier::classify;
 use newchan_rust::theta_v0::classifier::descend::RMove;
 use newchan_rust::theta_v0::classifier::divergence::{compute_macd, segment_macd_area};
 use newchan_rust::theta_v0::classifier::recursive_tower::LeveledMove;
-use newchan_rust::theta_v0::classifier::classify;
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::parse_layer;
 use newchan_rust::theta_v0::types::{Center, Direction};

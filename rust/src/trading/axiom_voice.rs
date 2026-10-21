@@ -365,10 +365,10 @@ pub(crate) fn run_axiom_voice(
             );
             // 接回闭包（M=N：同股数，049:64"如数接回"）。
             let restore = |reason: &'static str,
-                               pool: &mut f64,
-                               layers: &mut [LayerState; MAX_LADDER],
-                               pairs: &mut [Option<PairedOut>; MAX_LADDER],
-                               res: &mut PositionalResult|
+                           pool: &mut f64,
+                           layers: &mut [LayerState; MAX_LADDER],
+                           pairs: &mut [Option<PairedOut>; MAX_LADDER],
+                           res: &mut PositionalResult|
              -> bool {
                 let cost = po.shares * c;
                 if cost > *pool {

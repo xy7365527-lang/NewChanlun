@@ -98,7 +98,10 @@ pub struct OperateEngine {
     dbg_rf_sub_wrongdir: [u64; MAX_LADDER],
     dbg_rf_parent_occ: [u64; MAX_LADDER],
     dbg_rf_other: [u64; MAX_LADDER],
-    #[allow(dead_code, reason = "#1608：dbg_* 诊断计数族的预留槽，当前无写入/读出点")]
+    #[allow(
+        dead_code,
+        reason = "#1608：dbg_* 诊断计数族的预留槽，当前无写入/读出点"
+    )]
     dbg_sink_ok: [u64; MAX_LADDER],
     dbg_ascend: u64,
 }

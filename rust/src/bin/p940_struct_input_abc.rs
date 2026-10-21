@@ -156,7 +156,10 @@ struct Endpoint {
     /// 该端点所在 merged bar 覆盖的挂钟区间 [t0, t1)（t1 = 末根 raw bar 的收盘时刻）。
     t0: i64,
     t1: i64,
-    #[allow(dead_code, reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）")]
+    #[allow(
+        dead_code,
+        reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）"
+    )]
     price: f64,
     /// merged bar 覆盖的 raw bar 的时段名分归并（见 `class_of_span`）。
     cls: &'static str,
@@ -169,7 +172,10 @@ struct CenterSpan {
     t1: i64,
     zd: f64,
     zg: f64,
-    #[allow(dead_code, reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）")]
+    #[allow(
+        dead_code,
+        reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）"
+    )]
     settled: bool,
 }
 
