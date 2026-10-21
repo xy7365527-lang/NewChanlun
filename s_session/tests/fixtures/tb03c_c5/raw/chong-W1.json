@@ -1,0 +1,99 @@
+{
+  "events": [
+    {
+      "allocation_id": "alloc-W1",
+      "book_identity": {
+        "chong_id": "chong-W1",
+        "fixed_q": "3",
+        "op_level": "1",
+        "side": "long",
+        "symbol": "TEST-G"
+      },
+      "event": "tb03c-c5-W1",
+      "family_id": "fam-chong-W1",
+      "known_cost_components": [
+        {
+          "amount_text": "300",
+          "canonical_amount": "300",
+          "currency": "TEST-CASH",
+          "kind": "acquisition_cash",
+          "quantum": "1",
+          "source_ref": "W1:c0"
+        }
+      ],
+      "observed_existing_book": {
+        "A": "0",
+        "Pi": "0",
+        "W": "0",
+        "units": "3",
+        "witness_refs": {
+          "A": "W1:oA",
+          "Pi": "W1:oPi",
+          "W": "W1:oW",
+          "units": "W1:ounits"
+        }
+      },
+      "source": {
+        "claimed_origin": "TestOnly fixture tb03c C5",
+        "external_fact_id": "W1",
+        "received_time": "source-received-13",
+        "source_cursor": "13",
+        "source_epoch": "fixture-epoch-1",
+        "source_event_time": "source-event-13",
+        "source_namespace": "testonly-tb1406-c5"
+      },
+      "stable_point": {
+        "profile": "TestOnly",
+        "seq": "213",
+        "source_ref": "W1:sp"
+      }
+    }
+  ],
+  "evidence_index": {
+    "fragments": {
+      "W1:c0": [
+        {
+          "json_pointer": "/events/0/known_cost_components/0"
+        }
+      ],
+      "W1:oA": [
+        {
+          "json_pointer": "/events/0/observed_existing_book/A"
+        }
+      ],
+      "W1:oPi": [
+        {
+          "json_pointer": "/events/0/observed_existing_book/Pi"
+        }
+      ],
+      "W1:oW": [
+        {
+          "json_pointer": "/events/0/observed_existing_book/W"
+        }
+      ],
+      "W1:ounits": [
+        {
+          "json_pointer": "/events/0/observed_existing_book/units"
+        }
+      ],
+      "W1:sp": [
+        {
+          "json_pointer": "/events/0/stable_point"
+        }
+      ]
+    }
+  },
+  "format": "neutral TestOnly economic raw originals; not production transport wire",
+  "units": {
+    "money": {
+      "currency": "TEST-CASH",
+      "quantum": "1",
+      "unit": "TEST-CASH"
+    },
+    "numeric_encoding": "exact_decimal_integer_text",
+    "quantity": {
+      "quantum": "1",
+      "unit": "TEST-UNIT"
+    }
+  }
+}

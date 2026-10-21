@@ -16,6 +16,11 @@
 2. **Plan**——定最小改动面，不做范围外的事。
 3. **Execute**——实现。遵循 @.sandcastle/CODING_STANDARDS.md。
 4. **Verify**——Rust 改动 `cargo check` 必须过（必要时相关子集 `cargo test`）；文档改动核对事实。失败修到过。
+   **本机禁 cargo / rustc**（本机 = macOS 宿主；#1588：沙盒已在 PATH 前置垫片，`cargo`/`rustc`/`rustup`/`cargo-*` 调用即打印指引并非零退出）。
+   Rust 验证只走远端：先 commit，再
+   `NC_REPO="$(git rev-parse --show-toplevel)" NC_TARGET=sandcastle-issue-{{ISSUE_NUMBER}} ~/.local/bin/nc-remote sandcastle/issue-{{ISSUE_NUMBER}} rust cargo check --locked`
+   （在 windows-5090 的 WSL 上跑，日志拷回 `/tmp/nc-remote/`；测试子集同法换成 `cargo test --locked <过滤>`；ref 必须是已提交的提交，未提交改动远端看不到）。
+   nc-remote 不可达时如实写明「Rust 未验证」，交由编排层推分支走 CI——**不得改用本机 cargo**，也不得绕过垫片（绝对路径调用 cargo 同属违规）。
 5. **Commit**——单个 commit，message 格式：`<type>(<scope>): #{{ISSUE_NUMBER}}——<一句话>`，附一行「编号声明：本提交中的 #{{ISSUE_NUMBER}} 仅指 GitHub Issue。」
 
 ## 硬性规则
@@ -24,6 +29,7 @@
 - **不关 issue、不 merge、不 push、不动 main**——验收与合入是编排层人工闸。
 - 被卡住（缺上下文/测试修不好/外部依赖）：`gh issue comment {{ISSUE_NUMBER}}` 留卡点说明，然后给完成信号收工，不硬闯。
 - 密钥永不写入任何文件。
+- 本机禁 cargo / rustc（见 Verify）；Rust 验证 = nc-remote 远端或编排层 CI。
 
 ## 卡点即报（2026-08-18 #1066 增补）
 

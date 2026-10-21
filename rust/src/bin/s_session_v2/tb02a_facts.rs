@@ -929,6 +929,8 @@ impl CatalogAxisTable {
             // #1394 合入 #1420：上一代 v2 规则 `+new-bi/2+segment-second/1` 只读仍取 17 轴。
             "s2-axis-quantifiers+new-bi/1+segment-second/1"
             | "s2-axis-quantifiers+new-bi/2+segment-second/1"
+            // #1493：#1420 的 `+segment-second/2` 在 `+segment-turn/1` 之后只读，仍取 17 轴。
+            | "s2-axis-quantifiers+new-bi/2+segment-second/2"
             | crate::RULE_REVISION => Some(Self::SegmentSecond),
             _ => None,
         }

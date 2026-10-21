@@ -713,6 +713,7 @@
     ["s2-axis-quantifiers+new-bi/1+segment-second/1", TB02_AXES],
     ["s2-axis-quantifiers+new-bi/2+segment-second/1", TB02_AXES],
     ["s2-axis-quantifiers+new-bi/2+segment-second/2", TB02_AXES],
+    ["s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1", TB02_AXES],
   ]);
   async function axesValidate(axes, active = null) {
     axes = of(axes);
@@ -878,7 +879,7 @@
       // #1392/#1404：新笔/段 payload.slot 是逻辑身份；见证 slot 仍按整数核对。
       const logicalSlot =
         (await v.has("schema_revision")) &&
-        ["s-new-bi/1", "s-new-bi/2", "s-segment/1", "s-segment/2", "s-segment/3"].includes(
+        ["s-new-bi/1", "s-new-bi/2", "s-segment/1", "s-segment/2", "s-segment/3", "s-segment/4"].includes(
           await s(v, "schema_revision"),
         );
       for await (const e of v.entries()) {
@@ -1417,7 +1418,7 @@
       for (const value of activeValues.values()) {
         if ((await s(value, "kind")) !== "CC-013.segment") continue;
         const r = await typed.plain(value);
-        if (!["s-segment/2", "s-segment/3"].includes(r.payload.schema_revision)) continue;
+        if (!["s-segment/2", "s-segment/3", "s-segment/4"].includes(r.payload.schema_revision)) continue;
         const d = r.payload.data;
         need(d.second_sequence_id !== null || d.fact_vector.scan_complete, "未完成扫描缺SECOND资源证据");
         for (const [prefix, role] of [["sequence", "FIRST_SEQUENCE"], ["second_sequence", "SECOND_SEQUENCE"]]) {
@@ -1430,7 +1431,20 @@
           if (role === "FIRST_SEQUENCE" && d.strict !== null) need(v.facts.checks.some(c => equalPlain(c.elements, d.strict.elements)), "strict未绑定FIRST检查");
           if (role === "SECOND_SEQUENCE") need(d.fact_vector.scan_complete !== (v.facts.resource_truncated && v.facts.matched === null), "段事实可知性未绑定SECOND扫描证据");
           if (role === "SECOND_SEQUENCE" && d.result === "CASE_TWO") need(v.second_sequence_status === "CONFIRMED" && equalPlain(d.fact_vector.termination_witness.second_match, v.facts.matched), "第二种终结证书未绑定同次SECOND命中");
-          if (role === "SECOND_SEQUENCE" && r.payload.schema_revision === "s-segment/3" && ["KILLED_CASE_TWO", "PENDING_CASE_TWO"].includes(d.result)) need(v.second_sequence_status === (d.result === "KILLED_CASE_TWO" ? "KILLED" : "PENDING"), "段结果未绑定SECOND终态");
+          if (role === "SECOND_SEQUENCE" && ["s-segment/3", "s-segment/4"].includes(r.payload.schema_revision) && ["KILLED_CASE_TWO", "PENDING_CASE_TWO"].includes(d.result)) need(v.second_sequence_status === (d.result === "KILLED_CASE_TWO" ? "KILLED" : "PENDING"), "段结果未绑定SECOND终态");
+          if (role === "FIRST_SEQUENCE" && r.payload.schema_revision === "s-segment/4") typed.turnLinks(d, v.facts);
+        }
+        if (r.payload.schema_revision === "s-segment/4" && d.parse_invalid !== null) {
+          // #1493 §7.1 第 6 条：段端门失败 fail-closed——同 cut 段版本与逐轴证据必须带阻断标记。
+          const versions = [];
+          for (const x of activeValues.values()) {
+            if ((await s(x, "kind")) !== "CC-056.segment_version") continue;
+            const pv = await typed.plain(x);
+            if (pv.payload.schema_revision === "s-segment/4") versions.push(pv);
+          }
+          need(versions.length > 0 && versions.every(x => x.payload.data.waiting_reasons.includes(typed.PARSE_INVALID_REASON)), "段端门失败未在段版本标阻断");
+          const axes = await typed.plain(await f(await f(snapshot, "catalog_evidence"), "axes"));
+          need(["CC-011", "CC-012", "CC-013", "CC-014"].every(cid => !Object.hasOwn(axes, cid) || axes[cid]?.evidence?.waiting_reasons?.includes(typed.PARSE_INVALID_REASON) === true), "段端门失败未在逐轴证据标阻断");
         }
       }
     }

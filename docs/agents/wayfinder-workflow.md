@@ -103,14 +103,14 @@ tracker 物理操作（map/子票/blocking/frontier/claim/resolve 的 gh 命令�
 图清后管道自动汇入主干：**机器走管道，人守三闸**（spec 批准 / 不预授权决策 / 合入 main）。
 
 - **形态**：graph 语义 + loop 壳。DAG 走查器 = 纯函数（tracker 状态 → 触发动作）；壳 = 4 分钟轮询（watcher.sh / dispatcher 子代理先例）；日后可换事件驱动不动内核。
-- **宿主**：独立件 `scripts/wayfinder_engine`（控制面）；spec 草案 = rlm 子代理起草（只读文书，#1000 例外类）；实装票派 sandcastle 工蜂（既有两段式通道）。
+- **宿主**：独立件 `scripts/wayfinder_engine`（控制面）；spec 草案 = Claude 起草子代理（Claude Code CLI 无头、禁工具，经 CLIProxyLocal，默认 `claude-opus-5-5`，白名单仅 `claude-opus-5-5` / `claude-fable-5-1`；只读文书，#1000 例外类；#1588 更新）；实装票派 sandcastle 工蜂（既有两段式通道）。
 - **状态**：stateless——tracker 即账本，每轮重算 ready 集、天然幂等，不建状态库。
 - **自动动作边界**：
   1. 图清（子票全关、frontier 空）→ 自动起草 spec 草案、开图内 spec 票、@编排者批【闸一】；
   2. spec 批准 → 自动拆 tracer-bullet 实装票（blocking 边 + 票面逐条挂裁定票）+ `sandcastle` 标签 → 工蜂拾取 `/implement`；合入 main 人工闸不动【闸二】；
   3. 实装票全关 + 图关判据满足（destination 达成、残雾三去处核实）→ 自动起草图关 comment + close。
 - **不碰决策票（v1）**：决策票（含 Notes N-k 预授权照判）一律人工——机器不替人裁；v2 观察项 = 预授权影子模式（自动起草 resolution、不关票，人批才发）。
-  - **v2 裁决面**（[#1547](https://github.com/xy7365527-lang/NewChanlun/issues/1547)）：本条只约束 wayfinder_engine 本体。图在 Notes 写明技术类预授权时，由独立组件 decision-claimer 分级（T/P）、起草、独审：T 类审查通过即按预授权裁定，P 类走影子模式待人批。流程正本 `.sandcastle/docs/graph-engineering.md`。
+  - **v2 裁决面**（[#1547](https://github.com/xy7365527-lang/NewChanlun/issues/1547)）：本条只约束 wayfinder_engine 本体。图在 Notes 写明技术类预授权时，由独立组件 decision-claimer 分级（T/P）、考古、起草、独审：T 类审查通过即按预授权裁定，P 类走影子模式待人批。起草前先考古（用户 2026-10-20 令「所有的裁决票都要先考古」）：每个待决点两路搜，已裁的沿用，只把真没设计过的决定交给人，每问附出处与推荐值。流程正本 `.sandcastle/docs/graph-engineering.md`「2. 考古」。
 - **队列交棒（#1084 追加）**：控制面每轮只给合资格实装票（已批准 spec/DAG + 未 assign + 无 open blocker）挂 `sandcastle`，不把全部历史 `ready-for-agent` 无差别放行；每轮五桶分明（扫描集 `ready-for-agent` ∪ `wayfinder:impl` / 已获 `sandcastle` 拾取权 / blocked / claimed / running）；批准态沿 SPEC 子树递归（2026-10-20 修正，判据细则见 `.sandcastle/docs/graph-engineering.md`「解锁」）。控制面为受管常驻服务（launchd KeepAlive，`.sandcastle/install-wayfinder-engine.sh`），gh 查询有限重试 + 指数退避 + fail-loud，无 runnable 票 sleep 后重查、不退出。
 - 实装票：[#1084](https://github.com/xy7365527-lang/NewChanlun/issues/1084)（sandcastle 通道）。
 
@@ -122,7 +122,7 @@ tracker 物理操作（map/子票/blocking/frontier/claim/resolve 的 gh 命令�
 
 ### AFK 票的载体与派发
 
-- **载体**（2026-08-16 [#1000](https://github.com/xy7365527-lang/NewChanlun/issues/1000) 裁定更新）= **sandcastle 沙盒为默认执行面**（`.sandcastle/main.mts` 两段式 / `main-swarm.mts` 蜂群，工蜂 prime-agent）；rlm 子代理退为轻量补充（只读研究、快速查证）。例外三类（只读簿记对话 / 单条小操作 / 沙盒不可行）按 #1000 Destination 举证登记。结果回流本体验收后写回 tracker 不变；合入 main 走人工闸（#1003 裁 3）。
+- **载体**（2026-08-16 [#1000](https://github.com/xy7365527-lang/NewChanlun/issues/1000) 裁定更新）= **sandcastle 沙盒为默认执行面**（`.sandcastle/main.mts` 两段式 / `main-swarm.mts` 蜂群；工蜂 = Claude Code CLI 经 CLIProxyLocal，模型限 `claude-opus-5-5` / `claude-fable-5-1`，接线见 `.sandcastle/claude-route.mts`，#1547 / #1588 更新；`main-swarm.mts` 仍残留 prime-agent 默认值，已转票清理）；rlm 子代理退为轻量补充（只读研究、快速查证）。例外三类（只读簿记对话 / 单条小操作 / 沙盒不可行）按 #1000 Destination 举证登记。结果回流本体验收后写回 tracker 不变；合入 main 走人工闸（#1003 裁 3）。
 - **档位** = 按 `AGENTS.md` 的四档选法，**按这张票的实际难度判，不看票型标签**。档位正本是 `AGENTS.md`，本文档不自建档位表（[票型 × 模型档位 #781](https://github.com/xy7365527-lang/NewChanlun/issues/781) 裁定①②）。票型与难度**正交**：本图内 [#768](https://github.com/xy7365527-lang/NewChanlun/issues/768)（逐字比对三份文档，机械活）与 [#769](https://github.com/xy7365527-lang/NewChanlun/issues/769)（扫完 90 张已关票并聚出三条反面判据，高难）同贴 AFK 型标签——拿票型索引难度是用不相关的维度做键。#770 的五类细分同样不救场。
 - **工作区隔离**：**写仓的 AFK 子代理强制开独立 worktree**（`Agent` 工具 `isolation: "worktree"`），**只读的不强制**（[#772](https://github.com/xy7365527-lang/NewChanlun/issues/772) 裁定⑤）。本仓事实上已跑过几十个 worktree，成本只有零点几秒；而主仓撞车有 `git stash` 抹掉未提交改动的实伤前例。只读子代理开 worktree 纯属浪费。
 - **git 层冲突**：走 `/resolving-merge-conflicts`，本文只挂指针。git 会把冲突显式标出来、拒绝静默丢改动，不需要额外口径。

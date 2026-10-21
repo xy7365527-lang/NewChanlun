@@ -119,7 +119,7 @@ use std::path::Path;
 use std::rc::Rc;
 use std::time::Instant;
 
-/// 目标级别：L5 = 塔顶（config.rs:82 `l_max: 6` ⟹ 级别 0..=5，tower.len()=6 时 levels[5] 存在）。
+/// 目标级别：L5 = 塔顶（记录 `tower-level-budget/1` 的 `l_max = 6` ⟹ 级别 0..=5，tower.len()=6 时 levels[5] 存在）。
 const L5: usize = 5;
 
 /// L5 strict pair（p109 `PairRec` 同口径 + view.moves 下标，供 decompose 块回查）。
@@ -273,7 +273,7 @@ fn main() -> Result<(), String> {
         ),
     }
 
-    // ── 塔级护栏：l_max=6（config.rs:82）⟹ 正常 tower.len()=6；不足则如实报「塔顶无结构」──
+    // ── 塔级护栏：l_max=6（记录 `tower-level-budget/1`）⟹ 正常 tower.len()=6；不足则如实报「塔顶无结构」──
     if tower.len() <= L5 {
         println!(
             "P119_L5_STRUCTURE tower_levels={} note=塔顶无结构(塔级<6,无L5窗口)",

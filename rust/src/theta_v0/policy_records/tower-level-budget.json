@@ -1,0 +1,16 @@
+{
+  "id": "tower-level-budget",
+  "version": 1,
+  "kind": "resource_budget",
+  "ticket": "#1603（#1586 审计 C-09；ADR 0041）",
+  "fields": {
+    "l_max": {
+      "value": 6,
+      "default": 6,
+      "unit": "级别下标上界（构造 L0..=l_max）",
+      "source": "reference-theta-v0.md:30「最高研究级别 Lmax」，[设计选择,默认值] 6；#1586 AUDIT C-09 判 T（资源上界，缠师原文未设塔高上限，级别递归本身没有终点）",
+      "options": "任意非负整数。取大：覆盖更完整、单 bar 构造成本随级数上升；取小：更早触发资源截断",
+      "cost": "这是资源预算不是语义：塔在 l_max 处仍有 ≥ min_parts_per_level 个可升级单元时，输出标 INCOMPLETE_RESOURCE_BOUND（覆盖不完整），不作自然终止；改值即新版本"
+    }
+  }
+}

@@ -140,6 +140,9 @@ impl StrokeFacts {
 fn sorted(mut xs: Vec<usize>) -> Vec<usize> {
     xs.sort_unstable();
     xs.dedup();
+    // #1588：端点来源是相邻三组证据的拼接，去重后常只剩约 1/8；不收缩则完整事实入口
+    // 留存的多半是空闲容量（2 万根时约 2.9 GB）。只改容量，不改内容。
+    xs.shrink_to_fit();
     xs
 }
 

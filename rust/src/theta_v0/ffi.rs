@@ -75,7 +75,9 @@ impl PyThetaStream {
                 "preset {name:?} 未实装：本票只支持 preset=None（ThetaConfig::default()）"
             )));
         }
-        let config = ThetaConfig::default();
+        // #1603：塔预算与 MACD 记录缺失/未签/非法 ⟹ 报错停止，不回退旧常数。
+        let config = ThetaConfig::try_from_active_records()
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
         let tick_size = config.tick.tick_size;
         Ok(Self {
             core: ThetaPiStream::new(config),

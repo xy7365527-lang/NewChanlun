@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:newchanlun:testonly:tb03c-c5-extensions:1",
+  "title": "C5 TestOnly neutral 原件扩展结构；不是生产 transport wire",
+  "$comment": "只描述C5扩展。普通opening/deltas沿用既有neutral合同。i64边界、来源指针、跨字段金额关系由独立Python合同检查；本轮未使用第三方JSON Schema引擎。",
+  "type": "object",
+  "properties": {
+    "known_cost_components": {"type":"array","items":{"if":{"properties":{"kind":{"const":"growth_capitalization"}},"required":["kind"]},"then":{"$ref":"#/$defs/growth_capitalization_component"}}},
+    "completed_growth": {"$ref": "#/$defs/completed_growth"},
+    "q_rebase": {"$ref": "#/$defs/q_rebase"},
+    "transfer": {"$ref": "#/$defs/transfer"},
+    "transfer_opening": {"$ref": "#/$defs/transfer_opening"}
+  },
+  "$defs": {
+    "growth_capitalization_component": {
+      "type":"object","additionalProperties":false,
+      "required":["kind","canonical_amount","amount_text","currency","quantum","source_ref","authorization_ref"],
+      "properties":{"kind":{"const":"growth_capitalization"},
+        "canonical_amount":{"$ref":"#/$defs/uint_text"},"amount_text":{"$ref":"#/$defs/uint_text"},
+        "currency":{"$ref":"#/$defs/text"},"quantum":{"$ref":"#/$defs/positive_text"},
+        "source_ref":{"$ref":"#/$defs/text"},"authorization_ref":{"$ref":"#/$defs/text"}}
+    },
+    "text": {"type":"string","minLength":1},
+    "uint_text": {"type":"string","pattern":"^(0|[1-9][0-9]*)$","maxLength":19},
+    "positive_text": {"type":"string","pattern":"^[1-9][0-9]*$","maxLength":19},
+    "fact": {
+      "type":"object","additionalProperties":false,
+      "required":["source_namespace","source_epoch","external_fact_id","allocation_id"],
+      "properties":{
+        "source_namespace":{"$ref":"#/$defs/text"},"source_epoch":{"$ref":"#/$defs/text"},
+        "external_fact_id":{"$ref":"#/$defs/text"},"allocation_id":{"$ref":"#/$defs/text"}
+      }
+    },
+    "units": {
+      "type":"object","additionalProperties":false,
+      "required":["numeric_encoding","money","quantity"],
+      "properties":{
+        "numeric_encoding":{"const":"exact_decimal_integer_text"},
+        "money":{"type":"object","additionalProperties":false,"required":["currency","quantum","unit"],
+          "properties":{"currency":{"$ref":"#/$defs/text"},"quantum":{"$ref":"#/$defs/positive_text"},"unit":{"$ref":"#/$defs/text"}}},
+        "quantity":{"type":"object","additionalProperties":false,"required":["quantum","unit"],
+          "properties":{"quantum":{"$ref":"#/$defs/positive_text"},"unit":{"$ref":"#/$defs/text"}}}
+      }
+    },
+    "payload": {
+      "type":"object","additionalProperties":false,"required":["cash","units","carrying_cost"],
+      "properties":{"cash":{"$ref":"#/$defs/uint_text"},"units":{"$ref":"#/$defs/uint_text"},"carrying_cost":{"$ref":"#/$defs/uint_text"}}
+    },
+    "completed_growth": {
+      "type":"object","additionalProperties":false,
+      "required":["profile","lot_id","kind","cash","units","carrying_cost","authorization_ref","source_ref"],
+      "properties":{
+        "profile":{"const":"TestOnly"},"lot_id":{"$ref":"#/$defs/text"},
+        "kind":{"enum":["cash_capitalization","units_split"]},
+        "cash":{"$ref":"#/$defs/uint_text"},"units":{"$ref":"#/$defs/uint_text"},
+        "carrying_cost":{"$ref":"#/$defs/uint_text"},"authorization_ref":{"$ref":"#/$defs/text"},"source_ref":{"$ref":"#/$defs/text"}
+      }
+    },
+    "q_rebase": {
+      "type":"object","additionalProperties":false,"required":["new_q","policy_ref","source_ref"],
+      "properties":{"new_q":{"$ref":"#/$defs/positive_text"},"policy_ref":{"$ref":"#/$defs/text"},"source_ref":{"$ref":"#/$defs/text"}}
+    },
+    "claim": {
+      "type":"object","additionalProperties":false,
+      "required":["revision","profile","transfer_id","kind","source_chong","target_chong","source_fact","target_fact","payload","units","growth_source","trigger_evidence_ref","authorization_ref","policy_versions"],
+      "properties":{
+        "revision":{"const":"tb03c-transfer/1"},"profile":{"const":"TestOnly"},
+        "transfer_id":{"$ref":"#/$defs/text"},"kind":{"const":"capital_overflow"},
+        "source_chong":{"$ref":"#/$defs/text"},"target_chong":{"$ref":"#/$defs/text"},
+        "source_fact":{"$ref":"#/$defs/fact"},"target_fact":{"$ref":"#/$defs/fact"},
+        "payload":{"$ref":"#/$defs/payload"},"units":{"$ref":"#/$defs/units"},
+        "growth_source":{"type":"object","additionalProperties":false,"required":["fact","lot_id"],
+          "properties":{"fact":{"$ref":"#/$defs/fact"},"lot_id":{"$ref":"#/$defs/text"}}},
+        "trigger_evidence_ref":{"$ref":"#/$defs/text"},"authorization_ref":{"$ref":"#/$defs/text"},
+        "policy_versions":{"type":"object","additionalProperties":false,"required":["quantity_policy_ref"],
+          "properties":{"quantity_policy_ref":{"type":"string","pattern":"^TestOnly"}}}
+      }
+    },
+    "transfer": {
+      "type":"object","additionalProperties":false,"required":["role","source_ref","claim"],
+      "properties":{"role":{"enum":["out","in"]},"source_ref":{"$ref":"#/$defs/text"},"claim":{"$ref":"#/$defs/claim"}}
+    },
+    "transfer_opening": {
+      "type":"object","additionalProperties":false,"required":["symbol","op_level","fixed_q","side","source_ref"],
+      "properties":{"symbol":{"$ref":"#/$defs/text"},"op_level":{"$ref":"#/$defs/positive_text"},
+        "fixed_q":{"$ref":"#/$defs/positive_text"},"side":{"const":"long"},"source_ref":{"$ref":"#/$defs/text"}}
+    }
+  }
+}

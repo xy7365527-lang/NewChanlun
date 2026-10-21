@@ -1,0 +1,387 @@
+{
+  "events": [
+    {
+      "allocation_id": "alloc-N1-open",
+      "book_identity": {
+        "chong_id": "chong-N1",
+        "fixed_q": "1",
+        "op_level": "1",
+        "side": "long",
+        "symbol": "TEST-N1"
+      },
+      "event": "N1-open",
+      "family_id": "fam-N1",
+      "known_cost_components": [
+        {
+          "amount_text": "100",
+          "canonical_amount": "100",
+          "currency": "TEST-CASH",
+          "kind": "acquisition_cash",
+          "quantum": "1",
+          "source_ref": "N1-open:cost"
+        }
+      ],
+      "observed_existing_book": {
+        "A": "0",
+        "Pi": "0",
+        "W": "0",
+        "units": "1",
+        "witness_refs": {
+          "A": "N1-open:A",
+          "Pi": "N1-open:Pi",
+          "W": "N1-open:W",
+          "units": "N1-open:units"
+        }
+      },
+      "source": {
+        "claimed_origin": "TestOnly C4a independent fixture",
+        "external_fact_id": "N1-open",
+        "received_time": "source-received-1",
+        "source_cursor": "1",
+        "source_epoch": "fixture-epoch-1",
+        "source_event_time": "source-event-1",
+        "source_namespace": "testonly-tb1406"
+      },
+      "stable_point": {
+        "profile": "TestOnly",
+        "seq": "100",
+        "source_ref": "N1-open:sp"
+      }
+    },
+    {
+      "allocation_id": "alloc-N2-open",
+      "book_identity": {
+        "chong_id": "chong-N2",
+        "fixed_q": "3",
+        "op_level": "1",
+        "side": "long",
+        "symbol": "TEST-N2"
+      },
+      "event": "N2-open",
+      "family_id": "fam-N2",
+      "known_cost_components": [
+        {
+          "amount_text": "200",
+          "canonical_amount": "200",
+          "currency": "TEST-CASH",
+          "kind": "acquisition_cash",
+          "quantum": "1",
+          "source_ref": "N2-open:cost"
+        }
+      ],
+      "observed_existing_book": {
+        "A": "0",
+        "Pi": "0",
+        "W": "0",
+        "units": "2",
+        "witness_refs": {
+          "A": "N2-open:A",
+          "Pi": "N2-open:Pi",
+          "W": "N2-open:W",
+          "units": "N2-open:units"
+        }
+      },
+      "source": {
+        "claimed_origin": "TestOnly C4a independent fixture",
+        "external_fact_id": "N2-open",
+        "received_time": "source-received-2",
+        "source_cursor": "2",
+        "source_epoch": "fixture-epoch-1",
+        "source_event_time": "source-event-2",
+        "source_namespace": "testonly-tb1406"
+      },
+      "stable_point": {
+        "profile": "TestOnly",
+        "seq": "100",
+        "source_ref": "N2-open:sp"
+      }
+    },
+    {
+      "allocation_id": "alloc-N3-open",
+      "book_identity": {
+        "chong_id": "chong-N3",
+        "fixed_q": "3",
+        "op_level": "1",
+        "side": "long",
+        "symbol": "TEST-N3"
+      },
+      "event": "N3-open",
+      "family_id": "fam-N3",
+      "known_cost_components": [
+        {
+          "amount_text": "200",
+          "canonical_amount": "200",
+          "currency": "TEST-CASH",
+          "kind": "acquisition_cash",
+          "quantum": "1",
+          "source_ref": "N3-open:cost"
+        }
+      ],
+      "observed_existing_book": {
+        "A": "0",
+        "Pi": "0",
+        "W": "0",
+        "units": "2",
+        "witness_refs": {
+          "A": "N3-open:A",
+          "Pi": "N3-open:Pi",
+          "W": "N3-open:W",
+          "units": "N3-open:units"
+        }
+      },
+      "source": {
+        "claimed_origin": "TestOnly C4a independent fixture",
+        "external_fact_id": "N3-open",
+        "received_time": "source-received-3",
+        "source_cursor": "3",
+        "source_epoch": "fixture-epoch-1",
+        "source_event_time": "source-event-3",
+        "source_namespace": "testonly-tb1406"
+      },
+      "stable_point": {
+        "profile": "TestOnly",
+        "seq": "100",
+        "source_ref": "N3-open:sp"
+      }
+    },
+    {
+      "allocation_id": "alloc-net-fill-1",
+      "event": "net-fill-1",
+      "netted_fill": {
+        "cash_kind": "acquisition_cash",
+        "commission": "3",
+        "from": "0",
+        "income_changes": {
+          "A": "0",
+          "Pi": "0",
+          "W": "0"
+        },
+        "manifest_hash": "67a38c5ee30b7d7d60fc798476ec390d54acedbe1ba01431da2836c05f2453ee",
+        "report_kind": "incremental",
+        "reported_quantity": "3",
+        "source_ref": "net-fill-1:fill",
+        "to": "3",
+        "unit_price": "100"
+      },
+      "source": {
+        "claimed_origin": "TestOnly C4a independent fixture",
+        "external_fact_id": "net-fill-1",
+        "received_time": "source-received-4",
+        "source_cursor": "4",
+        "source_epoch": "fixture-epoch-1",
+        "source_event_time": "source-event-4",
+        "source_namespace": "testonly-tb1406"
+      },
+      "stable_point": {
+        "profile": "TestOnly",
+        "seq": "101",
+        "source_ref": "net-fill-1:sp"
+      }
+    },
+    {
+      "allocation_id": "alloc-net-fill-2",
+      "event": "net-fill-2",
+      "netted_fill": {
+        "cash_kind": "acquisition_cash",
+        "commission": "1",
+        "from": "3",
+        "income_changes": {
+          "A": "0",
+          "Pi": "0",
+          "W": "0"
+        },
+        "manifest_hash": "67a38c5ee30b7d7d60fc798476ec390d54acedbe1ba01431da2836c05f2453ee",
+        "report_kind": "incremental",
+        "reported_quantity": "1",
+        "source_ref": "net-fill-2:fill",
+        "to": "4",
+        "unit_price": "101"
+      },
+      "source": {
+        "claimed_origin": "TestOnly C4a independent fixture",
+        "external_fact_id": "net-fill-2",
+        "received_time": "source-received-5",
+        "source_cursor": "5",
+        "source_epoch": "fixture-epoch-1",
+        "source_event_time": "source-event-5",
+        "source_namespace": "testonly-tb1406"
+      },
+      "stable_point": {
+        "profile": "TestOnly",
+        "seq": "102",
+        "source_ref": "net-fill-2:sp"
+      }
+    },
+    {
+      "allocation_id": "alloc-net-fill-3",
+      "event": "net-fill-3",
+      "netted_fill": {
+        "cash_kind": "acquisition_cash",
+        "commission": "5",
+        "from": "4",
+        "income_changes": {
+          "A": "0",
+          "Pi": "0",
+          "W": "0"
+        },
+        "manifest_hash": "67a38c5ee30b7d7d60fc798476ec390d54acedbe1ba01431da2836c05f2453ee",
+        "report_kind": "incremental",
+        "reported_quantity": "3",
+        "source_ref": "net-fill-3:fill",
+        "to": "7",
+        "unit_price": "102"
+      },
+      "source": {
+        "claimed_origin": "TestOnly C4a independent fixture",
+        "external_fact_id": "net-fill-3",
+        "received_time": "source-received-6",
+        "source_cursor": "6",
+        "source_epoch": "fixture-epoch-1",
+        "source_event_time": "source-event-6",
+        "source_namespace": "testonly-tb1406"
+      },
+      "stable_point": {
+        "profile": "TestOnly",
+        "seq": "103",
+        "source_ref": "net-fill-3:sp"
+      }
+    }
+  ],
+  "evidence_index": {
+    "fragments": {
+      "N1-open:A": [
+        {
+          "json_pointer": "/events/0/observed_existing_book/A"
+        }
+      ],
+      "N1-open:Pi": [
+        {
+          "json_pointer": "/events/0/observed_existing_book/Pi"
+        }
+      ],
+      "N1-open:W": [
+        {
+          "json_pointer": "/events/0/observed_existing_book/W"
+        }
+      ],
+      "N1-open:cost": [
+        {
+          "json_pointer": "/events/0/known_cost_components/0"
+        }
+      ],
+      "N1-open:sp": [
+        {
+          "json_pointer": "/events/0/stable_point"
+        }
+      ],
+      "N1-open:units": [
+        {
+          "json_pointer": "/events/0/observed_existing_book/units"
+        }
+      ],
+      "N2-open:A": [
+        {
+          "json_pointer": "/events/1/observed_existing_book/A"
+        }
+      ],
+      "N2-open:Pi": [
+        {
+          "json_pointer": "/events/1/observed_existing_book/Pi"
+        }
+      ],
+      "N2-open:W": [
+        {
+          "json_pointer": "/events/1/observed_existing_book/W"
+        }
+      ],
+      "N2-open:cost": [
+        {
+          "json_pointer": "/events/1/known_cost_components/0"
+        }
+      ],
+      "N2-open:sp": [
+        {
+          "json_pointer": "/events/1/stable_point"
+        }
+      ],
+      "N2-open:units": [
+        {
+          "json_pointer": "/events/1/observed_existing_book/units"
+        }
+      ],
+      "N3-open:A": [
+        {
+          "json_pointer": "/events/2/observed_existing_book/A"
+        }
+      ],
+      "N3-open:Pi": [
+        {
+          "json_pointer": "/events/2/observed_existing_book/Pi"
+        }
+      ],
+      "N3-open:W": [
+        {
+          "json_pointer": "/events/2/observed_existing_book/W"
+        }
+      ],
+      "N3-open:cost": [
+        {
+          "json_pointer": "/events/2/known_cost_components/0"
+        }
+      ],
+      "N3-open:sp": [
+        {
+          "json_pointer": "/events/2/stable_point"
+        }
+      ],
+      "N3-open:units": [
+        {
+          "json_pointer": "/events/2/observed_existing_book/units"
+        }
+      ],
+      "net-fill-1:fill": [
+        {
+          "json_pointer": "/events/3/netted_fill"
+        }
+      ],
+      "net-fill-1:sp": [
+        {
+          "json_pointer": "/events/3/stable_point"
+        }
+      ],
+      "net-fill-2:fill": [
+        {
+          "json_pointer": "/events/4/netted_fill"
+        }
+      ],
+      "net-fill-2:sp": [
+        {
+          "json_pointer": "/events/4/stable_point"
+        }
+      ],
+      "net-fill-3:fill": [
+        {
+          "json_pointer": "/events/5/netted_fill"
+        }
+      ],
+      "net-fill-3:sp": [
+        {
+          "json_pointer": "/events/5/stable_point"
+        }
+      ]
+    }
+  },
+  "format": "neutral TestOnly economic raw originals; not production transport wire",
+  "units": {
+    "money": {
+      "currency": "TEST-CASH",
+      "quantum": "1",
+      "unit": "TEST-CASH"
+    },
+    "numeric_encoding": "exact_decimal_integer_text",
+    "quantity": {
+      "quantum": "1",
+      "unit": "TEST-UNIT"
+    }
+  }
+}
