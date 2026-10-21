@@ -1,0 +1,1238 @@
+{
+ "label": "p1-prod-3ee05a2713",
+ "run": "/home/hanju/nc-remote/1488-accept/s5/p1",
+ "binary_sha256": "d2f96f044e2e4d765375d12c79d67cb480888550ddcf58b8cf68052e6333c22e",
+ "nodes": 560069,
+ "reachable": 344419,
+ "unreachable": 215650,
+ "unreachable_ratio": 0.385042,
+ "tops": 31550,
+ "unowned": 0,
+ "classes": {
+  "obj:record-generated": {
+   "tops": 13336,
+   "nodes": 90729,
+   "tags": {
+    "0x13": 77393,
+    "0x06": 13336
+   }
+  },
+  "obj:record-internal": {
+   "tops": 13336,
+   "nodes": 90552,
+   "tags": {
+    "0x13": 77216,
+    "0x06": 13336
+   }
+  },
+  "obj:manifest-snapshot-draft": {
+   "tops": 1285,
+   "nodes": 15124,
+   "tags": {
+    "0x06": 1285,
+    "0x13": 10764,
+    "0x12": 1026,
+    "0x05": 1023,
+    "0x14": 1026
+   }
+  },
+  "obj:manifest-delta-draft": {
+   "tops": 1285,
+   "nodes": 13410,
+   "tags": {
+    "0x06": 1285,
+    "0x13": 9050,
+    "0x14": 1026,
+    "0x12": 1026,
+    "0x05": 1023
+   }
+  },
+  "array-memo": {
+   "tops": 1714,
+   "nodes": 2911,
+   "tags": {
+    "0x05": 1714,
+    "0x13": 1197
+   }
+  },
+  "obj:source-mi": {
+   "tops": 501,
+   "nodes": 1678,
+   "tags": {
+    "0x06": 501,
+    "0x13": 1002,
+    "0x12": 87,
+    "0x14": 86,
+    "0x10": 1,
+    "0x03": 1
+   }
+  },
+  "obj:generation-scope": {
+   "tops": 86,
+   "nodes": 1032,
+   "tags": {
+    "0x13": 946,
+    "0x06": 86
+   }
+  },
+  "mixed": {
+   "tops": 0,
+   "nodes": 200,
+   "tags": {
+    "0x13": 194,
+    "0x05": 4,
+    "0x14": 1,
+    "0x12": 1
+   }
+  },
+  "array-other": {
+   "tops": 7,
+   "nodes": 14,
+   "tags": {
+    "0x13": 7,
+    "0x05": 7
+   }
+  }
+ },
+ "array_top_sublist": {
+  "interior": 1604,
+  "suffix": 110,
+  "none": 7
+ },
+ "object_top_keysets": {
+  "obj:manifest-delta-draft": [
+   [
+    1285,
+    [
+     "base_cut",
+     "catalog_evidence",
+     "catalog_revision",
+     "catalog_run_status",
+     "generation",
+     "index_frontier",
+     "input_frontier",
+     "next_cut",
+     "observations",
+     "raw_history_added",
+     "relations",
+     "replaces",
+     "seq_range",
+     "session_id",
+     "upserts",
+     "withdrawals",
+     "witnesses"
+    ]
+   ]
+  ],
+  "obj:manifest-snapshot-draft": [
+   [
+    1285,
+    [
+     "as_of_generation",
+     "catalog_evidence",
+     "catalog_revision",
+     "catalog_run_status",
+     "generation",
+     "history_mode",
+     "index_frontier",
+     "input_frontier",
+     "objects",
+     "observations",
+     "profile_hash",
+     "profile_id",
+     "raw_history",
+     "relations",
+     "scope",
+     "seq_range",
+     "session_id",
+     "structure_cut",
+     "withdrawn_objects",
+     "witnesses"
+    ]
+   ]
+  ],
+  "obj:record-internal": [
+   [
+    9933,
+    [
+     "batch_id",
+     "fact_key",
+     "first_known_cut",
+     "first_known_generation",
+     "input_refs",
+     "kind",
+     "lifecycle",
+     "object_id",
+     "object_revision",
+     "payload",
+     "published_generation",
+     "source_coords",
+     "superseded_by",
+     "withdrawal_reason",
+     "withdrawn_generation"
+    ]
+   ],
+   [
+    3403,
+    [
+     "batch_id",
+     "branch",
+     "comparisons",
+     "dir_ab",
+     "dir_bc",
+     "first_known_cut",
+     "first_known_generation",
+     "input_refs",
+     "kind",
+     "lifecycle",
+     "object_id",
+     "object_revision",
+     "published_generation",
+     "source_coords",
+     "superseded_by",
+     "window_end",
+     "window_mid",
+     "window_start",
+     "withdrawal_reason",
+     "withdrawn_generation"
+    ]
+   ]
+  ],
+  "obj:record-generated": [
+   [
+    9933,
+    [
+     "fact_key",
+     "first_known_cut",
+     "first_known_generation",
+     "input_refs",
+     "input_refs_json",
+     "kind",
+     "object_id",
+     "object_revision",
+     "payload",
+     "payload_json",
+     "published_generation",
+     "source_coords",
+     "source_coords_json"
+    ]
+   ],
+   [
+    3403,
+    [
+     "branch",
+     "comparisons",
+     "dir_ab",
+     "dir_bc",
+     "first_known_cut",
+     "first_known_generation",
+     "input_refs",
+     "input_refs_json",
+     "kind",
+     "object_id",
+     "object_revision",
+     "published_generation",
+     "source_coords",
+     "source_coords_json",
+     "window_end",
+     "window_mid",
+     "window_start"
+    ]
+   ]
+  ],
+  "obj:source-mi": [
+   [
+    501,
+    [
+     "mi",
+     "object_id",
+     "raw_bars",
+     "slot"
+    ]
+   ]
+  ],
+  "obj:generation-scope": [
+   [
+    86,
+    [
+     "catalog_revision",
+     "effective_events",
+     "generation",
+     "input_frontier",
+     "objects",
+     "observations",
+     "profile_hash",
+     "profile_id",
+     "raw_events",
+     "relations",
+     "rule_revision",
+     "scope",
+     "structure_cut",
+     "witnesses"
+    ]
+   ]
+  ]
+ },
+ "record_top_vs_object_row": {
+  "obj:record-internal rev=same pg=diff live": 12311,
+  "obj:record-generated rev=same pg=diff live": 12311,
+  "obj:record-internal rev=same pg=diff withdrawn": 1025,
+  "obj:record-generated rev=same pg=diff withdrawn": 1025
+ },
+ "record_top_kinds": {
+  "obj:record-internal CC-004.inclusion_step": 3655,
+  "obj:record-generated CC-004.inclusion_step": 3655,
+  "obj:record-internal CC-005.inclusion_group": 3570,
+  "obj:record-generated CC-005.inclusion_group": 3570,
+  "obj:record-internal CC-006.local_shape": 3403,
+  "obj:record-generated CC-006.local_shape": 3403,
+  "obj:record-internal CC-055.relation": 2231,
+  "obj:record-generated CC-055.relation": 2231,
+  "obj:record-internal CC-008.endpoint": 211,
+  "obj:record-generated CC-008.endpoint": 211,
+  "obj:record-generated CC-008.new_bi_pair": 134,
+  "obj:record-internal CC-008.new_bi_pair": 134,
+  "obj:record-generated CC-010.bi": 132,
+  "obj:record-internal CC-010.bi": 132
+ },
+ "publications_rows": 86,
+ "abandoned_generations": [],
+ "births_missing": 0,
+ "unreachable_by_birth_generation": {
+  "1": {
+   "obj:manifest-delta-draft": 41,
+   "obj:manifest-snapshot-draft": 43,
+   "mixed": 12,
+   "obj:generation-scope": 12
+  },
+  "2": {
+   "obj:manifest-delta-draft": 65,
+   "obj:manifest-snapshot-draft": 67,
+   "obj:generation-scope": 12,
+   "obj:record-generated": 8,
+   "obj:record-internal": 7,
+   "mixed": 1
+  },
+  "3": {
+   "obj:record-internal": 20,
+   "obj:record-generated": 22,
+   "obj:manifest-delta-draft": 67,
+   "obj:manifest-snapshot-draft": 71,
+   "obj:source-mi": 18,
+   "obj:generation-scope": 12
+  },
+  "4": {
+   "obj:manifest-delta-draft": 78,
+   "obj:manifest-snapshot-draft": 81,
+   "obj:record-internal": 33,
+   "obj:record-generated": 36,
+   "obj:source-mi": 20,
+   "array-memo": 3,
+   "mixed": 1,
+   "obj:generation-scope": 12
+  },
+  "5": {
+   "obj:manifest-snapshot-draft": 79,
+   "obj:record-internal": 54,
+   "obj:record-generated": 57,
+   "obj:source-mi": 20,
+   "obj:manifest-delta-draft": 76,
+   "mixed": 3,
+   "obj:generation-scope": 12,
+   "array-memo": 6
+  },
+  "6": {
+   "obj:manifest-delta-draft": 78,
+   "obj:record-internal": 75,
+   "obj:record-generated": 78,
+   "obj:generation-scope": 12,
+   "array-memo": 9,
+   "obj:manifest-snapshot-draft": 84,
+   "obj:source-mi": 20,
+   "mixed": 1
+  },
+  "7": {
+   "obj:manifest-snapshot-draft": 81,
+   "obj:manifest-delta-draft": 78,
+   "obj:record-generated": 99,
+   "obj:record-internal": 96,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12,
+   "mixed": 1,
+   "array-memo": 3
+  },
+  "8": {
+   "obj:manifest-delta-draft": 128,
+   "obj:record-generated": 120,
+   "obj:manifest-snapshot-draft": 134,
+   "obj:source-mi": 20,
+   "obj:record-internal": 117,
+   "obj:generation-scope": 12,
+   "mixed": 1,
+   "array-memo": 7
+  },
+  "9": {
+   "obj:manifest-delta-draft": 116,
+   "obj:record-generated": 141,
+   "obj:manifest-snapshot-draft": 121,
+   "obj:generation-scope": 12,
+   "obj:record-internal": 139,
+   "obj:source-mi": 20,
+   "mixed": 2,
+   "array-memo": 12
+  },
+  "10": {
+   "obj:manifest-delta-draft": 98,
+   "obj:record-internal": 166,
+   "obj:record-generated": 168,
+   "array-memo": 15,
+   "obj:manifest-snapshot-draft": 111,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12,
+   "mixed": 3
+  },
+  "11": {
+   "obj:record-generated": 189,
+   "obj:record-internal": 187,
+   "obj:manifest-snapshot-draft": 107,
+   "array-memo": 13,
+   "obj:source-mi": 20,
+   "obj:manifest-delta-draft": 99,
+   "obj:generation-scope": 12,
+   "mixed": 2
+  },
+  "12": {
+   "obj:manifest-delta-draft": 98,
+   "obj:record-internal": 208,
+   "obj:manifest-snapshot-draft": 109,
+   "obj:record-generated": 210,
+   "array-memo": 20,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12,
+   "mixed": 3
+  },
+  "13": {
+   "obj:record-generated": 231,
+   "obj:manifest-snapshot-draft": 109,
+   "obj:manifest-delta-draft": 100,
+   "obj:record-internal": 229,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12,
+   "array-memo": 21,
+   "mixed": 1
+  },
+  "14": {
+   "obj:manifest-delta-draft": 98,
+   "obj:record-generated": 252,
+   "obj:record-internal": 250,
+   "obj:manifest-snapshot-draft": 111,
+   "array-memo": 20,
+   "obj:source-mi": 20,
+   "mixed": 3,
+   "obj:generation-scope": 12
+  },
+  "15": {
+   "obj:record-generated": 273,
+   "obj:manifest-delta-draft": 310,
+   "obj:manifest-snapshot-draft": 330,
+   "obj:record-internal": 270,
+   "array-memo": 17,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12,
+   "mixed": 5
+  },
+  "16": {
+   "obj:manifest-delta-draft": 303,
+   "obj:record-internal": 292,
+   "obj:manifest-snapshot-draft": 343,
+   "obj:record-generated": 294,
+   "array-memo": 17,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12,
+   "mixed": 1
+  },
+  "17": {
+   "obj:record-generated": 393,
+   "obj:record-internal": 391,
+   "obj:manifest-snapshot-draft": 128,
+   "obj:source-mi": 20,
+   "obj:manifest-delta-draft": 118,
+   "array-memo": 30,
+   "obj:generation-scope": 12
+  },
+  "18": {
+   "obj:manifest-delta-draft": 117,
+   "obj:manifest-snapshot-draft": 128,
+   "obj:generation-scope": 12,
+   "obj:source-mi": 20,
+   "obj:record-generated": 414,
+   "obj:record-internal": 412,
+   "array-memo": 33,
+   "mixed": 1
+  },
+  "19": {
+   "obj:record-internal": 433,
+   "obj:record-generated": 435,
+   "obj:manifest-snapshot-draft": 124,
+   "array-memo": 31,
+   "obj:manifest-delta-draft": 118,
+   "obj:generation-scope": 12,
+   "obj:source-mi": 20
+  },
+  "20": {
+   "obj:record-generated": 456,
+   "obj:manifest-snapshot-draft": 129,
+   "obj:source-mi": 20,
+   "obj:record-internal": 454,
+   "array-memo": 30,
+   "obj:manifest-delta-draft": 117,
+   "obj:generation-scope": 12,
+   "mixed": 1
+  },
+  "21": {
+   "obj:manifest-snapshot-draft": 126,
+   "obj:record-internal": 475,
+   "obj:manifest-delta-draft": 118,
+   "obj:record-generated": 477,
+   "obj:source-mi": 20,
+   "array-memo": 31,
+   "obj:generation-scope": 12
+  },
+  "22": {
+   "obj:record-internal": 496,
+   "obj:record-generated": 498,
+   "array-memo": 30,
+   "obj:generation-scope": 12,
+   "obj:manifest-delta-draft": 117,
+   "obj:source-mi": 20,
+   "obj:manifest-snapshot-draft": 124,
+   "mixed": 1
+  },
+  "23": {
+   "obj:record-generated": 519,
+   "obj:record-internal": 517,
+   "obj:manifest-delta-draft": 118,
+   "obj:source-mi": 20,
+   "obj:manifest-snapshot-draft": 124,
+   "array-memo": 28,
+   "obj:generation-scope": 12
+  },
+  "24": {
+   "obj:record-generated": 540,
+   "obj:manifest-delta-draft": 117,
+   "obj:record-internal": 538,
+   "obj:manifest-snapshot-draft": 126,
+   "obj:source-mi": 20,
+   "array-memo": 27,
+   "obj:generation-scope": 12,
+   "mixed": 1
+  },
+  "25": {
+   "obj:record-generated": 561,
+   "obj:record-internal": 559,
+   "obj:manifest-delta-draft": 118,
+   "obj:manifest-snapshot-draft": 127,
+   "array-memo": 31,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12
+  },
+  "26": {
+   "obj:record-generated": 582,
+   "array-memo": 34,
+   "obj:record-internal": 580,
+   "obj:manifest-snapshot-draft": 123,
+   "obj:manifest-delta-draft": 117,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12,
+   "mixed": 1
+  },
+  "27": {
+   "obj:record-generated": 603,
+   "obj:record-internal": 601,
+   "obj:manifest-snapshot-draft": 125,
+   "obj:manifest-delta-draft": 118,
+   "obj:generation-scope": 12,
+   "obj:source-mi": 20,
+   "array-memo": 32
+  },
+  "28": {
+   "obj:manifest-snapshot-draft": 128,
+   "obj:record-generated": 624,
+   "obj:record-internal": 622,
+   "obj:manifest-delta-draft": 117,
+   "array-memo": 31,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12,
+   "mixed": 1
+  },
+  "29": {
+   "obj:record-internal": 643,
+   "obj:manifest-snapshot-draft": 129,
+   "obj:record-generated": 645,
+   "obj:manifest-delta-draft": 118,
+   "obj:generation-scope": 12,
+   "obj:source-mi": 20,
+   "array-memo": 32
+  },
+  "30": {
+   "obj:record-generated": 666,
+   "obj:record-internal": 664,
+   "obj:manifest-snapshot-draft": 127,
+   "array-memo": 31,
+   "obj:manifest-delta-draft": 117,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12,
+   "mixed": 1
+  },
+  "31": {
+   "obj:record-generated": 687,
+   "obj:record-internal": 684,
+   "obj:manifest-snapshot-draft": 526,
+   "obj:manifest-delta-draft": 480,
+   "obj:source-mi": 20,
+   "array-memo": 28,
+   "obj:generation-scope": 12,
+   "mixed": 1
+  },
+  "32": {
+   "obj:manifest-snapshot-draft": 701,
+   "obj:record-generated": 642,
+   "obj:record-internal": 640,
+   "array-memo": 28,
+   "obj:manifest-delta-draft": 638,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12,
+   "mixed": 3
+  },
+  "33": {
+   "obj:record-internal": 865,
+   "obj:record-generated": 867,
+   "obj:manifest-delta-draft": 127,
+   "array-memo": 44,
+   "obj:manifest-snapshot-draft": 150,
+   "obj:generation-scope": 12,
+   "obj:source-mi": 20,
+   "mixed": 2
+  },
+  "34": {
+   "obj:record-internal": 886,
+   "obj:record-generated": 888,
+   "obj:manifest-delta-draft": 127,
+   "obj:manifest-snapshot-draft": 148,
+   "obj:generation-scope": 12,
+   "array-memo": 43,
+   "obj:source-mi": 20,
+   "mixed": 2
+  },
+  "35": {
+   "obj:record-generated": 909,
+   "obj:record-internal": 907,
+   "obj:manifest-delta-draft": 127,
+   "obj:source-mi": 20,
+   "obj:manifest-snapshot-draft": 140,
+   "array-memo": 41,
+   "obj:generation-scope": 12,
+   "mixed": 2
+  },
+  "36": {
+   "obj:record-generated": 930,
+   "obj:record-internal": 928,
+   "array-memo": 40,
+   "obj:manifest-snapshot-draft": 150,
+   "obj:manifest-delta-draft": 127,
+   "obj:generation-scope": 12,
+   "obj:source-mi": 20,
+   "mixed": 2
+  },
+  "37": {
+   "obj:record-internal": 949,
+   "obj:record-generated": 951,
+   "obj:manifest-snapshot-draft": 149,
+   "array-memo": 41,
+   "obj:manifest-delta-draft": 127,
+   "obj:generation-scope": 12,
+   "obj:source-mi": 20,
+   "mixed": 2
+  },
+  "38": {
+   "obj:record-internal": 970,
+   "obj:record-generated": 972,
+   "obj:manifest-delta-draft": 127,
+   "obj:manifest-snapshot-draft": 150,
+   "obj:source-mi": 20,
+   "array-memo": 40,
+   "obj:generation-scope": 12,
+   "mixed": 2
+  },
+  "39": {
+   "obj:record-internal": 991,
+   "obj:record-generated": 993,
+   "obj:manifest-snapshot-draft": 146,
+   "array-memo": 38,
+   "obj:manifest-delta-draft": 127,
+   "mixed": 2,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12
+  },
+  "40": {
+   "obj:record-internal": 1012,
+   "obj:record-generated": 1014,
+   "array-memo": 37,
+   "obj:manifest-delta-draft": 127,
+   "obj:manifest-snapshot-draft": 146,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12,
+   "mixed": 2
+  },
+  "41": {
+   "obj:record-internal": 1033,
+   "obj:record-generated": 1035,
+   "array-memo": 41,
+   "obj:manifest-delta-draft": 127,
+   "obj:source-mi": 20,
+   "obj:manifest-snapshot-draft": 148,
+   "mixed": 2,
+   "obj:generation-scope": 12
+  },
+  "42": {
+   "obj:record-generated": 1056,
+   "obj:record-internal": 1054,
+   "obj:manifest-snapshot-draft": 147,
+   "array-memo": 40,
+   "obj:generation-scope": 12,
+   "obj:manifest-delta-draft": 127,
+   "obj:source-mi": 20,
+   "mixed": 2
+  },
+  "43": {
+   "obj:record-generated": 1077,
+   "obj:record-internal": 1075,
+   "obj:manifest-snapshot-draft": 143,
+   "obj:manifest-delta-draft": 127,
+   "obj:source-mi": 20,
+   "array-memo": 38,
+   "obj:generation-scope": 12,
+   "mixed": 2
+  },
+  "44": {
+   "obj:record-internal": 1096,
+   "obj:record-generated": 1098,
+   "obj:generation-scope": 12,
+   "obj:manifest-delta-draft": 127,
+   "obj:manifest-snapshot-draft": 143,
+   "array-memo": 37,
+   "obj:source-mi": 20,
+   "mixed": 2
+  },
+  "45": {
+   "obj:record-internal": 1117,
+   "obj:record-generated": 1119,
+   "obj:manifest-snapshot-draft": 146,
+   "array-memo": 38,
+   "obj:manifest-delta-draft": 127,
+   "obj:generation-scope": 12,
+   "obj:source-mi": 20,
+   "mixed": 2
+  },
+  "46": {
+   "obj:record-internal": 1138,
+   "obj:record-generated": 1140,
+   "obj:manifest-snapshot-draft": 144,
+   "array-memo": 37,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12,
+   "obj:manifest-delta-draft": 127,
+   "mixed": 2
+  },
+  "47": {
+   "obj:record-generated": 1161,
+   "obj:record-internal": 1159,
+   "obj:manifest-snapshot-draft": 143,
+   "obj:manifest-delta-draft": 127,
+   "obj:source-mi": 20,
+   "array-memo": 35,
+   "obj:generation-scope": 12,
+   "mixed": 2
+  },
+  "48": {
+   "obj:record-generated": 1182,
+   "obj:manifest-delta-draft": 127,
+   "obj:record-internal": 1180,
+   "obj:manifest-snapshot-draft": 142,
+   "array-memo": 34,
+   "obj:generation-scope": 12,
+   "obj:source-mi": 20,
+   "mixed": 2
+  },
+  "49": {
+   "obj:record-generated": 1203,
+   "obj:record-internal": 1201,
+   "obj:manifest-delta-draft": 127,
+   "obj:manifest-snapshot-draft": 146,
+   "array-memo": 41,
+   "obj:generation-scope": 12,
+   "mixed": 2,
+   "obj:source-mi": 20
+  },
+  "50": {
+   "obj:record-internal": 1222,
+   "obj:source-mi": 20,
+   "obj:record-generated": 1224,
+   "obj:manifest-snapshot-draft": 143,
+   "array-memo": 40,
+   "obj:generation-scope": 12,
+   "obj:manifest-delta-draft": 127,
+   "mixed": 2
+  },
+  "51": {
+   "obj:record-internal": 1243,
+   "obj:record-generated": 1245,
+   "obj:manifest-snapshot-draft": 143,
+   "array-memo": 38,
+   "obj:manifest-delta-draft": 127,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12,
+   "mixed": 2
+  },
+  "52": {
+   "obj:record-generated": 1266,
+   "obj:record-internal": 1264,
+   "obj:manifest-snapshot-draft": 148,
+   "obj:manifest-delta-draft": 127,
+   "array-memo": 37,
+   "obj:generation-scope": 12,
+   "obj:source-mi": 20,
+   "mixed": 2
+  },
+  "53": {
+   "obj:record-generated": 1287,
+   "obj:manifest-delta-draft": 127,
+   "obj:record-internal": 1285,
+   "obj:source-mi": 20,
+   "array-memo": 38,
+   "obj:manifest-snapshot-draft": 147,
+   "obj:generation-scope": 12,
+   "mixed": 2
+  },
+  "54": {
+   "obj:record-internal": 1306,
+   "obj:manifest-snapshot-draft": 149,
+   "obj:record-generated": 1308,
+   "obj:manifest-delta-draft": 127,
+   "array-memo": 37,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12,
+   "mixed": 2
+  },
+  "55": {
+   "obj:record-internal": 1327,
+   "obj:record-generated": 1329,
+   "obj:manifest-snapshot-draft": 146,
+   "obj:manifest-delta-draft": 127,
+   "mixed": 2,
+   "obj:generation-scope": 12,
+   "array-memo": 35,
+   "obj:source-mi": 20
+  },
+  "56": {
+   "obj:record-generated": 1350,
+   "obj:record-internal": 1348,
+   "obj:manifest-delta-draft": 127,
+   "obj:manifest-snapshot-draft": 150,
+   "array-memo": 34,
+   "obj:source-mi": 20,
+   "mixed": 2,
+   "obj:generation-scope": 12
+  },
+  "57": {
+   "obj:record-internal": 1369,
+   "obj:manifest-snapshot-draft": 149,
+   "obj:record-generated": 1371,
+   "obj:generation-scope": 12,
+   "obj:manifest-delta-draft": 127,
+   "obj:source-mi": 20,
+   "array-memo": 38,
+   "mixed": 2
+  },
+  "58": {
+   "obj:record-internal": 1390,
+   "obj:record-generated": 1392,
+   "obj:manifest-delta-draft": 127,
+   "obj:generation-scope": 12,
+   "obj:manifest-snapshot-draft": 150,
+   "obj:source-mi": 20,
+   "array-memo": 37,
+   "mixed": 2
+  },
+  "59": {
+   "obj:record-generated": 1413,
+   "obj:manifest-snapshot-draft": 146,
+   "obj:record-internal": 1411,
+   "obj:manifest-delta-draft": 127,
+   "array-memo": 35,
+   "obj:source-mi": 20,
+   "mixed": 2,
+   "obj:generation-scope": 12
+  },
+  "60": {
+   "obj:record-internal": 1432,
+   "obj:record-generated": 1434,
+   "obj:manifest-snapshot-draft": 150,
+   "obj:manifest-delta-draft": 127,
+   "array-memo": 34,
+   "obj:generation-scope": 12,
+   "mixed": 2,
+   "obj:source-mi": 20
+  },
+  "61": {
+   "obj:record-generated": 1455,
+   "obj:record-internal": 1453,
+   "obj:manifest-snapshot-draft": 149,
+   "obj:manifest-delta-draft": 127,
+   "array-memo": 35,
+   "obj:source-mi": 20,
+   "mixed": 2,
+   "obj:generation-scope": 12
+  },
+  "62": {
+   "obj:record-internal": 1474,
+   "obj:record-generated": 1476,
+   "obj:manifest-delta-draft": 127,
+   "obj:manifest-snapshot-draft": 148,
+   "array-memo": 34,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12,
+   "mixed": 2
+  },
+  "63": {
+   "obj:record-generated": 1497,
+   "obj:record-internal": 1495,
+   "obj:manifest-snapshot-draft": 148,
+   "obj:manifest-delta-draft": 127,
+   "obj:source-mi": 20,
+   "array-memo": 32,
+   "mixed": 2,
+   "obj:generation-scope": 12
+  },
+  "64": {
+   "obj:record-generated": 1518,
+   "obj:record-internal": 1516,
+   "obj:generation-scope": 12,
+   "obj:manifest-delta-draft": 127,
+   "obj:manifest-snapshot-draft": 149,
+   "obj:source-mi": 20,
+   "array-memo": 31,
+   "mixed": 2
+  },
+  "65": {
+   "obj:record-generated": 1539,
+   "obj:record-internal": 1537,
+   "obj:manifest-snapshot-draft": 151,
+   "obj:source-mi": 20,
+   "obj:manifest-delta-draft": 127,
+   "array-memo": 50,
+   "obj:generation-scope": 12,
+   "mixed": 2
+  },
+  "66": {
+   "obj:record-internal": 1558,
+   "obj:record-generated": 1560,
+   "obj:manifest-snapshot-draft": 145,
+   "array-memo": 49,
+   "obj:manifest-delta-draft": 127,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12,
+   "mixed": 2
+  },
+  "67": {
+   "obj:record-internal": 1579,
+   "obj:record-generated": 1581,
+   "obj:manifest-delta-draft": 127,
+   "obj:manifest-snapshot-draft": 143,
+   "obj:source-mi": 20,
+   "array-memo": 47,
+   "obj:generation-scope": 12,
+   "mixed": 2
+  },
+  "68": {
+   "obj:record-generated": 1602,
+   "obj:record-internal": 1600,
+   "obj:manifest-snapshot-draft": 148,
+   "array-memo": 46,
+   "obj:manifest-delta-draft": 127,
+   "obj:generation-scope": 12,
+   "obj:source-mi": 20,
+   "mixed": 2
+  },
+  "69": {
+   "obj:record-internal": 1621,
+   "obj:record-generated": 1623,
+   "array-memo": 47,
+   "obj:manifest-snapshot-draft": 151,
+   "obj:manifest-delta-draft": 127,
+   "obj:generation-scope": 12,
+   "obj:source-mi": 20,
+   "mixed": 2
+  },
+  "70": {
+   "obj:record-internal": 1642,
+   "obj:record-generated": 1644,
+   "obj:manifest-delta-draft": 127,
+   "obj:source-mi": 20,
+   "array-memo": 46,
+   "obj:generation-scope": 12,
+   "obj:manifest-snapshot-draft": 148,
+   "mixed": 2
+  },
+  "71": {
+   "obj:record-generated": 1665,
+   "obj:manifest-delta-draft": 127,
+   "obj:record-internal": 1663,
+   "obj:manifest-snapshot-draft": 147,
+   "array-memo": 44,
+   "obj:generation-scope": 12,
+   "obj:source-mi": 20,
+   "mixed": 2
+  },
+  "72": {
+   "obj:record-generated": 1686,
+   "obj:record-internal": 1684,
+   "obj:manifest-delta-draft": 127,
+   "obj:manifest-snapshot-draft": 150,
+   "obj:source-mi": 20,
+   "array-memo": 43,
+   "mixed": 2,
+   "obj:generation-scope": 12
+  },
+  "73": {
+   "obj:record-generated": 1707,
+   "obj:manifest-snapshot-draft": 155,
+   "array-memo": 47,
+   "obj:record-internal": 1705,
+   "obj:manifest-delta-draft": 127,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12,
+   "mixed": 2
+  },
+  "74": {
+   "obj:record-internal": 1726,
+   "obj:record-generated": 1728,
+   "obj:manifest-delta-draft": 127,
+   "obj:source-mi": 20,
+   "obj:manifest-snapshot-draft": 156,
+   "obj:generation-scope": 12,
+   "array-memo": 50,
+   "mixed": 2
+  },
+  "75": {
+   "obj:record-generated": 1749,
+   "obj:record-internal": 1746,
+   "obj:manifest-snapshot-draft": 902,
+   "obj:manifest-delta-draft": 838,
+   "obj:source-mi": 20,
+   "mixed": 52,
+   "array-memo": 47,
+   "obj:generation-scope": 12
+  },
+  "76": {
+   "obj:manifest-snapshot-draft": 1346,
+   "obj:manifest-delta-draft": 1242,
+   "obj:record-internal": 1648,
+   "obj:record-generated": 1650,
+   "obj:source-mi": 20,
+   "array-memo": 47,
+   "obj:generation-scope": 12,
+   "mixed": 3
+  },
+  "77": {
+   "obj:record-internal": 2095,
+   "obj:record-generated": 2097,
+   "obj:source-mi": 20,
+   "obj:manifest-snapshot-draft": 171,
+   "obj:manifest-delta-draft": 140,
+   "array-memo": 48,
+   "obj:generation-scope": 12,
+   "mixed": 1
+  },
+  "78": {
+   "obj:record-generated": 2118,
+   "obj:record-internal": 2116,
+   "obj:manifest-delta-draft": 140,
+   "obj:manifest-snapshot-draft": 176,
+   "array-memo": 47,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12,
+   "mixed": 1
+  },
+  "79": {
+   "obj:record-generated": 2139,
+   "obj:record-internal": 2137,
+   "obj:manifest-delta-draft": 140,
+   "array-memo": 45,
+   "obj:manifest-snapshot-draft": 171,
+   "obj:generation-scope": 12,
+   "obj:source-mi": 20,
+   "mixed": 1
+  },
+  "80": {
+   "obj:record-internal": 2158,
+   "obj:record-generated": 2160,
+   "array-memo": 44,
+   "obj:manifest-delta-draft": 140,
+   "obj:manifest-snapshot-draft": 176,
+   "obj:source-mi": 20,
+   "mixed": 1,
+   "obj:generation-scope": 12
+  },
+  "81": {
+   "obj:record-generated": 2181,
+   "obj:record-internal": 2179,
+   "obj:manifest-delta-draft": 140,
+   "obj:manifest-snapshot-draft": 170,
+   "array-memo": 55,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12,
+   "mixed": 1
+  },
+  "82": {
+   "obj:record-generated": 2202,
+   "obj:record-internal": 2200,
+   "obj:manifest-snapshot-draft": 172,
+   "obj:manifest-delta-draft": 140,
+   "obj:source-mi": 20,
+   "array-memo": 54,
+   "obj:generation-scope": 12,
+   "mixed": 1
+  },
+  "83": {
+   "obj:record-internal": 2221,
+   "obj:record-generated": 2223,
+   "obj:manifest-delta-draft": 140,
+   "obj:manifest-snapshot-draft": 167,
+   "array-memo": 52,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12,
+   "mixed": 1
+  },
+  "84": {
+   "obj:record-generated": 2244,
+   "obj:record-internal": 2242,
+   "obj:manifest-delta-draft": 140,
+   "obj:manifest-snapshot-draft": 171,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12,
+   "array-memo": 51,
+   "mixed": 1
+  },
+  "85": {
+   "obj:record-internal": 2263,
+   "obj:record-generated": 2265,
+   "obj:manifest-delta-draft": 140,
+   "obj:manifest-snapshot-draft": 168,
+   "array-memo": 56,
+   "obj:source-mi": 20,
+   "mixed": 1,
+   "obj:generation-scope": 12
+  },
+  "86": {
+   "obj:record-generated": 2286,
+   "obj:record-internal": 2284,
+   "obj:manifest-delta-draft": 140,
+   "obj:manifest-snapshot-draft": 168,
+   "array-memo": 46,
+   "obj:source-mi": 20,
+   "obj:generation-scope": 12,
+   "array-other": 14,
+   "mixed": 1
+  }
+ },
+ "unreachable_born_in_abandoned_generations": {},
+ "new_nodes_by_generation": {
+  "1": 1851,
+  "2": 1359,
+  "3": 1811,
+  "4": 1897,
+  "5": 1985,
+  "6": 2078,
+  "7": 2151,
+  "8": 2876,
+  "9": 2880,
+  "10": 2731,
+  "11": 2838,
+  "12": 2894,
+  "13": 2947,
+  "14": 3079,
+  "15": 5299,
+  "16": 5438,
+  "17": 3868,
+  "18": 3864,
+  "19": 3984,
+  "20": 4018,
+  "21": 4088,
+  "22": 4181,
+  "23": 4230,
+  "24": 4362,
+  "25": 4406,
+  "26": 4483,
+  "27": 4596,
+  "28": 4571,
+  "29": 4685,
+  "30": 4742,
+  "31": 8026,
+  "32": 9909,
+  "33": 5838,
+  "34": 5784,
+  "35": 5846,
+  "36": 5903,
+  "37": 6009,
+  "38": 6049,
+  "39": 6127,
+  "40": 6195,
+  "41": 6300,
+  "42": 6302,
+  "43": 6423,
+  "44": 6515,
+  "45": 6554,
+  "46": 6646,
+  "47": 6666,
+  "48": 6770,
+  "49": 6797,
+  "50": 6898,
+  "51": 6976,
+  "52": 6985,
+  "53": 7119,
+  "54": 7125,
+  "55": 7264,
+  "56": 7294,
+  "57": 7367,
+  "58": 7451,
+  "59": 7518,
+  "60": 7550,
+  "61": 7673,
+  "62": 7702,
+  "63": 7805,
+  "64": 7900,
+  "65": 7973,
+  "66": 7980,
+  "67": 8078,
+  "68": 8115,
+  "69": 8270,
+  "70": 8307,
+  "71": 8353,
+  "72": 8407,
+  "73": 8465,
+  "74": 8558,
+  "75": 15075,
+  "76": 18554,
+  "77": 10352,
+  "78": 10226,
+  "79": 10373,
+  "80": 10300,
+  "81": 10376,
+  "82": 10499,
+  "83": 10474,
+  "84": 10588,
+  "85": 10661,
+  "86": 10607
+ }
+}

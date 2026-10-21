@@ -1,0 +1,13 @@
+{
+  "profile_id": "ohlc_integer_tb02a_v1",
+  "schema_revision": "s-ohlc/1",
+  "unit": "tick",
+  "price_scale": "exact_integer_decimal_string",
+  "tick_size": "1",
+  "clock": "fixed_seq_clock",
+  "aggregation": "provided_ohlc",
+  "resample": "none",
+  "volume_unit": "1",
+  "not_product_default": true,
+  "note": "#1373：完整具名整数OHLC；不定义tick聚合。包含仅采用已建立方向，同价极值身份保留等待；不裁初始化或tie政策。"
+}
