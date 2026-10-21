@@ -188,7 +188,7 @@ fn rewind(
     Ok(removed)
 }
 
-/// 从 append-only 原回报与更正恢复当前存续的累计区间；金额仍取具名原 fill。
+/// 从 append-only 原回报与更正恢复当前存续的累计区间；每段携带其来源原 fill 的单价（#1683）。
 /// 这是按实际已发生的撤回重放来源，不是为跨 fill 现金挑选 FIFO/LIFO 政策。
 fn surviving_ranges(image: &Value, manifest_hash: &Value) -> Result<Vec<LiveRange>, String> {
     let mut ranges: Vec<LiveRange> = Vec::new();
