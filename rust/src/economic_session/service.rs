@@ -747,7 +747,7 @@ fn record_from_payload(config: &Config, e: &Value) -> Result<Value, String> {
         &json!({"raw_sha256":raw_hash,"json_pointer":pointer,"event":event,"units":doc["units"]}),
     );
     Ok(
-        json!({"fact_key":fact_key(&event)?,"fact_hash":fact_hash,"raw_sha256":raw_hash,"raw_utf8":raw,"json_pointer":pointer,"event":event,"token":required(p,"token")?,"target_domain":domain,"source_event_time":p["source_event_time"],"source_received_time":event["source"]["received_time"],"source_producer":{"producer_id":e["producer_id"],"producer_epoch":e["producer_epoch"]},"origin_message":{"source_namespace":e["source_namespace"],"source_epoch":e["source_epoch"],"message_id":e["message_id"],"payload_hash":e["payload_hash"]},"origin_request_hash":hash(e)}),
+        json!({"fact_key":fact_key(&event)?,"fact_hash":fact_hash,"raw_sha256":raw_hash,"raw_utf8":raw,"json_pointer":pointer,"event":event,"token":required(p,"token")?,"target_domain":domain,"source_event_time":p["source_event_time"],"source_received_time":event["source"]["received_time"],"source_producer":{"producer_id":e["producer_id"],"producer_epoch":e["producer_epoch"]},"origin_message":{"source_namespace":e["source_namespace"],"source_epoch":e["source_epoch"],"message_id":e["message_id"],"payload_hash":e["payload_hash"]},"origin_request_hash":hash(e)}), // DevSkim: ignore DS197836 内容寻址摘要，非对时间值取哈希
     )
 }
 fn capture(

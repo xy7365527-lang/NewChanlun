@@ -20,7 +20,7 @@ fn bar(b: &Bar) -> Value {
 }
 fn direction(e: &Option<InclusionDirectionEvidence>) -> Value {
     e.as_ref().map(|e|json!({"direction":dir_str(e.direction),"established_at":e.incoming.source_index.to_string(),
-        "previous_acc":bar(&e.previous_acc),"incoming":bar(&e.incoming),"source_coords":coords(&e.source_coords)})).unwrap_or(Value::Null)
+        "previous_acc":bar(&e.previous_acc),"incoming":bar(&e.incoming),"source_coords":coords(&e.source_coords.to_vec())})).unwrap_or(Value::Null)
 }
 fn coords(xs: &[usize]) -> Vec<String> {
     xs.iter().map(ToString::to_string).collect()
@@ -501,13 +501,13 @@ pub(super) fn build_with_units(
             "CC-004.inclusion_step",
             slot.clone(),
             payload,
-            step.source_coords.clone(),
+            step.source_coords.to_vec(),
         );
         requests.push(request(
             slot,
             json!(id),
             step_extra_reasons(step),
-            step.source_coords.clone(),
+            step.source_coords.to_vec(),
         ));
     }
     for (index, group) in trace.groups.iter().enumerate() {
@@ -742,13 +742,13 @@ pub(super) fn build_incremental(
             "CC-004.inclusion_step",
             slot.clone(),
             step_payload(&fact),
-            fact.source_coords.clone(),
+            fact.source_coords.to_vec(),
         );
         let request = request(
             slot,
             object["object_id"].clone(),
             step_extra_reasons(&fact),
-            fact.source_coords.clone(),
+            fact.source_coords.to_vec(),
         );
         cache.records.insert(
             key,

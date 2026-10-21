@@ -1,0 +1,56 @@
+== 按规则计数（排除目录内）
+  88595 DS173237
+   1467 DS162092
+    889 DS117838
+     85 DS197836
+     24 DS137138
+     17 DS176209
+      4 DS148264
+      3 DS172411
+      1 DS149435
+      1 DS187371
+== DS173237 匹配文本形状
+  81390 hex64
+   2578 hex40
+   2511 hex144
+    997 hex80
+    929 hex128
+     43 hex59
+     29 hex138
+     11 hex36
+     10 hex30
+      9 hex42
+      8 hex32
+      8 hex44
+      7 hex136
+      6 hex58
+      6 hex34
+      5 hex142
+      5 hex60
+      5 hex56
+      5 hex38
+      5 hex84
+      4 hex72
+      4 hex204
+      2 hex670
+      2 hex52
+      2 other
+      2 hex8192
+      1 hex116
+      1 hex236
+      1 hex202
+      1 hex48
+      1 hex70
+      1 hex228
+      1 hex668
+      1 hex50
+      1 hex35
+      1 hex8200
+      1 hex8198
+      1 hex8196
+== DS173237 非十六进制形状（仅键）: 2
+  DS173237|.chanlun/review-results/issue1340-publication-20260909/payload/inputs/LEGACY-TICKET-DISPOSITION.json|4238
+  DS173237|.chanlun/review-results/issue1340-publication-20260909/payload/inputs/RESIDUAL-TICKET-PLAN.json|3362
+== 已知凭据前缀命中（DevSkim 匹配文本内）: 2
+  DS117838|.chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/EVIDENCE-ATTACHMENTS.json|1
+  DS197836|.chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/EVIDENCE-ATTACHMENTS.json|1

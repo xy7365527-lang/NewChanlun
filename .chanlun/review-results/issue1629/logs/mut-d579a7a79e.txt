@@ -1,0 +1,5 @@
+ref=mut1629-M5b sha=d579a7a79ed010dd8e30725bf09a2b80b705767c sub=rust target=/home/hanju/nc-remote/issue1629-mut cmd=bash -c cargo\ test\ --release\ --lib\ theta_v0::parser\ 2\>\&1\ \|\ grep\ -E\ "\^test\ .\*FAILED\|test\ result\|panicked\ at" 
+test theta_v0::parser::stroke::tests::shared_full_facts_match_flat_reference_for_every_prefix ... FAILED
+thread 'theta_v0::parser::stroke::tests::shared_full_facts_match_flat_reference_for_every_prefix' (29495) panicked at src/theta_v0/parser/stroke.rs:1623:17:
+test result: FAILED. 189 passed; 1 failed; 22 ignored; 0 measured; 2807 filtered out; finished in 74.54s
+EXIT=0 SECONDS=157

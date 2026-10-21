@@ -1208,7 +1208,7 @@ impl ContentBi {
             let slot = Value::String(format!("fx:{fact_generation}:{}", endpoint.group_anchor));
             let deps = self
                 .coords
-                .coord_set(&mut *store, &endpoint.source_coords)?;
+                .coord_set(&mut *store, &endpoint.source_coords.to_vec())?;
             objects.push(build_typed(
                 producer,
                 &mut *store,
@@ -1237,8 +1237,8 @@ impl ContentBi {
             ]);
             let deps = self.coords.interval(
                 &mut *store,
-                &pair.old.source_coords,
-                &pair.new.source_coords,
+                &pair.old.source_coords.to_vec(),
+                &pair.new.source_coords.to_vec(),
                 &[],
             )?;
             objects.push(build_typed(
@@ -1374,8 +1374,8 @@ impl ContentBi {
             let data = sc::write_value(&mut *store, &data_value)?;
             let deps = self.coords.interval(
                 &mut *store,
-                &stroke.start.source_coords,
-                &stroke.end.source_coords,
+                &stroke.start.source_coords.to_vec(),
+                &stroke.end.source_coords.to_vec(),
                 &confirmation_coords,
             )?;
             let slot = Value::String(entity.clone());
@@ -1790,7 +1790,7 @@ fn endpoint_value(endpoint: &Endpoint) -> CValue {
         ),
         (
             "source_coords".to_string(),
-            usize_array(&endpoint.source_coords),
+            usize_array(&endpoint.source_coords.to_vec()),
         ),
         ("sealed_at".to_string(), optional_usize(endpoint.sealed_at)),
         (
@@ -1864,7 +1864,7 @@ fn confirmation_value(confirmation: &Confirmation) -> CValue {
         ),
         (
             "source_coords".to_string(),
-            usize_array(&confirmation.source_coords),
+            usize_array(&confirmation.source_coords.to_vec()),
         ),
     ])
 }

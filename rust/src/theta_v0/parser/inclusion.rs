@@ -556,7 +556,8 @@ pub struct InclusionDirectionEvidence {
     pub direction: Direction,
     pub previous_acc: Bar,
     pub incoming: Bar,
-    pub source_coords: Vec<usize>,
+    /// #1597：共享表示（见 [`SourceCoords`]）；逻辑内容、`Debug` 与旧 `Vec<usize>` 逐位相同。
+    pub source_coords: SourceCoords,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -578,7 +579,8 @@ pub struct InclusionStepFact {
     pub acc_after: Option<Bar>,
     pub contains: Option<bool>,
     pub direction_evidence: Option<InclusionDirectionEvidence>,
-    pub source_coords: Vec<usize>,
+    /// #1597：共享表示（见 [`SourceCoords`]）；逻辑内容、`Debug` 与旧 `Vec<usize>` 逐位相同。
+    pub source_coords: SourceCoords,
     pub high_sources: Vec<usize>,
     pub low_sources: Vec<usize>,
     pub waiting_reasons: Vec<&'static str>,
@@ -600,7 +602,33 @@ pub struct InclusionFacts {
 /// #1373 已批有界入口：与全量/增量共享 fold_step，额外保存该步事实。
 /// 未建方向的包含前缀不借未来方向回折；同价来源保留全集，不选择身份。
 /// 这是知识域限制，不改变 contains/strict_dir/merge 的判据。
+///
+/// #1597：source 坐标严格递增（真实 S 输入恒满足）时，本入口经 [`IncrFactsState`] 构造、
+/// 由 [`IncrFactsState::materialize_facts`] 导出——来源坐标是共享树（[`SourceCoords`]），
+/// 整份事实留存 O(n log n)，不再是逐步展开的 Θ(n²)。两条构造的逐位相同由
+/// `#1394` 的逐前缀对拍与 #1597 的扁平参照对拍锁定（测试
+/// `shared_full_facts_match_flat_reference_for_every_prefix`）。非单调输入走扁平参照构造
+/// [`process_inclusion_with_facts_flat`]（共享拼接前提不成立，不以近似冒充）。
 pub fn process_inclusion_with_facts(bars: &[Bar]) -> InclusionFacts {
+    if bars
+        .windows(2)
+        .all(|w| w[0].source_index < w[1].source_index)
+    {
+        let mut state = IncrFactsState::empty();
+        for bar in bars {
+            state.append(*bar);
+        }
+        debug_assert!(!state.degraded(), "严格递增输入不应退化");
+        return state.materialize_facts();
+    }
+    process_inclusion_with_facts_flat(bars)
+}
+
+/// #1597：完整事实的**扁平参照构造**（#1597 前的唯一实现，逐步展开来源坐标，Θ(n²) 留存）。
+///
+/// 只服务非单调 source 坐标输入（共享表示的前提不成立）与对拍参照；判据与
+/// [`process_inclusion_with_facts`] 同一 `contains`/`strict_dir`/`fold_step`。
+pub fn process_inclusion_with_facts_flat(bars: &[Bar]) -> InclusionFacts {
     let mut result = InclusionFacts::default();
     let mut evidence: Option<InclusionDirectionEvidence> = None;
     let mut processed = 0usize;
@@ -634,7 +662,7 @@ pub fn process_inclusion_with_facts(bars: &[Bar]) -> InclusionFacts {
                     acc_after: None,
                     contains: Some(true),
                     direction_evidence: None,
-                    source_coords: vec![acc.source_index, incoming.source_index],
+                    source_coords: vec![acc.source_index, incoming.source_index].into(),
                     high_sources: vec![],
                     low_sources: vec![],
                     waiting_reasons: vec!["initial_direction_unsettled"],
@@ -665,7 +693,7 @@ pub fn process_inclusion_with_facts(bars: &[Bar]) -> InclusionFacts {
                     direction: new_direction,
                     previous_acc: acc,
                     incoming,
-                    source_coords: sources,
+                    source_coords: sources.into(),
                 });
                 result.groups.last_mut().unwrap().confirmation_evidence = evidence.clone();
                 result.groups.push(InclusionGroupFact {
@@ -723,7 +751,7 @@ pub fn process_inclusion_with_facts(bars: &[Bar]) -> InclusionFacts {
                 acc_after: Some(after),
                 contains: Some(included),
                 direction_evidence: evidence.clone(),
-                source_coords: sources,
+                source_coords: sources.into(),
                 high_sources: group.high_sources.clone(),
                 low_sources: group.low_sources.clone(),
                 waiting_reasons: if group.high_sources.len() > 1 || group.low_sources.len() > 1 {
@@ -750,7 +778,7 @@ pub fn process_inclusion_with_facts(bars: &[Bar]) -> InclusionFacts {
                 acc_after: Some(incoming),
                 contains: None,
                 direction_evidence: None,
-                source_coords: vec![incoming.source_index],
+                source_coords: vec![incoming.source_index].into(),
                 high_sources: vec![incoming.source_index],
                 low_sources: vec![incoming.source_index],
                 waiting_reasons: vec![],
@@ -947,7 +975,7 @@ pub struct SharedEvidenceUnavailable {
 /// #1394 5.3：借用接口返回的共享坐标类型定义在 `evidence`（crate 内模块）。此再导出
 /// 给出它们的公开路径，使 crate 外的消费方（如 S 生产侧 `bin`）也能命名遍历用的节点
 /// 类型；不得据此把物理树形状当成规范 M 结构（见 `CoordsRef::root_node` 文档）。
-pub use super::evidence::{CoordNode, CoordsRef};
+pub use super::evidence::{CoordNode, CoordsRef, SourceCoords, SourceCoordsIter};
 
 /// #1488：同一次 append 的实际写入范围；不是 raw 原件或事务资格。
 ///
@@ -1168,8 +1196,8 @@ impl IncrFactsState {
                 direction: new_direction,
                 previous_acc: acc,
                 incoming,
-                // 热路径不展开历史链（见类型头）：全量入口保留完整展开。
-                source_coords: Vec::new(),
+                // 热路径不展开历史链（见类型头）：完整事实由 `materialize_facts` 共享导出。
+                source_coords: SourceCoords::new(),
             };
             let previous = self.groups.last_mut().unwrap();
             previous.confirmation_evidence = Some(evidence.clone());
@@ -1563,7 +1591,7 @@ impl IncrFactsState {
     /// 展开单步完整事实（与全量入口同字段、同顺序）。
     pub fn step_fact(&self, index: usize) -> Option<InclusionStepFact> {
         if self.degraded {
-            return process_inclusion_with_facts(&self.raw.to_vec())
+            return process_inclusion_with_facts_flat(&self.raw.to_vec())
                 .steps
                 .into_iter()
                 .nth(index);
@@ -1576,7 +1604,8 @@ impl IncrFactsState {
             acc_after: step.acc_after,
             contains: step.contains,
             direction_evidence: step.evidence.as_ref().map(expand_evidence),
-            source_coords: step.coords.materialize(),
+            // #1597：共享句柄，不展开（逻辑内容与扁平参照逐位相同）。
+            source_coords: SourceCoords::from_shared(step.coords.clone()),
             high_sources: step
                 .high
                 .as_ref()
@@ -1594,7 +1623,7 @@ impl IncrFactsState {
     /// 展开单组完整事实：`members` 走与全量入口**同一条**稠密标注（不另立第二查法）。
     pub fn group_fact(&self, index: usize) -> Option<InclusionGroupFact> {
         if self.degraded {
-            return process_inclusion_with_facts(&self.raw.to_vec())
+            return process_inclusion_with_facts_flat(&self.raw.to_vec())
                 .groups
                 .into_iter()
                 .nth(index);
@@ -1647,7 +1676,7 @@ impl IncrFactsState {
     /// 本入口不展开步骤历史，不能当成完整 InclusionFacts 使用。
     pub fn materialize_groups(&self) -> Vec<InclusionGroupFact> {
         if self.degraded {
-            return process_inclusion_with_facts(&self.raw.to_vec()).groups;
+            return process_inclusion_with_facts_flat(&self.raw.to_vec()).groups;
         }
         let annotations = self.dense_annotations();
         let mut members_by_group = vec![Vec::new(); self.groups.len()];
@@ -1681,7 +1710,7 @@ impl IncrFactsState {
     /// 展开完整 facts——与 [`process_inclusion_with_facts`] 全部字段逐位相同。
     pub fn materialize_facts(&self) -> InclusionFacts {
         if self.degraded {
-            return process_inclusion_with_facts(&self.raw.to_vec());
+            return process_inclusion_with_facts_flat(&self.raw.to_vec());
         }
         let merged = self.merged.to_vec();
         let groups = self.materialize_groups();
@@ -1712,13 +1741,14 @@ impl IncrFactsState {
     }
 }
 
-/// 共享证据节点 → 全量 `InclusionDirectionEvidence`（`source_coords` 现场展开）。
+/// 共享证据节点 → 全量 `InclusionDirectionEvidence`（#1597：`source_coords` 共享同一棵树，
+/// 不展开；逻辑内容与扁平参照逐位相同）。
 fn expand_evidence(node: &Rc<EvidenceNode>) -> InclusionDirectionEvidence {
     InclusionDirectionEvidence {
         direction: node.direction,
         previous_acc: node.previous_acc,
         incoming: node.incoming,
-        source_coords: node.coords.materialize(),
+        source_coords: SourceCoords::from_shared(node.coords.clone()),
     }
 }
 
@@ -2457,8 +2487,22 @@ mod tests {
                 );
                 continue;
             }
-            let want = process_inclusion_with_facts(&bars[..=i]);
+            // #1597：参照 = 扁平构造（#1597 前的唯一实现）；公开入口（共享导出）须与之
+            // 全字段相等，且 `Debug`（紧凑与 `{:#?}`）逐字相同。
+            let want = process_inclusion_with_facts_flat(&bars[..=i]);
             let got = state.materialize_facts();
+            let public = process_inclusion_with_facts(&bars[..=i]);
+            assert_eq!(public, want, "{label} 前缀 {i} 公开入口与扁平参照不匹配");
+            assert_eq!(
+                format!("{public:?}"),
+                format!("{want:?}"),
+                "{label} 前缀 {i} Debug 不逐字相同"
+            );
+            assert_eq!(
+                format!("{public:#?}"),
+                format!("{want:#?}"),
+                "{label} 前缀 {i} 美化 Debug 不逐字相同"
+            );
             assert_eq!(got, want, "{label} 前缀 {i} 全字段不匹配");
             assert_eq!(got.merged, want.merged, "{label} 前缀 {i} merged");
             for (k, want_group) in want.groups.iter().enumerate() {

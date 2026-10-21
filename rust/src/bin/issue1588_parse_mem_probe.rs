@@ -27,8 +27,9 @@ use newchan_rust::theta_v0::backtest::data::load_symbol;
 use newchan_rust::theta_v0::backtest::incremental::IncrementalClassifier;
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::{
-    inclusion::{InclusionDirectionEvidence, InclusionFacts},
-    parse_layer_with_inclusion_facts,
+    inclusion::IncrFactsState,
+    inclusion::{InclusionDirectionEvidence, InclusionFacts, SourceCoords},
+    parse_layer, parse_layer_with_group_evidence, parse_layer_with_inclusion_facts,
     stroke::Endpoint,
     ParseLayer, ParseLayerIncr,
 };
@@ -146,13 +147,21 @@ impl CoordCount {
         self.elems += v.len() as u64;
         self.cap += cap as u64;
     }
+    /// #1597：来源坐标是共享表示；`elems` 计逻辑元素数（展开后的长度），`cap` 只计扁平
+    /// 形态的独占元素（共享树节点的实际字节由分配器 `retained` 反映，不在此重复计）。
+    fn coords(&mut self, c: &SourceCoords) {
+        self.elems += c.len() as u64;
+        if c.as_shared().is_none() {
+            self.cap += c.len() as u64;
+        }
+    }
     fn ev(&mut self, e: &Option<InclusionDirectionEvidence>) {
         if let Some(e) = e {
-            self.vec(&e.source_coords, e.source_coords.capacity());
+            self.coords(&e.source_coords);
         }
     }
     fn endpoint(&mut self, e: &Endpoint) {
-        self.vec(&e.source_coords, e.source_coords.capacity());
+        self.coords(&e.source_coords);
         self.vec(&e.extreme_roots, e.extreme_roots.capacity());
     }
 }
@@ -172,7 +181,7 @@ fn facts_counts(f: &InclusionFacts) -> [(&'static str, CoordCount); 7] {
             sf_strokes.endpoint(&b.start);
             sf_strokes.endpoint(&b.end);
             if let Some(c) = &b.confirmation {
-                sf_strokes.vec(&c.source_coords, c.source_coords.capacity());
+                sf_strokes.coords(&c.source_coords);
             }
         }
     }
@@ -181,7 +190,7 @@ fn facts_counts(f: &InclusionFacts) -> [(&'static str, CoordCount); 7] {
     let mut group_src = CoordCount::default();
     let mut group_ev = CoordCount::default();
     for s in &f.steps {
-        step_src.vec(&s.source_coords, s.source_coords.capacity());
+        step_src.coords(&s.source_coords);
         step_src.vec(&s.high_sources, s.high_sources.capacity());
         step_src.vec(&s.low_sources, s.low_sources.capacity());
         step_ev.ev(&s.direction_evidence);
@@ -216,22 +225,42 @@ fn layer_shape(l: &ParseLayer) -> String {
 }
 
 fn run_facts(bars: &[Bar], config: &ThetaConfig) {
-    let (live0, _) = window();
+    let (live0, total0) = window();
     let t = Instant::now();
     let (layer, facts) = parse_layer_with_inclusion_facts(bars, config);
     let secs = t.elapsed().as_secs_f64();
     let peak = PEAK.load(Relaxed) - live0;
     let retained = LIVE.load(Relaxed) - live0;
+    let alloc_total = TOTAL.load(Relaxed) - total0;
     println!(
-        "facts secs={secs:.2} peak_mb={:.1} retained_mb={:.1} steps={} groups={} {}",
+        "facts secs={secs:.2} alloc_total_mb={:.1} peak_mb={:.1} retained_mb={:.1} steps={} groups={} {}",
+        mb(alloc_total),
         mb(peak),
         mb(retained),
         facts.steps.len(),
         facts.groups.len(),
         layer_shape(&layer)
     );
+    // #1629：计数与 stroke_facts/facts 的 Debug 摘要都按逻辑元素展开（Θ(n²)），≥1M 前缀时
+    // `ISSUE1629_LAYER_ONLY=1` 只摘 layer（与紧凑入口 `parse_layer` 对拍）。
+    if std::env::var_os("ISSUE1629_LAYER_ONLY").is_some() {
+        println!(
+            "  endpoints={} strokes={} digest layer={} stroke_facts=skipped facts=skipped",
+            facts.stroke_facts.as_ref().map_or(0, |s| s.endpoints.len()),
+            facts.stroke_facts.as_ref().map_or(0, |s| s.strokes.len()),
+            digest_debug(&layer)
+        );
+        return;
+    }
+    // #1629：计数逐个求逻辑长度（Θ(n²)），与 facts 摘要同受 `ISSUE1588_SKIP_FACTS_DIGEST` 跳过。
+    let skip_counts = std::env::var_os("ISSUE1588_SKIP_FACTS_DIGEST").is_some();
     let mut cap_total = 0u64;
-    for (name, c) in facts_counts(&facts) {
+    let counts = if skip_counts {
+        Vec::new()
+    } else {
+        facts_counts(&facts).into_iter().collect()
+    };
+    for (name, c) in counts {
         cap_total += c.cap;
         println!(
             "  coords {name}: elems={} cap={} cap_mb={:.1}",
@@ -245,10 +274,76 @@ fn run_facts(bars: &[Bar], config: &ThetaConfig) {
         mb(cap_total * 8),
         100.0 * (cap_total * 8) as f64 / retained.max(1) as f64
     );
+    // #1597：facts 的 Debug 是 Θ(n²) 文本（逻辑元素数），大前缀时可用
+    // `ISSUE1588_SKIP_FACTS_DIGEST=1` 只摘 layer 与新笔事实（stroke_facts）。
+    if std::env::var_os("ISSUE1588_SKIP_FACTS_DIGEST").is_some() {
+        println!(
+            "  digest layer={} stroke_facts={} facts=skipped",
+            digest_debug(&layer),
+            digest_debug(&facts.stroke_facts)
+        );
+    } else {
+        println!(
+            "  digest layer={} stroke_facts={} facts={}",
+            digest_debug(&layer),
+            digest_debug(&facts.stroke_facts),
+            digest_debug(&facts)
+        );
+    }
+}
+
+/// #1597：紧凑生产入口 `parse_layer` 一次全量调用（与 facts 入口的 layer 逐字段相同，测试
+/// `tb02v_six_witnesses_through_production_entry` 锁定）。大前缀时作 layer 的修前/修后对拍面。
+fn run_layer(bars: &[Bar], config: &ThetaConfig) {
+    let (live0, total0) = window();
+    let t = Instant::now();
+    let layer = parse_layer(bars, config);
+    let secs = t.elapsed().as_secs_f64();
     println!(
-        "  digest layer={} facts={}",
+        "layer secs={secs:.2} alloc_total_mb={:.1} peak_mb={:.1} retained_mb={:.1} {}",
+        mb(TOTAL.load(Relaxed) - total0),
+        mb(PEAK.load(Relaxed) - live0),
+        mb(LIVE.load(Relaxed) - live0),
+        layer_shape(&layer)
+    );
+    println!("  digest layer={}", digest_debug(&layer));
+}
+
+/// #1597：S 生产解析入口 `parse_layer_with_group_evidence`（组证据 + 新笔事实 + 段事实）。
+/// 逐 bar 追加 `IncrFactsState`，每 `every` 根调用一次入口（0 = 只在末根调用），结果用完即丢；
+/// 报告累计分配、峰值、耗时与末次结果三件事实的 Debug 摘要。修前/修后同命令对拍。
+fn run_group_evidence(bars: &[Bar], config: &ThetaConfig, every: usize) {
+    let (live0, total0) = window();
+    let t = Instant::now();
+    let mut state = IncrFactsState::empty();
+    let mut calls = 0usize;
+    let mut rolling = Sha256::new();
+    for (i, bar) in bars.iter().enumerate() {
+        state.append(*bar);
+        if every > 0 && (i + 1) % every == 0 && i + 1 < bars.len() {
+            let (layer, ev) = parse_layer_with_group_evidence(&state, config);
+            rolling.update(
+                digest_debug(&(&layer, &ev.groups, &ev.stroke_facts, &ev.segment_facts)).as_bytes(),
+            );
+            calls += 1;
+        }
+    }
+    let (layer, ev) = parse_layer_with_group_evidence(&state, config);
+    calls += 1;
+    let secs = t.elapsed().as_secs_f64();
+    println!(
+        "group-evidence secs={secs:.2} calls={calls} alloc_total_mb={:.1} peak_mb={:.1} {}",
+        mb(TOTAL.load(Relaxed) - total0),
+        mb(PEAK.load(Relaxed) - live0),
+        layer_shape(&layer)
+    );
+    println!(
+        "  digest every={every} rolling={} layer={} groups={} stroke_facts={} segment_facts={}",
+        hex(rolling),
         digest_debug(&layer),
-        digest_debug(&facts)
+        digest_debug(&ev.groups),
+        digest_debug(&ev.stroke_facts),
+        digest_debug(&ev.segment_facts)
     );
 }
 
@@ -329,14 +424,26 @@ fn main() {
         .map_or(0, |s| s.parse().expect("digest_every 须为整数"));
 
     let all = load_bars(Path::new(&args[1]));
-    let tail = &all[all.len() - 50_000..];
+    // #1597：`ISSUE1588_WINDOW`（默认 50000）放大尾窗以测更大前缀；仍去掉窗首 5 根，
+    // 默认值下与 #1493 (E)／#1588 口径逐位相同。
+    let window_len: usize = std::env::var("ISSUE1588_WINDOW")
+        .ok()
+        .map_or(50_000, |s| s.parse().expect("ISSUE1588_WINDOW 须为整数"));
+    assert!(
+        window_len <= all.len(),
+        "窗口 {window_len} 超出全量 {}",
+        all.len()
+    );
+    let tail = &all[all.len() - window_len..];
     let bars = &tail[5..];
     assert!(n <= bars.len(), "n={n} 超出窗口 {}", bars.len());
     let bars = &bars[..n];
     let config = ThetaConfig::default();
-    println!("== mode={mode} n={n}");
+    println!("== mode={mode} n={n} window={window_len}");
     match mode {
         "facts" => run_facts(bars, &config),
+        "layer" => run_layer(bars, &config),
+        "group-evidence" => run_group_evidence(bars, &config, every),
         "replay-drop" => run_replay(bars, &config, false, every),
         "replay-hold" => run_replay(bars, &config, true, every),
         "classifier" => run_classifier(bars, &config, every),

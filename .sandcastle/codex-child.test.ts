@@ -85,7 +85,7 @@ test("SDK bypass 被精确收紧，prompt 不进入 argv，模型、推理档与
     for (const override of [
       `model_provider="cliproxy-local"`,
       `model_providers.cliproxy-local.name="CLIProxyAPI Local"`,
-      `model_providers.cliproxy-local.base_url="http://127.0.0.1:8318/v1"`,
+      `model_providers.cliproxy-local.base_url="http://127.0.0.1:8318/v1"`, // DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
       `model_providers.cliproxy-local.wire_api="responses"`,
       `model_providers.cliproxy-local.supports_websockets=false`,
       `model_providers.cliproxy-local.supports_standalone_web_search=false`,
@@ -135,9 +135,9 @@ test("密钥：进程环境已有则不查 launchctl；缺失时只查一次；�
 
 test("保留大小写代理路由环境，但不传 API/GitHub 密钥", () => {
   const routes = {
-    HTTP_PROXY: "http://proxy.example.invalid:8080", HTTPS_PROXY: "http://proxy.example.invalid:8081",
-    ALL_PROXY: "socks5://proxy.example.invalid:1080", NO_PROXY: "localhost,127.0.0.1",
-    http_proxy: "http://proxy.example.invalid:8082", https_proxy: "http://proxy.example.invalid:8083",
+    HTTP_PROXY: "http://proxy.example.invalid:8080", HTTPS_PROXY: "http://proxy.example.invalid:8081", // DevSkim: ignore DS137138 测试用不可解析的 .invalid 代理地址
+    ALL_PROXY: "socks5://proxy.example.invalid:1080", NO_PROXY: "localhost,127.0.0.1", // DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
+    http_proxy: "http://proxy.example.invalid:8082", https_proxy: "http://proxy.example.invalid:8083", // DevSkim: ignore DS137138 测试用不可解析的 .invalid 代理地址
     all_proxy: "socks5://proxy.example.invalid:1081", no_proxy: "example.invalid",
   };
   assert.deepEqual(workerEnvironment({ ...routes, GH_TOKEN: "fixture", OPENAI_API_KEY: "fixture" }), { ...routes, NO_COLOR: "1" });
@@ -215,7 +215,7 @@ test("真实子进程：直接 SDK provider 完成，保存 session/parent 映�
     writeFileSync(f.options.promptFile, `单引号 ' 双引号 " 反引号 \`pwd\` $(touch ${join(f.dir, "injection")})\n`);
     f.fake("capture(); session(); complete();");
     const states: string[] = [];
-    const route = "http://proxy.example.invalid:8080";
+    const route = "http://proxy.example.invalid:8080"; // DevSkim: ignore DS137138 测试用不可解析的 .invalid 代理地址
     const result = await runCodexChild(f.options, { env: { ...f.env, HTTPS_PROXY: route }, onState: (s) => states.push(s.status) });
     assert.equal(result.status, "completed", result.failure_reason ?? "");
     assert.equal(result.parent_thread_id, f.options.parentThreadId);
@@ -348,7 +348,7 @@ test("运行中 HEAD 漂移必失败并保留差异，不自行回滚", async ()
 test("收到完成文本仍等待真实进程退出", async () => {
   const f = fixture();
   try {
-    f.fake("session(); complete(); setTimeout(() => fs.writeFileSync(path.join(root, 'actually-exiting'), 'yes'), 200);");
+    f.fake("session(); complete(); setTimeout(() => fs.writeFileSync(path.join(root, 'actually-exiting'), 'yes'), 200);"); // DevSkim: ignore DS172411 回调为函数字面量而非字符串
     const result = await runCodexChild(f.options, { env: f.env, onState: (s) => {
       if (s.status === "completed") assert.ok(existsSync(join(f.dir, "actually-exiting")));
     } });
@@ -520,7 +520,7 @@ test("session finder pending 时取消，查找返回后仍为 cancelled", async
 test("CLI stdout 管道关闭不会击穿监督器或遗留 detached 工蜂", async () => {
   const f = fixture();
   try {
-    f.fake("setTimeout(() => session(), 100); setInterval(() => {}, 1000);");
+    f.fake("setTimeout(() => session(), 100); setInterval(() => {}, 1000);"); // DevSkim: ignore DS172411 回调为函数字面量而非字符串
     const args = ["--import", "tsx", resolve(".sandcastle/codex-child.mts"),
       "--ticket", "1456", "--parent-thread-id", f.options.parentThreadId,
       "--manager-agent-id", f.options.managerAgentId, "--checkout", f.options.checkout,
@@ -533,7 +533,7 @@ test("CLI stdout 管道关闭不会击穿监督器或遗留 detached 工蜂", as
       buffer += chunk.toString();
       if (!closed && /"process_pid":\d+/.test(buffer)) { closed = true; cli.stdout.destroy(); }
     });
-    const timeout = setTimeout(() => cli.kill("SIGKILL"), 10000);
+    const timeout = setTimeout(() => cli.kill("SIGKILL"), 10000); // DevSkim: ignore DS172411 回调为函数字面量而非字符串
     const code = await new Promise<number | null>((done) => cli.on("close", done));
     clearTimeout(timeout);
     assert.ok(closed);
@@ -562,7 +562,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
         buffer += chunk.toString();
         if (!sent && buffer.includes(`"external_session_id":"${sessionId}"`)) { sent = true; cli.kill(signal); }
       });
-      const timeout = setTimeout(() => cli.kill("SIGKILL"), 10000);
+      const timeout = setTimeout(() => cli.kill("SIGKILL"), 10000); // DevSkim: ignore DS172411 回调为函数字面量而非字符串
       const code = await new Promise<number | null>((done) => cli.on("close", done));
       clearTimeout(timeout);
       assert.ok(sent); assert.equal(code, 130);

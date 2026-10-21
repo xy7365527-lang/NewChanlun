@@ -358,7 +358,7 @@ class QueryTests(unittest.TestCase):
             browser_path = str(ROOT/"s_session/browser/index.html")
             def log_message(self, *args):
                 pass
-        server = reader.QueryHTTPServer(("127.0.0.1", 0), Quiet, self.db, resources(), 7)
+        server = reader.QueryHTTPServer(("127.0.0.1", 0), Quiet, self.db, resources(), 7)  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
         server.control_instance_id = "test-only-start-nonce"
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
