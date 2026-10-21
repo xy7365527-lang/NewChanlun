@@ -361,7 +361,7 @@ _Avoid_: 把本点自身 source_index 塞进锚（伪阳性唯一性）；三类
 ### 运行边界
 
 **「生产」拆三义（three meanings of production）**:
-**π 引擎**指 canonical `run_theta_v0_pi`/π fill 的策略与执行家族本体；**最小生产路径 CLI** 指 `theta_backtest` 用仓内数据加载、π 引擎与内部 fill 串成的可运行闭环，它证明 CLI 可驱动引擎，但不等于交易场所集成；**NT 真生产**指 NautilusTrader 的 Backtest/Live runtime、真实 portfolio/order 生命周期与 broker adapter 驱动同一策略。三者须按全名使用，不以裸称“生产”互相替代。
+**π 引擎**指 canonical `run_theta_v0_pi`/π fill 的策略与执行家族本体；**π 组件证据 CLI**（历史名「最小生产路径 CLI」）指 `theta_backtest` 用仓内数据加载、π 引擎与内部 fill 串成的可运行闭环，只产组件证据，不是生产入口，也不等于交易场所集成；**NT 真生产**指 NautilusTrader 的 Backtest/Live runtime、真实 portfolio/order 生命周期与 broker adapter 驱动同一策略。三者须按全名使用，不以裸称“生产”互相替代。
 
 **场所 profile（Venue Profile）**（2026-10-13 [#1351](https://github.com/xy7365527-lang/NewChanlun/issues/1351) 裁定，[ADR 0028](docs/adr/0028-first-capability-verification-profile.md)）:
 一次能力验证或目标生产部署所绑定的具名范围 = ⟨environment, venue, dex, account, endpoint, credential_scope, execution_form, allowed_actions, evidence_class, authorization⟩ 及版本。任一字段变更即新版本；environment 与 execution_form 不得在版本内切换。凭据只记作用域与来源，不记值。首个能力验证 profile 为 `P1-hl-testnet` v1（Hyperliquid testnet 主 DEX）。`P2` 本图不启用、TB-09/TB-10 以 P1 验收，首发授权记录格式见 ADR 0028「P2 处置」节（[#1561](https://github.com/xy7365527-lang/NewChanlun/issues/1561)）。
