@@ -577,7 +577,8 @@ fn tb02v_btc_tail50k_reading_and_prefix_ladder() {
         .map(|b| format!("{b:02x}"))
         .collect();
     assert_eq!(
-        sha, "4c005de496d282fc680d5c583e0d1b82b194e5112913ef473ec5328890e3601f",
+        sha,
+        "4c005de496d282fc680d5c583e0d1b82b194e5112913ef473ec5328890e3601f", // DevSkim: ignore DS173237 SHA-256 摘要/测试向量，非凭据
         "数据不是诊断口径的尾 5 万根"
     );
     let theta = ThetaConfig::default();

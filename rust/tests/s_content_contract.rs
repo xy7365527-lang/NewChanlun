@@ -16,7 +16,7 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
-const VECTORS_SHA256: &str = "78984501cbb465be8251e3d212e34c0cb6fb33a5aab9a4999a3f1db592ce71f0";
+const VECTORS_SHA256: &str = "78984501cbb465be8251e3d212e34c0cb6fb33a5aab9a4999a3f1db592ce71f0"; // DevSkim: ignore DS173237 SHA-256 摘要/测试向量，非凭据
 const EXPECTED_POSITIVE: usize = 23;
 const EXPECTED_INVALID: usize = 10;
 const EXPECTED_NODES: usize = 123;

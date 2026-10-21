@@ -267,10 +267,10 @@ if ! kill -0 "$SRV_PID" 2>/dev/null; then
 fi
 
 echo "[launcher] 5/5 完成。浏览器 / API："
-echo "  浏览器        http://127.0.0.1:${PORT}/"
-echo "  目录 API      http://127.0.0.1:${PORT}/api/catalog"
-echo "  快照 API      http://127.0.0.1:${PORT}/api/snapshot"
-echo "  状态 API      http://127.0.0.1:${PORT}/api/state"
+echo "  浏览器        http://127.0.0.1:${PORT}/"  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
+echo "  目录 API      http://127.0.0.1:${PORT}/api/catalog"  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
+echo "  快照 API      http://127.0.0.1:${PORT}/api/snapshot"  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
+echo "  状态 API      http://127.0.0.1:${PORT}/api/state"  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
 echo "  停止          ./s_session/launch_s.sh stop --port ${PORT}"
 echo "  S 数据库      $DB"
 echo "  只读日志      /tmp/s_session_readonly_${PORT}.log"

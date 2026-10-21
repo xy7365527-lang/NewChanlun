@@ -182,7 +182,7 @@ def structural(snapshot):
         return v
     timeless = sorted(canonical(strip_commit(json.loads(x))).decode() for x in sem)
     return {"full": hashlib.sha256(canonical(full)).hexdigest(), "semantic": hashlib.sha256(canonical(sem)).hexdigest(),
-            "semantic_without_commit_ns": hashlib.sha256(canonical(timeless)).hexdigest(), "objects": len(snapshot["objects"])}
+            "semantic_without_commit_ns": hashlib.sha256(canonical(timeless)).hexdigest(), "objects": len(snapshot["objects"])}  # DevSkim: ignore DS197836 内容寻址摘要，非对时间值取哈希
 
 
 def compare_arms(a, b):
@@ -279,7 +279,7 @@ def make_run_class():
             if self.browser_args is None:
                 return records
             command = [self.node, str(self.root / "tests/tb02w_browser.cjs"), "--base-url",
-                       "http://127.0.0.1:" + self.config["port"], "--output", str(self.output / "browser"),
+                       "http://127.0.0.1:" + self.config["port"], "--output", str(self.output / "browser"),  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
                        "--playwright-module", str(self.browser_args["module"]),
                        "--final-cut", self.browser_args["final"], "--killed-cut", self.browser_args["killed"],
                        "--open-cut", self.browser_args["open"], "--design", self.browser_args["design"]]
