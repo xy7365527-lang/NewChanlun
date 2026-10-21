@@ -528,7 +528,7 @@
       this.fetcher = fetcher; this.onCommit = onCommit; this.discovery = null; this.state = null; this.epoch = 0;
     }
     async fetchBounded(path, options, timeout, limit) {
-      const control = new AbortController(), timer = setTimeout(() => control.abort(), timeout);
+      const control = new AbortController(), timer = setTimeout(() => control.abort(), timeout); // DevSkim: ignore DS172411 回调为函数字面量而非字符串
       try {
         const response = await this.fetcher(path, {...options, signal: control.signal});
         need(response.ok, "公开查询失败：HTTP " + response.status);

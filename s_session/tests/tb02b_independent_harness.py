@@ -39,7 +39,7 @@ DRY_SCHEMA = "tb02b-independent-dry-prepare/1"
 MAP_SCHEMA = "tb02b-prefix-cut-map/1"
 PROVENANCE_SCHEMA = "tb02b-independent-provenance/1"
 ORACLE_SCHEMA = "newchanlun.issue1392.signed-source-oracle.v1"
-ORACLE_SHA256 = "0450031d1201f64e1cfcd5f347a2597070e6c61f31f9376434382ac09245ac56"
+ORACLE_SHA256 = "0450031d1201f64e1cfcd5f347a2597070e6c61f31f9376434382ac09245ac56"  # DevSkim: ignore DS173237 SHA-256 摘要/测试向量，非凭据
 SOCKET_BYTE_LIMIT = 100
 MAX_CONCURRENCY = 2
 CONFIG_KEEP = ("schema_revision", "session_generation", "source_epoch", "writer_epoch", "query_epoch",
@@ -497,7 +497,7 @@ def port_state(port):
     """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
         try:
-            probe.bind(("127.0.0.1", port))
+            probe.bind(("127.0.0.1", port))  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
         except OSError as exc:
             if exc.errno == errno.EADDRINUSE:
                 return False, "occupied: " + str(exc)
@@ -744,7 +744,7 @@ def execute_plan(args):
                     process.wait(timeout=args.timeout_seconds)
                 except subprocess.TimeoutExpired:
                     return {"trace": run["trace"], "arm": run["arm"], "exit": None, "error": "timeout",
-                            "plan_sha256": plan_sha, "stop": cancel_runtime(process, run, directory)}
+                            "plan_sha256": plan_sha, "stop": cancel_runtime(process, run, directory)}  # DevSkim: ignore DS197836 内容寻址摘要，非对时间值取哈希
             validate_run_files(run)
             return {"trace": run["trace"], "arm": run["arm"], "exit": process.returncode, "plan_sha256": plan_sha}
         except Exception as exc:

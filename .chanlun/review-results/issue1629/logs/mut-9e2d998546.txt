@@ -1,0 +1,11 @@
+ref=mut1629-M1 sha=9e2d9985465f535e8a77c17ac9c8f158d20f2092 sub=rust target=/home/hanju/nc-remote/issue1629-mut cmd=bash -c cargo\ test\ --release\ --lib\ theta_v0::parser\ 2\>\&1\ \|\ grep\ -E\ "\^test\ .\*FAILED\|test\ result\|panicked\ at" 
+test theta_v0::parser::evidence::tests::coords_ref_union_matches_set_semantics_and_keeps_inputs ... FAILED
+test theta_v0::parser::evidence::tests::coords_ref_union_cost_is_decoupled_from_size ... FAILED
+test theta_v0::parser::stroke::tests::shared_full_facts_retain_subquadratic_nodes ... FAILED
+test theta_v0::parser::stroke::tests::shared_stroke_facts_cost_is_decoupled_from_prefix ... FAILED
+thread 'theta_v0::parser::evidence::tests::coords_ref_union_matches_set_semantics_and_keeps_inputs' (11995) panicked at src/theta_v0/parser/evidence.rs:820:13:
+thread 'theta_v0::parser::evidence::tests::coords_ref_union_cost_is_decoupled_from_size' (11994) panicked at src/theta_v0/parser/evidence.rs:865:9:
+thread 'theta_v0::parser::stroke::tests::shared_full_facts_retain_subquadratic_nodes' (12113) panicked at src/theta_v0/parser/stroke.rs:1704:9:
+thread 'theta_v0::parser::stroke::tests::shared_stroke_facts_cost_is_decoupled_from_prefix' (12117) panicked at src/theta_v0/parser/stroke.rs:1594:9:
+test result: FAILED. 186 passed; 4 failed; 22 ignored; 0 measured; 2807 filtered out; finished in 72.18s
+EXIT=0 SECONDS=194

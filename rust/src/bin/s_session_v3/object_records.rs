@@ -1677,7 +1677,7 @@ mod tests {
                 let mut dependency_coords = group
                     .direction_evidence
                     .as_ref()
-                    .map(|evidence| evidence.source_coords.clone())
+                    .map(|evidence| evidence.source_coords.to_vec())
                     .unwrap_or_default();
                 if let Some(boundary) = &group.confirmation_evidence {
                     dependency_coords.extend(&boundary.source_coords);

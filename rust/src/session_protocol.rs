@@ -653,7 +653,7 @@ mod tests {
             "3",
         );
         // Python 独立构造规范字节与两个 SHA-256；不是由 Rust 受测函数生成期望值。
-        let expected = r#"{"causal_refs":[{"message_id":"m-1","payload_hash":"source-hash","source_epoch":"1","source_namespace":"test.feed"}],"message_id":"reply-10a72419b7415c6727126b0ed6cef4ee658b28e620a5f909f280ab461f82ff9c","payload":{"kind":"Ready","nested":{"exact":"9007199254740993","unicode":"重/γ"},"ok":true},"payload_hash":"e5293b9e9666346d23656a958821e6e33cf4fff30f1fd0513e54835a3728583b","producer_epoch":"3","producer_id":"S:test-c","schema_revision":"s-session/2","session_generation":"1","session_id":"test-c","source_epoch":"3","source_namespace":"s-session/replies"}"#;
+        let expected = r#"{"causal_refs":[{"message_id":"m-1","payload_hash":"source-hash","source_epoch":"1","source_namespace":"test.feed"}],"message_id":"reply-10a72419b7415c6727126b0ed6cef4ee658b28e620a5f909f280ab461f82ff9c","payload":{"kind":"Ready","nested":{"exact":"9007199254740993","unicode":"重/γ"},"ok":true},"payload_hash":"e5293b9e9666346d23656a958821e6e33cf4fff30f1fd0513e54835a3728583b","producer_epoch":"3","producer_id":"S:test-c","schema_revision":"s-session/2","session_generation":"1","session_id":"test-c","source_epoch":"3","source_namespace":"s-session/replies"}"#; // DevSkim: ignore DS173237 SHA-256 摘要/测试向量，非凭据
         assert_eq!(canonical_json(&reply), expected);
     }
 }
