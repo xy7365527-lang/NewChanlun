@@ -2766,9 +2766,10 @@ mod tests {
             fixture.publish(&event, &token).unwrap();
         }
         let tx = fixture.conn.transaction().unwrap();
-        let stored: usize = tx
+        let stored: i64 = tx
             .query_row("SELECT COUNT(*) FROM s_content_nodes", [], |row| row.get(0))
             .unwrap();
+        let stored = usize::try_from(stored).unwrap();
         let budget = Budget::new(64 * 1024 * 1024, 0).unwrap();
         budget
             .codec_work()
