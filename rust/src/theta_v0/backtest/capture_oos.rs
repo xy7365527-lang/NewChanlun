@@ -167,12 +167,12 @@ mod tests {
     }
 
     /// #1585（X-38）：本 bar 段账本能否读来按段确认开平仓。带段端门 fail-closed 标记 ⟹ 拒读
-    /// （`None`：本 bar 不按段确认开平仓，高水位不动）；否则给出 confirmed 前缀长度。
-    fn readable_confirmed_len(layer: &ParseLayer) -> Option<usize> {
-        layer
-            .segments_parse_invalid_from
-            .is_none()
-            .then_some(layer.segments_confirmed_len)
+    /// （`Err(失败笔号)`：本 bar 不按段确认开平仓，高水位不动）；否则 `Ok(confirmed 前缀长度)`。
+    fn readable_confirmed_len(layer: &ParseLayer) -> Result<usize, usize> {
+        match layer.segments_parse_invalid_from {
+            Some(from) => Err(from),
+            None => Ok(layer.segments_confirmed_len),
+        }
     }
 
     /// S3 主回测：`cargo test --release --lib -- --ignored --nocapture s3_capture_oos_real_btc`
@@ -348,19 +348,21 @@ mod tests {
                 }
             }
             // #1585：段解析无效 ⟹ 拒读段账本，记标记区间、污染当前持仓，跳过按段确认开平仓。
-            let Some(c) = readable_confirmed_len(&layer) else {
-                let from = layer.segments_parse_invalid_from.unwrap_or_default();
-                match invalid_runs.last_mut() {
-                    Some(r) if r.1 + 1 == t && r.2 == from => r.1 = t,
-                    _ => invalid_runs.push((t, t, from)),
+            let c = match readable_confirmed_len(&layer) {
+                Ok(c) => c,
+                Err(from) => {
+                    match invalid_runs.last_mut() {
+                        Some(r) if r.1 + 1 == t && r.2 == from => r.1 = t,
+                        _ => invalid_runs.push((t, t, from)),
+                    }
+                    if let Some(ot) = &mut open {
+                        ot.parse_invalid = true;
+                    }
+                    if !bar.untradable {
+                        last_tradable_close = Some(bar.close as f64);
+                    }
+                    continue;
                 }
-                if let Some(ot) = &mut open {
-                    ot.parse_invalid = true;
-                }
-                if !bar.untradable {
-                    last_tradable_close = Some(bar.close as f64);
-                }
-                continue;
             };
             if c < hw {
                 retreats += 1; // #88 复活级联回退——因果决策照留，如实计数
@@ -525,7 +527,7 @@ mod tests {
 
         let mut marked = layer.clone();
         marked.segments_parse_invalid_from = Some(0);
-        assert_eq!(readable_confirmed_len(&marked), None, "标记 bar 拒读段账本");
+        assert_eq!(readable_confirmed_len(&marked), Err(0), "标记 bar 拒读段账本");
         assert!(marked.segments_valid_prefix().is_empty());
         assert!(parse_invalid_note(&marked).is_some_and(|n| n.contains("segment_parse_invalid")));
     }
