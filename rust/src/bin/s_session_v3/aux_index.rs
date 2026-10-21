@@ -2750,7 +2750,8 @@ mod tests {
     }
 
     /// #1488 0077 P50（mut-0057 M2a 盲区）：Legacy→Native 转换期的索引许可须按「槽数×(size_of+1)」
-    /// 全额计入本请求 scope；漏计控制字节（M2a）或不经 scope 预留都变红。槽数按转换前 Legacy 节点数
+    /// 全额计入本请求 scope（转换期峰值越过转换前 live + 许可）；漏计控制字节（M2a）或不经 scope
+    /// 预留都变红。槽数按转换前 Legacy 节点数
     /// 独立推得（next_pow2(n)×4+16），不读被测实现的中间值。
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
@@ -2780,7 +2781,7 @@ mod tests {
                         .map_err(err)?;
                 assert!(node_count > 0 && node_count <= stored, "{node_count}/{stored}");
                 assert!(legacy.native_index_layout_for_testonly().is_none(), "转换前须为 Legacy");
-                let before = budget.live();
+                let (before, peak_before) = (budget.live(), budget.peak());
                 let native = legacy
                     .enable_native_frame_reuse_admitted_for_testonly(Some(scope))
                     .map_err(err)?;
@@ -2793,15 +2794,17 @@ mod tests {
                     slots * slot_now,
                     "索引许可须为槽数×(size_of+1)：slots={slots} slot={slot_now}"
                 );
+                // 转换期瞬时共存：索引许可先于 Legacy 原件释放计入，峰值须越过「转换前 live + 许可」。
+                // （净 live 增量因 Legacy 释放小于许可，不作判据。）
                 assert!(
-                    budget.live() - before >= index_bytes,
-                    "索引许可须计入本 scope：live {} → {}，许可 {index_bytes}",
-                    before,
-                    budget.live()
+                    peak_before < before + index_bytes && budget.peak() >= before + index_bytes,
+                    "索引许可须在转换期计入本 scope：live {before}，峰值 {peak_before} → {}，许可 {index_bytes}",
+                    budget.peak()
                 );
                 eprintln!(
-                    "P50_INDEX nodes={node_count} stored={stored} slots={slots} slot={slot_now} index={index_bytes} live_delta={}",
-                    budget.live() - before
+                    "P50_INDEX nodes={node_count} stored={stored} slots={slots} slot={slot_now} index={index_bytes} live={before}->{} peak={peak_before}->{}",
+                    budget.live(),
+                    budget.peak()
                 );
                 Ok::<_, String>(())
             })
