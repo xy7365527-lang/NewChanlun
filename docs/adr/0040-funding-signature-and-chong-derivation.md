@@ -312,6 +312,8 @@ P1-hl-testnet profile 须增 `margin_leverage` 字段，按 ADR 0028:28 升 v2�
 
 ADR 0013 裁定三/四与 ADR 0031:12 按「多头重 / 空头重」写三阶段、扩量闸门与投入保证金 M。本 ADR 把它们读作「当前在世声部为多 / 为空的重」。一重回到 0 换向时，三阶段状态与闸门进度延续还是重置，正本未裁，须另开票；不影响本 ADR 的数值。
 
+> **★ 2026-10-21 已裁（[#1590](https://github.com/xy7365527-lang/NewChanlun/issues/1590)，[ADR 0043](0043-chong-reversal-account-continuity.md)，用户批复）**：单账延续、不重置不分账；谓词按在世声部方向取侧，`Σ M_b ≔ Σ P_b`；开新声部用哪部分钱由 policy 记录 `#1590/voice-open-funding/v1` 决定（默认 `profit_only`／`open_available`）。原文不删。
+
 ## 受影响票与代码
 
 #1444 TB-06-C：推导与测试锁去掉方向参数、加 `l_start`，三个 profile 的签署结果作黄金值；#1445/#1446：换档激活复核与溢出阈值读 policy-record 当前版本；#1552：`q_ref` 指 funding-record；#1406：开局批按裁定四第 4 步；#1408：cap 读 cap-record、处理 `PolicyExpired`；#1412/#1367：P1 profile 升 v2；代码中的 `INITIAL_CAPITAL`（`rust/src/trading/types.rs:38-39`）、γ = 1.0（`rust/src/theta_v0/config.rs:177/:243`）只是默认值出处，实现须改读记录。

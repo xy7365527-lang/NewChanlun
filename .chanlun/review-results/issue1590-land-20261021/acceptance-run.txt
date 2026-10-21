@@ -1,0 +1,21 @@
+$ [ "$(ls docs/adr | grep -c -- '-chong-reversal-account-continuity.md')" = 1 ]
+exit=0
+$ f=$(ls docs/adr/*-chong-reversal-account-continuity.md); for w in reversal_principal_exposure voice_open_shortfall profit_only chong_full open_available topup_from_withdrawn '#1590/voice-open-funding/v1' 'AwaitingPolicy{voice_open_funding}'; do rg -qF -- "$w" "$f" || exit 1; done
+exit=0
+$ rg -qF '⟨policy_id, version, cap, currency, valid_through, authorizer, authorized_at, profile_id⟩' docs/adr/0029-common-cap-contention-policy.md
+exit=0
+$ rg -q '1590' .chanlun/definitions/sanjieduan.md && rg -qF 'latch.rank ≥ CapitalRecovered' .chanlun/definitions/sanjieduan.md
+exit=0
+$ rg -q '1590' CONTEXT.md
+exit=0
+$ for a in 0013-partition-machine-bidirectional-form 0017-chong-quantity-numerator-shortdiff-amplitude 0031-principal-batches-phase-predicate-corporate-actions 0040-funding-signature-and-chong-derivation; do rg -q 1590 docs/adr/$a.md || exit 1; done
+exit=0
+$ gh api repos/xy7365527-lang/NewChanlun/issues/1590/dependencies/blocking --jq '[.[].number]|sort'
+[1378,1406,1415,1421]
+exit=0
+$ gh issue view 1590 --repo xy7365527-lang/NewChanlun --json labels --jq '[.labels[].name]|index("needs-approval")'
+2
+exit=0
+$ gh issue view 1590 --repo xy7365527-lang/NewChanlun --json state --jq .state
+OPEN
+exit=0
