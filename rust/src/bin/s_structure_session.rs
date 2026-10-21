@@ -99,8 +99,11 @@ use serde_json::{json, Value};
 /// #1493：第一种情况候选三态、转折点窗、先破判据、未决第二种候选封段与段端门 fail-closed
 /// （`xianduan.md` §7.1 第 7 条）⟹ 会话级规则加 `segment-turn/1`；段合同用 `s-segment/4`
 /// （`/3` 已被 #1420 占用），`CONSTRUCTION_RULE` 不改。
+/// #1604：段线形的预算 token 由常数 `second-seq-scan-budget/1` 改为本次所读记录（签署 v2），合同必填值变
+/// ⟹ 会话级规则加 `second-seq-scan-budget/2`；段合同升 `s-segment/5`（形状同 `/4`），`/4` 留作历史合同。
 /// 旧规则会话只读（AsKnown），同一 rule_revision 下不混两代笔/段对象。
-const RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1";
+const RULE_REVISION: &str =
+    "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2";
 
 /// #1405：v3 只发布 TB-02-A/B（13 轴），新写者显式迁至新笔 /2。
 /// 历史 /1 规则仅用于读取/验证，不由新 parser 续写或回填。
@@ -7794,6 +7797,8 @@ mod tests {
             "s2-axis-quantifiers+new-bi/1+segment-second/2",
             // #1493：#1420 的段规则在 segment-turn/1 之后同样是旧规则。
             "s2-axis-quantifiers+new-bi/2+segment-second/2",
+            // #1604：#1493 的段规则在 second-seq-scan-budget/2 之后同样是旧规则。
+            "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1",
             "unknown-rule",
         ] {
             let files = TestFiles::new();

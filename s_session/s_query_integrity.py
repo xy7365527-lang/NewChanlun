@@ -406,6 +406,8 @@ def _published_axes(rule_revision):
         "s2-axis-quantifiers+new-bi/2+segment-second/2": tb02.AXES,
         # #1493：segment-turn/1 不新增轴；段端门 fail-closed 由 tb02.validate_segment_links 核阻断标记。
         "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1": tb02.AXES,
+        # #1604：预算 token 进规则（段合同 s-segment/5），不新增轴。
+        "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2": tb02.AXES,
     }
     if rule_revision not in known:
         raise ValueError("cut规则修订未声明")

@@ -15,7 +15,9 @@ use newchan_rust::theta_v0::parser::{
     stroke::StrokeFacts,
 };
 
-pub(super) const SCHEMA: &str = "s-segment/4";
+/// #1604：段线形预算 token 改写本次所读记录（`second-seq-scan-budget/2`）⟹ 段合同升 `s-segment/5`（形状同 /4，
+/// rule_revision 加 `+second-seq-scan-budget/2`）；`/4` 是 #1493 的历史合同（预算 token 恒为 v1），只读。
+pub(super) const SCHEMA: &str = "s-segment/5";
 /// #1493 §7.1 第 6 条：段端门失败（「自 seg_start 起划分无效」）的阻断标记；经 CC-056 等待原因进逐轴证据。
 pub(super) const PARSE_INVALID_REASON: &str = "segment_parse_invalid";
 #[cfg(test)]

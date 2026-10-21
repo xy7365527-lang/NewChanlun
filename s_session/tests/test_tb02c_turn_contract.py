@@ -17,6 +17,7 @@ from test_tb02c_contract import c
 ROOT = Path(__file__).resolve().parents[1]
 CLIENT = ROOT / "browser/tb01c-client.js"
 RULE_V4 = "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1"
+RULE_V5 = RULE_V4 + "+second-seq-scan-budget/2"
 SEQ, SEG, VER = "CC-012.feature_sequence", "CC-013.segment", "CC-056.segment_version"
 PRICES = [0, 10, 4, 20, 5, 18, 7, 15, 3]
 NODE = ("const a=require(process.argv[1]);let s='';process.stdin.on('data',x=>s+=x);process.stdin.on('end',()=>{"
@@ -124,7 +125,7 @@ def segment_invalid():
 def version(waiting=()):
     return envelope(dict(input_frontier="35", waiting_reasons=list(waiting), known_at=KNOWN,
                          delivered_scope="seed_strict_first_and_second_terminal", deferred_scope=["general_equal_identity", "global_G006_bridge"],
-                         scan_budget=dict(policy="second-seq-scan-budget/2", round_strokes="0"), scan_cursors=[]), "TB-02-W")
+                         scan_budget=dict(policy="second-seq-scan-budget/1", round_strokes="0"), scan_cursors=[]), "TB-02-W")
 
 
 def records(first_payload, segment_payload, version_payload=None):
@@ -133,6 +134,14 @@ def records(first_payload, segment_payload, version_payload=None):
     if version_payload is not None:
         out.append(dict(object_id="version-object", kind=VER, payload=version_payload, source_coords=["1"]))
     return out
+
+
+def as_v5(p):
+    """#1604：把 /4 样本改写为 /5（同形状、预算 token 换成 v2）。"""
+    p = copy.deepcopy(p)
+    p["schema_revision"] = "s-segment/5"
+    text = json.dumps(p, ensure_ascii=False).replace('"second-seq-scan-budget/1"', '"second-seq-scan-budget/2"')
+    return json.loads(text)
 
 
 def mutated(p, change):
@@ -197,11 +206,28 @@ class TB02XContractTest(unittest.TestCase):
             with self.subTest(kind=kind, result=p["data"].get("result")):
                 self.accept(kind, p)
 
-    def test_v4_scan_budget_policy_is_read_record_v2(self):
-        # #1604：s-segment/4 写本次所读预算记录 `second-seq-scan-budget/2`；旧 token v1 与无关版本 Python/JS 同拒。
+    # ── #1604：s-segment/5 = /4 形状 + 预算 token 改写所读记录 v2；/4 为历史合同，预算 token 恒为 v1。
+    #    `judge` 同时跑 Python 合同与浏览器捆绑（tb01c-client.js），每条断言两边同判。
+    def test_rule_binds_v5_schema(self):
+        self.assertEqual(c.RULE_CONTRACTS[RULE_V5], ("s-new-bi/2", "s-segment/5", c.KNOWLEDGE_DOMAIN_V2))
+        self.assertEqual(c.RULE_CONTRACTS[RULE_V4][1], "s-segment/4", "历史规则仍绑 /4")
+
+    def test_v4_with_budget_v1_still_accepted(self):
+        self.assertEqual(version()["data"]["scan_budget"]["policy"], "second-seq-scan-budget/1")
+        self.accept(VER, version())
+
+    def test_v4_with_budget_v2_rejected(self):
+        self.reject(VER, mutated(version(), lambda d: d["scan_budget"].update(policy="second-seq-scan-budget/2")), "扫描预算政策版本不符")
+
+    def test_v5_samples_accept(self):
+        for kind, p in ((SEQ, first(5)), (SEQ, first(7)), (SEG, segment_pending()), (SEG, segment_confirmed()), (SEG, segment_invalid()), (VER, version())):
+            with self.subTest(kind=kind, result=p["data"].get("result")):
+                self.accept(kind, as_v5(p))
+
+    def test_v5_with_budget_v1_rejected(self):
         for stale in ("second-seq-scan-budget/1", "second-seq-scan-budget/3"):
             with self.subTest(policy=stale):
-                self.reject(VER, mutated(version(), lambda d: d["scan_budget"].update(policy=stale)), "扫描预算政策版本不符")
+                self.reject(VER, mutated(as_v5(version()), lambda d: d["scan_budget"].update(policy=stale)), "扫描预算政策版本不符")
 
     def test_missing_v4_keys_rejected(self):
         cases = [
