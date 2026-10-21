@@ -47,6 +47,7 @@ import newchan_rust as nr  # noqa: E402
 # #1601：期初资金/操作级别读 ADR 0040 签署记录的 profile（如 P0）；未设 ⟹ 引擎报
 # AwaitingPolicy{funding_record}，不回退任何默认资金。
 FUNDING_PROFILE = os.environ.get("NC_FUNDING_PROFILE")
+
 from nautilus_trader.model.data import BarType  # noqa: E402
 
 from nested_recursive_fugue_final_backtest import FLOOR, analyze, bh_mdd  # noqa: E402
