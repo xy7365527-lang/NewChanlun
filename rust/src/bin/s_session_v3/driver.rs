@@ -1829,10 +1829,16 @@ mod tests {
                 "{step}：资格所记冻结域须随合法重绑前进"
             );
             let probe = native.conn.recover_probe_for_test();
-            assert!(!probe.stale && probe.qualification.is_some(), "{step}：{probe:?}");
+            assert!(
+                !probe.stale && probe.qualification.is_some(),
+                "{step}：{probe:?}"
+            );
             seen.push(native.conn.complete_parent_stamp_for_test());
         }
-        native.conn.recover("2", &native.clock, "recover-2").unwrap();
+        native
+            .conn
+            .recover("2", &native.clock, "recover-2")
+            .unwrap();
         let promoted = native.conn.recover_probe_for_test().qualification.unwrap();
         assert_eq!(promoted.writer_epoch, Some(2));
         assert!(promoted.has_parent, "{promoted:?}");
