@@ -505,14 +505,20 @@ fn short_eligibility_implies_capital_recovered_and_never_earning_shares() {
             assert_eq!(b["side"], "short");
             let r = rank(&b["phase"]["latch"]);
             assert!(r >= prev_rank, "latch 回退 seed={seed}");
-            assert!(r <= 1, "空头事件把 latch 推进到 EarningShares seed={seed}: {b}");
+            assert!(
+                r <= 1,
+                "空头事件把 latch 推进到 EarningShares seed={seed}: {b}"
+            );
             let events = b["phase"]["events"].as_array().unwrap().len();
             assert!(events >= prev_events, "阶段事件史被改写 seed={seed}");
             let status = &b["phase"]["growth_eligible"]["status"];
             assert_eq!(*status, book::growth_eligible_of(b).unwrap(), "{b}");
             if status == "Eligible" {
                 eligible += 1;
-                assert!(r >= 1, "空头 Eligible 而 latch 未到 CapitalRecovered seed={seed}");
+                assert!(
+                    r >= 1,
+                    "空头 Eligible 而 latch 未到 CapitalRecovered seed={seed}"
+                );
                 assert_eq!(b["phase"]["gate"]["kind"], "SimulatedGateReached");
                 assert_eq!(b["phase"]["growth_enabled"]["status"], "AwaitingPolicy");
             } else if r >= 1 {
@@ -783,7 +789,8 @@ impl TestDoc {
         }
         let rp = self.reference(format!("{ext}:rp"), format!("{p}/declared_realized_profit"));
         e["chong_id"] = json!(self.chong);
-        e["deltas"] = json!({"units":du.to_string(),"Pi":(gross - fees).to_string(),"A":"0","W":"0"});
+        e["deltas"] =
+            json!({"units":du.to_string(),"Pi":(gross - fees).to_string(),"A":"0","W":"0"});
         e["component_witnesses"] = json!(ws);
         e["declared_realized_profit"] = json!({"gross":gross.to_string(),"listed_corresponding_fees":fees.to_string(),
             "net":(gross - fees).to_string(),"fee_scope_complete_for_this_realization":true,"source_ref":rp});
