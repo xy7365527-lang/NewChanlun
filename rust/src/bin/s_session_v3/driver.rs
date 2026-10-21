@@ -1627,7 +1627,7 @@ mod tests {
     }
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
-    fn native_startup_SQL_errors_propagate_without_ordinary_fallback() {
+    fn native_startup_sql_errors_propagate_without_ordinary_fallback() {
         let fixture = Fixture::new();
         let mut c = Connection::open(&fixture.db).unwrap();
         let tx = c.transaction().unwrap();

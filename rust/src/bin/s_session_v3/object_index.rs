@@ -13,9 +13,10 @@ use super::{
 use crate::v3::audit_store::{CodecRead, CodecStore};
 use crate::{canonical_json, content_store, object_diff};
 use newchan_rust::s_content::{
-    self as sc, path::PathStep, Built, ContentRef, Kind, NodeDigest, NodeSource, NodeStore,
-    Value as V,
+    self as sc, path::PathStep, Built, ContentRef, Kind, NodeDigest, Value as V,
 };
+#[cfg(test)]
+use newchan_rust::s_content::{NodeSource, NodeStore};
 use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::{params, Transaction};
 use sc::capture_allocation::{audit_json as aj, OwnedBudget};
@@ -762,7 +763,7 @@ impl HistoryObjects<'_> {
 impl HistoryObjects<'_> {
     // #1394冻结旧扫描算法，只作合法生命周期对照，不接生产失败分支。
     /// Only this complete-load Native owner can produce both projections. No arbitrary arrays.
-    #[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根，仅 s_capture_native_testonly 测试触达"))]
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
     fn native_dual_at_cut_scan_for_test(
         &mut self,
         s: &mut super::history::HashReader<'_>,
@@ -1900,9 +1901,12 @@ fn push_change(
     match array {
         bj::JsonOwner::Plain(Value::Array(rows)) => {
             s.native_vec_room(rows, 1).map_err(err)?;
+            #[cfg(feature = "s_allocation_json_testonly")]
             let bj::JsonOwner::Plain(value) = bj::json_from_view_admitted(s, view)? else {
                 return Err(err("Plain变化JSON不能接Owned所有者"));
             };
+            #[cfg(not(feature = "s_allocation_json_testonly"))]
+            let bj::JsonOwner::Plain(value) = bj::json_from_view_admitted(s, view)?;
             rows.push(value);
             Ok(())
         }
@@ -2032,7 +2036,7 @@ struct HistoryEvents {
     sort_passes: usize,
 }
 #[cfg(test)]
-#[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根，仅 s_capture_native_testonly 测试触达"))]
+#[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
 pub(super) fn take_load_lookup_counts() -> (usize, usize) {
     (
         LOAD_ID_VISITS.with(|n| n.replace(0)),
@@ -2040,7 +2044,7 @@ pub(super) fn take_load_lookup_counts() -> (usize, usize) {
     )
 }
 #[cfg(test)]
-#[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根，仅 s_capture_native_testonly 测试触达"))]
+#[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
 pub(super) fn load_id_capacity() -> usize {
     LOAD_ID_CAPACITY.with(|n| n.get())
 }
@@ -2397,7 +2401,7 @@ impl ProjectionSweep {
         Ok(())
     }
     #[cfg(test)]
-    #[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根，仅 s_capture_native_testonly 测试触达"))]
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
     fn new(index: &[Entry]) -> Self {
         Self::new_admitted(index, &super::audit_store::NativeAdmission(None))
             .expect("无scope的Native投影构造")
@@ -2822,6 +2826,7 @@ mod tests {
         meta_get_opt, meta_set, open_db, read_effective_events, read_raw_events, tb02a,
         tests::{accept_ohlc, init_test_db, located_ohlc_input, tb02b_oracle_rows, TestFiles},
     };
+    #[cfg(feature = "s_capture_native_testonly")]
     use newchan_rust::s_content::NodeSink;
     use rusqlite::Connection;
     #[cfg(all(

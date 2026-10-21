@@ -4,10 +4,12 @@
 //! Job计本次证明遍历的唯一节点及从开门起的期限；独立的Q capture/verify预算尚待上层贯通。
 
 use super::*;
+#[cfg(test)]
 use newchan_rust::s_content::access::Access;
 #[cfg(test)]
 use newchan_rust::s_content::job::Job;
 use newchan_rust::s_content::{self as sc, TransportRef};
+#[cfg(test)]
 use newchan_rust::s_content::{
     fragment::{self, Fragment, Unit},
     path::PathStep,

@@ -10,14 +10,18 @@ use crate::{
         self, Cc004Producer, ShapeIdentityView, CC004_STEP_KIND, CC005_GROUP_KIND,
         CC006_SHAPE_KIND, CC007_FRACTAL_KIND, CC054_KNOWLEDGE_KIND,
     },
-    read_effective_events, stored_source_coord, tb02a, tb02a_facts, tb02b,
+    tb02a, tb02b,
 };
+#[cfg(test)]
+use super::read_effective_events;
 use newchan_rust::s_content::{
     self as sc,
     path::{lookup_path, PathStep},
     Built, ContentRef, Kind, NodeDigest, NodeSink, NodeSource, NodeStore, Value as V,
 };
-use serde_json::{json, Value};
+use serde_json::Value;
+#[cfg(test)]
+use serde_json::json;
 #[path = "source_pending.rs"]
 mod source_pending;
 #[path = "source_prefix.rs"]
@@ -35,7 +39,7 @@ fn err(e: impl std::fmt::Display) -> String {
     format!("SourceAuditInvalid：{e}")
 }
 #[cfg(test)]
-#[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根，仅 s_capture_native_testonly 测试触达"))]
+#[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
 fn f(k: &str) -> PathStep {
     PathStep::Field(k.into())
 }
@@ -1365,7 +1369,7 @@ impl<'capture> NativeSourceAudit<'capture> {
         Ok(result)
     }
     #[cfg(test)]
-    #[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根，仅 s_capture_native_testonly 测试触达"))]
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
     pub(super) fn raw_ledger_stats(&self) -> NativeRawLedgerStats {
         self.ledger.stats
     }

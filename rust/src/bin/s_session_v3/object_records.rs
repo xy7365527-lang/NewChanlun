@@ -62,7 +62,9 @@ use crate::content_producer::{
     Cc006Object, Cc007Object, TypedObject, CC006_SHAPE_KIND, CC007_FRACTAL_KIND,
 };
 use crate::v3::audit_store::{CodecRead, CodecStore};
-use newchan_rust::s_content::path::{lookup_path, path_code, PathStep};
+use newchan_rust::s_content::path::{path_code, PathStep};
+#[cfg(test)]
+use newchan_rust::s_content::path::lookup_path;
 use newchan_rust::s_content::{
     self as sc, Built, CodecError, ContentRef, Kind, NodeStore, NumberToken, Value as CValue,
 };

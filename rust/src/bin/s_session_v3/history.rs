@@ -11,23 +11,25 @@ use super::business_json::{self as bj, RawEventsView};
 use super::business_json::{BusinessMap, JsonOwner};
 use super::*;
 use crate::v3::audit_store::{CodecRead, CodecStore};
-use content_manifest::{ManifestMetadata, ManifestRoots, SourceCommit};
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+use content_manifest::ManifestRoots;
+#[cfg(test)]
+use newchan_rust::s_content::path::lookup_path;
 use newchan_rust::s_content::{
     self as sc,
-    path::{lookup_path, PathStep},
+    path::PathStep,
     ContentRef, Kind, NodeDigest, NodeRead, NodeSink, NodeSource, Value as V,
 };
 use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::Transaction;
-use sc::capture_allocation::{
-    audit_json::{JsonView, OwnedJson},
-    OwnedBudget,
-};
+#[cfg(feature = "s_allocation_json_testonly")]
+use sc::capture_allocation::audit_json::OwnedJson;
+use sc::capture_allocation::{audit_json::JsonView, OwnedBudget};
 
 #[path = "native_record_fields.rs"]
 mod native_record_fields;
 pub(super) use native_record_fields::NativeRecordFields;
-#[cfg(test)]
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(super) use native_record_fields::{native_record_field_stats, reset_native_record_field_stats};
 
 /// Opaque per-cut proof: constructed only in this module's complete-load read-only chain.
@@ -1650,7 +1652,7 @@ impl NodeSink for Discard<'_> {
 fn hash_json(v: &Value) -> Result<NodeDigest, String> {
     hash_json_until(v, None)
 }
-#[cfg(test)]
+#[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用（非测试构建中只被已豁免的未用项调用）"))]
 pub(super) fn hash_json_until(
     v: &Value,
     deadline: Option<std::time::Instant>,
@@ -1938,12 +1940,12 @@ fn record_history_prefix_leaves(index: usize, count: u64) {
     });
 }
 #[cfg(test)]
-#[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根，仅 s_capture_native_testonly 测试触达"))]
+#[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
 fn reset_history_prefix_leaves() {
     HISTORY_PREFIX_LEAVES.with(|stats| stats.set([0; 6]));
 }
 #[cfg(test)]
-#[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根，仅 s_capture_native_testonly 测试触达"))]
+#[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
 fn history_prefix_leaves() -> [u64; 6] {
     HISTORY_PREFIX_LEAVES.with(std::cell::Cell::get)
 }
@@ -2207,7 +2209,7 @@ impl<'a> HashReader<'a> {
     ) -> Self {
         self.with_audit_gate(None, Some(deadline))
     }
-    pub(crate) fn with_audit_gate(
+    pub(super) fn with_audit_gate(
         mut self,
         budget: Option<&'a dyn super::audit_budget::Budget>,
         deadline: Option<std::time::Instant>,
@@ -2222,7 +2224,7 @@ impl<'a> HashReader<'a> {
         self.sync_owned();
         self
     }
-    pub(crate) fn for_audited(
+    pub(super) fn for_audited(
         source: &'a mut dyn NodeSource,
         audited: &super::state::AuditedState,
         capture: Option<&'a sc::AuditCapture>,
@@ -2357,11 +2359,13 @@ impl<'a> HashReader<'a> {
             #[cfg(any(test, feature = "s_allocation_json_testonly"))]
             if let Some(c) = OVERLAY_PROTOTYPE.with(|v| v.borrow().clone()) {
                 let mut reader = Self::captured(capture, max_render_bytes);
-                let mut owned = capture.closed_codec_for_allocation_prototype(
+                let owned = capture.closed_codec_for_allocation_prototype(
                     c.slots,
                     c.bytes,
                     max_render_bytes,
                 )?;
+                #[cfg(test)]
+                let mut owned = owned;
                 #[cfg(test)]
                 owned.set_trace_callbacks(
                     Some(super::state::trace_read),
@@ -2445,7 +2449,7 @@ impl<'a> HashReader<'a> {
     pub(crate) fn verify_public(&mut self, r: &ContentRef) -> Result<(), sc::CodecError> {
         self.verify_mode(r, sc::Mode::Public)
     }
-    #[cfg(test)]
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用（非测试构建中只被已豁免的未用项调用）"))]
     fn verify_mode(&mut self, r: &ContentRef, mode: sc::Mode) -> Result<(), sc::CodecError> {
         self.sync_owned();
         if let Some(owner) = &mut self.owned {

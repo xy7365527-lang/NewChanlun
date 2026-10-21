@@ -190,12 +190,12 @@ thread_local! {
     static STATS: std::cell::Cell<NativeRecordFieldStats> = const { std::cell::Cell::new(NativeRecordFieldStats { full_record_seeds: 0, source_subset_hits: 0 }) };
 }
 #[cfg(test)]
-#[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根，仅 s_capture_native_testonly 测试触达"))]
+#[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
 pub(crate) fn reset_native_record_field_stats() {
     STATS.with(|s| s.set(NativeRecordFieldStats::default()));
 }
 #[cfg(test)]
-#[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根，仅 s_capture_native_testonly 测试触达"))]
+#[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
 pub(crate) fn native_record_field_stats() -> NativeRecordFieldStats {
     STATS.with(std::cell::Cell::get)
 }

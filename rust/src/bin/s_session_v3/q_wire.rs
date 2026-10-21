@@ -1,7 +1,7 @@
 //! #1394：Q v3共用的完整请求校验与完整回复编码；不执行HTTP或虚构wire账。
 use super::q_resources::{Limit, QResources};
 use newchan_rust::s_content::access::Access;
-use newchan_rust::session_protocol::{positive, reply_envelope, strict_json, validate_envelope};
+use newchan_rust::session_protocol::{positive, strict_json, validate_envelope};
 use serde_json::Value;
 use std::io::{self, Write};
 

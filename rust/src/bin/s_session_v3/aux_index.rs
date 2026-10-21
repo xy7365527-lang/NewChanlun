@@ -8,12 +8,15 @@ use crate::{content_store, meta_get_opt};
 use aj::JsonView;
 use bj::TextValue;
 use newchan_rust::s_content::{
-    self as sc, path::PathStep, Built, ContentRef, Kind, NodeDigest, NodeStore,
+    self as sc, path::PathStep, Built, ContentRef, Kind, NodeDigest,
 };
+#[cfg(test)]
+use newchan_rust::s_content::NodeStore;
 use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::{params, Transaction};
 use sc::capture_allocation::{audit_json as aj, OwnedBudget};
 use sc::{CodecVec, ValueView as VV};
+#[cfg(test)]
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
@@ -1147,12 +1150,12 @@ fn state_members(
 #[cfg(test)]
 thread_local! {static AUX_AUDIT_STATS:std::cell::Cell<[u64;6]>=const{std::cell::Cell::new([0;6])};}
 #[cfg(test)]
-#[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根，仅 s_capture_native_testonly 测试触达"))]
+#[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
 pub(super) fn reset_aux_audit_stats() {
     AUX_AUDIT_STATS.with(|s| s.set([0; 6]));
 }
 #[cfg(test)]
-#[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根，仅 s_capture_native_testonly 测试触达"))]
+#[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
 pub(super) fn aux_audit_stats() -> [u64; 6] {
     AUX_AUDIT_STATS.with(std::cell::Cell::get)
 }

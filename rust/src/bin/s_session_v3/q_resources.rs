@@ -1,6 +1,7 @@
 //! #1394 C §5.1/5.6.1：启动时冻结的 Q v3 资源合同，无部署默认值。
 //! 文件最多64KiB；只接受新版 exact 字段和规范正整数文本，旧v2加载器不变。
 use newchan_rust::session_protocol::{canonical_json, positive, sha256_hex, strict_json};
+#[cfg(test)]
 use serde_json::Value;
 use std::{fs::File, io::Read, path::Path};
 

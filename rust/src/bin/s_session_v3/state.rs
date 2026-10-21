@@ -32,7 +32,9 @@
 //! - 本模块只读：不写任何 SQLite 行，也不把 overlay 当写入通道。
 
 use super::*;
-use newchan_rust::s_content::{self as sc, ContentRef, NodeStore};
+use newchan_rust::s_content as sc;
+#[cfg(test)]
+use newchan_rust::s_content::ContentRef;
 use rusqlite::Transaction;
 
 /// #1394 仅本模块可签发；不是公开事务或跨请求缓存许可。
@@ -853,7 +855,9 @@ fn audit_core_fresh_inner(
         .map(|c| {
             #[cfg(test)]
             RETENTION_REPORT_CALLS.with(|calls| calls.set(calls.get() + 1));
-            let mut value = c.retention();
+            let value = c.retention();
+            #[cfg(test)]
+            let mut value = value;
             #[cfg(test)]
             {
                 value["capture_ns"] = json!(capture_ns.to_string());

@@ -22,16 +22,14 @@
 
 use super::audit_store::{CodecRead, RefValue};
 use super::business_json::{self as bj, JsonOwner, RawEventsView, TextValue};
-use crate::{
-    canonical_json, content_manifest, content_manifest::ManifestMetadata, tb02a, tb02a_facts,
-};
+use crate::{canonical_json, content_manifest, content_manifest::ManifestMetadata, tb02a};
 #[cfg(test)]
 use newchan_rust::s_content::path::{lookup_path, PathStep};
 use newchan_rust::s_content::{
     self as sc, ContentRef, Kind, NodeDigest, NodeSink, NodeSource, NodeStore, Value as V,
 };
 use newchan_rust::session_protocol::{parse_canonical_i64, strict_json};
-use rusqlite::{params, OptionalExtension, Transaction};
+use rusqlite::{params, Transaction};
 use sc::capture_allocation::audit_json::JsonView;
 use serde_json::Value;
 
@@ -1037,7 +1035,6 @@ mod tests {
     use crate::content_bi::PriorState;
     use crate::tests::fixture as fixture_path;
     use crate::tests::{located_ohlc_input, tb02b_oracle_rows};
-    use crate::v3::business_json::{self as bj, RawEventsView};
     use crate::{meta_get_opt, open_db, read_effective_events, read_raw_events, sha256_hex, v2};
     use newchan_rust::s_content::{MemoryNodes, NodeRead};
     use rusqlite::{Connection, TransactionBehavior};

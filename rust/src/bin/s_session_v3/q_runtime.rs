@@ -16,7 +16,7 @@ use newchan_rust::{
     s_content::{access::Access, job::Job},
     session_protocol::positive,
 };
-#[cfg(test)]
+#[cfg(not(test))]
 use serde_json::{json, Value};
 use std::{
     io,

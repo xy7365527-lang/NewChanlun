@@ -448,7 +448,7 @@ impl<'capture> NativeSourceMemo<'capture> {
         self.intern.clear();
     }
     #[cfg(test)]
-    #[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根，仅 s_capture_native_testonly 测试触达"))]
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
     fn winner_intervals(
         raw: RawEventsView<'_>,
     ) -> Result<HashMap<(i64, NodeDigest, bool), Vec<Interval>>, String> {

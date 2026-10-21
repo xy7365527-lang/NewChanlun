@@ -1,7 +1,7 @@
 //! #1394 C §5.5/5.6.1：Watch/Gap、完整Delta门及发送后租约推进；普通/Owned共借用核。
 use super::q_wire::{AdmissionError, RouteFixed};
 use super::{
-    audit_store::{CodecRead, RefValue},
+    audit_store::CodecRead,
     business_json::{self as bj, JsonOwner, TextValue},
     history::{self, PublishedCut},
     projection::{Projection, TransportView},
@@ -23,7 +23,7 @@ use newchan_rust::s_content::{
     CodecVec, NodeSource,
 };
 use newchan_rust::session_protocol::{
-    canonical_hash_view_typed, nonnegative_typed, positive_typed, required_view_typed,
+    nonnegative_typed, positive_typed, required_view_typed,
 };
 use newchan_rust::session_protocol::{nonnegative, required_view, strict_json};
 #[cfg(test)]
@@ -64,7 +64,7 @@ impl Request {
     ) -> Result<Self, String> {
         Self::parse_with_allocation(bytes, resources, Some(budget))
     }
-    #[cfg(test)]
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用（非测试构建中只被已豁免的未用项调用）"))]
     fn parse_with_allocation(
         bytes: &[u8],
         resources: &QResources,

@@ -13,12 +13,18 @@ use newchan_rust::{
     s_content::{
         capture_allocation::{audit_json::JsonView, OwnedBudget},
         fragment::{self, Fragment, OwnedFragment, Unit},
-        path::PathStep,
-        ClosedCapturedOwner, CodecVec, ContentRef, RefView, TransportRef,
+        ClosedCapturedOwner, CodecVec, RefView, TransportRef,
     },
-    session_protocol::{canonical_hash_view_with_owner, canonical_json, required_view, sha256_hex},
+    session_protocol::{canonical_hash_view_with_owner, required_view},
 };
-use serde_json::{json, Value};
+#[cfg(test)]
+use newchan_rust::{
+    s_content::{path::PathStep, ContentRef},
+    session_protocol::{canonical_json, sha256_hex},
+};
+#[cfg(test)]
+use serde_json::json;
+use serde_json::Value;
 
 use super::q_wire::{AdmissionError, RouteFixed};
 use newchan_rust::session_protocol::{
@@ -62,7 +68,7 @@ impl Request {
     ) -> Result<Self, String> {
         Self::parse_with_allocation(bytes, resources, Some(budget))
     }
-    #[cfg(test)]
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用（非测试构建中只被已豁免的未用项调用）"))]
     fn parse_with_allocation(
         bytes: &[u8],
         resources: &QResources,
@@ -223,9 +229,12 @@ impl Request {
     }
     #[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
     pub(super) fn anchor(&self) -> &Value {
+        #[cfg(feature = "s_allocation_json_testonly")]
         let bj::JsonOwner::Plain(envelope) = &*self.envelope else {
             panic!("owned request须借anchor_view，不能擦std")
         };
+        #[cfg(not(feature = "s_allocation_json_testonly"))]
+        let bj::JsonOwner::Plain(envelope) = &*self.envelope;
         let payload = &envelope["payload"];
         if self.continuation {
             &payload["content_token"]["anchor"]

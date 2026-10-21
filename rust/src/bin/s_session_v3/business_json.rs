@@ -3,7 +3,9 @@ use super::audit_store::{CodecRead, NativeAdmission};
 use super::*;
 use aj::{ArrayIter, ArrayView, JsonView};
 use newchan_rust::s_content as sc;
-use newchan_rust::sqlite_checked::{CheckedRow, CheckedStatement};
+use newchan_rust::sqlite_checked::CheckedRow;
+#[cfg(feature = "s_allocation_json_testonly")]
+use newchan_rust::sqlite_checked::CheckedStatement;
 use sc::capture_allocation::scratch::WorkScope;
 use sc::capture_allocation::{audit_json as aj, OwnedBudget};
 use sha2::{Digest, Sha256};
@@ -197,7 +199,7 @@ pub(crate) fn new_work<T>(b: Option<&OwnedBudget>) -> sc::CodecVec<T> {
     let _ = b;
     sc::CodecVec::from_plain(Vec::new())
 }
-pub(crate) use aj::{BusinessIter, BusinessMap};
+pub(crate) use aj::BusinessMap;
 pub(crate) fn new_map<K: Eq + std::hash::Hash, V>(b: Option<&OwnedBudget>) -> BusinessMap<K, V> {
     #[cfg(feature = "s_allocation_json_testonly")]
     if let Some(b) = b {
@@ -394,7 +396,7 @@ impl<'raw> RawPrefixIndex<'raw> {
         self.ordered.iter().map(|(c, i)| (*c, *i))
     }
     #[cfg(test)]
-    #[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根，仅 s_capture_native_testonly 测试触达"))]
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
     pub(super) fn retained_slots(&self) -> [usize; 3] {
         // HashMap 实际 capacity；BTreeMap 只报条目，不冒充节点布局/allocator开销。
         [
@@ -2173,7 +2175,7 @@ impl<'de> serde::de::Visitor<'de> for StrictKeySeed {
 }
 
 #[cfg(test)]
-#[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根，仅 s_capture_native_testonly 测试触达"))]
+#[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
 pub(crate) fn strict_owner_protocol_matrix() -> Vec<Vec<u8>> {
     let mut cases: Vec<Vec<u8>> = [
         r#"{"x":1,"x":2}"#,

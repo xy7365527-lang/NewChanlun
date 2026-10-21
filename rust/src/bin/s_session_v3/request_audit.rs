@@ -45,13 +45,13 @@ pub(super) struct RequestAuditContext {
     #[cfg(feature = "s_capture_native_testonly")]
     cold_parent: Option<super::audit_owner::native::Budget>,
     #[cfg(test)]
-    #[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根，仅 s_capture_native_testonly 测试触达"))]
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
     binding_hook: Option<fn(&Transaction<'_>)>,
     #[cfg(test)]
-    #[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根，仅 s_capture_native_testonly 测试触达"))]
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
     pub(super) cold: usize,
     #[cfg(test)]
-    #[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根，仅 s_capture_native_testonly 测试触达"))]
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
     pub(super) hits: usize,
 }
 impl Drop for RequestAuditContext {
@@ -233,14 +233,14 @@ impl RequestAuditContext {
         });
     }
     #[cfg(test)]
-    #[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根，仅 s_capture_native_testonly 测试触达"))]
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
     pub(super) fn before_binding(&mut self, tx: &Transaction<'_>) {
         if let Some(hook) = self.binding_hook.take() {
             hook(tx);
         }
     }
     #[cfg(test)]
-    #[cfg_attr(all(test, not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：经 main 生产入口使用；测试构建中 main 不是根，仅 s_capture_native_testonly 测试触达"))]
+    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
     pub(super) fn has_slot(&self) -> bool {
         self.slot.is_some()
     }

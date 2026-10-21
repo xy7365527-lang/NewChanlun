@@ -869,6 +869,10 @@ impl AuditTxn<'_> {
 
     fn audit_admission(
         &self,
+        #[cfg_attr(
+            not(feature = "s_capture_native_testonly"),
+            allow(unused_variables, reason = "#1608：仅 s_capture_native_testonly 分支读取")
+        )]
         envelope: &Value,
         mode: &s_allocation::Mode,
         context: &mut request_audit::RequestAuditContext,
@@ -1636,6 +1640,7 @@ impl CompleteCandidate {
                     Err(native::Failure::Invalid(error)) => return Err(error),
                 };
         }
+        #[cfg(test)]
         let effect_rows = effects.changes.len();
         let peak = match effects.apply(
             &mut self.originals,

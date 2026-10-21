@@ -6,7 +6,6 @@ use super::{
     q_resources::{Limit, QResources},
 };
 use newchan_rust::s_content::{
-    self as sc,
     access::Access,
     capture_allocation::{
         audit_json::{self as aj, JsonView},
@@ -77,7 +76,7 @@ impl Request {
     ) -> Result<Self, String> {
         Self::parse_with_allocation(bytes, resources, Some(budget))
     }
-    #[cfg(test)]
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用（非测试构建中只被已豁免的未用项调用）"))]
     fn parse_with_allocation(
         bytes: &[u8],
         resources: &QResources,
