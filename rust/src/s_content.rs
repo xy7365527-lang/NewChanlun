@@ -5730,7 +5730,7 @@ fn render_ctx(
     render_refview_ctx(source, reference.into(), out)
 }
 fn render_refview_ctx(
-    mut source: CodecContext<'_, '_>,
+    source: CodecContext<'_, '_>,
     reference: RefView<'_>,
     out: &mut dyn Write,
 ) -> Result<(), CodecError> {

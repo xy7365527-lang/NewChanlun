@@ -950,7 +950,7 @@ fn main() -> Result<(), String> {
         let b_detect = centers0
             .iter()
             .find(|c| c.start_index == ctx.last.start_index);
-        let (b_idx, b_verdict) = match b_detect {
+        let (b_idx, _b_verdict) = match b_detect {
             Some(d) => {
                 let idx = centers0
                     .iter()

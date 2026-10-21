@@ -3492,7 +3492,7 @@ mod orbit9_add_dispatch_tests {
     }
 
     #[test]
-    fn add_short_τ镜像_父空卖回对称() {
+    fn add_short_tau镜像_父空卖回对称() {
         // τ 镜像：父空 @ L2，sink 出 L0 多头短差，add 卖回。
         let mut r = root_with_sunk_short(Polarity::Short, 2, 0);
         assert_eq!(

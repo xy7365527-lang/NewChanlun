@@ -364,7 +364,7 @@ pub(crate) fn run_axiom_voice(
                 "全抛/如数接回 ⇒ 股数恒等"
             );
             // 接回闭包（M=N：同股数，049:64"如数接回"）。
-            let mut restore = |reason: &'static str,
+            let restore = |reason: &'static str,
                                pool: &mut f64,
                                layers: &mut [LayerState; MAX_LADDER],
                                pairs: &mut [Option<PairedOut>; MAX_LADDER],

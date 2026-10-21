@@ -10,7 +10,7 @@ use std::rc::Rc;
 use super::super::super::types::{BspBits, Center, Side, ThirdClassEntryIdentity};
 use super::super::bsp::{BspPoint, OwnerRef};
 use super::super::cand_event::{
-    CandidateEventBook, CandidateKey, CandidateKind, CandidateObservation, CandidateState,
+    CandidateEventBook, CandidateKey, CandidateKind, CandidateObservation,
     ObservedState, ParentFingerprint, StructuralPredicates, CANDIDATE_RULE_VERSION,
 };
 use super::super::{Classification, LevelState};

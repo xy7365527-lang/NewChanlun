@@ -5591,7 +5591,7 @@ where
                 );
                 osc_actions.extend(new_osc_actions);
             }
-            let (next_active, standard_p_star, (mut order, _protocol_event), step_trace) =
+            let (next_active, standard_p_star, (order, _protocol_event), step_trace) =
                 coverage::pi_theta_step_traced_with_risk_seeds(
                     step_work,
                     &step_gamma_trade,

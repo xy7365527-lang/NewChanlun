@@ -1243,7 +1243,7 @@ pub fn extract_first_third_resume(
     // 逐段判定核（advance 与 tail 共享）：pointwise 解析门/类别后调 [`judge_segment`]。
     let mut a_seg_cache: std::collections::HashMap<usize, Option<((usize, usize), (Tick, Tick))>> =
         std::collections::HashMap::new();
-    let mut judge_range = |from: usize,
+    let judge_range = |from: usize,
                            to: usize,
                            pts: &mut Vec<BspPoint>,
                            pans: &mut Vec<PanDivCert>,
@@ -1585,6 +1585,7 @@ pub(crate) fn type1_funnel_dx(
         // 结构方向锚（行程方向=τ 等式 veto）；provenance None 只保留直调判据契约。
         let broke = match (anchors_owned[si], dir) {
             (Some(Direction::Down), Direction::Down) => end.price < c.zd,
+            #[allow(unreachable_patterns, reason = "#1608 疑点：此臂应为 (Some(Up), Up)，1592bf05ca(#988) 误改；按票面不改行为，已上报")]
             (Some(Direction::Down), Direction::Down) => c.zg < end.price,
             _ => false,
         };
@@ -4781,7 +4782,7 @@ mod tests {
         println!("blocks = {:?}", decompose(&[c0, c1]));
         let prices: Vec<Tick> = vec![300, 300, 300, 300, 200, 400, 250, 280, 260, 150, 145, 155];
         let closes: Vec<f64> = prices.iter().map(|&v| v as f64).collect();
-        let src: Vec<usize> = (0..prices.len()).collect();
+        let _src: Vec<usize> = (0..prices.len()).collect();
         let hist = compute_macd(&closes, &MacdConfig::default()).hist;
         let segs = vec![
             Segment {

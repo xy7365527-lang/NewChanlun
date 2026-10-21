@@ -406,7 +406,7 @@ pub fn compose_level(
     let upper: Vec<LeveledMove> = windowed
         .iter()
         .enumerate()
-        .map(|(i, (c, win))| {
+        .map(|(i, (_c, win))| {
             // ★task#40 fix A：win 是连续闭区间 ⟹ 直接借用连续切片，无临时数组 clone。
             // ★task#142：窗口变长（seed 三段 + 延伸段），subs = 中枢吸收的全部次级别走势。
             let subs = &subs_moves[win.0..=win.1];
@@ -673,7 +673,7 @@ pub fn compose_level_resume(
         windowed
             .iter()
             .enumerate()
-            .map(|(i, (c, win))| {
+            .map(|(i, (_c, win))| {
                 // win 是连续闭区间（seed 三段 + 延伸段，task #142）——直接借用切片，不 clone 临时数组。
                 let subs = &subs_moves[win.0..=win.1];
                 // ★确定性 ID：tail ordinal 接续前缀（全量/增量产同 ID）。

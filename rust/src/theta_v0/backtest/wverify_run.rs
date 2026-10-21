@@ -3116,7 +3116,7 @@ fn cascade_dual(l0: &ParseLayer, config: &ThetaConfig, weak: bool) -> C327Arm {
         let upper: Vec<LeveledMove> = windowed
             .iter()
             .enumerate()
-            .map(|(i, (c, win))| {
+            .map(|(i, (_c, win))| {
                 // #897：与生产 compose_level 同款 run 载荷（replay 对照路径同构义务）。
                 let run_start = trend_run_start(&centers, i);
                 LeveledMove::compose(

@@ -1503,7 +1503,7 @@ pub(crate) fn run_fusion(
                 } => {
                     res.short_held_bars_by_ladder[k] += 1;
                     let equity_k = margin + units * (entry_price - c);
-                    let mut cover =
+                    let cover =
                         |exit_price: f64,
                          exit_reason: &'static str,
                          pool: &mut f64,

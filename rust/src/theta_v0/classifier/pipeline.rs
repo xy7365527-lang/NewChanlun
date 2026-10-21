@@ -847,6 +847,7 @@ fn classify_incremental_inner(
             // ★增量失效边界（设计 §1.2/§3.4）：保留 `read_end_src < e` 的前缀 P（读域上界含停止哨兵，
             // 覆盖 codex §1.2.1 反例）。win_meta 与 centers 1:1 对齐、read_end_src 升序（源单调 S1）⟹
             // partition_point 定位 P。升级子中枢共享父窗口 read_end_src ⟹ 整窗保留或整窗失效（§3.5）。
+            #[cfg_attr(not(test), allow(unused_mut, reason = "#1608：p 仅在 test 构建的全清对照分支（CASCADE_FULLCLEAR）被改写"))]
             let mut p = lc.win_meta.partition_point(|w| w.read_end_src < dirty_e);
             // ★放行条件3 keep_frac 探针（test+eprobe，release 剥离）：真实 P/len（不再用 end_index 代理）。
             #[cfg(test)]
