@@ -576,7 +576,7 @@ fn random_short_books(seed: u64) -> Vec<Value> {
                 let n = 1 + next(q.min(5) as u64) as i64;
                 let fee = 1 + next(10) as i64;
                 let mut gross = next(500) as i64 - 120;
-                // Pi = gross − fee 为 0 时 book.rs 要求「无其他利润变化」见证，与具名实现见证互斥；避开该点。
+                // Pi = gross − fee 为 0 时 book.rs 另要求「无其他利润变化」见证，realized_step 不带它；避开该点。
                 if gross == fee {
                     gross += 1;
                 }
