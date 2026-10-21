@@ -17,7 +17,7 @@ Rust 验证全部经远端 `nc-remote`（本地未跑 cargo/rustc/rustup/rustfmt
 
 - `ParseConfig::from_active_records()`（`config.rs`）从两份记录给出 `tail_window`、`second_seq_scan_window`、`tangency` 和两个 `PolicyRef`。
 - 新线 Rust 各级都只读 `ParseConfig.tangency`，包括特征序列、`construction`、第二种情况的 `resolve_second_kind`、Lean 对拍测试和 S 会话 TB-02-C。
-  - 旧线 `rust/src/segment.rs` 经 `active_segment_construction_cached()` 读同一记录。
+  - 旧线 `rust/src/segment.rs` 不在本票（issue「不在本票」节：`:410/:413` 归 TB-10），保持改前写死的 `<=`／`>`（等于签署值 `closed`）。评审修正（`review: #1604`）已撤回初版对旧线的接线。
   - Python v0 和 v1 经 `active_segment_construction()` 读同一记录。
 - 输出戳：
   - `SegmentFacts.policy` 写 `scan_budget`/`construction_rule` 的 `id/version`，以及 `tail_window` 和 `tangency` 的值。
@@ -54,7 +54,7 @@ Rust 验证全部经远端 `nc-remote`（本地未跑 cargo/rustc/rustup/rustfmt
 
 ## 4. A-12：相切
 
-- 谓词 `Tangency::meets(lo, hi)`：closed 为 `<=`，open 为 `<`。`separates(lo, hi)`：closed 为 `>`，open 为 `>=`；非 NaN 输入上它等于 `!meets`。它直接保留改前的比较符号，所以在 NaN 上与改前逐位一致；供旧线 f64 和 Python 用。
+- 谓词 `Tangency::meets(lo, hi)`：closed 为 `<=`，open 为 `<`。Python 侧另有 `separates(lo, hi)`：closed 为 `>`，open 为 `>=`；非 NaN 输入上它等于 `!meets`。它直接保留改前的比较符号，所以在 NaN 上与改前逐位一致。（Rust 侧同名方法随旧线接线一并撤回。）
 - 每个取值一个 fixture：
   - Rust `tb1604_tangency_fixture_seed_per_value` 和 `segment.rs::tangency_fixture_per_value_flips_only_tangent_case`；
   - TB-02-C 的 `tb02c_tests` 加了 open 例；
@@ -99,7 +99,7 @@ Rust 验证全部经远端 `nc-remote`（本地未跑 cargo/rustc/rustup/rustfmt
    - 现在按记录 closed 判 `<=`，与 v1、Rust 统一（#804 各级同值）。
    - 相切输入上 v0 输出会变；非相切输入不受影响。
 2. S 写者线路 token `second-seq-scan-budget/1` 与 `s-segment/4` 暂不升版，留后续票。
-3. 旧线 `rust/src/segment.rs:426` 的 `TAIL_WINDOW` 属 TB-10，未动。旧线的相切谓词已改为读记录：A-12 要求各级同值。
+3. 旧线 `rust/src/segment.rs` 整体属 TB-10，未动：`:426` 的 `TAIL_WINDOW` 与相切谓词（`:133` 三笔重叠、`:410/:413` 缺口）仍是代码常数，取值等于签署值 `closed`。记录改签 `open` 时旧线不会跟随，由 TB-10 处理。
 4. Lean 侧相切归 #1626。
 
 ## 8. 后续

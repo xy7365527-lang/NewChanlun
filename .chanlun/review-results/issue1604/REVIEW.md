@@ -60,3 +60,11 @@
 2. `docs/reference-theta-v0.md` 未同步两份新记录，建议跟进。
 3. clippy 零新增告警未验证（远端未装 cargo-clippy），已如实登记。
 4. 探查路径的 `second_sequence(..., 0)` 不复用增量缓存。尾窗极小、探查区间极大时会有重复计算；签署值 7 下不构成问题。
+
+## 评审工位追记（sandcastle review，基准 `02b5b571eb`）
+
+- 上文审查对象 `b388916287` 后来经过修订，分支上的提交是 `703e3d1c7f`：只改了 `second-seq-scan-budget.json` 一行，并新增本目录两份记录。
+- 修正 `review: #1604`：撤回对旧线 `rust/src/segment.rs` 相切谓词的接线，同时撤回三个 `#[path]` bin 的 `theta_v0` 转接模块，以及因此不再被调用的 `Tangency::separates` 和 `active_segment_construction_cached`。
+  - 理由：issue「不在本票」节明确写了旧线 `:410/:413` 归 TB-10。
+  - 影响：签署值 `closed` 与旧线改前写死的 `<=`／`>` 逐位相同，输出不变。
+  - 上文 §3 中「旧线 `segment.rs` 两处」「`separates` 供旧线 f64」两条已经失效。

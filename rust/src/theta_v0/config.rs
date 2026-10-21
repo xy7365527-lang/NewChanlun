@@ -159,15 +159,6 @@ impl Tangency {
         }
     }
 
-    /// 「`lo` 越过 `hi`」——全序上即 `!meets(lo, hi)`；单列一式是为让 f64 旧线（`src/segment.rs`）
-    /// 在 NaN 上与改前的 `>` 逐位同值（`!meets` 在 NaN 上翻为真）。
-    pub fn separates<T: PartialOrd>(self, lo: T, hi: T) -> bool {
-        match self {
-            Tangency::Closed => lo > hi,
-            Tangency::Open => lo >= hi,
-        }
-    }
-
     /// [`Tangency::meets`] 的算子记号（事实输出用）：`ascending` 为 `lo` 写左侧时取 `<=`/`<`，
     /// 否则取镜像 `>=`/`>`。
     pub fn meets_operator(self, ascending: bool) -> &'static str {

@@ -340,17 +340,6 @@ pub fn active_segment_construction() -> Result<SegmentConstruction, PolicyError>
     parse_segment_construction(Some(ACTIVE_SEGMENT_CONSTRUCTION_JSON))
 }
 
-/// 进程内只解析一次的生效线段构造规则（legacy `crate::segment` 每 bar 调用，不重复解析 JSON）。
-/// 记录解析失败 ⟹ panic 停止，不给备用值（与 `impl Default for ParseConfig` 同口径）。
-pub fn active_segment_construction_cached() -> SegmentConstruction {
-    static CELL: std::sync::OnceLock<Result<SegmentConstruction, PolicyError>> =
-        std::sync::OnceLock::new();
-    match CELL.get_or_init(active_segment_construction) {
-        Ok(c) => *c,
-        Err(e) => panic!("{e}"),
-    }
-}
-
 /// 由预算记录 + 中枢三段下限组装 [`LevelConfig`]。
 pub fn level_config_from(budget: TowerLevelBudget, min_parts_per_level: u32) -> LevelConfig {
     LevelConfig {
@@ -585,7 +574,6 @@ mod tests {
             c.record.label(),
             super::super::parser::segment::CONSTRUCTION_RULE
         );
-        assert_eq!(active_segment_construction_cached(), c);
     }
 
     #[test]
