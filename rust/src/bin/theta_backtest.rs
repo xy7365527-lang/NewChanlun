@@ -10,6 +10,8 @@
 //!   <SYMBOL>      品种代码（BTC/ES/CL/GC/BRN/DX/QQQ/OKLO，见 data::SYMBOLS）
 //!   [START END]   可选 ISO 日期窗闭区间（如 2023-01-01 2025-06-30）；省略 = 全量
 //! 例：cargo run --release --features backtest_bin --bin theta_backtest -- BTC 2024-01-01 2024-06-30
+//!   环境变量 NC_FUNDING_PROFILE  ⑥ 段读 ADR 0040 funding-record 的 profile（如 P0）；
+//!                                未设 ⟹ ⑥ 段输出 AwaitingPolicy{funding_record} 并以失败退出，不下单（#1601）
 //! ```
 //!
 //! ## 回测/实盘统一 + Nautilus 接入（设计 §4.1 / §5，本轮 ceiling）
@@ -177,9 +179,25 @@ fn main() -> std::process::ExitCode {
     let mut nautilus_config = ThetaConfig::default();
     nautilus_config.exec.entry_delay_bars = 0;
     println!("--- ⑥ 真实 Nautilus BacktestEngine（生产引擎贯通验证）---");
+    // 资金：起始余额与 sizing 基数读 ADR 0040 funding-record（#1601 C-02，无默认值）。
+    let profile = std::env::var("NC_FUNDING_PROFILE").ok();
+    let funding = match newchan_rust::funding_record::FundingRecord::production(profile.as_deref())
+    {
+        Ok(f) => f,
+        Err(e) => {
+            println!("⑥ 段未运行，不下单：{e}");
+            return std::process::ExitCode::FAILURE;
+        }
+    };
+    println!(
+        "资金记录        : {}（Q_total {}）",
+        funding.label(),
+        funding.q_total
+    );
     match newchan_rust::theta_v0::nautilus::backtest_engine::run_theta_backtest(
         &dataset,
         &nautilus_config,
+        Some(funding),
     ) {
         Ok(bt) => {
             println!("引擎迭代次数    : {}", bt.iterations);

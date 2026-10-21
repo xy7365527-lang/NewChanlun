@@ -24,8 +24,8 @@
 //!
 //! ## ★诚实有效域（no-workaround 标注）
 //!
-//! - **nav 占位**：`PortfolioApi` 未公开 balance facade（v0.60/0.62 同），`nav` 暂用构造期
-//!   初始 NAV 占位（回测起始余额量级）。sizing 基数足够单标的；真实 NAV 读取待 PortfolioApi
+//! - **nav 近似**：`PortfolioApi` 未公开 balance facade（v0.60/0.62 同），`nav` 暂用构造期
+//!   funding-record 的 `Q_total`（ADR 0040；#1601 C-02 取代 1e6 占位，回测起始余额同源）。sizing 基数足够单标的；真实 NAV 读取待 PortfolioApi
 //!   公开 balance（与 `theta_strategy.rs` 同一有效域边界，非缺陷）。
 //! - **θ 信号非零依赖真实结构**：`p_star ≠ 0` 需要真实 BSP 结构（买卖点）在分类器内形成——合成
 //!   单调/锯齿数据产 `p_star = 0`（诚实退化，对齐 `theta_pi_stream.rs` 测试口径，该测试同样
@@ -46,6 +46,7 @@ use nautilus_model::identifiers::InstrumentId;
 use nautilus_model::types::Quantity;
 use nautilus_trading::strategy::{Strategy, StrategyConfig, StrategyCore};
 
+use crate::funding_record::{FundingError, FundingRecord};
 use crate::theta_v0::config::ThetaConfig;
 use crate::theta_v0::stream::ThetaPiStream;
 use crate::theta_v0::types::Bar;
@@ -94,6 +95,10 @@ pub struct ThetaPiStrategy {
     tick_size: f64,
     /// 下单数量精度（来自 instrument size_precision，构造 `Quantity` 用）。
     size_precision: u8,
+    /// sizing 基数：ADR 0040 funding-record 的 `Q_total`（#1601 C-02）。
+    nav: f64,
+    /// 所读 funding-record 的 id 与版本（`label()`）。
+    funding_record: String,
 }
 
 impl Debug for ThetaPiStrategy {
@@ -101,6 +106,7 @@ impl Debug for ThetaPiStrategy {
         f.debug_struct("ThetaPiStrategy")
             .field("instrument_id", &self.instrument_id)
             .field("bar_type", &self.bar_type)
+            .field("funding_record", &self.funding_record)
             .field("n_bars", &self.inner.bar_count())
             .finish()
     }
@@ -109,24 +115,34 @@ impl Debug for ThetaPiStrategy {
 impl ThetaPiStrategy {
     /// 构造。`config`：Nautilus StrategyConfig（strategy_id/oms_type 等）；`theta`：S_Θ Θ 参数；
     /// `bar_type`：订阅的 bar 类型（须 `AggregationSource::External`，与 add_data 喂的 bar 一致）；
-    /// `size_precision`：instrument 数量精度（构造下单 `Quantity` 用）。
-    #[must_use]
+    /// `size_precision`：instrument 数量精度（构造下单 `Quantity` 用）；
+    /// `funding`：ADR 0040 funding-record，nav 读其 `Q_total`。缺记录 ⟹ `AwaitingPolicy{funding_record}`，
+    /// `evidence_only` ⟹ `Invalid{scope}`——都不构造策略、不下单（#1601）。
     pub fn new(
         config: StrategyConfig,
         theta: ThetaConfig,
         bar_type: BarType,
         size_precision: u8,
-    ) -> Self {
+        funding: Option<FundingRecord>,
+    ) -> Result<Self, FundingError> {
+        let funding = FundingRecord::admit_production(funding)?;
         let tick_size = theta.tick.tick_size;
         let instrument_id = bar_type.instrument_id();
-        Self {
+        Ok(Self {
             core: StrategyCore::new(config),
             inner: ThetaPiStream::new(theta),
             instrument_id,
             bar_type,
             tick_size,
             size_precision,
-        }
+            nav: funding.q_total_f64(),
+            funding_record: funding.label(),
+        })
+    }
+
+    /// 本策略读的 funding-record id 与版本。
+    pub fn funding_record(&self) -> &str {
+        &self.funding_record
     }
 
     /// 决策步（θ 信号核心，可脱离引擎测试）：S_Θ bar + 当前净仓 + NAV → (side, qty) 或 None。
@@ -181,17 +197,13 @@ impl DataActor for ThetaPiStrategy {
         let p_t = self.read_net_position();
 
         // 3. θ 信号：push_bar → p_star；再平衡 delta → (side, qty)。
-        if let Some((side, qty)) = self.decide(s_bar, p_t, INITIAL_NAV_PLACEHOLDER) {
+        if let Some((side, qty)) = self.decide(s_bar, p_t, self.nav) {
             // 4. 提交再平衡 market 单。
             self.submit_rebalance(side, qty)?;
         }
         Ok(())
     }
 }
-
-/// 初始 NAV 占位（`decide`/`on_bar` 的 nav 有效域边界，见模块头）。
-/// `PortfolioApi` 未公开 balance facade ⟹ 用构造期初始 NAV 量级近似；sizing 基数恒定足够单标的。
-const INITIAL_NAV_PLACEHOLDER: f64 = 1_000_000.0;
 
 /// `rust_decimal::Decimal` → f64（net_position 转换）。
 fn decimal_to_f64(d: rust_decimal::Decimal) -> f64 {
@@ -272,10 +284,13 @@ mod tests {
             ThetaConfig::default(),
             btc_bar_type(),
             6,
-        );
+            Some(FundingRecord::active("P0").unwrap()),
+        )
+        .unwrap();
         let bars = synthetic_bars();
         for (i, bar) in bars.iter().enumerate() {
-            let decision = strat.decide(*bar, 0.0, INITIAL_NAV_PLACEHOLDER);
+            let nav = strat.nav;
+            let decision = strat.decide(*bar, 0.0, nav);
             // 决策步推进 θ 核心：bar_count == i+1（每根 bar 都到达 ThetaPiStream）。
             assert_eq!(strat.inner.bar_count(), i + 1, "bar {i} 未推进 θ 核心");
             // 输出恒等于 θ 信号映射（p_star 由 push_bar 内部算出；合成数据 p_star=0 ⟹ None）。
@@ -286,5 +301,39 @@ mod tests {
         }
         // 全部 80 根 bar 到达 θ 核心。
         assert_eq!(strat.inner.bar_count(), bars.len());
+    }
+
+    /// #1601 C-02：nav = 记录的 `Q_total`（换 profile 即换基数，改回常数的变异体在此变红）；
+    /// 负控：缺记录 ⟹ AwaitingPolicy{funding_record}，evidence_only ⟹ 拒入生产，都不构造策略。
+    #[test]
+    fn nav_reads_funding_record_and_refuses_without_one() {
+        let build = |funding| {
+            ThetaPiStrategy::new(
+                StrategyConfig::default(),
+                ThetaConfig::default(),
+                btc_bar_type(),
+                6,
+                funding,
+            )
+        };
+        for (profile, q) in [("P0", 100_000.0), ("P1-hl-testnet", 500.0)] {
+            let strat = build(Some(FundingRecord::active(profile).unwrap())).unwrap();
+            assert_eq!(strat.nav, q, "{profile}");
+            assert_eq!(
+                strat.funding_record(),
+                format!("#1557/funding-authorization/v1@{profile}/v1")
+            );
+        }
+        assert!(matches!(
+            build(None),
+            Err(FundingError::AwaitingPolicy {
+                slot: "funding_record",
+                ..
+            })
+        ));
+        assert!(matches!(
+            build(Some(FundingRecord::active("P0-acceptance-5m").unwrap())),
+            Err(FundingError::Invalid { ref field, .. }) if field == "scope"
+        ));
     }
 }

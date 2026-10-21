@@ -49,6 +49,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -70,12 +71,15 @@ from nautilus_trader.trading.strategy import Strategy  # noqa: E402
 
 import newchan_rust as nr  # noqa: E402
 
+# #1601：期初资金/操作级别读 ADR 0040 签署记录的 profile（如 P0）；未设 ⟹ 引擎报
+# AwaitingPolicy{funding_record}，不回退任何默认资金。
+FUNDING_PROFILE = os.environ.get("NC_FUNDING_PROFILE")
+
 from trading_system.backtest_unn import load_bars  # noqa: E402（复用 Databento→Bar 加载，与 unn/v3 同源）
 from trading_system.config.instruments import INSTRUMENTS, make_instrument  # noqa: E402
 
 OUT_DIR = REPO_ROOT / "trading_system" / "data_cache"
 
-INITIAL_CAPITAL = 100_000.0  # = recursive_t/fugue_v3 引擎 INITIAL_CAPITAL（NAV 基准）
 MODES = ("structural", "and", "or")
 DEFAULT_SYMBOLS = ("CL", "BRN", "DX", "GC", "ES", "QQQ", "BTC", "OKLO")
 
@@ -98,7 +102,8 @@ def analyze_t(res: dict) -> dict:
     operational 角色由 (polarity, exit_reason) 推导（trim/recover=子声部短差；core_clear/eod=核心仓）。
     """
     trades = res["trades"]
-    strat_pct = (res["final_nav"] / INITIAL_CAPITAL - 1) * 100
+    # NAV 基准 = 引擎所读 funding-record 的 Q_total（#1601；res["funding_record"] 记版本）。
+    strat_pct = (res["final_nav"] / res["q_total"] - 1) * 100
     equity = res["equity"]
     peak = mdd = 0.0
     for (_b, nav_i) in equity:
@@ -164,7 +169,7 @@ class TFugueStreamStrategy(Strategy):
         self.equity: list = []
 
     def on_start(self) -> None:
-        self.stream = nr.TFugueStream(self.config.mode)
+        self.stream = nr.TFugueStream(self.config.mode, funding_profile=FUNDING_PROFILE)
         self.subscribe_bars(self.config.bar_type)
         self.log.info(f"TFugueStreamStrategy 启动: {self.config.bar_type} mode={self.config.mode}（逐 bar push_bar）")
 
