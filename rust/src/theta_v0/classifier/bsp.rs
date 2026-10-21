@@ -655,6 +655,8 @@ mod tests {
     fn no_stray_bsp_binding_rewrites_outside_registry() {
         // 白名单（file:line，相对 rust/src）：均已核实为非「本族绑定规则」手写复制点。
         const WHITELIST: &[&str] = &[
+            // #1608：告警清零在上方新增 allow/cfg 属性 ⟹ nest.rs +8、signal.rs +11、strategy/mod.rs +1 行；
+            // 16 条按内容逐行映射重登记（difflib 匹配，命中语句本体不变），不新增豁免。
             // #747 合并态（main a4c24e86d1）行号随合入改动重排，逐条重核，理由不变：
             //
             // 真复制点已改调单源 API：
@@ -674,7 +676,7 @@ mod tests {
             // 18 处枚举）。（#885 S4-d：上方 slice_step 增一行 ⟹ 596→597，同条目重登记。）
             "theta_v0/backtest/l3_pi_probe.rs:603",
             // ADR-0005 GUARD-ROLE 对照臂原型语句本体（单列登记，不改调，见函数头注释订正）。
-            "theta_v0/classifier/nest.rs:717",
+            "theta_v0/classifier/nest.rs:725",
             // #885 S4-d：`LevelState::first_class_grade_at`/`Classification::otherwise_domain_at`
             // 单源查询函数体（作用于 `FirstClassGradeRecord` 分级记录族，非 `BspPoint`，与本族
             // 三件并行不同型；同 projection.rs:215 先例——查询实现全仓各仅一份，非复制点）。
@@ -730,19 +732,19 @@ mod tests {
             // 2026-08-29 #1291 G5 F-2：signal.rs 二类提取入口补 m2_broke_center 方向敏感
             // 真检查与文档（+9 行）⟹ 七处夹具点统一 +9，逐条重核内容不变（同为测试夹具
             // source_index 过滤），同条目重登记。
-            "theta_v0/classifier/signal.rs:1943",
-            "theta_v0/classifier/signal.rs:2097",
-            "theta_v0/classifier/signal.rs:2328",
-            "theta_v0/classifier/signal.rs:2670",
-            "theta_v0/classifier/signal.rs:2682",
-            "theta_v0/classifier/signal.rs:2704",
-            "theta_v0/classifier/signal.rs:2726",
-            "theta_v0/classifier/signal.rs:2731",
-            "theta_v0/classifier/signal.rs:2732",
-            "theta_v0/classifier/signal.rs:2870",
-            "theta_v0/classifier/signal.rs:2903",
-            "theta_v0/classifier/signal.rs:3170",
-            "theta_v0/classifier/signal.rs:3238",
+            "theta_v0/classifier/signal.rs:1954",
+            "theta_v0/classifier/signal.rs:2108",
+            "theta_v0/classifier/signal.rs:2339",
+            "theta_v0/classifier/signal.rs:2681",
+            "theta_v0/classifier/signal.rs:2693",
+            "theta_v0/classifier/signal.rs:2715",
+            "theta_v0/classifier/signal.rs:2737",
+            "theta_v0/classifier/signal.rs:2742",
+            "theta_v0/classifier/signal.rs:2743",
+            "theta_v0/classifier/signal.rs:2881",
+            "theta_v0/classifier/signal.rs:2914",
+            "theta_v0/classifier/signal.rs:3181",
+            "theta_v0/classifier/signal.rs:3249",
             // 2026-08-21 #1080 S2 Phase2：`judge_first_from_gates` 加默认关闭只读捕获
             // seam（+14 行）——本块锚点待全量合并后按 whitelist 测试实报行号统一订正。            // （2026-08-16 #648 T1：classifier/mod.rs 内联测试 4273 行抽离至 classifier/tests/            // 主题件 ⟹ 该夹具点同内容随迁 mod.rs:4574 → tests/pipeline_geometry.rs:1565，
             // 重核内容不变（同为测试夹具 source_index 过滤），同条目重登记。
@@ -774,8 +776,8 @@ mod tests {
             // （2026-08-23 #1191 D01：strategy/mod.rs 增 campaign_book/campaign_ledger 模块块
             // 7 行 ⟹ 558→565 / 780→787，逐条重核内容不变（同为 `gamma_x` 时刻分组过滤），
             // 同条目重登记。）
-            "theta_v0/strategy/mod.rs:565",
-            "theta_v0/strategy/mod.rs:787",
+            "theta_v0/strategy/mod.rs:566",
+            "theta_v0/strategy/mod.rs:788",
         ];
 
         let src_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
