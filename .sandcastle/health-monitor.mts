@@ -232,7 +232,7 @@ function waitForProcess(pattern: string, waitMs = 15_000): boolean {
   }
 }
 
-function heal(label: string, processPattern: string): string {
+function healLaunchd(label: string, processPattern: string): string {
   const uid = sh("id", ["-u"]).trim();
   const plist = `${HOST_REPO}/.sandcastle/launchd/${label}.plist`;
   const r = healService(label, plist, uid, { run: sh, isRunning: () => waitForProcess(processPattern) });
@@ -409,8 +409,8 @@ async function main(): Promise<void> {
 
   const actions: string[] = [];
   if (heal) {
-    if (wayfinder.status === "red") actions.push(heal(LABEL_WAYFINDER, PROC_WAYFINDER));
-    if (claimLoop.state === "stopped") actions.push(heal(LABEL_CLAIMER, PROC_CLAIMER));
+    if (wayfinder.status === "red") actions.push(healLaunchd(LABEL_WAYFINDER, PROC_WAYFINDER));
+    if (claimLoop.state === "stopped") actions.push(healLaunchd(LABEL_CLAIMER, PROC_CLAIMER));
     if (claimLoop.state === "fail_closed") actions.push("claim_loop：宿主脏树不自动清理，留人工/PR");
     for (const s of stale.actionable) actions.push(rollbackClaim(s));
     if (disk.status === "red") actions.push("disk_space：只报告，不删除外盘文件");
