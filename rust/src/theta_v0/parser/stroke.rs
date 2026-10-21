@@ -189,11 +189,16 @@ fn shared_endpoint_sources(
             None => {}
         }
     }
-    let others = distinct
-        .into_iter()
-        .flat_map(|c| c.iter())
-        .chain(window.iter().flat_map(|group| group.members.iter()));
-    let union = SourceCoords::from_shared(union_into(base, others));
+    // #1629：证据树之间按共享子树指针相等剪枝求并（成本只随不共享部分增长），
+    // 组成员逐个持久插入（不遍历基底）。旧版把其余集合逐元素与基底有序归并，单端点 Θ(i)。
+    let mut acc = base.clone();
+    for c in distinct {
+        acc = acc.union(c.as_shared().expect("上面已判共享形态"));
+    }
+    let union = SourceCoords::from_shared(union_into(
+        &acc,
+        window.iter().flat_map(|group| group.members.iter()),
+    ));
     Some(union)
 }
 
@@ -525,8 +530,8 @@ impl ScanState {
 
 /// 前笔确认证书的来源坐标 = 两端点来源坐标的升序去重并集。
 ///
-/// #1597：两端点都是共享形态时，以最大值较大的一侧为基底树，另一侧经有序归并把缺的元素
-/// 持久插入（[`union_into`]，精确，不依赖形状前提）；否则回落扁平构造。
+/// #1597/#1629：两端点都是共享形态时做持久树并集（[`CoordsRef::union`]：共享子树按指针
+/// 相等整棵跳过，精确，不依赖形状前提）；否则回落扁平构造。
 fn confirmation_sources(a: &SourceCoords, f: &SourceCoords) -> SourceCoords {
     let flat = || {
         let mut sources = a.to_vec();
@@ -541,7 +546,9 @@ fn confirmation_sources(a: &SourceCoords, f: &SourceCoords) -> SourceCoords {
     } else {
         (left, f)
     };
-    SourceCoords::from_shared(union_into(base, other.iter()))
+    let other = other.as_shared().expect("上面已判两侧共享形态");
+    // #1629：两端点来源树共享绝大部分子树，按指针相等剪枝求并，与前缀长度解耦。
+    SourceCoords::from_shared(base.union(other))
 }
 
 /// 稳定端点前的扫描 checkpoint。单端点转移至多改写当时的末笔、从不弹笔，故只备份该尾，
@@ -1560,6 +1567,30 @@ mod tests {
                 }
             })
             .collect()
+    }
+
+    /// #1629 成本锁：新笔事实构造（端点来源并集 + 确认证书并集）不逐元素遍历共享树，
+    /// 每端点树操作步数与前缀长度解耦。旧实现每端点与基底有序归并，遍历步数 Θ(n²)。
+    #[test]
+    fn shared_stroke_facts_cost_is_decoupled_from_prefix() {
+        use super::super::evidence::cost_probe;
+        let config = ParseConfig::default();
+        let mut per_endpoint = Vec::new();
+        for n in [1_000usize, 4_000, 16_000] {
+            let raw = lcg_bars(n, 0xD1B5_4A32_D192_ED03, 2);
+            let facts = process_inclusion_with_facts(&raw);
+            cost_probe::reset();
+            let strokes = build_stroke_facts(&facts, &config);
+            let (ops, iters) = cost_probe::read();
+            assert_eq!(iters, 0, "前缀 {n}：新笔事实构造逐元素遍历了共享坐标树 {iters} 步");
+            let endpoints = strokes.endpoints.len().max(1) as f64;
+            per_endpoint.push(ops as f64 / endpoints);
+            eprintln!("#1629 cost n={n} endpoints={endpoints} ops={ops}");
+        }
+        assert!(
+            per_endpoint[2] <= per_endpoint[0] * 3.0,
+            "前缀放大 16 倍，每端点树操作步数应只按 polylog 增长：{per_endpoint:?}"
+        );
     }
 
     /// #1597：完整事实入口的共享导出与扁平参照构造逐位相同——包含层、新笔事实（端点、配对、
