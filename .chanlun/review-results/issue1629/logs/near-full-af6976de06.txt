@@ -1,0 +1,22 @@
+ref=codex/1629-endpoint-prune sha=af6976de0644362db1d1f0bcba0c6e615cc79554 sub=rust target=/home/hanju/nc-remote/issue1629-b cmd=bash -c P=$CARGO_TARGET_DIR/release/issue1588_parse_mem_probe\;\ D=$HOME/nc-remote/data/btc_1m_full.json\;\ ld\(\)\{\ echo\ "---\ host:\ loadavg=$\(cut\ -d"\ "\ -f1-3\ /proc/loadavg\)\ $\(grep\ MemAvailable\ /proc/meminfo\|tr\ -s\ "\ "\)"\;\ \}\;\ for\ W\ in\ 3000005\ 4613500\;\ do\ ld\;\ ISSUE1588_WINDOW=$W\ ISSUE1629_LAYER_ONLY=1\ $P\ $D\ facts\ $\(\(W-5\)\)\;\ ld\;\ ISSUE1588_WINDOW=$W\ $P\ $D\ layer\ $\(\(W-5\)\)\;\ done 
+--- host: loadavg=11.27 10.78 10.72 MemAvailable: 43123264 kB
+== mode=facts n=3000000 window=3000005
+facts secs=57.47 alloc_total_mb=20130.5 peak_mb=8776.6 retained_mb=6820.8 steps=3000000 groups=2026552 merged=2026552 fractals=908132 strokes=253723 segments=33229 tail=2
+  endpoints=908132 strokes=253723 digest layer=eff2d82a600d6ed8761e1d0225bf31b3e0830dbe06683c43b06ff9773e5dece4 stroke_facts=skipped facts=skipped
+  rss VmRSS=5280288 kB VmHWM=9506756 kB
+--- host: loadavg=12.11 11.17 10.87 MemAvailable: 43363356 kB
+== mode=layer n=3000000 window=3000005
+layer secs=23.82 alloc_total_mb=13732.3 peak_mb=7088.8 retained_mb=172.2 merged=2026552 fractals=908132 strokes=253723 segments=33229 tail=2
+  digest layer=eff2d82a600d6ed8761e1d0225bf31b3e0830dbe06683c43b06ff9773e5dece4
+  rss VmRSS=5361856 kB VmHWM=8092132 kB
+--- host: loadavg=12.38 11.34 10.94 MemAvailable: 42943132 kB
+== mode=facts n=4613495 window=4613500
+facts secs=70.67 alloc_total_mb=35847.5 peak_mb=15432.2 retained_mb=11693.2 steps=4613495 groups=3037848 merged=3037848 fractals=1369309 strokes=388166 segments=51740 tail=2
+  endpoints=1369309 strokes=388166 digest layer=bb067c8bb7b532a355480871c75682f50fb0ad0f520968e01a7aa2044ae97165 stroke_facts=skipped facts=skipped
+  rss VmRSS=8058552 kB VmHWM=14507140 kB
+--- host: loadavg=11.21 11.30 10.97 MemAvailable: 45012064 kB
+== mode=layer n=4613495 window=4613500
+layer secs=21.33 alloc_total_mb=24319.1 peak_mb=12461.9 retained_mb=337.3 merged=3037848 fractals=1369309 strokes=388166 segments=51740 tail=2
+  digest layer=bb067c8bb7b532a355480871c75682f50fb0ad0f520968e01a7aa2044ae97165
+  rss VmRSS=8225816 kB VmHWM=12359724 kB
+EXIT=0 SECONDS=236

@@ -1,0 +1,7 @@
+ref=mut1629-M4 sha=957f0d5c959eac2762ffcc21c125830eaf63ea85 sub=rust target=/home/hanju/nc-remote/issue1629-mut cmd=bash -c cargo\ test\ --release\ --lib\ theta_v0::parser\ 2\>\&1\ \|\ grep\ -E\ "\^test\ .\*FAILED\|test\ result\|panicked\ at" 
+test theta_v0::parser::evidence::tests::coords_ref_union_cost_is_decoupled_from_size ... FAILED
+test theta_v0::parser::evidence::tests::coords_ref_union_matches_set_semantics_and_keeps_inputs ... FAILED
+thread 'theta_v0::parser::evidence::tests::coords_ref_union_cost_is_decoupled_from_size' (20712) panicked at src/theta_v0/parser/evidence.rs:866:17:
+thread 'theta_v0::parser::evidence::tests::coords_ref_union_matches_set_semantics_and_keeps_inputs' (20713) panicked at src/theta_v0/parser/evidence.rs:782:13:
+test result: FAILED. 188 passed; 2 failed; 22 ignored; 0 measured; 2807 filtered out; finished in 61.05s
+EXIT=0 SECONDS=143

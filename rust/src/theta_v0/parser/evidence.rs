@@ -100,8 +100,9 @@ impl<T: Clone> ChunkedSeq<T> {
 /// 升序去重坐标集合的不可变共享节点。
 ///
 /// 不变量：每个节点自成一个**升序、无重复**的坐标序列；[`CoordNode::Concat`] 额外保证
-/// 左段全部坐标 < 右段全部坐标。构造口只有 [`CoordsRef::concat`] 与
-/// [`CoordsRef::append_greater`]（均要求该前提），保证不变量不被破坏。
+/// 左段全部坐标 < 右段全部坐标。构造口：[`CoordsRef::concat`] 与
+/// [`CoordsRef::append_greater`]（均要求该前提）、[`CoordsRef::insert`]（#1597）与
+/// [`CoordsRef::union`]（#1629），均保持该不变量与 AVL 平衡。
 #[derive(Debug)]
 pub enum CoordNode {
     Leaf(usize),
@@ -175,8 +176,133 @@ fn node_max(node: &Rc<CoordNode>) -> usize {
     }
 }
 
+/// #1629 成本锁的计数口（仅测试构建）。
+///
+/// - `TREE_OPS`：`union_nodes`/`split_node`/`insert_node` 的**递归调用次数**（不含每层
+///   `node_max`/`node_min` 下行与 `join` 再平衡，实际指针跳转约为其 10–30 倍，同为 polylog）。
+/// - `TREE_ITER_STEPS`：逐节点遍历共享树的步数（`SourceCoords::iter`、`CoordsRef::materialize`、
+///   `CoordsRef::count`，即 `len`/`to_vec`/`contains` 等一切 Θ(集合大小) 的展开口）。
+#[cfg(test)]
+pub(crate) mod cost_probe {
+    use std::cell::Cell;
+    thread_local! {
+        pub(crate) static TREE_OPS: Cell<u64> = const { Cell::new(0) };
+        pub(crate) static TREE_ITER_STEPS: Cell<u64> = const { Cell::new(0) };
+    }
+    pub(crate) fn reset() {
+        TREE_OPS.with(|c| c.set(0));
+        TREE_ITER_STEPS.with(|c| c.set(0));
+    }
+    /// `(递归调用次数, 遍历步数)`。
+    pub(crate) fn read() -> (u64, u64) {
+        (TREE_OPS.with(Cell::get), TREE_ITER_STEPS.with(Cell::get))
+    }
+}
+
+#[inline(always)]
+fn bump_ops() {
+    #[cfg(test)]
+    cost_probe::TREE_OPS.with(|c| c.set(c.get() + 1));
+}
+
+#[inline(always)]
+fn bump_iter() {
+    #[cfg(test)]
+    cost_probe::TREE_ITER_STEPS.with(|c| c.set(c.get() + 1));
+}
+
+fn node_min(node: &Rc<CoordNode>) -> usize {
+    let mut node = node;
+    loop {
+        match node.as_ref() {
+            CoordNode::Leaf(coord) => return *coord,
+            CoordNode::Concat(left, _, _) => node = left,
+        }
+    }
+}
+
+/// #1629：两棵可能为空的子树按序拼接（要求 `left` 全部 < `right` 全部）。
+fn join_opt(left: Option<Rc<CoordNode>>, right: Option<Rc<CoordNode>>) -> Option<Rc<CoordNode>> {
+    match (left, right) {
+        (None, r) => r,
+        (l, None) => l,
+        (Some(l), Some(r)) => Some(join(l, r)),
+    }
+}
+
+/// #1629：按值切分 `node` 为 `(≤ key, > key)`。整棵子树落在一侧时原样返回该子树指针
+/// （不新建节点），故切分只沿一条根到叶路径新建 O(log n) 个节点，路径外子树全部共享。
+fn split_node(node: &Rc<CoordNode>, key: usize) -> (Option<Rc<CoordNode>>, Option<Rc<CoordNode>>) {
+    bump_ops();
+    if node_max(node) <= key {
+        return (Some(node.clone()), None);
+    }
+    if node_min(node) > key {
+        return (None, Some(node.clone()));
+    }
+    let CoordNode::Concat(left, right, _) = node.as_ref() else {
+        unreachable!("单叶必然整体落在一侧")
+    };
+    if node_max(left) <= key {
+        let (lo, hi) = split_node(right, key);
+        (join_opt(Some(left.clone()), lo), hi)
+    } else {
+        let (lo, hi) = split_node(left, key);
+        (lo, join_opt(hi, Some(right.clone())))
+    }
+}
+
+/// #1629：持久集合并集，**共享子树指针相等剪枝**。
+///
+/// - `a`、`b` 指向同一节点 ⟹ 直接返回 `a`（整棵子树一步跳过，不看元素）；
+/// - 值域不相交 ⟹ 一次 AVL 拼接；
+/// - 否则按 `a` 的左子树最大值切分 `b`，左右分别递归。左右结果与 `a` 的原子树指针相同
+///   ⟹ 原样返回 `a`。可归纳证明「返回 `a` 的指针」⟺ `b ⊆ a`，故不新建留存节点
+///   （切分路径上的临时节点随即丢弃）。
+///
+/// 成本：`a` 取同一持久谱系里较新、较大的一侧时，只在两树不共享的接缝处下潜，每处接缝
+/// polylog（按指针跳转约 O(log³ n)），与集合大小解耦——完整事实路径上的证据树都来自同一条
+/// 持久追加链，两处调用都以最大值较大者为 `a`。**退化**：两棵树内容重叠但不共享指针（独立
+/// 谱系、不同插入顺序）时为 Θ(min(|a|,|b|))·polylog，慢于有序归并。
+/// 结果是升序去重集合 `a ∪ b`（内容与「拼接→排序→去重」相同，树形状不对外承诺）。
+fn union_nodes(a: &Rc<CoordNode>, b: &Rc<CoordNode>) -> Rc<CoordNode> {
+    bump_ops();
+    if Rc::ptr_eq(a, b) {
+        return a.clone();
+    }
+    if let CoordNode::Leaf(x) = b.as_ref() {
+        return insert_node(a, *x).unwrap_or_else(|| a.clone());
+    }
+    if let CoordNode::Leaf(x) = a.as_ref() {
+        return insert_node(b, *x).unwrap_or_else(|| b.clone());
+    }
+    if node_max(a) < node_min(b) {
+        return join(a.clone(), b.clone());
+    }
+    if node_max(b) < node_min(a) {
+        return join(b.clone(), a.clone());
+    }
+    let CoordNode::Concat(left, right, _) = a.as_ref() else {
+        unreachable!()
+    };
+    let (lo, hi) = split_node(b, node_max(left));
+    let new_left = match &lo {
+        Some(lo) => union_nodes(left, lo),
+        None => left.clone(),
+    };
+    let new_right = match &hi {
+        Some(hi) => union_nodes(right, hi),
+        None => right.clone(),
+    };
+    if Rc::ptr_eq(&new_left, left) && Rc::ptr_eq(&new_right, right) {
+        return a.clone();
+    }
+    join(new_left, new_right)
+}
+
 /// 插入后的新子树；`None` = 已含该坐标（不新建节点）。
 fn insert_node(node: &Rc<CoordNode>, coord: usize) -> Option<Rc<CoordNode>> {
+    bump_ops();
     match node.as_ref() {
         CoordNode::Leaf(existing) => match coord.cmp(existing) {
             std::cmp::Ordering::Equal => None,
@@ -253,6 +379,19 @@ impl CoordsRef {
         }
     }
 
+    /// #1629：持久并集 `self ∪ other`（升序去重）。两棵树共享的子树按指针相等整棵跳过。
+    ///
+    /// - `other ⊆ self` ⟹ 返回原句柄（不新建留存节点）。
+    /// - `self` 应取同一持久谱系里较新、较大的一侧：此时成本 polylog、与集合大小解耦。
+    /// - 两树内容重叠但不共享指针时退化为 Θ(min(|self|,|other|))·polylog（见 `union_nodes`）。
+    pub fn union(&self, other: &CoordsRef) -> Self {
+        match (&self.0, &other.0) {
+            (None, _) => other.clone(),
+            (_, None) => self.clone(),
+            (Some(a), Some(b)) => CoordsRef(Some(union_nodes(a, b))),
+        }
+    }
+
     /// 展开为升序去重 `Vec<usize>`——显式栈迭代中序，无递归。
     pub fn materialize(&self) -> Vec<usize> {
         let Some(root) = &self.0 else {
@@ -261,6 +400,7 @@ impl CoordsRef {
         let mut out: Vec<usize> = Vec::new();
         let mut stack: Vec<&Rc<CoordNode>> = vec![root];
         while let Some(node) = stack.pop() {
+            bump_iter();
             match node.as_ref() {
                 CoordNode::Leaf(coord) => out.push(*coord),
                 // 先压右后压左：左子树整体先于右子树展开（LIFO）。
@@ -292,6 +432,7 @@ impl CoordsRef {
         let mut total = 0usize;
         let mut stack: Vec<&Rc<CoordNode>> = vec![root];
         while let Some(node) = stack.pop() {
+            bump_iter();
             match node.as_ref() {
                 CoordNode::Leaf(_) => total += 1,
                 CoordNode::Concat(left, right, _) => {
@@ -441,6 +582,7 @@ impl<'a> Iterator for SourceCoordsIter<'a> {
             SourceCoordsIter::Flat(items) => items.next(),
             SourceCoordsIter::Tree(stack) => {
                 while let Some(node) = stack.pop() {
+                    bump_iter();
                     match node {
                         CoordNode::Leaf(coord) => return Some(coord),
                         // 先压右后压左：左子树整体先于右子树产出（LIFO）。
@@ -518,34 +660,17 @@ impl PartialEq<SourceCoords> for Vec<usize> {
     }
 }
 
-/// #1597：`base ∪ others` 的共享并集（升序去重，与「拼接后排序去重」逐位相同）。
+/// #1597/#1629：`base ∪ others` 的共享并集（升序去重，与「拼接后排序去重」逐位相同）。
 ///
-/// 不对 `others` 作任何形状假设：先与 `base` 做一次有序归并找出 `base` 里没有的元素，
-/// 再逐个持久插入。`others` 须升序（调用方传入的组成员与端点来源均升序）；非升序时退化为
-/// 逐元素插入，结果仍精确。耗时 O(|base| + |others| + k log² n)，留存只新增 k 条路径。
+/// 逐元素持久插入：已在集合内的元素不新建节点（返回原路径），缺的元素沿 O(log n) 路径插入。
+/// 不遍历 `base`——耗时 O(|others| · log² n)，与 `base` 大小无关（#1629：旧版先与 `base`
+/// 做一次有序归并，单次 Θ(|base|)，是完整事实入口 Θ(n²) 的来源）。`others` 顺序任意。
 pub(crate) fn union_into<'a>(
     base: &CoordsRef,
     others: impl IntoIterator<Item = &'a usize>,
 ) -> CoordsRef {
-    let base_view = SourceCoords::from_shared(base.clone());
-    let mut walk = base_view.iter().copied().peekable();
-    let mut last: Option<usize> = None;
-    let mut missing: Vec<usize> = Vec::new();
-    for &x in others {
-        if last.is_some_and(|l| x < l) {
-            // 下一段（或非升序）：归并游标从头再走，结果仍精确。
-            walk = base_view.iter().copied().peekable();
-        }
-        last = Some(x);
-        while walk.peek().is_some_and(|b| *b < x) {
-            walk.next();
-        }
-        if walk.peek() != Some(&x) {
-            missing.push(x);
-        }
-    }
     let mut out = base.clone();
-    for x in missing {
+    for &x in others {
         out = out.insert(x);
     }
     out
@@ -634,6 +759,118 @@ mod tests {
             base.materialize().len(),
             (0..200).filter(|i| i % 3 != 0).count(),
             "并集改写了基底"
+        );
+    }
+
+    /// #1629：持久并集对照 BTreeSet——随机树、同一持久谱系的新旧版本、不相交/嵌套/相同指针，
+    /// 并核验输入版本不被改写、`b ⊆ a` 且共享时零分配（返回原指针）。
+    #[test]
+    fn coords_ref_union_matches_set_semantics_and_keeps_inputs() {
+        use std::collections::BTreeSet;
+        let mut lcg: u64 = 0x2545_F491_4F6C_DD1D;
+        let mut rand = move || {
+            lcg = lcg
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            (lcg >> 33) as usize
+        };
+        let check = |a: &CoordsRef, b: &CoordsRef| {
+            let (wa, wb) = (a.materialize(), b.materialize());
+            let got = a.union(b);
+            let mut want: BTreeSet<usize> = wa.iter().copied().collect();
+            want.extend(wb.iter().copied());
+            assert_eq!(got.materialize(), want.into_iter().collect::<Vec<_>>());
+            assert_eq!(a.materialize(), wa, "并集改写了左输入");
+            assert_eq!(b.materialize(), wb, "并集改写了右输入");
+            let mut depth = 0;
+            let mut pending: Vec<(&Rc<CoordNode>, u32)> =
+                got.0.as_ref().map(|r| (r, 1)).into_iter().collect();
+            while let Some((node, level)) = pending.pop() {
+                depth = depth.max(level);
+                if let CoordNode::Concat(l, r, h) = node.as_ref() {
+                    assert_eq!(*h, 1 + height(l).max(height(r)), "高度字段失真");
+                    assert!(height(l).abs_diff(height(r)) <= 1, "并集结果失衡");
+                    pending.push((l, level + 1));
+                    pending.push((r, level + 1));
+                }
+            }
+            got
+        };
+        for round in 0..60 {
+            let mut a = CoordsRef::empty();
+            let mut b = CoordsRef::empty();
+            let range = 1 + (round % 7) * 300;
+            for _ in 0..(rand() % 400) {
+                a = a.insert(rand() % range);
+            }
+            for _ in 0..(rand() % 400) {
+                b = b.insert(rand() % range + (round % 3) * 150);
+            }
+            check(&a, &b);
+            check(&b, &a);
+            check(&a, &a);
+            check(&a, &CoordsRef::empty());
+            check(&CoordsRef::empty(), &b);
+        }
+        // 同一持久谱系：旧版本 ⊆ 新版本，结构共享 ⟹ 返回原指针（零分配）。
+        let mut lineage = CoordsRef::empty();
+        let mut versions = Vec::new();
+        for i in 0..3000usize {
+            lineage = lineage.append_greater(i * 2 + 1);
+            if i % 97 == 0 {
+                versions.push(lineage.clone());
+            }
+        }
+        for old in &versions {
+            let got = check(&lineage, old);
+            assert!(
+                Rc::ptr_eq(got.0.as_ref().unwrap(), lineage.0.as_ref().unwrap()),
+                "旧版本 ⊆ 新版本时并集应原样返回新版本"
+            );
+            check(old, &lineage);
+            // 新版本外加几处插入（含已有元素与新元素）。
+            let bumped = old.insert(4).insert(6001).insert(7);
+            check(&lineage, &bumped);
+            check(&bumped, &lineage);
+        }
+    }
+
+    /// #1629 成本锁：同一持久谱系的新旧版本求并，步数与集合大小解耦（polylog）。
+    /// 旧实现（与基底有序归并）步数 Θ(|基底|)：N 放大 64 倍时步数随之放大。
+    #[test]
+    fn coords_ref_union_cost_is_decoupled_from_size() {
+        let mut per_size = Vec::new();
+        for n in [1_000usize, 8_000, 64_000] {
+            let mut tree = CoordsRef::empty();
+            let mut near = CoordsRef::empty();
+            let mut half = CoordsRef::empty();
+            for i in 0..n {
+                tree = tree.append_greater(i * 3);
+                if i == n - 20 {
+                    near = tree.clone();
+                }
+                if i == n / 2 {
+                    half = tree.clone();
+                }
+            }
+            // 近版本（相隔 20 次追加）与远版本（相隔 n/2 次追加，对应确认证书两端点相隔整笔）。
+            let mut ops_max = 0;
+            for older in [&near, &half] {
+                let other = older.insert(1).insert(n * 3 + 7).insert(n * 3 / 4 + 1);
+                cost_probe::reset();
+                let got = union_into(&tree.union(&other), [5usize, 3 * n + 11].iter());
+                let (ops, iters) = cost_probe::read();
+                assert_eq!(iters, 0, "并集不得逐元素遍历共享树");
+                ops_max = ops_max.max(ops);
+                // tree 的 n 个 + other 新增 3 个（1、3n/4+1、3n+7）+ 逐元素插入 2 个。
+                assert_eq!(got.count(), n + 5);
+            }
+            per_size.push(ops_max);
+        }
+        eprintln!("#1629 union cost per size {per_size:?}");
+        assert!(
+            per_size[2] <= per_size[0] * 4,
+            "N 放大 64 倍，并集步数应只按 polylog 增长：{per_size:?}"
         );
     }
 

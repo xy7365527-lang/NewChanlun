@@ -241,8 +241,26 @@ fn run_facts(bars: &[Bar], config: &ThetaConfig) {
         facts.groups.len(),
         layer_shape(&layer)
     );
+    // #1629：计数与 stroke_facts/facts 的 Debug 摘要都按逻辑元素展开（Θ(n²)），≥1M 前缀时
+    // `ISSUE1629_LAYER_ONLY=1` 只摘 layer（与紧凑入口 `parse_layer` 对拍）。
+    if std::env::var_os("ISSUE1629_LAYER_ONLY").is_some() {
+        println!(
+            "  endpoints={} strokes={} digest layer={} stroke_facts=skipped facts=skipped",
+            facts.stroke_facts.as_ref().map_or(0, |s| s.endpoints.len()),
+            facts.stroke_facts.as_ref().map_or(0, |s| s.strokes.len()),
+            digest_debug(&layer)
+        );
+        return;
+    }
+    // #1629：计数逐个求逻辑长度（Θ(n²)），与 facts 摘要同受 `ISSUE1588_SKIP_FACTS_DIGEST` 跳过。
+    let skip_counts = std::env::var_os("ISSUE1588_SKIP_FACTS_DIGEST").is_some();
     let mut cap_total = 0u64;
-    for (name, c) in facts_counts(&facts) {
+    let counts = if skip_counts {
+        Vec::new()
+    } else {
+        facts_counts(&facts).into_iter().collect()
+    };
+    for (name, c) in counts {
         cap_total += c.cap;
         println!(
             "  coords {name}: elems={} cap={} cap_mb={:.1}",
