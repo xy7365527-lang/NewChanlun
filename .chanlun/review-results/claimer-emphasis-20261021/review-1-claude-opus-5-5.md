@@ -1,4 +1,3 @@
-Ignoring 46 permissions.allow entries from .claude/settings.json and .claude/settings.local.json: this workspace has not been trusted. Run Claude Code interactively here once and accept the trust dialog, or set projects["/Users/silencehan/Projects/NewChanlun"].hasTrustDialogAccepted: true in /Users/silencehan/Library/Application Support/CLIProxyLocal/claude-home/.claude.json.
 **PASS-WITH-NITS**
 
 改动本身是对的。和 main 相比，没有新增把「待批 / 未批 / 退回」误认成已批复的情形。但 #1644 在 05:39:40Z 被重新拾取，原因不在这段正则：**主机上跑的 claimer 进程是 10-19 起来的旧代码，里面根本没有「已裁定」判据**，见 ④。

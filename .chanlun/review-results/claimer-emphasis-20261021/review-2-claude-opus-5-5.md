@@ -1,4 +1,3 @@
-Ignoring 46 permissions.allow entries from .claude/settings.json and .claude/settings.local.json: this workspace has not been trusted. Run Claude Code interactively here once and accept the trust dialog, or set projects["/Users/silencehan/Projects/NewChanlun"].hasTrustDialogAccepted: true in /Users/silencehan/Library/Application Support/CLIProxyLocal/claude-home/.claude.json.
 PASS-WITH-NITS
 
 两处修正都对，测试 65/65 通过。没有引入新的误认：批准不会被当成退回，待批也不会被当成已裁定。
