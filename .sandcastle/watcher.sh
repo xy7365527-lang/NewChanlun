@@ -4,7 +4,9 @@
 # .sandcastle/logs/STATUS.md 并同步回写 roster（AGENTS.md 登记面）。
 # 用法：nohup bash .sandcastle/watcher.sh &  （或挂 launchd/cron 每 2 分钟跑一轮）
 set -euo pipefail
-REPO=/Users/silencehan/Projects/NewChanlun
+# 宿主仓库 = 本脚本所在仓，可用 SANDCASTLE_HOST_REPO 覆盖（#1588，run-claim-loop.sh 同款；原硬编码用户工作区）。
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+REPO="${SANDCASTLE_HOST_REPO:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 cd "$REPO"
 REG=.sandcastle/logs/workers.jsonl
 STATUS=.sandcastle/logs/STATUS.md

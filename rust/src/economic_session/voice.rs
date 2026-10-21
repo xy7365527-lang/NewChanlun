@@ -154,7 +154,11 @@ pub(super) fn bind_image(
     {
         return Err("IdentityConflict：Voice 开局事实/应用/目标不一致".into());
     }
-    let (doc, event) = decode(required(fact, "raw_utf8")?, required(fact, "json_pointer")?)?;
+    let (doc, event) = decode(
+        required(fact, "raw_utf8")?,
+        required(fact, "json_pointer")?,
+        config.book_rules()?,
+    )?;
     let quantity = if event.get("observed_existing_book").is_some() {
         integer(&event["observed_existing_book"], "units")?
     } else {
@@ -277,6 +281,7 @@ pub(super) fn original_request(
     c: &rusqlite::Connection,
     event: &Value,
     config: &Config,
+    budget: &mut super::store::ReadBudget<'_>,
 ) -> Result<Value, String> {
     use crate::session_protocol::{strict_json, validate_envelope};
     let origin = &event["origin_message"];
@@ -294,13 +299,14 @@ pub(super) fn original_request(
         required(origin, "source_epoch")?,
         required(origin, "message_id")?
     ]));
-    let (raw, h, rk): (String, String, String) = c
-        .query_row(
+    let (raw, h, rk): (String, String, String) = budget
+        .optional(
+            c,
             "SELECT request_json,payload_hash,receipt_key FROM messages WHERE k=?",
             [key],
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-        )
-        .map_err(|_| "StorageUnavailable：Voice 原消息绑定缺失".to_owned())?;
+        )?
+        .ok_or("StorageUnavailable：Voice 原消息绑定缺失")?;
     let request = validate_envelope(strict_json(raw.as_bytes())?, config.revision()?)?;
     config.authorized(&request)?;
     let actual = json!({"source_namespace":request["source_namespace"],"source_epoch":request["source_epoch"],"message_id":request["message_id"],"payload_hash":request["payload_hash"]});
@@ -330,6 +336,7 @@ pub(super) fn replay(
     event: &Value,
     seq: i64,
     ns: &str,
+    budget: &mut super::store::ReadBudget<'_>,
 ) -> Result<Value, String> {
     exact(
         event,
@@ -352,7 +359,7 @@ pub(super) fn replay(
     {
         return Err("StorageUnavailable：Voice 事件类型/版本/提交身份不符".into());
     }
-    let request = original_request(c, event, config)?;
+    let request = original_request(c, event, config, budget)?;
     let verified = super::evidence::verify_witness(config, &event["evidence_witness"])?;
     let received = required(event, "received_ns")?;
     let first = required(&event["record"], "first_known_ns")?;

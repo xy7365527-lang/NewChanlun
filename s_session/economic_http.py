@@ -56,18 +56,20 @@ def get(handler):
                             "max_reply_bytes": str(query.resources["max_reply_bytes"]),
                             "operation_timeout_ms": str(query.resources["operation_timeout_ms"]),
                             "scope": "TestOnlyRecordedEconomics", "configured": True,
+                            **({"book_revision": query.book_revision} if query.book_revision is not None else {}),
                             **({"finance_revision": query.finance_revision} if query.manifest.get("finance") else {})})
     return True
 
 
 def post(handler):
-    if handler.path not in ("/api/economic/snapshot", "/api/economic/watch", "/api/economic/original"):
+    if handler.path not in ("/api/economic/snapshot", "/api/economic/watch", "/api/economic/original", "/api/economic/read"):
         return False
     query = getattr(handler.server, "economic_query", None)
     if query is None:
         handler._send_json({"ok": False, "error": "EconomicQueryNotConfigured"}, 503)
         return True
     request = None
+    operation_deadline = time.monotonic() + query.resources["operation_timeout_ms"] / 1000
     try:
         lengths = handler.headers.get_all("Content-Length", [])
         if len(lengths) != 1 or handler.headers.get("Transfer-Encoding") is not None:
@@ -75,7 +77,7 @@ def post(handler):
         size = integer(lengths[0], "Content-Length", positive=True)
         if size > min(query.resources["max_frame_bytes"], handler.server.resources["max_frame_bytes"]):
             raise EconomicQueryError("请求超过事前帧上限")
-        deadline = time.monotonic() + handler.server.resources["socket_read_timeout_ms"] / 1000
+        deadline = min(operation_deadline, time.monotonic() + handler.server.resources["socket_read_timeout_ms"] / 1000)
         chunks, left = [], size
         while left:
             remaining = deadline - time.monotonic()
@@ -91,20 +93,43 @@ def post(handler):
         payload = validate_request(candidate, query)
         request = candidate
         op = handler.path.rsplit("/", 1)[1]
-        if payload.get("op") != op:
-            raise EconomicQueryError("路由与 op 不符")
-        result = {"snapshot": query.snapshot, "watch": query.watch, "original": query.original}[op](payload)
+        with query.capture(request, operation_deadline):
+            if op == "read":
+                result = query.read(payload, request, deadline=operation_deadline)
+            else:
+                if payload.get("op") != op:
+                    raise EconomicQueryError("路由与 op 不符")
+                result = {"snapshot": query.snapshot, "watch": query.watch, "original": query.original}[op](payload)
         status = 200
     except (ValueError, KeyError, TypeError, UnicodeError, RecursionError, OSError) as exc:
         result, status = {"ok": False, "error": "EconomicQueryUnavailable", "detail": str(exc)}, 400
     if request is None:
         handler._send_json(result, status)
     else:
-        response = reply_envelope(request, result, session_id=query.session,
-                                  session_generation=query.generation, namespace="economic-observe/replies",
-                                  producer_id="Q:" + query.session, producer_epoch=query.query_epoch)
-        raw = canonical(response)
-        if len(raw) > min(query.resources["max_reply_bytes"], handler.server.resources["max_reply_bytes"]):
+        def encode(value):
+            return canonical(reply_envelope(
+                request, value, session_id=query.session, session_generation=query.generation,
+                namespace="economic-observe/replies", producer_id="Q:" + query.session,
+                producer_epoch=query.query_epoch))
+
+        raw = encode(result)
+        cap = min(1048576, query.resources["max_reply_bytes"], handler.server.resources["max_reply_bytes"])
+        if handler.path == "/api/economic/read":
+            remaining = operation_deadline - time.monotonic()
+            transfer = result.get("descriptor", {}).get("transfer_id", result.get("transfer_id"))
+            with query.lock:
+                state = query.transfers.get(transfer)
+                if state is not None:
+                    remaining = min(remaining, state["deadline"] - time.monotonic())
+                if (remaining <= 0 or len(raw) > cap) and state is not None:
+                    query._drop_transfer_locked(transfer)
+            if remaining <= 0 or len(raw) > cap:
+                result = query._read_error("QueryBudgetExceeded", "HTTP 编码达到原期限或完整帧上限", transfer)
+                raw = encode(result)
+                status = 200
+            else:
+                handler.connection.settimeout(remaining)
+        if len(raw) > cap:
             handler._send_json({"ok": False, "error": "QueryBudgetExceeded"}, 503)
         else:
             handler._send_bytes(raw, status)

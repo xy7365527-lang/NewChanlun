@@ -1,0 +1,165 @@
+{
+  "events": [
+    {
+      "allocation_id": "alloc-LATCH-sell",
+      "chong_id": "chong-G1",
+      "component_witnesses": [
+        {
+          "kind": "settled_quantity_reduction",
+          "source_ref": "LATCH-sell:w0",
+          "value": "-1"
+        },
+        {
+          "fields": [
+            "Pi",
+            "A",
+            "W"
+          ],
+          "kind": "no_other_income_book_changes_in_this_allocation",
+          "source_ref": "LATCH-sell:wN"
+        }
+      ],
+      "deltas": {
+        "A": "0",
+        "Pi": "0",
+        "W": "0",
+        "units": "-1"
+      },
+      "event": "tb03c-c5-LATCH-sell",
+      "family_id": "fam-chong-G1",
+      "known_cost_components": [
+        {
+          "amount_text": "100",
+          "canonical_amount": "100",
+          "currency": "TEST-CASH",
+          "kind": "disposal_cash",
+          "quantum": "1",
+          "source_ref": "LATCH-sell:c0"
+        }
+      ],
+      "source": {
+        "claimed_origin": "TestOnly fixture tb03c C5",
+        "external_fact_id": "LATCH-sell",
+        "received_time": "source-received-14",
+        "source_cursor": "14",
+        "source_epoch": "fixture-epoch-1",
+        "source_event_time": "source-event-14",
+        "source_namespace": "testonly-tb1406-c5"
+      },
+      "stable_point": {
+        "profile": "TestOnly",
+        "seq": "214",
+        "source_ref": "LATCH-sell:sp"
+      }
+    },
+    {
+      "allocation_id": "alloc-LATCH-buy",
+      "chong_id": "chong-G1",
+      "component_witnesses": [
+        {
+          "kind": "settled_quantity_increase",
+          "source_ref": "LATCH-buy:w0",
+          "value": "1"
+        },
+        {
+          "fields": [
+            "Pi",
+            "A",
+            "W"
+          ],
+          "kind": "no_other_income_book_changes_in_this_allocation",
+          "source_ref": "LATCH-buy:wN"
+        }
+      ],
+      "deltas": {
+        "A": "0",
+        "Pi": "0",
+        "W": "0",
+        "units": "1"
+      },
+      "event": "tb03c-c5-LATCH-buy",
+      "family_id": "fam-chong-G1",
+      "known_cost_components": [
+        {
+          "amount_text": "700",
+          "canonical_amount": "700",
+          "currency": "TEST-CASH",
+          "kind": "acquisition_cash",
+          "quantum": "1",
+          "source_ref": "LATCH-buy:c0"
+        }
+      ],
+      "source": {
+        "claimed_origin": "TestOnly fixture tb03c C5",
+        "external_fact_id": "LATCH-buy",
+        "received_time": "source-received-15",
+        "source_cursor": "15",
+        "source_epoch": "fixture-epoch-1",
+        "source_event_time": "source-event-15",
+        "source_namespace": "testonly-tb1406-c5"
+      },
+      "stable_point": {
+        "profile": "TestOnly",
+        "seq": "215",
+        "source_ref": "LATCH-buy:sp"
+      }
+    }
+  ],
+  "evidence_index": {
+    "fragments": {
+      "LATCH-buy:c0": [
+        {
+          "json_pointer": "/events/1/known_cost_components/0"
+        }
+      ],
+      "LATCH-buy:sp": [
+        {
+          "json_pointer": "/events/1/stable_point"
+        }
+      ],
+      "LATCH-buy:w0": [
+        {
+          "json_pointer": "/events/1/component_witnesses/0"
+        }
+      ],
+      "LATCH-buy:wN": [
+        {
+          "json_pointer": "/events/1/component_witnesses/1"
+        }
+      ],
+      "LATCH-sell:c0": [
+        {
+          "json_pointer": "/events/0/known_cost_components/0"
+        }
+      ],
+      "LATCH-sell:sp": [
+        {
+          "json_pointer": "/events/0/stable_point"
+        }
+      ],
+      "LATCH-sell:w0": [
+        {
+          "json_pointer": "/events/0/component_witnesses/0"
+        }
+      ],
+      "LATCH-sell:wN": [
+        {
+          "json_pointer": "/events/0/component_witnesses/1"
+        }
+      ]
+    }
+  },
+  "format": "neutral TestOnly economic raw originals; not production transport wire",
+  "units": {
+    "money": {
+      "currency": "TEST-CASH",
+      "quantum": "1",
+      "unit": "TEST-CASH"
+    },
+    "numeric_encoding": "exact_decimal_integer_text",
+    "quantity": {
+      "quantum": "1",
+      "unit": "TEST-UNIT"
+    }
+  }
+}

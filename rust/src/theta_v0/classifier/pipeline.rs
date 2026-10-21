@@ -390,13 +390,76 @@ pub struct ClassifyOutput {
     pub candidate_streams: cand_event::CandidateStreams,
     /// 各操作级别的口径 S 操作序列（同旧 `classify_with_operations`，按 `level` 升序）。
     pub operations: Vec<operation::OperationSequence>,
+    /// #1603：塔如何停下——自然终止，或达 `l_max` 资源上界截断（覆盖不完整）。
+    pub termination: TowerTermination,
+    /// #1603：本次输出所用的版本化记录（塔预算 + MACD 力度）。
+    pub policy: TowerPolicyStamp,
+}
+
+impl ClassifyOutput {
+    /// 塔是否在 `l_max` 资源上界处被截断（覆盖不完整）。
+    pub fn is_resource_truncated(&self) -> bool {
+        matches!(self.termination, TowerTermination::ResourceBound { .. })
+    }
+}
+
+/// #1603（#1586 C-09）：级别塔的停止原因。
+///
+/// 自然终止 ＝ 某级可用单元数 < `min_parts_per_level`（含空 ParseLayer、某级投影为空），塔已到顶；
+/// 资源截断 ＝ 跑完 `l_max` 级后，下一级仍有 ≥ `min_parts_per_level` 个单元可升级——塔被预算截住，
+/// 更高级别的覆盖不完整。两者不得混为一类（旧口径把后者也记作「自然终止」）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TowerTermination {
+    Natural,
+    ResourceBound {
+        /// 截断时生效的上界。
+        l_max: u32,
+        /// 第 `l_max + 1` 级本可消费的单元数（≥ `min_parts_per_level`）。
+        pending_units: usize,
+        /// 上界所出自的记录版本。
+        budget: crate::theta_v0::policy_records::PolicyRef,
+    },
+}
+
+impl TowerTermination {
+    /// 资源截断的覆盖标记（与 #1344 `second-seq-scan-budget` 同名）。
+    pub const INCOMPLETE_RESOURCE_BOUND: &'static str = "INCOMPLETE_RESOURCE_BOUND";
+    /// 自然终止的标记。
+    pub const NATURAL: &'static str = "NATURAL";
+
+    /// 输出/报告用的标记串。
+    pub fn code(&self) -> &'static str {
+        match self {
+            TowerTermination::Natural => Self::NATURAL,
+            TowerTermination::ResourceBound { .. } => Self::INCOMPLETE_RESOURCE_BOUND,
+        }
+    }
+}
+
+/// #1603：输出所用记录版本戳。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TowerPolicyStamp {
+    /// `tower-level-budget` 记录版本。
+    pub level_budget: crate::theta_v0::policy_records::PolicyRef,
+    /// `macd-force` 记录版本。
+    pub macd: crate::theta_v0::policy_records::PolicyRef,
+}
+
+impl TowerPolicyStamp {
+    pub fn of(config: &ThetaConfig) -> Self {
+        TowerPolicyStamp {
+            level_budget: config.level.budget,
+            macd: config.macd.record,
+        }
+    }
 }
 
 /// Θ_level + Θ_signal 顶层入口（reference-theta-v0.md:27-37）。
 ///
 /// 递归构造 L0..Lmax：L0=parser 线段账本；每级由下级已完成走势单元构造中枢 + 裁决走势，
-/// 走势成为上级输入单元。自然终止：某级单元数 < `min_parts_per_level`（无法产生完整走势），
-/// 或达 `l_max` 上界。
+/// 走势成为上级输入单元。自然终止：某级单元数 < `min_parts_per_level`（无法产生完整走势）。
+/// 达 `l_max` 上界时若下一级仍可升级，记为资源截断（#1603，[`TowerTermination::ResourceBound`]，
+/// 标 `INCOMPLETE_RESOURCE_BOUND`），不作自然终止。
 ///
 /// ★#1054：全量入口 = 唯一增量循环 + 空 [`TowerCache`]（空缓存 == 全量，见 #1053）。返回统一
 /// 输出模块 [`ClassifyOutput`]。`operating_levels` 为 #881 S3 操作级别挂载点（ADR 0011 裁定
@@ -481,13 +544,15 @@ pub fn classify_incremental(
     cache: &mut TowerCache,
     operating_levels: &[u32],
 ) -> ClassifyOutput {
-    let (classification, tower, operations) =
+    let (classification, tower, operations, termination) =
         classify_incremental_inner(l0, config, cache, operating_levels);
     ClassifyOutput {
         classification,
         tower,
         candidate_streams: cache.candidate_book.streams(),
         operations,
+        termination,
+        policy: TowerPolicyStamp::of(config),
     }
 }
 
@@ -500,6 +565,7 @@ fn classify_incremental_inner(
     Classification,
     Vec<Rc<Vec<LeveledMove>>>,
     Vec<operation::OperationSequence>,
+    TowerTermination,
 ) {
     let mounts: std::collections::BTreeSet<u32> = operating_levels.iter().copied().collect();
     let mut operations: Vec<operation::OperationSequence> = Vec::new();
@@ -620,7 +686,12 @@ fn classify_incremental_inner(
         }
         cache.clear();
         cache.candidate_book.advance(&[], as_of);
-        return (Classification::default(), Vec::new(), Vec::new());
+        return (
+            Classification::default(),
+            Vec::new(),
+            Vec::new(),
+            TowerTermination::Natural,
+        );
     }
 
     cache.last_l0_segments_len = l0.segments.len();
@@ -757,9 +828,13 @@ fn classify_incremental_inner(
     // 「ordinal 位置号复用」分开（调研 §5.3 递归链接组）。仅当上一条恰是本级的下一级时使用。
     let mut txn_lower: Option<(usize, u64, rebase_txn::LowerMap)> = None;
 
+    // #1603：循环经 `break` 退出 ＝ 自然终止；跑满 `0..=l_max` 未 break ＝ 到达资源上界（是否截断看
+    // 循环后下一级单元数）。
+    let mut stopped_naturally = false;
     for level_idx in 0..=l_max {
         // 自然终止：单元数 < min_parts ⟹ 停止。
         if units.len() < min_parts {
+            stopped_naturally = true;
             // ★§2.6：level_idx 及所有更高级本 bar 全跳过（循环顶部 break，lc 未触碰）——truncate 掉
             // 这段不可达尾巴的陈旧 LevelCache，令其恢复时走 LevelCache::default() 全扫（血缘自洽，
             // 防 stable=dirty_from.min(scanned) 坍缩假阴）。
@@ -1573,6 +1648,7 @@ fn classify_incremental_inner(
             #[cfg(test)]
             oracle_probe::on_empty_break(level_idx + 1 < cache.levels.len());
             cache.levels.truncate(level_idx + 1);
+            stopped_naturally = true;
             break;
         }
         // ★O(n) 重构：moves_tower = Rc::clone(&lc.upper_moves) —— O(1) 引用计数，消除 per-bar 全塔
@@ -1582,6 +1658,16 @@ fn classify_incremental_inner(
         // bit-exact：Rc 指向同一 Vec，逐字段与旧 clone 等价。
         moves_tower = Rc::clone(&lc.upper_moves);
     }
+    // #1603：跑满 l_max 级且第 l_max+1 级仍有 ≥ min_parts 个单元 ⟹ 资源截断；不足 ⟹ 本就到顶。
+    let termination = if !stopped_naturally && units.len() >= min_parts {
+        TowerTermination::ResourceBound {
+            l_max: config.level.l_max,
+            pending_units: units.len(),
+            budget: config.level.budget,
+        }
+    } else {
+        TowerTermination::Natural
+    };
 
     // ★#543 D1a 产出点⑥b 收尾：整塔全清后本 bar 未被重扫触达的级别（`min_parts`/空 units 提前
     // break，或 l_max 收缩）——其旧输出没有任何新对象与之配对，逐级补一条 removed-only 证书。
@@ -1647,7 +1733,12 @@ fn classify_incremental_inner(
     );
 
     debug_assert_l0_units_in_sync(cache, &tower_snapshots);
-    (Classification { levels }, tower_snapshots, operations)
+    (
+        Classification { levels },
+        tower_snapshots,
+        operations,
+        termination,
+    )
 }
 
 /// ★#613（#609 F2，#712 收 #645 MED-1 随入）：[`TowerCache::level_scan_units`]（level=1，即
