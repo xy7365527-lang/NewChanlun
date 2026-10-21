@@ -604,10 +604,13 @@ export function loadTicket(gh: GhRunner, n: number): TicketContext {
 /** 用户批复与 resolution 只认编排者账号的评论（全仓代理与用户共用此账号，外部账号的评论不算）。 */
 export const ORCHESTRATOR = process.env.DECISION_ORCHESTRATOR ?? "xy7365527-lang";
 
-/** 去掉评论首行的 Markdown 前缀（引用、标题、加粗、列表），只留正文。 */
+/**
+ * 去掉评论首行的 Markdown 前缀（引用、标题、强调、列表），只留正文。
+ * 强调符号 `*` / `_` 取 1–3 个（斜体、加粗、粗斜体）；列表符须后跟空白，与斜体 `*用户…*` 区分。
+ */
 function firstLine(body: string): string {
   const line = body.trimStart().split("\n", 1)[0] ?? "";
-  return line.replace(/^(?:\s*(?:>|#{1,6}|\*\*|__|[-*]\s))+\s*/, "").replace(/^\*\*|\*\*$/g, "").trim();
+  return line.replace(/^(?:\s*(?:>|#{1,6}|[-*]\s|\*{1,3}|_{1,3}))+\s*/, "").replace(/(?:\*{1,3}|_{1,3})$/, "").trim();
 }
 
 /**

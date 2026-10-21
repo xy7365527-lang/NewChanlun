@@ -685,6 +685,31 @@ test("resolvedReason：已关闭、resolution 评论、用户批复都跳过；�
   assert.equal(resolvedReason({ comments: [c("**P 类影子模式，待用户批复**\n\n<details>\n**resolution**：草稿里的一行\n</details>")] }), null);
 });
 
+test("resolvedReason：首行带前导强调符号的批复（#1644 spec 批准评论）算已裁定，强调包着的待批复不算", () => {
+  const c = (body: string) => ({ author: "xy7365527-lang", body });
+  // #1644 真实评论首行，按时间序（2026-10-21，gh issue view 1644 --json comments）。
+  const seq = [
+    "分级：P — 票面自标 spec 级（ARCH.md:28/:168–169）：新增持久台账表……依「拿不准一律判 P」判 P。",
+    "**P 类影子模式，待用户批复**",
+    "**P 类影子模式：#1644 spec 修订草案（负责人稿，待用户 spec 批准闸）**",
+    "**用户批复（#1644 spec 批准）**：用户 2026-10-21 原话「都同意」——四点均按推荐：① 台账单独文件；② 每次重启从原件重核全部历史。",
+    "分级：P — 票面自标 spec 级……且已走「用户批复（#1644 spec 批准）」流程，依 graph-engineering.md「拿不准一律判 P」判 P。",
+    "**草稿名分说明**：本票评论 decision-claimer 自动草稿已被取代：用户批复（评论 6308923666）批准的是负责人稿。",
+  ];
+  const expected = [null, null, null, "票上已有用户批复", "票上已有用户批复", "票上已有用户批复"];
+  seq.forEach((_, k) => assert.equal(resolvedReason({ comments: seq.slice(0, k + 1).map(c) }), expected[k], seq[k]));
+  // 斜体、粗斜体、下划线强调、引用叠加粗都认。
+  for (const b of ["*用户 10-21 批复*：同意", "***用户批复***：同意", "__用户批复__：同意", "_用户批复_：同意", "> **用户批复（spec 批准）**：同意"]) {
+    assert.equal(resolvedReason({ comments: [c(b)] }), "票上已有用户批复", b);
+  }
+  // 强调包着的待 / 未 / 需批复、强调包着的退回仍不算已裁定。
+  for (const b of ["**待用户批复**", "*用户待批复*", "***用户尚未批复***", "__用户需批复后再落地__", "**用户批复：退回重写**"]) {
+    assert.equal(resolvedReason({ comments: [c(b)] }), null, b);
+  }
+  // 列表符后跟空白仍按列表剥离。
+  assert.equal(resolvedReason({ comments: [c("* 用户批复：同意")] }), "票上已有用户批复");
+});
+
 test("pickUnresolved：逐张读票，跳过已裁定票不占并发槽，读票失败本轮跳过", () => {
   const views: Record<number, unknown> = {
     1565: { number: 1565, state: "CLOSED", title: "a", body: "", labels: [], assignees: [], comments: [] },
