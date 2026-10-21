@@ -41,7 +41,7 @@
 //! ## 协议锚点（docs/backtest-protocol-v0.md，冻结）
 //!
 //! - 数据快照只读（§1.2）；OOS=2023-01-01→2025-06-30，Holdout=2025-07-01→末尾（§2.1）。
-//! - 费用基线：commission 1bp/side、slippage 2bp/side、tax 0bp（`ExecConfig::default()`）。
+//! - 费用基线：取自场所 profile 记录（#1602）；1bp/2bp/0bp 只是诊断夹具记录 `venue-profile-diagnostic-fixture` 的值（`ExecConfig::default()`）。
 //! - 随机对照 seed=20260625（§4）；失败判据 §5 看结果前冻结。
 //!
 //! [`Bar`]: super::types::Bar

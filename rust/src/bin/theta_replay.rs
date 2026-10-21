@@ -21,8 +21,14 @@
 //! cargo run --release --features backtest_bin --bin theta_replay -- <SYMBOL> [START END] [--out PATH]
 //!   <SYMBOL>       品种代码（BTC/ES/CL/GC/BRN/DX/QQQ/OKLO/ZN/6E，见 data::SYMBOLS）
 //!   [START END]    可选 ISO 日期窗闭区间（如 2024-01-01 2024-12-31）；省略 = 全量
-//!   [--out PATH]   可选：把 run-1 的确定性 dump（JSONL）写到此路径
+//!   [--out PATH]   可选：把 run-1 的确定性 dump（JSONL）写到此路径；所用记录另写 PATH.records.json
+//!   [--diagnostic-fixture]  用诊断夹具场所 profile 跑（输出标「诊断夹具，不参与准入」）
 //! ```
+//!
+//! ## 记录（#1602）
+//!
+//! 默认按品种取生产场所 profile；profile 缺 tick 或成本项 ⟹ 停在 `AwaitingPolicy{venue_profile|cost_inputs}`、
+//! 不回放，不回退任何旧常数。输出写明所用记录 id 与版本（dump 字节不变，记录写旁注文件）。
 //!
 //! ## 认识论等级（formalization-validity-domain 231号）
 //!
@@ -40,6 +46,7 @@ fn main() -> std::process::ExitCode {
     let mut symbol: Option<&str> = None;
     let mut window: Option<(&str, &str)> = None;
     let mut out_path: Option<&str> = None;
+    let mut diagnostic = false;
 
     let mut rest = args.iter().skip(1).peekable();
     while let Some(a) = rest.next() {
@@ -51,6 +58,7 @@ fn main() -> std::process::ExitCode {
                     return std::process::ExitCode::from(2);
                 }
             },
+            "--diagnostic-fixture" => diagnostic = true,
             _ if symbol.is_none() => symbol = Some(a),
             start => match rest.next() {
                 Some(end) => window = Some((start, end)),
@@ -73,7 +81,18 @@ fn main() -> std::process::ExitCode {
         }
     };
 
-    let config = ThetaConfig::default();
+    // #1602：生产路径按品种取场所 profile；缺值 ⟹ 停在 AwaitingPolicy，不回退旧常数。
+    let config = match if diagnostic {
+        ThetaConfig::diagnostic_fixture()
+    } else {
+        ThetaConfig::for_production_symbol(symbol)
+    } {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("停止（不回放）：{e}");
+            return std::process::ExitCode::FAILURE;
+        }
+    };
 
     // ── 数据加载（data → 决策核边界）。未知品种/读取失败 fail-loud。 ──
     let full = match load_by_symbol(symbol, &config) {
@@ -109,6 +128,10 @@ fn main() -> std::process::ExitCode {
 
     println!("=== θ 回放 driver（#1305 ①件，#1304 第一批）===");
     println!("品种            : {}", symbol);
+    println!("记录            : {}", config.record_labels());
+    if !config.admissible() {
+        println!("准入            : 诊断夹具，不参与准入");
+    }
     match window {
         Some((s, e)) => println!("日期窗          : {s} .. {e}"),
         None => println!("日期窗          : 全量"),
@@ -148,6 +171,16 @@ fn main() -> std::process::ExitCode {
             return std::process::ExitCode::FAILURE;
         }
         println!("dump 已写入     : {path}");
+        let records = serde_json::json!({
+            "records": config.record_refs().iter().map(|r| r.label()).collect::<Vec<_>>(),
+            "admissible": config.admissible(),
+        });
+        let side = format!("{path}.records.json");
+        if let Err(e) = std::fs::write(&side, format!("{records:#}\n")) {
+            eprintln!("写记录旁注 {side} 失败: {e}");
+            return std::process::ExitCode::FAILURE;
+        }
+        println!("记录已写入      : {side}");
     }
 
     if outcome.untradable_ratio > 0.20 {

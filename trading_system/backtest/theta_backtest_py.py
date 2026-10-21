@@ -86,6 +86,11 @@ def main() -> int:
     parser.add_argument("--data", type=Path, default=DEFAULT_DATA)
     parser.add_argument("--bars", type=int, default=300_000, help="最大 bar 数（0=全量）")
     parser.add_argument("--log-level", default="ERROR", help="Nautilus 日志级别")
+    parser.add_argument(
+        "--diagnostic-fixture",
+        action="store_true",
+        help="用诊断夹具场所 profile 跑（#1602：输出不参与准入）；默认取生产 P0 profile",
+    )
     args = parser.parse_args()
 
     if not args.data.exists():
@@ -117,6 +122,8 @@ def main() -> int:
         config=ThetaRecStrategyConfig(
             instrument_id=instrument.id,
             bar_type=bar_type,
+            venue_profile=None if args.diagnostic_fixture else "P0",
+            preset="diagnostic-fixture" if args.diagnostic_fixture else None,
         ),
     )
     engine.add_strategy(strategy)
@@ -140,6 +147,9 @@ def main() -> int:
     d = strategy.engine.finish_full()
     print("\n========== theta_v0 π × NautilusTrader BTC 回测 ==========")
     print(f"bars={len(bars)}  run={run_secs:.1f}s")
+    print(f"记录: {', '.join(strategy.engine.records())}")
+    if not strategy.engine.admissible():
+        print("准入: 诊断夹具，不参与准入")
     print(f"NT 真账本: 起始={INITIAL_CAPITAL:.0f} 期末={final_bal:.2f}  strat={strat_pct:+.2f}%")
     print(f"BH={bh_pct:+.2f}%  (closes[0]={closes[0]:.2f} → closes[-1]={closes[-1]:.2f})")
     print(f"策略: bars={strategy.n_bars} orders={strategy.n_orders} dups={strategy.n_dups}")
