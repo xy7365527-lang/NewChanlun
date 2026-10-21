@@ -156,8 +156,10 @@ def process_identity(pid, command=None, *, deadline=None):
     # #1609：Linux procps-ng 在无终端时把行数取成 1，往 stderr 打
     # 「your NxM screen size is bogus」；进程不存在时这会让 rc=1 带上 stderr，
     # 被下方判成查询失败，退出永远观察不到。显式给 LINES 消掉这条告警，
-    # 判据本身不变：其余任何 stderr 仍按查询失败处理。
+    # 判据本身不变：其余任何 stderr 仍按查询失败处理。导出的 COLUMNS 会让 procps
+    # 截断 command= 列（命令核对随之失败），一并去掉，非终端输出回到不限宽。
     environment = dict(os.environ, LINES="24")
+    environment.pop("COLUMNS", None)
     result = subprocess.run(["ps", "-p", str(pid), "-o", "uid=,stat=,lstart=,command="],
                             capture_output=True, text=True, check=False, timeout=timeout, env=environment)
     if deadline is not None:

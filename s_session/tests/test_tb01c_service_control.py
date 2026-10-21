@@ -599,7 +599,8 @@ class LifecycleTests(unittest.TestCase):
                     real_kill(pid, sent)
                     process.wait(timeout=3)
 
-                with patch.object(control.os, "kill", side_effect=kill_and_reap):
+                with patch.object(control.os, "kill", side_effect=kill_and_reap), patch.dict(control.os.environ):
+                    control.os.environ.pop("LINES", None)
                     result = controller.stop("q", signal.SIGTERM)
                 self.assertEqual(result["state"], "stopped")
                 self.assertEqual(result["exit_observation_warnings"], [])
@@ -610,10 +611,29 @@ class LifecycleTests(unittest.TestCase):
                     process.wait(timeout=3)
                 controller.close()
 
+    def test_absent_process_is_stopped_even_where_ps_warns_about_screen_size(self):
+        # #1609：与平台无关地锁住 procps-ng 4.0.4 的行为——没有 LINES 时它对任何查询都往
+        # stderr 打终端尺寸告警。不传 LINES 的实现在此会把「进程不存在」判成查询失败。
+        finished = control.subprocess.Popen([sys.executable, "-c", "pass"])
+        finished.wait(timeout=5)
+        real_run = control.subprocess.run
+
+        def procps_404(argv, **kwargs):
+            result = real_run(argv, **kwargs)
+            environment = kwargs.get("env") or control.os.environ
+            if argv[0] == "ps" and not environment.get("LINES"):
+                result.stderr = (result.stderr or "") + "your 131072x1 screen size is bogus. expect trouble\n"
+            return result
+
+        with patch.dict(control.os.environ), patch.object(control.subprocess, "run", side_effect=procps_404):
+            control.os.environ.pop("LINES", None)
+            control.os.environ["COLUMNS"] = "20"
+            self.assertIsNone(control.process_identity(finished.pid))
+
     def test_stop_still_times_out_when_the_process_ignores_the_signal(self):
         with tempfile.TemporaryDirectory(prefix="tb01c-ignored-signal-") as directory:
             ready = Path(directory) / "ready"
-            config = {"db": str(Path(directory) / "owned.sqlite"), "startup_timeout_ms": "600"}
+            config = {"db": str(Path(directory) / "owned.sqlite"), "startup_timeout_ms": "1500"}
             controller = control.Controller(config, Path(directory))
             process = None
             try:
