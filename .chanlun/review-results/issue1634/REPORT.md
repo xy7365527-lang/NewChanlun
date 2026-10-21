@@ -2,7 +2,7 @@
 
 ## 结论
 
-成因是**实现违背正本**，不是数据缺陷。main 的包含状态（紧凑 `IncrFactsState::append` 与完整事实 `process_inclusion_with_facts`，`rust/src/theta_v0/parser/inclusion.rs` main `df6e680930` :627–643 一带）在**首对 raw 互含**时置 `initial_direction_unsettled = true`，此后每根都走 `waiting` 分支 `continue`，再也不检查相邻 raw 非包含严格对 ⟹ 整条序列只剩首根一个组（`merged=1 fractals=0 strokes=0`）。
+成因是**实现违背正本**，不是数据缺陷。main 的包含状态（紧凑 `IncrFactsState::append` 与完整事实 `process_inclusion_with_facts`，`rust/src/theta_v0/parser/inclusion.rs` main `df6e680930` :628 与 :1027 各置一次未定标志）在**首对 raw 互含**时置 `initial_direction_unsettled = true`，此后每根都走 `waiting` 分支 `continue`，再也不检查相邻 raw 非包含严格对 ⟹ 整条序列只剩首根一个组（`merged=1 fractals=0 strokes=0`）。
 
 `.chanlun/definitions/baohan.md`「初始方向」（#1342，v1.5 起；现 v1.7）要求：首个相邻 raw 非包含严格对出现的 cut，以其方向自序号 0 左折叠并发布；只有**始终等不到**该对才保持未定。BTC 全史在下标 1→2 就有严格对（Up），之后严格对遍布全序列，按正本绝不可能是单组。#1342 受影响代码清单早已点名此处（「紧凑状态的永久 unsettled（`:843` 遇包含即停）→ 非包含对出现即解锁并自起点重折」），归 #1393 TB-02-U。#1393 的 W 实装（`raw-initialization-w/1`）已在 #1419 整合分支 `codex/1419-1393-cfw-integrate-20261019`（`356df5db72`）完成，**尚未进 main**。
 
