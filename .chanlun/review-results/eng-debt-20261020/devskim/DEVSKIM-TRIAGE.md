@@ -237,4 +237,72 @@ python3 .chanlun/review-results/eng-debt-20261020/devskim/scan_credentials.py .
 
 ## 7. 第三轮：精确条目入基线的生成与断言
 
-（待 PR 上的 DevSkim 扫描结果生成后填写。）
+- 截至 main：`6c6acd5fe0`（PR 分支 rebase 后 head `49d33f0fc7`，即 main 加本 PR 的前两轮改动和第三轮 workflow 回撤）。
+- 扫描来源：PR #1593 上 DevSkim run [39540955835](https://github.com/xy7365527-lang/NewChanlun/actions/runs/39540955835) 的 `devskim-sarif` artifact（不入仓）。workflow 已无目录排除，结论 FAIL，基线外 55,147 个键（结果总数 91,458）。
+- 生成与断言脚本：本目录 `exact_baseline.py`。键格式与门禁一致，只输出计数和分布，不输出匹配文本。
+
+### 7.1 基线外键的分布（run 39540955835，入基线前）
+
+```
+$ python3 exact_baseline.py report devskim-results.sarif .github/devskim-baseline.json
+sarif unique keys: 63335; baseline keys: 8212; outside baseline: 55147
+outside baseline, in the two directories: 55101
+  rule DS117838: 863
+  rule DS137138: 20
+  rule DS148264: 3
+  rule DS149435: 1
+  rule DS162092: 1426
+  rule DS172411: 3
+  rule DS173237: 52692
+  rule DS176209: 7
+  rule DS187371: 1
+  rule DS197836: 85
+  dir fixtures: 411
+  dir review-results: 54690
+outside baseline, the baseline file itself: 0
+outside baseline, elsewhere: 46
+```
+
+### 7.2 两个目录内的 55,101 键：按用户裁定入基线
+
+`exact_baseline.py write` 将这些键排序后追加到 `findings` 末尾，并新开一条 `updates` 记录：issue 1588，PR 1593，`source_head` 49d33f0fc7，`actions_run` 39540955835，`added_findings` 55101，`rule_counts` 同上，reason 写明用户裁定，并指向本文件、`classify-excluded-output.txt`、`credential-scan-output.txt`。原有条目未重排；`git diff --numstat` 只有新增行，外加 1 行（原末元素补逗号）。
+
+这批键覆盖本目录本轮新写入的文件（本台账和 `exact_baseline.py`）。它们是扫描时已存在的文件，因此一并纳入。
+
+### 7.3 目录外的 46 键（rebase 带来，非裁定范围，单独一条 updates 记录）
+
+rebase 后 main 新合入的代码有：#1406 `75022b3b9c`（TB-03-C）、#1493 `24c2fa068f`（TB-02-X）。它们在两个目录外新增了 46 个告警，main 自身的 DevSkim 因此也是红的（如 run 39540603883 @ 6c6acd5fe0）。逐键核实全是误报：
+
+| 文件 | 规则与条数 | 判定 |
+|---|---|---|
+| `.github/scripts/run-1406-c6a.py` | DS173237 ×6，DS440010 ×1 | 40 位常量经 `git cat-file -t` 核实为本仓 commit/tree；64 位是被评审输入的摘要；DS440010 那一行比较的是两个提交号环境变量，与 TLS 版本无关 |
+| `.github/scripts/run-c7a-remote.py` | DS173237 ×4 | 同上（commit/tree 已核实；文件字节被 `goal1323-resume-20261017/c6a-contract-recovery-v2.md` 引用锁定） |
+| `rust/src/economic_session/tb03c_book_tests.rs`、`tb03c_c5_frozen_tests.rs`、`rust/src/theta_v0/parser/tb1493_replay_tests.rs` | DS173237 ×3 | 测试期望摘要 |
+| `rust/src/economic_session/service.rs` | DS197836 ×1 | 取摘要的对象是镜像字节，并列字段不参与摘要 |
+| `s_session/browser/q3-consumer.js`、`tb01c-client.js` | DS172411 ×8，DS173237 ×2 | 与第二轮入基线的 11 条是同一批位置，#1493 改了这两个文件导致行号漂移；仍受打包摘要锁 |
+| `s_session/s_socket_client.py`、`s_session/tests/test_tb03c_query_runtime_contract.py` | DS197836 ×2，DS162092 ×2 | 摘要对象是请求体/空串；测试使用回环端口 |
+| `s_session/tests/tb03c_query_runtime.py`、`tb02x_runtime.py` | DS162092 ×8，DS173237 ×3 | 测试 harness 回环端口；40 位为已核实的 commit/tree；输入摘要锁 |
+| `s_session/tests/test_tb03c_query.py` | DS117838 ×1，DS173237 ×5 | 测试期望摘要 |
+
+处置：按精确键写进单独一条 `updates` 记录（`actions_run` 39540955835，`added_findings` 46，`entries` 逐键写理由），不改这些文件的字节。理由有三：
+1. 它们由他线在当天合入；
+2. 部分文件带评审绑定的 commit/tree 和摘要锁，行内加注会改变被锁字节；
+3. 同期仍有他线在改，改字节容易产生冲突。
+
+第一轮「源码面 81 条」的处置不变。
+
+### 7.4 断言
+
+```
+$ python3 exact_baseline.py check devskim-results.sarif .github/devskim-baseline.json
+sarif unique keys: 63335; baseline keys: 63359; outside baseline: 0
+outside baseline, in the two directories: 0
+outside baseline, the baseline file itself: 0
+outside baseline, elsewhere: 0
+last update added: 55101; keys outside the two directories (excluding the baseline file itself): 0
+CHECK PASS
+```
+
+用同一份 SARIF 和新基线本机重放门禁，结果 `Gate conclusion: PASS`。`Fixed since baseline: 24` 是行号已漂移的旧键（包括第二轮那 11 条中被 #1493 改动挪位的）；只追加不删除，失效键的清理归 #1474。
+
+唯一允许的目录外例外是**基线文件自身**：新键的路径文本可能被规则命中，例如既有的 `.github/devskim-baseline.json|860`。这类条目只有在下一次扫描后才能得知。若出现，用 `exact_baseline.py write … --self-only` 再追加一条记录；最终 PASS 的 run 和 check 输出见 PR #1593 的评论。
