@@ -2,7 +2,7 @@
 
 - 审查对象：PR #1664 新提交 `94c0b35bc5..a952c39e16`（7e00b153cc、3d873f0a5e、a952c39e16）及上一轮 M1/M2 处置。
 - 路由：`~/.local/bin/claude-proxy --model claude-fable-5-1 -p`，工具限 Read/Grep/Glob 与只读 git/sed/grep/rg；前台等待结束。作者为 fix_1585 子代理（非本审查者）。日期：2026-10-21。
-- 审查后处置：L-a 已在 red-green.md 补注 PR 头行号；L-b 维持上一轮判定不改。
+- 审查后处置：L-a 已在 red-green.md 补注 PR 头行号（审查者文中所写 `:620` 经 grep 核为 `:628`，以 `:628` 为准）；L-b 维持上一轮判定不改。
 
 ---
 
