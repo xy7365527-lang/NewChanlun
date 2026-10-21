@@ -78,7 +78,7 @@ impl std::fmt::Debug for RawEvents {
 #[derive(Clone, Copy)]
 enum RawStorage<'a> {
     Plain(&'a [Value]),
-    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用"))]
+    #[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 下使用"))]
     Arena(ArrayView<'a>),
     Borrowed(&'a [JsonView<'a>]),
 }
@@ -214,7 +214,7 @@ pub(crate) fn new_map<K: Eq + std::hash::Hash, V>(b: Option<&OwnedBudget>) -> Bu
 fn workmap<K: Eq + std::hash::Hash, V>(b: Option<&OwnedBudget>) -> BusinessMap<K, V> {
     new_map(b)
 }
-#[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
+#[cfg_attr(not(all(test, feature = "s_allocation_json_testonly")), allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用"))]
 pub(crate) fn bytes_extend(bytes: &mut sc::CodecVec<u8>, value: &[u8]) -> Result<(), String> {
     bytes.try_extend_bytes(value).map_err(|e| e.to_string())
 }
@@ -1131,7 +1131,7 @@ impl<'a, const N: usize> From<&'a [Value; N]> for RawEventsView<'a> {
 /// 新业务返回文本的入口存储选择。Owned实际字节持续持账；Clone只开放fallible深复制。
 pub(crate) enum TextValue {
     Plain(String),
-    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用"))]
+    #[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 下使用"))]
     Owned(aj::TextOwner),
 }
 impl TextValue {
@@ -2178,7 +2178,7 @@ impl<'de> serde::de::Visitor<'de> for StrictKeySeed {
 }
 
 #[cfg(test)]
-#[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
+#[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_allocation_json_testonly 测试使用"))]
 pub(crate) fn strict_owner_protocol_matrix() -> Vec<Vec<u8>> {
     let mut cases: Vec<Vec<u8>> = [
         r#"{"x":1,"x":2}"#,

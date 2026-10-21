@@ -1084,7 +1084,7 @@ pub(super) fn traced<T>(count_nodes: bool, action: impl FnOnce() -> T) -> (T, Ve
 }
 
 /// 与共享控制层相同的 SQL 文本所有者；返回值在本次完整审计活期内持账。
-#[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
+#[cfg_attr(not(all(test, feature = "s_allocation_json_testonly")), allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用"))]
 fn audit_profile_id(
     tx: &Transaction<'_>,
     allocation: Option<&sc::capture_allocation::OwnedBudget>,
@@ -1108,7 +1108,7 @@ fn audit_profile_id_admitted(
 }
 
 /// 静态列/冻结原件由共享控制审计核验；本层补核从未运行的动态列。
-#[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
+#[cfg_attr(not(all(test, feature = "s_allocation_json_testonly")), allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用"))]
 fn verify_unrun_catalog(
     tx: &Transaction<'_>,
     initial: bool,

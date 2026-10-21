@@ -2048,9 +2048,9 @@ impl OverlayOwner {
 pub(super) struct OverlayPrototype {
     pub slots: usize,
     pub bytes: usize,
-    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"))]
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：非测试构建不读此字段，测试经 OverlayPrototype 读取"))]
     pub budget: sc::capture_allocation::OwnedBudget,
-    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"))]
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：非测试构建不读此字段，测试经 OverlayPrototype 读取"))]
     pub peaks: std::rc::Rc<std::cell::Cell<(usize, usize)>>,
 }
 #[cfg(any(test, feature = "s_allocation_json_testonly"))]

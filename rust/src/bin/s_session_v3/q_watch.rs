@@ -56,7 +56,7 @@ impl Request {
     pub(super) fn parse(bytes: &[u8], resources: &QResources) -> Result<Self, String> {
         Self::parse_with_allocation(bytes, resources, None)
     }
-    #[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
+    #[cfg_attr(not(all(test, feature = "s_allocation_json_testonly")), allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用"))]
     pub(super) fn parse_owned(
         bytes: &[u8],
         resources: &QResources,

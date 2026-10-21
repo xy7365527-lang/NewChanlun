@@ -320,6 +320,10 @@ pub(super) mod probe {
 
     #[derive(Clone, Copy)]
     pub(in super::super) enum Fault {
+        #[cfg_attr(
+            not(feature = "s_allocation_json_testonly"),
+            allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 的 driver.rs 测试构造")
+        )]
         Budget,
         SqlPrepare,
         SqlStep,
