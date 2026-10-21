@@ -708,6 +708,12 @@ test("resolvedReason：首行带前导强调符号的批复（#1644 spec 批准�
   }
   // 列表符后跟空白仍按列表剥离。
   assert.equal(resolvedReason({ comments: [c("* 用户批复：同意")] }), "票上已有用户批复");
+  // 批复冒号后用斜体 / 粗斜体 / 下划线包着的退回是退回，不是批准；首行斜体的退回同样重开。
+  for (const b of ["用户批复：*退回重写*", "用户批复：***退回***", "用户批复：_退回_", "用户批复：__不同意__", "*退回重写*（用户批复：同意）"]) {
+    assert.equal(resolvedReason({ comments: [c("用户 10-20 批复：同意"), c(b)] }), null, b);
+  }
+  // 加粗的 resolution 标题行也算 resolution。
+  assert.equal(resolvedReason({ comments: [c("**resolution**：T 类")] }), "票上已有 resolution");
 });
 
 test("pickUnresolved：逐张读票，跳过已裁定票不占并发槽，读票失败本轮跳过", () => {

@@ -618,7 +618,7 @@ function firstLine(body: string): string {
  * 或批复冒号后的内容以这些词开头（「用户 … 批复：退回重写」）。首行中间提到「重写」不算（「批复：同意——按草稿重写 §3」）。
  */
 const REOPEN_HEAD = "(?:退回|驳回|打回|否决|不批准|不同意)";
-const REOPEN_RE = new RegExp(`^${REOPEN_HEAD}|批复\\s*[：:]\\s*(?:\\*\\*|[「“"])*\\s*${REOPEN_HEAD}`);
+const REOPEN_RE = new RegExp(`^${REOPEN_HEAD}|批复\\s*[：:]\\s*(?:\\*{1,3}|_{1,3}|[「“"])*\\s*${REOPEN_HEAD}`);
 
 /**
  * 首行「用户 … 批复」且不是「未 / 待」批复（#1565 先例「用户 2026-10-20 批复：「同意」…」）。
@@ -643,7 +643,7 @@ export function resolvedReason(t: Pick<TicketContext, "state" | "comments">, orc
     if (c.author !== orchestrator) continue;
     const line = firstLine(c.body);
     if (line.startsWith("P 类影子模式")) continue;
-    if (c.body.trimStart().startsWith(AUTH_LINE) || /^resolution\s*[：:]/i.test(line)) reason = "票上已有 resolution";
+    if (c.body.trimStart().startsWith(AUTH_LINE) || /^resolution(?:\*{1,3}|_{1,3})?\s*[：:]/i.test(line)) reason = "票上已有 resolution";
     else if (REOPEN_RE.test(line)) reason = null;
     else if (isUserResolution(line)) reason = "票上已有用户批复";
     // 其余评论（簿记、进度）不改变结论。
