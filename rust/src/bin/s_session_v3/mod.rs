@@ -360,10 +360,12 @@ fn load_catalog_strict(path: &Path) -> Result<(Value, String, usize), String> {
     Ok((definition, revision, item_count))
 }
 
-/// 拒绝覆盖已有路径（独评 F2）：不提供重置建议，也不自动清理；换新路径是唯一去处。
+/// 拒绝覆盖已有路径（独评 F2）：不提供重置，也不清理既有文件。#1568 原子发布后，中断的 init 不会在
+/// 目标路径留下任何东西（原路径可直接重试），所以走到这里时目标必是已发布的完整库或他人文件（#1666 L5）。
 fn existing_db_error(db: &Path) -> String {
     format!(
-        "库已存在（{}）：{PROTOCOL_REVISION} init 拒绝覆盖（无热迁移，也不提供重置；请换新路径）",
+        "库已存在（{}）：{PROTOCOL_REVISION} init 拒绝覆盖，既有文件原样保留（无热迁移，也不提供重置）；\
+         中断的 init 不会留下目标文件，此处的文件是已发布的库或他人文件，新建库请另选路径",
         db.display()
     )
 }
@@ -423,7 +425,7 @@ pub(super) fn init_v3(
     atomic_init::refuse_foreign_sides(db)?;
     atomic_init::sweep_stale(db)?;
     let staging = atomic_init::Staging::new(db)?;
-    let out = build_domain(
+    let mut out = build_domain(
         staging.path(),
         session,
         &clock,
@@ -437,7 +439,11 @@ pub(super) fn init_v3(
         session_generation,
         delivery_retain,
     )?;
-    staging.publish()?;
+    // #1666 L2：目标名出现后的收尾失败不改判 init 成败，作为告警附在回执上；无告警不加字段。
+    let warnings = staging.publish()?;
+    if !warnings.is_empty() {
+        out["publish_warnings"] = json!(warnings);
+    }
     Ok(out)
 }
 
