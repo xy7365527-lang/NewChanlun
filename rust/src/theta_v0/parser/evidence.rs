@@ -165,6 +165,36 @@ fn join(left: Rc<CoordNode>, right: Rc<CoordNode>) -> Rc<CoordNode> {
     branch(left, right)
 }
 
+fn node_max(node: &Rc<CoordNode>) -> usize {
+    let mut node = node;
+    loop {
+        match node.as_ref() {
+            CoordNode::Leaf(coord) => return *coord,
+            CoordNode::Concat(_, right, _) => node = right,
+        }
+    }
+}
+
+/// 插入后的新子树；`None` = 已含该坐标（不新建节点）。
+fn insert_node(node: &Rc<CoordNode>, coord: usize) -> Option<Rc<CoordNode>> {
+    match node.as_ref() {
+        CoordNode::Leaf(existing) => match coord.cmp(existing) {
+            std::cmp::Ordering::Equal => None,
+            std::cmp::Ordering::Less => Some(branch(Rc::new(CoordNode::Leaf(coord)), node.clone())),
+            std::cmp::Ordering::Greater => {
+                Some(branch(node.clone(), Rc::new(CoordNode::Leaf(coord))))
+            }
+        },
+        CoordNode::Concat(left, right, _) => {
+            if coord <= node_max(left) {
+                insert_node(left, coord).map(|l| join(l, right.clone()))
+            } else {
+                insert_node(right, coord).map(|r| join(left.clone(), r))
+            }
+        }
+    }
+}
+
 /// 坐标集合句柄（`None` = 空集），O(1) clone。
 #[derive(Debug, Clone, Default)]
 pub struct CoordsRef(Option<Rc<CoordNode>>);
@@ -209,6 +239,18 @@ impl CoordsRef {
     /// 拼接（拼接新建节点，旧树保持原内容）。
     pub fn root_node(&self) -> Option<&Rc<CoordNode>> {
         self.0.as_ref()
+    }
+
+    /// #1597：持久插入一个坐标（已在集合内则返回原句柄）。旧版本不变；沿 O(log n) 路径新建
+    /// 节点并保持 AVL 平衡（递归深度 = 树高 O(log n)）。
+    pub fn insert(&self, coord: usize) -> Self {
+        match &self.0 {
+            None => CoordsRef::single(coord),
+            Some(root) => match insert_node(root, coord) {
+                Some(next) => CoordsRef(Some(next)),
+                None => self.clone(),
+            },
+        }
     }
 
     /// 展开为升序去重 `Vec<usize>`——显式栈迭代中序，无递归。
@@ -262,6 +304,253 @@ impl CoordsRef {
     }
 }
 
+/// #1597：完整事实里来源坐标集合的**公开**表示（取代展开的 `Vec<usize>`）。
+///
+/// 两种内部形态，对外只暴露同一个逻辑序列：
+///
+/// - 共享：[`CoordsRef`] 平衡拼接树（升序去重）。完整事实入口在 source 坐标严格递增时
+///   用它——第 i 步的证据坐标与前一步共享前缀，单步只新建 O(log n) 个节点，整份事实的
+///   留存从 Θ(n²) 降到 O(n log n)。
+/// - 扁平：`Rc<[usize]>`，原样保存元素顺序（含非升序）。非单调输入的回落路径、
+///   手写夹具与 `From<Vec<usize>>` 用它。
+///
+/// **对外合同**（与旧 `Vec<usize>` 字段逐位相同的部分）：`Debug`（含 `{:#?}`）、
+/// `serde::Serialize`（带长度的序列）、`PartialEq`/`Eq`（按元素序列比较，与内部形态无关）。
+/// 克隆 O(1)（共享句柄）。不实现 `Deref<Target=[usize]>`：展开须显式调用
+/// [`SourceCoords::to_vec`] 或按 [`SourceCoords::iter`] 遍历，避免隐式缓存把 Θ(n²) 带回来。
+#[derive(Clone)]
+pub struct SourceCoords(SourceRepr);
+
+#[derive(Clone)]
+enum SourceRepr {
+    Shared(CoordsRef),
+    Flat(Rc<[usize]>),
+}
+
+impl Default for SourceCoords {
+    fn default() -> Self {
+        SourceCoords(SourceRepr::Shared(CoordsRef::empty()))
+    }
+}
+
+impl SourceCoords {
+    /// 空集合。
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// 包装共享坐标树（升序去重由 [`CoordsRef`] 的构造口保证）。
+    pub fn from_shared(coords: CoordsRef) -> Self {
+        SourceCoords(SourceRepr::Shared(coords))
+    }
+
+    /// 共享坐标树句柄；扁平形态返回 `None`。
+    pub fn as_shared(&self) -> Option<&CoordsRef> {
+        match &self.0 {
+            SourceRepr::Shared(coords) => Some(coords),
+            SourceRepr::Flat(_) => None,
+        }
+    }
+
+    /// 按存储顺序遍历元素（共享形态为升序）。显式栈，无递归，不分配展开副本。
+    pub fn iter(&self) -> SourceCoordsIter<'_> {
+        match &self.0 {
+            SourceRepr::Flat(items) => SourceCoordsIter::Flat(items.iter()),
+            SourceRepr::Shared(coords) => SourceCoordsIter::Tree(match coords.root_node() {
+                Some(root) => vec![root.as_ref()],
+                None => Vec::new(),
+            }),
+        }
+    }
+
+    /// 元素个数。共享形态需遍历叶，O(len)。
+    pub fn len(&self) -> usize {
+        match &self.0 {
+            SourceRepr::Flat(items) => items.len(),
+            SourceRepr::Shared(coords) => coords.count(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        match &self.0 {
+            SourceRepr::Flat(items) => items.is_empty(),
+            SourceRepr::Shared(coords) => coords.is_empty(),
+        }
+    }
+
+    /// 展开为 `Vec<usize>`（与旧字段同值）。
+    pub fn to_vec(&self) -> Vec<usize> {
+        match &self.0 {
+            SourceRepr::Flat(items) => items.to_vec(),
+            SourceRepr::Shared(coords) => coords.materialize(),
+        }
+    }
+
+    /// 是否含 `coord`（线性扫描）。
+    pub fn contains(&self, coord: &usize) -> bool {
+        self.iter().any(|c| c == coord)
+    }
+
+    /// 首元素。
+    pub fn first(&self) -> Option<usize> {
+        self.iter().next().copied()
+    }
+
+    /// 末元素（共享形态沿最右路径下行，O(log n)）。
+    pub fn last(&self) -> Option<usize> {
+        match &self.0 {
+            SourceRepr::Flat(items) => items.last().copied(),
+            SourceRepr::Shared(coords) => coords.max(),
+        }
+    }
+
+    /// 置空（只改本句柄，不影响共享同一棵树的其他句柄）。
+    pub fn clear(&mut self) {
+        *self = Self::default();
+    }
+}
+
+impl From<Vec<usize>> for SourceCoords {
+    fn from(items: Vec<usize>) -> Self {
+        SourceCoords(SourceRepr::Flat(Rc::from(items)))
+    }
+}
+
+impl From<&[usize]> for SourceCoords {
+    fn from(items: &[usize]) -> Self {
+        SourceCoords(SourceRepr::Flat(Rc::from(items)))
+    }
+}
+
+impl FromIterator<usize> for SourceCoords {
+    fn from_iter<I: IntoIterator<Item = usize>>(iter: I) -> Self {
+        SourceCoords::from(iter.into_iter().collect::<Vec<_>>())
+    }
+}
+
+/// [`SourceCoords::iter`] 的迭代器。
+pub enum SourceCoordsIter<'a> {
+    Flat(std::slice::Iter<'a, usize>),
+    Tree(Vec<&'a CoordNode>),
+}
+
+impl<'a> Iterator for SourceCoordsIter<'a> {
+    type Item = &'a usize;
+    fn next(&mut self) -> Option<&'a usize> {
+        match self {
+            SourceCoordsIter::Flat(items) => items.next(),
+            SourceCoordsIter::Tree(stack) => {
+                while let Some(node) = stack.pop() {
+                    match node {
+                        CoordNode::Leaf(coord) => return Some(coord),
+                        // 先压右后压左：左子树整体先于右子树产出（LIFO）。
+                        CoordNode::Concat(left, right, _) => {
+                            stack.push(right.as_ref());
+                            stack.push(left.as_ref());
+                        }
+                    }
+                }
+                None
+            }
+        }
+    }
+}
+
+impl<'a> IntoIterator for &'a SourceCoords {
+    type Item = &'a usize;
+    type IntoIter = SourceCoordsIter<'a>;
+    fn into_iter(self) -> SourceCoordsIter<'a> {
+        self.iter()
+    }
+}
+
+impl std::fmt::Debug for SourceCoords {
+    /// 与 `Vec<usize>` 的 `Debug` 逐字相同（`debug_list`，含 `{:#?}` 换行缩进）。
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list().entries(self.iter()).finish()
+    }
+}
+
+impl serde::Serialize for SourceCoords {
+    /// 与 `Vec<usize>` 的序列化同形：带长度的序列。
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeSeq;
+        let mut seq = serializer.serialize_seq(Some(self.len()))?;
+        for coord in self.iter() {
+            seq.serialize_element(coord)?;
+        }
+        seq.end()
+    }
+}
+
+impl PartialEq for SourceCoords {
+    fn eq(&self, other: &Self) -> bool {
+        if let (SourceRepr::Shared(a), SourceRepr::Shared(b)) = (&self.0, &other.0) {
+            if let (Some(x), Some(y)) = (a.root_node(), b.root_node()) {
+                if Rc::ptr_eq(x, y) {
+                    return true;
+                }
+            }
+        }
+        self.iter().eq(other.iter())
+    }
+}
+impl Eq for SourceCoords {}
+
+impl PartialEq<[usize]> for SourceCoords {
+    fn eq(&self, other: &[usize]) -> bool {
+        self.iter().eq(other.iter())
+    }
+}
+impl PartialEq<Vec<usize>> for SourceCoords {
+    fn eq(&self, other: &Vec<usize>) -> bool {
+        self.iter().eq(other.iter())
+    }
+}
+impl<const N: usize> PartialEq<[usize; N]> for SourceCoords {
+    fn eq(&self, other: &[usize; N]) -> bool {
+        self.iter().eq(other.iter())
+    }
+}
+impl PartialEq<SourceCoords> for Vec<usize> {
+    fn eq(&self, other: &SourceCoords) -> bool {
+        other == self
+    }
+}
+
+/// #1597：`base ∪ others` 的共享并集（升序去重，与「拼接后排序去重」逐位相同）。
+///
+/// 不对 `others` 作任何形状假设：先与 `base` 做一次有序归并找出 `base` 里没有的元素，
+/// 再逐个持久插入。`others` 须升序（调用方传入的组成员与端点来源均升序）；非升序时退化为
+/// 逐元素插入，结果仍精确。耗时 O(|base| + |others| + k log² n)，留存只新增 k 条路径。
+pub(crate) fn union_into<'a>(
+    base: &CoordsRef,
+    others: impl IntoIterator<Item = &'a usize>,
+) -> CoordsRef {
+    let base_view = SourceCoords::from_shared(base.clone());
+    let mut walk = base_view.iter().copied().peekable();
+    let mut last: Option<usize> = None;
+    let mut missing: Vec<usize> = Vec::new();
+    for &x in others {
+        if last.is_some_and(|l| x < l) {
+            // 下一段（或非升序）：归并游标从头再走，结果仍精确。
+            walk = base_view.iter().copied().peekable();
+        }
+        last = Some(x);
+        while walk.peek().is_some_and(|b| *b < x) {
+            walk.next();
+        }
+        if walk.peek() != Some(&x) {
+            missing.push(x);
+        }
+    }
+    let mut out = base.clone();
+    for x in missing {
+        out = out.insert(x);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -294,6 +583,58 @@ mod tests {
             }
         }
         assert!(depth <= 25, "4096 次持续追加仍形成深链：depth={depth}");
+    }
+
+    /// #1597：持久插入与有序归并并集——对照 BTreeSet，含非升序输入、重复元素与旧版本不变。
+    #[test]
+    fn coords_ref_insert_and_union_into_match_set_semantics() {
+        use std::collections::BTreeSet;
+        let mut lcg: u64 = 0x5851_F42D_4C95_7F2D;
+        let mut rand = move || {
+            lcg = lcg
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            (lcg >> 33) as usize
+        };
+        let mut tree = CoordsRef::empty();
+        let mut set = BTreeSet::new();
+        let mut versions = Vec::new();
+        for _ in 0..3000 {
+            let x = rand() % 5000;
+            tree = tree.insert(x);
+            set.insert(x);
+            if set.len() % 500 == 0 {
+                versions.push((tree.clone(), set.iter().copied().collect::<Vec<_>>()));
+            }
+        }
+        assert_eq!(tree.materialize(), set.iter().copied().collect::<Vec<_>>());
+        for (old, want) in &versions {
+            assert_eq!(&old.materialize(), want, "持久插入改写了旧版本");
+        }
+        let mut depth = 0;
+        let mut pending = vec![(tree.0.as_ref().unwrap(), 1)];
+        while let Some((node, level)) = pending.pop() {
+            depth = depth.max(level);
+            if let CoordNode::Concat(left, right, ..) = node.as_ref() {
+                pending.push((left, level + 1));
+                pending.push((right, level + 1));
+            }
+        }
+        assert!(depth <= 30, "随机插入后失衡：depth={depth}");
+
+        let base: CoordsRef = (0..200usize)
+            .filter(|i| i % 3 != 0)
+            .fold(CoordsRef::empty(), |t, i| t.append_greater(i));
+        let others = vec![0usize, 3, 4, 299, 150, 151, 6, 6, 1000, 2];
+        let got = union_into(&base, others.iter());
+        let mut want: BTreeSet<usize> = base.materialize().into_iter().collect();
+        want.extend(others.iter().copied());
+        assert_eq!(got.materialize(), want.into_iter().collect::<Vec<_>>());
+        assert_eq!(
+            base.materialize().len(),
+            (0..200).filter(|i| i % 3 != 0).count(),
+            "并集改写了基底"
+        );
     }
 
     #[test]
