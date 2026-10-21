@@ -497,7 +497,9 @@ fn short_eligibility_implies_capital_recovered_and_never_earning_shares() {
             .unwrap()
     };
     let (mut eligible, mut lost_after_latch) = (0, 0);
+    let (mut eligible_seeds, mut lost_seeds) = (0, 0);
     for seed in 1..=12u64 {
+        let (e0, l0) = (eligible, lost_after_latch);
         let books = random_short_books(seed);
         assert_eq!(books.len(), 61, "seed={seed}");
         let (mut prev_rank, mut prev_events) = (0, 0);
@@ -527,9 +529,17 @@ fn short_eligibility_implies_capital_recovered_and_never_earning_shares() {
             }
             (prev_rank, prev_events) = (r, events);
         }
+        eligible_seeds += usize::from(eligible > e0);
+        lost_seeds += usize::from(lost_after_latch > l0);
     }
-    assert!(eligible > 0, "空头随机序列未触发 Eligible，锁为真空");
-    assert!(lost_after_latch > 0, "未出现资格失效而 latch 保留的书账");
+    assert!(
+        eligible > 0,
+        "空头随机序列未触发 Eligible，锁为真空（命中种子 {eligible_seeds}/12）"
+    );
+    assert!(
+        lost_after_latch > 0,
+        "未出现资格失效而 latch 保留的书账（命中种子 {lost_seeds}/12）"
+    );
 }
 
 /// 确定性伪随机空头序列：保证金批 M0 开局后 60 步加空、回补（带具名已实现盈亏，可正可负）、
@@ -566,6 +576,7 @@ fn random_short_books(seed: u64) -> Vec<Value> {
                 let n = 1 + next(q.min(5) as u64) as i64;
                 let fee = 1 + next(10) as i64;
                 let mut gross = next(500) as i64 - 120;
+                // Pi = gross − fee 为 0 时 book.rs 要求「无其他利润变化」见证，与具名实现见证互斥；避开该点。
                 if gross == fee {
                     gross += 1;
                 }
