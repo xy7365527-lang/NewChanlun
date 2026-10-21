@@ -87,3 +87,11 @@ PR #1665 的 62 行改动全部落在注释、doc 注释和断言消息字符串
 ## 尾部纯格式提交登记（harvest owner）
 
 独审第 2 轮覆盖到 `c86480f31f`。之后 CI `rust-check` 的 `cargo fmt --all -- --check` 在 `rust/src/recursive_t/stream.rs:545` 报格式漂移（来自实装提交改长的断言消息），追加提交逐字照 rustfmt 给出的 Diff 把该 `assert_eq!` 改为多行，实参与消息字面量不变。按 `docs/agents/delivery-discipline.md` 第 7 子句在此登记。
+
+### 尾部快速轴复核（claude-fable-5-1，`b5403f01d3..2c60a45fb5`）
+
+结论：PASS
+
+我看了 `git diff b5403f01d3 2c60a45fb5` 全文，共两个文件、11 行新增、1 行删除。代码侧唯一改动是 `rust/src/recursive_t/stream.rs:548` 的 `assert_eq!` 从单行拆成多行，三个实参（`a0.len()`、`n_confirmed`、消息字面量 `"Stroke 对照臂单元数 = confirmed 笔数"`）逐字不变，是标准 rustfmt 的换行形态，没有任何语义变化。文档侧在 `review-claude-fable-5-1.md` 末尾追加的"尾部纯格式提交登记"段落所述（行号 545、起因为 CI `cargo fmt --check`、实参与消息不变）与实际 diff 一致。
+
+补充说明：我尝试本地跑 `rustfmt --check` 做二次确认，该命令需要审批、未获执行，故"逐字照 rustfmt 输出"这一点是依据 diff 形态判断而非工具实跑，不影响结论。
