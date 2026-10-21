@@ -114,6 +114,13 @@ Rust 验证全部经远端 `nc-remote`（本地未跑 cargo/rustc/rustup/rustfmt
    - LOW-2：`#[cfg(test)]` 的 `TEST_ROUND_BUDGET` 只改值不改版本标签，与 `research_override_*` 约定不一致；仅测试路径。
    - LOW-4：提交 `c33f823696` 主题以 `fix(segment):` 开头（后不跟 `#`，不触发自动关票）；已推送不改写历史。
    - LOW-3 已修：`scripts/segment_engine_diagnosis.py` 改读记录尾窗。
+8. 第三轮独审（`issue1604-20261021/review-r3-claude-fable-5-1.md`，PASS，裁定 N-2 四条均满足）新登记：
+   - MEDIUM-1（测试覆盖，非阻断）：合同单测只覆盖 `/5` 的 CC-056 `scan_budget.policy`；SECOND `scan.budget.policy`、K1 `budget_policy` 与 `/5` 段引用闭合没有 `as_v5` 样本。Python 侧由 S 二进制 `tb02w_killed_case_two_scan_budget_resume_and_recover` 的 `contract_check` 对真实 `/5` 快照（含 SECOND 与续扫游标，`TEST_ROUND_BUDGET=1`）覆盖；**浏览器捆绑侧无同类样本**，后续宜补一组 `/5` SECOND/游标样本与 `test_tb02x_contract.cjs` 的 `/5` 链接闭合用例。
+   - LOW-1（既有，非本轮引入）：`rust/src/bin/s_session_v2/tb02b.rs` `contract_for_rule` 自 #1493 起缺 #1420 规则 `…+segment-second/2` 一臂。
+   - LOW-2：Python/JS 三张规则表（`RULE_CONTRACTS`、`_published_axes`、JS `RULE_AXES`）无键集一致性锁，V5 轴表条目无测试断言。
+   - LOW-3：`s_tb02_contract.py` v4 分支期望元组首元素取 `p["schema_revision"]`，JS 写字面量；行为等价、形式不对称。
+   - LOW-4：`xianduan.md:348` 登记句列 CC-012／013／056，实际同一 `SCHEMA` 也写 CC-011 与 CC-055（与 #1493 原句口径一致）。
+   - CI 记录：`b07de8c83b` 首跑 DevSkim 报 `.github/scripts/run-1406-c6a.py:788` 一条 DS162092（本分支未改该文件，main 同提交为绿），原样重跑通过，按扫描器偶发处理。
 
 ## 8. 后续
 
