@@ -485,6 +485,9 @@ mod tb02c_tests;
 mod tb02u_tests;
 
 #[cfg(test)]
+mod issue1634_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
