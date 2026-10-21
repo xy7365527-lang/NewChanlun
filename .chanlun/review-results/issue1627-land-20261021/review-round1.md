@@ -16,7 +16,7 @@
 | 7 `^### 14.3` | 只命中 `1567:` 一行 ✅ |
 | 8 四个文件的「最后裁定」都含 1627 | 输出为空 ✅ |
 
-`git diff HEAD~1 HEAD` 与 `/tmp/rv1627/pr.diff` 逐字一致。
+`git diff HEAD~1 HEAD` 与 `PR diff（git diff origin/main...HEAD）` 逐字一致。
 
 ### R2 值域单点 ⚠️ 有一处阻断
 - **阻断：** `qujiantao.md:1544` 在 §14.1 `selector_keys` 表里，原默认值行 `[end_time 降序, start_time 降序, idx 升序]……` 被整行替换成「**`segment`**（见 `zhongshu.md` §2.1.1）。代价：无，即现行生产塔 L0……」。

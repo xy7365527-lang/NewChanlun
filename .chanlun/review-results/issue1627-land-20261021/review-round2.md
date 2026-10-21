@@ -4,7 +4,7 @@
 
 ## 第二轮复审：PR #1655（decision/1627，HEAD `5050a5d4e4`），结论 PASS
 
-先核了基线：`/tmp/rv1627/pr.diff` 与 `git diff origin/main...HEAD` 逐字节一致，PR 的 headRefOid 等于本地 HEAD（OPEN）。
+先核了基线：`PR diff（git diff origin/main...HEAD）` 与 `git diff origin/main...HEAD` 逐字节一致，PR 的 headRefOid 等于本地 HEAD（OPEN）。
 
 ### (a) 上轮两条 BLOCK：均已修好
 - **§14.1、§14.2 未改**：把 main 和 HEAD 上「`### 14.1` 到 `### 14.3`」这一段抽出来 diff，结果完全相同。qujiantao 的 diff 里也没有落在 1537–1566 行的 hunk。
