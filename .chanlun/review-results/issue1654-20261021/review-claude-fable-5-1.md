@@ -81,3 +81,9 @@ PR #1665 的 62 行改动全部落在注释、doc 注释和断言消息字符串
 ## 看过的内容
 
 `git diff 0183e92004 c86480f31f` 全文；`rec_stream.rs:1503-1580`；`.chanlun/roadmap.yaml:960-982`；`docs/unified-architecture-canon.md:79-83`；三个 Python 调用者上下文；`lib.rs:2829-2836`；24 个 `t_fugue_*.json` 的字段检索；`rec_t_strategy.py` 删除历史。未跑 cargo，未调 gh（按约束）。
+
+---
+
+## 尾部纯格式提交登记（harvest owner）
+
+独审第 2 轮覆盖到 `c86480f31f`。之后 CI `rust-check` 的 `cargo fmt --all -- --check` 在 `rust/src/recursive_t/stream.rs:545` 报格式漂移（来自实装提交改长的断言消息），追加提交逐字照 rustfmt 给出的 Diff 把该 `assert_eq!` 改为多行，实参与消息字面量不变。按 `docs/agents/delivery-discipline.md` 第 7 子句在此登记。
