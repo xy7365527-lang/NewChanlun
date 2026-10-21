@@ -23,6 +23,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -34,6 +35,10 @@ sys.path.insert(0, str(REPO_ROOT / "analysis"))
 import time  # noqa: E402
 
 import newchan_rust as nr  # noqa: E402
+
+# #1601：期初资金/操作级别读 ADR 0040 签署记录的 profile（如 P0）；未设 ⟹ 引擎报
+# AwaitingPolicy{funding_record}，不回退任何默认资金。
+FUNDING_PROFILE = os.environ.get("NC_FUNDING_PROFILE")
 from nautilus_trader.model.data import BarType  # noqa: E402
 
 from nested_recursive_fugue_final_backtest import FLOOR  # noqa: E402
@@ -56,8 +61,8 @@ def compare(sym: str, max_bars: int | None) -> int:
 
     dir_flips: list = []
     reader = StreamingSignalReader(dir_flips=dir_flips, require_settled=True)
-    unn = nr.UnnStream(floor_ladder=FLOOR)
-    spiral = nr.SpiralStream(floor_ladder=FLOOR)
+    unn = nr.UnnStream(floor_ladder=FLOOR, funding_profile=FUNDING_PROFILE)
+    spiral = nr.SpiralStream(floor_ladder=FLOOR, funding_profile=FUNDING_PROFILE)
 
     first_div = None       # 第一处逐 bar 吐单分歧 (bar, unn_trades, spiral_trades)
     n_bar_div = 0          # 逐 bar 吐单分歧次数

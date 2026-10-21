@@ -45,7 +45,7 @@
 //! - sink sizing 1/3（MOBILE_FRAC）/ recover 全量了结（方案②）/ core 升降编排 / BSP fire 时机：**L2**；
 //!   回测 alpha：**L3**（可否证）。
 
-use crate::trading::types::{Polarity, INITIAL_CAPITAL, LADDER_MOVE, MAX_LADDER};
+use crate::trading::types::{Polarity, LADDER_MOVE, MAX_LADDER};
 
 use crate::fugue_v3::accounting::{
     active_voice_count, add_at, exposure, flip, mobile_quota, nav, reduce_at,
@@ -219,7 +219,7 @@ pub struct BspOpDiag {
 /// T 操作层引擎（双向耦合：单核心 + 区间套 sink/recover 短差执行层 + 持仓三阶段会计）。
 ///
 /// `layers[k]` 是 ladder k 的净仓位（复用 `fugue_v3::Layer`：单一 direction，相邻级别方向相反）。
-/// `free` 是**单一共享现金池**（初始 = `INITIAL_CAPITAL`）——sink/recover 在级别间转移资金，单池诚实。
+/// `free` 是**单一共享现金池**（初始 = `q_total`，ADR 0040 funding-record `cap`，#1601）——sink/recover 在级别间转移资金，单池诚实。
 ///
 /// ## 三阶段会计（持仓成本状态机，设计文档 `docs/three_stages_accounting_design.md`）
 /// `notional_in`/`realized_campaign`/`withdrawn`/`earning_cash`/`stage` 跟踪当前 campaign（enter→clear）
@@ -267,19 +267,14 @@ pub struct TPositionEngine {
     pub n_trend_done_clears: u64,
 }
 
-impl Default for TPositionEngine {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl TPositionEngine {
-    pub fn new() -> Self {
+    /// `q_total`：期初现金池（ADR 0040 funding-record `cap`，#1601；调用方从记录读）。
+    pub fn new(q_total: f64) -> Self {
         let layers = (0..MAX_LADDER).map(Layer::idle).collect();
         TPositionEngine {
             res: FugueResult::default(),
             layers,
-            free: INITIAL_CAPITAL,
+            free: q_total,
             last_close: f64::NAN,
             max_concurrent_seen: 0,
             stage: FlatTStage::CostReduction,
@@ -1125,6 +1120,7 @@ impl TPositionEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::trading::types::FIXTURE_Q_TOTAL;
 
     fn buy_view(k: usize) -> TSignalView {
         let mut v = TSignalView::empty();
@@ -1142,21 +1138,21 @@ mod tests {
 
     #[test]
     fn 核心_首个买点全仓建多() {
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         eng.step(&buy_view(6), 0, 100.0);
         assert_eq!(eng.layers[6].direction, Polarity::Long);
-        let units = INITIAL_CAPITAL / 100.0;
+        let units = FIXTURE_Q_TOTAL / 100.0;
         assert!(
             (eng.layers[6].units - units).abs() < 1e-6,
             "全仓 {units} units（单一 free 池）"
         );
         let (navv, _, _, _) = eng.snapshot();
-        assert!((navv - INITIAL_CAPITAL).abs() < 1e-4, "建仓 NAV 中性");
+        assert!((navv - FIXTURE_Q_TOTAL).abs() < 1e-4, "建仓 NAV 中性");
     }
 
     #[test]
     fn 核心_最高级别反向翻转清全塔() {
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         eng.step(&buy_view(6), 0, 100.0); // 核心 Long@6
         eng.step(&sell_view(6), 10, 110.0); // 最高级别卖点 → 翻空
         assert_eq!(eng.layers[6].direction, Polarity::Short, "核心翻空");
@@ -1167,7 +1163,7 @@ mod tests {
 
     #[test]
     fn 核心_同向更高级别ascend骑乘上移() {
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         eng.step(&buy_view(5), 0, 100.0); // 核心 Long@5
         let u5 = eng.layers[5].units;
         eng.step(&buy_view(7), 5, 100.0); // 更高级别同向买点 → ascend 上移到 7
@@ -1190,7 +1186,7 @@ mod tests {
 
     #[test]
     fn 涌现升级_核心多头升到涌现ladder_方向一致() {
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         eng.step(&buy_view(4), 0, 100.0); // 核心 Long@4（全仓）
         let u4 = eng.layers[4].units;
         // T 迭代涌现出更高级别（ladder 7，向上走势）→ 核心仓 relabel 升级归属，不等高级别 BSP。
@@ -1214,7 +1210,7 @@ mod tests {
 
     #[test]
     fn 涌现升级_方向不一致不升级() {
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         eng.step(&buy_view(4), 0, 100.0); // 核心 Long@4
                                           // 涌现向下走势（Short 归属）但核心持多 → 方向不一致，不升级（逆涌现方向不归属，等 BSP 翻转）。
         eng.step(&emergent_view(7, Polarity::Short), 10, 105.0);
@@ -1225,7 +1221,7 @@ mod tests {
 
     #[test]
     fn 涌现升级_全空时no_op() {
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         // 无核心仓时涌现信号不建仓（首仓仍由核心级 BSP enter 建立）。
         eng.step(&emergent_view(7, Polarity::Long), 0, 100.0);
         assert!(eng.layers.iter().all(|l| !l.is_active()), "全空，无仓可升");
@@ -1234,7 +1230,7 @@ mod tests {
 
     #[test]
     fn 涌现升级_已在更高ladder不下移() {
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         eng.step(&buy_view(8), 0, 100.0); // 核心 Long@8
                                           // 涌现上界 ladder 6 < 核心 8 → 不下移（幂等：核心已足够高）。
         eng.step(&emergent_view(6, Polarity::Long), 10, 105.0);
@@ -1245,7 +1241,7 @@ mod tests {
 
     #[test]
     fn 涌现升级后低级别卖点变子级sink() {
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         eng.step(&buy_view(4), 0, 100.0); // 核心 Long@4
         eng.step(&emergent_view(8, Polarity::Long), 10, 100.0); // 升级到核心 Long@8
         let u8 = eng.layers[8].units;
@@ -1271,7 +1267,7 @@ mod tests {
 
     #[test]
     fn sink_父持多子卖点父级真减仓三分之一() {
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         eng.step(&buy_view(6), 0, 100.0); // 核心 Long@6
         let u6 = eng.layers[6].units;
         eng.step(&sell_view(5), 10, 100.0); // 子级 5 卖点（父6持多）→ sink
@@ -1291,7 +1287,7 @@ mod tests {
 
     #[test]
     fn recover_父持多子买点短差全平清升回父级() {
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         eng.step(&buy_view(6), 0, 100.0);
         let u6_core = eng.layers[6].units;
         eng.step(&sell_view(5), 10, 100.0);
@@ -1317,7 +1313,7 @@ mod tests {
 
     #[test]
     fn 子级永不独立翻转_父持多子卖点是sink非独立做空() {
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         eng.step(&buy_view(6), 0, 100.0);
         let u6 = eng.layers[6].units;
         eng.step(&sell_view(5), 10, 100.0);
@@ -1335,7 +1331,7 @@ mod tests {
 
     #[test]
     fn 四步循环_完整齿轮咬合() {
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         eng.step(&buy_view(6), 0, 100.0);
         let u6 = eng.layers[6].units;
         eng.step(&sell_view(5), 10, 105.0);
@@ -1349,7 +1345,7 @@ mod tests {
 
     #[test]
     fn 手性几何塔_相邻级别方向相反() {
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         eng.step(&buy_view(6), 0, 100.0);
         eng.step(&sell_view(5), 10, 100.0);
         let u5_at_sink = eng.layers[5].units;
@@ -1371,35 +1367,35 @@ mod tests {
 
     #[test]
     fn 总nav守恒_sink_recover同价不创造价值() {
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         eng.step(&buy_view(6), 0, 100.0); // 核心多
         eng.step(&sell_view(5), 5, 100.0); // sink（同价）
         eng.step(&buy_view(5), 10, 100.0); // recover（同价）
         eng.step(&sell_view(6), 15, 100.0); // 核心翻空（同价）
         let (navv, _, _, _) = eng.snapshot();
         assert!(
-            (navv - INITIAL_CAPITAL).abs() < 1e-4,
+            (navv - FIXTURE_Q_TOTAL).abs() < 1e-4,
             "同价全操作总 NAV 守恒，得 {navv}"
         );
     }
 
     #[test]
     fn 空输入零操作守恒() {
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         for i in 0..5 {
             eng.step(&TSignalView::empty(), i, 100.0);
         }
         eng.finish(Some(4));
         assert!(eng.result().trades.is_empty(), "无信号无 trade");
         assert!(
-            (eng.result().final_nav - INITIAL_CAPITAL).abs() < 1e-6,
+            (eng.result().final_nav - FIXTURE_Q_TOTAL).abs() < 1e-6,
             "总资金守恒"
         );
     }
 
     #[test]
     fn 核心多头强平到现金() {
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         eng.step(&buy_view(6), 0, 100.0); // Long@6 @100
         eng.step(&TSignalView::empty(), 10, 50.0); // c≤basis/2 强平多头
         assert!(!eng.layers[6].is_active(), "多头强平归零");
@@ -1408,7 +1404,7 @@ mod tests {
 
     #[test]
     fn 短差空头价格翻倍爆仓() {
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         eng.step(&buy_view(6), 0, 100.0);
         eng.step(&sell_view(5), 10, 100.0);
         assert_eq!(eng.layers[5].direction, Polarity::Short);
@@ -1419,14 +1415,14 @@ mod tests {
 
     #[test]
     fn 收尾全平到现金final_nav() {
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         eng.step(&buy_view(6), 0, 100.0);
         eng.step(&sell_view(5), 10, 100.0);
         eng.finish(Some(10));
         // 全平后所有层 idle。
         assert!(eng.layers.iter().all(|l| !l.is_active()), "收尾全平");
         assert!(
-            (eng.result().final_nav - INITIAL_CAPITAL).abs() < 1e-4,
+            (eng.result().final_nav - FIXTURE_Q_TOTAL).abs() < 1e-4,
             "同价全平 final_nav 守恒"
         );
     }
@@ -1435,12 +1431,12 @@ mod tests {
 
     #[test]
     fn 三阶段_建仓即降成本阶段_notional记本金() {
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         eng.step(&buy_view(6), 0, 100.0); // 核心 Long@6，notional = INITIAL
         assert_eq!(eng.stage(), FlatTStage::CostReduction, "建仓即降成本阶段");
         let (_, notional, withdrawn, _, cb) = eng.stage_snapshot();
         assert!(
-            (notional - INITIAL_CAPITAL).abs() < 1e-6,
+            (notional - FIXTURE_Q_TOTAL).abs() < 1e-6,
             "notional = 建仓本金"
         );
         assert!(withdrawn.abs() < 1e-9, "初始无 withdrawn");
@@ -1449,7 +1445,7 @@ mod tests {
 
     #[test]
     fn 三阶段_核心高位卖出降cost_basis_短差腿单独算() {
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         eng.step(&buy_view(6), 0, 100.0);
         let cb0 = eng.cost_basis();
         eng.step(&sell_view(5), 10, 150.0);
@@ -1471,7 +1467,7 @@ mod tests {
     /// 核心随价格上涨、sink 高位卖出降 cost_basis 穿零 → 退本金 → 增股数（核心 units 增长）。
     #[test]
     fn 三阶段_核心高位卖出穿零退本金再增股数() {
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         eng.step(&buy_view(6), 0, 100.0); // cost_basis=100, notional=100000, U=1000
         let u0 = eng.layers[6].units;
         let mut bar = 1;
@@ -1515,7 +1511,7 @@ mod tests {
     #[test]
     fn 三阶段_总财富守恒_穿越全部阶段不创造价值() {
         // 每 bar prove_nav_neutral(tw_pre, tw_post) 守卫总财富（含 withdrawn）；此处验证末态 + 收尾。
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         eng.step(&buy_view(6), 0, 100.0);
         let mut bar = 1;
         let mut p = 100.0_f64;
@@ -1528,14 +1524,14 @@ mod tests {
         }
         let tw = eng.total_wealth(p * 0.85);
         assert!(
-            tw > INITIAL_CAPITAL,
+            tw > FIXTURE_Q_TOTAL,
             "总财富增长（趋势+短差，非凭空），得 {tw}"
         );
         eng.finish(Some(bar)); // 收尾全平 + 归还 withdrawn
         assert!(eng.layers.iter().all(|l| !l.is_active()), "收尾全平");
         assert!(eng.withdrawn.abs() < 1e-9, "withdrawn 已归还");
         assert!(
-            eng.result().final_nav > INITIAL_CAPITAL,
+            eng.result().final_nav > FIXTURE_Q_TOTAL,
             "最终财富 > 本金，得 {}",
             eng.result().final_nav
         );
@@ -1563,7 +1559,7 @@ mod tests {
 
     #[test]
     fn 三阶段_全仓模式_增股数阶段短差腿不单层强平() {
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         let (mut bar, p) = drive_to_earning(&mut eng);
         assert_eq!(
             eng.stage(),
@@ -1587,7 +1583,7 @@ mod tests {
     #[test]
     fn 三阶段_flip重置campaign归还退本金() {
         // 进入退本金后核心反向翻转：clear_all 归还 withdrawn，重置阶段。
-        let mut eng = TPositionEngine::new();
+        let mut eng = TPositionEngine::new(FIXTURE_Q_TOTAL);
         let (bar, p) = drive_to_earning(&mut eng);
         assert_eq!(eng.stage(), FlatTStage::EarningShares, "已进增股数");
         assert!(eng.withdrawn > 0.0, "有退本金在安全池");
