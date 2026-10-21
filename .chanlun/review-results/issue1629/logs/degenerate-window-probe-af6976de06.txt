@@ -1,0 +1,9 @@
+ref=codex/1629-endpoint-prune sha=af6976de0644362db1d1f0bcba0c6e615cc79554 sub=rust target=/home/hanju/nc-remote/issue1629-b cmd=bash -c P=$CARGO_TARGET_DIR/release/issue1588_parse_mem_probe\;\ D=$HOME/nc-remote/data/btc_1m_full.json\;\ for\ W\ in\ 4000005\ 4400005\ 4600005\ 4610005\ 4613000\ 4613500\ 4613590\;\ do\ ISSUE1588_WINDOW=$W\ $P\ $D\ layer\ $\(\(W-5\)\)\ \|\ grep\ -E\ "layer\ secs"\ \|\ cut\ -c1-200\;\ done 
+layer secs=24.20 alloc_total_mb=20408.3 peak_mb=10496.4 retained_mb=335.6 merged=2702328 fractals=1211481 strokes=342160 segments=45292 tail=2
+layer secs=9.92 alloc_total_mb=8754.1 peak_mb=6429.7 retained_mb=0.0 merged=1 fractals=0 strokes=0 segments=0 tail=0
+layer secs=10.15 alloc_total_mb=8962.9 peak_mb=6634.7 retained_mb=0.0 merged=1 fractals=0 strokes=0 segments=0 tail=0
+layer secs=9.53 alloc_total_mb=8973.3 peak_mb=6644.9 retained_mb=0.0 merged=1 fractals=0 strokes=0 segments=0 tail=0
+layer secs=8.62 alloc_total_mb=8976.5 peak_mb=6648.0 retained_mb=0.0 merged=1 fractals=0 strokes=0 segments=0 tail=0
+layer secs=34.72 alloc_total_mb=24319.1 peak_mb=12461.9 retained_mb=337.3 merged=3037848 fractals=1369309 strokes=388166 segments=51740 tail=2
+layer secs=10.93 alloc_total_mb=8977.1 peak_mb=6648.6 retained_mb=0.0 merged=1 fractals=0 strokes=0 segments=0 tail=0
+EXIT=0 SECONDS=162

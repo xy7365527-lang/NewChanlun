@@ -70,7 +70,7 @@ class Server:
         self.db = db
     def __enter__(self):
         with socket.socket() as s:
-            s.bind(("127.0.0.1", 0)); self.port = s.getsockname()[1]
+            s.bind(("127.0.0.1", 0)); self.port = s.getsockname()[1]  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
         argv = [sys.executable, R/"s_session/s_readonly_server.py", "--db", self.db, "--port", self.port,
                 "--browser", R/"s_session/browser/index.html", "--resource-config", Q_RESOURCES,
                 "--producer-epoch", Q_EPOCH]
@@ -81,14 +81,14 @@ class Server:
                 if self.p.poll() is not None:
                     raise RuntimeError("Q 启动后退出；原始 stderr 见测试 log")
                 try:
-                    with socket.create_connection(("127.0.0.1",self.port),.1): return self
+                    with socket.create_connection(("127.0.0.1",self.port),.1): return self  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
                 except OSError: time.sleep(.02)
             raise RuntimeError("HTTP未就绪")
         except BaseException:
             self.close()
             raise
     def get(self, path):
-        url="http://127.0.0.1:%d%s" % (self.port,path)
+        url="http://127.0.0.1:%d%s" % (self.port,path)  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
         try: q=urllib.request.urlopen(url,timeout=30)
         except urllib.error.HTTPError as e: q=e
         with q: body=q.read(); status=q.status

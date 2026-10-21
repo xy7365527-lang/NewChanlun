@@ -138,7 +138,7 @@ def simulate_one_random_gate(
 ) -> tuple[float, float]:
     """(b) 随机门控单次模拟 —— P3 判决的心脏。
 
-    [TODO — 由用户实现]
+    [已实现 — 原占位「由用户实现」，采用下方推荐实现]
 
     目标：在**相同暴露**（n_trades 笔，每笔持有 hold_bars 根 bar）但**随机择时**
     （entry 时点均匀随机）下，模拟出一条交易序列并返回 (复利%, 最大回撤%)。
@@ -194,7 +194,7 @@ def run_random_gate(
     compounds: list[float] = []
     maxdds: list[float] = []
     for run_idx in range(N_BOOTSTRAP):
-        rng = random.Random(BASE_SEED + run_idx)
+        rng = random.Random(BASE_SEED + run_idx)  # DevSkim: ignore DS148264 固定种子统计采样，可复现，非安全用途
         comp, dd = simulate_one_random_gate(closes, n_trades, hold_bars, rng)
         compounds.append(comp)
         maxdds.append(dd)
@@ -248,7 +248,7 @@ def large_bootstrap_percentile(
     comps: list[float] = []
     n_ge = 0
     for k in range(N_BOOTSTRAP_LARGE):
-        rng = random.Random(BASE_SEED + 1_000 + k)
+        rng = random.Random(BASE_SEED + 1_000 + k)  # DevSkim: ignore DS148264 固定种子统计采样，可复现，非安全用途
         comp, _ = simulate_one_random_gate(closes, n_trades, hold_bars, rng)
         comps.append(comp)
         if comp >= e_compound:
@@ -341,7 +341,7 @@ def large_bootstrap_percentile_dual(
     comps: list[float] = []
     n_ge = 0
     for k in range(N_BOOTSTRAP_LARGE):
-        rng = random.Random(BASE_SEED + DUAL_SEED_OFFSET + k)
+        rng = random.Random(BASE_SEED + DUAL_SEED_OFFSET + k)  # DevSkim: ignore DS148264 固定种子统计采样，可复现，非安全用途
         comp, _ = simulate_one_random_dual_gate(
             closes, n_long, hold_long, n_short, hold_short, rng,
         )

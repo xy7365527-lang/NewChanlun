@@ -1,0 +1,146 @@
+ref=codex/1629-endpoint-prune sha=af6976de0644362db1d1f0bcba0c6e615cc79554 sub=rust target=/home/hanju/nc-remote/issue1629-b cmd=bash ../.chanlun/review-results/issue1629/bench.sh p300time big full 
+    Finished `release` profile [optimized] target(s) in 1m 52s
+=== batch p300time
+--- host before: loadavg=13.26 11.74 10.97 nproc=8 MemAvailable: 44483076 kB
+your 131072x1 screen size is bogus. expect trouble
+    %CPU   RSS ELAPSED COMMAND
+     251 79004     226 s_structure_ses
+    88.5 738244   8751 issue1588_parse
+    82.0 100712   1079 s_structure_ses
+    70.7 513092    505 s_structure_ses
+    63.8 1073188    60 issue1588_parse
+== mode=facts n=299995 window=300000
+facts secs=2.96 alloc_total_mb=2175.3 peak_mb=937.3 retained_mb=700.2 steps=299995 groups=195520 merged=195520 fractals=89644 strokes=24841 segments=3299 tail=2
+  endpoints=89644 strokes=24841 digest layer=940284555b1afd320e3f6f4213eebb450f1af30c317a1115790b64d8c6785127 stroke_facts=skipped facts=skipped
+  rss VmRSS=702508 kB VmHWM=1289496 kB
+--- host after: loadavg=12.76 11.66 10.95 nproc=8 MemAvailable: 44486316 kB
+your 131072x1 screen size is bogus. expect trouble
+    %CPU   RSS ELAPSED COMMAND
+     247 79132     233 s_structure_ses
+    99.3 401572      1 rustc
+    98.6 536644      1 rustc
+    88.5 738244   8758 issue1588_parse
+    82.1 88188    1085 s_structure_ses
+=== batch big
+--- host before: loadavg=12.76 11.66 10.95 nproc=8 MemAvailable: 44484688 kB
+your 131072x1 screen size is bogus. expect trouble
+    %CPU   RSS ELAPSED COMMAND
+     247 79132     233 s_structure_ses
+    98.6 402084      1 rustc
+    98.6 536644      1 rustc
+    88.5 738244   8758 issue1588_parse
+    82.1 88188    1085 s_structure_ses
+== mode=facts n=1000000 window=1000005
+facts secs=10.48 alloc_total_mb=6681.9 peak_mb=2800.4 retained_mb=2166.1 steps=1000000 groups=658199 merged=658199 fractals=292204 strokes=81215 segments=10717 tail=2
+  endpoints=292204 strokes=81215 digest layer=29a0a3ee82df552b561f78aa9f0c259d2fe2c3bdebd4237bbb0c982d2203da76 stroke_facts=skipped facts=skipped
+  rss VmRSS=1728300 kB VmHWM=3268756 kB
+--- host after: loadavg=11.54 11.44 10.89 nproc=8 MemAvailable: 44020436 kB
+your 131072x1 screen size is bogus. expect trouble
+    %CPU   RSS ELAPSED COMMAND
+    90.0 1506696    17 rustc
+    88.5 694084   8773 issue1588_parse
+    82.2 84180    1101 s_structure_ses
+    71.6 1073188    82 issue1588_parse
+    71.1 513092    527 s_structure_ses
+--- host before: loadavg=11.54 11.44 10.89 nproc=8 MemAvailable: 44018924 kB
+your 131072x1 screen size is bogus. expect trouble
+    %CPU   RSS ELAPSED COMMAND
+    90.1 1506824    17 rustc
+    88.5 694084   8773 issue1588_parse
+    82.2 84180    1101 s_structure_ses
+    71.6 1073188    82 issue1588_parse
+    71.1 513092    527 s_structure_ses
+== mode=layer n=1000000 window=1000005
+layer secs=5.55 alloc_total_mb=4944.2 peak_mb=2550.2 retained_mb=83.7 merged=658199 fractals=292204 strokes=81215 segments=10717 tail=2
+  digest layer=29a0a3ee82df552b561f78aa9f0c259d2fe2c3bdebd4237bbb0c982d2203da76
+  rss VmRSS=1904080 kB VmHWM=2794796 kB
+--- host after: loadavg=10.99 11.33 10.86 nproc=8 MemAvailable: 43365364 kB
+your 131072x1 screen size is bogus. expect trouble
+    %CPU   RSS ELAPSED COMMAND
+    99.5 704676      4 rustc
+    99.3 725692      4 rustc
+    99.1 997276      4 rustc
+    88.5 694084   8783 issue1588_parse
+    82.4 102100   1111 s_structure_ses
+--- host before: loadavg=10.99 11.33 10.86 nproc=8 MemAvailable: 43360840 kB
+your 131072x1 screen size is bogus. expect trouble
+    %CPU   RSS ELAPSED COMMAND
+    99.5 705060      4 rustc
+    99.3 726844      4 rustc
+    99.1 997788      4 rustc
+    88.5 694084   8783 issue1588_parse
+    82.4 102100   1111 s_structure_ses
+== mode=facts n=2000000 window=2000005
+facts secs=19.53 alloc_total_mb=13547.0 peak_mb=5672.9 retained_mb=4407.0 steps=2000000 groups=1308680 merged=1308680 fractals=584269 strokes=162990 segments=21216 tail=2
+  endpoints=584269 strokes=162990 digest layer=ba0ec8124816fc020ef29547eb6b5cd5aa70208813db06b3023e257094e29ccb stroke_facts=skipped facts=skipped
+  rss VmRSS=3572676 kB VmHWM=6330252 kB
+--- host after: loadavg=10.74 11.23 10.84 nproc=8 MemAvailable: 43115284 kB
+your 131072x1 screen size is bogus. expect trouble
+    %CPU   RSS ELAPSED COMMAND
+    91.3 1209656    12 rustc
+    88.5 689092   8812 issue1588_parse
+    85.7 952740     12 rustc
+    82.5 99012    1140 s_structure_ses
+    77.8 1073188   121 issue1588_parse
+--- host before: loadavg=10.74 11.23 10.84 nproc=8 MemAvailable: 43115212 kB
+your 131072x1 screen size is bogus. expect trouble
+    %CPU   RSS ELAPSED COMMAND
+    91.3 1210296    12 rustc
+    88.5 689092   8812 issue1588_parse
+    85.7 954276     12 rustc
+    82.5 99012    1140 s_structure_ses
+    77.8 1073188   122 issue1588_parse
+== mode=layer n=2000000 window=2000005
+layer secs=12.85 alloc_total_mb=10075.5 peak_mb=5177.3 retained_mb=167.5 merged=1308680 fractals=584269 strokes=162990 segments=21216 tail=2
+  digest layer=ba0ec8124816fc020ef29547eb6b5cd5aa70208813db06b3023e257094e29ccb
+  rss VmRSS=3610788 kB VmHWM=5388400 kB
+--- host after: loadavg=10.26 11.09 10.80 nproc=8 MemAvailable: 41776672 kB
+your 131072x1 screen size is bogus. expect trouble
+    %CPU   RSS ELAPSED COMMAND
+     112 2133736    33 rustc
+    88.5 689092   8834 issue1588_parse
+    83.5 1081872     7 rustc
+    82.6 99064    1161 s_structure_ses
+    79.8 1073188   143 issue1588_parse
+=== batch full
+--- host before: loadavg=10.26 11.09 10.80 nproc=8 MemAvailable: 41760952 kB
+your 131072x1 screen size is bogus. expect trouble
+    %CPU   RSS ELAPSED COMMAND
+     112 2135912    33 rustc
+    88.5 689092   8834 issue1588_parse
+    83.5 1082000     7 rustc
+    82.6 99064    1161 s_structure_ses
+    79.8 1073188   143 issue1588_parse
+== mode=facts n=4613594 window=4613599
+facts secs=17.10 alloc_total_mb=16564.3 peak_mb=10402.2 retained_mb=7657.5 steps=4613594 groups=1 merged=1 fractals=0 strokes=0 segments=0 tail=0
+  endpoints=0 strokes=0 digest layer=1483a9efb308f8959c6371220ea36bbd9d04de23789f8e6b91c82977c3cbda99 stroke_facts=skipped facts=skipped
+  rss VmRSS=5833252 kB VmHWM=9185440 kB
+--- host after: loadavg=11.16 11.24 10.86 nproc=8 MemAvailable: 44293096 kB
+your 131072x1 screen size is bogus. expect trouble
+    %CPU   RSS ELAPSED COMMAND
+     221 68928      13 s_structure_ses
+    88.5 689092   8864 issue1588_parse
+    82.6 69372    1191 s_structure_ses
+    79.4 1073188   173 issue1588_parse
+    75.0 555604      3 rustc
+--- host before: loadavg=11.16 11.24 10.86 nproc=8 MemAvailable: 44290084 kB
+your 131072x1 screen size is bogus. expect trouble
+    %CPU   RSS ELAPSED COMMAND
+     221 68928      13 s_structure_ses
+    88.5 689092   8864 issue1588_parse
+    82.6 69372    1191 s_structure_ses
+    79.4 1073188   173 issue1588_parse
+    74.7 555988      3 rustc
+== mode=layer n=4613594 window=4613599
+layer secs=13.75 alloc_total_mb=8977.1 peak_mb=6648.6 retained_mb=0.0 merged=1 fractals=0 strokes=0 segments=0 tail=0
+  digest layer=1483a9efb308f8959c6371220ea36bbd9d04de23789f8e6b91c82977c3cbda99
+  rss VmRSS=5689240 kB VmHWM=6951040 kB
+--- host after: loadavg=11.75 11.37 10.91 nproc=8 MemAvailable: 42320584 kB
+your 131072x1 screen size is bogus. expect trouble
+    %CPU   RSS ELAPSED COMMAND
+     206 85280      33 s_structure_ses
+    88.4 689092   8883 issue1588_parse
+    82.3 91684    1211 s_structure_ses
+    78.8 1073188   192 issue1588_parse
+    75.8 1221456     6 python3
+EXIT=0 SECONDS=244

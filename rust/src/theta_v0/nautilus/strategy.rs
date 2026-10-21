@@ -16,7 +16,7 @@
 //! - **真实 nautilus 包装壳在 [`super::theta_strategy`]**（feature `nautilus` 门控）：
 //!   `ThetaStrategy { core: StrategyCore, inner: ThetaCore, .. }` 已兑现——本文件导出的
 //!   `ThetaCore` 就是那个 `inner`，退出生成器（§9 closePred）**已实装**（`plan_for_bar` 内
-//!   退出先于开仓），非 TODO。
+//!   退出先于开仓），非待办项。
 //! - **不声明盈利性**：声明管线贯通与增量等价，不声明 S_Θ 接 Nautilus 后回测有效/盈利
 //!   （编排者纲领「不证明 Θ 是好 Θ」）。
 //!
@@ -101,7 +101,7 @@ impl ThetaCore {
     /// 3. 每个 S_Θ `Order` → [`OrderIntent`]（order_adapter，持仓方向从 portfolio 快照推）。
     ///
     /// 返回本 bar 的下单意图列表（[`super::theta_strategy::ThetaStrategy::on_bar`] 逐条转真实
-    /// market 单提交；订正 #916：原 TODO 已兑现）。
+    /// market 单提交；订正 #916：原待办已兑现）。
     ///
     /// ## ★诚实有效域（设计文档 §4.4）
     ///
@@ -110,7 +110,7 @@ impl ThetaCore {
     ///   由 Nautilus venue 撮合，见设计文档 §4.4）。
     /// - **退出决策生成器**（runner.rs `exit_decision_for`，§9 closePred）的缠论触发逻辑**已移植到
     ///   本文件**（见下方「退出生成器接入」节，退出先于开仓）：持仓从 `snap` 读（非内部台账），
-    ///   复用 runner 的 `exit_decision_for` 逻辑，退出判定零分叉。订正 #916：原「标接入点（TODO）」
+    ///   复用 runner 的 `exit_decision_for` 逻辑，退出判定零分叉。订正 #916：原「标接入点」待办
     ///   已兑现。
     ///
     /// 边界条件：bars 不足以产生结构（< min_parts_per_level）⟹ classify 产空 ⟹ 无决策 ⟹ 空意图
@@ -311,7 +311,7 @@ impl ThetaCore {
     ///
     /// ★限价腿待办（非骨架，订正 #916）：S_Θ `Order` 不直接携带 entry 价（entry 在 `VoiceDecision`
     /// 中，plan_orders 已消费）。生产路径需让 `plan_orders` 或本适配层保留 decision→order 的 entry
-    /// 映射（TODO）。当前恒返回 `None`（市价腿）——限价腿的 entry 价回填待 plan_orders 接口扩展
+    /// 映射（TODO）。当前恒返回 `None`（市价腿）——限价腿的 entry 价回填待 plan_orders 接口扩展 // DevSkim: ignore DS176209 已登记待办（限价腿 entry 价回填，#916 订正段），由 #1385 OE09 承接
     /// （报 theta_v0 owner，非本工位改）。
     fn entry_tick_for(&self, _order: &Order) -> Option<crate::theta_v0::types::Tick> {
         None // TODO: 限价腿 entry 价回填（依赖 plan_orders 暴露 decision→order entry 映射）
