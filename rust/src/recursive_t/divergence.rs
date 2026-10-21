@@ -505,7 +505,7 @@ fn select_child_in_window(
 ///
 /// 下钻停止判据（#817 N-2 裁定一/二，判据 + 参数分离）：成本门 ∧ 塔底，两道谁先到算谁——
 /// `min_level = max(成本门级, 塔底级)`，向下钻到该级即止（本级仍须有子背驰(段)，更低级不要求）。
-/// 塔底 = a₀ = 0（`recursive_t` 塔以 a₀ 为底，`T_A0` 只切 segment/stroke 不换级别号）；成本门据
+/// 塔底 = a₀ = 0（`recursive_t` 塔以 a₀ 为底，`T_A0` 只切 segment/stroke 不换级别号；stroke 是 #1627 已否证对照臂）；成本门据
 /// 探针 #907「在现有塔 L0-L4 上不咬任何一级」⟹ 先到的是塔底 ⟹ 阶段一 `min_level = 0`。
 /// 级别是参数、不许钉死（原 `(0..cc).rev()` 的常数 0 即被判违规的「必须降到 a0」，#817 N-2 说法③）。
 pub fn nest_chain_complete(

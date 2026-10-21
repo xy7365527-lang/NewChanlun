@@ -70,7 +70,7 @@ fn stroke_to_t_dir(d: StrokeDir) -> TDir {
     }
 }
 
-/// 从 a₀ 来源（线段 / 笔）构造 T 的 a₀（O(单元数)，MACD 面积经**前缀和** O(1)/单元查表）。
+/// 按塔底来源（线段默认 / 笔对照臂）构造 T 的塔底单元序列（O(单元数)，MACD 面积经**前缀和** O(1)/单元查表）。
 ///
 /// 与 batch `backtest::build_a0_from_segments`（每单元 `macd_area_for_range` O(单元长) + 每次重跑
 /// `compute_macd_batch` O(n)）的差：流式用**增量 online MACD**（`OnlineMacdState`，O(1)/bar）+
@@ -82,8 +82,9 @@ fn stroke_to_t_dir(d: StrokeDir) -> TDir {
 /// `source`（谱系 526 / 第65课 065:182「区别仅在 a0」）：
 /// - `A0Source::Segment`：过滤 `confirmed && kind==Settled`（与 batch / v3 zhongshu_from_segments
 ///   一致）——现状默认，逐字 bit-exact（Settled = 线段特征序列递归确认语义，第67/71课）。
-/// - `A0Source::Stroke`：过滤 `confirmed`（笔无 Settled 语义，bi.md:151「最后一笔 confirmed=False，
-///   直到下一笔生成后才结算」）——递归底座下移（525/526号，级别数 5-6→8-10 主因）。
+/// - `A0Source::Stroke`：**已否证的对照臂，不是 `a₀` 合法值**（#1627 zhongshu §2.1.1 第 2 条），
+///   仅复现 526 号 A/B；过滤 `confirmed`（笔无 Settled 语义，bi.md:151「最后一笔 confirmed=False，
+///   直到下一笔生成后才结算」）。
 ///
 /// `include_last_candidate`（编排者 2026-06-21 区间套提前确认）：true 时额外含**最后一个未确认
 /// 单元**（c 段顶部附近、尚未确认）——让操作点提前到顶部。batch/flat 路径传 false 保 bit-exact。
@@ -154,7 +155,7 @@ pub(crate) fn build_a0_fast(
             a0
         }
         A0Source::Stroke => {
-            // 笔完成口径 = confirmed（bi.md:151；笔无 Settled 递归确认语义，525/526号）。
+            // 对照臂（#1627：笔不是 a₀ 合法值）。笔完成口径 = confirmed（bi.md:151；笔无 Settled 递归确认语义）。
             let mut a0: Vec<Unit> = strokes
                 .iter()
                 .filter(|s| s.confirmed)
@@ -202,7 +203,7 @@ pub struct TFugueStreamCore {
     cur_bar: i64,
     finished: bool,
 
-    /// a₀ 来源（线段=默认 bit-exact / 笔=递归底座下移，526号）。决定门控计数口径与 build_a0 过滤。
+    /// 塔底来源（线段=默认 bit-exact / 笔=已否证对照臂，#1627）。决定门控计数口径与 build_a0 过滤。
     a0_source: A0Source,
 
     // ── 段门控 / 笔门控 + diff 状态 ──
@@ -229,9 +230,8 @@ impl TFugueStreamCore {
         Self::new_with_a0(mode, A0Source::Segment)
     }
 
-    /// 显式指定 a₀ 来源（线段=基线 / 笔=递归底座下移，526号）。`new(mode)` 委托此构造默认 Segment。
-    /// 研发-生产同源：a₀ 来源参数落在 backtest/live 共享的信号层（filter-spec 下游推论1：
-    /// 两层级别增量必须分别测量，故 a₀ 来源可切换，非兼容垫片）。
+    /// 显式指定塔底来源（线段=基线 / 笔=已否证对照臂，#1627 zhongshu §2.1.1，仅复现 526 号 A/B 与
+    /// #951 B3 冻结缓存）。`new(mode)` 委托此构造默认 Segment。
     pub fn new_with_a0(mode: PerfectionMode, a0_source: A0Source) -> Self {
         TFugueStreamCore {
             orch: RecursiveOrchestrator::new(6, "wide", 5, false, 3, false, false, false),
@@ -263,7 +263,7 @@ impl TFugueStreamCore {
             let segs = self.orch.segments();
             let strokes = self.orch.strokes();
             let m2r = self.orch.merged_to_raw();
-            // include_last_candidate=false（保 bit-exact）；a0_source 决定线段/笔 + 过滤口径。
+            // include_last_candidate=false（保 bit-exact）；a0_source 决定线段/笔（对照臂）+ 过滤口径。
             let a0 = build_a0_fast(
                 segs,
                 strokes,
@@ -335,7 +335,7 @@ impl TFugueStreamCore {
 
         let mut view = TSignalView::empty();
 
-        // ── a₀ 门控：笔增长 → 数 a₀ 单元 → count 变则重跑 ──
+        // ── 塔底门控：笔增长 → 数塔底单元 → count 变则重跑（Stroke 档为 #1627 对照臂）──
         // 笔增长是两种来源的必要前置（线段仅在笔变时变；confirmed 笔数仅在笔变时变），
         // 故 `sc > last_stroke_n` 作廉价预门控；a0_source 决定实际触发计数口径。
         let sc = self.orch.strokes().len();
@@ -463,7 +463,7 @@ mod tests {
     /// 返回 `(orch, prefix_pos, prefix_neg)`——供 `build_a0_fast` 测试两种 a₀ 来源。
     ///
     /// 三尺度正弦叠加（慢趋势 + 中摆动 + 快锯齿）→ 产出多级别嵌套结构（含 settled 段 + 笔），
-    /// 使 a0=线段 / a0=笔 两路都非空，对比有意义。
+    /// 使 a0=线段 / 笔对照臂（#1627：笔不是 a₀ 合法值）两路都非空，对比有意义。
     fn drive_orch(n: usize) -> (RecursiveOrchestrator, Vec<f64>, Vec<f64>) {
         let mut orch = RecursiveOrchestrator::new(6, "wide", 5, false, 3, false, false, false);
         let mut macd = OnlineMacdState::new(12, 26, 9);
@@ -534,8 +534,8 @@ mod tests {
         );
     }
 
-    /// **Stroke a₀ 来源字段 + confirmed 过滤**：每单元 level=0 / 无内部中枢 / 字段来自对应
-    /// confirmed 笔；最后未确认笔被排除（bi.md:151）。
+    /// **Stroke 对照臂字段 + confirmed 过滤**（#1627：已否证对照臂，非 a₀ 合法值）：每单元
+    /// level=0 / 无内部中枢 / 字段来自对应 confirmed 笔；最后未确认笔被排除（bi.md:151）。
     #[test]
     fn a0_stroke来源_字段与confirmed过滤() {
         let (orch, pp, pn) = drive_orch(600);
@@ -545,13 +545,13 @@ mod tests {
         let a0 = build_a0_fast(segs, strokes, m2r, &pp, &pn, A0Source::Stroke, false);
 
         let n_confirmed = strokes.iter().filter(|s| s.confirmed).count();
-        assert_eq!(a0.len(), n_confirmed, "Stroke a₀ 数 = confirmed 笔数");
+        assert_eq!(a0.len(), n_confirmed, "Stroke 对照臂单元数 = confirmed 笔数");
         assert!(strokes.iter().any(|s| !s.confirmed), "应存在最后未确认笔");
         assert!(a0.len() < strokes.len(), "最后未确认笔被排除 ⟹ a₀ < 总笔数");
 
         let conf: Vec<&Stroke> = strokes.iter().filter(|s| s.confirmed).collect();
         for (u, s) in a0.iter().zip(conf.iter()) {
-            assert_eq!(u.level, 0, "a₀ 笔 level=0");
+            assert_eq!(u.level, 0, "塔底笔单元 level=0");
             assert_eq!(u.inner_zhongshu_count, 0, "笔无内部中枢");
             assert_eq!(u.high, s.high);
             assert_eq!(u.low, s.low);
@@ -562,7 +562,8 @@ mod tests {
         }
     }
 
-    /// **底座下移**：笔比 settled 段细 ⟹ a0=笔单元数 > a0=线段（526号级别数 5-6→8-10 前提）。
+    /// **对照臂管线锁**（526 号 A/B 复现，#1627：笔对照臂已否证、非 a₀ 合法值）：笔比 settled
+    /// 段细 ⟹ 笔对照臂单元数 > a0=线段。
     #[test]
     fn a0_stroke多于segment_底座下移() {
         let (orch, pp, pn) = drive_orch(1200);
@@ -577,14 +578,14 @@ mod tests {
         );
         assert!(
             a0_bi.len() > a0_seg.len(),
-            "a0=笔({}) 应多于 a0=线段({})（底座下移 ⟹ 级别数增量）",
+            "笔对照臂({}) 应多于 a0=线段({})",
             a0_bi.len(),
             a0_seg.len()
         );
     }
 
-    /// **递归塔深度 L1 检查**（底座下移下游推论）：a0=笔 比 a0=线段 迭代出**不浅于**的递归塔
-    /// （级别数 ≥）——级别数 5-6→8-10 的合成数据侧管线验证（L1，真实增量待 L2/L3 数据）。
+    /// **递归塔深度 L1 检查**（526 号 A/B 对照臂复现，#1627：笔对照臂已否证、非 a₀ 合法值）：
+    /// 笔对照臂比 a0=线段 迭代出**不浅于**的递归塔（级别数 ≥）——仅合成数据侧管线锁。
     #[test]
     fn a0_stroke递归塔不浅于segment() {
         let (orch, pp, pn) = drive_orch(1200);
@@ -597,7 +598,7 @@ mod tests {
         let tree_bi = iterate(a0_bi, PerfectionMode::Structural);
         assert!(
             tree_bi.levels.len() >= tree_seg.levels.len(),
-            "a0=笔递归塔级别数({}) 应 ≥ a0=线段({})（底座下移）",
+            "笔对照臂递归塔级别数({}) 应 ≥ a0=线段({})",
             tree_bi.levels.len(),
             tree_seg.levels.len()
         );
@@ -610,7 +611,7 @@ mod tests {
         let segs = orch.segments();
         let strokes = orch.strokes();
         let m2r = orch.merged_to_raw();
-        // Stroke：last candidate = 最后未确认笔 ⟹ 多 1。
+        // Stroke（#1627 对照臂）：last candidate = 最后未确认笔 ⟹ 多 1。
         let bi_off = build_a0_fast(segs, strokes, m2r, &pp, &pn, A0Source::Stroke, false);
         let bi_on = build_a0_fast(segs, strokes, m2r, &pp, &pn, A0Source::Stroke, true);
         assert_eq!(
@@ -653,7 +654,7 @@ mod tests {
         assert_eq!(a.n_trades(), b.n_trades());
     }
 
-    /// **流式笔底座零 panic + 有限 final_nav**（守恒守卫每 bar 成立）。
+    /// **流式笔对照臂零 panic + 有限 final_nav**（守恒守卫每 bar 成立；#1627 对照臂，非 a₀ 合法值）。
     #[test]
     fn 流式笔底座零panic() {
         let mut core = TFugueStreamCore::new_with_a0(PerfectionMode::Structural, A0Source::Stroke);
