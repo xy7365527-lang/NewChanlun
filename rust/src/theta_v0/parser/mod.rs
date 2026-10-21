@@ -115,6 +115,11 @@ pub struct ParseLayer {
     pub segments: Rc<Vec<Segment>>,
     /// Rc 共享——tail 全量重算结果 O(1) 共享（tail 小 Vec，重算本身 O(tail) 非 O(n)）。
     pub tail: Rc<Vec<PendingTail>>,
+    /// #1581（xianduan §15 X-37，#1493 裁定 4b；§7.1 第 6 条「下游不得在其上构造」）：段端门
+    /// fail-closed 起点（失败段的 `seg_start` 笔号，与 `SegmentFacts::parse_invalid_from` /
+    /// `IncrSegments::parse_invalid_from` 同一判定）；`None` = 无门失败。非空时 `tail` 不含
+    /// `PendingSegment`，classifier 入口拒读本层（不构造中枢/走势/买卖点）。结构语义，计入 PartialEq。
+    pub segments_parse_invalid_from: Option<usize>,
 }
 
 // #106：`merged_confirmed_len` 是性能证书（跨 bar 稳定前缀长度），非结构语义——增量版填真值、
@@ -127,6 +132,7 @@ impl PartialEq for ParseLayer {
             && self.strokes == other.strokes
             && self.segments == other.segments
             && self.tail == other.tail
+            && self.segments_parse_invalid_from == other.segments_parse_invalid_from
     }
 }
 
@@ -183,7 +189,20 @@ fn parse_layer_from_inclusion_state(
     );
     let strokes = stroke_facts.production_strokes();
     let (segments, pending_start) = segment::divide_segments_with_tail(&strokes, config);
-    let tail = tail::build_tail(merged, &fractals, &strokes, &segments, pending_start);
+    // #1581：`divide_segments_with_tail` 不带门失败标记（非观测核）；标记取同一段判定的增量核
+    // 一次全扫（`IncrSegments::append` 与 `divide_segments_with_tail` 逐位同核，#804）。段与尾部
+    // 仍取自 `divide_segments_with_tail`，故无门失败时本层输出与改前逐位相同。代价：批量入口多一次段扫描。
+    let invalid_from = segment::IncrSegments::empty()
+        .append(&strokes, config)
+        .parse_invalid_from();
+    let tail = tail::build_tail(
+        merged,
+        &fractals,
+        &strokes,
+        &segments,
+        pending_start,
+        invalid_from,
+    );
     ParseLayer {
         merged_bars: state.merged_rc(),
         merged_confirmed_len: 0,
@@ -193,6 +212,7 @@ fn parse_layer_from_inclusion_state(
         strokes: Rc::new(strokes),
         segments: Rc::new(segments),
         tail: Rc::new(tail),
+        segments_parse_invalid_from: invalid_from,
     }
 }
 
@@ -391,7 +411,15 @@ fn parse_layer_from_compact_facts(
     };
     *incr_segments = segments_state.append(&strokes, config);
     let (segments, pending_start) = incr_segments.to_result_rc();
-    let tail = tail::build_tail(merged, &fractals, &strokes, &segments, pending_start);
+    let invalid_from = incr_segments.parse_invalid_from();
+    let tail = tail::build_tail(
+        merged,
+        &fractals,
+        &strokes,
+        &segments,
+        pending_start,
+        invalid_from,
+    );
     let layer = ParseLayer {
         merged_bars: state.merged_rc(),
         // #1392：由新包含状态**实际发证**（前缀一经定稿不再改写）；初始/等待为 0。
@@ -402,6 +430,7 @@ fn parse_layer_from_compact_facts(
         strokes,
         segments,
         tail: Rc::new(tail),
+        segments_parse_invalid_from: invalid_from,
     };
     layer
 }
@@ -443,8 +472,19 @@ fn parse_layer_from_facts(
         }
         None => segment::divide_segments_with_facts(&strokes, config),
     };
+    let invalid_from = segment_facts
+        .parse_invalid_from
+        .as_ref()
+        .map(|p| p.seg_start);
     facts.segment_facts = Some(segment_facts);
-    let tail = tail::build_tail(merged, &fractals, &strokes, &segments, pending_start);
+    let tail = tail::build_tail(
+        merged,
+        &fractals,
+        &strokes,
+        &segments,
+        pending_start,
+        invalid_from,
+    );
     ParseLayer {
         merged_bars: Rc::new(merged.to_vec()),
         merged_confirmed_len: 0, // 全量构造无增量血缘 ⟹ 0 = classifier 退化全量重建（bit-exact）。
@@ -454,6 +494,7 @@ fn parse_layer_from_facts(
         strokes: Rc::new(strokes),
         segments: Rc::new(segments),
         tail: Rc::new(tail),
+        segments_parse_invalid_from: invalid_from,
     }
 }
 
@@ -475,7 +516,18 @@ fn parse_layer_from_strokes(
         }
         None => segment::divide_segments_with_facts(&strokes, config),
     };
-    let tail = tail::build_tail(merged, &fractals, &strokes, &segments, pending_start);
+    let invalid_from = segment_facts
+        .parse_invalid_from
+        .as_ref()
+        .map(|p| p.seg_start);
+    let tail = tail::build_tail(
+        merged,
+        &fractals,
+        &strokes,
+        &segments,
+        pending_start,
+        invalid_from,
+    );
     let layer = ParseLayer {
         merged_bars: Rc::new(merged.to_vec()),
         merged_confirmed_len: 0, // 全量构造无增量血缘 ⟹ 0 = classifier 退化全量重建（bit-exact）。
@@ -485,6 +537,7 @@ fn parse_layer_from_strokes(
         strokes: Rc::new(strokes),
         segments: Rc::new(segments),
         tail: Rc::new(tail),
+        segments_parse_invalid_from: invalid_from,
     };
     (layer, segment_facts)
 }
@@ -493,6 +546,8 @@ fn parse_layer_from_strokes(
 mod tb02c_tests;
 #[cfg(test)]
 mod tb1493_replay_tests;
+#[cfg(test)]
+mod tb1581_tests;
 
 #[cfg(test)]
 mod tests {

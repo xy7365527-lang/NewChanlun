@@ -81,7 +81,7 @@ fn profile_parse_layer_scaling() {
         // tail 子步：build_tail 不再重跑段划分，须先算 (segments, pending_start) 再传入。
         let (segs_v, pend_v) = segment::divide_segments_with_tail(&strokes, &cfg.parse);
         let t_tail = bench(iters, || {
-            let _ = tail::build_tail(&incl.merged, &fractals, &strokes, &segs_v, pend_v);
+            let _ = tail::build_tail(&incl.merged, &fractals, &strokes, &segs_v, pend_v, None);
         });
 
         let e = match prev {
