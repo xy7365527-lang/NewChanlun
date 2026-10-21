@@ -181,13 +181,9 @@ pub struct SecondCheck {
 }
 /// #1344 / xianduan §5.1：第二种候选语义终点的规则版本（随 S `rule_revision` 绑定）。
 pub const SECOND_CANDIDATE_RULE_REVISION: &str = "second-candidate-terminal/1";
-/// #1420 根裁定：第二特征序列扫描预算的具名版本——调度参数，不是语义。
-///
-/// ⚠ #1604 偏离登记：版本化记录已升 `second-seq-scan-budget/2`（加 `tail_window` 字段，第二序列窗口
-/// 字段值不变）；本常数是 S 线形 `profile.budget_policy` 的已发布 token，改它须新 S rule_revision 与
-/// JS/Python 校验器同步，留后续票处理。运行时所用记录版本见 `ParseConfig::scan_budget` 与
-/// `segment::SegmentFacts::policy`。
-pub const SECOND_SEQ_SCAN_BUDGET_POLICY: &str = "second-seq-scan-budget/1";
+// #1420 根裁定：第二特征序列扫描预算是具名、版本化的调度参数（不是语义）。#1604 起不再有版本常数：
+// 运行时所读记录版本只出自 `ParseConfig::scan_budget`（记录 `second-seq-scan-budget`），K1 游标与
+// S 线形的 `budget_policy` / `scan_budget.policy` 写的都是它的 `label()`。
 
 /// #1344 第一问：第二种候选 X（主序列分型极值 P）自 b 笔后逐笔推进的语义终点。
 /// 只在扫描覆盖 `COMPLETE` 时成立；预算耗尽时语义状态为空（不是否定，A-ST-048-01）。

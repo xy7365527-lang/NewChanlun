@@ -7,8 +7,9 @@
 //! fail-closed（`parse_invalid_from`／`parse_invalid`）；段端门失败时 CC-056 等待原因带
 //! `segment_parse_invalid`（沿既有等待原因 → 逐轴证据通道上报阻断，不另造通道）。
 use super::*;
+use newchan_rust::theta_v0::config::ParseConfig;
 use newchan_rust::theta_v0::parser::{
-    feature_seq::{SecondTerminal, SECOND_SEQ_SCAN_BUDGET_POLICY},
+    feature_seq::SecondTerminal,
     second_fold::{SecondCandidateId, SecondFoldStore},
     segment::{SegmentFacts, CONSTRUCTION_RULE},
     stroke::StrokeFacts,
@@ -17,21 +18,24 @@ use newchan_rust::theta_v0::parser::{
 pub(super) const SCHEMA: &str = "s-segment/4";
 /// #1493 §7.1 第 6 条：段端门失败（「自 seg_start 起划分无效」）的阻断标记；经 CC-056 等待原因进逐轴证据。
 pub(super) const PARSE_INVALID_REASON: &str = "segment_parse_invalid";
-/// #1420 根裁定：`second-seq-scan-budget/1` 每 cut 获批预算（笔数）；0 = 无限（与 theta_v0 默认一致）。
-/// 改值即改调度政策，须随新 rule_revision 发布。
-const ROUND_BUDGET: u32 = 0;
 #[cfg(test)]
 thread_local! {
-    /// TestOnly：窗口>0 的续扫路径（生产恒为 `ROUND_BUDGET`）。
+    /// TestOnly：窗口>0 的续扫路径（生产恒取记录 `second-seq-scan-budget` 的 `second_seq_window`）。
     pub(super) static TEST_ROUND_BUDGET: std::cell::Cell<Option<u32>> = const { std::cell::Cell::new(None) };
 }
 
-pub(super) fn round_budget() -> u32 {
+/// #1420 根裁定：每 cut 获批预算（笔数，0 = 无限）是具名调度政策。#1604 起不设代码常数：预算与其记录
+/// 版本都取自 `ParseConfig`（记录 `second-seq-scan-budget` 的 `second_seq_window` 与 id/版本），输出里
+/// `scan_budget.policy` / `budget.policy` / K1 `budget_policy` 写的就是这次读到的记录。记录缺失或非法时
+/// `ParseConfig` 构造即报错停止（不回退）。改值 = 改签记录新版本。
+pub(super) fn second_store(config: &ParseConfig) -> SecondFoldStore {
+    #[allow(unused_mut)]
+    let mut store = SecondFoldStore::from_parse_config(config);
     #[cfg(test)]
     if let Some(w) = TEST_ROUND_BUDGET.with(|c| c.get()) {
-        return w;
+        store.round_budget = w;
     }
-    ROUND_BUDGET
+    store
 }
 
 /// 上一 cut 的段版本对象（CC-056）携续扫检查点 `scan_cursors`（K1 线形）；登记进本 cut 的
@@ -194,6 +198,14 @@ pub(super) fn build(
         .as_ref()
         .ok_or("TB-02-C：段事实未携带所读记录（#1604）")?;
     let tail_cache_window = budget.tail_window;
+    // 游标簿与段事实须读同一份预算记录；不同即拒写（不拿任一方补另一方）。
+    if store.policy.label() != budget.scan_budget {
+        return Err(format!(
+            "TB-02-C：游标簿预算记录 `{}` 与段事实所读 `{}` 不同（#1604）",
+            store.policy.label(),
+            budget.scan_budget
+        ));
+    }
     let truncated_from = facts.tail_window_bound.as_ref().map(|b| b.seg_start);
     let mut relations = vec![];
     let mut active = std::collections::BTreeSet::new();
@@ -237,9 +249,9 @@ pub(super) fn build(
                 "member_direction":if up {"UP"}else{"DOWN"},
                 "facts":second,"stroke_refs":refs,
                 "scan":{"from_stroke":second.from_stroke,"through_stroke":second.through_stroke,
-                    "input_stroke_count":second.input_stroke_count,"resource_truncated":second.resource_truncated,"tail_cache_window":0,
+                    "input_stroke_count":second.input_stroke_count,"resource_truncated":second.resource_truncated,"tail_cache_window":budget.second_seq_window,
                     "semantic_state":second.semantic_state,"coverage":second.coverage,
-                    "budget":{"policy":SECOND_SEQ_SCAN_BUDGET_POLICY,"granted":cursor.budget_granted},
+                    "budget":{"policy":cursor.budget_policy.label(),"granted":cursor.budget_granted},
                     "cursor":cursor.to_wire()},
                 "second_sequence_status":second_status(second.semantic_state)});
             Ok(add(&mut b, KINDS[1], json!(sequence), generation, seq_data, sources.clone()))
@@ -382,7 +394,7 @@ pub(super) fn build(
         generation,
         json!({"input_frontier":frontier.to_string(),"waiting_reasons":waiting,"known_at":known,
         "delivered_scope":"seed_strict_first_and_second_terminal","deferred_scope":["general_equal_identity","global_G006_bridge"],
-        "scan_budget":{"policy":SECOND_SEQ_SCAN_BUDGET_POLICY,"round_strokes":store.round_budget},
+        "scan_budget":{"policy":store.policy.label(),"round_strokes":store.round_budget},
         "scan_cursors":store.checkpoint()}),
         all_sources,
     );
@@ -418,7 +430,7 @@ mod tests {
             newchan_rust::theta_v0::parser::parse_layer_with_inclusion_facts_store(
                 &bars,
                 &ThetaConfig::default(),
-                SecondFoldStore::new(round_budget()),
+                second_store(&ThetaConfig::default().parse),
             );
         let strokes = facts.stroke_facts.as_ref().unwrap();
         let raw: BTreeMap<i64, Value> = rows.iter().enumerate().map(|(i, row)| (i as i64, json!({
@@ -503,7 +515,7 @@ mod tests {
                 newchan_rust::theta_v0::parser::parse_layer_with_inclusion_facts_store(
                     &bars,
                     &ThetaConfig::default(),
-                    SecondFoldStore::new(round_budget()),
+                    second_store(&ThetaConfig::default().parse),
                 );
             let raw: BTreeMap<i64, Value> = rows.iter().enumerate().map(|(i,row)| (i as i64,json!({
                 "identity_key":format!("raw-{i}"),"payload_hash":sha256_hex(canonical_json(row).as_bytes()),
@@ -578,7 +590,7 @@ mod tests {
                 newchan_rust::theta_v0::parser::parse_layer_with_inclusion_facts_store(
                     &bars,
                     &ThetaConfig::default(),
-                    SecondFoldStore::new(round_budget()),
+                    second_store(&ThetaConfig::default().parse),
                 );
             let segment_facts = facts.segment_facts.as_ref().unwrap();
             if !segment_facts.candidates.iter().any(|c| c.second.is_some()) {
@@ -590,7 +602,7 @@ mod tests {
             }))).collect();
             let n = rows.len() as i64;
             let cut = format!("cut-{n}");
-            let empty = SecondFoldStore::new(round_budget());
+            let empty = second_store(&ThetaConfig::default().parse);
             for (book, ok) in [(&empty, false), (&store, true)] {
                 let result = build(
                     segment_facts,

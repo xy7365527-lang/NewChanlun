@@ -124,7 +124,7 @@ def segment_invalid():
 def version(waiting=()):
     return envelope(dict(input_frontier="35", waiting_reasons=list(waiting), known_at=KNOWN,
                          delivered_scope="seed_strict_first_and_second_terminal", deferred_scope=["general_equal_identity", "global_G006_bridge"],
-                         scan_budget=dict(policy="second-seq-scan-budget/1", round_strokes="0"), scan_cursors=[]), "TB-02-W")
+                         scan_budget=dict(policy="second-seq-scan-budget/2", round_strokes="0"), scan_cursors=[]), "TB-02-W")
 
 
 def records(first_payload, segment_payload, version_payload=None):
@@ -196,6 +196,12 @@ class TB02XContractTest(unittest.TestCase):
         for kind, p in ((SEQ, first(5)), (SEQ, first(7)), (SEG, segment_pending()), (SEG, segment_confirmed()), (SEG, segment_invalid()), (VER, version())):
             with self.subTest(kind=kind, result=p["data"].get("result")):
                 self.accept(kind, p)
+
+    def test_v4_scan_budget_policy_is_read_record_v2(self):
+        # #1604：s-segment/4 写本次所读预算记录 `second-seq-scan-budget/2`；旧 token v1 与无关版本 Python/JS 同拒。
+        for stale in ("second-seq-scan-budget/1", "second-seq-scan-budget/3"):
+            with self.subTest(policy=stale):
+                self.reject(VER, mutated(version(), lambda d: d["scan_budget"].update(policy=stale)), "扫描预算政策版本不符")
 
     def test_missing_v4_keys_rejected(self):
         cases = [

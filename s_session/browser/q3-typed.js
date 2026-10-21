@@ -243,9 +243,11 @@
     const equal = (a, b) => canonical(a) === canonical(b);
     const SECOND_FOLD_CURSOR = ["schema", "rule_revision", "budget_policy", "budget_granted", "candidate", "input_stroke_count", "from_stroke", "through_stroke", "consumed_len", "consumed_digest", "dir_state", "standard", "breach_watermark", "semantic_state", "killed_by", "matched"];
     // #1420 K1 游标线形自身：形状/枚举/整数/摘要、候选起点（b+1）与封存见证非空性；同对象相等绑定由调用方另做（与 s_tb02_contract._fold_cursor 对称）。
-    function foldCursor(c, element, kill, check) {
+    // #1604：s-segment/4 写本次所读预算记录 id/版本（现行签署 v2）；s-segment/3 为 #1420 的 token v1（与 s_tb02_contract._budget_policy 对称）。
+    const budgetPolicy = v4 => v4 ? "second-seq-scan-budget/2" : "second-seq-scan-budget/1";
+    function foldCursor(c, element, kill, check, v4 = false) {
       keys(c, SECOND_FOLD_CURSOR, "K1游标");
-      need(c.schema === "second-fold-cursor/1" && c.rule_revision === "second-candidate-terminal/1" && c.budget_policy === "second-seq-scan-budget/1", "K1游标版本不符");
+      need(c.schema === "second-fold-cursor/1" && c.rule_revision === "second-candidate-terminal/1" && c.budget_policy === budgetPolicy(v4), "K1游标版本不符");
       const candidate = c.candidate; keys(candidate, ["seg_dir", "b_stroke", "candidate_extreme"], "K1候选身份");
       need(["UP", "DOWN"].includes(candidate.seg_dir), "K1候选方向未声明"); signed(candidate.candidate_extreme);
       const start = integer(c.from_stroke);
@@ -285,7 +287,7 @@
       need(roundStrokes !== 0n || cursors.length === 0, "预算0却登记续扫检查点");
       const seen = new Set();
       for (const c of cursors) {
-        foldCursor(c, e => checkpointElement(e, v4), checkpointKill, k => checkpointCheck(k, v4));
+        foldCursor(c, e => checkpointElement(e, v4), checkpointKill, k => checkpointCheck(k, v4), v4);
         need(c.budget_granted !== null && BigInt(c.consumed_len) <= BigInt(c.budget_granted), "续扫检查点预算不符");
         const identity = canonical([c.candidate.seg_dir, c.candidate.b_stroke, c.candidate.candidate_extreme]);
         need(!seen.has(identity), "续扫检查点候选身份重复"); seen.add(identity);
@@ -324,7 +326,7 @@
       need(sources.some(([s, b]) => s === state && equal(b.window_members, members)), "段候选态/窗成员未绑定FIRST检查");
     }
     // #1420 s-segment/3：SECOND 语义终点、扫描覆盖、预算与 K1 游标的类型和同对象绑定；不重放折叠（与 s_tb02_contract._second_terminal 对称）。
-    function secondTerminal(d, element, indices, secondCheck) {
+    function secondTerminal(d, element, indices, secondCheck, v4 = false) {
       const scan = d.scan, f = d.facts, semantic = scan.semantic_state;
       need([null, "CONFIRMED", "KILLED_BY_NEW_EXTREME", "OPEN_AT_PREFIX_END"].includes(semantic) && ["COMPLETE", "INCOMPLETE_RESOURCE_BOUND"].includes(scan.coverage), "SECOND终态/覆盖未声明");
       const incomplete = scan.coverage === "INCOMPLETE_RESOURCE_BOUND";
@@ -332,7 +334,7 @@
       need(d.second_sequence_status === (semantic === "CONFIRMED" ? "CONFIRMED" : semantic === "KILLED_BY_NEW_EXTREME" ? "KILLED" : "PENDING"), "SECOND状态未绑定语义终点");
       need(f.semantic_state === semantic && f.coverage === scan.coverage, "SECOND事实终态与扫描不一致");
       keys(scan.budget, ["policy", "granted"], "扫描预算");
-      need(scan.budget.policy === "second-seq-scan-budget/1", "扫描预算政策版本不符");
+      need(scan.budget.policy === budgetPolicy(v4), "扫描预算政策版本不符");
       if (scan.budget.granted !== null) integer(scan.budget.granted, true);
       const extreme = signed(f.candidate_extreme);
       if (f.breach_watermark !== null) signed(f.breach_watermark);
@@ -344,7 +346,7 @@
       }
       need((f.killed_by !== null) === (semantic === "KILLED_BY_NEW_EXTREME"), "失效见证与语义终点不符");
       if (f.killed_by !== null) { kill(f.killed_by); need(f.breach_watermark === f.killed_by.price, "越界水位未绑定失效见证"); }
-      const c = scan.cursor, start = foldCursor(c, element, kill, secondCheck);
+      const c = scan.cursor, start = foldCursor(c, element, kill, secondCheck, v4);
       need(c.budget_granted === scan.budget.granted, "K1游标预算未绑定扫描预算");
       need(c.candidate.seg_dir === d.direction && start === BigInt(scan.from_stroke) && c.candidate.candidate_extreme === f.candidate_extreme, "K1候选身份未绑定SECOND扫描");
       need(c.input_stroke_count === scan.input_stroke_count && BigInt(c.consumed_len) <= (BigInt(c.input_stroke_count) > start ? BigInt(c.input_stroke_count) - start : 0n), "K1游标消费范围越界");
@@ -470,7 +472,7 @@
             need(k.comparison === (up ? ">" : "<") && (up ? price > BigInt(b.high) : price < BigInt(b.low)) && BigInt(k.stroke_idx) > BigInt(b.stroke_idx), "开窗作废见证未严格越过P");
           }
         }
-        if (second && v3) secondTerminal(d, e => element(e, true), indices, secondCheck);
+        if (second && v3) secondTerminal(d, e => element(e, true), indices, secondCheck, v4);
       } else if (kind === SEGMENT_KINDS[2]) {
         keys(d, ["entity_id", "entity_revision", "seed_id", "sequence_id", "sequence_object_id", "construction", "result", "waiting_reasons", "termination_attempts", "geometric_end", "trigger_stroke", "formed_known_at", "terminated_known_at", "stroke_refs", ...(v2 ? ["second_sequence_id", "second_sequence_object_id", "strict", "fact_vector"] : []), ...(v4 ? ["turn_hypothesis_state", "window_members", "parse_invalid_from", "parse_invalid"] : [])], kind);
         integer(d.entity_revision, true); construction(d.construction); texts(d.waiting_reasons); known(d.formed_known_at);
@@ -537,7 +539,7 @@
       } else {
         keys(d, ["input_frontier", "waiting_reasons", "known_at", "delivered_scope", "deferred_scope", ...(v3 ? ["scan_budget", "scan_cursors"] : [])], kind); integer(d.input_frontier, false, true); known(d.known_at); texts(d.waiting_reasons);
         need(d.delivered_scope === (v3 ? "seed_strict_first_and_second_terminal" : v2 ? "seed_strict_first_and_finite_second" : "seed_and_no_gap_first_kind") && equal(d.deferred_scope, v3 ? ["general_equal_identity", "global_G006_bridge"] : v2 ? ["general_equal_identity", "general_scan_continuation", "global_G006_bridge"] : ["second_kind", "general_equal_identity"]), "段交付范围不符");
-        if (v3) { keys(d.scan_budget, ["policy", "round_strokes"], "段扫描预算"); need(d.scan_budget.policy === "second-seq-scan-budget/1", "扫描预算政策版本不符"); scanCheckpoints(d.scan_cursors, integer(d.scan_budget.round_strokes), v4); }
+        if (v3) { keys(d.scan_budget, ["policy", "round_strokes"], "段扫描预算"); need(d.scan_budget.policy === budgetPolicy(v4), "扫描预算政策版本不符"); scanCheckpoints(d.scan_cursors, integer(d.scan_budget.round_strokes), v4); }
       }
       if ([...SEGMENT_KINDS.slice(0,3), SEGMENT_KINDS[6]].includes(kind)) {
         if (kind === SEGMENT_KINDS[1]) {

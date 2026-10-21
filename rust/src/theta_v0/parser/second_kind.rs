@@ -45,7 +45,7 @@
 //! 「出现分型即确认」只是三态之一：第二种候选的语义终点 = 分型或越界先到者。原方向价格先严格
 //! 越过候选极值 P（`078-第78课.md:52`「线段C没有形成第二特征序列的分型又直接新高或新低了……
 //! 线段A、B、C加起来只能算是一个线段」）⟹ `KILLED_BY_NEW_EXTREME`，候选作废、不复活；同一笔内
-//! 先判分型、后判越界。扫描窗口名分 = 调度预算 `second-seq-scan-budget/1`（不是语义）：耗尽只产
+//! 先判分型、后判越界。扫描窗口名分 = 调度预算（记录 `second-seq-scan-budget`，不是语义）：耗尽只产
 //! `INCOMPLETE_RESOURCE_BOUND`，不产否定。本文件与 segment 状态机共用 `feature_seq` 同一判定。
 
 use super::super::config::Tangency;

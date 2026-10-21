@@ -3121,7 +3121,7 @@ fn advance_core(
     }
     // #1420：同一 K1 游标簿跨 cut/恢复续扫，oracle 与共享证据路径消费同一检查点；上一 cut 的 K1 游标
     // 经已发布对象带入（续扫与恢复同一路径）。
-    let mut second_store = parser::second_fold::SecondFoldStore::new(tb02c::round_budget());
+    let mut second_store = tb02c::second_store(&config.parse);
     if is_ohlc {
         tb02c::restore_cursors(&read_active_objects(&conn)?, &mut second_store);
     }

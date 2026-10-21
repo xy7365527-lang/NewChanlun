@@ -564,14 +564,21 @@ def validate_shape_refs(shape, effective=None, groups=None):
         raise ValueError("CC006 source_coords 不等于成员与构造/边界依据并集")
 
 
-SECOND_SCAN_BUDGET_POLICY = "second-seq-scan-budget/1"
+# #1420 s-segment/3 写的是预算 token `second-seq-scan-budget/1`；#1604 起写者写本次所读记录 `second-seq-scan-budget`
+# 的 id/版本，s-segment/4 对象须为现行签署版本 v2（S 写者不再有版本常数，见 rust tb02c.rs `second_store`）。
+SECOND_SCAN_BUDGET_POLICY_V3 = "second-seq-scan-budget/1"
+SECOND_SCAN_BUDGET_POLICY = "second-seq-scan-budget/2"
+
+
+def _budget_policy(v4):
+    return SECOND_SCAN_BUDGET_POLICY if v4 else SECOND_SCAN_BUDGET_POLICY_V3
 SECOND_FOLD_CURSOR_FIELDS = ("schema", "rule_revision", "budget_policy", "budget_granted", "candidate", "input_stroke_count", "from_stroke", "through_stroke", "consumed_len", "consumed_digest", "dir_state", "standard", "breach_watermark", "semantic_state", "killed_by", "matched")
 
 
-def _fold_cursor(c, element, kill, check):
+def _fold_cursor(c, element, kill, check, v4=False):
     """#1420 K1 游标线形自身：形状/枚举/整数/摘要、候选起点（b+1）与封存见证非空性；同对象相等绑定由调用方另做。"""
     keys(c, SECOND_FOLD_CURSOR_FIELDS, "K1游标")
-    if (c["schema"], c["rule_revision"], c["budget_policy"]) != ("second-fold-cursor/1", "second-candidate-terminal/1", SECOND_SCAN_BUDGET_POLICY):
+    if (c["schema"], c["rule_revision"], c["budget_policy"]) != ("second-fold-cursor/1", "second-candidate-terminal/1", _budget_policy(v4)):
         raise ValueError("K1游标版本不符")
     candidate = c["candidate"]
     keys(candidate, ("seg_dir", "b_stroke", "candidate_extreme"), "K1候选身份")
@@ -645,7 +652,7 @@ def _scan_checkpoints(cursors, round_strokes, v4=False):
         raise ValueError("预算0却登记续扫检查点")
     seen = set()
     for c in cursors:
-        _fold_cursor(c, lambda e: _checkpoint_element(e, v4), _checkpoint_kill, lambda k: _checkpoint_check(k, v4))
+        _fold_cursor(c, lambda e: _checkpoint_element(e, v4), _checkpoint_kill, lambda k: _checkpoint_check(k, v4), v4)
         if c["budget_granted"] is None or int(c["consumed_len"]) > int(c["budget_granted"]):
             raise ValueError("续扫检查点预算不符")
         identity = (c["candidate"]["seg_dir"], c["candidate"]["b_stroke"], c["candidate"]["candidate_extreme"])
@@ -654,7 +661,7 @@ def _scan_checkpoints(cursors, round_strokes, v4=False):
         seen.add(identity)
 
 
-def _second_terminal(d, element, indices, second_check):
+def _second_terminal(d, element, indices, second_check, v4=False):
     """#1420 s-segment/3：SECOND 语义终点、扫描覆盖、预算与 K1 游标的类型和同对象绑定；不重放折叠。"""
     scan, f = d["scan"], d["facts"]
     semantic = scan["semantic_state"]
@@ -668,7 +675,7 @@ def _second_terminal(d, element, indices, second_check):
     if f["semantic_state"] != semantic or f["coverage"] != scan["coverage"]:
         raise ValueError("SECOND事实终态与扫描不一致")
     keys(scan["budget"], ("policy", "granted"), "扫描预算")
-    if scan["budget"]["policy"] != SECOND_SCAN_BUDGET_POLICY:
+    if scan["budget"]["policy"] != _budget_policy(v4):
         raise ValueError("扫描预算政策版本不符")
     if scan["budget"]["granted"] is not None:
         integer(scan["budget"]["granted"], "budget.granted", 1)
@@ -691,7 +698,7 @@ def _second_terminal(d, element, indices, second_check):
         if f["breach_watermark"] != f["killed_by"]["price"]:
             raise ValueError("越界水位未绑定失效见证")
     c = scan["cursor"]
-    start = _fold_cursor(c, element, kill, second_check)
+    start = _fold_cursor(c, element, kill, second_check, v4)
     if c["budget_granted"] != scan["budget"]["granted"]:
         raise ValueError("K1游标预算未绑定扫描预算")
     if c["candidate"]["seg_dir"] != d["direction"] or start != int(scan["from_stroke"]) or c["candidate"]["candidate_extreme"] != f["candidate_extreme"]:
@@ -973,7 +980,7 @@ def validate_segment_payload(kind, p):
                 if k["comparison"] != (">" if up else "<") or not (price > int(b["high"]) if up else price < int(b["low"])) or int(k["stroke_idx"]) <= int(b["stroke_idx"]):
                     raise ValueError("开窗作废见证未严格越过P")
         if second and v3:
-            _second_terminal(d, lambda e: element(e, True), indices, second_check)
+            _second_terminal(d, lambda e: element(e, True), indices, second_check, v4)
     elif kind == SEGMENT_KINDS[2]:
         keys(d, ("entity_id", "entity_revision", "seed_id", "sequence_id", "sequence_object_id", "construction", "result", "waiting_reasons", "termination_attempts", "geometric_end", "trigger_stroke", "formed_known_at", "terminated_known_at", "stroke_refs") + (("second_sequence_id", "second_sequence_object_id", "strict", "fact_vector") if v2 else ()) + (("turn_hypothesis_state", "window_members", "parse_invalid_from", "parse_invalid") if v4 else ()), kind)
         integer(d["entity_revision"], "entity_revision", 1)
@@ -1096,7 +1103,7 @@ def validate_segment_payload(kind, p):
             raise ValueError("段交付范围不符")
         if v3:
             keys(d["scan_budget"], ("policy", "round_strokes"), "段扫描预算")
-            if d["scan_budget"]["policy"] != SECOND_SCAN_BUDGET_POLICY:
+            if d["scan_budget"]["policy"] != _budget_policy(v4):
                 raise ValueError("扫描预算政策版本不符")
             _scan_checkpoints(d["scan_cursors"], integer(d["scan_budget"]["round_strokes"], "round_strokes", 0), v4)
     if kind in SEGMENT_KINDS[:3] + SEGMENT_KINDS[6:]:
