@@ -8267,7 +8267,7 @@
         "s_session/browser/tb01c-client.js",
         "s_session/tests/fixtures/tb02d/generate-input.py"
       ],
-      "reason": "源码面误报中字节受锁或属在途改动面的 11 条，逐键核实后按精确键追加；其余源码面误报改为行内抑制或改写注释，归档与测试数据目录改由 ignore-glob 排除。原有清单顺序不变，新键仅追加。证据：.chanlun/review-results/eng-debt-20261020/devskim/DEVSKIM-TRIAGE.md",
+      "reason": "源码面误报中字节受锁或属在途改动面的 11 条，逐键核实后按精确键追加；其余源码面误报改为行内抑制或改写注释，归档与测试数据目录的现有告警见下一条按精确键追加的记录（第三轮用户裁定，不做目录排除）。原有清单顺序不变，新键仅追加。证据：.chanlun/review-results/eng-debt-20261020/devskim/DEVSKIM-TRIAGE.md",
       "entries": {
         "DS172411|s_session/browser/q3-consumer.js|1739": "浏览器定时器回调为函数字面量，非字符串求值，无注入面。q3-consumer.js 是 tb01c-client.js 生成段的输入，由 s_session/tests/build_tb01c_browser.cjs 按逐字节摘要锁漂移；行内加注须连带重生成打包产物，且该目录正被 #1394/#1488 线改动，故按精确键入基线而不改字节。",
         "DS172411|s_session/browser/q3-consumer.js|1838": "浏览器定时器回调为函数字面量，非字符串求值，无注入面。q3-consumer.js 是 tb01c-client.js 生成段的输入，由 s_session/tests/build_tb01c_browser.cjs 按逐字节摘要锁漂移；行内加注须连带重生成打包产物，且该目录正被 #1394/#1488 线改动，故按精确键入基线而不改字节。",

@@ -1,6 +1,6 @@
 # #1588 devskim 分片：DevSkim 门禁红灯处置台账
 
-- 分支：`eng-debt-1588/devskim`（基于 `origin/main` 1d70db893f）
+- 分支：`eng-debt-1588/devskim`（首轮基于 `origin/main` 1d70db893f；第三轮 rebase 到 6c6acd5fe0）
 - 触发事实：main 上 DevSkim run [39379637868](https://github.com/xy7365527-lang/NewChanlun/actions/runs/39379637868)（head d2f20aaca8）失败；门禁写入的 step summary 约 6.3 MB，超出 GitHub 1 MiB 上限，摘要页无法渲染。
 - 输入（不入仓，只记录校验和）：
   - SARIF `/tmp/eng1588/sarif1/devskim-results.sarif`：sha256 `a1b1dee8…2901`，共 91,438 条结果；
@@ -14,7 +14,7 @@
 
 | 类别 | 键数 | 处置 |
 |---|---:|---|
-| `.chanlun/review-results/**` 归档 + `s_session/tests/fixtures/**/*.json{,l}` 测试数据 | 55,065 | ignore-glob 排除（§2），排除前全量凭据扫描 0 命中 |
+| `.chanlun/review-results/**` 归档 + `s_session/tests/fixtures/**/*.json{,l}` 测试数据 | 见 §7 | **第三轮按用户裁定（2026-10-21）改为：现有文件的现有告警按精确键 `rule\|path\|line` 追加入基线，不做目录排除，新写入文件仍被扫描**（§2、§7）；全量凭据扫描 0 命中 |
 | 源码面（含 fixtures 目录里的 1 个 `.py`） | 81 | 66 条行内抑制、4 条改写过时注释、11 条按精确键入基线（§1） |
 | step summary 超限 | — | 门禁新增 `--summary-max-new`（默认 200），摘要只列前 200 条并指向 job log 与 artifact；stdout 保持全量；判红逻辑与退出码不变（§3） |
 
@@ -149,24 +149,22 @@ grep -v -E '^\S+\|(\.chanlun/review-results/|s_session/tests/fixtures/.*\.jsonl?
 
 追加方式：原有 `findings` 顺序不变，新键只追加。理由文本刻意避开会触发规则的英文词。基线文件自身唯一的既有告警在 860 行，追加不改变它的行号。
 
-## 2. 归档与测试数据目录的 ignore-glob
+## 2. 归档与测试数据目录：按精确条目入基线（第三轮，用户裁定）
 
-新增 glob（`.github/workflows/devskim.yml`，注释已逐类写理由并指向本文件）：
+**裁定（用户 2026-10-21，经主控转达）**：不做整目录排除。`.chanlun/review-results/**` 与 `s_session/tests/fixtures/**/*.json{,l}` 中**现有文件**的现有告警，按现行基线键格式 `rule|path|line` 逐条追加进 `.github/devskim-baseline.json`（新开一条 `updates` 记录，只追加不重排）。这两个目录今后新写入的文件和新出现的告警仍被扫描、仍会判红。理由：与 #1474「不能只凭字段名、目录或 40/64 位形状放行」一致——放行对象是具体的已知条目，不是目录。
 
-```
-**/.chanlun/review-results/**
-**/s_session/tests/fixtures/*.json, **/s_session/tests/fixtures/*.jsonl
-**/s_session/tests/fixtures/**/*.json, **/s_session/tests/fixtures/**/*.jsonl
-```
+处置：
+- `.github/workflows/devskim.yml`：删除首轮加的 5 条 glob（`**/.chanlun/review-results/**` 与 fixtures 下根层/子目录的 `*.json`、`*.jsonl`），#1111 原有排除不动；注释改为写明本裁定。
+- 新增键取自 rebase 后 HEAD 的真实扫描结果（PR 上的 DevSkim run 的 `devskim-sarif` artifact），生成与断言见 §7。
 
-不确定 DotNet glob 的 `**/` 是否匹配零层目录，所以根层与子目录两种写法都加了。fixtures 只排除 `.json/.jsonl` 数据文件，目录内代码（`tb02d/generate-input.py`）仍在扫描范围内。
+首轮（已撤回）的方案是 ignore-glob 整目录排除，下面 §2.1–§2.2 的理由与凭据核实仍然有效，作为这批条目入基线的依据。
 
 ### 2.1 理由
 
 - `.chanlun/review-results/**`：冻结的评审/证据归档，是绑定工单的工作底稿（宪法 §5），不被任何 CI job 构建、导入或执行。其中 DS173237 占 88,595 条。除 2 条外，匹配文本全是纯十六进制（SHA-256、Git 对象号，形状分布见 `classify-excluded-output.txt`）。剩下 2 条（`issue1340-publication-20260909/payload/inputs/LEGACY-TICKET-DISPOSITION.json:4238`、`RESIDUAL-TICKET-PLAN.json:3362`）已人工看过上下文，均为 `sha256` 字段。其余规则（DS162092 1,467、DS117838 889、DS197836 85 等）出现在归档的报告正文与日志里，同样不执行。
 - `s_session/tests/fixtures/**/*.json{,l}`：机器生成、受哈希锁的测试数据（manifest、oracle、schedule），不可手改；行内注释也会破坏 JSON 格式和摘要锁。
 
-### 2.2 排除前凭据核实（全量，不是抽样）
+### 2.2 入基线前凭据核实（全量，不是抽样；首轮完成）
 
 ```bash
 python3 .chanlun/review-results/eng-debt-20261020/devskim/scan_credentials.py .
@@ -176,7 +174,7 @@ python3 .chanlun/review-results/eng-debt-20261020/devskim/scan_credentials.py .
 
 分类阶段曾有 2 个前缀命中（`issue1371-tb01-b/native-codex-r13-r14/EVIDENCE-ATTACHMENTS.json`，DS117838/DS197836 各 1）。核实后它们都落在随机 base64/xz 附件数据里，是偶然出现的前缀。剔除 blob 并解码附件后重扫，结果为 0。另用宽松的键名扫描做了一遍，只找到领域 token（如 `snapshot_token`、`begin_token`、`token_schema`、`forged-token`），都不是凭据。本节只报路径与规则，不报任何值。
 
-### 2.3 与 #1474 的口径张力（请主控裁定）
+### 2.3 与 #1474 的口径张力（第三轮已裁定：选精确条目入基线）
 
 #1474（OPEN）已获批的方向是「稳定告警身份」，并写明「不能只凭字段名、目录或 40/64 位形状放行」。本分片按任务书要求，对归档与测试数据用**目录级** ignore-glob。为不越过 #1474 的口径，排除前对两个目录做了全量（非抽样）凭据扫描，并在 workflow 注释里逐类写了理由。即便如此，这仍是按目录放行：今后写进这两个目录的新文件不会再被 DevSkim 扫描。建议由 #1474 的稳定身份方案接管这两个目录的长期策略（例如在提交钩子里对归档目录运行同类凭据扫描）。
 
@@ -227,12 +225,16 @@ python3 .chanlun/review-results/eng-debt-20261020/devskim/scan_credentials.py .
 1. `rust/src/theta_v0/nautilus/strategy.rs:314/317`：限价腿 entry 价回填待办（#916 订正段）。**第二轮查重订正：已有票承接，不另开。** #1385（OPEN，TB-10-B）2026-09-12 的正文补记写明「`DS176209|rust/src/theta_v0/nautilus/strategy.rs|314` 由本票 OE09 旧策略入口/订单归属核查承接」。首轮写的「#1385 只是宽泛命中」不准确。314 的抑制理由已改为引用 #1385，317 是原有基线键。
 2. `rust/src/trading/replay_comparator.rs:151`：完整 CERT/DIV/TERM 对拍，**已转票 #1607**（task）。查重：#1518 已关；#1532 把 `trading::replay_comparator` 归为冻结影子，去向归 #1304；#1528 扩展的是 `run_replay_double` 的业务对拍项，对象不同，不重复。151 的抑制理由已改为引用 #1607。
 3. 基线键带行号，会随行号漂移失效。本次模拟显示 7,944 个基线键已失效（`Fixed since baseline`），需要清理，归 #1474 的稳定身份方案。
-4. §2.3 的目录级排除口径，请主控结合 #1474 裁定。
+4. §2.3 的口径已由用户 2026-10-21 裁定：按精确条目入基线，不做目录排除。代价是基线文件变大、这批键同样带行号（归档文件一旦被改写，对应键会失效并以新行号重新判红），长期仍归 #1474 的稳定身份方案。
 
 ## 6. 希望非作者评审重点看的地方
 
 - `scripts/devskim_sarif_gate.sh`：截断时用数组切片与插入说明行，对 Bash 3.2 和 Bash 5 都要兼容；同时确认 `errors` 与判红路径完全没动。
-- workflow ignore-glob 的范围：是否误排了代码文件；`**/x/**/*.json` 是否匹配零层目录。
+- 第三轮：workflow 只删了本 PR 加的目录 glob、#1111 原有排除未动；基线新增条目是否全部落在两个目录内（基线文件自身的例外见 §7）、是否只追加未重排。
 - 对 #1372 测试断言的改动：全量断言保留在 stdout，摘要断言改为截断版本。这是有意变更，不是缩小覆盖。
 - `.github/devskim-baseline.json` 的 11 条 entries 理由，以及 `generate-input.py:282` 的提交号核实。
 - 66 处行内抑制的理由是否逐条成立，尤其是 DS162092 中 echo/日志行的措辞。
+
+## 7. 第三轮：精确条目入基线的生成与断言
+
+（待 PR 上的 DevSkim 扫描结果生成后填写。）
