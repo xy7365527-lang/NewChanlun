@@ -67,6 +67,6 @@ pend "7 test_tb01c_r4_anchor_lock（#1657 候选提交上复跑）"
 pend "8 test_tb01c_* 77/77（#1657 候选提交上复跑）"
 pend "9 资源合同 ADR 八键（#1657 交付前置）"
 pend "10 #1567 按批复关闭（合入归用户）"
-chk "10' resolution 含 ADR 路径" "gh api repos/$R/issues/1567/comments --jq '.[].body' | rg -q '0046-s-admission-anchor-issuance-and-takeover'"
+chk "10' resolution 首行引用户批复且含 ADR 路径" "gh api repos/$R/issues/1567/comments --jq '.[] | select(.body | contains(\"0046-s-admission-anchor-issuance-and-takeover\")) | .body | split(\"\\n\")[0]' | rg -q '用户 2026-10-21 批复.*6310847303'"
 
 exit $fail
