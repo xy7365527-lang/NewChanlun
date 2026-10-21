@@ -407,9 +407,29 @@ impl Memo {
         } else {
             None
         };
-        let Some(cert) = self.certs.remove(key) else {
+        let Some(cert) = self.certs.get(key).cloned() else {
             return Ok(());
         };
+        // 读集仍持有原件时，先把转记目标准入 owned 树：失败则索引、字节账、头与 lineage
+        // 原样不动（#1488 0087 ①-F-1）；此后各步不可失败，payload 恰好从证书账转到读集账。
+        let owner = match self.capture.as_mut() {
+            Some(c) => match c
+                .nodes
+                .iter()
+                .find(|(_, held)| Arc::ptr_eq(held, &cert))
+                .map(|(key, _)| *key)
+            {
+                Some(owner) => {
+                    c.owned
+                        .insert_admitted(owner, &admission)
+                        .map_err(|e| e.to_string())?;
+                    true
+                }
+                None => false,
+            },
+            None => false,
+        };
+        self.certs.remove(key);
         self.certs_bytes = self.certs_bytes.saturating_sub(cert.payload_cost());
         self.cert_lineage = next_lineage.expect("existing certificate");
         // 每个头都绑定这一 lineage；旋转后不可再复用，立即释放其源字节账。
@@ -417,16 +437,8 @@ impl Memo {
         self.batch_headers_bytes = 0;
         #[cfg(test)]
         counter(|c| c.lineage_rotations += 1);
-        if let Some(c) = self.capture.as_mut() {
-            if let Some(owner) = c
-                .nodes
-                .iter()
-                .find(|(_, held)| Arc::ptr_eq(held, &cert))
-                .map(|(key, _)| *key)
-            {
-                c.owned
-                    .insert_admitted(owner, &admission)
-                    .map_err(|e| e.to_string())?;
+        if owner {
+            if let Some(c) = self.capture.as_mut() {
                 c.bytes = c.bytes.saturating_add(cert.payload_cost());
             }
         }
