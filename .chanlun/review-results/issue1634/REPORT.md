@@ -42,8 +42,8 @@
 
 | 基线 | 结果 | 日志 |
 |---|---|---|
-| main `df6e680930` + 本测试（本地临时提交，未推送） | 2 FAILED：夹具得 1 组；全史起点 0 得 merged=1 | `logs/main-red-*.txt` |
-| #1419 整合 `356df5db72` + 本测试（本分支） | 2 passed；起点 0/5/104 = 3,037,868 / 3,037,866 / 3,037,848 组，笔 388,172 / 388,170 / 388,166 | `logs/int-green-*.txt` |
+| main `df6e680930` + 本测试（本地临时提交，未推送） | 2 FAILED：夹具得 1 组；全史起点 0 得 merged=1 | `logs/main-red-7930c55937.txt`（本地临时提交 `7930c55937`） |
+| #1419 整合 `356df5db72` + 本测试（本分支） | 2 passed；起点 0/5/104 = 3,037,868 / 3,037,866 / 3,037,848 组，笔 388,172 / 388,170 / 388,166 | `logs/int-green-935571c7e7.txt` |
 
 远端 windows-5090 WSL，`nc-remote` 私有 target `issue1634-main` / `issue1634-int`，`set -o pipefail; cargo test --release --lib issue1634 -- --include-ignored`（收据 EXIT 为 cargo 真实退出码）。本机未跑 cargo。
 
