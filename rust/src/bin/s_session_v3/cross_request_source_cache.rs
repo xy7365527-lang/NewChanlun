@@ -16,9 +16,9 @@ struct Binding {
     rows: Vec<ExactRows>,
 }
 impl Binding {
-    #[cfg_attr(
-        feature = "s_capture_native_testonly",
-        allow(dead_code, reason = "#1608：s_capture_native_testonly 构建不触达此项")
+    #[allow(
+        dead_code,
+        reason = "#1608：旧包装入口，全仓无调用方（模块整体已在 native feature 门内）；去留见 #1635"
     )]
     fn read(tx: &Transaction<'_>, frontier: i64) -> Result<Self, String> {
         Self::read_admitted(tx, frontier, None)

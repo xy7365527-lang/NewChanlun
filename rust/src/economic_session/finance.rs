@@ -1567,7 +1567,11 @@ fn persist_with_job(
     e: &Value,
     w: Value,
     mut job: Option<&mut Job>,
-    _stage_token: Option<&str>,
+    #[allow(
+        unused_variables,
+        reason = "#1608 疑点：调用方传入暂存 token 但函数体从不读取；有意废弃还是漏接线待 #1635 裁定"
+    )]
+    stage_token: Option<&str>,
     deadline: Option<std::time::Instant>,
 ) -> Result<Value, String> {
     let final_budget = if revision(&config.manifest)? == REV_V2 {

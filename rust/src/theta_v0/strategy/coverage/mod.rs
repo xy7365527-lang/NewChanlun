@@ -147,11 +147,13 @@ pub(crate) use compose::pi_theta_step_traced;
 pub(crate) use compose::pi_theta_step_traced_with_risk_seeds;
 #[cfg(any(test, feature = "backtest_bin"))]
 pub(crate) use compose::StepTrace;
+// #913 清理时误加 test 门——fill.rs 生产区（backtest_bin 门内）也消费 TwStepCtx，订正见 #1022。
 #[cfg(any(test, feature = "backtest_bin"))]
 pub(crate) use compose::TwStepCtx;
+// #1608：VoiceVerdict 现只剩测试消费（shadow.rs 已是 cfg(test)）。
 #[cfg(test)]
 pub(crate) use compose::VoiceVerdict;
 pub use compose::{
     t1_target_residual_probe_bump, t1_target_residual_probe_count, t1_target_zero_probe_bump,
     t1_target_zero_probe_count, t1_target_zero_probe_reset,
-}; // #913 清理时误加 test 门——fill.rs 生产区（backtest_bin 门内）也消费，订正见 #1022
+};

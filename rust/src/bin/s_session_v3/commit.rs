@@ -116,9 +116,9 @@ pub(super) fn publish_borrowed_staged(
     )
 }
 #[cfg(feature = "s_capture_native_testonly")]
-#[cfg_attr(
-    feature = "s_capture_native_testonly",
-    allow(dead_code, reason = "#1608：s_capture_native_testonly 构建不触达此项")
+#[allow(
+    dead_code,
+    reason = "#1608：旧包装入口，全仓无调用方（prepared.rs 直接调 _admitted 版本）；去留见 #1635"
 )]
 pub(super) fn publish_borrowed_with_workspace(
     tx: &mut Transaction<'_>,

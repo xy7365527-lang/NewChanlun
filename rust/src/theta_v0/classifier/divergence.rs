@@ -1539,7 +1539,7 @@ mod tests {
     #[test]
     #[allow(
         unnameable_test_items,
-        reason = "#1608 疑点：函数体内嵌 #[test] confirm_divergence_forcel_semantics 从未执行；按票面不改行为，已上报"
+        reason = "#1608 疑点：函数体内嵌 #[test] confirm_divergence_forcel_semantics 从未执行；按票面不改行为，跟进见 #1635"
     )]
     fn confirm_divergence_three_gauges() {
         let fp = |a, c| ForceProxies { seg_a: a, seg_c: c };
@@ -1595,7 +1595,7 @@ mod tests {
         /// 与面积档可给相反判定（口径切换的语义见证）。
         #[allow(
             dead_code,
-            reason = "#1608 疑点：此测试嵌在外层测试函数体内，从未被测试框架收集执行；按票面不改行为，已上报"
+            reason = "#1608 疑点：此测试嵌在外层测试函数体内，从未被测试框架收集执行；按票面不改行为，跟进见 #1635"
         )]
         #[test]
         fn confirm_divergence_forcel_semantics() {

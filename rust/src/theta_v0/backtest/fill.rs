@@ -864,7 +864,7 @@ fn step_center_oscillation(
     )
 }
 
-/// ★#466 D0：仅供 `OPSEM_DUMP_DIR` 已启用的生产循环与事务落盘测试使用。状态推进与
+/// ★#466 D0：仅供事务落盘测试使用（#1608 起为 `cfg(test)`；生产循环走 `_historical`）。状态推进与
 /// [`step_center_oscillation`] 共用同一实现；增量只有 Rebased 时复制旧/新身份链和核销前挂起表。
 #[cfg(test)]
 fn step_center_oscillation_observed(

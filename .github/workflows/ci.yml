@@ -240,9 +240,13 @@ jobs:
           RUSTFLAGS: "-D warnings"
         run: |
           set -x
+          free -b
           df -B1 -T .
+          du -sx -B1 target 2>/dev/null || true
           cargo check --all-targets --features s_session
+          free -b
           df -B1 -T .
+          du -sx -B1 target 2>/dev/null || true
 
       - name: cargo fmt --check（#611：归零后防回潮）
         run: |
