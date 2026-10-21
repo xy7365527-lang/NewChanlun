@@ -675,8 +675,11 @@ mod tests {
             // 供 CC-007 descriptive_labels.raw_ohlc 读取三组成员的原始 OHLC；不查询
             // BspPoint/买卖位，不能改调 BSP 绑定 API。只豁免此点，扫描与 stale 检查不变。
             // （merge-0047：冻结源锚 2999 已随冻结源自身改动漂至 3087，合并 main 及其解法改动后 ⟹ 3090；
-            // 重核内容不变，同条目重登记。）
-            "bin/s_session_v2/content_producer.rs:3090",
+            // 重核内容不变，同条目重登记。
+            // premerge-0086：S3 测试/计数改动在上方增行（e94be462c2 +8、05a6cd003b +9、
+            // 0461dbf630 +2）⟹ 3090 → 3109；合 main 02b5b571eb 后重核仍为 raw_bar_at 的
+            // `.filter(|bar| bar.source_index == coord)`，内容不变，同条目重登记。）
+            "bin/s_session_v2/content_producer.rs:3109",
             // #[ignore] 死探针（已被 runner::newly_confirmed_step 取代，issue #747 条目6 登记不入
             // 18 处枚举）。（#885 S4-d：上方 slice_step 增一行 ⟹ 596→597，同条目重登记。）
             "theta_v0/backtest/l3_pi_probe.rs:603",
