@@ -15,7 +15,7 @@
 
 - Run：https://github.com/xy7365527-lang/NewChanlun/actions/runs/39597916668（workflow_dispatch，`--ref harvest/issue-1585-red`）
 - Job `rust-test-default`（119214761445）：`test result: FAILED. 2888 passed; 2 failed; 153 ignored`，失败的正是两条负控：
-  - `theta_v0::backtest::capture_oos::tests::tb1585_s3_refuses_segment_confirmation_under_marker`，`capture_oos.rs:614`「标记 bar 高水位不动」，left 5 / right 4（还原后标记 bar 照样确认新段）；
+  - `theta_v0::backtest::capture_oos::tests::tb1585_s3_refuses_segment_confirmation_under_marker`，`capture_oos.rs:614`「标记 bar 高水位不动」，left 5 / right 4（还原后标记 bar 照样确认新段；行号按取证分支，PR 头上同一断言在 `:620`）；
   - `theta_v0::backtest::segment_gn::tests::tb1585_s2_reads_only_valid_prefix_under_marker`，`segment_gn.rs:165`「样本只到失败段之前」，还原后样本 30 段，期望 15 段。
 - 另两条 tb1585（`wverify_run` 与 `classifier::diag`）在红分支上照常通过，与本次只还原 S2/S3 接线一致。
 
