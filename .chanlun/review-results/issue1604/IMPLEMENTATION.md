@@ -94,17 +94,14 @@ Rust 验证全部经远端 `nc-remote`（本地未跑 cargo/rustc/rustup/rustfmt
 
 ## 7. 偏离与登记
 
-1. **Python v0 口径变化**：
-   - `a_segment_v0.py` 改前用严格 `<`，等于 open。
-   - 现在按记录 closed 判 `<=`，与 v1、Rust 统一（#804 各级同值）。
-   - 相切输入上 v0 输出会变；非相切输入不受影响。
-2. S 写者线路 token `second-seq-scan-budget/1` 与 `s-segment/4` 暂不升版，留后续票。
+1. **Python v0 口径变化（正本要求，非偏离）**：`a_segment_v0.py` 改前写死严格 `<`（即 `open`），现读记录 `segment-second/2`（`closed`，`<=`）。依据：`.chanlun/definitions/xianduan.md` §6.3 `:262` 默认 `closed`（承 #246）、`:386` 与 §15 X-38 `:524`「P1 与 claim5 的 `<` 改读字段……Rust 与 Python → #1604」；#1600 A-12、#1604 票面「默认 `closed`」。影响面：只在三笔重叠核心恰为单点（`max(lows) == min(highs)`）时变，例 `[5,10]`、`[0,10]`、`[0,5]` 改前 0 段、改后 1 段；`ab_bridge_newchan` 仅 `segment_algo="v0"` 走此路（默认 `v1` 不受影响）。锁：`tests/test_segment_policy_1604.py::test_v0_signed_record_counts_tangency_as_overlap`。等值对拍「逐位相同」对 Python v0 的相切输入不成立，这是正本裁定的有意改变。
+2. ~~S 写者 token 不升版~~ → 已做（#1604 第二轮，独审 M1）：TB-02-C 写本次所读记录 label（`second-seq-scan-budget/2`），删 `ROUND_BUDGET` 与 `SECOND_SEQ_SCAN_BUDGET_POLICY`；`s-segment/4` 校验器要求 v2，`s-segment/3` 历史合同保留 v1。`segment-second/2` 早已在 rule_revision 内，未另加字段。代价：本改动之前由旧二进制写出、`schema_revision = s-segment/4` 且带 v1 token 的对象不再过新校验器（同 rule_revision 未升）；S 每代重算全部活动对象，K1 游标 v1 线形被判不可读后自 b 笔重折叠（预算 0 下检查点本就为空）。
 3. 旧线 `rust/src/segment.rs` 整体属 TB-10，未动：`:426` 的 `TAIL_WINDOW` 与相切谓词（`:133` 三笔重叠、`:410/:413` 缺口）仍是代码常数，取值等于签署值 `closed`。记录改签 `open` 时旧线不会跟随，由 TB-10 处理。
 4. Lean 侧相切归 #1626。
+5. Python v1 尾窗（独审 L1）：`_FeatureSeqState.TAIL_WINDOW = 7` 已删，构造时读记录 `tail_window`；Python 无尾窗截断标记，记录值为 1、2 时拒绝运行（不静默截断）。
+6. classifier（独审 M3）：`TowerPolicyStamp` 加 `scan_budget` / `construction_rule`；`ClassifyOutput.segment_coverage` 显式带尾窗截断标记与起点（只标记不拒读，与 `termination` 正交，故不与 #1662 新增的 `TowerTermination::ParseInvalid` 争同一字段）。
 
 ## 8. 后续
 
-- S 线路 token 升版：`second-seq-scan-budget/2`、`segment-second/2` 进 S 输出。
 - 远端补装 clippy 或 CI 加 clippy job，补验零新增告警。
 - #1626 Lean 侧 tangency 参数化。
-- `docs/reference-theta-v0.md` 补两份记录说明（独审建议 2）。
