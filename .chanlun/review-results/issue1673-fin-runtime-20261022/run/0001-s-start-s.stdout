@@ -1,0 +1,63 @@
+{
+  "ok": true,
+  "result": {
+    "service": "s",
+    "state": "ready",
+    "reply": {
+      "causal_refs": [
+        {
+          "message_id": "launcher-ready-1",
+          "payload_hash": "87c7294722874f05bfbb8a234dd1f28cfe8cdd386bee4cad4dddd2203d1a43aa",
+          "source_epoch": "1",
+          "source_namespace": "testonly.tick.ohlc.tb01c.draft01"
+        }
+      ],
+      "control_instance_id": "37a82238-ee65-495e-84c7-f919920a0e48",
+      "message_id": "reply-08a91cc8f752eb30e328ebed043ae2670e8a94695eb10b2e5c6b5fd994425164",
+      "payload": {
+        "advance_state": "idle",
+        "clock_plan_hash": "a0ed6e2a8196f4df17319cc89b7e4f4122b77f479e059a60e2c0943fd16e13ec",
+        "delivery_frontier": {
+          "first_available_generation": "1",
+          "head_generation": "0",
+          "min_valid_after_generation": "0",
+          "retain_generations": "8"
+        },
+        "generation": "0",
+        "index_frontier": "",
+        "kind": "Ready",
+        "ok": true,
+        "profile_hash": "0e9dfc9befd6878e0c844ee62c0f44576532ee8f13fe38c45f6bf467fe92d64e",
+        "profile_id": "testonly_tick_1_1_ohlc",
+        "schema_revision": "s-session/2",
+        "session_generation": "1",
+        "session_id": "tb01c-draft01",
+        "structure_cut": "cut-0",
+        "writer_epoch": "1"
+      },
+      "payload_hash": "a0c20ae0cdd6e523b29e891206e396c9c5a24755026cc469530e24d2eb6f62c1",
+      "producer_epoch": "1",
+      "producer_id": "S:tb01c-draft01",
+      "schema_revision": "s-session/2",
+      "session_generation": "1",
+      "session_id": "tb01c-draft01",
+      "source_epoch": "1",
+      "source_namespace": "s-session/replies"
+    },
+    "initialization": {
+      "catalog_items": 116,
+      "clock_plan_hash": "a0ed6e2a8196f4df17319cc89b7e4f4122b77f479e059a60e2c0943fd16e13ec",
+      "journal_mode": "wal",
+      "ok": true,
+      "platform": "linux",
+      "profile_hash": "0e9dfc9befd6878e0c844ee62c0f44576532ee8f13fe38c45f6bf467fe92d64e",
+      "protocol_revision": "s-session/2",
+      "session_generation": "1",
+      "session_id": "tb01c-draft01",
+      "sqlite_version": "3.53.2",
+      "synchronous": 2,
+      "writer_epoch": "1"
+    },
+    "socket_cleanup": null
+  }
+}

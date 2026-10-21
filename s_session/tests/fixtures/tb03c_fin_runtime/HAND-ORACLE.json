@@ -1,0 +1,41 @@
+{
+  "schema_revision": "tb03c-fin-runtime-oracle/1",
+  "scope": "TestOnly #1673：与 #1406 S1（rust/src/economic_session/tb03c_chain_tests.rs、.chanlun/review-results/issue1406-owner-20261020/S1-oracle.py）同一手算；不读产品输出",
+  "inputs": {
+    "opening_units": 4,
+    "opening_cash": 80000,
+    "baseline": 20,
+    "quantity": 2,
+    "limit_price": 14,
+    "fee_tail": 2,
+    "right_cash": 40,
+    "cap": 100,
+    "fixed_q": 12,
+    "fill_from": 0,
+    "fill_to": 2,
+    "fill_price": 13,
+    "fill_commission": 2
+  },
+  "expected": {
+    "lock": 30,
+    "responsibility_total": 50,
+    "worst_quantity": 6,
+    "allocation": {"units": 2, "acquisition_cash": 26, "commission": 2},
+    "K_before": 80000,
+    "K_after": 80028,
+    "units_after": 6,
+    "K_after_valuation": 80028,
+    "cost_remaining": 80028
+  },
+  "exact_errors": {
+    "apply_before_resolve": "AwaitingDependency：净额事实尚无 E 持久分配",
+    "apply_wrong_hash": "IdentityConflict：实读E事实/金额/归属与请求不匹配"
+  },
+  "error_prefixes": {
+    "resolve_gap": ["MissingDependency", "前沿缺口"],
+    "resolve_uncovered": ["MissingDependency", "未被已核责任界覆盖"],
+    "capture_conflict": ["IdentityConflict", ""],
+    "resolve_other_evidence": ["IdentityConflict", ""],
+    "apply_valuation": ["SchemaUnsupported", ""]
+  }
+}

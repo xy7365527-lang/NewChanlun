@@ -1,0 +1,1 @@
+{"checks":["owner.init","owner.ready","open.capture","open.apply","open.voice","fin.import","fin.prepare","fin.reserve","fin.commit","fin.total_after_commit","fill.capture","resolve.uncovered_rejected","resolve.uncovered_unchanged"],"resolve_reply":{"domain_id":"E","error":"MissingDependency：相关 Pending 未被已核责任界覆盖","kind":"Error"},"scenario":"uncovered","status":"PASS"}

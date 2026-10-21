@@ -1,0 +1,20 @@
+{
+  "ok": true,
+  "result": {
+    "service": "q",
+    "state": "ready",
+    "reply": {
+      "cut": {
+        "session_id": "tb01c-draft01",
+        "generation": "3",
+        "structure_cut": "cut-3",
+        "catalog_revision": "s2-axis-quantifiers (SPEC-COVERAGE-INPUT.json sha256=76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c)",
+        "index_frontier": "batch-611336004095bbd9b1250bb2d6dd793a67f7c72f9c0488f23bcc56fb3148481d",
+        "session_generation": "1"
+      },
+      "ok": true,
+      "producer_epoch": "1",
+      "control_instance_id": "249d9769-5f1d-435c-8243-f3d6aabf0b16"
+    }
+  }
+}
