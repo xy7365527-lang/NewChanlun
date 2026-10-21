@@ -221,3 +221,85 @@ fn tb1604_tangency_fixture_seed_per_value() {
         assert_eq!(c.vector.unwrap()[1], want, "{t:?}");
     }
 }
+
+/// #1604 M3：classifier 输出带段层两份记录戳（id/版本），与段事实所读一致。
+#[test]
+fn tb1604_classifier_output_stamps_segment_records() {
+    let cfg = ThetaConfig::default();
+    let bars = super::tb1581_tests::tb1581_bars(0x1604_0001, 600);
+    let layer = super::parse_layer(&bars, &cfg);
+    let out = super::super::classifier::classify(&layer, &cfg, &[]);
+    assert_eq!(out.policy.scan_budget.label(), "second-seq-scan-budget/2");
+    assert_eq!(
+        out.policy.construction_rule.label(),
+        segment::CONSTRUCTION_RULE
+    );
+    // 研究覆写改了值，戳随之标 research-override，不冒称签署版本。
+    let mut over = cfg.clone();
+    over.parse.research_override_tail_window(3);
+    over.parse.research_override_tangency(Tangency::Closed);
+    let out = super::super::classifier::classify(&layer, &over, &[]);
+    assert_eq!(
+        out.policy.scan_budget.label(),
+        "second-seq-scan-budget/research-override"
+    );
+    assert_eq!(
+        out.policy.construction_rule.label(),
+        "segment-second/research-override"
+    );
+}
+
+/// #1604 M3 负控 / 正控：L0 带尾窗截断标记 ⟹ 全量与增量 classifier 输出都显式带
+/// `INCOMPLETE_RESOURCE_BOUND` 与起点、预算记录版本（不静默）；无标记 ⟹ `COMPLETE`。拒读路径
+/// （段端门标记同在）也不吞掉截断标记。读取改回「恒 Complete」的变异体让负控变红。
+#[test]
+fn tb1604_classifier_surfaces_tail_window_bound() {
+    use super::super::classifier::{self, SegmentCoverage};
+    let cfg = ThetaConfig::default();
+    let bars = super::tb1581_tests::tb1581_bars(0x1604_0002, 1_200);
+    let mut incr = super::ParseLayerIncr::new(&cfg);
+    let mut cache = classifier::TowerCache::new();
+    let inject_at = 1_000;
+    let mut checked = false;
+    for (i, bar) in bars.iter().enumerate() {
+        let layer = incr.append(*bar);
+        assert_eq!(
+            layer.segments_resource_bound_from, None,
+            "签署尾窗 7 无截断"
+        );
+        let out = classifier::classify_incremental(&layer, &cfg, &mut cache, &[]);
+        assert_eq!(
+            out.segment_coverage,
+            SegmentCoverage::Complete,
+            "正控 bar {i}"
+        );
+        assert!(!out.is_segment_resource_bound());
+        if i != inject_at {
+            continue;
+        }
+        assert!(!layer.segments.is_empty(), "夹具须有段");
+        let from = layer.segments[layer.segments.len() / 2].start_index;
+        let mut marked = layer.clone();
+        marked.segments_resource_bound_from = Some(from);
+        let expect = SegmentCoverage::IncompleteResourceBound {
+            from,
+            budget: cfg.parse.scan_budget,
+        };
+        let full = classifier::classify(&marked, &cfg, &[]);
+        assert_eq!(full.segment_coverage, expect);
+        assert_eq!(full.segment_coverage.code(), "INCOMPLETE_RESOURCE_BOUND");
+        assert!(full.is_segment_resource_bound());
+        // 只标记不拒读：结构与无标记时同一输入逐位相同。
+        let plain = classifier::classify(&layer, &cfg, &[]);
+        assert_eq!(full.classification, plain.classification);
+        let mut warm = cache.clone();
+        let inc = classifier::classify_incremental(&marked, &cfg, &mut warm, &[]);
+        assert_eq!(inc.segment_coverage, expect, "增量入口同一标记");
+        let mut both = marked.clone();
+        both.segments_parse_invalid_from = Some(0);
+        let refused = classifier::classify(&both, &cfg, &[]);
+        assert_eq!(refused.segment_coverage, expect, "拒读路径保留截断标记");
+        checked = true;
+    }
+    assert!(checked);
+}
