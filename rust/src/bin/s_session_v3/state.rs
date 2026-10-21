@@ -1013,6 +1013,74 @@ pub(super) fn trace_event(phase: &'static str, generation: Option<i64>) {
         }
     });
 }
+/// #1488 S4（主控 D4/D6）：整代六阶段起点标记；`path` 记 delta/full_lease/full 车道。
+/// 只追加累计快照，阶段读量由 [`stage_rows`] 对相邻标记做差。
+#[cfg(test)]
+pub(super) fn trace_stage(stage: &'static str, path: &'static str, generation: i64) {
+    AUDIT_TRACE.with(|trace| {
+        if let Some(trace) = trace.borrow_mut().as_mut() {
+            trace.events.push(json!({"phase":"s4_stage","stage":stage,"path":path,
+                "generation":generation,"elapsed_ns":trace.start.elapsed().as_nanos() as u64,
+                "work":trace.work,"store_node_reads":content_store::sql_reads_on_thread(),
+                "frame_calls":sc::frame_calls_on_thread()}));
+        }
+    });
+}
+/// S4 六阶段名；`stage_rows` 只汇总这些段，其余标记（publish_end）只作终点。
+#[cfg(test)]
+pub(super) const S4_STAGES: [&str; 6] = [
+    "generate",
+    "object_plan",
+    "prepare_source_audit",
+    "assemble_manifest",
+    "stage_indexes",
+    "publish_borrowed",
+];
+/// 把一次 traced 窗口的 s4_stage 标记折成每阶段 {sql_node_rows,…,elapsed_ns}；同名多段累加。
+/// sql_*[3] 为 sqlite trace 实测节点行（需 sql_read_probe），store_node_reads 为
+/// content_store 按 digest 取节点的语句次数。
+#[cfg(test)]
+pub(super) fn stage_rows(events: &[Value]) -> Value {
+    let marks: Vec<&Value> = events
+        .iter()
+        .filter(|e| e["phase"] == "s4_stage")
+        .collect();
+    let num = |v: &Value| v.as_u64().unwrap_or(0);
+    let mut out = serde_json::Map::new();
+    let mut paths = std::collections::BTreeSet::new();
+    for name in S4_STAGES {
+        out.insert(
+            name.into(),
+            json!({"sql_node_rows":0,"sql_node_bytes":0,"sql_rows_total":0,
+                "store_node_reads":0,"frame_calls":0,"elapsed_ns":0,"segments":0}),
+        );
+    }
+    for pair in marks.windows(2) {
+        let (a, b) = (pair[0], pair[1]);
+        let name = a["stage"].as_str().unwrap_or("");
+        paths.insert(a["path"].as_str().unwrap_or("").to_string());
+        let Some(row) = out.get_mut(name) else {
+            continue;
+        };
+        let diff = |key: &str| num(&b[key]).saturating_sub(num(&a[key]));
+        let work = |key: &str, i: usize| {
+            num(&b["work"][key][i]).saturating_sub(num(&a["work"][key][i]))
+        };
+        let total: u64 = (0..4).map(|i| work("sql_returned_rows", i)).sum();
+        for (key, add) in [
+            ("sql_node_rows", work("sql_returned_rows", 3)),
+            ("sql_node_bytes", work("sql_returned_bytes", 3)),
+            ("sql_rows_total", total),
+            ("store_node_reads", diff("store_node_reads")),
+            ("frame_calls", diff("frame_calls")),
+            ("elapsed_ns", diff("elapsed_ns")),
+            ("segments", 1),
+        ] {
+            row[key] = json!(num(&row[key]) + add);
+        }
+    }
+    json!({"stages":out,"paths":paths,"marks":marks.len()})
+}
 #[cfg(test)]
 pub(super) fn trace_request_clock(bytes: usize, elapsed: std::time::Duration) {
     AUDIT_TRACE.with(|trace| {

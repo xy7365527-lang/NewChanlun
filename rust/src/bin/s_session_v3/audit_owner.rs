@@ -4359,7 +4359,7 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
 }
 
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
-mod construction_tests {
+pub(super) mod construction_tests {
     use super::*;
 
     include!("audit_owner/b2_source_fault_tests.rs");
@@ -4788,7 +4788,9 @@ mod construction_tests {
         begun.token
     }
 
-    fn b2_assert_counts_match_independent_full_source(owner: &AuditConnection) {
+    pub(in crate::v3) fn b2_assert_counts_match_independent_full_source(
+        owner: &AuditConnection,
+    ) -> source_audit::Counts {
         let actual = owner
             .construction
             .borrow()
@@ -4819,7 +4821,7 @@ mod construction_tests {
         drop(reader);
         drop(source);
         drop(audited);
-        active.read_end().unwrap();
+        active.read_end().unwrap();        actual
     }
 
     #[test]
