@@ -5908,7 +5908,9 @@ impl AuditConnection {
     /// 本次冻结域, 重跑前租约是否已撤销），供本请求发布提交后续租判定。原 `drop(root)` 同行改调。
     fn note_cold_root_rerun(&self, context: &request_audit::RequestAuditContext, root: ColdRoot) {
         drop(root);
-        let domain = context.manifest_workspace_budget().map(|b| b.freeze_domain());
+        let domain = context
+            .manifest_workspace_budget()
+            .map(|b| b.freeze_domain());
         let stale = self.construction_lease.stale.get();
         COLD_ROOT_RERUN.with(|n| n.set(domain.map(|d| (self.life, d, stale))));
     }
@@ -5931,7 +5933,9 @@ impl AuditConnection {
         published: (commit::CommitReceipt, Ended),
     ) -> (commit::CommitReceipt, Ended) {
         let noted = COLD_ROOT_RERUN.with(|n| n.take());
-        let domain = context.manifest_workspace_budget().map(|b| b.freeze_domain());
+        let domain = context
+            .manifest_workspace_budget()
+            .map(|b| b.freeze_domain());
         if let (Some((life, noted_domain, false)), Some(domain)) = (noted, domain) {
             if life == self.life
                 && published.1.life == self.life

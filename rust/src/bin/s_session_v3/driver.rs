@@ -2104,7 +2104,10 @@ mod tests {
                 crate::cache::configure(0);
                 crate::v3::audit_owner::cold_root_probe::take();
                 crate::v3::audit_owner::cold_root_probe::take_reruns();
-                assert_eq!(again.expect("残留分支报错后同一 writer 须继续服务"), expected);
+                assert_eq!(
+                    again.expect("残留分支报错后同一 writer 须继续服务"),
+                    expected
+                );
             }
         }
     }
@@ -2145,7 +2148,11 @@ mod tests {
             let notes = probe::take();
             let reruns = probe::take_reruns();
             let renewed = d.conn.recover_probe_for_test();
-            check("ingest-1", first, ordinary.handle(Fixture::ingest(1)).unwrap());
+            check(
+                "ingest-1",
+                first,
+                ordinary.handle(Fixture::ingest(1)).unwrap(),
+            );
             d.audit_cache_source_bytes = Some(16 << 20);
             let steps = [
                 ("ready-a", envelope("p24adj-ready-a", json!({"op":"ready"}))),
@@ -2174,7 +2181,15 @@ mod tests {
             let later_notes = probe::take();
             let tables = prepared::tests::runtime_root_tables(&d.conn, true)
                 == prepared::tests::runtime_root_tables(&ordinary.conn, true);
-            (notes, reruns, renewed, later_notes, carried, mismatched, tables)
+            (
+                notes,
+                reruns,
+                renewed,
+                later_notes,
+                carried,
+                mismatched,
+                tables,
+            )
         };
         let cold = run(1 << 20);
         let control = run(16 << 20);
@@ -2184,16 +2199,31 @@ mod tests {
                 "cold":{"notes":cold.0,"reruns":cold.1,"carried":format!("{:?}", cold.4)},
                 "control":{"notes":control.0,"carried":format!("{:?}", control.4)}})
         );
-        assert_eq!(cold.0, [(0, 0)], "1M 下首个 ingest 须恰经一次冷根自然失败且残留归零");
+        assert_eq!(
+            cold.0,
+            [(0, 0)],
+            "1M 下首个 ingest 须恰经一次冷根自然失败且残留归零"
+        );
         assert_eq!(cold.1, 1, "残留归零后无票重跑一次");
         assert!(
             !cold.2.stale && !cold.2.retired && cold.2.qualification.is_none(),
             "冷根失败无票重跑提交后须续租：{:?}",
             cold.2
         );
-        assert!(cold.3.is_empty() && control.0.is_empty(), "16M 下冷根不应失败");
-        assert!(cold.5.is_empty(), "逐步回复须与 ordinary 一致：{:?}", cold.5);
-        assert!(control.5.is_empty(), "对照组逐步回复须与 ordinary 一致：{:?}", control.5);
+        assert!(
+            cold.3.is_empty() && control.0.is_empty(),
+            "16M 下冷根不应失败"
+        );
+        assert!(
+            cold.5.is_empty(),
+            "逐步回复须与 ordinary 一致：{:?}",
+            cold.5
+        );
+        assert!(
+            control.5.is_empty(),
+            "对照组逐步回复须与 ordinary 一致：{:?}",
+            control.5
+        );
         assert!(cold.6 && control.6, "末态根表须与 ordinary 一致");
         assert_eq!(
             cold.4[0],
@@ -2275,7 +2305,10 @@ mod tests {
         assert_eq!(b2, Ok(()));
         assert!(pre_stale.stale, "(b) 回滚须先撤销租约：{pre_stale:?}");
         assert_eq!(b_notes, [(0, 0)], "(b) ingest 须经冷根自然失败并无票重跑");
-        assert!(not_renewed.stale, "(b) 前序回滚撤销不得被续租清除：{not_renewed:?}");
+        assert!(
+            not_renewed.stale,
+            "(b) 前序回滚撤销不得被续租清除：{not_renewed:?}"
+        );
         assert_eq!(b3, Ok(()));
         assert!(
             b4.as_ref().is_err_and(|e| e.contains("Carry租约已撤销")),
