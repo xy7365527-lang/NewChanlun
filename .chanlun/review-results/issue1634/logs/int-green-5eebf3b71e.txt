@@ -1,0 +1,43 @@
+== 20261021-104219-5eebf3b71e.log
+ref=codex/1634-flat-prefix-lock sha=5eebf3b71edc52e8ade6edd36fc8c1bb57a0cd5c sub=rust target=/home/hanju/nc-remote/issue1634-int cmd=bash -c NC_BTC_FULL_JSON=$HOME/nc-remote/data/btc_1m_full.json\ cargo\ test\ --release\ --lib\ issue1634\ --\ --include-ignored\ --nocapture\ 2\>\&1\ \|\ grep\ -v\ "\^warning\\|\^\ \*\|\\|\^\ \*=\\|\^$"\ \|\ tail\ -40 
+368 | ...r) old_channel: &'st...
+   --> src/theta_v0/backtest/admission.rs:618:16
+566 | ...truct NestChainGate {
+...
+618 | ...r) frozen_runs: std::c...
+   --> src/theta_v0/backtest/ledger.rs:193:16
+159 | ...truct Opsem...pshot {
+...
+193 | ...r) chi_f...ctive: bool,
+194 | ...P4：B1 sizing 是否成功从 se...
+195 | ...r) b1_si...lable: bool,
+196 | ...P5/P6：真嵌套深度（根=0，沿...
+197 | ...r) voice...depth: u8,
+198 | ...P6：该深度实际消费的 w_dept...
+199 | ...r) w_dep...entry: f64,
+   --> src/theta_v0/backtest/open_ledger.rs:140:18
+140 | ...it LiveOpenView {
+   --> src/theta_v0/backtest/open_ledger.rs:270:19
+205 | impl ...Open> {
+...
+270 |     pub(super) fn short...riers(&s...
+    --> src/theta_v0/backtest/econ_positive/tests.rs:4009:9
+3996 | ...truct HighL...esult {
+...
+4009 | ...   sum_rho: f64,
+    --> src/theta_v0/parser/segment.rs:1792:25
+1792 | ...t!(st.en... >= 0 &&...
+   --> src/theta_v0/strategy/coverage/test_support.rs:239:36
+239 | ...s: &[Cov...ment], cstart: usize) -> ElementView {
+help: use `'_` for type paths
+239 | pub(crate) fn view_split(elements: &[CoverageElement], cstart: usize) -> ElementView<'_> {
+    Finished `release` profile [optimized] target(s) in 1m 30s
+     Running unittests src/lib.rs (/home/hanju/nc-remote/issue1634-int/release/deps/newchan_rust-43ed63dff85c51df)
+running 2 tests
+test theta_v0::parser::issue1634_tests::issue1634_btc_file_head_flat_prefix_does_not_collapse_to_one_group ... ok
+start=0 merged=3037868 fractals=1369327 strokes=388172 segments=735
+start=5 merged=3037866 fractals=1369325 strokes=388170 segments=732
+start=104 merged=3037848 fractals=1369309 strokes=388166 segments=732
+test theta_v0::parser::issue1634_tests::issue1634_full_history_from_file_head_matches_independent_oracle ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 3033 filtered out; finished in 51.57s
+EXIT=0 SECONDS=142
