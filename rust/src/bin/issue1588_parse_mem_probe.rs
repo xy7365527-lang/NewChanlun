@@ -27,8 +27,8 @@ use newchan_rust::theta_v0::backtest::data::load_symbol;
 use newchan_rust::theta_v0::backtest::incremental::IncrementalClassifier;
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::{
-    inclusion::{InclusionDirectionEvidence, InclusionFacts, SourceCoords},
     inclusion::IncrFactsState,
+    inclusion::{InclusionDirectionEvidence, InclusionFacts, SourceCoords},
     parse_layer, parse_layer_with_group_evidence, parse_layer_with_inclusion_facts,
     stroke::Endpoint,
     ParseLayer, ParseLayerIncr,
@@ -315,7 +315,9 @@ fn run_group_evidence(bars: &[Bar], config: &ThetaConfig, every: usize) {
         state.append(*bar);
         if every > 0 && (i + 1) % every == 0 && i + 1 < bars.len() {
             let (layer, ev) = parse_layer_with_group_evidence(&state, config);
-            rolling.update(digest_debug(&(&layer, &ev.groups, &ev.stroke_facts, &ev.segment_facts)).as_bytes());
+            rolling.update(
+                digest_debug(&(&layer, &ev.groups, &ev.stroke_facts, &ev.segment_facts)).as_bytes(),
+            );
             calls += 1;
         }
     }
