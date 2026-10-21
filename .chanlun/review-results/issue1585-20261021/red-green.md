@@ -24,6 +24,6 @@ capture_oos 负控在逐 bar 段先红，终局取数那半段没走到。补证
 ## 绿：PR #1664 头 CI
 
 - Run：https://github.com/xy7365527-lang/NewChanlun/actions/runs/39597850919（pull_request，头 `3d873f0a5e`）
-- Job `rust-test-default`（119214533711）：`test result: ok. 2890 passed; 0 failed; 153 ignored`，四条 tb1585 全部 ok。该 run 其余 s-session 分片未跑完即因本分支后续推送被并发规则取消（`cancelled`），整 run 全绿以 PR #1664 最终头的 CI 为准（run 号见 #1585 票评论与 harvest owner 回报）。红色取证 run 39597916668 的其余分片在 `rust-test-default` 失败后同样未跑完。
+- Job `rust-test-default`（119214533711）：`test result: ok. 2890 passed; 0 failed; 153 ignored`，四条 tb1585 全部 ok。该 run 其余 s-session 分片未跑完即因本分支后续推送被并发规则取消（`cancelled`），整 run 全绿以 PR #1664 最终头的 CI 为准（run 号见 #1585 票评论与 harvest owner 回报）。红色取证 run 39597916668 的决定性证据是 `rust-test-default` 一个 job，其余 job 与本处还原无关。
 
 取证分支结论登记后已删除远端分支，run 号同时写入 #1585 票评论。
