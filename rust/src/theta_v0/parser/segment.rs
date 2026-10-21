@@ -984,9 +984,13 @@ pub fn divide_segments_with_facts_store(
     SegmentFacts,
     super::second_fold::SecondFoldStore,
 ) {
+    let (round_budget, policy) = (store.round_budget, store.policy);
     let mut slot = Some(store);
     let (segments, pending, facts) = divide_segments_core(strokes, config, true, &mut slot);
-    (segments, pending, facts, slot.unwrap_or_default())
+    // 游标簿未被消费（无第二种候选）时原样归还；若被取走未还，以同一预算与记录版本新建空簿。
+    let store =
+        slot.unwrap_or_else(|| super::second_fold::SecondFoldStore::new(round_budget, policy));
+    (segments, pending, facts, store)
 }
 
 fn divide_segments_core(

@@ -841,7 +841,8 @@ fn tb02w_k1_wire_restore_verifies_then_resumes() {
                             let mut forged = wire.clone();
                             forged["consumed_digest"] = serde_json::json!("0000000000000000");
                             let (mut f, ok, _) =
-                                SecondFoldCursor::from_wire(&forged, &ss[..p], budget_ref()).unwrap();
+                                SecondFoldCursor::from_wire(&forged, &ss[..p], budget_ref())
+                                    .unwrap();
                             assert!(!ok, "{label}: 篡改的线形不得采纳");
                             assert_eq!(
                                 f.budget_granted, cur.budget_granted,

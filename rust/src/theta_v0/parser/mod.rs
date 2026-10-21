@@ -313,9 +313,11 @@ pub fn parse_layer_with_inclusion_facts_store(
     second_fold::SecondFoldStore,
 ) {
     let mut facts = inclusion::process_inclusion_with_facts(bars);
+    let (round_budget, policy) = (store.round_budget, store.policy);
     let mut slot = Some(store);
     let layer = parse_layer_from_facts(&mut facts, &config.parse, &mut slot);
-    (layer, facts, slot.unwrap_or_default())
+    let store = slot.unwrap_or_else(|| second_fold::SecondFoldStore::new(round_budget, policy));
+    (layer, facts, store)
 }
 
 // #1392：包含状态、新笔扫描 checkpoint 和分型尾部缓存共同推进。
