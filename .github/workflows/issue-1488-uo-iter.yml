@@ -14,7 +14,7 @@ concurrency:
 jobs:
   uo:
     runs-on: ubuntu-24.04
-    # Native 组另含 release-only 锁（release 编译 + S4 约 20 分钟）；debug 组实际约 11 分钟。
+    # Native 组另含 release-only 锁（实测 release 编译约 3.5 分钟 + S4 约 33 分钟，run 39588126034）；debug 组实际约 11 分钟。
     timeout-minutes: 120
     strategy:
       fail-fast: false

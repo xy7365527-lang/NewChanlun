@@ -8155,8 +8155,11 @@ mod native_owner_codec_bridge_tests {
         assert_eq!(old_parent.layout.load(Ordering::SeqCst), 0);
         // P1c（control/1488-budget-full-chain-counterexample-fix-v2.md:9，959d860065）：证明节点实际载荷
         // 持原父许可到真实析构，不再 retain 丢许可；旧 scope 已析构，父引用只由这些许可持有（末尾 drop 核归零）。
-        assert!(
-            Arc::strong_count(&old_parent) > 1,
+        // 0088 P3-2：精确计数（探针 close-0085 log 20261021-212331-46ca88b909：strong=268，
+        // 即本地 1 + 证明节点许可 267），固定输入下确定。
+        assert_eq!(
+            Arc::strong_count(&old_parent),
+            268,
             "证明许可持原父账到真实析构"
         );
         let old_charge = old_parent.live.load(Ordering::SeqCst);
@@ -8698,7 +8701,7 @@ mod native_owner_codec_bridge_tests {
     }
 
     #[test]
-    fn codec_original_moves_pointer_capacity_and_releases_physical_body_only() {
+    fn codec_original_moves_pointer_capacity_and_releases_all_permits_on_drop() {
         let parent = Parent::new(32 << 20, 0);
         let mut capture = native(MemoryNodes::new());
         // Creation scope is closed; existing owner may move through a new live same-parent scope.

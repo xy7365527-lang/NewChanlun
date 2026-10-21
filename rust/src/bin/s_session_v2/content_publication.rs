@@ -2442,9 +2442,12 @@ mod tests {
         assert_eq!(actual.snapshot, expected.snapshot);
         assert_eq!(actual.delta, expected.delta);
         assert!(budget.peak() > before);
-        assert!(budget.live() > before, "结果与临时许可保守持有到父预算结束");
+        // P1c RAII：结果许可持原父账直至真实析构，析构后全额还账（0088 P3-1）。
+        assert!(budget.live() > before, "结果许可持原父账直至真实析构");
         assert_eq!(budget.scratch_observation().0, 0);
         assert_eq!(budget.scratch_observation().2, 0);
+        drop(actual);
+        assert_eq!(budget.live(), before, "结果真实析构后父账全额还原");
     }
 
     #[test]

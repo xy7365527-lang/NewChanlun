@@ -620,6 +620,8 @@ jobs:
           path: |
             ${{ runner.temp }}/1488-*.log
             ${{ runner.temp }}/1488-abc-${{ matrix.mode }}/
+          # 同 #1588 约定：单 job re-run 时替换首次尝试已传的同名产物。
+          overwrite: true
           if-no-files-found: error
 
   # #1488：共享 path 遍历核的 Native 消费者独立回归，不依赖 rust-check 的整套 feature delta。
@@ -744,6 +746,8 @@ jobs:
           path: |
             ${{ runner.temp }}/1488-*.log
             ${{ runner.temp }}/1488-abc-Native/
+          # 同 #1588 约定：单 job re-run 时替换首次尝试已传的同名产物。
+          overwrite: true
           if-no-files-found: error
 
   # #1394 根裁定 A：手动触发本 CI 时一并执行 macOS 作业（financial_session 的 macOS 读数与
