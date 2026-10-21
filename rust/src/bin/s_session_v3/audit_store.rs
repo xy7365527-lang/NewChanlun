@@ -985,7 +985,6 @@ impl NodeSink for StoreView<'_, '_> {
 
 // 单独cargo rustc -- --cfg issue1394_closed_owner_refusal实际编译本段，预期拒绝。
 // 普通构建不包含本编译反例；它不用stub类型冒充真实边界。
-#[allow(unexpected_cfgs)]
 #[cfg(issue1394_closed_owner_refusal)]
 mod compile_refusal {
     use super::*;

@@ -618,7 +618,7 @@ fn serve_unix_inner<T: QueuedJob + 'static>(
         for incoming in listener.incoming() {
             let Ok(stream) = incoming else { break };
             if count
-                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
+                .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
                     if n < accept_bounds.connections {
                         Some(n + 1)
                     } else {

@@ -55,6 +55,11 @@ hashbrown = { version = "=0.17.1", default-features = false, features = ["alloca
 [target.'cfg(all(target_arch = "aarch64", target_os = "macos"))'.dependencies]
 sha2 = { version = "0.10", optional = true, features = ["asm"] }
 
+# #1608：#1394 的两个编译负例只在手工/CI 负例入口以 `--cfg` 打开（见 .github/scripts/check-compile-negatives-1394.sh），
+#   在此声明，普通构建不再报 unexpected_cfgs。
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(issue1394_capture_callback_refusal)", "cfg(issue1394_closed_owner_refusal)"] }
+
 [features]
 default = []
 extension-module = ["pyo3/extension-module"]

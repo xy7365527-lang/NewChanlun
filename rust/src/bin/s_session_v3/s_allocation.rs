@@ -401,7 +401,8 @@ pub(super) mod probe {
                 Ok(None)
             }
             Some(Fault::SqlStep) => {
-                tx.progress_handler(1, Some(|| true));
+                tx.progress_handler(1, Some(|| true))
+                    .map_err(|e| e.to_string())?;
                 Ok(None)
             }
             None => Ok(None),

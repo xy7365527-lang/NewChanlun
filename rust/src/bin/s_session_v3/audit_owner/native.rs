@@ -524,7 +524,7 @@ impl Ledger {
         }
         let old = self
             .live
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |n| {
                 n.checked_add(bytes).filter(|n| *n <= self.limit)
             })
             .map_err(|_| ScratchFailure::Budget)?;
@@ -534,7 +534,7 @@ impl Ledger {
     fn release_total(&self, bytes: usize) -> Result<(), ScratchFailure> {
         if self
             .live
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |n| {
                 n.checked_sub(bytes)
             })
             .is_err()
@@ -575,7 +575,7 @@ impl ScratchParent for Ledger {
     fn release(&self, bytes: usize, kind: ScratchCharge) -> Result<(), ScratchFailure> {
         let (live, _) = self.component(kind);
         if live
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |n| {
                 n.checked_sub(bytes)
             })
             .is_err()

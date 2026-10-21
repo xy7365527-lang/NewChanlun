@@ -1713,7 +1713,8 @@ pub(crate) mod tests {
                         observed.fetch_add(1, Ordering::SeqCst);
                     }
                 },
-            ));
+            ))
+            .expect("安装故障观察 update_hook");
             let hex = sc::root_string(&target);
             let hex = hex.strip_prefix("sc1-").unwrap();
             let damage = if delete {

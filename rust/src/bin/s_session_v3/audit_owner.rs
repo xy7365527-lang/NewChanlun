@@ -128,7 +128,7 @@ impl AuditConnection {
 
     fn new(connection: Connection) -> Result<Self, String> {
         let life = NEXT_LIFE
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
             .map_err(|_| invalid("连接生涯编号耗尽"))?;
         if !connection.is_autocommit() {
             return Err(invalid("不能接管已有活动事务的连接"));

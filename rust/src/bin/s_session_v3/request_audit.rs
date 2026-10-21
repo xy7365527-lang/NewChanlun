@@ -1118,7 +1118,8 @@ mod tests {
             tx.progress_handler(
                 1,
                 Some(move || once.swap(false, std::sync::atomic::Ordering::SeqCst)),
-            );
+            )
+            .expect("安装故障注入 progress_handler");
         }
         let mut f = Fixture::new();
         publish_one(&mut f);

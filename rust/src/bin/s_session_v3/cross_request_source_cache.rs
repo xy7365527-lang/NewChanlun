@@ -1608,10 +1608,13 @@ mod tests {
             tx.progress_handler(
                 1,
                 Some(move || once.swap(false, std::sync::atomic::Ordering::SeqCst)),
-            );
+            )
+            .expect("安装故障注入 progress_handler");
             assert!(state::audit_native_with_source_keeper_for_testonly(&tx, &mut keeper).is_err());
         }
-        f.conn.progress_handler(0, None::<fn() -> bool>);
+        f.conn
+            .progress_handler(0, None::<fn() -> bool>)
+            .expect("清除 progress_handler");
         assert!(keeper.pool.is_none());
         assert_eq!(keeper.hits, 0);
         audit(&mut f, &mut keeper).unwrap();

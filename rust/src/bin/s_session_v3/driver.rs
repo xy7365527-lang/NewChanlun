@@ -2412,7 +2412,9 @@ mod tests {
                 let mut d = native_driver(&f);
                 probe::start(Some((phase, fault)));
                 let error = d.handle(Fixture::ingest(1)).unwrap_err();
-                d.conn.progress_handler(0, None::<fn() -> bool>);
+                d.conn
+                    .progress_handler(0, None::<fn() -> bool>)
+                    .expect("清除 progress_handler");
                 let (attempts, captures) = probe::finish();
                 let expected = match fault {
                     // Native构造的节点SELECT复用rusqlite prepare，实际保留连接errmsg。
@@ -2742,7 +2744,9 @@ mod tests {
                 let mut d = allocation_driver(&f, profile);
                 probe::start(Some((phase, fault)));
                 let error = d.handle(Fixture::ingest(1)).unwrap_err();
-                d.conn.progress_handler(0, None::<fn() -> bool>);
+                d.conn
+                    .progress_handler(0, None::<fn() -> bool>)
+                    .expect("清除 progress_handler");
                 let (attempts, captures) = probe::finish();
                 // CheckedStatement 保留 sqlite3_prepare_v2 / sqlite3_step 的真实 code，
                 // SqliteFailure(_, None) 不携带连接 errmsg。锁 code 和完整既有封装，
