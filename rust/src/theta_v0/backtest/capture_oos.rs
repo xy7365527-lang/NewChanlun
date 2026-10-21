@@ -527,7 +527,11 @@ mod tests {
 
         let mut marked = layer.clone();
         marked.segments_parse_invalid_from = Some(0);
-        assert_eq!(readable_confirmed_len(&marked), Err(0), "标记 bar 拒读段账本");
+        assert_eq!(
+            readable_confirmed_len(&marked),
+            Err(0),
+            "标记 bar 拒读段账本"
+        );
         assert!(marked.segments_valid_prefix().is_empty());
         assert!(parse_invalid_note(&marked).is_some_and(|n| n.contains("segment_parse_invalid")));
     }
