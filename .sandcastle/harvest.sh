@@ -29,8 +29,8 @@ GH_CWD="${HARVEST_GH_CWD:-/tmp}"
 SKIP_ISSUES="${SKIP_ISSUES:-1024 1025}"
 DRY="${HARVEST_DRY_RUN:-0}"
 REG="$REPO/.sandcastle/logs/workers.jsonl"
-# GitHub closing keywords followed by an issue ref (optionally "owner/repo#n"; "fix: #n" also closes).
-CLOSE_RE='(^|[^[:alnum:]_])(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)[[:space:]]*:?[[:space:]]*([[:alnum:]_.-]+/[[:alnum:]_.-]+)?#[0-9]+'
+# GitHub closing keywords followed by an issue ref: "#n", "owner/repo#n" or a full issues URL ("fix: #n" also closes).
+CLOSE_RE='(^|[^[:alnum:]_])(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)[[:space:]]*:?[[:space:]]*(([[:alnum:]_.-]+/[[:alnum:]_.-]+)?#[0-9]+|https?://github[.]com/[^/[:space:]]+/[^/[:space:]]+/issues/[0-9]+)'
 
 # gh always runs from a neutral cwd with an explicit --repo (never infers the repo from cwd).
 gh_() { (cd "$GH_CWD" && gh "$@" --repo "$GH_SLUG"); }
@@ -61,26 +61,37 @@ PYEOF
 }
 
 cd "$REPO"
-git fetch -q origin main
 
 opened=0
 pushed_only=0
 failed=0
 fail_list=""
 note_fail() { echo "FAIL $1 ($2)"; failed=$((failed+1)); fail_list="${fail_list}$1 ($2)"$'\n'; }
+# Closing-keyword check in the C locale (stricter: CJK text right before "fix #n" still counts).
+has_close_kw() { LC_ALL=C grep -Eiq "$CLOSE_RE" <<<"$1"; }
 
-for br in $(git for-each-ref --format='%(refname:short)' 'refs/heads/sandcastle/issue-*' | sort -t- -k3 -n); do
-  n="${br##*-}"
+for f in "$REPO/.sandcastle/logs/GH_TOKEN_ROTATION_REQUIRED" "/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/GH_TOKEN_ROTATION_REQUIRED"; do
+  if [ -f "$f" ]; then note_fail "(all)" "GitHub token rotation required: $f"; fi
+done
+if [ $failed = 0 ] && ! git fetch -q origin main; then note_fail "(all)" "git fetch origin main failed"; fi
+if [ $failed -gt 0 ]; then branches=""; else
+  branches=$(git for-each-ref --format='%(refname)' 'refs/heads/sandcastle/issue-*' | sed 's#^refs/heads/##' | sort)
+fi
+
+for br in $branches; do
+  n="${br#sandcastle/issue-}"
   case "$n" in ''|*[!0-9]*) echo "SKIP $br (not a ticket branch)"; continue ;; esac
   if [[ " $SKIP_ISSUES " == *" $n "* ]]; then echo "SKIP $br (skip-list)"; continue; fi
 
-  if git merge-base --is-ancestor "$br" origin/main 2>/dev/null; then echo "SKIP $br (already in origin/main)"; continue; fi
-  shas=$(git rev-list --reverse "origin/main..$br")
-  if [ -z "$shas" ]; then echo "SKIP $br (no new commits)"; continue; fi
+  # Pin the branch tip once; every later step (checks, push, PR text) uses this sha, so a worker
+  # committing on the same branch mid-run cannot slip unreviewed commits into the push.
+  sha=$(git rev-parse --verify -q "refs/heads/$br^{commit}") || { note_fail "$br" "cannot resolve branch"; continue; }
+  if git merge-base --is-ancestor "$sha" origin/main 2>/dev/null; then echo "SKIP $br (already in origin/main)"; continue; fi
+  if [ -z "$(git rev-list -n 1 "origin/main..$sha")" ]; then echo "SKIP $br (no new commits)"; continue; fi
   if ! reviewer_done "$n"; then echo "SKIP $br (reviewer phase not completed for latest round)"; continue; fi
 
   info=$(gh_ issue view "$n" --json state,blockedBy,title \
-    --jq '[.state, ([.blockedBy.nodes[]? | select(.state=="OPEN")] | length | tostring), .title] | @tsv' 2>/dev/null) || info=""
+    --jq '[.state, ((if (.blockedBy.nodes | type) == "array" then ([.blockedBy.nodes[] | select(.state=="OPEN")] | length) else (.blockedBy.totalCount // 0) end) | tostring), .title] | @tsv' 2>/dev/null) || info=""
   if [ -z "$info" ]; then echo "SKIP $br (ticket read failed, retry later)"; continue; fi
   st=$(printf '%s' "$info" | cut -f1)
   blockers=$(printf '%s' "$info" | cut -f2)
@@ -88,49 +99,65 @@ for br in $(git for-each-ref --format='%(refname:short)' 'refs/heads/sandcastle/
   if [ "$st" != "OPEN" ]; then echo "SKIP $br (ticket $st)"; continue; fi
   if [ "$blockers" != "0" ]; then echo "SKIP $br (ticket has $blockers open blocker(s))"; continue; fi
 
-  # Read messages first: with pipefail, `git log | grep -q` can report SIGPIPE (141) on a hit.
-  msgs=$(git log --format='%B' "origin/main..$br")
-  if grep -Eiq "$CLOSE_RE" <<<"$msgs"; then
-    note_fail "$br" "commit message carries a closing keyword; reword before PR"
+  # PR state before any push: a closed/merged PR (possibly with its head branch deleted) is a
+  # human decision; do not resurrect the branch.
+  prs=$(gh_ pr list --head "$br" --state all --json state,url --jq '.[] | "\(.state) \(.url)"' 2>/dev/null) || {
+    note_fail "$br" "PR lookup failed"; continue; }
+  open_pr=$(printf '%s\n' "$prs" | awk '$1=="OPEN"{print $2; exit}')
+  if [ -z "$open_pr" ] && [ -n "$prs" ]; then
+    echo "SKIP $br (earlier PR closed or merged, needs a human decision: $(printf '%s' "$prs" | tr '\n' ' '))"
     continue
   fi
 
-  # Push: no-op if remote already contains it, fast-forward otherwise, fail if diverged.
-  remote_sha=$(git ls-remote origin "refs/heads/$br" | cut -f1)
-  local_sha=$(git rev-parse "$br")
+  # Remote state: equal / behind local (fast-forward push) / ahead of local (PR head = remote) / diverged.
+  remote_sha=$(git ls-remote origin "refs/heads/$br" | cut -f1) || { note_fail "$br" "git ls-remote failed"; continue; }
+  head_sha="$sha"
   need_push=1
   if [ -n "$remote_sha" ]; then
-    git fetch -q origin "refs/heads/$br" 2>/dev/null || true
-    if [ "$remote_sha" = "$local_sha" ] || git merge-base --is-ancestor "$local_sha" "$remote_sha" 2>/dev/null; then
+    if [ "$remote_sha" != "$sha" ] && ! git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
+      git fetch -q origin "refs/heads/$br" 2>/dev/null || { note_fail "$br" "fetch of remote branch failed"; continue; }
+    fi
+    if [ "$remote_sha" = "$sha" ]; then
       need_push=0
-    elif ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
+    elif git merge-base --is-ancestor "$sha" "$remote_sha" 2>/dev/null; then
+      need_push=0; head_sha="$remote_sha"
+    elif ! git merge-base --is-ancestor "$remote_sha" "$sha" 2>/dev/null; then
+      if [ -n "$open_pr" ]; then
+        # The PR head was rewritten on the remote (e.g. reworded commits); the PR owns it now.
+        echo "SKIP $br (local diverged from open PR head $open_pr; not pushing)"
+        continue
+      fi
       note_fail "$br" "remote branch diverged from local; not forcing"
       continue
     fi
   fi
+
+  if has_close_kw "$(git log --format='%B' "origin/main..$head_sha")"; then
+    note_fail "$br" "commit message carries a closing keyword; reword before PR"
+    continue
+  fi
+  pr_title="Sandcastle #$n: $title"
+  if [ -z "$open_pr" ] && has_close_kw "$pr_title"; then
+    note_fail "$br" "PR title from ticket title carries a closing keyword"
+    continue
+  fi
+
   if [ $need_push = 1 ]; then
     if [ "$DRY" = 1 ]; then
-      echo "DRY push $br"
-    elif ! git push -q origin "$br:refs/heads/$br"; then
+      echo "DRY push $br ($sha)"
+    elif ! git push -q origin "$sha:refs/heads/$br"; then
       note_fail "$br" "push failed"
       continue
     fi
   fi
-
-  prs=$(gh_ pr list --head "$br" --state all --json state,url --jq '.[] | "\(.state) \(.url)"' 2>/dev/null) || {
-    note_fail "$br" "PR lookup failed"; continue; }
-  open_pr=$(printf '%s\n' "$prs" | awk '$1=="OPEN"{print $2; exit}')
   if [ -n "$open_pr" ]; then
     echo "PUSHED $br (open PR exists: $open_pr)"
     pushed_only=$((pushed_only+1))
     continue
   fi
-  if [ -n "$prs" ]; then
-    echo "SKIP $br (earlier PR closed or merged, needs a human decision: $(printf '%s' "$prs" | tr '\n' ' '))"
-    continue
-  fi
 
-  commit_lines=$(git log --reverse --format='- `%h` %s' "origin/main..$br")
+  shas=$(git rev-list --reverse "origin/main..$head_sha")
+  commit_lines=$(git log --reverse --format='- `%h` %s' "origin/main..$head_sha")
   body_file=$(mktemp "${TMPDIR:-/tmp}/harvest-pr.XXXXXX")
   {
     echo "Sandcastle two-phase delivery for #$n (implementer + reviewer worker), branch \`$br\`, based on main \`$(git rev-parse --short origin/main)\`."
@@ -145,9 +172,9 @@ for br in $(git for-each-ref --format='%(refname:short)' 'refs/heads/sandcastle/
     echo
     echo "Refs #$n"
   } > "$body_file"
-  if grep -Eiq "$CLOSE_RE" "$body_file"; then
+  if has_close_kw "$pr_title" || has_close_kw "$(cat "$body_file")"; then
     rm -f "$body_file"
-    note_fail "$br" "generated PR body carries a closing keyword"
+    note_fail "$br" "generated PR title/body carries a closing keyword"
     continue
   fi
   if [ "$DRY" = 1 ]; then
@@ -155,7 +182,7 @@ for br in $(git for-each-ref --format='%(refname:short)' 'refs/heads/sandcastle/
     rm -f "$body_file"
     continue
   fi
-  pr_url=$(gh_ pr create --base main --head "$br" --title "Sandcastle #$n: $title" --body-file "$body_file" 2>/dev/null) || pr_url=""
+  pr_url=$(gh_ pr create --base main --head "$br" --title "$pr_title" --body-file "$body_file" 2>/dev/null) || pr_url=""
   rm -f "$body_file"
   if [ -z "$pr_url" ]; then note_fail "$br" "PR create failed"; continue; fi
 
