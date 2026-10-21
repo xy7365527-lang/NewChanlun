@@ -5786,8 +5786,13 @@ mod tests {
 
     /// S4 锁：同输入 28 代（追加/中段修订/中段插入/末根修订），每代 warm owner delta 产物（回复、回执、非节点表、根可达节点闭包）
     /// 与「新 Runtime + 清车道 + oracle」冷全量重算逐位相同；六阶段标记逐代齐全。
+    ///
+    /// release-only（fix-0089 负责人裁定）：debug 下 O(N²) 超 50 分钟，release 约 1000–1200 s；
+    /// 不缩代数、不削弱比较，由 issue-1488-uo-iter.yml 的 Native 组 release 步与
+    /// `.github/1488-uo-release-locks.txt` 以 `--release --ignored --exact` 执行。
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
+    #[ignore = "release-only: run via cargo test --release --locked --features s_session,s_capture_native_testonly --bin s_structure_session -- --ignored --exact v3::driver::tests::s4_generation_incremental_matches_cold_full_six_stages"]
     fn s4_generation_incremental_matches_cold_full_six_stages() {
         let rows = s4_run(&s4_default_steps(), true);
         assert_eq!(rows.len(), 28);

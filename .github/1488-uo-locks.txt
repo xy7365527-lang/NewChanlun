@@ -116,5 +116,5 @@ v3::aux_index::tests::p50_legacy_to_native_index_permit_counts_control_byte_per_
 # #1488 0079 P24-adj：冷根失败（left==0）无票重跑提交后按 renew_lease_after_abandon 同组条件续租，allowance 变大后 ingest 经 Carry 提交且与 ordinary 一致（负控：去续租→红）；续租不清真实撤销（续租后外写仍撤销、前序回滚撤销不被清除）；p3_d 扩展（0078 optional_lock：残留报错后同一 driver ready 须 Ok=expected，负控：该分支 retired→红，同名锁）
 v3::driver::tests::p24adj_cold_root_rerun_renews_lease_and_larger_cap_ingest_commits
 v3::driver::tests::p24adj_cold_root_renewal_keeps_real_revocations
-# #1488 S4 整代 增量≡冷全量 六阶段对拍锁（主控 D4/D6，#799/#804）
-v3::driver::tests::s4_generation_incremental_matches_cold_full_six_stages
+# #1488 S4 整代 增量≡冷全量 六阶段对拍锁（主控 D4/D6，#799/#804）：release-only，已移入
+#   .github/1488-uo-release-locks.txt（--release --ignored --exact；fix-0089 负责人裁定）
