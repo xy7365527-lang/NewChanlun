@@ -416,12 +416,18 @@ fn build(id: &'static str) -> Plan {
             let r = b.send(0, capture_payload(&raw, &chong, k), "Recorded");
             // 目标步口径：追加批 / q_rebase 的 Capture 恰在 E Pending 末尾新增对应 slot 的 typed 等待。
             let waits = awaiting(&b.snapshots.last().unwrap()[0]);
-            assert_eq!(waits.len(), 2 * i + k, "{id} 第 {i} 重 /events/{k} 后 E 等待数");
+            assert_eq!(
+                waits.len(),
+                2 * i + k,
+                "{id} 第 {i} 重 /events/{k} 后 E 等待数"
+            );
             if k > 0 {
                 let slot = ["funding_revision", "q_rebase"][k - 1];
                 assert_eq!(
                     waits.last(),
-                    Some(&json!({"kind":"AwaitingPolicy","slot":slot,"symbol":"BTC","level":format!("L{l}")})),
+                    Some(
+                        &json!({"kind":"AwaitingPolicy","slot":slot,"symbol":"BTC","level":format!("L{l}")})
+                    ),
                     "{id} 第 {i} 重 /events/{k}"
                 );
             }
