@@ -243,9 +243,7 @@
     const equal = (a, b) => canonical(a) === canonical(b);
     const SECOND_FOLD_CURSOR = ["schema", "rule_revision", "budget_policy", "budget_granted", "candidate", "input_stroke_count", "from_stroke", "through_stroke", "consumed_len", "consumed_digest", "dir_state", "standard", "breach_watermark", "semantic_state", "killed_by", "matched"];
     // #1420 K1 游标线形自身：形状/枚举/整数/摘要、候选起点（b+1）与封存见证非空性；同对象相等绑定由调用方另做（与 s_tb02_contract._fold_cursor 对称）。
-    // #1604：s-segment/4 写本次所读预算记录 id/版本（现行签署 v2）；s-segment/3 为 #1420 的 token v1（与 s_tb02_contract._budget_policy 对称）。
-    const budgetPolicy = v4 => v4 ? "second-seq-scan-budget/2" : "second-seq-scan-budget/1";
-    function foldCursor(c, element, kill, check, v4 = false) {
+    const budgetPolicy = v4 => v4 ? "second-seq-scan-budget/2" : "second-seq-scan-budget/1"; function foldCursor(c, element, kill, check, v4 = false) { // #1604：budgetPolicy = s-segment/4 写本次所读预算记录（签署 v2），s-segment/3 为 #1420 token v1（与 s_tb02_contract._budget_policy 对称）
       keys(c, SECOND_FOLD_CURSOR, "K1游标");
       need(c.schema === "second-fold-cursor/1" && c.rule_revision === "second-candidate-terminal/1" && c.budget_policy === budgetPolicy(v4), "K1游标版本不符");
       const candidate = c.candidate; keys(candidate, ["seg_dir", "b_stroke", "candidate_extreme"], "K1候选身份");
