@@ -1516,8 +1516,8 @@ pub fn stroke_span_of_segment(
 
 /// 笔速度（#873 教义）：方向符号 ×（笔端价差 ÷ 笔 bar 数）。Tick/bar 量纲。
 ///
-/// 方向符号乘端价差 ⟹ 沿笔方向的速率，向上、向下笔都为正（向下笔 `−(end−start)/bars`），
-/// bar 数含两端点。`L(段)=v(末笔)−v(首笔)` 在同一把尺子上比（beichi.md「速度是同一把尺子」）。
+/// 方向符号乘端价差 ⟹ 沿笔方向的速率（向下笔 `−(end−start)/bars`），bar 数含两端点。
+/// 笔构造保证价格走向与笔方向一致（向上笔 end>start、向下笔 end<start），故向上、向下笔都为正。
 /// #1635 订正：本处旧文写「向下为负」，与实现及其消费方的执行锁不符——同口径见
 /// `cand_predicate.rs` 的 ForceL 条件 4 手工验算与 `recursive_t::divergence::unit_velocity`。
 pub fn stroke_velocity(stroke: &Stroke) -> f64 {

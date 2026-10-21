@@ -1595,7 +1595,8 @@ mod tests {
     /// 移出后原样在 main 上为红（`lb` 实测 −90/11 ≠ −12）。断言按生产 `stroke_velocity`
     /// 的口径订正——笔速度 = 沿笔方向的速率，恒正（同口径见 `cand_predicate.rs` 的
     /// `cond4_forcel_compares_stroke_velocity_increment` 手工验算与 `recursive_t::divergence`
-    /// 的 `unit_velocity` 对拍锁），bar 数含两端点。原注释按带号斜率、按 bar 差计数，二者皆误。
+    /// 的 `unit_velocity` 对拍锁），bar 数含两端点。原注释把向下笔当带号斜率（v=−2），且 b 段
+    /// 末笔漏数一根 bar（11 根按 10 根算），两处皆误。
     #[test]
     fn confirm_divergence_forcel_semantics() {
         use crate::theta_v0::parser::segment::{segment_force_l, stroke_velocity};
