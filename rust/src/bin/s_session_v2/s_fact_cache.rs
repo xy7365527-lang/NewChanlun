@@ -90,6 +90,10 @@ impl Lane {
 
     /// 最近一次推进结果（稳定前缀长度 / 追加数 / 是否重放 / 最早受影响坐标）。
     #[cfg(test)]
+    #[allow(
+        dead_code,
+        reason = "#1608：推进结果诊断读数，现无测试断言调用；保留供诊断"
+    )]
     pub(super) fn last_outcome(&self) -> AdvanceOutcome {
         self.last
     }

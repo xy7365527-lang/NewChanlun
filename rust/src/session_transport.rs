@@ -515,6 +515,7 @@ pub fn io_connection(
 ) {
     io_connection_inner(stream, tx, bounds, count, validate, legacy_job)
 }
+#[cfg(test)]
 fn io_connection_with_deadline(
     stream: UnixStream,
     tx: mpsc::SyncSender<TimedJob>,
