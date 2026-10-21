@@ -338,6 +338,7 @@ impl LeveledMove {
 /// `build`：中枢构造函数（L0=完整判据 `center_from_segments`；上级=几何 `center_from_window`）。
 /// 返回 `Vec<(Center, (usize, usize))>`：每个中枢 + 构成它的单元闭区间 `[start, end]`（seed 三段 +
 /// 延伸段，`end - start + 1 >= 3`）。
+#[cfg(test)]
 fn detect_centers_windowed(
     units: &[UnitRange],
     build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center>,

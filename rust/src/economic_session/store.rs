@@ -20,6 +20,7 @@ pub(crate) const SCHEMA_V1: &str = "economic-session/1";
 pub(crate) const SCHEMA_V2: &str = "economic-session/2";
 /// #1394：旧 `/1` 调用与单位测试的兼容别名；
 /// 按 manifest 运行的生产调用一律走 `Config::revision()`。
+#[cfg(test)]
 pub(crate) const SCHEMA: &str = SCHEMA_V1;
 /// manifest 顶层的版本选择子：缺省 `/1`（旧 manifest 逐字仍可读），显式只认两个已知值。
 /// 外层 `economic-manifest/1` 不因此改变。

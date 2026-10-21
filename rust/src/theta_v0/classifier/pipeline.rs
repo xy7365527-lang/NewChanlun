@@ -191,6 +191,7 @@ pub(crate) fn unit_to_segment(u: &UnitRange) -> Segment {
 /// 因此同向续行后的配对、同一价格带的晚框穿越、或首个 leave/retest 已失败后出现的远期
 /// 相邻对，均不能回填旧框。
 /// 九段升级同核心不设分支：接线层给出首次绑定时冻结的完整框，天然按该框四边判定。
+#[cfg_attr(not(feature = "backtest_bin"), allow(dead_code, reason = "#1608：仅 backtest_bin 下的 backtest 模块消费"))]
 pub(crate) fn historical_bound_third_cert(
     classification: &Classification,
     tower: &[Rc<Vec<LeveledMove>>],
@@ -212,6 +213,7 @@ pub(crate) fn historical_bound_third_cert(
 }
 
 /// 把 `tower[level][idx]` 按该级生产投影的同一方向/外缘口径还原成 `Segment`。
+#[cfg_attr(not(feature = "backtest_bin"), allow(dead_code, reason = "#1608：仅 backtest_bin 下的 backtest 模块消费"))]
 fn historical_bound_segment(
     classification: &Classification,
     level_moves: &[LeveledMove],

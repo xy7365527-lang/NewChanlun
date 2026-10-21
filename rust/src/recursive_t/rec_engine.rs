@@ -993,6 +993,7 @@ pub struct TRoot {
     nest_consumed: bool,
     /// **读法B/读法乙递归（任务18）**：每级别独立腿 + 触发器。enable_reading_b=true ⇒ on_bar 走 consume_legs。
     enable_reading_b: bool,
+    #[allow(dead_code, reason = "#1608：读法B 背驰开关的引擎侧镜像，配置侧已消费、引擎内尚未读取")]
     reading_b_diverge: bool,
     /// **读法B 一对多空腿（任务57=53.1）**：enable_reading_b_pair=true ⇒ on_bar 走 consume_leg_pairs。
     enable_reading_b_pair: bool,
@@ -1684,6 +1685,7 @@ impl TRoot {
         self.sink_impl(parent, sub, sub_node, c, protect_core);
     }
 
+    #[allow(dead_code, reason = "#1608：sink_impl 的不保护核心便捷入口，当前调用方均直传 protect_core")]
     fn sink(&mut self, parent: usize, sub: usize, sub_node: TrendNode, c: f64) {
         self.sink_impl(parent, sub, sub_node, c, false);
     }

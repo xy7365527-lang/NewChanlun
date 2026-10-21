@@ -98,6 +98,7 @@ pub struct OperateEngine {
     dbg_rf_sub_wrongdir: [u64; MAX_LADDER],
     dbg_rf_parent_occ: [u64; MAX_LADDER],
     dbg_rf_other: [u64; MAX_LADDER],
+    #[allow(dead_code, reason = "#1608：dbg_* 诊断计数族的预留槽，当前无写入/读出点")]
     dbg_sink_ok: [u64; MAX_LADDER],
     dbg_ascend: u64,
 }
@@ -260,16 +261,6 @@ impl OperateEngine {
         let navv = nav(&self.layers, self.free, c);
         let (lu, su) = exposure(&self.layers);
         (navv, lu, su, active_voice_count(&self.layers))
-    }
-
-    /// 测试只读访问器。
-    #[cfg(test)]
-    pub(crate) fn total_long_at_entry(&self) -> f64 {
-        self.layers
-            .iter()
-            .filter(|l| l.direction == Polarity::Long)
-            .map(|l| l.units)
-            .sum()
     }
 }
 

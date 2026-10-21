@@ -190,12 +190,16 @@ pub(super) struct OpsemEntrySnapshot {
     /// 入场时刻解释器喂入候选集大小（χ 过滤后 step_gamma_trade.len()）。
     pub(super) gamma_count: usize,
     /// ★L1-P1：χ 门是否参与本步过滤（π overlay 生产路径 chi=None ⟹ false）。
+    #[allow(dead_code, reason = "#1608：入场诊断插桩字段（L1-P1/L2-P4..P6），写入后当前无读出点")]
     pub(super) chi_filter_active: bool,
     /// ★L2-P4：B1 sizing 是否成功从 sep_legs 取得（false ⟹ units=0.0 是兜底）。
+    #[allow(dead_code, reason = "#1608：入场诊断插桩字段（L1-P1/L2-P4..P6），写入后当前无读出点")]
     pub(super) b1_sizing_available: bool,
     /// ★L2-P5/P6：真嵌套深度（根=0，沿 parent_id 链；`element_depth` 同口径）。
+    #[allow(dead_code, reason = "#1608：入场诊断插桩字段（L1-P1/L2-P4..P6），写入后当前无读出点")]
     pub(super) voice_tree_depth: u8,
     /// ★L2-P6：该深度实际消费的 w_depth（[0.60,0.30,0.10] 按深度索引，越界 0.0）。
+    #[allow(dead_code, reason = "#1608：入场诊断插桩字段（L1-P1/L2-P4..P6），写入后当前无读出点")]
     pub(super) w_depth_at_entry: f64,
     /// 入场时刻活动腿数（prev_active.len()，含即将开仓腿的兄弟）。
     pub(super) prev_active_count: usize,

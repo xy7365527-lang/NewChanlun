@@ -171,6 +171,7 @@ impl NestRung {
     /// 梯级只允许 crate 内受信生产器构造；外部调用方只能读取。
     /// `cand` 仍是 0/1 谓词**取值**输入（裁决① `Cand^δ` 定义式在 recursive_tower/cand_predicate
     /// 上游），本构造器不重判、不臆造判据。
+    #[cfg_attr(not(feature = "backtest_bin"), allow(dead_code, reason = "#1608：仅 backtest_bin 下的 backtest 模块消费"))]
     pub(crate) fn new(interval: NestInterval, cand: bool) -> Self {
         Self {
             confirm_src: None,
@@ -265,6 +266,7 @@ impl NestCertificate {
     ///   `cand=false` 梯级供 `effective_nest_depth` 截断消费）。
     /// - debug 断言结构上可复验的一门：定位区间链逐级相套 `J_e⊆…⊆J_ℓ`（闭口径 [`is_sub`]，
     ///   与 econ_positive #100 看守同款；release 编译掉，零行为改动）。
+    #[cfg_attr(not(feature = "backtest_bin"), allow(dead_code, reason = "#1608：仅 backtest_bin 下的 backtest 模块消费"))]
     pub(crate) fn from_parts(
         side: Side,
         terminal: BspBits,

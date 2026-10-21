@@ -360,11 +360,13 @@ pub(super) fn nest_gate_admit(
 /// multi_admit）与并集 shadow 读出已随旧桥单/multi 查询删除（进场侧）。
 /// T5b (#208)：出场侧 `typed_lookup` 与旧 v1/dual 注入形态均已删除。
 #[derive(Debug, Default, Clone)]
+#[cfg_attr(not(test), allow(dead_code, reason = "#1608：链对照读出字段仅测试断言读取"))]
 pub(super) struct NestGateObs {
     /// L2 旧臂判定（对照读出；链 NoChain ∧ 旧臂已落 Xzd 通道时被复用为门判定——
     /// 该复用案例的「两路一致」是自证，单独计 cross_reuse 不入对照差，见 reused_old_xzd）。
     pub(super) old_admit: bool,
     /// L2 旧臂通道标签（`nest_gate_admit` 第二返回值；早退候选 = ""）。
+    #[allow(dead_code, reason = "#1608：L2 旧臂通道标签对照读出，当前无读出点（仅写入）")]
     pub(super) old_channel: &'static str,
     /// 链 NoChain ∧ L2 有证 ⟹ 经 `build_xzd_fallback` 走 Xzd 回退（语义变更集，对照可见）。
     pub(super) xzd_fallback: bool,
@@ -615,6 +617,7 @@ pub(super) struct NestChainGate {
     pub(super) derived: Vec<Option<LevelFingerprint>>,
     /// 已结算冻结的 (level, run_start, run_end) 集合（#93 步骤 1：R1 confirmed 全 pair
     /// 已入账 ⟹ 重派生产出必被 dedup，零贡献；R3 pan 出生即定型）。
+    #[allow(dead_code, reason = "#1608：#93 步骤 1 冻结集合，当前仅写入、无读出点")]
     pub(super) frozen_runs: std::collections::HashSet<(usize, usize, usize)>,
     pub(super) index: classifier::nest_index::NestCertificateIndex,
     /// #1208 ①件 turn_class 生产桥：索引重建同点的投影行

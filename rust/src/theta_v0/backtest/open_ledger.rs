@@ -137,6 +137,7 @@ impl<V> OpenTable<V> {
 /// #571 之前一个 carrier 至多一条 `LedgerOpen`，风控 `get(carrier)` 即得全部；改键后同
 /// carrier 可并存多 generation ⟹ 止损必须**逐实例**判（#570 探针 §3「风控止损」行：
 /// 按实例 side/stop 聚合 long/short stop）。本 trait 是该枚举面的最小接口。
+#[allow(dead_code, reason = "#1608：#570 风控逐实例止损的枚举接口，待风控侧接线")]
 pub(super) trait LiveOpenView {
     fn for_each_live(&self, carrier: ElementId, visit: &mut dyn FnMut(&LedgerOpen));
 }
@@ -267,6 +268,7 @@ impl OpenTable<LedgerOpen> {
         }
     }
 
+    #[allow(dead_code, reason = "#1608：短差 carrier 集合查询，待消费方接线")]
     pub(super) fn shortdiff_carriers(&self) -> HashSet<ElementId> {
         self.live
             .iter()

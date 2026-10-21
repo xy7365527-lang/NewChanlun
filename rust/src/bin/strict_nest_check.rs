@@ -750,6 +750,7 @@ struct FunnelLevel {
 /// `cand_candidates > 0`，L0 terminal 全查无、高级别候选空集、终门归零都只能落入
 /// 模糊的“需检查证书终门或更高层候选空集”。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg(test)]
 enum FirstZeroCause {
     /// L0 有 `Cand^δ` 基例但 terminal 全部查无（base reachable 归零）。
     L0TerminalAllMissing,
@@ -764,6 +765,7 @@ enum FirstZeroCause {
 }
 
 /// 查找“上一阶段非零、当前阶段为零”的首个断点；全程非零（或结构层本身为空）返回 None。
+#[cfg(test)]
 fn first_zero_cause(funnel_levels: &[FunnelLevel]) -> Option<FirstZeroCause> {
     let l0 = funnel_levels.first()?;
     if l0.cand_candidates > 0 && l0.reachable_candidates == 0 {
@@ -791,6 +793,7 @@ fn first_zero_cause(funnel_levels: &[FunnelLevel]) -> Option<FirstZeroCause> {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code, reason = "#1608：漏斗近失诊断（#33 插桩），报告输出段已不调用，保留待复用")]
 struct NearMiss {
     parent_level: usize,
     parent_idx: usize,
@@ -802,6 +805,7 @@ struct NearMiss {
 }
 
 impl NearMiss {
+    #[allow(dead_code, reason = "#1608：漏斗近失诊断（#33 插桩），报告输出段已不调用，保留待复用")]
     fn rank_key(self) -> (usize, usize, usize, usize, usize) {
         (
             self.diag.failed_conditions(),
@@ -1133,6 +1137,7 @@ fn c_start_mapping_ok(event: &CandDeltaEvent) -> bool {
     }
 }
 
+#[allow(dead_code, reason = "#1608：漏斗近失诊断（#33 插桩），报告输出段已不调用，保留待复用")]
 fn closest_pair_misses(
     events_by_level: &[Vec<CandDeltaEvent>],
     reachable: &[Vec<bool>],
@@ -1178,6 +1183,7 @@ fn closest_pair_misses(
     misses
 }
 
+#[allow(dead_code, reason = "#1608：漏斗近失诊断（#33 插桩），报告输出段已不调用，保留待复用")]
 fn failed_condition_text(miss: NearMiss) -> String {
     let mut failed = Vec::new();
     if !miss.diag.same_side {

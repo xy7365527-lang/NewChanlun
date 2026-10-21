@@ -15,6 +15,7 @@ use std::collections::BTreeSet;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
+#[cfg(target_os = "macos")] // #1608：唯一消费点在 configure 的 macOS 分支
 const SQLITE_SOURCE_ID: &str =
     "2026-06-03 19:12:13 d6e03d8c777cfa2d35e3b60d8ec3e0187f3e9f99d8e2ee9cac695fd6fcdf1a24";
 

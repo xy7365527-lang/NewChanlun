@@ -123,9 +123,10 @@ pub use cert::{PanDivCert, QuasiSecondCert};
 pub(crate) use gates::{
     first_structural_gates, judge_first_cached, judge_first_from_gates, FirstStructuralGates,
 };
+#[cfg(test)]
 pub(crate) use pan_div_short::{
     drain_pan_div_short_retrace_observations, pan_div_subtype_channel_reason,
-    t3_in_c_grade_reason_to_pan_div_subtype, PanDivShortRetraceObservation,
+    t3_in_c_grade_reason_to_pan_div_subtype,
 };
 // ★P2-R2（codex-review-20260701-2251 护栏7）：`StructBreakFeature` sidecar 已删除。
 // 它从未接通生产（mod.rs 全走 `extract_signals(...).0` / `extract_signals_with_hist(...).0` 丢弃
@@ -208,6 +209,7 @@ fn map_src_range_to_close_idx(
 /// `centers` 按 `end_index` 升序（`detect_centers_with` 非重叠扫描保证，mod.rs:136）。返回 `end_index
 /// <= seg_start` 的**最后一个**中枢（该线段离开/回试时「当下之前最后一个中枢」）。无满足者 ⟹ None
 /// （线段在所有中枢之前 ⟹ 无可离开/回试的中枢 ⟹ 非第一/三类）。
+#[cfg(test)]
 fn nearest_confirmed_center(centers: &[Center], seg_start: usize) -> Option<&Center> {
     // 升序 centers 上，end_index <= seg_start 的是一个前缀；取该前缀末元素 = 最近中枢。
     let hi = centers.partition_point(|c| c.end_index <= seg_start);
@@ -444,6 +446,7 @@ pub enum T3InCGrade {
 /// 紧邻）——**不是** `λ_C`/`c_start`。leave = 该锚之后固定第一条段，retest = 紧随一条；方向
 /// 互反；价格严格对该框 `ZG`/`ZD`（Up：`leave.end_price > zg ∧ retest.end_price > zg`；Down
 /// 镜像 `< zd`）。任一失败即 `Missing`，**不后扫**。
+#[cfg(test)]
 pub(crate) fn t3_in_c_fixed_first_pair(
     segments: &[Segment],
     last_center: &Center,
@@ -571,12 +574,14 @@ thread_local! {
 }
 
 /// 打开一类点分级 sidecar 捕获（诊断专用，调用方负责 env 门控）。
+#[cfg_attr(not(feature = "backtest_bin"), allow(dead_code, reason = "#1608：仅 backtest_bin 下的 backtest 模块消费"))]
 pub(crate) fn otherwise_domain_sidecar_begin() {
     GRADE_SIDECAR.with(|c| *c.borrow_mut() = Some(Vec::new()));
 }
 
 /// 关闭并取走已捕获记录（每条记录的 `level` 是捕获时真实调用级别，非占位）。未 `begin` 时
 /// 返回空 Vec。
+#[cfg_attr(not(feature = "backtest_bin"), allow(dead_code, reason = "#1608：仅 backtest_bin 下的 backtest 模块消费"))]
 pub(crate) fn otherwise_domain_sidecar_take() -> Vec<FirstClassGradeRecord> {
     GRADE_SIDECAR.with(|c| c.borrow_mut().take().unwrap_or_default())
 }

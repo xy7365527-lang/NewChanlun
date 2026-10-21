@@ -109,6 +109,7 @@ impl<'a> ElementView<'a> {
 
     /// candidate 段只读切片（#196 shadow：`interp::parent_certificate_projection` 的
     /// `cand_elems` 原料——gamma_index 索引本段；只读借用，与 [`Self::into_overlay`] 互补）。
+    #[cfg_attr(not(feature = "backtest_bin"), allow(dead_code, reason = "#1608：仅 backtest_bin 下的 backtest 模块消费"))]
     pub(crate) fn overlay(&self) -> &[CoverageElement] {
         &self.overlay
     }
@@ -143,6 +144,7 @@ impl<'a> ElementView<'a> {
     }
 
     /// 首个满足 `pred` 的元素全局 idx，= 旧 `work.iter().position(pred)`（base 在前 overlay 在后）。
+    #[allow(dead_code, reason = "#1608：ElementView 对旧 Vec 接口的等价访问器（work.position），当前无调用点")]
     pub(crate) fn position(&self, mut pred: impl FnMut(&CoverageElement) -> bool) -> Option<usize> {
         self.base.iter().position(&mut pred).or_else(|| {
             self.overlay
@@ -153,6 +155,7 @@ impl<'a> ElementView<'a> {
     }
 
     /// 全元素迭代（base 前缀 ++ overlay），= 旧 `work.iter()`。
+    #[allow(dead_code, reason = "#1608：ElementView 对旧 Vec 接口的等价访问器（work.iter），当前无调用点")]
     pub(crate) fn iter(&self) -> impl Iterator<Item = &CoverageElement> {
         self.base.iter().chain(self.overlay.iter())
     }
@@ -164,6 +167,7 @@ impl<'a> ElementView<'a> {
 
     /// 连续切片视图（喂仍接 `&[CoverageElement]` 的 [`strategy_target_legs`]）：overlay 空 ⟹ **借 base
     /// 零拷贝**（热循环常态）；非空（restore 罕触发）⟹ materialize 一次 O(tree+overlay)。
+    #[cfg(test)]
     pub(crate) fn as_contiguous(&self) -> std::borrow::Cow<'_, [CoverageElement]> {
         if self.overlay.is_empty() {
             std::borrow::Cow::Borrowed(self.base)

@@ -53,6 +53,7 @@ use super::super::classifier::recursive_tower::{
 };
 use super::super::classifier::signal::PanDivCert;
 use super::super::config::ThetaConfig;
+#[cfg(test)]
 use super::super::strategy::coverage::Horizontal;
 use super::super::strategy::interp::{assemble_gamma_with_tower, exit_type_of_classes, ExitType};
 use super::super::strategy::voice::VoiceSide;
@@ -85,14 +86,15 @@ pub(super) use xzd::XzdEvidence;
 #[allow(unused_imports)]
 pub(super) use descend::DescendLocator;
 
-use cand_delta::{
-    bsp_cand_type, cand_delta, cand_delta_base_gate, cand_delta_type2_completion,
-    cand_delta_type3_retest,
-};
+use cand_delta::{bsp_cand_type, cand_delta, cand_delta_base_gate};
+#[cfg(test)]
+use cand_delta::{cand_delta_type2_completion, cand_delta_type3_retest};
 use descend::descend_type1_anchor_depth;
+use xzd::xiaozhuanda_confirm;
+#[cfg(test)]
 use xzd::{
-    l0_units_from_tower, xiaozhuanda_confirm, xzd_c3_new_center_breakout,
-    xzd_c3_overlap_window_probe, xzd_force_exception, xzd_sub_last_zs_type3, xzd_type2_confirmed,
+    l0_units_from_tower, xzd_c3_new_center_breakout, xzd_c3_overlap_window_probe,
+    xzd_force_exception, xzd_sub_last_zs_type3, xzd_type2_confirmed,
 };
 
 /// P7 正规出场口径：配对出场信号的缠论卖点（买点）类别（对齐 interp `ExitType` 的
@@ -767,6 +769,7 @@ fn px_at(bars: &[Bar], i: usize, tick: f64) -> f64 {
 ///
 /// **认识论 L0**：纯结构构造 + 确定性算术。alpha 有效性待 L2/L3（W-VERIFY），不在此声明。
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 pub(super) fn build_multilevel_nest_cert(
     tower: &[std::rc::Rc<Vec<super::super::classifier::recursive_tower::LeveledMove>>],
     lvl: usize,
@@ -1047,6 +1050,7 @@ pub(super) fn build_nest_certificate_bottomup(
 /// `confirm_side`（退化，等价单 bit 检查，无区间套跨级）；深度 ≥1 = 真跨级 `[J_{ℓ-1}⊆J_ℓ]` 触达。
 ///
 /// **认识论 L0**：纯结构读数（不重跑分类）。用于 P1 验收「区间套是否真触达 ≥2 层」的 bit-exact 证据。
+#[cfg(test)]
 pub(super) fn effective_nest_depth(cert: &NestCertificate) -> usize {
     cert.rungs().iter().take_while(|r| r.cand()).count()
 }

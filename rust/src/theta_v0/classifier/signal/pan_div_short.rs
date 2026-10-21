@@ -35,6 +35,7 @@ use super::*;
 /// 表（本函数）四桶 `None` 是对拍完备性的诚实立档，不是「五桶皆双向对应」**；生产折入通道词汇
 /// 走的是反向投影 [`pan_div_subtype_channel_reason`]（恒 `Some`），「一一对应」准确所指是
 /// `RetestReentered` 这一个映射点上两侧谓词的对应，不是两个五元枚举整体的双射。
+#[allow(dead_code, reason = "#1608：#639 盘背短差观测通道待接线 API（生产驱动源归 #575 后续票），当前仅测试调用")]
 pub(crate) fn t3_in_c_grade_reason_to_pan_div_subtype(
     reason: T3InCGradeReason,
 ) -> Option<PanDivSubtype> {
@@ -51,6 +52,7 @@ pub(crate) fn t3_in_c_grade_reason_to_pan_div_subtype(
 /// [`PanDivShortRetraceObservation::from_record`] 折入观测记录时打通道标签）。与上一函数互为
 /// 部分逆——[`PanDivSubtype`] 目前只有一个变体，故本方向恒 `Some`，无需 `Option`；新增变体是
 /// 显式的破坏性改动（同 [`PanDivSubtype`] 文档「固定」纪律），届时本函数不再穷尽会编译失败。
+#[allow(dead_code, reason = "#1608：#639 盘背短差观测通道待接线 API（生产驱动源归 #575 后续票），当前仅测试调用")]
 pub(crate) fn pan_div_subtype_channel_reason(subtype: PanDivSubtype) -> T3InCGradeReason {
     match subtype {
         PanDivSubtype::RetestReentered => T3InCGradeReason::RetestReentered,
@@ -63,6 +65,7 @@ pub(crate) fn pan_div_subtype_channel_reason(subtype: PanDivSubtype) -> T3InCGra
 /// 源自 `judge_segment` 热路径 T3-in-c 分级；两条产线不合并，见
 /// [`t3_in_c_grade_reason_to_pan_div_subtype`] 文档「同名非同谓词」。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code, reason = "#1608：#639 盘背短差观测通道待接线 API（生产驱动源归 #575 后续票），当前仅测试调用")]
 pub(crate) struct PanDivShortRetraceObservation {
     pub identity: RetraceKey,
     pub side: RetraceSide,
@@ -74,6 +77,7 @@ pub(crate) struct PanDivShortRetraceObservation {
 }
 
 impl PanDivShortRetraceObservation {
+    #[allow(dead_code, reason = "#1608：#639 盘背短差观测通道待接线 API（生产驱动源归 #575 后续票），当前仅测试调用")]
     fn from_record(record: &ShortRetraceRecord) -> Self {
         Self {
             identity: record.identity,
@@ -121,6 +125,7 @@ impl PanDivShortRetraceObservation {
 /// 若通知面未来接到与本函数**同一个 `ShortRetracePortal` 实例**上，本函数每 drain 一条，
 /// `disposal_notices` 就少一条；本函数先跑则通知面恒空。当前无实害（通知面无消费方），但
 /// 接通知面时须给两个面各自独立的门户实例，或给 `disposal_notices` 另设判重。
+#[allow(dead_code, reason = "#1608：#639 盘背短差观测通道待接线 API（生产驱动源归 #575 后续票），当前仅测试调用")]
 pub(crate) fn drain_pan_div_short_retrace_observations(
     ledger: &RetraceLedger,
     portal: &mut ShortRetracePortal,

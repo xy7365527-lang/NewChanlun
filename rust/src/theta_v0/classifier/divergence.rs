@@ -1589,6 +1589,11 @@ mod tests {
 
         /// ★#990 ForceL 专项锁：教义判据 `L(C)<L(B)`（Some）生效、无数据（None）不判、
         /// 与面积档可给相反判定（口径切换的语义见证）。
+        #[allow(
+            unnameable_test_items,
+            dead_code,
+            reason = "#1608 疑点：此测试嵌在外层测试函数体内，从未被测试框架收集执行；按票面不改行为，已上报"
+        )]
         #[test]
         fn confirm_divergence_forcel_semantics() {
             use crate::theta_v0::parser::segment::{segment_force_l, stroke_velocity};
