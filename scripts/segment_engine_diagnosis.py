@@ -42,6 +42,7 @@ from newchan.a_segment_v1 import (
     segments_from_strokes_v1,
 )
 from newchan.a_stroke import Stroke
+from newchan.segment_policy import active_scan_budget
 from newchan.bi_engine import BiEngine
 from newchan.core.recursion.segment_engine import SegmentEngine
 from newchan.types import Bar
@@ -679,13 +680,14 @@ def main() -> None:
             else:
                 results["price_direction_conflict"] = False
 
-    # ── TAIL_WINDOW 检查 ──
+    # ── TAIL_WINDOW 检查 ──（#1604：尾窗读记录 second-seq-scan-budget.tail_window，类常数已删）
+    TAIL_WINDOW = active_scan_budget().tail_window
     print("\n" + "#" * 70)
     print("# TAIL_WINDOW 限制检查")
     print("#" * 70)
-    if feat_detail_60m.get("standard_feature_seq_length", 0) > _FeatureSeqState.TAIL_WINDOW:
+    if feat_detail_60m.get("standard_feature_seq_length", 0) > TAIL_WINDOW:
         print(f"\n  标准特征序列长度 ({feat_detail_60m['standard_feature_seq_length']}) "
-              f"> TAIL_WINDOW ({_FeatureSeqState.TAIL_WINDOW})")
+              f"> TAIL_WINDOW ({TAIL_WINDOW})")
         print("  >>> 这意味着只有最近 TAIL_WINDOW 个元素会被扫描分型!")
         print("  >>> 如果分型出现在更早的位置，会被遗漏!")
         results["tail_window_issue"] = True
@@ -693,7 +695,7 @@ def main() -> None:
         # 检查是否有目标分型在 TAIL_WINDOW 之外
         target_type = "顶" if feat_detail_60m["seg_dir"] == "up" else "底"
         seq_len = feat_detail_60m["standard_feature_seq_length"]
-        window_start = seq_len - _FeatureSeqState.TAIL_WINDOW
+        window_start = seq_len - TAIL_WINDOW
         early_fractals = [
             f for f in feat_detail_60m.get("fractals_found", [])
             if f["type"] == target_type and f["index"] < window_start
@@ -710,7 +712,7 @@ def main() -> None:
             print(f"  在 TAIL_WINDOW 之外无目标分型 (目标: {target_type})")
     else:
         print(f"\n  标准特征序列长度 ({feat_detail_60m.get('standard_feature_seq_length', 0)}) "
-              f"<= TAIL_WINDOW ({_FeatureSeqState.TAIL_WINDOW})")
+              f"<= TAIL_WINDOW ({TAIL_WINDOW})")
         print("  TAIL_WINDOW 不构成限制")
         results["tail_window_issue"] = False
 

@@ -100,6 +100,12 @@ Rust 验证全部经远端 `nc-remote`（本地未跑 cargo/rustc/rustup/rustfmt
 4. Lean 侧相切归 #1626。
 5. Python v1 尾窗（独审 L1）：`_FeatureSeqState.TAIL_WINDOW = 7` 已删，构造时读记录 `tail_window`；Python 无尾窗截断标记，记录值为 1、2 时拒绝运行（不静默截断）。
 6. classifier（独审 M3）：`TowerPolicyStamp` 加 `scan_budget` / `construction_rule`；`ClassifyOutput.segment_coverage` 显式带尾窗截断标记与起点（只标记不拒读，与 `termination` 正交，故不与 #1662 新增的 `TowerTermination::ParseInvalid` 争同一字段）。
+7. 第二轮独审（`issue1604-20261021/review-r2-claude-fable-5-1.md`，PASS）新登记，待用户裁定：
+   - MEDIUM-1：`s-segment/4` 在不升 `schema_revision`／`rule_revision` 的情况下把 `scan_budget.policy`／K1 `budget_policy` 的必填值从 v1 改为 v2（见本节第 2 条代价）。可选：接受登记，或升 `s-segment/5`／给 rule_revision 加预算 token。
+   - LOW-1：SECOND 的 `tail_cache_window` 现写记录 `second_seq_window`（签署值 0），合同仍硬要求 `"0"`；记录改签非 0 时 S 写者会被合同当场拒绝（fail-loud）。后续宜改字段口径或让合同读记录。
+   - LOW-2：`#[cfg(test)]` 的 `TEST_ROUND_BUDGET` 只改值不改版本标签，与 `research_override_*` 约定不一致；仅测试路径。
+   - LOW-4：提交 `c33f823696` 主题以 `fix(segment):` 开头（后不跟 `#`，不触发自动关票）；已推送不改写历史。
+   - LOW-3 已修：`scripts/segment_engine_diagnosis.py` 改读记录尾窗。
 
 ## 8. 后续
 
