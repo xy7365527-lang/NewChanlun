@@ -9,7 +9,8 @@
 //!   输出 schema 本身的体积），以及 layer/facts 的 Debug 流式摘要。
 //! - `replay-drop` / `replay-hold`：`ParseLayerIncr::append` 逐 bar 回放；drop = 调用前先丢上一轮
 //!   ParseLayer，hold = 上一轮 ParseLayer 在 append 期间仍存活（生产 `classify_at` 修前的持有方式）。
-//!   报告累计分配字节、峰值、耗时、逐 K bar 滚动摘要与末 bar 摘要。
+//!   报告累计分配字节、峰值、耗时、逐 K bar 滚动摘要与末 bar 摘要，以及逐 bar 段续扫跨度
+//!   （`rescan_span`，#1630：段阶段分配的线性判据；跨度数组预分配 4 B/bar，计入 alloc_total）。
 //! - `classifier`：`IncrementalClassifier::classify_at` 逐 bar；报告同上，摘要覆盖每 K bar 的
 //!   `classification` 与末 bar 的 `last_l0`，用于修前/修后同输入对拍。
 //!
@@ -353,11 +354,13 @@ fn run_replay(bars: &[Bar], config: &ThetaConfig, hold: bool, every: usize) {
     let mut incr = ParseLayerIncr::new(config);
     let mut held: Option<ParseLayer> = None;
     let mut rolling = Sha256::new();
+    let mut spans: Vec<u32> = Vec::with_capacity(bars.len());
     for (i, bar) in bars.iter().enumerate() {
         if !hold {
             drop(held.take());
         }
         let layer = incr.append(*bar);
+        spans.push(rescan_span(&layer));
         if every > 0 && (i + 1) % every == 0 {
             rolling.update(digest_debug(&layer).as_bytes());
         }
@@ -376,6 +379,35 @@ fn run_replay(bars: &[Bar], config: &ThetaConfig, hold: bool, every: usize) {
         "  digest every={every} rolling={} last_layer={}",
         hex(rolling),
         digest_debug(&layer)
+    );
+    print_spans(spans);
+}
+
+/// #1630：本 bar 段续扫笔数的上界代理——`IncrSegments::append` 从保留前缀（`segments_confirmed_len`
+/// 段）之后重扫到末笔。同输入早退（实际不扫）与 `keep == 0`（实际从 `find_overlap_start` 起）时
+/// 高估。只反映跨度 L 的增长；单笔成本随 L 上升（#1630 报告，旧分支实测）不在本读数内。
+fn rescan_span(layer: &ParseLayer) -> u32 {
+    let keep = layer.segments_confirmed_len;
+    let resume = match keep.checked_sub(1) {
+        None => 0,
+        Some(last) => {
+            let end = layer.segments[last].end_index;
+            layer.strokes.partition_point(|s| s.end_index <= end)
+        }
+    };
+    (layer.strokes.len() - resume) as u32
+}
+
+fn print_spans(mut spans: Vec<u32>) {
+    let n = spans.len();
+    let sum: u64 = spans.iter().map(|&s| u64::from(s)).sum();
+    spans.sort_unstable();
+    println!(
+        "  rescan_span sum={sum} mean={:.1} p50={} p99={} max={}",
+        sum as f64 / n as f64,
+        spans[n / 2],
+        spans[n * 99 / 100],
+        spans[n - 1]
     );
 }
 
