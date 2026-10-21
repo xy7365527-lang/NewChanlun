@@ -58,6 +58,15 @@ P1 按 Netting 验证（[ADR 0014](0014-intra-chong-unidirectional-inter-chong-n
 
 不构成重启（裁定五的条件未触发）。本 ADR 在「暂不选定生产场所」的框架内只钉首个能力验证范围；ADR 0021 全部有效域原样保留。
 
+## P2 处置
+
+> 2026-10-21 补记（[#1561](https://github.com/xy7365527-lang/NewChanlun/issues/1561)，用户批复 [评论 6310811399](https://github.com/xy7365527-lang/NewChanlun/issues/1561#issuecomment-6310811399) 原话「我暂时不用真钱」与 [评论 6310848771](https://github.com/xy7365527-lang/NewChanlun/issues/1561#issuecomment-6310848771)；先例同 ADR 0021:75 补记）。签署单、考古与独审：`/Volumes/AgentStorage/decisions/1561/{draft.md,archaeology.md,review.attempt3.json}`。
+
+1. **本图不做 P2 真钱首次发送**。`P2` 保持槽位，状态「未启用（#1561）」；本图 Destination 不含真钱发送。依据：用户 2026-08-08 原话「我们暂时只有回测也是可以的」（[ADR 0021](0021-venue-selection-deferred.md):9）与 2026-10-21 原话「我暂时不用真钱」；SPEC #1340 范围外「未经批准的真实订单、资金投入/划转、账户权限或退出操作；模拟通过不授予这些权限」。ADR 0021 不重启（裁定五四条均未触发），#937 四裁切换件继续挂在 ADR 0021:73。
+2. **TB-09/TB-10 以 `P1-hl-testnet` 验收**（`experiment`）；裁定一前置读数失败时退回 `P0`。只有目标生产部署才能证明的义务——生产旧凭据/launcher/OS 身份隔离、带仓身份映射、生产首次新发送前 TB-09 重核、默认启用批准——保持为「生产首次新发送前」的具名门，未触发；P1 证据不得读成已满足（`CONTEXT.md` 证据类词条）。
+3. **首次新发送授权记录格式**：⟨authorization_id, profile_id@version, tb09_evidence_fingerprint_ref, scope, authorizer, authorized_at⟩。签署人只能是用户本人（本 ADR 裁定四人工层；#1351 第二问：代理与自动化无自主权）；本图下只登记格式、不执行。该格式是 TB-10-H/I（[#1402](https://github.com/xy7365527-lang/NewChanlun/issues/1402)/[#1413](https://github.com/xy7365527-lang/NewChanlun/issues/1413)）的实施输入，不另定第二套。组合成一条记录是 `[新缠论:推论]`（字段出处：本 ADR 裁定一 authorization 行、裁定四机器层与人工层；[ADR 0030](0030-exit-authorization-and-liability-retirement.md):19）。
+4. **日后要上真钱**另起票：按 ADR 0021 裁定五重启（重跑 #942 第 1/3/4/5 问并同步执行 #937 四裁切换），需主网存款（SPEC 范围外「资金投入」），数额走 [ADR 0040](0040-funding-signature-and-chong-derivation.md) 的 P2 新版本；P2 v1 字段随该重启票落其新 ADR，本节只留指针。
+
 ## 受影响代码清单
 
 见 [`.chanlun/review-results/issue1323-grilling-20261013/1351-AFFECTED-CODE.md`](../../.chanlun/review-results/issue1323-grilling-20261013/1351-AFFECTED-CODE.md)（基线 main `465174240b`，FIN 线 `0d8a6017` 单独标注）。要点：R2 `economic_session` 没有 profile 类型（缺口）；FIN `finance.rs:211` 的 `capability_id` 是 TestOnly 字段；旧 Python `trading_system/config/broker_config.py` 与 `trading_system/execution/risk_controls.py` 为可收编资产（ADR 0027 裁定五），不自动成为正本。

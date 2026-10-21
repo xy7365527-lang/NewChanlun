@@ -46,7 +46,7 @@ _Avoid_: 把 `depth_weights` 当量档；用底档 0.32 代填高档；用账户
 改写固定 Q 的唯一事件，是一次政策版本，前件 growth_eligible 且新 Q ≤ 已签容量。
 
 **成本停止 policy**:
-具名版本化记录（`#1354/cost-stop-policy/v1`）：费率/滑点/延迟/持有成本四项输入各带 Known|ProxyLowerBound|Missing 状态，ROUNDTRIP 波幅逐级带单边 95% 下界，阈值 θ 由用户签署，通过 = 下界比值 ≥ θ 且证据门满足。缺项是状态（NotEvaluable），不是 0；代理下界只能判失败。第一层 = L0 余量 + 延伸后复测；第二层 = 到底份额下界 > 判不出背驰份额上界。
+具名版本化记录（`#1354/cost-stop-policy/v1`）：费率/滑点/延迟/持有成本四项输入各带 Known|ProxyLowerBound|Missing 状态，ROUNDTRIP 波幅逐级带单边 95% 下界，阈值 θ 由用户签署，通过 = 下界比值 ≥ θ 且证据门满足。缺项是状态（NotEvaluable），不是 0；代理下界只能判失败。第一层 = L0 余量 + 延伸后复测；第二层 = 到底份额下界 > 判不出背驰份额上界。首份签署记录见 [ADR 0044](docs/adr/0044-cost-stop-policy-signed-instance-v1.md)（[#1559](https://github.com/xy7365527-lang/NewChanlun/issues/1559)，P0 / P1-hl-testnet 两版 v1，θ = 2/1，滑点 Missing ⟹ 成本门仍 NotEvaluable）。
 _Avoid_: 用中位数读成本门；把 #907 的 2.59× 当当前通过证据；缺费率时代 0 下钻。
 
 **经营统计样本**:
@@ -92,7 +92,7 @@ _Avoid_: 仓位、持仓、头寸（这些是数量/暴露，不是实体）；"
 **推论层用词对照（2026-08-01 [#845](https://github.com/xy7365527-lang/NewChanlun/issues/845) 裁定五，[ADR 0012](docs/adr/0012-inference-layer-document-naming.md)）**：`analysis/` 与 `docs/` 推论层文档中的「声部（voice）」**多指本仓的「重」**（持久筹码层），非本词条这个一次性实体。判据是它锚哪句原文——`analysis/recursive_regularization_theory.md` §2.1 对照表把「声部」定义为「一个操作级别上的独立资金/筹码层」并锚 `040-第40课.md:20`「每一重都对应着一定的资金与筹码」⟹ 那是「重」。**援引推论层前先对词。** 上条禁令因此**只管本词条**：推论层讲「重」的那些命题不受其约束（它们用对了赋格比喻、用错了本仓的词），但仍须按 [ADR 0012](docs/adr/0012-inference-layer-document-naming.md) 裁定一重过推理链。成因是一次实误报——[#844](https://github.com/xy7365527-lang/NewChanlun/issues/844) 据词面把这里报成了冲突（X3）。
 
 **退出授权（Exit Authorization）**（2026-10-13 [#1352](https://github.com/xy7365527-lang/NewChanlun/issues/1352) 裁定，[ADR 0030](docs/adr/0030-exit-authorization-and-liability-retirement.md)）:
-结束一个 Voice 持仓的具名许可，来源三类且互不兜底：结构事实（卖点成立或买入理由失效，`031-第31课.md:26`【正文】）、具名系统风险条件（系统自设，用户签署清单版本）、用户手动/急停。范围随来源类定；跨重急停不是仲裁，是范围内每重各自退出。风险与手动不得记成卖点。
+结束一个 Voice 持仓的具名许可，来源三类且互不兜底：结构事实（卖点成立或买入理由失效，`031-第31课.md:26`【正文】）、具名系统风险条件（系统自设，用户签署清单版本）、用户手动/急停。范围随来源类定；跨重急停不是仲裁，是范围内每重各自退出。风险与手动不得记成卖点。SR 清单 v1（绑 `P1-hl-testnet`）的签署值见 [ADR 0045](docs/adr/0045-sr-v1-policy-signed.md)（[#1560](https://github.com/xy7365527-lang/NewChanlun/issues/1560)）。
 _Avoid_: 把「出场判定」节 typed exit 里的 `RiskExit` 当作具名系统风险条件来源（前者是旧 theta_v0 出场裁决的标签，不自动成为新架构授权）。
 
 **责任退休（Liability Retirement）**（同上）:
@@ -364,7 +364,7 @@ _Avoid_: 把本点自身 source_index 塞进锚（伪阳性唯一性）；三类
 **π 引擎**指 canonical `run_theta_v0_pi`/π fill 的策略与执行家族本体；**最小生产路径 CLI** 指 `theta_backtest` 用仓内数据加载、π 引擎与内部 fill 串成的可运行闭环，它证明 CLI 可驱动引擎，但不等于交易场所集成；**NT 真生产**指 NautilusTrader 的 Backtest/Live runtime、真实 portfolio/order 生命周期与 broker adapter 驱动同一策略。三者须按全名使用，不以裸称“生产”互相替代。
 
 **场所 profile（Venue Profile）**（2026-10-13 [#1351](https://github.com/xy7365527-lang/NewChanlun/issues/1351) 裁定，[ADR 0028](docs/adr/0028-first-capability-verification-profile.md)）:
-一次能力验证或目标生产部署所绑定的具名范围 = ⟨environment, venue, dex, account, endpoint, credential_scope, execution_form, allowed_actions, evidence_class, authorization⟩ 及版本。任一字段变更即新版本；environment 与 execution_form 不得在版本内切换。凭据只记作用域与来源，不记值。首个能力验证 profile 为 `P1-hl-testnet` v1（Hyperliquid testnet 主 DEX）。
+一次能力验证或目标生产部署所绑定的具名范围 = ⟨environment, venue, dex, account, endpoint, credential_scope, execution_form, allowed_actions, evidence_class, authorization⟩ 及版本。任一字段变更即新版本；environment 与 execution_form 不得在版本内切换。凭据只记作用域与来源，不记值。首个能力验证 profile 为 `P1-hl-testnet` v1（Hyperliquid testnet 主 DEX）。`P2` 本图不启用、TB-09/TB-10 以 P1 验收，首发授权记录格式见 ADR 0028「P2 处置」节（[#1561](https://github.com/xy7365527-lang/NewChanlun/issues/1561)）。
 _Avoid_: 把 profile 当场所选定（ADR 0021「暂不选定」仍有效）；把 `xyz` 等 builder DEX 并入 v1 的证据射程（同 profile 的 v2 另起）。
 
 **证据类（Evidence Class）**（同上）:
