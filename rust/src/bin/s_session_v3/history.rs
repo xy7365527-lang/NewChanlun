@@ -1659,7 +1659,7 @@ pub(super) fn hash_json_until(
 ) -> Result<NodeDigest, String> {
     hash_json_metered(v, deadline, None)
 }
-#[cfg(test)]
+#[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用（非测试构建中只被已豁免的未用项调用）"))]
 pub(super) fn hash_json_metered<'a>(
     v: impl Into<sc::capture_allocation::audit_json::JsonView<'a>>,
     deadline: Option<std::time::Instant>,

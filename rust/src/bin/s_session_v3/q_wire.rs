@@ -62,7 +62,7 @@ pub(crate) fn decode_owner(
     })
 }
 /// 兼容String入口；HTTP直接分别调用decode与typed公共核以持住失败的来源owner。
-#[cfg(test)]
+#[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用（非测试构建中只被已豁免的未用项调用）"))]
 pub(crate) fn parse_owner(
     bytes: &[u8],
     resources: &QResources,

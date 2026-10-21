@@ -2311,7 +2311,7 @@ mod audit_capture_gate_tests {
 
 /// 仅测试真实audit入口，资格仍由同一完整body判据给出；外层显式配置同账overlay。
 #[cfg(all(test, feature = "s_allocation_json_testonly"))]
-#[cfg_attr(all(test, feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：s_capture_native_testonly 测试构建不触达此项"))]
+#[allow(dead_code, reason = "#1608：仅测试真实 audit 入口，当前无调用方；保留不删")]
 pub(super) fn audit_owned_capture_for_testonly(
     tx: &Transaction<'_>,
     budget: &sc::capture_allocation::OwnedBudget,

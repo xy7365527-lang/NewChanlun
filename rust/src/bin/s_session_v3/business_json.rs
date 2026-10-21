@@ -4,7 +4,10 @@ use super::*;
 use aj::{ArrayIter, ArrayView, JsonView};
 use newchan_rust::s_content as sc;
 use newchan_rust::sqlite_checked::CheckedRow;
-#[cfg(feature = "s_allocation_json_testonly")]
+#[cfg(any(
+    feature = "s_allocation_json_testonly",
+    all(test, feature = "s_capture_native_testonly")
+))]
 use newchan_rust::sqlite_checked::CheckedStatement;
 use sc::capture_allocation::scratch::WorkScope;
 use sc::capture_allocation::{audit_json as aj, OwnedBudget};
