@@ -385,6 +385,7 @@ impl KThetaRiskGate {
     }
 
     /// 从 `anchor` 沿给定方向最多还能移动的整数单位；DC-E 以此作为 KΘ 上界。
+    #[cfg(test)]
     pub(crate) fn delta_capacity_units(&self, cap: f64, anchor: f64, side: VoiceSide) -> u64 {
         let (lo, hi) = self.position_bounds(cap);
         let room = match side {
@@ -395,6 +396,10 @@ impl KThetaRiskGate {
         room.max(0.0).floor() as u64
     }
 
+    #[allow(
+        dead_code,
+        reason = "#1608：𝒦_Θ 边界夹取工具（与 position_bounds 同源），待 DC-E 接线，当前无调用点"
+    )]
     pub(crate) fn clamp_position(&self, cap: f64, position: f64) -> f64 {
         let (lo, hi) = self.position_bounds(cap);
         position.max(lo).min(hi)
@@ -672,6 +677,7 @@ pub fn pi_theta_step(
 /// G4（#134）后委托 [`pi_theta_step_traced`] 丢弃 trace（单源组装，决策路径 bit-exact 不变；
 /// trace 构造在活动腿规模 O(|A_t|) 上，实测 |A_t|~9@16K bar，开销可忽略）。
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 pub(super) fn pi_theta_step_prebuilt(
     work: ElementView,
     gamma: &[Candidate],

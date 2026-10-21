@@ -953,6 +953,10 @@ fn authoritative_fact_inner(
     tx.commit().map_err(err)?;
     Ok(f)
 }
+#[allow(
+    dead_code,
+    reason = "#1608：无入口期限的 ApplyAllocation 便捷入口，现有调用方均直接走 apply_allocation_with_ingress"
+)]
 fn apply_allocation(
     c: &mut Connection,
     config: &Config,

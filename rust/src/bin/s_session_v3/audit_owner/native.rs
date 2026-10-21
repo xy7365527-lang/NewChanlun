@@ -405,6 +405,13 @@ impl Budget {
         // Arc coercion 复用已有控制块，不 new 包装适配器。
         CodecWork::new(self.0.clone(), self.0.limit).map_err(Failure::from)
     }
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
+        )
+    )]
     pub(crate) fn scratch_observation(&self) -> (usize, usize, usize, usize) {
         (
             self.0.scratch_live.load(Ordering::Acquire),
@@ -524,7 +531,7 @@ impl Ledger {
         }
         let old = self
             .live
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |n| {
                 n.checked_add(bytes).filter(|n| *n <= self.limit)
             })
             .map_err(|_| ScratchFailure::Budget)?;
@@ -534,7 +541,7 @@ impl Ledger {
     fn release_total(&self, bytes: usize) -> Result<(), ScratchFailure> {
         if self
             .live
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |n| {
                 n.checked_sub(bytes)
             })
             .is_err()
@@ -575,7 +582,7 @@ impl ScratchParent for Ledger {
     fn release(&self, bytes: usize, kind: ScratchCharge) -> Result<(), ScratchFailure> {
         let (live, _) = self.component(kind);
         if live
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |n| {
                 n.checked_sub(bytes)
             })
             .is_err()

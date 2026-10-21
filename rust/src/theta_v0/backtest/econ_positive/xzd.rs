@@ -345,6 +345,7 @@ pub(super) fn xzd_force_exception(
 /// 三段窗口压掉新中枢」（候选1，`detect_centers_with` 算法限制）vs「真实几何无新中枢」（候选2，
 /// 市场事实）。不写 `Classification.levels[*].centers`，不改 `tower`，不改正常输出 digest；
 /// 默认不调用（调用现场 `ECON_C3_OVERLAP_PROBE` 环境变量门控，生产/默认测试路径零开销）。
+#[cfg(test)]
 pub(super) struct XzdC3OverlapProbeDiag {
     /// 滑动一格扫描（非 `detect_centers_with` 的非重叠三段消费）产出的 post-source 新中枢窗口数
     /// （`start_index >= source_index && end_index <= confirm_index`，可能同一中枢被多个重叠窗口
@@ -361,6 +362,7 @@ pub(super) struct XzdC3OverlapProbeDiag {
 /// 不成立支+1，非重叠）唯一的差异点。复用同一中枢构造函数 `center_from_segments`（方向交替+全三段
 /// 核心非空，L0 完整判据——本探针只在 `lvl==1` 调用，`sub_units` 恒为 L0 段，`center_from_window`
 /// 的几何路径不适用于此层）+ 同一突破规则（`xzd_c3_new_center_breakout`）。
+#[cfg(test)]
 pub(super) fn xzd_c3_overlap_window_probe(
     source_index: usize,
     confirm_index: usize,
@@ -403,6 +405,7 @@ pub(super) fn xzd_c3_overlap_window_probe(
 /// `moves_tower = units.iter().map(LeveledMove::from_unit).collect()`（mod.rs `classify_impl`
 /// level0 处理前的初始塔）的逐字段包装，故此还原与 `detect_centers_with` 原本消费的 L0 段账本
 /// bit-exact 一致（同 start/end/direction/lo/hi）。
+#[cfg(test)]
 pub(super) fn l0_units_from_tower(moves: &[LeveledMove]) -> Vec<UnitRange> {
     moves
         .iter()

@@ -1,11 +1,11 @@
 # 三阶段与本金（Sanjieduan / Principal）
 
 > 正本：本文件是 三阶段与本金 的教义正本。
-> 最后裁定：[#1348](https://github.com/xy7365527-lang/NewChanlun/issues/1348)（2026-10-13）；[#1406](https://github.com/xy7365527-lang/NewChanlun/issues/1406) OQ-2a 补裁（2026-10-14）
+> 最后裁定：[#1348](https://github.com/xy7365527-lang/NewChanlun/issues/1348)（2026-10-13）；[#1406](https://github.com/xy7365527-lang/NewChanlun/issues/1406) OQ-2a 补裁（2026-10-14）；[#1590](https://github.com/xy7365527-lang/NewChanlun/issues/1590) 换向与开局资金（2026-10-21，[ADR 0043](../../docs/adr/0043-chong-reversal-account-continuity.md)）
 > 受影响代码清单：本文件 §5（基线 main `465174240b`；FIN 线 `0d8a6017` 单独标注）；工作草稿副本 [`.chanlun/review-results/issue1323-grilling-20261013/1348-AFFECTED-CODE.md`](../review-results/issue1323-grilling-20261013/1348-AFFECTED-CODE.md)，票关后随归档出仓
 
 **状态**: 已裁定（#1348 第一至第三问的教义部分；数据形态、零分母与公司行动见 [ADR 0031](../../docs/adr/0031-principal-batches-phase-predicate-corporate-actions.md)）
-**最后更新**: 2026-10-15
+**最后更新**: 2026-10-21
 **原文依据**: 第 31、35、40、49 课（博文，`docs/chanlun/text/blog/`）
 
 **与既有生成态文件的关系**：[`fengkong.md`](fengkong.md)「概念3：成本归零策略」与 [`chanlun-trading-system.md`](chanlun-trading-system.md)「概念2：资金管理」描述的是同一组三阶段，二者仍为生成态操作说明。自 #1348 起，阶段如何判定、本金按什么口径计，以本文件为准；两处与本文件不一致时以本文件为准。
@@ -29,11 +29,19 @@
 
 **分方向的单向蕴含**（#1406 OQ-2a 补裁）：多头 `growth_eligible ⇒ latch = EarningShares`；空头 `growth_eligible ⇒ latch = CapitalRecovered`，空头 latch 不进入赚股第三相。依据为 ADR 0031 裁定一的空头回本判据、裁定三的分方向资格谓词与 SPEC C05.5。两条均非双向等价：回本后的亏损往返即使没有费用，也可令当前资格失效而阶段事件史保留；latch 仍不得作为资格输入。
 
+> **★ 2026-10-21 订正（[#1590](https://github.com/xy7365527-lang/NewChanlun/issues/1590)，[ADR 0043](../../docs/adr/0043-chong-reversal-account-continuity.md) 裁定三，用户批复）**：方向属在世声部（ADR 0040 裁定一），上句「多头／空头」读作「在世声部为多／为空」。latch 已到 `EarningShares` 的重换空后，原空头蕴含在单账下必然有反例，订正为：空头 `growth_eligible ⇒ latch.rank ≥ CapitalRecovered`，空头事件不把 latch 推进到 `EarningShares`。多头蕴含原文不变，由补发规则维持：开多声部的求值点若多头谓词为真且 `latch.rank < EarningShares`，经 `LegalTransition` 追加既有 `enterEarning` 阶段事件（known_at ＝ 求值点，append-only，AsKnown 不回填）。原句保留作历史。
+
 **证明与对拍义务归 #1406**：`TotalWealth.lean` 既有阶段单调性定理不等于上述资格蕴含已获证明。交付时须声明候选 Lean 模型的实际覆盖面；若只覆盖多头，空头条由 Rust 同输入同输出锁（#804）承担，不得声称空头资格关系已形式证明。
+
+### 换向与开局资金（#1590）
+
+一重回 0 后开新声部是一次 Voice 换代：P、K、R、费用、`phase_events`、G、withdrawn 全部属重，跨方向连续，不重置、不分账。`growth_eligible`／`cost_remaining` 保留 ADR 0031 裁定三两侧原式，按在世声部方向取侧；重处于 0 时只在开新声部的求值点按拟开方向取侧。换向不开新批，空头侧 `Σ M_b ≔ Σ P_b`。开新声部用哪部分钱、不足 Q 怎么开，由 policy 记录 `#1590/voice-open-funding/v1` 的 `reversal_principal_exposure`（默认 `profit_only`）与 `voice_open_shortfall`（默认 `open_available`）决定，缺记录即 `AwaitingPolicy{voice_open_funding}`。正本与可选值见 [ADR 0043](../../docs/adr/0043-chong-reversal-account-continuity.md)。
 
 ## §3 本金按来源分批，利润不是本金 `[旧缠论]`
 
 本金 P ＝ 该重已授权来源的真实自有投入之和，分批冻结：开局批 P0（多头重为开局锁定的自有现金/保证金；空头重为投入保证金 M，ADR 0013 裁定三）。回本后利润再投入是**同一重的股数增长**（§1 `031:169`），进 income-book 的资本化 A 栏，不进 P；提取 W 也不动 P。新增外来投入只能以显式授权批次进入（§1 `031:30`「操作资金不会增加」；ADR 0016 裁定五「扩张走换档，不挪钱」）。回本目标 Σ P_b 只增不减。
+
+> **订正指针（#1590，[ADR 0043](../../docs/adr/0043-chong-reversal-account-continuity.md) 裁定二）**：上句「多头重／空头重」读作「在世声部为多／为空的重」；换向不开新批，空头侧的 M 读作同一重的 P 批次，`Σ M_b ≔ Σ P_b`。原文不删。
 
 回本后滚出的筹码与资本化现金记增长权益 G（ADR 0034），不是本金；换档转移形成的目标重本金批次来源为 `transfer(id)`，金额 = 转移现金 + 转移筹码的账面成本。（#1355／#1357）
 
@@ -56,6 +64,8 @@
 | Rust | `rust/src/economic_session/store.rs:636` | main | 审计重放覆盖 fee_only / principal_contribution / 公司行动事件 |
 | Rust | `rust/src/economic_session/voice.rs:149` | main | 新 Voice 开局依 Applied 原件；不接旧尾账 |
 | Rust | `rust/src/economic_session/voice.rs:165` | main | 开局量 > 0 不变 |
+| Rust | `rust/src/economic_session/voice.rs:169` | main `02b5b571eb` | （#1590，上行 `:165` 已漂移至此）开局量 > 0 不变；开局量改读 `#1590/voice-open-funding` 记录按 min(Q, 可用资金) 计算，缺记录 `AwaitingPolicy{voice_open_funding}`，归 #1421 |
+| Rust | `rust/src/economic_session/book.rs:442` | main `02b5b571eb` | （#1590）`capital_phase` 按在世或拟开声部方向取侧；开多求值点经 legal 层补发 `enterEarning`，归 #1378 |
 | Rust | `rust/src/theta_v0/strategy/ledger.rs:94` | main | `TStage` 只作阶段事件史投影；分工注释须带 #1348 |
 | Rust | `rust/src/theta_v0/strategy/ledger.rs:121` | main | `advance_to` 不改 |
 | Rust | `rust/src/theta_v0/strategy/ledger.rs:175` | main | `TwState`：notional_in 不是本金批次；stage 不作准入输入 |
@@ -67,7 +77,7 @@
 | Rust | `rust/src/economic_session/finance.rs:234-239` | FIN | 引用：`baseline.amount` 是 E 共同责任界，与本金 P 禁止互代，不改 |
 | Lean | `formal/Origin/TotalWealth.lean:97` | main | `TWState.notional_in` 登记为非本金批次名分；不改定义 |
 | Lean | `formal/Origin/TotalWealth.lean:140` | main | `advanceTo` 不改 |
-| Lean | `formal/Origin/TotalWealth.lean:194` | main | `stage_rank_monotone` 不改；#1406 OQ-2a 义务：多头 `growth_eligible ⇒ latch = EarningShares`，空头 `growth_eligible ⇒ latch = CapitalRecovered` 且无第三相；非双向等价，latch 不作资格输入；Lean 覆盖面与 Rust 同输入同输出锁见 §2 |
+| Lean | `formal/Origin/TotalWealth.lean:194` | main | `stage_rank_monotone` 不改；#1406 OQ-2a 义务：多头 `growth_eligible ⇒ latch = EarningShares`，空头 `growth_eligible ⇒ latch = CapitalRecovered`（#1590 订正为 `latch.rank ≥ CapitalRecovered`，见 §2）且无第三相；非双向等价，latch 不作资格输入；Lean 覆盖面与 Rust 同输入同输出锁见 §2 |
 | Lean | `formal/Origin/TotalWealth.lean:208` | main | EarningShares 不可回退（`earning_no_regress`）不改 |
 | Lean | `formal/Origin/LedgerReconciliation.lean:467` | main | `hAlloc` 前件不改；不从中推本金 |
 | Python | `s_session/economic_query.py:72` | main | 只透传 principal / capital_phase / unit_cost 的 typed 结构 |
@@ -77,5 +87,6 @@
 
 ## 更新日志
 
+- 2026-10-21：同步 #1590（ADR 0043）：§2 空头蕴含订正为 `latch.rank ≥ CapitalRecovered`、开多求值点补发 `enterEarning`，新增「换向与开局资金」小节；§3 订正指针；§5 加 `voice.rs:169`、`book.rs:442` 两行并在 `TotalWealth.lean:194` 行加订正注记；文件头「最后裁定」加 #1590；无代码行为变更。
 - 2026-10-15：同步 #1406 OQ-2a（2026-10-14 补裁），资格与 latch 关系分方向写为单向蕴含，订正 §5 并明确 Lean/Rust 验证覆盖义务；无代码行为变更。
 - 2026-10-13：v1.0 新建（#1348 裁定落正本层）。

@@ -470,6 +470,10 @@ pub struct LevelSnapshot {
     /// 本递归级别（level≥2）的买卖点。次级别走势 = 下级 Move（严格走势类型，非线段）。
     /// 编排者 2026-06-13 区间套架构「Level 1+ confirmed」侧——`level_buysellpoints` 产出，
     /// 提升自 `c_segment_verify::level_bsps`（per_level_bsp.py 复刻）为生产路径。
+    #[allow(
+        dead_code,
+        reason = "#1608：level≥2 买卖点生产产出，下游消费方尚未接线"
+    )]
     pub buysellpoints: Vec<BuySellPoint>,
 }
 
@@ -1094,6 +1098,13 @@ impl RecursiveOrchestrator {
     /// 线段端点 `i0/i1` 是 K 线包含处理后的 **merged bar 坐标**；回测要把买卖点对齐到
     /// raw OHLC（逐 bar MtM）须经此映射换算（记忆 `current_strokes_i1_merged_coord`）。
     /// 透传 `bi.merged_to_raw()`——本就是 MACD 背驰路径（raw 索引对齐）所需的同一映射。
+    #[cfg_attr(
+        test,
+        allow(
+            dead_code,
+            reason = "#1608：唯一消费方 recursive_t 为 cfg(not(test))，test 构建下无调用"
+        )
+    )]
     pub fn merged_to_raw(&self) -> &[(usize, usize)] {
         self.bi.merged_to_raw()
     }
