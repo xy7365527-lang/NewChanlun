@@ -390,7 +390,8 @@ pub struct ClassifyOutput {
     pub candidate_streams: cand_event::CandidateStreams,
     /// 各操作级别的口径 S 操作序列（同旧 `classify_with_operations`，按 `level` 升序）。
     pub operations: Vec<operation::OperationSequence>,
-    /// #1603：塔如何停下——自然终止，或达 `l_max` 资源上界截断（覆盖不完整）。
+    /// #1603：塔如何停下——自然终止，或达 `l_max` 资源上界截断（覆盖不完整）；
+    /// #1653：段账本拒读另记 [`TowerTermination::ParseInvalid`]。
     pub termination: TowerTermination,
     /// #1603：本次输出所用的版本化记录（塔预算 + MACD 力度）。
     pub policy: TowerPolicyStamp,
