@@ -2885,10 +2885,12 @@ mod transaction_material_qualification {
             if which == 0 {
                 result.unwrap();
             }
+            // 资格门 `ordinary_materials_qualified` 含 `!cfg!(feature = "s_capture_native_testonly")`
+            // （61b4adec5b）：native 构建下第 0 例同样不得发普通原件，与运行顺序无关。
             super::super::ordinary_materials::LAST_REPORT.with(|r| {
                 assert_eq!(
                     r.get().is_some(),
-                    which == 0,
+                    which == 0 && !cfg!(feature = "s_capture_native_testonly"),
                     "qualification case {}",
                     which
                 )

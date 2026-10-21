@@ -2402,10 +2402,21 @@ mod tests {
                     current_publication_frontier_admitted(&tx, Some(work))?,
                     expected_frontier
                 );
+                // premerge-0086 第十八处裁改（待负责人确认）：begin 校验的临时文本/解析值是实际
+                // 载荷许可，按 P1c（control/1488-budget-full-chain-counterexample-fix-v2.md:9，
+                // 959d860065 起 RAII）真实析构即还父账，不再保守持有到父预算结束；
+                // 原断言 `begin_held > before + M` 改为：确曾在同一父账出生（峰值）且返回后只剩
+                // 本工作域元数据 M。
                 let begin_held = budget.live();
+                let metadata = sc::capture_allocation::scratch::CodecWork::metadata_bytes();
                 assert!(
-                    begin_held
-                        > before + sc::capture_allocation::scratch::CodecWork::metadata_bytes()
+                    budget.peak() > before + metadata,
+                    "begin 校验沿同一父账出生"
+                );
+                assert_eq!(
+                    begin_held,
+                    before + metadata,
+                    "begin 临时许可随真实析构释放"
                 );
                 let mut store = content_store::TxStore::new(&tx)
                     .map_err(err)?

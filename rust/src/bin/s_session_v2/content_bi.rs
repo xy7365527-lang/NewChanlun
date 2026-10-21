@@ -3873,6 +3873,15 @@ mod tests {
             .expect("首代车道");
         let head_coords: Vec<i64> = raw_head.keys().copied().collect();
         assert_eq!(lane.coords, head_coords, "首代车道坐标");
+        // 新源先登记：sync 先收齐尾部叶再一次构造后缀（sequence_rebuild_suffix，#1488 S3），
+        // 未登记源会在构造后缀前即以 MissingSource 退出，测不到半途拒写。
+        for (coord, row) in &raw_full {
+            if !raw_head.contains_key(coord) {
+                producer
+                    .bind_source(&mut store, *coord, spec_of(row))
+                    .expect("登记新源版本");
+            }
+        }
         let before = store.puts;
         store.refuse_put_after = Some(before + 3);
         let error = lane
@@ -3893,13 +3902,6 @@ mod tests {
             "半途失败后引用叶车道必须保持上一代整根"
         );
         store.refuse_put_after = None;
-        for (coord, row) in &raw_full {
-            if !raw_head.contains_key(coord) {
-                producer
-                    .bind_source(&mut store, *coord, spec_of(row))
-                    .expect("登记新源版本");
-            }
-        }
         lane.sync(&mut store, &mut producer, &Ledger::new(&raw_full))
             .expect("解除拒写后必须可恢复");
 

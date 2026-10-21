@@ -400,6 +400,8 @@ jobs:
             features: s_session
           - mode: Owned
             features: s_session,s_allocation_json_testonly
+    # #1588 约定：每个 Rust job 设上限兼作挂死保护；单 feature 组编 S bin 测试 + 精确锁，对齐 rust-test-s-session-extras。
+    timeout-minutes: 60
     env:
       CARGO_INCREMENTAL: "0"
       FEATURES: ${{ matrix.features }}
@@ -611,7 +613,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: python3 ../.github/scripts/run-1488-delta-ci.py --mode "${{ matrix.mode }}" --output "$RUNNER_TEMP/1488-abc-${{ matrix.mode }}"
       - name: Upload sequence lock logs (#1488)
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: 1488-sequence-${{ matrix.mode }}
@@ -624,6 +626,8 @@ jobs:
   s-fields-native-1488:
     name: "#1488 固定字段共享核 (Native)"
     runs-on: ubuntu-latest
+    # #1588 约定：同上，Native 组编译 + 精确锁。
+    timeout-minutes: 60
     env:
       CARGO_INCREMENTAL: "0"
       FEATURES: s_session,s_capture_native_testonly
@@ -733,7 +737,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: python3 ../.github/scripts/run-1488-delta-ci.py --mode Native --output "$RUNNER_TEMP/1488-abc-Native"
       - name: Upload Native fixed-field lock logs (#1488)
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: 1488-fields-Native
