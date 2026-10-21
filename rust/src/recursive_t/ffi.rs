@@ -39,7 +39,10 @@ fn parse_mode(s: Option<&str>) -> PerfectionMode {
 
 /// 解析塔底来源字符串（谱系 526）。默认（`None`）= `Segment`（保 bit-exact，现有 Python 调用不变）。
 /// "segment"/"seg" = 线段基线；"stroke"/"bi" = 笔**已否证对照臂**（#1627 zhongshu §2.1.1：笔不是
-/// `a₀` 合法值），仅供冻结研究链 `backtest_t_fugue.py` 复现 #951 B3 缓存，不进任何准入路径。
+/// `a₀` 合法值），仅为复现 526 号 A/B 与 #951 B3 冻结缓存保留，不进任何准入路径。
+/// `TFugueStream`／`RecTStream` 两个 pyclass 的 `a0` 参数都经此解析；现存 Python 调用者
+/// （`backtest_t_fugue.py:167`、`analysis/capture_ratio_matrix.py:85`、`analysis/t3_exit_trigger_diag.py:36`）
+/// 均不传 `a0`，即全走 `Segment`（#1654 核查）。
 fn parse_a0(s: Option<&str>) -> A0Source {
     match s {
         None | Some("segment") | Some("seg") => A0Source::Segment,
