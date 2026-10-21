@@ -61,24 +61,47 @@ pub struct PyThetaStream {
     core: ThetaPiStream,
     tick_size: f64,
     initial_nav: f64,
+    records: Vec<String>,
+    admissible: bool,
 }
+
+/// 诊断夹具预设名（#1602）：场所 profile 用 `venue-profile-diagnostic-fixture`，不参与准入。
+pub const DIAGNOSTIC_FIXTURE_PRESET: &str = "diagnostic-fixture";
 
 #[pymethods]
 impl PyThetaStream {
-    /// symbol/config 预设名。本票只支持 `None`（`ThetaConfig::default()`）；传值 ⟹ 报错（诚实拒绝，
-    /// 不静默吞掉未知预设）。`initial_nav` 仅在 `push_bar_selfstate` 与 `push_bar` 的 `nav<=0` 时作兜底。
+    /// 构造（#1602 记录口径）：
+    ///
+    /// - `venue_profile="P0"` 等 ⟹ 生产场所 profile；profile 缺 tick 或成本项 ⟹ `ValueError`
+    ///   （`AwaitingPolicy{venue_profile|cost_inputs}`），不回退任何旧常数；
+    /// - `preset="diagnostic-fixture"` ⟹ 诊断夹具场所 profile，[`admissible`](Self::admissible) 为 `False`，
+    ///   不参与准入；
+    /// - 两者都不给 ⟹ 没有场所 profile，同样 `ValueError`。两者同时给或给未知预设 ⟹ `ValueError`。
+    ///
+    /// `initial_nav` 仅在 `push_bar_selfstate` 与 `push_bar` 的 `nav<=0` 时作兜底。
     #[new]
-    #[pyo3(signature = (preset=None, initial_nav=1.0e6))]
-    fn new(preset: Option<String>, initial_nav: f64) -> PyResult<Self> {
-        if let Some(name) = preset {
-            return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                "preset {name:?} 未实装：本票只支持 preset=None（ThetaConfig::default()）"
-            )));
+    #[pyo3(signature = (preset=None, initial_nav=1.0e6, venue_profile=None))]
+    fn new(
+        preset: Option<String>,
+        initial_nav: f64,
+        venue_profile: Option<String>,
+    ) -> PyResult<Self> {
+        let err = |m: String| pyo3::exceptions::PyValueError::new_err(m);
+        let config = match (preset.as_deref(), venue_profile.as_deref()) {
+            (Some(DIAGNOSTIC_FIXTURE_PRESET), None) => ThetaConfig::diagnostic_fixture(),
+            (Some(name), None) => {
+                return Err(err(format!(
+                    "preset {name:?} 未实装：只支持 preset={DIAGNOSTIC_FIXTURE_PRESET:?}"
+                )))
+            }
+            (Some(_), Some(_)) => return Err(err("preset 与 venue_profile 只能给一个".into())),
+            (None, Some(profile)) => ThetaConfig::for_production_profile(profile),
+            (None, None) => Err(super::run_records::no_venue_profile()),
         }
-        // #1603：塔预算与 MACD 记录缺失/未签/非法 ⟹ 报错停止，不回退旧常数。
-        let config = ThetaConfig::try_from_active_records()
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        .map_err(|e| err(e.to_string()))?;
         let tick_size = config.tick.tick_size;
+        let records = config.record_refs().iter().map(|r| r.label()).collect();
+        let admissible = config.admissible();
         Ok(Self {
             core: ThetaPiStream::new(config),
             tick_size,
@@ -87,7 +110,19 @@ impl PyThetaStream {
             } else {
                 1.0e6
             },
+            records,
+            admissible,
         })
+    }
+
+    /// 所用记录的 `id/版本` 列表（#1602；塔预算、MACD、场所 profile、Θ_risk、数据 profile）。
+    fn records(&self) -> Vec<String> {
+        self.records.clone()
+    }
+
+    /// 本流的输出能否参与准入（诊断夹具 ⟹ `False`）。
+    fn admissible(&self) -> bool {
+        self.admissible
     }
 
     /// 推一根 bar。`p_t` = 调用方真实净持仓（手数，有符号）；`nav` = 账户净值（<=0 时用

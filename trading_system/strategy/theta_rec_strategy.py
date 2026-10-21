@@ -29,12 +29,18 @@ class ThetaRecStrategyConfig(StrategyConfig, frozen=True):
 
     min_rebalance_units : 目标敞口变化阈值——小于此不提单（避免微小 churn / size 精度噪声）。
     initial_nav         : `push_bar` 的 `nav<=0` 时兜底净值（正常路径 nav 取账户真余额）。
+    venue_profile       : 生产场所 profile id（如 "P0"）。#1602：profile 缺 tick 或成本项时
+                          `ThetaStream` 构造报 AwaitingPolicy，不回退旧常数。
+    preset              : "diagnostic-fixture" ⟹ 诊断夹具场所 profile（不参与准入）；与
+                          venue_profile 二选一。
     """
 
     instrument_id: InstrumentId
     bar_type: BarType
     min_rebalance_units: float = 1e-4
     initial_nav: float = 1.0e6
+    venue_profile: str | None = None
+    preset: str | None = None
 
 
 class ThetaRecStrategy(Strategy):
@@ -47,7 +53,11 @@ class ThetaRecStrategy(Strategy):
 
     def __init__(self, config: ThetaRecStrategyConfig) -> None:
         super().__init__(config)
-        self.engine = newchan_rust.ThetaStream(initial_nav=config.initial_nav)
+        self.engine = newchan_rust.ThetaStream(
+            preset=config.preset,
+            initial_nav=config.initial_nav,
+            venue_profile=config.venue_profile,
+        )
         self.instrument = None
         self._watermark_ns: int | None = None
         self.n_bars = 0

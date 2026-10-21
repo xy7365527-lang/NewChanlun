@@ -6,9 +6,10 @@
 //!
 //! ## 用法
 //! ```text
-//! cargo run --release --features backtest_bin --bin theta_backtest -- <SYMBOL> [START END]
+//! cargo run --release --features backtest_bin --bin theta_backtest -- <SYMBOL> [START END] [--diagnostic-fixture]
 //!   <SYMBOL>      品种代码（BTC/ES/CL/GC/BRN/DX/QQQ/OKLO，见 data::SYMBOLS）
 //!   [START END]   可选 ISO 日期窗闭区间（如 2023-01-01 2025-06-30）；省略 = 全量
+//!   [--diagnostic-fixture]  用诊断夹具场所 profile 跑（输出标「诊断夹具，不参与准入」）
 //! 例：cargo run --release --features backtest_bin --bin theta_backtest -- BTC 2024-01-01 2024-06-30
 //! ```
 //!
@@ -25,18 +26,25 @@
 //! 依赖 nautilus-{trading,model,backtest}，把本 CLI 的 `run_theta_v0_pi` 替换为
 //! `BacktestNode.add_strategy(ThetaStrategy)`（回测）/ `LiveNode + IB`（实盘），同一 `ThetaStrategy`
 //! 零代码切换（设计 §4.1）。`ThetaStrategy` 适配器骨架已在 `theta_v0::nautilus::strategy` 就位。
+//!
+//! ## 记录（#1602）
+//!
+//! 默认按品种取生产场所 profile；profile 缺 tick 或成本项 ⟹ 停在 `AwaitingPolicy{venue_profile|cost_inputs}`、
+//! 不产读数，不回退任何旧常数。输出写明所用记录 id 与版本。
 
 use newchan_rust::theta_v0::backtest::data::load_by_symbol;
 use newchan_rust::theta_v0::backtest::runner::run_theta_v0_pi;
 use newchan_rust::theta_v0::config::ThetaConfig;
 
 fn main() -> std::process::ExitCode {
-    let args: Vec<String> = std::env::args().collect();
+    let mut args: Vec<String> = std::env::args().collect();
+    let diagnostic = args.iter().any(|a| a == "--diagnostic-fixture");
+    args.retain(|a| a != "--diagnostic-fixture");
 
     // ── 输入验证（系统边界，coding-style 不可省）。 ──
     if args.len() != 2 && args.len() != 4 {
         eprintln!(
-            "用法: {} <SYMBOL> [START_DATE END_DATE]\n  SYMBOL: BTC/ES/CL/GC/BRN/DX/QQQ/OKLO\n  日期窗(可选): ISO 闭区间，如 2023-01-01 2025-06-30",
+            "用法: {} <SYMBOL> [START_DATE END_DATE] [--diagnostic-fixture]\n  SYMBOL: BTC/ES/CL/GC/BRN/DX/QQQ/OKLO\n  日期窗(可选): ISO 闭区间，如 2023-01-01 2025-06-30",
             args.first().map(String::as_str).unwrap_or("theta_backtest")
         );
         return std::process::ExitCode::from(2);
@@ -60,7 +68,18 @@ fn main() -> std::process::ExitCode {
         return std::process::ExitCode::FAILURE;
     }
 
-    let config = ThetaConfig::default();
+    // #1602：生产路径按品种取场所 profile；缺值 ⟹ 停在 AwaitingPolicy，不回退旧常数。
+    let config = match if diagnostic {
+        ThetaConfig::diagnostic_fixture()
+    } else {
+        ThetaConfig::for_production_symbol(symbol)
+    } {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("停止（不产读数）：{e}");
+            return std::process::ExitCode::FAILURE;
+        }
+    };
 
     // ── 数据加载（data → S_Θ 边界）。未知品种/读取失败 fail-loud。 ──
     let full = match load_by_symbol(symbol, &config) {
@@ -107,6 +126,10 @@ fn main() -> std::process::ExitCode {
 
     println!("=== S_Θ 回测结果（theta_v0::run_theta_v0_pi）===");
     println!("品种            : {}", r.symbol);
+    println!("记录            : {}", config.record_labels());
+    if !config.admissible() {
+        println!("准入            : 诊断夹具，不参与准入");
+    }
     if let Some((s, e)) = window {
         println!("日期窗          : {s} .. {e}");
     } else {
@@ -174,9 +197,11 @@ fn main() -> std::process::ExitCode {
 
     // ── ⑥ 真实 Nautilus BacktestEngine 路径（goal acceptance[5] L2：真引擎产非空订单流）。 ──
     // ★生产 Param：entry_delay_bars=0（#7：流式逐 bar 退出在末根触发，delay 归 venue 撮合）。
-    let mut nautilus_config = ThetaConfig::default();
+    // #1602：从同一份记录配置派生，只改 delay（场所 profile 因此标 research-override）。
+    let mut nautilus_config = config.clone();
     nautilus_config.exec.entry_delay_bars = 0;
     println!("--- ⑥ 真实 Nautilus BacktestEngine（生产引擎贯通验证）---");
+    println!("记录            : {}", nautilus_config.record_labels());
     match newchan_rust::theta_v0::nautilus::backtest_engine::run_theta_backtest(
         &dataset,
         &nautilus_config,
