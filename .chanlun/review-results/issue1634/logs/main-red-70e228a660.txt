@@ -1,0 +1,43 @@
+== 20261021-104219-70e228a660.log
+ref=tmp/1634-red-on-main sha=70e228a6604b1abaf10d1e92a117e27bff9962f4 sub=rust target=/home/hanju/nc-remote/issue1634-main cmd=bash -c NC_BTC_FULL_JSON=$HOME/nc-remote/data/btc_1m_full.json\ cargo\ test\ --release\ --lib\ issue1634\ --\ --include-ignored\ --nocapture\ 2\>\&1\ \|\ grep\ -v\ "\^warning\\|\^\ \*\|\\|\^\ \*=\\|\^$"\ \|\ tail\ -40 
+197 | ...r) voice...depth: u8,
+198 | ...P6：该深度实际消费的 w_dept...
+199 | ...r) w_dep...entry: f64,
+   --> src/theta_v0/backtest/open_ledger.rs:140:18
+140 | ...it LiveOpenView {
+   --> src/theta_v0/backtest/open_ledger.rs:270:19
+205 | impl ...Open> {
+...
+270 |     pub(super) fn short...riers(&s...
+    --> src/theta_v0/backtest/econ_positive/tests.rs:3994:9
+3981 | ...truct HighL...esult {
+...
+3994 | ...   sum_rho: f64,
+    --> src/theta_v0/parser/segment.rs:2000:25
+2000 | ...t!(st.en... >= 0 &&...
+   --> src/theta_v0/strategy/coverage/test_support.rs:239:36
+239 | ...s: &[Cov...ment], cstart: usize) -> ElementView {
+help: use `'_` for type paths
+239 | pub(crate) fn view_split(elements: &[CoverageElement], cstart: usize) -> ElementView<'_> {
+    Finished `release` profile [optimized] target(s) in 1m 30s
+     Running unittests src/lib.rs (/home/hanju/nc-remote/issue1634-main/release/deps/newchan_rust-43ed63dff85c51df)
+running 2 tests
+thread 'theta_v0::parser::issue1634_tests::issue1634_btc_file_head_flat_prefix_does_not_collapse_to_one_group' (26651) panicked at src/theta_v0/parser/issue1634_tests.rs:221:5:
+assertion `left == right` failed: 紧凑入口 parse_layer 须按正本自 0 折叠（main 上为单组）
+  left: [(426148000000, 426148000000)]
+ right: [(426148000000, 426148000000), (426488000000, 426488000000), (426148000000, 426148000000), (427041000000, 426629000000), (428056000000, 427467000000), (426799000000, 426799000000), (429663000000, 429663000000), (431362000000, 431360000000), (431360000000, 429137000000), (431362000000, 430883000000), (430883000000, 430431000000), (432869000000, 432869000000), (430431000000, 430431000000), (432000000000, 432000000000), (431999000000, 431214000000), (432000000000, 432000000000), (431922000000, 431922000000), (432000000000, 432000000000), (429137000000, 429137000000), (429704000000, 429704000000), (431532000000, 431532000000), (433029000000, 433029000000), (431839000000, 431839000000), (433000000000, 433000000000)]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test theta_v0::parser::issue1634_tests::issue1634_btc_file_head_flat_prefix_does_not_collapse_to_one_group ... FAILED
+start=0 merged=1 fractals=0 strokes=0 segments=0
+thread 'theta_v0::parser::issue1634_tests::issue1634_full_history_from_file_head_matches_independent_oracle' (26652) panicked at src/theta_v0/parser/issue1634_tests.rs:272:9:
+assertion `left == right` failed: start=0
+  left: 1
+ right: 3037868
+test theta_v0::parser::issue1634_tests::issue1634_full_history_from_file_head_matches_independent_oracle ... FAILED
+failures:
+failures:
+    theta_v0::parser::issue1634_tests::issue1634_btc_file_head_flat_prefix_does_not_collapse_to_one_group
+    theta_v0::parser::issue1634_tests::issue1634_full_history_from_file_head_matches_independent_oracle
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 3012 filtered out; finished in 9.17s
+error: test failed, to rerun pass `--lib`
+EXIT=0 SECONDS=100
