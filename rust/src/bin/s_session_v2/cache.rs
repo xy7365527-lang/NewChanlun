@@ -2224,37 +2224,40 @@ mod tests {
         configure(1 << 20);
         let budget = crate::v3::audit_owner::native::Budget::new(LIMIT, 0).unwrap();
         let mut checked = false;
-        let _ = budget.codec_work().unwrap().run(|work| -> Result<(), String> {
-            let _capture = begin_capture_admitted(1 << 20, Some(work)).unwrap();
-            let a = cert(4, 0, &[0u8; 4096], 4096);
-            node_put_admitted(7, a.clone(), true, Some(work)).unwrap();
-            cert_commit_admitted(7, &BTreeSet::from([[4u8; 32]]), Some(work)).unwrap();
-            // owned 树回落到高水位以下再填满：下一次插入必须新预留节点许可。
-            node_put_admitted(7, cert(5, 0, &[1u8; 16], 16), true, Some(work)).unwrap();
-            let (certs_before, capture_before, total_before) = MEMO.with(|m| {
-                let m = m.borrow();
-                (m.certs_bytes, m.capture_bytes(), m.total_bytes())
+        let _ = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| -> Result<(), String> {
+                let _capture = begin_capture_admitted(1 << 20, Some(work)).unwrap();
+                let a = cert(4, 0, &[0u8; 4096], 4096);
+                node_put_admitted(7, a.clone(), true, Some(work)).unwrap();
+                cert_commit_admitted(7, &BTreeSet::from([[4u8; 32]]), Some(work)).unwrap();
+                // owned 树回落到高水位以下再填满：下一次插入必须新预留节点许可。
+                node_put_admitted(7, cert(5, 0, &[1u8; 16], 16), true, Some(work)).unwrap();
+                let (certs_before, capture_before, total_before) = MEMO.with(|m| {
+                    let m = m.borrow();
+                    (m.certs_bytes, m.capture_bytes(), m.total_bytes())
+                });
+                assert!(certs_before >= a.payload_cost());
+                // 只给 lineage 留余量，owned 树节点上界（≥1KiB）装不下。
+                let _hog = work.reserve_native(LIMIT - budget.live() - 512).unwrap();
+                MEMO.with(|m| {
+                    let mut m = m.borrow_mut();
+                    assert!(m.remove_cert_admitted(&[4u8; 32], Some(work)).is_err());
+                    assert_eq!(
+                        m.certs_bytes.saturating_add(m.capture_bytes()),
+                        certs_before.saturating_add(capture_before),
+                        "失败后 payload 必须仍在 certs_bytes 或读集账里"
+                    );
+                    assert_eq!(m.total_bytes(), total_before);
+                    // 单一预算恰好容不下再一份同量 payload：漏账会把它错放进来。
+                    m.limit = total_before + a.payload_cost() - 1;
+                    assert!(!m.make_room_admitted(a.payload_cost(), None).unwrap());
+                });
+                end_capture();
+                checked = true;
+                Ok(())
             });
-            assert!(certs_before >= a.payload_cost());
-            // 只给 lineage 留余量，owned 树节点上界（≥1KiB）装不下。
-            let _hog = work.reserve_native(LIMIT - budget.live() - 512).unwrap();
-            MEMO.with(|m| {
-                let mut m = m.borrow_mut();
-                assert!(m.remove_cert_admitted(&[4u8; 32], Some(work)).is_err());
-                assert_eq!(
-                    m.certs_bytes.saturating_add(m.capture_bytes()),
-                    certs_before.saturating_add(capture_before),
-                    "失败后 payload 必须仍在 certs_bytes 或读集账里"
-                );
-                assert_eq!(m.total_bytes(), total_before);
-                // 单一预算恰好容不下再一份同量 payload：漏账会把它错放进来。
-                m.limit = total_before + a.payload_cost() - 1;
-                assert!(!m.make_room_admitted(a.payload_cost(), None).unwrap());
-            });
-            end_capture();
-            checked = true;
-            Ok(())
-        });
         assert!(checked);
         configure(0);
     }
