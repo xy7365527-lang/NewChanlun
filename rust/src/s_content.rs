@@ -8153,10 +8153,11 @@ mod native_owner_codec_bridge_tests {
         assert!(retained > 0);
         assert_plain_proofs(&capture);
         assert_eq!(old_parent.layout.load(Ordering::SeqCst), 0);
-        assert_eq!(
-            Arc::strong_count(&old_parent),
-            1,
-            "证明不得保留旧 scope / 父账引用"
+        // P1c（control/1488-budget-full-chain-counterexample-fix-v2.md:9，959d860065）：证明节点实际载荷
+        // 持原父许可到真实析构，不再 retain 丢许可；旧 scope 已析构，父引用只由这些许可持有（末尾 drop 核归零）。
+        assert!(
+            Arc::strong_count(&old_parent) > 1,
+            "证明许可持原父账到真实析构"
         );
         let old_charge = old_parent.live.load(Ordering::SeqCst);
         assert!(old_charge >= retained, "Native 旧许可保守留父账");
@@ -8178,6 +8179,13 @@ mod native_owner_codec_bridge_tests {
         );
         assert_eq!(old_parent.live.load(Ordering::SeqCst), old_charge);
         assert_eq!(Arc::strong_count(&current_parent), 1);
+        drop(capture);
+        assert_eq!(
+            old_parent.live.load(Ordering::SeqCst),
+            0,
+            "真实析构全额还原父账"
+        );
+        assert_eq!(Arc::strong_count(&old_parent), 1, "析构后不留旧父引用");
     }
 
     #[test]
@@ -8524,6 +8532,10 @@ mod native_owner_codec_bridge_tests {
                 parent.live.load(Ordering::SeqCst),
                 tree.retained_layout_bytes()
             );
+            // P1c：每个节点载荷持一张原父许可到真实析构。
+            assert_eq!(Arc::strong_count(&parent), 1 + tree.len());
+            drop(tree);
+            assert_eq!(parent.live.load(Ordering::SeqCst), 0);
             assert_eq!(Arc::strong_count(&parent), 1);
         }
     }
@@ -8598,10 +8610,12 @@ mod native_owner_codec_bridge_tests {
         assert_eq!(capture.owner_codec_retained_bytes_for_testonly(), 0);
         assert!(capture.owner_codec.borrow().revoked);
         assert_eq!(parent.layout.load(Ordering::SeqCst), 0);
+        // P1c：撤销即真实析构已成功节点，许可随之还原父账（不再 retain 留账到父生命周期结束）。
+        assert!(parent.peak.load(Ordering::SeqCst) >= one_node);
         assert_eq!(
             parent.live.load(Ordering::SeqCst),
-            one_node,
-            "successful Native retain stays at original parent until parent lifetime ends"
+            0,
+            "revoked Native proof releases its permit on real drop"
         );
         assert_eq!(Arc::strong_count(&parent), 1);
         assert_eq!(
@@ -8715,10 +8729,8 @@ mod native_owner_codec_bridge_tests {
             "old semantic source/index retain remains separate"
         );
         drop(capture);
-        assert_eq!(
-            parent.live.load(Ordering::SeqCst),
-            retained_before_drop - capacity
-        );
+        // P1c：正文与索引/来源许可都由实际载荷持有，capture 真实析构全部还原。
+        assert_eq!(parent.live.load(Ordering::SeqCst), 0);
     }
 
     #[test]
@@ -8929,10 +8941,8 @@ mod native_owner_codec_bridge_tests {
         );
         assert!(capture.original(&discard_digest).is_none());
         drop(capture);
-        assert_eq!(
-            parent.live.load(Ordering::SeqCst),
-            before - discard_capacity - keep_capacity
-        );
+        // P1c：保留正文与索引许可在 capture 真实析构时一并还原。
+        assert_eq!(parent.live.load(Ordering::SeqCst), 0);
     }
 
     #[test]

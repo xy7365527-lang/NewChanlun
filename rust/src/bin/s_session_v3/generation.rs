@@ -1378,7 +1378,7 @@ impl SequenceKeys {
             #[cfg(feature = "s_allocation_json_testonly")]
             Self::Owned(keys) => {
                 keys.clear();
-                // reserve_owned已在改变原keys/seq前保证容量，try_push不会另作增长。
+                // reserve_admitted已在改变原keys/seq前保证容量，try_push不会另作增长。
                 for digest in elements {
                     keys.try_push(*digest).map_err(codec_error)?;
                 }
@@ -3474,11 +3474,13 @@ mod tests {
         let other = sc::capture_allocation::OwnedBudget::new(96);
         let first = [1; 32];
         let second = [2; 32];
+        // Owned 臂不读 store；空 MemoryNodes 只为满足 reserve_admitted 签名。
+        let scratch = MemoryNodes::new();
         let mut keys = SequenceKeys::owned(&budget).unwrap();
-        keys.reserve_owned(1).unwrap();
+        keys.reserve_admitted(&scratch, 1).unwrap();
         keys.replace_reserved(&[first]).unwrap();
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 32);
-        let error = keys.reserve_owned(2).unwrap_err();
+        let error = keys.reserve_admitted(&scratch, 2).unwrap_err();
         assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
         let probe = budget.allocation_request_probe();
         assert_eq!(probe.refused_bytes, 64);
@@ -3489,9 +3491,9 @@ mod tests {
         drop(keys);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
         let mut keys = SequenceKeys::owned(&other).unwrap();
-        keys.reserve_owned(1).unwrap();
+        keys.reserve_admitted(&scratch, 1).unwrap();
         keys.replace_reserved(&[first]).unwrap();
-        keys.reserve_owned(2).unwrap();
+        keys.reserve_admitted(&scratch, 2).unwrap();
         keys.replace_reserved(&[first, second]).unwrap();
         assert_eq!(other.snapshot().live_requested_layout_bytes, 64);
         assert_eq!(other.snapshot().peak_requested_layout_bytes, 96);
@@ -3521,7 +3523,7 @@ mod tests {
         let root = sc::write_sequence(&mut store, &[first]).unwrap();
         let mut keys = SequenceKeys::owned(&budget).unwrap();
         // 预留两项，隔离调用内右脊栈拒绝，避免先卡在 keys 增长。
-        keys.reserve_owned(2).unwrap();
+        keys.reserve_admitted(&store, 2).unwrap();
         keys.replace_reserved(&[first]).unwrap();
         let original = SequenceRef::from_parts_unchecked(root, 1);
         let mut memo = SequenceMemo {

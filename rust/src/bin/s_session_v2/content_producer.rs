@@ -3078,7 +3078,7 @@ pub(super) fn group_reasons_admitted(
         values
     } else {
         #[cfg(feature = "s_allocation_json_testonly")]
-        let budget = store.allocation_budget();
+        let budget = crate::v3::audit_store::CodecRead::allocation_budget(store);
         #[cfg(feature = "s_allocation_json_testonly")]
         let mut values = sc::CodecVec::new_with_allocation(budget.as_ref());
         #[cfg(not(feature = "s_allocation_json_testonly"))]
