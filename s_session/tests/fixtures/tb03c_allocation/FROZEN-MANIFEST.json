@@ -1,0 +1,33 @@
+{
+  "manifest_hash": "2ead8244bdc88bbd55a02deec1a473a750d39e60d221b725181e5b5a9a75b4b0",
+  "participants": [
+    {
+      "chong_id": "chong-N1",
+      "command_id": "cmd-N1",
+      "family_id": "fam-N1",
+      "requested_q": "1",
+      "revision": "1"
+    },
+    {
+      "chong_id": "chong-N2",
+      "command_id": "cmd-N2",
+      "family_id": "fam-N2",
+      "requested_q": "3",
+      "revision": "1"
+    },
+    {
+      "chong_id": "chong-N3",
+      "command_id": "cmd-N3",
+      "family_id": "fam-N3",
+      "requested_q": "3",
+      "revision": "1"
+    }
+  ],
+  "projection_kind": "netted",
+  "symbol": "TEST-N",
+  "tie_break_order": [
+    "chong-N1",
+    "chong-N2",
+    "chong-N3"
+  ]
+}

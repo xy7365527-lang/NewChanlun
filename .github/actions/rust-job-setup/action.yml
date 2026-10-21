@@ -1,0 +1,72 @@
+name: Rust job setup (#1141 / #1588)
+description: >-
+  #1588 把 rust-check 拆成多个并行 job 后，各 Rust job 共用的前置：记录 runner/工具链/链接器与初始资源、
+  只缓存 cargo registry + git（#1141：不恢复 target）、记录缓存结果，并建好 rust/target 供遥测包装器
+  的边界快照使用。须在 actions/checkout 之后调用。
+
+runs:
+  using: composite
+  steps:
+    - name: Record runner, toolchain, linker, and initial resources (#1141)
+      shell: bash
+      working-directory: rust
+      run: |
+        set -x
+        echo "github_sha=$GITHUB_SHA"
+        echo "runner_os=$RUNNER_OS runner_arch=$RUNNER_ARCH"
+        echo "image_os=${ImageOS:-unset} image_version=${ImageVersion:-unset} image_release=${ImageRelease:-unset}"
+        cat /etc/os-release
+        uname -a
+        rustc -vV
+        cargo -V
+        rustup show active-toolchain
+        command -v cc
+        readlink -f "$(command -v cc)"
+        cc --version
+        rust_sysroot="$(rustc --print sysroot)"
+        rust_host="$(rustc -vV | awk '/^host:/ {print $2}')"
+        rust_lld="$rust_sysroot/lib/rustlib/$rust_host/bin/rust-lld"
+        if test -x "$rust_lld"; then
+          "$rust_lld" -flavor gnu --version
+        else
+          echo "bundled_rust_lld=not-found path=$rust_lld"
+        fi
+        if command -v ld.bfd; then
+          ld.bfd --version
+        fi
+        printf 'fn main() {}\n' > "$RUNNER_TEMP/rust-linker-probe.rs"
+        rustc --print link-args "$RUNNER_TEMP/rust-linker-probe.rs" -o "$RUNNER_TEMP/rust-linker-probe"
+        nproc
+        lscpu
+        free -b
+        df -B1 -T .
+        du -sx -B1 target 2>/dev/null || true
+
+    # #1141：三轮都在 default-target test 链接阶段失败，且受害 bin 每轮漂移；
+    # run 32315548218 在 rust-lld signal 7 后明确报 ENOSPC。根因是磁盘耗尽，
+    # 不是已证实的固定对象损坏或 rust-lld regression。处置只压低磁盘峰值：
+    # 不恢复 target、不生成 incremental、测试串行编译；runner/toolchain/linker 不钉死。
+    # #1588：拆 job 后每个 job 在独立 runner 上，各自只编自己那档 feature，磁盘峰值低于拆前单 job。
+    - name: Cache cargo registry + git only (#1141)
+      id: cargo-cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+        key: ${{ runner.os }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-registry-v1-
+
+    # 遥测包装器的边界快照对 `du target` 失败即判红；拆 job 后首个 cargo 步可能就是被包装的那一步，
+    # 此时 target 尚不存在，故预先建空目录（不影响构建产物）。
+    - name: Record cache result and post-cache resources (#1141)
+      shell: bash
+      working-directory: rust
+      run: |
+        echo "cache_primary_key=${{ runner.os }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}"
+        echo "cache_hit=${{ steps.cargo-cache.outputs.cache-hit }}"
+        mkdir -p target
+        free -b
+        df -B1 -T .
+        du -sx -B1 target 2>/dev/null || true

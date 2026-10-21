@@ -231,6 +231,8 @@ fn scan_window(path: &Path, config: &ThetaConfig, max_bars: usize) -> Result<(),
     let mut parser = ParseLayerIncr::new(config);
     let mut l0 = parser.append(bars[0]);
     for bar in bars.iter().copied().skip(1) {
+        // #1588：先丢上一轮 l0，免共享表 Rc::make_mut 每根整表拷贝。
+        drop(l0);
         l0 = parser.append(bar);
     }
     let streams = classifier::classify(&l0, config, &[]).candidate_streams;

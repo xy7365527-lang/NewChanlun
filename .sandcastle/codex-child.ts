@@ -9,6 +9,7 @@ import {
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
 import { StringDecoder } from "node:string_decoder";
+import { gitEnvironment } from "./git-environment.ts";
 
 /** 经本机 CLIProxyLocal 的 OAuth 订阅路由；不带 mf/、yd/ 等中转前缀（用户 2026-10-13 指示）。 */
 export const MODEL = "claude-opus-5-5";
@@ -127,7 +128,7 @@ function git(root: string, args: string[]): string {
     "-C", root, ...args,
   ], {
     encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+    env: gitEnvironment(),
   }).trim();
 }
 

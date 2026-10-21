@@ -335,7 +335,7 @@ v1.4 的 `bi.md:71` 引 `081:160` 时**正好截断在「所以，可以用新�
 
 **实测读数（2026-10-14，纯 Python 移植复算，Rust 待票 A 复现）**：真实 BTC 1m 尾 5 万根 merged 30,863 / 分型 14,017 / 笔 **4,016**（keep_eq 53 次）；诊断反事实 4,040–4,074 均对应被否规则，不作验收口径。
 
-#### #1343 受影响代码清单（基线 main `3da0b2c8`；机读 `AFFECTED-CODE.json`）
+#### #1343 受影响代码清单（基线 main `3da0b2c8`；工作草稿副本 `.chanlun/review-results/issue1323-grilling-20261013/1343-AFFECTED-CODE.md`）
 
 Rust：`rust/src/theta_v0/parser/stroke.rs` `:4`（header 措辞）、`:14`（RULE 升版 + 新常量）、`:17-27`（`Endpoint.raw_position` → `raw_first/raw_last`）、`:181-205`（`endpoint_at` 去掉 tie waiting、填首末序位）、`:224-249`（`pair` 的 EQ→KEEP、证据标签）、`:259-262`（raw_between 极值区公式）、`:279-280`（删）、`:330`（doc）、`:371`、`:382-390`、`:393-407`、`:410-428`、`:452-460`（`blocked` 与弹笔退役）、`:468-508`（checkpoint 去 blocked/pop）、`:722`、`:838-864`、`:866-911`、`:1015-1026`、`:1034-1070`、`:1177-1196`（测试与夹具期望按新 rule_revision 重算）；`rust/src/bin/s_session_v2/tb02b.rs:24`（policy_version）、`:259`、`:290`（raw 范围用 raw_first/raw_last）；`rust/src/theta_v0/parser/mod.rs:611`（读 raw_position 处改字段）；`rust/src/theta_v0/parser/inclusion.rs:729-733`（`equal_extreme_identity` 只作证据，不得作准入门）；`rust/src/theta_v0/backtest/tick.rs:410`（seam 测试转绿为验收）。
 Lean：`formal/Origin/ChanlunElements.lean:29-40,130-137`（无定义式；登记跟进义务）。

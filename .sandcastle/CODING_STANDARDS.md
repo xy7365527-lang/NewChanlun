@@ -5,6 +5,7 @@
 ## 语言与工具链
 
 - 主力 Rust（`rust/` 单 crate workspace）：`cargo fmt` 风格、`cargo clippy` 零新增 warning、`cargo check` 必过；测试纪律见 AGENTS.md（测试指纹/对拍口径）。
+- **本机（macOS 宿主）禁跑 cargo / rustc**（#1588）：上面的 check/clippy/test 一律经 `~/.local/bin/nc-remote <已提交 ref> rust <cmd>`（`NC_REPO="$(git rev-parse --show-toplevel)"`、`NC_TARGET=<工蜂唯一名>`）在 windows-5090 的 WSL 上跑，或由编排层推分支走 CI。沙盒 PATH 已前置垫片，本机调用即非零退出。
 - 文档一律简体中文；缠论概念对齐 `.chanlun/definitions/` 正本，不自造口径。
 
 ## 纪律（commit 与引用）

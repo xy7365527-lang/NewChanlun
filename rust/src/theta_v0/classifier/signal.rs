@@ -1585,7 +1585,7 @@ pub(crate) fn type1_funnel_dx(
         // 结构方向锚（行程方向=τ 等式 veto）；provenance None 只保留直调判据契约。
         let broke = match (anchors_owned[si], dir) {
             (Some(Direction::Down), Direction::Down) => end.price < c.zd,
-            (Some(Direction::Down), Direction::Down) => c.zg < end.price,
+            (Some(Direction::Up), Direction::Up) => c.zg < end.price,
             _ => false,
         };
         if !broke {
@@ -5645,5 +5645,44 @@ mod tests {
             }
         );
         ledger.assert_invariants();
+    }
+
+    /// #1588 p3fix A6：漏斗探针 `type1_funnel_dx` 的上涨臂 broke 判据须可达（曾被 1592bf05ca
+    /// 误写成重复的 `(Some(Down), Down)` 而不可达）。中枢与段同 `first_sell_mirror_with_trend_divergence`
+    /// （上涨趋势，leave 420 / top 430 均 > C1.zg=400；retest 段锚 Down 落 `_ => false`）；closes 改为
+    /// A 缓 C 急 ⟹ 无背驰，使函数尾部 parity（环6 mapped = 生产 struct_break 候选数）成为钉子——
+    /// 上涨臂不可达时环3 计 0，mapped 0 ≠ 生产 2，parity 即断。
+    #[test]
+    fn type1_funnel_dx_up_trend_broke_arm_reachable() {
+        let c0 = dc(100, 200, 90, 210, 2);
+        let c1 = dc(300, 400, 290, 410, 8);
+        let segs = vec![
+            seg(Direction::Up, 3, 5, 150, 250),
+            seg(Direction::Down, 5, 7, 250, 280),
+            seg(Direction::Up, 9, 11, 350, 420),
+            seg(Direction::Down, 11, 13, 420, 410),
+            seg(Direction::Up, 13, 15, 410, 430),
+        ];
+        let prices: Vec<Tick> = vec![
+            200, 200, 200, 200, 210, 220, 220, 220, 220, 300, 400, 420, 410, 420, 430, 440,
+        ];
+        let (closes, src) = closes_seq(&prices);
+        let series = compute_macd(&closes, &MacdConfig::default());
+        let f = type1_funnel_dx(
+            &[c0, c1],
+            &segs,
+            None,
+            &series.hist,
+            &series.dif,
+            &prices,
+            &src,
+        );
+        assert_eq!(f.s_gate_open, 3, "C1 之后三段均过上涨局部趋势门");
+        assert_eq!(
+            f.s_broke, 2,
+            "leave/top 两个上涨段破 C1.zg；retest 段锚 Down 不计"
+        );
+        assert_eq!(f.s_mapped, 2, "两个 broke 段均配对 A 并映射到 closes");
+        assert_eq!(f.s_diverge, 0, "C 段急涨强于 A ⟹ 无背驰");
     }
 }

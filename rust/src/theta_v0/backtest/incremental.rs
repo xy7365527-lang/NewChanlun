@@ -95,6 +95,10 @@ impl<'a> IncrementalClassifier<'a> {
             "classify_at({i}) 越界 bars.len={}",
             self.bars.len()
         );
+        // ★#1588：append 前先丢上一 bar 的 ParseLayer。它与增量状态共享 merged/fractals/strokes/
+        // segments 的 Rc 缓冲；append 期间仍持有 ⟹ 各子模块 `Rc::make_mut` 每 bar 整表深拷贝
+        // （O(n)/bar，累计 O(n²)）。丢弃后引用计数回 1，make_mut 原地追加；输出逐位不变。
+        self.last_l0 = None;
         // 增量 parse：append bar i（O(1) inclusion + O(merged_i) 下游）。
         let l0_i = self.parser_incr.append(self.bars[i]);
         // 增量塔：cache 跨 bar 复用（身份稳定），bit-exact == 全量 classify。
@@ -924,6 +928,61 @@ mod tests {
         assert!(
             p.empty_break > 0,
             "fixture2 未触发 units.is_empty 早停 break（truncate(level_idx+1) 代码路径未执行）"
+        );
+    }
+
+    /// ★#1588：`classify_at` 跨 bar 不触发共享解析表的写时深拷贝。`merged_bars`/`strokes` 的 Rc
+    /// 由增量状态全程持有、只经 `Rc::make_mut` 原地改写，`fractals` 在 merged ≥3 后同理——上一
+    /// bar 的 ParseLayer 若在 append 期间仍存活，make_mut 会在旧块存活时另分配新块，Rc 地址
+    /// 必变。反例臂用 `ParseLayerIncr` 显式持有上一轮 layer，证明本断言能区分两种持有方式。
+    #[test]
+    fn classify_at_keeps_shared_parse_tables_in_place() {
+        use std::rc::Rc;
+        fn ptrs(l: &parser::ParseLayer) -> (usize, usize, usize) {
+            (
+                Rc::as_ptr(&l.merged_bars) as usize,
+                Rc::as_ptr(&l.strokes) as usize,
+                Rc::as_ptr(&l.fractals) as usize,
+            )
+        }
+        let bars = pseudo_walk(1500, 0x1588_0000_0000_0001, 34, 700, 3300);
+        let config = ThetaConfig::default();
+
+        let mut clf = IncrementalClassifier::new(&bars, &config);
+        let mut prev: Option<((usize, usize, usize), usize)> = None;
+        for i in 0..bars.len() {
+            clf.classify_at(i);
+            let l0 = clf.last_l0().expect("classify_at 后有 L0");
+            let cur = (ptrs(l0), l0.merged_bars.len());
+            if let Some(((pm, ps, pf), pn)) = prev {
+                assert_eq!(cur.0 .0, pm, "bar {i}: merged_bars 被整表拷贝");
+                assert_eq!(cur.0 .1, ps, "bar {i}: strokes 被整表拷贝");
+                if pn >= 3 {
+                    assert_eq!(cur.0 .2, pf, "bar {i}: fractals 被整表拷贝");
+                }
+            }
+            prev = Some(cur);
+        }
+        let l0 = clf.last_l0().unwrap();
+        assert!(
+            l0.strokes.len() > 1 && l0.fractals.len() > 3,
+            "夹具退化：strokes={} fractals={}",
+            l0.strokes.len(),
+            l0.fractals.len()
+        );
+
+        // 反例臂：append 期间持有上一轮 layer ⟹ merged_bars 至少一次换块。
+        let mut incr = parser::ParseLayerIncr::new(&config);
+        let mut held = incr.append(bars[0]);
+        let mut moved = 0usize;
+        for bar in &bars[1..] {
+            let next = incr.append(*bar);
+            moved += usize::from(!Rc::ptr_eq(&next.merged_bars, &held.merged_bars));
+            held = next;
+        }
+        assert!(
+            moved > 0,
+            "持有上一轮 layer 时未观察到写时拷贝，断言失去区分力"
         );
     }
 }

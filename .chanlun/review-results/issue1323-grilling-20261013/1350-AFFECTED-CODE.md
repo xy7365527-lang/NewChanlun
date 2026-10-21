@@ -28,3 +28,7 @@
 - 工位草稿与根裁定第 8 条都写 FIN `finance.rs:226` 为 `allocation_policy_id`；FIN 上 `:226` 是 `model` 校验，字段名在 `:205`、取值校验在 `:225`，已订正。结论（两个 id 空间分开）不变。
 
 基线迁移说明：工位草稿以 main `f95a7f3e` 为基线；`git diff f95a7f3e 465174240b` 在本清单涉及的全部路径上为空，main 行号因此不漂。
+
+## #1406 已裁同步（2026-10-14，OQ-1 / OQ-3）
+
+累计分配按 ADR 0032 修订节改为 Balinski–Young 配额法，外效政策 id 只写 `frozen-manifest-proportional-cumulative/2`，金额残量调用同一算法；/1 未持久落地，不设旧库回落。上表历史基线行号保持原名分，新增实施位点为 `rust/src/economic_session/allocation.rs` 与 `tb03c_allocation.rs`（#1406）。Lean 增配额界；Unmatched 补未声明依赖的缺开局。仅同步已裁，不改 FIN 准入政策 id。

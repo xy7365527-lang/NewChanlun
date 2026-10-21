@@ -865,6 +865,7 @@ ${DRAFT_SECTIONS.map((s) => `## ${s}`).join("\n")}
 8. 「${CITATION_SECTION}」段是一张 Markdown 表，表头为 \`| 引用 | 核实命令 | 结果摘要 |\`，草稿里每一条引用（文件:行、ADR、定义文件条款、票号、评论 id）各占一行：写出你实际执行的核实命令与看到的结果摘要。表里没有的引用视为未核实。自证表里写不出亲眼看到的原文就整条删掉（连同正文里那条引用），不许写「未直接看到但结构确认」之类。
 9. 按 /grill-with-docs 的做法用考古结论（.agents/skills/grilling/SKILL.md、.agents/skills/domain-modeling/SKILL.md）：A 类沿用其出处写进「权威依据」与「裁定」，不再列为待决；B 类在「候选」写成「默认值 <值>（出处 <位置>）——确认或否决」，推理链照考古重过；只有 C 类 decision 列为真正待决，每问附推荐答案。C 类 research/probe 是事实缺口，写进「受影响票与 blocking 边变化」作为要开的 research 票或探针票，不交用户填数。考古标出的冲突写进「问题」段。
 10. 「${ARCH_SECTION}」段是一张表 \`| 点 | 归类 | 出处 | 草稿处置 |\`，考古里每个点号（Q1、Q2…）各占一行。
+11. 自由度通则（docs/adr/0041-degrees-of-freedom-configurable-not-excluded.md）：待决点在缠师原文无定论、有多个可行候选，且属 [新缠论:选择] 或参数类时，优先裁为「可调字段 + 默认值」——落进具名版本化记录，写默认值及出处、可选值集合与各值代价，改值即新版本；另一种合法取值保留为可选值，不写成「被否」。已裁定签署前不得代填的字段（资金、量档、容量、成本门 θ、风险阈值等，ADR 0029/0034/0035/0036），默认值写 AwaitingPolicy（不签不跑、不回退备用值），数值只以「推荐值＋出处」写进签署单待用户确认，不自动生效。只有违反原文、违反已裁推论、被实测否证或属 #799 兜底的候选才排除，并写明排除依据。缠师原文语义与已裁推论不改为可调；同一判断的松紧两档不是自由度，事前单选也不得落为可调字段；运行中按判定结果换值是 #799 违规，不算可调。
 只输出草稿正文，不要前言或结语。`;
 }
 
@@ -896,7 +897,7 @@ export function reviewPrompt(t: TicketContext, c: Classification, draft: string,
 
 逐条给 PASS 或 BLOCK，每条必须写依据（BLOCK 写清要改什么）：
 R1 每条引用回查成立（路径存在、行号与逐字内容一致、作者归属正确、评论 id 存在且内容相符）。先对照草稿末尾「${CITATION_SECTION}」表：表缺失或为空，R1 直接 BLOCK；表在，则逐条对照表中引用与草稿正文是否一一对应（正文有而表里没有的引用记 BLOCK），并至少亲自重跑其中三条（不足三条则全跑）核实命令，结果与表述不符即 BLOCK。
-R2 不与 .chanlun/definitions/、docs/adr/、#799 收敛通则、#804 总缝规则冲突。
+R2 不与 .chanlun/definitions/、docs/adr/、#799 收敛通则、#804 总缝规则、ADR 0041 自由度通则冲突。草稿把原文无定论的合法候选（[新缠论:选择] 或参数类、不违原文与已裁推论、无实测否证）当错误排除或写成代码常数，而没有落为带默认值的可调字段，判 BLOCK；反过来把缠师原文语义或已裁推论改成可调、把同一判断的宽严两档做成可调字段，或让可调字段在运行中按判定结果换值，也判 BLOCK。
 R3 验收项全部可执行、判据二值。
 R4 不越出 Destination；T 类草稿里没有夹带 P 类取舍。正本落点越界（不在 ${LANDING_ROOTS.join("、")} 内）即 BLOCK。
 R5 不新增同一判断的宽严两档或失败兜底。
@@ -978,6 +979,11 @@ export interface Summary {
   pDone?: PStep[];
   /** 本次从哪个断点续做。 */
   resumedFrom?: ResumeStage;
+  /**
+   * 本轮读票时已有的评论条数。水印之后的退回/驳回/否决作废断点
+   * （见 resumeStaleBecauseReopen）。本轮自己写下的评论也落在水印之后，但都不是退回词。
+   */
+  commentsSeen?: number;
 }
 
 export type ResumeStage = "reviewed_pass" | "shadow_p_pending";
@@ -999,6 +1005,23 @@ export function loadResume(dir: string): { prev: Summary; draft: string; review:
   if (prev.stage === "reviewed_pass" && (rv.verdict !== "PASS" || prev.klass !== "T")) return null;
   const review: Review = { items: rv.items ?? [], verdict: rv.verdict === "PASS" ? "PASS" : "BLOCK", problems: rv.problems ?? [], parseError: false };
   return { prev, draft: readFileSync(dp, "utf8"), review };
+}
+
+/**
+ * 断点之后的编排者评论若是退回 / 驳回 / 否决，旧 PASS 不再有效，必须整链重跑。
+ * 断点当时已经在票上的退回不算（那一稿是看着它写的）。没有 commentsSeen 的旧断点从第 0 条算起，宁肯重跑。
+ */
+export function resumeStaleBecauseReopen(
+  prev: Pick<Summary, "commentsSeen">,
+  comments: Array<{ author: string; body: string }>,
+  orchestrator = ORCHESTRATOR,
+): boolean {
+  const seen = prev.commentsSeen ?? 0;
+  for (const c of comments.slice(Math.max(0, seen))) {
+    if (c.author !== orchestrator) continue;
+    if (REOPEN_RE.test(firstLine(c.body))) return true;
+  }
+  return false;
 }
 
 function writeJson(path: string, v: unknown) {
@@ -1107,7 +1130,12 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
       log(`#${n} 跳过：${resolved}`);
       return summary;
     }
-    const resume = loadResume(dir);
+    let resume = loadResume(dir);
+    if (resume && resumeStaleBecauseReopen(resume.prev, t.comments)) {
+      // 人已经退回，不能拿旧 PASS 跳过独审直接落地。
+      log(`#${n} 断点作废：审查通过后出现退回/驳回/否决，整链重跑`);
+      resume = null;
+    }
 
     // claim 先行防重复；续做时允许票仍挂在自己名下（上次没来得及取消认领）。
     if (d.mode === "live") {
@@ -1263,7 +1291,9 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
           writeFileSync(join(dir, "draft.md"), draft);
         }
         // 审查已过：先落盘断点，落地任何一步失败，下一轮从这里续做。
+        // commentsSeen 是本轮读票时的条数；其后的退回作废这条断点。
         summary.stage = "reviewed_pass";
+        summary.commentsSeen = t.comments.length;
         persist();
         if (d.mode === "dry-run") {
           summary.plannedWrites.push(`分支 decision/${n}：写 ${target} 并推送`, `评论 #${n}：resolution（首行「${AUTH_LINE}」）`);
@@ -1278,6 +1308,7 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
       const done = new Set<PStep>(summary.pDone ?? []);
       summary.stage = "shadow_p_pending";
       summary.pDone = [...done];
+      summary.commentsSeen = t.comments.length;
       persist();
       const steps: Record<PStep, [string, string[], string?]> = {
         comment: [`评论 #${n}：P 类草稿与审查结论`, ["issue", "comment", String(n), "--body-file", "-"], shadowComment(n, draft, review!, dir, summary, loadArchaeology(dir))],
