@@ -206,7 +206,12 @@ jobs:
           df -B1 -T .
           du -sx -B1 target 2>/dev/null || true
 
+      # #1608：告警清零后防回潮——三档 cargo check 以 -D warnings 运行，任何新告警即红。
+      #   依赖由 cargo 以 --cap-lints 处理，不受影响。工具链未钉死：stable 新增 lint 也会在此暴露，
+      #   届时按真信号修，不得回退为整体 allow。
       - name: cargo check — default targets（required-features 未启用的 bin 不在内）
+        env:
+          RUSTFLAGS: "-D warnings"
         run: |
           set -x
           free -b
@@ -218,6 +223,8 @@ jobs:
           du -sx -B1 target 2>/dev/null || true
 
       - name: cargo check — backtest_bin feature（#438：闭合 required-features 盲区）
+        env:
+          RUSTFLAGS: "-D warnings"
         run: |
           set -x
           free -b
@@ -227,6 +234,15 @@ jobs:
           free -b
           df -B1 -T .
           du -sx -B1 target 2>/dev/null || true
+
+      - name: cargo check — s_session feature（#1608：S 会话面告警此前只在 test 步骤编译、不设门）
+        env:
+          RUSTFLAGS: "-D warnings"
+        run: |
+          set -x
+          df -B1 -T .
+          cargo check --all-targets --features s_session
+          df -B1 -T .
 
       - name: cargo fmt --check（#611：归零后防回潮）
         run: |
@@ -269,6 +285,12 @@ jobs:
       - name: cargo test — s_session 正式结构会话（#1370）
         if: always()
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --bin s_structure_session --jobs 1 -- --skip v3::financial_session
+
+      # #1608：#1394 的两个编译负例只在 --cfg 下编译；此处断言它们仍被类型边界拒绝（E0308 落在负例块内）。
+      #   放在 s_session 测试之后复用已编好的依赖；负例在类型检查阶段即失败，不做代码生成。
+      - name: 编译负例 — #1394 类型边界仍拒绝旧写法（#1608）
+        if: always()
+        run: ../.github/scripts/check-compile-negatives-1394.sh
 
       # #1394 C：内容编码在 s_session feature 下供多个 owner 共用；只测 S bin 不会执行库测试。
       # #1394 整合 C-1：本步与下一步不依赖「default targets」与 s_session bin 两步的结果；
