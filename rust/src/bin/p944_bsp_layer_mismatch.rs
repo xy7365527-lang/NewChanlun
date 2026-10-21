@@ -72,24 +72,34 @@
 //! **严配**：`kind`（type1/2/3）**与** `side`（buy/sell）都相同；**松配**：只要 `side` 相同
 //! （用来把「这个点消失了」和「这个点还在但被改判了类型」分开）。
 
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../bi_engine.rs"]
 mod bi_engine;
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../buysellpoint.rs"]
 mod buysellpoint;
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../divergence.rs"]
 mod divergence;
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../fractal.rs"]
 mod fractal;
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../macd.rs"]
 mod macd;
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../moves.rs"]
 mod moves;
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../ph.rs"]
 mod ph;
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../segment.rs"]
 mod segment;
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../stroke.rs"]
 mod stroke;
+#[allow(dead_code, reason = "#1608：与 lib 共用的模块，本 bin 只用其中一部分")]
 #[path = "../zhongshu.rs"]
 mod zhongshu;
 

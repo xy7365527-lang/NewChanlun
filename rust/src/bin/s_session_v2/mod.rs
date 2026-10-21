@@ -2,7 +2,9 @@
 use super::*;
 use crate::v3::audit_store::{CodecRead, NativeAdmission};
 use crate::v3::business_json::{self as control_json, BusinessMap, JsonOwner, TextValue};
-use newchan_rust::s_content::capture_allocation::audit_json::{self as control_aj, JsonView};
+#[cfg(feature = "s_allocation_json_testonly")]
+use newchan_rust::s_content::capture_allocation::audit_json as control_aj;
+use newchan_rust::s_content::capture_allocation::audit_json::JsonView;
 use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
 use newchan_rust::s_content::{capture_allocation::OwnedBudget, CodecVec};
 pub use newchan_rust::session_protocol::strict_json;
@@ -622,9 +624,6 @@ fn normalize_schema_chunks(
     }
     Ok(())
 }
-fn control_normalized(s: &str, b: Option<&OwnedBudget>) -> Result<TextValue, String> {
-    control_normalized_admitted(s, b, None)
-}
 fn control_normalized_admitted(
     s: &str,
     b: Option<&OwnedBudget>,
@@ -710,9 +709,6 @@ impl ControlSchema {
             owner: owner.cloned(),
         }
     }
-    pub(super) fn add_ddl(&mut self, label: &str, ddl: &str) -> Result<(), String> {
-        self.add_ddl_admitted(label, ddl, None)
-    }
     pub(super) fn add_ddl_admitted(
         &mut self,
         label: &str,
@@ -780,9 +776,6 @@ impl SchemaRead<'_> {
             Self::Owned(s) => s.tables.get(k).map(TextValue::as_str),
         }
     }
-    fn sorted_names(&self) -> Result<CodecVec<&str>, String> {
-        self.sorted_names_admitted(None)
-    }
     fn sorted_names_admitted(&self, work: Option<&WorkScope>) -> Result<CodecVec<&str>, String> {
         let mut names = control_json::new_work(self.owner());
         match self {
@@ -806,12 +799,6 @@ pub(super) fn verify_expected_schema(
     expected: &BTreeMap<String, String>,
 ) -> Result<(), String> {
     verify_schema_read(conn, SchemaRead::Normal(expected))
-}
-pub(super) fn verify_control_schema(
-    conn: &Connection,
-    expected: &ControlSchema,
-) -> Result<(), String> {
-    verify_control_schema_admitted(conn, expected, None)
 }
 pub(super) fn verify_control_schema_admitted(
     conn: &Connection,
@@ -1158,6 +1145,7 @@ impl ControlFacts {
             pending: 1,
         })
     }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn len(&self) -> usize {
         self.headers.len()
     }
@@ -1183,12 +1171,15 @@ impl ControlFacts {
     }
 }
 impl ControlHistory {
+    #[cfg(test)]
     pub(super) fn session_generation(&self) -> &str {
         self.facts.session_generation.as_str()
     }
+    #[cfg(test)]
     pub(super) fn clock_plan_hash(&self) -> &str {
         self.facts.clock_plan_hash.as_str()
     }
+    #[cfg(test)]
     pub(super) fn pending_count(&self) -> usize {
         self.pending
     }
@@ -1344,12 +1335,6 @@ fn control_query_row<T>(
     stmt.finalize().map_err(err)?;
     Ok(value)
 }
-fn control_canonical_text(
-    v: JsonView<'_>,
-    owner: Option<&OwnedBudget>,
-) -> Result<TextValue, String> {
-    control_canonical_text_admitted(v, owner, None)
-}
 fn control_canonical_text_admitted(
     v: JsonView<'_>,
     owner: Option<&OwnedBudget>,
@@ -1394,13 +1379,6 @@ fn control_canonical_text_admitted(
     }
     result.map_err(err)?;
     TextValue::from_bytes(writer.bytes).map_err(err)
-}
-fn control_identity(
-    input: &tb02a::RawInputView<'_>,
-    ev: tb02a::RawEventView<'_>,
-    owner: Option<&OwnedBudget>,
-) -> Result<TextValue, String> {
-    control_identity_admitted(input, ev, owner, None)
 }
 fn control_identity_admitted(
     input: &tb02a::RawInputView<'_>,
@@ -1475,12 +1453,6 @@ fn control_event_hash(
         )
     }
 }
-fn control_sorted_keys<'a, K: Eq + std::hash::Hash + Ord, V>(
-    map: &'a BusinessMap<K, V>,
-    owner: Option<&OwnedBudget>,
-) -> Result<CodecVec<&'a K>, String> {
-    control_sorted_keys_admitted(map, owner, None)
-}
 fn control_sorted_keys_admitted<'a, K: Eq + std::hash::Hash + Ord, V>(
     map: &'a BusinessMap<K, V>,
     owner: Option<&OwnedBudget>,
@@ -1508,6 +1480,7 @@ pub(super) struct AuditMessage {
     pub(super) event: TextValue,
     pub(super) count: i64,
 }
+#[cfg(feature = "s_capture_native_testonly")]
 pub(super) fn read_audit_message(
     r: &mut CheckedRow<'_>,
     owner: Option<&OwnedBudget>,
@@ -1545,6 +1518,7 @@ pub(super) fn read_audit_message_admitted(
         count,
     })
 }
+#[cfg(feature = "s_capture_native_testonly")]
 pub(super) fn validate_audit_message(
     conn: &Connection,
     m: &AuditMessage,
@@ -2006,7 +1980,7 @@ pub(super) fn validate_control_history_admitted(
             )
             .map_err(err)?;
         } else {
-            let (expected_key, count, published) = messages
+            messages
                 .get(id.as_str())
                 .ok_or_else(|| err("phase没有原消息"))?;
             if phase == "begin"

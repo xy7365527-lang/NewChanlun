@@ -176,7 +176,7 @@ fn ancok_admits_reverse_open_under_parent_coord_drift() {
             active.iter().any(|l| l.level == 0 && l.dir == VoiceSide::Short),
             "ID 匹配（确定性 ElementId）⟹ 延伸父仍在 raw ⟹ ReverseOpen 子腿准入（Q4 假阴性消除）；实得 {active:?}"
         );
-    let reg = super::super::super::persistent::PersistentRegistry::new();
+    let _reg = super::super::super::persistent::PersistentRegistry::new();
     assert!(
         active
             .iter()

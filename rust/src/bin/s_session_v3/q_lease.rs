@@ -32,6 +32,7 @@ pub(super) struct ClientLeases {
 }
 
 impl ClientLeases {
+    #[cfg(test)]
     pub(super) fn new(resources: &QResources) -> Self {
         Self::with_allocation(resources, None).expect("None lease同核")
     }
