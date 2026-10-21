@@ -197,6 +197,7 @@ impl Fixture {
             "QueryDecision",
             "QueryGrant",
             "QueryVoice",
+            "QueryBasisUsage",
             "PrepareDecision",
             "Reserve",
             "CommitDecision",
@@ -1246,4 +1247,122 @@ fn c4a_fin1_uncovered_fact_cannot_reserve_or_resolve_and_keeps_all_state() {
         .is_none());
     assert!(before.3.get("fill_allocations").is_none());
     f.audit();
+}
+
+/// #1415 TB-03-D：B 依据使用关系经正式 service 入口只读派生。期望值为夹具表手算
+/// （alpha: Q=12、开局 4、计划 2；beta: Q=20、开局 15、计划 3；γ 视图 2/3/1），不调用被测函数。
+#[test]
+fn tb03d_basis_usage_binds_levels_quantity_and_waiting_without_s_write() {
+    let mut f = Fixture::new("100");
+    let usage = |f: &mut Fixture, n: usize, msg: &str, as_known: Value| {
+        f.handle(
+            n,
+            msg,
+            json!({"op":"QueryBasisUsage","cut":null,"as_known_ns":as_known}),
+        )
+    };
+    let before = usage(&mut f, 1, "tb03d-alpha-0", Value::Null);
+    assert_eq!(before["kind"], "EconomicBasisUsage", "{before}");
+    let voices = before["voices"].as_array().unwrap();
+    assert_eq!(voices.len(), 1);
+    let v = &voices[0];
+    assert_eq!(v["binding_id"], "voice-alpha");
+    assert_eq!(v["direction"], "Long");
+    assert_eq!(v["voice_generation"], "0");
+    assert_eq!(v["operation_level"], "2");
+    assert_eq!(v["structure_level"]["execution_level"], "2");
+    assert_eq!(v["structure_level"]["confirmation_level"], "3");
+    assert_eq!(v["drill_depth"], "1");
+    assert_eq!(v["opening_basis"]["allocation_id"], "allocation-alpha");
+    assert_eq!(v["opening_basis"]["quantity"], "4");
+    let apps = before["applications"].as_array().unwrap();
+    assert_eq!(apps.len(), 1);
+    assert_eq!(apps[0]["status"], "Applied");
+    assert_eq!(apps[0]["used_by_voices"], json!([v["voice_id"]]));
+    assert_eq!(before["decisions"], json!([]));
+    for (k, x) in [
+        ("actual_quantity", "4"),
+        ("unresolved_potential", "0"),
+        ("worst_quantity", "4"),
+        ("fixed_q", "12"),
+        ("headroom", "8"),
+    ] {
+        assert_eq!(before["quantity"][k], x, "{k}");
+    }
+    assert_eq!(before["structure_boundary"]["s_writes"], "None");
+
+    f.prepare();
+    let prepared = usage(&mut f, 1, "tb03d-alpha-1", Value::Null);
+    let d = &prepared["decisions"][0];
+    assert_eq!(d["state"], "Prepared");
+    assert_eq!(d["waiting"]["reason_code"], "AwaitingEReserveGrant");
+    assert_eq!(d["voice_id"], v["voice_id"]);
+    assert_eq!(d["direction"], "Long");
+    assert_eq!(d["s_ref"]["object_id"], "unit-S-object");
+    assert_eq!(d["o_ref"]["operation_id"], "TestOnly-operation-alpha");
+    assert_eq!(d["structure_evidence"]["evidence_hash"], hash(&f.basis));
+    assert_eq!(d["structure_evidence"]["commit_ns"], "1");
+    assert!(d["grant_id"].is_null());
+    for (k, x) in [
+        ("unresolved_potential", "2"),
+        ("worst_quantity", "6"),
+        ("headroom", "6"),
+    ] {
+        assert_eq!(prepared["quantity"][k], x, "{k}");
+    }
+
+    f.step(0, "Reserve", "slot");
+    f.step(1, "CommitDecision", "alpha");
+    let committed = usage(&mut f, 1, "tb03d-alpha-2", Value::Null);
+    let d = &committed["decisions"][0];
+    assert_eq!(d["state"], "Committed");
+    assert_eq!(d["waiting"]["reason_code"], "AwaitingExecutionEligibility");
+    assert_eq!(d["waiting"]["execution_eligibility"], "None");
+    assert!(d["grant_id"].is_string());
+    // 未见 E 降责证据前潜量保守保留；实际量不因本地 Commit 改变。
+    assert_eq!(committed["quantity"]["actual_quantity"], "4");
+    assert_eq!(committed["quantity"]["unresolved_potential"], "2");
+
+    // 另一重独立：beta 的方向与潜量不被 alpha 裁剪或抵消。
+    let beta = usage(&mut f, 2, "tb03d-beta-0", Value::Null);
+    for (k, x) in [
+        ("actual_quantity", "15"),
+        ("unresolved_potential", "3"),
+        ("worst_quantity", "18"),
+        ("fixed_q", "20"),
+        ("headroom", "2"),
+    ] {
+        assert_eq!(beta["quantity"][k], x, "{k}");
+    }
+    assert_eq!(beta["decisions"][0]["state"], "Prepared");
+
+    // AsKnown 旧时刻不回填后来的 Prepared。
+    let old = usage(&mut f, 1, "tb03d-alpha-3", json!("60"));
+    assert_eq!(old["decisions"], json!([]));
+    assert_eq!(old["quantity"]["unresolved_potential"], "0");
+
+    // E 不拥有 B 依据关系。
+    let e = usage(&mut f, 0, "tb03d-e-0", Value::Null);
+    assert_eq!(e["kind"], "Error");
+    assert!(e["error"]
+        .as_str()
+        .unwrap()
+        .starts_with("SchemaUnsupported"));
+
+    // 新连接（同库重开）重放：审计通过且同 cut 派生逐字节相同。
+    f.audit();
+    let mut fresh = open(&f.configs[1].db, false).unwrap().0;
+    let replay = service::handle(
+        &mut fresh,
+        &f.configs[1],
+        1,
+        1,
+        &json!({}),
+        &envelope(
+            "tb03d-alpha-4",
+            json!({"op":"QueryBasisUsage","cut":committed["cut"],"as_known_ns":null}),
+        ),
+    )["payload"]
+        .clone();
+    assert_eq!(canonical_json(&replay), canonical_json(&committed));
 }
