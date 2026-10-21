@@ -18,7 +18,7 @@
 //!
 //! ## 用法
 //! ```text
-//! cargo run --release --features backtest_bin --bin theta_replay -- <SYMBOL> [START END] [--out PATH]
+//! cargo run --release --features backtest_bin --bin theta_replay -- <SYMBOL> [START END] [--out PATH] [--diagnostic-fixture]
 //!   <SYMBOL>       品种代码（BTC/ES/CL/GC/BRN/DX/QQQ/OKLO/ZN/6E，见 data::SYMBOLS）
 //!   [START END]    可选 ISO 日期窗闭区间（如 2024-01-01 2024-12-31）；省略 = 全量
 //!   [--out PATH]   可选：把 run-1 的确定性 dump（JSONL）写到此路径；所用记录另写 PATH.records.json

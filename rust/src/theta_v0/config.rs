@@ -47,6 +47,11 @@ fn active_theta_risk() -> super::run_records::ThetaRisk {
     super::run_records::active_theta_risk().unwrap_or_else(|e| panic!("{e}"))
 }
 
+/// 读当前生效的数据 profile 记录；同 [`fixture_venue`]：损坏即 panic，不给备用值。
+fn active_data_profile() -> super::run_records::DataProfile {
+    super::run_records::active_data_profile().unwrap_or_else(|e| panic!("{e}"))
+}
+
 /// 测试夹具与诊断用：读诊断夹具场所 profile（#1602）。
 impl Default for TickConfig {
     fn default() -> Self {
@@ -548,12 +553,10 @@ impl DataConfig {
     }
 }
 
-/// 读当前生效的 `data-profile` 记录（#1602）；损坏即 panic，不给备用值。
+/// 读当前生效的 `data-profile` 记录（#1602）。
 impl Default for DataConfig {
     fn default() -> Self {
-        DataConfig::from_record(
-            &super::run_records::active_data_profile().unwrap_or_else(|e| panic!("{e}")),
-        )
+        DataConfig::from_record(&active_data_profile())
     }
 }
 
@@ -574,7 +577,7 @@ impl Default for RunRecords {
         RunRecords {
             venue: fixture_venue(),
             risk: active_theta_risk(),
-            data: super::run_records::active_data_profile().unwrap_or_else(|e| panic!("{e}")),
+            data: active_data_profile(),
         }
     }
 }
@@ -998,7 +1001,8 @@ mod tests {
         assert_eq!(c.data.bad_tick_max_dev, 0.5);
         assert_eq!(
             c.record_labels(),
-            "tower-level-budget/1, macd-force/1, venue-profile-P0/3, theta-risk/2, data-profile/2"
+            "tower-level-budget/1, macd-force/1, second-seq-scan-budget/2, segment-second/2, \
+             venue-profile-P0/3, theta-risk/2, data-profile/2"
         );
         assert!(c.admissible());
     }

@@ -199,7 +199,6 @@ fn signed_value<'a>(
     }
 }
 
-<<<<<<< HEAD
 /// 读一个字符串字段（`fields.<name>.value`）；缺失与未签的口径同 [`read_u32`]，非字符串判非法。
 fn read_str(
     id: &'static str,
@@ -223,7 +222,8 @@ fn read_str(
         Value::String(s) => Ok(s.clone()),
         v => Err(invalid(id, name, format!("须为字符串，得 {v}"))),
     }
-=======
+}
+
 /// 读一个非负整数字段（`fields.<name>.value`）。
 pub(super) fn read_u32(
     id: &'static str,
@@ -274,7 +274,6 @@ pub(super) fn read_f64_array<const N: usize>(
         *slot = x.as_f64().filter(|x| x.is_finite()).ok_or_else(bad)?;
     }
     Ok(out)
->>>>>>> 32d071d341 (feat(theta_v0): #1602——执行成本、Θ_risk、场所 tick 与坏 tick 闸落版本化记录)
 }
 
 /// 解析 `tower-level-budget` 记录。`min_parts_per_level` 不在本记录里：它是中枢定义的三段下限

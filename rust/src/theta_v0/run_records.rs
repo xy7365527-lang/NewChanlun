@@ -373,17 +373,6 @@ pub fn production_venue_for_profile(profile_id: &str) -> Result<VenueProfile, Ru
     production_venue_where(|p, _| p == profile_id)
 }
 
-/// 按记录 id 取场所 profile（生产表或诊断夹具），供输出标签核对现值是否仍等于记录值。
-pub fn venue_profile_by_id(id: &str) -> Option<VenueProfile> {
-    if id == VENUE_PROFILE_DIAGNOSTIC_FIXTURE_ID {
-        return diagnostic_fixture_venue().ok();
-    }
-    PRODUCTION_VENUE_PROFILES
-        .iter()
-        .find(|(rid, _)| *rid == id)
-        .and_then(|&(rid, text)| parse_venue_profile(rid, Some(text)).ok())
-}
-
 /// 当前生效的 Θ_risk 记录。
 pub fn active_theta_risk() -> Result<ThetaRisk, PolicyError> {
     parse_theta_risk(Some(ACTIVE_THETA_RISK_JSON))
@@ -428,14 +417,16 @@ pub fn collect_run_records(
         super::config::ParseConfig::from_active_records(),
     );
     match (venue, risk, data, tower, macd, parse) {
-        (Some(venue), Some(risk), Some(data), Some(tower), Some(macd), Some(parse)) => Ok(RunRecordSet {
-            venue,
-            risk,
-            data,
-            tower,
-            macd,
-            parse,
-        }),
+        (Some(venue), Some(risk), Some(data), Some(tower), Some(macd), Some(parse)) => {
+            Ok(RunRecordSet {
+                venue,
+                risk,
+                data,
+                tower,
+                macd,
+                parse,
+            })
+        }
         _ => Err(err),
     }
 }
