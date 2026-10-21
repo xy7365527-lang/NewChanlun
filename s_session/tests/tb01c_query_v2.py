@@ -122,7 +122,7 @@ def main():
                 browser_path = str(ROOT/"s_session/browser/index.html")
                 def log_message(self,*_args):
                     pass
-            server = reader.QueryHTTPServer(("127.0.0.1",0),Quiet,db,resources(),3)
+            server = reader.QueryHTTPServer(("127.0.0.1",0),Quiet,db,resources(),3)  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
             thread = threading.Thread(target=server.serve_forever,daemon=True)
             thread.start()
             page = post(dict(op="snapshot",session_id="q-v2-test",session_generation="1",scope=reader._scope(proof["meta"]),

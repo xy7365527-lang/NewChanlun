@@ -1,0 +1,7 @@
+ref=codex/1629-endpoint-prune sha=af6976de0644362db1d1f0bcba0c6e615cc79554 sub=rust target=/home/hanju/nc-remote/issue1629 cmd=bash -c cargo\ fmt\ --all\ --\ --check\ \&\&\ cargo\ test\ --release\ --lib\ theta_v0::parser\ --\ --nocapture\ 2\>\&1\ \|\ grep\ -E\ "#1629\|test\ result\|FAILED\|panicked\|\^error"\  
+#1629 union cost per size [148, 202, 256]
+#1629 cost n=1000 endpoints=475 ops=72127
+#1629 cost n=4000 endpoints=1820 ops=335200
+#1629 cost n=16000 endpoints=7063 ops=1531484
+test result: ok. 190 passed; 0 failed; 22 ignored; 0 measured; 2807 filtered out; finished in 59.71s
+EXIT=0 SECONDS=172

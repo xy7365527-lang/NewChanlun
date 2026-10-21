@@ -95,9 +95,9 @@ def remaining(deadline):
 def read_health(port, deadline):
     """短 HTTP/1.0 控制请求，头和正文共享绝对期限及字节上限。"""
     limit = 1024 * 1024
-    with socket.create_connection(("127.0.0.1", int(port)), timeout=remaining(deadline)) as connection:
+    with socket.create_connection(("127.0.0.1", int(port)), timeout=remaining(deadline)) as connection:  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
         connection.settimeout(remaining(deadline))
-        connection.sendall(b"GET /api/ready HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")
+        connection.sendall(b"GET /api/ready HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
         raw = bytearray()
         header_end = -1
         while True:
@@ -640,7 +640,7 @@ class Controller:
                 raise ValueError("Q3结构入口不承载economic_query_config，不得静默丢弃")
             command = [config["binary"], "query-serve", "--protocol-revision", "s-session/3",
                        "--db", config["db"], "--resource-config", config["query_resource_config"],
-                       "--producer-epoch", query_epoch, "--host", "127.0.0.1", "--port", config["port"]]
+                       "--producer-epoch", query_epoch, "--host", "127.0.0.1", "--port", config["port"]]  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
             environment = self.runtime_environment(deadline)
         elif revision == "legacy/2":
             # 旧十九字段文件保留Python入口及其严格验证，不接纳新版值或token。

@@ -189,6 +189,19 @@ fn map_ref(map: &BTreeMap<String, ContentRef>, key: &str) -> Result<ContentRef, 
 }
 
 pub(super) trait FinancialStage: NodeSource {
+    /// 当前操作借入的期限不存入可复用 Stage；内存测试载体默认只核期限。
+    /// SQLite Stage 覆写此口，在实际返回后登记载荷再校验。
+    fn read_budgeted(
+        &mut self,
+        digest: &NodeDigest,
+        job: &mut Job,
+        deadline: Option<Instant>,
+    ) -> Result<NodeRead, CodecError> {
+        stage_deadline(job, deadline)?;
+        let read = self.read(digest)?;
+        stage_deadline(job, deadline)?;
+        Ok(read)
+    }
     // Call only after the client has checked the node digest and job node usage.
     // The owner reserves and reconciles actual staged/store allocation here.
     fn put_budgeted(
@@ -198,6 +211,18 @@ pub(super) trait FinancialStage: NodeSource {
         tag: u8,
         body: &[u8],
     ) -> Result<(), CodecError>;
+    fn put_budgeted_with_deadline(
+        &mut self,
+        job: &mut Job,
+        digest: NodeDigest,
+        tag: u8,
+        body: &[u8],
+        deadline: Option<Instant>,
+    ) -> Result<(), CodecError> {
+        stage_deadline(job, deadline)?;
+        self.put_budgeted(job, digest, tag, body)?;
+        stage_deadline(job, deadline)
+    }
     /// #1394 第三问选项 A：一块节点一次预留、一个事务、一次 checkpoint；调用方已对每个节点经
     /// `Job::accept_node` 核 F 并计节点账，实现再核 F 与同根冲突。本块新写入的摘要（已在本地者跳过、
     /// 不追加）在块事务提交时即追加到调用方的回滚清单 `inserted`，先于 checkpoint、对账、载体上限等
@@ -210,8 +235,24 @@ pub(super) trait FinancialStage: NodeSource {
         nodes: &[(NodeDigest, u8, Vec<u8>)],
         inserted: &mut Vec<NodeDigest>,
     ) -> Result<(), CodecError>;
+    fn put_batch_budgeted_with_deadline(
+        &mut self,
+        job: &mut Job,
+        nodes: &[(NodeDigest, u8, Vec<u8>)],
+        inserted: &mut Vec<NodeDigest>,
+        deadline: Option<Instant>,
+    ) -> Result<(), CodecError> {
+        stage_deadline(job, deadline)?;
+        self.put_batch_budgeted(job, nodes, inserted)?;
+        stage_deadline(job, deadline)
+    }
     /// 闭包尝试失败时删去该尝试写下的暂存行（只限给定摘要与本 stage）；返回删除行数。
     fn discard_staged(&mut self, digests: &[NodeDigest]) -> Result<u64, CodecError>;
+}
+fn stage_deadline(job: &mut Job, deadline: Option<Instant>) -> Result<(), CodecError> {
+    super::store::ReadBudget::new(Some(job), deadline)
+        .before()
+        .map_err(|e| CodecError::new(sc::code::SINK, e))
 }
 
 #[derive(Clone, Debug)]
@@ -563,7 +604,7 @@ fn read_once(
     // 会话读法不单独暂存 proof：proof 节点都在 basis 根的闭包里，随闭包流到达并接受同一成员核验；
     // proof 本身已在上面的独立 MemoryNodes 上核完头部与选中对象。
     if pins.reading == Reading::ColdFragment {
-        import_proof(&proof, stage, job)?;
+        import_proof(&proof, stage, job, Some(deadline))?;
     }
     // One complete check on a cached root. Missing nodes trigger retrieval by the one
     // frozen reading and a new check; any rows visited by the failed attempt stay charged.
@@ -676,10 +717,11 @@ fn import_proof(
     nodes: &[ProofNode],
     stage: &mut dyn FinancialStage,
     job: &mut Job,
+    deadline: Option<Instant>,
 ) -> Result<(), String> {
     for node in nodes {
         let (digest, tag, body) = node_parts(node)?;
-        match stage.read(&digest).map_err(codec)? {
+        match stage.read_budgeted(&digest, job, deadline).map_err(codec)? {
             NodeRead::Found {
                 tag: old_tag,
                 body: old_body,
@@ -687,7 +729,9 @@ fn import_proof(
                 return Err("IdentityConflict：同根不同节点原件".into())
             }
             NodeRead::Found { .. } => (),
-            NodeRead::Missing => stage.put_budgeted(job, digest, tag, &body).map_err(codec)?,
+            NodeRead::Missing => stage
+                .put_budgeted_with_deadline(job, digest, tag, &body, deadline)
+                .map_err(codec)?,
         }
     }
     Ok(())
@@ -769,13 +813,28 @@ fn check_selected(
     fields: &BTreeMap<String, ContentRef>,
     item: &SelectedObject,
 ) -> Result<(), String> {
+    check_selected_position(fields, item)?;
+    // Charge the selected top-level row before its position, ID or F23 is read.
+    // A later identity failure cannot erase this completed access.
+    job.charge_records(1).map_err(codec)?;
+    check_selected_after_charge(source, basis, snapshot, item)
+}
+fn check_selected_position(
+    fields: &BTreeMap<String, ContentRef>,
+    item: &SelectedObject,
+) -> Result<(), String> {
     let objects = map_ref(fields, "objects")?;
     if objects.kind != Kind::Array || item.snapshot_index >= objects.extent.unwrap_or(0) {
         return Err("IdentityConflict：selected snapshot 位置越界".into());
     }
-    // Charge the selected top-level row before its position, ID or F23 is read.
-    // A later identity failure cannot erase this completed access.
-    job.charge_records(1).map_err(codec)?;
+    Ok(())
+}
+fn check_selected_after_charge(
+    source: &mut dyn NodeSource,
+    basis: &ContentRef,
+    snapshot: &ContentRef,
+    item: &SelectedObject,
+) -> Result<(), String> {
     let path = [
         field("snapshot"),
         field("objects"),
@@ -802,14 +861,24 @@ fn check_selected(
 
 /// One source wrapper for the whole verification pass. Unique nodes stay deduplicated
 /// within the Job; logical record visits are charged separately at their access point.
+/// SQL adapter receives the same Job at each read, so returned bytes can be
+/// charged before decoding without a second mutable borrow or deferred tally.
+pub(super) type JobRead<'a> = dyn FnMut(&NodeDigest, &mut Job) -> Result<NodeRead, CodecError> + 'a;
+enum ReadSource<'a> {
+    Plain(&'a mut dyn NodeSource),
+    WithJob(&'a mut JobRead<'a>),
+}
 struct MeteredSource<'a> {
-    source: &'a mut dyn NodeSource,
+    source: ReadSource<'a>,
     job: &'a mut Job,
 }
 impl NodeSource for MeteredSource<'_> {
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
         self.job.pre_io_check()?;
-        let node = self.source.read(digest)?;
+        let node = match &mut self.source {
+            ReadSource::Plain(source) => source.read(digest)?,
+            ReadSource::WithJob(read) => read(digest, self.job)?,
+        };
         if let NodeRead::Found { tag, body } = &node {
             self.job.accept_node(digest, *tag, body)?;
         }
@@ -882,7 +951,7 @@ fn full_verify(
 ) -> Result<(), String> {
     let mut adapter = StoreSource(stage);
     let mut source = MeteredSource {
-        source: &mut adapter,
+        source: ReadSource::Plain(&mut adapter),
         job,
     };
     charge_scope_rows(&mut source, reference, steps)?;
@@ -895,11 +964,21 @@ fn verify_local(
     source: &mut dyn NodeSource,
     job: &mut Job,
 ) -> Result<VerifiedBasis, String> {
+    let mut metered = MeteredSource {
+        source: ReadSource::Plain(source),
+        job,
+    };
+    verify_local_metered(pins, evidence, &mut metered)
+}
+fn verify_local_metered(
+    pins: &SourcePins,
+    evidence: &Value,
+    metered: &mut MeteredSource<'_>,
+) -> Result<VerifiedBasis, String> {
     let root = from_ref(&evidence["basis_ref"])?;
-    let mut metered = MeteredSource { source, job };
-    charge_scope_rows(&mut metered, &root, &[])?;
-    sc::verify(&mut metered, &root).map_err(codec)?;
-    let (snapshot, _) = validate_headers(pins, evidence, &mut metered)?;
+    charge_scope_rows(metered, &root, &[])?;
+    sc::verify(metered, &root).map_err(codec)?;
+    let (snapshot, _) = validate_headers(pins, evidence, metered)?;
     metered.job.pre_io_check().map_err(codec)?;
     Ok(VerifiedBasis {
         evidence: evidence.clone(),
@@ -917,12 +996,45 @@ pub(super) fn verify_evidence(
     shared_job: &mut Job,
     s_ref: Option<&Value>,
 ) -> Result<VerifiedBasis, String> {
+    verify_evidence_metered(
+        structure,
+        evidence,
+        &mut MeteredSource {
+            source: ReadSource::Plain(source),
+            job: shared_job,
+        },
+        s_ref,
+    )
+}
+pub(super) fn verify_evidence_with_read<'a>(
+    structure: &Value,
+    evidence: &Value,
+    read: &'a mut JobRead<'a>,
+    shared_job: &'a mut Job,
+    s_ref: Option<&Value>,
+) -> Result<VerifiedBasis, String> {
+    verify_evidence_metered(
+        structure,
+        evidence,
+        &mut MeteredSource {
+            source: ReadSource::WithJob(read),
+            job: shared_job,
+        },
+        s_ref,
+    )
+}
+fn verify_evidence_metered(
+    structure: &Value,
+    evidence: &Value,
+    source: &mut MeteredSource<'_>,
+    s_ref: Option<&Value>,
+) -> Result<VerifiedBasis, String> {
     let pins = SourcePins::from_structure(structure)?;
-    if shared_job.snapshot().limits != pins.resources.job_limits {
+    if source.job.snapshot().limits != pins.resources.job_limits {
         return Err("IdentityConflict：shared Job 限额与冻结 reader_resources 不符".into());
     }
-    shared_job.begin_first_read().map_err(codec)?;
-    let mut verified = verify_local(&pins, evidence, source, shared_job)?;
+    source.job.begin_first_read().map_err(codec)?;
+    let mut verified = verify_local_metered(&pins, evidence, source)?;
     if let Some(reference) = s_ref {
         exact(reference, &OBJECT_REF)?;
         if reference["schema_revision"] != "s-object-ref/2" {
@@ -941,8 +1053,8 @@ pub(super) fn verify_evidence(
         let extent = objects.extent.ok_or_else(|| invalid("objects 缺长度"))?;
         let mut found = None;
         for index in 0..extent {
-            shared_job.pre_io_check().map_err(codec)?;
-            shared_job.charge_records(1).map_err(codec)?;
+            source.job.pre_io_check().map_err(codec)?;
+            source.job.charge_records(1).map_err(codec)?;
             let object = path::lookup_path(
                 source,
                 &root,
@@ -964,17 +1076,12 @@ pub(super) fn verify_evidence(
             }
         }
         let selected = found.ok_or_else(|| missing("s_ref 对象不在当前活动快照"))?;
-        check_selected(
-            source,
-            shared_job,
-            &root,
-            &verified.snapshot_ref,
-            &fields,
-            &selected,
-        )?;
+        check_selected_position(&fields, &selected)?;
+        source.job.charge_records(1).map_err(codec)?;
+        check_selected_after_charge(source, &root, &verified.snapshot_ref, &selected)?;
         verified.selected_objects.push(selected);
     }
-    shared_job.pre_io_check().map_err(codec)?;
+    source.job.pre_io_check().map_err(codec)?;
     Ok(verified)
 }
 
@@ -1111,7 +1218,7 @@ fn download_closure(
         }
         // 回滚清单交给批量写自己追加：块事务一提交即登记，提交后步骤失败也不漏（r2，独审 N1）。
         stage
-            .put_batch_budgeted(job, &batch, inserted)
+            .put_batch_budgeted_with_deadline(job, &batch, inserted, Some(deadline))
             .map_err(codec)?;
         if done {
             return Ok(received);
@@ -1227,7 +1334,7 @@ fn fetch_page(
     let request = json!({"schema_revision":"s-financial-content/1", "anchor":anchor,
         "path":path_json(path),"unit":unit.name(),"offset":offset.to_string(),"limit":limit.to_string()});
     let reply = pins.call("financial-content", &request, job, deadline)?;
-    accept_page_reply(
+    accept_page_reply_with_deadline(
         &reply,
         &pins.resources,
         root,
@@ -1239,6 +1346,7 @@ fn fetch_page(
         limit,
         job,
         stage,
+        Some(deadline),
     )
 }
 fn download(
@@ -1452,6 +1560,9 @@ mod closure_tests;
 #[cfg(test)]
 #[path = "reading_tests.rs"]
 mod reading_tests;
+#[cfg(test)]
+#[path = "tb03c_c5_content_tests.rs"]
+mod tb03c_c5_content_tests;
 
 #[cfg(test)]
 mod tests {
@@ -2001,7 +2112,7 @@ mod tests {
             .collect::<String>();
         assert_eq!(
             hash,
-            "257f8193f94ea5ab81bd69d4a6e41de8239e2527ffc7c3c671917dded5d7f78b"
+            "257f8193f94ea5ab81bd69d4a6e41de8239e2527ffc7c3c671917dded5d7f78b" // DevSkim: ignore DS173237 SHA-256 摘要/测试向量，非凭据
         );
         let pins = structure(&binary, &db, &hash);
         let conn = Connection::open_with_flags(&db, OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
@@ -2084,6 +2195,7 @@ mod tests {
     }
 }
 
+#[cfg(test)]
 fn accept_page_reply(
     reply: &Value,
     resources: &FinancialReaderResources,
@@ -2096,6 +2208,24 @@ fn accept_page_reply(
     limit: u64,
     job: &mut Job,
     stage: &mut dyn FinancialStage,
+) -> Result<Fragment, String> {
+    accept_page_reply_with_deadline(
+        reply, resources, root, anchor, path, expected, unit, offset, limit, job, stage, None,
+    )
+}
+fn accept_page_reply_with_deadline(
+    reply: &Value,
+    resources: &FinancialReaderResources,
+    root: &ContentRef,
+    anchor: &Value,
+    path: &[PathStep],
+    expected: Option<&ContentRef>,
+    unit: Unit,
+    offset: u64,
+    limit: u64,
+    job: &mut Job,
+    stage: &mut dyn FinancialStage,
+    deadline: Option<Instant>,
 ) -> Result<Fragment, String> {
     exact(reply, &PAGE)?;
     if reply["anchor"] != *anchor
@@ -2142,7 +2272,7 @@ fn accept_page_reply(
         financial_record_path,
     )
     .map_err(codec)?;
-    import_proof(&fragment.nodes, stage, job)?;
+    import_proof(&fragment.nodes, stage, job, deadline)?;
     Ok(fragment)
 }
 

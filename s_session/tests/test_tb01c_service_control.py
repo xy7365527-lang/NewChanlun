@@ -167,7 +167,7 @@ class LifecycleTests(unittest.TestCase):
                 env.assert_called_once_with(0.025)
                 start.assert_called_once_with("q", [config["binary"], "query-serve", "--protocol-revision",
                     "s-session/3", "--db", config["db"], "--resource-config", str(resources),
-                    "--producer-epoch", "7", "--host", "127.0.0.1", "--port", "12345"],
+                    "--producer-epoch", "7", "--host", "127.0.0.1", "--port", "12345"],  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
                     {"PYO3_PYTHON": config["python"]}, deadline=0.025)
                 ready.assert_called_once_with("q", query_epoch="7", deadline=0.025)
             finally:
@@ -535,7 +535,7 @@ class LifecycleTests(unittest.TestCase):
 
     def test_slow_drip_header_cannot_extend_total_health_deadline(self):
         listener = socket.socket()
-        listener.bind(("127.0.0.1", 0))
+        listener.bind(("127.0.0.1", 0))  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
         listener.listen(1)
         port = listener.getsockname()[1]
         def drip():

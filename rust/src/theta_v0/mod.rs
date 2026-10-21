@@ -58,6 +58,8 @@
 //! - 所有平局按 `(timestamp, source_index)` 升序裁决；已确认结构不可回写重分解。
 
 pub mod config;
+/// #1603：级别塔上界与 MACD 力度参数的版本化记录（ADR 0041；#1586 C-09/C-10）。
+pub mod policy_records;
 pub mod types;
 
 /// C2：46 个直读 env 键的单一登记处（map #743，spec #756）——键名/语义/行为门|观测门/默认臂/

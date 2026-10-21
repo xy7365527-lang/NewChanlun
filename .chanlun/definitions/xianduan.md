@@ -1,13 +1,14 @@
 # 线段（Xianduan / Segment）
 
 > 正本：本文件是 线段 的教义正本。
-> 最后裁定：[#1493](https://github.com/xy7365527-lang/NewChanlun/issues/1493)（2026-10-20，主控裁定四项：同段候选按序判定、有缺口 c ⊂ b 合并保 b、PENDING_CASE_ONE 与最少笔数口径、合同层版本/阻断载体/归叶表，§7.1 第 1/3/4/6/7/8 条）；此前 [#1490](https://github.com/xy7365527-lang/NewChanlun/issues/1490)（2026-10-14，第一种情况的终结候选三态、转折点窗、先破判据、段端门去向与流首段起点定义，§7.1）、[#1344](https://github.com/xy7365527-lang/NewChanlun/issues/1344)（2026-10-13，G-5a）、#813（2026-08-05）
-> 受影响代码清单：见本文件 §15「受影响代码清单」（X-1～X-20、X-25～X-37；#1490 的 X-25～X-32；#1493 的 X-33～X-37；X-21～X-24 预留给 [#1419](https://github.com/xy7365527-lang/NewChanlun/issues/1419) §8 段区间，随其合入补入；工作草稿副本 `.chanlun/review-results/issue1323-grilling-20261013/1490-AFFECTED-CODE.md`，票关后随归档出仓）
+> 最后裁定：[#1600](https://github.com/xy7365527-lang/NewChanlun/issues/1600)（2026-10-21，§6 相切边界落为可调字段 `tangency`，默认 `closed` 承 [#246](https://github.com/xy7365527-lang/NewChanlun/issues/246) 既有裁定，§6.2／§6.3）；此前 [#1493](https://github.com/xy7365527-lang/NewChanlun/issues/1493)（2026-10-20，主控裁定四项：同段候选按序判定、有缺口 c ⊂ b 合并保 b、PENDING_CASE_ONE 与最少笔数口径、合同层版本/阻断载体/归叶表，§7.1 第 1/3/4/6/7/8 条）；此前 [#1490](https://github.com/xy7365527-lang/NewChanlun/issues/1490)（2026-10-14，第一种情况的终结候选三态、转折点窗、先破判据、段端门去向与流首段起点定义，§7.1）、[#1344](https://github.com/xy7365527-lang/NewChanlun/issues/1344)（2026-10-13，G-5a）、#813（2026-08-05）
+> 受影响代码清单：见本文件 §15「受影响代码清单」（X-1～X-20、X-25～X-38；#1600 的 X-38；#1490 的 X-25～X-32；#1493 的 X-33～X-37；X-21～X-24 预留给 [#1419](https://github.com/xy7365527-lang/NewChanlun/issues/1419) §8 段区间，随其合入补入；工作草稿副本 `.chanlun/review-results/issue1323-grilling-20261013/1490-AFFECTED-CODE.md`，票关后随归档出仓）
 
-**版本**: v2.4（v2.2 预留给 #1419 中枢票的 §8 段区间，在其分支，合入时补入）
+**版本**: v2.5（v2.2 预留给 #1419 中枢票的 §8 段区间，在其分支，合入时补入）
 **状态**: 已结算（本版落 [#813](https://github.com/xy7365527-lang/NewChanlun/issues/813) G-1～G-5 五组裁定）
-**最后更新**: 2026-10-20
+**最后更新**: 2026-10-21
 **变更**:
+- **v2.5（2026-10-21）** 落 [#1600](https://github.com/xy7365527-lang/NewChanlun/issues/1600)（ADR 0041 自由度通则，审计 #1586 A-12）：§6 新增 §6.2 订正（相切边界早由 [#246](https://github.com/xy7365527-lang/NewChanlun/issues/246) 于 2026-07-25 裁定「相切算重合 ⟹ 无缺口」，v2.0 写「未裁」系漏查）与 §6.3 可调字段 `tangency ∈ {closed, open}`（默认 `closed`，含管辖面、可选值代价、混合取值排除、载体）；§8「相切边界」、§9 规则、§12.1、§18 同步；§15 X-14 改判、新增 X-38。名分仍为 `[新缠论:选择]`，不改判 #246。
 - **v2.4（2026-10-20）** 落 [#1493](https://github.com/xy7365527-lang/NewChanlun/issues/1493) 主控裁定（issuecomment-6282247099，T 类）：§7.1 新增第 8 条「同段候选按序判定」（第二种候选未决即封段，与预算耗尽同一停段标志，尾窗不截断未决阻断）；第 1 条补对外结果与第二种情况的前缀不回退；第 3 条限定只管第一种情况；第 4 条补有缺口 c ⊂ b 合并保 b；第 6 条补最少笔数口径、Q/S 载体与 Rust 下游拒读待 X-37；第 7 条 `s-segment/3` 改 `s-segment/4` 并补归叶表；§5.1 语义终点段末指向第 8 条；§5.2 订正 `TAIL_WINDOW` 陈述；§10 规则 2 补同义一句；§15 X-33～X-37；§16 V-15 重测、新增 V-17 与观察量 V-18（段端点非段内极值，不作门）。
 - **v2.3（2026-10-14）** 落 [#1490](https://github.com/xy7365527-lang/NewChanlun/issues/1490)：§7 第 71 课补 `071:26/:30/:32/:38/:40` 逐字、第 78 课补 `078:22/:24/:38`；新增 §7.1「第一种情况的终结候选三态与转折点窗」（Q1 三态、Q2 a/b、先破判据、流首段起点定义）；§10 规则 4 第一种情况改写；§12.1 古怪线段条目改指 §7.1；§15 X-25～X-32；§16 V-5 收口、新增 V-15／V-16。
 - **v2.1（2026-10-13）** 落 [#1344](https://github.com/xy7365527-lang/NewChanlun/issues/1344)：§5.1 G-5a 由「待裁」改为已裁（第二种候选语义终点三态、同笔顺序、续扫游标、族I `50` 的名分）；§7 第 78 课补 `078:52` 失效条件原句；§15 X-12 改处置并新增 X-16～X-20。
@@ -242,6 +243,29 @@ OPEN 不是否定 ⟹ 同段其后的候选不判，段在该候选处停住，�
 2. **载体不止 P1/P2 两个** —— Lean 侧 Claim10 H4（`≤`）与 claim5 v0（`<`）是**第三、第四个**同型分歧点；
 3. **Claim10 已明确「不擅自裁定，保留张力」** ⟹ 这项待裁**跨形式化层与生产层**，不是纯生产口径问题。
 
+> **v2.5 注**：上表与 §6.1 是 v2.0（#813）时的考据现场，保留不改；行号已漂（Lean 注释现在 `Claim10_SegmentV1.lean:517-520`，P1 比较现在 `a_segment_v0.py:164`，P2 现在 `segment.rs:142`）。结论以 §6.2／§6.3 为准。
+
+### 6.2 订正：本项早已由 [#246](https://github.com/xy7365527-lang/NewChanlun/issues/246) 裁定，v2.0「未裁」不成立（[#1600](https://github.com/xy7365527-lang/NewChanlun/issues/1600) 考古，2026-10-21）
+
+v2.0 立「新增待裁项」时没有搜 tracker。[#246](https://github.com/xy7365527-lang/NewChanlun/issues/246)（2026-07-25 编排者裁定，裁定书 `chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md`，2026-07-26 实装后复核与编排者复议两签封口）已裁：**相切（两区间只有一个公共端点）算「有重合区间」⟹ 无缺口**，supersede Lead #84 点3 的「相切不算」，并在两条线同批落码（theta_v0 由 #248；legacy `rust/src/segment.rs` 与 Python `a_segment_v1.py` 由 #288／#317）。
+
+#246 的考据结论与 §6 一致：**原文未定**。裁定书 §3.1 穷尽第 67／71／77／78 课及全部「重合」「缺口」命中课次，缠师从未讨论端点恰好相等的情形；它给的两条旁证（中枢定理一判「脱离」用严格不等号；包含是强关系、端点相等不触发）都自陈是推断、非原文直述。⟹ **名分 `[新缠论:选择]` 不变，取值已有裁定**。§6 表中 P1 的 `<` 与 Lean claim5 的 `<` 是 #246 之后没跟上的残留，不是待裁的另一方。
+
+本轮补核一条旁证，结论是只能作弱旁证。`065-第65课.md` 界在 `:56`，`:44`／`:48`／`:50` 在界内、行首无注标记、行内无娇注：`:44`【正文】笔破坏定义「如果找到i和j，j>=i+2,使得dj<=gi,那么称向上线段被笔破坏」把端点相等计入破坏；`:48`【正文】说下面的定理「由上面线段被笔破坏的定义可以证明」，`:50`【正文】即线段分解定理（「有重叠部分的连续三笔」）。但笔破坏与三笔重合是两个谓词，原文没给证明；同课 `:24` 行内另有编注「(注：应去掉等于号)」（针对 K 线方向定义，非作者文字），可见该课的等号本身有争议。不据此把名分升为推论。
+
+### 6.3 可调字段 `tangency`（[#1600](https://github.com/xy7365527-lang/NewChanlun/issues/1600)，[ADR 0041](../../docs/adr/0041-degrees-of-freedom-configurable-not-excluded.md)）
+
+| 项 | 内容 |
+|---|---|
+| **字段** | `tangency ∈ {closed, open}` |
+| **管辖面** | #246 裁定书 §3.4 定的域：一切「区间是否重合／是否有缺口」的二元判定，即受 `gap_iff_not_overlap`（`formal/Origin/SegmentFeatureSeq.lean:118`）约束的互补对。线段层有两处：三笔起点重合（§9／§10）与特征序列缺口。不含构造性非退化要求（如中枢 `ZD < ZG`，#298 终裁）。他处若有同域落点，援引本字段，不另立字段 |
+| **默认值** | **`closed`**：相切算重合 ⟹ 相切处无缺口。依据：#246 裁定；现行生产 `rust/src/theta_v0/parser/segment.rs:142` `max_lo <= min_hi` 与 `feature_seq.rs:280`／`:295` 的严格 `>` 缺口判据 |
+| **可选值 `open`** | 相切不算重合 ⟹ 相切即缺口。来源：Lead #84 点3 旧口径；P1 `src/newchan/a_segment_v0.py:164` 与 Lean `formal/Phase2/Claim5_ConstitutiveLadder.lean:243-244`（`wellFormedV0` 定义；`:230` 为其文档注释）现仍写死此值。不违原文（原文未定），无实测否证，保留为可选值。**代价**：① 在案读数是 #246 落码时 `closed` 相对 `open` 的差（`chanlun/review-results/tangency-impact-quantification-20260725.md` §3、`tangency-fills-quantification-20260726.md` §0）：缺口谓词相切命中 OKLO 21/292（约 7.2%）、BTC 3/307（约 1.0%），三笔起点谓词两品种 0 次；终态段端点零变化（OKLO 2614 段、BTC 4463 段逐字节一致），中间有瞬态路径差；成交侧订单数 +1.1%～2.5%，含成本权益 +0.094pp／+0.022pp。这些只对那两个窗口成立、不构成 alpha 声明，改签 `open` 须按新值重测；② Lean `HasGap`／`Overlaps`（`SegmentFeatureSeq.lean:102`／`:111`）现写死 `closed`，签 `open` 前须把这对定义参数化并重证互补定理；③ 与 #246 封口的 bit-exact 基线不可比，旧对象留作 AsKnown 历史 |
+| **适用条件** | 一次运行里全级、全落点只读同一个值（[#804](https://github.com/xy7365527-lang/NewChanlun/issues/804)：同一判定每级同一个）；改值 ＝ 新版本、按新值重推导，不在旧版本内热改（ADR 0041 裁定三第 4 条） |
+| **排除（真错）** | ① 重合与缺口各取一值的混合取值：违 `067-第67课.md:18`【正文】（界 `:62`，行首无注、行内无娇注）「特征序列两相邻元素间没有重合区间，称为该序列的一个缺口」——缺口按定义就是无重合，两者必须互补；也破 `gap_iff_not_overlap`。② 按级别或落点分别取值：违 #804。③ 运行中按判定结果在两值间改走（如 `closed` 判不出就换 `open` 再判）：[#799](https://github.com/xy7365527-lang/NewChanlun/issues/799) 兜底形态 |
+| **载体** | 线段构造规则的版本化记录，随 `rule_revision` 走。它改的是段的语义，不并入 `second-seq-scan-budget` 这类资源预算记录。默认 `closed` 与现行规则等价，不新增 token；记录 id、token 名与缺值行为（`AwaitingPolicy` 或报错停止，不回退常数）由 [#1604](https://github.com/xy7365527-lang/NewChanlun/issues/1604) 定 |
+| **名分** | 字段 `[新缠论:选择]`（ADR 0041 裁定一）；默认值 `closed` 承 #246，同为 `[新缠论:选择]` |
+
 ---
 
 ## 7. 原文谱系
@@ -359,7 +383,7 @@ OPEN 不是否定 ⟹ 同段其后的候选不判，段在该候选处停住，�
 
 ### 相切边界
 
-**未裁**（§6）。当前两个生产载体不一致（P1 `<` / P2 `<=`），Lean 侧两个载体也不一致。
+**可调字段 `tangency`，默认 `closed`（相切算重合 ⟹ 相切处无缺口）**，取值承 [#246](https://github.com/xy7365527-lang/NewChanlun/issues/246)，字段说明见 §6.3（[#1600](https://github.com/xy7365527-lang/NewChanlun/issues/1600)）。P1 与 Lean claim5 写死的 `<` 是未跟残留，改读字段归 §15 X-38。
 
 ---
 
@@ -368,7 +392,7 @@ OPEN 不是否定 ⟹ 同段其后的候选不判，段在该候选处停住，�
 **定义**: 连续三笔 price range 有交集即成段。
 
 **规则**:
-- `max(lows of 3 strokes) < min(highs of 3 strokes)` → 重叠成立（**`<`，开区间，相切不算** —— 见 §6）
+- `max(lows of 3 strokes) < min(highs of 3 strokes)` → 重叠成立（**`<`，开区间，相切不算** —— 即写死了 `tangency=open`；P1 不进管线，改读字段见 §6.3、§15 X-38）
 - 贪心推进：成段后跳三笔继续扫描（`a_segment_v0.py:157`）
 - 方向 = 第一笔方向
 - **段长恒 3 笔**（`:130` `s1=j + 2` 写死）
@@ -424,7 +448,7 @@ OPEN 不是否定 ⟹ 同段其后的候选不判，段在该候选处停住，�
 - 连续三笔无重叠：不成段
 - **偶数笔的结构不是线段**（`077:62`）
 - 古怪线段（78课）：第三笔在第一笔范围内、无法构成特征序列时为转折点窗；先越过假设转折点 ⟹ 候选作废、旧段延续（§7.1 第 1／3 条，`078:38`／`:42`）。与第67课「两种情况」正交
-- **相切边界（`<` vs `<=`）：未裁**（§6）
+- 相切边界：可调字段 `tangency`，默认 `closed`（§6.3，#246 取值、#1600 落字段）
 
 ## 13. v1 状态机审计结果（2026-02-16，v1.3 遗留）
 
@@ -477,7 +501,7 @@ OPEN 不是否定 ⟹ 同段其后的候选不判，段在该候选处停住，�
 | X-11 | `rust/src/theta_v0/parser/feature_seq.rs:284` `ExtendMode::Optimized` | 删该档（连带 4 测试 + 4 rust 调用点） | **零原文依据**，无生产构造点，两档实测差 **5.7 倍**（§4） | **归 SPEC**（本票不动手） |
 | X-12 | `rust/src/segment.rs:413` `MAX_SECOND_SEQ_SCAN = 50` | **不改造、不参准入**；加带票号注释；消费面（`orchestrator.rs:53/:104-112/:205-219`、`segment_layers.rs:499/:530-545/:828-838`、`lib.rs:946-993`）登记 TB-10 旧入口清单 | #1344 第五问：族I 为待收编/退役旧入口，余量判据只在截断口径下成立（§5.1） | **已裁 #1344** → TB-10 |
 | X-13 | `rust/src/segment.rs:410` `TAIL_WINDOW = 7` | **不动** | **G-5b 撤票**（该侧无分歧，§5.2） | **撤票，无归属** |
-| X-14 | `src/newchan/a_segment_v0.py:162` `<` vs `rust/src/theta_v0/parser/segment.rs:116` `<=` | 统一相切边界 | **原文未表态** ⟹ `[新缠论:选择]`；且 Lean 侧 `Claim10:471-474` 已登记同型分歧并明写「不擅自裁定」（§6） | **#813 新增待裁项（未收口）** |
+| X-14 | `src/newchan/a_segment_v0.py:162` `<` vs `rust/src/theta_v0/parser/segment.rs:116` `<=` | 统一相切边界 | **原文未表态** ⟹ `[新缠论:选择]`；且 Lean 侧 `Claim10:471-474` 已登记同型分歧并明写「不擅自裁定」（§6） | **已由 #246 裁定（v2.0 漏查，§6.2）；#1600 落字段 → X-38** |
 | X-15 | G-4 与「D-5」的口径一致性 | 收口 | 考据未拿到 D-5 票面，只给了三条结构对齐点（§4） | **#813 待办（不假装已对齐）** |
 | X-16 | `rust/src/theta_v0/parser/feature_seq.rs:143-153` `SecondSequenceFacts`、`:299-396` `second_sequence`（`:395` `resource_truncated`）；`parser/segment.rs:264/:444/:474/:491` | 补 `KILLED_BY_NEW_EXTREME` 与越界水位；`resource_truncated` 语义保留，失效时为 false；读取处识别失效态。`:298` 文档的带票号注释随本次提交落（零行为变更） | #1344 第一/三问 | **归 TB-02-W [#1420](https://github.com/xy7365527-lang/NewChanlun/issues/1420)** |
 | X-17 | `rust/src/theta_v0/parser/segment.rs:924-936`（`earliest_unsealed_from`，级联复活注释 `:928-930`）、`:1036-1040`（`append` 的 `confirmed_bound` 回退）、`:961-966`（`from_full` 不重建跳过史） | 失效候选不得由回退/`from_full` 复活；恢复按 K1 游标 | #1344 第一/四问 | **归 #1420** |
@@ -497,6 +521,7 @@ OPEN 不是否定 ⟹ 同段其后的候选不判，段在该候选处停住，�
 | X-35 | `rust/src/theta_v0/parser/tb02c_tests.rs:678`（流首段之外门失败 = 0、非流首段 MinCount = 0 两条断言）、`:914` 生产增量合成 K 线 fail-closed 零计数锁（#1581 报告输入） | 计数锁（§7.1 第 6 条） | 裁定 3、4b | [#1493](https://github.com/xy7365527-lang/NewChanlun/issues/1493) |
 | X-36 | `s_session/s_tb02_contract.py:47`（`RESULT_SEMANTIC_BRANCH`）、`:993`（未归叶即拒）；`s_session/browser/q3-typed.js:187-188`（同表，导出）；`s_session/tests/test_tb02c_turn_contract.py:161`（py 与 JS 表同一、叶在 CC-013）、`:178`（merge 步保 b 正例） | 结果归叶表（§7.1 第 7 条） | 裁定 4c | [#1493](https://github.com/xy7365527-lang/NewChanlun/issues/1493) |
 | X-37 | `rust/src/theta_v0/parser/mod.rs`（`ParseLayer` 带 fail-closed 标记）、`parser/tail.rs` `build_tail`（标记非空时不从失败段起点构造尾部）、classifier 入口拒读 | Rust 下游读 fail-closed 标记（§7.1 第 6 条） | 裁定 4b | [#1581](https://github.com/xy7365527-lang/NewChanlun/issues/1581)（跟进票；合入前生产路径出现标记即 #1493 验收失败） |
+| X-38 | **Rust**：`rust/src/theta_v0/parser/segment.rs:93-95`（`Interval::overlaps` `<=`）、`:97`（`Interval::gap`）、`:142`（`three_stroke_overlap` `max_lo <= min_hi`）、`:1553` `overlaps_and_gap_bit_exact_claim10`；`parser/feature_seq.rs:280`／`:295`（缺口严格 `>`）；legacy `rust/src/segment.rs:133`（`lo <= hi`）、`:401`／`:405`（缺口严格 `>`）；`rust/src/segment_tangency_tests.rs`（回归锁）、`rust/src/bin/tangency_probe.rs`（探针）。**Python**：`src/newchan/a_segment_v0.py:164`（P1 写死 `<`）；`src/newchan/a_segment_v1.py:63`（`<=`）、`:281`／`:284`（缺口严格 `>`）。**Lean**：`formal/Origin/SegmentFeatureSeq.lean:102-103`（`HasGap`）、`:111-112`（`Overlaps`）、`:118`（`gap_iff_not_overlap`）；`formal/Phase2/Claim10_SegmentV1.lean:99`（`overlaps` `≤`）、`:517-520`（H4「未结算口径」注，改指本文件 §6.3）；`formal/Phase2/Claim5_ConstitutiveLadder.lean:243-244`（`wellFormedV0` 写死 `<`；`:230` 文档注释同改） | 写死的比较改读 `tangency` 字段（默认 `closed`，等值对拍逐位不变）；同一字段同时管重合与缺口两谓词；P1 与 claim5 的 `<` 改读字段；Lean 侧先参数化 `HasGap`／`Overlaps` 并重证互补定理，再谈签 `open` | §6.3（#1600，A-12） | Rust 与 Python → [#1604](https://github.com/xy7365527-lang/NewChanlun/issues/1604)；Lean 三处 → [#1626](https://github.com/xy7365527-lang/NewChanlun/issues/1626) |
 
 **穷举方法声明**：X-1~X-14 的行号均本轮 `grep`／`sed` 逐条核实。**可达性断言（X-8／X-11）的覆盖范围 ＝ `rust/src/`＋`src/`＋`scripts/`＋`.github/`＋`formal/`，未覆盖 `frontend/`、`trading_system/`、`prototypes/`、NT 适配层** ⟹ 一律写「**已查到的有 N 处**」，不写「全部」。
 
@@ -540,5 +565,5 @@ OPEN 不是否定 ⟹ 同段其后的候选不判，段在该候选处停住，�
 - **正本口径 ＝ P2（特征序列法）**，`[旧缠论]`
 - **P1 降为参考实现**（`[新缠论:选择]`，不进正式管线）
 - **P3 判违规**，但**它正是 Lean 管线现在接的那一套**（`Pipeline.lean:137`）⟹ **形式化层与正本口径当前不一致**，归 SPEC（X-1／X-2／X-3）
-- **两项未裁**：相切边界（§6）／G-4 与 D-5 的一致性（§4）；G-5a 已由 [#1344](https://github.com/xy7365527-lang/NewChanlun/issues/1344) 收口（§5.1）
+- **一项未裁**：G-4 与 D-5 的一致性（§4）；相切边界已由 #246 取值、#1600 落为可调字段 `tangency`（§6.3）；G-5a 已由 [#1344](https://github.com/xy7365527-lang/NewChanlun/issues/1344) 收口（§5.1）
 - **一切段数读数须在笔侧切新笔后重出**（§14）

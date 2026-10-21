@@ -9,6 +9,7 @@ import {
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
 import { StringDecoder } from "node:string_decoder";
+import { gitEnvironment } from "./git-environment.ts";
 
 /** 经本机 CLIProxyLocal 的 OAuth 订阅路由；不带 mf/、yd/ 等中转前缀（用户 2026-10-13 指示）。 */
 export const MODEL = "claude-opus-5-5";
@@ -20,7 +21,7 @@ export const PROVIDER_KEY_ENV = "CLIPROXY_LOCAL_KEY";
 /** 与用户 ~/.codex/config.toml 的 [model_providers.cliproxy-local] 逐项相同。 */
 export const PROVIDER_DEFINITION = {
   name: "CLIProxyAPI Local",
-  base_url: "http://127.0.0.1:8318/v1",
+  base_url: "http://127.0.0.1:8318/v1", // DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
   wire_api: "responses",
   supports_websockets: false,
   supports_standalone_web_search: false,
@@ -127,7 +128,7 @@ function git(root: string, args: string[]): string {
     "-C", root, ...args,
   ], {
     encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+    env: gitEnvironment(),
   }).trim();
 }
 
@@ -392,7 +393,7 @@ export async function supervisedNoSandbox(checkout: string, observation: Process
           try { process.kill(-child.pid, "SIGTERM"); } catch (error) {
             if ((error as NodeJS.ErrnoException).code !== "ESRCH") issue = "无法停止工蜂进程组";
           }
-          killTimer = setTimeout(() => {
+          killTimer = setTimeout(() => { // DevSkim: ignore DS172411 回调为函数字面量而非字符串
             try { process.kill(-child.pid!, "SIGKILL"); } catch { /* 进程组已退出；仍等待 close。 */ }
           }, 1000);
         };
@@ -403,11 +404,11 @@ export async function supervisedNoSandbox(checkout: string, observation: Process
         };
         const resetIdle = () => {
           clearTimeout(idleTimer);
-          idleTimer = setTimeout(() => stop("工蜂输出空闲超时"), observation.idleTimeoutSeconds * 1000);
+          idleTimer = setTimeout(() => stop("工蜂输出空闲超时"), observation.idleTimeoutSeconds * 1000); // DevSkim: ignore DS172411 回调为函数字面量而非字符串
         };
         const abort = () => stop("管理者取消工蜂");
         observation.signal?.addEventListener("abort", abort, { once: true });
-        const fullTimer = setTimeout(() => stop("工蜂总运行超时"), observation.timeoutSeconds * 1000);
+        const fullTimer = setTimeout(() => stop("工蜂总运行超时"), observation.timeoutSeconds * 1000); // DevSkim: ignore DS172411 回调为函数字面量而非字符串
         resetIdle();
         child.on("spawn", () => guarded("工蜂启动通知失败", () => observation.onSpawn(child.pid!)));
         child.on("error", () => { issue ??= "无法启动 Codex 进程"; });

@@ -1,0 +1,128 @@
+ref=codex/1629-endpoint-prune sha=af6976de0644362db1d1f0bcba0c6e615cc79554 sub=rust target=/home/hanju/nc-remote/issue1629-b cmd=bash -c P=$CARGO_TARGET_DIR/release/issue1588_parse_mem_probe\;\ D=$HOME/nc-remote/data/btc_1m_full.json\;\ ld\(\)\{\ echo\ "---\ host:\ loadavg=$\(cut\ -d"\ "\ -f1-3\ /proc/loadavg\)\ $\(grep\ MemAvailable\ /proc/meminfo\|tr\ -s\ "\ "\)"\;\ \}\;\ for\ rep\ in\ 1\ 2\;\ do\ for\ W\ in\ 50000\ 150000\ 300000\ 1000005\ 2000005\ 3000005\ 4613500\;\ do\ ld\;\ ISSUE1588_WINDOW=$W\ ISSUE1629_LAYER_ONLY=1\ $P\ $D\ facts\ $\(\(W-5\)\)\;\ ISSUE1588_WINDOW=$W\ $P\ $D\ layer\ $\(\(W-5\)\)\;\ done\;\ done 
+--- host: loadavg=9.71 10.80 10.81 MemAvailable: 45024672 kB
+== mode=facts n=49995 window=50000
+facts secs=0.31 alloc_total_mb=297.5 peak_mb=129.5 retained_mb=98.0 steps=49995 groups=30863 merged=30863 fractals=14017 strokes=4016 segments=524 tail=2
+  endpoints=14017 strokes=4016 digest layer=0b2f23ed9c55fcab856cda81f0f7a063cd03a06a9f92036303b300e5e7b4dde7 stroke_facts=skipped facts=skipped
+  rss VmRSS=398824 kB VmHWM=1289620 kB
+== mode=layer n=49995 window=50000
+layer secs=0.25 alloc_total_mb=198.4 peak_mb=103.9 retained_mb=2.7 merged=30863 fractals=14017 strokes=4016 segments=524 tail=2
+  digest layer=0b2f23ed9c55fcab856cda81f0f7a063cd03a06a9f92036303b300e5e7b4dde7
+  rss VmRSS=399616 kB VmHWM=1289620 kB
+--- host: loadavg=9.73 10.79 10.81 MemAvailable: 44956984 kB
+== mode=facts n=149995 window=150000
+facts secs=1.00 alloc_total_mb=1074.9 peak_mb=463.1 retained_mb=344.9 steps=149995 groups=98667 merged=98667 fractals=45630 strokes=12697 segments=1645 tail=2
+  endpoints=45630 strokes=12697 digest layer=3a6e95ed66a5ff9b466eed01150c2956cab54d595c63c6463660954b6d476e4e stroke_facts=skipped facts=skipped
+  rss VmRSS=493588 kB VmHWM=1289492 kB
+== mode=layer n=149995 window=150000
+layer secs=0.95 alloc_total_mb=710.1 peak_mb=369.4 retained_mb=10.6 merged=98667 fractals=45630 strokes=12697 segments=1645 tail=2
+  digest layer=3a6e95ed66a5ff9b466eed01150c2956cab54d595c63c6463660954b6d476e4e
+  rss VmRSS=521584 kB VmHWM=1289624 kB
+--- host: loadavg=9.77 10.76 10.80 MemAvailable: 44926096 kB
+== mode=facts n=299995 window=300000
+facts secs=2.38 alloc_total_mb=2175.3 peak_mb=937.3 retained_mb=700.2 steps=299995 groups=195520 merged=195520 fractals=89644 strokes=24841 segments=3299 tail=2
+  endpoints=89644 strokes=24841 digest layer=940284555b1afd320e3f6f4213eebb450f1af30c317a1115790b64d8c6785127 stroke_facts=skipped facts=skipped
+  rss VmRSS=702220 kB VmHWM=1289496 kB
+== mode=layer n=299995 window=300000
+layer secs=1.81 alloc_total_mb=1449.2 peak_mb=750.4 retained_mb=21.1 merged=195520 fractals=89644 strokes=24841 segments=3299 tail=2
+  digest layer=940284555b1afd320e3f6f4213eebb450f1af30c317a1115790b64d8c6785127
+  rss VmRSS=758020 kB VmHWM=1289368 kB
+--- host: loadavg=9.96 10.77 10.80 MemAvailable: 44935072 kB
+== mode=facts n=1000000 window=1000005
+facts secs=9.19 alloc_total_mb=6681.9 peak_mb=2800.4 retained_mb=2166.1 steps=1000000 groups=658199 merged=658199 fractals=292204 strokes=81215 segments=10717 tail=2
+  endpoints=292204 strokes=81215 digest layer=29a0a3ee82df552b561f78aa9f0c259d2fe2c3bdebd4237bbb0c982d2203da76 stroke_facts=skipped facts=skipped
+  rss VmRSS=1728080 kB VmHWM=3268508 kB
+== mode=layer n=1000000 window=1000005
+layer secs=4.74 alloc_total_mb=4944.2 peak_mb=2550.2 retained_mb=83.7 merged=658199 fractals=292204 strokes=81215 segments=10717 tail=2
+  digest layer=29a0a3ee82df552b561f78aa9f0c259d2fe2c3bdebd4237bbb0c982d2203da76
+  rss VmRSS=1903884 kB VmHWM=2794528 kB
+--- host: loadavg=10.05 10.72 10.79 MemAvailable: 44902484 kB
+== mode=facts n=2000000 window=2000005
+facts secs=20.16 alloc_total_mb=13547.0 peak_mb=5672.9 retained_mb=4407.0 steps=2000000 groups=1308680 merged=1308680 fractals=584269 strokes=162990 segments=21216 tail=2
+  endpoints=584269 strokes=162990 digest layer=ba0ec8124816fc020ef29547eb6b5cd5aa70208813db06b3023e257094e29ccb stroke_facts=skipped facts=skipped
+  rss VmRSS=3572840 kB VmHWM=6330124 kB
+== mode=layer n=2000000 window=2000005
+layer secs=10.17 alloc_total_mb=10075.5 peak_mb=5177.3 retained_mb=167.5 merged=1308680 fractals=584269 strokes=162990 segments=21216 tail=2
+  digest layer=ba0ec8124816fc020ef29547eb6b5cd5aa70208813db06b3023e257094e29ccb
+  rss VmRSS=3610856 kB VmHWM=5388244 kB
+--- host: loadavg=10.49 10.76 10.80 MemAvailable: 44966580 kB
+== mode=facts n=3000000 window=3000005
+facts secs=28.50 alloc_total_mb=20130.5 peak_mb=8776.6 retained_mb=6820.8 steps=3000000 groups=2026552 merged=2026552 fractals=908132 strokes=253723 segments=33229 tail=2
+  endpoints=908132 strokes=253723 digest layer=eff2d82a600d6ed8761e1d0225bf31b3e0830dbe06683c43b06ff9773e5dece4 stroke_facts=skipped facts=skipped
+  rss VmRSS=5280304 kB VmHWM=9506664 kB
+== mode=layer n=3000000 window=3000005
+layer secs=14.61 alloc_total_mb=13732.3 peak_mb=7088.8 retained_mb=172.2 merged=2026552 fractals=908132 strokes=253723 segments=33229 tail=2
+  digest layer=eff2d82a600d6ed8761e1d0225bf31b3e0830dbe06683c43b06ff9773e5dece4
+  rss VmRSS=5362012 kB VmHWM=8092336 kB
+--- host: loadavg=10.07 10.57 10.73 MemAvailable: 44852060 kB
+== mode=facts n=4613495 window=4613500
+facts secs=50.55 alloc_total_mb=35847.5 peak_mb=15432.2 retained_mb=11693.2 steps=4613495 groups=3037848 merged=3037848 fractals=1369309 strokes=388166 segments=51740 tail=2
+  endpoints=1369309 strokes=388166 digest layer=bb067c8bb7b532a355480871c75682f50fb0ad0f520968e01a7aa2044ae97165 stroke_facts=skipped facts=skipped
+  rss VmRSS=8058492 kB VmHWM=14507260 kB
+== mode=layer n=4613495 window=4613500
+layer secs=27.84 alloc_total_mb=24319.1 peak_mb=12461.9 retained_mb=337.3 merged=3037848 fractals=1369309 strokes=388166 segments=51740 tail=2
+  digest layer=bb067c8bb7b532a355480871c75682f50fb0ad0f520968e01a7aa2044ae97165
+  rss VmRSS=8225704 kB VmHWM=12359360 kB
+--- host: loadavg=11.05 10.75 10.77 MemAvailable: 44533468 kB
+== mode=facts n=49995 window=50000
+facts secs=0.22 alloc_total_mb=297.5 peak_mb=129.5 retained_mb=98.0 steps=49995 groups=30863 merged=30863 fractals=14017 strokes=4016 segments=524 tail=2
+  endpoints=14017 strokes=4016 digest layer=0b2f23ed9c55fcab856cda81f0f7a063cd03a06a9f92036303b300e5e7b4dde7 stroke_facts=skipped facts=skipped
+  rss VmRSS=398352 kB VmHWM=1289492 kB
+== mode=layer n=49995 window=50000
+layer secs=0.38 alloc_total_mb=198.4 peak_mb=103.9 retained_mb=2.7 merged=30863 fractals=14017 strokes=4016 segments=524 tail=2
+  digest layer=0b2f23ed9c55fcab856cda81f0f7a063cd03a06a9f92036303b300e5e7b4dde7
+  rss VmRSS=399348 kB VmHWM=1289236 kB
+--- host: loadavg=10.97 10.73 10.77 MemAvailable: 43151348 kB
+== mode=facts n=149995 window=150000
+facts secs=2.15 alloc_total_mb=1074.9 peak_mb=463.1 retained_mb=344.9 steps=149995 groups=98667 merged=98667 fractals=45630 strokes=12697 segments=1645 tail=2
+  endpoints=45630 strokes=12697 digest layer=3a6e95ed66a5ff9b466eed01150c2956cab54d595c63c6463660954b6d476e4e stroke_facts=skipped facts=skipped
+  rss VmRSS=493164 kB VmHWM=1289236 kB
+== mode=layer n=149995 window=150000
+layer secs=1.12 alloc_total_mb=710.1 peak_mb=369.4 retained_mb=10.6 merged=98667 fractals=45630 strokes=12697 segments=1645 tail=2
+  digest layer=3a6e95ed66a5ff9b466eed01150c2956cab54d595c63c6463660954b6d476e4e
+  rss VmRSS=521460 kB VmHWM=1289368 kB
+--- host: loadavg=11.53 10.86 10.81 MemAvailable: 42554172 kB
+== mode=facts n=299995 window=300000
+facts secs=3.05 alloc_total_mb=2175.3 peak_mb=937.3 retained_mb=700.2 steps=299995 groups=195520 merged=195520 fractals=89644 strokes=24841 segments=3299 tail=2
+  endpoints=89644 strokes=24841 digest layer=940284555b1afd320e3f6f4213eebb450f1af30c317a1115790b64d8c6785127 stroke_facts=skipped facts=skipped
+  rss VmRSS=702228 kB VmHWM=1289620 kB
+== mode=layer n=299995 window=300000
+layer secs=1.82 alloc_total_mb=1449.2 peak_mb=750.4 retained_mb=21.1 merged=195520 fractals=89644 strokes=24841 segments=3299 tail=2
+  digest layer=940284555b1afd320e3f6f4213eebb450f1af30c317a1115790b64d8c6785127
+  rss VmRSS=758164 kB VmHWM=1289624 kB
+--- host: loadavg=11.53 10.88 10.82 MemAvailable: 44244676 kB
+== mode=facts n=1000000 window=1000005
+facts secs=11.52 alloc_total_mb=6681.9 peak_mb=2800.4 retained_mb=2166.1 steps=1000000 groups=658199 merged=658199 fractals=292204 strokes=81215 segments=10717 tail=2
+  endpoints=292204 strokes=81215 digest layer=29a0a3ee82df552b561f78aa9f0c259d2fe2c3bdebd4237bbb0c982d2203da76 stroke_facts=skipped facts=skipped
+  rss VmRSS=1728004 kB VmHWM=3268380 kB
+== mode=layer n=1000000 window=1000005
+layer secs=5.55 alloc_total_mb=4944.2 peak_mb=2550.2 retained_mb=83.7 merged=658199 fractals=292204 strokes=81215 segments=10717 tail=2
+  digest layer=29a0a3ee82df552b561f78aa9f0c259d2fe2c3bdebd4237bbb0c982d2203da76
+  rss VmRSS=1903880 kB VmHWM=2794480 kB
+--- host: loadavg=11.81 11.02 10.87 MemAvailable: 43316428 kB
+== mode=facts n=2000000 window=2000005
+facts secs=21.96 alloc_total_mb=13547.0 peak_mb=5672.9 retained_mb=4407.0 steps=2000000 groups=1308680 merged=1308680 fractals=584269 strokes=162990 segments=21216 tail=2
+  endpoints=584269 strokes=162990 digest layer=ba0ec8124816fc020ef29547eb6b5cd5aa70208813db06b3023e257094e29ccb stroke_facts=skipped facts=skipped
+  rss VmRSS=3572912 kB VmHWM=6330340 kB
+== mode=layer n=2000000 window=2000005
+layer secs=11.58 alloc_total_mb=10075.5 peak_mb=5177.3 retained_mb=167.5 merged=1308680 fractals=584269 strokes=162990 segments=21216 tail=2
+  digest layer=ba0ec8124816fc020ef29547eb6b5cd5aa70208813db06b3023e257094e29ccb
+  rss VmRSS=3610376 kB VmHWM=5387924 kB
+--- host: loadavg=12.18 11.23 10.95 MemAvailable: 42738032 kB
+== mode=facts n=3000000 window=3000005
+facts secs=25.88 alloc_total_mb=20130.5 peak_mb=8776.6 retained_mb=6820.8 steps=3000000 groups=2026552 merged=2026552 fractals=908132 strokes=253723 segments=33229 tail=2
+  endpoints=908132 strokes=253723 digest layer=eff2d82a600d6ed8761e1d0225bf31b3e0830dbe06683c43b06ff9773e5dece4 stroke_facts=skipped facts=skipped
+  rss VmRSS=5280140 kB VmHWM=9506960 kB
+== mode=layer n=3000000 window=3000005
+layer secs=13.87 alloc_total_mb=13732.3 peak_mb=7088.8 retained_mb=172.2 merged=2026552 fractals=908132 strokes=253723 segments=33229 tail=2
+  digest layer=eff2d82a600d6ed8761e1d0225bf31b3e0830dbe06683c43b06ff9773e5dece4
+  rss VmRSS=5361872 kB VmHWM=8092296 kB
+--- host: loadavg=10.21 10.85 10.83 MemAvailable: 44743480 kB
+== mode=facts n=4613495 window=4613500
+facts secs=39.09 alloc_total_mb=35847.5 peak_mb=15432.2 retained_mb=11693.2 steps=4613495 groups=3037848 merged=3037848 fractals=1369309 strokes=388166 segments=51740 tail=2
+  endpoints=1369309 strokes=388166 digest layer=bb067c8bb7b532a355480871c75682f50fb0ad0f520968e01a7aa2044ae97165 stroke_facts=skipped facts=skipped
+  rss VmRSS=8058760 kB VmHWM=14507188 kB
+== mode=layer n=4613495 window=4613500
+layer secs=22.05 alloc_total_mb=24319.1 peak_mb=12461.9 retained_mb=337.3 merged=3037848 fractals=1369309 strokes=388166 segments=51740 tail=2
+  digest layer=bb067c8bb7b532a355480871c75682f50fb0ad0f520968e01a7aa2044ae97165
+  rss VmRSS=8225816 kB VmHWM=12359592 kB
+EXIT=0 SECONDS=527

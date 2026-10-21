@@ -55,7 +55,7 @@ def envelope(manifest, source, message, payload):
 def probe(output, chrome):
     results = []
     for kind, family, address in (("unix", socket.AF_UNIX, str(output / "probe.sock")),
-                                  ("http", socket.AF_INET, ("127.0.0.1", 0))):
+                                  ("http", socket.AF_INET, ("127.0.0.1", 0))):  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
         with socket.socket(family) as connection:
             try:
                 connection.bind(address)
@@ -88,7 +88,7 @@ class Run:
         self.seed = decode_frame(seed_path.read_bytes())
         if self.seed.get("schema_revision") != "tb03b-runtime-seed/1":
             raise ValueError("缺 tb03b-runtime-seed/1 具名输入")
-        if self.seed.get("contract_revision") != "efc1ddc4d6c015f4f8c6d44f904d704a88308b46":
+        if self.seed.get("contract_revision") != "efc1ddc4d6c015f4f8c6d44f904d704a88308b46":  # DevSkim: ignore DS173237 Git 提交号，非凭据
             raise ValueError("种子未绑定本票已签合同")
         self.s = pinned(self.seed, self.seed["s_launcher"])
         self.manifest = pinned(self.seed, self.seed["economic_manifest"])
@@ -195,7 +195,7 @@ class Run:
     def http(self, payload, label):
         req = envelope(self.manifest, self.seed["query_source"], label, payload)
         raw = canonical(req)
-        request = urllib.request.Request("http://127.0.0.1:" + self.s["port"] + "/api/economic/" + payload["op"], data=raw, headers={"Content-Type": "application/json"})
+        request = urllib.request.Request("http://127.0.0.1:" + self.s["port"] + "/api/economic/" + payload["op"], data=raw, headers={"Content-Type": "application/json"})  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
         with urllib.request.urlopen(request, timeout=30) as response:
             data = response.read(int(self.q["resources"]["max_reply_bytes"]) + 1)
         save(self.output / (label + ".request.json"), req)
@@ -376,7 +376,7 @@ class Run:
             for plan in self.data["plans"]:
                 self.http({"op": "original", "kind": "decision", "domain_id": plan["owner"], "object_id": plan["decision_id"], "cuts": final_cuts}, "original-" + plan["decision_id"])
             self.command([node, str(ROOT / "tests/tb03b_browser.cjs"), "--chrome", chrome,
-                "--url", "http://127.0.0.1:" + self.s["port"] + "/economic.html", "--output", str(self.output / "browser"),
+                "--url", "http://127.0.0.1:" + self.s["port"] + "/economic.html", "--output", str(self.output / "browser"),  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
                 "--as-known", self.seed["both_prepared_as_known_ns"]])
         return oracle["domain_semantic_hashes"]
 

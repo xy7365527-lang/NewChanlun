@@ -3114,6 +3114,8 @@ fn advance_core(
         };
         raw_bars.push(bar);
         if !is_ohlc {
+            // #1588：先丢上一轮 layer 再 append，免各共享表 Rc::make_mut 每根整表拷贝。
+            drop(layer.take());
             layer = Some(incr.append(bar));
         }
     }
@@ -3280,7 +3282,7 @@ fn advance_core(
                         let mut group_refs=json!({ "merged_index": mi, "raw_refs": refs });
                         if let Some(facts)=&group_evidence {
                             let group=&facts.groups[*mi];
-                            let mut dependency_coords=group.direction_evidence.as_ref().map(|e|e.source_coords.clone()).unwrap_or_default();
+                            let mut dependency_coords=group.direction_evidence.as_ref().map(|e|e.source_coords.to_vec()).unwrap_or_default();
                             // #1373：三组当前划分还依赖关闭边界的真实后继，不能只绑定价格算式。
                             if let Some(boundary)=&group.confirmation_evidence {dependency_coords.extend(&boundary.source_coords);}
                             dependency_coords.retain(|coord|!group.members.contains(coord));

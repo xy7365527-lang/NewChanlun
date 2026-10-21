@@ -10,6 +10,7 @@ import {
   providerOverrides, PROVIDER_KEY_ENV, runCodexChild, workerEnvironment,
   type ChildOptions,
 } from "./codex-child.ts";
+import { gitEnvironment } from "./git-environment.ts";
 
 const goodResult = { status: "completed", summary: "已完成限定审阅", findings: [], validation: ["只读检查"] };
 const sessionId = "12345678-1234-1234-1234-123456789abc";
@@ -84,7 +85,7 @@ test("SDK bypass 被精确收紧，prompt 不进入 argv，模型、推理档与
     for (const override of [
       `model_provider="cliproxy-local"`,
       `model_providers.cliproxy-local.name="CLIProxyAPI Local"`,
-      `model_providers.cliproxy-local.base_url="http://127.0.0.1:8318/v1"`,
+      `model_providers.cliproxy-local.base_url="http://127.0.0.1:8318/v1"`, // DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
       `model_providers.cliproxy-local.wire_api="responses"`,
       `model_providers.cliproxy-local.supports_websockets=false`,
       `model_providers.cliproxy-local.supports_standalone_web_search=false`,
@@ -134,9 +135,9 @@ test("密钥：进程环境已有则不查 launchctl；缺失时只查一次；�
 
 test("保留大小写代理路由环境，但不传 API/GitHub 密钥", () => {
   const routes = {
-    HTTP_PROXY: "http://proxy.example.invalid:8080", HTTPS_PROXY: "http://proxy.example.invalid:8081",
-    ALL_PROXY: "socks5://proxy.example.invalid:1080", NO_PROXY: "localhost,127.0.0.1",
-    http_proxy: "http://proxy.example.invalid:8082", https_proxy: "http://proxy.example.invalid:8083",
+    HTTP_PROXY: "http://proxy.example.invalid:8080", HTTPS_PROXY: "http://proxy.example.invalid:8081", // DevSkim: ignore DS137138 测试用不可解析的 .invalid 代理地址
+    ALL_PROXY: "socks5://proxy.example.invalid:1080", NO_PROXY: "localhost,127.0.0.1", // DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
+    http_proxy: "http://proxy.example.invalid:8082", https_proxy: "http://proxy.example.invalid:8083", // DevSkim: ignore DS137138 测试用不可解析的 .invalid 代理地址
     all_proxy: "socks5://proxy.example.invalid:1081", no_proxy: "example.invalid",
   };
   assert.deepEqual(workerEnvironment({ ...routes, GH_TOKEN: "fixture", OPENAI_API_KEY: "fixture" }), { ...routes, NO_COLOR: "1" });
@@ -214,7 +215,7 @@ test("真实子进程：直接 SDK provider 完成，保存 session/parent 映�
     writeFileSync(f.options.promptFile, `单引号 ' 双引号 " 反引号 \`pwd\` $(touch ${join(f.dir, "injection")})\n`);
     f.fake("capture(); session(); complete();");
     const states: string[] = [];
-    const route = "http://proxy.example.invalid:8080";
+    const route = "http://proxy.example.invalid:8080"; // DevSkim: ignore DS137138 测试用不可解析的 .invalid 代理地址
     const result = await runCodexChild(f.options, { env: { ...f.env, HTTPS_PROXY: route }, onState: (s) => states.push(s.status) });
     assert.equal(result.status, "completed", result.failure_reason ?? "");
     assert.equal(result.parent_thread_id, f.options.parentThreadId);
@@ -347,7 +348,7 @@ test("运行中 HEAD 漂移必失败并保留差异，不自行回滚", async ()
 test("收到完成文本仍等待真实进程退出", async () => {
   const f = fixture();
   try {
-    f.fake("session(); complete(); setTimeout(() => fs.writeFileSync(path.join(root, 'actually-exiting'), 'yes'), 200);");
+    f.fake("session(); complete(); setTimeout(() => fs.writeFileSync(path.join(root, 'actually-exiting'), 'yes'), 200);"); // DevSkim: ignore DS172411 回调为函数字面量而非字符串
     const result = await runCodexChild(f.options, { env: f.env, onState: (s) => {
       if (s.status === "completed") assert.ok(existsSync(join(f.dir, "actually-exiting")));
     } });
@@ -519,7 +520,7 @@ test("session finder pending 时取消，查找返回后仍为 cancelled", async
 test("CLI stdout 管道关闭不会击穿监督器或遗留 detached 工蜂", async () => {
   const f = fixture();
   try {
-    f.fake("setTimeout(() => session(), 100); setInterval(() => {}, 1000);");
+    f.fake("setTimeout(() => session(), 100); setInterval(() => {}, 1000);"); // DevSkim: ignore DS172411 回调为函数字面量而非字符串
     const args = ["--import", "tsx", resolve(".sandcastle/codex-child.mts"),
       "--ticket", "1456", "--parent-thread-id", f.options.parentThreadId,
       "--manager-agent-id", f.options.managerAgentId, "--checkout", f.options.checkout,
@@ -532,7 +533,7 @@ test("CLI stdout 管道关闭不会击穿监督器或遗留 detached 工蜂", as
       buffer += chunk.toString();
       if (!closed && /"process_pid":\d+/.test(buffer)) { closed = true; cli.stdout.destroy(); }
     });
-    const timeout = setTimeout(() => cli.kill("SIGKILL"), 10000);
+    const timeout = setTimeout(() => cli.kill("SIGKILL"), 10000); // DevSkim: ignore DS172411 回调为函数字面量而非字符串
     const code = await new Promise<number | null>((done) => cli.on("close", done));
     clearTimeout(timeout);
     assert.ok(closed);
@@ -561,7 +562,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
         buffer += chunk.toString();
         if (!sent && buffer.includes(`"external_session_id":"${sessionId}"`)) { sent = true; cli.kill(signal); }
       });
-      const timeout = setTimeout(() => cli.kill("SIGKILL"), 10000);
+      const timeout = setTimeout(() => cli.kill("SIGKILL"), 10000); // DevSkim: ignore DS172411 回调为函数字面量而非字符串
       const code = await new Promise<number | null>((done) => cli.on("close", done));
       clearTimeout(timeout);
       assert.ok(sent); assert.equal(code, 130);
@@ -571,3 +572,46 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     } finally { f.clean(); }
   });
 }
+
+test("git 环境只留白名单：不含 CLIProxy 密钥、API/GitHub 密钥与宿主 GIT_*（#1588 A1）", () => {
+  const env = gitEnvironment({
+    PATH: "/bin", HOME: "/home/u", LANG: "C.UTF-8", [PROVIDER_KEY_ENV]: fixtureKey, GH_TOKEN: "fixture",
+    OPENAI_API_KEY: "fixture", CODEX_HOME: "/auth-location", GIT_DIR: "/elsewhere/.git", GIT_INDEX_FILE: "/elsewhere/index",
+  });
+  assert.deepEqual(env, { PATH: "/bin", HOME: "/home/u", LANG: "C.UTF-8", GIT_OPTIONAL_LOCKS: "0" });
+});
+
+test("预检 git 子进程拿不到 CLIProxy 密钥及其他凭据变量（#1588 A1）", () => {
+  const f = fixture();
+  const names = [PROVIDER_KEY_ENV, "GH_TOKEN", "OPENAI_API_KEY", "PATH"] as const;
+  const saved = Object.fromEntries(names.map((name) => [name, process.env[name]]));
+  try {
+    // 包一层 git：只记录收到的变量名（不记值），再转交真实 git。
+    const realGit = execFileSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).trim();
+    const gitBin = join(f.dir, "git-bin");
+    const log = join(f.dir, "git-env.jsonl");
+    mkdirSync(gitBin);
+    writeFileSync(join(gitBin, "git"), `#!${process.execPath}\n`
+      + `require('node:fs').appendFileSync(${JSON.stringify(log)}, JSON.stringify(Object.keys(process.env)) + '\\n');\n`
+      + `const r = require('node:child_process').spawnSync(${JSON.stringify(realGit)}, process.argv.slice(2), { stdio: 'inherit' });\n`
+      + `process.exit(r.status ?? 1);\n`);
+    chmodSync(join(gitBin, "git"), 0o700);
+    process.env.PATH = gitBin + ":" + saved.PATH;
+    process.env[PROVIDER_KEY_ENV] = fixtureKey;
+    process.env.GH_TOKEN = "fixture";
+    process.env.OPENAI_API_KEY = "fixture";
+    preflightCheckout(f.options);
+    const calls = readFileSync(log, "utf8").trim().split("\n").map((line) => JSON.parse(line) as string[]);
+    assert.ok(calls.length >= 5, `预检应至少调用 5 次 git，实际 ${calls.length}`);
+    for (const keys of calls) {
+      for (const name of [PROVIDER_KEY_ENV, "GH_TOKEN", "OPENAI_API_KEY"]) assert.ok(!keys.includes(name), `git 环境含 ${name}`);
+      assert.ok(keys.includes("GIT_OPTIONAL_LOCKS"));
+    }
+  } finally {
+    for (const name of names) {
+      if (saved[name] === undefined) delete process.env[name];
+      else process.env[name] = saved[name];
+    }
+    f.clean();
+  }
+});

@@ -8,7 +8,7 @@ import {
   allocateAdr, applyReclass, draftPrompt, ensureSrc, extractFirstApiKey, guardGh, reclassSuggestion, renumberDraft, reviewPrompt, initialState, isGhWrite, landingTarget, missingDraftSections,
   nextAfterReview, parseArgs, parseClassification, parseReview, processTicket, selectCandidates,
   resolvedReason, pickUnresolved, finishedTickets,
-  isRetryable, makeClaudeRunner, loadResume,
+  isRetryable, makeClaudeRunner, loadResume, resumeStaleBecauseReopen,
   RULES, ARCH_SECTION, ARCHAEOLOGY_FILE, parseArchaeology, archaeologyProblems, renderArchaeology, archaeologyCoverageProblems,
   archaeologyPrompt, archaeologyAsks, archaeologyOnly, shadowComment, flowSectionsIn, stripFlowSections,
   type Deps, type GhRunner, type ModelCall, type OnceResult,
@@ -765,6 +765,55 @@ test("断点续做 × 跳过：reviewed_pass 且 resolution 评论其实已发�
   assert.deepEqual(writesOf(h.ghCalls), []);
   // 断点原件保留，未被 skipped 覆盖。
   assert.equal(JSON.parse(readFileSync(join(h.d.outRoot, "1565", "summary.json"), "utf8")).stage, "reviewed_pass");
+});
+
+test("断点续做 × 退回：reviewed_pass 之后出现退回，下一轮整链重跑，不沿用旧 PASS 落地", async () => {
+  const h = liveDeps([
+    fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()),
+    new Error("land claude-opus-5-5 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
+  ]);
+  const s1 = await processTicket(1565, h.d);
+  assert.equal(s1.stage, "reviewed_pass");
+  assert.equal(s1.commentsSeen, 0);
+  h.comments.push({ author: { login: "xy7365527-lang" }, body: "## 退回重写\n这稿不能落地" });
+  h.replies.push(fence({ class: "T", reason: "按退回重写" }), goodDraft, fence(pass()), "已写入");
+  h.modelCalls.length = 0;
+  h.gitCalls.length = 0;
+  const s2 = await processTicket(1565, h.d);
+  assert.equal(s2.resumedFrom, undefined);
+  assert.deepEqual(h.modelCalls.map((c) => c.role), ["classify", "draft", "review", "land"]);
+  assert.equal(s2.phase, "land_t");
+  assert.ok(h.gitCalls.some((a) => a[0] === "push"));
+});
+
+test("断点续做：退回出现在断点之前，或之后只有普通评论，仍只补落地", async () => {
+  const h = liveDeps([
+    fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()),
+    new Error("land claude-opus-5-5 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
+  ]);
+  h.comments.push({ author: { login: "xy7365527-lang" }, body: "## 退回重写\n上一稿不要" });
+  const s1 = await processTicket(1565, h.d);
+  assert.equal(s1.stage, "reviewed_pass");
+  assert.equal(s1.commentsSeen, 1);
+  h.comments.push({ author: { login: "xy7365527-lang" }, body: "已按用户批复重写正本 baohan.md" });
+  h.comments.push({ author: { login: "someone" }, body: "## 退回重写" });
+  h.replies.push("已写入");
+  h.modelCalls.length = 0;
+  h.gitCalls.length = 0;
+  const s2 = await processTicket(1565, h.d);
+  assert.equal(s2.phase, "land_t");
+  assert.equal(s2.resumedFrom, "reviewed_pass");
+  assert.deepEqual(h.modelCalls.map((c) => c.role), ["land"]);
+  assert.ok(h.gitCalls.some((a) => a[0] === "push"));
+});
+
+test("resumeStaleBecauseReopen：只认断点水印之后、编排者账号的退回", () => {
+  const reopen = { author: "xy7365527-lang", body: "用户 10-20 批复：「不同意」" };
+  const keep = { author: "xy7365527-lang", body: "分级：T — 接口" };
+  assert.equal(resumeStaleBecauseReopen({ commentsSeen: 1 }, [reopen, keep]), false);
+  assert.equal(resumeStaleBecauseReopen({ commentsSeen: 1 }, [keep, reopen]), true);
+  assert.equal(resumeStaleBecauseReopen({}, [reopen]), true);
+  assert.equal(resumeStaleBecauseReopen({ commentsSeen: 0 }, [{ author: "someone", body: "## 退回重写" }]), false);
 });
 
 test("断点续做 × 跳过：shadow_p_pending 票面已有影子评论 → 照常补贴标签与取消认领", async () => {

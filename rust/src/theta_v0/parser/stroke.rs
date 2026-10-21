@@ -6,6 +6,7 @@
 //! 同价域不再有任何未定或冻结态，扫描从不弹出已成立的笔。
 use super::super::config::ParseConfig;
 use super::super::types::{Bar, Direction, FractalKind, Stroke};
+use super::evidence::{union_into, SourceCoords};
 #[cfg(test)]
 use super::inclusion::process_inclusion_with_facts;
 use super::inclusion::InclusionFacts;
@@ -34,7 +35,8 @@ pub struct Endpoint {
     /// 只进条件 2（极值区 raw 间隔）与追溯，不作笔坐标、不作身份。
     pub raw_first: usize,
     pub raw_last: usize,
-    pub source_coords: Vec<usize>,
+    /// #1597：共享表示（见 [`SourceCoords`]）；逻辑内容、`Debug`、序列化与旧 `Vec<usize>` 逐位相同。
+    pub source_coords: SourceCoords,
     pub sealed_at: Option<usize>,
     pub waiting_reasons: Vec<&'static str>,
 }
@@ -78,7 +80,8 @@ pub struct Confirmation {
     pub successor_end: usize,
     pub successor_conditions: Conditions,
     pub right_group_sealed_at: usize,
-    pub source_coords: Vec<usize>,
+    /// #1597：共享表示（见 [`SourceCoords`]）；逻辑内容、`Debug`、序列化与旧 `Vec<usize>` 逐位相同。
+    pub source_coords: SourceCoords,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -137,10 +140,67 @@ impl StrokeFacts {
     }
 }
 
-fn sorted(mut xs: Vec<usize>) -> Vec<usize> {
+fn sorted(mut xs: Vec<usize>) -> SourceCoords {
     xs.sort_unstable();
     xs.dedup();
-    xs
+    SourceCoords::from(xs)
+}
+
+/// #1597：端点来源坐标的共享构造（与扁平「九集拼接 → 排序去重」逐位相同）。
+///
+/// 输入是相邻三组 `g ∈ {mid-1, mid, mid+1}` 的成员、方向证据、封口证据。取证据里最大值最大
+/// 的一份作基底树 B（完整事实路径上它是同一持久谱系里最新的版本），其余证据树经
+/// [`CoordsRef::union`](super::evidence::CoordsRef::union) 并入（共享子树按指针相等整棵跳过，
+/// #1629），组成员逐个持久插入（[`union_into`]，已含则不新建节点）。精确性不依赖形状前提：
+/// 结果就是升序去重并集；只新建不共享接缝上的节点，不复制、不遍历 B。
+///
+/// 任一证据是扁平形态（非单调回落路径或手写夹具）⟹ `None`，调用方走扁平构造。
+fn shared_endpoint_sources(
+    window: &[super::inclusion::InclusionGroupFact],
+) -> Option<SourceCoords> {
+    let evidence: Vec<&SourceCoords> = window
+        .iter()
+        .flat_map(|g| [&g.direction_evidence, &g.confirmation_evidence])
+        .flatten()
+        .map(|e| &e.source_coords)
+        .collect();
+    if evidence.iter().any(|c| c.as_shared().is_none()) {
+        return None;
+    }
+    let best = (0..evidence.len()).max_by_key(|&i| evidence[i].last());
+    let empty = super::evidence::CoordsRef::empty();
+    let base = best.and_then(|i| evidence[i].as_shared()).unwrap_or(&empty);
+    // 同一棵树（如组 g 的封口证据 = 组 g+1 的方向证据，同一节点）只归并一次。
+    let mut seen: Vec<*const super::evidence::CoordNode> = base
+        .root_node()
+        .map(|r| Rc::as_ptr(r))
+        .into_iter()
+        .collect();
+    let mut distinct: Vec<&SourceCoords> = Vec::new();
+    for (i, c) in evidence.iter().enumerate() {
+        if Some(i) == best {
+            continue;
+        }
+        match c.as_shared().and_then(|t| t.root_node()) {
+            Some(root) if seen.contains(&Rc::as_ptr(root)) => {}
+            Some(root) => {
+                seen.push(Rc::as_ptr(root));
+                distinct.push(c);
+            }
+            None => {}
+        }
+    }
+    // #1629：证据树之间按共享子树指针相等剪枝求并（成本只随不共享部分增长），
+    // 组成员逐个持久插入（不遍历基底）。旧版把其余集合逐元素与基底有序归并，单端点 Θ(i)。
+    let mut acc = base.clone();
+    for c in distinct {
+        acc = acc.union(c.as_shared().expect("上面已判共享形态"));
+    }
+    let union = SourceCoords::from_shared(union_into(
+        &acc,
+        window.iter().flat_map(|group| group.members.iter()),
+    ));
+    Some(union)
 }
 
 /// 全量 facts 的 raw 序位映射：`source_index → 第几根 raw`（同坐标后者覆盖）。
@@ -218,8 +278,14 @@ fn endpoint_at(
     };
     let mut waiting = vec![];
     let mut sources = vec![];
-    for group in &groups[mid - 1..=mid + 1] {
-        if expand_sources {
+    let window = &groups[mid - 1..=mid + 1];
+    let shared = if expand_sources {
+        shared_endpoint_sources(window)
+    } else {
+        None
+    };
+    for group in window {
+        if expand_sources && shared.is_none() {
             sources.extend(&group.members);
             if let Some(e) = &group.direction_evidence {
                 sources.extend(&e.source_coords);
@@ -246,7 +312,7 @@ fn endpoint_at(
         extreme_roots: roots.clone(),
         raw_first,
         raw_last,
-        source_coords: sorted(sources),
+        source_coords: shared.unwrap_or_else(|| sorted(sources)),
         sealed_at: groups[mid + 1]
             .confirmation_evidence
             .as_ref()
@@ -441,14 +507,12 @@ impl ScanState {
             // #1392：在已选中后继笔的首次封口见证处冻结前笔证书。
             // 后继尾笔以后可延伸到尚未封口的新端点，不能因此丢掉既有前缀证据。
             if let (Some(sealed), Some(previous)) = (f.sealed_at, self.out.strokes.last_mut()) {
-                let mut sources = a.source_coords.clone();
-                sources.extend(&f.source_coords);
                 previous.confirmation = Some(Confirmation {
                     successor_start: a.group_anchor,
                     successor_end: f.group_anchor,
                     successor_conditions: p.conditions.clone().unwrap(),
                     right_group_sealed_at: sealed,
-                    source_coords: sorted(sources),
+                    source_coords: confirmation_sources(&a.source_coords, &f.source_coords),
                 });
             }
             self.out.strokes.push(BiFact {
@@ -463,6 +527,29 @@ impl ScanState {
         // 异型不成笔（合取含 false）：确定不成笔，略过，不冻结后续候选（#1392）。
         self.out.pairs.push(p);
     }
+}
+
+/// 前笔确认证书的来源坐标 = 两端点来源坐标的升序去重并集。
+///
+/// #1597/#1629：两端点都是共享形态时做持久树并集（[`CoordsRef::union`]：共享子树按指针
+/// 相等整棵跳过，精确，不依赖形状前提）；否则回落扁平构造。
+fn confirmation_sources(a: &SourceCoords, f: &SourceCoords) -> SourceCoords {
+    let flat = || {
+        let mut sources = a.to_vec();
+        sources.extend(f);
+        sorted(sources)
+    };
+    let (Some(left), Some(right)) = (a.as_shared(), f.as_shared()) else {
+        return flat();
+    };
+    let (base, other) = if right.max() >= left.max() {
+        (right, a)
+    } else {
+        (left, f)
+    };
+    let other = other.as_shared().expect("上面已判两侧共享形态");
+    // #1629：两端点来源树共享绝大部分子树，按指针相等剪枝求并，与前缀长度解耦。
+    SourceCoords::from_shared(base.union(other))
 }
 
 /// 稳定端点前的扫描 checkpoint。单端点转移至多改写当时的末笔、从不弹笔，故只备份该尾，
@@ -1054,7 +1141,7 @@ mod tests {
             extreme_roots: vec![mid * 7],
             raw_first: mid,
             raw_last: mid,
-            source_coords: vec![],
+            source_coords: SourceCoords::new(),
             sealed_at: Some((mid + 2) * 7),
             waiting_reasons: vec![],
         };
@@ -1448,6 +1535,178 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// #1597：确定性 LCG 合成稀疏坐标行情（混合包含/方向翻转/同价）。
+    fn lcg_bars(n: usize, seed: u64, stride: usize) -> Vec<Bar> {
+        let mut lcg = seed;
+        let mut rand = move || {
+            lcg = lcg
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            (lcg >> 33) as i64
+        };
+        let mut high = 1_000i64;
+        (0..n)
+            .map(|i| {
+                high = (high + rand() % 41 - 20).clamp(100, 4_000);
+                let span = 1 + rand() % 15;
+                let h = if rand() % 6 == 0 {
+                    high
+                } else {
+                    high + rand() % 4
+                };
+                Bar {
+                    source_index: i * stride + 3,
+                    timestamp: i as i64,
+                    open: h,
+                    high: h,
+                    low: h - span,
+                    close: h - span / 2,
+                    volume: 1.0,
+                    untradable: false,
+                }
+            })
+            .collect()
+    }
+
+    /// #1629 成本锁：新笔事实构造（端点来源并集 + 确认证书并集）不逐元素遍历共享树，
+    /// 每端点树操作步数与前缀长度解耦。旧实现每端点与基底有序归并，遍历步数 Θ(n²)。
+    #[test]
+    fn shared_stroke_facts_cost_is_decoupled_from_prefix() {
+        use super::super::evidence::cost_probe;
+        let config = ParseConfig::default();
+        let mut per_endpoint = Vec::new();
+        for n in [1_000usize, 4_000, 16_000] {
+            let raw = lcg_bars(n, 0xD1B5_4A32_D192_ED03, 2);
+            let facts = process_inclusion_with_facts(&raw);
+            cost_probe::reset();
+            let strokes = build_stroke_facts(&facts, &config);
+            let (ops, iters) = cost_probe::read();
+            assert_eq!(
+                iters, 0,
+                "前缀 {n}：新笔事实构造逐元素遍历了共享坐标树 {iters} 步"
+            );
+            let endpoints = strokes.endpoints.len().max(1) as f64;
+            per_endpoint.push(ops as f64 / endpoints);
+            eprintln!("#1629 cost n={n} endpoints={endpoints} ops={ops}");
+        }
+        assert!(
+            per_endpoint[2] <= per_endpoint[0] * 3.0,
+            "前缀放大 16 倍，每端点树操作步数应只按 polylog 增长：{per_endpoint:?}"
+        );
+    }
+
+    /// #1597：完整事实入口的共享导出与扁平参照构造逐位相同——包含层、新笔事实（端点、配对、
+    /// 笔与确认证书）的 `PartialEq`、`Debug`（紧凑与美化）与 JSON 序列化全部对拍。
+    #[test]
+    fn shared_full_facts_match_flat_reference_for_every_prefix() {
+        let config = ParseConfig::default();
+        for (seed, stride) in [
+            (0x2545_F491_4F6C_DD1D_u64, 1usize),
+            (0x9E37_79B9_7F4A_7C15, 5),
+        ] {
+            let raw = lcg_bars(900, seed, stride);
+            for n in (1..=raw.len()).filter(|n| n % 29 == 0 || *n == raw.len() || *n < 12) {
+                let shared = process_inclusion_with_facts(&raw[..n]);
+                let flat = super::super::inclusion::process_inclusion_with_facts_flat(&raw[..n]);
+                assert_eq!(shared, flat, "seed {seed:x} 前缀 {n}：包含事实");
+                assert!(
+                    shared
+                        .steps
+                        .iter()
+                        .all(|s| s.source_coords.as_shared().is_some()),
+                    "seed {seed:x} 前缀 {n}：严格递增输入的步骤坐标应为共享形态"
+                );
+                let got = build_stroke_facts(&shared, &config);
+                let want = build_stroke_facts(&flat, &config);
+                assert_eq!(got, want, "seed {seed:x} 前缀 {n}：新笔事实");
+                assert_eq!(format!("{got:?}"), format!("{want:?}"));
+                assert_eq!(format!("{got:#?}"), format!("{want:#?}"));
+                assert_eq!(
+                    serde_json::to_string(&got).unwrap(),
+                    serde_json::to_string(&want).unwrap(),
+                    "seed {seed:x} 前缀 {n}：JSON"
+                );
+                assert!(
+                    got.endpoints.iter().all(
+                        |e| e.source_coords.as_shared().is_some() || e.source_coords.is_empty()
+                    ),
+                    "seed {seed:x} 前缀 {n}：端点坐标应走共享构造"
+                );
+            }
+        }
+    }
+
+    /// #1597 留存形状锁：完整事实里全部来源坐标集合的**不同共享节点数**近线性
+    /// （O(n log n)），而逻辑元素数是 Θ(n²)。回到逐步展开（或每步新建整棵树）即失败。
+    #[test]
+    fn shared_full_facts_retain_subquadratic_nodes() {
+        use super::super::evidence::CoordNode;
+        use std::collections::HashSet;
+        fn walk(c: &SourceCoords, seen: &mut HashSet<usize>) {
+            let Some(root) = c.as_shared().and_then(|r| r.root_node()) else {
+                return;
+            };
+            let mut stack = vec![root];
+            while let Some(node) = stack.pop() {
+                if !seen.insert(Rc::as_ptr(node) as *const () as usize) {
+                    continue;
+                }
+                if let CoordNode::Concat(l, r, _) = node.as_ref() {
+                    stack.push(l);
+                    stack.push(r);
+                }
+            }
+        }
+        let raw = lcg_bars(4_000, 0xD1B5_4A32_D192_ED03, 2);
+        let config = ParseConfig::default();
+        let facts = process_inclusion_with_facts(&raw);
+        let strokes = build_stroke_facts(&facts, &config);
+        let mut seen = HashSet::new();
+        let mut logical = 0usize;
+        // 扁平集合（回落展开）的元素按独占存储计入，非空即判失败：本夹具源坐标严格递增，
+        // 完整事实路径上不得出现任何扁平展开（#1597 独审 M-1）。
+        let mut flat_elems = 0usize;
+        let mut visit = |c: &SourceCoords, seen: &mut HashSet<usize>| {
+            logical += c.len();
+            if c.as_shared().is_none() {
+                flat_elems += c.len();
+            }
+            walk(c, seen);
+        };
+        for s in &facts.steps {
+            visit(&s.source_coords, &mut seen);
+            if let Some(e) = &s.direction_evidence {
+                visit(&e.source_coords, &mut seen);
+            }
+        }
+        for g in &facts.groups {
+            for e in [&g.direction_evidence, &g.confirmation_evidence]
+                .into_iter()
+                .flatten()
+            {
+                visit(&e.source_coords, &mut seen);
+            }
+        }
+        for e in &strokes.endpoints {
+            visit(&e.source_coords, &mut seen);
+        }
+        for b in &strokes.strokes {
+            if let Some(c) = &b.confirmation {
+                visit(&c.source_coords, &mut seen);
+            }
+        }
+        assert_eq!(flat_elems, 0, "完整事实里出现扁平展开的来源坐标");
+        let n = raw.len();
+        assert!(logical > n * n / 4, "夹具应产生 Θ(n²) 逻辑元素：{logical}");
+        // log2(4000) ≈ 12；每次追加/拼接新建 O(log n) 个节点。上限 64·n 远低于 n²/4。
+        assert!(
+            seen.len() < 64 * n,
+            "共享节点数 {} 超出近线性上限 {}（逻辑元素 {logical}）",
+            seen.len(),
+            64 * n
+        );
     }
 }
 

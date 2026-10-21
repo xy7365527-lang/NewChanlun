@@ -83,13 +83,88 @@ class TestDevskimSarifGate(unittest.TestCase):
                                "--summary", str(self.summary))
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stderr, b"")
-        self.assertEqual(self.summary.read_bytes(), prior + result.stdout)
+        # stdout（job log）保持全量、有序。
         rows = [row for row in result.stdout.decode("utf-8").splitlines()
                 if row.startswith("-   - `")]
         self.assertEqual(rows, [f"-   - `DS000001|{uri}|1`" for uri in uris])
         self.assertIn(b"12000 finding(s) not in the baseline (total 12000)",
                       result.stdout)
         self.assertTrue(result.stdout.endswith(b"\n"))
+        # #1588：摘要文件追加在既有内容后，只列默认前 200 条并指向全量出处。
+        written = self.summary.read_bytes()
+        self.assertTrue(written.startswith(prior))
+        appended = written[len(prior):].decode("utf-8")
+        summary_rows = [row for row in appended.splitlines()
+                        if row.startswith("-   - `")]
+        self.assertEqual(summary_rows, rows[:200])
+        self.assertIn("listed the first 200 of 12000 new finding(s); 11800 more omitted",
+                      appended)
+        self.assertIn("`test-sarif` artifact", appended)
+        self.assertIn("12000 finding(s) not in the baseline (total 12000)", appended)
+        self.assertIn("Gate conclusion:** FAIL", appended)
+        self.assertTrue(appended.endswith("\n"))
+        self.assertLess(len(written), 1024 * 1024)
+
+    def new_findings_run(self, count: int, cap: str) -> subprocess.CompletedProcess:
+        self.write_scan([finding(f"n{index:03d}.json") for index in range(count)])
+        self.baseline.write_text(json.dumps({
+            "schema": "devskim-baseline/v1", "findings": [],
+        }), encoding="utf-8")
+        return self.run_gate("--baseline", str(self.baseline),
+                             "--summary", str(self.summary),
+                             "--summary-max-new", cap)
+
+    def test_summary_cap_boundary_keeps_identical_report(self) -> None:
+        result = self.new_findings_run(3, "3")
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(self.summary.read_bytes(), result.stdout)
+        self.assertNotIn(b"Step summary truncated", result.stdout)
+
+    def test_summary_cap_exceeded_by_one_truncates_summary_only(self) -> None:
+        result = self.new_findings_run(4, "3")
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stderr, b"")
+        self.assertNotIn(b"Step summary truncated", result.stdout)
+        self.assertIn(b"n003.json", result.stdout)
+        written = self.summary.read_bytes().decode("utf-8")
+        self.assertIn("listed the first 3 of 4 new finding(s); 1 more omitted", written)
+        self.assertIn("n002.json", written)
+        self.assertNotIn("n003.json", written)
+
+    def test_summary_cap_zero_still_fails_and_lists_nothing(self) -> None:
+        result = self.new_findings_run(2, "0")
+        self.assertEqual(result.returncode, 1)
+        written = self.summary.read_bytes().decode("utf-8")
+        self.assertIn("listed the first 0 of 2 new finding(s); 2 more omitted", written)
+        self.assertNotIn("-   - `", written)
+        self.assertIn("Gate conclusion:** FAIL", written)
+
+    def test_summary_cap_leading_zero_is_decimal_not_octal(self) -> None:
+        # 08 在 (( )) 里按八进制会报错；须按十进制 8 截断。
+        result = self.new_findings_run(9, "08")
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stderr, b"")
+        written = self.summary.read_bytes().decode("utf-8")
+        self.assertIn("listed the first 8 of 9 new finding(s); 1 more omitted", written)
+        self.assertIn("n007.json", written)
+        self.assertNotIn("n008.json", written)
+        self.assertIn(b"n008.json", result.stdout)
+
+    def test_summary_cap_0200_means_two_hundred(self) -> None:
+        # 0200 按八进制是 128；须按十进制 200。
+        result = self.new_findings_run(201, "0200")
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stderr, b"")
+        written = self.summary.read_bytes().decode("utf-8")
+        self.assertIn("listed the first 200 of 201 new finding(s); 1 more omitted", written)
+        self.assertIn("n199.json", written)
+        self.assertNotIn("n200.json", written)
+
+    def test_invalid_summary_cap_is_a_usage_error(self) -> None:
+        self.write_scan([])
+        result = self.run_gate("--summary-max-new", "many")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn(b"--summary-max-new must be a non-negative integer", result.stderr)
 
     def test_multiple_errors_and_summary_write_failure_remain_visible(self) -> None:
         self.write_scan([finding("unexpected.json")])
