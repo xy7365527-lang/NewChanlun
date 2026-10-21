@@ -95,7 +95,7 @@ cat > "$T/bin/gh" <<'GHEOF'
 #!/usr/bin/env bash
 # fake gh: fixtures in $FAKE_DIR, real jq for --jq, stateful pr create.
 echo "$*" >> "$FAKE_GH_LOG"
-jqf=""; head=""; body=""; title=""; prev=""
+jqf=""; head=""; body=""; title=""; prev=""; sf=""
 for a in "$@"; do
   case "$prev" in --jq) jqf="$a" ;; --head) head="$a" ;; --body-file) body="$a" ;; --title) title="$a" ;; esac
   prev="$a"
@@ -106,8 +106,10 @@ case "$1 $2" in
     f="$FAKE_DIR/issue-$3.json"
     if [ -f "$f" ]; then out < "$f"; else printf '{"state":"OPEN","title":"ticket %s","blockedBy":{"nodes":[],"totalCount":0}}' "$3" | out; fi ;;
   "pr list")
+    # real gh pr list returns only open PRs unless --state all is given
+    case " $* " in *" --state all "*) sf='.' ;; *) sf='[.[] | select(.state=="OPEN")]' ;; esac
     f="$FAKE_DIR/prs-$(echo "$head" | tr / _).json"
-    if [ -f "$f" ]; then out < "$f"; else echo '[]' | out; fi ;;
+    if [ -f "$f" ]; then jq "$sf" "$f" | out; else echo '[]' | out; fi ;;
   "pr create")
     k=$(echo "$head" | tr / _)
     cp "$body" "$FAKE_DIR/bodies/$k.md"; echo "$title" > "$FAKE_DIR/bodies/$k.title"
@@ -123,7 +125,8 @@ chmod +x "$T/bin/gh" "$T/bin/cargo" "$T/bin/osascript"
 export FAKE_GH_LOG="$T/gh.log" FAKE_DIR="$F"
 : > "$FAKE_GH_LOG"
 main_before=$(git -C "$T/origin.git" rev-parse main)
-run_h() { PATH="$T/bin:$PATH" SANDCASTLE_HOST_REPO="$H" SKIP_ISSUES="" HARVEST_GH_CWD="$T" "$@" bash "$H/.sandcastle/harvest.sh" 2>&1; }
+run_h() { PATH="$T/bin:$PATH" SANDCASTLE_HOST_REPO="$H" SKIP_ISSUES="" HARVEST_GH_CWD="$T" \
+  HARVEST_TOKEN_MARKERS="$H/.sandcastle/logs/GH_TOKEN_ROTATION_REQUIRED" "$@" bash "$H/.sandcastle/harvest.sh" 2>&1; }
 remote_has() { git -C "$T/origin.git" rev-parse -q --verify "refs/heads/$1" >/dev/null; }
 remote_sha() { git -C "$T/origin.git" rev-parse "refs/heads/$1"; }
 
@@ -136,7 +139,7 @@ check "101 pushed at local tip" '[ "$(remote_sha sandcastle/issue-101)" = "$(git
 check "101 PR: base main, body file, explicit --repo" 'grep -q "pr create --base main --head sandcastle/issue-101 .*--body-file .*--repo xy7365527-lang/NewChanlun" "$FAKE_GH_LOG"'
 check "101 PR body has Refs and no closing keyword" 'grep -q "^Refs #101$" "$F/bodies/sandcastle_issue-101.md" && ! kw "$(cat "$F/bodies/sandcastle_issue-101.md")"'
 check "101 registration comment, says ticket stays open" 'grep -q "stays open" "$F/bodies/comment-101.md"'
-check "102 open PR reused: push only, no PR, no comment" 'grep -q "PUSHED sandcastle/issue-102 (open PR exists" <<<"$out" && ! grep -q "pr create .*head sandcastle/issue-102" "$FAKE_GH_LOG" && [ ! -f "$F/bodies/comment-102.md" ]'
+check "102 open PR reused: push only, no PR, no comment" 'grep -q "PUSHED sandcastle/issue-102 (pushed; open PR exists" <<<"$out" && ! grep -q "pr create .*head sandcastle/issue-102" "$FAKE_GH_LOG" && [ ! -f "$F/bodies/comment-102.md" ]'
 check "103 closing keyword fails, not pushed" 'grep -q "FAIL sandcastle/issue-103 (commit message carries a closing keyword" <<<"$out" && ! remote_has sandcastle/issue-103'
 check "104 skipped (reviewer not completed)" 'grep -q "SKIP sandcastle/issue-104 (reviewer phase not completed" <<<"$out" && ! remote_has sandcastle/issue-104'
 check "105 skipped (ticket closed)" 'grep -q "SKIP sandcastle/issue-105 (ticket CLOSED)" <<<"$out" && ! remote_has sandcastle/issue-105'
@@ -154,29 +157,35 @@ check "origin main untouched although host main is ahead" '[ "$(git -C "$T/origi
 check "local branches kept" '[ "$(git -C "$H" for-each-ref refs/heads/sandcastle | wc -l | tr -d " ")" = 14 ]'
 
 # ---- 4. second real run: idempotent ----
-cp "$FAKE_GH_LOG" "$T/gh.run1.log"; : > "$FAKE_GH_LOG"
+cat "$FAKE_GH_LOG" >> "$T/gh.all.log"; : > "$FAKE_GH_LOG"
 rm -f "$F/bodies/comment-"*
+git -C "$H" checkout -q sandcastle/issue-101
+echo more > "$H/t101b.txt" && git -C "$H" add t101b.txt && git -C "$H" commit -q -m "review: #101 follow-up"
+git -C "$H" checkout -q main
+ev 101 implementer started; ev 101 reviewer completed
 rc2=0; out2=$(run_h env SKIP_ISSUES="103 107 111 112") || rc2=$?
 check "second run exits 0" '[ $rc2 = 0 ]'
-check "second run: 101/110 push-only via their open PRs" 'grep -q "PUSHED sandcastle/issue-101 (open PR exists" <<<"$out2" && grep -q "PUSHED sandcastle/issue-110 (open PR exists" <<<"$out2"'
+check "second run: 101 fast-forwarded into its open PR" 'grep -q "PUSHED sandcastle/issue-101 (pushed; open PR exists" <<<"$out2" && [ "$(remote_sha sandcastle/issue-101)" = "$(git -C "$H" rev-parse sandcastle/issue-101)" ]'
+check "second run: 110 up to date via its open PR" 'grep -q "PUSHED sandcastle/issue-110 (up to date; open PR exists" <<<"$out2"'
 check "second run: no PR created, no comment" '! grep -qE "pr create|issue comment" "$FAKE_GH_LOG"'
 
 # ---- 5. dry run on a new branch ----
 mk_branch 108 "probe: #108 new"
 ev 108 implementer started; ev 108 reviewer completed
-: > "$FAKE_GH_LOG"
+cat "$FAKE_GH_LOG" >> "$T/gh.all.log"; : > "$FAKE_GH_LOG"
 out3=$(run_h env SKIP_ISSUES="103 107 111 112" HARVEST_DRY_RUN=1) || true
 check "dry run announces 108" 'grep -q "DRY push sandcastle/issue-108" <<<"$out3" && grep -q "DRY pr create sandcastle/issue-108" <<<"$out3"'
 check "dry run pushes/creates/comments nothing" '! remote_has sandcastle/issue-108 && ! grep -qE "pr create|issue comment" "$FAKE_GH_LOG"'
 
 # ---- 6. token rotation marker blocks the whole run ----
-touch "$H/.sandcastle/logs/GH_TOKEN_ROTATION_REQUIRED"; : > "$FAKE_GH_LOG"
+touch "$H/.sandcastle/logs/GH_TOKEN_ROTATION_REQUIRED"; cat "$FAKE_GH_LOG" >> "$T/gh.all.log"; : > "$FAKE_GH_LOG"
 rc4=0; out4=$(run_h env) || rc4=$?
 check "token rotation marker: fail-loud, no gh calls" '[ $rc4 = 1 ] && grep -q "GitHub token rotation required" <<<"$out4" && [ ! -s "$FAKE_GH_LOG" ]'
 rm -f "$H/.sandcastle/logs/GH_TOKEN_ROTATION_REQUIRED"
 
 # ---- 7. forbidden actions across all runs ----
-cat "$T/gh.run1.log" "$FAKE_GH_LOG" > "$T/gh.all.log"
+cat "$FAKE_GH_LOG" >> "$T/gh.all.log"
+check "forbidden-action log covers all runs" '[ "$(grep -c "^pr list" "$T/gh.all.log")" -ge 20 ]'
 check "never closes tickets" '! grep -q "issue close" "$T/gh.all.log"'
 check "never merges PRs" '! grep -q "pr merge" "$T/gh.all.log"'
 check "never runs cargo" '! grep -q "^cargo" "$T/gh.all.log"'

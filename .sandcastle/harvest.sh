@@ -18,7 +18,8 @@
 #
 # Env: SANDCASTLE_HOST_REPO (repo root, default = parent of this script's dir),
 #      HARVEST_GH_REPO (default xy7365527-lang/NewChanlun), SKIP_ISSUES (space separated),
-#      HARVEST_DRY_RUN=1 (print actions, push/PR/comment nothing), HARVEST_GH_CWD (default /tmp).
+#      HARVEST_DRY_RUN=1 (print actions, push/PR/comment nothing), HARVEST_GH_CWD (default /tmp),
+#      HARVEST_TOKEN_MARKERS (space separated token-rotation marker paths).
 # Pure ASCII, bash 3.2 compatible.
 set -euo pipefail
 
@@ -70,7 +71,9 @@ note_fail() { echo "FAIL $1 ($2)"; failed=$((failed+1)); fail_list="${fail_list}
 # Closing-keyword check in the C locale (stricter: CJK text right before "fix #n" still counts).
 has_close_kw() { LC_ALL=C grep -Eiq "$CLOSE_RE" <<<"$1"; }
 
-for f in "$REPO/.sandcastle/logs/GH_TOKEN_ROTATION_REQUIRED" "/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/GH_TOKEN_ROTATION_REQUIRED"; do
+# Token-rotation markers (same files main.mts / run-claim-loop.sh honor); overridable for tests.
+TOKEN_MARKERS="${HARVEST_TOKEN_MARKERS:-$REPO/.sandcastle/logs/GH_TOKEN_ROTATION_REQUIRED /Users/silencehan/Projects/NewChanlun/.sandcastle/logs/GH_TOKEN_ROTATION_REQUIRED}"
+for f in $TOKEN_MARKERS; do
   if [ -f "$f" ]; then note_fail "(all)" "GitHub token rotation required: $f"; fi
 done
 if [ $failed = 0 ] && ! git fetch -q origin main; then note_fail "(all)" "git fetch origin main failed"; fi
@@ -151,7 +154,9 @@ for br in $branches; do
     fi
   fi
   if [ -n "$open_pr" ]; then
-    echo "PUSHED $br (open PR exists: $open_pr)"
+    if [ $need_push = 1 ]; then act="pushed"; else act="up to date"; fi
+    [ "$DRY" = 1 ] && act="dry run"
+    echo "PUSHED $br ($act; open PR exists: $open_pr)"
     pushed_only=$((pushed_only+1))
     continue
   fi
