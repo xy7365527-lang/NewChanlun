@@ -25,8 +25,8 @@
 //! ## ★诚实有效域（no-workaround 标注）
 //!
 //! - **nav 近似**：`PortfolioApi` 未公开 balance facade（v0.60/0.62 同），`nav` 暂用构造期
-//!   funding-record 的 `Q_total`（ADR 0040；#1601 C-02 取代 1e6 占位，回测起始余额同源）。sizing 基数足够单标的；真实 NAV 读取待 PortfolioApi
-//!   公开 balance（与 `theta_strategy.rs` 同一有效域边界，非缺陷）。
+//!   funding-record 的 `Q_total`（ADR 0040；#1601 C-02 取代 1e6 占位，回测起始余额同源）。
+//!   sizing 基数足够单标的；真实 NAV 读取待 PortfolioApi 公开 balance（与 `theta_strategy.rs` 同一有效域边界，非缺陷）。
 //! - **θ 信号非零依赖真实结构**：`p_star ≠ 0` 需要真实 BSP 结构（买卖点）在分类器内形成——合成
 //!   单调/锯齿数据产 `p_star = 0`（诚实退化，对齐 `theta_pi_stream.rs` 测试口径，该测试同样
 //!   不锁非零订单）。
