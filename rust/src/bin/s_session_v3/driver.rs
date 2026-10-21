@@ -5752,6 +5752,31 @@ mod tests {
                     assert_eq!(left.0, right.0, "第{k}代表集分叉");
                     assert!(left == right, "第{k}代({})表{}增量≠冷全量", step.kind, left.0);
                 }
+                // fix-0089 ⑤-P2-1 负控变异（紧跟 revert）：自检、回复/回执/Counts/表集对拍之后，
+                // 只翻增量臂一个根可达叶节点 body 的末字节（摘要与可达集不变）。
+                if k == 2 {
+                    let c: &Connection = &native.conn;
+                    let leaves = c
+                        .prepare("SELECT digest,body FROM s_content_nodes WHERE tag NOT IN (3,4,5,6,7,18,19,20) AND length(body)>0 ORDER BY digest")
+                        .unwrap()
+                        .query_map([], |r| Ok((r.get::<_, Vec<u8>>(0)?, r.get::<_, Vec<u8>>(1)?)))
+                        .unwrap()
+                        .collect::<Result<Vec<_>, _>>()
+                        .unwrap();
+                    let (d, mut body) = leaves
+                        .into_iter()
+                        .find(|(d, _)| reachable.contains(d))
+                        .expect("第2代须有可达叶节点");
+                    *body.last_mut().unwrap() ^= 1;
+                    let n = c
+                        .execute(
+                            "UPDATE s_content_nodes SET body=?1 WHERE digest=?2",
+                            rusqlite::params![body, d],
+                        )
+                        .unwrap();
+                    assert_eq!(n, 1);
+                    eprintln!("FIX0089_MUTATION k={k} digest={d:02x?}");
+                }
                 prepared::tests::runtime_root_compare_reachable_bytes(&native.conn, &reader.conn);
                 let stored = |c: &Connection| {
                     c.prepare("SELECT digest FROM s_content_nodes")
