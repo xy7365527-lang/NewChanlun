@@ -3991,6 +3991,7 @@ fn acc_multilevel_highlevel_mu() {
         lcb: f64,
         neff: f64,
         nraw: usize,
+        #[allow(dead_code, reason = "#1608：holdout 结果字段，计算后当前无读出点")]
         sum_rho: f64,
         drop_d5: f64,
         bootstrap_p: f64,

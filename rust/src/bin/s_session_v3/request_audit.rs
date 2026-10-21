@@ -45,10 +45,31 @@ pub(super) struct RequestAuditContext {
     #[cfg(feature = "s_capture_native_testonly")]
     cold_parent: Option<super::audit_owner::native::Budget>,
     #[cfg(test)]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     binding_hook: Option<fn(&Transaction<'_>)>,
     #[cfg(test)]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     pub(super) cold: usize,
     #[cfg(test)]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     pub(super) hits: usize,
 }
 impl Drop for RequestAuditContext {
@@ -63,9 +84,25 @@ impl Drop for RequestAuditContext {
 }
 
 pub(super) struct VerifiedHistoricalSlot {
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     pub(super) binding: HistoricalDependencyBinding,
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     pub(super) capture: AuditCapture,
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     pub(super) node_count: usize,
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     pub(super) result: Rc<ImmutableHistoricalAudit>,
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) source_pending: Option<super::cross_request_source_cache::PendingPool>,
@@ -78,10 +115,24 @@ impl RequestAuditContext {
         &mut self.original_scan_scratch
     }
     #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
+        )
+    )]
     pub(super) fn original_scan_scratch_capacity_nodes(&self) -> usize {
         self.original_scan_scratch.capacity_nodes()
     }
     #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
+        )
+    )]
     pub(super) fn with_source_keeper(keeper: super::cross_request_source_cache::Keeper) -> Self {
         let mut context = Self::default();
         context.source_keeper = Some(keeper);
@@ -192,6 +243,10 @@ impl RequestAuditContext {
     pub(super) fn take(&mut self) -> Option<VerifiedHistoricalSlot> {
         self.slot.take()
     }
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     pub(super) fn retain(
         &mut self,
         binding: HistoricalDependencyBinding,
@@ -223,12 +278,26 @@ impl RequestAuditContext {
         });
     }
     #[cfg(test)]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     pub(super) fn before_binding(&mut self, tx: &Transaction<'_>) {
         if let Some(hook) = self.binding_hook.take() {
             hook(tx);
         }
     }
     #[cfg(test)]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     pub(super) fn has_slot(&self) -> bool {
         self.slot.is_some()
     }
@@ -237,14 +306,38 @@ impl RequestAuditContext {
 /// SQLite storage class/NULL/原文字节均保留；REAL按原bits比较，绝不JSON规范化。
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum SqlCell {
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     Null,
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     Integer(i64),
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     Real(u64),
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     Text(Vec<u8>),
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     Blob(Vec<u8>),
 }
 /// 参数与依赖 scope 在准入前只借用，不提前创建 Vec/String owner。
 #[derive(Clone, Copy)]
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+)]
 pub(super) enum SqlCellView<'a> {
     Null,
     Integer(i64),
@@ -253,6 +346,10 @@ pub(super) enum SqlCellView<'a> {
     Blob(&'a [u8]),
 }
 impl SqlCellView<'_> {
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     fn copy_admitted(self, store: &NativeAdmission<'_>) -> Result<SqlCell, String> {
         Ok(match self {
             Self::Null => SqlCell::Null,
@@ -283,6 +380,10 @@ pub(super) struct ExactRows {
 impl ExactRows {
     /// 原 SQL、原顺序与完整 storage class 绑定；唯一 Native 父域在复制前准入。
     /// SQLite 自身转换先经 CheckedStatement/CheckedRow 的 NOMEM 门再开放借用。
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     pub(super) fn read_admitted(
         tx: &Transaction<'_>,
         sql: &CStr,
@@ -355,6 +456,10 @@ impl ExactRows {
             rows,
         })
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn read(
         tx: &Transaction<'_>,
         sql: &str,
@@ -393,6 +498,10 @@ impl ExactRows {
         })
     }
 }
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+)]
 fn storage(e: impl std::fmt::Display) -> String {
     format!("StorageUnavailable：历史原件绑定读取失败：{e}")
 }
@@ -405,12 +514,20 @@ pub(super) struct HistoricalDependencyBinding {
     material: Vec<ExactRows>,
 }
 impl HistoricalDependencyBinding {
+    #[allow(
+        dead_code,
+        reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+    )]
     pub(super) fn read(
         tx: &Transaction<'_>,
         history: &ImmutableHistoricalAudit,
     ) -> Result<Self, String> {
         Self::read_admitted(tx, history, None)
     }
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     pub(super) fn read_admitted(
         tx: &Transaction<'_>,
         history: &ImmutableHistoricalAudit,
@@ -477,6 +594,10 @@ impl HistoricalDependencyBinding {
         }
         Ok(Self { frontier, material })
     }
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     fn read_source(
         tx: &Transaction<'_>,
         source: &AuditSourceCommit,
@@ -1118,7 +1239,8 @@ mod tests {
             tx.progress_handler(
                 1,
                 Some(move || once.swap(false, std::sync::atomic::Ordering::SeqCst)),
-            );
+            )
+            .expect("安装故障注入 progress_handler");
         }
         let mut f = Fixture::new();
         publish_one(&mut f);
@@ -1586,6 +1708,13 @@ impl RequestAuditContext {
         }
     }
     /// 仅显式调用才将冻结额度用于强制cold审计；缺省context没有零预算合同。
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
+        )
+    )]
     pub(super) fn enable_cold_admission_for_testonly(&mut self) -> Result<(), String> {
         let contract = self
             .workspace_budget
@@ -1622,6 +1751,13 @@ impl RequestAuditContext {
 impl ExactRows {
     /// 可选保留的预算不足不是校验成功；原完整核已经完成，仅停止材料保留。
     /// SQL/取值错误仍直接传播。每行容量进入累计账，不先聚合一份无界全表。
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
+        )
+    )]
     pub(super) fn read_optional_bounded(
         tx: &Transaction<'_>,
         sql: &str,

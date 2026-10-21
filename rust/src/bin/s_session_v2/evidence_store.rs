@@ -60,9 +60,6 @@ fn work_copy_admitted<T: Copy>(
     }
     Ok(out)
 }
-fn work_resize<T: Copy>(v: &mut CodecVec<T>, len: usize, value: T) -> Result<(), String> {
-    work_resize_admitted(v, len, value, None)
-}
 fn work_resize_admitted<T: Copy>(
     v: &mut CodecVec<T>,
     len: usize,
@@ -536,7 +533,15 @@ pub(super) struct Staged {
     pub(super) expanded_length: u64,
     pub(super) content_sha256: String,
     /// staging 期间新生成的节点数（不是库内新增数；库内新增由发布时计数）。
+    #[allow(
+        dead_code,
+        reason = "#1608：staging 规模测量字段，stage_complete 照常填写，尚无读取方"
+    )]
     pub(super) staged_nodes: usize,
+    #[allow(
+        dead_code,
+        reason = "#1608：staging 规模测量字段，stage_complete 照常填写，尚无读取方"
+    )]
     pub(super) staged_bytes: u64,
 }
 
@@ -575,6 +580,10 @@ impl Stager {
     }
 
     /// 交给 `stage_complete` 的槽字节（发布前登记为独立叶）。
+    #[allow(
+        dead_code,
+        reason = "#1608：Stager 槽字节只读视图，现无调用方；保留待接线"
+    )]
     pub(super) fn param_bytes(&self) -> &[Vec<u8>] {
         &self.params
     }
@@ -869,11 +878,13 @@ enum Part<'a> {
 }
 
 /// 按标签逐项解析拼接节点负载：语法未声明、截断、越界一律拒绝（不猜、不忽略余量）。
+#[cfg(test)]
 fn split_seq(payload: &[u8]) -> Result<Vec<Part<'_>>, String> {
     split_seq_work(payload, None)?
         .try_into_plain()
         .map_err(|e| e.to_string())
 }
+#[cfg(test)]
 fn split_seq_work<'a>(
     payload: &'a [u8],
     owner: Option<&OwnedBudget>,
@@ -1457,6 +1468,7 @@ impl<'a> Reader<'a> {
             content_sha256: check.row.content_sha256,
         })
     }
+    #[cfg(test)]
     pub(super) fn touched(&self) -> &std::collections::BTreeSet<[u8; 32]> {
         &self.touched
     }
@@ -1965,6 +1977,10 @@ impl<'a> Reader<'a> {
     }
 
     /// 读一个根并解码为规范 JSON 对象（同一句柄缓存，含展开字节）。
+    #[allow(
+        dead_code,
+        reason = "#1608：固定切面读取的 JSON 解码入口，现无调用方；保留待接线"
+    )]
     pub(super) fn read_fixed_cut_value(
         &mut self,
         root_key: &str,
@@ -2344,9 +2360,6 @@ fn read_root_row_admitted(
     }))
 }
 
-fn append_checked(out: &mut CodecVec<u8>, bytes: &[u8], declared: u64) -> Result<(), String> {
-    append_checked_admitted(out, bytes, declared, None)
-}
 fn append_checked_admitted(
     out: &mut CodecVec<u8>,
     bytes: &[u8],
@@ -2537,6 +2550,10 @@ pub(super) fn stats(conn: &Connection) -> Result<(i64, i64), String> {
 
 /// 拼接节点的每一项在展开时是否只按字面读取（测试与审计用的结构探针）。
 #[cfg(test)]
+#[allow(
+    dead_code,
+    reason = "#1608：测试与审计用的结构探针，现无测试调用；保留供诊断"
+)]
 pub(super) fn describe(conn: &Connection, root_key: &str) -> Result<Value, String> {
     let (root, params, len, hash) = Reader::root_row(conn, root_key)?
         .ok_or_else(|| format!("StorageUnavailable：私有根 `{root_key}` 缺失"))?;

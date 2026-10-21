@@ -337,6 +337,7 @@ impl TPositionEngine {
     }
 
     /// 核心仓有效持仓成本（缠师"成本"，可<0）。无 campaign ⇒ NaN。
+    #[allow(dead_code, reason = "#1608：核心仓成本只读访问器，当前无调用方")]
     fn cost_basis(&self) -> f64 {
         self.core_cost_basis
     }

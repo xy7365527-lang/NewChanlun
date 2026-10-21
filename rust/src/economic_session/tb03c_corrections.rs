@@ -2,7 +2,7 @@
 //! 跨 fill bust 现金政策未裁，本片 typed Unsupported，不引入 FIFO 或平均价。
 use super::book::{array, integer};
 use crate::session_protocol::{nonnegative, positive, required};
-use serde_json::{json, Value};
+use serde_json::Value;
 
 pub(super) fn is_correction(event: &Value) -> bool {
     matches!(

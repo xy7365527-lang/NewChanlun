@@ -4,10 +4,12 @@
 //! Job计本次证明遍历的唯一节点及从开门起的期限；独立的Q capture/verify预算尚待上层贯通。
 
 use super::*;
+#[cfg(test)]
 use newchan_rust::s_content::access::Access;
 #[cfg(test)]
 use newchan_rust::s_content::job::Job;
 use newchan_rust::s_content::{self as sc, TransportRef};
+#[cfg(test)]
 use newchan_rust::s_content::{
     fragment::{self, Fragment, Unit},
     path::PathStep,
@@ -19,6 +21,7 @@ use rusqlite::Transaction;
 use sc::capture_allocation::audit_json::{self as aj, JsonView};
 
 /// 调用方在请求内持有这个事务；返回后不得跨请求继续持锁。
+#[cfg(test)]
 pub(super) fn delta_fragment(
     tx: &Transaction<'_>,
     anchor: &Value,
@@ -48,6 +51,7 @@ pub(super) fn delta_fragment(
     .map_err(err)
 }
 /// 已核副本与直接事务读者共用同一发布/会话/保留窗口判据。
+#[cfg(test)]
 pub(super) fn validated_delta<'a>(
     tx: &Transaction<'_>,
     audited: &'a state::AuditedState,
@@ -194,6 +198,10 @@ impl aj::JsonObject for DeltaAnchor<'_> {
     }
 }
 /// 普通旧Value入口仍由同一借用表示核构造；Owned调用方直接持view或显式预算输出。
+#[allow(
+    dead_code,
+    reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+)]
 pub(super) fn delta_anchor(cut: &history::PublishedCut) -> Value {
     assert!(
         matches!(&cut.delta, audit_store::RefValue::Plain(_))
@@ -216,6 +224,7 @@ fn err(e: impl std::fmt::Display) -> String {
 }
 
 /// 每次在当前一致事务重建指定完整Q根；旧cut不受Delta交付窗口淘汰影响。
+#[cfg(test)]
 pub(super) fn projection_fragment(
     tx: &Transaction<'_>,
     anchor: &Value,
@@ -276,6 +285,7 @@ pub(super) fn projection_fragment(
     )
     .map_err(err)
 }
+#[cfg(test)]
 pub(super) fn check_projection_anchor(
     actual: &projection::Projection,
     anchor: &Value,

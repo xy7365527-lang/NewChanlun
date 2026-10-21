@@ -832,6 +832,10 @@ impl fmt::Display for DecimalError<'_> {
         }
     }
 }
+#[allow(
+    dead_code,
+    reason = "#1608：CodecError 口径的十进制解析便捷包装，现有调用方均直接用 parse_canonical_u64_typed"
+)]
 fn parse_canonical_u64(text: &str, what: &str) -> Result<u64, CodecError> {
     parse_canonical_u64_typed(text, what).map_err(|e| {
         let code = e.code();
@@ -1903,12 +1907,20 @@ impl LeafIter {
     }
 
     /// 下一个叶（tag, 摘要, body）；叶的类型由调用方按上下文核。
+    #[allow(
+        dead_code,
+        reason = "#1608：LeafIter 便捷入口，现有调用方均直接用 next_with"
+    )]
     fn next(
         &mut self,
         source: &mut dyn NodeSource,
     ) -> Result<Option<(u8, NodeDigest, Vec<u8>)>, CodecError> {
         self.next_with(|d| read_checked(source, d))
     }
+    #[allow(
+        dead_code,
+        reason = "#1608：LeafIter 便捷入口，现有调用方均直接用 next_with"
+    )]
     fn next_body<'capture>(
         &mut self,
         source: &mut dyn NodeSource,
@@ -4402,6 +4414,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
     ) -> Self {
         Self::with_context(CodecContext::Capture(source.0), mode, memo)
     }
+    #[cfg(test)]
     fn with_memo(source: &'a mut dyn NodeSource, mode: Mode, memo: AuditMemo) -> Self {
         Self::with_context(CodecContext::Source(source), mode, memo)
     }
@@ -5730,7 +5743,7 @@ fn render_ctx(
     render_refview_ctx(source, reference.into(), out)
 }
 fn render_refview_ctx(
-    mut source: CodecContext<'_, '_>,
+    source: CodecContext<'_, '_>,
     reference: RefView<'_>,
     out: &mut dyn Write,
 ) -> Result<(), CodecError> {

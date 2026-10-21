@@ -236,7 +236,7 @@ pub(crate) fn flat_elements(open: &[Candidate]) -> Vec<CoverageElement> {
 /// ★O(n²) 重构测试适配：把旧 `(elements, candidate_start)` 拆成 ElementView 双段
 /// （base=tree 前缀 elements[..cstart]，overlay=candidate 段 elements[cstart..]）。
 /// bit-exact == 旧合并 Vec：索引语义不变（base 在前 overlay 在后）。
-pub(crate) fn view_split(elements: &[CoverageElement], cstart: usize) -> ElementView {
+pub(crate) fn view_split(elements: &[CoverageElement], cstart: usize) -> ElementView<'_> {
     ElementView::from_parts(&elements[..cstart], elements[cstart..].to_vec())
 }
 

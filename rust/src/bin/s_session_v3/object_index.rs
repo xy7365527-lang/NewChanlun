@@ -13,9 +13,10 @@ use super::{
 use crate::v3::audit_store::{CodecRead, CodecStore};
 use crate::{canonical_json, content_store, object_diff};
 use newchan_rust::s_content::{
-    self as sc, path::PathStep, Built, ContentRef, Kind, NodeDigest, NodeSource, NodeStore,
-    Value as V,
+    self as sc, path::PathStep, Built, ContentRef, Kind, NodeDigest, Value as V,
 };
+#[cfg(test)]
+use newchan_rust::s_content::{NodeSource, NodeStore};
 use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::{params, Transaction};
 use sc::capture_allocation::{audit_json as aj, OwnedBudget};
@@ -48,6 +49,10 @@ fn field(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<C
 fn digest(r: &ContentRef) -> Result<NodeDigest, String> {
     r.digest().map_err(err)
 }
+#[allow(
+    dead_code,
+    reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删"
+)]
 fn built(r: ContentRef) -> Result<Built, String> {
     Ok(Built {
         digest: digest(&r)?,
@@ -78,6 +83,7 @@ impl Fields {
     ) -> Result<Self, String> {
         s.lookup_object_fields(root, names).map(Self).map_err(err)
     }
+    #[allow(dead_code, reason = "#1608：类型配套访问器，当前无调用方；保留不删")]
     pub(super) fn read_subset(
         s: &mut (impl CodecStore + ?Sized),
         root: &ContentRef,
@@ -92,6 +98,10 @@ impl Fields {
             .get(name)
             .ok_or_else(|| err(format!("原件缺字段{name}")))
     }
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     pub(super) fn text(
         &self,
         s: &mut (impl CodecStore + ?Sized),
@@ -102,6 +112,10 @@ impl Fields {
             .map(str::to_owned)
             .ok_or_else(|| err(format!("{name}不是文本")))
     }
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     pub(super) fn integer(
         &self,
         s: &mut (impl CodecStore + ?Sized),
@@ -111,12 +125,20 @@ impl Fields {
             .as_i64()
             .ok_or_else(|| err(format!("{name}不是i64")))
     }
+    #[allow(
+        dead_code,
+        reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删"
+    )]
     fn equal(&self, key: &str, other: &Self, other_key: &str) -> Result<(), String> {
         if self.get(key)? != other.get(other_key)? {
             return Err(err(format!("{key}/{other_key}内容边不同")));
         }
         Ok(())
     }
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     fn slot(&self, s: &mut (impl CodecStore + ?Sized), kind: &str) -> Result<Slot, String> {
         if kind == SHAPE {
             Ok(Slot::Shape([
@@ -147,6 +169,10 @@ impl Fields {
         }
         s.write_value(&V::Object(fields)).map_err(err)
     }
+    #[allow(
+        dead_code,
+        reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删"
+    )]
     fn bind_json_text(
         &self,
         s: &mut (impl CodecStore + ?Sized),
@@ -174,6 +200,10 @@ fn integer(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result
         .ok_or_else(|| err(format!("{k}不是i64")))
 }
 /// 本口只取真实节点头；load返回前统一验证这些根的全部闭包。
+#[allow(
+    dead_code,
+    reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删"
+)]
 fn root_header(s: &mut (impl CodecRead + ?Sized), b: Vec<u8>) -> Result<Built, String> {
     let d: NodeDigest = b.try_into().map_err(|_| err("根不是32字节"))?;
     let r = s.content_ref_of(&sc::root_string(&d)).map_err(err)?;
@@ -211,6 +241,10 @@ pub(super) enum Slot {
     },
 }
 impl Slot {
+    #[allow(
+        dead_code,
+        reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删"
+    )]
     fn key(&self) -> String {
         match self {
             Self::Shape(w) => canonical_json(&json!([0, w[0], w[1], w[2]])),
@@ -235,6 +269,10 @@ pub(super) struct Entry {
 }
 pub(super) struct Plan {
     pub generation: i64,
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub index: Vec<Entry>,
     pub births: Vec<Entry>,
     pub withdrawals: Vec<Value>,
@@ -559,6 +597,10 @@ impl NativeProjection<'_> {
     }
 }
 impl HistoryObjects<'_> {
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn native_sweep(&mut self) -> Option<HistorySweep> {
         self.native_sweep_admitted(&super::audit_store::NativeAdmission(None))
             .expect("无scope的Native事件构造")
@@ -581,6 +623,10 @@ impl HistoryObjects<'_> {
     pub(super) fn entries(&self) -> &[Entry] {
         &self.entries
     }
+    #[cfg_attr(
+        feature = "s_capture_native_testonly",
+        allow(dead_code, reason = "#1608：s_capture_native_testonly 构建不触达此项")
+    )]
     pub(super) fn into_entries(self) -> sc::CodecVec<Entry> {
         self.entries
     }
@@ -750,6 +796,13 @@ impl HistoryObjects<'_> {
 impl HistoryObjects<'_> {
     // #1394冻结旧扫描算法，只作合法生命周期对照，不接生产失败分支。
     /// Only this complete-load Native owner can produce both projections. No arbitrary arrays.
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     fn native_dual_at_cut_scan_for_test(
         &mut self,
         s: &mut super::history::HashReader<'_>,
@@ -1209,6 +1262,10 @@ fn bind_originals(
     }
     Ok(())
 }
+#[allow(
+    dead_code,
+    reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+)]
 fn bind_shape_refs(
     s: &mut (impl CodecStore + ?Sized),
     generated: &ContentRef,
@@ -1392,6 +1449,7 @@ fn bind_shape_refs_view(
     Ok(())
 }
 /// 顺序保留真实出生插入序；公开视图和 diff 在各自边界按原合同排序。
+#[cfg(test)]
 pub(super) fn load(
     tx: &Transaction<'_>,
     s: &mut dyn NodeStore,
@@ -1405,6 +1463,10 @@ pub(super) fn load(
         None,
     )
 }
+#[cfg_attr(
+    not(all(test, feature = "s_capture_native_testonly")),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+)]
 pub(super) fn load_for_audit(
     tx: &Transaction<'_>,
     s: &mut super::history::HashReader<'_>,
@@ -1884,9 +1946,13 @@ fn push_change(
     match array {
         bj::JsonOwner::Plain(Value::Array(rows)) => {
             s.native_vec_room(rows, 1).map_err(err)?;
-            let bj::JsonOwner::Plain(value) = bj::json_from_view_admitted(s, view)? else {
+            #[cfg(feature = "s_allocation_json_testonly")]
+            let bj::JsonOwner::Plain(value) = bj::json_from_view_admitted(s, view)?
+            else {
                 return Err(err("Plain变化JSON不能接Owned所有者"));
             };
+            #[cfg(not(feature = "s_allocation_json_testonly"))]
+            let bj::JsonOwner::Plain(value) = bj::json_from_view_admitted(s, view)?;
             rows.push(value);
             Ok(())
         }
@@ -1942,6 +2008,7 @@ fn push_replace(
 }
 /// 独立生命周期导出的本代变化集合，顺序沿上一代活动主序。
 /// 旧接口仅消费同一核心的普通数组，Owned所有者不能擦除为普通Vec。
+#[cfg(test)]
 pub(super) fn changes_at(index: &[Entry], g: i64) -> Result<(Vec<Value>, Vec<Value>), String> {
     let (withdrawals, replaces) = changes_at_budgeted(index, g, None)?;
     let plain = |owner| match owner {
@@ -2015,6 +2082,13 @@ struct HistoryEvents {
     sort_passes: usize,
 }
 #[cfg(test)]
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+    )
+)]
 pub(super) fn take_load_lookup_counts() -> (usize, usize) {
     (
         LOAD_ID_VISITS.with(|n| n.replace(0)),
@@ -2022,6 +2096,13 @@ pub(super) fn take_load_lookup_counts() -> (usize, usize) {
     )
 }
 #[cfg(test)]
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+    )
+)]
 pub(super) fn load_id_capacity() -> usize {
     LOAD_ID_CAPACITY.with(|n| n.get())
 }
@@ -2269,6 +2350,7 @@ impl HistorySweep {
         self.previous = g;
         Ok(())
     }
+    #[cfg(test)]
     pub(super) fn changes(
         &self,
         index: &[Entry],
@@ -2377,6 +2459,13 @@ impl ProjectionSweep {
         Ok(())
     }
     #[cfg(test)]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     fn new(index: &[Entry]) -> Self {
         Self::new_admitted(index, &super::audit_store::NativeAdmission(None))
             .expect("无scope的Native投影构造")
@@ -2482,6 +2571,7 @@ impl ProjectionSweep {
     }
 }
 /// 按该代真实候选序复用同一diff判据，再对拍独立生命周期；不假定候选槽位唯一。
+#[cfg(test)]
 pub(super) fn verify_generated_members<'a>(
     s: &mut (impl CodecStore + ?Sized),
     index: &[Entry],
@@ -2490,6 +2580,7 @@ pub(super) fn verify_generated_members<'a>(
 ) -> Result<(), String> {
     verify_generated_members_swept(s, index, state, g, None)
 }
+#[cfg(test)]
 pub(super) fn verify_generated_members_swept<'a>(
     s: &mut (impl CodecStore + ?Sized),
     index: &[Entry],
@@ -2799,6 +2890,7 @@ mod tests {
         meta_get_opt, meta_set, open_db, read_effective_events, read_raw_events, tb02a,
         tests::{accept_ohlc, init_test_db, located_ohlc_input, tb02b_oracle_rows, TestFiles},
     };
+    #[cfg(feature = "s_capture_native_testonly")]
     use newchan_rust::s_content::NodeSink;
     use rusqlite::Connection;
     #[cfg(all(

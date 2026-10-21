@@ -294,11 +294,13 @@ impl ShadowVoiceBook {
     }
 
     /// 分歧记录（仅 `kind != Match`）。
+    #[cfg(test)]
     pub(crate) fn records(&self) -> &[ShadowStepRecord] {
         &self.records
     }
 
     /// 全量统计。
+    #[cfg(test)]
     pub(crate) fn stats(&self) -> &ShadowStats {
         &self.stats
     }
