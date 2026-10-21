@@ -115,7 +115,13 @@ impl Runtime {
     }
 
     #[cfg(test)]
-    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     pub(super) fn set_after_prepare_for_request_test(
         &mut self,
         hook: Option<fn(&Transaction<'_>) -> Result<(), String>>,
@@ -187,7 +193,13 @@ impl Runtime {
         result
     }
     #[cfg(test)]
-    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     pub(super) fn commit_in_request(
         &mut self,
         mut tx: Transaction<'_>,
@@ -1370,7 +1382,10 @@ pub(crate) mod tests {
     }
     #[test]
     fn generic_business_store_keeps_legacy_owned_layout() {
-        #[allow(dead_code, reason = "#1608：布局对照结构，只用于 size_of/align_of 测量，字段不读")]
+        #[allow(
+            dead_code,
+            reason = "#1608：布局对照结构，只用于 size_of/align_of 测量，字段不读"
+        )]
         struct Before<'a, 'c> {
             inner: content_store::TxStore<'a, 'c>,
             budget: Option<sc::capture_allocation::OwnedBudget>,
@@ -1712,14 +1727,15 @@ pub(crate) mod tests {
             // Arc计数不受随后SQL回滚影响，表本身则必须一起回滚。
             let fired = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
             let observed = fired.clone();
-            f.conn.update_hook(Some(
-                move |_: rusqlite::hooks::Action, _: &str, table: &str, _: i64| {
-                    if table == "native_local_fault_seen" {
-                        observed.fetch_add(1, Ordering::SeqCst);
-                    }
-                },
-            ))
-            .expect("安装故障观察 update_hook");
+            f.conn
+                .update_hook(Some(
+                    move |_: rusqlite::hooks::Action, _: &str, table: &str, _: i64| {
+                        if table == "native_local_fault_seen" {
+                            observed.fetch_add(1, Ordering::SeqCst);
+                        }
+                    },
+                ))
+                .expect("安装故障观察 update_hook");
             let hex = sc::root_string(&target);
             let hex = hex.strip_prefix("sc1-").unwrap();
             let damage = if delete {

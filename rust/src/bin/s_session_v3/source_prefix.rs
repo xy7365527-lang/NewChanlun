@@ -367,7 +367,10 @@ impl<'a> IntoIterator for &'a SourceCoords {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum ParseDomain {
-    #[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     Public,
     JsonInner,
 }
@@ -424,7 +427,10 @@ pub(super) struct NativeSourceMemo<'capture> {
     pub(super) stats: [u64; 4], // coords hit/miss, refs hit/miss
 }
 impl<'capture> NativeSourceMemo<'capture> {
-    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用"))]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     pub(super) fn new(capture: &'capture sc::AuditCapture, raw: RawEventsView<'capture>) -> Self {
         #[cfg(test)]
         STATS.with(|s| s.set(Some([0; 4])));
@@ -448,7 +454,13 @@ impl<'capture> NativeSourceMemo<'capture> {
         self.intern.clear();
     }
     #[cfg(test)]
-    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     fn winner_intervals(
         raw: RawEventsView<'_>,
     ) -> Result<HashMap<(i64, NodeDigest, bool), Vec<Interval>>, String> {

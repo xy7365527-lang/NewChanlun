@@ -64,7 +64,13 @@ pub(super) fn publish_prepared(
     Ok(receipt)
 }
 
-#[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"))]
+#[cfg_attr(
+    all(not(test), feature = "s_capture_native_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
+    )
+)]
 pub(super) fn publish_borrowed(
     tx: &mut Transaction<'_>,
     begin_token: &str,
@@ -110,7 +116,10 @@ pub(super) fn publish_borrowed_staged(
     )
 }
 #[cfg(feature = "s_capture_native_testonly")]
-#[cfg_attr(feature = "s_capture_native_testonly", allow(dead_code, reason = "#1608：s_capture_native_testonly 构建不触达此项"))]
+#[cfg_attr(
+    feature = "s_capture_native_testonly",
+    allow(dead_code, reason = "#1608：s_capture_native_testonly 构建不触达此项")
+)]
 pub(super) fn publish_borrowed_with_workspace(
     tx: &mut Transaction<'_>,
     token: &str,

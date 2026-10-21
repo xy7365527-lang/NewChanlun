@@ -49,7 +49,10 @@ fn field(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<C
 fn digest(r: &ContentRef) -> Result<NodeDigest, String> {
     r.digest().map_err(err)
 }
-#[allow(dead_code, reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删")]
+#[allow(
+    dead_code,
+    reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删"
+)]
 fn built(r: ContentRef) -> Result<Built, String> {
     Ok(Built {
         digest: digest(&r)?,
@@ -95,7 +98,10 @@ impl Fields {
             .get(name)
             .ok_or_else(|| err(format!("原件缺字段{name}")))
     }
-    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用"))]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     pub(super) fn text(
         &self,
         s: &mut (impl CodecStore + ?Sized),
@@ -106,7 +112,10 @@ impl Fields {
             .map(str::to_owned)
             .ok_or_else(|| err(format!("{name}不是文本")))
     }
-    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用"))]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     pub(super) fn integer(
         &self,
         s: &mut (impl CodecStore + ?Sized),
@@ -116,14 +125,20 @@ impl Fields {
             .as_i64()
             .ok_or_else(|| err(format!("{name}不是i64")))
     }
-    #[allow(dead_code, reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删")]
+    #[allow(
+        dead_code,
+        reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删"
+    )]
     fn equal(&self, key: &str, other: &Self, other_key: &str) -> Result<(), String> {
         if self.get(key)? != other.get(other_key)? {
             return Err(err(format!("{key}/{other_key}内容边不同")));
         }
         Ok(())
     }
-    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用"))]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     fn slot(&self, s: &mut (impl CodecStore + ?Sized), kind: &str) -> Result<Slot, String> {
         if kind == SHAPE {
             Ok(Slot::Shape([
@@ -154,7 +169,10 @@ impl Fields {
         }
         s.write_value(&V::Object(fields)).map_err(err)
     }
-    #[allow(dead_code, reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删")]
+    #[allow(
+        dead_code,
+        reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删"
+    )]
     fn bind_json_text(
         &self,
         s: &mut (impl CodecStore + ?Sized),
@@ -182,7 +200,10 @@ fn integer(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result
         .ok_or_else(|| err(format!("{k}不是i64")))
 }
 /// 本口只取真实节点头；load返回前统一验证这些根的全部闭包。
-#[allow(dead_code, reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删")]
+#[allow(
+    dead_code,
+    reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删"
+)]
 fn root_header(s: &mut (impl CodecRead + ?Sized), b: Vec<u8>) -> Result<Built, String> {
     let d: NodeDigest = b.try_into().map_err(|_| err("根不是32字节"))?;
     let r = s.content_ref_of(&sc::root_string(&d)).map_err(err)?;
@@ -220,7 +241,10 @@ pub(super) enum Slot {
     },
 }
 impl Slot {
-    #[allow(dead_code, reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删")]
+    #[allow(
+        dead_code,
+        reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删"
+    )]
     fn key(&self) -> String {
         match self {
             Self::Shape(w) => canonical_json(&json!([0, w[0], w[1], w[2]])),
@@ -245,7 +269,10 @@ pub(super) struct Entry {
 }
 pub(super) struct Plan {
     pub generation: i64,
-    #[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub index: Vec<Entry>,
     pub births: Vec<Entry>,
     pub withdrawals: Vec<Value>,
@@ -570,7 +597,10 @@ impl NativeProjection<'_> {
     }
 }
 impl HistoryObjects<'_> {
-    #[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn native_sweep(&mut self) -> Option<HistorySweep> {
         self.native_sweep_admitted(&super::audit_store::NativeAdmission(None))
             .expect("无scope的Native事件构造")
@@ -593,7 +623,10 @@ impl HistoryObjects<'_> {
     pub(super) fn entries(&self) -> &[Entry] {
         &self.entries
     }
-    #[cfg_attr(feature = "s_capture_native_testonly", allow(dead_code, reason = "#1608：s_capture_native_testonly 构建不触达此项"))]
+    #[cfg_attr(
+        feature = "s_capture_native_testonly",
+        allow(dead_code, reason = "#1608：s_capture_native_testonly 构建不触达此项")
+    )]
     pub(super) fn into_entries(self) -> sc::CodecVec<Entry> {
         self.entries
     }
@@ -763,7 +796,13 @@ impl HistoryObjects<'_> {
 impl HistoryObjects<'_> {
     // #1394冻结旧扫描算法，只作合法生命周期对照，不接生产失败分支。
     /// Only this complete-load Native owner can produce both projections. No arbitrary arrays.
-    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     fn native_dual_at_cut_scan_for_test(
         &mut self,
         s: &mut super::history::HashReader<'_>,
@@ -1223,7 +1262,10 @@ fn bind_originals(
     }
     Ok(())
 }
-#[allow(dead_code, reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删")]
+#[allow(
+    dead_code,
+    reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+)]
 fn bind_shape_refs(
     s: &mut (impl CodecStore + ?Sized),
     generated: &ContentRef,
@@ -1421,7 +1463,10 @@ pub(super) fn load(
         None,
     )
 }
-#[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
+#[cfg_attr(
+    not(all(test, feature = "s_capture_native_testonly")),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+)]
 pub(super) fn load_for_audit(
     tx: &Transaction<'_>,
     s: &mut super::history::HashReader<'_>,
@@ -1902,7 +1947,8 @@ fn push_change(
         bj::JsonOwner::Plain(Value::Array(rows)) => {
             s.native_vec_room(rows, 1).map_err(err)?;
             #[cfg(feature = "s_allocation_json_testonly")]
-            let bj::JsonOwner::Plain(value) = bj::json_from_view_admitted(s, view)? else {
+            let bj::JsonOwner::Plain(value) = bj::json_from_view_admitted(s, view)?
+            else {
                 return Err(err("Plain变化JSON不能接Owned所有者"));
             };
             #[cfg(not(feature = "s_allocation_json_testonly"))]
@@ -2036,7 +2082,13 @@ struct HistoryEvents {
     sort_passes: usize,
 }
 #[cfg(test)]
-#[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+    )
+)]
 pub(super) fn take_load_lookup_counts() -> (usize, usize) {
     (
         LOAD_ID_VISITS.with(|n| n.replace(0)),
@@ -2044,7 +2096,13 @@ pub(super) fn take_load_lookup_counts() -> (usize, usize) {
     )
 }
 #[cfg(test)]
-#[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+    )
+)]
 pub(super) fn load_id_capacity() -> usize {
     LOAD_ID_CAPACITY.with(|n| n.get())
 }
@@ -2401,7 +2459,13 @@ impl ProjectionSweep {
         Ok(())
     }
     #[cfg(test)]
-    #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     fn new(index: &[Entry]) -> Self {
         Self::new_admitted(index, &super::audit_store::NativeAdmission(None))
             .expect("无scope的Native投影构造")

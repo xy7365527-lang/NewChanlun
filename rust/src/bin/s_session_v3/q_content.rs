@@ -60,7 +60,10 @@ impl Request {
     pub(super) fn parse(bytes: &[u8], resources: &QResources) -> Result<Self, String> {
         Self::parse_with_allocation(bytes, resources, None)
     }
-    #[cfg_attr(not(all(test, feature = "s_allocation_json_testonly")), allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用"))]
+    #[cfg_attr(
+        not(all(test, feature = "s_allocation_json_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用")
+    )]
     pub(super) fn parse_owned(
         bytes: &[u8],
         resources: &QResources,
@@ -68,7 +71,13 @@ impl Request {
     ) -> Result<Self, String> {
         Self::parse_with_allocation(bytes, resources, Some(budget))
     }
-    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用（非测试构建中只被已豁免的未用项调用）"))]
+    #[cfg_attr(
+        not(test),
+        allow(
+            dead_code,
+            reason = "#1608：仅测试使用（非测试构建中只被已豁免的未用项调用）"
+        )
+    )]
     fn parse_with_allocation(
         bytes: &[u8],
         resources: &QResources,
@@ -227,10 +236,14 @@ impl Request {
     pub(super) fn anchor_view(&self) -> JsonView<'_> {
         child(self.body_view(), "anchor")
     }
-    #[cfg_attr(not(all(test, feature = "s_allocation_json_testonly")), allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用"))]
+    #[cfg_attr(
+        not(all(test, feature = "s_allocation_json_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用")
+    )]
     pub(super) fn anchor(&self) -> &Value {
         #[cfg(feature = "s_allocation_json_testonly")]
-        let bj::JsonOwner::Plain(envelope) = &*self.envelope else {
+        let bj::JsonOwner::Plain(envelope) = &*self.envelope
+        else {
             panic!("owned request须借anchor_view，不能擦std")
         };
         #[cfg(not(feature = "s_allocation_json_testonly"))]
@@ -451,7 +464,10 @@ impl Request {
 fn child<'a>(value: JsonView<'a>, key: &str) -> JsonView<'a> {
     value.get(key).unwrap_or(JsonView::Null)
 }
-#[allow(dead_code, reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删")]
+#[allow(
+    dead_code,
+    reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+)]
 fn exact_view(value: JsonView<'_>, fields: &[&str]) -> Result<(), String> {
     exact_view_typed(value, fields).map_err(|e| e.to_string())
 }

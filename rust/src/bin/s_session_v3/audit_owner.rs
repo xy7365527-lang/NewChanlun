@@ -39,7 +39,10 @@ mod q;
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(super) mod allocation_probe;
 
-#[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用"))]
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+)]
 pub(crate) struct BoundOriginals {
     _private: (),
 }
@@ -821,7 +824,10 @@ mod tests {
 }
 
 impl AuditConnection {
-    #[allow(dead_code, reason = "#1608：完成态清理钩子，当前无调用方（等待接线）；保留不删")]
+    #[allow(
+        dead_code,
+        reason = "#1608：完成态清理钩子，当前无调用方（等待接线）；保留不删"
+    )]
     fn clear_complete(&self) {
         #[cfg(feature = "s_capture_native_testonly")]
         drop(self.complete.borrow_mut().take());
@@ -871,7 +877,10 @@ impl AuditTxn<'_> {
         &self,
         #[cfg_attr(
             not(feature = "s_capture_native_testonly"),
-            allow(unused_variables, reason = "#1608：仅 s_capture_native_testonly 分支读取")
+            allow(
+                unused_variables,
+                reason = "#1608：仅 s_capture_native_testonly 分支读取"
+            )
         )]
         envelope: &Value,
         mode: &s_allocation::Mode,

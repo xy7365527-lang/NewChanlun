@@ -7,11 +7,9 @@ use crate::v3::audit_store::{CodecRead, CodecStore, RefValue};
 use crate::{content_store, meta_get_opt};
 use aj::JsonView;
 use bj::TextValue;
-use newchan_rust::s_content::{
-    self as sc, path::PathStep, Built, ContentRef, Kind, NodeDigest,
-};
 #[cfg(test)]
 use newchan_rust::s_content::NodeStore;
+use newchan_rust::s_content::{self as sc, path::PathStep, Built, ContentRef, Kind, NodeDigest};
 use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::{params, Transaction};
 use sc::capture_allocation::{audit_json as aj, OwnedBudget};
@@ -1150,12 +1148,24 @@ fn state_members(
 #[cfg(test)]
 thread_local! {static AUX_AUDIT_STATS:std::cell::Cell<[u64;6]>=const{std::cell::Cell::new([0;6])};}
 #[cfg(test)]
-#[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+    )
+)]
 pub(super) fn reset_aux_audit_stats() {
     AUX_AUDIT_STATS.with(|s| s.set([0; 6]));
 }
 #[cfg(test)]
-#[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"))]
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+    )
+)]
 pub(super) fn aux_audit_stats() -> [u64; 6] {
     AUX_AUDIT_STATS.with(std::cell::Cell::get)
 }
@@ -1292,7 +1302,10 @@ fn same_birth_order<'a>(
     generated.len() == actual.len() && generated.iter().zip(actual).all(|(a, b)| a.as_str() == b)
 }
 impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
-    #[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn from_loaded(
         s: &super::history::HashReader<'capture>,
         index: &'index Index,

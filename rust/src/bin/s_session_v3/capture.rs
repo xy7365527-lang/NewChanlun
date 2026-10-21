@@ -6,9 +6,9 @@ use super::*;
 use newchan_rust::s_content as sc;
 use newchan_rust::s_content::{capture_allocation::OwnedBudget, CodecVec};
 use newchan_rust::sqlite_checked::{CheckedRow, CheckedStatement};
-use rusqlite::{limits::Limit, Transaction};
 #[cfg(test)]
 use rusqlite::types::Value as Cell;
+use rusqlite::{limits::Limit, Transaction};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{

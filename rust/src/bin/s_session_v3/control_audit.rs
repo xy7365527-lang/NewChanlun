@@ -80,7 +80,10 @@ pub(super) fn prepare_s3_control_history_admitted(
 }
 
 /// 双协议标记：根 `meta` 与控制行都必须逐字登记 `s-session/3`。
-#[allow(dead_code, reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删")]
+#[allow(
+    dead_code,
+    reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+)]
 fn verify_s3_markers(conn: &Connection) -> Result<(), String> {
     verify_s3_markers_with_owner(conn, None)
 }
@@ -127,7 +130,10 @@ fn verify_s3_markers_admitted(
 }
 
 /// S3 唯一已认可 schema：逐表全等比 DDL（未知表/缺表即拒）+ 存量行类型核 + 内容格式登记值。
-#[allow(dead_code, reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删")]
+#[allow(
+    dead_code,
+    reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+)]
 pub(super) fn schema_ddls(conn: &Connection) -> Result<Vec<&'static str>, String> {
     schema_ddls_with_owner(conn, None).map(|v| v.into_iter().collect())
 }
@@ -170,7 +176,10 @@ pub(crate) fn schema_ddls_admitted(
     }
     Ok(ddls)
 }
-#[allow(dead_code, reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删")]
+#[allow(
+    dead_code,
+    reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+)]
 pub(super) fn verify_s3_schema(conn: &Connection) -> Result<(), String> {
     verify_s3_schema_with_owner(conn, None)
 }
@@ -216,7 +225,10 @@ fn verify_content_registration_rows(conn: &Connection) -> Result<(), String> {
 
 /// S3 私有发布索引与结构 Delta 逐代闭合。这里只核索引行的存在性与代号绑定；
 /// manifest/snapshot/Delta 的内容闭包由 root 的发布/内容审计模块核。
-#[allow(dead_code, reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删")]
+#[allow(
+    dead_code,
+    reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+)]
 fn verify_s3_publications(conn: &Connection) -> Result<(), String> {
     verify_s3_publications_with_owner(conn, None)
 }

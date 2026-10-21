@@ -198,7 +198,10 @@ impl aj::JsonObject for DeltaAnchor<'_> {
     }
 }
 /// 普通旧Value入口仍由同一借用表示核构造；Owned调用方直接持view或显式预算输出。
-#[allow(dead_code, reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删")]
+#[allow(
+    dead_code,
+    reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+)]
 pub(super) fn delta_anchor(cut: &history::PublishedCut) -> Value {
     assert!(
         matches!(&cut.delta, audit_store::RefValue::Plain(_))

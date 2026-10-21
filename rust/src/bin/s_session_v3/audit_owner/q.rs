@@ -396,7 +396,8 @@ impl Facts {
         let _paired_permit = budget.reserve(tree_slots::<i64, ()>(pairs))?;
         let mut paired = BTreeSet::new();
         #[cfg(feature = "s_allocation_json_testonly")]
-        let bj::RawEvents::Plain(raw) = &mut audited.raw else {
+        let bj::RawEvents::Plain(raw) = &mut audited.raw
+        else {
             return Err(invalid("增量 Q 不接受 Owned 原始账"));
         };
         #[cfg(not(feature = "s_allocation_json_testonly"))]

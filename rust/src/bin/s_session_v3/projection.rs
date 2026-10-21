@@ -6,11 +6,9 @@ use super::*;
 use newchan_rust::s_content::access::Access;
 #[cfg(test)]
 use newchan_rust::s_content::job::Job;
-use newchan_rust::s_content::{
-    self as sc, Kind, NodeDigest, NodeRead, NodeSink, NodeSource,
-};
 #[cfg(test)]
 use newchan_rust::s_content::ContentRef;
+use newchan_rust::s_content::{self as sc, Kind, NodeDigest, NodeRead, NodeSink, NodeSource};
 use newchan_rust::session_protocol::parse_canonical_i64;
 use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::Transaction;

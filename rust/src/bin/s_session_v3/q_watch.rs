@@ -22,10 +22,8 @@ use newchan_rust::s_content::{
     path::{lookup_path_refview, PathStep},
     CodecVec, NodeSource,
 };
-use newchan_rust::session_protocol::{
-    nonnegative_typed, positive_typed, required_view_typed,
-};
 use newchan_rust::session_protocol::{nonnegative, required_view, strict_json};
+use newchan_rust::session_protocol::{nonnegative_typed, positive_typed, required_view_typed};
 #[cfg(test)]
 use serde_json::{json, Value};
 use std::{
@@ -56,7 +54,10 @@ impl Request {
     pub(super) fn parse(bytes: &[u8], resources: &QResources) -> Result<Self, String> {
         Self::parse_with_allocation(bytes, resources, None)
     }
-    #[cfg_attr(not(all(test, feature = "s_allocation_json_testonly")), allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用"))]
+    #[cfg_attr(
+        not(all(test, feature = "s_allocation_json_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用")
+    )]
     pub(super) fn parse_owned(
         bytes: &[u8],
         resources: &QResources,
@@ -64,7 +65,13 @@ impl Request {
     ) -> Result<Self, String> {
         Self::parse_with_allocation(bytes, resources, Some(budget))
     }
-    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用（非测试构建中只被已豁免的未用项调用）"))]
+    #[cfg_attr(
+        not(test),
+        allow(
+            dead_code,
+            reason = "#1608：仅测试使用（非测试构建中只被已豁免的未用项调用）"
+        )
+    )]
     fn parse_with_allocation(
         bytes: &[u8],
         resources: &QResources,
@@ -193,7 +200,10 @@ pub(super) fn cursor_at_with_budget(
     ];
     bj::json_from_view(JsonView::object_fields(&fields).map_err(err)?, allocation)
 }
-#[allow(dead_code, reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删")]
+#[allow(
+    dead_code,
+    reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+)]
 pub(super) fn cursor_at(
     current: &Projection,
     cuts: &[PublishedCut],
@@ -822,7 +832,10 @@ fn set_timeout<W: TimedWrite>(writer: &mut W, deadline: Instant) -> Result<(), S
     }
     writer.set_timeout(left).map_err(err)
 }
-#[allow(dead_code, reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删")]
+#[allow(
+    dead_code,
+    reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+)]
 fn exact(value: JsonView<'_>, fields: &[&str]) -> Result<(), String> {
     exact_typed(value, fields).map_err(|e| e.to_string())
 }

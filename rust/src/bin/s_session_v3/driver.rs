@@ -472,7 +472,10 @@ pub(super) fn recover(
     let conn = super::audit_owner::AuditConnection::open(db)?;
     conn.recover(new_epoch, clock, clock_event)
 }
-#[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用"))]
+#[cfg_attr(
+    not(all(test, feature = "s_capture_native_testonly")),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+)]
 fn err(e: impl std::fmt::Display) -> String {
     format!("S3DriverInvalid：{e}")
 }
