@@ -239,12 +239,17 @@ pub(super) mod fault {
         static ACTIVE: Cell<Option<Fault>> = const { Cell::new(None) };
     }
 
-    /// 在 `f` 执行期间注入 `fault`，返回后撤销。
+    /// 在 `f` 执行期间注入 `fault`，返回（含 panic 展开）后撤销。
     pub(in super::super) fn with<T>(fault: Fault, f: impl FnOnce() -> T) -> T {
+        struct Reset;
+        impl Drop for Reset {
+            fn drop(&mut self) {
+                ACTIVE.with(|a| a.set(None));
+            }
+        }
         ACTIVE.with(|a| a.set(Some(fault)));
-        let out = f();
-        ACTIVE.with(|a| a.set(None));
-        out
+        let _reset = Reset;
+        f()
     }
 
     pub(super) fn active() -> Option<Fault> {
