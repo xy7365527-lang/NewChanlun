@@ -59,15 +59,123 @@ pub struct ParseConfig {
     /// （`feature_seq::SECOND_SEQ_SCAN_BUDGET_POLICY`），**不是语义**。预算耗尽只产扫描覆盖
     /// `INCOMPLETE_RESOURCE_BOUND`，不产否定，也不越过该候选去判后续终结；已判定的语义结果与窗口无关
     /// （A-ST-048-01/02）。S 会话须在 profile 中以具名字段记录本值并随 rule_revision 绑定版本。
+    ///
+    /// #1604：值只从版本化记录 `second-seq-scan-budget`（v2）读取，记录版本见 `scan_budget`。
     pub second_seq_scan_window: u32,
+
+    /// 主特征序列尾窗（0 = 不设上限）。#1604（#1586 C-04）前为代码常数 `TAIL_WINDOW = 7`；
+    /// 现只从 `second-seq-scan-budget` 记录读取。窗口挤掉可准入候选时输出标
+    /// `INCOMPLETE_RESOURCE_BOUND`（`SegmentFacts::tail_window_bound`）。
+    pub tail_window: u32,
+
+    /// `second_seq_scan_window` / `tail_window` 所出自的记录版本。
+    pub scan_budget: super::policy_records::PolicyRef,
+
+    /// 相切口径（xianduan §6.3，#1586 A-12）：同一个值同时管重合与缺口两谓词，一次运行全级只读这一个值。
+    pub tangency: Tangency,
+
+    /// `tangency` 所出自的线段构造规则记录版本（`segment-second/2` = `CONSTRUCTION_RULE`）。
+    pub construction_rule: super::policy_records::PolicyRef,
 }
 
-impl Default for ParseConfig {
-    fn default() -> Self {
-        ParseConfig {
+impl ParseConfig {
+    /// 由当前生效的 `second-seq-scan-budget` 与 `segment-second` 记录构造；记录缺失、未签或非法 ⟹
+    /// 报错（不回退）。`new_stroke_min_gap` / `seg_min_strokes` 是 `[缠论可导]` 定义值，不进记录。
+    pub fn from_active_records() -> Result<Self, super::policy_records::PolicyError> {
+        let budget = super::policy_records::active_second_seq_scan_budget()?;
+        let rule = super::policy_records::active_segment_construction()?;
+        Ok(ParseConfig {
             new_stroke_min_gap: 3,
             seg_min_strokes: 3,
-            second_seq_scan_window: 0,
+            second_seq_scan_window: budget.second_seq_window,
+            tail_window: budget.tail_window,
+            scan_budget: budget.record,
+            tangency: rule.tangency,
+            construction_rule: rule.record,
+        })
+    }
+
+    /// 研究/镜像工具改尾窗：值照改，记录版本标 `research-override`。
+    pub fn research_override_tail_window(&mut self, tail_window: u32) {
+        self.tail_window = tail_window;
+        self.scan_budget.version = super::policy_records::PolicyVersion::ResearchOverride;
+    }
+
+    /// 研究/镜像工具改第二序列窗口：值照改，记录版本标 `research-override`。
+    pub fn research_override_second_seq_window(&mut self, window: u32) {
+        self.second_seq_scan_window = window;
+        self.scan_budget.version = super::policy_records::PolicyVersion::ResearchOverride;
+    }
+
+    /// 研究/镜像工具改相切口径：值照改，构造规则版本标 `research-override`。
+    pub fn research_override_tangency(&mut self, tangency: Tangency) {
+        self.tangency = tangency;
+        self.construction_rule.version = super::policy_records::PolicyVersion::ResearchOverride;
+    }
+}
+
+/// 读当前生效记录；记录损坏是构建期错误（`policy_records` 单测锁定可解析），此处显式 panic 停止，
+/// 不给备用值。需要可恢复错误的入口用 [`ThetaConfig::try_from_active_records`]。
+impl Default for ParseConfig {
+    fn default() -> Self {
+        ParseConfig::from_active_records().unwrap_or_else(|e| panic!("{e}"))
+    }
+}
+
+/// 相切口径（xianduan §6.3）。`Closed`：相切算重合、相切处无缺口（#246 裁定，#1604 前生产口径）；
+/// `Open`：相切不算重合、相切即缺口。只由 `segment-second` 记录给值，代码里不写死任一取值
+/// （`policy_records` 源码守卫锁定）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Tangency {
+    Closed,
+    Open,
+}
+
+impl Tangency {
+    /// 记录里的 token。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Tangency::Closed => "closed",
+            Tangency::Open => "open",
+        }
+    }
+
+    /// 由记录 token 解析；不认识的 token 返回 `None`（调用方判非法，不回退）。
+    pub fn from_token(s: &str) -> Option<Self> {
+        match s {
+            "closed" => Some(Tangency::Closed),
+            "open" => Some(Tangency::Open),
+            _ => None,
+        }
+    }
+
+    /// 两区间端点 `lo` 与 `hi` 是否「相交」：`Closed` 为 `lo <= hi`（相切算相交），`Open` 为 `lo < hi`。
+    /// 重合谓词由它构成，缺口谓词取它的否定（`gap_iff_not_overlap`）。
+    #[inline]
+    pub fn meets<T: PartialOrd>(self, lo: T, hi: T) -> bool {
+        match self {
+            Tangency::Closed => lo <= hi,
+            Tangency::Open => lo < hi,
+        }
+    }
+
+    /// 「`lo` 越过 `hi`」——全序上即 `!meets(lo, hi)`；单列一式是为让 f64 旧线（`src/segment.rs`）
+    /// 在 NaN 上与改前的 `>` 逐位同值（`!meets` 在 NaN 上翻为真）。
+    pub fn separates<T: PartialOrd>(self, lo: T, hi: T) -> bool {
+        match self {
+            Tangency::Closed => lo > hi,
+            Tangency::Open => lo >= hi,
+        }
+    }
+
+    /// [`Tangency::meets`] 的算子记号（事实输出用）：`ascending` 为 `lo` 写左侧时取 `<=`/`<`，
+    /// 否则取镜像 `>=`/`>`。
+    pub fn meets_operator(self, ascending: bool) -> &'static str {
+        match (self, ascending) {
+            (Tangency::Closed, true) => "<=",
+            (Tangency::Closed, false) => ">=",
+            (Tangency::Open, true) => "<",
+            (Tangency::Open, false) => ">",
         }
     }
 }
@@ -483,7 +591,9 @@ impl ThetaConfig {
     pub fn try_from_active_records() -> Result<Self, super::policy_records::PolicyError> {
         let level = LevelConfig::from_active_record()?;
         let macd = super::policy_records::active_macd_force()?;
+        let parse = ParseConfig::from_active_records()?;
         Ok(ThetaConfig {
+            parse,
             level,
             macd,
             ..ThetaConfig::default()
@@ -508,6 +618,13 @@ mod tests {
         // #1603：上两组值来自版本化记录 v1（等值对拍：与改前常数逐位相同）。
         assert_eq!(c.level.budget.label(), "tower-level-budget/1");
         assert_eq!(c.macd.record.label(), "macd-force/1");
+        // #1604：尾窗 7（原 `TAIL_WINDOW`）/ 第二序列窗口 0 / 相切 closed 来自记录（等值对拍）。
+        assert_eq!(c.parse.seg_min_strokes, 3);
+        assert_eq!(c.parse.second_seq_scan_window, 0);
+        assert_eq!(c.parse.tail_window, 7);
+        assert_eq!(c.parse.scan_budget.label(), "second-seq-scan-budget/2");
+        assert_eq!(c.parse.tangency, Tangency::Closed);
+        assert_eq!(c.parse.construction_rule.label(), "segment-second/2");
         assert_eq!(c.voice.max_depth, 3);
         assert_eq!(c.voice.depth_weights, vec![0.60, 0.30, 0.10]);
         assert_eq!(c.risk.rho, 0.005);

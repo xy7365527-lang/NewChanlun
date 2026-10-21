@@ -58,6 +58,10 @@ mod moves;
 mod ph;
 #[path = "../segment.rs"]
 mod segment;
+/// #1604：`segment.rs` 经 `crate::theta_v0` 读相切记录；本 bin 以 `#[path]` 编入它，故转接 lib 同名模块。
+mod theta_v0 {
+    pub use newchan_rust::theta_v0::*;
+}
 #[path = "../stroke.rs"]
 mod stroke;
 #[path = "../zhongshu.rs"]

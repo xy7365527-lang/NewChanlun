@@ -269,7 +269,7 @@ fn tb02w_ast_048_01_resource_bound_candidate_is_not_skipped() {
             "窗口 0：s3 候选确认，A 止于 s2"
         );
         let mut cfg = ThetaConfig::default();
-        cfg.parse.second_seq_scan_window = 50;
+        cfg.parse.research_override_second_seq_window(50);
         let (sw, pending) = segment::divide_segments_with_tail(&ss, &cfg.parse);
         assert!(
             sw.is_empty(),
@@ -300,7 +300,7 @@ fn tb02w_ast_048_01_evidence_at_item_51_is_not_negation() {
             assert_eq!(full.matched.as_ref().unwrap().through_stroke, 54);
         }
         let mut cfg = ThetaConfig::default();
-        cfg.parse.second_seq_scan_window = 50;
+        cfg.parse.research_override_second_seq_window(50);
         let (segs, _, facts) = segment::divide_segments_with_facts(&ss, &cfg.parse);
         assert!(
             segs.is_empty(),
@@ -341,8 +341,14 @@ fn assert_windows_never_change_decided(ss: &[Stroke], label: &str) -> bool {
     let mut saw_bound = false;
     for window in [50u32, 200] {
         let mut cfg = ThetaConfig::default();
-        cfg.parse.second_seq_scan_window = window;
-        let (sw, pw, fw) = segment::divide_segments_with_facts(ss, &cfg.parse);
+        cfg.parse.research_override_second_seq_window(window);
+        let (sw, pw, mut fw) = segment::divide_segments_with_facts(ss, &cfg.parse);
+        // 研究覆写的记录戳（`…/research-override`）按设计与签署版本不同；只比语义（#1604）。
+        assert_eq!(
+            fw.policy.as_ref().map(|p| p.scan_budget.as_str()),
+            Some("second-seq-scan-budget/research-override")
+        );
+        fw.policy = f0.policy.clone();
         let bound = fw.candidates.iter().any(|c| {
             c.second
                 .as_ref()
@@ -661,7 +667,7 @@ fn tb02w_three_way_batch_incremental_restore_bit_exact() {
     let mut restores = 0usize;
     for window in [0u32, 5] {
         let mut theta = ThetaConfig::default();
-        theta.parse.second_seq_scan_window = window;
+        theta.parse.research_override_second_seq_window(window);
         let cfg = theta.parse;
         let batch = |s: &[Stroke]| segment::divide_segments_with_tail(s, &cfg);
         for sign in [1, -1] {
@@ -1050,9 +1056,9 @@ fn tb02w_w2_budget_exhaustion_blocks_sealing() {
     let ss = witness_chain(&W2_PRICES);
     assert_eq!(ss.len(), 34);
     let mut w0 = ThetaConfig::default();
-    w0.parse.second_seq_scan_window = 0;
+    w0.parse.research_override_second_seq_window(0);
     let mut w1 = ThetaConfig::default();
-    w1.parse.second_seq_scan_window = 1;
+    w1.parse.research_override_second_seq_window(1);
     let (s0, p0, f0) = segment::divide_segments_with_facts(&ss, &w0.parse);
     let (s1, p1, f1) = segment::divide_segments_with_facts(&ss, &w1.parse);
     let ends = |segs: &[Segment]| segs.iter().map(|g| g.end_index).collect::<Vec<_>>();
@@ -1166,9 +1172,9 @@ fn tb1493_search_tb02w_witnesses() {
             let pr = prices(seed, len);
             let ss = witness_chain(&pr);
             let mut w0 = ThetaConfig::default();
-            w0.parse.second_seq_scan_window = 0;
+            w0.parse.research_override_second_seq_window(0);
             let mut w1 = ThetaConfig::default();
-            w1.parse.second_seq_scan_window = 1;
+            w1.parse.research_override_second_seq_window(1);
             let (s0, _, f0) = segment::divide_segments_with_facts(&ss, &w0.parse);
             let (s1, p1, f1) = segment::divide_segments_with_facts(&ss, &w1.parse);
             let exhausted = |f: &segment::SegmentFacts| {
@@ -1208,7 +1214,7 @@ const OPEN_BLOCK_PRICES: [i64; 60] = [
 ];
 
 /// #1493 裁定 1（§7.1 第 8 条）OPEN 封段对照见证（与 W2 预算封段成对）：末段的第二种候选 b=s42 第二序列
-/// 到前缀末仍 OPEN，其后有 8 个标准特征元素（多于 `TAIL_WINDOW = 7`）。新规则在该候选处封段：6 段、
+/// 到前缀末仍 OPEN，其后有 8 个标准特征元素（多于记录尾窗 `tail_window = 7`，#1604）。新规则在该候选处封段：6 段、
 /// 末段待定；TestOnly 旧规则臂（OPEN 跳过续判）在同一输入上多发射 1 段——见证非空转。逐前缀全量 ≡
 /// 增量，已发射段逐前缀单调。
 #[test]
@@ -1230,7 +1236,7 @@ fn tb1493_open_second_candidate_blocks_later_candidates() {
         .filter(|e| e.stroke_idx > 42)
         .count();
     assert!(
-        after > segment::TAIL_WINDOW as usize,
+        after > cfg.tail_window as usize,
         "候选之后的标准元素须多于尾窗：{after}"
     );
     feature_seq::OPEN_SKIP_ARM.with(|a| a.set(true));
@@ -1253,7 +1259,7 @@ fn tb1493_open_second_candidate_blocks_later_candidates() {
 }
 
 /// #1493 裁定 1 OPEN 封段见证搜索（ignored）：旧规则（OPEN 跳过续判）在前缀末多发射段、新规则在同一处
-/// 以 OPEN 的第二种候选封段，且该候选之后的标准特征元素多于 `TAIL_WINDOW`。
+/// 以 OPEN 的第二种候选封段，且该候选之后的标准特征元素多于记录尾窗 `tail_window`。
 #[test]
 #[ignore = "搜索：OPEN 封段对照见证"]
 fn tb1493_search_open_block_witness() {

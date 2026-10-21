@@ -42,6 +42,7 @@ from typing import Literal
 
 from newchan.a_segment_v0 import BreakEvidence, Segment
 from newchan.a_stroke import Stroke
+from newchan.segment_policy import active_segment_construction
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,9 @@ def _three_stroke_overlap(s1: Stroke, s2: Stroke, s3: Stroke) -> bool:
     `segment.rs` 同批切换，Rust↔Python 逐位等价在新口径下继续成立。
     裁定书：chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md
     """
-    return max(s1.low, s2.low, s3.low) <= min(s1.high, s2.high, s3.high)
+    # #1604（#1586 A-12）：相切口径读记录 `segment-second`（签署值 `closed` 即上述 `<=`）。
+    rule = active_segment_construction()
+    return rule.meets(max(s1.low, s2.low, s3.low), min(s1.high, s2.high, s3.high))
 
 
 def _find_overlap_start(strokes: list[Stroke], from_s: int) -> int | None:
@@ -276,12 +279,14 @@ def _is_fractal_and_gap(
     逐位等价在新口径下继续成立。
     裁定书：chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md
     """
+    # #1604（#1586 A-12）：缺口与重合读同一记录值（签署值 `closed` 即上述严格 `>`）。
+    rule = active_segment_construction()
     if seg_direction == "up":
         is_fractal = b_h > a_h and b_h > c_h
-        has_gap = b_l > a_h if is_fractal else False
+        has_gap = rule.separates(b_l, a_h) if is_fractal else False
     else:
         is_fractal = b_l < a_l and b_l < c_l
-        has_gap = a_l > b_h if is_fractal else False
+        has_gap = rule.separates(a_l, b_h) if is_fractal else False
     return is_fractal, has_gap
 
 

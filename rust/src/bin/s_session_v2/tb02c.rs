@@ -188,6 +188,13 @@ pub(super) fn build(
             sources,
         );
     }
+    // #1604（#1586 C-04）：尾窗读段事实所带记录，不读代码常数；记录缺失即拒写（不回退）。
+    let budget = facts
+        .policy
+        .as_ref()
+        .ok_or("TB-02-C：段事实未携带所读记录（#1604）")?;
+    let tail_cache_window = budget.tail_window;
+    let truncated_from = facts.tail_window_bound.as_ref().map(|b| b.seg_start);
     let mut relations = vec![];
     let mut active = std::collections::BTreeSet::new();
     let mut waiting = facts.waiting_reasons.clone();
@@ -199,7 +206,7 @@ pub(super) fn build(
         let (refs, sources) = stroke_refs(strokes, generation, c.start_stroke, c.observed_through);
         let seq_data = json!({"entity_id":sequence,"segment_id":entity,"role":"FIRST_SEQUENCE","direction":if bi.start.kind=="BOTTOM" {"UP"}else{"DOWN"},
             "member_direction":if bi.start.kind=="BOTTOM" {"DOWN"}else{"UP"},"facts":c.first,"stroke_refs":refs,
-            "scan":{"from_stroke":c.start_stroke,"through_stroke":c.first.raw_elements.last().map_or(c.start_stroke,|e|e.stroke_idx),"input_stroke_count":c.first.raw_elements.last().map_or(c.start_stroke+1,|e|e.stroke_idx+1),"resource_truncated":false,"tail_cache_window":newchan_rust::theta_v0::parser::segment::TAIL_WINDOW},
+            "scan":{"from_stroke":c.start_stroke,"through_stroke":c.first.raw_elements.last().map_or(c.start_stroke,|e|e.stroke_idx),"input_stroke_count":c.first.raw_elements.last().map_or(c.start_stroke+1,|e|e.stroke_idx+1),"resource_truncated":truncated_from.is_some_and(|f| c.start_stroke >= f),"tail_cache_window":tail_cache_window},
             "second_sequence_status":c.second.as_ref().map_or("NOT_APPLICABLE",|s|second_status(s.semantic_state))});
         let sequence_object = add(
             &mut b,

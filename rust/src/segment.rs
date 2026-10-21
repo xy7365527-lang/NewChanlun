@@ -30,6 +30,7 @@
 //!    本模块移植批量路径（`_resume=None`）。
 
 use crate::stroke::{Direction, Stroke};
+use crate::theta_v0::config::Tangency;
 
 // ════════════════════════════════════════════════════════════
 // 数据类型（对应 a_segment_v0.py 的 Segment / BreakEvidence）
@@ -130,7 +131,14 @@ pub struct Segment {
 fn three_stroke_overlap(s1: &Stroke, s2: &Stroke, s3: &Stroke) -> bool {
     let lo = s1.low.max(s2.low).max(s3.low);
     let hi = s1.high.min(s2.high).min(s3.high);
-    lo <= hi
+    tangency().meets(lo, hi)
+}
+
+/// #1604（#1586 A-12）：相切口径读签署记录 `segment-second`，与 theta_v0 各级同读一值（#804）；
+/// 记录缺失/非法即 panic 停机（无回退）。上方「含端点 `<=`」「严格 `>`」是签署值 `closed` 下的形态。
+#[inline]
+fn tangency() -> Tangency {
+    crate::theta_v0::policy_records::active_segment_construction_cached().tangency
 }
 
 /// 从 from_s 开始找第一个三笔交集重叠的起点。移植自 `_find_overlap_start`。
@@ -398,11 +406,19 @@ fn is_fractal_and_gap(
 ) -> (bool, bool) {
     if seg_direction == Direction::Up {
         let is_fractal = b_h > a_h && b_h > c_h;
-        let has_gap = if is_fractal { b_l > a_h } else { false };
+        let has_gap = if is_fractal {
+            tangency().separates(b_l, a_h)
+        } else {
+            false
+        };
         (is_fractal, has_gap)
     } else {
         let is_fractal = b_l < a_l && b_l < c_l;
-        let has_gap = if is_fractal { a_l > b_h } else { false };
+        let has_gap = if is_fractal {
+            tangency().separates(a_l, b_h)
+        } else {
+            false
+        };
         (is_fractal, has_gap)
     }
 }
