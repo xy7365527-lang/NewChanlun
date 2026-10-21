@@ -839,10 +839,12 @@ mod tests {
             cost_probe::reset();
             let got = union_into(&tree.union(&other), [5usize, 3 * n + 11].iter());
             let (ops, iters) = cost_probe::read();
-            assert_eq!(got.count(), n + 4);
+            // tree 的 n 个 + other 新增 3 个（1、3n/2+1、3n+7）+ 逐元素插入 2 个。
+            assert_eq!(got.count(), n + 5);
             assert_eq!(iters, 0, "并集不得逐元素遍历共享树");
             per_size.push(ops);
         }
+        eprintln!("#1629 union cost per size {per_size:?}");
         assert!(
             per_size[2] <= per_size[0] * 4,
             "N 放大 64 倍，并集步数应只按 polylog 增长：{per_size:?}"
