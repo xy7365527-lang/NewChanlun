@@ -72,16 +72,18 @@ pub enum PerfectionMode {
 /// - `Segment`：a₀ = 线段序列，`confirmed && kind==Settled`——现状默认，保 bit-exact。
 ///   Settled 是线段特有的**特征序列递归确认**语义（第67/71课）。
 /// - `Stroke`：**已否证的对照臂，不是 `a₀` 合法值**（#1627 / #1654）。以 confirmed 笔为塔底
-///   单元，仅供复现谱系 526 号 A/B（a0 段→笔）与冻结研究链 `trading_system/backtest_t_fugue.py`
-///   的 24 个 `t_fugue_*.json` 缓存（#951 B3）；按 #799 裁定六属对照臂「不适用」，**不得进入
-///   任何准入／生产判定路径**（ADR 0005）。随 recursive_t 退场一并删除（#808）。
+///   单元，仅供 `rec_stream.rs` 的 `#[ignore]` 回测 `rec_btc`（`T_A0=stroke`）复现谱系 526 号
+///   E1 A/B（a0 段→笔）。#951 B3 冻结链 `trading_system/backtest_t_fugue.py` 从未传 `a0`，其
+///   `t_fugue_*.json` 缓存均在 `Segment` 下生成、不含 `a0` 字段，不依赖本档（#1654 核查）。
+///   按 #799 裁定六属对照臂「不适用」，**不得进入任何准入／生产判定路径**
+///   （`docs/unified-architecture-canon.md:81`）。随 recursive_t 退场一并删除（#808）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum A0Source {
     /// a₀ = 线段序列（`confirmed && Settled` 过滤）——现状默认，保 bit-exact。
     #[default]
     Segment,
     /// 已否证的对照臂（#1627 zhongshu §2.1.1 第 2 条：缠论笔不是 `a₀` 合法值）：confirmed 笔
-    /// 作塔底单元，仅复现 526 号 A/B 与 #951 B3 冻结缓存，不进任何准入路径。
+    /// 作塔底单元，仅供 `rec_btc` 复现 526 号 E1 A/B，不进任何准入路径。
     Stroke,
 }
 

@@ -230,8 +230,8 @@ impl TFugueStreamCore {
         Self::new_with_a0(mode, A0Source::Segment)
     }
 
-    /// 显式指定塔底来源（线段=基线 / 笔=已否证对照臂，#1627 zhongshu §2.1.1，仅复现 526 号 A/B 与
-    /// #951 B3 冻结缓存）。`new(mode)` 委托此构造默认 Segment。
+    /// 显式指定塔底来源（线段=基线 / 笔=已否证对照臂，#1627 zhongshu §2.1.1，仅供 `rec_btc`
+    /// 复现 526 号 E1 A/B）。`new(mode)` 委托此构造默认 Segment。
     pub fn new_with_a0(mode: PerfectionMode, a0_source: A0Source) -> Self {
         TFugueStreamCore {
             orch: RecursiveOrchestrator::new(6, "wide", 5, false, 3, false, false, false),
