@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # install-wayfinder-engine.sh —— wayfinder_engine 控制面 launchd 常驻任务的安装/卸载（#1084 追加）。
 # 安装后 launchd KeepAlive 常驻；引擎内部 4 分钟轮询、无 runnable 票 sleep 不退出。
+# 对齐 install-sandcastle-claimer.sh：plist 模板按本脚本位置取；模板内路径指 sandcastle-host（#1588）。
 set -euo pipefail
-PLIST_SRC=/Users/silencehan/Projects/NewChanlun/.sandcastle/launchd/com.newchanlun.wayfinder-engine.plist
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+PLIST_SRC="$SCRIPT_DIR/launchd/com.newchanlun.wayfinder-engine.plist"
 PLIST_DST="$HOME/Library/LaunchAgents/com.newchanlun.wayfinder-engine.plist"
 
 case "${1:-install}" in

@@ -7,7 +7,7 @@
 对每个分支：
 1. `git merge <branch> --no-edit`
 2. 有冲突就读两边智能解冲突
-3. 解完跑验证：Rust 改动 `cargo check`；TS 改动 `npx tsc -p tsconfig.sandcastle.json`
+3. 解完跑验证：Rust 改动 `cargo check`（**本机禁 cargo，#1588**：先 commit，再 `NC_REPO="$(git rev-parse --show-toplevel)" NC_TARGET=sandcastle-merge ~/.local/bin/nc-remote "$(git branch --show-current)" rust cargo check --locked`（ref 用分支名，别用 `HEAD`：nc-remote 的 bundle 只按 `refs/*` 取回），或交编排层推分支走 CI）；TS 改动 `npx tsc -p tsconfig.sandcastle.json`
 4. 验证失败先修再合下一条
 
 全部合完后，做一个汇总 commit（message：`merge: <涉及票号列表>——<一句话>`，附编号声明行）。

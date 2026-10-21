@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { z } from "zod";
+import { gitEnvironment } from "./git-environment.ts";
 
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
 const commit = z.string().regex(/^[a-f0-9]{40}$/);
@@ -123,7 +124,7 @@ export function preflightDelivery(repo: string, input: unknown): DeliveryResult 
   Object.assign(result, { ticket: manifest.ticket, base: manifest.base, head: manifest.head });
   const git = (...args: string[]) => execFileSync("git", ["--no-replace-objects", "--literal-pathspecs", "-c", "core.filemode=true", "-c", "core.fsmonitor=false", "-C", repo, ...args], {
     encoding: "buffer", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 64 * 1024 * 1024,
-    env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+    env: gitEnvironment(),
   });
   const text = (...args: string[]) => git(...args).toString("utf8").trim();
   try {

@@ -1,0 +1,141 @@
+{
+  "events": [
+    {
+      "allocation_id": "alloc-T2-in",
+      "chong_id": "chong-G3",
+      "component_witnesses": [
+        {
+          "fields": [
+            "Pi",
+            "A",
+            "W"
+          ],
+          "kind": "no_other_income_book_changes_in_this_allocation",
+          "source_ref": "T2-in:wN"
+        }
+      ],
+      "deltas": {
+        "A": "0",
+        "Pi": "0",
+        "W": "0",
+        "units": "0"
+      },
+      "event": "tb03c-c5-T2-in",
+      "family_id": "fam-chong-G3",
+      "known_cost_components": [],
+      "source": {
+        "claimed_origin": "TestOnly fixture tb03c C5",
+        "external_fact_id": "T2-in",
+        "received_time": "source-received-12",
+        "source_cursor": "12",
+        "source_epoch": "fixture-epoch-1",
+        "source_event_time": "source-event-12",
+        "source_namespace": "testonly-tb1406-c5"
+      },
+      "stable_point": {
+        "profile": "TestOnly",
+        "seq": "212",
+        "source_ref": "T2-in:sp"
+      },
+      "transfer": {
+        "claim": {
+          "authorization_ref": "testonly-transfer-authorization/T2",
+          "growth_source": {
+            "fact": {
+              "allocation_id": "alloc-G7",
+              "external_fact_id": "G7",
+              "source_epoch": "fixture-epoch-1",
+              "source_namespace": "testonly-tb1406-c5"
+            },
+            "lot_id": "WE3-cash-300"
+          },
+          "kind": "capital_overflow",
+          "payload": {
+            "carrying_cost": "0",
+            "cash": "300",
+            "units": "0"
+          },
+          "policy_versions": {
+            "quantity_policy_ref": "TestOnly-frozen-WE3-T2"
+          },
+          "profile": "TestOnly",
+          "revision": "tb03c-transfer/1",
+          "source_chong": "chong-G1",
+          "source_fact": {
+            "allocation_id": "alloc-T2-out",
+            "external_fact_id": "T2-out",
+            "source_epoch": "fixture-epoch-1",
+            "source_namespace": "testonly-tb1406-c5"
+          },
+          "target_chong": "chong-G3",
+          "target_fact": {
+            "allocation_id": "alloc-T2-in",
+            "external_fact_id": "T2-in",
+            "source_epoch": "fixture-epoch-1",
+            "source_namespace": "testonly-tb1406-c5"
+          },
+          "transfer_id": "T2",
+          "trigger_evidence_ref": "testonly-completed-transfer/T2",
+          "units": {
+            "money": {
+              "currency": "TEST-CASH",
+              "quantum": "1",
+              "unit": "TEST-CASH"
+            },
+            "numeric_encoding": "exact_decimal_integer_text",
+            "quantity": {
+              "quantum": "1",
+              "unit": "TEST-UNIT"
+            }
+          }
+        },
+        "role": "in",
+        "source_ref": "T2-in:transfer"
+      },
+      "transfer_opening": {
+        "fixed_q": "3",
+        "op_level": "3",
+        "side": "long",
+        "source_ref": "T2-in:opening",
+        "symbol": "TEST-G"
+      }
+    }
+  ],
+  "evidence_index": {
+    "fragments": {
+      "T2-in:opening": [
+        {
+          "json_pointer": "/events/0/transfer_opening"
+        }
+      ],
+      "T2-in:sp": [
+        {
+          "json_pointer": "/events/0/stable_point"
+        }
+      ],
+      "T2-in:transfer": [
+        {
+          "json_pointer": "/events/0/transfer"
+        }
+      ],
+      "T2-in:wN": [
+        {
+          "json_pointer": "/events/0/component_witnesses/0"
+        }
+      ]
+    }
+  },
+  "format": "neutral TestOnly economic raw originals; not production transport wire",
+  "units": {
+    "money": {
+      "currency": "TEST-CASH",
+      "quantum": "1",
+      "unit": "TEST-CASH"
+    },
+    "numeric_encoding": "exact_decimal_integer_text",
+    "quantity": {
+      "quantum": "1",
+      "unit": "TEST-UNIT"
+    }
+  }
+}
