@@ -95,13 +95,21 @@ Rust 验证全部经远端 `nc-remote`（本地未跑 cargo/rustc/rustup/rustfmt
 ## 7. 偏离与登记
 
 1. **Python v0 口径变化（正本要求，非偏离）**：`a_segment_v0.py` 改前写死严格 `<`（即 `open`），现读记录 `segment-second/2`（`closed`，`<=`）。依据：`.chanlun/definitions/xianduan.md` §6.3 `:262` 默认 `closed`（承 #246）、`:386` 与 §15 X-38 `:524`「P1 与 claim5 的 `<` 改读字段……Rust 与 Python → #1604」；#1600 A-12、#1604 票面「默认 `closed`」。影响面：只在三笔重叠核心恰为单点（`max(lows) == min(highs)`）时变，例 `[5,10]`、`[0,10]`、`[0,5]` 改前 0 段、改后 1 段；`ab_bridge_newchan` 仅 `segment_algo="v0"` 走此路（默认 `v1` 不受影响）。锁：`tests/test_segment_policy_1604.py::test_v0_signed_record_counts_tangency_as_overlap`。等值对拍「逐位相同」对 Python v0 的相切输入不成立，这是正本裁定的有意改变。
-2. ~~S 写者 token 不升版~~ → 已做（#1604 第二轮，独审 M1）：TB-02-C 写本次所读记录 label（`second-seq-scan-budget/2`），删 `ROUND_BUDGET` 与 `SECOND_SEQ_SCAN_BUDGET_POLICY`；`s-segment/4` 校验器要求 v2，`s-segment/3` 历史合同保留 v1。`segment-second/2` 早已在 rule_revision 内，未另加字段。代价：本改动之前由旧二进制写出、`schema_revision = s-segment/4` 且带 v1 token 的对象不再过新校验器（同 rule_revision 未升）；S 每代重算全部活动对象，K1 游标 v1 线形被判不可读后自 b 笔重折叠（预算 0 下检查点本就为空）。
+2. ~~S 写者 token 不升版~~ → 已做（#1604 第二轮，独审 M1）：TB-02-C 写本次所读记录 label（`second-seq-scan-budget/2`），删 `ROUND_BUDGET` 与 `SECOND_SEQ_SCAN_BUDGET_POLICY`。**第三轮（主控裁定 N-2，2026-10-21）改为升合同**：必填值变属合同语义变更，按版本冻结纪律升 schema——
+   - 会话规则 `RULE_REVISION` 加 token：`s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2`（`rust/src/bin/s_structure_session.rs`）；写者只写 `s-segment/5`（`rust/src/bin/s_session_v2/tb02c.rs` `SCHEMA`，CC-012/013/056 与 K1 游标所在对象同此值）。
+   - 旧规则 `…+segment-turn/1` 登记为只读历史规则：`tb02a_facts.rs` 17 轴表、`tb02b.rs` 新笔 /2 合同、`tb1405_old_rule_store_with_hot_wal_is_never_rewritten` 旧规则清单、`source_pending.rs` 原因版本测试。
+   - 读路径认 /3、/4、/5：`s_session/s_tb02_contract.py`（`RULE_CONTRACTS`、`_budget_policy(v5)`、`validate_segment_links`）、`s_session/s_query_integrity.py` 轴表、`s_session/browser/q3-typed.js`、`q3-consumer.js`、`index.html` 与重生成的 `tb01c-client.js`（`build_tb01c_browser.cjs --check` 通过）。`s-segment/4` 恢复只收 v1，`s-segment/5` 只收 v2。
+   - 浏览器两文件的改动全为同行替换，`q3-typed.js`（702 行）、`q3-consumer.js`（2886 行）、`tb01c-client.js`（7668 行）行数不变，DevSkim 行号基线不漂。
+   - `.chanlun/definitions/xianduan.md` §7.1 第 7 条末与 `docs/reference-theta-v0.md` 追加合同版本登记（不改语义）。
+   - 测试：`test_tb02c_turn_contract.py` 的 `test_rule_binds_v5_schema`、`test_v4_with_budget_v1_still_accepted`、`test_v4_with_budget_v2_rejected`、`test_v5_samples_accept`、`test_v5_with_budget_v1_rejected`（`judge` 同时跑 Python 合同与浏览器捆绑，两边同判）。
+   - 原「兼容代价」解除：旧二进制写出的 `s-segment/4`+v1 对象在旧规则会话里照常过校验。
+
 3. 旧线 `rust/src/segment.rs` 整体属 TB-10，未动：`:426` 的 `TAIL_WINDOW` 与相切谓词（`:133` 三笔重叠、`:410/:413` 缺口）仍是代码常数，取值等于签署值 `closed`。记录改签 `open` 时旧线不会跟随，由 TB-10 处理。
 4. Lean 侧相切归 #1626。
 5. Python v1 尾窗（独审 L1）：`_FeatureSeqState.TAIL_WINDOW = 7` 已删，构造时读记录 `tail_window`；Python 无尾窗截断标记，记录值为 1、2 时拒绝运行（不静默截断）。
 6. classifier（独审 M3）：`TowerPolicyStamp` 加 `scan_budget` / `construction_rule`；`ClassifyOutput.segment_coverage` 显式带尾窗截断标记与起点（只标记不拒读，与 `termination` 正交，故不与 #1662 新增的 `TowerTermination::ParseInvalid` 争同一字段）。
 7. 第二轮独审（`issue1604-20261021/review-r2-claude-fable-5-1.md`，PASS）新登记，待用户裁定：
-   - MEDIUM-1：`s-segment/4` 在不升 `schema_revision`／`rule_revision` 的情况下把 `scan_budget.policy`／K1 `budget_policy` 的必填值从 v1 改为 v2（见本节第 2 条代价）。可选：接受登记，或升 `s-segment/5`／给 rule_revision 加预算 token。
+   - MEDIUM-1：`s-segment/4` 不升版改必填值 → 主控裁定 N-2 升 `s-segment/5` 并给 rule_revision 加预算 token，已落（见本节第 2 条）。
    - LOW-1：SECOND 的 `tail_cache_window` 现写记录 `second_seq_window`（签署值 0），合同仍硬要求 `"0"`；记录改签非 0 时 S 写者会被合同当场拒绝（fail-loud）。后续宜改字段口径或让合同读记录。
    - LOW-2：`#[cfg(test)]` 的 `TEST_ROUND_BUDGET` 只改值不改版本标签，与 `research_override_*` 约定不一致；仅测试路径。
    - LOW-4：提交 `c33f823696` 主题以 `fix(segment):` 开头（后不跟 `#`，不触发自动关票）；已推送不改写历史。
