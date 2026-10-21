@@ -2116,71 +2116,92 @@ mod tests {
     #[test]
     fn p24adj_cold_root_rerun_renews_lease_and_larger_cap_ingest_commits() {
         use crate::v3::audit_owner::cold_root_probe as probe;
-        let f = Fixture::new();
-        let o = Fixture::new();
-        let mut ordinary = o.open("1").unwrap();
-        let mut d = Driver::open_for_serve_with_mode(
-            &f.db,
-            &f.profile,
-            "1",
-            f.clock.clone(),
-            1 << 20,
-            s_allocation::Mode::CapturedNative,
-        )
-        .unwrap();
-        crate::cache::configure(268_435_456);
-        probe::take();
-        probe::take_reruns();
-        drop(probe::take_leaked());
-        let first = d.handle(Fixture::ingest(1));
-        let notes = probe::take();
-        let reruns = probe::take_reruns();
-        let renewed = d.conn.recover_probe_for_test();
-        let expected = ordinary.handle(Fixture::ingest(1)).unwrap();
-        assert_eq!(first.unwrap(), expected);
-        assert_eq!(notes, [(0, 0)], "1M 下须恰经一次冷根自然失败且残留归零");
-        assert_eq!(reruns, 1, "残留归零后无票重跑一次");
-        assert!(
-            !renewed.stale && !renewed.retired && renewed.qualification.is_none(),
-            "冷根失败无票重跑提交后须续租：{renewed:?}"
-        );
-        d.audit_cache_source_bytes = Some(16 << 20);
-        let steps = [
-            ("ready-a", envelope("p24adj-ready-a", json!({"op":"ready"}))),
-            ("ingest-2", Fixture::ingest(2)),
-            ("ready-b", envelope("p24adj-ready-b", json!({"op":"ready"}))),
-            ("ingest-3", Fixture::ingest(3)),
-            ("ready-c", envelope("p24adj-ready-c", json!({"op":"ready"}))),
-        ];
-        let mut carried = Vec::new();
-        let mut outcome = Vec::new();
-        for (id, request) in steps {
-            let (actual, events, _) = state::traced(true, || d.handle(request.clone()));
-            let probe_after = d.conn.recover_probe_for_test();
-            if id.starts_with("ingest") {
-                carried.push((
-                    id,
-                    events.iter().any(|e| e["phase"] == "owner_complete_hit"),
-                    probe_after.qualification.is_some(),
-                    probe_after.stale,
-                ));
+        // 返回（首个 ingest 的冷根 notes, 重跑次数, 首个 ingest 后租约, 各 ingest 的
+        // (命中完整候选, 提交后持资格, 降级放弃, 租约撤销), 与 ordinary 逐步比对结果, 末态根表是否一致）。
+        let run = |first_cap: usize| {
+            let f = Fixture::new();
+            let o = Fixture::new();
+            let mut ordinary = o.open("1").unwrap();
+            let mut d = Driver::open_for_serve_with_mode(
+                &f.db,
+                &f.profile,
+                "1",
+                f.clock.clone(),
+                first_cap,
+                s_allocation::Mode::CapturedNative,
+            )
+            .unwrap();
+            crate::cache::configure(268_435_456);
+            probe::take();
+            probe::take_reruns();
+            drop(probe::take_leaked());
+            let mut mismatched = Vec::new();
+            let mut check = |id: &str, actual: Result<Value, String>, oracle: Value| {
+                if actual.as_ref() != Ok(&oracle) {
+                    mismatched.push(json!({"id":id,"actual":format!("{actual:?}")}));
+                }
+            };
+            let first = d.handle(Fixture::ingest(1));
+            let notes = probe::take();
+            let reruns = probe::take_reruns();
+            let renewed = d.conn.recover_probe_for_test();
+            check("ingest-1", first, ordinary.handle(Fixture::ingest(1)).unwrap());
+            d.audit_cache_source_bytes = Some(16 << 20);
+            let steps = [
+                ("ready-a", envelope("p24adj-ready-a", json!({"op":"ready"}))),
+                ("ingest-2", Fixture::ingest(2)),
+                ("ready-b", envelope("p24adj-ready-b", json!({"op":"ready"}))),
+                ("ingest-3", Fixture::ingest(3)),
+                ("ready-c", envelope("p24adj-ready-c", json!({"op":"ready"}))),
+            ];
+            let mut carried = Vec::new();
+            for (id, request) in steps {
+                let (actual, events, _) = state::traced(true, || d.handle(request.clone()));
+                let after = d.conn.recover_probe_for_test();
+                if id.starts_with("ingest") {
+                    let phase = |p: &str| events.iter().any(|e| e["phase"] == p);
+                    carried.push((
+                        id,
+                        phase("owner_complete_hit"),
+                        after.qualification.is_some(),
+                        phase("publication_candidate_abandoned"),
+                        after.stale,
+                    ));
+                }
+                check(id, actual, ordinary.handle(request).unwrap());
             }
-            outcome.push((id, actual, ordinary.handle(request).unwrap()));
-        }
-        crate::cache::configure(0);
-        assert!(probe::take().is_empty(), "16M 下冷根不应再失败");
-        for (id, actual, oracle) in outcome {
-            assert_eq!(actual.unwrap_or_else(|e| panic!("{id}: {e}")), oracle, "{id}");
-        }
-        assert_eq!(
-            carried,
-            [("ingest-2", true, true, false), ("ingest-3", true, true, false)],
-            "候选重新出生后 ingest 须命中完整候选、经 Carry 提交资格且租约有效"
+            crate::cache::configure(0);
+            let later_notes = probe::take();
+            let tables = prepared::tests::runtime_root_tables(&d.conn, true)
+                == prepared::tests::runtime_root_tables(&ordinary.conn, true);
+            (notes, reruns, renewed, later_notes, carried, mismatched, tables)
+        };
+        let cold = run(1 << 20);
+        let control = run(16 << 20);
+        eprintln!(
+            "{}",
+            json!({"scenario":"p24adj-cold-root-then-larger-cap",
+                "cold":{"notes":cold.0,"reruns":cold.1,"carried":format!("{:?}", cold.4)},
+                "control":{"notes":control.0,"carried":format!("{:?}", control.4)}})
         );
-        assert_eq!(
-            prepared::tests::runtime_root_tables(&d.conn, true),
-            prepared::tests::runtime_root_tables(&ordinary.conn, true)
+        assert_eq!(cold.0, [(0, 0)], "1M 下首个 ingest 须恰经一次冷根自然失败且残留归零");
+        assert_eq!(cold.1, 1, "残留归零后无票重跑一次");
+        assert!(
+            !cold.2.stale && !cold.2.retired && cold.2.qualification.is_none(),
+            "冷根失败无票重跑提交后须续租：{:?}",
+            cold.2
         );
+        assert!(cold.3.is_empty() && control.0.is_empty(), "16M 下冷根不应失败");
+        assert!(cold.5.is_empty(), "逐步回复须与 ordinary 一致：{:?}", cold.5);
+        assert!(control.5.is_empty(), "对照组逐步回复须与 ordinary 一致：{:?}", control.5);
+        assert!(cold.6 && control.6, "末态根表须与 ordinary 一致");
+        assert_eq!(
+            cold.4[0],
+            ("ingest-2", true, true, false, false),
+            "候选重新出生后 ingest-2 须命中完整候选、经 Carry 提交资格且租约有效"
+        );
+        assert_eq!(cold.4[1], control.4[1], "ingest-3 须与全程 16M 对照组同路");
+        assert!(cold.4.iter().all(|c| !c.4), "租约不得撤销：{:?}", cold.4);
     }
 
     /// #1488 0079（P24-adj 负控锁）：冷根失败续租不清除真实撤销。
