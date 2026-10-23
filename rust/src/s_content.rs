@@ -2050,6 +2050,7 @@ struct NativeNode {
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl NativeNode {
+    #[cfg_attr(not(test), allow(dead_code))]
     fn new(tag: u8, body: Vec<u8>) -> Self {
         Self::new_codec(tag, CodecVec::from_plain(body))
     }
@@ -2361,6 +2362,7 @@ impl<K: Ord + Copy, V: Copy> OwnerProofTree<K, V> {
     fn contains_key(&self, key: &K) -> bool {
         self.get(key).is_some()
     }
+    #[cfg_attr(not(test), allow(dead_code))]
     fn len(&self) -> usize {
         self.len
     }
