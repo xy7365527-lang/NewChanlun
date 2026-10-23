@@ -322,30 +322,98 @@ class BookQueryTests(unittest.TestCase):
                 self.q.view("B:chong-N1")
 
     def test_book_v2_accepts_and_reads_like_v1(self):
-        """#1620：tb03c-book/2 与 /1 在公共查询字段上等效（资金签署不影响此读者）。"""
-        # manifest 冻结 /2
-        self.manifest["book_revision"] = "tb03c-book/2"
-        q = self.load(self.manifest)
-        q.owner = self.owner
-        # 重建状态，让 B 节点书账也显示 /2
-        states = {d: self.view(d) for d in q.nodes}
-        states["B:chong-N1"]["image"]["book"] = {"book_revision": "tb03c-book/2"}
-        states["B:chong-N1"]["image_hash"] = digest(states["B:chong-N1"]["image"])
-        self.states = states
-        # /2 可读取，不抛异常
-        result = q.view("B:chong-N1")
-        self.assertEqual(result["status"], "Available")
-        self.assertEqual(result["image"]["book"]["book_revision"], "tb03c-book/2")
-        # E 域在 /2 下可读 fill_allocations（与 /1 相同）
-        states["E"]["image"]["book"] = {"book_revision": "tb03c-book/2"}
-        states["E"]["image"]["recorded"] = [fixture_record(3)]
-        states["E"]["image"]["history"] = [{"kind": "ResolveEvidence",
+        """#1620：tb03c-book/2 与 /1 在公共查询字段上完整对拍（资金签署不影响此读者）。
+
+        对拍覆盖：B 域书账字段、E 域 fill_allocations 全部公共字段、非空分配数据、
+        负控（未知版本拒绝）、版本元数据差异明确列出。
+        """
+        # === 第一阶段：/1 基线，建立非空公共查询数据 ===
+        self.manifest["book_revision"] = "tb03c-book/1"
+        q_v1 = self.load(self.manifest)
+        q_v1.owner = self.owner
+        # 准备带非空 fill_allocations 的 E 域状态（复用现有 fixture）
+        states_v1 = {d: self.view(d) for d in q_v1.nodes}
+        states_v1["B:chong-N1"]["image"]["book"] = {"book_revision": "tb03c-book/1"}
+        states_v1["E"]["image"]["book"] = {"book_revision": "tb03c-book/1"}
+        states_v1["E"]["image"]["recorded"] = [fixture_record(3)]
+        states_v1["E"]["image"]["history"] = [{"kind": "ResolveEvidence",
             "evidence_id": self.row["evidence_id"], "covered": [self.row["fact_key"]]}]
-        states["E"]["image"]["fill_allocations"] = [copy.deepcopy(self.row)]
-        states["E"]["image_hash"] = digest(states["E"]["image"])
-        result_e = q.view("E")
-        self.assertEqual(result_e["status"], "Available")
-        self.assertIn("fill_allocations", result_e["image"])
+        states_v1["E"]["image"]["fill_allocations"] = [copy.deepcopy(self.row)]
+        for d in ("E", "B:chong-N1"):
+            states_v1[d]["image_hash"] = digest(states_v1[d]["image"])
+        self.states = states_v1
+
+        # 读取 /1 完整公共字段快照
+        result_v1_b = q_v1.view("B:chong-N1")
+        result_v1_e = q_v1.view("E")
+        v1_book_fields = set(result_v1_b["image"]["book"].keys())
+        v1_alloc = result_v1_e["image"]["fill_allocations"][0]
+
+        # === 第二阶段：/2 同源输入，逐字段对拍 ===
+        self.manifest["book_revision"] = "tb03c-book/2"
+        q_v2 = self.load(self.manifest)
+        q_v2.owner = self.owner
+        # 完全相同的底层数据，只改 revision 标记
+        states_v2 = copy.deepcopy(states_v1)
+        states_v2["B:chong-N1"]["image"]["book"]["book_revision"] = "tb03c-book/2"
+        states_v2["E"]["image"]["book"]["book_revision"] = "tb03c-book/2"
+        for d in ("E", "B:chong-N1"):
+            states_v2[d]["image_hash"] = digest(states_v2[d]["image"])
+        self.states = states_v2
+
+        result_v2_b = q_v2.view("B:chong-N1")
+        result_v2_e = q_v2.view("E")
+
+        # 公共字段对拍（明确列出 version 差异）
+        self.assertEqual(result_v1_b["status"], result_v2_b["status"])
+        self.assertEqual(result_v1_e["status"], result_v2_e["status"])
+        # B 域书账：除 book_revision 外所有字段相同
+        self.assertEqual(v1_book_fields, set(result_v2_b["image"]["book"].keys()))
+        self.assertEqual(result_v1_b["image"]["book"]["book_revision"], "tb03c-book/1")
+        self.assertEqual(result_v2_b["image"]["book"]["book_revision"], "tb03c-book/2")
+
+        # E 域 fill_allocations：非空数据下所有公共字段逐项对拍
+        v2_alloc = result_v2_e["image"]["fill_allocations"][0]
+        public_fields = {"fact_key", "fact_hash", "manifest_hash", "symbol",
+                        "fill_allocation_policy_id", "policy_revision", "from", "to",
+                        "evidence_id", "allocations"}
+        self.assertEqual(set(v1_alloc.keys()), public_fields)
+        self.assertEqual(set(v2_alloc.keys()), public_fields)
+        for field in public_fields - {"allocations"}:
+            self.assertEqual(v1_alloc[field], v2_alloc[field],
+                           f"字段 {field} 在 /1 与 /2 下不同")
+        # allocations 数组逐项对拍（含非空 units/acquisition_cash/commission）
+        self.assertEqual(len(v1_alloc["allocations"]), len(v2_alloc["allocations"]))
+        for i, (a1, a2) in enumerate(zip(v1_alloc["allocations"], v2_alloc["allocations"])):
+            alloc_fields = {"allocation_id", "chong_id", "command_id", "family_id",
+                          "revision", "units", "acquisition_cash", "commission"}
+            self.assertEqual(set(a1.keys()), alloc_fields, f"分配 {i} 字段集不同")
+            self.assertEqual(set(a2.keys()), alloc_fields, f"分配 {i} 字段集不同")
+            for field in alloc_fields:
+                self.assertEqual(a1[field], a2[field],
+                               f"分配 {i} 字段 {field} 在 /1 与 /2 下不同")
+        # 断言测试数据确实覆盖非零场景（fixture N2/N3 参与，N1 未参与）
+        units_values = [int(a["units"]) for a in v1_alloc["allocations"]]
+        self.assertIn(0, units_values, "应有零数量分配")
+        self.assertGreater(sum(units_values), 0, "至少有一个非零分配")
+
+        # === 第三阶段：负控（未知版本 /3 拒绝，与 /1 /2 形成对照）===
+        self.manifest["book_revision"] = "tb03c-book/3"
+        with self.assertRaises(EconomicQueryError) as ctx:
+            self.load(self.manifest)
+        self.assertIn("未知书账版本", str(ctx.exception))
+
+        # 负控：冻结 /2 但图像返回未知 /3
+        self.manifest["book_revision"] = "tb03c-book/2"
+        q_neg = self.load(self.manifest)
+        q_neg.owner = self.owner
+        states_neg = copy.deepcopy(states_v2)
+        states_neg["B:chong-N1"]["image"]["book"]["book_revision"] = "tb03c-book/3"
+        states_neg["B:chong-N1"]["image_hash"] = digest(states_neg["B:chong-N1"]["image"])
+        self.states = states_neg
+        with self.assertRaises(EconomicQueryError) as ctx:
+            q_neg.view("B:chong-N1")
+        self.assertIn("版本", str(ctx.exception).lower())
 
     def test_b_cannot_acquire_e_allocation_field(self):
         self.states["B:chong-N1"]["image"]["fill_allocations"] = []
