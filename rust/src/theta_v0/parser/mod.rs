@@ -120,6 +120,11 @@ pub struct ParseLayer {
     /// `IncrSegments::parse_invalid_from` 同一判定）；`None` = 无门失败。非空时 `tail` 不含
     /// `PendingSegment`，classifier 入口拒读本层（不构造中枢/走势/买卖点）。结构语义，计入 PartialEq。
     pub segments_parse_invalid_from: Option<usize>,
+    /// #1604（#1586 C-04）：尾窗 `tail_window`（记录 `second-seq-scan-budget`）耗尽的标记——首个被
+    /// 尾窗挡掉实质候选的段起点笔号（与 `SegmentFacts::tail_window_bound` /
+    /// `IncrSegments::resource_bound_from` 同一判定）；非空 = 本层段输出为 `INCOMPLETE_RESOURCE_BOUND`
+    /// （资源截断，不是缠论结论）。`None` = 尾窗未挡任何候选（签署值 7 下恒为 `None`）。计入 PartialEq。
+    pub segments_resource_bound_from: Option<usize>,
 }
 
 // #106：`merged_confirmed_len` 是性能证书（跨 bar 稳定前缀长度），非结构语义——增量版填真值、
@@ -133,6 +138,7 @@ impl PartialEq for ParseLayer {
             && self.segments == other.segments
             && self.tail == other.tail
             && self.segments_parse_invalid_from == other.segments_parse_invalid_from
+            && self.segments_resource_bound_from == other.segments_resource_bound_from
     }
 }
 
@@ -192,9 +198,9 @@ fn parse_layer_from_inclusion_state(
     // #1581：`divide_segments_with_tail` 不带门失败标记（非观测核）；标记取同一段判定的增量核
     // 一次全扫（`IncrSegments::append` 与 `divide_segments_with_tail` 逐位同核，#804）。段与尾部
     // 仍取自 `divide_segments_with_tail`，故无门失败时本层输出与改前逐位相同。代价：批量入口多一次段扫描。
-    let invalid_from = segment::IncrSegments::empty()
-        .append(&strokes, config)
-        .parse_invalid_from();
+    let full_scan = segment::IncrSegments::empty().append(&strokes, config);
+    let invalid_from = full_scan.parse_invalid_from();
+    let resource_bound_from = full_scan.resource_bound_from();
     let tail = tail::build_tail(
         merged,
         &fractals,
@@ -213,6 +219,7 @@ fn parse_layer_from_inclusion_state(
         segments: Rc::new(segments),
         tail: Rc::new(tail),
         segments_parse_invalid_from: invalid_from,
+        segments_resource_bound_from: resource_bound_from,
     }
 }
 
@@ -306,9 +313,11 @@ pub fn parse_layer_with_inclusion_facts_store(
     second_fold::SecondFoldStore,
 ) {
     let mut facts = inclusion::process_inclusion_with_facts(bars);
+    let (round_budget, policy) = (store.round_budget, store.policy);
     let mut slot = Some(store);
     let layer = parse_layer_from_facts(&mut facts, &config.parse, &mut slot);
-    (layer, facts, slot.unwrap_or_default())
+    let store = slot.unwrap_or_else(|| second_fold::SecondFoldStore::new(round_budget, policy));
+    (layer, facts, store)
 }
 
 // #1392：包含状态、新笔扫描 checkpoint 和分型尾部缓存共同推进。
@@ -339,6 +348,11 @@ impl<'c> ParseLayerIncr<'c> {
     /// 同一判定）；`None` = 当前前缀无门失败。
     pub fn segments_parse_invalid_from(&self) -> Option<usize> {
         self.incr_segments.parse_invalid_from()
+    }
+
+    /// #1604：尾窗耗尽标记（与全量 `SegmentFacts::tail_window_bound` 同一判定）；`None` = 未截断。
+    pub fn segments_resource_bound_from(&self) -> Option<usize> {
+        self.incr_segments.resource_bound_from()
     }
 
     /// 追加一个原始 bar；不沿用旧笔的冻结前缀证书。
@@ -431,6 +445,7 @@ fn parse_layer_from_compact_facts(
         segments,
         tail: Rc::new(tail),
         segments_parse_invalid_from: invalid_from,
+        segments_resource_bound_from: incr_segments.resource_bound_from(),
     };
     layer
 }
@@ -476,6 +491,10 @@ fn parse_layer_from_facts(
         .parse_invalid_from
         .as_ref()
         .map(|p| p.seg_start);
+    let resource_bound_from = segment_facts
+        .tail_window_bound
+        .as_ref()
+        .map(|b| b.seg_start);
     facts.segment_facts = Some(segment_facts);
     let tail = tail::build_tail(
         merged,
@@ -495,6 +514,7 @@ fn parse_layer_from_facts(
         segments: Rc::new(segments),
         tail: Rc::new(tail),
         segments_parse_invalid_from: invalid_from,
+        segments_resource_bound_from: resource_bound_from,
     }
 }
 
@@ -520,6 +540,10 @@ fn parse_layer_from_strokes(
         .parse_invalid_from
         .as_ref()
         .map(|p| p.seg_start);
+    let resource_bound_from = segment_facts
+        .tail_window_bound
+        .as_ref()
+        .map(|b| b.seg_start);
     let tail = tail::build_tail(
         merged,
         &fractals,
@@ -538,6 +562,7 @@ fn parse_layer_from_strokes(
         segments: Rc::new(segments),
         tail: Rc::new(tail),
         segments_parse_invalid_from: invalid_from,
+        segments_resource_bound_from: resource_bound_from,
     };
     (layer, segment_facts)
 }
@@ -548,6 +573,8 @@ mod tb02c_tests;
 mod tb1493_replay_tests;
 #[cfg(test)]
 mod tb1581_tests;
+#[cfg(test)]
+mod tb1604_tests;
 
 #[cfg(test)]
 mod tests {
