@@ -23,6 +23,111 @@ const SESSION: &str = "tb1406-s3-kill";
 const CHILD: &str = "economic_session::tb03c_kill_tests::tb03c_kill_child";
 const DEADLINE: Duration = Duration::from_secs(300);
 
+/// #1622：创建 voice_binding 证据权威（TestOnly fixture），写入 bundle 与 verification 文件。
+fn setup_voice_authority(dir: &Path) -> Value {
+    use crate::session_protocol::sha256_hex;
+    let doc: Value = serde_json::from_str(RAW).unwrap();
+    let event = &doc["events"][0]; // 使用开局事实
+    let raw_sha = sha256_hex(canonical_json(&doc).as_bytes());
+    let key = book::fact_key(event).unwrap();
+    let fact_hash = book::hash(
+        &json!({"raw_sha256":raw_sha,"json_pointer":"/events/0","event":event,"units":doc["units"]}),
+    );
+    let reference = |name: &str| {
+        json!({"authority_id":"kill-unit","object_id":name,"revision":"0","content_hash":book::hash(&json!(name))})
+    };
+    // 为 B:chong-N1 创建 binding（operation_level = 1）
+    let binding = json!({
+        "evidence_id":"kill-evidence-1",
+        "instrument":"TEST-N",
+        "chong_id":"chong-N1",
+        "operation_level":"1",
+        "carrier_ref":reference("kill-carrier"),
+        "gamma_ref":reference("kill-gamma"),
+        "sigma":"Long",
+        "n":"0",
+        "parent_voice_id":null,
+        "structure_view":{
+            "profile_id":"kill-unit",
+            "execution_level":"1",
+            "confirmation_level":"2",
+            "nest_depth":"1"
+        },
+        "opening_source":{
+            "fact_key":key,
+            "fact_hash":fact_hash,
+            "allocation_id":"kill-allocation-1",
+            "raw_sha256":raw_sha,
+            "json_pointer":"/events/0",
+            "quantity":"4",
+            "units":doc["units"]
+        }
+    });
+    let mut artifacts = vec![];
+    for name in ["input", "controlled_gammas", "carrier", "gamma"] {
+        let value = if name == "input" {
+            json!({"schema":"testonly-voice-input/1","units":doc["units"],"events":[event]})
+        } else {
+            json!({"scope":"unit trust-root fixture, not a real gamma proof","name":name})
+        };
+        let text = canonical_json(&value);
+        let path = dir.join(format!("voice-{name}.json"));
+        std::fs::write(&path, &text).unwrap();
+        artifacts.push(json!({
+            "name":name,
+            "path":path,
+            "sha256":sha256_hex(text.as_bytes()),
+            "bytes":text.len().to_string()
+        }));
+    }
+    let bundle = json!({
+        "schema":"voice-binding-authority/1",
+        "authority_id":"kill-unit",
+        "source":{
+            "instrument":"TEST-N",
+            "input_sha256":artifacts[0]["sha256"],
+            "profile_id":"kill-unit",
+            "first_confirming_observation_source":"25",
+            "clock_mapping":{
+                "kind":"TestOnlyAffineOrdinalToNs",
+                "source_origin":"0",
+                "nanosecond_origin":"0",
+                "nanoseconds_per_ordinal":"1"
+            }
+        },
+        "artifacts":artifacts,
+        "bindings":[binding]
+    });
+    let bundle_text = canonical_json(&bundle);
+    let bundle_path = dir.join("voice-authority.json");
+    std::fs::write(&bundle_path, &bundle_text).unwrap();
+    let bundle_sha = sha256_hex(bundle_text.as_bytes());
+    let review = json!({
+        "schema":"voice-binding-independent-verification/1",
+        "verdict":"APPROVE_CONTROLLED_VOICE_BINDING",
+        "authority_id":"kill-unit",
+        "bundle_sha256":bundle_sha,
+        "artifacts":bundle["artifacts"],
+        "verified_evidence_ids":["kill-evidence-1"],
+        "scope":"unit trusted receipt fixture only; no actual gamma verification claim"
+    });
+    let review_text = canonical_json(&review);
+    let review_path = dir.join("voice-review.json");
+    std::fs::write(&review_path, &review_text).unwrap();
+    let review_sha = sha256_hex(review_text.as_bytes());
+    json!({
+        "schema_revision":"voice-binding/1",
+        "authorities":[{
+            "authority_id":"kill-unit",
+            "bundle_path":bundle_path,
+            "bundle_sha256":bundle_sha,
+            "verification_path":review_path,
+            "verification_sha256":review_sha,
+            "max_bytes":"1048576"
+        }]
+    })
+}
+
 /// 与 C4a WE7 同一时钟形状：每条消息每个 epoch 一列，恢复后按第二列提交。
 fn manifest(dir: &Path, fault: Option<(&str, &str)>) -> Value {
     let mut plan = serde_json::Map::new();
@@ -39,12 +144,15 @@ fn manifest(dir: &Path, fault: Option<(&str, &str)>) -> Value {
         );
     }
     let chongs = (0..3).map(|i|json!({"chong_id":format!("chong-N{}",i+1),"symbol":"TEST-N","operation_level":(i+1).to_string(),"fixed_q":(["1","3","3"][i]),"db":dir.join(format!("b{i}.db")),"socket":dir.join(format!("b{i}.sock"))})).collect::<Vec<_>>();
+    // #1622：添加 voice_binding 证据配置，供 BindVoice 测试使用
+    let voice_binding = setup_voice_authority(dir);
     let mut m = json!({"schema_revision":"economic-manifest/1","session_id":SESSION,"session_generation":"1","book_revision":"tb03c-book/1",
         "e":{"db":dir.join("e.db"),"socket":dir.join("e.sock")},"chongs":chongs,"fill_manifests":[serde_json::from_str::<Value>(MANIFEST).unwrap()],
-        "authorized_sources":[{"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","producer_id":"tb1406-s3","producer_epoch":"1","operations":["CaptureExternal","ResolveEvidence","ApplyAllocation","ReadView","QueryFact","QueryAllocation"]}],
+        "authorized_sources":[{"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","producer_id":"tb1406-s3","producer_epoch":"1","operations":["CaptureExternal","ResolveEvidence","ApplyAllocation","BindVoice","ReadView","QueryFact","QueryAllocation","QueryVoice"]}],
         "resources":{"max_frame_bytes":"1048576","read_timeout_ms":"1000","write_timeout_ms":"1000","response_timeout_ms":"2000","queue_capacity":"2","max_connections":"2"},
         "clock":{"kind":"TestOnly","plan":{"init_ns":"1","recover_ns":((1..=16).map(|r| (r * 1_000_000).to_string()).collect::<Vec<_>>()),"messages":plan}},
-        "fill_allocation_policy":{"fill_allocation_policy_id":super::allocation::FILL_ALLOCATION_POLICY_ID,"policy_revision":"we7-frozen-1"}});
+        "fill_allocation_policy":{"fill_allocation_policy_id":super::allocation::FILL_ALLOCATION_POLICY_ID,"policy_revision":"we7-frozen-1"},
+        "voice_binding":voice_binding});
     if let Some((message, phase)) = fault {
         m["test_only_fault"] =
             json!({"message_id":message,"phase":phase,"marker_path":dir.join("fault-marker.json")});
@@ -131,6 +239,27 @@ fn resolve_payload(r: &Value, cursor: usize) -> Value {
 }
 fn apply_payload(r: &Value, id: &Value) -> Value {
     json!({"op":"ApplyAllocation","fact_key":r["fact_key"],"allocation_id":id,"expected_fact_hash":r["fact_hash"]})
+}
+/// #1622：创建 BindVoice payload，复用第一笔 Capture/Apply 的 fact 与 allocation。
+fn bind_payload(capture_reply: &Value, allocation_id: &Value) -> Value {
+    let reference = |name: &str| {
+        json!({"authority_id":"kill-unit","object_id":name,"revision":"0","content_hash":book::hash(&json!(name))})
+    };
+    json!({
+        "op":"BindVoice",
+        "binding_id":"kill-voice-1",
+        "evidence_id":"kill-evidence-1",
+        "carrier_ref":reference("kill-carrier"),
+        "gamma_ref":reference("kill-gamma"),
+        "parent_voice_id":null,
+        "sigma":"Long",
+        "n":"0",
+        "opening_basis":{
+            "fact_key":capture_reply["fact_key"],
+            "expected_fact_hash":capture_reply["fact_hash"],
+            "allocation_id":allocation_id
+        }
+    })
 }
 
 /// 全表逻辑转储：每表按主键序、每格原字节（TEXT 原样，BLOB 十六进制）。
@@ -713,8 +842,17 @@ fn plan() -> &'static Plan {
                 );
             }
         }
-        assert_eq!(b.steps.len(), 21);
-        assert_eq!(b.snapshot_dirs.len(), 22);
+        // #1622：在第一笔 Apply 后添加 BindVoice（步骤 21，owner=1=B:chong-N1）
+        let first_capture = &b.replies[0];
+        let first_apply = &b.replies[1];
+        assert_eq!(first_capture["kind"], "Recorded");
+        assert_eq!(first_apply["kind"], "Applied");
+        b.send(
+            1,
+            bind_payload(first_capture, &first_capture["allocation_id"]),
+        );
+        assert_eq!(b.steps.len(), 22);
+        assert_eq!(b.snapshot_dirs.len(), 23);
         let mut plan = Plan {
             steps: b.steps,
             replies: b.replies,
@@ -764,7 +902,7 @@ fn reference() -> &'static Reference {
             }
             let tables = dumps(&configs);
             for d in 0..4 {
-                assert_eq!(business(&tables[d]), plan.snapshots[21][d]);
+                assert_eq!(business(&tables[d]), plan.snapshots[22][d]);
             }
             audit_all(&configs);
             let queries = public(&configs);
@@ -1109,6 +1247,7 @@ kill_step! {
     tb03c_kill_s18_apply_fill3_n1: 18, "ApplyAllocation", 1;
     tb03c_kill_s19_apply_fill3_n2: 19, "ApplyAllocation", 2;
     tb03c_kill_s20_apply_fill3_n3: 20, "ApplyAllocation", 3;
+    tb03c_kill_s21_bind_voice_n1: 21, "BindVoice", 1;
 }
 
 /// 评审 M3(b) 负控：提交前被杀并恢复后**跳过重送**直接续跑，终态比较函数必须报「不同」。
