@@ -384,7 +384,7 @@ class EconomicQuery:
         matching = [entry for entry in manifest.get("authorized_sources", [])
                     if type(entry) is dict and {k: entry.get(k) for k in source_fields} == self.source]
         read_ops = {"ReadView", "Watch", "QueryFact", "QueryAllocation", "QueryVoice", "QueryDecision", "QueryGrant",
-                    "EconomicReadOpen", "EconomicReadPage", "EconomicReadClose"}
+                    "QueryBasisUsage", "EconomicReadOpen", "EconomicReadPage", "EconomicReadClose"}
         if (len(matching) != 1 or type(matching[0].get("operations")) is not list
                 or any(type(op) is not str for op in matching[0]["operations"])
                 or not {"ReadView", "Watch"} <= set(matching[0]["operations"]) <= read_ops):

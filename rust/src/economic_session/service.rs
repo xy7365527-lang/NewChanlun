@@ -1385,6 +1385,12 @@ fn read(
             let k = required(p, "allocation_id")?;
             json!({"kind":"EconomicAllocation","domain_id":config.domain,"application":row(&tx,"applications",k)?.ok_or("MissingDependency：allocation不存在")?,"receipt":row(&tx,"receipts",k)?.ok_or("StorageUnavailable：域损坏：allocation缺回执")?})
         }
+        "QueryBasisUsage" => {
+            // #1415：与 ReadView 同一 cut/AsKnown 选择，只派生本 B 依据使用关系。
+            exact(p, &["op", "cut", "as_known_ns"])?;
+            let (s, h, n, image) = select_cut(&tx, config, p)?;
+            super::tb03d_usage::view(config, &image, cut(config, s, &h), &n)?
+        }
         _ => return Err("SchemaUnsupported：未知只读操作".into()),
     };
     tx.commit().map_err(err)?;
@@ -1453,7 +1459,9 @@ fn handle_with_deadline(
                 bind_voice(c, config, epoch, e, ingress_response_deadline)
             }
             "ReadView" | "Watch" | "QueryFact" | "QueryAllocation" | "QueryVoice"
-            | "QueryDecision" | "QueryGrant" => read(c, config, epoch, runtime, &e["payload"]),
+            | "QueryDecision" | "QueryGrant" | "QueryBasisUsage" => {
+                read(c, config, epoch, runtime, &e["payload"])
+            }
             _ => Err("SchemaUnsupported：操作不属于本域".into()),
         }
     })();
