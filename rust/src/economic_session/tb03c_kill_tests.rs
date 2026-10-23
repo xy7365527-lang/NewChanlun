@@ -842,7 +842,7 @@ fn plan() -> &'static Plan {
                 );
             }
         }
-        // #1622：在第一笔 Apply 后添加 BindVoice（步骤 21，owner=1=B:chong-N1）
+        // #1622：在第一笔 Apply（步骤 1）后添加 BindVoice（步骤 21 → 总 22 步，owner=1=B:chong-N1）
         let first_capture = &b.replies[0];
         let first_apply = &b.replies[1];
         assert_eq!(first_capture["kind"], "Recorded");
@@ -1209,8 +1209,8 @@ fn matrix(target: usize, op: &str, owner: usize, phase: &str) {
     }
 }
 
-/// WE7 全部 21 个持久写步（评审 M2）：步号 / 操作 / 所属域（0=E，1..3=B:chong-N1..N3）。
-/// 每步生成 `<名>::before_commit` 与 `<名>::after_commit` 两个测试（共 42 个组合 × 2 次 = 84 次 SIGKILL）。
+/// WE7 持久写步（评审 M2 + #1622 BindVoice）：22 步（步号 / 操作 / 所属域，0=E，1..3=B:chong-N1..N3）。
+/// 每步生成 `<名>::before_commit` 与 `<名>::after_commit` 两个测试（共 44 个组合 × 2 次 = 88 次 SIGKILL）。
 macro_rules! kill_step {
     ($($name:ident: $target:expr, $op:expr, $owner:expr;)*) => {$(
         mod $name {
