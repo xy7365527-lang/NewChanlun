@@ -81,6 +81,7 @@ impl AuditRoots {
     }
 }
 impl AuditMetadata {
+    #[allow(dead_code, reason = "#1608：类型配套访问器，当前无调用方；保留不删")]
     pub fn try_clone(&self) -> Result<Self, String> {
         Ok(Self {
             session_id: self.session_id.try_clone()?,

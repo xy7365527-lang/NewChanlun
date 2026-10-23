@@ -32,7 +32,7 @@ worktree/branch 是**容器**不是名分。容器只有两态：
 
 ## 2. 现役线名单
 
-- **引擎层**：**π 是唯一现役引擎**。锚定方式 = 家族根函数名（`pi_theta_fill_loop_overlay`），不锚行号（行号随版本漂移）。v1/dual = deprecated 待退役，处置见 #499。
+- **引擎层**：**π 是唯一现役引擎**（代码谱系名分，相对 v1/dual；不是生产 owner 裁定——π 结构核收编为 S 的唯一计算者，π 回路经济部分为冻结影子，见 ADR 0039 裁定二与 ADR 0048，#1532）。锚定方式 = 家族根函数名（`pi_theta_fill_loop_overlay`），不锚行号（行号随版本漂移）。v1/dual 已按 #499 删除。
 - **git 线**：**main 是唯一现役本地线、远端默认分支与自动化基线**，ticket/worktree 从最新 main 切出并交付到 `origin/main`。`main-rewritten` 是已退役的历史镜像，不再承担 CI、发布或 ancestry 判据（#1101/#1103；归档与删除闸见 #1102/#1104）；`gap3-rework-codex9-fix` = 已吸收残壳（main 含其全部 except 2 commit，main 领先 260——2026-07-28 核），按垃圾清。
 - **工位层**：**白名单制**。在跑工位显式登记于当日 roster（当前唯一：`/tmp/kimi-nest-mainline` = #421）；其余 worktree 默认残骸嫌疑，按 #502 判据清。新工位开工即登记。
 

@@ -461,6 +461,7 @@ pub(crate) trait CodecRead: NodeSource {
         sc::render_refview(self.generic_source(), r, out)
     }
     fn generic_source(&mut self) -> &mut dyn NodeSource;
+    #[allow(dead_code, reason = "#1608：特质默认方法，当前无调用方；保留不删")]
     fn new_ref_result(&mut self) -> sc::CodecVec<ContentRef> {
         sc::CodecVec::from_plain(Vec::new())
     }
@@ -470,6 +471,7 @@ pub(crate) trait CodecRead: NodeSource {
     fn lookup_path(&mut self, r: &ContentRef, p: &[PathStep]) -> Result<ContentRef, CodecError> {
         sc::path::lookup_path(self.generic_source(), r, p)
     }
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用"))]
     fn lookup_array_items(
         &mut self,
         r: &ContentRef,
@@ -494,6 +496,10 @@ pub(crate) trait CodecRead: NodeSource {
     fn render_canonical(&mut self, r: &ContentRef, w: &mut dyn Write) -> Result<(), CodecError> {
         sc::render_canonical(self.generic_source(), r, w)
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_allocation_json_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用")
+    )]
     fn verify_fresh(&mut self, r: &ContentRef, mode: sc::Mode) -> Result<(), CodecError> {
         match mode {
             sc::Mode::Public => sc::verify(self.generic_source(), r).map(|_| ()),
@@ -506,6 +512,10 @@ pub(crate) trait CodecRead: NodeSource {
             sc::Mode::Template => sc::audit_verify(self.generic_source(), r, mode),
         }
     }
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     fn verify_audit_many_fresh(
         &mut self,
         r: impl IntoIterator<Item = ContentRef>,
@@ -513,6 +523,10 @@ pub(crate) trait CodecRead: NodeSource {
     ) -> Result<(), CodecError> {
         sc::audit_verify_many(self.generic_source(), r, mode)
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     fn verify_many_fresh(
         &mut self,
         r: impl IntoIterator<Item = ContentRef>,
@@ -523,9 +537,17 @@ pub(crate) trait CodecRead: NodeSource {
             sc::Mode::Template => sc::verify_template_many(self.generic_source(), r).map(|_| ()),
         }
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_allocation_json_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用")
+    )]
     fn verify_cached(&mut self, r: &ContentRef, mode: sc::Mode) -> Result<(), CodecError> {
         self.verify_fresh(r, mode)
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_allocation_json_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用")
+    )]
     fn verify_many_cached(
         &mut self,
         r: impl IntoIterator<Item = ContentRef>,
@@ -560,9 +582,17 @@ pub(crate) trait CodecStore: CodecRead + NodeSink {
     fn write_value(&mut self, v: &sc::Value) -> Result<sc::Built, CodecError> {
         sc::write_value(self.generic_store(), v)
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_allocation_json_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用")
+    )]
     fn write_template(&mut self, v: &sc::Value) -> Result<sc::Built, CodecError> {
         sc::write_template(self.generic_store(), v)
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_allocation_json_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用")
+    )]
     fn replace_batch_placeholder(
         &mut self,
         r: &ContentRef,
@@ -656,12 +686,17 @@ impl<'a, 'source> StoreView<'a, 'source> {
             Backend::Audit(s) => s.swap_codec_full_array_role(enabled),
         }
     }
+    #[cfg(test)]
     pub(crate) fn verify_public(&mut self, r: &ContentRef) -> Result<(), CodecError> {
         match &mut self.backend {
             Backend::Generic(s) => sc::verify(&mut **s, r).map(|_| ()),
             Backend::Audit(s) => s.verify_public(r),
         }
     }
+    #[allow(
+        dead_code,
+        reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+    )]
     pub(crate) fn verify_many(
         &mut self,
         r: impl IntoIterator<Item = ContentRef>,
@@ -985,7 +1020,6 @@ impl NodeSink for StoreView<'_, '_> {
 
 // 单独cargo rustc -- --cfg issue1394_closed_owner_refusal实际编译本段，预期拒绝。
 // 普通构建不包含本编译反例；它不用stub类型冒充真实边界。
-#[allow(unexpected_cfgs)]
 #[cfg(issue1394_closed_owner_refusal)]
 mod compile_refusal {
     use super::*;
@@ -1262,6 +1296,10 @@ impl RefFields<'_> {
             Self::Owned(f) => f.get(key).copied().map(RefValue::Owned),
         }
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub fn len(&self) -> usize {
         match self {
             Self::Plain(f) => f.len(),

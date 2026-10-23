@@ -63,7 +63,6 @@ use newchan_rust::theta_v0::parser::ParseLayerIncr;
 use newchan_rust::theta_v0::types::{quantize, Bar, Direction, Segment, Side, Timestamp};
 use serde::Deserialize;
 use std::collections::BTreeMap;
-use std::io::Write;
 use std::path::Path;
 use std::rc::Rc;
 use std::time::Instant;

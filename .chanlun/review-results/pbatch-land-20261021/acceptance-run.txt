@@ -1,0 +1,55 @@
+# 验收实跑 2026-10-21T08:14:35Z，HEAD 工作树（含非阻塞修订）
+== #1559  ADR 0044
+PASS  1 文件存在
+PASS  2 13 字段齐
+PASS  3 两版分节=2
+PASS  4 无 <待签>
+PASS  5 θ≥1 且两版各一
+PASS  6a 三项状态=6
+PASS  6b fee Known=2
+PASS  7 P1 官方费率页
+PASS  8 无未标定常数作输入
+PASS  9 CONTEXT 指针
+PENDING  10 #1559 签署后 closed（合入归用户）
+PASS  10' resolution 含 ADR 0044 路径与版本
+PENDING  11 #1441 给出四态之一（下游实施）
+PASS  11' #1441 评论引用 ADR 0044
+== #1560  ADR 0045
+PASS  1 文件存在
+PASS  2 四条齐=4
+PASS  3a SR-1..3 动作记号=3
+PASS  3b 无非法动作记号
+PASS  4 无断连类触发
+PASS  5 绑 P1 且版本格式
+PASS  6 每条带版本与签署人=4
+PASS  7 签署字段非空
+PASS  8 动作表默认
+PASS  9a SR-2 accountValue=1
+PASS  9b SR-2 无 withdrawable
+PASS  10 CONTEXT 指针
+PENDING  11 #1560 CLOSED（合入归用户）
+PASS  11' resolution 含 0045-sr-v1-policy-signed.md v1
+PASS  12 #1380/#1412 评论引用
+== #1561  ADR 0028 P2 处置
+PASS  1 新节=1
+PASS  2 票号与 P1/TB-09
+PASS  3 授权记录六字段
+PASS  4 ADR 0021 未改
+PASS  5 CONTEXT 指针
+PASS  6 无私钥/凭据值
+PASS  7 #1365/#1368 评论引用 #1561
+PENDING  8 #1561 closed（合入归用户）
+PASS  8' resolution 含节名与结论
+== #1567  ADR 0046 + #1657
+PASS  1 文件存在且最后裁定头
+PASS  2 profile/evidence_class/valid_through 只在被否节
+PASS  3 实施票 #1657 引 ADR
+PASS  4 #1527 blocked_by 含 1567 与 1657
+PENDING  5 release 无 test_prepare（#1657 交付）
+PENDING  6 八个 admission_prepare_rejects_* 负控（#1657 交付）
+PENDING  7 test_tb01c_r4_anchor_lock（#1657 候选提交上复跑）
+PENDING  8 test_tb01c_* 77/77（#1657 候选提交上复跑）
+PENDING  9 资源合同 ADR 八键（#1657 交付前置）
+PENDING  10 #1567 按批复关闭（合入归用户）
+PASS  10' resolution 首行引用户批复且含 ADR 路径
+exit=0

@@ -343,7 +343,7 @@ fn staged_nodes_flush_counts_rows_and_traverses_old_parent_to_new_child() {
 }
 
 #[test]
-fn staged_nodes_preserve_frame_and_current_SQL_error_gates() {
+fn staged_nodes_preserve_frame_and_current_sql_error_gates() {
     let mut conn = rusqlite::Connection::open_in_memory().unwrap();
     conn.execute_batch("CREATE TABLE s_protocol_meta(singleton INTEGER PRIMARY KEY,protocol_revision TEXT NOT NULL);INSERT INTO s_protocol_meta VALUES(1,'s-session/3');").unwrap();
     let tx = conn.transaction().unwrap();
