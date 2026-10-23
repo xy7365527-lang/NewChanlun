@@ -63,6 +63,7 @@ mod orchestrator;
 mod ph;
 /// 统一递归算子 T（缠师第65课 `aₙ=f(aₙ₋₁)` 形式化）。`pub` 导出避免 dead_code 误报——
 /// 设计阶段脚手架，尚未接入 PyO3（文档 docs/unified_recursive_operator_T.md）。
+// 生产终态：冻结影子（ADR 0048，#1532）；删除取舍归 #1096。
 #[cfg(not(test))]
 pub mod recursive_t;
 mod segment;

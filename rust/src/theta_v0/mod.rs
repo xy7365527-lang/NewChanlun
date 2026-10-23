@@ -115,7 +115,7 @@ pub mod complete;
 /// 回测 harness（Phase 4，task #81）。门控为 `any(test, feature = "backtest_bin")`——
 /// [`backtest::data`] 依赖 serde_json（test 走 dev-dependency；CLI 走 backtest_bin feature 的
 /// optional dep）。默认 cdylib（Python 扩展）构建**两者都不开** ⟹ 零依赖膨胀（acceptance[5]
-/// CLI 生产入口解门控：let theta_backtest bin 链接 run_theta_v0_pi/load_by_symbol）。
+/// 历史名「CLI 生产入口」解门控（theta_backtest 为冻结影子，ADR 0048，#1532）：let theta_backtest bin 链接 run_theta_v0_pi/load_by_symbol）。
 #[cfg(any(test, feature = "backtest_bin"))]
 pub mod backtest;
 
