@@ -24,7 +24,8 @@ const CHILD: &str = "economic_session::tb03c_kill_tests::tb03c_kill_child";
 const DEADLINE: Duration = Duration::from_secs(300);
 
 /// #1622：创建 voice_binding 证据权威（TestOnly fixture），写入 bundle 与 verification 文件。
-fn setup_voice_authority(dir: &Path) -> Value {
+/// `allocation_id` 应传入 Capture 返回的真实 allocation_id（fixture 测试时可用占位符）。
+fn setup_voice_authority(dir: &Path, allocation_id: &str) -> Value {
     use crate::session_protocol::sha256_hex;
     let doc: Value = serde_json::from_str(RAW).unwrap();
     let event = &doc["events"][0]; // 使用开局事实
@@ -54,7 +55,7 @@ fn setup_voice_authority(dir: &Path) -> Value {
         "opening_source":{
             "fact_key":key,
             "fact_hash":fact_hash,
-            "allocation_id":"kill-allocation-1",
+            "allocation_id":allocation_id,
             "raw_sha256":raw_sha,
             "json_pointer":"/events/0",
             "quantity":"4",
@@ -127,7 +128,7 @@ fn setup_voice_authority(dir: &Path) -> Value {
 }
 
 /// 与 C4a WE7 同一时钟形状：每条消息每个 epoch 一列，恢复后按第二列提交。
-fn manifest(dir: &Path, fault: Option<(&str, &str)>) -> Value {
+fn manifest(dir: &Path, fault: Option<(&str, &str)>, allocation_id: &str) -> Value {
     let mut plan = serde_json::Map::new();
     for i in 0..256 {
         let t = 1000 + 10 * i;
@@ -143,7 +144,7 @@ fn manifest(dir: &Path, fault: Option<(&str, &str)>) -> Value {
     }
     let chongs = (0..3).map(|i|json!({"chong_id":format!("chong-N{}",i+1),"symbol":"TEST-N","operation_level":(i+1).to_string(),"fixed_q":(["1","3","3"][i]),"db":dir.join(format!("b{i}.db")),"socket":dir.join(format!("b{i}.sock"))})).collect::<Vec<_>>();
     // #1622：添加 voice_binding 证据配置，供 BindVoice 测试使用
-    let voice_binding = setup_voice_authority(dir);
+    let voice_binding = setup_voice_authority(dir, allocation_id);
     let mut m = json!({"schema_revision":"economic-manifest/1","session_id":SESSION,"session_generation":"1","book_revision":"tb03c-book/1",
         "e":{"db":dir.join("e.db"),"socket":dir.join("e.sock")},"chongs":chongs,"fill_manifests":[serde_json::from_str::<Value>(MANIFEST).unwrap()],
         "authorized_sources":[{"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","producer_id":"tb1406-s3","producer_epoch":"1","operations":["CaptureExternal","ResolveEvidence","ApplyAllocation","BindVoice","ReadView","QueryFact","QueryAllocation","QueryVoice"]}],
@@ -183,10 +184,10 @@ fn load(dir: &Path) -> Vec<store::Config> {
 /// 唯一与路径/故障计划相关的持久值是 init 写入 meta 的 `manifest_hash`：按本目录 manifest 改写后，
 /// 断言全库 = 「对本 manifest 新 init 的 meta」+「snapshots[target] 的全部业务表」，
 /// 即与旧做法（新 init 后由新进程重放前缀）在被测进程启动时的持久状态逐表逐行相同。
-fn setup_from(plan: &Plan, dir: &Path, fault: (&str, &str), target: usize) -> Vec<store::Config> {
+fn setup_from(plan: &Plan, dir: &Path, fault: (&str, &str), target: usize, allocation_id: &str) -> Vec<store::Config> {
     std::fs::write(
         dir.join("manifest.json"),
-        canonical_json(&manifest(dir, Some(fault))),
+        canonical_json(&manifest(dir, Some(fault), allocation_id)),
     )
     .unwrap();
     let configs = load(dir);
@@ -212,10 +213,10 @@ fn setup_from(plan: &Plan, dir: &Path, fault: (&str, &str), target: usize) -> Ve
     std::fs::remove_dir_all(&scratch).unwrap();
     configs
 }
-fn setup(dir: &Path, fault: Option<(&str, &str)>) -> Vec<store::Config> {
+fn setup(dir: &Path, fault: Option<(&str, &str)>, allocation_id: &str) -> Vec<store::Config> {
     std::fs::write(
         dir.join("manifest.json"),
-        canonical_json(&manifest(dir, fault)),
+        canonical_json(&manifest(dir, fault, allocation_id)),
     )
     .unwrap();
     let configs = load(dir);
@@ -792,7 +793,8 @@ fn plan() -> &'static Plan {
     PLAN.get_or_init(|| {
         let plan_t0 = Instant::now();
         let space = Space::new("s3-kill-plan");
-        let configs = setup(&space.0, None);
+        // #1622：第一个事件的 allocation_id 来自 RAW fixture（"alloc-N1-open"）
+        let configs = setup(&space.0, None, "alloc-N1-open");
         let dbs = configs
             .iter()
             .map(|c| store::open(&c.db, false).unwrap().0)
@@ -881,7 +883,7 @@ fn reference() -> &'static Reference {
         let mut finals: Vec<(Vec<Value>, Vec<Value>)> = vec![];
         for rep in 0..2 {
             std::fs::create_dir_all(&work).unwrap();
-            let configs = setup(&work, None);
+            let configs = setup(&work, None, "alloc-N1-open");
             finish(
                 spawn(
                     &work,
@@ -964,7 +966,7 @@ fn kill_and_recover(plan: &Plan, target: usize, phase: &str, work: &Path) -> Kil
         .to_owned();
     std::fs::create_dir_all(work.parent().unwrap()).unwrap();
     std::fs::create_dir(work).unwrap();
-    let configs = setup_from(plan, work, (&message, phase), target);
+    let configs = setup_from(plan, work, (&message, phase), target, "alloc-N1-open");
     let mut a = spawn(
         work,
         "a",
@@ -1267,6 +1269,51 @@ fn skip_resend(target: usize) -> String {
     );
     diff
 }
+
+/// #1622 负控：BindVoice 使用错误 allocation_id 应返回 IdentityConflict。
+fn bind_voice_wrong_allocation() -> String {
+    let plan = plan();
+    let work = root().join("negative-wrong-allocation").join("work");
+    std::fs::create_dir_all(&work).unwrap();
+    let configs = setup(&work, None, "alloc-N1-open");
+    let mut dbs: Vec<rusqlite::Connection> = configs
+        .iter()
+        .map(|c| store::open(&c.db, false).unwrap().0)
+        .collect();
+    // 执行前两步：步骤0（Capture open N1）和步骤1（Apply open N1）
+    for i in 0..2 {
+        let owner = plan.steps[i]["owner"].as_u64().unwrap() as usize;
+        let reply = service::handle(
+            &mut dbs[owner],
+            &configs[owner],
+            1,
+            1,
+            &json!({}),
+            &plan.steps[i]["envelope"],
+        )["payload"]
+            .clone();
+        assert_ne!(reply["kind"], "Error", "前置步骤失败：{reply}");
+    }
+    let first_capture = &plan.replies[0];
+    // 使用错误的 allocation_id（应该用 "alloc-N1-open"，故意用错误值）
+    let wrong_allocation = "wrong-allocation-id";
+    let bad_payload = bind_payload(first_capture, &json!(wrong_allocation));
+    let bad_envelope = envelope("negative-bind", bad_payload);
+    let error_reply = service::handle(&mut dbs[1], &configs[1], 1, 1, &json!({}), &bad_envelope)["payload"].clone();
+    // 应该返回 IdentityConflict 错误
+    if error_reply["kind"] != "Error" {
+        panic!(
+            "预期 Error，实际得到：{}",
+            canonical_json(&error_reply)
+        );
+    }
+    let error_reason = error_reply["reason"].as_str().unwrap_or("").to_string();
+    println!(
+        "S3-NEGATIVE {}",
+        canonical_json(&json!({"test":"bind_voice_wrong_allocation","error_kind":error_reply["kind"],"error_reason":error_reason}))
+    );
+    error_reason
+}
 #[test]
 fn tb03c_kill_negative_skip_resend_capture_fill1() {
     let diff = skip_resend(6);
@@ -1276,4 +1323,14 @@ fn tb03c_kill_negative_skip_resend_capture_fill1() {
 fn tb03c_kill_negative_skip_resend_apply_fill1_n2() {
     let diff = skip_resend(9);
     assert!(diff.starts_with("终态域 2："), "{diff}");
+}
+
+/// #1622 负控：错误 allocation_id 的 BindVoice 应返回 IdentityConflict。
+#[test]
+fn tb03c_kill_negative_bind_voice_wrong_allocation() {
+    let reason = bind_voice_wrong_allocation();
+    assert!(
+        reason.contains("IdentityConflict"),
+        "预期 IdentityConflict 错误，实际：{reason}"
+    );
 }
