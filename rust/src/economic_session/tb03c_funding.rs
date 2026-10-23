@@ -521,4 +521,3 @@ mod tests {
         assert!(ns_to_date("").is_err());
     }
 }
-

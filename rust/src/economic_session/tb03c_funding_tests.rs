@@ -211,8 +211,7 @@ fn apply_with_observation(
         // 默认：2026-10-21 00:00:00 UTC = 1792540800 秒 = 1792540800000000000 ns
         "1792540800000000000".to_owned()
     };
-    rec["b_observation"] =
-        json!({"received_ns":"0","first_known_ns":first_known_ns,"commit_ns":(10 * (i + 1)).to_string()});
+    rec["b_observation"] = json!({"received_ns":"0","first_known_ns":first_known_ns,"commit_ns":(10 * (i + 1)).to_string()});
     book::apply_in(m, image, &rec, (i + 1) as i64, &format!("{}", 10 * (i + 1)))
 }
 
@@ -492,7 +491,10 @@ fn capacity_gate_q_over_c_and_unknown() {
     );
     // Q = C(L0) 恰好可开。
     let m = manifest(&space, P0, 2000000, &[("0", 1110000)]);
-    assert_eq!(kind_simple(&open(&m, "0", &Batch::ok(1110000, P0))), "Applied");
+    assert_eq!(
+        kind_simple(&open(&m, "0", &Batch::ok(1110000, P0))),
+        "Applied"
+    );
     // C(L3) = Unknown ⟹ AwaitingPolicy{capacity, level:L3}，不建收据。
     let m = manifest(&space, P0, 2000000, &[("3", 1)]);
     assert_eq!(
@@ -835,9 +837,17 @@ fn known_at_binds_to_auditable_observation_time_with_cross_domain_invariant() {
 
     // 变异负控 1：观察时间早于签署生效日（2026-10-19）
     let early_ns = "1792368000000000000";
-    let r2 = apply_with_observation(&m, &book::empty_image(), &raw("0", &base), 0, Some(early_ns));
+    let r2 = apply_with_observation(
+        &m,
+        &book::empty_image(),
+        &raw("0", &base),
+        0,
+        Some(early_ns),
+    );
     assert!(
-        r2.as_ref().unwrap_err().starts_with("PolicyNotYetEffective"),
+        r2.as_ref()
+            .unwrap_err()
+            .starts_with("PolicyNotYetEffective"),
         "观察时间早于签署生效日应拒绝，实际错误：{:?}",
         r2.unwrap_err()
     );
@@ -854,17 +864,32 @@ fn known_at_binds_to_auditable_observation_time_with_cross_domain_invariant() {
     // 跨域不变式：同一观察时间 → B 应用与转移目标使用同一 first_known_ns。
     // （转移目标口径见 tb03c_transfer.rs:367：`known_at:record["b_observation"]["first_known_ns"]`）
     let valid_ns = "1792540800000000000"; // 2026-10-21
-    let r4 = apply_with_observation(&m, &book::empty_image(), &raw("0", &base), 0, Some(valid_ns));
-    assert!(r4.is_ok(), "有效观察时间应通过，实际错误：{:?}", r4.as_ref().unwrap_err());
+    let r4 = apply_with_observation(
+        &m,
+        &book::empty_image(),
+        &raw("0", &base),
+        0,
+        Some(valid_ns),
+    );
+    assert!(
+        r4.is_ok(),
+        "有效观察时间应通过，实际错误：{:?}",
+        r4.as_ref().unwrap_err()
+    );
     let book = r4.as_ref().unwrap().0["book"].clone();
     assert_eq!(kind(&r4), "Applied", "有效观察时间应通过");
     assert_eq!(book["book_revision"], "tb03c-book/2");
 
     // 同输入同输出（纯函数不变式）
     assert_eq!(
-        apply_with_observation(&m, &book::empty_image(), &raw("0", &base), 0, Some(valid_ns)),
+        apply_with_observation(
+            &m,
+            &book::empty_image(),
+            &raw("0", &base),
+            0,
+            Some(valid_ns)
+        ),
         r4,
         "同一观察时间重复调用应得同一结果"
     );
 }
-
