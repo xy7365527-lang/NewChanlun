@@ -256,7 +256,17 @@ fn days_diff(earlier: &str, later: &str) -> i64 {
 fn open(m: &Value, level: &str, batch: &Batch) -> Result<Value, String> {
     apply(m, &book::empty_image(), &raw(level, batch), 0).map(|r| r.0)
 }
-fn kind(r: &Result<Value, String>) -> String {
+
+/// 辅助函数：从 Result<Value, String> 提取 kind
+fn kind_simple(r: &Result<Value, String>) -> String {
+    match r {
+        Ok(_) => "Applied".into(),
+        Err(e) => e.split('：').next().unwrap().to_owned(),
+    }
+}
+
+/// 辅助函数：从 Result<(Value, bool), String> 提取 kind（#1621 新测试使用）
+fn kind(r: &Result<(Value, bool), String>) -> String {
     match r {
         Ok(_) => "Applied".into(),
         Err(e) => e.split('：').next().unwrap().to_owned(),
@@ -439,11 +449,11 @@ fn opening_batch_negative_controls_are_typed_and_deterministic() {
         // 同输入同输出（含错误）。失败不改持久状态由服务链测试核 B 实际图像。
         assert_eq!(open(&m, "0", &batch), r, "{name}");
     }
-    assert_eq!(kind(&open(&m, "0", &ok)), "Applied");
+    assert_eq!(kind_simple(&open(&m, "0", &ok)), "Applied");
     // 生效日当日与有效期当日都可开局（两端闭区间）。
     for day in ["2026-10-20", "2027-10-20"] {
         assert_eq!(
-            kind(&open(&m, "0", &with(&|b| b.known_at = day.into()))),
+            kind_simple(&open(&m, "0", &with(&|b| b.known_at = day.into()))),
             "Applied",
             "{day}"
         );
@@ -464,7 +474,7 @@ fn each_signed_record_window_gates_alone() {
         open(&m, "0", &at("2026-10-21")).unwrap_err(),
         "PolicyNotYetEffective：原件 known_at 2026-10-21 早于 policy-record 签署生效日"
     );
-    assert_eq!(kind(&open(&m, "0", &at("2026-11-01"))), "Applied");
+    assert_eq!(kind_simple(&open(&m, "0", &at("2026-11-01"))), "Applied");
     let mut m = base.clone();
     m["chongs"][0]["funding"]["policy_record"]["valid_through"] = json!("2027-01-01");
     assert_eq!(
@@ -478,7 +488,7 @@ fn each_signed_record_window_gates_alone() {
         open(&m, "0", &at("2027-01-02")).unwrap_err(),
         "PolicyExpired：原件 known_at 2027-01-02 超过 capacity 有效期"
     );
-    assert_eq!(kind(&open(&m, "0", &at("2027-01-01"))), "Applied");
+    assert_eq!(kind_simple(&open(&m, "0", &at("2027-01-01"))), "Applied");
 }
 
 #[test]
@@ -519,7 +529,7 @@ fn capacity_gate_q_over_c_and_unknown() {
     );
     // Q = C(L0) 恰好可开。
     let m = manifest(&space, P0, 2000000, &[("0", 1110000)]);
-    assert_eq!(kind(&open(&m, "0", &Batch::ok(1110000, P0))), "Applied");
+    assert_eq!(kind_simple(&open(&m, "0", &Batch::ok(1110000, P0))), "Applied");
     // C(L3) = Unknown ⟹ AwaitingPolicy{capacity, level:L3}，不建收据。
     let m = manifest(&space, P0, 2000000, &[("3", 1)]);
     assert_eq!(

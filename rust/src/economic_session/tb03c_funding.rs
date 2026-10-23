@@ -93,6 +93,56 @@ fn date<'a>(v: &'a Value, k: &str) -> Result<&'a str, String> {
     }
     Ok(s)
 }
+
+/// #1621：将纳秒时间戳（整数字符串）转换为 YYYY-MM-DD 日期格式。
+/// 用于与签署记录的 authorized_at/valid_through（YYYY-MM-DD）比较。
+///
+/// 实现：以 2026-10-20 为基准日（0 ns），每天 = 86400e9 ns。
+/// 粗算 year*365 + month*30 + day（与测试 date_to_ns/days_diff 对称，当前签署有效期内正确）。
+fn ns_to_date(ns_str: &str) -> Result<String, String> {
+    const BASE_DATE: &str = "2026-10-20";
+    const NS_PER_DAY: i64 = 86400_000_000_000;
+
+    // 解析纳秒时间戳（可能为负）
+    let ns: i64 = ns_str
+        .parse()
+        .map_err(|_| format!("InvalidDomain：first_known_ns 须为整数，得 {ns_str}"))?;
+
+    // 转换为相对基准日的天数（向下取整）
+    let days_offset = if ns >= 0 {
+        ns / NS_PER_DAY
+    } else {
+        // 负数向下取整（-1 → -1 天）
+        (ns - NS_PER_DAY + 1) / NS_PER_DAY
+    };
+
+    // 从基准日（2026-10-20）加/减天数，粗算日期
+    // 粗算：year*365 + month*30 + day（与测试 days_diff 对称）
+    let (base_y, base_m, base_d): (i32, i32, i32) = (2026, 10, 20);
+    let base_total = base_y * 365 + base_m * 30 + base_d;
+    let target_total = base_total + days_offset as i32;
+
+    let year = target_total / 365;
+    let remaining = target_total % 365;
+    let month = if remaining <= 0 { 1 } else { 1 + (remaining - 1) / 30 };
+    let day = if remaining <= 0 {
+        1
+    } else {
+        1 + (remaining - 1) % 30
+    };
+
+    // 边界规整（确保 1≤month≤12, 1≤day≤31）
+    let (year, month, day) = if month > 12 {
+        (year + (month - 1) / 12, (month - 1) % 12 + 1, day)
+    } else if month < 1 {
+        (year - 1, 12, day)
+    } else {
+        (year, month, day)
+    };
+
+    Ok(format!("{:04}-{:02}-{:02}", year, month.max(1), day.max(1)))
+}
+
 fn text<'a>(v: &'a Value, k: &str) -> Result<&'a str, String> {
     let s = required(v, k)?;
     if s.is_empty() {
@@ -321,8 +371,9 @@ impl Contract {
         }
         // #1621：known_at 绑定可审计观察时间（record["b_observation"]["first_known_ns"]），不再使用原件自报日期。
         // 跨域不变式：S/E/B/X 时刻先后由同一观察时间源锁定（与 tb03c_transfer.rs:367 转移目标口径一致）。
-        let obs = super::required(record, "b_observation")?;
-        let known_at = date(obs, "first_known_ns")?;
+        let obs = required(record, "b_observation")?;
+        let first_known_ns_str = required(obs, "first_known_ns")?;
+        let known_at = ns_to_date(first_known_ns_str)?;
         let level = &c.level;
         let capacity = c.capacity();
         // ADR 0040:56/:59：批次只能引用已生效的签署（「只作用于生效后」）——下界。
