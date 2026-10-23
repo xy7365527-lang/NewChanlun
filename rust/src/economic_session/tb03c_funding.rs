@@ -362,8 +362,11 @@ impl Contract {
         }
         // #1621：known_at 绑定可审计观察时间（record["b_observation"]["first_known_ns"]），不再使用原件自报日期。
         // 跨域不变式：S/E/B/X 时刻先后由同一观察时间源锁定（与 tb03c_transfer.rs:367 转移目标口径一致）。
-        let obs = required(record, "b_observation")?;
-        let first_known_ns_str = required(obs, "first_known_ns")?;
+        let obs = &record["b_observation"];
+        let first_known_ns_str = obs
+            .get("first_known_ns")
+            .and_then(|v| v.as_str())
+            .ok_or("MissingDependency：b_observation 缺 first_known_ns")?;
         let known_at = ns_to_date(first_known_ns_str)?;
         let level = &c.level;
         let capacity = c.capacity();
@@ -372,7 +375,7 @@ impl Contract {
             ("funding-record", self.record["authorized_at"].as_str()),
             ("policy-record", c.policy["authorized_at"].as_str()),
         ] {
-            if from.is_some_and(|f| known_at < f) {
+            if from.is_some_and(|f| known_at.as_str() < f) {
                 return Err(format!(
                     "PolicyNotYetEffective：原件 known_at {known_at} 早于 {what} 签署生效日"
                 ));
@@ -386,7 +389,7 @@ impl Contract {
                 capacity.and_then(|x| x["valid_through"].as_str()),
             ),
         ] {
-            if through.is_some_and(|t| known_at > t) {
+            if through.is_some_and(|t| known_at.as_str() > t) {
                 return Err(format!(
                     "PolicyExpired：原件 known_at {known_at} 超过 {what} 有效期"
                 ));
