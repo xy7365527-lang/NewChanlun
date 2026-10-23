@@ -289,7 +289,8 @@ class BookQueryTests(unittest.TestCase):
         self.assertNotIn("fill_allocations", result["domains"]["E"]["image"])
 
     def test_unknown_book_version_rejects_before_owner_io(self):
-        for revision in (False, 1, [], {}, "tb03c-book/2", "economic-session/2"):
+        """#1620：tb03c-book/2 已接受，负控改用 /3。"""
+        for revision in (False, 1, [], {}, "tb03c-book/3", "economic-session/2"):
             with self.subTest(revision=revision), patch("economic_query.exchange") as owner:
                 with self.assertRaises(EconomicQueryError):
                     self.load({**self.manifest, "book_revision": revision})
@@ -313,11 +314,38 @@ class BookQueryTests(unittest.TestCase):
                 q.view("B:chong-N1")
 
     def test_new_domain_rejects_old_or_unknown_book(self):
-        for book in ({}, {"book_revision": None}, {"book_revision": "tb03c-book/2"}):
+        """#1620：tb03c-book/2 已接受，负控改用 /3。"""
+        for book in ({}, {"book_revision": None}, {"book_revision": "tb03c-book/3"}):
             self.states["B:chong-N1"]["image"]["book"] = book
             self.rehash("B:chong-N1")
             with self.subTest(book=book), self.assertRaises(EconomicQueryError):
                 self.q.view("B:chong-N1")
+
+    def test_book_v2_accepts_and_reads_like_v1(self):
+        """#1620：tb03c-book/2 与 /1 在公共查询字段上等效（资金签署不影响此读者）。"""
+        # manifest 冻结 /2
+        self.manifest["book_revision"] = "tb03c-book/2"
+        q = self.load(self.manifest)
+        q.owner = self.owner
+        # 重建状态，让 B 节点书账也显示 /2
+        states = {d: self.view(d) for d in q.nodes}
+        states["B:chong-N1"]["image"]["book"] = {"book_revision": "tb03c-book/2"}
+        states["B:chong-N1"]["image_hash"] = digest(states["B:chong-N1"]["image"])
+        self.states = states
+        # /2 可读取，不抛异常
+        result = q.view("B:chong-N1")
+        self.assertEqual(result["status"], "Available")
+        self.assertEqual(result["image"]["book"]["book_revision"], "tb03c-book/2")
+        # E 域在 /2 下可读 fill_allocations（与 /1 相同）
+        states["E"]["image"]["book"] = {"book_revision": "tb03c-book/2"}
+        states["E"]["image"]["recorded"] = [fixture_record(3)]
+        states["E"]["image"]["history"] = [{"kind": "ResolveEvidence",
+            "evidence_id": self.row["evidence_id"], "covered": [self.row["fact_key"]]}]
+        states["E"]["image"]["fill_allocations"] = [copy.deepcopy(self.row)]
+        states["E"]["image_hash"] = digest(states["E"]["image"])
+        result_e = q.view("E")
+        self.assertEqual(result_e["status"], "Available")
+        self.assertIn("fill_allocations", result_e["image"])
 
     def test_b_cannot_acquire_e_allocation_field(self):
         self.states["B:chong-N1"]["image"]["fill_allocations"] = []
