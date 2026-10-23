@@ -287,6 +287,13 @@ def _aggregate_ratio_to_kline(
     return result
 
 
+def _ensure_nonzero_denominator(df_b: pd.DataFrame, columns: tuple[str, ...]) -> None:
+    """拒绝会让比价除法退化为 inf/nan 的 B 端零价格。"""
+    for col in columns:
+        if (df_b[col] == 0).any():
+            raise ValueError("Zero price in B — division undefined")
+
+
 def make_ratio_kline(
     df_a: pd.DataFrame,
     df_b: pd.DataFrame,
@@ -311,6 +318,7 @@ def make_ratio_kline(
     if sub_a is not None and sub_b is not None:
         sub_idx = sub_a.index.intersection(sub_b.index)
         sa, sb = sub_a.loc[sub_idx], sub_b.loc[sub_idx]
+        _ensure_nonzero_denominator(sb, ("close",))
         ratio = sa["close"] / sb["close"]
         volume = sa["volume"] if "volume" in sa.columns else None
 
@@ -339,6 +347,7 @@ def _make_ratio_kline_naive(
     """Fallback：对 OHLC 四列分别除法。high/low 不精确。"""
     idx = df_a.index.intersection(df_b.index)
     a, b = df_a.loc[idx], df_b.loc[idx]
+    _ensure_nonzero_denominator(b, ("open", "high", "low", "close"))
     result = pd.DataFrame(index=a.index)
     result["open"] = a["open"] / b["open"]
     result["high"] = a["high"] / b["high"]
