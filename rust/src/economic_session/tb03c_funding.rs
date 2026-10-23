@@ -283,7 +283,8 @@ impl Contract {
     }
 
     /// 开局批核验（ADR 0040 裁定四第 4/5 步）。通过即返回写入书账的资金出处；失败不改任何状态。
-    pub(crate) fn check_opening(&self, event: &Value) -> Result<Value, String> {
+    /// `record["b_observation"]["first_known_ns"]` 为可审计观察时间（#1621），原件 `known_at` 不再用于时效判断。
+    pub(crate) fn check_opening(&self, event: &Value, record: &Value) -> Result<Value, String> {
         let c = self.chong(target(event)?)?;
         let id = &event["book_identity"];
         if id["symbol"] != c.symbol.as_str() || id["op_level"] != c.op_level.as_str() {
@@ -318,8 +319,10 @@ impl Contract {
         if batch["currency"] != self.record["currency"] {
             return Err("InvalidDomain：开局批币种与 funding-record 不符".into());
         }
-        // TestOnly：known_at 为原件自报日期；真实来源接入时须改绑可审计的观察时间（#1406 C8 评审 L7）。
-        let known_at = date(batch, "known_at")?;
+        // #1621：known_at 绑定可审计观察时间（record["b_observation"]["first_known_ns"]），不再使用原件自报日期。
+        // 跨域不变式：S/E/B/X 时刻先后由同一观察时间源锁定（与 tb03c_transfer.rs:367 转移目标口径一致）。
+        let obs = super::required(record, "b_observation")?;
+        let known_at = date(obs, "first_known_ns")?;
         let level = &c.level;
         let capacity = c.capacity();
         // ADR 0040:56/:59：批次只能引用已生效的签署（「只作用于生效后」）——下界。
