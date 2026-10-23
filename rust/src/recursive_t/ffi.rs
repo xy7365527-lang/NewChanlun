@@ -37,8 +37,12 @@ fn parse_mode(s: Option<&str>) -> PerfectionMode {
     }
 }
 
-/// 解析 a₀ 来源字符串（谱系 526）。默认（`None`）= `Segment`（保 bit-exact，现有 Python 调用不变）。
-/// "segment"/"seg" = 线段基线；"stroke"/"bi" = 笔（递归底座下移）。
+/// 解析塔底来源字符串（谱系 526）。默认（`None`）= `Segment`（保 bit-exact，现有 Python 调用不变）。
+/// "segment"/"seg" = 线段基线；"stroke"/"bi" = 笔**已否证对照臂**（#1627 zhongshu §2.1.1：笔不是
+/// `a₀` 合法值），仅为 `rec_btc`（`T_A0=stroke`）复现 526 号 E1 A/B 保留，不进任何准入路径。
+/// `TFugueStream`／`RecTStream` 两个 pyclass 的 `a0` 参数都经此解析；现存 Python 调用者
+/// （`backtest_t_fugue.py:167`、`analysis/capture_ratio_matrix.py:85`、`analysis/t3_exit_trigger_diag.py:36`）
+/// 均不传 `a0`，即全走 `Segment`（#1654 核查）。
 fn parse_a0(s: Option<&str>) -> A0Source {
     match s {
         None | Some("segment") | Some("seg") => A0Source::Segment,
@@ -289,9 +293,11 @@ impl PyTFugueStream {
 ///
 /// GUARD-ROLE: t-engine-rec-branch-live-python-caller——名分：**现役**（评审 FAIL 后订正，
 /// #762 C7-E3 核定）。PyO3 导出名 `RecTStream`（下方 `#[pyclass(name="RecTStream")]`，非
-/// Rust 内部名 `RecStream`）按 `lib.rs` pymodule 导出名反查有 4 处真实 python 调用者，含
+/// Rust 内部名 `RecStream`）按 `lib.rs` pymodule 导出名反查，当时有 4 处真实 python 调用者，含
 /// NT 生产策略 `trading_system/strategy/rec_t_strategy.py:45`；原按 Rust 内部名
 /// `\.RecStream(` grep python 得"零命中"系漏查（rename 未覆盖），非真实零调用。
+/// 现状（#1654 核查）：`rec_t_strategy.py` 已在 #951 移除，现存调用者只有
+/// `analysis/capture_ratio_matrix.py:85`、`analysis/t3_exit_trigger_diag.py:36` 两处，均不传 `a0`。
 /// 详见 `rec_engine.rs` 头部 GUARD-ROLE 块。
 #[pyclass(name = "RecTStream")]
 pub struct PyRecStream {
