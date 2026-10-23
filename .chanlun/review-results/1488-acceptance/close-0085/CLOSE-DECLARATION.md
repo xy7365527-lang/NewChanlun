@@ -2,7 +2,7 @@
 
 > **状态：草稿，不是关票评论。**
 > - 标【合入后填】的项，只有在用户合入闸之后才能为真（G3）。现在不写结论。
-> - squash 面验证读数见 §8；合并面尾部（pre-squash `8a1924993b`、再合 main `dbfb13d90b`、`5417eea488`（含 #1608 告警门控回退与 114 行 cfg_attr/allow）、`0fb96c00ae`）**需补合并面独审**；squash 面（P58 全量 fmt 与本组文档）尚待负责人另派独审（REVIEW-CHAIN §3.3）。
+> - squash 面验证读数见 §8；合并面尾部（pre-squash `8a1924993b`、再合 main `dbfb13d90b`、`5417eea488`（含 #1608 告警门控回退与 114 行 cfg_attr/allow）、`0fb96c00ae`）**需补合并面独审**；squash 面独审 0091 对 `336b53db8d` 预审判 FAIL（P1-1 bsp 白名单锚，终面已修；P2-1/P2-2/P3 交负责人裁定），终面待复审（REVIEW-CHAIN §3.4）。
 >
 > 本文引用的仓外原件都有收据，见同目录 `receipts/`（报告、远端日志、CI 原件目录、工位输出）与 `../receipts/`（0077/0079）。
 
@@ -28,7 +28,7 @@
 | 4 逐 commit 可编译 | 多 commit 时逐个声明 | 单 commit（squash）交付。squash 面两组 features 非测试 check rc=0（§8） |
 | 5 清理工位 | 票关即删 | §6 清单。冻结分支按白名单豁免（§5） |
 | 6 报告入 git | 仓内相对路径 | 全部收据随 squash 提交入仓：`close-0085/receipts/{reports,logs,ci,outputs}`，另有 s5/、s86/、a5s6/、min12/（从 accept-s1/s2 分支带入）。仓外大件只登记清单与哈希（`close-0085/INVENTORY.md`） |
-| 7 关票面 == 评审面 | 尾部 diff 先补审 | `6badaa6049..327aa94c39` 首尾全覆盖（0084→0087→0088→0090，见 `REVIEW-CHAIN.md`）。**尾部未审**：`8a1924993b`、`dbfb13d90b`、`5417eea488`、`0fb96c00ae`（三次再合 main，需补合并面独审）、squash（fmt + 文档），由负责人另派 squash 面独审 |
+| 7 关票面 == 评审面 | 尾部 diff 先补审 | `6badaa6049..327aa94c39` 首尾全覆盖（0084→0087→0088→0090，见 `REVIEW-CHAIN.md`）。**尾部未审**：`8a1924993b`、`dbfb13d90b`、`5417eea488`、`0fb96c00ae`（三次再合 main，需补合并面独审）、squash（fmt + 文档）：0091 预审 `336b53db8d` 判 FAIL，P1-1 终面已修，待复审（REVIEW-CHAIN §3.4） |
 | G+ CI 把关面 | 附 origin/main SHA 与 CI run，红照实写 | 【合入后填】。合入前读数见 §8，已知红见 §4 |
 
 ## 2. CLOSE-GATE-DRAFT §7.1 最小证据集七项
@@ -41,7 +41,7 @@
 | 4 | A④ 前半 | **成立（testonly）**。S3 四锁 + N1–N5 负控在锁表内。S4 锁 `s4_generation_incremental_matches_cold_full_six_stages` 按 (i) **已并入**（0086 合并面），改为 `#[ignore]` release-only（0089 `ffb89f7fa8`）；跨臂负控 0089 `eb668db7f0` 红 → `a7481aacb5` revert；uo-ci 39588126034 两组 success，S4 PASS_RELEASE 1962 s。S4 口径为「可达闭包逐位」（负责人认可，0087 ⑤-P2-2）。N3a/N3b 变异仍绿（P42），照实写：「prepare_source_audit 阶段的变异体验证在本票不成立，由 #1639/#1641 承接」 |
 | 5 | A⑤ | **成立（6309084398 第 4 条口径）**。功能档逐代正确性六项核对：终面与 main 的 g1/g8/g16 全过。冻结档前缀库 head≤2 通过。冻结档全库 `/api/ready` 503 QueryBudgetExceeded，终面与 main 同形，不是回归，归 #1497（6309122652）。产品浏览器归 #1460 |
 | 6 | P3 处置 | 见 `P3-STATUS.md`：60 条逐条三选一，加 0084/0087/0088/0090 新增 findings 处置表。P44 已补登 #1491（6309605312）；P27 按转 #1644 结案、不补注释（负责人裁定）；P26、P49 经 0086 修复重判为已结 |
-| 7 | 关票门 | squash 已提交、验证见 §8；PR 已开（不合）；合入与 CI【合入后填】；squash 面独审待派；G6 收据随 squash 入仓；G5 见 §5/§6 |
+| 7 | 关票门 | squash 已提交、验证见 §8；PR 已开（不合）；合入与 CI【合入后填】；squash 面独审 0091 预审 FAIL（P1-1 已修）待复审；G6 收据随 squash 入仓；G5 见 §5/§6 |
 
 ## 3. 验收框与转出注口径（D1–D11 + 2026-10-21 四件）
 

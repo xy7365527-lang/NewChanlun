@@ -2,10 +2,7 @@
 use super::*;
 use crate::v3::audit_store::{CodecRead, NativeAdmission};
 use crate::v3::business_json::{self as control_json, BusinessMap, JsonOwner, TextValue};
-#[allow(
-    unused_imports,
-    reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删"
-)]
+#[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(unused_imports))]
 use newchan_rust::s_content::capture_allocation::audit_json::{self as control_aj, JsonView};
 use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
 use newchan_rust::s_content::capture_allocation::scratch::WorkScope;

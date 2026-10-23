@@ -334,7 +334,7 @@ pub(super) struct Observation {
 impl Observation {
     #[allow(
         dead_code,
-        reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删"
+        reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
     )]
     fn try_clone(&self) -> Result<Self, String> {
         self.try_clone_admitted(&super::audit_store::NativeAdmission(None))

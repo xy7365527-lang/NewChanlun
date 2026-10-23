@@ -33,7 +33,7 @@ use sc::capture_allocation::{audit_json as aj, OwnedBudget};
 use serde_json::{json, Value};
 #[allow(
     unused_imports,
-    reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删"
+    reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
 )]
 use std::collections::{BTreeSet, HashSet};
 

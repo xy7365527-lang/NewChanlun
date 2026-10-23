@@ -2123,7 +2123,7 @@ impl<'a> Reader<'a> {
     ) -> Result<crate::v3::native_shared::NativeArc<cache::Cert>, String> {
         #[allow(
             unused_variables,
-            reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删"
+            reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
         )]
         let admission = NativeAdmission(self.work);
         self.mark_touched(*id)?;

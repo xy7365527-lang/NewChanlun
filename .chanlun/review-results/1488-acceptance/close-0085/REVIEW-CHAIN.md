@@ -7,7 +7,7 @@
 
 工具是 `workers/close-0085/chain.py`（仓外）。它把每个独审的 `base..head` 展开成提交集，与目标集求差。原始输出在 `workers/close-0085/chain-026e3e97b0.json`。
 
-**结论：`6badaa6049..327aa94c39` 首尾相接全覆盖**（阶段一 55 个缺口提交由 gap-review-0087 五段补齐；0084 → 0088 → 0090 尾部相接）。`327aa94c39` 之后的 pre-squash 提交、三次再合 main 的合并解法（含 `5417eea488` 的告警门控）、P58 全量 fmt 与本目录文档**尚无独审**，由负责人另派 squash 面独审（§3.3）。
+**结论：`6badaa6049..327aa94c39` 首尾相接全覆盖**（阶段一 55 个缺口提交由 gap-review-0087 五段补齐；0084 → 0088 → 0090 尾部相接）。`327aa94c39` 之后的 pre-squash 提交、三次再合 main 的合并解法（含 `5417eea488` 的告警门控）、P58 全量 fmt 与本目录文档尚无终审结论：负责人所派 squash 面独审 0091 对 `336b53db8d` 预审判 **FAIL**（P1-1 bsp 白名单锚，已在终面修复；P2-1/P2-2/P3 交负责人裁定），终面待 0091 复审（§3.3、§3.4）。
 
 ## 0. 总数
 
@@ -89,6 +89,23 @@
 | `5417eea488` 再合 main `21b145250e` | 原 squash（`d5ae676bf9`，基于 `aa1c3885f8`）验证完成、开 PR 前 fetch，main 已进 #1649、#1632（#1608 告警清零 + `ci.yml` rust-check 三档 `RUSTFLAGS=-D warnings` + #1394 编译负例脚本，152 文件）、#1631。与本票 46 文件交集，15 文件 22 处文本冲突，main 一侧全是 #1608 告警门控（`cfg`/`cfg_attr` allow、条件 `use`、`fetch_update`→`try_update`），无语义改动。解法：(a) 冲突块全取本票侧（本票已重写这些处）；(b) 回退 main 两处 `cfg(test)` 门控——`object_index.rs` 的 `NodeSource, NodeStore` 导入、`cache.rs` 的 `clear_handles`，本票非测试路径在用（不回退则 E0599/E0425）；(c) 按四类上下文（s_session/native × 测试/非测试）实测告警，给 s_session 档 94 处告警逐项加 item 级 `#[cfg_attr(<实测条件>, allow(<lint>, reason = "#1488 再合 #1608：…"))]`（四类全告警时用 `#[allow]`），共 114 行、24 文件，不改表达式与控制流（脚本 `workers/close-0085/gate_warn.py`）；native 档 54 条告警不在 CI 门内，未处理 | **需补合并面独审**（D8）。机械证据：探针 `c27482b3fe`（树同 `5417eea488`）三档 `-D warnings` rc=0；`dd633662da` 两个编译负例 PASS（log `20261022-005256`）；squash 面验证见 CLOSE-DECLARATION §8 |
 | `0fb96c00ae` 再合 main `66c409e7e3` | 基于 `5417eea488` 的 squash（`5b5e264276`）全套验证跑完时 main 又进 #1659（`issue1588_parse_mem_probe.rs` 与 `s_session_v2/mod.rs` 的 #1653 拒绝文案、新增测试 `v2_serve_stale_begin_with_missing_rule_revision_says_missing`）、#1662（theta_v0 classifier/parser/policy_records）。git 自动合并，无文本冲突；`s_session_v2/mod.rs` 两侧都有改动（本票侧为告警门控与 fmt 涉及的行，main 侧为 `serve` 拒绝分支与测试），自动合并 | **需补合并面独审**（D8）。squash 面验证见 CLOSE-DECLARATION §8 |
 | squash `codex/1488-squash-20261021` | 以 main `66c409e7e3` 为父，树 = `0fb96c00ae` 树 + P58 全量 `cargo fmt`（29 文件 +1082/−336；rustfmt 排版：空白、尾逗号、match arm 块括号，非空白 token 变化只这两类）+ 本目录文档与 s5/s86/a5s6/min12 | fmt 前（`0fb96c00ae`）`2b82e386…` 与 fmt 后（squash）`e4f7ee3b…` 生产 nobid 同长 10600736 B，581 字节差全在 `.data.rel.ro`，RELATIVE 重定位两侧 6641 条全等，560 条 panic Location 记录全部只变行号（log `20261022-033217-0fb96c00ae`、`20261022-033549-336b53db8d`） |
+
+### 3.4 squash 面预审 0091（`workers/squash-review-0091/`，对 `336b53db8d`）
+
+0091 是负责人派的 squash 面独审，在 `336b53db8d` 上预审，RESULT `verdict: FAIL`。逐项与本工位处置：
+
+| 编号 | 发现 | 处置 |
+|---|---|---|
+| 第 2 项 | pre-squash `8a1924993b`：只改测试/CI 注释与 yml，断言更严 | PASS |
+| 合并面 `5417eea488` | 冲突取本票侧逐块看完；两处 `cfg(test)` 回退有编译证据（E0599 `object_index.rs:1903`、E0425 `audit_owner.rs:1968`） | PASS（附 P2-1/P2-2）。`dbfb13d90b`、`0fb96c00ae` 的 remerge-diff 为空 |
+| 第 3 项 | P58 fmt 29 文件只有空白/逗号/大括号；nobid 560/560 `ALL_PANIC_LOCATION` 复核一致 | PASS，但引出 P1-1 |
+| **P1-1** | fmt 把 `content_producer.rs` 中 `raw_bar_at` 的 `.filter(\|bar\| bar.source_index == coord)` 行从 :3109 推到 :3114，`bsp.rs:684` 白名单锚未跟，lib 测试 `no_stray_bsp_binding_rewrites_outside_registry` 失败，main `ci.yml` rust-test-default 会红（0091 log `20261022-031741-336b53db8d`；同测试在 `0fb96c00ae` `20261022-045449`、main `66c409e7e3` `20261022-045538` 为 ok） | **已修**（负责人 04:05 裁定）：终面把锚改为 :3114（核实是同一 `.filter` 行），只动测试。重验见 CLOSE-DECLARATION §8 第四轮 |
+| P2-1 | 28 条无条件 `allow` 的 reason「各构建组合均无使用方（可能只在其他 testonly feature 下用）」不实或属推测：一部分在 `s_allocation_json_testonly` 下有使用方（0091 probe log `20261022-023733-321fe5ef58`） | 未改，**交负责人裁定**（只是属性的 reason 文本，不影响编译结果与生产二进制） |
+| P2-2 | native 档（`s_session,s_capture_native_testonly`）`RUSTFLAGS=-D warnings cargo check --all-targets` rc=101；main 该档 0 告警，squash 59 条（0091 log `20261022-025240-336b53db8d`） | 未改，**交负责人裁定**。该档不在 main `ci.yml` 门内，§8 照实记 |
+| P3-1 / P3-2 / P3-3 / P3-4 | `fetch_update` 两处复活（main 已改 `try_update`）；`parse_batch_value` 被本票复活加 allow；`object_index.rs:38` 整组 `cfg_attr` 比 main 粗；`strong_count == 268` 精确计数脆弱 | 未改，交负责人裁定 |
+| P3-5 | 声明 :73 行号旧，:90 引 main `21b145250e` | **已改**：补 squash 面行号（`mod.rs:2465/2574`、`cache.rs:781`、`s_structure_session.rs:5486`），:90 改为 main `66c409e7e3` |
+
+0091 待办：P1-1 修后在终面复跑 `cargo test --all-targets` 与 `--lib --features backtest_bin`，并在终面与 PR 上补审第 1、4、5、6 项。
 
 ## 4. 阶段一尾部记录（原文保留）
 

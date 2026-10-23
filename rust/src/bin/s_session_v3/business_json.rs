@@ -1306,10 +1306,7 @@ impl serde::Serialize for RawReference<'_> {
 /// 新业务返回文本的入口存储选择。Owned实际字节持续持账；Clone只开放fallible深复制。
 pub(crate) enum TextValue {
     Plain(NativeValue<String>),
-    #[allow(
-        dead_code,
-        reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删"
-    )]
+#[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(dead_code))]
     Owned(aj::TextOwner),
 }
 impl TextValue {
@@ -1458,7 +1455,7 @@ impl TextValue {
     }
     #[allow(
         dead_code,
-        reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删"
+        reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
     )]
     pub fn optional_sql(
         row: &mut CheckedRow<'_>,
@@ -1827,10 +1824,7 @@ impl<'work> ScopedJsonArray<'work> {
         let Some(work) = self.work else {
             return self.owner.push(value);
         };
-        #[allow(
-            irrefutable_let_patterns,
-            reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删"
-        )]
+#[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(irrefutable_let_patterns))]
         let JsonOwner::Plain(parent) = &mut self.owner
         else {
             return Err(work
@@ -1905,10 +1899,7 @@ fn push_native_array(
         None
     };
     let child = json_from_view_admitted(&NativeAdmission(Some(work)), value)?;
-    #[allow(
-        irrefutable_let_patterns,
-        reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删"
-    )]
+#[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(irrefutable_let_patterns))]
     let JsonOwner::Plain(mut child) = child
     else {
         return Err(work
@@ -2542,10 +2533,7 @@ pub(crate) fn strict_json_owner_admitted(
 ) -> Result<JsonOwner, StrictOwnerError> {
     let permit = admit_json_parse(bytes, owner, work).map_err(StrictOwnerError::Allocation)?;
     let mut parsed = strict_json_owner(bytes, owner)?;
-    #[allow(
-        irrefutable_let_patterns,
-        reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删"
-    )]
+#[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(irrefutable_let_patterns))]
     if let JsonOwner::Plain(value) = &mut parsed {
         value.permit = permit;
     }
@@ -2643,10 +2631,7 @@ impl StrictOwnerSeed {
                     .push(child.into_unscoped().map_err(E::custom)?);
                 Ok(())
             }
-            #[allow(
-                unreachable_patterns,
-                reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删"
-            )]
+#[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(unreachable_patterns))]
             _ => Err(E::custom("Q owner representation mismatch")),
         }
     }
@@ -2666,10 +2651,7 @@ impl StrictOwnerSeed {
                     .insert(key, child.into_unscoped().map_err(E::custom)?);
                 Ok(())
             }
-            #[allow(
-                unreachable_patterns,
-                reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删"
-            )]
+#[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(unreachable_patterns))]
             _ => Err(E::custom("Q owner representation mismatch")),
         }
     }

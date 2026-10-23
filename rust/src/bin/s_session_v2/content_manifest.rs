@@ -20,7 +20,7 @@ use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
 use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
 #[allow(
     unused_imports,
-    reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删"
+    reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
 )]
 use newchan_rust::s_content::{
     self, Built, CodecError, ContentRef, Kind, NodeDigest, NodeStore, NumberToken, Value as V,

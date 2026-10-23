@@ -1304,7 +1304,7 @@ fn cv(v: &Value) -> Result<V, String> {
 }
 #[allow(
     dead_code,
-    reason = "#1488 再合 #1608：各构建组合均无使用方（可能只在其他 testonly feature 下用），先量再动、保留不删"
+    reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
 )]
 fn edge(r: &ContentRef) -> Result<V, String> {
     Ok(V::Edge(r.digest().map_err(err)?))
