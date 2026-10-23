@@ -239,7 +239,8 @@ fn date_to_ns(date: &str) -> String {
 }
 
 fn days_diff(earlier: &str, later: &str) -> i64 {
-    // 简化版：只支持 2026-10 月和 2027-10 月内的日期差。
+    // 简化版：粗算 year*365 + month*30 + day。当前测试场景（2026-10-19/20/21、2027-10-21）碰巧正确，
+    // 但跨月边界（如 10-31 → 11-01）会算错。仅用于测试夹具，不用于生产逻辑。
     let parse = |s: &str| -> (i32, i32, i32) {
         let parts: Vec<&str> = s.split('-').collect();
         (
