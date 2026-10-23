@@ -3060,10 +3060,15 @@ fn cascade_dual(l0: &ParseLayer, config: &ThetaConfig, weak: bool) -> C327Arm {
         detect_centers_windowed_resume, project_to_units, trend_run_start, ElementId, LeveledMove,
     };
 
+    let mut arm = C327Arm::default();
+    // #1585（X-39）：L0 带段端门 fail-closed 标记 ⟹ 与生产 classifier 入口（#1581）同口径整层拒读，
+    // 两臂均不构造中枢（复刻忠实性守恒对拒读层照样成立：生产 classify 亦无级别）。
+    if l0.segments_parse_invalid_from.is_some() {
+        return arm;
+    }
     let min_parts = config.level.min_parts_per_level as usize;
     let l_max = config.level.l_max as usize;
     let mut units: Vec<UnitRange> = l0.segments.iter().map(c327_seg_to_unit).collect();
-    let mut arm = C327Arm::default();
     if units.is_empty() {
         return arm;
     }
@@ -3226,6 +3231,17 @@ const C327_CASCADE_REARRANGE_323: [usize; 5] = [26, 18, 8, 3, 2];
 /// #321 commit message 自旗「BTC L0 23 次 / L1 2 次」——本锁独立复现同读数（L2+ 为 0）。
 const C327_FULL_BTC_HITS: [usize; 6] = [23, 2, 0, 0, 0, 0];
 
+/// #1585（X-39）：段解析无效 ⟹ 显式拒读并报出失败起点，不让其后的数据身份/GOLDEN 断言把拒读层
+/// 误报成「数据换版」或「口径回归」。见证锁在任何读数断言之前先调。
+fn c327_assert_readable(tag: &str, layer: &ParseLayer) {
+    assert!(
+        layer.segments_parse_invalid_from.is_none(),
+        "[#327/{tag}] 段解析无效（segment_parse_invalid，段端门 fail-closed 自笔 {:?} 起）：\
+         拒读，本窗读数不构成证据",
+        layer.segments_parse_invalid_from
+    );
+}
+
 /// 一把见证锁的公共主体：双臂级联 → 复刻忠实性守恒 → 逐级读数对 GOLDEN → 逐命中点单点见证
 /// → 真覆盖硬门。返回逐级（严格臂）命中点，供窗专属断言（如「命中确实落在 2022-02」）。
 fn c327_run_witness(
@@ -3244,6 +3260,7 @@ fn c327_run_witness(
         ds.dates.first().map(String::as_str).unwrap_or(""),
         ds.dates.last().map(String::as_str).unwrap_or(""),
     );
+    c327_assert_readable(tag, &layer);
 
     let strict = cascade_dual(&layer, cfg, false);
     let weak = cascade_dual(&layer, cfg, true);
@@ -3342,6 +3359,7 @@ fn center_strict_zd_eq_zg_full_btc_cascade_witness() {
     let cfg = ThetaConfig::default();
     let ds = data::load_by_symbol("BTC", &cfg).expect("BTC 数据加载（btc_1m_full.json）");
     let layer = super::super::parser::parse_layer(&ds.bars, &cfg);
+    c327_assert_readable("full", &layer);
     assert_eq!(
         (ds.bars.len(), layer.merged_bars.len(), layer.segments.len()),
         C327_FULL_BTC_DATA_ID,
@@ -3427,6 +3445,7 @@ fn center_strict_zd_eq_zg_change_block_witness() {
     let ds = full.slice_date_window(C327_BLOCK_WINDOW.0, C327_BLOCK_WINDOW.1);
     assert!(!ds.bars.is_empty(), "变动块窗非空（否则测试空转）");
     let layer = super::super::parser::parse_layer(&ds.bars, &cfg);
+    c327_assert_readable("block", &layer);
     assert_eq!(
         (ds.bars.len(), layer.merged_bars.len(), layer.segments.len()),
         C327_BLOCK_DATA_ID,
@@ -3641,6 +3660,31 @@ fn m3_partition_btc_fullhistory() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #1585（X-39）负控：L0 注入段端门 fail-closed 标记 ⟹ `cascade_dual` 两臂拒读（无级别、无命中），
+    /// 与生产 classify 拒读同口径（复刻忠实性守恒对拒读层照样成立）。正控：同一层无标记时有中枢。
+    #[test]
+    fn tb1585_cascade_dual_refuses_parse_invalid_layer() {
+        let cfg = ThetaConfig::default();
+        let bars = crate::theta_v0::parser::tb1581_tests::tb1581_bars(0x1581_0000, 4_000);
+        let layer = crate::theta_v0::parser::parse_layer(&bars, &cfg);
+        assert_eq!(layer.segments_parse_invalid_from, None, "生产口径无门失败");
+        let open = cascade_dual(&layer, &cfg, false);
+        assert!(
+            open.centers.iter().any(|c| !c.is_empty()),
+            "正控：无标记时有中枢"
+        );
+        assert_cascade_faithful(&open, &layer, &cfg);
+
+        let mut marked = layer.clone();
+        marked.segments_parse_invalid_from = Some(0);
+        for weak in [false, true] {
+            let arm = cascade_dual(&marked, &cfg, weak);
+            assert!(arm.centers.is_empty(), "weak={weak}：拒读层不构造中枢");
+            assert!(arm.hits.is_empty(), "weak={weak}：拒读层无判据命中");
+        }
+        assert_cascade_faithful(&cascade_dual(&marked, &cfg, false), &marked, &cfg);
+    }
 
     /// δ-free 精确重算自检（Task #186，L1 管线正确性）：round-trip dump→load bit-exact + δ-free
     /// perm_p 池化正确性。合成 records（level0/bsp3/σ+1 两 δ 同号高残差 = beta 漂移签名）：δ-free

@@ -10,7 +10,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 /// 确定性随机游走 K 线（LCG），收盘价步长有正负，高低价包住开收。
-pub(super) fn tb1581_bars(seed: u64, n: usize) -> Vec<Bar> {
+pub(crate) fn tb1581_bars(seed: u64, n: usize) -> Vec<Bar> {
     let mut state = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
     let mut next = move || {
         state = state
