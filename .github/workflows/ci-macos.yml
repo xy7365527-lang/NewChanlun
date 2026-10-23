@@ -23,6 +23,12 @@ on:
       - 'rust/src/economic_session/**'
       - 'rust/src/session_transport.rs'
       - 'rust/src/session_protocol.rs'
+      # #1635：其余含 target_os = "macos" 分支的文件，改动它们也要过下方 macOS 告警门。
+      - 'rust/src/bin/s_structure_session.rs'
+      - 'rust/src/bin/s_session_v2/staged_nodes.rs'
+      - 'rust/src/bin/s_session_v3/sqlite_pager_probe.rs'
+      - 'rust/src/bin/s_session_v3/request_audit.rs'
+      - 'rust/src/bin/s_session_v3/q_listener.rs'
       - '.github/workflows/ci-macos.yml'
 
 jobs:
@@ -70,7 +76,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-cargo-registry-v1-
 
+      # #1635 第 7 项：ci.yml 的 -D warnings 门只在 ubuntu 上，macOS 专属分支（financial_session 的
+      #   sqlite_memory_used、finance_tests 的 macOS 分支等）此前未经告警门。与 ci.yml「s_session feature」
+      #   档同一条命令（另加 --locked，与本作业其余步一致），在 macOS 上再过一遍。RUSTFLAGS 与测试步不同，
+      #   产物不复用、多一轮 check 编译。本作业不跑 PR，故这是合入 main 后（或手动触发）的门。
+      - name: cargo check — s_session feature，-D warnings（macOS 专属路径告警门，#1635）
+        env:
+          RUSTFLAGS: "-D warnings"
+        run: cargo check --locked --all-targets --features s_session
+
       - name: cargo test — v3::financial_session（macOS 保留量读数与 peer uid，#1394 根裁定 A）
+        if: always()
         run: cargo test --locked --features s_session --bin s_structure_session v3::financial_session
 
       - name: cargo test — economic_session / session_transport / session_protocol 库测试（#1394 G-1）
