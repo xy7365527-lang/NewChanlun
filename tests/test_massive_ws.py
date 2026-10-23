@@ -3,6 +3,7 @@ import json
 import sys
 from pathlib import Path
 
+import pyarrow as pa
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -92,3 +93,70 @@ def test_schema_columns():
     q = _schema_for("Q")
     assert [f.name for f in t] == TRADES_COLUMNS
     assert [f.name for f in q] == QUOTES_COLUMNS
+    assert t.field("price").type == pa.float64()
+    assert q.field("ask_price").type == pa.float64()
+    assert q.field("bid_price").type == pa.float64()
+
+
+def test_daywriter_preserves_fractional_trade_price(tmp_path):
+    """ADR 0023 tick 正典：成交价必须原样落盘。int64 schema 会把 114.125 静默截成 114。"""
+    import pyarrow.parquet as pq
+
+    w = DayWriter(ticker="AAPL", root=tmp_path, schemas=("T",))
+    w.write(map_trade(T_EVENT), "T")
+    w.close()
+    table = pq.read_table(tmp_path / "AAPL" / "dt=2018-09-04" / "trades.parquet")
+    prices = table.column("price").to_pylist()
+    assert prices == [114.125]
+
+
+def test_daywriter_preserves_fractional_quote_prices(tmp_path):
+    import pyarrow.parquet as pq
+
+    w = DayWriter(ticker="MSFT", root=tmp_path, schemas=("Q",))
+    w.write(map_quote(Q_EVENT), "Q")
+    w.close()
+    table = pq.read_table(tmp_path / "MSFT" / "dt=2018-09-04" / "quotes.parquet")
+    assert table.column("bid_price").to_pylist() == [114.125]
+    assert table.column("ask_price").to_pylist() == [114.128]
+
+
+def test_rest_overlay_not_clobbered_by_later_ws(tmp_path):
+    """断线 REST 全量覆盖后，后续 WS .tmp 转正不得把回补文件整个盖掉。"""
+    import pyarrow.parquet as pq
+
+    w = DayWriter(ticker="AAPL", root=tmp_path, schemas=("T",))
+    live_before = map_trade({**T_EVENT, "i": "ws-1", "p": 150.25, "t": 1536036818784})
+    w.write(live_before, "T")
+
+    rest_rows = [
+        map_trade({**T_EVENT, "i": "rest-1", "p": 150.25, "t": 1536036818784}),
+        map_trade({**T_EVENT, "i": "rest-2", "p": 150.50, "t": 1536036818784 + 1}),
+    ]
+    w.overlay_rest(rest_rows, "2018-09-04", "T")
+
+    live_after = map_trade({**T_EVENT, "i": "ws-2", "p": 150.75, "t": 1536036818784 + 2})
+    w.write(live_after, "T")
+    w.close()
+
+    table = pq.read_table(tmp_path / "AAPL" / "dt=2018-09-04" / "trades.parquet")
+    ids = table.column("id").to_pylist()
+    prices = table.column("price").to_pylist()
+    assert "rest-1" in ids and "rest-2" in ids
+    assert "ws-1" not in ids  # 回补前 WS 被当日 REST 全量覆盖取代
+    assert "ws-2" in ids
+    assert prices == [150.25, 150.50, 150.75]
+
+
+def test_rest_overlay_survives_close_without_later_ws(tmp_path):
+    """回补后若当日不再有 WS 成交，close 不得把 REST 分区删掉或换成空 .tmp。"""
+    import pyarrow.parquet as pq
+
+    w = DayWriter(ticker="AAPL", root=tmp_path, schemas=("T",))
+    w.write(map_trade({**T_EVENT, "i": "ws-1", "p": 150.25}), "T")
+    rest_rows = [map_trade({**T_EVENT, "i": "rest-1", "p": 150.25})]
+    w.overlay_rest(rest_rows, "2018-09-04", "T")
+    w.close()
+    table = pq.read_table(tmp_path / "AAPL" / "dt=2018-09-04" / "trades.parquet")
+    assert table.column("id").to_pylist() == ["rest-1"]
+    assert table.column("price").to_pylist() == [150.25]
