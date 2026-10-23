@@ -202,57 +202,20 @@ fn apply_with_observation(
     observation_ns: Option<&str>,
 ) -> Result<(Value, bool), String> {
     let mut rec = record_for_raw(raw, &format!("/events/{i}"));
-    // #1621：添加 b_observation（可审计观察时间）。未指定时从原件 known_at 映射为 ns 值（保持现有测试行为）。
+    // #1621：添加 b_observation（可审计观察时间）。
+    // observation_ns 应为真实 Unix epoch 纳秒时间戳（由生产 Config::clock() System 模式生成）。
+    // 测试中直接提供纳秒字符串，未指定时使用默认值（2026-10-21 00:00:00 UTC）。
     let first_known_ns = if let Some(ns) = observation_ns {
         ns.to_owned()
     } else {
-        // 从原件中提取 known_at（如果存在）并映射为 ns。仅用于测试，生产代码由 service.rs clocks() 绑定。
-        let doc: Value = serde_json::from_str(raw).unwrap();
-        let event = doc.pointer(&format!("/events/{i}")).unwrap_or(&Value::Null);
-        let known_at = event
-            .pointer("/known_cost_components/0/known_at")
-            .and_then(Value::as_str)
-            .unwrap_or("2026-10-21");
-        // 将日期字符串映射为纳秒时间戳（简化版：每天 = 86400 * 1e9 ns）。
-        // 2026-10-20 作为基准日 = 0，后续每天 +86400e9。
-        date_to_ns(known_at)
+        // 默认：2026-10-21 00:00:00 UTC = 1792540800 秒 = 1792540800000000000 ns
+        "1792540800000000000".to_owned()
     };
     rec["b_observation"] =
         json!({"received_ns":"0","first_known_ns":first_known_ns,"commit_ns":(10 * (i + 1)).to_string()});
     book::apply_in(m, image, &rec, (i + 1) as i64, &format!("{}", 10 * (i + 1)))
 }
 
-fn date_to_ns(date: &str) -> String {
-    // 简化版日期 → ns 映射：YYYY-MM-DD → 相对 2026-10-20 的天数 × 86400e9 ns。
-    // 仅用于测试，不涉及真实日历计算。
-    const BASE: &str = "2026-10-20";
-    if date < BASE {
-        // 早于基准日 → 负数纳秒
-        let days = days_diff(date, BASE);
-        format!("-{}", days * 86400_000_000_000i64)
-    } else if date > BASE {
-        let days = days_diff(BASE, date);
-        (days * 86400_000_000_000i64).to_string()
-    } else {
-        "0".to_owned()
-    }
-}
-
-fn days_diff(earlier: &str, later: &str) -> i64 {
-    // 简化版：粗算 year*365 + month*30 + day。当前测试场景（2026-10-19/20/21、2027-10-21）碰巧正确，
-    // 但跨月边界（如 10-31 → 11-01）会算错。仅用于测试夹具，不用于生产逻辑。
-    let parse = |s: &str| -> (i32, i32, i32) {
-        let parts: Vec<&str> = s.split('-').collect();
-        (
-            parts[0].parse().unwrap(),
-            parts[1].parse().unwrap(),
-            parts[2].parse().unwrap(),
-        )
-    };
-    let (y1, m1, d1) = parse(earlier);
-    let (y2, m2, d2) = parse(later);
-    ((y2 - y1) * 365 + (m2 - m1) * 30 + (d2 - d1)) as i64
-}
 fn open(m: &Value, level: &str, batch: &Batch) -> Result<Value, String> {
     apply(m, &book::empty_image(), &raw(level, batch), 0).map(|r| r.0)
 }
@@ -857,38 +820,49 @@ fn v2_transfer_opened_chong_carries_v2_revision() {
 fn known_at_binds_to_auditable_observation_time_with_cross_domain_invariant() {
     let space = Space::new("issue1621");
     let m = profile_manifest(&space, P0);
-    // 基准：观察时间 = 签署生效日当日（2026-10-20，映射为 ns=0）。
     let base = Batch::ok(100000, P0);
-    let r1 = apply_with_observation(&m, &book::empty_image(), &raw("0", &base), 0, Some("0"));
+
+    // 真实 Unix epoch 纳秒时间戳：
+    // 2026-10-20 00:00:00 UTC = 1792454400 秒 = 1792454400000000000 ns
+    // 2026-10-19 = 1792368000000000000 ns
+    // 2026-10-21 = 1792540800000000000 ns
+    // 2027-10-21 = 1824076800000000000 ns
+
+    // 基准：观察时间 = 签署生效日当日（2026-10-20）
+    let base_ns = "1792454400000000000";
+    let r1 = apply_with_observation(&m, &book::empty_image(), &raw("0", &base), 0, Some(base_ns));
     assert_eq!(kind(&r1), "Applied", "观察时间 = 签署生效日当日应通过");
-    // 变异负控 1：观察时间早于签署生效日（2026-10-19 → ns = -86400e9）。
-    let early_ns = date_to_ns("2026-10-19");
-    let r2 = apply_with_observation(&m, &book::empty_image(), &raw("0", &base), 0, Some(&early_ns));
-    assert_eq!(
-        r2.as_ref().unwrap_err(),
-        "PolicyNotYetEffective：原件 known_at 2026-10-19 早于 funding-record 签署生效日",
-        "观察时间早于签署生效日应拒绝"
+
+    // 变异负控 1：观察时间早于签署生效日（2026-10-19）
+    let early_ns = "1792368000000000000";
+    let r2 = apply_with_observation(&m, &book::empty_image(), &raw("0", &base), 0, Some(early_ns));
+    assert!(
+        r2.as_ref().unwrap_err().starts_with("PolicyNotYetEffective"),
+        "观察时间早于签署生效日应拒绝，实际错误：{:?}",
+        r2.unwrap_err()
     );
-    // 变异负控 2：观察时间晚于有效期（2027-10-21 → ns = 366 * 86400e9）。
-    let late_ns = date_to_ns("2027-10-21");
-    let r3 = apply_with_observation(&m, &book::empty_image(), &raw("0", &base), 0, Some(&late_ns));
-    assert_eq!(
-        r3.as_ref().unwrap_err(),
-        "PolicyExpired：原件 known_at 2027-10-21 超过 funding-record 有效期",
-        "观察时间晚于有效期应拒绝"
+
+    // 变异负控 2：观察时间晚于有效期（2027-10-21，签署有效期到2027-10-20）
+    let late_ns = "1824076800000000000";
+    let r3 = apply_with_observation(&m, &book::empty_image(), &raw("0", &base), 0, Some(late_ns));
+    assert!(
+        r3.as_ref().unwrap_err().starts_with("PolicyExpired"),
+        "观察时间晚于有效期应拒绝，实际错误：{:?}",
+        r3.unwrap_err()
     );
+
     // 跨域不变式：同一观察时间 → B 应用与转移目标使用同一 first_known_ns。
     // （转移目标口径见 tb03c_transfer.rs:367：`known_at:record["b_observation"]["first_known_ns"]`）
-    let valid_ns = date_to_ns("2026-10-21");
-    let r4 = apply_with_observation(&m, &book::empty_image(), &raw("0", &base), 0, Some(&valid_ns));
+    let valid_ns = "1792540800000000000"; // 2026-10-21
+    let r4 = apply_with_observation(&m, &book::empty_image(), &raw("0", &base), 0, Some(valid_ns));
+    assert!(r4.is_ok(), "有效观察时间应通过，实际错误：{:?}", r4.as_ref().unwrap_err());
     let book = r4.as_ref().unwrap().0["book"].clone();
-    // 书账中记录的资金出处（funding）包含观察时间的映射（通过 check_opening 内部逻辑）。
-    // 这里验证开局批核验通过，确认跨域时刻先后由同一来源锁定。
     assert_eq!(kind(&r4), "Applied", "有效观察时间应通过");
     assert_eq!(book["book_revision"], "tb03c-book/2");
-    // 同输入同输出（纯函数不变式）。
+
+    // 同输入同输出（纯函数不变式）
     assert_eq!(
-        apply_with_observation(&m, &book::empty_image(), &raw("0", &base), 0, Some(&valid_ns)),
+        apply_with_observation(&m, &book::empty_image(), &raw("0", &base), 0, Some(valid_ns)),
         r4,
         "同一观察时间重复调用应得同一结果"
     );

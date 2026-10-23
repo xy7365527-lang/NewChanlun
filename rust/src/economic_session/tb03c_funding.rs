@@ -94,53 +94,44 @@ fn date<'a>(v: &'a Value, k: &str) -> Result<&'a str, String> {
     Ok(s)
 }
 
-/// #1621：将纳秒时间戳（整数字符串）转换为 YYYY-MM-DD 日期格式。
+/// #1621：将 Unix epoch 纳秒时间戳（整数字符串）转换为 YYYY-MM-DD 格式。
 /// 用于与签署记录的 authorized_at/valid_through（YYYY-MM-DD）比较。
 ///
-/// 实现：以 2026-10-20 为基准日（0 ns），每天 = 86400e9 ns。
-/// 粗算 year*365 + month*30 + day（与测试 date_to_ns/days_diff 对称，当前签署有效期内正确）。
+/// 时间来源：Config::clock() System 模式返回 Unix epoch 纳秒
+/// (SystemTime::now().duration_since(std::time::UNIX_EPOCH).as_nanos())，
+/// 参见 store.rs:314-317。
+///
+/// 实现：精确 Proleptic Gregorian 历法（基于 Howard Hinnant 的 civil_from_days 算法）。
+/// 支持负数（1970-01-01 之前）、闰年、月底边界。
 fn ns_to_date(ns_str: &str) -> Result<String, String> {
-    const BASE_DATE: &str = "2026-10-20";
-    const NS_PER_DAY: i64 = 86400_000_000_000;
+    const NS_PER_DAY: i64 = 86_400_000_000_000;
 
-    // 解析纳秒时间戳（可能为负）
     let ns: i64 = ns_str
         .parse()
         .map_err(|_| format!("InvalidDomain：first_known_ns 须为整数，得 {ns_str}"))?;
 
-    // 转换为相对基准日的天数（向下取整）
-    let days_offset = if ns >= 0 {
+    // 转换为天数（向下取整，负数正确处理）
+    let days_since_epoch = if ns >= 0 {
         ns / NS_PER_DAY
     } else {
-        // 负数向下取整（-1 → -1 天）
         (ns - NS_PER_DAY + 1) / NS_PER_DAY
     };
 
-    // 从基准日（2026-10-20）加/减天数，粗算日期
-    // 粗算：year*365 + month*30 + day（与测试 days_diff 对称）
-    let (base_y, base_m, base_d): (i32, i32, i32) = (2026, 10, 20);
-    let base_total = base_y * 365 + base_m * 30 + base_d;
-    let target_total = base_total + days_offset as i32;
+    // civil_from_days 算法（Howard Hinnant，Proleptic Gregorian）
+    // 输入：Unix epoch (1970-01-01) 后的天数
+    // 输出：(year, month, day)
+    let z = days_since_epoch + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = mp + if mp < 10 { 3 } else { -9 };
+    let y = y + if m <= 2 { 1 } else { 0 };
 
-    let year = target_total / 365;
-    let remaining = target_total % 365;
-    let month = if remaining <= 0 { 1 } else { 1 + (remaining - 1) / 30 };
-    let day = if remaining <= 0 {
-        1
-    } else {
-        1 + (remaining - 1) % 30
-    };
-
-    // 边界规整（确保 1≤month≤12, 1≤day≤31）
-    let (year, month, day) = if month > 12 {
-        (year + (month - 1) / 12, (month - 1) % 12 + 1, day)
-    } else if month < 1 {
-        (year - 1, 12, day)
-    } else {
-        (year, month, day)
-    };
-
-    Ok(format!("{:04}-{:02}-{:02}", year, month.max(1), day.max(1)))
+    Ok(format!("{:04}-{:02}-{:02}", y, m, d))
 }
 
 fn text<'a>(v: &'a Value, k: &str) -> Result<&'a str, String> {
@@ -489,3 +480,42 @@ pub(super) fn is_appended_contribution(event: &Value) -> bool {
             .as_array()
             .is_some_and(|a| a.iter().any(|c| c["kind"] == "principal_contribution"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// #1621：ns_to_date() 精确对拍——与 Python 标准库生成的 golden 值逐项校验。
+    /// 覆盖：Unix epoch、负数、月底、闰年、政策边界。
+    #[test]
+    fn ns_to_date_parity_with_python_stdlib() {
+        // Golden 值由 tb03c_funding_oracle_date.py 生成（Python datetime 标准库）
+        const ORACLE: &str = include_str!("tb03c_funding_oracle_date.json");
+        let oracle: Value = serde_json::from_str(ORACLE).unwrap();
+        let cases = oracle["test_cases"].as_array().unwrap();
+
+        for case in cases {
+            let desc = case["description"].as_str().unwrap();
+            let ns_str = case["ns"].as_str().unwrap();
+            let expected = case["expected_date"].as_str().unwrap();
+
+            // 调用 Rust 实现
+            let result = ns_to_date(ns_str);
+            assert!(
+                result.is_ok(),
+                "{desc}: ns={ns_str} 应转换成功，实际错误 {:?}",
+                result.unwrap_err()
+            );
+            let actual = result.unwrap();
+            assert_eq!(
+                actual, expected,
+                "{desc}: ns={ns_str} 应得 {expected}，实际得 {actual}"
+            );
+        }
+
+        // 额外负控：无效输入
+        assert!(ns_to_date("not_a_number").is_err());
+        assert!(ns_to_date("").is_err());
+    }
+}
+
